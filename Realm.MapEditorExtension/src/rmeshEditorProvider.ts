@@ -2,30 +2,29 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { sendGodotIpc } from './extension';
 
-export function parseRmesh(buffer: Buffer): { metadata: any; glbBytes: Buffer } | null {
-    if (buffer.length < 16) return null;
-    const magic = buffer.toString('ascii', 0, 4);
-    if (magic !== 'RMSH') return null;
-
-    const version = buffer.readUInt32LE(4);
-    const metaLen = buffer.readUInt32LE(8);
-    if (buffer.length < 12 + metaLen + 4) return null;
-
-    let metadata: any = {};
-    if (metaLen > 0) {
-        try {
-            const metaJson = buffer.toString('utf8', 12, 12 + metaLen);
-            metadata = JSON.parse(metaJson);
-        } catch {}
+function getTempGlbPath(rmeshFsPath: string): string {
+    const tempDir = path.join(os.tmpdir(), 'realm_extension_previews');
+    if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
     }
+    const hash = crypto.createHash('md5').update(rmeshFsPath).digest('hex').substring(0, 12);
+    return path.join(tempDir, `${hash}_${path.basename(rmeshFsPath, '.rmesh')}.glb`);
+}
 
-    const glbLen = buffer.readUInt32LE(12 + metaLen);
-    const glbStart = 16 + metaLen;
-    const glbBytes = buffer.subarray(glbStart, glbStart + glbLen);
-
-    return { metadata, glbBytes };
+async function ensureGlbExtracted(rmeshFsPath: string): Promise<{ glbPath: string; metadata: any } | null> {
+    const glbPath = getTempGlbPath(rmeshFsPath);
+    const response = await sendGodotIpc({
+        action: 'convertRmesh',
+        inputPath: rmeshFsPath,
+        outputPath: glbPath
+    });
+    if (!response || !response.success) {
+        return null;
+    }
+    return { glbPath, metadata: response.metadata || {} };
 }
 
 export class RmeshGlbFileSystemProvider implements vscode.FileSystemProvider {
@@ -64,18 +63,18 @@ export class RmeshGlbFileSystemProvider implements vscode.FileSystemProvider {
         if (!rmeshPath || !fs.existsSync(rmeshPath)) {
             throw vscode.FileSystemError.FileNotFound(uri);
         }
+        const glbPath = getTempGlbPath(rmeshPath);
+        if (!fs.existsSync(glbPath)) {
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
         try {
-            const stats = fs.statSync(rmeshPath);
-            const buffer = fs.readFileSync(rmeshPath);
-            const parsed = parseRmesh(buffer);
-            if (!parsed || !parsed.glbBytes) {
-                throw vscode.FileSystemError.FileNotFound(uri);
-            }
+            const rmeshStats = fs.statSync(rmeshPath);
+            const glbStats = fs.statSync(glbPath);
             return {
                 type: vscode.FileType.File,
-                ctime: stats.ctimeMs,
-                mtime: stats.mtimeMs,
-                size: parsed.glbBytes.length
+                ctime: rmeshStats.ctimeMs,
+                mtime: rmeshStats.mtimeMs,
+                size: glbStats.size
             };
         } catch (err: any) {
             if (err instanceof vscode.FileSystemError) throw err;
@@ -96,16 +95,16 @@ export class RmeshGlbFileSystemProvider implements vscode.FileSystemProvider {
         if (!rmeshPath || !fs.existsSync(rmeshPath)) {
             throw vscode.FileSystemError.FileNotFound(uri);
         }
+        const glbPath = getTempGlbPath(rmeshPath);
+        if (!fs.existsSync(glbPath)) {
+            throw vscode.FileSystemError.FileNotFound(uri);
+        }
         try {
-            const buffer = fs.readFileSync(rmeshPath);
-            const parsed = parseRmesh(buffer);
-            if (!parsed || !parsed.glbBytes) {
-                throw vscode.FileSystemError.FileNotFound(uri);
-            }
-            return new Uint8Array(parsed.glbBytes.buffer, parsed.glbBytes.byteOffset, parsed.glbBytes.byteLength);
+            const glbBuffer = fs.readFileSync(glbPath);
+            return new Uint8Array(glbBuffer.buffer, glbBuffer.byteOffset, glbBuffer.byteLength);
         } catch (err: any) {
             if (err instanceof vscode.FileSystemError) throw err;
-            throw vscode.FileSystemError.Unavailable(err?.message || 'Error reading rmesh GLB payload');
+            throw vscode.FileSystemError.Unavailable(err?.message || 'Error reading decompressed GLB payload');
         }
     }
 
@@ -124,6 +123,11 @@ export class RmeshGlbFileSystemProvider implements vscode.FileSystemProvider {
 
 export async function openRmeshInGlbViewer(rmeshPath: string): Promise<void> {
     try {
+        const result = await ensureGlbExtracted(rmeshPath);
+        if (!result) {
+            vscode.window.showErrorMessage('Failed to extract GLB from RMESH: Godot IPC returned an error. Make sure Godot is running with the Realm project open.');
+            return;
+        }
         const virtualUri = RmeshGlbFileSystemProvider.createVirtualUri(rmeshPath);
         await vscode.commands.executeCommand('vscode.openWith', virtualUri, 'glbViewer.customEditor', { preview: false });
     } catch (err: any) {
@@ -187,13 +191,12 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
                         });
 
                         if (targetUri) {
-                            const buffer = fs.readFileSync(rmeshPath);
-                            const parsed = parseRmesh(buffer);
-                            if (parsed && parsed.glbBytes) {
-                                fs.writeFileSync(targetUri.fsPath, parsed.glbBytes);
+                            const result = await ensureGlbExtracted(rmeshPath);
+                            if (result && fs.existsSync(result.glbPath)) {
+                                fs.copyFileSync(result.glbPath, targetUri.fsPath);
                                 vscode.window.showInformationMessage(`Successfully exported GLB to: ${targetUri.fsPath}`);
                             } else {
-                                vscode.window.showErrorMessage('Failed to extract GLB payload from RMESH file.');
+                                vscode.window.showErrorMessage('Failed to extract GLB payload from RMESH file. Make sure Godot is running.');
                             }
                         }
                     } catch (err: any) {
@@ -204,16 +207,16 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
         });
 
         try {
-            const fileBuffer = fs.readFileSync(rmeshPath);
-            const parsed = parseRmesh(fileBuffer);
             const stats = fs.statSync(rmeshPath);
+            const ipcResult = await ensureGlbExtracted(rmeshPath);
+            const glbSize = ipcResult && fs.existsSync(ipcResult.glbPath) ? fs.statSync(ipcResult.glbPath).size : 0;
+            const metadata = ipcResult?.metadata || {};
 
             webviewPanel.webview.html = this.getPreviewHtml(
-                webviewPanel.webview,
                 path.basename(rmeshPath),
                 stats.size,
-                parsed?.metadata || {},
-                parsed?.glbBytes?.length || 0
+                metadata,
+                glbSize
             );
         } catch (error: any) {
             webviewPanel.webview.html = this.getErrorHtml(error?.message || 'Failed to load RMESH file.');
@@ -221,6 +224,8 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
     }
 
     private getPreviewHtml(fileName: string, fileSize: number, metadata: any, glbSize: number): string {
+        const nonce = crypto.randomBytes(16).toString('base64');
+
         const formatSize = (bytes: number) => {
             if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
             if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -239,7 +244,7 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
     <style>
         body {
             display: flex;
@@ -382,19 +387,19 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
         </div>
 
         <div class="actions">
-            <button class="btn btn-primary" onclick="open3d()">🎮 Open in 3D Viewer (OHZI)</button>
-            <button class="btn btn-secondary" onclick="exportGlb()">📤 Export to GLB...</button>
+            <button id="btn-open3d" class="btn btn-primary">🎮 Open in 3D Viewer (OHZI)</button>
+            <button id="btn-export-glb" class="btn btn-secondary">📤 Export to GLB...</button>
         </div>
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
-        function open3d() {
+        document.getElementById('btn-open3d').addEventListener('click', function() {
             vscode.postMessage({ command: 'open3d' });
-        }
-        function exportGlb() {
+        });
+        document.getElementById('btn-export-glb').addEventListener('click', function() {
             vscode.postMessage({ command: 'exportGlb' });
-        }
+        });
     </script>
 </body>
 </html>`;
@@ -419,4 +424,3 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
 </html>`;
     }
 }
-

@@ -39,10 +39,7 @@ export class RealmRtexViewerProvider implements vscode.CustomReadonlyEditorProvi
             fs.mkdirSync(tempDir, { recursive: true });
         }
 
-        webviewPanel.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [vscode.Uri.file(tempDir)]
-        };
+        webviewPanel.webview.options = { enableScripts: false };
 
         const rtexPath = document.uri.fsPath;
         const fileNameHash = Buffer.from(rtexPath).toString('hex').substring(0, 12);
@@ -61,8 +58,9 @@ export class RealmRtexViewerProvider implements vscode.CustomReadonlyEditorProvi
                 throw new Error(response?.error || 'Godot IPC failed to convert RTEX preview.');
             }
 
-            const imageUri = webviewPanel.webview.asWebviewUri(vscode.Uri.file(outputPngPath));
-            webviewPanel.webview.html = this.getPreviewHtml(webviewPanel.webview, imageUri, path.basename(rtexPath), response.metadata);
+            const pngBytes = fs.readFileSync(outputPngPath);
+            const base64DataUri = `data:image/png;base64,${pngBytes.toString('base64')}`;
+            webviewPanel.webview.html = this.getPreviewHtml(base64DataUri, path.basename(rtexPath), response.metadata);
         } catch (error: any) {
             webviewPanel.webview.html = this.getErrorHtml(error?.message || 'Failed to load RTEX preview.');
         }
@@ -89,7 +87,7 @@ export class RealmRtexViewerProvider implements vscode.CustomReadonlyEditorProvi
 </html>`;
     }
 
-    private getPreviewHtml(webview: vscode.Webview, imageUri: vscode.Uri, title: string, metadata?: any): string {
+    private getPreviewHtml(base64DataUri: string, title: string, metadata?: any): string {
         const typeInfo = metadata?.asset_type ? `<div class="meta-item"><strong>Type:</strong> ${metadata.asset_type}</div>` : '';
         const tagsInfo = metadata?.tags && Array.isArray(metadata.tags) && metadata.tags.length > 0 ? `<div class="meta-item"><strong>Tags:</strong> ${metadata.tags.slice(0, 10).join(', ')}${metadata.tags.length > 10 ? '...' : ''}</div>` : '';
 
@@ -97,7 +95,7 @@ export class RealmRtexViewerProvider implements vscode.CustomReadonlyEditorProvi
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline';">
     <style>
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); font-family: var(--vscode-font-family); box-sizing: border-box; }
         .header { margin-bottom: 12px; font-weight: 600; font-size: 15px; color: var(--vscode-descriptionForeground); }
@@ -111,7 +109,7 @@ export class RealmRtexViewerProvider implements vscode.CustomReadonlyEditorProvi
     <div class="header">${title}</div>
     ${typeInfo || tagsInfo ? `<div class="meta-container">${typeInfo}${tagsInfo}</div>` : ''}
     <div class="image-container">
-        <img src="${imageUri}" alt="RTEX Preview" />
+        <img src="${base64DataUri}" alt="RTEX Preview" />
     </div>
 </body>
 </html>`;
