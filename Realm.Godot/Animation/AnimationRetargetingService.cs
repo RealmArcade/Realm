@@ -102,8 +102,6 @@ public static class AnimationRetargetingService
 		{
 			string p = Path.Combine(resDir, "Assets", "animations", candName);
 			if (File.Exists(p)) return p;
-			string pTemplate = Path.Combine(resDir, "MapTemplate", "Assets", "animations", candName);
-			if (File.Exists(pTemplate)) return pTemplate;
 		}
 
 		return null;

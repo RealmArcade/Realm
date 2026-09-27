@@ -139,6 +139,8 @@ public partial class GameHost
 				return true;
 			if (UnitRegistry.TryGetValue(unit.UnitId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath) && NormalizeModelAssetKey(meta.ModelPath) == normTarget)
 				return true;
+			if (BuildingRegistry.TryGetValue(unit.UnitId, out var bldMeta) && !string.IsNullOrEmpty(bldMeta.ModelPath) && NormalizeModelAssetKey(bldMeta.ModelPath) == normTarget)
+				return true;
 		}
 		else if (objOrId is Prop3D prop)
 		{
@@ -149,12 +151,18 @@ public partial class GameHost
 				return true;
 			if ((ResourceRegistry.TryGetValue(prop.PropId, out var resMeta) || (!string.IsNullOrEmpty(cleanPropId) && ResourceRegistry.TryGetValue(cleanPropId, out resMeta))) && !string.IsNullOrEmpty(resMeta.ModelPath) && NormalizeModelAssetKey(resMeta.ModelPath) == normTarget)
 				return true;
+			if ((BuildingRegistry.TryGetValue(prop.PropId, out var bldMeta) || (!string.IsNullOrEmpty(cleanPropId) && BuildingRegistry.TryGetValue(cleanPropId, out bldMeta))) && !string.IsNullOrEmpty(bldMeta.ModelPath) && NormalizeModelAssetKey(bldMeta.ModelPath) == normTarget)
+				return true;
+			if ((UnitRegistry.TryGetValue(prop.PropId, out var uMeta) || (!string.IsNullOrEmpty(cleanPropId) && UnitRegistry.TryGetValue(cleanPropId, out uMeta))) && !string.IsNullOrEmpty(uMeta.ModelPath) && NormalizeModelAssetKey(uMeta.ModelPath) == normTarget)
+				return true;
 		}
 		else if (objOrId is string str)
 		{
 			if (NormalizeModelAssetKey(str) == normTarget) return true;
 			string cleanStr = System.IO.Path.GetFileNameWithoutExtension(str);
 			if ((UnitRegistry.TryGetValue(str, out var meta) || (!string.IsNullOrEmpty(cleanStr) && UnitRegistry.TryGetValue(cleanStr, out meta))) && !string.IsNullOrEmpty(meta.ModelPath) && NormalizeModelAssetKey(meta.ModelPath) == normTarget)
+				return true;
+			if ((BuildingRegistry.TryGetValue(str, out var bldMeta) || (!string.IsNullOrEmpty(cleanStr) && BuildingRegistry.TryGetValue(cleanStr, out bldMeta))) && !string.IsNullOrEmpty(bldMeta.ModelPath) && NormalizeModelAssetKey(bldMeta.ModelPath) == normTarget)
 				return true;
 			if ((PropRegistry.TryGetValue(str, out var propMeta) || (!string.IsNullOrEmpty(cleanStr) && PropRegistry.TryGetValue(cleanStr, out propMeta))) && !string.IsNullOrEmpty(propMeta.ModelPath) && NormalizeModelAssetKey(propMeta.ModelPath) == normTarget)
 				return true;
@@ -180,6 +188,7 @@ public partial class GameHost
 		if (!string.IsNullOrEmpty(primaryKey))
 		{
 			if (UnitRegistry.TryGetValue(primaryKey, out var meta) && meta.YOffset != 0f) return meta.YOffset;
+			if (BuildingRegistry.TryGetValue(primaryKey, out var bldMeta) && bldMeta.YOffset != 0f) return bldMeta.YOffset;
 			if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta) && resMeta.YOffset != 0f) return resMeta.YOffset;
 			if (PropRegistry.TryGetValue(primaryKey, out var propMeta) && propMeta.YOffset != 0f) return propMeta.YOffset;
 		}
@@ -213,13 +222,13 @@ public partial class GameHost
 
 		if (_editorPreviewNode != null && GodotObject.IsInstanceValid(_editorPreviewNode) && MatchesEntityOrAssetKey(_editorPreviewNode, norm))
 		{
-			if (_editorPreviewNode is Prop3D previewProp)
-			{
-				previewProp.UpdateVisualYOffset(offset);
-			}
-			else if (_editorPreviewNode is Unit3D previewUnit)
+			if (_editorPreviewNode is Unit3D previewUnit)
 			{
 				previewUnit.UpdateModelYOffset(offset);
+			}
+			else if (_editorPreviewNode is Prop3D previewProp)
+			{
+				previewProp.UpdateVisualYOffset(offset);
 			}
 		}
 
@@ -243,6 +252,7 @@ public partial class GameHost
 		if (!string.IsNullOrEmpty(primaryKey))
 		{
 			if (UnitRegistry.TryGetValue(primaryKey, out var meta) && meta.Scale > 0f) return meta.Scale;
+			if (BuildingRegistry.TryGetValue(primaryKey, out var bldMeta) && bldMeta.Scale > 0f) return bldMeta.Scale;
 			if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta) && resMeta.Scale > 0f) return resMeta.Scale;
 			if (PropRegistry.TryGetValue(primaryKey, out var propMeta) && propMeta.Scale > 0f) return propMeta.Scale;
 		}
@@ -250,6 +260,7 @@ public partial class GameHost
 		if (!string.IsNullOrEmpty(normAsset))
 		{
 			if (UnitRegistry.TryGetValue(normAsset, out var meta2) && meta2.Scale > 0f) return meta2.Scale;
+			if (BuildingRegistry.TryGetValue(normAsset, out var bldMeta2) && bldMeta2.Scale > 0f) return bldMeta2.Scale;
 			if (ResourceRegistry.TryGetValue(normAsset, out var resMeta2) && resMeta2.Scale > 0f) return resMeta2.Scale;
 			if (PropRegistry.TryGetValue(normAsset, out var propMeta2) && propMeta2.Scale > 0f) return propMeta2.Scale;
 		}
@@ -307,13 +318,13 @@ public partial class GameHost
 
 		if (_editorPreviewNode != null && GodotObject.IsInstanceValid(_editorPreviewNode) && MatchesEntityOrAssetKey(_editorPreviewNode, norm))
 		{
-			if (_editorPreviewNode is Prop3D previewProp)
-			{
-				previewProp.UpdateVisualScale(clampedScale);
-			}
-			else if (_editorPreviewNode is Unit3D previewUnit)
+			if (_editorPreviewNode is Unit3D previewUnit)
 			{
 				previewUnit.UpdateModelScale(clampedScale);
+			}
+			else if (_editorPreviewNode is Prop3D previewProp)
+			{
+				previewProp.UpdateVisualScale(clampedScale);
 			}
 		}
 
@@ -1215,13 +1226,13 @@ public partial class GameHost
 
 		if (_editorPreviewNode != null && GodotObject.IsInstanceValid(_editorPreviewNode) && MatchesEntityOrAssetKey(_editorPreviewNode, normAssetKey))
 		{
-			if (_editorPreviewNode is Prop3D previewProp)
-			{
-				previewProp.UpdateCollisionCircleScale(ratio);
-			}
-			else if (_editorPreviewNode is Unit3D previewUnit)
+			if (_editorPreviewNode is Unit3D previewUnit)
 			{
 				previewUnit.UpdateCollisionCircleScale(ratio);
+			}
+			else if (_editorPreviewNode is Prop3D previewProp)
+			{
+				previewProp.UpdateCollisionCircleScale(ratio);
 			}
 		}
 	}
