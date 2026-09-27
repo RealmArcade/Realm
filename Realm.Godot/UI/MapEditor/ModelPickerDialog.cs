@@ -264,6 +264,7 @@ public partial class ModelPickerDialog : FloatingDialogBase
 
 			_subViewport.AddChild(cloned);
 			_previewModelRoot = cloned;
+			Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(cloned, modelPath);
 			if (_previewModelRoot.IsInsideTree())
 			{
 				_previewModelRoot.PropagateNotification((int)Node3D.NotificationTransformChanged);

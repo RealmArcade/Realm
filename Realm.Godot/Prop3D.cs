@@ -483,6 +483,7 @@ public partial class Prop3D : StaticBody3D
 						if (node != null)
 						{
 							visual.AddChild(node);
+							Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(node, PropId);
 							if (!IsPreview)
 							{
 								GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);

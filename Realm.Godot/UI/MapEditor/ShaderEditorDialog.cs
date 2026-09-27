@@ -655,6 +655,7 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 		if (loadedNode3D != null)
 		{
 			_currentModelRoot.AddChild(loadedNode3D);
+			Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, modelPath ?? key);
 			CenterAndFrameNode(loadedNode3D);
 		}
 

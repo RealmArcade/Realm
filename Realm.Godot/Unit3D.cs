@@ -227,7 +227,11 @@ public partial class Unit3D : Prop3D
 
 	public override void _Ready()
 	{
-		if (IsPreview) return;
+		if (IsPreview)
+		{
+			SeekToIdleFirstFrame();
+			return;
+		}
 
 		SetNotifyTransform(true);
 
@@ -489,19 +493,31 @@ public partial class Unit3D : Prop3D
 			}
 		}
 
+		_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
 		_animationPlayer.Play(resolved);
 	}
 
 	private void SeekToIdleFirstFrame()
 	{
-		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
+		if (_modelNode == null || !GodotObject.IsInstanceValid(_modelNode)) return;
+		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer))
+		{
+			_animationPlayer = Realm.Godot.Animation.AnimationRetargetingService.FindOrCreateAnimationPlayer(_modelNode);
+		}
+
 		StringName idleAnim = ResolveAnimationName("Idle");
-		if (idleAnim == null) return;
-		UpdateHandAttachmentsForAnimation("Idle", idleAnim.ToString());
-		_animationPlayer.Play(idleAnim);
-		_animationPlayer.Seek(0.0, true);
-		_animationPlayer.Advance(0);
-		_animationPlayer.Pause();
+		if (idleAnim != null && _animationPlayer != null && _animationPlayer.HasAnimation(idleAnim))
+		{
+			UpdateHandAttachmentsForAnimation("Idle", idleAnim.ToString());
+			_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
+			_animationPlayer.Play(idleAnim);
+			_animationPlayer.Seek(0.0, update: true);
+			_animationPlayer.Pause();
+		}
+		else
+		{
+			Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(_modelNode, UnitId);
+		}
 	}
 
 	public static Skeleton3D? FindSkeleton(Node? root)
@@ -1308,7 +1324,7 @@ public partial class Unit3D : Prop3D
 
 		var fallbackAnim = animName switch
 		{
-			"Idle" => Realm.Godot.Animation.RealmDefaultAnimations.Idle,
+			"Idle" => Realm.Godot.Animation.AnimationRetargetingService.GetIdleAnimationData(UnitId),
 			"Walk" => Realm.Godot.Animation.RealmDefaultAnimations.Walk,
 			"Attack" => Realm.Godot.Animation.RealmDefaultAnimations.Attack,
 			"Death" => Realm.Godot.Animation.RealmDefaultAnimations.Death,
