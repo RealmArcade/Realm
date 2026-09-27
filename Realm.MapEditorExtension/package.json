@@ -15,6 +15,71 @@
                          ],
     "main":  "./dist/extension.js",
     "contributes":  {
+                        "languages":  [
+                                          {
+                                              "id":  "rtex",
+                                              "aliases":  [
+                                                              "Realm Texture",
+                                                              "rtex"
+                                                          ],
+                                              "extensions":  [
+                                                                 ".rtex"
+                                                             ],
+                                              "icon":  {
+                                                           "light":  "./media/icons/rtex.svg",
+                                                           "dark":  "./media/icons/rtex.svg"
+                                                       }
+                                          },
+                                          {
+                                              "id":  "ranim",
+                                              "aliases":  [
+                                                              "Realm Animation",
+                                                              "ranim"
+                                                          ],
+                                              "extensions":  [
+                                                                 ".ranim"
+                                                             ],
+                                              "icon":  {
+                                                           "light":  "./media/icons/ranim.svg",
+                                                           "dark":  "./media/icons/ranim.svg"
+                                                       }
+                                          },
+                                          {
+                                              "id":  "rmesh",
+                                              "aliases":  [
+                                                              "Realm 3D Mesh",
+                                                              "rmesh"
+                                                          ],
+                                              "extensions":  [
+                                                                 ".rmesh"
+                                                             ],
+                                              "icon":  {
+                                                           "light":  "./media/icons/rmesh.svg",
+                                                           "dark":  "./media/icons/rmesh.svg"
+                                                       }
+                                          },
+                                          {
+                                              "id":  "raud",
+                                              "aliases":  [
+                                                              "Realm Audio",
+                                                              "raud"
+                                                          ],
+                                              "extensions":  [
+                                                                 ".raud"
+                                                             ],
+                                              "icon":  {
+                                                           "light":  "./media/icons/raud.svg",
+                                                           "dark":  "./media/icons/raud.svg"
+                                                       }
+                                          }
+                                      ],
+                        "iconThemes":  [
+                                           {
+                                               "id":  "realm-icons",
+                                               "label":  "Realm Icons",
+                                               "path":  "./media/icons/realm-icon-theme.json"
+                                           }
+                                       ],
                         "customEditors":  [
                                               {
                                                   "viewType":  "realm.mapEditor",
@@ -72,6 +137,11 @@
                                              "command":  "realm.openRmesh3D",
                                              "title":  "Open in 3D GLB Viewer",
                                              "category":  "Realm"
+                                         },
+                                         {
+                                             "command":  "realm.exportRanim",
+                                             "title":  "Export Animation (.ranim)",
+                                             "category":  "Realm"
                                          }
                                      ],
                         "menus":  {
@@ -79,6 +149,11 @@
                                                                {
                                                                    "command":  "realm.openRmesh3D",
                                                                    "when":  "resourceExtname == .rmesh",
+                                                                   "group":  "navigation"
+                                                               },
+                                                               {
+                                                                   "command":  "realm.exportRanim",
+                                                                   "when":  "resourceExtname == .ranim",
                                                                    "group":  "navigation"
                                                                }
                                                            ]

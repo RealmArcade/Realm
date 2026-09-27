@@ -4,11 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Nodes;
 using Realm.Shared.Metadata;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
+using Imazen.WebP;
 
 namespace Realm.Shared.Textures;
 
@@ -45,7 +42,7 @@ public static class TextureConverter
 	}
 
 	public static float CalculateLuminanceScaleFactor(
-		Image<Rgba32> sourceImage,
+		SKBitmap sourceImage,
 		float targetLinearLuminance = 0.1133f,
 		float minScaleFactor = 0.2f,
 		float maxScaleFactor = 4.0f)
@@ -59,15 +56,15 @@ public static class TextureConverter
 		{
 			for (int x = 0; x < width; x++)
 			{
-				Rgba32 pixel = sourceImage[x, y];
-				if (pixel.A < 13 || (pixel.R == 0 && pixel.G == 0 && pixel.B == 0))
+				SKColor pixel = sourceImage.GetPixel(x, y);
+				if (pixel.Alpha < 13 || (pixel.Red == 0 && pixel.Green == 0 && pixel.Blue == 0))
 				{
 					continue;
 				}
 
-				float rLinear = SrgbToLinearLut[pixel.R];
-				float gLinear = SrgbToLinearLut[pixel.G];
-				float bLinear = SrgbToLinearLut[pixel.B];
+				float rLinear = SrgbToLinearLut[pixel.Red];
+				float gLinear = SrgbToLinearLut[pixel.Green];
+				float bLinear = SrgbToLinearLut[pixel.Blue];
 
 				float rPow = rLinear * rLinear;
 				float gPow = gLinear * gLinear;
@@ -85,12 +82,12 @@ public static class TextureConverter
 			{
 				for (int x = 0; x < width; x++)
 				{
-					Rgba32 pixel = sourceImage[x, y];
-					if (pixel.A < 13) continue;
+					SKColor pixel = sourceImage.GetPixel(x, y);
+					if (pixel.Alpha < 13) continue;
 
-					float rLinear = SrgbToLinearLut[pixel.R];
-					float gLinear = SrgbToLinearLut[pixel.G];
-					float bLinear = SrgbToLinearLut[pixel.B];
+					float rLinear = SrgbToLinearLut[pixel.Red];
+					float gLinear = SrgbToLinearLut[pixel.Green];
+					float bLinear = SrgbToLinearLut[pixel.Blue];
 
 					float rPow = rLinear * rLinear;
 					float gPow = gLinear * gLinear;
@@ -135,7 +132,8 @@ public static class TextureConverter
 				}
 			}
 
-			using var img = Image.Load<Rgba32>(imagePath);
+			using var img = SKBitmap.Decode(imagePath);
+			if (img == null) return 1.0f;
 			return CalculateLuminanceScaleFactor(img, targetLinearLuminance, minScaleFactor, maxScaleFactor);
 		}
 		catch
@@ -144,11 +142,11 @@ public static class TextureConverter
 		}
 	}
 
-	public static Image<Rgba32> NormalizeLuminance(Image<Rgba32> sourceImage, float scaleFactor)
+	public static SKBitmap NormalizeLuminance(SKBitmap sourceImage, float scaleFactor)
 	{
 		int width = sourceImage.Width;
 		int height = sourceImage.Height;
-		var result = new Image<Rgba32>(width, height);
+		var result = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
 		byte[] scaledLut = new byte[256];
 		for (int i = 0; i < 256; i++)
@@ -161,18 +159,18 @@ public static class TextureConverter
 		{
 			for (int x = 0; x < width; x++)
 			{
-				Rgba32 pixel = sourceImage[x, y];
-				if (pixel.A < 13)
+				SKColor pixel = sourceImage.GetPixel(x, y);
+				if (pixel.Alpha < 13)
 				{
-					result[x, y] = pixel;
+					result.SetPixel(x, y, pixel);
 					continue;
 				}
 
-				byte r = scaledLut[pixel.R];
-				byte g = scaledLut[pixel.G];
-				byte b = scaledLut[pixel.B];
+				byte r = scaledLut[pixel.Red];
+				byte g = scaledLut[pixel.Green];
+				byte b = scaledLut[pixel.Blue];
 
-				result[x, y] = new Rgba32(r, g, b, pixel.A);
+				result.SetPixel(x, y, new SKColor(r, g, b, pixel.Alpha));
 			}
 		}
 
@@ -180,10 +178,10 @@ public static class TextureConverter
 	}
 
 	public static void ProcessTerrainPbr(
-		Image<Rgba32> sourceImage,
+		SKBitmap sourceImage,
 		bool isDecal,
-		out Image<Rgba32> layer0,
-		out Image<Rgba32> layer1)
+		out SKBitmap layer0,
+		out SKBitmap layer1)
 	{
 		int width = sourceImage.Width;
 		int height = sourceImage.Height;
@@ -193,13 +191,13 @@ public static class TextureConverter
 		{
 			for (int x = 0; x < width; x++)
 			{
-				Rgba32 p = sourceImage[x, y];
-				luminance[x, y] = (0.299f * p.R + 0.587f * p.G + 0.114f * p.B) / 255.0f;
+				SKColor p = sourceImage.GetPixel(x, y);
+				luminance[x, y] = (0.299f * p.Red + 0.587f * p.Green + 0.114f * p.Blue) / 255.0f;
 			}
 		}
 
-		float[,] fineMean = ComputeSeparableBoxBlur(luminance, width, height, 3);
-		float[,] coarseMean = ComputeSeparableBoxBlur(luminance, width, height, 14);
+		float[,] fineMean = ComputeSeparableBoxBlur(luminance, width, height, 3, isDecal);
+		float[,] coarseMean = ComputeSeparableBoxBlur(luminance, width, height, 14, isDecal);
 
 		float[,] rawHeight = new float[width, height];
 		float[] flatHeights = new float[width * height];
@@ -209,22 +207,31 @@ public static class TextureConverter
 
 		for (int y = 0; y < height; y++)
 		{
-			int py = y > 0 ? y - 1 : height - 1;
-			int ny = y < height - 1 ? y + 1 : 0;
+			int py = isDecal ? (y > 0 ? y - 1 : y) : (y > 0 ? y - 1 : height - 1);
+			int ny = isDecal ? (y < height - 1 ? y + 1 : y) : (y < height - 1 ? y + 1 : 0);
 
 			for (int x = 0; x < width; x++)
 			{
-				int px = x > 0 ? x - 1 : width - 1;
-				int nx = x < width - 1 ? x + 1 : 0;
+				int px = isDecal ? (x > 0 ? x - 1 : x) : (x > 0 ? x - 1 : width - 1);
+				int nx = isDecal ? (x < width - 1 ? x + 1 : x) : (x < width - 1 ? x + 1 : 0);
 
 				float lum = luminance[x, y];
 				float highFreq = lum - fineMean[x, y];
 				float midFreq = fineMean[x, y] - coarseMean[x, y];
 
-				float dx = (luminance[nx, y] - luminance[px, y]) * 0.5f;
-				float dy = (luminance[x, ny] - luminance[x, py]) * 0.5f;
+				float l00 = luminance[px, py];
+				float l10 = luminance[x, py];
+				float l20 = luminance[nx, py];
+				float l01 = luminance[px, y];
+				float l21 = luminance[nx, y];
+				float l02 = luminance[px, ny];
+				float l12 = luminance[x, ny];
+				float l22 = luminance[nx, ny];
+
+				float dx = ((3.0f * l20 + 10.0f * l21 + 3.0f * l22) - (3.0f * l00 + 10.0f * l01 + 3.0f * l02)) / 32.0f;
+				float dy = ((3.0f * l02 + 10.0f * l12 + 3.0f * l22) - (3.0f * l00 + 10.0f * l10 + 3.0f * l20)) / 32.0f;
 				float gradMag = MathF.Sqrt(dx * dx + dy * dy);
-				float laplacian = luminance[nx, y] + luminance[px, y] + luminance[x, ny] + luminance[x, py] - 4.0f * lum;
+				float laplacian = l21 + l01 + l12 + l10 - 4.0f * lum;
 
 				float structuralValue = 0.5f + (highFreq * 2.2f) + (midFreq * 1.4f) + (laplacian * 0.5f) - (gradMag * 0.25f);
 				rawHeight[x, y] = structuralValue;
@@ -252,28 +259,40 @@ public static class TextureConverter
 			}
 		}
 
-		layer0 = new Image<Rgba32>(width, height);
-		layer1 = new Image<Rgba32>(width, height);
+		layer0 = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+		layer1 = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
 		for (int y = 0; y < height; y++)
 		{
-			int py = y > 0 ? y - 1 : height - 1;
-			int ny = y < height - 1 ? y + 1 : 0;
+			int py = isDecal ? (y > 0 ? y - 1 : y) : (y > 0 ? y - 1 : height - 1);
+			int ny = isDecal ? (y < height - 1 ? y + 1 : y) : (y < height - 1 ? y + 1 : 0);
 
 			for (int x = 0; x < width; x++)
 			{
-				int px = x > 0 ? x - 1 : width - 1;
-				int nx = x < width - 1 ? x + 1 : 0;
+				int px = isDecal ? (x > 0 ? x - 1 : x) : (x > 0 ? x - 1 : width - 1);
+				int nx = isDecal ? (x < width - 1 ? x + 1 : x) : (x < width - 1 ? x + 1 : 0);
 
-				Rgba32 albedoCol = sourceImage[x, y];
+				SKColor albedoCol = sourceImage.GetPixel(x, y);
 				float heightVal = normalizedHeight[x, y];
 				byte heightByte = (byte)Math.Clamp((int)Math.Round(heightVal * 255.0f), 0, 255);
-				byte alphaVal = isDecal ? albedoCol.A : (byte)255;
+				byte alphaVal = isDecal ? albedoCol.Alpha : (byte)255;
 
-				layer0[x, y] = new Rgba32(albedoCol.R, albedoCol.G, albedoCol.B, alphaVal);
+				layer0.SetPixel(x, y, new SKColor(albedoCol.Red, albedoCol.Green, albedoCol.Blue, alphaVal));
 
-				float dX = (normalizedHeight[nx, y] - normalizedHeight[px, y]) * normalStrength;
-				float dY = (normalizedHeight[x, ny] - normalizedHeight[x, py]) * normalStrength;
+				float h00 = normalizedHeight[px, py];
+				float h10 = normalizedHeight[x, py];
+				float h20 = normalizedHeight[nx, py];
+				float h01 = normalizedHeight[px, y];
+				float h21 = normalizedHeight[nx, y];
+				float h02 = normalizedHeight[px, ny];
+				float h12 = normalizedHeight[x, ny];
+				float h22 = normalizedHeight[nx, ny];
+
+				float scharrX = ((3.0f * h20 + 10.0f * h21 + 3.0f * h22) - (3.0f * h00 + 10.0f * h01 + 3.0f * h02)) / 32.0f;
+				float scharrY = ((3.0f * h02 + 10.0f * h12 + 3.0f * h22) - (3.0f * h00 + 10.0f * h10 + 3.0f * h20)) / 32.0f;
+
+				float dX = scharrX * normalStrength;
+				float dY = scharrY * normalStrength;
 
 				float len = MathF.Sqrt(dX * dX + dY * dY + 1.0f);
 				float invLen = 1.0f / len;
@@ -290,26 +309,59 @@ public static class TextureConverter
 				float roughness = Math.Clamp(lerpVal + highDetail * 0.8f, 0.15f, 0.95f);
 				byte normA = (byte)Math.Clamp((int)Math.Round(roughness * 255.0f), 0, 255);
 
-				layer1[x, y] = new Rgba32(normR, normG, normB, normA);
+				layer1.SetPixel(x, y, new SKColor(normR, normG, normB, normA));
 			}
 		}
 	}
 
-	public static byte[] EncodeWebp(Image<Rgba32> image, bool lossless = false, int quality = 90)
+	public static byte[] EncodeWebp(SKBitmap image, bool lossless = false, int quality = 90)
 	{
-		using var ms = new MemoryStream();
-		var encoder = new WebpEncoder
+		int width = image.Width;
+		int height = image.Height;
+		byte[] pixelBytes = new byte[width * height * 4];
+
+		for (int y = 0; y < height; y++)
 		{
-			FileFormat = lossless ? WebpFileFormatType.Lossless : WebpFileFormatType.Lossy,
-			Quality = lossless ? 100 : quality
-		};
-		image.Save(ms, encoder);
-		return ms.ToArray();
+			for (int x = 0; x < width; x++)
+			{
+				SKColor color = image.GetPixel(x, y);
+				int idx = (y * width + x) * 4;
+				pixelBytes[idx] = color.Red;
+				pixelBytes[idx + 1] = color.Green;
+				pixelBytes[idx + 2] = color.Blue;
+				pixelBytes[idx + 3] = color.Alpha;
+			}
+		}
+
+		var config = new WebPEncoderConfig();
+		if (lossless)
+		{
+			config.SetLossless(true)
+				.SetLosslessPreset(9)
+				.SetMethod(6)
+				.SetExact(true)
+				.SetMultiThreaded(true);
+		}
+		else
+		{
+			config.SetQuality(Math.Clamp(quality, 0, 100))
+				.SetMethod(6)
+				.SetSharpYuv(true)
+				.SetMultiThreaded(true);
+		}
+
+		byte[] encoded = WebPEncoder.Encode(pixelBytes, width, height, width * 4, WebPPixelFormat.Rgba, config);
+		if (encoded == null || encoded.Length == 0)
+		{
+			throw new InvalidOperationException("Failed to encode WebP image using libwebp.");
+		}
+
+		return encoded;
 	}
 
 	private static bool EncodeTwoLayerPbrRtex(
-		Image<Rgba32> layer0,
-		Image<Rgba32> layer1,
+		SKBitmap layer0,
+		SKBitmap layer1,
 		string outputRtexPath,
 		string metadataJson,
 		out string errorMessage,
@@ -321,9 +373,10 @@ public static class TextureConverter
 			byte[] l0Bytes = EncodeWebp(layer0, lossless: !compressAlbedo, quality: 90);
 			byte[] l1Bytes = EncodeWebp(layer1, lossless: true); // Always lossless for PBR normal/height/roughness
 
-			byte[] rtexBytes = RtexFile.Build(metadataJson, [l0Bytes, l1Bytes]);
 			string? dir = Path.GetDirectoryName(outputRtexPath);
 			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+			byte[] rtexBytes = RtexFile.Build(metadataJson, [l0Bytes, l1Bytes]);
 			File.WriteAllBytes(outputRtexPath, rtexBytes);
 			RealmMetadataHelper.SyncBlake3Metadata(outputRtexPath);
 			return true;
@@ -336,7 +389,7 @@ public static class TextureConverter
 	}
 
 	private static bool EncodeSingleLayerRtex(
-		Image<Rgba32> image,
+		SKBitmap image,
 		string outputRtexPath,
 		string metadataJson,
 		out string errorMessage,
@@ -385,7 +438,13 @@ public static class TextureConverter
 			byte[] originalBits = File.ReadAllBytes(result.InputPath);
 			string originalBlake3 = RealmMetadataHelper.ComputeBlake3(originalBits, Path.GetExtension(result.InputPath));
 
-			using var sourceImage = Image.Load<Rgba32>(result.InputPath);
+			using var sourceImage = SKBitmap.Decode(result.InputPath);
+			if (sourceImage == null)
+			{
+				result.Success = false;
+				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
+				return result;
+			}
 			float scaleFactor = forcedScaleFactor ?? CalculateLuminanceScaleFactor(sourceImage);
 			result.ScaleFactor = scaleFactor;
 
@@ -448,7 +507,13 @@ public static class TextureConverter
 			byte[] originalBits = File.ReadAllBytes(result.InputPath);
 			string originalBlake3 = RealmMetadataHelper.ComputeBlake3(originalBits, Path.GetExtension(result.InputPath));
 
-			using var sourceImage = Image.Load<Rgba32>(result.InputPath);
+			using var sourceImage = SKBitmap.Decode(result.InputPath);
+			if (sourceImage == null)
+			{
+				result.Success = false;
+				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
+				return result;
+			}
 			float scaleFactor = forcedScaleFactor ?? CalculateLuminanceScaleFactor(sourceImage);
 			result.ScaleFactor = scaleFactor;
 
@@ -514,7 +579,13 @@ public static class TextureConverter
 			byte[] originalBits = File.ReadAllBytes(result.InputPath);
 			string originalBlake3 = RealmMetadataHelper.ComputeBlake3(originalBits, Path.GetExtension(result.InputPath));
 
-			using var sourceImage = Image.Load<Rgba32>(result.InputPath);
+			using var sourceImage = SKBitmap.Decode(result.InputPath);
+			if (sourceImage == null)
+			{
+				result.Success = false;
+				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
+				return result;
+			}
 			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"vfx_spritesheet\",\"canonical_blake3\":\"{originalBlake3}\",\"columns\":{columns},\"rows\":{rows},\"fps\":{fps.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},\"layers\":1}}";
 
 			bool encodeOk = EncodeSingleLayerRtex(
@@ -548,10 +619,10 @@ public static class TextureConverter
 		string outputRtexPath,
 		bool enableRdo = false,
 		float horizonBlendStart = 0.5f,
-		Rgba32? horizonColor = null,
+		SKColor? horizonColor = null,
 		float wrapBlendWidth = 0.05f,
 		float zenithBlendEnd = 0.08f,
-		Rgba32? zenithColor = null)
+		SKColor? zenithColor = null)
 	{
 		var result = new TextureConversionResult
 		{
@@ -573,7 +644,14 @@ public static class TextureConverter
 
 			using var sourceImage = Path.GetExtension(result.InputPath).Equals(".rtex", StringComparison.OrdinalIgnoreCase)
 				? ExtractImageFromRtex(result.InputPath, 0) ?? throw new InvalidOperationException($"Failed to load image from RTEX: {result.InputPath}")
-				: Image.Load<Rgba32>(originalBits);
+				: SKBitmap.Decode(originalBits);
+
+			if (sourceImage == null)
+			{
+				result.Success = false;
+				result.ErrorMessage = $"Failed to decode skybox image: {rawImagePath}";
+				return result;
+			}
 
 			using var processedImage = SkyboxProcessor.ProcessSkybox(
 				sourceImage,
@@ -668,7 +746,13 @@ public static class TextureConverter
 			byte[] originalBits = File.ReadAllBytes(result.InputPath);
 			string originalBlake3 = RealmMetadataHelper.ComputeBlake3(originalBits, Path.GetExtension(result.InputPath));
 
-			using var sourceImage = Image.Load<Rgba32>(result.InputPath);
+			using var sourceImage = SKBitmap.Decode(result.InputPath);
+			if (sourceImage == null)
+			{
+				result.Success = false;
+				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
+				return result;
+			}
 			string metadataJson;
 			if (!string.IsNullOrWhiteSpace(customMetadataJson))
 			{
@@ -717,18 +801,18 @@ public static class TextureConverter
 		}
 	}
 
-	public static Image<Rgba32>? ExtractImageFromRtex(string rtexPath, int layer = 0)
+	public static SKBitmap? ExtractImageFromRtex(string rtexPath, int layer = 0)
 	{
 		if (!File.Exists(rtexPath)) return null;
 		byte[] bytes = File.ReadAllBytes(rtexPath);
 		return ExtractImageFromRtexBytes(bytes, layer);
 	}
 
-	public static Image<Rgba32>? ExtractImageFromRtexBytes(ReadOnlySpan<byte> rtexBytes, int layer = 0)
+	public static SKBitmap? ExtractImageFromRtexBytes(ReadOnlySpan<byte> rtexBytes, int layer = 0)
 	{
 		byte[]? webpBytes = RtexFile.GetLayer(rtexBytes, layer);
 		if (webpBytes == null || webpBytes.Length == 0) return null;
-		return Image.Load<Rgba32>(webpBytes);
+		return SKBitmap.Decode(webpBytes);
 	}
 
 	public static byte[]? ExtractWebpFromRtex(string rtexPath, int layer = 0)
@@ -772,7 +856,10 @@ public static class TextureConverter
 			string? dir = Path.GetDirectoryName(fullOutput);
 			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
-			image.SaveAsPng(fullOutput);
+			using var skImage = SKImage.FromBitmap(image);
+			using var data = skImage.Encode(SKEncodedImageFormat.Png, 100);
+			using var stream = File.Create(fullOutput);
+			data.SaveTo(stream);
 
 			result.Success = true;
 			return result;
@@ -1010,7 +1097,7 @@ public static class TextureConverter
 		return failCount > 0 ? 1 : 0;
 	}
 
-	private static float[,] ComputeSeparableBoxBlur(float[,] input, int w, int h, int radius)
+	private static float[,] ComputeSeparableBoxBlur(float[,] input, int w, int h, int radius, bool isDecal = false)
 	{
 		float[,] temp = new float[w, h];
 		float[,] result = new float[w, h];
@@ -1022,15 +1109,15 @@ public static class TextureConverter
 			float sum = 0.0f;
 			for (int k = -radius; k <= radius; k++)
 			{
-				int px = (k % w + w) % w;
+				int px = isDecal ? Math.Clamp(k, 0, w - 1) : (k % w + w) % w;
 				sum += input[px, y];
 			}
 			temp[0, y] = sum * invWindow;
 
 			for (int x = 1; x < w; x++)
 			{
-				int removeX = ((x - 1 - radius) % w + w) % w;
-				int addX = ((x + radius) % w + w) % w;
+				int removeX = isDecal ? Math.Clamp(x - 1 - radius, 0, w - 1) : ((x - 1 - radius) % w + w) % w;
+				int addX = isDecal ? Math.Clamp(x + radius, 0, w - 1) : ((x + radius) % w + w) % w;
 				sum += input[addX, y] - input[removeX, y];
 				temp[x, y] = sum * invWindow;
 			}
@@ -1041,15 +1128,15 @@ public static class TextureConverter
 			float sum = 0.0f;
 			for (int k = -radius; k <= radius; k++)
 			{
-				int py = (k % h + h) % h;
+				int py = isDecal ? Math.Clamp(k, 0, h - 1) : (k % h + h) % h;
 				sum += temp[x, py];
 			}
 			result[x, 0] = sum * invWindow;
 
 			for (int y = 1; y < h; y++)
 			{
-				int removeY = ((y - 1 - radius) % h + h) % h;
-				int addY = ((y + radius) % h + h) % h;
+				int removeY = isDecal ? Math.Clamp(y - 1 - radius, 0, h - 1) : ((y - 1 - radius) % h + h) % h;
+				int addY = isDecal ? Math.Clamp(y + radius, 0, h - 1) : ((y + radius) % h + h) % h;
 				sum += temp[x, addY] - temp[x, removeY];
 				result[x, y] = sum * invWindow;
 			}

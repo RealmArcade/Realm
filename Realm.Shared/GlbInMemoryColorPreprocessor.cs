@@ -3,8 +3,8 @@ using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using Realm.Shared.Textures;
+using SkiaSharp;
 
 namespace Realm.Shared;
 
@@ -141,14 +141,15 @@ public static class GlbInMemoryColorPreprocessor
 				return glbBytes;
 			}
 
-			using var ormImg = Image.Load<Rgba32>(ormRaw);
+			using var ormImg = SKBitmap.Decode(ormRaw);
+			if (ormImg == null) return glbBytes;
 
 			bool hasMask = false;
 			for (int y = 0; y < ormImg.Height; y++)
 			{
 				for (int x = 0; x < ormImg.Width; x++)
 				{
-					if (ormImg[x, y].R > 0)
+					if (ormImg.GetPixel(x, y).Red > 0)
 					{
 						hasMask = true;
 						break;
@@ -162,7 +163,8 @@ public static class GlbInMemoryColorPreprocessor
 				return glbBytes;
 			}
 
-			using var albedoImg = Image.Load<Rgba32>(albedoRaw);
+			using var albedoImg = SKBitmap.Decode(albedoRaw);
+			if (albedoImg == null) return glbBytes;
 
 			string effectiveChromaKey = chromaKeyHex ?? string.Empty;
 			if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
@@ -180,7 +182,7 @@ public static class GlbInMemoryColorPreprocessor
 
 			ApplyAnalyticalChromaDespill(albedoImg, ormImg, effectiveChromaKey);
 
-			byte[] newAlbedoBytes = GlbPlayerColorProcessor.EncodeImagePng(albedoImg);
+			byte[] newAlbedoBytes = TextureConverter.EncodeWebp(albedoImg, lossless: false, quality: 90);
 			return RebuildGlbWithUpdatedAlbedoTexture(root, binChunk, albedoImageIndex, newAlbedoBytes, glbVersion);
 		}
 		catch
@@ -190,8 +192,8 @@ public static class GlbInMemoryColorPreprocessor
 	}
 
 	public static void ApplyAnalyticalChromaDespill(
-		Image<Rgba32> albedoImg,
-		Image<Rgba32> ormImg,
+		SKBitmap albedoImg,
+		SKBitmap ormImg,
 		string chromaKeyHex)
 	{
 		(float targetR, float targetG, float targetB) = GlbPlayerColorProcessor.HexToRgb(chromaKeyHex);
@@ -216,42 +218,34 @@ public static class GlbInMemoryColorPreprocessor
 		bool sameDimensions = (width == ormWidth && height == ormHeight);
 
 		float[] maskValues = new float[width * height];
-		ormImg.ProcessPixelRows(ormAccessor =>
+		for (int y = 0; y < height; y++)
 		{
-			for (int y = 0; y < height; y++)
-			{
-				int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
-				var ormRow = ormAccessor.GetRowSpan(ormY);
-				int rowOffset = y * width;
+			int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
+			int rowOffset = y * width;
 
-				for (int x = 0; x < width; x++)
+			for (int x = 0; x < width; x++)
+			{
+				int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
+				maskValues[rowOffset + x] = ormImg.GetPixel(ormX, ormY).Red / 255.0f;
+			}
+		}
+
+		for (int y = 0; y < height; y++)
+		{
+			int rowOffset = y * width;
+
+			for (int x = 0; x < width; x++)
+			{
+				float mask = maskValues[rowOffset + x];
+				if (mask >= 0.999f) continue;
+
+				var pixel = albedoImg.GetPixel(x, y);
+				if (TryDespillPixel(pixel.Red, pixel.Green, pixel.Blue, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
 				{
-					int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
-					maskValues[rowOffset + x] = ormRow[ormX].R / 255.0f;
+					albedoImg.SetPixel(x, y, new SKColor(newR, newG, newB, pixel.Alpha));
 				}
 			}
-		});
-
-		albedoImg.ProcessPixelRows(accessor =>
-		{
-			for (int y = 0; y < height; y++)
-			{
-				var albedoRow = accessor.GetRowSpan(y);
-				int rowOffset = y * width;
-
-				for (int x = 0; x < width; x++)
-				{
-					float mask = maskValues[rowOffset + x];
-					if (mask >= 0.999f) continue;
-
-					var pixel = albedoRow[x];
-					if (TryDespillPixel(pixel.R, pixel.G, pixel.B, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
-					{
-						albedoRow[x] = new Rgba32(newR, newG, newB, pixel.A);
-					}
-				}
-			}
-		});
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -440,7 +434,7 @@ public static class GlbInMemoryColorPreprocessor
 		if (albedoImageIndex >= 0 && albedoImageIndex < images.Count && images[albedoImageIndex] is JsonObject albedoImgObj)
 		{
 			albedoImgObj["bufferView"] = newAlbedoBvIdx;
-			albedoImgObj["mimeType"] = "image/png";
+			albedoImgObj["mimeType"] = "image/webp";
 			if (albedoImgObj.ContainsKey("uri")) albedoImgObj.Remove("uri");
 			if (albedoImgObj.ContainsKey("extensions")) albedoImgObj.Remove("extensions");
 		}
@@ -448,9 +442,10 @@ public static class GlbInMemoryColorPreprocessor
 		for (int i = 0; i < textures.Count; i++)
 		{
 			if (textures[i] is not JsonObject texObj) continue;
-			if (!texObj.ContainsKey("source") || texObj["source"] == null)
+			int src = texObj["source"]?.GetValue<int>() ?? -1;
+			if (src < 0)
 			{
-				int src = GlbPlayerColorProcessor.ResolveTextureToImage(i, textures);
+				src = GlbPlayerColorProcessor.ResolveTextureToImage(i, textures);
 				if (src >= 0 && src < images.Count)
 				{
 					texObj["source"] = src;
@@ -458,12 +453,42 @@ public static class GlbInMemoryColorPreprocessor
 				else if (images.Count > 0)
 				{
 					texObj["source"] = 0;
+					src = 0;
 				}
 			}
-			if (texObj.ContainsKey("extensions"))
+			if (src >= 0)
 			{
-				texObj.Remove("extensions");
+				if (texObj["extensions"] is JsonObject texExt)
+				{
+					if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
+					texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
+				}
+				else
+				{
+					texObj["extensions"] = new JsonObject
+					{
+						["EXT_texture_webp"] = new JsonObject { ["source"] = src }
+					};
+				}
 			}
+		}
+
+		if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
+		{
+			bool exists = false;
+			foreach (var item in extArray)
+			{
+				if (item?.GetValue<string>() == "EXT_texture_webp")
+				{
+					exists = true;
+					break;
+				}
+			}
+			if (!exists) extArray.Add("EXT_texture_webp");
+		}
+		else
+		{
+			root["extensionsUsed"] = new JsonArray("EXT_texture_webp");
 		}
 
 		root["bufferViews"] = newBufferViewsList;

@@ -2308,9 +2308,7 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
                     string norm = ContentAddressableStorage.NormalizeBlake3Hash(rawHash);
 
                     if (path.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) ||
-                        path.Equals("map.json", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/metadata.json", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/map.json", StringComparison.OrdinalIgnoreCase))
+                        path.EndsWith("/metadata.json", StringComparison.OrdinalIgnoreCase))
                     {
                         metadataFileHash = norm;
                     }
@@ -2508,9 +2506,7 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
                     string norm = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
 
                     if (path.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) ||
-                        path.Equals("map.json", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/metadata.json", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/map.json", StringComparison.OrdinalIgnoreCase))
+                        path.EndsWith("/metadata.json", StringComparison.OrdinalIgnoreCase))
                     {
                         metadataFileHash = norm;
                     }

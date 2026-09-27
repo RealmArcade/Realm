@@ -156,18 +156,6 @@ public class MapStorageService
                     }
                 }
 
-                if (candidateFiles.Count == 0)
-                {
-                    try
-                    {
-                        var foundMaps = Directory.GetFiles(mapFolder, "map.json", SearchOption.AllDirectories);
-                        candidateFiles.AddRange(foundMaps);
-                    }
-                    catch
-                    {
-                    }
-                }
-
                 foreach (string candidatePath in candidateFiles)
                 {
                     TryProcessManifestFile(candidatePath, mapFolder, mapDictionary);
@@ -484,7 +472,7 @@ public class MapStorageService
         return await distClient.DownloadMapPackageFromRegistryAsync(mapId, serverUrl, progressCallback, cancellationToken);
     }
 
-    public async Task<bool> ExportMapAsync(string sourceDirectory, string destination7zPath, int compressionLevel = 1)
+    public async Task<bool> ExportMapAsync(string sourceDirectory, string destinationRmapPath, int compressionLevel = 1)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
         {
@@ -494,7 +482,7 @@ public class MapStorageService
         try
         {
             MapWorkspaceService.EnsureLicenseFile(sourceDirectory);
-            await Task.Run(() => MapArchiveHelper.Create7zArchive(sourceDirectory, destination7zPath, compressionLevel: compressionLevel));
+            await Task.Run(() => MapArchiveHelper.CreateRmapArchive(sourceDirectory, destinationRmapPath, compressionLevel: compressionLevel));
             return true;
         }
         catch (Exception ex)
@@ -517,7 +505,7 @@ public class MapStorageService
         {
             if (File.Exists(sourcePath))
             {
-                if (sourcePath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) || sourcePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                if (sourcePath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase))
                 {
                     return ImportMapFromArchiveAsync(sourcePath, progressCallback);
                 }
@@ -528,7 +516,7 @@ public class MapStorageService
                 }
                 else
                 {
-                    return Task.FromResult((false, "Unsupported file format. Please select a .zip, .7z archive or a map folder.", (string?)null, (string?)null));
+                    return Task.FromResult((false, "Unsupported file format. Please select an .rmap map package or a map folder.", (string?)null, (string?)null));
                 }
             }
             else if (Directory.Exists(sourcePath))
@@ -551,10 +539,11 @@ public class MapStorageService
         string archivePath,
         Action<float>? progressCallback)
     {
+        var headerInfo = MapArchiveHelper.ReadHeaderFromRmap(archivePath);
         var (manifestJson, rootPrefix) = MapArchiveHelper.ReadManifestFromArchive(archivePath);
         if (string.IsNullOrWhiteSpace(manifestJson))
         {
-            return Task.FromResult((false, "No manifest.json found in the selected map archive.", (string?)null, (string?)null));
+            return Task.FromResult((false, "No manifest.json found in the selected map package.", (string?)null, (string?)null));
         }
 
         var manifest = MapManifest.LoadFromJson(manifestJson);
@@ -563,10 +552,12 @@ public class MapStorageService
             return Task.FromResult((false, "Failed to parse manifest.json.", (string?)null, (string?)null));
         }
 
-        string mapTitle = !string.IsNullOrWhiteSpace(manifest.MapName)
-            ? manifest.MapName.Trim()
-            : Path.GetFileNameWithoutExtension(archivePath);
-        string mapVersion = !string.IsNullOrWhiteSpace(manifest.Version) ? manifest.Version.Trim() : "1.0.0";
+        string mapTitle = headerInfo != null && !string.IsNullOrWhiteSpace(headerInfo.MapName)
+            ? headerInfo.MapName.Trim()
+            : (!string.IsNullOrWhiteSpace(manifest.MapName) ? manifest.MapName.Trim() : Path.GetFileNameWithoutExtension(archivePath));
+        string mapVersion = headerInfo != null && !string.IsNullOrWhiteSpace(headerInfo.Version)
+            ? headerInfo.Version.Trim()
+            : (!string.IsNullOrWhiteSpace(manifest.Version) ? manifest.Version.Trim() : "1.0.0");
         manifest.MapName = mapTitle;
         manifest.Version = mapVersion;
 
@@ -580,6 +571,8 @@ public class MapStorageService
             Directory.Delete(targetDirectory, true);
         }
         Directory.CreateDirectory(targetDirectory);
+
+        MapArchiveHelper.ExtractArchiveIntoCas(archivePath, MapAssetManager.Storage);
 
         MapArchiveHelper.ExtractArchive(archivePath, targetDirectory);
 
@@ -619,13 +612,6 @@ public class MapStorageService
                             Directory.CreateDirectory(destFileDir);
                         }
                         HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath);
-                    }
-                }
-                else
-                {
-                    if (File.Exists(destFilePath))
-                    {
-                        MapAssetManager.Storage.StoreAssetFromFile(destFilePath, normHash);
                     }
                 }
 

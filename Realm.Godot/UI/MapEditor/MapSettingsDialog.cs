@@ -418,58 +418,6 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			}
 		}
 
-		string mapJsonPath = Path.Combine(wsPath, "map.json");
-		if (File.Exists(mapJsonPath))
-		{
-			try
-			{
-				string mapJsonContent = File.ReadAllText(mapJsonPath);
-				var mapDoc = JsonNode.Parse(mapJsonContent) as JsonObject;
-				if (mapDoc != null && mapDoc.ContainsKey("MapProperties"))
-				{
-					var props = mapDoc["MapProperties"] as JsonObject;
-					if (props != null)
-					{
-						if (_txtMapName != null && string.IsNullOrEmpty(_txtMapName.Text) && props.ContainsKey("MapName"))
-						{
-							_txtMapName.Text = (props["MapName"]?.GetValue<string>() ?? "").Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-						}
-
-						if (_txtMapVersion != null && string.IsNullOrEmpty(_txtMapVersion.Text) && props.ContainsKey("Version"))
-						{
-							_txtMapVersion.Text = props["Version"]?.GetValue<string>() ?? "1.0.0";
-						}
-
-						if (_optMapType != null && props.ContainsKey("MapType"))
-						{
-							string mapType = props["MapType"]?.GetValue<string>() ?? "";
-							_optMapType.Selected = (mapType == "Asset Pack") ? 1 : 0;
-						}
-
-						RebuildTagsUI();
-
-						if (props.ContainsKey("Tags") && props["Tags"] is JsonArray tagsArr)
-						{
-							var activeTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-							foreach (var tagNode in tagsArr)
-							{
-								if (tagNode != null) activeTags.Add(tagNode.GetValue<string>());
-							}
-
-							foreach (var chk in _activeTagCheckboxes)
-							{
-								chk.ButtonPressed = activeTags.Contains(chk.Text);
-							}
-						}
-					}
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed to load map properties: {ex.Message}");
-			}
-		}
-
 		if (_txtMapVersion != null && string.IsNullOrEmpty(_txtMapVersion.Text))
 		{
 			_txtMapVersion.Text = "1.0.0";
@@ -522,43 +470,6 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			catch (Exception ex)
 			{
 				GD.PrintErr($"Failed to save metadata.json map properties: {ex.Message}");
-			}
-		}
-
-		// Save to map.json
-		string mapJsonPath = Path.Combine(wsPath, "map.json");
-		if (File.Exists(mapJsonPath))
-		{
-			try
-			{
-				string mapJsonContent = File.ReadAllText(mapJsonPath);
-				var mapDoc = JsonNode.Parse(mapJsonContent) as JsonObject;
-				if (mapDoc != null)
-				{
-					if (!mapDoc.ContainsKey("MapProperties")) mapDoc["MapProperties"] = new JsonObject();
-					var props = mapDoc["MapProperties"] as JsonObject;
-					if (props != null)
-					{
-						if (_txtMapName != null) props["Name"] = cleanMapName;
-						props["Version"] = cleanVersion;
-						if (_optMapType != null) props["MapType"] = _optMapType.Selected == 0 ? "Arcade Custom Map" : "Asset Pack";
-						var tagsArr = new JsonArray();
-						foreach (var chk in _activeTagCheckboxes)
-						{
-							if (chk.ButtonPressed)
-							{
-								tagsArr.Add(chk.Text);
-							}
-						}
-						props["Tags"] = tagsArr;
-					}
-					var options = new JsonSerializerOptions { WriteIndented = true };
-					File.WriteAllText(mapJsonPath, mapDoc.ToJsonString(options));
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed to save map properties: {ex.Message}");
 			}
 		}
 	}

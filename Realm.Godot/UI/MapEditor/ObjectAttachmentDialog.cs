@@ -739,7 +739,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		var skeleton = SkeletonValidator.FindSkeleton(_previewModel);
 		if (skeleton != null && currentDef.AssociatedBone.HasValue)
 		{
-			int lowerArmIdx = HumanoidBoneMapper.FindBoneInSkeleton(skeleton, 
+			int lowerArmIdx = skeleton.FindBoneInSkeleton(
 				currentDef.AssociatedBone.Value == HumanoidBone.RightHand ? HumanoidBone.RightLowerArm : HumanoidBone.LeftLowerArm);
 			if (lowerArmIdx >= 0)
 			{
@@ -1011,7 +1011,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 				}
 				else if (sock.AssociatedBone.HasValue)
 				{
-					int boneIdx = HumanoidBoneMapper.FindBoneInSkeleton(skeleton, sock.AssociatedBone.Value);
+					int boneIdx = skeleton.FindBoneInSkeleton(sock.AssociatedBone.Value);
 					if (boneIdx >= 0)
 					{
 						var ba = new BoneAttachment3D

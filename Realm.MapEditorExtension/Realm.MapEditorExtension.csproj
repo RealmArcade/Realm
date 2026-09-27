@@ -23,11 +23,13 @@
       <DistFiles Include="dist\**\*.*" />
       <MediaFiles Include="media\**\*.*" />
       <RootFiles Include="package.json;map_schema.json" />
+      <PatchFiles Include="patches\**\*.*" />
     </ItemGroup>
 
     <Copy SourceFiles="@(DistFiles)" DestinationFiles="@(DistFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/dist/%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(MediaFiles)" DestinationFiles="@(MediaFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/media/%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(RootFiles)" DestinationFiles="@(RootFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(PatchFiles)" DestinationFiles="@(PatchFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/patches/%(RecursiveDir)%(Filename)%(Extension)')" />
     <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/sync-version_visualStudio_debug.ps1&quot;" ContinueOnError="true" />
   </Target>
 </Project>

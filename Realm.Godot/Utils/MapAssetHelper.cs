@@ -291,6 +291,7 @@ public static class MapAssetHelper
 				relativePath.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) ||
 				string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
 				relativePath.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+				relativePath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
 				relativePath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
 				relativePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
 				relativePath.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) ||

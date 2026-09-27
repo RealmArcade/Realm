@@ -357,7 +357,6 @@
 	"CustomWeapons": [],
 	"Dependencies": [],
 	"GameBuildNumber": "v0.0.2",
-	"license": "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt",
 	"MapProperties": {
 		"Author": null,
 		"CameraBoundsBottom": null,
@@ -415,8 +414,8 @@
 			"DespillPlayerColor": false,
 			"IgnorePlayerColor": false,
 			"NormalizeLuminance": true,
-			"Offsets": 1.5000001,
-			"Scales": 1.5
+			"Offsets": 3.0000002,
+			"Scales": 3
 		},
 		"coniferous_tree_1.rmesh": {
 			"Brightness": 0.5,
@@ -466,7 +465,8 @@
 			"Scales": 1
 		},
 		"ornate_spear_1.rmesh": {
-			"DespillPlayerColor": false
+			"DespillPlayerColor": false,
+			"IgnorePlayerColor": false
 		},
 		"palm_tree.rmesh": {
 			"Brightness": 0.5,
@@ -508,44 +508,50 @@
 		"arcane_spark.rtex": {}
 	},
 	"icons": {},
+	"license": "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt",
 	"noise_textures": {
 		"procedural_noise_1.rtex": {
-			"color_a": "#db1d1d",
-			"color_b": "#2db813",
-			"color_mode": "ColorRamp",
-			"fractal_gain": 0.3,
-			"fractal_lacunarity": 2.9,
-			"fractal_octaves": 1,
-			"fractal_type": "Fbm",
-			"fractal_weighted_strength": 0.6,
-			"frequency": 0.042000003,
-			"generator": "FastNoiseLite",
-			"height": 512,
-			"invert": true,
-			"noise_type": "Perlin",
-			"normalize": true,
-			"seed": 825088,
-			"width": 512
-		},
-		"procedural_noise_2.rtex": {
+			"cellular_distance_function": "EuclideanSquared",
+			"cellular_jitter": 0.95,
+			"cellular_return_type": "Distance2Add",
+			"color_a": "#d71313",
+			"color_b": "#0f6604",
 			"color_mode": "Grayscale",
-			"domain_warp_amplitude": 38,
-			"domain_warp_enabled": true,
-			"domain_warp_fractal_octaves": 5,
-			"domain_warp_frequency": 0.13599999,
-			"domain_warp_type": "Simplex",
-			"fractal_gain": 0.5,
-			"fractal_lacunarity": 3.2,
-			"fractal_octaves": 7,
-			"fractal_type": "Ridged",
-			"fractal_weighted_strength": 0.05,
-			"frequency": 0.044000003,
+			"fractal_gain": 0.3,
+			"fractal_lacunarity": 2.7,
+			"fractal_octaves": 2,
+			"fractal_type": "None",
+			"fractal_weighted_strength": 0.4,
+			"frequency": 0.043,
 			"generator": "FastNoiseLite",
 			"height": 512,
 			"invert": false,
-			"noise_type": "ValueCubic",
+			"noise_type": "Cellular",
 			"normalize": true,
-			"seed": 416680,
+			"seed": 608504,
+			"width": 512
+		},
+		"procedural_noise_2.rtex": {
+			"color_a": "#d71313",
+			"color_b": "#0f6604",
+			"color_mode": "ColorRamp",
+			"domain_warp_amplitude": 26,
+			"domain_warp_enabled": true,
+			"domain_warp_fractal_octaves": 6,
+			"domain_warp_frequency": 0.096,
+			"domain_warp_type": "Simplex",
+			"fractal_gain": 0.75,
+			"fractal_lacunarity": 2.5,
+			"fractal_octaves": 3,
+			"fractal_type": "PingPong",
+			"fractal_weighted_strength": 0.7,
+			"frequency": 0.012,
+			"generator": "FastNoiseLite",
+			"height": 512,
+			"invert": false,
+			"noise_type": "Simplex",
+			"normalize": true,
+			"seed": 526960,
 			"width": 512
 		}
 	},

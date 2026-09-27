@@ -5,8 +5,8 @@ using System.Numerics;
 using System.Text.Json.Nodes;
 using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using Realm.Shared.Textures;
+using SkiaSharp;
 
 namespace Realm.Shared;
 
@@ -81,14 +81,14 @@ public static class GlbPlayerColorProcessor
             byte[] ormRaw = ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
             if (ormRaw.Length == 0) return false;
 
-            using var ormImg = Image.Load<Rgba32>(ormRaw);
+            using var ormImg = SKBitmap.Decode(ormRaw);
             int maskCount = 0;
             int unmaskCount = 0;
             for (int y = 0; y < ormImg.Height; y += 2)
             {
                 for (int x = 0; x < ormImg.Width; x += 2)
                 {
-                    if (ormImg[x, y].R > 32)
+                    if (ormImg.GetPixel(x, y).Red > 32)
                     {
                         maskCount++;
                     }
@@ -171,7 +171,7 @@ public static class GlbPlayerColorProcessor
             byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
             if (albedoRaw.Length == 0) return null;
 
-            using var albedoImg = Image.Load<Rgba32>(albedoRaw);
+            using var albedoImg = SKBitmap.Decode(albedoRaw);
             return AutoDetectChromaKey(albedoImg);
         }
         catch
@@ -180,7 +180,7 @@ public static class GlbPlayerColorProcessor
         }
     }
 
-    public static string AutoDetectChromaKey(Image<Rgba32> albedoImg)
+    public static string AutoDetectChromaKey(SKBitmap albedoImg)
     {
         string? result = DetectDominantChromaKeyWithThreshold(albedoImg, 0.15f);
         if (result != null) return result;
@@ -238,7 +238,7 @@ public static class GlbPlayerColorProcessor
             byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
             if (albedoRaw.Length == 0) return null;
 
-            using var albedoImg = Image.Load<Rgba32>(albedoRaw);
+            using var albedoImg = SKBitmap.Decode(albedoRaw);
             return FindClosestMatchingChromaKey(albedoImg, inputChromaKey);
         }
         catch
@@ -247,7 +247,7 @@ public static class GlbPlayerColorProcessor
         }
     }
 
-    public static string FindClosestMatchingChromaKey(Image<Rgba32> albedoImg, string inputChromaKey)
+    public static string FindClosestMatchingChromaKey(SKBitmap albedoImg, string inputChromaKey)
     {
         if (string.IsNullOrWhiteSpace(inputChromaKey) || string.Equals(inputChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
         {
@@ -275,37 +275,33 @@ public static class GlbPlayerColorProcessor
         var candidateColorCounts = new Dictionary<int, int>();
         int totalCandidatePixels = 0;
 
-        albedoImg.ProcessPixelRows(accessor =>
+        for (int y = 0; y < albedoImg.Height; y++)
         {
-            for (int y = 0; y < accessor.Height; y++)
+            for (int x = 0; x < albedoImg.Width; x++)
             {
-                var rowSpan = accessor.GetRowSpan(y);
-                for (int x = 0; x < accessor.Width; x++)
-                {
-                    var pixel = rowSpan[x];
-                    if (pixel.A < 128) continue;
+                var pixel = albedoImg.GetPixel(x, y);
+                if (pixel.Alpha < 128) continue;
 
-                    float r = pixel.R / 255f;
-                    float g = pixel.G / 255f;
-                    float b = pixel.B / 255f;
+                float r = pixel.Red / 255f;
+                float g = pixel.Green / 255f;
+                float b = pixel.Blue / 255f;
 
-                    var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-                    float pChromaSquared = pA * pA + pB * pB;
+                var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+                float pChromaSquared = pA * pA + pB * pB;
 
-                    if (pChromaSquared < 0.0036f) continue;
-                    if (pL < 0.08f || pL > 0.98f) continue;
+                if (pChromaSquared < 0.0036f) continue;
+                if (pL < 0.08f || pL > 0.98f) continue;
 
-                    float pChroma = MathF.Sqrt(pChromaSquared);
-                    float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
+                float pChroma = MathF.Sqrt(pChromaSquared);
+                float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
 
-                    if (hueDot < 0.75f) continue;
+                if (hueDot < 0.75f) continue;
 
-                    int rgbKey = (pixel.R << 16) | (pixel.G << 8) | pixel.B;
-                    candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
-                    totalCandidatePixels++;
-                }
+                int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
+                candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
+                totalCandidatePixels++;
             }
-        });
+        }
 
         if (candidateColorCounts.Count == 0)
         {
@@ -385,7 +381,7 @@ public static class GlbPlayerColorProcessor
         return $"#{bestR:X2}{bestG:X2}{bestB:X2}";
     }
 
-    private static string? DetectDominantChromaKeyWithThreshold(Image<Rgba32> albedoImg, float minChroma)
+    private static string? DetectDominantChromaKeyWithThreshold(SKBitmap albedoImg, float minChroma)
     {
         const int gridDimension = 32;
         const float minGridCoord = -0.40f;
@@ -401,40 +397,36 @@ public static class GlbPlayerColorProcessor
 
         float minChromaSquared = minChroma * minChroma;
 
-        albedoImg.ProcessPixelRows(accessor =>
+        for (int y = 0; y < albedoImg.Height; y++)
         {
-            for (int y = 0; y < accessor.Height; y++)
+            for (int x = 0; x < albedoImg.Width; x++)
             {
-                var rowSpan = accessor.GetRowSpan(y);
-                for (int x = 0; x < accessor.Width; x++)
-                {
-                    var pixel = rowSpan[x];
-                    if (pixel.A < 128) continue;
+                var pixel = albedoImg.GetPixel(x, y);
+                if (pixel.Alpha < 128) continue;
 
-                    float r = pixel.R / 255f;
-                    float g = pixel.G / 255f;
-                    float b = pixel.B / 255f;
+                float r = pixel.Red / 255f;
+                float g = pixel.Green / 255f;
+                float b = pixel.Blue / 255f;
 
-                    var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+                var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
 
-                    float chromaSquared = pA * pA + pB * pB;
-                    if (chromaSquared < minChromaSquared) continue;
-                    if (pL < 0.10f || pL > 0.95f) continue;
+                float chromaSquared = pA * pA + pB * pB;
+                if (chromaSquared < minChromaSquared) continue;
+                if (pL < 0.10f || pL > 0.95f) continue;
 
-                    int gridX = Math.Clamp((int)((pA - minGridCoord) / cellSize), 0, gridDimension - 1);
-                    int gridY = Math.Clamp((int)((pB - minGridCoord) / cellSize), 0, gridDimension - 1);
-                    int binIndex = gridY * gridDimension + gridX;
+                int gridX = Math.Clamp((int)((pA - minGridCoord) / cellSize), 0, gridDimension - 1);
+                int gridY = Math.Clamp((int)((pB - minGridCoord) / cellSize), 0, gridDimension - 1);
+                int binIndex = gridY * gridDimension + gridX;
 
-                    float weight = chromaSquared * chromaSquared;
+                float weight = chromaSquared * chromaSquared;
 
-                    binTotalWeight[binIndex] += weight;
-                    binSumLightness[binIndex] += pL * weight;
-                    binSumA[binIndex] += pA * weight;
-                    binSumB[binIndex] += pB * weight;
-                    binPixelCount[binIndex]++;
-                }
+                binTotalWeight[binIndex] += weight;
+                binSumLightness[binIndex] += pL * weight;
+                binSumA[binIndex] += pA * weight;
+                binSumB[binIndex] += pB * weight;
+                binPixelCount[binIndex]++;
             }
-        });
+        }
 
         float maximumClusterScore = 0f;
         int bestGridX = -1;
@@ -608,7 +600,7 @@ public static class GlbPlayerColorProcessor
             ? ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk)
             : Array.Empty<byte>();
 
-        using var albedoImg = Image.Load<Rgba32>(albedoRaw);
+        using var albedoImg = SKBitmap.Decode(albedoRaw);
         int texW = albedoImg.Width;
         int texH = albedoImg.Height;
 
@@ -636,7 +628,7 @@ public static class GlbPlayerColorProcessor
         var (targetLightness, targetA, targetOklabB) = ConvertRgbToOklab(targetR, targetG, targetB);
 
         using var ormImg = ormRaw.Length > 0
-            ? Image.Load<Rgba32>(ormRaw)
+            ? SKBitmap.Decode(ormRaw)
             : CreateDefaultOrm(texW, texH);
 
         var seedMask = new bool[texW * texH];
@@ -730,7 +722,7 @@ public static class GlbPlayerColorProcessor
 
         ApplyMaskToOrm(ormImg, globalMask, texW, texH);
 
-        byte[] newOrmBytes = EncodeImagePng(ormImg);
+        byte[] newOrmBytes = TextureConverter.EncodeWebp(ormImg, lossless: true);
 
         byte[] outputBytes = RebuildGlbWithUpdatedOrmTexture(
             root,
@@ -743,7 +735,7 @@ public static class GlbPlayerColorProcessor
     }
 
     private static void ScoreTexels(
-        Image<Rgba32> albedoImg,
+        SKBitmap albedoImg,
         float targetLightness, float targetA, float targetOklabB,
         bool[] seedMask, bool[] floodFillMask)
     {
@@ -757,46 +749,42 @@ public static class GlbPlayerColorProcessor
         const float minCandidateChroma = 0.10f;
         const float minCandidateChromaSquared = minCandidateChroma * minCandidateChroma;
 
-        albedoImg.ProcessPixelRows(accessor =>
+        for (int y = 0; y < albedoImg.Height; y++)
         {
-            for (int y = 0; y < accessor.Height; y++)
+            for (int x = 0; x < albedoImg.Width; x++)
             {
-                var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < accessor.Width; x++)
+                var pixel = albedoImg.GetPixel(x, y);
+                float r = pixel.Red / 255f;
+                float g = pixel.Green / 255f;
+                float bVal = pixel.Blue / 255f;
+
+                var (pL, pA, pB) = ConvertRgbToOklab(r, g, bVal);
+                float deltaLightness = MathF.Abs(pL - targetLightness);
+                float deltaA = pA - targetA;
+                float deltaB = pB - targetOklabB;
+                float chromaticityDistanceSquared = deltaA * deltaA + deltaB * deltaB;
+                float pixelChromaSquared = pA * pA + pB * pB;
+
+                int idx = y * albedoImg.Width + x;
+
+                bool isSeed = (deltaLightness <= seedLightnessDeltaThreshold) &&
+                             (chromaticityDistanceSquared <= seedChromaticityDistanceSquaredThreshold);
+
+                bool isFloodCandidate = (deltaLightness <= floodLightnessDeltaThreshold) &&
+                                       (chromaticityDistanceSquared <= floodChromaticityDistanceSquaredThreshold) &&
+                                       (pixelChromaSquared >= minCandidateChromaSquared);
+
+                if (isSeed)
                 {
-                    var pixel = row[x];
-                    float r = pixel.R / 255f;
-                    float g = pixel.G / 255f;
-                    float bVal = pixel.B / 255f;
-
-                    var (pL, pA, pB) = ConvertRgbToOklab(r, g, bVal);
-                    float deltaLightness = MathF.Abs(pL - targetLightness);
-                    float deltaA = pA - targetA;
-                    float deltaB = pB - targetOklabB;
-                    float chromaticityDistanceSquared = deltaA * deltaA + deltaB * deltaB;
-                    float pixelChromaSquared = pA * pA + pB * pB;
-
-                    int idx = y * accessor.Width + x;
-
-                    bool isSeed = (deltaLightness <= seedLightnessDeltaThreshold) &&
-                                 (chromaticityDistanceSquared <= seedChromaticityDistanceSquaredThreshold);
-
-                    bool isFloodCandidate = (deltaLightness <= floodLightnessDeltaThreshold) &&
-                                           (chromaticityDistanceSquared <= floodChromaticityDistanceSquaredThreshold) &&
-                                           (pixelChromaSquared >= minCandidateChromaSquared);
-
-                    if (isSeed)
-                    {
-                        seedMask[idx] = true;
-                        floodFillMask[idx] = true;
-                    }
-                    else if (isFloodCandidate)
-                    {
-                        floodFillMask[idx] = true;
-                    }
+                    seedMask[idx] = true;
+                    floodFillMask[idx] = true;
+                }
+                else if (isFloodCandidate)
+                {
+                    floodFillMask[idx] = true;
                 }
             }
-        });
+        }
     }
 
     private static HashSet<int> ProcessFacesSurfaceAware(
@@ -1305,27 +1293,23 @@ public static class GlbPlayerColorProcessor
         return val?.GetValue<int>() ?? -1;
     }
 
-    private static void ApplyMaskToOrm(Image<Rgba32> ormImg, float[] globalMask, int texW, int texH)
+    private static void ApplyMaskToOrm(SKBitmap ormImg, float[] globalMask, int texW, int texH)
     {
         int ormW = ormImg.Width;
         int ormH = ormImg.Height;
 
-        ormImg.ProcessPixelRows(accessor =>
+        for (int y = 0; y < ormH; y++)
         {
-            for (int y = 0; y < accessor.Height; y++)
+            for (int x = 0; x < ormW; x++)
             {
-                var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < accessor.Width; x++)
-                {
-                    int srcX = Math.Clamp((int)((x / (float)ormW) * texW), 0, texW - 1);
-                    int srcY = Math.Clamp((int)((y / (float)ormH) * texH), 0, texH - 1);
-                    float maskValue = globalMask[srcY * texW + srcX];
-                    byte maskByte = (byte)Math.Clamp((int)(maskValue * 255f + 0.5f), 0, 255);
-                    var pixel = row[x];
-                    row[x] = new Rgba32(maskByte, pixel.G, pixel.B, pixel.A);
-                }
+                int srcX = Math.Clamp((int)((x / (float)ormW) * texW), 0, texW - 1);
+                int srcY = Math.Clamp((int)((y / (float)ormH) * texH), 0, texH - 1);
+                float maskValue = globalMask[srcY * texW + srcX];
+                byte maskByte = (byte)Math.Clamp((int)(maskValue * 255f + 0.5f), 0, 255);
+                var pixel = ormImg.GetPixel(x, y);
+                ormImg.SetPixel(x, y, new SKColor(maskByte, pixel.Green, pixel.Blue, pixel.Alpha));
             }
-        });
+        }
     }
 
     internal static int FindAlbedoImageIndex(JsonArray textures, JsonArray materials)
@@ -1433,20 +1417,10 @@ public static class GlbPlayerColorProcessor
         return result;
     }
 
-    private static Image<Rgba32> CreateDefaultOrm(int width, int height)
+    private static SKBitmap CreateDefaultOrm(int width, int height)
     {
-        var img = new Image<Rgba32>(width, height);
-        img.ProcessPixelRows(accessor =>
-        {
-            for (int y = 0; y < accessor.Height; y++)
-            {
-                var row = accessor.GetRowSpan(y);
-                for (int x = 0; x < accessor.Width; x++)
-                {
-                    row[x] = new Rgba32(0, 255, 0, 255);
-                }
-            }
-        });
+        var img = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        img.Erase(new SKColor(0, 255, 0, 255));
         return img;
     }
 
@@ -1584,7 +1558,8 @@ public static class GlbPlayerColorProcessor
         if (ormImageIndex >= 0 && ormImageIndex < images.Count && images[ormImageIndex] is JsonObject ormImgObj)
         {
             ormImgObj["bufferView"] = newOrmBvIdx;
-            ormImgObj["mimeType"] = "image/png";
+            ormImgObj["mimeType"] = "image/webp";
+            if (ormImgObj.ContainsKey("uri")) ormImgObj.Remove("uri");
             if (ormImgObj.ContainsKey("extensions")) ormImgObj.Remove("extensions");
         }
         else
@@ -1592,12 +1567,19 @@ public static class GlbPlayerColorProcessor
             int newOrmImageIdx = images.Count;
             images.Add(new JsonObject
             {
-                ["mimeType"] = "image/png",
+                ["mimeType"] = "image/webp",
                 ["bufferView"] = newOrmBvIdx
             });
 
             int newOrmTextureIdx = textures.Count;
-            textures.Add(new JsonObject { ["source"] = newOrmImageIdx });
+            textures.Add(new JsonObject
+            {
+                ["source"] = newOrmImageIdx,
+                ["extensions"] = new JsonObject
+                {
+                    ["EXT_texture_webp"] = new JsonObject { ["source"] = newOrmImageIdx }
+                }
+            });
 
             if (materials.Count > 0 && materials[0] is JsonObject firstMat)
             {
@@ -1617,9 +1599,10 @@ public static class GlbPlayerColorProcessor
         for (int i = 0; i < textures.Count; i++)
         {
             if (textures[i] is not JsonObject texObj) continue;
-            if (!texObj.ContainsKey("source") || texObj["source"] == null)
+            int src = texObj["source"]?.GetValue<int>() ?? -1;
+            if (src < 0)
             {
-                int src = ResolveTextureToImage(i, textures);
+                src = ResolveTextureToImage(i, textures);
                 if (src >= 0 && src < images.Count)
                 {
                     texObj["source"] = src;
@@ -1627,12 +1610,42 @@ public static class GlbPlayerColorProcessor
                 else if (images.Count > 0)
                 {
                     texObj["source"] = 0;
+                    src = 0;
                 }
             }
-            if (texObj.ContainsKey("extensions"))
+            if (src >= 0)
             {
-                texObj.Remove("extensions");
+                if (texObj["extensions"] is JsonObject texExt)
+                {
+                    if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
+                    texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
+                }
+                else
+                {
+                    texObj["extensions"] = new JsonObject
+                    {
+                        ["EXT_texture_webp"] = new JsonObject { ["source"] = src }
+                    };
+                }
             }
+        }
+
+        if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
+        {
+            bool exists = false;
+            foreach (var item in extArray)
+            {
+                if (item?.GetValue<string>() == "EXT_texture_webp")
+                {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) extArray.Add("EXT_texture_webp");
+        }
+        else
+        {
+            root["extensionsUsed"] = new JsonArray("EXT_texture_webp");
         }
 
         root["bufferViews"] = newBufferViewsList;
@@ -1644,13 +1657,6 @@ public static class GlbPlayerColorProcessor
 
         byte[] newBin = newBinStream.ToArray();
         return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
-    }
-
-    internal static byte[] EncodeImagePng(Image<Rgba32> img)
-    {
-        using var ms = new MemoryStream();
-        img.SaveAsPng(ms);
-        return ms.ToArray();
     }
 
     private static List<Vector2> ReadAccessorVec2(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)

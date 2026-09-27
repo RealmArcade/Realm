@@ -102,8 +102,6 @@ public static class AnimationRetargetingService
 		{
 			string p = Path.Combine(resDir, "Assets", "animations", candName);
 			if (File.Exists(p)) return p;
-			string pTemplate = Path.Combine(resDir, "MapTemplate", "Assets", "animations", candName);
-			if (File.Exists(pTemplate)) return pTemplate;
 		}
 
 		return null;
@@ -157,7 +155,7 @@ public static class AnimationRetargetingService
 		};
 		godotAnim.Step = animData.FrameRate > 0f ? 1.0f / animData.FrameRate : 1.0f / 30.0f;
 
-		var boneMap = HumanoidBoneMapper.BuildSkeletonBoneMap(targetSkeleton);
+		var boneMap = targetSkeleton.BuildSkeletonBoneMap();
 		string skelPathStr = skeletonRelativePath.ToString();
 		if (string.IsNullOrEmpty(skelPathStr) || skelPathStr == ".")
 		{

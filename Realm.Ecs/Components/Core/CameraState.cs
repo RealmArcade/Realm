@@ -25,6 +25,7 @@ internal struct CameraState
 	public float EdgePanMargin;
 	public bool EnableEdgePanning;
 	public bool IsLocked;
+	public bool IsFreeCamera;
 
 	public float? LimitLeft;
 	public float? LimitRight;

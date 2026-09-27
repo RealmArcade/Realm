@@ -42,7 +42,7 @@ public static class RealmContainerHeader
 		int offset = MinimumHeaderLength;
 		if (metadataLength > 0)
 		{
-			if (offset + (int)metadataLength > bytes.Length)
+			if ((long)offset + (long)metadataLength > bytes.Length || (int)metadataLength < 0)
 			{
 				return false;
 			}

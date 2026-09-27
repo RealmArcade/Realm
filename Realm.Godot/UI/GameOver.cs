@@ -614,9 +614,9 @@ public partial class GameOver : Control
 			else
 			{
 				string[] possiblePaths = {
-					ProjectSettings.GlobalizePath($"user://maps/{mapTitle}/map.json"),
-					ProjectSettings.GlobalizePath($"res://Maps/{mapTitle}/map.json"),
-					ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/map.json")
+					ProjectSettings.GlobalizePath($"user://maps/{mapTitle}/metadata.json"),
+					ProjectSettings.GlobalizePath($"res://Maps/{mapTitle}/metadata.json"),
+					ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
 				};
 				foreach (var p in possiblePaths)
 				{
@@ -682,9 +682,9 @@ public partial class GameOver : Control
 			rawName = rawName.Trim();
 
 			string[] paths = {
-				ProjectSettings.GlobalizePath($"res://Maps/{rawName}/map.json"),
-				ProjectSettings.GlobalizePath($"user://maps/{rawName}/map.json"),
-				ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/map.json")
+				ProjectSettings.GlobalizePath($"res://Maps/{rawName}/metadata.json"),
+				ProjectSettings.GlobalizePath($"user://maps/{rawName}/metadata.json"),
+				ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
 			};
 
 			foreach (var path in paths)

@@ -274,6 +274,7 @@ public partial class MapEditorHUD : Control
 	private Vector3 _lastRaycastPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
 
 	private Button _btnSkybox;
+	private Button _btnFreeCamera;
 
 
 
@@ -571,7 +572,22 @@ public partial class MapEditorHUD : Control
 			GenerateVSCodeFilesExternal();
 			VSCodeManager.Instance.Initialize(this);
 			_btnVSCode = GetNode<Button>("TopLeftBox/BtnVSCode");
-			SetupButton(_btnVSCode, "\uf121 CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor");
+			SetupButton(_btnVSCode, "\uf121 CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
+			_btnVSCode.GuiInput += (@event) =>
+			{
+				if (OperatingSystem.IsWindows() && @event is InputEventMouseButton mouseButton && mouseButton.Pressed)
+				{
+					if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
+					{
+						if (!VSCodeManager.Instance.IsVisible)
+						{
+							ToggleVSCodeEditor();
+						}
+						VSCodeManager.Instance.OpenDevTools();
+						GetViewport().SetInputAsHandled();
+					}
+				}
+			};
 			StyleMapEditorTopButton(_btnVSCode);
 		}
 		else
@@ -683,7 +699,7 @@ public partial class MapEditorHUD : Control
 				_contentFile.AddChild(_btnExportMap);
 			}
 		}
-		SetupOptionButton(_btnExportMap, "\uf56e EXPORT (.7Z)", () => ExportMapAction(), 13, "Export prepared map package (.7z) with compiled WASM for hosting and CAS storage");
+		SetupOptionButton(_btnExportMap, "\uf56e EXPORT (.RMAP)", () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
 
 		_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnResetMap");
 		SetupOptionButton(_btnResetMap, "\uf12d RESET MAP", () =>
@@ -826,6 +842,12 @@ public partial class MapEditorHUD : Control
 			UIManager.Instance?.PlayClickSound();
 			(GameHost.Instance?.MainCamera as CameraControl)?.ZoomOut();
 		}, 12, "Zoom camera out (-)");
+
+		_btnFreeCamera = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnFreeCamera") ?? new Button();
+		SetupButton(_btnFreeCamera, "\uf03d", () =>
+		{
+			ToggleFreeCamera();
+		}, 12, "Free Camera (F8)");
 
 		_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
 		_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
@@ -1995,6 +2017,29 @@ public partial class MapEditorHUD : Control
 			_btnToggleWireframe.Text = "\uf5ee";
 			_btnToggleWireframe.TooltipText = TranslationServer.Translate($"Wireframe Mode: {(enabled ? "ON" : "OFF")} (F7)");
 			_btnToggleWireframe.Modulate = enabled ? new Color(1.8f, 1.45f, 0.5f) : new Color(1.1f, 1.1f, 1.1f);
+		}
+	}
+
+	public void ToggleFreeCamera()
+	{
+		var cam = GameHost.Instance?.MainCamera as CameraControl;
+		if (cam != null)
+		{
+			cam.ToggleFreeCamera();
+			UpdateFreeCameraExternal(cam.IsFreeCamera);
+			ShowFeedback(cam.IsFreeCamera
+				? TranslationServer.Translate("Free Camera: ON (RMB drag to look, WASD/QE to fly, Wheel to zoom)")
+				: TranslationServer.Translate("Free Camera: OFF (Clamped to game bounds)"));
+		}
+	}
+
+	public void UpdateFreeCameraExternal(bool isFreeCam)
+	{
+		if (_btnFreeCamera != null)
+		{
+			_btnFreeCamera.Text = "\uf03d";
+			_btnFreeCamera.TooltipText = TranslationServer.Translate($"Free Camera: {(isFreeCam ? "ON" : "OFF")} (F8)");
+			_btnFreeCamera.Modulate = isFreeCam ? new Color(1.8f, 1.45f, 0.5f) : new Color(1f, 1f, 1f);
 		}
 	}
 
@@ -3895,8 +3940,7 @@ public partial class MapEditorHUD : Control
 			mapVersion = "1.0.0";
 		}
 		string metaJsonPath = System.IO.Path.Combine(workspace, "metadata.json");
-		string mapJsonPath = System.IO.Path.Combine(workspace, "map.json");
-		string activeConfigPath = System.IO.File.Exists(metaJsonPath) ? metaJsonPath : mapJsonPath;
+		string activeConfigPath = metaJsonPath;
 		string tempTerrainPath = System.IO.Path.Combine(workspace, "terrain.json");
 		string manifestJsonPath = System.IO.Path.Combine(workspace, "manifest.json");
 
@@ -4574,6 +4618,8 @@ public partial class MapEditorHUD : Control
 		AddHelpShortcutRow(grid, "Middle Mouse Drag", TranslationServer.Translate("Pan camera by dragging"));
 		AddHelpShortcutRow(grid, "Shift + Middle Drag", TranslationServer.Translate("Rotate map camera view"));
 		AddHelpShortcutRow(grid, "Comma (,) / Period (.)", TranslationServer.Translate("Rotate camera 90 degrees"));
+		AddHelpShortcutRow(grid, "F8", TranslationServer.Translate("Toggle Free Camera"));
+		AddHelpShortcutRow(grid, "WASD / QE", TranslationServer.Translate("Fly camera in Free Camera mode (RMB drag to look)"));
 
 		AddHelpSectionHeader(grid, TranslationServer.Translate("EDITOR TOOLS"));
 		AddHelpShortcutRow(grid, "1", TranslationServer.Translate("Raise Terrain Tool"));
@@ -4895,7 +4941,7 @@ public partial class MapEditorHUD : Control
 				
 				foreach (var file in allFiles)
 				{
-					if (file.EndsWith("map.json") || file.EndsWith("authorship_key.pem") || file.EndsWith("authorship_key_DO-NOT-SHARE.rkey") || file.EndsWith(".rkey")) continue;
+					if (file.EndsWith("metadata.json") || file.EndsWith("manifest.json") || file.EndsWith("authorship_key.pem") || file.EndsWith("authorship_key_DO-NOT-SHARE.rkey") || file.EndsWith(".rkey")) continue;
 					
 					byte[] fileBytes = System.IO.File.ReadAllBytes(file);
 					string ext = System.IO.Path.GetExtension(file).ToLowerInvariant();
@@ -4931,12 +4977,12 @@ public partial class MapEditorHUD : Control
 					catch {}
 				}
 				
-				string mapJsonPath = System.IO.Path.Combine(workspace, "map.json");
-				if (System.IO.File.Exists(mapJsonPath))
+				string metadataJsonPath = System.IO.Path.Combine(workspace, "metadata.json");
+				if (System.IO.File.Exists(metadataJsonPath))
 				{
-					string mapJsonContent = System.IO.File.ReadAllText(mapJsonPath);
+					string metadataJsonContent = System.IO.File.ReadAllText(metadataJsonPath);
 					var options = new JsonSerializerOptions { WriteIndented = true };
-					var mapDoc = JsonNode.Parse(mapJsonContent) as JsonObject;
+					var mapDoc = JsonNode.Parse(metadataJsonContent) as JsonObject;
 					
 					if (mapDoc != null)
 					{
@@ -5002,18 +5048,18 @@ public partial class MapEditorHUD : Control
 							mapDoc.Remove("signature");
 						}
 						
-						string updatedMapJson = mapDoc.ToJsonString(options);
-						System.IO.File.WriteAllText(mapJsonPath, updatedMapJson);
+						string updatedMetadataJson = mapDoc.ToJsonString(options);
+						System.IO.File.WriteAllText(metadataJsonPath, updatedMetadataJson);
 						
-						byte[] mapBytes = System.IO.File.ReadAllBytes(mapJsonPath);
+						byte[] mapBytes = System.IO.File.ReadAllBytes(metadataJsonPath);
 						string mapBlake3 = RealmMetadataHelper.ComputeBlake3(mapBytes, ".json");
 						string mapHash = $"{mapBlake3}.json";
 						byte[] mapHashBytes = System.Text.Encoding.UTF8.GetBytes(mapHash);
 						byte[] mapSigBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, mapHashBytes);
 						
 						mapDoc["signature"] = Convert.ToBase64String(mapSigBytes);
-						updatedMapJson = mapDoc.ToJsonString(options);
-						System.IO.File.WriteAllText(mapJsonPath, updatedMapJson);
+						updatedMetadataJson = mapDoc.ToJsonString(options);
+						System.IO.File.WriteAllText(metadataJsonPath, updatedMetadataJson);
 						
 						try
 						{
@@ -5025,7 +5071,7 @@ public partial class MapEditorHUD : Control
 								form.Add(new System.Net.Http.StringContent(pubKeyStr), "PublicKey");
 								
 								var fileContent = new System.Net.Http.ByteArrayContent(mapBytes);
-								form.Add(fileContent, "File", "map.json");
+								form.Add(fileContent, "File", "metadata.json");
 								
 								var uploadMapTask = httpClient.PostAsync(seedServerUrl + "/api/publish_map/upload_asset", form);
 								uploadMapTask.Wait();
@@ -5033,7 +5079,7 @@ public partial class MapEditorHUD : Control
 							
 							var publishReq = new 
 							{
-								MapJson = updatedMapJson,
+								MapJson = updatedMetadataJson,
 								ReferencedHashes = referencedHashes,
 								Signature = Convert.ToBase64String(mapSigBytes),
 								PublicKey = pubKeyStr
@@ -6373,6 +6419,7 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
 			StyleIconButton(_btnZoomIn, "\uf00e", "Zoom camera in (+)");
 			StyleIconButton(_btnZoomOut, "\uf010", "Zoom camera out (-)");
+			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
 
 			SafeReparent(_btnToggleGrid, vpRow);
 			SafeReparent(_btnToggleCameraBounds, vpRow);
@@ -6382,6 +6429,7 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_btnSkybox, vpRow);
 			SafeReparent(_btnZoomIn, vpRow);
 			SafeReparent(_btnZoomOut, vpRow);
+			SafeReparent(_btnFreeCamera, vpRow);
 
 			var vpBox = new VBoxContainer();
 			vpBox.Name = "BoxViewportToolbar";
@@ -6994,6 +7042,11 @@ public partial class MapEditorHUD : Control
 					bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
 					UpdateWireframeOverlayExternal(isWireframe);
 				}
+				GetViewport().SetInputAsHandled();
+			}
+			else if (keyEvent.Keycode == Godot.Key.F8)
+			{
+				ToggleFreeCamera();
 				GetViewport().SetInputAsHandled();
 			}
 		}
@@ -8384,17 +8437,17 @@ public partial class MapEditorHUD : Control
 		_objectAttachmentDialog.OpenForUnitAndAttachment(unitId, attachmentId, hand, sourceModel, onApplied);
 	}
 
-	public void SaveUnitObjectAttachment(string unitId, Realm.Godot.Animation.HumanoidBone hand, string attachmentId, GameHost.HandAttachmentOrientation orientation)
+	public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, GameHost.HandAttachmentOrientation orientation)
 	{
 		string handKey = hand switch
 		{
-			Realm.Godot.Animation.HumanoidBone.LeftHand => "left_hand",
-			Realm.Godot.Animation.HumanoidBone.RightHand => "right_hand",
-			Realm.Godot.Animation.HumanoidBone.Chest => "chest",
-			Realm.Godot.Animation.HumanoidBone.Hips => "root",
-			Realm.Godot.Animation.HumanoidBone.Head => "head",
-			Realm.Godot.Animation.HumanoidBone.LeftFoot => "left_foot",
-			Realm.Godot.Animation.HumanoidBone.RightFoot => "right_foot",
+			HumanoidBone.LeftHand => "left_hand",
+			HumanoidBone.RightHand => "right_hand",
+			HumanoidBone.Chest => "chest",
+			HumanoidBone.Hips => "root",
+			HumanoidBone.Head => "head",
+			HumanoidBone.LeftFoot => "left_foot",
+			HumanoidBone.RightFoot => "right_foot",
 			_ => "right_hand"
 		};
 		SaveUnitObjectAttachment(unitId, handKey, attachmentId, orientation);
@@ -9195,23 +9248,23 @@ public partial class MapEditorHUD : Control
 		string normHash = !string.IsNullOrEmpty(manifestBlake3) ? ContentAddressableStorage.NormalizeBlake3Hash(manifestBlake3) : string.Empty;
 		string shortHash = normHash.Length >= 4 ? normHash.Substring(0, 4) : (normHash.Length > 0 ? normHash : "0000");
 
-		string defaultFileName = $"{cleanMapName}_{cleanMapVersion}_{shortHash}.7z";
+		string defaultFileName = $"{cleanMapName}_{cleanMapVersion}_{shortHash}.rmap";
 		string initialDir = GetInitialDirectory();
 
 		var err = DisplayServer.FileDialogShow(
-			TranslationServer.Translate("Export Map Package (.7z)"),
+			TranslationServer.Translate("Export Map Package (.rmap)"),
 			initialDir,
 			defaultFileName,
 			false,
 			DisplayServer.FileDialogMode.SaveFile,
-			new[] { "*.7z ; 7-Zip Archive (*.7z)" },
+			new[] { "*.rmap ; Realm Map Package (*.rmap)" },
 			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) => {
 				if (status && selectedPaths.Length > 0)
 				{
 					string destinationPath = selectedPaths[0];
-					if (!destinationPath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
+					if (!destinationPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase))
 					{
-						destinationPath += ".7z";
+						destinationPath += ".rmap";
 					}
 					_ = ExportMapPackageAsync(destinationPath);
 				}
@@ -9243,7 +9296,7 @@ public partial class MapEditorHUD : Control
 			string normHash = !string.IsNullOrEmpty(manifestBlake3) ? ContentAddressableStorage.NormalizeBlake3Hash(manifestBlake3) : string.Empty;
 			string shortHash = normHash.Length >= 4 ? normHash.Substring(0, 4) : (normHash.Length > 0 ? normHash : "0000");
 
-			destinationPath = System.IO.Path.Combine(destinationPath, $"{cleanMapName}_{cleanMapVersion}_{shortHash}.7z");
+			destinationPath = System.IO.Path.Combine(destinationPath, $"{cleanMapName}_{cleanMapVersion}_{shortHash}.rmap");
 		}
 
 		var popup = new Panel();
@@ -9269,7 +9322,7 @@ public partial class MapEditorHUD : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
 		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, "📦 " + TranslationServer.Translate("EXPORTING MAP PACKAGE (.7Z)"), 20);
+		UIStyle.ApplyTitle(titleLabel, "📦 " + TranslationServer.Translate("EXPORTING MAP PACKAGE (.RMAP)"), 20);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
 
@@ -9485,13 +9538,13 @@ public partial class MapEditorHUD : Control
 			System.IO.File.WriteAllText(manifestJsonPath, manifest.ToJson());
 
 			progressBar.Value = 80;
-			statusLabel.Text = TranslationServer.Translate("Compressing package into .7z archive...");
+			statusLabel.Text = TranslationServer.Translate("Compressing package into .rmap archive...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 			long lastProgressUpdateTicks = 0;
 			await System.Threading.Tasks.Task.Run(() =>
 			{
-				MapArchiveHelper.Create7zArchive(_tempWorkspacePath, destinationPath, (pct, file) =>
+				MapArchiveHelper.CreateRmapArchive(_tempWorkspacePath, destinationPath, (pct, file) =>
 				{
 					long now = System.Environment.TickCount64;
 					if (now - lastProgressUpdateTicks < 50 && pct < 1.0f)
@@ -10011,21 +10064,6 @@ public partial class MapEditorHUD : Control
 				}
 			}
 
-			string mapJsonPath = System.IO.Path.Combine(workspacePath, "map.json");
-			if (System.IO.File.Exists(mapJsonPath))
-			{
-				var mapDoc = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(mapJsonPath)) as System.Text.Json.Nodes.JsonObject;
-				if (mapDoc != null && mapDoc.TryGetPropertyValue("MapProperties", out var mp) && mp is System.Text.Json.Nodes.JsonObject mpObj)
-				{
-					if (mpObj.TryGetPropertyValue("MapName", out var n) && TrySanitizeCandidate(n?.ToString(), out var mapDocName))
-					{
-						_cachedMapName = mapDocName;
-						_lastMapNameCacheTicks = now;
-						return mapDocName;
-					}
-				}
-			}
-
 			if (!string.IsNullOrEmpty(GameHost.Instance?.ActiveMapName))
 			{
 				string candidate = System.IO.Path.GetFileNameWithoutExtension(GameHost.Instance.ActiveMapName);
@@ -10120,21 +10158,6 @@ public partial class MapEditorHUD : Control
 							_cachedMapVersion = v.Trim();
 							return _cachedMapVersion;
 						}
-					}
-				}
-			}
-
-			string mapJsonPath = System.IO.Path.Combine(workspacePath, "map.json");
-			if (System.IO.File.Exists(mapJsonPath))
-			{
-				var mapDoc = JsonNode.Parse(System.IO.File.ReadAllText(mapJsonPath)) as System.Text.Json.Nodes.JsonObject;
-				if (mapDoc != null && mapDoc.TryGetPropertyValue("MapProperties", out var mp) && mp is System.Text.Json.Nodes.JsonObject mpObj)
-				{
-					string? v = mpObj["MapVersion"]?.ToString() ?? mpObj["Version"]?.ToString();
-					if (!string.IsNullOrWhiteSpace(v))
-					{
-						_cachedMapVersion = v.Trim();
-						return _cachedMapVersion;
 					}
 				}
 			}

@@ -385,14 +385,39 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 	private static bool IsRmeshCategory(string category, out string subCategory)
 	{
-		if (!string.IsNullOrEmpty(category) && category.StartsWith("rmesh_", StringComparison.OrdinalIgnoreCase))
+		if (string.IsNullOrEmpty(category))
+		{
+			subCategory = string.Empty;
+			return false;
+		}
+		if (category.StartsWith("rmesh_", StringComparison.OrdinalIgnoreCase))
 		{
 			subCategory = category.Substring(6).ToLowerInvariant();
 			return true;
 		}
-		if (!string.IsNullOrEmpty(category) && category.Equals("rmesh", StringComparison.OrdinalIgnoreCase))
+		if (category.Equals("rmesh", StringComparison.OrdinalIgnoreCase))
 		{
 			subCategory = "props";
+			return true;
+		}
+		if (category.Equals("characters", StringComparison.OrdinalIgnoreCase) || category.Equals("units", StringComparison.OrdinalIgnoreCase))
+		{
+			subCategory = "characters";
+			return true;
+		}
+		if (category.Equals("buildings", StringComparison.OrdinalIgnoreCase))
+		{
+			subCategory = "buildings";
+			return true;
+		}
+		if (category.Equals("props", StringComparison.OrdinalIgnoreCase) || category.Equals("resources", StringComparison.OrdinalIgnoreCase))
+		{
+			subCategory = "props";
+			return true;
+		}
+		if (category.Equals("items", StringComparison.OrdinalIgnoreCase) || category.Equals("projectiles", StringComparison.OrdinalIgnoreCase) || category.Equals("attachments", StringComparison.OrdinalIgnoreCase) || category.Equals("weapons", StringComparison.OrdinalIgnoreCase))
+		{
+			subCategory = "items";
 			return true;
 		}
 		subCategory = string.Empty;

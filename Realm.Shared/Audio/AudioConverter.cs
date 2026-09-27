@@ -75,7 +75,6 @@ public static class AudioConverter
 			else if (ext == ".ogg")
 			{
 				oggBytes = File.ReadAllBytes(fullInput);
-				existingMeta = RealmMetadataHelper.ExtractMetadataFromOggBytes(oggBytes);
 			}
 			else
 			{
@@ -290,20 +289,6 @@ public static class AudioConverter
 				File.Copy(fullInput, targetOgg, true);
 			}
 
-			try
-			{
-				string? existingMeta = RealmMetadataHelper.ExtractMetadata(fullInput);
-				if (string.IsNullOrEmpty(existingMeta))
-				{
-					string defaultMeta = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"format\":\"ogg_vorbis\"}}";
-					RealmMetadataHelper.AddMetadataToOgg(targetOgg, defaultMeta);
-				}
-				RealmMetadataHelper.SyncBlake3Metadata(targetOgg);
-			}
-			catch
-			{
-			}
-
 			result.Success = true;
 			return result;
 		}
@@ -319,20 +304,6 @@ public static class AudioConverter
 		var run = NativeToolRunner.RunTool(ffmpeg, $"-y -i \"{fullInput}\" -c:a libvorbis -q:a 5 \"{targetOgg}\"");
 		if (run.ExitCode == 0 && File.Exists(targetOgg) && new FileInfo(targetOgg).Length > 0)
 		{
-			try
-			{
-				string? existingMeta = RealmMetadataHelper.ExtractMetadata(fullInput);
-				string metaToEmbed = !string.IsNullOrEmpty(existingMeta)
-					? existingMeta
-					: $"{{\"original_format\":\"{ext}\",\"created_utc\":\"{DateTime.UtcNow:O}\"}}";
-
-				RealmMetadataHelper.AddMetadataToOgg(targetOgg, metaToEmbed);
-				RealmMetadataHelper.SyncBlake3Metadata(targetOgg);
-			}
-			catch
-			{
-			}
-
 			result.Success = true;
 			return result;
 		}

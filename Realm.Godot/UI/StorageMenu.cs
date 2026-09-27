@@ -30,7 +30,6 @@ public partial class StorageMenu : Control
 	private Label _selectedGenreLabel;
 	private Label _selectedDescriptionLabel;
 	private Label _selectedTotalSizeLabel;
-	private Button _exportMapButton;
 	private Button _downloadUpdateButton;
 
 	private VBoxContainer _versionsListContainer;
@@ -101,7 +100,7 @@ public partial class StorageMenu : Control
 		_importMapButton = new Button();
 		_importMapButton.AddThemeConstantOverride("icon_max_width", 24);
 		_importMapButton.CustomMinimumSize = new Vector2(210, 42);
-		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("IMPORT MAP (.ZIP / .7Z)"), 14);
+		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("IMPORT MAP (.RMAP)"), 14);
 		_importMapButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_importMapButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_importMapButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -272,23 +271,6 @@ public partial class StorageMenu : Control
 		actionsHBox.AddThemeConstantOverride("separation", 14);
 		actionsHBox.MouseFilter = MouseFilterEnum.Pass;
 		_selectedMapContainer.AddChild(actionsHBox);
-
-		_exportMapButton = new Button();
-		_exportMapButton.AddThemeConstantOverride("icon_max_width", 20);
-		_exportMapButton.CustomMinimumSize = new Vector2(160, 38);
-		UIStyle.ApplyButtonText(_exportMapButton, "📦 " + TranslationServer.Translate("EXPORT MAP"), 14);
-		_exportMapButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_exportMapButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_exportMapButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_exportMapButton.FocusMode = FocusModeEnum.None;
-		_exportMapButton.MouseFilter = MouseFilterEnum.Stop;
-		_exportMapButton.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		_exportMapButton.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			OnExportMapPressed();
-		};
-		actionsHBox.AddChild(_exportMapButton);
 
 		_downloadUpdateButton = new Button();
 		_downloadUpdateButton.AddThemeConstantOverride("icon_max_width", 20);
@@ -565,6 +547,26 @@ public partial class StorageMenu : Control
 		};
 		hbox.AddChild(openInEditorBtn);
 
+		var exportBtn = new Button();
+		exportBtn.AddThemeConstantOverride("icon_max_width", 20);
+		exportBtn.CustomMinimumSize = new Vector2(140, 36);
+		exportBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		UIStyle.ApplyButtonText(exportBtn, "📦 " + TranslationServer.Translate("EXPORT MAP"), 12);
+		exportBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		exportBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		exportBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		exportBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		exportBtn.TooltipText = TranslationServer.Translate("Export this version as a standalone .rmap package");
+		exportBtn.FocusMode = FocusModeEnum.None;
+		exportBtn.MouseFilter = MouseFilterEnum.Stop;
+		exportBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		exportBtn.Pressed += () =>
+		{
+			UIManager.Instance?.PlayClickSound();
+			OnExportMapVersionPressed(map, version, exportBtn);
+		};
+		hbox.AddChild(exportBtn);
+
 		var deleteBtn = new Button();
 		deleteBtn.AddThemeConstantOverride("icon_max_width", 24);
 		deleteBtn.CustomMinimumSize = new Vector2(36, 36);
@@ -668,30 +670,35 @@ public partial class StorageMenu : Control
 		}
 	}
 
-	private void OnExportMapPressed()
+	private void OnExportMapVersionPressed(DownloadedMapInfo map, DownloadedMapVersionInfo version, Button exportBtn)
 	{
-		if (_selectedMap == null || _selectedMap.Versions.Count == 0)
+		if (map == null || version == null)
 		{
 			return;
 		}
 
-		var latestVersion = _selectedMap.Versions[0];
-		string mapTitle = _selectedMap.Title;
+		string mapTitle = map.Title;
 		string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) cleanMapName = "MapExport";
-
-		string mapVersion = latestVersion.Version;
-		string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-		if (string.IsNullOrEmpty(cleanMapVersion)) cleanMapVersion = "1.0.0";
-
-		string manifestBlake3 = latestVersion.ManifestHash;
-		if (string.IsNullOrEmpty(manifestBlake3) && File.Exists(latestVersion.ManifestFilePath))
+		if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase))
 		{
-			manifestBlake3 = RealmMetadataHelper.ComputeBlake3(latestVersion.ManifestFilePath);
+			cleanMapName = "MapExport";
 		}
-		if (string.IsNullOrEmpty(manifestBlake3) && !string.IsNullOrEmpty(latestVersion.DirectoryPath))
+
+		string mapVersion = version.Version;
+		string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+		if (string.IsNullOrEmpty(cleanMapVersion))
 		{
-			string manifestPath = Path.Combine(latestVersion.DirectoryPath, "manifest.json");
+			cleanMapVersion = "1.0.0";
+		}
+
+		string manifestBlake3 = version.ManifestHash;
+		if (string.IsNullOrEmpty(manifestBlake3) && File.Exists(version.ManifestFilePath))
+		{
+			manifestBlake3 = RealmMetadataHelper.ComputeBlake3(version.ManifestFilePath);
+		}
+		if (string.IsNullOrEmpty(manifestBlake3) && !string.IsNullOrEmpty(version.DirectoryPath))
+		{
+			string manifestPath = Path.Combine(version.DirectoryPath, "manifest.json");
 			if (File.Exists(manifestPath))
 			{
 				manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestPath);
@@ -701,26 +708,26 @@ public partial class StorageMenu : Control
 		string normHash = !string.IsNullOrEmpty(manifestBlake3) ? ContentAddressableStorage.NormalizeBlake3Hash(manifestBlake3) : string.Empty;
 		string shortHash = normHash.Length >= 4 ? normHash.Substring(0, 4) : (normHash.Length > 0 ? normHash : "0000");
 
-		string defaultFileName = $"{cleanMapName}_{cleanMapVersion}_{shortHash}.7z";
+		string defaultFileName = $"{cleanMapName}_{cleanMapVersion}_{shortHash}.rmap";
 
 		var err = DisplayServer.FileDialogShow(
-			TranslationServer.Translate("Export Map as .7z"),
+			TranslationServer.Translate("Export Map as .rmap"),
 			OS.GetSystemDir(OS.SystemDir.Documents),
 			defaultFileName,
 			false,
 			DisplayServer.FileDialogMode.SaveFile,
-			new[] { "*.7z ; 7-Zip Archive (*.7z)" },
+			new[] { "*.rmap ; Realm Map Package (*.rmap)" },
 			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
 			{
 				if (status && selectedPaths.Length > 0)
 				{
 					string destinationPath = selectedPaths[0];
-					if (!destinationPath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
+					if (!destinationPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase))
 					{
-						destinationPath += ".7z";
+						destinationPath += ".rmap";
 					}
 
-					_ = ExportMapToFileAsync(latestVersion.DirectoryPath, destinationPath);
+					_ = ExportMapToFileAsync(map, version, destinationPath, exportBtn);
 				}
 			})
 		);
@@ -728,31 +735,36 @@ public partial class StorageMenu : Control
 		if (err != Error.Ok)
 		{
 			string fallbackPath = Path.Combine(OS.GetSystemDir(OS.SystemDir.Documents), defaultFileName);
-			_ = ExportMapToFileAsync(latestVersion.DirectoryPath, fallbackPath);
+			_ = ExportMapToFileAsync(map, version, fallbackPath, exportBtn);
 		}
 	}
 
-	private async Task ExportMapToFileAsync(string sourceDir, string destinationPath)
+	private async Task ExportMapToFileAsync(DownloadedMapInfo map, DownloadedMapVersionInfo version, string destinationPath, Button exportBtn)
 	{
-		if (Directory.Exists(destinationPath) && _selectedMap != null && _selectedMap.Versions.Count > 0)
+		if (Directory.Exists(destinationPath) && map != null && version != null)
 		{
-			var latestVersion = _selectedMap.Versions[0];
-			string mapTitle = _selectedMap.Title;
+			string mapTitle = map.Title;
 			string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-			if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) cleanMapName = "MapExport";
-
-			string mapVersion = latestVersion.Version;
-			string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-			if (string.IsNullOrEmpty(cleanMapVersion)) cleanMapVersion = "1.0.0";
-
-			string manifestBlake3 = latestVersion.ManifestHash;
-			if (string.IsNullOrEmpty(manifestBlake3) && File.Exists(latestVersion.ManifestFilePath))
+			if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase))
 			{
-				manifestBlake3 = RealmMetadataHelper.ComputeBlake3(latestVersion.ManifestFilePath);
+				cleanMapName = "MapExport";
 			}
-			if (string.IsNullOrEmpty(manifestBlake3) && !string.IsNullOrEmpty(latestVersion.DirectoryPath))
+
+			string mapVersion = version.Version;
+			string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+			if (string.IsNullOrEmpty(cleanMapVersion))
 			{
-				string manifestPath = Path.Combine(latestVersion.DirectoryPath, "manifest.json");
+				cleanMapVersion = "1.0.0";
+			}
+
+			string manifestBlake3 = version.ManifestHash;
+			if (string.IsNullOrEmpty(manifestBlake3) && File.Exists(version.ManifestFilePath))
+			{
+				manifestBlake3 = RealmMetadataHelper.ComputeBlake3(version.ManifestFilePath);
+			}
+			if (string.IsNullOrEmpty(manifestBlake3) && !string.IsNullOrEmpty(version.DirectoryPath))
+			{
+				string manifestPath = Path.Combine(version.DirectoryPath, "manifest.json");
 				if (File.Exists(manifestPath))
 				{
 					manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestPath);
@@ -762,17 +774,23 @@ public partial class StorageMenu : Control
 			string normHash = !string.IsNullOrEmpty(manifestBlake3) ? ContentAddressableStorage.NormalizeBlake3Hash(manifestBlake3) : string.Empty;
 			string shortHash = normHash.Length >= 4 ? normHash.Substring(0, 4) : (normHash.Length > 0 ? normHash : "0000");
 
-			destinationPath = Path.Combine(destinationPath, $"{cleanMapName}_{cleanMapVersion}_{shortHash}.7z");
+			destinationPath = Path.Combine(destinationPath, $"{cleanMapName}_{cleanMapVersion}_{shortHash}.rmap");
 		}
 
-		_exportMapButton.Disabled = true;
-		UIStyle.ApplyButtonText(_exportMapButton, "Exporting...", 14);
+		if (GodotObject.IsInstanceValid(exportBtn))
+		{
+			exportBtn.Disabled = true;
+			UIStyle.ApplyButtonText(exportBtn, TranslationServer.Translate("Exporting..."), 12);
+		}
 
-		MapWorkspaceService.EnsureLicenseFile(sourceDir);
-		bool success = await _mapStorageService.ExportMapAsync(sourceDir, destinationPath, compressionLevel: 1);
+		MapWorkspaceService.EnsureLicenseFile(version.DirectoryPath);
+		bool success = await _mapStorageService.ExportMapAsync(version.DirectoryPath, destinationPath, compressionLevel: 1);
 
-		_exportMapButton.Disabled = false;
-		UIStyle.ApplyButtonText(_exportMapButton, "📦 " + TranslationServer.Translate("EXPORT MAP"), 14);
+		if (GodotObject.IsInstanceValid(exportBtn))
+		{
+			exportBtn.Disabled = false;
+			UIStyle.ApplyButtonText(exportBtn, "📦 " + TranslationServer.Translate("EXPORT MAP"), 12);
+		}
 
 		if (success)
 		{

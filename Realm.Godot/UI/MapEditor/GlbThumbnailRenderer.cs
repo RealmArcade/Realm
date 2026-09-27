@@ -42,7 +42,7 @@ public partial class GlbThumbnailRenderer : Node
 
 		if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
 		{
-			if (System.Threading.Thread.CurrentThread.ManagedThreadId == 1)
+			if (System.Environment.CurrentManagedThreadId == 1)
 			{
 				CreateInstanceInTree(tree);
 			}
@@ -56,6 +56,16 @@ public partial class GlbThumbnailRenderer : Node
 					}
 				}).CallDeferred();
 			}
+		}
+		else
+		{
+			Callable.From(() =>
+			{
+				if (Engine.GetMainLoop() is SceneTree mainTree)
+				{
+					CreateInstanceInTree(mainTree);
+				}
+			}).CallDeferred();
 		}
 	}
 
@@ -214,23 +224,16 @@ public partial class GlbThumbnailRenderer : Node
 
 		if (File.Exists(cachedPngPath))
 		{
-			if (System.Threading.Thread.CurrentThread.ManagedThreadId == 1)
+			try
 			{
-				try
+				var img = Image.LoadFromFile(cachedPngPath);
+				if (img != null && !img.IsEmpty())
 				{
-					var img = Image.LoadFromFile(cachedPngPath);
-					if (img != null && !img.IsEmpty())
-					{
-						texture = ImageTexture.CreateFromImage(img);
-						return true;
-					}
+					texture = ImageTexture.CreateFromImage(img);
+					return true;
 				}
-				catch { }
 			}
-			else
-			{
-				return true;
-			}
+			catch { }
 		}
 
 		return false;
@@ -275,6 +278,7 @@ public partial class GlbThumbnailRenderer : Node
 						node = node.Next;
 					}
 				}
+				EnsureInTreeDeferred();
 				return;
 			}
 
@@ -355,35 +359,28 @@ public partial class GlbThumbnailRenderer : Node
 			var doc = new GltfDocument();
 			var state = new GltfState();
 			Error err;
-			if (request.FilePath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+			byte[] fileBytes = File.ReadAllBytes(request.FilePath);
+			string? chromaKey = null;
+			byte[] glbBytes;
+			if (Realm.Shared.ModelOptimization.RmeshFile.IsRmeshBytes(fileBytes))
 			{
-				string? chromaKey = null;
-				byte[]? glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytesFromFile(request.FilePath);
-				if (glbBytes != null)
-				{
-					string? meta = Realm.Shared.ModelOptimization.RmeshFile.ExtractMetadataFromFile(request.FilePath);
-					chromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(meta);
-				}
-				else
-				{
-					glbBytes = File.ReadAllBytes(request.FilePath);
-				}
-
-				bool despill = GameHost.Instance != null && GameHost.Instance.GetModelDespillPlayerColor(request.FilePath);
-				if (despill)
-				{
-					glbBytes = Realm.Shared.GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
-				}
-				err = doc.AppendFromBuffer(glbBytes, "", state);
+				var (meta, glbPayload, _) = Realm.Shared.ModelOptimization.RmeshFile.Parse(fileBytes);
+				chromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(meta);
+				glbBytes = glbPayload;
 			}
 			else
 			{
-				byte[] rawGlb = File.ReadAllBytes(request.FilePath);
-				string? chromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(request.FilePath);
-				bool despill = GameHost.Instance != null && GameHost.Instance.GetModelDespillPlayerColor(request.FilePath);
-				byte[] processedGlb = despill ? Realm.Shared.GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(rawGlb, chromaKey) : rawGlb;
-				err = doc.AppendFromBuffer(processedGlb, "", state);
+				chromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(request.FilePath);
+				glbBytes = fileBytes;
 			}
+
+			bool despill = GameHost.Instance != null && GameHost.Instance.GetModelDespillPlayerColor(request.FilePath);
+			if (despill)
+			{
+				glbBytes = Realm.Shared.GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
+			}
+
+			err = doc.AppendFromBuffer(glbBytes, "", state);
 			if (err != Error.Ok)
 			{
 				lock (_requestLock)
@@ -437,7 +434,7 @@ public partial class GlbThumbnailRenderer : Node
 			}
 			_camera.Current = true;
 
-			_framesRemainingForCapture = 1;
+			_framesRemainingForCapture = 2;
 		}
 		catch (Exception ex)
 		{

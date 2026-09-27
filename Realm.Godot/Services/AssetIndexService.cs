@@ -161,13 +161,14 @@ public class AssetIndexService : IDisposable
 	{
 		lock (_syncLock)
 		{
-			string legacyArchive = NormalizePath(Path.Combine(MapAssetManager.GlobalArchiveDirectory, "global_assets.7z"));
+			string legacyArchive = NormalizePath(Path.Combine(MapAssetManager.GlobalArchiveDirectory, "global_assets.rmap"));
 			string casAssetsDirectory = GlobalCasAssetsDirectory;
 
 			var forbiddenFolders = _folderCollection.FindAll()
 				.Where(f => IsForbiddenPath(f.DirectoryPath) ||
 							string.Equals(f.DirectoryPath, legacyArchive, StringComparison.OrdinalIgnoreCase) ||
 							string.Equals(f.DirectoryPath, casAssetsDirectory, StringComparison.OrdinalIgnoreCase) ||
+							f.DirectoryPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
 							f.DirectoryPath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
 				.Select(f => (BsonValue)f.Id)
 				.ToArray();
@@ -189,6 +190,7 @@ public class AssetIndexService : IDisposable
 				.Where(a => (!validFolders.Contains(a.DirectoryPath) && !string.Equals(a.DirectoryPath, casAssetsDirectory, StringComparison.OrdinalIgnoreCase)) ||
 							IsForbiddenPath(a.DirectoryPath) ||
 							IsForbiddenPath(a.FilePath) ||
+							a.DirectoryPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
 							a.DirectoryPath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
 							a.FilePath.Contains("/extracted/", StringComparison.OrdinalIgnoreCase) ||
 							a.FilePath.Contains("\\extracted\\", StringComparison.OrdinalIgnoreCase))
@@ -649,7 +651,8 @@ public class AssetIndexService : IDisposable
 			return;
 		}
 
-		if (normalizedPath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
+		if (normalizedPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
+			normalizedPath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
 			normalizedPath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
 			normalizedPath.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) ||
 			normalizedPath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase) ||

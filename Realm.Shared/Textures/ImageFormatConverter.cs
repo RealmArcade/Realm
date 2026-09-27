@@ -1,5 +1,4 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 
 namespace Realm.Shared.Textures;
 
@@ -58,7 +57,11 @@ public static class ImageFormatConverter
 			throw new InvalidOperationException($"Failed to extract WebP from RTEX '{inputImagePath}': {extractResult.ErrorMessage}");
 		}
 
-		using var image = Image.Load<Rgba32>(fullInput);
+		using var image = SKBitmap.Decode(fullInput);
+		if (image == null)
+		{
+			throw new InvalidOperationException($"Failed to load image file '{inputImagePath}'.");
+		}
 		byte[] webpBytes = TextureConverter.EncodeWebp(image, lossless: false, quality: 90);
 		File.WriteAllBytes(targetWebp, webpBytes);
 		return targetWebp;

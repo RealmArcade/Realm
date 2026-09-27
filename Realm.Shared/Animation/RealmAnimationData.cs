@@ -69,32 +69,14 @@ public partial class RealmAnimationData
 
 public static class RealmAnimationSerializer
 {
-	private static readonly byte[] MagicBytes = new byte[] { (byte)'R', (byte)'A', (byte)'N', (byte)'M' };
-
 	public static byte[] Serialize(RealmAnimationData animationData)
 	{
-		byte[] payload = MemoryPackSerializer.Serialize(animationData);
-		byte[] buffer = new byte[4 + payload.Length];
-		buffer[0] = MagicBytes[0];
-		buffer[1] = MagicBytes[1];
-		buffer[2] = MagicBytes[2];
-		buffer[3] = MagicBytes[3];
-		Buffer.BlockCopy(payload, 0, buffer, 4, payload.Length);
-		return buffer;
+		return RanimFile.Build(null, animationData, compressed: true);
 	}
 
 	public static RealmAnimationData Deserialize(ReadOnlySpan<byte> bytes)
 	{
-		if (bytes.Length >= 4 &&
-			bytes[0] == MagicBytes[0] &&
-			bytes[1] == MagicBytes[1] &&
-			bytes[2] == MagicBytes[2] &&
-			bytes[3] == MagicBytes[3])
-		{
-			return MemoryPackSerializer.Deserialize<RealmAnimationData>(bytes.Slice(4)) ?? new RealmAnimationData();
-		}
-
-		return MemoryPackSerializer.Deserialize<RealmAnimationData>(bytes) ?? new RealmAnimationData();
+		return RanimFile.Parse(bytes).AnimationData;
 	}
 
 	public static RealmAnimationData LoadFromFile(string filePath)

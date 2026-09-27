@@ -94,7 +94,7 @@ public class FbxToRanimOptions
 	public bool Recursive { get; set; }
 }
 
-[Verb("ranim_render", HelpText = "Render .ranim skeletal animation files to animated GIF, PNG spritesheet, or high-quality WebP spritesheet.")]
+[Verb("ranim_render", HelpText = "Render .ranim skeletal animation files to animated WebP or PNG spritesheet.")]
 public class RanimRenderOptions
 {
 	[Option('i', "input", Required = true, HelpText = "Path to input .ranim file or directory.")]
@@ -103,7 +103,7 @@ public class RanimRenderOptions
 	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
 	public string? Output { get; set; }
 
-	[Option('f', "format", Required = false, Default = "auto", HelpText = "Output format: auto (default), gif, spritesheet, webp.")]
+	[Option('f', "format", Required = false, Default = "auto", HelpText = "Output format: auto (default), webp, spritesheet.")]
 	public string Format { get; set; } = "auto";
 
 	[Option("fps", Required = false, Default = 12.0f, HelpText = "Target frames per second (default 12).")]
@@ -312,7 +312,7 @@ public static class Program
 	{
 		if (_assetAgreementAccepted) return;
 
-		Console.WriteLine("The Realm Asset Agreement states that files cannot be used outside the Realm UGC platform unless you are the original author of the asset. Do you understand? Y/N");
+		Console.WriteLine($"{RealmMetadataHelper.AssetAgreementWarning} Y/N");
 		string? response = Console.ReadLine()?.Trim();
 		if (string.Equals(response, "Y", StringComparison.OrdinalIgnoreCase))
 		{
@@ -491,7 +491,7 @@ public static class Program
 
 	private static int ExecuteRanimRender(RanimRenderOptions options)
 	{
-		RanimOutputFormat outputFormat = RanimOutputFormat.Gif;
+		RanimOutputFormat outputFormat = RanimOutputFormat.Webp;
 		string formatLower = options.Format.Trim().ToLowerInvariant();
 
 		if (formatLower == "webp")
@@ -502,23 +502,15 @@ public static class Program
 		{
 			outputFormat = RanimOutputFormat.Spritesheet;
 		}
-		else if (formatLower == "gif")
-		{
-			outputFormat = RanimOutputFormat.Gif;
-		}
 		else if (formatLower == "auto" && !string.IsNullOrEmpty(options.Output))
 		{
-			if (options.Output.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
-			{
-				outputFormat = RanimOutputFormat.Webp;
-			}
-			else if (options.Output.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+			if (options.Output.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
 			{
 				outputFormat = RanimOutputFormat.Spritesheet;
 			}
 			else
 			{
-				outputFormat = RanimOutputFormat.Gif;
+				outputFormat = RanimOutputFormat.Webp;
 			}
 		}
 
@@ -539,9 +531,8 @@ public static class Program
 
 		string extension = outputFormat switch
 		{
-			RanimOutputFormat.Webp => ".webp",
 			RanimOutputFormat.Spritesheet => ".png",
-			_ => ".gif"
+			_ => ".webp"
 		};
 
 		return ProcessTraversedFiles(
@@ -702,10 +693,10 @@ public static class Program
 				inputObj["asset_type"] = canonical;
 			}
 
+			string? existingMeta = RealmMetadataHelper.ExtractMetadata(targetPath);
 			JsonObject finalObj;
 			if (isUpdate)
 			{
-				string? existingMeta = RealmMetadataHelper.ExtractMetadata(targetPath);
 				if (!string.IsNullOrEmpty(existingMeta))
 				{
 					try
@@ -730,6 +721,40 @@ public static class Program
 			else
 			{
 				finalObj = inputObj;
+
+				if (!string.IsNullOrEmpty(existingMeta))
+				{
+					try
+					{
+						var existingObj = JsonNode.Parse(existingMeta) as JsonObject;
+						if (existingObj != null)
+						{
+							if (!finalObj.ContainsKey("format") && existingObj.ContainsKey("format"))
+							{
+								finalObj["format"] = existingObj["format"]?.DeepClone();
+							}
+							if (!finalObj.ContainsKey("is_compressed") && existingObj.ContainsKey("is_compressed"))
+							{
+								finalObj["is_compressed"] = existingObj["is_compressed"]?.DeepClone();
+							}
+							if (!finalObj.ContainsKey("created_utc") && existingObj.ContainsKey("created_utc"))
+							{
+								finalObj["created_utc"] = existingObj["created_utc"]?.DeepClone();
+							}
+						}
+					}
+					catch { }
+				}
+			}
+
+			if (!finalObj.ContainsKey("format"))
+			{
+				finalObj["format"] = ext.TrimStart('.');
+			}
+
+			if (!finalObj.ContainsKey("created_utc") || finalObj["created_utc"] == null)
+			{
+				finalObj["created_utc"] = DateTime.UtcNow.ToString("O");
 			}
 
 			string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(targetPath);
@@ -844,7 +869,11 @@ public static class Program
 
 			RealmMetadataHelper.RemoveMetadata(options.Input);
 			string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(options.Input);
-			var metaObj = new JsonObject { ["blake3"] = canonicalBlake3 };
+			var metaObj = new JsonObject
+			{
+				["format"] = ext.TrimStart('.'),
+				["blake3"] = canonicalBlake3
+			};
 			bool success = RealmMetadataHelper.AddMetadata(options.Input, metaObj.ToJsonString());
 
 			if (success)
@@ -865,9 +894,14 @@ public static class Program
 
 		foreach (var file in files)
 		{
+			string ext = Path.GetExtension(file).ToLowerInvariant();
 			RealmMetadataHelper.RemoveMetadata(file);
 			string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(file);
-			var metaObj = new JsonObject { ["blake3"] = canonicalBlake3 };
+			var metaObj = new JsonObject
+			{
+				["format"] = ext.TrimStart('.'),
+				["blake3"] = canonicalBlake3
+			};
 
 			if (RealmMetadataHelper.AddMetadata(file, metaObj.ToJsonString()))
 			{
@@ -1254,7 +1288,6 @@ public static class Program
 			else
 			{
 				sourceGlbBytes = File.ReadAllBytes(inputPath);
-				existingMeta = RealmMetadataHelper.ExtractMetadataFromGlbBytes(sourceGlbBytes);
 			}
 
 			var (success, processedGlbBytes, errorMessage, maskedFaces, totalFaces, detectedKey) =
