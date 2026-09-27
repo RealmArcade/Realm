@@ -277,24 +277,6 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		string cleanBase = fileNameWithoutExt.ToLowerInvariant().Replace(' ', '_');
 		_txtAssetName.Text = cleanBase;
 
-		string lower = path.ToLowerInvariant();
-		if (lower.Contains("unit") || lower.Contains("character") || lower.Contains("soldier") || lower.Contains("worker"))
-		{
-			_optSubCategory.Selected = 0;
-		}
-		else if (lower.Contains("build") || lower.Contains("house") || lower.Contains("tower") || lower.Contains("barracks"))
-		{
-			_optSubCategory.Selected = 1;
-		}
-		else if (lower.Contains("item") || lower.Contains("weapon") || lower.Contains("attach") || lower.Contains("proj") || lower.Contains("bullet") || lower.Contains("arrow") || lower.Contains("missile") || lower.Contains("shield") || lower.Contains("sword") || lower.Contains("spear") || lower.Contains("axe"))
-		{
-			_optSubCategory.Selected = 3;
-		}
-		else
-		{
-			_optSubCategory.Selected = 2;
-		}
-
 		if (_chkAutoCorrectChromaKey != null && _chkAutoCorrectChromaKey.ButtonPressed && File.Exists(path) && _colorPicker != null)
 		{
 			string hexColor = $"#{_colorPicker.Color.ToHtml(false)}";
@@ -304,8 +286,6 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 				_colorPicker.Color = Color.FromHtml(correctedKey);
 			}
 		}
-
-		ApplyCategoryDefaults();
 	}
 
 	public void OpenWithPreset(string? initialFilePath = null, string? initialSubCat = null, Action<string>? onConverted = null)
@@ -319,9 +299,9 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		{
 			_optSubCategory.Selected = initialSubCat.ToLowerInvariant() switch
 			{
-				"units" or "unit" or "characters" or "character" => 0,
-				"buildings" or "building" => 1,
-				"items" or "item" or "attachments" or "attachment" or "weapons" or "weapon" or "projectiles" or "projectile" => 3,
+				"units" or "unit" or "characters" or "character" or "rmesh_characters" or "rmesh_units" => 0,
+				"buildings" or "building" or "rmesh_buildings" => 1,
+				"items" or "item" or "attachments" or "attachment" or "weapons" or "weapon" or "projectiles" or "projectile" or "rmesh_items" or "rmesh_attachments" or "rmesh_weapons" or "rmesh_projectiles" => 3,
 				_ => 2
 			};
 		}
@@ -330,6 +310,11 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		{
 			_txtSourceFile.Text = initialFilePath;
 			OnSourceFileChanged(initialFilePath);
+		}
+		else
+		{
+			_txtSourceFile.Text = string.Empty;
+			_txtAssetName.Text = string.Empty;
 		}
 
 		ApplyCategoryDefaults();
