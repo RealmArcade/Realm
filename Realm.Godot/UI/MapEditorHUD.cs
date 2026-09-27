@@ -274,6 +274,7 @@ public partial class MapEditorHUD : Control
 	private Vector3 _lastRaycastPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
 
 	private Button _btnSkybox;
+	private Button _btnFreeCamera;
 
 
 
@@ -571,7 +572,22 @@ public partial class MapEditorHUD : Control
 			GenerateVSCodeFilesExternal();
 			VSCodeManager.Instance.Initialize(this);
 			_btnVSCode = GetNode<Button>("TopLeftBox/BtnVSCode");
-			SetupButton(_btnVSCode, "\uf121 CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor");
+			SetupButton(_btnVSCode, "\uf121 CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
+			_btnVSCode.GuiInput += (@event) =>
+			{
+				if (OperatingSystem.IsWindows() && @event is InputEventMouseButton mouseButton && mouseButton.Pressed)
+				{
+					if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
+					{
+						if (!VSCodeManager.Instance.IsVisible)
+						{
+							ToggleVSCodeEditor();
+						}
+						VSCodeManager.Instance.OpenDevTools();
+						GetViewport().SetInputAsHandled();
+					}
+				}
+			};
 			StyleMapEditorTopButton(_btnVSCode);
 		}
 		else
@@ -826,6 +842,12 @@ public partial class MapEditorHUD : Control
 			UIManager.Instance?.PlayClickSound();
 			(GameHost.Instance?.MainCamera as CameraControl)?.ZoomOut();
 		}, 12, "Zoom camera out (-)");
+
+		_btnFreeCamera = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnFreeCamera") ?? new Button();
+		SetupButton(_btnFreeCamera, "\uf03d", () =>
+		{
+			ToggleFreeCamera();
+		}, 12, "Free Camera (F8)");
 
 		_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
 		_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
@@ -1995,6 +2017,29 @@ public partial class MapEditorHUD : Control
 			_btnToggleWireframe.Text = "\uf5ee";
 			_btnToggleWireframe.TooltipText = TranslationServer.Translate($"Wireframe Mode: {(enabled ? "ON" : "OFF")} (F7)");
 			_btnToggleWireframe.Modulate = enabled ? new Color(1.8f, 1.45f, 0.5f) : new Color(1.1f, 1.1f, 1.1f);
+		}
+	}
+
+	public void ToggleFreeCamera()
+	{
+		var cam = GameHost.Instance?.MainCamera as CameraControl;
+		if (cam != null)
+		{
+			cam.ToggleFreeCamera();
+			UpdateFreeCameraExternal(cam.IsFreeCamera);
+			ShowFeedback(cam.IsFreeCamera
+				? TranslationServer.Translate("Free Camera: ON (RMB drag to look, WASD/QE to fly, Wheel to zoom)")
+				: TranslationServer.Translate("Free Camera: OFF (Clamped to game bounds)"));
+		}
+	}
+
+	public void UpdateFreeCameraExternal(bool isFreeCam)
+	{
+		if (_btnFreeCamera != null)
+		{
+			_btnFreeCamera.Text = "\uf03d";
+			_btnFreeCamera.TooltipText = TranslationServer.Translate($"Free Camera: {(isFreeCam ? "ON" : "OFF")} (F8)");
+			_btnFreeCamera.Modulate = isFreeCam ? new Color(1.8f, 1.45f, 0.5f) : new Color(1f, 1f, 1f);
 		}
 	}
 
@@ -4573,6 +4618,8 @@ public partial class MapEditorHUD : Control
 		AddHelpShortcutRow(grid, "Middle Mouse Drag", TranslationServer.Translate("Pan camera by dragging"));
 		AddHelpShortcutRow(grid, "Shift + Middle Drag", TranslationServer.Translate("Rotate map camera view"));
 		AddHelpShortcutRow(grid, "Comma (,) / Period (.)", TranslationServer.Translate("Rotate camera 90 degrees"));
+		AddHelpShortcutRow(grid, "F8", TranslationServer.Translate("Toggle Free Camera"));
+		AddHelpShortcutRow(grid, "WASD / QE", TranslationServer.Translate("Fly camera in Free Camera mode (RMB drag to look)"));
 
 		AddHelpSectionHeader(grid, TranslationServer.Translate("EDITOR TOOLS"));
 		AddHelpShortcutRow(grid, "1", TranslationServer.Translate("Raise Terrain Tool"));
@@ -6372,6 +6419,7 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
 			StyleIconButton(_btnZoomIn, "\uf00e", "Zoom camera in (+)");
 			StyleIconButton(_btnZoomOut, "\uf010", "Zoom camera out (-)");
+			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
 
 			SafeReparent(_btnToggleGrid, vpRow);
 			SafeReparent(_btnToggleCameraBounds, vpRow);
@@ -6381,6 +6429,7 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_btnSkybox, vpRow);
 			SafeReparent(_btnZoomIn, vpRow);
 			SafeReparent(_btnZoomOut, vpRow);
+			SafeReparent(_btnFreeCamera, vpRow);
 
 			var vpBox = new VBoxContainer();
 			vpBox.Name = "BoxViewportToolbar";
@@ -6993,6 +7042,11 @@ public partial class MapEditorHUD : Control
 					bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
 					UpdateWireframeOverlayExternal(isWireframe);
 				}
+				GetViewport().SetInputAsHandled();
+			}
+			else if (keyEvent.Keycode == Godot.Key.F8)
+			{
+				ToggleFreeCamera();
 				GetViewport().SetInputAsHandled();
 			}
 		}

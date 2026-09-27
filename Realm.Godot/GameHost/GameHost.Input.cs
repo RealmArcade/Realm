@@ -140,6 +140,10 @@ public partial class GameHost
 				}
 				if (editorKeyEvent.Keycode == Key.Q && !ctrlPressed && !shiftPressed)
 				{
+					if (MainCamera is CameraControl camCtrl && camCtrl.IsFreeCamera)
+					{
+						return;
+					}
 					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectMove);
 					GetViewport().SetInputAsHandled();
 					return;
@@ -219,6 +223,10 @@ public partial class GameHost
 				}
 				if (editorKeyEvent.Keycode == Key.C && !ctrlPressed && !shiftPressed)
 				{
+					if (MainCamera is CameraControl camCtrl && camCtrl.IsFreeCamera)
+					{
+						return;
+					}
 					var cam = MainCamera;
 					if (cam != null && cam.HasMethod("ToggleTopDown"))
 					{
@@ -638,6 +646,12 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
+				if (editorKeyEvent.Keycode == Key.F8 || (editorKeyEvent.Keycode == Key.Y && !ctrlPressed && !shiftPressed && !editorKeyEvent.AltPressed))
+				{
+					MapEditorHUD.Instance?.ToggleFreeCamera();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
 			}
 
 			if (@event is InputEventMouseButton wheelBtn && wheelBtn.Pressed && (wheelBtn.ButtonIndex == MouseButton.WheelUp || wheelBtn.ButtonIndex == MouseButton.WheelDown))
@@ -742,6 +756,10 @@ public partial class GameHost
 			if (@event is InputEventMouseButton editorRightMouseBtn && editorRightMouseBtn.Pressed && editorRightMouseBtn.ButtonIndex == MouseButton.Right)
 			{
 				if (IsMouseOverUI()) return;
+				if (MainCamera is CameraControl camCtrl && camCtrl.IsFreeCamera)
+				{
+					return;
+				}
 				if (_editorService.RampStartPos != null)
 				{
 					_editorService.SetRampStartPos(null);

@@ -274,6 +274,11 @@ layout_mode = 2
 focus_mode = 0
 text = "➖ Zoom Out"
 
+[node name="BtnFreeCamera" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+layout_mode = 2
+focus_mode = 0
+text = "📹 Free Camera"
+
 [node name="MinimapFrame" type="PanelContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 
