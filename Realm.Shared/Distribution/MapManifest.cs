@@ -573,7 +573,6 @@ public class MapManifest
         if (string.Equals(fileName, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "metadata.json", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "terrain.json", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "map.json", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "Coordinates.cs", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "MapScript.cs", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase) ||

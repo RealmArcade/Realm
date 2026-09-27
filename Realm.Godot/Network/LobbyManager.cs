@@ -540,34 +540,6 @@ public partial class LobbyManager : Node
                         mapHash = $"{mapBlake3}.json";
                     }
                 }
-                else
-                {
-                    string mapJsonPath = System.IO.Path.Combine(mapPathName, "map.json");
-                    if (System.IO.File.Exists(mapJsonPath))
-                    {
-                        string json = System.IO.File.ReadAllText(mapJsonPath);
-                        using var mapDoc = JsonDocument.Parse(json);
-                        var root = mapDoc.RootElement;
-                        if (root.TryGetProperty("MapProperties", out var props) && props.TryGetProperty("MapVersion", out var mv))
-                        {
-                            mapVersion = mv.GetString() ?? mapVersion;
-                        }
-                        if (root.TryGetProperty("signature", out var sigProp))
-                        {
-                            signature = sigProp.GetString() ?? "";
-                        }
-                        if (root.TryGetProperty("author_key", out var keyProp))
-                        {
-                            publicKey = keyProp.GetString() ?? "";
-                        }
-                        if (!string.IsNullOrEmpty(signature) && !string.IsNullOrEmpty(publicKey))
-                        {
-                            byte[] mapBytes = System.IO.File.ReadAllBytes(mapJsonPath);
-                            string mapBlake3 = RealmMetadataHelper.ComputeBlake3(mapBytes, ".json");
-                            mapHash = $"{mapBlake3}.json";
-                        }
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -2299,20 +2271,6 @@ public partial class LobbyManager : Node
         GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName}");
         Realm.Godot.ReplaySystem.ReplayPlaybackManager.Instance.StopReplay();
         ActiveMapName = mapName;
-
-        
-
-        string path = "res://map.json";
-        if (Godot.FileAccess.FileExists(path))
-        {
-            using var file = Godot.FileAccess.Open(path, Godot.FileAccess.ModeFlags.Read);
-            string jsonText = file.GetAsText();
-            GD.Print($"[LobbyManager] Loaded map.json map data successfully:\n{jsonText}");
-        }
-        else
-        {
-            GD.PrintErr("[LobbyManager] map.json mockup not found in project directory.");
-        }
 
         IsGameStarted = true;
         GameSessionStartTime = DateTime.UtcNow;

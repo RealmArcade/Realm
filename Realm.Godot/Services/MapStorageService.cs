@@ -156,18 +156,6 @@ public class MapStorageService
                     }
                 }
 
-                if (candidateFiles.Count == 0)
-                {
-                    try
-                    {
-                        var foundMaps = Directory.GetFiles(mapFolder, "map.json", SearchOption.AllDirectories);
-                        candidateFiles.AddRange(foundMaps);
-                    }
-                    catch
-                    {
-                    }
-                }
-
                 foreach (string candidatePath in candidateFiles)
                 {
                     TryProcessManifestFile(candidatePath, mapFolder, mapDictionary);

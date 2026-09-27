@@ -3895,8 +3895,7 @@ public partial class MapEditorHUD : Control
 			mapVersion = "1.0.0";
 		}
 		string metaJsonPath = System.IO.Path.Combine(workspace, "metadata.json");
-		string mapJsonPath = System.IO.Path.Combine(workspace, "map.json");
-		string activeConfigPath = System.IO.File.Exists(metaJsonPath) ? metaJsonPath : mapJsonPath;
+		string activeConfigPath = metaJsonPath;
 		string tempTerrainPath = System.IO.Path.Combine(workspace, "terrain.json");
 		string manifestJsonPath = System.IO.Path.Combine(workspace, "manifest.json");
 
@@ -4895,7 +4894,7 @@ public partial class MapEditorHUD : Control
 				
 				foreach (var file in allFiles)
 				{
-					if (file.EndsWith("map.json") || file.EndsWith("authorship_key.pem") || file.EndsWith("authorship_key_DO-NOT-SHARE.rkey") || file.EndsWith(".rkey")) continue;
+					if (file.EndsWith("metadata.json") || file.EndsWith("manifest.json") || file.EndsWith("authorship_key.pem") || file.EndsWith("authorship_key_DO-NOT-SHARE.rkey") || file.EndsWith(".rkey")) continue;
 					
 					byte[] fileBytes = System.IO.File.ReadAllBytes(file);
 					string ext = System.IO.Path.GetExtension(file).ToLowerInvariant();
@@ -4931,12 +4930,12 @@ public partial class MapEditorHUD : Control
 					catch {}
 				}
 				
-				string mapJsonPath = System.IO.Path.Combine(workspace, "map.json");
-				if (System.IO.File.Exists(mapJsonPath))
+				string metadataJsonPath = System.IO.Path.Combine(workspace, "metadata.json");
+				if (System.IO.File.Exists(metadataJsonPath))
 				{
-					string mapJsonContent = System.IO.File.ReadAllText(mapJsonPath);
+					string metadataJsonContent = System.IO.File.ReadAllText(metadataJsonPath);
 					var options = new JsonSerializerOptions { WriteIndented = true };
-					var mapDoc = JsonNode.Parse(mapJsonContent) as JsonObject;
+					var mapDoc = JsonNode.Parse(metadataJsonContent) as JsonObject;
 					
 					if (mapDoc != null)
 					{
@@ -5002,18 +5001,18 @@ public partial class MapEditorHUD : Control
 							mapDoc.Remove("signature");
 						}
 						
-						string updatedMapJson = mapDoc.ToJsonString(options);
-						System.IO.File.WriteAllText(mapJsonPath, updatedMapJson);
+						string updatedMetadataJson = mapDoc.ToJsonString(options);
+						System.IO.File.WriteAllText(metadataJsonPath, updatedMetadataJson);
 						
-						byte[] mapBytes = System.IO.File.ReadAllBytes(mapJsonPath);
+						byte[] mapBytes = System.IO.File.ReadAllBytes(metadataJsonPath);
 						string mapBlake3 = RealmMetadataHelper.ComputeBlake3(mapBytes, ".json");
 						string mapHash = $"{mapBlake3}.json";
 						byte[] mapHashBytes = System.Text.Encoding.UTF8.GetBytes(mapHash);
 						byte[] mapSigBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, mapHashBytes);
 						
 						mapDoc["signature"] = Convert.ToBase64String(mapSigBytes);
-						updatedMapJson = mapDoc.ToJsonString(options);
-						System.IO.File.WriteAllText(mapJsonPath, updatedMapJson);
+						updatedMetadataJson = mapDoc.ToJsonString(options);
+						System.IO.File.WriteAllText(metadataJsonPath, updatedMetadataJson);
 						
 						try
 						{
@@ -5025,7 +5024,7 @@ public partial class MapEditorHUD : Control
 								form.Add(new System.Net.Http.StringContent(pubKeyStr), "PublicKey");
 								
 								var fileContent = new System.Net.Http.ByteArrayContent(mapBytes);
-								form.Add(fileContent, "File", "map.json");
+								form.Add(fileContent, "File", "metadata.json");
 								
 								var uploadMapTask = httpClient.PostAsync(seedServerUrl + "/api/publish_map/upload_asset", form);
 								uploadMapTask.Wait();
@@ -5033,7 +5032,7 @@ public partial class MapEditorHUD : Control
 							
 							var publishReq = new 
 							{
-								MapJson = updatedMapJson,
+								MapJson = updatedMetadataJson,
 								ReferencedHashes = referencedHashes,
 								Signature = Convert.ToBase64String(mapSigBytes),
 								PublicKey = pubKeyStr
@@ -10011,21 +10010,6 @@ public partial class MapEditorHUD : Control
 				}
 			}
 
-			string mapJsonPath = System.IO.Path.Combine(workspacePath, "map.json");
-			if (System.IO.File.Exists(mapJsonPath))
-			{
-				var mapDoc = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(mapJsonPath)) as System.Text.Json.Nodes.JsonObject;
-				if (mapDoc != null && mapDoc.TryGetPropertyValue("MapProperties", out var mp) && mp is System.Text.Json.Nodes.JsonObject mpObj)
-				{
-					if (mpObj.TryGetPropertyValue("MapName", out var n) && TrySanitizeCandidate(n?.ToString(), out var mapDocName))
-					{
-						_cachedMapName = mapDocName;
-						_lastMapNameCacheTicks = now;
-						return mapDocName;
-					}
-				}
-			}
-
 			if (!string.IsNullOrEmpty(GameHost.Instance?.ActiveMapName))
 			{
 				string candidate = System.IO.Path.GetFileNameWithoutExtension(GameHost.Instance.ActiveMapName);
@@ -10120,21 +10104,6 @@ public partial class MapEditorHUD : Control
 							_cachedMapVersion = v.Trim();
 							return _cachedMapVersion;
 						}
-					}
-				}
-			}
-
-			string mapJsonPath = System.IO.Path.Combine(workspacePath, "map.json");
-			if (System.IO.File.Exists(mapJsonPath))
-			{
-				var mapDoc = JsonNode.Parse(System.IO.File.ReadAllText(mapJsonPath)) as System.Text.Json.Nodes.JsonObject;
-				if (mapDoc != null && mapDoc.TryGetPropertyValue("MapProperties", out var mp) && mp is System.Text.Json.Nodes.JsonObject mpObj)
-				{
-					string? v = mpObj["MapVersion"]?.ToString() ?? mpObj["Version"]?.ToString();
-					if (!string.IsNullOrWhiteSpace(v))
-					{
-						_cachedMapVersion = v.Trim();
-						return _cachedMapVersion;
 					}
 				}
 			}

@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace Realm.Ecs.Services;
 
 /// <summary>
-///     Responsible for loading the game's map definition (map.json) and
+///     Responsible for loading the game's map definition (metadata.json) and
 ///     orchestrating the initialization of all data managers.
 /// </summary>
 internal class MapLoader
@@ -18,8 +18,8 @@ internal class MapLoader
 	{
 		DefinitionManager = new DefinitionManager(ecsWorldAccessor);
 
-		var mapJsonPath = Path.Combine(definitionsBasePath, "map.json");
-		var mapJson = File.ReadAllText(mapJsonPath);
+		var metadataJsonPath = Path.Combine(definitionsBasePath, "metadata.json");
+		var mapJson = File.Exists(metadataJsonPath) ? File.ReadAllText(metadataJsonPath) : "{}";
 		MapDefinition = JsonSerializer.Deserialize<MapDefinition>(mapJson, Options) ?? new MapDefinition();
 
 		ArchetypeManager = new ArchetypeManager(ecsWorldAccessor, MapDefinition.Units, DefinitionManager);
