@@ -6,6 +6,9 @@
     "GameBuildNumber": {
       "type": "string"
     },
+    "license": {
+      "type": "string"
+    },
     "MapProperties": {
       "type": "object",
       "properties": {
