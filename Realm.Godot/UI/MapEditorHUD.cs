@@ -217,6 +217,7 @@ public partial class MapEditorHUD : Control
 
 	private Control _waterModeBox;
 	private OptionButton _optWaterMode;
+	private WaterProfileDialog _waterProfileDialog;
 	private GlobalObjectOverridesDialog _globalOverridesDialog;
 	private AnimationPreviewDialog _animationPreviewDialog;
 	private WeaponVfxDialog _weaponVfxDialog;
@@ -1033,10 +1034,21 @@ public partial class MapEditorHUD : Control
 			_optWaterMode = new OptionButton();
 			_optWaterMode.Name = "OptWaterMode";
 			_optWaterMode.AddItem(TranslationServer.Translate("None"), (int)WaterType.None);
+			_optWaterMode.SetItemMetadata(0, (byte)0);
 			_optWaterMode.AddItem(TranslationServer.Translate("Shallow"), (int)WaterType.Shallow);
+			_optWaterMode.SetItemMetadata(1, (byte)0);
 			_optWaterMode.AddItem(TranslationServer.Translate("Deep"), (int)WaterType.Deep);
+			_optWaterMode.SetItemMetadata(2, (byte)1);
 			_optWaterMode.Selected = 0;
 			row.AddChild(_optWaterMode);
+
+			var btnWaterProfiles = new Button();
+			btnWaterProfiles.Name = "BtnWaterProfiles";
+			btnWaterProfiles.Set("icon_max_width", 0);
+			btnWaterProfiles.Text = "⚙";
+			btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
+			btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
+			row.AddChild(btnWaterProfiles);
 
 			contentBrush.AddChild(row);
 			_waterModeBox = row;
@@ -1050,10 +1062,28 @@ public partial class MapEditorHUD : Control
 		{
 			_optWaterMode.ItemSelected += (idx) =>
 			{
-				WaterType mode = (WaterType)idx;
-				if (GameHost.Instance != null)
+				if (idx == 0)
 				{
-					GameHost.Instance.EditorWaterMode = mode;
+					if (GameHost.Instance != null)
+					{
+						GameHost.Instance.EditorWaterMode = WaterType.None;
+						GameHost.Instance.ActiveWaterProfileIndex = 0;
+					}
+				}
+				else
+				{
+					WaterType mode = (WaterType)_optWaterMode.GetItemId((int)idx);
+					byte profIdx = 0;
+					var meta = _optWaterMode.GetItemMetadata((int)idx);
+					if (meta.VariantType != Variant.Type.Nil)
+					{
+						profIdx = (byte)meta;
+					}
+					if (GameHost.Instance != null)
+					{
+						GameHost.Instance.EditorWaterMode = mode;
+						GameHost.Instance.ActiveWaterProfileIndex = profIdx;
+					}
 				}
 				UpdateBlockStepVisibility();
 			};
@@ -8307,6 +8337,8 @@ public partial class MapEditorHUD : Control
 		_shaderEditorDialog = new ShaderEditorDialog(this);
 		_vfxStudioDialog = new VfxStudioDialog(this);
 		_authorSignatureDialog = new AuthorSignatureDialog(this);
+		_waterProfileDialog = new WaterProfileDialog(this);
+		RefreshWaterSwatches();
 		ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
 
 		_btnOpenAnimationPreview = new Button();
@@ -11424,5 +11456,74 @@ Blend Noise: Strength={_tuneBlendNoiseStrength:F2}, Scale={_tuneBlendNoiseScale:
 		lbl.Modulate = new Color(0.95f, 0.85f, 0.35f);
 		parent.AddChild(lbl);
 		return lbl;
+	}
+
+	public void RefreshWaterSwatches()
+	{
+		if (_optWaterMode == null) return;
+		_optWaterMode.Clear();
+		_optWaterMode.AddItem(TranslationServer.Translate("None"), (int)WaterType.None);
+		_optWaterMode.SetItemMetadata(0, (byte)0);
+
+		var profiles = RuntimeTerrain.Instance != null ? RuntimeTerrain.Instance.GetWaterProfiles() : null;
+		if (profiles != null && profiles.Count > 0)
+		{
+			int itemIdx = 1;
+			foreach (var kvp in profiles)
+			{
+				byte pIdx = kvp.Key;
+				var prof = kvp.Value;
+				string label = $"{TranslationServer.Translate(prof.Name)} ({TranslationServer.Translate(prof.WaterType.ToString())})";
+				_optWaterMode.AddItem(label, (int)prof.WaterType);
+				_optWaterMode.SetItemMetadata(itemIdx, pIdx);
+				itemIdx++;
+			}
+		}
+		else
+		{
+			_optWaterMode.AddItem(TranslationServer.Translate("Shallow Water"), (int)WaterType.Shallow);
+			_optWaterMode.SetItemMetadata(1, (byte)0);
+			_optWaterMode.AddItem(TranslationServer.Translate("Deep Water"), (int)WaterType.Deep);
+			_optWaterMode.SetItemMetadata(2, (byte)1);
+		}
+
+		int targetSelected = 0;
+		if (GameHost.Instance != null)
+		{
+			WaterType currentMode = GameHost.Instance.EditorWaterMode;
+			byte currentProf = GameHost.Instance.ActiveWaterProfileIndex;
+			for (int i = 0; i < _optWaterMode.ItemCount; i++)
+			{
+				if (i == 0 && currentMode == WaterType.None)
+				{
+					targetSelected = 0;
+					break;
+				}
+				if (i > 0 && (WaterType)_optWaterMode.GetItemId(i) == currentMode && (byte)_optWaterMode.GetItemMetadata(i) == currentProf)
+				{
+					targetSelected = i;
+					break;
+				}
+			}
+		}
+		_optWaterMode.Selected = targetSelected;
+	}
+
+	public void OpenWaterProfileDialog()
+	{
+		var profilesList = new List<WaterProfileSaveData>();
+		if (RuntimeTerrain.Instance != null)
+		{
+			var profDict = RuntimeTerrain.Instance.GetWaterProfiles();
+			if (profDict != null && profDict.Count > 0)
+			{
+				foreach (var p in profDict.Values) profilesList.Add(p);
+			}
+		}
+		if (profilesList.Count == 0)
+		{
+			profilesList.AddRange(WaterProfileSaveData.CreateDefaultProfiles());
+		}
+		_waterProfileDialog?.OpenWithProfiles(profilesList);
 	}
 }

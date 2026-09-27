@@ -4,7 +4,10 @@ using DotRecast.Detour;
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
+using Realm.Godot.Services;
+using Realm.Godot.Utils;
 
 public partial class RuntimeTerrain : StaticBody3D
 {
@@ -296,6 +299,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		public ArrayMesh ShallowWaterArrayMesh;
 		public MeshInstance3D DeepWaterMesh;
 		public ArrayMesh DeepWaterArrayMesh;
+		public Dictionary<byte, (MeshInstance3D MeshInstance, ArrayMesh ArrayMesh)> ProfileWaterMeshes = new();
 		public int StartX;
 		public int StartZ;
 		public int EndX;
@@ -322,126 +326,201 @@ public partial class RuntimeTerrain : StaticBody3D
 	public ShaderMaterial Material => _material;
 	protected ShaderMaterial _shallowWaterMaterial;
 	protected ShaderMaterial _deepWaterMaterial;
+	protected Dictionary<byte, WaterProfileSaveData> _waterProfiles = new();
+	protected Dictionary<byte, ShaderMaterial> _waterMaterials = new();
+	protected Shader _waterUberShader;
+
+	public Dictionary<byte, WaterProfileSaveData> WaterProfiles => _waterProfiles;
+	public Dictionary<byte, ShaderMaterial> WaterMaterials => _waterMaterials;
+
+	public IReadOnlyDictionary<byte, WaterProfileSaveData> GetWaterProfiles() => _waterProfiles;
+
+	public WaterProfileSaveData GetWaterProfile(byte profileIndex)
+	{
+		if (_waterProfiles.TryGetValue(profileIndex, out var prof)) return prof;
+		return _waterProfiles.Count > 0 ? _waterProfiles.Values.GetEnumerator().Current : new WaterProfileSaveData();
+	}
+
+	public ShaderMaterial GetWaterMaterial(byte profileIndex)
+	{
+		if (_waterMaterials.TryGetValue(profileIndex, out var mat) && mat != null) return mat;
+		if (_waterUberShader == null) CreateWater();
+		var newMat = new ShaderMaterial { Shader = _waterUberShader };
+		var prof = GetWaterProfile(profileIndex);
+		ApplyWaterProfileToMaterial(newMat, prof);
+		_waterMaterials[profileIndex] = newMat;
+		return newMat;
+	}
+
+	public void SetWaterProfiles(List<WaterProfileSaveData> profiles)
+	{
+		_waterProfiles.Clear();
+		foreach (var p in profiles)
+		{
+			_waterProfiles[p.ProfileIndex] = p;
+		}
+		ReloadWaterProfiles();
+		RegenerateWaterMesh();
+	}
+
+	public void ApplyWaterProfileToMaterial(ShaderMaterial mat, WaterProfileSaveData profile)
+	{
+		if (mat == null || profile == null) return;
+		Color shallow = Color.HtmlIsValid(profile.ShallowColorHex) ? Color.FromHtml(profile.ShallowColorHex) : new Color(0.05f, 0.30f, 0.38f, 0.55f);
+		Color deep = Color.HtmlIsValid(profile.DeepColorHex) ? Color.FromHtml(profile.DeepColorHex) : new Color(0.01f, 0.06f, 0.14f, 0.98f);
+		Color foam = Color.HtmlIsValid(profile.FoamColorHex) ? Color.FromHtml(profile.FoamColorHex) : new Color(0.85f, 0.95f, 1.0f, 0.85f);
+		Color emission = Color.HtmlIsValid(profile.EmissionColorHex) ? Color.FromHtml(profile.EmissionColorHex) : Colors.Black;
+		Color core = Color.HtmlIsValid(profile.CoreColorHex) ? Color.FromHtml(profile.CoreColorHex) : Colors.White;
+		Color sss = Color.HtmlIsValid(profile.SubsurfaceColorHex) ? Color.FromHtml(profile.SubsurfaceColorHex) : Colors.Black;
+
+		mat.SetShaderParameter("shallow_color", shallow);
+		mat.SetShaderParameter("deep_color", deep);
+		mat.SetShaderParameter("foam_color", foam);
+		mat.SetShaderParameter("max_depth", profile.MaxDepth);
+		mat.SetShaderParameter("foam_depth", profile.FoamDepth);
+		mat.SetShaderParameter("wave_speed", profile.WaveSpeed);
+		mat.SetShaderParameter("wave_strength", profile.WaveStrength);
+
+		mat.SetShaderParameter("use_normal_texture", profile.UseNormalTexture && !string.IsNullOrEmpty(profile.NormalTexturePath));
+		if (profile.UseNormalTexture && !string.IsNullOrEmpty(profile.NormalTexturePath))
+		{
+			var tex = LoadTextureFromActiveWorkspace(profile.NormalTexturePath);
+			if (tex != null) mat.SetShaderParameter("normal_texture", tex);
+		}
+		mat.SetShaderParameter("normal_scale", profile.NormalScale);
+		mat.SetShaderParameter("flow_direction", new Vector2(profile.FlowDirectionX, profile.FlowDirectionY));
+		mat.SetShaderParameter("flow_speed", profile.FlowSpeed);
+
+		mat.SetShaderParameter("use_flow_map", profile.UseFlowMap && !string.IsNullOrEmpty(profile.FlowMapPath));
+		if (profile.UseFlowMap && !string.IsNullOrEmpty(profile.FlowMapPath))
+		{
+			var ftex = LoadTextureFromActiveWorkspace(profile.FlowMapPath);
+			if (ftex != null) mat.SetShaderParameter("flow_map_texture", ftex);
+		}
+
+		mat.SetShaderParameter("refraction_strength", profile.RefractionStrength);
+		mat.SetShaderParameter("caustic_strength", profile.CausticStrength);
+		mat.SetShaderParameter("caustic_scale", profile.CausticScale);
+		mat.SetShaderParameter("caustic_speed", profile.CausticSpeed);
+
+		mat.SetShaderParameter("emission_color", emission);
+		mat.SetShaderParameter("emission_boost", profile.EmissionBoost);
+		mat.SetShaderParameter("core_color", core);
+		mat.SetShaderParameter("core_threshold", profile.CoreThreshold);
+		mat.SetShaderParameter("subsurface_color", sss);
+		mat.SetShaderParameter("subsurface_strength", profile.SubsurfaceStrength);
+
+		mat.SetShaderParameter("use_detail_texture", profile.UseDetailTexture && !string.IsNullOrEmpty(profile.DetailTexturePath));
+		if (profile.UseDetailTexture && !string.IsNullOrEmpty(profile.DetailTexturePath))
+		{
+			var dtex = LoadTextureFromActiveWorkspace(profile.DetailTexturePath);
+			if (dtex != null) mat.SetShaderParameter("detail_texture", dtex);
+		}
+		mat.SetShaderParameter("detail_uv_scale", new Vector2(profile.DetailUvScaleX, profile.DetailUvScaleY));
+		mat.SetShaderParameter("detail_uv_scroll", new Vector2(profile.DetailUvScrollX, profile.DetailUvScrollY));
+		mat.SetShaderParameter("detail_alpha", profile.DetailAlpha);
+		mat.SetShaderParameter("detail_blend_mode", profile.DetailBlendMode);
+
+		if (_currentShroudTexture != null)
+		{
+			mat.SetShaderParameter("shroud_texture", _currentShroudTexture);
+			mat.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameHost.Instance.IsMapEditorMode);
+			float halfW = (Width * QuadSize) * 0.5f;
+			float halfD = (Depth * QuadSize) * 0.5f;
+			mat.SetShaderParameter("shroud_world_min", new Vector2(-halfW, -halfD));
+			mat.SetShaderParameter("shroud_world_size", new Vector2(Width * QuadSize, Depth * QuadSize));
+		}
+	}
+
+	private Texture2D? LoadTextureFromActiveWorkspace(string texturePath)
+	{
+		if (string.IsNullOrWhiteSpace(texturePath)) return null;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string fullPath = Path.Combine(wsPath, "Assets", "textures", texturePath);
+		if (!File.Exists(fullPath)) fullPath = Path.Combine(wsPath, texturePath);
+		if (!File.Exists(fullPath)) fullPath = PathUtils.FindPath($"Assets/textures/{texturePath}");
+		if (!File.Exists(fullPath)) fullPath = PathUtils.FindPath(texturePath);
+		if (File.Exists(fullPath))
+		{
+			if (fullPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				var (alb, _) = LoadRtexLayers(fullPath);
+				return alb != null ? ImageTexture.CreateFromImage(alb) : null;
+			}
+			var img = Image.LoadFromFile(fullPath);
+			if (img != null) return ImageTexture.CreateFromImage(img);
+		}
+		return null;
+	}
+
+	public void ReloadWaterProfiles()
+	{
+		if (_waterUberShader == null)
+		{
+			_waterUberShader = GD.Load<Shader>("res://Assets/shaders/water_uber.gdshader");
+			if (_waterUberShader == null)
+			{
+				string shaderPath = PathUtils.FindPath("Assets/shaders/water_uber.gdshader");
+				if (File.Exists(shaderPath))
+				{
+					_waterUberShader = new Shader { Code = File.ReadAllText(shaderPath) };
+				}
+			}
+		}
+
+		if (_waterProfiles.Count == 0)
+		{
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot?.CustomWaterProfiles != null && metadataRoot.CustomWaterProfiles.Count > 0)
+			{
+				foreach (var p in metadataRoot.CustomWaterProfiles)
+				{
+					_waterProfiles[p.ProfileIndex] = p;
+				}
+			}
+			else
+			{
+				foreach (var def in WaterProfileSaveData.CreateDefaultProfiles())
+				{
+					_waterProfiles[def.ProfileIndex] = def;
+				}
+			}
+		}
+
+		foreach (var kvp in _waterProfiles)
+		{
+			byte idx = kvp.Key;
+			var prof = kvp.Value;
+			if (!_waterMaterials.TryGetValue(idx, out var mat) || mat == null)
+			{
+				mat = new ShaderMaterial { Shader = _waterUberShader };
+				_waterMaterials[idx] = mat;
+			}
+			ApplyWaterProfileToMaterial(mat, prof);
+		}
+
+		_shallowWaterMaterial = GetWaterMaterial(0);
+		_deepWaterMaterial = GetWaterMaterial(1);
+	}
 
 	protected void CreateWater()
 	{
-		if (_shallowWaterMaterial != null && _deepWaterMaterial != null) return;
-
-		var waterShader = new Shader();
-		waterShader.Code = @"
-shader_type spatial;
-render_mode blend_mix;
-
-uniform vec4 shallow_color : source_color = vec4(0.05, 0.30, 0.38, 0.55);
-uniform vec4 deep_color : source_color = vec4(0.01, 0.06, 0.14, 0.98);
-uniform vec4 foam_color : source_color = vec4(0.85, 0.95, 1.0, 0.85);
-uniform float max_depth = 2.0;
-uniform float foam_depth = 0.6;
-uniform float wave_speed = 1.2;
-
-uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
-
-uniform sampler2D shroud_texture : hint_default_black;
-uniform vec2 shroud_world_min = vec2(-125.0, -125.0);
-uniform vec2 shroud_world_size = vec2(250.0, 250.0);
-uniform bool shroud_enabled = false;
-
-varying vec3 v_world_pos;
-varying vec3 v_world_normal;
-
-void vertex() {
-	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	v_world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-
-	float is_flat = smoothstep(0.4, 0.8, abs(v_world_normal.y));
-	float w1 = sin(v_world_pos.x * 0.4 + TIME * wave_speed * 1.8);
-	float w2 = cos(v_world_pos.z * 0.4 + TIME * wave_speed * 1.4);
-	VERTEX.y += (w1 + w2) * 0.06 * is_flat;
-}
-
-void fragment() {
-	float flat_factor = smoothstep(0.4, 0.8, abs(v_world_normal.y));
-	float waterfall_factor = 1.0 - flat_factor;
-
-	vec2 p1 = v_world_pos.xz * 0.25 + vec2(TIME * wave_speed * 0.12, TIME * wave_speed * 0.08);
-	vec2 p2 = v_world_pos.xz * 0.35 - vec2(TIME * wave_speed * 0.09, TIME * wave_speed * 0.14);
-
-	float n1 = sin(p1.x + sin(p1.y * 1.2)) * 0.5 + 0.5;
-	float n2 = cos(p2.x - cos(p2.y * 1.3)) * 0.5 + 0.5;
-	float combined_wave = (n1 + n2) * 0.5;
-
-	vec3 flat_perturbed_normal = normalize(vec3((n1 - 0.5) * 0.25, 1.0, (n2 - 0.5) * 0.25));
-
-	float flow_x = (v_world_pos.x + v_world_pos.z) * 0.3;
-	float flow_y = v_world_pos.y * 1.2 + TIME * wave_speed * 1.1;
-
-	float streak1 = sin(flow_y * 2.2 + sin(flow_x * 1.8)) * 0.5 + 0.5;
-	float streak2 = cos(flow_y * 4.2 - cos(flow_x * 3.1)) * 0.5 + 0.5;
-	float waterfall_foam_raw = streak1 * 0.5 + streak2 * 0.5;
-	float waterfall_foam = smoothstep(0.25, 0.95, waterfall_foam_raw) * 0.28;
-
-	vec3 wf_normal = normalize(vec3((streak1 - 0.5) * 0.08, (streak2 - 0.5) * 0.08, (streak1 - 0.5) * 0.08));
-
-	vec3 local_normal = mix(wf_normal, flat_perturbed_normal, flat_factor);
-	NORMAL = normalize(TANGENT * local_normal.x + BINORMAL * local_normal.z + NORMAL * local_normal.y);
-
-	float depth_raw = texture(depth_texture, SCREEN_UV).r;
-	vec4 upos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth_raw, 1.0);
-	float pixel_z = -upos.z / upos.w;
-	float water_z = -VERTEX.z;
-	float water_depth = max(0.0, pixel_z - water_z);
-
-	float depth_factor = clamp(water_depth / max_depth, 0.0, 1.0);
-	vec4 water_col = mix(shallow_color, deep_color, smoothstep(0.0, 0.85, depth_factor));
-
-	float shore_fade = mix(1.0, smoothstep(0.001, 0.02, water_depth), flat_factor);
-	float shore_proximity = (1.0 - smoothstep(0.0, foam_depth, water_depth)) * shore_fade;
-
-	float pulse = sin(water_depth * 18.0 - TIME * wave_speed * 3.5) * 0.5 + 0.5;
-	float flat_foam_mask = smoothstep(0.2, 0.8, shore_proximity * (0.6 + 0.4 * combined_wave) + pulse * shore_proximity * 0.4);
-
-	float final_foam_mask = mix(waterfall_foam, flat_foam_mask, flat_factor);
-
-	vec2 shroud_uv = (v_world_pos.xz - shroud_world_min) / shroud_world_size;
-	float shroud_factor = shroud_enabled ? texture(shroud_texture, clamp(shroud_uv, 0.0, 1.0)).r : 0.0;
-
-	vec3 final_albedo = mix(water_col.rgb, foam_color.rgb, final_foam_mask * foam_color.a) * (1.0 - shroud_factor * 0.98);
-
-	ALBEDO = final_albedo;
-	ALPHA = mix(water_col.a, 0.75, final_foam_mask) * shore_fade;
-
-	ROUGHNESS = mix(mix(0.1, 0.35, waterfall_factor), 0.9, shroud_factor);
-	METALLIC = 0.0;
-	SPECULAR = mix(0.05, 0.10, waterfall_factor) * (1.0 - shroud_factor * 0.98);
-}
-";
-
-		_shallowWaterMaterial = new ShaderMaterial();
-		_shallowWaterMaterial.Shader = waterShader;
-		_shallowWaterMaterial.SetShaderParameter("shallow_color", new Color(0.05f, 0.30f, 0.35f, 0.50f));
-		_shallowWaterMaterial.SetShaderParameter("deep_color", new Color(0.03f, 0.20f, 0.25f, 0.70f));
-		_shallowWaterMaterial.SetShaderParameter("max_depth", 1.5f);
-
-		_deepWaterMaterial = new ShaderMaterial();
-		_deepWaterMaterial.Shader = waterShader;
-		_deepWaterMaterial.SetShaderParameter("shallow_color", new Color(0.02f, 0.12f, 0.28f, 0.70f));
-		_deepWaterMaterial.SetShaderParameter("deep_color", new Color(0.005f, 0.03f, 0.12f, 0.99f));
-		_deepWaterMaterial.SetShaderParameter("max_depth", 1.5f);
-
+		ReloadWaterProfiles();
 		UpdateWaterTransform();
 	}
 
-	private (float waterY, WaterType waterMode) GetCellWaterInfo(int x, int z, TerrainCell[,] cells, int w, int d)
+	private (float waterY, WaterType waterMode, byte waterProfileIndex) GetCellWaterInfo(int x, int z, TerrainCell[,] cells, int w, int d)
 	{
 		var cell = cells[x, z];
 		if (cell.WaterMode != WaterType.None)
 		{
-			return ((cell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA, cell.WaterMode);
+			return ((cell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA, cell.WaterMode, cell.WaterProfileIndex);
 		}
 
 		float minCornerH = Math.Min(Math.Min(cell.Y_NW, cell.Y_NE), Math.Min(cell.Y_SE, cell.Y_SW));
 		float maxWaterY = -9999f;
 		WaterType bestWaterMode = WaterType.None;
+		byte bestProfileIndex = 0;
 
 		for (int nz = Math.Max(0, z - 1); nz <= Math.Min(d - 1, z + 1); nz++)
 		{
@@ -456,6 +535,7 @@ void fragment() {
 					{
 						maxWaterY = nWaterY;
 						bestWaterMode = nCell.WaterMode;
+						bestProfileIndex = nCell.WaterProfileIndex;
 					}
 				}
 			}
@@ -463,10 +543,10 @@ void fragment() {
 
 		if (bestWaterMode != WaterType.None && minCornerH <= maxWaterY)
 		{
-			return (maxWaterY, bestWaterMode);
+			return (maxWaterY, bestWaterMode, bestProfileIndex);
 		}
 
-		return (0f, WaterType.None);
+		return (0f, WaterType.None, 0);
 	}
 
 	public void RegenerateWaterMesh()
@@ -482,63 +562,36 @@ void fragment() {
 		float halfWQuadSize = (w / 2.0f) * quadSize;
 		float halfDQuadSize = (d / 2.0f) * quadSize;
 
-		var shallowVerts = new List<Vector3>();
-		var shallowNorms = new List<Vector3>();
-		var shallowUvs = new List<Vector2>();
-		var shallowIndices = new List<int>();
+		var profileVerts = new Dictionary<byte, List<Vector3>>();
+		var profileNorms = new Dictionary<byte, List<Vector3>>();
+		var profileUvs = new Dictionary<byte, List<Vector2>>();
+		var profileIndices = new Dictionary<byte, List<int>>();
 
-		var deepVerts = new List<Vector3>();
-		var deepNorms = new List<Vector3>();
-		var deepUvs = new List<Vector2>();
-		var deepIndices = new List<int>();
+		(List<Vector3> verts, List<Vector3> norms, List<Vector2> uvs, List<int> indices) GetGeomLists(byte pIdx)
+		{
+			if (!profileVerts.TryGetValue(pIdx, out var vList))
+			{
+				vList = new List<Vector3>();
+				profileVerts[pIdx] = vList;
+				profileNorms[pIdx] = new List<Vector3>();
+				profileUvs[pIdx] = new List<Vector2>();
+				profileIndices[pIdx] = new List<int>();
+			}
+			return (vList, profileNorms[pIdx], profileUvs[pIdx], profileIndices[pIdx]);
+		}
 
 		foreach (var chunk in _chunks)
 		{
-			if (chunk.ShallowWaterMesh == null)
-			{
-				chunk.ShallowWaterArrayMesh = new ArrayMesh();
-				chunk.ShallowWaterMesh = new MeshInstance3D();
-				chunk.ShallowWaterMesh.Name = $"ShallowWaterChunk_{chunk.StartX}_{chunk.StartZ}";
-				chunk.ShallowWaterMesh.Mesh = chunk.ShallowWaterArrayMesh;
-				chunk.ShallowWaterMesh.Layers = TerrainVisualLayer;
-				if (_shallowWaterMaterial != null) chunk.ShallowWaterMesh.MaterialOverride = _shallowWaterMaterial;
-				AddChild(chunk.ShallowWaterMesh);
-			}
-			else if (chunk.ShallowWaterMesh.MaterialOverride == null && _shallowWaterMaterial != null)
-			{
-				chunk.ShallowWaterMesh.MaterialOverride = _shallowWaterMaterial;
-			}
-
-			if (chunk.DeepWaterMesh == null)
-			{
-				chunk.DeepWaterArrayMesh = new ArrayMesh();
-				chunk.DeepWaterMesh = new MeshInstance3D();
-				chunk.DeepWaterMesh.Name = $"DeepWaterChunk_{chunk.StartX}_{chunk.StartZ}";
-				chunk.DeepWaterMesh.Mesh = chunk.DeepWaterArrayMesh;
-				chunk.DeepWaterMesh.Layers = TerrainVisualLayer;
-				if (_deepWaterMaterial != null) chunk.DeepWaterMesh.MaterialOverride = _deepWaterMaterial;
-				AddChild(chunk.DeepWaterMesh);
-			}
-			else if (chunk.DeepWaterMesh.MaterialOverride == null && _deepWaterMaterial != null)
-			{
-				chunk.DeepWaterMesh.MaterialOverride = _deepWaterMaterial;
-			}
-
-			shallowVerts.Clear();
-			shallowNorms.Clear();
-			shallowUvs.Clear();
-			shallowIndices.Clear();
-
-			deepVerts.Clear();
-			deepNorms.Clear();
-			deepUvs.Clear();
-			deepIndices.Clear();
+			profileVerts.Clear();
+			profileNorms.Clear();
+			profileUvs.Clear();
+			profileIndices.Clear();
 
 			for (int z = chunk.StartZ; z < chunk.EndZ; z++)
 			{
 				for (int x = chunk.StartX; x < chunk.EndX; x++)
 				{
-					var (waterY1, activeWaterMode1) = GetCellWaterInfo(x, z, cells, w, d);
+					var (waterY1, activeWaterMode1, activeWaterProfile1) = GetCellWaterInfo(x, z, cells, w, d);
 					if (activeWaterMode1 == WaterType.None) continue;
 
 					Vector3 nw = new Vector3(x * quadSize - halfWQuadSize, waterY1, z * quadSize - halfDQuadSize);
@@ -546,42 +599,36 @@ void fragment() {
 					Vector3 se = new Vector3((x + 1) * quadSize - halfWQuadSize, waterY1, (z + 1) * quadSize - halfDQuadSize);
 					Vector3 sw = new Vector3(x * quadSize - halfWQuadSize, waterY1, (z + 1) * quadSize - halfDQuadSize);
 
-					bool isShallow1 = (activeWaterMode1 == WaterType.Shallow);
-					var targetVerts = isShallow1 ? shallowVerts : deepVerts;
-					var targetNorms = isShallow1 ? shallowNorms : deepNorms;
-					var targetUVs = isShallow1 ? shallowUvs : deepUvs;
-					var targetIndices = isShallow1 ? shallowIndices : deepIndices;
+					var geom = GetGeomLists(activeWaterProfile1);
+					int baseIdx = geom.verts.Count;
 
-					int baseIdx = targetVerts.Count;
-
-					targetVerts.Add(nw);
-					targetVerts.Add(ne);
-					targetVerts.Add(se);
-					targetVerts.Add(sw);
+					geom.verts.Add(nw);
+					geom.verts.Add(ne);
+					geom.verts.Add(se);
+					geom.verts.Add(sw);
 
 					Vector3 normal = Vector3.Up;
-					targetNorms.Add(normal);
-					targetNorms.Add(normal);
-					targetNorms.Add(normal);
-					targetNorms.Add(normal);
+					geom.norms.Add(normal);
+					geom.norms.Add(normal);
+					geom.norms.Add(normal);
+					geom.norms.Add(normal);
 
-					targetUVs.Add(new Vector2(0, 0));
-					targetUVs.Add(new Vector2(1, 0));
-					targetUVs.Add(new Vector2(1, 1));
-					targetUVs.Add(new Vector2(0, 1));
+					geom.uvs.Add(new Vector2(0, 0));
+					geom.uvs.Add(new Vector2(1, 0));
+					geom.uvs.Add(new Vector2(1, 1));
+					geom.uvs.Add(new Vector2(0, 1));
 
-					targetIndices.Add(baseIdx + 0);
-					targetIndices.Add(baseIdx + 1);
-					targetIndices.Add(baseIdx + 2);
+					geom.indices.Add(baseIdx + 0);
+					geom.indices.Add(baseIdx + 1);
+					geom.indices.Add(baseIdx + 2);
 
-					targetIndices.Add(baseIdx + 0);
-					targetIndices.Add(baseIdx + 2);
-					targetIndices.Add(baseIdx + 3);
+					geom.indices.Add(baseIdx + 0);
+					geom.indices.Add(baseIdx + 2);
+					geom.indices.Add(baseIdx + 3);
 
-					// Build water ramp wall quads along boundaries between water cells of differing height levels
 					if (x + 1 < w)
 					{
-						var (waterY2, activeWaterMode2) = GetCellWaterInfo(x + 1, z, cells, w, d);
+						var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x + 1, z, cells, w, d);
 						if (activeWaterMode2 != WaterType.None && MathF.Abs(waterY1 - waterY2) > 0.01f)
 						{
 							float yMin = MathF.Min(waterY1, waterY2);
@@ -590,32 +637,29 @@ void fragment() {
 							float z0 = z * quadSize - halfDQuadSize;
 							float z1 = (z + 1) * quadSize - halfDQuadSize;
 
-							bool wallShallow = isShallow1 || (activeWaterMode2 == WaterType.Shallow);
-							var wVerts = wallShallow ? shallowVerts : deepVerts;
-							var wNorms = wallShallow ? shallowNorms : deepNorms;
-							var wUVs = wallShallow ? shallowUvs : deepUvs;
-							var wIndices = wallShallow ? shallowIndices : deepIndices;
+							byte wallProfile = (waterY1 >= waterY2) ? activeWaterProfile1 : activeWaterProfile2;
+							var wGeom = GetGeomLists(wallProfile);
 
-							int wBase = wVerts.Count;
-							wVerts.Add(new Vector3(wallX, yMin, z0));
-							wVerts.Add(new Vector3(wallX, yMin, z1));
-							wVerts.Add(new Vector3(wallX, yMax, z1));
-							wVerts.Add(new Vector3(wallX, yMax, z0));
+							int wBase = wGeom.verts.Count;
+							wGeom.verts.Add(new Vector3(wallX, yMin, z0));
+							wGeom.verts.Add(new Vector3(wallX, yMin, z1));
+							wGeom.verts.Add(new Vector3(wallX, yMax, z1));
+							wGeom.verts.Add(new Vector3(wallX, yMax, z0));
 
 							Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Right : Vector3.Left;
-							wNorms.Add(wallNorm); wNorms.Add(wallNorm); wNorms.Add(wallNorm); wNorms.Add(wallNorm);
-							wUVs.Add(new Vector2(0, 0)); wUVs.Add(new Vector2(1, 0)); wUVs.Add(new Vector2(1, 1)); wUVs.Add(new Vector2(0, 1));
+							wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm);
+							wGeom.uvs.Add(new Vector2(0, 0)); wGeom.uvs.Add(new Vector2(1, 0)); wGeom.uvs.Add(new Vector2(1, 1)); wGeom.uvs.Add(new Vector2(0, 1));
 
-							wIndices.Add(wBase + 0); wIndices.Add(wBase + 1); wIndices.Add(wBase + 2);
-							wIndices.Add(wBase + 0); wIndices.Add(wBase + 2); wIndices.Add(wBase + 3);
-							wIndices.Add(wBase + 0); wIndices.Add(wBase + 2); wIndices.Add(wBase + 1);
-							wIndices.Add(wBase + 0); wIndices.Add(wBase + 3); wIndices.Add(wBase + 2);
+							wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 1); wGeom.indices.Add(wBase + 2);
+							wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 2); wGeom.indices.Add(wBase + 3);
+							wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 2); wGeom.indices.Add(wBase + 1);
+							wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 3); wGeom.indices.Add(wBase + 2);
 						}
 					}
 
 					if (z + 1 < d)
 					{
-						var (waterY2, activeWaterMode2) = GetCellWaterInfo(x, z + 1, cells, w, d);
+						var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x, z + 1, cells, w, d);
 						if (activeWaterMode2 != WaterType.None && MathF.Abs(waterY1 - waterY2) > 0.01f)
 						{
 							float yMin = MathF.Min(waterY1, waterY2);
@@ -624,33 +668,57 @@ void fragment() {
 							float x0 = x * quadSize - halfWQuadSize;
 							float x1 = (x + 1) * quadSize - halfWQuadSize;
 
-							bool wallShallow = isShallow1 || (activeWaterMode2 == WaterType.Shallow);
-							var wVerts = wallShallow ? shallowVerts : deepVerts;
-							var wNorms = wallShallow ? shallowNorms : deepNorms;
-							var wUVs = wallShallow ? shallowUvs : deepUvs;
-							var wIndices = wallShallow ? shallowIndices : deepIndices;
+							byte wallProfile = (waterY1 >= waterY2) ? activeWaterProfile1 : activeWaterProfile2;
+							var wGeom = GetGeomLists(wallProfile);
 
-							int wBase = wVerts.Count;
-							wVerts.Add(new Vector3(x0, yMin, wallZ));
-							wVerts.Add(new Vector3(x1, yMin, wallZ));
-							wVerts.Add(new Vector3(x1, yMax, wallZ));
-							wVerts.Add(new Vector3(x0, yMax, wallZ));
+							int wBase = wGeom.verts.Count;
+							wGeom.verts.Add(new Vector3(x0, yMin, wallZ));
+							wGeom.verts.Add(new Vector3(x1, yMin, wallZ));
+							wGeom.verts.Add(new Vector3(x1, yMax, wallZ));
+							wGeom.verts.Add(new Vector3(x0, yMax, wallZ));
 
 							Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Back : Vector3.Forward;
-							wNorms.Add(wallNorm); wNorms.Add(wallNorm); wNorms.Add(wallNorm); wNorms.Add(wallNorm);
-							wUVs.Add(new Vector2(0, 0)); wUVs.Add(new Vector2(1, 0)); wUVs.Add(new Vector2(1, 1)); wUVs.Add(new Vector2(0, 1));
+							wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm);
+							wGeom.uvs.Add(new Vector2(0, 0)); wGeom.uvs.Add(new Vector2(1, 0)); wGeom.uvs.Add(new Vector2(1, 1)); wGeom.uvs.Add(new Vector2(0, 1));
 
-							wIndices.Add(wBase + 0); wIndices.Add(wBase + 1); wIndices.Add(wBase + 2);
-							wIndices.Add(wBase + 0); wIndices.Add(wBase + 2); wIndices.Add(wBase + 3);
-							wIndices.Add(wBase + 0); wIndices.Add(wBase + 2); wIndices.Add(wBase + 1);
-							wIndices.Add(wBase + 0); wIndices.Add(wBase + 3); wIndices.Add(wBase + 2);
+							wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 1); wGeom.indices.Add(wBase + 2);
+							wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 2); wGeom.indices.Add(wBase + 3);
+							wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 2); wGeom.indices.Add(wBase + 1);
+							wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 3); wGeom.indices.Add(wBase + 2);
 						}
 					}
 				}
 			}
 
-			UpdateSingleWaterMesh(chunk.ShallowWaterMesh, chunk.ShallowWaterArrayMesh, shallowVerts, shallowNorms, shallowUvs, shallowIndices);
-			UpdateSingleWaterMesh(chunk.DeepWaterMesh, chunk.DeepWaterArrayMesh, deepVerts, deepNorms, deepUvs, deepIndices);
+			foreach (var (pIdx, gVerts) in profileVerts)
+			{
+				if (!chunk.ProfileWaterMeshes.TryGetValue(pIdx, out var meshPair))
+				{
+					var arrMesh = new ArrayMesh();
+					var meshInst = new MeshInstance3D();
+					meshInst.Name = $"WaterProfileChunk_{pIdx}_{chunk.StartX}_{chunk.StartZ}";
+					meshInst.Mesh = arrMesh;
+					meshInst.Layers = TerrainVisualLayer;
+					meshInst.MaterialOverride = GetWaterMaterial(pIdx);
+					AddChild(meshInst);
+					meshPair = (meshInst, arrMesh);
+					chunk.ProfileWaterMeshes[pIdx] = meshPair;
+				}
+				else if (meshPair.MeshInstance.MaterialOverride == null)
+				{
+					meshPair.MeshInstance.MaterialOverride = GetWaterMaterial(pIdx);
+				}
+
+				UpdateSingleWaterMesh(meshPair.MeshInstance, meshPair.ArrayMesh, gVerts, profileNorms[pIdx], profileUvs[pIdx], profileIndices[pIdx]);
+			}
+
+			foreach (var kvp in chunk.ProfileWaterMeshes)
+			{
+				if (!profileVerts.ContainsKey(kvp.Key))
+				{
+					kvp.Value.ArrayMesh.ClearSurfaces();
+				}
+			}
 		}
 	}
 
@@ -756,9 +824,9 @@ uniform bool enable_height_blend = true;
 uniform bool enable_normal_mapping = true;
 uniform float specular_amt = 0.2;
 
-uniform vec4 swatch_params[32];
-uniform vec4 swatch_height_params[32];
-uniform vec4 swatch_albedo_params[32];
+uniform vec4 swatch_params[256];
+uniform vec4 swatch_height_params[256];
+uniform vec4 swatch_albedo_params[256];
 
 varying flat vec4 v_tex_indices;
 varying vec4 v_tex_weights;
@@ -874,7 +942,7 @@ vec4 sample_stochastic_layer(sampler2DArray tex_array, float layer, vec2 uv, vec
 }
 
 vec4 sample_planar_layer(sampler2DArray tex_array, float layer, vec2 uv_y, vec2 dx_y, vec2 dy_y, bool is_vector_data) {
-	int layer_idx = int(clamp(round(layer), 0.0, 31.0));
+	int layer_idx = int(clamp(round(layer), 0.0, 255.0));
 	vec4 params = swatch_params[layer_idx];
 	float tile_mode = params.x;
 	float uv_scale = params.y > 0.001 ? params.y : 1.0;
@@ -889,7 +957,7 @@ vec4 sample_planar_layer(sampler2DArray tex_array, float layer, vec2 uv_y, vec2 
 }
 
 vec3 get_active_weights(float layer, vec3 weights) {
-	int layer_idx = int(clamp(round(layer), 0.0, 31.0));
+	int layer_idx = int(clamp(round(layer), 0.0, 255.0));
 	float tile_mode = swatch_params[layer_idx].x;
 	if (tile_mode < 0.5) {
 		float max_w = max(weights.x, max(weights.y, weights.z));
@@ -900,8 +968,8 @@ vec3 get_active_weights(float layer, vec3 weights) {
 	return weights;
 }
 
-vec4 sample_triplanar_layer(sampler2DArray tex_array, float layer, vec2 uv_x, vec2 uv_y, vec2 uv_z, vec2 dx_x, vec2 dy_x, vec2 dx_y, vec2 dy_y, vec2 dx_z, vec2 dy_z, vec3 weights, bool is_vector_data) {
-	int layer_idx = int(clamp(round(layer), 0.0, 31.0));
+vec4 sample_triplanar_layer(sampler2DArray tex_array, float layer, vec2 uv_x, vec2 uv_y, vec2 uv_z, vec2 dx_x, dy_x, vec2 dx_y, vec2 dy_y, vec2 dx_z, vec2 dy_z, vec3 weights, bool is_vector_data) {
+	int layer_idx = int(clamp(round(layer), 0.0, 255.0));
 	vec4 params = swatch_params[layer_idx];
 	float tile_mode = params.x;
 	float uv_scale = params.y > 0.001 ? params.y : 1.0;
@@ -1178,7 +1246,7 @@ void fragment() {
 			else if (gw2 >= max_gw) dom_layer = round(v_tex_indices.z);
 			else if (gw3 >= max_gw) dom_layer = round(v_tex_indices.w);
 
-			int dom_idx = int(clamp(dom_layer, 0.0, 31.0));
+			int dom_idx = int(clamp(dom_layer, 0.0, 255.0));
 			float uv_scale = swatch_params[dom_idx].y > 0.001 ? swatch_params[dom_idx].y : 1.0;
 			vec2 dom_uv = uv_y * uv_scale;
 			vec2 dom_dx = dx_y * uv_scale;
@@ -1251,10 +1319,10 @@ void fragment() {
 		vec4 cliff2 = raw_c_weights.z > 0.001 ? sample_triplanar_layer(terrain_textures, round(v_cliff_tex_indices.z), uv_x, uv_y, uv_z, dx_x, dy_x, dx_y, dy_y, dx_z, dy_z, blend_weights, false) : vec4(0.0);
 		vec4 cliff3 = raw_c_weights.w > 0.001 ? sample_triplanar_layer(terrain_textures, round(v_cliff_tex_indices.w), uv_x, uv_y, uv_z, dx_x, dy_x, dx_y, dy_y, dx_z, dy_z, blend_weights, false) : vec4(0.0);
 
-		int c_idx0 = int(clamp(round(v_cliff_tex_indices.x), 0.0, 31.0));
-		int c_idx1 = int(clamp(round(v_cliff_tex_indices.y), 0.0, 31.0));
-		int c_idx2 = int(clamp(round(v_cliff_tex_indices.z), 0.0, 31.0));
-		int c_idx3 = int(clamp(round(v_cliff_tex_indices.w), 0.0, 31.0));
+		int c_idx0 = int(clamp(round(v_cliff_tex_indices.x), 0.0, 255.0));
+		int c_idx1 = int(clamp(round(v_cliff_tex_indices.y), 0.0, 255.0));
+		int c_idx2 = int(clamp(round(v_cliff_tex_indices.z), 0.0, 255.0));
+		int c_idx3 = int(clamp(round(v_cliff_tex_indices.w), 0.0, 255.0));
 
 		vec3 c_col0 = (cliff0.rgb * cliff0.rgb) * swatch_albedo_params[c_idx0].rgb;
 		vec3 c_col1 = (cliff1.rgb * cliff1.rgb) * swatch_albedo_params[c_idx1].rgb;
@@ -1350,10 +1418,10 @@ void fragment() {
 		float cw2 = cliff_blend_weights.z;
 		float cw3 = cliff_blend_weights.w;
 
-		int c_idx0_norm = int(clamp(round(v_cliff_tex_indices.x), 0.0, 31.0));
-		int c_idx1_norm = int(clamp(round(v_cliff_tex_indices.y), 0.0, 31.0));
-		int c_idx2_norm = int(clamp(round(v_cliff_tex_indices.z), 0.0, 31.0));
-		int c_idx3_norm = int(clamp(round(v_cliff_tex_indices.w), 0.0, 31.0));
+		int c_idx0_norm = int(clamp(round(v_cliff_tex_indices.x), 0.0, 255.0));
+		int c_idx1_norm = int(clamp(round(v_cliff_tex_indices.y), 0.0, 255.0));
+		int c_idx2_norm = int(clamp(round(v_cliff_tex_indices.z), 0.0, 255.0));
+		int c_idx3_norm = int(clamp(round(v_cliff_tex_indices.w), 0.0, 255.0));
 
 		vec2 c_t0 = unpack_normal_xy(cn0.rg) * swatch_height_params[c_idx0_norm].w;
 		vec2 c_t1 = unpack_normal_xy(cn1.rg) * swatch_height_params[c_idx1_norm].w;
@@ -1389,7 +1457,7 @@ void fragment() {
 			else if (cw2 >= max_cw) dom_c_layer = round(v_cliff_tex_indices.z);
 			else if (cw3 >= max_cw) dom_c_layer = round(v_cliff_tex_indices.w);
 
-			int dom_c_idx = int(clamp(dom_c_layer, 0.0, 31.0));
+			int dom_c_idx = int(clamp(dom_c_layer, 0.0, 255.0));
 			float c_uv_scale = swatch_params[dom_c_idx].y > 0.001 ? swatch_params[dom_c_idx].y : 1.0;
 
 			vec2 c_uv = uv_y * c_uv_scale;
@@ -1608,9 +1676,10 @@ void fragment() {
 	protected static Texture2DArray? _cachedNormalRoughnessTextureArray;
 	protected static string? _cachedMapDir;
 	protected List<string> _loadedTextureList = new List<string>();
-	protected Godot.Vector4[] _swatchParamsCache = new Godot.Vector4[32];
-	protected Godot.Vector4[] _swatchHeightParamsCache = new Godot.Vector4[32];
-	protected Godot.Vector4[] _swatchAlbedoParamsCache = new Godot.Vector4[32];
+	public IReadOnlyList<string> LoadedTextureList => _loadedTextureList;
+	protected Godot.Vector4[] _swatchParamsCache = new Godot.Vector4[TextureSwatchSlots.MaxSlots];
+	protected Godot.Vector4[] _swatchHeightParamsCache = new Godot.Vector4[TextureSwatchSlots.MaxSlots];
+	protected Godot.Vector4[] _swatchAlbedoParamsCache = new Godot.Vector4[TextureSwatchSlots.MaxSlots];
 
 	public class SwatchLiveConfig
 	{
@@ -1679,7 +1748,7 @@ void fragment() {
 		};
 
 		int targetIndex = -1;
-		for (int i = 0; i < _loadedTextureList.Count && i < 32; i++)
+		for (int i = 0; i < _loadedTextureList.Count && i < TextureSwatchSlots.MaxSlots; i++)
 		{
 			if (string.Equals(_loadedTextureList[i], cleanName, StringComparison.OrdinalIgnoreCase))
 			{
@@ -1767,9 +1836,9 @@ void fragment() {
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld != null && GameHost.Instance.EcsWorld.IsAlive(GameHost.Instance.WorldEntity) && GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameHost.Instance.WorldEntity))
 			{
 				ref var ts = ref GameHost.Instance.EcsWorld.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameHost.Instance.WorldEntity);
-				if (ts.SwatchConfigs == null || ts.SwatchConfigs.Length != 32)
+				if (ts.SwatchConfigs == null || ts.SwatchConfigs.Length != TextureSwatchSlots.MaxSlots)
 				{
-					ts.SwatchConfigs = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig[32];
+					ts.SwatchConfigs = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
 				}
 				ts.SwatchConfigs[targetIndex] = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig(hs, ho, cp, ns);
 			}
@@ -1795,7 +1864,7 @@ void fragment() {
 	{
 		string cleanName = System.IO.Path.GetFileNameWithoutExtension(swatchName);
 		int targetIndex = -1;
-		for (int i = 0; i < _loadedTextureList.Count && i < 32; i++)
+		for (int i = 0; i < _loadedTextureList.Count && i < TextureSwatchSlots.MaxSlots; i++)
 		{
 			if (string.Equals(_loadedTextureList[i], cleanName, StringComparison.OrdinalIgnoreCase))
 			{
@@ -2240,6 +2309,14 @@ void fragment() {
 			if (GodotObject.IsInstanceValid(chunk.CollisionShape)) chunk.CollisionShape.QueueFree();
 			if (GodotObject.IsInstanceValid(chunk.ShallowWaterMesh)) chunk.ShallowWaterMesh.QueueFree();
 			if (GodotObject.IsInstanceValid(chunk.DeepWaterMesh)) chunk.DeepWaterMesh.QueueFree();
+			if (chunk.ProfileWaterMeshes != null)
+			{
+				foreach (var (pMesh, _) in chunk.ProfileWaterMeshes.Values)
+				{
+					if (GodotObject.IsInstanceValid(pMesh)) pMesh.QueueFree();
+				}
+				chunk.ProfileWaterMeshes.Clear();
+			}
 		}
 		_chunks.Clear();
 

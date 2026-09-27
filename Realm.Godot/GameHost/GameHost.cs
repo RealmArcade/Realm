@@ -548,6 +548,12 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorService.SetWaterMode(_worldEntity, value);
 	}
 
+	public byte ActiveWaterProfileIndex
+	{
+		get => _editorService.GetWaterProfileIndex(_worldEntity);
+		set => _editorService.SetWaterProfileIndex(_worldEntity, value);
+	}
+
 	private Node? _hoveredEditorObject;
 	private MeshInstance3D? _selectionHighlightMesh;
 	private MeshInstance3D? _coordinatePreviewMesh;

@@ -56,6 +56,12 @@ public class MapMetadata
 	[JsonPropertyName("CustomVfx")]
 	public List<VfxAttachmentConfig> CustomVfx { get; set; } = new();
 
+	[JsonPropertyName("CustomWaterProfiles")]
+	public List<WaterProfileSaveData> CustomWaterProfiles { get; set; } = new();
+
+	[JsonPropertyName("TerrainProfiles")]
+	public List<TerrainSwatchProfileData> TerrainProfiles { get; set; } = new();
+
 	[JsonPropertyName("Models")]
 	public Dictionary<string, ModelMetadata> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -261,6 +267,48 @@ public class MapMetadata
 	{
 		if (CustomUpgrades == null || string.IsNullOrWhiteSpace(upgradeId)) return false;
 		return CustomUpgrades.RemoveAll(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase)) > 0;
+	}
+
+	public WaterProfileSaveData? GetWaterProfile(string id) => CustomWaterProfiles?.FirstOrDefault(w => string.Equals(w.Id, id, StringComparison.OrdinalIgnoreCase));
+	public WaterProfileSaveData? GetWaterProfileByIndex(byte index) => CustomWaterProfiles?.FirstOrDefault(w => w.ProfileIndex == index);
+
+	public void AddOrUpdateWaterProfile(WaterProfileSaveData profile)
+	{
+		if (string.IsNullOrWhiteSpace(profile.Id)) return;
+		CustomWaterProfiles ??= new();
+		int idx = CustomWaterProfiles.FindIndex(w => string.Equals(w.Id, profile.Id, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) CustomWaterProfiles[idx] = profile;
+		else CustomWaterProfiles.Add(profile);
+	}
+
+	public bool RemoveWaterProfile(string id)
+	{
+		if (CustomWaterProfiles == null || string.IsNullOrWhiteSpace(id)) return false;
+		return CustomWaterProfiles.RemoveAll(w => string.Equals(w.Id, id, StringComparison.OrdinalIgnoreCase)) > 0;
+	}
+
+	public TerrainSwatchProfileData? GetTerrainProfile(string swatchName)
+	{
+		if (TerrainProfiles == null) return null;
+		string clean = Path.GetFileNameWithoutExtension(swatchName);
+		return TerrainProfiles.FirstOrDefault(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase));
+	}
+
+	public void AddOrUpdateTerrainProfile(TerrainSwatchProfileData profile)
+	{
+		if (string.IsNullOrWhiteSpace(profile.SwatchName)) return;
+		TerrainProfiles ??= new();
+		string clean = Path.GetFileNameWithoutExtension(profile.SwatchName);
+		int idx = TerrainProfiles.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) TerrainProfiles[idx] = profile;
+		else TerrainProfiles.Add(profile);
+	}
+
+	public bool RemoveTerrainProfile(string swatchName)
+	{
+		if (TerrainProfiles == null || string.IsNullOrWhiteSpace(swatchName)) return false;
+		string clean = Path.GetFileNameWithoutExtension(swatchName);
+		return TerrainProfiles.RemoveAll(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public bool UpdateUnit(string unitId, Func<GameHost.UnitMetadata, GameHost.UnitMetadata> update)
