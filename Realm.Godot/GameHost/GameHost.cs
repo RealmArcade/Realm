@@ -55,6 +55,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private Realm.Godot.Services.MetadataService _metadataService;
 	private Realm.Godot.Services.MapUpgradeService _mapUpgradeService;
 	private Realm.Godot.Services.MapStorageService _mapStorageService;
+	private Realm.Godot.Services.MapSaveDataService _mapSaveDataService;
 
 	public CheatService CheatService => _cheatService;
 	public EnvironmentService EnvironmentService => _environmentService;
@@ -64,6 +65,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public Realm.Godot.Services.MetadataService MetadataService => _metadataService;
 	public Realm.Godot.Services.MapUpgradeService MapUpgradeService => _mapUpgradeService;
 	public Realm.Godot.Services.MapStorageService MapStorageService => _mapStorageService;
+	public Realm.Godot.Services.MapSaveDataService MapSaveDataService => _mapSaveDataService;
 
 	public bool UnlimitedPowerEnabled { get; set; } = false;
 	public bool GigachadEnabled { get; set; } = false;
@@ -2175,38 +2177,16 @@ public class {mapName} : IMapScript
 
 	void IGameAPI.WriteSavedData(string fileName, string content)
 	{
-		if (string.IsNullOrEmpty(fileName) || fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
-		{
-			GD.PrintErr($"[Sandbox block] Blocked invalid or traversal path: {fileName}");
-			return;
-		}
-
 		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(ActiveMapName);
-		string targetDir = System.IO.Path.Combine(OS.GetUserDataDir(), "saved_data", mapNameOnly);
-		System.IO.Directory.CreateDirectory(targetDir);
-
-		string targetFile = System.IO.Path.Combine(targetDir, fileName);
-		System.IO.File.WriteAllText(targetFile, content);
+		(_mapSaveDataService ??= ServiceLocator.TryGet<Realm.Godot.Services.MapSaveDataService>() ?? new Realm.Godot.Services.MapSaveDataService())
+			.WriteSavedData(mapNameOnly, fileName, content);
 	}
 
 	string IGameAPI.ReadSavedData(string fileName)
 	{
-		if (string.IsNullOrEmpty(fileName) || fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
-		{
-			GD.PrintErr($"[Sandbox block] Blocked invalid or traversal path: {fileName}");
-			return string.Empty;
-		}
-
 		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(ActiveMapName);
-		string targetDir = System.IO.Path.Combine(OS.GetUserDataDir(), "saved_data", mapNameOnly);
-		string targetFile = System.IO.Path.Combine(targetDir, fileName);
-
-		if (!System.IO.File.Exists(targetFile))
-		{
-			return string.Empty;
-		}
-
-		return System.IO.File.ReadAllText(targetFile);
+		return (_mapSaveDataService ??= ServiceLocator.TryGet<Realm.Godot.Services.MapSaveDataService>() ?? new Realm.Godot.Services.MapSaveDataService())
+			.ReadSavedData(mapNameOnly, fileName);
 	}
 
 	public static void EnsureMapProjectFiles(string mapDir)

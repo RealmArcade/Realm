@@ -5,6 +5,257 @@
         <name>Realm.MapAPI</name>
     </assembly>
     <members>
+        <member name="T:Realm.MapAPI.SaveEnvelope`1">
+            <summary>
+            Represents a structured envelope wrapping a save payload with versioning, player identity, and cryptographic integrity data.
+            </summary>
+            <typeparam name="T">The type of the saved game state payload.</typeparam>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.DataVersion">
+            <summary>
+            Gets or sets the schema version number of the save payload.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.MapName">
+            <summary>
+            Gets or sets the name of the map script associated with this save file.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.PlayerName">
+            <summary>
+            Gets or sets the player identifier or username bound to this save file.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.TimestampUtc">
+            <summary>
+            Gets or sets the ISO-8601 UTC timestamp string representing when the save file was created or last written.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.Signature">
+            <summary>
+            Gets or sets the cryptographic signature string used for integrity verification and anti-tamper checking.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.Payload">
+            <summary>
+            Gets or sets the typed game state payload.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.HeroSaveData">
+            <summary>
+            Represents persistent hero progression state, including level, experience, skill points, and stats.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.HeroTypeId">
+            <summary>
+            Gets or sets the archetype or unit type identifier of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Name">
+            <summary>
+            Gets or sets the display name of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Level">
+            <summary>
+            Gets or sets the current level of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Experience">
+            <summary>
+            Gets or sets the accumulated experience points of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.SkillPoints">
+            <summary>
+            Gets or sets the number of unspent or allocated skill points.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Health">
+            <summary>
+            Gets or sets the current health points of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.MaxHealth">
+            <summary>
+            Gets or sets the maximum health points of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Mana">
+            <summary>
+            Gets or sets the current mana points of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.MaxMana">
+            <summary>
+            Gets or sets the maximum mana capacity of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Damage">
+            <summary>
+            Gets or sets the base attack damage of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Armor">
+            <summary>
+            Gets or sets the armor rating of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Speed">
+            <summary>
+            Gets or sets the movement speed of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the hero.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.InventoryItemSaveData">
+            <summary>
+            Represents an item entry stored inside a unit or player inventory.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InventoryItemSaveData.ItemId">
+            <summary>
+            Gets or sets the unique identifier of the item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InventoryItemSaveData.SlotIndex">
+            <summary>
+            Gets or sets the zero-based inventory slot index.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InventoryItemSaveData.Charges">
+            <summary>
+            Gets or sets the stack count or remaining charges of the item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InventoryItemSaveData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the item.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.AchievementSaveData">
+            <summary>
+            Represents persistent progress and completion state for an achievement or quest milestone.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.AchievementId">
+            <summary>
+            Gets or sets the unique identifier of the achievement.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.IsUnlocked">
+            <summary>
+            Gets or sets a value indicating whether the achievement has been completed.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.CurrentProgress">
+            <summary>
+            Gets or sets the current progress value toward completing the achievement.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.MaxProgress">
+            <summary>
+            Gets or sets the target progress value required to complete the achievement.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.UnlockedAtUtc">
+            <summary>
+            Gets or sets the ISO-8601 UTC timestamp string when the achievement was completed, or null if locked.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the achievement.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.MapCosmeticSaveData">
+            <summary>
+            Represents persistent state for an in-map grindable cosmetic unlock, such as a title, aura, or skin variation.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.CosmeticId">
+            <summary>
+            Gets or sets the unique identifier of the cosmetic item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.CosmeticType">
+            <summary>
+            Gets or sets the category or type of the cosmetic (e.g. "Title", "Aura", "Skin", "Badge").
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.IsUnlocked">
+            <summary>
+            Gets or sets a value indicating whether the player has unlocked this cosmetic through map gameplay.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.IsEquipped">
+            <summary>
+            Gets or sets a value indicating whether this cosmetic is currently active or equipped.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.UnlockedAtUtc">
+            <summary>
+            Gets or sets the ISO-8601 UTC timestamp string when the cosmetic was unlocked, or null if locked.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the cosmetic.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.ArcadeProfileData">
+            <summary>
+            Represents a comprehensive composite arcade profile aggregating heroes, inventories, achievements, and grindable cosmetics.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.PlayerName">
+            <summary>
+            Gets or sets the display name or unique handle of the player.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.PlayerSlot">
+            <summary>
+            Gets or sets the zero-based player slot index in the game lobby.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.TotalPlaytimeSeconds">
+            <summary>
+            Gets or sets the accumulated total active gameplay time in seconds across sessions.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.MatchesPlayed">
+            <summary>
+            Gets or sets the total number of matches or rounds completed on this map.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.Heroes">
+            <summary>
+            Gets or sets the collection of persistent hero progression records.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.ActiveInventory">
+            <summary>
+            Gets or sets the collection of active inventory item records.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.Achievements">
+            <summary>
+            Gets or sets the collection of achievement progress records.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.Cosmetics">
+            <summary>
+            Gets or sets the collection of grindable map cosmetic unlock records.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the profile.
+            </summary>
+        </member>
         <member name="T:Realm.MapAPI.Coordinate">
             <summary>
             Represents a 3D bounding region defined by a minimum and maximum coordinate.
@@ -56,6 +307,110 @@
             <param name="api">The game API instance.</param>
             <param name="key">Localization translation key.</param>
             <returns>Translated text string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SaveData``1(Realm.MapAPI.IGameAPI,System.String,``0,System.Int32,System.String,System.String)">
+            <summary>
+            Serializes and saves arbitrary data into a signed, human-readable JSON envelope on disk.
+            </summary>
+            <typeparam name="T">The type of data to persist.</typeparam>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name (e.g., "save0.rsav" or "profile.json").</param>
+            <param name="data">The data object to serialize.</param>
+            <param name="dataVersion">The schema version number of this save data.</param>
+            <param name="mapName">The map name identifier, or empty to use a default.</param>
+            <param name="playerName">The player name bound to the save, or null to use the primary player name.</param>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.TryLoadData``1(Realm.MapAPI.IGameAPI,System.String,``0@,System.Int32,Realm.MapAPI.SaveMigrationRegistry,System.String,System.String)">
+            <summary>
+            Attempts to load, verify, and deserialize saved data from disk, applying registered schema migrations if the file was saved at an older version.
+            </summary>
+            <typeparam name="T">The type of data to deserialize into.</typeparam>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name to read.</param>
+            <param name="result">When this method returns, contains the deserialized data if successful, or default if failed.</param>
+            <param name="targetVersion">The expected schema version of the target type.</param>
+            <param name="migrations">Optional migration registry to upgrade older save versions sequentially.</param>
+            <param name="mapName">The expected map name, or empty to match any.</param>
+            <param name="playerName">The expected player name, or null to use the primary player name.</param>
+            <returns><see langword="true"/> if the save data was successfully loaded, verified, and deserialized; otherwise, <see langword="false"/>.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.LoadData``1(Realm.MapAPI.IGameAPI,System.String,System.Int32,Realm.MapAPI.SaveMigrationRegistry,System.String,System.String)">
+            <summary>
+            Loads and deserializes saved data from disk, returning default if not found or if signature verification fails.
+            </summary>
+            <typeparam name="T">The type of data to deserialize into.</typeparam>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name to read.</param>
+            <param name="targetVersion">The expected schema version of the target type.</param>
+            <param name="migrations">Optional migration registry to upgrade older save versions sequentially.</param>
+            <param name="mapName">The expected map name, or empty to match any.</param>
+            <param name="playerName">The expected player name, or null to use the primary player name.</param>
+            <returns>The deserialized data instance, or default if loading fails.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SaveArcadeProfile(Realm.MapAPI.IGameAPI,System.String,Realm.MapAPI.ArcadeProfileData,System.Int32,System.String)">
+            <summary>
+            Saves an <see cref="T:Realm.MapAPI.ArcadeProfileData"/> record into a signed, human-readable file.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name (e.g., "profile.rsav").</param>
+            <param name="profile">The arcade profile instance to persist.</param>
+            <param name="dataVersion">The schema version number.</param>
+            <param name="mapName">The map name identifier, or empty to use a default.</param>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.TryLoadArcadeProfile(Realm.MapAPI.IGameAPI,System.String,Realm.MapAPI.ArcadeProfileData@,System.Int32,Realm.MapAPI.SaveMigrationRegistry,System.String,System.String)">
+            <summary>
+            Attempts to load and verify an <see cref="T:Realm.MapAPI.ArcadeProfileData"/> record from disk.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name to read.</param>
+            <param name="profile">When this method returns, contains the loaded arcade profile if successful.</param>
+            <param name="targetVersion">The expected schema version.</param>
+            <param name="migrations">Optional migration registry to upgrade older profile schemas.</param>
+            <param name="mapName">The expected map name, or empty to match any.</param>
+            <param name="playerName">The expected player name, or null to match the active player.</param>
+            <returns><see langword="true"/> if the profile was successfully loaded and verified; otherwise, <see langword="false"/>.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.LoadArcadeProfile(Realm.MapAPI.IGameAPI,System.String,System.Int32,Realm.MapAPI.SaveMigrationRegistry,System.String,System.String)">
+            <summary>
+            Loads an <see cref="T:Realm.MapAPI.ArcadeProfileData"/> record from disk, returning null if not found or verification fails.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name to read.</param>
+            <param name="targetVersion">The expected schema version.</param>
+            <param name="migrations">Optional migration registry to upgrade older profile schemas.</param>
+            <param name="mapName">The expected map name, or empty to match any.</param>
+            <param name="playerName">The expected player name, or null to match the active player.</param>
+            <returns>The loaded arcade profile instance, or null if loading fails.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SnapshotHero(Realm.MapAPI.IUnit,System.Single,System.Int32)">
+            <summary>
+            Captures the persistent progression and combat statistics of an active unit into a <see cref="T:Realm.MapAPI.HeroSaveData"/> record.
+            </summary>
+            <param name="unit">The unit to snapshot.</param>
+            <param name="experience">Optional experience value to assign.</param>
+            <param name="skillPoints">Optional unspent skill points to assign.</param>
+            <returns>A new <see cref="T:Realm.MapAPI.HeroSaveData"/> containing the unit's current state.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.RestoreHero(Realm.MapAPI.IUnit,Realm.MapAPI.HeroSaveData)">
+            <summary>
+            Restores persistent hero stats, level, experience, and custom attributes onto an active unit instance.
+            </summary>
+            <param name="unit">The target unit to update.</param>
+            <param name="heroData">The saved hero progression data to apply.</param>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SnapshotInventory(Realm.MapAPI.IUnit)">
+            <summary>
+            Captures all items currently held in the unit's inventory into a list of <see cref="T:Realm.MapAPI.InventoryItemSaveData"/>.
+            </summary>
+            <param name="unit">The unit whose inventory will be snapshotted.</param>
+            <returns>A list of persistent inventory item records.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.RestoreInventory(Realm.MapAPI.IUnit,System.Collections.Generic.IEnumerable{Realm.MapAPI.InventoryItemSaveData})">
+            <summary>
+            Populates a unit's inventory from a collection of <see cref="T:Realm.MapAPI.InventoryItemSaveData"/> records.
+            </summary>
+            <param name="unit">The unit to receive items.</param>
+            <param name="items">The collection of saved inventory items to add.</param>
         </member>
         <member name="T:Realm.MapAPI.HeroProgressionConfig">
             <summary>
@@ -1592,6 +1947,82 @@
             </summary>
             <param name="api">The game API instance used to query targets and issue orders.</param>
             <param name="delta">The time elapsed since the previous simulation tick, in seconds.</param>
+        </member>
+        <member name="T:Realm.MapAPI.ISaveMigration">
+            <summary>
+            Defines a contract for migrating save payload data from one schema version to the next.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ISaveMigration.FromVersion">
+            <summary>
+            Gets the source schema version this migration upgrades from.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ISaveMigration.ToVersion">
+            <summary>
+            Gets the target schema version this migration upgrades to.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.ISaveMigration.Migrate(System.String)">
+            <summary>
+            Transforms the raw JSON payload from the source schema version to the target schema version.
+            </summary>
+            <param name="jsonPayload">The JSON payload string at the source version.</param>
+            <returns>The migrated JSON payload string at the target version.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.SaveMigrationRegistry">
+            <summary>
+            Manages registration and sequential execution of save payload schema migrations for map scripts.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.SaveMigrationRegistry.RegisterMigration(System.Int32,System.Int32,System.Func{System.String,System.String})">
+            <summary>
+            Registers a migration step between two sequential schema versions using a delegate transformer.
+            </summary>
+            <param name="fromVersion">The source schema version.</param>
+            <param name="toVersion">The target schema version.</param>
+            <param name="migrationFunc">A function that accepts the old JSON payload and returns the transformed JSON payload.</param>
+        </member>
+        <member name="M:Realm.MapAPI.SaveMigrationRegistry.RegisterMigration(Realm.MapAPI.ISaveMigration)">
+            <summary>
+            Registers an instance of <see cref="T:Realm.MapAPI.ISaveMigration"/>.
+            </summary>
+            <param name="migration">The save migration instance to register.</param>
+        </member>
+        <member name="M:Realm.MapAPI.SaveMigrationRegistry.ApplyMigrations(System.String,System.Int32,System.Int32)">
+            <summary>
+            Applies all registered migration steps sequentially starting from <paramref name="fromVersion"/> until <paramref name="targetVersion"/> is reached.
+            </summary>
+            <param name="jsonPayload">The initial raw JSON payload string.</param>
+            <param name="fromVersion">The current schema version of the payload.</param>
+            <param name="targetVersion">The desired target schema version.</param>
+            <returns>The migrated JSON payload string.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.SaveSignatureHelper">
+            <summary>
+            Provides cryptographic signature calculation and verification utilities to protect save payloads against tampering.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.SaveSignatureHelper.ComputeSignature(System.String,System.String,System.Int32,System.String)">
+            <summary>
+            Computes an HMAC-SHA256 hexadecimal signature bound to the specified map name, player name, schema version, and payload content.
+            </summary>
+            <param name="mapName">The name of the map associated with the save.</param>
+            <param name="playerName">The player name or identifier bound to the save.</param>
+            <param name="dataVersion">The schema version number.</param>
+            <param name="payloadJson">The raw JSON string of the save payload.</param>
+            <returns>A lowercase hexadecimal signature string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.SaveSignatureHelper.VerifySignature(System.String,System.String,System.Int32,System.String,System.String)">
+            <summary>
+            Verifies whether the provided signature matches the computed signature for the specified map name, player name, version, and payload content.
+            </summary>
+            <param name="mapName">The name of the map associated with the save.</param>
+            <param name="playerName">The player name or identifier bound to the save.</param>
+            <param name="dataVersion">The schema version number.</param>
+            <param name="payloadJson">The raw JSON string of the save payload.</param>
+            <param name="signature">The expected signature string to verify against.</param>
+            <returns><see langword="true"/> if the signature is valid and untampered; otherwise, <see langword="false"/>.</returns>
         </member>
     </members>
 </doc>
