@@ -179,4 +179,16 @@ public partial class GameHost
 	{
 		return LocalizationManager.TranslateKey(key);
 	}
+
+	void IGameAPI.TriggerMeshImpulse(IUnit unit, float strength, float duration, float frequency)
+	{
+		if (unit == null) return;
+		unit.TriggerMeshImpulse(strength, duration, frequency);
+	}
+
+	void IGameAPI.TriggerResourceMeshImpulse(IResourceNode node, float strength, float duration, float frequency)
+	{
+		if (node == null) return;
+		node.TriggerMeshImpulse(strength, duration, frequency);
+	}
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using Realm.Godot.VFX;
 
 namespace Realm.Godot.Utils;
 
@@ -22,6 +23,11 @@ public static class ModelShaderManager
 	private static readonly StringName _paramShroudWorldMin = new("shroud_world_min");
 	private static readonly StringName _paramShroudWorldSize = new("shroud_world_size");
 	private static readonly StringName _paramShroudEnabled = new("shroud_enabled");
+	private static readonly StringName _paramProcAnimParams1 = new("proc_anim_params1");
+	private static readonly StringName _paramProcAnimParams2 = new("proc_anim_params2");
+	private static readonly StringName _paramProcAnimParams3 = new("proc_anim_params3");
+	private static readonly StringName _paramProcAnimImpulse = new("proc_anim_impulse");
+	private static readonly StringName _paramProcAnimVelocity = new("proc_anim_velocity");
 
 	private static Texture2D _currentShroudTexture;
 	private static Vector2 _currentShroudWorldMin = new(-125.0f, -125.0f);
@@ -814,6 +820,91 @@ public static class ModelShaderManager
 		{
 			SetHideInShroud(node.GetChild(i), hideInShroud);
 		}
+	}
+
+	public static void SetProceduralAnimation(Node rootNode, ProceduralAnimationConfig? config, Vector3 velocity = default, float impulseStrength = 0f, float impulseTime = 0f, bool showDebugMask = false)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		if (config == null)
+		{
+			DisableProceduralAnimation(rootNode);
+			return;
+		}
+
+		float signedPower = config.MaskInvert ? -MathF.Abs(config.MaskPower) : MathF.Abs(config.MaskPower);
+		Vector4 p1 = new Vector4((float)config.MotionType, (float)config.MaskMode, config.MaskMin, config.MaskMax);
+		Vector4 p2 = new Vector4(signedPower, config.SwayFrequency, config.SwayAmplitude, config.FlutterFrequency);
+		Vector4 p3 = new Vector4(config.FlutterAmplitude, config.WindInfluence, config.VelocityDragInfluence, config.WaveTurbulence);
+		Vector4 pImp = new Vector4(impulseStrength, config.ImpulseFrequency, impulseTime, showDebugMask ? 1.0f : 0.0f);
+
+		SetProceduralAnimationRecursive(rootNode, p1, p2, p3, pImp, velocity);
+	}
+
+	private static void SetProceduralAnimationRecursive(Node node, Vector4 p1, Vector4 p2, Vector4 p3, Vector4 pImp, Vector3 velocity)
+	{
+		if (node is GeometryInstance3D geom && !IsExcludedMesh(geom))
+		{
+			geom.SetInstanceShaderParameter(_paramProcAnimParams1, p1);
+			geom.SetInstanceShaderParameter(_paramProcAnimParams2, p2);
+			geom.SetInstanceShaderParameter(_paramProcAnimParams3, p3);
+			geom.SetInstanceShaderParameter(_paramProcAnimImpulse, pImp);
+			geom.SetInstanceShaderParameter(_paramProcAnimVelocity, velocity);
+		}
+
+		int count = node.GetChildCount();
+		for (int i = 0; i < count; i++)
+		{
+			SetProceduralAnimationRecursive(node.GetChild(i), p1, p2, p3, pImp, velocity);
+		}
+	}
+
+	public static void SetProceduralAnimationImpulse(Node rootNode, float impulseStrength, float impulseFrequency, float impulseTime, bool showDebugMask = false)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		Vector4 pImp = new Vector4(impulseStrength, impulseFrequency, impulseTime, showDebugMask ? 1.0f : 0.0f);
+		SetProceduralAnimationImpulseRecursive(rootNode, pImp);
+	}
+
+	private static void SetProceduralAnimationImpulseRecursive(Node node, Vector4 pImp)
+	{
+		if (node is GeometryInstance3D geom && !IsExcludedMesh(geom))
+		{
+			geom.SetInstanceShaderParameter(_paramProcAnimImpulse, pImp);
+		}
+
+		int count = node.GetChildCount();
+		for (int i = 0; i < count; i++)
+		{
+			SetProceduralAnimationImpulseRecursive(node.GetChild(i), pImp);
+		}
+	}
+
+	public static void SetProceduralAnimationVelocity(Node rootNode, Vector3 velocity)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		SetProceduralAnimationVelocityRecursive(rootNode, velocity);
+	}
+
+	private static void SetProceduralAnimationVelocityRecursive(Node node, Vector3 velocity)
+	{
+		if (node is GeometryInstance3D geom && !IsExcludedMesh(geom))
+		{
+			geom.SetInstanceShaderParameter(_paramProcAnimVelocity, velocity);
+		}
+
+		int count = node.GetChildCount();
+		for (int i = 0; i < count; i++)
+		{
+			SetProceduralAnimationVelocityRecursive(node.GetChild(i), velocity);
+		}
+	}
+
+	public static void DisableProceduralAnimation(Node rootNode)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		Vector4 pZero = Vector4.Zero;
+		Vector3 vZero = Vector3.Zero;
+		SetProceduralAnimationRecursive(rootNode, pZero, pZero, pZero, pZero, vZero);
 	}
 
 	public static void ClearCache()

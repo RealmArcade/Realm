@@ -1515,6 +1515,24 @@
             <param name="position">The spawn coordinates in 3D world space.</param>
             <returns>The revived unit instance.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.TriggerMeshImpulse(Realm.MapAPI.IUnit,System.Single,System.Single,System.Single)">
+            <summary>
+            Triggers a transient mesh deformation or hit impulse on a unit.
+            </summary>
+            <param name="unit">The target unit.</param>
+            <param name="strength">The peak strength of the impulse deformation.</param>
+            <param name="duration">The duration of the impulse oscillation in seconds.</param>
+            <param name="frequency">The oscillation frequency in Hz.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.TriggerResourceMeshImpulse(Realm.MapAPI.IResourceNode,System.Single,System.Single,System.Single)">
+            <summary>
+            Triggers a transient mesh deformation or harvest shake impulse on a resource node.
+            </summary>
+            <param name="node">The target resource node.</param>
+            <param name="strength">The peak strength of the impulse deformation.</param>
+            <param name="duration">The duration of the impulse oscillation in seconds.</param>
+            <param name="frequency">The oscillation frequency in Hz.</param>
+        </member>
         <member name="T:Realm.MapAPI.IMapScript">
             <summary>
             Defines the base lifecycle methods for map scripts.
@@ -1567,6 +1585,14 @@
             <summary>
             Gets a value indicating whether the resource node has been depleted.
             </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IResourceNode.TriggerMeshImpulse(System.Single,System.Single,System.Single)">
+            <summary>
+            Triggers a transient procedural mesh deformation or shake impulse on this resource node.
+            </summary>
+            <param name="strength">The peak strength of the impulse deformation.</param>
+            <param name="duration">The duration of the impulse oscillation in seconds.</param>
+            <param name="frequency">The oscillation frequency in Hz.</param>
         </member>
         <member name="T:Realm.MapAPI.IUnit">
             <summary>
@@ -1845,6 +1871,14 @@
             </summary>
             <param name="key">The data key to check.</param>
             <returns>True if the data exists, false otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.TriggerMeshImpulse(System.Single,System.Single,System.Single)">
+            <summary>
+            Triggers a transient procedural mesh deformation or hit impulse on this unit.
+            </summary>
+            <param name="strength">The peak strength of the impulse deformation.</param>
+            <param name="duration">The duration of the impulse oscillation in seconds.</param>
+            <param name="frequency">The oscillation frequency in Hz.</param>
         </member>
         <member name="T:Realm.MapAPI.TowerDefenseConfig">
             <summary>

@@ -3910,6 +3910,13 @@ public class {mapName} : IMapScript
 				this.CallDeferred(nameof(DepleteProp), prop3D);
 			}
 		};
+		_simulationService.OnResourceHarvested = entity =>
+		{
+			if (TryGetProp3D(entity, out var prop3D))
+			{
+				prop3D.TriggerImpulse(0.35f, 0.45f);
+			}
+		};
 		_simulationService.OnUnitDamagedCallback = (targetEntity, attackerEntity, damage) =>
 		{
 			if (EcsWorld.IsAlive(targetEntity))
@@ -3922,6 +3929,7 @@ public class {mapName} : IMapScript
 				{
 					_fxService.SpawnDamageNumber(this, targetUnit3D.GlobalPosition, damage);
 					_audioService?.PlayUnitSound(targetUnit3D.UnitId, UnitSoundEvent.Wounded, targetUnit3D.GlobalPosition);
+					targetUnit3D.TriggerImpulse(0.5f, 0.35f);
 				}
 			}
 		};

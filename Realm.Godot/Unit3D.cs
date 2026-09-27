@@ -1607,6 +1607,7 @@ public partial class Unit3D : Prop3D
 
 	public override void _Process(double delta)
 	{
+		base._Process(delta);
 		if (IsSelected && !IsEnemy)
 		{
 			if (IsBuilding)

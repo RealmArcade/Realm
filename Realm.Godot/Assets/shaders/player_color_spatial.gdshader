@@ -39,13 +39,91 @@ instance uniform float ignore_player_color : hint_range(0.0, 1.0) = 0.0;
 instance uniform float unit_ambient_boost : hint_range(0.0, 0.5) = 0.0;
 instance uniform float unit_rim_intensity : hint_range(0.0, 1.0) = 0.0;
 instance uniform float hide_in_shroud : hint_range(0.0, 1.0) = 0.0;
+instance uniform vec4 proc_anim_params1 = vec4(0.0, 0.0, 0.0, 2.0);
+instance uniform vec4 proc_anim_params2 = vec4(1.0, 1.5, 0.15, 5.0);
+instance uniform vec4 proc_anim_params3 = vec4(0.03, 1.0, 1.0, 0.5);
+instance uniform vec4 proc_anim_impulse = vec4(0.0, 12.0, 0.0, 0.0);
+instance uniform vec3 proc_anim_velocity = vec3(0.0, 0.0, 0.0);
 
 varying vec2 base_uv;
 varying vec3 v_world_pos;
+varying float v_proc_mask_weight;
 
 void vertex() {
 	base_uv = UV * uv1_scale.xy + uv1_offset.xy;
 	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_proc_mask_weight = 0.0;
+
+	if (proc_anim_params1.x > 0.5) {
+		float motion_type = proc_anim_params1.x;
+		float mask_mode = proc_anim_params1.y;
+		float p_min = proc_anim_params1.z;
+		float p_max = proc_anim_params1.w;
+		float mask_power = proc_anim_params2.x;
+
+		float mask_weight = 0.0;
+		float range_span = max(p_max - p_min, 0.001);
+
+		if (mask_mode < 0.5) {
+			bool invert = mask_power < 0.0;
+			float p = abs(mask_power);
+			float norm_y = clamp((VERTEX.y - p_min) / range_span, 0.0, 1.0);
+			if (invert) norm_y = 1.0 - norm_y;
+			mask_weight = pow(norm_y, p > 0.0 ? p : 1.0);
+		} else if (mask_mode < 1.5) {
+			float dist = length(VERTEX.xz);
+			float norm_dist = clamp((dist - p_min) / range_span, 0.0, 1.0);
+			float p = abs(mask_power);
+			mask_weight = pow(norm_dist, p > 0.0 ? p : 1.0);
+		} else {
+			float incline = clamp(dot(NORMAL, vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
+			mask_weight = incline;
+		}
+
+		v_proc_mask_weight = mask_weight;
+
+		if (mask_weight > 0.0001) {
+			float time = TIME;
+			float sway_freq = proc_anim_params2.y;
+			float sway_amp = proc_anim_params2.z;
+			float flutter_freq = proc_anim_params2.w;
+			float flutter_amp = proc_anim_params3.x;
+			float wind_inf = proc_anim_params3.y;
+			float drag_inf = proc_anim_params3.z;
+			float turb = proc_anim_params3.w;
+
+			vec3 wind_dir = vec3(1.0, 0.0, 0.5);
+			float wind_wave = sin(time * sway_freq + (v_world_pos.x + v_world_pos.z) * turb);
+			float flutter_wave = cos(time * flutter_freq + (VERTEX.y * 4.0));
+
+			vec3 displacement = vec3(0.0);
+
+			if (motion_type < 1.5) {
+				vec3 drag_disp = -proc_anim_velocity * (drag_inf * 0.05);
+				vec3 wind_disp = wind_dir * (wind_wave * sway_amp + flutter_wave * flutter_amp) * wind_inf;
+				displacement = (drag_disp + wind_disp) * mask_weight;
+			} else if (motion_type < 2.5) {
+				vec3 trunk_sway = wind_dir * (wind_wave * sway_amp) * mask_weight;
+				vec3 leaf_flutter = NORMAL * (flutter_wave * flutter_amp) * mask_weight;
+				displacement = trunk_sway + leaf_flutter;
+			} else if (motion_type < 3.5) {
+				float flap_cycle = sin(time * sway_freq);
+				displacement = vec3(0.0, flap_cycle * sway_amp * sign(VERTEX.x + 0.0001), 0.0) * mask_weight;
+			}
+
+			float imp_strength = proc_anim_impulse.x;
+			float imp_freq = proc_anim_impulse.y;
+			float imp_time = proc_anim_impulse.z;
+			if (imp_strength > 0.001 && imp_time >= 0.0) {
+				float decay = exp(-imp_time * 4.0);
+				float shake_osc = sin(imp_time * imp_freq * 6.28318);
+				vec3 shake_disp = vec3(shake_osc, shake_osc * 0.5, -shake_osc * 0.7) * (imp_strength * decay * mask_weight);
+				displacement += shake_disp;
+			}
+
+			VERTEX += displacement;
+		}
+	}
 }
 
 vec3 perturb_normal_cotangent(vec3 view_normal, vec3 view_pos, vec2 uv, vec3 normal_sample, float scale) {
@@ -160,6 +238,13 @@ void fragment() {
 		specular = mix(specular, 0.02, player_mask);
 		metallic = mix(metallic, 0.0, player_mask);
 		roughness = mix(roughness, 1.0, player_mask);
+	}
+
+	if (proc_anim_impulse.w > 0.5) {
+		float w = clamp(v_proc_mask_weight, 0.0, 1.0);
+		vec3 heatmap = mix(vec3(0.0, 0.2, 0.9), vec3(0.0, 0.9, 0.2), smoothstep(0.0, 0.5, w));
+		heatmap = mix(heatmap, vec3(1.0, 0.1, 0.0), smoothstep(0.5, 1.0, w));
+		final_color = mix(final_color, heatmap, 0.75);
 	}
 
 	ALBEDO = final_color;

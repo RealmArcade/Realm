@@ -819,4 +819,12 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		}
 		return false;
 	}
+
+	public void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
+	{
+		if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+		{
+			unit3D.TriggerImpulse(strength, duration, frequency);
+		}
+	}
 }

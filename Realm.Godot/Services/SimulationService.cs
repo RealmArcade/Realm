@@ -96,6 +96,7 @@ internal class SimulationService
 	public Action<Entity> OnStopGatheringMovementRequested;
 	public Action OnUiRefreshRequested;
 	public Action<Entity> OnPropDepleted;
+	public Action<Entity>? OnResourceHarvested;
 	public Action<string, float> OnResourceDepositedForPlayer;
 	public Action<string> OnProductionCompleted;
 	public Func<string, float> GetProductionBuildTime;
@@ -148,6 +149,7 @@ internal class SimulationService
 		_economyService.OnClearUnitOrdersRequested = ent => OnClearUnitOrdersRequested?.Invoke(ent);
 		_economyService.OnStopGatheringMovementRequested = ent => OnStopGatheringMovementRequested?.Invoke(ent);
 		_economyService.OnPropDepleted = ent => OnPropDepleted?.Invoke(ent);
+		_economyService.OnResourceHarvested = ent => OnResourceHarvested?.Invoke(ent);
 	}
 
 	public void Initialize()

@@ -231,6 +231,7 @@ public partial class MapEditorHUD : Control
 	private EditorSettingsDialog _editorSettingsDialog;
 	private ShaderEditorDialog _shaderEditorDialog;
 	private VfxStudioDialog _vfxStudioDialog;
+	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog;
 	private AuthorSignatureDialog _authorSignatureDialog;
 	private Button _btnEditorSettings;
 	private Button _btnAuthorSignature;
@@ -8336,6 +8337,7 @@ public partial class MapEditorHUD : Control
 		_editorSettingsDialog = new EditorSettingsDialog(this);
 		_shaderEditorDialog = new ShaderEditorDialog(this);
 		_vfxStudioDialog = new VfxStudioDialog(this);
+		_proceduralAnimationStudioDialog = new ProceduralAnimationStudioDialog(this);
 		_authorSignatureDialog = new AuthorSignatureDialog(this);
 		_waterProfileDialog = new WaterProfileDialog(this);
 		RefreshWaterSwatches();
@@ -8957,6 +8959,15 @@ public partial class MapEditorHUD : Control
 			_shaderEditorDialog = new ShaderEditorDialog(this);
 		}
 		_shaderEditorDialog.OpenForShader(shaderKey, onSaved);
+	}
+
+	public void OpenProceduralAnimationStudioDialog(Realm.Godot.VFX.ProceduralAnimationConfig initialConfig = null, Action<Realm.Godot.VFX.ProceduralAnimationConfig> onApplied = null)
+	{
+		if (_proceduralAnimationStudioDialog == null)
+		{
+			_proceduralAnimationStudioDialog = new ProceduralAnimationStudioDialog(this);
+		}
+		_proceduralAnimationStudioDialog.OpenForConfig(initialConfig, onApplied);
 	}
 
 	public void OpenModelPickerDialog(string entityId, string fieldName, string domain, string currentPath, Action<string> onApplied = null)

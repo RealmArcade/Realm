@@ -1173,4 +1173,22 @@ public interface IGameAPI
         DestroyUnit(unit);
         return SpawnUnitForPlayer(typeId, position, playerIndex);
     }
+
+    /// <summary>
+    /// Triggers a transient mesh deformation or hit impulse on a unit.
+    /// </summary>
+    /// <param name="unit">The target unit.</param>
+    /// <param name="strength">The peak strength of the impulse deformation.</param>
+    /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
+    /// <param name="frequency">The oscillation frequency in Hz.</param>
+    void TriggerMeshImpulse(IUnit unit, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
+
+    /// <summary>
+    /// Triggers a transient mesh deformation or harvest shake impulse on a resource node.
+    /// </summary>
+    /// <param name="node">The target resource node.</param>
+    /// <param name="strength">The peak strength of the impulse deformation.</param>
+    /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
+    /// <param name="frequency">The oscillation frequency in Hz.</param>
+    void TriggerResourceMeshImpulse(IResourceNode node, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
 }

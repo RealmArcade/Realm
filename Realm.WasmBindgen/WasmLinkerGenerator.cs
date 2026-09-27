@@ -1883,7 +1883,10 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             {
                 string defaultVal = p.ExplicitDefaultValue == null ? "null" : 
                                    (p.ExplicitDefaultValue is bool b ? b.ToString().ToLower() : 
-                                   (p.ExplicitDefaultValue is string s ? $"\"{s}\"" : p.ExplicitDefaultValue.ToString()));
+                                   (p.ExplicitDefaultValue is string s ? $"\"{s}\"" : 
+                                   (p.ExplicitDefaultValue is float f ? $"{f.ToString(System.Globalization.CultureInfo.InvariantCulture)}f" :
+                                   (p.ExplicitDefaultValue is double d ? $"{d.ToString(System.Globalization.CultureInfo.InvariantCulture)}" :
+                                   p.ExplicitDefaultValue.ToString()))));
                 paramsDecl.Add($"{pType} {pName} = {defaultVal}");
             }
             else

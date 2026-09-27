@@ -28,6 +28,8 @@ public partial class GameHost
 	public readonly Dictionary<string, bool> ModelNormalizeLuminance = new(StringComparer.OrdinalIgnoreCase);
 	public readonly Dictionary<string, string> ModelSpawnShaders = new(StringComparer.OrdinalIgnoreCase);
 	public readonly Dictionary<string, string> ModelDeathShaders = new(StringComparer.OrdinalIgnoreCase);
+	public readonly Dictionary<string, string> ModelProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
+	public readonly Dictionary<string, bool> ModelEnableProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
 	private bool _modelYOffsetSavePending = false;
 	private bool _modelCollisionCircleSavePending = false;
 
@@ -753,6 +755,97 @@ public partial class GameHost
 		EditorHasUnsavedChanges = true;
 	}
 
+	public string GetModelProceduralAnimation(object objOrId)
+	{
+		if (objOrId == null) return "";
+		string primaryKey = GetSelectedEntityOrAssetKey(objOrId);
+		string normPrimary = NormalizeModelAssetKey(primaryKey);
+		if (!string.IsNullOrEmpty(normPrimary) && ModelProceduralAnimations.TryGetValue(normPrimary, out string pa1))
+			return pa1;
+
+		string assetKey = GetModelAssetKey(objOrId);
+		string normAsset = NormalizeModelAssetKey(assetKey);
+		if (!string.IsNullOrEmpty(normAsset) && ModelProceduralAnimations.TryGetValue(normAsset, out string pa2))
+			return pa2;
+
+		return "";
+	}
+
+	public void SetModelProceduralAnimation(string assetKey, string animId)
+	{
+		string norm = NormalizeModelAssetKey(assetKey);
+		if (string.IsNullOrEmpty(norm)) return;
+
+		string modelAsset = GetModelAssetKey(assetKey);
+		string normModel = !string.IsNullOrEmpty(modelAsset) ? NormalizeModelAssetKey(modelAsset) : null;
+
+		if (string.IsNullOrWhiteSpace(animId))
+		{
+			ModelProceduralAnimations.Remove(norm);
+			if (!string.IsNullOrEmpty(normModel))
+			{
+				ModelProceduralAnimations.Remove(normModel);
+			}
+		}
+		else
+		{
+			string trimmed = animId.Trim();
+			ModelProceduralAnimations[norm] = trimmed;
+			if (!string.IsNullOrEmpty(normModel))
+			{
+				ModelProceduralAnimations[normModel] = trimmed;
+			}
+		}
+
+		_modelYOffsetSavePending = true;
+		EditorHasUnsavedChanges = true;
+	}
+
+	public bool GetModelEnableProceduralAnimation(object objOrId)
+	{
+		if (objOrId == null) return false;
+		string primaryKey = GetSelectedEntityOrAssetKey(objOrId);
+		string normPrimary = NormalizeModelAssetKey(primaryKey);
+		if (!string.IsNullOrEmpty(normPrimary) && ModelEnableProceduralAnimations.TryGetValue(normPrimary, out bool ep1))
+			return ep1;
+
+		string assetKey = GetModelAssetKey(objOrId);
+		string normAsset = NormalizeModelAssetKey(assetKey);
+		if (!string.IsNullOrEmpty(normAsset) && ModelEnableProceduralAnimations.TryGetValue(normAsset, out bool ep2))
+			return ep2;
+
+		return false;
+	}
+
+	public void SetModelEnableProceduralAnimation(string assetKey, bool enable)
+	{
+		string norm = NormalizeModelAssetKey(assetKey);
+		if (string.IsNullOrEmpty(norm)) return;
+
+		string modelAsset = GetModelAssetKey(assetKey);
+		string normModel = !string.IsNullOrEmpty(modelAsset) ? NormalizeModelAssetKey(modelAsset) : null;
+
+		if (!enable)
+		{
+			ModelEnableProceduralAnimations.Remove(norm);
+			if (!string.IsNullOrEmpty(normModel))
+			{
+				ModelEnableProceduralAnimations.Remove(normModel);
+			}
+		}
+		else
+		{
+			ModelEnableProceduralAnimations[norm] = true;
+			if (!string.IsNullOrEmpty(normModel))
+			{
+				ModelEnableProceduralAnimations[normModel] = true;
+			}
+		}
+
+		_modelYOffsetSavePending = true;
+		EditorHasUnsavedChanges = true;
+	}
+
 	public bool IsPropOrResourceKey(string key)
 	{
 		if (string.IsNullOrEmpty(key)) return false;
@@ -1048,6 +1141,21 @@ public partial class GameHost
 			{
 				unit.UpdatePlayerColorVisual();
 			}
+
+			bool enableProcAnim = GetModelEnableProceduralAnimation(unit);
+			string procAnimId = GetModelProceduralAnimation(unit);
+			if (enableProcAnim && !string.IsNullOrEmpty(procAnimId))
+			{
+				var cfg = ProceduralAnimationManager.GetConfig(procAnimId);
+				if (cfg != null)
+				{
+					ModelShaderManager.SetProceduralAnimation(unit, cfg);
+				}
+			}
+			else
+			{
+				ModelShaderManager.DisableProceduralAnimation(unit);
+			}
 		}
 		else if (objOrNode is Prop3D prop && GodotObject.IsInstanceValid(prop))
 		{
@@ -1073,6 +1181,21 @@ public partial class GameHost
 			bool ignorePlayerColor = GetModelIgnorePlayerColor(prop);
 			bool normalizeLuminance = GetModelNormalizeLuminance(prop);
 			ApplyMaterialOverridesToNode(prop, brightness, tint, normalizeLuminance, ignorePlayerColor, false);
+
+			bool enableProcAnimProp = GetModelEnableProceduralAnimation(prop);
+			string procAnimIdProp = GetModelProceduralAnimation(prop);
+			if (enableProcAnimProp && !string.IsNullOrEmpty(procAnimIdProp))
+			{
+				var cfg = ProceduralAnimationManager.GetConfig(procAnimIdProp);
+				if (cfg != null)
+				{
+					ModelShaderManager.SetProceduralAnimation(prop, cfg);
+				}
+			}
+			else
+			{
+				ModelShaderManager.DisableProceduralAnimation(prop);
+			}
 		}
 	}
 
@@ -1502,6 +1625,14 @@ public partial class GameHost
 					{
 						ModelIgnorePlayerColor[normKey] = model.IgnorePlayerColor.Value;
 					}
+					if (!string.IsNullOrWhiteSpace(model.ProceduralAnimation))
+					{
+						ModelProceduralAnimations[normKey] = model.ProceduralAnimation.Trim();
+					}
+					if (model.EnableProceduralAnimation.HasValue)
+					{
+						ModelEnableProceduralAnimations[normKey] = model.EnableProceduralAnimation.Value;
+					}
 				}
 			}
 
@@ -1526,6 +1657,8 @@ public partial class GameHost
 		ModelIgnorePlayerColor.Clear();
 		ModelSpawnShaders.Clear();
 		ModelDeathShaders.Clear();
+		ModelProceduralAnimations.Clear();
+		ModelEnableProceduralAnimations.Clear();
 	}
 
 	public void RefreshAllPlacedObjectModels(string targetId = null)
@@ -1617,6 +1750,8 @@ public partial class GameHost
 				foreach (var k in ModelIgnorePlayerColor.Keys) allKeys.Add(k);
 				foreach (var k in ModelSpawnShaders.Keys) allKeys.Add(k);
 				foreach (var k in ModelDeathShaders.Keys) allKeys.Add(k);
+				foreach (var k in ModelProceduralAnimations.Keys) allKeys.Add(k);
+				foreach (var k in ModelEnableProceduralAnimations.Keys) allKeys.Add(k);
 
 				foreach (var key in allKeys)
 				{
@@ -1637,6 +1772,8 @@ public partial class GameHost
 					if (ModelIgnorePlayerColor.TryGetValue(key, out bool iVal)) modelMeta.IgnorePlayerColor = iVal;
 					if (ModelSpawnShaders.TryGetValue(key, out string? ssVal) && !string.IsNullOrWhiteSpace(ssVal)) modelMeta.SpawnShaders = ssVal;
 					if (ModelDeathShaders.TryGetValue(key, out string? dsVal) && !string.IsNullOrWhiteSpace(dsVal)) modelMeta.DeathShaders = dsVal;
+					if (ModelProceduralAnimations.TryGetValue(key, out string? paVal) && !string.IsNullOrWhiteSpace(paVal)) modelMeta.ProceduralAnimation = paVal;
+					if (ModelEnableProceduralAnimations.TryGetValue(key, out bool epVal)) modelMeta.EnableProceduralAnimation = epVal;
 				}
 
 				void UpdateEntityOverrides(List<GameHost.UnitMetadata> entities)

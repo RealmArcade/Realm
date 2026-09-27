@@ -56,6 +56,9 @@ public class MapMetadata
 	[JsonPropertyName("CustomVfx")]
 	public List<VfxAttachmentConfig> CustomVfx { get; set; } = new();
 
+	[JsonPropertyName("CustomProceduralAnimations")]
+	public List<ProceduralAnimationConfig> CustomProceduralAnimations { get; set; } = new();
+
 	[JsonPropertyName("CustomWaterProfiles")]
 	public List<WaterProfileSaveData> CustomWaterProfiles { get; set; } = new();
 
@@ -112,6 +115,9 @@ public class MapMetadata
 
 	public VfxAttachmentConfig? GetVfx(string vfxId) => CustomVfx?.FirstOrDefault(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase));
 	public VfxAttachmentConfig? FindVfx(string vfxId) => GetVfx(vfxId);
+
+	public ProceduralAnimationConfig? GetProceduralAnimation(string animId) => CustomProceduralAnimations?.FirstOrDefault(a => string.Equals(a.Id, animId, StringComparison.OrdinalIgnoreCase));
+	public ProceduralAnimationConfig? FindProceduralAnimation(string animId) => GetProceduralAnimation(animId);
 
 	public GameHost.ItemMetadata? GetItem(string itemId) => CustomItems?.FirstOrDefault(i => string.Equals(i.ItemId, itemId, StringComparison.OrdinalIgnoreCase));
 	public GameHost.ItemMetadata? FindItem(string itemId) => GetItem(itemId);
@@ -617,6 +623,14 @@ public class ModelMetadata
 	[JsonPropertyName("DeathShaders")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? DeathShaders { get; set; }
+
+	[JsonPropertyName("ProceduralAnimation")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public string? ProceduralAnimation { get; set; }
+
+	[JsonPropertyName("EnableProceduralAnimation")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public bool? EnableProceduralAnimation { get; set; }
 
 	[JsonExtensionData]
 	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
@@ -1214,6 +1228,30 @@ public class MetadataService
 	{
 		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
 		GetOrCreateModel(metadata, modelKey).DeathShaders = string.IsNullOrWhiteSpace(deathShader) ? null : deathShader;
+	}
+
+	public void SetModelProceduralAnimation(MapMetadata metadata, string modelKey, string animId)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
+		GetOrCreateModel(metadata, modelKey).ProceduralAnimation = string.IsNullOrWhiteSpace(animId) ? null : animId;
+	}
+
+	public string? GetModelProceduralAnimation(MapMetadata metadata, string modelKey)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(modelKey) || metadata.Models == null) return null;
+		return metadata.Models.TryGetValue(modelKey, out var model) ? model.ProceduralAnimation : null;
+	}
+
+	public void SetModelEnableProceduralAnimation(MapMetadata metadata, string modelKey, bool enable)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
+		GetOrCreateModel(metadata, modelKey).EnableProceduralAnimation = enable ? true : null;
+	}
+
+	public bool GetModelEnableProceduralAnimation(MapMetadata metadata, string modelKey)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(modelKey) || metadata.Models == null) return false;
+		return metadata.Models.TryGetValue(modelKey, out var model) && (model.EnableProceduralAnimation ?? false);
 	}
 
 	public void RemoveModelOverrides(MapMetadata metadata, string modelKey)
