@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { sendGodotIpc } from './extension';
+import { REALM_ASSET_AGREEMENT_WARNING } from './constants';
 
 export class RealmRaudViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'realm.raudViewer';
@@ -43,7 +44,7 @@ export class RealmRaudViewerProvider implements vscode.CustomReadonlyEditorProvi
         webviewPanel.webview.onDidReceiveMessage(async message => {
             if (message.command === 'exportOgg') {
                 const confirmed = await vscode.window.showWarningMessage(
-                    'The Realm Asset Agreement states that files cannot be used outside the Realm UGC platform unless you are the original author of the asset. Do you understand?',
+                    REALM_ASSET_AGREEMENT_WARNING,
                     { modal: true },
                     'Yes, Export OGG'
                 );

@@ -7,6 +7,7 @@ import { RealmRtexViewerProvider } from './rtexEditorProvider';
 import { RealmRanimViewerProvider } from './ranimEditorProvider';
 import { RealmRmeshViewerProvider, RmeshGlbFileSystemProvider, openRmeshInGlbViewer } from './rmeshEditorProvider';
 import { RealmRaudViewerProvider } from './raudEditorProvider';
+import { MIXAMO_EXPORT_LICENSING_WARNING } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(RealmMapEditorProvider.register(context));
@@ -34,6 +35,12 @@ export function activate(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showWarningMessage('Please select a .rmesh file to view in 3D.');
             }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('realm.exportRanim', async (uri?: vscode.Uri) => {
+            vscode.window.showWarningMessage(MIXAMO_EXPORT_LICENSING_WARNING);
         })
     );
 

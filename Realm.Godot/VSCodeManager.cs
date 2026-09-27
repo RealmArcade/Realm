@@ -1368,6 +1368,11 @@ public class VSCodeManager
 			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath);
 			_controller = await env.CreateCoreWebView2ControllerAsync(_childHwnd);
 			_controller.Bounds = new System.Drawing.Rectangle(0, 0, 800, 600);
+			if (_controller.CoreWebView2?.Settings != null)
+			{
+				_controller.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+				_controller.CoreWebView2.Settings.AreDevToolsEnabled = true;
+			}
 			_controller.AcceleratorKeyPressed += (sender, args) =>
 			{
 				if (args.VirtualKey == 0x73) // VK_F4
@@ -1383,11 +1388,15 @@ public class VSCodeManager
 						PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 					}
 				}
+				else if (args.VirtualKey == 0x7B) // VK_F12
+				{
+					args.Handled = false;
+				}
 				else
 				{
 					bool isControlPressed = (GetKeyState(0x11) & 0x8000) != 0;
 					bool isShiftPressed = (GetKeyState(0x10) & 0x8000) != 0;
-					if (isControlPressed && isShiftPressed && args.VirtualKey == 0x49)
+					if (isControlPressed && isShiftPressed && (args.VirtualKey == 0x49 || args.VirtualKey == 0x4A)) // Ctrl+Shift+I or Ctrl+Shift+J
 					{
 						if (args.KeyEventKind == CoreWebView2KeyEventKind.KeyDown)
 						{
@@ -1396,6 +1405,7 @@ public class VSCodeManager
 							{
 								_controller?.CoreWebView2?.OpenDevToolsWindow();
 							});
+							PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 						}
 					}
 				}
@@ -1586,6 +1596,25 @@ public class VSCodeManager
 				ShowWindow(_childHwnd, SW_SHOWMAXIMIZED);
 				BringWindowToTop(_childHwnd);
 				SetForegroundWindow(_childHwnd);
+			});
+			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+		}
+	}
+
+	public void OpenDevTools()
+	{
+		if (_childHwnd != IntPtr.Zero)
+		{
+			_actionQueue.Enqueue(() =>
+			{
+				try
+				{
+					_controller?.CoreWebView2?.OpenDevToolsWindow();
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr("Failed to open DevTools: " + ex.Message);
+				}
 			});
 			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 		}

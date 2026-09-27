@@ -16,6 +16,9 @@ namespace Realm.Shared.Metadata;
 
 public static class RealmMetadataHelper
 {
+	public const string AssetAgreementWarning = "The Realm Platform UGC Agreement states that files cannot be used outside the Realm Platform unless you are the original author of the asset. Do you understand?";
+	public const string MixamoLicensingWarning = "Export not available due to licensing. Download animations from https://www.mixamo.com";
+
 	public static bool SupportsMetadata(string extensionOrPath)
 	{
 		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();

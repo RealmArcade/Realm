@@ -5,14 +5,20 @@ USER-GENERATED CONTENT (UGC) LICENSE
 Creators retain all underlying ownership, copyright, and intellectual property
 rights to original maps, scripts, balance data, art, and assets ("UGC") they create.
 
-2. LICENSE TO THE PLATFORM OPERATOR
+2. CREATOR PERMISSIONS & THIRD-PARTY RIGHTS
+By publishing UGC, you represent and warrant that:
+a. You have all necessary rights to upload the UGC and to grant the licenses set forth in this agreement.
+b. The UGC does not infringe, misappropriate, or violate the intellectual property, copyright, trademark, privacy, or proprietary rights of any third party (including, without limitation, recognizable commercial characters, brands, music, or ripped game assets).
+c. The UGC does not contain sexually explicit content.
+
+3. LICENSE TO THE PLATFORM OPERATOR
 By publishing, uploading, or synchronizing UGC via the official Realm Platform live services,
 creators grant the Platform Operator (Devin Garner) a perpetual, worldwide,
 non-exclusive, royalty-free, sublicensable license to host, cache, route,
 distribute, reproduce, display, and format the UGC across any current or future
 official Realm Platform services, databases, or client distributions.
 
-3. LICENSE TO OTHER PLAYERS & REMIX PERMISSIONS
+4. LICENSE TO OTHER PLAYERS & REMIX PERMISSIONS
 Creators grant other registered Realm Platform users a personal, non-exclusive license to play, 
 stream, and adapt/remix the UGC for use exclusively within the official Realm Platform. 
 If a creator elects to export or adapt their UGC into an external, standalone game, 
@@ -20,9 +26,8 @@ they may only export assets they authored personally. No imported or derivative
 works authored by third-party Realm Platform creators may be bundled into external standalone 
 projects without separate written authorization from those respective creators.
 
-4. COMMUNITY HOSTS, INDEPENDENT SERVERS, & FORKS
+5. COMMUNITY HOSTS, INDEPENDENT SERVERS, & FORKS
 a. Status of Community & Peer-to-Peer Servers:
 Community-operated peer-to-peer hosts, server nodes, or relays whose network endpoints are approved or indexed by the Platform Operator participate strictly as end-user relay nodes under Section 3. Operating an indexed community server does not constitute being a "Platform Operator," nor does it convey any joint ownership, partnership, broad sublicensing authority, or commercial rights over UGC. Community hosts receive only a limited, non-exclusive, revocable license to temporarily cache, stream, and route UGC to connected Realm Platform users solely to facilitate active gameplay within the official Realm Platform ecosystem.
-
 b. Standalone Engine Builds & Distinct Game Ecosystems:
 "Realm Engine" and "Realm Platform" are legally and operationally distinct. Deploying, distributing, or modifying a standalone application built with the Realm Engine under its MIT License does not constitute being an operator of the "Realm Platform" and do not receive any license over "Realm Platform" UGC.

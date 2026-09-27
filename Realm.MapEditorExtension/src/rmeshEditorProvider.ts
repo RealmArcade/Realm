@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { sendGodotIpc } from './extension';
+import { REALM_ASSET_AGREEMENT_WARNING } from './constants';
 
 function getTempGlbPath(rmeshFsPath: string): string {
     const tempDir = path.join(os.tmpdir(), 'realm_extension_previews');
@@ -176,7 +177,7 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
                 await openRmeshInGlbViewer(rmeshPath);
             } else if (message.command === 'exportGlb') {
                 const confirmed = await vscode.window.showWarningMessage(
-                    'The Realm Asset Agreement states that files cannot be used outside the Realm UGC platform unless you are the original author of the asset. Do you understand?',
+                    REALM_ASSET_AGREEMENT_WARNING,
                     { modal: true },
                     'Yes, Export GLB'
                 );

@@ -259,29 +259,6 @@ public class KeygenOptions
 	public bool Register { get; set; }
 }
 
-[Verb("rmap_pack", HelpText = "Pack a map folder into a custom .rmap map archive package.")]
-public class RmapPackOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to source map directory to pack.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination path for .rmap file. If omitted, uses folder name with .rmap extension.")]
-	public string? Output { get; set; }
-
-	[Option('c', "compression-level", Required = false, Default = 1, HelpText = "Zstandard compression level (default: 1).")]
-	public int CompressionLevel { get; set; } = 1;
-}
-
-[Verb("rmap_unpack", HelpText = "Unpack a custom .rmap map archive package into a map workspace directory.")]
-public class RmapUnpackOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to input .rmap archive file.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = true, HelpText = "Output destination workspace directory.")]
-	public string Output { get; set; } = string.Empty;
-}
-
 public static class Program
 {
 	public static int Main(string[] args)
@@ -311,11 +288,9 @@ public static class Program
 			typeof(Blake3Options),
 			typeof(MeshPlayerColorCliOptions),
 			typeof(RigHumanoidOptions),
-			typeof(KeygenOptions),
-			typeof(RmapPackOptions),
-			typeof(RmapUnpackOptions));
+			typeof(KeygenOptions));
 
-		return Parser.Default.ParseArguments<MeshConvertOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions, RmapPackOptions, RmapUnpackOptions>(sanitizedArgs)
+		return Parser.Default.ParseArguments<MeshConvertOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions>(sanitizedArgs)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
 				(MeshConvertOptions options) => ExecuteMeshConvert(options),
@@ -328,8 +303,6 @@ public static class Program
 				(MeshPlayerColorCliOptions options) => ExecuteMeshPlayerColor(options),
 				(RigHumanoidOptions options) => ExecuteRigHumanoid(options),
 				(KeygenOptions options) => ExecuteKeygen(options),
-				(RmapPackOptions options) => ExecuteRmapPack(options),
-				(RmapUnpackOptions options) => ExecuteRmapUnpack(options),
 				errors => 1);
 	}
 
@@ -339,7 +312,7 @@ public static class Program
 	{
 		if (_assetAgreementAccepted) return;
 
-		Console.WriteLine("The Realm Asset Agreement states that files cannot be used outside the Realm UGC platform unless you are the original author of the asset. Do you understand? Y/N");
+		Console.WriteLine($"{RealmMetadataHelper.AssetAgreementWarning} Y/N");
 		string? response = Console.ReadLine()?.Trim();
 		if (string.Equals(response, "Y", StringComparison.OrdinalIgnoreCase))
 		{
@@ -1598,64 +1571,5 @@ public static class Program
 		Console.WriteLine($"   \"AdminPublicKeys\": [\n     \"{publicKeyBase64}\"\n   ]");
 		Console.WriteLine("=================================================");
 		return 0;
-	}
-
-	private static int ExecuteRmapPack(RmapPackOptions options)
-	{
-		if (!EnsurePathExists(options.Input) || !Directory.Exists(options.Input))
-		{
-			Console.Error.WriteLine($"Error: Input map folder does not exist: {options.Input}");
-			return 1;
-		}
-
-		string destinationPath = options.Output ?? string.Empty;
-		if (string.IsNullOrWhiteSpace(destinationPath))
-		{
-			string folderName = Path.GetFileName(Path.GetFullPath(options.Input).TrimEnd('/', '\\'));
-			destinationPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.Input)) ?? "", $"{folderName}.rmap");
-		}
-		else if (!destinationPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase))
-		{
-			destinationPath += ".rmap";
-		}
-
-		try
-		{
-			Console.WriteLine($"Packing map folder '{options.Input}' into '{destinationPath}'...");
-			MapArchiveHelper.CreateRmapArchive(options.Input, destinationPath, (pct, file) =>
-			{
-				Console.WriteLine($"  [{pct * 100:F0}%] {file}");
-			}, compressionLevel: options.CompressionLevel);
-
-			Console.WriteLine($"Successfully packed .rmap package: {destinationPath}");
-			return 0;
-		}
-		catch (Exception ex)
-		{
-			Console.Error.WriteLine($"Failed to pack .rmap archive: {ex.Message}");
-			return 1;
-		}
-	}
-
-	private static int ExecuteRmapUnpack(RmapUnpackOptions options)
-	{
-		if (!EnsurePathExists(options.Input) || !File.Exists(options.Input))
-		{
-			Console.Error.WriteLine($"Error: Input .rmap file does not exist: {options.Input}");
-			return 1;
-		}
-
-		try
-		{
-			Console.WriteLine($"Unpacking .rmap archive '{options.Input}' into '{options.Output}'...");
-			MapArchiveHelper.ExtractArchive(options.Input, options.Output);
-			Console.WriteLine($"Successfully unpacked .rmap package into: {options.Output}");
-			return 0;
-		}
-		catch (Exception ex)
-		{
-			Console.Error.WriteLine($"Failed to unpack .rmap archive: {ex.Message}");
-			return 1;
-		}
 	}
 }
