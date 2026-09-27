@@ -5101,6 +5101,10 @@ public class {mapName} : IMapScript
 	private void UpdateConnectionStatus()
 	{
 		_networkService.UpdateConnectionStatus(_multiplayerActive, IsServerActive());
+		if (_networkService.IsConnectionLost && !IsServerActive() && LobbyManager.Instance != null && !LobbyManager.Instance.IsReconnecting)
+		{
+			LobbyManager.Instance.TriggerReconnect();
+		}
 	}
 
 	private void ProcessGameplayTick(float fDelta)

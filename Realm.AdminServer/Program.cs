@@ -143,7 +143,7 @@ app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext 
     var clientIpStr = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
     var clientCoords = geoIp.GetCoordinates(clientIpStr);
     
-    var list = registry.GetAllLobbies().Select(lobby =>
+    var list = registry.GetAllLobbies().Where(lobby => !lobby.IsGameInProgress).Select(lobby =>
     {
         var distance = GeoIpService.CalculateDistance(
             clientCoords.lat, clientCoords.lon,
@@ -355,6 +355,10 @@ app.MapPost("/lobbies/heartbeat", async (HeartbeatRequest req, LobbyRegistry reg
     {
         lobby.LastHeartbeat = DateTime.UtcNow;
         lobby.SlotsUsed = req.SlotsUsed;
+        if (req.IsGameInProgress.HasValue)
+        {
+            lobby.IsGameInProgress = req.IsGameInProgress.Value;
+        }
 
 
         _ = Task.Run(async () =>
