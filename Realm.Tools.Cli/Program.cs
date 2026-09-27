@@ -729,10 +729,10 @@ public static class Program
 				inputObj["asset_type"] = canonical;
 			}
 
+			string? existingMeta = RealmMetadataHelper.ExtractMetadata(targetPath);
 			JsonObject finalObj;
 			if (isUpdate)
 			{
-				string? existingMeta = RealmMetadataHelper.ExtractMetadata(targetPath);
 				if (!string.IsNullOrEmpty(existingMeta))
 				{
 					try
@@ -757,6 +757,40 @@ public static class Program
 			else
 			{
 				finalObj = inputObj;
+
+				if (!string.IsNullOrEmpty(existingMeta))
+				{
+					try
+					{
+						var existingObj = JsonNode.Parse(existingMeta) as JsonObject;
+						if (existingObj != null)
+						{
+							if (!finalObj.ContainsKey("format") && existingObj.ContainsKey("format"))
+							{
+								finalObj["format"] = existingObj["format"]?.DeepClone();
+							}
+							if (!finalObj.ContainsKey("is_compressed") && existingObj.ContainsKey("is_compressed"))
+							{
+								finalObj["is_compressed"] = existingObj["is_compressed"]?.DeepClone();
+							}
+							if (!finalObj.ContainsKey("created_utc") && existingObj.ContainsKey("created_utc"))
+							{
+								finalObj["created_utc"] = existingObj["created_utc"]?.DeepClone();
+							}
+						}
+					}
+					catch { }
+				}
+			}
+
+			if (!finalObj.ContainsKey("format"))
+			{
+				finalObj["format"] = ext.TrimStart('.');
+			}
+
+			if (!finalObj.ContainsKey("created_utc") || finalObj["created_utc"] == null)
+			{
+				finalObj["created_utc"] = DateTime.UtcNow.ToString("O");
 			}
 
 			string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(targetPath);
@@ -871,7 +905,11 @@ public static class Program
 
 			RealmMetadataHelper.RemoveMetadata(options.Input);
 			string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(options.Input);
-			var metaObj = new JsonObject { ["blake3"] = canonicalBlake3 };
+			var metaObj = new JsonObject
+			{
+				["format"] = ext.TrimStart('.'),
+				["blake3"] = canonicalBlake3
+			};
 			bool success = RealmMetadataHelper.AddMetadata(options.Input, metaObj.ToJsonString());
 
 			if (success)
@@ -892,9 +930,14 @@ public static class Program
 
 		foreach (var file in files)
 		{
+			string ext = Path.GetExtension(file).ToLowerInvariant();
 			RealmMetadataHelper.RemoveMetadata(file);
 			string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(file);
-			var metaObj = new JsonObject { ["blake3"] = canonicalBlake3 };
+			var metaObj = new JsonObject
+			{
+				["format"] = ext.TrimStart('.'),
+				["blake3"] = canonicalBlake3
+			};
 
 			if (RealmMetadataHelper.AddMetadata(file, metaObj.ToJsonString()))
 			{

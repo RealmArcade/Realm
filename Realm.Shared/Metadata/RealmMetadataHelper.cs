@@ -77,6 +77,19 @@ public static class RealmMetadataHelper
 			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
 			metaObj["format"] = ext.TrimStart('.');
 		}
+
+		if (!metaObj.ContainsKey("is_compressed"))
+		{
+			if (ext is ".rmesh" or ".ranim")
+			{
+				metaObj["is_compressed"] = true;
+			}
+			else if (ext is ".rtex" or ".raud")
+			{
+				metaObj["is_compressed"] = false;
+			}
+		}
+
 		metaObj["blake3"] = canonicalBlake3;
 
 		try
@@ -614,6 +627,33 @@ public static class RealmMetadataHelper
 					if (compVal2.GetValueKind() == JsonValueKind.True) return true;
 					if (compVal2.GetValueKind() == JsonValueKind.False) return false;
 					if (bool.TryParse(compVal2.ToString(), out bool b2)) return b2;
+				}
+			}
+		}
+		catch { }
+		return false;
+	}
+
+	public static bool TryExtractIsCompressed(string? metadataJson, out bool isCompressed)
+	{
+		isCompressed = false;
+		if (string.IsNullOrWhiteSpace(metadataJson)) return false;
+		try
+		{
+			var node = JsonNode.Parse(metadataJson);
+			if (node is JsonObject obj)
+			{
+				if (obj.TryGetPropertyValue("is_compressed", out var compVal) && compVal != null)
+				{
+					if (compVal.GetValueKind() == JsonValueKind.True) { isCompressed = true; return true; }
+					if (compVal.GetValueKind() == JsonValueKind.False) { isCompressed = false; return true; }
+					if (bool.TryParse(compVal.ToString(), out bool b)) { isCompressed = b; return true; }
+				}
+				if (obj.TryGetPropertyValue("IsCompressed", out var compVal2) && compVal2 != null)
+				{
+					if (compVal2.GetValueKind() == JsonValueKind.True) { isCompressed = true; return true; }
+					if (compVal2.GetValueKind() == JsonValueKind.False) { isCompressed = false; return true; }
+					if (bool.TryParse(compVal2.ToString(), out bool b2)) { isCompressed = b2; return true; }
 				}
 			}
 		}
