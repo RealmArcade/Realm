@@ -414,8 +414,8 @@
 			"DespillPlayerColor": false,
 			"IgnorePlayerColor": false,
 			"NormalizeLuminance": true,
-			"Offsets": 1.5000001,
-			"Scales": 1.5
+			"Offsets": 3.0000002,
+			"Scales": 3
 		},
 		"coniferous_tree_1.rmesh": {
 			"Brightness": 0.5,
