@@ -2183,10 +2183,65 @@ public class VSCodeManager
 			{
 				GD.PrintErr("VS Code: Failed to install Realm Map Editor extension: " + ex.Message);
 			}
+
+			PatchOhziExtension(extensionsDir);
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr("Failed to install missing VS Code extensions: " + ex.Message);
+		}
+	}
+
+	private static void PatchOhziExtension(string extensionsDir)
+	{
+		try
+		{
+			if (!Directory.Exists(extensionsDir)) return;
+
+			string patchSrc = Path.Combine(PathUtils.GetProjectRoot(), "vscode_extensions_dist", "patches", "ohzi-vscode-glb-viewer", "extension.js");
+			if (!File.Exists(patchSrc))
+			{
+				patchSrc = Path.GetFullPath(Path.Combine(PathUtils.GetProjectRoot(), "..", "Realm.MapEditorExtension", "patches", "ohzi-vscode-glb-viewer", "extension.js"));
+			}
+			if (!File.Exists(patchSrc))
+			{
+				string found = PathUtils.FindPath(Path.Combine("patches", "ohzi-vscode-glb-viewer", "extension.js"));
+				if (File.Exists(found)) patchSrc = found;
+			}
+			if (!File.Exists(patchSrc))
+			{
+				GD.PrintErr("VS Code: OHZI patch source file not found.");
+				return;
+			}
+
+			string[] extDirs = Directory.GetDirectories(extensionsDir);
+			foreach (string dir in extDirs)
+			{
+				string dirName = Path.GetFileName(dir);
+				if (dirName.Contains("ohzi-vscode-glb-viewer", StringComparison.OrdinalIgnoreCase))
+				{
+					string extJsPath = Path.Combine(dir, "extension.js");
+					bool needsPatch = !File.Exists(extJsPath);
+					if (!needsPatch && File.Exists(extJsPath))
+					{
+						string content = File.ReadAllText(extJsPath, System.Text.Encoding.UTF8);
+						if (!content.Contains("loadModelFromBase64", StringComparison.Ordinal))
+						{
+							needsPatch = true;
+						}
+					}
+
+					if (needsPatch)
+					{
+						File.Copy(patchSrc, extJsPath, true);
+						GD.Print($"VS Code: Patched OHZI GLB viewer extension in {dir}");
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to patch OHZI extension: {ex.Message}");
 		}
 	}
 
