@@ -296,7 +296,7 @@ function Patch-OhziExtension {
         $needsPatch = $ForcePatch -or (-not (Test-Path $extJsPath))
         if (-not $needsPatch -and (Test-Path $extJsPath)) {
             $content = [System.IO.File]::ReadAllText($extJsPath, [System.Text.Encoding]::UTF8)
-            if (-not $content.Contains("loadModelFromBase64")) {
+            if (-not $content.Contains("REALM_PATCHED_OHZI_BASE64") -and (-not $content.Contains("threeDataUri") -or $content.Contains("loadModelFromUri"))) {
                 $needsPatch = $true
             }
         }

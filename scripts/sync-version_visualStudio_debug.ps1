@@ -232,7 +232,7 @@ foreach ($extensionsDir in $uniqueExtensionDirs) {
             $needsPatch = -not (Test-Path $extJsPath)
             if (-not $needsPatch -and (Test-Path $extJsPath)) {
                 $extJsContent = [System.IO.File]::ReadAllText($extJsPath, [System.Text.Encoding]::UTF8)
-                if (-not $extJsContent.Contains("loadModelFromBase64")) {
+                if (-not $extJsContent.Contains("REALM_PATCHED_OHZI_BASE64") -and (-not $extJsContent.Contains("threeDataUri") -or $extJsContent.Contains("loadModelFromUri"))) {
                     $needsPatch = $true
                 }
             }

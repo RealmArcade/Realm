@@ -2225,7 +2225,7 @@ public class VSCodeManager
 					if (!needsPatch && File.Exists(extJsPath))
 					{
 						string content = File.ReadAllText(extJsPath, System.Text.Encoding.UTF8);
-						if (!content.Contains("loadModelFromBase64", StringComparison.Ordinal))
+						if (!content.Contains("REALM_PATCHED_OHZI_BASE64", StringComparison.Ordinal) && (!content.Contains("threeDataUri", StringComparison.Ordinal) || content.Contains("loadModelFromUri", StringComparison.Ordinal)))
 						{
 							needsPatch = true;
 						}

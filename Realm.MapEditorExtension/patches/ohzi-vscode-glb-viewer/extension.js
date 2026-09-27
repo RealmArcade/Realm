@@ -1,3 +1,4 @@
+// REALM_PATCHED_OHZI_BASE64
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
