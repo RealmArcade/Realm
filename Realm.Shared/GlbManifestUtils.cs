@@ -498,7 +498,7 @@ public static class GlbManifestUtils
 					byte[] webpData = TextureConverter.EncodeWebp(
 						workingImg,
 						lossless: isPbr,
-						quality: isPbr ? 100 : 90
+						quality: isPbr ? 100 : 80
 					);
 
 					newImageBytes[i] = webpData;

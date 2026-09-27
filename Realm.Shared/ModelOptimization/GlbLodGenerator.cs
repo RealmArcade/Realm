@@ -128,7 +128,21 @@ public static unsafe class GlbLodGenerator
 				if (meshObj["primitives"] is not JsonArray primitives || primitives.Count == 0) continue;
 
 				string meshName = meshObj["name"]?.GetValue<string>() ?? $"Mesh_{m}";
-				if (meshName.Contains("_LOD", StringComparison.OrdinalIgnoreCase)) continue;
+				if (meshName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase))
+				{
+					meshName = meshName.Substring(0, meshName.Length - 5);
+				}
+				else if (meshName.EndsWith("LOD0", StringComparison.OrdinalIgnoreCase))
+				{
+					meshName = meshName.Substring(0, meshName.Length - 4);
+				}
+				else if (meshName.Contains("_LOD", StringComparison.OrdinalIgnoreCase) ||
+					meshName.Contains("LOD1", StringComparison.OrdinalIgnoreCase) ||
+					meshName.Contains("LOD2", StringComparison.OrdinalIgnoreCase) ||
+					meshName.Contains("LOD3", StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
 
 				var lodMeshIndices = new List<int>();
 
@@ -494,37 +508,6 @@ public static unsafe class GlbLodGenerator
 							int newLodNodeIdx = nodes.Count;
 							nodes.Add(lodNode);
 							lodNodeIndices.Add(newLodNodeIdx);
-
-							// If scene has root nodes, add LOD sibling node to scenes
-							if (root["scenes"] is JsonArray scenes)
-							{
-								foreach (var sc in scenes)
-								{
-									if (sc is JsonObject scObj && scObj["nodes"] is JsonArray scNodes)
-									{
-										for (int sn = 0; sn < scNodes.Count; sn++)
-										{
-											if (scNodes[sn]?.GetValue<int>() == n)
-											{
-												bool alreadyPresent = false;
-												for (int k = 0; k < scNodes.Count; k++)
-												{
-													if (scNodes[k]?.GetValue<int>() == newLodNodeIdx)
-													{
-														alreadyPresent = true;
-														break;
-													}
-												}
-												if (!alreadyPresent)
-												{
-													scNodes.Add(newLodNodeIdx);
-												}
-												break;
-											}
-										}
-									}
-								}
-							}
 						}
 
 						if (nodeObj["extensions"] is not JsonObject nodeExts)

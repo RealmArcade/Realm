@@ -92,25 +92,27 @@ public class GlbOptimizer
 		byte[] smoothed = GlbMeshSmoother.SmoothMesh(glbBytes, GlbMeshSmoother.DefaultCreaseAngleDegrees);
 		byte[] sanitized = GlbManifestUtils.SanitizeMaterials(smoothed);
 
-		var (lodSuccess, lodGlbBytes, lodError) = GlbLodGenerator.GenerateLods(sanitized);
+		var (toolSuccess, toolBytes, toolError) = NativeToolRunner.RunGltfPack(
+			sanitized,
+			1.0f,
+			options.MaxTextureResolution,
+			false
+		);
+
+		byte[] packedBaseMesh = (toolSuccess && toolBytes != null && toolBytes.Length > 0)
+			? toolBytes
+			: sanitized;
+
+		var (lodSuccess, lodGlbBytes, lodError) = GlbLodGenerator.GenerateLods(packedBaseMesh);
 		if (!lodSuccess)
 		{
 			result.Success = false;
 			result.ErrorMessage = $"LOD generation failed: {lodError}";
 			return result;
 		}
-		byte[] meshWithLods = lodGlbBytes.Length > 0 ? lodGlbBytes : sanitized;
+		byte[] meshWithLods = lodGlbBytes.Length > 0 ? lodGlbBytes : packedBaseMesh;
 
-		var (toolSuccess, toolBytes, toolError) = NativeToolRunner.RunGltfPack(
-			meshWithLods,
-			1.0f,
-			options.MaxTextureResolution,
-			false
-		);
-
-		byte[] workingBytes = (toolSuccess && toolBytes != null && toolBytes.Length > 0)
-			? toolBytes
-			: meshWithLods;
+		byte[] workingBytes = meshWithLods;
 
 		if (options.CompressTextures)
 		{
