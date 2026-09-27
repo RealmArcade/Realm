@@ -46,7 +46,7 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
 
         const ranimPath = document.uri.fsPath;
         const fileNameHash = Buffer.from(ranimPath).toString('hex').substring(0, 12);
-        const outputGifPath = path.join(tempDir, `${fileNameHash}_${path.basename(ranimPath, '.ranim')}.gif`);
+        const outputWebpPath = path.join(tempDir, `${fileNameHash}_${path.basename(ranimPath, '.ranim')}.webp`);
 
         webviewPanel.webview.html = this.getLoadingHtml();
 
@@ -54,14 +54,14 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
             const response = await sendGodotIpc({
                 action: 'renderRanim',
                 inputPath: ranimPath,
-                outputPath: outputGifPath
+                outputPath: outputWebpPath
             });
 
-            if (!response || !response.success || !fs.existsSync(outputGifPath)) {
+            if (!response || !response.success || !fs.existsSync(outputWebpPath)) {
                 throw new Error(response?.error || 'Godot IPC failed to render .ranim animation.');
             }
 
-            const imageUri = webviewPanel.webview.asWebviewUri(vscode.Uri.file(outputGifPath));
+            const imageUri = webviewPanel.webview.asWebviewUri(vscode.Uri.file(outputWebpPath));
             webviewPanel.webview.html = this.getPreviewHtml(webviewPanel.webview, imageUri, path.basename(ranimPath));
         } catch (error: any) {
             webviewPanel.webview.html = this.getErrorHtml(error?.message || 'Failed to render .ranim animation.');
@@ -83,7 +83,7 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
 <body>
     <div class="container">
         <div class="spinner"></div>
-        <div>Rendering skeletal animation preview (.gif)...</div>
+        <div>Rendering skeletal animation preview (.webp)...</div>
     </div>
 </body>
 </html>`;
@@ -103,9 +103,9 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
     </style>
 </head>
 <body>
-    <div class="header">${title} (Animated GIF Preview)</div>
+    <div class="header">${title} (Animated WebP Preview)</div>
     <div class="image-container">
-        <img src="${imageUri}" alt="Animated GIF Preview" />
+        <img src="${imageUri}" alt="Animated WebP Preview" />
     </div>
 </body>
 </html>`;

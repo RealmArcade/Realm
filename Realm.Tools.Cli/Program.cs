@@ -94,7 +94,7 @@ public class FbxToRanimOptions
 	public bool Recursive { get; set; }
 }
 
-[Verb("ranim_render", HelpText = "Render .ranim skeletal animation files to animated GIF, PNG spritesheet, or high-quality WebP spritesheet.")]
+[Verb("ranim_render", HelpText = "Render .ranim skeletal animation files to animated WebP or PNG spritesheet.")]
 public class RanimRenderOptions
 {
 	[Option('i', "input", Required = true, HelpText = "Path to input .ranim file or directory.")]
@@ -103,7 +103,7 @@ public class RanimRenderOptions
 	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
 	public string? Output { get; set; }
 
-	[Option('f', "format", Required = false, Default = "auto", HelpText = "Output format: auto (default), gif, spritesheet, webp.")]
+	[Option('f', "format", Required = false, Default = "auto", HelpText = "Output format: auto (default), webp, spritesheet.")]
 	public string Format { get; set; } = "auto";
 
 	[Option("fps", Required = false, Default = 12.0f, HelpText = "Target frames per second (default 12).")]
@@ -518,7 +518,7 @@ public static class Program
 
 	private static int ExecuteRanimRender(RanimRenderOptions options)
 	{
-		RanimOutputFormat outputFormat = RanimOutputFormat.Gif;
+		RanimOutputFormat outputFormat = RanimOutputFormat.Webp;
 		string formatLower = options.Format.Trim().ToLowerInvariant();
 
 		if (formatLower == "webp")
@@ -529,23 +529,15 @@ public static class Program
 		{
 			outputFormat = RanimOutputFormat.Spritesheet;
 		}
-		else if (formatLower == "gif")
-		{
-			outputFormat = RanimOutputFormat.Gif;
-		}
 		else if (formatLower == "auto" && !string.IsNullOrEmpty(options.Output))
 		{
-			if (options.Output.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
-			{
-				outputFormat = RanimOutputFormat.Webp;
-			}
-			else if (options.Output.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+			if (options.Output.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
 			{
 				outputFormat = RanimOutputFormat.Spritesheet;
 			}
 			else
 			{
-				outputFormat = RanimOutputFormat.Gif;
+				outputFormat = RanimOutputFormat.Webp;
 			}
 		}
 
@@ -566,9 +558,8 @@ public static class Program
 
 		string extension = outputFormat switch
 		{
-			RanimOutputFormat.Webp => ".webp",
 			RanimOutputFormat.Spritesheet => ".png",
-			_ => ".gif"
+			_ => ".webp"
 		};
 
 		return ProcessTraversedFiles(

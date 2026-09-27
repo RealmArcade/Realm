@@ -1120,7 +1120,7 @@ public class VSCodeManager
 				{
 					var options = new Realm.Shared.Animation.RanimRenderOptions
 					{
-						Format = Realm.Shared.Animation.RanimOutputFormat.Gif,
+						Format = Realm.Shared.Animation.RanimOutputFormat.Webp,
 						Width = 128,
 						Height = 128,
 						Fps = 12.0f

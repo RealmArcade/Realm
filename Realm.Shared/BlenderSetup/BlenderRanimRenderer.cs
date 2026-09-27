@@ -87,11 +87,8 @@ public static class BlenderRanimRenderer
 
 			string formatArgument = renderOptions.Format switch
 			{
-				RanimOutputFormat.Webp => "webp",
 				RanimOutputFormat.Spritesheet => "spritesheet",
-				_ => outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ? "webp"
-					: outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "spritesheet"
-					: "gif"
+				_ => outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && !outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ? "spritesheet" : "webp"
 			};
 
 			var processStartInfo = new ProcessStartInfo

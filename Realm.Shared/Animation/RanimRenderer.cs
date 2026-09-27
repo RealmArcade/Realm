@@ -10,9 +10,9 @@ namespace Realm.Shared.Animation;
 
 public enum RanimOutputFormat
 {
-	Gif,
+	Webp,
 	Spritesheet,
-	Webp
+	Gif
 }
 
 public class RanimRenderOptions
@@ -21,7 +21,7 @@ public class RanimRenderOptions
 	public int Height { get; set; } = 128;
 	public float Fps { get; set; } = 12.0f;
 	public int? MaxFrameCount { get; set; }
-	public RanimOutputFormat Format { get; set; } = RanimOutputFormat.Gif;
+	public RanimOutputFormat Format { get; set; } = RanimOutputFormat.Webp;
 	public float Scale { get; set; } = 1.0f;
 	public bool DrawBorder { get; set; } = true;
 	public bool DrawShadow { get; set; } = true;
@@ -214,9 +214,8 @@ public static class RanimRenderer
 			{
 				string extension = renderOptions.Format switch
 				{
-					RanimOutputFormat.Webp => ".webp",
 					RanimOutputFormat.Spritesheet => ".png",
-					_ => ".gif"
+					_ => ".webp"
 				};
 				finalOutputPath = Path.ChangeExtension(inputPath, extension);
 			}
@@ -306,13 +305,13 @@ public static class RanimRenderer
 				Directory.CreateDirectory(directory);
 			}
 
-			if (renderOptions.Format is RanimOutputFormat.Spritesheet or RanimOutputFormat.Webp || outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) || outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+			if (renderOptions.Format == RanimOutputFormat.Spritesheet || (outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && !outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)))
 			{
 				SaveAsSpritesheet(frameImages, outputPath, renderOptions);
 			}
 			else
 			{
-				SaveAsAnimatedGif(frameImages, outputPath, duration, renderOptions);
+				SaveAsAnimatedWebp(frameImages, outputPath, duration, renderOptions);
 			}
 
 			exportResult.Success = true;
@@ -348,9 +347,8 @@ public static class RanimRenderer
 			string target;
 			string extension = renderOptions.Format switch
 			{
-				RanimOutputFormat.Webp => ".webp",
 				RanimOutputFormat.Spritesheet => ".png",
-				_ => ".gif"
+				_ => ".webp"
 			};
 
 			if (string.IsNullOrEmpty(outputDirectory))
@@ -415,9 +413,9 @@ public static class RanimRenderer
 		}
 	}
 
-	private static void SaveAsAnimatedGif(List<SKBitmap> frameImages, string outputPath, float duration, RanimRenderOptions options)
+	private static void SaveAsAnimatedWebp(List<SKBitmap> frameImages, string outputPath, float duration, RanimRenderOptions options)
 	{
-		GifEncoder.EncodeAnimatedGif(frameImages, outputPath, duration);
+		AnimatedWebpEncoder.EncodeAnimatedWebp(frameImages, outputPath, duration, options.Lossless, options.Quality);
 	}
 
 	private static Dictionary<HumanoidBone, RealmAnimationBoneTrack> BuildTrackMap(RealmAnimationData animData)
