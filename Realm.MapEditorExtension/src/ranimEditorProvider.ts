@@ -39,10 +39,7 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
             fs.mkdirSync(tempDir, { recursive: true });
         }
 
-        webviewPanel.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [vscode.Uri.file(tempDir)]
-        };
+        webviewPanel.webview.options = { enableScripts: false };
 
         const ranimPath = document.uri.fsPath;
         const fileNameHash = Buffer.from(ranimPath).toString('hex').substring(0, 12);
@@ -61,8 +58,9 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
                 throw new Error(response?.error || 'Godot IPC failed to render .ranim animation.');
             }
 
-            const imageUri = webviewPanel.webview.asWebviewUri(vscode.Uri.file(outputWebpPath));
-            webviewPanel.webview.html = this.getPreviewHtml(webviewPanel.webview, imageUri, path.basename(ranimPath));
+            const webpBytes = fs.readFileSync(outputWebpPath);
+            const base64DataUri = `data:image/webp;base64,${webpBytes.toString('base64')}`;
+            webviewPanel.webview.html = this.getPreviewHtml(base64DataUri, path.basename(ranimPath));
         } catch (error: any) {
             webviewPanel.webview.html = this.getErrorHtml(error?.message || 'Failed to render .ranim animation.');
         }
@@ -89,12 +87,12 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
 </html>`;
     }
 
-    private getPreviewHtml(webview: vscode.Webview, imageUri: vscode.Uri, title: string): string {
+    private getPreviewHtml(base64DataUri: string, title: string): string {
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline';">
     <style>
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); font-family: var(--vscode-font-family); box-sizing: border-box; }
         .header { margin-bottom: 16px; font-weight: 600; font-size: 14px; color: var(--vscode-descriptionForeground); }
@@ -105,7 +103,7 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
 <body>
     <div class="header">${title} (Animated WebP Preview)</div>
     <div class="image-container">
-        <img src="${imageUri}" alt="Animated WebP Preview" />
+        <img src="${base64DataUri}" alt="Animated WebP Preview" />
     </div>
 </body>
 </html>`;
