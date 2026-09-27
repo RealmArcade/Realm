@@ -321,7 +321,13 @@ public class DistributionClient
 
         foreach (var item in missingHashes)
         {
-            hashToExtMap[item.NormalizedHash] = Path.GetExtension(item.AssetKey).ToLowerInvariant();
+            string ext = Path.GetExtension(item.AssetKey).ToLowerInvariant();
+            if (string.IsNullOrEmpty(ext))
+            {
+                ext = Path.GetExtension(item.VirtualPath).ToLowerInvariant();
+            }
+            hashToExtMap[item.NormalizedHash] = ext;
+
             if (!remainingMissingMap.TryGetValue(item.NormalizedHash, out var list))
             {
                 list = new List<(string VirtualPath, string AssetKey, string NormalizedHash)>();
@@ -381,7 +387,6 @@ public class DistributionClient
                 }
                 else
                 {
-                    circuit.RecordFailure(DateTime.UtcNow);
                     break;
                 }
             }
@@ -409,9 +414,15 @@ public class DistributionClient
                         return true;
                     }
 
+                    string effectiveAssetKey = item.AssetKey;
+                    if (string.IsNullOrEmpty(Path.GetExtension(effectiveAssetKey)) && hashToExtMap.TryGetValue(item.NormalizedHash, out var mappedExt) && !string.IsNullOrEmpty(mappedExt))
+                    {
+                        effectiveAssetKey = $"{item.AssetKey}{mappedExt}";
+                    }
+
                     bool downloaded = await DownloadSingleAssetWithRetriesAsync(
                         item.NormalizedHash,
-                        item.AssetKey,
+                        effectiveAssetKey,
                         targetStorage,
                         seeders,
                         fallbackHostUrl,
