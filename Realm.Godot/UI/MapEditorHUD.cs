@@ -2273,6 +2273,80 @@ public partial class MapEditorHUD : Control
 		UIStyle.ApplyCheckboxStyle(chkFullExport);
 		vbox.AddChild(chkFullExport);
 
+		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
+		string defaultUsername = LobbyManager.Instance?.AuthenticatedUsername ?? System.Environment.UserName;
+		var (_, keyData, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
+		string currentAuthorName = !string.IsNullOrWhiteSpace(keyData?.UserName) ? keyData.UserName : defaultUsername;
+		string authorPubKey = !string.IsNullOrWhiteSpace(keyData?.PublicKey) ? keyData.PublicKey : "";
+		string shortPubKey = authorPubKey.Length > 16 ? $"{authorPubKey[..8]}...{authorPubKey[^8..]}" : authorPubKey;
+
+		var identityPanel = new PanelContainer();
+		var identityStyle = new StyleBoxFlat
+		{
+			BgColor = new Color(0.12f, 0.15f, 0.22f, 0.95f),
+			BorderColor = new Color(0.3f, 0.5f, 0.8f, 0.9f),
+			BorderWidthBottom = 1,
+			BorderWidthTop = 1,
+			BorderWidthLeft = 1,
+			BorderWidthRight = 1,
+			CornerRadiusTopLeft = 4,
+			CornerRadiusTopRight = 4,
+			CornerRadiusBottomLeft = 4,
+			CornerRadiusBottomRight = 4
+		};
+		identityPanel.AddThemeStyleboxOverride("panel", identityStyle);
+		var idMargin = new MarginContainer();
+		idMargin.AddThemeConstantOverride("margin_top", 8);
+		idMargin.AddThemeConstantOverride("margin_bottom", 8);
+		idMargin.AddThemeConstantOverride("margin_left", 12);
+		idMargin.AddThemeConstantOverride("margin_right", 12);
+		identityPanel.AddChild(idMargin);
+
+		var idVBox = new VBoxContainer();
+		idVBox.AddThemeConstantOverride("separation", 6);
+		idMargin.AddChild(idVBox);
+
+		var idHeaderHBox = new HBoxContainer();
+		idHeaderHBox.AddThemeConstantOverride("separation", 8);
+		var idHeaderLabel = new Label();
+		idHeaderLabel.Text = "🔑 " + TranslationServer.Translate("AUTHOR IDENTITY & KEY VERIFICATION");
+		idHeaderLabel.AddThemeFontSizeOverride("font_size", 13);
+		idHeaderLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		idHeaderLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		idHeaderHBox.AddChild(idHeaderLabel);
+
+		var btnEditKey = new Button();
+		btnEditKey.AddThemeConstantOverride("icon_max_width", 0);
+		btnEditKey.Text = TranslationServer.Translate("Manage Key / Identity");
+		btnEditKey.AddThemeFontSizeOverride("font_size", 11);
+		btnEditKey.CustomMinimumSize = new Vector2(160, 26);
+		btnEditKey.Pressed += () =>
+		{
+			if (_authorSignatureDialog == null)
+			{
+				_authorSignatureDialog = new AuthorSignatureDialog(this);
+			}
+			_authorSignatureDialog.OpenDialog();
+		};
+		idHeaderHBox.AddChild(btnEditKey);
+		idVBox.AddChild(idHeaderHBox);
+
+		var idDetailsLabel = new Label();
+		idDetailsLabel.Text = string.Format(TranslationServer.Translate("Author: {0} | Public Key: {1}\nKey File: {2}"), currentAuthorName, shortPubKey, keyPath);
+		idDetailsLabel.AddThemeFontSizeOverride("font_size", 11);
+		idDetailsLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.9f, 1.0f));
+		idDetailsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		idVBox.AddChild(idDetailsLabel);
+
+		var idBackupWarn = new Label();
+		idBackupWarn.Text = "⚠️ " + TranslationServer.Translate("Important: Back up your key file! Your authorship key proves ownership of your map name and allows future updates. If you lose your key file, you will permanently lose ownership and the ability to update this map.");
+		idBackupWarn.AddThemeFontSizeOverride("font_size", 11);
+		idBackupWarn.AddThemeColorOverride("font_color", new Color(1.0f, 0.75f, 0.35f));
+		idBackupWarn.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		idVBox.AddChild(idBackupWarn);
+
+		vbox.AddChild(identityPanel);
+
 		var hbox = new HBoxContainer();
 		hbox.Alignment = BoxContainer.AlignmentMode.Center;
 		hbox.AddThemeConstantOverride("separation", 20);

@@ -2,10 +2,14 @@ using Godot;
 using System;
 using System.IO;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Realm.Godot.Services;
 
 public partial class NoiseTextureDialog : FloatingDialogBase
 {
+	[GeneratedRegex(@"^(.*)_(\d+)$")]
+	private static partial Regex TrailingIndexRegex();
+
 	private LineEdit _txtName;
 	private OptionButton _optResolution;
 	private OptionButton _optNoiseType;
@@ -415,20 +419,40 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}
 
 		string cleanBase = rawName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
-		string fileName = $"{cleanBase}.rtex";
-
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+
+		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
+		if (!assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] == null) assetsObj["noise_textures"] = new JsonObject();
+		var noiseObj = assetsObj["noise_textures"].AsObject();
+
+		string finalBaseName = cleanBase;
+		string fileName = $"{finalBaseName}.rtex";
 		string outputRtex = Path.Combine(wsPath, "Assets", "noise", fileName);
+
+		if (File.Exists(outputRtex) || noiseObj.ContainsKey(fileName))
+		{
+			int counter = 1;
+			var match = TrailingIndexRegex().Match(cleanBase);
+			string basePrefix = match.Success ? match.Groups[1].Value : cleanBase;
+			if (match.Success && int.TryParse(match.Groups[2].Value, out int existingIndex))
+			{
+				counter = existingIndex + 1;
+			}
+
+			do
+			{
+				finalBaseName = $"{basePrefix}_{counter}";
+				fileName = $"{finalBaseName}.rtex";
+				outputRtex = Path.Combine(wsPath, "Assets", "noise", fileName);
+				counter++;
+			} while (File.Exists(outputRtex) || noiseObj.ContainsKey(fileName));
+		}
 
 		try
 		{
 			var config = BuildConfigObject();
 			string blake3Hash = NoiseTextureGenerator.GenerateAndSaveRtex(config, outputRtex);
 			config["hash"] = blake3Hash;
-
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
-			if (!assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] == null) assetsObj["noise_textures"] = new JsonObject();
-			var noiseObj = assetsObj["noise_textures"].AsObject();
 
 			noiseObj[fileName] = config;
 
