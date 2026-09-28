@@ -8128,6 +8128,11 @@ public partial class MapEditorHUD : Control
 		if (_is3DInteractionActive == active) return;
 		_is3DInteractionActive = active;
 
+		if (!EditorSettingsDialog.CurrentSettings.HideHudDuringToolUsage && active)
+		{
+			return;
+		}
+
 		if (active)
 		{
 			_savedMouseFilters.Clear();
@@ -8165,7 +8170,7 @@ public partial class MapEditorHUD : Control
 
 		_hudFadeTween = CreateTween();
 		_hudFadeTween.SetParallel(true);
-		float targetAlpha = active ? 0.0f : 1.0f;
+		float targetAlpha = (active && EditorSettingsDialog.CurrentSettings.HideHudDuringToolUsage) ? 0.0f : 1.0f;
 		float duration = 0.35f;
 
 		if (GodotObject.IsInstanceValid(_topLeftBox))
@@ -10172,6 +10177,11 @@ public partial class MapEditorHUD : Control
 		if (rightPanel != null && !prefs.HideChromeBorderOverlay)
 		{
 			rightPanel.Modulate = new Color(1, 1, 1, prefs.PanelOpacity);
+		}
+
+		if (!prefs.HideHudDuringToolUsage && _is3DInteractionActive)
+		{
+			Set3DInteractionActive(false);
 		}
 	}
 
