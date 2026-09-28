@@ -167,7 +167,7 @@ public class CampaignSaveDataTests
         public void StartBuildingPlacement(string unitTypeId) { }
         public void StartCountdownTimer(float duration, string label) { }
         public void StopCountdownTimer() { }
-        public string TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation) => string.Empty;
+        public string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts") => string.Empty;
         public string Translate(string key, int playerIndex = -1) => key;
         public void TriggerDefeat() { }
         public void TriggerPlayerDefeat(int playerIndex, string reason) { }

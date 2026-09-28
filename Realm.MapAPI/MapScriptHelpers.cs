@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using System.Text.Json;
 
 namespace Realm.MapAPI;
 
@@ -245,3 +249,131 @@ public readonly struct BotProfileConfig
     public static BotProfileConfig Default => new(1.0f, 1.0f, 0.05f);
 }
 
+/// <summary>
+/// Defines standard AI genre identifiers for arcade and RTS map scripts.
+/// </summary>
+public static class AiGenrePresets
+{
+    /// <summary>
+    /// Standard RTS melee and skirmish tactical AI.
+    /// </summary>
+    public const string Rts = "rts";
+
+    /// <summary>
+    /// Tower defense building, upgrading, and pathing AI.
+    /// </summary>
+    public const string TowerDefense = "tower_defense";
+
+    /// <summary>
+    /// Auto-battler shop purchasing, bench management, and synergy AI.
+    /// </summary>
+    public const string AutoBattler = "auto_battler";
+
+    /// <summary>
+    /// Custom UGC map-defined AI driven by custom affordance registrations.
+    /// </summary>
+    public const string Custom = "custom";
+}
+
+/// <summary>
+/// Configuration parameters for a Tower Defense AI bot.
+/// </summary>
+public class TowerDefenseBotConfig
+{
+    /// <summary>
+    /// Gets or sets the collection of designated world coordinates where towers can be constructed.
+    /// </summary>
+    public List<Vector3> BuildSpots { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets whether the AI is permitted to sell obsolete towers during economic emergencies.
+    /// </summary>
+    public bool AllowSell { get; set; }
+
+    /// <summary>
+    /// Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+    /// </summary>
+    /// <returns>A JSON string representation of the configuration parameters.</returns>
+    public string ToJson()
+    {
+        var dict = new Dictionary<string, string>
+        {
+            { "BuildSpotsJson", JsonSerializer.Serialize(BuildSpots) },
+            { "AllowSell", AllowSell.ToString() }
+        };
+        return JsonSerializer.Serialize(dict);
+    }
+}
+
+/// <summary>
+/// Configuration parameters for an Auto-Battler AI bot.
+/// </summary>
+public class AutoBattlerBotConfig
+{
+    /// <summary>
+    /// Gets or sets the collection of board tile coordinates available for deployed combat units.
+    /// </summary>
+    public List<Vector3> BoardSlots { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the collection of bench tile coordinates available for reserve units.
+    /// </summary>
+    public List<Vector3> BenchSlots { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the gold cost required to reroll the shop offerings.
+    /// </summary>
+    public int RerollCost { get; set; } = 2;
+
+    /// <summary>
+    /// Gets or sets the gold cost required to purchase shop experience / level up.
+    /// </summary>
+    public int LevelUpCost { get; set; } = 4;
+
+    /// <summary>
+    /// Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+    /// </summary>
+    /// <returns>A JSON string representation of the configuration parameters.</returns>
+    public string ToJson()
+    {
+        var dict = new Dictionary<string, string>
+        {
+            { "BoardSlotsJson", JsonSerializer.Serialize(BoardSlots) },
+            { "BenchSlotsJson", JsonSerializer.Serialize(BenchSlots) },
+            { "RerollCost", RerollCost.ToString() },
+            { "LevelUpCost", LevelUpCost.ToString() }
+        };
+        return JsonSerializer.Serialize(dict);
+    }
+}
+
+/// <summary>
+/// Represents a map-defined custom candidate action submitted to the AI utility decision loop.
+/// </summary>
+public class CustomBotDecision
+{
+    /// <summary>
+    /// Gets or sets the unique action identifier.
+    /// </summary>
+    public string ActionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the command intent name (e.g., "Build", "Cast", "Transact", "Interact").
+    /// </summary>
+    public string Intent { get; set; } = "Interact";
+
+    /// <summary>
+    /// Gets or sets the feature vector evaluated against the AI weights.
+    /// </summary>
+    public float[] FeatureVector { get; set; } = Array.Empty<float>();
+
+    /// <summary>
+    /// Gets or sets the target world position associated with this action.
+    /// </summary>
+    public Vector3 TargetPosition { get; set; } = Vector3.Zero;
+
+    /// <summary>
+    /// Gets or sets arbitrary payload data or arguments passed to the execution callback.
+    /// </summary>
+    public string Payload { get; set; } = string.Empty;
+}

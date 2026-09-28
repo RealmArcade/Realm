@@ -1548,7 +1548,45 @@
             <param name="playerIndex">The zero-based player slot index.</param>
             <returns>The serialized JSON string representing the active bot profile, or an empty string if not configured.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.TrainBotProfile(System.String,System.Int32,System.Int32,System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerBotGenre(System.Int32,System.String,System.String)">
+            <summary>
+            Sets the AI sub-genre provider for the specified player slot (e.g., "rts", "tower_defense", "auto_battler", "custom").
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="genreName">The identifier of the AI genre provider.</param>
+            <param name="configJson">Optional JSON configuration parameters for the genre provider.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerBotGenre(System.Int32)">
+            <summary>
+            Retrieves the identifier of the active AI sub-genre provider for the specified player slot.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <returns>The genre identifier string (e.g., "rts", "tower_defense", "auto_battler").</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.RegisterCustomBotDecision(System.Int32,System.String,System.String,System.Single[],System.Numerics.Vector3,System.String)">
+            <summary>
+            Registers a map-defined custom candidate action for evaluation by the bot utility decision loop.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="actionId">The unique action identifier.</param>
+            <param name="intent">The action intent category (e.g., "Build", "Cast", "Transact", "Interact").</param>
+            <param name="featureVector">The normalized feature vector scored against the AI weights.</param>
+            <param name="position">The target world coordinate for the action.</param>
+            <param name="payload">Optional metadata or argument string passed when the action executes.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ClearCustomBotDecisions(System.Int32)">
+            <summary>
+            Clears all registered custom bot candidate actions for the specified player slot.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+        </member>
+        <member name="E:Realm.MapAPI.IGameAPI.OnBotCustomActionExecuted">
+            <summary>
+            Triggered when an autonomous AI bot executes a custom map-defined action.
+            Parameters are: playerIndex, actionId, intent, targetPosition, payload.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.TrainBotProfile(System.String,System.Int32,System.Int32,System.Int32,System.String)">
             <summary>
             Executes an automated self-play genetic training simulation on CPU and returns the resulting serialized bot profile JSON.
             </summary>
@@ -1556,6 +1594,7 @@
             <param name="generations">The number of evolutionary generations to execute.</param>
             <param name="populationSize">The candidate population size per generation.</param>
             <param name="matchesPerEvaluation">The number of evaluation matches each candidate plays per generation.</param>
+            <param name="genre">The AI sub-genre provider identifier (e.g. "rts", "tower_defense", "auto_battler").</param>
             <returns>The serialized JSON string of the best evolved bot profile.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetEnvironmentPreset(System.String)">
@@ -2069,6 +2108,113 @@
         <member name="P:Realm.MapAPI.BotProfileConfig.Default">
             <summary>
             Gets the default AI bot profile configuration.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.AiGenrePresets">
+            <summary>
+            Defines standard AI genre identifiers for arcade and RTS map scripts.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.Rts">
+            <summary>
+            Standard RTS melee and skirmish tactical AI.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.TowerDefense">
+            <summary>
+            Tower defense building, upgrading, and pathing AI.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.AutoBattler">
+            <summary>
+            Auto-battler shop purchasing, bench management, and synergy AI.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.Custom">
+            <summary>
+            Custom UGC map-defined AI driven by custom affordance registrations.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.TowerDefenseBotConfig">
+            <summary>
+            Configuration parameters for a Tower Defense AI bot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TowerDefenseBotConfig.BuildSpots">
+            <summary>
+            Gets or sets the collection of designated world coordinates where towers can be constructed.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TowerDefenseBotConfig.AllowSell">
+            <summary>
+            Gets or sets whether the AI is permitted to sell obsolete towers during economic emergencies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.TowerDefenseBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.AutoBattlerBotConfig">
+            <summary>
+            Configuration parameters for an Auto-Battler AI bot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AutoBattlerBotConfig.BoardSlots">
+            <summary>
+            Gets or sets the collection of board tile coordinates available for deployed combat units.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AutoBattlerBotConfig.BenchSlots">
+            <summary>
+            Gets or sets the collection of bench tile coordinates available for reserve units.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AutoBattlerBotConfig.RerollCost">
+            <summary>
+            Gets or sets the gold cost required to reroll the shop offerings.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AutoBattlerBotConfig.LevelUpCost">
+            <summary>
+            Gets or sets the gold cost required to purchase shop experience / level up.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.AutoBattlerBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.CustomBotDecision">
+            <summary>
+            Represents a map-defined custom candidate action submitted to the AI utility decision loop.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.ActionId">
+            <summary>
+            Gets or sets the unique action identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.Intent">
+            <summary>
+            Gets or sets the command intent name (e.g., "Build", "Cast", "Transact", "Interact").
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.FeatureVector">
+            <summary>
+            Gets or sets the feature vector evaluated against the AI weights.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.TargetPosition">
+            <summary>
+            Gets or sets the target world position associated with this action.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.Payload">
+            <summary>
+            Gets or sets arbitrary payload data or arguments passed to the execution callback.
             </summary>
         </member>
         <member name="T:Realm.MapAPI.ISaveMigration">

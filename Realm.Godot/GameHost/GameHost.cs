@@ -5412,10 +5412,37 @@ public class {mapName} : IMapScript
 		return profile != null ? profile.ToJson() : string.Empty;
 	}
 
-	string IGameAPI.TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation)
+	void IGameAPI.SetPlayerBotGenre(int playerIndex, string genreName, string? configJson)
 	{
+		_simulationService.SetBotGenre(playerIndex, genreName, configJson);
+	}
+
+	string IGameAPI.GetPlayerBotGenre(int playerIndex)
+	{
+		return _simulationService.GetBotGenre(playerIndex);
+	}
+
+	void IGameAPI.RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, System.Numerics.Vector3 position, string payload)
+	{
+		_simulationService.RegisterCustomBotDecision(playerIndex, actionId, intent, featureVector, position, payload);
+	}
+
+	void IGameAPI.ClearCustomBotDecisions(int playerIndex)
+	{
+		_simulationService.ClearCustomBotDecisions(playerIndex);
+	}
+
+	event Action<int, string, string, System.Numerics.Vector3, string>? IGameAPI.OnBotCustomActionExecuted
+	{
+		add => _simulationService.OnBotCustomActionExecuted += value;
+		remove => _simulationService.OnBotCustomActionExecuted -= value;
+	}
+
+	string IGameAPI.TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre)
+	{
+		var genreProvider = Realm.Ecs.AI.Genres.AiGenreRegistry.Get(genre);
 		var trainer = new Realm.Ecs.AI.Training.SelfPlayTrainer();
-		var profile = trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation);
+		var profile = trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: genreProvider);
 		return profile.ToJson();
 	}
 

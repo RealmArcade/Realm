@@ -1,6 +1,10 @@
 using Realm.Ecs.AI.Affordances;
+using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Simulation;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Realm.Ecs.AI.Training;
 
@@ -15,9 +19,11 @@ public class SelfPlayTrainer
 		int matchesPerEvaluation = 4,
 		WinConditionEvaluator? winConditionEvaluator = null,
 		MapSimulationInitializer? customInitializer = null,
-		int maxTicks = 400)
+		int maxTicks = 400,
+		IAiGenreProvider? genreProvider = null)
 	{
-		int featureCount = AffordanceScanner.FeatureCount;
+		var provider = genreProvider ?? new StandardRtsGenreProvider();
+		int featureCount = provider.FeatureCount;
 		var population = new List<float[]>();
 
 		for (int i = 0; i < populationSize; i++)
@@ -53,7 +59,8 @@ public class SelfPlayTrainer
 						opponent = historicalPool[Random.Next(historicalPool.Count)];
 					}
 
-					var runner = new HeadlessSimulationRunner();
+					var matchProvider = AiGenreRegistry.Get(provider.GenreName);
+					var runner = new HeadlessSimulationRunner(matchProvider);
 					var result = runner.RunMatch(
 						candidate,
 						opponent,
@@ -61,7 +68,8 @@ public class SelfPlayTrainer
 						winConditionEvaluator: winConditionEvaluator,
 						customInitializer: customInitializer,
 						p0Temperature: 0.05f,
-						p1Temperature: 0.05f
+						p1Temperature: 0.05f,
+						genreProvider: matchProvider
 					);
 
 					if (result.WinnerPlayerIndex == 0) totalScore += 1.0f;
@@ -106,6 +114,7 @@ public class SelfPlayTrainer
 		{
 			SchemaVersion = "1.0.0",
 			MapName = mapName,
+			Genre = provider.GenreName,
 			GameBuildNumber = "0.0.1",
 			ProfileId = $"{mapName}_AutoTrained",
 			Author = "SelfPlayTrainer",

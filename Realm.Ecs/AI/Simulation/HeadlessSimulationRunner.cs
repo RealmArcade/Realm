@@ -1,11 +1,14 @@
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
+using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace Realm.Ecs.AI.Simulation;
@@ -30,15 +33,23 @@ public class HeadlessSimulationRunner
 	private static readonly QueryDescription AliveUnitsQuery = new QueryDescription().WithAll<UnitOwnerPlayer, Health>().WithNone<Dead>();
 
 	private World _world = null!;
-	private readonly AffordanceScanner _scanner = new();
+	private IAiGenreProvider _genreProvider;
 	private readonly LinearUtilityPolicy _policy = new();
 	private readonly List<GenericAffordance> _affordanceBuffer = new(64);
 	private readonly List<Entity> _deadEntitiesBuffer = new(32);
 
 	public World World => _world;
-
-	public HeadlessSimulationRunner()
+	public IAiGenreProvider GenreProvider
 	{
+		get => _genreProvider;
+		set => _genreProvider = value ?? new StandardRtsGenreProvider();
+	}
+
+	public Action<int, string, Vector3, string>? CustomActionCallback { get; set; }
+
+	public HeadlessSimulationRunner(IAiGenreProvider? genreProvider = null)
+	{
+		_genreProvider = genreProvider ?? new StandardRtsGenreProvider();
 		ResetGame();
 	}
 
@@ -110,31 +121,12 @@ public class HeadlessSimulationRunner
 	{
 		if (weights == null || weights.Length == 0) return;
 
-		_scanner.ScanAffordances(_world, playerIndex, _affordanceBuffer);
+		_genreProvider.ScanAffordances(_world, playerIndex, _affordanceBuffer);
 		var action = _policy.SelectAction(_affordanceBuffer, weights, epsilon, temperature);
 
 		if (action.HasValue)
 		{
-			var aff = action.Value;
-			if (aff.Intent == CommandIntent.Attack && _world.IsAlive(aff.TargetEntity))
-			{
-				_world.AddOrGet(aff.SourceEntity, new AttackTarget(aff.TargetEntity));
-			}
-			else if (aff.Intent == CommandIntent.MoveTo)
-			{
-				_world.AddOrGet(aff.SourceEntity, new MoveTo(aff.TargetPosition));
-			}
-			else if (aff.Intent == CommandIntent.Train)
-			{
-				if (_world.Has<ProductionQueue>(aff.SourceEntity))
-				{
-					ref var q = ref _world.Get<ProductionQueue>(aff.SourceEntity);
-					if (q.UnitIds.Count < 5)
-					{
-						q.UnitIds.Add("grunt");
-					}
-				}
-			}
+			_genreProvider.ExecuteAction(_world, playerIndex, action.Value, CustomActionCallback);
 		}
 	}
 
@@ -160,7 +152,7 @@ public class HeadlessSimulationRunner
 	{
 		_deadEntitiesBuffer.Clear();
 
-		_world.Query(in AttackQuery, (Entity attacker, ref Position aPos, ref AttackTarget target, ref Attack attack) =>
+		_world.Query(in AttackQuery, (Entity attacker, ref Position aPos, ref AttackTarget target, ref Attack atk) =>
 		{
 			if (!_world.IsAlive(target.Target) || _world.Has<Dead>(target.Target))
 			{
@@ -168,33 +160,34 @@ public class HeadlessSimulationRunner
 				return;
 			}
 
-			if (_world.Has<Position>(target.Target) && _world.Has<Health>(target.Target))
+			var tPos = _world.Get<Position>(target.Target).Value;
+			float dist = Vector3.Distance(aPos.Value, tPos);
+
+			if (dist > atk.Range)
 			{
-				var tPos = _world.Get<Position>(target.Target).Value;
-				float dist = Vector3.Distance(aPos.Value, tPos);
-				if (dist <= 3.0f)
+				_world.AddOrGet(attacker, new MoveTo(tPos));
+			}
+			else
+			{
+				_world.Remove<MoveTo>(attacker);
+				if (_world.Has<Health>(target.Target))
 				{
 					ref var hp = ref _world.Get<Health>(target.Target);
-					hp.Current -= attack.Damage * delta;
-					if (hp.Current <= 0.0f)
+					hp.Current -= atk.Damage * delta;
+					if (hp.Current <= 0f)
 					{
 						_deadEntitiesBuffer.Add(target.Target);
 					}
-				}
-				else
-				{
-					_world.AddOrGet(attacker, new MoveTo(tPos));
 				}
 			}
 		});
 
 		for (int i = 0; i < _deadEntitiesBuffer.Count; i++)
 		{
-			var d = _deadEntitiesBuffer[i];
-			if (_world.IsAlive(d))
+			var deadEnt = _deadEntitiesBuffer[i];
+			if (_world.IsAlive(deadEnt) && !_world.Has<Dead>(deadEnt))
 			{
-				_world.AddOrGet(d, new Dead());
-				_world.Destroy(d);
+				_world.Add<Dead>(deadEnt);
 			}
 		}
 	}
@@ -208,10 +201,10 @@ public class HeadlessSimulationRunner
 				q.CurrentProgress += delta;
 				if (q.CurrentProgress >= q.BuildTime)
 				{
-					q.CurrentProgress = 0.0f;
+					q.CurrentProgress = 0f;
 					q.UnitIds.RemoveAt(0);
 
-					var spawnedUnit = _world.Create(
+					_world.Create(
 						new Position(pos.Value + new Vector3(0, 0, 3f)),
 						new Health(100f, 100f),
 						new Attack(15f, 3f, 1f),
@@ -231,8 +224,14 @@ public class HeadlessSimulationRunner
 		WinConditionEvaluator? winConditionEvaluator = null,
 		MapSimulationInitializer? customInitializer = null,
 		float p0Temperature = 0.0f,
-		float p1Temperature = 0.0f)
+		float p1Temperature = 0.0f,
+		IAiGenreProvider? genreProvider = null)
 	{
+		if (genreProvider != null)
+		{
+			_genreProvider = genreProvider;
+		}
+
 		ResetGame(customInitializer);
 
 		for (int tick = 0; tick < maxTicks; tick++)

@@ -42,7 +42,7 @@ public class AiUtilityTests
 		var bestAction = policy.SelectAction(affordances, weights);
 
 		Assert.That(bestAction.HasValue, Is.True);
-		Assert.That(bestAction.Value.PayloadId, Is.EqualTo("attack1"), "Policy should pick the highest scoring affordance");
+		Assert.That(bestAction!.Value.PayloadId, Is.EqualTo("attack1"), "Policy should pick the highest scoring affordance");
 	}
 
 	[Test]

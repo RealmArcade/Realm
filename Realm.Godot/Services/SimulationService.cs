@@ -247,11 +247,18 @@ internal class SimulationService
 		ApplyDeferredTickCommands();
 	}
 
+	private readonly Dictionary<int, List<Realm.Ecs.AI.Affordances.GenericAffordance>> _customDecisionsPerPlayer = new();
+	public event Action<int, string, string, System.Numerics.Vector3, string>? OnBotCustomActionExecuted;
+
 	public void SetBotProfile(int playerIndex, Realm.Ecs.AI.Policy.BotProfile profile)
 	{
 		if (!_botControllers.TryGetValue(playerIndex, out var bot))
 		{
 			bot = new Realm.Ecs.AI.BotController(playerIndex, profile);
+			bot.CustomActionCallback = (pIdx, actId, pos, intent) =>
+			{
+				OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty);
+			};
 			_botControllers[playerIndex] = bot;
 		}
 		else
@@ -263,6 +270,88 @@ internal class SimulationService
 	public Realm.Ecs.AI.Policy.BotProfile? GetBotProfile(int playerIndex)
 	{
 		return _botControllers.TryGetValue(playerIndex, out var bot) ? bot.Profile : null;
+	}
+
+	public void SetBotGenre(int playerIndex, string genreName, string? configJson = null)
+	{
+		var genreProvider = Realm.Ecs.AI.Genres.AiGenreRegistry.Get(genreName);
+		if (!string.IsNullOrWhiteSpace(configJson))
+		{
+			try
+			{
+				var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(configJson);
+				if (dict != null)
+				{
+					genreProvider.ConfigureFromParameters(dict);
+				}
+			}
+			catch { }
+		}
+
+		if (string.Equals(genreName, "custom", StringComparison.OrdinalIgnoreCase) && genreProvider is Realm.Ecs.AI.Genres.CustomGenreProvider customProvider)
+		{
+			customProvider.CustomScanner = (world, pIdx, dest, ctx) =>
+			{
+				if (_customDecisionsPerPlayer.TryGetValue(pIdx, out var list) && list != null)
+				{
+					dest.AddRange(list);
+				}
+			};
+		}
+
+		if (!_botControllers.TryGetValue(playerIndex, out var bot))
+		{
+			var profile = genreProvider.CreateDefaultProfile(GameHost.Instance?.ActiveMapName ?? "GenericMap");
+			bot = new Realm.Ecs.AI.BotController(playerIndex, profile, genreProvider);
+			bot.CustomActionCallback = (pIdx, actId, pos, intent) =>
+			{
+				OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty);
+			};
+			_botControllers[playerIndex] = bot;
+		}
+		else
+		{
+			bot.GenreProvider = genreProvider;
+			var profile = genreProvider.CreateDefaultProfile(bot.Profile.MapName);
+			bot.LoadProfile(profile);
+		}
+	}
+
+	public string GetBotGenre(int playerIndex)
+	{
+		return _botControllers.TryGetValue(playerIndex, out var bot) ? bot.GenreProvider.GenreName : "rts";
+	}
+
+	public void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, System.Numerics.Vector3 position, string payload)
+	{
+		if (!_customDecisionsPerPlayer.TryGetValue(playerIndex, out var list))
+		{
+			list = new List<Realm.Ecs.AI.Affordances.GenericAffordance>();
+			_customDecisionsPerPlayer[playerIndex] = list;
+		}
+
+		Realm.Ecs.AI.Affordances.CommandIntent cmdIntent = Realm.Ecs.AI.Affordances.CommandIntent.Interact;
+		if (Enum.TryParse<Realm.Ecs.AI.Affordances.CommandIntent>(intent, true, out var parsedIntent))
+		{
+			cmdIntent = parsedIntent;
+		}
+
+		list.Add(new Realm.Ecs.AI.Affordances.GenericAffordance(
+			Arch.Core.Entity.Null,
+			cmdIntent,
+			Arch.Core.Entity.Null,
+			position,
+			actionId,
+			featureVector
+		));
+	}
+
+	public void ClearCustomBotDecisions(int playerIndex)
+	{
+		if (_customDecisionsPerPlayer.TryGetValue(playerIndex, out var list))
+		{
+			list.Clear();
+		}
 	}
 
 	private void TickBotControllers(float fDelta)
@@ -282,6 +371,10 @@ internal class SimulationService
 				if (!_botControllers.TryGetValue(pIdx, out var bot))
 				{
 					bot = new Realm.Ecs.AI.BotController(pIdx);
+					bot.CustomActionCallback = (botPIdx, actId, pos, intent) =>
+					{
+						OnBotCustomActionExecuted?.Invoke(botPIdx, actId, intent, pos, string.Empty);
+					};
 					string mapName = GameHost.Instance?.ActiveMapName ?? "";
 					string botPath = System.IO.Path.Combine(Godot.OS.GetUserDataDir(), $"{mapName}_bot.json");
 					if (System.IO.File.Exists(botPath))

@@ -1,3 +1,6 @@
+using Realm.Ecs.AI.Genres;
+using System;
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace Realm.Ecs.AI.Policy;
@@ -6,6 +9,7 @@ public class BotProfile
 {
 	public string SchemaVersion { get; set; } = "1.0.0";
 	public string MapName { get; set; } = "GenericMap";
+	public string Genre { get; set; } = "rts";
 	public string GameBuildNumber { get; set; } = "0.0.1";
 	public string ProfileId { get; set; } = "Default";
 	public string Author { get; set; } = "AutoTrainer";
@@ -15,6 +19,7 @@ public class BotProfile
 	public float[] Weights { get; set; } = Array.Empty<float>();
 	public float FitnessScore { get; set; } = 0.0f;
 	public int TrainedEpochs { get; set; } = 0;
+	public Dictionary<string, string> CustomParameters { get; set; } = new();
 
 	public string ToJson()
 	{
@@ -26,22 +31,11 @@ public class BotProfile
 		return JsonSerializer.Deserialize<BotProfile>(json) ?? new BotProfile();
 	}
 
-	public static BotProfile CreateDefault(string mapName = "GenericMap")
+	public static BotProfile CreateDefault(string mapName = "GenericMap", string genre = "rts")
 	{
-		return new BotProfile
-		{
-			MapName = mapName,
-			Weights = new float[]
-			{
-				-0.5f,
-				0.8f,
-				0.2f,
-				0.5f,
-				0.7f,
-				0.9f,
-				0.4f,
-				0.6f
-			}
-		};
+		var provider = AiGenreRegistry.Get(genre);
+		var profile = provider.CreateDefaultProfile(mapName);
+		profile.Genre = genre;
+		return profile;
 	}
 }
