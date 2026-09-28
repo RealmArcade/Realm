@@ -1120,7 +1120,7 @@ public class VSCodeManager
 				{
 					var options = new Realm.Shared.Animation.RanimRenderOptions
 					{
-						Format = Realm.Shared.Animation.RanimOutputFormat.Gif,
+						Format = Realm.Shared.Animation.RanimOutputFormat.Webp,
 						Width = 128,
 						Height = 128,
 						Fps = 12.0f
@@ -1368,6 +1368,11 @@ public class VSCodeManager
 			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath);
 			_controller = await env.CreateCoreWebView2ControllerAsync(_childHwnd);
 			_controller.Bounds = new System.Drawing.Rectangle(0, 0, 800, 600);
+			if (_controller.CoreWebView2?.Settings != null)
+			{
+				_controller.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+				_controller.CoreWebView2.Settings.AreDevToolsEnabled = true;
+			}
 			_controller.AcceleratorKeyPressed += (sender, args) =>
 			{
 				if (args.VirtualKey == 0x73) // VK_F4
@@ -1383,11 +1388,15 @@ public class VSCodeManager
 						PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 					}
 				}
+				else if (args.VirtualKey == 0x7B) // VK_F12
+				{
+					args.Handled = false;
+				}
 				else
 				{
 					bool isControlPressed = (GetKeyState(0x11) & 0x8000) != 0;
 					bool isShiftPressed = (GetKeyState(0x10) & 0x8000) != 0;
-					if (isControlPressed && isShiftPressed && args.VirtualKey == 0x49)
+					if (isControlPressed && isShiftPressed && (args.VirtualKey == 0x49 || args.VirtualKey == 0x4A)) // Ctrl+Shift+I or Ctrl+Shift+J
 					{
 						if (args.KeyEventKind == CoreWebView2KeyEventKind.KeyDown)
 						{
@@ -1396,6 +1405,7 @@ public class VSCodeManager
 							{
 								_controller?.CoreWebView2?.OpenDevToolsWindow();
 							});
+							PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 						}
 					}
 				}
@@ -1586,6 +1596,25 @@ public class VSCodeManager
 				ShowWindow(_childHwnd, SW_SHOWMAXIMIZED);
 				BringWindowToTop(_childHwnd);
 				SetForegroundWindow(_childHwnd);
+			});
+			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+		}
+	}
+
+	public void OpenDevTools()
+	{
+		if (_childHwnd != IntPtr.Zero)
+		{
+			_actionQueue.Enqueue(() =>
+			{
+				try
+				{
+					_controller?.CoreWebView2?.OpenDevToolsWindow();
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr("Failed to open DevTools: " + ex.Message);
+				}
 			});
 			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 		}
@@ -2183,10 +2212,65 @@ public class VSCodeManager
 			{
 				GD.PrintErr("VS Code: Failed to install Realm Map Editor extension: " + ex.Message);
 			}
+
+			PatchOhziExtension(extensionsDir);
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr("Failed to install missing VS Code extensions: " + ex.Message);
+		}
+	}
+
+	private static void PatchOhziExtension(string extensionsDir)
+	{
+		try
+		{
+			if (!Directory.Exists(extensionsDir)) return;
+
+			string patchSrc = Path.Combine(PathUtils.GetProjectRoot(), "vscode_extensions_dist", "patches", "ohzi-vscode-glb-viewer", "extension.js");
+			if (!File.Exists(patchSrc))
+			{
+				patchSrc = Path.GetFullPath(Path.Combine(PathUtils.GetProjectRoot(), "..", "Realm.MapEditorExtension", "patches", "ohzi-vscode-glb-viewer", "extension.js"));
+			}
+			if (!File.Exists(patchSrc))
+			{
+				string found = PathUtils.FindPath(Path.Combine("patches", "ohzi-vscode-glb-viewer", "extension.js"));
+				if (File.Exists(found)) patchSrc = found;
+			}
+			if (!File.Exists(patchSrc))
+			{
+				GD.PrintErr("VS Code: OHZI patch source file not found.");
+				return;
+			}
+
+			string[] extDirs = Directory.GetDirectories(extensionsDir);
+			foreach (string dir in extDirs)
+			{
+				string dirName = Path.GetFileName(dir);
+				if (dirName.Contains("ohzi-vscode-glb-viewer", StringComparison.OrdinalIgnoreCase))
+				{
+					string extJsPath = Path.Combine(dir, "extension.js");
+					bool needsPatch = !File.Exists(extJsPath);
+					if (!needsPatch && File.Exists(extJsPath))
+					{
+						string content = File.ReadAllText(extJsPath, System.Text.Encoding.UTF8);
+						if (!content.Contains("REALM_PATCHED_OHZI_BASE64", StringComparison.Ordinal) && (!content.Contains("threeDataUri", StringComparison.Ordinal) || content.Contains("loadModelFromUri", StringComparison.Ordinal)))
+						{
+							needsPatch = true;
+						}
+					}
+
+					if (needsPatch)
+					{
+						File.Copy(patchSrc, extJsPath, true);
+						GD.Print($"VS Code: Patched OHZI GLB viewer extension in {dir}");
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to patch OHZI extension: {ex.Message}");
 		}
 	}
 

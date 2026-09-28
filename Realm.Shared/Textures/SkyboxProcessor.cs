@@ -1,14 +1,12 @@
 using System;
 using System.IO;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 
 namespace Realm.Shared.Textures;
 
 public static class SkyboxProcessor
 {
-	public static Rgba32? ParseColor(string? colorString)
+	public static SKColor? ParseColor(string? colorString)
 	{
 		if (string.IsNullOrWhiteSpace(colorString) || colorString.Trim().Equals("none", StringComparison.OrdinalIgnoreCase))
 		{
@@ -24,7 +22,7 @@ public static class SkyboxProcessor
 				byte.TryParse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out byte g) &&
 				byte.TryParse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out byte b))
 			{
-				return new Rgba32(r, g, b, 255);
+				return new SKColor(r, g, b, 255);
 			}
 		}
 		else if (trimmed.Contains(','))
@@ -35,20 +33,20 @@ public static class SkyboxProcessor
 				byte.TryParse(parts[1].Trim(), out byte g) &&
 				byte.TryParse(parts[2].Trim(), out byte b))
 			{
-				return new Rgba32(r, g, b, 255);
+				return new SKColor(r, g, b, 255);
 			}
 		}
 
 		return null;
 	}
 
-	public static Image<Rgba32> ProcessSkybox(
-		Image<Rgba32> sourceImage,
+	public static SKBitmap ProcessSkybox(
+		SKBitmap sourceImage,
 		float horizonBlendStart = 0.5f,
-		Rgba32? horizonColor = null,
+		SKColor? horizonColor = null,
 		float wrapBlendWidth = 0.05f,
 		float zenithBlendEnd = 0.08f,
-		Rgba32? zenithColor = null)
+		SKColor? zenithColor = null)
 	{
 		ArgumentNullException.ThrowIfNull(sourceImage);
 
@@ -57,10 +55,10 @@ public static class SkyboxProcessor
 
 		if (width <= 0 || height <= 0)
 		{
-			return sourceImage.Clone();
+			return sourceImage.Copy();
 		}
 
-		Image<Rgba32> workingImage = sourceImage.Clone();
+		SKBitmap workingImage = sourceImage.Copy();
 
 		int horizonY = Math.Clamp((int)(height * horizonBlendStart), 0, height);
 		float horizonColorR;
@@ -75,10 +73,10 @@ public static class SkyboxProcessor
 			float sumB = 0f;
 			for (int x = 0; x < width; x++)
 			{
-				Rgba32 pixel = workingImage[x, sampleY];
-				sumR += pixel.R;
-				sumG += pixel.G;
-				sumB += pixel.B;
+				SKColor pixel = workingImage.GetPixel(x, sampleY);
+				sumR += pixel.Red;
+				sumG += pixel.Green;
+				sumB += pixel.Blue;
 			}
 			horizonColorR = sumR / width;
 			horizonColorG = sumG / width;
@@ -86,9 +84,9 @@ public static class SkyboxProcessor
 		}
 		else
 		{
-			horizonColorR = horizonColor.Value.R;
-			horizonColorG = horizonColor.Value.G;
-			horizonColorB = horizonColor.Value.B;
+			horizonColorR = horizonColor.Value.Red;
+			horizonColorG = horizonColor.Value.Green;
+			horizonColorB = horizonColor.Value.Blue;
 		}
 
 		int horizonSpan = height - 1 - horizonY;
@@ -100,11 +98,11 @@ public static class SkyboxProcessor
 
 			for (int x = 0; x < width; x++)
 			{
-				Rgba32 pixel = workingImage[x, y];
-				byte r = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.R + tSmooth * horizonColorR), 0, 255);
-				byte g = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.G + tSmooth * horizonColorG), 0, 255);
-				byte b = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.B + tSmooth * horizonColorB), 0, 255);
-				workingImage[x, y] = new Rgba32(r, g, b, 255);
+				SKColor pixel = workingImage.GetPixel(x, y);
+				byte r = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.Red + tSmooth * horizonColorR), 0, 255);
+				byte g = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.Green + tSmooth * horizonColorG), 0, 255);
+				byte b = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.Blue + tSmooth * horizonColorB), 0, 255);
+				workingImage.SetPixel(x, y, new SKColor(r, g, b, 255));
 			}
 		}
 
@@ -120,10 +118,10 @@ public static class SkyboxProcessor
 			float sumB = 0f;
 			for (int x = 0; x < width; x++)
 			{
-				Rgba32 pixel = workingImage[x, 0];
-				sumR += pixel.R;
-				sumG += pixel.G;
-				sumB += pixel.B;
+				SKColor pixel = workingImage.GetPixel(x, 0);
+				sumR += pixel.Red;
+				sumG += pixel.Green;
+				sumB += pixel.Blue;
 			}
 			zenithColorR = sumR / width;
 			zenithColorG = sumG / width;
@@ -131,9 +129,9 @@ public static class SkyboxProcessor
 		}
 		else
 		{
-			zenithColorR = zenithColor.Value.R;
-			zenithColorG = zenithColor.Value.G;
-			zenithColorB = zenithColor.Value.B;
+			zenithColorR = zenithColor.Value.Red;
+			zenithColorG = zenithColor.Value.Green;
+			zenithColorB = zenithColor.Value.Blue;
 		}
 
 		for (int y = 0; y < zenithYEnd; y++)
@@ -144,11 +142,11 @@ public static class SkyboxProcessor
 
 			for (int x = 0; x < width; x++)
 			{
-				Rgba32 pixel = workingImage[x, y];
-				byte r = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.R + tSmooth * zenithColorR), 0, 255);
-				byte g = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.G + tSmooth * zenithColorG), 0, 255);
-				byte b = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.B + tSmooth * zenithColorB), 0, 255);
-				workingImage[x, y] = new Rgba32(r, g, b, 255);
+				SKColor pixel = workingImage.GetPixel(x, y);
+				byte r = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.Red + tSmooth * zenithColorR), 0, 255);
+				byte g = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.Green + tSmooth * zenithColorG), 0, 255);
+				byte b = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * pixel.Blue + tSmooth * zenithColorB), 0, 255);
+				workingImage.SetPixel(x, y, new SKColor(r, g, b, 255));
 			}
 		}
 
@@ -159,13 +157,13 @@ public static class SkyboxProcessor
 		}
 
 		int newWidth = width - blendWidth;
-		Image<Rgba32> blendedImage = new Image<Rgba32>(newWidth, height);
+		SKBitmap blendedImage = new SKBitmap(newWidth, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
 		for (int y = 0; y < height; y++)
 		{
 			for (int x = blendWidth; x < newWidth; x++)
 			{
-				blendedImage[x, y] = workingImage[x, y];
+				blendedImage.SetPixel(x, y, workingImage.GetPixel(x, y));
 			}
 
 			for (int x = 0; x < blendWidth; x++)
@@ -174,31 +172,32 @@ public static class SkyboxProcessor
 				float tSmooth = 0.5f - 0.5f * MathF.Cos(MathF.PI * t);
 				float oneMinusTSmooth = 1.0f - tSmooth;
 
-				Rgba32 leftVal = workingImage[x, y];
-				Rgba32 rightVal = workingImage[newWidth + x, y];
+				SKColor leftVal = workingImage.GetPixel(x, y);
+				SKColor rightVal = workingImage.GetPixel(newWidth + x, y);
 
-				byte r = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * rightVal.R + tSmooth * leftVal.R), 0, 255);
-				byte g = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * rightVal.G + tSmooth * leftVal.G), 0, 255);
-				byte b = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * rightVal.B + tSmooth * leftVal.B), 0, 255);
-				blendedImage[x, y] = new Rgba32(r, g, b, 255);
+				byte r = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * rightVal.Red + tSmooth * leftVal.Red), 0, 255);
+				byte g = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * rightVal.Green + tSmooth * leftVal.Green), 0, 255);
+				byte b = (byte)Math.Clamp((int)Math.Round(oneMinusTSmooth * rightVal.Blue + tSmooth * leftVal.Blue), 0, 255);
+				blendedImage.SetPixel(x, y, new SKColor(r, g, b, 255));
 			}
 		}
 
 		workingImage.Dispose();
 
-		blendedImage.Mutate(ctx => ctx.Resize(width, height, KnownResamplers.Lanczos3));
+		var resizedImage = blendedImage.Resize(new SKImageInfo(width, height), new SKSamplingOptions(SKCubicResampler.Mitchell));
+		blendedImage.Dispose();
 
-		return blendedImage;
+		return resizedImage ?? blendedImage;
 	}
 
 	public static TextureConversionResult ProcessSkyboxFile(
 		string inputPath,
 		string outputPath,
 		float horizonBlendStart = 0.5f,
-		Rgba32? horizonColor = null,
+		SKColor? horizonColor = null,
 		float wrapBlendWidth = 0.05f,
 		float zenithBlendEnd = 0.08f,
-		Rgba32? zenithColor = null)
+		SKColor? zenithColor = null)
 	{
 		string fullInput = Path.GetFullPath(inputPath);
 		string fullOutput = Path.GetFullPath(outputPath);
@@ -234,7 +233,13 @@ public static class SkyboxProcessor
 
 			using var sourceImage = Path.GetExtension(fullInput).Equals(".rtex", StringComparison.OrdinalIgnoreCase)
 				? TextureConverter.ExtractImageFromRtex(fullInput, 0) ?? throw new InvalidOperationException($"Failed to load image from RTEX: {fullInput}")
-				: Image.Load<Rgba32>(File.ReadAllBytes(fullInput));
+				: SKBitmap.Decode(fullInput);
+
+			if (sourceImage == null)
+			{
+				throw new InvalidOperationException($"Failed to decode skybox image: {fullInput}");
+			}
+
 			using var processedImage = ProcessSkybox(
 				sourceImage,
 				horizonBlendStart,
@@ -249,17 +254,17 @@ public static class SkyboxProcessor
 				Directory.CreateDirectory(dir);
 			}
 
-			if (ext == ".png")
+			if (ext == ".webp")
 			{
-				processedImage.SaveAsPng(fullOutput);
-			}
-			else if (ext == ".webp")
-			{
-				processedImage.SaveAsWebp(fullOutput);
+				byte[] webpBytes = TextureConverter.EncodeWebp(processedImage, lossless: false, quality: 95);
+				File.WriteAllBytes(fullOutput, webpBytes);
 			}
 			else
 			{
-				processedImage.Save(fullOutput);
+				using var skImage = SKImage.FromBitmap(processedImage);
+				using var data = skImage.Encode(SKEncodedImageFormat.Png, 100);
+				using var stream = File.Create(fullOutput);
+				data.SaveTo(stream);
 			}
 
 			result.Success = true;

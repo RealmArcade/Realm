@@ -936,15 +936,15 @@ public static class MapAssetManager
             string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, ".json");
             string assetKey = $"{blake3}.json";
             newFiles[assetKey] = bytes;
-            manifest.Files["res://map.json"] = assetKey;
+            manifest.Files[Path.GetFileName(mapPath)] = assetKey;
         }
         else
         {
-            byte[] bytes = Encoding.UTF8.GetBytes("{\"units\": []}");
+            byte[] bytes = Encoding.UTF8.GetBytes("{\"Units\": []}");
             string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, ".json");
             string assetKey = $"{blake3}.json";
             newFiles[assetKey] = bytes;
-            manifest.Files["res://map.json"] = assetKey;
+            manifest.Files["metadata.json"] = assetKey;
         }
 
         AddOrUpdateGlobalArchive(newFiles);

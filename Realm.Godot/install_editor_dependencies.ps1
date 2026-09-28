@@ -262,5 +262,55 @@ foreach ($extId in $requiredExtensions) {
     }
 }
 
+function Patch-OhziExtension {
+    param(
+        [string]$TargetExtensionsDir,
+        [switch]$ForcePatch
+    )
+
+    $patchSrcCandidates = @(
+        (Join-Path $godotDir "vscode_extensions_dist\patches\ohzi-vscode-glb-viewer\extension.js"),
+        (Join-Path $godotDir "..\Realm.MapEditorExtension\patches\ohzi-vscode-glb-viewer\extension.js"),
+        (Join-Path $PSScriptRoot "..\Realm.MapEditorExtension\patches\ohzi-vscode-glb-viewer\extension.js")
+    )
+
+    $patchFile = $null
+    foreach ($candidate in $patchSrcCandidates) {
+        if (Test-Path $candidate) {
+            $patchFile = $candidate
+            break
+        }
+    }
+
+    if (-not $patchFile) {
+        Write-Warning "OHZI patch file not found in candidates."
+        return
+    }
+
+    $ohziDirs = Get-ChildItem -Path $TargetExtensionsDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -like "*ohzi-vscode-glb-viewer*"
+    }
+
+    foreach ($ohziDir in $ohziDirs) {
+        $extJsPath = Join-Path $ohziDir.FullName "extension.js"
+        $needsPatch = $ForcePatch -or (-not (Test-Path $extJsPath))
+        if (-not $needsPatch -and (Test-Path $extJsPath)) {
+            $content = [System.IO.File]::ReadAllText($extJsPath, [System.Text.Encoding]::UTF8)
+            if (-not $content.Contains("REALM_PATCHED_OHZI_BASE64") -and (-not $content.Contains("threeDataUri") -or $content.Contains("loadModelFromUri"))) {
+                $needsPatch = $true
+            }
+        }
+
+        if ($needsPatch) {
+            Copy-Item -Path $patchFile -Destination $extJsPath -Force
+            Write-Host "Patched OHZI GLB viewer extension in $($ohziDir.FullName)"
+        } else {
+            Write-Host "OHZI GLB viewer extension in $($ohziDir.FullName) already patched."
+        }
+    }
+}
+
+Patch-OhziExtension -TargetExtensionsDir $extsDir -ForcePatch:$Force
+
 Get-Date -Format "o" | Out-File -FilePath $completedMarkerPath -Encoding utf8
 Write-Host "VS Code Embedded and Extension setup completed successfully!"

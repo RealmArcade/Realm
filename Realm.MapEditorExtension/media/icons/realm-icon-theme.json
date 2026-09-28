@@ -1,0 +1,28 @@
+{
+    "iconDefinitions": {
+        "_rtex": {
+            "iconPath": "./rtex.svg"
+        },
+        "_ranim": {
+            "iconPath": "./ranim.svg"
+        },
+        "_rmesh": {
+            "iconPath": "./rmesh.svg"
+        },
+        "_raud": {
+            "iconPath": "./raud.svg"
+        }
+    },
+    "fileExtensions": {
+        "rtex": "_rtex",
+        "ranim": "_ranim",
+        "rmesh": "_rmesh",
+        "raud": "_raud"
+    },
+    "languageIds": {
+        "rtex": "_rtex",
+        "ranim": "_ranim",
+        "rmesh": "_rmesh",
+        "raud": "_raud"
+    }
+}

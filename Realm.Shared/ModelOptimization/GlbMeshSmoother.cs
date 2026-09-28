@@ -307,6 +307,15 @@ public static unsafe class GlbMeshSmoother
 		for (int m = 0; m < meshes.Count; m++)
 		{
 			if (meshes[m] is not JsonObject meshObj) continue;
+			string mName = meshObj["name"]?.GetValue<string>() ?? string.Empty;
+			if (mName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase))
+			{
+				meshObj["name"] = mName.Substring(0, mName.Length - 5);
+			}
+			else if (mName.EndsWith("LOD0", StringComparison.OrdinalIgnoreCase))
+			{
+				meshObj["name"] = mName.Substring(0, mName.Length - 4);
+			}
 			if (meshObj["primitives"] is not JsonArray primitives || primitives.Count == 0) continue;
 
 			for (int p = 0; p < primitives.Count; p++)

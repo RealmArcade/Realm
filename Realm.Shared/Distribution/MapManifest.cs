@@ -356,9 +356,10 @@ public class MapManifest
                 relativePath.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+                relativePath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) ||
+                relativePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
@@ -572,7 +573,6 @@ public class MapManifest
         if (string.Equals(fileName, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "metadata.json", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "terrain.json", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "map.json", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "Coordinates.cs", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "MapScript.cs", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(fileName, "WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase) ||

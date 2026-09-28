@@ -713,10 +713,6 @@ public partial class LobbyRoom : Control
 		string mapJsonPath = System.IO.Path.Combine(mapDir, "metadata.json");
 		if (!System.IO.File.Exists(mapJsonPath))
 		{
-			mapJsonPath = System.IO.Path.Combine(mapDir, "map.json");
-		}
-		if (!System.IO.File.Exists(mapJsonPath))
-		{
 			mapJsonPath = System.IO.Path.Combine(mapDir, "manifest.json");
 		}
 		if (!System.IO.File.Exists(mapJsonPath))

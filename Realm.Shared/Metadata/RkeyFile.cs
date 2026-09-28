@@ -4,30 +4,31 @@ using System.Text.Json;
 
 namespace Realm.Shared.Metadata;
 
-public static class RkeyFile
+public class RkeyFile : RealmContainerFile
 {
-	public static readonly byte[] Magic = [0x52, 0x4B, 0x45, 0x59];
+	public static readonly byte[] MagicBytes = [0x52, 0x4B, 0x45, 0x59]; // "RKEY"
+	public static byte[] Magic => MagicBytes;
 	public const uint CurrentVersion = 1;
+	public const string Format = "rkey";
+	public const string Name = "RKEY";
 
-	public static bool IsRkeyBytes(ReadOnlySpan<byte> bytes)
-	{
-		return RealmContainerHeader.HasMagic(bytes, Magic);
-	}
+	public override ReadOnlySpan<byte> ContainerMagic => MagicBytes;
+	public override string ContainerFormatName => Name;
+	public override string ContainerFormatExtension => Format;
+	public override bool DefaultCompressed => false;
+
+	public static bool IsRkeyBytes(ReadOnlySpan<byte> bytes) => HasMagic(bytes, MagicBytes);
 
 	public static (string? MetadataJson, uint Version) Parse(ReadOnlySpan<byte> bytes)
 	{
-		var (version, metadataJson, _) = RealmContainerHeader.ReadHeader(bytes, Magic, "RKEY");
+		var (metadataJson, _, version) = ParsePayload(bytes, MagicBytes, Name, defaultCompressed: false);
 		return (metadataJson, version);
 	}
 
 	public static AuthorshipKeyData? ParseKeyData(ReadOnlySpan<byte> bytes)
 	{
 		var (metadataJson, _) = Parse(bytes);
-		if (string.IsNullOrWhiteSpace(metadataJson))
-		{
-			return null;
-		}
-
+		if (string.IsNullOrWhiteSpace(metadataJson)) return null;
 		return JsonSerializer.Deserialize<AuthorshipKeyData>(metadataJson);
 	}
 
@@ -35,8 +36,7 @@ public static class RkeyFile
 	{
 		using var memoryStream = new MemoryStream();
 		using var writer = new BinaryWriter(memoryStream);
-
-		RealmContainerHeader.WriteHeader(writer, Magic, metadataJson, version);
+		RealmContainerHeader.WriteHeader(writer, MagicBytes, metadataJson, version);
 		return memoryStream.ToArray();
 	}
 
@@ -52,23 +52,12 @@ public static class RkeyFile
 		return Build(json, version);
 	}
 
-	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes)
-	{
-		return RealmContainerHeader.ExtractMetadata(bytes, Magic);
-	}
-
-	public static string? ExtractMetadata(Stream stream)
-	{
-		return RealmContainerHeader.ExtractMetadata(stream, Magic);
-	}
-
-	public static string? ExtractMetadataFromFile(string filePath)
-	{
-		return RealmContainerHeader.ExtractMetadataFromFile(filePath, Magic);
-	}
+	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
+	public static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
+	public static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
 
 	public static byte[] SetMetadata(ReadOnlySpan<byte> bytes, string? newMetadataJson)
 	{
-		return RealmContainerHeader.SetMetadata(bytes, Magic, newMetadataJson, "RKEY");
+		return RealmContainerHeader.SetMetadata(bytes, MagicBytes, newMetadataJson, Name);
 	}
 }

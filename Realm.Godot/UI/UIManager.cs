@@ -641,12 +641,12 @@ public partial class UIManager : Control
 	public void PromptAndImportMapArchive(Action<string, string>? onSuccess = null)
 	{
 		var err = DisplayServer.FileDialogShow(
-			TranslationServer.Translate("Select Map Archive (.zip / .7z)"),
+			TranslationServer.Translate("Select Map Package (.rmap)"),
 			OS.GetSystemDir(OS.SystemDir.Documents),
 			"",
 			false,
 			DisplayServer.FileDialogMode.OpenFile,
-			new[] { "*.zip, *.7z ; Map Archives (*.zip, *.7z)", "*.zip ; ZIP Archive (*.zip)", "*.7z ; 7-Zip Archive (*.7z)", "*.* ; All Files (*.*)" },
+			new[] { "*.rmap ; Realm Map Package (*.rmap)" },
 			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
 			{
 				if (status && selectedPaths.Length > 0)

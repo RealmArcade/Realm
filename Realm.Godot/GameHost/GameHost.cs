@@ -2660,10 +2660,10 @@ public class {mapName} : IMapScript
 		{
 			if (GameHost.TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 			{
-				var boneHand = Realm.Godot.Animation.HumanoidBone.RightHand;
+				var boneHand = HumanoidBone.RightHand;
 				if (!string.IsNullOrEmpty(hand) && (hand.Equals("LeftHand", StringComparison.OrdinalIgnoreCase) || hand.Equals("left", StringComparison.OrdinalIgnoreCase) || hand.Equals("hand_l", StringComparison.OrdinalIgnoreCase)))
 				{
-					boneHand = Realm.Godot.Animation.HumanoidBone.LeftHand;
+					boneHand = HumanoidBone.LeftHand;
 				}
 				unit3D.SetHandAttachment(boneHand, attachmentId);
 			}

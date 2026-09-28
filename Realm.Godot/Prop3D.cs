@@ -426,7 +426,7 @@ public partial class Prop3D : StaticBody3D
 		CreatePropVisual();
 	}
 
-	public void UpdateVisualYOffset(float yOffset)
+	public virtual void UpdateVisualYOffset(float yOffset)
 	{
 		var visual = GetNodeOrNull<Node3D>("VisualModel");
 		if (visual != null)
@@ -435,7 +435,7 @@ public partial class Prop3D : StaticBody3D
 		}
 	}
 
-	public void UpdateVisualScale(float globalScale)
+	public virtual void UpdateVisualScale(float globalScale)
 	{
 		var visual = GetNodeOrNull<Node3D>("VisualModel");
 		if (visual != null && GodotObject.IsInstanceValid(visual))
@@ -528,7 +528,7 @@ public partial class Prop3D : StaticBody3D
 
 	private static readonly Dictionary<string, string> _resolvedModelPathCache = new(StringComparer.OrdinalIgnoreCase);
 
-	private string ResolvePropModelPath(string propId)
+	protected string ResolvePropModelPath(string propId)
 	{
 		if (string.IsNullOrEmpty(propId))
 			return string.Empty;

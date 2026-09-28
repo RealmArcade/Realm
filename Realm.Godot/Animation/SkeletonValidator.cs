@@ -75,7 +75,7 @@ public static class SkeletonValidator
 		}
 
 		result.Skeleton = skeleton;
-		result.BoneMapping = HumanoidBoneMapper.BuildSkeletonBoneMap(skeleton);
+		result.BoneMapping = skeleton.BuildSkeletonBoneMap();
 
 		if (!result.BoneMapping.ContainsKey(HumanoidBone.Head) && !result.BoneMapping.ContainsKey(HumanoidBone.Neck))
 		{

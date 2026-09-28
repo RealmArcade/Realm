@@ -171,7 +171,6 @@ public static class ModelConverter
 			else
 			{
 				rawGlbBytes = inputBytes.ToArray();
-				existingMetaJson ??= RealmMetadataHelper.ExtractMetadataFromGlbBytes(rawGlbBytes);
 			}
 
 			JsonObject metaObj;
@@ -287,10 +286,8 @@ public static class ModelConverter
 				metaObj["chroma_key"] = chromaKey;
 			}
 
-			string blake3Hash = RealmMetadataHelper.ComputeBlake3(finalGlbBytes, ".glb");
-			metaObj["blake3"] = blake3Hash;
-
-			byte[] rmeshBytes = RmeshFile.Build(metaObj.ToJsonString(), finalGlbBytes);
+			metaObj["is_compressed"] = true;
+			byte[] rmeshBytes = RmeshFile.Build(metaObj.ToJsonString(), finalGlbBytes, compressed: true);
 
 			result.Success = true;
 			result.OutputBytes = rmeshBytes;

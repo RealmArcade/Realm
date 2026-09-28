@@ -277,13 +277,10 @@ public static class MapInfoHelper
 		{
 			$"{basePath}/{mapFolder}/manifest.json",
 			$"{basePath}/{mapFolder}/metadata.json",
-			$"{basePath}/{mapFolder}/map.json",
 			$"user://maps/{mapFolder}/manifest.json",
 			$"user://maps/{mapFolder}/metadata.json",
-			$"user://maps/{mapFolder}/map.json",
 			$"res://Maps/{mapFolder}/manifest.json",
-			$"res://Maps/{mapFolder}/metadata.json",
-			$"res://Maps/{mapFolder}/map.json"
+			$"res://Maps/{mapFolder}/metadata.json"
 		};
 
 		string mapFolderPath = $"{basePath}/{mapFolder}";
@@ -299,7 +296,6 @@ public static class MapInfoHelper
 					{
 						candidatePaths.Add($"{mapFolderPath}/{subItem}/manifest.json");
 						candidatePaths.Add($"{mapFolderPath}/{subItem}/metadata.json");
-						candidatePaths.Add($"{mapFolderPath}/{subItem}/map.json");
 					}
 					subItem = subDir.GetNext();
 				}
@@ -323,7 +319,6 @@ public static class MapInfoHelper
 				{
 					candidatePaths.Add(System.IO.Path.Combine(subDirPath, "manifest.json"));
 					candidatePaths.Add(System.IO.Path.Combine(subDirPath, "metadata.json"));
-					candidatePaths.Add(System.IO.Path.Combine(subDirPath, "map.json"));
 
 					foreach (var grandChild in System.IO.Directory.GetDirectories(subDirPath))
 					{
@@ -552,11 +547,9 @@ public static class MapInfoHelper
 
 				string manifestPath = System.IO.Path.Combine(subDirPath, "manifest.json");
 				string metadataPath = System.IO.Path.Combine(subDirPath, "metadata.json");
-				string mapJsonPath = System.IO.Path.Combine(subDirPath, "map.json");
 
 				string? targetJson = System.IO.File.Exists(manifestPath) ? manifestPath
 					: System.IO.File.Exists(metadataPath) ? metadataPath
-					: System.IO.File.Exists(mapJsonPath) ? mapJsonPath
 					: null;
 
 				if (targetJson != null)
@@ -595,10 +588,8 @@ public static class MapInfoHelper
 
 			string rootManifest = System.IO.Path.Combine(globalPath, "manifest.json");
 			string rootMetadata = System.IO.Path.Combine(globalPath, "metadata.json");
-			string rootMapJson = System.IO.Path.Combine(globalPath, "map.json");
 			string? rootJson = System.IO.File.Exists(rootManifest) ? rootManifest
 				: System.IO.File.Exists(rootMetadata) ? rootMetadata
-				: System.IO.File.Exists(rootMapJson) ? rootMapJson
 				: null;
 
 			if (rootJson != null)

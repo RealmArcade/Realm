@@ -1,7 +1,5 @@
 using System;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 
 namespace Realm.Shared.Textures;
 
@@ -44,8 +42,8 @@ public static class TextureResizer
 		return Math.Min(maxResolution, p);
 	}
 
-	public static void ResizeImage(
-		Image<Rgba32> image,
+	public static SKBitmap ResizeImage(
+		SKBitmap image,
 		int targetWidth,
 		int targetHeight,
 		TextureDataType dataType = TextureDataType.Albedo)
@@ -56,30 +54,26 @@ public static class TextureResizer
 			{
 				RenormalizeNormalMap(image);
 			}
-			return;
+			return image;
 		}
 
-		var resampler = dataType switch
+		SKSamplingOptions samplingOptions = dataType switch
 		{
-			TextureDataType.NormalMap => KnownResamplers.Lanczos3,
-			TextureDataType.Data => KnownResamplers.Bicubic,
-			_ => KnownResamplers.Lanczos3
+			TextureDataType.NormalMap => new SKSamplingOptions(SKCubicResampler.Mitchell),
+			TextureDataType.Data => new SKSamplingOptions(SKFilterMode.Linear),
+			_ => new SKSamplingOptions(SKCubicResampler.Mitchell)
 		};
 
-		image.Mutate(ctx => ctx.Resize(new ResizeOptions
+		SKBitmap resized = image.Resize(new SKImageInfo(targetWidth, targetHeight), samplingOptions);
+		if (dataType == TextureDataType.NormalMap && resized != null)
 		{
-			Size = new Size(targetWidth, targetHeight),
-			Sampler = resampler,
-			Mode = ResizeMode.Stretch
-		}));
-
-		if (dataType == TextureDataType.NormalMap)
-		{
-			RenormalizeNormalMap(image);
+			RenormalizeNormalMap(resized);
 		}
+
+		return resized ?? image;
 	}
 
-	public static void RenormalizeNormalMap(Image<Rgba32> image)
+	public static void RenormalizeNormalMap(SKBitmap image)
 	{
 		int width = image.Width;
 		int height = image.Height;
@@ -88,10 +82,10 @@ public static class TextureResizer
 		{
 			for (int x = 0; x < width; x++)
 			{
-				Rgba32 pixel = image[x, y];
-				float nx = (pixel.R / 255.0f) * 2.0f - 1.0f;
-				float ny = (pixel.G / 255.0f) * 2.0f - 1.0f;
-				float nz = (pixel.B / 255.0f) * 2.0f - 1.0f;
+				SKColor pixel = image.GetPixel(x, y);
+				float nx = (pixel.Red / 255.0f) * 2.0f - 1.0f;
+				float ny = (pixel.Green / 255.0f) * 2.0f - 1.0f;
+				float nz = (pixel.Blue / 255.0f) * 2.0f - 1.0f;
 
 				float len = MathF.Sqrt(nx * nx + ny * ny + nz * nz);
 				if (len > 1e-5f)
@@ -112,7 +106,7 @@ public static class TextureResizer
 				byte g = (byte)Math.Clamp((int)Math.Round((ny * 0.5f + 0.5f) * 255.0f), 0, 255);
 				byte b = (byte)Math.Clamp((int)Math.Round((nz * 0.5f + 0.5f) * 255.0f), 0, 255);
 
-				image[x, y] = new Rgba32(r, g, b, pixel.A);
+				image.SetPixel(x, y, new SKColor(r, g, b, pixel.Alpha));
 			}
 		}
 	}

@@ -189,7 +189,7 @@ public static class AssetThumbnailProvider
 			return LoadRtexAlbedoThumbnail(asset.FilePath, asset.LastModifiedUtc, asset.Blake3);
 		}
 
-		if (ext == ".rmesh")
+		if (ext == ".rmesh" || ext == ".glb" || ext == ".gltf")
 		{
 			return LoadGlbThumbnail(asset.FilePath, asset.LastModifiedUtc, asset.Blake3, isHighPriority);
 		}
@@ -228,6 +228,7 @@ public static class AssetThumbnailProvider
 		{
 			".rtex" => ProjectSettings.GlobalizePath("user://rtex_thumb_cache"),
 			".ranim" => ProjectSettings.GlobalizePath("user://ranim_thumb_cache"),
+			".rmesh" or ".glb" or ".gltf" => ProjectSettings.GlobalizePath("user://model_thumb_cache"),
 			_ => ProjectSettings.GlobalizePath("user://image_thumb_cache")
 		};
 		string hash = GlbThumbnailRenderer.GetBlake3(normPath, blake3);
@@ -308,7 +309,7 @@ public static class AssetThumbnailProvider
 		if (string.IsNullOrEmpty(normPath)) return null;
 
 		string ext = Path.GetExtension(normPath).ToLowerInvariant();
-		if (ext == ".rmesh")
+		if (ext == ".rmesh" || ext == ".glb" || ext == ".gltf")
 		{
 			if (GlbThumbnailRenderer.TryGetDiskCached(normPath, blake3, out var rmeshTex))
 			{

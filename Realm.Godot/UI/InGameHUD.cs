@@ -494,14 +494,7 @@ public partial class InGameHUD : Control
 				? GameHost.Instance.CurrentMapDirectory
 				: MapWorkspaceService.GetActiveWorkspacePath();
 			string metaPath = System.IO.Path.Combine(mapDir, "metadata.json").Replace("\\", "/");
-			if (System.IO.File.Exists(metaPath) || Godot.FileAccess.FileExists(metaPath))
-			{
-				GameHost.Instance.LoadMapProperties(metaPath);
-			}
-			else
-			{
-				GameHost.Instance.LoadMapProperties("res://map.json");
-			}
+			GameHost.Instance.LoadMapProperties(metaPath);
 			currentWeather = GameHost.Instance?.EnvironmentService?.GetCurrentWeather() ?? "clear";
 		}
 

@@ -156,8 +156,8 @@ def main():
     parser = argparse.ArgumentParser(description="Render animated humanoid GLB with .ranim keyframes using bpy")
     parser.add_argument("--model", required=True, help="Path to .glb model")
     parser.add_argument("--anim", required=True, help="Path to .ranim JSON file")
-    parser.add_argument("--output", required=True, help="Output destination (.gif, .png, or .webp)")
-    parser.add_argument("--format", default="gif", choices=["gif", "spritesheet", "webp"], help="Output format (gif, spritesheet, webp)")
+    parser.add_argument("--output", required=True, help="Output destination (.webp, .png, or .gif)")
+    parser.add_argument("--format", default="webp", choices=["webp", "spritesheet", "gif"], help="Output format (webp, spritesheet)")
     parser.add_argument("--fps", type=float, default=12.0, help="Frames per second")
     parser.add_argument("--max-frames", type=int, default=None, help="Maximum frame count")
     parser.add_argument("--width", type=int, default=128, help="Frame width")
@@ -499,14 +499,9 @@ def main():
         out_dir = Path(output_path).parent
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        is_webp = (
-            args.format.lower() == "webp" or
-            output_path.lower().endswith(".webp")
-        )
         is_spritesheet = (
-            is_webp or
             args.format.lower() == "spritesheet" or
-            output_path.lower().endswith(".png")
+            (output_path.lower().endswith(".png") and not output_path.lower().endswith(".webp"))
         )
 
         if is_spritesheet:
@@ -515,32 +510,19 @@ def main():
             spritesheet = Image.new("RGBA", (sheet_width, sheet_height), (0, 0, 0, 0))
             for i, frame in enumerate(rendered_images):
                 spritesheet.paste(frame, (i * args.width, 0))
-
-            if is_webp:
-                spritesheet.save(
-                    output_path,
-                    "WEBP",
-                    quality=args.quality,
-                    lossless=args.lossless,
-                    method=6
-                )
-            else:
-                spritesheet.save(output_path, "PNG", optimize=True)
+            spritesheet.save(output_path, "PNG", optimize=True)
         else:
             frame_duration_ms = max(20, int(round((duration / len(rendered_images)) * 1000.0)))
-            gif_frames = []
-            for frame in rendered_images:
-                rgb_frame = frame.convert("RGB")
-                p_frame = rgb_frame.convert("P", palette=Image.Palette.ADAPTIVE, colors=256)
-                gif_frames.append(p_frame)
-
-            gif_frames[0].save(
+            rendered_images[0].save(
                 output_path,
+                "WEBP",
                 save_all=True,
-                append_images=gif_frames[1:],
+                append_images=rendered_images[1:],
                 duration=frame_duration_ms,
                 loop=0,
-                disposal=2
+                quality=args.quality,
+                lossless=args.lossless,
+                method=6
             )
 
         print(f"Successfully rendered {len(rendered_images)} frames -> {output_path}")

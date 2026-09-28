@@ -211,6 +211,37 @@ foreach ($extensionsDir in $uniqueExtensionDirs) {
     } catch {
         Write-Warning "Failed to update extensions.json: $_"
     }
+
+    $ohziPatchSrcCandidates = @(
+        (Join-Path $rootDir "Realm.MapEditorExtension\patches\ohzi-vscode-glb-viewer\extension.js"),
+        (Join-Path $rootDir "Realm.Godot\vscode_extensions_dist\patches\ohzi-vscode-glb-viewer\extension.js")
+    )
+    $ohziPatchFile = $null
+    foreach ($cand in $ohziPatchSrcCandidates) {
+        if (Test-Path $cand) {
+            $ohziPatchFile = $cand
+            break
+        }
+    }
+    if ($ohziPatchFile) {
+        $ohziDirs = Get-ChildItem -Path $extensionsDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+            $_.Name -like "*ohzi-vscode-glb-viewer*"
+        }
+        foreach ($ohziDir in $ohziDirs) {
+            $extJsPath = Join-Path $ohziDir.FullName "extension.js"
+            $needsPatch = -not (Test-Path $extJsPath)
+            if (-not $needsPatch -and (Test-Path $extJsPath)) {
+                $extJsContent = [System.IO.File]::ReadAllText($extJsPath, [System.Text.Encoding]::UTF8)
+                if (-not $extJsContent.Contains("REALM_PATCHED_OHZI_BASE64") -and (-not $extJsContent.Contains("threeDataUri") -or $extJsContent.Contains("loadModelFromUri"))) {
+                    $needsPatch = $true
+                }
+            }
+            if ($needsPatch) {
+                Copy-Item -Path $ohziPatchFile -Destination $extJsPath -Force
+                Write-Host "Patched OHZI GLB viewer extension in $($ohziDir.FullName)"
+            }
+        }
+    }
 }
 
 Write-Host "Visual Studio debug extension sync completed successfully."

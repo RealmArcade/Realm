@@ -3,18 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using Realm.Shared.BlenderSetup;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using Realm.Shared.Textures;
 
 namespace Realm.Shared.Animation;
 
 public enum RanimOutputFormat
 {
-	Gif,
+	Webp,
 	Spritesheet,
-	Webp
+	Gif
 }
 
 public class RanimRenderOptions
@@ -23,7 +21,7 @@ public class RanimRenderOptions
 	public int Height { get; set; } = 128;
 	public float Fps { get; set; } = 12.0f;
 	public int? MaxFrameCount { get; set; }
-	public RanimOutputFormat Format { get; set; } = RanimOutputFormat.Gif;
+	public RanimOutputFormat Format { get; set; } = RanimOutputFormat.Webp;
 	public float Scale { get; set; } = 1.0f;
 	public bool DrawBorder { get; set; } = true;
 	public bool DrawShadow { get; set; } = true;
@@ -161,7 +159,18 @@ public static class RanimRenderer
 			using var image = RenderSkeletonFrame(trackMap, time, options);
 
 			byte[] pixelBytes = new byte[options.Width * options.Height * 4];
-			image.CopyPixelDataTo(pixelBytes);
+			for (int y = 0; y < options.Height; y++)
+			{
+				for (int x = 0; x < options.Width; x++)
+				{
+					SKColor c = image.GetPixel(x, y);
+					int idx = (y * options.Width + x) * 4;
+					pixelBytes[idx] = c.Red;
+					pixelBytes[idx + 1] = c.Green;
+					pixelBytes[idx + 2] = c.Blue;
+					pixelBytes[idx + 3] = c.Alpha;
+				}
+			}
 
 			result.Frames.Add(new RanimRenderFrame
 			{
@@ -205,9 +214,8 @@ public static class RanimRenderer
 			{
 				string extension = renderOptions.Format switch
 				{
-					RanimOutputFormat.Webp => ".webp",
 					RanimOutputFormat.Spritesheet => ".png",
-					_ => ".gif"
+					_ => ".webp"
 				};
 				finalOutputPath = Path.ChangeExtension(inputPath, extension);
 			}
@@ -282,7 +290,7 @@ public static class RanimRenderer
 
 		exportResult.FrameCount = selectedTimes.Count;
 
-		var frameImages = new List<Image<Rgba32>>();
+		var frameImages = new List<SKBitmap>();
 		try
 		{
 			foreach (float time in selectedTimes)
@@ -297,13 +305,13 @@ public static class RanimRenderer
 				Directory.CreateDirectory(directory);
 			}
 
-			if (renderOptions.Format is RanimOutputFormat.Spritesheet or RanimOutputFormat.Webp || outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) || outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+			if (renderOptions.Format == RanimOutputFormat.Spritesheet || (outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && !outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)))
 			{
 				SaveAsSpritesheet(frameImages, outputPath, renderOptions);
 			}
 			else
 			{
-				SaveAsAnimatedGif(frameImages, outputPath, duration, renderOptions);
+				SaveAsAnimatedWebp(frameImages, outputPath, duration, renderOptions);
 			}
 
 			exportResult.Success = true;
@@ -339,9 +347,8 @@ public static class RanimRenderer
 			string target;
 			string extension = renderOptions.Format switch
 			{
-				RanimOutputFormat.Webp => ".webp",
 				RanimOutputFormat.Spritesheet => ".png",
-				_ => ".gif"
+				_ => ".webp"
 			};
 
 			if (string.IsNullOrEmpty(outputDirectory))
@@ -371,12 +378,12 @@ public static class RanimRenderer
 		return failureCount > 0 ? 1 : 0;
 	}
 
-	private static void SaveAsSpritesheet(List<Image<Rgba32>> frameImages, string outputPath, RanimRenderOptions options)
+	private static void SaveAsSpritesheet(List<SKBitmap> frameImages, string outputPath, RanimRenderOptions options)
 	{
 		int totalWidth = options.Width * frameImages.Count;
 		int totalHeight = options.Height;
 
-		using var spritesheet = new Image<Rgba32>(totalWidth, totalHeight);
+		using var spritesheet = new SKBitmap(totalWidth, totalHeight, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
 		for (int frameIndex = 0; frameIndex < frameImages.Count; frameIndex++)
 		{
@@ -387,63 +394,28 @@ public static class RanimRenderer
 			{
 				for (int x = 0; x < options.Width; x++)
 				{
-					spritesheet[xOffset + x, y] = frameImage[x, y];
+					spritesheet.SetPixel(xOffset + x, y, frameImage.GetPixel(x, y));
 				}
 			}
 		}
 
 		if (options.Format == RanimOutputFormat.Webp || outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
 		{
-			var webpEncoder = new WebpEncoder
-			{
-				FileFormat = options.Lossless ? WebpFileFormatType.Lossless : WebpFileFormatType.Lossy,
-				Quality = options.Lossless ? 100 : Math.Clamp(options.Quality, 1, 100)
-			};
-			spritesheet.Save(outputPath, webpEncoder);
+			byte[] webpBytes = TextureConverter.EncodeWebp(spritesheet, options.Lossless, options.Quality);
+			File.WriteAllBytes(outputPath, webpBytes);
 		}
 		else
 		{
-			spritesheet.SaveAsPng(outputPath);
+			using var skImage = SKImage.FromBitmap(spritesheet);
+			using var data = skImage.Encode(SKEncodedImageFormat.Png, 100);
+			using var stream = File.Create(outputPath);
+			data.SaveTo(stream);
 		}
 	}
 
-	private static void SaveAsAnimatedGif(List<Image<Rgba32>> frameImages, string outputPath, float duration, RanimRenderOptions options)
+	private static void SaveAsAnimatedWebp(List<SKBitmap> frameImages, string outputPath, float duration, RanimRenderOptions options)
 	{
-		int frameDelayHundredths = (int)Math.Max(1, MathF.Round((duration / frameImages.Count) * 100.0f));
-
-		using var gifImage = new Image<Rgba32>(options.Width, options.Height);
-
-		for (int frameIndex = 0; frameIndex < frameImages.Count; frameIndex++)
-		{
-			var frameImage = frameImages[frameIndex];
-
-			if (frameIndex == 0)
-			{
-				for (int y = 0; y < options.Height; y++)
-				{
-					for (int x = 0; x < options.Width; x++)
-					{
-						gifImage[x, y] = frameImage[x, y];
-					}
-				}
-
-				var metadata = gifImage.Frames.RootFrame.Metadata.GetGifMetadata();
-				metadata.FrameDelay = frameDelayHundredths;
-				metadata.DisposalMethod = GifDisposalMethod.RestoreToBackground;
-			}
-			else
-			{
-				var addedFrame = gifImage.Frames.AddFrame(frameImage.Frames.RootFrame);
-				var metadata = addedFrame.Metadata.GetGifMetadata();
-				metadata.FrameDelay = frameDelayHundredths;
-				metadata.DisposalMethod = GifDisposalMethod.RestoreToBackground;
-			}
-		}
-
-		var gifMetadata = gifImage.Metadata.GetGifMetadata();
-		gifMetadata.RepeatCount = 0;
-
-		gifImage.SaveAsGif(outputPath);
+		AnimatedWebpEncoder.EncodeAnimatedWebp(frameImages, outputPath, duration, options.Lossless, options.Quality);
 	}
 
 	private static Dictionary<HumanoidBone, RealmAnimationBoneTrack> BuildTrackMap(RealmAnimationData animData)
@@ -462,7 +434,7 @@ public static class RanimRenderer
 		return trackMap;
 	}
 
-	private static Image<Rgba32> RenderSkeletonFrame(Dictionary<HumanoidBone, RealmAnimationBoneTrack> trackMap, float time, RanimRenderOptions options)
+	private static SKBitmap RenderSkeletonFrame(Dictionary<HumanoidBone, RealmAnimationBoneTrack> trackMap, float time, RanimRenderOptions options)
 	{
 		var worldPositions = new Dictionary<HumanoidBone, Vector3>();
 		var worldRotations = new Dictionary<HumanoidBone, Quaternion>();
@@ -503,16 +475,9 @@ public static class RanimRenderer
 			projectedPoints[pair.Key] = Project3DTo2D(pair.Value, options.Width, options.Height, options.Scale);
 		}
 
-		var img = new Image<Rgba32>(options.Width, options.Height);
-		var backgroundColor = new Rgba32(20, 23, 31, 255);
-
-		for (int y = 0; y < options.Height; y++)
-		{
-			for (int x = 0; x < options.Width; x++)
-			{
-				img[x, y] = backgroundColor;
-			}
-		}
+		var img = new SKBitmap(options.Width, options.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+		var backgroundColor = new SKColor(20, 23, 31, 255);
+		img.Erase(backgroundColor);
 
 		if (options.DrawBorder)
 		{
@@ -525,10 +490,10 @@ public static class RanimRenderer
 			DrawFloorShadow(img, shadowCenterX);
 		}
 
-		var colorSpine = new Rgba32(89, 230, 242, 255);
-		var colorLeftLimb = new Rgba32(64, 179, 255, 255);
-		var colorRightLimb = new Rgba32(250, 191, 51, 255);
-		var colorJoint = new Rgba32(255, 255, 255, 255);
+		var colorSpine = new SKColor(89, 230, 242, 255);
+		var colorLeftLimb = new SKColor(64, 179, 255, 255);
+		var colorRightLimb = new SKColor(250, 191, 51, 255);
+		var colorJoint = new SKColor(255, 255, 255, 255);
 
 		int lineThickness = Math.Max(1, (int)MathF.Round(2.0f * (options.Width / 128.0f)));
 
@@ -577,7 +542,7 @@ public static class RanimRenderer
 		return (u, v);
 	}
 
-	private static void DrawBoneChain(Image<Rgba32> img, Dictionary<HumanoidBone, (int X, int Y)> points, HumanoidBone[] chain, Rgba32 color, int thickness)
+	private static void DrawBoneChain(SKBitmap img, Dictionary<HumanoidBone, (int X, int Y)> points, HumanoidBone[] chain, SKColor color, int thickness)
 	{
 		for (int i = 0; i < chain.Length - 1; i++)
 		{
@@ -588,32 +553,32 @@ public static class RanimRenderer
 		}
 	}
 
-	private static void DrawCardBorder(Image<Rgba32> img)
+	private static void DrawCardBorder(SKBitmap img)
 	{
 		int width = img.Width;
 		int height = img.Height;
-		var borderColor = new Rgba32(61, 66, 82, 230);
+		var borderColor = new SKColor(61, 66, 82, 230);
 
 		for (int x = 0; x < width; x++)
 		{
-			img[x, 0] = borderColor;
-			img[x, height - 1] = borderColor;
+			img.SetPixel(x, 0, borderColor);
+			img.SetPixel(x, height - 1, borderColor);
 		}
 		for (int y = 0; y < height; y++)
 		{
-			img[0, y] = borderColor;
-			img[width - 1, y] = borderColor;
+			img.SetPixel(0, y, borderColor);
+			img.SetPixel(width - 1, y, borderColor);
 		}
 	}
 
-	private static void DrawFloorShadow(Image<Rgba32> img, int centerX)
+	private static void DrawFloorShadow(SKBitmap img, int centerX)
 	{
 		int width = img.Width;
 		int height = img.Height;
 		int groundY = (int)MathF.Round(height * (118f / 128f));
 		int radiusX = Math.Max(2, (int)MathF.Round(26f * (width / 128f)));
 		int radiusY = Math.Max(1, (int)MathF.Round(7f * (height / 128f)));
-		var shadowColor = new Rgba32(10, 13, 18, 178);
+		var shadowColor = new SKColor(10, 13, 18, 178);
 
 		for (int y = -radiusY; y <= radiusY; y++)
 		{
@@ -627,28 +592,28 @@ public static class RanimRenderer
 					int py = groundY + y;
 					if (px >= 0 && px < width && py >= 0 && py < height)
 					{
-						img[px, py] = AlphaBlend(img[px, py], shadowColor);
+						img.SetPixel(px, py, AlphaBlend(img.GetPixel(px, py), shadowColor));
 					}
 				}
 			}
 		}
 	}
 
-	private static Rgba32 AlphaBlend(Rgba32 background, Rgba32 foreground)
+	private static SKColor AlphaBlend(SKColor background, SKColor foreground)
 	{
-		float srcA = foreground.A / 255.0f;
-		float dstA = background.A / 255.0f;
+		float srcA = foreground.Alpha / 255.0f;
+		float dstA = background.Alpha / 255.0f;
 		float outA = srcA + dstA * (1.0f - srcA);
 		if (outA <= 0.0001f)
 		{
-			return new Rgba32(0, 0, 0, 0);
+			return new SKColor(0, 0, 0, 0);
 		}
 
-		float r = (foreground.R * srcA + background.R * dstA * (1.0f - srcA)) / outA;
-		float g = (foreground.G * srcA + background.G * dstA * (1.0f - srcA)) / outA;
-		float b = (foreground.B * srcA + background.B * dstA * (1.0f - srcA)) / outA;
+		float r = (foreground.Red * srcA + background.Red * dstA * (1.0f - srcA)) / outA;
+		float g = (foreground.Green * srcA + background.Green * dstA * (1.0f - srcA)) / outA;
+		float b = (foreground.Blue * srcA + background.Blue * dstA * (1.0f - srcA)) / outA;
 
-		return new Rgba32(
+		return new SKColor(
 			(byte)Math.Clamp(MathF.Round(r), 0, 255),
 			(byte)Math.Clamp(MathF.Round(g), 0, 255),
 			(byte)Math.Clamp(MathF.Round(b), 0, 255),
@@ -656,7 +621,7 @@ public static class RanimRenderer
 		);
 	}
 
-	private static void DrawThickLine(Image<Rgba32> img, int x0, int y0, int x1, int y1, Rgba32 color, int thickness)
+	private static void DrawThickLine(SKBitmap img, int x0, int y0, int x1, int y1, SKColor color, int thickness)
 	{
 		int dx = Math.Abs(x1 - x0);
 		int dy = Math.Abs(y1 - y0);
@@ -677,7 +642,7 @@ public static class RanimRenderer
 					int py = y0 + ty;
 					if (px >= 0 && px < width && py >= 0 && py < height)
 					{
-						img[px, py] = color;
+						img.SetPixel(px, py, color);
 					}
 				}
 			}
@@ -701,7 +666,7 @@ public static class RanimRenderer
 		}
 	}
 
-	private static void DrawFilledCircle(Image<Rgba32> img, int cx, int cy, int radius, Rgba32 color)
+	private static void DrawFilledCircle(SKBitmap img, int cx, int cy, int radius, SKColor color)
 	{
 		int r2 = radius * radius;
 		int width = img.Width;
@@ -717,7 +682,7 @@ public static class RanimRenderer
 					int py = cy + y;
 					if (px >= 0 && px < width && py >= 0 && py < height)
 					{
-						img[px, py] = color;
+						img.SetPixel(px, py, color);
 					}
 				}
 			}

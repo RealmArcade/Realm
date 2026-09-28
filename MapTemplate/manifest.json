@@ -1,88 +1,88 @@
 {
 	"Assets": {
 		"animations": {
-			"Bored - Standing Around Bored Idle.ranim": "979a642d48705fc903a1c2e98ac71660cf1399ad462dc0d3add505b7f919ea84",
-			"Death - Death From Standing Idle.ranim": "7454fae0c375bc391a9f807f21f7edfd6d09e26b146ada81311b80c4972b1568",
-			"Heavy Weapon Swing - Two Handed Heavy Weapon Swing.ranim": "4c389cdf83c9eb5e8bc342486ace70c759e34897ef8a41c73ac4bc3cb8888568",
-			"Magic Spell Casting - Casting A Spell With One Hand.ranim": "396b0033881d3dc63a27f772c19d272fb152a056dd861af67059e9d8ce693d41",
-			"Northern Soul Floor Spin - Northern Soul Dance Spin On Floor.ranim": "5422fe09e49b7c1b5c43bfe93e7197f105bf9900bf2bb4c3360330558b371ab9",
-			"Standard Walk - Standard Walk.ranim": "5c48f7b2c6ad1e735d1e3644361007dc4175a7c716f83817797ed572c6819b22",
-			"Upward Thrust - Upward Weapon Thrust.ranim": "19c2fc338a0d52ee36cab89f730245999368d239a662f84383a0a9f2adebe083"
+			"Bored - Standing Around Bored Idle.ranim": "1959208c023156ced292286a89c646c75dbd7cd70ad0cd16aeaf4b68f67fafbd",
+			"Death - Death From Standing Idle.ranim": "46f3a52c06b56b126012ac75397d5f3c093f1d08c344f7e954648c3df257868d",
+			"Heavy Weapon Swing - Two Handed Heavy Weapon Swing.ranim": "4e4e01a042128bdbfdd72e19d8397c6a26cb86eba65486c1a843ed7981ab579d",
+			"Magic Spell Casting - Casting A Spell With One Hand.ranim": "9774c9cbd0a23876d4a3438f794beb6a8a6c4c0fd49605e7c76f12ac6753464f",
+			"Northern Soul Floor Spin - Northern Soul Dance Spin On Floor.ranim": "8738f39026322dcf5d06f8c5676c25fa6eaa0111d1643612cdd512158d3e12a5",
+			"Standard Walk - Standard Walk.ranim": "54b3360ee4eb2026dc824fa510b330a9f91565088a4ee92ccf2dd7202db29326",
+			"Upward Thrust - Upward Weapon Thrust.ranim": "f7e5ae04ed7a0a6fc2e00f41bf0e3844d2f53fa87c28037467c4ada271c65bca"
 		},
 		"decals": {
-			"acid_drip.rtex": "59fa45cd1071e46186b2e028dbc27522694f8f6f86172d1d649bfde5c0494ba5",
-			"arcane_spark.rtex": "404f1966b680cf1c83ba8e0e835b75681a4e1f0c97f4e27554e2d3f1e5593bab"
+			"acid_drip.rtex": "303aa61310bae34e7f40ed4d2614d772e6fe3a313e1c2bcd7255c2f1c47a5884",
+			"arcane_spark.rtex": "af0f579d808584b4080c97ab2fe6d7a30e24cff6970a37de55ffe79819612aec"
 		},
 		"glb": {
 			"buildings": {
-				"clock_tower_building.rmesh": "5be83408629d2c2fa90d9bb66961c0b336f7291c3697afd9b73c352b708718e4",
-				"timber_framed_house.rmesh": "325c6db8eae6ac877652a160359ab0ad519227e10cae19504aaa625f9410ccd4"
+				"clock_tower_building.rmesh": "4ceb2c4e83accc95049c9e66c4e851a1edd6f751c523135a2247e9514a773024",
+				"timber_framed_house.rmesh": "535691fe5bb11e5c627aab9e80ca19a1b411c248c985758db7381fa5a78b5044"
 			},
 			"projectiles": {
-				"ornate_spear_1.rmesh": "7f8142816dedaef6597e32f56f14830003eab05849df33d0736860f7c2c3d454",
-				"wooden_spear_2.rmesh": "e7a5b86b48e090a6a4fb95a0fa88c7d28187a7d159acf26b6e7e9837217ecf36"
+				"ornate_spear_1.rmesh": "b93ae81237c0956a976d23b4c9d3e007020def4e6dc44b1294aa16d2ad9f83de",
+				"wooden_spear_2.rmesh": "5aa261917ddc28e195240080be1f386b069fcc65669be70c71149b375cb8bdd5"
 			},
 			"props": {
-				"crystal_cluster_29.rmesh": "d6397b0880ce7edb030fa0ab716f74d305be5d2ad501675fd77505f6619d2f12",
-				"spiked_wooden_stake.rmesh": "1e2bb796b5751ea03e3070bb5e870791ddf433f4429a99fe2de590d2e7da5c7b"
+				"crystal_cluster_29.rmesh": "2abee4a7b80df38806b094205e78db7dc68c814f6a4a4d7afc393858e450b9f7",
+				"spiked_wooden_stake.rmesh": "722915e14b6fc455ad1f0aab42f89c9420f117fdb8cdf3532583f08c13903c06"
 			},
 			"resources": {
-				"coniferous_tree_1.rmesh": "df2ce9bbacc24bc5208ac554d61907ba774e1b791511c6a709d53eb2b9b3ae9f",
-				"palm_tree.rmesh": "09eae01dd725125bb1acbcf3ec7098c124413182b16bddc73f6f487bc23a8e5e"
+				"coniferous_tree_1.rmesh": "ec56d4202cab84dd93e028b09306595330ad8816665efcbb9266d21f14b1e47d",
+				"palm_tree.rmesh": "b14f53c16bf7734dc70fe1febcc5caf41c4c291dcd0abb285f33e245b0aa965a"
 			},
 			"units": {
-				"fantasy_warrior_unit_1.rmesh": "2fae8eb81c278e77a57aaa1e5509772eac47091916220280ba0195a694aa2330",
-				"orc_warrior_7.rmesh": "efeb0cbe40426de7408cbcbb1d0cec162efb04f5d0b2dc1cd2d8b3c3f4020984"
+				"fantasy_warrior_unit_1.rmesh": "c0e16b9c16871a5d2e4ff820d6d25138ba1121feda3db1327bfa7a7116363b6d",
+				"orc_warrior_7.rmesh": "b01affb5917119fb76052db8440e56af2140866c60904729b2ffaecd4324efa2"
 			}
 		},
 		"icons": {
-			"victory_flag.rtex": "c75053b32e61012661294adfe81f829a1f050944be28e59ca7d6fab52bf3e035",
-			"wood_logs.rtex": "8bca34e59d38c84093234b4c265a154b280687dad4d7f8b2bee70b3829f345c5"
+			"victory_flag.rtex": "e117e306e33320b3591ee3b7b55a2fcac3aa29419b4c2c8d3e63768dca6eb8c0",
+			"wood_logs.rtex": "5e6a8f4408f4f9e5b691a5bf7d6679bb3cb29c273def5f882afbff40ef8cef2c"
 		},
 		"music": {
-			"dragon_tavern.raud": "32dd3d8c6c2d6016a041c130f49b33bdb5a427813733a182b96e6d36aab1c653"
+			"dragon_tavern.raud": "a1f23039849a6f788c5b1540b1acfa0437bf52243a3b838076bc0a8f3b566c70"
 		},
 		"noise_textures": {
-			"procedural_noise_1.rtex": "8d701309482f2baa266c0cb9de3b9566c2d73a2051136c44d8cf0871f53bd73a",
-			"procedural_noise_2.rtex": "0197726d32ff3e2c4d7426812f936ae319f010f531308a2535679817a60e30f8"
+			"procedural_noise_1.rtex": "6c48cb9d805f46ad1b678936e677bc172ebc5dfaac9460fec07684aa6322e7b0",
+			"procedural_noise_2.rtex": "ebca7473c965d7c4b8bbfe88421394b3c6fc25a0e58f129b7eea1e1c4e17af55"
 		},
 		"ribbons": {
-			"frost_shard_beam.rtex": "3198dfd32712e0320181acad17118d917cc66430c09b727178921a0f45639764",
-			"magma_flow_lava_vein.rtex": "6861e18a80ce59081a25d4a76809eb61e3f6c2cd407a3f71d730941c2ec58844"
+			"frost_shard_beam.rtex": "030e8a5d5a42bedab4d769cf1ab4e0b82ec48529a811d1508c9e3dc70b9423f0",
+			"magma_flow_lava_vein.rtex": "f1820082dff26a367759d1d1bbe38455341a633d81292fb8d038eaa8f063f22e"
 		},
 		"sfx": {
-			"achievement_unlock_chime.raud": "45127c94d9a948b2ea3738629757f7db64eba944715d9686fa98743df394c3db",
-			"orc_victory_howl.raud": "e57c43c5bebeadc2ab603ef361cd799724fa602f750c919e127c801253520415"
+			"achievement_unlock_chime.raud": "d9479e8f7a3a87d69d0c4c6d171c6f03b599e69726224b88897c02ced2b2a76d",
+			"orc_victory_howl.raud": "ce430e441d0d7867fb5eef4b26a1c157bd8a2899aba4ddf03309cf67885c94db"
 		},
 		"skyboxes": {
-			"jade_shrine.rtex": "e731a047f223e140a15463ecd247f89829df3faa5f061927116c66db1c52e751",
-			"star_reach.rtex": "4d91a6b90712e9f4b7f346f7b7a67437961ba82fba113802e2416cb96878e394"
+			"jade_shrine.rtex": "128fbaed7adbb0d6fd54edb36808fcc3991b478a927e144323d7896cae71c93e",
+			"star_reach.rtex": "9c7fb6d80ea74d61b11cfc9ccddf072aa187c80cd4ac46b3d16ff3a83c1e2790"
 		},
 		"textures": {
-			"ancient_jungle_mossy_stone.rtex": "e9f4a3903186dfe759ade9528c2d826860398890c2125b1d6156f823011f43eb",
-			"ancient_jungle_overgrown_path.rtex": "69c003d1c7b4eda35f084a55f11ded32faa398c6332cd06a141957b3a99f17ef",
-			"deep_trench_dense_mud.rtex": "00fc0efc56dd8bccaa9f4efea85c23b5a59c7d0ac0f87dc519e4fa3794a6faea",
-			"dusty_canyon_granite_basin.rtex": "0caf97f6ef7267d06f82a802045682f9ed33339c12355cfb685e637d41a75c73",
-			"dusty_canyon_scarce_soil.rtex": "5a7151a1c6f0dd74cb9400570735290842b0b64a3fdc7438a49aa8ca2983623b",
-			"frozen_tundra_mud.rtex": "095454997cd08bc59f3e01763874f1c3c47e4ee38cfe8d9183e9a43ee3101698",
-			"mangrove_swamp_bog_grass.rtex": "6780340139be005bdf716626999453dd9517ced2938882c32a9087e12a9f6ed8",
-			"petrified_forest_gray_granite.rtex": "e11c4872d45954a67ca59e2d4c8ad2c6b14b49e131e9a416cef780df4eb99021",
-			"sunken_ruins_crushed_granite.rtex": "bfd797411d85c528bfa1dc3a98f419208a8d47334fe3fcf41dbc81e16b26810b",
-			"sunken_ruins_mossy_stone.rtex": "a1d7251d3a134274dabe25a2c8438c337793f152bf8a33aa1f9e80c1774f7992",
-			"sunken_ruins_reef_stone.rtex": "1b86b1289e0426a20e66eb5c7ccdb164aadca4857c14f77a33d800f2d2779b3e",
-			"whispering_woods_soft_grass.rtex": "54dcc56db933a8ad7fe195deab9727fc373623d242865021b01295f94c8483a1"
+			"ancient_jungle_mossy_stone.rtex": "ae03d453928fbc21692b825a56c46055d2ebad7ac20976fdddbff00021c31e1d",
+			"ancient_jungle_overgrown_path.rtex": "fb435a844e25897385139b550782eef607376867383c37a40b561f5441b8bf16",
+			"deep_trench_dense_mud.rtex": "0056c30011d6c77b5ce99f02b66242ad3ad61387dabd835e968761166cfc26c0",
+			"dusty_canyon_granite_basin.rtex": "8d9ee0f675da18c163203195dadae03e4e977c44f4f92d40a5e2307c99e3bc2b",
+			"dusty_canyon_scarce_soil.rtex": "0cc6ae7bb5673aef49a72e8184a65cf49b8e3738467bfca3f473e8cecd17fa9a",
+			"frozen_tundra_mud.rtex": "0933fd0245f9e5b04e6a1a3c42293b1b7f4e4be6017bd3c61a9542787fc4e5cd",
+			"mangrove_swamp_bog_grass.rtex": "173d0f2adaf4eca95e8bb6d42e607ef1760569508e6eff699295be22ba3028c9",
+			"petrified_forest_gray_granite.rtex": "3c1a5ecf5a101afc84c0d2f13637e0be1ecf2686cdd94ea505957c9c020afdcd",
+			"sunken_ruins_crushed_granite.rtex": "3ad4acf903ce22ac4f0e63292a54eab33d41925397dd583ddc6b031c6120af09",
+			"sunken_ruins_mossy_stone.rtex": "49d9eede5248d1d943fdf5a53a946030257674ae8340778b7ea361c71fe8f98f",
+			"sunken_ruins_reef_stone.rtex": "ddfb7e71368f597e4681c81fbf51d02960dd509cf5f701e8937f7c326f88cd53",
+			"whispering_woods_soft_grass.rtex": "1d10489a5786a9309e187a1515ad53d3a8e2dd1dc00555aadf004e0c2ae502b9"
 		},
 		"vfx_radial": {
-			"mineral_geology_prism_dust.rtex": "ffbb1c99fe37cb0da38b4a357a8d13f35e50dbbbe3ccc8e1d0fe5e257b275ad4",
-			"mineral_geology_ruby_vein.rtex": "23ee044e252a84f79a0d3041dc7fe0124fba820188f26114f97e69d7ab62abdd"
+			"mineral_geology_prism_dust.rtex": "a33d49399d4efe50d75cc6f0ec346a2220e44391dd89ebeef5bdbe057db1acd0",
+			"mineral_geology_ruby_vein.rtex": "85ee93bc84aed073acae97dab21f12869f4b7dcf864b6e5fb55ee61632b76553"
 		},
 		"vfx_spritesheets": {
-			"ash_burst_sheet.rtex": "e2edfaebe2076a5510e0b600056bb7314c1e8bef82cff7b2cfcda5ae974a3a8b",
-			"blaze_streak_sheet.rtex": "fdc980fd1414fa9a7bcf98d47f23532e56ea0f6fa7777996162acc14306276f1"
+			"ash_burst_sheet.rtex": "ea5511b9c483a73fcfb6ea7bf622dca2eb14c7540dac3b80e532e45c92624b6c",
+			"blaze_streak_sheet.rtex": "2aac286280e299ebfe6521548cfd3d8e02690252b1993bfcb557bb188c21a630"
 		},
 		"vfx_vertical": {
-			"crystal_lattice_growth.rtex": "7e3393eed7dd4e1f53775653a9575b171144fdae92b53ea76d1a3c532ef8631d",
-			"weapon_fins_venom_flick.rtex": "fda286b9b96e5b546a64bd0524d7d381d664c609151ec3a9cbc8da2c83433ea9"
+			"crystal_lattice_growth.rtex": "6011d6a6ad52b92899c1c774474df2bd53397f3435e149e81417c1d35ba916d8",
+			"weapon_fins_venom_flick.rtex": "9621354263c65c0a1f4187d3311282b623fce2546082be4544b8763fe926d8a5"
 		}
 	}
 }

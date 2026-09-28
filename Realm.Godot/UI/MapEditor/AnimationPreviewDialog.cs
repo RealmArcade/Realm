@@ -827,7 +827,7 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 	private void AddBoneAnchor(Skeleton3D skeleton, HumanoidBone bone, string socketId)
 	{
 		string normSocket = ObjectAttachmentDialog.NormalizeSocketId(socketId);
-		int boneIdx = HumanoidBoneMapper.FindBoneInSkeleton(skeleton, bone);
+		int boneIdx = skeleton.FindBoneInSkeleton(bone);
 		if (boneIdx >= 0)
 		{
 			var ba = new BoneAttachment3D

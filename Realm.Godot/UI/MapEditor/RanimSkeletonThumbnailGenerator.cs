@@ -20,7 +20,7 @@ public static class RanimSkeletonThumbnailGenerator
 			Height = 128,
 			Fps = 6.0f,
 			MaxFrameCount = 1,
-			Format = RanimOutputFormat.Gif,
+			Format = RanimOutputFormat.Webp,
 			Scale = 1.0f,
 			DrawBorder = true,
 			DrawShadow = true
@@ -63,7 +63,7 @@ public static class RanimSkeletonThumbnailGenerator
 			Height = 128,
 			Fps = 6.0f,
 			MaxFrameCount = 12,
-			Format = RanimOutputFormat.Gif,
+			Format = RanimOutputFormat.Webp,
 			Scale = 1.0f,
 			DrawBorder = true,
 			DrawShadow = true
