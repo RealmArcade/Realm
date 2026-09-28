@@ -35,7 +35,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		descPanel.AddChild(descMargin);
 
 		var descLabel = new Label();
-		descLabel.Text = TranslationServer.Translate("Your Author Signature Key is a cryptographic Ed25519 identity key stored in authorship_key_DO-NOT-SHARE.rkey. It is used to signs all maps and assets you publish to prevent others from overwriting your published files. Keep this key safely backed up in a secure location and NEVER share the private key or .rkey file with others.");
+		descLabel.Text = TranslationServer.Translate("Your Author Signature Key is a cryptographic Ed25519 identity key stored in authorship_key_DO-NOT-SHARE.rkey. It is used to sign all maps and assets you publish. NEVER share your private key or .rkey file. To collaborate on maps, share only your Public Key with team maintainers so they can authorize you to publish.");
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		descLabel.CustomMinimumSize = new Vector2(460, 0);
 		descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;

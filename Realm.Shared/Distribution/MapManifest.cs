@@ -18,6 +18,7 @@ public class MapManifest
     public string Version { get; set; } = "1.0.0";
     public string Description { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();
+    public List<string> Maintainers { get; set; } = new();
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonObject? Assets { get; set; }
@@ -418,6 +419,10 @@ public class MapManifest
                     if ((manifest.Tags == null || manifest.Tags.Count == 0) && existing.Tags != null && existing.Tags.Count > 0)
                     {
                         manifest.Tags = new List<string>(existing.Tags);
+                    }
+                    if ((manifest.Maintainers == null || manifest.Maintainers.Count == 0) && existing.Maintainers != null && existing.Maintainers.Count > 0)
+                    {
+                        manifest.Maintainers = new List<string>(existing.Maintainers);
                     }
                     if (existing.Assets != null)
                     {

@@ -143,6 +143,7 @@ public class ClusterEventService
             "creator_registered" => ApplyCreatorRegistered(evt, db, adminPublicKeys),
             "admin_greenlight" => ApplyAdminGreenlight(evt, db, adminPublicKeys),
             "admin_remove_manifest" => ApplyAdminRemoveManifest(evt, db, cas, adminPublicKeys),
+            "map_maintainers_updated" or "map_maintainer_updated" => ApplyMapMaintainersUpdated(evt, db, adminPublicKeys),
             "map_metric_report" => ApplyMapMetricReport(evt, db),
             _ => false
         };
@@ -194,6 +195,16 @@ public class ClusterEventService
             ownSb.Append($"{key}:{mapOwnership[key]};");
         }
         colHashes["map_ownership"] = RealmMetadataHelper.ComputeBlake3(Encoding.UTF8.GetBytes(ownSb.ToString()), ".txt");
+
+        var mapMaintainers = db.GetAllWithKeys<List<string>>("map_maintainers");
+        colCounts["map_maintainers"] = mapMaintainers.Count;
+        var maintSb = new StringBuilder();
+        foreach (var key in mapMaintainers.Keys.OrderBy(k => k, StringComparer.Ordinal))
+        {
+            var sortedM = (mapMaintainers[key] ?? new List<string>()).OrderBy(m => m, StringComparer.Ordinal);
+            maintSb.Append($"{key}:{string.Join(",", sortedM)};");
+        }
+        colHashes["map_maintainers"] = RealmMetadataHelper.ComputeBlake3(Encoding.UTF8.GetBytes(maintSb.ToString()), ".txt");
 
         var publishedMaps = db.GetAllWithKeys<JsonDocument>("published_maps");
         colCounts["published_maps"] = publishedMaps.Count;
@@ -323,6 +334,7 @@ public class ClusterEventService
             Creators = creators,
             PublishedMaps = publishedMaps,
             MapOwnership = db.GetAllWithKeys<string>("map_ownership"),
+            MapMaintainers = db.GetAllWithKeys<List<string>>("map_maintainers"),
             MapStats = mapStats,
             NameLocks = nameLocks,
             AssetSignatures = assetSignatures,
@@ -369,6 +381,14 @@ public class ClusterEventService
         foreach (var pair in snapshot.MapOwnership)
         {
             db.Upsert("map_ownership", pair.Key, pair.Value);
+        }
+
+        if (snapshot.MapMaintainers != null)
+        {
+            foreach (var pair in snapshot.MapMaintainers)
+            {
+                db.Upsert("map_maintainers", pair.Key, pair.Value);
+            }
         }
 
         string manifestDir = Path.Combine(cas.RootDirectory, "manifests");
@@ -798,8 +818,7 @@ public class ClusterEventService
             return false;
         }
 
-        var existingOwner = db.Get<string>("map_ownership", mapTitle);
-        if (existingOwner != null && !string.Equals(existingOwner, publicKey, StringComparison.OrdinalIgnoreCase))
+        if (!MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, publicKey))
         {
             Console.WriteLine($"[ClusterEventService] Rejected map_published event: Map '{mapTitle}' is owned by another key");
             return false;
@@ -826,11 +845,70 @@ public class ClusterEventService
             var doc = JsonDocument.Parse(manifestJson);
             db.Upsert("published_maps", compositeKey, doc);
             db.Upsert("published_maps", mapTitle, doc);
-            db.Upsert("map_ownership", mapTitle, publicKey);
+            MapMaintainerHelper.AddMaintainer(db, mapTitle, publicKey);
         }
         catch
         {
             return false;
+        }
+
+        return true;
+    }
+
+    private bool ApplyMapMaintainersUpdated(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys)
+    {
+        MapMaintainersUpdatedEventPayload? payload = null;
+        if (!string.IsNullOrWhiteSpace(evt.PayloadJson))
+        {
+            try
+            {
+                payload = JsonSerializer.Deserialize<MapMaintainersUpdatedEventPayload>(evt.PayloadJson, JsonOpts);
+            }
+            catch { }
+        }
+
+        string mapTitle = payload?.MapTitle ?? "";
+        string action = (payload?.Action ?? "add").ToLowerInvariant();
+        string maintainerPublicKey = payload?.MaintainerPublicKey ?? "";
+        string requesterPublicKey = payload?.RequesterPublicKey ?? evt.PublicKey;
+        string signature = payload?.Signature ?? evt.Signature;
+
+        if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(maintainerPublicKey) || string.IsNullOrWhiteSpace(requesterPublicKey) || string.IsNullOrWhiteSpace(signature))
+        {
+            return false;
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(requesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, requesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            Console.WriteLine($"[ClusterEventService] Rejected map_maintainers_updated: Key {requesterPublicKey} is neither admin nor authorized maintainer of '{mapTitle}'");
+            return false;
+        }
+
+        string canonicalPayload = $"{action}_maintainer:{mapTitle.ToLowerInvariant()}:{maintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"{action}_maintainer:{mapTitle}:{maintainerPublicKey}";
+        string fallbackPayload2 = $"{action}:{mapTitle}:{maintainerPublicKey}";
+
+        bool sigValid = AuthorSignatureHelper.VerifySignature(requesterPublicKey.Trim(), canonicalPayload, signature)
+                     || AuthorSignatureHelper.VerifySignature(requesterPublicKey.Trim(), fallbackPayload1, signature)
+                     || AuthorSignatureHelper.VerifySignature(requesterPublicKey.Trim(), fallbackPayload2, signature)
+                     || (!string.IsNullOrWhiteSpace(evt.PayloadJson) && AuthorSignatureHelper.VerifySignature(requesterPublicKey.Trim(), evt.PayloadJson, signature));
+
+        if (!sigValid)
+        {
+            Console.WriteLine($"[ClusterEventService] Rejected map_maintainers_updated: Invalid signature for requester {requesterPublicKey}");
+            return false;
+        }
+
+        if (action == "remove")
+        {
+            MapMaintainerHelper.RemoveMaintainer(db, mapTitle, maintainerPublicKey);
+        }
+        else
+        {
+            MapMaintainerHelper.AddMaintainer(db, mapTitle, maintainerPublicKey);
         }
 
         return true;
@@ -1288,6 +1366,7 @@ public class ClusterEventService
             }
 
             db.DeleteMany("map_ownership", new[] { targetMap, targetMap.ToLowerInvariant().Replace(" ", "-"), targetMap.Replace(" ", "_") });
+            db.DeleteMany("map_maintainers", new[] { targetMap, targetMap.ToLowerInvariant().Replace(" ", "-"), targetMap.Replace(" ", "_") });
             db.Delete("map_stats", targetMap);
         }
 
