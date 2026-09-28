@@ -2,19 +2,12 @@ using Godot;
 using System;
 using System.Collections.Generic;
 
-public partial class WeaponVfxDialog : FloatingDialogBase
+public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
 	private AudioStreamPlayer _sfxPlayer;
 	private VisualProjectile3D _previewProjectile;
 
-	public SubViewport PreviewSubViewport => _subViewport;
 	public VisualProjectile3D PreviewProjectile => _previewProjectile;
-	public Camera3D PreviewCamera => _camera;
-	public DirectionalLight3D PreviewLight => _light;
 
 	private GameHost.WeaponMetadata _initialWeapon;
 	private GameHost.WeaponMetadata _currentWeapon;
@@ -25,33 +18,27 @@ public partial class WeaponVfxDialog : FloatingDialogBase
 	private bool _isPlaybackPaused;
 	private float _previewSpeed = 1.0f;
 
-	private Vector3 _modelCenter = new Vector3(0, 0.5f, 0);
-	private Vector3 _targetPosition = new Vector3(0, 0.5f, 0);
-	private float _defaultDistance = 5.5f;
-	private float _cameraDistance = 5.5f;
-	private float _defaultYaw = Mathf.DegToRad(30.0f);
-	private float _defaultPitch = Mathf.DegToRad(15.0f);
-	private float _cameraYaw = Mathf.DegToRad(30.0f);
-	private float _cameraPitch = Mathf.DegToRad(15.0f);
-
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-
 	public WeaponVfxDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Weapon Visual & Sound Effects"), new Vector2(480, 710))
 	{
+		DefaultDistance = 5.5f;
+		CameraDistance = 5.5f;
+		DefaultYaw = Mathf.DegToRad(30.0f);
+		DefaultPitch = Mathf.DegToRad(15.0f);
+		CameraYaw = Mathf.DegToRad(30.0f);
+		CameraPitch = Mathf.DegToRad(15.0f);
+		DefaultTargetPosition = new Vector3(0, 0.5f, 0);
+		TargetPosition = DefaultTargetPosition;
+
 		BuildControls();
 	}
 
 	private void BuildControls()
 	{
-		_viewportContainer = Add3DViewportContainer(BodyContainer, new Vector2(460, 220), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
+		Add3DPreviewViewport(BodyContainer, new Vector2(460, 220));
 
 		_sfxPlayer = new AudioStreamPlayer();
-		_subViewport.AddChild(_sfxPlayer);
+		PreviewSubViewport.AddChild(_sfxPlayer);
 
 		// ROW 1: FIRE TEST & CAMERA PRESETS
 		var topToolbar = new HBoxContainer();
@@ -62,11 +49,7 @@ public partial class WeaponVfxDialog : FloatingDialogBase
 		var separator = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		topToolbar.AddChild(separator);
 
-		AddButton(topToolbar, TranslationServer.Translate("Front"), () => SetCameraPreset(0f, 0f), "View front", 10, new Vector2(0, 22));
-		AddButton(topToolbar, TranslationServer.Translate("Side"), () => SetCameraPreset(90f, 0f), "View side", 10, new Vector2(0, 22));
-		AddButton(topToolbar, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 25f), "Isometric 3/4 view", 10, new Vector2(0, 22));
-		AddButton(topToolbar, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
-		AddButton(topToolbar, TranslationServer.Translate("⟲ Reset"), () => ResetCameraDefault(), "Reset camera", 10, new Vector2(0, 22));
+		AddCameraPresetToolbar(topToolbar, includeBack: false);
 
 		BodyContainer.AddChild(topToolbar);
 
@@ -652,17 +635,17 @@ public partial class WeaponVfxDialog : FloatingDialogBase
 			_previewProjectile = null;
 		}
 
-		if (_subViewport == null) return;
+		if (PreviewSubViewport == null) return;
 
 		_previewProjectile = new VisualProjectile3D();
-		_subViewport.AddChild(_previewProjectile);
+		PreviewSubViewport.AddChild(_previewProjectile);
 
 		Vector3 startPos = new Vector3(-2.8f, 0.5f, 0f);
 		Vector3 targetPos = new Vector3(2.8f, 0.5f, 0f);
 
 		_previewProjectile.Initialize(_currentWeapon, startPos, targetPos, default, (proj) =>
 		{
-			if (Visible && _subViewport != null)
+			if (Visible && PreviewSubViewport != null)
 			{
 				Callable.From(() => RestartPreviewProjectile()).CallDeferred();
 			}
@@ -742,102 +725,6 @@ public partial class WeaponVfxDialog : FloatingDialogBase
 		catch
 		{
 			return fallback;
-		}
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mouseButton)
-		{
-			if (mouseButton.ButtonIndex == MouseButton.Left)
-			{
-				_isOrbiting = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
-			{
-				ZoomCamera(1.0f);
-			}
-		}
-		else if (@event is InputEventMouseMotion mouseMotion)
-		{
-			Vector2 delta = mouseMotion.Position - _lastMousePosition;
-			_lastMousePosition = mouseMotion.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (_isPanning && _camera != null)
-			{
-				Vector3 camRight = _camera.GlobalTransform.Basis.X;
-				Vector3 camUp = _camera.GlobalTransform.Basis.Y;
-				float panSpeed = _cameraDistance * 0.0025f;
-				_targetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
-		}
-	}
-
-	private void ZoomCamera(float direction)
-	{
-		float factor = direction > 0 ? 1.15f : 0.85f;
-		_cameraDistance = Mathf.Clamp(_cameraDistance * factor, _defaultDistance * 0.15f, _defaultDistance * 6.0f);
-		UpdateCameraTransform();
-	}
-
-	public void SetCameraPreset(float yawDegrees, float pitchDegrees)
-	{
-		_cameraYaw = Mathf.DegToRad(yawDegrees);
-		_cameraPitch = Mathf.DegToRad(pitchDegrees);
-		_targetPosition = _modelCenter;
-		UpdateCameraTransform();
-	}
-
-	public void ResetCameraDefault()
-	{
-		_cameraDistance = _defaultDistance;
-		_targetPosition = _modelCenter;
-		_cameraYaw = _defaultYaw;
-		_cameraPitch = _defaultPitch;
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-
-		_cameraPitch = Mathf.Clamp(_cameraPitch, -1.45f, 1.45f);
-
-		float cosPitch = Mathf.Cos(_cameraPitch);
-		float sinPitch = Mathf.Sin(_cameraPitch);
-		float cosYaw = Mathf.Cos(_cameraYaw);
-		float sinYaw = Mathf.Sin(_cameraYaw);
-
-		Vector3 offset = new Vector3(
-			sinYaw * cosPitch,
-			sinPitch,
-			cosYaw * cosPitch
-		) * _cameraDistance;
-
-		Vector3 newPos = _targetPosition + offset;
-		_camera.Position = newPos;
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
 		}
 	}
 

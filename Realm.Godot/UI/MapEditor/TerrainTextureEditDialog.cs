@@ -427,11 +427,11 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		// SECTION 4: DEFAULT PATHING
 		AddSectionHeader(contentVBox, "🚶 " + TranslationServer.Translate("DEFAULT PATHING CAPABILITIES"), new Color(0.85f, 0.65f, 0.35f));
 		AddDescription(contentVBox, TranslationServer.Translate("Automatically assigned to cells when painted with this terrain swatch:"));
-		_chkPathGround = AddCheckBox(contentVBox, TranslationServer.Translate("Ground Passable"), (_defaultPathingCode & EditableTerrain.PATHING_GROUND) != 0, (v) => UpdatePathingMask());
-		_chkPathBuildable = AddCheckBox(contentVBox, TranslationServer.Translate("Buildable Ground"), (_defaultPathingCode & EditableTerrain.PATHING_BUILDABLE) != 0, (v) => UpdatePathingMask());
-		_chkPathShallow = AddCheckBox(contentVBox, TranslationServer.Translate("Shallow Water Passable"), (_defaultPathingCode & EditableTerrain.PATHING_SHALLOW_WATER) != 0, (v) => UpdatePathingMask());
-		_chkPathDeep = AddCheckBox(contentVBox, TranslationServer.Translate("Deep Water Passable"), (_defaultPathingCode & EditableTerrain.PATHING_DEEP_WATER) != 0, (v) => UpdatePathingMask());
-		_chkPathFlying = AddCheckBox(contentVBox, TranslationServer.Translate("Flying Passable"), (_defaultPathingCode & EditableTerrain.PATHING_FLYING) != 0, (v) => UpdatePathingMask());
+		_chkPathGround = AddCheckBox(contentVBox, TranslationServer.Translate("Ground"), (_defaultPathingCode & EditableTerrain.PATHING_GROUND) != 0, (v) => UpdatePathingMask());
+		_chkPathBuildable = AddCheckBox(contentVBox, TranslationServer.Translate("Buildable"), (_defaultPathingCode & EditableTerrain.PATHING_BUILDABLE) != 0, (v) => UpdatePathingMask());
+		_chkPathShallow = AddCheckBox(contentVBox, TranslationServer.Translate("Shallow Water"), (_defaultPathingCode & EditableTerrain.PATHING_SHALLOW_WATER) != 0, (v) => UpdatePathingMask());
+		_chkPathDeep = AddCheckBox(contentVBox, TranslationServer.Translate("Deep Water"), (_defaultPathingCode & EditableTerrain.PATHING_DEEP_WATER) != 0, (v) => UpdatePathingMask());
+		_chkPathFlying = AddCheckBox(contentVBox, TranslationServer.Translate("Flying"), (_defaultPathingCode & EditableTerrain.PATHING_FLYING) != 0, (v) => UpdatePathingMask());
 
 		// SECTION 5: PROCEDURAL DECAL BOMBING
 		AddSectionHeader(contentVBox, "🎯 " + TranslationServer.Translate("PROCEDURAL DECAL BOMBING"), new Color(0.9f, 0.5f, 0.7f));

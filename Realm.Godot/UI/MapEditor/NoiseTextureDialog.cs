@@ -57,7 +57,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 	private Action<string> _onSavedCallback;
 	private bool _isUpdatingPreview;
 
-	public NoiseTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("Procedural Noise Texture Generator (FastNoiseLite)"), new Vector2(740, 560))
+	public NoiseTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("Procedural Noise Texture Generator"), new Vector2(740, 560))
 	{
 		BuildDialogUi();
 	}

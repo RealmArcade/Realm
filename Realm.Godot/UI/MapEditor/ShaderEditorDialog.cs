@@ -6,12 +6,8 @@ using System.Text.Json.Nodes;
 using Godot;
 using Realm.Godot.Utils;
 
-public partial class ShaderEditorDialog : FloatingDialogBase
+public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 
@@ -49,18 +45,6 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 	private string _selectedModelKey = "";
 	private List<string> _availableModels = new();
 
-	private float _defaultDistance = 5.0f;
-	private float _cameraDistance = 5.0f;
-	private float _defaultYaw = Mathf.DegToRad(45.0f);
-	private float _defaultPitch = Mathf.DegToRad(25.0f);
-	private float _cameraYaw = Mathf.DegToRad(45.0f);
-	private float _cameraPitch = Mathf.DegToRad(25.0f);
-	private Vector3 _targetPosition = Vector3.Zero;
-
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-
 	private bool _isPlaying = false;
 	private bool _isPlayingForward = true;
 	private float _currentAnimTime = 0.0f;
@@ -80,13 +64,14 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 		previewContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		BodyContainer.AddChild(previewContainer);
 
-		_viewportContainer = Add3DViewportContainer(previewContainer, new Vector2(0, 220), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
+		Add3DPreviewViewport(previewContainer, new Vector2(0, 220));
 
 		Setup3DEnvironment();
 
-		// ROW 1: MODEL PICKER & CAMERA PRESETS
+		// CAMERA TOOLBAR WITH EMBEDDED CONTROLS
+		AddCameraPresetToolbar(BodyContainer, includeBack: true, includeLightingToggle: true);
+
+		// ROW 1: MODEL PICKER
 		var modelRow = new HBoxContainer();
 		modelRow.AddThemeConstantOverride("separation", 6);
 
@@ -109,9 +94,6 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 			}
 		};
 		modelRow.AddChild(_optModelPicker);
-
-		AddButton(modelRow, "⟲", () => ResetCameraDefault(), "Reset camera", 10, new Vector2(26, 24));
-		AddButton(modelRow, "☀️", () => ToggleLighting(), "Toggle light angle", 10, new Vector2(26, 24));
 
 		BodyContainer.AddChild(modelRow);
 
@@ -557,7 +539,7 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 	{
 		_simRoot = new Node3D();
 		_simRoot.Name = "SimRoot";
-		_subViewport.AddChild(_simRoot);
+		PreviewSubViewport.AddChild(_simRoot);
 
 		_currentModelRoot = new Node3D();
 		_currentModelRoot.Name = "ModelRoot";
@@ -665,93 +647,11 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 	private void CenterAndFrameNode(Node3D targetNode)
 	{
 		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
-		_targetPosition = aabb.Position + aabb.Size * 0.5f;
+		TargetPosition = aabb.Position + aabb.Size * 0.5f;
 		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-		_cameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
-		_defaultDistance = _cameraDistance;
+		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
+		DefaultDistance = CameraDistance;
 		UpdateCameraTransform();
-	}
-
-	private void ToggleLighting()
-	{
-		if (_light != null)
-		{
-			_light.RotationDegrees = new Vector3(
-				(_light.RotationDegrees.X + 25f) % 90f,
-				(_light.RotationDegrees.Y + 60f) % 360f,
-				0
-			);
-		}
-	}
-
-	private void ResetCameraDefault()
-	{
-		_cameraYaw = _defaultYaw;
-		_cameraPitch = _defaultPitch;
-		_cameraDistance = _defaultDistance;
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-		float x = _cameraDistance * Mathf.Cos(_cameraPitch) * Mathf.Sin(_cameraYaw);
-		float y = _cameraDistance * Mathf.Sin(_cameraPitch);
-		float z = _cameraDistance * Mathf.Cos(_cameraPitch) * Mathf.Cos(_cameraYaw);
-
-		Vector3 newPos = _targetPosition + new Vector3(x, y, z);
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mb)
-		{
-			if (mb.ButtonIndex == MouseButton.Right)
-			{
-				_isOrbiting = mb.Pressed;
-				_lastMousePosition = mb.Position;
-			}
-			else if (mb.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mb.Pressed;
-				_lastMousePosition = mb.Position;
-			}
-			else if (mb.ButtonIndex == MouseButton.WheelUp)
-			{
-				_cameraDistance = Mathf.Max(1.0f, _cameraDistance - 0.4f);
-				UpdateCameraTransform();
-			}
-			else if (mb.ButtonIndex == MouseButton.WheelDown)
-			{
-				_cameraDistance = Mathf.Min(40.0f, _cameraDistance + 0.4f);
-				UpdateCameraTransform();
-			}
-		}
-		else if (@event is InputEventMouseMotion mm)
-		{
-			Vector2 delta = mm.Position - _lastMousePosition;
-			_lastMousePosition = mm.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch = Mathf.Clamp(_cameraPitch + delta.Y * 0.01f, Mathf.DegToRad(-80.0f), Mathf.DegToRad(85.0f));
-				UpdateCameraTransform();
-			}
-			else if (_isPanning)
-			{
-				Vector3 right = _camera.Transform.Basis.X;
-				Vector3 up = _camera.Transform.Basis.Y;
-				_targetPosition -= (right * delta.X - up * delta.Y) * (_cameraDistance * 0.002f);
-				UpdateCameraTransform();
-			}
-		}
 	}
 
 	protected override void OnApply()

@@ -156,6 +156,7 @@ public partial class MapEditorHUD : Control
 	private List<string> _swatchPaths = new List<string>();
 	private List<string> _swatchDisplayNames = new List<string>();
 	private List<Color> _swatchColors = new List<Color>();
+	private ScrollContainer _scrollSwatches;
 	private Control _gridSwatches;
 	private Button _btnReplaceTexture;
 
@@ -1171,7 +1172,24 @@ public partial class MapEditorHUD : Control
 			}
 		}, 11, "Globally swap grass/dirt texture assignment indices (X)");
 
-		_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
+		_scrollSwatches = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches");
+		_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches/GridSwatches")
+			?? GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
+
+		if (_gridSwatches != null && _scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
+		{
+			int gridIndex = _gridSwatches.GetIndex();
+			parentVBox.RemoveChild(_gridSwatches);
+			_scrollSwatches = new ScrollContainer();
+			_scrollSwatches.Name = "ScrollSwatches";
+			_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+			_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+			_scrollSwatches.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			_scrollSwatches.AddChild(_gridSwatches);
+			parentVBox.AddChild(_scrollSwatches);
+			parentVBox.MoveChild(_scrollSwatches, gridIndex);
+		}
+
 		SetupTextureSwatches(true);
 
 		_btnReplaceTexture = new Button();
@@ -7793,9 +7811,24 @@ public partial class MapEditorHUD : Control
 
 			if (_gridSwatches != null)
 			{
+				if (_scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
+				{
+					int gridIndex = _gridSwatches.GetIndex();
+					parentVBox.RemoveChild(_gridSwatches);
+					_scrollSwatches = new ScrollContainer();
+					_scrollSwatches.Name = "ScrollSwatches";
+					_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+					_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+					_scrollSwatches.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+					_scrollSwatches.AddChild(_gridSwatches);
+					parentVBox.AddChild(_scrollSwatches);
+					parentVBox.MoveChild(_scrollSwatches, gridIndex);
+				}
+
+				int totalColumns = 6;
 				if (_gridSwatches is GridContainer gridSwatchesContainer)
 				{
-					gridSwatchesContainer.Columns = 6;
+					gridSwatchesContainer.Columns = totalColumns;
 				}
 				foreach (Node child in _gridSwatches.GetChildren())
 				{
@@ -7804,6 +7837,7 @@ public partial class MapEditorHUD : Control
 				}
 				_swatchButtons.Clear();
 
+				int visibleCount = 0;
 				for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)
 				{
 					var slot = slots[i];
@@ -7814,6 +7848,7 @@ public partial class MapEditorHUD : Control
 					btn.ExpandIcon = true;
 					btn.FocusMode = FocusModeEnum.None;
 					btn.CustomMinimumSize = new Vector2(40, 40);
+					btn.Set("icon_max_width", 0);
 					btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 					btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 					btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -7821,6 +7856,7 @@ public partial class MapEditorHUD : Control
 					if (!slot.IsFiller && !string.IsNullOrEmpty(slot.BaseName))
 					{
 						btn.Visible = true;
+						visibleCount++;
 						Texture2D tex = GetSwatchTexture(slotIndex);
 						if (tex != null)
 						{
@@ -7875,6 +7911,29 @@ public partial class MapEditorHUD : Control
 
 					_gridSwatches.AddChild(btn);
 					_swatchButtons.Add(btn);
+				}
+
+				const int maxVisibleSwatchesBeforeScroll = 36;
+				int numRows = (int)MathF.Ceiling((float)visibleCount / totalColumns);
+				if (numRows < 1) numRows = 1;
+				int maxRows = maxVisibleSwatchesBeforeScroll / totalColumns;
+				int displayedRows = Math.Min(numRows, maxRows);
+
+				float rowHeight = 40f;
+				float vSeparation = 6f;
+				if (_gridSwatches is GridContainer gc && gc.HasThemeConstantOverride("v_separation"))
+				{
+					vSeparation = gc.GetThemeConstant("v_separation");
+				}
+				float targetHeight = displayedRows * rowHeight + Math.Max(0, displayedRows - 1) * vSeparation;
+
+				if (_scrollSwatches != null)
+				{
+					_scrollSwatches.CustomMinimumSize = new Vector2(0, targetHeight);
+					_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+					_scrollSwatches.VerticalScrollMode = visibleCount > maxVisibleSwatchesBeforeScroll 
+						? ScrollContainer.ScrollMode.Auto 
+						: ScrollContainer.ScrollMode.Disabled;
 				}
 			}
 		}

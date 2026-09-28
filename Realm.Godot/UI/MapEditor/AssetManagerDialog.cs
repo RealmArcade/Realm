@@ -16,12 +16,8 @@ using Realm.Shared.Audio;
 using Realm.Shared.Metadata;
 using Realm.Godot.Services;
 
-public partial class AssetManagerDialog : FloatingDialogBase
+public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 	private AnimatedSprite3D _vfxSprite;
@@ -74,18 +70,6 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	private string _currentPreviewAssetKey = "";
 	private string _currentPreviewAssetCategory = "";
 
-	private float _defaultDistance = 5.0f;
-	private float _cameraDistance = 5.0f;
-	private float _defaultYaw = Mathf.DegToRad(45.0f);
-	private float _defaultPitch = Mathf.DegToRad(25.0f);
-	private float _cameraYaw = Mathf.DegToRad(45.0f);
-	private float _cameraPitch = Mathf.DegToRad(25.0f);
-	private Vector3 _targetPosition = Vector3.Zero;
-
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-
 	public AssetManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Map Assets Manager & Importer"), new Vector2(720, 780))
 	{
@@ -95,6 +79,15 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_textureEditDialog = new TerrainTextureEditDialog(hud);
 		_decalEditDialog = new DecalSettingsDialog(hud);
 		_shaderEditDialog = new ShaderEditorDialog(hud);
+
+		DefaultDistance = 5.0f;
+		CameraDistance = 5.0f;
+		DefaultYaw = Mathf.DegToRad(45.0f);
+		DefaultPitch = Mathf.DegToRad(25.0f);
+		CameraYaw = Mathf.DegToRad(45.0f);
+		CameraPitch = Mathf.DegToRad(25.0f);
+		DefaultTargetPosition = Vector3.Zero;
+		TargetPosition = DefaultTargetPosition;
 
 		_audioPlayer = new AudioStreamPlayer();
 		_audioPlayer.Finished += OnAudioFinished;
@@ -116,9 +109,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		BodyContainer.AddChild(previewStack);
 
 		// 3D Viewport
-		_viewportContainer = Add3DViewportContainer(previewStack, new Vector2(360, 180), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
+		Add3DPreviewViewport(previewStack, new Vector2(360, 180));
 
 		Setup3DEnvironment();
 
@@ -181,23 +172,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		previewStack.AddChild(_previewAudioContainer);
 
 		// 2. CAMERA PRESETS BAR
-		_cameraPresetRow = new HBoxContainer();
-		_cameraPresetRow.AddThemeConstantOverride("separation", 4);
-
-		var lblPreset = new Label();
-		lblPreset.Text = TranslationServer.Translate("Camera:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 10);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_cameraPresetRow.AddChild(lblPreset);
-
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Front"), () => SetCameraPreset(0f, 15f), "Front view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Side"), () => SetCameraPreset(90f, 15f), "Side view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Back"), () => SetCameraPreset(180f, 15f), "Back view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 25f), "Isometric view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, "\uf0e2 " + TranslationServer.Translate("Reset"), () => ResetCameraDefault(), "Reset camera", 10, new Vector2(0, 22));
-
-		BodyContainer.AddChild(_cameraPresetRow);
+		_cameraPresetRow = AddCameraPresetToolbar(BodyContainer, includeBack: true);
 
 		// 3. RANIM BASE MODEL DROPDOWN ROW (Visible for .ranim and shaders)
 		_ranimBaseModelRow = new HBoxContainer();
@@ -366,10 +341,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 	private void Setup3DEnvironment()
 	{
-		if (_subViewport == null) return;
+		if (PreviewSubViewport == null) return;
 
 		_simRoot = new Node3D();
-		_subViewport.AddChild(_simRoot);
+		PreviewSubViewport.AddChild(_simRoot);
 
 		_currentModelRoot = new Node3D();
 		_simRoot.AddChild(_currentModelRoot);
@@ -1021,7 +996,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		if (IsRmeshCategory(category, out string rmeshSub) || category == "animations" || category == "vfx_spritesheets" || category == "shaders")
 		{
-			_viewportContainer.Visible = true;
+			PreviewViewportContainer.Visible = true;
 			_preview2DContainer.Visible = false;
 			_previewAudioContainer.Visible = false;
 			if (_cameraPresetRow != null) _cameraPresetRow.Visible = (IsRmeshCategory(category, out _) || category == "animations" || category == "shaders");
@@ -1045,7 +1020,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 		else if (category == "sfx" || category == "music")
 		{
-			_viewportContainer.Visible = false;
+			PreviewViewportContainer.Visible = false;
 			_preview2DContainer.Visible = false;
 			_previewAudioContainer.Visible = true;
 			if (_cameraPresetRow != null) _cameraPresetRow.Visible = false;
@@ -1055,7 +1030,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 		else
 		{
-			_viewportContainer.Visible = false;
+			PreviewViewportContainer.Visible = false;
 			_preview2DContainer.Visible = true;
 			_previewAudioContainer.Visible = false;
 			if (_cameraPresetRow != null) _cameraPresetRow.Visible = false;
@@ -1397,10 +1372,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			_vfxSprite.Play("play");
 		}
 
-		_defaultDistance = 3.5f;
-		_defaultYaw = 0f;
-		_defaultPitch = 0f;
-		_targetPosition = Vector3.Zero;
+		DefaultDistance = 3.5f;
+		DefaultYaw = 0f;
+		DefaultPitch = 0f;
+		DefaultTargetPosition = Vector3.Zero;
 		ResetCameraDefault();
 	}
 
@@ -1805,12 +1780,12 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			Vector3 center = aabb.Position + aabb.Size * 0.5f;
 			root.Position = -center;
 			float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-			_defaultDistance = Mathf.Max(2.5f, maxDim * 2.2f);
+			DefaultDistance = Mathf.Max(2.5f, maxDim * 2.2f);
 		}
 		else
 		{
 			root.Position = Vector3.Zero;
-			_defaultDistance = 5.0f;
+			DefaultDistance = 5.0f;
 		}
 
 		ResetCameraDefault();
@@ -4149,102 +4124,6 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		using var sha = SHA256.Create();
 		byte[] hash = sha.ComputeHash(bytes);
 		return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mouseButton)
-		{
-			if (mouseButton.ButtonIndex == MouseButton.Left)
-			{
-				_isOrbiting = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
-			{
-				ZoomCamera(1.0f);
-			}
-		}
-		else if (@event is InputEventMouseMotion mouseMotion)
-		{
-			Vector2 delta = mouseMotion.Position - _lastMousePosition;
-			_lastMousePosition = mouseMotion.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (_isPanning && _camera != null)
-			{
-				Vector3 camRight = _camera.GlobalTransform.Basis.X;
-				Vector3 camUp = _camera.GlobalTransform.Basis.Y;
-				float panSpeed = _cameraDistance * 0.0025f;
-				_targetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
-		}
-	}
-
-	private void ZoomCamera(float direction)
-	{
-		float factor = direction > 0 ? 1.15f : 0.85f;
-		_cameraDistance = Mathf.Clamp(_cameraDistance * factor, _defaultDistance * 0.2f, _defaultDistance * 4.0f);
-		UpdateCameraTransform();
-	}
-
-	public void SetCameraPreset(float yawDegrees, float pitchDegrees)
-	{
-		_cameraYaw = Mathf.DegToRad(yawDegrees);
-		_cameraPitch = Mathf.DegToRad(pitchDegrees);
-		_targetPosition = Vector3.Zero;
-		UpdateCameraTransform();
-	}
-
-	public void ResetCameraDefault()
-	{
-		_cameraDistance = _defaultDistance;
-		_targetPosition = Vector3.Zero;
-		_cameraYaw = _defaultYaw;
-		_cameraPitch = _defaultPitch;
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-
-		_cameraPitch = Mathf.Clamp(_cameraPitch, -1.45f, 1.45f);
-
-		float cosPitch = Mathf.Cos(_cameraPitch);
-		float sinPitch = Mathf.Sin(_cameraPitch);
-		float cosYaw = Mathf.Cos(_cameraYaw);
-		float sinYaw = Mathf.Sin(_cameraYaw);
-
-		Vector3 offset = new Vector3(
-			sinYaw * cosPitch,
-			sinPitch,
-			cosYaw * cosPitch
-		) * _cameraDistance;
-
-		Vector3 newPos = _targetPosition + offset;
-		_camera.Position = newPos;
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
 	}
 
 	public override void CloseDialog()

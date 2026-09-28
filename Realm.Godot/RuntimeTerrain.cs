@@ -969,7 +969,7 @@ vec3 get_active_weights(float layer, vec3 weights) {
 	return weights;
 }
 
-vec4 sample_triplanar_layer(sampler2DArray tex_array, float layer, vec2 uv_x, vec2 uv_y, vec2 uv_z, vec2 dx_x, dy_x, vec2 dx_y, vec2 dy_y, vec2 dx_z, vec2 dy_z, vec3 weights, bool is_vector_data) {
+vec4 sample_triplanar_layer(sampler2DArray tex_array, float layer, vec2 uv_x, vec2 uv_y, vec2 uv_z, vec2 dx_x, vec2 dy_x, vec2 dx_y, vec2 dy_y, vec2 dx_z, vec2 dy_z, vec3 weights, bool is_vector_data) {
 	int layer_idx = int(clamp(round(layer), 0.0, 255.0));
 	vec4 params = swatch_params[layer_idx];
 	float tile_mode = params.x;
