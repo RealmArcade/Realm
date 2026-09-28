@@ -876,8 +876,9 @@ public class MapUpgradeService
 				userDataDir = Path.Combine(appData, "Godot", "app_userdata", "Realm");
 			}
 
-			string upgradeBackupsRoot = Path.Combine(userDataDir, "map_upgrades");
-			string targetBackupDir = Path.Combine(upgradeBackupsRoot, $"{loadedFolderName}_{timestamp}");
+			string fullUserDataDir = Path.GetFullPath(userDataDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			string upgradeBackupsRoot = Path.GetFullPath(Path.Combine(fullUserDataDir, "map_upgrades")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			string targetBackupDir = Path.GetFullPath(Path.Combine(upgradeBackupsRoot, $"{loadedFolderName}_{timestamp}")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
 			CopyDirectoryContentsSafe(mapDirectory, targetBackupDir, upgradeBackupsRoot);
 		}
@@ -892,9 +893,12 @@ public class MapUpgradeService
 		var source = new DirectoryInfo(sourceDir);
 		if (!source.Exists) return;
 
+		string normalizedTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string? normalizedBackupsRoot = !string.IsNullOrEmpty(backupsRoot) ? Path.GetFullPath(backupsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) : null;
+
 		var excludedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 		{
-			".git", "bin", "obj", ".godot", ".vs", ".vscode", "map_upgrades", "map_backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache"
+			".git", "bin", "obj", ".godot", ".vs", ".vscode", ".idea", "map_upgrades", "map_backups", "backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache"
 		};
 
 		Directory.CreateDirectory(targetDir);
@@ -909,9 +913,27 @@ public class MapUpgradeService
 		foreach (var dir in source.GetDirectories())
 		{
 			if (excludedFolders.Contains(dir.Name)) continue;
-			if (!string.IsNullOrEmpty(backupsRoot) &&
-				(string.Equals(dir.FullName, backupsRoot, StringComparison.OrdinalIgnoreCase) ||
-				 dir.FullName.StartsWith(backupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+			if (dir.Name.StartsWith("backup_", StringComparison.OrdinalIgnoreCase)) continue;
+
+			string subDirFull = Path.GetFullPath(dir.FullName).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+			if (subDirFull.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
+				subDirFull.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
+				subDirFull.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
+			{
+				continue;
+			}
+
+			if (!string.IsNullOrEmpty(normalizedBackupsRoot) &&
+				(string.Equals(subDirFull, normalizedBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
+				 subDirFull.StartsWith(normalizedBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+			{
+				continue;
+			}
+
+			if (string.Equals(subDirFull, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
+				subDirFull.StartsWith(normalizedTarget + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+				normalizedTarget.StartsWith(subDirFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
 			{
 				continue;
 			}

@@ -3350,7 +3350,15 @@ public partial class MapEditorHUD : Control
 			normalized.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.godot/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".godot", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".idea/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.idea/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".idea", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/bin/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-			normalized.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("obj", StringComparison.OrdinalIgnoreCase))
+			normalized.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith("map_backups/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/map_backups/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("map_backups", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith("map_upgrades/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/map_upgrades/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("map_upgrades", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith("backups/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/backups/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("backups", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.backups/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".backups", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".dotnet/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.dotnet/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".dotnet", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".wasi/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.wasi/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".wasi", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.sidecarcache/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".sidecarcache", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".cache/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.cache/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".cache", StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}
