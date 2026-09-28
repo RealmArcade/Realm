@@ -1,6 +1,7 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace Realm.MapAPI;
 
@@ -21,11 +22,12 @@ public static class SaveSignatureHelper
     /// <returns>A lowercase hexadecimal signature string.</returns>
     public static string ComputeSignature(string mapName, string playerName, int dataVersion, string payloadJson)
     {
+        string normalizedPayload = NormalizeJson(payloadJson);
         string keyString = $"{SaltPrefix}{mapName.Trim().ToLowerInvariant()}:{playerName.Trim().ToLowerInvariant()}";
         byte[] keyBytes = Encoding.UTF8.GetBytes(keyString);
 
         using var hmac = new HMACSHA256(keyBytes);
-        string message = $"{dataVersion}:{payloadJson}";
+        string message = $"{dataVersion}:{normalizedPayload}";
         byte[] hashBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(message));
 
         return Convert.ToHexStringLower(hashBytes);
@@ -49,5 +51,28 @@ public static class SaveSignatureHelper
 
         string expected = ComputeSignature(mapName, playerName, dataVersion, payloadJson);
         return string.Equals(expected, signature.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Normalizes a JSON string into a compact, canonical representation for consistent cryptographic hashing.
+    /// </summary>
+    /// <param name="json">The input JSON string.</param>
+    /// <returns>A normalized canonical JSON string.</returns>
+    public static string NormalizeJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(doc.RootElement);
+        }
+        catch
+        {
+            return json.Trim();
+        }
     }
 }

@@ -72,7 +72,7 @@ interface game-api {
     play-warning-sound: func();
     random-float: func(min: f32, max: f32) -> f32;
     random-int: func(min: s32, max: s32) -> s32;
-    read-saved-data: func(file-name: string) -> string;
+    read-saved-data: func(file-name: string, source-map-name: string) -> string;
     register-ability: func(ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
     remove-buff: func(unit-id: s32, buff-id: string);

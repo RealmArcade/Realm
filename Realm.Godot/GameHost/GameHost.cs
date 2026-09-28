@@ -2182,9 +2182,10 @@ public class {mapName} : IMapScript
 			.WriteSavedData(mapNameOnly, fileName, content);
 	}
 
-	string IGameAPI.ReadSavedData(string fileName)
+	string IGameAPI.ReadSavedData(string fileName, string sourceMapName)
 	{
-		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(ActiveMapName);
+		string targetMap = !string.IsNullOrWhiteSpace(sourceMapName) ? sourceMapName : ActiveMapName;
+		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(targetMap);
 		return (_mapSaveDataService ??= ServiceLocator.TryGet<Realm.Godot.Services.MapSaveDataService>() ?? new Realm.Godot.Services.MapSaveDataService())
 			.ReadSavedData(mapNameOnly, fileName);
 	}

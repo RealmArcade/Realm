@@ -72,7 +72,7 @@ interface game-api {
     play-warning-sound: func();
     random-float: func(min: f32, max: f32) -> f32;
     random-int: func(min: s32, max: s32) -> s32;
-    read-saved-data: func(file-name: string) -> string;
+    read-saved-data: func(file-name: string, source-map-name: string) -> string;
     register-ability: func(ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
     remove-buff: func(unit-id: s32, buff-id: string);
@@ -83,6 +83,7 @@ interface game-api {
     resource-node-position-z: func(id: s32) -> f32;
     resource-node-resource-amount: func(id: s32) -> f32;
     resource-node-resource-type: func(id: s32) -> string;
+    resource-node-trigger-mesh-impulse: func(id: s32, strength: f32, duration: f32, frequency: f32);
     schedule-repeating-timer: func(interval: f32) -> s32;
     schedule-timer: func(delay: f32) -> s32;
     select-unit: func(unit-id: s32);
@@ -145,8 +146,10 @@ interface game-api {
     stop-countdown-timer: func();
     translate: func(key: string, player-index: s32) -> string;
     trigger-defeat: func();
+    trigger-mesh-impulse: func(unit-id: s32, strength: f32, duration: f32, frequency: f32);
     trigger-player-defeat: func(player-index: s32, reason: string);
     trigger-player-victory: func(player-index: s32);
+    trigger-resource-mesh-impulse: func(node-id: s32, strength: f32, duration: f32, frequency: f32);
     trigger-victory: func();
     unit-add-buff: func(id: s32, buff-id: string, duration: f32);
     unit-add-item: func(id: s32, item-id: string) -> bool;
@@ -193,6 +196,7 @@ interface game-api {
     unit-stop: func(id: s32);
     unit-stun: func(id: s32, duration: f32);
     unit-teleport: func(id: s32, position-x: f32, position-y: f32, position-z: f32);
+    unit-trigger-mesh-impulse: func(id: s32, strength: f32, duration: f32, frequency: f32);
     unit-unit-id: func(id: s32) -> string;
     unit-xp-bounty: func(id: s32) -> f32;
     write-saved-data: func(file-name: string, content: string);

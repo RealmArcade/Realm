@@ -89,7 +89,7 @@ public static class GameAPIExtensions
     /// <param name="result">When this method returns, contains the deserialized data if successful, or default if failed.</param>
     /// <param name="targetVersion">The expected schema version of the target type.</param>
     /// <param name="migrations">Optional migration registry to upgrade older save versions sequentially.</param>
-    /// <param name="mapName">The expected map name, or empty to match any.</param>
+    /// <param name="mapName">The expected map name, or empty to match any. When reading cross-map data from a campaign scenario, specify the source map name.</param>
     /// <param name="playerName">The expected player name, or null to use the primary player name.</param>
     /// <returns><see langword="true"/> if the save data was successfully loaded, verified, and deserialized; otherwise, <see langword="false"/>.</returns>
     public static bool TryLoadData<T>(
@@ -103,7 +103,7 @@ public static class GameAPIExtensions
     {
         result = default;
 
-        string rawContent = api.ReadSavedData(fileName);
+        string rawContent = api.ReadSavedData(fileName, mapName);
         if (string.IsNullOrWhiteSpace(rawContent))
         {
             return false;
@@ -183,7 +183,7 @@ public static class GameAPIExtensions
     /// <param name="fileName">The target file name to read.</param>
     /// <param name="targetVersion">The expected schema version of the target type.</param>
     /// <param name="migrations">Optional migration registry to upgrade older save versions sequentially.</param>
-    /// <param name="mapName">The expected map name, or empty to match any.</param>
+    /// <param name="mapName">The expected map name, or empty to match any. When reading cross-map data from a campaign scenario, specify the source map name.</param>
     /// <param name="playerName">The expected player name, or null to use the primary player name.</param>
     /// <returns>The deserialized data instance, or default if loading fails.</returns>
     public static T? LoadData<T>(
@@ -224,7 +224,7 @@ public static class GameAPIExtensions
     /// <param name="profile">When this method returns, contains the loaded arcade profile if successful.</param>
     /// <param name="targetVersion">The expected schema version.</param>
     /// <param name="migrations">Optional migration registry to upgrade older profile schemas.</param>
-    /// <param name="mapName">The expected map name, or empty to match any.</param>
+    /// <param name="mapName">The expected map name, or empty to match any. When reading cross-map data from a campaign scenario, specify the source map name.</param>
     /// <param name="playerName">The expected player name, or null to match the active player.</param>
     /// <returns><see langword="true"/> if the profile was successfully loaded and verified; otherwise, <see langword="false"/>.</returns>
     public static bool TryLoadArcadeProfile(
@@ -246,7 +246,7 @@ public static class GameAPIExtensions
     /// <param name="fileName">The target file name to read.</param>
     /// <param name="targetVersion">The expected schema version.</param>
     /// <param name="migrations">Optional migration registry to upgrade older profile schemas.</param>
-    /// <param name="mapName">The expected map name, or empty to match any.</param>
+    /// <param name="mapName">The expected map name, or empty to match any. When reading cross-map data from a campaign scenario, specify the source map name.</param>
     /// <param name="playerName">The expected player name, or null to match the active player.</param>
     /// <returns>The loaded arcade profile instance, or null if loading fails.</returns>
     public static ArcadeProfileData? LoadArcadeProfile(

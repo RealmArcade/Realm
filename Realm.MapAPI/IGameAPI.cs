@@ -1017,11 +1017,12 @@ public interface IGameAPI
 
     /// <summary>
     /// Reads string content from a file in the whitelisted, map-specific subfolder in AppData saved_data directory.
-    /// The target location is sandboxed to user://saved_data/{mapName}/{fileName}.
+    /// The target location is sandboxed to user://saved_data/{sourceMapName}/{fileName}.
     /// </summary>
     /// <param name="fileName">The name of the file to read from. Must be a safe, relative file name without directory traversal characters.</param>
+    /// <param name="sourceMapName">The name of the source map to read saved data from, or empty string to use the active map.</param>
     /// <returns>The string content read from the file, or an empty string if the file does not exist or has invalid path characters.</returns>
-    string ReadSavedData(string fileName);
+    string ReadSavedData(string fileName, string sourceMapName = "");
 
     /// <summary>
     /// Triggered when a unit buys or receives an item from a shop or altar.

@@ -24,6 +24,15 @@ public class MapSaveDataService
             mapNameOnly = "DefaultMap";
         }
 
+        if (mapNameOnly.Contains("..") ||
+            mapNameOnly.Contains('/') ||
+            mapNameOnly.Contains('\\') ||
+            mapNameOnly.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            GD.PrintErr($"[Sandbox block] Blocked invalid or traversal map name: '{mapName}'");
+            return;
+        }
+
         string targetDir = Path.Combine(OS.GetUserDataDir(), "saved_data", mapNameOnly);
         Directory.CreateDirectory(targetDir);
 
@@ -70,6 +79,15 @@ public class MapSaveDataService
             mapNameOnly = "DefaultMap";
         }
 
+        if (mapNameOnly.Contains("..") ||
+            mapNameOnly.Contains('/') ||
+            mapNameOnly.Contains('\\') ||
+            mapNameOnly.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            GD.PrintErr($"[Sandbox block] Blocked invalid or traversal map name: '{mapName}'");
+            return string.Empty;
+        }
+
         string targetDir = Path.Combine(OS.GetUserDataDir(), "saved_data", mapNameOnly);
         string targetFile = Path.Combine(targetDir, fileName);
 
@@ -93,9 +111,13 @@ public class MapSaveDataService
         }
 
         string mapNameOnly = Path.GetFileNameWithoutExtension(mapName);
-        if (string.IsNullOrWhiteSpace(mapNameOnly))
+        if (string.IsNullOrWhiteSpace(mapNameOnly) ||
+            mapNameOnly.Contains("..") ||
+            mapNameOnly.Contains('/') ||
+            mapNameOnly.Contains('\\') ||
+            mapNameOnly.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
-            mapNameOnly = "DefaultMap";
+            return false;
         }
 
         string targetFile = Path.Combine(OS.GetUserDataDir(), "saved_data", mapNameOnly, fileName);
