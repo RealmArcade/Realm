@@ -3240,30 +3240,7 @@ public partial class MapEditorHUD : Control
 
 	private static void CopyFileClearingReadOnly(string sourceFile, string targetFile)
 	{
-		if (System.IO.File.Exists(targetFile))
-		{
-			var attrs = System.IO.File.GetAttributes(targetFile);
-			if ((attrs & System.IO.FileAttributes.ReadOnly) != 0)
-			{
-				System.IO.File.SetAttributes(targetFile, attrs & ~System.IO.FileAttributes.ReadOnly);
-			}
-		}
-
-		// A previous WASM build may still be releasing the target file; retry briefly
-		// so transient file locks do not abort the whole Test copy.
-		const int maxAttempts = 10;
-		for (int attempt = 0; ; attempt++)
-		{
-			try
-			{
-				System.IO.File.Copy(sourceFile, targetFile, true);
-				return;
-			}
-			catch (System.IO.IOException) when (attempt < maxAttempts - 1)
-			{
-				System.Threading.Thread.Sleep(250);
-			}
-		}
+		PathUtils.CopyFileClearingReadOnly(sourceFile, targetFile);
 	}
 
 	private void CopyFolderToTempWorkspace(string sourceFolder)
@@ -3275,7 +3252,7 @@ public partial class MapEditorHUD : Control
 		}
 		
 		var allFiles = System.IO.Directory.GetFiles(sourceFolder, "*", System.IO.SearchOption.AllDirectories);
-		var filesToCopy = new List<(string Source, string Target)>(allFiles.Length);
+		var filesToProcess = new List<(string Source, string Target, bool IsMutable)>(allFiles.Length);
 		var createdDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var file in allFiles)
@@ -3289,12 +3266,19 @@ public partial class MapEditorHUD : Control
 			{
 				System.IO.Directory.CreateDirectory(targetDir);
 			}
-			filesToCopy.Add((file, targetFile));
+			filesToProcess.Add((file, targetFile, PathUtils.IsMutableMapFileType(relativePath)));
 		}
 
-		System.Threading.Tasks.Parallel.ForEach(filesToCopy, pair =>
+		System.Threading.Tasks.Parallel.ForEach(filesToProcess, item =>
 		{
-			CopyFileClearingReadOnly(pair.Source, pair.Target);
+			if (item.IsMutable)
+			{
+				PathUtils.CopyFileClearingReadOnly(item.Source, item.Target);
+			}
+			else
+			{
+				PathUtils.LinkOrCopyFile(item.Source, item.Target, preferHardLink: true);
+			}
 		});
 
 		MapWorkspaceService.EnsureWitFile(_tempWorkspacePath);
@@ -3331,7 +3315,7 @@ public partial class MapEditorHUD : Control
 
 		System.Threading.Tasks.Parallel.ForEach(filesToCopy, pair =>
 		{
-			CopyFileClearingReadOnly(pair.Source, pair.Target);
+			PathUtils.CopyFileClearingReadOnly(pair.Source, pair.Target);
 		});
 		
 		if (OperatingSystem.IsWindows())
