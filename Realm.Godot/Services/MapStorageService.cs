@@ -472,7 +472,7 @@ public class MapStorageService
         return await distClient.DownloadMapPackageFromRegistryAsync(mapId, serverUrl, progressCallback, cancellationToken);
     }
 
-    public async Task<bool> ExportMapAsync(string sourceDirectory, string destinationRmapPath, int compressionLevel = 1)
+    public async Task<bool> ExportMapAsync(string sourceDirectory, string destinationRmapPath, Action<float, string>? progressCallback = null, int compressionLevel = 1)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
         {
@@ -482,7 +482,11 @@ public class MapStorageService
         try
         {
             MapWorkspaceService.EnsureLicenseFile(sourceDirectory);
-            await Task.Run(() => MapArchiveHelper.CreateRmapArchive(sourceDirectory, destinationRmapPath, compressionLevel: compressionLevel));
+            await Task.Run(() => MapArchiveHelper.CreateRmapArchive(
+                sourceDirectory,
+                destinationRmapPath,
+                progressCallback: progressCallback,
+                compressionLevel: compressionLevel));
             return true;
         }
         catch (Exception ex)
