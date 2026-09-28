@@ -819,7 +819,6 @@ public partial class MapEditorHUD : Control
 			if (GameHost.Instance != null)
 			{
 				var res = GameHost.Instance.CycleTimeOfDay();
-				UpdateLightingTuningSlidersFromPhase(res.TimeOfDayIndex);
 				string timeName = GameHost.Instance.EnvironmentService?.GetTimeOfDayName(res.TimeOfDayIndex) ?? "Day";
 				string icon = res.TimeOfDayIndex switch
 				{
@@ -11299,43 +11298,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnHeaderLightingTuning;
 	private VBoxContainer _contentLightingTuning;
 
-	private bool _tuneOverrideDayNight = false;
-
-	private float _tuneSunPitch = 55.0f;
-	private float _tuneSunYaw = 20.0f;
-	private float _tuneSunEnergy = 3.20f;
-	private float _tuneSunR = 1.000f;
-	private float _tuneSunG = 0.957f;
-	private float _tuneSunB = 0.878f;
-
-	private float _tuneAmbientEnergy = 2.00f;
-	private float _tuneAmbientR = 0.400f;
-	private float _tuneAmbientG = 0.600f;
-	private float _tuneAmbientB = 0.850f;
-
-	private bool _tuneFogEnabled = true;
-	private float _tuneFogDensity = 0.0150f;
-	private float _tuneFogR = 0.080f;
-	private float _tuneFogG = 0.100f;
-	private float _tuneFogB = 0.150f;
-
-	private bool _tuneSsaoEnabled = true;
-	private float _tuneSsaoRadius = 1.80f;
-	private float _tuneSsaoIntensity = 0.80f;
-
-	private float _tuneExposure = 1.00f;
-	private float _tuneContrast = 1.00f;
-	private float _tuneSaturation = 1.05f;
-
-	private float _tuneBloomIntensity = 0.60f;
-	private float _tuneBloomThreshold = 0.12f;
-
-	private HSlider _sldSunPitch, _sldSunYaw, _sldSunEnergy, _sldSunR, _sldSunG, _sldSunB;
-	private HSlider _sldShadowPitch, _sldShadowYaw, _sldShadowEnergy, _sldShadowOpacity;
-	private HSlider _sldAmbientEnergy, _sldAmbientR, _sldAmbientG, _sldAmbientB;
-	private HSlider _sldFogDensity, _sldFogR, _sldFogG, _sldFogB;
-	private HSlider _sldSsaoRadius, _sldSsaoIntensity;
-	private HSlider _sldExposure, _sldContrast, _sldSaturation, _sldBloomIntensity, _sldBloomThreshold;
 	private HSlider _sldCliffJitterStrength, _sldCliffJitterScale, _sldCliffRimNoiseStrength;
 	private HSlider _sldHeightBlendSoftness, _sldBlendNoiseStrength, _sldBlendNoiseScale;
 	private float _tuneCliffJitterStrength = 1.0f;
@@ -11373,50 +11335,6 @@ public partial class MapEditorHUD : Control
 		StyleAccordionHeader(_btnHeaderLightingTuning);
 		SetupAccordion(_btnHeaderLightingTuning, _contentLightingTuning, "💡 Lighting Tuning (Live Override)");
 
-		CreateToggleRow(_contentLightingTuning, "Freeze Day/Night Cycle (Live Override)", _tuneOverrideDayNight, val => {
-			_tuneOverrideDayNight = val;
-			ApplyLiveLightingTuning();
-		});
-
-		var btnLog = new Button();
-		btnLog.Text = "📋 LOG / COPY VALUES TO CLIPBOARD";
-		btnLog.CustomMinimumSize = new Vector2(0, 26);
-		btnLog.Pressed += LogLightingTuningValues;
-		_contentLightingTuning.AddChild(btnLog);
-
-		CreateSectionHeader(_contentLightingTuning, "--- SUN (PRIMARY LIGHT) ---");
-		_sldSunPitch = CreateSliderRow(_contentLightingTuning, "Sun Pitch", -90f, 90f, 1f, _tuneSunPitch, val => { _tuneSunPitch = val; ApplyLiveLightingTuning(); });
-		_sldSunYaw = CreateSliderRow(_contentLightingTuning, "Sun Yaw", -180f, 180f, 1f, _tuneSunYaw, val => { _tuneSunYaw = val; ApplyLiveLightingTuning(); });
-		_sldSunEnergy = CreateSliderRow(_contentLightingTuning, "Sun Energy", 0f, 5f, 0.05f, _tuneSunEnergy, val => { _tuneSunEnergy = val; ApplyLiveLightingTuning(); });
-		_sldSunR = CreateSliderRow(_contentLightingTuning, "Sun Red", 0f, 1f, 0.01f, _tuneSunR, val => { _tuneSunR = val; ApplyLiveLightingTuning(); });
-		_sldSunG = CreateSliderRow(_contentLightingTuning, "Sun Green", 0f, 1f, 0.01f, _tuneSunG, val => { _tuneSunG = val; ApplyLiveLightingTuning(); });
-		_sldSunB = CreateSliderRow(_contentLightingTuning, "Sun Blue", 0f, 1f, 0.01f, _tuneSunB, val => { _tuneSunB = val; ApplyLiveLightingTuning(); });
-
-		CreateSectionHeader(_contentLightingTuning, "--- AMBIENT LIGHT ---");
-		_sldAmbientEnergy = CreateSliderRow(_contentLightingTuning, "Amb Energy", 0f, 3f, 0.05f, _tuneAmbientEnergy, val => { _tuneAmbientEnergy = val; ApplyLiveLightingTuning(); });
-		_sldAmbientR = CreateSliderRow(_contentLightingTuning, "Amb Red", 0f, 1f, 0.01f, _tuneAmbientR, val => { _tuneAmbientR = val; ApplyLiveLightingTuning(); });
-		_sldAmbientG = CreateSliderRow(_contentLightingTuning, "Amb Green", 0f, 1f, 0.01f, _tuneAmbientG, val => { _tuneAmbientG = val; ApplyLiveLightingTuning(); });
-		_sldAmbientB = CreateSliderRow(_contentLightingTuning, "Amb Blue", 0f, 1f, 0.01f, _tuneAmbientB, val => { _tuneAmbientB = val; ApplyLiveLightingTuning(); });
-
-		CreateSectionHeader(_contentLightingTuning, "--- ATMOSPHERIC FOG ---");
-		CreateToggleRow(_contentLightingTuning, "Fog Enabled", _tuneFogEnabled, val => { _tuneFogEnabled = val; ApplyLiveLightingTuning(); });
-		_sldFogDensity = CreateSliderRow(_contentLightingTuning, "Fog Density", 0f, 0.03f, 0.0005f, _tuneFogDensity, val => { _tuneFogDensity = val; ApplyLiveLightingTuning(); });
-		_sldFogR = CreateSliderRow(_contentLightingTuning, "Fog Red", 0f, 1f, 0.01f, _tuneFogR, val => { _tuneFogR = val; ApplyLiveLightingTuning(); });
-		_sldFogG = CreateSliderRow(_contentLightingTuning, "Fog Green", 0f, 1f, 0.01f, _tuneFogG, val => { _tuneFogG = val; ApplyLiveLightingTuning(); });
-		_sldFogB = CreateSliderRow(_contentLightingTuning, "Fog Blue", 0f, 1f, 0.01f, _tuneFogB, val => { _tuneFogB = val; ApplyLiveLightingTuning(); });
-
-		CreateSectionHeader(_contentLightingTuning, "--- SSAO (AMBIENT OCCLUSION) ---");
-		CreateToggleRow(_contentLightingTuning, "SSAO Enabled", _tuneSsaoEnabled, val => { _tuneSsaoEnabled = val; ApplyLiveLightingTuning(); });
-		_sldSsaoRadius = CreateSliderRow(_contentLightingTuning, "SSAO Radius", 0.1f, 5f, 0.1f, _tuneSsaoRadius, val => { _tuneSsaoRadius = val; ApplyLiveLightingTuning(); });
-		_sldSsaoIntensity = CreateSliderRow(_contentLightingTuning, "SSAO Intensity", 0f, 6f, 0.1f, _tuneSsaoIntensity, val => { _tuneSsaoIntensity = val; ApplyLiveLightingTuning(); });
-
-		CreateSectionHeader(_contentLightingTuning, "--- POST-PROCESSING ---");
-		_sldExposure = CreateSliderRow(_contentLightingTuning, "Exposure", 0.1f, 3f, 0.02f, _tuneExposure, val => { _tuneExposure = val; ApplyLiveLightingTuning(); });
-		_sldContrast = CreateSliderRow(_contentLightingTuning, "Contrast", 0.5f, 2f, 0.02f, _tuneContrast, val => { _tuneContrast = val; ApplyLiveLightingTuning(); });
-		_sldSaturation = CreateSliderRow(_contentLightingTuning, "Saturation", 0f, 2f, 0.02f, _tuneSaturation, val => { _tuneSaturation = val; ApplyLiveLightingTuning(); });
-		_sldBloomIntensity = CreateSliderRow(_contentLightingTuning, "Bloom Intensity", 0f, 2f, 0.05f, _tuneBloomIntensity, val => { _tuneBloomIntensity = val; ApplyLiveLightingTuning(); });
-		_sldBloomThreshold = CreateSliderRow(_contentLightingTuning, "Bloom Threshold", 0f, 1f, 0.02f, _tuneBloomThreshold, val => { _tuneBloomThreshold = val; ApplyLiveLightingTuning(); });
-
 		CreateSectionHeader(_contentLightingTuning, "--- TERRAIN CLIFFS & SILHOUETTES ---");
 		_sldCliffJitterStrength = CreateSliderRow(_contentLightingTuning, "Cliff Jitter Str", 0f, 2f, 0.02f, _tuneCliffJitterStrength, val => { _tuneCliffJitterStrength = val; ApplyLiveLightingTuning(); });
 		_sldCliffJitterScale = CreateSliderRow(_contentLightingTuning, "Cliff Jitter Scl", 0.01f, 0.5f, 0.005f, _tuneCliffJitterScale, val => { _tuneCliffJitterScale = val; ApplyLiveLightingTuning(); }, "0.00#");
@@ -11427,85 +11345,11 @@ public partial class MapEditorHUD : Control
 		_sldBlendNoiseStrength = CreateSliderRow(_contentLightingTuning, "Blend Noise Str", 0f, 1f, 0.02f, _tuneBlendNoiseStrength, val => { _tuneBlendNoiseStrength = val; ApplyLiveLightingTuning(); });
 		_sldBlendNoiseScale = CreateSliderRow(_contentLightingTuning, "Blend Noise Scl", 0.01f, 0.5f, 0.005f, _tuneBlendNoiseScale, val => { _tuneBlendNoiseScale = val; ApplyLiveLightingTuning(); }, "0.00#");
 
-		UpdateLightingTuningSlidersFromPhase(0);
 		lightingAccordion.Visible = false;
-	}
-
-	public void UpdateLightingTuningSlidersFromPhase(int phaseIndex)
-	{
-		phaseIndex = Math.Clamp(phaseIndex, 0, 3);
-
-		_tuneSunPitch = EnvironmentService.SunPitches[phaseIndex];
-		_tuneSunYaw = EnvironmentService.SunYaws[phaseIndex];
-		_tuneSunEnergy = EnvironmentService.SunEnergies[phaseIndex];
-		_tuneSunR = EnvironmentService.SunColors[phaseIndex].R;
-		_tuneSunG = EnvironmentService.SunColors[phaseIndex].G;
-		_tuneSunB = EnvironmentService.SunColors[phaseIndex].B;
-
-		_tuneAmbientEnergy = EnvironmentService.AmbientEnergies[phaseIndex];
-		_tuneAmbientR = EnvironmentService.AmbientColors[phaseIndex].R;
-		_tuneAmbientG = EnvironmentService.AmbientColors[phaseIndex].G;
-		_tuneAmbientB = EnvironmentService.AmbientColors[phaseIndex].B;
-
-		_tuneFogEnabled = true;
-		_tuneFogDensity = EnvironmentService.FogDensities[phaseIndex];
-		_tuneFogR = EnvironmentService.FogColors[phaseIndex].R;
-		_tuneFogG = EnvironmentService.FogColors[phaseIndex].G;
-		_tuneFogB = EnvironmentService.FogColors[phaseIndex].B;
-
-		_tuneSsaoEnabled = true;
-		_tuneSsaoRadius = EnvironmentService.SsaoRadii[phaseIndex];
-		_tuneSsaoIntensity = EnvironmentService.SsaoIntensities[phaseIndex];
-
-		_tuneExposure = EnvironmentService.Exposures[phaseIndex];
-		_tuneContrast = EnvironmentService.Contrasts[phaseIndex];
-		_tuneSaturation = EnvironmentService.Saturations[phaseIndex];
-
-		_tuneBloomIntensity = EnvironmentService.GlowIntensities[phaseIndex];
-		_tuneBloomThreshold = EnvironmentService.GlowBlooms[phaseIndex];
-
-		if (_sldSunPitch != null) _sldSunPitch.Value = _tuneSunPitch;
-		if (_sldSunYaw != null) _sldSunYaw.Value = _tuneSunYaw;
-		if (_sldSunEnergy != null) _sldSunEnergy.Value = _tuneSunEnergy;
-		if (_sldSunR != null) _sldSunR.Value = _tuneSunR;
-		if (_sldSunG != null) _sldSunG.Value = _tuneSunG;
-		if (_sldSunB != null) _sldSunB.Value = _tuneSunB;
-
-		if (_sldAmbientEnergy != null) _sldAmbientEnergy.Value = _tuneAmbientEnergy;
-		if (_sldAmbientR != null) _sldAmbientR.Value = _tuneAmbientR;
-		if (_sldAmbientG != null) _sldAmbientG.Value = _tuneAmbientG;
-		if (_sldAmbientB != null) _sldAmbientB.Value = _tuneAmbientB;
-
-		if (_sldFogDensity != null) _sldFogDensity.Value = _tuneFogDensity;
-		if (_sldFogR != null) _sldFogR.Value = _tuneFogR;
-		if (_sldFogG != null) _sldFogG.Value = _tuneFogG;
-		if (_sldFogB != null) _sldFogB.Value = _tuneFogB;
-
-		if (_sldSsaoRadius != null) _sldSsaoRadius.Value = _tuneSsaoRadius;
-		if (_sldSsaoIntensity != null) _sldSsaoIntensity.Value = _tuneSsaoIntensity;
-
-		if (_sldExposure != null) _sldExposure.Value = _tuneExposure;
-		if (_sldContrast != null) _sldContrast.Value = _tuneContrast;
-		if (_sldSaturation != null) _sldSaturation.Value = _tuneSaturation;
-
-		if (_sldBloomIntensity != null) _sldBloomIntensity.Value = _tuneBloomIntensity;
-		if (_sldBloomThreshold != null) _sldBloomThreshold.Value = _tuneBloomThreshold;
-
-		if (_sldCliffJitterStrength != null) _sldCliffJitterStrength.Value = _tuneCliffJitterStrength;
-		if (_sldCliffJitterScale != null) _sldCliffJitterScale.Value = _tuneCliffJitterScale;
-		if (_sldCliffRimNoiseStrength != null) _sldCliffRimNoiseStrength.Value = _tuneCliffRimNoiseStrength;
-		if (_sldHeightBlendSoftness != null) _sldHeightBlendSoftness.Value = _tuneHeightBlendSoftness;
-		if (_sldBlendNoiseStrength != null) _sldBlendNoiseStrength.Value = _tuneBlendNoiseStrength;
-		if (_sldBlendNoiseScale != null) _sldBlendNoiseScale.Value = _tuneBlendNoiseScale;
 	}
 
 	private void ApplyLiveLightingTuning()
 	{
-		if (GameHost.Instance == null) return;
-		var host = GameHost.Instance;
-		var worldEnv = host.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
-		var sun = host.GetNodeOrNull<DirectionalLight3D>("DirectionalLight3D");
-
 		if (EditableTerrain.Instance?.Material != null)
 		{
 			EditableTerrain.Instance.CliffJitterStrength = _tuneCliffJitterStrength;
@@ -11521,79 +11365,6 @@ public partial class MapEditorHUD : Control
 			EditableTerrain.Instance.Material.SetShaderParameter("blend_noise_strength", _tuneBlendNoiseStrength);
 			EditableTerrain.Instance.Material.SetShaderParameter("blend_noise_scale", _tuneBlendNoiseScale);
 		}
-
-		if (GameHost.Instance.EnvironmentService != null)
-		{
-			GameHost.Instance.EnvironmentService.OverrideDayNightVisuals = _tuneOverrideDayNight;
-		}
-
-		if (!_tuneOverrideDayNight) return;
-
-		if (sun != null)
-		{
-			sun.RotationDegrees = new Vector3(_tuneSunPitch, _tuneSunYaw, 0f);
-			sun.LightEnergy = _tuneSunEnergy;
-			sun.LightColor = new Color(_tuneSunR, _tuneSunG, _tuneSunB);
-			sun.LightSpecular = 0.5f;
-			sun.DirectionalShadowBlendSplits = true;
-			sun.DirectionalShadowFadeStart = 0.8f;
-			sun.ShadowBias = 0.03f;
-			sun.ShadowNormalBias = 1.2f;
-			GameSettings.ApplyDirectionalLightQuality(sun);
-		}
-
-		if (worldEnv != null && worldEnv.Environment != null)
-		{
-			var env = worldEnv.Environment;
-			env.AmbientLightSource = Godot.Environment.AmbientSource.Color;
-			env.AmbientLightColor = new Color(_tuneAmbientR, _tuneAmbientG, _tuneAmbientB);
-			env.AmbientLightEnergy = _tuneAmbientEnergy;
-
-			GameSettings.ApplyEnvironmentQuality(env, GameSettings.QualityIdx);
-
-			env.FogEnabled = _tuneFogEnabled;
-			env.FogDensity = _tuneFogDensity;
-			env.FogLightColor = new Color(_tuneFogR, _tuneFogG, _tuneFogB);
-
-			env.SsaoEnabled = _tuneSsaoEnabled;
-			env.SsaoRadius = _tuneSsaoRadius;
-			env.SsaoIntensity = _tuneSsaoIntensity;
-
-			env.TonemapExposure = _tuneExposure;
-			env.AdjustmentContrast = _tuneContrast;
-			env.AdjustmentSaturation = _tuneSaturation;
-
-			env.GlowIntensity = _tuneBloomIntensity;
-			env.GlowBloom = _tuneBloomThreshold;
-		}
-	}
-
-	private void LogLightingTuningValues()
-	{
-		string report = $@"
-=== LIVE LIGHTING TUNING VALUES ===
-Sun Pitch: {_tuneSunPitch:F1}°, Yaw: {_tuneSunYaw:F1}°, Energy: {_tuneSunEnergy:F2}, Color: ({_tuneSunR:F3}f, {_tuneSunG:F3}f, {_tuneSunB:F3}f)
-Ambient Energy: {_tuneAmbientEnergy:F2}, Color: ({_tuneAmbientR:F3}f, {_tuneAmbientG:F3}f, {_tuneAmbientB:F3}f) [Hex: #{ColorToHex(_tuneAmbientR, _tuneAmbientG, _tuneAmbientB)}]
-Fog Enabled: {_tuneFogEnabled}, Density: {_tuneFogDensity:F4}, Color: ({_tuneFogR:F3}f, {_tuneFogG:F3}f, {_tuneFogB:F3}f)
-SSAO Enabled: {_tuneSsaoEnabled}, Radius: {_tuneSsaoRadius:F2}, Intensity: {_tuneSsaoIntensity:F2}
-PostProc Exposure: {_tuneExposure:F2}, Contrast: {_tuneContrast:F2}, Saturation: {_tuneSaturation:F2}
-Glow/Bloom Intensity: {_tuneBloomIntensity:F2}, Threshold: {_tuneBloomThreshold:F2}
-Cliff Jitter: Strength={_tuneCliffJitterStrength:F2}, Scale={_tuneCliffJitterScale:F3}
-Cliff Rim Noise: Strength={_tuneCliffRimNoiseStrength:F2}
-Blend Noise: Strength={_tuneBlendNoiseStrength:F2}, Scale={_tuneBlendNoiseScale:F3}
-===================================
-";
-		GD.Print(report);
-		DisplayServer.ClipboardSet(report);
-		ShowFeedback(TranslationServer.Translate("Copied lighting tuning values to clipboard!"));
-	}
-
-	private string ColorToHex(float r, float g, float b)
-	{
-		int ir = Mathf.Clamp((int)(r * 255f), 0, 255);
-		int ig = Mathf.Clamp((int)(g * 255f), 0, 255);
-		int ib = Mathf.Clamp((int)(b * 255f), 0, 255);
-		return $"{ir:X2}{ig:X2}{ib:X2}";
 	}
 
 	private HSlider CreateSliderRow(VBoxContainer parent, string labelText, float min, float max, float step, float initialVal, Action<float> onChanged, string format = "0.0#", float labelWidth = 70f)

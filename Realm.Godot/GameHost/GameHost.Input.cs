@@ -632,7 +632,6 @@ public partial class GameHost
 				if (editorKeyEvent.Keycode == Key.L && !ctrlPressed && !shiftPressed)
 				{
 					var res = CycleTimeOfDay();
-					MapEditorHUD.Instance?.UpdateLightingTuningSlidersFromPhase(res.TimeOfDayIndex);
 					string timeName = EnvironmentService?.GetTimeOfDayName(res.TimeOfDayIndex) ?? "Day";
 					string icon = res.TimeOfDayIndex switch
 					{
