@@ -62,6 +62,12 @@ public class MapMetadata
 	[JsonPropertyName("CustomWaterProfiles")]
 	public List<WaterProfileSaveData> CustomWaterProfiles { get; set; } = new();
 
+	[JsonPropertyName("CustomEnvironmentPresets")]
+	public List<EnvironmentPresetConfig> CustomEnvironmentPresets { get; set; } = new();
+
+	[JsonPropertyName("DefaultEnvironmentPreset")]
+	public string? DefaultEnvironmentPreset { get; set; }
+
 	[JsonPropertyName("TerrainProfiles")]
 	public List<TerrainSwatchProfileData> TerrainProfiles { get; set; } = new();
 
@@ -124,6 +130,24 @@ public class MapMetadata
 
 	public GameHost.UpgradeMetadata? GetUpgrade(string upgradeId) => CustomUpgrades?.FirstOrDefault(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase));
 	public GameHost.UpgradeMetadata? FindUpgrade(string upgradeId) => GetUpgrade(upgradeId);
+
+	public EnvironmentPresetConfig? GetEnvironmentPreset(string presetId) => CustomEnvironmentPresets?.FirstOrDefault(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase));
+	public EnvironmentPresetConfig? FindEnvironmentPreset(string presetId) => GetEnvironmentPreset(presetId);
+
+	public void AddOrUpdateEnvironmentPreset(EnvironmentPresetConfig preset)
+	{
+		if (string.IsNullOrWhiteSpace(preset.Id)) return;
+		CustomEnvironmentPresets ??= new();
+		int idx = CustomEnvironmentPresets.FindIndex(p => string.Equals(p.Id, preset.Id, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) CustomEnvironmentPresets[idx] = preset;
+		else CustomEnvironmentPresets.Add(preset);
+	}
+
+	public bool RemoveEnvironmentPreset(string presetId)
+	{
+		if (CustomEnvironmentPresets == null || string.IsNullOrWhiteSpace(presetId)) return false;
+		return CustomEnvironmentPresets.RemoveAll(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase)) > 0;
+	}
 
 	public void AddOrUpdateUnit(GameHost.UnitMetadata unit)
 	{
@@ -1151,6 +1175,33 @@ public class MetadataService
 	{
 		if (metadata?.CustomVfx == null || string.IsNullOrWhiteSpace(vfxId)) return false;
 		return metadata.CustomVfx.RemoveAll(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase)) > 0;
+	}
+
+	public EnvironmentPresetConfig? GetEnvironmentPreset(MapMetadata metadata, string presetId)
+	{
+		if (metadata?.CustomEnvironmentPresets == null || string.IsNullOrWhiteSpace(presetId)) return null;
+		return metadata.CustomEnvironmentPresets.FirstOrDefault(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase));
+	}
+
+	public void AddOrUpdateEnvironmentPreset(MapMetadata metadata, EnvironmentPresetConfig preset)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(preset.Id)) return;
+		metadata.CustomEnvironmentPresets ??= new();
+		int index = metadata.CustomEnvironmentPresets.FindIndex(p => string.Equals(p.Id, preset.Id, StringComparison.OrdinalIgnoreCase));
+		if (index >= 0)
+		{
+			metadata.CustomEnvironmentPresets[index] = preset;
+		}
+		else
+		{
+			metadata.CustomEnvironmentPresets.Add(preset);
+		}
+	}
+
+	public bool RemoveEnvironmentPreset(MapMetadata metadata, string presetId)
+	{
+		if (metadata?.CustomEnvironmentPresets == null || string.IsNullOrWhiteSpace(presetId)) return false;
+		return metadata.CustomEnvironmentPresets.RemoveAll(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	private static ModelMetadata GetOrCreateModel(MapMetadata metadata, string modelKey)

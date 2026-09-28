@@ -1745,7 +1745,7 @@ public partial class InGameHUD : Control
 		ApplyWeatherEffects(weather);
 	}
 
-	private void ApplyWeatherEffects(string weather)
+	public void ApplyWeatherEffects(string weather)
 	{
 		var worldEnv = (GameHost.Instance != null ? GameHost.Instance.MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") : null);
 		if (worldEnv == null || worldEnv.Environment == null) return;

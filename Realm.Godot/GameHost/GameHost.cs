@@ -2630,6 +2630,53 @@ public class {mapName} : IMapScript
 		DayNightCycleEnabled = enabled;
 	}
 
+	void IGameAPI.SetEnvironmentPreset(string presetId)
+	{
+		Callable.From(() =>
+		{
+			_environmentService?.ApplyPresetById(this, presetId);
+			if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
+			{
+				Rpc(nameof(SyncEnvironmentPresetRpc), presetId, 0f);
+			}
+		}).CallDeferred();
+	}
+
+	void IGameAPI.TransitionEnvironmentPreset(string presetId, float durationSeconds)
+	{
+		Callable.From(() =>
+		{
+			_environmentService?.TransitionToPreset(this, presetId, durationSeconds);
+			if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
+			{
+				Rpc(nameof(SyncEnvironmentPresetRpc), presetId, durationSeconds);
+			}
+		}).CallDeferred();
+	}
+
+	string IGameAPI.GetCurrentEnvironmentPreset()
+	{
+		return _environmentService?.GetCurrentPresetId() ?? "day";
+	}
+
+	void IGameAPI.SetWeather(string weatherType)
+	{
+		Callable.From(() =>
+		{
+			_environmentService?.SetCurrentWeather(weatherType);
+			InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
+			if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
+			{
+				Rpc(nameof(SyncWeatherRpc), weatherType);
+			}
+		}).CallDeferred();
+	}
+
+	string IGameAPI.GetWeather()
+	{
+		return _environmentService?.GetCurrentWeather() ?? "clear";
+	}
+
 	void IGameAPI.SetUnitAnimation(IUnit unit, string animationName)
 	{
 		if (unit is IEcsEntityWrapper wrapper && EcsWorld.IsAlive(wrapper.Entity))
@@ -5133,6 +5180,11 @@ public class {mapName} : IMapScript
 				float progress = state.TimeOfDayTimer / TimeOfDayCycleDuration;
 				UpdateDayNightVisuals(progress);
 			}
+		}
+
+		if (_environmentService != null && _environmentService.IsTransitioning)
+		{
+			_environmentService.UpdateTransition(this, fDelta);
 		}
 
 		UpdateMinimapPings(fDelta);

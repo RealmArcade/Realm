@@ -564,6 +564,26 @@ public partial class GameHost
 		}
 	}
 
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void SyncEnvironmentPresetRpc(string presetId, float durationSeconds)
+	{
+		if (durationSeconds <= 0.001f)
+		{
+			_environmentService?.ApplyPresetById(this, presetId);
+		}
+		else
+		{
+			_environmentService?.TransitionToPreset(this, presetId, durationSeconds);
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void SyncWeatherRpc(string weatherType)
+	{
+		_environmentService?.SetCurrentWeather(weatherType);
+		InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
+	}
+
 	public void HandlePeerReconnected(int oldPeerId, int newPeerId, int slot)
 	{
 		if (!Multiplayer.IsServer()) return;

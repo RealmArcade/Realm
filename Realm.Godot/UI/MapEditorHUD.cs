@@ -218,6 +218,7 @@ public partial class MapEditorHUD : Control
 	private Control _waterModeBox;
 	private OptionButton _optWaterMode;
 	private WaterProfileDialog _waterProfileDialog;
+	private EnvironmentConfigDialog _environmentConfigDialog;
 	private GlobalObjectOverridesDialog _globalOverridesDialog;
 	private AnimationPreviewDialog _animationPreviewDialog;
 	private WeaponVfxDialog _weaponVfxDialog;
@@ -8319,6 +8320,7 @@ public partial class MapEditorHUD : Control
 		_proceduralAnimationStudioDialog = new ProceduralAnimationStudioDialog(this);
 		_authorSignatureDialog = new AuthorSignatureDialog(this);
 		_waterProfileDialog = new WaterProfileDialog(this);
+		_environmentConfigDialog = new EnvironmentConfigDialog(this);
 		RefreshWaterSwatches();
 		ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
 
@@ -11515,5 +11517,33 @@ Blend Noise: Strength={_tuneBlendNoiseStrength:F2}, Scale={_tuneBlendNoiseScale:
 			profilesList.AddRange(WaterProfileSaveData.CreateDefaultProfiles());
 		}
 		_waterProfileDialog?.OpenWithProfiles(profilesList);
+	}
+
+	public void OpenEnvironmentConfigDialog()
+	{
+		if (_environmentConfigDialog == null)
+		{
+			_environmentConfigDialog = new EnvironmentConfigDialog(this);
+		}
+
+		List<EnvironmentPresetConfig> presetsList = null;
+		string defaultPreset = null;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
+		{
+			if (meta.CustomEnvironmentPresets != null && meta.CustomEnvironmentPresets.Count > 0)
+			{
+				presetsList = meta.CustomEnvironmentPresets;
+			}
+			defaultPreset = meta.DefaultEnvironmentPreset;
+		}
+
+		if (presetsList == null || presetsList.Count == 0)
+		{
+			presetsList = GameHost.Instance?.EnvironmentService?.GetPresets().ToList() ?? EnvironmentPresetConfig.CreateDefaultPresets();
+		}
+
+		string currentId = GameHost.Instance?.EnvironmentService?.GetCurrentPresetId() ?? defaultPreset ?? "day";
+		_environmentConfigDialog?.OpenWithPresets(presetsList, currentId, defaultPreset);
 	}
 }

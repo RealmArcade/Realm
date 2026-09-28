@@ -1216,4 +1216,35 @@ public interface IGameAPI
     /// <param name="matchesPerEvaluation">The number of evaluation matches each candidate plays per generation.</param>
     /// <returns>The serialized JSON string of the best evolved bot profile.</returns>
     string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4) => string.Empty;
+
+    /// <summary>
+    /// Sets the active environment lighting, fog, and atmospheric preset immediately without transition interpolation.
+    /// </summary>
+    /// <param name="presetId">The unique identifier of the environment preset configured in map metadata.</param>
+    void SetEnvironmentPreset(string presetId);
+
+    /// <summary>
+    /// Smoothly transitions active environment lighting, fog, SSAO, and post-processing visual settings to the target preset over the specified duration.
+    /// </summary>
+    /// <param name="presetId">The unique identifier of the target environment preset configured in map metadata.</param>
+    /// <param name="durationSeconds">The transition duration in seconds. If 0 or negative, the preset applies immediately.</param>
+    void TransitionEnvironmentPreset(string presetId, float durationSeconds);
+
+    /// <summary>
+    /// Retrieves the unique identifier of the currently active environment preset.
+    /// </summary>
+    /// <returns>The preset identifier string.</returns>
+    string GetCurrentEnvironmentPreset();
+
+    /// <summary>
+    /// Sets the active weather effect condition (e.g., "clear", "rain", "fog", "snow").
+    /// </summary>
+    /// <param name="weatherType">The name of the weather condition.</param>
+    void SetWeather(string weatherType);
+
+    /// <summary>
+    /// Retrieves the name of the currently active weather condition.
+    /// </summary>
+    /// <returns>The weather name string.</returns>
+    string GetWeather();
 }

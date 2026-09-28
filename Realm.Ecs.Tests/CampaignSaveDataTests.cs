@@ -173,6 +173,11 @@ public class CampaignSaveDataTests
         public void TriggerPlayerDefeat(int playerIndex, string reason) { }
         public void TriggerPlayerVictory(int playerIndex) { }
         public void TriggerVictory() { }
+        public void SetEnvironmentPreset(string presetId) { }
+        public void TransitionEnvironmentPreset(string presetId, float durationSeconds) { }
+        public string GetCurrentEnvironmentPreset() => "day";
+        public void SetWeather(string weatherType) { }
+        public string GetWeather() => "clear";
     }
 
     private class TestUnit : IUnit

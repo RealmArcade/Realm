@@ -26,6 +26,7 @@ interface game-api {
     get-coordinate-min-x: func(coordinate-name: string) -> f32;
     get-coordinate-min-y: func(coordinate-name: string) -> f32;
     get-coordinate-min-z: func(coordinate-name: string) -> f32;
+    get-current-environment-preset: func() -> string;
     get-current-population: func() -> s32;
     get-game-elapsed-time: func() -> f32;
     get-gold: func() -> f32;
@@ -52,6 +53,7 @@ interface game-api {
     get-unit-route-state: func(unit-id: s32) -> s32;
     get-units-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
     get-units-owned-by-player: func(player-index: s32) -> list<s32>;
+    get-weather: func() -> string;
     get-wood: func() -> f32;
     get-zone-center-x: func(zone-handle: s32) -> f32;
     get-zone-center-y: func(zone-handle: s32) -> f32;
@@ -96,6 +98,7 @@ interface game-api {
     set-ability-tooltip: func(ability-id: string, tooltip: string);
     set-countdown-timer-label: func(label: string);
     set-day-night-cycle-enabled: func(enabled: bool);
+    set-environment-preset: func(preset-id: string);
     set-gold: func(val: f32);
     set-leaderboard-value: func(label: string, value: string);
     set-leaderboard-visible: func(title: string, visible: bool);
@@ -131,6 +134,7 @@ interface game-api {
     set-unit-scale: func(id: s32, val: f32);
     set-unit-speed: func(id: s32, val: f32);
     set-unit-spell-immune: func(unit-id: s32, immune: bool);
+    set-weather: func(weather-type: string);
     set-wood: func(val: f32);
     shake-camera: func(intensity: f32, duration: f32);
     show-feedback-text: func(text: string, color-x: f32, color-y: f32, color-z: f32);
@@ -144,6 +148,7 @@ interface game-api {
     start-building-placement: func(unit-type-id: string);
     start-countdown-timer: func(duration: f32, label: string);
     stop-countdown-timer: func();
+    transition-environment-preset: func(preset-id: string, duration-seconds: f32);
     translate: func(key: string, player-index: s32) -> string;
     trigger-defeat: func();
     trigger-mesh-impulse: func(unit-id: s32, strength: f32, duration: f32, frequency: f32);
