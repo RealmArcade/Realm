@@ -272,11 +272,11 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 		AddSectionHeader(vBombing, TranslationServer.Translate("Default Pathing Capabilities"));
 		AddDescription(vBombing, TranslationServer.Translate("Automatically assigned to cells painted with this liquid profile:"));
-		_chkPathShallow = AddCheckBox(vBombing, TranslationServer.Translate("Shallow Water Passable"), true, (val) => UpdatePathingMask());
-		_chkPathDeep = AddCheckBox(vBombing, TranslationServer.Translate("Deep Water Passable"), false, (val) => UpdatePathingMask());
-		_chkPathGround = AddCheckBox(vBombing, TranslationServer.Translate("Ground Passable"), false, (val) => UpdatePathingMask());
-		_chkPathBuildable = AddCheckBox(vBombing, TranslationServer.Translate("Buildable Ground"), false, (val) => UpdatePathingMask());
-		_chkPathFlying = AddCheckBox(vBombing, TranslationServer.Translate("Flying Passable"), true, (val) => UpdatePathingMask());
+		_chkPathShallow = AddCheckBox(vBombing, TranslationServer.Translate("Shallow Water"), true, (val) => UpdatePathingMask());
+		_chkPathDeep = AddCheckBox(vBombing, TranslationServer.Translate("Deep Water"), false, (val) => UpdatePathingMask());
+		_chkPathGround = AddCheckBox(vBombing, TranslationServer.Translate("Ground"), false, (val) => UpdatePathingMask());
+		_chkPathBuildable = AddCheckBox(vBombing, TranslationServer.Translate("Buildable"), false, (val) => UpdatePathingMask());
+		_chkPathFlying = AddCheckBox(vBombing, TranslationServer.Translate("Flying"), true, (val) => UpdatePathingMask());
 
 		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural Decal Texture Bombing"));
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered decals placed at liquid elevation during painting:"));

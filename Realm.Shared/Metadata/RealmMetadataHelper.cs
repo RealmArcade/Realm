@@ -108,9 +108,25 @@ public static class RealmMetadataHelper
 	private static readonly Dictionary<string, string[]> ValidAssetTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
 	{
 		[".rtex"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".png"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".jpg"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".jpeg"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".webp"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".dds"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".tga"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".bmp"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
 		[".rmesh"] = new[] { "Character", "Building", "Prop", "Item" },
+		[".glb"] = new[] { "Character", "Building", "Prop", "Item" },
+		[".gltf"] = new[] { "Character", "Building", "Prop", "Item" },
+		[".fbx"] = new[] { "Character", "Building", "Prop", "Item" },
+		[".obj"] = new[] { "Character", "Building", "Prop", "Item" },
 		[".ranim"] = new[] { "Animation" },
-		[".raud"] = new[] { "Music", "SoundEffect" }
+		[".raud"] = new[] { "Music", "SoundEffect" },
+		[".ogg"] = new[] { "Music", "SoundEffect" },
+		[".wav"] = new[] { "Music", "SoundEffect" },
+		[".mp3"] = new[] { "Music", "SoundEffect" },
+		[".flac"] = new[] { "Music", "SoundEffect" },
+		[".aac"] = new[] { "Music", "SoundEffect" }
 	};
 
 	public static string[] GetValidAssetTypesForExtension(string extensionOrPath)
@@ -135,11 +151,11 @@ public static class RealmMetadataHelper
 		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
 		if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
 
-		if (ext is ".rtex")
+		if (ext is ".rtex" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".dds" or ".tga" or ".bmp")
 		{
 			if (norm.Contains("radial")) { canonicalType = "vfx_radial"; return true; }
 			if (norm.Contains("vertical")) { canonicalType = "vfx_vertical"; return true; }
-			if (norm.Contains("tile") || norm.Contains("terrain")) { canonicalType = "Terrain"; return true; }
+			if (norm.Contains("tile") || norm.Contains("terrain") || norm.Contains("texture") || norm.Contains("splat") || norm.Contains("ground") || norm.Contains("cliff") || norm.Contains("grass") || norm.Contains("dirt") || norm.Contains("rock") || norm.Contains("sand") || norm.Contains("snow") || norm.Contains("mud")) { canonicalType = "Terrain"; return true; }
 			if (norm.Contains("decal")) { canonicalType = "Decal"; return true; }
 			if (norm.Contains("icon")) { canonicalType = "Icon"; return true; }
 			if (norm.Contains("noise")) { canonicalType = "Noise"; return true; }
@@ -148,12 +164,12 @@ public static class RealmMetadataHelper
 			if (norm.Contains("sprite") || norm.Contains("vfx") || norm.Contains("spell")) { canonicalType = "Spritesheet"; return true; }
 			return false;
 		}
-		else if (ext is ".rmesh")
+		else if (ext is ".rmesh" or ".glb" or ".gltf" or ".fbx" or ".obj")
 		{
 			if (norm.Contains("character") || norm.Contains("unit")) { canonicalType = "Character"; return true; }
 			if (norm.Contains("building") || norm.Contains("structure")) { canonicalType = "Building"; return true; }
-			if (norm.Contains("environment") || norm.Contains("resource") || norm.Contains("prop")) { canonicalType = "Prop"; return true; }
-			if (norm.Contains("item") || norm.Contains("attachment") || norm.Contains("weapon") || norm.Contains("projectile") || norm.Contains("gear") || norm.Contains("equipment") || norm.Contains("accessory") || norm.Contains("object")) { canonicalType = "Item"; return true; }
+			if (norm.Contains("environment") || norm.Contains("resource") || norm.Contains("prop") || norm.Contains("doodad") || norm.Contains("foliage") || norm.Contains("flora") || norm.Contains("rock") || norm.Contains("tree") || norm.Contains("nature")) { canonicalType = "Prop"; return true; }
+			if (norm.Contains("item") || norm.Contains("attachment") || norm.Contains("weapon") || norm.Contains("projectile") || norm.Contains("gear") || norm.Contains("equipment") || norm.Contains("accessory") || norm.Contains("object") || norm.Contains("shield") || norm.Contains("armor")) { canonicalType = "Item"; return true; }
 			return false;
 		}
 		else if (ext is ".ranim")
@@ -161,11 +177,30 @@ public static class RealmMetadataHelper
 			canonicalType = "Animation";
 			return true;
 		}
-		else if (ext is ".raud")
+		else if (ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac")
 		{
-			if (norm.Contains("music")) { canonicalType = "Music"; return true; }
-			if (norm.Contains("sound") || norm.Contains("sfx")) { canonicalType = "SoundEffect"; return true; }
+			if (norm.Contains("music") || norm.Contains("song") || norm.Contains("soundtrack") || norm.Contains("bgm")) { canonicalType = "Music"; return true; }
+			if (norm.Contains("sound") || norm.Contains("sfx") || norm.Contains("effect") || norm.Contains("audio") || norm.Contains("fx")) { canonicalType = "SoundEffect"; return true; }
 			return false;
+		}
+		else
+		{
+			if (norm.Contains("radial")) { canonicalType = "vfx_radial"; return true; }
+			if (norm.Contains("vertical")) { canonicalType = "vfx_vertical"; return true; }
+			if (norm.Contains("tile") || norm.Contains("terrain") || norm.Contains("texture") || norm.Contains("splat") || norm.Contains("ground")) { canonicalType = "Terrain"; return true; }
+			if (norm.Contains("decal")) { canonicalType = "Decal"; return true; }
+			if (norm.Contains("icon")) { canonicalType = "Icon"; return true; }
+			if (norm.Contains("noise")) { canonicalType = "Noise"; return true; }
+			if (norm.Contains("ribbon")) { canonicalType = "Ribbon"; return true; }
+			if (norm.Contains("skybox")) { canonicalType = "Skybox"; return true; }
+			if (norm.Contains("sprite") || norm.Contains("vfx") || norm.Contains("spell")) { canonicalType = "Spritesheet"; return true; }
+			if (norm.Contains("character") || norm.Contains("unit")) { canonicalType = "Character"; return true; }
+			if (norm.Contains("building") || norm.Contains("structure")) { canonicalType = "Building"; return true; }
+			if (norm.Contains("environment") || norm.Contains("resource") || norm.Contains("prop") || norm.Contains("doodad") || norm.Contains("foliage") || norm.Contains("flora") || norm.Contains("rock") || norm.Contains("tree") || norm.Contains("nature")) { canonicalType = "Prop"; return true; }
+			if (norm.Contains("item") || norm.Contains("attachment") || norm.Contains("weapon") || norm.Contains("projectile") || norm.Contains("gear") || norm.Contains("equipment") || norm.Contains("accessory") || norm.Contains("object") || norm.Contains("shield") || norm.Contains("armor")) { canonicalType = "Item"; return true; }
+			if (norm.Contains("animation") || norm.Contains("anim")) { canonicalType = "Animation"; return true; }
+			if (norm.Contains("music") || norm.Contains("song") || norm.Contains("soundtrack") || norm.Contains("bgm")) { canonicalType = "Music"; return true; }
+			if (norm.Contains("sound") || norm.Contains("sfx") || norm.Contains("effect") || norm.Contains("audio") || norm.Contains("fx")) { canonicalType = "SoundEffect"; return true; }
 		}
 
 		return false;
