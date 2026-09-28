@@ -454,8 +454,11 @@ public partial class RuntimeTerrain : StaticBody3D
 			var dtex = LoadTextureFromActiveWorkspace(profile.DetailTexturePath);
 			if (dtex != null) mat.SetShaderParameter("detail_texture", dtex);
 		}
+		mat.SetShaderParameter("detail_tile_mode", string.Equals(profile.DetailTileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0 : 1);
 		mat.SetShaderParameter("detail_uv_scale", new Vector2(profile.DetailUvScaleX, profile.DetailUvScaleY));
 		mat.SetShaderParameter("detail_uv_scroll", new Vector2(profile.DetailUvScrollX, profile.DetailUvScrollY));
+		mat.SetShaderParameter("detail_stochastic_tile_size", profile.DetailStochasticTileSize > 0.001f ? profile.DetailStochasticTileSize : 1.0f);
+		mat.SetShaderParameter("detail_cross_fade", Math.Clamp(profile.DetailCrossFade * 0.01f, 0.0f, 0.10f));
 		mat.SetShaderParameter("detail_alpha", profile.DetailAlpha);
 		mat.SetShaderParameter("detail_blend_mode", profile.DetailBlendMode);
 

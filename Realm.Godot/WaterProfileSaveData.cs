@@ -84,10 +84,13 @@ public class WaterProfileSaveData
 	public float SubsurfaceStrength { get; set; } = 0.0f;
 	public bool UseDetailTexture { get; set; } = false;
 	public string DetailTexturePath { get; set; } = "";
+	public string DetailTileMode { get; set; } = "Stochastic";
 	public float DetailUvScaleX { get; set; } = 1.0f;
 	public float DetailUvScaleY { get; set; } = 1.0f;
 	public float DetailUvScrollX { get; set; } = 0.0f;
 	public float DetailUvScrollY { get; set; } = 0.0f;
+	public float DetailStochasticTileSize { get; set; } = 1.0f;
+	public float DetailCrossFade { get; set; } = 0.0f;
 	public float DetailAlpha { get; set; } = 0.5f;
 	public int DetailBlendMode { get; set; } = 0;
 	public int DefaultPathingCode { get; set; } = EditableTerrain.PATHING_SHALLOW_WATER | EditableTerrain.PATHING_FLYING;
@@ -128,10 +131,13 @@ public class WaterProfileSaveData
 			SubsurfaceStrength = this.SubsurfaceStrength,
 			UseDetailTexture = this.UseDetailTexture,
 			DetailTexturePath = this.DetailTexturePath,
+			DetailTileMode = this.DetailTileMode,
 			DetailUvScaleX = this.DetailUvScaleX,
 			DetailUvScaleY = this.DetailUvScaleY,
 			DetailUvScrollX = this.DetailUvScrollX,
 			DetailUvScrollY = this.DetailUvScrollY,
+			DetailStochasticTileSize = this.DetailStochasticTileSize,
+			DetailCrossFade = this.DetailCrossFade,
 			DetailAlpha = this.DetailAlpha,
 			DetailBlendMode = this.DetailBlendMode,
 			DefaultPathingCode = this.DefaultPathingCode,
@@ -198,7 +204,7 @@ public class WaterProfileSaveData
 				WaveSpeed = 0.6f,
 				WaveStrength = 0.04f,
 				EmissionColorHex = "#FF3300FF",
-				EmissionBoost = 4.0f,
+				EmissionBoost = 2.0f,
 				CoreColorHex = "#FFFFB3FF",
 				CoreThreshold = 0.7f,
 				SubsurfaceColorHex = "#FF6600FF",

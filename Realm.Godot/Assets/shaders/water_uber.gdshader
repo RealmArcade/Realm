@@ -23,7 +23,7 @@ uniform float caustic_scale : hint_range(0.1, 10.0) = 1.0;
 uniform float caustic_speed : hint_range(0.0, 5.0) = 1.0;
 
 uniform vec4 emission_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
-uniform float emission_boost : hint_range(0.0, 20.0) = 0.0;
+uniform float emission_boost : hint_range(0.0, 2.0) = 0.0;
 uniform vec4 core_color : source_color = vec4(1.0, 0.9, 0.5, 1.0);
 uniform float core_threshold : hint_range(0.0, 1.0) = 0.8;
 uniform vec4 subsurface_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
@@ -31,10 +31,13 @@ uniform float subsurface_strength : hint_range(0.0, 5.0) = 0.0;
 
 uniform bool use_detail_texture = false;
 uniform sampler2D detail_texture : source_color, filter_linear_mipmap, repeat_enable;
+uniform int detail_tile_mode : hint_range(0, 1) = 1;
 uniform vec2 detail_uv_scale = vec2(1.0, 1.0);
 uniform vec2 detail_uv_scroll = vec2(0.0, 0.0);
+uniform float detail_stochastic_tile_size : hint_range(0.5, 3.0) = 1.0;
+uniform float detail_cross_fade : hint_range(0.0, 0.10) = 0.0;
 uniform float detail_alpha : hint_range(0.0, 1.0) = 0.5;
-uniform int detail_blend_mode = 0;
+uniform int detail_blend_mode : hint_range(0, 2) = 0;
 
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
@@ -51,6 +54,91 @@ vec2 hash22(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
 	p3 += dot(p3, p3.yzx + 33.33);
 	return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+vec2 stochastic_hash_2d(vec2 p) {
+	ivec2 ip = ivec2(floor(p));
+	uvec2 q = uvec2(ip);
+	q = q * uvec2(1597334677u, 3812015801u);
+	uint n = (q.x ^ q.y) * 1597334677u;
+	return vec2(float(n & 0xFFFFu), float((n >> 16u) & 0xFFFFu)) * (1.0 / 65535.0);
+}
+
+vec4 sample_semi_grid_2d(sampler2D tex, vec2 uv, float blend_width) {
+	if (blend_width <= 0.0001) {
+		return texture(tex, uv);
+	}
+	vec2 f = fract(uv);
+	vec2 edge = smoothstep(vec2(0.0), vec2(blend_width), f) * 
+	            smoothstep(vec2(0.0), vec2(blend_width), vec2(1.0) - f);
+	float center_weight = edge.x * edge.y;
+
+	vec4 col_center = texture(tex, uv);
+	if (center_weight > 0.999) {
+		return col_center;
+	}
+	vec4 col_border = texture(tex, uv + vec2(0.5, 0.5));
+	return mix(col_border, col_center, center_weight);
+}
+
+vec4 sample_stochastic_2d(sampler2D tex, vec2 uv, float stoch_tile_size) {
+	const float F2 = 0.36602540378;
+	const float G2 = 0.2113248654;
+
+	vec2 stoch_uv = uv / max(0.01, stoch_tile_size);
+	vec2 skew_uv = stoch_uv + (stoch_uv.x + stoch_uv.y) * F2;
+	vec2 i = floor(skew_uv);
+	vec2 f = fract(skew_uv);
+
+	vec2 i0, i1, i2;
+	vec3 w;
+
+	if (f.x > f.y) {
+		i0 = i;
+		i1 = i + vec2(1.0, 0.0);
+		i2 = i + vec2(1.0, 1.0);
+		w = vec3(1.0 - f.x, f.x - f.y, f.y);
+	} else {
+		i0 = i;
+		i1 = i + vec2(0.0, 1.0);
+		i2 = i + vec2(1.0, 1.0);
+		w = vec3(1.0 - f.y, f.y - f.x, f.x);
+	}
+
+	vec2 off0 = stochastic_hash_2d(i0);
+	vec2 off1 = stochastic_hash_2d(i1);
+	vec2 off2 = stochastic_hash_2d(i2);
+
+	vec4 col0 = texture(tex, uv + off0);
+	vec4 col1 = texture(tex, uv + off1);
+	vec4 col2 = texture(tex, uv + off2);
+
+	vec3 mean_color = col0.rgb * w.x + col1.rgb * w.y + col2.rgb * w.z;
+	float mean_alpha = col0.a * w.x + col1.a * w.y + col2.a * w.z;
+	return vec4(mean_color, mean_alpha);
+}
+
+vec4 sample_tiled_2d(sampler2D tex, vec2 uv, int tile_mode, float stoch_tile_size, float cross_fade) {
+	if (tile_mode == 0) {
+		return sample_semi_grid_2d(tex, uv, cross_fade);
+	}
+	return sample_stochastic_2d(tex, uv, stoch_tile_size);
+}
+
+vec4 sample_triplanar_tiled_2d(sampler2D tex, vec3 world_pos, vec3 world_norm, vec2 uv_scale, vec2 uv_scroll, int tile_mode, float stoch_tile_size, float cross_fade) {
+	vec3 blend_weights = abs(world_norm);
+	blend_weights = pow(blend_weights, vec3(4.0));
+	blend_weights /= max(0.0001, (blend_weights.x + blend_weights.y + blend_weights.z));
+
+	vec2 uv_x = world_pos.zy * uv_scale + uv_scroll * TIME;
+	vec2 uv_y = world_pos.xz * uv_scale + uv_scroll * TIME;
+	vec2 uv_z = world_pos.xy * uv_scale + uv_scroll * TIME;
+
+	vec4 col_x = sample_tiled_2d(tex, uv_x, tile_mode, stoch_tile_size, cross_fade);
+	vec4 col_y = sample_tiled_2d(tex, uv_y, tile_mode, stoch_tile_size, cross_fade);
+	vec4 col_z = sample_tiled_2d(tex, uv_z, tile_mode, stoch_tile_size, cross_fade);
+
+	return col_x * blend_weights.x + col_y * blend_weights.y + col_z * blend_weights.z;
 }
 
 float voronoi_caustic(vec2 p) {
@@ -156,8 +244,7 @@ void fragment() {
 	base_liquid_rgb += vec3(caustic_val);
 
 	if (use_detail_texture) {
-		vec2 det_uv = v_world_pos.xz * detail_uv_scale + detail_uv_scroll * TIME;
-		vec4 det_sample = texture(detail_texture, det_uv);
+		vec4 det_sample = sample_triplanar_tiled_2d(detail_texture, v_world_pos, v_world_normal, detail_uv_scale, detail_uv_scroll, detail_tile_mode, detail_stochastic_tile_size, detail_cross_fade);
 		if (detail_blend_mode == 1) {
 			base_liquid_rgb += det_sample.rgb * det_sample.a * detail_alpha;
 		} else if (detail_blend_mode == 2) {

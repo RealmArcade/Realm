@@ -52,10 +52,13 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private CheckBox _chkUseDetail;
 	private LineEdit _txtDetailPath;
 	private Action<string> _setDetailPath;
+	private OptionButton _optDetailTileMode;
 	private HSlider _sldDetailUvScaleX;
 	private HSlider _sldDetailUvScaleY;
 	private HSlider _sldDetailUvScrollX;
 	private HSlider _sldDetailUvScrollY;
+	private HSlider _sldDetailStochasticTileSize;
+	private HSlider _sldDetailCrossFade;
 	private HSlider _sldDetailAlpha;
 	private OptionButton _optDetailBlend;
 
@@ -134,6 +137,9 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		nameRow.AddChild(_txtName);
 		vGeneral.AddChild(nameRow);
 
+		var btnRandomizeAll = CreateRandomizeButton(() => RandomizeAllWaterParameters());
+		vGeneral.AddChild(btnRandomizeAll);
+
 		AddSectionHeader(vGeneral, TranslationServer.Translate("Colors & Transparency"));
 		var cpRes1 = AddColorPicker(vGeneral, TranslationServer.Translate("Shallow Tint:"), Colors.Teal, (c) => { if (_activeProfile != null) _activeProfile.ShallowColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
 		_cpShallow = cpRes1.Picker;
@@ -195,6 +201,9 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_txtFlowMapPath = txtFlow;
 		_setFlowMapPath = setFlow;
 
+		var btnRandomizeFlow = CreateRandomizeButton(() => RandomizeNormalAndFlowParameters());
+		vNormals.AddChild(btnRandomizeFlow);
+
 		AddSectionHeader(vNormals, TranslationServer.Translate("Refraction & Caustics"));
 		var sldRefrRes = AddSlider(vNormals, TranslationServer.Translate("Refraction Index:"), 0.0f, 1.0f, 0.02f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.RefractionStrength = v; ApplyLiveMaterialPreview(); });
 		_sldRefraction = sldRefrRes.Slider;
@@ -216,7 +225,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		AddSectionHeader(vEmissive, TranslationServer.Translate("Emissive Heat & Core (Lava / Acid)"));
 		var cpEmRes = AddColorPicker(vEmissive, TranslationServer.Translate("Emission Color:"), Colors.Black, (c) => { if (_activeProfile != null) _activeProfile.EmissionColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
 		_cpEmission = cpEmRes.Picker;
-		var sldEmBoostRes = AddSlider(vEmissive, TranslationServer.Translate("Emission Boost:"), 0.0f, 20.0f, 0.2f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.EmissionBoost = v; ApplyLiveMaterialPreview(); });
+		var sldEmBoostRes = AddSlider(vEmissive, TranslationServer.Translate("Emission Boost:"), 0.0f, 2.0f, 0.01f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.EmissionBoost = v; ApplyLiveMaterialPreview(); });
 		_sldEmissionBoost = sldEmBoostRes.Slider;
 		var cpCoreRes = AddColorPicker(vEmissive, TranslationServer.Translate("Core Hotspot Color:"), Colors.White, (c) => { if (_activeProfile != null) _activeProfile.CoreColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
 		_cpCore = cpCoreRes.Picker;
@@ -226,6 +235,9 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_cpSubsurface = cpSssRes.Picker;
 		var sldSssRes = AddSlider(vEmissive, TranslationServer.Translate("Subsurface Power:"), 0.0f, 5.0f, 0.1f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.SubsurfaceStrength = v; ApplyLiveMaterialPreview(); });
 		_sldSubsurfaceStrength = sldSssRes.Slider;
+
+		var btnRandomizeEmissive = CreateRandomizeButton(() => RandomizeEmissiveParameters());
+		vEmissive.AddChild(btnRandomizeEmissive);
 
 		AddSectionHeader(vEmissive, TranslationServer.Translate("Surface Detail Overlay (Algae / Foam / Crust)"));
 		_chkUseDetail = AddCheckBox(vEmissive, TranslationServer.Translate("Enable Surface Detail Overlay"), false, (val) => { if (_activeProfile != null) _activeProfile.UseDetailTexture = val; ApplyLiveMaterialPreview(); });
@@ -241,6 +253,24 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_txtDetailPath = txtDetail;
 		_setDetailPath = setDetail;
 
+		var tileModeRow = new HBoxContainer();
+		tileModeRow.AddChild(new Label { Text = TranslationServer.Translate("Tile Mode:"), CustomMinimumSize = new Vector2(110, 0) });
+		_optDetailTileMode = new OptionButton();
+		_optDetailTileMode.AddItem(TranslationServer.Translate("Grid"), 0);
+		_optDetailTileMode.AddItem(TranslationServer.Translate("Stochastic"), 1);
+		_optDetailTileMode.Selected = 1;
+		_optDetailTileMode.ItemSelected += (idx) =>
+		{
+			if (_activeProfile != null)
+			{
+				_activeProfile.DetailTileMode = idx == 0 ? "Grid" : "Stochastic";
+				UpdateDetailTileModeVisibility();
+				ApplyLiveMaterialPreview();
+			}
+		};
+		tileModeRow.AddChild(_optDetailTileMode);
+		vEmissive.AddChild(tileModeRow);
+
 		var sldDetUvXRes = AddSlider(vEmissive, TranslationServer.Translate("Detail UV Scale X:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.DetailUvScaleX = v; ApplyLiveMaterialPreview(); });
 		_sldDetailUvScaleX = sldDetUvXRes.Slider;
 		var sldDetUvYRes = AddSlider(vEmissive, TranslationServer.Translate("Detail UV Scale Y:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.DetailUvScaleY = v; ApplyLiveMaterialPreview(); });
@@ -249,6 +279,27 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_sldDetailUvScrollX = sldDetScrXRes.Slider;
 		var sldDetScrYRes = AddSlider(vEmissive, TranslationServer.Translate("Detail Scroll Y:"), -2.0f, 2.0f, 0.05f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.DetailUvScrollY = v; ApplyLiveMaterialPreview(); });
 		_sldDetailUvScrollY = sldDetScrYRes.Slider;
+
+		var sldStochRes = AddSlider(vEmissive, TranslationServer.Translate("Stochastic Size:"), 0.5f, 3.0f, 0.05f, 1.0f, (v) =>
+		{
+			if (_activeProfile != null)
+			{
+				_activeProfile.DetailStochasticTileSize = v;
+				ApplyLiveMaterialPreview();
+			}
+		});
+		_sldDetailStochasticTileSize = sldStochRes.Slider;
+
+		var sldCrossRes = AddSlider(vEmissive, TranslationServer.Translate("Cross-Fade:"), 0.0f, 10.0f, 0.25f, 0.0f, (v) =>
+		{
+			if (_activeProfile != null)
+			{
+				_activeProfile.DetailCrossFade = v;
+				ApplyLiveMaterialPreview();
+			}
+		});
+		_sldDetailCrossFade = sldCrossRes.Slider;
+
 		var sldDetAlphaRes = AddSlider(vEmissive, TranslationServer.Translate("Detail Opacity:"), 0.0f, 1.0f, 0.05f, 0.5f, (v) => { if (_activeProfile != null) _activeProfile.DetailAlpha = v; ApplyLiveMaterialPreview(); });
 		_sldDetailAlpha = sldDetAlphaRes.Slider;
 
@@ -261,6 +312,9 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_optDetailBlend.ItemSelected += (idx) => { if (_activeProfile != null) _activeProfile.DetailBlendMode = (int)idx; ApplyLiveMaterialPreview(); };
 		blendRow.AddChild(_optDetailBlend);
 		vEmissive.AddChild(blendRow);
+
+		var btnRandomizeDetail = CreateRandomizeButton(() => RandomizeDetailOverlayParameters());
+		vEmissive.AddChild(btnRandomizeDetail);
 
 		var tabPathingAndBombing = new ScrollContainer();
 		tabPathingAndBombing.Name = TranslationServer.Translate("Pathing & Bombing");
@@ -423,6 +477,35 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_sldVfxMaxScale = sldVfxMaxScRes.Slider;
 	}
 
+	private Button CreateRandomizeButton(Action onPressed)
+	{
+		var btn = new Button();
+		btn.Set("icon_max_width", 0);
+		btn.Text = "🎲 " + TranslationServer.Translate("Randomize All");
+		btn.CustomMinimumSize = new Vector2(0, 28);
+		btn.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+		btn.AddThemeFontSizeOverride("font_size", 11);
+		var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+		if (mapEdBtnTex != null)
+		{
+			var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			var hoverSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			var pressedSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			btn.AddThemeStyleboxOverride("normal", normalSb);
+			btn.AddThemeStyleboxOverride("hover", hoverSb);
+			btn.AddThemeStyleboxOverride("pressed", pressedSb);
+			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		}
+		else
+		{
+			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		}
+		btn.Pressed += onPressed;
+		return btn;
+	}
+
 	public void OpenWithProfiles(List<WaterProfileSaveData> profiles, int selectedIdx = 0)
 	{
 		_profiles.Clear();
@@ -508,10 +591,17 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 		_chkUseDetail.ButtonPressed = _activeProfile.UseDetailTexture;
 		_setDetailPath?.Invoke(_activeProfile.DetailTexturePath ?? "");
+		if (_optDetailTileMode != null)
+		{
+			_optDetailTileMode.Selected = string.Equals(_activeProfile.DetailTileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+		}
 		_sldDetailUvScaleX.Value = _activeProfile.DetailUvScaleX;
 		_sldDetailUvScaleY.Value = _activeProfile.DetailUvScaleY;
 		_sldDetailUvScrollX.Value = _activeProfile.DetailUvScrollX;
 		_sldDetailUvScrollY.Value = _activeProfile.DetailUvScrollY;
+		if (_sldDetailStochasticTileSize != null) _sldDetailStochasticTileSize.Value = _activeProfile.DetailStochasticTileSize > 0.001f ? _activeProfile.DetailStochasticTileSize : 1.0f;
+		if (_sldDetailCrossFade != null) _sldDetailCrossFade.Value = _activeProfile.DetailCrossFade;
+		UpdateDetailTileModeVisibility();
 		_sldDetailAlpha.Value = _activeProfile.DetailAlpha;
 		_optDetailBlend.Selected = Math.Clamp(_activeProfile.DetailBlendMode, 0, 2);
 
@@ -526,6 +616,177 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_setVfxIdValue?.Invoke(string.Empty);
 		UpdateDecalListUI();
 		UpdateVfxListUI();
+	}
+
+	private void UpdateDetailTileModeVisibility()
+	{
+		bool isStochastic = _activeProfile == null || !string.Equals(_activeProfile.DetailTileMode, "Grid", StringComparison.OrdinalIgnoreCase);
+		if (_sldDetailStochasticTileSize?.GetParent() is Control stochRow)
+		{
+			stochRow.Visible = isStochastic;
+		}
+		if (_sldDetailCrossFade?.GetParent() is Control crossFadeRow)
+		{
+			crossFadeRow.Visible = !isStochastic;
+		}
+	}
+
+	private void RandomizeAllWaterParameters()
+	{
+		if (_activeProfile == null) return;
+		var rng = new Random();
+
+		float baseHue = (float)rng.NextDouble();
+		float shallowSat = 0.4f + (float)rng.NextDouble() * 0.5f;
+		float shallowVal = 0.4f + (float)rng.NextDouble() * 0.5f;
+		float shallowAlpha = 0.45f + (float)rng.NextDouble() * 0.35f;
+		Color shallowColor = Color.FromHsv(baseHue, shallowSat, shallowVal, shallowAlpha);
+
+		float deepSat = Math.Clamp(shallowSat + 0.15f, 0.0f, 1.0f);
+		float deepVal = 0.05f + (float)rng.NextDouble() * 0.25f;
+		float deepAlpha = 0.85f + (float)rng.NextDouble() * 0.15f;
+		Color deepColor = Color.FromHsv((baseHue + 0.02f) % 1.0f, deepSat, deepVal, deepAlpha);
+
+		float foamSat = 0.05f + (float)rng.NextDouble() * 0.2f;
+		float foamVal = 0.85f + (float)rng.NextDouble() * 0.15f;
+		float foamAlpha = 0.75f + (float)rng.NextDouble() * 0.2f;
+		Color foamColor = Color.FromHsv(baseHue, foamSat, foamVal, foamAlpha);
+
+		_activeProfile.ShallowColorHex = "#" + shallowColor.ToHtml(true);
+		_activeProfile.DeepColorHex = "#" + deepColor.ToHtml(true);
+		_activeProfile.FoamColorHex = "#" + foamColor.ToHtml(true);
+
+		_activeProfile.MaxDepth = (float)Math.Round(0.5f + rng.NextDouble() * 3.0f, 2);
+		_activeProfile.FoamDepth = (float)Math.Round(0.2f + rng.NextDouble() * 1.0f, 2);
+		_activeProfile.WaveSpeed = (float)Math.Round(0.4f + rng.NextDouble() * 2.0f, 2);
+		_activeProfile.WaveStrength = (float)Math.Round(0.02f + rng.NextDouble() * 0.10f, 3);
+
+		_activeProfile.NormalScale = (float)Math.Round(0.3f + rng.NextDouble() * 1.7f, 2);
+		double dirAngle = rng.NextDouble() * Math.PI * 2.0;
+		_activeProfile.FlowDirectionX = (float)Math.Round(Math.Cos(dirAngle), 2);
+		_activeProfile.FlowDirectionY = (float)Math.Round(Math.Sin(dirAngle), 2);
+		_activeProfile.FlowSpeed = (float)Math.Round(0.2f + rng.NextDouble() * 1.5f, 2);
+
+		bool hasRefraction = rng.NextDouble() > 0.35;
+		_activeProfile.RefractionStrength = hasRefraction ? (float)Math.Round(0.1f + rng.NextDouble() * 0.5f, 2) : 0.0f;
+
+		bool hasCaustics = rng.NextDouble() > 0.35;
+		_activeProfile.CausticStrength = hasCaustics ? (float)Math.Round(0.2f + rng.NextDouble() * 1.0f, 2) : 0.0f;
+		_activeProfile.CausticScale = (float)Math.Round(0.5f + rng.NextDouble() * 2.0f, 2);
+		_activeProfile.CausticSpeed = (float)Math.Round(0.5f + rng.NextDouble() * 2.0f, 2);
+
+		bool isGlowing = rng.NextDouble() > 0.65;
+		if (isGlowing)
+		{
+			float emHue = (baseHue + (float)(rng.NextDouble() * 0.2 - 0.1) + 1.0f) % 1.0f;
+			Color emColor = Color.FromHsv(emHue, 0.85f + (float)rng.NextDouble() * 0.15f, 0.9f + (float)rng.NextDouble() * 0.1f);
+			_activeProfile.EmissionColorHex = "#" + emColor.ToHtml(true);
+			_activeProfile.EmissionBoost = (float)Math.Round(0.3f + rng.NextDouble() * 1.7f, 2);
+
+			Color coreColor = Color.FromHsv((emHue + 0.08f) % 1.0f, 0.2f + (float)rng.NextDouble() * 0.3f, 1.0f);
+			_activeProfile.CoreColorHex = "#" + coreColor.ToHtml(true);
+			_activeProfile.CoreThreshold = (float)Math.Round(0.55f + rng.NextDouble() * 0.35f, 2);
+
+			Color sssColor = Color.FromHsv(emHue, 0.7f + (float)rng.NextDouble() * 0.3f, 0.8f + (float)rng.NextDouble() * 0.2f);
+			_activeProfile.SubsurfaceColorHex = "#" + sssColor.ToHtml(true);
+			_activeProfile.SubsurfaceStrength = (float)Math.Round(0.5f + rng.NextDouble() * 2.0f, 2);
+		}
+		else
+		{
+			_activeProfile.EmissionColorHex = "#000000FF";
+			_activeProfile.EmissionBoost = 0.0f;
+			_activeProfile.CoreColorHex = "#FFFFFFFF";
+			_activeProfile.CoreThreshold = 0.8f;
+			_activeProfile.SubsurfaceColorHex = "#000000FF";
+			_activeProfile.SubsurfaceStrength = 0.0f;
+		}
+
+		_activeProfile.DetailUvScaleX = (float)Math.Round(0.5f + rng.NextDouble() * 2.5f, 2);
+		_activeProfile.DetailUvScaleY = (float)Math.Round(0.5f + rng.NextDouble() * 2.5f, 2);
+		_activeProfile.DetailStochasticTileSize = (float)Math.Round(0.8f + rng.NextDouble() * 1.5f, 2);
+		_activeProfile.DetailCrossFade = (float)Math.Round(rng.NextDouble() * 4.0f, 1);
+
+		SelectProfile(_selectedProfileIdx);
+		ApplyLiveMaterialPreview();
+	}
+
+	private void RandomizeEmissiveParameters()
+	{
+		if (_activeProfile == null) return;
+		var rng = new Random();
+
+		float emHue = (float)rng.NextDouble();
+		Color emColor = Color.FromHsv(emHue, 0.80f + (float)rng.NextDouble() * 0.20f, 0.85f + (float)rng.NextDouble() * 0.15f);
+		_activeProfile.EmissionColorHex = "#" + emColor.ToHtml(true);
+		_activeProfile.EmissionBoost = (float)Math.Round(0.2f + rng.NextDouble() * 1.8f, 2);
+
+		Color coreColor = Color.FromHsv((emHue + 0.06f + (float)rng.NextDouble() * 0.06f) % 1.0f, 0.15f + (float)rng.NextDouble() * 0.35f, 1.0f);
+		_activeProfile.CoreColorHex = "#" + coreColor.ToHtml(true);
+		_activeProfile.CoreThreshold = (float)Math.Round(0.45f + rng.NextDouble() * 0.45f, 2);
+
+		Color sssColor = Color.FromHsv((emHue + (float)(rng.NextDouble() * 0.1 - 0.05) + 1.0f) % 1.0f, 0.70f + (float)rng.NextDouble() * 0.30f, 0.75f + (float)rng.NextDouble() * 0.25f);
+		_activeProfile.SubsurfaceColorHex = "#" + sssColor.ToHtml(true);
+		_activeProfile.SubsurfaceStrength = (float)Math.Round(0.5f + rng.NextDouble() * 3.5f, 2);
+
+		if (_cpEmission != null) _cpEmission.Color = emColor;
+		if (_sldEmissionBoost != null) _sldEmissionBoost.Value = _activeProfile.EmissionBoost;
+		if (_cpCore != null) _cpCore.Color = coreColor;
+		if (_sldCoreThreshold != null) _sldCoreThreshold.Value = _activeProfile.CoreThreshold;
+		if (_cpSubsurface != null) _cpSubsurface.Color = sssColor;
+		if (_sldSubsurfaceStrength != null) _sldSubsurfaceStrength.Value = _activeProfile.SubsurfaceStrength;
+
+		ApplyLiveMaterialPreview();
+	}
+
+	private void RandomizeNormalAndFlowParameters()
+	{
+		if (_activeProfile == null) return;
+		var rng = new Random();
+
+		_activeProfile.NormalScale = (float)Math.Round(0.3f + rng.NextDouble() * 2.2f, 2);
+		double dirAngle = rng.NextDouble() * Math.PI * 2.0;
+		_activeProfile.FlowDirectionX = (float)Math.Round(Math.Cos(dirAngle), 2);
+		_activeProfile.FlowDirectionY = (float)Math.Round(Math.Sin(dirAngle), 2);
+		_activeProfile.FlowSpeed = (float)Math.Round(0.2f + rng.NextDouble() * 2.0f, 2);
+
+		if (_sldNormalScale != null) _sldNormalScale.Value = _activeProfile.NormalScale;
+		if (_sldFlowDirX != null) _sldFlowDirX.Value = _activeProfile.FlowDirectionX;
+		if (_sldFlowDirY != null) _sldFlowDirY.Value = _activeProfile.FlowDirectionY;
+		if (_sldFlowSpeed != null) _sldFlowSpeed.Value = _activeProfile.FlowSpeed;
+
+		ApplyLiveMaterialPreview();
+	}
+
+	private void RandomizeDetailOverlayParameters()
+	{
+		if (_activeProfile == null) return;
+		var rng = new Random();
+
+		_activeProfile.DetailTileMode = rng.NextDouble() > 0.35 ? "Stochastic" : "Grid";
+		_activeProfile.DetailUvScaleX = (float)Math.Round(0.5f + rng.NextDouble() * 3.5f, 2);
+		_activeProfile.DetailUvScaleY = (float)Math.Round(0.5f + rng.NextDouble() * 3.5f, 2);
+		_activeProfile.DetailUvScrollX = rng.NextDouble() > 0.4 ? (float)Math.Round((rng.NextDouble() * 2.0 - 1.0) * 0.75f, 2) : 0.0f;
+		_activeProfile.DetailUvScrollY = rng.NextDouble() > 0.4 ? (float)Math.Round((rng.NextDouble() * 2.0 - 1.0) * 0.75f, 2) : 0.0f;
+		_activeProfile.DetailStochasticTileSize = (float)Math.Round(0.6f + rng.NextDouble() * 1.8f, 2);
+		_activeProfile.DetailCrossFade = (float)Math.Round(rng.NextDouble() * 4.0f, 1);
+		_activeProfile.DetailAlpha = (float)Math.Round(0.25f + rng.NextDouble() * 0.65f, 2);
+		_activeProfile.DetailBlendMode = rng.Next(0, 3);
+
+		if (_optDetailTileMode != null)
+		{
+			_optDetailTileMode.Selected = string.Equals(_activeProfile.DetailTileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+		}
+		UpdateDetailTileModeVisibility();
+		if (_sldDetailUvScaleX != null) _sldDetailUvScaleX.Value = _activeProfile.DetailUvScaleX;
+		if (_sldDetailUvScaleY != null) _sldDetailUvScaleY.Value = _activeProfile.DetailUvScaleY;
+		if (_sldDetailUvScrollX != null) _sldDetailUvScrollX.Value = _activeProfile.DetailUvScrollX;
+		if (_sldDetailUvScrollY != null) _sldDetailUvScrollY.Value = _activeProfile.DetailUvScrollY;
+		if (_sldDetailStochasticTileSize != null) _sldDetailStochasticTileSize.Value = _activeProfile.DetailStochasticTileSize;
+		if (_sldDetailCrossFade != null) _sldDetailCrossFade.Value = _activeProfile.DetailCrossFade;
+		if (_sldDetailAlpha != null) _sldDetailAlpha.Value = _activeProfile.DetailAlpha;
+		if (_optDetailBlend != null) _optDetailBlend.Selected = _activeProfile.DetailBlendMode;
+
+		ApplyLiveMaterialPreview();
 	}
 
 	private void UpdatePathingMask()
