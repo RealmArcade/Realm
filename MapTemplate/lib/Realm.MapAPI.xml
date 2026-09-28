@@ -2052,6 +2052,54 @@
             <param name="delta">The time elapsed since the previous simulation tick, in seconds.</param>
             <returns><see langword="true"/> if the tower attacked a target during this tick; otherwise, <see langword="false"/>.</returns>
         </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureMeleeBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.MeleeBotConfig)">
+            <summary>
+            Configures an AI bot player for standard Melee or RTS skirmish tactics with customizable retreat and aggression parameters.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The melee bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureTowerDefenseBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.TowerDefenseBotConfig)">
+            <summary>
+            Configures an AI bot player for Tower Defense mode with customizable build spot locations and sell policies.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The tower defense bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureAutoBattlerBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.AutoBattlerBotConfig)">
+            <summary>
+            Configures an AI bot player for Auto-Battler mode with customizable board slots, bench slots, and economic thresholds.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The auto-battler bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureTugOfWarBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.TugOfWarBotConfig)">
+            <summary>
+            Configures an AI bot player for Tug-of-War / Auto-Spawn mode (e.g., Castle Fight, Desert Strike, Nexus Wars) with build spots, spawner options, and income rules.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The tug-of-war bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureHeroArenaBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.HeroArenaBotConfig)">
+            <summary>
+            Configures an AI bot player for Hero Arena / MOBA mode (e.g., DotA, Footman Frenzy) with fountain coordinates, retreat thresholds, and item build paths.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The hero arena bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.RegisterBotCustomDecision(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.CustomBotDecision)">
+            <summary>
+            Registers a map-defined custom candidate decision for evaluation by an AI bot.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="decision">The candidate decision descriptor.</param>
+        </member>
         <member name="T:Realm.MapAPI.WaypointMarcher">
             <summary>
             Manages automated lane movement and combat engagement for a unit marching along a sequence of waypoints.
@@ -2120,6 +2168,11 @@
             Standard RTS melee and skirmish tactical AI.
             </summary>
         </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.Melee">
+            <summary>
+            Alias for standard RTS melee tactical AI.
+            </summary>
+        </member>
         <member name="F:Realm.MapAPI.AiGenrePresets.TowerDefense">
             <summary>
             Tower defense building, upgrading, and pathing AI.
@@ -2130,10 +2183,56 @@
             Auto-battler shop purchasing, bench management, and synergy AI.
             </summary>
         </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.TugOfWar">
+            <summary>
+            Tug-of-war and auto-spawning wave combat AI (e.g., Castle Fight, Desert Strike, Nexus Wars).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.HeroArena">
+            <summary>
+            Hero arena and MOBA combat AI (e.g., DotA, Footman Frenzy, Hero Battles).
+            </summary>
+        </member>
         <member name="F:Realm.MapAPI.AiGenrePresets.Custom">
             <summary>
             Custom UGC map-defined AI driven by custom affordance registrations.
             </summary>
+        </member>
+        <member name="T:Realm.MapAPI.MeleeBotConfig">
+            <summary>
+            Configuration parameters for a standard melee or skirmish RTS AI bot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.RetreatHealthPercent">
+            <summary>
+            Gets or sets the health percentage (0.0 to 1.0) below which a unit prioritizes tactical retreat.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.KitingDistanceBias">
+            <summary>
+            Gets or sets the multiplier applied to kiting distance calculation when evading melee threats.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.AggressionBias">
+            <summary>
+            Gets or sets the aggression weight multiplier applied when deciding between engaging enemy forces or holding ground.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.ExpansionLocations">
+            <summary>
+            Gets or sets the designated map coordinates for strategic expansion bases or resource outposts.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.RallyPoints">
+            <summary>
+            Gets or sets the designated map coordinates for army rally and defensive regrouping points.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.MeleeBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
         </member>
         <member name="T:Realm.MapAPI.TowerDefenseBotConfig">
             <summary>
@@ -2151,6 +2250,83 @@
             </summary>
         </member>
         <member name="M:Realm.MapAPI.TowerDefenseBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.TugOfWarBotConfig">
+            <summary>
+            Configuration parameters for a Tug-of-War or auto-spawning wave combat AI bot (e.g., Castle Fight, Desert Strike, Nexus Wars).
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.BuildSpots">
+            <summary>
+            Gets or sets the collection of designated world coordinates where auto-spawner structures can be constructed.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.SpawnerTypes">
+            <summary>
+            Gets or sets the available spawner unit or structure type identifiers the AI can choose to construct.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.IncomeUpgradeCost">
+            <summary>
+            Gets or sets the base gold cost to upgrade the player's periodic income rate.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.AllowSell">
+            <summary>
+            Gets or sets whether the AI is permitted to sell or replace existing spawner structures.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.LaneTarget">
+            <summary>
+            Gets or sets the target lane destination or enemy base coordinate that spawned units attack towards.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.TugOfWarBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.HeroArenaBotConfig">
+            <summary>
+            Configuration parameters for a Hero Arena, MOBA, or Aeon of Strife (AOS) AI bot (e.g., DotA, Footman Frenzy, Hero Battles).
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.FountainPosition">
+            <summary>
+            Gets or sets the world coordinate of the team's home fountain or healing well.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.FountainHealRadius">
+            <summary>
+            Gets or sets the radius around the fountain position considered safe healing territory.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.RetreatHealthPercent">
+            <summary>
+            Gets or sets the health percentage (0.0 to 1.0) below which the hero prioritizes retreating to the fountain.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.RetreatManaPercent">
+            <summary>
+            Gets or sets the mana percentage (0.0 to 1.0) below which the hero prioritizes retreating or conserving spells.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.RunePositions">
+            <summary>
+            Gets or sets the collection of designated world coordinates where power runes, shrines, or neutral buffs spawn.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.ShopBuildOrder">
+            <summary>
+            Gets or sets the prioritized item purchase build order identifiers.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.HeroArenaBotConfig.ToJson">
             <summary>
             Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
             </summary>

@@ -1,10 +1,13 @@
 using NUnit.Framework;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Balancer;
+using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Simulation;
 using Realm.Ecs.AI.Training;
 using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 
 namespace Realm.Ecs.Tests;
 
@@ -208,5 +211,44 @@ public class AiUtilityTests
 
 		var restored = BalanceGenome.FromJson(json);
 		Assert.That(restored.Unit0Cost, Is.EqualTo(optimized.Unit0Cost));
+	}
+
+	[Test]
+	public void TestTugOfWarGenreProviderGeneratesAffordances()
+	{
+		var runner = new HeadlessSimulationRunner();
+		var provider = AiGenreRegistry.Get("tug_of_war");
+		provider.ConfigureFromParameters(new Dictionary<string, string>
+		{
+			{ "BuildSpotsJson", System.Text.Json.JsonSerializer.Serialize(new List<Vector3> { new(0, 0, 0), new(10, 0, 10) }) },
+			{ "IncomeUpgradeCost", "100" }
+		});
+
+		var affordances = new List<GenericAffordance>();
+		provider.ScanAffordances(runner.World, 0, affordances);
+
+		Assert.That(affordances.Count, Is.GreaterThan(0));
+		Assert.That(affordances.Any(a => a.Intent == CommandIntent.Build), Is.True);
+		Assert.That(affordances.Any(a => a.PayloadId == "upgrade_income"), Is.True);
+	}
+
+	[Test]
+	public void TestHeroArenaGenreProviderGeneratesAffordances()
+	{
+		var runner = new HeadlessSimulationRunner();
+		var provider = AiGenreRegistry.Get("hero_arena");
+		provider.ConfigureFromParameters(new Dictionary<string, string>
+		{
+			{ "FountainPositionJson", System.Text.Json.JsonSerializer.Serialize(new Vector3(-50, 0, -50)) },
+			{ "RetreatHealthPercent", "0.4" },
+			{ "RunePositionsJson", System.Text.Json.JsonSerializer.Serialize(new List<Vector3> { new(0, 0, 0) }) },
+			{ "ShopBuildOrderJson", System.Text.Json.JsonSerializer.Serialize(new List<string> { "boots_of_speed", "iron_blade" }) }
+		});
+
+		var affordances = new List<GenericAffordance>();
+		provider.ScanAffordances(runner.World, 0, affordances);
+
+		Assert.That(affordances.Count, Is.GreaterThan(0));
+		Assert.That(affordances.Any(a => a.PayloadId.StartsWith("buy_item_") || a.PayloadId.StartsWith("grab_rune_") || a.PayloadId.StartsWith("harass_hero_")), Is.True);
 	}
 }

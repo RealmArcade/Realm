@@ -33,6 +33,12 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		"SynergyTag"
 	};
 
+	private float _retreatHealthPercent = 0.25f;
+	private float _kitingDistanceBias = 1.0f;
+	private float _aggressionBias = 1.0f;
+	private readonly List<Vector3> _expansionLocations = new(8);
+	private readonly List<Vector3> _rallyPoints = new(8);
+
 	private readonly List<Entity> _friendlyUnits = new(64);
 	private readonly List<Entity> _enemyUnits = new(64);
 	private readonly QueryDescription _allPositionQuery = new QueryDescription().WithAll<Position>().WithNone<Dead>();
@@ -65,6 +71,48 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 
 	public void ConfigureFromParameters(IReadOnlyDictionary<string, string> parameters)
 	{
+		if (parameters.TryGetValue("RetreatHealthPercent", out var retreatStr) && float.TryParse(retreatStr, System.Globalization.CultureInfo.InvariantCulture, out var retreatVal))
+		{
+			_retreatHealthPercent = Math.Clamp(retreatVal, 0.05f, 0.95f);
+		}
+
+		if (parameters.TryGetValue("KitingDistanceBias", out var kitingStr) && float.TryParse(kitingStr, System.Globalization.CultureInfo.InvariantCulture, out var kitingVal))
+		{
+			_kitingDistanceBias = Math.Clamp(kitingVal, 0.2f, 3.0f);
+		}
+
+		if (parameters.TryGetValue("AggressionBias", out var aggStr) && float.TryParse(aggStr, System.Globalization.CultureInfo.InvariantCulture, out var aggVal))
+		{
+			_aggressionBias = Math.Clamp(aggVal, 0.1f, 3.0f);
+		}
+
+		if (parameters.TryGetValue("ExpansionLocationsJson", out var expJson) && !string.IsNullOrWhiteSpace(expJson))
+		{
+			try
+			{
+				var exps = System.Text.Json.JsonSerializer.Deserialize<List<Vector3>>(expJson);
+				if (exps != null)
+				{
+					_expansionLocations.Clear();
+					_expansionLocations.AddRange(exps);
+				}
+			}
+			catch { }
+		}
+
+		if (parameters.TryGetValue("RallyPointsJson", out var rallyJson) && !string.IsNullOrWhiteSpace(rallyJson))
+		{
+			try
+			{
+				var rallies = System.Text.Json.JsonSerializer.Deserialize<List<Vector3>>(rallyJson);
+				if (rallies != null)
+				{
+					_rallyPoints.Clear();
+					_rallyPoints.AddRange(rallies);
+				}
+			}
+			catch { }
+		}
 	}
 
 	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
@@ -175,18 +223,29 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 
 				if (world.IsAlive(lowestHpEnemy))
 				{
-					float[] fVec = CreateFeatureVector(0.0f, 0.9f, Math.Clamp(minEnemyDist / 50.0f, 0f, 1f), healthRatio, 1.0f, 0.0f, 0.8f, 0.5f);
+					float threatScore = Math.Clamp(0.9f * _aggressionBias, 0f, 1f);
+					float[] fVec = CreateFeatureVector(0.0f, threatScore, Math.Clamp(minEnemyDist / 50.0f, 0f, 1f), healthRatio, 1.0f, 0.0f, 0.8f, 0.5f);
 					destinationList.Add(new GenericAffordance(unit, CommandIntent.Attack, lowestHpEnemy, world.Get<Position>(lowestHpEnemy).Value, "focus_low_hp", fVec));
 				}
 
-				if (minEnemyDist < 10.0f)
+				float kitingThreshold = 10.0f * _kitingDistanceBias;
+				if (minEnemyDist < kitingThreshold)
 				{
-					Vector3 retreatVector = Vector3.Normalize(unitPos - closestEnemyPos) * 15.0f + unitPos;
+					Vector3 retreatVector = Vector3.Normalize(unitPos - closestEnemyPos) * (15.0f * _kitingDistanceBias) + unitPos;
 					float[] fVec = CreateFeatureVector(0.0f, 0.2f, 0.1f, healthRatio, 0.3f, 0.0f, 0.9f, 0.1f);
 					destinationList.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, retreatVector, "kiting_retreat", fVec));
 				}
 
-				float[] attackCenterVec = CreateFeatureVector(0.0f, 0.8f, Math.Clamp(Vector3.Distance(unitPos, enemyCenter) / 50.0f, 0f, 1f), healthRatio, 0.8f, 0.0f, 0.5f, 0.5f);
+				if (healthRatio <= _retreatHealthPercent)
+				{
+					Vector3 rallyDest = _rallyPoints.Count > 0 ? _rallyPoints[0] : (Vector3.Normalize(unitPos - closestEnemyPos) * 20.0f + unitPos);
+					float retreatUrgency = Math.Clamp((_retreatHealthPercent - healthRatio) / _retreatHealthPercent + 0.5f, 0.5f, 1.0f);
+					float[] fVec = CreateFeatureVector(0.0f, 0.1f, 0.1f, healthRatio, 0.2f, 0.0f, retreatUrgency, 0.1f);
+					destinationList.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, rallyDest, "emergency_retreat", fVec));
+				}
+
+				float aggCenterScore = Math.Clamp(0.8f * _aggressionBias, 0f, 1f);
+				float[] attackCenterVec = CreateFeatureVector(0.0f, aggCenterScore, Math.Clamp(Vector3.Distance(unitPos, enemyCenter) / 50.0f, 0f, 1f), healthRatio, 0.8f, 0.0f, 0.5f, 0.5f);
 				destinationList.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, enemyCenter, "threat_centroid", attackCenterVec));
 			}
 
@@ -212,6 +271,17 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 						destinationList.Add(new GenericAffordance(unit, CommandIntent.Cast, _enemyUnits.Count > 0 ? _enemyUnits[0] : Entity.Null, enemyCenter, kvp.Key, fVec));
 					}
 				}
+			}
+		}
+
+		if (_expansionLocations.Count > 0 && playerGold >= 400 && _friendlyUnits.Count > 0)
+		{
+			for (int expIdx = 0; expIdx < _expansionLocations.Count; expIdx++)
+			{
+				var expPos = _expansionLocations[expIdx];
+				float costRatio = Math.Clamp(400.0f / Math.Max(1, playerGold), 0f, 1f);
+				float[] fVec = CreateFeatureVector(costRatio, 0.3f, 0.5f, 1.0f, 0.9f, 0.0f, 0.0f, 0.8f);
+				destinationList.Add(new GenericAffordance(_friendlyUnits[0], CommandIntent.MoveTo, Entity.Null, expPos, $"expand_base_{expIdx}", fVec));
 			}
 		}
 	}

@@ -16,6 +16,20 @@ public static class AiGenreRegistry
 		Register("td", () => new TowerDefenseGenreProvider());
 		Register("auto_battler", () => new AutoBattlerGenreProvider());
 		Register("autobattler", () => new AutoBattlerGenreProvider());
+		Register("tug_of_war", () => new TugOfWarGenreProvider());
+		Register("tugofwar", () => new TugOfWarGenreProvider());
+		Register("castle_fight", () => new TugOfWarGenreProvider());
+		Register("castlefight", () => new TugOfWarGenreProvider());
+		Register("desert_strike", () => new TugOfWarGenreProvider());
+		Register("desertstrike", () => new TugOfWarGenreProvider());
+		Register("nexus_wars", () => new TugOfWarGenreProvider());
+		Register("hero_arena", () => new HeroArenaGenreProvider());
+		Register("heroarena", () => new HeroArenaGenreProvider());
+		Register("moba", () => new HeroArenaGenreProvider());
+		Register("dota", () => new HeroArenaGenreProvider());
+		Register("footman_frenzy", () => new HeroArenaGenreProvider());
+		Register("footmanfrenzy", () => new HeroArenaGenreProvider());
+		Register("aos", () => new HeroArenaGenreProvider());
 		Register("custom", () => new CustomGenreProvider());
 	}
 
