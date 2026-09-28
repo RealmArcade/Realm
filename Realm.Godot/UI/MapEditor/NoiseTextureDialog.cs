@@ -403,6 +403,15 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}
 	}
 
+	public override void OpenDialog()
+	{
+		base.OpenDialog();
+		if (_txtName != null)
+		{
+			_txtName.Text = GetUniqueDefaultAssetName("procedural_noise_1");
+		}
+	}
+
 	public void OpenWithCallback(Action<string> onSaved = null)
 	{
 		_onSavedCallback = onSaved;
@@ -410,12 +419,44 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		SchedulePreviewUpdate();
 	}
 
+	private string GetUniqueDefaultAssetName(string baseName = "procedural_noise_1")
+	{
+		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
+		var noiseObj = assetsObj["noise_textures"] as JsonObject;
+
+		string cleanBase = baseName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
+		var match = TrailingIndexRegex().Match(cleanBase);
+		string prefix = match.Success ? match.Groups[1].Value : cleanBase;
+		int counter = match.Success && int.TryParse(match.Groups[2].Value, out int idx) ? idx : 1;
+
+		string candidate = $"{prefix}_{counter}";
+		string candidateFileName = $"{candidate}.rtex";
+		string candidatePath = Path.Combine(wsPath, "Assets", "noise", candidateFileName);
+
+		while (File.Exists(candidatePath) || (noiseObj != null && noiseObj.ContainsKey(candidateFileName)))
+		{
+			counter++;
+			candidate = $"{prefix}_{counter}";
+			candidateFileName = $"{candidate}.rtex";
+			candidatePath = Path.Combine(wsPath, "Assets", "noise", candidateFileName);
+		}
+
+		return candidate;
+	}
+
+	public override void ApplyAndClose()
+	{
+		CommitPendingInputFocus();
+		OnApply();
+	}
+
 	protected override void OnApply()
 	{
 		string rawName = _txtName.Text?.Trim();
 		if (string.IsNullOrEmpty(rawName))
 		{
-			rawName = $"noise_{Random.Shared.Next(100, 999)}";
+			rawName = GetUniqueDefaultAssetName("procedural_noise_1");
 		}
 
 		string cleanBase = rawName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
@@ -425,29 +466,29 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		if (!assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] == null) assetsObj["noise_textures"] = new JsonObject();
 		var noiseObj = assetsObj["noise_textures"].AsObject();
 
-		string finalBaseName = cleanBase;
-		string fileName = $"{finalBaseName}.rtex";
+		string fileName = $"{cleanBase}.rtex";
 		string outputRtex = Path.Combine(wsPath, "Assets", "noise", fileName);
 
 		if (File.Exists(outputRtex) || noiseObj.ContainsKey(fileName))
 		{
-			int counter = 1;
-			var match = TrailingIndexRegex().Match(cleanBase);
-			string basePrefix = match.Success ? match.Groups[1].Value : cleanBase;
-			if (match.Success && int.TryParse(match.Groups[2].Value, out int existingIndex))
-			{
-				counter = existingIndex + 1;
-			}
-
-			do
-			{
-				finalBaseName = $"{basePrefix}_{counter}";
-				fileName = $"{finalBaseName}.rtex";
-				outputRtex = Path.Combine(wsPath, "Assets", "noise", fileName);
-				counter++;
-			} while (File.Exists(outputRtex) || noiseObj.ContainsKey(fileName));
+			string msg = string.Format(TranslationServer.Translate("An asset named '{0}' already exists.\nOverwriting will replace the existing file. Do you want to continue?"), fileName);
+			Hud?.ShowConfirmationDialog(
+				msg,
+				() =>
+				{
+					ExecuteSave(fileName, outputRtex, wsPath, assetsObj, noiseObj);
+				},
+				confirmText: "SAVE",
+				cancelText: "CANCEL"
+			);
+			return;
 		}
 
+		ExecuteSave(fileName, outputRtex, wsPath, assetsObj, noiseObj);
+	}
+
+	private void ExecuteSave(string fileName, string outputRtex, string wsPath, JsonObject assetsObj, JsonObject noiseObj)
+	{
 		try
 		{
 			var config = BuildConfigObject();
@@ -461,6 +502,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 			Hud?.ReadMetadataAndRefreshTextures();
 			_onSavedCallback?.Invoke(fileName);
+			CloseDialog();
 		}
 		catch (Exception ex)
 		{
