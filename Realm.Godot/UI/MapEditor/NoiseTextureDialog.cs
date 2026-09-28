@@ -325,6 +325,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 		var config = new JsonObject
 		{
+			["asset_type"] = "Noise",
 			["generator"] = "FastNoiseLite",
 			["noise_type"] = _optNoiseType.GetItemText(_optNoiseType.Selected),
 			["seed"] = seed,

@@ -2053,7 +2053,7 @@ public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 	{
 		if (_currentCategory == "shaders")
 		{
-			_shaderEditDialog.OpenForShader("", (_) => RefreshAssetList());
+			_shaderEditDialog.OpenForShader("", (savedConfig) => RefreshAssetListAndPreview(savedConfig?.Key));
 			return;
 		}
 
@@ -3224,7 +3224,7 @@ public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 		{
 			_shaderEditDialog.OpenForShader(key, (updatedConfig) =>
 			{
-				RefreshAssetList();
+				RefreshAssetListAndPreview(updatedConfig?.Key ?? key);
 			});
 		}
 	}

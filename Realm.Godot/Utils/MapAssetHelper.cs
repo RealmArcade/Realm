@@ -574,6 +574,7 @@ public static class MapAssetHelper
 							"noise" or "noise_textures" => "noise",
 							"skyboxes" => "skyboxes",
 							"textures" => "textures",
+							"shaders" => "shaders",
 							"other" => "other",
 							_ => category
 						};
@@ -808,6 +809,7 @@ public static class MapAssetHelper
 		SyncCategoryAttributesToMetadata(metadataRoot, assets, "decals");
 		SyncCategoryAttributesToMetadata(metadataRoot, assets, "vfx_spritesheets");
 		SyncCategoryAttributesToMetadata(metadataRoot, assets, "noise_textures");
+		SyncCategoryAttributesToMetadata(metadataRoot, assets, "shaders");
 
 		SyncModelAttributesToMetadata(metadataRoot, assets);
 
@@ -1041,6 +1043,11 @@ public static class MapAssetHelper
 		if (metadataRoot["music"] is JsonObject musicObject)
 		{
 			MergeCategoryAttributes(unionedAssets, "music", musicObject);
+		}
+
+		if (metadataRoot["shaders"] is JsonObject shadersObject)
+		{
+			MergeCategoryAttributes(unionedAssets, "shaders", shadersObject);
 		}
 
 		if (metadataRoot["other"] is JsonObject otherObject)
@@ -1404,6 +1411,7 @@ public static class MapAssetHelper
 							"ribbons" => "ribbons",
 							"noise_textures" => "noise",
 							"skyboxes" => "skyboxes",
+							"shaders" => "shaders",
 							"other" => "other",
 							_ => "textures"
 						};

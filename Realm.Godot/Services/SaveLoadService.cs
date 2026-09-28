@@ -1632,6 +1632,7 @@ public class SaveLoadService
 		set.Add("icons");
 		set.Add("skyboxes");
 		set.Add("ribbons");
+		set.Add("shaders");
 		set.Add("CustomUnits");
 		set.Add("CustomBuildings");
 		set.Add("CustomResources");
@@ -2185,6 +2186,20 @@ public class SaveLoadService
 			}
 		}
 
+		if (root.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObject)
+		{
+			var allowedShaderProperties = GetAllowedShaderItemProperties();
+			foreach (var keyValuePair in shadersObject)
+			{
+				if (keyValuePair.Value is JsonObject itemObject)
+				{
+					itemObject.Remove("hash");
+					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedShaderProperties.Contains(property)).ToList();
+					foreach (var property in propertiesToRemove) itemObject.Remove(property);
+				}
+			}
+		}
+
 		var schemaRoot = LoadMapSchemaJson();
 		var allowedTopLevel = GetAllowedMetadataTopLevel(schemaRoot);
 
@@ -2306,6 +2321,7 @@ public class SaveLoadService
 						"noise" or "noise_textures" => "noise",
 						"skyboxes" => "skyboxes",
 						"textures" => "textures",
+						"shaders" => "shaders",
 						_ => category
 					};
 

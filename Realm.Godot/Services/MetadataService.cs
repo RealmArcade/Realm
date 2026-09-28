@@ -95,6 +95,9 @@ public class MapMetadata
 	[JsonPropertyName("ribbons")]
 	public Dictionary<string, JsonNode> Ribbons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+	[JsonPropertyName("shaders")]
+	public Dictionary<string, JsonNode> Shaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
 	[JsonExtensionData]
 	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
@@ -896,6 +899,7 @@ public class MetadataService
 		metadata.Icons ??= new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
 		metadata.Skyboxes ??= new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
 		metadata.Ribbons ??= new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
+		metadata.Shaders ??= new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
 
 		if (string.IsNullOrEmpty(metadata.GameBuildNumber))
 		{

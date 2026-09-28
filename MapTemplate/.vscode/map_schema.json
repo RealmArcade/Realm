@@ -157,7 +157,8 @@
     "CustomUpgrades": { "$ref": "#/definitions/CustomUpgrades" },
     "CustomItems": { "$ref": "#/definitions/CustomItems" },
     "Assets": { "$ref": "#/definitions/Assets" },
-    "textures": { "type": "object" }
+    "textures": { "type": "object" },
+    "shaders": { "type": "object" }
   },
   "definitions": {
     "EntityItem": {
