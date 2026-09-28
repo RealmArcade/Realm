@@ -3448,16 +3448,7 @@ public partial class MapEditorHUD : Control
 			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) => {
 				if (status && selectedPaths.Length > 0)
 				{
-					string selectedFolder = selectedPaths[0];
-					if (IsRestrictedSaveDirectory(selectedFolder))
-					{
-						ShowFeedback(TranslationServer.Translate("Cannot save to restricted application directory. Please choose a folder in Documents or your workspace."));
-						return;
-					}
-
-					_lastUsedFolder = selectedFolder;
-					_currentSourceFolder = selectedFolder;
-					_ = SaveMapToFolderAsync(selectedFolder);
+					HandleSaveToFolder(selectedPaths[0]);
 				}
 				else
 				{
@@ -3470,10 +3461,72 @@ public partial class MapEditorHUD : Control
 		{
 			string defaultFolder = GetDefaultDevelopmentMapDirectory();
 			try { System.IO.Directory.CreateDirectory(defaultFolder); } catch { }
-			_lastUsedFolder = defaultFolder;
-			_currentSourceFolder = defaultFolder;
-			_ = SaveMapToFolderAsync(defaultFolder);
+			HandleSaveToFolder(defaultFolder);
 		}
+	}
+
+	private void HandleSaveToFolder(string selectedFolder)
+	{
+		if (string.IsNullOrWhiteSpace(selectedFolder)) return;
+
+		string fullSelectedPath = System.IO.Path.GetFullPath(selectedFolder);
+
+		if (IsRestrictedSaveDirectory(fullSelectedPath))
+		{
+			ShowFeedback(TranslationServer.Translate("Cannot save to restricted application directory. Please choose a folder in Documents or your workspace."));
+			return;
+		}
+
+		var parentDir = System.IO.Directory.GetParent(fullSelectedPath);
+		while (parentDir != null)
+		{
+			if (System.IO.File.Exists(System.IO.Path.Combine(parentDir.FullName, "manifest.json")))
+			{
+				ShowFeedback(TranslationServer.Translate("Cannot save map inside an existing map folder. Please select a separate root directory."));
+				return;
+			}
+			parentDir = parentDir.Parent;
+		}
+
+		if (System.IO.Directory.Exists(fullSelectedPath))
+		{
+			try
+			{
+				foreach (string subDir in System.IO.Directory.EnumerateDirectories(fullSelectedPath))
+				{
+					if (System.IO.File.Exists(System.IO.Path.Combine(subDir, "manifest.json")))
+					{
+						ShowFeedback(TranslationServer.Translate("Found nested map inside selected folder. Cannot save to this folder location."));
+						return;
+					}
+				}
+			}
+			catch { }
+		}
+
+		string rootManifest = System.IO.Path.Combine(fullSelectedPath, "manifest.json");
+		bool isSameAsCurrent = !string.IsNullOrEmpty(_currentSourceFolder) &&
+			string.Equals(fullSelectedPath, System.IO.Path.GetFullPath(_currentSourceFolder), StringComparison.OrdinalIgnoreCase);
+
+		if (System.IO.File.Exists(rootManifest) && !isSameAsCurrent)
+		{
+			ShowConfirmationDialog(
+				TranslationServer.Translate("An existing map was found in this folder. Overwrite existing map?"),
+				() =>
+				{
+					_lastUsedFolder = fullSelectedPath;
+					_currentSourceFolder = fullSelectedPath;
+					_ = SaveMapToFolderAsync(fullSelectedPath);
+				},
+				confirmText: TranslationServer.Translate("OVERWRITE"),
+				cancelText: TranslationServer.Translate("CANCEL")
+			);
+			return;
+		}
+
+		_lastUsedFolder = fullSelectedPath;
+		_currentSourceFolder = fullSelectedPath;
+		_ = SaveMapToFolderAsync(fullSelectedPath);
 	}
 
 	public void LoadMapAction()
