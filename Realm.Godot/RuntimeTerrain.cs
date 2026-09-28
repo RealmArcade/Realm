@@ -145,6 +145,11 @@ public partial class RuntimeTerrain : StaticBody3D
 
 	public static int GetDefaultPathingCode(TerrainCell cell)
 	{
+		if (cell.WaterMode != WaterType.None && Instance != null)
+		{
+			var prof = Instance.GetWaterProfile(cell.WaterProfileIndex);
+			if (prof != null) return prof.DefaultPathingCode;
+		}
 		return GetDefaultPathingCode(cell.WaterMode);
 	}
 
@@ -438,8 +443,13 @@ public partial class RuntimeTerrain : StaticBody3D
 		if (string.IsNullOrWhiteSpace(texturePath)) return null;
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string fullPath = Path.Combine(wsPath, "Assets", "textures", texturePath);
+		if (!File.Exists(fullPath)) fullPath = Path.Combine(wsPath, "Assets", "noise", texturePath);
+		if (!File.Exists(fullPath)) fullPath = Path.Combine(wsPath, "Assets", "decals", texturePath);
+		if (!File.Exists(fullPath)) fullPath = Path.Combine(wsPath, "Assets", "ribbons", texturePath);
+		if (!File.Exists(fullPath)) fullPath = Path.Combine(wsPath, "Assets", "vfx", texturePath);
 		if (!File.Exists(fullPath)) fullPath = Path.Combine(wsPath, texturePath);
 		if (!File.Exists(fullPath)) fullPath = PathUtils.FindPath($"Assets/textures/{texturePath}");
+		if (!File.Exists(fullPath)) fullPath = PathUtils.FindPath($"Assets/noise/{texturePath}");
 		if (!File.Exists(fullPath)) fullPath = PathUtils.FindPath(texturePath);
 		if (File.Exists(fullPath))
 		{

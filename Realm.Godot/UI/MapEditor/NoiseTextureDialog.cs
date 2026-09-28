@@ -45,6 +45,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 	private CheckBox _chkInvert;
 	private CheckBox _chkNormalize;
+	private CheckBox _chkFlowMap;
 
 	private OptionButton _optColorMode;
 	private HBoxContainer _colorRampRow;
@@ -121,6 +122,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 		_chkInvert = AddCheckBox(leftVBox, TranslationServer.Translate("Invert Colors"), false, (_) => SchedulePreviewUpdate());
 		_chkNormalize = AddCheckBox(leftVBox, TranslationServer.Translate("Normalize (Full Contrast)"), true, (_) => SchedulePreviewUpdate());
+		_chkFlowMap = AddCheckBox(leftVBox, TranslationServer.Translate("Flow Map"), false, (_) => SchedulePreviewUpdate());
 
 		var btnRandomizeAll = new Button();
 		btnRandomizeAll.Set("icon_max_width", 0);
@@ -300,9 +302,6 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		_sliderDomainWarpFrequency.Value = Math.Round(Random.Shared.NextDouble() * (0.15 - 0.005) + 0.005, 3);
 		_sliderDomainWarpOctaves.Value = Random.Shared.Next(1, 8);
 
-		_chkInvert.ButtonPressed = Random.Shared.NextDouble() > 0.7;
-		_chkNormalize.ButtonPressed = Random.Shared.NextDouble() > 0.15;
-
 		UpdateVisibility();
 		SchedulePreviewUpdate();
 	}
@@ -337,6 +336,8 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 			["fractal_weighted_strength"] = (float)_sliderWeightedStrength.Value,
 			["invert"] = _chkInvert.ButtonPressed,
 			["normalize"] = _chkNormalize.ButtonPressed,
+			["flow_map"] = _chkFlowMap.ButtonPressed,
+			["is_flow_map"] = _chkFlowMap.ButtonPressed,
 			["width"] = res,
 			["height"] = res
 		};

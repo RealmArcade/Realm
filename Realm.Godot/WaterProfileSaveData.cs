@@ -57,7 +57,6 @@ public class WaterProfileSaveData
 	public string Id { get; set; } = "water_default";
 	public string Name { get; set; } = "Water";
 	public byte ProfileIndex { get; set; } = 0;
-	public WaterType WaterType { get; set; } = WaterType.Shallow;
 	public string ShallowColorHex { get; set; } = "#0D4D618C";
 	public string DeepColorHex { get; set; } = "#030F24FA";
 	public string FoamColorHex { get; set; } = "#D9F2FFD9";
@@ -102,7 +101,6 @@ public class WaterProfileSaveData
 			Id = this.Id,
 			Name = this.Name,
 			ProfileIndex = this.ProfileIndex,
-			WaterType = this.WaterType,
 			ShallowColorHex = this.ShallowColorHex,
 			DeepColorHex = this.DeepColorHex,
 			FoamColorHex = this.FoamColorHex,
@@ -160,7 +158,6 @@ public class WaterProfileSaveData
 				Id = "water_shallow",
 				Name = "Shallow Water",
 				ProfileIndex = 0,
-				WaterType = WaterType.Shallow,
 				ShallowColorHex = "#0D4D618C",
 				DeepColorHex = "#083340B3",
 				FoamColorHex = "#D9F2FFD9",
@@ -177,7 +174,6 @@ public class WaterProfileSaveData
 				Id = "water_deep",
 				Name = "Deep Ocean",
 				ProfileIndex = 1,
-				WaterType = WaterType.Deep,
 				ShallowColorHex = "#051F47B3",
 				DeepColorHex = "#01081FFC",
 				FoamColorHex = "#D9F2FFD9",
@@ -194,7 +190,6 @@ public class WaterProfileSaveData
 				Id = "liquid_lava",
 				Name = "Molten Lava",
 				ProfileIndex = 2,
-				WaterType = WaterType.Deep,
 				ShallowColorHex = "#E64C00F5",
 				DeepColorHex = "#800A00FF",
 				FoamColorHex = "#FFE680F0",
@@ -215,7 +210,6 @@ public class WaterProfileSaveData
 				Id = "liquid_acid",
 				Name = "Toxic Acid",
 				ProfileIndex = 3,
-				WaterType = WaterType.Shallow,
 				ShallowColorHex = "#33FF33B3",
 				DeepColorHex = "#0D660DFA",
 				FoamColorHex = "#B3FFB3F0",
@@ -233,7 +227,6 @@ public class WaterProfileSaveData
 				Id = "liquid_poison",
 				Name = "Poison Swamp",
 				ProfileIndex = 4,
-				WaterType = WaterType.Shallow,
 				ShallowColorHex = "#5E1985CC",
 				DeepColorHex = "#2B0542FC",
 				FoamColorHex = "#B870E6D9",
@@ -250,7 +243,6 @@ public class WaterProfileSaveData
 				Id = "liquid_geothermal",
 				Name = "Geothermal Spring",
 				ProfileIndex = 5,
-				WaterType = WaterType.Shallow,
 				ShallowColorHex = "#1AC6D9A6",
 				DeepColorHex = "#0F6E7AFA",
 				FoamColorHex = "#E0FFFFE6",

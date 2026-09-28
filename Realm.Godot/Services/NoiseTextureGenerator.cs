@@ -138,6 +138,46 @@ public static class NoiseTextureGenerator
 
 		bool invert = config.TryGetPropertyValue("invert", out var invNode) && bool.TryParse(invNode?.ToString(), out bool inv) && inv;
 		bool normalize = !config.TryGetPropertyValue("normalize", out var normNode) || !bool.TryParse(normNode?.ToString(), out bool nrm) || nrm;
+		bool isFlowMap = (config.TryGetPropertyValue("is_flow_map", out var flowNode) && bool.TryParse(flowNode?.ToString(), out bool fm1) && fm1)
+			|| (config.TryGetPropertyValue("flow_map", out var fmNode) && bool.TryParse(fmNode?.ToString(), out bool fm2) && fm2);
+
+		if (isFlowMap)
+		{
+			var flowImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
+			for (int y = 0; y < height; y++)
+			{
+				for (int x = 0; x < width; x++)
+				{
+					float dx = (noise.GetNoise2D(x + 1f, y) - noise.GetNoise2D(x - 1f, y)) * 0.5f;
+					float dy = (noise.GetNoise2D(x, y + 1f) - noise.GetNoise2D(x, y - 1f)) * 0.5f;
+					if (invert)
+					{
+						dx = -dx;
+						dy = -dy;
+					}
+
+					float vx = dy;
+					float vy = -dx;
+
+					float len = MathF.Sqrt(vx * vx + vy * vy);
+					if (len > 0.00001f)
+					{
+						vx /= len;
+						vy /= len;
+					}
+					else
+					{
+						vx = 0f;
+						vy = 0f;
+					}
+
+					float r = Math.Clamp(vx * 0.5f + 0.5f, 0f, 1f);
+					float g = Math.Clamp(vy * 0.5f + 0.5f, 0f, 1f);
+					flowImage.SetPixel(x, y, new Color(r, g, 1.0f, 1.0f));
+				}
+			}
+			return flowImage;
+		}
 
 		Image baseImage = noise.GetImage(width, height, invert, false, normalize);
 

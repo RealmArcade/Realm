@@ -17,7 +17,6 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private Button _btnDeleteProfile;
 
 	private LineEdit _txtName;
-	private OptionButton _optWaterType;
 
 	private ColorPickerButton _cpShallow;
 	private ColorPickerButton _cpDeep;
@@ -29,12 +28,14 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	private CheckBox _chkUseNormal;
 	private LineEdit _txtNormalPath;
+	private Action<string> _setNormalPath;
 	private HSlider _sldNormalScale;
 	private HSlider _sldFlowDirX;
 	private HSlider _sldFlowDirY;
 	private HSlider _sldFlowSpeed;
 	private CheckBox _chkUseFlowMap;
 	private LineEdit _txtFlowMapPath;
+	private Action<string> _setFlowMapPath;
 
 	private HSlider _sldRefraction;
 	private HSlider _sldCausticStrength;
@@ -50,6 +51,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	private CheckBox _chkUseDetail;
 	private LineEdit _txtDetailPath;
+	private Action<string> _setDetailPath;
 	private HSlider _sldDetailUvScaleX;
 	private HSlider _sldDetailUvScaleY;
 	private HSlider _sldDetailUvScrollX;
@@ -130,15 +132,6 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		nameRow.AddChild(_txtName);
 		vGeneral.AddChild(nameRow);
 
-		var typeRow = new HBoxContainer();
-		typeRow.AddChild(new Label { Text = TranslationServer.Translate("Water Depth Type:"), CustomMinimumSize = new Vector2(110, 0) });
-		_optWaterType = new OptionButton();
-		_optWaterType.AddItem(TranslationServer.Translate("Shallow"), 1);
-		_optWaterType.AddItem(TranslationServer.Translate("Deep"), 2);
-		_optWaterType.ItemSelected += (idx) => { if (_activeProfile != null) _activeProfile.WaterType = (WaterType)_optWaterType.GetSelectedId(); ApplyLiveMaterialPreview(); };
-		typeRow.AddChild(_optWaterType);
-		vGeneral.AddChild(typeRow);
-
 		AddSectionHeader(vGeneral, TranslationServer.Translate("Colors & Transparency"));
 		var cpRes1 = AddColorPicker(vGeneral, TranslationServer.Translate("Shallow Tint:"), Colors.Teal, (c) => { if (_activeProfile != null) _activeProfile.ShallowColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
 		_cpShallow = cpRes1.Picker;
@@ -166,12 +159,17 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 		AddSectionHeader(vNormals, TranslationServer.Translate("Normal Mapping & Flow"));
 		_chkUseNormal = AddCheckBox(vNormals, TranslationServer.Translate("Enable Custom Normal Texture"), false, (val) => { if (_activeProfile != null) _activeProfile.UseNormalTexture = val; ApplyLiveMaterialPreview(); });
-		var normPathRow = new HBoxContainer();
-		normPathRow.AddChild(new Label { Text = TranslationServer.Translate("Normal Map File:"), CustomMinimumSize = new Vector2(110, 0) });
-		_txtNormalPath = new LineEdit { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_txtNormalPath.TextChanged += (t) => { if (_activeProfile != null) _activeProfile.NormalTexturePath = t; ApplyLiveMaterialPreview(); };
-		normPathRow.AddChild(_txtNormalPath);
-		vNormals.AddChild(normPathRow);
+		var (txtNorm, setNorm) = AddAssetFilterDropdown(
+			vNormals,
+			TranslationServer.Translate("Normal Map File:"),
+			"",
+			(all) => ScanRtexAssets(all),
+			(val) => { if (_activeProfile != null) { _activeProfile.NormalTexturePath = val; ApplyLiveMaterialPreview(); } },
+			TranslationServer.Translate("Select .rtex normal map..."),
+			110f
+		);
+		_txtNormalPath = txtNorm;
+		_setNormalPath = setNorm;
 
 		var sldNormScaleRes = AddSlider(vNormals, TranslationServer.Translate("Normal Strength:"), 0.0f, 3.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.NormalScale = v; ApplyLiveMaterialPreview(); });
 		_sldNormalScale = sldNormScaleRes.Slider;
@@ -183,12 +181,17 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_sldFlowSpeed = sldFlowSpdRes.Slider;
 
 		_chkUseFlowMap = AddCheckBox(vNormals, TranslationServer.Translate("Enable Directional Flow Map"), false, (val) => { if (_activeProfile != null) _activeProfile.UseFlowMap = val; ApplyLiveMaterialPreview(); });
-		var flowMapRow = new HBoxContainer();
-		flowMapRow.AddChild(new Label { Text = TranslationServer.Translate("Flow Map File:"), CustomMinimumSize = new Vector2(110, 0) });
-		_txtFlowMapPath = new LineEdit { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_txtFlowMapPath.TextChanged += (t) => { if (_activeProfile != null) _activeProfile.FlowMapPath = t; ApplyLiveMaterialPreview(); };
-		flowMapRow.AddChild(_txtFlowMapPath);
-		vNormals.AddChild(flowMapRow);
+		var (txtFlow, setFlow) = AddAssetFilterDropdown(
+			vNormals,
+			TranslationServer.Translate("Flow Map File:"),
+			"",
+			(all) => ScanRtexAssets(all),
+			(val) => { if (_activeProfile != null) { _activeProfile.FlowMapPath = val; ApplyLiveMaterialPreview(); } },
+			TranslationServer.Translate("Select .rtex flow map..."),
+			110f
+		);
+		_txtFlowMapPath = txtFlow;
+		_setFlowMapPath = setFlow;
 
 		AddSectionHeader(vNormals, TranslationServer.Translate("Refraction & Caustics"));
 		var sldRefrRes = AddSlider(vNormals, TranslationServer.Translate("Refraction Index:"), 0.0f, 1.0f, 0.02f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.RefractionStrength = v; ApplyLiveMaterialPreview(); });
@@ -224,12 +227,17 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 		AddSectionHeader(vEmissive, TranslationServer.Translate("Surface Detail Overlay (Algae / Foam / Crust)"));
 		_chkUseDetail = AddCheckBox(vEmissive, TranslationServer.Translate("Enable Surface Detail Overlay"), false, (val) => { if (_activeProfile != null) _activeProfile.UseDetailTexture = val; ApplyLiveMaterialPreview(); });
-		var detPathRow = new HBoxContainer();
-		detPathRow.AddChild(new Label { Text = TranslationServer.Translate("Detail Texture File:"), CustomMinimumSize = new Vector2(110, 0) });
-		_txtDetailPath = new LineEdit { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_txtDetailPath.TextChanged += (t) => { if (_activeProfile != null) _activeProfile.DetailTexturePath = t; ApplyLiveMaterialPreview(); };
-		detPathRow.AddChild(_txtDetailPath);
-		vEmissive.AddChild(detPathRow);
+		var (txtDetail, setDetail) = AddAssetFilterDropdown(
+			vEmissive,
+			TranslationServer.Translate("Detail Texture File:"),
+			"",
+			(all) => ScanRtexAssets(all),
+			(val) => { if (_activeProfile != null) { _activeProfile.DetailTexturePath = val; ApplyLiveMaterialPreview(); } },
+			TranslationServer.Translate("Select .rtex detail texture..."),
+			110f
+		);
+		_txtDetailPath = txtDetail;
+		_setDetailPath = setDetail;
 
 		var sldDetUvXRes = AddSlider(vEmissive, TranslationServer.Translate("Detail UV Scale X:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.DetailUvScaleX = v; ApplyLiveMaterialPreview(); });
 		_sldDetailUvScaleX = sldDetUvXRes.Slider;
@@ -397,7 +405,6 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	{
 		if (_activeProfile == null) return;
 		_txtName.Text = _activeProfile.Name;
-		_optWaterType.Selected = _activeProfile.WaterType == WaterType.Deep ? 1 : 0;
 
 		_cpShallow.Color = Color.HtmlIsValid(_activeProfile.ShallowColorHex) ? Color.FromHtml(_activeProfile.ShallowColorHex) : Colors.Teal;
 		_cpDeep.Color = Color.HtmlIsValid(_activeProfile.DeepColorHex) ? Color.FromHtml(_activeProfile.DeepColorHex) : Colors.NavyBlue;
@@ -409,13 +416,13 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_sldWaveStrength.Value = _activeProfile.WaveStrength;
 
 		_chkUseNormal.ButtonPressed = _activeProfile.UseNormalTexture;
-		_txtNormalPath.Text = _activeProfile.NormalTexturePath ?? "";
+		_setNormalPath?.Invoke(_activeProfile.NormalTexturePath ?? "");
 		_sldNormalScale.Value = _activeProfile.NormalScale;
 		_sldFlowDirX.Value = _activeProfile.FlowDirectionX;
 		_sldFlowDirY.Value = _activeProfile.FlowDirectionY;
 		_sldFlowSpeed.Value = _activeProfile.FlowSpeed;
 		_chkUseFlowMap.ButtonPressed = _activeProfile.UseFlowMap;
-		_txtFlowMapPath.Text = _activeProfile.FlowMapPath ?? "";
+		_setFlowMapPath?.Invoke(_activeProfile.FlowMapPath ?? "");
 
 		_sldRefraction.Value = _activeProfile.RefractionStrength;
 		_sldCausticStrength.Value = _activeProfile.CausticStrength;
@@ -430,7 +437,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_sldSubsurfaceStrength.Value = _activeProfile.SubsurfaceStrength;
 
 		_chkUseDetail.ButtonPressed = _activeProfile.UseDetailTexture;
-		_txtDetailPath.Text = _activeProfile.DetailTexturePath ?? "";
+		_setDetailPath?.Invoke(_activeProfile.DetailTexturePath ?? "");
 		_sldDetailUvScaleX.Value = _activeProfile.DetailUvScaleX;
 		_sldDetailUvScaleY.Value = _activeProfile.DetailUvScaleY;
 		_sldDetailUvScrollX.Value = _activeProfile.DetailUvScrollX;
@@ -556,8 +563,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		{
 			Id = $"liquid_custom_{nextIndex}",
 			Name = $"Custom Liquid {nextIndex}",
-			ProfileIndex = nextIndex,
-			WaterType = WaterType.Shallow
+			ProfileIndex = nextIndex
 		};
 		_profiles.Add(newProf);
 		UpdateProfileListUI();
@@ -611,5 +617,56 @@ public partial class WaterProfileDialog : FloatingDialogBase
 			RuntimeTerrain.Instance.SetWaterProfiles(_initialSnapshots);
 		}
 		Hud?.RefreshWaterSwatches();
+	}
+
+	private List<string> ScanRtexAssets(bool includeAllFolders = true)
+	{
+		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+
+		if (!string.IsNullOrEmpty(wsPath) && Directory.Exists(wsPath))
+		{
+			string assetsDir = Path.Combine(wsPath, "Assets");
+			if (Directory.Exists(assetsDir))
+			{
+				try
+				{
+					foreach (var file in Directory.GetFiles(assetsDir, "*.rtex", SearchOption.AllDirectories))
+					{
+						string rel = Path.GetRelativePath(wsPath, file).Replace('\\', '/');
+						results.Add(rel);
+						results.Add(Path.GetFileName(file));
+					}
+				}
+				catch { }
+			}
+		}
+
+		try
+		{
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			if (assetsObj != null)
+			{
+				foreach (var catName in new[] { "textures", "noise_textures", "noise", "decals", "ribbons", "vfx", "vfx_spritesheets" })
+				{
+					if (assetsObj[catName] is System.Text.Json.Nodes.JsonObject catObj)
+					{
+						foreach (var kvp in catObj)
+						{
+							if (!string.IsNullOrEmpty(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+							{
+								results.Add(kvp.Key);
+								results.Add(Path.GetFileName(kvp.Key));
+							}
+						}
+					}
+				}
+			}
+		}
+		catch { }
+
+		var list = new List<string>(results);
+		list.Sort(StringComparer.OrdinalIgnoreCase);
+		return list;
 	}
 }
