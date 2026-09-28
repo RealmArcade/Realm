@@ -26,7 +26,30 @@ public static class CommandLineArgsHelper
 			return Array.Empty<string>();
 		}
 
-		var lookup = BuildOptionLookup(verbTypes);
+		var verbList = verbTypes.ToList();
+		var selectedVerbTypes = verbList;
+
+		if (args.Length > 0 && !args[0].StartsWith('-'))
+		{
+			string verbName = args[0];
+			var matchingVerb = verbList.FirstOrDefault(type =>
+			{
+				var verbAttribute = type.GetCustomAttributes().FirstOrDefault(attribute => attribute.GetType().Name is "VerbAttribute" or "Verb");
+				if (verbAttribute != null)
+				{
+					string? name = verbAttribute.GetType().GetProperty("Name")?.GetValue(verbAttribute)?.ToString();
+					return string.Equals(name, verbName, StringComparison.OrdinalIgnoreCase);
+				}
+				return false;
+			});
+
+			if (matchingVerb != null)
+			{
+				selectedVerbTypes = [matchingVerb];
+			}
+		}
+
+		var lookup = BuildOptionLookup(selectedVerbTypes);
 		var sanitized = new List<string>(args.Length);
 
 		for (int index = 0; index < args.Length; index++)

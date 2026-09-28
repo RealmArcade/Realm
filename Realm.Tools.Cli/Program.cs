@@ -103,7 +103,7 @@ public class RanimRenderOptions
 	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
 	public string? Output { get; set; }
 
-	[Option('f', "format", Required = false, Default = "auto", HelpText = "Output format: auto (default), webp, spritesheet.")]
+	[Option("format", Required = false, Default = "auto", HelpText = "Output format: auto (default), webp, spritesheet.")]
 	public string Format { get; set; } = "auto";
 
 	[Option("fps", Required = false, Default = 12.0f, HelpText = "Target frames per second (default 12).")]
