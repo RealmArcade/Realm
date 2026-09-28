@@ -71,12 +71,14 @@ namespace Realm.Ecs.Components.Terrain
 					float se = heights[x1, z1];
 
 					WaterType wMode = WaterType.None;
+					byte wProfile = 0;
 					if (existingCells != null && x < existingW && z < existingD)
 					{
 						wMode = existingCells[x, z].WaterMode;
+						wProfile = existingCells[x, z].WaterProfileIndex;
 					}
 
-					cells[x, z] = new TerrainCell(nw, ne, se, sw, wMode);
+					cells[x, z] = new TerrainCell(nw, ne, se, sw, wMode, wProfile);
 				}
 			}
 			return cells;

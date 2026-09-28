@@ -1107,6 +1107,7 @@ public partial class MapEditorHUD : Control
 				}
 				UpdateBlockStepVisibility();
 			};
+			RefreshWaterSwatches();
 		}
 
 		_accordionToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion");

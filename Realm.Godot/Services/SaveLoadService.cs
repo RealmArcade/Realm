@@ -539,7 +539,8 @@ public class SaveLoadService
 					editor.SkyboxPath,
 					false,
 					editor.MirrorMode,
-					editor.WaterMode
+					editor.WaterMode,
+					editor.WaterProfileIndex
 				);
 
 				EcsWorld.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) =>
@@ -839,7 +840,8 @@ public class SaveLoadService
 			string skybox = saveData.SkyboxPath;
 
 			WaterType currentWaterMode = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).WaterMode : WaterType.None;
-			var newEditorState = new EditorState(isBlock, step, left, right, top, bottom, skybox, false, MirrorMode.None, currentWaterMode);
+			byte currentWaterProf = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).WaterProfileIndex : (byte)0;
+			var newEditorState = new EditorState(isBlock, step, left, right, top, bottom, skybox, false, MirrorMode.None, currentWaterMode, currentWaterProf);
 			EcsWorld.SetOrAdd(worldEntity, newEditorState);
 
 			if (EcsWorld.Has<CameraState>(worldEntity))

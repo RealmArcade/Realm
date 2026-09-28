@@ -47,19 +47,26 @@ uniform bool shroud_enabled = false;
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
 
-float hash21(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+vec2 hash22(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.xx + p3.yz) * p3.zy);
 }
 
-float caustic_noise(vec2 p) {
-	vec2 i = floor(p);
+float voronoi_caustic(vec2 p) {
+	vec2 n = floor(p);
 	vec2 f = fract(p);
-	vec2 u = f * f * (3.0 - 2.0 * f);
-	float a = hash21(i);
-	float b = hash21(i + vec2(1.0, 0.0));
-	float c = hash21(i + vec2(0.0, 1.0));
-	float d = hash21(i + vec2(1.0, 1.0));
-	return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+	float m = 8.0;
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			vec2 g = vec2(float(i), float(j));
+			vec2 o = hash22(n + g);
+			vec2 r = g - f + (0.5 + 0.5 * sin(TIME * caustic_speed * 1.5 + 6.2831853 * o));
+			float d = dot(r, r);
+			m = min(m, d);
+		}
+	}
+	return sqrt(m);
 }
 
 void vertex() {
@@ -93,7 +100,7 @@ void fragment() {
 	} else {
 		float n1 = sin(p1.x + sin(p1.y * 1.2)) * 0.5 + 0.5;
 		float n2 = cos(p2.x - cos(p2.y * 1.3)) * 0.5 + 0.5;
-		flat_perturbed_normal = normalize(vec3((n1 - 0.5) * 0.25 * normal_scale, 1.0, (n2 - 0.5) * 0.25 * normal_scale));
+		flat_perturbed_normal = normalize(vec3((n1 - 0.5) * 0.25 * normal_scale, (n2 - 0.5) * 0.25 * normal_scale, 1.0));
 	}
 
 	float flow_x = (v_world_pos.x + v_world_pos.z) * 0.3;
@@ -104,11 +111,11 @@ void fragment() {
 	float waterfall_foam_raw = streak1 * 0.5 + streak2 * 0.5;
 	float waterfall_foam = smoothstep(0.25, 0.95, waterfall_foam_raw) * 0.28;
 
-	vec3 wf_normal = normalize(vec3((streak1 - 0.5) * 0.08, (streak2 - 0.5) * 0.08, (streak1 - 0.5) * 0.08));
+	vec3 wf_normal = normalize(vec3((streak1 - 0.5) * 0.08, (streak2 - 0.5) * 0.08, 1.0));
 	vec3 local_normal = mix(wf_normal, flat_perturbed_normal, flat_factor);
-	NORMAL = normalize(TANGENT * local_normal.x + BINORMAL * local_normal.z + NORMAL * local_normal.y);
+	NORMAL = normalize(TANGENT * local_normal.x + BINORMAL * local_normal.y + NORMAL * local_normal.z);
 
-	vec2 refr_offset = (refraction_strength > 0.0) ? local_normal.xz * refraction_strength * 0.05 : vec2(0.0);
+	vec2 refr_offset = (refraction_strength > 0.0) ? local_normal.xy * refraction_strength * 0.05 : vec2(0.0);
 	vec2 screen_uv_sampled = clamp(SCREEN_UV + refr_offset, 0.0, 1.0);
 
 	float depth_raw = texture(depth_texture, screen_uv_sampled).r;
@@ -133,9 +140,10 @@ void fragment() {
 	if (caustic_strength > 0.001) {
 		vec2 c_uv1 = (v_world_pos.xz + flow_vec * TIME * caustic_speed * 0.5) * caustic_scale * 0.8;
 		vec2 c_uv2 = (v_world_pos.xz - flow_vec * TIME * caustic_speed * 0.3) * caustic_scale * 1.2;
-		float c1 = caustic_noise(c_uv1);
-		float c2 = caustic_noise(c_uv2);
-		caustic_val = pow(c1 * c2, 1.5) * caustic_strength * (1.0 - depth_factor);
+		float c1 = voronoi_caustic(c_uv1);
+		float c2 = voronoi_caustic(c_uv2);
+		float caustic_raw = min(c1, c2);
+		caustic_val = pow(caustic_raw, 2.0) * caustic_strength * (1.0 - depth_factor) * 0.5;
 	}
 
 	vec3 base_liquid_rgb = mix(water_col.rgb, foam_color.rgb, final_foam_mask * foam_color.a);
@@ -179,7 +187,7 @@ void fragment() {
 	ALPHA = final_alpha;
 	EMISSION = emissive_out;
 
-	ROUGHNESS = mix(mix(0.1, 0.35, waterfall_factor), 0.9, shroud_factor);
+	ROUGHNESS = mix(mix(0.15, 0.35, waterfall_factor), 0.9, shroud_factor);
 	METALLIC = 0.0;
-	SPECULAR = mix(0.10, 0.20, waterfall_factor) * (1.0 - shroud_factor * 0.98);
+	SPECULAR = mix(0.20, 0.20, waterfall_factor) * (1.0 - shroud_factor * 0.98);
 }
