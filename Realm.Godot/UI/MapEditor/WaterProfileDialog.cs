@@ -67,12 +67,14 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	private ItemList _lstDecals;
 	private LineEdit _txtDecalId;
+	private Action<string> _setDecalIdValue;
 	private HSlider _sldDecalDensity;
 	private HSlider _sldDecalMinScale;
 	private HSlider _sldDecalMaxScale;
 
 	private ItemList _lstVfx;
 	private LineEdit _txtVfxId;
+	private Action<string> _setVfxIdValue;
 	private HSlider _sldVfxDensity;
 	private HSlider _sldVfxMinScale;
 	private HSlider _sldVfxMaxScale;
@@ -279,13 +281,13 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural Decal Texture Bombing"));
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered decals placed at liquid elevation during painting:"));
 		var decalListRow = new HBoxContainer();
-		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(250, 80), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		_lstDecals.ItemSelected += (idx) =>
 		{
 			if (_activeProfile != null && idx >= 0 && idx < _activeProfile.DecalBombingRules.Count)
 			{
 				var r = _activeProfile.DecalBombingRules[(int)idx];
-				_txtDecalId.Text = r.DecalId;
+				_setDecalIdValue?.Invoke(r.DecalId);
 				if (_sldDecalDensity != null) _sldDecalDensity.Value = r.Density;
 				if (_sldDecalMinScale != null) _sldDecalMinScale.Value = r.MinScale;
 				if (_sldDecalMaxScale != null) _sldDecalMaxScale.Value = r.MaxScale;
@@ -293,9 +295,16 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		};
 		decalListRow.AddChild(_lstDecals);
 
-		var decalBtnBox = new VBoxContainer();
-		_txtDecalId = new LineEdit { PlaceholderText = "decal_texture_id" };
-		decalBtnBox.AddChild(_txtDecalId);
+		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
+			decalBtnBox,
+			string.Empty,
+			string.Empty,
+			(all) => ScanAvailableAssets("decals", all),
+			(val) => { },
+			TranslationServer.Translate("decal_texture_id"),
+			0f
+		);
 
 		var btnAddDecal = new Button { Text = "+ " + TranslationServer.Translate("Add Decal") };
 		btnAddDecal.Set("icon_max_width", 0);
@@ -310,23 +319,47 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		decalListRow.AddChild(decalBtnBox);
 		vBombing.AddChild(decalListRow);
 
-		var sldDecalDensRes = AddSlider(vBombing, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) { int sel = _lstDecals.GetSelectedItems().Length > 0 ? _lstDecals.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[sel].Density = v; } });
+		var sldDecalDensRes = AddSlider(vBombing, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) =>
+		{
+			if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0)
+			{
+				var sel = _lstDecals.GetSelectedItems();
+				int idx = sel.Length > 0 ? sel[0] : 0;
+				if (idx >= 0 && idx < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[idx].Density = v;
+			}
+		});
 		_sldDecalDensity = sldDecalDensRes.Slider;
-		var sldDecalMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) { int sel = _lstDecals.GetSelectedItems().Length > 0 ? _lstDecals.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[sel].MinScale = v; } });
+		var sldDecalMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) =>
+		{
+			if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0)
+			{
+				var sel = _lstDecals.GetSelectedItems();
+				int idx = sel.Length > 0 ? sel[0] : 0;
+				if (idx >= 0 && idx < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[idx].MinScale = v;
+			}
+		});
 		_sldDecalMinScale = sldDecalMinScRes.Slider;
-		var sldDecalMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) { int sel = _lstDecals.GetSelectedItems().Length > 0 ? _lstDecals.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[sel].MaxScale = v; } });
+		var sldDecalMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) =>
+		{
+			if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0)
+			{
+				var sel = _lstDecals.GetSelectedItems();
+				int idx = sel.Length > 0 ? sel[0] : 0;
+				if (idx >= 0 && idx < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[idx].MaxScale = v;
+			}
+		});
 		_sldDecalMaxScale = sldDecalMaxScRes.Slider;
 
 		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural VFX / Particle Bombing"));
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered particle systems & ribbons (bubbles, steam, foam, smoke) placed at liquid elevation:"));
 		var vfxListRow = new HBoxContainer();
-		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(250, 80), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		_lstVfx.ItemSelected += (idx) =>
 		{
 			if (_activeProfile != null && idx >= 0 && idx < _activeProfile.VfxBombingRules.Count)
 			{
 				var r = _activeProfile.VfxBombingRules[(int)idx];
-				_txtVfxId.Text = r.VfxId;
+				_setVfxIdValue?.Invoke(r.VfxId);
 				if (_sldVfxDensity != null) _sldVfxDensity.Value = r.Density;
 				if (_sldVfxMinScale != null) _sldVfxMinScale.Value = r.MinScale;
 				if (_sldVfxMaxScale != null) _sldVfxMaxScale.Value = r.MaxScale;
@@ -334,9 +367,16 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		};
 		vfxListRow.AddChild(_lstVfx);
 
-		var vfxBtnBox = new VBoxContainer();
-		_txtVfxId = new LineEdit { PlaceholderText = "vfx_template_id" };
-		vfxBtnBox.AddChild(_txtVfxId);
+		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
+			vfxBtnBox,
+			string.Empty,
+			string.Empty,
+			(all) => ScanAvailableAssets("vfx", all),
+			(val) => { },
+			TranslationServer.Translate("vfx_template_id"),
+			0f
+		);
 
 		var btnAddVfx = new Button { Text = "+ " + TranslationServer.Translate("Add VFX") };
 		btnAddVfx.Set("icon_max_width", 0);
@@ -351,11 +391,35 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		vfxListRow.AddChild(vfxBtnBox);
 		vBombing.AddChild(vfxListRow);
 
-		var sldVfxDensRes = AddSlider(vBombing, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) { int sel = _lstVfx.GetSelectedItems().Length > 0 ? _lstVfx.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[sel].Density = v; } });
+		var sldVfxDensRes = AddSlider(vBombing, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) =>
+		{
+			if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0)
+			{
+				var sel = _lstVfx.GetSelectedItems();
+				int idx = sel.Length > 0 ? sel[0] : 0;
+				if (idx >= 0 && idx < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[idx].Density = v;
+			}
+		});
 		_sldVfxDensity = sldVfxDensRes.Slider;
-		var sldVfxMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) { int sel = _lstVfx.GetSelectedItems().Length > 0 ? _lstVfx.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[sel].MinScale = v; } });
+		var sldVfxMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) =>
+		{
+			if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0)
+			{
+				var sel = _lstVfx.GetSelectedItems();
+				int idx = sel.Length > 0 ? sel[0] : 0;
+				if (idx >= 0 && idx < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[idx].MinScale = v;
+			}
+		});
 		_sldVfxMinScale = sldVfxMinScRes.Slider;
-		var sldVfxMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) { int sel = _lstVfx.GetSelectedItems().Length > 0 ? _lstVfx.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[sel].MaxScale = v; } });
+		var sldVfxMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) =>
+		{
+			if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0)
+			{
+				var sel = _lstVfx.GetSelectedItems();
+				int idx = sel.Length > 0 ? sel[0] : 0;
+				if (idx >= 0 && idx < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[idx].MaxScale = v;
+			}
+		});
 		_sldVfxMaxScale = sldVfxMaxScRes.Slider;
 	}
 
@@ -374,13 +438,15 @@ public partial class WaterProfileDialog : FloatingDialogBase
 			foreach (var p in _profiles) _initialSnapshots.Add(p.Clone());
 		}
 
+		_selectedProfileIdx = Math.Clamp(selectedIdx, 0, _profiles.Count - 1);
 		UpdateProfileListUI();
-		SelectProfile(Math.Clamp(selectedIdx, 0, _profiles.Count - 1));
+		SelectProfile(_selectedProfileIdx);
 		OpenDialog();
 	}
 
 	private void UpdateProfileListUI()
 	{
+		if (_optProfileSelect == null) return;
 		_optProfileSelect.Clear();
 		for (int i = 0; i < _profiles.Count; i++)
 		{
@@ -397,6 +463,10 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		if (idx < 0 || idx >= _profiles.Count) return;
 		_selectedProfileIdx = idx;
 		_activeProfile = _profiles[idx];
+		if (_optProfileSelect != null && _optProfileSelect.Selected != idx)
+		{
+			_optProfileSelect.Selected = idx;
+		}
 		PopulateFormFromActiveProfile();
 		ApplyLiveMaterialPreview();
 	}
@@ -452,6 +522,8 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_chkPathBuildable.ButtonPressed = (code & EditableTerrain.PATHING_BUILDABLE) != 0;
 		_chkPathFlying.ButtonPressed = (code & EditableTerrain.PATHING_FLYING) != 0;
 
+		_setDecalIdValue?.Invoke(string.Empty);
+		_setVfxIdValue?.Invoke(string.Empty);
 		UpdateDecalListUI();
 		UpdateVfxListUI();
 	}
@@ -474,14 +546,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		if (_activeProfile?.DecalBombingRules == null) return;
 		foreach (var r in _activeProfile.DecalBombingRules)
 		{
-			_lstDecals.AddItem($"{r.DecalId} (Dens: {r.Density:0.00}, Scale: {r.MinScale:0.0}-{r.MaxScale:0.0})");
-		}
-		if (_activeProfile.DecalBombingRules.Count > 0)
-		{
-			var first = _activeProfile.DecalBombingRules[0];
-			_sldDecalDensity.Value = first.Density;
-			_sldDecalMinScale.Value = first.MinScale;
-			_sldDecalMaxScale.Value = first.MaxScale;
+			_lstDecals.AddItem($"{r.DecalId} ({TranslationServer.Translate("Density")}: {r.Density:0.00})");
 		}
 	}
 
@@ -491,63 +556,56 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		if (_activeProfile?.VfxBombingRules == null) return;
 		foreach (var r in _activeProfile.VfxBombingRules)
 		{
-			_lstVfx.AddItem($"{r.VfxId} (Dens: {r.Density:0.00}, Scale: {r.MinScale:0.0}-{r.MaxScale:0.0})");
-		}
-		if (_activeProfile.VfxBombingRules.Count > 0)
-		{
-			var first = _activeProfile.VfxBombingRules[0];
-			_sldVfxDensity.Value = first.Density;
-			_sldVfxMinScale.Value = first.MinScale;
-			_sldVfxMaxScale.Value = first.MaxScale;
+			_lstVfx.AddItem($"{r.VfxId} ({TranslationServer.Translate("Density")}: {r.Density:0.00})");
 		}
 	}
 
 	private void OnAddDecalRule()
 	{
-		if (_activeProfile == null || string.IsNullOrWhiteSpace(_txtDecalId.Text)) return;
+		string id = _txtDecalId?.Text?.Trim() ?? string.Empty;
+		if (_activeProfile == null || string.IsNullOrEmpty(id)) return;
 		_activeProfile.DecalBombingRules.Add(new ProceduralBombingDecalRule
 		{
-			DecalId = _txtDecalId.Text.Trim(),
-			Density = (float)_sldDecalDensity.Value,
-			MinScale = (float)_sldDecalMinScale.Value,
-			MaxScale = (float)_sldDecalMaxScale.Value
+			DecalId = id,
+			Density = (float)(_sldDecalDensity?.Value ?? 0.5f),
+			MinScale = (float)(_sldDecalMinScale?.Value ?? 0.2f),
+			MaxScale = (float)(_sldDecalMaxScale?.Value ?? 0.5f)
 		});
-		_txtDecalId.Text = "";
 		UpdateDecalListUI();
 	}
 
 	private void OnRemoveDecalRule()
 	{
-		if (_activeProfile == null || _lstDecals.GetSelectedItems().Length == 0) return;
-		int sel = _lstDecals.GetSelectedItems()[0];
-		if (sel >= 0 && sel < _activeProfile.DecalBombingRules.Count)
+		if (_activeProfile == null) return;
+		var selected = _lstDecals.GetSelectedItems();
+		if (selected.Length > 0 && selected[0] >= 0 && selected[0] < _activeProfile.DecalBombingRules.Count)
 		{
-			_activeProfile.DecalBombingRules.RemoveAt(sel);
+			_activeProfile.DecalBombingRules.RemoveAt(selected[0]);
 			UpdateDecalListUI();
 		}
 	}
 
 	private void OnAddVfxRule()
 	{
-		if (_activeProfile == null || string.IsNullOrWhiteSpace(_txtVfxId.Text)) return;
+		string id = _txtVfxId?.Text?.Trim() ?? string.Empty;
+		if (_activeProfile == null || string.IsNullOrEmpty(id)) return;
 		_activeProfile.VfxBombingRules.Add(new ProceduralBombingVfxRule
 		{
-			VfxId = _txtVfxId.Text.Trim(),
-			Density = (float)_sldVfxDensity.Value,
-			MinScale = (float)_sldVfxMinScale.Value,
-			MaxScale = (float)_sldVfxMaxScale.Value
+			VfxId = id,
+			Density = (float)(_sldVfxDensity?.Value ?? 0.5f),
+			MinScale = (float)(_sldVfxMinScale?.Value ?? 0.2f),
+			MaxScale = (float)(_sldVfxMaxScale?.Value ?? 0.5f)
 		});
-		_txtVfxId.Text = "";
 		UpdateVfxListUI();
 	}
 
 	private void OnRemoveVfxRule()
 	{
-		if (_activeProfile == null || _lstVfx.GetSelectedItems().Length == 0) return;
-		int sel = _lstVfx.GetSelectedItems()[0];
-		if (sel >= 0 && sel < _activeProfile.VfxBombingRules.Count)
+		if (_activeProfile == null) return;
+		var selected = _lstVfx.GetSelectedItems();
+		if (selected.Length > 0 && selected[0] >= 0 && selected[0] < _activeProfile.VfxBombingRules.Count)
 		{
-			_activeProfile.VfxBombingRules.RemoveAt(sel);
+			_activeProfile.VfxBombingRules.RemoveAt(selected[0]);
 			UpdateVfxListUI();
 		}
 	}

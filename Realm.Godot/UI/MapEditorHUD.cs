@@ -1057,11 +1057,11 @@ public partial class MapEditorHUD : Control
 			_optWaterMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 			_optWaterMode.ClipText = true;
 			_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
-			_optWaterMode.AddItem(TranslationServer.Translate("None"), (int)WaterType.None);
+			_optWaterMode.AddItem(TranslationServer.Translate("None"), 0);
 			_optWaterMode.SetItemMetadata(0, (byte)0);
 			_optWaterMode.AddItem(TranslationServer.Translate("Shallow Water"), 1);
 			_optWaterMode.SetItemMetadata(1, (byte)0);
-			_optWaterMode.AddItem(TranslationServer.Translate("Deep Ocean"), 1);
+			_optWaterMode.AddItem(TranslationServer.Translate("Deep Ocean"), 2);
 			_optWaterMode.SetItemMetadata(2, (byte)1);
 			_optWaterMode.Selected = 0;
 			box.AddChild(_optWaterMode);
@@ -1097,7 +1097,7 @@ public partial class MapEditorHUD : Control
 					var meta = _optWaterMode.GetItemMetadata((int)idx);
 					if (meta.VariantType != Variant.Type.Nil)
 					{
-						profIdx = (byte)meta;
+						profIdx = (byte)(int)meta;
 					}
 					if (GameHost.Instance != null)
 					{
@@ -4941,6 +4941,8 @@ public partial class MapEditorHUD : Control
 
 	public void LoadMapProperties()
 	{
+		RuntimeTerrain.Instance?.ReloadWaterProfiles();
+		RefreshWaterSwatches();
 		_mapSettingsDialog?.LoadMapProperties();
 	}
 
@@ -11512,7 +11514,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_optWaterMode == null) return;
 		_optWaterMode.Clear();
-		_optWaterMode.AddItem(TranslationServer.Translate("None"), (int)WaterType.None);
+		_optWaterMode.AddItem(TranslationServer.Translate("None"), 0);
 		_optWaterMode.SetItemMetadata(0, (byte)0);
 
 		var profiles = RuntimeTerrain.Instance != null ? RuntimeTerrain.Instance.GetWaterProfiles() : null;
@@ -11524,17 +11526,21 @@ public partial class MapEditorHUD : Control
 				byte pIdx = kvp.Key;
 				var prof = kvp.Value;
 				string label = TranslationServer.Translate(prof.Name);
-				_optWaterMode.AddItem(label, 1);
+				_optWaterMode.AddItem(label, itemIdx);
 				_optWaterMode.SetItemMetadata(itemIdx, pIdx);
 				itemIdx++;
 			}
 		}
 		else
 		{
-			_optWaterMode.AddItem(TranslationServer.Translate("Shallow Water"), 1);
-			_optWaterMode.SetItemMetadata(1, (byte)0);
-			_optWaterMode.AddItem(TranslationServer.Translate("Deep Ocean"), 1);
-			_optWaterMode.SetItemMetadata(2, (byte)1);
+			var defaults = WaterProfileSaveData.CreateDefaultProfiles();
+			int itemIdx = 1;
+			foreach (var def in defaults)
+			{
+				_optWaterMode.AddItem(TranslationServer.Translate(def.Name), itemIdx);
+				_optWaterMode.SetItemMetadata(itemIdx, def.ProfileIndex);
+				itemIdx++;
+			}
 		}
 
 		int targetSelected = 0;
@@ -11547,7 +11553,7 @@ public partial class MapEditorHUD : Control
 				for (int i = 1; i < _optWaterMode.ItemCount; i++)
 				{
 					var meta = _optWaterMode.GetItemMetadata(i);
-					if (meta.VariantType != Variant.Type.Nil && (byte)meta == currentProf)
+					if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == currentProf)
 					{
 						targetSelected = i;
 						break;
@@ -11577,7 +11583,16 @@ public partial class MapEditorHUD : Control
 		{
 			profilesList.AddRange(WaterProfileSaveData.CreateDefaultProfiles());
 		}
-		_waterProfileDialog?.OpenWithProfiles(profilesList);
+
+		int targetIdx = 0;
+		if (GameHost.Instance != null)
+		{
+			byte currentProf = GameHost.Instance.ActiveWaterProfileIndex;
+			int found = profilesList.FindIndex(p => p.ProfileIndex == currentProf);
+			if (found >= 0) targetIdx = found;
+		}
+
+		_waterProfileDialog?.OpenWithProfiles(profilesList, targetIdx);
 	}
 
 	public void OpenEnvironmentConfigDialog()

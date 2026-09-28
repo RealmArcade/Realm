@@ -118,7 +118,7 @@ public class MapEditorBrushSettings
 				for (int i = 1; i < _optWaterMode.ItemCount; i++)
 				{
 					var meta = _optWaterMode.GetItemMetadata(i);
-					if (meta.VariantType != Variant.Type.Nil && (byte)meta == activeProf)
+					if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == activeProf)
 					{
 						targetSelected = i;
 						break;

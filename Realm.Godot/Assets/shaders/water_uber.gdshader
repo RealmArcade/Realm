@@ -139,8 +139,11 @@ void fragment() {
 	}
 
 	vec3 base_liquid_rgb = mix(water_col.rgb, foam_color.rgb, final_foam_mask * foam_color.a);
+	float final_alpha = mix(water_col.a, 0.85, final_foam_mask) * shore_fade;
+
 	if (refraction_strength > 0.0) {
 		base_liquid_rgb = mix(screen_color, base_liquid_rgb, clamp(water_col.a + final_foam_mask, 0.0, 1.0));
+		final_alpha = shore_fade;
 	}
 	base_liquid_rgb += vec3(caustic_val);
 
@@ -173,7 +176,7 @@ void fragment() {
 	}
 
 	ALBEDO = final_albedo;
-	ALPHA = mix(water_col.a, 0.85, final_foam_mask) * shore_fade;
+	ALPHA = final_alpha;
 	EMISSION = emissive_out;
 
 	ROUGHNESS = mix(mix(0.1, 0.35, waterfall_factor), 0.9, shroud_factor);

@@ -469,19 +469,20 @@ public partial class FloatingDialogBase : PanelContainer
 
 		var picker = new ColorPickerButton();
 		picker.CustomMinimumSize = new Vector2(36, 22);
-		picker.EditAlpha = false;
+		picker.EditAlpha = true;
 		picker.Color = initialColor;
 		row.AddChild(picker);
 
 		hueSlider.ValueChanged += (double val) =>
 		{
-			Color tintColor = (val <= 0.0) ? new Color(1.0f, 1.0f, 1.0f) : Color.FromHsv((float)val, 0.75f, 1.0f);
+			Color tintColor = (val <= 0.0) ? new Color(1.0f, 1.0f, 1.0f, picker.Color.A) : Color.FromHsv((float)val, 0.75f, 1.0f, picker.Color.A);
 			picker.Color = tintColor;
 			onChanged(tintColor);
 		};
 
 		picker.ColorChanged += (Color color) =>
 		{
+			hueSlider.Value = color.H;
 			onChanged(color);
 		};
 

@@ -301,10 +301,6 @@ public partial class RuntimeTerrain : StaticBody3D
 		public MeshInstance3D MeshInstance;
 		public ArrayMesh ArrayMesh;
 		public CollisionShape3D CollisionShape;
-		public MeshInstance3D ShallowWaterMesh;
-		public ArrayMesh ShallowWaterArrayMesh;
-		public MeshInstance3D DeepWaterMesh;
-		public ArrayMesh DeepWaterArrayMesh;
 		public Dictionary<byte, (MeshInstance3D MeshInstance, ArrayMesh ArrayMesh)> ProfileWaterMeshes = new();
 		public int StartX;
 		public int StartZ;
@@ -339,16 +335,38 @@ public partial class RuntimeTerrain : StaticBody3D
 	public Dictionary<byte, WaterProfileSaveData> WaterProfiles => _waterProfiles;
 	public Dictionary<byte, ShaderMaterial> WaterMaterials => _waterMaterials;
 
-	public IReadOnlyDictionary<byte, WaterProfileSaveData> GetWaterProfiles() => _waterProfiles;
+	public IReadOnlyDictionary<byte, WaterProfileSaveData> GetWaterProfiles()
+	{
+		if (_waterProfiles.Count == 0)
+		{
+			ReloadWaterProfiles();
+		}
+		return _waterProfiles;
+	}
 
 	public WaterProfileSaveData GetWaterProfile(byte profileIndex)
 	{
+		if (_waterProfiles.Count == 0)
+		{
+			ReloadWaterProfiles();
+		}
 		if (_waterProfiles.TryGetValue(profileIndex, out var prof)) return prof;
+		var defaults = WaterProfileSaveData.CreateDefaultProfiles();
+		var def = defaults.Find(d => d.ProfileIndex == profileIndex);
+		if (def != null)
+		{
+			_waterProfiles[profileIndex] = def;
+			return def;
+		}
 		return _waterProfiles.Values.FirstOrDefault() ?? new WaterProfileSaveData();
 	}
 
 	public ShaderMaterial GetWaterMaterial(byte profileIndex)
 	{
+		if (_waterProfiles.Count == 0)
+		{
+			ReloadWaterProfiles();
+		}
 		if (_waterMaterials.TryGetValue(profileIndex, out var mat) && mat != null) return mat;
 		if (_waterUberShader == null) CreateWater();
 		var newMat = new ShaderMaterial { Shader = _waterUberShader };
@@ -361,11 +379,25 @@ public partial class RuntimeTerrain : StaticBody3D
 	public void SetWaterProfiles(List<WaterProfileSaveData> profiles)
 	{
 		_waterProfiles.Clear();
+		foreach (var def in WaterProfileSaveData.CreateDefaultProfiles())
+		{
+			_waterProfiles[def.ProfileIndex] = def;
+		}
 		foreach (var p in profiles)
 		{
 			_waterProfiles[p.ProfileIndex] = p;
 		}
-		ReloadWaterProfiles();
+		foreach (var kvp in _waterProfiles)
+		{
+			byte idx = kvp.Key;
+			var prof = kvp.Value;
+			if (!_waterMaterials.TryGetValue(idx, out var mat) || mat == null)
+			{
+				mat = new ShaderMaterial { Shader = _waterUberShader };
+				_waterMaterials[idx] = mat;
+			}
+			ApplyWaterProfileToMaterial(mat, prof);
+		}
 		RegenerateWaterMesh();
 	}
 
@@ -479,22 +511,18 @@ public partial class RuntimeTerrain : StaticBody3D
 			}
 		}
 
-		if (_waterProfiles.Count == 0)
+		_waterProfiles.Clear();
+		foreach (var def in WaterProfileSaveData.CreateDefaultProfiles())
 		{
-			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot?.CustomWaterProfiles != null && metadataRoot.CustomWaterProfiles.Count > 0)
+			_waterProfiles[def.ProfileIndex] = def;
+		}
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot?.CustomWaterProfiles != null)
+		{
+			foreach (var p in metadataRoot.CustomWaterProfiles)
 			{
-				foreach (var p in metadataRoot.CustomWaterProfiles)
-				{
-					_waterProfiles[p.ProfileIndex] = p;
-				}
-			}
-			else
-			{
-				foreach (var def in WaterProfileSaveData.CreateDefaultProfiles())
-				{
-					_waterProfiles[def.ProfileIndex] = def;
-				}
+				_waterProfiles[p.ProfileIndex] = p;
 			}
 		}
 
@@ -715,7 +743,7 @@ public partial class RuntimeTerrain : StaticBody3D
 					meshPair = (meshInst, arrMesh);
 					chunk.ProfileWaterMeshes[pIdx] = meshPair;
 				}
-				else if (meshPair.MeshInstance.MaterialOverride == null)
+				else
 				{
 					meshPair.MeshInstance.MaterialOverride = GetWaterMaterial(pIdx);
 				}
@@ -772,15 +800,13 @@ public partial class RuntimeTerrain : StaticBody3D
 			_material.SetShaderParameter("shroud_world_min", shroudMin);
 			_material.SetShaderParameter("shroud_world_size", shroudSize);
 		}
-		if (_shallowWaterMaterial != null)
+		foreach (var wMat in _waterMaterials.Values)
 		{
-			_shallowWaterMaterial.SetShaderParameter("shroud_world_min", shroudMin);
-			_shallowWaterMaterial.SetShaderParameter("shroud_world_size", shroudSize);
-		}
-		if (_deepWaterMaterial != null)
-		{
-			_deepWaterMaterial.SetShaderParameter("shroud_world_min", shroudMin);
-			_deepWaterMaterial.SetShaderParameter("shroud_world_size", shroudSize);
+			if (wMat != null)
+			{
+				wMat.SetShaderParameter("shroud_world_min", shroudMin);
+				wMat.SetShaderParameter("shroud_world_size", shroudSize);
+			}
 		}
 	}
 
@@ -2318,8 +2344,6 @@ void fragment() {
 		{
 			if (GodotObject.IsInstanceValid(chunk.MeshInstance)) chunk.MeshInstance.QueueFree();
 			if (GodotObject.IsInstanceValid(chunk.CollisionShape)) chunk.CollisionShape.QueueFree();
-			if (GodotObject.IsInstanceValid(chunk.ShallowWaterMesh)) chunk.ShallowWaterMesh.QueueFree();
-			if (GodotObject.IsInstanceValid(chunk.DeepWaterMesh)) chunk.DeepWaterMesh.QueueFree();
 			if (chunk.ProfileWaterMeshes != null)
 			{
 				foreach (var (pMesh, _) in chunk.ProfileWaterMeshes.Values)
@@ -2359,22 +2383,6 @@ void fragment() {
 				chunk.MeshInstance.Layers = TerrainVisualLayer;
 				AddChild(chunk.MeshInstance);
 
-				chunk.ShallowWaterArrayMesh = new ArrayMesh();
-				chunk.ShallowWaterMesh = new MeshInstance3D();
-				chunk.ShallowWaterMesh.Name = $"ShallowWaterChunk_{x}_{z}";
-				chunk.ShallowWaterMesh.Mesh = chunk.ShallowWaterArrayMesh;
-				chunk.ShallowWaterMesh.Layers = TerrainVisualLayer;
-				if (_shallowWaterMaterial != null) chunk.ShallowWaterMesh.MaterialOverride = _shallowWaterMaterial;
-				AddChild(chunk.ShallowWaterMesh);
-
-				chunk.DeepWaterArrayMesh = new ArrayMesh();
-				chunk.DeepWaterMesh = new MeshInstance3D();
-				chunk.DeepWaterMesh.Name = $"DeepWaterChunk_{x}_{z}";
-				chunk.DeepWaterMesh.Mesh = chunk.DeepWaterArrayMesh;
-				chunk.DeepWaterMesh.Layers = TerrainVisualLayer;
-				if (_deepWaterMaterial != null) chunk.DeepWaterMesh.MaterialOverride = _deepWaterMaterial;
-				AddChild(chunk.DeepWaterMesh);
-
 				chunk.CollisionShape = new CollisionShape3D();
 				chunk.CollisionShape.Name = $"TerrainCollision_{x}_{z}";
 				
@@ -2400,13 +2408,12 @@ void fragment() {
 		{
 			_material.SetShaderParameter(ShroudEnabledParam, enabled);
 		}
-		if (_shallowWaterMaterial != null)
+		foreach (var wMat in _waterMaterials.Values)
 		{
-			_shallowWaterMaterial.SetShaderParameter(ShroudEnabledParam, enabled);
-		}
-		if (_deepWaterMaterial != null)
-		{
-			_deepWaterMaterial.SetShaderParameter(ShroudEnabledParam, enabled);
+			if (wMat != null)
+			{
+				wMat.SetShaderParameter(ShroudEnabledParam, enabled);
+			}
 		}
 	}
 
@@ -2428,13 +2435,12 @@ void fragment() {
 		{
 			_material.SetShaderParameter(ShroudTextureParam, clearTex);
 		}
-		if (_shallowWaterMaterial != null)
+		foreach (var wMat in _waterMaterials.Values)
 		{
-			_shallowWaterMaterial.SetShaderParameter(ShroudTextureParam, clearTex);
-		}
-		if (_deepWaterMaterial != null)
-		{
-			_deepWaterMaterial.SetShaderParameter(ShroudTextureParam, clearTex);
+			if (wMat != null)
+			{
+				wMat.SetShaderParameter(ShroudTextureParam, clearTex);
+			}
 		}
 		SetAllChunksVisible(true);
 	}
@@ -2446,13 +2452,12 @@ void fragment() {
 		{
 			_material.SetShaderParameter(ShroudTextureParam, restoreTex);
 		}
-		if (_shallowWaterMaterial != null)
+		foreach (var wMat in _waterMaterials.Values)
 		{
-			_shallowWaterMaterial.SetShaderParameter(ShroudTextureParam, restoreTex);
-		}
-		if (_deepWaterMaterial != null)
-		{
-			_deepWaterMaterial.SetShaderParameter(ShroudTextureParam, restoreTex);
+			if (wMat != null)
+			{
+				wMat.SetShaderParameter(ShroudTextureParam, restoreTex);
+			}
 		}
 	}
 
@@ -2466,13 +2471,12 @@ void fragment() {
 		{
 			_material.SetShaderParameter(ShroudTextureParam, shroudTexture);
 		}
-		if (_shallowWaterMaterial != null)
+		foreach (var wMat in _waterMaterials.Values)
 		{
-			_shallowWaterMaterial.SetShaderParameter(ShroudTextureParam, shroudTexture);
-		}
-		if (_deepWaterMaterial != null)
-		{
-			_deepWaterMaterial.SetShaderParameter(ShroudTextureParam, shroudTexture);
+			if (wMat != null)
+			{
+				wMat.SetShaderParameter(ShroudTextureParam, shroudTexture);
+			}
 		}
 	}
 
@@ -2824,8 +2828,13 @@ void fragment() {
 		float maxZ = chunk.EndZ * quadSize - halfD;
 		chunk.WorldAabb = new Aabb(new Vector3(minX, minY - 2f, minZ), new Vector3(maxX - minX, Math.Max(0.5f, maxY - minY + 10f), maxZ - minZ));
 		chunk.MeshInstance.CustomAabb = chunk.WorldAabb;
-		if (chunk.ShallowWaterMesh != null) chunk.ShallowWaterMesh.CustomAabb = chunk.WorldAabb;
-		if (chunk.DeepWaterMesh != null) chunk.DeepWaterMesh.CustomAabb = chunk.WorldAabb;
+		if (chunk.ProfileWaterMeshes != null)
+		{
+			foreach (var (pMesh, _) in chunk.ProfileWaterMeshes.Values)
+			{
+				if (GodotObject.IsInstanceValid(pMesh)) pMesh.CustomAabb = chunk.WorldAabb;
+			}
+		}
 
 		if (rebuildPhysics || chunk.CollisionShape.Shape == null)
 		{
@@ -2902,13 +2911,15 @@ void fragment() {
 			{
 				chunk.MeshInstance.Visible = visible;
 			}
-			if (GodotObject.IsInstanceValid(chunk.ShallowWaterMesh) && chunk.ShallowWaterMesh.Visible != visible)
+			if (chunk.ProfileWaterMeshes != null)
 			{
-				chunk.ShallowWaterMesh.Visible = visible;
-			}
-			if (GodotObject.IsInstanceValid(chunk.DeepWaterMesh) && chunk.DeepWaterMesh.Visible != visible)
-			{
-				chunk.DeepWaterMesh.Visible = visible;
+				foreach (var (pMesh, _) in chunk.ProfileWaterMeshes.Values)
+				{
+					if (GodotObject.IsInstanceValid(pMesh) && pMesh.Visible != visible)
+					{
+						pMesh.Visible = visible;
+					}
+				}
 			}
 		}
 	}
@@ -2918,8 +2929,13 @@ void fragment() {
 		foreach (var chunk in _chunks)
 		{
 			if (GodotObject.IsInstanceValid(chunk.MeshInstance) && chunk.MeshInstance.Visible != visible) chunk.MeshInstance.Visible = visible;
-			if (GodotObject.IsInstanceValid(chunk.ShallowWaterMesh) && chunk.ShallowWaterMesh.Visible != visible) chunk.ShallowWaterMesh.Visible = visible;
-			if (GodotObject.IsInstanceValid(chunk.DeepWaterMesh) && chunk.DeepWaterMesh.Visible != visible) chunk.DeepWaterMesh.Visible = visible;
+			if (chunk.ProfileWaterMeshes != null)
+			{
+				foreach (var (pMesh, _) in chunk.ProfileWaterMeshes.Values)
+				{
+					if (GodotObject.IsInstanceValid(pMesh) && pMesh.Visible != visible) pMesh.Visible = visible;
+				}
+			}
 		}
 	}
 
