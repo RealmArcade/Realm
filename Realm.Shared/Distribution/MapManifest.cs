@@ -19,6 +19,7 @@ public class MapManifest
     public string Description { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();
     public List<string> Maintainers { get; set; } = new();
+    public List<string> GreenlitReferences { get; set; } = new();
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonObject? Assets { get; set; }
@@ -424,6 +425,10 @@ public class MapManifest
                     {
                         manifest.Maintainers = new List<string>(existing.Maintainers);
                     }
+                    if ((manifest.GreenlitReferences == null || manifest.GreenlitReferences.Count == 0) && existing.GreenlitReferences != null && existing.GreenlitReferences.Count > 0)
+                    {
+                        manifest.GreenlitReferences = new List<string>(existing.GreenlitReferences);
+                    }
                     if (existing.Assets != null)
                     {
                         existingAssets = existing.Assets.DeepClone() as JsonObject;
@@ -513,6 +518,8 @@ public class MapManifest
                                 !string.Equals(kvp.Key, "Description", StringComparison.OrdinalIgnoreCase) &&
                                 !string.Equals(kvp.Key, "Tags", StringComparison.OrdinalIgnoreCase) &&
                                 !string.Equals(kvp.Key, "GameBuildNumber", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(kvp.Key, "Maintainers", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(kvp.Key, "GreenlitReferences", StringComparison.OrdinalIgnoreCase) &&
                                 !string.Equals(kvp.Key, "Assets", StringComparison.OrdinalIgnoreCase) &&
                                 !string.Equals(kvp.Key, "Files", StringComparison.OrdinalIgnoreCase) &&
                                 !string.Equals(kvp.Key, "FileSizes", StringComparison.OrdinalIgnoreCase))

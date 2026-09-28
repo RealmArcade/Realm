@@ -2232,23 +2232,67 @@ public partial class MapEditorHUD : Control
 		updateText();
 		optType.ItemSelected += (_) => updateText();
 
+		var (unprunedCount, unnormalizedPotentialCount, potentialSavedBytes) = MapNormalizationHelper.CheckOptimizationState(wsPath);
+		if (unprunedCount > 0 || unnormalizedPotentialCount > 0)
+		{
+			var tipPanel = new PanelContainer();
+			var tipStyle = new StyleBoxFlat
+			{
+				BgColor = new Color(0.2f, 0.17f, 0.1f, 0.95f),
+				BorderColor = UIStyle.ColorGoldDull,
+				BorderWidthBottom = 1,
+				BorderWidthTop = 1,
+				BorderWidthLeft = 1,
+				BorderWidthRight = 1,
+				CornerRadiusTopLeft = 4,
+				CornerRadiusTopRight = 4,
+				CornerRadiusBottomLeft = 4,
+				CornerRadiusBottomRight = 4
+			};
+			tipPanel.AddThemeStyleboxOverride("panel", tipStyle);
+			var tipMargin = new MarginContainer();
+			tipMargin.AddThemeConstantOverride("margin_top", 6);
+			tipMargin.AddThemeConstantOverride("margin_bottom", 6);
+			tipMargin.AddThemeConstantOverride("margin_left", 10);
+			tipMargin.AddThemeConstantOverride("margin_right", 10);
+			tipPanel.AddChild(tipMargin);
+
+			var tipLabel = new Label();
+			tipLabel.Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend clicking 'Prune Unused' and 'Normalize References' in the Asset Manager before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes));
+			tipLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			tipLabel.AddThemeFontSizeOverride("font_size", 12);
+			tipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			tipMargin.AddChild(tipLabel);
+			vbox.AddChild(tipPanel);
+		}
+
+		var chkFullExport = new CheckBox();
+		chkFullExport.Text = TranslationServer.Translate("Full Export (Include all physical assets in package, bypassing greenlit deduplication)");
+		chkFullExport.ButtonPressed = false;
+		chkFullExport.AddThemeConstantOverride("icon_max_width", 0);
+		UIStyle.ApplyCheckboxStyle(chkFullExport);
+		vbox.AddChild(chkFullExport);
+
 		var hbox = new HBoxContainer();
 		hbox.Alignment = BoxContainer.AlignmentMode.Center;
 		hbox.AddThemeConstantOverride("separation", 20);
 		vbox.AddChild(hbox);
 
 		var btnPublish = new Button();
-		btnPublish.Text = "Publish Map";
+		btnPublish.AddThemeConstantOverride("icon_max_width", 0);
+		btnPublish.Text = TranslationServer.Translate("Publish Map");
 		btnPublish.CustomMinimumSize = new Vector2(140, 40);
 		btnPublish.Pressed += () =>
 		{
+			bool isFullExport = chkFullExport.ButtonPressed;
 			overlay.QueueFree();
-			PublishMapAction();
+			PublishMapAction(isFullExport);
 		};
 		hbox.AddChild(btnPublish);
 
 		var btnClose = new Button();
-		btnClose.Text = "Close";
+		btnClose.AddThemeConstantOverride("icon_max_width", 0);
+		btnClose.Text = TranslationServer.Translate("Close");
 		btnClose.CustomMinimumSize = new Vector2(120, 40);
 		btnClose.Pressed += () => overlay.QueueFree();
 		hbox.AddChild(btnClose);
@@ -3917,7 +3961,7 @@ public partial class MapEditorHUD : Control
 		btnClose.Pressed += () => overlay.QueueFree();
 		hbox.AddChild(btnClose);
 	}
-	private async void PublishMapAction()
+	private async void PublishMapAction(bool fullExport = false)
 	{
 		if (GameHost.Instance == null || _isSyncing) return;
 		_isSyncing = true;
@@ -9302,7 +9346,7 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
-	public async System.Threading.Tasks.Task ExportMapPackageAsync(string destinationPath)
+	public async System.Threading.Tasks.Task ExportMapPackageAsync(string destinationPath, bool fullExport = false)
 	{
 		if (GameHost.Instance == null) return;
 
@@ -9565,6 +9609,7 @@ public partial class MapEditorHUD : Control
 			statusLabel.Text = TranslationServer.Translate("Compressing package into .rmap archive...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
+			var excludedPaths = !fullExport ? MapNormalizationHelper.GetExcludedRelativePaths(_tempWorkspacePath) : null;
 			long lastProgressUpdateTicks = 0;
 			await System.Threading.Tasks.Task.Run(() =>
 			{
@@ -9585,7 +9630,7 @@ public partial class MapEditorHUD : Control
 							statusLabel.Text = string.Format(TranslationServer.Translate("Compressing {0} ({1}%)..."), fileName, (int)(pct * 100));
 						}
 					}).CallDeferred();
-				}, compressionLevel: 1);
+				}, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths);
 			});
 
 			progressBar.Value = 100;

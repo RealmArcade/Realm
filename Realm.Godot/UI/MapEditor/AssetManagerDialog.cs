@@ -56,6 +56,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	private Button _btnConvertMixamo;
 	private Button _btnGenerateNoise;
 	private Button _btnPruneUnused;
+	private Button _btnNormalize;
 	private LineEdit _txtSearchFilter;
 	private VBoxContainer _listVBox;
 
@@ -325,6 +326,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_btnGenerateNoise = AddButton(catRow, "\uf074 " + TranslationServer.Translate("Generate Noise"), () => Hud?.OpenNoiseTextureDialog((_) => RefreshAssetList()), "Create procedural noise texture on CPU using FastNoiseLite", 11, new Vector2(130, 26));
 		_btnGenerateNoise.Visible = false;
 		_btnPruneUnused = AddButton(catRow, "\uf12d " + TranslationServer.Translate("Prune Unused"), () => PruneUnusedAssets(), "Remove assets not referenced anywhere in the map", 11, new Vector2(110, 26));
+		_btnNormalize = AddButton(catRow, "\uf0ec " + TranslationServer.Translate("Normalize References"), () => NormalizeGreenlitReferences(), "Find and associate shared assets from greenlit maps to reduce package size", 11, new Vector2(150, 26));
 
 		BodyContainer.AddChild(catRow);
 
@@ -3959,6 +3961,187 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		{
 			GD.PrintErr($"[AssetManagerDialog] PruneUnusedAssets error: {ex.Message}");
 		}
+	}
+
+	private void NormalizeGreenlitReferences()
+	{
+		string wsPath = GetWorkspacePath();
+		var suggestions = MapNormalizationHelper.FindGreenlitReferenceSuggestions(wsPath);
+		var currentRefs = MapNormalizationHelper.GetCurrentGreenlitReferences(wsPath);
+
+		if (suggestions.Count == 0)
+		{
+			if (currentRefs.Count == 0)
+			{
+				Hud?.ShowFeedback(TranslationServer.Translate("No shared greenlit assets found. All assets are unique to this map."));
+			}
+			else
+			{
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("All shared greenlit assets are already normalized ({0} references active)."), currentRefs.Count));
+			}
+			return;
+		}
+
+		ShowNormalizeReferencesDialog(wsPath, suggestions, currentRefs);
+	}
+
+	private void ShowNormalizeReferencesDialog(string wsPath, List<GreenlitReferenceSuggestion> suggestions, List<string> currentRefs)
+	{
+		var overlay = new Panel();
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		overlay.ZIndex = 1200;
+		AddChild(overlay);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(650, 480);
+		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		overlay.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(610, 440);
+		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
+		vbox.AddThemeConstantOverride("separation", 10);
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
+
+		var titleLabel = new Label();
+		UIStyle.ApplyTitle(titleLabel, "🔗 " + TranslationServer.Translate("NORMALIZE GREENLIT REFERENCES"), 18);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(titleLabel);
+
+		var descLabel = new Label();
+		descLabel.Text = TranslationServer.Translate("The following greenlit maps contain identical assets. Referencing them allows .rmap exports to exclude these duplicate files to minimize download size for players.");
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLabel.AddThemeFontSizeOverride("font_size", 12);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.85f, 0.95f));
+		vbox.AddChild(descLabel);
+
+		var scroll = new ScrollContainer();
+		scroll.CustomMinimumSize = new Vector2(590, 260);
+		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
+		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		vbox.AddChild(scroll);
+
+		var listContainer = new VBoxContainer();
+		listContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		listContainer.AddThemeConstantOverride("separation", 6);
+		scroll.AddChild(listContainer);
+
+		var checkboxes = new List<(CheckBox CheckBox, GreenlitReferenceSuggestion Suggestion)>();
+
+		foreach (var suggestion in suggestions)
+		{
+			var row = new PanelContainer();
+			var rowStyle = new StyleBoxFlat
+			{
+				BgColor = new Color(0.16f, 0.17f, 0.22f, 0.9f),
+				CornerRadiusTopLeft = 4,
+				CornerRadiusTopRight = 4,
+				CornerRadiusBottomLeft = 4,
+				CornerRadiusBottomRight = 4
+			};
+			row.AddThemeStyleboxOverride("panel", rowStyle);
+			listContainer.AddChild(row);
+
+			var rowHBox = new HBoxContainer();
+			rowHBox.AddThemeConstantOverride("separation", 10);
+			row.AddChild(rowHBox);
+
+			var cb = new CheckBox();
+			cb.ButtonPressed = suggestion.IsSelected;
+			cb.AddThemeConstantOverride("icon_max_width", 0);
+			UIStyle.ApplyCheckboxStyle(cb);
+			rowHBox.AddChild(cb);
+			checkboxes.Add((cb, suggestion));
+
+			var infoVBox = new VBoxContainer();
+			infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			rowHBox.AddChild(infoVBox);
+
+			var mapNameLabel = new Label();
+			mapNameLabel.Text = $"{suggestion.MapTitle} (v{suggestion.MapVersion})";
+			mapNameLabel.AddThemeFontSizeOverride("font_size", 13);
+			mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			infoVBox.AddChild(mapNameLabel);
+
+			var statsLabel = new Label();
+			statsLabel.Text = string.Format(TranslationServer.Translate("{0} matching asset(s) • Estimated savings: {1}"), suggestion.MatchedAssetPaths.Count, MapStorageService.FormatBytes(suggestion.SavedBytes));
+			statsLabel.AddThemeFontSizeOverride("font_size", 11);
+			statsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.8f, 0.9f));
+			infoVBox.AddChild(statsLabel);
+		}
+
+		var summaryLabel = new Label();
+		Action updateSummary = () =>
+		{
+			long totalSavings = checkboxes.Where(c => c.CheckBox.ButtonPressed).Sum(c => c.Suggestion.SavedBytes);
+			int selectedCount = checkboxes.Count(c => c.CheckBox.ButtonPressed);
+			summaryLabel.Text = string.Format(TranslationServer.Translate("Selected: {0} map reference(s) • Total export savings: {1}"), selectedCount, MapStorageService.FormatBytes(totalSavings));
+		};
+		summaryLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		summaryLabel.AddThemeFontSizeOverride("font_size", 12);
+		summaryLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		vbox.AddChild(summaryLabel);
+		updateSummary();
+
+		foreach (var (cb, _) in checkboxes)
+		{
+			cb.Toggled += (_) => updateSummary();
+		}
+
+		var btnRow = new HBoxContainer();
+		btnRow.Alignment = BoxContainer.AlignmentMode.Center;
+		btnRow.AddThemeConstantOverride("separation", 15);
+		vbox.AddChild(btnRow);
+
+		var btnApply = new Button();
+		btnApply.AddThemeConstantOverride("icon_max_width", 0);
+		btnApply.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		btnApply.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		btnApply.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		btnApply.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(btnApply, TranslationServer.Translate("APPLY REFERENCES"), 13);
+		btnApply.CustomMinimumSize = new Vector2(170, 34);
+		btnRow.AddChild(btnApply);
+
+		btnApply.Pressed += () =>
+		{
+			UIManager.Instance?.PlayClickSound();
+			var selectedTitles = checkboxes
+				.Where(c => c.CheckBox.ButtonPressed)
+				.Select(c => c.Suggestion.MapTitle)
+				.ToList();
+
+			if (selectedTitles.Count > 0)
+			{
+				MapNormalizationHelper.ApplyGreenlitReferences(wsPath, selectedTitles);
+				long saved = checkboxes.Where(c => c.CheckBox.ButtonPressed).Sum(c => c.Suggestion.SavedBytes);
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Applied {0} greenlit reference(s). {1} saved in .rmap exports!"), selectedTitles.Count, MapStorageService.FormatBytes(saved)));
+			}
+			overlay.QueueFree();
+		};
+
+		var btnCancel = new Button();
+		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
+		btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		btnCancel.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		btnCancel.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate("CANCEL"), 13);
+		btnCancel.CustomMinimumSize = new Vector2(110, 34);
+		btnRow.AddChild(btnCancel);
+
+		btnCancel.Pressed += () =>
+		{
+			UIManager.Instance?.PlayClickSound();
+			overlay.QueueFree();
+		};
 	}
 
 	private static string ComputeHashHex(byte[] bytes)
