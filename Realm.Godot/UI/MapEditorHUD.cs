@@ -3687,11 +3687,7 @@ public partial class MapEditorHUD : Control
 
 		if (err != Error.Ok)
 		{
-			string defaultFolder = ProjectSettings.GlobalizePath("user://maps/default_map");
-			if (System.IO.Directory.Exists(defaultFolder))
-			{
-				_ = LoadMapFolderAsync(defaultFolder);
-			}
+			ShowFeedback(TranslationServer.Translate("Map could not be loaded."));
 		}
 	}
 

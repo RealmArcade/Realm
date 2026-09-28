@@ -356,7 +356,7 @@
 	"CustomVfx": [],
 	"CustomWeapons": [],
 	"Dependencies": [],
-	"GameBuildNumber": "v0.0.2",
+	"GameBuildNumber": "v0.0.3",
 	"MapProperties": {
 		"Author": null,
 		"CameraBoundsBottom": null,

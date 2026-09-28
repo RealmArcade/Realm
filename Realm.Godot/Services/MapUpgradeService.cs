@@ -714,6 +714,154 @@ public class Migration_0_0_2_NormalizeModelProperties : IMapMigration
 	}
 }
 
+public class Migration_0_0_3_WaterProfilesAndShaders : IMapMigration
+{
+	public string FromVersion => "v0.0.2";
+	public string ToVersion => "v0.0.3";
+	public string Description => "Migrate water profiles schema, normalize custom shaders in metadata and manifest, and update build number to v0.0.3";
+
+	public MigrationResult Up(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
+	{
+		try
+		{
+			string metadataPath = Path.Combine(mapDirectory, "metadata.json");
+			JsonObject? metadataRoot = null;
+			if (File.Exists(metadataPath))
+			{
+				string text = File.ReadAllText(metadataPath);
+				metadataRoot = JsonNode.Parse(text)?.AsObject();
+			}
+
+			metadataRoot ??= new JsonObject();
+
+			const int totalSteps = 3;
+
+			progress?.Report(new MigrationProgressUpdate(Description, 1, totalSteps, "Normalizing custom water profiles..."));
+
+			if (metadataRoot.TryGetPropertyValue("CustomWaterProfiles", out var waterProfilesNode) && waterProfilesNode is JsonArray waterProfilesArray)
+			{
+				foreach (var item in waterProfilesArray)
+				{
+					if (item is JsonObject profileObject)
+					{
+						profileObject.Remove("WaterType");
+
+						if (!profileObject.ContainsKey("DetailTileMode") || profileObject["DetailTileMode"] == null)
+						{
+							profileObject["DetailTileMode"] = "Stochastic";
+						}
+						if (!profileObject.ContainsKey("DetailStochasticTileSize") || profileObject["DetailStochasticTileSize"] == null)
+						{
+							profileObject["DetailStochasticTileSize"] = 1.0f;
+						}
+						if (!profileObject.ContainsKey("DetailCrossFade") || profileObject["DetailCrossFade"] == null)
+						{
+							profileObject["DetailCrossFade"] = 0.0f;
+						}
+						if (!profileObject.ContainsKey("DetailTexturePath") || profileObject["DetailTexturePath"] == null)
+						{
+							profileObject["DetailTexturePath"] = string.Empty;
+						}
+						if (!profileObject.ContainsKey("UseDetailTexture") || profileObject["UseDetailTexture"] == null)
+						{
+							profileObject["UseDetailTexture"] = false;
+						}
+						if (!profileObject.ContainsKey("DetailUvScaleX") || profileObject["DetailUvScaleX"] == null)
+						{
+							profileObject["DetailUvScaleX"] = 1.0f;
+						}
+						if (!profileObject.ContainsKey("DetailUvScaleY") || profileObject["DetailUvScaleY"] == null)
+						{
+							profileObject["DetailUvScaleY"] = 1.0f;
+						}
+						if (!profileObject.ContainsKey("DetailUvScrollX") || profileObject["DetailUvScrollX"] == null)
+						{
+							profileObject["DetailUvScrollX"] = 0.0f;
+						}
+						if (!profileObject.ContainsKey("DetailUvScrollY") || profileObject["DetailUvScrollY"] == null)
+						{
+							profileObject["DetailUvScrollY"] = 0.0f;
+						}
+						if (!profileObject.ContainsKey("DetailAlpha") || profileObject["DetailAlpha"] == null)
+						{
+							profileObject["DetailAlpha"] = 0.5f;
+						}
+						if (!profileObject.ContainsKey("DetailBlendMode") || profileObject["DetailBlendMode"] == null)
+						{
+							profileObject["DetailBlendMode"] = 0;
+						}
+					}
+				}
+			}
+
+			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Normalizing shaders in manifest and metadata..."));
+
+			var unionedAssets = MapAssetHelper.LoadUnionedAssets(mapDirectory);
+
+			if (metadataRoot.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObject)
+			{
+				if (!unionedAssets.ContainsKey("shaders") || unionedAssets["shaders"] is not JsonObject)
+				{
+					unionedAssets["shaders"] = new JsonObject();
+				}
+				var categoryTarget = unionedAssets["shaders"]!.AsObject();
+
+				foreach (var pair in shadersObject)
+				{
+					if (categoryTarget.ContainsKey(pair.Key) && categoryTarget[pair.Key] is JsonObject existingObj && pair.Value is JsonObject sourceObj)
+					{
+						foreach (var prop in sourceObj)
+						{
+							existingObj[prop.Key] = prop.Value?.DeepClone();
+						}
+					}
+					else
+					{
+						categoryTarget[pair.Key] = pair.Value?.DeepClone();
+					}
+				}
+			}
+
+			MapAssetHelper.SaveAssetsToManifest(mapDirectory, unionedAssets, removeFromMetadata: true);
+
+			metadataRoot.Remove("Assets");
+			if (metadataRoot["MapProperties"] is JsonObject mapPropertiesObject)
+			{
+				mapPropertiesObject.Remove("Assets");
+			}
+
+			progress?.Report(new MigrationProgressUpdate(Description, 3, totalSteps, "Updating map build number and saving metadata.json..."));
+
+			metadataRoot["GameBuildNumber"] = ToVersion;
+			SaveLoadService.CleanMetadataJsonSchema(metadataRoot);
+
+			MapJsonFormatter.SaveFormattedJson(metadataPath, metadataRoot);
+
+			return new MigrationResult
+			{
+				Success = true,
+				FromVersion = FromVersion,
+				ToVersion = ToVersion
+			};
+		}
+		catch (Exception ex)
+		{
+			return new MigrationResult
+			{
+				Success = false,
+				ErrorMessage = $"Migration 0.0.3 failed: {ex.Message}",
+				FromVersion = FromVersion,
+				ToVersion = ToVersion
+			};
+		}
+	}
+
+	public Task<MigrationResult> UpAsync(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
+	{
+		return Task.Run(() => Up(mapDirectory, progress));
+	}
+}
+
 public class MapUpgradeService
 {
 	private readonly WorldAccessor _worldAccessor;
@@ -731,6 +879,7 @@ public class MapUpgradeService
 	{
 		_migrations.Add(new Migration_0_0_1_InitialCanonicalFormat());
 		_migrations.Add(new Migration_0_0_2_NormalizeModelProperties());
+		_migrations.Add(new Migration_0_0_3_WaterProfilesAndShaders());
 	}
 
 	public string GetMapBuildNumber(string mapDirectory)
