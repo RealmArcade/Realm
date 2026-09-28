@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 namespace Realm.AdminServer.Services;
@@ -947,8 +948,14 @@ public class ClusterEventService
             return false;
         }
 
-        string slug = username.ToLowerInvariant().Replace(" ", "-");
-        var existingLock = db.Get<JsonDocument>("name_locks", slug);
+        string slug = NameNormalizationHelper.NormalizeUsername(username);
+        if (string.IsNullOrEmpty(slug))
+        {
+            slug = username.ToLowerInvariant().Replace(" ", "-");
+        }
+
+        var existingLock = db.Get<JsonDocument>("name_locks", slug)
+            ?? db.Get<JsonDocument>("name_locks", username.ToLowerInvariant().Replace(" ", "-"));
         if (existingLock != null)
         {
             var root = existingLock.RootElement;

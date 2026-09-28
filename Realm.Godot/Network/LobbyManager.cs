@@ -84,6 +84,21 @@ public partial class LobbyManager : Node
     public string AuthenticatedUsername { get; set; } = "Horaid_Topa";
     public string? AuthToken { get; set; }
     public string? AuthProvider { get; set; }
+
+    public bool SetInGameUsername(string newUsername, out string? errorMessage)
+    {
+        if (!NameNormalizationHelper.ValidateUsername(newUsername, out errorMessage))
+        {
+            return false;
+        }
+
+        AuthenticatedUsername = newUsername.Trim();
+        if (LocalPlayer != null)
+        {
+            LocalPlayer.Name = AuthenticatedUsername;
+        }
+        return true;
+    }
     private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
     private bool _isReconnecting = false;
     public bool IsReconnecting => _isReconnecting;
@@ -2729,6 +2744,10 @@ public partial class LobbyManager : Node
                 AuthenticatedUsername = username;
                 AuthToken = token;
                 AuthProvider = returnedProvider;
+                if (LocalPlayer != null)
+                {
+                    LocalPlayer.Name = username;
+                }
 
                 GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");
 

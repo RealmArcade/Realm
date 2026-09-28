@@ -1,5 +1,6 @@
 using Realm.AdminServer.Models;
 using Realm.AdminServer.Services;
+using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 
@@ -228,16 +229,9 @@ app.MapPost("/lobbies/register", async (RegisterRequest req, LobbyRegistry regis
             return Results.BadRequest(new { Message = "Invalid signature or public key format." });
         }
         
-        string slug = req.Map.ToLowerInvariant().Replace(" ", "-");
-        bool hasPublishedRecord = db.Get<string>("map_ownership", req.Map) != null 
-            || db.Get<string>("map_ownership", slug) != null 
-            || db.Get<JsonDocument>("published_maps", req.Map) != null 
-            || db.Get<JsonDocument>("published_maps", slug) != null 
-            || (db.Get<List<string>>("map_maintainers", req.Map)?.Count > 0);
-
-        if (hasPublishedRecord && !MapMaintainerHelper.IsAuthorizedMaintainer(db, req.Map, req.PublicKey))
+        if (MapMaintainerHelper.HasMapConflict(db, req.Map, req.PublicKey, out var conflictingMap))
         {
-            return Results.BadRequest(new { Message = $"The map name '{req.Map}' conflicts with an officially published map. Please rename your map to host a lobby." });
+            return Results.BadRequest(new { Message = $"The map name '{req.Map}' conflicts with an officially published map ('{conflictingMap}'). Please rename your map to host a lobby." });
         }
     }
 
@@ -630,8 +624,10 @@ app.MapGet("/auth/login", (string provider, int port) =>
 
 app.MapGet("/auth/authorize", (string provider, int port, string username, string? discord_id, DataStoreService db) =>
 {
-    string finalUsername = username;
+    string candidateUsername = username?.Trim() ?? string.Empty;
     string playerId = "";
+    string playerKey = "";
+
     if (provider == "discord")
     {
         string snowflake = discord_id ?? "";
@@ -641,39 +637,53 @@ app.MapGet("/auth/authorize", (string provider, int port, string username, strin
             long part2 = Random.Shared.Next(100000000, 999999999);
             snowflake = $"{part1}{part2}";
         }
+        playerKey = snowflake;
         playerId = $"discord_{snowflake}";
-
-        var existingPlayer = db.Get<JsonDocument>("players", snowflake);
-        if (existingPlayer != null)
-        {
-            var root = existingPlayer.RootElement;
-            if (root.TryGetProperty("username", out var uProp))
-            {
-                finalUsername = uProp.GetString() ?? username;
-            }
-        }
-        else
-        {
-            var playerDoc = JsonSerializer.SerializeToDocument(new
-            {
-                id = snowflake,
-                username = username,
-                provider = "discord",
-                registration_date = DateTime.UtcNow
-            });
-            db.Upsert("players", snowflake, playerDoc);
-        }
     }
     else
     {
-        playerId = $"{provider}_{Guid.NewGuid().ToString("N")[..8]}";
-        var playerDoc = JsonSerializer.SerializeToDocument(new
+        playerKey = $"{provider}_{Guid.NewGuid().ToString("N")[..8]}";
+        playerId = playerKey;
+    }
+
+    string finalUsername = candidateUsername;
+    var existingPlayer = db.Get<JsonDocument>("players", playerKey) ?? db.Get<JsonDocument>("players", playerId);
+
+    if (existingPlayer != null)
+    {
+        var root = existingPlayer.RootElement;
+        if (root.TryGetProperty("username", out var uProp))
         {
-            id = playerId,
-            username = username,
-            provider = provider,
-            registration_date = DateTime.UtcNow
-        });
+            string existingUsername = uProp.GetString() ?? "";
+            if (!string.IsNullOrWhiteSpace(existingUsername))
+            {
+                finalUsername = existingUsername;
+            }
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(finalUsername) || !NameNormalizationHelper.ValidateUsername(finalUsername, out _))
+    {
+        finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
+    }
+
+    string normalizedUser = NameNormalizationHelper.NormalizeUsername(finalUsername);
+    var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
+    if (existingLock != null && existingPlayer == null)
+    {
+        finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
+    }
+
+    var playerDoc = JsonSerializer.SerializeToDocument(new
+    {
+        id = playerId,
+        username = finalUsername,
+        provider = provider,
+        registration_date = DateTime.UtcNow
+    });
+    db.Upsert("players", playerKey, playerDoc);
+    if (playerKey != playerId)
+    {
         db.Upsert("players", playerId, playerDoc);
     }
 
@@ -690,6 +700,68 @@ app.MapGet("/auth/authorize", (string provider, int port, string username, strin
 
     var callbackUrl = $"http://localhost:{port}/auth/callback/?username={Uri.EscapeDataString(finalUsername)}&token={token}&provider={provider}";
     return Results.Redirect(callbackUrl);
+});
+
+app.MapPost("/api/players/username", (UpdatePlayerUsernameRequest req, DataStoreService db) =>
+{
+    if (string.IsNullOrWhiteSpace(req.PlayerId))
+    {
+        return Results.BadRequest(new { Message = "PlayerId is required." });
+    }
+
+    if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
+    {
+        return Results.BadRequest(new { Message = usernameError });
+    }
+
+    string trimmedUsername = req.Username.Trim();
+    string normalizedUser = NameNormalizationHelper.NormalizeUsername(trimmedUsername);
+
+    var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
+    if (existingLock != null)
+    {
+        return Results.Conflict(new { Message = $"The username '{trimmedUsername}' conflicts with a registered creator name." });
+    }
+
+    var allPlayers = db.GetAllWithKeys<JsonDocument>("players");
+    foreach (var pair in allPlayers)
+    {
+        if (string.Equals(pair.Key, req.PlayerId, StringComparison.OrdinalIgnoreCase))
+        {
+            continue;
+        }
+
+        var root = pair.Value.RootElement;
+        if (root.TryGetProperty("username", out var uProp))
+        {
+            string existingU = uProp.GetString() ?? "";
+            if (NameNormalizationHelper.AreUsernamesConflicting(existingU, trimmedUsername))
+            {
+                return Results.Conflict(new { Message = $"The username '{trimmedUsername}' is already in use by another player." });
+            }
+        }
+    }
+
+    var existingDoc = db.Get<JsonDocument>("players", req.PlayerId);
+    string provider = "custom";
+    DateTime regDate = DateTime.UtcNow;
+    if (existingDoc != null)
+    {
+        var root = existingDoc.RootElement;
+        if (root.TryGetProperty("provider", out var pProp)) provider = pProp.GetString() ?? "custom";
+        if (root.TryGetProperty("registration_date", out var rProp) && rProp.TryGetDateTime(out var dt)) regDate = dt;
+    }
+
+    var updatedDoc = JsonSerializer.SerializeToDocument(new
+    {
+        id = req.PlayerId,
+        username = trimmedUsername,
+        provider = provider,
+        registration_date = regDate
+    });
+    db.Upsert("players", req.PlayerId, updatedDoc);
+
+    return Results.Ok(new { Status = "Updated", Username = trimmedUsername, PlayerId = req.PlayerId });
 });
 
 app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
@@ -1952,8 +2024,13 @@ app.MapPost("/api/cluster/sync_creators", async (HttpRequest request, ClusterEve
         {
             if (string.IsNullOrWhiteSpace(creator.PublicKey) || string.IsNullOrWhiteSpace(creator.Username)) continue;
 
-            string slug = creator.Username.ToLowerInvariant().Replace(" ", "-");
-            var existingLock = db.Get<JsonDocument>("name_locks", slug);
+            string slug = NameNormalizationHelper.NormalizeUsername(creator.Username);
+            if (string.IsNullOrEmpty(slug))
+            {
+                slug = creator.Username.ToLowerInvariant().Replace(" ", "-");
+            }
+            var existingLock = db.Get<JsonDocument>("name_locks", slug)
+                ?? db.Get<JsonDocument>("name_locks", creator.Username.ToLowerInvariant().Replace(" ", "-"));
             if (existingLock == null)
             {
                 var lockDoc = JsonSerializer.SerializeToDocument(new
@@ -2082,9 +2159,9 @@ app.MapGet("/api/publish_map/asset_author/{hash}", (string hash, DataStoreServic
 
 app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreatorRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-    if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.PublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+    if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
     {
-        return Results.BadRequest(new { Message = "Username, PublicKey, and Signature are required." });
+        return Results.BadRequest(new { Message = usernameError });
     }
 
     string username = req.Username.Trim();
@@ -2099,8 +2176,14 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
         return Results.BadRequest(new { Message = "Invalid cryptographic signature for public key." });
     }
 
-    string slug = username.ToLowerInvariant().Replace(" ", "-");
-    var existingLock = db.Get<JsonDocument>("name_locks", slug);
+    string slug = NameNormalizationHelper.NormalizeUsername(username);
+    if (string.IsNullOrEmpty(slug))
+    {
+        slug = username.ToLowerInvariant().Replace(" ", "-");
+    }
+
+    var existingLock = db.Get<JsonDocument>("name_locks", slug)
+        ?? db.Get<JsonDocument>("name_locks", username.ToLowerInvariant().Replace(" ", "-"));
     if (existingLock != null)
     {
         var root = existingLock.RootElement;

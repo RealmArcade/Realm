@@ -5225,14 +5225,9 @@ public partial class MapEditorHUD : Control
 		btnRegister.CustomMinimumSize = new Vector2(150, 36);
 		btnRegister.Pressed += async () => {
 			string username = lineEdit.Text.Trim();
-			if (string.IsNullOrEmpty(username))
+			if (!NameNormalizationHelper.ValidateUsername(username, out var validationError))
 			{
-				errLabel.Text = TranslationServer.Translate("Username cannot be empty.");
-				return;
-			}
-			if (username.Length > 32)
-			{
-				errLabel.Text = TranslationServer.Translate("Username must be 32 characters or less.");
+				errLabel.Text = TranslationServer.Translate(validationError ?? "Invalid username.");
 				return;
 			}
 
