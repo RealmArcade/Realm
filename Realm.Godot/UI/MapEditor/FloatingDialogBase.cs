@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using Realm.Godot.Services;
 using Realm.Godot.VFX;
 
 public partial class FloatingDialogBase : PanelContainer
@@ -1176,6 +1177,20 @@ public partial class FloatingDialogBase : PanelContainer
 								}
 							}
 						}
+						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var vfxMetaRoot) && vfxMetaRoot != null)
+						{
+							if (vfxMetaRoot.CustomVfx != null)
+							{
+								foreach (var cv in vfxMetaRoot.CustomVfx)
+								{
+									if (!string.IsNullOrWhiteSpace(cv.VfxId))
+									{
+										result.Add(cv.VfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? cv.VfxId : $"vfx:{cv.VfxId}");
+										result.Add(cv.VfxId);
+									}
+								}
+							}
+						}
 					}
 					else if (category == "decals" || category == "decal")
 					{
@@ -1188,6 +1203,20 @@ public partial class FloatingDialogBase : PanelContainer
 									if (!string.IsNullOrWhiteSpace(prop.Key))
 									{
 										result.Add(prop.Key);
+									}
+								}
+							}
+						}
+
+						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var decalMetaRoot) && decalMetaRoot != null)
+						{
+							if (decalMetaRoot.Decals != null)
+							{
+								foreach (var kvp in decalMetaRoot.Decals)
+								{
+									if (!string.IsNullOrWhiteSpace(kvp.Key))
+									{
+										result.Add(kvp.Key);
 									}
 								}
 							}

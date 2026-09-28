@@ -210,12 +210,14 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 	private ItemList _lstDecals;
 	private LineEdit _txtDecalId;
+	private Action<string> _setDecalIdValue;
 	private HSlider _sldDecalDensity;
 	private HSlider _sldDecalMinScale;
 	private HSlider _sldDecalMaxScale;
 
 	private ItemList _lstVfx;
 	private LineEdit _txtVfxId;
+	private Action<string> _setVfxIdValue;
 	private HSlider _sldVfxDensity;
 	private HSlider _sldVfxMinScale;
 	private HSlider _sldVfxMaxScale;
@@ -438,11 +440,29 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered decals placed at terrain elevation during texture painting:"));
 		var decalListRow = new HBoxContainer();
 		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstDecals.ItemSelected += (idx) =>
+		{
+			if (idx >= 0 && idx < _decalRules.Count)
+			{
+				var r = _decalRules[(int)idx];
+				_setDecalIdValue?.Invoke(r.DecalId);
+				if (_sldDecalDensity != null) _sldDecalDensity.Value = r.Density;
+				if (_sldDecalMinScale != null) _sldDecalMinScale.Value = r.MinScale;
+				if (_sldDecalMaxScale != null) _sldDecalMaxScale.Value = r.MaxScale;
+			}
+		};
 		decalListRow.AddChild(_lstDecals);
 
-		var decalBtnBox = new VBoxContainer();
-		_txtDecalId = new LineEdit { PlaceholderText = "decal_texture_id" };
-		decalBtnBox.AddChild(_txtDecalId);
+		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
+			decalBtnBox,
+			string.Empty,
+			string.Empty,
+			(all) => ScanAvailableAssets("decals", all),
+			(val) => { },
+			TranslationServer.Translate("decal_texture_id"),
+			0f
+		);
 
 		var btnAddDecal = new Button { Text = "+ " + TranslationServer.Translate("Add Decal") };
 		btnAddDecal.Set("icon_max_width", 0);
@@ -457,11 +477,26 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		decalListRow.AddChild(decalBtnBox);
 		contentVBox.AddChild(decalListRow);
 
-		var sldDecalDensRes = AddSlider(contentVBox, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.05f, 0.3f, (v) => { if (_decalRules.Count > 0) _decalRules[0].Density = v; });
+		var sldDecalDensRes = AddSlider(contentVBox, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.05f, 0.3f, (v) =>
+		{
+			var sel = _lstDecals.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _decalRules.Count) _decalRules[idx].Density = v;
+		});
 		_sldDecalDensity = sldDecalDensRes.Slider;
-		var sldDecalMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min Decal Scale:"), 0.1f, 5.0f, 0.1f, 0.8f, (v) => { if (_decalRules.Count > 0) _decalRules[0].MinScale = v; });
+		var sldDecalMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min Decal Scale:"), 0.1f, 5.0f, 0.1f, 0.8f, (v) =>
+		{
+			var sel = _lstDecals.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _decalRules.Count) _decalRules[idx].MinScale = v;
+		});
 		_sldDecalMinScale = sldDecalMinScRes.Slider;
-		var sldDecalMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max Decal Scale:"), 0.1f, 5.0f, 0.1f, 1.2f, (v) => { if (_decalRules.Count > 0) _decalRules[0].MaxScale = v; });
+		var sldDecalMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max Decal Scale:"), 0.1f, 5.0f, 0.1f, 1.2f, (v) =>
+		{
+			var sel = _lstDecals.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _decalRules.Count) _decalRules[idx].MaxScale = v;
+		});
 		_sldDecalMaxScale = sldDecalMaxScRes.Slider;
 
 		// SECTION 6: PROCEDURAL VFX BOMBING
@@ -469,11 +504,29 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered particle systems placed at terrain elevation during painting:"));
 		var vfxListRow = new HBoxContainer();
 		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstVfx.ItemSelected += (idx) =>
+		{
+			if (idx >= 0 && idx < _vfxRules.Count)
+			{
+				var r = _vfxRules[(int)idx];
+				_setVfxIdValue?.Invoke(r.VfxId);
+				if (_sldVfxDensity != null) _sldVfxDensity.Value = r.Density;
+				if (_sldVfxMinScale != null) _sldVfxMinScale.Value = r.MinScale;
+				if (_sldVfxMaxScale != null) _sldVfxMaxScale.Value = r.MaxScale;
+			}
+		};
 		vfxListRow.AddChild(_lstVfx);
 
-		var vfxBtnBox = new VBoxContainer();
-		_txtVfxId = new LineEdit { PlaceholderText = "vfx_template_id" };
-		vfxBtnBox.AddChild(_txtVfxId);
+		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
+			vfxBtnBox,
+			string.Empty,
+			string.Empty,
+			(all) => ScanAvailableAssets("vfx", all),
+			(val) => { },
+			TranslationServer.Translate("vfx_template_id"),
+			0f
+		);
 
 		var btnAddVfx = new Button { Text = "+ " + TranslationServer.Translate("Add VFX") };
 		btnAddVfx.Set("icon_max_width", 0);
@@ -488,11 +541,26 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		vfxListRow.AddChild(vfxBtnBox);
 		contentVBox.AddChild(vfxListRow);
 
-		var sldVfxDensRes = AddSlider(contentVBox, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.05f, 0.2f, (v) => { if (_vfxRules.Count > 0) _vfxRules[0].Density = v; });
+		var sldVfxDensRes = AddSlider(contentVBox, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.05f, 0.2f, (v) =>
+		{
+			var sel = _lstVfx.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _vfxRules.Count) _vfxRules[idx].Density = v;
+		});
 		_sldVfxDensity = sldVfxDensRes.Slider;
-		var sldVfxMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min VFX Scale:"), 0.1f, 5.0f, 0.1f, 0.8f, (v) => { if (_vfxRules.Count > 0) _vfxRules[0].MinScale = v; });
+		var sldVfxMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min VFX Scale:"), 0.1f, 5.0f, 0.1f, 0.8f, (v) =>
+		{
+			var sel = _lstVfx.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _vfxRules.Count) _vfxRules[idx].MinScale = v;
+		});
 		_sldVfxMinScale = sldVfxMinScRes.Slider;
-		var sldVfxMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max VFX Scale:"), 0.1f, 5.0f, 0.1f, 1.2f, (v) => { if (_vfxRules.Count > 0) _vfxRules[0].MaxScale = v; });
+		var sldVfxMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max VFX Scale:"), 0.1f, 5.0f, 0.1f, 1.2f, (v) =>
+		{
+			var sel = _lstVfx.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _vfxRules.Count) _vfxRules[idx].MaxScale = v;
+		});
 		_sldVfxMaxScale = sldVfxMaxScRes.Slider;
 
 		UpdateTileModeVisibility();
@@ -825,6 +893,8 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		if (_chkPathDeep != null) _chkPathDeep.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_DEEP_WATER) != 0;
 		if (_chkPathFlying != null) _chkPathFlying.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_FLYING) != 0;
 
+		_setDecalIdValue?.Invoke(string.Empty);
+		_setVfxIdValue?.Invoke(string.Empty);
 		UpdateDecalList();
 		UpdateVfxList();
 
