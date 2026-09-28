@@ -179,6 +179,9 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_txtNormalPath = txtNorm;
 		_setNormalPath = setNorm;
 
+		var btnRandomizeFlow = CreateRandomizeButton(() => RandomizeNormalAndFlowParameters());
+		vNormals.AddChild(btnRandomizeFlow);
+
 		var sldNormScaleRes = AddSlider(vNormals, TranslationServer.Translate("Normal Strength:"), 0.0f, 3.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.NormalScale = v; ApplyLiveMaterialPreview(); });
 		_sldNormalScale = sldNormScaleRes.Slider;
 		var sldFlowXRes = AddSlider(vNormals, TranslationServer.Translate("Flow Direction X:"), -1.0f, 1.0f, 0.05f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.FlowDirectionX = v; ApplyLiveMaterialPreview(); });
@@ -201,10 +204,10 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_txtFlowMapPath = txtFlow;
 		_setFlowMapPath = setFlow;
 
-		var btnRandomizeFlow = CreateRandomizeButton(() => RandomizeNormalAndFlowParameters());
-		vNormals.AddChild(btnRandomizeFlow);
-
 		AddSectionHeader(vNormals, TranslationServer.Translate("Refraction & Caustics"));
+		var btnRandomizeOptics = CreateRandomizeButton(() => RandomizeRefractionAndCausticsParameters());
+		vNormals.AddChild(btnRandomizeOptics);
+
 		var sldRefrRes = AddSlider(vNormals, TranslationServer.Translate("Refraction Index:"), 0.0f, 1.0f, 0.02f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.RefractionStrength = v; ApplyLiveMaterialPreview(); });
 		_sldRefraction = sldRefrRes.Slider;
 		var sldCaustStrRes = AddSlider(vNormals, TranslationServer.Translate("Caustics Intensity:"), 0.0f, 2.0f, 0.05f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.CausticStrength = v; ApplyLiveMaterialPreview(); });
@@ -223,6 +226,9 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		tabContainer.AddChild(tabEmissive);
 
 		AddSectionHeader(vEmissive, TranslationServer.Translate("Emissive Heat & Core (Lava / Acid)"));
+		var btnRandomizeEmissive = CreateRandomizeButton(() => RandomizeEmissiveParameters());
+		vEmissive.AddChild(btnRandomizeEmissive);
+
 		var cpEmRes = AddColorPicker(vEmissive, TranslationServer.Translate("Emission Color:"), Colors.Black, (c) => { if (_activeProfile != null) _activeProfile.EmissionColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
 		_cpEmission = cpEmRes.Picker;
 		var sldEmBoostRes = AddSlider(vEmissive, TranslationServer.Translate("Emission Boost:"), 0.0f, 2.0f, 0.01f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.EmissionBoost = v; ApplyLiveMaterialPreview(); });
@@ -235,9 +241,6 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_cpSubsurface = cpSssRes.Picker;
 		var sldSssRes = AddSlider(vEmissive, TranslationServer.Translate("Subsurface Power:"), 0.0f, 5.0f, 0.1f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.SubsurfaceStrength = v; ApplyLiveMaterialPreview(); });
 		_sldSubsurfaceStrength = sldSssRes.Slider;
-
-		var btnRandomizeEmissive = CreateRandomizeButton(() => RandomizeEmissiveParameters());
-		vEmissive.AddChild(btnRandomizeEmissive);
 
 		AddSectionHeader(vEmissive, TranslationServer.Translate("Surface Detail Overlay (Algae / Foam / Crust)"));
 		_chkUseDetail = AddCheckBox(vEmissive, TranslationServer.Translate("Enable Surface Detail Overlay"), false, (val) => { if (_activeProfile != null) _activeProfile.UseDetailTexture = val; ApplyLiveMaterialPreview(); });
@@ -252,6 +255,9 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		);
 		_txtDetailPath = txtDetail;
 		_setDetailPath = setDetail;
+
+		var btnRandomizeDetail = CreateRandomizeButton(() => RandomizeDetailOverlayParameters());
+		vEmissive.AddChild(btnRandomizeDetail);
 
 		var tileModeRow = new HBoxContainer();
 		tileModeRow.AddChild(new Label { Text = TranslationServer.Translate("Tile Mode:"), CustomMinimumSize = new Vector2(110, 0) });
@@ -312,9 +318,6 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		_optDetailBlend.ItemSelected += (idx) => { if (_activeProfile != null) _activeProfile.DetailBlendMode = (int)idx; ApplyLiveMaterialPreview(); };
 		blendRow.AddChild(_optDetailBlend);
 		vEmissive.AddChild(blendRow);
-
-		var btnRandomizeDetail = CreateRandomizeButton(() => RandomizeDetailOverlayParameters());
-		vEmissive.AddChild(btnRandomizeDetail);
 
 		var tabPathingAndBombing = new ScrollContainer();
 		tabPathingAndBombing.Name = TranslationServer.Translate("Pathing & Bombing");
@@ -753,6 +756,27 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		if (_sldFlowDirX != null) _sldFlowDirX.Value = _activeProfile.FlowDirectionX;
 		if (_sldFlowDirY != null) _sldFlowDirY.Value = _activeProfile.FlowDirectionY;
 		if (_sldFlowSpeed != null) _sldFlowSpeed.Value = _activeProfile.FlowSpeed;
+
+		ApplyLiveMaterialPreview();
+	}
+
+	private void RandomizeRefractionAndCausticsParameters()
+	{
+		if (_activeProfile == null) return;
+		var rng = new Random();
+
+		bool hasRefraction = rng.NextDouble() > 0.25;
+		_activeProfile.RefractionStrength = hasRefraction ? (float)Math.Round(0.05f + rng.NextDouble() * 0.55f, 2) : 0.0f;
+
+		bool hasCaustics = rng.NextDouble() > 0.25;
+		_activeProfile.CausticStrength = hasCaustics ? (float)Math.Round(0.2f + rng.NextDouble() * 1.3f, 2) : 0.0f;
+		_activeProfile.CausticScale = (float)Math.Round(0.5f + rng.NextDouble() * 2.5f, 2);
+		_activeProfile.CausticSpeed = (float)Math.Round(0.3f + rng.NextDouble() * 2.2f, 2);
+
+		if (_sldRefraction != null) _sldRefraction.Value = _activeProfile.RefractionStrength;
+		if (_sldCausticStrength != null) _sldCausticStrength.Value = _activeProfile.CausticStrength;
+		if (_sldCausticScale != null) _sldCausticScale.Value = _activeProfile.CausticScale;
+		if (_sldCausticSpeed != null) _sldCausticSpeed.Value = _activeProfile.CausticSpeed;
 
 		ApplyLiveMaterialPreview();
 	}

@@ -3819,6 +3819,7 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 
+		GameHost.Instance?.ClearMapEntirely();
 		_lastUsedFolder = selectedFolder;
 		_currentSourceFolder = selectedFolder;
 
@@ -3871,6 +3872,7 @@ public partial class MapEditorHUD : Control
 			return false;
 		}
 
+		GameHost.Instance?.ClearMapEntirely();
 		_isSyncing = true;
 		try
 		{
@@ -10947,19 +10949,20 @@ public partial class MapEditorHUD : Control
 
 	public void ReadMetadataAndRefreshTextures()
 	{
-		if (_isSyncing) return;
 		try
 		{
 			string wsPath = string.IsNullOrEmpty(_tempWorkspacePath) 
 				? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 				: _tempWorkspacePath;
 			string metadataPath = System.IO.Path.Combine(wsPath, "metadata.json");
-			if (!System.IO.File.Exists(metadataPath)) return;
 
 			string texDir = System.IO.Path.Combine(wsPath, "Assets", "textures");
 			System.IO.Directory.CreateDirectory(texDir);
 
-			MapWorkspaceService.NormalizeMetadataTextureEntries(wsPath);
+			if (System.IO.File.Exists(metadataPath))
+			{
+				MapWorkspaceService.NormalizeMetadataTextureEntries(wsPath);
+			}
 			InvalidateMetadataCache();
 
 			_swatchTextureCache.Clear();
@@ -10969,8 +10972,11 @@ public partial class MapEditorHUD : Control
 			}
 			SetupTextureSwatches(false);
 			RefreshSkyboxList();
-			GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(wsPath);
-			GameHost.Instance?.LoadUnitMetadata(wsPath);
+			if (System.IO.File.Exists(metadataPath))
+			{
+				GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(wsPath);
+				GameHost.Instance?.LoadUnitMetadata(wsPath);
+			}
 			_entityPaletteController?.SelectCategory(_entityPaletteController.CurrentCategory, triggerAddObject: false);
 		}
 		catch (Exception ex)

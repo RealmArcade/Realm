@@ -2035,6 +2035,13 @@ void fragment() {
 	public void ReloadTerrainTextures(bool forceReload = false)
 	{
 		if (_material == null) return;
+		if (forceReload)
+		{
+			_liveSwatchOverrides.Clear();
+			_cachedAlbedoTextureArray = null;
+			_cachedNormalRoughnessTextureArray = null;
+			_cachedMapDir = null;
+		}
 		string mapDir = MapWorkspaceService.GetActiveWorkspacePath();
 
 		var textureList = new List<string>();
