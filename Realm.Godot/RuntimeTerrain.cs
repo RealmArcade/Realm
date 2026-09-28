@@ -5,6 +5,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Realm.Godot.Services;
 using Realm.Godot.Utils;
@@ -338,7 +339,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	public WaterProfileSaveData GetWaterProfile(byte profileIndex)
 	{
 		if (_waterProfiles.TryGetValue(profileIndex, out var prof)) return prof;
-		return _waterProfiles.Count > 0 ? _waterProfiles.Values.GetEnumerator().Current : new WaterProfileSaveData();
+		return _waterProfiles.Values.FirstOrDefault() ?? new WaterProfileSaveData();
 	}
 
 	public ShaderMaterial GetWaterMaterial(byte profileIndex)
