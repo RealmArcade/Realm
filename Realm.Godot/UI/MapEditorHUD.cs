@@ -5346,7 +5346,27 @@ public partial class MapEditorHUD : Control
 
 	public void ImportTerrainFromMinimapDialog()
 	{
-		OpenAssetBrowser("Select Minimap Image to Import Terrain", new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" }, ImportTerrainFromMinimapPath);
+		string initialDir = GetInitialDirectory();
+		var err = DisplayServer.FileDialogShow(
+			TranslationServer.Translate("Select Minimap Image to Import Terrain"),
+			initialDir,
+			"",
+			false,
+			DisplayServer.FileDialogMode.OpenFile,
+			new[] { "*.png,*.jpg,*.jpeg,*.webp,*.gif ; Image Files (*.png, *.jpg, *.jpeg, *.webp, *.gif)" },
+			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
+			{
+				if (status && selectedPaths.Length > 0)
+				{
+					ImportTerrainFromMinimapPath(selectedPaths[0]);
+				}
+			})
+		);
+
+		if (err != Error.Ok)
+		{
+			ShowFeedback(TranslationServer.Translate("Failed to show file dialog"));
+		}
 	}
 
 	private void ImportTerrainFromMinimapPath(string selectedPath)
