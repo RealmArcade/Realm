@@ -477,21 +477,21 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		decalListRow.AddChild(decalBtnBox);
 		contentVBox.AddChild(decalListRow);
 
-		var sldDecalDensRes = AddSlider(contentVBox, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.05f, 0.3f, (v) =>
+		var sldDecalDensRes = AddSlider(contentVBox, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) =>
 		{
 			var sel = _lstDecals.GetSelectedItems();
 			int idx = sel.Length > 0 ? sel[0] : 0;
 			if (idx >= 0 && idx < _decalRules.Count) _decalRules[idx].Density = v;
 		});
 		_sldDecalDensity = sldDecalDensRes.Slider;
-		var sldDecalMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min Decal Scale:"), 0.1f, 5.0f, 0.1f, 0.8f, (v) =>
+		var sldDecalMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) =>
 		{
 			var sel = _lstDecals.GetSelectedItems();
 			int idx = sel.Length > 0 ? sel[0] : 0;
 			if (idx >= 0 && idx < _decalRules.Count) _decalRules[idx].MinScale = v;
 		});
 		_sldDecalMinScale = sldDecalMinScRes.Slider;
-		var sldDecalMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max Decal Scale:"), 0.1f, 5.0f, 0.1f, 1.2f, (v) =>
+		var sldDecalMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) =>
 		{
 			var sel = _lstDecals.GetSelectedItems();
 			int idx = sel.Length > 0 ? sel[0] : 0;
@@ -541,21 +541,21 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		vfxListRow.AddChild(vfxBtnBox);
 		contentVBox.AddChild(vfxListRow);
 
-		var sldVfxDensRes = AddSlider(contentVBox, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.05f, 0.2f, (v) =>
+		var sldVfxDensRes = AddSlider(contentVBox, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) =>
 		{
 			var sel = _lstVfx.GetSelectedItems();
 			int idx = sel.Length > 0 ? sel[0] : 0;
 			if (idx >= 0 && idx < _vfxRules.Count) _vfxRules[idx].Density = v;
 		});
 		_sldVfxDensity = sldVfxDensRes.Slider;
-		var sldVfxMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min VFX Scale:"), 0.1f, 5.0f, 0.1f, 0.8f, (v) =>
+		var sldVfxMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) =>
 		{
 			var sel = _lstVfx.GetSelectedItems();
 			int idx = sel.Length > 0 ? sel[0] : 0;
 			if (idx >= 0 && idx < _vfxRules.Count) _vfxRules[idx].MinScale = v;
 		});
 		_sldVfxMinScale = sldVfxMinScRes.Slider;
-		var sldVfxMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max VFX Scale:"), 0.1f, 5.0f, 0.1f, 1.2f, (v) =>
+		var sldVfxMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) =>
 		{
 			var sel = _lstVfx.GetSelectedItems();
 			int idx = sel.Length > 0 ? sel[0] : 0;
@@ -585,9 +585,9 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		_decalRules.Add(new ProceduralBombingDecalRule
 		{
 			DecalId = id,
-			Density = (float)(_sldDecalDensity?.Value ?? 0.3f),
-			MinScale = (float)(_sldDecalMinScale?.Value ?? 0.8f),
-			MaxScale = (float)(_sldDecalMaxScale?.Value ?? 1.2f)
+			Density = (float)(_sldDecalDensity?.Value ?? 0.5f),
+			MinScale = (float)(_sldDecalMinScale?.Value ?? 0.2f),
+			MaxScale = (float)(_sldDecalMaxScale?.Value ?? 0.5f)
 		});
 		UpdateDecalList();
 	}
@@ -618,9 +618,9 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		_vfxRules.Add(new ProceduralBombingVfxRule
 		{
 			VfxId = id,
-			Density = (float)(_sldVfxDensity?.Value ?? 0.2f),
-			MinScale = (float)(_sldVfxMinScale?.Value ?? 0.8f),
-			MaxScale = (float)(_sldVfxMaxScale?.Value ?? 1.2f)
+			Density = (float)(_sldVfxDensity?.Value ?? 0.5f),
+			MinScale = (float)(_sldVfxMinScale?.Value ?? 0.2f),
+			MaxScale = (float)(_sldVfxMaxScale?.Value ?? 0.5f)
 		});
 		UpdateVfxList();
 	}

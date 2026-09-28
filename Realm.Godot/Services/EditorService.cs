@@ -551,6 +551,30 @@ public class EditorService
 													}
 												}
 											}
+
+											string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+											if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metaRoot) && metaRoot != null)
+											{
+												string? swatchName = null;
+												if (GameHost.Instance?.GroundTerrain != null && paintTextureIndex >= 0 && paintTextureIndex < GameHost.Instance.GroundTerrain.LoadedTextureList.Count)
+												{
+													swatchName = GameHost.Instance.GroundTerrain.LoadedTextureList[paintTextureIndex];
+												}
+												if (!string.IsNullOrEmpty(swatchName))
+												{
+													var prof = metaRoot.GetTerrainProfile(swatchName);
+													if (prof != null)
+													{
+														if (terrain.PathingCodes != null && x < width && z < depth)
+														{
+															terrain.PathingCodes[x, z] = prof.DefaultPathingCode;
+															result.PathingModified = true;
+														}
+													}
+												}
+											}
+
+											SpawnTerrainProceduralBombing(x, z, paintTextureIndex, targetHeight, quadSize, width, depth);
 										}
 
 										if (applyCliffTexture && _terrainCliffSplatMap != null)
@@ -905,6 +929,33 @@ public class EditorService
 								if (applyGroundTexture)
 								{
 									_terrainSplatMap[x, z] = TerrainSplatWeights.PaintVertexWeighted(_terrainSplatMap[x, z], paintTextureIndex, intensityLevel);
+									string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+									if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metaRoot) && metaRoot != null)
+									{
+										string? swatchName = null;
+										if (GameHost.Instance?.GroundTerrain != null && paintTextureIndex >= 0 && paintTextureIndex < GameHost.Instance.GroundTerrain.LoadedTextureList.Count)
+										{
+											swatchName = GameHost.Instance.GroundTerrain.LoadedTextureList[paintTextureIndex];
+										}
+										if (!string.IsNullOrEmpty(swatchName))
+										{
+											var prof = metaRoot.GetTerrainProfile(swatchName);
+											if (prof != null)
+											{
+												if (terrain.PathingCodes != null && x < width && z < depth)
+												{
+													terrain.PathingCodes[x, z] = prof.DefaultPathingCode;
+													result.PathingModified = true;
+												}
+											}
+										}
+									}
+
+									if (terrain.Cells != null && x < width && z < depth)
+									{
+										float tY = terrain.Cells[x, z].CenterHeight;
+										SpawnTerrainProceduralBombing(x, z, paintTextureIndex, tY, quadSize, width, depth);
+									}
 								}
 								if (applyCliffTexture && _terrainCliffSplatMap != null && x < _terrainCliffSplatMap.GetLength(0) && z < _terrainCliffSplatMap.GetLength(1))
 								{
@@ -1447,6 +1498,8 @@ public class EditorService
 		int minGridZ = Mathf.Clamp(Mathf.FloorToInt(minWorldZ / quadSize + depth / 2.0f), 0, depth);
 		int maxGridZ = Mathf.Clamp(Mathf.CeilToInt(maxWorldZ / quadSize + depth / 2.0f), 0, depth);
 
+		var modifiedCells = new HashSet<Vector2I>();
+
 		for (int gridZ = minGridZ; gridZ <= maxGridZ; gridZ++)
 		{
 			for (int gridX = minGridX; gridX <= maxGridX; gridX++)
@@ -1505,6 +1558,7 @@ public class EditorService
 									if (cx >= 0 && cx < width && cz >= 0 && cz < depth)
 									{
 										_terrainSplatMap[cx, cz] = TerrainSplatWeights.CreateSolid(rampPaintIdx);
+										modifiedCells.Add(new Vector2I(cx, cz));
 									}
 								}
 							}
@@ -1544,6 +1598,35 @@ public class EditorService
 
 		if (modified)
 		{
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			TerrainSwatchProfileData? rampProf = null;
+			int rampTexIdx = GameHost.Instance != null ? GameHost.Instance.EditorPaintTextureIndex : 0;
+			if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metaRoot) && metaRoot != null)
+			{
+				string? swatchName = null;
+				if (GameHost.Instance?.GroundTerrain != null && rampTexIdx >= 0 && rampTexIdx < GameHost.Instance.GroundTerrain.LoadedTextureList.Count)
+				{
+					swatchName = GameHost.Instance.GroundTerrain.LoadedTextureList[rampTexIdx];
+				}
+				if (!string.IsNullOrEmpty(swatchName))
+				{
+					rampProf = metaRoot.GetTerrainProfile(swatchName);
+				}
+			}
+
+			foreach (var cellPos in modifiedCells)
+			{
+				if (rampProf != null && terrain.PathingCodes != null && cellPos.X < width && cellPos.Y < depth)
+				{
+					terrain.PathingCodes[cellPos.X, cellPos.Y] = rampProf.DefaultPathingCode;
+				}
+				if (terrain.Cells != null && cellPos.X < width && cellPos.Y < depth)
+				{
+					float tY = terrain.Cells[cellPos.X, cellPos.Y].CenterHeight;
+					SpawnTerrainProceduralBombing(cellPos.X, cellPos.Y, rampTexIdx, tY, quadSize, width, depth);
+				}
+			}
+
 			AlignSplatMapSlots(minGridX - 2, minGridZ - 2, maxGridX + 2, maxGridZ + 2);
 		}
 
@@ -2781,7 +2864,7 @@ public class EditorService
 			foreach (var rule in prof.DecalBombingRules)
 			{
 				if (string.IsNullOrWhiteSpace(rule.DecalId)) continue;
-				if (Random.Shared.NextSingle() <= rule.Density)
+				if (Random.Shared.NextSingle() <= (rule.Density * 0.05f))
 				{
 					float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
 					float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
@@ -2799,7 +2882,7 @@ public class EditorService
 			foreach (var rule in prof.VfxBombingRules)
 			{
 				if (string.IsNullOrWhiteSpace(rule.VfxId)) continue;
-				if (Random.Shared.NextSingle() <= rule.Density)
+				if (Random.Shared.NextSingle() <= (rule.Density * 0.05f))
 				{
 					float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
 					float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
@@ -2844,7 +2927,7 @@ public class EditorService
 			foreach (var rule in prof.DecalBombingRules)
 			{
 				if (string.IsNullOrWhiteSpace(rule.DecalId)) continue;
-				if (Random.Shared.NextSingle() <= rule.Density)
+				if (Random.Shared.NextSingle() <= (rule.Density * 0.05f))
 				{
 					float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
 					float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
@@ -2862,7 +2945,7 @@ public class EditorService
 			foreach (var rule in prof.VfxBombingRules)
 			{
 				if (string.IsNullOrWhiteSpace(rule.VfxId)) continue;
-				if (Random.Shared.NextSingle() <= rule.Density)
+				if (Random.Shared.NextSingle() <= (rule.Density * 0.05f))
 				{
 					float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
 					float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;

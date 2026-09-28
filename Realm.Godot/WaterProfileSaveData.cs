@@ -8,8 +8,8 @@ public class ProceduralBombingDecalRule
 {
 	public string DecalId { get; set; } = "";
 	public float Density { get; set; } = 0.5f;
-	public float MinScale { get; set; } = 0.8f;
-	public float MaxScale { get; set; } = 1.2f;
+	public float MinScale { get; set; } = 0.2f;
+	public float MaxScale { get; set; } = 0.5f;
 	public float MinRotationDeg { get; set; } = 0.0f;
 	public float MaxRotationDeg { get; set; } = 360.0f;
 	public string TintHex { get; set; } = "#FFFFFF";
@@ -32,9 +32,9 @@ public class ProceduralBombingDecalRule
 public class ProceduralBombingVfxRule
 {
 	public string VfxId { get; set; } = "";
-	public float Density { get; set; } = 0.3f;
-	public float MinScale { get; set; } = 0.8f;
-	public float MaxScale { get; set; } = 1.2f;
+	public float Density { get; set; } = 0.5f;
+	public float MinScale { get; set; } = 0.2f;
+	public float MaxScale { get; set; } = 0.5f;
 	public float NormalOffset { get; set; } = 0.0f;
 	public VfxAttachmentConfig Config { get; set; }
 

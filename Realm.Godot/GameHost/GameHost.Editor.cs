@@ -2838,17 +2838,62 @@ public partial class GameHost
 		{
 			config = customConfig.Clone();
 		}
-		else if (VfxRegistry.TryGetValue(vfxId, out var regCfg))
-		{
-			config = regCfg.Clone();
-		}
-		else if (Enum.TryParse<VfxPrimitiveType>(vfxId, true, out var primType))
-		{
-			config = new VfxAttachmentConfig { VfxId = vfxId, PrimitiveType = primType };
-		}
 		else
 		{
-			config = new VfxAttachmentConfig { VfxId = vfxId, Name = vfxId };
+			string cleanId = vfxId ?? string.Empty;
+			if (cleanId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
+			{
+				cleanId = cleanId.Substring(4);
+			}
+
+			if (!string.IsNullOrEmpty(vfxId) && VfxRegistry.TryGetValue(vfxId, out var regCfg))
+			{
+				config = regCfg.Clone();
+			}
+			else if (!string.IsNullOrEmpty(cleanId) && VfxRegistry.TryGetValue(cleanId, out var regCfg2))
+			{
+				config = regCfg2.Clone();
+			}
+			else if (!string.IsNullOrEmpty(cleanId) && Enum.TryParse<VfxPrimitiveType>(cleanId, true, out var primType))
+			{
+				config = new VfxAttachmentConfig { VfxId = cleanId, PrimitiveType = primType };
+				if (primType == VfxPrimitiveType.ParticleSystem)
+				{
+					config.ParticleConfig = SpellParticleConfig.CreatePreset(cleanId);
+				}
+			}
+			else if (!string.IsNullOrEmpty(vfxId) && Enum.TryParse<VfxPrimitiveType>(vfxId, true, out var primType2))
+			{
+				config = new VfxAttachmentConfig { VfxId = vfxId, PrimitiveType = primType2 };
+				if (primType2 == VfxPrimitiveType.ParticleSystem)
+				{
+					config.ParticleConfig = SpellParticleConfig.CreatePreset(vfxId);
+				}
+			}
+			else
+			{
+				var particlePresets = SpellParticleConfig.GetAllPresets();
+				if (particlePresets.ContainsKey(cleanId) || cleanId.StartsWith("particle_", StringComparison.OrdinalIgnoreCase))
+				{
+					config = new VfxAttachmentConfig
+					{
+						VfxId = cleanId,
+						Name = cleanId,
+						PrimitiveType = VfxPrimitiveType.ParticleSystem,
+						ParticleConfig = SpellParticleConfig.CreatePreset(cleanId)
+					};
+				}
+				else
+				{
+					config = new VfxAttachmentConfig
+					{
+						VfxId = vfxId,
+						Name = cleanId,
+						BaseTexture = cleanId,
+						PrimitiveType = VfxPrimitiveType.VortexDisc
+					};
+				}
+			}
 		}
 
 		if (normalOffset != 0f)

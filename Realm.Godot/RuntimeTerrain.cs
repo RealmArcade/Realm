@@ -2014,11 +2014,11 @@ void fragment() {
 			textureList.Add(swatchSlots[i].BaseName ?? "");
 		}
 
-		var swatchParams = new Godot.Vector4[32];
-		var swatchHeightParams = new Godot.Vector4[32];
-		var swatchAlbedoParams = new Godot.Vector4[32];
+		var swatchParams = new Godot.Vector4[Realm.Godot.Utils.TextureSwatchSlots.MaxSlots];
+		var swatchHeightParams = new Godot.Vector4[Realm.Godot.Utils.TextureSwatchSlots.MaxSlots];
+		var swatchAlbedoParams = new Godot.Vector4[Realm.Godot.Utils.TextureSwatchSlots.MaxSlots];
 
-		for (int i = 0; i < 32; i++)
+		for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)
 		{
 			var slot = swatchSlots[i];
 			if (slot.IsFiller || string.IsNullOrEmpty(slot.BaseName))
@@ -2180,8 +2180,8 @@ void fragment() {
 		if (GameHost.Instance != null && GameHost.Instance.EcsWorld != null && GameHost.Instance.EcsWorld.IsAlive(GameHost.Instance.WorldEntity) && GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameHost.Instance.WorldEntity))
 		{
 			ref var ts = ref GameHost.Instance.EcsWorld.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameHost.Instance.WorldEntity);
-			ts.SwatchConfigs = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig[32];
-			for (int i = 0; i < 32; i++)
+			ts.SwatchConfigs = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig[Realm.Godot.Utils.TextureSwatchSlots.MaxSlots];
+			for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)
 			{
 				ts.SwatchConfigs[i] = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig(
 					swatchHeightParams[i].X,
@@ -2206,7 +2206,7 @@ void fragment() {
 
 		var albedoHeightImages = new Godot.Collections.Array<Image>();
 		var normalRoughnessImages = new Godot.Collections.Array<Image>();
-		for (int i = 0; i < 32; i++)
+		for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)
 		{
 			var slot = swatchSlots[i];
 			Image? imgLayer0 = null;

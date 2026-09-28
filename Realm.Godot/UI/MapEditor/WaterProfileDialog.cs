@@ -272,6 +272,17 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered decals placed at liquid elevation during painting:"));
 		var decalListRow = new HBoxContainer();
 		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(250, 80), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstDecals.ItemSelected += (idx) =>
+		{
+			if (_activeProfile != null && idx >= 0 && idx < _activeProfile.DecalBombingRules.Count)
+			{
+				var r = _activeProfile.DecalBombingRules[(int)idx];
+				_txtDecalId.Text = r.DecalId;
+				if (_sldDecalDensity != null) _sldDecalDensity.Value = r.Density;
+				if (_sldDecalMinScale != null) _sldDecalMinScale.Value = r.MinScale;
+				if (_sldDecalMaxScale != null) _sldDecalMaxScale.Value = r.MaxScale;
+			}
+		};
 		decalListRow.AddChild(_lstDecals);
 
 		var decalBtnBox = new VBoxContainer();
@@ -291,17 +302,28 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		decalListRow.AddChild(decalBtnBox);
 		vBombing.AddChild(decalListRow);
 
-		var sldDecalDensRes = AddSlider(vBombing, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.05f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) _activeProfile.DecalBombingRules[0].Density = v; });
+		var sldDecalDensRes = AddSlider(vBombing, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) { int sel = _lstDecals.GetSelectedItems().Length > 0 ? _lstDecals.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[sel].Density = v; } });
 		_sldDecalDensity = sldDecalDensRes.Slider;
-		var sldDecalMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min Decal Scale:"), 0.1f, 5.0f, 0.1f, 0.8f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) _activeProfile.DecalBombingRules[0].MinScale = v; });
+		var sldDecalMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) { int sel = _lstDecals.GetSelectedItems().Length > 0 ? _lstDecals.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[sel].MinScale = v; } });
 		_sldDecalMinScale = sldDecalMinScRes.Slider;
-		var sldDecalMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max Decal Scale:"), 0.1f, 5.0f, 0.1f, 1.2f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) _activeProfile.DecalBombingRules[0].MaxScale = v; });
+		var sldDecalMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.DecalBombingRules.Count > 0) { int sel = _lstDecals.GetSelectedItems().Length > 0 ? _lstDecals.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.DecalBombingRules.Count) _activeProfile.DecalBombingRules[sel].MaxScale = v; } });
 		_sldDecalMaxScale = sldDecalMaxScRes.Slider;
 
 		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural VFX / Particle Bombing"));
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered particle systems & ribbons (bubbles, steam, foam, smoke) placed at liquid elevation:"));
 		var vfxListRow = new HBoxContainer();
 		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(250, 80), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstVfx.ItemSelected += (idx) =>
+		{
+			if (_activeProfile != null && idx >= 0 && idx < _activeProfile.VfxBombingRules.Count)
+			{
+				var r = _activeProfile.VfxBombingRules[(int)idx];
+				_txtVfxId.Text = r.VfxId;
+				if (_sldVfxDensity != null) _sldVfxDensity.Value = r.Density;
+				if (_sldVfxMinScale != null) _sldVfxMinScale.Value = r.MinScale;
+				if (_sldVfxMaxScale != null) _sldVfxMaxScale.Value = r.MaxScale;
+			}
+		};
 		vfxListRow.AddChild(_lstVfx);
 
 		var vfxBtnBox = new VBoxContainer();
@@ -321,11 +343,11 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		vfxListRow.AddChild(vfxBtnBox);
 		vBombing.AddChild(vfxListRow);
 
-		var sldVfxDensRes = AddSlider(vBombing, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.05f, 0.3f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) _activeProfile.VfxBombingRules[0].Density = v; });
+		var sldVfxDensRes = AddSlider(vBombing, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) { int sel = _lstVfx.GetSelectedItems().Length > 0 ? _lstVfx.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[sel].Density = v; } });
 		_sldVfxDensity = sldVfxDensRes.Slider;
-		var sldVfxMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min VFX Scale:"), 0.1f, 5.0f, 0.1f, 0.8f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) _activeProfile.VfxBombingRules[0].MinScale = v; });
+		var sldVfxMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) { int sel = _lstVfx.GetSelectedItems().Length > 0 ? _lstVfx.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[sel].MinScale = v; } });
 		_sldVfxMinScale = sldVfxMinScRes.Slider;
-		var sldVfxMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max VFX Scale:"), 0.1f, 5.0f, 0.1f, 1.2f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) _activeProfile.VfxBombingRules[0].MaxScale = v; });
+		var sldVfxMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) => { if (_activeProfile != null && _activeProfile.VfxBombingRules.Count > 0) { int sel = _lstVfx.GetSelectedItems().Length > 0 ? _lstVfx.GetSelectedItems()[0] : 0; if (sel >= 0 && sel < _activeProfile.VfxBombingRules.Count) _activeProfile.VfxBombingRules[sel].MaxScale = v; } });
 		_sldVfxMaxScale = sldVfxMaxScRes.Slider;
 	}
 
