@@ -45,6 +45,7 @@ public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 	private OptionButton _optAssetCategory;
 	private Label _lblModelTypeDescription;
 	private Button _btnImportAsset;
+	private Button _btnImportShader;
 	private Button _btnConvert3DModel;
 	private Button _btnAiGenerate3D;
 	private Button _btnConvertImage;
@@ -253,6 +254,8 @@ public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 		catRow.AddChild(_optAssetCategory);
 
 		_btnImportAsset = AddButton(catRow, "\uf093 " + TranslationServer.Translate("Import Asset"), () => OpenImportFileDialog(), "Import a new asset for the selected category", 11, new Vector2(120, 26));
+		_btnImportShader = AddButton(catRow, "\uf093 " + TranslationServer.Translate("Import Shader"), () => OnImportShaderPressed(), "Select a shader configuration file (.json, .gdshader) from disk to import", 11, new Vector2(130, 26));
+		_btnImportShader.Visible = false;
 		_btnConvert3DModel = AddButton(catRow, "\uf021 " + TranslationServer.Translate("Convert 3D Model to Realm Format"), () =>
 		{
 			IsRmeshCategory(_currentCategory, out string rmeshSub);
@@ -481,6 +484,10 @@ public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 			_btnImportAsset.Text = category == "shaders"
 				? "✨ " + TranslationServer.Translate("Create Shader")
 				: "📥 " + TranslationServer.Translate("Import Asset");
+		}
+		if (_btnImportShader != null)
+		{
+			_btnImportShader.Visible = isShader;
 		}
 
 		RefreshAssetList();
@@ -2096,6 +2103,130 @@ public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 		}
 
 		Hud?.OpenAssetBrowser($"Import Asset ({_currentCategory})", extensions, OnImportFileSelected, requireRealmMetadata, requiredAssetType);
+	}
+
+	private void OnImportShaderPressed()
+	{
+		var err = DisplayServer.FileDialogShow(
+			TranslationServer.Translate("Select Shader File to Import"),
+			PathUtils.GetProjectRoot(),
+			"",
+			false,
+			DisplayServer.FileDialogMode.OpenFile,
+			new[] { "*.json,*.gdshader,*.shader ; Supported Shader Files (*.json, *.gdshader, *.shader)", "*.json ; JSON Shader Files (*.json)", "*.gdshader,*.shader ; Godot Shader Files (*.gdshader, *.shader)" },
+			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
+			{
+				if (status && selectedPaths.Length > 0)
+				{
+					string sourceFilePath = selectedPaths[0];
+					ImportShaderFromFile(sourceFilePath);
+				}
+			})
+		);
+
+		if (err != Error.Ok)
+		{
+			Hud?.ShowFeedback(TranslationServer.Translate("Failed to show file dialog"));
+		}
+	}
+
+	private void ImportShaderFromFile(string sourceFilePath)
+	{
+		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return;
+
+		string wsPath = GetWorkspacePath();
+		string ext = Path.GetExtension(sourceFilePath).ToLowerInvariant();
+
+		try
+		{
+			if (ext == ".json")
+			{
+				string jsonText = File.ReadAllText(sourceFilePath);
+				var rootNode = JsonNode.Parse(jsonText);
+				if (rootNode is JsonObject rootObj)
+				{
+					if (rootObj.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObj)
+					{
+						int count = 0;
+						string lastKey = "";
+						foreach (var kvp in shadersObj)
+						{
+							if (kvp.Value != null)
+							{
+								var config = CustomShaderConfig.FromJson(kvp.Key, kvp.Value);
+								SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+								lastKey = config.Key;
+								count++;
+							}
+						}
+						RefreshAssetListAndPreview(lastKey);
+						Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported {0} shaders successfully."), count));
+						return;
+					}
+					else if (rootObj.ContainsKey("transition_mode") || rootObj.ContainsKey("edge_color") || rootObj.ContainsKey("name") || rootObj.ContainsKey("TransitionMode"))
+					{
+						string defaultKey = Path.GetFileNameWithoutExtension(sourceFilePath).ToLowerInvariant().Replace(" ", "_");
+						string key = rootObj.TryGetPropertyValue("key", out var keyNode) && !string.IsNullOrWhiteSpace(keyNode?.ToString())
+							? keyNode.ToString()
+							: (rootObj.TryGetPropertyValue("Key", out var keyNodeCap) && !string.IsNullOrWhiteSpace(keyNodeCap?.ToString()) ? keyNodeCap.ToString() : defaultKey);
+						var config = CustomShaderConfig.FromJson(key, rootObj);
+						SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+						RefreshAssetListAndPreview(config.Key);
+						Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), config.Name));
+						return;
+					}
+					else
+					{
+						int count = 0;
+						string lastKey = "";
+						foreach (var kvp in rootObj)
+						{
+							if (kvp.Value is JsonObject subObj && (subObj.ContainsKey("transition_mode") || subObj.ContainsKey("edge_color") || subObj.ContainsKey("name") || subObj.ContainsKey("TransitionMode")))
+							{
+								var config = CustomShaderConfig.FromJson(kvp.Key, subObj);
+								SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+								lastKey = config.Key;
+								count++;
+							}
+						}
+						if (count > 0)
+						{
+							RefreshAssetListAndPreview(lastKey);
+							Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported {0} shaders successfully."), count));
+							return;
+						}
+					}
+				}
+			}
+			else if (ext is ".gdshader" or ".shader")
+			{
+				string fileName = Path.GetFileName(sourceFilePath);
+				string shaderKey = Path.GetFileNameWithoutExtension(sourceFilePath).ToLowerInvariant().Replace(" ", "_");
+				string shaderName = Path.GetFileNameWithoutExtension(sourceFilePath);
+
+				string targetDir = Path.Combine(wsPath, "Assets", "shaders");
+				Directory.CreateDirectory(targetDir);
+				string destPath = Path.Combine(targetDir, fileName);
+				File.Copy(sourceFilePath, destPath, true);
+
+				var config = new CustomShaderConfig
+				{
+					Key = shaderKey,
+					Name = shaderName
+				};
+				SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+				RefreshAssetListAndPreview(config.Key);
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), config.Name));
+				return;
+			}
+
+			Hud?.ShowFeedback(TranslationServer.Translate("Unrecognized shader file format."));
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetManagerDialog] ImportShaderFromFile error: {ex.Message}");
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error importing shader: {0}"), ex.Message));
+		}
 	}
 
 	private void OnConvertImagePressed()

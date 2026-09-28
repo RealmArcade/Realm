@@ -179,15 +179,10 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		_optPreset = new OptionButton();
 		_optPreset.AddThemeFontSizeOverride("font_size", 11);
 		_optPreset.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		int pIdx = 0;
-		foreach (var kvp in ProceduralAnimationManager.GetDefaultPresets())
-		{
-			_optPreset.AddItem(kvp.Value.Name, pIdx);
-			_optPreset.SetItemMetadata(pIdx, kvp.Key);
-			pIdx++;
-		}
+		PopulatePresetList();
 		_optPreset.ItemSelected += (idx) =>
 		{
+			if (idx < 0 || idx >= _optPreset.ItemCount) return;
 			string key = _optPreset.GetItemMetadata((int)idx).AsString();
 			var def = ProceduralAnimationManager.GetConfig(key);
 			if (def != null)
@@ -366,6 +361,19 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		UpdateShaderParameters();
 	}
 
+	private void PopulatePresetList()
+	{
+		if (_optPreset == null) return;
+		_optPreset.Clear();
+		int pIdx = 0;
+		foreach (var kvp in ProceduralAnimationManager.LoadAllConfigs())
+		{
+			_optPreset.AddItem(kvp.Value.Name, pIdx);
+			_optPreset.SetItemMetadata(pIdx, kvp.Key);
+			pIdx++;
+		}
+	}
+
 	public void OpenForConfig(ProceduralAnimationConfig config, Action<ProceduralAnimationConfig> onSaved = null, string previewModelKey = null)
 	{
 		_onSaved = onSaved;
@@ -374,6 +382,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			_selectedModelKey = previewModelKey;
 		}
 
+		PopulatePresetList();
 		PopulateModelList();
 
 		if (config != null && !string.IsNullOrWhiteSpace(config.Id))
@@ -392,6 +401,21 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 		_snapshot = _config.Clone();
 		SyncControlsFromConfig();
+
+		int selectedPresetIdx = -1;
+		if (_optPreset != null && !string.IsNullOrEmpty(_config.Id))
+		{
+			for (int i = 0; i < _optPreset.ItemCount; i++)
+			{
+				string metaKey = _optPreset.GetItemMetadata(i).AsString();
+				if (string.Equals(metaKey, _config.Id, StringComparison.OrdinalIgnoreCase))
+				{
+					selectedPresetIdx = i;
+					break;
+				}
+			}
+			_optPreset.Selected = selectedPresetIdx;
+		}
 
 		if (_availableModels.Count > 0 && string.IsNullOrEmpty(_selectedModelKey))
 		{

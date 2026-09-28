@@ -204,8 +204,18 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 
 		_btnOpenProcAnimStudio = AddButton(grid, "✨ " + TranslationServer.Translate("Procedural Animation Studio..."), () =>
 		{
-			string currentAnim = GameHost.Instance?.GetModelProceduralAnimation(_currentAssetKey) ?? "";
-			var cfg = ProceduralAnimationManager.GetConfig(currentAnim) ?? new Realm.Godot.VFX.ProceduralAnimationConfig { Id = _currentAssetKey + "_anim", Name = _currentAssetKey + " Animation" };
+			var currentConfigs = ProceduralAnimationManager.LoadAllConfigs();
+			string selectedKey = "";
+			if (_optProceduralAnim != null && _optProceduralAnim.Selected > 0 && _optProceduralAnim.Selected - 1 < currentConfigs.Count)
+			{
+				selectedKey = currentConfigs.ElementAt(_optProceduralAnim.Selected - 1).Key;
+			}
+			if (string.IsNullOrEmpty(selectedKey))
+			{
+				selectedKey = GameHost.Instance?.GetModelProceduralAnimation(_currentAssetKey) ?? "";
+			}
+
+			var cfg = ProceduralAnimationManager.GetConfig(selectedKey) ?? new Realm.Godot.VFX.ProceduralAnimationConfig { Id = _currentAssetKey + "_anim", Name = _currentAssetKey + " Animation" };
 			string selectedMesh = GameHost.Instance?.GetModelAssetKey(_currentSelectedObject ?? (object)_currentAssetKey) ?? _currentAssetKey;
 			Hud?.OpenProceduralAnimationStudioDialog(cfg, (savedCfg) =>
 			{
