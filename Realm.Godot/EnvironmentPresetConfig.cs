@@ -18,8 +18,8 @@ public class EnvironmentPresetConfig
 	public float AmbientEnergy { get; set; } = 0.80f;
 	public string AmbientColorHex { get; set; } = "#7A93BC";
 
-	public bool FogEnabled { get; set; } = true;
-	public float FogDensity { get; set; } = 0.0080f;
+	public bool FogEnabled { get; set; } = false;
+	public float FogDensity { get; set; } = 0.0f;
 	public string FogColorHex { get; set; } = "#8CA6BF";
 
 	public bool SsaoEnabled { get; set; } = true;
@@ -107,8 +107,8 @@ public class EnvironmentPresetConfig
 				SunColorHex = "#FFFAEE",
 				AmbientEnergy = 0.80f,
 				AmbientColorHex = "#7A93BC",
-				FogEnabled = true,
-				FogDensity = 0.0080f,
+				FogEnabled = false,
+				FogDensity = 0.0f,
 				FogColorHex = "#8CA6BF",
 				SsaoEnabled = true,
 				SsaoRadius = 1.20f,
@@ -137,8 +137,8 @@ public class EnvironmentPresetConfig
 				SunColorHex = "#FFB261",
 				AmbientEnergy = 0.80f,
 				AmbientColorHex = "#6B75B7",
-				FogEnabled = true,
-				FogDensity = 0.0120f,
+				FogEnabled = false,
+				FogDensity = 0.0f,
 				FogColorHex = "#734D59",
 				SsaoEnabled = true,
 				SsaoRadius = 1.20f,
@@ -167,8 +167,8 @@ public class EnvironmentPresetConfig
 				SunColorHex = "#B2E0FF",
 				AmbientEnergy = 0.95f,
 				AmbientColorHex = "#476BD8",
-				FogEnabled = true,
-				FogDensity = 0.0150f,
+				FogEnabled = false,
+				FogDensity = 0.0f,
 				FogColorHex = "#141F33",
 				SsaoEnabled = true,
 				SsaoRadius = 1.00f,
@@ -197,8 +197,8 @@ public class EnvironmentPresetConfig
 				SunColorHex = "#FFE0B7",
 				AmbientEnergy = 0.90f,
 				AmbientColorHex = "#9389D6",
-				FogEnabled = true,
-				FogDensity = 0.0120f,
+				FogEnabled = false,
+				FogDensity = 0.0f,
 				FogColorHex = "#66738C",
 				SsaoEnabled = true,
 				SsaoRadius = 1.10f,
@@ -228,7 +228,7 @@ public class EnvironmentPresetConfig
 				AmbientEnergy = 0.70f,
 				AmbientColorHex = "#556B82",
 				FogEnabled = true,
-				FogDensity = 0.0180f,
+				FogDensity = 0.0075f,
 				FogColorHex = "#4F6378",
 				SsaoEnabled = true,
 				SsaoRadius = 1.20f,
@@ -245,6 +245,36 @@ public class EnvironmentPresetConfig
 				RainParticleDensity = 800,
 				BaseFogDensity = 0.0075f,
 				WeatherAnnouncement = "Weather Forecast: Light Rain Shower"
+			},
+			new EnvironmentPresetConfig
+			{
+				Id = "snow",
+				Name = "Winter Snow",
+				IsDefault = false,
+				SunPitch = -50.0f,
+				SunYaw = 35.0f,
+				SunEnergy = 2.00f,
+				SunColorHex = "#EBF4FF",
+				AmbientEnergy = 0.85f,
+				AmbientColorHex = "#8CA6BF",
+				FogEnabled = true,
+				FogDensity = 0.0050f,
+				FogColorHex = "#A6B8CC",
+				SsaoEnabled = true,
+				SsaoRadius = 1.20f,
+				SsaoIntensity = 0.35f,
+				SsaoDetail = 0.50f,
+				TonemapExposure = 1.15f,
+				AdjustmentContrast = 1.02f,
+				AdjustmentSaturation = 0.95f,
+				GlowIntensity = 0.20f,
+				GlowBloom = 0.12f,
+				GlowStrength = 0.90f,
+				CharacterFillEnergy = 0.20f,
+				WeatherType = "snow",
+				RainParticleDensity = 600,
+				BaseFogDensity = 0.0050f,
+				WeatherAnnouncement = "Weather Forecast: Winter Snowfall"
 			},
 			new EnvironmentPresetConfig
 			{

@@ -278,6 +278,7 @@ public partial class MapEditorHUD : Control
 	private Vector3 _lastRaycastPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
 
 	private Button _btnSkybox;
+	private Button _btnWeather;
 	private Button _btnFreeCamera;
 
 
@@ -831,6 +832,23 @@ public partial class MapEditorHUD : Control
 				ShowFeedback(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
 			}
 		}, 12, "Cycle map environment lighting (L)");
+
+		_btnWeather = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnWeather") ?? new Button();
+		_btnWeather.Name = "BtnWeather";
+		SetupButton(_btnWeather, "\uf738", () => {
+			if (GameHost.Instance != null && GameHost.Instance.EnvironmentService != null)
+			{
+				string nextWeather = GameHost.Instance.EnvironmentService.CycleWeather(GameHost.Instance);
+				string icon = nextWeather switch
+				{
+					"rain" => "🌧️",
+					"snow" => "❄️",
+					"fog" => "🌫️",
+					_ => "☀️"
+				};
+				ShowFeedback(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
+			}
+		}, 12, "Cycle weather effects (K)");
 
 		_btnZoomIn = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnZoomIn");
 		SetupButton(_btnZoomIn, "\uf00e", () =>
@@ -6667,6 +6685,7 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnRotate, "\uf01e", "Rotate camera 90 degrees (R)");
 			StyleIconButton(_btnCameraAngle, "\uf1b2", "Toggle perspective vs top-down angle (C)");
 			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
+			StyleIconButton(_btnWeather, "\uf738", "Cycle weather effects (K)");
 			StyleIconButton(_btnZoomIn, "\uf00e", "Zoom camera in (+)");
 			StyleIconButton(_btnZoomOut, "\uf010", "Zoom camera out (-)");
 			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
@@ -6677,6 +6696,7 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_btnRotate, vpRow);
 			SafeReparent(_btnCameraAngle, vpRow);
 			SafeReparent(_btnSkybox, vpRow);
+			SafeReparent(_btnWeather, vpRow);
 			SafeReparent(_btnZoomIn, vpRow);
 			SafeReparent(_btnZoomOut, vpRow);
 			SafeReparent(_btnFreeCamera, vpRow);
@@ -9227,13 +9247,13 @@ public partial class MapEditorHUD : Control
 		_shaderEditorDialog.OpenForShader(shaderKey, onSaved);
 	}
 
-	public void OpenProceduralAnimationStudioDialog(Realm.Godot.VFX.ProceduralAnimationConfig initialConfig = null, Action<Realm.Godot.VFX.ProceduralAnimationConfig> onApplied = null)
+	public void OpenProceduralAnimationStudioDialog(Realm.Godot.VFX.ProceduralAnimationConfig initialConfig = null, Action<Realm.Godot.VFX.ProceduralAnimationConfig> onApplied = null, string previewModelKey = null)
 	{
 		if (_proceduralAnimationStudioDialog == null)
 		{
 			_proceduralAnimationStudioDialog = new ProceduralAnimationStudioDialog(this);
 		}
-		_proceduralAnimationStudioDialog.OpenForConfig(initialConfig, onApplied);
+		_proceduralAnimationStudioDialog.OpenForConfig(initialConfig, onApplied, previewModelKey);
 	}
 
 	public void OpenModelPickerDialog(string entityId, string fieldName, string domain, string currentPath, Action<string> onApplied = null)

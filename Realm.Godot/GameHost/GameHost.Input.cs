@@ -645,6 +645,23 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
+				if (editorKeyEvent.Keycode == Key.K && !ctrlPressed && !shiftPressed && !editorKeyEvent.AltPressed)
+				{
+					if (EnvironmentService != null)
+					{
+						string nextWeather = EnvironmentService.CycleWeather(this);
+						string icon = nextWeather switch
+						{
+							"rain" => "🌧️",
+							"snow" => "❄️",
+							"fog" => "🌫️",
+							_ => "☀️"
+						};
+						MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
+					}
+					GetViewport().SetInputAsHandled();
+					return;
+				}
 				if (editorKeyEvent.Keycode == Key.F8 || (editorKeyEvent.Keycode == Key.Y && !ctrlPressed && !shiftPressed && !editorKeyEvent.AltPressed))
 				{
 					MapEditorHUD.Instance?.ToggleFreeCamera();

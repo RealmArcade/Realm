@@ -281,6 +281,21 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 					3 => "snow",
 					_ => "clear"
 				};
+				if (_activePreset.WeatherType == "rain" && _activePreset.RainParticleDensity <= 0)
+				{
+					_activePreset.RainParticleDensity = 800;
+					if (_sldRainDensity != null) _sldRainDensity.Value = 800;
+				}
+				else if (_activePreset.WeatherType == "snow" && _activePreset.RainParticleDensity <= 0)
+				{
+					_activePreset.RainParticleDensity = 600;
+					if (_sldRainDensity != null) _sldRainDensity.Value = 600;
+				}
+				else if (_activePreset.WeatherType == "clear" || _activePreset.WeatherType == "fog")
+				{
+					_activePreset.RainParticleDensity = 0;
+					if (_sldRainDensity != null) _sldRainDensity.Value = 0;
+				}
 				ApplyLivePreview();
 			}
 		};

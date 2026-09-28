@@ -366,9 +366,14 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		UpdateShaderParameters();
 	}
 
-	public void OpenForConfig(ProceduralAnimationConfig config, Action<ProceduralAnimationConfig> onSaved = null)
+	public void OpenForConfig(ProceduralAnimationConfig config, Action<ProceduralAnimationConfig> onSaved = null, string previewModelKey = null)
 	{
 		_onSaved = onSaved;
+		if (!string.IsNullOrWhiteSpace(previewModelKey))
+		{
+			_selectedModelKey = previewModelKey;
+		}
+
 		PopulateModelList();
 
 		if (config != null && !string.IsNullOrWhiteSpace(config.Id))
@@ -450,15 +455,39 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			_availableModels.Add("(Sample Unit Capsule)");
 		}
 
+		int selectedIdx = -1;
+		if (!string.IsNullOrWhiteSpace(_selectedModelKey))
+		{
+			string targetName = Path.GetFileName(_selectedModelKey);
+			string targetWithoutExt = Path.GetFileNameWithoutExtension(_selectedModelKey);
+
+			selectedIdx = _availableModels.FindIndex(m => string.Equals(m, _selectedModelKey, StringComparison.OrdinalIgnoreCase));
+			if (selectedIdx < 0)
+			{
+				selectedIdx = _availableModels.FindIndex(m => string.Equals(Path.GetFileName(m), targetName, StringComparison.OrdinalIgnoreCase));
+			}
+			if (selectedIdx < 0)
+			{
+				selectedIdx = _availableModels.FindIndex(m => string.Equals(Path.GetFileNameWithoutExtension(m), targetWithoutExt, StringComparison.OrdinalIgnoreCase));
+			}
+
+			if (selectedIdx < 0 && !string.IsNullOrWhiteSpace(targetName))
+			{
+				string modelToAdd = targetName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ? targetName : targetName + ".rmesh";
+				_availableModels.Insert(0, modelToAdd);
+				selectedIdx = 0;
+			}
+		}
+
 		int idx = 0;
 		foreach (var m in _availableModels)
 		{
 			_optModelPicker.AddItem(m, idx++);
 		}
 
-		int selectedIdx = !string.IsNullOrEmpty(_selectedModelKey) ? _availableModels.IndexOf(_selectedModelKey) : -1;
-		if (selectedIdx >= 0)
+		if (selectedIdx >= 0 && selectedIdx < _availableModels.Count)
 		{
+			_selectedModelKey = _availableModels[selectedIdx];
 			_optModelPicker.Selected = selectedIdx;
 		}
 		else if (_availableModels.Count > 0)
@@ -525,17 +554,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		_currentModelRoot = new Node3D();
 		_currentModelRoot.Name = "ModelRoot";
 		_simRoot.AddChild(_currentModelRoot);
-
-		var floor = new MeshInstance3D();
-		var planeMesh = new PlaneMesh { Size = new Vector2(10, 10) };
-		var mat = new StandardMaterial3D
-		{
-			AlbedoColor = new Color(0.12f, 0.12f, 0.14f),
-			Roughness = 0.8f
-		};
-		floor.Mesh = planeMesh;
-		floor.MaterialOverride = mat;
-		_simRoot.AddChild(floor);
 
 		UpdateCameraTransform();
 	}
@@ -612,6 +630,14 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 					var node = gltfDoc.GenerateScene(gltfState);
 					if (node is Node3D n3d) loadedNode3D = n3d;
 				}
+			}
+		}
+		else if (!string.IsNullOrEmpty(key))
+		{
+			var loaded = ModelCache.GetModel(key);
+			if (loaded is Node3D n)
+			{
+				loadedNode3D = n;
 			}
 		}
 

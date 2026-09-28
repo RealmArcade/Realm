@@ -206,6 +206,7 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 		{
 			string currentAnim = GameHost.Instance?.GetModelProceduralAnimation(_currentAssetKey) ?? "";
 			var cfg = ProceduralAnimationManager.GetConfig(currentAnim) ?? new Realm.Godot.VFX.ProceduralAnimationConfig { Id = _currentAssetKey + "_anim", Name = _currentAssetKey + " Animation" };
+			string selectedMesh = GameHost.Instance?.GetModelAssetKey(_currentSelectedObject ?? (object)_currentAssetKey) ?? _currentAssetKey;
 			Hud?.OpenProceduralAnimationStudioDialog(cfg, (savedCfg) =>
 			{
 				if (savedCfg != null)
@@ -215,7 +216,7 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 					GameHost.Instance?.RefreshAllPlacedObjectModels(_currentAssetKey);
 					RefreshProceduralAnimationDropdown(savedCfg.Id);
 				}
-			});
+			}, selectedMesh);
 		}, "Open Procedural Animation Studio to edit math formulas and motion parameters", 11, new Vector2(0, 28));
 	}
 

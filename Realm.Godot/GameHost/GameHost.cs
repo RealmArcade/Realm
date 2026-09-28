@@ -4383,6 +4383,7 @@ public class {mapName} : IMapScript
 		EcsWorld?.Dispose();
 		_networkService?.Clear();
 		_shroudService?.CleanUp();
+		_environmentService?.Cleanup();
 		StopRecording();
 	}
 
@@ -4826,6 +4827,7 @@ public class {mapName} : IMapScript
 
 		var worldEnv = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
 		_environmentService?.UpdateEnvironmentalFog(MainCamera, worldEnv);
+		_environmentService?.UpdateWeatherParticlePosition(MainCamera);
 	}
 
 	public override void _PhysicsProcess(double delta)

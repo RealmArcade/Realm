@@ -180,8 +180,6 @@ public partial class InGameHUD : Control
 		set => GameHost.Instance?.EnvironmentService?.SetCurrentWeather(value);
 	}
 
-	private CpuParticles3D _rainParticles = null;
-
 	private float _baseFogDensity
 	{
 		get => GameHost.Instance?.EnvironmentService?.GetBaseFogDensity() ?? 0f;
@@ -791,12 +789,6 @@ public partial class InGameHUD : Control
 		if (LobbyManager.Instance != null)
 		{
 			LobbyManager.Instance.ChatReceived -= OnLobbyChatReceived;
-		}
-
-		if (GodotObject.IsInstanceValid(_rainParticles))
-		{
-			_rainParticles.QueueFree();
-			_rainParticles = null;
 		}
 	}
 
@@ -1737,68 +1729,38 @@ public partial class InGameHUD : Control
 			{
 				"clear" => 0f,
 				"rain" => 0.0075f,
-				"fog" => 0.0175f,
+				"snow" => 0.005f,
+				"fog" => 0.045f,
 				_ => 0f
 			};
 			GameHost.Instance.EnvironmentService.SetBaseFogDensity(density);
+			GameHost.Instance.EnvironmentService.ApplyWeatherVisuals(GameHost.Instance, weather);
 		}
 		ApplyWeatherEffects(weather);
 	}
 
 	public void ApplyWeatherEffects(string weather)
 	{
-		var worldEnv = (GameHost.Instance != null ? GameHost.Instance.MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") : null);
-		if (worldEnv == null || worldEnv.Environment == null) return;
-
-		var mainNode = (GameHost.Instance != null ? GameHost.Instance.MainNode : null);
-		if (mainNode == null) return;
-
-		if (GodotObject.IsInstanceValid(_rainParticles)) { _rainParticles.QueueFree(); _rainParticles = null; }
-		
-		var sky = worldEnv.Environment.Sky;
+		if (GameHost.Instance?.EnvironmentService != null)
+		{
+			GameHost.Instance.EnvironmentService.ApplyWeatherVisuals(GameHost.Instance, weather);
+		}
 
 		if (weather == "clear")
 		{
-			worldEnv.Environment.FogEnabled = false;
-			_baseFogDensity = 0f;
-			ShowFeedbackText("Weather Forecast: Clear Skies", new Color(0.3f, 0.9f, 1.0f));
+			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Clear Skies"), new Color(0.3f, 0.9f, 1.0f));
 		}
 		else if (weather == "rain")
 		{
-			worldEnv.Environment.FogEnabled = true;
-			_baseFogDensity = 0.0075f;
-			
-			_rainParticles = new CpuParticles3D();
-			_rainParticles.Name = "RainParticles";
-			_rainParticles.Amount = 800;
-			_rainParticles.Lifetime = 2.0f;
-			_rainParticles.Preprocess = 2.0f;
-			
-			var mesh = new BoxMesh();
-			mesh.Size = new Vector3(0.05f, 1.5f, 0.05f);
-			var mat = new StandardMaterial3D();
-			mat.AlbedoColor = new Color(0.5f, 0.6f, 0.9f, 0.4f);
-			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-			mesh.Material = mat;
-			_rainParticles.Mesh = mesh;
-			
-			_rainParticles.EmissionShape = CpuParticles3D.EmissionShapeEnum.Box;
-			_rainParticles.EmissionBoxExtents = new Vector3(150f, 1f, 150f);
-			_rainParticles.Direction = new Vector3(0.1f, -1f, 0f);
-			_rainParticles.Spread = 5f;
-			_rainParticles.InitialVelocityMin = 20f;
-			_rainParticles.InitialVelocityMax = 30f;
-			
-			mainNode.AddChild(_rainParticles);
-			_rainParticles.GlobalPosition = new Vector3(0f, 40f, 0f);
-			
-			ShowFeedbackText("Weather Forecast: Light Rain Shower", new Color(0.2f, 0.5f, 0.9f));
+			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Light Rain Shower"), new Color(0.2f, 0.5f, 0.9f));
+		}
+		else if (weather == "snow")
+		{
+			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Snowfall"), new Color(0.8f, 0.9f, 1.0f));
 		}
 		else if (weather == "fog")
 		{
-			worldEnv.Environment.FogEnabled = true;
-			_baseFogDensity = 0.0175f;
-			ShowFeedbackText("Weather Forecast: Dense Fog Warning", new Color(0.7f, 0.7f, 0.8f));
+			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Dense Fog Warning"), new Color(0.7f, 0.7f, 0.8f));
 		}
 	}
 
