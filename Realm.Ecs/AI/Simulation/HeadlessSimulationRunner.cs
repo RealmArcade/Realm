@@ -10,9 +10,12 @@ using System.Numerics;
 
 namespace Realm.Ecs.AI.Simulation;
 
+public delegate int? WinConditionEvaluator(World world, float matchDurationSeconds);
+public delegate void MapSimulationInitializer(World world);
+
 public class SimulationMatchResult
 {
-	public int WinnerPlayerIndex { get; set; } = -1; // -1 for draw
+	public int WinnerPlayerIndex { get; set; } = -1;
 	public int TotalTicksExecuted { get; set; }
 	public float MatchDurationSeconds { get; set; }
 	public int Player0UnitsBuilt { get; set; }
@@ -21,9 +24,16 @@ public class SimulationMatchResult
 
 public class HeadlessSimulationRunner
 {
+	private static readonly QueryDescription MoveQuery = new QueryDescription().WithAll<Position, MoveTo>().WithNone<Dead>();
+	private static readonly QueryDescription AttackQuery = new QueryDescription().WithAll<Position, AttackTarget, Attack>().WithNone<Dead>();
+	private static readonly QueryDescription ProductionQuery = new QueryDescription().WithAll<ProductionQueue, UnitOwnerPlayer, Position>().WithNone<Dead>();
+	private static readonly QueryDescription AliveUnitsQuery = new QueryDescription().WithAll<UnitOwnerPlayer, Health>().WithNone<Dead>();
+
 	private World _world = null!;
 	private readonly AffordanceScanner _scanner = new();
 	private readonly LinearUtilityPolicy _policy = new();
+	private readonly List<GenericAffordance> _affordanceBuffer = new(64);
+	private readonly List<Entity> _deadEntitiesBuffer = new(32);
 
 	public World World => _world;
 
@@ -32,11 +42,23 @@ public class HeadlessSimulationRunner
 		ResetGame();
 	}
 
-	public void ResetGame()
+	public void ResetGame(MapSimulationInitializer? customInitializer = null)
 	{
 		_world?.Dispose();
 		_world = World.Create();
 
+		if (customInitializer != null)
+		{
+			customInitializer(_world);
+		}
+		else
+		{
+			SpawnDefaultGame();
+		}
+	}
+
+	private void SpawnDefaultGame()
+	{
 		var p0 = _world.Create(
 			new Player(),
 			new UnitOwnerPlayer(0),
@@ -74,22 +96,22 @@ public class HeadlessSimulationRunner
 		}
 	}
 
-	public void Tick(float delta, float[] p0Weights, float[] p1Weights, float epsilon = 0.0f)
+	public void Tick(float delta, float[] p0Weights, float[] p1Weights, float p0Temperature = 0.0f, float p1Temperature = 0.0f, float epsilon = 0.0f)
 	{
-		ExecuteAgentDecisions(0, p0Weights, epsilon);
-		ExecuteAgentDecisions(1, p1Weights, epsilon);
+		ExecuteAgentDecisions(0, p0Weights, p0Temperature, epsilon);
+		ExecuteAgentDecisions(1, p1Weights, p1Temperature, epsilon);
 
 		StepMovement(delta);
 		StepCombat(delta);
 		StepProduction(delta);
 	}
 
-	private void ExecuteAgentDecisions(int playerIndex, float[] weights, float epsilon)
+	private void ExecuteAgentDecisions(int playerIndex, float[] weights, float temperature, float epsilon)
 	{
 		if (weights == null || weights.Length == 0) return;
 
-		var affordances = _scanner.ScanAffordances(_world, playerIndex);
-		var action = _policy.SelectAction(affordances, weights, epsilon);
+		_scanner.ScanAffordances(_world, playerIndex, _affordanceBuffer);
+		var action = _policy.SelectAction(_affordanceBuffer, weights, epsilon, temperature);
 
 		if (action.HasValue)
 		{
@@ -118,8 +140,7 @@ public class HeadlessSimulationRunner
 
 	private void StepMovement(float delta)
 	{
-		var moveQuery = new QueryDescription().WithAll<Position, MoveTo>().WithNone<Dead>();
-		_world.Query(in moveQuery, (Entity e, ref Position pos, ref MoveTo move) =>
+		_world.Query(in MoveQuery, (Entity e, ref Position pos, ref MoveTo move) =>
 		{
 			Vector3 dir = move.Target - pos.Value;
 			float dist = dir.Length();
@@ -137,10 +158,9 @@ public class HeadlessSimulationRunner
 
 	private void StepCombat(float delta)
 	{
-		var attackQuery = new QueryDescription().WithAll<Position, AttackTarget, Attack>().WithNone<Dead>();
-		var deadEntities = new List<Entity>();
+		_deadEntitiesBuffer.Clear();
 
-		_world.Query(in attackQuery, (Entity attacker, ref Position aPos, ref AttackTarget target, ref Attack attack) =>
+		_world.Query(in AttackQuery, (Entity attacker, ref Position aPos, ref AttackTarget target, ref Attack attack) =>
 		{
 			if (!_world.IsAlive(target.Target) || _world.Has<Dead>(target.Target))
 			{
@@ -158,7 +178,7 @@ public class HeadlessSimulationRunner
 					hp.Current -= attack.Damage * delta;
 					if (hp.Current <= 0.0f)
 					{
-						deadEntities.Add(target.Target);
+						_deadEntitiesBuffer.Add(target.Target);
 					}
 				}
 				else
@@ -168,8 +188,9 @@ public class HeadlessSimulationRunner
 			}
 		});
 
-		foreach (var d in deadEntities)
+		for (int i = 0; i < _deadEntitiesBuffer.Count; i++)
 		{
+			var d = _deadEntitiesBuffer[i];
 			if (_world.IsAlive(d))
 			{
 				_world.AddOrGet(d, new Dead());
@@ -180,8 +201,7 @@ public class HeadlessSimulationRunner
 
 	private void StepProduction(float delta)
 	{
-		var prodQuery = new QueryDescription().WithAll<ProductionQueue, UnitOwnerPlayer, Position>().WithNone<Dead>();
-		_world.Query(in prodQuery, (Entity bld, ref ProductionQueue q, ref UnitOwnerPlayer owner, ref Position pos) =>
+		_world.Query(in ProductionQuery, (Entity bld, ref ProductionQueue q, ref UnitOwnerPlayer owner, ref Position pos) =>
 		{
 			if (q.UnitIds.Count > 0)
 			{
@@ -203,34 +223,61 @@ public class HeadlessSimulationRunner
 		});
 	}
 
-	public SimulationMatchResult RunMatch(float[] p0Weights, float[] p1Weights, int maxTicks = 1000, float fixedDelta = 0.1f)
+	public SimulationMatchResult RunMatch(
+		float[] p0Weights,
+		float[] p1Weights,
+		int maxTicks = 1000,
+		float fixedDelta = 0.1f,
+		WinConditionEvaluator? winConditionEvaluator = null,
+		MapSimulationInitializer? customInitializer = null,
+		float p0Temperature = 0.0f,
+		float p1Temperature = 0.0f)
 	{
-		ResetGame();
+		ResetGame(customInitializer);
 
 		for (int tick = 0; tick < maxTicks; tick++)
 		{
-			Tick(fixedDelta, p0Weights, p1Weights);
+			Tick(fixedDelta, p0Weights, p1Weights, p0Temperature, p1Temperature);
 
-			int p0Alive = CountAliveUnits(0);
-			int p1Alive = CountAliveUnits(1);
-
-			if (p0Alive == 0 || p1Alive == 0)
+			float currentDuration = (tick + 1) * fixedDelta;
+			if (winConditionEvaluator != null)
 			{
-				int winner = p0Alive > 0 ? 0 : (p1Alive > 0 ? 1 : -1);
-				return new SimulationMatchResult
+				int? customWinner = winConditionEvaluator(_world, currentDuration);
+				if (customWinner.HasValue)
 				{
-					WinnerPlayerIndex = winner,
-					TotalTicksExecuted = tick + 1,
-					MatchDurationSeconds = (tick + 1) * fixedDelta,
-					Player0UnitsBuilt = 0,
-					Player1UnitsBuilt = 0
-				};
+					return new SimulationMatchResult
+					{
+						WinnerPlayerIndex = customWinner.Value,
+						TotalTicksExecuted = tick + 1,
+						MatchDurationSeconds = currentDuration,
+						Player0UnitsBuilt = 0,
+						Player1UnitsBuilt = 0
+					};
+				}
+			}
+			else
+			{
+				int p0Alive = CountAliveUnits(0);
+				int p1Alive = CountAliveUnits(1);
+
+				if (p0Alive == 0 || p1Alive == 0)
+				{
+					int winner = p0Alive > 0 ? 0 : (p1Alive > 0 ? 1 : -1);
+					return new SimulationMatchResult
+					{
+						WinnerPlayerIndex = winner,
+						TotalTicksExecuted = tick + 1,
+						MatchDurationSeconds = currentDuration,
+						Player0UnitsBuilt = 0,
+						Player1UnitsBuilt = 0
+					};
+				}
 			}
 		}
 
-		int p0Count = CountAliveUnits(0);
-		int p1Count = CountAliveUnits(1);
-		int finalWinner = p0Count > p1Count ? 0 : (p1Count > p0Count ? 1 : -1);
+		int finalP0Count = CountAliveUnits(0);
+		int finalP1Count = CountAliveUnits(1);
+		int finalWinner = finalP0Count > finalP1Count ? 0 : (finalP1Count > finalP0Count ? 1 : -1);
 
 		return new SimulationMatchResult
 		{
@@ -242,11 +289,10 @@ public class HeadlessSimulationRunner
 		};
 	}
 
-	private int CountAliveUnits(int playerIndex)
+	public int CountAliveUnits(int playerIndex)
 	{
 		int count = 0;
-		var query = new QueryDescription().WithAll<UnitOwnerPlayer, Health>().WithNone<Dead>();
-		_world.Query(in query, (Entity e, ref UnitOwnerPlayer owner) =>
+		_world.Query(in AliveUnitsQuery, (Entity e, ref UnitOwnerPlayer owner) =>
 		{
 			if (owner.PlayerIndex == playerIndex)
 			{

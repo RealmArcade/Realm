@@ -11,43 +11,64 @@ public class BotController
 {
 	private readonly AffordanceScanner _scanner = new();
 	private readonly LinearUtilityPolicy _policy = new();
-	private float[] _weights;
+	private readonly List<GenericAffordance> _affordanceBuffer = new(64);
+
+	private BotProfile _profile = BotProfile.CreateDefault();
+	private float[] _weights = Array.Empty<float>();
 	private float _decisionInterval = 1.0f;
+	private float _aggressionMultiplier = 1.0f;
+	private float _actionTemperature = 0.0f;
 	private float _timer = 0.0f;
+	private int _playerIndex;
 
+	public int PlayerIndex => _playerIndex;
 	public float[] Weights => _weights;
+	public float DecisionInterval => _decisionInterval;
+	public float AggressionMultiplier => _aggressionMultiplier;
+	public float ActionTemperature => _actionTemperature;
+	public BotProfile Profile => _profile;
 
-	public BotController(float[]? weights = null, float decisionInterval = 1.0f)
+	public BotController(int playerIndex = 0, BotProfile? profile = null)
 	{
-		_decisionInterval = decisionInterval;
-		if (weights != null && weights.Length >= AffordanceScanner.FeatureCount)
-		{
-			_weights = weights;
-		}
-		else
-		{
-			_weights = new float[AffordanceScanner.FeatureCount];
-			_weights[0] = -0.5f; // Cost
-			_weights[1] = 0.8f;  // Target Threat
-			_weights[2] = 0.2f;  // Range
-			_weights[3] = 0.5f;  // Health Ratio
-			_weights[4] = 0.7f;  // Tempo
-			_weights[5] = 0.9f;  // Cooldown
-			_weights[6] = 0.4f;  // Retreat Urgency
-			_weights[7] = 0.6f;  // Synergy
-		}
+		_playerIndex = playerIndex;
+		LoadProfile(profile ?? BotProfile.CreateDefault());
 	}
 
 	public void LoadProfile(BotProfile profile)
 	{
-		if (profile != null && profile.Weights != null && profile.Weights.Length >= AffordanceScanner.FeatureCount)
+		if (profile == null)
 		{
-			_weights = profile.Weights;
+			return;
+		}
+
+		_profile = profile;
+		_decisionInterval = profile.DecisionIntervalSeconds > 0.05f ? profile.DecisionIntervalSeconds : 1.0f;
+		_aggressionMultiplier = profile.AggressionMultiplier > 0.0f ? profile.AggressionMultiplier : 1.0f;
+		_actionTemperature = Math.Clamp(profile.ActionTemperature, 0.0f, 2.0f);
+
+		if (profile.Weights != null && profile.Weights.Length >= AffordanceScanner.FeatureCount)
+		{
+			_weights = (float[])profile.Weights.Clone();
+		}
+		else
+		{
+			_weights = new float[AffordanceScanner.FeatureCount]
+			{
+				-0.5f,
+				0.8f,
+				0.2f,
+				0.5f,
+				0.7f,
+				0.9f,
+				0.4f,
+				0.6f
+			};
 		}
 	}
 
 	public void Tick(World world, int playerIndex, float delta)
 	{
+		_playerIndex = playerIndex;
 		_timer += delta;
 		if (_timer < _decisionInterval)
 		{
@@ -55,8 +76,8 @@ public class BotController
 		}
 		_timer = 0.0f;
 
-		var affordances = _scanner.ScanAffordances(world, playerIndex);
-		var action = _policy.SelectAction(affordances, _weights);
+		_scanner.ScanAffordances(world, playerIndex, _affordanceBuffer);
+		var action = _policy.SelectAction(_affordanceBuffer, _weights, 0.0f, _actionTemperature, _aggressionMultiplier);
 
 		if (action.HasValue)
 		{
@@ -64,7 +85,7 @@ public class BotController
 		}
 	}
 
-	private void ExecuteAction(World world, GenericAffordance aff)
+	private void ExecuteAction(World world, in GenericAffordance aff)
 	{
 		if (!world.IsAlive(aff.SourceEntity)) return;
 

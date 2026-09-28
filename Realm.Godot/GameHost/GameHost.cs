@@ -5342,6 +5342,30 @@ public class {mapName} : IMapScript
 		_audioService.PlayClickSound();
 	}
 
+	void IGameAPI.SetPlayerBotProfile(int playerIndex, string profileJson)
+	{
+		if (string.IsNullOrWhiteSpace(profileJson)) return;
+		try
+		{
+			var profile = Realm.Ecs.AI.Policy.BotProfile.FromJson(profileJson);
+			_simulationService.SetBotProfile(playerIndex, profile);
+		}
+		catch { }
+	}
+
+	string IGameAPI.GetPlayerBotProfile(int playerIndex)
+	{
+		var profile = _simulationService.GetBotProfile(playerIndex);
+		return profile != null ? profile.ToJson() : string.Empty;
+	}
+
+	string IGameAPI.TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation)
+	{
+		var trainer = new Realm.Ecs.AI.Training.SelfPlayTrainer();
+		var profile = trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation);
+		return profile.ToJson();
+	}
+
 	private class EmptyMapScript : Realm.MapAPI.IMapScript
 	{
 		public void Initialize(Realm.MapAPI.IGameAPI api) {}

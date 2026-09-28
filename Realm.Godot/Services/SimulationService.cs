@@ -247,6 +247,24 @@ internal class SimulationService
 		ApplyDeferredTickCommands();
 	}
 
+	public void SetBotProfile(int playerIndex, Realm.Ecs.AI.Policy.BotProfile profile)
+	{
+		if (!_botControllers.TryGetValue(playerIndex, out var bot))
+		{
+			bot = new Realm.Ecs.AI.BotController(playerIndex, profile);
+			_botControllers[playerIndex] = bot;
+		}
+		else
+		{
+			bot.LoadProfile(profile);
+		}
+	}
+
+	public Realm.Ecs.AI.Policy.BotProfile? GetBotProfile(int playerIndex)
+	{
+		return _botControllers.TryGetValue(playerIndex, out var bot) ? bot.Profile : null;
+	}
+
 	private void TickBotControllers(float fDelta)
 	{
 		if (EcsWorld == null) return;
@@ -254,7 +272,7 @@ internal class SimulationService
 		for (int pIdx = 0; pIdx < 8; pIdx++)
 		{
 			bool isBot = false;
-			if (pIdx > 0 && GameHost.Instance != null && ((Realm.MapAPI.IGameAPI)GameHost.Instance).IsPlayerComputer(pIdx))
+			if (GameHost.Instance != null && ((Realm.MapAPI.IGameAPI)GameHost.Instance).IsPlayerComputer(pIdx))
 			{
 				isBot = true;
 			}
@@ -263,7 +281,7 @@ internal class SimulationService
 			{
 				if (!_botControllers.TryGetValue(pIdx, out var bot))
 				{
-					bot = new Realm.Ecs.AI.BotController();
+					bot = new Realm.Ecs.AI.BotController(pIdx);
 					string mapName = GameHost.Instance?.ActiveMapName ?? "";
 					string botPath = System.IO.Path.Combine(Godot.OS.GetUserDataDir(), $"{mapName}_bot.json");
 					if (System.IO.File.Exists(botPath))

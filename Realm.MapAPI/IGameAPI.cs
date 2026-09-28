@@ -1191,4 +1191,28 @@ public interface IGameAPI
     /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
     /// <param name="frequency">The oscillation frequency in Hz.</param>
     void TriggerResourceMeshImpulse(IResourceNode node, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
+
+    /// <summary>
+    /// Configures the AI decision profile for the specified player slot using a serialized JSON string.
+    /// </summary>
+    /// <param name="playerIndex">The zero-based player slot index.</param>
+    /// <param name="profileJson">The serialized JSON string representing the bot profile weights and personality.</param>
+    void SetPlayerBotProfile(int playerIndex, string profileJson) { }
+
+    /// <summary>
+    /// Retrieves the serialized JSON string of the active AI bot decision profile for the specified player slot.
+    /// </summary>
+    /// <param name="playerIndex">The zero-based player slot index.</param>
+    /// <returns>The serialized JSON string representing the active bot profile, or an empty string if not configured.</returns>
+    string GetPlayerBotProfile(int playerIndex) => string.Empty;
+
+    /// <summary>
+    /// Executes an automated self-play genetic training simulation on CPU and returns the resulting serialized bot profile JSON.
+    /// </summary>
+    /// <param name="mapName">The identifier or name of the map being trained.</param>
+    /// <param name="generations">The number of evolutionary generations to execute.</param>
+    /// <param name="populationSize">The candidate population size per generation.</param>
+    /// <param name="matchesPerEvaluation">The number of evaluation matches each candidate plays per generation.</param>
+    /// <returns>The serialized JSON string of the best evolved bot profile.</returns>
+    string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4) => string.Empty;
 }
