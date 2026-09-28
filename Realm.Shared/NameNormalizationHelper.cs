@@ -2,96 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using AnyAscii;
+using Fastenshtein;
 
 namespace Realm.Shared;
 
 public static class NameNormalizationHelper
 {
-    private static readonly Dictionary<char, string> HomoglyphAndLigatureMap = new()
-    {
-        { 'ß', "ss" },
-        { 'æ', "ae" },
-        { 'Æ', "AE" },
-        { 'œ', "oe" },
-        { 'Œ', "OE" },
-        { 'ø', "o" },
-        { 'Ø', "O" },
-        { 'ł', "l" },
-        { 'Ł', "L" },
-        { 'đ', "d" },
-        { 'Đ', "D" },
-        { 'þ', "th" },
-        { 'Þ', "TH" },
-        { 'ð', "d" },
-        { 'Ð', "D" },
-        { 'ı', "i" },
-        { 'İ', "I" },
-
-        { 'а', "a" }, { 'А', "A" },
-        { 'б', "b" }, { 'Б', "B" },
-        { 'в', "v" }, { 'В', "V" },
-        { 'г', "g" }, { 'Г', "G" },
-        { 'д', "d" }, { 'Д', "D" },
-        { 'е', "e" }, { 'Е', "E" },
-        { 'ё', "e" }, { 'Ё', "E" },
-        { 'ж', "z" }, { 'Ж', "Z" },
-        { 'з', "z" }, { 'З', "Z" },
-        { 'и', "i" }, { 'И', "I" },
-        { 'й', "j" }, { 'Й', "J" },
-        { 'к', "k" }, { 'К', "K" },
-        { 'л', "l" }, { 'Л', "L" },
-        { 'м', "m" }, { 'М', "M" },
-        { 'н', "n" }, { 'Н', "N" },
-        { 'о', "o" }, { 'О', "O" },
-        { 'п', "p" }, { 'П', "P" },
-        { 'р', "r" }, { 'Р', "R" },
-        { 'с', "c" }, { 'С', "C" },
-        { 'т', "t" }, { 'Т', "T" },
-        { 'у', "u" }, { 'У', "U" },
-        { 'ф', "f" }, { 'Ф', "F" },
-        { 'х', "h" }, { 'Х', "H" },
-        { 'ц', "c" }, { 'Ц', "C" },
-        { 'ч', "c" }, { 'Ч', "C" },
-        { 'ш', "s" }, { 'Ш', "S" },
-        { 'щ', "s" }, { 'Щ', "S" },
-        { 'ъ', "" },  { 'Ъ', "" },
-        { 'ы', "y" }, { 'Ы', "Y" },
-        { 'ь', "" },  { 'Ь', "" },
-        { 'э', "e" }, { 'Э', "E" },
-        { 'ю', "yu" }, { 'Ю', "YU" },
-        { 'я', "ya" }, { 'Я', "YA" },
-        { 'і', "i" }, { 'І', "I" },
-        { 'ј', "j" }, { 'Ј', "J" },
-        { 'є', "e" }, { 'Є', "E" },
-        { 'ґ', "g" }, { 'Ґ', "G" },
-
-        { 'α', "a" }, { 'Α', "A" },
-        { 'β', "b" }, { 'Β', "B" },
-        { 'γ', "g" }, { 'Γ', "G" },
-        { 'δ', "d" }, { 'Δ', "D" },
-        { 'ε', "e" }, { 'Ε', "E" },
-        { 'ζ', "z" }, { 'Ζ', "Z" },
-        { 'η', "h" }, { 'Η', "H" },
-        { 'θ', "th" }, { 'Θ', "TH" },
-        { 'ι', "i" }, { 'Ι', "I" },
-        { 'κ', "k" }, { 'Κ', "K" },
-        { 'λ', "l" }, { 'Λ', "L" },
-        { 'μ', "m" }, { 'Μ', "M" },
-        { 'ν', "n" }, { 'Ν', "N" },
-        { 'ξ', "x" }, { 'Ξ', "X" },
-        { 'ο', "o" }, { 'Ο', "O" },
-        { 'π', "p" }, { 'Π', "P" },
-        { 'ρ', "r" }, { 'Ρ', "P" },
-        { 'σ', "s" }, { 'Σ', "S" },
-        { 'ς', "s" },
-        { 'τ', "t" }, { 'Τ', "T" },
-        { 'υ', "u" }, { 'Υ', "Y" },
-        { 'φ', "f" }, { 'Φ', "F" },
-        { 'χ', "x" }, { 'Χ', "X" },
-        { 'ψ', "ps" }, { 'Ψ', "PS" },
-        { 'ω', "o" }, { 'Ω', "O" }
-    };
-
     public static string ToAscii(string? input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -99,38 +16,7 @@ public static class NameNormalizationHelper
             return string.Empty;
         }
 
-        var normalizedString = input.Normalize(NormalizationForm.FormKD);
-        var stringBuilder = new StringBuilder(normalizedString.Length);
-
-        foreach (var character in normalizedString)
-        {
-            if (HomoglyphAndLigatureMap.TryGetValue(character, out var mappedValue))
-            {
-                stringBuilder.Append(mappedValue);
-                continue;
-            }
-
-            if (character >= 0xFF01 && character <= 0xFF5E)
-            {
-                stringBuilder.Append((char)(character - 0xFEE0));
-                continue;
-            }
-
-            var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(character);
-            if (unicodeCategory == UnicodeCategory.NonSpacingMark ||
-                unicodeCategory == UnicodeCategory.SpacingCombiningMark ||
-                unicodeCategory == UnicodeCategory.EnclosingMark)
-            {
-                continue;
-            }
-
-            if (character <= 127)
-            {
-                stringBuilder.Append(character);
-            }
-        }
-
-        return stringBuilder.ToString();
+        return input.Transliterate();
     }
 
     public static string NormalizeUsername(string? username)
@@ -196,45 +82,19 @@ public static class NameNormalizationHelper
         return stringBuilder.ToString();
     }
 
-    public static int ComputeLevenshteinDistance(ReadOnlySpan<char> source, ReadOnlySpan<char> target)
+    public static int ComputeLevenshteinDistance(string? source, string? target)
     {
-        if (source.Length == 0)
+        if (string.IsNullOrEmpty(source))
         {
-            return target.Length;
+            return target?.Length ?? 0;
         }
 
-        if (target.Length == 0)
+        if (string.IsNullOrEmpty(target))
         {
             return source.Length;
         }
 
-        Span<int> previousRow = stackalloc int[target.Length + 1];
-        Span<int> currentRow = stackalloc int[target.Length + 1];
-
-        for (var j = 0; j <= target.Length; j++)
-        {
-            previousRow[j] = j;
-        }
-
-        for (var i = 0; i < source.Length; i++)
-        {
-            currentRow[0] = i + 1;
-
-            for (var j = 0; j < target.Length; j++)
-            {
-                var substitutionCost = source[i] == target[j] ? 0 : 1;
-
-                var deletion = previousRow[j + 1] + 1;
-                var insertion = currentRow[j] + 1;
-                var substitution = previousRow[j] + substitutionCost;
-
-                currentRow[j + 1] = Math.Min(Math.Min(deletion, insertion), substitution);
-            }
-
-            currentRow.CopyTo(previousRow);
-        }
-
-        return previousRow[target.Length];
+        return Levenshtein.Distance(source, target);
     }
 
     public static bool IsMapNameTooSimilar(string candidateMapName, IEnumerable<string> existingMapNames, int minDistanceThreshold, out string? conflictingMapName)
@@ -268,7 +128,7 @@ public static class NameNormalizationHelper
 
             if (normalizedCandidate.Length >= 3 && normalizedExisting.Length >= 3)
             {
-                var distance = ComputeLevenshteinDistance(normalizedCandidate.AsSpan(), normalizedExisting.AsSpan());
+                var distance = ComputeLevenshteinDistance(normalizedCandidate, normalizedExisting);
                 var effectiveThreshold = normalizedCandidate.Length <= 4 || normalizedExisting.Length <= 4
                     ? 1
                     : Math.Min(minDistanceThreshold, 2);
