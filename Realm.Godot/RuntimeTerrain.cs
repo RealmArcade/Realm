@@ -1406,14 +1406,7 @@ void fragment() {
 		blended_ao = ground_ao;
 		blended_roughness = ground_roughness;
 	} else {
-		vec3 dX = dFdx(v_world_pos);
-		vec3 dY = dFdy(v_world_pos);
-		vec3 cliff_geom_normal = cross(dY, dX);
-		float geom_len = length(cliff_geom_normal);
-		cliff_geom_normal = geom_len > 0.00001 ? (cliff_geom_normal / geom_len) : geom_normal;
-		if (dot(cliff_geom_normal, geom_normal) < 0.0) {
-			cliff_geom_normal = -cliff_geom_normal;
-		}
+		vec3 cliff_geom_normal = geom_normal;
 
 		vec3 triplanar_normal = abs(cliff_geom_normal);
 		vec3 blend_weights = pow(triplanar_normal, vec3(4.0));

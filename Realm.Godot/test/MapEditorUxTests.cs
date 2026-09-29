@@ -1255,6 +1255,166 @@ public class CustomProjMap : IWasmModule
         Assertions.AssertThat(activeProjectile.RibbonMaterial.AlbedoTexture).IsNotNull();
     }
 
+    [TestCase]
+    public async Task TestCliffDarkReproduction()
+    {
+        var field = typeof(MapEditorHUD).GetField("_agreementShownThisSession", BindingFlags.NonPublic | BindingFlags.Static);
+        if (field != null)
+        {
+            field.SetValue(null, true);
+        }
+
+        ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
+        await runner.AwaitMillis(1500);
+
+        UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+        await runner.AwaitMillis(2500);
+
+        var hud = MapEditorHUD.Instance;
+        Assertions.AssertThat(hud).IsNotNull();
+
+        var overlay = hud!.GetNodeOrNull<Control>("ConfirmationOverlay");
+        if (overlay != null)
+        {
+            var btnDiscard = overlay.FindChild("BtnCancel", true, false) as Button 
+                ?? overlay.FindChild("*Discard*", true, false) as Button;
+            if (btnDiscard != null)
+            {
+                btnDiscard.EmitSignal("pressed");
+            }
+            else
+            {
+                overlay.QueueFree();
+            }
+            await runner.AwaitMillis(500);
+        }
+
+        string mapFolder = @"C:\temp\Cliff_Dark";
+        if (!Directory.Exists(mapFolder))
+        {
+            throw new Exception($"Map folder '{mapFolder}' not found.");
+        }
+
+        bool loadOk = hud!.LoadMapFolder(mapFolder);
+        Assertions.AssertThat(loadOk).IsTrue();
+        await runner.AwaitMillis(1500);
+
+        var gameHost = GameHost.Instance;
+        Assertions.AssertThat(gameHost).IsNotNull();
+
+        var camera = gameHost!.MainCamera;
+        if (camera != null)
+        {
+            camera.Position = new Vector3(0.0f, 30.0f, 35.0f);
+            camera.RotationDegrees = new Vector3(-45.0f, 0.0f, 0.0f);
+        }
+        await runner.AwaitMillis(1000);
+
+        var terrain = gameHost.GroundTerrain;
+        Assertions.AssertThat(terrain).IsNotNull();
+
+        var sw = new StringWriter();
+        sw.WriteLine("=== CLIFF DIAGNOSTICS ===");
+        sw.WriteLine($"Terrain Width: {terrain!.Width}, Depth: {terrain.Depth}");
+        sw.WriteLine($"Terrain Material: {terrain.Material != null}");
+        if (terrain.Material != null)
+        {
+            sw.WriteLine($"shroud_enabled: {terrain.Material.GetShaderParameter("shroud_enabled")}");
+            sw.WriteLine($"enable_macro_noise: {terrain.Material.GetShaderParameter("enable_macro_noise")}");
+            sw.WriteLine($"enable_height_blend: {terrain.Material.GetShaderParameter("enable_height_blend")}");
+            sw.WriteLine($"enable_normal_mapping: {terrain.Material.GetShaderParameter("enable_normal_mapping")}");
+            sw.WriteLine($"cliff_jitter_strength: {terrain.Material.GetShaderParameter("cliff_jitter_strength")}");
+
+            var swatchAlbedo = terrain.Material.GetShaderParameter("swatch_albedo_params");
+            sw.WriteLine($"swatch_albedo_params type: {swatchAlbedo.VariantType}");
+            if (swatchAlbedo.Obj is Vector4[] albArr)
+            {
+                for (int i = 0; i < Math.Min(albArr.Length, 5); i++)
+                {
+                    sw.WriteLine($"  swatch_albedo[{i}]: {albArr[i]}");
+                }
+            }
+            var swatchHeight = terrain.Material.GetShaderParameter("swatch_height_params");
+            if (swatchHeight.Obj is Vector4[] hArr)
+            {
+                for (int i = 0; i < Math.Min(hArr.Length, 5); i++)
+                {
+                    sw.WriteLine($"  swatch_height[{i}]: {hArr[i]}");
+                }
+            }
+            var swatchP = terrain.Material.GetShaderParameter("swatch_params");
+            if (swatchP.Obj is Vector4[] pArr)
+            {
+                for (int i = 0; i < Math.Min(pArr.Length, 5); i++)
+                {
+                    sw.WriteLine($"  swatch_params[{i}]: {pArr[i]}");
+                }
+            }
+        }
+
+        if (terrain.CliffSplatMap != null)
+        {
+            sw.WriteLine($"CliffSplatMap size: {terrain.CliffSplatMap.GetLength(0)}x{terrain.CliffSplatMap.GetLength(1)}");
+            int nonDefaultCount = 0;
+            for (int z = 0; z < terrain.CliffSplatMap.GetLength(1); z++)
+            {
+                for (int x = 0; x < terrain.CliffSplatMap.GetLength(0); x++)
+                {
+                    var s = terrain.CliffSplatMap[x, z];
+                    if (s.Index0 != 0 || s.Index1 != 0 || s.Weight0 > 0 || s.Weight1 > 0)
+                    {
+                        nonDefaultCount++;
+                    }
+                }
+            }
+            sw.WriteLine($"Non-default cliff splats: {nonDefaultCount}");
+            sw.WriteLine($"Sample splats [0,0]: {terrain.CliffSplatMap[0, 0].Index0}:{terrain.CliffSplatMap[0, 0].Weight0}, [16,16]: {terrain.CliffSplatMap[16, 16].Index0}:{terrain.CliffSplatMap[16, 16].Weight0}");
+        }
+
+        var overlayAfter = hud.GetNodeOrNull<Control>("ConfirmationOverlay");
+        if (overlayAfter != null)
+        {
+            overlayAfter.QueueFree();
+            await runner.AwaitMillis(200);
+        }
+
+        string artifactDir = @"C:\Users\devin\.gemini\antigravity-cli\brain\be6525ca-9349-44ef-a3e3-02dba87e5752";
+        Directory.CreateDirectory(artifactDir);
+        string screenshotPath = Path.Combine(artifactDir, "cliff_dark_test.png");
+        global::Godot.Image screenshot = runner.Scene().GetViewport().GetTexture().GetImage();
+        screenshot.SavePng(screenshotPath);
+        sw.WriteLine($"Screenshot saved to: {screenshotPath}");
+
+        // Sample center pixels where cliff should be visible
+        int cliffDarkPixels = 0;
+        int totalSampled = 0;
+        float totalLuminance = 0f;
+        for (int y = screenshot.GetHeight() / 3; y < screenshot.GetHeight() * 2 / 3; y += 4)
+        {
+            for (int x = screenshot.GetWidth() / 4; x < screenshot.GetWidth() * 3 / 4; x += 4)
+            {
+                Color pixel = screenshot.GetPixel(x, y);
+                float lum = pixel.R * 0.2126f + pixel.G * 0.7152f + pixel.B * 0.0722f;
+                totalLuminance += lum;
+                totalSampled++;
+                if (lum < 0.15f)
+                {
+                    cliffDarkPixels++;
+                }
+            }
+        }
+        float avgLum = totalSampled > 0 ? totalLuminance / totalSampled : 0f;
+        sw.WriteLine($"Sampled {totalSampled} pixels in center: Avg luminance = {avgLum:F3}, Dark pixels (<0.15) = {cliffDarkPixels} ({cliffDarkPixels * 100f / totalSampled:F1}%)");
+
+        string diagPath = Path.Combine(artifactDir, "cliff_diagnostics.txt");
+        File.WriteAllText(diagPath, sw.ToString());
+        GD.Print(sw.ToString());
+
+        // Cliff pixels should no longer be pitch black
+        Assertions.AssertThat(avgLum).IsGreater(0.18f);
+        Assertions.AssertThat(cliffDarkPixels * 100f / totalSampled).IsLess(25.0f);
+    }
+
     private static string FindAssetInWorkspace(string filename)
     {
         string[] candidates = new[]
