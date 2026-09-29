@@ -869,6 +869,8 @@ public partial class MapEditorHUD : Control
 		{
 			ToggleFreeCamera();
 		}, 12, "Free Camera (F8)");
+		var initialCam = GameHost.Instance?.MainCamera as CameraControl;
+		UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
 
 		_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
 		_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
@@ -6670,36 +6672,45 @@ public partial class MapEditorHUD : Control
 				SafeReparent(_minimapFrame, targetViewport);
 			}
 
-			var vpRow = new HBoxContainer();
-			vpRow.Name = "ViewportIconRow";
-			vpRow.AddThemeConstantOverride("separation", 4);
-			vpRow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			var vpRow1 = new HBoxContainer();
+			vpRow1.Name = "ViewportIconRow1";
+			vpRow1.AddThemeConstantOverride("separation", 4);
+			vpRow1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+
+			var vpRow2 = new HBoxContainer();
+			vpRow2.Name = "ViewportIconRow2";
+			vpRow2.AddThemeConstantOverride("separation", 4);
+			vpRow2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 			StyleIconButton(_btnToggleGrid, "\uf84c", "Toggle alignment grid lines overlay (V)");
 			StyleIconButton(_btnToggleCameraBounds, "\uf06e", "Toggle camera bounds overlay (B)");
 			StyleIconButton(_btnToggleWireframe, "\uf5ee", "Toggle wireframe mode (F7)");
-			StyleIconButton(_btnRotate, "\uf01e", "Rotate camera 90 degrees (R)");
-			StyleIconButton(_btnCameraAngle, "\uf1b2", "Toggle perspective vs top-down angle (C)");
 			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
 			StyleIconButton(_btnWeather, "\uf738", "Cycle weather effects (K)");
+
+			StyleIconButton(_btnRotate, "\uf01e", "Rotate camera 90 degrees (R)");
+			StyleIconButton(_btnCameraAngle, "\uf1b2", "Toggle perspective vs top-down angle (C)");
 			StyleIconButton(_btnZoomIn, "\uf00e", "Zoom camera in (+)");
 			StyleIconButton(_btnZoomOut, "\uf010", "Zoom camera out (-)");
 			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
 
-			SafeReparent(_btnToggleGrid, vpRow);
-			SafeReparent(_btnToggleCameraBounds, vpRow);
-			SafeReparent(_btnToggleWireframe, vpRow);
-			SafeReparent(_btnRotate, vpRow);
-			SafeReparent(_btnCameraAngle, vpRow);
-			SafeReparent(_btnSkybox, vpRow);
-			SafeReparent(_btnWeather, vpRow);
-			SafeReparent(_btnZoomIn, vpRow);
-			SafeReparent(_btnZoomOut, vpRow);
-			SafeReparent(_btnFreeCamera, vpRow);
+			SafeReparent(_btnToggleGrid, vpRow1);
+			SafeReparent(_btnToggleCameraBounds, vpRow1);
+			SafeReparent(_btnToggleWireframe, vpRow1);
+			SafeReparent(_btnSkybox, vpRow1);
+			SafeReparent(_btnWeather, vpRow1);
+
+			SafeReparent(_btnRotate, vpRow2);
+			SafeReparent(_btnCameraAngle, vpRow2);
+			SafeReparent(_btnZoomIn, vpRow2);
+			SafeReparent(_btnZoomOut, vpRow2);
+			SafeReparent(_btnFreeCamera, vpRow2);
 
 			var vpBox = new VBoxContainer();
 			vpBox.Name = "BoxViewportToolbar";
-			vpBox.AddChild(vpRow);
+			vpBox.AddThemeConstantOverride("separation", 4);
+			vpBox.AddChild(vpRow1);
+			vpBox.AddChild(vpRow2);
 			StyleSubContainer(vpBox, "Navigation Bar");
 
 			targetViewport.AddChild(vpBox);
@@ -7268,7 +7279,7 @@ public partial class MapEditorHUD : Control
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
-		if (@event is InputEventKey keyEvent && keyEvent.Pressed)
+		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo)
 		{
 			if (keyEvent.Keycode == Godot.Key.F1)
 			{
