@@ -215,7 +215,7 @@ public partial class InGameHUD : Control
 	private Label _feedbackLabel;
 	private Label _connectionWarningLabel;
 	private Control _minimapArea;
-	private Control _cameraIndicator;
+	private MinimapCameraIndicator _cameraIndicator;
 
 	private Label _populationLabel;
 	private Label _clockLabel;
@@ -439,7 +439,7 @@ public partial class InGameHUD : Control
 		_connectionWarningLabel.Visible = false;
 
 		_minimapArea = GetNode<Control>("BottomConsole/HBox/MinimapFrame/MinimapArea");
-		_cameraIndicator = GetNode<Control>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
+		_cameraIndicator = GetNode<MinimapCameraIndicator>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
 
 		_minimapControls = new VBoxContainer();
 		_minimapControls.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
@@ -815,102 +815,16 @@ public partial class InGameHUD : Control
 				var minimapBg = _minimapArea.GetChildCount() > 0 ? _minimapArea.GetChild<TextureRect>(0) : null;
 				if (minimapBg == null) return;
 
-				var shroudMesh = GameHost.Instance?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DShroudMesh") ?? GameHost.Instance?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DFogMesh");
-				bool wasVisible = false;
-				if (shroudMesh != null)
+				var imgTexture = await MinimapHelper.CaptureTerrainMinimapTextureAsync(this, 256);
+				if (imgTexture != null)
 				{
-					wasVisible = shroudMesh.Visible;
-					shroudMesh.Visible = false;
-				}
-
-				bool wasPathingVisible = false;
-				if (GameHost.Instance?.PathingOverlayMesh != null)
-				{
-					wasPathingVisible = GameHost.Instance.PathingOverlayMesh.Visible;
-					GameHost.Instance.PathingOverlayMesh.Visible = false;
-				}
-
-				var unitsList = GameHost.Instance?.AllUnits;
-				var unitVisibility = new System.Collections.Generic.List<(Unit3D unit, bool visible)>();
-				if (unitsList != null)
-				{
-					foreach (var u in unitsList)
-					{
-						if (u != null && GodotObject.IsInstanceValid(u))
-						{
-							unitVisibility.Add((u, u.Visible));
-							u.Visible = false;
-						}
-					}
-				}
-
-				SubViewport viewport = null;
-				try
-				{
-					viewport = new SubViewport();
-					viewport.Size = new Vector2I(256, 256);
-					viewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
-					AddChild(viewport);
-
-					var camera = new Camera3D();
-					camera.Projection = Camera3D.ProjectionType.Orthogonal;
-					camera.Size = 250f;
-					camera.Far = 200f;
-					camera.Position = new Vector3(0, 100, 0);
-					camera.RotationDegrees = new Vector3(-90, 0, 0);
-					viewport.AddChild(camera);
-
-					RuntimeTerrain.IsMinimapRendering = true;
-					RuntimeTerrain.Instance?.BeginMinimapCapture();
-					PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
-					try
-					{
-						await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-						var texture = viewport.GetTexture();
-						if (texture != null)
-						{
-							var img = texture.GetImage();
-							if (img != null)
-							{
-								var imgTexture = ImageTexture.CreateFromImage(img);
-								minimapBg.Texture = imgTexture;
-							}
-						}
-					}
-					finally
-					{
-						RuntimeTerrain.Instance?.EndMinimapCapture();
-						RuntimeTerrain.IsMinimapRendering = false;
-					}
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"Failed to dynamically capture terrain minimap: {ex.Message}");
-				}
-				finally
-				{
-					if (viewport != null && GodotObject.IsInstanceValid(viewport))
-					{
-						viewport.QueueFree();
-					}
-					if (shroudMesh != null && GodotObject.IsInstanceValid(shroudMesh))
-					{
-						shroudMesh.Visible = wasVisible;
-					}
-					if (GameHost.Instance?.PathingOverlayMesh != null)
-					{
-						GameHost.Instance.PathingOverlayMesh.Visible = wasPathingVisible;
-					}
-					foreach (var (u, vis) in unitVisibility)
-					{
-						if (u != null && GodotObject.IsInstanceValid(u))
-						{
-							u.Visible = vis;
-						}
-					}
+					minimapBg.Texture = imgTexture;
 				}
 			} while (_minimapNeedsRegen);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to dynamically capture terrain minimap: {ex.Message}");
 		}
 		finally
 		{
@@ -1148,13 +1062,7 @@ public partial class InGameHUD : Control
 
 		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
-		var minimapBg = new TextureRect();
-		minimapBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		minimapBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
-		minimapBg.MouseFilter = MouseFilterEnum.Ignore;
-		_minimapArea.AddChild(minimapBg);
-		minimapBg.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		_minimapArea.MoveChild(minimapBg, 0); 
+		MinimapHelper.SetupMinimapBackground(_minimapArea);
 
 		var overlay = new MinimapOverlay();
 		overlay.Name = "MinimapOverlay";

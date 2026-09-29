@@ -7437,16 +7437,7 @@ public partial class MapEditorHUD : Control
 
 	private void SetupMinimap()
 	{
-		if (_minimapArea == null) return;
-
-		var minimapBg = new TextureRect();
-		minimapBg.Name = "MinimapBg";
-		minimapBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		minimapBg.StretchMode = TextureRect.StretchModeEnum.Scale;
-		minimapBg.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-		minimapBg.MouseFilter = Control.MouseFilterEnum.Ignore;
-		_minimapArea.AddChild(minimapBg);
-		_minimapArea.MoveChild(minimapBg, 0);
+		MinimapHelper.SetupMinimapBackground(_minimapArea);
 	}
 
 	public void RegenerateMinimap()

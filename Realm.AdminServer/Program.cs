@@ -836,6 +836,12 @@ app.MapMethods("/api/assets/{hash}", new[] { "HEAD" }, (string hash, ContentAddr
 
 app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressableStorage cas) =>
 {
+    var syncIoFeature = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpBodyControlFeature>();
+    if (syncIoFeature != null)
+    {
+        syncIoFeature.AllowSynchronousIO = true;
+    }
+
     using var reader = new StreamReader(context.Request.Body, Encoding.UTF8);
     string json = await reader.ReadToEndAsync(context.RequestAborted);
     AssetBundleRequestDto? req = null;
@@ -865,14 +871,31 @@ app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressable
         }
     }
 
-    context.Response.ContentType = "application/octet-stream";
-    context.Response.StatusCode = StatusCodes.Status200OK;
+    try
+    {
+        using var memoryStream = new MemoryStream();
+        await ZstdAssetBundleHelper.StreamAssetsToBundleAsync(
+            memoryStream,
+            assetInfos,
+            compressionLevel: 1,
+            cancellationToken: context.RequestAborted);
 
-    await ZstdAssetBundleHelper.StreamAssetsToBundleAsync(
-        context.Response.Body,
-        assetInfos,
-        compressionLevel: 1,
-        cancellationToken: context.RequestAborted);
+        memoryStream.Position = 0;
+        context.Response.ContentType = "application/octet-stream";
+        context.Response.ContentLength = memoryStream.Length;
+        context.Response.StatusCode = StatusCodes.Status200OK;
+
+        await memoryStream.CopyToAsync(context.Response.Body, context.RequestAborted);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"[AdminServer] Error streaming asset bundle: {ex.Message}");
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            await context.Response.WriteAsJsonAsync(new { Error = ex.Message }, context.RequestAborted);
+        }
+    }
 });
 
 app.MapGet("/api/assets/{hash}", (string hash, ContentAddressableStorage cas, HttpContext context) =>
