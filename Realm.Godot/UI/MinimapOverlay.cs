@@ -8,21 +8,17 @@ public partial class MinimapOverlay : Control
 
 		var size = Size;
 
-
 		if (InGameHUD.Instance != null && !InGameHUD.Instance.ShowMinimapTerrain)
 		{
-			DrawRect(new Rect2(Vector2.Zero, size), new Color(0.04f, 0.08f, 0.04f), true); // Deep radar green background
+			DrawRect(new Rect2(Vector2.Zero, size), new Color(0.04f, 0.08f, 0.04f), true);
 			Color radarGridColor = new Color(0.1f, 0.4f, 0.15f, 0.3f);
-			
 
 			DrawLine(new Vector2(size.X / 2f, 0), new Vector2(size.X / 2f, size.Y), radarGridColor, 1.0f);
 			DrawLine(new Vector2(0, size.Y / 2f), new Vector2(size.X, size.Y / 2f), radarGridColor, 1.0f);
-			
 
 			DrawCircle(size / 2f, size.X * 0.45f, radarGridColor, false, 1.5f);
 			DrawCircle(size / 2f, size.X * 0.3f, radarGridColor, false, 1.0f);
 			DrawCircle(size / 2f, size.X * 0.15f, radarGridColor, false, 1.0f);
-
 
 			DrawRect(new Rect2(Vector2.Zero, size), UIStyle.ColorBronze, false, 1.5f);
 		}
@@ -51,29 +47,23 @@ public partial class MinimapOverlay : Control
 			}
 		}
 
+		var (physicalWidth, physicalDepth, _) = MinimapHelper.GetTerrainDimensions();
+
 		foreach (var unit in GameHost.Instance.AllUnits)
 		{
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
 
 			if (unit.IsEnemy && InGameHUD.Instance != null && !string.Equals(InGameHUD.Instance.ShroudType, "visible", System.StringComparison.OrdinalIgnoreCase))
 			{
-				int gx = (int)Mathf.Clamp((unit.GlobalPosition.X / 250f + 0.5f) * 32, 0, 31);
-				int gz = (int)Mathf.Clamp((unit.GlobalPosition.Z / 250f + 0.5f) * 32, 0, 31);
+				int gx = (int)Mathf.Clamp((unit.GlobalPosition.X / physicalWidth + 0.5f) * 32, 0, 31);
+				int gz = (int)Mathf.Clamp((unit.GlobalPosition.Z / physicalDepth + 0.5f) * 32, 0, 31);
 				if (InGameHUD.Instance.ShroudGrid[gx, gz] != Realm.Ecs.Components.Terrain.ShroudState.Visible)
 				{
 					continue;
 				}
 			}
 
-
-			float xRatio = (unit.GlobalPosition.X / 250f) + 0.5f;
-			float yRatio = (unit.GlobalPosition.Z / 250f) + 0.5f;
-
-			xRatio = Mathf.Clamp(xRatio, 0f, 1f);
-			yRatio = Mathf.Clamp(yRatio, 0f, 1f);
-
-			Vector2 drawPos = new Vector2(xRatio * size.X, yRatio * size.Y);
-
+			Vector2 drawPos = MinimapHelper.WorldToMinimap(unit.GlobalPosition, size);
 
 			Color color = unit.IsEnemy ? new Color(0.9f, 0.1f, 0.1f) : new Color(0.2f, 0.6f, 1.0f);
 			float iconSize = 5.0f;
@@ -83,13 +73,13 @@ public partial class MinimapOverlay : Control
 				iconSize = 8.0f;
 				var rect = new Rect2(drawPos - new Vector2(iconSize / 2f, iconSize / 2f), new Vector2(iconSize, iconSize));
 				DrawRect(rect, color, true);
-				DrawRect(rect, new Color(0f, 0f, 0f, 0.6f), false, 1.0f); // dark outline
+				DrawRect(rect, new Color(0f, 0f, 0f, 0.6f), false, 1.0f);
 			}
 			else
 			{
 				color = new Color(0.9f, 0.3f, 0.1f);
 				DrawCircle(drawPos, iconSize, color);
-				DrawCircle(drawPos, iconSize, new Color(0f, 0f, 0f, 0.6f), false, 1.0f); // dark outline
+				DrawCircle(drawPos, iconSize, new Color(0f, 0f, 0f, 0.6f), false, 1.0f);
 			}
 
 			if (unit.IsSelected)
@@ -99,17 +89,9 @@ public partial class MinimapOverlay : Control
 			}
 		}
 
-
 		foreach (var ping in GameHost.Instance.ActivePings)
 		{
-			float xRatio = (ping.WorldPos.X / 250f) + 0.5f;
-			float yRatio = (ping.WorldPos.Z / 250f) + 0.5f;
-
-			xRatio = Mathf.Clamp(xRatio, 0f, 1f);
-			yRatio = Mathf.Clamp(yRatio, 0f, 1f);
-
-			Vector2 drawPos = new Vector2(xRatio * size.X, yRatio * size.Y);
-
+			Vector2 drawPos = MinimapHelper.WorldToMinimap(ping.WorldPos, size);
 
 			float pulse = Mathf.Sin(ping.LifeTime * 15f) * 0.5f + 1.0f;
 			float radius = 12f * pulse;
@@ -117,4 +99,5 @@ public partial class MinimapOverlay : Control
 			DrawCircle(drawPos, radius, new Color(1f, 0.1f, 0.1f, 0.5f), false, 2.0f);
 			DrawCircle(drawPos, radius - 4f, new Color(1f, 0.1f, 0.1f, 0.2f), true);
 		}
-	}}
+	}
+}

@@ -7,13 +7,16 @@ using Realm.Godot.ReplaySystem;
 public class MinimapPanel
 {
 	private Control _minimapArea;
-	private Control _cameraIndicator;
+	private MinimapCameraIndicator _cameraIndicator;
 	private Camera3D _camera3D;
 	private PanelContainer _minimapFrame;
 	private bool _isRightClickPanning = false;
 	private bool _isLeftClickDragging = false;
+	private Vector3 _lastCameraPos;
+	private Vector3 _lastCameraRot;
+	private readonly Vector2[] _cachedMinimapPoints = new Vector2[4];
 
-	public MinimapPanel(PanelContainer minimapFrame, Control minimapArea, Control cameraIndicator, Camera3D camera3D)
+	public MinimapPanel(PanelContainer minimapFrame, Control minimapArea, MinimapCameraIndicator cameraIndicator, Camera3D camera3D)
 	{
 		_minimapFrame = minimapFrame;
 		_minimapArea = minimapArea;
@@ -78,16 +81,7 @@ public class MinimapPanel
 				{
 					if (mouseBtn.Pressed)
 					{
-						float xRatio = mouseBtn.Position.X / _minimapArea.Size.X;
-						float yRatio = mouseBtn.Position.Y / _minimapArea.Size.Y;
-						float worldX = Mathf.Clamp((xRatio - 0.5f) * 250f, -95f, 95f);
-						float worldZ = Mathf.Clamp((yRatio - 0.5f) * 250f, -95f, 125f);
-						float height = 0f;
-						if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
-						{
-							GameHost.Instance.GroundTerrain.GetHeightAndNormal(worldX, worldZ, out height, out _);
-						}
-						var minimapWorldPos = new Vector3(worldX, height, worldZ);
+						var minimapWorldPos = MinimapHelper.MinimapToWorld(mouseBtn.Position, _minimapArea.Size);
 
 						if (mouseBtn.AltPressed)
 						{
@@ -167,16 +161,7 @@ public class MinimapPanel
 				{
 					if (mouseBtn.Pressed)
 					{
-						float xRatio = mouseBtn.Position.X / _minimapArea.Size.X;
-						float yRatio = mouseBtn.Position.Y / _minimapArea.Size.Y;
-						float worldX = Mathf.Clamp((xRatio - 0.5f) * 250f, -95f, 95f);
-						float worldZ = Mathf.Clamp((yRatio - 0.5f) * 250f, -95f, 125f);
-						float height = 0f;
-						if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
-						{
-							GameHost.Instance.GroundTerrain.GetHeightAndNormal(worldX, worldZ, out height, out _);
-						}
-						var minimapWorldPos = new Vector3(worldX, height, worldZ);
+						var minimapWorldPos = MinimapHelper.MinimapToWorld(mouseBtn.Position, _minimapArea.Size);
 
 						if (GameHost.Instance != null)
 						{
@@ -197,16 +182,13 @@ public class MinimapPanel
 
 	public void TeleportCameraToMinimapPos(Vector2 clickPos)
 	{
-		float xRatio = clickPos.X / _minimapArea.Size.X;
-		float yRatio = clickPos.Y / _minimapArea.Size.Y;
-
-		float worldX = Mathf.Clamp((xRatio - 0.5f) * 250f, -95f, 95f);
-		float worldZ = Mathf.Clamp((yRatio - 0.5f) * 250f, -95f, 125f);
+		if (_minimapArea == null) return;
+		var minimapWorldPos = MinimapHelper.MinimapToWorld(clickPos, _minimapArea.Size);
 
 		if (_camera3D != null && GodotObject.IsInstanceValid(_camera3D))
 		{
-			_camera3D.GlobalPosition = new Vector3(worldX, _camera3D.GlobalPosition.Y, worldZ);
-			InGameHUD.Instance?.ShowFeedbackText(string.Format(TranslationServer.Translate("Panned Camera on Minimap to: {0:F0}, {1:F0}"), worldX, worldZ), new Color(1, 0.85f, 0.5f));
+			_camera3D.GlobalPosition = new Vector3(minimapWorldPos.X, _camera3D.GlobalPosition.Y, minimapWorldPos.Z);
+			InGameHUD.Instance?.ShowFeedbackText(string.Format(TranslationServer.Translate("Panned Camera on Minimap to: {0:F0}, {1:F0}"), minimapWorldPos.X, minimapWorldPos.Z), new Color(1, 0.85f, 0.5f));
 		}
 	}
 
@@ -214,23 +196,16 @@ public class MinimapPanel
 	{
 		if (_camera3D == null || !GodotObject.IsInstanceValid(_camera3D) || _cameraIndicator == null || _minimapArea == null) return;
 
-		float scale = _camera3D.GlobalPosition.Y / 35.0f;
-		Vector2 newSize = new Vector2(45.0f * scale, 30.0f * scale);
-		_cameraIndicator.CustomMinimumSize = newSize;
-		_cameraIndicator.Size = newSize;
+		Vector3 camPos = _camera3D.GlobalPosition;
+		Vector3 camRot = _camera3D.GlobalRotation;
+		if ((camPos - _lastCameraPos).LengthSquared() < 0.0001f && (camRot - _lastCameraRot).LengthSquared() < 0.0001f)
+		{
+			return;
+		}
+		_lastCameraPos = camPos;
+		_lastCameraRot = camRot;
 
-		float worldX = _camera3D.GlobalPosition.X;
-		float worldZ = _camera3D.GlobalPosition.Z;
-
-		float xRatio = (worldX / 250f) + 0.5f;
-		float yRatio = (worldZ / 250f) + 0.5f;
-
-		xRatio = Mathf.Clamp(xRatio, 0f, 1f);
-		yRatio = Mathf.Clamp(yRatio, 0f, 1f);
-
-		float xPos = xRatio * _minimapArea.Size.X - (newSize.X / 2f);
-		float yPos = yRatio * _minimapArea.Size.Y - (newSize.Y / 2f);
-
-		_cameraIndicator.Position = new Vector2(xPos, yPos);
+		MinimapHelper.CalculateCameraFrustumMinimapPoints(_camera3D, _minimapArea.Size, _cachedMinimapPoints);
+		_cameraIndicator.SetPoints(_cachedMinimapPoints);
 	}
 }
