@@ -123,8 +123,17 @@ public class MapManifest
 
                 foreach (var itemKeyValuePair in categoryObject)
                 {
-                    string fileName = itemKeyValuePair.Key;
-                    string extension = Path.GetExtension(fileName).ToLowerInvariant();
+                    string rawKey = itemKeyValuePair.Key.Replace('\\', '/').TrimStart('/');
+                    if (rawKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        rawKey = rawKey.Substring(6).TrimStart('/');
+                    }
+                    if (rawKey.StartsWith($"Assets/{subFolder}/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        rawKey = rawKey.Substring($"Assets/{subFolder}/".Length);
+                    }
+
+                    string extension = Path.GetExtension(rawKey).ToLowerInvariant();
                     if (string.IsNullOrEmpty(extension))
                     {
                         extension = category switch
@@ -141,7 +150,7 @@ public class MapManifest
                         string assetKey = (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
                             ? hash
                             : $"{hash}{extension}";
-                        string relativePath = subFolder == "other" ? fileName : $"Assets/{subFolder}/{fileName}".Replace('\\', '/');
+                        string relativePath = subFolder == "other" ? rawKey : $"Assets/{subFolder}/{rawKey}".Replace('\\', '/');
                         destinationFiles[relativePath] = assetKey;
                     }
                 }
@@ -231,7 +240,12 @@ public class MapManifest
                 {
                     assets[category] = new JsonObject();
                 }
-                assets[category]!.AsObject()[fileName] = hash;
+
+                string key = (category is "music" or "sfx")
+                    ? (parts.Length > 3 ? string.Join("/", parts.Skip(3)) : fileName)
+                    : (parts.Length > 2 ? string.Join("/", parts.Skip(2)) : fileName);
+
+                assets[category]!.AsObject()[key] = hash;
             }
             else
             {
@@ -293,25 +307,50 @@ public class MapManifest
             {
                 foreach (var itemPair in catSource)
                 {
-                    if (itemPair.Value is JsonObject itemObj && catTarget[itemPair.Key] != null)
+                    if (itemPair.Value is JsonObject itemObj)
                     {
-                        JsonObject targetItemObj;
-                        if (catTarget[itemPair.Key] is JsonObject existingObj)
+                        string sourceKey = itemPair.Key;
+                        string? targetMatchKey = null;
+
+                        if (catTarget.ContainsKey(sourceKey) && catTarget[sourceKey] != null)
                         {
-                            targetItemObj = existingObj;
+                            targetMatchKey = sourceKey;
                         }
                         else
                         {
-                            string currentHash = catTarget[itemPair.Key]!.ToString();
-                            targetItemObj = new JsonObject { ["hash"] = currentHash };
-                            catTarget[itemPair.Key] = targetItemObj;
+                            string sourceBaseName = Path.GetFileName(sourceKey);
+                            foreach (var targetKvp in catTarget)
+                            {
+                                if (targetKvp.Value != null &&
+                                    (string.Equals(Path.GetFileName(targetKvp.Key), sourceBaseName, StringComparison.OrdinalIgnoreCase) ||
+                                     targetKvp.Key.EndsWith("/" + sourceKey, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    targetMatchKey = targetKvp.Key;
+                                    break;
+                                }
+                            }
                         }
 
-                        foreach (var prop in itemObj)
+                        if (targetMatchKey != null)
                         {
-                            if (!string.Equals(prop.Key, "hash", StringComparison.OrdinalIgnoreCase))
+                            JsonObject targetItemObj;
+                            if (catTarget[targetMatchKey] is JsonObject existingObj)
                             {
-                                targetItemObj[prop.Key] = prop.Value?.DeepClone();
+                                targetItemObj = existingObj;
+                            }
+                            else
+                            {
+                                string currentHash = catTarget[targetMatchKey]!.ToString();
+                                targetItemObj = new JsonObject { ["hash"] = currentHash };
+                                catTarget[targetMatchKey] = targetItemObj;
+                            }
+
+                            foreach (var prop in itemObj)
+                            {
+                                if (!string.Equals(prop.Key, "hash", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    targetItemObj[prop.Key] = prop.Value?.DeepClone();
+                                }
                             }
                         }
                     }
@@ -353,6 +392,7 @@ public class MapManifest
                 relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) ||
+                relativePath.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) ||

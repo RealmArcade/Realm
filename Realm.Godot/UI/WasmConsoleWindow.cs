@@ -45,6 +45,12 @@ public class WasmConsoleWindow
 	private const int SW_RESTORE = 9;
 
 	private const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
+	private const uint SWP_NOSIZE = 0x0001;
+	private const uint SWP_NOMOVE = 0x0002;
+	private const uint SWP_NOZORDER = 0x0004;
+	private const uint SWP_NOACTIVATE = 0x0010;
+	private const uint SWP_SHOWWINDOW = 0x0040;
+	private const uint SWP_HIDEWINDOW = 0x0080;
 
 	private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 	private WndProcDelegate? _customWndProcDelegate;
@@ -407,6 +413,10 @@ public class WasmConsoleWindow
 					SetForegroundWindow(_childHwnd);
 					if (_controller != null) _controller.IsVisible = true;
 				}
+				else
+				{
+					ShowWindow(_childHwnd, SW_HIDE);
+				}
 			};
 
 			_controller.CoreWebView2.NavigateToString(GetConsoleHtml());
@@ -448,7 +458,12 @@ public class WasmConsoleWindow
 			int x = screenPos.X + (screenSize.X - width) / 2;
 			int y = screenPos.Y + (screenSize.Y - height) / 2;
 
-			SetWindowPos(_childHwnd, IntPtr.Zero, x, y, width, height, 0x0040);
+			uint windowFlags = SWP_NOZORDER | SWP_NOACTIVATE;
+			if (_isVisible)
+			{
+				windowFlags |= SWP_SHOWWINDOW;
+			}
+			SetWindowPos(_childHwnd, IntPtr.Zero, x, y, width, height, windowFlags);
 		}
 		catch { }
 	}
@@ -481,15 +496,18 @@ public class WasmConsoleWindow
 		EnsureInitialized();
 		_actionQueue.Enqueue(() =>
 		{
-			if (_childHwnd != IntPtr.Zero && _isWebViewReady)
+			if (_childHwnd != IntPtr.Zero)
 			{
 				if (visible)
 				{
-					PositionOnScreen();
-					ShowWindow(_childHwnd, SW_SHOW);
-					ShowWindow(_childHwnd, SW_RESTORE);
-					SetForegroundWindow(_childHwnd);
-					if (_controller != null) _controller.IsVisible = true;
+					if (_isWebViewReady)
+					{
+						PositionOnScreen();
+						ShowWindow(_childHwnd, SW_SHOW);
+						ShowWindow(_childHwnd, SW_RESTORE);
+						SetForegroundWindow(_childHwnd);
+						if (_controller != null) _controller.IsVisible = true;
+					}
 				}
 				else
 				{

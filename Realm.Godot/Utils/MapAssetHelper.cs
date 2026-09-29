@@ -105,7 +105,14 @@ public static class MapAssetHelper
 								string? resolvedModel = FindModelOnDisk(workspacePath, null, fileName);
 								if (string.IsNullOrEmpty(resolvedModel) || !File.Exists(resolvedModel))
 								{
-									missingFiles.Add(relPath);
+									string subFolder = relPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase) && relPath.Split('/').Length > 2
+										? relPath.Split('/')[1]
+										: "icons";
+									string? resolvedAsset = FindAssetOnDisk(workspacePath, subFolder, relPath);
+									if (string.IsNullOrEmpty(resolvedAsset) || !File.Exists(resolvedAsset))
+									{
+										missingFiles.Add(relPath);
+									}
 								}
 							}
 						}
@@ -233,21 +240,9 @@ public static class MapAssetHelper
 								string fileName = itemPair.Key;
 								if (string.IsNullOrWhiteSpace(fileName)) continue;
 
-								string diskPath = subFolder == "other" ? Path.Combine(workspacePath, fileName) : Path.Combine(assetsDir, subFolder, fileName);
-								if (!File.Exists(diskPath) && subFolder is "audio/sfx" or "audio/music")
-								{
-									diskPath = Path.Combine(assetsDir, subFolder.Substring(6), fileName);
-								}
-								if (!File.Exists(diskPath))
-								{
-									diskPath = Path.Combine(assetsDir, fileName);
-								}
-								if (!File.Exists(diskPath))
-								{
-									diskPath = Path.Combine(workspacePath, fileName);
-								}
+								string? diskPath = FindAssetOnDisk(workspacePath, subFolder, fileName);
 
-								if (!File.Exists(diskPath))
+								if (string.IsNullOrEmpty(diskPath) || !File.Exists(diskPath))
 								{
 									string expectedRel = subFolder == "other" ? fileName : $"Assets/{subFolder}/{fileName}".Replace('\\', '/');
 									missingFiles.Add(expectedRel);
@@ -583,21 +578,9 @@ public static class MapAssetHelper
 						foreach (var itemKvp in catObj)
 						{
 							string fileName = itemKvp.Key;
-							string diskPath = subFolder == "other" ? Path.Combine(targetDirectory, fileName) : Path.Combine(assetsDir, subFolder, fileName);
-							if (!File.Exists(diskPath) && subFolder is "audio/sfx" or "audio/music")
-							{
-								diskPath = Path.Combine(assetsDir, subFolder.Substring(6), fileName);
-							}
-							if (!File.Exists(diskPath))
-							{
-								diskPath = Path.Combine(assetsDir, fileName);
-							}
-							if (!File.Exists(diskPath))
-							{
-								diskPath = Path.Combine(targetDirectory, fileName);
-							}
+							string? diskPath = FindAssetOnDisk(targetDirectory, subFolder, fileName);
 
-							if (!File.Exists(diskPath))
+							if (string.IsNullOrEmpty(diskPath) || !File.Exists(diskPath))
 							{
 								itemsToRemove.Add(fileName);
 							}
@@ -1292,7 +1275,7 @@ public static class MapAssetHelper
 			}
 		}
 
-		string[] subCategories = new[] { "units", "buildings", "resources", "props", "projectiles", "attachments", "weapons" };
+		string[] subCategories = new[] { "units", "buildings", "resources", "props", "projectiles", "attachments", "weapons", "environment" };
 		foreach (var sub in subCategories)
 		{
 			foreach (var cand in candidateFiles)
@@ -1302,6 +1285,24 @@ public static class MapAssetHelper
 				{
 					resolvedSubCategory = sub;
 					return candPath;
+				}
+			}
+		}
+
+		if (Directory.Exists(modelsDir))
+		{
+			foreach (var dir in Directory.GetDirectories(modelsDir))
+			{
+				string sub = Path.GetFileName(dir).ToLowerInvariant();
+				if (subCategories.Contains(sub)) continue;
+				foreach (var cand in candidateFiles)
+				{
+					string candPath = Path.Combine(dir, cand);
+					if (File.Exists(candPath))
+					{
+						resolvedSubCategory = sub;
+						return candPath;
+					}
 				}
 			}
 		}
@@ -1321,6 +1322,67 @@ public static class MapAssetHelper
 	public static string? FindModelOnDisk(string targetDirectory, string? preferredSubCategory, string fileName)
 	{
 		return FindModelOnDisk(targetDirectory, preferredSubCategory, fileName, out _);
+	}
+
+	public static string? FindAssetOnDisk(string workspacePath, string subFolder, string relativeKey)
+	{
+		if (string.IsNullOrEmpty(workspacePath) || string.IsNullOrEmpty(relativeKey)) return null;
+
+		string normKey = relativeKey.Replace('\\', '/').TrimStart('/');
+		if (normKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+		{
+			normKey = normKey.Substring(6).TrimStart('/');
+		}
+		if (normKey.StartsWith($"Assets/{subFolder}/", StringComparison.OrdinalIgnoreCase))
+		{
+			normKey = normKey.Substring($"Assets/{subFolder}/".Length);
+		}
+
+		string assetsDir = Path.Combine(workspacePath, "Assets");
+
+		// 1. Direct path in subFolder
+		string p1 = subFolder == "other" ? Path.Combine(workspacePath, normKey) : Path.Combine(assetsDir, subFolder, normKey);
+		if (File.Exists(p1)) return p1;
+
+		// 2. Audio subfolder special case (audio/sfx or audio/music)
+		if (subFolder is "audio/sfx" or "audio/music")
+		{
+			string p2 = Path.Combine(assetsDir, subFolder.Substring(6), normKey);
+			if (File.Exists(p2)) return p2;
+		}
+
+		// 3. Known subfolders (e.g. Assets/icons/abilities/{fileName})
+		string baseName = Path.GetFileName(normKey);
+		if (subFolder == "icons")
+		{
+			string pAbilities = Path.Combine(assetsDir, "icons", "abilities", baseName);
+			if (File.Exists(pAbilities)) return pAbilities;
+		}
+
+		// 4. Directly under Assets/
+		string pAssets = Path.Combine(assetsDir, baseName);
+		if (File.Exists(pAssets)) return pAssets;
+
+		// 5. Directly in workspace root
+		string pRoot = Path.Combine(workspacePath, normKey);
+		if (File.Exists(pRoot)) return pRoot;
+
+		string pRootBase = Path.Combine(workspacePath, baseName);
+		if (File.Exists(pRootBase)) return pRootBase;
+
+		// 6. Recursive search under Assets/{subFolder}
+		string searchRoot = Path.Combine(assetsDir, subFolder);
+		if (Directory.Exists(searchRoot))
+		{
+			try
+			{
+				var match = Directory.EnumerateFiles(searchRoot, baseName, SearchOption.AllDirectories).FirstOrDefault();
+				if (!string.IsNullOrEmpty(match) && File.Exists(match)) return match;
+			}
+			catch { }
+		}
+
+		return null;
 	}
 
 	private static string? FindExistingGlbSubCategory(JsonObject unionedAssets, string fileName)
@@ -1415,21 +1477,9 @@ public static class MapAssetHelper
 							"other" => "other",
 							_ => "textures"
 						};
-						string diskPath = subFolder == "other" ? Path.Combine(targetDirectory, fileName) : Path.Combine(assetsDir, subFolder, fileName);
-						if (!File.Exists(diskPath) && subFolder is "audio/sfx" or "audio/music")
-						{
-							diskPath = Path.Combine(assetsDir, subFolder.Substring(6), fileName);
-						}
-						if (!File.Exists(diskPath))
-						{
-							diskPath = Path.Combine(assetsDir, fileName);
-						}
-						if (!File.Exists(diskPath))
-						{
-							diskPath = Path.Combine(targetDirectory, fileName);
-						}
+						string? diskPath = FindAssetOnDisk(targetDirectory, subFolder, fileName);
 
-						if (File.Exists(diskPath))
+						if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
 						{
 							hash = RealmMetadataHelper.ComputeBlake3(diskPath);
 						}

@@ -9712,6 +9712,7 @@ public partial class MapEditorHUD : Control
 			}
 		};
 
+		Realm.Godot.UI.WasmConsoleWindow.Instance.Hide();
 		_wasmHasErrors = false;
 		Action<string> logHandler = line => AppendWasmConsoleLog(line);
 		Realm.Godot.WasmRuntime.OnWasmLog += logHandler;
@@ -9937,6 +9938,14 @@ public partial class MapEditorHUD : Control
 		finally
 		{
 			Realm.Godot.WasmRuntime.OnWasmLog -= logHandler;
+			if (_wasmHasErrors)
+			{
+				Realm.Godot.UI.WasmConsoleWindow.Instance.ShowConsole();
+			}
+			else
+			{
+				Realm.Godot.UI.WasmConsoleWindow.Instance.Hide();
+			}
 		}
 	}
 

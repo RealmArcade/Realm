@@ -59,6 +59,7 @@ public static class MapArchiveHelper
                 relativePath.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) ||
+                relativePath.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
