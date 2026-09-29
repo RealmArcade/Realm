@@ -1413,9 +1413,20 @@ void fragment() {
 		float bw_sum = blend_weights.x + blend_weights.y + blend_weights.z;
 		blend_weights = bw_sum > 0.0001 ? blend_weights / bw_sum : vec3(0.0, 1.0, 0.0);
 
-		vec2 uv_x = pos_warped.zy * texture_scale;
-		vec2 uv_y = pos_warped.xz * texture_scale;
-		vec2 uv_z = pos_warped.xy * texture_scale;
+		vec2 uv_x = v_world_pos.zy * texture_scale;
+		vec2 uv_y = v_world_pos.xz * texture_scale;
+		vec2 uv_z = v_world_pos.xy * texture_scale;
+
+		if (enable_macro_noise && uv_warp_strength > 0.0) {
+			float warp_factor = uv_warp_strength * 0.05 / max(0.001, macro_scale);
+			vec2 warp_zy = vec2(macro_fbm(v_world_pos.zy * macro_scale), macro_fbm((v_world_pos.zy + vec2(13.1, 29.7)) * macro_scale)) - 0.5;
+			vec2 warp_xz = vec2(macro_fbm(v_world_pos.xz * macro_scale), macro_fbm((v_world_pos.xz + vec2(17.3, 31.7)) * macro_scale)) - 0.5;
+			vec2 warp_xy = vec2(macro_fbm(v_world_pos.xy * macro_scale), macro_fbm((v_world_pos.xy + vec2(37.3, 11.9)) * macro_scale)) - 0.5;
+
+			uv_x = (v_world_pos.zy + warp_zy * warp_factor) * texture_scale;
+			uv_y = (v_world_pos.xz + warp_xz * warp_factor) * texture_scale;
+			uv_z = (v_world_pos.xy + warp_xy * warp_factor) * texture_scale;
+		}
 
 		vec2 dx_x = dFdx(uv_x);
 		vec2 dy_x = dFdy(uv_x);
@@ -1429,7 +1440,7 @@ void fragment() {
 		vec4 norm_c_weights = total_c_weight > 0.0001 ? raw_c_weights / total_c_weight : vec4(1.0, 0.0, 0.0, 0.0);
 
 		if (blend_noise_strength > 0.001) {
-			vec2 blend_noise_uv = v_world_pos.xz * blend_noise_scale;
+			vec2 blend_noise_uv = (v_world_pos.zy * blend_weights.x + v_world_pos.xz * blend_weights.y + v_world_pos.xy * blend_weights.z) * blend_noise_scale;
 			float b_noise = (macro_fbm(blend_noise_uv) - 0.5) * 2.0 * blend_noise_strength;
 			vec4 perturbed_c_weights = max(vec4(0.0), norm_c_weights + vec4(b_noise, -b_noise, b_noise * 0.5, -b_noise * 0.5));
 			float perturbed_c_sum = perturbed_c_weights.x + perturbed_c_weights.y + perturbed_c_weights.z + perturbed_c_weights.w;
