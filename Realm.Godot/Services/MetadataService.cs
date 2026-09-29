@@ -56,6 +56,21 @@ public class MapMetadata
 	[JsonPropertyName("CustomVfx")]
 	public List<VfxAttachmentConfig> CustomVfx { get; set; } = new();
 
+	[JsonPropertyName("CustomProceduralAnimations")]
+	public List<ProceduralAnimationConfig> CustomProceduralAnimations { get; set; } = new();
+
+	[JsonPropertyName("CustomWaterProfiles")]
+	public List<WaterProfileSaveData> CustomWaterProfiles { get; set; } = new();
+
+	[JsonPropertyName("CustomEnvironmentPresets")]
+	public List<EnvironmentPresetConfig> CustomEnvironmentPresets { get; set; } = new();
+
+	[JsonPropertyName("DefaultEnvironmentPreset")]
+	public string? DefaultEnvironmentPreset { get; set; }
+
+	[JsonPropertyName("TerrainProfiles")]
+	public List<TerrainSwatchProfileData> TerrainProfiles { get; set; } = new();
+
 	[JsonPropertyName("Models")]
 	public Dictionary<string, ModelMetadata> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -79,6 +94,9 @@ public class MapMetadata
 
 	[JsonPropertyName("ribbons")]
 	public Dictionary<string, JsonNode> Ribbons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+	[JsonPropertyName("shaders")]
+	public Dictionary<string, JsonNode> Shaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
 	[JsonExtensionData]
 	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
@@ -107,11 +125,32 @@ public class MapMetadata
 	public VfxAttachmentConfig? GetVfx(string vfxId) => CustomVfx?.FirstOrDefault(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase));
 	public VfxAttachmentConfig? FindVfx(string vfxId) => GetVfx(vfxId);
 
+	public ProceduralAnimationConfig? GetProceduralAnimation(string animId) => CustomProceduralAnimations?.FirstOrDefault(a => string.Equals(a.Id, animId, StringComparison.OrdinalIgnoreCase));
+	public ProceduralAnimationConfig? FindProceduralAnimation(string animId) => GetProceduralAnimation(animId);
+
 	public GameHost.ItemMetadata? GetItem(string itemId) => CustomItems?.FirstOrDefault(i => string.Equals(i.ItemId, itemId, StringComparison.OrdinalIgnoreCase));
 	public GameHost.ItemMetadata? FindItem(string itemId) => GetItem(itemId);
 
 	public GameHost.UpgradeMetadata? GetUpgrade(string upgradeId) => CustomUpgrades?.FirstOrDefault(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase));
 	public GameHost.UpgradeMetadata? FindUpgrade(string upgradeId) => GetUpgrade(upgradeId);
+
+	public EnvironmentPresetConfig? GetEnvironmentPreset(string presetId) => CustomEnvironmentPresets?.FirstOrDefault(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase));
+	public EnvironmentPresetConfig? FindEnvironmentPreset(string presetId) => GetEnvironmentPreset(presetId);
+
+	public void AddOrUpdateEnvironmentPreset(EnvironmentPresetConfig preset)
+	{
+		if (string.IsNullOrWhiteSpace(preset.Id)) return;
+		CustomEnvironmentPresets ??= new();
+		int idx = CustomEnvironmentPresets.FindIndex(p => string.Equals(p.Id, preset.Id, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) CustomEnvironmentPresets[idx] = preset;
+		else CustomEnvironmentPresets.Add(preset);
+	}
+
+	public bool RemoveEnvironmentPreset(string presetId)
+	{
+		if (CustomEnvironmentPresets == null || string.IsNullOrWhiteSpace(presetId)) return false;
+		return CustomEnvironmentPresets.RemoveAll(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase)) > 0;
+	}
 
 	public void AddOrUpdateUnit(GameHost.UnitMetadata unit)
 	{
@@ -261,6 +300,48 @@ public class MapMetadata
 	{
 		if (CustomUpgrades == null || string.IsNullOrWhiteSpace(upgradeId)) return false;
 		return CustomUpgrades.RemoveAll(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase)) > 0;
+	}
+
+	public WaterProfileSaveData? GetWaterProfile(string id) => CustomWaterProfiles?.FirstOrDefault(w => string.Equals(w.Id, id, StringComparison.OrdinalIgnoreCase));
+	public WaterProfileSaveData? GetWaterProfileByIndex(byte index) => CustomWaterProfiles?.FirstOrDefault(w => w.ProfileIndex == index);
+
+	public void AddOrUpdateWaterProfile(WaterProfileSaveData profile)
+	{
+		if (string.IsNullOrWhiteSpace(profile.Id)) return;
+		CustomWaterProfiles ??= new();
+		int idx = CustomWaterProfiles.FindIndex(w => string.Equals(w.Id, profile.Id, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) CustomWaterProfiles[idx] = profile;
+		else CustomWaterProfiles.Add(profile);
+	}
+
+	public bool RemoveWaterProfile(string id)
+	{
+		if (CustomWaterProfiles == null || string.IsNullOrWhiteSpace(id)) return false;
+		return CustomWaterProfiles.RemoveAll(w => string.Equals(w.Id, id, StringComparison.OrdinalIgnoreCase)) > 0;
+	}
+
+	public TerrainSwatchProfileData? GetTerrainProfile(string swatchName)
+	{
+		if (TerrainProfiles == null) return null;
+		string clean = Path.GetFileNameWithoutExtension(swatchName);
+		return TerrainProfiles.FirstOrDefault(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase));
+	}
+
+	public void AddOrUpdateTerrainProfile(TerrainSwatchProfileData profile)
+	{
+		if (string.IsNullOrWhiteSpace(profile.SwatchName)) return;
+		TerrainProfiles ??= new();
+		string clean = Path.GetFileNameWithoutExtension(profile.SwatchName);
+		int idx = TerrainProfiles.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) TerrainProfiles[idx] = profile;
+		else TerrainProfiles.Add(profile);
+	}
+
+	public bool RemoveTerrainProfile(string swatchName)
+	{
+		if (TerrainProfiles == null || string.IsNullOrWhiteSpace(swatchName)) return false;
+		string clean = Path.GetFileNameWithoutExtension(swatchName);
+		return TerrainProfiles.RemoveAll(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public bool UpdateUnit(string unitId, Func<GameHost.UnitMetadata, GameHost.UnitMetadata> update)
@@ -570,6 +651,14 @@ public class ModelMetadata
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? DeathShaders { get; set; }
 
+	[JsonPropertyName("ProceduralAnimation")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public string? ProceduralAnimation { get; set; }
+
+	[JsonPropertyName("EnableProceduralAnimation")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public bool? EnableProceduralAnimation { get; set; }
+
 	[JsonExtensionData]
 	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
@@ -810,6 +899,7 @@ public class MetadataService
 		metadata.Icons ??= new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
 		metadata.Skyboxes ??= new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
 		metadata.Ribbons ??= new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
+		metadata.Shaders ??= new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
 
 		if (string.IsNullOrEmpty(metadata.GameBuildNumber))
 		{
@@ -1091,6 +1181,33 @@ public class MetadataService
 		return metadata.CustomVfx.RemoveAll(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
+	public EnvironmentPresetConfig? GetEnvironmentPreset(MapMetadata metadata, string presetId)
+	{
+		if (metadata?.CustomEnvironmentPresets == null || string.IsNullOrWhiteSpace(presetId)) return null;
+		return metadata.CustomEnvironmentPresets.FirstOrDefault(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase));
+	}
+
+	public void AddOrUpdateEnvironmentPreset(MapMetadata metadata, EnvironmentPresetConfig preset)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(preset.Id)) return;
+		metadata.CustomEnvironmentPresets ??= new();
+		int index = metadata.CustomEnvironmentPresets.FindIndex(p => string.Equals(p.Id, preset.Id, StringComparison.OrdinalIgnoreCase));
+		if (index >= 0)
+		{
+			metadata.CustomEnvironmentPresets[index] = preset;
+		}
+		else
+		{
+			metadata.CustomEnvironmentPresets.Add(preset);
+		}
+	}
+
+	public bool RemoveEnvironmentPreset(MapMetadata metadata, string presetId)
+	{
+		if (metadata?.CustomEnvironmentPresets == null || string.IsNullOrWhiteSpace(presetId)) return false;
+		return metadata.CustomEnvironmentPresets.RemoveAll(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase)) > 0;
+	}
+
 	private static ModelMetadata GetOrCreateModel(MapMetadata metadata, string modelKey)
 	{
 		metadata.Models ??= new Dictionary<string, ModelMetadata>(StringComparer.OrdinalIgnoreCase);
@@ -1166,6 +1283,30 @@ public class MetadataService
 	{
 		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
 		GetOrCreateModel(metadata, modelKey).DeathShaders = string.IsNullOrWhiteSpace(deathShader) ? null : deathShader;
+	}
+
+	public void SetModelProceduralAnimation(MapMetadata metadata, string modelKey, string animId)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
+		GetOrCreateModel(metadata, modelKey).ProceduralAnimation = string.IsNullOrWhiteSpace(animId) ? null : animId;
+	}
+
+	public string? GetModelProceduralAnimation(MapMetadata metadata, string modelKey)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(modelKey) || metadata.Models == null) return null;
+		return metadata.Models.TryGetValue(modelKey, out var model) ? model.ProceduralAnimation : null;
+	}
+
+	public void SetModelEnableProceduralAnimation(MapMetadata metadata, string modelKey, bool enable)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
+		GetOrCreateModel(metadata, modelKey).EnableProceduralAnimation = enable ? true : null;
+	}
+
+	public bool GetModelEnableProceduralAnimation(MapMetadata metadata, string modelKey)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(modelKey) || metadata.Models == null) return false;
+		return metadata.Models.TryGetValue(modelKey, out var model) && (model.EnableProceduralAnimation ?? false);
 	}
 
 	public void RemoveModelOverrides(MapMetadata metadata, string modelKey)

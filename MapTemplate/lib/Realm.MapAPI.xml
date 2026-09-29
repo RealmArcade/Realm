@@ -5,6 +5,257 @@
         <name>Realm.MapAPI</name>
     </assembly>
     <members>
+        <member name="T:Realm.MapAPI.SaveEnvelope`1">
+            <summary>
+            Represents a structured envelope wrapping a save payload with versioning, player identity, and cryptographic integrity data.
+            </summary>
+            <typeparam name="T">The type of the saved game state payload.</typeparam>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.DataVersion">
+            <summary>
+            Gets or sets the schema version number of the save payload.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.MapName">
+            <summary>
+            Gets or sets the name of the map script associated with this save file.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.PlayerName">
+            <summary>
+            Gets or sets the player identifier or username bound to this save file.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.TimestampUtc">
+            <summary>
+            Gets or sets the ISO-8601 UTC timestamp string representing when the save file was created or last written.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.Signature">
+            <summary>
+            Gets or sets the cryptographic signature string used for integrity verification and anti-tamper checking.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.SaveEnvelope`1.Payload">
+            <summary>
+            Gets or sets the typed game state payload.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.HeroSaveData">
+            <summary>
+            Represents persistent hero progression state, including level, experience, skill points, and stats.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.HeroTypeId">
+            <summary>
+            Gets or sets the archetype or unit type identifier of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Name">
+            <summary>
+            Gets or sets the display name of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Level">
+            <summary>
+            Gets or sets the current level of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Experience">
+            <summary>
+            Gets or sets the accumulated experience points of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.SkillPoints">
+            <summary>
+            Gets or sets the number of unspent or allocated skill points.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Health">
+            <summary>
+            Gets or sets the current health points of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.MaxHealth">
+            <summary>
+            Gets or sets the maximum health points of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Mana">
+            <summary>
+            Gets or sets the current mana points of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.MaxMana">
+            <summary>
+            Gets or sets the maximum mana capacity of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Damage">
+            <summary>
+            Gets or sets the base attack damage of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Armor">
+            <summary>
+            Gets or sets the armor rating of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.Speed">
+            <summary>
+            Gets or sets the movement speed of the hero.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroSaveData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the hero.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.InventoryItemSaveData">
+            <summary>
+            Represents an item entry stored inside a unit or player inventory.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InventoryItemSaveData.ItemId">
+            <summary>
+            Gets or sets the unique identifier of the item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InventoryItemSaveData.SlotIndex">
+            <summary>
+            Gets or sets the zero-based inventory slot index.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InventoryItemSaveData.Charges">
+            <summary>
+            Gets or sets the stack count or remaining charges of the item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InventoryItemSaveData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the item.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.AchievementSaveData">
+            <summary>
+            Represents persistent progress and completion state for an achievement or quest milestone.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.AchievementId">
+            <summary>
+            Gets or sets the unique identifier of the achievement.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.IsUnlocked">
+            <summary>
+            Gets or sets a value indicating whether the achievement has been completed.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.CurrentProgress">
+            <summary>
+            Gets or sets the current progress value toward completing the achievement.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.MaxProgress">
+            <summary>
+            Gets or sets the target progress value required to complete the achievement.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.UnlockedAtUtc">
+            <summary>
+            Gets or sets the ISO-8601 UTC timestamp string when the achievement was completed, or null if locked.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AchievementSaveData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the achievement.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.MapCosmeticSaveData">
+            <summary>
+            Represents persistent state for an in-map grindable cosmetic unlock, such as a title, aura, or skin variation.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.CosmeticId">
+            <summary>
+            Gets or sets the unique identifier of the cosmetic item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.CosmeticType">
+            <summary>
+            Gets or sets the category or type of the cosmetic (e.g. "Title", "Aura", "Skin", "Badge").
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.IsUnlocked">
+            <summary>
+            Gets or sets a value indicating whether the player has unlocked this cosmetic through map gameplay.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.IsEquipped">
+            <summary>
+            Gets or sets a value indicating whether this cosmetic is currently active or equipped.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.UnlockedAtUtc">
+            <summary>
+            Gets or sets the ISO-8601 UTC timestamp string when the cosmetic was unlocked, or null if locked.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MapCosmeticSaveData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the cosmetic.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.ArcadeProfileData">
+            <summary>
+            Represents a comprehensive composite arcade profile aggregating heroes, inventories, achievements, and grindable cosmetics.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.PlayerName">
+            <summary>
+            Gets or sets the display name or unique handle of the player.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.PlayerSlot">
+            <summary>
+            Gets or sets the zero-based player slot index in the game lobby.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.TotalPlaytimeSeconds">
+            <summary>
+            Gets or sets the accumulated total active gameplay time in seconds across sessions.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.MatchesPlayed">
+            <summary>
+            Gets or sets the total number of matches or rounds completed on this map.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.Heroes">
+            <summary>
+            Gets or sets the collection of persistent hero progression records.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.ActiveInventory">
+            <summary>
+            Gets or sets the collection of active inventory item records.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.Achievements">
+            <summary>
+            Gets or sets the collection of achievement progress records.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.Cosmetics">
+            <summary>
+            Gets or sets the collection of grindable map cosmetic unlock records.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ArcadeProfileData.CustomData">
+            <summary>
+            Gets or sets custom arbitrary key-value metadata associated with the profile.
+            </summary>
+        </member>
         <member name="T:Realm.MapAPI.Coordinate">
             <summary>
             Represents a 3D bounding region defined by a minimum and maximum coordinate.
@@ -56,6 +307,110 @@
             <param name="api">The game API instance.</param>
             <param name="key">Localization translation key.</param>
             <returns>Translated text string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SaveData``1(Realm.MapAPI.IGameAPI,System.String,``0,System.Int32,System.String,System.String)">
+            <summary>
+            Serializes and saves arbitrary data into a signed, human-readable JSON envelope on disk.
+            </summary>
+            <typeparam name="T">The type of data to persist.</typeparam>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name (e.g., "save0.rsav" or "profile.json").</param>
+            <param name="data">The data object to serialize.</param>
+            <param name="dataVersion">The schema version number of this save data.</param>
+            <param name="mapName">The map name identifier, or empty to use a default.</param>
+            <param name="playerName">The player name bound to the save, or null to use the primary player name.</param>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.TryLoadData``1(Realm.MapAPI.IGameAPI,System.String,``0@,System.Int32,Realm.MapAPI.SaveMigrationRegistry,System.String,System.String)">
+            <summary>
+            Attempts to load, verify, and deserialize saved data from disk, applying registered schema migrations if the file was saved at an older version.
+            </summary>
+            <typeparam name="T">The type of data to deserialize into.</typeparam>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name to read.</param>
+            <param name="result">When this method returns, contains the deserialized data if successful, or default if failed.</param>
+            <param name="targetVersion">The expected schema version of the target type.</param>
+            <param name="migrations">Optional migration registry to upgrade older save versions sequentially.</param>
+            <param name="mapName">The expected map name, or empty to match any. When reading cross-map data from a campaign scenario, specify the source map name.</param>
+            <param name="playerName">The expected player name, or null to use the primary player name.</param>
+            <returns><see langword="true"/> if the save data was successfully loaded, verified, and deserialized; otherwise, <see langword="false"/>.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.LoadData``1(Realm.MapAPI.IGameAPI,System.String,System.Int32,Realm.MapAPI.SaveMigrationRegistry,System.String,System.String)">
+            <summary>
+            Loads and deserializes saved data from disk, returning default if not found or if signature verification fails.
+            </summary>
+            <typeparam name="T">The type of data to deserialize into.</typeparam>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name to read.</param>
+            <param name="targetVersion">The expected schema version of the target type.</param>
+            <param name="migrations">Optional migration registry to upgrade older save versions sequentially.</param>
+            <param name="mapName">The expected map name, or empty to match any. When reading cross-map data from a campaign scenario, specify the source map name.</param>
+            <param name="playerName">The expected player name, or null to use the primary player name.</param>
+            <returns>The deserialized data instance, or default if loading fails.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SaveArcadeProfile(Realm.MapAPI.IGameAPI,System.String,Realm.MapAPI.ArcadeProfileData,System.Int32,System.String)">
+            <summary>
+            Saves an <see cref="T:Realm.MapAPI.ArcadeProfileData"/> record into a signed, human-readable file.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name (e.g., "profile.rsav").</param>
+            <param name="profile">The arcade profile instance to persist.</param>
+            <param name="dataVersion">The schema version number.</param>
+            <param name="mapName">The map name identifier, or empty to use a default.</param>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.TryLoadArcadeProfile(Realm.MapAPI.IGameAPI,System.String,Realm.MapAPI.ArcadeProfileData@,System.Int32,Realm.MapAPI.SaveMigrationRegistry,System.String,System.String)">
+            <summary>
+            Attempts to load and verify an <see cref="T:Realm.MapAPI.ArcadeProfileData"/> record from disk.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name to read.</param>
+            <param name="profile">When this method returns, contains the loaded arcade profile if successful.</param>
+            <param name="targetVersion">The expected schema version.</param>
+            <param name="migrations">Optional migration registry to upgrade older profile schemas.</param>
+            <param name="mapName">The expected map name, or empty to match any. When reading cross-map data from a campaign scenario, specify the source map name.</param>
+            <param name="playerName">The expected player name, or null to match the active player.</param>
+            <returns><see langword="true"/> if the profile was successfully loaded and verified; otherwise, <see langword="false"/>.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.LoadArcadeProfile(Realm.MapAPI.IGameAPI,System.String,System.Int32,Realm.MapAPI.SaveMigrationRegistry,System.String,System.String)">
+            <summary>
+            Loads an <see cref="T:Realm.MapAPI.ArcadeProfileData"/> record from disk, returning null if not found or verification fails.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="fileName">The target file name to read.</param>
+            <param name="targetVersion">The expected schema version.</param>
+            <param name="migrations">Optional migration registry to upgrade older profile schemas.</param>
+            <param name="mapName">The expected map name, or empty to match any. When reading cross-map data from a campaign scenario, specify the source map name.</param>
+            <param name="playerName">The expected player name, or null to match the active player.</param>
+            <returns>The loaded arcade profile instance, or null if loading fails.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SnapshotHero(Realm.MapAPI.IUnit,System.Single,System.Int32)">
+            <summary>
+            Captures the persistent progression and combat statistics of an active unit into a <see cref="T:Realm.MapAPI.HeroSaveData"/> record.
+            </summary>
+            <param name="unit">The unit to snapshot.</param>
+            <param name="experience">Optional experience value to assign.</param>
+            <param name="skillPoints">Optional unspent skill points to assign.</param>
+            <returns>A new <see cref="T:Realm.MapAPI.HeroSaveData"/> containing the unit's current state.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.RestoreHero(Realm.MapAPI.IUnit,Realm.MapAPI.HeroSaveData)">
+            <summary>
+            Restores persistent hero stats, level, experience, and custom attributes onto an active unit instance.
+            </summary>
+            <param name="unit">The target unit to update.</param>
+            <param name="heroData">The saved hero progression data to apply.</param>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SnapshotInventory(Realm.MapAPI.IUnit)">
+            <summary>
+            Captures all items currently held in the unit's inventory into a list of <see cref="T:Realm.MapAPI.InventoryItemSaveData"/>.
+            </summary>
+            <param name="unit">The unit whose inventory will be snapshotted.</param>
+            <returns>A list of persistent inventory item records.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPIExtensions.RestoreInventory(Realm.MapAPI.IUnit,System.Collections.Generic.IEnumerable{Realm.MapAPI.InventoryItemSaveData})">
+            <summary>
+            Populates a unit's inventory from a collection of <see cref="T:Realm.MapAPI.InventoryItemSaveData"/> records.
+            </summary>
+            <param name="unit">The unit to receive items.</param>
+            <param name="items">The collection of saved inventory items to add.</param>
         </member>
         <member name="T:Realm.MapAPI.HeroProgressionConfig">
             <summary>
@@ -1022,12 +1377,13 @@
             <param name="fileName">The name of the file to write to. Must be a safe, relative file name without directory traversal characters.</param>
             <param name="content">The string content to write to the file.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.ReadSavedData(System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.ReadSavedData(System.String,System.String)">
             <summary>
             Reads string content from a file in the whitelisted, map-specific subfolder in AppData saved_data directory.
-            The target location is sandboxed to user://saved_data/{mapName}/{fileName}.
+            The target location is sandboxed to user://saved_data/{sourceMapName}/{fileName}.
             </summary>
             <param name="fileName">The name of the file to read from. Must be a safe, relative file name without directory traversal characters.</param>
+            <param name="sourceMapName">The name of the source map to read saved data from, or empty string to use the active map.</param>
             <returns>The string content read from the file, or an empty string if the file does not exist or has invalid path characters.</returns>
         </member>
         <member name="E:Realm.MapAPI.IGameAPI.OnItemSold">
@@ -1160,6 +1516,118 @@
             <param name="position">The spawn coordinates in 3D world space.</param>
             <returns>The revived unit instance.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.TriggerMeshImpulse(Realm.MapAPI.IUnit,System.Single,System.Single,System.Single)">
+            <summary>
+            Triggers a transient mesh deformation or hit impulse on a unit.
+            </summary>
+            <param name="unit">The target unit.</param>
+            <param name="strength">The peak strength of the impulse deformation.</param>
+            <param name="duration">The duration of the impulse oscillation in seconds.</param>
+            <param name="frequency">The oscillation frequency in Hz.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.TriggerResourceMeshImpulse(Realm.MapAPI.IResourceNode,System.Single,System.Single,System.Single)">
+            <summary>
+            Triggers a transient mesh deformation or harvest shake impulse on a resource node.
+            </summary>
+            <param name="node">The target resource node.</param>
+            <param name="strength">The peak strength of the impulse deformation.</param>
+            <param name="duration">The duration of the impulse oscillation in seconds.</param>
+            <param name="frequency">The oscillation frequency in Hz.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerBotProfile(System.Int32,System.String)">
+            <summary>
+            Configures the AI decision profile for the specified player slot using a serialized JSON string.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="profileJson">The serialized JSON string representing the bot profile weights and personality.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerBotProfile(System.Int32)">
+            <summary>
+            Retrieves the serialized JSON string of the active AI bot decision profile for the specified player slot.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <returns>The serialized JSON string representing the active bot profile, or an empty string if not configured.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerBotGenre(System.Int32,System.String,System.String)">
+            <summary>
+            Sets the AI sub-genre provider for the specified player slot (e.g., "rts", "tower_defense", "auto_battler", "custom").
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="genreName">The identifier of the AI genre provider.</param>
+            <param name="configJson">Optional JSON configuration parameters for the genre provider.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerBotGenre(System.Int32)">
+            <summary>
+            Retrieves the identifier of the active AI sub-genre provider for the specified player slot.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <returns>The genre identifier string (e.g., "rts", "tower_defense", "auto_battler").</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.RegisterCustomBotDecision(System.Int32,System.String,System.String,System.Single[],System.Numerics.Vector3,System.String)">
+            <summary>
+            Registers a map-defined custom candidate action for evaluation by the bot utility decision loop.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="actionId">The unique action identifier.</param>
+            <param name="intent">The action intent category (e.g., "Build", "Cast", "Transact", "Interact").</param>
+            <param name="featureVector">The normalized feature vector scored against the AI weights.</param>
+            <param name="position">The target world coordinate for the action.</param>
+            <param name="payload">Optional metadata or argument string passed when the action executes.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ClearCustomBotDecisions(System.Int32)">
+            <summary>
+            Clears all registered custom bot candidate actions for the specified player slot.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+        </member>
+        <member name="E:Realm.MapAPI.IGameAPI.OnBotCustomActionExecuted">
+            <summary>
+            Triggered when an autonomous AI bot executes a custom map-defined action.
+            Parameters are: playerIndex, actionId, intent, targetPosition, payload.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.TrainBotProfile(System.String,System.Int32,System.Int32,System.Int32,System.String)">
+            <summary>
+            Executes an automated self-play genetic training simulation on CPU and returns the resulting serialized bot profile JSON.
+            </summary>
+            <param name="mapName">The identifier or name of the map being trained.</param>
+            <param name="generations">The number of evolutionary generations to execute.</param>
+            <param name="populationSize">The candidate population size per generation.</param>
+            <param name="matchesPerEvaluation">The number of evaluation matches each candidate plays per generation.</param>
+            <param name="genre">The AI sub-genre provider identifier (e.g. "rts", "tower_defense", "auto_battler").</param>
+            <returns>The serialized JSON string of the best evolved bot profile.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetEnvironmentPreset(System.String)">
+            <summary>
+            Sets the active environment lighting, fog, and atmospheric preset immediately without transition interpolation.
+            </summary>
+            <param name="presetId">The unique identifier of the environment preset configured in map metadata.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.TransitionEnvironmentPreset(System.String,System.Single)">
+            <summary>
+            Smoothly transitions active environment lighting, fog, SSAO, and post-processing visual settings to the target preset over the specified duration.
+            </summary>
+            <param name="presetId">The unique identifier of the target environment preset configured in map metadata.</param>
+            <param name="durationSeconds">The transition duration in seconds. If 0 or negative, the preset applies immediately.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetCurrentEnvironmentPreset">
+            <summary>
+            Retrieves the unique identifier of the currently active environment preset.
+            </summary>
+            <returns>The preset identifier string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetWeather(System.String)">
+            <summary>
+            Sets the active weather effect condition (e.g., "clear", "rain", "fog", "snow").
+            </summary>
+            <param name="weatherType">The name of the weather condition.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetWeather">
+            <summary>
+            Retrieves the name of the currently active weather condition.
+            </summary>
+            <returns>The weather name string.</returns>
+        </member>
         <member name="T:Realm.MapAPI.IMapScript">
             <summary>
             Defines the base lifecycle methods for map scripts.
@@ -1212,6 +1680,14 @@
             <summary>
             Gets a value indicating whether the resource node has been depleted.
             </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IResourceNode.TriggerMeshImpulse(System.Single,System.Single,System.Single)">
+            <summary>
+            Triggers a transient procedural mesh deformation or shake impulse on this resource node.
+            </summary>
+            <param name="strength">The peak strength of the impulse deformation.</param>
+            <param name="duration">The duration of the impulse oscillation in seconds.</param>
+            <param name="frequency">The oscillation frequency in Hz.</param>
         </member>
         <member name="T:Realm.MapAPI.IUnit">
             <summary>
@@ -1491,6 +1967,14 @@
             <param name="key">The data key to check.</param>
             <returns>True if the data exists, false otherwise.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IUnit.TriggerMeshImpulse(System.Single,System.Single,System.Single)">
+            <summary>
+            Triggers a transient procedural mesh deformation or hit impulse on this unit.
+            </summary>
+            <param name="strength">The peak strength of the impulse deformation.</param>
+            <param name="duration">The duration of the impulse oscillation in seconds.</param>
+            <param name="frequency">The oscillation frequency in Hz.</param>
+        </member>
         <member name="T:Realm.MapAPI.TowerDefenseConfig">
             <summary>
             Configuration settings for tower defense combat behavior, including range, damage, cooldowns, and visual effects.
@@ -1568,6 +2052,54 @@
             <param name="delta">The time elapsed since the previous simulation tick, in seconds.</param>
             <returns><see langword="true"/> if the tower attacked a target during this tick; otherwise, <see langword="false"/>.</returns>
         </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureMeleeBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.MeleeBotConfig)">
+            <summary>
+            Configures an AI bot player for standard Melee or RTS skirmish tactics with customizable retreat and aggression parameters.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The melee bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureTowerDefenseBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.TowerDefenseBotConfig)">
+            <summary>
+            Configures an AI bot player for Tower Defense mode with customizable build spot locations and sell policies.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The tower defense bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureAutoBattlerBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.AutoBattlerBotConfig)">
+            <summary>
+            Configures an AI bot player for Auto-Battler mode with customizable board slots, bench slots, and economic thresholds.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The auto-battler bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureTugOfWarBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.TugOfWarBotConfig)">
+            <summary>
+            Configures an AI bot player for Tug-of-War / Auto-Spawn mode (e.g., Castle Fight, Desert Strike, Nexus Wars) with build spots, spawner options, and income rules.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The tug-of-war bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.ConfigureHeroArenaBot(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.HeroArenaBotConfig)">
+            <summary>
+            Configures an AI bot player for Hero Arena / MOBA mode (e.g., DotA, Footman Frenzy) with fountain coordinates, retreat thresholds, and item build paths.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="config">The hero arena bot configuration parameters.</param>
+        </member>
+        <member name="M:Realm.MapAPI.MapScriptHelpers.RegisterBotCustomDecision(Realm.MapAPI.IGameAPI,System.Int32,Realm.MapAPI.CustomBotDecision)">
+            <summary>
+            Registers a map-defined custom candidate decision for evaluation by an AI bot.
+            </summary>
+            <param name="api">The game API instance.</param>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <param name="decision">The candidate decision descriptor.</param>
+        </member>
         <member name="T:Realm.MapAPI.WaypointMarcher">
             <summary>
             Manages automated lane movement and combat engagement for a unit marching along a sequence of waypoints.
@@ -1592,6 +2124,357 @@
             </summary>
             <param name="api">The game API instance used to query targets and issue orders.</param>
             <param name="delta">The time elapsed since the previous simulation tick, in seconds.</param>
+        </member>
+        <member name="T:Realm.MapAPI.BotProfileConfig">
+            <summary>
+            Configuration settings for an autonomous AI bot profile including decision cadence and personality attributes.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.BotProfileConfig.DecisionIntervalSeconds">
+            <summary>
+            Gets the cadence in seconds between decision evaluation cycles.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.BotProfileConfig.AggressionMultiplier">
+            <summary>
+            Gets the multiplier applied to aggressive/offensive tactical affordances.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.BotProfileConfig.ActionTemperature">
+            <summary>
+            Gets the softmax temperature parameter controlling exploration and decision randomness.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.BotProfileConfig.#ctor(System.Single,System.Single,System.Single)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.BotProfileConfig"/> struct.
+            </summary>
+            <param name="decisionIntervalSeconds">The time in seconds between AI decision ticks.</param>
+            <param name="aggressionMultiplier">The multiplier applied to aggressive utility calculations.</param>
+            <param name="actionTemperature">The temperature factor for softmax action selection.</param>
+        </member>
+        <member name="P:Realm.MapAPI.BotProfileConfig.Default">
+            <summary>
+            Gets the default AI bot profile configuration.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.AiGenrePresets">
+            <summary>
+            Defines standard AI genre identifiers for arcade and RTS map scripts.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.Rts">
+            <summary>
+            Standard RTS melee and skirmish tactical AI.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.Melee">
+            <summary>
+            Alias for standard RTS melee tactical AI.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.TowerDefense">
+            <summary>
+            Tower defense building, upgrading, and pathing AI.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.AutoBattler">
+            <summary>
+            Auto-battler shop purchasing, bench management, and synergy AI.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.TugOfWar">
+            <summary>
+            Tug-of-war and auto-spawning wave combat AI (e.g., Castle Fight, Desert Strike, Nexus Wars).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.HeroArena">
+            <summary>
+            Hero arena and MOBA combat AI (e.g., DotA, Footman Frenzy, Hero Battles).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.AiGenrePresets.Custom">
+            <summary>
+            Custom UGC map-defined AI driven by custom affordance registrations.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.MeleeBotConfig">
+            <summary>
+            Configuration parameters for a standard melee or skirmish RTS AI bot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.RetreatHealthPercent">
+            <summary>
+            Gets or sets the health percentage (0.0 to 1.0) below which a unit prioritizes tactical retreat.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.KitingDistanceBias">
+            <summary>
+            Gets or sets the multiplier applied to kiting distance calculation when evading melee threats.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.AggressionBias">
+            <summary>
+            Gets or sets the aggression weight multiplier applied when deciding between engaging enemy forces or holding ground.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.ExpansionLocations">
+            <summary>
+            Gets or sets the designated map coordinates for strategic expansion bases or resource outposts.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MeleeBotConfig.RallyPoints">
+            <summary>
+            Gets or sets the designated map coordinates for army rally and defensive regrouping points.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.MeleeBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.TowerDefenseBotConfig">
+            <summary>
+            Configuration parameters for a Tower Defense AI bot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TowerDefenseBotConfig.BuildSpots">
+            <summary>
+            Gets or sets the collection of designated world coordinates where towers can be constructed.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TowerDefenseBotConfig.AllowSell">
+            <summary>
+            Gets or sets whether the AI is permitted to sell obsolete towers during economic emergencies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.TowerDefenseBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.TugOfWarBotConfig">
+            <summary>
+            Configuration parameters for a Tug-of-War or auto-spawning wave combat AI bot (e.g., Castle Fight, Desert Strike, Nexus Wars).
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.BuildSpots">
+            <summary>
+            Gets or sets the collection of designated world coordinates where auto-spawner structures can be constructed.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.SpawnerTypes">
+            <summary>
+            Gets or sets the available spawner unit or structure type identifiers the AI can choose to construct.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.IncomeUpgradeCost">
+            <summary>
+            Gets or sets the base gold cost to upgrade the player's periodic income rate.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.AllowSell">
+            <summary>
+            Gets or sets whether the AI is permitted to sell or replace existing spawner structures.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.TugOfWarBotConfig.LaneTarget">
+            <summary>
+            Gets or sets the target lane destination or enemy base coordinate that spawned units attack towards.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.TugOfWarBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.HeroArenaBotConfig">
+            <summary>
+            Configuration parameters for a Hero Arena, MOBA, or Aeon of Strife (AOS) AI bot (e.g., DotA, Footman Frenzy, Hero Battles).
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.FountainPosition">
+            <summary>
+            Gets or sets the world coordinate of the team's home fountain or healing well.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.FountainHealRadius">
+            <summary>
+            Gets or sets the radius around the fountain position considered safe healing territory.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.RetreatHealthPercent">
+            <summary>
+            Gets or sets the health percentage (0.0 to 1.0) below which the hero prioritizes retreating to the fountain.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.RetreatManaPercent">
+            <summary>
+            Gets or sets the mana percentage (0.0 to 1.0) below which the hero prioritizes retreating or conserving spells.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.RunePositions">
+            <summary>
+            Gets or sets the collection of designated world coordinates where power runes, shrines, or neutral buffs spawn.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.HeroArenaBotConfig.ShopBuildOrder">
+            <summary>
+            Gets or sets the prioritized item purchase build order identifiers.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.HeroArenaBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.AutoBattlerBotConfig">
+            <summary>
+            Configuration parameters for an Auto-Battler AI bot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AutoBattlerBotConfig.BoardSlots">
+            <summary>
+            Gets or sets the collection of board tile coordinates available for deployed combat units.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AutoBattlerBotConfig.BenchSlots">
+            <summary>
+            Gets or sets the collection of bench tile coordinates available for reserve units.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AutoBattlerBotConfig.RerollCost">
+            <summary>
+            Gets or sets the gold cost required to reroll the shop offerings.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.AutoBattlerBotConfig.LevelUpCost">
+            <summary>
+            Gets or sets the gold cost required to purchase shop experience / level up.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.AutoBattlerBotConfig.ToJson">
+            <summary>
+            Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
+            </summary>
+            <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.CustomBotDecision">
+            <summary>
+            Represents a map-defined custom candidate action submitted to the AI utility decision loop.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.ActionId">
+            <summary>
+            Gets or sets the unique action identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.Intent">
+            <summary>
+            Gets or sets the command intent name (e.g., "Build", "Cast", "Transact", "Interact").
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.FeatureVector">
+            <summary>
+            Gets or sets the feature vector evaluated against the AI weights.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.TargetPosition">
+            <summary>
+            Gets or sets the target world position associated with this action.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.CustomBotDecision.Payload">
+            <summary>
+            Gets or sets arbitrary payload data or arguments passed to the execution callback.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.ISaveMigration">
+            <summary>
+            Defines a contract for migrating save payload data from one schema version to the next.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ISaveMigration.FromVersion">
+            <summary>
+            Gets the source schema version this migration upgrades from.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ISaveMigration.ToVersion">
+            <summary>
+            Gets the target schema version this migration upgrades to.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.ISaveMigration.Migrate(System.String)">
+            <summary>
+            Transforms the raw JSON payload from the source schema version to the target schema version.
+            </summary>
+            <param name="jsonPayload">The JSON payload string at the source version.</param>
+            <returns>The migrated JSON payload string at the target version.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.SaveMigrationRegistry">
+            <summary>
+            Manages registration and sequential execution of save payload schema migrations for map scripts.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.SaveMigrationRegistry.RegisterMigration(System.Int32,System.Int32,System.Func{System.String,System.String})">
+            <summary>
+            Registers a migration step between two sequential schema versions using a delegate transformer.
+            </summary>
+            <param name="fromVersion">The source schema version.</param>
+            <param name="toVersion">The target schema version.</param>
+            <param name="migrationFunc">A function that accepts the old JSON payload and returns the transformed JSON payload.</param>
+        </member>
+        <member name="M:Realm.MapAPI.SaveMigrationRegistry.RegisterMigration(Realm.MapAPI.ISaveMigration)">
+            <summary>
+            Registers an instance of <see cref="T:Realm.MapAPI.ISaveMigration"/>.
+            </summary>
+            <param name="migration">The save migration instance to register.</param>
+        </member>
+        <member name="M:Realm.MapAPI.SaveMigrationRegistry.ApplyMigrations(System.String,System.Int32,System.Int32)">
+            <summary>
+            Applies all registered migration steps sequentially starting from <paramref name="fromVersion"/> until <paramref name="targetVersion"/> is reached.
+            </summary>
+            <param name="jsonPayload">The initial raw JSON payload string.</param>
+            <param name="fromVersion">The current schema version of the payload.</param>
+            <param name="targetVersion">The desired target schema version.</param>
+            <returns>The migrated JSON payload string.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.SaveSignatureHelper">
+            <summary>
+            Provides cryptographic signature calculation and verification utilities to protect save payloads against tampering.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.SaveSignatureHelper.ComputeSignature(System.String,System.String,System.Int32,System.String)">
+            <summary>
+            Computes an HMAC-SHA256 hexadecimal signature bound to the specified map name, player name, schema version, and payload content.
+            </summary>
+            <param name="mapName">The name of the map associated with the save.</param>
+            <param name="playerName">The player name or identifier bound to the save.</param>
+            <param name="dataVersion">The schema version number.</param>
+            <param name="payloadJson">The raw JSON string of the save payload.</param>
+            <returns>A lowercase hexadecimal signature string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.SaveSignatureHelper.VerifySignature(System.String,System.String,System.Int32,System.String,System.String)">
+            <summary>
+            Verifies whether the provided signature matches the computed signature for the specified map name, player name, version, and payload content.
+            </summary>
+            <param name="mapName">The name of the map associated with the save.</param>
+            <param name="playerName">The player name or identifier bound to the save.</param>
+            <param name="dataVersion">The schema version number.</param>
+            <param name="payloadJson">The raw JSON string of the save payload.</param>
+            <param name="signature">The expected signature string to verify against.</param>
+            <returns><see langword="true"/> if the signature is valid and untampered; otherwise, <see langword="false"/>.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.SaveSignatureHelper.NormalizeJson(System.String)">
+            <summary>
+            Normalizes a JSON string into a compact, canonical representation for consistent cryptographic hashing.
+            </summary>
+            <param name="json">The input JSON string.</param>
+            <returns>A normalized canonical JSON string.</returns>
         </member>
     </members>
 </doc>

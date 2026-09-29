@@ -8,6 +8,7 @@ using Realm.Godot.Services;
 public class EditorPreferencesData
 {
 	public bool HideChromeBorderOverlay { get; set; } = false;
+	public bool HideHudDuringToolUsage { get; set; } = true;
 	public float PanelOpacity { get; set; } = 0.95f;
 	public int AutoBackupIntervalMinutes { get; set; } = 30;
 	public int MaxBackupSnapshots { get; set; } = 3;
@@ -17,6 +18,7 @@ public class EditorPreferencesData
 		return new EditorPreferencesData
 		{
 			HideChromeBorderOverlay = this.HideChromeBorderOverlay,
+			HideHudDuringToolUsage = this.HideHudDuringToolUsage,
 			PanelOpacity = this.PanelOpacity,
 			AutoBackupIntervalMinutes = this.AutoBackupIntervalMinutes,
 			MaxBackupSnapshots = this.MaxBackupSnapshots
@@ -33,6 +35,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	private EditorPreferencesData _snapshot = new EditorPreferencesData();
 
 	private CheckBox _chkHideChromeBorder;
+	private CheckBox _chkHideHudDuringToolUsage;
 
 	private HSlider _sldPanelOpacity;
 	private Label _lblPanelOpacity;
@@ -68,6 +71,18 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 				ApplyLiveSettings();
 			},
 			TranslationServer.Translate("Hides the decorative border frames and chrome overlays around editor panels for a cleaner workspace")
+		);
+
+		_chkHideHudDuringToolUsage = AddCheckBox(
+			contentVBox,
+			TranslationServer.Translate("Hide HUD during tool usage"),
+			CurrentSettings.HideHudDuringToolUsage,
+			(val) =>
+			{
+				CurrentSettings.HideHudDuringToolUsage = val;
+				ApplyLiveSettings();
+			},
+			TranslationServer.Translate("Temporarily hides side panels and UI overlays while actively painting, sculpting, or using 3D tools")
 		);
 
 		(_sldPanelOpacity, _lblPanelOpacity) = AddSlider(
@@ -218,6 +233,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	private void SyncControls()
 	{
 		if (_chkHideChromeBorder != null) _chkHideChromeBorder.ButtonPressed = CurrentSettings.HideChromeBorderOverlay;
+		if (_chkHideHudDuringToolUsage != null) _chkHideHudDuringToolUsage.ButtonPressed = CurrentSettings.HideHudDuringToolUsage;
 		if (_sldPanelOpacity != null)
 		{
 			_sldPanelOpacity.Value = CurrentSettings.PanelOpacity;

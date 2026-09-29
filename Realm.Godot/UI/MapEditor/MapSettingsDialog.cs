@@ -122,6 +122,12 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		};
 		skyboxPanel.AddChild(_optSkybox);
 
+		var btnEnvConfig = new Button();
+		btnEnvConfig.Set("icon_max_width", 0);
+		btnEnvConfig.Text = "💡 " + TranslationServer.Translate("Configure Weather & Lighting Presets");
+		btnEnvConfig.Pressed += () => Hud?.OpenEnvironmentConfigDialog();
+		skyboxPanel.AddChild(btnEnvConfig);
+
 		var camBoundsPanel = CreateSectionBox(contentVBox, TranslationServer.Translate("Camera Boundaries"));
 		var camGrid = new GridContainer();
 		camGrid.Columns = 3;

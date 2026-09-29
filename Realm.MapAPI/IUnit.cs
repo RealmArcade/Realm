@@ -279,4 +279,12 @@ public interface IUnit
     /// <param name="key">The data key to check.</param>
     /// <returns>True if the data exists, false otherwise.</returns>
     bool HasCustomData(string key);
+
+    /// <summary>
+    /// Triggers a transient procedural mesh deformation or hit impulse on this unit.
+    /// </summary>
+    /// <param name="strength">The peak strength of the impulse deformation.</param>
+    /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
+    /// <param name="frequency">The oscillation frequency in Hz.</param>
+    void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
 }

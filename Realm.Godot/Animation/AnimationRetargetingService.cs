@@ -414,9 +414,9 @@ public static class AnimationRetargetingService
 				}
 				else
 				{
-					RealmAnimationData fallbackAnim = animType switch
+					RealmAnimationData? fallbackAnim = animType switch
 					{
-						"Idle" => RealmDefaultAnimations.Idle,
+						"Idle" => GetIdleAnimationData(unitId),
 						"Walk" => RealmDefaultAnimations.Walk,
 						"Attack" => RealmDefaultAnimations.Attack,
 						"Death" => RealmDefaultAnimations.Death,
@@ -436,5 +436,73 @@ public static class AnimationRetargetingService
 		}
 
 		return true;
+	}
+
+	public static RealmAnimationData? GetIdleAnimationData(string? unitId = null)
+	{
+		if (!string.IsNullOrEmpty(unitId))
+		{
+			string? customPath = ResolveAnimationFilePath("Idle", unitId);
+			if (!string.IsNullOrEmpty(customPath) && File.Exists(customPath))
+			{
+				var data = GetOrLoadRanimData(customPath);
+				if (data != null) return data;
+			}
+		}
+
+		if (RealmDefaultAnimations.Idle != null)
+		{
+			return RealmDefaultAnimations.Idle;
+		}
+
+		string? filePath = ResolveAnimationFilePath("idle.ranim", unitId);
+		if (string.IsNullOrEmpty(filePath))
+		{
+			string resPath = ProjectSettings.GlobalizePath("res://Assets/animations/idle.ranim");
+			if (File.Exists(resPath))
+			{
+				filePath = resPath;
+			}
+		}
+
+		if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+		{
+			return GetOrLoadRanimData(filePath);
+		}
+
+		return null;
+	}
+
+	public static bool TryApplyRiggedIdlePose(Node scene, string? unitId = null)
+	{
+		try
+		{
+			if (scene == null || !GodotObject.IsInstanceValid(scene)) return false;
+
+			var validation = SkeletonValidator.Validate(scene);
+			if (!validation.IsValid) return false;
+
+			var idleData = GetIdleAnimationData(unitId);
+			if (idleData == null) return false;
+
+			if (RetargetAndBind(idleData, scene, "Idle", out _))
+			{
+				var player = FindOrCreateAnimationPlayer(scene);
+				if (player != null && player.HasAnimation("Idle"))
+				{
+					player.ProcessMode = Node.ProcessModeEnum.Inherit;
+					player.Play("Idle");
+					player.Seek(0.0, update: true);
+					player.Pause();
+					return true;
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to apply idle pose to rigged mesh: {ex.Message}");
+		}
+
+		return false;
 	}
 }

@@ -41,6 +41,8 @@ public class GlobalObjectOverridesUndoAction : IEditorAction
 		GameHost.Instance.SetModelDespillPlayerColor(_assetKey, snapshot.DespillPlayerColor);
 		GameHost.Instance.SetModelSpawnShader(_assetKey, snapshot.SpawnShader);
 		GameHost.Instance.SetModelDeathShader(_assetKey, snapshot.DeathShader);
+		GameHost.Instance.SetModelEnableProceduralAnimation(_assetKey, snapshot.EnableProceduralAnimation);
+		GameHost.Instance.SetModelProceduralAnimation(_assetKey, snapshot.ProceduralAnimation);
 
 		GameHost.Instance.RefreshAllPlacedObjectModels(_assetKey);
 		GameHost.Instance.FlushModelYOffsetSave();
@@ -62,6 +64,8 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 		public bool DespillPlayerColor;
 		public string SpawnShader;
 		public string DeathShader;
+		public bool EnableProceduralAnimation;
+		public string ProceduralAnimation;
 	}
 
 	private string _currentAssetKey = "";
@@ -84,9 +88,12 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 	private CheckBox _chkDespillPlayerColor;
 	private OptionButton _optSpawnShader;
 	private OptionButton _optDeathShader;
+	private CheckBox _chkEnableProceduralAnim;
+	private OptionButton _optProceduralAnim;
+	private Button _btnOpenProcAnimStudio;
 
 	public GlobalObjectOverridesDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Global Object Overrides"), new Vector2(400, 490))
+		: base(hud, TranslationServer.Translate("Global Object Overrides"), new Vector2(400, 560))
 	{
 		BuildControls();
 	}
@@ -171,6 +178,56 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 			string selectedKey = idx > 0 && idx - 1 < currentShaders.Count ? currentShaders.ElementAt(idx - 1).Key : "";
 			GameHost.Instance.SetModelDeathShader(_currentAssetKey, selectedKey);
 		});
+
+		_chkEnableProceduralAnim = AddCheckBox(grid, TranslationServer.Translate("Enable Procedural Sway / Wind"), false, (pressed) =>
+		{
+			if (_isUpdatingUI || GameHost.Instance == null || string.IsNullOrEmpty(_currentAssetKey)) return;
+			GameHost.Instance.SetModelEnableProceduralAnimation(_currentAssetKey, pressed);
+			GameHost.Instance.RefreshAllPlacedObjectModels(_currentAssetKey);
+		});
+
+		var animConfigs = ProceduralAnimationManager.LoadAllConfigs();
+		var animOptions = new List<string> { TranslationServer.Translate("(None)") };
+		foreach (var a in animConfigs.Values)
+		{
+			animOptions.Add(a.Name);
+		}
+
+		_optProceduralAnim = AddOptionDropdown(grid, TranslationServer.Translate("Procedural Motion Profile:"), animOptions.ToArray(), 0, (idx) =>
+		{
+			if (_isUpdatingUI || GameHost.Instance == null || string.IsNullOrEmpty(_currentAssetKey)) return;
+			var currentConfigs = ProceduralAnimationManager.LoadAllConfigs();
+			string selectedKey = idx > 0 && idx - 1 < currentConfigs.Count ? currentConfigs.ElementAt(idx - 1).Key : "";
+			GameHost.Instance.SetModelProceduralAnimation(_currentAssetKey, selectedKey);
+			GameHost.Instance.RefreshAllPlacedObjectModels(_currentAssetKey);
+		});
+
+		_btnOpenProcAnimStudio = AddButton(grid, "✨ " + TranslationServer.Translate("Procedural Animation Studio..."), () =>
+		{
+			var currentConfigs = ProceduralAnimationManager.LoadAllConfigs();
+			string selectedKey = "";
+			if (_optProceduralAnim != null && _optProceduralAnim.Selected > 0 && _optProceduralAnim.Selected - 1 < currentConfigs.Count)
+			{
+				selectedKey = currentConfigs.ElementAt(_optProceduralAnim.Selected - 1).Key;
+			}
+			if (string.IsNullOrEmpty(selectedKey))
+			{
+				selectedKey = GameHost.Instance?.GetModelProceduralAnimation(_currentAssetKey) ?? "";
+			}
+
+			var cfg = ProceduralAnimationManager.GetConfig(selectedKey) ?? new Realm.Godot.VFX.ProceduralAnimationConfig { Id = _currentAssetKey + "_anim", Name = _currentAssetKey + " Animation" };
+			string selectedMesh = GameHost.Instance?.GetModelAssetKey(_currentSelectedObject ?? (object)_currentAssetKey) ?? _currentAssetKey;
+			Hud?.OpenProceduralAnimationStudioDialog(cfg, (savedCfg) =>
+			{
+				if (savedCfg != null)
+				{
+					GameHost.Instance?.SetModelProceduralAnimation(_currentAssetKey, savedCfg.Id);
+					GameHost.Instance?.SetModelEnableProceduralAnimation(_currentAssetKey, true);
+					GameHost.Instance?.RefreshAllPlacedObjectModels(_currentAssetKey);
+					RefreshProceduralAnimationDropdown(savedCfg.Id);
+				}
+			}, selectedMesh);
+		}, "Open Procedural Animation Studio to edit math formulas and motion parameters", 11, new Vector2(0, 28));
 	}
 
 	public void OpenForObject(Node selectedObject)
@@ -192,7 +249,9 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 			IgnorePlayerColor = GameHost.Instance.GetModelIgnorePlayerColor(selectedObject),
 			DespillPlayerColor = GameHost.Instance.GetModelDespillPlayerColor(selectedObject),
 			SpawnShader = GameHost.Instance.GetModelSpawnShader(selectedObject),
-			DeathShader = GameHost.Instance.GetModelDeathShader(selectedObject)
+			DeathShader = GameHost.Instance.GetModelDeathShader(selectedObject),
+			EnableProceduralAnimation = GameHost.Instance.GetModelEnableProceduralAnimation(selectedObject),
+			ProceduralAnimation = GameHost.Instance.GetModelProceduralAnimation(selectedObject)
 		};
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Global Overrides")} - {_currentAssetKey}";
@@ -223,6 +282,7 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 		_chkNormalizeLuminance.ButtonPressed = _initialSnapshot.NormalizeLuminance;
 		_chkIgnorePlayerColor.ButtonPressed = _initialSnapshot.IgnorePlayerColor;
 		_chkDespillPlayerColor.ButtonPressed = _initialSnapshot.DespillPlayerColor;
+		if (_chkEnableProceduralAnim != null) _chkEnableProceduralAnim.ButtonPressed = _initialSnapshot.EnableProceduralAnimation;
 
 		var allShaders = SpawnDeathShaderManager.LoadAllCustomShaders();
 		if (_optSpawnShader != null)
@@ -262,9 +322,33 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 		if (_optSpawnShader != null) _optSpawnShader.Selected = spawnIdx;
 		if (_optDeathShader != null) _optDeathShader.Selected = deathIdx;
 
+		RefreshProceduralAnimationDropdown(_initialSnapshot.ProceduralAnimation);
+
 		_isUpdatingUI = false;
 
 		OpenDialog();
+	}
+
+	private void RefreshProceduralAnimationDropdown(string selectedKey)
+	{
+		if (_optProceduralAnim == null) return;
+		_optProceduralAnim.Clear();
+		_optProceduralAnim.AddItem(TranslationServer.Translate("(None)"));
+
+		var animConfigs = ProceduralAnimationManager.LoadAllConfigs();
+		int selectedIdx = 0;
+		int idx = 1;
+		foreach (var a in animConfigs)
+		{
+			_optProceduralAnim.AddItem(a.Value.Name);
+			if (string.Equals(a.Key, selectedKey, StringComparison.OrdinalIgnoreCase))
+			{
+				selectedIdx = idx;
+			}
+			idx++;
+		}
+
+		_optProceduralAnim.Selected = selectedIdx;
 	}
 
 	protected override void OnApply()
@@ -283,6 +367,13 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 			deathKey = allShaders.ElementAt(_optDeathShader.Selected - 1).Key;
 		}
 
+		var animConfigs = ProceduralAnimationManager.LoadAllConfigs();
+		string animKey = "";
+		if (_optProceduralAnim != null && _optProceduralAnim.Selected > 0 && _optProceduralAnim.Selected - 1 < animConfigs.Count)
+		{
+			animKey = animConfigs.ElementAt(_optProceduralAnim.Selected - 1).Key;
+		}
+
 		var currentSnapshot = new GlobalOverridesSnapshot
 		{
 			Scale = (float)_sldScale.Value,
@@ -294,7 +385,9 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 			IgnorePlayerColor = _chkIgnorePlayerColor.ButtonPressed,
 			DespillPlayerColor = _chkDespillPlayerColor.ButtonPressed,
 			SpawnShader = spawnKey,
-			DeathShader = deathKey
+			DeathShader = deathKey,
+			EnableProceduralAnimation = _chkEnableProceduralAnim != null && _chkEnableProceduralAnim.ButtonPressed,
+			ProceduralAnimation = animKey
 		};
 
 		GameHost.Instance.SetModelScale(_currentAssetKey, currentSnapshot.Scale);
@@ -307,10 +400,13 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 		GameHost.Instance.SetModelDespillPlayerColor(_currentAssetKey, currentSnapshot.DespillPlayerColor);
 		GameHost.Instance.SetModelSpawnShader(_currentAssetKey, spawnKey);
 		GameHost.Instance.SetModelDeathShader(_currentAssetKey, deathKey);
+		GameHost.Instance.SetModelEnableProceduralAnimation(_currentAssetKey, currentSnapshot.EnableProceduralAnimation);
+		GameHost.Instance.SetModelProceduralAnimation(_currentAssetKey, animKey);
 
 		var action = new GlobalObjectOverridesUndoAction(_currentAssetKey, _initialSnapshot, currentSnapshot);
 		EditorHistoryManager.RecordAction(action);
 
+		GameHost.Instance.RefreshAllPlacedObjectModels(_currentAssetKey);
 		GameHost.Instance.FlushModelYOffsetSave();
 		GameHost.Instance.FlushModelCollisionCircleSave();
 		Hud?.ShowFeedback(TranslationServer.Translate("Global object overrides applied"));
@@ -330,6 +426,8 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 		GameHost.Instance.SetModelDespillPlayerColor(_currentAssetKey, _initialSnapshot.DespillPlayerColor);
 		GameHost.Instance.SetModelSpawnShader(_currentAssetKey, _initialSnapshot.SpawnShader);
 		GameHost.Instance.SetModelDeathShader(_currentAssetKey, _initialSnapshot.DeathShader);
+		GameHost.Instance.SetModelEnableProceduralAnimation(_currentAssetKey, _initialSnapshot.EnableProceduralAnimation);
+		GameHost.Instance.SetModelProceduralAnimation(_currentAssetKey, _initialSnapshot.ProceduralAnimation);
 
 		GameHost.Instance.RefreshAllPlacedObjectModels(_currentAssetKey);
 		GameHost.Instance.FlushModelYOffsetSave();

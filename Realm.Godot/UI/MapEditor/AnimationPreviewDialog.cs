@@ -6,7 +6,7 @@ using Realm.Godot.Animation;
 using Realm.Godot.Utils;
 using Realm.Godot.Services;
 
-public partial class AnimationPreviewDialog : FloatingDialogBase
+public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 {
 	private static readonly string[] StandardActionTypes = new[]
 	{
@@ -30,10 +30,6 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 		{ "Dance", "💃" }
 	};
 
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
 	private Node3D _previewModelRoot;
 	private AnimationPlayer _animPlayer;
 
@@ -51,56 +47,32 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 	private string _currentUnitId = "";
 	private string _currentPreviewRanim = "";
 	private float _currentSpeed = 1.0f;
-	private bool _isUpdatingUI;
 
 	private Dictionary<string, List<GameHost.UnitAnimationEntry>> _workingAnimations = new(StringComparer.OrdinalIgnoreCase);
 	private Dictionary<string, List<GameHost.UnitAnimationEntry>> _initialAnimations = new(StringComparer.OrdinalIgnoreCase);
 
-	private Vector3 _modelCenter = Vector3.Zero;
-	private Vector3 _targetPosition = Vector3.Zero;
-	private float _defaultDistance = 3.0f;
-	private float _cameraDistance = 3.0f;
-	private float _defaultYaw = Mathf.DegToRad(30.0f);
-	private float _defaultPitch = Mathf.DegToRad(15.0f);
-	private float _cameraYaw = Mathf.DegToRad(30.0f);
-	private float _cameraPitch = Mathf.DegToRad(15.0f);
-
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-
 	public AnimationPreviewDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Unit Animation Studio"), new Vector2(500, 720))
 	{
+		DefaultDistance = 3.0f;
+		CameraDistance = 3.0f;
+		DefaultYaw = Mathf.DegToRad(30.0f);
+		DefaultPitch = Mathf.DegToRad(15.0f);
+		CameraYaw = Mathf.DegToRad(30.0f);
+		CameraPitch = Mathf.DegToRad(15.0f);
+
 		BuildControls();
 	}
 
 	private void BuildControls()
 	{
-		_viewportContainer = Add3DViewportContainer(BodyContainer, new Vector2(480, 220), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
+		Add3DPreviewViewport(BodyContainer, new Vector2(480, 220));
 
 		var topControlsVBox = new VBoxContainer();
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
-		// CAMERA TOOLBAR
-		var presetRow = new HBoxContainer();
-		presetRow.AddThemeConstantOverride("separation", 4);
-
-		var lblPreset = new Label();
-		lblPreset.Text = TranslationServer.Translate("Camera:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 10);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		presetRow.AddChild(lblPreset);
-
-		AddButton(presetRow, TranslationServer.Translate("Front"), () => SetCameraPreset(0f, 0f), "View model from front", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Side"), () => SetCameraPreset(90f, 0f), "View model from side", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Back"), () => SetCameraPreset(180f, 0f), "View model from back", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 25f), "Isometric 3/4 view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("⟲ Reset"), () => ResetCameraDefault(), "Reset camera zoom and position to default", 10, new Vector2(0, 22));
+		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 
 		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		presetRow.AddChild(spacer);
@@ -109,9 +81,6 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 		AddButton(presetRow, "⏸ " + TranslationServer.Translate("Pause"), () => PauseAnimation(), "Pause Animation", 10, new Vector2(0, 22));
 		AddButton(presetRow, "⏹ " + TranslationServer.Translate("Stop"), () => StopAnimation(), "Stop Animation", 10, new Vector2(0, 22));
 
-		topControlsVBox.AddChild(presetRow);
-
-		// TOP AUTO-COMPLETE DROPDOWN FOR PREVIEWING ANY .RANIM FILE
 		var animInputSection = new VBoxContainer();
 		animInputSection.AddThemeConstantOverride("separation", 4);
 
@@ -152,7 +121,6 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 		_configuredAttachmentsContainer.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		animInputSection.AddChild(_configuredAttachmentsContainer);
 
-		// ADD TO ACTION ROW
 		var addActionRow = new HBoxContainer();
 		addActionRow.AddThemeConstantOverride("separation", 6);
 
@@ -178,7 +146,6 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 		animInputSection.AddChild(addActionRow);
 		topControlsVBox.AddChild(animInputSection);
 
-		// ACTION TYPES & CONFIGURED ANIMATIONS LIST
 		AddSectionHeader(BodyContainer, "📋 " + TranslationServer.Translate("CONFIGURED UNIT ANIMATIONS"), new Color(0.85f, 0.75f, 0.4f));
 
 		var scrollBody = CreateScrollBody(250);
@@ -186,102 +153,6 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 		_actionListContainer.AddThemeConstantOverride("separation", 10);
 		_actionListContainer.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		scrollBody.AddChild(_actionListContainer);
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mouseButton)
-		{
-			if (mouseButton.ButtonIndex == MouseButton.Left)
-			{
-				_isOrbiting = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
-			{
-				ZoomCamera(1.0f);
-			}
-		}
-		else if (@event is InputEventMouseMotion mouseMotion)
-		{
-			Vector2 delta = mouseMotion.Position - _lastMousePosition;
-			_lastMousePosition = mouseMotion.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (_isPanning && _camera != null)
-			{
-				Vector3 camRight = _camera.GlobalTransform.Basis.X;
-				Vector3 camUp = _camera.GlobalTransform.Basis.Y;
-				float panSpeed = _cameraDistance * 0.0025f;
-				_targetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
-		}
-	}
-
-	private void ZoomCamera(float direction)
-	{
-		float factor = direction > 0 ? 1.15f : 0.85f;
-		_cameraDistance = Mathf.Clamp(_cameraDistance * factor, _defaultDistance * 0.15f, _defaultDistance * 6.0f);
-		UpdateCameraTransform();
-	}
-
-	public void SetCameraPreset(float yawDegrees, float pitchDegrees)
-	{
-		_cameraYaw = Mathf.DegToRad(yawDegrees);
-		_cameraPitch = Mathf.DegToRad(pitchDegrees);
-		_targetPosition = _modelCenter;
-		UpdateCameraTransform();
-	}
-
-	public void ResetCameraDefault()
-	{
-		_cameraDistance = _defaultDistance;
-		_targetPosition = _modelCenter;
-		_cameraYaw = _defaultYaw;
-		_cameraPitch = _defaultPitch;
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-
-		_cameraPitch = Mathf.Clamp(_cameraPitch, -1.45f, 1.45f);
-
-		float cosPitch = Mathf.Cos(_cameraPitch);
-		float sinPitch = Mathf.Sin(_cameraPitch);
-		float cosYaw = Mathf.Cos(_cameraYaw);
-		float sinYaw = Mathf.Sin(_cameraYaw);
-
-		Vector3 offset = new Vector3(
-			sinYaw * cosPitch,
-			sinPitch,
-			cosYaw * cosPitch
-		) * _cameraDistance;
-
-		Vector3 newPos = _targetPosition + offset;
-		_camera.Position = newPos;
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
 	}
 
 	public void OpenForObject(Node selectedObject)
@@ -756,7 +627,7 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 
 	private void SetupPreviewModel(Node sourceModelRoot)
 	{
-		if (sourceModelRoot == null || _subViewport == null) return;
+		if (sourceModelRoot == null || PreviewSubViewport == null) return;
 
 		var clonedNode = (Node3D)sourceModelRoot.Duplicate((int)Node.DuplicateFlags.UseInstantiation);
 		if (clonedNode == null) return;
@@ -767,7 +638,7 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 		clonedNode.Rotation = Vector3.Zero;
 		clonedNode.Scale = Vector3.One;
 
-		_subViewport.AddChild(clonedNode);
+		PreviewSubViewport.AddChild(clonedNode);
 		_previewModelRoot = clonedNode;
 
 		if (_previewModelRoot.IsInsideTree())
@@ -775,7 +646,7 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 			_previewModelRoot.PropagateNotification((int)Node3D.NotificationTransformChanged);
 		}
 
-		FrameCameraOnModel(_previewModelRoot);
+		FrameCameraOnNode(_previewModelRoot);
 
 		SetupSocketAnchors();
 		MountAllConfiguredAttachments();
@@ -995,79 +866,6 @@ public partial class AnimationPreviewDialog : FloatingDialogBase
 		{
 			CollectBoneAttachmentsRecursive(child, list);
 		}
-	}
-
-	private void FrameCameraOnModel(Node3D modelRoot)
-	{
-		if (modelRoot == null || _camera == null) return;
-
-		Aabb totalAabb = new Aabb();
-		bool hasMesh = false;
-
-		Action<Node, Transform3D> collectAabb = null;
-		collectAabb = (node, parentTransform) =>
-		{
-			Transform3D currentTransform = parentTransform;
-			if (node is Node3D node3D)
-			{
-				currentTransform = parentTransform * node3D.Transform;
-			}
-
-			if (node is MeshInstance3D meshInstance && meshInstance.Mesh != null)
-			{
-				Aabb localAabb = meshInstance.GetAabb();
-				Vector3 min = localAabb.Position;
-				Vector3 max = localAabb.End;
-				Vector3[] corners = new Vector3[]
-				{
-					currentTransform * new Vector3(min.X, min.Y, min.Z),
-					currentTransform * new Vector3(max.X, min.Y, min.Z),
-					currentTransform * new Vector3(min.X, max.Y, min.Z),
-					currentTransform * new Vector3(max.X, max.Y, min.Z),
-					currentTransform * new Vector3(min.X, min.Y, max.Z),
-					currentTransform * new Vector3(max.X, min.Y, max.Z),
-					currentTransform * new Vector3(min.X, max.Y, max.Z),
-					currentTransform * max
-				};
-
-				Aabb globalMeshAabb = new Aabb(corners[0], Vector3.Zero);
-				foreach (var c in corners) globalMeshAabb = globalMeshAabb.Expand(c);
-
-				if (!hasMesh)
-				{
-					totalAabb = globalMeshAabb;
-					hasMesh = true;
-				}
-				else
-				{
-					totalAabb = totalAabb.Merge(globalMeshAabb);
-				}
-			}
-
-			int childCount = node.GetChildCount();
-			for (int i = 0; i < childCount; i++)
-			{
-				collectAabb(node.GetChild(i), currentTransform);
-			}
-		};
-
-		collectAabb(modelRoot, Transform3D.Identity);
-
-		if (hasMesh && totalAabb.Size.LengthSquared() > 0.001f)
-		{
-			_modelCenter = totalAabb.GetCenter();
-			float radius = totalAabb.Size.Length() * 0.6f;
-			_defaultDistance = radius * 2.2f;
-		}
-		else
-		{
-			_modelCenter = new Vector3(0, 0.8f, 0);
-			_defaultDistance = 2.8f;
-		}
-
-		_defaultYaw = Mathf.DegToRad(30.0f);
-		_defaultPitch = Mathf.DegToRad(15.0f);
-		ResetCameraDefault();
 	}
 
 	private void PlayCurrentPreview()

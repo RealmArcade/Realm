@@ -161,7 +161,9 @@
 			"YOffset": 1.5000001
 		}
 	],
+	"CustomEnvironmentPresets": [],
 	"CustomItems": [],
+	"CustomProceduralAnimations": [],
 	"CustomProps": [
 		{
 			"Brightness": 0.5,
@@ -354,9 +356,11 @@
 	],
 	"CustomUpgrades": [],
 	"CustomVfx": [],
+	"CustomWaterProfiles": [],
 	"CustomWeapons": [],
+	"DefaultEnvironmentPreset": null,
 	"Dependencies": [],
-	"GameBuildNumber": "v0.0.2",
+	"GameBuildNumber": "v0.0.3",
 	"MapProperties": {
 		"Author": null,
 		"CameraBoundsBottom": null,
@@ -503,6 +507,7 @@
 			"IgnorePlayerColor": true
 		}
 	},
+	"TerrainProfiles": [],
 	"decals": {
 		"acid_drip.rtex": {},
 		"arcane_spark.rtex": {}
@@ -556,6 +561,7 @@
 		}
 	},
 	"ribbons": {},
+	"shaders": {},
 	"skyboxes": {},
 	"textures": {
 		"ancient_jungle_mossy_stone.rtex": {

@@ -16,12 +16,8 @@ using Realm.Shared.Audio;
 using Realm.Shared.Metadata;
 using Realm.Godot.Services;
 
-public partial class AssetManagerDialog : FloatingDialogBase
+public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 	private AnimatedSprite3D _vfxSprite;
@@ -49,6 +45,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	private OptionButton _optAssetCategory;
 	private Label _lblModelTypeDescription;
 	private Button _btnImportAsset;
+	private Button _btnImportShader;
 	private Button _btnConvert3DModel;
 	private Button _btnAiGenerate3D;
 	private Button _btnConvertImage;
@@ -56,6 +53,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	private Button _btnConvertMixamo;
 	private Button _btnGenerateNoise;
 	private Button _btnPruneUnused;
+	private Button _btnNormalize;
 	private LineEdit _txtSearchFilter;
 	private VBoxContainer _listVBox;
 
@@ -73,18 +71,6 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	private string _currentPreviewAssetKey = "";
 	private string _currentPreviewAssetCategory = "";
 
-	private float _defaultDistance = 5.0f;
-	private float _cameraDistance = 5.0f;
-	private float _defaultYaw = Mathf.DegToRad(45.0f);
-	private float _defaultPitch = Mathf.DegToRad(25.0f);
-	private float _cameraYaw = Mathf.DegToRad(45.0f);
-	private float _cameraPitch = Mathf.DegToRad(25.0f);
-	private Vector3 _targetPosition = Vector3.Zero;
-
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-
 	public AssetManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Map Assets Manager & Importer"), new Vector2(720, 780))
 	{
@@ -94,6 +80,15 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_textureEditDialog = new TerrainTextureEditDialog(hud);
 		_decalEditDialog = new DecalSettingsDialog(hud);
 		_shaderEditDialog = new ShaderEditorDialog(hud);
+
+		DefaultDistance = 5.0f;
+		CameraDistance = 5.0f;
+		DefaultYaw = Mathf.DegToRad(45.0f);
+		DefaultPitch = Mathf.DegToRad(25.0f);
+		CameraYaw = Mathf.DegToRad(45.0f);
+		CameraPitch = Mathf.DegToRad(25.0f);
+		DefaultTargetPosition = Vector3.Zero;
+		TargetPosition = DefaultTargetPosition;
 
 		_audioPlayer = new AudioStreamPlayer();
 		_audioPlayer.Finished += OnAudioFinished;
@@ -115,9 +110,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		BodyContainer.AddChild(previewStack);
 
 		// 3D Viewport
-		_viewportContainer = Add3DViewportContainer(previewStack, new Vector2(360, 180), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
+		Add3DPreviewViewport(previewStack, new Vector2(360, 180));
 
 		Setup3DEnvironment();
 
@@ -180,23 +173,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		previewStack.AddChild(_previewAudioContainer);
 
 		// 2. CAMERA PRESETS BAR
-		_cameraPresetRow = new HBoxContainer();
-		_cameraPresetRow.AddThemeConstantOverride("separation", 4);
-
-		var lblPreset = new Label();
-		lblPreset.Text = TranslationServer.Translate("Camera:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 10);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_cameraPresetRow.AddChild(lblPreset);
-
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Front"), () => SetCameraPreset(0f, 15f), "Front view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Side"), () => SetCameraPreset(90f, 15f), "Side view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Back"), () => SetCameraPreset(180f, 15f), "Back view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 25f), "Isometric view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
-		AddButton(_cameraPresetRow, "\uf0e2 " + TranslationServer.Translate("Reset"), () => ResetCameraDefault(), "Reset camera", 10, new Vector2(0, 22));
-
-		BodyContainer.AddChild(_cameraPresetRow);
+		_cameraPresetRow = AddCameraPresetToolbar(BodyContainer, includeBack: true);
 
 		// 3. RANIM BASE MODEL DROPDOWN ROW (Visible for .ranim and shaders)
 		_ranimBaseModelRow = new HBoxContainer();
@@ -277,6 +254,8 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		catRow.AddChild(_optAssetCategory);
 
 		_btnImportAsset = AddButton(catRow, "\uf093 " + TranslationServer.Translate("Import Asset"), () => OpenImportFileDialog(), "Import a new asset for the selected category", 11, new Vector2(120, 26));
+		_btnImportShader = AddButton(catRow, "\uf093 " + TranslationServer.Translate("Import Shader"), () => OnImportShaderPressed(), "Select a shader configuration file (.json, .gdshader) from disk to import", 11, new Vector2(130, 26));
+		_btnImportShader.Visible = false;
 		_btnConvert3DModel = AddButton(catRow, "\uf021 " + TranslationServer.Translate("Convert 3D Model to Realm Format"), () =>
 		{
 			IsRmeshCategory(_currentCategory, out string rmeshSub);
@@ -325,6 +304,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_btnGenerateNoise = AddButton(catRow, "\uf074 " + TranslationServer.Translate("Generate Noise"), () => Hud?.OpenNoiseTextureDialog((_) => RefreshAssetList()), "Create procedural noise texture on CPU using FastNoiseLite", 11, new Vector2(130, 26));
 		_btnGenerateNoise.Visible = false;
 		_btnPruneUnused = AddButton(catRow, "\uf12d " + TranslationServer.Translate("Prune Unused"), () => PruneUnusedAssets(), "Remove assets not referenced anywhere in the map", 11, new Vector2(110, 26));
+		_btnNormalize = AddButton(catRow, "\uf0ec " + TranslationServer.Translate("Normalize References"), () => NormalizeGreenlitReferences(), "Find and associate shared assets from greenlit maps to reduce package size", 11, new Vector2(150, 26));
 
 		BodyContainer.AddChild(catRow);
 
@@ -364,10 +344,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 	private void Setup3DEnvironment()
 	{
-		if (_subViewport == null) return;
+		if (PreviewSubViewport == null) return;
 
 		_simRoot = new Node3D();
-		_subViewport.AddChild(_simRoot);
+		PreviewSubViewport.AddChild(_simRoot);
 
 		_currentModelRoot = new Node3D();
 		_simRoot.AddChild(_currentModelRoot);
@@ -504,6 +484,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			_btnImportAsset.Text = category == "shaders"
 				? "✨ " + TranslationServer.Translate("Create Shader")
 				: "📥 " + TranslationServer.Translate("Import Asset");
+		}
+		if (_btnImportShader != null)
+		{
+			_btnImportShader.Visible = isShader;
 		}
 
 		RefreshAssetList();
@@ -1019,7 +1003,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		if (IsRmeshCategory(category, out string rmeshSub) || category == "animations" || category == "vfx_spritesheets" || category == "shaders")
 		{
-			_viewportContainer.Visible = true;
+			PreviewViewportContainer.Visible = true;
 			_preview2DContainer.Visible = false;
 			_previewAudioContainer.Visible = false;
 			if (_cameraPresetRow != null) _cameraPresetRow.Visible = (IsRmeshCategory(category, out _) || category == "animations" || category == "shaders");
@@ -1043,7 +1027,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 		else if (category == "sfx" || category == "music")
 		{
-			_viewportContainer.Visible = false;
+			PreviewViewportContainer.Visible = false;
 			_preview2DContainer.Visible = false;
 			_previewAudioContainer.Visible = true;
 			if (_cameraPresetRow != null) _cameraPresetRow.Visible = false;
@@ -1053,7 +1037,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 		else
 		{
-			_viewportContainer.Visible = false;
+			PreviewViewportContainer.Visible = false;
 			_preview2DContainer.Visible = true;
 			_previewAudioContainer.Visible = false;
 			if (_cameraPresetRow != null) _cameraPresetRow.Visible = false;
@@ -1395,10 +1379,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			_vfxSprite.Play("play");
 		}
 
-		_defaultDistance = 3.5f;
-		_defaultYaw = 0f;
-		_defaultPitch = 0f;
-		_targetPosition = Vector3.Zero;
+		DefaultDistance = 3.5f;
+		DefaultYaw = 0f;
+		DefaultPitch = 0f;
+		DefaultTargetPosition = Vector3.Zero;
 		ResetCameraDefault();
 	}
 
@@ -1803,12 +1787,12 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			Vector3 center = aabb.Position + aabb.Size * 0.5f;
 			root.Position = -center;
 			float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-			_defaultDistance = Mathf.Max(2.5f, maxDim * 2.2f);
+			DefaultDistance = Mathf.Max(2.5f, maxDim * 2.2f);
 		}
 		else
 		{
 			root.Position = Vector3.Zero;
-			_defaultDistance = 5.0f;
+			DefaultDistance = 5.0f;
 		}
 
 		ResetCameraDefault();
@@ -2076,7 +2060,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	{
 		if (_currentCategory == "shaders")
 		{
-			_shaderEditDialog.OpenForShader("", (_) => RefreshAssetList());
+			_shaderEditDialog.OpenForShader("", (savedConfig) => RefreshAssetListAndPreview(savedConfig?.Key));
 			return;
 		}
 
@@ -2119,6 +2103,130 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 
 		Hud?.OpenAssetBrowser($"Import Asset ({_currentCategory})", extensions, OnImportFileSelected, requireRealmMetadata, requiredAssetType);
+	}
+
+	private void OnImportShaderPressed()
+	{
+		var err = DisplayServer.FileDialogShow(
+			TranslationServer.Translate("Select Shader File to Import"),
+			PathUtils.GetProjectRoot(),
+			"",
+			false,
+			DisplayServer.FileDialogMode.OpenFile,
+			new[] { "*.json,*.gdshader,*.shader ; Supported Shader Files (*.json, *.gdshader, *.shader)", "*.json ; JSON Shader Files (*.json)", "*.gdshader,*.shader ; Godot Shader Files (*.gdshader, *.shader)" },
+			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
+			{
+				if (status && selectedPaths.Length > 0)
+				{
+					string sourceFilePath = selectedPaths[0];
+					ImportShaderFromFile(sourceFilePath);
+				}
+			})
+		);
+
+		if (err != Error.Ok)
+		{
+			Hud?.ShowFeedback(TranslationServer.Translate("Failed to show file dialog"));
+		}
+	}
+
+	private void ImportShaderFromFile(string sourceFilePath)
+	{
+		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return;
+
+		string wsPath = GetWorkspacePath();
+		string ext = Path.GetExtension(sourceFilePath).ToLowerInvariant();
+
+		try
+		{
+			if (ext == ".json")
+			{
+				string jsonText = File.ReadAllText(sourceFilePath);
+				var rootNode = JsonNode.Parse(jsonText);
+				if (rootNode is JsonObject rootObj)
+				{
+					if (rootObj.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObj)
+					{
+						int count = 0;
+						string lastKey = "";
+						foreach (var kvp in shadersObj)
+						{
+							if (kvp.Value != null)
+							{
+								var config = CustomShaderConfig.FromJson(kvp.Key, kvp.Value);
+								SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+								lastKey = config.Key;
+								count++;
+							}
+						}
+						RefreshAssetListAndPreview(lastKey);
+						Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported {0} shaders successfully."), count));
+						return;
+					}
+					else if (rootObj.ContainsKey("transition_mode") || rootObj.ContainsKey("edge_color") || rootObj.ContainsKey("name") || rootObj.ContainsKey("TransitionMode"))
+					{
+						string defaultKey = Path.GetFileNameWithoutExtension(sourceFilePath).ToLowerInvariant().Replace(" ", "_");
+						string key = rootObj.TryGetPropertyValue("key", out var keyNode) && !string.IsNullOrWhiteSpace(keyNode?.ToString())
+							? keyNode.ToString()
+							: (rootObj.TryGetPropertyValue("Key", out var keyNodeCap) && !string.IsNullOrWhiteSpace(keyNodeCap?.ToString()) ? keyNodeCap.ToString() : defaultKey);
+						var config = CustomShaderConfig.FromJson(key, rootObj);
+						SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+						RefreshAssetListAndPreview(config.Key);
+						Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), config.Name));
+						return;
+					}
+					else
+					{
+						int count = 0;
+						string lastKey = "";
+						foreach (var kvp in rootObj)
+						{
+							if (kvp.Value is JsonObject subObj && (subObj.ContainsKey("transition_mode") || subObj.ContainsKey("edge_color") || subObj.ContainsKey("name") || subObj.ContainsKey("TransitionMode")))
+							{
+								var config = CustomShaderConfig.FromJson(kvp.Key, subObj);
+								SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+								lastKey = config.Key;
+								count++;
+							}
+						}
+						if (count > 0)
+						{
+							RefreshAssetListAndPreview(lastKey);
+							Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported {0} shaders successfully."), count));
+							return;
+						}
+					}
+				}
+			}
+			else if (ext is ".gdshader" or ".shader")
+			{
+				string fileName = Path.GetFileName(sourceFilePath);
+				string shaderKey = Path.GetFileNameWithoutExtension(sourceFilePath).ToLowerInvariant().Replace(" ", "_");
+				string shaderName = Path.GetFileNameWithoutExtension(sourceFilePath);
+
+				string targetDir = Path.Combine(wsPath, "Assets", "shaders");
+				Directory.CreateDirectory(targetDir);
+				string destPath = Path.Combine(targetDir, fileName);
+				File.Copy(sourceFilePath, destPath, true);
+
+				var config = new CustomShaderConfig
+				{
+					Key = shaderKey,
+					Name = shaderName
+				};
+				SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+				RefreshAssetListAndPreview(config.Key);
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), config.Name));
+				return;
+			}
+
+			Hud?.ShowFeedback(TranslationServer.Translate("Unrecognized shader file format."));
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetManagerDialog] ImportShaderFromFile error: {ex.Message}");
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error importing shader: {0}"), ex.Message));
+		}
 	}
 
 	private void OnConvertImagePressed()
@@ -3247,7 +3355,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		{
 			_shaderEditDialog.OpenForShader(key, (updatedConfig) =>
 			{
-				RefreshAssetList();
+				RefreshAssetListAndPreview(updatedConfig?.Key ?? key);
 			});
 		}
 	}
@@ -3961,107 +4069,192 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 	}
 
+	private void NormalizeGreenlitReferences()
+	{
+		string wsPath = GetWorkspacePath();
+		var suggestions = MapNormalizationHelper.FindGreenlitReferenceSuggestions(wsPath);
+		var currentRefs = MapNormalizationHelper.GetCurrentGreenlitReferences(wsPath);
+
+		if (suggestions.Count == 0)
+		{
+			if (currentRefs.Count == 0)
+			{
+				Hud?.ShowFeedback(TranslationServer.Translate("No shared greenlit assets found. All assets are unique to this map."));
+			}
+			else
+			{
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("All shared greenlit assets are already normalized ({0} references active)."), currentRefs.Count));
+			}
+			return;
+		}
+
+		ShowNormalizeReferencesDialog(wsPath, suggestions, currentRefs);
+	}
+
+	private void ShowNormalizeReferencesDialog(string wsPath, List<GreenlitReferenceSuggestion> suggestions, List<string> currentRefs)
+	{
+		var overlay = new Panel();
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		overlay.ZIndex = 1200;
+		AddChild(overlay);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(650, 480);
+		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		overlay.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(610, 440);
+		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
+		vbox.AddThemeConstantOverride("separation", 10);
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
+
+		var titleLabel = new Label();
+		UIStyle.ApplyTitle(titleLabel, "🔗 " + TranslationServer.Translate("NORMALIZE GREENLIT REFERENCES"), 18);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(titleLabel);
+
+		var descLabel = new Label();
+		descLabel.Text = TranslationServer.Translate("The following greenlit maps contain identical assets. Referencing them allows .rmap exports to exclude these duplicate files to minimize download size for players.");
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLabel.AddThemeFontSizeOverride("font_size", 12);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.85f, 0.95f));
+		vbox.AddChild(descLabel);
+
+		var scroll = new ScrollContainer();
+		scroll.CustomMinimumSize = new Vector2(590, 260);
+		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
+		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		vbox.AddChild(scroll);
+
+		var listContainer = new VBoxContainer();
+		listContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		listContainer.AddThemeConstantOverride("separation", 6);
+		scroll.AddChild(listContainer);
+
+		var checkboxes = new List<(CheckBox CheckBox, GreenlitReferenceSuggestion Suggestion)>();
+
+		foreach (var suggestion in suggestions)
+		{
+			var row = new PanelContainer();
+			var rowStyle = new StyleBoxFlat
+			{
+				BgColor = new Color(0.16f, 0.17f, 0.22f, 0.9f),
+				CornerRadiusTopLeft = 4,
+				CornerRadiusTopRight = 4,
+				CornerRadiusBottomLeft = 4,
+				CornerRadiusBottomRight = 4
+			};
+			row.AddThemeStyleboxOverride("panel", rowStyle);
+			listContainer.AddChild(row);
+
+			var rowHBox = new HBoxContainer();
+			rowHBox.AddThemeConstantOverride("separation", 10);
+			row.AddChild(rowHBox);
+
+			var cb = new CheckBox();
+			cb.ButtonPressed = suggestion.IsSelected;
+			cb.AddThemeConstantOverride("icon_max_width", 0);
+			UIStyle.ApplyCheckboxStyle(cb);
+			rowHBox.AddChild(cb);
+			checkboxes.Add((cb, suggestion));
+
+			var infoVBox = new VBoxContainer();
+			infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			rowHBox.AddChild(infoVBox);
+
+			var mapNameLabel = new Label();
+			mapNameLabel.Text = $"{suggestion.MapTitle} (v{suggestion.MapVersion})";
+			mapNameLabel.AddThemeFontSizeOverride("font_size", 13);
+			mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			infoVBox.AddChild(mapNameLabel);
+
+			var statsLabel = new Label();
+			statsLabel.Text = string.Format(TranslationServer.Translate("{0} matching asset(s) • Estimated savings: {1}"), suggestion.MatchedAssetPaths.Count, MapStorageService.FormatBytes(suggestion.SavedBytes));
+			statsLabel.AddThemeFontSizeOverride("font_size", 11);
+			statsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.8f, 0.9f));
+			infoVBox.AddChild(statsLabel);
+		}
+
+		var summaryLabel = new Label();
+		Action updateSummary = () =>
+		{
+			long totalSavings = checkboxes.Where(c => c.CheckBox.ButtonPressed).Sum(c => c.Suggestion.SavedBytes);
+			int selectedCount = checkboxes.Count(c => c.CheckBox.ButtonPressed);
+			summaryLabel.Text = string.Format(TranslationServer.Translate("Selected: {0} map reference(s) • Total export savings: {1}"), selectedCount, MapStorageService.FormatBytes(totalSavings));
+		};
+		summaryLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		summaryLabel.AddThemeFontSizeOverride("font_size", 12);
+		summaryLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		vbox.AddChild(summaryLabel);
+		updateSummary();
+
+		foreach (var (cb, _) in checkboxes)
+		{
+			cb.Toggled += (_) => updateSummary();
+		}
+
+		var btnRow = new HBoxContainer();
+		btnRow.Alignment = BoxContainer.AlignmentMode.Center;
+		btnRow.AddThemeConstantOverride("separation", 15);
+		vbox.AddChild(btnRow);
+
+		var btnApply = new Button();
+		btnApply.AddThemeConstantOverride("icon_max_width", 0);
+		btnApply.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		btnApply.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		btnApply.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		btnApply.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(btnApply, TranslationServer.Translate("APPLY REFERENCES"), 13);
+		btnApply.CustomMinimumSize = new Vector2(170, 34);
+		btnRow.AddChild(btnApply);
+
+		btnApply.Pressed += () =>
+		{
+			UIManager.Instance?.PlayClickSound();
+			var selectedTitles = checkboxes
+				.Where(c => c.CheckBox.ButtonPressed)
+				.Select(c => c.Suggestion.MapTitle)
+				.ToList();
+
+			if (selectedTitles.Count > 0)
+			{
+				MapNormalizationHelper.ApplyGreenlitReferences(wsPath, selectedTitles);
+				long saved = checkboxes.Where(c => c.CheckBox.ButtonPressed).Sum(c => c.Suggestion.SavedBytes);
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Applied {0} greenlit reference(s). {1} saved in .rmap exports!"), selectedTitles.Count, MapStorageService.FormatBytes(saved)));
+			}
+			overlay.QueueFree();
+		};
+
+		var btnCancel = new Button();
+		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
+		btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		btnCancel.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		btnCancel.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate("CANCEL"), 13);
+		btnCancel.CustomMinimumSize = new Vector2(110, 34);
+		btnRow.AddChild(btnCancel);
+
+		btnCancel.Pressed += () =>
+		{
+			UIManager.Instance?.PlayClickSound();
+			overlay.QueueFree();
+		};
+	}
+
 	private static string ComputeHashHex(byte[] bytes)
 	{
 		using var sha = SHA256.Create();
 		byte[] hash = sha.ComputeHash(bytes);
 		return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mouseButton)
-		{
-			if (mouseButton.ButtonIndex == MouseButton.Left)
-			{
-				_isOrbiting = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
-			{
-				ZoomCamera(1.0f);
-			}
-		}
-		else if (@event is InputEventMouseMotion mouseMotion)
-		{
-			Vector2 delta = mouseMotion.Position - _lastMousePosition;
-			_lastMousePosition = mouseMotion.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (_isPanning && _camera != null)
-			{
-				Vector3 camRight = _camera.GlobalTransform.Basis.X;
-				Vector3 camUp = _camera.GlobalTransform.Basis.Y;
-				float panSpeed = _cameraDistance * 0.0025f;
-				_targetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
-		}
-	}
-
-	private void ZoomCamera(float direction)
-	{
-		float factor = direction > 0 ? 1.15f : 0.85f;
-		_cameraDistance = Mathf.Clamp(_cameraDistance * factor, _defaultDistance * 0.2f, _defaultDistance * 4.0f);
-		UpdateCameraTransform();
-	}
-
-	public void SetCameraPreset(float yawDegrees, float pitchDegrees)
-	{
-		_cameraYaw = Mathf.DegToRad(yawDegrees);
-		_cameraPitch = Mathf.DegToRad(pitchDegrees);
-		_targetPosition = Vector3.Zero;
-		UpdateCameraTransform();
-	}
-
-	public void ResetCameraDefault()
-	{
-		_cameraDistance = _defaultDistance;
-		_targetPosition = Vector3.Zero;
-		_cameraYaw = _defaultYaw;
-		_cameraPitch = _defaultPitch;
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-
-		_cameraPitch = Mathf.Clamp(_cameraPitch, -1.45f, 1.45f);
-
-		float cosPitch = Mathf.Cos(_cameraPitch);
-		float sinPitch = Mathf.Sin(_cameraPitch);
-		float cosYaw = Mathf.Cos(_cameraYaw);
-		float sinYaw = Mathf.Sin(_cameraYaw);
-
-		Vector3 offset = new Vector3(
-			sinYaw * cosPitch,
-			sinPitch,
-			cosYaw * cosPitch
-		) * _cameraDistance;
-
-		Vector3 newPos = _targetPosition + offset;
-		_camera.Position = newPos;
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
 	}
 
 	public override void CloseDialog()

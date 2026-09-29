@@ -54,6 +54,7 @@
 			"achievement_unlock_chime.raud": "d9479e8f7a3a87d69d0c4c6d171c6f03b599e69726224b88897c02ced2b2a76d",
 			"orc_victory_howl.raud": "ce430e441d0d7867fb5eef4b26a1c157bd8a2899aba4ddf03309cf67885c94db"
 		},
+		"shaders": {},
 		"skyboxes": {
 			"jade_shrine.rtex": "128fbaed7adbb0d6fd54edb36808fcc3991b478a927e144323d7896cae71c93e",
 			"star_reach.rtex": "9c7fb6d80ea74d61b11cfc9ccddf072aa187c80cd4ac46b3d16ff3a83c1e2790"

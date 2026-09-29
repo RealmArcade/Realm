@@ -25,6 +25,7 @@ namespace Realm.Ecs.Components.Core
 		public bool HasUnsavedChanges;
 		public MirrorMode MirrorMode;
 		public WaterType WaterMode;
+		public byte WaterProfileIndex;
 
 		public EditorState(
 			bool blockMode,
@@ -36,7 +37,8 @@ namespace Realm.Ecs.Components.Core
 			string skyboxPath,
 			bool hasUnsavedChanges,
 			MirrorMode mirrorMode = MirrorMode.None,
-			WaterType waterMode = WaterType.None)
+			WaterType waterMode = WaterType.None,
+			byte waterProfileIndex = 0)
 		{
 			BlockMode = blockMode;
 			BlockLevelHeight = blockLevelHeight;
@@ -48,6 +50,7 @@ namespace Realm.Ecs.Components.Core
 			HasUnsavedChanges = hasUnsavedChanges;
 			MirrorMode = mirrorMode;
 			WaterMode = waterMode;
+			WaterProfileIndex = waterProfileIndex;
 		}
 	}
 }

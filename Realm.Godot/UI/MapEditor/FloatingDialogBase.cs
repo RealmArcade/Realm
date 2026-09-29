@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using Realm.Godot.Services;
 using Realm.Godot.VFX;
 
 public partial class FloatingDialogBase : PanelContainer
@@ -468,19 +469,20 @@ public partial class FloatingDialogBase : PanelContainer
 
 		var picker = new ColorPickerButton();
 		picker.CustomMinimumSize = new Vector2(36, 22);
-		picker.EditAlpha = false;
+		picker.EditAlpha = true;
 		picker.Color = initialColor;
 		row.AddChild(picker);
 
 		hueSlider.ValueChanged += (double val) =>
 		{
-			Color tintColor = (val <= 0.0) ? new Color(1.0f, 1.0f, 1.0f) : Color.FromHsv((float)val, 0.75f, 1.0f);
+			Color tintColor = (val <= 0.0) ? new Color(1.0f, 1.0f, 1.0f, picker.Color.A) : Color.FromHsv((float)val, 0.75f, 1.0f, picker.Color.A);
 			picker.Color = tintColor;
 			onChanged(tintColor);
 		};
 
 		picker.ColorChanged += (Color color) =>
 		{
+			hueSlider.Value = color.H;
 			onChanged(color);
 		};
 
@@ -1176,6 +1178,20 @@ public partial class FloatingDialogBase : PanelContainer
 								}
 							}
 						}
+						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var vfxMetaRoot) && vfxMetaRoot != null)
+						{
+							if (vfxMetaRoot.CustomVfx != null)
+							{
+								foreach (var cv in vfxMetaRoot.CustomVfx)
+								{
+									if (!string.IsNullOrWhiteSpace(cv.VfxId))
+									{
+										result.Add(cv.VfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? cv.VfxId : $"vfx:{cv.VfxId}");
+										result.Add(cv.VfxId);
+									}
+								}
+							}
+						}
 					}
 					else if (category == "decals" || category == "decal")
 					{
@@ -1188,6 +1204,20 @@ public partial class FloatingDialogBase : PanelContainer
 									if (!string.IsNullOrWhiteSpace(prop.Key))
 									{
 										result.Add(prop.Key);
+									}
+								}
+							}
+						}
+
+						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var decalMetaRoot) && decalMetaRoot != null)
+						{
+							if (decalMetaRoot.Decals != null)
+							{
+								foreach (var kvp in decalMetaRoot.Decals)
+								{
+									if (!string.IsNullOrWhiteSpace(kvp.Key))
+									{
+										result.Add(kvp.Key);
 									}
 								}
 							}

@@ -70,6 +70,8 @@ public partial class LobbyManager : Node
         public bool IsReady { get; set; }
         public string BinaryVersion { get; set; } = "";
         public bool IsMapReady { get; set; } = true;
+        public string SessionToken { get; set; } = Guid.NewGuid().ToString();
+        public bool IsDisconnected { get; set; } = false;
     }
 
     public List<string> OfficialServers { get; private set; } = new();
@@ -83,6 +85,23 @@ public partial class LobbyManager : Node
     public string? AuthToken { get; set; }
     public string? AuthProvider { get; set; }
 
+    public bool SetInGameUsername(string newUsername, out string? errorMessage)
+    {
+        if (!NameNormalizationHelper.ValidateUsername(newUsername, out errorMessage))
+        {
+            return false;
+        }
+
+        AuthenticatedUsername = newUsername.Trim();
+        if (LocalPlayer != null)
+        {
+            LocalPlayer.Name = AuthenticatedUsername;
+        }
+        return true;
+    }
+    private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
+    private bool _isReconnecting = false;
+    public bool IsReconnecting => _isReconnecting;
 
     public NatType LocalNatType { get; private set; } = NatType.Open;
     public bool IsHost { get; set; }
@@ -413,7 +432,8 @@ public partial class LobbyManager : Node
             Latency = "0 ms",
             Jitter = "0 ms",
             PacketLoss = "0%",
-            BinaryVersion = RealmVersion.GameBinaryVersion
+            BinaryVersion = RealmVersion.GameBinaryVersion,
+            SessionToken = _persistentSessionToken
         };
         PlayerList.Add(LocalPlayer);
         
@@ -445,7 +465,8 @@ public partial class LobbyManager : Node
             Latency = "0 ms",
             Jitter = "0 ms",
             PacketLoss = "0%",
-            BinaryVersion = RealmVersion.GameBinaryVersion
+            BinaryVersion = RealmVersion.GameBinaryVersion,
+            SessionToken = _persistentSessionToken
         };
         PlayerList.Add(LocalPlayer);
 
@@ -666,7 +687,8 @@ public partial class LobbyManager : Node
             Team = "Team 1",
             Color = PlayerColorConfig.GetColor(2),
             IsHost = false,
-            BinaryVersion = RealmVersion.GameBinaryVersion
+            BinaryVersion = RealmVersion.GameBinaryVersion,
+            SessionToken = _persistentSessionToken
         };
 
 
@@ -912,7 +934,7 @@ public partial class LobbyManager : Node
             {
                 try
                 {
-                    var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count };
+                    var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted };
                     var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
                     await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
                 }
@@ -933,6 +955,12 @@ public partial class LobbyManager : Node
         {
             if (string.IsNullOrEmpty(ActiveLobbyId))
             {
+                return;
+            }
+
+            if (IsGameStarted)
+            {
+                GD.Print($"[LobbyManager] Peer {id} connected during active match. Awaiting reconnect handshake.");
                 return;
             }
 
@@ -964,7 +992,8 @@ public partial class LobbyManager : Node
                 Color = GetNextColor(),
                 IsHost = false,
                 BinaryVersion = RealmVersion.GameBinaryVersion,
-                IsMapReady = false
+                IsMapReady = false,
+                SessionToken = Guid.NewGuid().ToString()
             };
             PlayerList.Add(newPlayer);
             SendChatMessage("System", string.Format(Tr("{0} joined the lobby."), newPlayer.Name));
@@ -1000,6 +1029,18 @@ public partial class LobbyManager : Node
 
             if (string.IsNullOrEmpty(ActiveLobbyId))
             {
+                return;
+            }
+
+            if (IsGameStarted)
+            {
+                var player = PlayerList.Find(p => p.PeerId == id);
+                if (player != null)
+                {
+                    player.IsDisconnected = true;
+                    GD.Print($"[LobbyManager] In-game peer {id} ({player.Name}) marked as disconnected for reconnect. Slot {player.Slot} preserved.");
+                    SendChatMessage("System", string.Format(Tr("{0} disconnected. Waiting for reconnect..."), player.Name));
+                }
                 return;
             }
 
@@ -1739,11 +1780,202 @@ public partial class LobbyManager : Node
         GD.Print("[LobbyManager] Host disconnected.");
         if (IsGameStarted)
         {
-            GD.Print("[LobbyManager] Allowing local play after host disconnect.");
+            GD.Print("[LobbyManager] Allowing local play after host disconnect. Starting reconnect attempt...");
+            TriggerReconnect();
             return;
         }
         KickReceived?.Invoke("Host closed the server.");
         Disconnect();
+    }
+
+    public void TriggerReconnect()
+    {
+        if (_isReconnecting || !IsGameStarted || IsHost)
+        {
+            return;
+        }
+        _ = AttemptReconnectLoopAsync();
+    }
+
+    private async Task AttemptReconnectLoopAsync()
+    {
+        if (_isReconnecting || !IsGameStarted || IsHost)
+        {
+            return;
+        }
+
+        _isReconnecting = true;
+        _isConnectedToHost = false;
+        string hostIp = _connectedHostIp;
+        int hostPort = _connectedHostPort;
+
+        GD.Print($"[LobbyManager] Starting match reconnect loop to {hostIp}:{hostPort}...");
+
+        DateTime startTime = DateTime.UtcNow;
+        TimeSpan maxTimeout = TimeSpan.FromSeconds(60);
+
+        while (_isReconnecting && IsGameStarted && DateTime.UtcNow - startTime < maxTimeout)
+        {
+            try
+            {
+                if (Multiplayer.MultiplayerPeer != null)
+                {
+                    try { Multiplayer.MultiplayerPeer.Close(); } catch { }
+                    Multiplayer.MultiplayerPeer = null;
+                }
+
+                bool isLocal = IsPrivateIp(hostIp);
+                if (!isLocal)
+                {
+                    await UdpHolePuncher.PunchHoleAsync(hostIp, hostPort, ENetPort);
+                }
+
+                var peer = new ENetMultiplayerPeer();
+                var err = peer.CreateClient(hostIp, hostPort, localPort: isLocal ? 0 : ENetPort);
+                if (err == Error.Ok)
+                {
+                    Multiplayer.MultiplayerPeer = peer;
+                    DateTime connectTimeout = DateTime.UtcNow.AddSeconds(4);
+                    while (DateTime.UtcNow < connectTimeout && peer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connecting)
+                    {
+                        await Task.Delay(100);
+                    }
+
+                    if (peer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected)
+                    {
+                        GD.Print("[LobbyManager] Connected socket during reconnect. Sending RequestReconnect RPC...");
+                        RpcId(1, nameof(RequestReconnect), LocalPlayer.SessionToken, LocalPlayer.Name, RealmVersion.GameBinaryVersion);
+
+                        DateTime ackTimeout = DateTime.UtcNow.AddSeconds(5);
+                        while (DateTime.UtcNow < ackTimeout && _isReconnecting)
+                        {
+                            await Task.Delay(150);
+                        }
+
+                        if (!_isReconnecting)
+                        {
+                            GD.Print("[LobbyManager] Match reconnect handshake completed.");
+                            return;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"[LobbyManager] Reconnect attempt failed: {ex.Message}");
+            }
+
+            await Task.Delay(2000);
+        }
+
+        if (_isReconnecting)
+        {
+            _isReconnecting = false;
+            GD.PrintErr("[LobbyManager] Match reconnection timed out.");
+            Disconnect();
+            CallDeferred(nameof(OnReconnectFailed));
+        }
+    }
+
+    private void OnReconnectFailed()
+    {
+        KickReceived?.Invoke(Tr("Connection to host lost permanently."));
+        UIManager.Instance?.TransitionTo(GameScreen.LobbyBrowser);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    public void RequestReconnect(string sessionToken, string playerName, string binaryVersion)
+    {
+        if (!IsHost) return;
+        int senderId = Multiplayer.GetRemoteSenderId();
+        GD.Print($"[LobbyManager] RequestReconnect received from Peer {senderId}: Token={sessionToken}, Name={playerName}");
+
+        if (!IsGameStarted)
+        {
+            RpcId(senderId, nameof(RejectConnection), Tr("Game is not in progress."));
+            return;
+        }
+
+        if (!string.Equals(binaryVersion, RealmVersion.GameBinaryVersion, StringComparison.Ordinal))
+        {
+            RpcId(senderId, nameof(RejectConnection), Tr("Game version mismatch with host."));
+            return;
+        }
+
+        PlayerInfo? targetPlayer = null;
+        if (!string.IsNullOrEmpty(sessionToken))
+        {
+            targetPlayer = PlayerList.Find(p => p.SessionToken == sessionToken);
+        }
+        if (targetPlayer == null && !string.IsNullOrEmpty(playerName))
+        {
+            targetPlayer = PlayerList.Find(p => p.Name == playerName);
+        }
+
+        if (targetPlayer == null)
+        {
+            RpcId(senderId, nameof(RejectConnection), Tr("Player session not found in active match."));
+            return;
+        }
+
+        int oldPeerId = targetPlayer.PeerId;
+        targetPlayer.PeerId = senderId;
+        targetPlayer.IsDisconnected = false;
+
+        GD.Print($"[LobbyManager] Reconnected player {targetPlayer.Name} (Slot {targetPlayer.Slot}). Remapped old peer {oldPeerId} -> {senderId}");
+        SendChatMessage("System", string.Format(Tr("{0} reconnected to the match."), targetPlayer.Name));
+
+        string serializedPlayers = JsonSerializer.Serialize(PlayerList);
+        RpcId(senderId, nameof(AcceptReconnect), targetPlayer.Slot, ActiveMapName, serializedPlayers);
+
+        GameHost.Instance?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void AcceptReconnect(int slot, string activeMapName, string serializedPlayers)
+    {
+        GD.Print($"[LobbyManager] AcceptReconnect received! Slot={slot}, Map={activeMapName}");
+        _isReconnecting = false;
+        _isConnectedToHost = true;
+        ActiveMapName = activeMapName;
+        IsGameStarted = true;
+
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<PlayerInfo>>(serializedPlayers);
+            if (list != null)
+            {
+                PlayerList.Clear();
+                PlayerList.AddRange(list);
+            }
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"[LobbyManager] Failed to deserialize players on reconnect: {ex.Message}");
+        }
+
+        int myId = Multiplayer.GetUniqueId();
+        LocalPlayer.PeerId = myId;
+        LocalPlayer.Slot = slot;
+
+        var me = PlayerList.Find(p => p.Slot == slot || p.SessionToken == LocalPlayer.SessionToken);
+        if (me != null)
+        {
+            me.PeerId = myId;
+            me.IsDisconnected = false;
+            LocalPlayer = me;
+        }
+
+        PlayerListUpdated?.Invoke();
+
+        if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance))
+        {
+            GameHost.Instance.OnClientReconnected(slot);
+        }
+        else
+        {
+            GetTree().ChangeSceneToFile("res://Main.tscn");
+        }
     }
 
 
@@ -2341,7 +2573,6 @@ public partial class LobbyManager : Node
             CountdownFinished?.Invoke();
             if (IsHost && _countdownMapName != null)
             {
-                UnregisterActiveLobbyFromRegistry();
                 Rpc(nameof(LoadMap), _countdownMapName);
             }
             return;
@@ -2513,6 +2744,10 @@ public partial class LobbyManager : Node
                 AuthenticatedUsername = username;
                 AuthToken = token;
                 AuthProvider = returnedProvider;
+                if (LocalPlayer != null)
+                {
+                    LocalPlayer.Name = username;
+                }
 
                 GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");
 

@@ -156,6 +156,7 @@ public partial class MapEditorHUD : Control
 	private List<string> _swatchPaths = new List<string>();
 	private List<string> _swatchDisplayNames = new List<string>();
 	private List<Color> _swatchColors = new List<Color>();
+	private ScrollContainer _scrollSwatches;
 	private Control _gridSwatches;
 	private Button _btnReplaceTexture;
 
@@ -217,6 +218,8 @@ public partial class MapEditorHUD : Control
 
 	private Control _waterModeBox;
 	private OptionButton _optWaterMode;
+	private WaterProfileDialog _waterProfileDialog;
+	private EnvironmentConfigDialog _environmentConfigDialog;
 	private GlobalObjectOverridesDialog _globalOverridesDialog;
 	private AnimationPreviewDialog _animationPreviewDialog;
 	private WeaponVfxDialog _weaponVfxDialog;
@@ -230,6 +233,7 @@ public partial class MapEditorHUD : Control
 	private EditorSettingsDialog _editorSettingsDialog;
 	private ShaderEditorDialog _shaderEditorDialog;
 	private VfxStudioDialog _vfxStudioDialog;
+	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog;
 	private AuthorSignatureDialog _authorSignatureDialog;
 	private Button _btnEditorSettings;
 	private Button _btnAuthorSignature;
@@ -274,6 +278,7 @@ public partial class MapEditorHUD : Control
 	private Vector3 _lastRaycastPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
 
 	private Button _btnSkybox;
+	private Button _btnWeather;
 	private Button _btnFreeCamera;
 
 
@@ -815,7 +820,6 @@ public partial class MapEditorHUD : Control
 			if (GameHost.Instance != null)
 			{
 				var res = GameHost.Instance.CycleTimeOfDay();
-				UpdateLightingTuningSlidersFromPhase(res.TimeOfDayIndex);
 				string timeName = GameHost.Instance.EnvironmentService?.GetTimeOfDayName(res.TimeOfDayIndex) ?? "Day";
 				string icon = res.TimeOfDayIndex switch
 				{
@@ -828,6 +832,23 @@ public partial class MapEditorHUD : Control
 				ShowFeedback(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
 			}
 		}, 12, "Cycle map environment lighting (L)");
+
+		_btnWeather = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnWeather") ?? new Button();
+		_btnWeather.Name = "BtnWeather";
+		SetupButton(_btnWeather, "\uf738", () => {
+			if (GameHost.Instance != null && GameHost.Instance.EnvironmentService != null)
+			{
+				string nextWeather = GameHost.Instance.EnvironmentService.CycleWeather(GameHost.Instance);
+				string icon = nextWeather switch
+				{
+					"rain" => "🌧️",
+					"snow" => "❄️",
+					"fog" => "🌫️",
+					_ => "☀️"
+				};
+				ShowFeedback(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
+			}
+		}, 12, "Cycle weather effects (K)");
 
 		_btnZoomIn = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnZoomIn");
 		SetupButton(_btnZoomIn, "\uf00e", () =>
@@ -848,6 +869,8 @@ public partial class MapEditorHUD : Control
 		{
 			ToggleFreeCamera();
 		}, 12, "Free Camera (F8)");
+		var initialCam = GameHost.Instance?.MainCamera as CameraControl;
+		UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
 
 		_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
 		_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
@@ -1022,41 +1045,89 @@ public partial class MapEditorHUD : Control
 		_waterModeBox = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/WaterModeBox");
 		if (_waterModeBox == null && contentBrush != null)
 		{
-			var row = new HBoxContainer();
-			row.Name = "WaterModeBox";
+			var box = new VBoxContainer();
+			box.Name = "WaterModeBox";
+			box.AddThemeConstantOverride("separation", 2);
+
+			var header = new HBoxContainer();
+			header.Name = "Header";
 
 			var lbl = new Label();
-			lbl.Text = TranslationServer.Translate("Add Water");
+			lbl.Name = "LblWaterTitle";
+			lbl.Text = TranslationServer.Translate("Liquid / Water");
 			lbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			row.AddChild(lbl);
+			lbl.AddThemeFontSizeOverride("font_size", 10);
+			header.AddChild(lbl);
+
+			var btnWaterProfiles = new Button();
+			btnWaterProfiles.Name = "BtnWaterProfiles";
+			btnWaterProfiles.Set("icon_max_width", 0);
+			btnWaterProfiles.Text = "⚙";
+			btnWaterProfiles.CustomMinimumSize = new Vector2(24, 20);
+			btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
+			btnWaterProfiles.FocusMode = Control.FocusModeEnum.None;
+			btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
+			btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
+			header.AddChild(btnWaterProfiles);
+
+			box.AddChild(header);
 
 			_optWaterMode = new OptionButton();
 			_optWaterMode.Name = "OptWaterMode";
-			_optWaterMode.AddItem(TranslationServer.Translate("None"), (int)WaterType.None);
-			_optWaterMode.AddItem(TranslationServer.Translate("Shallow"), (int)WaterType.Shallow);
-			_optWaterMode.AddItem(TranslationServer.Translate("Deep"), (int)WaterType.Deep);
+			_optWaterMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			_optWaterMode.ClipText = true;
+			_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
+			_optWaterMode.AddItem(TranslationServer.Translate("None"), 0);
+			_optWaterMode.SetItemMetadata(0, (byte)0);
+			_optWaterMode.AddItem(TranslationServer.Translate("Shallow Water"), 1);
+			_optWaterMode.SetItemMetadata(1, (byte)0);
+			_optWaterMode.AddItem(TranslationServer.Translate("Deep Ocean"), 2);
+			_optWaterMode.SetItemMetadata(2, (byte)1);
 			_optWaterMode.Selected = 0;
-			row.AddChild(_optWaterMode);
+			box.AddChild(_optWaterMode);
 
-			contentBrush.AddChild(row);
-			_waterModeBox = row;
+			contentBrush.AddChild(box);
+			_waterModeBox = box;
 		}
 		else if (_waterModeBox != null)
 		{
-			_optWaterMode = GetNodeOrNull<OptionButton>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/WaterModeBox/OptWaterMode");
+			_optWaterMode = _waterModeBox.GetNodeOrNull<OptionButton>("OptWaterMode") ?? _waterModeBox.FindChild("OptWaterMode", true, false) as OptionButton;
+			var btnWaterProfiles = _waterModeBox.GetNodeOrNull<Button>("Header/BtnWaterProfiles") ?? _waterModeBox.FindChild("BtnWaterProfiles", true, false) as Button;
+			if (btnWaterProfiles != null)
+			{
+				btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
+			}
 		}
 
 		if (_optWaterMode != null)
 		{
 			_optWaterMode.ItemSelected += (idx) =>
 			{
-				WaterType mode = (WaterType)idx;
-				if (GameHost.Instance != null)
+				if (idx == 0)
 				{
-					GameHost.Instance.EditorWaterMode = mode;
+					if (GameHost.Instance != null)
+					{
+						GameHost.Instance.EditorWaterMode = WaterType.None;
+						GameHost.Instance.ActiveWaterProfileIndex = 0;
+					}
+				}
+				else
+				{
+					byte profIdx = 0;
+					var meta = _optWaterMode.GetItemMetadata((int)idx);
+					if (meta.VariantType != Variant.Type.Nil)
+					{
+						profIdx = (byte)(int)meta;
+					}
+					if (GameHost.Instance != null)
+					{
+						GameHost.Instance.EditorWaterMode = WaterType.Shallow;
+						GameHost.Instance.ActiveWaterProfileIndex = profIdx;
+					}
 				}
 				UpdateBlockStepVisibility();
 			};
+			RefreshWaterSwatches();
 		}
 
 		_accordionToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion");
@@ -1139,7 +1210,24 @@ public partial class MapEditorHUD : Control
 			}
 		}, 11, "Globally swap grass/dirt texture assignment indices (X)");
 
-		_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
+		_scrollSwatches = GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches");
+		_gridSwatches = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches/GridSwatches")
+			?? GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches");
+
+		if (_gridSwatches != null && _scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
+		{
+			int gridIndex = _gridSwatches.GetIndex();
+			parentVBox.RemoveChild(_gridSwatches);
+			_scrollSwatches = new ScrollContainer();
+			_scrollSwatches.Name = "ScrollSwatches";
+			_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+			_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+			_scrollSwatches.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			_scrollSwatches.AddChild(_gridSwatches);
+			parentVBox.AddChild(_scrollSwatches);
+			parentVBox.MoveChild(_scrollSwatches, gridIndex);
+		}
+
 		SetupTextureSwatches(true);
 
 		_btnReplaceTexture = new Button();
@@ -2200,23 +2288,141 @@ public partial class MapEditorHUD : Control
 		updateText();
 		optType.ItemSelected += (_) => updateText();
 
+		var (unprunedCount, unnormalizedPotentialCount, potentialSavedBytes) = MapNormalizationHelper.CheckOptimizationState(wsPath);
+		if (unprunedCount > 0 || unnormalizedPotentialCount > 0)
+		{
+			var tipPanel = new PanelContainer();
+			var tipStyle = new StyleBoxFlat
+			{
+				BgColor = new Color(0.2f, 0.17f, 0.1f, 0.95f),
+				BorderColor = UIStyle.ColorGoldDull,
+				BorderWidthBottom = 1,
+				BorderWidthTop = 1,
+				BorderWidthLeft = 1,
+				BorderWidthRight = 1,
+				CornerRadiusTopLeft = 4,
+				CornerRadiusTopRight = 4,
+				CornerRadiusBottomLeft = 4,
+				CornerRadiusBottomRight = 4
+			};
+			tipPanel.AddThemeStyleboxOverride("panel", tipStyle);
+			var tipMargin = new MarginContainer();
+			tipMargin.AddThemeConstantOverride("margin_top", 6);
+			tipMargin.AddThemeConstantOverride("margin_bottom", 6);
+			tipMargin.AddThemeConstantOverride("margin_left", 10);
+			tipMargin.AddThemeConstantOverride("margin_right", 10);
+			tipPanel.AddChild(tipMargin);
+
+			var tipLabel = new Label();
+			tipLabel.Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend clicking 'Prune Unused' and 'Normalize References' in the Asset Manager before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes));
+			tipLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			tipLabel.AddThemeFontSizeOverride("font_size", 12);
+			tipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			tipMargin.AddChild(tipLabel);
+			vbox.AddChild(tipPanel);
+		}
+
+		var chkFullExport = new CheckBox();
+		chkFullExport.Text = TranslationServer.Translate("Full Export (Include all physical assets in package, bypassing greenlit deduplication)");
+		chkFullExport.ButtonPressed = false;
+		chkFullExport.AddThemeConstantOverride("icon_max_width", 0);
+		UIStyle.ApplyCheckboxStyle(chkFullExport);
+		vbox.AddChild(chkFullExport);
+
+		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
+		string defaultUsername = LobbyManager.Instance?.AuthenticatedUsername ?? System.Environment.UserName;
+		var (_, keyData, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
+		string currentAuthorName = !string.IsNullOrWhiteSpace(keyData?.UserName) ? keyData.UserName : defaultUsername;
+		string authorPubKey = !string.IsNullOrWhiteSpace(keyData?.PublicKey) ? keyData.PublicKey : "";
+		string shortPubKey = authorPubKey.Length > 16 ? $"{authorPubKey[..8]}...{authorPubKey[^8..]}" : authorPubKey;
+
+		var identityPanel = new PanelContainer();
+		var identityStyle = new StyleBoxFlat
+		{
+			BgColor = new Color(0.12f, 0.15f, 0.22f, 0.95f),
+			BorderColor = new Color(0.3f, 0.5f, 0.8f, 0.9f),
+			BorderWidthBottom = 1,
+			BorderWidthTop = 1,
+			BorderWidthLeft = 1,
+			BorderWidthRight = 1,
+			CornerRadiusTopLeft = 4,
+			CornerRadiusTopRight = 4,
+			CornerRadiusBottomLeft = 4,
+			CornerRadiusBottomRight = 4
+		};
+		identityPanel.AddThemeStyleboxOverride("panel", identityStyle);
+		var idMargin = new MarginContainer();
+		idMargin.AddThemeConstantOverride("margin_top", 8);
+		idMargin.AddThemeConstantOverride("margin_bottom", 8);
+		idMargin.AddThemeConstantOverride("margin_left", 12);
+		idMargin.AddThemeConstantOverride("margin_right", 12);
+		identityPanel.AddChild(idMargin);
+
+		var idVBox = new VBoxContainer();
+		idVBox.AddThemeConstantOverride("separation", 6);
+		idMargin.AddChild(idVBox);
+
+		var idHeaderHBox = new HBoxContainer();
+		idHeaderHBox.AddThemeConstantOverride("separation", 8);
+		var idHeaderLabel = new Label();
+		idHeaderLabel.Text = "🔑 " + TranslationServer.Translate("AUTHOR IDENTITY & KEY VERIFICATION");
+		idHeaderLabel.AddThemeFontSizeOverride("font_size", 13);
+		idHeaderLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		idHeaderLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		idHeaderHBox.AddChild(idHeaderLabel);
+
+		var btnEditKey = new Button();
+		btnEditKey.AddThemeConstantOverride("icon_max_width", 0);
+		btnEditKey.Text = TranslationServer.Translate("Manage Key / Identity");
+		btnEditKey.AddThemeFontSizeOverride("font_size", 11);
+		btnEditKey.CustomMinimumSize = new Vector2(160, 26);
+		btnEditKey.Pressed += () =>
+		{
+			if (_authorSignatureDialog == null)
+			{
+				_authorSignatureDialog = new AuthorSignatureDialog(this);
+			}
+			_authorSignatureDialog.OpenDialog();
+		};
+		idHeaderHBox.AddChild(btnEditKey);
+		idVBox.AddChild(idHeaderHBox);
+
+		var idDetailsLabel = new Label();
+		idDetailsLabel.Text = string.Format(TranslationServer.Translate("Author: {0} | Public Key: {1}\nKey File: {2}"), currentAuthorName, shortPubKey, keyPath);
+		idDetailsLabel.AddThemeFontSizeOverride("font_size", 11);
+		idDetailsLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.9f, 1.0f));
+		idDetailsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		idVBox.AddChild(idDetailsLabel);
+
+		var idBackupWarn = new Label();
+		idBackupWarn.Text = "⚠️ " + TranslationServer.Translate("Important: Back up your key file! Your authorship key proves ownership of your map name and allows future updates. If you lose your key file, you will permanently lose ownership and the ability to update this map.");
+		idBackupWarn.AddThemeFontSizeOverride("font_size", 11);
+		idBackupWarn.AddThemeColorOverride("font_color", new Color(1.0f, 0.75f, 0.35f));
+		idBackupWarn.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		idVBox.AddChild(idBackupWarn);
+
+		vbox.AddChild(identityPanel);
+
 		var hbox = new HBoxContainer();
 		hbox.Alignment = BoxContainer.AlignmentMode.Center;
 		hbox.AddThemeConstantOverride("separation", 20);
 		vbox.AddChild(hbox);
 
 		var btnPublish = new Button();
-		btnPublish.Text = "Publish Map";
+		btnPublish.AddThemeConstantOverride("icon_max_width", 0);
+		btnPublish.Text = TranslationServer.Translate("Publish Map");
 		btnPublish.CustomMinimumSize = new Vector2(140, 40);
 		btnPublish.Pressed += () =>
 		{
+			bool isFullExport = chkFullExport.ButtonPressed;
 			overlay.QueueFree();
-			PublishMapAction();
+			PublishMapAction(isFullExport);
 		};
 		hbox.AddChild(btnPublish);
 
 		var btnClose = new Button();
-		btnClose.Text = "Close";
+		btnClose.AddThemeConstantOverride("icon_max_width", 0);
+		btnClose.Text = TranslationServer.Translate("Close");
 		btnClose.CustomMinimumSize = new Vector2(120, 40);
 		btnClose.Pressed += () => overlay.QueueFree();
 		hbox.AddChild(btnClose);
@@ -3200,7 +3406,15 @@ public partial class MapEditorHUD : Control
 			normalized.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.godot/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".godot", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".idea/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.idea/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".idea", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/bin/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
-			normalized.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("obj", StringComparison.OrdinalIgnoreCase))
+			normalized.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith("map_backups/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/map_backups/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("map_backups", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith("map_upgrades/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/map_upgrades/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("map_upgrades", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith("backups/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/backups/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("backups", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.backups/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".backups", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".dotnet/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.dotnet/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".dotnet", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".wasi/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.wasi/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".wasi", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.sidecarcache/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".sidecarcache", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".cache/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.cache/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".cache", StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}
@@ -3209,30 +3423,7 @@ public partial class MapEditorHUD : Control
 
 	private static void CopyFileClearingReadOnly(string sourceFile, string targetFile)
 	{
-		if (System.IO.File.Exists(targetFile))
-		{
-			var attrs = System.IO.File.GetAttributes(targetFile);
-			if ((attrs & System.IO.FileAttributes.ReadOnly) != 0)
-			{
-				System.IO.File.SetAttributes(targetFile, attrs & ~System.IO.FileAttributes.ReadOnly);
-			}
-		}
-
-		// A previous WASM build may still be releasing the target file; retry briefly
-		// so transient file locks do not abort the whole Test copy.
-		const int maxAttempts = 10;
-		for (int attempt = 0; ; attempt++)
-		{
-			try
-			{
-				System.IO.File.Copy(sourceFile, targetFile, true);
-				return;
-			}
-			catch (System.IO.IOException) when (attempt < maxAttempts - 1)
-			{
-				System.Threading.Thread.Sleep(250);
-			}
-		}
+		PathUtils.CopyFileClearingReadOnly(sourceFile, targetFile);
 	}
 
 	private void CopyFolderToTempWorkspace(string sourceFolder)
@@ -3244,7 +3435,7 @@ public partial class MapEditorHUD : Control
 		}
 		
 		var allFiles = System.IO.Directory.GetFiles(sourceFolder, "*", System.IO.SearchOption.AllDirectories);
-		var filesToCopy = new List<(string Source, string Target)>(allFiles.Length);
+		var filesToProcess = new List<(string Source, string Target, bool IsMutable)>(allFiles.Length);
 		var createdDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var file in allFiles)
@@ -3258,12 +3449,19 @@ public partial class MapEditorHUD : Control
 			{
 				System.IO.Directory.CreateDirectory(targetDir);
 			}
-			filesToCopy.Add((file, targetFile));
+			filesToProcess.Add((file, targetFile, PathUtils.IsMutableMapFileType(relativePath)));
 		}
 
-		System.Threading.Tasks.Parallel.ForEach(filesToCopy, pair =>
+		System.Threading.Tasks.Parallel.ForEach(filesToProcess, item =>
 		{
-			CopyFileClearingReadOnly(pair.Source, pair.Target);
+			if (item.IsMutable)
+			{
+				PathUtils.CopyFileClearingReadOnly(item.Source, item.Target);
+			}
+			else
+			{
+				PathUtils.LinkOrCopyFile(item.Source, item.Target, preferHardLink: true);
+			}
 		});
 
 		MapWorkspaceService.EnsureWitFile(_tempWorkspacePath);
@@ -3300,7 +3498,7 @@ public partial class MapEditorHUD : Control
 
 		System.Threading.Tasks.Parallel.ForEach(filesToCopy, pair =>
 		{
-			CopyFileClearingReadOnly(pair.Source, pair.Target);
+			PathUtils.CopyFileClearingReadOnly(pair.Source, pair.Target);
 		});
 		
 		if (OperatingSystem.IsWindows())
@@ -3388,16 +3586,7 @@ public partial class MapEditorHUD : Control
 			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) => {
 				if (status && selectedPaths.Length > 0)
 				{
-					string selectedFolder = selectedPaths[0];
-					if (IsRestrictedSaveDirectory(selectedFolder))
-					{
-						ShowFeedback(TranslationServer.Translate("Cannot save to restricted application directory. Please choose a folder in Documents or your workspace."));
-						return;
-					}
-
-					_lastUsedFolder = selectedFolder;
-					_currentSourceFolder = selectedFolder;
-					_ = SaveMapToFolderAsync(selectedFolder);
+					HandleSaveToFolder(selectedPaths[0]);
 				}
 				else
 				{
@@ -3410,10 +3599,72 @@ public partial class MapEditorHUD : Control
 		{
 			string defaultFolder = GetDefaultDevelopmentMapDirectory();
 			try { System.IO.Directory.CreateDirectory(defaultFolder); } catch { }
-			_lastUsedFolder = defaultFolder;
-			_currentSourceFolder = defaultFolder;
-			_ = SaveMapToFolderAsync(defaultFolder);
+			HandleSaveToFolder(defaultFolder);
 		}
+	}
+
+	private void HandleSaveToFolder(string selectedFolder)
+	{
+		if (string.IsNullOrWhiteSpace(selectedFolder)) return;
+
+		string fullSelectedPath = System.IO.Path.GetFullPath(selectedFolder);
+
+		if (IsRestrictedSaveDirectory(fullSelectedPath))
+		{
+			ShowFeedback(TranslationServer.Translate("Cannot save to restricted application directory. Please choose a folder in Documents or your workspace."));
+			return;
+		}
+
+		var parentDir = System.IO.Directory.GetParent(fullSelectedPath);
+		while (parentDir != null)
+		{
+			if (System.IO.File.Exists(System.IO.Path.Combine(parentDir.FullName, "manifest.json")))
+			{
+				ShowFeedback(TranslationServer.Translate("Cannot save map inside an existing map folder. Please select a separate root directory."));
+				return;
+			}
+			parentDir = parentDir.Parent;
+		}
+
+		if (System.IO.Directory.Exists(fullSelectedPath))
+		{
+			try
+			{
+				foreach (string subDir in System.IO.Directory.EnumerateDirectories(fullSelectedPath))
+				{
+					if (System.IO.File.Exists(System.IO.Path.Combine(subDir, "manifest.json")))
+					{
+						ShowFeedback(TranslationServer.Translate("Found nested map inside selected folder. Cannot save to this folder location."));
+						return;
+					}
+				}
+			}
+			catch { }
+		}
+
+		string rootManifest = System.IO.Path.Combine(fullSelectedPath, "manifest.json");
+		bool isSameAsCurrent = !string.IsNullOrEmpty(_currentSourceFolder) &&
+			string.Equals(fullSelectedPath, System.IO.Path.GetFullPath(_currentSourceFolder), StringComparison.OrdinalIgnoreCase);
+
+		if (System.IO.File.Exists(rootManifest) && !isSameAsCurrent)
+		{
+			ShowConfirmationDialog(
+				TranslationServer.Translate("An existing map was found in this folder. Overwrite existing map?"),
+				() =>
+				{
+					_lastUsedFolder = fullSelectedPath;
+					_currentSourceFolder = fullSelectedPath;
+					_ = SaveMapToFolderAsync(fullSelectedPath);
+				},
+				confirmText: TranslationServer.Translate("OVERWRITE"),
+				cancelText: TranslationServer.Translate("CANCEL")
+			);
+			return;
+		}
+
+		_lastUsedFolder = fullSelectedPath;
+		_currentSourceFolder = fullSelectedPath;
+		_ = SaveMapToFolderAsync(fullSelectedPath);
 	}
 
 	public void LoadMapAction()
@@ -3438,11 +3689,7 @@ public partial class MapEditorHUD : Control
 
 		if (err != Error.Ok)
 		{
-			string defaultFolder = ProjectSettings.GlobalizePath("user://maps/default_map");
-			if (System.IO.Directory.Exists(defaultFolder))
-			{
-				_ = LoadMapFolderAsync(defaultFolder);
-			}
+			ShowFeedback(TranslationServer.Translate("Map could not be loaded."));
 		}
 	}
 
@@ -3588,6 +3835,7 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 
+		GameHost.Instance?.ClearMapEntirely();
 		_lastUsedFolder = selectedFolder;
 		_currentSourceFolder = selectedFolder;
 
@@ -3640,6 +3888,7 @@ public partial class MapEditorHUD : Control
 			return false;
 		}
 
+		GameHost.Instance?.ClearMapEntirely();
 		_isSyncing = true;
 		try
 		{
@@ -3901,7 +4150,7 @@ public partial class MapEditorHUD : Control
 		btnClose.Pressed += () => overlay.QueueFree();
 		hbox.AddChild(btnClose);
 	}
-	private async void PublishMapAction()
+	private async void PublishMapAction(bool fullExport = false)
 	{
 		if (GameHost.Instance == null || _isSyncing) return;
 		_isSyncing = true;
@@ -4711,6 +4960,8 @@ public partial class MapEditorHUD : Control
 
 	public void LoadMapProperties()
 	{
+		RuntimeTerrain.Instance?.ReloadWaterProfiles();
+		RefreshWaterSwatches();
 		_mapSettingsDialog?.LoadMapProperties();
 	}
 
@@ -5210,14 +5461,9 @@ public partial class MapEditorHUD : Control
 		btnRegister.CustomMinimumSize = new Vector2(150, 36);
 		btnRegister.Pressed += async () => {
 			string username = lineEdit.Text.Trim();
-			if (string.IsNullOrEmpty(username))
+			if (!NameNormalizationHelper.ValidateUsername(username, out var validationError))
 			{
-				errLabel.Text = TranslationServer.Translate("Username cannot be empty.");
-				return;
-			}
-			if (username.Length > 32)
-			{
-				errLabel.Text = TranslationServer.Translate("Username must be 32 characters or less.");
+				errLabel.Text = TranslationServer.Translate(validationError ?? "Invalid username.");
 				return;
 			}
 
@@ -5291,7 +5537,27 @@ public partial class MapEditorHUD : Control
 
 	public void ImportTerrainFromMinimapDialog()
 	{
-		OpenAssetBrowser("Select Minimap Image to Import Terrain", new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" }, ImportTerrainFromMinimapPath);
+		string initialDir = GetInitialDirectory();
+		var err = DisplayServer.FileDialogShow(
+			TranslationServer.Translate("Select Minimap Image to Import Terrain"),
+			initialDir,
+			"",
+			false,
+			DisplayServer.FileDialogMode.OpenFile,
+			new[] { "*.png,*.jpg,*.jpeg,*.webp,*.gif ; Image Files (*.png, *.jpg, *.jpeg, *.webp, *.gif)" },
+			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
+			{
+				if (status && selectedPaths.Length > 0)
+				{
+					ImportTerrainFromMinimapPath(selectedPaths[0]);
+				}
+			})
+		);
+
+		if (err != Error.Ok)
+		{
+			ShowFeedback(TranslationServer.Translate("Failed to show file dialog"));
+		}
 	}
 
 	private void ImportTerrainFromMinimapPath(string selectedPath)
@@ -6406,34 +6672,45 @@ public partial class MapEditorHUD : Control
 				SafeReparent(_minimapFrame, targetViewport);
 			}
 
-			var vpRow = new HBoxContainer();
-			vpRow.Name = "ViewportIconRow";
-			vpRow.AddThemeConstantOverride("separation", 4);
-			vpRow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			var vpRow1 = new HBoxContainer();
+			vpRow1.Name = "ViewportIconRow1";
+			vpRow1.AddThemeConstantOverride("separation", 4);
+			vpRow1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+
+			var vpRow2 = new HBoxContainer();
+			vpRow2.Name = "ViewportIconRow2";
+			vpRow2.AddThemeConstantOverride("separation", 4);
+			vpRow2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 			StyleIconButton(_btnToggleGrid, "\uf84c", "Toggle alignment grid lines overlay (V)");
 			StyleIconButton(_btnToggleCameraBounds, "\uf06e", "Toggle camera bounds overlay (B)");
 			StyleIconButton(_btnToggleWireframe, "\uf5ee", "Toggle wireframe mode (F7)");
+			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
+			StyleIconButton(_btnWeather, "\uf738", "Cycle weather effects (K)");
+
 			StyleIconButton(_btnRotate, "\uf01e", "Rotate camera 90 degrees (R)");
 			StyleIconButton(_btnCameraAngle, "\uf1b2", "Toggle perspective vs top-down angle (C)");
-			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
 			StyleIconButton(_btnZoomIn, "\uf00e", "Zoom camera in (+)");
 			StyleIconButton(_btnZoomOut, "\uf010", "Zoom camera out (-)");
 			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
 
-			SafeReparent(_btnToggleGrid, vpRow);
-			SafeReparent(_btnToggleCameraBounds, vpRow);
-			SafeReparent(_btnToggleWireframe, vpRow);
-			SafeReparent(_btnRotate, vpRow);
-			SafeReparent(_btnCameraAngle, vpRow);
-			SafeReparent(_btnSkybox, vpRow);
-			SafeReparent(_btnZoomIn, vpRow);
-			SafeReparent(_btnZoomOut, vpRow);
-			SafeReparent(_btnFreeCamera, vpRow);
+			SafeReparent(_btnToggleGrid, vpRow1);
+			SafeReparent(_btnToggleCameraBounds, vpRow1);
+			SafeReparent(_btnToggleWireframe, vpRow1);
+			SafeReparent(_btnSkybox, vpRow1);
+			SafeReparent(_btnWeather, vpRow1);
+
+			SafeReparent(_btnRotate, vpRow2);
+			SafeReparent(_btnCameraAngle, vpRow2);
+			SafeReparent(_btnZoomIn, vpRow2);
+			SafeReparent(_btnZoomOut, vpRow2);
+			SafeReparent(_btnFreeCamera, vpRow2);
 
 			var vpBox = new VBoxContainer();
 			vpBox.Name = "BoxViewportToolbar";
-			vpBox.AddChild(vpRow);
+			vpBox.AddThemeConstantOverride("separation", 4);
+			vpBox.AddChild(vpRow1);
+			vpBox.AddChild(vpRow2);
 			StyleSubContainer(vpBox, "Navigation Bar");
 
 			targetViewport.AddChild(vpBox);
@@ -7002,7 +7279,7 @@ public partial class MapEditorHUD : Control
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
-		if (@event is InputEventKey keyEvent && keyEvent.Pressed)
+		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo)
 		{
 			if (keyEvent.Keycode == Godot.Key.F1)
 			{
@@ -7583,9 +7860,24 @@ public partial class MapEditorHUD : Control
 
 			if (_gridSwatches != null)
 			{
+				if (_scrollSwatches == null && _gridSwatches.GetParent() is VBoxContainer parentVBox)
+				{
+					int gridIndex = _gridSwatches.GetIndex();
+					parentVBox.RemoveChild(_gridSwatches);
+					_scrollSwatches = new ScrollContainer();
+					_scrollSwatches.Name = "ScrollSwatches";
+					_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+					_scrollSwatches.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+					_scrollSwatches.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+					_scrollSwatches.AddChild(_gridSwatches);
+					parentVBox.AddChild(_scrollSwatches);
+					parentVBox.MoveChild(_scrollSwatches, gridIndex);
+				}
+
+				int totalColumns = 6;
 				if (_gridSwatches is GridContainer gridSwatchesContainer)
 				{
-					gridSwatchesContainer.Columns = 6;
+					gridSwatchesContainer.Columns = totalColumns;
 				}
 				foreach (Node child in _gridSwatches.GetChildren())
 				{
@@ -7594,6 +7886,7 @@ public partial class MapEditorHUD : Control
 				}
 				_swatchButtons.Clear();
 
+				int visibleCount = 0;
 				for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)
 				{
 					var slot = slots[i];
@@ -7604,6 +7897,7 @@ public partial class MapEditorHUD : Control
 					btn.ExpandIcon = true;
 					btn.FocusMode = FocusModeEnum.None;
 					btn.CustomMinimumSize = new Vector2(40, 40);
+					btn.Set("icon_max_width", 0);
 					btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 					btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 					btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -7611,6 +7905,7 @@ public partial class MapEditorHUD : Control
 					if (!slot.IsFiller && !string.IsNullOrEmpty(slot.BaseName))
 					{
 						btn.Visible = true;
+						visibleCount++;
 						Texture2D tex = GetSwatchTexture(slotIndex);
 						if (tex != null)
 						{
@@ -7665,6 +7960,29 @@ public partial class MapEditorHUD : Control
 
 					_gridSwatches.AddChild(btn);
 					_swatchButtons.Add(btn);
+				}
+
+				const int maxVisibleSwatchesBeforeScroll = 36;
+				int numRows = (int)MathF.Ceiling((float)visibleCount / totalColumns);
+				if (numRows < 1) numRows = 1;
+				int maxRows = maxVisibleSwatchesBeforeScroll / totalColumns;
+				int displayedRows = Math.Min(numRows, maxRows);
+
+				float rowHeight = 40f;
+				float vSeparation = 6f;
+				if (_gridSwatches is GridContainer gc && gc.HasThemeConstantOverride("v_separation"))
+				{
+					vSeparation = gc.GetThemeConstant("v_separation");
+				}
+				float targetHeight = displayedRows * rowHeight + Math.Max(0, displayedRows - 1) * vSeparation;
+
+				if (_scrollSwatches != null)
+				{
+					_scrollSwatches.CustomMinimumSize = new Vector2(0, targetHeight);
+					_scrollSwatches.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+					_scrollSwatches.VerticalScrollMode = visibleCount > maxVisibleSwatchesBeforeScroll 
+						? ScrollContainer.ScrollMode.Auto 
+						: ScrollContainer.ScrollMode.Disabled;
 				}
 			}
 		}
@@ -7926,6 +8244,11 @@ public partial class MapEditorHUD : Control
 		if (_is3DInteractionActive == active) return;
 		_is3DInteractionActive = active;
 
+		if (!EditorSettingsDialog.CurrentSettings.HideHudDuringToolUsage && active)
+		{
+			return;
+		}
+
 		if (active)
 		{
 			_savedMouseFilters.Clear();
@@ -7963,7 +8286,7 @@ public partial class MapEditorHUD : Control
 
 		_hudFadeTween = CreateTween();
 		_hudFadeTween.SetParallel(true);
-		float targetAlpha = active ? 0.0f : 1.0f;
+		float targetAlpha = (active && EditorSettingsDialog.CurrentSettings.HideHudDuringToolUsage) ? 0.0f : 1.0f;
 		float duration = 0.35f;
 
 		if (GodotObject.IsInstanceValid(_topLeftBox))
@@ -8306,7 +8629,11 @@ public partial class MapEditorHUD : Control
 		_editorSettingsDialog = new EditorSettingsDialog(this);
 		_shaderEditorDialog = new ShaderEditorDialog(this);
 		_vfxStudioDialog = new VfxStudioDialog(this);
+		_proceduralAnimationStudioDialog = new ProceduralAnimationStudioDialog(this);
 		_authorSignatureDialog = new AuthorSignatureDialog(this);
+		_waterProfileDialog = new WaterProfileDialog(this);
+		_environmentConfigDialog = new EnvironmentConfigDialog(this);
+		RefreshWaterSwatches();
 		ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
 
 		_btnOpenAnimationPreview = new Button();
@@ -8927,6 +9254,15 @@ public partial class MapEditorHUD : Control
 		_shaderEditorDialog.OpenForShader(shaderKey, onSaved);
 	}
 
+	public void OpenProceduralAnimationStudioDialog(Realm.Godot.VFX.ProceduralAnimationConfig initialConfig = null, Action<Realm.Godot.VFX.ProceduralAnimationConfig> onApplied = null, string previewModelKey = null)
+	{
+		if (_proceduralAnimationStudioDialog == null)
+		{
+			_proceduralAnimationStudioDialog = new ProceduralAnimationStudioDialog(this);
+		}
+		_proceduralAnimationStudioDialog.OpenForConfig(initialConfig, onApplied, previewModelKey);
+	}
+
 	public void OpenModelPickerDialog(string entityId, string fieldName, string domain, string currentPath, Action<string> onApplied = null)
 	{
 		if (_modelPickerDialog == null)
@@ -9278,7 +9614,7 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
-	public async System.Threading.Tasks.Task ExportMapPackageAsync(string destinationPath)
+	public async System.Threading.Tasks.Task ExportMapPackageAsync(string destinationPath, bool fullExport = false)
 	{
 		if (GameHost.Instance == null) return;
 
@@ -9541,6 +9877,7 @@ public partial class MapEditorHUD : Control
 			statusLabel.Text = TranslationServer.Translate("Compressing package into .rmap archive...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
+			var excludedPaths = !fullExport ? MapNormalizationHelper.GetExcludedRelativePaths(_tempWorkspacePath) : null;
 			long lastProgressUpdateTicks = 0;
 			await System.Threading.Tasks.Task.Run(() =>
 			{
@@ -9561,7 +9898,7 @@ public partial class MapEditorHUD : Control
 							statusLabel.Text = string.Format(TranslationServer.Translate("Compressing {0} ({1}%)..."), fileName, (int)(pct * 100));
 						}
 					}).CallDeferred();
-				}, compressionLevel: 1);
+				}, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths);
 			});
 
 			progressBar.Value = 100;
@@ -9956,6 +10293,11 @@ public partial class MapEditorHUD : Control
 		if (rightPanel != null && !prefs.HideChromeBorderOverlay)
 		{
 			rightPanel.Modulate = new Color(1, 1, 1, prefs.PanelOpacity);
+		}
+
+		if (!prefs.HideHudDuringToolUsage && _is3DInteractionActive)
+		{
+			Set3DInteractionActive(false);
 		}
 	}
 
@@ -10634,19 +10976,20 @@ public partial class MapEditorHUD : Control
 
 	public void ReadMetadataAndRefreshTextures()
 	{
-		if (_isSyncing) return;
 		try
 		{
 			string wsPath = string.IsNullOrEmpty(_tempWorkspacePath) 
 				? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 				: _tempWorkspacePath;
 			string metadataPath = System.IO.Path.Combine(wsPath, "metadata.json");
-			if (!System.IO.File.Exists(metadataPath)) return;
 
 			string texDir = System.IO.Path.Combine(wsPath, "Assets", "textures");
 			System.IO.Directory.CreateDirectory(texDir);
 
-			MapWorkspaceService.NormalizeMetadataTextureEntries(wsPath);
+			if (System.IO.File.Exists(metadataPath))
+			{
+				MapWorkspaceService.NormalizeMetadataTextureEntries(wsPath);
+			}
 			InvalidateMetadataCache();
 
 			_swatchTextureCache.Clear();
@@ -10656,8 +10999,11 @@ public partial class MapEditorHUD : Control
 			}
 			SetupTextureSwatches(false);
 			RefreshSkyboxList();
-			GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(wsPath);
-			GameHost.Instance?.LoadUnitMetadata(wsPath);
+			if (System.IO.File.Exists(metadataPath))
+			{
+				GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(wsPath);
+				GameHost.Instance?.LoadUnitMetadata(wsPath);
+			}
 			_entityPaletteController?.SelectCategory(_entityPaletteController.CurrentCategory, triggerAddObject: false);
 		}
 		catch (Exception ex)
@@ -11006,43 +11352,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnHeaderLightingTuning;
 	private VBoxContainer _contentLightingTuning;
 
-	private bool _tuneOverrideDayNight = false;
-
-	private float _tuneSunPitch = 55.0f;
-	private float _tuneSunYaw = 20.0f;
-	private float _tuneSunEnergy = 3.20f;
-	private float _tuneSunR = 1.000f;
-	private float _tuneSunG = 0.957f;
-	private float _tuneSunB = 0.878f;
-
-	private float _tuneAmbientEnergy = 2.00f;
-	private float _tuneAmbientR = 0.400f;
-	private float _tuneAmbientG = 0.600f;
-	private float _tuneAmbientB = 0.850f;
-
-	private bool _tuneFogEnabled = true;
-	private float _tuneFogDensity = 0.0150f;
-	private float _tuneFogR = 0.080f;
-	private float _tuneFogG = 0.100f;
-	private float _tuneFogB = 0.150f;
-
-	private bool _tuneSsaoEnabled = true;
-	private float _tuneSsaoRadius = 1.80f;
-	private float _tuneSsaoIntensity = 0.80f;
-
-	private float _tuneExposure = 1.00f;
-	private float _tuneContrast = 1.00f;
-	private float _tuneSaturation = 1.05f;
-
-	private float _tuneBloomIntensity = 0.60f;
-	private float _tuneBloomThreshold = 0.12f;
-
-	private HSlider _sldSunPitch, _sldSunYaw, _sldSunEnergy, _sldSunR, _sldSunG, _sldSunB;
-	private HSlider _sldShadowPitch, _sldShadowYaw, _sldShadowEnergy, _sldShadowOpacity;
-	private HSlider _sldAmbientEnergy, _sldAmbientR, _sldAmbientG, _sldAmbientB;
-	private HSlider _sldFogDensity, _sldFogR, _sldFogG, _sldFogB;
-	private HSlider _sldSsaoRadius, _sldSsaoIntensity;
-	private HSlider _sldExposure, _sldContrast, _sldSaturation, _sldBloomIntensity, _sldBloomThreshold;
 	private HSlider _sldCliffJitterStrength, _sldCliffJitterScale, _sldCliffRimNoiseStrength;
 	private HSlider _sldHeightBlendSoftness, _sldBlendNoiseStrength, _sldBlendNoiseScale;
 	private float _tuneCliffJitterStrength = 1.0f;
@@ -11080,50 +11389,6 @@ public partial class MapEditorHUD : Control
 		StyleAccordionHeader(_btnHeaderLightingTuning);
 		SetupAccordion(_btnHeaderLightingTuning, _contentLightingTuning, "💡 Lighting Tuning (Live Override)");
 
-		CreateToggleRow(_contentLightingTuning, "Freeze Day/Night Cycle (Live Override)", _tuneOverrideDayNight, val => {
-			_tuneOverrideDayNight = val;
-			ApplyLiveLightingTuning();
-		});
-
-		var btnLog = new Button();
-		btnLog.Text = "📋 LOG / COPY VALUES TO CLIPBOARD";
-		btnLog.CustomMinimumSize = new Vector2(0, 26);
-		btnLog.Pressed += LogLightingTuningValues;
-		_contentLightingTuning.AddChild(btnLog);
-
-		CreateSectionHeader(_contentLightingTuning, "--- SUN (PRIMARY LIGHT) ---");
-		_sldSunPitch = CreateSliderRow(_contentLightingTuning, "Sun Pitch", -90f, 90f, 1f, _tuneSunPitch, val => { _tuneSunPitch = val; ApplyLiveLightingTuning(); });
-		_sldSunYaw = CreateSliderRow(_contentLightingTuning, "Sun Yaw", -180f, 180f, 1f, _tuneSunYaw, val => { _tuneSunYaw = val; ApplyLiveLightingTuning(); });
-		_sldSunEnergy = CreateSliderRow(_contentLightingTuning, "Sun Energy", 0f, 5f, 0.05f, _tuneSunEnergy, val => { _tuneSunEnergy = val; ApplyLiveLightingTuning(); });
-		_sldSunR = CreateSliderRow(_contentLightingTuning, "Sun Red", 0f, 1f, 0.01f, _tuneSunR, val => { _tuneSunR = val; ApplyLiveLightingTuning(); });
-		_sldSunG = CreateSliderRow(_contentLightingTuning, "Sun Green", 0f, 1f, 0.01f, _tuneSunG, val => { _tuneSunG = val; ApplyLiveLightingTuning(); });
-		_sldSunB = CreateSliderRow(_contentLightingTuning, "Sun Blue", 0f, 1f, 0.01f, _tuneSunB, val => { _tuneSunB = val; ApplyLiveLightingTuning(); });
-
-		CreateSectionHeader(_contentLightingTuning, "--- AMBIENT LIGHT ---");
-		_sldAmbientEnergy = CreateSliderRow(_contentLightingTuning, "Amb Energy", 0f, 3f, 0.05f, _tuneAmbientEnergy, val => { _tuneAmbientEnergy = val; ApplyLiveLightingTuning(); });
-		_sldAmbientR = CreateSliderRow(_contentLightingTuning, "Amb Red", 0f, 1f, 0.01f, _tuneAmbientR, val => { _tuneAmbientR = val; ApplyLiveLightingTuning(); });
-		_sldAmbientG = CreateSliderRow(_contentLightingTuning, "Amb Green", 0f, 1f, 0.01f, _tuneAmbientG, val => { _tuneAmbientG = val; ApplyLiveLightingTuning(); });
-		_sldAmbientB = CreateSliderRow(_contentLightingTuning, "Amb Blue", 0f, 1f, 0.01f, _tuneAmbientB, val => { _tuneAmbientB = val; ApplyLiveLightingTuning(); });
-
-		CreateSectionHeader(_contentLightingTuning, "--- ATMOSPHERIC FOG ---");
-		CreateToggleRow(_contentLightingTuning, "Fog Enabled", _tuneFogEnabled, val => { _tuneFogEnabled = val; ApplyLiveLightingTuning(); });
-		_sldFogDensity = CreateSliderRow(_contentLightingTuning, "Fog Density", 0f, 0.03f, 0.0005f, _tuneFogDensity, val => { _tuneFogDensity = val; ApplyLiveLightingTuning(); });
-		_sldFogR = CreateSliderRow(_contentLightingTuning, "Fog Red", 0f, 1f, 0.01f, _tuneFogR, val => { _tuneFogR = val; ApplyLiveLightingTuning(); });
-		_sldFogG = CreateSliderRow(_contentLightingTuning, "Fog Green", 0f, 1f, 0.01f, _tuneFogG, val => { _tuneFogG = val; ApplyLiveLightingTuning(); });
-		_sldFogB = CreateSliderRow(_contentLightingTuning, "Fog Blue", 0f, 1f, 0.01f, _tuneFogB, val => { _tuneFogB = val; ApplyLiveLightingTuning(); });
-
-		CreateSectionHeader(_contentLightingTuning, "--- SSAO (AMBIENT OCCLUSION) ---");
-		CreateToggleRow(_contentLightingTuning, "SSAO Enabled", _tuneSsaoEnabled, val => { _tuneSsaoEnabled = val; ApplyLiveLightingTuning(); });
-		_sldSsaoRadius = CreateSliderRow(_contentLightingTuning, "SSAO Radius", 0.1f, 5f, 0.1f, _tuneSsaoRadius, val => { _tuneSsaoRadius = val; ApplyLiveLightingTuning(); });
-		_sldSsaoIntensity = CreateSliderRow(_contentLightingTuning, "SSAO Intensity", 0f, 6f, 0.1f, _tuneSsaoIntensity, val => { _tuneSsaoIntensity = val; ApplyLiveLightingTuning(); });
-
-		CreateSectionHeader(_contentLightingTuning, "--- POST-PROCESSING ---");
-		_sldExposure = CreateSliderRow(_contentLightingTuning, "Exposure", 0.1f, 3f, 0.02f, _tuneExposure, val => { _tuneExposure = val; ApplyLiveLightingTuning(); });
-		_sldContrast = CreateSliderRow(_contentLightingTuning, "Contrast", 0.5f, 2f, 0.02f, _tuneContrast, val => { _tuneContrast = val; ApplyLiveLightingTuning(); });
-		_sldSaturation = CreateSliderRow(_contentLightingTuning, "Saturation", 0f, 2f, 0.02f, _tuneSaturation, val => { _tuneSaturation = val; ApplyLiveLightingTuning(); });
-		_sldBloomIntensity = CreateSliderRow(_contentLightingTuning, "Bloom Intensity", 0f, 2f, 0.05f, _tuneBloomIntensity, val => { _tuneBloomIntensity = val; ApplyLiveLightingTuning(); });
-		_sldBloomThreshold = CreateSliderRow(_contentLightingTuning, "Bloom Threshold", 0f, 1f, 0.02f, _tuneBloomThreshold, val => { _tuneBloomThreshold = val; ApplyLiveLightingTuning(); });
-
 		CreateSectionHeader(_contentLightingTuning, "--- TERRAIN CLIFFS & SILHOUETTES ---");
 		_sldCliffJitterStrength = CreateSliderRow(_contentLightingTuning, "Cliff Jitter Str", 0f, 2f, 0.02f, _tuneCliffJitterStrength, val => { _tuneCliffJitterStrength = val; ApplyLiveLightingTuning(); });
 		_sldCliffJitterScale = CreateSliderRow(_contentLightingTuning, "Cliff Jitter Scl", 0.01f, 0.5f, 0.005f, _tuneCliffJitterScale, val => { _tuneCliffJitterScale = val; ApplyLiveLightingTuning(); }, "0.00#");
@@ -11134,85 +11399,11 @@ public partial class MapEditorHUD : Control
 		_sldBlendNoiseStrength = CreateSliderRow(_contentLightingTuning, "Blend Noise Str", 0f, 1f, 0.02f, _tuneBlendNoiseStrength, val => { _tuneBlendNoiseStrength = val; ApplyLiveLightingTuning(); });
 		_sldBlendNoiseScale = CreateSliderRow(_contentLightingTuning, "Blend Noise Scl", 0.01f, 0.5f, 0.005f, _tuneBlendNoiseScale, val => { _tuneBlendNoiseScale = val; ApplyLiveLightingTuning(); }, "0.00#");
 
-		UpdateLightingTuningSlidersFromPhase(0);
 		lightingAccordion.Visible = false;
-	}
-
-	public void UpdateLightingTuningSlidersFromPhase(int phaseIndex)
-	{
-		phaseIndex = Math.Clamp(phaseIndex, 0, 3);
-
-		_tuneSunPitch = EnvironmentService.SunPitches[phaseIndex];
-		_tuneSunYaw = EnvironmentService.SunYaws[phaseIndex];
-		_tuneSunEnergy = EnvironmentService.SunEnergies[phaseIndex];
-		_tuneSunR = EnvironmentService.SunColors[phaseIndex].R;
-		_tuneSunG = EnvironmentService.SunColors[phaseIndex].G;
-		_tuneSunB = EnvironmentService.SunColors[phaseIndex].B;
-
-		_tuneAmbientEnergy = EnvironmentService.AmbientEnergies[phaseIndex];
-		_tuneAmbientR = EnvironmentService.AmbientColors[phaseIndex].R;
-		_tuneAmbientG = EnvironmentService.AmbientColors[phaseIndex].G;
-		_tuneAmbientB = EnvironmentService.AmbientColors[phaseIndex].B;
-
-		_tuneFogEnabled = true;
-		_tuneFogDensity = EnvironmentService.FogDensities[phaseIndex];
-		_tuneFogR = EnvironmentService.FogColors[phaseIndex].R;
-		_tuneFogG = EnvironmentService.FogColors[phaseIndex].G;
-		_tuneFogB = EnvironmentService.FogColors[phaseIndex].B;
-
-		_tuneSsaoEnabled = true;
-		_tuneSsaoRadius = EnvironmentService.SsaoRadii[phaseIndex];
-		_tuneSsaoIntensity = EnvironmentService.SsaoIntensities[phaseIndex];
-
-		_tuneExposure = EnvironmentService.Exposures[phaseIndex];
-		_tuneContrast = EnvironmentService.Contrasts[phaseIndex];
-		_tuneSaturation = EnvironmentService.Saturations[phaseIndex];
-
-		_tuneBloomIntensity = EnvironmentService.GlowIntensities[phaseIndex];
-		_tuneBloomThreshold = EnvironmentService.GlowBlooms[phaseIndex];
-
-		if (_sldSunPitch != null) _sldSunPitch.Value = _tuneSunPitch;
-		if (_sldSunYaw != null) _sldSunYaw.Value = _tuneSunYaw;
-		if (_sldSunEnergy != null) _sldSunEnergy.Value = _tuneSunEnergy;
-		if (_sldSunR != null) _sldSunR.Value = _tuneSunR;
-		if (_sldSunG != null) _sldSunG.Value = _tuneSunG;
-		if (_sldSunB != null) _sldSunB.Value = _tuneSunB;
-
-		if (_sldAmbientEnergy != null) _sldAmbientEnergy.Value = _tuneAmbientEnergy;
-		if (_sldAmbientR != null) _sldAmbientR.Value = _tuneAmbientR;
-		if (_sldAmbientG != null) _sldAmbientG.Value = _tuneAmbientG;
-		if (_sldAmbientB != null) _sldAmbientB.Value = _tuneAmbientB;
-
-		if (_sldFogDensity != null) _sldFogDensity.Value = _tuneFogDensity;
-		if (_sldFogR != null) _sldFogR.Value = _tuneFogR;
-		if (_sldFogG != null) _sldFogG.Value = _tuneFogG;
-		if (_sldFogB != null) _sldFogB.Value = _tuneFogB;
-
-		if (_sldSsaoRadius != null) _sldSsaoRadius.Value = _tuneSsaoRadius;
-		if (_sldSsaoIntensity != null) _sldSsaoIntensity.Value = _tuneSsaoIntensity;
-
-		if (_sldExposure != null) _sldExposure.Value = _tuneExposure;
-		if (_sldContrast != null) _sldContrast.Value = _tuneContrast;
-		if (_sldSaturation != null) _sldSaturation.Value = _tuneSaturation;
-
-		if (_sldBloomIntensity != null) _sldBloomIntensity.Value = _tuneBloomIntensity;
-		if (_sldBloomThreshold != null) _sldBloomThreshold.Value = _tuneBloomThreshold;
-
-		if (_sldCliffJitterStrength != null) _sldCliffJitterStrength.Value = _tuneCliffJitterStrength;
-		if (_sldCliffJitterScale != null) _sldCliffJitterScale.Value = _tuneCliffJitterScale;
-		if (_sldCliffRimNoiseStrength != null) _sldCliffRimNoiseStrength.Value = _tuneCliffRimNoiseStrength;
-		if (_sldHeightBlendSoftness != null) _sldHeightBlendSoftness.Value = _tuneHeightBlendSoftness;
-		if (_sldBlendNoiseStrength != null) _sldBlendNoiseStrength.Value = _tuneBlendNoiseStrength;
-		if (_sldBlendNoiseScale != null) _sldBlendNoiseScale.Value = _tuneBlendNoiseScale;
 	}
 
 	private void ApplyLiveLightingTuning()
 	{
-		if (GameHost.Instance == null) return;
-		var host = GameHost.Instance;
-		var worldEnv = host.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
-		var sun = host.GetNodeOrNull<DirectionalLight3D>("DirectionalLight3D");
-
 		if (EditableTerrain.Instance?.Material != null)
 		{
 			EditableTerrain.Instance.CliffJitterStrength = _tuneCliffJitterStrength;
@@ -11228,79 +11419,6 @@ public partial class MapEditorHUD : Control
 			EditableTerrain.Instance.Material.SetShaderParameter("blend_noise_strength", _tuneBlendNoiseStrength);
 			EditableTerrain.Instance.Material.SetShaderParameter("blend_noise_scale", _tuneBlendNoiseScale);
 		}
-
-		if (GameHost.Instance.EnvironmentService != null)
-		{
-			GameHost.Instance.EnvironmentService.OverrideDayNightVisuals = _tuneOverrideDayNight;
-		}
-
-		if (!_tuneOverrideDayNight) return;
-
-		if (sun != null)
-		{
-			sun.RotationDegrees = new Vector3(_tuneSunPitch, _tuneSunYaw, 0f);
-			sun.LightEnergy = _tuneSunEnergy;
-			sun.LightColor = new Color(_tuneSunR, _tuneSunG, _tuneSunB);
-			sun.LightSpecular = 0.5f;
-			sun.DirectionalShadowBlendSplits = true;
-			sun.DirectionalShadowFadeStart = 0.8f;
-			sun.ShadowBias = 0.03f;
-			sun.ShadowNormalBias = 1.2f;
-			GameSettings.ApplyDirectionalLightQuality(sun);
-		}
-
-		if (worldEnv != null && worldEnv.Environment != null)
-		{
-			var env = worldEnv.Environment;
-			env.AmbientLightSource = Godot.Environment.AmbientSource.Color;
-			env.AmbientLightColor = new Color(_tuneAmbientR, _tuneAmbientG, _tuneAmbientB);
-			env.AmbientLightEnergy = _tuneAmbientEnergy;
-
-			GameSettings.ApplyEnvironmentQuality(env, GameSettings.QualityIdx);
-
-			env.FogEnabled = _tuneFogEnabled;
-			env.FogDensity = _tuneFogDensity;
-			env.FogLightColor = new Color(_tuneFogR, _tuneFogG, _tuneFogB);
-
-			env.SsaoEnabled = _tuneSsaoEnabled;
-			env.SsaoRadius = _tuneSsaoRadius;
-			env.SsaoIntensity = _tuneSsaoIntensity;
-
-			env.TonemapExposure = _tuneExposure;
-			env.AdjustmentContrast = _tuneContrast;
-			env.AdjustmentSaturation = _tuneSaturation;
-
-			env.GlowIntensity = _tuneBloomIntensity;
-			env.GlowBloom = _tuneBloomThreshold;
-		}
-	}
-
-	private void LogLightingTuningValues()
-	{
-		string report = $@"
-=== LIVE LIGHTING TUNING VALUES ===
-Sun Pitch: {_tuneSunPitch:F1}°, Yaw: {_tuneSunYaw:F1}°, Energy: {_tuneSunEnergy:F2}, Color: ({_tuneSunR:F3}f, {_tuneSunG:F3}f, {_tuneSunB:F3}f)
-Ambient Energy: {_tuneAmbientEnergy:F2}, Color: ({_tuneAmbientR:F3}f, {_tuneAmbientG:F3}f, {_tuneAmbientB:F3}f) [Hex: #{ColorToHex(_tuneAmbientR, _tuneAmbientG, _tuneAmbientB)}]
-Fog Enabled: {_tuneFogEnabled}, Density: {_tuneFogDensity:F4}, Color: ({_tuneFogR:F3}f, {_tuneFogG:F3}f, {_tuneFogB:F3}f)
-SSAO Enabled: {_tuneSsaoEnabled}, Radius: {_tuneSsaoRadius:F2}, Intensity: {_tuneSsaoIntensity:F2}
-PostProc Exposure: {_tuneExposure:F2}, Contrast: {_tuneContrast:F2}, Saturation: {_tuneSaturation:F2}
-Glow/Bloom Intensity: {_tuneBloomIntensity:F2}, Threshold: {_tuneBloomThreshold:F2}
-Cliff Jitter: Strength={_tuneCliffJitterStrength:F2}, Scale={_tuneCliffJitterScale:F3}
-Cliff Rim Noise: Strength={_tuneCliffRimNoiseStrength:F2}
-Blend Noise: Strength={_tuneBlendNoiseStrength:F2}, Scale={_tuneBlendNoiseScale:F3}
-===================================
-";
-		GD.Print(report);
-		DisplayServer.ClipboardSet(report);
-		ShowFeedback(TranslationServer.Translate("Copied lighting tuning values to clipboard!"));
-	}
-
-	private string ColorToHex(float r, float g, float b)
-	{
-		int ir = Mathf.Clamp((int)(r * 255f), 0, 255);
-		int ig = Mathf.Clamp((int)(g * 255f), 0, 255);
-		int ib = Mathf.Clamp((int)(b * 255f), 0, 255);
-		return $"{ir:X2}{ig:X2}{ib:X2}";
 	}
 
 	private HSlider CreateSliderRow(VBoxContainer parent, string labelText, float min, float max, float step, float initialVal, Action<float> onChanged, string format = "0.0#", float labelWidth = 70f)
@@ -11424,5 +11542,118 @@ Blend Noise: Strength={_tuneBlendNoiseStrength:F2}, Scale={_tuneBlendNoiseScale:
 		lbl.Modulate = new Color(0.95f, 0.85f, 0.35f);
 		parent.AddChild(lbl);
 		return lbl;
+	}
+
+	public void RefreshWaterSwatches()
+	{
+		if (_optWaterMode == null) return;
+		_optWaterMode.Clear();
+		_optWaterMode.AddItem(TranslationServer.Translate("None"), 0);
+		_optWaterMode.SetItemMetadata(0, (byte)0);
+
+		var profiles = RuntimeTerrain.Instance != null ? RuntimeTerrain.Instance.GetWaterProfiles() : null;
+		if (profiles != null && profiles.Count > 0)
+		{
+			int itemIdx = 1;
+			foreach (var kvp in profiles)
+			{
+				byte pIdx = kvp.Key;
+				var prof = kvp.Value;
+				string label = TranslationServer.Translate(prof.Name);
+				_optWaterMode.AddItem(label, itemIdx);
+				_optWaterMode.SetItemMetadata(itemIdx, pIdx);
+				itemIdx++;
+			}
+		}
+		else
+		{
+			var defaults = WaterProfileSaveData.CreateDefaultProfiles();
+			int itemIdx = 1;
+			foreach (var def in defaults)
+			{
+				_optWaterMode.AddItem(TranslationServer.Translate(def.Name), itemIdx);
+				_optWaterMode.SetItemMetadata(itemIdx, def.ProfileIndex);
+				itemIdx++;
+			}
+		}
+
+		int targetSelected = 0;
+		if (GameHost.Instance != null)
+		{
+			WaterType currentMode = GameHost.Instance.EditorWaterMode;
+			byte currentProf = GameHost.Instance.ActiveWaterProfileIndex;
+			if (currentMode != WaterType.None)
+			{
+				for (int i = 1; i < _optWaterMode.ItemCount; i++)
+				{
+					var meta = _optWaterMode.GetItemMetadata(i);
+					if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == currentProf)
+					{
+						targetSelected = i;
+						break;
+					}
+				}
+				if (targetSelected == 0 && _optWaterMode.ItemCount > 1)
+				{
+					targetSelected = 1;
+				}
+			}
+		}
+		_optWaterMode.Selected = targetSelected;
+	}
+
+	public void OpenWaterProfileDialog()
+	{
+		var profilesList = new List<WaterProfileSaveData>();
+		if (RuntimeTerrain.Instance != null)
+		{
+			var profDict = RuntimeTerrain.Instance.GetWaterProfiles();
+			if (profDict != null && profDict.Count > 0)
+			{
+				foreach (var p in profDict.Values) profilesList.Add(p);
+			}
+		}
+		if (profilesList.Count == 0)
+		{
+			profilesList.AddRange(WaterProfileSaveData.CreateDefaultProfiles());
+		}
+
+		int targetIdx = 0;
+		if (GameHost.Instance != null)
+		{
+			byte currentProf = GameHost.Instance.ActiveWaterProfileIndex;
+			int found = profilesList.FindIndex(p => p.ProfileIndex == currentProf);
+			if (found >= 0) targetIdx = found;
+		}
+
+		_waterProfileDialog?.OpenWithProfiles(profilesList, targetIdx);
+	}
+
+	public void OpenEnvironmentConfigDialog()
+	{
+		if (_environmentConfigDialog == null)
+		{
+			_environmentConfigDialog = new EnvironmentConfigDialog(this);
+		}
+
+		List<EnvironmentPresetConfig> presetsList = null;
+		string defaultPreset = null;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
+		{
+			if (meta.CustomEnvironmentPresets != null && meta.CustomEnvironmentPresets.Count > 0)
+			{
+				presetsList = meta.CustomEnvironmentPresets;
+			}
+			defaultPreset = meta.DefaultEnvironmentPreset;
+		}
+
+		if (presetsList == null || presetsList.Count == 0)
+		{
+			presetsList = GameHost.Instance?.EnvironmentService?.GetPresets().ToList() ?? EnvironmentPresetConfig.CreateDefaultPresets();
+		}
+
+		string currentId = GameHost.Instance?.EnvironmentService?.GetCurrentPresetId() ?? defaultPreset ?? "day";
+		_environmentConfigDialog?.OpenWithPresets(presetsList, currentId, defaultPreset);
 	}
 }

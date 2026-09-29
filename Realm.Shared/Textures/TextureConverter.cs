@@ -983,22 +983,22 @@ public static class TextureConverter
 			? Path.ChangeExtension(fullInput, ".rtex")
 			: Path.GetFullPath(outputPath);
 
-		if (normType is "terrain" or "terrain_texture" or "terrain_textures" or "tilesheet" or "tilesheets" or "terraintexture" or "terraintextures" or "textures" or "texture")
+		if (normType is "terrain")
 		{
 			return ProcessAndSaveTerrainTexture(fullInput, targetRtex);
 		}
 
-		if (normType is "decal" or "decals")
+		if (normType is "decal")
 		{
 			return ProcessAndSaveDecalTexture(fullInput, targetRtex, columns: columns ?? 1, rows: rows ?? 1);
 		}
 
-		if (normType is "spritesheet" or "vfx_spritesheet" or "vfx_spritesheets" or "spritesheets" or "spellspritesheet" or "spellspritesheets" or "spell_spritesheet" or "spell_spritesheets" or "vfxspritesheet" or "vfxspritesheets" or "vfx")
+		if (normType is "spritesheet")
 		{
 			return ProcessAndSaveSpritesheet(fullInput, targetRtex, columns ?? 4, rows ?? 4, fps: fps ?? 20.0f);
 		}
 
-		if (normType is "skybox" or "skyboxes")
+		if (normType is "skybox")
 		{
 			string outExt = Path.GetExtension(targetRtex).ToLowerInvariant();
 			if (outExt is not ".rtex")
@@ -1009,27 +1009,27 @@ public static class TextureConverter
 			return ProcessAndSaveSkybox(fullInput, targetRtex);
 		}
 
-		if (normType is "ribbon" or "ribbon_texture" or "ribbon_textures" or "ribbons" or "ribbontexture" or "ribbontextures")
+		if (normType is "ribbon")
 		{
 			return ProcessAndSaveRibbonTexture(fullInput, targetRtex);
 		}
 
-		if (normType is "noise" or "noise_texture" or "noise_textures" or "noisetexture" or "noisetextures")
+		if (normType is "noise")
 		{
 			return ProcessAndSaveSingleLayerTexture(fullInput, targetRtex, "noise_texture");
 		}
 
-		if (normType is "icon" or "icons")
+		if (normType is "icon")
 		{
 			return ProcessAndSaveIconTexture(fullInput, targetRtex);
 		}
 
-		if (normType is "vfx_radial" or "vfxradial" or "radial" or "radial_mask" or "radialmask")
+		if (normType is "vfx_radial")
 		{
 			return ProcessAndSaveVfxRadialTexture(fullInput, targetRtex);
 		}
 
-		if (normType is "vfx_vertical" or "vfxvertical" or "vertical" or "vertical_fin" or "verticalfin")
+		if (normType is "vfx_vertical")
 		{
 			return ProcessAndSaveVfxVerticalTexture(fullInput, targetRtex);
 		}

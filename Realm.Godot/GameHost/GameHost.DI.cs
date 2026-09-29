@@ -56,6 +56,7 @@ public partial class GameHost
 		services.AddSingleton<Realm.Godot.Services.MetadataService>();
 		services.AddSingleton<Realm.Godot.Services.MapUpgradeService>();
 		services.AddSingleton<Realm.Godot.Services.MapStorageService>();
+		services.AddSingleton<Realm.Godot.Services.MapSaveDataService>();
 		services.AddSingleton<SimulationService>(sp =>
 		{
 			return new SimulationService(sp.GetRequiredService<WorldAccessor>(), Entity.Null, GameHost.Instance?._pathfinder ?? new NavMeshPathfinder());
@@ -93,5 +94,6 @@ public partial class GameHost
 		_metadataService = ServiceLocator.Get<Realm.Godot.Services.MetadataService>();
 		_mapUpgradeService = ServiceLocator.Get<Realm.Godot.Services.MapUpgradeService>();
 		_mapStorageService = ServiceLocator.Get<Realm.Godot.Services.MapStorageService>();
+		_mapSaveDataService = ServiceLocator.Get<Realm.Godot.Services.MapSaveDataService>();
 	}
 }

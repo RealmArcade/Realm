@@ -677,73 +677,18 @@ text = "Terrain Paint Swatch"
 [node name="LblCliffTexture" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
-text = "Cliff Face Texture"
-
-[node name="GridSwatches" type="GridContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
+[node name="ScrollSwatches" type="ScrollContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
 layout_mode = 2
+size_flags_horizontal = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+
+[node name="GridSwatches" type="GridContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/h_separation = 6
 theme_override_constants/v_separation = 6
-columns = 5
-
-[node name="Swatch1" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch2" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch3" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch4" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch5" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch6" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch7" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch8" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch9" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch10" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch11" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch12" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
+columns = 6
 
 [node name="BtnTextureSwap" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
 layout_mode = 2

@@ -20,4 +20,5 @@ public class LobbyInfo
     public int HostPingBaseline { get; set; }
     public string? LocalIP { get; set; }
     public long MapSizeBytes { get; set; }
+    public bool IsGameInProgress { get; set; }
 }
