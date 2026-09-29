@@ -934,20 +934,23 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (!string.IsNullOrEmpty(wsPath))
+		{
+			var metadataRoot = MetadataService.Instance.LoadMetadata(wsPath);
+			metadataRoot.CustomWaterProfiles = _profiles;
+			string metaPath = Path.Combine(wsPath, "metadata.json");
+			MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+		}
+
 		if (RuntimeTerrain.Instance != null)
 		{
 			RuntimeTerrain.Instance.SetWaterProfiles(_profiles);
 		}
 
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string metaPath = Path.Combine(wsPath, "metadata.json");
-		if (File.Exists(metaPath))
+		if (GameHost.Instance != null)
 		{
-			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot != null)
-			{
-				metadataRoot.CustomWaterProfiles = _profiles;
-				MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
-			}
+			GameHost.Instance.EditorHasUnsavedChanges = true;
 		}
 
 		Hud?.RefreshWaterSwatches();

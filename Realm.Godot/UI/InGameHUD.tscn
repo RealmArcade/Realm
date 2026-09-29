@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://UI/InGameHUD.cs" id="1_script"]
+[ext_resource type="Script" path="res://UI/MinimapCameraIndicator.cs" id="2_camera_indicator"]
 
 [node name="InGameHUD" type="Control"]
 layout_mode = 3
@@ -93,14 +94,9 @@ size_flags_vertical = 4
 [node name="MinimapArea" type="Control" parent="BottomConsole/HBox/MinimapFrame"]
 layout_mode = 2
 
-[node name="Indicator" type="ReferenceRect" parent="BottomConsole/HBox/MinimapFrame/MinimapArea"]
-custom_minimum_size = Vector2(45, 30)
-layout_mode = 0
-offset_right = 45.0
-offset_bottom = 30.0
-border_color = Color(0, 0.9, 0.1, 0.85)
-border_width = 2.0
-editor_only = false
+[node name="Indicator" type="Control" parent="BottomConsole/HBox/MinimapFrame/MinimapArea"]
+layout_mode = 2
+script = ExtResource("2_camera_indicator")
 
 [node name="PortraitFrame" type="PanelContainer" parent="BottomConsole/HBox"]
 custom_minimum_size = Vector2(130, 170)

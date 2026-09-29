@@ -113,8 +113,15 @@ vec4 sample_stochastic_2d(sampler2D tex, vec2 uv, float stoch_tile_size) {
 	vec4 col1 = texture(tex, uv + off1);
 	vec4 col2 = texture(tex, uv + off2);
 
-	vec3 mean_color = col0.rgb * w.x + col1.rgb * w.y + col2.rgb * w.z;
-	float mean_alpha = col0.a * w.x + col1.a * w.y + col2.a * w.z;
+	const vec3 lum_weights = vec3(0.299, 0.587, 0.114);
+	vec3 h_scores = vec3(dot(col0.rgb, lum_weights), dot(col1.rgb, lum_weights), dot(col2.rgb, lum_weights));
+	vec3 safe_w = max(w, vec3(0.0));
+	vec3 combined_weights = pow(safe_w, vec3(4.0)) * exp(h_scores * 2.0);
+	float sum_cw = combined_weights.x + combined_weights.y + combined_weights.z;
+	vec3 sw = sum_cw > 0.0001 ? (combined_weights / sum_cw) : w;
+
+	vec3 mean_color = col0.rgb * sw.x + col1.rgb * sw.y + col2.rgb * sw.z;
+	float mean_alpha = col0.a * sw.x + col1.a * sw.y + col2.a * sw.z;
 	return vec4(mean_color, mean_alpha);
 }
 
