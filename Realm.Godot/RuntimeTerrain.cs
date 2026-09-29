@@ -1041,7 +1041,21 @@ vec4 sample_triplanar_layer(sampler2DArray tex_array, float layer, vec2 uv_x, ve
 	vec4 col_x = sample_stochastic_layer(tex_array, layer, scaled_uv_x, scaled_dx_x, scaled_dy_x, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
 	vec4 col_y = sample_stochastic_layer(tex_array, layer, scaled_uv_y, scaled_dx_y, scaled_dy_y, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
 	vec4 col_z = sample_stochastic_layer(tex_array, layer, scaled_uv_z, scaled_dx_z, scaled_dy_z, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
-	return col_x * weights.x + col_y * weights.y + col_z * weights.z;
+
+	vec3 tri_h;
+	if (is_vector_data) {
+		tri_h = vec3(col_x.b, col_y.b, col_z.b);
+	} else {
+		const vec3 lum_weights = vec3(0.299, 0.587, 0.114);
+		tri_h = vec3(dot(col_x.rgb, lum_weights), dot(col_y.rgb, lum_weights), dot(col_z.rgb, lum_weights));
+	}
+
+	vec3 safe_w = max(weights, vec3(0.0));
+	vec3 combined_tri_w = pow(safe_w, vec3(6.0)) * exp(tri_h * 2.0);
+	float sum_tri_w = combined_tri_w.x + combined_tri_w.y + combined_tri_w.z;
+	vec3 tw = sum_tri_w > 0.0001 ? (combined_tri_w / sum_tri_w) : weights;
+
+	return col_x * tw.x + col_y * tw.y + col_z * tw.z;
 }
 
 vec2 unpack_normal_xy(vec2 raw_rg) {
@@ -1147,13 +1161,19 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 
 	result.normal = normalize(world_nx * weights.x + world_ny * weights.y + world_nz * weights.z);
 
+	vec3 tri_h = vec3(nx.b, ny.b, nz.b);
+	vec3 safe_w = max(weights, vec3(0.0));
+	vec3 combined_tri_w = pow(safe_w, vec3(6.0)) * exp(tri_h * 2.0);
+	float sum_tri_w = combined_tri_w.x + combined_tri_w.y + combined_tri_w.z;
+	vec3 tw = sum_tri_w > 0.0001 ? (combined_tri_w / sum_tri_w) : weights;
+
 	float ao_x = clamp((0.35 + 0.65 * tzx) * (0.55 + 0.45 * nx.b), 0.05, 1.0);
 	float ao_y = clamp((0.35 + 0.65 * tzy) * (0.55 + 0.45 * ny.b), 0.05, 1.0);
 	float ao_z = clamp((0.35 + 0.65 * tzz) * (0.55 + 0.45 * nz.b), 0.05, 1.0);
-	result.ao = ao_x * weights.x + ao_y * weights.y + ao_z * weights.z;
+	result.ao = ao_x * tw.x + ao_y * tw.y + ao_z * tw.z;
 
-	result.roughness = (nx.a * weights.x + ny.a * weights.y + nz.a * weights.z) * roughness_scale;
-	result.height = nx.b * weights.x + ny.b * weights.y + nz.b * weights.z;
+	result.roughness = (nx.a * tw.x + ny.a * tw.y + nz.a * tw.z) * roughness_scale;
+	result.height = nx.b * tw.x + ny.b * tw.y + nz.b * tw.z;
 	return result;
 }
 
