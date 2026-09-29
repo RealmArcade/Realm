@@ -10,7 +10,34 @@ using Realm.Godot.Utils;
 public partial class Prop3D : StaticBody3D
 {
 	public Entity Entity { get; set; }
-	public Vector3 Velocity { get; set; } = Vector3.Zero;
+
+	private Vector3 _velocity = Vector3.Zero;
+	public Vector3 Velocity
+	{
+		get => _velocity;
+		set
+		{
+			if (_velocity != value)
+			{
+				_velocity = value;
+				ModelShaderManager.SetProceduralAnimationVelocity(this, value);
+			}
+		}
+	}
+
+	private float _impulseStrength = 0f;
+	private float _impulseDuration = 0.5f;
+	private float _impulseTime = 0f;
+	private float _impulseFrequency = 12.0f;
+
+	public virtual void TriggerImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
+	{
+		_impulseStrength = strength;
+		_impulseDuration = duration <= 0.001f ? 0.001f : duration;
+		_impulseTime = _impulseDuration;
+		_impulseFrequency = frequency;
+		SetProcess(true);
+	}
 
 	private string _propId = string.Empty;
 
@@ -65,6 +92,10 @@ public partial class Prop3D : StaticBody3D
 			if (world.Has<ResourceNode>(Entity))
 			{
 				var existing = world.Get<ResourceNode>(Entity);
+				if (value < existing.Amount)
+				{
+					TriggerImpulse(0.35f, 0.45f);
+				}
 				world.Set(Entity, new ResourceNode(existing.ResourceTypeId, value));
 			}
 			else
@@ -412,6 +443,7 @@ public partial class Prop3D : StaticBody3D
 		if (IsPreview)
 		{
 			CreatePropVisual();
+			SetProcess(false);
 			return;
 		}
 
@@ -424,6 +456,27 @@ public partial class Prop3D : StaticBody3D
 		collisionShape.Position = offset;
 
 		CreatePropVisual();
+		SetProcess(false);
+	}
+
+	public override void _Process(double delta)
+	{
+		base._Process(delta);
+		if (_impulseTime > 0f)
+		{
+			_impulseTime -= (float)delta;
+			float currentStrength = _impulseStrength * MathF.Max(0f, _impulseTime / _impulseDuration);
+			ModelShaderManager.SetProceduralAnimationImpulse(this, currentStrength, _impulseFrequency, _impulseTime);
+			if (_impulseTime <= 0f)
+			{
+				_impulseTime = 0f;
+				ModelShaderManager.SetProceduralAnimationImpulse(this, 0f, 0f, 0f);
+				if (!IsSelected)
+				{
+					SetProcess(false);
+				}
+			}
+		}
 	}
 
 	public virtual void UpdateVisualYOffset(float yOffset)
@@ -483,6 +536,7 @@ public partial class Prop3D : StaticBody3D
 						if (node != null)
 						{
 							visual.AddChild(node);
+							Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(node, PropId);
 							if (!IsPreview)
 							{
 								GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);

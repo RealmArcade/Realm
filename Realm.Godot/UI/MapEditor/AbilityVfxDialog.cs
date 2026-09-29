@@ -6,13 +6,8 @@ using Realm.Godot.Services;
 using Realm.Godot.Utils;
 using Realm.Godot.VFX;
 
-public partial class AbilityVfxDialog : FloatingDialogBase
+public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
-	private Node3D _simRoot;
 	private ProceduralVfxInstance3D _vfxInstance;
 	private MeshInstance3D _aoeRingMesh;
 	private MeshInstance3D _aoeDiskMesh;
@@ -44,32 +39,27 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 	private float _playbackSpeed = 1.0f;
 	private Action<JsonObject> _onApplied;
 
-	private float _defaultDistance = 8.0f;
-	private float _cameraDistance = 8.0f;
-	private float _defaultYaw = Mathf.DegToRad(45.0f);
-	private float _defaultPitch = Mathf.DegToRad(30.0f);
-	private float _cameraYaw = Mathf.DegToRad(45.0f);
-	private float _cameraPitch = Mathf.DegToRad(30.0f);
-	private Vector3 _targetPosition = Vector3.Zero;
-
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-
 	public AbilityVfxDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Ability VFX & Audio Studio"), new Vector2(500, 720))
 	{
 		_sfxPlayer = new AudioStreamPlayer();
 		AddChild(_sfxPlayer);
 
+		DefaultDistance = 8.0f;
+		CameraDistance = 8.0f;
+		DefaultYaw = Mathf.DegToRad(45.0f);
+		DefaultPitch = Mathf.DegToRad(30.0f);
+		CameraYaw = Mathf.DegToRad(45.0f);
+		CameraPitch = Mathf.DegToRad(30.0f);
+		DefaultTargetPosition = new Vector3(0, 0.5f, 0);
+		TargetPosition = DefaultTargetPosition;
+
 		BuildControls();
 	}
 
 	private void BuildControls()
 	{
-		_viewportContainer = Add3DViewportContainer(BodyContainer, new Vector2(480, 230), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
+		Add3DPreviewViewport(BodyContainer, new Vector2(480, 230));
 
 		Setup3DEnvironment();
 
@@ -77,27 +67,12 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
-		var presetRow = new HBoxContainer();
-		presetRow.AddThemeConstantOverride("separation", 4);
-
-		var lblPreset = new Label();
-		lblPreset.Text = TranslationServer.Translate("Camera:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 10);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		presetRow.AddChild(lblPreset);
-
-		AddButton(presetRow, TranslationServer.Translate("Front"), () => SetCameraPreset(0f, 15f), "Front view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Side"), () => SetCameraPreset(90f, 15f), "Side view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 30f), "Isometric view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("⟲ Reset"), () => ResetCameraDefault(), "Reset camera", 10, new Vector2(0, 22));
+		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: false);
 
 		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		presetRow.AddChild(spacer);
 
 		AddButton(presetRow, "🔥 " + TranslationServer.Translate("Cast Test"), () => TriggerCastTest(), "Simulate casting ability VFX & sound", 10, new Vector2(90, 22));
-
-		topControlsVBox.AddChild(presetRow);
 
 		var playbackRow = new HBoxContainer();
 		playbackRow.AddThemeConstantOverride("separation", 6);
@@ -238,10 +213,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 	private void Setup3DEnvironment()
 	{
-		if (_subViewport == null) return;
-
-		_simRoot = new Node3D();
-		_subViewport.AddChild(_simRoot);
+		if (PreviewSceneRoot == null) return;
 
 		_groundGrid = new MeshInstance3D();
 		_groundGrid.Name = "GroundGrid";
@@ -255,7 +227,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 		};
 		_groundGrid.MaterialOverride = gridMat;
 		_groundGrid.Position = new Vector3(0, -0.01f, 0);
-		_simRoot.AddChild(_groundGrid);
+		PreviewSceneRoot.AddChild(_groundGrid);
 
 		var diskMesh = new CylinderMesh
 		{
@@ -270,7 +242,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 		};
 		_aoeDiskMesh = new MeshInstance3D { Mesh = diskMesh, MaterialOverride = diskMat, Position = new Vector3(0, 0.01f, 0) };
-		_simRoot.AddChild(_aoeDiskMesh);
+		PreviewSceneRoot.AddChild(_aoeDiskMesh);
 
 		var ringMesh = new TorusMesh
 		{
@@ -286,105 +258,9 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 		};
 		_aoeRingMesh = new MeshInstance3D { Mesh = ringMesh, MaterialOverride = ringMat, Position = new Vector3(0, 0.015f, 0) };
-		_simRoot.AddChild(_aoeRingMesh);
+		PreviewSceneRoot.AddChild(_aoeRingMesh);
 
 		UpdateAoEIndicator(_currentAoeRadius);
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mouseButton)
-		{
-			if (mouseButton.ButtonIndex == MouseButton.Left)
-			{
-				_isOrbiting = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
-			{
-				ZoomCamera(1.0f);
-			}
-		}
-		else if (@event is InputEventMouseMotion mouseMotion)
-		{
-			Vector2 delta = mouseMotion.Position - _lastMousePosition;
-			_lastMousePosition = mouseMotion.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (_isPanning && _camera != null)
-			{
-				Vector3 camRight = _camera.GlobalTransform.Basis.X;
-				Vector3 camUp = _camera.GlobalTransform.Basis.Y;
-				float panSpeed = _cameraDistance * 0.0025f;
-				_targetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
-		}
-	}
-
-	private void ZoomCamera(float direction)
-	{
-		float factor = direction > 0 ? 1.15f : 0.85f;
-		_cameraDistance = Mathf.Clamp(_cameraDistance * factor, _defaultDistance * 0.2f, _defaultDistance * 4.0f);
-		UpdateCameraTransform();
-	}
-
-	public void SetCameraPreset(float yawDegrees, float pitchDegrees)
-	{
-		_cameraYaw = Mathf.DegToRad(yawDegrees);
-		_cameraPitch = Mathf.DegToRad(pitchDegrees);
-		_targetPosition = new Vector3(0, 0.5f, 0);
-		UpdateCameraTransform();
-	}
-
-	public void ResetCameraDefault()
-	{
-		_cameraDistance = _defaultDistance;
-		_targetPosition = new Vector3(0, 0.5f, 0);
-		_cameraYaw = _defaultYaw;
-		_cameraPitch = _defaultPitch;
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-
-		_cameraPitch = Mathf.Clamp(_cameraPitch, -1.45f, 1.45f);
-
-		float cosPitch = Mathf.Cos(_cameraPitch);
-		float sinPitch = Mathf.Sin(_cameraPitch);
-		float cosYaw = Mathf.Cos(_cameraYaw);
-		float sinYaw = Mathf.Sin(_cameraYaw);
-
-		Vector3 offset = new Vector3(
-			sinYaw * cosPitch,
-			sinPitch,
-			cosYaw * cosPitch
-		) * _cameraDistance;
-
-		Vector3 newPos = _targetPosition + offset;
-		_camera.Position = newPos;
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
 	}
 
 	private void UpdateAoEIndicator(float radius)
@@ -469,7 +345,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 	private void ReloadVfx()
 	{
-		if (_simRoot == null) return;
+		if (PreviewSceneRoot == null) return;
 
 		if (_vfxInstance != null && GodotObject.IsInstanceValid(_vfxInstance))
 		{
@@ -485,7 +361,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 		var config = ResolveVfxConfig(_currentVisualEffect);
 		_vfxInstance = new ProceduralVfxInstance3D(config);
 		_vfxInstance.Name = "AbilityVfxPreview";
-		_simRoot.AddChild(_vfxInstance);
+		PreviewSceneRoot.AddChild(_vfxInstance);
 		_vfxInstance.Position = new Vector3(0, 0.5f, 0);
 		_vfxInstance.SetSpeedScale(_playbackSpeed);
 	}

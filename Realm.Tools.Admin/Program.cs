@@ -138,6 +138,54 @@ public class AdminRemoveManifestOptions
 	public bool Prune { get; set; } = true;
 }
 
+[Verb("add-maintainer", HelpText = "Add an authorized maintainer public key to a greenlit map")]
+public class AdminAddMaintainerOptions
+{
+	[Option('m', "map", Required = true, HelpText = "Map title or package name")]
+	public string Map { get; set; } = string.Empty;
+
+	[Option("target-key", Required = false, HelpText = "Path to the maintainer's .rkey file.")]
+	public string? TargetKey { get; set; }
+
+	[Option('p', "pubkey", Required = false, HelpText = "Maintainer's Ed25519 public key in Base64 (alternative to --target-key).")]
+	public string? PubKey { get; set; }
+
+	[Option('k', "key", Required = false, HelpText = "Path to author or admin .rkey file. If omitted, defaults to %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\authorship_key_DO-NOT-SHARE.rkey")]
+	public string? Key { get; set; }
+
+	[Option('s', "server", Required = false, HelpText = "Registry server URL.")]
+	public string? Server { get; set; }
+}
+
+[Verb("remove-maintainer", HelpText = "Revoke an authorized maintainer public key from a greenlit map")]
+public class AdminRemoveMaintainerOptions
+{
+	[Option('m', "map", Required = true, HelpText = "Map title or package name")]
+	public string Map { get; set; } = string.Empty;
+
+	[Option("target-key", Required = false, HelpText = "Path to the maintainer's .rkey file.")]
+	public string? TargetKey { get; set; }
+
+	[Option('p', "pubkey", Required = false, HelpText = "Maintainer's Ed25519 public key in Base64 to remove.")]
+	public string? PubKey { get; set; }
+
+	[Option('k', "key", Required = false, HelpText = "Path to author or admin .rkey file. If omitted, defaults to %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\authorship_key_DO-NOT-SHARE.rkey")]
+	public string? Key { get; set; }
+
+	[Option('s', "server", Required = false, HelpText = "Registry server URL.")]
+	public string? Server { get; set; }
+}
+
+[Verb("list-maintainers", HelpText = "List all authorized maintainers for a map")]
+public class AdminListMaintainersOptions
+{
+	[Option('m', "map", Required = true, HelpText = "Map title or package name")]
+	public string Map { get; set; } = string.Empty;
+
+	[Option('s', "server", Required = false, HelpText = "Registry server URL.")]
+	public string? Server { get; set; }
+}
+
 public static class Program
 {
 	public static int Main(string[] args)
@@ -155,9 +203,12 @@ public static class Program
 			typeof(AdminDigestOptions),
 			typeof(AdminSnapshotOptions),
 			typeof(AdminRestoreSnapshotOptions),
-			typeof(AdminRemoveManifestOptions));
+			typeof(AdminRemoveManifestOptions),
+			typeof(AdminAddMaintainerOptions),
+			typeof(AdminRemoveMaintainerOptions),
+			typeof(AdminListMaintainersOptions));
 
-		return Parser.Default.ParseArguments<AdminGreenlightOptions, AdminStatusOptions, AdminUnlockNameOptions, AdminInfoOptions, AdminExportEventsOptions, AdminPruneCasOptions, AdminDigestOptions, AdminSnapshotOptions, AdminRestoreSnapshotOptions, AdminRemoveManifestOptions>(sanitizedArgs)
+		return Parser.Default.ParseArguments<AdminGreenlightOptions, AdminStatusOptions, AdminUnlockNameOptions, AdminInfoOptions, AdminExportEventsOptions, AdminPruneCasOptions, AdminDigestOptions, AdminSnapshotOptions, AdminRestoreSnapshotOptions, AdminRemoveManifestOptions, AdminAddMaintainerOptions, AdminRemoveMaintainerOptions, AdminListMaintainersOptions>(sanitizedArgs)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
 				(AdminGreenlightOptions options) => ExecuteGreenlight(options),
@@ -170,6 +221,9 @@ public static class Program
 				(AdminSnapshotOptions options) => ExecuteSnapshot(options),
 				(AdminRestoreSnapshotOptions options) => ExecuteRestoreSnapshot(options),
 				(AdminRemoveManifestOptions options) => ExecuteRemoveManifest(options),
+				(AdminAddMaintainerOptions options) => ExecuteAddMaintainer(options),
+				(AdminRemoveMaintainerOptions options) => ExecuteRemoveMaintainer(options),
+				(AdminListMaintainersOptions options) => ExecuteListMaintainers(options),
 				errors => 1);
 	}
 
@@ -913,6 +967,180 @@ public static class Program
 		catch (Exception ex)
 		{
 			Console.Error.WriteLine($"[ERROR] Remove manifest failed: {ex.Message}");
+			return 1;
+		}
+	}
+
+	private static string? ResolveTargetPublicKey(string? targetKeyPath, string? targetPubKey)
+	{
+		if (!string.IsNullOrWhiteSpace(targetPubKey))
+		{
+			return targetPubKey.Trim();
+		}
+
+		if (!string.IsNullOrWhiteSpace(targetKeyPath))
+		{
+			return ParsePublicKeyFromFile(targetKeyPath);
+		}
+
+		Console.Error.WriteLine("Error: Please specify either --target-key <path to .rkey> or -p/--pubkey <base64 public key>.");
+		return null;
+	}
+
+	private static int ExecuteAddMaintainer(AdminAddMaintainerOptions options)
+	{
+		string serverUrl = ResolveServerUrl(options.Server);
+		var keyPair = ParseAdminKey(options.Key);
+		if (keyPair == null) return 1;
+
+		string mapTitle = options.Map.Trim();
+		string? targetPubKey = ResolveTargetPublicKey(options.TargetKey, options.PubKey);
+		if (string.IsNullOrWhiteSpace(targetPubKey)) return 1;
+
+		string payload = $"add_maintainer:{mapTitle.ToLowerInvariant()}:{targetPubKey.Trim()}";
+		string signature = AuthorSignatureHelper.SignMessage(keyPair.Value.privateKeyBase64, payload);
+
+		Console.WriteLine("=================================================");
+		Console.WriteLine("Realm Admin Tool - Add Map Maintainer");
+		Console.WriteLine("=================================================");
+		Console.WriteLine($"Server:          {serverUrl}");
+		Console.WriteLine($"Map:             {mapTitle}");
+		Console.WriteLine($"Maintainer Key:  {targetPubKey}");
+		Console.WriteLine($"Requester Key:   {keyPair.Value.publicKeyBase64}");
+		Console.WriteLine();
+
+		try
+		{
+			var client = new DistributionClient(serverUrl);
+			var request = new AddMapMaintainerRequest
+			{
+				MapTitle = mapTitle,
+				MaintainerPublicKey = targetPubKey,
+				RequesterPublicKey = keyPair.Value.publicKeyBase64,
+				Signature = signature
+			};
+
+			var response = client.AddMapMaintainerAsync(request).GetAwaiter().GetResult();
+			if (response.Success)
+			{
+				Console.WriteLine($"[SUCCESS] {response.Message}");
+				Console.WriteLine($"Owner:              {response.OwnerPublicKey}");
+				Console.WriteLine($"Total Maintainers:  {response.Maintainers.Count}");
+				for (int i = 0; i < response.Maintainers.Count; i++)
+				{
+					Console.WriteLine($"  [{i + 1}] {response.Maintainers[i]}");
+				}
+				Console.WriteLine("=================================================");
+				return 0;
+			}
+			else
+			{
+				Console.Error.WriteLine($"[FAILED] {response.Message}");
+				return 1;
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.Error.WriteLine($"[ERROR] Add maintainer failed: {ex.Message}");
+			return 1;
+		}
+	}
+
+	private static int ExecuteRemoveMaintainer(AdminRemoveMaintainerOptions options)
+	{
+		string serverUrl = ResolveServerUrl(options.Server);
+		var keyPair = ParseAdminKey(options.Key);
+		if (keyPair == null) return 1;
+
+		string mapTitle = options.Map.Trim();
+		string? targetPubKey = ResolveTargetPublicKey(options.TargetKey, options.PubKey);
+		if (string.IsNullOrWhiteSpace(targetPubKey)) return 1;
+
+		string payload = $"remove_maintainer:{mapTitle.ToLowerInvariant()}:{targetPubKey.Trim()}";
+		string signature = AuthorSignatureHelper.SignMessage(keyPair.Value.privateKeyBase64, payload);
+
+		Console.WriteLine("=================================================");
+		Console.WriteLine("Realm Admin Tool - Remove Map Maintainer");
+		Console.WriteLine("=================================================");
+		Console.WriteLine($"Server:          {serverUrl}");
+		Console.WriteLine($"Map:             {mapTitle}");
+		Console.WriteLine($"Maintainer Key:  {targetPubKey}");
+		Console.WriteLine($"Requester Key:   {keyPair.Value.publicKeyBase64}");
+		Console.WriteLine();
+
+		try
+		{
+			var client = new DistributionClient(serverUrl);
+			var request = new RemoveMapMaintainerRequest
+			{
+				MapTitle = mapTitle,
+				MaintainerPublicKey = targetPubKey,
+				RequesterPublicKey = keyPair.Value.publicKeyBase64,
+				Signature = signature
+			};
+
+			var response = client.RemoveMapMaintainerAsync(request).GetAwaiter().GetResult();
+			if (response.Success)
+			{
+				Console.WriteLine($"[SUCCESS] {response.Message}");
+				Console.WriteLine($"Owner:              {response.OwnerPublicKey}");
+				Console.WriteLine($"Total Maintainers:  {response.Maintainers.Count}");
+				for (int i = 0; i < response.Maintainers.Count; i++)
+				{
+					Console.WriteLine($"  [{i + 1}] {response.Maintainers[i]}");
+				}
+				Console.WriteLine("=================================================");
+				return 0;
+			}
+			else
+			{
+				Console.Error.WriteLine($"[FAILED] {response.Message}");
+				return 1;
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.Error.WriteLine($"[ERROR] Remove maintainer failed: {ex.Message}");
+			return 1;
+		}
+	}
+
+	private static int ExecuteListMaintainers(AdminListMaintainersOptions options)
+	{
+		string serverUrl = ResolveServerUrl(options.Server);
+		string mapTitle = options.Map.Trim();
+
+		Console.WriteLine("=================================================");
+		Console.WriteLine("Realm Admin Tool - List Map Maintainers");
+		Console.WriteLine("=================================================");
+		Console.WriteLine($"Server:  {serverUrl}");
+		Console.WriteLine($"Map:     {mapTitle}");
+		Console.WriteLine();
+
+		try
+		{
+			var client = new DistributionClient(serverUrl);
+			var response = client.GetMapMaintainersAsync(mapTitle).GetAwaiter().GetResult();
+			if (response.Success)
+			{
+				Console.WriteLine($"Owner:              {(!string.IsNullOrEmpty(response.OwnerPublicKey) ? response.OwnerPublicKey : "(None)")}");
+				Console.WriteLine($"Total Maintainers:  {response.Maintainers.Count}");
+				for (int i = 0; i < response.Maintainers.Count; i++)
+				{
+					Console.WriteLine($"  [{i + 1}] {response.Maintainers[i]}");
+				}
+				Console.WriteLine("=================================================");
+				return 0;
+			}
+			else
+			{
+				Console.Error.WriteLine($"[FAILED] {response.Message}");
+				return 1;
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.Error.WriteLine($"[ERROR] List maintainers failed: {ex.Message}");
 			return 1;
 		}
 	}

@@ -9,13 +9,8 @@ using Realm.Godot.Utils;
 using Realm.Godot.VFX;
 using Realm.Godot.Services;
 
-public partial class ObjectAttachmentDialog : FloatingDialogBase
+public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
-	private Node3D _previewSceneRoot;
 	private Node3D _previewModel;
 
 	private readonly Dictionary<string, Node3D> _socketAnchorNodes = new(StringComparer.OrdinalIgnoreCase);
@@ -71,15 +66,6 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 	private List<string> _availableAttachments = new();
 	private bool _isUpdatingUI;
 
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-	private float _cameraYaw = 0f;
-	private float _cameraPitch = 0.2f;
-	private float _cameraDistance = 3.5f;
-	private const float DefaultDistance = 3.5f;
-	private Vector3 _targetPosition = new Vector3(0f, 1.0f, 0f);
-
 	private Action<GameHost.HandAttachmentOrientation> _onApplied;
 	private GameHost.UnitObjectAttachments? _initialSnapshot;
 	private GameHost.UnitObjectAttachments _workingAttachments;
@@ -127,33 +113,27 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 	public ObjectAttachmentDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Socket & VFX Attachment Studio"), new Vector2(580, 720))
 	{
+		DefaultDistance = 3.5f;
+		CameraDistance = 3.5f;
+		DefaultYaw = 0f;
+		DefaultPitch = 0.2f;
+		CameraYaw = 0f;
+		CameraPitch = 0.2f;
+		DefaultTargetPosition = new Vector3(0f, 1.0f, 0f);
+		TargetPosition = DefaultTargetPosition;
+
 		BuildControls();
 	}
 
 	private void BuildControls()
 	{
-		_viewportContainer = Add3DViewportContainer(BodyContainer, new Vector2(530, 230), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
-
-		_previewSceneRoot = new Node3D { Name = "PreviewRoot" };
-		_subViewport.AddChild(_previewSceneRoot);
+		Add3DPreviewViewport(BodyContainer, new Vector2(530, 230));
 
 		var topControlsVBox = new VBoxContainer();
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
-		var presetRow = new HBoxContainer();
-		presetRow.AddThemeConstantOverride("separation", 4);
-
-		AddButton(presetRow, TranslationServer.Translate("Front"), () => SetCameraPreset(0f, 0f), "View front", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Side"), () => SetCameraPreset(90f, 0f), "View side", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Back"), () => SetCameraPreset(180f, 0f), "View back", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 25f), "Isometric view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("⟲ Reset"), () => ResetCameraDefault(), "Reset camera zoom and position", 10, new Vector2(0, 22));
-
-		topControlsVBox.AddChild(presetRow);
+		AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 
 		var infoRow = new HBoxContainer();
 		infoRow.AddThemeConstantOverride("separation", 8);
@@ -732,7 +712,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		}
 
 		Vector3 handPos = targetAnchor.GlobalPosition;
-		Vector3 camPos = _camera != null ? _camera.GlobalPosition : new Vector3(0f, 1.5f, 3f);
+		Vector3 camPos = PreviewCamera != null ? PreviewCamera.GlobalPosition : new Vector3(0f, 1.5f, 3f);
 		Vector3 dirToCam = (camPos - handPos).Normalized();
 
 		Vector3 wristNormal = targetAnchor.GlobalTransform.Basis.Y.Normalized();
@@ -753,7 +733,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		Vector3 desiredRight = desiredTopDir.Cross(Vector3.Up).Normalized();
 		if (desiredRight.LengthSquared() < 0.001f)
 		{
-			Vector3 camRight = _camera != null ? _camera.GlobalTransform.Basis.X.Normalized() : Vector3.Right;
+			Vector3 camRight = PreviewCamera != null ? PreviewCamera.GlobalTransform.Basis.X.Normalized() : Vector3.Right;
 			desiredRight = desiredTopDir.Cross(camRight).Normalized();
 		}
 
@@ -967,7 +947,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		_previewModel.Position = Vector3.Zero;
 		_previewModel.Rotation = Vector3.Zero;
 		_previewModel.Scale = Vector3.One;
-		_previewSceneRoot.AddChild(_previewModel);
+		PreviewSceneRoot.AddChild(_previewModel);
 
 		var skeleton = SkeletonValidator.FindSkeleton(_previewModel);
 		Aabb modelAabb = CalculateAttachmentLocalAabb(_previewModel);
@@ -1807,98 +1787,5 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		}
 
 		return result;
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mouseButton)
-		{
-			if (mouseButton.ButtonIndex == MouseButton.Left)
-			{
-				_isOrbiting = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
-			{
-				ZoomCamera(1.0f);
-			}
-		}
-		else if (@event is InputEventMouseMotion mouseMotion)
-		{
-			Vector2 delta = mouseMotion.Position - _lastMousePosition;
-			_lastMousePosition = mouseMotion.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (_isPanning && _camera != null)
-			{
-				Vector3 camRight = _camera.GlobalTransform.Basis.X;
-				Vector3 camUp = _camera.GlobalTransform.Basis.Y;
-				float panSpeed = _cameraDistance * 0.0025f;
-				_targetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
-		}
-	}
-
-	private void ZoomCamera(float direction)
-	{
-		float factor = direction > 0 ? 1.15f : 0.85f;
-		_cameraDistance = Mathf.Clamp(_cameraDistance * factor, DefaultDistance * 0.15f, DefaultDistance * 6.0f);
-		UpdateCameraTransform();
-	}
-
-	public void SetCameraPreset(float yawDegrees, float pitchDegrees)
-	{
-		_cameraYaw = Mathf.DegToRad(yawDegrees);
-		_cameraPitch = Mathf.DegToRad(pitchDegrees);
-		UpdateCameraTransform();
-	}
-
-	public void ResetCameraDefault()
-	{
-		_cameraYaw = 0f;
-		_cameraPitch = 0.2f;
-		_cameraDistance = DefaultDistance;
-		_targetPosition = new Vector3(0f, 1.0f, 0f);
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-		_cameraPitch = Mathf.Clamp(_cameraPitch, -Mathf.Pi * 0.48f, Mathf.Pi * 0.48f);
-
-		float cosPitch = Mathf.Cos(_cameraPitch);
-		float sinPitch = Mathf.Sin(_cameraPitch);
-		float cosYaw = Mathf.Cos(_cameraYaw);
-		float sinYaw = Mathf.Sin(_cameraYaw);
-
-		Vector3 offset = new Vector3(
-			sinYaw * cosPitch,
-			sinPitch,
-			cosYaw * cosPitch
-		) * _cameraDistance;
-
-		Vector3 newPos = _targetPosition + offset;
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
 	}
 }

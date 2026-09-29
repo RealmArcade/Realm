@@ -1,12 +1,6 @@
 using Arch.Core;
-using Realm.Ecs.Components.Combat;
-using Realm.Ecs.Components.Core;
-using Realm.Ecs.Components.Meta;
-using Realm.Ecs.Components.Movement;
-using Realm.Ecs.Components.Resources;
-using Realm.Ecs.Components.Tags;
-using Realm.Ecs.Definitions;
-using System.Numerics;
+using Realm.Ecs.AI.Genres;
+using System.Collections.Generic;
 
 namespace Realm.Ecs.AI.Affordances;
 
@@ -14,164 +8,32 @@ namespace Realm.Ecs.AI.Affordances;
 /// Scans the ECS world for candidate affordances (legal actions) available to a specific player.
 /// Generates normalized feature vectors for each affordance.
 /// </summary>
-public class AffordanceScanner
+public class AffordanceScanner : StandardRtsGenreProvider, IAffordanceScanner
 {
-	public const int FeatureCount = 8;
+	public new const int FeatureCount = StandardRtsGenreProvider.StandardFeatureCount;
 
-	public List<GenericAffordance> ScanAffordances(World world, int playerIndex, object? definitionManager = null)
+	public List<GenericAffordance> ScanAffordances(World world, int playerIndex)
 	{
-		var affordances = new List<GenericAffordance>();
-
-		var friendlyUnits = new List<Entity>();
-		var enemyUnits = new List<Entity>();
-		Vector3 friendlyCenter = Vector3.Zero;
-		Vector3 enemyCenter = Vector3.Zero;
-
-		var allQuery = new QueryDescription().WithAll<Position>().WithNone<Dead>();
-
-		world.Query(in allQuery, (Entity entity, ref Position pos) =>
-		{
-			int ownerIndex = -1;
-			if (world.Has<UnitOwnerPlayer>(entity))
-			{
-				ownerIndex = world.Get<UnitOwnerPlayer>(entity).PlayerIndex;
-			}
-
-			if (ownerIndex == playerIndex)
-			{
-				friendlyUnits.Add(entity);
-				friendlyCenter += pos.Value;
-			}
-			else if (ownerIndex >= 0)
-			{
-				enemyUnits.Add(entity);
-				enemyCenter += pos.Value;
-			}
-		});
-
-		if (friendlyUnits.Count > 0) friendlyCenter /= friendlyUnits.Count;
-		if (enemyUnits.Count > 0) enemyCenter /= enemyUnits.Count;
-
-		Entity playerEntity = Entity.Null;
-		var pQuery = new QueryDescription().WithAll<PlayerResources>();
-		world.Query(in pQuery, (Entity pe) =>
-		{
-			if (world.Has<UnitOwnerPlayer>(pe) && world.Get<UnitOwnerPlayer>(pe).PlayerIndex == playerIndex)
-			{
-				playerEntity = pe;
-			}
-			else if (playerEntity == Entity.Null)
-			{
-				playerEntity = pe;
-			}
-		});
-
-		int playerGold = 1000;
-		if (world.IsAlive(playerEntity) && world.Has<PlayerResources>(playerEntity))
-		{
-			var resources = world.Get<PlayerResources>(playerEntity).Value;
-			if (resources.Count > 0)
-			{
-				playerGold = resources.Values.FirstOrDefault();
-			}
-		}
-
-		foreach (var unit in friendlyUnits)
-		{
-			var unitPos = world.Get<Position>(unit).Value;
-			float healthRatio = 1.0f;
-			if (world.Has<Health>(unit))
-			{
-				var hp = world.Get<Health>(unit);
-				healthRatio = Math.Clamp(hp.Current / Math.Max(1.0f, hp.Max), 0f, 1f);
-			}
-
-			if (enemyUnits.Count > 0)
-			{
-				Entity lowestHpEnemy = Entity.Null;
-				float minHp = float.MaxValue;
-				Vector3 closestEnemyPos = Vector3.Zero;
-				float minEnemyDist = float.MaxValue;
-
-				foreach (var enemy in enemyUnits)
-				{
-					if (!world.IsAlive(enemy)) continue;
-					var ePos = world.Get<Position>(enemy).Value;
-					float dist = Vector3.Distance(unitPos, ePos);
-					if (dist < minEnemyDist)
-					{
-						minEnemyDist = dist;
-						closestEnemyPos = ePos;
-					}
-
-					if (world.Has<Health>(enemy))
-					{
-						float eHp = world.Get<Health>(enemy).Current;
-						if (eHp < minHp)
-						{
-							minHp = eHp;
-							lowestHpEnemy = enemy;
-						}
-					}
-				}
-
-				if (world.IsAlive(lowestHpEnemy))
-				{
-					float[] fVec = CreateFeatureVector(0.0f, 0.9f, Math.Clamp(minEnemyDist / 50.0f, 0f, 1f), healthRatio, 1.0f, 0.0f, 0.8f, 0.5f);
-					affordances.Add(new GenericAffordance(unit, CommandIntent.Attack, lowestHpEnemy, world.Get<Position>(lowestHpEnemy).Value, "focus_low_hp", fVec));
-				}
-
-				if (minEnemyDist < 10.0f)
-				{
-					Vector3 retreatVector = Vector3.Normalize(unitPos - closestEnemyPos) * 15.0f + unitPos;
-					float[] fVec = CreateFeatureVector(0.0f, 0.2f, 0.1f, healthRatio, 0.3f, 0.0f, 0.9f, 0.1f);
-					affordances.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, retreatVector, "kiting_retreat", fVec));
-				}
-
-				float[] attackCenterVec = CreateFeatureVector(0.0f, 0.8f, Math.Clamp(Vector3.Distance(unitPos, enemyCenter) / 50.0f, 0f, 1f), healthRatio, 0.8f, 0.0f, 0.5f, 0.5f);
-				affordances.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, enemyCenter, "threat_centroid", attackCenterVec));
-			}
-
-			if (world.Has<ProductionQueue>(unit))
-			{
-				ref var queue = ref world.Get<ProductionQueue>(unit);
-				if (queue.UnitIds.Count < 5)
-				{
-					float costRatio = Math.Clamp(100.0f / Math.Max(1, playerGold), 0f, 1f);
-					float[] fVec = CreateFeatureVector(costRatio, 0.5f, 0.0f, 1.0f, 0.6f, 0.0f, 0.0f, 0.7f);
-					affordances.Add(new GenericAffordance(unit, CommandIntent.Train, Entity.Null, unitPos, "train_unit", fVec));
-				}
-			}
-
-			if (world.Has<SpellCooldowns>(unit))
-			{
-				var cd = world.Get<SpellCooldowns>(unit);
-				foreach (var kvp in cd.Value)
-				{
-					if (kvp.Value <= 0.0f)
-					{
-						float[] fVec = CreateFeatureVector(0.1f, 0.9f, 0.2f, healthRatio, 0.9f, 1.0f, 0.1f, 0.9f);
-						affordances.Add(new GenericAffordance(unit, CommandIntent.Cast, enemyUnits.Count > 0 ? enemyUnits[0] : Entity.Null, enemyCenter, kvp.Key, fVec));
-					}
-				}
-			}
-		}
-
+		var affordances = new List<GenericAffordance>(32);
+		ScanAffordances(world, playerIndex, affordances, null);
 		return affordances;
 	}
 
-	private static float[] CreateFeatureVector(float costToBank, float targetThreat, float rangeFactor, float healthRatio, float tempoEfficiency, float cooldownReady, float retreatUrgency, float SynergyTag)
+	public List<GenericAffordance> ScanAffordances(World world, int playerIndex, object? definitionManager)
 	{
-		return new float[]
+		if (definitionManager is List<GenericAffordance> destList)
 		{
-			costToBank,
-			targetThreat,
-			rangeFactor,
-			healthRatio,
-			tempoEfficiency,
-			cooldownReady,
-			retreatUrgency,
-			SynergyTag
-		};
+			ScanAffordances(world, playerIndex, destList, null);
+			return destList;
+		}
+
+		var affordances = new List<GenericAffordance>(32);
+		ScanAffordances(world, playerIndex, affordances, definitionManager);
+		return affordances;
+	}
+
+	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList)
+	{
+		ScanAffordances(world, playerIndex, destinationList, null);
 	}
 }

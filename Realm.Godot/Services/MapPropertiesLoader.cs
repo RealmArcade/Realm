@@ -5,6 +5,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 using System;
+using System.Collections.Generic;
 
 public class MapPropertiesLoader
 {
@@ -60,6 +61,23 @@ public class MapPropertiesLoader
 				{
 					string val = weatherProp.GetString() ?? "clear";
 					EcsWorld.Mutate<WeatherState>(worldEntity, (ref WeatherState s) => s.CurrentWeather = val);
+				}
+			}
+
+			if (jsonDoc.RootElement.TryGetProperty("CustomEnvironmentPresets", out var presetsProp) && presetsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+			{
+				var presets = System.Text.Json.JsonSerializer.Deserialize<List<EnvironmentPresetConfig>>(presetsProp.GetRawText());
+				if (presets != null && presets.Count > 0)
+				{
+					GameHost.Instance?.EnvironmentService?.LoadPresets(presets);
+				}
+			}
+			if (jsonDoc.RootElement.TryGetProperty("DefaultEnvironmentPreset", out var defaultPresetProp) && defaultPresetProp.ValueKind == System.Text.Json.JsonValueKind.String)
+			{
+				string defPreset = defaultPresetProp.GetString() ?? "day";
+				if (GameHost.Instance != null)
+				{
+					GameHost.Instance.EnvironmentService?.ApplyPresetById(GameHost.Instance, defPreset);
 				}
 			}
 		}

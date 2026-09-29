@@ -308,6 +308,16 @@ public static class MixamoAnimationImporter
 				Directory.CreateDirectory(destDir);
 			}
 
+			if (File.Exists(destGlbPath))
+			{
+				var attrs = File.GetAttributes(destGlbPath);
+				if ((attrs & FileAttributes.ReadOnly) != 0)
+				{
+					File.SetAttributes(destGlbPath, attrs & ~FileAttributes.ReadOnly);
+				}
+				File.Delete(destGlbPath);
+			}
+
 			using var fs = new FileStream(destGlbPath, FileMode.Create, System.IO.FileAccess.Write);
 			using var writer = new BinaryWriter(fs);
 

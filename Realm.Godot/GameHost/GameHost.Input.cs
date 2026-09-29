@@ -632,7 +632,6 @@ public partial class GameHost
 				if (editorKeyEvent.Keycode == Key.L && !ctrlPressed && !shiftPressed)
 				{
 					var res = CycleTimeOfDay();
-					MapEditorHUD.Instance?.UpdateLightingTuningSlidersFromPhase(res.TimeOfDayIndex);
 					string timeName = EnvironmentService?.GetTimeOfDayName(res.TimeOfDayIndex) ?? "Day";
 					string icon = res.TimeOfDayIndex switch
 					{
@@ -643,6 +642,23 @@ public partial class GameHost
 						_ => "☀️"
 					};
 					MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+				if (editorKeyEvent.Keycode == Key.K && !ctrlPressed && !shiftPressed && !editorKeyEvent.AltPressed)
+				{
+					if (EnvironmentService != null)
+					{
+						string nextWeather = EnvironmentService.CycleWeather(this);
+						string icon = nextWeather switch
+						{
+							"rain" => "🌧️",
+							"snow" => "❄️",
+							"fog" => "🌫️",
+							_ => "☀️"
+						};
+						MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
+					}
 					GetViewport().SetInputAsHandled();
 					return;
 				}

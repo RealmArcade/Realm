@@ -26,4 +26,12 @@ public interface IResourceNode
     /// Gets a value indicating whether the resource node has been depleted.
     /// </summary>
     bool IsDepleted { get; }
+
+    /// <summary>
+    /// Triggers a transient procedural mesh deformation or shake impulse on this resource node.
+    /// </summary>
+    /// <param name="strength">The peak strength of the impulse deformation.</param>
+    /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
+    /// <param name="frequency">The oscillation frequency in Hz.</param>
+    void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
 }

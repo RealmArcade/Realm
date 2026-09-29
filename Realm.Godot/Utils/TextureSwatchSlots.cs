@@ -26,7 +26,7 @@ public readonly struct SwatchSlotInfo
 
 public static class TextureSwatchSlots
 {
-	public const int MaxSlots = 32;
+	public const int MaxSlots = 256;
 
 	public static HashSet<string> BuildKnownRibbonsCache(JsonObject? allAssets = null, string? mapDir = null)
 	{
@@ -191,7 +191,7 @@ public static class TextureSwatchSlots
 			}
 			else
 			{
-				GD.PrintErr($"[TextureSwatchSlots] Cannot assign texture '{pending.FileName}', maximum 32 slots reached.");
+				GD.PrintErr($"[TextureSwatchSlots] Cannot assign texture '{pending.FileName}', maximum {MaxSlots} slots reached.");
 			}
 		}
 

@@ -1,5 +1,6 @@
 using Realm.AdminServer.Models;
 using Realm.AdminServer.Services;
+using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 
@@ -143,7 +144,7 @@ app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext 
     var clientIpStr = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
     var clientCoords = geoIp.GetCoordinates(clientIpStr);
     
-    var list = registry.GetAllLobbies().Select(lobby =>
+    var list = registry.GetAllLobbies().Where(lobby => !lobby.IsGameInProgress).Select(lobby =>
     {
         var distance = GeoIpService.CalculateDistance(
             clientCoords.lat, clientCoords.lon,
@@ -228,30 +229,9 @@ app.MapPost("/lobbies/register", async (RegisterRequest req, LobbyRegistry regis
             return Results.BadRequest(new { Message = "Invalid signature or public key format." });
         }
         
-        string slug = req.Map.ToLowerInvariant().Replace(" ", "-");
-        string? officialOwner = db.Get<string>("map_ownership", req.Map) ?? db.Get<string>("map_ownership", slug);
-        if (officialOwner == null)
+        if (MapMaintainerHelper.HasMapConflict(db, req.Map, req.PublicKey, out var conflictingMap))
         {
-            var publishedMap = db.Get<JsonDocument>("published_maps", req.Map) ?? db.Get<JsonDocument>("published_maps", slug);
-            if (publishedMap != null)
-            {
-                if (publishedMap.RootElement.TryGetProperty("owner_public_key", out var opk))
-                {
-                    officialOwner = opk.GetString();
-                }
-                else if (publishedMap.RootElement.TryGetProperty("OwnerPublicKey", out var opk2))
-                {
-                    officialOwner = opk2.GetString();
-                }
-            }
-        }
-
-        if (!string.IsNullOrEmpty(officialOwner))
-        {
-            if (!string.Equals(officialOwner, req.PublicKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return Results.BadRequest(new { Message = $"The map name '{req.Map}' conflicts with an officially published map. Please rename your map to host a lobby." });
-            }
+            return Results.BadRequest(new { Message = $"The map name '{req.Map}' conflicts with an officially published map ('{conflictingMap}'). Please rename your map to host a lobby." });
         }
     }
 
@@ -355,6 +335,10 @@ app.MapPost("/lobbies/heartbeat", async (HeartbeatRequest req, LobbyRegistry reg
     {
         lobby.LastHeartbeat = DateTime.UtcNow;
         lobby.SlotsUsed = req.SlotsUsed;
+        if (req.IsGameInProgress.HasValue)
+        {
+            lobby.IsGameInProgress = req.IsGameInProgress.Value;
+        }
 
 
         _ = Task.Run(async () =>
@@ -640,8 +624,10 @@ app.MapGet("/auth/login", (string provider, int port) =>
 
 app.MapGet("/auth/authorize", (string provider, int port, string username, string? discord_id, DataStoreService db) =>
 {
-    string finalUsername = username;
+    string candidateUsername = username?.Trim() ?? string.Empty;
     string playerId = "";
+    string playerKey = "";
+
     if (provider == "discord")
     {
         string snowflake = discord_id ?? "";
@@ -651,39 +637,53 @@ app.MapGet("/auth/authorize", (string provider, int port, string username, strin
             long part2 = Random.Shared.Next(100000000, 999999999);
             snowflake = $"{part1}{part2}";
         }
+        playerKey = snowflake;
         playerId = $"discord_{snowflake}";
-
-        var existingPlayer = db.Get<JsonDocument>("players", snowflake);
-        if (existingPlayer != null)
-        {
-            var root = existingPlayer.RootElement;
-            if (root.TryGetProperty("username", out var uProp))
-            {
-                finalUsername = uProp.GetString() ?? username;
-            }
-        }
-        else
-        {
-            var playerDoc = JsonSerializer.SerializeToDocument(new
-            {
-                id = snowflake,
-                username = username,
-                provider = "discord",
-                registration_date = DateTime.UtcNow
-            });
-            db.Upsert("players", snowflake, playerDoc);
-        }
     }
     else
     {
-        playerId = $"{provider}_{Guid.NewGuid().ToString("N")[..8]}";
-        var playerDoc = JsonSerializer.SerializeToDocument(new
+        playerKey = $"{provider}_{Guid.NewGuid().ToString("N")[..8]}";
+        playerId = playerKey;
+    }
+
+    string finalUsername = candidateUsername;
+    var existingPlayer = db.Get<JsonDocument>("players", playerKey) ?? db.Get<JsonDocument>("players", playerId);
+
+    if (existingPlayer != null)
+    {
+        var root = existingPlayer.RootElement;
+        if (root.TryGetProperty("username", out var uProp))
         {
-            id = playerId,
-            username = username,
-            provider = provider,
-            registration_date = DateTime.UtcNow
-        });
+            string existingUsername = uProp.GetString() ?? "";
+            if (!string.IsNullOrWhiteSpace(existingUsername))
+            {
+                finalUsername = existingUsername;
+            }
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(finalUsername) || !NameNormalizationHelper.ValidateUsername(finalUsername, out _))
+    {
+        finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
+    }
+
+    string normalizedUser = NameNormalizationHelper.NormalizeUsername(finalUsername);
+    var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
+    if (existingLock != null && existingPlayer == null)
+    {
+        finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
+    }
+
+    var playerDoc = JsonSerializer.SerializeToDocument(new
+    {
+        id = playerId,
+        username = finalUsername,
+        provider = provider,
+        registration_date = DateTime.UtcNow
+    });
+    db.Upsert("players", playerKey, playerDoc);
+    if (playerKey != playerId)
+    {
         db.Upsert("players", playerId, playerDoc);
     }
 
@@ -700,6 +700,68 @@ app.MapGet("/auth/authorize", (string provider, int port, string username, strin
 
     var callbackUrl = $"http://localhost:{port}/auth/callback/?username={Uri.EscapeDataString(finalUsername)}&token={token}&provider={provider}";
     return Results.Redirect(callbackUrl);
+});
+
+app.MapPost("/api/players/username", (UpdatePlayerUsernameRequest req, DataStoreService db) =>
+{
+    if (string.IsNullOrWhiteSpace(req.PlayerId))
+    {
+        return Results.BadRequest(new { Message = "PlayerId is required." });
+    }
+
+    if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
+    {
+        return Results.BadRequest(new { Message = usernameError });
+    }
+
+    string trimmedUsername = req.Username.Trim();
+    string normalizedUser = NameNormalizationHelper.NormalizeUsername(trimmedUsername);
+
+    var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
+    if (existingLock != null)
+    {
+        return Results.Conflict(new { Message = $"The username '{trimmedUsername}' conflicts with a registered creator name." });
+    }
+
+    var allPlayers = db.GetAllWithKeys<JsonDocument>("players");
+    foreach (var pair in allPlayers)
+    {
+        if (string.Equals(pair.Key, req.PlayerId, StringComparison.OrdinalIgnoreCase))
+        {
+            continue;
+        }
+
+        var root = pair.Value.RootElement;
+        if (root.TryGetProperty("username", out var uProp))
+        {
+            string existingU = uProp.GetString() ?? "";
+            if (NameNormalizationHelper.AreUsernamesConflicting(existingU, trimmedUsername))
+            {
+                return Results.Conflict(new { Message = $"The username '{trimmedUsername}' is already in use by another player." });
+            }
+        }
+    }
+
+    var existingDoc = db.Get<JsonDocument>("players", req.PlayerId);
+    string provider = "custom";
+    DateTime regDate = DateTime.UtcNow;
+    if (existingDoc != null)
+    {
+        var root = existingDoc.RootElement;
+        if (root.TryGetProperty("provider", out var pProp)) provider = pProp.GetString() ?? "custom";
+        if (root.TryGetProperty("registration_date", out var rProp) && rProp.TryGetDateTime(out var dt)) regDate = dt;
+    }
+
+    var updatedDoc = JsonSerializer.SerializeToDocument(new
+    {
+        id = req.PlayerId,
+        username = trimmedUsername,
+        provider = provider,
+        registration_date = regDate
+    });
+    db.Upsert("players", req.PlayerId, updatedDoc);
+
+    return Results.Ok(new { Status = "Updated", Username = trimmedUsername, PlayerId = req.PlayerId });
 });
 
 app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
@@ -1118,13 +1180,12 @@ app.MapPost("/api/publish_map/initiate", (PublishMapInitiateRequest req, DataSto
             }, statusCode: StatusCodes.Status403Forbidden);
         }
 
-        var existingOwner = db.Get<string>("map_ownership", mapTitle);
-        if (existingOwner != null && !string.Equals(existingOwner, req.PublicKey, StringComparison.OrdinalIgnoreCase))
+        if (!MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, req.PublicKey))
         {
             return Results.BadRequest(new PublishMapInitiateResponse
             {
                 Success = false,
-                Message = "A map with this title already exists and is owned by a different key."
+                Message = "A map with this title already exists and is owned by different maintainers."
             });
         }
 
@@ -1295,11 +1356,15 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
             });
         }
 
-        var existingOwner = db.Get<string>("map_ownership", mapTitle);
-        if (existingOwner == null)
+        if (!MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, publicKey))
         {
-            db.Upsert("map_ownership", mapTitle, publicKey);
+            return Results.BadRequest(new PublishMapFinalizeResponse
+            {
+                Success = false,
+                Message = "A map with this title already exists and is owned by different maintainers."
+            });
         }
+        MapMaintainerHelper.AddMaintainer(db, mapTitle, publicKey);
 
         string manifestDir = Path.Combine(cas.RootDirectory, "manifests");
         if (!Directory.Exists(manifestDir)) Directory.CreateDirectory(manifestDir);
@@ -1429,13 +1494,10 @@ app.MapPost("/api/publish_map", (PublishMapRequest req, DataStoreService db, Con
             return Results.BadRequest(new { Message = $"Map with Title '{mapTitle}' and Version '{mapVersion}' already exists." });
         }
         
-        var ownership = db.Get<string>("map_ownership", mapTitle);
-        if (ownership != null && ownership != req.PublicKey) {
-            return Results.BadRequest(new { Message = "A map with this title already exists and is owned by a different key." });
+        if (!MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, req.PublicKey)) {
+            return Results.BadRequest(new { Message = "A map with this title already exists and is owned by different maintainers." });
         }
-        if (ownership == null) {
-            db.Upsert("map_ownership", mapTitle, req.PublicKey);
-        }
+        MapMaintainerHelper.AddMaintainer(db, mapTitle, req.PublicKey);
 
         var contributors = new HashSet<string>();
         if (root.TryGetProperty("Contributors", out var contProp) && contProp.ValueKind == JsonValueKind.Array) {
@@ -1962,8 +2024,13 @@ app.MapPost("/api/cluster/sync_creators", async (HttpRequest request, ClusterEve
         {
             if (string.IsNullOrWhiteSpace(creator.PublicKey) || string.IsNullOrWhiteSpace(creator.Username)) continue;
 
-            string slug = creator.Username.ToLowerInvariant().Replace(" ", "-");
-            var existingLock = db.Get<JsonDocument>("name_locks", slug);
+            string slug = NameNormalizationHelper.NormalizeUsername(creator.Username);
+            if (string.IsNullOrEmpty(slug))
+            {
+                slug = creator.Username.ToLowerInvariant().Replace(" ", "-");
+            }
+            var existingLock = db.Get<JsonDocument>("name_locks", slug)
+                ?? db.Get<JsonDocument>("name_locks", creator.Username.ToLowerInvariant().Replace(" ", "-"));
             if (existingLock == null)
             {
                 var lockDoc = JsonSerializer.SerializeToDocument(new
@@ -2092,9 +2159,9 @@ app.MapGet("/api/publish_map/asset_author/{hash}", (string hash, DataStoreServic
 
 app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreatorRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-    if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.PublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+    if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
     {
-        return Results.BadRequest(new { Message = "Username, PublicKey, and Signature are required." });
+        return Results.BadRequest(new { Message = usernameError });
     }
 
     string username = req.Username.Trim();
@@ -2109,8 +2176,14 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
         return Results.BadRequest(new { Message = "Invalid cryptographic signature for public key." });
     }
 
-    string slug = username.ToLowerInvariant().Replace(" ", "-");
-    var existingLock = db.Get<JsonDocument>("name_locks", slug);
+    string slug = NameNormalizationHelper.NormalizeUsername(username);
+    if (string.IsNullOrEmpty(slug))
+    {
+        slug = username.ToLowerInvariant().Replace(" ", "-");
+    }
+
+    var existingLock = db.Get<JsonDocument>("name_locks", slug)
+        ?? db.Get<JsonDocument>("name_locks", username.ToLowerInvariant().Replace(" ", "-"));
     if (existingLock != null)
     {
         var root = existingLock.RootElement;
@@ -2820,6 +2893,388 @@ app.MapGet("/api/maps/greenlight_status/{mapId}", (string mapId, DataStoreServic
         TotalReviewsCount = stats.ReviewsCount,
         AverageRating = stats.AverageRating
     });
+});
+
+app.MapGet("/api/maps/{mapTitle}/maintainers", (string mapTitle, DataStoreService db) =>
+{
+    var maintainers = MapMaintainerHelper.GetMaintainers(db, mapTitle);
+    string owner = MapMaintainerHelper.GetOwner(db, mapTitle);
+    return Results.Ok(new MapMaintainersResponseDto
+    {
+        Success = true,
+        MapTitle = mapTitle,
+        OwnerPublicKey = owner,
+        Maintainers = maintainers,
+        Message = $"Found {maintainers.Count} maintainer(s) for map '{mapTitle}'."
+    });
+});
+
+app.MapPost("/api/maps/{mapTitle}/maintainers/add", (string mapTitle, AddMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        string targetMap = !string.IsNullOrWhiteSpace(req.MapTitle) ? req.MapTitle : mapTitle;
+        if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+            });
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            return Results.Json(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+            }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        string canonicalPayload = $"add_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"add_maintainer:{targetMap}:{req.MaintainerPublicKey}";
+        string fallbackPayload2 = $"add:{targetMap}:{req.MaintainerPublicKey}";
+
+        bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
+
+        if (!isSigValid)
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Invalid signature for adding maintainer."
+            });
+        }
+
+        var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
+        string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+
+        var clusterEvt = new ClusterEventDto
+        {
+            EventType = "map_maintainers_updated",
+            PublicKey = req.RequesterPublicKey,
+            Signature = req.Signature,
+            PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
+            {
+                MapTitle = targetMap,
+                Action = "add",
+                MaintainerPublicKey = req.MaintainerPublicKey,
+                MaintainerUsername = req.MaintainerUsername,
+                RequesterPublicKey = req.RequesterPublicKey,
+                Signature = req.Signature
+            })
+        };
+        clusterEvents.RecordEvent(clusterEvt, db);
+        clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
+
+        return Results.Ok(new MapMaintainersResponseDto
+        {
+            Success = true,
+            MapTitle = targetMap,
+            OwnerPublicKey = owner,
+            Maintainers = updatedMaintainers,
+            Message = $"Successfully added maintainer '{req.MaintainerPublicKey}' to map '{targetMap}'."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new MapMaintainersResponseDto
+        {
+            Success = false,
+            MapTitle = mapTitle,
+            Message = ex.Message
+        });
+    }
+});
+
+app.MapPost("/api/maps/maintainers/add", (AddMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        string targetMap = req.MapTitle;
+        if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+            });
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            return Results.Json(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+            }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        string canonicalPayload = $"add_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"add_maintainer:{targetMap}:{req.MaintainerPublicKey}";
+        string fallbackPayload2 = $"add:{targetMap}:{req.MaintainerPublicKey}";
+
+        bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
+
+        if (!isSigValid)
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Invalid signature for adding maintainer."
+            });
+        }
+
+        var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
+        string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+
+        var clusterEvt = new ClusterEventDto
+        {
+            EventType = "map_maintainers_updated",
+            PublicKey = req.RequesterPublicKey,
+            Signature = req.Signature,
+            PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
+            {
+                MapTitle = targetMap,
+                Action = "add",
+                MaintainerPublicKey = req.MaintainerPublicKey,
+                MaintainerUsername = req.MaintainerUsername,
+                RequesterPublicKey = req.RequesterPublicKey,
+                Signature = req.Signature
+            })
+        };
+        clusterEvents.RecordEvent(clusterEvt, db);
+        clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
+
+        return Results.Ok(new MapMaintainersResponseDto
+        {
+            Success = true,
+            MapTitle = targetMap,
+            OwnerPublicKey = owner,
+            Maintainers = updatedMaintainers,
+            Message = $"Successfully added maintainer '{req.MaintainerPublicKey}' to map '{targetMap}'."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new MapMaintainersResponseDto
+        {
+            Success = false,
+            MapTitle = req.MapTitle,
+            Message = ex.Message
+        });
+    }
+});
+
+app.MapPost("/api/maps/{mapTitle}/maintainers/remove", (string mapTitle, RemoveMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        string targetMap = !string.IsNullOrWhiteSpace(req.MapTitle) ? req.MapTitle : mapTitle;
+        if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+            });
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            return Results.Json(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+            }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        string canonicalPayload = $"remove_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"remove_maintainer:{targetMap}:{req.MaintainerPublicKey}";
+        string fallbackPayload2 = $"remove:{targetMap}:{req.MaintainerPublicKey}";
+
+        bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
+
+        if (!isSigValid)
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Invalid signature for removing maintainer."
+            });
+        }
+
+        var currentMaintainers = MapMaintainerHelper.GetMaintainers(db, targetMap);
+        if (!isAdmin && currentMaintainers.Count <= 1 && currentMaintainers.Any(m => string.Equals(m, req.MaintainerPublicKey.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Cannot remove the only remaining maintainer of the map. Transfer ownership or add another maintainer first."
+            });
+        }
+
+        var updatedMaintainers = MapMaintainerHelper.RemoveMaintainer(db, targetMap, req.MaintainerPublicKey);
+        string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+
+        var clusterEvt = new ClusterEventDto
+        {
+            EventType = "map_maintainers_updated",
+            PublicKey = req.RequesterPublicKey,
+            Signature = req.Signature,
+            PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
+            {
+                MapTitle = targetMap,
+                Action = "remove",
+                MaintainerPublicKey = req.MaintainerPublicKey,
+                RequesterPublicKey = req.RequesterPublicKey,
+                Signature = req.Signature
+            })
+        };
+        clusterEvents.RecordEvent(clusterEvt, db);
+        clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
+
+        return Results.Ok(new MapMaintainersResponseDto
+        {
+            Success = true,
+            MapTitle = targetMap,
+            OwnerPublicKey = owner,
+            Maintainers = updatedMaintainers,
+            Message = $"Successfully removed maintainer '{req.MaintainerPublicKey}' from map '{targetMap}'."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new MapMaintainersResponseDto
+        {
+            Success = false,
+            MapTitle = mapTitle,
+            Message = ex.Message
+        });
+    }
+});
+
+app.MapPost("/api/maps/maintainers/remove", (RemoveMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        string targetMap = req.MapTitle;
+        if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+            });
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            return Results.Json(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+            }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        string canonicalPayload = $"remove_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"remove_maintainer:{targetMap}:{req.MaintainerPublicKey}";
+        string fallbackPayload2 = $"remove:{targetMap}:{req.MaintainerPublicKey}";
+
+        bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
+
+        if (!isSigValid)
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Invalid signature for removing maintainer."
+            });
+        }
+
+        var currentMaintainers = MapMaintainerHelper.GetMaintainers(db, targetMap);
+        if (!isAdmin && currentMaintainers.Count <= 1 && currentMaintainers.Any(m => string.Equals(m, req.MaintainerPublicKey.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Cannot remove the only remaining maintainer of the map. Transfer ownership or add another maintainer first."
+            });
+        }
+
+        var updatedMaintainers = MapMaintainerHelper.RemoveMaintainer(db, targetMap, req.MaintainerPublicKey);
+        string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+
+        var clusterEvt = new ClusterEventDto
+        {
+            EventType = "map_maintainers_updated",
+            PublicKey = req.RequesterPublicKey,
+            Signature = req.Signature,
+            PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
+            {
+                MapTitle = targetMap,
+                Action = "remove",
+                MaintainerPublicKey = req.MaintainerPublicKey,
+                RequesterPublicKey = req.RequesterPublicKey,
+                Signature = req.Signature
+            })
+        };
+        clusterEvents.RecordEvent(clusterEvt, db);
+        clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
+
+        return Results.Ok(new MapMaintainersResponseDto
+        {
+            Success = true,
+            MapTitle = targetMap,
+            OwnerPublicKey = owner,
+            Maintainers = updatedMaintainers,
+            Message = $"Successfully removed maintainer '{req.MaintainerPublicKey}' from map '{targetMap}'."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new MapMaintainersResponseDto
+        {
+            Success = false,
+            MapTitle = req.MapTitle,
+            Message = ex.Message
+        });
+    }
 });
 
 app.MapGet("/api/data/{collection}/{id}", (string collection, string id, DataStoreService db, HttpContext context) =>

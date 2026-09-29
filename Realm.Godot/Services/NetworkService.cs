@@ -295,6 +295,27 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !EcsWorld.Has<NetworkMappingState>(worldEntity)) return;
 		var mapping = EcsWorld.Get<NetworkMappingState>(worldEntity);
 
+		if (snapshot.IsBaseline)
+		{
+			var serverIdsInSnapshot = new HashSet<int>(snapshot.Units.Count);
+			for (int i = 0; i < snapshot.Units.Count; i++)
+			{
+				serverIdsInSnapshot.Add(snapshot.Units[i].EntityId);
+			}
+			foreach (var kvp in mapping.ServerToClientEntityMap)
+			{
+				if (!serverIdsInSnapshot.Contains(kvp.Key))
+				{
+					var localEnt = kvp.Value;
+					if (EcsWorld.IsAlive(localEnt) && !EcsWorld.Has<Dead>(localEnt))
+					{
+						EcsWorld.Add<Dead>(localEnt);
+						_pendingUnitKills.Add(localEnt);
+					}
+				}
+			}
+		}
+
 		foreach (var snap in snapshot.Units)
 		{
 			if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
@@ -1041,6 +1062,61 @@ public class NetworkService
 		return results;
 	}
 
+	public byte[] BuildExplicitBaselineSnapshot(int targetPeerId, List<Unit3D> allUnits)
+	{
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !EcsWorld.Has<NetworkState>(worldEntity) || !EcsWorld.Has<NetworkMappingState>(worldEntity))
+		{
+			return System.Array.Empty<byte>();
+		}
+
+		ref var networkState = ref EcsWorld.Get<NetworkState>(worldEntity);
+		var mapping = EcsWorld.Get<NetworkMappingState>(worldEntity);
+		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var playerEntity))
+		{
+			return System.Array.Empty<byte>();
+		}
+
+		Vector3 cameraPos = _clientCameraPositions.TryGetValue(targetPeerId, out var cam) ? cam : Vector3.Zero;
+		var snapshotUnits = new List<UnitSnapshot>();
+		var nextBaselineMap = new Dictionary<int, UnitSnapshot>();
+
+		foreach (var unit in allUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity, allUnits)) continue;
+			float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
+			bool isDetailed = distToCamera <= 35.0f;
+			var currentSnap = new UnitSnapshot
+			{
+				EntityId = unit.Entity.Id,
+				UnitId = unit.UnitId,
+				OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
+				Position = new NetworkVector3(unit.GlobalPosition),
+				RotationY = unit.GlobalRotation.Y,
+				CurrentHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Current : 0f,
+				MaxHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Max : 0f,
+				IsDead = EcsWorld.Has<Dead>(unit.Entity),
+				IsBuilding = unit.IsBuilding,
+				IsDetailed = isDetailed,
+				Velocity = new NetworkVector3(unit.Velocity)
+			};
+			snapshotUnits.Add(currentSnap);
+			nextBaselineMap[unit.Entity.Id] = currentSnap;
+		}
+
+		_lastBaselineSnapshotsPerClient[targetPeerId] = nextBaselineMap;
+
+		var worldSnapshot = new WorldSnapshot
+		{
+			Sequence = networkState.SnapshotSequence,
+			IsBaseline = true,
+			BaseSequence = networkState.SnapshotSequence,
+			Units = snapshotUnits
+		};
+		return MemoryPackSerializer.Serialize(worldSnapshot);
+	}
+
 	public void QueueSpectatorDelayedPacket(int peerId, string functionName, object[] arguments)
 	{
 		double sendTime = (Godot.Time.GetTicksMsec() / 1000.0) + 300.0;
@@ -1211,6 +1287,22 @@ public class NetworkService
 	{
 		WasClientInMultiplayer = true;
 		LastSnapshotReceivedTime = Godot.Time.GetTicksMsec();
+	}
+
+	public void ResetReconnectionState()
+	{
+		_unacknowledgedCommands.Clear();
+		_queuedDeltas.Clear();
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity != Entity.Null && EcsWorld.Has<NetworkState>(worldEntity))
+		{
+			ref var ns = ref EcsWorld.Get<NetworkState>(worldEntity);
+			ns.HasReceivedInitialBaseline = false;
+			ns.LastReceivedBaselineSeq = -1;
+			ns.LastAppliedSnapshotSequence = -1;
+			ns.LastSnapshotReceivedTime = Godot.Time.GetTicksMsec();
+		}
+		IsConnectionLost = false;
 	}
 
 	public void UpdateConnectionStatus(bool multiplayerActive, bool isServer)

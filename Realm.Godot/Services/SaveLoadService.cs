@@ -237,7 +237,7 @@ public class SaveLoadService
 					heightsSpan[baseIdx + 3] = cell.Y_SW;
 
 					waterSpan[baseIdx + 0] = (float)cell.WaterMode;
-					waterSpan[baseIdx + 1] = 0f;
+					waterSpan[baseIdx + 1] = (float)cell.WaterProfileIndex;
 					waterSpan[baseIdx + 2] = 0f;
 					waterSpan[baseIdx + 3] = 1f;
 				}
@@ -539,7 +539,8 @@ public class SaveLoadService
 					editor.SkyboxPath,
 					false,
 					editor.MirrorMode,
-					editor.WaterMode
+					editor.WaterMode,
+					editor.WaterProfileIndex
 				);
 
 				EcsWorld.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) =>
@@ -703,7 +704,9 @@ public class SaveLoadService
 								{
 									int baseIdx = (z * imgW + x) * 4;
 									var wMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
+									byte wProfile = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
 									ts.Cells[x, z].WaterMode = wMode;
+									ts.Cells[x, z].WaterProfileIndex = wProfile;
 								}
 							}
 						}
@@ -837,7 +840,8 @@ public class SaveLoadService
 			string skybox = saveData.SkyboxPath;
 
 			WaterType currentWaterMode = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).WaterMode : WaterType.None;
-			var newEditorState = new EditorState(isBlock, step, left, right, top, bottom, skybox, false, MirrorMode.None, currentWaterMode);
+			byte currentWaterProf = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).WaterProfileIndex : (byte)0;
+			var newEditorState = new EditorState(isBlock, step, left, right, top, bottom, skybox, false, MirrorMode.None, currentWaterMode, currentWaterProf);
 			EcsWorld.SetOrAdd(worldEntity, newEditorState);
 
 			if (EcsWorld.Has<CameraState>(worldEntity))
@@ -1144,26 +1148,50 @@ public class SaveLoadService
 		{
 			string fullWsPath = Path.GetFullPath(workspacePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 			string fullUserDataDir = Path.GetFullPath(OS.GetUserDataDir()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-			if (string.Equals(fullWsPath, fullUserDataDir, StringComparison.OrdinalIgnoreCase))
+			string globalBackupsRoot = Path.GetFullPath(Path.Combine(fullUserDataDir, "map_backups")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			string globalUpgradesRoot = Path.GetFullPath(Path.Combine(fullUserDataDir, "map_upgrades")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			string resGlobalPath = Path.GetFullPath(ProjectSettings.GlobalizePath("res://")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+			if (string.Equals(fullWsPath, fullUserDataDir, StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(fullWsPath, resGlobalPath, StringComparison.OrdinalIgnoreCase))
+			{
+				return string.Empty;
+			}
+
+			if (fullWsPath.Equals(globalBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
+				fullWsPath.StartsWith(globalBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+				fullWsPath.Equals(globalUpgradesRoot, StringComparison.OrdinalIgnoreCase) ||
+				fullWsPath.StartsWith(globalUpgradesRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+				fullWsPath.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
+				fullWsPath.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
+				fullWsPath.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
 			{
 				return string.Empty;
 			}
 
 			string wsName = Path.GetFileName(fullWsPath);
-			if (string.IsNullOrEmpty(wsName)) wsName = MapWorkspaceService.DefaultWorkspaceFolder;
+			if (string.IsNullOrEmpty(wsName) ||
+				string.Equals(wsName, "map_backups", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(wsName, "map_upgrades", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(wsName, "backups", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(wsName, ".backups", StringComparison.OrdinalIgnoreCase) ||
+				wsName.StartsWith("backup_", StringComparison.OrdinalIgnoreCase))
+			{
+				return string.Empty;
+			}
 
-			string backupsRoot = Path.Combine(OS.GetUserDataDir(), "map_backups", wsName);
+			string backupsRoot = Path.GetFullPath(Path.Combine(globalBackupsRoot, wsName)).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 			if (!Directory.Exists(backupsRoot))
 			{
 				Directory.CreateDirectory(backupsRoot);
 			}
 
 			string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
-			string targetBackupDir = Path.Combine(backupsRoot, $"backup_{timestamp}");
+			string targetBackupDir = Path.GetFullPath(Path.Combine(backupsRoot, $"backup_{timestamp}")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
 			Directory.CreateDirectory(targetBackupDir);
 
-			CopyDirectoryContentsSafe(workspacePath, targetBackupDir, backupsRoot);
+			CopyDirectoryContentsSafe(fullWsPath, targetBackupDir, backupsRoot);
 
 			PruneOldBackups(backupsRoot, maxBackups);
 
@@ -1181,9 +1209,12 @@ public class SaveLoadService
 		var source = new DirectoryInfo(sourceDir);
 		if (!source.Exists) return;
 
+		string normalizedTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string normalizedBackupsRoot = !string.IsNullOrEmpty(backupsRoot) ? Path.GetFullPath(backupsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) : null;
+
 		var excludedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 		{
-			".git", "bin", "obj", ".godot", ".vs", ".vscode", "map_backups", "backups", ".dotnet", ".wasi", ".sidecarcache", ".cache"
+			".git", "bin", "obj", ".godot", ".vs", ".vscode", ".idea", "map_backups", "map_upgrades", "backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache"
 		};
 
 		var filesToCopy = new List<(string SourcePath, string DestPath)>();
@@ -1204,9 +1235,27 @@ public class SaveLoadService
 			foreach (var subDir in curDir.GetDirectories())
 			{
 				if (excludedFolders.Contains(subDir.Name)) continue;
-				if (!string.IsNullOrEmpty(backupsRoot) &&
-					(string.Equals(subDir.FullName, backupsRoot, StringComparison.OrdinalIgnoreCase) ||
-					 subDir.FullName.StartsWith(backupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+				if (subDir.Name.StartsWith("backup_", StringComparison.OrdinalIgnoreCase)) continue;
+
+				string subDirFull = Path.GetFullPath(subDir.FullName).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+				if (subDirFull.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
+					subDirFull.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
+					subDirFull.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
+				{
+					continue;
+				}
+
+				if (!string.IsNullOrEmpty(normalizedBackupsRoot) &&
+					(string.Equals(subDirFull, normalizedBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
+					 subDirFull.StartsWith(normalizedBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+				{
+					continue;
+				}
+
+				if (string.Equals(subDirFull, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
+					subDirFull.StartsWith(normalizedTarget + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+					normalizedTarget.StartsWith(subDirFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
 				{
 					continue;
 				}
@@ -1244,7 +1293,7 @@ public class SaveLoadService
 				backupDirs.RemoveAt(0);
 				try
 				{
-					oldest.Delete(true);
+					DeleteDirectoryRecursiveClearingReadOnly(oldest.FullName);
 				}
 				catch (Exception ex)
 				{
@@ -1255,6 +1304,27 @@ public class SaveLoadService
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[SaveLoadService] PruneOldBackups error: {ex.Message}");
+		}
+	}
+
+	private static void DeleteDirectoryRecursiveClearingReadOnly(string targetDir)
+	{
+		if (!Directory.Exists(targetDir)) return;
+		try
+		{
+			foreach (var file in Directory.GetFiles(targetDir, "*", SearchOption.AllDirectories))
+			{
+				var attrs = File.GetAttributes(file);
+				if ((attrs & FileAttributes.ReadOnly) != 0)
+				{
+					File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
+				}
+			}
+			Directory.Delete(targetDir, true);
+		}
+		catch
+		{
+			try { Directory.Delete(targetDir, true); } catch { }
 		}
 	}
 
@@ -1562,6 +1632,7 @@ public class SaveLoadService
 		set.Add("icons");
 		set.Add("skyboxes");
 		set.Add("ribbons");
+		set.Add("shaders");
 		set.Add("CustomUnits");
 		set.Add("CustomBuildings");
 		set.Add("CustomResources");
@@ -2115,6 +2186,20 @@ public class SaveLoadService
 			}
 		}
 
+		if (root.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObject)
+		{
+			var allowedShaderProperties = GetAllowedShaderItemProperties();
+			foreach (var keyValuePair in shadersObject)
+			{
+				if (keyValuePair.Value is JsonObject itemObject)
+				{
+					itemObject.Remove("hash");
+					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedShaderProperties.Contains(property)).ToList();
+					foreach (var property in propertiesToRemove) itemObject.Remove(property);
+				}
+			}
+		}
+
 		var schemaRoot = LoadMapSchemaJson();
 		var allowedTopLevel = GetAllowedMetadataTopLevel(schemaRoot);
 
@@ -2236,6 +2321,7 @@ public class SaveLoadService
 						"noise" or "noise_textures" => "noise",
 						"skyboxes" => "skyboxes",
 						"textures" => "textures",
+						"shaders" => "shaders",
 						_ => category
 					};
 

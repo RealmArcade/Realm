@@ -110,10 +110,28 @@ public class MapEditorBrushSettings
 
 		if (_optWaterMode != null && GameHost.Instance != null)
 		{
-			int waterModeIdx = (int)GameHost.Instance.EditorWaterMode;
-			if (_optWaterMode.Selected != waterModeIdx)
+			WaterType waterMode = GameHost.Instance.EditorWaterMode;
+			byte activeProf = GameHost.Instance.ActiveWaterProfileIndex;
+			int targetSelected = 0;
+			if (waterMode != WaterType.None)
 			{
-				_optWaterMode.Selected = waterModeIdx;
+				for (int i = 1; i < _optWaterMode.ItemCount; i++)
+				{
+					var meta = _optWaterMode.GetItemMetadata(i);
+					if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == activeProf)
+					{
+						targetSelected = i;
+						break;
+					}
+				}
+				if (targetSelected == 0 && _optWaterMode.ItemCount > 1)
+				{
+					targetSelected = 1;
+				}
+			}
+			if (_optWaterMode.Selected != targetSelected)
+			{
+				_optWaterMode.Selected = targetSelected;
 			}
 		}
 	}

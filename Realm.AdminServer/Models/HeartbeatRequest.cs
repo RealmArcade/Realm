@@ -2,5 +2,6 @@ namespace Realm.AdminServer.Models;
 
 public record HeartbeatRequest(
 	string LobbyId, 
-	int SlotsUsed
+	int SlotsUsed,
+	bool? IsGameInProgress = null
 );

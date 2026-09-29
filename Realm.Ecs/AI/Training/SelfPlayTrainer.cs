@@ -1,6 +1,10 @@
 using Realm.Ecs.AI.Affordances;
+using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Simulation;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Realm.Ecs.AI.Training;
 
@@ -8,9 +12,18 @@ public class SelfPlayTrainer
 {
 	private static readonly Random Random = new Random();
 
-	public BotProfile TrainSelfPlay(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4)
+	public BotProfile TrainSelfPlay(
+		string mapName,
+		int generations = 5,
+		int populationSize = 8,
+		int matchesPerEvaluation = 4,
+		WinConditionEvaluator? winConditionEvaluator = null,
+		MapSimulationInitializer? customInitializer = null,
+		int maxTicks = 400,
+		IAiGenreProvider? genreProvider = null)
 	{
-		int featureCount = AffordanceScanner.FeatureCount;
+		var provider = genreProvider ?? new StandardRtsGenreProvider();
+		int featureCount = provider.FeatureCount;
 		var population = new List<float[]>();
 
 		for (int i = 0; i < populationSize; i++)
@@ -40,9 +53,24 @@ public class SelfPlayTrainer
 
 				for (int m = 0; m < matchesPerEvaluation; m++)
 				{
-					float[] opponent = historicalPool[Random.Next(historicalPool.Count)];
-					var runner = new HeadlessSimulationRunner();
-					var result = runner.RunMatch(candidate, opponent, maxTicks: 400);
+					float[] opponent;
+					lock (historicalPool)
+					{
+						opponent = historicalPool[Random.Next(historicalPool.Count)];
+					}
+
+					var matchProvider = AiGenreRegistry.Get(provider.GenreName);
+					var runner = new HeadlessSimulationRunner(matchProvider);
+					var result = runner.RunMatch(
+						candidate,
+						opponent,
+						maxTicks: maxTicks,
+						winConditionEvaluator: winConditionEvaluator,
+						customInitializer: customInitializer,
+						p0Temperature: 0.05f,
+						p1Temperature: 0.05f,
+						genreProvider: matchProvider
+					);
 
 					if (result.WinnerPlayerIndex == 0) totalScore += 1.0f;
 					else if (result.WinnerPlayerIndex == -1) totalScore += 0.5f;
@@ -60,10 +88,13 @@ public class SelfPlayTrainer
 				}
 			}
 
-			historicalPool.Add((float[])bestGenome.Clone());
-			if (historicalPool.Count > 10)
+			lock (historicalPool)
 			{
-				historicalPool.RemoveAt(0);
+				historicalPool.Add((float[])bestGenome.Clone());
+				if (historicalPool.Count > 10)
+				{
+					historicalPool.RemoveAt(0);
+				}
 			}
 
 			var newPopulation = new List<float[]>();
@@ -81,9 +112,18 @@ public class SelfPlayTrainer
 
 		return new BotProfile
 		{
+			SchemaVersion = "1.0.0",
 			MapName = mapName,
-			Version = "1.0",
-			Weights = bestGenome
+			Genre = provider.GenreName,
+			GameBuildNumber = "0.0.1",
+			ProfileId = $"{mapName}_AutoTrained",
+			Author = "SelfPlayTrainer",
+			DecisionIntervalSeconds = 1.0f,
+			AggressionMultiplier = 1.0f,
+			ActionTemperature = 0.05f,
+			Weights = bestGenome,
+			FitnessScore = maxFitness,
+			TrainedEpochs = generations
 		};
 	}
 

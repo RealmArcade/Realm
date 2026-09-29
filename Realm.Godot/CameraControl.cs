@@ -369,6 +369,8 @@ public partial class CameraControl : Camera3D
 		{
 			ClampToValidGameCamera();
 		}
+
+		MapEditorHUD.Instance?.UpdateFreeCameraExternal(enabled);
 	}
 
 	public void ClampToValidGameCamera()

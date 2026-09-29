@@ -552,13 +552,6 @@ public partial class UIManager : Control
 		}
 	}
 
-	public override void _Input(InputEvent @event)
-	{
-		if (@event is InputEventKey keyEvent && keyEvent.Keycode == Key.F8)
-		{
-			GetViewport().SetInputAsHandled();
-		}
-	}
 
 	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true)
 	{

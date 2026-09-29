@@ -23,14 +23,32 @@ public static class RealmMetadataHelper
 	{
 		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
 		if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
-		return ext is ".rtex" or ".ranim" or ".rmesh" or ".raud" or ".rkey";
+		if (ext is ".rtex" or ".ranim" or ".rmesh" or ".raud" or ".rkey") return true;
+		if (File.Exists(extensionOrPath))
+		{
+			try
+			{
+				Span<byte> magic = stackalloc byte[4];
+				using var fs = new FileStream(extensionOrPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+				if (fs.Read(magic) == 4)
+				{
+					return magic.SequenceEqual(RmeshFile.MagicBytes) ||
+						magic.SequenceEqual(Realm.Shared.Textures.RtexFile.MagicBytes) ||
+						magic.SequenceEqual(RanimFile.MagicBytes) ||
+						magic.SequenceEqual(RaudFile.MagicBytes) ||
+						magic.SequenceEqual(RkeyFile.MagicBytes);
+				}
+			}
+			catch { }
+		}
+		return false;
 	}
 
 	public static string? ExtractMetadata(string filePath)
 	{
 		if (!File.Exists(filePath)) return null;
 		string ext = Path.GetExtension(filePath).ToLowerInvariant();
-		return ext switch
+		string? meta = ext switch
 		{
 			".rmesh" => ExtractMetadataFromRmesh(filePath),
 			".rtex" => ExtractMetadataFromRtex(filePath),
@@ -39,6 +57,23 @@ public static class RealmMetadataHelper
 			".rkey" => ExtractMetadataFromRkey(filePath),
 			_ => null
 		};
+		if (meta != null) return meta;
+
+		try
+		{
+			Span<byte> magic = stackalloc byte[4];
+			using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+			if (fs.Read(magic) == 4)
+			{
+				if (magic.SequenceEqual(RmeshFile.MagicBytes)) return ExtractMetadataFromRmesh(filePath);
+				if (magic.SequenceEqual(Realm.Shared.Textures.RtexFile.MagicBytes)) return ExtractMetadataFromRtex(filePath);
+				if (magic.SequenceEqual(RanimFile.MagicBytes)) return ExtractMetadataFromRanim(filePath);
+				if (magic.SequenceEqual(RaudFile.MagicBytes)) return ExtractMetadataFromRaud(filePath);
+				if (magic.SequenceEqual(RkeyFile.MagicBytes)) return ExtractMetadataFromRkey(filePath);
+			}
+		}
+		catch { }
+		return null;
 	}
 
 	public static bool HasRealmMetadata(string filePath)
@@ -108,9 +143,26 @@ public static class RealmMetadataHelper
 	private static readonly Dictionary<string, string[]> ValidAssetTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
 	{
 		[".rtex"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".png"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".jpg"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".jpeg"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".webp"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".dds"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".tga"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
+		[".bmp"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
 		[".rmesh"] = new[] { "Character", "Building", "Prop", "Item" },
+		[".glb"] = new[] { "Character", "Building", "Prop", "Item" },
+		[".gltf"] = new[] { "Character", "Building", "Prop", "Item" },
+		[".fbx"] = new[] { "Character", "Building", "Prop", "Item" },
+		[".obj"] = new[] { "Character", "Building", "Prop", "Item" },
 		[".ranim"] = new[] { "Animation" },
-		[".raud"] = new[] { "Music", "SoundEffect" }
+		[".raud"] = new[] { "Music", "SoundEffect" },
+		[".ogg"] = new[] { "Music", "SoundEffect" },
+		[".wav"] = new[] { "Music", "SoundEffect" },
+		[".mp3"] = new[] { "Music", "SoundEffect" },
+		[".flac"] = new[] { "Music", "SoundEffect" },
+		[".aac"] = new[] { "Music", "SoundEffect" },
+		[".gdshader"] = new[] { "Shader" }
 	};
 
 	public static string[] GetValidAssetTypesForExtension(string extensionOrPath)
@@ -130,30 +182,54 @@ public static class RealmMetadataHelper
 		canonicalType = string.Empty;
 		if (string.IsNullOrWhiteSpace(assetType)) return false;
 
-		string norm = assetType.Trim().Replace("_", "").ToLowerInvariant();
+		string trimmed = assetType.Trim();
+		string norm = trimmed.Replace("_", "").ToLowerInvariant();
 
 		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
 		if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
 
-		if (ext is ".rtex")
+		if (validTypes.Length > 0)
 		{
-			if (norm.Contains("radial")) { canonicalType = "vfx_radial"; return true; }
-			if (norm.Contains("vertical")) { canonicalType = "vfx_vertical"; return true; }
-			if (norm.Contains("tile") || norm.Contains("terrain")) { canonicalType = "Terrain"; return true; }
-			if (norm.Contains("decal")) { canonicalType = "Decal"; return true; }
-			if (norm.Contains("icon")) { canonicalType = "Icon"; return true; }
-			if (norm.Contains("noise")) { canonicalType = "Noise"; return true; }
-			if (norm.Contains("ribbon")) { canonicalType = "Ribbon"; return true; }
-			if (norm.Contains("skybox")) { canonicalType = "Skybox"; return true; }
-			if (norm.Contains("sprite") || norm.Contains("vfx") || norm.Contains("spell")) { canonicalType = "Spritesheet"; return true; }
+			foreach (var validType in validTypes)
+			{
+				if (string.Equals(validType, trimmed, StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(validType.Replace("_", ""), norm, StringComparison.OrdinalIgnoreCase))
+				{
+					canonicalType = validType;
+					return true;
+				}
+			}
+		}
+
+		if (ext is ".rtex" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".dds" or ".tga" or ".bmp")
+		{
+			if (norm is "terrain")
+			{
+				canonicalType = "Terrain";
+				return true;
+			}
+			if (norm is "spritesheet" )
+			{
+				canonicalType = "Spritesheet";
+				return true;
+			}
+			if (norm is "decal") { canonicalType = "Decal"; return true; }
+			if (norm is "icon") { canonicalType = "Icon"; return true; }
+			if (norm is "noise") { canonicalType = "Noise"; return true; }
+			if (norm is "ribbon") { canonicalType = "Ribbon"; return true; }
+			if (norm is "skybox") { canonicalType = "Skybox"; return true; }
+			if (norm is "vfxradial") { canonicalType = "vfx_radial"; return true; }
+			if (norm is "vfxvertical") { canonicalType = "vfx_vertical"; return true; }
+
 			return false;
 		}
-		else if (ext is ".rmesh")
+		else if (ext is ".rmesh" or ".glb" or ".gltf" or ".fbx" or ".obj")
 		{
-			if (norm.Contains("character") || norm.Contains("unit")) { canonicalType = "Character"; return true; }
-			if (norm.Contains("building") || norm.Contains("structure")) { canonicalType = "Building"; return true; }
-			if (norm.Contains("environment") || norm.Contains("resource") || norm.Contains("prop")) { canonicalType = "Prop"; return true; }
-			if (norm.Contains("item") || norm.Contains("attachment") || norm.Contains("weapon") || norm.Contains("projectile") || norm.Contains("gear") || norm.Contains("equipment") || norm.Contains("accessory") || norm.Contains("object")) { canonicalType = "Item"; return true; }
+			if (norm is "character") { canonicalType = "Character"; return true; }
+			if (norm is "building") { canonicalType = "Building"; return true; }
+			if (norm is "prop") { canonicalType = "Prop"; return true; }
+			if (norm is "item") { canonicalType = "Item"; return true; }
+
 			return false;
 		}
 		else if (ext is ".ranim")
@@ -161,11 +237,50 @@ public static class RealmMetadataHelper
 			canonicalType = "Animation";
 			return true;
 		}
-		else if (ext is ".raud")
+		else if (ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac")
 		{
-			if (norm.Contains("music")) { canonicalType = "Music"; return true; }
-			if (norm.Contains("sound") || norm.Contains("sfx")) { canonicalType = "SoundEffect"; return true; }
+			if (norm is "music") { canonicalType = "Music"; return true; }
+			if (norm is "soundeffect") { canonicalType = "SoundEffect"; return true; }
+
 			return false;
+		}
+		else if (ext is ".gdshader")
+		{
+			canonicalType = "Shader";
+			return true;
+		}
+		else
+		{
+			foreach (var allTypes in ValidAssetTypesByExtension.Values)
+			{
+				foreach (var vt in allTypes)
+				{
+					if (string.Equals(vt, trimmed, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(vt.Replace("_", ""), norm, StringComparison.OrdinalIgnoreCase))
+					{
+						canonicalType = vt;
+						return true;
+					}
+				}
+			}
+
+			if (norm is "terrain") { canonicalType = "Terrain"; return true; }
+			if (norm is "spritesheet") { canonicalType = "Spritesheet"; return true; }
+			if (norm is "decal") { canonicalType = "Decal"; return true; }
+			if (norm is "icon") { canonicalType = "Icon"; return true; }
+			if (norm is "noise") { canonicalType = "Noise"; return true; }
+			if (norm is "ribbon") { canonicalType = "Ribbon"; return true; }
+			if (norm is "skybox") { canonicalType = "Skybox"; return true; }
+			if (norm is "vfxradial") { canonicalType = "vfx_radial"; return true; }
+			if (norm is "vfxvertical") { canonicalType = "vfx_vertical"; return true; }
+			if (norm is "character") { canonicalType = "Character"; return true; }
+			if (norm is "building") { canonicalType = "Building"; return true; }
+			if (norm is "prop") { canonicalType = "Prop"; return true; }
+			if (norm is "item") { canonicalType = "Item"; return true; }
+			if (norm is "animation") { canonicalType = "Animation"; return true; }
+			if (norm is "music") { canonicalType = "Music"; return true; }
+			if (norm is "soundeffect") { canonicalType = "SoundEffect"; return true; }
+			if (norm is "shader") { canonicalType = "Shader"; return true; }
 		}
 
 		return false;
@@ -182,7 +297,6 @@ public static class RealmMetadataHelper
 			{
 				string? typeVal = obj["asset_type"]?.ToString()
 					?? obj["AssetType"]?.ToString()
-					?? obj["type"]?.ToString()
 					?? obj["default_asset_type"]?.ToString();
 				if (!string.IsNullOrEmpty(typeVal) && IsValidAssetTypeForExtension(filePath, typeVal, out string canonical, out _))
 				{

@@ -32,6 +32,7 @@ internal class ResourceEconomyService
 	public Action<Entity> OnClearUnitOrdersRequested;
 	public Action<Entity> OnStopGatheringMovementRequested;
 	public Action<Entity> OnPropDepleted;
+	public Action<Entity>? OnResourceHarvested;
 
 	public ResourceEconomyService(WorldAccessor ecsWorldAccessor)
 	{
@@ -326,6 +327,7 @@ internal class ResourceEconomyService
 
 				resNode.Amount -= mineRate;
 				EcsWorld.Set(targetNode, resNode);
+				OnResourceHarvested?.Invoke(targetNode);
 
 				newState.CarriedAmount = Math.Min(gather.MaxCapacity, gather.CarriedAmount + mineRate);
 

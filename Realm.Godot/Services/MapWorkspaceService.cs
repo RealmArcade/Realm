@@ -691,6 +691,7 @@ please visit the URL above.
 						{
 							File.SetAttributes(glbPath, attrs & ~FileAttributes.ReadOnly);
 						}
+						File.Delete(glbPath);
 						File.WriteAllBytes(glbPath, optResult.OutputGlbBytes);
 						anyReimported = true;
 
@@ -889,6 +890,7 @@ please visit the URL above.
 						{
 							File.SetAttributes(glbPath, attrs & ~FileAttributes.ReadOnly);
 						}
+						File.Delete(glbPath);
 						File.WriteAllBytes(glbPath, optResult.OutputGlbBytes);
 						anyReimported = true;
 

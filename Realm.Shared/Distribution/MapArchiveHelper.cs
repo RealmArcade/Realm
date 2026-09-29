@@ -27,7 +27,9 @@ public static class MapArchiveHelper
         string sourceDirectory,
         string destinationRmapPath,
         Action<float, string>? progressCallback = null,
-        int compressionLevel = 1)
+        int compressionLevel = 1,
+        bool fullExport = false,
+        IReadOnlyCollection<string>? excludedRelativePaths = null)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
         {
@@ -68,6 +70,20 @@ public static class MapArchiveHelper
                 string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
+            }
+
+            if (!fullExport && excludedRelativePaths != null && excludedRelativePaths.Contains(relativePath))
+            {
+                string fn = Path.GetFileName(relativePath);
+                if (!fn.Equals("manifest.json", StringComparison.OrdinalIgnoreCase) &&
+                    !fn.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) &&
+                    !fn.Equals("terrain.json", StringComparison.OrdinalIgnoreCase) &&
+                    !fn.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) &&
+                    !fn.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase) &&
+                    !fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
             }
 
             var fileInfo = new FileInfo(file);

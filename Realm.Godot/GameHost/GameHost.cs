@@ -55,6 +55,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private Realm.Godot.Services.MetadataService _metadataService;
 	private Realm.Godot.Services.MapUpgradeService _mapUpgradeService;
 	private Realm.Godot.Services.MapStorageService _mapStorageService;
+	private Realm.Godot.Services.MapSaveDataService _mapSaveDataService;
 
 	public CheatService CheatService => _cheatService;
 	public EnvironmentService EnvironmentService => _environmentService;
@@ -64,6 +65,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public Realm.Godot.Services.MetadataService MetadataService => _metadataService;
 	public Realm.Godot.Services.MapUpgradeService MapUpgradeService => _mapUpgradeService;
 	public Realm.Godot.Services.MapStorageService MapStorageService => _mapStorageService;
+	public Realm.Godot.Services.MapSaveDataService MapSaveDataService => _mapSaveDataService;
 
 	public bool UnlimitedPowerEnabled { get; set; } = false;
 	public bool GigachadEnabled { get; set; } = false;
@@ -546,6 +548,12 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		get => _editorService.GetWaterMode(_worldEntity);
 		set => _editorService.SetWaterMode(_worldEntity, value);
+	}
+
+	public byte ActiveWaterProfileIndex
+	{
+		get => _editorService.GetWaterProfileIndex(_worldEntity);
+		set => _editorService.SetWaterProfileIndex(_worldEntity, value);
 	}
 
 	private Node? _hoveredEditorObject;
@@ -2169,38 +2177,17 @@ public class {mapName} : IMapScript
 
 	void IGameAPI.WriteSavedData(string fileName, string content)
 	{
-		if (string.IsNullOrEmpty(fileName) || fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
-		{
-			GD.PrintErr($"[Sandbox block] Blocked invalid or traversal path: {fileName}");
-			return;
-		}
-
 		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(ActiveMapName);
-		string targetDir = System.IO.Path.Combine(OS.GetUserDataDir(), "saved_data", mapNameOnly);
-		System.IO.Directory.CreateDirectory(targetDir);
-
-		string targetFile = System.IO.Path.Combine(targetDir, fileName);
-		System.IO.File.WriteAllText(targetFile, content);
+		(_mapSaveDataService ??= ServiceLocator.TryGet<Realm.Godot.Services.MapSaveDataService>() ?? new Realm.Godot.Services.MapSaveDataService())
+			.WriteSavedData(mapNameOnly, fileName, content);
 	}
 
-	string IGameAPI.ReadSavedData(string fileName)
+	string IGameAPI.ReadSavedData(string fileName, string sourceMapName)
 	{
-		if (string.IsNullOrEmpty(fileName) || fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
-		{
-			GD.PrintErr($"[Sandbox block] Blocked invalid or traversal path: {fileName}");
-			return string.Empty;
-		}
-
-		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(ActiveMapName);
-		string targetDir = System.IO.Path.Combine(OS.GetUserDataDir(), "saved_data", mapNameOnly);
-		string targetFile = System.IO.Path.Combine(targetDir, fileName);
-
-		if (!System.IO.File.Exists(targetFile))
-		{
-			return string.Empty;
-		}
-
-		return System.IO.File.ReadAllText(targetFile);
+		string targetMap = !string.IsNullOrWhiteSpace(sourceMapName) ? sourceMapName : ActiveMapName;
+		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(targetMap);
+		return (_mapSaveDataService ??= ServiceLocator.TryGet<Realm.Godot.Services.MapSaveDataService>() ?? new Realm.Godot.Services.MapSaveDataService())
+			.ReadSavedData(mapNameOnly, fileName);
 	}
 
 	public static void EnsureMapProjectFiles(string mapDir)
@@ -2641,6 +2628,53 @@ public class {mapName} : IMapScript
 	void IGameAPI.SetDayNightCycleEnabled(bool enabled)
 	{
 		DayNightCycleEnabled = enabled;
+	}
+
+	void IGameAPI.SetEnvironmentPreset(string presetId)
+	{
+		Callable.From(() =>
+		{
+			_environmentService?.ApplyPresetById(this, presetId);
+			if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
+			{
+				Rpc(nameof(SyncEnvironmentPresetRpc), presetId, 0f);
+			}
+		}).CallDeferred();
+	}
+
+	void IGameAPI.TransitionEnvironmentPreset(string presetId, float durationSeconds)
+	{
+		Callable.From(() =>
+		{
+			_environmentService?.TransitionToPreset(this, presetId, durationSeconds);
+			if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
+			{
+				Rpc(nameof(SyncEnvironmentPresetRpc), presetId, durationSeconds);
+			}
+		}).CallDeferred();
+	}
+
+	string IGameAPI.GetCurrentEnvironmentPreset()
+	{
+		return _environmentService?.GetCurrentPresetId() ?? "day";
+	}
+
+	void IGameAPI.SetWeather(string weatherType)
+	{
+		Callable.From(() =>
+		{
+			_environmentService?.SetCurrentWeather(weatherType);
+			InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
+			if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
+			{
+				Rpc(nameof(SyncWeatherRpc), weatherType);
+			}
+		}).CallDeferred();
+	}
+
+	string IGameAPI.GetWeather()
+	{
+		return _environmentService?.GetCurrentWeather() ?? "clear";
 	}
 
 	void IGameAPI.SetUnitAnimation(IUnit unit, string animationName)
@@ -3924,6 +3958,13 @@ public class {mapName} : IMapScript
 				this.CallDeferred(nameof(DepleteProp), prop3D);
 			}
 		};
+		_simulationService.OnResourceHarvested = entity =>
+		{
+			if (TryGetProp3D(entity, out var prop3D))
+			{
+				prop3D.TriggerImpulse(0.35f, 0.45f);
+			}
+		};
 		_simulationService.OnUnitDamagedCallback = (targetEntity, attackerEntity, damage) =>
 		{
 			if (EcsWorld.IsAlive(targetEntity))
@@ -3936,6 +3977,7 @@ public class {mapName} : IMapScript
 				{
 					_fxService.SpawnDamageNumber(this, targetUnit3D.GlobalPosition, damage);
 					_audioService?.PlayUnitSound(targetUnit3D.UnitId, UnitSoundEvent.Wounded, targetUnit3D.GlobalPosition);
+					targetUnit3D.TriggerImpulse(0.5f, 0.35f);
 				}
 			}
 		};
@@ -4341,6 +4383,7 @@ public class {mapName} : IMapScript
 		EcsWorld?.Dispose();
 		_networkService?.Clear();
 		_shroudService?.CleanUp();
+		_environmentService?.Cleanup();
 		StopRecording();
 	}
 
@@ -4784,6 +4827,7 @@ public class {mapName} : IMapScript
 
 		var worldEnv = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
 		_environmentService?.UpdateEnvironmentalFog(MainCamera, worldEnv);
+		_environmentService?.UpdateWeatherParticlePosition(MainCamera);
 	}
 
 	public override void _PhysicsProcess(double delta)
@@ -5095,6 +5139,10 @@ public class {mapName} : IMapScript
 	private void UpdateConnectionStatus()
 	{
 		_networkService.UpdateConnectionStatus(_multiplayerActive, IsServerActive());
+		if (_networkService.IsConnectionLost && !IsServerActive() && LobbyManager.Instance != null && !LobbyManager.Instance.IsReconnecting)
+		{
+			LobbyManager.Instance.TriggerReconnect();
+		}
 	}
 
 	private void ProcessGameplayTick(float fDelta)
@@ -5134,6 +5182,11 @@ public class {mapName} : IMapScript
 				float progress = state.TimeOfDayTimer / TimeOfDayCycleDuration;
 				UpdateDayNightVisuals(progress);
 			}
+		}
+
+		if (_environmentService != null && _environmentService.IsTransitioning)
+		{
+			_environmentService.UpdateTransition(this, fDelta);
 		}
 
 		UpdateMinimapPings(fDelta);
@@ -5342,6 +5395,57 @@ public class {mapName} : IMapScript
 	void IGameAPI.PlayClickSound()
 	{
 		_audioService.PlayClickSound();
+	}
+
+	void IGameAPI.SetPlayerBotProfile(int playerIndex, string profileJson)
+	{
+		if (string.IsNullOrWhiteSpace(profileJson)) return;
+		try
+		{
+			var profile = Realm.Ecs.AI.Policy.BotProfile.FromJson(profileJson);
+			_simulationService.SetBotProfile(playerIndex, profile);
+		}
+		catch { }
+	}
+
+	string IGameAPI.GetPlayerBotProfile(int playerIndex)
+	{
+		var profile = _simulationService.GetBotProfile(playerIndex);
+		return profile != null ? profile.ToJson() : string.Empty;
+	}
+
+	void IGameAPI.SetPlayerBotGenre(int playerIndex, string genreName, string? configJson)
+	{
+		_simulationService.SetBotGenre(playerIndex, genreName, configJson);
+	}
+
+	string IGameAPI.GetPlayerBotGenre(int playerIndex)
+	{
+		return _simulationService.GetBotGenre(playerIndex);
+	}
+
+	void IGameAPI.RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, System.Numerics.Vector3 position, string payload)
+	{
+		_simulationService.RegisterCustomBotDecision(playerIndex, actionId, intent, featureVector, position, payload);
+	}
+
+	void IGameAPI.ClearCustomBotDecisions(int playerIndex)
+	{
+		_simulationService.ClearCustomBotDecisions(playerIndex);
+	}
+
+	event Action<int, string, string, System.Numerics.Vector3, string>? IGameAPI.OnBotCustomActionExecuted
+	{
+		add => _simulationService.OnBotCustomActionExecuted += value;
+		remove => _simulationService.OnBotCustomActionExecuted -= value;
+	}
+
+	string IGameAPI.TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre)
+	{
+		var genreProvider = Realm.Ecs.AI.Genres.AiGenreRegistry.Get(genre);
+		var trainer = new Realm.Ecs.AI.Training.SelfPlayTrainer();
+		var profile = trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: genreProvider);
+		return profile.ToJson();
 	}
 
 	private class EmptyMapScript : Realm.MapAPI.IMapScript
