@@ -361,14 +361,30 @@ public partial class RuntimeTerrain : StaticBody3D
 		return _waterProfiles.Values.FirstOrDefault() ?? new WaterProfileSaveData();
 	}
 
+	public void EnsureWaterUberShader()
+	{
+		if (_waterUberShader == null)
+		{
+			_waterUberShader = GD.Load<Shader>("res://Assets/shaders/water_uber.gdshader");
+			if (_waterUberShader == null)
+			{
+				string shaderPath = PathUtils.FindPath("Assets/shaders/water_uber.gdshader");
+				if (File.Exists(shaderPath))
+				{
+					_waterUberShader = new Shader { Code = File.ReadAllText(shaderPath) };
+				}
+			}
+		}
+	}
+
 	public ShaderMaterial GetWaterMaterial(byte profileIndex)
 	{
+		EnsureWaterUberShader();
 		if (_waterProfiles.Count == 0)
 		{
 			ReloadWaterProfiles();
 		}
 		if (_waterMaterials.TryGetValue(profileIndex, out var mat) && mat != null) return mat;
-		if (_waterUberShader == null) CreateWater();
 		var newMat = new ShaderMaterial { Shader = _waterUberShader };
 		var prof = GetWaterProfile(profileIndex);
 		ApplyWaterProfileToMaterial(newMat, prof);
@@ -378,6 +394,7 @@ public partial class RuntimeTerrain : StaticBody3D
 
 	public void SetWaterProfiles(List<WaterProfileSaveData> profiles)
 	{
+		EnsureWaterUberShader();
 		_waterProfiles.Clear();
 		foreach (var def in WaterProfileSaveData.CreateDefaultProfiles())
 		{
@@ -398,6 +415,9 @@ public partial class RuntimeTerrain : StaticBody3D
 			}
 			ApplyWaterProfileToMaterial(mat, prof);
 		}
+		_shallowWaterMaterial = GetWaterMaterial(0);
+		_deepWaterMaterial = GetWaterMaterial(1);
+		UpdateWaterTransform();
 		RegenerateWaterMesh();
 	}
 
@@ -501,18 +521,7 @@ public partial class RuntimeTerrain : StaticBody3D
 
 	public void ReloadWaterProfiles()
 	{
-		if (_waterUberShader == null)
-		{
-			_waterUberShader = GD.Load<Shader>("res://Assets/shaders/water_uber.gdshader");
-			if (_waterUberShader == null)
-			{
-				string shaderPath = PathUtils.FindPath("Assets/shaders/water_uber.gdshader");
-				if (File.Exists(shaderPath))
-				{
-					_waterUberShader = new Shader { Code = File.ReadAllText(shaderPath) };
-				}
-			}
-		}
+		EnsureWaterUberShader();
 
 		_waterProfiles.Clear();
 		foreach (var def in WaterProfileSaveData.CreateDefaultProfiles())
@@ -593,7 +602,8 @@ public partial class RuntimeTerrain : StaticBody3D
 
 	public void RegenerateWaterMesh()
 	{
-		CreateWater();
+		EnsureWaterUberShader();
+		UpdateWaterTransform();
 
 		var cells = Cells;
 		if (cells == null) return;
