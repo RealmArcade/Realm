@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using Realm.Shared.Metadata;
@@ -178,7 +179,7 @@ public static class MapArchiveHelper
         return (null, string.Empty);
     }
 
-    public static void ExtractArchiveIntoCas(string archiveFilePath, ContentAddressableStorage cas)
+    public static void ExtractArchiveIntoCas(string archiveFilePath, ContentAddressableStorage cas, Action<float>? progressCallback = null)
     {
         if (string.IsNullOrWhiteSpace(archiveFilePath) || !File.Exists(archiveFilePath))
         {
@@ -216,6 +217,9 @@ public static class MapArchiveHelper
             entriesByKey[norm] = entry;
         }
 
+        int total = manifest.Files.Count;
+        int processed = 0;
+
         foreach (var kvp in manifest.Files)
         {
             string relPath = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
@@ -226,21 +230,25 @@ public static class MapArchiveHelper
             string hashOrKey = kvp.Value;
             string normHash = ContentAddressableStorage.NormalizeBlake3Hash(hashOrKey);
 
-            if (cas.HasAsset(normHash))
+            if (!cas.HasAsset(normHash))
             {
-                continue;
+                if (entriesByKey.TryGetValue(relPath, out var zipEntry))
+                {
+                    using var entryStream = zipEntry.Open();
+                    string ext = Path.GetExtension(relPath).ToLowerInvariant();
+                    cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
+                }
             }
 
-            if (entriesByKey.TryGetValue(relPath, out var zipEntry))
+            processed++;
+            if (total > 0)
             {
-                using var entryStream = zipEntry.Open();
-                string ext = Path.GetExtension(relPath).ToLowerInvariant();
-                cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
+                progressCallback?.Invoke((float)processed / total);
             }
         }
     }
 
-    public static void ExtractArchive(string archiveFilePath, string targetDirectory)
+    public static void ExtractArchive(string archiveFilePath, string targetDirectory, Action<float>? progressCallback = null)
     {
         if (string.IsNullOrWhiteSpace(archiveFilePath) || !File.Exists(archiveFilePath))
         {
@@ -253,13 +261,14 @@ public static class MapArchiveHelper
         }
 
         using var zipArchive = ZipFile.OpenRead(archiveFilePath);
-        foreach (var entry in zipArchive.Entries)
-        {
-            if (string.IsNullOrWhiteSpace(entry.Name) && entry.FullName.EndsWith("/"))
-            {
-                continue;
-            }
+        var fileEntries = zipArchive.Entries
+            .Where(e => !(string.IsNullOrWhiteSpace(e.Name) && e.FullName.EndsWith("/")))
+            .ToList();
+        int total = fileEntries.Count;
+        int processed = 0;
 
+        foreach (var entry in fileEntries)
+        {
             string destinationPath = Path.Combine(targetDirectory, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
             string? destinationDir = Path.GetDirectoryName(destinationPath);
             if (!string.IsNullOrEmpty(destinationDir) && !Directory.Exists(destinationDir))
@@ -270,6 +279,12 @@ public static class MapArchiveHelper
             using var outStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
             using var entryStream = entry.Open();
             entryStream.CopyTo(outStream, 81920);
+
+            processed++;
+            if (total > 0)
+            {
+                progressCallback?.Invoke((float)processed / total);
+            }
         }
     }
 

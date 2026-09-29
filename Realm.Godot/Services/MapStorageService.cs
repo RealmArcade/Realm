@@ -576,9 +576,11 @@ public class MapStorageService
         }
         Directory.CreateDirectory(targetDirectory);
 
-        MapArchiveHelper.ExtractArchiveIntoCas(archivePath, MapAssetManager.Storage);
+        MapArchiveHelper.ExtractArchiveIntoCas(archivePath, MapAssetManager.Storage,
+            p => progressCallback?.Invoke(p * 0.30f));
 
-        MapArchiveHelper.ExtractArchive(archivePath, targetDirectory);
+        MapArchiveHelper.ExtractArchive(archivePath, targetDirectory,
+            p => progressCallback?.Invoke(0.30f + p * 0.20f));
 
         if (!string.IsNullOrWhiteSpace(rootPrefix))
         {
@@ -626,7 +628,7 @@ public class MapStorageService
                     if (now - lastProgressReportTicks >= 100 || processed == totalFiles)
                     {
                         lastProgressReportTicks = now;
-                        progressCallback?.Invoke((float)processed / totalFiles);
+                        progressCallback?.Invoke(0.50f + ((float)processed / totalFiles) * 0.40f);
                     }
                 }
             }
@@ -646,7 +648,9 @@ public class MapStorageService
             return Task.FromResult((false, validation.ErrorMessage, (string?)null, (string?)null));
         }
 
+        progressCallback?.Invoke(0.95f);
         AssetIndexService.Instance.RegisterManifest(manifest, targetManifestPath, isP2P: false);
+        progressCallback?.Invoke(1.0f);
         return Task.FromResult((true, "Map imported successfully.", (string?)mapTitle, (string?)mapVersion));
     }
 
