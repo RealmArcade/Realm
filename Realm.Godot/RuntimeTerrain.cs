@@ -1009,18 +1009,6 @@ vec4 sample_planar_layer(sampler2DArray tex_array, float layer, vec2 uv_y, vec2 
 	return sample_stochastic_layer(tex_array, layer, scaled_uv_y, scaled_dx_y, scaled_dy_y, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
 }
 
-vec3 get_active_weights(float layer, vec3 weights) {
-	int layer_idx = int(clamp(round(layer), 0.0, 255.0));
-	float tile_mode = swatch_params[layer_idx].x;
-	if (tile_mode < 0.5) {
-		float max_w = max(weights.x, max(weights.y, weights.z));
-		if (weights.y >= max_w) return vec3(0.0, 1.0, 0.0);
-		if (weights.x >= max_w) return vec3(1.0, 0.0, 0.0);
-		return vec3(0.0, 0.0, 1.0);
-	}
-	return weights;
-}
-
 vec4 sample_triplanar_layer(sampler2DArray tex_array, float layer, vec2 uv_x, vec2 uv_y, vec2 uv_z, vec2 dx_x, vec2 dy_x, vec2 dx_y, vec2 dy_y, vec2 dx_z, vec2 dy_z, vec3 weights, bool is_vector_data) {
 	int layer_idx = int(clamp(round(layer), 0.0, 255.0));
 	vec4 params = swatch_params[layer_idx];
@@ -1040,22 +1028,20 @@ vec4 sample_triplanar_layer(sampler2DArray tex_array, float layer, vec2 uv_x, ve
 	vec2 scaled_dx_z = dx_z * uv_scale;
 	vec2 scaled_dy_z = dy_z * uv_scale;
 
-	vec3 active_weights = get_active_weights(layer, weights);
-
-	if (active_weights.y > 0.99) {
+	if (weights.y > 0.99) {
 		return sample_stochastic_layer(tex_array, layer, scaled_uv_y, scaled_dx_y, scaled_dy_y, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
 	}
-	if (active_weights.x > 0.99) {
+	if (weights.x > 0.99) {
 		return sample_stochastic_layer(tex_array, layer, scaled_uv_x, scaled_dx_x, scaled_dy_x, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
 	}
-	if (active_weights.z > 0.99) {
+	if (weights.z > 0.99) {
 		return sample_stochastic_layer(tex_array, layer, scaled_uv_z, scaled_dx_z, scaled_dy_z, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
 	}
 
 	vec4 col_x = sample_stochastic_layer(tex_array, layer, scaled_uv_x, scaled_dx_x, scaled_dy_x, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
 	vec4 col_y = sample_stochastic_layer(tex_array, layer, scaled_uv_y, scaled_dx_y, scaled_dy_y, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
 	vec4 col_z = sample_stochastic_layer(tex_array, layer, scaled_uv_z, scaled_dx_z, scaled_dy_z, tile_mode, stoch_tile_size, cross_fade, is_vector_data);
-	return col_x * active_weights.x + col_y * active_weights.y + col_z * active_weights.z;
+	return col_x * weights.x + col_y * weights.y + col_z * weights.z;
 }
 
 vec2 unpack_normal_xy(vec2 raw_rg) {
@@ -1105,8 +1091,6 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 	vec2 scaled_dx_z = dx_z * uv_scale;
 	vec2 scaled_dy_z = dy_z * uv_scale;
 
-	vec3 active_weights = get_active_weights(layer, weights);
-
 	vec3 sign_n = sign(geom_norm);
 	sign_n.x = sign_n.x == 0.0 ? 1.0 : sign_n.x;
 	sign_n.y = sign_n.y == 0.0 ? 1.0 : sign_n.y;
@@ -1114,7 +1098,7 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 
 	TriplanarPbrData result;
 
-	if (active_weights.y > 0.99) {
+	if (weights.y > 0.99) {
 		vec4 ny = sample_stochastic_layer(norm_tex_array, layer, scaled_uv_y, scaled_dx_y, scaled_dy_y, tile_mode, stoch_tile_size, cross_fade, true);
 		vec2 ty = unpack_normal_xy(ny.rg) * normal_scale;
 		float tzy = sqrt(max(0.0, 1.0 - dot(ty, ty)));
@@ -1124,7 +1108,7 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 		result.height = ny.b;
 		return result;
 	}
-	if (active_weights.x > 0.99) {
+	if (weights.x > 0.99) {
 		vec4 nx = sample_stochastic_layer(norm_tex_array, layer, scaled_uv_x, scaled_dx_x, scaled_dy_x, tile_mode, stoch_tile_size, cross_fade, true);
 		vec2 tx = unpack_normal_xy(nx.rg) * normal_scale;
 		float tzx = sqrt(max(0.0, 1.0 - dot(tx, tx)));
@@ -1134,7 +1118,7 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 		result.height = nx.b;
 		return result;
 	}
-	if (active_weights.z > 0.99) {
+	if (weights.z > 0.99) {
 		vec4 nz = sample_stochastic_layer(norm_tex_array, layer, scaled_uv_z, scaled_dx_z, scaled_dy_z, tile_mode, stoch_tile_size, cross_fade, true);
 		vec2 tz = unpack_normal_xy(nz.rg) * normal_scale;
 		float tzz = sqrt(max(0.0, 1.0 - dot(tz, tz)));
@@ -1161,15 +1145,15 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 	vec3 world_ny = vec3(ty.x, tzy * sign_n.y, ty.y);
 	vec3 world_nz = vec3(tz.x * sign_n.z, tz.y, tzz * sign_n.z);
 
-	result.normal = normalize(world_nx * active_weights.x + world_ny * active_weights.y + world_nz * active_weights.z);
+	result.normal = normalize(world_nx * weights.x + world_ny * weights.y + world_nz * weights.z);
 
 	float ao_x = clamp((0.35 + 0.65 * tzx) * (0.55 + 0.45 * nx.b), 0.05, 1.0);
 	float ao_y = clamp((0.35 + 0.65 * tzy) * (0.55 + 0.45 * ny.b), 0.05, 1.0);
 	float ao_z = clamp((0.35 + 0.65 * tzz) * (0.55 + 0.45 * nz.b), 0.05, 1.0);
-	result.ao = ao_x * active_weights.x + ao_y * active_weights.y + ao_z * active_weights.z;
+	result.ao = ao_x * weights.x + ao_y * weights.y + ao_z * weights.z;
 
-	result.roughness = (nx.a * active_weights.x + ny.a * active_weights.y + nz.a * active_weights.z) * roughness_scale;
-	result.height = nx.b * active_weights.x + ny.b * active_weights.y + nz.b * active_weights.z;
+	result.roughness = (nx.a * weights.x + ny.a * weights.y + nz.a * weights.z) * roughness_scale;
+	result.height = nx.b * weights.x + ny.b * weights.y + nz.b * weights.z;
 	return result;
 }
 
