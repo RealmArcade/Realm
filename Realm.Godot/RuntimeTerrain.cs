@@ -568,23 +568,48 @@ public partial class RuntimeTerrain : StaticBody3D
 			return ((cell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA, cell.WaterMode, cell.WaterProfileIndex);
 		}
 
-		float minCornerH = Math.Min(Math.Min(cell.Y_NW, cell.Y_NE), Math.Min(cell.Y_SE, cell.Y_SW));
-		float maxWaterY = -9999f;
+		float maxCornerH = Math.Max(Math.Max(cell.Y_NW, cell.Y_NE), Math.Max(cell.Y_SE, cell.Y_SW));
+		float bestWaterY = float.MaxValue;
 		WaterType bestWaterMode = WaterType.None;
 		byte bestProfileIndex = 0;
 
-		for (int nz = Math.Max(0, z - 1); nz <= Math.Min(d - 1, z + 1); nz++)
+		for (int dz = -1; dz <= 1; dz++)
 		{
-			for (int nx = Math.Max(0, x - 1); nx <= Math.Min(w - 1, x + 1); nx++)
+			for (int dx = -1; dx <= 1; dx++)
 			{
-				if (nx == x && nz == z) continue;
+				if (dx == 0 && dz == 0) continue;
+				int nx = x + dx;
+				int nz = z + dz;
+				if (nx < 0 || nx >= w || nz < 0 || nz >= d) continue;
+
 				var nCell = cells[nx, nz];
-				if (nCell.WaterMode != WaterType.None)
+				if (nCell.WaterMode == WaterType.None) continue;
+
+				float nWaterY = (nCell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA;
+
+				float sharedMinH;
+				if (dx == -1 && dz == 0)
+					sharedMinH = Math.Min(cell.Y_NW, cell.Y_SW);
+				else if (dx == 1 && dz == 0)
+					sharedMinH = Math.Min(cell.Y_NE, cell.Y_SE);
+				else if (dx == 0 && dz == -1)
+					sharedMinH = Math.Min(cell.Y_NW, cell.Y_NE);
+				else if (dx == 0 && dz == 1)
+					sharedMinH = Math.Min(cell.Y_SW, cell.Y_SE);
+				else if (dx == -1 && dz == -1)
+					sharedMinH = cell.Y_NW;
+				else if (dx == 1 && dz == -1)
+					sharedMinH = cell.Y_NE;
+				else if (dx == 1 && dz == 1)
+					sharedMinH = cell.Y_SE;
+				else
+					sharedMinH = cell.Y_SW;
+
+				if (sharedMinH <= nWaterY && maxCornerH > nWaterY)
 				{
-					float nWaterY = (nCell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA;
-					if (nWaterY > maxWaterY)
+					if (nWaterY < bestWaterY)
 					{
-						maxWaterY = nWaterY;
+						bestWaterY = nWaterY;
 						bestWaterMode = nCell.WaterMode;
 						bestProfileIndex = nCell.WaterProfileIndex;
 					}
@@ -592,9 +617,9 @@ public partial class RuntimeTerrain : StaticBody3D
 			}
 		}
 
-		if (bestWaterMode != WaterType.None && minCornerH <= maxWaterY)
+		if (bestWaterMode != WaterType.None)
 		{
-			return (maxWaterY, bestWaterMode, bestProfileIndex);
+			return (bestWaterY, bestWaterMode, bestProfileIndex);
 		}
 
 		return (0f, WaterType.None, 0);

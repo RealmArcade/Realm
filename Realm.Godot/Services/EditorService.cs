@@ -437,8 +437,6 @@ public class EditorService
 				WaterType selectedWaterMode = GetWaterMode(worldEntity);
 				byte selectedWaterProfile = GetWaterProfileIndex(worldEntity);
 
-				float[,] heights = TerrainState.CalculateHeights(width, depth, terrain.Cells);
-
 				for (int z = quadMinZ; z <= quadMaxZ; z++)
 				{
 					for (int x = quadMinX; x <= quadMaxX; x++)
@@ -486,33 +484,6 @@ public class EditorService
 												waterChanged = true;
 											}
 										}
-										else
-										{
-											bool foundWater = false;
-											for (int nz = z - 1; nz <= z + 1; nz++)
-											{
-												for (int nx = x - 1; nx <= x + 1; nx++)
-												{
-													if (nx >= 0 && nx < width && nz >= 0 && nz < depth && !(nx == x && nz == z))
-													{
-														WaterType neighborWater = terrain.Cells[nx, nz].WaterMode;
-														byte neighborProf = terrain.Cells[nx, nz].WaterProfileIndex;
-														if (neighborWater != WaterType.None)
-														{
-															if (cell.WaterMode != neighborWater || cell.WaterProfileIndex != neighborProf)
-															{
-																cell.WaterMode = neighborWater;
-																cell.WaterProfileIndex = neighborProf;
-																waterChanged = true;
-															}
-															foundWater = true;
-															break;
-														}
-													}
-												}
-												if (foundWater) break;
-											}
-										}
 									}
 									else if (activeTool == GameHost.EditorTool.Plateau)
 									{
@@ -547,10 +518,10 @@ public class EditorService
 												}
 											}
 										}
-										heights[x, z] = targetHeight;
-										heights[x + 1, z] = targetHeight;
-										heights[x + 1, z + 1] = targetHeight;
-										heights[x, z + 1] = targetHeight;
+										SetGridNodeHeight(ref terrain, x, z, targetHeight);
+										SetGridNodeHeight(ref terrain, x + 1, z, targetHeight);
+										SetGridNodeHeight(ref terrain, x + 1, z + 1, targetHeight);
+										SetGridNodeHeight(ref terrain, x, z + 1, targetHeight);
 
 										if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
 										{
@@ -650,10 +621,10 @@ public class EditorService
 									float targetH = avgMacro * TerrainCell.TIER_HEIGHT;
 									if (MathF.Abs(terrain.Cells[x, z].CenterHeight - targetH) > 0.001f)
 									{
-										heights[x, z] = targetH;
-										heights[x + 1, z] = targetH;
-										heights[x + 1, z + 1] = targetH;
-										heights[x, z + 1] = targetH;
+										SetGridNodeHeight(ref terrain, x, z, targetH);
+										SetGridNodeHeight(ref terrain, x + 1, z, targetH);
+										SetGridNodeHeight(ref terrain, x + 1, z + 1, targetH);
+										SetGridNodeHeight(ref terrain, x, z + 1, targetH);
 
 										int minXBound = Math.Max(0, x - 1);
 										int maxXBound = Math.Min(width - 1, x + 1);
@@ -670,11 +641,6 @@ public class EditorService
 							}
 						}
 					}
-				}
-
-				if (modified && heights != null)
-				{
-					terrain.Cells = TerrainState.CalculateCells(width, depth, heights, terrain.Cells);
 				}
 			}
 			else if (isPaint)
@@ -1013,7 +979,7 @@ public class EditorService
 		{
 			result.HeightsModified = isHeights;
 			result.SplatModified = isPaint || (isHeights && activeTool != GameHost.EditorTool.Smooth && activeTool != GameHost.EditorTool.Noise);
-			result.PathingModified = isPathing;
+			result.PathingModified = result.PathingModified || isPathing;
 			if (modMinX < _drawMinX) _drawMinX = modMinX;
 			if (modMaxX > _drawMaxX) _drawMaxX = modMaxX;
 			if (modMinZ < _drawMinZ) _drawMinZ = modMinZ;
@@ -1948,10 +1914,7 @@ public class EditorService
 				PasteCellRotated(sx, sz, rotX, rotZ, startX + dX, startZ + dZ, width, depth, pasteHeights, pasteTextures, pastePathing, mirrorMode, rotSteps, ref terrain, ref modified, ref pathingModified);
 			}
 		}
-		if (modified && pasteHeights)
-		{
-			SanitizeCornerHeights(ref terrain);
-		}
+
 		if (modified && pasteTextures)
 		{
 			AlignSplatMapSlots(0, 0, width - 1, depth - 1);
@@ -2067,10 +2030,7 @@ public class EditorService
 			{
 				AlignSplatMapSlots(minX - 2, minZ - 2, maxX + 2, maxZ + 2);
 			}
-			if (terrainModified && pasteHeights)
-			{
-				SanitizeCornerHeights(ref terrain);
-			}
+
 		}
 
 		result.TerrainModified = terrainModified;
