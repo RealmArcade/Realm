@@ -973,12 +973,25 @@ vec4 sample_stochastic_layer(sampler2DArray tex_array, float layer, vec2 uv, vec
 	vec4 col1 = textureGrad(tex_array, vec3(uv + off1, layer), dx, dy);
 	vec4 col2 = textureGrad(tex_array, vec3(uv + off2, layer), dx, dy);
 
+	vec3 h_scores;
 	if (is_vector_data) {
-		return col0 * w.x + col1 * w.y + col2 * w.z;
+		h_scores = vec3(col0.b, col1.b, col2.b);
+	} else {
+		const vec3 lum_weights = vec3(0.299, 0.587, 0.114);
+		h_scores = vec3(dot(col0.rgb, lum_weights), dot(col1.rgb, lum_weights), dot(col2.rgb, lum_weights));
 	}
 
-	vec3 mean_color = col0.rgb * w.x + col1.rgb * w.y + col2.rgb * w.z;
-	return vec4(mean_color, col0.a * w.x + col1.a * w.y + col2.a * w.z);
+	vec3 safe_w = max(w, vec3(0.0));
+	vec3 combined_weights = pow(safe_w, vec3(4.0)) * exp(h_scores * 2.0);
+	float sum_cw = combined_weights.x + combined_weights.y + combined_weights.z;
+	vec3 sw = sum_cw > 0.0001 ? (combined_weights / sum_cw) : w;
+
+	if (is_vector_data) {
+		return col0 * sw.x + col1 * sw.y + col2 * sw.z;
+	}
+
+	vec3 mean_color = col0.rgb * sw.x + col1.rgb * sw.y + col2.rgb * sw.z;
+	return vec4(mean_color, col0.a * sw.x + col1.a * sw.y + col2.a * sw.z);
 }
 
 vec4 sample_planar_layer(sampler2DArray tex_array, float layer, vec2 uv_y, vec2 dx_y, vec2 dy_y, bool is_vector_data) {
