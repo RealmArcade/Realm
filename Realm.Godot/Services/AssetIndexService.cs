@@ -26,6 +26,8 @@ public class IndexedAsset
 	public string? MapName { get; set; }
 	public string? MapVersion { get; set; }
 	public string? Blake3 { get; set; }
+	public bool HasPlayerColorMask { get; set; }
+	public string? ChromaKey { get; set; }
 }
 
 public class IndexedMapPackage
@@ -51,6 +53,8 @@ public class AssetMetadataModel
 	public List<string> Tags { get; set; } = new();
 }
 
+public record AssetIndexProgressUpdate(double ProgressPercentage, string Message);
+
 public class AssetIndexService : IDisposable
 {
 	private static AssetIndexService? _instance;
@@ -59,35 +63,165 @@ public class AssetIndexService : IDisposable
 	public event Action<string, bool>? DirectoryIndexingStateChanged;
 	public event Action<string>? DirectoryScanCompleted;
 
-	private readonly LiteDatabase _database;
-	private readonly ILiteCollection<IndexedAsset> _assetCollection;
-	private readonly ILiteCollection<IndexedFolder> _folderCollection;
-	private readonly ILiteCollection<IndexedMapPackage> _mapPackageCollection;
+	private LiteDatabase _database;
+	private ILiteCollection<IndexedAsset> _assetCollection;
+	private ILiteCollection<IndexedFolder> _folderCollection;
+	private ILiteCollection<IndexedMapPackage> _mapPackageCollection;
 	private readonly object _syncLock = new();
 	private readonly HashSet<string> _indexingDirectories = new(StringComparer.OrdinalIgnoreCase);
 
 	private LiteDatabase? _p2pDatabase;
 	private readonly object _p2pSyncLock = new();
 
-	public AssetIndexService()
+	private static string GetUserDirectory()
 	{
-		string userDirectory;
 		if (MapAssetManager.IsGodotEngineRunning)
 		{
-			userDirectory = ProjectSettings.GlobalizePath("user://");
+			return ProjectSettings.GlobalizePath("user://");
 		}
 		else
 		{
 			string appData = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData);
-			userDirectory = Path.Combine(appData, "Godot", "app_userdata", "Realm");
+			return Path.Combine(appData, "Godot", "app_userdata", "Realm");
 		}
+	}
 
+	private static string GetCacheFilePath()
+	{
+		string userDirectory = GetUserDirectory();
 		if (!Directory.Exists(userDirectory))
 		{
 			Directory.CreateDirectory(userDirectory);
 		}
+		return Path.Combine(userDirectory, "asset_index.cache");
+	}
 
-		string cacheFilePath = Path.Combine(userDirectory, "asset_index.cache");
+	private void EnsureIndexes()
+	{
+		_assetCollection.EnsureIndex(x => x.FilePath, true);
+		_assetCollection.EnsureIndex(x => x.DirectoryPath);
+		_assetCollection.EnsureIndex(x => x.Extension);
+		_assetCollection.EnsureIndex(x => x.Tags);
+		_assetCollection.EnsureIndex(x => x.FileName);
+		_assetCollection.EnsureIndex(x => x.MapName);
+		_assetCollection.EnsureIndex(x => x.MapVersion);
+		_assetCollection.EnsureIndex(x => x.Blake3);
+		_assetCollection.EnsureIndex(x => x.HasRealmMetadata);
+		_assetCollection.EnsureIndex(x => x.AssetType);
+		_assetCollection.EnsureIndex(x => x.HasPlayerColorMask);
+
+		_folderCollection.EnsureIndex(x => x.DirectoryPath, true);
+
+		_mapPackageCollection.EnsureIndex(x => x.MapName);
+		_mapPackageCollection.EnsureIndex(x => x.MapVersion);
+	}
+
+	public string GetIndexGameBuildNumber()
+	{
+		lock (_syncLock)
+		{
+			try
+			{
+				var metaCol = _database.GetCollection<BsonDocument>("_metadata");
+				var doc = metaCol.FindById(1);
+				if (doc != null && doc.TryGetValue("GameBuildNumber", out var val) && val.IsString)
+				{
+					return val.AsString;
+				}
+			}
+			catch { }
+			return string.Empty;
+		}
+	}
+
+	public void SetIndexGameBuildNumber(string gameBuildNumber)
+	{
+		lock (_syncLock)
+		{
+			try
+			{
+				var metaCol = _database.GetCollection<BsonDocument>("_metadata");
+				var doc = new BsonDocument
+				{
+					["_id"] = 1,
+					["GameBuildNumber"] = gameBuildNumber
+				};
+				metaCol.Upsert(doc);
+				_database.Checkpoint();
+			}
+			catch { }
+		}
+	}
+
+	public bool IsIndexVersionMismatch()
+	{
+		string currentIndexVersion = GetIndexGameBuildNumber();
+		return !string.Equals(currentIndexVersion, Realm.Shared.RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
+	}
+
+	public void RebuildIndexFromCas(IProgress<AssetIndexProgressUpdate>? progress = null)
+	{
+		lock (_syncLock)
+		{
+			progress?.Report(new AssetIndexProgressUpdate(0.05, TranslationServer.Translate("Resetting asset database cache...")));
+
+			try
+			{
+				_database.Dispose();
+			}
+			catch { }
+
+			ClearP2PIndex();
+
+			string cacheFilePath = GetCacheFilePath();
+			try
+			{
+				if (File.Exists(cacheFilePath))
+				{
+					File.Delete(cacheFilePath);
+				}
+				string logFile = cacheFilePath + "-log";
+				if (File.Exists(logFile))
+				{
+					File.Delete(logFile);
+				}
+				string tempFile = cacheFilePath + "-temp";
+				if (File.Exists(tempFile))
+				{
+					File.Delete(tempFile);
+				}
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[AssetIndexService] Failed to delete cache files during rebuild: {ex.Message}");
+			}
+
+			progress?.Report(new AssetIndexProgressUpdate(0.15, TranslationServer.Translate("Initializing database schema and indexes...")));
+
+			var connectionString = new ConnectionString
+			{
+				Filename = cacheFilePath,
+				Connection = ConnectionType.Shared
+			};
+
+			_database = new LiteDatabase(connectionString);
+			_assetCollection = _database.GetCollection<IndexedAsset>("assets");
+			_folderCollection = _database.GetCollection<IndexedFolder>("folders");
+			_mapPackageCollection = _database.GetCollection<IndexedMapPackage>("map_packages");
+
+			EnsureIndexes();
+			SetIndexGameBuildNumber(Realm.Shared.RealmVersion.GameBuildNumber);
+
+			InitializeDefaultDirectories();
+			ScanAllCasManifests(progress);
+
+			progress?.Report(new AssetIndexProgressUpdate(1.0, TranslationServer.Translate("Asset index repair complete!")));
+		}
+	}
+
+	public AssetIndexService()
+	{
+		string cacheFilePath = GetCacheFilePath();
 		var connectionString = new ConnectionString
 		{
 			Filename = cacheFilePath,
@@ -99,23 +233,12 @@ public class AssetIndexService : IDisposable
 		_folderCollection = _database.GetCollection<IndexedFolder>("folders");
 		_mapPackageCollection = _database.GetCollection<IndexedMapPackage>("map_packages");
 
-		_assetCollection.EnsureIndex(x => x.FilePath, true);
-		_assetCollection.EnsureIndex(x => x.DirectoryPath);
-		_assetCollection.EnsureIndex(x => x.Extension);
-		_assetCollection.EnsureIndex(x => x.Tags);
-		_assetCollection.EnsureIndex(x => x.FileName);
-		_assetCollection.EnsureIndex(x => x.MapName);
-		_assetCollection.EnsureIndex(x => x.MapVersion);
-		_assetCollection.EnsureIndex(x => x.Blake3);
-		_assetCollection.EnsureIndex(x => x.HasRealmMetadata);
-		_assetCollection.EnsureIndex(x => x.AssetType);
+		EnsureIndexes();
 
-		_folderCollection.EnsureIndex(x => x.DirectoryPath, true);
-
-		_mapPackageCollection.EnsureIndex(x => x.MapName);
-		_mapPackageCollection.EnsureIndex(x => x.MapVersion);
-
-		InitializeDefaultDirectories();
+		if (!IsIndexVersionMismatch())
+		{
+			InitializeDefaultDirectories();
+		}
 	}
 
 	private LiteDatabase GetP2PDatabase()
@@ -137,6 +260,7 @@ public class AssetIndexService : IDisposable
 			p2pAssetCol.EnsureIndex(x => x.FilePath, true);
 			p2pAssetCol.EnsureIndex(x => x.MapName);
 			p2pAssetCol.EnsureIndex(x => x.MapVersion);
+			p2pAssetCol.EnsureIndex(x => x.HasPlayerColorMask);
 			p2pMapCol.EnsureIndex(x => x.MapName);
 			p2pMapCol.EnsureIndex(x => x.MapVersion);
 			return _p2pDatabase;
@@ -214,7 +338,7 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
-	public void ScanAllCasManifests()
+	public void ScanAllCasManifests(IProgress<AssetIndexProgressUpdate>? progress = null)
 	{
 		lock (_syncLock)
 		{
@@ -223,13 +347,18 @@ public class AssetIndexService : IDisposable
 			if (Directory.Exists(MapAssetManager.GlobalArchiveDirectory))
 			{
 				var manifestFiles = Directory.GetFiles(MapAssetManager.GlobalArchiveDirectory, "manifest.json", SearchOption.AllDirectories);
-				foreach (var file in manifestFiles)
+				for (int i = 0; i < manifestFiles.Length; i++)
 				{
+					string file = manifestFiles[i];
 					try
 					{
 						var manifest = MapManifest.LoadFromFile(file);
 						if (manifest != null && manifest.Files != null && manifest.Files.Count > 0)
 						{
+							string mapName = !string.IsNullOrWhiteSpace(manifest.MapName) ? manifest.MapName : Path.GetFileName(Path.GetDirectoryName(file)) ?? "Map";
+							double pct = 0.20 + 0.65 * ((double)i / Math.Max(1, manifestFiles.Length));
+							progress?.Report(new AssetIndexProgressUpdate(pct, string.Format(TranslationServer.Translate("Indexing manifest {0}/{1}: {2}..."), i + 1, manifestFiles.Length, mapName)));
+
 							var paths = RegisterManifestInternal(manifest, file, isP2P: false);
 							foreach (var p in paths)
 							{
@@ -265,13 +394,16 @@ public class AssetIndexService : IDisposable
 		if (Directory.Exists(MapAssetManager.P2PArchiveDirectory))
 		{
 			var p2pManifestFiles = Directory.GetFiles(MapAssetManager.P2PArchiveDirectory, "manifest.json", SearchOption.AllDirectories);
-			foreach (var file in p2pManifestFiles)
+			for (int j = 0; j < p2pManifestFiles.Length; j++)
 			{
+				string file = p2pManifestFiles[j];
 				try
 				{
 					var manifest = MapManifest.LoadFromFile(file);
 					if (manifest != null && manifest.Files != null && manifest.Files.Count > 0)
 					{
+						double pct = 0.85 + 0.12 * ((double)j / Math.Max(1, p2pManifestFiles.Length));
+						progress?.Report(new AssetIndexProgressUpdate(pct, string.Format(TranslationServer.Translate("Indexing P2P archive {0}/{1}..."), j + 1, p2pManifestFiles.Length)));
 						RegisterManifest(manifest, file, isP2P: true);
 					}
 				}
@@ -386,6 +518,16 @@ public class AssetIndexService : IDisposable
 							{
 								existingP2pAsset.AssetType = assetType;
 								existingP2pAsset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || existingP2pAsset.HasRealmMetadata;
+								needsUpdate = true;
+							}
+							bool existingP2pHasMask = DetermineHasPlayerColorMask(metaJson, normPath);
+							string? existingP2pChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson)
+								?? (!string.IsNullOrEmpty(normPath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normPath) : null);
+							string resolvedP2pChroma = existingP2pChromaKey ?? string.Empty;
+							if (existingP2pAsset.HasPlayerColorMask != existingP2pHasMask || existingP2pAsset.ChromaKey != resolvedP2pChroma)
+							{
+								existingP2pAsset.HasPlayerColorMask = existingP2pHasMask;
+								existingP2pAsset.ChromaKey = resolvedP2pChroma;
 								needsUpdate = true;
 							}
 							if (string.IsNullOrEmpty(existingP2pAsset.MapName) || existingP2pAsset.MapName != mapName)
@@ -514,6 +656,12 @@ public class AssetIndexService : IDisposable
 							}
 						}
 
+						bool p2pHasMask = DetermineHasPlayerColorMask(p2pMetaJson, normPath);
+						string? p2pChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(p2pMetaJson)
+							?? (!string.IsNullOrEmpty(normPath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normPath) : null);
+						asset.HasPlayerColorMask = p2pHasMask;
+						asset.ChromaKey = p2pChromaKey ?? string.Empty;
+
 						asset.AssetType = p2pAssetType;
 						asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(p2pAssetType);
 
@@ -626,6 +774,16 @@ public class AssetIndexService : IDisposable
 						{
 							existingAsset.AssetType = existingAssetType;
 							existingAsset.HasRealmMetadata = !string.IsNullOrEmpty(existingMetaJson) || existingAsset.HasRealmMetadata;
+							needsUpdate = true;
+						}
+						bool existingCasHasMask = DetermineHasPlayerColorMask(existingMetaJson, normPath);
+						string? existingCasChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(existingMetaJson)
+							?? (!string.IsNullOrEmpty(normPath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normPath) : null);
+						string resolvedCasChroma = existingCasChromaKey ?? string.Empty;
+						if (existingAsset.HasPlayerColorMask != existingCasHasMask || existingAsset.ChromaKey != resolvedCasChroma)
+						{
+							existingAsset.HasPlayerColorMask = existingCasHasMask;
+							existingAsset.ChromaKey = resolvedCasChroma;
 							needsUpdate = true;
 						}
 						if (string.IsNullOrEmpty(existingAsset.MapName) || existingAsset.MapName != mapName)
@@ -753,6 +911,12 @@ public class AssetIndexService : IDisposable
 							}
 						}
 					}
+
+					bool casHasMask = DetermineHasPlayerColorMask(metaJson, normPath);
+					string? casChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson)
+						?? (!string.IsNullOrEmpty(normPath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normPath) : null);
+					asset.HasPlayerColorMask = casHasMask;
+					asset.ChromaKey = casChromaKey ?? string.Empty;
 
 					asset.AssetType = assetType;
 					asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(assetType);
@@ -1131,7 +1295,8 @@ public class AssetIndexService : IDisposable
 					existingAsset.FileSizeBytes == fileInfo.Length &&
 					existingAsset.LastModifiedUtc == fileInfo.LastWriteTimeUtc &&
 					!string.IsNullOrEmpty(existingAsset.Blake3) &&
-					!string.IsNullOrEmpty(existingAsset.AssetType))
+					!string.IsNullOrEmpty(existingAsset.AssetType) &&
+					existingAsset.ChromaKey != null)
 				{
 					if (expectedDirType == null || string.Equals(existingAsset.AssetType, expectedDirType, StringComparison.OrdinalIgnoreCase))
 					{
@@ -1213,6 +1378,9 @@ public class AssetIndexService : IDisposable
 					}
 					catch { }
 				}
+				bool hasMask = DetermineHasPlayerColorMask(metaJson, normalizedFilePath);
+				string? chromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson)
+					?? (!string.IsNullOrEmpty(normalizedFilePath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normalizedFilePath) : null);
 				string fileName = Path.GetFileName(normalizedFilePath);
 				var asset = existingAsset ?? _assetCollection.FindOne(x => x.FilePath == normalizedFilePath) ?? new IndexedAsset();
 				asset.FilePath = normalizedFilePath;
@@ -1225,6 +1393,8 @@ public class AssetIndexService : IDisposable
 				asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = tags });
 				asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(assetType);
 				asset.AssetType = assetType;
+				asset.HasPlayerColorMask = hasMask;
+				asset.ChromaKey = chromaKey ?? string.Empty;
 				asset.MapName = existingAsset?.MapName ?? asset.MapName;
 				asset.MapVersion = existingAsset?.MapVersion ?? asset.MapVersion;
 				asset.Blake3 = !string.IsNullOrEmpty(normBlake3) ? Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(normBlake3) : string.Empty;
@@ -1286,6 +1456,25 @@ public class AssetIndexService : IDisposable
 
 			_database.Checkpoint();
 		}
+	}
+
+	private static bool DetermineHasPlayerColorMask(string? metaJson, string? filePath)
+	{
+		if (!string.IsNullOrEmpty(metaJson) && Realm.Shared.Metadata.RealmMetadataHelper.ExtractSupportsTeamColorFromMetadataJson(metaJson))
+		{
+			return true;
+		}
+
+		if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+		{
+			bool? supports = Realm.Shared.Metadata.RealmMetadataHelper.ExtractSupportsTeamColor(filePath);
+			if (supports.HasValue)
+			{
+				return supports.Value;
+			}
+		}
+
+		return false;
 	}
 
 	private static List<string> ExtractTagsFromMetadataJson(string? metaJson)
@@ -1536,7 +1725,8 @@ public class AssetIndexService : IDisposable
 		bool requireRealmMetadata = false,
 		string? requiredAssetType = null,
 		string? mapNameFilter = null,
-		string? mapVersionFilter = null)
+		string? mapVersionFilter = null,
+		bool requirePlayerColorMask = false)
 	{
 		lock (_syncLock)
 		{
@@ -1584,6 +1774,11 @@ public class AssetIndexService : IDisposable
 			if (!string.IsNullOrWhiteSpace(requiredAssetType))
 			{
 				query = query.Where(x => x.AssetType == requiredAssetType);
+			}
+
+			if (requirePlayerColorMask)
+			{
+				query = query.Where(x => x.HasPlayerColorMask);
 			}
 
 			var candidateList = query.ToList();

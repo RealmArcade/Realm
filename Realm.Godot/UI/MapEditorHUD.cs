@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using HttpClient = System.Net.Http.HttpClient;
 using NSec.Cryptography;
 using System.Linq;
@@ -181,6 +182,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnBackToHub;
 	private Button _btnPublish;
 	private Button _btnSave;
+	private Button _btnSaveAs;
 	private Button _btnTestMap;
 	private Button _btnExportMap;
 	private Button _btnLoad;
@@ -676,10 +678,17 @@ public partial class MapEditorHUD : Control
 		SetupAccordion(_btnHeaderFile, _contentFile, TranslationServer.Translate("File"));
 
 		_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnLoad");
-		SetupOptionButton(_btnLoad, "\uf07c LOAD", () => LoadMapAction(), 13, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
+		SetupOptionButton(_btnLoad, "\uf07c LOAD", () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
 
 		_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnSave");
-		SetupOptionButton(_btnSave, "\uf0c7 SAVE", () => SaveMapActionExternal(), 13, "Save current heightmap, textures, and entities (Ctrl+S)");
+		SetupOptionButton(_btnSave, "\uf0c7 SAVE", () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
+
+		_btnSaveAs = new Button();
+		_btnSaveAs.Name = "BtnSaveAs";
+		_btnSaveAs.Set("icon_max_width", 0);
+		SetupOptionButton(_btnSaveAs, "\uf0c7 SAVE AS", () => SaveAsMapAction(), 11, "Save map to a new folder location");
+		_contentFile.AddChild(_btnSaveAs);
+		_contentFile.MoveChild(_btnSaveAs, _btnSave.GetIndex() + 1);
 
 		_btnTestMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnTestMap");
 		SetupOptionButton(_btnTestMap, "\uf11b TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
@@ -1682,8 +1691,22 @@ public partial class MapEditorHUD : Control
 		SetupCardScrollContainer(_contentPlacement, 320f);
 		SetupCardScrollContainer(_contentInspector, 300f);
 
-		StyleRowButton(_btnLoad);
-		StyleRowButton(_btnSave);
+		foreach (var btn in new[] { _btnLoad, _btnSave, _btnSaveAs })
+		{
+			StyleRowButton(btn);
+			btn.AddThemeFontSizeOverride("font_size", 11);
+			btn.Alignment = HorizontalAlignment.Center;
+			foreach (string styleName in new[] { "normal", "hover", "pressed" })
+			{
+				if (btn.GetThemeStylebox(styleName) is StyleBoxFlat styleBox)
+				{
+					var compactBox = (StyleBoxFlat)styleBox.Duplicate();
+					compactBox.ContentMarginLeft = 4;
+					compactBox.ContentMarginRight = 4;
+					btn.AddThemeStyleboxOverride(styleName, compactBox);
+				}
+			}
+		}
 		StyleRowButton(_btnTestMap);
 		StyleRowButton(_btnPublish);
 		StyleRowButton(_btnExportMap);
@@ -3126,10 +3149,23 @@ public partial class MapEditorHUD : Control
 
 	private void CheckPostLaunchPrompts()
 	{
-		CheckUnsavedSessionOnLaunch(() =>
+		if (AssetIndexService.Instance.IsIndexVersionMismatch())
 		{
-			CheckCreatorRegistrationAndPrompt();
-		});
+			_ = ShowAssetIndexRepairModalAsync(() =>
+			{
+				CheckUnsavedSessionOnLaunch(() =>
+				{
+					CheckCreatorRegistrationAndPrompt();
+				});
+			});
+		}
+		else
+		{
+			CheckUnsavedSessionOnLaunch(() =>
+			{
+				CheckCreatorRegistrationAndPrompt();
+			});
+		}
 	}
 
 	public static string ComputeDirectoryBlake3(string directoryPath)
@@ -3617,6 +3653,12 @@ public partial class MapEditorHUD : Control
 		PromptSaveMapFolder();
 	}
 
+	private void SaveAsMapAction()
+	{
+		if (GameHost.Instance == null) return;
+		PromptSaveMapFolder();
+	}
+
 	public void PromptSaveMapFolder()
 	{
 		if (GameHost.Instance == null) return;
@@ -3756,6 +3798,12 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 
+		if (upgradeService.IsMapNewerThanGame(currentVersion, targetVersion))
+		{
+			ShowMapNewerThanGameErrorDialog(selectedFolder, currentVersion, targetVersion);
+			return false;
+		}
+
 		var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
 
 		var popup = new Panel();
@@ -3879,9 +3927,143 @@ public partial class MapEditorHUD : Control
 		return await tcs.Task;
 	}
 
+	private void ShowMapNewerThanGameErrorDialog(string selectedFolder, string mapVersion, string gameVersion)
+	{
+		var popup = new Panel();
+		popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		AddChild(popup);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(540, 260);
+		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		popup.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(500, 230);
+		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+		var titleLabel = new Label();
+		UIStyle.ApplyTitle(titleLabel, Tr("MAP REQUIRES NEWER GAME VERSION"), 18);
+		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
+		vbox.AddChild(titleLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+
+		var descLabel = new Label();
+		descLabel.Text = $"{string.Format(Tr("Map: {0}"), System.IO.Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), mapVersion, gameVersion)}\n\n{Tr("This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.")}";
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLabel.AddThemeFontSizeOverride("font_size", 13);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+		vbox.AddChild(descLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
+
+		var buttonRow = new HBoxContainer();
+		buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
+		vbox.AddChild(buttonRow);
+
+		var closeBtn = new Button();
+		closeBtn.Flat = false;
+		closeBtn.AddThemeConstantOverride("icon_max_width", 0);
+		closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		closeBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		closeBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(closeBtn, Tr("CLOSE"), 14);
+		closeBtn.CustomMinimumSize = new Vector2(120, 38);
+		buttonRow.AddChild(closeBtn);
+
+		closeBtn.Pressed += () =>
+		{
+			UIManager.Instance?.PlayClickSound();
+			popup.QueueFree();
+		};
+	}
+
+	private static bool IsValidMapFolder(string folder)
+	{
+		return System.IO.File.Exists(System.IO.Path.Combine(folder, "metadata.json"))
+			&& System.IO.File.Exists(System.IO.Path.Combine(folder, "manifest.json"));
+	}
+
+	private void ShowInvalidMapFolderErrorDialog(string selectedFolder)
+	{
+		var popup = new Panel();
+		popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		AddChild(popup);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(520, 240);
+		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		popup.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(480, 210);
+		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+		var titleLabel = new Label();
+		UIStyle.ApplyTitle(titleLabel, Tr("INVALID MAP FOLDER"), 20);
+		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
+		vbox.AddChild(titleLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+
+		var descLabel = new Label();
+		descLabel.Text = $"{string.Format(Tr("Folder: {0}"), System.IO.Path.GetFileName(selectedFolder))}\n\n{Tr("The selected folder is not a valid map. Required files metadata.json and manifest.json were not found.")}";
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLabel.AddThemeFontSizeOverride("font_size", 13);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+		vbox.AddChild(descLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
+
+		var buttonRow = new HBoxContainer();
+		buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
+		vbox.AddChild(buttonRow);
+
+		var closeBtn = new Button();
+		closeBtn.Flat = false;
+		closeBtn.AddThemeConstantOverride("icon_max_width", 0);
+		closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		closeBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		closeBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(closeBtn, Tr("CLOSE"), 14);
+		closeBtn.CustomMinimumSize = new Vector2(120, 38);
+		buttonRow.AddChild(closeBtn);
+
+		closeBtn.Pressed += () =>
+		{
+			UIManager.Instance?.PlayClickSound();
+			popup.QueueFree();
+		};
+	}
+
 	public bool LoadMapFolder(string selectedFolder)
 	{
 		if (!System.IO.Directory.Exists(selectedFolder)) return false;
+
+		if (!IsValidMapFolder(selectedFolder))
+		{
+			ShowInvalidMapFolderErrorDialog(selectedFolder);
+			return false;
+		}
 
 		var upgradeService = _mapUpgradeService ?? MapUpgradeService.Instance;
 		if (upgradeService != null && upgradeService.NeedsUpgrade(selectedFolder, out _, out _))
@@ -3935,6 +4117,12 @@ public partial class MapEditorHUD : Control
 	public async System.Threading.Tasks.Task<bool> LoadMapFolderAsync(string selectedFolder)
 	{
 		if (!System.IO.Directory.Exists(selectedFolder)) return false;
+
+		if (!IsValidMapFolder(selectedFolder))
+		{
+			ShowInvalidMapFolderErrorDialog(selectedFolder);
+			return false;
+		}
 
 		bool canProceed = await PromptAndUpgradeMapIfNeededAsync(selectedFolder);
 		if (!canProceed)
@@ -4706,6 +4894,102 @@ public partial class MapEditorHUD : Control
 			_lastTerrainSyncTime = GetMaxTerrainWriteTime(tempTerrainPath);
 			_isSyncing = false;
 		}
+	}
+
+	public async Task ShowAssetIndexRepairModalAsync(Action onCompleted = null)
+	{
+		var overlay = new ColorRect();
+		overlay.Name = "AssetIndexRepairOverlay";
+		overlay.Color = new Color(0, 0, 0, 0.75f);
+		overlay.SetAnchorsPreset(LayoutPreset.FullRect);
+		overlay.MouseFilter = Control.MouseFilterEnum.Stop;
+		overlay.ZIndex = 1100;
+		AddChild(overlay);
+
+		var center = new CenterContainer();
+		center.SetAnchorsPreset(LayoutPreset.FullRect);
+		overlay.AddChild(center);
+
+		var panel = new PanelContainer();
+		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		panel.CustomMinimumSize = new Vector2(520, 220);
+		center.AddChild(panel);
+
+		var vbox = new VBoxContainer();
+		vbox.AddThemeConstantOverride("separation", 12);
+		panel.AddChild(vbox);
+
+		var titleLabel = new Label();
+		UIStyle.ApplyTitle(titleLabel, "🗄️ " + TranslationServer.Translate("REPAIRING ASSET INDEX"), 20);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(titleLabel);
+
+		var descLabel = new Label();
+		descLabel.Text = TranslationServer.Translate("Rebuilding asset index database from CAS manifests...");
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		descLabel.AddThemeFontSizeOverride("font_size", 13);
+		vbox.AddChild(descLabel);
+
+		var progressBar = new ProgressBar();
+		progressBar.CustomMinimumSize = new Vector2(460, 22);
+		progressBar.MinValue = 0;
+		progressBar.MaxValue = 100;
+		progressBar.Value = 0;
+		vbox.AddChild(progressBar);
+
+		var statusLabel = new Label();
+		statusLabel.Text = TranslationServer.Translate("Initializing asset database rebuild...");
+		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		statusLabel.AddThemeFontSizeOverride("font_size", 13);
+		statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+		vbox.AddChild(statusLabel);
+
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+		var progress = new Progress<AssetIndexProgressUpdate>(update =>
+		{
+			Callable.From(() =>
+			{
+				if (GodotObject.IsInstanceValid(progressBar))
+				{
+					progressBar.Value = Mathf.Clamp(update.ProgressPercentage * 100.0, 0, 100);
+				}
+				if (GodotObject.IsInstanceValid(statusLabel))
+				{
+					statusLabel.Text = update.Message;
+				}
+			}).CallDeferred();
+		});
+
+		try
+		{
+			await Task.Run(() => AssetIndexService.Instance.RebuildIndexFromCas(progress));
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapEditorHUD] AssetIndex rebuild error: {ex.Message}");
+		}
+
+		if (GodotObject.IsInstanceValid(progressBar))
+		{
+			progressBar.Value = 100;
+		}
+		if (GodotObject.IsInstanceValid(statusLabel))
+		{
+			statusLabel.Text = TranslationServer.Translate("Asset index repair complete!");
+			statusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
+		}
+
+		await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
+
+		if (GodotObject.IsInstanceValid(overlay))
+		{
+			overlay.QueueFree();
+		}
+
+		ShowFeedback(TranslationServer.Translate("Asset index database successfully rebuilt from CAS."));
+		onCompleted?.Invoke();
 	}
 
 	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, Action onDismissed = null, bool showCancel = true)
@@ -6681,14 +6965,30 @@ public partial class MapEditorHUD : Control
 		var targetFile = GetContentTarget(_contentFile);
 		if (targetFile != null)
 		{
+			var saveLoadRow = new HBoxContainer();
+			saveLoadRow.Name = "RowFileSaveLoad";
+			saveLoadRow.AddThemeConstantOverride("separation", 6);
+			saveLoadRow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+
+			_btnLoad.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			_btnLoad.SizeFlagsStretchRatio = 1.0f;
+
+			_btnSave.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			_btnSave.SizeFlagsStretchRatio = 1.0f;
+
+			_btnSaveAs.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			_btnSaveAs.SizeFlagsStretchRatio = 1.0f;
+
+			SafeReparent(_btnLoad, saveLoadRow);
+			SafeReparent(_btnSave, saveLoadRow);
+			SafeReparent(_btnSaveAs, saveLoadRow);
+
 			var fileGrid1 = new GridContainer();
 			fileGrid1.Columns = 2;
 			fileGrid1.AddThemeConstantOverride("h_separation", 6);
 			fileGrid1.AddThemeConstantOverride("v_separation", 6);
 			fileGrid1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
-			SafeReparent(_btnLoad, fileGrid1);
-			SafeReparent(_btnSave, fileGrid1);
 			SafeReparent(_btnTestMap, fileGrid1);
 			SafeReparent(_btnExportMap, fileGrid1);
 			SafeReparent(_btnPublish, fileGrid1);
@@ -6706,6 +7006,8 @@ public partial class MapEditorHUD : Control
 
 			var fileBox1 = new VBoxContainer();
 			fileBox1.Name = "BoxFileOps";
+			fileBox1.AddThemeConstantOverride("separation", 6);
+			fileBox1.AddChild(saveLoadRow);
 			fileBox1.AddChild(fileGrid1);
 			StyleSubContainer(fileBox1, "File Operations");
 

@@ -48,6 +48,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	private bool _requireRealmMetadata = false;
 	private string? _selectedAssetTypeFilter;
 	private OptionButton _optAssetTypeFilter;
+	private CheckBox _chkHasPlayerColorMask;
 	private static string? _selectedDirectoryFilter;
 	private static string? _selectedMapNameFilter;
 	private static string? _selectedMapVersionFilter;
@@ -158,6 +159,18 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		folderScroll.AddChild(_folderChipsContainer);
 		topFoldersSection.AddChild(folderScroll);
 
+		var directoryRow = new HBoxContainer();
+		directoryRow.AddThemeConstantOverride("separation", 8);
+		BodyContainer.AddChild(directoryRow);
+
+		_optDirectoryFilter = new OptionButton();
+		_optDirectoryFilter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_optDirectoryFilter.CustomMinimumSize = new Vector2(0, 24);
+		_optDirectoryFilter.AddThemeFontSizeOverride("font_size", 11);
+		_optDirectoryFilter.FocusMode = FocusModeEnum.None;
+		_optDirectoryFilter.ItemSelected += OnDirectoryFilterChanged;
+		directoryRow.AddChild(_optDirectoryFilter);
+
 		var filterRow = new HBoxContainer();
 		filterRow.AddThemeConstantOverride("separation", 8);
 		BodyContainer.AddChild(filterRow);
@@ -176,12 +189,14 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_optAssetTypeFilter.ItemSelected += OnAssetTypeFilterChanged;
 		filterRow.AddChild(_optAssetTypeFilter);
 
-		_optDirectoryFilter = new OptionButton();
-		_optDirectoryFilter.CustomMinimumSize = new Vector2(180, 24);
-		_optDirectoryFilter.AddThemeFontSizeOverride("font_size", 11);
-		_optDirectoryFilter.FocusMode = FocusModeEnum.None;
-		_optDirectoryFilter.ItemSelected += OnDirectoryFilterChanged;
-		filterRow.AddChild(_optDirectoryFilter);
+		_chkHasPlayerColorMask = new CheckBox();
+		_chkHasPlayerColorMask.Set("icon_max_width", 0);
+		_chkHasPlayerColorMask.Text = TranslationServer.Translate("Has Player Color Mask");
+		_chkHasPlayerColorMask.AddThemeFontSizeOverride("font_size", 11);
+		_chkHasPlayerColorMask.FocusMode = FocusModeEnum.None;
+		_chkHasPlayerColorMask.TooltipText = TranslationServer.Translate("Filter assets that have a player color (chroma key) mask in metadata");
+		_chkHasPlayerColorMask.Toggled += (_) => RefreshSearchResults();
+		filterRow.AddChild(_chkHasPlayerColorMask);
 
 		var infoBar = new HBoxContainer();
 		infoBar.AddThemeConstantOverride("separation", 12);
@@ -364,6 +379,10 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_onAssetSelectedCallback = onAssetSelected;
 		_selectedAsset = null;
 		_txtSearch.Text = string.Empty;
+		if (_chkHasPlayerColorMask != null)
+		{
+			_chkHasPlayerColorMask.ButtonPressed = false;
+		}
 		_requireRealmMetadata = requireRealmMetadata;
 		_selectedAssetTypeFilter = requiredAssetType;
 
@@ -680,6 +699,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	private void RefreshSearchResults()
 	{
 		string searchTerm = _txtSearch.Text?.Trim() ?? string.Empty;
+		bool requirePlayerColorMask = _chkHasPlayerColorMask?.ButtonPressed ?? false;
 		_matchingAssets.Clear();
 		var searchResults = AssetIndexService.Instance.SearchAssets(
 			searchTerm,
@@ -688,7 +708,8 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_requireRealmMetadata,
 			_selectedAssetTypeFilter,
 			_selectedMapNameFilter,
-			_selectedMapVersionFilter);
+			_selectedMapVersionFilter,
+			requirePlayerColorMask);
 
 		_matchingAssets.AddRange(searchResults);
 

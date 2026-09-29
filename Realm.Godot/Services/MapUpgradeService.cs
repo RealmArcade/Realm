@@ -884,12 +884,15 @@ public class MapUpgradeService
 
 	public string GetMapBuildNumber(string mapDirectory)
 	{
-		if (string.IsNullOrEmpty(mapDirectory) || !Directory.Exists(mapDirectory))
+		if (string.IsNullOrEmpty(mapDirectory))
 		{
 			return "v0.0.0";
 		}
 
-		string metadataPath = Path.Combine(mapDirectory, "metadata.json");
+		string metadataPath = File.Exists(mapDirectory) && Path.GetFileName(mapDirectory).Equals("metadata.json", StringComparison.OrdinalIgnoreCase)
+			? mapDirectory
+			: Path.Combine(mapDirectory, "metadata.json");
+
 		if (!File.Exists(metadataPath))
 		{
 			return "v0.0.0";
@@ -922,6 +925,65 @@ public class MapUpgradeService
 		return !string.Equals(currentVersion, targetVersion, StringComparison.OrdinalIgnoreCase);
 	}
 
+	public bool IsMapNewerThanGame(string mapVersionOrDirectory, string? gameVersion = null)
+	{
+		string mapBuildNumber = mapVersionOrDirectory;
+		if (!string.IsNullOrEmpty(mapVersionOrDirectory) && (Directory.Exists(mapVersionOrDirectory) || File.Exists(mapVersionOrDirectory)))
+		{
+			mapBuildNumber = GetMapBuildNumber(mapVersionOrDirectory);
+		}
+
+		string targetGameVersion = !string.IsNullOrWhiteSpace(gameVersion) ? gameVersion : RealmVersion.GameBuildNumber;
+		var parsedMapVersion = ParseBuildVersion(mapBuildNumber);
+		var parsedGameVersion = ParseBuildVersion(targetGameVersion);
+
+		return parsedMapVersion.CompareTo(parsedGameVersion) > 0;
+	}
+
+	public static Version ParseBuildVersion(string? versionString)
+	{
+		if (string.IsNullOrWhiteSpace(versionString))
+		{
+			return new Version(0, 0, 0, 0);
+		}
+
+		string cleaned = versionString.Trim().TrimStart('v', 'V').Trim();
+		int separatorIndex = cleaned.IndexOfAny(new[] { '-', '_', '+', ' ', '(' });
+		if (separatorIndex >= 0)
+		{
+			cleaned = cleaned.Substring(0, separatorIndex).Trim();
+		}
+
+		if (Version.TryParse(cleaned, out var parsedVersion))
+		{
+			int major = Math.Max(0, parsedVersion.Major);
+			int minor = Math.Max(0, parsedVersion.Minor);
+			int build = Math.Max(0, parsedVersion.Build);
+			int revision = parsedVersion.Revision >= 0 ? parsedVersion.Revision : 0;
+			return new Version(major, minor, build, revision);
+		}
+
+		var parts = cleaned.Split('.');
+		if (parts.Length == 1 && int.TryParse(parts[0], out int p0))
+		{
+			return new Version(p0, 0, 0, 0);
+		}
+		if (parts.Length == 2 && int.TryParse(parts[0], out int maj) && int.TryParse(parts[1], out int min))
+		{
+			return new Version(maj, min, 0, 0);
+		}
+		if (parts.Length == 3 && int.TryParse(parts[0], out int b0) && int.TryParse(parts[1], out int b1) && int.TryParse(parts[2], out int b2))
+		{
+			return new Version(b0, b1, b2, 0);
+		}
+		if (parts.Length >= 4 && int.TryParse(parts[0], out int r0) && int.TryParse(parts[1], out int r1) && int.TryParse(parts[2], out int r2) && int.TryParse(parts[3], out int r3))
+		{
+			return new Version(r0, r1, r2, r3);
+		}
+
+		return new Version(0, 0, 0, 0);
+	}
+
 	public List<IMapMigration> GetPendingMigrations(string currentVersion, string targetVersion)
 	{
 		var pending = new List<IMapMigration>();
@@ -946,6 +1008,17 @@ public class MapUpgradeService
 	{
 		string initialVersion = GetMapBuildNumber(mapDirectory);
 		string targetVersion = RealmVersion.GameBuildNumber;
+
+		if (IsMapNewerThanGame(initialVersion, targetVersion))
+		{
+			return new UpgradeResult
+			{
+				Success = false,
+				ErrorMessage = $"Map build {initialVersion} is newer than current game build {targetVersion}. Downgrading is not supported.",
+				InitialVersion = initialVersion,
+				FinalVersion = initialVersion
+			};
+		}
 
 		var pendingMigrations = GetPendingMigrations(initialVersion, targetVersion);
 		if (pendingMigrations.Count == 0)
