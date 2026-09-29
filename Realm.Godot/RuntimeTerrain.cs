@@ -1064,19 +1064,18 @@ vec2 unpack_normal_xy(vec2 raw_rg) {
 
 vec3 unpack_triplanar_normal(vec4 norm_pbr, vec3 blend_w, vec3 geom_norm, float normal_scale) {
 	vec2 t_xy = unpack_normal_xy(norm_pbr.rg) * normal_scale;
-	float t_z = sqrt(max(0.0, 1.0 - dot(t_xy, t_xy)));
 
 	vec3 sign_n = sign(geom_norm);
 	sign_n.x = sign_n.x == 0.0 ? 1.0 : sign_n.x;
 	sign_n.y = sign_n.y == 0.0 ? 1.0 : sign_n.y;
 	sign_n.z = sign_n.z == 0.0 ? 1.0 : sign_n.z;
 
-	vec3 n_x = vec3(t_z * sign_n.x, t_xy.y, t_xy.x * sign_n.x);
-	vec3 n_y = vec3(t_xy.x, t_z * sign_n.y, t_xy.y);
-	vec3 n_z = vec3(t_xy.x * sign_n.z, t_xy.y, t_z * sign_n.z);
+	vec3 dp_x = vec3(0.0, t_xy.y, t_xy.x * sign_n.x);
+	vec3 dp_y = vec3(t_xy.x, 0.0, t_xy.y * sign_n.y);
+	vec3 dp_z = vec3(t_xy.x * sign_n.z, t_xy.y, 0.0);
 
-	vec3 world_n = n_x * blend_w.x + n_y * blend_w.y + n_z * blend_w.z;
-	return normalize(world_n);
+	vec3 total_dp = dp_x * blend_w.x + dp_y * blend_w.y + dp_z * blend_w.z;
+	return normalize(geom_norm + total_dp);
 }
 
 struct TriplanarPbrData {
@@ -1116,7 +1115,8 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 		vec4 ny = sample_stochastic_layer(norm_tex_array, layer, scaled_uv_y, scaled_dx_y, scaled_dy_y, tile_mode, stoch_tile_size, cross_fade, true);
 		vec2 ty = unpack_normal_xy(ny.rg) * normal_scale;
 		float tzy = sqrt(max(0.0, 1.0 - dot(ty, ty)));
-		result.normal = normalize(vec3(ty.x, tzy * sign_n.y, ty.y));
+		vec3 dp_y = vec3(ty.x, 0.0, ty.y * sign_n.y);
+		result.normal = normalize(geom_norm + dp_y);
 		result.ao = clamp((0.35 + 0.65 * tzy) * (0.55 + 0.45 * ny.b), 0.05, 1.0);
 		result.roughness = ny.a * roughness_scale;
 		result.height = ny.b;
@@ -1126,7 +1126,8 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 		vec4 nx = sample_stochastic_layer(norm_tex_array, layer, scaled_uv_x, scaled_dx_x, scaled_dy_x, tile_mode, stoch_tile_size, cross_fade, true);
 		vec2 tx = unpack_normal_xy(nx.rg) * normal_scale;
 		float tzx = sqrt(max(0.0, 1.0 - dot(tx, tx)));
-		result.normal = normalize(vec3(tzx * sign_n.x, tx.y, tx.x * sign_n.x));
+		vec3 dp_x = vec3(0.0, tx.y, tx.x * sign_n.x);
+		result.normal = normalize(geom_norm + dp_x);
 		result.ao = clamp((0.35 + 0.65 * tzx) * (0.55 + 0.45 * nx.b), 0.05, 1.0);
 		result.roughness = nx.a * roughness_scale;
 		result.height = nx.b;
@@ -1136,7 +1137,8 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 		vec4 nz = sample_stochastic_layer(norm_tex_array, layer, scaled_uv_z, scaled_dx_z, scaled_dy_z, tile_mode, stoch_tile_size, cross_fade, true);
 		vec2 tz = unpack_normal_xy(nz.rg) * normal_scale;
 		float tzz = sqrt(max(0.0, 1.0 - dot(tz, tz)));
-		result.normal = normalize(vec3(tz.x * sign_n.z, tz.y, tzz * sign_n.z));
+		vec3 dp_z = vec3(tz.x * sign_n.z, tz.y, 0.0);
+		result.normal = normalize(geom_norm + dp_z);
 		result.ao = clamp((0.35 + 0.65 * tzz) * (0.55 + 0.45 * nz.b), 0.05, 1.0);
 		result.roughness = nz.a * roughness_scale;
 		result.height = nz.b;
@@ -1155,17 +1157,18 @@ TriplanarPbrData sample_triplanar_pbr(sampler2DArray norm_tex_array, float layer
 	float tzy = sqrt(max(0.0, 1.0 - dot(ty, ty)));
 	float tzz = sqrt(max(0.0, 1.0 - dot(tz, tz)));
 
-	vec3 world_nx = vec3(tzx * sign_n.x, tx.y, tx.x * sign_n.x);
-	vec3 world_ny = vec3(ty.x, tzy * sign_n.y, ty.y);
-	vec3 world_nz = vec3(tz.x * sign_n.z, tz.y, tzz * sign_n.z);
-
-	result.normal = normalize(world_nx * weights.x + world_ny * weights.y + world_nz * weights.z);
-
 	vec3 tri_h = vec3(nx.b, ny.b, nz.b);
 	vec3 safe_w = max(weights, vec3(0.0));
 	vec3 combined_tri_w = pow(safe_w, vec3(6.0)) * exp(tri_h * 2.0);
 	float sum_tri_w = combined_tri_w.x + combined_tri_w.y + combined_tri_w.z;
 	vec3 tw = sum_tri_w > 0.0001 ? (combined_tri_w / sum_tri_w) : weights;
+
+	vec3 dp_x = vec3(0.0, tx.y, tx.x * sign_n.x);
+	vec3 dp_y = vec3(ty.x, 0.0, ty.y * sign_n.y);
+	vec3 dp_z = vec3(tz.x * sign_n.z, tz.y, 0.0);
+	vec3 total_dp = dp_x * tw.x + dp_y * tw.y + dp_z * tw.z;
+
+	result.normal = normalize(geom_norm + total_dp);
 
 	float ao_x = clamp((0.35 + 0.65 * tzx) * (0.55 + 0.45 * nx.b), 0.05, 1.0);
 	float ao_y = clamp((0.35 + 0.65 * tzy) * (0.55 + 0.45 * ny.b), 0.05, 1.0);
