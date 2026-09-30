@@ -387,8 +387,23 @@ public partial class MapEditorHUD : Control
 	private bool _isSyncing = false;
 	public bool IsSyncing => _isSyncing;
 
+	public void UpdateLastMetadataSyncTime(string? path = null)
+	{
+		string wsPath = string.IsNullOrEmpty(_tempWorkspacePath) 
+			? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
+			: _tempWorkspacePath;
+		string metadataPath = string.IsNullOrEmpty(path) ? System.IO.Path.Combine(wsPath, "metadata.json") : path;
+		_lastMetadataSyncTime = GetLastWriteTimeSafe(metadataPath);
+	}
+
+	private void OnMetadataSaved(string targetPath)
+	{
+		UpdateLastMetadataSyncTime(targetPath);
+	}
+
 	public override void _ExitTree()
 	{
+		MetadataService.Instance.MetadataSaved -= OnMetadataSaved;
 		_editorService?.StopWorkspaceWatcher();
 		CloseWasmConsoleModal();
 		if (Instance == this)
@@ -455,6 +470,7 @@ public partial class MapEditorHUD : Control
 		try
 		{
 			Instance = this;
+			MetadataService.Instance.MetadataSaved += OnMetadataSaved;
 			_editorService = ServiceLocator.TryGet<EditorService>();
 			_mapUpgradeService = ServiceLocator.TryGet<MapUpgradeService>();
 			UpdateFPSVisibility();
