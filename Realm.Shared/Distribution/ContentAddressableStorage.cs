@@ -140,7 +140,7 @@ public class ContentAddressableStorage
         string normalizedHash = NormalizeBlake3Hash(blake3Hash);
         if (_sidecarMemoryCache.TryGetValue(normalizedHash, out var cachedMeta))
         {
-            return cachedMeta;
+            return string.IsNullOrEmpty(cachedMeta) ? null : cachedMeta;
         }
 
         string sidecarPath = GetSidecarCachePath(normalizedHash);
@@ -160,6 +160,7 @@ public class ContentAddressableStorage
         string? filePath = FindAssetFilePath(normalizedHash);
         if (filePath == null || !File.Exists(filePath))
         {
+            _sidecarMemoryCache[normalizedHash] = string.Empty;
             return null;
         }
 
@@ -167,6 +168,10 @@ public class ContentAddressableStorage
         if (!string.IsNullOrWhiteSpace(extractedMetadata))
         {
             UpdateSidecarCache(normalizedHash, extractedMetadata);
+        }
+        else
+        {
+            _sidecarMemoryCache[normalizedHash] = string.Empty;
         }
 
         return extractedMetadata;
@@ -645,7 +650,10 @@ public class ContentAddressableStorage
         {
             _sidecarMemoryCache[normalizedHash] = metadataJson;
             string path = GetSidecarCachePath(normalizedHash);
-            File.WriteAllText(path, metadataJson, Encoding.UTF8);
+            if (!File.Exists(path))
+            {
+                File.WriteAllText(path, metadataJson, Encoding.UTF8);
+            }
         }
         catch
         {
@@ -685,6 +693,7 @@ public class ContentAddressableStorage
         try
         {
             string cleanHash = NormalizeBlake3Hash(normalizedHash);
+            _sidecarMemoryCache.TryRemove(cleanHash, out _);
             if (cleanHash.Length >= 2 && Directory.Exists(_sidecarCacheDirectory))
             {
                 string shardDirectory = Path.Combine(_sidecarCacheDirectory, cleanHash.Substring(0, 2));

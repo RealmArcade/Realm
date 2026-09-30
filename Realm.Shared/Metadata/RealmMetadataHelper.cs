@@ -478,10 +478,8 @@ public static class RealmMetadataHelper
 		return false;
 	}
 
-	public static bool? ExtractSupportsTeamColor(string filePath)
+	public static bool? ExtractSupportsTeamColorWithMetadata(string? metaJson, string filePath)
 	{
-		if (!File.Exists(filePath)) return null;
-		string? metaJson = ExtractMetadata(filePath);
 		if (!string.IsNullOrEmpty(metaJson))
 		{
 			if (ExtractSupportsTeamColorFromMetadataJson(metaJson))
@@ -505,10 +503,20 @@ public static class RealmMetadataHelper
 		string ext = Path.GetExtension(filePath).ToLowerInvariant();
 		if (ext is ".rmesh" or ".glb" or ".gltf")
 		{
-			return GlbPlayerColorProcessor.DetectSupportsTeamColor(filePath);
+			if (File.Exists(filePath))
+			{
+				return GlbPlayerColorProcessor.DetectSupportsTeamColor(filePath);
+			}
 		}
 
 		return null;
+	}
+
+	public static bool? ExtractSupportsTeamColor(string filePath)
+	{
+		if (!File.Exists(filePath)) return null;
+		string? metaJson = ExtractMetadata(filePath);
+		return ExtractSupportsTeamColorWithMetadata(metaJson, filePath);
 	}
 
 	public static bool SetSupportsTeamColor(string filePath, bool supportsTeamColor)

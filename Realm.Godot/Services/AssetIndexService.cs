@@ -453,6 +453,8 @@ public class AssetIndexService : IDisposable
 				var existingP2pMap = p2pAssetCol.Find(Query.EQ("DirectoryPath", MapAssetManager.P2PArchiveDirectory))
 					.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
 				var processedP2pPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				var p2pToUpdate = new List<IndexedAsset>();
+				var p2pToInsert = new List<IndexedAsset>();
 
 				foreach (var kvp in manifest.Files)
 				{
@@ -521,8 +523,7 @@ public class AssetIndexService : IDisposable
 								needsUpdate = true;
 							}
 							bool existingP2pHasMask = DetermineHasPlayerColorMask(metaJson, normPath);
-							string? existingP2pChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson)
-								?? (!string.IsNullOrEmpty(normPath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normPath) : null);
+							string? existingP2pChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson);
 							string resolvedP2pChroma = existingP2pChromaKey ?? string.Empty;
 							if (existingP2pAsset.HasPlayerColorMask != existingP2pHasMask || existingP2pAsset.ChromaKey != resolvedP2pChroma)
 							{
@@ -542,7 +543,7 @@ public class AssetIndexService : IDisposable
 							}
 							if (needsUpdate)
 							{
-								p2pAssetCol.Update(existingP2pAsset);
+								p2pToUpdate.Add(existingP2pAsset);
 							}
 
 							var fiExisting = new FileInfo(normPath);
@@ -657,22 +658,15 @@ public class AssetIndexService : IDisposable
 						}
 
 						bool p2pHasMask = DetermineHasPlayerColorMask(p2pMetaJson, normPath);
-						string? p2pChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(p2pMetaJson)
-							?? (!string.IsNullOrEmpty(normPath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normPath) : null);
+						string? p2pChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(p2pMetaJson);
 						asset.HasPlayerColorMask = p2pHasMask;
 						asset.ChromaKey = p2pChromaKey ?? string.Empty;
 
 						asset.AssetType = p2pAssetType;
 						asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(p2pAssetType);
 
-						try
-						{
-							p2pAssetCol.Insert(asset);
-							existingP2pMap[normPath] = asset;
-						}
-						catch (LiteDB.LiteException)
-						{
-						}
+						p2pToInsert.Add(asset);
+						existingP2pMap[normPath] = asset;
 
 						string extNew = asset.Extension;
 						if (extNew == ".rmesh")
@@ -687,6 +681,15 @@ public class AssetIndexService : IDisposable
 							AssetThumbnailProvider.EnsureDiskImageThumbnail(normPath, fi.LastWriteTimeUtc, norm);
 						}
 					}
+				}
+
+				if (p2pToUpdate.Count > 0)
+				{
+					p2pAssetCol.Update(p2pToUpdate);
+				}
+				if (p2pToInsert.Count > 0)
+				{
+					p2pAssetCol.Insert(p2pToInsert);
 				}
 			}
 
@@ -709,6 +712,8 @@ public class AssetIndexService : IDisposable
 			var existingAssetMap = _assetCollection.Find(Query.EQ("DirectoryPath", GlobalCasAssetsDirectory))
 				.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
 			var processedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			var assetsToUpdate = new List<IndexedAsset>();
+			var assetsToInsert = new List<IndexedAsset>();
 
 			foreach (var kvp in manifest.Files)
 			{
@@ -777,8 +782,7 @@ public class AssetIndexService : IDisposable
 							needsUpdate = true;
 						}
 						bool existingCasHasMask = DetermineHasPlayerColorMask(existingMetaJson, normPath);
-						string? existingCasChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(existingMetaJson)
-							?? (!string.IsNullOrEmpty(normPath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normPath) : null);
+						string? existingCasChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(existingMetaJson);
 						string resolvedCasChroma = existingCasChromaKey ?? string.Empty;
 						if (existingAsset.HasPlayerColorMask != existingCasHasMask || existingAsset.ChromaKey != resolvedCasChroma)
 						{
@@ -798,7 +802,7 @@ public class AssetIndexService : IDisposable
 						}
 						if (needsUpdate)
 						{
-							_assetCollection.Update(existingAsset);
+							assetsToUpdate.Add(existingAsset);
 						}
 
 						var fiExisting = new FileInfo(normPath);
@@ -913,22 +917,15 @@ public class AssetIndexService : IDisposable
 					}
 
 					bool casHasMask = DetermineHasPlayerColorMask(metaJson, normPath);
-					string? casChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson)
-						?? (!string.IsNullOrEmpty(normPath) ? Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(normPath) : null);
+					string? casChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson);
 					asset.HasPlayerColorMask = casHasMask;
 					asset.ChromaKey = casChromaKey ?? string.Empty;
 
 					asset.AssetType = assetType;
 					asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(assetType);
 
-					try
-					{
-						_assetCollection.Insert(asset);
-						existingAssetMap[normPath] = asset;
-					}
-					catch (LiteDB.LiteException)
-					{
-					}
+					assetsToInsert.Add(asset);
+					existingAssetMap[normPath] = asset;
 
 					string extNew = asset.Extension;
 					if (extNew == ".rmesh")
@@ -943,6 +940,15 @@ public class AssetIndexService : IDisposable
 						AssetThumbnailProvider.EnsureDiskImageThumbnail(normPath, fi.LastWriteTimeUtc, norm);
 					}
 				}
+			}
+
+			if (assetsToUpdate.Count > 0)
+			{
+				_assetCollection.Update(assetsToUpdate);
+			}
+			if (assetsToInsert.Count > 0)
+			{
+				_assetCollection.Insert(assetsToInsert);
 			}
 		}
 
@@ -1465,9 +1471,9 @@ public class AssetIndexService : IDisposable
 			return true;
 		}
 
-		if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+		if (!string.IsNullOrEmpty(filePath))
 		{
-			bool? supports = Realm.Shared.Metadata.RealmMetadataHelper.ExtractSupportsTeamColor(filePath);
+			bool? supports = Realm.Shared.Metadata.RealmMetadataHelper.ExtractSupportsTeamColorWithMetadata(metaJson, filePath);
 			if (supports.HasValue)
 			{
 				return supports.Value;
