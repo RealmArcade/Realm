@@ -395,6 +395,8 @@ public partial class FloatingDialogBase : PanelContainer
 		desc.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		desc.AddThemeFontSizeOverride("font_size", 11);
 		desc.AutowrapMode = TextServer.AutowrapMode.Word;
+		desc.CustomMinimumSize = new Vector2(360, 0);
+		desc.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		parent.AddChild(desc);
 		return desc;
 	}

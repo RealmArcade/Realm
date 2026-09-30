@@ -21,6 +21,7 @@ public class MapEditorHUDViewModel
 	public float BrushSize { get; set; } = 2f;
 	public float BrushStrength { get; set; } = 20f;
 	public float BlockStep { get; set; } = 3.0f;
+	public float ExactHeight { get; set; } = 0.0f;
 
 	public float PlacementRotate { get; set; } = 0f;
 	public float PlacementScale { get; set; } = 1.0f;
@@ -41,6 +42,7 @@ public class MapEditorHUDViewModel
 	public bool SnapToGrid { get; set; } = false;
 	public bool GridOverlayVisible { get; set; } = false;
 	public bool CameraBoundsOverlayVisible { get; set; } = false;
+	public bool DisableShadows { get; set; } = false;
 	public string SkyboxSelected { get; set; } = "";
 	public bool PathingOverlayVisible { get; set; } = false;
 	public bool BrushShapeSquare { get; set; } = true;
@@ -66,6 +68,7 @@ public class MapEditorHUDViewModel
 			BrushSize = GameHost.Instance.EditorBrushRadius;
 			BrushStrength = GameHost.Instance.EditorBrushStrength;
 			BlockStep = GameHost.Instance.EditorBlockLevelHeight;
+			ExactHeight = GameHost.Instance.EditorExactHeight;
 
 			PlacementRotate = GameHost.Instance.EditorPlacementRotation;
 			PlacementScale = GameHost.Instance.EditorPlacementScale;
@@ -80,6 +83,7 @@ public class MapEditorHUDViewModel
 			SnapToGrid = GameHost.Instance.EditorSnapToGrid;
 			GridOverlayVisible = GameHost.Instance.EditorGridVisible;
 			CameraBoundsOverlayVisible = GameHost.Instance.EditorCameraBoundsVisible;
+			DisableShadows = GameHost.Instance.EditorDisableShadows;
 			PathingOverlayVisible = GameHost.Instance.PathingOverlayVisible;
 			BrushShapeSquare = GameHost.Instance.EditorBrushIsSquare;
 		}

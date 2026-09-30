@@ -586,12 +586,13 @@ public partial class GameHost
 					{
 						0 => EditorTool.Raise,
 						1 => EditorTool.Lower,
-						2 => EditorTool.Smooth,
-						3 => EditorTool.Plateau,
-						4 => EditorTool.Ramp,
-						5 => EditorTool.Noise,
-						6 => EditorTool.PaintTexture,
-						7 => EditorTool.PlaceProp,
+						2 => EditorTool.Height,
+						3 => EditorTool.Smooth,
+						4 => EditorTool.Plateau,
+						5 => EditorTool.Ramp,
+						6 => EditorTool.Noise,
+						7 => EditorTool.PaintTexture,
+						8 => EditorTool.PlaceProp,
 						_ => EditorTool.None
 					};
 					if (targetTool != EditorTool.None)
@@ -668,6 +669,12 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
+				if (editorKeyEvent.Keycode == Key.F9)
+				{
+					MapEditorHUD.Instance?.ToggleShadows();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
 			}
 
 			if (@event is InputEventMouseButton wheelBtn && wheelBtn.Pressed && (wheelBtn.ButtonIndex == MouseButton.WheelUp || wheelBtn.ButtonIndex == MouseButton.WheelDown))
@@ -679,6 +686,7 @@ public partial class GameHost
 
 				bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
 									 ActiveEditorTool == EditorTool.Lower ||
+									 ActiveEditorTool == EditorTool.Height ||
 									 ActiveEditorTool == EditorTool.Smooth ||
 									 ActiveEditorTool == EditorTool.Plateau ||
 									 ActiveEditorTool == EditorTool.PaintTexture ||
@@ -1248,25 +1256,9 @@ public partial class GameHost
 							if (wantHeight)
 							{
 								float sampledHeight = GetTerrainHeightAt(hitPos);
-								EditorBlockLevelHeight = sampledHeight;
-								MapEditorHUD.Instance?.UpdateBlockLevelHeightExternal(sampledHeight);
-								float avgHeight = 0f;
-								if (GroundTerrain != null && GroundTerrain.Cells != null)
-								{
-									int w = GroundTerrain.Width;
-									int d = GroundTerrain.Depth;
-									var cells = GroundTerrain.Cells;
-									float sum = 0f;
-									for (int z = 0; z < d; z++)
-									{
-										for (int x = 0; x < w; x++)
-										{
-											sum += cells[x, z].CenterHeight;
-										}
-									}
-									avgHeight = sum / (w * d);
-								}
-								EditorTool targetTool = sampledHeight >= avgHeight ? EditorTool.Raise : EditorTool.Lower;
+								EditorExactHeight = sampledHeight;
+								MapEditorHUD.Instance?.UpdateExactHeightExternal(sampledHeight);
+								EditorTool targetTool = EditorTool.Height;
 								if (MapEditorHUD.Instance != null)
 								{
 									MapEditorHUD.Instance.SelectToolFromHotkey(targetTool);
@@ -1500,6 +1492,18 @@ public partial class GameHost
 							pathingAdd = MapEditorHUD.Instance.IsPathingAddMode();
 						}
 						PerformFloodFillPathing(hitPos, pathingMask, pathingAdd);
+						GetViewport().SetInputAsHandled();
+					}
+					else if (ActiveEditorTool == EditorTool.Water)
+					{
+						bool isRemove = MapEditorHUD.Instance != null && MapEditorHUD.Instance.IsWaterRemoveAction();
+						if (MapEditorHUD.Instance != null)
+						{
+							EditorWaterMode = MapEditorHUD.Instance.GetSelectedWaterMode();
+							ActiveWaterProfileIndex = MapEditorHUD.Instance.GetSelectedWaterProfileIndex();
+							EditorWaterHeight = MapEditorHUD.Instance.GetSelectedWaterHeight();
+						}
+						PerformWaterFloodFill(hitPos, isRemove);
 						GetViewport().SetInputAsHandled();
 					}
 					else if (ActiveEditorTool == EditorTool.SelectArea)

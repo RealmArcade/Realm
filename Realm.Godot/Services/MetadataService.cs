@@ -674,6 +674,8 @@ public class MetadataService
 {
 	public const string UgcLicenseUrl = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
 
+	public event Action<string>? MetadataSaved;
+
 	private static MetadataService? _defaultFallbackInstance;
 	public static MetadataService Instance => ServiceLocator.TryGet<MetadataService>() ?? (_defaultFallbackInstance ??= new MetadataService());
 
@@ -776,6 +778,7 @@ public class MetadataService
 		{
 			string jsonString = JsonSerializer.Serialize(metadata, SerializerOptions);
 			MapJsonFormatter.SaveFormattedJson(targetPath, jsonString);
+			MetadataSaved?.Invoke(targetPath);
 		}
 		catch (Exception ex)
 		{

@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Realm.Godot.Services;
 
 public class EditorPreferencesData
@@ -168,6 +169,31 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		btnBackupsRow.AddChild(btnOpenBackups);
 
 		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
+
+		var btnRepairRow = new HBoxContainer();
+		btnRepairRow.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddChild(btnRepairRow);
+
+		var btnRepairAssetIndex = new Button();
+		btnRepairAssetIndex.Set("icon_max_width", 0);
+		btnRepairAssetIndex.Text = "🗄️ " + TranslationServer.Translate("Repair Asset Index");
+		btnRepairAssetIndex.TooltipText = TranslationServer.Translate("Completely deletes and re-creates the asset index database from CAS");
+		btnRepairAssetIndex.FocusMode = FocusModeEnum.None;
+		btnRepairAssetIndex.CustomMinimumSize = new Vector2(240, 32);
+		btnRepairAssetIndex.Pressed += async () =>
+		{
+			btnRepairAssetIndex.Disabled = true;
+			if (Hud != null)
+			{
+				await Hud.ShowAssetIndexRepairModalAsync();
+			}
+			else
+			{
+				await Task.Run(() => AssetIndexService.Instance.RebuildIndexFromCas());
+			}
+			btnRepairAssetIndex.Disabled = false;
+		};
+		btnRepairRow.AddChild(btnRepairAssetIndex);
 
 		var btnReinstallRow = new HBoxContainer();
 		btnReinstallRow.AddThemeConstantOverride("separation", 10);

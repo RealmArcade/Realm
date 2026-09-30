@@ -130,7 +130,7 @@ public partial class MainMenu : Control
 			if (_youtubeButton != null) SetupMenuButton(_youtubeButton, "YOUTUBE", () => { OS.ShellOpen("https://www.youtube.com/@Realm-Game"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/youtube_icon.png");
 			if (_donateButton != null) SetupMenuButton(_donateButton, "DONATE", () => { OS.ShellOpen("http://realm-game.com/#donate"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/donate_icon.png");
 			if (_announcementsButton != null) SetupMenuButton(_announcementsButton, "ANNOUNCEMENTS", () => { OS.ShellOpen("https://realm-game.com/#subscribe"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/email_icon.png");
-			if (_bugReportButton != null) SetupMenuButton(_bugReportButton, "BUG REPORT", () => { OS.ShellOpen("https://github.com/speige/Realm/issues"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/bug_icon.png");
+			if (_bugReportButton != null) SetupMenuButton(_bugReportButton, "BUG REPORT", () => { OS.ShellOpen("https://github.com/RealmArcade/Realm/issues"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/bug_icon.png");
 
 			_socialPopoverOverlay.GuiInput += (@event) =>
 			{
@@ -365,7 +365,7 @@ public partial class MainMenu : Control
 		downloadBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		downloadBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		downloadBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		downloadBtn.Pressed += () => OS.ShellOpen("https://github.com/speige/Realm/releases");
+		downloadBtn.Pressed += () => OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
 		versionBox.AddChild(downloadBtn);
 
 		PopulateVersionDropdown();

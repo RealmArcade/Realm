@@ -12,6 +12,21 @@ public static class ModelShaderManager
 	private static readonly Dictionary<ulong, Texture2D> _normalizedAlbedoCache = new();
 	private static readonly Dictionary<ulong, bool> _playerMaskCheckCache = new();
 	private static readonly float[] SrgbToLinearLut = new float[256];
+	private static readonly byte[] LinearToSrgbLut = PrecomputeLinearToSrgbLut();
+
+	private static byte[] PrecomputeLinearToSrgbLut()
+	{
+		byte[] table = new byte[65536];
+		for (int i = 0; i < 65536; i++)
+		{
+			float linear = i / 65535.0f;
+			float srgb = linear <= 0.0031308f
+				? 12.92f * linear
+				: 1.055f * MathF.Pow(linear, 1.0f / 2.4f) - 0.055f;
+			table[i] = (byte)Math.Clamp((int)(srgb * 255.0f + 0.5f), 0, 255);
+		}
+		return table;
+	}
 	private static readonly StringName _paramPlayerColor = new("player_color");
 	private static readonly StringName _paramModelBrightness = new("model_brightness");
 	private static readonly StringName _paramModelColorTint = new("model_color_tint");
@@ -205,10 +220,12 @@ public static class ModelShaderManager
 	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 	private static byte LinearToSrgbByte(float lin)
 	{
-		if (lin <= 0.0f) return 0;
-		if (lin >= 1.0f) return 255;
-		float srgb = lin <= 0.0031308f ? lin * 12.92f : 1.055f * MathF.Pow(lin, 1.0f / 2.4f) - 0.055f;
-		return (byte)Math.Clamp((int)Math.Round(srgb * 255.0f), 0, 255);
+		int idx = (int)(lin * 65535.0f);
+		if ((uint)idx >= 65536)
+		{
+			return lin <= 0.0f ? (byte)0 : (byte)255;
+		}
+		return LinearToSrgbLut[idx];
 	}
 
 	internal static bool CheckHasPlayerMask(Texture2D ormTexture, Material sourceMaterial)

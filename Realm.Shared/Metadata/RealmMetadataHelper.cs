@@ -426,34 +426,97 @@ public static class RealmMetadataHelper
 		return AddMetadata(filePath, metaObj.ToJsonString());
 	}
 
-	public static bool? ExtractSupportsTeamColor(string filePath)
+	public static bool ExtractSupportsTeamColorFromMetadataJson(string? metaJson)
 	{
-		string? metaJson = ExtractMetadata(filePath);
-		if (string.IsNullOrEmpty(metaJson)) return null;
+		if (string.IsNullOrEmpty(metaJson)) return false;
 		try
 		{
 			var node = JsonNode.Parse(metaJson);
 			if (node is JsonObject obj)
 			{
-				if (obj.TryGetPropertyValue("team_color", out var tcVal) && tcVal != null)
+				var booleanKeys = new[]
 				{
-					if (tcVal.GetValueKind() == System.Text.Json.JsonValueKind.True) return true;
-					if (tcVal.GetValueKind() == System.Text.Json.JsonValueKind.False) return false;
-				}
-				if (obj.TryGetPropertyValue("chroma_key", out var val) && val != null)
+					"team_color", "teamColor",
+					"supports_team_color", "supportsTeamColor",
+					"player_color", "playerColor",
+					"has_player_color_mask", "hasPlayerColorMask",
+					"has_player_color", "hasPlayerColor"
+				};
+
+				foreach (var key in booleanKeys)
 				{
-					if (val.GetValueKind() == System.Text.Json.JsonValueKind.True) return true;
-					if (val.GetValueKind() == System.Text.Json.JsonValueKind.False) return false;
-					if (val.GetValueKind() == System.Text.Json.JsonValueKind.String)
+					if (obj.TryGetPropertyValue(key, out var val) && val != null)
 					{
-						string s = val.GetValue<string>();
-						return !string.IsNullOrWhiteSpace(s);
+						if (val.GetValueKind() == JsonValueKind.True) return true;
+						if (val.GetValueKind() == JsonValueKind.False) return false;
+						if (bool.TryParse(val.ToString(), out bool b)) return b;
+					}
+				}
+
+				var stringKeys = new[]
+				{
+					"chroma_key", "chromaKey",
+					"target_hex", "targetHex"
+				};
+
+				foreach (var key in stringKeys)
+				{
+					if (obj.TryGetPropertyValue(key, out var val) && val != null)
+					{
+						if (val.GetValueKind() == JsonValueKind.True) return true;
+						if (val.GetValueKind() == JsonValueKind.False) return false;
+						string s = val.ToString().Trim();
+						if (!string.IsNullOrEmpty(s) && !string.Equals(s, "none", StringComparison.OrdinalIgnoreCase))
+						{
+							return true;
+						}
 					}
 				}
 			}
 		}
 		catch { }
+		return false;
+	}
+
+	public static bool? ExtractSupportsTeamColorWithMetadata(string? metaJson, string filePath)
+	{
+		if (!string.IsNullOrEmpty(metaJson))
+		{
+			if (ExtractSupportsTeamColorFromMetadataJson(metaJson))
+			{
+				return true;
+			}
+			try
+			{
+				var node = JsonNode.Parse(metaJson);
+				if (node is JsonObject obj)
+				{
+					if (obj.TryGetPropertyValue("team_color", out var tcVal) && tcVal != null && tcVal.GetValueKind() == JsonValueKind.False)
+					{
+						return false;
+					}
+				}
+			}
+			catch { }
+		}
+
+		string ext = Path.GetExtension(filePath).ToLowerInvariant();
+		if (ext is ".rmesh" or ".glb" or ".gltf")
+		{
+			if (File.Exists(filePath))
+			{
+				return GlbPlayerColorProcessor.DetectSupportsTeamColor(filePath);
+			}
+		}
+
 		return null;
+	}
+
+	public static bool? ExtractSupportsTeamColor(string filePath)
+	{
+		if (!File.Exists(filePath)) return null;
+		string? metaJson = ExtractMetadata(filePath);
+		return ExtractSupportsTeamColorWithMetadata(metaJson, filePath);
 	}
 
 	public static bool SetSupportsTeamColor(string filePath, bool supportsTeamColor)

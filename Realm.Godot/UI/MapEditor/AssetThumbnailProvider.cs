@@ -23,6 +23,16 @@ public static class AssetThumbnailProvider
 	private static readonly List<string> _lruOrder = new();
 	private const int MaxCacheEntries = 400;
 
+	private static string? _rtexCacheDir;
+	private static string? _ranimCacheDir;
+	private static string? _modelCacheDir;
+	private static string? _imageCacheDir;
+
+	public static string RtexCacheDir => _rtexCacheDir ??= ProjectSettings.GlobalizePath("user://rtex_thumb_cache");
+	public static string RanimCacheDir => _ranimCacheDir ??= ProjectSettings.GlobalizePath("user://ranim_thumb_cache");
+	public static string ModelCacheDir => _modelCacheDir ??= ProjectSettings.GlobalizePath("user://model_thumb_cache");
+	public static string ImageCacheDir => _imageCacheDir ??= ProjectSettings.GlobalizePath("user://image_thumb_cache");
+
 	public static string NormalizePath(string path)
 	{
 		if (string.IsNullOrEmpty(path)) return string.Empty;
@@ -186,7 +196,7 @@ public static class AssetThumbnailProvider
 
 		if (ext == ".rtex")
 		{
-			return LoadRtexAlbedoThumbnail(asset.FilePath, asset.LastModifiedUtc, asset.Blake3);
+			return LoadRtexAlbedoThumbnail(asset.FilePath, asset.LastModifiedUtc, asset.Blake3, isHighPriority);
 		}
 
 		if (ext == ".rmesh" || ext == ".glb" || ext == ".gltf")
@@ -201,12 +211,12 @@ public static class AssetThumbnailProvider
 
 		if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp" || ext == ".bmp" || ext == ".tga")
 		{
-			return LoadRasterImageThumbnail(asset.FilePath, asset.LastModifiedUtc, asset.Blake3);
+			return LoadRasterImageThumbnail(asset.FilePath, asset.LastModifiedUtc, asset.Blake3, isHighPriority);
 		}
 
 		if (ext == ".svg")
 		{
-			return LoadSvgThumbnail(asset.FilePath, asset.LastModifiedUtc, asset.Blake3);
+			return LoadSvgThumbnail(asset.FilePath, asset.LastModifiedUtc, asset.Blake3, isHighPriority);
 		}
 
 		return GetPlaceholderTexture(ext.TrimStart('.').ToUpperInvariant());
@@ -226,10 +236,10 @@ public static class AssetThumbnailProvider
 		string ext = Path.GetExtension(normPath).ToLowerInvariant();
 		string cacheDir = ext switch
 		{
-			".rtex" => ProjectSettings.GlobalizePath("user://rtex_thumb_cache"),
-			".ranim" => ProjectSettings.GlobalizePath("user://ranim_thumb_cache"),
-			".rmesh" or ".glb" or ".gltf" => ProjectSettings.GlobalizePath("user://model_thumb_cache"),
-			_ => ProjectSettings.GlobalizePath("user://image_thumb_cache")
+			".rtex" => RtexCacheDir,
+			".ranim" => RanimCacheDir,
+			".rmesh" or ".glb" or ".gltf" => ModelCacheDir,
+			_ => ImageCacheDir
 		};
 		string hash = GlbThumbnailRenderer.GetBlake3(normPath, blake3);
 		if (string.IsNullOrEmpty(hash) || hash.Length < 2)
@@ -280,6 +290,122 @@ public static class AssetThumbnailProvider
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[AssetThumbnailProvider] SaveThumbnailAtomic error on {cachedPngPath}: {ex.Message}");
+		}
+	}
+
+	private class ImageThumbnailRequest
+	{
+		public string FilePath { get; set; } = string.Empty;
+		public DateTime LastModifiedUtc { get; set; }
+		public string? Blake3 { get; set; }
+		public bool IsHighPriority { get; set; }
+	}
+
+	private static readonly LinkedList<ImageThumbnailRequest> _imageRequestQueue = new();
+	private static readonly HashSet<string> _pendingImagePaths = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly object _imageQueueLock = new();
+	private static bool _isImageWorkerRunning = false;
+
+	public static void EnqueueImageRequest(string filePath, DateTime lastModifiedUtc, string? blake3 = null, bool isHighPriority = true)
+	{
+		string normPath = NormalizePath(filePath);
+		if (string.IsNullOrEmpty(normPath)) return;
+
+		lock (_imageQueueLock)
+		{
+			if (_pendingImagePaths.Contains(normPath))
+			{
+				return;
+			}
+			_pendingImagePaths.Add(normPath);
+
+			var req = new ImageThumbnailRequest
+			{
+				FilePath = normPath,
+				LastModifiedUtc = lastModifiedUtc,
+				Blake3 = blake3,
+				IsHighPriority = isHighPriority
+			};
+
+			if (isHighPriority)
+			{
+				_imageRequestQueue.AddFirst(req);
+			}
+			else
+			{
+				_imageRequestQueue.AddLast(req);
+			}
+
+			if (!_isImageWorkerRunning)
+			{
+				_isImageWorkerRunning = true;
+				System.Threading.Tasks.Task.Run(ProcessImageQueueAsync);
+			}
+		}
+	}
+
+	private static void ProcessImageQueueAsync()
+	{
+		while (true)
+		{
+			ImageThumbnailRequest? currentRequest = null;
+			lock (_imageQueueLock)
+			{
+				if (_imageRequestQueue.Count > 0)
+				{
+					currentRequest = _imageRequestQueue.First.Value;
+					_imageRequestQueue.RemoveFirst();
+				}
+				else
+				{
+					_isImageWorkerRunning = false;
+					break;
+				}
+			}
+
+			if (currentRequest != null)
+			{
+				string reqPath = currentRequest.FilePath;
+				string? reqBlake = currentRequest.Blake3;
+				try
+				{
+					GenerateDiskThumbnail(reqPath, currentRequest.LastModifiedUtc, reqBlake);
+
+					if (Engine.GetMainLoop() is SceneTree)
+					{
+						Callable.From(() =>
+						{
+							var tex = LoadThumbnailFromDisk(reqPath, reqBlake);
+							if (tex != null)
+							{
+								lock (_thumbnailCache)
+								{
+									if (_thumbnailCache.Count >= MaxCacheEntries && _lruOrder.Count > 0)
+									{
+										string oldestKey = _lruOrder[0];
+										_lruOrder.RemoveAt(0);
+										_thumbnailCache.Remove(oldestKey);
+									}
+									_thumbnailCache[reqPath] = tex;
+									TouchLru(reqPath);
+								}
+								ThumbnailGenerated?.Invoke(reqPath, tex);
+							}
+						}).CallDeferred();
+					}
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"[AssetThumbnailProvider] Error in ProcessImageQueueAsync for {reqPath}: {ex.Message}");
+				}
+				finally
+				{
+					lock (_imageQueueLock)
+					{
+						_pendingImagePaths.Remove(reqPath);
+					}
+				}
+			}
 		}
 	}
 
@@ -337,6 +463,11 @@ public static class AssetThumbnailProvider
 
 	public static void EnsureDiskImageThumbnail(string filePath, DateTime lastModifiedUtc, string? blake3 = null)
 	{
+		GenerateDiskThumbnail(filePath, lastModifiedUtc, blake3);
+	}
+
+	public static void GenerateDiskThumbnail(string filePath, DateTime lastModifiedUtc, string? blake3 = null)
+	{
 		string normPath = NormalizePath(filePath);
 		if (string.IsNullOrEmpty(normPath) || !File.Exists(normPath)) return;
 
@@ -354,7 +485,6 @@ public static class AssetThumbnailProvider
 			if (ext == ".ranim")
 			{
 				RanimSkeletonThumbnailGenerator.EnsureDiskRanimThumbnail(normPath, blake3);
-				NotifyThumbnailGeneratedFromDiskDeferred(normPath);
 				return;
 			}
 
@@ -416,12 +546,11 @@ public static class AssetThumbnailProvider
 				}
 
 				SaveThumbnailAtomic(img, cachedPngPath);
-				NotifyThumbnailGeneratedFromDiskDeferred(normPath);
 			}
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetThumbnailProvider] EnsureDiskImageThumbnail error on {normPath}: {ex.Message}");
+			GD.PrintErr($"[AssetThumbnailProvider] GenerateDiskThumbnail error on {normPath}: {ex.Message}");
 		}
 	}
 
@@ -437,7 +566,7 @@ public static class AssetThumbnailProvider
 		return null;
 	}
 
-	private static Texture2D? LoadRtexAlbedoThumbnail(string rtexPath, DateTime lastModifiedUtc, string? blake3 = null)
+	private static Texture2D? LoadRtexAlbedoThumbnail(string rtexPath, DateTime lastModifiedUtc, string? blake3 = null, bool isHighPriority = true)
 	{
 		string normPath = NormalizePath(rtexPath);
 		if (string.IsNullOrEmpty(normPath) || !File.Exists(normPath))
@@ -459,72 +588,11 @@ public static class AssetThumbnailProvider
 			catch { }
 		}
 
-		try
-		{
-			byte[]? layer0Bytes = Realm.Shared.Textures.RtexFile.GetLayerFromFile(normPath, 0);
-			if (layer0Bytes == null || layer0Bytes.Length == 0)
-			{
-				byte[] bytes = File.ReadAllBytes(normPath);
-				if (Realm.Shared.Textures.RtexFile.IsRtexBytes(bytes))
-				{
-					layer0Bytes = Realm.Shared.Textures.RtexFile.GetLayer(bytes, 0);
-				}
-				else
-				{
-					layer0Bytes = bytes;
-				}
-			}
-
-			if (layer0Bytes == null || layer0Bytes.Length == 0) return null;
-
-			var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
-			Error err = img.LoadWebpFromBuffer(layer0Bytes);
-			if (err != Error.Ok)
-			{
-				err = img.LoadPngFromBuffer(layer0Bytes);
-			}
-			if (err != Error.Ok)
-			{
-				err = img.LoadJpgFromBuffer(layer0Bytes);
-			}
-			if (err != Error.Ok)
-			{
-				err = img.LoadTgaFromBuffer(layer0Bytes);
-			}
-			if (err != Error.Ok)
-			{
-				err = img.LoadBmpFromBuffer(layer0Bytes);
-			}
-			if (err != Error.Ok)
-			{
-				return null;
-			}
-
-			if (img.GetFormat() != Image.Format.Rgba8)
-			{
-				img.Convert(Image.Format.Rgba8);
-			}
-
-			if (img.GetWidth() > 128 || img.GetHeight() > 128)
-			{
-				img.Resize(128, 128, Image.Interpolation.Bilinear);
-			}
-
-			if (!string.IsNullOrEmpty(cachedPngPath))
-			{
-				SaveThumbnailAtomic(img, cachedPngPath);
-			}
-
-			return ImageTexture.CreateFromImage(img);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[AssetThumbnailProvider] RTEX thumbnail error on {rtexPath}: {ex.Message}");
-			return null;
-		}
+		EnqueueImageRequest(normPath, lastModifiedUtc, blake3, isHighPriority);
+		return null;
 	}
 
-	private static Texture2D? LoadRasterImageThumbnail(string imagePath, DateTime lastModifiedUtc, string? blake3 = null)
+	private static Texture2D? LoadRasterImageThumbnail(string imagePath, DateTime lastModifiedUtc, string? blake3 = null, bool isHighPriority = true)
 	{
 		string normPath = NormalizePath(imagePath);
 		if (string.IsNullOrEmpty(normPath) || !File.Exists(normPath))
@@ -546,35 +614,11 @@ public static class AssetThumbnailProvider
 			catch { }
 		}
 
-		try
-		{
-			var image = Image.LoadFromFile(normPath);
-			if (image != null && !image.IsEmpty())
-			{
-				if (image.GetFormat() != Image.Format.Rgba8)
-				{
-					image.Convert(Image.Format.Rgba8);
-				}
-
-				if (image.GetWidth() > 128 || image.GetHeight() > 128)
-				{
-					image.Resize(128, 128, Image.Interpolation.Bilinear);
-				}
-
-				if (!string.IsNullOrEmpty(cachedPngPath))
-				{
-					SaveThumbnailAtomic(image, cachedPngPath);
-				}
-
-				return ImageTexture.CreateFromImage(image);
-			}
-		}
-		catch { }
-
+		EnqueueImageRequest(normPath, lastModifiedUtc, blake3, isHighPriority);
 		return null;
 	}
 
-	private static Texture2D? LoadSvgThumbnail(string svgPath, DateTime lastModifiedUtc, string? blake3 = null)
+	private static Texture2D? LoadSvgThumbnail(string svgPath, DateTime lastModifiedUtc, string? blake3 = null, bool isHighPriority = true)
 	{
 		string normPath = NormalizePath(svgPath);
 		if (string.IsNullOrEmpty(normPath) || !File.Exists(normPath))
@@ -596,32 +640,7 @@ public static class AssetThumbnailProvider
 			catch { }
 		}
 
-		try
-		{
-			var image = new Image();
-			var err = image.Load(normPath);
-			if (err == Error.Ok && !image.IsEmpty())
-			{
-				if (image.GetFormat() != Image.Format.Rgba8)
-				{
-					image.Convert(Image.Format.Rgba8);
-				}
-
-				if (image.GetWidth() > 128 || image.GetHeight() > 128)
-				{
-					image.Resize(128, 128, Image.Interpolation.Bilinear);
-				}
-
-				if (!string.IsNullOrEmpty(cachedPngPath))
-				{
-					SaveThumbnailAtomic(image, cachedPngPath);
-				}
-
-				return ImageTexture.CreateFromImage(image);
-			}
-		}
-		catch { }
-
+		EnqueueImageRequest(normPath, lastModifiedUtc, blake3, isHighPriority);
 		return null;
 	}
 

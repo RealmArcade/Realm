@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using Realm.Shared.Metadata;
 using SkiaSharp;
@@ -314,39 +315,120 @@ public static class TextureConverter
 		}
 	}
 
-	public static byte[] EncodeWebp(SKBitmap image, bool lossless = false, int quality = 90)
+	public static byte[] EncodeWebp(SKBitmap image, bool lossless = false, int quality = 90, int method = 6, bool sharpYuv = true)
 	{
 		int width = image.Width;
 		int height = image.Height;
 		byte[] pixelBytes = new byte[width * height * 4];
 
-		for (int y = 0; y < height; y++)
+		SKBitmap workBitmap = image;
+		bool disposeWork = false;
+
+		if (image.ColorType != SKColorType.Rgba8888 && image.ColorType != SKColorType.Bgra8888)
 		{
-			for (int x = 0; x < width; x++)
+			workBitmap = image.Copy(SKColorType.Rgba8888);
+			disposeWork = workBitmap != null && workBitmap != image;
+			if (workBitmap == null) workBitmap = image;
+		}
+
+		try
+		{
+			IntPtr pixelsPtr = workBitmap.GetPixels();
+			if (pixelsPtr != IntPtr.Zero)
 			{
-				SKColor color = image.GetPixel(x, y);
-				int idx = (y * width + x) * 4;
-				pixelBytes[idx] = color.Red;
-				pixelBytes[idx + 1] = color.Green;
-				pixelBytes[idx + 2] = color.Blue;
-				pixelBytes[idx + 3] = color.Alpha;
+				unsafe
+				{
+					byte* srcBase = (byte*)pixelsPtr;
+					int rowBytes = workBitmap.RowBytes;
+					bool isRgba = workBitmap.ColorType == SKColorType.Rgba8888;
+					bool isBgra = workBitmap.ColorType == SKColorType.Bgra8888;
+
+					fixed (byte* dstPtr = pixelBytes)
+					{
+						if (isRgba && rowBytes == width * 4)
+						{
+							Buffer.MemoryCopy(srcBase, dstPtr, pixelBytes.Length, pixelBytes.Length);
+						}
+						else if (isRgba)
+						{
+							for (int y = 0; y < height; y++)
+							{
+								Buffer.MemoryCopy(srcBase + y * rowBytes, dstPtr + y * width * 4, width * 4, width * 4);
+							}
+						}
+						else if (isBgra)
+						{
+							for (int y = 0; y < height; y++)
+							{
+								byte* srcRow = srcBase + y * rowBytes;
+								byte* dstRow = dstPtr + y * width * 4;
+								for (int x = 0; x < width; x++)
+								{
+									int idx = x * 4;
+									dstRow[idx] = srcRow[idx + 2];     // Red
+									dstRow[idx + 1] = srcRow[idx + 1]; // Green
+									dstRow[idx + 2] = srcRow[idx];     // Blue
+									dstRow[idx + 3] = srcRow[idx + 3]; // Alpha
+								}
+							}
+						}
+						else
+						{
+							for (int y = 0; y < height; y++)
+							{
+								for (int x = 0; x < width; x++)
+								{
+									SKColor color = workBitmap.GetPixel(x, y);
+									int idx = (y * width + x) * 4;
+									pixelBytes[idx] = color.Red;
+									pixelBytes[idx + 1] = color.Green;
+									pixelBytes[idx + 2] = color.Blue;
+									pixelBytes[idx + 3] = color.Alpha;
+								}
+							}
+						}
+					}
+				}
+			}
+			else
+			{
+				for (int y = 0; y < height; y++)
+				{
+					for (int x = 0; x < width; x++)
+					{
+						SKColor color = workBitmap.GetPixel(x, y);
+						int idx = (y * width + x) * 4;
+						pixelBytes[idx] = color.Red;
+						pixelBytes[idx + 1] = color.Green;
+						pixelBytes[idx + 2] = color.Blue;
+						pixelBytes[idx + 3] = color.Alpha;
+					}
+				}
+			}
+		}
+		finally
+		{
+			if (disposeWork)
+			{
+				workBitmap.Dispose();
 			}
 		}
 
+		int effMethod = Math.Clamp(method, 0, 6);
 		var config = new WebPEncoderConfig();
 		if (lossless)
 		{
 			config.SetLossless(true)
 				.SetLosslessPreset(9)
-				.SetMethod(6)
+				.SetMethod(effMethod)
 				.SetExact(true)
 				.SetMultiThreaded(true);
 		}
 		else
 		{
 			config.SetQuality(Math.Clamp(quality, 0, 100))
-				.SetMethod(6)
-				.SetSharpYuv(true)
+				.SetMethod(effMethod)
+				.SetSharpYuv(sharpYuv)
 				.SetMultiThreaded(true);
 		}
 

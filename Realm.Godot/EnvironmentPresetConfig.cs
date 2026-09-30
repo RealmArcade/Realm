@@ -10,12 +10,12 @@ public class EnvironmentPresetConfig
 
 	public float SunPitch { get; set; } = -58.0f;
 	public float SunYaw { get; set; } = 29.0f;
-	public float SunEnergy { get; set; } = 2.50f;
+	public float SunEnergy { get; set; } = 1.65f;
 	public string SunColorHex { get; set; } = "#FFFDF0";
 	public float ShadowBias { get; set; } = 0.03f;
 	public float ShadowNormalBias { get; set; } = 1.2f;
 
-	public float AmbientEnergy { get; set; } = 0.80f;
+	public float AmbientEnergy { get; set; } = 0.70f;
 	public string AmbientColorHex { get; set; } = "#7A93BC";
 
 	public bool FogEnabled { get; set; } = false;
@@ -24,11 +24,11 @@ public class EnvironmentPresetConfig
 
 	public bool SsaoEnabled { get; set; } = true;
 	public float SsaoRadius { get; set; } = 1.20f;
-	public float SsaoIntensity { get; set; } = 0.40f;
+	public float SsaoIntensity { get; set; } = 0.35f;
 	public float SsaoDetail { get; set; } = 0.50f;
 
-	public float TonemapExposure { get; set; } = 1.18f;
-	public float AdjustmentContrast { get; set; } = 1.02f;
+	public float TonemapExposure { get; set; } = 1.08f;
+	public float AdjustmentContrast { get; set; } = 1.04f;
 	public float AdjustmentSaturation { get; set; } = 1.06f;
 	public float GlowIntensity { get; set; } = 0.15f;
 	public float GlowBloom { get; set; } = 0.14f;
@@ -103,19 +103,19 @@ public class EnvironmentPresetConfig
 				IsDefault = true,
 				SunPitch = -58.0f,
 				SunYaw = 29.0f,
-				SunEnergy = 2.50f,
+				SunEnergy = 1.65f,
 				SunColorHex = "#FFFAEE",
-				AmbientEnergy = 0.80f,
+				AmbientEnergy = 0.70f,
 				AmbientColorHex = "#7A93BC",
 				FogEnabled = false,
 				FogDensity = 0.0f,
 				FogColorHex = "#8CA6BF",
 				SsaoEnabled = true,
 				SsaoRadius = 1.20f,
-				SsaoIntensity = 0.40f,
+				SsaoIntensity = 0.35f,
 				SsaoDetail = 0.50f,
-				TonemapExposure = 1.18f,
-				AdjustmentContrast = 1.02f,
+				TonemapExposure = 1.08f,
+				AdjustmentContrast = 1.04f,
 				AdjustmentSaturation = 1.06f,
 				GlowIntensity = 0.15f,
 				GlowBloom = 0.14f,
@@ -133,9 +133,9 @@ public class EnvironmentPresetConfig
 				IsDefault = false,
 				SunPitch = -45.0f,
 				SunYaw = -115.0f,
-				SunEnergy = 1.50f,
+				SunEnergy = 1.35f,
 				SunColorHex = "#FFB261",
-				AmbientEnergy = 0.80f,
+				AmbientEnergy = 0.75f,
 				AmbientColorHex = "#6B75B7",
 				FogEnabled = false,
 				FogDensity = 0.0f,
@@ -144,9 +144,9 @@ public class EnvironmentPresetConfig
 				SsaoRadius = 1.20f,
 				SsaoIntensity = 0.30f,
 				SsaoDetail = 0.50f,
-				TonemapExposure = 1.14f,
-				AdjustmentContrast = 1.02f,
-				AdjustmentSaturation = 0.98f,
+				TonemapExposure = 1.10f,
+				AdjustmentContrast = 1.04f,
+				AdjustmentSaturation = 1.00f,
 				GlowIntensity = 0.30f,
 				GlowBloom = 0.14f,
 				GlowStrength = 0.90f,
@@ -163,7 +163,7 @@ public class EnvironmentPresetConfig
 				IsDefault = false,
 				SunPitch = -50.0f,
 				SunYaw = 155.0f,
-				SunEnergy = 0.50f,
+				SunEnergy = 0.45f,
 				SunColorHex = "#B2E0FF",
 				AmbientEnergy = 0.95f,
 				AmbientColorHex = "#476BD8",
@@ -174,9 +174,9 @@ public class EnvironmentPresetConfig
 				SsaoRadius = 1.00f,
 				SsaoIntensity = 0.20f,
 				SsaoDetail = 0.50f,
-				TonemapExposure = 1.14f,
-				AdjustmentContrast = 1.00f,
-				AdjustmentSaturation = 1.06f,
+				TonemapExposure = 1.12f,
+				AdjustmentContrast = 1.02f,
+				AdjustmentSaturation = 1.08f,
 				GlowIntensity = 0.25f,
 				GlowBloom = 0.08f,
 				GlowStrength = 0.90f,
@@ -193,9 +193,9 @@ public class EnvironmentPresetConfig
 				IsDefault = false,
 				SunPitch = -45.0f,
 				SunYaw = 95.0f,
-				SunEnergy = 2.70f,
+				SunEnergy = 1.70f,
 				SunColorHex = "#FFE0B7",
-				AmbientEnergy = 0.90f,
+				AmbientEnergy = 0.75f,
 				AmbientColorHex = "#9389D6",
 				FogEnabled = false,
 				FogDensity = 0.0f,
@@ -204,9 +204,9 @@ public class EnvironmentPresetConfig
 				SsaoRadius = 1.10f,
 				SsaoIntensity = 0.30f,
 				SsaoDetail = 0.50f,
-				TonemapExposure = 1.18f,
-				AdjustmentContrast = 1.02f,
-				AdjustmentSaturation = 1.04f,
+				TonemapExposure = 1.08f,
+				AdjustmentContrast = 1.04f,
+				AdjustmentSaturation = 1.06f,
 				GlowIntensity = 0.20f,
 				GlowBloom = 0.10f,
 				GlowStrength = 0.90f,

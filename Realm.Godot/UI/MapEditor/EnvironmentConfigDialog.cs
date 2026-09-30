@@ -504,6 +504,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 				metadataRoot.CustomEnvironmentPresets = _presets;
 				metadataRoot.DefaultEnvironmentPreset = _defaultPresetId;
 				MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+				Hud?.UpdateLastMetadataSyncTime(metaPath);
 			}
 		}
 	}

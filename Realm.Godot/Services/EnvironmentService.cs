@@ -537,7 +537,7 @@ public class EnvironmentService
 
 	public static readonly float[] SunPitches       = { -58.0f, -45.0f, -50.0f, -45.0f };
 	public static readonly float[] SunYaws          = {  29.0f,-115.0f, 155.0f,  95.0f };
-	public static readonly float[] SunEnergies      = {   2.50f,  1.50f,   0.50f,  2.70f };
+	public static readonly float[] SunEnergies      = {   1.65f,  1.35f,   0.45f,  1.70f };
 	public static readonly Color[] SunColors        = {
 		new Color(1.000f, 0.980f, 0.940f),
 		new Color(1.000f, 0.700f, 0.380f),
@@ -545,7 +545,7 @@ public class EnvironmentService
 		new Color(1.000f, 0.880f, 0.720f)
 	};
 
-	public static readonly float[] AmbientEnergies  = {   0.80f,  0.80f,   0.95f,  0.90f };
+	public static readonly float[] AmbientEnergies  = {   0.70f,  0.75f,   0.95f,  0.75f };
 	public static readonly Color[] AmbientColors    = {
 		new Color(0.480f, 0.580f, 0.740f),
 		new Color(0.420f, 0.460f, 0.720f),
@@ -561,12 +561,12 @@ public class EnvironmentService
 		new Color(0.400f, 0.450f, 0.550f)
 	};
 
-	public static readonly float[] SsaoIntensities  = {   0.40f,  0.30f,   0.20f,  0.30f };
+	public static readonly float[] SsaoIntensities  = {   0.35f,  0.30f,   0.20f,  0.30f };
 	public static readonly float[] SsaoRadii        = {   1.20f,  1.20f,   1.00f,  1.10f };
 
-	public static readonly float[] Exposures        = {   1.18f,  1.14f,   1.14f,  1.18f };
-	public static readonly float[] Contrasts        = {   1.02f,  1.02f,   1.00f,  1.02f };
-	public static readonly float[] Saturations      = {   1.06f,  0.98f,   1.06f,  1.04f };
+	public static readonly float[] Exposures        = {   1.08f,  1.10f,   1.12f,  1.08f };
+	public static readonly float[] Contrasts        = {   1.04f,  1.04f,   1.02f,  1.04f };
+	public static readonly float[] Saturations      = {   1.06f,  1.00f,   1.08f,  1.06f };
 
 	public static readonly float[] GlowIntensities  = {   0.15f,  0.30f,   0.25f,  0.20f };
 	public static readonly float[] GlowBlooms       = {   0.14f,  0.14f,   0.08f,  0.10f };

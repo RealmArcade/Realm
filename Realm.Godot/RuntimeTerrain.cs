@@ -121,7 +121,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	}
 
 	public const float TIER_HEIGHT = TerrainCell.TIER_HEIGHT;
-	public static float WATER_DELTA => (GameHost.Instance != null && GameHost.Instance.EditorBlockLevelHeight > 0.001f ? GameHost.Instance.EditorBlockLevelHeight : TIER_HEIGHT) * 0.30f;
+	public const float WATER_DELTA = 0.9f;
 
 	public const int PATHING_SHALLOW_WATER = (int)TerrainPathingFlags.ShallowWater;
 	public const int PATHING_DEEP_WATER = (int)TerrainPathingFlags.DeepWater;
@@ -151,6 +151,219 @@ public partial class RuntimeTerrain : StaticBody3D
 			if (prof != null) return prof.DefaultPathingCode;
 		}
 		return GetDefaultPathingCode(cell.WaterMode);
+	}
+
+	public static void ReconcileScaledWater(TerrainCell[,] oldCells, int oldWidth, int oldDepth, TerrainCell[,] newCells, int[,] newPathing, int newWidth, int newDepth)
+	{
+		if (oldCells == null || newCells == null || oldWidth <= 0 || oldDepth <= 0 || newWidth <= 0 || newDepth <= 0)
+		{
+			return;
+		}
+
+		var oldVisited = new bool[oldWidth, oldDepth];
+		var waterBodies = new List<(WaterType WaterMode, byte WaterProfileIndex, float WaterHeight, sbyte MacroTier, List<(int x, int z)> OldCoords)>();
+		int[] dx = { 0, 0, -1, 1 };
+		int[] dz = { -1, 1, 0, 0 };
+
+		for (int oz = 0; oz < oldDepth; oz++)
+		{
+			for (int ox = 0; ox < oldWidth; ox++)
+			{
+				if (oldVisited[ox, oz]) continue;
+				var cell = oldCells[ox, oz];
+				if (cell.WaterMode == WaterType.None) continue;
+
+				var bodyMode = cell.WaterMode;
+				var bodyProfile = cell.WaterProfileIndex;
+				var bodyHeight = cell.WaterHeight;
+				var bodyTier = cell.MacroTier;
+				var oldCoords = new List<(int x, int z)>();
+
+				var oldQueue = new Queue<(int x, int z)>();
+				oldVisited[ox, oz] = true;
+				oldQueue.Enqueue((ox, oz));
+				oldCoords.Add((ox, oz));
+
+				while (oldQueue.Count > 0)
+				{
+					var (cx, cz) = oldQueue.Dequeue();
+
+					for (int i = 0; i < 4; i++)
+					{
+						int nx = cx + dx[i];
+						int nz = cz + dz[i];
+						if (nx < 0 || nx >= oldWidth || nz < 0 || nz >= oldDepth) continue;
+						if (oldVisited[nx, nz]) continue;
+
+						var nCell = oldCells[nx, nz];
+						if (nCell.WaterMode == bodyMode &&
+							nCell.WaterProfileIndex == bodyProfile &&
+							MathF.Abs(nCell.WaterHeight - bodyHeight) < 0.01f &&
+							nCell.MacroTier == bodyTier)
+						{
+							oldVisited[nx, nz] = true;
+							oldQueue.Enqueue((nx, nz));
+							oldCoords.Add((nx, nz));
+						}
+					}
+				}
+
+				waterBodies.Add((bodyMode, bodyProfile, bodyHeight, bodyTier, oldCoords));
+			}
+		}
+
+		for (int z = 0; z < newDepth; z++)
+		{
+			for (int x = 0; x < newWidth; x++)
+			{
+				newCells[x, z].WaterMode = WaterType.None;
+				newCells[x, z].WaterProfileIndex = 0;
+				newCells[x, z].WaterHeight = 0f;
+			}
+		}
+
+		if (waterBodies.Count == 0)
+		{
+			if (newPathing != null)
+			{
+				for (int z = 0; z < newDepth; z++)
+				{
+					for (int x = 0; x < newWidth; x++)
+					{
+						if ((newPathing[x, z] & (PATHING_SHALLOW_WATER | PATHING_DEEP_WATER)) != 0)
+						{
+							newPathing[x, z] = GetDefaultPathingCode(newCells[x, z]);
+						}
+					}
+				}
+			}
+			return;
+		}
+
+		var overallVisited = new bool[newWidth, newDepth];
+		float stepCliffThreshold = TerrainCell.TIER_HEIGHT * 0.70f;
+
+		foreach (var body in waterBodies)
+		{
+			var seedCells = new HashSet<(int x, int z)>();
+			(int x, int z) closestSeed = (-1, -1);
+			float minHeightDiff = float.MaxValue;
+			float expectedHeight = body.MacroTier * TerrainCell.TIER_HEIGHT;
+
+			foreach (var (ox, oz) in body.OldCoords)
+			{
+				int nx = Math.Clamp((int)Math.Round(ox * (float)newWidth / oldWidth), 0, newWidth - 1);
+				int nz = Math.Clamp((int)Math.Round(oz * (float)newDepth / oldDepth), 0, newDepth - 1);
+
+				float hDiff = MathF.Abs(newCells[nx, nz].CenterHeight - expectedHeight);
+				if (hDiff < minHeightDiff)
+				{
+					minHeightDiff = hDiff;
+					closestSeed = (nx, nz);
+				}
+
+				if (newCells[nx, nz].MacroTier == body.MacroTier)
+				{
+					seedCells.Add((nx, nz));
+				}
+			}
+
+			if (seedCells.Count == 0 && closestSeed.x >= 0)
+			{
+				seedCells.Add(closestSeed);
+			}
+
+			float effectiveWaterHeight = body.WaterHeight > 0.001f ? body.WaterHeight : 0.9f;
+			float startTerrainHeight = body.MacroTier * TerrainCell.TIER_HEIGHT;
+			float baseWaterLevel = startTerrainHeight + effectiveWaterHeight;
+
+			var newQueue = new Queue<(int x, int z)>();
+
+			foreach (var seed in seedCells)
+			{
+				if (!overallVisited[seed.x, seed.z])
+				{
+					overallVisited[seed.x, seed.z] = true;
+					newQueue.Enqueue(seed);
+				}
+			}
+
+			while (newQueue.Count > 0)
+			{
+				var (currX, currZ) = newQueue.Dequeue();
+
+				newCells[currX, currZ].WaterMode = body.WaterMode;
+				newCells[currX, currZ].WaterProfileIndex = body.WaterProfileIndex;
+				newCells[currX, currZ].WaterHeight = body.WaterHeight;
+
+				if (newPathing != null)
+				{
+					newPathing[currX, currZ] = GetDefaultPathingCode(newCells[currX, currZ]);
+				}
+
+				var currCell = newCells[currX, currZ];
+
+				for (int i = 0; i < 4; i++)
+				{
+					int nextX = currX + dx[i];
+					int nextZ = currZ + dz[i];
+
+					if (nextX < 0 || nextX >= newWidth || nextZ < 0 || nextZ >= newDepth) continue;
+					if (overallVisited[nextX, nextZ]) continue;
+
+					var nextCell = newCells[nextX, nextZ];
+
+					float currHeight = currCell.CenterHeight;
+					float nextHeight = nextCell.CenterHeight;
+					float deltaH = nextHeight - currHeight;
+
+					float nextMaxH = MathF.Max(MathF.Max(nextCell.Y_NW, nextCell.Y_NE), MathF.Max(nextCell.Y_SW, nextCell.Y_SE));
+					float nextMinH = MathF.Min(MathF.Min(nextCell.Y_NW, nextCell.Y_NE), MathF.Min(nextCell.Y_SW, nextCell.Y_SE));
+					float nextCellInternalSpan = nextMaxH - nextMinH;
+
+					bool isCliffStepUp = (nextCell.MacroTier - currCell.MacroTier >= 1)
+						|| deltaH >= stepCliffThreshold
+						|| nextCellInternalSpan >= stepCliffThreshold;
+
+					bool isCliffStepDown = (currCell.MacroTier - nextCell.MacroTier >= 1)
+						|| (-deltaH) >= stepCliffThreshold;
+
+					if (isCliffStepDown)
+					{
+						continue;
+					}
+
+					if (isCliffStepUp)
+					{
+						float obstacleHeight = MathF.Max(nextMaxH, (float)nextCell.MacroTier * TerrainCell.TIER_HEIGHT);
+						if (baseWaterLevel >= obstacleHeight)
+						{
+							overallVisited[nextX, nextZ] = true;
+							newQueue.Enqueue((nextX, nextZ));
+						}
+						continue;
+					}
+
+					overallVisited[nextX, nextZ] = true;
+					newQueue.Enqueue((nextX, nextZ));
+				}
+			}
+		}
+
+		if (newPathing != null)
+		{
+			for (int z = 0; z < newDepth; z++)
+			{
+				for (int x = 0; x < newWidth; x++)
+				{
+					if (newCells[x, z].WaterMode == WaterType.None &&
+						(newPathing[x, z] & (PATHING_SHALLOW_WATER | PATHING_DEEP_WATER)) != 0)
+					{
+						newPathing[x, z] = GetDefaultPathingCode(newCells[x, z]);
+					}
+				}
+			}
+		}
 	}
 
 	protected TerrainCell[,] _localCells;
@@ -442,7 +655,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		mat.SetShaderParameter("use_normal_texture", profile.UseNormalTexture && !string.IsNullOrEmpty(profile.NormalTexturePath));
 		if (profile.UseNormalTexture && !string.IsNullOrEmpty(profile.NormalTexturePath))
 		{
-			var tex = LoadTextureFromActiveWorkspace(profile.NormalTexturePath);
+			var tex = LoadTextureFromActiveWorkspace(profile.NormalTexturePath, preferNormal: true);
 			if (tex != null) mat.SetShaderParameter("normal_texture", tex);
 		}
 		mat.SetShaderParameter("normal_scale", profile.NormalScale);
@@ -471,7 +684,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		mat.SetShaderParameter("use_detail_texture", profile.UseDetailTexture && !string.IsNullOrEmpty(profile.DetailTexturePath));
 		if (profile.UseDetailTexture && !string.IsNullOrEmpty(profile.DetailTexturePath))
 		{
-			var dtex = LoadTextureFromActiveWorkspace(profile.DetailTexturePath);
+			var dtex = LoadTextureFromActiveWorkspace(profile.DetailTexturePath, preferNormal: false);
 			if (dtex != null) mat.SetShaderParameter("detail_texture", dtex);
 		}
 		mat.SetShaderParameter("detail_tile_mode", string.Equals(profile.DetailTileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0 : 1);
@@ -493,7 +706,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		}
 	}
 
-	private Texture2D? LoadTextureFromActiveWorkspace(string texturePath)
+	private Texture2D? LoadTextureFromActiveWorkspace(string texturePath, bool preferNormal = false)
 	{
 		if (string.IsNullOrWhiteSpace(texturePath)) return null;
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -510,8 +723,9 @@ public partial class RuntimeTerrain : StaticBody3D
 		{
 			if (fullPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
-				var (alb, _) = LoadRtexLayers(fullPath);
-				return alb != null ? ImageTexture.CreateFromImage(alb) : null;
+				var (alb, norm) = LoadRtexLayers(fullPath);
+				var targetImg = (preferNormal && norm != null) ? norm : alb;
+				return targetImg != null ? ImageTexture.CreateFromImage(targetImg) : null;
 			}
 			var img = Image.LoadFromFile(fullPath);
 			if (img != null) return ImageTexture.CreateFromImage(img);
@@ -565,26 +779,53 @@ public partial class RuntimeTerrain : StaticBody3D
 		var cell = cells[x, z];
 		if (cell.WaterMode != WaterType.None)
 		{
-			return ((cell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA, cell.WaterMode, cell.WaterProfileIndex);
+			float delta = cell.WaterHeight > 0.001f ? cell.WaterHeight : WATER_DELTA;
+			return ((cell.MacroTier * TerrainCell.TIER_HEIGHT) + delta, cell.WaterMode, cell.WaterProfileIndex);
 		}
 
-		float minCornerH = Math.Min(Math.Min(cell.Y_NW, cell.Y_NE), Math.Min(cell.Y_SE, cell.Y_SW));
-		float maxWaterY = -9999f;
+		float maxCornerH = Math.Max(Math.Max(cell.Y_NW, cell.Y_NE), Math.Max(cell.Y_SE, cell.Y_SW));
+		float bestWaterY = float.MaxValue;
 		WaterType bestWaterMode = WaterType.None;
 		byte bestProfileIndex = 0;
 
-		for (int nz = Math.Max(0, z - 1); nz <= Math.Min(d - 1, z + 1); nz++)
+		for (int dz = -1; dz <= 1; dz++)
 		{
-			for (int nx = Math.Max(0, x - 1); nx <= Math.Min(w - 1, x + 1); nx++)
+			for (int dx = -1; dx <= 1; dx++)
 			{
-				if (nx == x && nz == z) continue;
+				if (dx == 0 && dz == 0) continue;
+				int nx = x + dx;
+				int nz = z + dz;
+				if (nx < 0 || nx >= w || nz < 0 || nz >= d) continue;
+
 				var nCell = cells[nx, nz];
-				if (nCell.WaterMode != WaterType.None)
+				if (nCell.WaterMode == WaterType.None) continue;
+
+				float nDelta = nCell.WaterHeight > 0.001f ? nCell.WaterHeight : WATER_DELTA;
+				float nWaterY = (nCell.MacroTier * TerrainCell.TIER_HEIGHT) + nDelta;
+
+				float sharedMinH;
+				if (dx == -1 && dz == 0)
+					sharedMinH = Math.Min(cell.Y_NW, cell.Y_SW);
+				else if (dx == 1 && dz == 0)
+					sharedMinH = Math.Min(cell.Y_NE, cell.Y_SE);
+				else if (dx == 0 && dz == -1)
+					sharedMinH = Math.Min(cell.Y_NW, cell.Y_NE);
+				else if (dx == 0 && dz == 1)
+					sharedMinH = Math.Min(cell.Y_SW, cell.Y_SE);
+				else if (dx == -1 && dz == -1)
+					sharedMinH = cell.Y_NW;
+				else if (dx == 1 && dz == -1)
+					sharedMinH = cell.Y_NE;
+				else if (dx == 1 && dz == 1)
+					sharedMinH = cell.Y_SE;
+				else
+					sharedMinH = cell.Y_SW;
+
+				if (sharedMinH <= nWaterY && maxCornerH > nWaterY)
 				{
-					float nWaterY = (nCell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA;
-					if (nWaterY > maxWaterY)
+					if (nWaterY < bestWaterY)
 					{
-						maxWaterY = nWaterY;
+						bestWaterY = nWaterY;
 						bestWaterMode = nCell.WaterMode;
 						bestProfileIndex = nCell.WaterProfileIndex;
 					}
@@ -592,9 +833,9 @@ public partial class RuntimeTerrain : StaticBody3D
 			}
 		}
 
-		if (bestWaterMode != WaterType.None && minCornerH <= maxWaterY)
+		if (bestWaterMode != WaterType.None)
 		{
-			return (maxWaterY, bestWaterMode, bestProfileIndex);
+			return (bestWaterY, bestWaterMode, bestProfileIndex);
 		}
 
 		return (0f, WaterType.None, 0);
@@ -2703,8 +2944,8 @@ void fragment() {
 	public virtual void ResizeTerrain(int newWidth, int newDepth) { }
 	public virtual void ScaleTerrainData(int newWidth, int newDepth) { }
 	public virtual void RemapSplatIndices(IReadOnlyDictionary<int, int> remap) { }
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap) { }
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap) { }
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null) { }
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null) { }
 	public virtual void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath) { }
 
 	public void UpdatePhysics(Rect2I? affectedRegion = null)

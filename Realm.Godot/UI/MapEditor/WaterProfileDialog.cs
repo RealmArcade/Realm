@@ -941,6 +941,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 			metadataRoot.CustomWaterProfiles = _profiles;
 			string metaPath = Path.Combine(wsPath, "metadata.json");
 			MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+			Hud?.UpdateLastMetadataSyncTime(metaPath);
 		}
 
 		if (RuntimeTerrain.Instance != null)

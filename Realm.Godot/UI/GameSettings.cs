@@ -446,7 +446,8 @@ public static class GameSettings
 	{
 		if (light == null || !GodotObject.IsInstanceValid(light)) return;
 
-		light.ShadowEnabled = !GameSettings.DisableShadows && light.LightEnergy > 0.05f;
+		bool editorDisabled = GameHost.Instance != null && GameHost.Instance.IsMapEditorMode && GameHost.Instance.EditorDisableShadows;
+		light.ShadowEnabled = !GameSettings.DisableShadows && !editorDisabled && light.LightEnergy > 0.05f;
 		if (!light.ShadowEnabled) {
 			return;
 		}

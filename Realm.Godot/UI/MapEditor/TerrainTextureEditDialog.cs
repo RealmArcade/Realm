@@ -150,6 +150,7 @@ public class TerrainTextureUndoAction : IEditorAction
 				};
 				metadataRoot.AddOrUpdateTerrainProfile(prof);
 				MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+				MapEditorHUD.Instance?.UpdateLastMetadataSyncTime(metaPath);
 			}
 		}
 		catch { }

@@ -19,6 +19,7 @@ public class ContentAddressableStorage
     private readonly ConcurrentDictionary<string, string> _assetPathCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, bool> _ensuredDirectories = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _sidecarMemoryCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, bool> _writtenSidecars = new(StringComparer.OrdinalIgnoreCase);
     private long _lastDiskCheckTicks = 0;
     private bool _lastDiskCheckResult = true;
 
@@ -51,44 +52,28 @@ public class ContentAddressableStorage
             return null;
         }
 
-        if (_assetPathCache.TryGetValue(normalizedHash, out string? cachedPath) && File.Exists(cachedPath))
+        if (_assetPathCache.TryGetValue(normalizedHash, out string? cachedPath))
         {
-            return cachedPath;
+            return string.IsNullOrEmpty(cachedPath) ? null : cachedPath;
         }
 
         string shard = normalizedHash.Substring(0, 2);
         string shardDirectory = Path.Combine(_assetsDirectory, shard);
         if (!Directory.Exists(shardDirectory))
         {
+            _assetPathCache[normalizedHash] = string.Empty;
             return null;
         }
 
-        string binPath = Path.Combine(shardDirectory, $"{normalizedHash}.bin");
-        if (File.Exists(binPath))
+        ReadOnlySpan<string> commonExtensions = [".bin", ".rmesh", ".ranim", ".rtex", ".raud", ".png", ".wasm", ".json", ".rkey", ".glb", ".ogg", ".wav", ".mp3", ".jpg", ".jpeg", ".webp"];
+        foreach (var ext in commonExtensions)
         {
-            _assetPathCache[normalizedHash] = binPath;
-            return binPath;
-        }
-
-        string rmeshPath = Path.Combine(shardDirectory, $"{normalizedHash}.rmesh");
-        if (File.Exists(rmeshPath))
-        {
-            _assetPathCache[normalizedHash] = rmeshPath;
-            return rmeshPath;
-        }
-
-        string ranimPath = Path.Combine(shardDirectory, $"{normalizedHash}.ranim");
-        if (File.Exists(ranimPath))
-        {
-            _assetPathCache[normalizedHash] = ranimPath;
-            return ranimPath;
-        }
-
-        string pngPath = Path.Combine(shardDirectory, $"{normalizedHash}.png");
-        if (File.Exists(pngPath))
-        {
-            _assetPathCache[normalizedHash] = pngPath;
-            return pngPath;
+            string candidatePath = Path.Combine(shardDirectory, $"{normalizedHash}{ext}");
+            if (File.Exists(candidatePath))
+            {
+                _assetPathCache[normalizedHash] = candidatePath;
+                return candidatePath;
+            }
         }
 
         string[] matchingFiles = Directory.GetFiles(shardDirectory, $"{normalizedHash}*");
@@ -99,6 +84,7 @@ public class ContentAddressableStorage
             return foundPath;
         }
 
+        _assetPathCache[normalizedHash] = string.Empty;
         return null;
     }
 
@@ -140,7 +126,7 @@ public class ContentAddressableStorage
         string normalizedHash = NormalizeBlake3Hash(blake3Hash);
         if (_sidecarMemoryCache.TryGetValue(normalizedHash, out var cachedMeta))
         {
-            return cachedMeta;
+            return string.IsNullOrEmpty(cachedMeta) ? null : cachedMeta;
         }
 
         string sidecarPath = GetSidecarCachePath(normalizedHash);
@@ -150,6 +136,7 @@ public class ContentAddressableStorage
             {
                 string text = File.ReadAllText(sidecarPath);
                 _sidecarMemoryCache[normalizedHash] = text;
+                _writtenSidecars[normalizedHash] = true;
                 return text;
             }
             catch
@@ -158,8 +145,9 @@ public class ContentAddressableStorage
         }
 
         string? filePath = FindAssetFilePath(normalizedHash);
-        if (filePath == null || !File.Exists(filePath))
+        if (filePath == null)
         {
+            _sidecarMemoryCache[normalizedHash] = string.Empty;
             return null;
         }
 
@@ -167,6 +155,10 @@ public class ContentAddressableStorage
         if (!string.IsNullOrWhiteSpace(extractedMetadata))
         {
             UpdateSidecarCache(normalizedHash, extractedMetadata);
+        }
+        else
+        {
+            _sidecarMemoryCache[normalizedHash] = string.Empty;
         }
 
         return extractedMetadata;
@@ -226,7 +218,7 @@ public class ContentAddressableStorage
             lock (fileLock)
             {
                 string? existingFilePath = FindAssetFilePath(normalizedHash);
-                if (existingFilePath != null && File.Exists(existingFilePath))
+                if (existingFilePath != null)
                 {
                     bool merged = false;
                     if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
@@ -279,13 +271,17 @@ public class ContentAddressableStorage
                 }
 
                 string? finalMetadata = metadataToEmbed;
-                if (finalMetadata == null && (extension == ".rmesh" || extension == ".ranim"))
+                if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
                 {
                     finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
                 }
                 if (!string.IsNullOrWhiteSpace(finalMetadata))
                 {
                     UpdateSidecarCache(normalizedHash, finalMetadata);
+                }
+                else
+                {
+                    _sidecarMemoryCache[normalizedHash] = string.Empty;
                 }
 
                 return (true, "Asset stored successfully.", false, false, normalizedHash);
@@ -308,7 +304,7 @@ public class ContentAddressableStorage
                 lock (fileLock)
                 {
                     string? existingFilePath = FindAssetFilePath(normalizedHash);
-                    if (existingFilePath != null && File.Exists(existingFilePath))
+                    if (existingFilePath != null)
                     {
                         try { File.Delete(tempFilePath); } catch { }
                         bool merged = false;
@@ -343,13 +339,17 @@ public class ContentAddressableStorage
                     }
 
                     string? finalMetadata = metadataToEmbed;
-                    if (finalMetadata == null && (extension == ".rmesh" || extension == ".ranim"))
+                    if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
                     {
                         finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
                     }
                     if (!string.IsNullOrWhiteSpace(finalMetadata))
                     {
                         UpdateSidecarCache(normalizedHash, finalMetadata);
+                    }
+                    else
+                    {
+                        _sidecarMemoryCache[normalizedHash] = string.Empty;
                     }
 
                     return (true, "Asset stored successfully.", false, false, normalizedHash);
@@ -389,7 +389,7 @@ public class ContentAddressableStorage
         lock (fileLock)
         {
             string? existingFilePath = FindAssetFilePath(normalizedHash);
-            if (existingFilePath != null && File.Exists(existingFilePath))
+            if (existingFilePath != null)
             {
                 bool merged = false;
                 if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
@@ -430,13 +430,17 @@ public class ContentAddressableStorage
             }
 
             string? finalMetadata = metadataToEmbed;
-            if (finalMetadata == null && (extension == ".rmesh" || extension == ".ranim"))
+            if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
             {
                 finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
             }
             if (!string.IsNullOrWhiteSpace(finalMetadata))
             {
                 UpdateSidecarCache(normalizedHash, finalMetadata);
+            }
+            else
+            {
+                _sidecarMemoryCache[normalizedHash] = string.Empty;
             }
 
             return (true, "Asset stored successfully.", false, false, normalizedHash);
@@ -473,7 +477,7 @@ public class ContentAddressableStorage
         {
             string? existingFilePath = FindAssetFilePath(normalizedHash);
 
-            if (existingFilePath != null && File.Exists(existingFilePath))
+            if (existingFilePath != null)
             {
                 bool merged = false;
                 if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
@@ -516,13 +520,17 @@ public class ContentAddressableStorage
             _assetPathCache[normalizedHash] = finalFilePath;
 
             string? finalMetadata = metadataToEmbed;
-            if (finalMetadata == null && (extension == ".rmesh" || extension == ".ranim"))
+            if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
             {
                 finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
             }
             if (!string.IsNullOrWhiteSpace(finalMetadata))
             {
                 UpdateSidecarCache(normalizedHash, finalMetadata);
+            }
+            else
+            {
+                _sidecarMemoryCache[normalizedHash] = string.Empty;
             }
 
             return (true, "Asset stored successfully.", false, false, normalizedHash);
@@ -644,8 +652,15 @@ public class ContentAddressableStorage
         try
         {
             _sidecarMemoryCache[normalizedHash] = metadataJson;
-            string path = GetSidecarCachePath(normalizedHash);
-            File.WriteAllText(path, metadataJson, Encoding.UTF8);
+            if (!_writtenSidecars.ContainsKey(normalizedHash))
+            {
+                string path = GetSidecarCachePath(normalizedHash);
+                if (!File.Exists(path))
+                {
+                    File.WriteAllText(path, metadataJson, Encoding.UTF8);
+                }
+                _writtenSidecars[normalizedHash] = true;
+            }
         }
         catch
         {
@@ -673,6 +688,8 @@ public class ContentAddressableStorage
 
     public void DeleteSidecarCache()
     {
+        _writtenSidecars.Clear();
+        _sidecarMemoryCache.Clear();
         if (Directory.Exists(_sidecarCacheDirectory))
         {
             Directory.Delete(_sidecarCacheDirectory, true);
@@ -685,6 +702,9 @@ public class ContentAddressableStorage
         try
         {
             string cleanHash = NormalizeBlake3Hash(normalizedHash);
+            _writtenSidecars.TryRemove(cleanHash, out _);
+            _sidecarMemoryCache.TryRemove(cleanHash, out _);
+            _assetPathCache.TryRemove(cleanHash, out _);
             if (cleanHash.Length >= 2 && Directory.Exists(_sidecarCacheDirectory))
             {
                 string shardDirectory = Path.Combine(_sidecarCacheDirectory, cleanHash.Substring(0, 2));

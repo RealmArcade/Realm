@@ -238,7 +238,7 @@ public class SaveLoadService
 
 					waterSpan[baseIdx + 0] = (float)cell.WaterMode;
 					waterSpan[baseIdx + 1] = (float)cell.WaterProfileIndex;
-					waterSpan[baseIdx + 2] = 0f;
+					waterSpan[baseIdx + 2] = cell.WaterHeight;
 					waterSpan[baseIdx + 3] = 1f;
 				}
 			}
@@ -517,7 +517,12 @@ public class SaveLoadService
 			{
 				try
 				{
-					MetadataService.Instance.UpdateMetadata(directory, meta => MetadataService.Instance.CleanMetadata(meta));
+					MetadataService.Instance.UpdateMetadata(directory, meta =>
+					{
+						meta.MapProperties.MapWidth = width;
+						meta.MapProperties.MapHeight = depth;
+						MetadataService.Instance.CleanMetadata(meta);
+					});
 				}
 				catch (Exception ex)
 				{
@@ -603,8 +608,28 @@ public class SaveLoadService
 			EcsWorld.Query(in req3, (Entity entity) => req3List.Add(entity));
 			foreach (var ent in req3List) EcsWorld.Destroy(ent);
 
-			int width = saveData.Width > 0 ? Math.Clamp((int)Math.Round(saveData.Width / 32.0) * 32, 32, 512) : 128;
-			int depth = saveData.Depth > 0 ? Math.Clamp((int)Math.Round(saveData.Depth / 32.0) * 32, 32, 512) : 128;
+			int width = 0;
+			int depth = 0;
+			if (MetadataService.Instance.TryLoadMetadata(mapDir, out var loadedMeta) && loadedMeta.MapProperties != null)
+			{
+				if (loadedMeta.MapProperties.MapWidth.HasValue && loadedMeta.MapProperties.MapWidth.Value > 0)
+				{
+					width = loadedMeta.MapProperties.MapWidth.Value;
+				}
+				if (loadedMeta.MapProperties.MapHeight.HasValue && loadedMeta.MapProperties.MapHeight.Value > 0)
+				{
+					depth = loadedMeta.MapProperties.MapHeight.Value;
+				}
+			}
+
+			if (width <= 0) width = saveData.Width > 0 ? saveData.Width : 128;
+			if (depth <= 0) depth = saveData.Depth > 0 ? saveData.Depth : 128;
+
+			width = Math.Clamp((int)Math.Round(width / 32.0) * 32, 32, 512);
+			depth = Math.Clamp((int)Math.Round(depth / 32.0) * 32, 32, 512);
+
+			saveData.Width = width;
+			saveData.Depth = depth;
 
 			Entity worldEntity = Entity.Null;
 			var worldQuery = Realm.Ecs.Common.QueryCache.AllTerrainStateQuery;
@@ -650,6 +675,9 @@ public class SaveLoadService
 				string directory = Path.GetDirectoryName(absolutePath);
 				string heightsPath = Path.Combine(directory, "terrain_heights.exr");
 				bool heightsLoaded = false;
+				TerrainCell[,] unscaledCells = null;
+				int unscaledW = 0;
+				int unscaledH = 0;
 
 				if (File.Exists(heightsPath))
 				{
@@ -675,8 +703,54 @@ public class SaveLoadService
 									ts.Cells[x, z] = new TerrainCell(yNW, yNE, ySE, ySW);
 								}
 							}
-							heightsLoaded = true;
 						}
+						else
+						{
+							unscaledW = imgW;
+							unscaledH = imgH;
+							unscaledCells = new TerrainCell[imgW, imgH];
+							for (int z = 0; z < imgH; z++)
+							{
+								for (int x = 0; x < imgW; x++)
+								{
+									int baseIdx = (z * imgW + x) * 4;
+									float yNW = floatData[baseIdx + 0];
+									float yNE = floatData[baseIdx + 1];
+									float ySE = floatData[baseIdx + 2];
+									float ySW = floatData[baseIdx + 3];
+									unscaledCells[x, z] = new TerrainCell(yNW, yNE, ySE, ySW);
+								}
+							}
+
+							float[,] newGridHeights = new float[width + 1, depth + 1];
+							for (int vz = 0; vz <= depth; vz++)
+							{
+								for (int vx = 0; vx <= width; vx++)
+								{
+									int srcVx = Math.Clamp((int)Math.Round(vx * (float)imgW / width), 0, imgW);
+									int srcVz = Math.Clamp((int)Math.Round(vz * (float)imgH / depth), 0, imgH);
+									float h = 0f;
+									if (srcVx < imgW && srcVz < imgH) h = floatData[(srcVz * imgW + srcVx) * 4 + 0];
+									else if (srcVx >= imgW && srcVz >= imgH) h = floatData[((imgH - 1) * imgW + (imgW - 1)) * 4 + 2];
+									else if (srcVx >= imgW) h = floatData[(srcVz * imgW + (imgW - 1)) * 4 + 1];
+									else if (srcVz >= imgH) h = floatData[((imgH - 1) * imgW + srcVx) * 4 + 3];
+									newGridHeights[vx, vz] = h;
+								}
+							}
+
+							for (int z = 0; z < depth; z++)
+							{
+								for (int x = 0; x < width; x++)
+								{
+									float yNW = newGridHeights[x, z];
+									float yNE = newGridHeights[x + 1, z];
+									float ySW = newGridHeights[x, z + 1];
+									float ySE = newGridHeights[x + 1, z + 1];
+									ts.Cells[x, z] = new TerrainCell(yNW, yNE, ySE, ySW);
+								}
+							}
+						}
+						heightsLoaded = true;
 					}
 				}
 
@@ -696,7 +770,7 @@ public class SaveLoadService
 						int imgH = waterImage.GetHeight();
 						ReadOnlySpan<float> waterFloatData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(waterImage.GetData());
 
-						if (imgW == width && imgH == depth)
+						if (imgW == width && imgH == depth && unscaledCells == null)
 						{
 							for (int z = 0; z < depth; z++)
 							{
@@ -705,8 +779,33 @@ public class SaveLoadService
 									int baseIdx = (z * imgW + x) * 4;
 									var wMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
 									byte wProfile = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
+									float wHeight = waterFloatData[baseIdx + 2];
 									ts.Cells[x, z].WaterMode = wMode;
 									ts.Cells[x, z].WaterProfileIndex = wProfile;
+									ts.Cells[x, z].WaterHeight = wHeight;
+								}
+							}
+						}
+						else
+						{
+							if (unscaledCells == null || unscaledW != imgW || unscaledH != imgH)
+							{
+								unscaledCells = new TerrainCell[imgW, imgH];
+								unscaledW = imgW;
+								unscaledH = imgH;
+							}
+
+							for (int z = 0; z < imgH; z++)
+							{
+								for (int x = 0; x < imgW; x++)
+								{
+									int baseIdx = (z * imgW + x) * 4;
+									var wMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
+									byte wProfile = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
+									float wHeight = waterFloatData[baseIdx + 2];
+									unscaledCells[x, z].WaterMode = wMode;
+									unscaledCells[x, z].WaterProfileIndex = wProfile;
+									unscaledCells[x, z].WaterHeight = wHeight;
 								}
 							}
 						}
@@ -729,9 +828,9 @@ public class SaveLoadService
 						{
 							for (int x = 0; x < width; x++)
 							{
-								int imgX = Math.Clamp(x, 0, imgW - 1);
-								int imgZ = Math.Clamp(z, 0, imgH - 1);
-								int baseIdx = (imgZ * imgW + imgX) * 4;
+								int srcX = imgW == width ? x : Math.Clamp((int)Math.Floor(x * (float)imgW / width), 0, imgW - 1);
+								int srcZ = imgH == depth ? z : Math.Clamp((int)Math.Floor(z * (float)imgH / depth), 0, imgH - 1);
+								int baseIdx = (srcZ * imgW + srcX) * 4;
 								ts.PathingCodes[x, z] = byteData[baseIdx + 0];
 							}
 						}
@@ -747,6 +846,11 @@ public class SaveLoadService
 							ts.PathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(Realm.Ecs.Components.Terrain.WaterType.None);
 						}
 					}
+				}
+
+				if (unscaledCells != null)
+				{
+					RuntimeTerrain.ReconcileScaledWater(unscaledCells, unscaledW, unscaledH, ts.Cells, ts.PathingCodes, width, depth);
 				}
 
 				EcsWorld.Set(worldEntity, ts);
@@ -773,20 +877,20 @@ public class SaveLoadService
 					ReadOnlySpan<float> idxData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(splatIndicesImage.GetData());
 					ReadOnlySpan<float> wgtData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(splatWeightsImage.GetData());
 
-					int splatW = idxW;
-					int splatD = idxH;
+					int splatW = width + 1;
+					int splatD = depth + 1;
 					loadedColors = new string[splatW * splatD];
 					for (int z = 0; z < splatD; z++)
 					{
 						for (int x = 0; x < splatW; x++)
 						{
-							int imgX = Math.Clamp(x, 0, idxW - 1);
-							int imgZ = Math.Clamp(z, 0, idxH - 1);
-							int idxOffset = (imgZ * idxW + imgX) * 4;
+							int srcIdxX = idxW == splatW ? x : Math.Clamp((int)Math.Floor(x * (float)(idxW - 1) / Math.Max(1, splatW - 1)), 0, idxW - 1);
+							int srcIdxZ = idxH == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(idxH - 1) / Math.Max(1, splatD - 1)), 0, idxH - 1);
+							int idxOffset = (srcIdxZ * idxW + srcIdxX) * 4;
 
-							int imgWeightX = Math.Clamp(x, 0, wgtW - 1);
-							int imgWeightZ = Math.Clamp(z, 0, wgtH - 1);
-							int weightOffset = (imgWeightZ * wgtW + imgWeightX) * 4;
+							int srcWgtX = wgtW == splatW ? x : Math.Clamp((int)Math.Floor(x * (float)(wgtW - 1) / Math.Max(1, splatW - 1)), 0, wgtW - 1);
+							int srcWgtZ = wgtH == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(wgtH - 1) / Math.Max(1, splatD - 1)), 0, wgtH - 1);
+							int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
 
 							int i0 = (int)Math.Round(idxData[idxOffset + 0]);
 							int i1 = (int)Math.Round(idxData[idxOffset + 1]);

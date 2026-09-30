@@ -335,6 +335,7 @@ public partial class GameHost : Node3D, IGameAPI
 		None,
 		Raise,
 		Lower,
+		Height,
 		Smooth,
 		Plateau,
 		PaintTexture,
@@ -353,7 +354,8 @@ public partial class GameHost : Node3D, IGameAPI
 		PasteArea,
 		PaintPathing,
 		FloodFillPathing,
-		DrawCoordinate
+		DrawCoordinate,
+		Water
 	}
 	private EditorTool _activeEditorTool = EditorTool.None;
 	public EditorTool ActiveEditorTool
@@ -452,6 +454,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public GridOverlayMode EditorGridMode { get; set; } = GridOverlayMode.Off;
 	public bool EditorGridVisible => EditorGridMode != GridOverlayMode.Off;
 	public bool EditorCameraBoundsVisible { get; set; } = false;
+	public bool EditorDisableShadows { get; set; } = false;
 	public float EditorCameraBoundsLeft
 	{
 		get => _editorService.GetCameraBoundsLeft(_worldEntity);
@@ -544,6 +547,13 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorService.SetBlockLevelHeight(_worldEntity, value);
 	}
 
+	private float _editorExactHeight = 0.0f;
+	public float EditorExactHeight
+	{
+		get => _editorExactHeight;
+		set => _editorExactHeight = Math.Clamp(value, TerrainCell.MIN_Y, TerrainCell.MAX_Y);
+	}
+
 	public WaterType EditorWaterMode
 	{
 		get => _editorService.GetWaterMode(_worldEntity);
@@ -555,6 +565,8 @@ public partial class GameHost : Node3D, IGameAPI
 		get => _editorService.GetWaterProfileIndex(_worldEntity);
 		set => _editorService.SetWaterProfileIndex(_worldEntity, value);
 	}
+
+	public float EditorWaterHeight { get; set; } = 0.9f;
 
 	private Node? _hoveredEditorObject;
 	private MeshInstance3D? _selectionHighlightMesh;

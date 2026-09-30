@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using Realm.Shared.Metadata;
@@ -150,14 +151,22 @@ public static class MapArchiveHelper
         }
     }
 
-    public static (string? ManifestJson, string RootPrefix) ReadManifestFromArchive(string archiveFilePath)
+    public static RmapHeaderInfo? ReadHeaderFromManifest(MapManifest manifest)
     {
-        if (string.IsNullOrWhiteSpace(archiveFilePath) || !File.Exists(archiveFilePath))
+        if (manifest == null) return null;
+        return new RmapHeaderInfo
         {
-            return (null, string.Empty);
-        }
+            MapName = manifest.MapName ?? string.Empty,
+            Version = manifest.Version ?? "1.0.0",
+            Author = manifest.Author ?? "Unknown",
+            Description = manifest.Description ?? string.Empty,
+            Tags = manifest.Tags ?? new List<string>()
+        };
+    }
 
-        using var zipArchive = ZipFile.OpenRead(archiveFilePath);
+    public static (string? ManifestJson, string RootPrefix) ReadManifestFromArchive(ZipArchive zipArchive)
+    {
+        if (zipArchive == null) return (null, string.Empty);
         foreach (var entry in zipArchive.Entries)
         {
             string norm = entry.FullName.Replace('\\', '/');
@@ -178,7 +187,128 @@ public static class MapArchiveHelper
         return (null, string.Empty);
     }
 
-    public static void ExtractArchiveIntoCas(string archiveFilePath, ContentAddressableStorage cas)
+    public static (string? ManifestJson, string RootPrefix) ReadManifestFromArchive(string archiveFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(archiveFilePath) || !File.Exists(archiveFilePath))
+        {
+            return (null, string.Empty);
+        }
+
+        using var zipArchive = ZipFile.OpenRead(archiveFilePath);
+        return ReadManifestFromArchive(zipArchive);
+    }
+
+    public static void ExtractArchiveToCasAndTarget(
+        ZipArchive zipArchive,
+        ContentAddressableStorage cas,
+        string targetDirectory,
+        MapManifest manifest,
+        string rootPrefix,
+        Action<float>? progressCallback = null)
+    {
+        if (zipArchive == null) throw new ArgumentNullException(nameof(zipArchive));
+        if (cas == null) throw new ArgumentNullException(nameof(cas));
+        if (string.IsNullOrWhiteSpace(targetDirectory)) throw new ArgumentNullException(nameof(targetDirectory));
+
+        if (!Directory.Exists(targetDirectory))
+        {
+            Directory.CreateDirectory(targetDirectory);
+        }
+
+        var casFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (manifest.Files != null)
+        {
+            foreach (var kvp in manifest.Files)
+            {
+                string relKey = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? kvp.Key.Substring(6) : kvp.Key;
+                relKey = relKey.TrimStart('/', '\\').Replace('\\', '/');
+                string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
+                casFileMap[relKey] = normHash;
+            }
+        }
+
+        var nonDirectoryEntries = zipArchive.Entries
+            .Where(e => !(string.IsNullOrWhiteSpace(e.Name) && e.FullName.EndsWith("/")))
+            .ToList();
+
+        int totalEntries = Math.Max(1, nonDirectoryEntries.Count);
+        int processed = 0;
+        long lastProgressReportTicks = 0;
+
+        foreach (var entry in nonDirectoryEntries)
+        {
+            string norm = entry.FullName.Replace('\\', '/');
+            if (!string.IsNullOrEmpty(rootPrefix) && norm.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                norm = norm.Substring(rootPrefix.Length);
+            }
+            norm = norm.TrimStart('/');
+            if (string.IsNullOrEmpty(norm))
+            {
+                processed++;
+                continue;
+            }
+
+            string destFilePath = Path.Combine(targetDirectory, norm.Replace('/', Path.DirectorySeparatorChar));
+
+            if (casFileMap.TryGetValue(norm, out string? normHash) && !string.IsNullOrEmpty(normHash))
+            {
+                if (!cas.HasAsset(normHash))
+                {
+                    using var entryStream = entry.Open();
+                    string ext = Path.GetExtension(norm).ToLowerInvariant();
+                    cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
+                }
+
+                string? casFilePath = cas.FindAssetFilePath(normHash);
+                if (casFilePath != null)
+                {
+                    HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: false);
+                }
+            }
+            else
+            {
+                string? destDir = Path.GetDirectoryName(destFilePath);
+                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                {
+                    Directory.CreateDirectory(destDir);
+                }
+
+                using var outStream = new FileStream(destFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
+                using var inStream = entry.Open();
+                inStream.CopyTo(outStream, 81920);
+            }
+
+            processed++;
+            long now = System.Environment.TickCount64;
+            if (now - lastProgressReportTicks >= 50 || processed == totalEntries)
+            {
+                lastProgressReportTicks = now;
+                progressCallback?.Invoke((float)processed / totalEntries);
+            }
+        }
+
+        if (manifest.Files != null)
+        {
+            foreach (var kvp in manifest.Files)
+            {
+                string rel = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? kvp.Key.Substring(6) : kvp.Key;
+                rel = rel.TrimStart('/', '\\').Replace('\\', '/');
+                string destFilePath = Path.Combine(targetDirectory, rel.Replace('/', Path.DirectorySeparatorChar));
+                if (!File.Exists(destFilePath))
+                {
+                    string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
+                    string? casFilePath = cas.FindAssetFilePath(normHash);
+                    if (casFilePath != null)
+                    {
+                        HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: false);
+                    }
+                }
+            }
+        }
+    }
+
+    public static void ExtractArchiveIntoCas(string archiveFilePath, ContentAddressableStorage cas, Action<float>? progressCallback = null)
     {
         if (string.IsNullOrWhiteSpace(archiveFilePath) || !File.Exists(archiveFilePath))
         {
@@ -216,6 +346,9 @@ public static class MapArchiveHelper
             entriesByKey[norm] = entry;
         }
 
+        int total = manifest.Files.Count;
+        int processed = 0;
+
         foreach (var kvp in manifest.Files)
         {
             string relPath = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
@@ -226,21 +359,25 @@ public static class MapArchiveHelper
             string hashOrKey = kvp.Value;
             string normHash = ContentAddressableStorage.NormalizeBlake3Hash(hashOrKey);
 
-            if (cas.HasAsset(normHash))
+            if (!cas.HasAsset(normHash))
             {
-                continue;
+                if (entriesByKey.TryGetValue(relPath, out var zipEntry))
+                {
+                    using var entryStream = zipEntry.Open();
+                    string ext = Path.GetExtension(relPath).ToLowerInvariant();
+                    cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
+                }
             }
 
-            if (entriesByKey.TryGetValue(relPath, out var zipEntry))
+            processed++;
+            if (total > 0)
             {
-                using var entryStream = zipEntry.Open();
-                string ext = Path.GetExtension(relPath).ToLowerInvariant();
-                cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
+                progressCallback?.Invoke((float)processed / total);
             }
         }
     }
 
-    public static void ExtractArchive(string archiveFilePath, string targetDirectory)
+    public static void ExtractArchive(string archiveFilePath, string targetDirectory, Action<float>? progressCallback = null)
     {
         if (string.IsNullOrWhiteSpace(archiveFilePath) || !File.Exists(archiveFilePath))
         {
@@ -253,13 +390,14 @@ public static class MapArchiveHelper
         }
 
         using var zipArchive = ZipFile.OpenRead(archiveFilePath);
-        foreach (var entry in zipArchive.Entries)
-        {
-            if (string.IsNullOrWhiteSpace(entry.Name) && entry.FullName.EndsWith("/"))
-            {
-                continue;
-            }
+        var fileEntries = zipArchive.Entries
+            .Where(e => !(string.IsNullOrWhiteSpace(e.Name) && e.FullName.EndsWith("/")))
+            .ToList();
+        int total = fileEntries.Count;
+        int processed = 0;
 
+        foreach (var entry in fileEntries)
+        {
             string destinationPath = Path.Combine(targetDirectory, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
             string? destinationDir = Path.GetDirectoryName(destinationPath);
             if (!string.IsNullOrEmpty(destinationDir) && !Directory.Exists(destinationDir))
@@ -270,6 +408,12 @@ public static class MapArchiveHelper
             using var outStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
             using var entryStream = entry.Open();
             entryStream.CopyTo(outStream, 81920);
+
+            processed++;
+            if (total > 0)
+            {
+                progressCallback?.Invoke((float)processed / total);
+            }
         }
     }
 

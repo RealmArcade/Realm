@@ -7,6 +7,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Components.Terrain;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -1663,8 +1664,16 @@ public partial class GameHost
 
 	public void RefreshAllPlacedObjectModels(string targetId = null)
 	{
-		ModelCache.Clear();
-		Prop3D.ClearModelPathCache();
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			ModelCache.InvalidateModelPath(targetId);
+			Prop3D.InvalidateModelPathCache(targetId);
+		}
+		else
+		{
+			ModelCache.Clear();
+			Prop3D.ClearModelPathCache();
+		}
 
 		foreach (var unit in AllUnits)
 		{
@@ -2071,6 +2080,7 @@ public partial class GameHost
 
 		bool anyModified = false;
 
+		float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 		foreach (var pos in positions)
 		{
 			var result = _editorService.ApplyContinuousTerrainEditing(
@@ -2078,7 +2088,7 @@ public partial class GameHost
 				ActiveEditorTool,
 				EditorBrushRadius, EditorBrushStrength,
 				EditorBrushIsSquare,
-				EditorBlockMode, EditorBlockLevelHeight,
+				EditorBlockMode, targetBlockHeight,
 				EditorPaintTextureIndex, EditorCliffPaintTextureIndex,
 				pathingMask, pathingAdd,
 				isFirstClick,
@@ -2132,7 +2142,7 @@ public partial class GameHost
 		if (_terrainGeometryDirty && _terrainFlushRegion.HasValue && GroundTerrain != null)
 		{
 			var flushRegion = _terrainFlushRegion.Value;
-			GroundTerrain.UpdateMeshAndPhysics(false, false, flushRegion, _terrainHeightsDirty);
+			GroundTerrain.UpdateMeshAndPhysics(_terrainHeightsDirty, false, flushRegion, _terrainHeightsDirty);
 			if (_terrainHeightsDirty)
 			{
 				AlignAllEntitiesToTerrain(flushRegion);
@@ -4170,6 +4180,7 @@ public partial class GameHost
 
 					bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
 										 ActiveEditorTool == EditorTool.Lower ||
+										 ActiveEditorTool == EditorTool.Height ||
 										 ActiveEditorTool == EditorTool.Smooth ||
 										 ActiveEditorTool == EditorTool.Plateau ||
 										 ActiveEditorTool == EditorTool.PaintTexture ||
@@ -4180,11 +4191,12 @@ public partial class GameHost
 					if (isTerrainTool && !_editorService.IsDrawingTerrain && GroundTerrain != null)
 					{
 						firstClick = true;
+						float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 						_editorService.BeginTerrainDraw(
 							hitPos,
 							ActiveEditorTool,
 							EditorBlockMode,
-							EditorBlockLevelHeight,
+							targetBlockHeight,
 							null,
 							GroundTerrain.SplatMap,
 							GroundTerrain.PathingCodes,
@@ -4258,6 +4270,7 @@ public partial class GameHost
 						EditorHistoryManager.RecordAction(action);
 						bool isHeightsTool = ActiveEditorTool == EditorTool.Raise ||
 											 ActiveEditorTool == EditorTool.Lower ||
+											 ActiveEditorTool == EditorTool.Height ||
 											 ActiveEditorTool == EditorTool.Smooth ||
 											 ActiveEditorTool == EditorTool.Plateau ||
 											 ActiveEditorTool == EditorTool.Noise ||
@@ -4338,6 +4351,7 @@ public partial class GameHost
 					EditorHistoryManager.RecordAction(action);
 					bool isHeightsTool = ActiveEditorTool == EditorTool.Raise ||
 										 ActiveEditorTool == EditorTool.Lower ||
+										 ActiveEditorTool == EditorTool.Height ||
 										 ActiveEditorTool == EditorTool.Smooth ||
 										 ActiveEditorTool == EditorTool.Plateau ||
 										 ActiveEditorTool == EditorTool.Noise ||
@@ -4389,6 +4403,7 @@ public partial class GameHost
 
 				EditorGridMode = MapEditorHUD.SavedGridMode;
 				EditorCameraBoundsVisible = MapEditorHUD.SavedCameraBoundsVisible;
+				EditorDisableShadows = MapEditorHUD.SavedDisableShadows;
 
 				var camera = MainCamera as CameraControl;
 				if (camera != null)
@@ -4425,6 +4440,7 @@ public partial class GameHost
 		CreateBrushIndicator();
 		UpdateGridOverlayVisibility();
 		InitializeCameraBoundsOverlay();
+		UpdateEditorShadows();
 		UpdateDayNightVisuals(0.0f);
 		GroundTerrain?.SetShroudEnabled(false);
 	}
@@ -4435,6 +4451,7 @@ public partial class GameHost
 		ActiveEditorTool = EditorTool.None;
 		EditorHistoryManager.Clear();
 		ClearEditorPreview();
+		UpdateEditorShadows();
 		
 		if (_brushIndicatorMesh != null)
 		{
@@ -4494,9 +4511,14 @@ public partial class GameHost
 			{
 				decal.QueueFree();
 			}
+			else if (child is ProceduralVfxInstance3D vfx)
+			{
+				vfx.QueueFree();
+			}
 		}
 		AllProps.Clear();
 		AllDecals.Clear();
+		AllVfx.Clear();
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
 		
@@ -4563,6 +4585,7 @@ public partial class GameHost
 		
 		bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
 							 ActiveEditorTool == EditorTool.Lower ||
+							 ActiveEditorTool == EditorTool.Height ||
 							 ActiveEditorTool == EditorTool.Smooth ||
 							 ActiveEditorTool == EditorTool.Plateau ||
 							 ActiveEditorTool == EditorTool.PaintTexture ||
@@ -4744,7 +4767,7 @@ public partial class GameHost
 	{
 		if (GroundTerrain != null)
 		{
-			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 		}
 	}
 
@@ -4770,12 +4793,31 @@ public partial class GameHost
 
 		GroundTerrain.ResizeTerrain(newWidth, newDepth);
 
-		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 		DeleteEntitiesOutsideBounds();
+		PropMultiMeshManager.Instance?.RebuildAll();
 
 		RebuildCameraBoundsOverlay();
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 		MapEditorHUD.Instance?.RegenerateMinimap();
+
+		string activeWsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string metaPath = MetadataService.ResolveMetadataPath(activeWsPath);
+		if (System.IO.File.Exists(metaPath))
+		{
+			try
+			{
+				MetadataService.Instance.UpdateMetadata(activeWsPath, meta =>
+				{
+					meta.MapProperties.MapWidth = newWidth;
+					meta.MapProperties.MapHeight = newDepth;
+				});
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"Failed to update metadata.json map dimensions: {ex.Message}");
+			}
+		}
 
 		EditorHasUnsavedChanges = true;
 		MapEditorHUD.Instance?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
@@ -4811,6 +4853,10 @@ public partial class GameHost
 			if (GodotObject.IsInstanceValid(unit))
 			{
 				unit.Position = new Godot.Vector3(unit.Position.X * scaleX, unit.Position.Y, unit.Position.Z * scaleZ);
+				if (EcsWorld != null && EcsWorld.IsAlive(unit.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(unit.Entity))
+				{
+					EcsWorld.Set(unit.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(unit.Position.X, unit.Position.Y, unit.Position.Z)));
+				}
 			}
 		}
 
@@ -4819,27 +4865,86 @@ public partial class GameHost
 			if (GodotObject.IsInstanceValid(prop))
 			{
 				prop.Position = new Godot.Vector3(prop.Position.X * scaleX, prop.Position.Y, prop.Position.Z * scaleZ);
+				if (EcsWorld != null && EcsWorld.IsAlive(prop.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(prop.Entity))
+				{
+					EcsWorld.Set(prop.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(prop.Position.X, prop.Position.Y, prop.Position.Z)));
+				}
 			}
 		}
 
-		foreach (var child in GetChildren())
+		if (EcsWorld != null)
 		{
-			if (child is Decal decal && GodotObject.IsInstanceValid(decal))
+			var allPropEntitiesQuery = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
+			EcsWorld.Query(in allPropEntitiesQuery, (Arch.Core.Entity entity, ref Realm.Ecs.Components.Core.Position posComp) =>
+			{
+				if (!EntityToProp3D.ContainsKey(entity))
+				{
+					EcsWorld.Set(entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(posComp.Value.X * scaleX, posComp.Value.Y, posComp.Value.Z * scaleZ)));
+				}
+			});
+		}
+
+		foreach (var decal in AllDecals)
+		{
+			if (GodotObject.IsInstanceValid(decal))
 			{
 				decal.Position = new Godot.Vector3(decal.Position.X * scaleX, decal.Position.Y, decal.Position.Z * scaleZ);
+				if (decal is Decal3D decal3D && EcsWorld != null && EcsWorld.IsAlive(decal3D.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(decal3D.Entity))
+				{
+					EcsWorld.Set(decal3D.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(decal.Position.X, decal.Position.Y, decal.Position.Z)));
+				}
 			}
 		}
 
-		float diffWidth = (newWidth - oldWidth) * quadSize;
-		float diffDepth = (newDepth - oldDepth) * quadSize;
-		EditorCameraBoundsLeft -= diffWidth / 2.0f;
-		EditorCameraBoundsRight += diffWidth / 2.0f;
-		EditorCameraBoundsTop -= diffDepth / 2.0f;
-		EditorCameraBoundsBottom += diffDepth / 2.0f;
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.Position = new Godot.Vector3(vfx.Position.X * scaleX, vfx.Position.Y, vfx.Position.Z * scaleZ);
+				}
+			}
+		}
+
+		for (int i = 0; i < EditorCoordinates.Count; i++)
+		{
+			var coord = EditorCoordinates[i];
+			coord.MinX *= scaleX;
+			coord.MaxX *= scaleX;
+			coord.MinZ *= scaleZ;
+			coord.MaxZ *= scaleZ;
+		}
+		RebuildAllCoordinatePersistentMeshes();
+		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+
+		EditorCameraBoundsLeft *= scaleX;
+		EditorCameraBoundsRight *= scaleX;
+		EditorCameraBoundsTop *= scaleZ;
+		EditorCameraBoundsBottom *= scaleZ;
 
 		DeleteEntitiesOutsideBounds();
+		PropMultiMeshManager.Instance?.RebuildAll();
 
-		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+
+		string scaleWsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string scaleMetaPath = MetadataService.ResolveMetadataPath(scaleWsPath);
+		if (System.IO.File.Exists(scaleMetaPath))
+		{
+			try
+			{
+				MetadataService.Instance.UpdateMetadata(scaleWsPath, meta =>
+				{
+					meta.MapProperties.MapWidth = newWidth;
+					meta.MapProperties.MapHeight = newDepth;
+				});
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"Failed to update metadata.json map dimensions during scale: {ex.Message}");
+			}
+		}
 		RebuildCameraBoundsOverlay();
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 		MapEditorHUD.Instance?.RegenerateMinimap();
@@ -4890,6 +4995,43 @@ public partial class GameHost
 		foreach (var prop in propsToDelete)
 		{
 			DeleteNodeExternal(prop);
+		}
+
+		var decalsToDelete = new List<Decal>();
+		foreach (var decal in AllDecals)
+		{
+			if (GodotObject.IsInstanceValid(decal))
+			{
+				var pos = decal.Position;
+				if (pos.X < -halfW || pos.X > halfW || pos.Z < -halfD || pos.Z > halfD)
+				{
+					decalsToDelete.Add(decal);
+				}
+			}
+		}
+		foreach (var decal in decalsToDelete)
+		{
+			DeleteNodeExternal(decal);
+		}
+
+		if (AllVfx != null)
+		{
+			var vfxToDelete = new List<ProceduralVfxInstance3D>();
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					var pos = vfx.Position;
+					if (pos.X < -halfW || pos.X > halfW || pos.Z < -halfD || pos.Z > halfD)
+					{
+						vfxToDelete.Add(vfx);
+					}
+				}
+			}
+			foreach (var vfx in vfxToDelete)
+			{
+				DeleteNodeExternal(vfx);
+			}
 		}
 	}
 
@@ -5177,6 +5319,27 @@ public partial class GameHost
 			MapEditorHUD.Instance?.ShowFeedbackExternal("Flood filled pathing area");
 			UpdatePathingOverlay();
 		}
+	}
+
+	public void PerformWaterFloodFill(Vector3 clickPos, bool isRemoveAction = false)
+	{
+		if (GroundTerrain == null || GroundTerrain.Cells == null) return;
+
+		WaterType activeMode = EditorWaterMode;
+		byte activeProfile = ActiveWaterProfileIndex;
+		float waterHeight = EditorWaterHeight;
+
+		var result = _editorService.PerformWaterFloodFill(clickPos, activeMode, activeProfile, waterHeight, EditorMirrorMode, isRemoveAction);
+		if (result.BeforeCells == null || result.AfterCells == null) return;
+
+		GroundTerrain.UpdateMeshAndPhysics(rebuildPhysics: false, rebuildNavMesh: true, affectedRegions: null, rebuildWater: true);
+
+		var action = new TerrainModifyAction(result.BeforeCells, result.AfterCells, null, null, result.BeforePathing, result.AfterPathing);
+		EditorHistoryManager.RecordAction(action);
+		EditorHasUnsavedChanges = true;
+
+		string statusMsg = result.WasAdded ? "Water added via flood fill" : "Water removed via flood fill";
+		MapEditorHUD.Instance?.ShowFeedbackExternal(statusMsg);
 	}
 
 	public void HideSelectionHighlight()
@@ -5714,7 +5877,6 @@ public partial class GameHost
 			Rect2I affected = new Rect2I(minX - 2, minZ - 2, maxX - minX + 4, maxZ - minZ + 4);
 			if (eraseResult.HeightsModified)
 			{
-				GroundTerrain.SanitizeCornerHeights();
 				AlignAllEntitiesToTerrain(affected);
 			}
 			GroundTerrain.UpdateMeshAndPhysics(eraseResult.HeightsModified, false, affected, eraseResult.HeightsModified);
@@ -5781,7 +5943,6 @@ public partial class GameHost
 
 			if (pasteResult.HeightsModified)
 			{
-				GroundTerrain.SanitizeCornerHeights();
 				AlignAllEntitiesToTerrain(affected);
 			}
 			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affected, pasteResult.HeightsModified);
@@ -5870,6 +6031,15 @@ public partial class GameHost
 			{
 				RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 			}
+		}
+	}
+
+	public void UpdateEditorShadows()
+	{
+		var sun = GetNodeOrNull<DirectionalLight3D>("DirectionalLight3D");
+		if (sun != null && GodotObject.IsInstanceValid(sun))
+		{
+			GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
 		}
 	}
 }

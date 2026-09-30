@@ -116,6 +116,77 @@ public static partial class MapWorkspaceService
 		Realm.Godot.Services.NoiseTextureGenerator.EnsureAllNoiseTexturesGenerated(directory);
 	}
 
+	public static void CleanWorkspaceDirectory(string targetDir)
+	{
+		if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir)) return;
+		try
+		{
+			foreach (var file in Directory.GetFiles(targetDir, "*", SearchOption.AllDirectories))
+			{
+				var fileAttributes = File.GetAttributes(file);
+				if ((fileAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+				{
+					File.SetAttributes(file, fileAttributes & ~FileAttributes.ReadOnly);
+				}
+				File.Delete(file);
+			}
+
+			foreach (var directory in Directory.GetDirectories(targetDir))
+			{
+				Directory.Delete(directory, true);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] CleanWorkspaceDirectory error: {ex.Message}");
+		}
+	}
+
+	public static void CopyFolderToWorkspace(string sourceFolder, string targetWorkspacePath, string? mapName = null)
+	{
+		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder)) return;
+		if (string.IsNullOrEmpty(targetWorkspacePath)) return;
+
+		CleanWorkspaceDirectory(targetWorkspacePath);
+		Directory.CreateDirectory(targetWorkspacePath);
+
+		string resolvedMapName = !string.IsNullOrWhiteSpace(mapName)
+			? mapName
+			: Path.GetFileName(sourceFolder) ?? "MapScript";
+
+		var allFiles = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);
+		var filesToProcess = new List<(string Source, string Target, bool IsMutable)>(allFiles.Length);
+		var createdDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		foreach (var file in allFiles)
+		{
+			string relativePath = file.Substring(sourceFolder.Length + 1);
+			if (MapEditorHUD.IsIgnoredPath(relativePath)) continue;
+
+			string targetFile = Path.Combine(targetWorkspacePath, relativePath);
+			string? targetDir = Path.GetDirectoryName(targetFile);
+			if (!string.IsNullOrEmpty(targetDir) && createdDirs.Add(targetDir))
+			{
+				Directory.CreateDirectory(targetDir);
+			}
+			filesToProcess.Add((file, targetFile, PathUtils.IsMutableMapFileType(relativePath)));
+		}
+
+		Parallel.ForEach(filesToProcess, item =>
+		{
+			if (item.IsMutable)
+			{
+				PathUtils.CopyFileClearingReadOnly(item.Source, item.Target);
+			}
+			else
+			{
+				PathUtils.LinkOrCopyFile(item.Source, item.Target, preferHardLink: true);
+			}
+		});
+
+		SetupWorkspace(targetWorkspacePath, resolvedMapName);
+	}
+
 	public static void CleanWorkspaceBinaries(string directory)
 	{
 		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
