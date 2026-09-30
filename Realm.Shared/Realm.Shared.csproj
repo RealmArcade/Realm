@@ -32,6 +32,7 @@
     <PackageReference Include="NSec.Cryptography" Version="26.4.0" />
     <PackageReference Include="SharpCompress" Version="0.50.4" />
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.11" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>

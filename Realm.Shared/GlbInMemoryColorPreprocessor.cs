@@ -3,6 +3,7 @@ using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Realm.Shared.Textures;
 using SkiaSharp;
 
@@ -144,21 +145,7 @@ public static class GlbInMemoryColorPreprocessor
 			using var ormImg = SKBitmap.Decode(ormRaw);
 			if (ormImg == null) return glbBytes;
 
-			bool hasMask = false;
-			for (int y = 0; y < ormImg.Height; y++)
-			{
-				for (int x = 0; x < ormImg.Width; x++)
-				{
-					if (ormImg.GetPixel(x, y).Red > 0)
-					{
-						hasMask = true;
-						break;
-					}
-				}
-				if (hasMask) break;
-			}
-
-			if (!hasMask)
+			if (!HasMaskInOrm(ormImg))
 			{
 				return glbBytes;
 			}
@@ -191,6 +178,65 @@ public static class GlbInMemoryColorPreprocessor
 		}
 	}
 
+	private static bool HasMaskInOrm(SKBitmap ormImg)
+	{
+		SKBitmap workBitmap = ormImg;
+		bool disposeWork = false;
+		if (ormImg.ColorType != SKColorType.Rgba8888 && ormImg.ColorType != SKColorType.Bgra8888)
+		{
+			workBitmap = ormImg.Copy(SKColorType.Rgba8888);
+			disposeWork = workBitmap != null && workBitmap != ormImg;
+			if (workBitmap == null) workBitmap = ormImg;
+		}
+
+		try
+		{
+			IntPtr pixelsPtr = workBitmap.GetPixels();
+			if (pixelsPtr != IntPtr.Zero)
+			{
+				unsafe
+				{
+					byte* basePtr = (byte*)pixelsPtr;
+					int rowBytes = workBitmap.RowBytes;
+					int rOffset = workBitmap.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+					int width = workBitmap.Width;
+					int height = workBitmap.Height;
+
+					for (int y = 0; y < height; y++)
+					{
+						byte* row = basePtr + (y * rowBytes);
+						for (int x = 0; x < width; x++)
+						{
+							if (row[x * 4 + rOffset] > 0)
+							{
+								return true;
+							}
+						}
+					}
+					return false;
+				}
+			}
+
+			int h = workBitmap.Height;
+			int w = workBitmap.Width;
+			for (int y = 0; y < h; y++)
+			{
+				for (int x = 0; x < w; x++)
+				{
+					if (workBitmap.GetPixel(x, y).Red > 0)
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		finally
+		{
+			if (disposeWork) workBitmap.Dispose();
+		}
+	}
+
 	public static void ApplyAnalyticalChromaDespill(
 		SKBitmap albedoImg,
 		SKBitmap ormImg,
@@ -217,34 +263,124 @@ public static class GlbInMemoryColorPreprocessor
 		int ormHeight = ormImg.Height;
 		bool sameDimensions = (width == ormWidth && height == ormHeight);
 
-		float[] maskValues = new float[width * height];
-		for (int y = 0; y < height; y++)
+		SKBitmap workAlbedo = albedoImg;
+		bool disposeWorkAlbedo = false;
+		if (albedoImg.ColorType != SKColorType.Rgba8888 && albedoImg.ColorType != SKColorType.Bgra8888)
 		{
-			int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
-			int rowOffset = y * width;
-
-			for (int x = 0; x < width; x++)
-			{
-				int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
-				maskValues[rowOffset + x] = ormImg.GetPixel(ormX, ormY).Red / 255.0f;
-			}
+			workAlbedo = albedoImg.Copy(SKColorType.Rgba8888);
+			disposeWorkAlbedo = workAlbedo != null && workAlbedo != albedoImg;
+			if (workAlbedo == null) workAlbedo = albedoImg;
 		}
 
-		for (int y = 0; y < height; y++)
+		SKBitmap workOrm = ormImg;
+		bool disposeWorkOrm = false;
+		if (ormImg.ColorType != SKColorType.Rgba8888 && ormImg.ColorType != SKColorType.Bgra8888)
 		{
-			int rowOffset = y * width;
+			workOrm = ormImg.Copy(SKColorType.Rgba8888);
+			disposeWorkOrm = workOrm != null && workOrm != ormImg;
+			if (workOrm == null) workOrm = ormImg;
+		}
 
-			for (int x = 0; x < width; x++)
+		try
+		{
+			IntPtr albedoPtr = workAlbedo.GetPixels();
+			IntPtr ormPtr = workOrm.GetPixels();
+
+			if (albedoPtr != IntPtr.Zero && ormPtr != IntPtr.Zero)
 			{
-				float mask = maskValues[rowOffset + x];
-				if (mask >= 0.999f) continue;
-
-				var pixel = albedoImg.GetPixel(x, y);
-				if (TryDespillPixel(pixel.Red, pixel.Green, pixel.Blue, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
+				unsafe
 				{
-					albedoImg.SetPixel(x, y, new SKColor(newR, newG, newB, pixel.Alpha));
+					byte* albBase = (byte*)albedoPtr;
+					byte* ormBase = (byte*)ormPtr;
+					int albRowBytes = workAlbedo.RowBytes;
+					int ormRowBytes = workOrm.RowBytes;
+
+					int albROff = workAlbedo.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+					int albGOff = 1;
+					int albBOff = workAlbedo.ColorType == SKColorType.Bgra8888 ? 0 : 2;
+
+					int ormROff = workOrm.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+
+					Parallel.For(0, height, y =>
+					{
+						int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
+						byte* albRow = albBase + y * albRowBytes;
+						byte* ormRow = ormBase + ormY * ormRowBytes;
+
+						for (int x = 0; x < width; x++)
+						{
+							int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
+							float mask = ormRow[ormX * 4 + ormROff] / 255.0f;
+							if (mask >= 0.999f) continue;
+
+							int albIdx = x * 4;
+							byte r = albRow[albIdx + albROff];
+							byte g = albRow[albIdx + albGOff];
+							byte b = albRow[albIdx + albBOff];
+
+							if (TryDespillPixel(r, g, b, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
+							{
+								albRow[albIdx + albROff] = newR;
+								albRow[albIdx + albGOff] = newG;
+								albRow[albIdx + albBOff] = newB;
+							}
+						}
+					});
+				}
+
+				if (disposeWorkAlbedo)
+				{
+					using var skImg = SKImage.FromBitmap(workAlbedo);
+					using var canvas = new SKCanvas(albedoImg);
+					canvas.Clear();
+					canvas.DrawImage(skImg, 0, 0);
 				}
 			}
+			else
+			{
+				float[] maskValues = new float[width * height];
+				for (int y = 0; y < height; y++)
+				{
+					int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
+					int rowOffset = y * width;
+
+					for (int x = 0; x < width; x++)
+					{
+						int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
+						maskValues[rowOffset + x] = workOrm.GetPixel(ormX, ormY).Red / 255.0f;
+					}
+				}
+
+				for (int y = 0; y < height; y++)
+				{
+					int rowOffset = y * width;
+
+					for (int x = 0; x < width; x++)
+					{
+						float mask = maskValues[rowOffset + x];
+						if (mask >= 0.999f) continue;
+
+						var pixel = workAlbedo.GetPixel(x, y);
+						if (TryDespillPixel(pixel.Red, pixel.Green, pixel.Blue, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
+						{
+							workAlbedo.SetPixel(x, y, new SKColor(newR, newG, newB, pixel.Alpha));
+						}
+					}
+				}
+
+				if (disposeWorkAlbedo)
+				{
+					using var skImg = SKImage.FromBitmap(workAlbedo);
+					using var canvas = new SKCanvas(albedoImg);
+					canvas.Clear();
+					canvas.DrawImage(skImg, 0, 0);
+				}
+			}
+		}
+		finally
+		{
+			if (disposeWorkAlbedo) workAlbedo.Dispose();
+			if (disposeWorkOrm) workOrm.Dispose();
 		}
 	}
 
