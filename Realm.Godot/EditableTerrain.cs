@@ -250,10 +250,12 @@ public partial class EditableTerrain : RuntimeTerrain
 		var oldCells = Cells;
 		int[,] oldPathing = state.PathingCodes;
 		TerrainSplatWeights[,] oldSplatMap = SplatMap;
+		TerrainSplatWeights[,] oldCliffSplatMap = CliffSplatMap;
 
 		var newCells = new TerrainCell[newWidth, newDepth];
 		int[,] newPathing = new int[newWidth, newDepth];
 		TerrainSplatWeights[,] newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
+		TerrainSplatWeights[,] newCliffSplatMap = oldCliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
 
 		for (int z = 0; z <= newDepth; z++)
 		{
@@ -279,6 +281,13 @@ public partial class EditableTerrain : RuntimeTerrain
 				}
 
 				newSplatMap[x, z] = oldSplatMap != null ? oldSplatMap[x0, z0] : TerrainSplatWeights.CreateSolid(0);
+
+				if (newCliffSplatMap != null && oldCliffSplatMap != null)
+				{
+					int cx0 = Math.Clamp((int)Math.Floor(x * (float)(oldCliffSplatMap.GetLength(0) - 1) / newWidth), 0, oldCliffSplatMap.GetLength(0) - 1);
+					int cz0 = Math.Clamp((int)Math.Floor(z * (float)(oldCliffSplatMap.GetLength(1) - 1) / newDepth), 0, oldCliffSplatMap.GetLength(1) - 1);
+					newCliffSplatMap[x, z] = oldCliffSplatMap[cx0, cz0];
+				}
 			}
 		}
 
@@ -290,6 +299,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		_localCells = newCells;
 		_localPathingCodes = newPathing;
 		SplatMap = newSplatMap;
+		CliffSplatMap = newCliffSplatMap;
 		
 		if (_material != null)
 		{

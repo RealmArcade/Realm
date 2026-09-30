@@ -467,6 +467,11 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				{
 					if (!string.IsNullOrEmpty(cleanMapName)) meta.MapProperties.MapName = cleanMapName;
 					meta.MapProperties.Version = cleanVersion;
+					if (GameHost.Instance?.GroundTerrain != null)
+					{
+						meta.MapProperties.MapWidth = GameHost.Instance.GroundTerrain.Width;
+						meta.MapProperties.MapHeight = GameHost.Instance.GroundTerrain.Depth;
+					}
 					meta.MapProperties.CameraBoundsLeft = GameHost.Instance?.EditorCameraBoundsLeft;
 					meta.MapProperties.CameraBoundsRight = GameHost.Instance?.EditorCameraBoundsRight;
 					meta.MapProperties.CameraBoundsTop = GameHost.Instance?.EditorCameraBoundsTop;

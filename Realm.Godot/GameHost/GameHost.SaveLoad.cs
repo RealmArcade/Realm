@@ -400,12 +400,16 @@ public partial class GameHost
 						int cD = cliffIdxImg.GetHeight();
 						ReadOnlySpan<float> idxData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(cliffIdxImg.GetData());
 						ReadOnlySpan<float> wgtData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(cliffWgtImg.GetData());
-						GroundTerrain.CliffSplatMap = new TerrainSplatWeights[cW, cD];
-						for (int z = 0; z < cD; z++)
+						int targetCliffW = width + 1;
+						int targetCliffD = depth + 1;
+						GroundTerrain.CliffSplatMap = new TerrainSplatWeights[targetCliffW, targetCliffD];
+						for (int z = 0; z < targetCliffD; z++)
 						{
-							for (int x = 0; x < cW; x++)
+							for (int x = 0; x < targetCliffW; x++)
 							{
-								int baseIdx = (z * cW + x) * 4;
+								int srcX = cW == targetCliffW ? x : System.Math.Clamp((int)System.Math.Floor(x * (float)(cW - 1) / System.Math.Max(1, targetCliffW - 1)), 0, cW - 1);
+								int srcZ = cD == targetCliffD ? z : System.Math.Clamp((int)System.Math.Floor(z * (float)(cD - 1) / System.Math.Max(1, targetCliffD - 1)), 0, cD - 1);
+								int baseIdx = (srcZ * cW + srcX) * 4;
 								GroundTerrain.CliffSplatMap[x, z] = new TerrainSplatWeights
 								{
 									Index0 = (int)System.Math.Round(idxData[baseIdx + 0]),

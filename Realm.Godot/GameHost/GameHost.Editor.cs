@@ -4795,6 +4795,24 @@ public partial class GameHost
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 		MapEditorHUD.Instance?.RegenerateMinimap();
 
+		string activeWsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string metaPath = MetadataService.ResolveMetadataPath(activeWsPath);
+		if (System.IO.File.Exists(metaPath))
+		{
+			try
+			{
+				MetadataService.Instance.UpdateMetadata(activeWsPath, meta =>
+				{
+					meta.MapProperties.MapWidth = newWidth;
+					meta.MapProperties.MapHeight = newDepth;
+				});
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"Failed to update metadata.json map dimensions: {ex.Message}");
+			}
+		}
+
 		EditorHasUnsavedChanges = true;
 		MapEditorHUD.Instance?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
 
@@ -4829,6 +4847,10 @@ public partial class GameHost
 			if (GodotObject.IsInstanceValid(unit))
 			{
 				unit.Position = new Godot.Vector3(unit.Position.X * scaleX, unit.Position.Y, unit.Position.Z * scaleZ);
+				if (EcsWorld != null && EcsWorld.IsAlive(unit.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(unit.Entity))
+				{
+					EcsWorld.Set(unit.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(unit.Position.X, unit.Position.Y, unit.Position.Z)));
+				}
 			}
 		}
 
@@ -4837,27 +4859,73 @@ public partial class GameHost
 			if (GodotObject.IsInstanceValid(prop))
 			{
 				prop.Position = new Godot.Vector3(prop.Position.X * scaleX, prop.Position.Y, prop.Position.Z * scaleZ);
+				if (EcsWorld != null && EcsWorld.IsAlive(prop.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(prop.Entity))
+				{
+					EcsWorld.Set(prop.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(prop.Position.X, prop.Position.Y, prop.Position.Z)));
+				}
 			}
 		}
 
-		foreach (var child in GetChildren())
+		foreach (var decal in AllDecals)
 		{
-			if (child is Decal decal && GodotObject.IsInstanceValid(decal))
+			if (GodotObject.IsInstanceValid(decal))
 			{
 				decal.Position = new Godot.Vector3(decal.Position.X * scaleX, decal.Position.Y, decal.Position.Z * scaleZ);
+				if (decal is Decal3D decal3D && EcsWorld != null && EcsWorld.IsAlive(decal3D.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(decal3D.Entity))
+				{
+					EcsWorld.Set(decal3D.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(decal.Position.X, decal.Position.Y, decal.Position.Z)));
+				}
 			}
 		}
 
-		float diffWidth = (newWidth - oldWidth) * quadSize;
-		float diffDepth = (newDepth - oldDepth) * quadSize;
-		EditorCameraBoundsLeft -= diffWidth / 2.0f;
-		EditorCameraBoundsRight += diffWidth / 2.0f;
-		EditorCameraBoundsTop -= diffDepth / 2.0f;
-		EditorCameraBoundsBottom += diffDepth / 2.0f;
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.Position = new Godot.Vector3(vfx.Position.X * scaleX, vfx.Position.Y, vfx.Position.Z * scaleZ);
+				}
+			}
+		}
+
+		for (int i = 0; i < EditorCoordinates.Count; i++)
+		{
+			var coord = EditorCoordinates[i];
+			coord.MinX *= scaleX;
+			coord.MaxX *= scaleX;
+			coord.MinZ *= scaleZ;
+			coord.MaxZ *= scaleZ;
+		}
+		RebuildAllCoordinatePersistentMeshes();
+		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+
+		EditorCameraBoundsLeft *= scaleX;
+		EditorCameraBoundsRight *= scaleX;
+		EditorCameraBoundsTop *= scaleZ;
+		EditorCameraBoundsBottom *= scaleZ;
 
 		DeleteEntitiesOutsideBounds();
 
-		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+
+		string scaleWsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string scaleMetaPath = MetadataService.ResolveMetadataPath(scaleWsPath);
+		if (System.IO.File.Exists(scaleMetaPath))
+		{
+			try
+			{
+				MetadataService.Instance.UpdateMetadata(scaleWsPath, meta =>
+				{
+					meta.MapProperties.MapWidth = newWidth;
+					meta.MapProperties.MapHeight = newDepth;
+				});
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"Failed to update metadata.json map dimensions during scale: {ex.Message}");
+			}
+		}
 		RebuildCameraBoundsOverlay();
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 		MapEditorHUD.Instance?.RegenerateMinimap();
