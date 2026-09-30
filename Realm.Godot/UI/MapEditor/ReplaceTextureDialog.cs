@@ -10,7 +10,7 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 	private TerrainSplatWeights[,]? _snapshotSplatMap;
 	private TerrainSplatWeights[,]? _snapshotCliffSplatMap;
 
-	public ReplaceTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("REPLACE TERRAIN TEXTURE"), new Vector2(440, 240))
+	public ReplaceTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("REPLACE TERRAIN TEXTURE"), new Vector2(420, 160))
 	{
 		BuildUI();
 	}
@@ -27,32 +27,34 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		var grid = new GridContainer();
 		grid.Columns = 2;
 		grid.AddThemeConstantOverride("h_separation", 12);
-		grid.AddThemeConstantOverride("v_separation", 10);
+		grid.AddThemeConstantOverride("v_separation", 8);
 		grid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		BodyContainer.AddChild(grid);
 
 		var lblSource = new Label();
 		lblSource.Text = TranslationServer.Translate("Source Texture:");
-		lblSource.AddThemeFontSizeOverride("font_size", 12);
+		lblSource.AddThemeFontSizeOverride("font_size", 11);
 		lblSource.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
 		grid.AddChild(lblSource);
 
 		_optSource = new OptionButton();
 		_optSource.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_optSource.CustomMinimumSize = new Vector2(0, 30);
+		_optSource.CustomMinimumSize = new Vector2(0, 26);
+		_optSource.AddThemeFontSizeOverride("font_size", 11);
 		_optSource.FocusMode = Control.FocusModeEnum.None;
 		_optSource.ItemSelected += (_) => ApplyLivePreview();
 		grid.AddChild(_optSource);
 
 		var lblTarget = new Label();
 		lblTarget.Text = TranslationServer.Translate("Target Texture:");
-		lblTarget.AddThemeFontSizeOverride("font_size", 12);
+		lblTarget.AddThemeFontSizeOverride("font_size", 11);
 		lblTarget.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
 		grid.AddChild(lblTarget);
 
 		_optTarget = new OptionButton();
 		_optTarget.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_optTarget.CustomMinimumSize = new Vector2(0, 30);
+		_optTarget.CustomMinimumSize = new Vector2(0, 26);
+		_optTarget.AddThemeFontSizeOverride("font_size", 11);
 		_optTarget.FocusMode = Control.FocusModeEnum.None;
 		_optTarget.ItemSelected += (_) => ApplyLivePreview();
 		grid.AddChild(_optTarget);
