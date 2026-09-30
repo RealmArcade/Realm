@@ -1664,8 +1664,16 @@ public partial class GameHost
 
 	public void RefreshAllPlacedObjectModels(string targetId = null)
 	{
-		ModelCache.Clear();
-		Prop3D.ClearModelPathCache();
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			ModelCache.InvalidateModelPath(targetId);
+			Prop3D.InvalidateModelPathCache(targetId);
+		}
+		else
+		{
+			ModelCache.Clear();
+			Prop3D.ClearModelPathCache();
+		}
 
 		foreach (var unit in AllUnits)
 		{

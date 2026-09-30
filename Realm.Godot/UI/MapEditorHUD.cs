@@ -402,7 +402,7 @@ public partial class MapEditorHUD : Control
 			? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 			: _tempWorkspacePath;
 		string metadataPath = string.IsNullOrEmpty(path) ? System.IO.Path.Combine(wsPath, "metadata.json") : path;
-		_lastMetadataSyncTime = GetLastWriteTimeSafe(metadataPath);
+		_lastMetadataSyncTime = Math.Max(GetLastWriteTimeSafe(metadataPath), DateTime.UtcNow.Ticks);
 	}
 
 	private void OnMetadataSaved(string targetPath)
@@ -3589,17 +3589,25 @@ public partial class MapEditorHUD : Control
 		bool terrainModifiedOnDisk = currentTerrainWrite > _lastTerrainSyncTime;
 		bool metadataModifiedOnDisk = currentMetadataWrite > _lastMetadataSyncTime;
 
+		bool isRecentInternalSave = (DateTime.UtcNow - EditorService.LastInternalSaveTimeUtc).TotalMilliseconds < 2000;
+
 		if (terrainModifiedOnDisk || metadataModifiedOnDisk)
 		{
 			if (metadataModifiedOnDisk)
 			{
-				_lastMetadataSyncTime = GetLastWriteTimeSafe(metadataPath);
-				ReadMetadataAndRefreshTextures();
+				_lastMetadataSyncTime = Math.Max(currentMetadataWrite, DateTime.UtcNow.Ticks);
+				if (!isRecentInternalSave)
+				{
+					ReadMetadataAndRefreshTextures();
+				}
 			}
 			if (terrainModifiedOnDisk)
 			{
-				GameHost.Instance.LoadMapFromFile(terrainPath);
-				_lastTerrainSyncTime = GetMaxTerrainWriteTime(terrainPath);
+				_lastTerrainSyncTime = Math.Max(currentTerrainWrite, DateTime.UtcNow.Ticks);
+				if (!isRecentInternalSave)
+				{
+					GameHost.Instance.LoadMapFromFile(terrainPath);
+				}
 			}
 			
 			GameHost.Instance.EditorHasUnsavedChanges = false;

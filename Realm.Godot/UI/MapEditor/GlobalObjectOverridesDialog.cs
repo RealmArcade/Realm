@@ -408,7 +408,6 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 
 		GameHost.Instance.RefreshAllPlacedObjectModels(_currentAssetKey);
 		GameHost.Instance.FlushModelYOffsetSave();
-		GameHost.Instance.FlushModelCollisionCircleSave();
 		Hud?.ShowFeedback(TranslationServer.Translate("Global object overrides applied"));
 	}
 
@@ -431,6 +430,5 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 
 		GameHost.Instance.RefreshAllPlacedObjectModels(_currentAssetKey);
 		GameHost.Instance.FlushModelYOffsetSave();
-		GameHost.Instance.FlushModelCollisionCircleSave();
 	}
 }

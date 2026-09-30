@@ -612,6 +612,13 @@ public partial class Prop3D : StaticBody3D
 		return resolved;
 	}
 
+	public static void InvalidateModelPathCache(string propId)
+	{
+		if (string.IsNullOrEmpty(propId)) return;
+		_resolvedModelPathCache.Remove(propId);
+		_modelShapeCache.Remove(propId);
+	}
+
 	public static void ClearModelPathCache()
 	{
 		_resolvedModelPathCache.Clear();
