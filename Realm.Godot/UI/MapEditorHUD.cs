@@ -42,6 +42,7 @@ public partial class MapEditorHUD : Control
 	public static GameHost.EditorTool SavedActiveTool = GameHost.EditorTool.Raise;
 	public static string SavedActivePlaceId = "";
 	public static bool SavedCameraBoundsVisible = false;
+	public static bool SavedDisableShadows = false;
 	public static string SavedEntityCategory = "";
 
 	public static float SavedBrushRadius = 2f;
@@ -281,6 +282,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnToggleSnap;
 	private Button _btnToggleGrid;
 	private Button _btnToggleWireframe;
+	private Button _btnToggleShadows;
 	private Button _btnBrushShape;
 	private Button _btnResetMap;
 	private Button _btnGenerateMap;
@@ -839,6 +841,13 @@ public partial class MapEditorHUD : Control
 				UpdateWireframeOverlayExternal(isWireframe);
 			}
 		}, 12, "Toggle wireframe mode (F7)");
+		_btnToggleShadows = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleShadows") ?? new Button();
+		_btnToggleShadows.Name = "BtnToggleShadows";
+		_btnToggleShadows.Set("icon_max_width", 0);
+		SetupButton(_btnToggleShadows, "\uf186", () =>
+		{
+			ToggleShadows();
+		}, 12, "Toggle shadows in editor (F9)");
 
 		_btnRotate = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnRotate");
 		SetupButton(_btnRotate, "\uf01e", () =>
@@ -911,6 +920,7 @@ public partial class MapEditorHUD : Control
 		}, 12, "Free Camera (F8)");
 		var initialCam = GameHost.Instance?.MainCamera as CameraControl;
 		UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
+		UpdateShadowsExternal(GameHost.Instance?.EditorDisableShadows ?? false);
 
 		_minimapFrame = GetNode<PanelContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
 		_minimapArea = GetNode<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea");
@@ -2297,6 +2307,29 @@ public partial class MapEditorHUD : Control
 			_btnFreeCamera.Text = "\uf03d";
 			_btnFreeCamera.TooltipText = TranslationServer.Translate($"Free Camera: {(isFreeCam ? "ON" : "OFF")} (F8)");
 			_btnFreeCamera.Modulate = isFreeCam ? new Color(1.8f, 1.45f, 0.5f) : new Color(1f, 1f, 1f);
+		}
+	}
+
+	public void ToggleShadows()
+	{
+		if (GameHost.Instance != null)
+		{
+			GameHost.Instance.EditorDisableShadows = !GameHost.Instance.EditorDisableShadows;
+			GameHost.Instance.UpdateEditorShadows();
+			UpdateShadowsExternal(GameHost.Instance.EditorDisableShadows);
+			ShowFeedback(GameHost.Instance.EditorDisableShadows
+				? TranslationServer.Translate("Shadows: OFF")
+				: TranslationServer.Translate("Shadows: ON"));
+		}
+	}
+
+	public void UpdateShadowsExternal(bool disabled)
+	{
+		if (_btnToggleShadows != null)
+		{
+			_btnToggleShadows.Text = "\uf186";
+			_btnToggleShadows.TooltipText = TranslationServer.Translate($"Shadows: {(disabled ? "OFF" : "ON")} (F9)");
+			_btnToggleShadows.Modulate = disabled ? new Color(1.8f, 1.45f, 0.5f) : new Color(1.1f, 1.1f, 1.1f);
 		}
 	}
 
@@ -7205,6 +7238,7 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnToggleGrid, "\uf84c", "Toggle alignment grid lines overlay (V)");
 			StyleIconButton(_btnToggleCameraBounds, "\uf06e", "Toggle camera bounds overlay (B)");
 			StyleIconButton(_btnToggleWireframe, "\uf5ee", "Toggle wireframe mode (F7)");
+			StyleIconButton(_btnToggleShadows, "\uf186", "Toggle shadows in editor (F9)");
 			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
 			StyleIconButton(_btnWeather, "\uf738", "Cycle weather effects (K)");
 
@@ -7217,6 +7251,7 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_btnToggleGrid, vpRow1);
 			SafeReparent(_btnToggleCameraBounds, vpRow1);
 			SafeReparent(_btnToggleWireframe, vpRow1);
+			SafeReparent(_btnToggleShadows, vpRow1);
 			SafeReparent(_btnSkybox, vpRow1);
 			SafeReparent(_btnWeather, vpRow1);
 
@@ -7851,6 +7886,11 @@ public partial class MapEditorHUD : Control
 			else if (keyEvent.Keycode == Godot.Key.F8)
 			{
 				ToggleFreeCamera();
+				GetViewport().SetInputAsHandled();
+			}
+			else if (keyEvent.Keycode == Godot.Key.F9)
+			{
+				ToggleShadows();
 				GetViewport().SetInputAsHandled();
 			}
 		}
@@ -10517,6 +10557,7 @@ public partial class MapEditorHUD : Control
 			SavedActiveTool = GameHost.Instance.ActiveEditorTool;
 			SavedActivePlaceId = GameHost.Instance.ActivePlaceId;
 			SavedCameraBoundsVisible = GameHost.Instance.EditorCameraBoundsVisible;
+			SavedDisableShadows = GameHost.Instance.EditorDisableShadows;
 			SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
 			SavedBrushRadius = (float)_sldBrushSize.Value;
 			SavedBrushStrength = (float)_sldBrushStrength.Value;

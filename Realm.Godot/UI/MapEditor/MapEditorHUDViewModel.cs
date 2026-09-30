@@ -42,6 +42,7 @@ public class MapEditorHUDViewModel
 	public bool SnapToGrid { get; set; } = false;
 	public bool GridOverlayVisible { get; set; } = false;
 	public bool CameraBoundsOverlayVisible { get; set; } = false;
+	public bool DisableShadows { get; set; } = false;
 	public string SkyboxSelected { get; set; } = "";
 	public bool PathingOverlayVisible { get; set; } = false;
 	public bool BrushShapeSquare { get; set; } = true;
@@ -82,6 +83,7 @@ public class MapEditorHUDViewModel
 			SnapToGrid = GameHost.Instance.EditorSnapToGrid;
 			GridOverlayVisible = GameHost.Instance.EditorGridVisible;
 			CameraBoundsOverlayVisible = GameHost.Instance.EditorCameraBoundsVisible;
+			DisableShadows = GameHost.Instance.EditorDisableShadows;
 			PathingOverlayVisible = GameHost.Instance.PathingOverlayVisible;
 			BrushShapeSquare = GameHost.Instance.EditorBrushIsSquare;
 		}

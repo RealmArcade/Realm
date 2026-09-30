@@ -453,6 +453,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public GridOverlayMode EditorGridMode { get; set; } = GridOverlayMode.Off;
 	public bool EditorGridVisible => EditorGridMode != GridOverlayMode.Off;
 	public bool EditorCameraBoundsVisible { get; set; } = false;
+	public bool EditorDisableShadows { get; set; } = false;
 	public float EditorCameraBoundsLeft
 	{
 		get => _editorService.GetCameraBoundsLeft(_worldEntity);

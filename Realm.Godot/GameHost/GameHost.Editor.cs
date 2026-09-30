@@ -4400,6 +4400,7 @@ public partial class GameHost
 
 				EditorGridMode = MapEditorHUD.SavedGridMode;
 				EditorCameraBoundsVisible = MapEditorHUD.SavedCameraBoundsVisible;
+				EditorDisableShadows = MapEditorHUD.SavedDisableShadows;
 
 				var camera = MainCamera as CameraControl;
 				if (camera != null)
@@ -4436,6 +4437,7 @@ public partial class GameHost
 		CreateBrushIndicator();
 		UpdateGridOverlayVisibility();
 		InitializeCameraBoundsOverlay();
+		UpdateEditorShadows();
 		UpdateDayNightVisuals(0.0f);
 		GroundTerrain?.SetShroudEnabled(false);
 	}
@@ -4446,6 +4448,7 @@ public partial class GameHost
 		ActiveEditorTool = EditorTool.None;
 		EditorHistoryManager.Clear();
 		ClearEditorPreview();
+		UpdateEditorShadows();
 		
 		if (_brushIndicatorMesh != null)
 		{
@@ -5900,6 +5903,15 @@ public partial class GameHost
 			{
 				RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 			}
+		}
+	}
+
+	public void UpdateEditorShadows()
+	{
+		var sun = GetNodeOrNull<DirectionalLight3D>("DirectionalLight3D");
+		if (sun != null && GodotObject.IsInstanceValid(sun))
+		{
+			GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
 		}
 	}
 }

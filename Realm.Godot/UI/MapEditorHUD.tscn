@@ -249,6 +249,12 @@ layout_mode = 2
 focus_mode = 0
 text = "🕸️ WIREFRAME: OFF"
 
+[node name="BtnToggleShadows" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+layout_mode = 2
+focus_mode = 0
+icon_max_width = 0
+text = "👥 SHADOWS: ON"
+
 [node name="BtnRotate" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0

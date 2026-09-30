@@ -668,6 +668,12 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
+				if (editorKeyEvent.Keycode == Key.F9)
+				{
+					MapEditorHUD.Instance?.ToggleShadows();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
 			}
 
 			if (@event is InputEventMouseButton wheelBtn && wheelBtn.Pressed && (wheelBtn.ButtonIndex == MouseButton.WheelUp || wheelBtn.ButtonIndex == MouseButton.WheelDown))
