@@ -3206,6 +3206,9 @@ public partial class MapEditorHUD : Control
 				case GameHost.EditorTool.Lower:
 					_lblInfoText.Text = TranslationServer.Translate("TOOL: Lower Heights\n\nDrag left click on the map ground to depress terrain. Adjust size and strength in settings.");
 					break;
+				case GameHost.EditorTool.Height:
+					_lblInfoText.Text = TranslationServer.Translate("TOOL: Exact Height\n\nDrag left click on the map ground to set terrain to exact block height. Adjust height in settings.");
+					break;
 				case GameHost.EditorTool.Plateau:
 					_lblInfoText.Text = TranslationServer.Translate("TOOL: Plateau\n\nDrag left click to flatten terrain to the elevation of your initial click point.");
 					break;
@@ -8625,6 +8628,7 @@ public partial class MapEditorHUD : Control
 	{
 		GameHost.EditorTool.Raise       => true,
 		GameHost.EditorTool.Lower       => true,
+		GameHost.EditorTool.Height      => true,
 		GameHost.EditorTool.Smooth      => true,
 		GameHost.EditorTool.Plateau     => true,
 		GameHost.EditorTool.Noise       => true,
