@@ -15,8 +15,6 @@ public static class HardLinkHelper
     [DllImport("libc", EntryPoint = "link", SetLastError = true)]
     private static extern int link(string oldpath, string newpath);
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _ensuredDirectories = new(StringComparer.OrdinalIgnoreCase);
-
     public static bool CreateHardLinkOrCopy(string destinationPath, string sourcePath, bool overwrite = true)
     {
         if (string.IsNullOrWhiteSpace(destinationPath) || string.IsNullOrWhiteSpace(sourcePath))
@@ -30,26 +28,9 @@ public static class HardLinkHelper
         }
 
         string? destDir = Path.GetDirectoryName(destinationPath);
-        if (!string.IsNullOrEmpty(destDir) && !_ensuredDirectories.ContainsKey(destDir))
+        if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
         {
-            if (!Directory.Exists(destDir))
-            {
-                Directory.CreateDirectory(destDir);
-            }
-            _ensuredDirectories[destDir] = true;
-        }
-
-        if (File.Exists(destinationPath))
-        {
-            if (!overwrite)
-            {
-                return true;
-            }
-            try
-            {
-                File.Delete(destinationPath);
-            }
-            catch { }
+            Directory.CreateDirectory(destDir);
         }
 
         try
@@ -60,12 +41,35 @@ public static class HardLinkHelper
                 {
                     return true;
                 }
+
+                if (!overwrite && Marshal.GetLastWin32Error() == 183) // ERROR_ALREADY_EXISTS
+                {
+                    return true;
+                }
+
+                if (overwrite)
+                {
+                    try { File.Delete(destinationPath); } catch { }
+                    if (CreateHardLinkW(destinationPath, sourcePath, IntPtr.Zero))
+                    {
+                        return true;
+                    }
+                }
             }
             else if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
             {
                 if (link(sourcePath, destinationPath) == 0)
                 {
                     return true;
+                }
+
+                if (overwrite)
+                {
+                    try { File.Delete(destinationPath); } catch { }
+                    if (link(sourcePath, destinationPath) == 0)
+                    {
+                        return true;
+                    }
                 }
             }
         }

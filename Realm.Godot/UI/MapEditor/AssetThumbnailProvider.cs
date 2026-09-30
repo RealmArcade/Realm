@@ -23,6 +23,16 @@ public static class AssetThumbnailProvider
 	private static readonly List<string> _lruOrder = new();
 	private const int MaxCacheEntries = 400;
 
+	private static string? _rtexCacheDir;
+	private static string? _ranimCacheDir;
+	private static string? _modelCacheDir;
+	private static string? _imageCacheDir;
+
+	public static string RtexCacheDir => _rtexCacheDir ??= ProjectSettings.GlobalizePath("user://rtex_thumb_cache");
+	public static string RanimCacheDir => _ranimCacheDir ??= ProjectSettings.GlobalizePath("user://ranim_thumb_cache");
+	public static string ModelCacheDir => _modelCacheDir ??= ProjectSettings.GlobalizePath("user://model_thumb_cache");
+	public static string ImageCacheDir => _imageCacheDir ??= ProjectSettings.GlobalizePath("user://image_thumb_cache");
+
 	public static string NormalizePath(string path)
 	{
 		if (string.IsNullOrEmpty(path)) return string.Empty;
@@ -226,10 +236,10 @@ public static class AssetThumbnailProvider
 		string ext = Path.GetExtension(normPath).ToLowerInvariant();
 		string cacheDir = ext switch
 		{
-			".rtex" => ProjectSettings.GlobalizePath("user://rtex_thumb_cache"),
-			".ranim" => ProjectSettings.GlobalizePath("user://ranim_thumb_cache"),
-			".rmesh" or ".glb" or ".gltf" => ProjectSettings.GlobalizePath("user://model_thumb_cache"),
-			_ => ProjectSettings.GlobalizePath("user://image_thumb_cache")
+			".rtex" => RtexCacheDir,
+			".ranim" => RanimCacheDir,
+			".rmesh" or ".glb" or ".gltf" => ModelCacheDir,
+			_ => ImageCacheDir
 		};
 		string hash = GlbThumbnailRenderer.GetBlake3(normPath, blake3);
 		if (string.IsNullOrEmpty(hash) || hash.Length < 2)

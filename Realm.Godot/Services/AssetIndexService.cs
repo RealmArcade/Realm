@@ -472,8 +472,7 @@ public class AssetIndexService : IDisposable
 							continue;
 						}
 
-						IndexedAsset? existingP2pAsset = null;
-						if (existingP2pMap.TryGetValue(normPath, out existingP2pAsset) || (existingP2pAsset = p2pAssetCol.FindOne(x => x.FilePath == normPath)) != null)
+						if (existingP2pMap.TryGetValue(normPath, out var existingP2pAsset))
 						{
 							bool needsUpdate = false;
 							string? metaJson = MapAssetManager.P2PStorage.GetAssetMetadata(norm);
@@ -481,25 +480,8 @@ public class AssetIndexService : IDisposable
 							{
 								metaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
 							}
-							string? assetType = null;
-							if (!string.IsNullOrWhiteSpace(metaJson))
-							{
-								try
-								{
-									var node = JsonNode.Parse(metaJson);
-									if (node is JsonObject obj)
-									{
-										string? typeVal = obj["asset_type"]?.ToString()
-											?? obj["AssetType"]?.ToString()
-											?? obj["default_asset_type"]?.ToString();
-										if (!string.IsNullOrEmpty(typeVal) && Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, typeVal, out string canonical, out _))
-										{
-											assetType = canonical;
-										}
-									}
-								}
-								catch { }
-							}
+							var parsed = ParseMetadataHeaders(metaJson, virtualPath);
+							string? assetType = parsed.AssetType;
 							if (string.IsNullOrEmpty(assetType))
 							{
 								string? dir = Path.GetDirectoryName(virtualPath);
@@ -522,9 +504,8 @@ public class AssetIndexService : IDisposable
 								existingP2pAsset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || existingP2pAsset.HasRealmMetadata;
 								needsUpdate = true;
 							}
-							bool existingP2pHasMask = DetermineHasPlayerColorMask(metaJson, normPath);
-							string? existingP2pChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson);
-							string resolvedP2pChroma = existingP2pChromaKey ?? string.Empty;
+							bool existingP2pHasMask = parsed.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
+							string resolvedP2pChroma = parsed.ChromaKey ?? string.Empty;
 							if (existingP2pAsset.HasPlayerColorMask != existingP2pHasMask || existingP2pAsset.ChromaKey != resolvedP2pChroma)
 							{
 								existingP2pAsset.HasPlayerColorMask = existingP2pHasMask;
@@ -580,28 +561,10 @@ public class AssetIndexService : IDisposable
 							p2pMetaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
 						}
 
-						var tags = ExtractTagsFromMetadataJson(p2pMetaJson);
-						string? p2pAssetType = null;
+						var parsedMeta = ParseMetadataHeaders(p2pMetaJson, virtualPath);
+						var tags = parsedMeta.Tags;
+						string? p2pAssetType = parsedMeta.AssetType;
 						bool hasRealmMetadata = !string.IsNullOrEmpty(p2pMetaJson);
-
-						if (!string.IsNullOrWhiteSpace(p2pMetaJson))
-						{
-							try
-							{
-								var node = JsonNode.Parse(p2pMetaJson);
-								if (node is JsonObject obj)
-								{
-									string? typeVal = obj["asset_type"]?.ToString()
-										?? obj["AssetType"]?.ToString()
-										?? obj["default_asset_type"]?.ToString();
-									if (!string.IsNullOrEmpty(typeVal) && Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, typeVal, out string canonical, out _))
-									{
-										p2pAssetType = canonical;
-									}
-								}
-							}
-							catch { }
-						}
 
 						if (tags.Count == 0)
 						{
@@ -657,10 +620,9 @@ public class AssetIndexService : IDisposable
 							}
 						}
 
-						bool p2pHasMask = DetermineHasPlayerColorMask(p2pMetaJson, normPath);
-						string? p2pChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(p2pMetaJson);
+						bool p2pHasMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(p2pMetaJson, normPath);
 						asset.HasPlayerColorMask = p2pHasMask;
-						asset.ChromaKey = p2pChromaKey ?? string.Empty;
+						asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
 
 						asset.AssetType = p2pAssetType;
 						asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(p2pAssetType);
@@ -731,8 +693,7 @@ public class AssetIndexService : IDisposable
 						continue;
 					}
 
-					IndexedAsset? existingAsset = null;
-					if (existingAssetMap.TryGetValue(normPath, out existingAsset) || (existingAsset = _assetCollection.FindOne(x => x.FilePath == normPath)) != null)
+					if (existingAssetMap.TryGetValue(normPath, out var existingAsset))
 					{
 						bool needsUpdate = false;
 						string? existingMetaJson = MapAssetManager.Storage.GetAssetMetadata(norm);
@@ -740,25 +701,8 @@ public class AssetIndexService : IDisposable
 						{
 							existingMetaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
 						}
-						string? existingAssetType = null;
-						if (!string.IsNullOrWhiteSpace(existingMetaJson))
-						{
-							try
-							{
-								var node = JsonNode.Parse(existingMetaJson);
-								if (node is JsonObject obj)
-								{
-									string? typeVal = obj["asset_type"]?.ToString()
-										?? obj["AssetType"]?.ToString()
-										?? obj["default_asset_type"]?.ToString();
-									if (!string.IsNullOrEmpty(typeVal) && Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, typeVal, out string canonical, out _))
-									{
-										existingAssetType = canonical;
-									}
-								}
-							}
-							catch { }
-						}
+						var parsed = ParseMetadataHeaders(existingMetaJson, virtualPath);
+						string? existingAssetType = parsed.AssetType;
 						if (string.IsNullOrEmpty(existingAssetType))
 						{
 							string? dir = Path.GetDirectoryName(virtualPath);
@@ -781,9 +725,8 @@ public class AssetIndexService : IDisposable
 							existingAsset.HasRealmMetadata = !string.IsNullOrEmpty(existingMetaJson) || existingAsset.HasRealmMetadata;
 							needsUpdate = true;
 						}
-						bool existingCasHasMask = DetermineHasPlayerColorMask(existingMetaJson, normPath);
-						string? existingCasChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(existingMetaJson);
-						string resolvedCasChroma = existingCasChromaKey ?? string.Empty;
+						bool existingCasHasMask = parsed.SupportsTeamColor ?? DetermineHasPlayerColorMask(existingMetaJson, normPath);
+						string resolvedCasChroma = parsed.ChromaKey ?? string.Empty;
 						if (existingAsset.HasPlayerColorMask != existingCasHasMask || existingAsset.ChromaKey != resolvedCasChroma)
 						{
 							existingAsset.HasPlayerColorMask = existingCasHasMask;
@@ -839,28 +782,10 @@ public class AssetIndexService : IDisposable
 						metaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
 					}
 
-					var tags = ExtractTagsFromMetadataJson(metaJson);
-					string? assetType = null;
+					var parsedMeta = ParseMetadataHeaders(metaJson, virtualPath);
+					var tags = parsedMeta.Tags;
+					string? assetType = parsedMeta.AssetType;
 					bool hasRealmMetadata = !string.IsNullOrEmpty(metaJson);
-
-					if (!string.IsNullOrWhiteSpace(metaJson))
-					{
-						try
-						{
-							var node = JsonNode.Parse(metaJson);
-							if (node is JsonObject obj)
-							{
-								string? typeVal = obj["asset_type"]?.ToString()
-									?? obj["AssetType"]?.ToString()
-									?? obj["default_asset_type"]?.ToString();
-								if (!string.IsNullOrEmpty(typeVal) && Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, typeVal, out string canonical, out _))
-								{
-									assetType = canonical;
-								}
-							}
-						}
-						catch { }
-					}
 
 					if (tags.Count == 0)
 					{
@@ -916,10 +841,9 @@ public class AssetIndexService : IDisposable
 						}
 					}
 
-					bool casHasMask = DetermineHasPlayerColorMask(metaJson, normPath);
-					string? casChromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(metaJson);
+					bool casHasMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
 					asset.HasPlayerColorMask = casHasMask;
-					asset.ChromaKey = casChromaKey ?? string.Empty;
+					asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
 
 					asset.AssetType = assetType;
 					asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(assetType);
@@ -1464,6 +1388,75 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
+	private struct ParsedAssetMetadata
+	{
+		public string? AssetType;
+		public bool? SupportsTeamColor;
+		public string? ChromaKey;
+		public List<string> Tags;
+	}
+
+	private static ParsedAssetMetadata ParseMetadataHeaders(string? metaJson, string filePath)
+	{
+		var result = new ParsedAssetMetadata
+		{
+			Tags = new List<string>()
+		};
+
+		if (string.IsNullOrWhiteSpace(metaJson))
+		{
+			return result;
+		}
+
+		try
+		{
+			var node = JsonNode.Parse(metaJson);
+			if (node is JsonObject obj)
+			{
+				string? typeVal = obj["asset_type"]?.ToString()
+					?? obj["AssetType"]?.ToString()
+					?? obj["default_asset_type"]?.ToString();
+				if (!string.IsNullOrEmpty(typeVal) && Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(filePath, typeVal, out string canonical, out _))
+				{
+					result.AssetType = canonical;
+				}
+
+				if (obj["team_color"] != null && bool.TryParse(obj["team_color"]?.ToString(), out bool tcVal))
+				{
+					result.SupportsTeamColor = tcVal;
+				}
+				else if (obj["supports_team_color"] != null && bool.TryParse(obj["supports_team_color"]?.ToString(), out bool stcVal))
+				{
+					result.SupportsTeamColor = stcVal;
+				}
+				else if (obj["has_player_color_mask"] != null && bool.TryParse(obj["has_player_color_mask"]?.ToString(), out bool hpcmVal))
+				{
+					result.SupportsTeamColor = hpcmVal;
+				}
+
+				result.ChromaKey = obj["chroma_key"]?.ToString()
+					?? obj["chromaKey"]?.ToString()
+					?? obj["target_hex"]?.ToString()
+					?? obj["targetHex"]?.ToString();
+
+				if (obj["tags"] is JsonArray arr)
+				{
+					foreach (var item in arr)
+					{
+						string? t = item?.ToString()?.Trim();
+						if (!string.IsNullOrEmpty(t) && !result.Tags.Contains(t, StringComparer.OrdinalIgnoreCase))
+						{
+							result.Tags.Add(t);
+						}
+					}
+				}
+			}
+		}
+		catch { }
+
+		return result;
+	}
+
 	private static bool DetermineHasPlayerColorMask(string? metaJson, string? filePath)
 	{
 		if (!string.IsNullOrEmpty(metaJson) && Realm.Shared.Metadata.RealmMetadataHelper.ExtractSupportsTeamColorFromMetadataJson(metaJson))
@@ -1528,44 +1521,48 @@ public class AssetIndexService : IDisposable
 
 		if (tagSet.Count == 0)
 		{
-			string sidecarJsonWithExt = filePath + ".json";
-			string sidecarJsonNoExt = Path.Combine(Path.GetDirectoryName(filePath)!, Path.GetFileNameWithoutExtension(filePath) + ".json");
+			bool isCas = filePath.StartsWith(GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase);
+			if (!isCas)
+			{
+				string sidecarJsonWithExt = filePath + ".json";
+				string sidecarJsonNoExt = Path.Combine(Path.GetDirectoryName(filePath)!, Path.GetFileNameWithoutExtension(filePath) + ".json");
 
-			string? foundMetadataPath = null;
-			if (File.Exists(sidecarJsonWithExt))
-			{
-				foundMetadataPath = sidecarJsonWithExt;
-			}
-			else if (File.Exists(sidecarJsonNoExt) && !string.Equals(sidecarJsonNoExt, filePath, StringComparison.OrdinalIgnoreCase))
-			{
-				foundMetadataPath = sidecarJsonNoExt;
-			}
-
-			if (foundMetadataPath != null)
-			{
-				try
+				string? foundMetadataPath = null;
+				if (File.Exists(sidecarJsonWithExt))
 				{
-					string jsonContent = File.ReadAllText(foundMetadataPath);
-					var rootNode = JsonNode.Parse(jsonContent);
-					if (rootNode is JsonObject jsonObject)
+					foundMetadataPath = sidecarJsonWithExt;
+				}
+				else if (File.Exists(sidecarJsonNoExt) && !string.Equals(sidecarJsonNoExt, filePath, StringComparison.OrdinalIgnoreCase))
+				{
+					foundMetadataPath = sidecarJsonNoExt;
+				}
+
+				if (foundMetadataPath != null)
+				{
+					try
 					{
-						if (jsonObject["tags"] is JsonArray tagsArray)
+						string jsonContent = File.ReadAllText(foundMetadataPath);
+						var rootNode = JsonNode.Parse(jsonContent);
+						if (rootNode is JsonObject jsonObject)
 						{
-							foreach (var item in tagsArray)
+							if (jsonObject["tags"] is JsonArray tagsArray)
 							{
-								if (item != null)
+								foreach (var item in tagsArray)
 								{
-									string tagStr = item.ToString().Trim();
-									if (!string.IsNullOrEmpty(tagStr))
+									if (item != null)
 									{
-										tagSet.Add(tagStr);
+										string tagStr = item.ToString().Trim();
+										if (!string.IsNullOrEmpty(tagStr))
+										{
+											tagSet.Add(tagStr);
+										}
 									}
 								}
 							}
 						}
 					}
+					catch { }
 				}
-				catch { }
 			}
 		}
 

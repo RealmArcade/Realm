@@ -219,7 +219,7 @@ public partial class GlbThumbnailRenderer : Node
 		string hash = GetBlake3(normPath, blake3);
 		if (string.IsNullOrEmpty(hash) || hash.Length < 2) return false;
 
-		string cacheDirectory = ProjectSettings.GlobalizePath("user://model_thumb_cache");
+		string cacheDirectory = AssetThumbnailProvider.ModelCacheDir;
 		string cachedPngPath = Path.Combine(cacheDirectory, hash.Substring(0, 2), $"{hash}.png");
 
 		if (File.Exists(cachedPngPath))
@@ -247,7 +247,7 @@ public partial class GlbThumbnailRenderer : Node
 		string hash = GetBlake3(normPath, blake3);
 		if (string.IsNullOrEmpty(hash) || hash.Length < 2) return false;
 
-		string cacheDirectory = ProjectSettings.GlobalizePath("user://model_thumb_cache");
+		string cacheDirectory = AssetThumbnailProvider.ModelCacheDir;
 		string cachedPngPath = Path.Combine(cacheDirectory, hash.Substring(0, 2), $"{hash}.png");
 
 		return File.Exists(cachedPngPath);
@@ -461,7 +461,7 @@ public partial class GlbThumbnailRenderer : Node
 						img.Convert(Image.Format.Rgba8);
 					}
 
-					string cacheDirectory = ProjectSettings.GlobalizePath("user://model_thumb_cache");
+					string cacheDirectory = AssetThumbnailProvider.ModelCacheDir;
 					string hash = !string.IsNullOrEmpty(_currentRequest.Blake3)
 						? _currentRequest.Blake3
 						: GetBlake3(_currentRequest.FilePath, null);

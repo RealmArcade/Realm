@@ -543,8 +543,8 @@ public class MapStorageService
         string archivePath,
         Action<float>? progressCallback)
     {
-        var headerInfo = MapArchiveHelper.ReadHeaderFromRmap(archivePath);
-        var (manifestJson, rootPrefix) = MapArchiveHelper.ReadManifestFromArchive(archivePath);
+        using var zipArchive = System.IO.Compression.ZipFile.OpenRead(archivePath);
+        var (manifestJson, rootPrefix) = MapArchiveHelper.ReadManifestFromArchive(zipArchive);
         if (string.IsNullOrWhiteSpace(manifestJson))
         {
             return Task.FromResult((false, "No manifest.json found in the selected map package.", (string?)null, (string?)null));
@@ -555,6 +555,8 @@ public class MapStorageService
         {
             return Task.FromResult((false, "Failed to parse manifest.json.", (string?)null, (string?)null));
         }
+
+        var headerInfo = MapArchiveHelper.ReadHeaderFromManifest(manifest);
 
         string mapTitle = headerInfo != null && !string.IsNullOrWhiteSpace(headerInfo.MapName)
             ? headerInfo.MapName.Trim()
@@ -576,63 +578,17 @@ public class MapStorageService
         }
         Directory.CreateDirectory(targetDirectory);
 
-        MapArchiveHelper.ExtractArchiveIntoCas(archivePath, MapAssetManager.Storage,
-            p => progressCallback?.Invoke(p * 0.30f));
-
-        MapArchiveHelper.ExtractArchive(archivePath, targetDirectory,
-            p => progressCallback?.Invoke(0.30f + p * 0.20f));
-
-        if (!string.IsNullOrWhiteSpace(rootPrefix))
-        {
-            FlattenRootPrefix(targetDirectory, rootPrefix);
-        }
+        MapArchiveHelper.ExtractArchiveToCasAndTarget(
+            zipArchive,
+            MapAssetManager.Storage,
+            targetDirectory,
+            manifest,
+            rootPrefix,
+            p => progressCallback?.Invoke(p * 0.90f)
+        );
 
         string targetManifestPath = Path.Combine(targetDirectory, "manifest.json");
         File.WriteAllText(targetManifestPath, manifest.ToJson());
-
-        int totalFiles = manifest.Files != null ? manifest.Files.Count : 0;
-        int processed = 0;
-        long lastProgressReportTicks = 0;
-
-        if (manifest.Files != null)
-        {
-            foreach (var kvp in manifest.Files)
-            {
-                string rel = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? kvp.Key.Substring(6) : kvp.Key;
-                rel = rel.TrimStart('/', '\\');
-                string destFilePath = Path.Combine(targetDirectory, rel);
-                string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
-                string? casFilePath = MapAssetManager.Storage.FindAssetFilePath(normHash);
-
-                if (casFilePath != null && File.Exists(casFilePath))
-                {
-                    if (File.Exists(destFilePath))
-                    {
-                        HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: true);
-                    }
-                    else
-                    {
-                        string? destFileDir = Path.GetDirectoryName(destFilePath);
-                        if (!string.IsNullOrEmpty(destFileDir) && !Directory.Exists(destFileDir))
-                        {
-                            Directory.CreateDirectory(destFileDir);
-                        }
-                        HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath);
-                    }
-                }
-
-                processed++;
-                if (totalFiles > 0)
-                {
-                    long now = System.Environment.TickCount64;
-                    if (now - lastProgressReportTicks >= 100 || processed == totalFiles)
-                    {
-                        lastProgressReportTicks = now;
-                        progressCallback?.Invoke(0.50f + ((float)processed / totalFiles) * 0.40f);
-                    }
-                }
-            }
-        }
 
         var validation = ValidateImportedMap(targetDirectory, manifest);
         if (!validation.IsValid)
@@ -903,8 +859,13 @@ public class MapStorageService
         if (!Directory.Exists(directoryPath)) return 0;
         try
         {
-            var files = Directory.GetFiles(directoryPath, "*.*", SearchOption.AllDirectories);
-            return files.Sum(f => new FileInfo(f).Length);
+            var dirInfo = new DirectoryInfo(directoryPath);
+            long total = 0;
+            foreach (var file in dirInfo.EnumerateFiles("*", SearchOption.AllDirectories))
+            {
+                total += file.Length;
+            }
+            return total;
         }
         catch
         {
