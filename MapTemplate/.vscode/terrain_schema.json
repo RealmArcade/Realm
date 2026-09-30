@@ -1,0 +1,197 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MapTerrain",
+  "description": "Defines the terrain layout, entity placements, named coordinate regions, and camera settings for a Realm arcade map.",
+  "type": "object",
+  "properties": {
+    "Width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Terrain grid width in cells. Also determines the pixel width of terrain_splat_*.exr files."
+    },
+    "Depth": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Terrain grid depth (Z axis) in cells. Also determines the pixel height of terrain_splat_*.exr files."
+    },
+    "CameraBoundsLeft": {
+      "type": "number",
+      "description": "Left edge of the playable camera boundary in world space (X axis)."
+    },
+    "CameraBoundsRight": {
+      "type": "number",
+      "description": "Right edge of the playable camera boundary in world space (X axis)."
+    },
+    "CameraBoundsTop": {
+      "type": "number",
+      "description": "Top edge (near Z) of the playable camera boundary in world space (Z axis, negative = top)."
+    },
+    "CameraBoundsBottom": {
+      "type": "number",
+      "description": "Bottom edge (far Z) of the playable camera boundary in world space (Z axis, positive = bottom)."
+    },
+    "SkyboxPath": {
+      "type": "string",
+      "description": "Asset path to the skybox .rtex texture. Empty string uses the default skybox."
+    },
+    "Coordinates": {
+      "type": "array",
+      "description": "Named rectangular regions accessible at runtime via IGameAPI.GetCoordinate(name).",
+      "items": { "$ref": "#/definitions/Coordinate" }
+    },
+    "Units": {
+      "type": "array",
+      "description": "Pre-placed unit and building instances on the map.",
+      "items": { "$ref": "#/definitions/PlacedEntity" }
+    },
+    "Props": {
+      "type": "array",
+      "description": "Pre-placed decorative prop instances on the map.",
+      "items": { "$ref": "#/definitions/PlacedProp" }
+    },
+    "Decals": {
+      "type": "array",
+      "description": "Pre-placed flat texture decal instances on the terrain.",
+      "items": { "$ref": "#/definitions/PlacedDecal" }
+    },
+    "Vfx": {
+      "type": "array",
+      "description": "Pre-placed ambient visual effect emitter instances on the map.",
+      "items": { "$ref": "#/definitions/PlacedVfx" }
+    }
+  },
+  "definitions": {
+    "Vector3": {
+      "type": "object",
+      "required": ["X", "Y", "Z"],
+      "properties": {
+        "X": { "type": "number" },
+        "Y": { "type": "number" },
+        "Z": { "type": "number" }
+      }
+    },
+    "Coordinate": {
+      "type": "object",
+      "required": ["Name", "Min", "Max"],
+      "description": "A named rectangular region used to reference map areas from MapScript.cs via IGameAPI.GetCoordinate.",
+      "properties": {
+        "Name": {
+          "type": "string",
+          "description": "Unique name for this region. Used as the key in IGameAPI.GetCoordinate(name)."
+        },
+        "Min": {
+          "$ref": "#/definitions/Vector3",
+          "description": "The minimum corner of the bounding box in world space."
+        },
+        "Max": {
+          "$ref": "#/definitions/Vector3",
+          "description": "The maximum corner of the bounding box in world space."
+        }
+      }
+    },
+    "PlacedEntity": {
+      "type": "object",
+      "required": ["UnitId", "Position", "PlayerSlot"],
+      "description": "A pre-placed unit or building instance.",
+      "properties": {
+        "UnitId": {
+          "type": "string",
+          "description": "The unit type identifier from metadata.json CustomUnits or CustomBuildings."
+        },
+        "Position": { "$ref": "#/definitions/Vector3" },
+        "RotationY": {
+          "type": "number",
+          "description": "Y-axis rotation in degrees.",
+          "default": 0
+        },
+        "Scale": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Uniform scale multiplier.",
+          "default": 1.0
+        },
+        "PlayerSlot": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based player slot index that owns this entity."
+        }
+      }
+    },
+    "PlacedProp": {
+      "type": "object",
+      "required": ["PropId", "Position"],
+      "description": "A pre-placed decorative prop (non-interactive environment object).",
+      "properties": {
+        "PropId": {
+          "type": "string",
+          "description": "The prop asset identifier (filename without extension, e.g. 'crystal_cluster_29')."
+        },
+        "Position": { "$ref": "#/definitions/Vector3" },
+        "RotationY": {
+          "type": "number",
+          "description": "Y-axis rotation in degrees.",
+          "default": 0
+        },
+        "Scale": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Uniform scale multiplier.",
+          "default": 1.0
+        }
+      }
+    },
+    "PlacedDecal": {
+      "type": "object",
+      "required": ["DecalId", "Position"],
+      "description": "A pre-placed flat texture projected onto the terrain surface.",
+      "properties": {
+        "DecalId": {
+          "type": "string",
+          "description": "The decal texture asset identifier (filename without extension)."
+        },
+        "Position": { "$ref": "#/definitions/Vector3" },
+        "RotationY": {
+          "type": "number",
+          "description": "Y-axis rotation in degrees.",
+          "default": 0
+        },
+        "Scale": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Uniform scale multiplier.",
+          "default": 1.0
+        },
+        "Opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Decal opacity in the range [0.0, 1.0].",
+          "default": 1.0
+        }
+      }
+    },
+    "PlacedVfx": {
+      "type": "object",
+      "required": ["VfxId", "Position"],
+      "description": "A pre-placed ambient visual effect emitter.",
+      "properties": {
+        "VfxId": {
+          "type": "string",
+          "description": "The VFX emitter type identifier."
+        },
+        "Position": { "$ref": "#/definitions/Vector3" },
+        "RotationY": {
+          "type": "number",
+          "description": "Y-axis rotation in degrees.",
+          "default": 0
+        },
+        "Scale": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Uniform scale multiplier.",
+          "default": 1.0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MapManifest",
+  "description": "Tracks asset file registrations and their content hashes for a Realm arcade map.",
+  "type": "object",
+  "properties": {
+    "Assets": {
+      "type": "object",
+      "description": "Asset category buckets. Each key is a category name; values are objects mapping filename → content hash.",
+      "properties": {
+        "animations": {
+          "type": "object",
+          "description": "Registered .ranim animation files. Keys are filenames (e.g. 'Standard Walk - Standard Walk.ranim'), values are BLAKE3 hex hashes.",
+          "additionalProperties": { "type": "string" }
+        },
+        "decals": {
+          "type": "object",
+          "description": "Registered .rtex decal texture files.",
+          "additionalProperties": { "type": "string" }
+        },
+        "glb": {
+          "type": "object",
+          "description": "Registered .rmesh (compiled 3D model) files, grouped by entity category.",
+          "properties": {
+            "buildings": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "projectiles": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "props": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "resources": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "units": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        },
+        "icons": {
+          "type": "object",
+          "description": "Registered .rtex icon textures used in the UI (abilities, items).",
+          "additionalProperties": { "type": "string" }
+        },
+        "music": {
+          "type": "object",
+          "description": "Registered .raud music/ambient audio tracks.",
+          "additionalProperties": { "type": "string" }
+        },
+        "noise_textures": {
+          "type": "object",
+          "description": "Procedurally generated noise .rtex files used by shader effects.",
+          "additionalProperties": { "type": "string" }
+        },
+        "ribbons": {
+          "type": "object",
+          "description": "Registered .rtex ribbon/trail textures used by weapon projectile trails.",
+          "additionalProperties": { "type": "string" }
+        },
+        "sfx": {
+          "type": "object",
+          "description": "Registered .raud sound effect files.",
+          "additionalProperties": { "type": "string" }
+        },
+        "shaders": {
+          "type": "object",
+          "description": "Reserved for registered custom shader assets.",
+          "additionalProperties": { "type": "string" }
+        },
+        "skyboxes": {
+          "type": "object",
+          "description": "Registered .rtex skybox panoramic textures.",
+          "additionalProperties": { "type": "string" }
+        },
+        "textures": {
+          "type": "object",
+          "description": "Registered .rtex terrain splat/ground textures.",
+          "additionalProperties": { "type": "string" }
+        },
+        "vfx_radial": {
+          "type": "object",
+          "description": "Registered .rtex VFX textures for radial (ring/circle) effect emitters.",
+          "additionalProperties": { "type": "string" }
+        },
+        "vfx_spritesheets": {
+          "type": "object",
+          "description": "Registered .rtex VFX spritesheet textures for animated effects.",
+          "additionalProperties": { "type": "string" }
+        },
+        "vfx_vertical": {
+          "type": "object",
+          "description": "Registered .rtex VFX textures for vertical (pillar/beam) effect emitters.",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "type": "string" }
+      }
+    }
+  }
+}
