@@ -2177,13 +2177,18 @@ public partial class MapEditorHUD : Control
 		{
 			ShowConfirmationDialog(
 				"You haven't saved yet",
-				onConfirm: () => UIManager.Instance.TransitionTo(GameScreen.MainMenu),
+				onConfirm: () =>
+				{
+					WriteCleanExitMarker();
+					UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+				},
 				confirmText: "Quit",
 				cancelText: "Stay"
 			);
 		}
 		else
 		{
+			WriteCleanExitMarker();
 			UIManager.Instance.TransitionTo(GameScreen.MainMenu);
 		}
 	}
@@ -2194,13 +2199,18 @@ public partial class MapEditorHUD : Control
 		{
 			ShowConfirmationDialog(
 				"You haven't saved yet",
-				onConfirm: () => GetTree().Quit(),
+				onConfirm: () =>
+				{
+					WriteCleanExitMarker();
+					GetTree().Quit();
+				},
 				confirmText: "Quit",
 				cancelText: "Stay"
 			);
 		}
 		else
 		{
+			WriteCleanExitMarker();
 			GetTree().Quit();
 		}
 	}
@@ -3037,6 +3047,18 @@ public partial class MapEditorHUD : Control
 			}
 		}
 
+		try
+		{
+			if (System.IO.Directory.Exists(_tempWorkspacePath))
+			{
+				foreach (var rmapFile in System.IO.Directory.GetFiles(_tempWorkspacePath, "*.rmap", System.IO.SearchOption.TopDirectoryOnly))
+				{
+					try { System.IO.File.Delete(rmapFile); } catch { }
+				}
+			}
+		}
+		catch { }
+
 		string initTerrainPath = System.IO.Path.Combine(_tempWorkspacePath, "terrain.json");
 		string initMetadataPath = System.IO.Path.Combine(_tempWorkspacePath, "metadata.json");
 		_lastTerrainSyncTime = GetMaxTerrainWriteTime(initTerrainPath);
@@ -3187,6 +3209,20 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
+	private void WriteCleanExitMarker()
+	{
+		try
+		{
+			SaveCurrentDirectoryBlake3();
+			string cleanExitFile = ProjectSettings.GlobalizePath("user://editor_clean_exit.txt");
+			System.IO.File.WriteAllText(cleanExitFile, CurrentDirectoryBlake3 ?? string.Empty);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapEditorHUD] Error writing editor_clean_exit.txt: {ex.Message}");
+		}
+	}
+
 	private void CheckUnsavedSessionOnLaunch(Action onCompleted = null)
 	{
 		if (ReturningFromTest)
@@ -3197,6 +3233,19 @@ public partial class MapEditorHUD : Control
 
 		if (!string.IsNullOrEmpty(_pendingCasSourceDirectory))
 		{
+			onCompleted?.Invoke();
+			return;
+		}
+
+		string cleanExitFile = ProjectSettings.GlobalizePath("user://editor_clean_exit.txt");
+		if (System.IO.File.Exists(cleanExitFile))
+		{
+			try
+			{
+				System.IO.File.Delete(cleanExitFile);
+			}
+			catch { }
+			SaveCurrentDirectoryBlake3();
 			onCompleted?.Invoke();
 			return;
 		}
@@ -3397,12 +3446,13 @@ public partial class MapEditorHUD : Control
 		_isSyncing = false;
 	}
 
-	private static bool IsIgnoredPath(string relativePath)
+	internal static bool IsIgnoredPath(string relativePath)
 	{
 		if (string.IsNullOrEmpty(relativePath)) return false;
 		string normalized = relativePath.Replace('\\', '/');
 		if (normalized.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.git/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.vs/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".vs", StringComparison.OrdinalIgnoreCase) ||
+			normalized.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.vscode/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".vscode", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.godot/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".godot", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".idea/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.idea/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".idea", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/bin/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
@@ -3414,7 +3464,12 @@ public partial class MapEditorHUD : Control
 			normalized.StartsWith(".dotnet/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.dotnet/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".dotnet", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".wasi/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.wasi/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".wasi", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.sidecarcache/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".sidecarcache", StringComparison.OrdinalIgnoreCase) ||
-			normalized.StartsWith(".cache/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.cache/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".cache", StringComparison.OrdinalIgnoreCase))
+			normalized.StartsWith(".cache/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.cache/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".cache", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".log", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
+			System.IO.Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}
@@ -9703,6 +9758,7 @@ public partial class MapEditorHUD : Control
 			}
 		};
 
+		Realm.Godot.UI.WasmConsoleWindow.Instance.Hide();
 		_wasmHasErrors = false;
 		Action<string> logHandler = line => AppendWasmConsoleLog(line);
 		Realm.Godot.WasmRuntime.OnWasmLog += logHandler;
@@ -9928,6 +9984,14 @@ public partial class MapEditorHUD : Control
 		finally
 		{
 			Realm.Godot.WasmRuntime.OnWasmLog -= logHandler;
+			if (_wasmHasErrors)
+			{
+				Realm.Godot.UI.WasmConsoleWindow.Instance.ShowConsole();
+			}
+			else
+			{
+				Realm.Godot.UI.WasmConsoleWindow.Instance.Hide();
+			}
 		}
 	}
 

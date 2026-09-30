@@ -971,13 +971,19 @@ please visit the URL above.
 					return ("decal", cols, rows);
 				}
 
-				if (assetsObj["icons"] is JsonObject icons && (icons.ContainsKey(fileName) || icons.ContainsKey($"{cleanName}.rtex")))
+				bool ContainsAssetKey(JsonObject obj) =>
+					obj.ContainsKey(fileName) ||
+					obj.ContainsKey($"{cleanName}.rtex") ||
+					obj.Any(kvp => kvp.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase) ||
+					               kvp.Key.EndsWith($"/{cleanName}.rtex", StringComparison.OrdinalIgnoreCase));
+
+				if (assetsObj["icons"] is JsonObject icons && ContainsAssetKey(icons))
 					return ("icon", 4, 4);
 
-				if (assetsObj["skyboxes"] is JsonObject skyboxes && (skyboxes.ContainsKey(fileName) || skyboxes.ContainsKey($"{cleanName}.rtex")))
+				if (assetsObj["skyboxes"] is JsonObject skyboxes && ContainsAssetKey(skyboxes))
 					return ("skybox", 4, 4);
 
-				if (assetsObj["textures"] is JsonObject textures && (textures.ContainsKey(fileName) || textures.ContainsKey($"{cleanName}.rtex")))
+				if (assetsObj["textures"] is JsonObject textures && ContainsAssetKey(textures))
 					return ("terrain_texture", 4, 4);
 
 				if (assetsObj["vfx_spritesheets"] is JsonObject spritesheets)
