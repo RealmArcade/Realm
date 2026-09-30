@@ -300,9 +300,34 @@ public partial class GameHost
 			int width = GroundTerrain.Width;
 			int depth = GroundTerrain.Depth;
 
-			if (GroundTerrain.SplatMap == null || GroundTerrain.SplatMap.GetLength(0) != width || GroundTerrain.SplatMap.GetLength(1) != depth)
+			if (terrain.Cells != null && GroundTerrain != null)
 			{
-				GroundTerrain.UpdateMeshAndPhysics(false, false);
+				GroundTerrain.Cells = (Realm.Ecs.Components.Terrain.TerrainCell[,])terrain.Cells.Clone();
+			}
+
+			if (terrain.PathingCodes != null && terrain.PathingCodes.Length == width * depth && GroundTerrain != null)
+			{
+				for (int z = 0; z < depth; z++)
+				{
+					for (int x = 0; x < width; x++)
+					{
+						GroundTerrain.PathingCodes[x, z] = terrain.PathingCodes[x, z];
+					}
+				}
+			}
+
+			int splatW = width + 1;
+			int splatD = depth + 1;
+			if (GroundTerrain.SplatMap == null || GroundTerrain.SplatMap.GetLength(0) != splatW || GroundTerrain.SplatMap.GetLength(1) != splatD)
+			{
+				GroundTerrain.SplatMap = new TerrainSplatWeights[splatW, splatD];
+				for (int z = 0; z < splatD; z++)
+				{
+					for (int x = 0; x < splatW; x++)
+					{
+						GroundTerrain.SplatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
+					}
+				}
 			}
 			GroundTerrain.UpdateWaterSize();
 
@@ -319,8 +344,6 @@ public partial class GameHost
 
 			if (foundColors && colorsState.Colors != null)
 			{
-				int splatW = GroundTerrain.SplatMap.GetLength(0);
-				int splatD = GroundTerrain.SplatMap.GetLength(1);
 				int colorLen = colorsState.Colors.Length;
 
 				for (int z = 0; z < splatD; z++)
@@ -343,22 +366,6 @@ public partial class GameHost
 							string serialized = colorsState.Colors[idx];
 							GroundTerrain.SplatMap[x, z] = TerrainSplatWeights.Deserialize(serialized);
 						}
-					}
-				}
-			}
-
-			if (terrain.Cells != null && GroundTerrain != null)
-			{
-				GroundTerrain.Cells = (Realm.Ecs.Components.Terrain.TerrainCell[,])terrain.Cells.Clone();
-			}
-
-			if (terrain.PathingCodes != null && terrain.PathingCodes.Length == width * depth)
-			{
-				for (int z = 0; z < depth; z++)
-				{
-					for (int x = 0; x < width; x++)
-					{
-						GroundTerrain.PathingCodes[x, z] = terrain.PathingCodes[x, z];
 					}
 				}
 			}
@@ -453,7 +460,7 @@ public partial class GameHost
 				}
 			}
 
-			GroundTerrain.UpdateMeshAndPhysics(false, true);
+			GroundTerrain.UpdateMeshAndPhysics(true, true);
 
 			MapEditorHUD.Instance?.RegenerateMinimap();
 

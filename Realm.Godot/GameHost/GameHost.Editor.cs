@@ -2141,7 +2141,7 @@ public partial class GameHost
 		if (_terrainGeometryDirty && _terrainFlushRegion.HasValue && GroundTerrain != null)
 		{
 			var flushRegion = _terrainFlushRegion.Value;
-			GroundTerrain.UpdateMeshAndPhysics(false, false, flushRegion, _terrainHeightsDirty);
+			GroundTerrain.UpdateMeshAndPhysics(_terrainHeightsDirty, false, flushRegion, _terrainHeightsDirty);
 			if (_terrainHeightsDirty)
 			{
 				AlignAllEntitiesToTerrain(flushRegion);
