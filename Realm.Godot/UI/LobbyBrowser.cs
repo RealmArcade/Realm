@@ -826,7 +826,7 @@ public partial class LobbyBrowser : Control
 			}
 			else
 			{
-				OS.ShellOpen("https://github.com/speige/Realm/releases");
+				OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
 			}
 		};
 		hBox.AddChild(okBtn);
