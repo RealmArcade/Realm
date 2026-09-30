@@ -293,10 +293,10 @@ public partial class EditableTerrain : RuntimeTerrain
 				float sw = newGridHeights[x, z + 1];
 				float se = newGridHeights[x + 1, z + 1];
 
+				newCells[x, z] = new TerrainCell(nw, ne, se, sw);
+
 				int cellX0 = Math.Clamp((int)Math.Floor(x * (float)oldWidth / newWidth), 0, oldWidth - 1);
 				int cellZ0 = Math.Clamp((int)Math.Floor(z * (float)oldDepth / newDepth), 0, oldDepth - 1);
-				var oldCell = oldCells != null ? oldCells[cellX0, cellZ0] : default;
-				newCells[x, z] = new TerrainCell(nw, ne, se, sw, oldCell.WaterMode, oldCell.WaterProfileIndex, oldCell.WaterHeight);
 
 				if (oldPathing != null)
 				{
@@ -308,6 +308,8 @@ public partial class EditableTerrain : RuntimeTerrain
 				}
 			}
 		}
+
+		ReconcileScaledWater(oldCells, oldWidth, oldDepth, newCells, newPathing, newWidth, newDepth);
 
 		for (int z = 0; z <= newDepth; z++)
 		{

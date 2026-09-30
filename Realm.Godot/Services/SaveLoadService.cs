@@ -675,6 +675,9 @@ public class SaveLoadService
 				string directory = Path.GetDirectoryName(absolutePath);
 				string heightsPath = Path.Combine(directory, "terrain_heights.exr");
 				bool heightsLoaded = false;
+				TerrainCell[,] unscaledCells = null;
+				int unscaledW = 0;
+				int unscaledH = 0;
 
 				if (File.Exists(heightsPath))
 				{
@@ -703,6 +706,22 @@ public class SaveLoadService
 						}
 						else
 						{
+							unscaledW = imgW;
+							unscaledH = imgH;
+							unscaledCells = new TerrainCell[imgW, imgH];
+							for (int z = 0; z < imgH; z++)
+							{
+								for (int x = 0; x < imgW; x++)
+								{
+									int baseIdx = (z * imgW + x) * 4;
+									float yNW = floatData[baseIdx + 0];
+									float yNE = floatData[baseIdx + 1];
+									float ySE = floatData[baseIdx + 2];
+									float ySW = floatData[baseIdx + 3];
+									unscaledCells[x, z] = new TerrainCell(yNW, yNE, ySE, ySW);
+								}
+							}
+
 							float[,] newGridHeights = new float[width + 1, depth + 1];
 							for (int vz = 0; vz <= depth; vz++)
 							{
@@ -751,19 +770,43 @@ public class SaveLoadService
 						int imgH = waterImage.GetHeight();
 						ReadOnlySpan<float> waterFloatData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(waterImage.GetData());
 
-						for (int z = 0; z < depth; z++)
+						if (imgW == width && imgH == depth && unscaledCells == null)
 						{
-							for (int x = 0; x < width; x++)
+							for (int z = 0; z < depth; z++)
 							{
-								int srcX = imgW == width ? x : Math.Clamp((int)Math.Floor(x * (float)imgW / width), 0, imgW - 1);
-								int srcZ = imgH == depth ? z : Math.Clamp((int)Math.Floor(z * (float)imgH / depth), 0, imgH - 1);
-								int baseIdx = (srcZ * imgW + srcX) * 4;
-								var wMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
-								byte wProfile = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
-								float wHeight = waterFloatData[baseIdx + 2];
-								ts.Cells[x, z].WaterMode = wMode;
-								ts.Cells[x, z].WaterProfileIndex = wProfile;
-								ts.Cells[x, z].WaterHeight = wHeight;
+								for (int x = 0; x < width; x++)
+								{
+									int baseIdx = (z * imgW + x) * 4;
+									var wMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
+									byte wProfile = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
+									float wHeight = waterFloatData[baseIdx + 2];
+									ts.Cells[x, z].WaterMode = wMode;
+									ts.Cells[x, z].WaterProfileIndex = wProfile;
+									ts.Cells[x, z].WaterHeight = wHeight;
+								}
+							}
+						}
+						else
+						{
+							if (unscaledCells == null || unscaledW != imgW || unscaledH != imgH)
+							{
+								unscaledCells = new TerrainCell[imgW, imgH];
+								unscaledW = imgW;
+								unscaledH = imgH;
+							}
+
+							for (int z = 0; z < imgH; z++)
+							{
+								for (int x = 0; x < imgW; x++)
+								{
+									int baseIdx = (z * imgW + x) * 4;
+									var wMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
+									byte wProfile = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
+									float wHeight = waterFloatData[baseIdx + 2];
+									unscaledCells[x, z].WaterMode = wMode;
+									unscaledCells[x, z].WaterProfileIndex = wProfile;
+									unscaledCells[x, z].WaterHeight = wHeight;
+								}
 							}
 						}
 					}
@@ -803,6 +846,11 @@ public class SaveLoadService
 							ts.PathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(Realm.Ecs.Components.Terrain.WaterType.None);
 						}
 					}
+				}
+
+				if (unscaledCells != null)
+				{
+					RuntimeTerrain.ReconcileScaledWater(unscaledCells, unscaledW, unscaledH, ts.Cells, ts.PathingCodes, width, depth);
 				}
 
 				EcsWorld.Set(worldEntity, ts);
