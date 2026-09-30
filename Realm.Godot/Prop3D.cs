@@ -384,11 +384,23 @@ public partial class Prop3D : StaticBody3D
 
 	private (Shape3D Shape, Vector3 Offset) GetOrCreateCollisionShape()
 	{
+		string propIdKey = PropId ?? string.Empty;
+		if (!string.IsNullOrEmpty(propIdKey) && _modelShapeCache.TryGetValue(propIdKey, out var cachedProp))
+		{
+			return cachedProp;
+		}
+
 		string modelPath = ResolvePropModelPath(PropId);
 		if (!string.IsNullOrEmpty(modelPath) && _modelShapeCache.TryGetValue(modelPath, out var cached))
 		{
+			if (!string.IsNullOrEmpty(propIdKey))
+			{
+				_modelShapeCache[propIdKey] = cached;
+			}
 			return cached;
 		}
+
+		(Shape3D Shape, Vector3 Offset) shapeResult;
 
 		if (!string.IsNullOrEmpty(modelPath))
 		{
@@ -405,9 +417,10 @@ public partial class Prop3D : StaticBody3D
 						var (analShape, analOffset) = Realm.Godot.Services.ModelOptimization.ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, isBuilding: true);
 						if (analShape != null)
 						{
-							var result = (analShape, analOffset);
-							_modelShapeCache[modelPath] = result;
-							return result;
+							shapeResult = (analShape, analOffset);
+							if (!string.IsNullOrEmpty(propIdKey)) _modelShapeCache[propIdKey] = shapeResult;
+							_modelShapeCache[modelPath] = shapeResult;
+							return shapeResult;
 						}
 					}
 				}
@@ -424,12 +437,16 @@ public partial class Prop3D : StaticBody3D
 		{
 			Size = new Vector3(radius * 2.0f, height, radius * 2.0f)
 		};
-		var fallbackResult = (fallbackBox, new Vector3(0, height * 0.5f, 0));
+		shapeResult = (fallbackBox, new Vector3(0, height * 0.5f, 0));
+		if (!string.IsNullOrEmpty(propIdKey))
+		{
+			_modelShapeCache[propIdKey] = shapeResult;
+		}
 		if (!string.IsNullOrEmpty(modelPath))
 		{
-			_modelShapeCache[modelPath] = fallbackResult;
+			_modelShapeCache[modelPath] = shapeResult;
 		}
-		return fallbackResult;
+		return shapeResult;
 	}
 
 	public bool IsPreview { get; set; } = false;

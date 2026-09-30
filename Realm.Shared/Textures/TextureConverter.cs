@@ -315,7 +315,7 @@ public static class TextureConverter
 		}
 	}
 
-	public static byte[] EncodeWebp(SKBitmap image, bool lossless = false, int quality = 90)
+	public static byte[] EncodeWebp(SKBitmap image, bool lossless = false, int quality = 90, int method = 6, bool sharpYuv = true)
 	{
 		int width = image.Width;
 		int height = image.Height;
@@ -414,20 +414,21 @@ public static class TextureConverter
 			}
 		}
 
+		int effMethod = Math.Clamp(method, 0, 6);
 		var config = new WebPEncoderConfig();
 		if (lossless)
 		{
 			config.SetLossless(true)
 				.SetLosslessPreset(9)
-				.SetMethod(6)
+				.SetMethod(effMethod)
 				.SetExact(true)
 				.SetMultiThreaded(true);
 		}
 		else
 		{
 			config.SetQuality(Math.Clamp(quality, 0, 100))
-				.SetMethod(6)
-				.SetSharpYuv(true)
+				.SetMethod(effMethod)
+				.SetSharpYuv(sharpYuv)
 				.SetMultiThreaded(true);
 		}
 

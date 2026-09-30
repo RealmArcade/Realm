@@ -17,8 +17,10 @@ namespace Realm.Shared;
 // original albedos when 'ignore_player_color' is active.
 public static class GlbInMemoryColorPreprocessor
 {
+	private static readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, byte[]> DespilledGlbCache = new();
 	private static readonly float[] SrgbToLinearTable = PrecomputeSrgbToLinear();
 	private static readonly byte[] LinearToSrgbLut = PrecomputeLinearToSrgbLut();
+	private static readonly float[] CbrtLut = PrecomputeCbrtLut();
 
 	private static float[] PrecomputeSrgbToLinear()
 	{
@@ -45,6 +47,27 @@ public static class GlbInMemoryColorPreprocessor
 		return table;
 	}
 
+	private static float[] PrecomputeCbrtLut()
+	{
+		float[] table = new float[65536];
+		for (int i = 0; i < 65536; i++)
+		{
+			table[i] = MathF.Cbrt(i / 65535.0f);
+		}
+		return table;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static float FastCbrt(float val)
+	{
+		int idx = (int)(val * 65535.0f);
+		if ((uint)idx >= 65536)
+		{
+			return val <= 0.0f ? 0.0f : MathF.Cbrt(val);
+		}
+		return CbrtLut[idx];
+	}
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static byte LinearToSrgbByte(float linear)
 	{
@@ -56,6 +79,50 @@ public static class GlbInMemoryColorPreprocessor
 		return LinearToSrgbLut[idx];
 	}
 
+	private static void StoreInCache(ulong cacheKey, byte[] value)
+	{
+		DespilledGlbCache[cacheKey] = value;
+	}
+
+	private static ulong ComputeFnv1a64(byte[] bytes, string chromaKey)
+	{
+		ulong hash = 14695981039346656037UL;
+		hash ^= (ulong)bytes.Length;
+		hash *= 1099511628211UL;
+
+		int sampleSize = Math.Min(bytes.Length, 256);
+		for (int i = 0; i < sampleSize; i++)
+		{
+			hash ^= bytes[i];
+			hash *= 1099511628211UL;
+		}
+
+		if (bytes.Length > 512)
+		{
+			int midStart = (bytes.Length / 2) - 128;
+			int midEnd = midStart + 256;
+			for (int i = midStart; i < midEnd; i++)
+			{
+				hash ^= bytes[i];
+				hash *= 1099511628211UL;
+			}
+
+			int tailStart = bytes.Length - 256;
+			for (int i = tailStart; i < bytes.Length; i++)
+			{
+				hash ^= bytes[i];
+				hash *= 1099511628211UL;
+			}
+		}
+
+		for (int i = 0; i < chromaKey.Length; i++)
+		{
+			hash ^= (byte)chromaKey[i];
+			hash *= 1099511628211UL;
+		}
+		return hash;
+	}
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Vector3 ConvertLinearRgbToOklab(Vector3 linearRgb)
 	{
@@ -63,9 +130,9 @@ public static class GlbInMemoryColorPreprocessor
 		float m = linearRgb.X * 0.2119034982f + linearRgb.Y * 0.6806995451f + linearRgb.Z * 0.1073969566f;
 		float s = linearRgb.X * 0.0883024619f + linearRgb.Y * 0.2817188376f + linearRgb.Z * 0.6299787005f;
 
-		float lRoot = MathF.Cbrt(MathF.Max(0.0f, l));
-		float mRoot = MathF.Cbrt(MathF.Max(0.0f, m));
-		float sRoot = MathF.Cbrt(MathF.Max(0.0f, s));
+		float lRoot = FastCbrt(MathF.Max(0.0f, l));
+		float mRoot = FastCbrt(MathF.Max(0.0f, m));
+		float sRoot = FastCbrt(MathF.Max(0.0f, s));
 
 		return new Vector3(
 			lRoot * 0.2104542553f + mRoot * 0.7936177850f + sRoot * -0.0040720468f,
@@ -95,6 +162,26 @@ public static class GlbInMemoryColorPreprocessor
 		if (glbBytes == null || glbBytes.Length == 0)
 		{
 			return glbBytes ?? Array.Empty<byte>();
+		}
+
+		string effectiveChromaKey = chromaKeyHex ?? string.Empty;
+		if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
+		{
+			effectiveChromaKey = "#FF00FF";
+		}
+		else
+		{
+			effectiveChromaKey = effectiveChromaKey.Trim();
+			if (!effectiveChromaKey.StartsWith('#'))
+			{
+				effectiveChromaKey = "#" + effectiveChromaKey;
+			}
+		}
+
+		ulong cacheKey = ComputeFnv1a64(glbBytes, effectiveChromaKey);
+		if (DespilledGlbCache.TryGetValue(cacheKey, out var cachedBytes))
+		{
+			return cachedBytes;
 		}
 
 		try
@@ -144,33 +231,27 @@ public static class GlbInMemoryColorPreprocessor
 
 			if (!HasMaskInOrm(ormImg))
 			{
+				StoreInCache(cacheKey, glbBytes);
 				return glbBytes;
 			}
 
 			using var albedoImg = SKBitmap.Decode(albedoRaw);
-			if (albedoImg == null) return glbBytes;
-
-			string effectiveChromaKey = chromaKeyHex ?? string.Empty;
-			if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
+			if (albedoImg == null)
 			{
-				effectiveChromaKey = "#FF00FF";
-			}
-			else
-			{
-				effectiveChromaKey = effectiveChromaKey.Trim();
-				if (!effectiveChromaKey.StartsWith('#'))
-				{
-					effectiveChromaKey = "#" + effectiveChromaKey;
-				}
+				StoreInCache(cacheKey, glbBytes);
+				return glbBytes;
 			}
 
 			ApplyAnalyticalChromaDespill(albedoImg, ormImg, effectiveChromaKey);
 
-			byte[] newAlbedoBytes = TextureConverter.EncodeWebp(albedoImg, lossless: false, quality: 90);
-			return RebuildGlbWithUpdatedAlbedoTexture(root, binChunk, albedoImageIndex, newAlbedoBytes, glbVersion);
+			byte[] newAlbedoBytes = TextureConverter.EncodeWebp(albedoImg, lossless: false, quality: 90, method: 1, sharpYuv: false);
+			byte[] resultGlb = RebuildGlbWithUpdatedAlbedoTexture(root, binChunk, albedoImageIndex, newAlbedoBytes, glbVersion);
+			StoreInCache(cacheKey, resultGlb);
+			return resultGlb;
 		}
 		catch
 		{
+			StoreInCache(cacheKey, glbBytes);
 			return glbBytes;
 		}
 	}
@@ -392,7 +473,7 @@ public static class GlbInMemoryColorPreprocessor
 		outG = gByte;
 		outB = bByte;
 
-		if (maskFactor >= 0.999f)
+		if (maskFactor >= 0.999f || (rByte == gByte && gByte == bByte))
 		{
 			return false;
 		}
