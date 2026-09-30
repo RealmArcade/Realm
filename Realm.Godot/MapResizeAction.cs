@@ -47,9 +47,7 @@ public class MapStateSnapshot
 			for (int z = 0; z <= d; z++)
 				for (int x = 0; x <= w; x++)
 				{
-					int cellX = System.Math.Clamp(x, 0, w - 1);
-					int cellZ = System.Math.Clamp(z, 0, d - 1);
-					res[x, z] = Cells[cellX, cellZ].Y_NW;
+					res[x, z] = RuntimeTerrain.GetGridNodeHeight(x, z, Cells, w, d);
 				}
 			return res;
 		}
@@ -58,7 +56,7 @@ public class MapStateSnapshot
 			if (value == null) return;
 			int w = value.GetLength(0) - 1;
 			int d = value.GetLength(1) - 1;
-			Cells = TerrainState.CalculateCells(w, d, value);
+			Cells = TerrainState.CalculateCells(w, d, value, Cells);
 		}
 	}
 	public int[,] PathingCodes;
@@ -300,6 +298,7 @@ public class MapResizeAction : IEditorAction
 		}
 
 		host.RebuildCameraBoundsOverlay();
+		PropMultiMeshManager.Instance?.RebuildAll();
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 		MapEditorHUD.Instance?.RegenerateMinimap();
 	}

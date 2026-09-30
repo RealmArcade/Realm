@@ -4795,6 +4795,7 @@ public partial class GameHost
 
 		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 		DeleteEntitiesOutsideBounds();
+		PropMultiMeshManager.Instance?.RebuildAll();
 
 		RebuildCameraBoundsOverlay();
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
@@ -4871,6 +4872,18 @@ public partial class GameHost
 			}
 		}
 
+		if (EcsWorld != null)
+		{
+			var allPropEntitiesQuery = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
+			EcsWorld.Query(in allPropEntitiesQuery, (Arch.Core.Entity entity, ref Realm.Ecs.Components.Core.Position posComp) =>
+			{
+				if (!EntityToProp3D.ContainsKey(entity))
+				{
+					EcsWorld.Set(entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(posComp.Value.X * scaleX, posComp.Value.Y, posComp.Value.Z * scaleZ)));
+				}
+			});
+		}
+
 		foreach (var decal in AllDecals)
 		{
 			if (GodotObject.IsInstanceValid(decal))
@@ -4911,6 +4924,7 @@ public partial class GameHost
 		EditorCameraBoundsBottom *= scaleZ;
 
 		DeleteEntitiesOutsideBounds();
+		PropMultiMeshManager.Instance?.RebuildAll();
 
 		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 

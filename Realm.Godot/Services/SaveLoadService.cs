@@ -686,18 +686,49 @@ public class SaveLoadService
 						int imgH = heightsImage.GetHeight();
 						ReadOnlySpan<float> floatData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(heightsImage.GetData());
 
-						for (int z = 0; z < depth; z++)
+						if (imgW == width && imgH == depth)
 						{
-							for (int x = 0; x < width; x++)
+							for (int z = 0; z < depth; z++)
 							{
-								int srcX = imgW == width ? x : Math.Clamp((int)Math.Floor(x * (float)imgW / width), 0, imgW - 1);
-								int srcZ = imgH == depth ? z : Math.Clamp((int)Math.Floor(z * (float)imgH / depth), 0, imgH - 1);
-								int baseIdx = (srcZ * imgW + srcX) * 4;
-								float yNW = floatData[baseIdx + 0];
-								float yNE = floatData[baseIdx + 1];
-								float ySE = floatData[baseIdx + 2];
-								float ySW = floatData[baseIdx + 3];
-								ts.Cells[x, z] = new TerrainCell(yNW, yNE, ySE, ySW);
+								for (int x = 0; x < width; x++)
+								{
+									int baseIdx = (z * imgW + x) * 4;
+									float yNW = floatData[baseIdx + 0];
+									float yNE = floatData[baseIdx + 1];
+									float ySE = floatData[baseIdx + 2];
+									float ySW = floatData[baseIdx + 3];
+									ts.Cells[x, z] = new TerrainCell(yNW, yNE, ySE, ySW);
+								}
+							}
+						}
+						else
+						{
+							float[,] newGridHeights = new float[width + 1, depth + 1];
+							for (int vz = 0; vz <= depth; vz++)
+							{
+								for (int vx = 0; vx <= width; vx++)
+								{
+									int srcVx = Math.Clamp((int)Math.Round(vx * (float)imgW / width), 0, imgW);
+									int srcVz = Math.Clamp((int)Math.Round(vz * (float)imgH / depth), 0, imgH);
+									float h = 0f;
+									if (srcVx < imgW && srcVz < imgH) h = floatData[(srcVz * imgW + srcVx) * 4 + 0];
+									else if (srcVx >= imgW && srcVz >= imgH) h = floatData[((imgH - 1) * imgW + (imgW - 1)) * 4 + 2];
+									else if (srcVx >= imgW) h = floatData[(srcVz * imgW + (imgW - 1)) * 4 + 1];
+									else if (srcVz >= imgH) h = floatData[((imgH - 1) * imgW + srcVx) * 4 + 3];
+									newGridHeights[vx, vz] = h;
+								}
+							}
+
+							for (int z = 0; z < depth; z++)
+							{
+								for (int x = 0; x < width; x++)
+								{
+									float yNW = newGridHeights[x, z];
+									float yNE = newGridHeights[x + 1, z];
+									float ySW = newGridHeights[x, z + 1];
+									float ySE = newGridHeights[x + 1, z + 1];
+									ts.Cells[x, z] = new TerrainCell(yNW, yNE, ySE, ySW);
+								}
 							}
 						}
 						heightsLoaded = true;
