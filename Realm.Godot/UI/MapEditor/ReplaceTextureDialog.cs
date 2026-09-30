@@ -10,32 +10,37 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 	private TerrainSplatWeights[,]? _snapshotSplatMap;
 	private TerrainSplatWeights[,]? _snapshotCliffSplatMap;
 
-	public ReplaceTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("REPLACE TERRAIN TEXTURE"), new Vector2(420, 160))
+	public ReplaceTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("REPLACE TERRAIN TEXTURE"), new Vector2(420, 200))
 	{
 		BuildUI();
 	}
 
 	private void BuildUI()
 	{
+		var contentVBox = new VBoxContainer();
+		contentVBox.AddThemeConstantOverride("separation", 10);
+		BodyContainer.AddChild(contentVBox);
+
+		AddSectionHeader(contentVBox, "🔄 " + TranslationServer.Translate("TEXTURE SWAP SELECTION"), new Color(0.35f, 0.75f, 0.9f));
+
 		var lblInfo = new Label();
 		lblInfo.Text = TranslationServer.Translate("Select a source texture and a target texture to replace all painted occurrences across the terrain map.");
 		lblInfo.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		lblInfo.CustomMinimumSize = new Vector2(380, 0);
+		lblInfo.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		lblInfo.AddThemeFontSizeOverride("font_size", 11);
-		lblInfo.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.85f));
-		BodyContainer.AddChild(lblInfo);
+		lblInfo.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		contentVBox.AddChild(lblInfo);
 
-		var grid = new GridContainer();
-		grid.Columns = 2;
-		grid.AddThemeConstantOverride("h_separation", 12);
-		grid.AddThemeConstantOverride("v_separation", 8);
-		grid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		BodyContainer.AddChild(grid);
+		var rowSource = new HBoxContainer();
+		rowSource.AddThemeConstantOverride("separation", 8);
 
 		var lblSource = new Label();
 		lblSource.Text = TranslationServer.Translate("Source Texture:");
+		lblSource.CustomMinimumSize = new Vector2(110, 0);
 		lblSource.AddThemeFontSizeOverride("font_size", 11);
-		lblSource.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
-		grid.AddChild(lblSource);
+		lblSource.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowSource.AddChild(lblSource);
 
 		_optSource = new OptionButton();
 		_optSource.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -43,13 +48,18 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		_optSource.AddThemeFontSizeOverride("font_size", 11);
 		_optSource.FocusMode = Control.FocusModeEnum.None;
 		_optSource.ItemSelected += (_) => ApplyLivePreview();
-		grid.AddChild(_optSource);
+		rowSource.AddChild(_optSource);
+		contentVBox.AddChild(rowSource);
+
+		var rowTarget = new HBoxContainer();
+		rowTarget.AddThemeConstantOverride("separation", 8);
 
 		var lblTarget = new Label();
 		lblTarget.Text = TranslationServer.Translate("Target Texture:");
+		lblTarget.CustomMinimumSize = new Vector2(110, 0);
 		lblTarget.AddThemeFontSizeOverride("font_size", 11);
-		lblTarget.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
-		grid.AddChild(lblTarget);
+		lblTarget.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowTarget.AddChild(lblTarget);
 
 		_optTarget = new OptionButton();
 		_optTarget.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -57,7 +67,11 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		_optTarget.AddThemeFontSizeOverride("font_size", 11);
 		_optTarget.FocusMode = Control.FocusModeEnum.None;
 		_optTarget.ItemSelected += (_) => ApplyLivePreview();
-		grid.AddChild(_optTarget);
+		rowTarget.AddChild(_optTarget);
+		contentVBox.AddChild(rowTarget);
+
+		CancelButton.Text = TranslationServer.Translate("CANCEL");
+		ApplyButton.Text = TranslationServer.Translate("APPLY");
 	}
 
 	public override void OpenDialog()
