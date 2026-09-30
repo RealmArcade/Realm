@@ -163,6 +163,7 @@ public partial class MapEditorHUD : Control
 	private List<Button> _swatchButtons = new List<Button>();
 	private List<string> _swatchPaths = new List<string>();
 	private List<string> _swatchDisplayNames = new List<string>();
+	public IReadOnlyList<string> SwatchDisplayNames => _swatchDisplayNames;
 	private List<Color> _swatchColors = new List<Color>();
 	private ScrollContainer _scrollSwatches;
 	private Control _gridSwatches;
@@ -249,6 +250,7 @@ public partial class MapEditorHUD : Control
 	private VfxStudioDialog _vfxStudioDialog;
 	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog;
 	private AuthorSignatureDialog _authorSignatureDialog;
+	private ReplaceTextureDialog _replaceTextureDialog;
 	private Button _btnEditorSettings;
 	private Button _btnAuthorSignature;
 	private PanelContainer _mapNameHeaderPanel;
@@ -1355,7 +1357,7 @@ public partial class MapEditorHUD : Control
 		_btnReplaceTexture = new Button();
 		_btnReplaceTexture.Name = "BtnReplaceTexture";
 		_btnReplaceTexture.Set("icon_max_width", 0);
-		SetupOptionButton(_btnReplaceTexture, "\uf093 REPLACE TEXTURE", () => ImportTextureAction(), 11, "Import an image to replace the currently selected texture slot");
+		SetupOptionButton(_btnReplaceTexture, "\uf093 REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
 		_containerTextureSettings?.AddChild(_btnReplaceTexture);
 
 		_containerPathingSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing");
@@ -8584,8 +8586,8 @@ public partial class MapEditorHUD : Control
 
 		if (_btnReplaceTexture != null)
 		{
-			_btnReplaceTexture.Text = $"\uf093 {TranslationServer.Translate("REPLACE TEXTURE")} ({terrainIdx})";
-			_btnReplaceTexture.TooltipText = $"{TranslationServer.Translate("Import an image to replace slot")} {terrainIdx} ({TranslationServer.Translate(terrainName)})";
+			_btnReplaceTexture.Text = $"\uf093 {TranslationServer.Translate("REPLACE TEXTURE")}";
+			_btnReplaceTexture.TooltipText = TranslationServer.Translate("Replace all instances of a texture with another texture across the map");
 		}
 	}
 
@@ -9146,6 +9148,7 @@ public partial class MapEditorHUD : Control
 		_authorSignatureDialog = new AuthorSignatureDialog(this);
 		_waterProfileDialog = new WaterProfileDialog(this);
 		_environmentConfigDialog = new EnvironmentConfigDialog(this);
+		_replaceTextureDialog = new ReplaceTextureDialog(this);
 		RefreshWaterSwatches();
 		ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
 
