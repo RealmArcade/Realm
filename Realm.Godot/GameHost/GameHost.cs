@@ -545,6 +545,12 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorService.SetBlockLevelHeight(_worldEntity, value);
 	}
 
+	public bool EditorBlockHeightIsAbsolute
+	{
+		get => _editorService.GetBlockHeightIsAbsolute(_worldEntity);
+		set => _editorService.SetBlockHeightIsAbsolute(_worldEntity, value);
+	}
+
 	public WaterType EditorWaterMode
 	{
 		get => _editorService.GetWaterMode(_worldEntity);

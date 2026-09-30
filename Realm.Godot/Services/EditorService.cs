@@ -374,7 +374,8 @@ public class EditorService
 		bool pathingAdd,
 		bool isFirstClick = false,
 		bool applyGroundTexture = true,
-		bool applyCliffTexture = true)
+		bool applyCliffTexture = true,
+		bool blockHeightIsAbsolute = false)
 	{
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return default;
@@ -438,11 +439,11 @@ public class EditorService
 					WaterType startWater = GetWaterModeAt(worldPos);
 					if (activeTool == GameHost.EditorTool.Raise)
 					{
-						_activeBlockTargetHeight = Math.Clamp(startHeight + blockLevelHeight, -16.0f, 16.0f);
+						_activeBlockTargetHeight = blockHeightIsAbsolute ? blockLevelHeight : Math.Clamp(startHeight + blockLevelHeight, -16.0f, 16.0f);
 					}
 					else if (activeTool == GameHost.EditorTool.Lower)
 					{
-						_activeBlockTargetHeight = Math.Clamp(startHeight - blockLevelHeight, -16.0f, 16.0f);
+						_activeBlockTargetHeight = blockHeightIsAbsolute ? blockLevelHeight : Math.Clamp(startHeight - blockLevelHeight, -16.0f, 16.0f);
 					}
 					else if (activeTool == GameHost.EditorTool.Plateau)
 					{
@@ -1018,7 +1019,8 @@ public class EditorService
 		float[,] currentHeights = null,
 		TerrainSplatWeights[,] currentSplatMap = null,
 		int[,] currentPathing = null,
-		TerrainSplatWeights[,] currentCliffSplatMap = null)
+		TerrainSplatWeights[,] currentCliffSplatMap = null,
+		bool blockHeightIsAbsolute = false)
 	{
 		ref var terrain = ref GetTerrainState();
 		_isDrawingTerrain = true;
@@ -1048,12 +1050,12 @@ public class EditorService
 			float startWaterHeight = GetWaterHeightAt(hitPos);
 			if (activeTool == GameHost.EditorTool.Raise)
 			{
-				_activeBlockTargetHeight = startHeight + blockLevelHeight;
+				_activeBlockTargetHeight = blockHeightIsAbsolute ? blockLevelHeight : startHeight + blockLevelHeight;
 				_hasBlockTargetHeight = true;
 			}
 			else if (activeTool == GameHost.EditorTool.Lower)
 			{
-				_activeBlockTargetHeight = startHeight - blockLevelHeight;
+				_activeBlockTargetHeight = blockHeightIsAbsolute ? blockLevelHeight : startHeight - blockLevelHeight;
 				_hasBlockTargetHeight = true;
 			}
 			else if (activeTool == GameHost.EditorTool.Plateau)
@@ -2949,8 +2951,18 @@ public class EditorService
 
 	public void SetBlockLevelHeight(Entity worldEntity, float value)
 	{
-		float clamped = Math.Clamp((float)Math.Round(value / 3.0f) * 3.0f, 3.0f, 16.0f);
+		float clamped = Math.Clamp(value, 0.0f, 50.0f);
 		EcsWorld.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.BlockLevelHeight = clamped);
+	}
+
+	public bool GetBlockHeightIsAbsolute(Entity worldEntity)
+	{
+		return EcsWorld.GetFieldOrDefault<EditorState, bool>(worldEntity, s => s.BlockHeightIsAbsolute, false);
+	}
+
+	public void SetBlockHeightIsAbsolute(Entity worldEntity, bool value)
+	{
+		EcsWorld.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.BlockHeightIsAbsolute = value);
 	}
 
 	public WaterType GetWaterMode(Entity worldEntity)

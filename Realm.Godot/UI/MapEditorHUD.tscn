@@ -638,7 +638,13 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 10
-text = "Step Height"
+text = "Height"
+
+[node name="ChkAbsoluteHeight" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 10
+text = "Absolute"
 
 [node name="LblBlockStepValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header"]
 layout_mode = 2

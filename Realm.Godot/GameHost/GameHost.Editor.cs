@@ -2091,7 +2091,8 @@ public partial class GameHost
 				EditorPaintTextureIndex, EditorCliffPaintTextureIndex,
 				pathingMask, pathingAdd,
 				isFirstClick,
-				applyGround, applyCliff);
+				applyGround, applyCliff,
+				EditorBlockHeightIsAbsolute);
 
 			if (result.HeightsModified || result.SplatModified || result.PathingModified)
 			{
@@ -4197,7 +4198,8 @@ public partial class GameHost
 							null,
 							GroundTerrain.SplatMap,
 							GroundTerrain.PathingCodes,
-							GroundTerrain.CliffSplatMap);
+							GroundTerrain.CliffSplatMap,
+							EditorBlockHeightIsAbsolute);
 					}
 
 					ApplyContinuousTerrainEditing(hitPos, fDelta, firstClick);

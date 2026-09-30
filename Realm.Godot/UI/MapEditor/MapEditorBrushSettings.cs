@@ -11,9 +11,10 @@ public class MapEditorBrushSettings
 	private CheckBox _chkBlockMode;
 	private Slider _sldBlockStep;
 	private Label _lblBlockStepValue;
+	private CheckBox? _chkAbsoluteHeight;
 
 	public MapEditorBrushSettings(Slider sldBrushSize, Label lblBrushSizeValue, Slider sldBrushStrength, Label lblBrushStrengthValue,
-		CheckBox chkBlockMode, Slider sldBlockStep, Label lblBlockStepValue)
+		CheckBox chkBlockMode, Slider sldBlockStep, Label lblBlockStepValue, CheckBox? chkAbsoluteHeight = null)
 	{
 		_sldBrushSize = sldBrushSize;
 		_lblBrushSizeValue = lblBrushSizeValue;
@@ -23,6 +24,7 @@ public class MapEditorBrushSettings
 		_chkBlockMode = chkBlockMode;
 		_sldBlockStep = sldBlockStep;
 		_lblBlockStepValue = lblBlockStepValue;
+		_chkAbsoluteHeight = chkAbsoluteHeight;
 
 		_sldBrushSize.Step = 1.0;
 		_sldBrushSize.Rounded = true;
@@ -54,6 +56,14 @@ public class MapEditorBrushSettings
 			_chkBlockMode.Toggled += (buttonPressed) =>
 			{
 				if (GameHost.Instance != null) GameHost.Instance.EditorBlockMode = buttonPressed;
+			};
+		}
+
+		if (_chkAbsoluteHeight != null)
+		{
+			_chkAbsoluteHeight.Toggled += (buttonPressed) =>
+			{
+				if (GameHost.Instance != null) GameHost.Instance.EditorBlockHeightIsAbsolute = buttonPressed;
 			};
 		}
 
@@ -90,6 +100,15 @@ public class MapEditorBrushSettings
 			if (_chkBlockMode.ButtonPressed != isBlock)
 			{
 				_chkBlockMode.ButtonPressed = isBlock;
+			}
+		}
+
+		if (_chkAbsoluteHeight != null && GameHost.Instance != null)
+		{
+			bool isAbsolute = GameHost.Instance.EditorBlockHeightIsAbsolute;
+			if (_chkAbsoluteHeight.ButtonPressed != isAbsolute)
+			{
+				_chkAbsoluteHeight.ButtonPressed = isAbsolute;
 			}
 		}
 

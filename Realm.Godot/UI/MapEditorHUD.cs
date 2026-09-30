@@ -222,6 +222,7 @@ public partial class MapEditorHUD : Control
 	private Control _scaleVarBox;
 	private Control _camBoundsBox;
 	private CheckBox _chkBlockMode;
+	private CheckBox _chkAbsoluteHeight;
 	private Slider _sldBlockStep;
 	private Label _lblBlockStepValue;
 
@@ -1081,6 +1082,14 @@ public partial class MapEditorHUD : Control
 		_sldBlockStep.DragStarted += () => _isDraggingSlider = true;
 		_sldBlockStep.DragEnded += (valueChanged) => _isDraggingSlider = false;
 		_lblBlockStepValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblBlockStepValue");
+		_chkAbsoluteHeight = GetNodeOrNull<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/ChkAbsoluteHeight");
+		if (_chkAbsoluteHeight != null)
+		{
+			_chkAbsoluteHeight.Set("icon_max_width", 0);
+			_chkAbsoluteHeight.Text = TranslationServer.Translate("Absolute");
+		}
+		var lblStepTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblStepTitle");
+		if (lblStepTitle != null) lblStepTitle.Text = TranslationServer.Translate("Height");
 
 		_accordionWater = new VBoxContainer();
 		_accordionWater.Name = "WaterAccordion";
@@ -1535,7 +1544,7 @@ public partial class MapEditorHUD : Control
 		_generationDialog = new MapEditorGenerationDialog(this);
 
 		_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnVSCode, _statusLabel, _feedbackLabel);
-		_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue);
+		_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _chkAbsoluteHeight);
 		_placementSettingsController = new MapEditorPlacementSettings(_sldPlacementRotate, _lblPlacementRotateValue, _sldPlacementScale, _lblPlacementScaleValue, _chkRandomRotation, _chkRandomScale, _chkClumpMode, _sldClumpDensity, _lblClumpDensityValue, _sldClumpScaleVar, _lblClumpScaleVarValue);
 		InitializeInspectorPanel();
 		_inspectorController = new MapEditorInspector(_lblInspectorTitle, _lblInspectorPos, _btnInspectorRotLeft, _btnInspectorRotRight, _btnInspectorScaleDown, _btnInspectorScaleUp, _btnInspectorScaleReset, _btnInspectorDelete);

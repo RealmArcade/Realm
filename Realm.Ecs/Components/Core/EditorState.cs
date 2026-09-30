@@ -26,6 +26,7 @@ namespace Realm.Ecs.Components.Core
 		public MirrorMode MirrorMode;
 		public WaterType WaterMode;
 		public byte WaterProfileIndex;
+		public bool BlockHeightIsAbsolute;
 
 		public EditorState(
 			bool blockMode,
@@ -38,7 +39,8 @@ namespace Realm.Ecs.Components.Core
 			bool hasUnsavedChanges,
 			MirrorMode mirrorMode = MirrorMode.None,
 			WaterType waterMode = WaterType.None,
-			byte waterProfileIndex = 0)
+			byte waterProfileIndex = 0,
+			bool blockHeightIsAbsolute = false)
 		{
 			BlockMode = blockMode;
 			BlockLevelHeight = blockLevelHeight;
@@ -51,6 +53,7 @@ namespace Realm.Ecs.Components.Core
 			MirrorMode = mirrorMode;
 			WaterMode = waterMode;
 			WaterProfileIndex = waterProfileIndex;
+			BlockHeightIsAbsolute = blockHeightIsAbsolute;
 		}
 	}
 }
