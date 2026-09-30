@@ -1431,4 +1431,18 @@ public class CustomProjMap : IWasmModule
         }
         return filename;
     }
+
+    [TestCase]
+    public void TestIsIgnoredPathFilters()
+    {
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath(".vscode/settings.json")).IsTrue();
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("subfolder/.vscode/tasks.json")).IsTrue();
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("export.rmap")).IsTrue();
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("temp.tmp")).IsTrue();
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("debug.log")).IsTrue();
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("backup.bak")).IsTrue();
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("terrain.json")).IsFalse();
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("metadata.json")).IsFalse();
+        Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("Assets/icons/my_icon.rtex")).IsFalse();
+    }
 }
