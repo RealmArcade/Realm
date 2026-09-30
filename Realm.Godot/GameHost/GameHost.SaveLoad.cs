@@ -15,6 +15,13 @@ public partial class GameHost
 	{
 		if (GroundTerrain == null) return;
 
+		byte savedWaterProfile = ActiveWaterProfileIndex;
+		WaterType savedWaterMode = EditorWaterMode;
+		float savedWaterHeight = EditorWaterHeight;
+		bool savedBlockMode = EditorBlockMode;
+		float savedBlockLevelHeight = EditorBlockLevelHeight;
+		bool savedBlockHeightIsAbsolute = EditorBlockHeightIsAbsolute;
+
 		int width = GroundTerrain.Width;
 		int depth = GroundTerrain.Depth;
 		int splatW = GroundTerrain.SplatMap.GetLength(0);
@@ -171,6 +178,13 @@ public partial class GameHost
 			if (performReload)
 			{
 				LoadMapFromFile(absolutePath, terrainOnly: false, clearUnits: true, ensureGlbOptimized: false);
+				ActiveWaterProfileIndex = savedWaterProfile;
+				EditorWaterMode = savedWaterMode;
+				EditorWaterHeight = savedWaterHeight;
+				EditorBlockMode = savedBlockMode;
+				EditorBlockLevelHeight = savedBlockLevelHeight;
+				EditorBlockHeightIsAbsolute = savedBlockHeightIsAbsolute;
+				MapEditorHUD.Instance?.RefreshWaterSwatches();
 				MapEditorHUD.Instance?.UpdateMapNameHeader();
 				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));
 			}

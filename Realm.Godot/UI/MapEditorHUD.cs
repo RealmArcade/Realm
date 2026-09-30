@@ -3788,6 +3788,9 @@ public partial class MapEditorHUD : Control
 			MapWorkspaceService.EnsureLicenseFile(targetFolder);
 
 			SaveCurrentDirectoryBlake3();
+			_lastTerrainSyncTime = GetMaxTerrainWriteTime(tempTerrainPath);
+			_lastMetadataSyncTime = GetLastWriteTimeSafe(System.IO.Path.Combine(_tempWorkspacePath, "metadata.json"));
+			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 			ShowFeedback(string.Format(TranslationServer.Translate("Map saved successfully to folder {0}!"), System.IO.Path.GetFileName(targetFolder)));
 		}
@@ -12066,6 +12069,17 @@ public partial class MapEditorHUD : Control
 	public void RefreshWaterSwatches()
 	{
 		if (_optWaterMode == null) return;
+
+		byte currentProf = GameHost.Instance != null ? GameHost.Instance.ActiveWaterProfileIndex : (byte)0;
+		if (_optWaterMode.Selected >= 0 && _optWaterMode.Selected < _optWaterMode.ItemCount)
+		{
+			var currentMeta = _optWaterMode.GetItemMetadata(_optWaterMode.Selected);
+			if (currentMeta.VariantType != Variant.Type.Nil)
+			{
+				currentProf = (byte)(int)currentMeta;
+			}
+		}
+
 		_optWaterMode.Clear();
 
 		var profiles = RuntimeTerrain.Instance != null ? RuntimeTerrain.Instance.GetWaterProfiles() : null;
@@ -12095,22 +12109,23 @@ public partial class MapEditorHUD : Control
 		}
 
 		int targetSelected = 0;
-		if (GameHost.Instance != null)
+		for (int i = 0; i < _optWaterMode.ItemCount; i++)
 		{
-			byte currentProf = GameHost.Instance.ActiveWaterProfileIndex;
-			for (int i = 0; i < _optWaterMode.ItemCount; i++)
+			var meta = _optWaterMode.GetItemMetadata(i);
+			if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == currentProf)
 			{
-				var meta = _optWaterMode.GetItemMetadata(i);
-				if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == currentProf)
-				{
-					targetSelected = i;
-					break;
-				}
+				targetSelected = i;
+				break;
 			}
 		}
 		if (_optWaterMode.ItemCount > 0)
 		{
 			_optWaterMode.Selected = targetSelected;
+		}
+
+		if (GameHost.Instance != null)
+		{
+			GameHost.Instance.ActiveWaterProfileIndex = currentProf;
 		}
 	}
 
