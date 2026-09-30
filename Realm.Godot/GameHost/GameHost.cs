@@ -353,7 +353,8 @@ public partial class GameHost : Node3D, IGameAPI
 		PasteArea,
 		PaintPathing,
 		FloodFillPathing,
-		DrawCoordinate
+		DrawCoordinate,
+		Water
 	}
 	private EditorTool _activeEditorTool = EditorTool.None;
 	public EditorTool ActiveEditorTool

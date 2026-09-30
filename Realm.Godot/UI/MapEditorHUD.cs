@@ -91,6 +91,13 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _accordionBrush;
 	private Button _btnHeaderBrush;
 	private VBoxContainer _contentBrush;
+
+	private VBoxContainer _accordionWater;
+	private Button _btnHeaderWater;
+	private VBoxContainer _contentWater;
+	private Button _btnWaterActionAdd;
+	private Button _btnWaterActionRemove;
+	private bool _isWaterRemoveAction = false;
 	
 	private VBoxContainer _accordionTool;
 	private Button _btnHeaderTool;
@@ -220,6 +227,7 @@ public partial class MapEditorHUD : Control
 
 	private Control _waterModeBox;
 	private OptionButton _optWaterMode;
+	private Button _btnWaterProfiles;
 	private WaterProfileDialog _waterProfileDialog;
 	private EnvironmentConfigDialog _environmentConfigDialog;
 	private GlobalObjectOverridesDialog _globalOverridesDialog;
@@ -274,6 +282,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnEyedropper;
 	private OptionButton _optEyedropperMode;
 	private Button _btnNoise;
+	private Button _btnWater;
 	private PanelContainer _minimapFrame;
 	private Control _minimapArea;
 	private MapEditorCameraIndicator _cameraIndicator;
@@ -341,7 +350,7 @@ public partial class MapEditorHUD : Control
 	private Button _activeToolButton = null;
 	private StyleBoxFlat _highlightStyle;
 
-	private Control _cardRaise, _cardLower, _cardSmooth, _cardPlateau, _cardRamp, _cardNoise;
+	private Control _cardRaise, _cardLower, _cardSmooth, _cardPlateau, _cardRamp, _cardNoise, _cardWater;
 	private Control _cardTextureBrush, _cardFloodFill;
 	private Control _cardPathingBrush, _cardFloodFillPathing;
 	private Control _cardAddObject, _cardSelectMove, _cardDeleteObject;
@@ -939,6 +948,10 @@ public partial class MapEditorHUD : Control
 		_btnNoise = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnNoise");
 		_cardNoise = CreateToolCard(_btnNoise, "\uf6d9", "Noise", () => TriggerToolSelection(GameHost.EditorTool.Noise, _btnNoise), "Add random height variations/noise to terrain (7)");
 
+		_btnWater = new Button();
+		_btnWater.Name = "BtnWater";
+		_cardWater = CreateToolCard(_btnWater, "\uf773", "Water", () => TriggerToolSelection(GameHost.EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls");
+
 		_btnTextureBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/BtnTextureBrush");
 		_cardTextureBrush = CreateToolCard(_btnTextureBrush, "\uf1fc", "Paint", () => TriggerToolSelection(GameHost.EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
 
@@ -1074,40 +1087,11 @@ public partial class MapEditorHUD : Control
 			box.Name = "WaterModeBox";
 			box.AddThemeConstantOverride("separation", 2);
 
-			var header = new HBoxContainer();
-			header.Name = "Header";
-
-			var lbl = new Label();
-			lbl.Name = "LblWaterTitle";
-			lbl.Text = TranslationServer.Translate("Liquid / Water");
-			lbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			lbl.AddThemeFontSizeOverride("font_size", 10);
-			header.AddChild(lbl);
-
-			var btnWaterProfiles = new Button();
-			btnWaterProfiles.Name = "BtnWaterProfiles";
-			btnWaterProfiles.Set("icon_max_width", 0);
-			btnWaterProfiles.Text = "⚙";
-			btnWaterProfiles.CustomMinimumSize = new Vector2(24, 20);
-			btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
-			btnWaterProfiles.FocusMode = Control.FocusModeEnum.None;
-			btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
-			btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
-			header.AddChild(btnWaterProfiles);
-
-			box.AddChild(header);
-
 			_optWaterMode = new OptionButton();
 			_optWaterMode.Name = "OptWaterMode";
 			_optWaterMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 			_optWaterMode.ClipText = true;
 			_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
-			_optWaterMode.AddItem(TranslationServer.Translate("None"), 0);
-			_optWaterMode.SetItemMetadata(0, (byte)0);
-			_optWaterMode.AddItem(TranslationServer.Translate("Shallow Water"), 1);
-			_optWaterMode.SetItemMetadata(1, (byte)0);
-			_optWaterMode.AddItem(TranslationServer.Translate("Deep Ocean"), 2);
-			_optWaterMode.SetItemMetadata(2, (byte)1);
 			_optWaterMode.Selected = 0;
 			box.AddChild(_optWaterMode);
 
@@ -1117,11 +1101,6 @@ public partial class MapEditorHUD : Control
 		else if (_waterModeBox != null)
 		{
 			_optWaterMode = _waterModeBox.GetNodeOrNull<OptionButton>("OptWaterMode") ?? _waterModeBox.FindChild("OptWaterMode", true, false) as OptionButton;
-			var btnWaterProfiles = _waterModeBox.GetNodeOrNull<Button>("Header/BtnWaterProfiles") ?? _waterModeBox.FindChild("BtnWaterProfiles", true, false) as Button;
-			if (btnWaterProfiles != null)
-			{
-				btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
-			}
 		}
 
 		if (_optWaterMode != null)
@@ -1154,6 +1133,106 @@ public partial class MapEditorHUD : Control
 			};
 			RefreshWaterSwatches();
 		}
+
+		_accordionWater = new VBoxContainer();
+		_accordionWater.Name = "WaterAccordion";
+		_btnHeaderWater = new Button();
+		_btnHeaderWater.Name = "BtnHeaderWater";
+		_contentWater = new VBoxContainer();
+		_contentWater.Name = "ContentWater";
+		_accordionWater.AddChild(_btnHeaderWater);
+		_accordionWater.AddChild(_contentWater);
+
+		var mainAccordionContainer = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer");
+		if (mainAccordionContainer != null)
+		{
+			mainAccordionContainer.AddChild(_accordionWater);
+			if (_accordionBrush != null)
+			{
+				mainAccordionContainer.MoveChild(_accordionWater, _accordionBrush.GetIndex() + 1);
+			}
+		}
+
+		StyleAccordionHeader(_btnHeaderWater);
+		SetupAccordion(_btnHeaderWater, _contentWater, TranslationServer.Translate("Liquid / Water Config"));
+
+		var waterActionBox = new VBoxContainer();
+		waterActionBox.Name = "WaterActionBox";
+		waterActionBox.AddThemeConstantOverride("separation", 2);
+
+		var lblWaterAction = new Label();
+		lblWaterAction.Name = "LblWaterActionTitle";
+		lblWaterAction.Text = TranslationServer.Translate("Action");
+		lblWaterAction.AddThemeFontSizeOverride("font_size", 10);
+		waterActionBox.AddChild(lblWaterAction);
+
+		var waterActionButtonRow = new HBoxContainer();
+		waterActionButtonRow.Name = "WaterActionButtonRow";
+		waterActionButtonRow.AddThemeConstantOverride("separation", 4);
+		waterActionBox.AddChild(waterActionButtonRow);
+
+		_btnWaterActionAdd = new Button();
+		_btnWaterActionAdd.Name = "BtnWaterActionAdd";
+		_btnWaterActionAdd.Set("icon_max_width", 0);
+		_btnWaterActionAdd.Text = "+ " + TranslationServer.Translate("Add");
+		_btnWaterActionAdd.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_btnWaterActionAdd.FocusMode = Control.FocusModeEnum.None;
+		_btnWaterActionAdd.AddThemeFontSizeOverride("font_size", 11);
+		_btnWaterActionAdd.TooltipText = TranslationServer.Translate("Add water to terrain");
+		StyleRowButton(_btnWaterActionAdd);
+		_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
+		waterActionButtonRow.AddChild(_btnWaterActionAdd);
+
+		_btnWaterActionRemove = new Button();
+		_btnWaterActionRemove.Name = "BtnWaterActionRemove";
+		_btnWaterActionRemove.Set("icon_max_width", 0);
+		_btnWaterActionRemove.Text = "- " + TranslationServer.Translate("Remove");
+		_btnWaterActionRemove.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_btnWaterActionRemove.FocusMode = Control.FocusModeEnum.None;
+		_btnWaterActionRemove.AddThemeFontSizeOverride("font_size", 11);
+		_btnWaterActionRemove.TooltipText = TranslationServer.Translate("Remove water from terrain");
+		StyleRowButton(_btnWaterActionRemove);
+		waterActionButtonRow.AddChild(_btnWaterActionRemove);
+
+		_btnWaterActionAdd.Pressed += () =>
+		{
+			_isWaterRemoveAction = false;
+			_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
+			_btnWaterActionRemove.RemoveThemeStyleboxOverride("normal");
+			if (_waterModeBox != null) _waterModeBox.Visible = true;
+			if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = true;
+		};
+
+		_btnWaterActionRemove.Pressed += () =>
+		{
+			_isWaterRemoveAction = true;
+			_btnWaterActionRemove.AddThemeStyleboxOverride("normal", _highlightStyle);
+			_btnWaterActionAdd.RemoveThemeStyleboxOverride("normal");
+			if (_waterModeBox != null) _waterModeBox.Visible = false;
+			if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = false;
+		};
+
+		_contentWater.AddChild(waterActionBox);
+
+		if (_waterModeBox != null)
+		{
+			if (_waterModeBox.GetParent() != null)
+			{
+				_waterModeBox.GetParent().RemoveChild(_waterModeBox);
+			}
+			_contentWater.AddChild(_waterModeBox);
+		}
+
+		_btnWaterProfiles = new Button();
+		_btnWaterProfiles.Name = "BtnWaterProfiles";
+		_btnWaterProfiles.Set("icon_max_width", 0);
+		_btnWaterProfiles.Text = "⚙ " + TranslationServer.Translate("Water Profiles");
+		_btnWaterProfiles.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_btnWaterProfiles.TooltipText = TranslationServer.Translate("Configure Liquid / Water Uber Profiles");
+		_btnWaterProfiles.FocusMode = Control.FocusModeEnum.None;
+		_btnWaterProfiles.AddThemeFontSizeOverride("font_size", 11);
+		_btnWaterProfiles.Pressed += () => OpenWaterProfileDialog();
+		_contentWater.AddChild(_btnWaterProfiles);
 
 		_accordionToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion");
 		_btnHeaderToolSettings = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/BtnHeaderToolSettings");
@@ -1465,6 +1544,7 @@ public partial class MapEditorHUD : Control
 		MakeCardDraggable(_accordionToolSettings, _btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
 		MakeCardDraggable(_accordionPlacement, _btnHeaderPlacement, _contentPlacement, "Placement Config");
 		MakeCardDraggable(_accordionInspector, _btnHeaderInspector, _contentInspector, "Selected Object Inspector");
+		if (_accordionWater != null) MakeCardDraggable(_accordionWater, _btnHeaderWater, _contentWater, "Liquid / Water Config");
 
 		RestructurePanelLayouts();
 
@@ -1629,6 +1709,25 @@ public partial class MapEditorHUD : Control
 		return _optPathingMode.Selected == 0;
 	}
 
+	public bool IsWaterRemoveAction()
+	{
+		return _isWaterRemoveAction;
+	}
+
+	public byte GetSelectedWaterProfileIndex()
+	{
+		if (_optWaterMode == null || _optWaterMode.Selected <= 0) return 0;
+		var meta = _optWaterMode.GetItemMetadata(_optWaterMode.Selected);
+		if (meta.VariantType == Variant.Type.Nil) return 0;
+		return (byte)(int)meta;
+	}
+
+	public WaterType GetSelectedWaterMode()
+	{
+		if (_optWaterMode == null || _optWaterMode.Selected <= 0) return WaterType.None;
+		return WaterType.Shallow;
+	}
+
 	public string GetEyedropperMode()
 	{
 		if (_optEyedropperMode == null) return "all";
@@ -1682,11 +1781,13 @@ public partial class MapEditorHUD : Control
 		if (_accordionToolSettings != null) _accordionToolSettings.CustomMinimumSize = new Vector2(260, 0);
 		if (_accordionPlacement != null) _accordionPlacement.CustomMinimumSize = new Vector2(260, 0);
 		if (_accordionInspector != null) _accordionInspector.CustomMinimumSize = new Vector2(260, 0);
+		if (_accordionWater != null) _accordionWater.CustomMinimumSize = new Vector2(260, 0);
 
 		ApplyCardPanelStyle(_accordionFile);
 		ApplyCardPanelStyle(_accordionViewport);
 		ApplyCardPanelStyle(_accordionTool);
 		ApplyCardPanelStyle(_accordionBrush);
+		if (_accordionWater != null) ApplyCardPanelStyle(_accordionWater);
 		ApplyCardPanelStyle(_accordionToolSettings);
 		ApplyCardPanelStyle(_accordionPlacement);
 		ApplyCardPanelStyle(_accordionInspector);
@@ -1695,6 +1796,7 @@ public partial class MapEditorHUD : Control
 		StyleContentBox(_contentViewport);
 		StyleContentBox(_contentTool);
 		StyleContentBox(_contentBrush);
+		if (_contentWater != null) StyleContentBox(_contentWater);
 		StyleContentBox(_contentToolSettings);
 		StyleContentBox(_contentPlacement);
 		StyleContentBox(_contentInspector);
@@ -1703,6 +1805,7 @@ public partial class MapEditorHUD : Control
 		SetupCardScrollContainer(_contentViewport, 0f, false);
 		SetupCardScrollContainer(_contentTool, 320f);
 		SetupCardScrollContainer(_contentBrush, 300f);
+		if (_contentWater != null) SetupCardScrollContainer(_contentWater, 200f);
 		SetupCardScrollContainer(_contentToolSettings, 320f);
 		SetupCardScrollContainer(_contentPlacement, 320f);
 		SetupCardScrollContainer(_contentInspector, 300f);
@@ -1738,6 +1841,7 @@ public partial class MapEditorHUD : Control
 		StyleRowButton(_btnPlateau);
 		StyleRowButton(_btnRamp);
 		StyleRowButton(_btnNoise);
+		StyleRowButton(_btnWater);
 		StyleRowButton(_btnTextureBrush);
 		StyleRowButton(_btnFloodFill);
 		StyleRowButton(_btnPathingBrush);
@@ -2721,6 +2825,7 @@ public partial class MapEditorHUD : Control
 			case GameHost.EditorTool.Plateau: targetBtn = _btnPlateau; break;
 			case GameHost.EditorTool.Ramp: targetBtn = _btnRamp; break;
 			case GameHost.EditorTool.Noise: targetBtn = _btnNoise; break;
+			case GameHost.EditorTool.Water: targetBtn = _btnWater; break;
 			case GameHost.EditorTool.PaintTexture: targetBtn = _btnTextureBrush; break;
 			case GameHost.EditorTool.FloodFill: targetBtn = _btnFloodFill; break;
 			case GameHost.EditorTool.PaintPathing: targetBtn = _btnPathingBrush; break;
@@ -2819,6 +2924,7 @@ public partial class MapEditorHUD : Control
 			GameHost.EditorTool.Plateau => _btnPlateau,
 			GameHost.EditorTool.Ramp => _btnRamp,
 			GameHost.EditorTool.Noise => _btnNoise,
+			GameHost.EditorTool.Water => _btnWater,
 			GameHost.EditorTool.PaintPathing => _btnPathingBrush,
 			GameHost.EditorTool.FloodFillPathing => _btnFloodFillPathing,
 			GameHost.EditorTool.DrawCoordinate => _btnDrawCoordinate,
@@ -2901,7 +3007,8 @@ public partial class MapEditorHUD : Control
 			tool == GameHost.EditorTool.Smooth ||
 			tool == GameHost.EditorTool.Plateau ||
 			tool == GameHost.EditorTool.Ramp ||
-			tool == GameHost.EditorTool.Noise)
+			tool == GameHost.EditorTool.Noise ||
+			tool == GameHost.EditorTool.Water)
 		{
 			targetModule = EditorModule.Terrain;
 		}
@@ -3055,6 +3162,9 @@ public partial class MapEditorHUD : Control
 					break;
 				case GameHost.EditorTool.Noise:
 					_lblInfoText.Text = TranslationServer.Translate("TOOL: Roughen Terrain\n\nDrag left-click to apply random height variations/noise to ruggedize the terrain surface. Adjust size and strength in settings.");
+					break;
+				case GameHost.EditorTool.Water:
+					_lblInfoText.Text = TranslationServer.Translate("TOOL: Water Flood Fill\n\nClick on terrain to flood-fill water bounded by cliff walls. Uses selected Water Profile or toggles water.");
 					break;
 				case GameHost.EditorTool.PaintPathing:
 					_lblInfoText.Text = TranslationServer.Translate("TOOL: Pathing Layer Painting\n\nDrag left click to paint pathing properties (ground, flying, water, etc.) onto the map. Use checkboxes to select layers, and Mode to Add/Remove.");
@@ -7104,6 +7214,7 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_cardPlateau ?? (Control)_btnPlateau, terrainGrid);
 			SafeReparent(_cardRamp ?? (Control)_btnRamp, terrainGrid);
 			SafeReparent(_cardNoise ?? (Control)_btnNoise, terrainGrid);
+			SafeReparent(_cardWater ?? (Control)_btnWater, terrainGrid);
 
 			_panelTerrainVBox.AddChild(terrainGrid);
 			StyleSubContainer(_panelTerrainVBox, "Terrain Elevation");
@@ -7547,7 +7658,7 @@ public partial class MapEditorHUD : Control
 		if (_panelRight == null) return;
 
 		bool isClumpActive = _chkClumpMode != null && _chkClumpMode.ButtonPressed;
-		bool isBrush = tool == GameHost.EditorTool.Raise ||
+		bool isBrush = (tool == GameHost.EditorTool.Raise ||
 					   tool == GameHost.EditorTool.Lower ||
 					   tool == GameHost.EditorTool.Smooth ||
 					   tool == GameHost.EditorTool.Plateau ||
@@ -7557,7 +7668,8 @@ public partial class MapEditorHUD : Control
 					   tool == GameHost.EditorTool.PaintPathing ||
 					   tool == GameHost.EditorTool.FloodFillPathing ||
 					   tool == GameHost.EditorTool.PlacePropClump ||
-					   ((tool == GameHost.EditorTool.PlaceUnit || tool == GameHost.EditorTool.PlaceProp || tool == GameHost.EditorTool.PlaceDecal) && isClumpActive);
+					   ((tool == GameHost.EditorTool.PlaceUnit || tool == GameHost.EditorTool.PlaceProp || tool == GameHost.EditorTool.PlaceDecal) && isClumpActive))
+					   && tool != GameHost.EditorTool.Water;
 
 		if (_accordionBrush != null)
 		{
@@ -7576,6 +7688,11 @@ public partial class MapEditorHUD : Control
 										 !isClumpActive);
 			}
 			UpdateBlockStepVisibility();
+		}
+
+		if (_accordionWater != null)
+		{
+			_accordionWater.Visible = (tool == GameHost.EditorTool.Water);
 		}
 
 		bool isBlockModeActive = (_chkBlockMode != null && _chkBlockMode.Visible && _chkBlockMode.ButtonPressed) || (GameHost.Instance != null && GameHost.Instance.EditorBlockMode);
@@ -8404,6 +8521,7 @@ public partial class MapEditorHUD : Control
 		GameHost.EditorTool.Plateau     => true,
 		GameHost.EditorTool.Noise       => true,
 		GameHost.EditorTool.Ramp        => true,
+		GameHost.EditorTool.Water       => true,
 		GameHost.EditorTool.PaintTexture => true,
 		GameHost.EditorTool.FloodFill   => true,
 		GameHost.EditorTool.Eyedropper  => true,
@@ -8713,10 +8831,6 @@ public partial class MapEditorHUD : Control
 		if (_stepBox != null)
 		{
 			_stepBox.Visible = blockModeEnabled && (tool != GameHost.EditorTool.Plateau);
-		}
-		if (_waterModeBox != null)
-		{
-			_waterModeBox.Visible = blockModeEnabled && (tool == GameHost.EditorTool.Lower);
 		}
 	}
 
@@ -11921,13 +12035,11 @@ public partial class MapEditorHUD : Control
 	{
 		if (_optWaterMode == null) return;
 		_optWaterMode.Clear();
-		_optWaterMode.AddItem(TranslationServer.Translate("None"), 0);
-		_optWaterMode.SetItemMetadata(0, (byte)0);
 
 		var profiles = RuntimeTerrain.Instance != null ? RuntimeTerrain.Instance.GetWaterProfiles() : null;
 		if (profiles != null && profiles.Count > 0)
 		{
-			int itemIdx = 1;
+			int itemIdx = 0;
 			foreach (var kvp in profiles)
 			{
 				byte pIdx = kvp.Key;

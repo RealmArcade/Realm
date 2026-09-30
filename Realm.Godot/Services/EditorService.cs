@@ -2406,6 +2406,150 @@ public class EditorService
 		return (pathingBefore, (int[,])pathingCodes.Clone());
 	}
 
+	private List<Vector2I> GetWaterFloodFillCells(
+		Vector3 clickPos,
+		TerrainCell[,] cellsBefore,
+		int width,
+		int depth,
+		float quadSize,
+		bool[,] visited)
+	{
+		var resultCells = new List<Vector2I>();
+
+		float startFx = clickPos.X / quadSize + width / 2.0f;
+		float startFz = clickPos.Z / quadSize + depth / 2.0f;
+		int clickX = Mathf.Clamp((int)Math.Floor(startFx), 0, width - 1);
+		int clickZ = Mathf.Clamp((int)Math.Floor(startFz), 0, depth - 1);
+
+		var queue = new Queue<(int x, int z)>();
+		if (!visited[clickX, clickZ])
+		{
+			queue.Enqueue((clickX, clickZ));
+			visited[clickX, clickZ] = true;
+		}
+
+		int[] dx = { 0, 0, -1, 1 };
+		int[] dz = { -1, 1, 0, 0 };
+
+		while (queue.Count > 0)
+		{
+			var (currX, currZ) = queue.Dequeue();
+			resultCells.Add(new Vector2I(currX, currZ));
+
+			var currCell = cellsBefore[currX, currZ];
+
+			for (int i = 0; i < 4; i++)
+			{
+				int nextX = currX + dx[i];
+				int nextZ = currZ + dz[i];
+
+				if (nextX >= 0 && nextX < width && nextZ >= 0 && nextZ < depth)
+				{
+					if (!visited[nextX, nextZ])
+					{
+						var nextCell = cellsBefore[nextX, nextZ];
+
+						bool isCliffWall = Math.Abs(nextCell.MacroTier - currCell.MacroTier) >= 1
+							|| MathF.Abs(nextCell.CenterHeight - currCell.CenterHeight) >= 1.5f;
+
+						float nMaxH = Mathf.Max(Mathf.Max(nextCell.Y_NW, nextCell.Y_NE), Mathf.Max(nextCell.Y_SW, nextCell.Y_SE));
+						float nMinH = Mathf.Min(Mathf.Min(nextCell.Y_NW, nextCell.Y_NE), Mathf.Min(nextCell.Y_SW, nextCell.Y_SE));
+						if (nMaxH - nMinH >= 1.5f)
+						{
+							isCliffWall = true;
+						}
+
+						if (!isCliffWall)
+						{
+							visited[nextX, nextZ] = true;
+							queue.Enqueue((nextX, nextZ));
+						}
+					}
+				}
+			}
+		}
+
+		return resultCells;
+	}
+
+	private List<Vector2I> GetWaterFloodFillArea(
+		Vector3 clickPos,
+		TerrainCell[,] cellsBefore,
+		int width,
+		int depth,
+		float quadSize,
+		bool[,] visited,
+		MirrorMode mirrorMode)
+	{
+		var areaCells = new List<Vector2I>();
+
+		areaCells.AddRange(GetWaterFloodFillCells(clickPos, cellsBefore, width, depth, quadSize, visited));
+
+		if (mirrorMode != MirrorMode.None)
+		{
+			var mirrors = GetMirroredPositions(clickPos, mirrorMode);
+			foreach (var m in mirrors)
+			{
+				areaCells.AddRange(GetWaterFloodFillCells(m, cellsBefore, width, depth, quadSize, visited));
+			}
+		}
+
+		return areaCells;
+	}
+
+	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, int[,]? BeforePathing, int[,]? AfterPathing, bool WasAdded) PerformWaterFloodFill(
+		Vector3 clickPos,
+		WaterType activeWaterMode,
+		byte activeWaterProfile,
+		MirrorMode mirrorMode,
+		bool isRemoveAction = false)
+	{
+		ref var terrain = ref GetTerrainState();
+		if (terrain.Cells == null || terrain.PathingCodes == null) return (null, null, null, null, false);
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float quadSize = terrain.QuadSize;
+
+		var cells = terrain.Cells;
+
+		bool isRemoving = isRemoveAction;
+		WaterType targetWaterMode = isRemoving ? WaterType.None : (activeWaterMode != WaterType.None ? activeWaterMode : WaterType.Shallow);
+		byte targetWaterProfile = isRemoving ? (byte)0 : activeWaterProfile;
+
+		var beforeCells = (TerrainCell[,])cells.Clone();
+		var beforePathing = (int[,])terrain.PathingCodes.Clone();
+
+		var visited = new bool[width, depth];
+		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode);
+
+		if (filledCells.Count == 0) return (null, null, null, null, false);
+
+		foreach (var cellPos in filledCells)
+		{
+			int x = cellPos.X;
+			int z = cellPos.Y;
+
+			cells[x, z].WaterMode = targetWaterMode;
+			cells[x, z].WaterProfileIndex = targetWaterProfile;
+
+			if (targetWaterMode != WaterType.None)
+			{
+				var waterProf = RuntimeTerrain.Instance?.GetWaterProfile(targetWaterProfile);
+				terrain.PathingCodes[x, z] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(targetWaterMode);
+			}
+			else
+			{
+				terrain.PathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
+			}
+		}
+
+		var afterCells = (TerrainCell[,])cells.Clone();
+		var afterPathing = (int[,])terrain.PathingCodes.Clone();
+
+		return (beforeCells, afterCells, beforePathing, afterPathing, !isRemoving);
+	}
+
 	public List<GameHost.MirroredTransform> GetMirroredTransforms(Vector3 pos, float rotation, MirrorMode mirrorMode)
 	{
 		var list = new List<GameHost.MirroredTransform>();

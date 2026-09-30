@@ -1502,6 +1502,17 @@ public partial class GameHost
 						PerformFloodFillPathing(hitPos, pathingMask, pathingAdd);
 						GetViewport().SetInputAsHandled();
 					}
+					else if (ActiveEditorTool == EditorTool.Water)
+					{
+						bool isRemove = MapEditorHUD.Instance != null && MapEditorHUD.Instance.IsWaterRemoveAction();
+						if (MapEditorHUD.Instance != null)
+						{
+							EditorWaterMode = MapEditorHUD.Instance.GetSelectedWaterMode();
+							ActiveWaterProfileIndex = MapEditorHUD.Instance.GetSelectedWaterProfileIndex();
+						}
+						PerformWaterFloodFill(hitPos, isRemove);
+						GetViewport().SetInputAsHandled();
+					}
 					else if (ActiveEditorTool == EditorTool.SelectArea)
 					{
 						if (GroundTerrain != null)

@@ -7,6 +7,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Components.Terrain;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -5177,6 +5178,26 @@ public partial class GameHost
 			MapEditorHUD.Instance?.ShowFeedbackExternal("Flood filled pathing area");
 			UpdatePathingOverlay();
 		}
+	}
+
+	public void PerformWaterFloodFill(Vector3 clickPos, bool isRemoveAction = false)
+	{
+		if (GroundTerrain == null || GroundTerrain.Cells == null) return;
+
+		WaterType activeMode = EditorWaterMode;
+		byte activeProfile = ActiveWaterProfileIndex;
+
+		var result = _editorService.PerformWaterFloodFill(clickPos, activeMode, activeProfile, EditorMirrorMode, isRemoveAction);
+		if (result.BeforeCells == null || result.AfterCells == null) return;
+
+		GroundTerrain.UpdateMeshAndPhysics(rebuildPhysics: false, rebuildNavMesh: true, affectedRegions: null, rebuildWater: true);
+
+		var action = new TerrainModifyAction(result.BeforeCells, result.AfterCells, null, null, result.BeforePathing, result.AfterPathing);
+		EditorHistoryManager.RecordAction(action);
+		EditorHasUnsavedChanges = true;
+
+		string statusMsg = result.WasAdded ? "Water added via flood fill" : "Water removed via flood fill";
+		MapEditorHUD.Instance?.ShowFeedbackExternal(statusMsg);
 	}
 
 	public void HideSelectionHighlight()
