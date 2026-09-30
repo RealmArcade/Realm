@@ -340,36 +340,36 @@ public class AssetIndexService : IDisposable
 
 	public void ScanAllCasManifests(IProgress<AssetIndexProgressUpdate>? progress = null)
 	{
-		lock (_syncLock)
+		var referencedCasPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		if (Directory.Exists(MapAssetManager.GlobalArchiveDirectory))
 		{
-			var referencedCasPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-			if (Directory.Exists(MapAssetManager.GlobalArchiveDirectory))
+			var manifestFiles = Directory.GetFiles(MapAssetManager.GlobalArchiveDirectory, "manifest.json", SearchOption.AllDirectories);
+			for (int i = 0; i < manifestFiles.Length; i++)
 			{
-				var manifestFiles = Directory.GetFiles(MapAssetManager.GlobalArchiveDirectory, "manifest.json", SearchOption.AllDirectories);
-				for (int i = 0; i < manifestFiles.Length; i++)
+				string file = manifestFiles[i];
+				try
 				{
-					string file = manifestFiles[i];
-					try
+					var manifest = MapManifest.LoadFromFile(file);
+					if (manifest != null && manifest.Files != null && manifest.Files.Count > 0)
 					{
-						var manifest = MapManifest.LoadFromFile(file);
-						if (manifest != null && manifest.Files != null && manifest.Files.Count > 0)
-						{
-							string mapName = !string.IsNullOrWhiteSpace(manifest.MapName) ? manifest.MapName : Path.GetFileName(Path.GetDirectoryName(file)) ?? "Map";
-							double pct = 0.20 + 0.65 * ((double)i / Math.Max(1, manifestFiles.Length));
-							progress?.Report(new AssetIndexProgressUpdate(pct, string.Format(TranslationServer.Translate("Indexing manifest {0}/{1}: {2}..."), i + 1, manifestFiles.Length, mapName)));
+						string mapName = !string.IsNullOrWhiteSpace(manifest.MapName) ? manifest.MapName : Path.GetFileName(Path.GetDirectoryName(file)) ?? "Map";
+						double pct = 0.20 + 0.65 * ((double)i / Math.Max(1, manifestFiles.Length));
+						progress?.Report(new AssetIndexProgressUpdate(pct, string.Format(TranslationServer.Translate("Indexing manifest {0}/{1}: {2}..."), i + 1, manifestFiles.Length, mapName)));
 
-							var paths = RegisterManifestInternal(manifest, file, isP2P: false);
-							foreach (var p in paths)
-							{
-								referencedCasPaths.Add(p);
-							}
+						var paths = RegisterManifestInternal(manifest, file, isP2P: false);
+						foreach (var p in paths)
+						{
+							referencedCasPaths.Add(p);
 						}
 					}
-					catch { }
 				}
+				catch { }
 			}
+		}
 
+		lock (_syncLock)
+		{
 			var orphanedCasAssets = _assetCollection.Find(Query.EQ("DirectoryPath", GlobalCasAssetsDirectory))
 				.Where(a => !referencedCasPaths.Contains(a.FilePath) || !File.Exists(a.FilePath))
 				.Select(a => (BsonValue)a.Id)
@@ -536,10 +536,6 @@ public class AssetIndexService : IDisposable
 									GlbThumbnailRenderer.EnqueueRequest(normPath, fiExisting.LastWriteTimeUtc, norm, isHighPriority: false);
 								}
 							}
-							else if (AssetThumbnailProvider.IsImageExtension(extExisting) || extExisting == ".ranim")
-							{
-								AssetThumbnailProvider.EnsureDiskImageThumbnail(normPath, fiExisting.LastWriteTimeUtc, norm);
-							}
 							continue;
 						}
 
@@ -637,10 +633,6 @@ public class AssetIndexService : IDisposable
 							{
 								GlbThumbnailRenderer.EnqueueRequest(normPath, fi.LastWriteTimeUtc, norm, isHighPriority: false);
 							}
-						}
-						else if (AssetThumbnailProvider.IsImageExtension(extNew) || extNew == ".ranim")
-						{
-							AssetThumbnailProvider.EnsureDiskImageThumbnail(normPath, fi.LastWriteTimeUtc, norm);
 						}
 					}
 				}
@@ -748,121 +740,113 @@ public class AssetIndexService : IDisposable
 							assetsToUpdate.Add(existingAsset);
 						}
 
-						var fiExisting = new FileInfo(normPath);
-						string extExisting = existingAsset.Extension;
-						if (extExisting == ".rmesh")
-						{
-							if (!GlbThumbnailRenderer.HasDiskCache(normPath, norm))
+							var fiExisting = new FileInfo(normPath);
+							string extExisting = existingAsset.Extension;
+							if (extExisting == ".rmesh")
 							{
-								GlbThumbnailRenderer.EnqueueRequest(normPath, fiExisting.LastWriteTimeUtc, norm, isHighPriority: false);
+								if (!GlbThumbnailRenderer.HasDiskCache(normPath, norm))
+								{
+									GlbThumbnailRenderer.EnqueueRequest(normPath, fiExisting.LastWriteTimeUtc, norm, isHighPriority: false);
+								}
+							}
+							continue;
+						}
+
+						var fi = new FileInfo(normPath);
+						var asset = new IndexedAsset();
+						asset.FilePath = normPath;
+						asset.FileName = Path.GetFileName(virtualPath);
+						asset.Extension = !string.IsNullOrEmpty(Path.GetExtension(virtualPath)) ? Path.GetExtension(virtualPath).ToLowerInvariant() : Path.GetExtension(normPath).ToLowerInvariant();
+						asset.DirectoryPath = GlobalCasAssetsDirectory;
+						asset.FileSizeBytes = fi.Length;
+						asset.LastModifiedUtc = fi.LastWriteTimeUtc;
+						asset.MapName = mapName;
+						asset.MapVersion = mapVersion;
+						asset.Blake3 = norm;
+
+						string? metaJson = MapAssetManager.Storage.GetAssetMetadata(norm);
+						if (string.IsNullOrEmpty(metaJson))
+						{
+							metaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
+						}
+
+						var parsedMeta = ParseMetadataHeaders(metaJson, virtualPath);
+						var tags = parsedMeta.Tags;
+						string? assetType = parsedMeta.AssetType;
+						bool hasRealmMetadata = !string.IsNullOrEmpty(metaJson);
+
+						if (tags.Count == 0)
+						{
+							tags = LoadTagsForFile(normPath, GlobalCasAssetsDirectory, tags);
+						}
+						string preferredNameNoExt = Path.GetFileNameWithoutExtension(asset.FileName);
+						var nameTokens = preferredNameNoExt.Split(new[] { '_', '-', ' ', '.', '@' }, StringSplitOptions.RemoveEmptyEntries);
+						foreach (var token in nameTokens)
+						{
+							if (token.Length > 1 && !char.IsDigit(token[0]) && !tags.Contains(token, StringComparer.OrdinalIgnoreCase))
+							{
+								tags.Add(token.ToLowerInvariant());
 							}
 						}
-						else if (AssetThumbnailProvider.IsImageExtension(extExisting) || extExisting == ".ranim")
+						if (manifest.Tags != null)
 						{
-							AssetThumbnailProvider.EnsureDiskImageThumbnail(normPath, fiExisting.LastWriteTimeUtc, norm);
-						}
-						continue;
-					}
-
-					var fi = new FileInfo(normPath);
-					var asset = new IndexedAsset();
-					asset.FilePath = normPath;
-					asset.FileName = Path.GetFileName(virtualPath);
-					asset.Extension = !string.IsNullOrEmpty(Path.GetExtension(virtualPath)) ? Path.GetExtension(virtualPath).ToLowerInvariant() : Path.GetExtension(normPath).ToLowerInvariant();
-					asset.DirectoryPath = GlobalCasAssetsDirectory;
-					asset.FileSizeBytes = fi.Length;
-					asset.LastModifiedUtc = fi.LastWriteTimeUtc;
-					asset.MapName = mapName;
-					asset.MapVersion = mapVersion;
-					asset.Blake3 = norm;
-
-					string? metaJson = MapAssetManager.Storage.GetAssetMetadata(norm);
-					if (string.IsNullOrEmpty(metaJson))
-					{
-						metaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
-					}
-
-					var parsedMeta = ParseMetadataHeaders(metaJson, virtualPath);
-					var tags = parsedMeta.Tags;
-					string? assetType = parsedMeta.AssetType;
-					bool hasRealmMetadata = !string.IsNullOrEmpty(metaJson);
-
-					if (tags.Count == 0)
-					{
-						tags = LoadTagsForFile(normPath, GlobalCasAssetsDirectory, tags);
-					}
-					string preferredNameNoExt = Path.GetFileNameWithoutExtension(asset.FileName);
-					var nameTokens = preferredNameNoExt.Split(new[] { '_', '-', ' ', '.', '@' }, StringSplitOptions.RemoveEmptyEntries);
-					foreach (var token in nameTokens)
-					{
-						if (token.Length > 1 && !char.IsDigit(token[0]) && !tags.Contains(token, StringComparer.OrdinalIgnoreCase))
-						{
-							tags.Add(token.ToLowerInvariant());
-						}
-					}
-					if (manifest.Tags != null)
-					{
-						foreach (var tag in manifest.Tags)
-						{
-							if (!string.IsNullOrWhiteSpace(tag) && !tags.Contains(tag.Trim(), StringComparer.OrdinalIgnoreCase))
+							foreach (var tag in manifest.Tags)
 							{
-								tags.Add(tag.Trim().ToLowerInvariant());
+								if (!string.IsNullOrWhiteSpace(tag) && !tags.Contains(tag.Trim(), StringComparer.OrdinalIgnoreCase))
+								{
+									tags.Add(tag.Trim().ToLowerInvariant());
+								}
 							}
 						}
-					}
-					asset.Tags = tags;
-					asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = tags });
+						asset.Tags = tags;
+						asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = tags });
 
-					if (string.IsNullOrEmpty(assetType))
-					{
-						string? dir = Path.GetDirectoryName(virtualPath);
-						if (!string.IsNullOrEmpty(dir))
+						if (string.IsNullOrEmpty(assetType))
 						{
-							string[] dirParts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-							foreach (var part in dirParts.Reverse())
+							string? dir = Path.GetDirectoryName(virtualPath);
+							if (!string.IsNullOrEmpty(dir))
 							{
-								if (Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, part, out string canonical, out _))
+								string[] dirParts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+								foreach (var part in dirParts.Reverse())
+								{
+									if (Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, part, out string canonical, out _))
+									{
+										assetType = canonical;
+										break;
+									}
+								}
+							}
+						}
+						if (string.IsNullOrEmpty(assetType) && tags != null)
+						{
+							foreach (var tag in tags)
+							{
+								if (Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, tag, out string canonical, out _))
 								{
 									assetType = canonical;
 									break;
 								}
 							}
 						}
-					}
-					if (string.IsNullOrEmpty(assetType) && tags != null)
-					{
-						foreach (var tag in tags)
+
+						bool casHasMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
+						asset.HasPlayerColorMask = casHasMask;
+						asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
+
+						asset.AssetType = assetType;
+						asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(assetType);
+
+						assetsToInsert.Add(asset);
+						existingAssetMap[normPath] = asset;
+
+						string extNew = asset.Extension;
+						if (extNew == ".rmesh")
 						{
-							if (Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, tag, out string canonical, out _))
+							if (!GlbThumbnailRenderer.HasDiskCache(normPath, norm))
 							{
-								assetType = canonical;
-								break;
+								GlbThumbnailRenderer.EnqueueRequest(normPath, fi.LastWriteTimeUtc, norm, isHighPriority: false);
 							}
 						}
-					}
-
-					bool casHasMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
-					asset.HasPlayerColorMask = casHasMask;
-					asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
-
-					asset.AssetType = assetType;
-					asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(assetType);
-
-					assetsToInsert.Add(asset);
-					existingAssetMap[normPath] = asset;
-
-					string extNew = asset.Extension;
-					if (extNew == ".rmesh")
-					{
-						if (!GlbThumbnailRenderer.HasDiskCache(normPath, norm))
-						{
-							GlbThumbnailRenderer.EnqueueRequest(normPath, fi.LastWriteTimeUtc, norm, isHighPriority: false);
-						}
-					}
-					else if (AssetThumbnailProvider.IsImageExtension(extNew) || extNew == ".ranim")
-					{
-						AssetThumbnailProvider.EnsureDiskImageThumbnail(normPath, fi.LastWriteTimeUtc, norm);
-					}
 				}
 			}
 
@@ -1237,10 +1221,6 @@ public class AssetIndexService : IDisposable
 								GlbThumbnailRenderer.EnqueueRequest(normalizedFilePath, fileInfo.LastWriteTimeUtc, existingAsset.Blake3, isHighPriority: false);
 							}
 						}
-						else if (AssetThumbnailProvider.IsImageExtension(existingAsset.Extension) || existingAsset.Extension == ".ranim")
-						{
-							AssetThumbnailProvider.EnsureDiskImageThumbnail(normalizedFilePath, fileInfo.LastWriteTimeUtc, existingAsset.Blake3);
-						}
 						continue;
 					}
 				}
@@ -1336,10 +1316,6 @@ public class AssetIndexService : IDisposable
 					{
 						GlbThumbnailRenderer.EnqueueRequest(normalizedFilePath, fileInfo.LastWriteTimeUtc, asset.Blake3, isHighPriority: false);
 					}
-				}
-				else if (AssetThumbnailProvider.IsImageExtension(asset.Extension) || asset.Extension == ".ranim")
-				{
-					AssetThumbnailProvider.EnsureDiskImageThumbnail(normalizedFilePath, fileInfo.LastWriteTimeUtc, asset.Blake3);
 				}
 
 				if (batchToUpsert.Count >= 250)
@@ -1759,14 +1735,25 @@ public class AssetIndexService : IDisposable
 				query = query.Where(x => x.DirectoryPath == normalizedDir);
 			}
 
+			HashSet<string>? extensionFilterSet = null;
 			if (allowedExtensions != null && allowedExtensions.Count > 0)
 			{
 				var normalizedExtensions = allowedExtensions
 					.Select(e => e.Trim().ToLowerInvariant())
 					.Select(e => e.StartsWith(".") ? e : "." + e)
-					.ToHashSet(StringComparer.OrdinalIgnoreCase);
+					.ToArray();
 
-				query = query.Where(x => normalizedExtensions.Contains(x.Extension));
+				extensionFilterSet = normalizedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+				if (normalizedExtensions.Length == 1)
+				{
+					string singleExt = normalizedExtensions[0];
+					query = query.Where(x => x.Extension == singleExt);
+				}
+				else
+				{
+					query = query.Where(x => normalizedExtensions.Contains(x.Extension));
+				}
 			}
 
 			if (requireRealmMetadata)
@@ -1785,6 +1772,11 @@ public class AssetIndexService : IDisposable
 			}
 
 			var candidateList = query.ToList();
+
+			if (extensionFilterSet != null)
+			{
+				candidateList = candidateList.Where(x => extensionFilterSet.Contains(x.Extension)).ToList();
+			}
 
 			List<IndexedAsset> filtered;
 			if (string.IsNullOrWhiteSpace(searchTerm))
