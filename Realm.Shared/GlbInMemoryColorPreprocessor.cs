@@ -18,22 +18,7 @@ namespace Realm.Shared;
 public static class GlbInMemoryColorPreprocessor
 {
 	private static readonly float[] SrgbToLinearTable = PrecomputeSrgbToLinear();
-
-	private static readonly Vector3 RgbToLmsRow0 = new(0.4122214708f, 0.5363325363f, 0.0514459929f);
-	private static readonly Vector3 RgbToLmsRow1 = new(0.2119034982f, 0.6806995451f, 0.1073969566f);
-	private static readonly Vector3 RgbToLmsRow2 = new(0.0883024619f, 0.2817188376f, 0.6299787005f);
-
-	private static readonly Vector3 LmsToOklabRow0 = new(0.2104542553f, 0.7936177850f, -0.0040720468f);
-	private static readonly Vector3 LmsToOklabRow1 = new(1.9779984951f, -2.4285922050f, 0.4505937099f);
-	private static readonly Vector3 LmsToOklabRow2 = new(0.0259040371f, 0.7827717662f, -0.8086757660f);
-
-	private static readonly Vector3 OklabToLmsRootRow0 = new(1.0f, +0.3963377774f, +0.2158037573f);
-	private static readonly Vector3 OklabToLmsRootRow1 = new(1.0f, -0.1055613458f, -0.0638541728f);
-	private static readonly Vector3 OklabToLmsRootRow2 = new(1.0f, -0.0894841775f, -1.2914855480f);
-
-	private static readonly Vector3 LmsToLinearRgbRow0 = new(+4.0767416621f, -3.3077115913f, +0.2309699292f);
-	private static readonly Vector3 LmsToLinearRgbRow1 = new(-1.2684380046f, +2.6097574011f, -0.3413193965f);
-	private static readonly Vector3 LmsToLinearRgbRow2 = new(-0.0041960863f, -0.7034186147f, +1.7076147010f);
+	private static readonly byte[] LinearToSrgbLut = PrecomputeLinearToSrgbLut();
 
 	private static float[] PrecomputeSrgbToLinear()
 	{
@@ -46,51 +31,63 @@ public static class GlbInMemoryColorPreprocessor
 		return table;
 	}
 
+	private static byte[] PrecomputeLinearToSrgbLut()
+	{
+		byte[] table = new byte[65536];
+		for (int i = 0; i < 65536; i++)
+		{
+			float linear = i / 65535.0f;
+			float srgb = linear <= 0.0031308f
+				? 12.92f * linear
+				: 1.055f * MathF.Pow(linear, 1.0f / 2.4f) - 0.055f;
+			table[i] = (byte)Math.Clamp((int)(srgb * 255.0f + 0.5f), 0, 255);
+		}
+		return table;
+	}
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static byte LinearToSrgbByte(float linear)
 	{
-		if (linear <= 0.0f) return 0;
-		if (linear >= 1.0f) return 255;
-		float srgb = linear <= 0.0031308f
-			? 12.92f * linear
-			: 1.055f * MathF.Pow(linear, 1.0f / 2.4f) - 0.055f;
-		return (byte)Math.Clamp((int)(srgb * 255.0f + 0.5f), 0, 255);
+		int idx = (int)(linear * 65535.0f);
+		if ((uint)idx >= 65536)
+		{
+			return idx < 0 ? (byte)0 : (byte)255;
+		}
+		return LinearToSrgbLut[idx];
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Vector3 ConvertLinearRgbToOklab(Vector3 linearRgb)
 	{
-		float l = Vector3.Dot(linearRgb, RgbToLmsRow0);
-		float m = Vector3.Dot(linearRgb, RgbToLmsRow1);
-		float s = Vector3.Dot(linearRgb, RgbToLmsRow2);
+		float l = linearRgb.X * 0.4122214708f + linearRgb.Y * 0.5363325363f + linearRgb.Z * 0.0514459929f;
+		float m = linearRgb.X * 0.2119034982f + linearRgb.Y * 0.6806995451f + linearRgb.Z * 0.1073969566f;
+		float s = linearRgb.X * 0.0883024619f + linearRgb.Y * 0.2817188376f + linearRgb.Z * 0.6299787005f;
 
-		Vector3 lmsRoot = new(
-			MathF.Cbrt(MathF.Max(0.0f, l)),
-			MathF.Cbrt(MathF.Max(0.0f, m)),
-			MathF.Cbrt(MathF.Max(0.0f, s)));
+		float lRoot = MathF.Cbrt(MathF.Max(0.0f, l));
+		float mRoot = MathF.Cbrt(MathF.Max(0.0f, m));
+		float sRoot = MathF.Cbrt(MathF.Max(0.0f, s));
 
 		return new Vector3(
-			Vector3.Dot(lmsRoot, LmsToOklabRow0),
-			Vector3.Dot(lmsRoot, LmsToOklabRow1),
-			Vector3.Dot(lmsRoot, LmsToOklabRow2));
+			lRoot * 0.2104542553f + mRoot * 0.7936177850f + sRoot * -0.0040720468f,
+			lRoot * 1.9779984951f + mRoot * -2.4285922050f + sRoot * 0.4505937099f,
+			lRoot * 0.0259040371f + mRoot * 0.7827717662f + sRoot * -0.8086757660f);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Vector3 ConvertOklabToLinearRgb(Vector3 oklab)
 	{
-		float lRoot = Vector3.Dot(oklab, OklabToLmsRootRow0);
-		float mRoot = Vector3.Dot(oklab, OklabToLmsRootRow1);
-		float sRoot = Vector3.Dot(oklab, OklabToLmsRootRow2);
+		float lRoot = oklab.X + oklab.Y * 0.3963377774f + oklab.Z * 0.2158037573f;
+		float mRoot = oklab.X + oklab.Y * -0.1055613458f + oklab.Z * -0.0638541728f;
+		float sRoot = oklab.X + oklab.Y * -0.0894841775f + oklab.Z * -1.2914855480f;
 
-		Vector3 lms = new(
-			lRoot * lRoot * lRoot,
-			mRoot * mRoot * mRoot,
-			sRoot * sRoot * sRoot);
+		float l = lRoot * lRoot * lRoot;
+		float m = mRoot * mRoot * mRoot;
+		float s = sRoot * sRoot * sRoot;
 
 		return new Vector3(
-			Vector3.Dot(lms, LmsToLinearRgbRow0),
-			Vector3.Dot(lms, LmsToLinearRgbRow1),
-			Vector3.Dot(lms, LmsToLinearRgbRow2));
+			l * 4.0767416621f + m * -3.3077115913f + s * 0.2309699292f,
+			l * -1.2684380046f + m * 2.6097574011f + s * -0.3413193965f,
+			l * -0.0041960863f + m * -0.7034186147f + s * 1.7076147010f);
 	}
 
 	public static byte[] PreprocessGlbInMemory(byte[] glbBytes, string? chromaKeyHex = null)

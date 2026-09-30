@@ -1909,37 +1909,24 @@ public partial class AssetManagerDialog : FloatingPreview3DDialogBase
 			bool hasSkeleton = false;
 			try
 			{
-				var loaded = ModelCache.GetModel(modelFile);
-				if (loaded is Node node)
+				byte[] rmeshBytes = File.ReadAllBytes(resolvedPath);
+				byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+				var (jsonNode, _, _) = Realm.Shared.GlbManifestUtils.ParseGlb(glbBytes);
+				if (jsonNode is JsonObject root && root["skins"] is JsonArray skins && skins.Count > 0)
 				{
-					hasSkeleton = SkeletonValidator.FindSkeleton(node) != null;
+					hasSkeleton = true;
+				}
+				else if (jsonNode != null)
+				{
+					hasSkeleton = false;
 				}
 				else
 				{
-					if (File.Exists(resolvedPath))
+					var doc = new GltfDocument();
+					var state = new GltfState();
+					if (doc.AppendFromBuffer(glbBytes, "", state) == Error.Ok)
 					{
-						var doc = new GltfDocument();
-						var state = new GltfState();
-						Error err;
-						if (resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-						{
-							byte[] rmeshBytes = File.ReadAllBytes(resolvedPath);
-							byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-							err = doc.AppendFromBuffer(glbBytes, "", state);
-						}
-						else
-						{
-							err = doc.AppendFromFile(resolvedPath, state);
-						}
-						if (err == Error.Ok)
-						{
-							var scene = doc.GenerateScene(state);
-							if (scene != null)
-							{
-								hasSkeleton = SkeletonValidator.FindSkeleton(scene) != null;
-								scene.QueueFree();
-							}
-						}
+						hasSkeleton = state.Skins != null && state.Skins.Count > 0;
 					}
 				}
 			}
