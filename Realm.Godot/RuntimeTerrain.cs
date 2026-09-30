@@ -2731,8 +2731,8 @@ void fragment() {
 	public virtual void ResizeTerrain(int newWidth, int newDepth) { }
 	public virtual void ScaleTerrainData(int newWidth, int newDepth) { }
 	public virtual void RemapSplatIndices(IReadOnlyDictionary<int, int> remap) { }
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap) { }
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap) { }
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null) { }
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null) { }
 	public virtual void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath) { }
 
 	public void UpdatePhysics(Rect2I? affectedRegion = null)

@@ -102,9 +102,12 @@ public partial class EditableTerrain : RuntimeTerrain
 		int[,] oldPathing = state.PathingCodes;
 		TerrainSplatWeights[,] oldSplatMap = SplatMap;
 
+		TerrainSplatWeights[,] oldCliffSplatMap = CliffSplatMap;
+
 		var newCells = new TerrainCell[newWidth, newDepth];
 		int[,] newPathing = new int[newWidth, newDepth];
 		TerrainSplatWeights[,] newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
+		TerrainSplatWeights[,] newCliffSplatMap = oldCliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
 
 		int offsetX = (newWidth - oldWidth) / 2;
 		int offsetZ = (newDepth - oldDepth) / 2;
@@ -138,6 +141,18 @@ public partial class EditableTerrain : RuntimeTerrain
 				{
 					newSplatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
 				}
+
+				if (newCliffSplatMap != null && oldCliffSplatMap != null)
+				{
+					if (oldX >= 0 && oldX < oldCliffSplatMap.GetLength(0) && oldZ >= 0 && oldZ < oldCliffSplatMap.GetLength(1))
+					{
+						newCliffSplatMap[x, z] = oldCliffSplatMap[oldX, oldZ];
+					}
+					else
+					{
+						newCliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
+					}
+				}
 			}
 		}
 
@@ -149,6 +164,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		_localCells = newCells;
 		_localPathingCodes = newPathing;
 		SplatMap = newSplatMap;
+		CliffSplatMap = newCliffSplatMap;
 		
 		if (_material != null)
 		{
@@ -311,7 +327,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		UpdateMeshAndPhysics();
 	}
 
-	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap)
+	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
 	{
 		if (GameHost.Instance == null || GameHost.Instance.EcsWorld == null || !GameHost.Instance.EcsWorld.IsAlive(GameHost.Instance.WorldEntity)) return;
 		if (!GameHost.Instance.EcsWorld.Has<TerrainState>(GameHost.Instance.WorldEntity)) return;
@@ -323,7 +339,8 @@ public partial class EditableTerrain : RuntimeTerrain
 
 		TerrainCell[,] clonedCells = cells != null ? (TerrainCell[,])cells.Clone() : new TerrainCell[newWidth, newDepth];
 		int[,] clonedPathing = pathingCodes != null ? (int[,])pathingCodes.Clone() : new int[newWidth, newDepth];
-		TerrainSplatWeights[,] clonedSplatMap = splatMap != null ? (TerrainSplatWeights[,])splatMap.Clone() : new TerrainSplatWeights[newWidth, newDepth];
+		TerrainSplatWeights[,] clonedSplatMap = splatMap != null ? (TerrainSplatWeights[,])splatMap.Clone() : new TerrainSplatWeights[newWidth + 1, newDepth + 1];
+		TerrainSplatWeights[,] clonedCliffSplatMap = cliffSplatMap != null ? (TerrainSplatWeights[,])cliffSplatMap.Clone() : null;
 
 		GameHost.Instance.EcsWorld.Set(GameHost.Instance.WorldEntity, new TerrainState(
 			newWidth, newDepth, quadSize, state.CellSize,
@@ -333,6 +350,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		_localCells = clonedCells;
 		_localPathingCodes = clonedPathing;
 		SplatMap = clonedSplatMap;
+		CliffSplatMap = clonedCliffSplatMap;
 
 		CreateChunks();
 		UpdateWaterTransform();
@@ -340,7 +358,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		UpdateMeshAndPhysics();
 	}
 
-	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap)
+	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
 	{
 		if (GameHost.Instance == null || GameHost.Instance.EcsWorld == null || !GameHost.Instance.EcsWorld.IsAlive(GameHost.Instance.WorldEntity)) return;
 		if (!GameHost.Instance.EcsWorld.Has<TerrainState>(GameHost.Instance.WorldEntity)) return;
@@ -352,7 +370,8 @@ public partial class EditableTerrain : RuntimeTerrain
 
 		float[,] clonedSource = (float[,])heights.Clone();
 		int[,] clonedPathing = pathingCodes != null ? (int[,])pathingCodes.Clone() : new int[newWidth, newDepth];
-		TerrainSplatWeights[,] clonedSplatMap = splatMap != null ? (TerrainSplatWeights[,])splatMap.Clone() : new TerrainSplatWeights[newWidth, newDepth];
+		TerrainSplatWeights[,] clonedSplatMap = splatMap != null ? (TerrainSplatWeights[,])splatMap.Clone() : new TerrainSplatWeights[newWidth + 1, newDepth + 1];
+		TerrainSplatWeights[,] clonedCliffSplatMap = cliffSplatMap != null ? (TerrainSplatWeights[,])cliffSplatMap.Clone() : null;
 
 		var calculatedCells = TerrainState.CalculateCells(newWidth, newDepth, clonedSource);
 
@@ -364,6 +383,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		_localCells = calculatedCells;
 		_localPathingCodes = clonedPathing;
 		SplatMap = clonedSplatMap;
+		CliffSplatMap = clonedCliffSplatMap;
 
 		CreateChunks();
 		

@@ -1,6 +1,10 @@
 using Godot;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Realm.Ecs.Components.Terrain;
+using Realm.Godot.Services;
+using Realm.Godot.VFX;
 
 public class SavedUnit
 {
@@ -59,6 +63,7 @@ public class MapStateSnapshot
 	}
 	public int[,] PathingCodes;
 	public TerrainSplatWeights[,] SplatMap;
+	public TerrainSplatWeights[,] CliffSplatMap;
 
 	public float CameraBoundsLeft;
 	public float CameraBoundsRight;
@@ -68,6 +73,8 @@ public class MapStateSnapshot
 	public List<SavedUnit> Units = new List<SavedUnit>();
 	public List<SavedProp> Props = new List<SavedProp>();
 	public List<SavedDecal> Decals = new List<SavedDecal>();
+	public List<VfxSaveData> Vfx = new List<VfxSaveData>();
+	public List<CoordinateSaveData> Coordinates = new List<CoordinateSaveData>();
 
 	public static MapStateSnapshot CreateSnapshot()
 	{
@@ -80,6 +87,7 @@ public class MapStateSnapshot
 		snapshot.Cells = (TerrainCell[,])host.GroundTerrain.Cells.Clone();
 		snapshot.PathingCodes = (int[,])host.GroundTerrain.PathingCodes.Clone();
 		snapshot.SplatMap = (TerrainSplatWeights[,])host.GroundTerrain.SplatMap.Clone();
+		snapshot.CliffSplatMap = host.GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])host.GroundTerrain.CliffSplatMap.Clone() : null;
 
 		snapshot.CameraBoundsLeft = host.EditorCameraBoundsLeft;
 		snapshot.CameraBoundsRight = host.EditorCameraBoundsRight;
@@ -129,6 +137,40 @@ public class MapStateSnapshot
 				});
 			}
 		}
+
+		if (host.AllVfx != null)
+		{
+			foreach (var vfx in host.AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					snapshot.Vfx.Add(new VfxSaveData
+					{
+						VfxId = vfx.Config?.VfxId ?? "vfx",
+						PosX = vfx.Position.X,
+						PosY = vfx.Position.Y,
+						PosZ = vfx.Position.Z,
+						RotationX = vfx.RotationDegrees.X,
+						RotationY = vfx.RotationDegrees.Y,
+						RotationZ = vfx.RotationDegrees.Z,
+						ScaleX = vfx.Scale.X,
+						ScaleY = vfx.Scale.Y,
+						ScaleZ = vfx.Scale.Z,
+						NormalOffset = vfx.Config?.SurfaceNormalOffset ?? 0f,
+						Config = vfx.Config?.Clone()
+					});
+				}
+			}
+		}
+
+		snapshot.Coordinates = host.EditorCoordinates.Select(r => new CoordinateSaveData
+		{
+			Name = r.Name,
+			MinX = r.MinX,
+			MinZ = r.MinZ,
+			MaxX = r.MaxX,
+			MaxZ = r.MaxZ
+		}).ToList();
 
 		return snapshot;
 	}
@@ -182,6 +224,10 @@ public class MapResizeAction : IEditorAction
 			{
 				host.DeleteNodeExternal(decal);
 			}
+			else if (child is ProceduralVfxInstance3D vfx && GodotObject.IsInstanceValid(vfx))
+			{
+				host.DeleteNodeExternal(vfx);
+			}
 		}
 
 		host.GroundTerrain.RestoreTerrainFromSnapshot(
@@ -190,7 +236,8 @@ public class MapResizeAction : IEditorAction
 			host.GroundTerrain.QuadSize,
 			snapshot.Cells,
 			snapshot.PathingCodes,
-			snapshot.SplatMap
+			snapshot.SplatMap,
+			snapshot.CliffSplatMap
 		);
 
 		host.EditorCameraBoundsLeft = snapshot.CameraBoundsLeft;
@@ -209,6 +256,47 @@ public class MapResizeAction : IEditorAction
 		foreach (var d in snapshot.Decals)
 		{
 			host.SpawnDecalExternalWithParams(d.Id, d.Position, d.RotationY, d.Scale);
+		}
+
+		if (snapshot.Vfx != null)
+		{
+			foreach (var v in snapshot.Vfx)
+			{
+				host.SpawnVfxExternalWithParams(
+					v.VfxId,
+					new Vector3(v.PosX, v.PosY, v.PosZ),
+					new Vector3(v.RotationX, v.RotationY, v.RotationZ),
+					new Vector3(v.ScaleX <= 0f ? 1f : v.ScaleX, v.ScaleY <= 0f ? 1f : v.ScaleY, v.ScaleZ <= 0f ? 1f : v.ScaleZ),
+					v.NormalOffset,
+					v.Config
+				);
+			}
+		}
+
+		if (snapshot.Coordinates != null)
+		{
+			host.EditorCoordinates.Clear();
+			host.EditorCoordinates.AddRange(snapshot.Coordinates.Select(r => new GameHost.EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
+			host.RebuildAllCoordinatePersistentMeshes();
+			MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		}
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
+		if (System.IO.File.Exists(metaPath))
+		{
+			try
+			{
+				MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+				{
+					meta.MapProperties.MapWidth = snapshot.Width;
+					meta.MapProperties.MapHeight = snapshot.Depth;
+				});
+			}
+			catch (System.Exception ex)
+			{
+				GD.PrintErr($"Failed to update metadata.json during snapshot restore: {ex.Message}");
+			}
 		}
 
 		host.RebuildCameraBoundsOverlay();

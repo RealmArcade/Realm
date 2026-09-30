@@ -4511,9 +4511,14 @@ public partial class GameHost
 			{
 				decal.QueueFree();
 			}
+			else if (child is ProceduralVfxInstance3D vfx)
+			{
+				vfx.QueueFree();
+			}
 		}
 		AllProps.Clear();
 		AllDecals.Clear();
+		AllVfx.Clear();
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
 		
@@ -4762,7 +4767,7 @@ public partial class GameHost
 	{
 		if (GroundTerrain != null)
 		{
-			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 		}
 	}
 
@@ -4788,7 +4793,7 @@ public partial class GameHost
 
 		GroundTerrain.ResizeTerrain(newWidth, newDepth);
 
-		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 		DeleteEntitiesOutsideBounds();
 
 		RebuildCameraBoundsOverlay();
@@ -4976,6 +4981,43 @@ public partial class GameHost
 		foreach (var prop in propsToDelete)
 		{
 			DeleteNodeExternal(prop);
+		}
+
+		var decalsToDelete = new List<Decal>();
+		foreach (var decal in AllDecals)
+		{
+			if (GodotObject.IsInstanceValid(decal))
+			{
+				var pos = decal.Position;
+				if (pos.X < -halfW || pos.X > halfW || pos.Z < -halfD || pos.Z > halfD)
+				{
+					decalsToDelete.Add(decal);
+				}
+			}
+		}
+		foreach (var decal in decalsToDelete)
+		{
+			DeleteNodeExternal(decal);
+		}
+
+		if (AllVfx != null)
+		{
+			var vfxToDelete = new List<ProceduralVfxInstance3D>();
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					var pos = vfx.Position;
+					if (pos.X < -halfW || pos.X > halfW || pos.Z < -halfD || pos.Z > halfD)
+					{
+						vfxToDelete.Add(vfx);
+					}
+				}
+			}
+			foreach (var vfx in vfxToDelete)
+			{
+				DeleteNodeExternal(vfx);
+			}
 		}
 	}
 

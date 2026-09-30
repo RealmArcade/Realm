@@ -398,6 +398,8 @@ public partial class GameHost
 						cliffWgtImg.Convert(Image.Format.Rgbaf);
 						int cW = cliffIdxImg.GetWidth();
 						int cD = cliffIdxImg.GetHeight();
+						int wgtW = cliffWgtImg.GetWidth();
+						int wgtD = cliffWgtImg.GetHeight();
 						ReadOnlySpan<float> idxData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(cliffIdxImg.GetData());
 						ReadOnlySpan<float> wgtData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(cliffWgtImg.GetData());
 						int targetCliffW = width + 1;
@@ -407,19 +409,24 @@ public partial class GameHost
 						{
 							for (int x = 0; x < targetCliffW; x++)
 							{
-								int srcX = cW == targetCliffW ? x : System.Math.Clamp((int)System.Math.Floor(x * (float)(cW - 1) / System.Math.Max(1, targetCliffW - 1)), 0, cW - 1);
-								int srcZ = cD == targetCliffD ? z : System.Math.Clamp((int)System.Math.Floor(z * (float)(cD - 1) / System.Math.Max(1, targetCliffD - 1)), 0, cD - 1);
-								int baseIdx = (srcZ * cW + srcX) * 4;
+								int srcIdxX = cW == targetCliffW ? x : System.Math.Clamp((int)System.Math.Floor(x * (float)(cW - 1) / System.Math.Max(1, targetCliffW - 1)), 0, cW - 1);
+								int srcIdxZ = cD == targetCliffD ? z : System.Math.Clamp((int)System.Math.Floor(z * (float)(cD - 1) / System.Math.Max(1, targetCliffD - 1)), 0, cD - 1);
+								int idxOffset = (srcIdxZ * cW + srcIdxX) * 4;
+
+								int srcWgtX = wgtW == targetCliffW ? x : System.Math.Clamp((int)System.Math.Floor(x * (float)(wgtW - 1) / System.Math.Max(1, targetCliffW - 1)), 0, wgtW - 1);
+								int srcWgtZ = wgtD == targetCliffD ? z : System.Math.Clamp((int)System.Math.Floor(z * (float)(wgtD - 1) / System.Math.Max(1, targetCliffD - 1)), 0, wgtD - 1);
+								int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
+
 								GroundTerrain.CliffSplatMap[x, z] = new TerrainSplatWeights
 								{
-									Index0 = (int)System.Math.Round(idxData[baseIdx + 0]),
-									Index1 = (int)System.Math.Round(idxData[baseIdx + 1]),
-									Index2 = (int)System.Math.Round(idxData[baseIdx + 2]),
-									Index3 = (int)System.Math.Round(idxData[baseIdx + 3]),
-									Weight0 = wgtData[baseIdx + 0],
-									Weight1 = wgtData[baseIdx + 1],
-									Weight2 = wgtData[baseIdx + 2],
-									Weight3 = wgtData[baseIdx + 3]
+									Index0 = (int)System.Math.Round(idxData[idxOffset + 0]),
+									Index1 = (int)System.Math.Round(idxData[idxOffset + 1]),
+									Index2 = (int)System.Math.Round(idxData[idxOffset + 2]),
+									Index3 = (int)System.Math.Round(idxData[idxOffset + 3]),
+									Weight0 = wgtData[weightOffset + 0],
+									Weight1 = wgtData[weightOffset + 1],
+									Weight2 = wgtData[weightOffset + 2],
+									Weight3 = wgtData[weightOffset + 3]
 								};
 							}
 						}
