@@ -92,8 +92,9 @@ namespace Realm.Ecs.Components.Terrain
 
 		public WaterType WaterMode;
 		public byte WaterProfileIndex;
+		public float WaterHeight;
 
-		public TerrainCell(float nw, float ne, float se, float sw, WaterType waterMode = WaterType.None, byte waterProfileIndex = 0)
+		public TerrainCell(float nw, float ne, float se, float sw, WaterType waterMode = WaterType.None, byte waterProfileIndex = 0, float waterHeight = 0f)
 		{
 			_yNW = Math.Clamp(nw, MIN_Y, MAX_Y);
 			_yNE = Math.Clamp(ne, MIN_Y, MAX_Y);
@@ -103,10 +104,11 @@ namespace Realm.Ecs.Components.Terrain
 			_macroTier = (sbyte)Math.Clamp((int)MathF.Round(_centerHeight / TIER_HEIGHT), MIN_MACRO_TIER, MAX_MACRO_TIER);
 			WaterMode = waterMode;
 			WaterProfileIndex = waterProfileIndex;
+			WaterHeight = waterHeight;
 		}
 
-		public TerrainCell(float uniformHeight, WaterType waterMode = WaterType.None, byte waterProfileIndex = 0)
-			: this(uniformHeight, uniformHeight, uniformHeight, uniformHeight, waterMode, waterProfileIndex) { }
+		public TerrainCell(float uniformHeight, WaterType waterMode = WaterType.None, byte waterProfileIndex = 0, float waterHeight = 0f)
+			: this(uniformHeight, uniformHeight, uniformHeight, uniformHeight, waterMode, waterProfileIndex, waterHeight) { }
 	}
 }
 

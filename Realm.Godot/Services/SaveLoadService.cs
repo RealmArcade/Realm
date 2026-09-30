@@ -238,7 +238,7 @@ public class SaveLoadService
 
 					waterSpan[baseIdx + 0] = (float)cell.WaterMode;
 					waterSpan[baseIdx + 1] = (float)cell.WaterProfileIndex;
-					waterSpan[baseIdx + 2] = 0f;
+					waterSpan[baseIdx + 2] = cell.WaterHeight;
 					waterSpan[baseIdx + 3] = 1f;
 				}
 			}
@@ -705,8 +705,10 @@ public class SaveLoadService
 									int baseIdx = (z * imgW + x) * 4;
 									var wMode = (WaterType)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 0]), 0, 2);
 									byte wProfile = (byte)Math.Clamp((int)MathF.Round(waterFloatData[baseIdx + 1]), 0, 255);
+									float wHeight = waterFloatData[baseIdx + 2];
 									ts.Cells[x, z].WaterMode = wMode;
 									ts.Cells[x, z].WaterProfileIndex = wProfile;
+									ts.Cells[x, z].WaterHeight = wHeight;
 								}
 							}
 						}

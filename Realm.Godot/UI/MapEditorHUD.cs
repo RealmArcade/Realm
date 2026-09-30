@@ -225,6 +225,9 @@ public partial class MapEditorHUD : Control
 	private Slider _sldBlockStep;
 	private Label _lblBlockStepValue;
 
+	private Control _waterHeightBox;
+	private Slider _sldWaterHeight;
+	private Label _lblWaterHeightValue;
 	private Control _waterModeBox;
 	private OptionButton _optWaterMode;
 	private Button _btnWaterProfiles;
@@ -1101,6 +1104,46 @@ public partial class MapEditorHUD : Control
 		StyleAccordionHeader(_btnHeaderWater);
 		SetupAccordion(_btnHeaderWater, _contentWater, TranslationServer.Translate("Liquid / Water Config"));
 
+		_waterHeightBox = new VBoxContainer();
+		_waterHeightBox.Name = "WaterHeightBox";
+		_waterHeightBox.AddThemeConstantOverride("separation", 2);
+
+		var headerWaterHeight = new HBoxContainer();
+		headerWaterHeight.Name = "HeaderWaterHeight";
+		_waterHeightBox.AddChild(headerWaterHeight);
+
+		var lblWaterHeightTitle = new Label();
+		lblWaterHeightTitle.Name = "LblWaterHeightTitle";
+		lblWaterHeightTitle.Text = TranslationServer.Translate("Water Height");
+		lblWaterHeightTitle.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		lblWaterHeightTitle.AddThemeFontSizeOverride("font_size", 10);
+		headerWaterHeight.AddChild(lblWaterHeightTitle);
+
+		_lblWaterHeightValue = new Label();
+		_lblWaterHeightValue.Name = "LblWaterHeightValue";
+		_lblWaterHeightValue.Text = "0.9m";
+		_lblWaterHeightValue.AddThemeFontSizeOverride("font_size", 11);
+		headerWaterHeight.AddChild(_lblWaterHeightValue);
+
+		_sldWaterHeight = new HSlider();
+		_sldWaterHeight.Name = "SldWaterHeight";
+		_sldWaterHeight.FocusMode = Control.FocusModeEnum.None;
+		_sldWaterHeight.MinValue = 0.1;
+		_sldWaterHeight.MaxValue = 15.0;
+		_sldWaterHeight.Step = 0.1;
+		_sldWaterHeight.Value = 0.9;
+		_sldWaterHeight.ValueChanged += (val) =>
+		{
+			float fVal = (float)val;
+			_lblWaterHeightValue.Text = fVal.ToString("F1") + "m";
+			if (GameHost.Instance != null) GameHost.Instance.EditorWaterHeight = fVal;
+		};
+		_sldWaterHeight.DragStarted += () => _isDraggingSlider = true;
+		_sldWaterHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
+		_waterHeightBox.AddChild(_sldWaterHeight);
+
+		_contentWater.AddChild(_waterHeightBox);
+
 		var waterActionBox = new VBoxContainer();
 		waterActionBox.Name = "WaterActionBox";
 		waterActionBox.AddThemeConstantOverride("separation", 2);
@@ -1144,6 +1187,7 @@ public partial class MapEditorHUD : Control
 			_isWaterRemoveAction = false;
 			_btnWaterActionAdd.AddThemeStyleboxOverride("normal", _highlightStyle);
 			_btnWaterActionRemove.RemoveThemeStyleboxOverride("normal");
+			if (_waterHeightBox != null) _waterHeightBox.Visible = true;
 			if (_waterModeBox != null) _waterModeBox.Visible = true;
 			if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = true;
 		};
@@ -1153,6 +1197,7 @@ public partial class MapEditorHUD : Control
 			_isWaterRemoveAction = true;
 			_btnWaterActionRemove.AddThemeStyleboxOverride("normal", _highlightStyle);
 			_btnWaterActionAdd.RemoveThemeStyleboxOverride("normal");
+			if (_waterHeightBox != null) _waterHeightBox.Visible = false;
 			if (_waterModeBox != null) _waterModeBox.Visible = false;
 			if (_btnWaterProfiles != null) _btnWaterProfiles.Visible = false;
 		};
@@ -1690,6 +1735,12 @@ public partial class MapEditorHUD : Control
 	{
 		if (_optWaterMode == null || _optWaterMode.Selected < 0) return WaterType.None;
 		return WaterType.Shallow;
+	}
+
+	public float GetSelectedWaterHeight()
+	{
+		if (_sldWaterHeight == null) return 0.9f;
+		return (float)_sldWaterHeight.Value;
 	}
 
 	public string GetEyedropperMode()

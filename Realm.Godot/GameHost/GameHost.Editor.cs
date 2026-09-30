@@ -5194,8 +5194,9 @@ public partial class GameHost
 
 		WaterType activeMode = EditorWaterMode;
 		byte activeProfile = ActiveWaterProfileIndex;
+		float waterHeight = EditorWaterHeight;
 
-		var result = _editorService.PerformWaterFloodFill(clickPos, activeMode, activeProfile, EditorMirrorMode, isRemoveAction);
+		var result = _editorService.PerformWaterFloodFill(clickPos, activeMode, activeProfile, waterHeight, EditorMirrorMode, isRemoveAction);
 		if (result.BeforeCells == null || result.AfterCells == null) return;
 
 		GroundTerrain.UpdateMeshAndPhysics(rebuildPhysics: false, rebuildNavMesh: true, affectedRegions: null, rebuildWater: true);

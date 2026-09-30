@@ -50,9 +50,11 @@ public class EditorService
 	private float _activeBlockTargetHeight;
 	private WaterType _activeBlockTargetWaterMode = WaterType.None;
 	private byte _activeBlockTargetWaterProfile = 0;
+	private float _activeBlockTargetWaterHeight = 0f;
 	private float? _activePlateauHeight;
 	private WaterType _activePlateauWaterMode = WaterType.None;
 	private byte _activePlateauWaterProfile = 0;
+	private float _activePlateauWaterHeight = 0f;
 
 	private TerrainCell[,] _terrainCellsBefore;
 	private TerrainSplatWeights[,] _terrainSplatMapBefore;
@@ -337,6 +339,26 @@ public class EditorService
 		return cells[x, z].WaterProfileIndex;
 	}
 
+	public float GetWaterHeightAt(Vector3 worldPos)
+	{
+		ref var terrain = ref GetTerrainState();
+		var cells = terrain.Cells;
+		if (cells == null) return 0f;
+
+		int cellW = cells.GetLength(0);
+		int cellD = cells.GetLength(1);
+		if (cellW <= 0 || cellD <= 0) return 0f;
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float quadSize = terrain.QuadSize;
+
+		int x = Math.Clamp((int)Math.Floor(worldPos.X / quadSize + width / 2.0f), 0, cellW - 1);
+		int z = Math.Clamp((int)Math.Floor(worldPos.Z / quadSize + depth / 2.0f), 0, cellD - 1);
+
+		return cells[x, z].WaterHeight;
+	}
+
 	public TerrainEditResult ApplyContinuousTerrainEditing(
 		Vector3 worldPos,
 		float delta,
@@ -427,6 +449,7 @@ public class EditorService
 						_activeBlockTargetHeight = Math.Clamp((float)MathF.Round(startHeight / TerrainCell.TIER_HEIGHT) * TerrainCell.TIER_HEIGHT, -16.0f, 16.0f);
 						_activeBlockTargetWaterMode = startWater;
 						_activeBlockTargetWaterProfile = GetWaterProfileIndexAt(worldPos);
+						_activeBlockTargetWaterHeight = GetWaterHeightAt(worldPos);
 					}
 					_activeBlockTargetHeight = Math.Clamp(_activeBlockTargetHeight, -16.0f, 16.0f);
 					_hasBlockTargetHeight = true;
@@ -467,15 +490,17 @@ public class EditorService
 										if (cell.WaterMode != WaterType.None)
 										{
 											cell.WaterMode = WaterType.None;
+											cell.WaterHeight = 0f;
 											waterChanged = true;
 										}
 									}
 									else if (activeTool == GameHost.EditorTool.Plateau)
 									{
-										if (cell.WaterMode != _activeBlockTargetWaterMode || cell.WaterProfileIndex != _activeBlockTargetWaterProfile)
+										if (cell.WaterMode != _activeBlockTargetWaterMode || cell.WaterProfileIndex != _activeBlockTargetWaterProfile || cell.WaterHeight != _activeBlockTargetWaterHeight)
 										{
 											cell.WaterMode = _activeBlockTargetWaterMode;
 											cell.WaterProfileIndex = _activeBlockTargetWaterProfile;
+											cell.WaterHeight = _activeBlockTargetWaterHeight;
 											waterChanged = true;
 										}
 									}
@@ -489,7 +514,7 @@ public class EditorService
 												var waterProf = RuntimeTerrain.Instance?.GetWaterProfile(cell.WaterProfileIndex);
 												terrain.PathingCodes[x, z] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(cell.WaterMode);
 												result.PathingModified = true;
-												float wY = (targetMacroTier * TerrainCell.TIER_HEIGHT) + RuntimeTerrain.WATER_DELTA;
+												float wY = (targetMacroTier * TerrainCell.TIER_HEIGHT) + (cell.WaterHeight > 0.001f ? cell.WaterHeight : RuntimeTerrain.WATER_DELTA);
 												SpawnWaterProceduralBombing(x, z, cell.WaterProfileIndex, wY, quadSize, width, depth);
 											}
 											else
@@ -794,6 +819,7 @@ public class EditorService
 									_activePlateauHeight = GetTerrainHeightAt(worldPos);
 									_activePlateauWaterMode = GetWaterModeAt(worldPos);
 									_activePlateauWaterProfile = GetWaterProfileIndexAt(worldPos);
+									_activePlateauWaterHeight = GetWaterHeightAt(worldPos);
 								}
 								float targetHeight = _activePlateauHeight.Value;
 								newH = Mathf.Clamp(Mathf.Lerp(oldH, targetHeight, falloff), -10.0f, 50.0f);
@@ -801,10 +827,11 @@ public class EditorService
 								int cellZ = Math.Clamp(z, 0, depth - 1);
 								if (terrain.Cells != null && cellX < terrain.Cells.GetLength(0) && cellZ < terrain.Cells.GetLength(1))
 								{
-									if (terrain.Cells[cellX, cellZ].WaterMode != _activePlateauWaterMode || terrain.Cells[cellX, cellZ].WaterProfileIndex != _activePlateauWaterProfile)
+									if (terrain.Cells[cellX, cellZ].WaterMode != _activePlateauWaterMode || terrain.Cells[cellX, cellZ].WaterProfileIndex != _activePlateauWaterProfile || terrain.Cells[cellX, cellZ].WaterHeight != _activePlateauWaterHeight)
 									{
 										terrain.Cells[cellX, cellZ].WaterMode = _activePlateauWaterMode;
 										terrain.Cells[cellX, cellZ].WaterProfileIndex = _activePlateauWaterProfile;
+										terrain.Cells[cellX, cellZ].WaterHeight = _activePlateauWaterHeight;
 										if (terrain.PathingCodes != null)
 										{
 											var waterProf = RuntimeTerrain.Instance?.GetWaterProfile(terrain.Cells[cellX, cellZ].WaterProfileIndex);
@@ -1010,6 +1037,7 @@ public class EditorService
 			_activePlateauHeight = blockMode ? (float)MathF.Round(startHeight / TerrainCell.TIER_HEIGHT) * TerrainCell.TIER_HEIGHT : startHeight;
 			_activePlateauWaterMode = GetWaterModeAt(hitPos);
 			_activePlateauWaterProfile = GetWaterProfileIndexAt(hitPos);
+			_activePlateauWaterHeight = GetWaterHeightAt(hitPos);
 		}
 
 		if (blockMode)
@@ -1017,6 +1045,7 @@ public class EditorService
 			float startHeight = GetTerrainHeightAt(hitPos);
 			WaterType startWater = GetWaterModeAt(hitPos);
 			byte startProfile = GetWaterProfileIndexAt(hitPos);
+			float startWaterHeight = GetWaterHeightAt(hitPos);
 			if (activeTool == GameHost.EditorTool.Raise)
 			{
 				_activeBlockTargetHeight = startHeight + blockLevelHeight;
@@ -1032,6 +1061,7 @@ public class EditorService
 				_activeBlockTargetHeight = (float)MathF.Round(startHeight / TerrainCell.TIER_HEIGHT) * TerrainCell.TIER_HEIGHT;
 				_activeBlockTargetWaterMode = startWater;
 				_activeBlockTargetWaterProfile = startProfile;
+				_activeBlockTargetWaterHeight = startWaterHeight;
 				_hasBlockTargetHeight = true;
 			}
 		}
@@ -2397,7 +2427,9 @@ public class EditorService
 		int width,
 		int depth,
 		float quadSize,
-		bool[,] visited)
+		bool[,] visited,
+		float waterHeight,
+		bool isRemoveAction = false)
 	{
 		var resultCells = new List<Vector2I>();
 
@@ -2405,6 +2437,11 @@ public class EditorService
 		float startFz = clickPos.Z / quadSize + depth / 2.0f;
 		int clickX = Mathf.Clamp((int)Math.Floor(startFx), 0, width - 1);
 		int clickZ = Mathf.Clamp((int)Math.Floor(startFz), 0, depth - 1);
+
+		if (isRemoveAction && cellsBefore[clickX, clickZ].WaterMode == WaterType.None)
+		{
+			return resultCells;
+		}
 
 		var queue = new Queue<(int x, int z)>();
 		if (!visited[clickX, clickZ])
@@ -2415,6 +2452,15 @@ public class EditorService
 
 		int[] dx = { 0, 0, -1, 1 };
 		int[] dz = { -1, 1, 0, 0 };
+
+		float effectiveWaterHeight = waterHeight > 0.001f ? waterHeight : 0.9f;
+		float startTerrainHeight = clickPos.Y;
+		if (float.IsNaN(startTerrainHeight) || float.IsInfinity(startTerrainHeight))
+		{
+			startTerrainHeight = cellsBefore[clickX, clickZ].CenterHeight;
+		}
+		float baseWaterLevel = startTerrainHeight + effectiveWaterHeight;
+		float stepCliffThreshold = TerrainCell.TIER_HEIGHT * 0.70f;
 
 		while (queue.Count > 0)
 		{
@@ -2434,17 +2480,44 @@ public class EditorService
 					{
 						var nextCell = cellsBefore[nextX, nextZ];
 
-						bool isCliffWall = Math.Abs(nextCell.MacroTier - currCell.MacroTier) >= 1
-							|| MathF.Abs(nextCell.CenterHeight - currCell.CenterHeight) >= 1.5f;
-
-						float nMaxH = Mathf.Max(Mathf.Max(nextCell.Y_NW, nextCell.Y_NE), Mathf.Max(nextCell.Y_SW, nextCell.Y_SE));
-						float nMinH = Mathf.Min(Mathf.Min(nextCell.Y_NW, nextCell.Y_NE), Mathf.Min(nextCell.Y_SW, nextCell.Y_SE));
-						if (nMaxH - nMinH >= 1.5f)
+						if (isRemoveAction)
 						{
-							isCliffWall = true;
+							if (nextCell.WaterMode != WaterType.None)
+							{
+								visited[nextX, nextZ] = true;
+								queue.Enqueue((nextX, nextZ));
+							}
+							continue;
 						}
 
-						if (!isCliffWall)
+						float currHeight = currCell.CenterHeight;
+						float nextHeight = nextCell.CenterHeight;
+						float deltaH = nextHeight - currHeight;
+
+						if (deltaH <= 0.05f)
+						{
+							visited[nextX, nextZ] = true;
+							queue.Enqueue((nextX, nextZ));
+							continue;
+						}
+
+						float nextMaxH = Mathf.Max(Mathf.Max(nextCell.Y_NW, nextCell.Y_NE), Mathf.Max(nextCell.Y_SW, nextCell.Y_SE));
+						float nextMinH = Mathf.Min(Mathf.Min(nextCell.Y_NW, nextCell.Y_NE), Mathf.Min(nextCell.Y_SW, nextCell.Y_SE));
+						float nextCellInternalSpan = nextMaxH - nextMinH;
+
+						bool isCliffStep = (nextCell.MacroTier - currCell.MacroTier >= 1)
+							|| deltaH >= stepCliffThreshold
+							|| nextCellInternalSpan >= stepCliffThreshold;
+
+						if (!isCliffStep)
+						{
+							visited[nextX, nextZ] = true;
+							queue.Enqueue((nextX, nextZ));
+							continue;
+						}
+
+						float obstacleHeight = Mathf.Max(nextMaxH, (float)nextCell.MacroTier * TerrainCell.TIER_HEIGHT);
+						if (baseWaterLevel >= obstacleHeight)
 						{
 							visited[nextX, nextZ] = true;
 							queue.Enqueue((nextX, nextZ));
@@ -2464,18 +2537,20 @@ public class EditorService
 		int depth,
 		float quadSize,
 		bool[,] visited,
-		MirrorMode mirrorMode)
+		MirrorMode mirrorMode,
+		float waterHeight,
+		bool isRemoveAction = false)
 	{
 		var areaCells = new List<Vector2I>();
 
-		areaCells.AddRange(GetWaterFloodFillCells(clickPos, cellsBefore, width, depth, quadSize, visited));
+		areaCells.AddRange(GetWaterFloodFillCells(clickPos, cellsBefore, width, depth, quadSize, visited, waterHeight, isRemoveAction));
 
 		if (mirrorMode != MirrorMode.None)
 		{
 			var mirrors = GetMirroredPositions(clickPos, mirrorMode);
 			foreach (var m in mirrors)
 			{
-				areaCells.AddRange(GetWaterFloodFillCells(m, cellsBefore, width, depth, quadSize, visited));
+				areaCells.AddRange(GetWaterFloodFillCells(m, cellsBefore, width, depth, quadSize, visited, waterHeight, isRemoveAction));
 			}
 		}
 
@@ -2486,6 +2561,7 @@ public class EditorService
 		Vector3 clickPos,
 		WaterType activeWaterMode,
 		byte activeWaterProfile,
+		float waterHeight,
 		MirrorMode mirrorMode,
 		bool isRemoveAction = false)
 	{
@@ -2501,12 +2577,13 @@ public class EditorService
 		bool isRemoving = isRemoveAction;
 		WaterType targetWaterMode = isRemoving ? WaterType.None : (activeWaterMode != WaterType.None ? activeWaterMode : WaterType.Shallow);
 		byte targetWaterProfile = isRemoving ? (byte)0 : activeWaterProfile;
+		float targetWaterHeight = isRemoving ? 0f : (waterHeight > 0.001f ? waterHeight : 0.9f);
 
 		var beforeCells = (TerrainCell[,])cells.Clone();
 		var beforePathing = (int[,])terrain.PathingCodes.Clone();
 
 		var visited = new bool[width, depth];
-		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode);
+		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterHeight, isRemoveAction);
 
 		if (filledCells.Count == 0) return (null, null, null, null, false);
 
@@ -2517,14 +2594,18 @@ public class EditorService
 
 			cells[x, z].WaterMode = targetWaterMode;
 			cells[x, z].WaterProfileIndex = targetWaterProfile;
+			cells[x, z].WaterHeight = targetWaterHeight;
 
 			if (targetWaterMode != WaterType.None)
 			{
 				var waterProf = RuntimeTerrain.Instance?.GetWaterProfile(targetWaterProfile);
 				terrain.PathingCodes[x, z] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(targetWaterMode);
+				float wY = (cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT) + (targetWaterHeight > 0.001f ? targetWaterHeight : RuntimeTerrain.WATER_DELTA);
+				SpawnWaterProceduralBombing(x, z, targetWaterProfile, wY, quadSize, width, depth);
 			}
 			else
 			{
+				ClearWaterProceduralObjects(x, z);
 				terrain.PathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
 			}
 		}
@@ -2701,11 +2782,11 @@ public class EditorService
 		switch (rotSteps)
 		{
 			case 1:
-				return new TerrainCell(cell.Y_SW, cell.Y_NW, cell.Y_NE, cell.Y_SE, cell.WaterMode, cell.WaterProfileIndex);
+				return new TerrainCell(cell.Y_SW, cell.Y_NW, cell.Y_NE, cell.Y_SE, cell.WaterMode, cell.WaterProfileIndex, cell.WaterHeight);
 			case 2:
-				return new TerrainCell(cell.Y_SE, cell.Y_SW, cell.Y_NW, cell.Y_NE, cell.WaterMode, cell.WaterProfileIndex);
+				return new TerrainCell(cell.Y_SE, cell.Y_SW, cell.Y_NW, cell.Y_NE, cell.WaterMode, cell.WaterProfileIndex, cell.WaterHeight);
 			case 3:
-				return new TerrainCell(cell.Y_NE, cell.Y_SE, cell.Y_SW, cell.Y_NW, cell.WaterMode, cell.WaterProfileIndex);
+				return new TerrainCell(cell.Y_NE, cell.Y_SE, cell.Y_SW, cell.Y_NW, cell.WaterMode, cell.WaterProfileIndex, cell.WaterHeight);
 			case 0:
 			default:
 				return cell;
@@ -2718,11 +2799,11 @@ public class EditorService
 		switch (mode)
 		{
 			case MirrorMode.Horizontal:
-				return new TerrainCell(cell.Y_NE, cell.Y_NW, cell.Y_SW, cell.Y_SE, cell.WaterMode, cell.WaterProfileIndex);
+				return new TerrainCell(cell.Y_NE, cell.Y_NW, cell.Y_SW, cell.Y_SE, cell.WaterMode, cell.WaterProfileIndex, cell.WaterHeight);
 			case MirrorMode.Vertical:
-				return new TerrainCell(cell.Y_SW, cell.Y_SE, cell.Y_NE, cell.Y_NW, cell.WaterMode, cell.WaterProfileIndex);
+				return new TerrainCell(cell.Y_SW, cell.Y_SE, cell.Y_NE, cell.Y_NW, cell.WaterMode, cell.WaterProfileIndex, cell.WaterHeight);
 			case MirrorMode.Both:
-				return new TerrainCell(cell.Y_SE, cell.Y_SW, cell.Y_NW, cell.Y_NE, cell.WaterMode, cell.WaterProfileIndex);
+				return new TerrainCell(cell.Y_SE, cell.Y_SW, cell.Y_NW, cell.Y_NE, cell.WaterMode, cell.WaterProfileIndex, cell.WaterHeight);
 			case MirrorMode.None:
 			default:
 				return cell;

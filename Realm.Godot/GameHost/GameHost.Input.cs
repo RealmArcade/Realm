@@ -1509,6 +1509,7 @@ public partial class GameHost
 						{
 							EditorWaterMode = MapEditorHUD.Instance.GetSelectedWaterMode();
 							ActiveWaterProfileIndex = MapEditorHUD.Instance.GetSelectedWaterProfileIndex();
+							EditorWaterHeight = MapEditorHUD.Instance.GetSelectedWaterHeight();
 						}
 						PerformWaterFloodFill(hitPos, isRemove);
 						GetViewport().SetInputAsHandled();

@@ -121,7 +121,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	}
 
 	public const float TIER_HEIGHT = TerrainCell.TIER_HEIGHT;
-	public static float WATER_DELTA => (GameHost.Instance != null && GameHost.Instance.EditorBlockLevelHeight > 0.001f ? GameHost.Instance.EditorBlockLevelHeight : TIER_HEIGHT) * 0.30f;
+	public const float WATER_DELTA = 0.9f;
 
 	public const int PATHING_SHALLOW_WATER = (int)TerrainPathingFlags.ShallowWater;
 	public const int PATHING_DEEP_WATER = (int)TerrainPathingFlags.DeepWater;
@@ -566,7 +566,8 @@ public partial class RuntimeTerrain : StaticBody3D
 		var cell = cells[x, z];
 		if (cell.WaterMode != WaterType.None)
 		{
-			return ((cell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA, cell.WaterMode, cell.WaterProfileIndex);
+			float delta = cell.WaterHeight > 0.001f ? cell.WaterHeight : WATER_DELTA;
+			return ((cell.MacroTier * TerrainCell.TIER_HEIGHT) + delta, cell.WaterMode, cell.WaterProfileIndex);
 		}
 
 		float maxCornerH = Math.Max(Math.Max(cell.Y_NW, cell.Y_NE), Math.Max(cell.Y_SE, cell.Y_SW));
@@ -586,7 +587,8 @@ public partial class RuntimeTerrain : StaticBody3D
 				var nCell = cells[nx, nz];
 				if (nCell.WaterMode == WaterType.None) continue;
 
-				float nWaterY = (nCell.MacroTier * TerrainCell.TIER_HEIGHT) + WATER_DELTA;
+				float nDelta = nCell.WaterHeight > 0.001f ? nCell.WaterHeight : WATER_DELTA;
+				float nWaterY = (nCell.MacroTier * TerrainCell.TIER_HEIGHT) + nDelta;
 
 				float sharedMinH;
 				if (dx == -1 && dz == 0)
