@@ -20,7 +20,7 @@ public partial class GameHost
 		float savedWaterHeight = EditorWaterHeight;
 		bool savedBlockMode = EditorBlockMode;
 		float savedBlockLevelHeight = EditorBlockLevelHeight;
-		bool savedBlockHeightIsAbsolute = EditorBlockHeightIsAbsolute;
+		float savedExactHeight = EditorExactHeight;
 
 		int width = GroundTerrain.Width;
 		int depth = GroundTerrain.Depth;
@@ -183,7 +183,7 @@ public partial class GameHost
 				EditorWaterHeight = savedWaterHeight;
 				EditorBlockMode = savedBlockMode;
 				EditorBlockLevelHeight = savedBlockLevelHeight;
-				EditorBlockHeightIsAbsolute = savedBlockHeightIsAbsolute;
+				EditorExactHeight = savedExactHeight;
 				MapEditorHUD.Instance?.RefreshWaterSwatches();
 				MapEditorHUD.Instance?.UpdateMapNameHeader();
 				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));

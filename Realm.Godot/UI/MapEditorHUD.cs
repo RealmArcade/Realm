@@ -11,6 +11,7 @@ using System.Linq;
 
 using MirrorMode = Realm.Ecs.Components.Core.MirrorMode;
 using WaterType = Realm.Ecs.Components.Terrain.WaterType;
+using TerrainCell = Realm.Ecs.Components.Terrain.TerrainCell;
 using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
@@ -224,9 +225,11 @@ public partial class MapEditorHUD : Control
 	private Control _scaleVarBox;
 	private Control _camBoundsBox;
 	private CheckBox _chkBlockMode;
-	private CheckBox _chkAbsoluteHeight;
 	private Slider _sldBlockStep;
 	private Label _lblBlockStepValue;
+	private Control _heightBox;
+	private Slider _sldHeight;
+	private Label _lblHeightValue;
 
 	private Control _waterHeightBox;
 	private Slider _sldWaterHeight;
@@ -304,6 +307,7 @@ public partial class MapEditorHUD : Control
 
 	private Button _btnRaise;
 	private Button _btnLower;
+	private Button _btnHeight;
 	private Button _btnSmooth;
 	private Button _btnPlateau;
 	private Button _btnRamp;
@@ -358,7 +362,7 @@ public partial class MapEditorHUD : Control
 	private Button _activeToolButton = null;
 	private StyleBoxFlat _highlightStyle;
 
-	private Control _cardRaise, _cardLower, _cardSmooth, _cardPlateau, _cardRamp, _cardNoise, _cardWater;
+	private Control _cardRaise, _cardLower, _cardHeight, _cardSmooth, _cardPlateau, _cardRamp, _cardNoise, _cardWater;
 	private Control _cardTextureBrush, _cardFloodFill;
 	private Control _cardPathingBrush, _cardFloodFillPathing;
 	private Control _cardAddObject, _cardSelectMove, _cardDeleteObject;
@@ -952,8 +956,11 @@ public partial class MapEditorHUD : Control
 		_btnLower = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnLower");
 		_cardLower = CreateToolCard(_btnLower, "\uf063", "Lower", () => TriggerToolSelection(GameHost.EditorTool.Lower, _btnLower), "Lower terrain height (2)");
 
+		_btnHeight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnHeight");
+		_cardHeight = CreateToolCard(_btnHeight, "\uf07d", "Height", () => TriggerToolSelection(GameHost.EditorTool.Height, _btnHeight), "Set terrain to exact height (3)");
+
 		_btnSmooth = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnSmooth");
-		_cardSmooth = CreateToolCard(_btnSmooth, "\uf043", "Smooth", () => TriggerToolSelection(GameHost.EditorTool.Smooth, _btnSmooth), "Smooth terrain height (3)");
+		_cardSmooth = CreateToolCard(_btnSmooth, "\uf043", "Smooth", () => TriggerToolSelection(GameHost.EditorTool.Smooth, _btnSmooth), "Smooth terrain height (4)");
 
 		_btnPlateau = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnPlateau");
 		_cardPlateau = CreateToolCard(_btnPlateau, "\uf0c8", "Flatten", () => TriggerToolSelection(GameHost.EditorTool.Plateau, _btnPlateau), "Flatten terrain to cursor height on click (5)");
@@ -1094,14 +1101,18 @@ public partial class MapEditorHUD : Control
 		_sldBlockStep.DragStarted += () => _isDraggingSlider = true;
 		_sldBlockStep.DragEnded += (valueChanged) => _isDraggingSlider = false;
 		_lblBlockStepValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblBlockStepValue");
-		_chkAbsoluteHeight = GetNodeOrNull<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/ChkAbsoluteHeight");
-		if (_chkAbsoluteHeight != null)
-		{
-			_chkAbsoluteHeight.Set("icon_max_width", 0);
-			_chkAbsoluteHeight.Text = TranslationServer.Translate("Absolute");
-		}
 		var lblStepTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblStepTitle");
-		if (lblStepTitle != null) lblStepTitle.Text = TranslationServer.Translate("Height");
+		if (lblStepTitle != null) lblStepTitle.Text = TranslationServer.Translate("Step Height");
+
+		_heightBox = GetNode<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox");
+		_sldHeight = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/SldHeight");
+		_sldHeight.MinValue = TerrainCell.MIN_Y;
+		_sldHeight.MaxValue = TerrainCell.MAX_Y;
+		_sldHeight.DragStarted += () => _isDraggingSlider = true;
+		_sldHeight.DragEnded += (valueChanged) => _isDraggingSlider = false;
+		_lblHeightValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightValue");
+		var lblHeightTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header/LblHeightTitle");
+		if (lblHeightTitle != null) lblHeightTitle.Text = TranslationServer.Translate("Height");
 
 		_accordionWater = new VBoxContainer();
 		_accordionWater.Name = "WaterAccordion";
@@ -1556,7 +1567,7 @@ public partial class MapEditorHUD : Control
 		_generationDialog = new MapEditorGenerationDialog(this);
 
 		_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnVSCode, _statusLabel, _feedbackLabel);
-		_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _chkAbsoluteHeight);
+		_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _sldHeight, _lblHeightValue);
 		_placementSettingsController = new MapEditorPlacementSettings(_sldPlacementRotate, _lblPlacementRotateValue, _sldPlacementScale, _lblPlacementScaleValue, _chkRandomRotation, _chkRandomScale, _chkClumpMode, _sldClumpDensity, _lblClumpDensityValue, _sldClumpScaleVar, _lblClumpScaleVarValue);
 		InitializeInspectorPanel();
 		_inspectorController = new MapEditorInspector(_lblInspectorTitle, _lblInspectorPos, _btnInspectorRotLeft, _btnInspectorRotRight, _btnInspectorScaleDown, _btnInspectorScaleUp, _btnInspectorScaleReset, _btnInspectorDelete);
@@ -1873,6 +1884,7 @@ public partial class MapEditorHUD : Control
 
 		StyleRowButton(_btnRaise);
 		StyleRowButton(_btnLower);
+		StyleRowButton(_btnHeight);
 		StyleRowButton(_btnSmooth);
 		StyleRowButton(_btnPlateau);
 		StyleRowButton(_btnRamp);
@@ -1905,6 +1917,7 @@ public partial class MapEditorHUD : Control
 		StyleValueBadge(_lblBrushSizeValue);
 		StyleValueBadge(_lblBrushStrengthValue);
 		StyleValueBadge(_lblBlockStepValue);
+		StyleValueBadge(_lblHeightValue);
 		StyleValueBadge(_lblPlacementRotateValue);
 		StyleValueBadge(_lblPlacementScaleValue);
 		StyleValueBadge(_lblClumpDensityValue);
@@ -2873,6 +2886,18 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
+	public void UpdateExactHeightExternal(float height)
+	{
+		if (_sldHeight != null)
+		{
+			_sldHeight.Value = height;
+		}
+		if (_lblHeightValue != null)
+		{
+			_lblHeightValue.Text = height.ToString("F1") + "m";
+		}
+	}
+
 	public void SelectToolFromHotkey(GameHost.EditorTool tool)
 	{
 		Button targetBtn = null;
@@ -2880,6 +2905,7 @@ public partial class MapEditorHUD : Control
 		{
 			case GameHost.EditorTool.Raise: targetBtn = _btnRaise; break;
 			case GameHost.EditorTool.Lower: targetBtn = _btnLower; break;
+			case GameHost.EditorTool.Height: targetBtn = _btnHeight; break;
 			case GameHost.EditorTool.Smooth: targetBtn = _btnSmooth; break;
 			case GameHost.EditorTool.Plateau: targetBtn = _btnPlateau; break;
 			case GameHost.EditorTool.Ramp: targetBtn = _btnRamp; break;
@@ -2979,6 +3005,7 @@ public partial class MapEditorHUD : Control
 		{
 			GameHost.EditorTool.Raise => _btnRaise,
 			GameHost.EditorTool.Lower => _btnLower,
+			GameHost.EditorTool.Height => _btnHeight,
 			GameHost.EditorTool.Smooth => _btnSmooth,
 			GameHost.EditorTool.Plateau => _btnPlateau,
 			GameHost.EditorTool.Ramp => _btnRamp,
@@ -7282,6 +7309,7 @@ public partial class MapEditorHUD : Control
 
 			SafeReparent(_cardRaise ?? (Control)_btnRaise, terrainGrid);
 			SafeReparent(_cardLower ?? (Control)_btnLower, terrainGrid);
+			SafeReparent(_cardHeight ?? (Control)_btnHeight, terrainGrid);
 			SafeReparent(_cardSmooth ?? (Control)_btnSmooth, terrainGrid);
 			SafeReparent(_cardPlateau ?? (Control)_btnPlateau, terrainGrid);
 			SafeReparent(_cardRamp ?? (Control)_btnRamp, terrainGrid);
@@ -7732,6 +7760,7 @@ public partial class MapEditorHUD : Control
 		bool isClumpActive = _chkClumpMode != null && _chkClumpMode.ButtonPressed;
 		bool isBrush = (tool == GameHost.EditorTool.Raise ||
 					   tool == GameHost.EditorTool.Lower ||
+					   tool == GameHost.EditorTool.Height ||
 					   tool == GameHost.EditorTool.Smooth ||
 					   tool == GameHost.EditorTool.Plateau ||
 					   tool == GameHost.EditorTool.Ramp ||
@@ -7757,6 +7786,7 @@ public partial class MapEditorHUD : Control
 										 tool != GameHost.EditorTool.Noise &&
 										 tool != GameHost.EditorTool.Ramp &&
 										 tool != GameHost.EditorTool.PlacePropClump &&
+										 tool != GameHost.EditorTool.Height &&
 										 !isClumpActive);
 			}
 			UpdateBlockStepVisibility();
@@ -7770,10 +7800,11 @@ public partial class MapEditorHUD : Control
 		bool isBlockModeActive = (_chkBlockMode != null && _chkBlockMode.Visible && _chkBlockMode.ButtonPressed) || (GameHost.Instance != null && GameHost.Instance.EditorBlockMode);
 		bool isPaintTool = tool == GameHost.EditorTool.PaintTexture ||
 						   tool == GameHost.EditorTool.FloodFill;
-		bool isBlockHeightTool = isBlockModeActive && (
+		bool isBlockHeightTool = (isBlockModeActive && (
 						   tool == GameHost.EditorTool.Raise ||
 						   tool == GameHost.EditorTool.Lower ||
-						   tool == GameHost.EditorTool.Plateau);
+						   tool == GameHost.EditorTool.Plateau)) ||
+						   tool == GameHost.EditorTool.Height;
 
 		bool isRampTool = tool == GameHost.EditorTool.Ramp;
 
@@ -8907,7 +8938,12 @@ public partial class MapEditorHUD : Control
 
 		if (_stepBox != null)
 		{
-			_stepBox.Visible = blockModeEnabled && (tool != GameHost.EditorTool.Plateau);
+			_stepBox.Visible = blockModeEnabled && (tool == GameHost.EditorTool.Raise || tool == GameHost.EditorTool.Lower);
+		}
+
+		if (_heightBox != null)
+		{
+			_heightBox.Visible = (tool == GameHost.EditorTool.Height);
 		}
 	}
 
@@ -8926,6 +8962,10 @@ public partial class MapEditorHUD : Control
 			if (tool == GameHost.EditorTool.Raise || tool == GameHost.EditorTool.Lower)
 			{
 				strengthParent.Visible = !blockModeEnabled;
+			}
+			else if (tool == GameHost.EditorTool.Height)
+			{
+				strengthParent.Visible = false;
 			}
 			else
 			{

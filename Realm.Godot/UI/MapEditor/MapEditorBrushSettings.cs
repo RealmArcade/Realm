@@ -11,10 +11,11 @@ public class MapEditorBrushSettings
 	private CheckBox _chkBlockMode;
 	private Slider _sldBlockStep;
 	private Label _lblBlockStepValue;
-	private CheckBox? _chkAbsoluteHeight;
+	private Slider? _sldHeight;
+	private Label? _lblHeightValue;
 
 	public MapEditorBrushSettings(Slider sldBrushSize, Label lblBrushSizeValue, Slider sldBrushStrength, Label lblBrushStrengthValue,
-		CheckBox chkBlockMode, Slider sldBlockStep, Label lblBlockStepValue, CheckBox? chkAbsoluteHeight = null)
+		CheckBox chkBlockMode, Slider sldBlockStep, Label lblBlockStepValue, Slider? sldHeight = null, Label? lblHeightValue = null)
 	{
 		_sldBrushSize = sldBrushSize;
 		_lblBrushSizeValue = lblBrushSizeValue;
@@ -24,7 +25,8 @@ public class MapEditorBrushSettings
 		_chkBlockMode = chkBlockMode;
 		_sldBlockStep = sldBlockStep;
 		_lblBlockStepValue = lblBlockStepValue;
-		_chkAbsoluteHeight = chkAbsoluteHeight;
+		_sldHeight = sldHeight;
+		_lblHeightValue = lblHeightValue;
 
 		_sldBrushSize.Step = 1.0;
 		_sldBrushSize.Rounded = true;
@@ -59,11 +61,13 @@ public class MapEditorBrushSettings
 			};
 		}
 
-		if (_chkAbsoluteHeight != null)
+		if (_sldHeight != null)
 		{
-			_chkAbsoluteHeight.Toggled += (buttonPressed) =>
+			_sldHeight.ValueChanged += (val) =>
 			{
-				if (GameHost.Instance != null) GameHost.Instance.EditorBlockHeightIsAbsolute = buttonPressed;
+				float fVal = (float)val;
+				if (_lblHeightValue != null) _lblHeightValue.Text = fVal.ToString("F1") + "m";
+				if (GameHost.Instance != null) GameHost.Instance.EditorExactHeight = fVal;
 			};
 		}
 
@@ -103,12 +107,12 @@ public class MapEditorBrushSettings
 			}
 		}
 
-		if (_chkAbsoluteHeight != null && GameHost.Instance != null)
+		if (_sldHeight != null)
 		{
-			bool isAbsolute = GameHost.Instance.EditorBlockHeightIsAbsolute;
-			if (_chkAbsoluteHeight.ButtonPressed != isAbsolute)
+			if (!Mathf.IsEqualApprox((float)_sldHeight.Value, viewModel.ExactHeight))
 			{
-				_chkAbsoluteHeight.ButtonPressed = isAbsolute;
+				_sldHeight.Value = viewModel.ExactHeight;
+				if (_lblHeightValue != null) _lblHeightValue.Text = viewModel.ExactHeight.ToString("F1") + "m";
 			}
 		}
 

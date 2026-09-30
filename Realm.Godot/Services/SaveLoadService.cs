@@ -843,8 +843,7 @@ public class SaveLoadService
 
 			WaterType currentWaterMode = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).WaterMode : WaterType.None;
 			byte currentWaterProf = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).WaterProfileIndex : (byte)0;
-			bool currentBlockAbs = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).BlockHeightIsAbsolute : false;
-			var newEditorState = new EditorState(isBlock, step, left, right, top, bottom, skybox, false, MirrorMode.None, currentWaterMode, currentWaterProf, currentBlockAbs);
+			var newEditorState = new EditorState(isBlock, step, left, right, top, bottom, skybox, false, MirrorMode.None, currentWaterMode, currentWaterProf);
 			EcsWorld.SetOrAdd(worldEntity, newEditorState);
 
 			if (EcsWorld.Has<CameraState>(worldEntity))

@@ -21,7 +21,7 @@ public class MapEditorHUDViewModel
 	public float BrushSize { get; set; } = 2f;
 	public float BrushStrength { get; set; } = 20f;
 	public float BlockStep { get; set; } = 3.0f;
-	public bool BlockHeightIsAbsolute { get; set; } = false;
+	public float ExactHeight { get; set; } = 0.0f;
 
 	public float PlacementRotate { get; set; } = 0f;
 	public float PlacementScale { get; set; } = 1.0f;
@@ -68,7 +68,7 @@ public class MapEditorHUDViewModel
 			BrushSize = GameHost.Instance.EditorBrushRadius;
 			BrushStrength = GameHost.Instance.EditorBrushStrength;
 			BlockStep = GameHost.Instance.EditorBlockLevelHeight;
-			BlockHeightIsAbsolute = GameHost.Instance.EditorBlockHeightIsAbsolute;
+			ExactHeight = GameHost.Instance.EditorExactHeight;
 
 			PlacementRotate = GameHost.Instance.EditorPlacementRotation;
 			PlacementScale = GameHost.Instance.EditorPlacementScale;

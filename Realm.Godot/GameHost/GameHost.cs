@@ -335,6 +335,7 @@ public partial class GameHost : Node3D, IGameAPI
 		None,
 		Raise,
 		Lower,
+		Height,
 		Smooth,
 		Plateau,
 		PaintTexture,
@@ -546,10 +547,11 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorService.SetBlockLevelHeight(_worldEntity, value);
 	}
 
-	public bool EditorBlockHeightIsAbsolute
+	private float _editorExactHeight = 0.0f;
+	public float EditorExactHeight
 	{
-		get => _editorService.GetBlockHeightIsAbsolute(_worldEntity);
-		set => _editorService.SetBlockHeightIsAbsolute(_worldEntity, value);
+		get => _editorExactHeight;
+		set => _editorExactHeight = Math.Clamp(value, TerrainCell.MIN_Y, TerrainCell.MAX_Y);
 	}
 
 	public WaterType EditorWaterMode

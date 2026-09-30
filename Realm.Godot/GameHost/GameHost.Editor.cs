@@ -2080,6 +2080,7 @@ public partial class GameHost
 
 		bool anyModified = false;
 
+		float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 		foreach (var pos in positions)
 		{
 			var result = _editorService.ApplyContinuousTerrainEditing(
@@ -2087,12 +2088,11 @@ public partial class GameHost
 				ActiveEditorTool,
 				EditorBrushRadius, EditorBrushStrength,
 				EditorBrushIsSquare,
-				EditorBlockMode, EditorBlockLevelHeight,
+				EditorBlockMode, targetBlockHeight,
 				EditorPaintTextureIndex, EditorCliffPaintTextureIndex,
 				pathingMask, pathingAdd,
 				isFirstClick,
-				applyGround, applyCliff,
-				EditorBlockHeightIsAbsolute);
+				applyGround, applyCliff);
 
 			if (result.HeightsModified || result.SplatModified || result.PathingModified)
 			{
@@ -4180,6 +4180,7 @@ public partial class GameHost
 
 					bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
 										 ActiveEditorTool == EditorTool.Lower ||
+										 ActiveEditorTool == EditorTool.Height ||
 										 ActiveEditorTool == EditorTool.Smooth ||
 										 ActiveEditorTool == EditorTool.Plateau ||
 										 ActiveEditorTool == EditorTool.PaintTexture ||
@@ -4190,16 +4191,16 @@ public partial class GameHost
 					if (isTerrainTool && !_editorService.IsDrawingTerrain && GroundTerrain != null)
 					{
 						firstClick = true;
+						float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 						_editorService.BeginTerrainDraw(
 							hitPos,
 							ActiveEditorTool,
 							EditorBlockMode,
-							EditorBlockLevelHeight,
+							targetBlockHeight,
 							null,
 							GroundTerrain.SplatMap,
 							GroundTerrain.PathingCodes,
-							GroundTerrain.CliffSplatMap,
-							EditorBlockHeightIsAbsolute);
+							GroundTerrain.CliffSplatMap);
 					}
 
 					ApplyContinuousTerrainEditing(hitPos, fDelta, firstClick);
@@ -4269,6 +4270,7 @@ public partial class GameHost
 						EditorHistoryManager.RecordAction(action);
 						bool isHeightsTool = ActiveEditorTool == EditorTool.Raise ||
 											 ActiveEditorTool == EditorTool.Lower ||
+											 ActiveEditorTool == EditorTool.Height ||
 											 ActiveEditorTool == EditorTool.Smooth ||
 											 ActiveEditorTool == EditorTool.Plateau ||
 											 ActiveEditorTool == EditorTool.Noise ||
@@ -4349,6 +4351,7 @@ public partial class GameHost
 					EditorHistoryManager.RecordAction(action);
 					bool isHeightsTool = ActiveEditorTool == EditorTool.Raise ||
 										 ActiveEditorTool == EditorTool.Lower ||
+										 ActiveEditorTool == EditorTool.Height ||
 										 ActiveEditorTool == EditorTool.Smooth ||
 										 ActiveEditorTool == EditorTool.Plateau ||
 										 ActiveEditorTool == EditorTool.Noise ||
@@ -4577,6 +4580,7 @@ public partial class GameHost
 		
 		bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
 							 ActiveEditorTool == EditorTool.Lower ||
+							 ActiveEditorTool == EditorTool.Height ||
 							 ActiveEditorTool == EditorTool.Smooth ||
 							 ActiveEditorTool == EditorTool.Plateau ||
 							 ActiveEditorTool == EditorTool.PaintTexture ||
