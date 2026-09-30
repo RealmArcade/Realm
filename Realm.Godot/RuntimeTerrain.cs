@@ -442,7 +442,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		mat.SetShaderParameter("use_normal_texture", profile.UseNormalTexture && !string.IsNullOrEmpty(profile.NormalTexturePath));
 		if (profile.UseNormalTexture && !string.IsNullOrEmpty(profile.NormalTexturePath))
 		{
-			var tex = LoadTextureFromActiveWorkspace(profile.NormalTexturePath);
+			var tex = LoadTextureFromActiveWorkspace(profile.NormalTexturePath, preferNormal: true);
 			if (tex != null) mat.SetShaderParameter("normal_texture", tex);
 		}
 		mat.SetShaderParameter("normal_scale", profile.NormalScale);
@@ -471,7 +471,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		mat.SetShaderParameter("use_detail_texture", profile.UseDetailTexture && !string.IsNullOrEmpty(profile.DetailTexturePath));
 		if (profile.UseDetailTexture && !string.IsNullOrEmpty(profile.DetailTexturePath))
 		{
-			var dtex = LoadTextureFromActiveWorkspace(profile.DetailTexturePath);
+			var dtex = LoadTextureFromActiveWorkspace(profile.DetailTexturePath, preferNormal: false);
 			if (dtex != null) mat.SetShaderParameter("detail_texture", dtex);
 		}
 		mat.SetShaderParameter("detail_tile_mode", string.Equals(profile.DetailTileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0 : 1);
@@ -493,7 +493,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		}
 	}
 
-	private Texture2D? LoadTextureFromActiveWorkspace(string texturePath)
+	private Texture2D? LoadTextureFromActiveWorkspace(string texturePath, bool preferNormal = false)
 	{
 		if (string.IsNullOrWhiteSpace(texturePath)) return null;
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -510,8 +510,9 @@ public partial class RuntimeTerrain : StaticBody3D
 		{
 			if (fullPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
-				var (alb, _) = LoadRtexLayers(fullPath);
-				return alb != null ? ImageTexture.CreateFromImage(alb) : null;
+				var (alb, norm) = LoadRtexLayers(fullPath);
+				var targetImg = (preferNormal && norm != null) ? norm : alb;
+				return targetImg != null ? ImageTexture.CreateFromImage(targetImg) : null;
 			}
 			var img = Image.LoadFromFile(fullPath);
 			if (img != null) return ImageTexture.CreateFromImage(img);

@@ -433,9 +433,6 @@ public class EditorService
 				}
 				float targetHeight = Math.Clamp(_activeBlockTargetHeight, -16.0f, 16.0f);
 				sbyte targetMacroTier = (sbyte)Math.Clamp((int)MathF.Round(targetHeight / TerrainCell.TIER_HEIGHT), -16, 16);
-				Entity worldEntity = GameHost.Instance?.WorldEntity ?? Entity.Null;
-				WaterType selectedWaterMode = GetWaterMode(worldEntity);
-				byte selectedWaterProfile = GetWaterProfileIndex(worldEntity);
 
 				for (int z = quadMinZ; z <= quadMaxZ; z++)
 				{
@@ -471,18 +468,6 @@ public class EditorService
 										{
 											cell.WaterMode = WaterType.None;
 											waterChanged = true;
-										}
-									}
-									else if (activeTool == GameHost.EditorTool.Lower)
-									{
-										if (selectedWaterMode != WaterType.None)
-										{
-											if (cell.WaterMode != selectedWaterMode || cell.WaterProfileIndex != selectedWaterProfile)
-											{
-												cell.WaterMode = selectedWaterMode;
-												cell.WaterProfileIndex = selectedWaterProfile;
-												waterChanged = true;
-											}
 										}
 									}
 									else if (activeTool == GameHost.EditorTool.Plateau)

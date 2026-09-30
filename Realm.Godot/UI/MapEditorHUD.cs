@@ -1079,61 +1079,6 @@ public partial class MapEditorHUD : Control
 		_sldBlockStep.DragEnded += (valueChanged) => _isDraggingSlider = false;
 		_lblBlockStepValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header/LblBlockStepValue");
 
-		var contentBrush = GetNodeOrNull<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush");
-		_waterModeBox = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/WaterModeBox");
-		if (_waterModeBox == null && contentBrush != null)
-		{
-			var box = new VBoxContainer();
-			box.Name = "WaterModeBox";
-			box.AddThemeConstantOverride("separation", 2);
-
-			_optWaterMode = new OptionButton();
-			_optWaterMode.Name = "OptWaterMode";
-			_optWaterMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			_optWaterMode.ClipText = true;
-			_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
-			_optWaterMode.Selected = 0;
-			box.AddChild(_optWaterMode);
-
-			contentBrush.AddChild(box);
-			_waterModeBox = box;
-		}
-		else if (_waterModeBox != null)
-		{
-			_optWaterMode = _waterModeBox.GetNodeOrNull<OptionButton>("OptWaterMode") ?? _waterModeBox.FindChild("OptWaterMode", true, false) as OptionButton;
-		}
-
-		if (_optWaterMode != null)
-		{
-			_optWaterMode.ItemSelected += (idx) =>
-			{
-				if (idx == 0)
-				{
-					if (GameHost.Instance != null)
-					{
-						GameHost.Instance.EditorWaterMode = WaterType.None;
-						GameHost.Instance.ActiveWaterProfileIndex = 0;
-					}
-				}
-				else
-				{
-					byte profIdx = 0;
-					var meta = _optWaterMode.GetItemMetadata((int)idx);
-					if (meta.VariantType != Variant.Type.Nil)
-					{
-						profIdx = (byte)(int)meta;
-					}
-					if (GameHost.Instance != null)
-					{
-						GameHost.Instance.EditorWaterMode = WaterType.Shallow;
-						GameHost.Instance.ActiveWaterProfileIndex = profIdx;
-					}
-				}
-				UpdateBlockStepVisibility();
-			};
-			RefreshWaterSwatches();
-		}
-
 		_accordionWater = new VBoxContainer();
 		_accordionWater.Name = "WaterAccordion";
 		_btnHeaderWater = new Button();
@@ -1214,14 +1159,33 @@ public partial class MapEditorHUD : Control
 
 		_contentWater.AddChild(waterActionBox);
 
-		if (_waterModeBox != null)
+		_waterModeBox = new VBoxContainer();
+		_waterModeBox.Name = "WaterModeBox";
+		_waterModeBox.AddThemeConstantOverride("separation", 2);
+
+		_optWaterMode = new OptionButton();
+		_optWaterMode.Name = "OptWaterMode";
+		_optWaterMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optWaterMode.ClipText = true;
+		_optWaterMode.CustomMinimumSize = new Vector2(0, 24);
+		_waterModeBox.AddChild(_optWaterMode);
+
+		_optWaterMode.ItemSelected += (idx) =>
 		{
-			if (_waterModeBox.GetParent() != null)
+			byte profIdx = 0;
+			var meta = _optWaterMode.GetItemMetadata((int)idx);
+			if (meta.VariantType != Variant.Type.Nil)
 			{
-				_waterModeBox.GetParent().RemoveChild(_waterModeBox);
+				profIdx = (byte)(int)meta;
 			}
-			_contentWater.AddChild(_waterModeBox);
-		}
+			if (GameHost.Instance != null)
+			{
+				GameHost.Instance.EditorWaterMode = WaterType.Shallow;
+				GameHost.Instance.ActiveWaterProfileIndex = profIdx;
+			}
+		};
+		_contentWater.AddChild(_waterModeBox);
+		RefreshWaterSwatches();
 
 		_btnWaterProfiles = new Button();
 		_btnWaterProfiles.Name = "BtnWaterProfiles";
@@ -1526,7 +1490,7 @@ public partial class MapEditorHUD : Control
 		_generationDialog = new MapEditorGenerationDialog(this);
 
 		_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnVSCode, _statusLabel, _feedbackLabel);
-		_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _optWaterMode);
+		_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue);
 		_placementSettingsController = new MapEditorPlacementSettings(_sldPlacementRotate, _lblPlacementRotateValue, _sldPlacementScale, _lblPlacementScaleValue, _chkRandomRotation, _chkRandomScale, _chkClumpMode, _sldClumpDensity, _lblClumpDensityValue, _sldClumpScaleVar, _lblClumpScaleVarValue);
 		InitializeInspectorPanel();
 		_inspectorController = new MapEditorInspector(_lblInspectorTitle, _lblInspectorPos, _btnInspectorRotLeft, _btnInspectorRotRight, _btnInspectorScaleDown, _btnInspectorScaleUp, _btnInspectorScaleReset, _btnInspectorDelete);
@@ -1716,7 +1680,7 @@ public partial class MapEditorHUD : Control
 
 	public byte GetSelectedWaterProfileIndex()
 	{
-		if (_optWaterMode == null || _optWaterMode.Selected <= 0) return 0;
+		if (_optWaterMode == null || _optWaterMode.Selected < 0) return 0;
 		var meta = _optWaterMode.GetItemMetadata(_optWaterMode.Selected);
 		if (meta.VariantType == Variant.Type.Nil) return 0;
 		return (byte)(int)meta;
@@ -1724,7 +1688,7 @@ public partial class MapEditorHUD : Control
 
 	public WaterType GetSelectedWaterMode()
 	{
-		if (_optWaterMode == null || _optWaterMode.Selected <= 0) return WaterType.None;
+		if (_optWaterMode == null || _optWaterMode.Selected < 0) return WaterType.None;
 		return WaterType.Shallow;
 	}
 
@@ -12061,7 +12025,7 @@ public partial class MapEditorHUD : Control
 		else
 		{
 			var defaults = WaterProfileSaveData.CreateDefaultProfiles();
-			int itemIdx = 1;
+			int itemIdx = 0;
 			foreach (var def in defaults)
 			{
 				_optWaterMode.AddItem(TranslationServer.Translate(def.Name), itemIdx);
@@ -12073,26 +12037,21 @@ public partial class MapEditorHUD : Control
 		int targetSelected = 0;
 		if (GameHost.Instance != null)
 		{
-			WaterType currentMode = GameHost.Instance.EditorWaterMode;
 			byte currentProf = GameHost.Instance.ActiveWaterProfileIndex;
-			if (currentMode != WaterType.None)
+			for (int i = 0; i < _optWaterMode.ItemCount; i++)
 			{
-				for (int i = 1; i < _optWaterMode.ItemCount; i++)
+				var meta = _optWaterMode.GetItemMetadata(i);
+				if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == currentProf)
 				{
-					var meta = _optWaterMode.GetItemMetadata(i);
-					if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == currentProf)
-					{
-						targetSelected = i;
-						break;
-					}
-				}
-				if (targetSelected == 0 && _optWaterMode.ItemCount > 1)
-				{
-					targetSelected = 1;
+					targetSelected = i;
+					break;
 				}
 			}
 		}
-		_optWaterMode.Selected = targetSelected;
+		if (_optWaterMode.ItemCount > 0)
+		{
+			_optWaterMode.Selected = targetSelected;
+		}
 	}
 
 	public void OpenWaterProfileDialog()

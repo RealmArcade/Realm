@@ -60,14 +60,18 @@
 			"star_reach.rtex": "9c7fb6d80ea74d61b11cfc9ccddf072aa187c80cd4ac46b3d16ff3a83c1e2790"
 		},
 		"textures": {
+			"abyssal_trench_void_clay.rtex": "064401b38722dc19bb221dd752669264307817843d994c563b23df744dc79574",
 			"ancient_jungle_mossy_stone.rtex": "ae03d453928fbc21692b825a56c46055d2ebad7ac20976fdddbff00021c31e1d",
 			"ancient_jungle_overgrown_path.rtex": "fb435a844e25897385139b550782eef607376867383c37a40b561f5441b8bf16",
 			"deep_trench_dense_mud.rtex": "0056c30011d6c77b5ce99f02b66242ad3ad61387dabd835e968761166cfc26c0",
 			"dusty_canyon_granite_basin.rtex": "8d9ee0f675da18c163203195dadae03e4e977c44f4f92d40a5e2307c99e3bc2b",
 			"dusty_canyon_scarce_soil.rtex": "0cc6ae7bb5673aef49a72e8184a65cf49b8e3738467bfca3f473e8cecd17fa9a",
 			"frozen_tundra_mud.rtex": "0933fd0245f9e5b04e6a1a3c42293b1b7f4e4be6017bd3c61a9542787fc4e5cd",
+			"magma_chambers_burning_ember.rtex": "681df5309e33a5b2a6381e3cce04400319c168c6cfcd284973d5d7cfc4979ead",
 			"mangrove_swamp_bog_grass.rtex": "173d0f2adaf4eca95e8bb6d42e607ef1760569508e6eff699295be22ba3028c9",
 			"petrified_forest_gray_granite.rtex": "3c1a5ecf5a101afc84c0d2f13637e0be1ecf2686cdd94ea505957c9c020afdcd",
+			"submerged_city_hydro_glass.rtex": "d67a54f6ae66a154762a02d45ea1aeacdafca10acf1baa7665a3122959fd6071",
+			"sunken_reef_acid_pool.rtex": "9c5e913254eea652c018f317d8b611363aa9c892463ec555e9111334ea71a78e",
 			"sunken_ruins_crushed_granite.rtex": "3ad4acf903ce22ac4f0e63292a54eab33d41925397dd583ddc6b031c6120af09",
 			"sunken_ruins_mossy_stone.rtex": "49d9eede5248d1d943fdf5a53a946030257674ae8340778b7ea361c71fe8f98f",
 			"sunken_ruins_reef_stone.rtex": "ddfb7e71368f597e4681c81fbf51d02960dd509cf5f701e8937f7c326f88cd53",

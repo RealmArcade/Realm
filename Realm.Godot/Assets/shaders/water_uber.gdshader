@@ -125,11 +125,17 @@ vec4 sample_stochastic_2d(sampler2D tex, vec2 uv, float stoch_tile_size) {
 	return vec4(mean_color, mean_alpha);
 }
 
-vec4 sample_tiled_2d(sampler2D tex, vec2 uv, int tile_mode, float stoch_tile_size, float cross_fade) {
-	if (tile_mode == 0) {
-		return sample_semi_grid_2d(tex, uv, cross_fade);
+vec4 sample_tiled_2d(sampler2D tex, vec2 uv, vec2 uv_scroll, int tile_mode, float stoch_tile_size, float cross_fade) {
+	if (tile_mode == 1) {
+		vec2 scroll_vec = length(uv_scroll) > 0.001 ? uv_scroll : vec2(0.02, 0.01);
+		vec2 u1 = uv + scroll_vec * TIME;
+		vec2 u2 = uv * 0.88 - vec2(scroll_vec.y, -scroll_vec.x) * TIME * 0.8 + vec2(0.37, 0.63);
+		vec4 c1 = texture(tex, u1);
+		vec4 c2 = texture(tex, u2);
+		return mix(c1, c2, 0.5);
 	}
-	return sample_stochastic_2d(tex, uv, stoch_tile_size);
+	vec2 u1 = uv + uv_scroll * TIME;
+	return sample_semi_grid_2d(tex, u1, cross_fade);
 }
 
 vec4 sample_triplanar_tiled_2d(sampler2D tex, vec3 world_pos, vec3 world_norm, vec2 uv_scale, vec2 uv_scroll, int tile_mode, float stoch_tile_size, float cross_fade) {
@@ -137,13 +143,13 @@ vec4 sample_triplanar_tiled_2d(sampler2D tex, vec3 world_pos, vec3 world_norm, v
 	blend_weights = pow(blend_weights, vec3(4.0));
 	blend_weights /= max(0.0001, (blend_weights.x + blend_weights.y + blend_weights.z));
 
-	vec2 uv_x = world_pos.zy * uv_scale + uv_scroll * TIME;
-	vec2 uv_y = world_pos.xz * uv_scale + uv_scroll * TIME;
-	vec2 uv_z = world_pos.xy * uv_scale + uv_scroll * TIME;
+	vec2 uv_x = world_pos.zy * uv_scale * 0.12;
+	vec2 uv_y = world_pos.xz * uv_scale * 0.12;
+	vec2 uv_z = world_pos.xy * uv_scale * 0.12;
 
-	vec4 col_x = sample_tiled_2d(tex, uv_x, tile_mode, stoch_tile_size, cross_fade);
-	vec4 col_y = sample_tiled_2d(tex, uv_y, tile_mode, stoch_tile_size, cross_fade);
-	vec4 col_z = sample_tiled_2d(tex, uv_z, tile_mode, stoch_tile_size, cross_fade);
+	vec4 col_x = sample_tiled_2d(tex, uv_x, uv_scroll, tile_mode, stoch_tile_size, cross_fade);
+	vec4 col_y = sample_tiled_2d(tex, uv_y, uv_scroll, tile_mode, stoch_tile_size, cross_fade);
+	vec4 col_z = sample_tiled_2d(tex, uv_z, uv_scroll, tile_mode, stoch_tile_size, cross_fade);
 
 	return col_x * blend_weights.x + col_y * blend_weights.y + col_z * blend_weights.z;
 }
@@ -184,18 +190,33 @@ void fragment() {
 		flow_vec = flow_sample * flow_speed;
 	}
 
-	vec2 p1 = v_world_pos.xz * 0.25 + flow_vec * TIME * wave_speed * 0.12;
-	vec2 p2 = v_world_pos.xz * 0.35 - flow_vec * TIME * wave_speed * 0.09;
+	vec2 p_w1 = v_world_pos.xz * 0.45 + flow_vec * TIME * wave_speed * 0.25;
+	vec2 p_w2 = v_world_pos.xz * 0.85 - vec2(flow_vec.y, -flow_vec.x) * TIME * wave_speed * 0.18 + vec2(1.2, 3.4);
+	vec2 p_w3 = v_world_pos.xz * 1.60 + vec2(flow_vec.y, flow_vec.x) * TIME * wave_speed * 0.15 + vec2(5.6, 2.1);
+
+	float w1 = sin(p_w1.x * 1.4 + sin(p_w1.y * 1.6 + TIME * wave_speed * 0.4));
+	float w2 = cos(p_w2.y * 1.5 + cos(p_w2.x * 1.8 - TIME * wave_speed * 0.3));
+	float w3 = sin((p_w3.x + p_w3.y) * 1.2 + sin((p_w3.x - p_w3.y) * 1.1 + TIME * wave_speed * 0.5));
+
+	float wave_height_sample = (w1 + w2 + w3) * 0.333;
+
+	float d_w1_x = cos(p_w1.x * 1.4 + sin(p_w1.y * 1.6 + TIME * wave_speed * 0.4)) * 1.4;
+	float d_w1_y = cos(p_w1.x * 1.4 + sin(p_w1.y * 1.6 + TIME * wave_speed * 0.4)) * cos(p_w1.y * 1.6 + TIME * wave_speed * 0.4) * 1.6;
+
+	float d_w2_x = -sin(p_w2.y * 1.5 + cos(p_w2.x * 1.8 - TIME * wave_speed * 0.3)) * (-sin(p_w2.x * 1.8 - TIME * wave_speed * 0.3)) * 1.8;
+	float d_w2_y = -sin(p_w2.y * 1.5 + cos(p_w2.x * 1.8 - TIME * wave_speed * 0.3)) * 1.5;
+
+	vec2 wave_grad = vec2(d_w1_x + d_w2_x, d_w1_y + d_w2_y) * 0.35;
 
 	vec3 flat_perturbed_normal;
 	if (use_normal_texture) {
-		vec3 n_tex1 = texture(normal_texture, p1 * normal_scale).rgb * 2.0 - 1.0;
-		vec3 n_tex2 = texture(normal_texture, p2 * normal_scale).rgb * 2.0 - 1.0;
-		flat_perturbed_normal = normalize(vec3(n_tex1.xy + n_tex2.xy, n_tex1.z + n_tex2.z));
+		vec2 n_uv1 = v_world_pos.xz * 0.15 * normal_scale + flow_vec * TIME * wave_speed * 0.15;
+		vec2 n_uv2 = v_world_pos.xz * 0.28 * normal_scale - vec2(flow_vec.y, -flow_vec.x) * TIME * wave_speed * 0.10 + vec2(0.3, 0.7);
+		vec3 n_tex1 = texture(normal_texture, n_uv1).rgb * 2.0 - 1.0;
+		vec3 n_tex2 = texture(normal_texture, n_uv2).rgb * 2.0 - 1.0;
+		flat_perturbed_normal = normalize(vec3(n_tex1.xy + n_tex2.xy + wave_grad * 0.15, max(0.2, n_tex1.z + n_tex2.z)));
 	} else {
-		float n1 = sin(p1.x + sin(p1.y * 1.2)) * 0.5 + 0.5;
-		float n2 = cos(p2.x - cos(p2.y * 1.3)) * 0.5 + 0.5;
-		flat_perturbed_normal = normalize(vec3((n1 - 0.5) * 0.25 * normal_scale, (n2 - 0.5) * 0.25 * normal_scale, 1.0));
+		flat_perturbed_normal = normalize(vec3(-wave_grad.x * normal_scale * 0.35, -wave_grad.y * normal_scale * 0.35, 1.0));
 	}
 
 	float flow_x = (v_world_pos.x + v_world_pos.z) * 0.3;
@@ -225,8 +246,8 @@ void fragment() {
 	float shore_fade = mix(1.0, smoothstep(0.001, 0.02, water_depth), flat_factor);
 	float shore_proximity = (1.0 - smoothstep(0.0, max(0.001, foam_depth), water_depth)) * shore_fade;
 
-	float pulse = sin(water_depth * 18.0 - TIME * wave_speed * 3.5) * 0.5 + 0.5;
-	float flat_foam_mask = smoothstep(0.2, 0.8, shore_proximity * 0.6 + pulse * shore_proximity * 0.4);
+	float pulse = sin(water_depth * 18.0 - TIME * wave_speed * 3.5 + wave_height_sample * 2.0) * 0.5 + 0.5;
+	float flat_foam_mask = smoothstep(0.35, 0.85, shore_proximity * 0.7 + pulse * shore_proximity * 0.3);
 	float final_foam_mask = mix(waterfall_foam, flat_foam_mask, flat_factor);
 
 	vec3 screen_color = (refraction_strength > 0.0) ? texture(screen_texture, screen_uv_sampled).rgb : vec3(0.0);
@@ -245,13 +266,14 @@ void fragment() {
 	float final_alpha = mix(water_col.a, 0.85, final_foam_mask) * shore_fade;
 
 	if (refraction_strength > 0.0) {
-		base_liquid_rgb = mix(screen_color, base_liquid_rgb, clamp(water_col.a + final_foam_mask, 0.0, 1.0));
-		final_alpha = shore_fade;
+		base_liquid_rgb = mix(screen_color, base_liquid_rgb, clamp(water_col.a + final_foam_mask * 0.5, 0.0, 1.0));
+		final_alpha = mix(water_col.a, 1.0, final_foam_mask) * shore_fade;
 	}
 	base_liquid_rgb += vec3(caustic_val);
 
+	vec4 det_sample = vec4(1.0);
 	if (use_detail_texture) {
-		vec4 det_sample = sample_triplanar_tiled_2d(detail_texture, v_world_pos, v_world_normal, detail_uv_scale, detail_uv_scroll, detail_tile_mode, detail_stochastic_tile_size, detail_cross_fade);
+		det_sample = sample_triplanar_tiled_2d(detail_texture, v_world_pos, v_world_normal, detail_uv_scale, detail_uv_scroll, detail_tile_mode, detail_stochastic_tile_size, detail_cross_fade);
 		if (detail_blend_mode == 1) {
 			base_liquid_rgb += det_sample.rgb * det_sample.a * detail_alpha;
 		} else if (detail_blend_mode == 2) {
@@ -267,9 +289,14 @@ void fragment() {
 
 	vec3 emissive_out = vec3(0.0);
 	if (emission_boost > 0.001) {
-		float core_factor = smoothstep(core_threshold, 1.0, 1.0 - depth_factor * 0.5);
+		float surface_heat_variation = (wave_height_sample * 0.5 + 0.5) * 0.4 + (1.0 - depth_factor) * 0.6;
+		float core_factor = smoothstep(core_threshold, 1.0, surface_heat_variation);
 		vec3 heat_color = mix(emission_color.rgb, core_color.rgb, core_factor);
 		emissive_out = heat_color * emission_boost * (1.0 - shroud_factor * 0.98);
+		if (use_detail_texture) {
+			float det_lum = clamp(dot(det_sample.rgb, vec3(0.299, 0.587, 0.114)) * 1.5, 0.1, 2.5);
+			emissive_out *= mix(vec3(1.0), det_sample.rgb * det_lum, clamp(detail_alpha * 0.85, 0.0, 1.0));
+		}
 	}
 
 	if (subsurface_strength > 0.001) {
@@ -281,7 +308,7 @@ void fragment() {
 	ALPHA = final_alpha;
 	EMISSION = emissive_out;
 
-	ROUGHNESS = mix(mix(0.15, 0.35, waterfall_factor), 0.9, shroud_factor);
+	ROUGHNESS = mix(mix(0.08, 0.25, waterfall_factor), 0.8, shroud_factor);
 	METALLIC = 0.0;
-	SPECULAR = mix(0.20, 0.20, waterfall_factor) * (1.0 - shroud_factor * 0.98);
+	SPECULAR = mix(0.45, 0.30, waterfall_factor) * (1.0 - shroud_factor * 0.98);
 }

@@ -1,5 +1,4 @@
 using Godot;
-using Realm.Ecs.Components.Terrain;
 using System;
 
 public class MapEditorBrushSettings
@@ -13,11 +12,8 @@ public class MapEditorBrushSettings
 	private Slider _sldBlockStep;
 	private Label _lblBlockStepValue;
 
-	private OptionButton _optWaterMode;
-
 	public MapEditorBrushSettings(Slider sldBrushSize, Label lblBrushSizeValue, Slider sldBrushStrength, Label lblBrushStrengthValue,
-		CheckBox chkBlockMode, Slider sldBlockStep, Label lblBlockStepValue,
-		OptionButton optWaterMode = null)
+		CheckBox chkBlockMode, Slider sldBlockStep, Label lblBlockStepValue)
 	{
 		_sldBrushSize = sldBrushSize;
 		_lblBrushSizeValue = lblBrushSizeValue;
@@ -27,8 +23,6 @@ public class MapEditorBrushSettings
 		_chkBlockMode = chkBlockMode;
 		_sldBlockStep = sldBlockStep;
 		_lblBlockStepValue = lblBlockStepValue;
-
-		_optWaterMode = optWaterMode;
 
 		_sldBrushSize.Step = 1.0;
 		_sldBrushSize.Rounded = true;
@@ -105,33 +99,6 @@ public class MapEditorBrushSettings
 			{
 				_sldBlockStep.Value = viewModel.BlockStep;
 				_lblBlockStepValue.Text = viewModel.BlockStep.ToString("F1") + "m";
-			}
-		}
-
-		if (_optWaterMode != null && GameHost.Instance != null)
-		{
-			WaterType waterMode = GameHost.Instance.EditorWaterMode;
-			byte activeProf = GameHost.Instance.ActiveWaterProfileIndex;
-			int targetSelected = 0;
-			if (waterMode != WaterType.None)
-			{
-				for (int i = 1; i < _optWaterMode.ItemCount; i++)
-				{
-					var meta = _optWaterMode.GetItemMetadata(i);
-					if (meta.VariantType != Variant.Type.Nil && (byte)(int)meta == activeProf)
-					{
-						targetSelected = i;
-						break;
-					}
-				}
-				if (targetSelected == 0 && _optWaterMode.ItemCount > 1)
-				{
-					targetSelected = 1;
-				}
-			}
-			if (_optWaterMode.Selected != targetSelected)
-			{
-				_optWaterMode.Selected = targetSelected;
 			}
 		}
 	}
