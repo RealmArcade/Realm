@@ -1,18 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as crypto from 'crypto';
 import { sendGodotIpc } from './extension';
 import { REALM_ASSET_AGREEMENT_WARNING } from './constants';
+import { getPreviewTempPath, formatFileSize, getErrorHtml } from './viewerUtils';
 
 function getTempGlbPath(rmeshFsPath: string): string {
-    const tempDir = path.join(os.tmpdir(), 'realm_extension_previews');
-    if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-    }
-    const hash = crypto.createHash('md5').update(rmeshFsPath).digest('hex').substring(0, 12);
-    return path.join(tempDir, `${hash}_${path.basename(rmeshFsPath, '.rmesh')}.glb`);
+    return getPreviewTempPath(rmeshFsPath, '.glb');
 }
 
 async function ensureGlbExtracted(rmeshFsPath: string): Promise<{ glbPath: string; metadata: any } | null> {
@@ -220,18 +215,12 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
                 glbSize
             );
         } catch (error: any) {
-            webviewPanel.webview.html = this.getErrorHtml(error?.message || 'Failed to load RMESH file.');
+            webviewPanel.webview.html = getErrorHtml('Error Loading .rmesh', error?.message || 'Failed to load RMESH file.');
         }
     }
 
     private getPreviewHtml(fileName: string, fileSize: number, metadata: any, glbSize: number): string {
         const nonce = crypto.randomBytes(16).toString('base64');
-
-        const formatSize = (bytes: number) => {
-            if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-            if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return bytes + ' B';
-        };
 
         const author = metadata?.author || 'Unknown';
         const blake3 = metadata?.blake3 || 'None';
@@ -372,7 +361,7 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
             <div class="meta-value">${teamColor}</div>
 
             <div class="meta-label">Total Size:</div>
-            <div class="meta-value">${formatSize(fileSize)} (GLB: ${formatSize(glbSize)})</div>
+            <div class="meta-value">${formatFileSize(fileSize)} (GLB: ${formatFileSize(glbSize)})</div>
 
             <div class="meta-label">Preferred Name:</div>
             <div class="meta-value">${prefName}</div>
@@ -402,25 +391,6 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
             vscode.postMessage({ command: 'exportGlb' });
         });
     </script>
-</body>
-</html>`;
-    }
-
-    private getErrorHtml(errorMessage: string): string {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: var(--vscode-editor-background); color: var(--vscode-errorForeground, #f48771); font-family: var(--vscode-font-family); }
-        .error-box { padding: 16px; border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100); border-radius: 4px; background-color: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1)); max-width: 80%; }
-    </style>
-</head>
-<body>
-    <div class="error-box">
-        <strong>Error Loading .rmesh:</strong><br/>
-        ${errorMessage}
-    </div>
 </body>
 </html>`;
     }

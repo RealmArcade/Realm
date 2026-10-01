@@ -13,16 +13,16 @@ if (-not (Test-Path $versionJsonPath)) {
 
 $versionData = [System.IO.File]::ReadAllText($versionJsonPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
 
+function Get-SemVerTriple([string]$ver) {
+    $clean = ($ver -replace '^v', '' -split '[-_]')[0]
+    $parts = @($clean.Split('.'))
+    while ($parts.Count -lt 3) { $parts += "0" }
+    return "$($parts[0]).$($parts[1]).$($parts[2])"
+}
+
 if ($VersionNumber -and $VersionNumber.Trim() -ne "") {
     $rawInput = $VersionNumber.Trim()
-    
-    $cleanSemVer = $rawInput -replace '^v', ''
-    $cleanSemVer = ($cleanSemVer -split '[-_]')[0]
-    $semVerParts = @($cleanSemVer.Split('.'))
-    while ($semVerParts.Count -lt 3) {
-        $semVerParts += "0"
-    }
-    $extVersion = "$($semVerParts[0]).$($semVerParts[1]).$($semVerParts[2])"
+    $extVersion = Get-SemVerTriple $rawInput
     $fileVersion = "$extVersion.0"
     
     $productVersion = $rawInput -replace '^v', ''
@@ -47,13 +47,7 @@ if ($VersionNumber -and $VersionNumber.Trim() -ne "") {
     Write-Host "Updated version.json with VersionNumber: $VersionNumber"
 } else {
     $rawVersion = if ($versionData.version) { $versionData.version } else { "0.0.1" }
-    $cleanSemVer = $rawVersion -replace '^v', ''
-    $cleanSemVer = ($cleanSemVer -split '[-_]')[0]
-    $semVerParts = @($cleanSemVer.Split('.'))
-    while ($semVerParts.Count -lt 3) {
-        $semVerParts += "0"
-    }
-    $extVersion = if ($versionData.extensionVersion) { $versionData.extensionVersion } else { "$($semVerParts[0]).$($semVerParts[1]).$($semVerParts[2])" }
+    $extVersion = if ($versionData.extensionVersion) { $versionData.extensionVersion } else { Get-SemVerTriple $rawVersion }
     $fileVersion = if ($versionData.fileVersion) { $versionData.fileVersion } else { "$extVersion.0" }
     $productVersion = if ($versionData.productVersion) { $versionData.productVersion } else { $rawVersion }
     $infoVersion = if ($versionData.informationalVersion) { $versionData.informationalVersion } else { $productVersion.Replace('-', '_') }
