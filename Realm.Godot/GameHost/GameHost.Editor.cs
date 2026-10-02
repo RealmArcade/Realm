@@ -5463,19 +5463,18 @@ public partial class GameHost
 	{
 		if (GroundTerrain != null)
 		{
-			bool meshVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Mesh);
-			GroundTerrain.SetGridVisible(meshVisible);
+			bool gridVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both);
+			GroundTerrain.SetGridVisible(gridVisible);
+			bool polarVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Polar || EditorGridMode == GridOverlayMode.Both);
+			GroundTerrain.SetPolarOverlayVisible(polarVisible);
+			EditorPolarOverlayVisible = polarVisible;
 		}
+		UpdateSymmetryPivotVisuals();
 	}
 
 	public void UpdatePolarOverlayVisibility()
 	{
-		if (GroundTerrain != null)
-		{
-			bool polarVisible = IsMapEditorMode && EditorPolarOverlayVisible;
-			GroundTerrain.SetPolarOverlayVisible(polarVisible);
-		}
-		UpdateSymmetryPivotVisuals();
+		UpdateGridOverlayVisibility();
 	}
 
 	public void PerformFloodFill(Vector3 clickPos, int fillTextureIndex, bool isCliff = false)

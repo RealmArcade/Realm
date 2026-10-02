@@ -162,12 +162,11 @@ public partial class MapEditorHUD : Control
 	private HSlider _sldPasteRotation;
 	private Label _lblPasteRotation;
 
-	private Button _btnTogglePolar;
 	private Button _btnPolarRingSpacing;
 	private Button _btnPolarRadialStep;
 	private Button _btnTapeMeasure;
-	private Button _btnSetPivotToCursor;
 	private Button _btnResetPivotToCenter;
+	private HBoxContainer _rowPolarConfig;
 
 	private PanelContainer _panelMeasurementHUD;
 	private Label _lblMeasureStraightDist;
@@ -177,12 +176,10 @@ public partial class MapEditorHUD : Control
 
 	private Button _btnSymmetryFolds;
 	private Button _btnCompoundMirrorMode;
-	private Button _btnBrushSetPivot;
 	private Button _btnBrushResetPivot;
 
 	private Button _btnPlacementSymmetryFolds;
 	private Button _btnPlacementCompoundMirrorMode;
-	private Button _btnPlacementSetPivot;
 	private Button _btnPlacementResetPivot;
 
 	private Button _btnPasteAnchor;
@@ -853,14 +850,25 @@ public partial class MapEditorHUD : Control
 			{
 				GameHost.Instance.EditorGridMode = GameHost.Instance.EditorGridMode switch
 				{
-					GameHost.GridOverlayMode.Off => GameHost.GridOverlayMode.Mesh,
-					GameHost.GridOverlayMode.Mesh => GameHost.GridOverlayMode.Off,
+					GameHost.GridOverlayMode.Off => GameHost.GridOverlayMode.Grid,
+					GameHost.GridOverlayMode.Grid => GameHost.GridOverlayMode.Polar,
+					GameHost.GridOverlayMode.Polar => GameHost.GridOverlayMode.Both,
+					GameHost.GridOverlayMode.Both => GameHost.GridOverlayMode.Off,
 					_ => GameHost.GridOverlayMode.Off
 				};
 				GameHost.Instance.UpdateGridOverlayVisibility();
 				UpdateGridOverlayExternal(GameHost.Instance.EditorGridMode);
+				string modeName = GameHost.Instance.EditorGridMode switch
+				{
+					GameHost.GridOverlayMode.Off => "OFF",
+					GameHost.GridOverlayMode.Grid => "GRID",
+					GameHost.GridOverlayMode.Polar => "POLAR",
+					GameHost.GridOverlayMode.Both => "GRID + POLAR",
+					_ => "OFF"
+				};
+				ShowFeedback($"Overlay Mode: {modeName}");
 			}
-		}, 12, "Toggle alignment grid lines overlay (V)");
+		}, 12, "Toggle alignment grid & polar overlay (V / O)");
 
 		_btnToggleCameraBounds = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleCameraBounds");
 		SetupButton(_btnToggleCameraBounds, "\uf06e", () =>
@@ -970,20 +978,6 @@ public partial class MapEditorHUD : Control
 		_mapSettingsDialog = new MapSettingsDialog(this);
 		AddChild(_mapSettingsDialog);
 
-		_btnTogglePolar = new Button();
-		_btnTogglePolar.Name = "BtnTogglePolar";
-		_btnTogglePolar.Set("icon_max_width", 0);
-		SetupButton(_btnTogglePolar, "\uf192", () =>
-		{
-			if (GameHost.Instance != null)
-			{
-				GameHost.Instance.EditorPolarOverlayVisible = !GameHost.Instance.EditorPolarOverlayVisible;
-				GameHost.Instance.UpdatePolarOverlayVisibility();
-				UpdatePolarOverlayExternal(GameHost.Instance.EditorPolarOverlayVisible);
-				ShowFeedback(GameHost.Instance.EditorPolarOverlayVisible ? "Polar Overlay: ON" : "Polar Overlay: OFF");
-			}
-		}, 12, "Toggle polar and radial distance rings overlay (O)");
-
 		_btnTapeMeasure = new Button();
 		_btnTapeMeasure.Name = "BtnTapeMeasure";
 		_btnTapeMeasure.Set("icon_max_width", 0);
@@ -1013,11 +1007,6 @@ public partial class MapEditorHUD : Control
 		_btnPolarRadialStep.Name = "BtnPolarRadialStep";
 		_btnPolarRadialStep.Set("icon_max_width", 0);
 		SetupOptionButton(_btnPolarRadialStep, "\uf14e SPOKES: 45°", () => CyclePolarRadialStep(), 10, "Cycle radial spoke angle increments (15°, 30°, 45°, 60°, 90°, Auto/Symmetry)");
-
-		_btnSetPivotToCursor = new Button();
-		_btnSetPivotToCursor.Name = "BtnSetPivotToCursor";
-		_btnSetPivotToCursor.Set("icon_max_width", 0);
-		SetupOptionButton(_btnSetPivotToCursor, "\uf245 SET PIVOT", () => SetPivotToCursor(), 10, "Set symmetry and polar overlay center pivot to cursor position");
 
 		_btnResetPivotToCenter = new Button();
 		_btnResetPivotToCenter.Name = "BtnResetPivotToCenter";
@@ -1262,11 +1251,6 @@ public partial class MapEditorHUD : Control
 		_btnCompoundMirrorMode.Name = "BtnCompoundMirrorMode";
 		_btnCompoundMirrorMode.Set("icon_max_width", 0);
 		SetupOptionButton(_btnCompoundMirrorMode, "\uf07e REFLECT: HORIZONTAL", () => CycleCompoundMirrorMode(), 10, "Cycle compound bilateral reflection plane (Horizontal, Vertical, Both)");
-
-		_btnBrushSetPivot = new Button();
-		_btnBrushSetPivot.Name = "BtnBrushSetPivot";
-		_btnBrushSetPivot.Set("icon_max_width", 0);
-		SetupOptionButton(_btnBrushSetPivot, "\uf245 SET PIVOT", () => SetPivotToCursor(), 10, "Set symmetry pivot to cursor position");
 
 		_btnBrushResetPivot = new Button();
 		_btnBrushResetPivot.Name = "BtnBrushResetPivot";
@@ -1739,11 +1723,6 @@ public partial class MapEditorHUD : Control
 		_btnPlacementCompoundMirrorMode.Name = "BtnPlacementCompoundMirrorMode";
 		_btnPlacementCompoundMirrorMode.Set("icon_max_width", 0);
 		SetupOptionButton(_btnPlacementCompoundMirrorMode, "\uf07e REFLECT: HORIZONTAL", () => CycleCompoundMirrorMode(), 10, "Cycle compound bilateral reflection plane (Horizontal, Vertical, Both)");
-
-		_btnPlacementSetPivot = new Button();
-		_btnPlacementSetPivot.Name = "BtnPlacementSetPivot";
-		_btnPlacementSetPivot.Set("icon_max_width", 0);
-		SetupOptionButton(_btnPlacementSetPivot, "\uf245 SET PIVOT", () => SetPivotToCursor(), 10, "Set symmetry pivot to cursor position");
 
 		_btnPlacementResetPivot = new Button();
 		_btnPlacementResetPivot.Name = "BtnPlacementResetPivot";
@@ -2509,25 +2488,34 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnToggleGrid != null)
 		{
-			_btnToggleGrid.Text = "🌐";
+			string icon = mode switch
+			{
+				GameHost.GridOverlayMode.Grid => "\uf84c",
+				GameHost.GridOverlayMode.Polar => "\uf192",
+				GameHost.GridOverlayMode.Both => "\uf00a",
+				_ => "\uf84c"
+			};
 			string statusStr = mode switch
 			{
 				GameHost.GridOverlayMode.Off => "OFF",
-				GameHost.GridOverlayMode.Mesh => "ON",
+				GameHost.GridOverlayMode.Grid => "GRID",
+				GameHost.GridOverlayMode.Polar => "POLAR",
+				GameHost.GridOverlayMode.Both => "GRID + POLAR",
 				_ => "OFF"
 			};
-			_btnToggleGrid.TooltipText = TranslationServer.Translate($"Grid Overlay: {statusStr} (V)");
+			_btnToggleGrid.Text = icon;
+			_btnToggleGrid.TooltipText = TranslationServer.Translate($"Overlay Mode: {statusStr} (V / O)");
 			_btnToggleGrid.Modulate = mode != GameHost.GridOverlayMode.Off ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
 		}
+		UpdatePolarSubControlsVisibility(mode);
 	}
 
-	public void UpdatePolarOverlayExternal(bool visible)
+	public void UpdatePolarSubControlsVisibility(GameHost.GridOverlayMode mode)
 	{
-		if (_btnTogglePolar != null)
+		bool isPolar = mode == GameHost.GridOverlayMode.Polar || mode == GameHost.GridOverlayMode.Both;
+		if (_rowPolarConfig != null)
 		{
-			_btnTogglePolar.Text = "\uf192";
-			_btnTogglePolar.TooltipText = TranslationServer.Translate($"Polar & Radial Overlay: {(visible ? "ON" : "OFF")} (O)");
-			_btnTogglePolar.Modulate = visible ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
+			_rowPolarConfig.Visible = isPolar;
 		}
 	}
 
@@ -6735,9 +6723,7 @@ public partial class MapEditorHUD : Control
 		if (_btnPlacementSymmetryFolds != null) _btnPlacementSymmetryFolds.Visible = isRotationalOrCompound;
 		if (_btnCompoundMirrorMode != null) _btnCompoundMirrorMode.Visible = isCompound;
 		if (_btnPlacementCompoundMirrorMode != null) _btnPlacementCompoundMirrorMode.Visible = isCompound;
-		if (_btnBrushSetPivot != null) _btnBrushSetPivot.Visible = hasMirror;
 		if (_btnBrushResetPivot != null) _btnBrushResetPivot.Visible = hasMirror;
-		if (_btnPlacementSetPivot != null) _btnPlacementSetPivot.Visible = hasMirror;
 		if (_btnPlacementResetPivot != null) _btnPlacementResetPivot.Visible = hasMirror;
 	}
 
@@ -6835,10 +6821,7 @@ public partial class MapEditorHUD : Control
 	private void ResetPivotToMapCenter()
 	{
 		if (GameHost.Instance == null || GameHost.Instance.GroundTerrain == null) return;
-		float quad = GameHost.Instance.GroundTerrain.QuadSize;
-		float halfW = (GameHost.Instance.GroundTerrain.Width * quad) / 2.0f;
-		float halfD = (GameHost.Instance.GroundTerrain.Depth * quad) / 2.0f;
-		var pivot = new Vector2(halfW, halfD);
+		var pivot = Vector2.Zero;
 		GameHost.Instance.EditorSymmetryPivot = pivot;
 		GameHost.Instance.GroundTerrain.SetPolarCenter(pivot);
 		GameHost.Instance.UpdateSymmetryPivotVisuals();
@@ -7847,8 +7830,7 @@ public partial class MapEditorHUD : Control
 			vpRow2.AddThemeConstantOverride("separation", 4);
 			vpRow2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
-			StyleIconButton(_btnToggleGrid, "\uf84c", "Toggle alignment grid lines overlay (V)");
-			StyleIconButton(_btnTogglePolar, "\uf192", "Toggle polar & radial rings overlay (O)");
+			StyleIconButton(_btnToggleGrid, "\uf84c", "Toggle alignment grid & polar overlay (V / O)");
 			StyleIconButton(_btnTapeMeasure, "\uf545", "Tape measure distance & slope tool (U)");
 			StyleIconButton(_btnToggleCameraBounds, "\uf06e", "Toggle camera bounds overlay (B)");
 			StyleIconButton(_btnToggleWireframe, "\uf5ee", "Toggle wireframe mode (F7)");
@@ -7863,7 +7845,6 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
 
 			SafeReparent(_btnToggleGrid, vpRow1);
-			SafeReparent(_btnTogglePolar, vpRow1);
 			SafeReparent(_btnTapeMeasure, vpRow1);
 			SafeReparent(_btnToggleCameraBounds, vpRow1);
 			SafeReparent(_btnToggleWireframe, vpRow1);
@@ -7884,28 +7865,40 @@ public partial class MapEditorHUD : Control
 			vpBox.AddChild(vpRow2);
 			StyleSubContainer(vpBox, "Navigation Bar");
 
-			var polarBox = new VBoxContainer();
-			polarBox.Name = "BoxPolarSymmetryConfig";
-			polarBox.AddThemeConstantOverride("separation", 4);
+			_rowPolarConfig = new HBoxContainer();
+			_rowPolarConfig.Name = "RowPolarConfig";
+			_rowPolarConfig.AddThemeConstantOverride("separation", 4);
+			_rowPolarConfig.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
-			var polarRow1 = new HBoxContainer();
-			polarRow1.AddThemeConstantOverride("separation", 4);
-			polarRow1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			SafeReparent(_btnPolarRingSpacing, polarRow1);
-			SafeReparent(_btnPolarRadialStep, polarRow1);
+			SafeReparent(_btnPolarRingSpacing, _rowPolarConfig);
+			SafeReparent(_btnPolarRadialStep, _rowPolarConfig);
+			SafeReparent(_btnResetPivotToCenter, _rowPolarConfig);
 
-			var polarRow2 = new HBoxContainer();
-			polarRow2.AddThemeConstantOverride("separation", 4);
-			polarRow2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			SafeReparent(_btnSetPivotToCursor, polarRow2);
-			SafeReparent(_btnResetPivotToCenter, polarRow2);
+			if (_btnPolarRingSpacing != null)
+			{
+				_btnPolarRingSpacing.CustomMinimumSize = new Vector2(0, 26);
+				_btnPolarRingSpacing.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnPolarRingSpacing.AddThemeFontSizeOverride("font_size", 9);
+			}
+			if (_btnPolarRadialStep != null)
+			{
+				_btnPolarRadialStep.CustomMinimumSize = new Vector2(0, 26);
+				_btnPolarRadialStep.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnPolarRadialStep.AddThemeFontSizeOverride("font_size", 9);
+			}
+			if (_btnResetPivotToCenter != null)
+			{
+				_btnResetPivotToCenter.CustomMinimumSize = new Vector2(0, 26);
+				_btnResetPivotToCenter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnResetPivotToCenter.AddThemeFontSizeOverride("font_size", 9);
+			}
 
-			polarBox.AddChild(polarRow1);
-			polarBox.AddChild(polarRow2);
-			StyleSubContainer(polarBox, "Polar & Symmetry Tools");
+			bool isPolarMode = GameHost.Instance != null &&
+				(GameHost.Instance.EditorGridMode == GameHost.GridOverlayMode.Polar || GameHost.Instance.EditorGridMode == GameHost.GridOverlayMode.Both);
+			_rowPolarConfig.Visible = isPolarMode;
 
 			targetViewport.AddChild(vpBox);
-			targetViewport.AddChild(polarBox);
+			targetViewport.AddChild(_rowPolarConfig);
 		}
 
 		// 3. Terrain Tools
@@ -8075,7 +8068,6 @@ public partial class MapEditorHUD : Control
 
 				SafeReparent(_btnSymmetryFolds, symGrid);
 				SafeReparent(_btnCompoundMirrorMode, symGrid);
-				SafeReparent(_btnBrushSetPivot, symGrid);
 				SafeReparent(_btnBrushResetPivot, symGrid);
 
 				int insertIdx = shapeMirrorGrid != null ? shapeMirrorGrid.GetIndex() + 1 : 3;
@@ -8094,12 +8086,6 @@ public partial class MapEditorHUD : Control
 				_btnCompoundMirrorMode.CustomMinimumSize = new Vector2(0, 30);
 				_btnCompoundMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 				_btnCompoundMirrorMode.AddThemeFontSizeOverride("font_size", 10);
-			}
-			if (_btnBrushSetPivot != null)
-			{
-				_btnBrushSetPivot.CustomMinimumSize = new Vector2(0, 30);
-				_btnBrushSetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-				_btnBrushSetPivot.AddThemeFontSizeOverride("font_size", 10);
 			}
 			if (_btnBrushResetPivot != null)
 			{
@@ -8220,7 +8206,6 @@ public partial class MapEditorHUD : Control
 
 				SafeReparent(_btnPlacementSymmetryFolds, placeSymGrid);
 				SafeReparent(_btnPlacementCompoundMirrorMode, placeSymGrid);
-				SafeReparent(_btnPlacementSetPivot, placeSymGrid);
 				SafeReparent(_btnPlacementResetPivot, placeSymGrid);
 
 				int insertIdx = _btnPlacementMirrorMode != null ? _btnPlacementMirrorMode.GetIndex() + 1 : 2;
@@ -8239,12 +8224,6 @@ public partial class MapEditorHUD : Control
 				_btnPlacementCompoundMirrorMode.CustomMinimumSize = new Vector2(0, 30);
 				_btnPlacementCompoundMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 				_btnPlacementCompoundMirrorMode.AddThemeFontSizeOverride("font_size", 10);
-			}
-			if (_btnPlacementSetPivot != null)
-			{
-				_btnPlacementSetPivot.CustomMinimumSize = new Vector2(0, 30);
-				_btnPlacementSetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-				_btnPlacementSetPivot.AddThemeFontSizeOverride("font_size", 10);
 			}
 			if (_btnPlacementResetPivot != null)
 			{

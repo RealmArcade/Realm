@@ -230,12 +230,27 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
-				if (editorKeyEvent.Keycode == Key.O && !ctrlPressed && !shiftPressed)
+				if ((editorKeyEvent.Keycode == Key.O || editorKeyEvent.Keycode == Key.V) && !ctrlPressed && !shiftPressed)
 				{
-					EditorPolarOverlayVisible = !EditorPolarOverlayVisible;
-					UpdatePolarOverlayVisibility();
-					MapEditorHUD.Instance?.UpdatePolarOverlayExternal(EditorPolarOverlayVisible);
-					MapEditorHUD.Instance?.ShowFeedbackExternal(EditorPolarOverlayVisible ? "Polar Overlay: ON" : "Polar Overlay: OFF");
+					EditorGridMode = EditorGridMode switch
+					{
+						GridOverlayMode.Off => GridOverlayMode.Grid,
+						GridOverlayMode.Grid => GridOverlayMode.Polar,
+						GridOverlayMode.Polar => GridOverlayMode.Both,
+						GridOverlayMode.Both => GridOverlayMode.Off,
+						_ => GridOverlayMode.Off
+					};
+					UpdateGridOverlayVisibility();
+					MapEditorHUD.Instance?.UpdateGridOverlayExternal(EditorGridMode);
+					string modeName = EditorGridMode switch
+					{
+						GridOverlayMode.Off => "OFF",
+						GridOverlayMode.Grid => "GRID",
+						GridOverlayMode.Polar => "POLAR",
+						GridOverlayMode.Both => "GRID + POLAR",
+						_ => "OFF"
+					};
+					MapEditorHUD.Instance?.ShowFeedbackExternal($"Overlay Mode: {modeName}");
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -657,19 +672,7 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
-				if (editorKeyEvent.Keycode == Key.V && !ctrlPressed && !shiftPressed)
-				{
-					EditorGridMode = EditorGridMode switch
-					{
-						GridOverlayMode.Off => GridOverlayMode.Mesh,
-						GridOverlayMode.Mesh => GridOverlayMode.Off,
-						_ => GridOverlayMode.Off
-					};
-					UpdateGridOverlayVisibility();
-					MapEditorHUD.Instance?.UpdateGridOverlayExternal(EditorGridMode);
-					GetViewport().SetInputAsHandled();
-					return;
-				}
+
 				if (editorKeyEvent.Keycode == Key.T && !ctrlPressed && !shiftPressed)
 				{
 					GenerateNewRandomPlacementRotationAndScale();
@@ -861,7 +864,25 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
-				else if (ActiveEditorTool != EditorTool.SelectMove)
+
+				if (GroundTerrain != null)
+				{
+					var terrainHit = RaycastTerrainFromMouse(editorRightMouseBtn.Position);
+					if (terrainHit != null && terrainHit.ContainsKey("position"))
+					{
+						Vector3 hitPos = terrainHit["position"].AsVector3();
+						var pivot = new Vector2(hitPos.X, hitPos.Z);
+						EditorSymmetryPivot = pivot;
+						GroundTerrain.SetPolarCenter(pivot);
+						UpdateSymmetryPivotVisuals();
+						var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
+						MapEditorHUD.Instance?.ShowFeedbackExternal($"Pivot set to tile ({cx}, {cz})");
+						GetViewport().SetInputAsHandled();
+						return;
+					}
+				}
+
+				if (ActiveEditorTool != EditorTool.SelectMove)
 				{
 					ActiveEditorTool = EditorTool.SelectMove;
 					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectMove);

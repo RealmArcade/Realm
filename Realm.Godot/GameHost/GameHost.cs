@@ -451,9 +451,9 @@ public partial class GameHost : Node3D, IGameAPI
 		get => _editorPlacementScale;
 		set => _editorPlacementScale = Mathf.Clamp(value, MIN_PLACEMENT_SCALE, MAX_PLACEMENT_SCALE);
 	}
-	public enum GridOverlayMode { Off, Mesh }
+	public enum GridOverlayMode { Off, Grid, Polar, Both }
 	public GridOverlayMode EditorGridMode { get; set; } = GridOverlayMode.Off;
-	public bool EditorGridVisible => EditorGridMode != GridOverlayMode.Off;
+	public bool EditorGridVisible => EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both;
 	public bool EditorCameraBoundsVisible { get; set; } = false;
 	public bool EditorDisableShadows { get; set; } = false;
 	public float EditorCameraBoundsLeft
