@@ -7929,18 +7929,18 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
 
 			SafeReparent(_btnToggleGrid, vpRow1);
-			SafeReparent(_btnTapeMeasure, vpRow1);
 			SafeReparent(_btnToggleCameraBounds, vpRow1);
 			SafeReparent(_btnToggleWireframe, vpRow1);
 			SafeReparent(_btnToggleShadows, vpRow1);
+			SafeReparent(_btnSkybox, vpRow1);
+			SafeReparent(_btnWeather, vpRow1);
 
-			SafeReparent(_btnSkybox, vpRow2);
-			SafeReparent(_btnWeather, vpRow2);
 			SafeReparent(_btnRotate, vpRow2);
 			SafeReparent(_btnCameraAngle, vpRow2);
 			SafeReparent(_btnZoomIn, vpRow2);
 			SafeReparent(_btnZoomOut, vpRow2);
 			SafeReparent(_btnFreeCamera, vpRow2);
+			SafeReparent(_btnTapeMeasure, vpRow2);
 
 			var vpBox = new VBoxContainer();
 			vpBox.Name = "BoxViewportToolbar";
