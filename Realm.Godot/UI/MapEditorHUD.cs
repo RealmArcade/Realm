@@ -1004,7 +1004,7 @@ public partial class MapEditorHUD : Control
 		_btnPolarRadialStep = new Button();
 		_btnPolarRadialStep.Name = "BtnPolarRadialStep";
 		_btnPolarRadialStep.Set("icon_max_width", 0);
-		SetupOptionButton(_btnPolarRadialStep, "\uf14e SPOKES: 45°", () => CyclePolarRadialStep(), 10, "Cycle radial spoke angle increments (15°, 30°, 45°, 60°, 90°, Auto/Symmetry)");
+		SetupOptionButton(_btnPolarRadialStep, "\uf14e SPOKES: 4", () => CyclePolarRadialStep(), 10, "Cycle radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
 
 		_btnResetPivotToCenter = new Button();
 		_btnResetPivotToCenter.Name = "BtnResetPivotToCenter";
@@ -6805,50 +6805,43 @@ public partial class MapEditorHUD : Control
 			ShowFeedback(TranslationServer.Translate("Spokes are automatically locked to Rotational N-Fold symmetry"));
 			return;
 		}
-		if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
+
+		int current = GameHost.Instance.EditorPolarSpokeFolds;
+		int next = current switch
 		{
-			GameHost.Instance.EditorPolarAutoStepWithSymmetry = false;
-			GameHost.Instance.EditorPolarRadialStep = 15.0f;
-		}
-		else
-		{
-			float current = GameHost.Instance.EditorPolarRadialStep;
-			if (current <= 15.5f) GameHost.Instance.EditorPolarRadialStep = 30.0f;
-			else if (current <= 30.5f) GameHost.Instance.EditorPolarRadialStep = 45.0f;
-			else if (current <= 45.5f) GameHost.Instance.EditorPolarRadialStep = 60.0f;
-			else if (current <= 60.5f) GameHost.Instance.EditorPolarRadialStep = 90.0f;
-			else
-			{
-				GameHost.Instance.EditorPolarAutoStepWithSymmetry = true;
-				int folds = Math.Max(1, GameHost.Instance.EditorSymmetryFolds);
-				GameHost.Instance.EditorPolarRadialStep = 360.0f / folds;
-			}
-		}
+			2 => 3,
+			3 => 4,
+			4 => 5,
+			5 => 6,
+			6 => 8,
+			8 => 12,
+			12 => 16,
+			16 => 2,
+			_ => 4
+		};
+		GameHost.Instance.EditorPolarSpokeFolds = next;
+		GameHost.Instance.EditorPolarRadialStep = 360.0f / next;
 		GameHost.Instance.GroundTerrain?.SetPolarRadialStep(GameHost.Instance.EditorPolarRadialStep);
 		UpdatePolarRadialStepButtonText();
-		ShowFeedback(GameHost.Instance.EditorPolarAutoStepWithSymmetry
-			? string.Format(TranslationServer.Translate("Polar Spokes: Auto ({0}-Fold / {1:F1}°)"), GameHost.Instance.EditorSymmetryFolds, GameHost.Instance.EditorPolarRadialStep)
-			: string.Format(TranslationServer.Translate("Polar Spokes: {0:F0}°"), GameHost.Instance.EditorPolarRadialStep));
+		ShowFeedback(string.Format(TranslationServer.Translate("Polar Spokes: {0}-way"), next));
 	}
 
 	public void UpdatePolarRadialStepButtonText()
 	{
 		if (_btnPolarRadialStep != null && GameHost.Instance != null)
 		{
+			int folds = GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational
+				? GameHost.Instance.EditorSymmetryFolds
+				: GameHost.Instance.EditorPolarSpokeFolds;
+
+			_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: {0}"), folds);
 			if (GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational)
 			{
-				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: AUTO ({0})"), GameHost.Instance.EditorSymmetryFolds);
 				_btnPolarRadialStep.TooltipText = TranslationServer.Translate("Spokes are automatically locked to Rotational N-Fold symmetry");
-			}
-			else if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
-			{
-				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: AUTO ({0})"), GameHost.Instance.EditorSymmetryFolds);
-				_btnPolarRadialStep.TooltipText = TranslationServer.Translate("Cycle radial spoke angle increments (15°, 30°, 45°, 60°, 90°, Auto/Symmetry)");
 			}
 			else
 			{
-				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: {0:F0}°"), GameHost.Instance.EditorPolarRadialStep);
-				_btnPolarRadialStep.TooltipText = TranslationServer.Translate("Cycle radial spoke angle increments (15°, 30°, 45°, 60°, 90°, Auto/Symmetry)");
+				_btnPolarRadialStep.TooltipText = TranslationServer.Translate("Cycle radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
 			}
 		}
 	}

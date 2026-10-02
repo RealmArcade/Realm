@@ -490,6 +490,11 @@ public partial class GameHost : Node3D, IGameAPI
 				EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
 				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
 			}
+			else
+			{
+				EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorPolarSpokeFolds);
+				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+			}
 			UpdateGridOverlayVisibility();
 		}
 	}
@@ -510,7 +515,7 @@ public partial class GameHost : Node3D, IGameAPI
 		set
 		{
 			if (_editorService != null) _editorService.SymmetryFolds = value;
-			if (EditorMirrorMode == MirrorMode.Rotational || EditorPolarAutoStepWithSymmetry)
+			if (EditorMirrorMode == MirrorMode.Rotational)
 			{
 				EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
 				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
@@ -518,10 +523,10 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
+	public int EditorPolarSpokeFolds { get; set; } = 4;
 	public bool EditorPolarOverlayVisible { get; set; } = false;
 	public float EditorPolarRingSpacing { get; set; } = 8.0f;
-	public float EditorPolarRadialStep { get; set; } = 45.0f;
-	public bool EditorPolarAutoStepWithSymmetry { get; set; } = false;
+	public float EditorPolarRadialStep { get; set; } = 90.0f;
 
 	public Vector3? EditorTapeMeasureStart { get; set; }
 	public Vector3? EditorTapeMeasureEnd { get; set; }
