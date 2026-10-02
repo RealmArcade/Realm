@@ -169,21 +169,15 @@ public partial class MapEditorHUD : Control
 	private HBoxContainer _rowPolarConfig;
 
 	private PanelContainer _panelMeasurementHUD;
-	private Label _lblMeasureStraightDist;
-	private Label _lblMeasureManhattanDist;
-	private Label _lblMeasureDeltas;
-	private Label _lblMeasureAngleSlope;
+	private Label _lblMeasureTelemetry;
 
 	private Button _btnSymmetryFolds;
-	private Button _btnCompoundMirrorMode;
 	private Button _btnBrushResetPivot;
 
 	private Button _btnPlacementSymmetryFolds;
-	private Button _btnPlacementCompoundMirrorMode;
 	private Button _btnPlacementResetPivot;
 
 	private Button _btnPasteAnchor;
-	private Button _btnRadialDuplicate;
 	private Label _lblPasteTelemetry;
 
 	private int _currentPasteAnchorIndex = 0;
@@ -1013,85 +1007,55 @@ public partial class MapEditorHUD : Control
 		_btnResetPivotToCenter.Set("icon_max_width", 0);
 		SetupOptionButton(_btnResetPivotToCenter, "\uf05b RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry and polar overlay center pivot to true map center");
 
+		var bottomBar = new HBoxContainer();
+		bottomBar.Name = "BottomCenterBar";
+		bottomBar.SetAnchorsPreset(LayoutPreset.CenterBottom);
+		bottomBar.GrowHorizontal = GrowDirection.Both;
+		bottomBar.GrowVertical = GrowDirection.Begin;
+		bottomBar.OffsetTop = -65;
+		bottomBar.OffsetBottom = -10;
+		bottomBar.Alignment = BoxContainer.AlignmentMode.Center;
+		bottomBar.AddThemeConstantOverride("separation", 10);
+		bottomBar.MouseFilter = Control.MouseFilterEnum.Ignore;
+		AddChild(bottomBar);
+
+		if (_topBar != null)
+		{
+			_topBar.CustomMinimumSize = new Vector2(0, 44);
+			_topBar.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+			_topBar.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			SafeReparent(_topBar, bottomBar);
+		}
+
 		_panelMeasurementHUD = new PanelContainer();
 		_panelMeasurementHUD.Name = "MeasurementHUD";
-		_panelMeasurementHUD.SetAnchorsPreset(LayoutPreset.CenterTop);
-		_panelMeasurementHUD.GrowHorizontal = GrowDirection.Both;
-		_panelMeasurementHUD.GrowVertical = GrowDirection.Begin;
-		_panelMeasurementHUD.OffsetTop = 60;
-		_panelMeasurementHUD.OffsetLeft = -220;
-		_panelMeasurementHUD.OffsetRight = 220;
-		_panelMeasurementHUD.CustomMinimumSize = new Vector2(440, 0);
-		_panelMeasurementHUD.MouseFilter = MouseFilterEnum.Ignore;
+		_panelMeasurementHUD.CustomMinimumSize = new Vector2(0, 44);
+		_panelMeasurementHUD.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		_panelMeasurementHUD.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		_panelMeasurementHUD.MouseFilter = Control.MouseFilterEnum.Ignore;
 		_panelMeasurementHUD.Visible = false;
 
-		var hudStyle = new StyleBoxFlat
+		var measureHBox = new HBoxContainer();
+		measureHBox.Name = "MeasureHBox";
+		measureHBox.Alignment = BoxContainer.AlignmentMode.Center;
+		measureHBox.AddThemeConstantOverride("separation", 8);
+		measureHBox.MouseFilter = Control.MouseFilterEnum.Ignore;
+
+		_lblMeasureTelemetry = new Label();
+		_lblMeasureTelemetry.Name = "LblMeasureTelemetry";
+		_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Center;
+		_lblMeasureTelemetry.VerticalAlignment = VerticalAlignment.Center;
+		_lblMeasureTelemetry.AddThemeFontSizeOverride("font_size", 13);
+		_lblMeasureTelemetry.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		var fontStatus = GetFontAwesomeFont();
+		if (fontStatus != null)
 		{
-			BgColor = new Color(0.08f, 0.09f, 0.12f, 0.90f),
-			BorderWidthLeft = 1,
-			BorderWidthTop = 1,
-			BorderWidthRight = 1,
-			BorderWidthBottom = 1,
-			BorderColor = new Color(0.3f, 0.7f, 1.0f, 0.8f),
-			CornerRadiusTopLeft = 6,
-			CornerRadiusTopRight = 6,
-			CornerRadiusBottomLeft = 6,
-			CornerRadiusBottomRight = 6,
-			ContentMarginLeft = 12,
-			ContentMarginRight = 12,
-			ContentMarginTop = 8,
-			ContentMarginBottom = 8
-		};
-		_panelMeasurementHUD.AddThemeStyleboxOverride("panel", hudStyle);
+			_lblMeasureTelemetry.AddThemeFontOverride("font", fontStatus);
+		}
+		measureHBox.AddChild(_lblMeasureTelemetry);
+		_panelMeasurementHUD.AddChild(measureHBox);
 
-		var hudVBox = new VBoxContainer();
-		hudVBox.AddThemeConstantOverride("separation", 4);
-		hudVBox.MouseFilter = MouseFilterEnum.Ignore;
-
-		var hudTitle = new Label();
-		hudTitle.Text = TranslationServer.Translate("📏 TAPE MEASURE TELEMETRY");
-		hudTitle.HorizontalAlignment = HorizontalAlignment.Center;
-		hudTitle.AddThemeFontSizeOverride("font_size", 12);
-		hudTitle.AddThemeColorOverride("font_color", new Color(0.3f, 0.85f, 1.0f));
-		hudVBox.AddChild(hudTitle);
-
-		var hudRow1 = new HBoxContainer();
-		hudRow1.AddThemeConstantOverride("separation", 16);
-		hudRow1.Alignment = BoxContainer.AlignmentMode.Center;
-
-		_lblMeasureStraightDist = new Label();
-		_lblMeasureStraightDist.Text = "Distance: 0.0 tiles (0.0 m)";
-		_lblMeasureStraightDist.AddThemeFontSizeOverride("font_size", 11);
-		hudRow1.AddChild(_lblMeasureStraightDist);
-
-		_lblMeasureManhattanDist = new Label();
-		_lblMeasureManhattanDist.Text = "Manhattan: 0.0 tiles";
-		_lblMeasureManhattanDist.AddThemeFontSizeOverride("font_size", 11);
-		_lblMeasureManhattanDist.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.85f));
-		hudRow1.AddChild(_lblMeasureManhattanDist);
-
-		hudVBox.AddChild(hudRow1);
-
-		var hudRow2 = new HBoxContainer();
-		hudRow2.AddThemeConstantOverride("separation", 16);
-		hudRow2.Alignment = BoxContainer.AlignmentMode.Center;
-
-		_lblMeasureDeltas = new Label();
-		_lblMeasureDeltas.Text = "ΔX: 0.0, ΔZ: 0.0, ΔY: 0.0";
-		_lblMeasureDeltas.AddThemeFontSizeOverride("font_size", 11);
-		_lblMeasureDeltas.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.85f));
-		hudRow2.AddChild(_lblMeasureDeltas);
-
-		_lblMeasureAngleSlope = new Label();
-		_lblMeasureAngleSlope.Text = "Angle: 0.0° | Slope: 0.0%";
-		_lblMeasureAngleSlope.AddThemeFontSizeOverride("font_size", 11);
-		_lblMeasureAngleSlope.AddThemeColorOverride("font_color", new Color(0.9f, 0.75f, 0.3f));
-		hudRow2.AddChild(_lblMeasureAngleSlope);
-
-		hudVBox.AddChild(hudRow2);
-
-		_panelMeasurementHUD.AddChild(hudVBox);
-		AddChild(_panelMeasurementHUD);
+		bottomBar.AddChild(_panelMeasurementHUD);
 
 		ApplyThemeStyles();
 		SetupLightingTuningUI();
@@ -1246,11 +1210,6 @@ public partial class MapEditorHUD : Control
 		_btnSymmetryFolds.Name = "BtnSymmetryFolds";
 		_btnSymmetryFolds.Set("icon_max_width", 0);
 		SetupOptionButton(_btnSymmetryFolds, "\uf1b2 FOLDS: 4", () => CycleSymmetryFolds(), 10, "Cycle N-fold rotational symmetry count (2, 3, 4, 5, 6, 8, 12, 16)");
-
-		_btnCompoundMirrorMode = new Button();
-		_btnCompoundMirrorMode.Name = "BtnCompoundMirrorMode";
-		_btnCompoundMirrorMode.Set("icon_max_width", 0);
-		SetupOptionButton(_btnCompoundMirrorMode, "\uf07e REFLECT: HORIZONTAL", () => CycleCompoundMirrorMode(), 10, "Cycle compound bilateral reflection plane (Horizontal, Vertical, Both)");
 
 		_btnBrushResetPivot = new Button();
 		_btnBrushResetPivot.Name = "BtnBrushResetPivot";
@@ -1653,14 +1612,6 @@ public partial class MapEditorHUD : Control
 		_btnPasteAnchor.Set("icon_max_width", 0);
 		SetupOptionButton(_btnPasteAnchor, "\uf245 ANCHOR: CENTER", () => CyclePasteAnchor(), 11, "Cycle pivot / anchor tile used to align pasted selection (Center, Corners)");
 
-		_btnRadialDuplicate = new Button();
-		_btnRadialDuplicate.Name = "BtnRadialDuplicate";
-		_btnRadialDuplicate.Set("icon_max_width", 0);
-		SetupOptionButton(_btnRadialDuplicate, "\uf01e RADIAL DUPLICATE", () =>
-		{
-			GameHost.Instance?.PerformRadialArrayDuplicateExternal();
-		}, 11, "Stamp copies rotated symmetrically around the symmetry pivot (Ctrl+Shift+V)");
-
 		_lblPasteTelemetry = new Label();
 		_lblPasteTelemetry.Name = "LblPasteTelemetry";
 		_lblPasteTelemetry.AddThemeFontSizeOverride("font_size", 10);
@@ -1674,7 +1625,6 @@ public partial class MapEditorHUD : Control
 		if (pasteOptionsBox != null)
 		{
 			pasteOptionsBox.AddChild(_btnPasteAnchor);
-			pasteOptionsBox.AddChild(_btnRadialDuplicate);
 			pasteOptionsBox.AddChild(_lblPasteTelemetry);
 		}
 
@@ -1718,11 +1668,6 @@ public partial class MapEditorHUD : Control
 		_btnPlacementSymmetryFolds.Name = "BtnPlacementSymmetryFolds";
 		_btnPlacementSymmetryFolds.Set("icon_max_width", 0);
 		SetupOptionButton(_btnPlacementSymmetryFolds, "\uf1b2 FOLDS: 4", () => CycleSymmetryFolds(), 10, "Cycle N-fold rotational symmetry count (2, 3, 4, 5, 6, 8, 12, 16)");
-
-		_btnPlacementCompoundMirrorMode = new Button();
-		_btnPlacementCompoundMirrorMode.Name = "BtnPlacementCompoundMirrorMode";
-		_btnPlacementCompoundMirrorMode.Set("icon_max_width", 0);
-		SetupOptionButton(_btnPlacementCompoundMirrorMode, "\uf07e REFLECT: HORIZONTAL", () => CycleCompoundMirrorMode(), 10, "Cycle compound bilateral reflection plane (Horizontal, Vertical, Both)");
 
 		_btnPlacementResetPivot = new Button();
 		_btnPlacementResetPivot.Name = "BtnPlacementResetPivot";
@@ -2162,17 +2107,10 @@ public partial class MapEditorHUD : Control
 		StyleSubContainer(_containerPasteSettings, "Paste Options");
 		StyleSubContainer(_containerCategorySelector, "Entity Categories");
 
-		var topBar = GetNode<PanelContainer>("TopBar");
-		topBar.SetAnchorsPreset(LayoutPreset.CenterBottom);
-		topBar.GrowHorizontal = GrowDirection.Both;
-		topBar.GrowVertical = GrowDirection.Begin;
-		topBar.OffsetLeft = -260;
-		topBar.OffsetRight = 260;
-		topBar.OffsetTop = -65;
-		topBar.OffsetBottom = -12;
+		var titleLbl = _topBar?.GetNodeOrNull<Label>("HBox/TitleLabel") ?? GetNodeOrNull<Label>("TopBar/HBox/TitleLabel");
+		if (titleLbl != null) titleLbl.Visible = false;
 
-		GetNode<Label>("TopBar/HBox/TitleLabel").Visible = false;
-
+		StyleBox barStyle;
 		var posTexture = GD.Load<Texture2D>("res://Assets/UI/map_editor_pos.png");
 		if (posTexture != null)
 		{
@@ -2186,23 +2124,40 @@ public partial class MapEditorHUD : Control
 			posStyle.ContentMarginRight = 16;
 			posStyle.ContentMarginTop = 6;
 			posStyle.ContentMarginBottom = 6;
-			topBar.AddThemeStyleboxOverride("panel", posStyle);
+			barStyle = posStyle;
 		}
 		else
 		{
 			var alphaStyle = new StyleBoxFlat();
-			alphaStyle.BgColor = new Color(0.12f, 0.12f, 0.12f, 0.6f);
-			alphaStyle.BorderColor = UIStyle.ColorCyanGlow;
-			alphaStyle.SetBorderWidthAll(2);
+			alphaStyle.BgColor = new Color(0.12f, 0.14f, 0.18f, 0.75f);
+			alphaStyle.BorderColor = UIStyle.ColorGold;
+			alphaStyle.SetBorderWidthAll(1);
 			alphaStyle.CornerRadiusTopLeft = 6;
 			alphaStyle.CornerRadiusTopRight = 6;
 			alphaStyle.CornerRadiusBottomLeft = 6;
 			alphaStyle.CornerRadiusBottomRight = 6;
-			topBar.AddThemeStyleboxOverride("panel", alphaStyle);
+			alphaStyle.ContentMarginLeft = 16;
+			alphaStyle.ContentMarginRight = 16;
+			alphaStyle.ContentMarginTop = 6;
+			alphaStyle.ContentMarginBottom = 6;
+			barStyle = alphaStyle;
 		}
 
-		var hBox = GetNode<HBoxContainer>("TopBar/HBox");
-		hBox.Alignment = BoxContainer.AlignmentMode.Center;
+		if (_topBar != null)
+		{
+			_topBar.AddThemeStyleboxOverride("panel", barStyle);
+		}
+
+		if (_panelMeasurementHUD != null)
+		{
+			_panelMeasurementHUD.AddThemeStyleboxOverride("panel", barStyle);
+		}
+
+		var hBox = _topBar?.GetNodeOrNull<HBoxContainer>("HBox") ?? GetNodeOrNull<HBoxContainer>("TopBar/HBox");
+		if (hBox != null)
+		{
+			hBox.Alignment = BoxContainer.AlignmentMode.Center;
+		}
 
 		if (_statusLabel != null)
 		{
@@ -2214,6 +2169,19 @@ public partial class MapEditorHUD : Control
 			if (fontStatus != null)
 			{
 				_statusLabel.AddThemeFontOverride("font", fontStatus);
+			}
+		}
+
+		if (_lblMeasureTelemetry != null)
+		{
+			_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Center;
+			_lblMeasureTelemetry.VerticalAlignment = VerticalAlignment.Center;
+			_lblMeasureTelemetry.AddThemeFontSizeOverride("font_size", 13);
+			_lblMeasureTelemetry.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			var fontStatus = GetFontAwesomeFont();
+			if (fontStatus != null)
+			{
+				_lblMeasureTelemetry.AddThemeFontOverride("font", fontStatus);
 			}
 		}
 
@@ -2531,24 +2499,51 @@ public partial class MapEditorHUD : Control
 
 	public void UpdateMeasureTelemetry(float eucTiles, float eucWorld, float manhattanTiles, float dx, float dz, float dy, float angleDeg, float slopePct)
 	{
-		if (_panelMeasurementHUD == null) return;
+		if (_panelMeasurementHUD == null || _lblMeasureTelemetry == null) return;
 		_panelMeasurementHUD.Visible = true;
-		if (_lblMeasureStraightDist != null)
+
+		string slopeStr;
+		float absDx = Mathf.Abs(dx);
+		float absDz = Mathf.Abs(dz);
+		if (absDx < 0.01f && absDz < 0.01f)
 		{
-			_lblMeasureStraightDist.Text = string.Format(TranslationServer.Translate("Distance: {0:F1} tiles ({1:F1} m)"), eucTiles, eucWorld);
+			slopeStr = "0:0";
 		}
-		if (_lblMeasureManhattanDist != null)
+		else if (absDx < 0.01f)
 		{
-			_lblMeasureManhattanDist.Text = string.Format(TranslationServer.Translate("Manhattan: {0:F1} tiles"), manhattanTiles);
+			slopeStr = TranslationServer.Translate("Vertical");
 		}
-		if (_lblMeasureDeltas != null)
+		else if (absDz < 0.01f)
 		{
-			_lblMeasureDeltas.Text = string.Format("ΔX: {0:+0.0;-0.0;0.0}, ΔZ: {1:+0.0;-0.0;0.0}, ΔY: {2:+0.00;-0.00;0.00}", dx, dz, dy);
+			slopeStr = TranslationServer.Translate("Horizontal (1:0)");
 		}
-		if (_lblMeasureAngleSlope != null)
+		else
 		{
-			_lblMeasureAngleSlope.Text = string.Format(TranslationServer.Translate("Angle: {0:F1}° | Slope: {1:F1}%"), angleDeg, slopePct);
+			float ratio = absDz / absDx;
+			if (Mathf.Abs(ratio - Mathf.Round(ratio)) < 0.05f)
+			{
+				slopeStr = $"{Mathf.Round(ratio):0}:1";
+			}
+			else if (Mathf.Abs(1.0f / ratio - Mathf.Round(1.0f / ratio)) < 0.05f)
+			{
+				slopeStr = $"1:{Mathf.Round(1.0f / ratio):0}";
+			}
+			else
+			{
+				slopeStr = $"{ratio:F1}:1";
+			}
 		}
+
+		string text = string.Format(
+			TranslationServer.Translate("\uf545 MEASURE: Manhattan: {0:F1}T | Euclidean: {1:F1}T ({2:F1}m) | Angle: {3:F1}° | Slope: {4}"),
+			manhattanTiles, eucTiles, eucWorld, angleDeg, slopeStr);
+
+		if (Mathf.Abs(dy) > 0.01f)
+		{
+			text += string.Format(TranslationServer.Translate(" | Elev: {0:+0.0;-0.0;0.0}m ({1:F1}%)"), dy, slopePct);
+		}
+
+		_lblMeasureTelemetry.Text = text;
 	}
 
 	public void ClearMeasureTelemetry()
@@ -3381,6 +3376,11 @@ public partial class MapEditorHUD : Control
 		if (tool != GameHost.EditorTool.Ramp)
 		{
 			GameHost.Instance.ClearRampStartPosExternal();
+		}
+		if (tool != GameHost.EditorTool.Measure)
+		{
+			GameHost.Instance.ClearMeasureVisuals();
+			ClearMeasureTelemetry();
 		}
 		GameHost.Instance.ActivePlaceId = placeId;
 
@@ -6612,30 +6612,29 @@ public partial class MapEditorHUD : Control
 			MirrorMode.Vertical => MirrorMode.Horizontal,
 			MirrorMode.Horizontal => MirrorMode.Both,
 			MirrorMode.Both => MirrorMode.Rotational,
-			MirrorMode.Rotational => MirrorMode.Compound,
-			MirrorMode.Compound => MirrorMode.None,
+			MirrorMode.Rotational => MirrorMode.None,
 			_ => MirrorMode.None
 		};
 		GameHost.Instance.EditorMirrorMode = next;
 		GameHost.Instance.UpdateSymmetryPivotVisuals();
 		UpdateMirrorButtonText();
 		UpdateSymmetrySubControlsVisibility();
-		ShowFeedback(string.Format(TranslationServer.Translate("Mirroring: {0}"), next.ToString().ToUpperInvariant()));
+		UpdatePolarRadialStepButtonText();
+		string modeName = next == MirrorMode.Both ? "QUAD" : next.ToString().ToUpperInvariant();
+		ShowFeedback(string.Format(TranslationServer.Translate("Mirroring: {0}"), modeName));
 	}
 
 	public void UpdateMirrorButtonText()
 	{
 		if (GameHost.Instance == null) return;
 		int folds = GameHost.Instance.EditorSymmetryFolds;
-		var compound = GameHost.Instance.EditorCompoundMirrorMode;
 		string modeText = GameHost.Instance.EditorMirrorMode switch
 		{
 			MirrorMode.None => TranslationServer.Translate("\uf05e MIRROR: NONE"),
 			MirrorMode.Vertical => TranslationServer.Translate("\uf07d MIRROR: VERTICAL"),
 			MirrorMode.Horizontal => TranslationServer.Translate("\uf07e MIRROR: HORIZONTAL"),
-			MirrorMode.Both => TranslationServer.Translate("\uf00a MIRROR: BOTH"),
+			MirrorMode.Both => TranslationServer.Translate("\uf00a MIRROR: QUAD"),
 			MirrorMode.Rotational => string.Format(TranslationServer.Translate("\uf01e ROTATIONAL ({0}-FOLD)"), folds),
-			MirrorMode.Compound => string.Format(TranslationServer.Translate("\uf074 COMPOUND ({0}F + {1})"), folds, compound.ToString().ToUpperInvariant()),
 			_ => TranslationServer.Translate("\uf05e MIRROR: NONE")
 		};
 		if (_btnMirrorMode != null)
@@ -6668,12 +6667,7 @@ public partial class MapEditorHUD : Control
 		GameHost.Instance.EditorSymmetryFolds = next;
 		UpdateSymmetryFoldsButtonText();
 		UpdateMirrorButtonText();
-		if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
-		{
-			GameHost.Instance.EditorPolarRadialStep = 360.0f / next;
-			GameHost.Instance.GroundTerrain?.SetPolarRadialStep(GameHost.Instance.EditorPolarRadialStep);
-			UpdatePolarRadialStepButtonText();
-		}
+		UpdatePolarRadialStepButtonText();
 		ShowFeedback(string.Format(TranslationServer.Translate("Symmetry Folds: {0}-way"), next));
 	}
 
@@ -6686,43 +6680,15 @@ public partial class MapEditorHUD : Control
 		if (_btnPlacementSymmetryFolds != null) _btnPlacementSymmetryFolds.Text = text;
 	}
 
-	private void CycleCompoundMirrorMode()
-	{
-		if (GameHost.Instance == null) return;
-		var current = GameHost.Instance.EditorCompoundMirrorMode;
-		var next = current switch
-		{
-			MirrorMode.Horizontal => MirrorMode.Vertical,
-			MirrorMode.Vertical => MirrorMode.Both,
-			MirrorMode.Both => MirrorMode.Horizontal,
-			_ => MirrorMode.Horizontal
-		};
-		GameHost.Instance.EditorCompoundMirrorMode = next;
-		UpdateCompoundMirrorButtonText();
-		UpdateMirrorButtonText();
-		ShowFeedback(string.Format(TranslationServer.Translate("Compound Reflection: {0}"), next.ToString().ToUpperInvariant()));
-	}
-
-	public void UpdateCompoundMirrorButtonText()
-	{
-		if (GameHost.Instance == null) return;
-		string text = string.Format(TranslationServer.Translate("\uf07e REFLECT: {0}"), GameHost.Instance.EditorCompoundMirrorMode.ToString().ToUpperInvariant());
-		if (_btnCompoundMirrorMode != null) _btnCompoundMirrorMode.Text = text;
-		if (_btnPlacementCompoundMirrorMode != null) _btnPlacementCompoundMirrorMode.Text = text;
-	}
-
 	private void UpdateSymmetrySubControlsVisibility()
 	{
 		if (GameHost.Instance == null) return;
 		var mode = GameHost.Instance.EditorMirrorMode;
-		bool isRotationalOrCompound = mode == MirrorMode.Rotational || mode == MirrorMode.Compound;
-		bool isCompound = mode == MirrorMode.Compound;
+		bool isRotational = mode == MirrorMode.Rotational;
 		bool hasMirror = mode != MirrorMode.None;
 
-		if (_btnSymmetryFolds != null) _btnSymmetryFolds.Visible = isRotationalOrCompound;
-		if (_btnPlacementSymmetryFolds != null) _btnPlacementSymmetryFolds.Visible = isRotationalOrCompound;
-		if (_btnCompoundMirrorMode != null) _btnCompoundMirrorMode.Visible = isCompound;
-		if (_btnPlacementCompoundMirrorMode != null) _btnPlacementCompoundMirrorMode.Visible = isCompound;
+		if (_btnSymmetryFolds != null) _btnSymmetryFolds.Visible = isRotational;
+		if (_btnPlacementSymmetryFolds != null) _btnPlacementSymmetryFolds.Visible = isRotational;
 		if (_btnBrushResetPivot != null) _btnBrushResetPivot.Visible = hasMirror;
 		if (_btnPlacementResetPivot != null) _btnPlacementResetPivot.Visible = hasMirror;
 	}
@@ -6785,7 +6751,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnPolarRadialStep != null && GameHost.Instance != null)
 		{
-			if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
+			if (GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational || GameHost.Instance.EditorPolarAutoStepWithSymmetry)
 			{
 				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: AUTO ({0})"), GameHost.Instance.EditorSymmetryFolds);
 			}
@@ -8057,7 +8023,7 @@ public partial class MapEditorHUD : Control
 			}
 
 			var symGrid = _contentBrush.GetNodeOrNull<GridContainer>("BrushSymmetrySubGrid");
-			if (symGrid == null && _btnSymmetryFolds != null && _btnCompoundMirrorMode != null)
+			if (symGrid == null && _btnSymmetryFolds != null && _btnBrushResetPivot != null)
 			{
 				symGrid = new GridContainer();
 				symGrid.Name = "BrushSymmetrySubGrid";
@@ -8067,7 +8033,6 @@ public partial class MapEditorHUD : Control
 				symGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 				SafeReparent(_btnSymmetryFolds, symGrid);
-				SafeReparent(_btnCompoundMirrorMode, symGrid);
 				SafeReparent(_btnBrushResetPivot, symGrid);
 
 				int insertIdx = shapeMirrorGrid != null ? shapeMirrorGrid.GetIndex() + 1 : 3;
@@ -8080,12 +8045,6 @@ public partial class MapEditorHUD : Control
 				_btnSymmetryFolds.CustomMinimumSize = new Vector2(0, 30);
 				_btnSymmetryFolds.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 				_btnSymmetryFolds.AddThemeFontSizeOverride("font_size", 10);
-			}
-			if (_btnCompoundMirrorMode != null)
-			{
-				_btnCompoundMirrorMode.CustomMinimumSize = new Vector2(0, 30);
-				_btnCompoundMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-				_btnCompoundMirrorMode.AddThemeFontSizeOverride("font_size", 10);
 			}
 			if (_btnBrushResetPivot != null)
 			{
@@ -8185,17 +8144,12 @@ public partial class MapEditorHUD : Control
 				_btnPasteAnchor.CustomMinimumSize = new Vector2(0, 30);
 				_btnPasteAnchor.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 			}
-			if (_btnRadialDuplicate != null)
-			{
-				_btnRadialDuplicate.CustomMinimumSize = new Vector2(0, 30);
-				_btnRadialDuplicate.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			}
 		}
 
 		if (_contentPlacement != null)
 		{
 			var placeSymGrid = _contentPlacement.GetNodeOrNull<GridContainer>("PlacementSymmetrySubGrid");
-			if (placeSymGrid == null && _btnPlacementSymmetryFolds != null && _btnPlacementCompoundMirrorMode != null)
+			if (placeSymGrid == null && _btnPlacementSymmetryFolds != null && _btnPlacementResetPivot != null)
 			{
 				placeSymGrid = new GridContainer();
 				placeSymGrid.Name = "PlacementSymmetrySubGrid";
@@ -8205,7 +8159,6 @@ public partial class MapEditorHUD : Control
 				placeSymGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 				SafeReparent(_btnPlacementSymmetryFolds, placeSymGrid);
-				SafeReparent(_btnPlacementCompoundMirrorMode, placeSymGrid);
 				SafeReparent(_btnPlacementResetPivot, placeSymGrid);
 
 				int insertIdx = _btnPlacementMirrorMode != null ? _btnPlacementMirrorMode.GetIndex() + 1 : 2;
@@ -8218,12 +8171,6 @@ public partial class MapEditorHUD : Control
 				_btnPlacementSymmetryFolds.CustomMinimumSize = new Vector2(0, 30);
 				_btnPlacementSymmetryFolds.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 				_btnPlacementSymmetryFolds.AddThemeFontSizeOverride("font_size", 10);
-			}
-			if (_btnPlacementCompoundMirrorMode != null)
-			{
-				_btnPlacementCompoundMirrorMode.CustomMinimumSize = new Vector2(0, 30);
-				_btnPlacementCompoundMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-				_btnPlacementCompoundMirrorMode.AddThemeFontSizeOverride("font_size", 10);
 			}
 			if (_btnPlacementResetPivot != null)
 			{

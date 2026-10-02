@@ -4741,61 +4741,6 @@ public partial class GameHost
 		_symmetryPivotMarkerMesh.Visible = true;
 	}
 
-	public void PerformRadialArrayDuplicateExternal()
-	{
-		if (GroundTerrain == null || !_editorService.HasCopiedArea) return;
-
-		int folds = EditorSymmetryFolds;
-		if (folds < 2) folds = 2;
-
-		int cx = _editorService.CopiedAreaSourceMinX + _editorService.CopiedAreaAnchorX;
-		int cz = _editorService.CopiedAreaSourceMinZ + _editorService.CopiedAreaAnchorZ;
-
-		float quadSize = GroundTerrain.QuadSize;
-		float halfW = GroundTerrain.Width / 2.0f;
-		float halfD = GroundTerrain.Depth / 2.0f;
-		Vector3 centerWorld = new Vector3((cx - halfW) * quadSize, 0, (cz - halfD) * quadSize);
-
-		Vector2 pivot = _editorService.SymmetryPivot;
-		float dx = centerWorld.X - pivot.X;
-		float dz = centerWorld.Z - pivot.Y;
-
-		var allActions = new List<IEditorAction>();
-
-		for (int k = 0; k < folds; k++)
-		{
-			float angleDeg = k * (360.0f / folds);
-			float angleRad = Mathf.DegToRad(angleDeg);
-			float cosA = Mathf.Cos(angleRad);
-			float sinA = Mathf.Sin(angleRad);
-
-			float rx = pivot.X + dx * cosA - dz * sinA;
-			float rz = pivot.Y + dx * sinA + dz * cosA;
-
-			int targetCellX = Mathf.Clamp((int)Math.Round(rx / quadSize + halfW), 0, GroundTerrain.Width - 1);
-			int targetCellZ = Mathf.Clamp((int)Math.Round(rz / quadSize + halfD), 0, GroundTerrain.Depth - 1);
-
-			float rot = (EditorPasteRotation + angleDeg) % 360.0f;
-			var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(targetCellX, targetCellZ, rot);
-
-			var pasteActions = PerformPasteArea(startX, startZ, rot, false);
-			if (pasteActions != null && pasteActions.Count > 0)
-			{
-				allActions.AddRange(pasteActions);
-			}
-		}
-
-		if (allActions.Count > 0)
-		{
-			var composite = new CompositeAction(allActions);
-			EditorHistoryManager.RecordAction(composite);
-			EditorHasUnsavedChanges = true;
-			GroundTerrain.UpdateMeshAndPhysics(false, false);
-			UpdatePathingOverlay();
-			MapEditorHUD.Instance?.ShowFeedbackExternal($"Radial Array Duplicate: Created {folds} copies");
-		}
-	}
-
 	public MeshInstance3D BrushIndicatorMesh => _brushIndicatorMesh;
 	public MeshInstance3D? GridOverlayMesh => null;
 	public MeshInstance3D? PathingOverlayMesh => null;
@@ -6167,7 +6112,7 @@ public partial class GameHost
 				int mz = depth - 1 - startZ - pasteD + 1;
 				affectedRegions.Add(new Rect2I(mx - 2, mz - 2, pasteW + 4, pasteD + 4));
 			}
-			if (EditorMirrorMode == MirrorMode.Rotational || EditorMirrorMode == MirrorMode.Compound)
+			if (EditorMirrorMode == MirrorMode.Rotational)
 			{
 				float quadSize = GroundTerrain.QuadSize;
 				Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - depth / 2.0f) * quadSize);

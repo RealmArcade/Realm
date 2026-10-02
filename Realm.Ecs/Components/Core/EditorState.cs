@@ -8,8 +8,7 @@ namespace Realm.Ecs.Components.Core
 		Horizontal,
 		Vertical,
 		Both,
-		Rotational,
-		Compound
+		Rotational
 	}
 
 	/// <summary>

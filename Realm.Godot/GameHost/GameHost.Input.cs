@@ -343,12 +343,6 @@ public partial class GameHost
 				}
 				if (editorKeyEvent.Keycode == Key.V && ctrlPressed)
 				{
-					if (shiftPressed)
-					{
-						PerformRadialArrayDuplicateExternal();
-						GetViewport().SetInputAsHandled();
-						return;
-					}
 					if (ActiveEditorTool == EditorTool.SelectArea || ActiveEditorTool == EditorTool.PasteArea)
 					{
 						if (_editorService.HasCopiedArea)

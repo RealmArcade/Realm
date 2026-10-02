@@ -203,7 +203,6 @@ public class EditorService
 
 	private Vector2 _symmetryPivot = Vector2.Zero;
 	private int _symmetryFolds = 4;
-	private MirrorMode _compoundMirrorMode = MirrorMode.Both;
 
 	public Vector2 SymmetryPivot
 	{
@@ -215,12 +214,6 @@ public class EditorService
 	{
 		get => _symmetryFolds;
 		set => _symmetryFolds = Math.Clamp(value, 2, 32);
-	}
-
-	public MirrorMode CompoundMirrorMode
-	{
-		get => _compoundMirrorMode;
-		set => _compoundMirrorMode = value;
 	}
 
 	public Vector3? RampStartPos => _rampStartPos;
@@ -2745,8 +2738,7 @@ public class EditorService
 		float rotation,
 		MirrorMode mirrorMode,
 		Vector2? pivot = null,
-		int? folds = null,
-		MirrorMode? compoundMode = null)
+		int? folds = null)
 	{
 		var list = new List<GameHost.MirroredTransform>();
 		if (mirrorMode == MirrorMode.None) return list;
@@ -2754,7 +2746,6 @@ public class EditorService
 		Vector2 p = pivot ?? _symmetryPivot;
 		int n = folds ?? _symmetryFolds;
 		if (n < 2) n = 2;
-		MirrorMode compMode = compoundMode ?? _compoundMirrorMode;
 
 		float dx = pos.X - p.X;
 		float dz = pos.Z - p.Y;
@@ -2783,43 +2774,6 @@ public class EditorService
 				float rotK = (rotation + k * (360.0f / n)) % 360.0f;
 				if (rotK < 0) rotK += 360.0f;
 				list.Add(new GameHost.MirroredTransform { Position = new Vector3(rx, pos.Y, rz), Rotation = rotK });
-			}
-		}
-		if (mirrorMode == MirrorMode.Compound)
-		{
-			var rotTransforms = new List<GameHost.MirroredTransform>();
-			rotTransforms.Add(new GameHost.MirroredTransform { Position = pos, Rotation = rotation });
-			for (int k = 1; k < n; k++)
-			{
-				float angleRad = k * (Mathf.Tau / n);
-				float cosA = Mathf.Cos(angleRad);
-				float sinA = Mathf.Sin(angleRad);
-				float rx = p.X + dx * cosA - dz * sinA;
-				float rz = p.Y + dx * sinA + dz * cosA;
-				float rotK = (rotation + k * (360.0f / n)) % 360.0f;
-				if (rotK < 0) rotK += 360.0f;
-				var t = new GameHost.MirroredTransform { Position = new Vector3(rx, pos.Y, rz), Rotation = rotK };
-				rotTransforms.Add(t);
-				list.Add(t);
-			}
-
-			foreach (var t in rotTransforms)
-			{
-				float rdx = t.Position.X - p.X;
-				float rdz = t.Position.Z - p.Y;
-
-				if (compMode == MirrorMode.Horizontal || compMode == MirrorMode.Both)
-				{
-					list.Add(new GameHost.MirroredTransform { Position = new Vector3(p.X - rdx, t.Position.Y, p.Y + rdz), Rotation = 180.0f - t.Rotation });
-				}
-				if (compMode == MirrorMode.Vertical || compMode == MirrorMode.Both)
-				{
-					list.Add(new GameHost.MirroredTransform { Position = new Vector3(p.X + rdx, t.Position.Y, p.Y - rdz), Rotation = -t.Rotation });
-				}
-				if (compMode == MirrorMode.Both)
-				{
-					list.Add(new GameHost.MirroredTransform { Position = new Vector3(p.X - rdx, t.Position.Y, p.Y - rdz), Rotation = t.Rotation + 180.0f });
-				}
 			}
 		}
 
@@ -3243,7 +3197,7 @@ public class EditorService
 			}
 		}
 
-		if (mirrorMode == MirrorMode.Rotational || mirrorMode == MirrorMode.Compound)
+		if (mirrorMode == MirrorMode.Rotational)
 		{
 			float quadSize = terrain.QuadSize;
 			Vector3 cellPos = new Vector3((targetX + 0.5f - width / 2.0f) * quadSize, 0, (targetZ + 0.5f - depth / 2.0f) * quadSize);
@@ -3588,7 +3542,7 @@ public class EditorService
 			formattedToolName += $" ({shortId})";
 		}
 
-		string status = $"ACTIVE TOOL: {formattedToolName} | Pos: {pos.X:F1}, {pos.Y:F1}, {pos.Z:F1}";
+		string status = $"ACTIVE TOOL: {formattedToolName} | Pos: {pos.X:F1}, {pos.Z:F1}, {pos.Y:F1}";
 
 		ref var terrain = ref GetTerrainState();
 

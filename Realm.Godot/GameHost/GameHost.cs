@@ -482,7 +482,15 @@ public partial class GameHost : Node3D, IGameAPI
 	public MirrorMode EditorMirrorMode
 	{
 		get => EcsWorld?.GetFieldOrDefault<EditorState, MirrorMode>(_worldEntity, s => s.MirrorMode, MirrorMode.None) ?? MirrorMode.None;
-		set => EcsWorld?.Mutate<EditorState>(_worldEntity, (ref EditorState s) => s.MirrorMode = value);
+		set
+		{
+			EcsWorld?.Mutate<EditorState>(_worldEntity, (ref EditorState s) => s.MirrorMode = value);
+			if (value == MirrorMode.Rotational)
+			{
+				EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
+				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+			}
+		}
 	}
 
 	public Vector2 EditorSymmetryPivot
@@ -501,20 +509,11 @@ public partial class GameHost : Node3D, IGameAPI
 		set
 		{
 			if (_editorService != null) _editorService.SymmetryFolds = value;
-			if (EditorPolarAutoStepWithSymmetry)
+			if (EditorMirrorMode == MirrorMode.Rotational || EditorPolarAutoStepWithSymmetry)
 			{
 				EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
 				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
 			}
-		}
-	}
-
-	public MirrorMode EditorCompoundMirrorMode
-	{
-		get => _editorService?.CompoundMirrorMode ?? MirrorMode.Both;
-		set
-		{
-			if (_editorService != null) _editorService.CompoundMirrorMode = value;
 		}
 	}
 

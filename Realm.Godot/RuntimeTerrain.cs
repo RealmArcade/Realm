@@ -1097,10 +1097,10 @@ uniform sampler2D pathing_texture : hint_default_transparent, filter_nearest;
 uniform bool pathing_visible = false;
 
 uniform bool grid_visible = false;
-uniform vec4 grid_color_thick = vec4(1.0, 0.9, 0.0, 0.85);
-uniform vec4 grid_color_thin = vec4(1.0, 1.0, 1.0, 0.18);
-uniform vec4 grid_color_intermediate = vec4(0.2, 0.75, 1.0, 0.5);
-uniform vec4 grid_color_center = vec4(1.0, 0.85, 0.0, 0.95);
+uniform vec4 grid_color_cell = vec4(0.6, 0.6, 0.6, 0.35);
+uniform vec4 grid_color_group4 = vec4(0.2, 0.65, 1.0, 0.65);
+uniform vec4 grid_color_group16 = vec4(1.0, 0.85, 0.0, 0.85);
+uniform vec4 grid_color_center = vec4(0.2, 1.0, 0.3, 0.95);
 uniform float grid_spacing = 2.0;
 uniform vec2 terrain_size = vec2(1.0, 1.0);
 
@@ -1925,19 +1925,27 @@ void fragment() {
 	if (grid_visible) {
 		vec2 grid_uv = (v_world_pos.xz + terrain_size / 2.0) / grid_spacing;
 		
-		vec2 df = fwidth(grid_uv) * 3.0;
-		vec2 grid_lines = smoothstep(vec2(1.0) - df, vec2(1.0), fract(grid_uv)) + 
-						  (1.0 - smoothstep(vec2(0.0), df, fract(grid_uv)));
+		// 1. Every cell (1x1 quad) - Grey
+		vec2 df_cell = fwidth(grid_uv) * 3.0;
+		vec2 lines_cell = smoothstep(vec2(1.0) - df_cell, vec2(1.0), fract(grid_uv)) + 
+		                  (1.0 - smoothstep(vec2(0.0), df_cell, fract(grid_uv)));
+		float line_cell = max(lines_cell.x, lines_cell.y);
 		
-		float thin_line = max(grid_lines.x, grid_lines.y);
+		// 2. Group of 4 cells (4x4) - Blue
+		vec2 grid_uv_4 = grid_uv / 4.0;
+		vec2 df_4 = fwidth(grid_uv_4) * 3.0;
+		vec2 lines_4 = smoothstep(vec2(1.0) - df_4, vec2(1.0), fract(grid_uv_4)) + 
+		               (1.0 - smoothstep(vec2(0.0), df_4, fract(grid_uv_4)));
+		float line_4 = max(lines_4.x, lines_4.y);
 		
-		vec2 intermediate_grid_uv = grid_uv / 8.0;
-		vec2 df_intermediate = fwidth(intermediate_grid_uv) * 3.0;
-		vec2 intermediate_grid_lines = smoothstep(vec2(1.0) - df_intermediate, vec2(1.0), fract(intermediate_grid_uv)) + 
-									   (1.0 - smoothstep(vec2(0.0), df_intermediate, fract(intermediate_grid_uv)));
+		// 3. Group of 16 cells (16x16) - Yellow
+		vec2 grid_uv_16 = grid_uv / 16.0;
+		vec2 df_16 = fwidth(grid_uv_16) * 3.0;
+		vec2 lines_16 = smoothstep(vec2(1.0) - df_16, vec2(1.0), fract(grid_uv_16)) + 
+		                (1.0 - smoothstep(vec2(0.0), df_16, fract(grid_uv_16)));
+		float line_16 = max(lines_16.x, lines_16.y);
 		
-		float intermediate_line = max(intermediate_grid_lines.x, intermediate_grid_lines.y);
-		
+		// 4. Exact center crosshair lines - Green
 		vec2 center_df = fwidth(v_world_pos.xz) * 1.5;
 		vec2 center_lines = 1.0 - smoothstep(vec2(0.0), center_df, abs(v_world_pos.xz));
 		float center_line = max(center_lines.x, center_lines.y);
@@ -1945,12 +1953,15 @@ void fragment() {
 		if (center_line > 0.0) {
 			final_albedo = mix(final_albedo, grid_color_center.rgb, grid_color_center.a * center_line);
 			emission_color = mix(emission_color, grid_color_center.rgb, grid_color_center.a * center_line);
-		} else if (intermediate_line > 0.0) {
-			final_albedo = mix(final_albedo, grid_color_intermediate.rgb, grid_color_intermediate.a * intermediate_line);
-			emission_color = mix(emission_color, grid_color_intermediate.rgb, grid_color_intermediate.a * intermediate_line);
-		} else if (thin_line > 0.0) {
-			final_albedo = mix(final_albedo, grid_color_thin.rgb, grid_color_thin.a * thin_line);
-			emission_color = mix(emission_color, grid_color_thin.rgb, grid_color_thin.a * thin_line);
+		} else if (line_16 > 0.0) {
+			final_albedo = mix(final_albedo, grid_color_group16.rgb, grid_color_group16.a * line_16);
+			emission_color = mix(emission_color, grid_color_group16.rgb, grid_color_group16.a * line_16);
+		} else if (line_4 > 0.0) {
+			final_albedo = mix(final_albedo, grid_color_group4.rgb, grid_color_group4.a * line_4);
+			emission_color = mix(emission_color, grid_color_group4.rgb, grid_color_group4.a * line_4);
+		} else if (line_cell > 0.0) {
+			final_albedo = mix(final_albedo, grid_color_cell.rgb, grid_color_cell.a * line_cell);
+			emission_color = mix(emission_color, grid_color_cell.rgb, grid_color_cell.a * line_cell);
 		}
 	}
 
@@ -2777,6 +2788,9 @@ void fragment() {
 	protected static readonly StringName ShroudEnabledParam = "shroud_enabled";
 	protected ImageTexture _currentShroudTexture = null;
 	protected static ImageTexture _clearShroudTexture = null;
+	private bool _wasGridVisibleBeforeMinimap;
+	private bool _wasPolarVisibleBeforeMinimap;
+	private bool _wasPathingVisibleBeforeMinimap;
 
 	public void SetShroudEnabled(bool enabled)
 	{
@@ -2810,6 +2824,27 @@ void fragment() {
 		if (_material != null)
 		{
 			_material.SetShaderParameter(ShroudTextureParam, clearTex);
+
+			var gridParam = _material.GetShaderParameter("grid_visible");
+			_wasGridVisibleBeforeMinimap = gridParam.VariantType == Variant.Type.Bool && gridParam.AsBool();
+			if (_wasGridVisibleBeforeMinimap)
+			{
+				_material.SetShaderParameter("grid_visible", false);
+			}
+
+			var polarParam = _material.GetShaderParameter("polar_overlay_visible");
+			_wasPolarVisibleBeforeMinimap = polarParam.VariantType == Variant.Type.Bool && polarParam.AsBool();
+			if (_wasPolarVisibleBeforeMinimap)
+			{
+				_material.SetShaderParameter("polar_overlay_visible", false);
+			}
+
+			var pathingParam = _material.GetShaderParameter("pathing_visible");
+			_wasPathingVisibleBeforeMinimap = pathingParam.VariantType == Variant.Type.Bool && pathingParam.AsBool();
+			if (_wasPathingVisibleBeforeMinimap)
+			{
+				_material.SetShaderParameter("pathing_visible", false);
+			}
 		}
 		foreach (var wMat in _waterMaterials.Values)
 		{
@@ -2827,6 +2862,18 @@ void fragment() {
 		if (_material != null)
 		{
 			_material.SetShaderParameter(ShroudTextureParam, restoreTex);
+			if (_wasGridVisibleBeforeMinimap)
+			{
+				_material.SetShaderParameter("grid_visible", true);
+			}
+			if (_wasPolarVisibleBeforeMinimap)
+			{
+				_material.SetShaderParameter("polar_overlay_visible", true);
+			}
+			if (_wasPathingVisibleBeforeMinimap)
+			{
+				_material.SetShaderParameter("pathing_visible", true);
+			}
 		}
 		foreach (var wMat in _waterMaterials.Values)
 		{
