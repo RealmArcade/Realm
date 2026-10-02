@@ -3359,6 +3359,11 @@ public partial class MapEditorHUD : Control
 		{
 			_lastUsedFolder = defaultSaveFolder;
 			_currentSourceFolder = defaultSaveFolder;
+			if (!IsRestrictedSaveDirectory(defaultSaveFolder))
+			{
+				GameSettings.LastOpenedFolder = defaultSaveFolder;
+				GameSettings.Save();
+			}
 		}
 	}
 
@@ -3977,6 +3982,11 @@ public partial class MapEditorHUD : Control
 				{
 					_lastUsedFolder = fullSelectedPath;
 					_currentSourceFolder = fullSelectedPath;
+					if (!IsRestrictedSaveDirectory(fullSelectedPath))
+					{
+						GameSettings.LastOpenedFolder = fullSelectedPath;
+						GameSettings.Save();
+					}
 					_ = SaveMapToFolderAsync(fullSelectedPath);
 				},
 				confirmText: TranslationServer.Translate("OVERWRITE"),
@@ -3987,6 +3997,11 @@ public partial class MapEditorHUD : Control
 
 		_lastUsedFolder = fullSelectedPath;
 		_currentSourceFolder = fullSelectedPath;
+		if (!IsRestrictedSaveDirectory(fullSelectedPath))
+		{
+			GameSettings.LastOpenedFolder = fullSelectedPath;
+			GameSettings.Save();
+		}
 		_ = SaveMapToFolderAsync(fullSelectedPath);
 	}
 
@@ -4005,6 +4020,12 @@ public partial class MapEditorHUD : Control
 				if (status && selectedPaths.Length > 0)
 				{
 					string selectedFolder = selectedPaths[0];
+					_lastUsedFolder = selectedFolder;
+					if (!IsRestrictedSaveDirectory(selectedFolder))
+					{
+						GameSettings.LastOpenedFolder = selectedFolder;
+						GameSettings.Save();
+					}
 					_ = LoadMapFolderAsync(selectedFolder);
 				}
 			})
@@ -4301,6 +4322,11 @@ public partial class MapEditorHUD : Control
 		GameHost.Instance?.ClearMapEntirely();
 		_lastUsedFolder = selectedFolder;
 		_currentSourceFolder = selectedFolder;
+		if (!IsRestrictedSaveDirectory(selectedFolder))
+		{
+			GameSettings.LastOpenedFolder = selectedFolder;
+			GameSettings.Save();
+		}
 
 		ShowFeedback(TranslationServer.Translate("Loading map..."));
 		CopyFolderToTempWorkspace(selectedFolder);
@@ -4366,6 +4392,11 @@ public partial class MapEditorHUD : Control
 
 			_lastUsedFolder = selectedFolder;
 			_currentSourceFolder = selectedFolder;
+			if (!IsRestrictedSaveDirectory(selectedFolder))
+			{
+				GameSettings.LastOpenedFolder = selectedFolder;
+				GameSettings.Save();
+			}
 
 			ShowFeedback(TranslationServer.Translate("Loading map..."));
 			await System.Threading.Tasks.Task.Run(() => CopyFolderToTempWorkspace(selectedFolder));
@@ -4466,6 +4497,10 @@ public partial class MapEditorHUD : Control
 		if (!string.IsNullOrEmpty(_currentSourceFolder) && !IsRestrictedSaveDirectory(_currentSourceFolder) && System.IO.Directory.Exists(_currentSourceFolder))
 		{
 			return _currentSourceFolder;
+		}
+		if (!string.IsNullOrEmpty(GameSettings.LastOpenedFolder) && !IsRestrictedSaveDirectory(GameSettings.LastOpenedFolder) && System.IO.Directory.Exists(GameSettings.LastOpenedFolder))
+		{
+			return GameSettings.LastOpenedFolder;
 		}
 		return GetDocumentsDirectory();
 	}
