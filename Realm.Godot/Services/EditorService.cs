@@ -2291,6 +2291,9 @@ public class EditorService
 			? splatBefore[clickX, clickZ].GetDominantIndex()
 			: 0;
 
+		WaterType startWaterType = terrain.Cells != null ? terrain.Cells[clickX, clickZ].WaterMode : WaterType.None;
+		float startHeight = terrain.Cells != null ? terrain.Cells[clickX, clickZ].CenterHeight : clickPos.Y;
+
 		var queue = new Queue<(int x, int z)>();
 		if (!visited[clickX, clickZ])
 		{
@@ -2319,9 +2322,10 @@ public class EditorService
 						}
 						if (terrain.Cells != null)
 						{
-							float hCurrent = terrain.Cells[currX, currZ].CenterHeight;
+							if (startWaterType != terrain.Cells[nextX, nextZ].WaterMode) continue;
+
 							float hNext = terrain.Cells[nextX, nextZ].CenterHeight;
-							if (Mathf.Abs(hNext - hCurrent) >= 1.0f) continue;
+							if (Mathf.Abs(hNext - startHeight) >= 3.0f) continue;
 						}
 						visited[nextX, nextZ] = true;
 						queue.Enqueue((nextX, nextZ));
