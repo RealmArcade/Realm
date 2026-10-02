@@ -1053,6 +1053,8 @@ public partial class RuntimeTerrain : StaticBody3D
 		{
 			_material.SetShaderParameter("shroud_world_min", shroudMin);
 			_material.SetShaderParameter("shroud_world_size", shroudSize);
+			_material.SetShaderParameter("terrain_size", shroudSize);
+			_material.SetShaderParameter("grid_spacing", QuadSize);
 		}
 		foreach (var wMat in _waterMaterials.Values)
 		{
@@ -1874,7 +1876,7 @@ void fragment() {
 		vec2 pathing_uv = (v_world_pos.xz + terrain_size / 2.0) / terrain_size;
 		int code = int(round(texture(pathing_texture, pathing_uv).r * 255.0));
 
-		vec2 cell_frac = fract(v_world_pos.xz / grid_spacing);
+		vec2 cell_frac = fract((v_world_pos.xz + terrain_size / 2.0) / grid_spacing);
 		int sx = int(floor(cell_frac.x * 3.0));
 		int sz = int(floor(cell_frac.y * 3.0));
 		int box_idx = sz * 3 + sx;
@@ -1912,7 +1914,7 @@ void fragment() {
 	}
 	
 	if (grid_visible) {
-		vec2 grid_uv = v_world_pos.xz / grid_spacing;
+		vec2 grid_uv = (v_world_pos.xz + terrain_size / 2.0) / grid_spacing;
 		
 		vec2 df = fwidth(grid_uv) * 3.0;
 		vec2 grid_lines = smoothstep(vec2(1.0) - df, vec2(1.0), fract(grid_uv)) + 
@@ -2720,6 +2722,16 @@ void fragment() {
 				_chunks.Add(chunk);
 			}
 		}
+
+		if (_material != null)
+		{
+			float halfW = (w * QuadSize) * 0.5f;
+			float halfD = (d * QuadSize) * 0.5f;
+			_material.SetShaderParameter("shroud_world_min", new Vector2(-halfW, -halfD));
+			_material.SetShaderParameter("shroud_world_size", new Vector2(w * QuadSize, d * QuadSize));
+			_material.SetShaderParameter("terrain_size", new Vector2(w * QuadSize, d * QuadSize));
+			_material.SetShaderParameter("grid_spacing", QuadSize);
+		}
 	}
 
 	protected static readonly StringName ShroudTextureParam = "shroud_texture";
@@ -2852,6 +2864,11 @@ void fragment() {
 		if (_chunks.Count == 0 || _chunkedWidth != w || _chunkedDepth != d)
 		{
 			CreateChunks();
+		}
+		else if (_material != null)
+		{
+			_material.SetShaderParameter("terrain_size", new Vector2(w * QuadSize, d * QuadSize));
+			_material.SetShaderParameter("grid_spacing", QuadSize);
 		}
 
 		foreach (var chunk in _chunks)

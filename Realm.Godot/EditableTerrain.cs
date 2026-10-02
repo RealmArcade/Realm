@@ -71,6 +71,8 @@ public partial class EditableTerrain : RuntimeTerrain
 		
 		int w = Width;
 		int d = Depth;
+		_material.SetShaderParameter("terrain_size", new Vector2(w * QuadSize, d * QuadSize));
+		_material.SetShaderParameter("grid_spacing", QuadSize);
 		var img = Image.CreateEmpty(w, d, false, Image.Format.Rgba8);
 		
 		for (int z = 0; z < d; z++)

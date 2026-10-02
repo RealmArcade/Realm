@@ -2502,8 +2502,8 @@ public partial class GameHost
 	private void AlignAllEntitiesToTerrain(Rect2I? affectedRegion = null)
 	{
 		float quadSize = GroundTerrain != null ? GroundTerrain.QuadSize : EditableTerrain.DefaultQuadSize;
-		float halfW = GroundTerrain != null ? (GroundTerrain.Width - 1) / 2.0f * quadSize : 0f;
-		float halfD = GroundTerrain != null ? (GroundTerrain.Depth - 1) / 2.0f * quadSize : 0f;
+		float halfW = GroundTerrain != null ? GroundTerrain.Width / 2.0f * quadSize : 0f;
+		float halfD = GroundTerrain != null ? GroundTerrain.Depth / 2.0f * quadSize : 0f;
 
 		bool IsInRegion(Vector3 pos)
 		{
@@ -4952,8 +4952,8 @@ public partial class GameHost
 	{
 		if (GroundTerrain == null) return;
 
-		float halfW = (GroundTerrain.Width - 1) / 2.0f * GroundTerrain.QuadSize;
-		float halfD = (GroundTerrain.Depth - 1) / 2.0f * GroundTerrain.QuadSize;
+		float halfW = GroundTerrain.Width / 2.0f * GroundTerrain.QuadSize;
+		float halfD = GroundTerrain.Depth / 2.0f * GroundTerrain.QuadSize;
 
 		var unitsToDelete = new List<Unit3D>();
 		foreach (var unit in AllUnits)
@@ -5400,8 +5400,8 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 		var cells = GroundTerrain.Cells;
-		float halfW = (width - 1) * 0.5f;
-		float halfD = (depth - 1) * 0.5f;
+		float halfW = width * 0.5f;
+		float halfD = depth * 0.5f;
 
 		for (int sz = 0; sz < selDepth; sz++)
 		{
@@ -5492,8 +5492,8 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 		var cells = GroundTerrain.Cells;
-		float halfW = (width - 1) * 0.5f;
-		float halfD = (depth - 1) * 0.5f;
+		float halfW = width * 0.5f;
+		float halfD = depth * 0.5f;
 
 		for (int sz = 0; sz < selDepth; sz++)
 		{
@@ -5557,10 +5557,10 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 
-		float worldMinX = (minX - (width - 1) / 2.0f) * quadSize;
-		float worldMinZ = (minZ - (depth - 1) / 2.0f) * quadSize;
-		float worldMaxX = (maxX - (width - 1) / 2.0f) * quadSize;
-		float worldMaxZ = (maxZ - (depth - 1) / 2.0f) * quadSize;
+		float worldMinX = (minX - width / 2.0f) * quadSize;
+		float worldMinZ = (minZ - depth / 2.0f) * quadSize;
+		float worldMaxX = (maxX - width / 2.0f) * quadSize;
+		float worldMaxZ = (maxZ - depth / 2.0f) * quadSize;
 
 		bool committed = false;
 		for (int i = 0; i < EditorCoordinates.Count; i++)
@@ -5633,10 +5633,10 @@ public partial class GameHost
 
 		foreach (var coord in EditorCoordinates)
 		{
-			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
-			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
 
 			var meshInst = new MeshInstance3D();
 			meshInst.Name = $"Coordinate_{coord.Name}";
@@ -5697,10 +5697,10 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 
-		int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-		int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
-		int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-		int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+		int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+		int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+		int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+		int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
 
 		_coordinateSelectionOutlineMesh.Visible = true;
 		RebuildCoordinateMeshInstance(_coordinateSelectionOutlineMesh, minX, minZ, maxX, maxZ, new Color(1.0f, 0.6f, 0.0f, 0.45f), 0.25f);
