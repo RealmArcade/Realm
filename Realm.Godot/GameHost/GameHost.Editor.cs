@@ -4042,18 +4042,10 @@ public partial class GameHost
 					int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
 					int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
 
-					int dX = 0;
-					int dZ = 0;
-					if (rotSteps == 1 || rotSteps == 3)
-					{
-						dX = (pasteWidth - pasteDepth) / 2;
-						dZ = (pasteDepth - pasteWidth) / 2;
-					}
-
-					int minX = Mathf.Clamp(cx + dX, 0, GroundTerrain.Width - 1);
-					int minZ = Mathf.Clamp(cz + dZ, 0, GroundTerrain.Depth - 1);
-					int maxX = Mathf.Clamp(cx + dX + targetWidth - 1, 0, GroundTerrain.Width - 1);
-					int maxZ = Mathf.Clamp(cz + dZ + targetDepth - 1, 0, GroundTerrain.Depth - 1);
+					int minX = Mathf.Clamp(cx, 0, GroundTerrain.Width - 1);
+					int minZ = Mathf.Clamp(cz, 0, GroundTerrain.Depth - 1);
+					int maxX = Mathf.Clamp(cx + targetWidth - 1, 0, GroundTerrain.Width - 1);
+					int maxZ = Mathf.Clamp(cz + targetDepth - 1, 0, GroundTerrain.Depth - 1);
 
 					CreateSelectionHighlight();
 					RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);

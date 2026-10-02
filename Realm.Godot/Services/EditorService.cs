@@ -1930,15 +1930,7 @@ public class EditorService
 					rotZ = pasteWidth - 1 - sx;
 				}
 				
-				int dX = 0;
-				int dZ = 0;
-				if (rotSteps == 1 || rotSteps == 3)
-				{
-					dX = (pasteWidth - pasteDepth) / 2;
-					dZ = (pasteDepth - pasteWidth) / 2;
-				}
-
-				PasteCellRotated(sx, sz, rotX, rotZ, startX + dX, startZ + dZ, width, depth, pasteHeights, pasteTextures, pastePathing, mirrorMode, rotSteps, ref terrain, ref modified, ref pathingModified);
+				PasteCellRotated(sx, sz, rotX, rotZ, startX, startZ, width, depth, pasteHeights, pasteTextures, pastePathing, mirrorMode, rotSteps, ref terrain, ref modified, ref pathingModified);
 			}
 		}
 
@@ -1952,18 +1944,10 @@ public class EditorService
 
 		if (pasteEntities)
 		{
-			int dX = 0;
-			int dZ = 0;
-			if (rotSteps == 1 || rotSteps == 3)
-			{
-				dX = (pasteWidth - pasteDepth) / 2;
-				dZ = (pasteDepth - pasteWidth) / 2;
-			}
-
 			int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
 			int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
 
-			Vector3 pasteCenter = new Vector3((startX + dX + (targetWidth - 1) / 2.0f - width / 2.0f) * quadSize, 0, (startZ + dZ + (targetDepth - 1) / 2.0f - depth / 2.0f) * quadSize);
+			Vector3 pasteCenter = new Vector3((startX + (targetWidth - 1) / 2.0f - width / 2.0f) * quadSize, 0, (startZ + (targetDepth - 1) / 2.0f - depth / 2.0f) * quadSize);
 
 			float rad = rotationDegrees * Mathf.Pi / 180.0f;
 			float cosR = Mathf.Cos(rad);
