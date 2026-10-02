@@ -46,6 +46,38 @@ public partial class EditableTerrain : RuntimeTerrain
 		}
 	}
 
+	public override void SetPolarOverlayVisible(bool visible)
+	{
+		if (_material != null)
+		{
+			_material.SetShaderParameter("polar_overlay_visible", visible);
+		}
+	}
+
+	public override void SetPolarCenter(Vector2 center)
+	{
+		if (_material != null)
+		{
+			_material.SetShaderParameter("polar_center", center);
+		}
+	}
+
+	public override void SetPolarRingSpacing(float spacing)
+	{
+		if (_material != null)
+		{
+			_material.SetShaderParameter("polar_ring_spacing", spacing);
+		}
+	}
+
+	public override void SetPolarRadialStep(float angleDegrees)
+	{
+		if (_material != null)
+		{
+			_material.SetShaderParameter("polar_radial_step_deg", angleDegrees);
+		}
+	}
+
 	public override void SetWireframeMode(bool enabled)
 	{
 		Viewport viewport = GetViewport();

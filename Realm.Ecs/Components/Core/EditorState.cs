@@ -7,7 +7,9 @@ namespace Realm.Ecs.Components.Core
 		None,
 		Horizontal,
 		Vertical,
-		Both
+		Both,
+		Rotational,
+		Compound
 	}
 
 	/// <summary>

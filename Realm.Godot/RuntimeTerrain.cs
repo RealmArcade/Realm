@@ -1098,9 +1098,18 @@ uniform bool pathing_visible = false;
 
 uniform bool grid_visible = false;
 uniform vec4 grid_color_thick = vec4(1.0, 0.9, 0.0, 0.85);
-uniform vec4 grid_color_thin = vec4(1.0, 0.9, 0.0, 0.25);
+uniform vec4 grid_color_thin = vec4(1.0, 1.0, 1.0, 0.18);
+uniform vec4 grid_color_intermediate = vec4(0.2, 0.75, 1.0, 0.5);
+uniform vec4 grid_color_center = vec4(1.0, 0.85, 0.0, 0.95);
 uniform float grid_spacing = 2.0;
 uniform vec2 terrain_size = vec2(1.0, 1.0);
+
+uniform bool polar_overlay_visible = false;
+uniform vec2 polar_center = vec2(0.0, 0.0);
+uniform float polar_ring_spacing = 8.0;
+uniform float polar_radial_step_deg = 45.0;
+uniform vec4 polar_ring_color = vec4(0.2, 0.8, 1.0, 0.4);
+uniform vec4 polar_spoke_color = vec4(0.2, 0.8, 1.0, 0.25);
 
 uniform float texture_scale = 0.5;
 uniform float macro_scale = 0.035;
@@ -1922,19 +1931,49 @@ void fragment() {
 		
 		float thin_line = max(grid_lines.x, grid_lines.y);
 		
-		vec2 thick_grid_uv = grid_uv / 10.0;
-		vec2 df_thick = fwidth(thick_grid_uv) * 3.0;
-		vec2 thick_grid_lines = smoothstep(vec2(1.0) - df_thick, vec2(1.0), fract(thick_grid_uv)) + 
-								(1.0 - smoothstep(vec2(0.0), df_thick, fract(thick_grid_uv)));
+		vec2 intermediate_grid_uv = grid_uv / 8.0;
+		vec2 df_intermediate = fwidth(intermediate_grid_uv) * 3.0;
+		vec2 intermediate_grid_lines = smoothstep(vec2(1.0) - df_intermediate, vec2(1.0), fract(intermediate_grid_uv)) + 
+									   (1.0 - smoothstep(vec2(0.0), df_intermediate, fract(intermediate_grid_uv)));
 		
-		float thick_line = max(thick_grid_lines.x, thick_grid_lines.y);
+		float intermediate_line = max(intermediate_grid_lines.x, intermediate_grid_lines.y);
 		
-		if (thick_line > 0.0) {
-			final_albedo = mix(final_albedo, grid_color_thick.rgb, grid_color_thick.a * thick_line);
-			emission_color = mix(emission_color, grid_color_thick.rgb, grid_color_thick.a * thick_line);
+		vec2 center_df = fwidth(v_world_pos.xz) * 1.5;
+		vec2 center_lines = 1.0 - smoothstep(vec2(0.0), center_df, abs(v_world_pos.xz));
+		float center_line = max(center_lines.x, center_lines.y);
+
+		if (center_line > 0.0) {
+			final_albedo = mix(final_albedo, grid_color_center.rgb, grid_color_center.a * center_line);
+			emission_color = mix(emission_color, grid_color_center.rgb, grid_color_center.a * center_line);
+		} else if (intermediate_line > 0.0) {
+			final_albedo = mix(final_albedo, grid_color_intermediate.rgb, grid_color_intermediate.a * intermediate_line);
+			emission_color = mix(emission_color, grid_color_intermediate.rgb, grid_color_intermediate.a * intermediate_line);
 		} else if (thin_line > 0.0) {
 			final_albedo = mix(final_albedo, grid_color_thin.rgb, grid_color_thin.a * thin_line);
 			emission_color = mix(emission_color, grid_color_thin.rgb, grid_color_thin.a * thin_line);
+		}
+	}
+
+	if (polar_overlay_visible) {
+		vec2 rel_pos = v_world_pos.xz - polar_center;
+		float dist = length(rel_pos);
+		float ring_uv = dist / (polar_ring_spacing * grid_spacing);
+		float ring_df = fwidth(ring_uv) * 3.0;
+		float ring_line = smoothstep(1.0 - ring_df, 1.0, fract(ring_uv)) + (1.0 - smoothstep(0.0, ring_df, fract(ring_uv)));
+		
+		float angle_deg = mod(degrees(atan(rel_pos.y, rel_pos.x)) + 360.0, 360.0);
+		float step_deg = max(1.0, polar_radial_step_deg);
+		float spoke_uv = angle_deg / step_deg;
+		float spoke_df = fwidth(spoke_uv) * 3.0;
+		float spoke_line = smoothstep(1.0 - spoke_df, 1.0, fract(spoke_uv)) + (1.0 - smoothstep(0.0, spoke_df, fract(spoke_uv)));
+		
+		if (ring_line > 0.0) {
+			final_albedo = mix(final_albedo, polar_ring_color.rgb, polar_ring_color.a * ring_line);
+			emission_color = mix(emission_color, polar_ring_color.rgb, polar_ring_color.a * ring_line);
+		}
+		if (spoke_line > 0.0) {
+			final_albedo = mix(final_albedo, polar_spoke_color.rgb, polar_spoke_color.a * spoke_line);
+			emission_color = mix(emission_color, polar_spoke_color.rgb, polar_spoke_color.a * spoke_line);
 		}
 	}
 
@@ -2955,6 +2994,10 @@ void fragment() {
 
 	public virtual void SetPathingVisible(bool visible) { }
 	public virtual void SetGridVisible(bool visible) { }
+	public virtual void SetPolarOverlayVisible(bool visible) { }
+	public virtual void SetPolarCenter(Vector2 center) { }
+	public virtual void SetPolarRingSpacing(float spacing) { }
+	public virtual void SetPolarRadialStep(float angleDegrees) { }
 	public virtual void SetWireframeMode(bool enabled) { }
 	public virtual void ToggleWireframeMode() { }
 	public virtual void UpdatePathingTexture() { }

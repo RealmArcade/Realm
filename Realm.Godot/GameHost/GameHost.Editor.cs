@@ -4032,23 +4032,54 @@ public partial class GameHost
 				else if (ActiveEditorTool == EditorTool.PasteArea && _editorService.HasCopiedArea)
 				{
 					var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
-					float r = EditorPasteRotation % 360.0f;
-					if (r < 0) r += 360.0f;
-					int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+					var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation);
 
-					int pasteWidth = _editorService.CopiedAreaWidth;
-					int pasteDepth = _editorService.CopiedAreaDepth;
-
-					int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
-					int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
-
-					int minX = Mathf.Clamp(cx, 0, GroundTerrain.Width - 1);
-					int minZ = Mathf.Clamp(cz, 0, GroundTerrain.Depth - 1);
-					int maxX = Mathf.Clamp(cx + targetWidth - 1, 0, GroundTerrain.Width - 1);
-					int maxZ = Mathf.Clamp(cz + targetDepth - 1, 0, GroundTerrain.Depth - 1);
+					int minX = Mathf.Clamp(startX, 0, GroundTerrain.Width - 1);
+					int minZ = Mathf.Clamp(startZ, 0, GroundTerrain.Depth - 1);
+					int maxX = Mathf.Clamp(startX + targetWidth - 1, 0, GroundTerrain.Width - 1);
+					int maxZ = Mathf.Clamp(startZ + targetDepth - 1, 0, GroundTerrain.Depth - 1);
 
 					CreateSelectionHighlight();
 					RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+
+					int srcAnchorX = _editorService.CopiedAreaSourceMinX + _editorService.CopiedAreaAnchorX;
+					int srcAnchorZ = _editorService.CopiedAreaSourceMinZ + _editorService.CopiedAreaAnchorZ;
+					int deltaX = cx - srcAnchorX;
+					int deltaZ = cz - srcAnchorZ;
+
+					float quadSize = GroundTerrain.QuadSize;
+					float halfW = GroundTerrain.Width / 2.0f;
+					float halfD = GroundTerrain.Depth / 2.0f;
+					Vector2 targetWorld2D = new Vector2((cx - halfW) * quadSize, (cz - halfD) * quadSize);
+					Vector2 pivotWorld2D = _editorService.SymmetryPivot;
+					Vector2 diffFromPivot = targetWorld2D - pivotWorld2D;
+					float distFromPivot = diffFromPivot.Length();
+					float angleFromPivot = Mathf.RadToDeg(Mathf.Atan2(diffFromPivot.Y, diffFromPivot.X));
+					if (angleFromPivot < 0) angleFromPivot += 360.0f;
+
+					MapEditorHUD.Instance?.UpdatePasteTelemetry(deltaX, deltaZ, distFromPivot / quadSize, distFromPivot, angleFromPivot);
+				}
+				else if (ActiveEditorTool == EditorTool.Measure)
+				{
+					if (EditorTapeMeasureActive && EditorTapeMeasureStart.HasValue)
+					{
+						EditorTapeMeasureEnd = hitPos;
+						UpdateMeasureVisuals(EditorTapeMeasureStart.Value, hitPos);
+
+						Vector3 delta = hitPos - EditorTapeMeasureStart.Value;
+						float quadSize = GroundTerrain.QuadSize;
+						float dx = delta.X / quadSize;
+						float dz = delta.Z / quadSize;
+						float dy = delta.Y;
+						float eucTiles = Mathf.Sqrt(dx * dx + dz * dz);
+						float eucWorld = delta.Length();
+						float manhattanTiles = Mathf.Abs(dx) + Mathf.Abs(dz);
+						float angleDeg = Mathf.RadToDeg(Mathf.Atan2(delta.Z, delta.X));
+						if (angleDeg < 0) angleDeg += 360.0f;
+						float slopePct = eucTiles > 0.001f ? (Mathf.Abs(dy) / (eucTiles * quadSize)) * 100.0f : 0.0f;
+
+						MapEditorHUD.Instance?.UpdateMeasureTelemetry(eucTiles, eucWorld, manhattanTiles, dx, dz, dy, angleDeg, slopePct);
+					}
 				}
 			}
 			
@@ -4572,22 +4603,197 @@ public partial class GameHost
 	{
 		if (_brushIndicatorMesh == null) return;
 		
-		_brushIndicatorMesh.Position = new Vector3(position.X, position.Y + 0.1f, position.Z);
+		bool isVertexTool = ActiveEditorTool == EditorTool.Raise ||
+							ActiveEditorTool == EditorTool.Lower ||
+							ActiveEditorTool == EditorTool.Height ||
+							ActiveEditorTool == EditorTool.Smooth ||
+							ActiveEditorTool == EditorTool.Plateau ||
+							ActiveEditorTool == EditorTool.PaintTexture ||
+							ActiveEditorTool == EditorTool.Noise ||
+							ActiveEditorTool == EditorTool.Ramp;
+
+		Vector3 targetPos = position;
+		if (isVertexTool && GroundTerrain != null)
+		{
+			targetPos = _editorService.SnapToVertex(position);
+		}
+		else if (EditorSnapToGrid && GroundTerrain != null)
+		{
+			targetPos = _editorService.SnapToGrid(position);
+		}
+		
+		_brushIndicatorMesh.Position = new Vector3(targetPos.X, targetPos.Y + 0.1f, targetPos.Z);
 		_brushIndicatorMesh.Scale = new Vector3(EditorBrushRadius, 0.1f, EditorBrushRadius);
 		
-		bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
-							 ActiveEditorTool == EditorTool.Lower ||
-							 ActiveEditorTool == EditorTool.Height ||
-							 ActiveEditorTool == EditorTool.Smooth ||
-							 ActiveEditorTool == EditorTool.Plateau ||
-							 ActiveEditorTool == EditorTool.PaintTexture ||
-							 ActiveEditorTool == EditorTool.Noise ||
-							 ActiveEditorTool == EditorTool.Ramp ||
+		bool isTerrainTool = isVertexTool ||
 							 ActiveEditorTool == EditorTool.PlacePropClump ||
 							 ActiveEditorTool == EditorTool.PaintPathing ||
 							 ((ActiveEditorTool == EditorTool.PlaceUnit || ActiveEditorTool == EditorTool.PlaceProp || ActiveEditorTool == EditorTool.PlaceDecal) && EditorClumpMode);
 							 
 		_brushIndicatorMesh.Visible = isTerrainTool;
+	}
+
+	private MeshInstance3D _measureMeshInstance;
+	private ImmediateMesh _measureImmediateMesh;
+
+	public void UpdateMeasureVisuals(Vector3 start, Vector3 end)
+	{
+		if (_measureMeshInstance == null)
+		{
+			_measureMeshInstance = new MeshInstance3D();
+			_measureMeshInstance.Name = "TapeMeasureIndicator";
+			_measureImmediateMesh = new ImmediateMesh();
+			_measureMeshInstance.Mesh = _measureImmediateMesh;
+			var mat = new StandardMaterial3D
+			{
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				AlbedoColor = new Color(1.0f, 0.85f, 0.1f, 0.95f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				CullMode = BaseMaterial3D.CullModeEnum.Disabled
+			};
+			_measureMeshInstance.MaterialOverride = mat;
+			AddChild(_measureMeshInstance);
+		}
+
+		_measureImmediateMesh.ClearSurfaces();
+		_measureImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, 0));
+		
+		float markerSize = 0.5f;
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(-markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, -markerSize));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, markerSize));
+
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(-markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, -markerSize));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, markerSize));
+		
+		_measureImmediateMesh.SurfaceEnd();
+		_measureMeshInstance.Visible = true;
+	}
+
+	public void ClearMeasureVisuals()
+	{
+		if (_measureMeshInstance != null)
+		{
+			_measureMeshInstance.Visible = false;
+			_measureImmediateMesh?.ClearSurfaces();
+		}
+		EditorTapeMeasureStart = null;
+		EditorTapeMeasureEnd = null;
+		EditorTapeMeasureActive = false;
+	}
+
+	private MeshInstance3D _symmetryPivotMarkerMesh;
+
+	public void UpdateSymmetryPivotVisuals()
+	{
+		if (!IsMapEditorMode || GroundTerrain == null)
+		{
+			if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
+			return;
+		}
+
+		bool showPivot = EditorMirrorMode != MirrorMode.None || EditorPolarOverlayVisible;
+		if (!showPivot)
+		{
+			if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
+			return;
+		}
+
+		if (_symmetryPivotMarkerMesh == null)
+		{
+			_symmetryPivotMarkerMesh = new MeshInstance3D();
+			_symmetryPivotMarkerMesh.Name = "SymmetryPivotMarker";
+			var imm = new ImmediateMesh();
+			_symmetryPivotMarkerMesh.Mesh = imm;
+			var mat = new StandardMaterial3D
+			{
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				AlbedoColor = new Color(0.2f, 0.9f, 1.0f, 0.95f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				CullMode = BaseMaterial3D.CullModeEnum.Disabled
+			};
+			_symmetryPivotMarkerMesh.MaterialOverride = mat;
+			AddChild(_symmetryPivotMarkerMesh);
+		}
+
+		var immMesh = (ImmediateMesh)_symmetryPivotMarkerMesh.Mesh;
+		immMesh.ClearSurfaces();
+		immMesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
+		
+		float px = _editorService.SymmetryPivot.X;
+		float pz = _editorService.SymmetryPivot.Y;
+		float py = _editorService.GetTerrainHeightAt(new Vector3(px, 0, pz)) + 0.25f;
+		float s = 1.5f;
+
+		immMesh.SurfaceAddVertex(new Vector3(px - s, py, pz));
+		immMesh.SurfaceAddVertex(new Vector3(px + s, py, pz));
+		immMesh.SurfaceAddVertex(new Vector3(px, py, pz - s));
+		immMesh.SurfaceAddVertex(new Vector3(px, py, pz + s));
+		immMesh.SurfaceAddVertex(new Vector3(px, py, pz));
+		immMesh.SurfaceAddVertex(new Vector3(px, py + s, pz));
+
+		immMesh.SurfaceEnd();
+		_symmetryPivotMarkerMesh.Visible = true;
+	}
+
+	public void PerformRadialArrayDuplicateExternal()
+	{
+		if (GroundTerrain == null || !_editorService.HasCopiedArea) return;
+
+		int folds = EditorSymmetryFolds;
+		if (folds < 2) folds = 2;
+
+		int cx = _editorService.CopiedAreaSourceMinX + _editorService.CopiedAreaAnchorX;
+		int cz = _editorService.CopiedAreaSourceMinZ + _editorService.CopiedAreaAnchorZ;
+
+		float quadSize = GroundTerrain.QuadSize;
+		float halfW = GroundTerrain.Width / 2.0f;
+		float halfD = GroundTerrain.Depth / 2.0f;
+		Vector3 centerWorld = new Vector3((cx - halfW) * quadSize, 0, (cz - halfD) * quadSize);
+
+		Vector2 pivot = _editorService.SymmetryPivot;
+		float dx = centerWorld.X - pivot.X;
+		float dz = centerWorld.Z - pivot.Y;
+
+		var allActions = new List<IEditorAction>();
+
+		for (int k = 0; k < folds; k++)
+		{
+			float angleDeg = k * (360.0f / folds);
+			float angleRad = Mathf.DegToRad(angleDeg);
+			float cosA = Mathf.Cos(angleRad);
+			float sinA = Mathf.Sin(angleRad);
+
+			float rx = pivot.X + dx * cosA - dz * sinA;
+			float rz = pivot.Y + dx * sinA + dz * cosA;
+
+			int targetCellX = Mathf.Clamp((int)Math.Round(rx / quadSize + halfW), 0, GroundTerrain.Width - 1);
+			int targetCellZ = Mathf.Clamp((int)Math.Round(rz / quadSize + halfD), 0, GroundTerrain.Depth - 1);
+
+			float rot = (EditorPasteRotation + angleDeg) % 360.0f;
+			var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(targetCellX, targetCellZ, rot);
+
+			var pasteActions = PerformPasteArea(startX, startZ, rot, false);
+			if (pasteActions != null && pasteActions.Count > 0)
+			{
+				allActions.AddRange(pasteActions);
+			}
+		}
+
+		if (allActions.Count > 0)
+		{
+			var composite = new CompositeAction(allActions);
+			EditorHistoryManager.RecordAction(composite);
+			EditorHasUnsavedChanges = true;
+			GroundTerrain.UpdateMeshAndPhysics(false, false);
+			UpdatePathingOverlay();
+			MapEditorHUD.Instance?.ShowFeedbackExternal($"Radial Array Duplicate: Created {folds} copies");
+		}
 	}
 
 	public MeshInstance3D BrushIndicatorMesh => _brushIndicatorMesh;
@@ -5260,6 +5466,16 @@ public partial class GameHost
 			bool meshVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Mesh);
 			GroundTerrain.SetGridVisible(meshVisible);
 		}
+	}
+
+	public void UpdatePolarOverlayVisibility()
+	{
+		if (GroundTerrain != null)
+		{
+			bool polarVisible = IsMapEditorMode && EditorPolarOverlayVisible;
+			GroundTerrain.SetPolarOverlayVisible(polarVisible);
+		}
+		UpdateSymmetryPivotVisuals();
 	}
 
 	public void PerformFloodFill(Vector3 clickPos, int fillTextureIndex, bool isCliff = false)
@@ -5951,6 +6167,17 @@ public partial class GameHost
 				int mx = width - 1 - startX - pasteW + 1;
 				int mz = depth - 1 - startZ - pasteD + 1;
 				affectedRegions.Add(new Rect2I(mx - 2, mz - 2, pasteW + 4, pasteD + 4));
+			}
+			if (EditorMirrorMode == MirrorMode.Rotational || EditorMirrorMode == MirrorMode.Compound)
+			{
+				float quadSize = GroundTerrain.QuadSize;
+				Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - depth / 2.0f) * quadSize);
+				var transforms = _editorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+				foreach (var t in transforms)
+				{
+					var (rcx, rcz) = _editorService.WorldPosToCellCoords(t.Position);
+					affectedRegions.Add(new Rect2I(rcx - pasteW / 2 - 2, rcz - pasteD / 2 - 2, pasteW + 4, pasteD + 4));
+				}
 			}
 
 			if (pasteResult.HeightsModified)

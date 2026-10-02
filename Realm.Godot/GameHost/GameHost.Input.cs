@@ -88,6 +88,22 @@ public partial class GameHost
 				
 				if (editorKeyEvent.Keycode == Key.Escape)
 				{
+					if (ActiveEditorTool == EditorTool.Measure)
+					{
+						ClearMeasureVisuals();
+						MapEditorHUD.Instance?.ClearMeasureTelemetry();
+						GetViewport().SetInputAsHandled();
+						return;
+					}
+					if (ActiveEditorTool == EditorTool.PasteArea)
+					{
+						ActiveEditorTool = EditorTool.SelectArea;
+						MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
+						if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
+						MapEditorHUD.Instance?.ClearPasteTelemetry();
+						GetViewport().SetInputAsHandled();
+						return;
+					}
 					if (_is3DDragOperationActive)
 					{
 						_is3DDragOperationActive = false;
@@ -214,6 +230,31 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
+				if (editorKeyEvent.Keycode == Key.O && !ctrlPressed && !shiftPressed)
+				{
+					EditorPolarOverlayVisible = !EditorPolarOverlayVisible;
+					UpdatePolarOverlayVisibility();
+					MapEditorHUD.Instance?.UpdatePolarOverlayExternal(EditorPolarOverlayVisible);
+					MapEditorHUD.Instance?.ShowFeedbackExternal(EditorPolarOverlayVisible ? "Polar Overlay: ON" : "Polar Overlay: OFF");
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+				if (editorKeyEvent.Keycode == Key.U && !ctrlPressed && !shiftPressed)
+				{
+					ActiveEditorTool = ActiveEditorTool == EditorTool.Measure ? EditorTool.None : EditorTool.Measure;
+					MapEditorHUD.Instance?.SelectToolFromHotkey(ActiveEditorTool);
+					if (ActiveEditorTool != EditorTool.Measure)
+					{
+						ClearMeasureVisuals();
+						MapEditorHUD.Instance?.ClearMeasureTelemetry();
+					}
+					else
+					{
+						MapEditorHUD.Instance?.ShowFeedbackExternal("Tape Measure Active - Click Point A then Point B");
+					}
+					GetViewport().SetInputAsHandled();
+					return;
+				}
 				if (editorKeyEvent.Keycode == Key.G && ctrlPressed)
 				{
 					EditorSnapToGrid = !EditorSnapToGrid;
@@ -287,6 +328,12 @@ public partial class GameHost
 				}
 				if (editorKeyEvent.Keycode == Key.V && ctrlPressed)
 				{
+					if (shiftPressed)
+					{
+						PerformRadialArrayDuplicateExternal();
+						GetViewport().SetInputAsHandled();
+						return;
+					}
 					if (ActiveEditorTool == EditorTool.SelectArea || ActiveEditorTool == EditorTool.PasteArea)
 					{
 						if (_editorService.HasCopiedArea)
@@ -798,11 +845,19 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
+				if (ActiveEditorTool == EditorTool.Measure)
+				{
+					ClearMeasureVisuals();
+					MapEditorHUD.Instance?.ClearMeasureTelemetry();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
 				else if (ActiveEditorTool == EditorTool.PasteArea)
 				{
 					ActiveEditorTool = EditorTool.SelectArea;
 					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
 					if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
+					MapEditorHUD.Instance?.ClearPasteTelemetry();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -1541,14 +1596,30 @@ public partial class GameHost
 					{
 						if (GroundTerrain != null && _editorService.HasCopiedArea)
 						{
-							float fx = hitPos.X / GroundTerrain.QuadSize + (GroundTerrain.Width - 1) / 2.0f;
-							float fz = hitPos.Z / GroundTerrain.QuadSize + (GroundTerrain.Depth - 1) / 2.0f;
-							int cx = Mathf.Clamp((int)Math.Round(fx), 0, GroundTerrain.Width - 1);
-							int cz = Mathf.Clamp((int)Math.Round(fz), 0, GroundTerrain.Depth - 1);
-							PerformPasteArea(cx, cz, EditorPasteRotation);
-							ActiveEditorTool = EditorTool.SelectArea;
-							MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
-							if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
+							var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
+							var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation);
+							PerformPasteArea(startX, startZ, EditorPasteRotation);
+							MapEditorHUD.Instance?.ShowFeedbackExternal("Pasted clipboard contents");
+						}
+						GetViewport().SetInputAsHandled();
+					}
+					else if (ActiveEditorTool == EditorTool.Measure)
+					{
+						if (GroundTerrain != null)
+						{
+							if (!EditorTapeMeasureActive)
+							{
+								EditorTapeMeasureStart = hitPos;
+								EditorTapeMeasureEnd = hitPos;
+								EditorTapeMeasureActive = true;
+								UpdateMeasureVisuals(hitPos, hitPos);
+							}
+							else if (EditorTapeMeasureStart.HasValue)
+							{
+								EditorTapeMeasureEnd = hitPos;
+								UpdateMeasureVisuals(EditorTapeMeasureStart.Value, hitPos);
+								EditorTapeMeasureActive = false;
+							}
 						}
 						GetViewport().SetInputAsHandled();
 					}

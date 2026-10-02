@@ -355,7 +355,8 @@ public partial class GameHost : Node3D, IGameAPI
 		PaintPathing,
 		FloodFillPathing,
 		DrawCoordinate,
-		Water
+		Water,
+		Measure
 	}
 	private EditorTool _activeEditorTool = EditorTool.None;
 	public EditorTool ActiveEditorTool
@@ -483,6 +484,49 @@ public partial class GameHost : Node3D, IGameAPI
 		get => EcsWorld?.GetFieldOrDefault<EditorState, MirrorMode>(_worldEntity, s => s.MirrorMode, MirrorMode.None) ?? MirrorMode.None;
 		set => EcsWorld?.Mutate<EditorState>(_worldEntity, (ref EditorState s) => s.MirrorMode = value);
 	}
+
+	public Vector2 EditorSymmetryPivot
+	{
+		get => _editorService?.SymmetryPivot ?? Vector2.Zero;
+		set
+		{
+			if (_editorService != null) _editorService.SymmetryPivot = value;
+			UpdateSymmetryPivotVisuals();
+		}
+	}
+
+	public int EditorSymmetryFolds
+	{
+		get => _editorService?.SymmetryFolds ?? 4;
+		set
+		{
+			if (_editorService != null) _editorService.SymmetryFolds = value;
+			if (EditorPolarAutoStepWithSymmetry)
+			{
+				EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
+				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+			}
+		}
+	}
+
+	public MirrorMode EditorCompoundMirrorMode
+	{
+		get => _editorService?.CompoundMirrorMode ?? MirrorMode.Both;
+		set
+		{
+			if (_editorService != null) _editorService.CompoundMirrorMode = value;
+		}
+	}
+
+	public bool EditorPolarOverlayVisible { get; set; } = false;
+	public float EditorPolarRingSpacing { get; set; } = 8.0f;
+	public float EditorPolarRadialStep { get; set; } = 45.0f;
+	public bool EditorPolarAutoStepWithSymmetry { get; set; } = false;
+
+	public Vector3? EditorTapeMeasureStart { get; set; }
+	public Vector3? EditorTapeMeasureEnd { get; set; }
+	public bool EditorTapeMeasureActive { get; set; } = false;
+
 	public bool EditorBrushIsSquare { get; set; } = true;
 
 	private float _editorClumpCount = 5.0f;

@@ -161,6 +161,43 @@ public partial class MapEditorHUD : Control
 	private Button _btnMirrorHorizontally;
 	private HSlider _sldPasteRotation;
 	private Label _lblPasteRotation;
+
+	private Button _btnTogglePolar;
+	private Button _btnPolarRingSpacing;
+	private Button _btnPolarRadialStep;
+	private Button _btnTapeMeasure;
+	private Button _btnSetPivotToCursor;
+	private Button _btnResetPivotToCenter;
+
+	private PanelContainer _panelMeasurementHUD;
+	private Label _lblMeasureStraightDist;
+	private Label _lblMeasureManhattanDist;
+	private Label _lblMeasureDeltas;
+	private Label _lblMeasureAngleSlope;
+
+	private Button _btnSymmetryFolds;
+	private Button _btnCompoundMirrorMode;
+	private Button _btnBrushSetPivot;
+	private Button _btnBrushResetPivot;
+
+	private Button _btnPlacementSymmetryFolds;
+	private Button _btnPlacementCompoundMirrorMode;
+	private Button _btnPlacementSetPivot;
+	private Button _btnPlacementResetPivot;
+
+	private Button _btnPasteAnchor;
+	private Button _btnRadialDuplicate;
+	private Label _lblPasteTelemetry;
+
+	private int _currentPasteAnchorIndex = 0;
+	private static readonly string[] _pasteAnchorNames = new string[]
+	{
+		"CENTER",
+		"TOP-LEFT",
+		"TOP-RIGHT",
+		"BOTTOM-RIGHT",
+		"BOTTOM-LEFT"
+	};
 	
 	private List<Button> _swatchButtons = new List<Button>();
 	private List<string> _swatchPaths = new List<string>();
@@ -933,6 +970,140 @@ public partial class MapEditorHUD : Control
 		_mapSettingsDialog = new MapSettingsDialog(this);
 		AddChild(_mapSettingsDialog);
 
+		_btnTogglePolar = new Button();
+		_btnTogglePolar.Name = "BtnTogglePolar";
+		_btnTogglePolar.Set("icon_max_width", 0);
+		SetupButton(_btnTogglePolar, "\uf192", () =>
+		{
+			if (GameHost.Instance != null)
+			{
+				GameHost.Instance.EditorPolarOverlayVisible = !GameHost.Instance.EditorPolarOverlayVisible;
+				GameHost.Instance.UpdatePolarOverlayVisibility();
+				UpdatePolarOverlayExternal(GameHost.Instance.EditorPolarOverlayVisible);
+				ShowFeedback(GameHost.Instance.EditorPolarOverlayVisible ? "Polar Overlay: ON" : "Polar Overlay: OFF");
+			}
+		}, 12, "Toggle polar and radial distance rings overlay (O)");
+
+		_btnTapeMeasure = new Button();
+		_btnTapeMeasure.Name = "BtnTapeMeasure";
+		_btnTapeMeasure.Set("icon_max_width", 0);
+		SetupButton(_btnTapeMeasure, "\uf545", () =>
+		{
+			if (GameHost.Instance != null)
+			{
+				if (GameHost.Instance.ActiveEditorTool == GameHost.EditorTool.Measure)
+				{
+					GameHost.Instance.ClearMeasureVisuals();
+					ClearMeasureTelemetry();
+					TriggerToolSelection(SavedActiveTool != GameHost.EditorTool.Measure ? SavedActiveTool : GameHost.EditorTool.Raise, null);
+				}
+				else
+				{
+					TriggerToolSelection(GameHost.EditorTool.Measure, _btnTapeMeasure);
+				}
+			}
+		}, 12, "Tape Measure Tool: Click Point A, then Point B to measure distance & slope (U)");
+
+		_btnPolarRingSpacing = new Button();
+		_btnPolarRingSpacing.Name = "BtnPolarRingSpacing";
+		_btnPolarRingSpacing.Set("icon_max_width", 0);
+		SetupOptionButton(_btnPolarRingSpacing, "\uf111 RINGS: 8T", () => CyclePolarRingSpacing(), 10, "Cycle interval between concentric polar distance rings (4, 8, 16, 32 tiles)");
+
+		_btnPolarRadialStep = new Button();
+		_btnPolarRadialStep.Name = "BtnPolarRadialStep";
+		_btnPolarRadialStep.Set("icon_max_width", 0);
+		SetupOptionButton(_btnPolarRadialStep, "\uf14e SPOKES: 45°", () => CyclePolarRadialStep(), 10, "Cycle radial spoke angle increments (15°, 30°, 45°, 60°, 90°, Auto/Symmetry)");
+
+		_btnSetPivotToCursor = new Button();
+		_btnSetPivotToCursor.Name = "BtnSetPivotToCursor";
+		_btnSetPivotToCursor.Set("icon_max_width", 0);
+		SetupOptionButton(_btnSetPivotToCursor, "\uf245 SET PIVOT", () => SetPivotToCursor(), 10, "Set symmetry and polar overlay center pivot to cursor position");
+
+		_btnResetPivotToCenter = new Button();
+		_btnResetPivotToCenter.Name = "BtnResetPivotToCenter";
+		_btnResetPivotToCenter.Set("icon_max_width", 0);
+		SetupOptionButton(_btnResetPivotToCenter, "\uf05b RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry and polar overlay center pivot to true map center");
+
+		_panelMeasurementHUD = new PanelContainer();
+		_panelMeasurementHUD.Name = "MeasurementHUD";
+		_panelMeasurementHUD.SetAnchorsPreset(LayoutPreset.CenterTop);
+		_panelMeasurementHUD.GrowHorizontal = GrowDirection.Both;
+		_panelMeasurementHUD.GrowVertical = GrowDirection.Begin;
+		_panelMeasurementHUD.OffsetTop = 60;
+		_panelMeasurementHUD.OffsetLeft = -220;
+		_panelMeasurementHUD.OffsetRight = 220;
+		_panelMeasurementHUD.CustomMinimumSize = new Vector2(440, 0);
+		_panelMeasurementHUD.MouseFilter = MouseFilterEnum.Ignore;
+		_panelMeasurementHUD.Visible = false;
+
+		var hudStyle = new StyleBoxFlat
+		{
+			BgColor = new Color(0.08f, 0.09f, 0.12f, 0.90f),
+			BorderWidthLeft = 1,
+			BorderWidthTop = 1,
+			BorderWidthRight = 1,
+			BorderWidthBottom = 1,
+			BorderColor = new Color(0.3f, 0.7f, 1.0f, 0.8f),
+			CornerRadiusTopLeft = 6,
+			CornerRadiusTopRight = 6,
+			CornerRadiusBottomLeft = 6,
+			CornerRadiusBottomRight = 6,
+			ContentMarginLeft = 12,
+			ContentMarginRight = 12,
+			ContentMarginTop = 8,
+			ContentMarginBottom = 8
+		};
+		_panelMeasurementHUD.AddThemeStyleboxOverride("panel", hudStyle);
+
+		var hudVBox = new VBoxContainer();
+		hudVBox.AddThemeConstantOverride("separation", 4);
+		hudVBox.MouseFilter = MouseFilterEnum.Ignore;
+
+		var hudTitle = new Label();
+		hudTitle.Text = TranslationServer.Translate("📏 TAPE MEASURE TELEMETRY");
+		hudTitle.HorizontalAlignment = HorizontalAlignment.Center;
+		hudTitle.AddThemeFontSizeOverride("font_size", 12);
+		hudTitle.AddThemeColorOverride("font_color", new Color(0.3f, 0.85f, 1.0f));
+		hudVBox.AddChild(hudTitle);
+
+		var hudRow1 = new HBoxContainer();
+		hudRow1.AddThemeConstantOverride("separation", 16);
+		hudRow1.Alignment = BoxContainer.AlignmentMode.Center;
+
+		_lblMeasureStraightDist = new Label();
+		_lblMeasureStraightDist.Text = "Distance: 0.0 tiles (0.0 m)";
+		_lblMeasureStraightDist.AddThemeFontSizeOverride("font_size", 11);
+		hudRow1.AddChild(_lblMeasureStraightDist);
+
+		_lblMeasureManhattanDist = new Label();
+		_lblMeasureManhattanDist.Text = "Manhattan: 0.0 tiles";
+		_lblMeasureManhattanDist.AddThemeFontSizeOverride("font_size", 11);
+		_lblMeasureManhattanDist.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.85f));
+		hudRow1.AddChild(_lblMeasureManhattanDist);
+
+		hudVBox.AddChild(hudRow1);
+
+		var hudRow2 = new HBoxContainer();
+		hudRow2.AddThemeConstantOverride("separation", 16);
+		hudRow2.Alignment = BoxContainer.AlignmentMode.Center;
+
+		_lblMeasureDeltas = new Label();
+		_lblMeasureDeltas.Text = "ΔX: 0.0, ΔZ: 0.0, ΔY: 0.0";
+		_lblMeasureDeltas.AddThemeFontSizeOverride("font_size", 11);
+		_lblMeasureDeltas.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.85f));
+		hudRow2.AddChild(_lblMeasureDeltas);
+
+		_lblMeasureAngleSlope = new Label();
+		_lblMeasureAngleSlope.Text = "Angle: 0.0° | Slope: 0.0%";
+		_lblMeasureAngleSlope.AddThemeFontSizeOverride("font_size", 11);
+		_lblMeasureAngleSlope.AddThemeColorOverride("font_color", new Color(0.9f, 0.75f, 0.3f));
+		hudRow2.AddChild(_lblMeasureAngleSlope);
+
+		hudVBox.AddChild(hudRow2);
+
+		_panelMeasurementHUD.AddChild(hudVBox);
+		AddChild(_panelMeasurementHUD);
+
 		ApplyThemeStyles();
 		SetupLightingTuningUI();
 
@@ -1081,6 +1252,26 @@ public partial class MapEditorHUD : Control
 
 		_btnMirrorMode = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BtnMirrorMode");
 		SetupOptionButton(_btnMirrorMode, "\uf05e MIRROR: NONE", () => CycleMirrorMode(), 10, "Cycle terrain and object mirroring symmetry mode");
+
+		_btnSymmetryFolds = new Button();
+		_btnSymmetryFolds.Name = "BtnSymmetryFolds";
+		_btnSymmetryFolds.Set("icon_max_width", 0);
+		SetupOptionButton(_btnSymmetryFolds, "\uf1b2 FOLDS: 4", () => CycleSymmetryFolds(), 10, "Cycle N-fold rotational symmetry count (2, 3, 4, 5, 6, 8, 12, 16)");
+
+		_btnCompoundMirrorMode = new Button();
+		_btnCompoundMirrorMode.Name = "BtnCompoundMirrorMode";
+		_btnCompoundMirrorMode.Set("icon_max_width", 0);
+		SetupOptionButton(_btnCompoundMirrorMode, "\uf07e REFLECT: HORIZONTAL", () => CycleCompoundMirrorMode(), 10, "Cycle compound bilateral reflection plane (Horizontal, Vertical, Both)");
+
+		_btnBrushSetPivot = new Button();
+		_btnBrushSetPivot.Name = "BtnBrushSetPivot";
+		_btnBrushSetPivot.Set("icon_max_width", 0);
+		SetupOptionButton(_btnBrushSetPivot, "\uf245 SET PIVOT", () => SetPivotToCursor(), 10, "Set symmetry pivot to cursor position");
+
+		_btnBrushResetPivot = new Button();
+		_btnBrushResetPivot.Name = "BtnBrushResetPivot";
+		_btnBrushResetPivot.Set("icon_max_width", 0);
+		SetupOptionButton(_btnBrushResetPivot, "\uf05b RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry pivot to map center");
 
 		_chkBlockMode = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ChkBlockMode");
 		_chkBlockMode.Toggled += (toggled) =>
@@ -1473,6 +1664,36 @@ public partial class MapEditorHUD : Control
 		_sldPasteRotation.DragStarted += () => _isDraggingSlider = true;
 		_sldPasteRotation.DragEnded += (valueChanged) => _isDraggingSlider = false;
 
+		_btnPasteAnchor = new Button();
+		_btnPasteAnchor.Name = "BtnPasteAnchor";
+		_btnPasteAnchor.Set("icon_max_width", 0);
+		SetupOptionButton(_btnPasteAnchor, "\uf245 ANCHOR: CENTER", () => CyclePasteAnchor(), 11, "Cycle pivot / anchor tile used to align pasted selection (Center, Corners)");
+
+		_btnRadialDuplicate = new Button();
+		_btnRadialDuplicate.Name = "BtnRadialDuplicate";
+		_btnRadialDuplicate.Set("icon_max_width", 0);
+		SetupOptionButton(_btnRadialDuplicate, "\uf01e RADIAL DUPLICATE", () =>
+		{
+			GameHost.Instance?.PerformRadialArrayDuplicateExternal();
+		}, 11, "Stamp copies rotated symmetrically around the symmetry pivot (Ctrl+Shift+V)");
+
+		_lblPasteTelemetry = new Label();
+		_lblPasteTelemetry.Name = "LblPasteTelemetry";
+		_lblPasteTelemetry.AddThemeFontSizeOverride("font_size", 10);
+		_lblPasteTelemetry.AddThemeColorOverride("font_color", new Color(0.3f, 0.85f, 1.0f));
+		_lblPasteTelemetry.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_lblPasteTelemetry.CustomMinimumSize = new Vector2(200, 0);
+		_lblPasteTelemetry.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_lblPasteTelemetry.Text = "";
+
+		var pasteOptionsBox = _containerPasteSettings.GetNodeOrNull<VBoxContainer>("PasteOptionsBox");
+		if (pasteOptionsBox != null)
+		{
+			pasteOptionsBox.AddChild(_btnPasteAnchor);
+			pasteOptionsBox.AddChild(_btnRadialDuplicate);
+			pasteOptionsBox.AddChild(_lblPasteTelemetry);
+		}
+
 		_accordionInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion");
 		_btnHeaderInspector = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/BtnHeaderInspector");
 		_contentInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector");
@@ -1508,6 +1729,26 @@ public partial class MapEditorHUD : Control
 			_contentPlacement.AddChild(_btnPlacementMirrorMode);
 			_contentPlacement.MoveChild(_btnPlacementMirrorMode, _btnToggleSnap.GetIndex() + 1);
 		}
+
+		_btnPlacementSymmetryFolds = new Button();
+		_btnPlacementSymmetryFolds.Name = "BtnPlacementSymmetryFolds";
+		_btnPlacementSymmetryFolds.Set("icon_max_width", 0);
+		SetupOptionButton(_btnPlacementSymmetryFolds, "\uf1b2 FOLDS: 4", () => CycleSymmetryFolds(), 10, "Cycle N-fold rotational symmetry count (2, 3, 4, 5, 6, 8, 12, 16)");
+
+		_btnPlacementCompoundMirrorMode = new Button();
+		_btnPlacementCompoundMirrorMode.Name = "BtnPlacementCompoundMirrorMode";
+		_btnPlacementCompoundMirrorMode.Set("icon_max_width", 0);
+		SetupOptionButton(_btnPlacementCompoundMirrorMode, "\uf07e REFLECT: HORIZONTAL", () => CycleCompoundMirrorMode(), 10, "Cycle compound bilateral reflection plane (Horizontal, Vertical, Both)");
+
+		_btnPlacementSetPivot = new Button();
+		_btnPlacementSetPivot.Name = "BtnPlacementSetPivot";
+		_btnPlacementSetPivot.Set("icon_max_width", 0);
+		SetupOptionButton(_btnPlacementSetPivot, "\uf245 SET PIVOT", () => SetPivotToCursor(), 10, "Set symmetry pivot to cursor position");
+
+		_btnPlacementResetPivot = new Button();
+		_btnPlacementResetPivot.Name = "BtnPlacementResetPivot";
+		_btnPlacementResetPivot.Set("icon_max_width", 0);
+		SetupOptionButton(_btnPlacementResetPivot, "\uf05b RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry pivot to map center");
 
 		_chkRandomRotation = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomRotation");
 		_chkRandomScale = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomScale");
@@ -2280,6 +2521,74 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
+	public void UpdatePolarOverlayExternal(bool visible)
+	{
+		if (_btnTogglePolar != null)
+		{
+			_btnTogglePolar.Text = "\uf192";
+			_btnTogglePolar.TooltipText = TranslationServer.Translate($"Polar & Radial Overlay: {(visible ? "ON" : "OFF")} (O)");
+			_btnTogglePolar.Modulate = visible ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
+		}
+	}
+
+	public void UpdateMeasureToolExternal(bool active)
+	{
+		if (_btnTapeMeasure != null)
+		{
+			_btnTapeMeasure.Text = "\uf545";
+			_btnTapeMeasure.TooltipText = TranslationServer.Translate($"Tape Measure Tool: {(active ? "ACTIVE" : "INACTIVE")} (U)");
+			_btnTapeMeasure.Modulate = active ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
+		}
+	}
+
+	public void UpdateMeasureTelemetry(float eucTiles, float eucWorld, float manhattanTiles, float dx, float dz, float dy, float angleDeg, float slopePct)
+	{
+		if (_panelMeasurementHUD == null) return;
+		_panelMeasurementHUD.Visible = true;
+		if (_lblMeasureStraightDist != null)
+		{
+			_lblMeasureStraightDist.Text = string.Format(TranslationServer.Translate("Distance: {0:F1} tiles ({1:F1} m)"), eucTiles, eucWorld);
+		}
+		if (_lblMeasureManhattanDist != null)
+		{
+			_lblMeasureManhattanDist.Text = string.Format(TranslationServer.Translate("Manhattan: {0:F1} tiles"), manhattanTiles);
+		}
+		if (_lblMeasureDeltas != null)
+		{
+			_lblMeasureDeltas.Text = string.Format("ΔX: {0:+0.0;-0.0;0.0}, ΔZ: {1:+0.0;-0.0;0.0}, ΔY: {2:+0.00;-0.00;0.00}", dx, dz, dy);
+		}
+		if (_lblMeasureAngleSlope != null)
+		{
+			_lblMeasureAngleSlope.Text = string.Format(TranslationServer.Translate("Angle: {0:F1}° | Slope: {1:F1}%"), angleDeg, slopePct);
+		}
+	}
+
+	public void ClearMeasureTelemetry()
+	{
+		if (_panelMeasurementHUD != null)
+		{
+			_panelMeasurementHUD.Visible = false;
+		}
+	}
+
+	public void UpdatePasteTelemetry(int deltaX, int deltaZ, float distTiles, float distWorld, float angleDeg)
+	{
+		if (_lblPasteTelemetry != null)
+		{
+			_lblPasteTelemetry.Visible = true;
+			_lblPasteTelemetry.Text = string.Format("ΔX: {0:+0;-0;0}, ΔZ: {1:+0;-0;0} | Pivot: {2:F1}T ({3:F1}m) @ {4:F1}°",
+				deltaX, deltaZ, distTiles, distWorld, angleDeg);
+		}
+	}
+
+	public void ClearPasteTelemetry()
+	{
+		if (_lblPasteTelemetry != null)
+		{
+			_lblPasteTelemetry.Text = "";
+		}
+	}
+
 	public void UpdateCameraBoundsOverlayExternal(bool visible)
 	{
 		if (_btnToggleCameraBounds != null)
@@ -2926,6 +3235,7 @@ public partial class MapEditorHUD : Control
 			case GameHost.EditorTool.DeleteObject: targetBtn = _btnDeleteObject; break;
 			case GameHost.EditorTool.SelectMove: targetBtn = _btnSelectMove; break;
 			case GameHost.EditorTool.Eyedropper: targetBtn = _btnEyedropper; break;
+			case GameHost.EditorTool.Measure: targetBtn = _btnTapeMeasure; break;
 		}
 		if (targetBtn != null)
 		{
@@ -3260,6 +3570,9 @@ public partial class MapEditorHUD : Control
 					break;
 				case GameHost.EditorTool.FloodFillPathing:
 					_lblInfoText.Text = TranslationServer.Translate("TOOL: Flood Fill Pathing\n\nClick once on the terrain map to flood-fill pathing properties (ground, flying, water, etc.) across an area sharing the same texture color until hitting a boundary. Use checkboxes to select layers, and Mode to Add/Remove.");
+					break;
+				case GameHost.EditorTool.Measure:
+					_lblInfoText.Text = TranslationServer.Translate("TOOL: Tape Measure\n\nClick on the terrain to set measurement origin. Move the cursor or click again to lock the endpoint. Displays live Euclidean distance, Manhattan distance, grid delta, and slope.");
 					break;
 				case GameHost.EditorTool.None:
 					_lblInfoText.Text = TranslationServer.Translate("Select a tool from the panels to begin terrain modification.");
@@ -6310,23 +6623,31 @@ public partial class MapEditorHUD : Control
 			MirrorMode.None => MirrorMode.Vertical,
 			MirrorMode.Vertical => MirrorMode.Horizontal,
 			MirrorMode.Horizontal => MirrorMode.Both,
-			MirrorMode.Both => MirrorMode.None,
+			MirrorMode.Both => MirrorMode.Rotational,
+			MirrorMode.Rotational => MirrorMode.Compound,
+			MirrorMode.Compound => MirrorMode.None,
 			_ => MirrorMode.None
 		};
 		GameHost.Instance.EditorMirrorMode = next;
+		GameHost.Instance.UpdateSymmetryPivotVisuals();
 		UpdateMirrorButtonText();
-		ShowFeedback(string.Format(TranslationServer.Translate("Mirroring: {0}"), next.ToString().ToUpper()));
+		UpdateSymmetrySubControlsVisibility();
+		ShowFeedback(string.Format(TranslationServer.Translate("Mirroring: {0}"), next.ToString().ToUpperInvariant()));
 	}
 
 	public void UpdateMirrorButtonText()
 	{
 		if (GameHost.Instance == null) return;
+		int folds = GameHost.Instance.EditorSymmetryFolds;
+		var compound = GameHost.Instance.EditorCompoundMirrorMode;
 		string modeText = GameHost.Instance.EditorMirrorMode switch
 		{
 			MirrorMode.None => TranslationServer.Translate("\uf05e MIRROR: NONE"),
 			MirrorMode.Vertical => TranslationServer.Translate("\uf07d MIRROR: VERTICAL"),
 			MirrorMode.Horizontal => TranslationServer.Translate("\uf07e MIRROR: HORIZONTAL"),
 			MirrorMode.Both => TranslationServer.Translate("\uf00a MIRROR: BOTH"),
+			MirrorMode.Rotational => string.Format(TranslationServer.Translate("\uf01e ROTATIONAL ({0}-FOLD)"), folds),
+			MirrorMode.Compound => string.Format(TranslationServer.Translate("\uf074 COMPOUND ({0}F + {1})"), folds, compound.ToString().ToUpperInvariant()),
 			_ => TranslationServer.Translate("\uf05e MIRROR: NONE")
 		};
 		if (_btnMirrorMode != null)
@@ -6336,6 +6657,232 @@ public partial class MapEditorHUD : Control
 		if (_btnPlacementMirrorMode != null)
 		{
 			_btnPlacementMirrorMode.Text = modeText;
+		}
+		UpdateSymmetrySubControlsVisibility();
+	}
+
+	private void CycleSymmetryFolds()
+	{
+		if (GameHost.Instance == null) return;
+		int current = GameHost.Instance.EditorSymmetryFolds;
+		int next = current switch
+		{
+			2 => 3,
+			3 => 4,
+			4 => 5,
+			5 => 6,
+			6 => 8,
+			8 => 12,
+			12 => 16,
+			16 => 2,
+			_ => 4
+		};
+		GameHost.Instance.EditorSymmetryFolds = next;
+		UpdateSymmetryFoldsButtonText();
+		UpdateMirrorButtonText();
+		if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
+		{
+			GameHost.Instance.EditorPolarRadialStep = 360.0f / next;
+			GameHost.Instance.GroundTerrain?.SetPolarRadialStep(GameHost.Instance.EditorPolarRadialStep);
+			UpdatePolarRadialStepButtonText();
+		}
+		ShowFeedback(string.Format(TranslationServer.Translate("Symmetry Folds: {0}-way"), next));
+	}
+
+	public void UpdateSymmetryFoldsButtonText()
+	{
+		if (GameHost.Instance == null) return;
+		int folds = GameHost.Instance.EditorSymmetryFolds;
+		string text = string.Format(TranslationServer.Translate("\uf1b2 FOLDS: {0}"), folds);
+		if (_btnSymmetryFolds != null) _btnSymmetryFolds.Text = text;
+		if (_btnPlacementSymmetryFolds != null) _btnPlacementSymmetryFolds.Text = text;
+	}
+
+	private void CycleCompoundMirrorMode()
+	{
+		if (GameHost.Instance == null) return;
+		var current = GameHost.Instance.EditorCompoundMirrorMode;
+		var next = current switch
+		{
+			MirrorMode.Horizontal => MirrorMode.Vertical,
+			MirrorMode.Vertical => MirrorMode.Both,
+			MirrorMode.Both => MirrorMode.Horizontal,
+			_ => MirrorMode.Horizontal
+		};
+		GameHost.Instance.EditorCompoundMirrorMode = next;
+		UpdateCompoundMirrorButtonText();
+		UpdateMirrorButtonText();
+		ShowFeedback(string.Format(TranslationServer.Translate("Compound Reflection: {0}"), next.ToString().ToUpperInvariant()));
+	}
+
+	public void UpdateCompoundMirrorButtonText()
+	{
+		if (GameHost.Instance == null) return;
+		string text = string.Format(TranslationServer.Translate("\uf07e REFLECT: {0}"), GameHost.Instance.EditorCompoundMirrorMode.ToString().ToUpperInvariant());
+		if (_btnCompoundMirrorMode != null) _btnCompoundMirrorMode.Text = text;
+		if (_btnPlacementCompoundMirrorMode != null) _btnPlacementCompoundMirrorMode.Text = text;
+	}
+
+	private void UpdateSymmetrySubControlsVisibility()
+	{
+		if (GameHost.Instance == null) return;
+		var mode = GameHost.Instance.EditorMirrorMode;
+		bool isRotationalOrCompound = mode == MirrorMode.Rotational || mode == MirrorMode.Compound;
+		bool isCompound = mode == MirrorMode.Compound;
+		bool hasMirror = mode != MirrorMode.None;
+
+		if (_btnSymmetryFolds != null) _btnSymmetryFolds.Visible = isRotationalOrCompound;
+		if (_btnPlacementSymmetryFolds != null) _btnPlacementSymmetryFolds.Visible = isRotationalOrCompound;
+		if (_btnCompoundMirrorMode != null) _btnCompoundMirrorMode.Visible = isCompound;
+		if (_btnPlacementCompoundMirrorMode != null) _btnPlacementCompoundMirrorMode.Visible = isCompound;
+		if (_btnBrushSetPivot != null) _btnBrushSetPivot.Visible = hasMirror;
+		if (_btnBrushResetPivot != null) _btnBrushResetPivot.Visible = hasMirror;
+		if (_btnPlacementSetPivot != null) _btnPlacementSetPivot.Visible = hasMirror;
+		if (_btnPlacementResetPivot != null) _btnPlacementResetPivot.Visible = hasMirror;
+	}
+
+	private void CyclePolarRingSpacing()
+	{
+		if (GameHost.Instance == null) return;
+		float current = GameHost.Instance.EditorPolarRingSpacing;
+		float next = current switch
+		{
+			<= 4.5f => 8.0f,
+			<= 8.5f => 16.0f,
+			<= 16.5f => 32.0f,
+			_ => 4.0f
+		};
+		GameHost.Instance.EditorPolarRingSpacing = next;
+		GameHost.Instance.GroundTerrain?.SetPolarRingSpacing(next);
+		UpdatePolarRingSpacingButtonText();
+		ShowFeedback(string.Format(TranslationServer.Translate("Polar Ring Spacing: {0:F0} tiles"), next));
+	}
+
+	public void UpdatePolarRingSpacingButtonText()
+	{
+		if (_btnPolarRingSpacing != null && GameHost.Instance != null)
+		{
+			_btnPolarRingSpacing.Text = string.Format(TranslationServer.Translate("\uf111 RINGS: {0:F0}T"), GameHost.Instance.EditorPolarRingSpacing);
+		}
+	}
+
+	private void CyclePolarRadialStep()
+	{
+		if (GameHost.Instance == null) return;
+		if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
+		{
+			GameHost.Instance.EditorPolarAutoStepWithSymmetry = false;
+			GameHost.Instance.EditorPolarRadialStep = 15.0f;
+		}
+		else
+		{
+			float current = GameHost.Instance.EditorPolarRadialStep;
+			if (current <= 15.5f) GameHost.Instance.EditorPolarRadialStep = 30.0f;
+			else if (current <= 30.5f) GameHost.Instance.EditorPolarRadialStep = 45.0f;
+			else if (current <= 45.5f) GameHost.Instance.EditorPolarRadialStep = 60.0f;
+			else if (current <= 60.5f) GameHost.Instance.EditorPolarRadialStep = 90.0f;
+			else
+			{
+				GameHost.Instance.EditorPolarAutoStepWithSymmetry = true;
+				int folds = Math.Max(1, GameHost.Instance.EditorSymmetryFolds);
+				GameHost.Instance.EditorPolarRadialStep = 360.0f / folds;
+			}
+		}
+		GameHost.Instance.GroundTerrain?.SetPolarRadialStep(GameHost.Instance.EditorPolarRadialStep);
+		UpdatePolarRadialStepButtonText();
+		ShowFeedback(GameHost.Instance.EditorPolarAutoStepWithSymmetry
+			? string.Format(TranslationServer.Translate("Polar Spokes: Auto ({0}-Fold / {1:F1}°)"), GameHost.Instance.EditorSymmetryFolds, GameHost.Instance.EditorPolarRadialStep)
+			: string.Format(TranslationServer.Translate("Polar Spokes: {0:F0}°"), GameHost.Instance.EditorPolarRadialStep));
+	}
+
+	public void UpdatePolarRadialStepButtonText()
+	{
+		if (_btnPolarRadialStep != null && GameHost.Instance != null)
+		{
+			if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
+			{
+				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: AUTO ({0})"), GameHost.Instance.EditorSymmetryFolds);
+			}
+			else
+			{
+				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: {0:F0}°"), GameHost.Instance.EditorPolarRadialStep);
+			}
+		}
+	}
+
+	private void SetPivotToCursor()
+	{
+		if (GameHost.Instance == null || GameHost.Instance.GroundTerrain == null) return;
+		var viewport = GetViewport();
+		Vector3 hitPos = Vector3.Zero;
+		bool hasHit = false;
+		if (viewport != null)
+		{
+			hasHit = GameHost.Instance.TryRaycastTerrainFromMousePosition(viewport.GetMousePosition(), out hitPos);
+		}
+		if (!hasHit)
+		{
+			hitPos = GameHost.Instance.MainCamera?.GlobalPosition ?? Vector3.Zero;
+		}
+		var pivot = new Vector2(hitPos.X, hitPos.Z);
+		GameHost.Instance.EditorSymmetryPivot = pivot;
+		GameHost.Instance.GroundTerrain.SetPolarCenter(pivot);
+		GameHost.Instance.UpdateSymmetryPivotVisuals();
+		var (cx, cz) = _editorService != null ? _editorService.WorldPosToCellCoords(hitPos) : (0, 0);
+		ShowFeedback(string.Format(TranslationServer.Translate("Symmetry & Polar Pivot set to tile ({0}, {1})"), cx, cz));
+	}
+
+	private void ResetPivotToMapCenter()
+	{
+		if (GameHost.Instance == null || GameHost.Instance.GroundTerrain == null) return;
+		float quad = GameHost.Instance.GroundTerrain.QuadSize;
+		float halfW = (GameHost.Instance.GroundTerrain.Width * quad) / 2.0f;
+		float halfD = (GameHost.Instance.GroundTerrain.Depth * quad) / 2.0f;
+		var pivot = new Vector2(halfW, halfD);
+		GameHost.Instance.EditorSymmetryPivot = pivot;
+		GameHost.Instance.GroundTerrain.SetPolarCenter(pivot);
+		GameHost.Instance.UpdateSymmetryPivotVisuals();
+		ShowFeedback(TranslationServer.Translate("Symmetry & Polar Pivot reset to Map Center"));
+	}
+
+	private void CyclePasteAnchor()
+	{
+		if (_editorService == null || !_editorService.HasCopiedArea)
+		{
+			ShowFeedback(TranslationServer.Translate("No area currently in clipboard to set anchor for."));
+			return;
+		}
+		_currentPasteAnchorIndex = (_currentPasteAnchorIndex + 1) % _pasteAnchorNames.Length;
+		int w = _editorService.CopiedAreaWidth;
+		int d = _editorService.CopiedAreaDepth;
+		int ax = _currentPasteAnchorIndex switch
+		{
+			0 => w / 2,
+			1 => 0,
+			2 => Math.Max(0, w - 1),
+			3 => Math.Max(0, w - 1),
+			4 => 0,
+			_ => w / 2
+		};
+		int az = _currentPasteAnchorIndex switch
+		{
+			0 => d / 2,
+			1 => 0,
+			2 => 0,
+			3 => Math.Max(0, d - 1),
+			4 => Math.Max(0, d - 1),
+			_ => d / 2
+		};
+		_editorService.SetCopiedAreaAnchor(ax, az);
+		UpdatePasteAnchorButtonText();
+		ShowFeedback(string.Format(TranslationServer.Translate("Paste Anchor: {0}"), TranslationServer.Translate(_pasteAnchorNames[_currentPasteAnchorIndex])));
+	}
+
+	public void UpdatePasteAnchorButtonText()
+	{
+		if (_btnPasteAnchor != null)
+		{
+			_btnPasteAnchor.Text = string.Format(TranslationServer.Translate("\uf245 ANCHOR: {0}"), TranslationServer.Translate(_pasteAnchorNames[_currentPasteAnchorIndex]));
 		}
 	}
 
@@ -7301,12 +7848,14 @@ public partial class MapEditorHUD : Control
 			vpRow2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 			StyleIconButton(_btnToggleGrid, "\uf84c", "Toggle alignment grid lines overlay (V)");
+			StyleIconButton(_btnTogglePolar, "\uf192", "Toggle polar & radial rings overlay (O)");
+			StyleIconButton(_btnTapeMeasure, "\uf545", "Tape measure distance & slope tool (U)");
 			StyleIconButton(_btnToggleCameraBounds, "\uf06e", "Toggle camera bounds overlay (B)");
 			StyleIconButton(_btnToggleWireframe, "\uf5ee", "Toggle wireframe mode (F7)");
 			StyleIconButton(_btnToggleShadows, "\uf186", "Toggle shadows in editor (F9)");
+
 			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
 			StyleIconButton(_btnWeather, "\uf738", "Cycle weather effects (K)");
-
 			StyleIconButton(_btnRotate, "\uf01e", "Rotate camera 90 degrees (R)");
 			StyleIconButton(_btnCameraAngle, "\uf1b2", "Toggle perspective vs top-down angle (C)");
 			StyleIconButton(_btnZoomIn, "\uf00e", "Zoom camera in (+)");
@@ -7314,12 +7863,14 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
 
 			SafeReparent(_btnToggleGrid, vpRow1);
+			SafeReparent(_btnTogglePolar, vpRow1);
+			SafeReparent(_btnTapeMeasure, vpRow1);
 			SafeReparent(_btnToggleCameraBounds, vpRow1);
 			SafeReparent(_btnToggleWireframe, vpRow1);
 			SafeReparent(_btnToggleShadows, vpRow1);
-			SafeReparent(_btnSkybox, vpRow1);
-			SafeReparent(_btnWeather, vpRow1);
 
+			SafeReparent(_btnSkybox, vpRow2);
+			SafeReparent(_btnWeather, vpRow2);
 			SafeReparent(_btnRotate, vpRow2);
 			SafeReparent(_btnCameraAngle, vpRow2);
 			SafeReparent(_btnZoomIn, vpRow2);
@@ -7333,7 +7884,28 @@ public partial class MapEditorHUD : Control
 			vpBox.AddChild(vpRow2);
 			StyleSubContainer(vpBox, "Navigation Bar");
 
+			var polarBox = new VBoxContainer();
+			polarBox.Name = "BoxPolarSymmetryConfig";
+			polarBox.AddThemeConstantOverride("separation", 4);
+
+			var polarRow1 = new HBoxContainer();
+			polarRow1.AddThemeConstantOverride("separation", 4);
+			polarRow1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			SafeReparent(_btnPolarRingSpacing, polarRow1);
+			SafeReparent(_btnPolarRadialStep, polarRow1);
+
+			var polarRow2 = new HBoxContainer();
+			polarRow2.AddThemeConstantOverride("separation", 4);
+			polarRow2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			SafeReparent(_btnSetPivotToCursor, polarRow2);
+			SafeReparent(_btnResetPivotToCenter, polarRow2);
+
+			polarBox.AddChild(polarRow1);
+			polarBox.AddChild(polarRow2);
+			StyleSubContainer(polarBox, "Polar & Symmetry Tools");
+
 			targetViewport.AddChild(vpBox);
+			targetViewport.AddChild(polarBox);
 		}
 
 		// 3. Terrain Tools
@@ -7490,6 +8062,51 @@ public partial class MapEditorHUD : Control
 				_btnMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 				_btnMirrorMode.AddThemeFontSizeOverride("font_size", 10);
 			}
+
+			var symGrid = _contentBrush.GetNodeOrNull<GridContainer>("BrushSymmetrySubGrid");
+			if (symGrid == null && _btnSymmetryFolds != null && _btnCompoundMirrorMode != null)
+			{
+				symGrid = new GridContainer();
+				symGrid.Name = "BrushSymmetrySubGrid";
+				symGrid.Columns = 2;
+				symGrid.AddThemeConstantOverride("h_separation", 6);
+				symGrid.AddThemeConstantOverride("v_separation", 4);
+				symGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+
+				SafeReparent(_btnSymmetryFolds, symGrid);
+				SafeReparent(_btnCompoundMirrorMode, symGrid);
+				SafeReparent(_btnBrushSetPivot, symGrid);
+				SafeReparent(_btnBrushResetPivot, symGrid);
+
+				int insertIdx = shapeMirrorGrid != null ? shapeMirrorGrid.GetIndex() + 1 : 3;
+				_contentBrush.AddChild(symGrid);
+				_contentBrush.MoveChild(symGrid, insertIdx);
+			}
+
+			if (_btnSymmetryFolds != null)
+			{
+				_btnSymmetryFolds.CustomMinimumSize = new Vector2(0, 30);
+				_btnSymmetryFolds.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnSymmetryFolds.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnCompoundMirrorMode != null)
+			{
+				_btnCompoundMirrorMode.CustomMinimumSize = new Vector2(0, 30);
+				_btnCompoundMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnCompoundMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnBrushSetPivot != null)
+			{
+				_btnBrushSetPivot.CustomMinimumSize = new Vector2(0, 30);
+				_btnBrushSetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnBrushSetPivot.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnBrushResetPivot != null)
+			{
+				_btnBrushResetPivot.CustomMinimumSize = new Vector2(0, 30);
+				_btnBrushResetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnBrushResetPivot.AddThemeFontSizeOverride("font_size", 10);
+			}
 		}
 
 		// 10. Tool Settings Panel
@@ -7577,6 +8194,64 @@ public partial class MapEditorHUD : Control
 		{
 			StyleSubContainer(_containerPasteSettings, "Paste Options");
 			StyleValueBadge(_lblPasteRotation);
+			if (_btnPasteAnchor != null)
+			{
+				_btnPasteAnchor.CustomMinimumSize = new Vector2(0, 30);
+				_btnPasteAnchor.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			}
+			if (_btnRadialDuplicate != null)
+			{
+				_btnRadialDuplicate.CustomMinimumSize = new Vector2(0, 30);
+				_btnRadialDuplicate.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			}
+		}
+
+		if (_contentPlacement != null)
+		{
+			var placeSymGrid = _contentPlacement.GetNodeOrNull<GridContainer>("PlacementSymmetrySubGrid");
+			if (placeSymGrid == null && _btnPlacementSymmetryFolds != null && _btnPlacementCompoundMirrorMode != null)
+			{
+				placeSymGrid = new GridContainer();
+				placeSymGrid.Name = "PlacementSymmetrySubGrid";
+				placeSymGrid.Columns = 2;
+				placeSymGrid.AddThemeConstantOverride("h_separation", 6);
+				placeSymGrid.AddThemeConstantOverride("v_separation", 4);
+				placeSymGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+
+				SafeReparent(_btnPlacementSymmetryFolds, placeSymGrid);
+				SafeReparent(_btnPlacementCompoundMirrorMode, placeSymGrid);
+				SafeReparent(_btnPlacementSetPivot, placeSymGrid);
+				SafeReparent(_btnPlacementResetPivot, placeSymGrid);
+
+				int insertIdx = _btnPlacementMirrorMode != null ? _btnPlacementMirrorMode.GetIndex() + 1 : 2;
+				_contentPlacement.AddChild(placeSymGrid);
+				_contentPlacement.MoveChild(placeSymGrid, insertIdx);
+			}
+
+			if (_btnPlacementSymmetryFolds != null)
+			{
+				_btnPlacementSymmetryFolds.CustomMinimumSize = new Vector2(0, 30);
+				_btnPlacementSymmetryFolds.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnPlacementSymmetryFolds.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnPlacementCompoundMirrorMode != null)
+			{
+				_btnPlacementCompoundMirrorMode.CustomMinimumSize = new Vector2(0, 30);
+				_btnPlacementCompoundMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnPlacementCompoundMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnPlacementSetPivot != null)
+			{
+				_btnPlacementSetPivot.CustomMinimumSize = new Vector2(0, 30);
+				_btnPlacementSetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnPlacementSetPivot.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnPlacementResetPivot != null)
+			{
+				_btnPlacementResetPivot.CustomMinimumSize = new Vector2(0, 30);
+				_btnPlacementResetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnPlacementResetPivot.AddThemeFontSizeOverride("font_size", 10);
+			}
 		}
 
 		if (_containerEyedropperSettings != null)
