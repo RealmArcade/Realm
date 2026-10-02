@@ -4032,7 +4032,7 @@ public partial class GameHost
 				else if (ActiveEditorTool == EditorTool.PasteArea && _editorService.HasCopiedArea)
 				{
 					var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
-					var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation);
+					var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation, EditorPasteReflection);
 
 					int minX = Mathf.Clamp(startX, 0, GroundTerrain.Width - 1);
 					int minZ = Mathf.Clamp(startZ, 0, GroundTerrain.Depth - 1);
@@ -5898,74 +5898,6 @@ public partial class GameHost
 		}
 	}
 
-	public void PerformMirrorSelectionVerticallyExternal()
-	{
-		if (GroundTerrain == null || _editorService.SelectionStart == null || _editorService.SelectionEnd == null)
-		{
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to mirror (select an area first)");
-			return;
-		}
-
-		PerformCopyArea();
-		var eraseActions = PerformEraseArea(false);
-		_editorService.MirrorCopiedAreaVertically();
-
-		var (minX, minZ, maxX, maxZ) = _editorService.GetCurrentSelectionBounds();
-		var pasteActions = PerformPasteArea(minX, minZ, 0.0f, false);
-
-		var combined = new List<IEditorAction>();
-		if (eraseActions != null) combined.AddRange(eraseActions);
-		if (pasteActions != null) combined.AddRange(pasteActions);
-
-		if (combined.Count > 0)
-		{
-			var composite = new CompositeAction(combined);
-			EditorHistoryManager.RecordAction(composite);
-			EditorHasUnsavedChanges = true;
-		}
-
-		if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
-		{
-			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
-		}
-
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Selection Mirrored Vertically");
-	}
-
-	public void PerformMirrorSelectionHorizontallyExternal()
-	{
-		if (GroundTerrain == null || _editorService.SelectionStart == null || _editorService.SelectionEnd == null)
-		{
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to mirror (select an area first)");
-			return;
-		}
-
-		PerformCopyArea();
-		var eraseActions = PerformEraseArea(false);
-		_editorService.MirrorCopiedAreaHorizontally();
-
-		var (minX, minZ, maxX, maxZ) = _editorService.GetCurrentSelectionBounds();
-		var pasteActions = PerformPasteArea(minX, minZ, 0.0f, false);
-
-		var combined = new List<IEditorAction>();
-		if (eraseActions != null) combined.AddRange(eraseActions);
-		if (pasteActions != null) combined.AddRange(pasteActions);
-
-		if (combined.Count > 0)
-		{
-			var composite = new CompositeAction(combined);
-			EditorHistoryManager.RecordAction(composite);
-			EditorHasUnsavedChanges = true;
-		}
-
-		if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
-		{
-			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
-		}
-
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Selection Mirrored Horizontally");
-	}
-
 	public void PerformCopyAreaExternal()
 	{
 		if (GroundTerrain == null || _editorService.SelectionStart == null || _editorService.SelectionEnd == null)
@@ -6072,7 +6004,7 @@ public partial class GameHost
 		return actions;
 	}
 
-	private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, bool recordToHistory = true)
+	private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None, bool recordToHistory = true)
 	{
 		if (GroundTerrain == null || GroundTerrain.Cells == null || GroundTerrain.SplatMap == null || !_editorService.HasCopiedArea) return new List<IEditorAction>();
 
@@ -6085,7 +6017,8 @@ public partial class GameHost
 			startX, startZ,
 			PasteOptionHeights, PasteOptionTextures, PasteOptionEntities, PasteOptionPathing,
 			EditorMirrorMode,
-			rotationDegrees);
+			rotationDegrees,
+			reflection);
 
 		if (pasteResult.TerrainModified)
 		{

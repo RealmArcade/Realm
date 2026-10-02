@@ -11,6 +11,13 @@ namespace Realm.Ecs.Components.Core
 		Rotational
 	}
 
+	public enum PasteReflection
+	{
+		None,
+		Horizontal,
+		Vertical
+	}
+
 	/// <summary>
 	///     Holds the state and configuration of the map editor, including block modes, camera boundary limits, and file status.
 	/// </summary>

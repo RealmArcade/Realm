@@ -1612,8 +1612,8 @@ public partial class GameHost
 						if (GroundTerrain != null && _editorService.HasCopiedArea)
 						{
 							var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
-							var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation);
-							PerformPasteArea(startX, startZ, EditorPasteRotation);
+							var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation, EditorPasteReflection);
+							PerformPasteArea(startX, startZ, EditorPasteRotation, EditorPasteReflection);
 							MapEditorHUD.Instance?.ShowFeedbackExternal("Pasted clipboard contents");
 						}
 						GetViewport().SetInputAsHandled();

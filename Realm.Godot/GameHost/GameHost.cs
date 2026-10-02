@@ -637,6 +637,7 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 	public float EditorPasteRotation { get; set; } = 0.0f;
+	public PasteReflection EditorPasteReflection { get; set; } = PasteReflection.None;
 
 	public Node SelectedEditorObject
 	{

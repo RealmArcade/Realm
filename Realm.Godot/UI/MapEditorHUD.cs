@@ -10,6 +10,7 @@ using NSec.Cryptography;
 using System.Linq;
 
 using MirrorMode = Realm.Ecs.Components.Core.MirrorMode;
+using PasteReflection = Realm.Ecs.Components.Core.PasteReflection;
 using WaterType = Realm.Ecs.Components.Terrain.WaterType;
 using TerrainCell = Realm.Ecs.Components.Terrain.TerrainCell;
 using Realm.Shared;
@@ -157,8 +158,7 @@ public partial class MapEditorHUD : Control
 	private VBoxContainer _panelCoordinatesVBox;
 	private Button _btnCut;
 	private Button _btnEraseArea;
-	private Button _btnMirrorVertically;
-	private Button _btnMirrorHorizontally;
+	private Button _btnPasteReflection;
 	private HSlider _sldPasteRotation;
 	private Label _lblPasteRotation;
 
@@ -394,7 +394,7 @@ public partial class MapEditorHUD : Control
 	private Control _cardTextureBrush, _cardFloodFill;
 	private Control _cardPathingBrush, _cardFloodFillPathing;
 	private Control _cardAddObject, _cardSelectMove, _cardDeleteObject;
-	private Control _cardSelectArea, _cardCut, _cardCopy, _cardPaste, _cardEraseArea, _cardMirrorHorizontally, _cardMirrorVertically;
+	private Control _cardSelectArea, _cardCut, _cardCopy, _cardPaste, _cardEraseArea;
 	private Label _lblInfoText;
 	private Label _lblTerrainTexture;
 	private Label _lblCliffTexture;
@@ -1170,12 +1170,6 @@ public partial class MapEditorHUD : Control
 		_btnEraseArea = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnEraseArea");
 		_cardEraseArea = CreateToolCard(_btnEraseArea, "\uf12d", "Erase Area", () => GameHost.Instance?.PerformEraseAreaExternal(), "Erase heights, textures and objects within selection (Delete)");
 
-		_btnMirrorHorizontally = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnMirrorHorizontally");
-		_cardMirrorHorizontally = CreateToolCard(_btnMirrorHorizontally, "\uf07e", "Mirror H", () => GameHost.Instance?.PerformMirrorSelectionHorizontallyExternal(), "Mirror selection horizontally");
-
-		_btnMirrorVertically = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnMirrorVertically");
-		_cardMirrorVertically = CreateToolCard(_btnMirrorVertically, "\uf07d", "Mirror V", () => GameHost.Instance?.PerformMirrorSelectionVerticallyExternal(), "Mirror selection vertically");
-
 		_accordionBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion");
 		_btnHeaderBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/BtnHeaderBrush");
 		_contentBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush");
@@ -1607,6 +1601,11 @@ public partial class MapEditorHUD : Control
 		_sldPasteRotation.DragStarted += () => _isDraggingSlider = true;
 		_sldPasteRotation.DragEnded += (valueChanged) => _isDraggingSlider = false;
 
+		_btnPasteReflection = new Button();
+		_btnPasteReflection.Name = "BtnPasteReflection";
+		_btnPasteReflection.Set("icon_max_width", 0);
+		SetupOptionButton(_btnPasteReflection, "\uf07e REFLECT: NONE", () => CyclePasteReflection(), 11, "Cycle reflection mode for paste operation (None, Horizontal, Vertical)");
+
 		_btnPasteAnchor = new Button();
 		_btnPasteAnchor.Name = "BtnPasteAnchor";
 		_btnPasteAnchor.Set("icon_max_width", 0);
@@ -1624,6 +1623,7 @@ public partial class MapEditorHUD : Control
 		var pasteOptionsBox = _containerPasteSettings.GetNodeOrNull<VBoxContainer>("PasteOptionsBox");
 		if (pasteOptionsBox != null)
 		{
+			pasteOptionsBox.AddChild(_btnPasteReflection);
 			pasteOptionsBox.AddChild(_btnPasteAnchor);
 			pasteOptionsBox.AddChild(_lblPasteTelemetry);
 		}
@@ -1760,6 +1760,7 @@ public partial class MapEditorHUD : Control
 			UpdateScaleExternal(GameHost.Instance.EditorPlacementScale);
 			UpdateGridSnapExternal(GameHost.Instance.EditorSnapToGrid);
 			UpdatePasteRotationExternal(GameHost.Instance.EditorPasteRotation);
+			UpdatePasteReflectionExternal(GameHost.Instance.EditorPasteReflection);
 		}
 
 		if (!_agreementShownThisSession)
@@ -1847,6 +1848,7 @@ public partial class MapEditorHUD : Control
 			_brushSettingsController?.Update(_viewModel);
 			_placementSettingsController?.Update(_viewModel);
 			UpdatePasteRotationExternal(_viewModel.PasteRotation);
+			UpdatePasteReflectionExternal(_viewModel.PasteReflection);
 		}
 		_inspectorController?.Update(_viewModel);
 		_pathingPanelController?.Update(_viewModel);
@@ -2069,8 +2071,6 @@ public partial class MapEditorHUD : Control
 		StyleRowButton(_btnCopy);
 		StyleRowButton(_btnPaste);
 		StyleRowButton(_btnEraseArea);
-		StyleRowButton(_btnMirrorHorizontally);
-		StyleRowButton(_btnMirrorVertically);
 
 		StyleRowButton(_btnInspectorRotLeft);
 		StyleRowButton(_btnInspectorRotRight);
@@ -3112,6 +3112,14 @@ public partial class MapEditorHUD : Control
 		_lastPasteRotationExternal = angle;
 		if (_lblPasteRotation != null) _lblPasteRotation.Text = angle.ToString("F0") + "°";
 		if (_sldPasteRotation != null && !Mathf.IsEqualApprox((float)_sldPasteRotation.Value, angle)) _sldPasteRotation.Value = angle;
+	}
+
+	private PasteReflection _lastPasteReflectionExternal = (PasteReflection)(-1);
+	public void UpdatePasteReflectionExternal(PasteReflection reflection)
+	{
+		if (_lastPasteReflectionExternal == reflection) return;
+		_lastPasteReflectionExternal = reflection;
+		UpdatePasteReflectionButtonText();
 	}
 
 	private float _lastScaleExternal = float.NaN;
@@ -6835,6 +6843,30 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
+	private void CyclePasteReflection()
+	{
+		if (GameHost.Instance == null) return;
+		var current = GameHost.Instance.EditorPasteReflection;
+		var next = current switch
+		{
+			PasteReflection.None => PasteReflection.Horizontal,
+			PasteReflection.Horizontal => PasteReflection.Vertical,
+			PasteReflection.Vertical => PasteReflection.None,
+			_ => PasteReflection.None
+		};
+		GameHost.Instance.EditorPasteReflection = next;
+		UpdatePasteReflectionButtonText();
+		ShowFeedback(string.Format(TranslationServer.Translate("Paste Reflection: {0}"), TranslationServer.Translate(next.ToString().ToUpperInvariant())));
+	}
+
+	public void UpdatePasteReflectionButtonText()
+	{
+		if (_btnPasteReflection != null && GameHost.Instance != null)
+		{
+			_btnPasteReflection.Text = string.Format(TranslationServer.Translate("\uf07e REFLECT: {0}"), TranslationServer.Translate(GameHost.Instance.EditorPasteReflection.ToString().ToUpperInvariant()));
+		}
+	}
+
 	private void RebuildHUDLayout()
 	{
 	}
@@ -7952,8 +7984,6 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_cardCopy ?? (Control)_btnCopy, clipGrid);
 			SafeReparent(_cardPaste ?? (Control)_btnPaste, clipGrid);
 			SafeReparent(_cardEraseArea ?? (Control)_btnEraseArea, clipGrid);
-			SafeReparent(_cardMirrorHorizontally ?? (Control)_btnMirrorHorizontally, clipGrid);
-			SafeReparent(_cardMirrorVertically ?? (Control)_btnMirrorVertically, clipGrid);
 
 			_panelClipboard.AddChild(clipGrid);
 			StyleSubContainer(_panelClipboard, "Clipboard Actions");
@@ -8139,6 +8169,11 @@ public partial class MapEditorHUD : Control
 		{
 			StyleSubContainer(_containerPasteSettings, "Paste Options");
 			StyleValueBadge(_lblPasteRotation);
+			if (_btnPasteReflection != null)
+			{
+				_btnPasteReflection.CustomMinimumSize = new Vector2(0, 30);
+				_btnPasteReflection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			}
 			if (_btnPasteAnchor != null)
 			{
 				_btnPasteAnchor.CustomMinimumSize = new Vector2(0, 30);

@@ -546,18 +546,6 @@ layout_mode = 2
 focus_mode = 0
 text = "🧹 ERASE SELECTED AREA"
 
-[node name="BtnMirrorHorizontally" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
-focus_mode = 0
-text = "🪞 MIRROR HORIZONTALLY"
-
-[node name="BtnMirrorVertically" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
-focus_mode = 0
-text = "🪞 MIRROR VERTICALLY"
-
 [node name="BrushAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
 layout_mode = 2
 
