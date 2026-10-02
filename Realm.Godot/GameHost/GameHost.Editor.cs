@@ -5543,55 +5543,23 @@ public partial class GameHost
 		int symCount = 0;
 		if (EditorMirrorMode != MirrorMode.None)
 		{
-			var boundsList = new List<(int minX, int minZ, int maxX, int maxZ)>();
-
-			if (EditorMirrorMode == MirrorMode.Horizontal || EditorMirrorMode == MirrorMode.Both)
+			float quadSize = GroundTerrain.QuadSize;
+			Vector3 centerPos = new Vector3((startX + targetWidth / 2.0f - width / 2.0f) * quadSize, 0, (startZ + targetDepth / 2.0f - depth / 2.0f) * quadSize);
+			var transforms = _editorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+			symCount = transforms.Count;
+			for (int i = 0; i < transforms.Count; i++)
 			{
-				int hMinX = Mathf.Clamp(width - 1 - (startX + targetWidth - 1), 0, width - 1);
-				int hMaxX = Mathf.Clamp(width - 1 - startX, 0, width - 1);
-				boundsList.Add((hMinX, minZ, hMaxX, maxZ));
-			}
+				var t = transforms[i];
+				var (rcx, rcz) = _editorService.WorldPosToCellCoords(t.Position);
+				int rStartX = rcx - targetWidth / 2;
+				int rStartZ = rcz - targetDepth / 2;
+				int rMinX = Mathf.Clamp(rStartX, 0, width - 1);
+				int rMinZ = Mathf.Clamp(rStartZ, 0, depth - 1);
+				int rMaxX = Mathf.Clamp(rStartX + targetWidth - 1, 0, width - 1);
+				int rMaxZ = Mathf.Clamp(rStartZ + targetDepth - 1, 0, depth - 1);
 
-			if (EditorMirrorMode == MirrorMode.Vertical || EditorMirrorMode == MirrorMode.Both)
-			{
-				int vMinZ = Mathf.Clamp(depth - 1 - (startZ + targetDepth - 1), 0, depth - 1);
-				int vMaxZ = Mathf.Clamp(depth - 1 - startZ, 0, depth - 1);
-				boundsList.Add((minX, vMinZ, maxX, vMaxZ));
-			}
-
-			if (EditorMirrorMode == MirrorMode.Both)
-			{
-				int bMinX = Mathf.Clamp(width - 1 - (startX + targetWidth - 1), 0, width - 1);
-				int bMaxX = Mathf.Clamp(width - 1 - startX, 0, width - 1);
-				int bMinZ = Mathf.Clamp(depth - 1 - (startZ + targetDepth - 1), 0, depth - 1);
-				int bMaxZ = Mathf.Clamp(depth - 1 - startZ, 0, depth - 1);
-				boundsList.Add((bMinX, bMinZ, bMaxX, bMaxZ));
-			}
-
-			if (EditorMirrorMode == MirrorMode.Rotational)
-			{
-				float quadSize = GroundTerrain.QuadSize;
-				Vector3 centerPos = new Vector3((startX + targetWidth / 2.0f - width / 2.0f) * quadSize, 0, (startZ + targetDepth / 2.0f - depth / 2.0f) * quadSize);
-				var transforms = _editorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
-				foreach (var t in transforms)
-				{
-					var (rcx, rcz) = _editorService.WorldPosToCellCoords(t.Position);
-					int rStartX = rcx - targetWidth / 2;
-					int rStartZ = rcz - targetDepth / 2;
-					int rMinX = Mathf.Clamp(rStartX, 0, width - 1);
-					int rMinZ = Mathf.Clamp(rStartZ, 0, depth - 1);
-					int rMaxX = Mathf.Clamp(rStartX + targetWidth - 1, 0, width - 1);
-					int rMaxZ = Mathf.Clamp(rStartZ + targetDepth - 1, 0, depth - 1);
-					boundsList.Add((rMinX, rMinZ, rMaxX, rMaxZ));
-				}
-			}
-
-			symCount = boundsList.Count;
-			for (int i = 0; i < boundsList.Count; i++)
-			{
-				var b = boundsList[i];
 				var meshInst = GetOrCreateSymmetryHighlightMesh(i);
-				BuildHighlightMeshForBounds(meshInst, b.minX, b.minZ, b.maxX, b.maxZ);
+				BuildHighlightMeshForBounds(meshInst, rMinX, rMinZ, rMaxX, rMaxZ);
 				meshInst.Visible = true;
 			}
 		}
@@ -6239,23 +6207,7 @@ public partial class GameHost
 
 			int width = GroundTerrain.Width;
 			int depth = GroundTerrain.Depth;
-			if (EditorMirrorMode == MirrorMode.Horizontal || EditorMirrorMode == MirrorMode.Both)
-			{
-				int mx = width - 1 - startX - pasteW + 1;
-				affectedRegions.Add(new Rect2I(mx - 2, startZ - 2, pasteW + 4, pasteD + 4));
-			}
-			if (EditorMirrorMode == MirrorMode.Vertical || EditorMirrorMode == MirrorMode.Both)
-			{
-				int mz = depth - 1 - startZ - pasteD + 1;
-				affectedRegions.Add(new Rect2I(startX - 2, mz - 2, pasteW + 4, pasteD + 4));
-			}
-			if (EditorMirrorMode == MirrorMode.Both)
-			{
-				int mx = width - 1 - startX - pasteW + 1;
-				int mz = depth - 1 - startZ - pasteD + 1;
-				affectedRegions.Add(new Rect2I(mx - 2, mz - 2, pasteW + 4, pasteD + 4));
-			}
-			if (EditorMirrorMode == MirrorMode.Rotational)
+			if (EditorMirrorMode != MirrorMode.None)
 			{
 				float quadSize = GroundTerrain.QuadSize;
 				Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - depth / 2.0f) * quadSize);

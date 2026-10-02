@@ -99,7 +99,7 @@ public partial class GameHost
 					{
 						ActiveEditorTool = EditorTool.SelectArea;
 						MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
-						if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
+						HideSelectionHighlight();
 						MapEditorHUD.Instance?.ClearPasteTelemetry();
 						GetViewport().SetInputAsHandled();
 						return;
@@ -849,15 +849,6 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
-				else if (ActiveEditorTool == EditorTool.PasteArea)
-				{
-					ActiveEditorTool = EditorTool.SelectArea;
-					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
-					if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
-					MapEditorHUD.Instance?.ClearPasteTelemetry();
-					GetViewport().SetInputAsHandled();
-					return;
-				}
 
 				if (GroundTerrain != null)
 				{
@@ -869,6 +860,7 @@ public partial class GameHost
 						EditorSymmetryPivot = pivot;
 						GroundTerrain.SetPolarCenter(pivot);
 						UpdateSymmetryPivotVisuals();
+						InvalidateSelectionHighlightMesh();
 						var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
 						MapEditorHUD.Instance?.ShowFeedbackExternal($"Pivot set to tile ({cx}, {cz})");
 						GetViewport().SetInputAsHandled();
@@ -876,11 +868,21 @@ public partial class GameHost
 					}
 				}
 
+				if (ActiveEditorTool == EditorTool.PasteArea)
+				{
+					ActiveEditorTool = EditorTool.SelectArea;
+					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
+					HideSelectionHighlight();
+					MapEditorHUD.Instance?.ClearPasteTelemetry();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
 				if (ActiveEditorTool != EditorTool.SelectMove)
 				{
 					ActiveEditorTool = EditorTool.SelectMove;
 					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectMove);
-					if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
+					HideSelectionHighlight();
 					GetViewport().SetInputAsHandled();
 					return;
 				}

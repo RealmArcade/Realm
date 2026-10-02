@@ -3115,8 +3115,10 @@ public class EditorService
 
 		if (mirrorMode == MirrorMode.Horizontal || mirrorMode == MirrorMode.Both)
 		{
-			int mx = width - 1 - targetX;
-			int mz = targetZ;
+			float cellWorldX = (targetX + 0.5f - width / 2.0f) * terrain.QuadSize;
+			float cellWorldZ = (targetZ + 0.5f - depth / 2.0f) * terrain.QuadSize;
+			float mxWorld = 2.0f * _symmetryPivot.X - cellWorldX;
+			var (mx, mz) = WorldPosToCellCoords(new Vector3(mxWorld, 0, cellWorldZ));
 			if (mx >= 0 && mx < width && mz >= 0 && mz < depth && srcX < _copiedArea.Width && srcZ < _copiedArea.Depth)
 			{
 				if (pasteHeights && srcCells != null)
@@ -3152,8 +3154,10 @@ public class EditorService
 
 		if (mirrorMode == MirrorMode.Vertical || mirrorMode == MirrorMode.Both)
 		{
-			int mx = targetX;
-			int mz = depth - 1 - targetZ;
+			float cellWorldX = (targetX + 0.5f - width / 2.0f) * terrain.QuadSize;
+			float cellWorldZ = (targetZ + 0.5f - depth / 2.0f) * terrain.QuadSize;
+			float mzWorld = 2.0f * _symmetryPivot.Y - cellWorldZ;
+			var (mx, mz) = WorldPosToCellCoords(new Vector3(cellWorldX, 0, mzWorld));
 			if (mx >= 0 && mx < width && mz >= 0 && mz < depth && srcX < _copiedArea.Width && srcZ < _copiedArea.Depth)
 			{
 				if (pasteHeights && srcCells != null)
@@ -3189,8 +3193,11 @@ public class EditorService
 
 		if (mirrorMode == MirrorMode.Both)
 		{
-			int mx = width - 1 - targetX;
-			int mz = depth - 1 - targetZ;
+			float cellWorldX = (targetX + 0.5f - width / 2.0f) * terrain.QuadSize;
+			float cellWorldZ = (targetZ + 0.5f - depth / 2.0f) * terrain.QuadSize;
+			float mxWorld = 2.0f * _symmetryPivot.X - cellWorldX;
+			float mzWorld = 2.0f * _symmetryPivot.Y - cellWorldZ;
+			var (mx, mz) = WorldPosToCellCoords(new Vector3(mxWorld, 0, mzWorld));
 			if (mx >= 0 && mx < width && mz >= 0 && mz < depth && srcX < _copiedArea.Width && srcZ < _copiedArea.Depth)
 			{
 				if (pasteHeights && srcCells != null)
