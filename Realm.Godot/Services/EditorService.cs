@@ -95,6 +95,7 @@ public class EditorService
 		public int Depth;
 		public TerrainCell[,] Cells;
 		public TerrainSplatWeights[,] SplatMap;
+		public TerrainSplatWeights[,] CliffSplatMap;
 		public int[,] Pathing;
 		public List<CopiedEntityInfo> Entities;
 	}
@@ -1670,10 +1671,20 @@ public class EditorService
 		var cells = terrain.Cells;
 		if (cells == null) return;
 
+		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+		}
+		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+		}
+
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
 		var copiedCells = new TerrainCell[selWidth, selDepth];
 		var splatMap = new TerrainSplatWeights[selWidth, selDepth];
+		var cliffSplatMap = new TerrainSplatWeights[selWidth, selDepth];
 		var pathing = new int[selWidth, selDepth];
 
 		for (int sz = 0; sz < selDepth; sz++)
@@ -1683,10 +1694,17 @@ public class EditorService
 				int sourceX = Math.Clamp(minX + sx, 0, terrain.Width - 1);
 				int sourceZ = Math.Clamp(minZ + sz, 0, terrain.Depth - 1);
 				copiedCells[sx, sz] = cells[sourceX, sourceZ];
-				splatMap[sx, sz] = _terrainSplatMap[minX + sx, minZ + sz];
-				if (terrain.PathingCodes != null)
+				if (_terrainSplatMap != null && sourceX < _terrainSplatMap.GetLength(0) && sourceZ < _terrainSplatMap.GetLength(1))
 				{
-					pathing[sx, sz] = terrain.PathingCodes[minX + sx, minZ + sz];
+					splatMap[sx, sz] = _terrainSplatMap[sourceX, sourceZ];
+				}
+				if (_terrainCliffSplatMap != null && sourceX < _terrainCliffSplatMap.GetLength(0) && sourceZ < _terrainCliffSplatMap.GetLength(1))
+				{
+					cliffSplatMap[sx, sz] = _terrainCliffSplatMap[sourceX, sourceZ];
+				}
+				if (terrain.PathingCodes != null && sourceX < terrain.PathingCodes.GetLength(0) && sourceZ < terrain.PathingCodes.GetLength(1))
+				{
+					pathing[sx, sz] = terrain.PathingCodes[sourceX, sourceZ];
 				}
 			}
 		}
@@ -1697,6 +1715,7 @@ public class EditorService
 			Depth = selDepth,
 			Cells = copiedCells,
 			SplatMap = splatMap,
+			CliffSplatMap = cliffSplatMap,
 			Pathing = pathing,
 			Entities = entities
 		};
@@ -1804,6 +1823,7 @@ public class EditorService
 		
 		var newCells = new TerrainCell[w, d];
 		var newSplatMap = new TerrainSplatWeights[w, d];
+		var newCliffSplatMap = _copiedArea.CliffSplatMap != null ? new TerrainSplatWeights[w, d] : null;
 		var newPathing = _copiedArea.Pathing != null ? new int[w, d] : null;
 
 		for (int z = 0; z < d; z++)
@@ -1813,6 +1833,10 @@ public class EditorService
 				var srcCell = _copiedArea.Cells[x, d - 1 - z];
 				newCells[x, z] = MirrorCell(in srcCell, MirrorMode.Vertical);
 				newSplatMap[x, z] = _copiedArea.SplatMap[x, d - 1 - z];
+				if (newCliffSplatMap != null && _copiedArea.CliffSplatMap != null)
+				{
+					newCliffSplatMap[x, z] = _copiedArea.CliffSplatMap[x, d - 1 - z];
+				}
 				if (newPathing != null)
 				{
 					newPathing[x, z] = _copiedArea.Pathing[x, d - 1 - z];
@@ -1822,6 +1846,10 @@ public class EditorService
 		
 		_copiedArea.Cells = newCells;
 		_copiedArea.SplatMap = newSplatMap;
+		if (newCliffSplatMap != null)
+		{
+			_copiedArea.CliffSplatMap = newCliffSplatMap;
+		}
 		if (newPathing != null)
 		{
 			_copiedArea.Pathing = newPathing;
@@ -1844,6 +1872,7 @@ public class EditorService
 		
 		var newCells = new TerrainCell[w, d];
 		var newSplatMap = new TerrainSplatWeights[w, d];
+		var newCliffSplatMap = _copiedArea.CliffSplatMap != null ? new TerrainSplatWeights[w, d] : null;
 		var newPathing = _copiedArea.Pathing != null ? new int[w, d] : null;
 
 		for (int z = 0; z < d; z++)
@@ -1853,6 +1882,10 @@ public class EditorService
 				var srcCell = _copiedArea.Cells[w - 1 - x, z];
 				newCells[x, z] = MirrorCell(in srcCell, MirrorMode.Horizontal);
 				newSplatMap[x, z] = _copiedArea.SplatMap[w - 1 - x, z];
+				if (newCliffSplatMap != null && _copiedArea.CliffSplatMap != null)
+				{
+					newCliffSplatMap[x, z] = _copiedArea.CliffSplatMap[w - 1 - x, z];
+				}
 				if (newPathing != null)
 				{
 					newPathing[x, z] = _copiedArea.Pathing[w - 1 - x, z];
@@ -1862,6 +1895,10 @@ public class EditorService
 		
 		_copiedArea.Cells = newCells;
 		_copiedArea.SplatMap = newSplatMap;
+		if (newCliffSplatMap != null)
+		{
+			_copiedArea.CliffSplatMap = newCliffSplatMap;
+		}
 		if (newPathing != null)
 		{
 			_copiedArea.Pathing = newPathing;
@@ -1893,6 +1930,15 @@ public class EditorService
 
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
+
+		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+		}
+		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+		}
 
 		int width = terrain.Width;
 		int depth = terrain.Depth;
@@ -1934,6 +1980,10 @@ public class EditorService
 			}
 		}
 
+		if (modified && pasteHeights)
+		{
+			SanitizeCornerHeights(ref terrain);
+		}
 		if (modified && pasteTextures)
 		{
 			AlignSplatMapSlots(0, 0, width - 1, depth - 1);
@@ -2001,6 +2051,15 @@ public class EditorService
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
 
+		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+		}
+		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+		}
+
 		int width = terrain.Width;
 		int depth = terrain.Depth;
 		float quadSize = terrain.QuadSize;
@@ -2022,11 +2081,22 @@ public class EditorService
 					{
 						if (pasteHeights && terrain.Cells != null)
 						{
+							SetGridNodeHeight(ref terrain, targetX, targetZ, 0f);
+							SetGridNodeHeight(ref terrain, targetX + 1, targetZ, 0f);
+							SetGridNodeHeight(ref terrain, targetX + 1, targetZ + 1, 0f);
+							SetGridNodeHeight(ref terrain, targetX, targetZ + 1, 0f);
 							terrain.Cells[targetX, targetZ] = default;
 						}
-						if (pasteTextures && _terrainSplatMap != null)
+						if (pasteTextures)
 						{
-							_terrainSplatMap[targetX, targetZ] = TerrainSplatWeights.CreateSolid(3);
+							if (_terrainSplatMap != null)
+							{
+								_terrainSplatMap[targetX, targetZ] = TerrainSplatWeights.CreateSolid(3);
+							}
+							if (_terrainCliffSplatMap != null)
+							{
+								_terrainCliffSplatMap[targetX, targetZ] = TerrainSplatWeights.CreateSolid(1);
+							}
 						}
 						if (pastePathing && terrain.PathingCodes != null)
 						{
@@ -2036,6 +2106,10 @@ public class EditorService
 						terrainModified = true;
 					}
 				}
+			}
+			if (terrainModified && pasteHeights)
+			{
+				SanitizeCornerHeights(ref terrain);
 			}
 			if (terrainModified && pasteTextures)
 			{
@@ -2860,9 +2934,25 @@ public class EditorService
 		{
 			if (pasteHeights && srcCells != null)
 			{
-				cells[targetX, targetZ] = rotatedCell;
+				SetGridNodeHeight(ref terrain, targetX, targetZ, rotatedCell.Y_NW);
+				SetGridNodeHeight(ref terrain, targetX + 1, targetZ, rotatedCell.Y_NE);
+				SetGridNodeHeight(ref terrain, targetX + 1, targetZ + 1, rotatedCell.Y_SE);
+				SetGridNodeHeight(ref terrain, targetX, targetZ + 1, rotatedCell.Y_SW);
+				cells[targetX, targetZ].WaterMode = rotatedCell.WaterMode;
+				cells[targetX, targetZ].WaterProfileIndex = rotatedCell.WaterProfileIndex;
+				cells[targetX, targetZ].WaterHeight = rotatedCell.WaterHeight;
 			}
-			if (pasteTextures) _terrainSplatMap[targetX, targetZ] = _copiedArea.SplatMap[srcX, srcZ];
+			if (pasteTextures)
+			{
+				if (_terrainSplatMap != null && _copiedArea.SplatMap != null)
+				{
+					_terrainSplatMap[targetX, targetZ] = _copiedArea.SplatMap[srcX, srcZ];
+				}
+				if (_terrainCliffSplatMap != null && _copiedArea.CliffSplatMap != null)
+				{
+					_terrainCliffSplatMap[targetX, targetZ] = _copiedArea.CliffSplatMap[srcX, srcZ];
+				}
+			}
 			if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null)
 			{
 				terrain.PathingCodes[targetX, targetZ] = _copiedArea.Pathing[srcX, srcZ];
@@ -2879,9 +2969,26 @@ public class EditorService
 			{
 				if (pasteHeights && srcCells != null)
 				{
-					cells[mx, mz] = MirrorCell(in rotatedCell, MirrorMode.Horizontal);
+					TerrainCell mirroredCell = MirrorCell(in rotatedCell, MirrorMode.Horizontal);
+					SetGridNodeHeight(ref terrain, mx, mz, mirroredCell.Y_NW);
+					SetGridNodeHeight(ref terrain, mx + 1, mz, mirroredCell.Y_NE);
+					SetGridNodeHeight(ref terrain, mx + 1, mz + 1, mirroredCell.Y_SE);
+					SetGridNodeHeight(ref terrain, mx, mz + 1, mirroredCell.Y_SW);
+					cells[mx, mz].WaterMode = mirroredCell.WaterMode;
+					cells[mx, mz].WaterProfileIndex = mirroredCell.WaterProfileIndex;
+					cells[mx, mz].WaterHeight = mirroredCell.WaterHeight;
 				}
-				if (pasteTextures) _terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
+				if (pasteTextures)
+				{
+					if (_terrainSplatMap != null && _copiedArea.SplatMap != null)
+					{
+						_terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
+					}
+					if (_terrainCliffSplatMap != null && _copiedArea.CliffSplatMap != null)
+					{
+						_terrainCliffSplatMap[mx, mz] = _copiedArea.CliffSplatMap[srcX, srcZ];
+					}
+				}
 				if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null)
 				{
 					terrain.PathingCodes[mx, mz] = _copiedArea.Pathing[srcX, srcZ];
@@ -2899,9 +3006,26 @@ public class EditorService
 			{
 				if (pasteHeights && srcCells != null)
 				{
-					cells[mx, mz] = MirrorCell(in rotatedCell, MirrorMode.Vertical);
+					TerrainCell mirroredCell = MirrorCell(in rotatedCell, MirrorMode.Vertical);
+					SetGridNodeHeight(ref terrain, mx, mz, mirroredCell.Y_NW);
+					SetGridNodeHeight(ref terrain, mx + 1, mz, mirroredCell.Y_NE);
+					SetGridNodeHeight(ref terrain, mx + 1, mz + 1, mirroredCell.Y_SE);
+					SetGridNodeHeight(ref terrain, mx, mz + 1, mirroredCell.Y_SW);
+					cells[mx, mz].WaterMode = mirroredCell.WaterMode;
+					cells[mx, mz].WaterProfileIndex = mirroredCell.WaterProfileIndex;
+					cells[mx, mz].WaterHeight = mirroredCell.WaterHeight;
 				}
-				if (pasteTextures) _terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
+				if (pasteTextures)
+				{
+					if (_terrainSplatMap != null && _copiedArea.SplatMap != null)
+					{
+						_terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
+					}
+					if (_terrainCliffSplatMap != null && _copiedArea.CliffSplatMap != null)
+					{
+						_terrainCliffSplatMap[mx, mz] = _copiedArea.CliffSplatMap[srcX, srcZ];
+					}
+				}
 				if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null)
 				{
 					terrain.PathingCodes[mx, mz] = _copiedArea.Pathing[srcX, srcZ];
@@ -2919,9 +3043,26 @@ public class EditorService
 			{
 				if (pasteHeights && srcCells != null)
 				{
-					cells[mx, mz] = MirrorCell(in rotatedCell, MirrorMode.Both);
+					TerrainCell mirroredCell = MirrorCell(in rotatedCell, MirrorMode.Both);
+					SetGridNodeHeight(ref terrain, mx, mz, mirroredCell.Y_NW);
+					SetGridNodeHeight(ref terrain, mx + 1, mz, mirroredCell.Y_NE);
+					SetGridNodeHeight(ref terrain, mx + 1, mz + 1, mirroredCell.Y_SE);
+					SetGridNodeHeight(ref terrain, mx, mz + 1, mirroredCell.Y_SW);
+					cells[mx, mz].WaterMode = mirroredCell.WaterMode;
+					cells[mx, mz].WaterProfileIndex = mirroredCell.WaterProfileIndex;
+					cells[mx, mz].WaterHeight = mirroredCell.WaterHeight;
 				}
-				if (pasteTextures) _terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
+				if (pasteTextures)
+				{
+					if (_terrainSplatMap != null && _copiedArea.SplatMap != null)
+					{
+						_terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
+					}
+					if (_terrainCliffSplatMap != null && _copiedArea.CliffSplatMap != null)
+					{
+						_terrainCliffSplatMap[mx, mz] = _copiedArea.CliffSplatMap[srcX, srcZ];
+					}
+				}
 				if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null)
 				{
 					terrain.PathingCodes[mx, mz] = _copiedArea.Pathing[srcX, srcZ];

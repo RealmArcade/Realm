@@ -5931,13 +5931,36 @@ public partial class GameHost
 		{
 			int pasteW = Math.Max(_editorService.CopiedAreaWidth, _editorService.CopiedAreaDepth);
 			int pasteD = pasteW;
-			Rect2I affected = new Rect2I(startX - 2, startZ - 2, pasteW + 4, pasteD + 4);
+			var affectedRegions = new List<Rect2I>();
+			affectedRegions.Add(new Rect2I(startX - 2, startZ - 2, pasteW + 4, pasteD + 4));
+
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			if (EditorMirrorMode == MirrorMode.Horizontal || EditorMirrorMode == MirrorMode.Both)
+			{
+				int mx = width - 1 - startX - pasteW + 1;
+				affectedRegions.Add(new Rect2I(mx - 2, startZ - 2, pasteW + 4, pasteD + 4));
+			}
+			if (EditorMirrorMode == MirrorMode.Vertical || EditorMirrorMode == MirrorMode.Both)
+			{
+				int mz = depth - 1 - startZ - pasteD + 1;
+				affectedRegions.Add(new Rect2I(startX - 2, mz - 2, pasteW + 4, pasteD + 4));
+			}
+			if (EditorMirrorMode == MirrorMode.Both)
+			{
+				int mx = width - 1 - startX - pasteW + 1;
+				int mz = depth - 1 - startZ - pasteD + 1;
+				affectedRegions.Add(new Rect2I(mx - 2, mz - 2, pasteW + 4, pasteD + 4));
+			}
 
 			if (pasteResult.HeightsModified)
 			{
-				AlignAllEntitiesToTerrain(affected);
+				foreach (var aff in affectedRegions)
+				{
+					AlignAllEntitiesToTerrain(aff);
+				}
 			}
-			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affected, pasteResult.HeightsModified);
+			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affectedRegions, pasteResult.HeightsModified);
 			if (pasteResult.PathingModified)
 			{
 				UpdatePathingOverlay();
