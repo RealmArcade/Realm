@@ -490,6 +490,7 @@ public partial class GameHost : Node3D, IGameAPI
 				EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
 				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
 			}
+			UpdateGridOverlayVisibility();
 		}
 	}
 

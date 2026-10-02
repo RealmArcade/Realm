@@ -4691,7 +4691,7 @@ public partial class GameHost
 			return;
 		}
 
-		bool showPivot = EditorMirrorMode != MirrorMode.None || EditorPolarOverlayVisible;
+		bool showPivot = EditorMirrorMode != MirrorMode.Rotational && (EditorMirrorMode != MirrorMode.None || EditorPolarOverlayVisible);
 		if (!showPivot)
 		{
 			if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
@@ -4728,8 +4728,6 @@ public partial class GameHost
 		immMesh.SurfaceAddVertex(new Vector3(px + s, py, pz));
 		immMesh.SurfaceAddVertex(new Vector3(px, py, pz - s));
 		immMesh.SurfaceAddVertex(new Vector3(px, py, pz + s));
-		immMesh.SurfaceAddVertex(new Vector3(px, py, pz));
-		immMesh.SurfaceAddVertex(new Vector3(px, py + s, pz));
 
 		immMesh.SurfaceEnd();
 		_symmetryPivotMarkerMesh.Visible = true;
@@ -5404,7 +5402,7 @@ public partial class GameHost
 		{
 			bool gridVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both);
 			GroundTerrain.SetGridVisible(gridVisible);
-			bool polarVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Polar || EditorGridMode == GridOverlayMode.Both);
+			bool polarVisible = IsMapEditorMode && (EditorMirrorMode == MirrorMode.Rotational || EditorGridMode == GridOverlayMode.Polar || EditorGridMode == GridOverlayMode.Both);
 			GroundTerrain.SetPolarOverlayVisible(polarVisible);
 			EditorPolarOverlayVisible = polarVisible;
 		}

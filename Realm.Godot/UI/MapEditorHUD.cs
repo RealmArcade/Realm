@@ -2532,7 +2532,7 @@ public partial class MapEditorHUD : Control
 
 	public void UpdatePolarSubControlsVisibility(GameHost.GridOverlayMode mode)
 	{
-		bool isPolar = mode == GameHost.GridOverlayMode.Polar || mode == GameHost.GridOverlayMode.Both;
+		bool isPolar = (GameHost.Instance != null && GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational) || mode == GameHost.GridOverlayMode.Polar || mode == GameHost.GridOverlayMode.Both;
 		if (_rowPolarConfig != null)
 		{
 			_rowPolarConfig.Visible = isPolar;
@@ -6769,6 +6769,7 @@ public partial class MapEditorHUD : Control
 		if (_btnBrushResetPivot != null) _btnBrushResetPivot.Visible = hasMirror;
 		if (_btnPlacementResetPivot != null) _btnPlacementResetPivot.Visible = hasMirror;
 		if (_btnClipboardResetPivot != null) _btnClipboardResetPivot.Visible = hasMirror;
+		UpdatePolarSubControlsVisibility(GameHost.Instance.EditorGridMode);
 	}
 
 	private void CyclePolarRingSpacing()
@@ -6799,6 +6800,11 @@ public partial class MapEditorHUD : Control
 	private void CyclePolarRadialStep()
 	{
 		if (GameHost.Instance == null) return;
+		if (GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational)
+		{
+			ShowFeedback(TranslationServer.Translate("Spokes are automatically locked to Rotational N-Fold symmetry"));
+			return;
+		}
 		if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
 		{
 			GameHost.Instance.EditorPolarAutoStepWithSymmetry = false;
@@ -6829,13 +6835,20 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnPolarRadialStep != null && GameHost.Instance != null)
 		{
-			if (GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational || GameHost.Instance.EditorPolarAutoStepWithSymmetry)
+			if (GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational)
 			{
 				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: AUTO ({0})"), GameHost.Instance.EditorSymmetryFolds);
+				_btnPolarRadialStep.TooltipText = TranslationServer.Translate("Spokes are automatically locked to Rotational N-Fold symmetry");
+			}
+			else if (GameHost.Instance.EditorPolarAutoStepWithSymmetry)
+			{
+				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: AUTO ({0})"), GameHost.Instance.EditorSymmetryFolds);
+				_btnPolarRadialStep.TooltipText = TranslationServer.Translate("Cycle radial spoke angle increments (15°, 30°, 45°, 60°, 90°, Auto/Symmetry)");
 			}
 			else
 			{
 				_btnPolarRadialStep.Text = string.Format(TranslationServer.Translate("\uf14e SPOKES: {0:F0}°"), GameHost.Instance.EditorPolarRadialStep);
+				_btnPolarRadialStep.TooltipText = TranslationServer.Translate("Cycle radial spoke angle increments (15°, 30°, 45°, 60°, 90°, Auto/Symmetry)");
 			}
 		}
 	}
@@ -7029,7 +7042,8 @@ public partial class MapEditorHUD : Control
 			if (!allowExpandBtn)
 			{
 				if (expandBtn != null) expandBtn.Visible = false;
-				scroll.CustomMinimumSize = new Vector2(245, minH);
+				scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
+				scroll.CustomMinimumSize = new Vector2(245, 0);
 				return;
 			}
 
@@ -7298,7 +7312,7 @@ public partial class MapEditorHUD : Control
 			scroll = new ScrollContainer();
 			scroll.Name = "CardScroll";
 			scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-			scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+			scroll.VerticalScrollMode = allowExpandBtn ? ScrollContainer.ScrollMode.Auto : ScrollContainer.ScrollMode.Disabled;
 			scroll.CustomMinimumSize = new Vector2(245, 0);
 
 			var innerVBox = new VBoxContainer();
@@ -7328,7 +7342,8 @@ public partial class MapEditorHUD : Control
 			if (!allowExpandBtn)
 			{
 				if (expandBtn != null) expandBtn.Visible = false;
-				scroll.CustomMinimumSize = new Vector2(245, minH);
+				scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
+				scroll.CustomMinimumSize = new Vector2(245, 0);
 				return;
 			}
 			if (minH > maxHeight)
@@ -7963,7 +7978,7 @@ public partial class MapEditorHUD : Control
 			}
 
 			bool isPolarMode = GameHost.Instance != null &&
-				(GameHost.Instance.EditorGridMode == GameHost.GridOverlayMode.Polar || GameHost.Instance.EditorGridMode == GameHost.GridOverlayMode.Both);
+				(GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational || GameHost.Instance.EditorGridMode == GameHost.GridOverlayMode.Polar || GameHost.Instance.EditorGridMode == GameHost.GridOverlayMode.Both);
 			_rowPolarConfig.Visible = isPolarMode;
 
 			targetViewport.AddChild(vpBox);
