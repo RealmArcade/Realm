@@ -160,6 +160,9 @@ public partial class MapEditorHUD : Control
 	private Button _btnEraseArea;
 	private Button _btnPasteReflection;
 	private Button _btnClipboardBrushShape;
+	private Button _btnClipboardMirrorMode;
+	private Button _btnClipboardSymmetryFolds;
+	private Button _btnClipboardResetPivot;
 	private HSlider _sldPasteRotation;
 	private Label _lblPasteRotation;
 
@@ -1613,7 +1616,22 @@ public partial class MapEditorHUD : Control
 				UpdateBrushShapeExternal(GameHost.Instance.EditorBrushIsSquare);
 				ShowFeedback(GameHost.Instance.EditorBrushIsSquare ? TranslationServer.Translate("Brush Shape: SQUARE") : TranslationServer.Translate("Brush Shape: CIRCLE"));
 			}
-		}, 11, "Toggle square / circular selection and clipboard brush shape");
+		}, 10, "Toggle square / circular selection and clipboard brush shape");
+
+		_btnClipboardMirrorMode = new Button();
+		_btnClipboardMirrorMode.Name = "BtnClipboardMirrorMode";
+		_btnClipboardMirrorMode.Set("icon_max_width", 0);
+		SetupOptionButton(_btnClipboardMirrorMode, "\uf05e MIRROR: NONE", () => CycleMirrorMode(), 10, "Cycle terrain, clipboard and object mirroring symmetry mode");
+
+		_btnClipboardSymmetryFolds = new Button();
+		_btnClipboardSymmetryFolds.Name = "BtnClipboardSymmetryFolds";
+		_btnClipboardSymmetryFolds.Set("icon_max_width", 0);
+		SetupOptionButton(_btnClipboardSymmetryFolds, "\uf1b2 FOLDS: 4", () => CycleSymmetryFolds(), 10, "Cycle N-fold rotational symmetry count (2, 3, 4, 5, 6, 8, 12, 16)");
+
+		_btnClipboardResetPivot = new Button();
+		_btnClipboardResetPivot.Name = "BtnClipboardResetPivot";
+		_btnClipboardResetPivot.Set("icon_max_width", 0);
+		SetupOptionButton(_btnClipboardResetPivot, "\uf05b RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry pivot to map center");
 
 		_btnPasteReflection = new Button();
 		_btnPasteReflection.Name = "BtnPasteReflection";
@@ -1637,7 +1655,26 @@ public partial class MapEditorHUD : Control
 		var pasteOptionsBox = _containerPasteSettings.GetNodeOrNull<VBoxContainer>("PasteOptionsBox");
 		if (pasteOptionsBox != null)
 		{
-			pasteOptionsBox.AddChild(_btnClipboardBrushShape);
+			var shapeMirrorGrid = new GridContainer();
+			shapeMirrorGrid.Name = "ClipboardShapeMirrorGrid";
+			shapeMirrorGrid.Columns = 2;
+			shapeMirrorGrid.AddThemeConstantOverride("h_separation", 6);
+			shapeMirrorGrid.AddThemeConstantOverride("v_separation", 4);
+			shapeMirrorGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			shapeMirrorGrid.AddChild(_btnClipboardBrushShape);
+			shapeMirrorGrid.AddChild(_btnClipboardMirrorMode);
+			pasteOptionsBox.AddChild(shapeMirrorGrid);
+
+			var symGrid = new GridContainer();
+			symGrid.Name = "ClipboardSymmetrySubGrid";
+			symGrid.Columns = 2;
+			symGrid.AddThemeConstantOverride("h_separation", 6);
+			symGrid.AddThemeConstantOverride("v_separation", 4);
+			symGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			symGrid.AddChild(_btnClipboardSymmetryFolds);
+			symGrid.AddChild(_btnClipboardResetPivot);
+			pasteOptionsBox.AddChild(symGrid);
+
 			pasteOptionsBox.AddChild(_btnPasteReflection);
 			pasteOptionsBox.AddChild(_btnPasteAnchor);
 			pasteOptionsBox.AddChild(_lblPasteTelemetry);
@@ -6649,6 +6686,7 @@ public partial class MapEditorHUD : Control
 		};
 		GameHost.Instance.EditorMirrorMode = next;
 		GameHost.Instance.UpdateSymmetryPivotVisuals();
+		GameHost.Instance.InvalidateSelectionHighlightMesh();
 		UpdateMirrorButtonText();
 		UpdateSymmetrySubControlsVisibility();
 		UpdatePolarRadialStepButtonText();
@@ -6677,6 +6715,10 @@ public partial class MapEditorHUD : Control
 		{
 			_btnPlacementMirrorMode.Text = modeText;
 		}
+		if (_btnClipboardMirrorMode != null)
+		{
+			_btnClipboardMirrorMode.Text = modeText;
+		}
 		UpdateSymmetrySubControlsVisibility();
 	}
 
@@ -6697,6 +6739,7 @@ public partial class MapEditorHUD : Control
 			_ => 4
 		};
 		GameHost.Instance.EditorSymmetryFolds = next;
+		GameHost.Instance.InvalidateSelectionHighlightMesh();
 		UpdateSymmetryFoldsButtonText();
 		UpdateMirrorButtonText();
 		UpdatePolarRadialStepButtonText();
@@ -6710,6 +6753,7 @@ public partial class MapEditorHUD : Control
 		string text = string.Format(TranslationServer.Translate("\uf1b2 FOLDS: {0}"), folds);
 		if (_btnSymmetryFolds != null) _btnSymmetryFolds.Text = text;
 		if (_btnPlacementSymmetryFolds != null) _btnPlacementSymmetryFolds.Text = text;
+		if (_btnClipboardSymmetryFolds != null) _btnClipboardSymmetryFolds.Text = text;
 	}
 
 	private void UpdateSymmetrySubControlsVisibility()
@@ -6721,8 +6765,10 @@ public partial class MapEditorHUD : Control
 
 		if (_btnSymmetryFolds != null) _btnSymmetryFolds.Visible = isRotational;
 		if (_btnPlacementSymmetryFolds != null) _btnPlacementSymmetryFolds.Visible = isRotational;
+		if (_btnClipboardSymmetryFolds != null) _btnClipboardSymmetryFolds.Visible = isRotational;
 		if (_btnBrushResetPivot != null) _btnBrushResetPivot.Visible = hasMirror;
 		if (_btnPlacementResetPivot != null) _btnPlacementResetPivot.Visible = hasMirror;
+		if (_btnClipboardResetPivot != null) _btnClipboardResetPivot.Visible = hasMirror;
 	}
 
 	private void CyclePolarRingSpacing()
@@ -6823,6 +6869,7 @@ public partial class MapEditorHUD : Control
 		GameHost.Instance.EditorSymmetryPivot = pivot;
 		GameHost.Instance.GroundTerrain.SetPolarCenter(pivot);
 		GameHost.Instance.UpdateSymmetryPivotVisuals();
+		GameHost.Instance.InvalidateSelectionHighlightMesh();
 		ShowFeedback(TranslationServer.Translate("Symmetry & Polar Pivot reset to Map Center"));
 	}
 
@@ -8197,6 +8244,25 @@ public partial class MapEditorHUD : Control
 			{
 				_btnClipboardBrushShape.CustomMinimumSize = new Vector2(0, 30);
 				_btnClipboardBrushShape.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnClipboardBrushShape.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnClipboardMirrorMode != null)
+			{
+				_btnClipboardMirrorMode.CustomMinimumSize = new Vector2(0, 30);
+				_btnClipboardMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnClipboardMirrorMode.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnClipboardSymmetryFolds != null)
+			{
+				_btnClipboardSymmetryFolds.CustomMinimumSize = new Vector2(0, 30);
+				_btnClipboardSymmetryFolds.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnClipboardSymmetryFolds.AddThemeFontSizeOverride("font_size", 10);
+			}
+			if (_btnClipboardResetPivot != null)
+			{
+				_btnClipboardResetPivot.CustomMinimumSize = new Vector2(0, 30);
+				_btnClipboardResetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+				_btnClipboardResetPivot.AddThemeFontSizeOverride("font_size", 10);
 			}
 			if (_btnPasteReflection != null)
 			{

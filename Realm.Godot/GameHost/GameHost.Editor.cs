@@ -4034,13 +4034,7 @@ public partial class GameHost
 					var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
 					var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation, EditorPasteReflection);
 
-					int minX = Mathf.Clamp(startX, 0, GroundTerrain.Width - 1);
-					int minZ = Mathf.Clamp(startZ, 0, GroundTerrain.Depth - 1);
-					int maxX = Mathf.Clamp(startX + targetWidth - 1, 0, GroundTerrain.Width - 1);
-					int maxZ = Mathf.Clamp(startZ + targetDepth - 1, 0, GroundTerrain.Depth - 1);
-
-					CreateSelectionHighlight();
-					RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+					UpdatePasteSelectionHighlights(startX, startZ, targetWidth, targetDepth);
 
 					int srcAnchorX = _editorService.CopiedAreaSourceMinX + _editorService.CopiedAreaAnchorX;
 					int srcAnchorZ = _editorService.CopiedAreaSourceMinZ + _editorService.CopiedAreaAnchorZ;
@@ -5494,15 +5488,123 @@ public partial class GameHost
 		MapEditorHUD.Instance?.ShowFeedbackExternal(statusMsg);
 	}
 
+	private readonly List<MeshInstance3D> _symmetryHighlightMeshes = new();
+
 	public void HideSelectionHighlight()
 	{
 		if (_selectionHighlightMesh != null)
 		{
 			_selectionHighlightMesh.Visible = false;
 		}
+		foreach (var symMesh in _symmetryHighlightMeshes)
+		{
+			if (GodotObject.IsInstanceValid(symMesh))
+			{
+				symMesh.Visible = false;
+			}
+		}
 		_editorService?.SetIsSelectingArea(false);
 		_editorService?.SetSelectionStart(null);
 		_editorService?.SetSelectionEnd(null);
+	}
+
+	private MeshInstance3D GetOrCreateSymmetryHighlightMesh(int index)
+	{
+		while (_symmetryHighlightMeshes.Count <= index)
+		{
+			var meshInst = new MeshInstance3D();
+			meshInst.Name = $"SymmetrySelectionHighlight_{_symmetryHighlightMeshes.Count}";
+			var mat = new StandardMaterial3D();
+			mat.AlbedoColor = new Color(0.0f, 0.6f, 1.0f, 0.35f);
+			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+			mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+			mat.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
+			meshInst.MaterialOverride = mat;
+			AddChild(meshInst);
+			meshInst.Visible = false;
+			_symmetryHighlightMeshes.Add(meshInst);
+		}
+		return _symmetryHighlightMeshes[index];
+	}
+
+	public void UpdatePasteSelectionHighlights(int startX, int startZ, int targetWidth, int targetDepth)
+	{
+		if (GroundTerrain == null || GroundTerrain.Cells == null || !_editorService.HasCopiedArea) return;
+
+		int width = GroundTerrain.Width;
+		int depth = GroundTerrain.Depth;
+
+		int minX = Mathf.Clamp(startX, 0, width - 1);
+		int minZ = Mathf.Clamp(startZ, 0, depth - 1);
+		int maxX = Mathf.Clamp(startX + targetWidth - 1, 0, width - 1);
+		int maxZ = Mathf.Clamp(startZ + targetDepth - 1, 0, depth - 1);
+
+		CreateSelectionHighlight();
+		RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+
+		int symCount = 0;
+		if (EditorMirrorMode != MirrorMode.None)
+		{
+			var boundsList = new List<(int minX, int minZ, int maxX, int maxZ)>();
+
+			if (EditorMirrorMode == MirrorMode.Horizontal || EditorMirrorMode == MirrorMode.Both)
+			{
+				int hMinX = Mathf.Clamp(width - 1 - (startX + targetWidth - 1), 0, width - 1);
+				int hMaxX = Mathf.Clamp(width - 1 - startX, 0, width - 1);
+				boundsList.Add((hMinX, minZ, hMaxX, maxZ));
+			}
+
+			if (EditorMirrorMode == MirrorMode.Vertical || EditorMirrorMode == MirrorMode.Both)
+			{
+				int vMinZ = Mathf.Clamp(depth - 1 - (startZ + targetDepth - 1), 0, depth - 1);
+				int vMaxZ = Mathf.Clamp(depth - 1 - startZ, 0, depth - 1);
+				boundsList.Add((minX, vMinZ, maxX, vMaxZ));
+			}
+
+			if (EditorMirrorMode == MirrorMode.Both)
+			{
+				int bMinX = Mathf.Clamp(width - 1 - (startX + targetWidth - 1), 0, width - 1);
+				int bMaxX = Mathf.Clamp(width - 1 - startX, 0, width - 1);
+				int bMinZ = Mathf.Clamp(depth - 1 - (startZ + targetDepth - 1), 0, depth - 1);
+				int bMaxZ = Mathf.Clamp(depth - 1 - startZ, 0, depth - 1);
+				boundsList.Add((bMinX, bMinZ, bMaxX, bMaxZ));
+			}
+
+			if (EditorMirrorMode == MirrorMode.Rotational)
+			{
+				float quadSize = GroundTerrain.QuadSize;
+				Vector3 centerPos = new Vector3((startX + targetWidth / 2.0f - width / 2.0f) * quadSize, 0, (startZ + targetDepth / 2.0f - depth / 2.0f) * quadSize);
+				var transforms = _editorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+				foreach (var t in transforms)
+				{
+					var (rcx, rcz) = _editorService.WorldPosToCellCoords(t.Position);
+					int rStartX = rcx - targetWidth / 2;
+					int rStartZ = rcz - targetDepth / 2;
+					int rMinX = Mathf.Clamp(rStartX, 0, width - 1);
+					int rMinZ = Mathf.Clamp(rStartZ, 0, depth - 1);
+					int rMaxX = Mathf.Clamp(rStartX + targetWidth - 1, 0, width - 1);
+					int rMaxZ = Mathf.Clamp(rStartZ + targetDepth - 1, 0, depth - 1);
+					boundsList.Add((rMinX, rMinZ, rMaxX, rMaxZ));
+				}
+			}
+
+			symCount = boundsList.Count;
+			for (int i = 0; i < boundsList.Count; i++)
+			{
+				var b = boundsList[i];
+				var meshInst = GetOrCreateSymmetryHighlightMesh(i);
+				BuildHighlightMeshForBounds(meshInst, b.minX, b.minZ, b.maxX, b.maxZ);
+				meshInst.Visible = true;
+			}
+		}
+
+		for (int i = symCount; i < _symmetryHighlightMeshes.Count; i++)
+		{
+			if (GodotObject.IsInstanceValid(_symmetryHighlightMeshes[i]))
+			{
+				_symmetryHighlightMeshes[i].Visible = false;
+			}
+		}
 	}
 
 	private void CreateSelectionHighlight()
@@ -5538,30 +5640,28 @@ public partial class GameHost
 	public void RebuildSelectionHighlightMeshExternal(int minX, int minZ, int maxX, int maxZ)
 	{
 		_lastSelectionMinX = -1;
-		RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+		if (ActiveEditorTool == EditorTool.PasteArea && _editorService.HasCopiedArea)
+		{
+			int w = maxX - minX + 1;
+			int d = maxZ - minZ + 1;
+			UpdatePasteSelectionHighlights(minX, minZ, w, d);
+		}
+		else
+		{
+			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+		}
 	}
 
-	private void RebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
+	private void BuildHighlightMeshForBounds(MeshInstance3D meshInst, int minX, int minZ, int maxX, int maxZ)
 	{
-		if (_selectionHighlightMesh == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
+		if (meshInst == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
 		if (selWidth < 2 || selDepth < 2)
 		{
-			_selectionHighlightMesh.Visible = false;
-			_lastSelectionMinX = -1;
+			meshInst.Visible = false;
 			return;
 		}
-
-		if (minX == _lastSelectionMinX && minZ == _lastSelectionMinZ && maxX == _lastSelectionMaxX && maxZ == _lastSelectionMaxZ && _lastSelectionBrushIsSquare == EditorBrushIsSquare && _selectionHighlightMesh.Visible)
-		{
-			return;
-		}
-		_lastSelectionMinX = minX;
-		_lastSelectionMinZ = minZ;
-		_lastSelectionMaxX = maxX;
-		_lastSelectionMaxZ = maxZ;
-		_lastSelectionBrushIsSquare = EditorBrushIsSquare;
 
 		int vertexCount = selWidth * selDepth;
 		var vertices = new Vector3[vertexCount];
@@ -5693,8 +5793,33 @@ public partial class GameHost
 		arrays[(int)Mesh.ArrayType.Index] = indices;
 		var arrayMesh = new ArrayMesh();
 		arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
-		_selectionHighlightMesh.Mesh = arrayMesh;
-		_selectionHighlightMesh.Visible = true;
+		meshInst.Mesh = arrayMesh;
+		meshInst.Visible = true;
+	}
+
+	private void RebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
+	{
+		if (_selectionHighlightMesh == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
+		int selWidth = maxX - minX + 1;
+		int selDepth = maxZ - minZ + 1;
+		if (selWidth < 2 || selDepth < 2)
+		{
+			_selectionHighlightMesh.Visible = false;
+			_lastSelectionMinX = -1;
+			return;
+		}
+
+		if (minX == _lastSelectionMinX && minZ == _lastSelectionMinZ && maxX == _lastSelectionMaxX && maxZ == _lastSelectionMaxZ && _lastSelectionBrushIsSquare == EditorBrushIsSquare && _selectionHighlightMesh.Visible)
+		{
+			return;
+		}
+		_lastSelectionMinX = minX;
+		_lastSelectionMinZ = minZ;
+		_lastSelectionMaxX = maxX;
+		_lastSelectionMaxZ = maxZ;
+		_lastSelectionBrushIsSquare = EditorBrushIsSquare;
+
+		BuildHighlightMeshForBounds(_selectionHighlightMesh, minX, minZ, maxX, maxZ);
 	}
 
 	private void CreateCoordinatePreviewMesh()
