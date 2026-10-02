@@ -1195,10 +1195,10 @@ public partial class MapDetails : Control
 	{
 		if (_mapData == null || _isDownloading) return;
 
-		if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingUploads())
+		if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
 		{
 			UIStyle.ApplyButtonText(_downloadButton, "RETRY DOWNLOAD", 18);
-			_downloadSubtitle.Text = Tr("Insufficient disk space (at least 10% free required).");
+			_downloadSubtitle.Text = Tr("Insufficient disk space (at least 1% free required).");
 			_downloadSubtitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 			return;
 		}
@@ -1244,9 +1244,9 @@ public partial class MapDetails : Control
 		else
 		{
 			UIStyle.ApplyButtonText(_downloadButton, "RETRY DOWNLOAD", 18);
-			if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingUploads())
+			if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
 			{
-				_downloadSubtitle.Text = Tr("Insufficient disk space (at least 10% free required).");
+				_downloadSubtitle.Text = Tr("Insufficient disk space (at least 1% free required).");
 			}
 			else
 			{
