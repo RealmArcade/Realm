@@ -159,6 +159,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnCut;
 	private Button _btnEraseArea;
 	private Button _btnPasteReflection;
+	private Button _btnClipboardBrushShape;
 	private HSlider _sldPasteRotation;
 	private Label _lblPasteRotation;
 
@@ -1601,6 +1602,19 @@ public partial class MapEditorHUD : Control
 		_sldPasteRotation.DragStarted += () => _isDraggingSlider = true;
 		_sldPasteRotation.DragEnded += (valueChanged) => _isDraggingSlider = false;
 
+		_btnClipboardBrushShape = new Button();
+		_btnClipboardBrushShape.Name = "BtnClipboardBrushShape";
+		_btnClipboardBrushShape.Set("icon_max_width", 0);
+		SetupOptionButton(_btnClipboardBrushShape, GameHost.Instance != null && !GameHost.Instance.EditorBrushIsSquare ? "\uf111 BRUSH: CIRCLE" : "\uf0c8 BRUSH: SQUARE", () =>
+		{
+			if (GameHost.Instance != null)
+			{
+				GameHost.Instance.EditorBrushIsSquare = !GameHost.Instance.EditorBrushIsSquare;
+				UpdateBrushShapeExternal(GameHost.Instance.EditorBrushIsSquare);
+				ShowFeedback(GameHost.Instance.EditorBrushIsSquare ? TranslationServer.Translate("Brush Shape: SQUARE") : TranslationServer.Translate("Brush Shape: CIRCLE"));
+			}
+		}, 11, "Toggle square / circular selection and clipboard brush shape");
+
 		_btnPasteReflection = new Button();
 		_btnPasteReflection.Name = "BtnPasteReflection";
 		_btnPasteReflection.Set("icon_max_width", 0);
@@ -1623,6 +1637,7 @@ public partial class MapEditorHUD : Control
 		var pasteOptionsBox = _containerPasteSettings.GetNodeOrNull<VBoxContainer>("PasteOptionsBox");
 		if (pasteOptionsBox != null)
 		{
+			pasteOptionsBox.AddChild(_btnClipboardBrushShape);
 			pasteOptionsBox.AddChild(_btnPasteReflection);
 			pasteOptionsBox.AddChild(_btnPasteAnchor);
 			pasteOptionsBox.AddChild(_lblPasteTelemetry);
@@ -3093,6 +3108,15 @@ public partial class MapEditorHUD : Control
 		if (_btnBrushShape != null)
 		{
 			_btnBrushShape.Text = isSquare ? TranslationServer.Translate("\uf0c8 BRUSH: SQUARE") : TranslationServer.Translate("\uf111 BRUSH: CIRCLE");
+		}
+		if (_btnClipboardBrushShape != null)
+		{
+			_btnClipboardBrushShape.Text = isSquare ? TranslationServer.Translate("\uf0c8 BRUSH: SQUARE") : TranslationServer.Translate("\uf111 BRUSH: CIRCLE");
+		}
+		if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null && _editorService != null && _editorService.SelectionStart != null && _editorService.SelectionEnd != null)
+		{
+			var (minX, minZ, maxX, maxZ) = _editorService.GetCurrentSelectionBounds();
+			GameHost.Instance.RebuildSelectionHighlightMeshExternal(minX, minZ, maxX, maxZ);
 		}
 	}
 
@@ -8169,6 +8193,11 @@ public partial class MapEditorHUD : Control
 		{
 			StyleSubContainer(_containerPasteSettings, "Paste Options");
 			StyleValueBadge(_lblPasteRotation);
+			if (_btnClipboardBrushShape != null)
+			{
+				_btnClipboardBrushShape.CustomMinimumSize = new Vector2(0, 30);
+				_btnClipboardBrushShape.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			}
 			if (_btnPasteReflection != null)
 			{
 				_btnPasteReflection.CustomMinimumSize = new Vector2(0, 30);

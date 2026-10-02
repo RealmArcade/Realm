@@ -104,6 +104,7 @@ public class EditorService
 		public TerrainSplatWeights[,] CliffSplatMap;
 		public int[,] Pathing;
 		public List<CopiedEntityInfo> Entities;
+		public bool[,] Mask;
 	}
 
 	public class CopiedEntityInfo
@@ -191,6 +192,8 @@ public class EditorService
 	public int CopiedAreaSourceMinZ => _copiedArea?.SourceMinZ ?? 0;
 	public int CopiedAreaSourceMaxX => _copiedArea?.SourceMaxX ?? 0;
 	public int CopiedAreaSourceMaxZ => _copiedArea?.SourceMaxZ ?? 0;
+	public bool HasCopiedAreaMask => _copiedArea?.Mask != null;
+	public bool IsCopiedCellMasked(int srcX, int srcZ) => _copiedArea == null || _copiedArea.Mask == null || (srcX >= 0 && srcX < _copiedArea.Width && srcZ >= 0 && srcZ < _copiedArea.Depth && _copiedArea.Mask[srcX, srcZ]);
 
 	public void SetCopiedAreaAnchor(int anchorTileX, int anchorTileZ)
 	{
@@ -1702,7 +1705,7 @@ public class EditorService
 		return result;
 	}
 
-	public void CopyArea(int minX, int minZ, int maxX, int maxZ, List<CopiedEntityInfo> entities)
+	public void CopyArea(int minX, int minZ, int maxX, int maxZ, List<CopiedEntityInfo> entities, bool isSquare = true)
 	{
 		ref var terrain = ref GetTerrainState();
 		var cells = terrain.Cells;
@@ -1723,6 +1726,12 @@ public class EditorService
 		var splatMap = new TerrainSplatWeights[selWidth, selDepth];
 		var cliffSplatMap = new TerrainSplatWeights[selWidth, selDepth];
 		var pathing = new int[selWidth, selDepth];
+		var mask = isSquare ? null : new bool[selWidth, selDepth];
+
+		float selCenterX = (minX + maxX) * 0.5f;
+		float selCenterZ = (minZ + maxZ) * 0.5f;
+		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
+		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
 
 		for (int sz = 0; sz < selDepth; sz++)
 		{
@@ -1730,18 +1739,34 @@ public class EditorService
 			{
 				int sourceX = Math.Clamp(minX + sx, 0, terrain.Width - 1);
 				int sourceZ = Math.Clamp(minZ + sz, 0, terrain.Depth - 1);
-				copiedCells[sx, sz] = cells[sourceX, sourceZ];
-				if (_terrainSplatMap != null && sourceX < _terrainSplatMap.GetLength(0) && sourceZ < _terrainSplatMap.GetLength(1))
+				bool inBounds = true;
+				if (!isSquare)
 				{
-					splatMap[sx, sz] = _terrainSplatMap[sourceX, sourceZ];
+					float cellCenterX = minX + sx + 0.5f;
+					float cellCenterZ = minZ + sz + 0.5f;
+					float ndx = (cellCenterX - selCenterX) / rx;
+					float ndz = (cellCenterZ - selCenterZ) / rz;
+					inBounds = (ndx * ndx + ndz * ndz <= 1.05f);
 				}
-				if (_terrainCliffSplatMap != null && sourceX < _terrainCliffSplatMap.GetLength(0) && sourceZ < _terrainCliffSplatMap.GetLength(1))
+				if (mask != null)
 				{
-					cliffSplatMap[sx, sz] = _terrainCliffSplatMap[sourceX, sourceZ];
+					mask[sx, sz] = inBounds;
 				}
-				if (terrain.PathingCodes != null && sourceX < terrain.PathingCodes.GetLength(0) && sourceZ < terrain.PathingCodes.GetLength(1))
+				if (inBounds)
 				{
-					pathing[sx, sz] = terrain.PathingCodes[sourceX, sourceZ];
+					copiedCells[sx, sz] = cells[sourceX, sourceZ];
+					if (_terrainSplatMap != null && sourceX < _terrainSplatMap.GetLength(0) && sourceZ < _terrainSplatMap.GetLength(1))
+					{
+						splatMap[sx, sz] = _terrainSplatMap[sourceX, sourceZ];
+					}
+					if (_terrainCliffSplatMap != null && sourceX < _terrainCliffSplatMap.GetLength(0) && sourceZ < _terrainCliffSplatMap.GetLength(1))
+					{
+						cliffSplatMap[sx, sz] = _terrainCliffSplatMap[sourceX, sourceZ];
+					}
+					if (terrain.PathingCodes != null && sourceX < terrain.PathingCodes.GetLength(0) && sourceZ < terrain.PathingCodes.GetLength(1))
+					{
+						pathing[sx, sz] = terrain.PathingCodes[sourceX, sourceZ];
+					}
 				}
 			}
 		}
@@ -1760,13 +1785,15 @@ public class EditorService
 			SplatMap = splatMap,
 			CliffSplatMap = cliffSplatMap,
 			Pathing = pathing,
-			Entities = entities
+			Entities = entities,
+			Mask = mask
 		};
 	}
 
 	public List<CopiedEntityInfo> BuildCopiedEntityList(
 		int minX, int minZ, int maxX, int maxZ,
-		IEnumerable<Node3D> sceneChildren)
+		IEnumerable<Node3D> sceneChildren,
+		bool isSquare = true)
 	{
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return new List<CopiedEntityInfo>();
@@ -1779,6 +1806,10 @@ public class EditorService
 		float maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
 		float minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
 		float maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
+		float centerWorldX = (minWorldX + maxWorldX) * 0.5f;
+		float centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
+		float rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
+		float rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
 		Vector3 origin = new Vector3((minX - width / 2.0f) * quadSize, 0.0f, (minZ - depth / 2.0f) * quadSize);
 
 		var entities = new List<CopiedEntityInfo>();
@@ -1788,6 +1819,12 @@ public class EditorService
 			Vector3 pos = n3d.Position;
 			if (pos.X >= minWorldX && pos.X <= maxWorldX && pos.Z >= minWorldZ && pos.Z <= maxWorldZ)
 			{
+				if (!isSquare)
+				{
+					float ndx = (pos.X - centerWorldX) / rxWorld;
+					float ndz = (pos.Z - centerWorldZ) / rzWorld;
+					if (ndx * ndx + ndz * ndz > 1.0f) continue;
+				}
 				if (n3d is Unit3D unit)
 				{
 					entities.Add(new CopiedEntityInfo
@@ -1839,6 +1876,12 @@ public class EditorService
 				Vector3 worldPos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
 				if (worldPos.X >= minWorldX && worldPos.X <= maxWorldX && worldPos.Z >= minWorldZ && worldPos.Z <= maxWorldZ)
 				{
+					if (!isSquare)
+					{
+						float ndx = (worldPos.X - centerWorldX) / rxWorld;
+						float ndz = (worldPos.Z - centerWorldZ) / rzWorld;
+						if (ndx * ndx + ndz * ndz > 1.0f) return;
+					}
 					float rotY = world.Has<RotationY>(entity) ? world.Get<RotationY>(entity).Value : 0f;
 					float scale = world.Has<ModelScale>(entity) ? world.Get<ModelScale>(entity).Value : 1f;
 
@@ -2014,7 +2057,8 @@ public class EditorService
 		bool pasteEntities,
 		bool pastePathing,
 		IEnumerable<Node3D> sceneChildren,
-		Node3D previewNode)
+		Node3D previewNode,
+		bool isSquare = true)
 	{
 		var result = new EraseAreaResult();
 		result.NodesToDelete = new List<Node3D>();
@@ -2040,12 +2084,26 @@ public class EditorService
 		bool terrainModified = false;
 		bool pathingModified = false;
 
+		float selCenterX = (minX + maxX) * 0.5f;
+		float selCenterZ = (minZ + maxZ) * 0.5f;
+		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
+		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
+
 		if (pasteHeights || pasteTextures || (pastePathing && terrain.PathingCodes != null))
 		{
 			for (int sz = 0; sz < selDepth; sz++)
 			{
 				for (int sx = 0; sx < selWidth; sx++)
 				{
+					if (!isSquare)
+					{
+						float cellCenterX = minX + sx + 0.5f;
+						float cellCenterZ = minZ + sz + 0.5f;
+						float ndx = (cellCenterX - selCenterX) / rx;
+						float ndz = (cellCenterZ - selCenterZ) / rz;
+						if (ndx * ndx + ndz * ndz > 1.05f) continue;
+					}
+
 					int targetX = minX + sx;
 					int targetZ = minZ + sz;
 					if (targetX >= 0 && targetX < width && targetZ >= 0 && targetZ < depth)
@@ -2099,6 +2157,10 @@ public class EditorService
 			float maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
 			float minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
 			float maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
+			float centerWorldX = (minWorldX + maxWorldX) * 0.5f;
+			float centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
+			float rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
+			float rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
 
 			foreach (var n3d in sceneChildren)
 			{
@@ -2106,6 +2168,12 @@ public class EditorService
 				Vector3 pos = n3d.Position;
 				if (pos.X >= minWorldX && pos.X <= maxWorldX && pos.Z >= minWorldZ && pos.Z <= maxWorldZ)
 				{
+					if (!isSquare)
+					{
+						float ndx = (pos.X - centerWorldX) / rxWorld;
+						float ndz = (pos.Z - centerWorldZ) / rzWorld;
+						if (ndx * ndx + ndz * ndz > 1.0f) continue;
+					}
 					if (n3d is Unit3D || n3d is Prop3D || n3d is Decal)
 					{
 						result.NodesToDelete.Add(n3d);
@@ -2124,6 +2192,12 @@ public class EditorService
 					Vector3 wPos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
 					if (wPos.X >= minWorldX && wPos.X <= maxWorldX && wPos.Z >= minWorldZ && wPos.Z <= maxWorldZ)
 					{
+						if (!isSquare)
+						{
+							float ndx = (wPos.X - centerWorldX) / rxWorld;
+							float ndz = (wPos.Z - centerWorldZ) / rzWorld;
+							if (ndx * ndx + ndz * ndz > 1.0f) return;
+						}
 						staticPropsToDestroy.Add((entity, propIdComp.PropId));
 					}
 				});
@@ -2984,6 +3058,11 @@ public class EditorService
 	{
 		int targetX = startX + rotX;
 		int targetZ = startZ + rotZ;
+
+		if (_copiedArea.Mask != null && !_copiedArea.Mask[srcX, srcZ])
+		{
+			return;
+		}
 
 		var cells = terrain.Cells;
 		var srcCells = _copiedArea.Cells;

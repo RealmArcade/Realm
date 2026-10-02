@@ -5366,8 +5366,8 @@ public partial class GameHost
 			if (child is Node3D n3d) node3Ds.Add(n3d);
 		}
 
-		var entities = _editorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, node3Ds);
-		_editorService.CopyArea(minX, minZ, maxX, maxZ, entities);
+		var entities = _editorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, node3Ds, EditorBrushIsSquare);
+		_editorService.CopyArea(minX, minZ, maxX, maxZ, entities, EditorBrushIsSquare);
 
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
@@ -5533,6 +5533,14 @@ public partial class GameHost
 		_lastSelectionMaxZ = -1;
 	}
 
+	private bool _lastSelectionBrushIsSquare = true;
+
+	public void RebuildSelectionHighlightMeshExternal(int minX, int minZ, int maxX, int maxZ)
+	{
+		_lastSelectionMinX = -1;
+		RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+	}
+
 	private void RebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
 	{
 		if (_selectionHighlightMesh == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
@@ -5545,7 +5553,7 @@ public partial class GameHost
 			return;
 		}
 
-		if (minX == _lastSelectionMinX && minZ == _lastSelectionMinZ && maxX == _lastSelectionMaxX && maxZ == _lastSelectionMaxZ && _selectionHighlightMesh.Visible)
+		if (minX == _lastSelectionMinX && minZ == _lastSelectionMinZ && maxX == _lastSelectionMaxX && maxZ == _lastSelectionMaxZ && _lastSelectionBrushIsSquare == EditorBrushIsSquare && _selectionHighlightMesh.Visible)
 		{
 			return;
 		}
@@ -5553,6 +5561,7 @@ public partial class GameHost
 		_lastSelectionMinZ = minZ;
 		_lastSelectionMaxX = maxX;
 		_lastSelectionMaxZ = maxZ;
+		_lastSelectionBrushIsSquare = EditorBrushIsSquare;
 
 		int vertexCount = selWidth * selDepth;
 		var vertices = new Vector3[vertexCount];
@@ -5582,23 +5591,101 @@ public partial class GameHost
 		int indexCount = cellWidth * cellDepth * 6;
 		var indices = new int[indexCount];
 		int iIdx = 0;
+
+		float selCenterX = (minX + maxX) * 0.5f;
+		float selCenterZ = (minZ + maxZ) * 0.5f;
+		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
+		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
+
 		for (int sz = 0; sz < cellDepth; sz++)
 		{
 			int row0 = sz * selWidth;
 			int row1 = (sz + 1) * selWidth;
 			for (int sx = 0; sx < cellWidth; sx++)
 			{
-				int v00 = row0 + sx;
-				int v10 = row0 + (sx + 1);
-				int v01 = row1 + sx;
-				int v11 = row1 + (sx + 1);
-				indices[iIdx++] = v00;
-				indices[iIdx++] = v10;
-				indices[iIdx++] = v01;
-				indices[iIdx++] = v10;
-				indices[iIdx++] = v11;
-				indices[iIdx++] = v01;
+				bool includeQuad = true;
+				if (ActiveEditorTool == EditorTool.SelectArea)
+				{
+					if (!EditorBrushIsSquare)
+					{
+						float cellCenterX = minX + sx + 0.5f;
+						float cellCenterZ = minZ + sz + 0.5f;
+						float ndx = (cellCenterX - selCenterX) / rx;
+						float ndz = (cellCenterZ - selCenterZ) / rz;
+						includeQuad = (ndx * ndx + ndz * ndz <= 1.05f);
+					}
+				}
+				else if (ActiveEditorTool == EditorTool.PasteArea)
+				{
+					if (_editorService.HasCopiedArea && _editorService.HasCopiedAreaMask)
+					{
+						int rotX = sx;
+						int rotZ = sz;
+						float r = EditorPasteRotation % 360.0f;
+						if (r < 0) r += 360.0f;
+						int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+						int pasteWidth = _editorService.CopiedAreaWidth;
+						int pasteDepth = _editorService.CopiedAreaDepth;
+
+						int origSx = sx;
+						int origSz = sz;
+						if (rotSteps == 1)
+						{
+							origSx = sz;
+							origSz = pasteDepth - 1 - sx;
+						}
+						else if (rotSteps == 2)
+						{
+							origSx = pasteWidth - 1 - sx;
+							origSz = pasteDepth - 1 - sz;
+						}
+						else if (rotSteps == 3)
+						{
+							origSx = pasteWidth - 1 - sz;
+							origSz = sx;
+						}
+
+						int srcX = origSx;
+						int srcZ = origSz;
+						if (EditorPasteReflection == PasteReflection.Horizontal)
+						{
+							srcX = pasteWidth - 1 - origSx;
+						}
+						else if (EditorPasteReflection == PasteReflection.Vertical)
+						{
+							srcZ = pasteDepth - 1 - origSz;
+						}
+
+						includeQuad = _editorService.IsCopiedCellMasked(srcX, srcZ);
+					}
+					else if (!EditorBrushIsSquare && !_editorService.HasCopiedArea)
+					{
+						float cellCenterX = minX + sx + 0.5f;
+						float cellCenterZ = minZ + sz + 0.5f;
+						float ndx = (cellCenterX - selCenterX) / rx;
+						float ndz = (cellCenterZ - selCenterZ) / rz;
+						includeQuad = (ndx * ndx + ndz * ndz <= 1.05f);
+					}
+				}
+
+				if (includeQuad)
+				{
+					int v00 = row0 + sx;
+					int v10 = row0 + (sx + 1);
+					int v01 = row1 + sx;
+					int v11 = row1 + (sx + 1);
+					indices[iIdx++] = v00;
+					indices[iIdx++] = v10;
+					indices[iIdx++] = v01;
+					indices[iIdx++] = v10;
+					indices[iIdx++] = v11;
+					indices[iIdx++] = v01;
+				}
 			}
+		}
+		if (iIdx < indexCount)
+		{
+			System.Array.Resize(ref indices, iIdx);
 		}
 		var arrays = new Godot.Collections.Array();
 		arrays.Resize((int)Mesh.ArrayType.Max);
@@ -5954,7 +6041,7 @@ public partial class GameHost
 		var eraseResult = _editorService.BuildEraseAreaResult(
 			minX, minZ, maxX, maxZ,
 			PasteOptionHeights, PasteOptionTextures, PasteOptionEntities, PasteOptionPathing,
-			node3Ds, _editorPreviewNode as Node3D);
+			node3Ds, _editorPreviewNode as Node3D, EditorBrushIsSquare);
 
 		if (eraseResult.TerrainModified)
 		{
