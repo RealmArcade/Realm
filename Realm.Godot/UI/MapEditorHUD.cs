@@ -976,7 +976,7 @@ public partial class MapEditorHUD : Control
 		_btnToggleEnvironment = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleEnvironment") ?? new Button();
 		_btnToggleEnvironment.Name = "BtnToggleEnvironment";
 		_btnToggleEnvironment.Set("icon_max_width", 0);
-		SetupButton(_btnToggleEnvironment, "\uf185", () => OpenEnvironmentPopup(), 12, "Configure environment lighting, weather effects & shadows (L / K / F9)");
+		SetupButton(_btnToggleEnvironment, "\uf185", () => OpenEnvironmentPopup(), 12, "Environment");
 
 		_popupCamera = new PopupPanel();
 		_popupCamera.Name = "PopupCamera";
@@ -2827,20 +2827,20 @@ public partial class MapEditorHUD : Control
 	private void SetupEnvLightingDropdown(OptionButton opt)
 	{
 		opt.Clear();
-		opt.AddItem(TranslationServer.Translate("\uf185 LIGHTING: DAY"), 0);
-		opt.AddItem(TranslationServer.Translate("\uf185 LIGHTING: DUSK"), 1);
-		opt.AddItem(TranslationServer.Translate("\uf186 LIGHTING: NIGHT"), 2);
-		opt.AddItem(TranslationServer.Translate("\uf185 LIGHTING: DAWN"), 3);
+		opt.AddItem(TranslationServer.Translate("\uf185 Day"), 0);
+		opt.AddItem(TranslationServer.Translate("\uf6c4 Dusk"), 1);
+		opt.AddItem(TranslationServer.Translate("\uf186 Night"), 2);
+		opt.AddItem(TranslationServer.Translate("\uf6c3 Dawn"), 3);
 		StyleOptionButtonPopup(opt);
 	}
 
 	private void SetupEnvWeatherDropdown(OptionButton opt)
 	{
 		opt.Clear();
-		opt.AddItem(TranslationServer.Translate("\uf185 WEATHER: CLEAR"), 0);
-		opt.AddItem(TranslationServer.Translate("\uf73d WEATHER: RAIN"), 1);
-		opt.AddItem(TranslationServer.Translate("\uf2dc WEATHER: SNOW"), 2);
-		opt.AddItem(TranslationServer.Translate("\uf75f WEATHER: FOG"), 3);
+		opt.AddItem(TranslationServer.Translate("\uf0c2 Clear"), 0);
+		opt.AddItem(TranslationServer.Translate("\uf73d Rain"), 1);
+		opt.AddItem(TranslationServer.Translate("\uf2dc Snow"), 2);
+		opt.AddItem(TranslationServer.Translate("\uf75f Fog"), 3);
 		StyleOptionButtonPopup(opt);
 	}
 
@@ -8255,7 +8255,7 @@ public partial class MapEditorHUD : Control
 			vpRow1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 			StyleIconButton(_btnToggleGrid, "\uf84c", "Overlay");
-			StyleIconButton(_btnToggleEnvironment, "\uf185", "Configure environment lighting, weather effects & shadows (L / K / F9)");
+			StyleIconButton(_btnToggleEnvironment, "\uf185", "Environment");
 			StyleIconButton(_btnToggleCamera, "\uf030", "Configure camera controls (R / C / + / - / F8)");
 			StyleIconButton(_btnTapeMeasure, "\uf545", "Tape measure distance & slope tool (U)");
 
