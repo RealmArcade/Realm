@@ -132,6 +132,12 @@
         ModelPath: document.getElementById('field-ModelPath'),
         PortraitModelPath: document.getElementById('field-PortraitModelPath'),
         IsHero: document.getElementById('field-IsHero'),
+        Vitality: document.getElementById('field-Vitality'),
+        Might: document.getElementById('field-Might'),
+        Agility: document.getElementById('field-Agility'),
+        Finesse: document.getElementById('field-Finesse'),
+        Focus: document.getElementById('field-Focus'),
+        Willpower: document.getElementById('field-Willpower'),
         MaxHp: document.getElementById('field-MaxHp'),
         Damage: document.getElementById('field-Damage'),
         Range: document.getElementById('field-Range'),
@@ -820,17 +826,17 @@
             if (portraitGroup) portraitGroup.classList.remove('hidden');
         } else if (activeDomain === 'resources') {
             if (resConfigSection) resConfigSection.classList.remove('hidden');
-            if (unitStatsSection) unitStatsSection.classList.add('hidden');
-            if (unitCostSection) unitCostSection.classList.add('hidden');
-            if (unitCombatSection) unitCombatSection.classList.add('hidden');
-            if (unitCapabilitiesSection) unitCapabilitiesSection.classList.add('hidden');
+            if (unitStatsSection) unitStatsSection.classList.remove('hidden');
+            if (unitCostSection) unitCostSection.classList.remove('hidden');
+            if (unitCombatSection) unitCombatSection.classList.remove('hidden');
+            if (unitCapabilitiesSection) unitCapabilitiesSection.classList.remove('hidden');
             if (animSection) animSection.classList.add('hidden');
             if (editAnimationsBtn) editAnimationsBtn.classList.add('hidden');
             if (pathingSection) pathingSection.classList.remove('hidden');
             if (isHeroGroup) isHeroGroup.classList.add('hidden');
             if (portraitGroup) portraitGroup.classList.remove('hidden');
         } else if (activeDomain === 'buildings') {
-            if (resConfigSection) resConfigSection.classList.add('hidden');
+            if (resConfigSection) resConfigSection.classList.remove('hidden');
             if (unitStatsSection) unitStatsSection.classList.remove('hidden');
             if (unitCostSection) unitCostSection.classList.remove('hidden');
             if (unitCombatSection) unitCombatSection.classList.remove('hidden');
@@ -1489,6 +1495,24 @@
                                     <label>Direct Healing</label>
                                     <input type="number" class="ability-healing" data-index="${index}" value="${item.Healing || 0}" min="0" step="any" />
                                 </div>
+                                <div class="form-group">
+                                    <label>AOE Radius</label>
+                                    <input type="number" class="ability-aoe-radius" data-index="${index}" value="${item.AreaOfEffectRadius || 0}" min="0" step="any" />
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Icon Path (Optional)</label>
+                                    <input type="text" class="ability-icon-path" list="suggest-icons" data-index="${index}" value="${item.IconPath || ''}" placeholder="e.g. spell_fire.png" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Visual Effect (Optional)</label>
+                                    <input type="text" class="ability-visual-effect" data-index="${index}" value="${item.VisualEffect || ''}" placeholder="e.g. fire_explosion.vfx" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Cast Sound (Optional)</label>
+                                    <input type="text" class="ability-cast-sound" data-index="${index}" value="${item.CastSound || ''}" placeholder="e.g. spell_cast.ogg" />
+                                </div>
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
@@ -1644,6 +1668,10 @@
                 else if (target.classList.contains('ability-desc')) list[idx].Description = val;
                 else if (target.classList.contains('ability-damage')) list[idx].Damage = parseFloat(val) || 0;
                 else if (target.classList.contains('ability-healing')) list[idx].Healing = parseFloat(val) || 0;
+                else if (target.classList.contains('ability-aoe-radius')) list[idx].AreaOfEffectRadius = parseFloat(val) || 0;
+                else if (target.classList.contains('ability-icon-path')) list[idx].IconPath = val;
+                else if (target.classList.contains('ability-visual-effect')) list[idx].VisualEffect = val;
+                else if (target.classList.contains('ability-cast-sound')) list[idx].CastSound = val;
                 else if (target.classList.contains('ability-summon-id')) list[idx].SummonedUnitId = val;
                 else if (target.classList.contains('ability-summon-count')) list[idx].SummonCount = parseInt(val, 10) || 1;
                 else if (target.classList.contains('ability-summon-duration')) list[idx].SummonDuration = parseFloat(val) || 0;
@@ -2316,6 +2344,8 @@
                             "PopCost", "AttackType", "ArmorType", "GoldBounty", "ModelPath", "BuildOptions",
                             "IsHero", "Abilities", "XpBounty", "Weapons", "StartingItems", "Upgrades",
                             "PathingType", "StatusEffects", "SoundEvents", "PortraitModelPath",
+                            "Vitality", "Might", "Agility", "Finesse", "Focus", "Willpower",
+                            "MaxCapacity", "HarvestRate", "GrowthRate", "MaxWorkers",
                             "HpRegen", "HpRegenCombatDelay", "MaxMana", "ManaRegen", "RatedArmor",
                             "FlatArmorPenetration", "PercentArmorPenetration", "DamageVariance", "DamageType",
                             "CritChance", "CritMultiplier", "SplashType", "SplashInnerRadius",

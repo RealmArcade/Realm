@@ -715,6 +715,36 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                         <h3>Attributes & Stats</h3>
                         <div class="form-row">
                             <div class="form-group">
+                                <label for="field-Vitality">Vitality (VIT)</label>
+                                <input type="number" id="field-Vitality" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-Might">Might (MIG)</label>
+                                <input type="number" id="field-Might" min="0" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-Agility">Agility (AGI)</label>
+                                <input type="number" id="field-Agility" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-Finesse">Finesse (FIN)</label>
+                                <input type="number" id="field-Finesse" min="0" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-Focus">Focus (FOC)</label>
+                                <input type="number" id="field-Focus" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-Willpower">Willpower (WIL)</label>
+                                <input type="number" id="field-Willpower" min="0" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
                                 <label for="field-MaxHp">Max HP</label>
                                 <input type="number" id="field-MaxHp" min="0" step="any" required />
                             </div>
