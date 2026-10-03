@@ -6323,4 +6323,128 @@ public partial class GameHost
 			GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
 		}
 	}
+
+	private bool _wasSelectionHighlightVisible;
+	private readonly List<bool> _wasSymmetryHighlightsVisible = new();
+	private bool _wasCameraBoundsVisible;
+	private bool _wasMeasureMeshVisible;
+	private bool _wasSymmetryPivotVisible;
+	private bool _wasCoordinatePreviewVisible;
+	private bool _wasCoordinateOutlineVisible;
+	private bool _wasScaleSilhouetteVisible;
+	private bool _wasCoverageOverlayVisible;
+
+	public void BeginMinimapCapture()
+	{
+		_wasSelectionHighlightVisible = _selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh) && _selectionHighlightMesh.Visible;
+		if (_selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh))
+		{
+			_selectionHighlightMesh.Visible = false;
+		}
+
+		_wasSymmetryHighlightsVisible.Clear();
+		foreach (var symMesh in _symmetryHighlightMeshes)
+		{
+			bool vis = symMesh != null && GodotObject.IsInstanceValid(symMesh) && symMesh.Visible;
+			_wasSymmetryHighlightsVisible.Add(vis);
+			if (vis)
+			{
+				symMesh.Visible = false;
+			}
+		}
+
+		_wasCameraBoundsVisible = _cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh) && _cameraBoundsOverlayMesh.Visible;
+		if (_cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh))
+		{
+			_cameraBoundsOverlayMesh.Visible = false;
+		}
+
+		_wasMeasureMeshVisible = _measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance) && _measureMeshInstance.Visible;
+		if (_measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance))
+		{
+			_measureMeshInstance.Visible = false;
+		}
+
+		_wasSymmetryPivotVisible = _symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh) && _symmetryPivotMarkerMesh.Visible;
+		if (_symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh))
+		{
+			_symmetryPivotMarkerMesh.Visible = false;
+		}
+
+		_wasCoordinatePreviewVisible = _coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh) && _coordinatePreviewMesh.Visible;
+		if (_coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh))
+		{
+			_coordinatePreviewMesh.Visible = false;
+		}
+
+		_wasCoordinateOutlineVisible = _coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh) && _coordinateSelectionOutlineMesh.Visible;
+		if (_coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh))
+		{
+			_coordinateSelectionOutlineMesh.Visible = false;
+		}
+
+		_wasScaleSilhouetteVisible = _scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh) && _scaleMapSilhouetteMesh.Visible;
+		if (_scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh))
+		{
+			_scaleMapSilhouetteMesh.Visible = false;
+		}
+
+		_wasCoverageOverlayVisible = _editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot) && _editorCoverageOverlayRoot.Visible;
+		if (_editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot))
+		{
+			_editorCoverageOverlayRoot.Visible = false;
+		}
+	}
+
+	public void EndMinimapCapture()
+	{
+		if (_selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh))
+		{
+			_selectionHighlightMesh.Visible = _wasSelectionHighlightVisible;
+		}
+
+		for (int i = 0; i < _wasSymmetryHighlightsVisible.Count && i < _symmetryHighlightMeshes.Count; i++)
+		{
+			var symMesh = _symmetryHighlightMeshes[i];
+			if (symMesh != null && GodotObject.IsInstanceValid(symMesh))
+			{
+				symMesh.Visible = _wasSymmetryHighlightsVisible[i];
+			}
+		}
+
+		if (_cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh))
+		{
+			_cameraBoundsOverlayMesh.Visible = _wasCameraBoundsVisible;
+		}
+
+		if (_measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance))
+		{
+			_measureMeshInstance.Visible = _wasMeasureMeshVisible;
+		}
+
+		if (_symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh))
+		{
+			_symmetryPivotMarkerMesh.Visible = _wasSymmetryPivotVisible;
+		}
+
+		if (_coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh))
+		{
+			_coordinatePreviewMesh.Visible = _wasCoordinatePreviewVisible;
+		}
+
+		if (_coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh))
+		{
+			_coordinateSelectionOutlineMesh.Visible = _wasCoordinateOutlineVisible;
+		}
+
+		if (_scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh))
+		{
+			_scaleMapSilhouetteMesh.Visible = _wasScaleSilhouetteVisible;
+		}
+
+		if (_editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot))
+		{
+			_editorCoverageOverlayRoot.Visible = _wasCoverageOverlayVisible;
+		}
+	}
 }
