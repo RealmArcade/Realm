@@ -239,35 +239,15 @@ layout_mode = 2
 focus_mode = 0
 text = "🌐 GRID OVERLAY: OFF"
 
-[node name="BtnRotate" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "🔄 Rotate"
-
-[node name="BtnCameraAngle" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "📐 Tilt"
-
 [node name="BtnToggleEnvironment" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0
 text = "☀️ Environment"
 
-[node name="BtnZoomIn" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+[node name="BtnToggleCamera" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0
-text = "➕ Zoom In"
-
-[node name="BtnZoomOut" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "➖ Zoom Out"
-
-[node name="BtnFreeCamera" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "📹 Free Camera"
+text = "📷 Camera"
 
 [node name="MinimapFrame" type="PanelContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2

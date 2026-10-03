@@ -327,7 +327,9 @@ public partial class MapEditorHUD : Control
 	private MapEditorCameraIndicator _cameraIndicator;
 	private Vector3 _lastRaycastPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
 
-	private Button _btnFreeCamera;
+	private Button _btnToggleCamera;
+	private PopupPanel _popupCamera;
+	private CheckBox _chkFreeCamera;
 
 
 
@@ -976,40 +978,102 @@ public partial class MapEditorHUD : Control
 		_btnToggleEnvironment.Set("icon_max_width", 0);
 		SetupButton(_btnToggleEnvironment, "\uf185", () => OpenEnvironmentPopup(), 12, "Configure environment lighting, weather effects & shadows (L / K / F9)");
 
-		_btnRotate = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnRotate");
-		SetupButton(_btnRotate, "\uf01e", () =>
+		_popupCamera = new PopupPanel();
+		_popupCamera.Name = "PopupCamera";
+
+		var camPopupStyle = new StyleBoxFlat();
+		camPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+		camPopupStyle.BorderColor = UIStyle.ColorGold;
+		camPopupStyle.SetBorderWidthAll(1);
+		camPopupStyle.CornerRadiusTopLeft = 4;
+		camPopupStyle.CornerRadiusTopRight = 4;
+		camPopupStyle.CornerRadiusBottomLeft = 4;
+		camPopupStyle.CornerRadiusBottomRight = 4;
+		camPopupStyle.ContentMarginLeft = 8;
+		camPopupStyle.ContentMarginRight = 8;
+		camPopupStyle.ContentMarginTop = 8;
+		camPopupStyle.ContentMarginBottom = 8;
+		_popupCamera.AddThemeStyleboxOverride("panel", camPopupStyle);
+
+		var camVBox = new VBoxContainer();
+		camVBox.Name = "CamVBox";
+		camVBox.AddThemeConstantOverride("separation", 6);
+		camVBox.CustomMinimumSize = new Vector2(170, 0);
+
+		_btnRotate = new Button();
+		_btnRotate.Name = "BtnRotate";
+		_btnRotate.Set("icon_max_width", 0);
+		StylePopupButton(_btnRotate, "\uf01e Rotate 90° (R)", "Rotate camera 90 degrees (R)");
+		_btnRotate.Pressed += () =>
 		{
 			UIManager.Instance?.PlayClickSound();
 			var camera = (GameHost.Instance?.MainCamera as CameraControl);
 			camera?.Rotate90Degrees();
-		}, 12, "Rotate camera 90 degrees (R)");
+		};
+		camVBox.AddChild(_btnRotate);
 
-		_btnCameraAngle = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnCameraAngle");
-		SetupButton(_btnCameraAngle, "\uf1b2", () =>
+		_btnCameraAngle = new Button();
+		_btnCameraAngle.Name = "BtnCameraAngle";
+		_btnCameraAngle.Set("icon_max_width", 0);
+		StylePopupButton(_btnCameraAngle, "\uf1b2 Top-Down (C)", "Toggle perspective vs top-down angle (C)");
+		_btnCameraAngle.Pressed += () =>
 		{
 			var camera = (GameHost.Instance?.MainCamera as CameraControl);
 			camera?.ToggleTopDown();
-		}, 12, "Toggle perspective vs top-down angle (C)");
+			if (camera != null)
+			{
+				UpdateCameraAngleButtonText(camera.IsTopDown());
+			}
+		};
+		camVBox.AddChild(_btnCameraAngle);
 
-		_btnZoomIn = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnZoomIn");
-		SetupButton(_btnZoomIn, "\uf00e", () =>
+		_btnZoomIn = new Button();
+		_btnZoomIn.Name = "BtnZoomIn";
+		_btnZoomIn.Set("icon_max_width", 0);
+		StylePopupButton(_btnZoomIn, "\uf00e Zoom In (+)", "Zoom camera in (+)");
+		_btnZoomIn.Pressed += () =>
 		{
 			UIManager.Instance?.PlayClickSound();
 			(GameHost.Instance?.MainCamera as CameraControl)?.ZoomIn();
-		}, 12, "Zoom camera in (+)");
+		};
+		camVBox.AddChild(_btnZoomIn);
 
-		_btnZoomOut = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnZoomOut");
-		SetupButton(_btnZoomOut, "\uf010", () =>
+		_btnZoomOut = new Button();
+		_btnZoomOut.Name = "BtnZoomOut";
+		_btnZoomOut.Set("icon_max_width", 0);
+		StylePopupButton(_btnZoomOut, "\uf010 Zoom Out (-)", "Zoom camera out (-)");
+		_btnZoomOut.Pressed += () =>
 		{
 			UIManager.Instance?.PlayClickSound();
 			(GameHost.Instance?.MainCamera as CameraControl)?.ZoomOut();
-		}, 12, "Zoom camera out (-)");
+		};
+		camVBox.AddChild(_btnZoomOut);
 
-		_btnFreeCamera = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnFreeCamera") ?? new Button();
-		SetupButton(_btnFreeCamera, "\uf03d", () =>
+		_chkFreeCamera = new CheckBox();
+		_chkFreeCamera.Name = "ChkFreeCamera";
+		_chkFreeCamera.Text = TranslationServer.Translate("Free Camera (F8)");
+		_chkFreeCamera.TooltipText = TranslationServer.Translate("Toggle free camera mode (F8)");
+		_chkFreeCamera.FocusMode = Control.FocusModeEnum.None;
+		_chkFreeCamera.AddThemeFontSizeOverride("font_size", 11);
+		UIStyle.ApplyCheckboxStyle(_chkFreeCamera);
+		_chkFreeCamera.Toggled += (pressed) =>
 		{
-			ToggleFreeCamera();
-		}, 12, "Free Camera (F8)");
+			var cam = GameHost.Instance?.MainCamera as CameraControl;
+			if (cam != null && cam.IsFreeCamera != pressed)
+			{
+				ToggleFreeCamera();
+			}
+		};
+		camVBox.AddChild(_chkFreeCamera);
+
+		_popupCamera.AddChild(camVBox);
+		AddChild(_popupCamera);
+
+		_btnToggleCamera = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleCamera") ?? new Button();
+		_btnToggleCamera.Name = "BtnToggleCamera";
+		_btnToggleCamera.Set("icon_max_width", 0);
+		SetupButton(_btnToggleCamera, "\uf030", () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
+
 		var initialCam = GameHost.Instance?.MainCamera as CameraControl;
 		UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
 		UpdateShadowsExternal(GameHost.Instance?.EditorDisableShadows ?? false);
@@ -2688,11 +2752,54 @@ public partial class MapEditorHUD : Control
 
 	public void UpdateFreeCameraExternal(bool isFreeCam)
 	{
-		if (_btnFreeCamera != null)
+		if (_chkFreeCamera != null)
 		{
-			_btnFreeCamera.Text = "\uf03d";
-			_btnFreeCamera.TooltipText = TranslationServer.Translate($"Free Camera: {(isFreeCam ? "ON" : "OFF")} (F8)");
-			_btnFreeCamera.Modulate = isFreeCam ? new Color(1.8f, 1.45f, 0.5f) : new Color(1f, 1f, 1f);
+			_chkFreeCamera.SetPressedNoSignal(isFreeCam);
+		}
+	}
+
+	private void StylePopupButton(Button btn, string text, string tooltip)
+	{
+		btn.Text = TranslationServer.Translate(text);
+		btn.TooltipText = TranslationServer.Translate(tooltip);
+		btn.FocusMode = Control.FocusModeEnum.None;
+		btn.CustomMinimumSize = new Vector2(0, 24);
+		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		btn.AddThemeFontSizeOverride("font_size", 11);
+		var font = GetFontAwesomeFont();
+		if (font != null)
+		{
+			btn.AddThemeFontOverride("font", font);
+		}
+		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateOptionButtonNormal());
+		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateOptionButtonHover());
+		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateOptionButtonPressed());
+		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
+		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		btn.Alignment = HorizontalAlignment.Left;
+	}
+
+	private void OpenCameraPopup()
+	{
+		if (_popupCamera == null || GameHost.Instance == null || _btnToggleCamera == null) return;
+
+		UpdateCameraPopupControls();
+
+		var globalRect = _btnToggleCamera.GetGlobalRect();
+		var popupPos = new Vector2I((int)globalRect.Position.X, (int)(globalRect.Position.Y + globalRect.Size.Y + 2));
+		_popupCamera.Position = popupPos;
+		_popupCamera.Popup();
+	}
+
+	public void UpdateCameraPopupControls()
+	{
+		if (GameHost.Instance == null) return;
+		var camera = GameHost.Instance.MainCamera as CameraControl;
+		if (camera != null)
+		{
+			UpdateCameraAngleButtonText(camera.IsTopDown());
+			UpdateFreeCameraExternal(camera.IsFreeCamera);
 		}
 	}
 
@@ -3365,7 +3472,9 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnCameraAngle != null)
 		{
-			_btnCameraAngle.Text = isTopDown ? "📐 TopDown" : "📐 Tilt";
+			_btnCameraAngle.Text = isTopDown
+				? TranslationServer.Translate("\uf1b2 Tilt (C)")
+				: TranslationServer.Translate("\uf1b2 Top-Down (C)");
 		}
 	}
 
@@ -8145,36 +8254,20 @@ public partial class MapEditorHUD : Control
 			vpRow1.AddThemeConstantOverride("separation", 4);
 			vpRow1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
-			var vpRow2 = new HBoxContainer();
-			vpRow2.Name = "ViewportIconRow2";
-			vpRow2.AddThemeConstantOverride("separation", 4);
-			vpRow2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-
 			StyleIconButton(_btnToggleGrid, "\uf84c", "Overlay");
-			StyleIconButton(_btnTapeMeasure, "\uf545", "Tape measure distance & slope tool (U)");
 			StyleIconButton(_btnToggleEnvironment, "\uf185", "Configure environment lighting, weather effects & shadows (L / K / F9)");
-
-			StyleIconButton(_btnRotate, "\uf01e", "Rotate camera 90 degrees (R)");
-			StyleIconButton(_btnCameraAngle, "\uf1b2", "Toggle perspective vs top-down angle (C)");
-			StyleIconButton(_btnZoomIn, "\uf00e", "Zoom camera in (+)");
-			StyleIconButton(_btnZoomOut, "\uf010", "Zoom camera out (-)");
-			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
+			StyleIconButton(_btnToggleCamera, "\uf030", "Configure camera controls (R / C / + / - / F8)");
+			StyleIconButton(_btnTapeMeasure, "\uf545", "Tape measure distance & slope tool (U)");
 
 			SafeReparent(_btnToggleGrid, vpRow1);
 			SafeReparent(_btnToggleEnvironment, vpRow1);
-
-			SafeReparent(_btnRotate, vpRow2);
-			SafeReparent(_btnCameraAngle, vpRow2);
-			SafeReparent(_btnZoomIn, vpRow2);
-			SafeReparent(_btnZoomOut, vpRow2);
-			SafeReparent(_btnFreeCamera, vpRow2);
-			SafeReparent(_btnTapeMeasure, vpRow2);
+			SafeReparent(_btnToggleCamera, vpRow1);
+			SafeReparent(_btnTapeMeasure, vpRow1);
 
 			var vpBox = new VBoxContainer();
 			vpBox.Name = "BoxViewportToolbar";
 			vpBox.AddThemeConstantOverride("separation", 4);
 			vpBox.AddChild(vpRow1);
-			vpBox.AddChild(vpRow2);
 			StyleSubContainer(vpBox, "Navigation Bar");
 
 			_rowPolarConfig = new HBoxContainer();
@@ -9739,6 +9832,10 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 		if (_popupEnvironment != null && _popupEnvironment.Visible)
+		{
+			return true;
+		}
+		if (_popupCamera != null && _popupCamera.Visible)
 		{
 			return true;
 		}
