@@ -3036,6 +3036,7 @@ public partial class MapEditorHUD : Control
 			{
 				GameHost.Instance.DeleteNodeExternal(selected);
 			}
+			_objectManagerDialog?.RefreshIfOpen();
 		}
 	}
 
