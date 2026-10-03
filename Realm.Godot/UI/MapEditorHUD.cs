@@ -1247,7 +1247,7 @@ public partial class MapEditorHUD : Control
 
 		_txtCoordinateName = GetNode<LineEdit>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/CoordinateNameRow/TxtCoordinateName");
 		_btnCommitCoordinate = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnCommitCoordinate");
-		SetupButton(_btnCommitCoordinate, "\uf00c COMMIT", null, 11, "Create named coordinate");
+		SetupButton(_btnCommitCoordinate, "+ ADD", null, 11, "Create named coordinate");
 		_btnCommitCoordinate.Pressed += () =>
 		{
 			if (_pendingCoordinateMinX == _pendingCoordinateMaxX && _pendingCoordinateMinZ == _pendingCoordinateMaxZ)

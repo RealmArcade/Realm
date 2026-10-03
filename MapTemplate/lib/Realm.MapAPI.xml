@@ -1809,6 +1809,17 @@
             Gets or sets the armor rating of the unit.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.IUnit.AttackSpeed">
+            <summary>
+            Gets or sets the attack speed multiplier of the unit. A value of 1 uses the unit's base attack cooldown,
+            2 attacks twice as often, and 0.5 attacks half as often. Values less than or equal to 0 are ignored.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IUnit.ManaRegen">
+            <summary>
+            Gets or sets the mana regeneration of the unit in mana points restored per second.
+            </summary>
+        </member>
         <member name="P:Realm.MapAPI.IUnit.Speed">
             <summary>
             Gets or sets the movement speed of the unit.
