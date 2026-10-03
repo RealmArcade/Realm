@@ -1628,6 +1628,11 @@
             </summary>
             <returns>The weather name string.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.DisableShroud">
+            <summary>
+            Disables the vision shroud and fog of war, making the entire map and all entities fully visible.
+            </summary>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)">
             <summary>
             Creates a persistent, stationary text label in the 3D world that stays in place until destroyed.
@@ -2575,4 +2580,3 @@
         </member>
     </members>
 </doc>
-

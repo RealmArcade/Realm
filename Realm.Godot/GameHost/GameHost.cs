@@ -2793,6 +2793,23 @@ public class {mapName} : IMapScript
 		return _environmentService?.GetCurrentWeather() ?? "clear";
 	}
 
+	void IGameAPI.DisableShroud()
+	{
+		Entity worldEntity = Entity.Null;
+		var query = QueryCache.AllShroudStateQuery;
+		EcsWorld.Query(in query, ent => worldEntity = ent);
+
+		if (worldEntity != Entity.Null && EcsWorld.IsAlive(worldEntity) && EcsWorld.Has<ShroudState>(worldEntity))
+		{
+			ref var state = ref EcsWorld.Get<ShroudState>(worldEntity);
+			state.ShroudType = "visible";
+		}
+		if (_shroudService != null)
+		{
+			_shroudService.TriggerImmediateUpdate();
+		}
+	}
+
 	void IGameAPI.SetUnitAnimation(IUnit unit, string animationName)
 	{
 		if (unit is IEcsEntityWrapper wrapper && EcsWorld.IsAlive(wrapper.Entity))

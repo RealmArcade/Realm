@@ -18,6 +18,7 @@ interface game-api {
     define-zone: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
     destroy-static-text: func(handle: s32);
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
+    disable-shroud: func();
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
     get-all-units: func() -> list<s32>;
