@@ -616,10 +616,9 @@ layout_mode = 2
 focus_mode = 0
 text = "🔳 BRUSH: SQUARE"
 
-[node name="BtnMirrorMode" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+[node name="OptMirrorMode" type="OptionButton" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
 layout_mode = 2
 focus_mode = 0
-text = "🪞 MIRROR: NONE"
 
 [node name="ChkBlockMode" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
 layout_mode = 2
