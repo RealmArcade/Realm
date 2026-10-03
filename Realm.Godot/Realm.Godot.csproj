@@ -45,8 +45,16 @@
       <Link>ThirdPartyBinaries\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\Realm.MapEditorExtension\map_schema.json">
-      <Link>Realm.MapEditorExtension\map_schema.json</Link>
+    <None Include="..\Realm.MapEditorExtension\metadata.schema.json">
+      <Link>Realm.MapEditorExtension\metadata.schema.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\Realm.MapEditorExtension\terrain.schema.json">
+      <Link>Realm.MapEditorExtension\terrain.schema.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\Realm.MapEditorExtension\manifest.schema.json">
+      <Link>Realm.MapEditorExtension\manifest.schema.json</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="..\Realm.MapAPI\wit\game.g.wit">

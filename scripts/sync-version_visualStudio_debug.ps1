@@ -83,12 +83,14 @@ foreach ($extensionsDir in $uniqueExtensionDirs) {
         Copy-Item -Path $packageJsonSrc -Destination (Join-Path $targetExtensionPath "package.json") -Force
     }
 
-    $schemaSrc = Join-Path $sourceExtensionDir "map_schema.json"
-    if (-not (Test-Path $schemaSrc)) {
-        $schemaSrc = Join-Path $fallbackSourceExtensionDir "map_schema.json"
-    }
-    if (Test-Path $schemaSrc) {
-        Copy-Item -Path $schemaSrc -Destination (Join-Path $targetExtensionPath "map_schema.json") -Force
+    foreach ($schemaFile in @("metadata.schema.json", "terrain.schema.json", "manifest.schema.json")) {
+        $schemaSrc = Join-Path $sourceExtensionDir $schemaFile
+        if (-not (Test-Path $schemaSrc)) {
+            $schemaSrc = Join-Path $fallbackSourceExtensionDir $schemaFile
+        }
+        if (Test-Path $schemaSrc) {
+            Copy-Item -Path $schemaSrc -Destination (Join-Path $targetExtensionPath $schemaFile) -Force
+        }
     }
 
     $distSrc = Join-Path $sourceExtensionDir "dist"

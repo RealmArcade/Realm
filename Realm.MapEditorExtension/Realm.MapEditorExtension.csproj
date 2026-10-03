@@ -22,7 +22,7 @@
     <ItemGroup>
       <DistFiles Include="dist\**\*.*" />
       <MediaFiles Include="media\**\*.*" />
-      <RootFiles Include="package.json;map_schema.json;terrain_schema.json;manifest_schema.json" />
+      <RootFiles Include="package.json;metadata.schema.json;terrain.schema.json;manifest.schema.json" />
     </ItemGroup>
 
     <Copy SourceFiles="@(DistFiles)" DestinationFiles="@(DistFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/dist/%(RecursiveDir)%(Filename)%(Extension)')" />
@@ -36,8 +36,8 @@
       <MapTemplateVsCodeDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)\..\MapTemplate\.vscode'))</MapTemplateVsCodeDir>
     </PropertyGroup>
     <MakeDir Directories="$(MapTemplateVsCodeDir)" />
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\map_schema.json"      DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\terrain_schema.json"  DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\manifest_schema.json" DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\metadata.schema.json" DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\terrain.schema.json"  DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\manifest.schema.json" DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
   </Target>
 </Project>

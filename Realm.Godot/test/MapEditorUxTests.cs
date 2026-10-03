@@ -1435,8 +1435,9 @@ public class CustomProjMap : IWasmModule
 	[TestCase]
 	public void TestIsIgnoredPathFilters()
 	{
-		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath(".vscode/settings.json")).IsTrue();
-		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("subfolder/.vscode/tasks.json")).IsTrue();
+		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath(".vscode/settings.json")).IsFalse();
+		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("subfolder/.vscode/tasks.json")).IsFalse();
+		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath(".vscode/metadata.schema.json")).IsFalse();
 		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("export.rmap")).IsTrue();
 		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("temp.tmp")).IsTrue();
 		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("debug.log")).IsTrue();

@@ -2273,7 +2273,9 @@ public partial class VSCodeManager
 				{
 					Directory.CreateDirectory(dstPath);
 					CopyItemIfExists(Path.Combine(srcPath, "package.json"), Path.Combine(dstPath, "package.json"));
-					CopyItemIfExists(Path.Combine(srcPath, "map_schema.json"), Path.Combine(dstPath, "map_schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "metadata.schema.json"), Path.Combine(dstPath, "metadata.schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "terrain.schema.json"), Path.Combine(dstPath, "terrain.schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "manifest.schema.json"), Path.Combine(dstPath, "manifest.schema.json"));
 					CopyDirectoryIfExists(Path.Combine(srcPath, "dist"), Path.Combine(dstPath, "dist"));
 					CopyDirectoryIfExists(Path.Combine(srcPath, "media"), Path.Combine(dstPath, "media"));
 				}

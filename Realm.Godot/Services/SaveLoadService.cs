@@ -1496,9 +1496,9 @@ public class SaveLoadService
 	{
 		string[] candidatePaths = new[]
 		{
-			PathUtils.FindPath("Realm.MapEditorExtension/map_schema.json"),
-			PathUtils.FindPath("MapTemplate/.vscode/map_schema.json"),
-			PathUtils.FindPath(".vscode/map_schema.json")
+			PathUtils.FindPath("Realm.MapEditorExtension/metadata.schema.json"),
+			PathUtils.FindPath("MapTemplate/.vscode/metadata.schema.json"),
+			PathUtils.FindPath(".vscode/metadata.schema.json")
 		};
 
 		foreach (var candidatePath in candidatePaths)

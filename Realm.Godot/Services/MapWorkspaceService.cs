@@ -70,7 +70,7 @@ public static partial class MapWorkspaceService
 
 	private static string GetSchemaSourcePath()
 	{
-		return FindRootFile("Realm.MapEditorExtension/map_schema.json");
+		return FindRootFile("Realm.MapEditorExtension/metadata.schema.json");
 	}
 
 	public static string GetTemplatePath(string fileName)
@@ -221,11 +221,14 @@ public static partial class MapWorkspaceService
 		string vscodeDir = Path.Combine(directory, ".vscode");
 		Directory.CreateDirectory(vscodeDir);
 
-		string sourceSchema = GetSchemaSourcePath();
-		string targetSchema = Path.Combine(vscodeDir, "map_schema.json");
-		if (File.Exists(sourceSchema))
+		string[] schemas = { "metadata.schema.json", "terrain.schema.json", "manifest.schema.json" };
+		foreach (string schema in schemas)
 		{
-			File.Copy(sourceSchema, targetSchema, true);
+			string schemaSrc = FindRootFile("Realm.MapEditorExtension/" + schema);
+			if (!string.IsNullOrEmpty(schemaSrc) && File.Exists(schemaSrc))
+			{
+				File.Copy(schemaSrc, Path.Combine(vscodeDir, schema), true);
+			}
 		}
 
 		string templateVsCodeDir = GetTemplatePath(".vscode");

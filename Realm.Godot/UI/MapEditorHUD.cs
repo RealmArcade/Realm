@@ -4349,7 +4349,6 @@ public partial class MapEditorHUD : Control
 		string normalized = relativePath.Replace('\\', '/');
 		if (normalized.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.git/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.vs/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".vs", StringComparison.OrdinalIgnoreCase) ||
-			normalized.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.vscode/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".vscode", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.godot/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".godot", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith(".idea/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/.idea/", StringComparison.OrdinalIgnoreCase) || normalized.Equals(".idea", StringComparison.OrdinalIgnoreCase) ||
 			normalized.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) || normalized.Contains("/bin/", StringComparison.OrdinalIgnoreCase) || normalized.Equals("bin", StringComparison.OrdinalIgnoreCase) ||

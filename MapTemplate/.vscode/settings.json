@@ -8,19 +8,19 @@
 			"fileMatch": [
 				"/metadata.json"
 			],
-			"url": "./.vscode/map_schema.json"
+			"url": "./.vscode/metadata.schema.json"
 		},
 		{
 			"fileMatch": [
 				"/manifest.json"
 			],
-			"url": "./.vscode/manifest_schema.json"
+			"url": "./.vscode/manifest.schema.json"
 		},
 		{
 			"fileMatch": [
 				"/terrain.json"
 			],
-			"url": "./.vscode/terrain_schema.json"
+			"url": "./.vscode/terrain.schema.json"
 		}
 	]
 }

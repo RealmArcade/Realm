@@ -20,7 +20,7 @@ git diff <prior_tag>..<target_tag> -- \
     Realm.Godot/Services/MapWorkspaceService.cs \
     Realm.Godot/Utils/MapAssetHelper.cs \
     MapTemplate/ \
-    Realm.MapEditorExtension/map_schema.json
+    Realm.MapEditorExtension/metadata.schema.json
 ```
 
 ### 2. Schema and Property Change Analysis
