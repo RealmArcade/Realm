@@ -15,6 +15,8 @@ public partial class GameHost
 	{
 		if (GroundTerrain == null) return;
 
+		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
+
 		byte savedWaterProfile = ActiveWaterProfileIndex;
 		WaterType savedWaterMode = EditorWaterMode;
 		float savedWaterHeight = EditorWaterHeight;
@@ -158,6 +160,19 @@ public partial class GameHost
 		CurrentMapDirectory = System.IO.Path.GetDirectoryName(absolutePath);
 
 		string[] cliffSplatData = null;
+		if (GroundTerrain.CliffSplatMap == null && GroundTerrain != null)
+		{
+			int cliffW = width + 1;
+			int cliffD = depth + 1;
+			GroundTerrain.CliffSplatMap = new TerrainSplatWeights[cliffW, cliffD];
+			for (int z = 0; z < cliffD; z++)
+			{
+				for (int x = 0; x < cliffW; x++)
+				{
+					GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
+				}
+			}
+		}
 		if (GroundTerrain.CliffSplatMap != null)
 		{
 			int cliffW = GroundTerrain.CliffSplatMap.GetLength(0);

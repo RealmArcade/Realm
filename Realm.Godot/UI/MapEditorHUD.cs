@@ -6542,9 +6542,9 @@ public partial class MapEditorHUD : Control
 		int width = GameHost.Instance.GroundTerrain.Width;
 		int depth = GameHost.Instance.GroundTerrain.Depth;
 
-		if (GameHost.Instance.GroundTerrain.CliffSplatMap == null)
+		if (GameHost.Instance.GroundTerrain.CliffSplatMap == null || GameHost.Instance.GroundTerrain.CliffSplatMap.GetLength(0) != width + 1 || GameHost.Instance.GroundTerrain.CliffSplatMap.GetLength(1) != depth + 1)
 		{
-			GameHost.Instance.GroundTerrain.CliffSplatMap = new TerrainSplatWeights[width, depth];
+			GameHost.Instance.GroundTerrain.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 		}
 
 		var pathingCodes = GameHost.Instance.GroundTerrain.PathingCodes;
@@ -6556,14 +6556,20 @@ public partial class MapEditorHUD : Control
 		GameHost.Instance.GroundTerrain.SetHeights(smoothedHeights);
 		var cells = GameHost.Instance.GroundTerrain.Cells;
 
-		for (int gz = 0; gz < depth; gz++)
+		for (int gz = 0; gz <= depth; gz++)
 		{
-			for (int gx = 0; gx < width; gx++)
+			for (int gx = 0; gx <= width; gx++)
 			{
-				GameHost.Instance.GroundTerrain.SplatMap[gx, gz] = splatMap[gx, gz];
+				if (gx < splatMap.GetLength(0) && gz < splatMap.GetLength(1))
+				{
+					GameHost.Instance.GroundTerrain.SplatMap[gx, gz] = splatMap[gx, gz];
+				}
 				GameHost.Instance.GroundTerrain.CliffSplatMap[gx, gz] = TerrainSplatWeights.CreateSolid(GameHost.Instance.EditorCliffPaintTextureIndex);
 
-				pathingCodes[gx, gz] = cells != null ? EditableTerrain.GetDefaultPathingCode(cells[gx, gz]) : EditableTerrain.GetDefaultPathingCode(WaterType.None);
+				if (gx < width && gz < depth)
+				{
+					pathingCodes[gx, gz] = cells != null ? EditableTerrain.GetDefaultPathingCode(cells[gx, gz]) : EditableTerrain.GetDefaultPathingCode(WaterType.None);
+				}
 			}
 		}
 

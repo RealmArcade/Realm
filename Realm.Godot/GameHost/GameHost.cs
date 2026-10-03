@@ -311,7 +311,7 @@ public partial class GameHost : Node3D, IGameAPI
 			_groundTerrain = value;
 			if (value != null && _editorService != null)
 			{
-				_editorService.SetTerrainSplatMap(value.SplatMap);
+				_editorService.SetTerrainSplatMap(value.SplatMap, value.CliffSplatMap);
 			}
 		}
 	}
@@ -3973,7 +3973,7 @@ public class {mapName} : IMapScript
 		SetupWorldEntityComponents();
 
 		if (GroundTerrain != null)
-			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
 		SetupSkybox();
 
@@ -4410,7 +4410,7 @@ public class {mapName} : IMapScript
 		// a second time on every _Ready, stalling the main thread at startup.
 		if (_groundTerrain != null)
 		{
-			_editorService.SetTerrainSplatMap(_groundTerrain.SplatMap);
+			_editorService.SetTerrainSplatMap(_groundTerrain.SplatMap, _groundTerrain.CliffSplatMap);
 		}
 
 		InitializeGameEcs();
