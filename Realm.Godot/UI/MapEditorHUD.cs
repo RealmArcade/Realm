@@ -4419,6 +4419,36 @@ public partial class MapEditorHUD : Control
 		MapWorkspaceService.EnsureWitFile(_tempWorkspacePath);
 		MapWorkspaceService.EnsureWasmEntryPoint(_tempWorkspacePath);
 		MapWorkspaceService.EnsureCsproj(_tempWorkspacePath, System.IO.Path.GetFileName(sourceFolder));
+		CopyVsCodeFolderFromMapTemplate(_tempWorkspacePath);
+	}
+
+	private static void CopyVsCodeFolderFromMapTemplate(string targetWorkspacePath)
+	{
+		if (string.IsNullOrEmpty(targetWorkspacePath)) return;
+
+		string templateVsCodeDir = MapWorkspaceService.GetTemplatePath(".vscode");
+		if (string.IsNullOrEmpty(templateVsCodeDir) || !System.IO.Directory.Exists(templateVsCodeDir))
+		{
+			templateVsCodeDir = PathUtils.FindPath("MapTemplate/.vscode");
+		}
+
+		if (string.IsNullOrEmpty(templateVsCodeDir) || !System.IO.Directory.Exists(templateVsCodeDir))
+		{
+			return;
+		}
+
+		string targetVsCodeDir = System.IO.Path.Combine(targetWorkspacePath, ".vscode");
+		if (!System.IO.Directory.Exists(targetVsCodeDir))
+		{
+			System.IO.Directory.CreateDirectory(targetVsCodeDir);
+		}
+
+		foreach (string file in System.IO.Directory.GetFiles(templateVsCodeDir, "*", System.IO.SearchOption.AllDirectories))
+		{
+			string relativePath = file.Substring(templateVsCodeDir.Length + 1);
+			string destFile = System.IO.Path.Combine(targetVsCodeDir, relativePath);
+			PathUtils.CopyFileClearingReadOnly(file, destFile);
+		}
 	}
 
 	private void CopyTempWorkspaceToFolder(string targetFolder)
