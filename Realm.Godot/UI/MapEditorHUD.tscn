@@ -239,16 +239,6 @@ layout_mode = 2
 focus_mode = 0
 text = "🌐 GRID OVERLAY: OFF"
 
-[node name="BtnToggleCameraBounds" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "📹 CAM BOUNDS: OFF"
-
-[node name="BtnToggleWireframe" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "🕸️ WIREFRAME: OFF"
-
 [node name="BtnRotate" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0

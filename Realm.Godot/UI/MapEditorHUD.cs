@@ -309,7 +309,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnToggleSnap;
 	private Button _btnToggleGrid;
 	private PopupMenu _popupOverlayMode;
-	private Button _btnToggleWireframe;
 	private Button _btnToggleEnvironment;
 	private PopupPanel _popupEnvironment;
 	private OptionButton _optEnvLighting;
@@ -397,8 +396,6 @@ public partial class MapEditorHUD : Control
 	private Label _lblInfoText;
 	private Label _lblTerrainTexture;
 	private Label _lblCliffTexture;
-
-	private Button _btnToggleCameraBounds;
 
 	private PanelContainer _scaleMapDialog;
 	private Label _lblScalePreviewWidth;
@@ -839,8 +836,10 @@ public partial class MapEditorHUD : Control
 		_popupOverlayMode = new PopupMenu();
 		_popupOverlayMode.Name = "PopupOverlayMode";
 		_popupOverlayMode.HideOnCheckableItemSelection = false;
-		_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid Overlay"), 0);
-		_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar Overlay"), 1);
+		_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid"), 0);
+		_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar"), 1);
+		_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Camera Bounds"), 2);
+		_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Wireframe"), 3);
 		StylePopupMenu(_popupOverlayMode);
 		_popupOverlayMode.IdPressed += (long id) =>
 		{
@@ -850,57 +849,60 @@ public partial class MapEditorHUD : Control
 			bool newChecked = !_popupOverlayMode.IsItemChecked(idx);
 			_popupOverlayMode.SetItemChecked(idx, newChecked);
 
-			int gridIdx = _popupOverlayMode.GetItemIndex(0);
-			int polarIdx = _popupOverlayMode.GetItemIndex(1);
-			bool gridOn = gridIdx >= 0 && _popupOverlayMode.IsItemChecked(gridIdx);
-			bool polarOn = polarIdx >= 0 && _popupOverlayMode.IsItemChecked(polarIdx);
-
-			var newMode = (gridOn, polarOn) switch
+			if (id == 0 || id == 1)
 			{
-				(true, true) => GameHost.GridOverlayMode.Both,
-				(true, false) => GameHost.GridOverlayMode.Grid,
-				(false, true) => GameHost.GridOverlayMode.Polar,
-				(false, false) => GameHost.GridOverlayMode.Off
-			};
+				int gridIdx = _popupOverlayMode.GetItemIndex(0);
+				int polarIdx = _popupOverlayMode.GetItemIndex(1);
+				bool gridOn = gridIdx >= 0 && _popupOverlayMode.IsItemChecked(gridIdx);
+				bool polarOn = polarIdx >= 0 && _popupOverlayMode.IsItemChecked(polarIdx);
 
-			GameHost.Instance.EditorGridMode = newMode;
-			GameHost.Instance.UpdateGridOverlayVisibility();
-			UpdateGridOverlayExternal(newMode);
-			string modeName = newMode switch
+				var newMode = (gridOn, polarOn) switch
+				{
+					(true, true) => GameHost.GridOverlayMode.Both,
+					(true, false) => GameHost.GridOverlayMode.Grid,
+					(false, true) => GameHost.GridOverlayMode.Polar,
+					(false, false) => GameHost.GridOverlayMode.Off
+				};
+
+				GameHost.Instance.EditorGridMode = newMode;
+				GameHost.Instance.UpdateGridOverlayVisibility();
+				UpdateGridOverlayExternal(newMode);
+				string modeName = newMode switch
+				{
+					GameHost.GridOverlayMode.Off => "OFF",
+					GameHost.GridOverlayMode.Grid => "GRID",
+					GameHost.GridOverlayMode.Polar => "POLAR",
+					GameHost.GridOverlayMode.Both => "GRID + POLAR",
+					_ => "OFF"
+				};
+				ShowFeedback($"Overlay Mode: {modeName}");
+			}
+			else if (id == 2)
 			{
-				GameHost.GridOverlayMode.Off => "OFF",
-				GameHost.GridOverlayMode.Grid => "GRID",
-				GameHost.GridOverlayMode.Polar => "POLAR",
-				GameHost.GridOverlayMode.Both => "GRID + POLAR",
-				_ => "OFF"
-			};
-			ShowFeedback($"Overlay Mode: {modeName}");
+				GameHost.Instance.EditorCameraBoundsVisible = newChecked;
+				GameHost.Instance.UpdateCameraBoundsOverlayVisibility();
+				UpdateCameraBoundsOverlayExternal(newChecked);
+				ShowFeedback(newChecked
+					? TranslationServer.Translate("Camera Bounds: ON")
+					: TranslationServer.Translate("Camera Bounds: OFF"));
+			}
+			else if (id == 3)
+			{
+				if (GameHost.Instance.GroundTerrain != null)
+				{
+					GameHost.Instance.GroundTerrain.ToggleWireframeMode();
+					bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
+					UpdateWireframeOverlayExternal(isWireframe);
+					ShowFeedback(isWireframe
+						? TranslationServer.Translate("Wireframe Mode: ON")
+						: TranslationServer.Translate("Wireframe Mode: OFF"));
+				}
+			}
 		};
 		AddChild(_popupOverlayMode);
 
 		_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleGrid");
-		SetupButton(_btnToggleGrid, "\uf84c", () => OpenOverlayModePopup(), 12, "Configure alignment grid & polar overlay");
-
-		_btnToggleCameraBounds = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleCameraBounds");
-		SetupButton(_btnToggleCameraBounds, "\uf06e", () =>
-		{
-			if (GameHost.Instance != null)
-			{
-				GameHost.Instance.EditorCameraBoundsVisible = !GameHost.Instance.EditorCameraBoundsVisible;
-				GameHost.Instance.UpdateCameraBoundsOverlayVisibility();
-				UpdateCameraBoundsOverlayExternal(GameHost.Instance.EditorCameraBoundsVisible);
-			}
-		}, 12, "Toggle camera bounds overlay (B)");
-		_btnToggleWireframe = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleWireframe") ?? new Button();
-		SetupButton(_btnToggleWireframe, "\uf5ee", () =>
-		{
-			if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.ToggleWireframeMode();
-				bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
-				UpdateWireframeOverlayExternal(isWireframe);
-			}
-		}, 12, "Toggle wireframe mode (F7)");
+		SetupButton(_btnToggleGrid, "\uf84c", () => OpenOverlayModePopup(), 12, "Overlay");
 		_popupEnvironment = new PopupPanel();
 		_popupEnvironment.Name = "PopupEnvironment";
 		
@@ -2522,8 +2524,17 @@ public partial class MapEditorHUD : Control
 
 		int gridIdx = _popupOverlayMode.GetItemIndex(0);
 		int polarIdx = _popupOverlayMode.GetItemIndex(1);
+		int camBoundsIdx = _popupOverlayMode.GetItemIndex(2);
+		int wireframeIdx = _popupOverlayMode.GetItemIndex(3);
+
 		if (gridIdx >= 0) _popupOverlayMode.SetItemChecked(gridIdx, isGrid);
 		if (polarIdx >= 0) _popupOverlayMode.SetItemChecked(polarIdx, isPolar);
+		if (camBoundsIdx >= 0) _popupOverlayMode.SetItemChecked(camBoundsIdx, GameHost.Instance.EditorCameraBoundsVisible);
+		if (wireframeIdx >= 0)
+		{
+			bool isWireframe = GetViewport()?.DebugDraw == Viewport.DebugDrawEnum.Wireframe;
+			_popupOverlayMode.SetItemChecked(wireframeIdx, isWireframe);
+		}
 
 		var globalRect = _btnToggleGrid.GetGlobalRect();
 		var popupPos = new Vector2I((int)globalRect.Position.X, (int)(globalRect.Position.Y + globalRect.Size.Y + 2));
@@ -2535,24 +2546,8 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnToggleGrid != null)
 		{
-			string icon = mode switch
-			{
-				GameHost.GridOverlayMode.Grid => "\uf84c",
-				GameHost.GridOverlayMode.Polar => "\uf192",
-				GameHost.GridOverlayMode.Both => "\uf00a",
-				_ => "\uf84c"
-			};
-			string statusStr = mode switch
-			{
-				GameHost.GridOverlayMode.Off => "OFF",
-				GameHost.GridOverlayMode.Grid => "GRID",
-				GameHost.GridOverlayMode.Polar => "POLAR",
-				GameHost.GridOverlayMode.Both => "GRID + POLAR",
-				_ => "OFF"
-			};
-			_btnToggleGrid.Text = icon;
-			_btnToggleGrid.TooltipText = TranslationServer.Translate($"Overlay Mode: {statusStr} (V / O)");
-			_btnToggleGrid.Modulate = mode != GameHost.GridOverlayMode.Off ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
+			_btnToggleGrid.Text = "\uf84c";
+			_btnToggleGrid.TooltipText = TranslationServer.Translate("Overlay");
 		}
 		if (_popupOverlayMode != null)
 		{
@@ -2662,21 +2657,19 @@ public partial class MapEditorHUD : Control
 
 	public void UpdateCameraBoundsOverlayExternal(bool visible)
 	{
-		if (_btnToggleCameraBounds != null)
+		if (_popupOverlayMode != null)
 		{
-			_btnToggleCameraBounds.Text = "📹";
-			_btnToggleCameraBounds.TooltipText = TranslationServer.Translate($"Camera Bounds: {(visible ? "ON" : "OFF")} (B)");
-			_btnToggleCameraBounds.Modulate = visible ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
+			int camBoundsIdx = _popupOverlayMode.GetItemIndex(2);
+			if (camBoundsIdx >= 0) _popupOverlayMode.SetItemChecked(camBoundsIdx, visible);
 		}
 	}
 
 	public void UpdateWireframeOverlayExternal(bool enabled)
 	{
-		if (_btnToggleWireframe != null)
+		if (_popupOverlayMode != null)
 		{
-			_btnToggleWireframe.Text = "\uf5ee";
-			_btnToggleWireframe.TooltipText = TranslationServer.Translate($"Wireframe Mode: {(enabled ? "ON" : "OFF")} (F7)");
-			_btnToggleWireframe.Modulate = enabled ? new Color(1.8f, 1.45f, 0.5f) : new Color(1.1f, 1.1f, 1.1f);
+			int wireframeIdx = _popupOverlayMode.GetItemIndex(3);
+			if (wireframeIdx >= 0) _popupOverlayMode.SetItemChecked(wireframeIdx, enabled);
 		}
 	}
 
@@ -8157,10 +8150,8 @@ public partial class MapEditorHUD : Control
 			vpRow2.AddThemeConstantOverride("separation", 4);
 			vpRow2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
-			StyleIconButton(_btnToggleGrid, "\uf84c", "Toggle alignment grid & polar overlay (V / O)");
+			StyleIconButton(_btnToggleGrid, "\uf84c", "Overlay");
 			StyleIconButton(_btnTapeMeasure, "\uf545", "Tape measure distance & slope tool (U)");
-			StyleIconButton(_btnToggleCameraBounds, "\uf06e", "Toggle camera bounds overlay (B)");
-			StyleIconButton(_btnToggleWireframe, "\uf5ee", "Toggle wireframe mode (F7)");
 			StyleIconButton(_btnToggleEnvironment, "\uf185", "Configure environment lighting, weather effects & shadows (L / K / F9)");
 
 			StyleIconButton(_btnRotate, "\uf01e", "Rotate camera 90 degrees (R)");
@@ -8170,8 +8161,6 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnFreeCamera, "\uf03d", "Free Camera (F8)");
 
 			SafeReparent(_btnToggleGrid, vpRow1);
-			SafeReparent(_btnToggleCameraBounds, vpRow1);
-			SafeReparent(_btnToggleWireframe, vpRow1);
 			SafeReparent(_btnToggleEnvironment, vpRow1);
 
 			SafeReparent(_btnRotate, vpRow2);
