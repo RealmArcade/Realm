@@ -47,7 +47,7 @@ internal class TechTreeService
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
-				arm.Value += 2f;
+				// arm.Value += 2f;
 			}
 		});
 		return true;
