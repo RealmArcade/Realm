@@ -194,6 +194,23 @@ internal class UnitSpawnService
 			EcsWorld.Add(entity, new Building());
 		}
 
+		EcsWorld.Add(entity, new Realm.Ecs.Components.Stats.UnitAttributes());
+		EcsWorld.Add(entity, new Realm.Ecs.Components.Stats.UnitBaseStats(
+			BaseMaxHp: hp,
+			BaseHpRegen: hpRegen,
+			BaseMaxMana: maxMana,
+			BaseManaRegen: manaRegen,
+			BaseArmor: armor,
+			BaseDamage: damage,
+			BaseAttackInterval: attackCooldown,
+			BaseSpeed: speed,
+			BaseCastPoint: 0.3f,
+			BaseCritChance: critChance,
+			BaseCritMultiplier: critMultiplier,
+			BaseFlatArmorPenetration: flatArmorPen
+		));
+		AttributeStatCalculator.RecalculateEntityStats(EcsWorld, entity);
+
 		return entity;
 	}
 }

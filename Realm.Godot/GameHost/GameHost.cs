@@ -1234,6 +1234,12 @@ public partial class GameHost : Node3D, IGameAPI
 		public float ProductionTime { get; set; }
 		public string AttackType { get; set; }
 		public string ArmorType { get; set; }
+		public float Vitality { get; set; }
+		public float Might { get; set; }
+		public float Agility { get; set; }
+		public float Finesse { get; set; }
+		public float Focus { get; set; }
+		public float Willpower { get; set; }
 		public float HpRegen { get; set; }
 		public float HpRegenCombatDelay { get; set; }
 		public float MaxMana { get; set; }
@@ -4903,6 +4909,23 @@ public class {mapName} : IMapScript
 			splashInnerRatio, splashMedRatio, splashOuterRatio, friendlyFire,
 			pushPriority, movementType
 		);
+
+		if (UnitRegistry.TryGetValue(id, out var attrMeta) || TryGetUnitOrBuildingMetadata(id, out attrMeta))
+		{
+			if (attrMeta.Vitality != 0f || attrMeta.Might != 0f || attrMeta.Agility != 0f || attrMeta.Finesse != 0f || attrMeta.Focus != 0f || attrMeta.Willpower != 0f)
+			{
+				var attributes = new Realm.Ecs.Components.Stats.UnitAttributes(
+					Vitality: attrMeta.Vitality,
+					Might: attrMeta.Might,
+					Agility: attrMeta.Agility,
+					Finesse: attrMeta.Finesse,
+					Focus: attrMeta.Focus,
+					Willpower: attrMeta.Willpower
+				);
+				EcsWorld.Set(entity, attributes);
+				AttributeStatCalculator.RecalculateEntityStats(EcsWorld, entity);
+			}
+		}
 
 		OnUnitCreated?.Invoke(GetUnitWrapper(entity));
 		return entity;
