@@ -161,8 +161,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnPasteReflection;
 	private Button _btnClipboardBrushShape;
 	private OptionButton _optClipboardMirrorMode;
-	private OptionButton _optClipboardSymmetryFolds;
-	private Button _btnClipboardResetPivot;
 	private HSlider _sldPasteRotation;
 	private Label _lblPasteRotation;
 
@@ -1626,16 +1624,6 @@ public partial class MapEditorHUD : Control
 		_optClipboardMirrorMode.Set("icon_max_width", 0);
 		SetupMirrorDropdown(_optClipboardMirrorMode, "Select terrain, clipboard and object mirroring symmetry mode");
 
-		_optClipboardSymmetryFolds = new OptionButton();
-		_optClipboardSymmetryFolds.Name = "OptClipboardSymmetryFolds";
-		_optClipboardSymmetryFolds.Set("icon_max_width", 0);
-		SetupSpokesDropdown(_optClipboardSymmetryFolds, (spokes) => SetSymmetrySpokes(spokes), "Select N-fold rotational symmetry spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
-
-		_btnClipboardResetPivot = new Button();
-		_btnClipboardResetPivot.Name = "BtnClipboardResetPivot";
-		_btnClipboardResetPivot.Set("icon_max_width", 0);
-		SetupOptionButton(_btnClipboardResetPivot, "\uf05b RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry pivot to map center");
-
 		_btnPasteReflection = new Button();
 		_btnPasteReflection.Name = "BtnPasteReflection";
 		_btnPasteReflection.Set("icon_max_width", 0);
@@ -1667,16 +1655,6 @@ public partial class MapEditorHUD : Control
 			shapeMirrorGrid.AddChild(_btnClipboardBrushShape);
 			shapeMirrorGrid.AddChild(_optClipboardMirrorMode);
 			pasteOptionsBox.AddChild(shapeMirrorGrid);
-
-			var symGrid = new GridContainer();
-			symGrid.Name = "ClipboardSymmetrySubGrid";
-			symGrid.Columns = 2;
-			symGrid.AddThemeConstantOverride("h_separation", 6);
-			symGrid.AddThemeConstantOverride("v_separation", 4);
-			symGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			symGrid.AddChild(_optClipboardSymmetryFolds);
-			symGrid.AddChild(_btnClipboardResetPivot);
-			pasteOptionsBox.AddChild(symGrid);
 
 			pasteOptionsBox.AddChild(_btnPasteReflection);
 			pasteOptionsBox.AddChild(_btnPasteAnchor);
@@ -6851,9 +6829,7 @@ public partial class MapEditorHUD : Control
 
 	public void UpdateSymmetrySpokesDropdowns()
 	{
-		if (GameHost.Instance == null) return;
-		int spokes = GameHost.Instance.EditorSymmetryFolds;
-		UpdateSpokesDropdownSelection(_optClipboardSymmetryFolds, spokes);
+		UpdatePolarRadialStepButtonText();
 	}
 
 	public void UpdateSymmetryFoldsButtonText() => UpdateSymmetrySpokesDropdowns();
@@ -6863,10 +6839,6 @@ public partial class MapEditorHUD : Control
 		if (GameHost.Instance == null) return;
 		var mode = GameHost.Instance.EditorMirrorMode;
 		bool isRotational = mode == MirrorMode.Rotational;
-		bool hasMirror = mode != MirrorMode.None;
-
-		if (_optClipboardSymmetryFolds != null) _optClipboardSymmetryFolds.Visible = isRotational;
-		if (_btnClipboardResetPivot != null) _btnClipboardResetPivot.Visible = hasMirror;
 		UpdatePolarSubControlsVisibility(GameHost.Instance.EditorGridMode);
 		if (isRotational)
 		{
@@ -8351,18 +8323,6 @@ public partial class MapEditorHUD : Control
 				_optClipboardMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 				_optClipboardMirrorMode.AddThemeFontSizeOverride("font_size", 10);
 			}
-			if (_optClipboardSymmetryFolds != null)
-			{
-				_optClipboardSymmetryFolds.CustomMinimumSize = new Vector2(0, 30);
-				_optClipboardSymmetryFolds.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-				_optClipboardSymmetryFolds.AddThemeFontSizeOverride("font_size", 10);
-			}
-			if (_btnClipboardResetPivot != null)
-			{
-				_btnClipboardResetPivot.CustomMinimumSize = new Vector2(0, 30);
-				_btnClipboardResetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-				_btnClipboardResetPivot.AddThemeFontSizeOverride("font_size", 10);
-			}
 			if (_btnPasteReflection != null)
 			{
 				_btnPasteReflection.CustomMinimumSize = new Vector2(0, 30);
@@ -9626,10 +9586,6 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 		if (_optPolarRingSpacing != null && _optPolarRingSpacing.GetPopup() != null && _optPolarRingSpacing.GetPopup().Visible)
-		{
-			return true;
-		}
-		if (_optClipboardSymmetryFolds != null && _optClipboardSymmetryFolds.GetPopup() != null && _optClipboardSymmetryFolds.GetPopup().Visible)
 		{
 			return true;
 		}
