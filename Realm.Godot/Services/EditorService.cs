@@ -89,7 +89,7 @@ public class EditorService
 		public bool IsEnemy;
 	}
 
-	private class CopiedAreaTemplate
+	public class CopiedAreaTemplate
 	{
 		public int Width;
 		public int Depth;
@@ -183,6 +183,11 @@ public class EditorService
 	public Vector2I? SelectionStart => _selectionStart;
 	public Vector2I? SelectionEnd => _selectionEnd;
 	public bool IsSelectingArea => _isSelectingArea;
+	public CopiedAreaTemplate CopiedArea
+	{
+		get => _copiedArea;
+		set => _copiedArea = value;
+	}
 	public bool HasCopiedArea => _copiedArea != null;
 	public int CopiedAreaWidth => _copiedArea?.Width ?? 0;
 	public int CopiedAreaDepth => _copiedArea?.Depth ?? 0;

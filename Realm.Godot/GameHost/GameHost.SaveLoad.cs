@@ -23,6 +23,11 @@ public partial class GameHost
 		bool savedBlockMode = EditorBlockMode;
 		float savedBlockLevelHeight = EditorBlockLevelHeight;
 		float savedExactHeight = EditorExactHeight;
+		EditorTool savedActiveTool = ActiveEditorTool;
+		string savedActivePlaceId = ActivePlaceId;
+		var savedCopiedArea = _editorService?.CopiedArea;
+		var savedSelectionStart = _editorService?.SelectionStart;
+		var savedSelectionEnd = _editorService?.SelectionEnd;
 
 		int width = GroundTerrain.Width;
 		int depth = GroundTerrain.Depth;
@@ -199,6 +204,13 @@ public partial class GameHost
 				EditorBlockMode = savedBlockMode;
 				EditorBlockLevelHeight = savedBlockLevelHeight;
 				EditorExactHeight = savedExactHeight;
+				if (_editorService != null)
+				{
+					_editorService.CopiedArea = savedCopiedArea;
+					_editorService.SetSelectionStart(savedSelectionStart);
+					_editorService.SetSelectionEnd(savedSelectionEnd);
+				}
+				MapEditorHUD.Instance?.SelectToolFromHotkey(savedActiveTool);
 				MapEditorHUD.Instance?.RefreshWaterSwatches();
 				MapEditorHUD.Instance?.UpdateMapNameHeader();
 				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));
