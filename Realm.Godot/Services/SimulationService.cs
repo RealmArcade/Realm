@@ -66,6 +66,7 @@ internal class SimulationService
 	private readonly QueryDescription _patrolArrivalQuery = Realm.Ecs.Common.QueryCache.AllPatrolAndPositionNoneDeadAndAttackTargetQuery;
 	private readonly QueryDescription _followQuery = Realm.Ecs.Common.QueryCache.AllFollowAndPositionNoneDeadQuery;
 	private readonly QueryDescription _attackCooldownQuery = Realm.Ecs.Common.QueryCache.AllAttackQuery;
+	private readonly QueryDescription _manaRegenQuery = Realm.Ecs.Common.QueryCache.AllManaAndManaRegenNoneDeadQuery;
 	private readonly QueryDescription _prodQuery = Realm.Ecs.Common.QueryCache.AllProductionQueueQuery;
 	private readonly QueryDescription _spellCooldownQuery = Realm.Ecs.Common.QueryCache.AllSpellCooldownsQuery;
 	private readonly QueryDescription _cooldownsQuery = Realm.Ecs.Common.QueryCache.AllCooldownsQuery;
@@ -76,6 +77,7 @@ internal class SimulationService
 	private ForEachWithEntity<Patrol, Position> _patrolArrivalQueryDelegate = null!;
 	private ForEachWithEntity<Follow, Position> _followQueryDelegate = null!;
 	private ForEachWithEntity<Attack> _attackCooldownQueryDelegate = null!;
+	private ForEachWithEntity<Mana, ManaRegen> _manaRegenQueryDelegate = null!;
 	private ForEachWithEntity<Realm.Ecs.Components.Core.ProductionQueue> _prodQueryDelegate = null!;
 	private ForEachWithEntity<InterpolationTarget> _interpolationQueryDelegate = null!;
 	private ForEachWithEntity<SpellCooldowns> _spellCooldownQueryDelegate = null!;
@@ -160,6 +162,7 @@ internal class SimulationService
 		_patrolArrivalQueryDelegate = PatrolArrivalQueryAction;
 		_followQueryDelegate = FollowQueryAction;
 		_attackCooldownQueryDelegate = AttackCooldownQueryAction;
+		_manaRegenQueryDelegate = ManaRegenQueryAction;
 		_prodQueryDelegate = ProdQueryAction;
 		_cooldownsQueryDelegate = CooldownsQueryAction;
 		_interpolationQueryDelegate = InterpolationQueryAction;
@@ -232,6 +235,7 @@ internal class SimulationService
 		ProcessFollowMovements();
 
 		EcsWorld.Query(in _attackCooldownQuery, _attackCooldownQueryDelegate);
+		EcsWorld.Query(in _manaRegenQuery, _manaRegenQueryDelegate);
 		EcsWorld.Query(in _prodQuery, _prodQueryDelegate);
 
 		foreach (var (entity, pf) in _tickAddPathFollow)
@@ -775,6 +779,15 @@ internal class SimulationService
 		{
 			atk.CurrentCooldown = Math.Max(0, atk.CurrentCooldown - _fDelta);
 		}
+	}
+
+	private void ManaRegenQueryAction(Entity entity, ref Mana mana, ref ManaRegen regen)
+	{
+		if (regen.PerSecond <= 0f || mana.Current >= mana.Max)
+		{
+			return;
+		}
+		mana.Current = Math.Min(mana.Max, mana.Current + regen.PerSecond * _fDelta);
 	}
 
 	private readonly List<string> _tickExpiredSpellCooldowns = new();

@@ -604,7 +604,7 @@ internal class CombatAndDamageService
 			{
 				if (EcsWorld.Has<Realm.Ecs.Components.Tags.Invulnerable>(target.Target))
 				{
-					atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : atk.Cooldown;
+					atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
 					return;
 				}
 
@@ -665,7 +665,7 @@ internal class CombatAndDamageService
 					}
 				}
 
-				atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : atk.Cooldown;
+				atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
 
 				if (atk.Range > 3f)
 				{
@@ -729,6 +729,19 @@ internal class CombatAndDamageService
 				ClearChaseTracking(entity);
 			}
 		}
+	}
+
+	private float GetEffectiveAttackCooldown(Entity entity, float baseCooldown)
+	{
+		if (EcsWorld.Has<AttackSpeed>(entity))
+		{
+			float multiplier = EcsWorld.Get<AttackSpeed>(entity).Multiplier;
+			if (multiplier > 0f)
+			{
+				return baseCooldown / multiplier;
+			}
+		}
+		return baseCooldown;
 	}
 
 	private float GetTargetCollisionRadius(Entity target)
@@ -1044,7 +1057,7 @@ internal class CombatAndDamageService
 				float newHp = Math.Min(targetHealth.Max, targetHealth.Current + healAmount);
 				EcsWorld.Set(target.Target, new Health(newHp, targetHealth.Max));
 
-				atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : atk.Cooldown;
+				atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
 
 				OnHealEffectRequested?.Invoke(currentPos, targetPos);
 				OnHealFlashRequested?.Invoke(target.Target);
