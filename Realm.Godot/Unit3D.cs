@@ -316,14 +316,48 @@ public partial class Unit3D : Prop3D
 			_currentPseudoSocketAttachmentIds.Clear();
 		}
 
-		_modelNode = Realm.Godot.Utils.ModelCache.GetModel(modelPath) as Node3D;
-		if (_modelNode == null)
+		string resolved = ResolvePropModelPath(modelPath);
+		if (string.IsNullOrEmpty(resolved))
 		{
-			string resolved = ResolvePropModelPath(modelPath);
-			if (!string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
+			resolved = modelPath;
+		}
+
+		if (resolved.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || resolved.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || resolved.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+		{
+			var decalNode = new Decal3D();
+			decalNode.Name = "VisualModel";
+			decalNode.DecalId = resolved;
+			decalNode.CullMask = RuntimeTerrain.TerrainDecalCullMask;
+			decalNode.Size = new Vector3(6.0f, 20.0f, 6.0f);
+			AddChild(decalNode);
+			_modelNode = decalNode;
+
+			GameHost.Instance?.ApplyDecalPropertiesFromMetadata(decalNode, resolved);
+
+			float gScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
+			float sScale = gScale <= 0.001f ? 1.0f : gScale;
+			_modelNode.Scale = new Vector3(sScale, sScale, sScale);
+
+			float offset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(this) : 0f;
+			_modelNode.Position = new Vector3(0f, offset, 0f);
+
+			var colShapeNode = GetNodeOrNull<CollisionShape3D>("CollisionShape");
+			if (colShapeNode != null)
 			{
-				_modelNode = Realm.Godot.Utils.ModelCache.GetModel(resolved) as Node3D;
+				float radius = GetBaseObstacleRadius();
+				float height = Math.Max(1.0f, radius * 2.5f);
+				colShapeNode.Shape = new BoxShape3D { Size = new Vector3(radius * 2.0f, height, radius * 2.0f) };
+				colShapeNode.Position = new Vector3(0, height * 0.5f, 0);
 			}
+
+			UpdateDropShadow();
+			return;
+		}
+
+		_modelNode = Realm.Godot.Utils.ModelCache.GetModel(modelPath) as Node3D;
+		if (_modelNode == null && !string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
+		{
+			_modelNode = Realm.Godot.Utils.ModelCache.GetModel(resolved) as Node3D;
 		}
 
 		if (_modelNode == null)

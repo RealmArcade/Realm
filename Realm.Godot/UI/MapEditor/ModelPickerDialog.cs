@@ -125,6 +125,39 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 			return;
 		}
 
+		string resolvedPath = ModelCache.ResolveModelPath(modelPath);
+		if (modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) || (resolvedPath != null && (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || resolvedPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || resolvedPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))))
+		{
+			var root = new Node3D();
+			root.Name = "PreviewDecalRoot";
+
+			var floorMesh = new MeshInstance3D();
+			floorMesh.Name = "PreviewFloor";
+			var plane = new PlaneMesh { Size = new Vector2(10f, 10f) };
+			floorMesh.Mesh = plane;
+			root.AddChild(floorMesh);
+
+			var decalNode = new Decal3D();
+			decalNode.Name = "PreviewDecal";
+			decalNode.DecalId = !string.IsNullOrEmpty(resolvedPath) ? resolvedPath : modelPath;
+			decalNode.CullMask = 1u;
+			decalNode.Size = new Vector3(6.0f, 20.0f, 6.0f);
+			root.AddChild(decalNode);
+
+			GameHost.Instance?.ApplyDecalPropertiesFromMetadata(decalNode, !string.IsNullOrEmpty(resolvedPath) ? resolvedPath : modelPath);
+
+			PreviewSubViewport.AddChild(root);
+			_previewModelRoot = root;
+			FrameCameraOnNode(root);
+
+			if (_lblStatus != null)
+			{
+				_lblStatus.Text = $"{TranslationServer.Translate("Loaded Decal:")} {modelPath}";
+				_lblStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+			}
+			return;
+		}
+
 		Node loaded = ModelCache.GetModel(modelPath);
 		if (loaded is Node3D node3D)
 		{
@@ -143,7 +176,6 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 
 			FrameCameraOnNode(_previewModelRoot);
 
-			string resolvedPath = ModelCache.ResolveModelPath(modelPath);
 			string details = "";
 			if (!string.IsNullOrEmpty(resolvedPath) && System.IO.File.Exists(resolvedPath))
 			{

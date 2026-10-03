@@ -163,8 +163,12 @@ public static class MapAssetHelper
 										string? diskPath = FindModelOnDisk(workspacePath, subCat, fileName);
 										if (string.IsNullOrEmpty(diskPath) || !File.Exists(diskPath))
 										{
+											diskPath = FindAssetOnDisk(workspacePath, "decals", fileName) ?? FindAssetOnDisk(workspacePath, "textures", fileName);
+										}
+										if (string.IsNullOrEmpty(diskPath) || !File.Exists(diskPath))
+										{
 											string expectedRel = $"Assets/models/{subCat}/{fileName}".Replace('\\', '/');
-											if (!expectedRel.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+											if (!expectedRel.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && !expectedRel.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 											{
 												expectedRel = Path.ChangeExtension(expectedRel, ".rmesh");
 											}

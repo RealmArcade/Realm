@@ -36,12 +36,12 @@ namespace Realm.Godot.Utils
 			{
 				withRmesh = System.IO.Path.ChangeExtension(withRmesh, ".rmesh");
 			}
-			else if (!withRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+			else if (!withRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && !withRmesh.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
 				withRmesh = $"{withRmesh}.rmesh";
 			}
 
-			if (modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(modelPath))
+			if ((modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) && System.IO.File.Exists(modelPath))
 			{
 				return modelPath;
 			}
@@ -50,6 +50,12 @@ namespace Realm.Godot.Utils
 			if (candDirectRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candDirectRmesh))
 			{
 				return candDirectRmesh;
+			}
+
+			string candDirectRtex = System.IO.Path.ChangeExtension(modelPath, ".rtex");
+			if (candDirectRtex.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candDirectRtex))
+			{
+				return candDirectRtex;
 			}
 
 			if (modelPath.StartsWith("res://") || modelPath.StartsWith("user://"))
@@ -160,6 +166,15 @@ namespace Realm.Godot.Utils
 					string candRmesh = System.IO.Path.Combine(loc, "Assets", "models", sub, withRmesh);
 					if (candRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candRmesh)) return candRmesh;
 				}
+				string candDecalDirect = System.IO.Path.Combine(loc, "Assets", "decals", cleanPath);
+				if (candDecalDirect.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candDecalDirect)) return candDecalDirect;
+				string candDecalRtex = System.IO.Path.Combine(loc, "Assets", "decals", $"{cleanPath}.rtex");
+				if (System.IO.File.Exists(candDecalRtex)) return candDecalRtex;
+
+				string candTexDirect = System.IO.Path.Combine(loc, "Assets", "textures", cleanPath);
+				if (candTexDirect.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candTexDirect)) return candTexDirect;
+				string candTexRtex = System.IO.Path.Combine(loc, "Assets", "textures", $"{cleanPath}.rtex");
+				if (System.IO.File.Exists(candTexRtex)) return candTexRtex;
 			}
 
 			if (cleanPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))

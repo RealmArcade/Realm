@@ -1242,6 +1242,23 @@ public partial class FloatingDialogBase : PanelContainer
 							}
 						}
 
+						if (includeAllFolders || category == "models")
+						{
+							foreach (var decalKey in new[] { "decals", "decal" })
+							{
+								if (assetsObj[decalKey] is System.Text.Json.Nodes.JsonObject dObj)
+								{
+									foreach (var prop in dObj)
+									{
+										if (!string.IsNullOrWhiteSpace(prop.Key))
+										{
+											result.Add(prop.Key);
+										}
+									}
+								}
+							}
+						}
+
 						string defaultFolder = !string.IsNullOrEmpty(subFolder) ? subFolder : (category is "attachments" or "items" ? "items" : "projectiles");
 						foreach (var modelKey in new[] { "glb", "models" })
 						{

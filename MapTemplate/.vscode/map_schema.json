@@ -187,7 +187,10 @@
           "AttackType": { "type": "string", "enum": ["melee", "ranged", "none"] },
           "ArmorType": { "type": "string", "enum": ["light", "heavy", "building"] },
           "GoldBounty": { "type": "number", "minimum": 0 },
-          "ModelPath": { "type": "string" },
+          "ModelPath": {
+            "type": "string",
+            "description": "Path to the 3D model mesh asset (.rmesh) or projected terrain decal asset (.rtex) for the entity."
+          },
           "Scale": { "type": "number", "minimum": 0 },
           "YOffset": { "type": "number" },
           "CollisionCircle": { "type": "number", "minimum": 0 },

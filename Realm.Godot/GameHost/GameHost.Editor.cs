@@ -49,6 +49,10 @@ public partial class GameHost
 		{
 			filename = System.IO.Path.GetFileNameWithoutExtension(filename) + ".rmesh";
 		}
+		else if (filename.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+		{
+			// Preserve decal/texture extension
+		}
 		else if (!filename.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 		{
 			filename += ".rmesh";
