@@ -1628,6 +1628,37 @@
             </summary>
             <returns>The weather name string.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)">
+            <summary>
+            Creates a persistent, stationary text label in the 3D world that stays in place until destroyed.
+            Unlike <see cref="M:Realm.MapAPI.IGameAPI.CreateFloatingText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)"/> it does not drift or fade.
+            </summary>
+            <param name="text">The initial text to display.</param>
+            <param name="position">The 3D world position of the label.</param>
+            <param name="color">The color of the text in RGB format.</param>
+            <param name="fontSize">The font size of the label. The default of 48 matches <see cref="M:Realm.MapAPI.IGameAPI.CreateFloatingText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)"/>.</param>
+            <returns>A handle used with <see cref="M:Realm.MapAPI.IGameAPI.SetStaticText(System.Int32,System.String)"/>, <see cref="M:Realm.MapAPI.IGameAPI.SetStaticTextVisible(System.Int32,System.Boolean)"/> and <see cref="M:Realm.MapAPI.IGameAPI.DestroyStaticText(System.Int32)"/>.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetStaticText(System.Int32,System.String)">
+            <summary>
+            Changes the text displayed by a static world label.
+            </summary>
+            <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
+            <param name="text">The new text to display.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetStaticTextVisible(System.Int32,System.Boolean)">
+            <summary>
+            Shows or hides a static world label without destroying it.
+            </summary>
+            <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
+            <param name="visible">True to show the label, false to hide it.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.DestroyStaticText(System.Int32)">
+            <summary>
+            Destroys a static world label.
+            </summary>
+            <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayerIndices(System.Int32)">
             <summary>
             Enumerates the zero-based indices of all active player slots below the given exclusive upper bound.

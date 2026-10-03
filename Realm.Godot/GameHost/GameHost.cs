@@ -2463,6 +2463,60 @@ public class {mapName} : IMapScript
 		}).CallDeferred();
 	}
 
+	private readonly Dictionary<int, Label3D> _staticTextLabels = new();
+	private int _nextStaticTextHandle = 1;
+
+	int IGameAPI.CreateStaticText(string text, System.Numerics.Vector3 position, System.Numerics.Vector3 color, int fontSize)
+	{
+		int handle = _nextStaticTextHandle++;
+		Callable.From(() =>
+		{
+			var label = new Label3D();
+			label.Text = text;
+			label.Modulate = new Color(color.X, color.Y, color.Z);
+			label.OutlineModulate = Colors.Black;
+			label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
+			label.Position = new Vector3(position.X, position.Y + 1.5f, position.Z);
+			label.FontSize = fontSize;
+			AddChild(label);
+			_staticTextLabels[handle] = label;
+		}).CallDeferred();
+		return handle;
+	}
+
+	void IGameAPI.SetStaticText(int handle, string text)
+	{
+		Callable.From(() =>
+		{
+			if (_staticTextLabels.TryGetValue(handle, out var label))
+			{
+				label.Text = text;
+			}
+		}).CallDeferred();
+	}
+
+	void IGameAPI.SetStaticTextVisible(int handle, bool visible)
+	{
+		Callable.From(() =>
+		{
+			if (_staticTextLabels.TryGetValue(handle, out var label))
+			{
+				label.Visible = visible;
+			}
+		}).CallDeferred();
+	}
+
+	void IGameAPI.DestroyStaticText(int handle)
+	{
+		Callable.From(() =>
+		{
+			if (_staticTextLabels.Remove(handle, out var label))
+			{
+				label.QueueFree();
+			}
+		}).CallDeferred();
+	}
+
 	void IGameAPI.SpawnVisualEffect(string effectTypeId, System.Numerics.Vector3 position, float scale)
 	{
 		Callable.From(() =>

@@ -1288,6 +1288,37 @@ public interface IGameAPI
     string GetWeather();
 
     /// <summary>
+    /// Creates a persistent, stationary text label in the 3D world that stays in place until destroyed.
+    /// Unlike <see cref="CreateFloatingText"/> it does not drift or fade.
+    /// </summary>
+    /// <param name="text">The initial text to display.</param>
+    /// <param name="position">The 3D world position of the label.</param>
+    /// <param name="color">The color of the text in RGB format.</param>
+    /// <param name="fontSize">The font size of the label. The default of 48 matches <see cref="CreateFloatingText"/>.</param>
+    /// <returns>A handle used with <see cref="SetStaticText"/>, <see cref="SetStaticTextVisible"/> and <see cref="DestroyStaticText"/>.</returns>
+    int CreateStaticText(string text, Vector3 position, Vector3 color, int fontSize = 48);
+
+    /// <summary>
+    /// Changes the text displayed by a static world label.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    /// <param name="text">The new text to display.</param>
+    void SetStaticText(int handle, string text);
+
+    /// <summary>
+    /// Shows or hides a static world label without destroying it.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    /// <param name="visible">True to show the label, false to hide it.</param>
+    void SetStaticTextVisible(int handle, bool visible);
+
+    /// <summary>
+    /// Destroys a static world label.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    void DestroyStaticText(int handle);
+
+    /// <summary>
     /// Enumerates the zero-based indices of all active player slots below the given exclusive upper bound.
     /// </summary>
     /// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>

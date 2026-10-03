@@ -178,6 +178,10 @@ public class CampaignSaveDataTests
         public string GetCurrentEnvironmentPreset() => "day";
         public void SetWeather(string weatherType) { }
         public string GetWeather() => "clear";
+        public int CreateStaticText(string text, System.Numerics.Vector3 position, System.Numerics.Vector3 color, int fontSize = 48) => 0;
+        public void SetStaticText(int handle, string text) { }
+        public void SetStaticTextVisible(int handle, bool visible) { }
+        public void DestroyStaticText(int handle) { }
     }
 
     private class TestUnit : IUnit
