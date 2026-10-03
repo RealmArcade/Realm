@@ -6713,7 +6713,7 @@ public partial class MapEditorHUD : Control
 		opt.ClipText = true;
 
 		int folds = GameHost.Instance != null ? GameHost.Instance.EditorSymmetryFolds : 4;
-		opt.AddItem(TranslationServer.Translate("\uf05e MIRROR: NONE"), (int)MirrorMode.None);
+		opt.AddItem(TranslationServer.Translate("\uf05e SYMMETRY: NONE"), (int)MirrorMode.None);
 		opt.AddItem(TranslationServer.Translate("\uf07d MIRROR: VERTICAL"), (int)MirrorMode.Vertical);
 		opt.AddItem(TranslationServer.Translate("\uf07e MIRROR: HORIZONTAL"), (int)MirrorMode.Horizontal);
 		opt.AddItem(TranslationServer.Translate("\uf00a MIRROR: QUAD"), (int)MirrorMode.Both);
