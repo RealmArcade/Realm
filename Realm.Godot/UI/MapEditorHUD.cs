@@ -310,7 +310,11 @@ public partial class MapEditorHUD : Control
 	private Button _btnToggleGrid;
 	private PopupMenu _popupOverlayMode;
 	private Button _btnToggleWireframe;
-	private Button _btnToggleShadows;
+	private Button _btnToggleEnvironment;
+	private PopupPanel _popupEnvironment;
+	private OptionButton _optEnvLighting;
+	private OptionButton _optEnvWeather;
+	private CheckBox _chkEnvShadows;
 	private Button _btnBrushShape;
 	private Button _btnResetMap;
 	private Button _btnGenerateMap;
@@ -324,8 +328,6 @@ public partial class MapEditorHUD : Control
 	private MapEditorCameraIndicator _cameraIndicator;
 	private Vector3 _lastRaycastPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
 
-	private Button _btnSkybox;
-	private Button _btnWeather;
 	private Button _btnFreeCamera;
 
 
@@ -899,13 +901,78 @@ public partial class MapEditorHUD : Control
 				UpdateWireframeOverlayExternal(isWireframe);
 			}
 		}, 12, "Toggle wireframe mode (F7)");
-		_btnToggleShadows = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleShadows") ?? new Button();
-		_btnToggleShadows.Name = "BtnToggleShadows";
-		_btnToggleShadows.Set("icon_max_width", 0);
-		SetupButton(_btnToggleShadows, "\uf186", () =>
+		_popupEnvironment = new PopupPanel();
+		_popupEnvironment.Name = "PopupEnvironment";
+		
+		var envPopupStyle = new StyleBoxFlat();
+		envPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+		envPopupStyle.BorderColor = UIStyle.ColorGold;
+		envPopupStyle.SetBorderWidthAll(1);
+		envPopupStyle.CornerRadiusTopLeft = 4;
+		envPopupStyle.CornerRadiusTopRight = 4;
+		envPopupStyle.CornerRadiusBottomLeft = 4;
+		envPopupStyle.CornerRadiusBottomRight = 4;
+		envPopupStyle.ContentMarginLeft = 10;
+		envPopupStyle.ContentMarginRight = 10;
+		envPopupStyle.ContentMarginTop = 10;
+		envPopupStyle.ContentMarginBottom = 10;
+		_popupEnvironment.AddThemeStyleboxOverride("panel", envPopupStyle);
+
+		var envVBox = new VBoxContainer();
+		envVBox.Name = "EnvVBox";
+		envVBox.AddThemeConstantOverride("separation", 6);
+		envVBox.CustomMinimumSize = new Vector2(170, 0);
+
+		_optEnvLighting = new OptionButton();
+		_optEnvLighting.Name = "OptEnvLighting";
+		_optEnvLighting.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optEnvLighting.CustomMinimumSize = new Vector2(0, 24);
+		_optEnvLighting.ClipText = true;
+		SetupEnvLightingDropdown(_optEnvLighting);
+		_optEnvLighting.ItemSelected += (idx) => SetEnvironmentLighting((int)idx);
+		envVBox.AddChild(_optEnvLighting);
+
+		_optEnvWeather = new OptionButton();
+		_optEnvWeather.Name = "OptEnvWeather";
+		_optEnvWeather.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optEnvWeather.CustomMinimumSize = new Vector2(0, 24);
+		_optEnvWeather.ClipText = true;
+		SetupEnvWeatherDropdown(_optEnvWeather);
+		_optEnvWeather.ItemSelected += (idx) => SetEnvironmentWeather((int)idx);
+		envVBox.AddChild(_optEnvWeather);
+
+		_chkEnvShadows = new CheckBox();
+		_chkEnvShadows.Name = "ChkEnvShadows";
+		_chkEnvShadows.Text = TranslationServer.Translate("Shadows");
+		_chkEnvShadows.TooltipText = TranslationServer.Translate("Toggle shadows in editor (F9)");
+		_chkEnvShadows.ButtonPressed = true;
+		_chkEnvShadows.FocusMode = Control.FocusModeEnum.None;
+		_chkEnvShadows.AddThemeFontSizeOverride("font_size", 11);
+		UIStyle.ApplyCheckboxStyle(_chkEnvShadows);
+		_chkEnvShadows.Toggled += (pressed) =>
 		{
-			ToggleShadows();
-		}, 12, "Toggle shadows in editor (F9)");
+			if (GameHost.Instance != null)
+			{
+				bool disableShadows = !pressed;
+				if (GameHost.Instance.EditorDisableShadows != disableShadows)
+				{
+					GameHost.Instance.EditorDisableShadows = disableShadows;
+					GameHost.Instance.UpdateEditorShadows();
+					ShowFeedback(disableShadows
+						? TranslationServer.Translate("Shadows: OFF")
+						: TranslationServer.Translate("Shadows: ON"));
+				}
+			}
+		};
+		envVBox.AddChild(_chkEnvShadows);
+
+		_popupEnvironment.AddChild(envVBox);
+		AddChild(_popupEnvironment);
+
+		_btnToggleEnvironment = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleEnvironment") ?? new Button();
+		_btnToggleEnvironment.Name = "BtnToggleEnvironment";
+		_btnToggleEnvironment.Set("icon_max_width", 0);
+		SetupButton(_btnToggleEnvironment, "\uf185", () => OpenEnvironmentPopup(), 12, "Configure environment lighting, weather effects & shadows (L / K / F9)");
 
 		_btnRotate = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnRotate");
 		SetupButton(_btnRotate, "\uf01e", () =>
@@ -921,41 +988,6 @@ public partial class MapEditorHUD : Control
 			var camera = (GameHost.Instance?.MainCamera as CameraControl);
 			camera?.ToggleTopDown();
 		}, 12, "Toggle perspective vs top-down angle (C)");
-
-		_btnSkybox = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnSkybox");
-		SetupButton(_btnSkybox, "\uf185", () => {
-			if (GameHost.Instance != null)
-			{
-				var res = GameHost.Instance.CycleTimeOfDay();
-				string timeName = GameHost.Instance.EnvironmentService?.GetTimeOfDayName(res.TimeOfDayIndex) ?? "Day";
-				string icon = res.TimeOfDayIndex switch
-				{
-					0 => "☀️",
-					1 => "🌅",
-					2 => "🌙",
-					3 => "🌄",
-					_ => "☀️"
-				};
-				ShowFeedback(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
-			}
-		}, 12, "Cycle map environment lighting (L)");
-
-		_btnWeather = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnWeather") ?? new Button();
-		_btnWeather.Name = "BtnWeather";
-		SetupButton(_btnWeather, "\uf738", () => {
-			if (GameHost.Instance != null && GameHost.Instance.EnvironmentService != null)
-			{
-				string nextWeather = GameHost.Instance.EnvironmentService.CycleWeather(GameHost.Instance);
-				string icon = nextWeather switch
-				{
-					"rain" => "🌧️",
-					"snow" => "❄️",
-					"fog" => "🌫️",
-					_ => "☀️"
-				};
-				ShowFeedback(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
-			}
-		}, 12, "Cycle weather effects (K)");
 
 		_btnZoomIn = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnZoomIn");
 		SetupButton(_btnZoomIn, "\uf00e", () =>
@@ -2686,11 +2718,135 @@ public partial class MapEditorHUD : Control
 
 	public void UpdateShadowsExternal(bool disabled)
 	{
-		if (_btnToggleShadows != null)
+		if (_chkEnvShadows != null)
 		{
-			_btnToggleShadows.Text = "\uf186";
-			_btnToggleShadows.TooltipText = TranslationServer.Translate($"Shadows: {(disabled ? "OFF" : "ON")} (F9)");
-			_btnToggleShadows.Modulate = disabled ? new Color(1.8f, 1.45f, 0.5f) : new Color(1.1f, 1.1f, 1.1f);
+			_chkEnvShadows.SetPressedNoSignal(!disabled);
+		}
+	}
+
+	private void SetupEnvLightingDropdown(OptionButton opt)
+	{
+		opt.Clear();
+		opt.AddItem(TranslationServer.Translate("\uf185 LIGHTING: DAY"), 0);
+		opt.AddItem(TranslationServer.Translate("\uf185 LIGHTING: DUSK"), 1);
+		opt.AddItem(TranslationServer.Translate("\uf186 LIGHTING: NIGHT"), 2);
+		opt.AddItem(TranslationServer.Translate("\uf185 LIGHTING: DAWN"), 3);
+		StyleOptionButtonPopup(opt);
+	}
+
+	private void SetupEnvWeatherDropdown(OptionButton opt)
+	{
+		opt.Clear();
+		opt.AddItem(TranslationServer.Translate("\uf185 WEATHER: CLEAR"), 0);
+		opt.AddItem(TranslationServer.Translate("\uf73d WEATHER: RAIN"), 1);
+		opt.AddItem(TranslationServer.Translate("\uf2dc WEATHER: SNOW"), 2);
+		opt.AddItem(TranslationServer.Translate("\uf75f WEATHER: FOG"), 3);
+		StyleOptionButtonPopup(opt);
+	}
+
+	private void OpenEnvironmentPopup()
+	{
+		if (_popupEnvironment == null || GameHost.Instance == null || _btnToggleEnvironment == null) return;
+
+		UpdateEnvironmentPopupControls();
+
+		var globalRect = _btnToggleEnvironment.GetGlobalRect();
+		var popupPos = new Vector2I((int)globalRect.Position.X, (int)(globalRect.Position.Y + globalRect.Size.Y + 2));
+		_popupEnvironment.Position = popupPos;
+		_popupEnvironment.Popup();
+	}
+
+	public void UpdateEnvironmentPopupControls()
+	{
+		if (GameHost.Instance == null) return;
+
+		if (_optEnvLighting != null)
+		{
+			int timeIdx = GameHost.Instance.TimeOfDayIndex;
+			_optEnvLighting.Select(Mathf.Clamp(timeIdx, 0, 3));
+		}
+
+		if (_optEnvWeather != null && GameHost.Instance.EnvironmentService != null)
+		{
+			string curWeather = GameHost.Instance.EnvironmentService.GetCurrentWeather();
+			int weatherIdx = (curWeather?.ToLowerInvariant()) switch
+			{
+				"rain" => 1,
+				"snow" => 2,
+				"fog" => 3,
+				_ => 0
+			};
+			_optEnvWeather.Select(weatherIdx);
+		}
+
+		if (_chkEnvShadows != null)
+		{
+			_chkEnvShadows.SetPressedNoSignal(!GameHost.Instance.EditorDisableShadows);
+		}
+	}
+
+	public void UpdateEnvLightingSelection(int timeOfDayIndex)
+	{
+		if (_optEnvLighting != null)
+		{
+			int idx = Mathf.Clamp(timeOfDayIndex, 0, 3);
+			_optEnvLighting.Select(idx);
+		}
+	}
+
+	public void UpdateEnvWeatherSelection(string weatherType)
+	{
+		if (_optEnvWeather != null)
+		{
+			int idx = (weatherType?.ToLowerInvariant()) switch
+			{
+				"rain" => 1,
+				"snow" => 2,
+				"fog" => 3,
+				_ => 0
+			};
+			_optEnvWeather.Select(idx);
+		}
+	}
+
+	private void SetEnvironmentLighting(int index)
+	{
+		if (GameHost.Instance != null)
+		{
+			var res = GameHost.Instance.SetTimeOfDay(index);
+			string timeName = GameHost.Instance.EnvironmentService?.GetTimeOfDayName(res.TimeOfDayIndex) ?? "Day";
+			string icon = res.TimeOfDayIndex switch
+			{
+				0 => "☀️",
+				1 => "🌅",
+				2 => "🌙",
+				3 => "🌄",
+				_ => "☀️"
+			};
+			ShowFeedback(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
+		}
+	}
+
+	private void SetEnvironmentWeather(int index)
+	{
+		if (GameHost.Instance != null && GameHost.Instance.EnvironmentService != null)
+		{
+			string weatherType = index switch
+			{
+				1 => "rain",
+				2 => "snow",
+				3 => "fog",
+				_ => "clear"
+			};
+			string applied = GameHost.Instance.EnvironmentService.SetWeather(weatherType, GameHost.Instance);
+			string icon = applied switch
+			{
+				"rain" => "🌧️",
+				"snow" => "❄️",
+				"fog" => "🌫️",
+				_ => "☀️"
+			};
+			ShowFeedback(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(applied.Capitalize())));
 		}
 	}
 
@@ -8005,10 +8161,8 @@ public partial class MapEditorHUD : Control
 			StyleIconButton(_btnTapeMeasure, "\uf545", "Tape measure distance & slope tool (U)");
 			StyleIconButton(_btnToggleCameraBounds, "\uf06e", "Toggle camera bounds overlay (B)");
 			StyleIconButton(_btnToggleWireframe, "\uf5ee", "Toggle wireframe mode (F7)");
-			StyleIconButton(_btnToggleShadows, "\uf186", "Toggle shadows in editor (F9)");
+			StyleIconButton(_btnToggleEnvironment, "\uf185", "Configure environment lighting, weather effects & shadows (L / K / F9)");
 
-			StyleIconButton(_btnSkybox, "\uf185", "Cycle map environment lighting (L)");
-			StyleIconButton(_btnWeather, "\uf738", "Cycle weather effects (K)");
 			StyleIconButton(_btnRotate, "\uf01e", "Rotate camera 90 degrees (R)");
 			StyleIconButton(_btnCameraAngle, "\uf1b2", "Toggle perspective vs top-down angle (C)");
 			StyleIconButton(_btnZoomIn, "\uf00e", "Zoom camera in (+)");
@@ -8018,9 +8172,7 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_btnToggleGrid, vpRow1);
 			SafeReparent(_btnToggleCameraBounds, vpRow1);
 			SafeReparent(_btnToggleWireframe, vpRow1);
-			SafeReparent(_btnToggleShadows, vpRow1);
-			SafeReparent(_btnSkybox, vpRow1);
-			SafeReparent(_btnWeather, vpRow1);
+			SafeReparent(_btnToggleEnvironment, vpRow1);
 
 			SafeReparent(_btnRotate, vpRow2);
 			SafeReparent(_btnCameraAngle, vpRow2);
@@ -9594,6 +9746,18 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 		if (_popupOverlayMode != null && _popupOverlayMode.Visible)
+		{
+			return true;
+		}
+		if (_popupEnvironment != null && _popupEnvironment.Visible)
+		{
+			return true;
+		}
+		if (_optEnvLighting != null && _optEnvLighting.GetPopup() != null && _optEnvLighting.GetPopup().Visible)
+		{
+			return true;
+		}
+		if (_optEnvWeather != null && _optEnvWeather.GetPopup() != null && _optEnvWeather.GetPopup().Visible)
 		{
 			return true;
 		}

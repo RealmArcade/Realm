@@ -5379,6 +5379,11 @@ public class {mapName} : IMapScript
 		_environmentService?.UpdateDayNightVisuals(this, progress);
 	}
 
+	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(int timeOfDayIndex)
+	{
+		return _environmentService?.SetTimeOfDay(this, _worldEntity, timeOfDayIndex, TimeOfDayCycleDuration) ?? (0, 0f);
+	}
+
 	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay()
 	{
 		return _environmentService?.CycleTimeOfDay(this, _worldEntity, TimeOfDayCycleDuration) ?? (0, 0f);

@@ -686,6 +686,7 @@ public partial class GameHost
 						3 => "🌄",
 						_ => "☀️"
 					};
+					MapEditorHUD.Instance?.UpdateEnvLightingSelection(res.TimeOfDayIndex);
 					MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
 					GetViewport().SetInputAsHandled();
 					return;
@@ -702,6 +703,7 @@ public partial class GameHost
 							"fog" => "🌫️",
 							_ => "☀️"
 						};
+						MapEditorHUD.Instance?.UpdateEnvWeatherSelection(nextWeather);
 						MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
 					}
 					GetViewport().SetInputAsHandled();

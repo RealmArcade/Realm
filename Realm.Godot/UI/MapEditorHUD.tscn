@@ -249,12 +249,6 @@ layout_mode = 2
 focus_mode = 0
 text = "🕸️ WIREFRAME: OFF"
 
-[node name="BtnToggleShadows" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-icon_max_width = 0
-text = "👥 SHADOWS: ON"
-
 [node name="BtnRotate" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0
@@ -265,10 +259,10 @@ layout_mode = 2
 focus_mode = 0
 text = "📐 Tilt"
 
-[node name="BtnSkybox" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+[node name="BtnToggleEnvironment" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0
-text = "☀️ Cycle Lighting"
+text = "☀️ Environment"
 
 [node name="BtnZoomIn" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
