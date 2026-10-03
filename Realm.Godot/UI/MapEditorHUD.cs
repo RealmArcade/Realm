@@ -175,9 +175,6 @@ public partial class MapEditorHUD : Control
 	private PanelContainer _panelMeasurementHUD;
 	private Label _lblMeasureTelemetry;
 
-	private OptionButton _optPlacementSymmetryFolds;
-	private Button _btnPlacementResetPivot;
-
 	private Button _btnPasteAnchor;
 	private Label _lblPasteTelemetry;
 
@@ -1722,16 +1719,6 @@ public partial class MapEditorHUD : Control
 			_contentPlacement.AddChild(_optPlacementMirrorMode);
 			_contentPlacement.MoveChild(_optPlacementMirrorMode, _btnToggleSnap.GetIndex() + 1);
 		}
-
-		_optPlacementSymmetryFolds = new OptionButton();
-		_optPlacementSymmetryFolds.Name = "OptPlacementSymmetryFolds";
-		_optPlacementSymmetryFolds.Set("icon_max_width", 0);
-		SetupSpokesDropdown(_optPlacementSymmetryFolds, (spokes) => SetSymmetrySpokes(spokes), "Select N-fold rotational symmetry spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
-
-		_btnPlacementResetPivot = new Button();
-		_btnPlacementResetPivot.Name = "BtnPlacementResetPivot";
-		_btnPlacementResetPivot.Set("icon_max_width", 0);
-		SetupOptionButton(_btnPlacementResetPivot, "\uf05b RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry pivot to map center");
 
 		_chkRandomRotation = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomRotation");
 		_chkRandomScale = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomScale");
@@ -6866,7 +6853,6 @@ public partial class MapEditorHUD : Control
 	{
 		if (GameHost.Instance == null) return;
 		int spokes = GameHost.Instance.EditorSymmetryFolds;
-		UpdateSpokesDropdownSelection(_optPlacementSymmetryFolds, spokes);
 		UpdateSpokesDropdownSelection(_optClipboardSymmetryFolds, spokes);
 	}
 
@@ -6879,9 +6865,7 @@ public partial class MapEditorHUD : Control
 		bool isRotational = mode == MirrorMode.Rotational;
 		bool hasMirror = mode != MirrorMode.None;
 
-		if (_optPlacementSymmetryFolds != null) _optPlacementSymmetryFolds.Visible = isRotational;
 		if (_optClipboardSymmetryFolds != null) _optClipboardSymmetryFolds.Visible = isRotational;
-		if (_btnPlacementResetPivot != null) _btnPlacementResetPivot.Visible = hasMirror;
 		if (_btnClipboardResetPivot != null) _btnClipboardResetPivot.Visible = hasMirror;
 		UpdatePolarSubControlsVisibility(GameHost.Instance.EditorGridMode);
 		if (isRotational)
@@ -8393,42 +8377,11 @@ public partial class MapEditorHUD : Control
 
 		if (_contentPlacement != null)
 		{
-			var placeSymGrid = _contentPlacement.GetNodeOrNull<GridContainer>("PlacementSymmetrySubGrid");
-			if (placeSymGrid == null && _optPlacementSymmetryFolds != null && _btnPlacementResetPivot != null)
-			{
-				placeSymGrid = new GridContainer();
-				placeSymGrid.Name = "PlacementSymmetrySubGrid";
-				placeSymGrid.Columns = 2;
-				placeSymGrid.AddThemeConstantOverride("h_separation", 6);
-				placeSymGrid.AddThemeConstantOverride("v_separation", 4);
-				placeSymGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-
-				SafeReparent(_optPlacementSymmetryFolds, placeSymGrid);
-				SafeReparent(_btnPlacementResetPivot, placeSymGrid);
-
-				int insertIdx = _optPlacementMirrorMode != null ? _optPlacementMirrorMode.GetIndex() + 1 : 2;
-				_contentPlacement.AddChild(placeSymGrid);
-				_contentPlacement.MoveChild(placeSymGrid, insertIdx);
-			}
-
 			if (_optPlacementMirrorMode != null)
 			{
 				_optPlacementMirrorMode.CustomMinimumSize = new Vector2(0, 30);
 				_optPlacementMirrorMode.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 				_optPlacementMirrorMode.AddThemeFontSizeOverride("font_size", 10);
-			}
-
-			if (_optPlacementSymmetryFolds != null)
-			{
-				_optPlacementSymmetryFolds.CustomMinimumSize = new Vector2(0, 30);
-				_optPlacementSymmetryFolds.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-				_optPlacementSymmetryFolds.AddThemeFontSizeOverride("font_size", 10);
-			}
-			if (_btnPlacementResetPivot != null)
-			{
-				_btnPlacementResetPivot.CustomMinimumSize = new Vector2(0, 30);
-				_btnPlacementResetPivot.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-				_btnPlacementResetPivot.AddThemeFontSizeOverride("font_size", 10);
 			}
 		}
 
@@ -9677,10 +9630,6 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 		if (_optClipboardSymmetryFolds != null && _optClipboardSymmetryFolds.GetPopup() != null && _optClipboardSymmetryFolds.GetPopup().Visible)
-		{
-			return true;
-		}
-		if (_optPlacementSymmetryFolds != null && _optPlacementSymmetryFolds.GetPopup() != null && _optPlacementSymmetryFolds.GetPopup().Visible)
 		{
 			return true;
 		}
