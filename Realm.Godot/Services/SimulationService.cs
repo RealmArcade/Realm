@@ -66,6 +66,7 @@ internal class SimulationService
 	private readonly QueryDescription _patrolArrivalQuery = Realm.Ecs.Common.QueryCache.AllPatrolAndPositionNoneDeadAndAttackTargetQuery;
 	private readonly QueryDescription _followQuery = Realm.Ecs.Common.QueryCache.AllFollowAndPositionNoneDeadQuery;
 	private readonly QueryDescription _attackCooldownQuery = Realm.Ecs.Common.QueryCache.AllAttackQuery;
+	private readonly QueryDescription _healthRegenQuery = Realm.Ecs.Common.QueryCache.AllHealthNoneDeadQuery;
 	private readonly QueryDescription _manaRegenQuery = Realm.Ecs.Common.QueryCache.AllManaAndManaRegenNoneDeadQuery;
 	private readonly QueryDescription _prodQuery = Realm.Ecs.Common.QueryCache.AllProductionQueueQuery;
 	private readonly QueryDescription _spellCooldownQuery = Realm.Ecs.Common.QueryCache.AllSpellCooldownsQuery;
@@ -77,6 +78,7 @@ internal class SimulationService
 	private ForEachWithEntity<Patrol, Position> _patrolArrivalQueryDelegate = null!;
 	private ForEachWithEntity<Follow, Position> _followQueryDelegate = null!;
 	private ForEachWithEntity<Attack> _attackCooldownQueryDelegate = null!;
+	private ForEachWithEntity<Health> _healthRegenQueryDelegate = null!;
 	private ForEachWithEntity<Mana, ManaRegen> _manaRegenQueryDelegate = null!;
 	private ForEachWithEntity<Realm.Ecs.Components.Core.ProductionQueue> _prodQueryDelegate = null!;
 	private ForEachWithEntity<InterpolationTarget> _interpolationQueryDelegate = null!;
@@ -162,6 +164,7 @@ internal class SimulationService
 		_patrolArrivalQueryDelegate = PatrolArrivalQueryAction;
 		_followQueryDelegate = FollowQueryAction;
 		_attackCooldownQueryDelegate = AttackCooldownQueryAction;
+		_healthRegenQueryDelegate = HealthRegenQueryAction;
 		_manaRegenQueryDelegate = ManaRegenQueryAction;
 		_prodQueryDelegate = ProdQueryAction;
 		_cooldownsQueryDelegate = CooldownsQueryAction;
@@ -235,6 +238,7 @@ internal class SimulationService
 		ProcessFollowMovements();
 
 		EcsWorld.Query(in _attackCooldownQuery, _attackCooldownQueryDelegate);
+		EcsWorld.Query(in _healthRegenQuery, _healthRegenQueryDelegate);
 		EcsWorld.Query(in _manaRegenQuery, _manaRegenQueryDelegate);
 		EcsWorld.Query(in _prodQuery, _prodQueryDelegate);
 
@@ -779,6 +783,20 @@ internal class SimulationService
 		{
 			atk.CurrentCooldown = Math.Max(0, atk.CurrentCooldown - _fDelta);
 		}
+	}
+
+	private void HealthRegenQueryAction(Entity entity, ref Health health)
+	{
+		health.TimeSinceLastDamage += _fDelta;
+		if (health.HpRegen <= 0f || health.Current >= health.Max)
+		{
+			return;
+		}
+		if (health.HpRegenCombatDelay > 0f && health.TimeSinceLastDamage < health.HpRegenCombatDelay)
+		{
+			return;
+		}
+		health.Current = Math.Min(health.Max, health.Current + health.HpRegen * _fDelta);
 	}
 
 	private void ManaRegenQueryAction(Entity entity, ref Mana mana, ref ManaRegen regen)

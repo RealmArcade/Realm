@@ -88,7 +88,22 @@ internal class UnitSpawnService
 		return defaultName;
 	}
 
-	public Entity CreateEcsUnitEntity(string id, string name, float hp, float damage, float range, float armor, float speed, float scanRadius, bool isHero, float attackCooldown, int pathingFlags, Vector3 pos, Realm.Ecs.Common.PlayerEntity owner, Entity playerEntity, bool hasShieldsUpgrade, bool hasWeaponsUpgrade, string[]? targets = null)
+	private static SplashType ParseSplashType(string? splashType)
+	{
+		if (string.IsNullOrEmpty(splashType)) return SplashType.None;
+		if (splashType.Equals("RadialStep", StringComparison.OrdinalIgnoreCase) || splashType.Equals("Radial_Step", StringComparison.OrdinalIgnoreCase)) return SplashType.RadialStep;
+		if (splashType.Equals("RadialLinear", StringComparison.OrdinalIgnoreCase) || splashType.Equals("Radial_Linear", StringComparison.OrdinalIgnoreCase)) return SplashType.RadialLinear;
+		return SplashType.None;
+	}
+
+	public Entity CreateEcsUnitEntity(
+		string id, string name, float hp, float damage, float range, float armor, float speed, float scanRadius, bool isHero, float attackCooldown, int pathingFlags, Vector3 pos, Realm.Ecs.Common.PlayerEntity owner, Entity playerEntity, bool hasShieldsUpgrade, bool hasWeaponsUpgrade, string[]? targets = null,
+		float hpRegen = 0f, float hpRegenCombatDelay = 0f, float maxMana = 0f, float manaRegen = 0f,
+		float ratedArmor = 0f, string armorType = "unarmored", float flatArmorPen = 0f, float percentArmorPen = 0f,
+		float damageVariance = 0f, string damageType = "normal", float critChance = 0f, float critMultiplier = 1f,
+		string splashTypeStr = "None", float splashInnerRadius = 0f, float splashMediumRadius = 0f, float splashOuterRadius = 0f,
+		float splashInnerRatio = 1f, float splashMediumRatio = 0.5f, float splashOuterRatio = 0.25f, bool friendlyFire = false,
+		int pushPriority = 0, string movementType = "Ground")
 	{
 		var entity = EcsWorld.Create();
 		EcsWorld.Add(entity, new DefinitionId(id));
@@ -120,16 +135,44 @@ internal class UnitSpawnService
 			EcsWorld.Add(entity, new Realm.Ecs.Components.Meta.Experience(0f));
 		}
 
-		EcsWorld.Add(entity, new Health(hp, hp));
+		EcsWorld.Add(entity, new Health(hp, hp, hpRegen, hpRegenCombatDelay));
+
+		if (maxMana > 0f)
+		{
+			EcsWorld.Add(entity, new Mana(maxMana, maxMana, manaRegen));
+			EcsWorld.Add(entity, new ManaRegen(manaRegen));
+		}
+
+		SplashType splashType = ParseSplashType(splashTypeStr);
 
 		if (damage > 0)
 		{
-			EcsWorld.Add(entity, new Attack(damage, range, attackCooldown));
+			EcsWorld.Add(entity, new Attack(
+				Damage: damage,
+				Range: range,
+				Cooldown: attackCooldown,
+				CurrentCooldown: 0f,
+				DamageVariance: damageVariance,
+				DamageType: string.IsNullOrEmpty(damageType) ? "normal" : damageType,
+				FlatArmorPenetration: flatArmorPen,
+				PercentArmorPenetration: percentArmorPen,
+				CritChance: critChance,
+				CritMultiplier: critMultiplier,
+				SplashType: splashType,
+				SplashInnerRadius: splashInnerRadius,
+				SplashMediumRadius: splashMediumRadius,
+				SplashOuterRadius: splashOuterRadius,
+				SplashInnerRatio: splashInnerRatio,
+				SplashMediumRatio: splashMediumRatio,
+				SplashOuterRatio: splashOuterRatio,
+				FriendlyFire: friendlyFire
+			));
 		}
 
-		EcsWorld.Add(entity, new Armor(armor));
+		EcsWorld.Add(entity, new Armor(armor, ratedArmor, string.IsNullOrEmpty(armorType) ? "unarmored" : armorType));
 		EcsWorld.Add(entity, new CollisionScale(1.0f));
 		EcsWorld.Add(entity, new ScanRadius(scanRadius));
+		EcsWorld.Add(entity, new TargetIntel(scanRadius, scanRadius));
 
 		var baseStatsDict = new System.Collections.Generic.Dictionary<Realm.Ecs.Common.StatId, float>
 		{
@@ -141,7 +184,7 @@ internal class UnitSpawnService
 
 		if (speed > 0)
 		{
-			EcsWorld.Add(entity, new MovementStats(speed, 20f, 10f));
+			EcsWorld.Add(entity, new MovementStats(speed, 0f, 10f, pushPriority, movementType));
 			EcsWorld.Add(entity, new PathingFlags(pathingFlags));
 			EcsWorld.Add(entity, new Realm.Ecs.Components.Tags.Movable());
 			EcsWorld.Add(entity, new Inventory());

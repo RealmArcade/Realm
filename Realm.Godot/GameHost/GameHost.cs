@@ -1234,6 +1234,29 @@ public partial class GameHost : Node3D, IGameAPI
 		public float ProductionTime { get; set; }
 		public string AttackType { get; set; }
 		public string ArmorType { get; set; }
+		public float HpRegen { get; set; }
+		public float HpRegenCombatDelay { get; set; }
+		public float MaxMana { get; set; }
+		public float ManaRegen { get; set; }
+		public float RatedArmor { get; set; }
+		public float FlatArmorPenetration { get; set; }
+		public float PercentArmorPenetration { get; set; }
+		public float DamageVariance { get; set; }
+		public string DamageType { get; set; } = "normal";
+		public float CritChance { get; set; }
+		public float CritMultiplier { get; set; } = 1.0f;
+		public string SplashType { get; set; } = "None";
+		public float SplashInnerRadius { get; set; }
+		public float SplashMediumRadius { get; set; }
+		public float SplashOuterRadius { get; set; }
+		public float SplashInnerRatio { get; set; } = 1.0f;
+		public float SplashMediumRatio { get; set; } = 0.5f;
+		public float SplashOuterRatio { get; set; } = 0.25f;
+		public bool FriendlyFire { get; set; }
+		public int PushPriority { get; set; }
+		public string MovementType { get; set; } = "Ground";
+		public float SightRange { get; set; } = 15.0f;
+		public float AcquisitionRange { get; set; } = 15.0f;
 		public float GoldBounty { get; set; }
 		public string ModelPath { get; set; }
 		public string PortraitModelPath { get; set; }
@@ -4829,18 +4852,56 @@ public class {mapName} : IMapScript
 		bool isHero = false;
 		int pathingFlags = 8;
 		string[]? targets = null;
-		if (UnitRegistry.TryGetValue(id, out var regMeta))
+		float hpRegen = 0f, hpRegenCombatDelay = 0f, maxMana = 0f, manaRegen = 0f;
+		float ratedArmor = 0f, flatArmorPen = 0f, percentArmorPen = 0f, damageVariance = 0f;
+		string damageType = "normal", armorType = "unarmored", splashType = "None", movementType = "Ground";
+		float critChance = 0f, critMultiplier = 1f;
+		float splashInnerR = 0f, splashMedR = 0f, splashOuterR = 0f;
+		float splashInnerRatio = 1f, splashMedRatio = 0.5f, splashOuterRatio = 0.25f;
+		bool friendlyFire = false;
+		int pushPriority = 0;
+
+		if (UnitRegistry.TryGetValue(id, out var regMeta) || TryGetUnitOrBuildingMetadata(id, out regMeta))
 		{
 			if (regMeta.ScanRadius > 0) scanRadius = regMeta.ScanRadius;
 			if (regMeta.AttackCooldown > 0) attackCooldown = regMeta.AttackCooldown;
 			isHero = regMeta.IsHero;
 			pathingFlags = GetUnitPathingFlags(regMeta);
 			targets = regMeta.Targets;
+
+			hpRegen = regMeta.HpRegen;
+			hpRegenCombatDelay = regMeta.HpRegenCombatDelay;
+			maxMana = regMeta.MaxMana;
+			manaRegen = regMeta.ManaRegen;
+			ratedArmor = regMeta.RatedArmor;
+			armorType = !string.IsNullOrEmpty(regMeta.ArmorType) ? regMeta.ArmorType : "unarmored";
+			flatArmorPen = regMeta.FlatArmorPenetration;
+			percentArmorPen = regMeta.PercentArmorPenetration;
+			damageVariance = regMeta.DamageVariance;
+			damageType = !string.IsNullOrEmpty(regMeta.DamageType) ? regMeta.DamageType : (!string.IsNullOrEmpty(regMeta.AttackType) ? regMeta.AttackType : "normal");
+			critChance = regMeta.CritChance;
+			critMultiplier = regMeta.CritMultiplier > 0f ? regMeta.CritMultiplier : 1f;
+			splashType = regMeta.SplashType;
+			splashInnerR = regMeta.SplashInnerRadius;
+			splashMedR = regMeta.SplashMediumRadius;
+			splashOuterR = regMeta.SplashOuterRadius;
+			splashInnerRatio = regMeta.SplashInnerRatio;
+			splashMedRatio = regMeta.SplashMediumRatio;
+			splashOuterRatio = regMeta.SplashOuterRatio;
+			friendlyFire = regMeta.FriendlyFire;
+			pushPriority = regMeta.PushPriority;
+			movementType = !string.IsNullOrEmpty(regMeta.MovementType) ? regMeta.MovementType : "Ground";
 		}
 
 		var entity = _unitSpawnService.CreateEcsUnitEntity(
 			id, name, hp, damage, range, armor, speed, scanRadius, isHero, attackCooldown, pathingFlags, pos, owner,
-			_playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade, targets
+			_playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade, targets,
+			hpRegen, hpRegenCombatDelay, maxMana, manaRegen,
+			ratedArmor, armorType, flatArmorPen, percentArmorPen,
+			damageVariance, damageType, critChance, critMultiplier,
+			splashType, splashInnerR, splashMedR, splashOuterR,
+			splashInnerRatio, splashMedRatio, splashOuterRatio, friendlyFire,
+			pushPriority, movementType
 		);
 
 		OnUnitCreated?.Invoke(GetUnitWrapper(entity));

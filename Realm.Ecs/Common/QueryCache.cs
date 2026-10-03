@@ -56,6 +56,7 @@ public static class QueryCache
     public static readonly QueryDescription AllPatrolAndPositionNoneDeadAndAttackTargetQuery = new QueryDescription().WithAll<Patrol, Position>().WithNone<Dead, AttackTarget>();
     public static readonly QueryDescription AllFollowAndPositionNoneDeadQuery = new QueryDescription().WithAll<Follow, Position>().WithNone<Dead>();
     public static readonly QueryDescription AllAttackQuery = new QueryDescription().WithAll<Attack>();
+    public static readonly QueryDescription AllHealthNoneDeadQuery = new QueryDescription().WithAll<Health>().WithNone<Dead>();
     public static readonly QueryDescription AllManaAndManaRegenNoneDeadQuery = new QueryDescription().WithAll<Mana, ManaRegen>().WithNone<Dead>();
     public static readonly QueryDescription AllProductionQueueQuery = new QueryDescription().WithAll<ProductionQueue>();
     public static readonly QueryDescription AllSpellCooldownsQuery = new QueryDescription().WithAll<SpellCooldowns>();

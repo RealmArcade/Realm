@@ -17,6 +17,8 @@ internal class CombatAndDamageService
 	private readonly StatService? _statService;
 	private readonly Func<bool>? _unlimitedPowerProvider;
 	private readonly NavMeshPathfinder? _pathfinder;
+	private readonly CombatConfig _combatConfig = new();
+	public CombatConfig Config => _combatConfig;
 
 	private const float UnderAttackAlertCooldown = 8f;
 
@@ -609,15 +611,29 @@ internal class CombatAndDamageService
 				}
 
 				var targetHealth = EcsWorld.Get<Health>(target.Target);
+				var armorComp = EcsWorld.Has<Armor>(target.Target) ? EcsWorld.Get<Armor>(target.Target) : new Armor(0f);
 
-				float actualDamage = _statService != null ? _statService.GetStatValue(entity, new Realm.Ecs.Common.StatId("Attack")) : 0f;
-				if (actualDamage <= 0) actualDamage = atk.Damage;
+				float baseDamage = _statService != null ? _statService.GetStatValue(entity, new Realm.Ecs.Common.StatId("Attack")) : 0f;
+				if (baseDamage <= 0) baseDamage = atk.Damage;
 
-				float actualArmor = _statService != null ? _statService.GetStatValue(target.Target, new Realm.Ecs.Common.StatId("Armor")) : 0f;
-				if (actualArmor <= 0 && EcsWorld.Has<Armor>(target.Target)) actualArmor = EcsWorld.Get<Armor>(target.Target).Value;
+				float flatArmor = _statService != null ? _statService.GetStatValue(target.Target, new Realm.Ecs.Common.StatId("Armor")) : 0f;
+				if (flatArmor <= 0) flatArmor = armorComp.FlatArmor;
 
-				float damage = actualDamage - actualArmor;
-				if (damage < 1f) damage = 1f;
+				var damageResult = CombatResolver.ResolveDamage(
+					baseDamage: baseDamage,
+					damageVariance: atk.DamageVariance,
+					critChance: atk.CritChance,
+					critMultiplier: atk.CritMultiplier,
+					flatArmor: flatArmor,
+					ratedArmor: armorComp.RatedArmor,
+					flatArmorPen: atk.FlatArmorPenetration,
+					percentArmorPen: atk.PercentArmorPenetration,
+					damageType: atk.DamageType,
+					armorType: armorComp.ArmorType,
+					config: _combatConfig
+				);
+
+				float damage = damageResult.FinalDamage;
 
 				if (EcsWorld.Has<LastAttacker>(target.Target))
 				{
@@ -632,7 +648,14 @@ internal class CombatAndDamageService
 				OnUnitDamagedCallback?.Invoke(target.Target, entity, damage);
 
 				float newHp = Math.Max(0, targetHealth.Current - damage);
-				EcsWorld.Set(target.Target, new Health(newHp, targetHealth.Max));
+				targetHealth.Current = newHp;
+				targetHealth.TimeSinceLastDamage = 0f;
+				EcsWorld.Set(target.Target, targetHealth);
+
+				if (atk.SplashType != SplashType.None && atk.SplashOuterRadius > 0f)
+				{
+					EvaluateSplashDamage(entity, target.Target, targetPos, baseDamage, atk, owner);
+				}
 
 				if (EcsWorld.Has<DefinitionId>(target.Target))
 				{
@@ -729,6 +752,85 @@ internal class CombatAndDamageService
 				ClearChaseTracking(entity);
 			}
 		}
+	}
+
+	private void EvaluateSplashDamage(Entity attacker, Entity primaryTarget, System.Numerics.Vector3 impactPos, float baseDamage, Attack atk, Owner attackerOwner)
+	{
+		bool attackerIsEnemy = EcsWorld.Has<UnitFaction>(attacker) && EcsWorld.Get<UnitFaction>(attacker).IsEnemy;
+
+		var splashQuery = Realm.Ecs.Common.QueryCache.AllPositionAndHealthAndOwnerNoneDeadQuery;
+		EcsWorld.Query(in splashQuery, (Entity splashEnt, ref Position sPos, ref Health sHp, ref Owner sOwner) =>
+		{
+			if (splashEnt == primaryTarget || splashEnt == attacker) return;
+			if (EcsWorld.Has<Realm.Ecs.Components.Tags.Invulnerable>(splashEnt)) return;
+
+			if (!atk.FriendlyFire)
+			{
+				bool splashIsEnemy = EcsWorld.Has<UnitFaction>(splashEnt) && EcsWorld.Get<UnitFaction>(splashEnt).IsEnemy;
+				if (splashIsEnemy == attackerIsEnemy || sOwner.PlayerEntity == attackerOwner.PlayerEntity)
+				{
+					return;
+				}
+			}
+
+			float distToImpact = Distance(impactPos, sPos.Value);
+			float splashRatio = CombatResolver.CalculateSplashRatio(
+				distToImpact,
+				atk.SplashType,
+				atk.SplashInnerRadius,
+				atk.SplashMediumRadius,
+				atk.SplashOuterRadius,
+				atk.SplashInnerRatio,
+				atk.SplashMediumRatio,
+				atk.SplashOuterRatio
+			);
+
+			if (splashRatio > 0f)
+			{
+				var sArmorComp = EcsWorld.Has<Armor>(splashEnt) ? EcsWorld.Get<Armor>(splashEnt) : new Armor(0f);
+				float sFlatArmor = _statService != null ? _statService.GetStatValue(splashEnt, new Realm.Ecs.Common.StatId("Armor")) : 0f;
+				if (sFlatArmor <= 0) sFlatArmor = sArmorComp.FlatArmor;
+
+				var sResult = CombatResolver.ResolveDamage(
+					baseDamage: baseDamage * splashRatio,
+					damageVariance: atk.DamageVariance,
+					critChance: atk.CritChance,
+					critMultiplier: atk.CritMultiplier,
+					flatArmor: sFlatArmor,
+					ratedArmor: sArmorComp.RatedArmor,
+					flatArmorPen: atk.FlatArmorPenetration,
+					percentArmorPen: atk.PercentArmorPenetration,
+					damageType: atk.DamageType,
+					armorType: sArmorComp.ArmorType,
+					config: _combatConfig
+				);
+
+				float splashDamage = sResult.FinalDamage;
+				sHp.Current = Math.Max(0, sHp.Current - splashDamage);
+				sHp.TimeSinceLastDamage = 0f;
+				EcsWorld.Set(splashEnt, sHp);
+
+				OnUnitDamagedCallback?.Invoke(splashEnt, attacker, splashDamage);
+
+				if (EcsWorld.Has<LastAttacker>(splashEnt))
+				{
+					EcsWorld.Set(splashEnt, new LastAttacker(attacker));
+				}
+				else
+				{
+					_tickActionsToAddLastAttacker.Add((splashEnt, attacker));
+				}
+
+				if (sHp.Current <= 0)
+				{
+					_tickUnitsToKill.Add(splashEnt);
+				}
+				else
+				{
+					OnDamageFlashRequested?.Invoke(splashEnt);
+				}
+			}
+		});
 	}
 
 	private float GetEffectiveAttackCooldown(Entity entity, float baseCooldown)

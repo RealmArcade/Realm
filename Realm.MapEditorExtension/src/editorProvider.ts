@@ -747,6 +747,132 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                             <label for="field-ScanRadius">Scan Radius</label>
                             <input type="number" id="field-ScanRadius" min="0" step="any" required />
                         </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-HpRegen">HP Regen / sec</label>
+                                <input type="number" id="field-HpRegen" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-HpRegenCombatDelay">HP Regen Combat Delay (sec)</label>
+                                <input type="number" id="field-HpRegenCombatDelay" min="0" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-MaxMana">Max Mana</label>
+                                <input type="number" id="field-MaxMana" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-ManaRegen">Mana Regen / sec</label>
+                                <input type="number" id="field-ManaRegen" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-RatedArmor">Rated Armor (EHP Scaling)</label>
+                                <input type="number" id="field-RatedArmor" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-ArmorType">Armor Type Tag</label>
+                                <input type="text" id="field-ArmorType" placeholder="unarmored" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-FlatArmorPenetration">Flat Armor Pen</label>
+                                <input type="number" id="field-FlatArmorPenetration" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-PercentArmorPenetration">Percent Armor Pen (0.0 - 1.0)</label>
+                                <input type="number" id="field-PercentArmorPenetration" min="0" max="1" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-DamageVariance">Damage Variance (±)</label>
+                                <input type="number" id="field-DamageVariance" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-DamageType">Damage Type Tag</label>
+                                <input type="text" id="field-DamageType" placeholder="normal" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-CritChance">Crit Chance (0.0 - 1.0)</label>
+                                <input type="number" id="field-CritChance" min="0" max="1" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-CritMultiplier">Crit Multiplier</label>
+                                <input type="number" id="field-CritMultiplier" min="0" step="any" placeholder="1.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SplashType">Splash Falloff Type</label>
+                                <select id="field-SplashType">
+                                    <option value="None">None</option>
+                                    <option value="RadialStep">RadialStep</option>
+                                    <option value="RadialLinear">RadialLinear</option>
+                                </select>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label for="field-FriendlyFire">
+                                    <input type="checkbox" id="field-FriendlyFire" />
+                                    Friendly Fire Splash
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SplashInnerRadius">Splash Inner Radius</label>
+                                <input type="number" id="field-SplashInnerRadius" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-SplashInnerRatio">Splash Inner Ratio</label>
+                                <input type="number" id="field-SplashInnerRatio" min="0" step="any" placeholder="1.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SplashMediumRadius">Splash Medium Radius</label>
+                                <input type="number" id="field-SplashMediumRadius" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-SplashMediumRatio">Splash Medium Ratio</label>
+                                <input type="number" id="field-SplashMediumRatio" min="0" step="any" placeholder="0.5" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SplashOuterRadius">Splash Outer Radius</label>
+                                <input type="number" id="field-SplashOuterRadius" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-SplashOuterRatio">Splash Outer Ratio</label>
+                                <input type="number" id="field-SplashOuterRatio" min="0" step="any" placeholder="0.25" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-PushPriority">Push Priority</label>
+                                <input type="number" id="field-PushPriority" step="1" placeholder="0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-MovementType">Movement Type</label>
+                                <input type="text" id="field-MovementType" placeholder="Ground" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SightRange">Sight Range</label>
+                                <input type="number" id="field-SightRange" min="0" step="any" placeholder="15.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-AcquisitionRange">Acquisition Range</label>
+                                <input type="number" id="field-AcquisitionRange" min="0" step="any" placeholder="15.0" />
+                            </div>
+                        </div>
                     </div>
 
                     <div id="section-unit-costs" class="form-section">

@@ -152,7 +152,30 @@
         MaxCapacity: document.getElementById('field-MaxCapacity'),
         HarvestRate: document.getElementById('field-HarvestRate'),
         GrowthRate: document.getElementById('field-GrowthRate'),
-        MaxWorkers: document.getElementById('field-MaxWorkers')
+        MaxWorkers: document.getElementById('field-MaxWorkers'),
+        HpRegen: document.getElementById('field-HpRegen'),
+        HpRegenCombatDelay: document.getElementById('field-HpRegenCombatDelay'),
+        MaxMana: document.getElementById('field-MaxMana'),
+        ManaRegen: document.getElementById('field-ManaRegen'),
+        RatedArmor: document.getElementById('field-RatedArmor'),
+        FlatArmorPenetration: document.getElementById('field-FlatArmorPenetration'),
+        PercentArmorPenetration: document.getElementById('field-PercentArmorPenetration'),
+        DamageVariance: document.getElementById('field-DamageVariance'),
+        DamageType: document.getElementById('field-DamageType'),
+        CritChance: document.getElementById('field-CritChance'),
+        CritMultiplier: document.getElementById('field-CritMultiplier'),
+        SplashType: document.getElementById('field-SplashType'),
+        SplashInnerRadius: document.getElementById('field-SplashInnerRadius'),
+        SplashMediumRadius: document.getElementById('field-SplashMediumRadius'),
+        SplashOuterRadius: document.getElementById('field-SplashOuterRadius'),
+        SplashInnerRatio: document.getElementById('field-SplashInnerRatio'),
+        SplashMediumRatio: document.getElementById('field-SplashMediumRatio'),
+        SplashOuterRatio: document.getElementById('field-SplashOuterRatio'),
+        FriendlyFire: document.getElementById('field-FriendlyFire'),
+        PushPriority: document.getElementById('field-PushPriority'),
+        MovementType: document.getElementById('field-MovementType'),
+        SightRange: document.getElementById('field-SightRange'),
+        AcquisitionRange: document.getElementById('field-AcquisitionRange')
     };
 
 
@@ -2292,7 +2315,13 @@
                             "AttackCooldown", "ScanRadius", "CostGold", "CostWood", "CostStone", "ProductionTime",
                             "PopCost", "AttackType", "ArmorType", "GoldBounty", "ModelPath", "BuildOptions",
                             "IsHero", "Abilities", "XpBounty", "Weapons", "StartingItems", "Upgrades",
-                            "PathingType", "StatusEffects", "SoundEvents", "PortraitModelPath"
+                            "PathingType", "StatusEffects", "SoundEvents", "PortraitModelPath",
+                            "HpRegen", "HpRegenCombatDelay", "MaxMana", "ManaRegen", "RatedArmor",
+                            "FlatArmorPenetration", "PercentArmorPenetration", "DamageVariance", "DamageType",
+                            "CritChance", "CritMultiplier", "SplashType", "SplashInnerRadius",
+                            "SplashMediumRadius", "SplashOuterRadius", "SplashInnerRatio", "SplashMediumRatio",
+                            "SplashOuterRatio", "FriendlyFire", "PushPriority", "MovementType",
+                            "SightRange", "AcquisitionRange"
                         ];
                         const sanitized = {};
                         schemaKeys.forEach(k => {
