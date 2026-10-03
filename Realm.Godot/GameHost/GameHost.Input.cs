@@ -830,6 +830,24 @@ public partial class GameHost
 				{
 					return;
 				}
+				if (GroundTerrain != null && EditorPolarOverlayVisible)
+				{
+					var terrainHit = RaycastTerrainFromMouse(editorRightMouseBtn.Position);
+					if (terrainHit != null && terrainHit.ContainsKey("position"))
+					{
+						Vector3 hitPos = terrainHit["position"].AsVector3();
+						var pivot = new Vector2(hitPos.X, hitPos.Z);
+						EditorSymmetryPivot = pivot;
+						GroundTerrain.SetPolarCenter(pivot);
+						UpdateSymmetryPivotVisuals();
+						InvalidateSelectionHighlightMesh();
+						var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
+						MapEditorHUD.Instance?.ShowFeedbackExternal($"Pivot set to tile ({cx}, {cz})");
+						GetViewport().SetInputAsHandled();
+						return;
+					}
+				}
+
 				if (_editorService.RampStartPos != null)
 				{
 					_editorService.SetRampStartPos(null);
@@ -850,24 +868,6 @@ public partial class GameHost
 					MapEditorHUD.Instance?.ClearMeasureTelemetry();
 					GetViewport().SetInputAsHandled();
 					return;
-				}
-
-				if (GroundTerrain != null)
-				{
-					var terrainHit = RaycastTerrainFromMouse(editorRightMouseBtn.Position);
-					if (terrainHit != null && terrainHit.ContainsKey("position"))
-					{
-						Vector3 hitPos = terrainHit["position"].AsVector3();
-						var pivot = new Vector2(hitPos.X, hitPos.Z);
-						EditorSymmetryPivot = pivot;
-						GroundTerrain.SetPolarCenter(pivot);
-						UpdateSymmetryPivotVisuals();
-						InvalidateSelectionHighlightMesh();
-						var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
-						MapEditorHUD.Instance?.ShowFeedbackExternal($"Pivot set to tile ({cx}, {cz})");
-						GetViewport().SetInputAsHandled();
-						return;
-					}
 				}
 
 				if (ActiveEditorTool == EditorTool.PasteArea)
