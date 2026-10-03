@@ -116,6 +116,7 @@ public static class GameSettings
 	public static bool DisableShadows { get; set; } = false;
 	public static bool DisableDayNightLighting { get; set; } = false;
 	public static bool FloatingCombatText { get; set; } = true;
+	public static string LastOpenedFolder { get; set; } = string.Empty;
 
 	public static int GetSafeScreenIndex()
 	{
@@ -263,6 +264,7 @@ public static class GameSettings
 				DisableDayNightLighting = data.DisableDayNightLighting;
 				FloatingCombatText = data.FloatingCombatText;
 				ShowHealthBars = data.ShowHealthBars;
+				LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
 
 				if (Resolutions != null && Resolutions.Count > 0)
 				{
@@ -320,7 +322,8 @@ public static class GameSettings
 			SeedMapFiles = SeedMapFiles,
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,
-			FloatingCombatText = FloatingCombatText
+			FloatingCombatText = FloatingCombatText,
+			LastOpenedFolder = LastOpenedFolder
 		};
 
 		string json = JsonSerializer.Serialize(data, JsonOptions);
@@ -506,6 +509,7 @@ public static class GameSettings
 		public bool DisableShadows { get; set; } = false;
 		public bool DisableDayNightLighting { get; set; } = false;
 		public bool FloatingCombatText { get; set; } = true;
+		public string? LastOpenedFolder { get; set; }
 	}
 
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

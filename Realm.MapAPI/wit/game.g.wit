@@ -14,7 +14,9 @@ interface game-api {
     clear-summary-table: func();
     count-units-owned-by-player: func(player-index: s32) -> s32;
     create-floating-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, duration: f32);
+    create-static-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, font-size: s32) -> s32;
     define-zone: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
+    destroy-static-text: func(handle: s32);
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
@@ -111,11 +113,14 @@ interface game-api {
     set-player-wood: func(player-index: s32, amount: f32);
     set-players-allied: func(player-index: s32, other-player-index: s32, allied: bool);
     set-resource-node-resource-amount: func(id: s32, val: f32);
+    set-static-text: func(handle: s32, text: string);
+    set-static-text-visible: func(handle: s32, visible: bool);
     set-stone: func(val: f32);
     set-summary-table-headers: func(column-headers: list<string>);
     set-summary-table-row: func(row-key: string, cell-values: list<string>);
     set-time-of-day: func(time: f32);
     set-unit-armor: func(id: s32, val: f32);
+    set-unit-attack-speed: func(id: s32, val: f32);
     set-unit-color: func(unit-id: s32, color-x: f32, color-y: f32, color-z: f32);
     set-unit-damage: func(id: s32, val: f32);
     set-unit-experience: func(id: s32, val: f32);
@@ -124,6 +129,7 @@ interface game-api {
     set-unit-is-enemy: func(id: s32, val: bool);
     set-unit-level: func(unit-id: s32, level: s32);
     set-unit-mana: func(id: s32, val: f32);
+    set-unit-mana-regen: func(id: s32, val: f32);
     set-unit-max-health: func(id: s32, val: f32);
     set-unit-max-mana: func(id: s32, val: f32);
     set-unit-name: func(id: s32, val: string);
@@ -161,6 +167,7 @@ interface game-api {
     unit-armor: func(id: s32) -> f32;
     unit-attack: func(id: s32, target-id: s32);
     unit-attack-move: func(id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
+    unit-attack-speed: func(id: s32) -> f32;
     unit-damage: func(id: s32) -> f32;
     unit-experience: func(id: s32) -> f32;
     unit-gather: func(id: s32, resource-node-id: s32);
@@ -182,6 +189,7 @@ interface game-api {
     unit-is-hero: func(id: s32) -> bool;
     unit-level: func(id: s32) -> s32;
     unit-mana: func(id: s32) -> f32;
+    unit-mana-regen: func(id: s32) -> f32;
     unit-max-health: func(id: s32) -> f32;
     unit-max-mana: func(id: s32) -> f32;
     unit-move-to: func(id: s32, destination-x: f32, destination-y: f32, destination-z: f32);

@@ -2502,8 +2502,8 @@ public partial class GameHost
 	private void AlignAllEntitiesToTerrain(Rect2I? affectedRegion = null)
 	{
 		float quadSize = GroundTerrain != null ? GroundTerrain.QuadSize : EditableTerrain.DefaultQuadSize;
-		float halfW = GroundTerrain != null ? (GroundTerrain.Width - 1) / 2.0f * quadSize : 0f;
-		float halfD = GroundTerrain != null ? (GroundTerrain.Depth - 1) / 2.0f * quadSize : 0f;
+		float halfW = GroundTerrain != null ? GroundTerrain.Width / 2.0f * quadSize : 0f;
+		float halfD = GroundTerrain != null ? GroundTerrain.Depth / 2.0f * quadSize : 0f;
 
 		bool IsInRegion(Vector3 pos)
 		{
@@ -4032,23 +4032,48 @@ public partial class GameHost
 				else if (ActiveEditorTool == EditorTool.PasteArea && _editorService.HasCopiedArea)
 				{
 					var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
-					float r = EditorPasteRotation % 360.0f;
-					if (r < 0) r += 360.0f;
-					int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+					var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation, EditorPasteReflection);
 
-					int pasteWidth = _editorService.CopiedAreaWidth;
-					int pasteDepth = _editorService.CopiedAreaDepth;
+					UpdatePasteSelectionHighlights(startX, startZ, targetWidth, targetDepth);
 
-					int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
-					int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
+					int srcAnchorX = _editorService.CopiedAreaSourceMinX + _editorService.CopiedAreaAnchorX;
+					int srcAnchorZ = _editorService.CopiedAreaSourceMinZ + _editorService.CopiedAreaAnchorZ;
+					int deltaX = cx - srcAnchorX;
+					int deltaZ = cz - srcAnchorZ;
 
-					int minX = Mathf.Clamp(cx, 0, GroundTerrain.Width - 1);
-					int minZ = Mathf.Clamp(cz, 0, GroundTerrain.Depth - 1);
-					int maxX = Mathf.Clamp(cx + targetWidth - 1, 0, GroundTerrain.Width - 1);
-					int maxZ = Mathf.Clamp(cz + targetDepth - 1, 0, GroundTerrain.Depth - 1);
+					float quadSize = GroundTerrain.QuadSize;
+					float halfW = GroundTerrain.Width / 2.0f;
+					float halfD = GroundTerrain.Depth / 2.0f;
+					Vector2 targetWorld2D = new Vector2((cx - halfW) * quadSize, (cz - halfD) * quadSize);
+					Vector2 pivotWorld2D = _editorService.SymmetryPivot;
+					Vector2 diffFromPivot = targetWorld2D - pivotWorld2D;
+					float distFromPivot = diffFromPivot.Length();
+					float angleFromPivot = Mathf.RadToDeg(Mathf.Atan2(diffFromPivot.Y, diffFromPivot.X));
+					if (angleFromPivot < 0) angleFromPivot += 360.0f;
 
-					CreateSelectionHighlight();
-					RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+					MapEditorHUD.Instance?.UpdatePasteTelemetry(deltaX, deltaZ, distFromPivot / quadSize, distFromPivot, angleFromPivot);
+				}
+				else if (ActiveEditorTool == EditorTool.Measure)
+				{
+					if (EditorTapeMeasureActive && EditorTapeMeasureStart.HasValue)
+					{
+						EditorTapeMeasureEnd = hitPos;
+						UpdateMeasureVisuals(EditorTapeMeasureStart.Value, hitPos);
+
+						Vector3 delta = hitPos - EditorTapeMeasureStart.Value;
+						float quadSize = GroundTerrain.QuadSize;
+						float dx = delta.X / quadSize;
+						float dz = delta.Z / quadSize;
+						float dy = delta.Y;
+						float eucTiles = Mathf.Sqrt(dx * dx + dz * dz);
+						float eucWorld = delta.Length();
+						float manhattanTiles = Mathf.Abs(dx) + Mathf.Abs(dz);
+						float angleDeg = Mathf.RadToDeg(Mathf.Atan2(delta.Z, delta.X));
+						if (angleDeg < 0) angleDeg += 360.0f;
+						float slopePct = eucTiles > 0.001f ? (Mathf.Abs(dy) / (eucTiles * quadSize)) * 100.0f : 0.0f;
+
+						MapEditorHUD.Instance?.UpdateMeasureTelemetry(eucTiles, eucWorld, manhattanTiles, dx, dz, dy, angleDeg, slopePct);
+					}
 				}
 			}
 			
@@ -4572,22 +4597,140 @@ public partial class GameHost
 	{
 		if (_brushIndicatorMesh == null) return;
 		
-		_brushIndicatorMesh.Position = new Vector3(position.X, position.Y + 0.1f, position.Z);
+		bool isVertexTool = ActiveEditorTool == EditorTool.Raise ||
+							ActiveEditorTool == EditorTool.Lower ||
+							ActiveEditorTool == EditorTool.Height ||
+							ActiveEditorTool == EditorTool.Smooth ||
+							ActiveEditorTool == EditorTool.Plateau ||
+							ActiveEditorTool == EditorTool.PaintTexture ||
+							ActiveEditorTool == EditorTool.Noise ||
+							ActiveEditorTool == EditorTool.Ramp;
+
+		Vector3 targetPos = position;
+		if (isVertexTool && GroundTerrain != null)
+		{
+			targetPos = _editorService.SnapToVertex(position);
+		}
+		else if (EditorSnapToGrid && GroundTerrain != null)
+		{
+			targetPos = _editorService.SnapToGrid(position);
+		}
+		
+		_brushIndicatorMesh.Position = new Vector3(targetPos.X, targetPos.Y + 0.1f, targetPos.Z);
 		_brushIndicatorMesh.Scale = new Vector3(EditorBrushRadius, 0.1f, EditorBrushRadius);
 		
-		bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
-							 ActiveEditorTool == EditorTool.Lower ||
-							 ActiveEditorTool == EditorTool.Height ||
-							 ActiveEditorTool == EditorTool.Smooth ||
-							 ActiveEditorTool == EditorTool.Plateau ||
-							 ActiveEditorTool == EditorTool.PaintTexture ||
-							 ActiveEditorTool == EditorTool.Noise ||
-							 ActiveEditorTool == EditorTool.Ramp ||
+		bool isTerrainTool = isVertexTool ||
 							 ActiveEditorTool == EditorTool.PlacePropClump ||
 							 ActiveEditorTool == EditorTool.PaintPathing ||
 							 ((ActiveEditorTool == EditorTool.PlaceUnit || ActiveEditorTool == EditorTool.PlaceProp || ActiveEditorTool == EditorTool.PlaceDecal) && EditorClumpMode);
 							 
 		_brushIndicatorMesh.Visible = isTerrainTool;
+	}
+
+	private MeshInstance3D _measureMeshInstance;
+	private ImmediateMesh _measureImmediateMesh;
+
+	public void UpdateMeasureVisuals(Vector3 start, Vector3 end)
+	{
+		if (_measureMeshInstance == null)
+		{
+			_measureMeshInstance = new MeshInstance3D();
+			_measureMeshInstance.Name = "TapeMeasureIndicator";
+			_measureImmediateMesh = new ImmediateMesh();
+			_measureMeshInstance.Mesh = _measureImmediateMesh;
+			var mat = new StandardMaterial3D
+			{
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				AlbedoColor = new Color(1.0f, 0.85f, 0.1f, 0.95f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				CullMode = BaseMaterial3D.CullModeEnum.Disabled
+			};
+			_measureMeshInstance.MaterialOverride = mat;
+			AddChild(_measureMeshInstance);
+		}
+
+		_measureImmediateMesh.ClearSurfaces();
+		_measureImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, 0));
+		
+		float markerSize = 0.5f;
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(-markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, -markerSize));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, markerSize));
+
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(-markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, -markerSize));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, markerSize));
+		
+		_measureImmediateMesh.SurfaceEnd();
+		_measureMeshInstance.Visible = true;
+	}
+
+	public void ClearMeasureVisuals()
+	{
+		if (_measureMeshInstance != null)
+		{
+			_measureMeshInstance.Visible = false;
+			_measureImmediateMesh?.ClearSurfaces();
+		}
+		EditorTapeMeasureStart = null;
+		EditorTapeMeasureEnd = null;
+		EditorTapeMeasureActive = false;
+	}
+
+	private MeshInstance3D _symmetryPivotMarkerMesh;
+
+	public void UpdateSymmetryPivotVisuals()
+	{
+		if (!IsMapEditorMode || GroundTerrain == null)
+		{
+			if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
+			return;
+		}
+
+		bool showPivot = EditorMirrorMode != MirrorMode.Rotational && (EditorMirrorMode != MirrorMode.None || EditorPolarOverlayVisible);
+		if (!showPivot)
+		{
+			if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
+			return;
+		}
+
+		if (_symmetryPivotMarkerMesh == null)
+		{
+			_symmetryPivotMarkerMesh = new MeshInstance3D();
+			_symmetryPivotMarkerMesh.Name = "SymmetryPivotMarker";
+			var imm = new ImmediateMesh();
+			_symmetryPivotMarkerMesh.Mesh = imm;
+			var mat = new StandardMaterial3D
+			{
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				AlbedoColor = new Color(0.2f, 0.9f, 1.0f, 0.95f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				CullMode = BaseMaterial3D.CullModeEnum.Disabled
+			};
+			_symmetryPivotMarkerMesh.MaterialOverride = mat;
+			AddChild(_symmetryPivotMarkerMesh);
+		}
+
+		var immMesh = (ImmediateMesh)_symmetryPivotMarkerMesh.Mesh;
+		immMesh.ClearSurfaces();
+		immMesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
+		
+		float px = _editorService.SymmetryPivot.X;
+		float pz = _editorService.SymmetryPivot.Y;
+		float py = _editorService.GetTerrainHeightAt(new Vector3(px, 0, pz)) + 0.25f;
+		float s = 1.5f;
+
+		immMesh.SurfaceAddVertex(new Vector3(px - s, py, pz));
+		immMesh.SurfaceAddVertex(new Vector3(px + s, py, pz));
+		immMesh.SurfaceAddVertex(new Vector3(px, py, pz - s));
+		immMesh.SurfaceAddVertex(new Vector3(px, py, pz + s));
+
+		immMesh.SurfaceEnd();
+		_symmetryPivotMarkerMesh.Visible = true;
 	}
 
 	public MeshInstance3D BrushIndicatorMesh => _brushIndicatorMesh;
@@ -4952,8 +5095,8 @@ public partial class GameHost
 	{
 		if (GroundTerrain == null) return;
 
-		float halfW = (GroundTerrain.Width - 1) / 2.0f * GroundTerrain.QuadSize;
-		float halfD = (GroundTerrain.Depth - 1) / 2.0f * GroundTerrain.QuadSize;
+		float halfW = GroundTerrain.Width / 2.0f * GroundTerrain.QuadSize;
+		float halfD = GroundTerrain.Depth / 2.0f * GroundTerrain.QuadSize;
 
 		var unitsToDelete = new List<Unit3D>();
 		foreach (var unit in AllUnits)
@@ -5215,8 +5358,8 @@ public partial class GameHost
 			if (child is Node3D n3d) node3Ds.Add(n3d);
 		}
 
-		var entities = _editorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, node3Ds);
-		_editorService.CopyArea(minX, minZ, maxX, maxZ, entities);
+		var entities = _editorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, node3Ds, EditorBrushIsSquare);
+		_editorService.CopyArea(minX, minZ, maxX, maxZ, entities, EditorBrushIsSquare);
 
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
@@ -5257,9 +5400,18 @@ public partial class GameHost
 	{
 		if (GroundTerrain != null)
 		{
-			bool meshVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Mesh);
-			GroundTerrain.SetGridVisible(meshVisible);
+			bool gridVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both);
+			GroundTerrain.SetGridVisible(gridVisible);
+			bool polarVisible = IsMapEditorMode && (EditorMirrorMode == MirrorMode.Rotational || EditorGridMode == GridOverlayMode.Polar || EditorGridMode == GridOverlayMode.Both);
+			GroundTerrain.SetPolarOverlayVisible(polarVisible);
+			EditorPolarOverlayVisible = polarVisible;
 		}
+		UpdateSymmetryPivotVisuals();
+	}
+
+	public void UpdatePolarOverlayVisibility()
+	{
+		UpdateGridOverlayVisibility();
 	}
 
 	public void PerformFloodFill(Vector3 clickPos, int fillTextureIndex, bool isCliff = false)
@@ -5334,15 +5486,91 @@ public partial class GameHost
 		MapEditorHUD.Instance?.ShowFeedbackExternal(statusMsg);
 	}
 
+	private readonly List<MeshInstance3D> _symmetryHighlightMeshes = new();
+
 	public void HideSelectionHighlight()
 	{
 		if (_selectionHighlightMesh != null)
 		{
 			_selectionHighlightMesh.Visible = false;
 		}
+		foreach (var symMesh in _symmetryHighlightMeshes)
+		{
+			if (GodotObject.IsInstanceValid(symMesh))
+			{
+				symMesh.Visible = false;
+			}
+		}
 		_editorService?.SetIsSelectingArea(false);
 		_editorService?.SetSelectionStart(null);
 		_editorService?.SetSelectionEnd(null);
+	}
+
+	private MeshInstance3D GetOrCreateSymmetryHighlightMesh(int index)
+	{
+		while (_symmetryHighlightMeshes.Count <= index)
+		{
+			var meshInst = new MeshInstance3D();
+			meshInst.Name = $"SymmetrySelectionHighlight_{_symmetryHighlightMeshes.Count}";
+			var mat = new StandardMaterial3D();
+			mat.AlbedoColor = new Color(0.0f, 0.6f, 1.0f, 0.35f);
+			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+			mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+			mat.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
+			meshInst.MaterialOverride = mat;
+			AddChild(meshInst);
+			meshInst.Visible = false;
+			_symmetryHighlightMeshes.Add(meshInst);
+		}
+		return _symmetryHighlightMeshes[index];
+	}
+
+	public void UpdatePasteSelectionHighlights(int startX, int startZ, int targetWidth, int targetDepth)
+	{
+		if (GroundTerrain == null || GroundTerrain.Cells == null || !_editorService.HasCopiedArea) return;
+
+		int width = GroundTerrain.Width;
+		int depth = GroundTerrain.Depth;
+
+		int minX = Mathf.Clamp(startX, 0, width - 1);
+		int minZ = Mathf.Clamp(startZ, 0, depth - 1);
+		int maxX = Mathf.Clamp(startX + targetWidth - 1, 0, width - 1);
+		int maxZ = Mathf.Clamp(startZ + targetDepth - 1, 0, depth - 1);
+
+		CreateSelectionHighlight();
+		RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+
+		int symCount = 0;
+		if (EditorMirrorMode != MirrorMode.None)
+		{
+			float quadSize = GroundTerrain.QuadSize;
+			Vector3 centerPos = new Vector3((startX + targetWidth / 2.0f - width / 2.0f) * quadSize, 0, (startZ + targetDepth / 2.0f - depth / 2.0f) * quadSize);
+			var transforms = _editorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+			symCount = transforms.Count;
+			for (int i = 0; i < transforms.Count; i++)
+			{
+				var t = transforms[i];
+				var (rcx, rcz) = _editorService.WorldPosToCellCoords(t.Position);
+				int rStartX = rcx - targetWidth / 2;
+				int rStartZ = rcz - targetDepth / 2;
+				int rMinX = Mathf.Clamp(rStartX, 0, width - 1);
+				int rMinZ = Mathf.Clamp(rStartZ, 0, depth - 1);
+				int rMaxX = Mathf.Clamp(rStartX + targetWidth - 1, 0, width - 1);
+				int rMaxZ = Mathf.Clamp(rStartZ + targetDepth - 1, 0, depth - 1);
+
+				var meshInst = GetOrCreateSymmetryHighlightMesh(i);
+				BuildHighlightMeshForBounds(meshInst, rMinX, rMinZ, rMaxX, rMaxZ);
+				meshInst.Visible = true;
+			}
+		}
+
+		for (int i = symCount; i < _symmetryHighlightMeshes.Count; i++)
+		{
+			if (GodotObject.IsInstanceValid(_symmetryHighlightMeshes[i]))
+			{
+				_symmetryHighlightMeshes[i].Visible = false;
+			}
+		}
 	}
 
 	private void CreateSelectionHighlight()
@@ -5373,26 +5601,33 @@ public partial class GameHost
 		_lastSelectionMaxZ = -1;
 	}
 
-	private void RebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
+	private bool _lastSelectionBrushIsSquare = true;
+
+	public void RebuildSelectionHighlightMeshExternal(int minX, int minZ, int maxX, int maxZ)
 	{
-		if (_selectionHighlightMesh == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
+		_lastSelectionMinX = -1;
+		if (ActiveEditorTool == EditorTool.PasteArea && _editorService.HasCopiedArea)
+		{
+			int w = maxX - minX + 1;
+			int d = maxZ - minZ + 1;
+			UpdatePasteSelectionHighlights(minX, minZ, w, d);
+		}
+		else
+		{
+			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+		}
+	}
+
+	private void BuildHighlightMeshForBounds(MeshInstance3D meshInst, int minX, int minZ, int maxX, int maxZ)
+	{
+		if (meshInst == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
 		if (selWidth < 2 || selDepth < 2)
 		{
-			_selectionHighlightMesh.Visible = false;
-			_lastSelectionMinX = -1;
+			meshInst.Visible = false;
 			return;
 		}
-
-		if (minX == _lastSelectionMinX && minZ == _lastSelectionMinZ && maxX == _lastSelectionMaxX && maxZ == _lastSelectionMaxZ && _selectionHighlightMesh.Visible)
-		{
-			return;
-		}
-		_lastSelectionMinX = minX;
-		_lastSelectionMinZ = minZ;
-		_lastSelectionMaxX = maxX;
-		_lastSelectionMaxZ = maxZ;
 
 		int vertexCount = selWidth * selDepth;
 		var vertices = new Vector3[vertexCount];
@@ -5400,8 +5635,8 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 		var cells = GroundTerrain.Cells;
-		float halfW = (width - 1) * 0.5f;
-		float halfD = (depth - 1) * 0.5f;
+		float halfW = width * 0.5f;
+		float halfD = depth * 0.5f;
 
 		for (int sz = 0; sz < selDepth; sz++)
 		{
@@ -5422,23 +5657,101 @@ public partial class GameHost
 		int indexCount = cellWidth * cellDepth * 6;
 		var indices = new int[indexCount];
 		int iIdx = 0;
+
+		float selCenterX = (minX + maxX) * 0.5f;
+		float selCenterZ = (minZ + maxZ) * 0.5f;
+		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
+		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
+
 		for (int sz = 0; sz < cellDepth; sz++)
 		{
 			int row0 = sz * selWidth;
 			int row1 = (sz + 1) * selWidth;
 			for (int sx = 0; sx < cellWidth; sx++)
 			{
-				int v00 = row0 + sx;
-				int v10 = row0 + (sx + 1);
-				int v01 = row1 + sx;
-				int v11 = row1 + (sx + 1);
-				indices[iIdx++] = v00;
-				indices[iIdx++] = v10;
-				indices[iIdx++] = v01;
-				indices[iIdx++] = v10;
-				indices[iIdx++] = v11;
-				indices[iIdx++] = v01;
+				bool includeQuad = true;
+				if (ActiveEditorTool == EditorTool.SelectArea)
+				{
+					if (!EditorBrushIsSquare)
+					{
+						float cellCenterX = minX + sx + 0.5f;
+						float cellCenterZ = minZ + sz + 0.5f;
+						float ndx = (cellCenterX - selCenterX) / rx;
+						float ndz = (cellCenterZ - selCenterZ) / rz;
+						includeQuad = (ndx * ndx + ndz * ndz <= 1.05f);
+					}
+				}
+				else if (ActiveEditorTool == EditorTool.PasteArea)
+				{
+					if (_editorService.HasCopiedArea && _editorService.HasCopiedAreaMask)
+					{
+						int rotX = sx;
+						int rotZ = sz;
+						float r = EditorPasteRotation % 360.0f;
+						if (r < 0) r += 360.0f;
+						int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+						int pasteWidth = _editorService.CopiedAreaWidth;
+						int pasteDepth = _editorService.CopiedAreaDepth;
+
+						int origSx = sx;
+						int origSz = sz;
+						if (rotSteps == 1)
+						{
+							origSx = sz;
+							origSz = pasteDepth - 1 - sx;
+						}
+						else if (rotSteps == 2)
+						{
+							origSx = pasteWidth - 1 - sx;
+							origSz = pasteDepth - 1 - sz;
+						}
+						else if (rotSteps == 3)
+						{
+							origSx = pasteWidth - 1 - sz;
+							origSz = sx;
+						}
+
+						int srcX = origSx;
+						int srcZ = origSz;
+						if (EditorPasteReflection == PasteReflection.Horizontal)
+						{
+							srcX = pasteWidth - 1 - origSx;
+						}
+						else if (EditorPasteReflection == PasteReflection.Vertical)
+						{
+							srcZ = pasteDepth - 1 - origSz;
+						}
+
+						includeQuad = _editorService.IsCopiedCellMasked(srcX, srcZ);
+					}
+					else if (!EditorBrushIsSquare && !_editorService.HasCopiedArea)
+					{
+						float cellCenterX = minX + sx + 0.5f;
+						float cellCenterZ = minZ + sz + 0.5f;
+						float ndx = (cellCenterX - selCenterX) / rx;
+						float ndz = (cellCenterZ - selCenterZ) / rz;
+						includeQuad = (ndx * ndx + ndz * ndz <= 1.05f);
+					}
+				}
+
+				if (includeQuad)
+				{
+					int v00 = row0 + sx;
+					int v10 = row0 + (sx + 1);
+					int v01 = row1 + sx;
+					int v11 = row1 + (sx + 1);
+					indices[iIdx++] = v00;
+					indices[iIdx++] = v10;
+					indices[iIdx++] = v01;
+					indices[iIdx++] = v10;
+					indices[iIdx++] = v11;
+					indices[iIdx++] = v01;
+				}
 			}
+		}
+		if (iIdx < indexCount)
+		{
+			System.Array.Resize(ref indices, iIdx);
 		}
 		var arrays = new Godot.Collections.Array();
 		arrays.Resize((int)Mesh.ArrayType.Max);
@@ -5446,8 +5759,33 @@ public partial class GameHost
 		arrays[(int)Mesh.ArrayType.Index] = indices;
 		var arrayMesh = new ArrayMesh();
 		arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
-		_selectionHighlightMesh.Mesh = arrayMesh;
-		_selectionHighlightMesh.Visible = true;
+		meshInst.Mesh = arrayMesh;
+		meshInst.Visible = true;
+	}
+
+	private void RebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
+	{
+		if (_selectionHighlightMesh == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
+		int selWidth = maxX - minX + 1;
+		int selDepth = maxZ - minZ + 1;
+		if (selWidth < 2 || selDepth < 2)
+		{
+			_selectionHighlightMesh.Visible = false;
+			_lastSelectionMinX = -1;
+			return;
+		}
+
+		if (minX == _lastSelectionMinX && minZ == _lastSelectionMinZ && maxX == _lastSelectionMaxX && maxZ == _lastSelectionMaxZ && _lastSelectionBrushIsSquare == EditorBrushIsSquare && _selectionHighlightMesh.Visible)
+		{
+			return;
+		}
+		_lastSelectionMinX = minX;
+		_lastSelectionMinZ = minZ;
+		_lastSelectionMaxX = maxX;
+		_lastSelectionMaxZ = maxZ;
+		_lastSelectionBrushIsSquare = EditorBrushIsSquare;
+
+		BuildHighlightMeshForBounds(_selectionHighlightMesh, minX, minZ, maxX, maxZ);
 	}
 
 	private void CreateCoordinatePreviewMesh()
@@ -5492,8 +5830,8 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 		var cells = GroundTerrain.Cells;
-		float halfW = (width - 1) * 0.5f;
-		float halfD = (depth - 1) * 0.5f;
+		float halfW = width * 0.5f;
+		float halfD = depth * 0.5f;
 
 		for (int sz = 0; sz < selDepth; sz++)
 		{
@@ -5557,10 +5895,10 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 
-		float worldMinX = (minX - (width - 1) / 2.0f) * quadSize;
-		float worldMinZ = (minZ - (depth - 1) / 2.0f) * quadSize;
-		float worldMaxX = (maxX - (width - 1) / 2.0f) * quadSize;
-		float worldMaxZ = (maxZ - (depth - 1) / 2.0f) * quadSize;
+		float worldMinX = (minX - width / 2.0f) * quadSize;
+		float worldMinZ = (minZ - depth / 2.0f) * quadSize;
+		float worldMaxX = (maxX - width / 2.0f) * quadSize;
+		float worldMaxZ = (maxZ - depth / 2.0f) * quadSize;
 
 		bool committed = false;
 		for (int i = 0; i < EditorCoordinates.Count; i++)
@@ -5633,10 +5971,10 @@ public partial class GameHost
 
 		foreach (var coord in EditorCoordinates)
 		{
-			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
-			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
 
 			var meshInst = new MeshInstance3D();
 			meshInst.Name = $"Coordinate_{coord.Name}";
@@ -5697,10 +6035,10 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 
-		int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-		int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
-		int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-		int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+		int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+		int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+		int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+		int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
 
 		_coordinateSelectionOutlineMesh.Visible = true;
 		RebuildCoordinateMeshInstance(_coordinateSelectionOutlineMesh, minX, minZ, maxX, maxZ, new Color(1.0f, 0.6f, 0.0f, 0.45f), 0.25f);
@@ -5736,74 +6074,6 @@ public partial class GameHost
 				RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 			}
 		}
-	}
-
-	public void PerformMirrorSelectionVerticallyExternal()
-	{
-		if (GroundTerrain == null || _editorService.SelectionStart == null || _editorService.SelectionEnd == null)
-		{
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to mirror (select an area first)");
-			return;
-		}
-
-		PerformCopyArea();
-		var eraseActions = PerformEraseArea(false);
-		_editorService.MirrorCopiedAreaVertically();
-
-		var (minX, minZ, maxX, maxZ) = _editorService.GetCurrentSelectionBounds();
-		var pasteActions = PerformPasteArea(minX, minZ, 0.0f, false);
-
-		var combined = new List<IEditorAction>();
-		if (eraseActions != null) combined.AddRange(eraseActions);
-		if (pasteActions != null) combined.AddRange(pasteActions);
-
-		if (combined.Count > 0)
-		{
-			var composite = new CompositeAction(combined);
-			EditorHistoryManager.RecordAction(composite);
-			EditorHasUnsavedChanges = true;
-		}
-
-		if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
-		{
-			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
-		}
-
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Selection Mirrored Vertically");
-	}
-
-	public void PerformMirrorSelectionHorizontallyExternal()
-	{
-		if (GroundTerrain == null || _editorService.SelectionStart == null || _editorService.SelectionEnd == null)
-		{
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to mirror (select an area first)");
-			return;
-		}
-
-		PerformCopyArea();
-		var eraseActions = PerformEraseArea(false);
-		_editorService.MirrorCopiedAreaHorizontally();
-
-		var (minX, minZ, maxX, maxZ) = _editorService.GetCurrentSelectionBounds();
-		var pasteActions = PerformPasteArea(minX, minZ, 0.0f, false);
-
-		var combined = new List<IEditorAction>();
-		if (eraseActions != null) combined.AddRange(eraseActions);
-		if (pasteActions != null) combined.AddRange(pasteActions);
-
-		if (combined.Count > 0)
-		{
-			var composite = new CompositeAction(combined);
-			EditorHistoryManager.RecordAction(composite);
-			EditorHasUnsavedChanges = true;
-		}
-
-		if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
-		{
-			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
-		}
-
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Selection Mirrored Horizontally");
 	}
 
 	public void PerformCopyAreaExternal()
@@ -5862,7 +6132,7 @@ public partial class GameHost
 		var eraseResult = _editorService.BuildEraseAreaResult(
 			minX, minZ, maxX, maxZ,
 			PasteOptionHeights, PasteOptionTextures, PasteOptionEntities, PasteOptionPathing,
-			node3Ds, _editorPreviewNode as Node3D);
+			node3Ds, _editorPreviewNode as Node3D, EditorBrushIsSquare);
 
 		if (eraseResult.TerrainModified)
 		{
@@ -5912,7 +6182,7 @@ public partial class GameHost
 		return actions;
 	}
 
-	private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, bool recordToHistory = true)
+	private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None, bool recordToHistory = true)
 	{
 		if (GroundTerrain == null || GroundTerrain.Cells == null || GroundTerrain.SplatMap == null || !_editorService.HasCopiedArea) return new List<IEditorAction>();
 
@@ -5925,19 +6195,38 @@ public partial class GameHost
 			startX, startZ,
 			PasteOptionHeights, PasteOptionTextures, PasteOptionEntities, PasteOptionPathing,
 			EditorMirrorMode,
-			rotationDegrees);
+			rotationDegrees,
+			reflection);
 
 		if (pasteResult.TerrainModified)
 		{
 			int pasteW = Math.Max(_editorService.CopiedAreaWidth, _editorService.CopiedAreaDepth);
 			int pasteD = pasteW;
-			Rect2I affected = new Rect2I(startX - 2, startZ - 2, pasteW + 4, pasteD + 4);
+			var affectedRegions = new List<Rect2I>();
+			affectedRegions.Add(new Rect2I(startX - 2, startZ - 2, pasteW + 4, pasteD + 4));
+
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			if (EditorMirrorMode != MirrorMode.None)
+			{
+				float quadSize = GroundTerrain.QuadSize;
+				Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - depth / 2.0f) * quadSize);
+				var transforms = _editorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+				foreach (var t in transforms)
+				{
+					var (rcx, rcz) = _editorService.WorldPosToCellCoords(t.Position);
+					affectedRegions.Add(new Rect2I(rcx - pasteW / 2 - 2, rcz - pasteD / 2 - 2, pasteW + 4, pasteD + 4));
+				}
+			}
 
 			if (pasteResult.HeightsModified)
 			{
-				AlignAllEntitiesToTerrain(affected);
+				foreach (var aff in affectedRegions)
+				{
+					AlignAllEntitiesToTerrain(aff);
+				}
 			}
-			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affected, pasteResult.HeightsModified);
+			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affectedRegions, pasteResult.HeightsModified);
 			if (pasteResult.PathingModified)
 			{
 				UpdatePathingOverlay();
@@ -6032,6 +6321,130 @@ public partial class GameHost
 		if (sun != null && GodotObject.IsInstanceValid(sun))
 		{
 			GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
+		}
+	}
+
+	private bool _wasSelectionHighlightVisible;
+	private readonly List<bool> _wasSymmetryHighlightsVisible = new();
+	private bool _wasCameraBoundsVisible;
+	private bool _wasMeasureMeshVisible;
+	private bool _wasSymmetryPivotVisible;
+	private bool _wasCoordinatePreviewVisible;
+	private bool _wasCoordinateOutlineVisible;
+	private bool _wasScaleSilhouetteVisible;
+	private bool _wasCoverageOverlayVisible;
+
+	public void BeginMinimapCapture()
+	{
+		_wasSelectionHighlightVisible = _selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh) && _selectionHighlightMesh.Visible;
+		if (_selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh))
+		{
+			_selectionHighlightMesh.Visible = false;
+		}
+
+		_wasSymmetryHighlightsVisible.Clear();
+		foreach (var symMesh in _symmetryHighlightMeshes)
+		{
+			bool vis = symMesh != null && GodotObject.IsInstanceValid(symMesh) && symMesh.Visible;
+			_wasSymmetryHighlightsVisible.Add(vis);
+			if (vis)
+			{
+				symMesh.Visible = false;
+			}
+		}
+
+		_wasCameraBoundsVisible = _cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh) && _cameraBoundsOverlayMesh.Visible;
+		if (_cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh))
+		{
+			_cameraBoundsOverlayMesh.Visible = false;
+		}
+
+		_wasMeasureMeshVisible = _measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance) && _measureMeshInstance.Visible;
+		if (_measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance))
+		{
+			_measureMeshInstance.Visible = false;
+		}
+
+		_wasSymmetryPivotVisible = _symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh) && _symmetryPivotMarkerMesh.Visible;
+		if (_symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh))
+		{
+			_symmetryPivotMarkerMesh.Visible = false;
+		}
+
+		_wasCoordinatePreviewVisible = _coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh) && _coordinatePreviewMesh.Visible;
+		if (_coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh))
+		{
+			_coordinatePreviewMesh.Visible = false;
+		}
+
+		_wasCoordinateOutlineVisible = _coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh) && _coordinateSelectionOutlineMesh.Visible;
+		if (_coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh))
+		{
+			_coordinateSelectionOutlineMesh.Visible = false;
+		}
+
+		_wasScaleSilhouetteVisible = _scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh) && _scaleMapSilhouetteMesh.Visible;
+		if (_scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh))
+		{
+			_scaleMapSilhouetteMesh.Visible = false;
+		}
+
+		_wasCoverageOverlayVisible = _editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot) && _editorCoverageOverlayRoot.Visible;
+		if (_editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot))
+		{
+			_editorCoverageOverlayRoot.Visible = false;
+		}
+	}
+
+	public void EndMinimapCapture()
+	{
+		if (_selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh))
+		{
+			_selectionHighlightMesh.Visible = _wasSelectionHighlightVisible;
+		}
+
+		for (int i = 0; i < _wasSymmetryHighlightsVisible.Count && i < _symmetryHighlightMeshes.Count; i++)
+		{
+			var symMesh = _symmetryHighlightMeshes[i];
+			if (symMesh != null && GodotObject.IsInstanceValid(symMesh))
+			{
+				symMesh.Visible = _wasSymmetryHighlightsVisible[i];
+			}
+		}
+
+		if (_cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh))
+		{
+			_cameraBoundsOverlayMesh.Visible = _wasCameraBoundsVisible;
+		}
+
+		if (_measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance))
+		{
+			_measureMeshInstance.Visible = _wasMeasureMeshVisible;
+		}
+
+		if (_symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh))
+		{
+			_symmetryPivotMarkerMesh.Visible = _wasSymmetryPivotVisible;
+		}
+
+		if (_coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh))
+		{
+			_coordinatePreviewMesh.Visible = _wasCoordinatePreviewVisible;
+		}
+
+		if (_coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh))
+		{
+			_coordinateSelectionOutlineMesh.Visible = _wasCoordinateOutlineVisible;
+		}
+
+		if (_scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh))
+		{
+			_scaleMapSilhouetteMesh.Visible = _wasScaleSilhouetteVisible;
+		}
+
+		if (_editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot))
+		{
+			_editorCoverageOverlayRoot.Visible = _wasCoverageOverlayVisible;
 		}
 	}
 }

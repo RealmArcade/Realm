@@ -1286,4 +1286,137 @@ public interface IGameAPI
     /// </summary>
     /// <returns>The weather name string.</returns>
     string GetWeather();
+
+    /// <summary>
+    /// Creates a persistent, stationary text label in the 3D world that stays in place until destroyed.
+    /// Unlike <see cref="CreateFloatingText"/> it does not drift or fade.
+    /// </summary>
+    /// <param name="text">The initial text to display.</param>
+    /// <param name="position">The 3D world position of the label.</param>
+    /// <param name="color">The color of the text in RGB format.</param>
+    /// <param name="fontSize">The font size of the label. The default of 48 matches <see cref="CreateFloatingText"/>.</param>
+    /// <returns>A handle used with <see cref="SetStaticText"/>, <see cref="SetStaticTextVisible"/> and <see cref="DestroyStaticText"/>.</returns>
+    int CreateStaticText(string text, Vector3 position, Vector3 color, int fontSize = 48);
+
+    /// <summary>
+    /// Changes the text displayed by a static world label.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    /// <param name="text">The new text to display.</param>
+    void SetStaticText(int handle, string text);
+
+    /// <summary>
+    /// Shows or hides a static world label without destroying it.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    /// <param name="visible">True to show the label, false to hide it.</param>
+    void SetStaticTextVisible(int handle, bool visible);
+
+    /// <summary>
+    /// Destroys a static world label.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    void DestroyStaticText(int handle);
+
+    /// <summary>
+    /// Enumerates the zero-based indices of all active player slots below the given exclusive upper bound.
+    /// </summary>
+    /// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
+    /// <returns>A lazily-evaluated sequence of active player slot indices in ascending order.</returns>
+    IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
+    {
+        int limit = exclusiveUpperBound < 0 ? PlayerCount : Math.Min(exclusiveUpperBound, PlayerCount);
+        for (int playerIndex = 0; playerIndex < limit; playerIndex++)
+        {
+            if (IsPlayerActive(playerIndex))
+                yield return playerIndex;
+        }
+    }
+
+    /// <summary>
+    /// Returns a uniformly random element of the given list.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="items">The list to pick from.</param>
+    /// <returns>A random element, or the default value of <typeparamref name="T"/> if the list is empty.</returns>
+    T? PickRandom<T>(IReadOnlyList<T> items)
+    {
+        if (items.Count == 0)
+            return default;
+        return items[RandomInt(0, items.Count - 1)];
+    }
+
+    /// <summary>
+    /// Shuffles the given list in place using a Fisher-Yates shuffle driven by <see cref="RandomInt"/>.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="items">The list to shuffle.</param>
+    void Shuffle<T>(IList<T> items)
+    {
+        for (int index = items.Count - 1; index > 0; index--)
+        {
+            int swapIndex = RandomInt(0, index);
+            (items[index], items[swapIndex]) = (items[swapIndex], items[index]);
+        }
+    }
+
+    /// <summary>
+    /// Returns a random alive unit within the radius that satisfies the optional filter.
+    /// </summary>
+    /// <param name="center">The center point in 3D world space.</param>
+    /// <param name="radius">The search radius.</param>
+    /// <param name="filter">Optional predicate that returns true for eligible units.</param>
+    /// <returns>A random matching unit, or null if none qualify.</returns>
+    IUnit? GetRandomUnitInRadius(Vector3 center, float radius, Func<IUnit, bool>? filter = null)
+    {
+        var candidates = new List<IUnit>();
+        foreach (IUnit unit in GetUnitsInRadius(center, radius))
+        {
+            if (unit.IsDead)
+                continue;
+            if (filter != null && !filter(unit))
+                continue;
+            candidates.Add(unit);
+        }
+        return PickRandom(candidates);
+    }
+
+    /// <summary>
+    /// Restores health to the unit, clamped to its maximum health. Dead units are ignored.
+    /// </summary>
+    /// <param name="unit">The unit to heal.</param>
+    /// <param name="amount">The amount of health to restore.</param>
+    void HealUnit(IUnit unit, float amount)
+    {
+        if (unit == null || unit.IsDead || amount <= 0f)
+            return;
+        unit.Health = MathF.Min(unit.MaxHealth, unit.Health + amount);
+    }
+
+    /// <summary>
+    /// Exchanges the world positions of two units.
+    /// </summary>
+    /// <param name="first">The first unit.</param>
+    /// <param name="second">The second unit.</param>
+    void SwapUnitPositions(IUnit first, IUnit second)
+    {
+        Vector3 firstPosition = first.Position;
+        Vector3 secondPosition = second.Position;
+        first.Teleport(secondPosition);
+        second.Teleport(firstPosition);
+    }
+
+    /// <summary>
+    /// Returns a point on a ring around a center, useful for distributing player bases evenly.
+    /// </summary>
+    /// <param name="center">The ring center.</param>
+    /// <param name="radius">The ring radius.</param>
+    /// <param name="index">The zero-based slot index around the ring.</param>
+    /// <param name="count">The total number of slots on the ring.</param>
+    /// <returns>The position of the slot on the X/Z plane, preserving the center's Y.</returns>
+    Vector3 GetRingPosition(Vector3 center, float radius, int index, int count)
+    {
+        float angle = MathF.Tau * index / Math.Max(1, count);
+        return new Vector3(center.X + MathF.Cos(angle) * radius, center.Y, center.Z + MathF.Sin(angle) * radius);
+    }
 }

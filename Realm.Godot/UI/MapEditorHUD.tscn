@@ -239,51 +239,15 @@ layout_mode = 2
 focus_mode = 0
 text = "🌐 GRID OVERLAY: OFF"
 
-[node name="BtnToggleCameraBounds" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+[node name="BtnToggleEnvironment" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0
-text = "📹 CAM BOUNDS: OFF"
+text = "☀️ Environment"
 
-[node name="BtnToggleWireframe" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+[node name="BtnToggleCamera" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0
-text = "🕸️ WIREFRAME: OFF"
-
-[node name="BtnToggleShadows" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-icon_max_width = 0
-text = "👥 SHADOWS: ON"
-
-[node name="BtnRotate" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "🔄 Rotate"
-
-[node name="BtnCameraAngle" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "📐 Tilt"
-
-[node name="BtnSkybox" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "☀️ Cycle Lighting"
-
-[node name="BtnZoomIn" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "➕ Zoom In"
-
-[node name="BtnZoomOut" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "➖ Zoom Out"
-
-[node name="BtnFreeCamera" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "📹 Free Camera"
+text = "📷 Camera"
 
 [node name="MinimapFrame" type="PanelContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
@@ -546,18 +510,6 @@ layout_mode = 2
 focus_mode = 0
 text = "🧹 ERASE SELECTED AREA"
 
-[node name="BtnMirrorHorizontally" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
-focus_mode = 0
-text = "🪞 MIRROR HORIZONTALLY"
-
-[node name="BtnMirrorVertically" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
-focus_mode = 0
-text = "🪞 MIRROR VERTICALLY"
-
 [node name="BrushAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
 layout_mode = 2
 
@@ -628,10 +580,9 @@ layout_mode = 2
 focus_mode = 0
 text = "🔳 BRUSH: SQUARE"
 
-[node name="BtnMirrorMode" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+[node name="OptMirrorMode" type="OptionButton" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
 layout_mode = 2
 focus_mode = 0
-text = "🪞 MIRROR: NONE"
 
 [node name="ChkBlockMode" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
 layout_mode = 2

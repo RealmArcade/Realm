@@ -796,5 +796,5 @@
   "1 hour": "1 hora",
   "Auto-backup snapshot saved.": "Copia de seguridad automática guardada.",
   "BACKUPS & WORKFLOW": "COPIAS DE SEGURIDAD Y FLUJO DE TRABAJO",
-  "Insufficient disk space (at least 10% free required).": "Espacio insuficiente en disco (se requiere al menos 10% libre)."
+  "Insufficient disk space (at least 1% free required).": "Espacio insuficiente en disco (se requiere al menos 1% libre)."
 }

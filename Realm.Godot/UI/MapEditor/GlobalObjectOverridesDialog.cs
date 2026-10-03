@@ -72,6 +72,8 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 	private Node _currentSelectedObject;
 	private GlobalOverridesSnapshot _initialSnapshot;
 	private bool _isUpdatingUI;
+	private float _modelLocalMinY = 0f;
+	private float _previousScale = 1.0f;
 
 	private HSlider _sldScale;
 	private Label _lblScaleValue;
@@ -109,7 +111,22 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 		(_sldScale, _lblScaleValue) = AddSlider(grid, TranslationServer.Translate("Scale"), 0.1f, 10.0f, 0.05f, 1.0f, (val) =>
 		{
 			if (_isUpdatingUI || GameHost.Instance == null || string.IsNullOrEmpty(_currentAssetKey)) return;
-			GameHost.Instance.SetModelScale(_currentAssetKey, val);
+			float newScale = val;
+			float deltaScale = newScale - _previousScale;
+			_previousScale = newScale;
+
+			float oldYOffset = (float)_sldYOffset.Value;
+			float newYOffset = oldYOffset - deltaScale * _modelLocalMinY;
+
+			_isUpdatingUI = true;
+			if (newYOffset < _sldYOffset.MinValue) _sldYOffset.MinValue = newYOffset - 5.0f;
+			if (newYOffset > _sldYOffset.MaxValue) _sldYOffset.MaxValue = newYOffset + 5.0f;
+			_sldYOffset.Value = newYOffset;
+			_lblYOffsetValue.Text = newYOffset.ToString("0.00");
+			_isUpdatingUI = false;
+
+			GameHost.Instance.SetModelScale(_currentAssetKey, newScale);
+			GameHost.Instance.SetModelYOffset(_currentAssetKey, newYOffset);
 		});
 
 		(_sldYOffset, _lblYOffsetValue) = AddSlider(grid, TranslationServer.Translate("Y-Offset"), -10.0f, 10.0f, 0.05f, 0.0f, (val) =>
@@ -238,6 +255,8 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 		_currentAssetKey = GameHost.Instance.GetSelectedEntityOrAssetKey(selectedObject);
 		if (string.IsNullOrEmpty(_currentAssetKey)) return;
 
+		_modelLocalMinY = CalculateModelLocalMinY(selectedObject);
+
 		_initialSnapshot = new GlobalOverridesSnapshot
 		{
 			Scale = GameHost.Instance.GetModelScale(selectedObject),
@@ -254,12 +273,18 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 			ProceduralAnimation = GameHost.Instance.GetModelProceduralAnimation(selectedObject)
 		};
 
+		_previousScale = _initialSnapshot.Scale;
+
 		TitleLabel.Text = $"{TranslationServer.Translate("Global Overrides")} - {_currentAssetKey}";
 
 		_isUpdatingUI = true;
+		if (_initialSnapshot.Scale < _sldScale.MinValue) _sldScale.MinValue = _initialSnapshot.Scale;
+		if (_initialSnapshot.Scale > _sldScale.MaxValue) _sldScale.MaxValue = _initialSnapshot.Scale;
 		_sldScale.Value = _initialSnapshot.Scale;
 		_lblScaleValue.Text = _initialSnapshot.Scale.ToString("0.00");
 
+		if (_initialSnapshot.YOffset < _sldYOffset.MinValue) _sldYOffset.MinValue = _initialSnapshot.YOffset - 5.0f;
+		if (_initialSnapshot.YOffset > _sldYOffset.MaxValue) _sldYOffset.MaxValue = _initialSnapshot.YOffset + 5.0f;
 		_sldYOffset.Value = _initialSnapshot.YOffset;
 		_lblYOffsetValue.Text = _initialSnapshot.YOffset.ToString("0.00");
 
@@ -430,5 +455,85 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 
 		GameHost.Instance.RefreshAllPlacedObjectModels(_currentAssetKey);
 		GameHost.Instance.FlushModelYOffsetSave();
+	}
+
+	private static float CalculateModelLocalMinY(Node selectedObject)
+	{
+		if (selectedObject == null || !GodotObject.IsInstanceValid(selectedObject))
+			return 0f;
+
+		Node3D visualNode = null;
+		if (selectedObject is Unit3D unit && unit.ModelNode != null && GodotObject.IsInstanceValid(unit.ModelNode))
+		{
+			visualNode = unit.ModelNode;
+		}
+		else if (selectedObject is Node rootNode)
+		{
+			visualNode = rootNode.GetNodeOrNull<Node3D>("VisualModel") ?? (selectedObject as Node3D);
+		}
+
+		if (visualNode == null)
+			return 0f;
+
+		float minY = float.MaxValue;
+		bool foundMesh = false;
+
+		void Collect(Node current)
+		{
+			if (current is MeshInstance3D meshInst && meshInst.Mesh != null && meshInst.Visible)
+			{
+				Transform3D relXform = Transform3D.Identity;
+				Node curr = meshInst;
+				while (curr != null && curr != visualNode)
+				{
+					if (curr is Node3D n3d)
+					{
+						relXform = n3d.Transform * relXform;
+					}
+					curr = curr.GetParent();
+				}
+
+				if (Mathf.Abs(relXform.Basis.Determinant()) > 0.0001f)
+				{
+					Aabb mAabb = meshInst.Mesh.GetAabb();
+					Vector3 min = mAabb.Position;
+					Vector3 max = mAabb.End;
+					Vector3[] corners = new[]
+					{
+						new Vector3(min.X, min.Y, min.Z),
+						new Vector3(min.X, min.Y, max.Z),
+						new Vector3(min.X, max.Y, min.Z),
+						new Vector3(min.X, max.Y, max.Z),
+						new Vector3(max.X, min.Y, min.Z),
+						new Vector3(max.X, min.Y, max.Z),
+						new Vector3(max.X, max.Y, min.Z),
+						new Vector3(max.X, max.Y, max.Z)
+					};
+					for (int i = 0; i < 8; i++)
+					{
+						Vector3 pt = relXform * corners[i];
+						if (pt.Y < minY)
+						{
+							minY = pt.Y;
+							foundMesh = true;
+						}
+					}
+				}
+			}
+			foreach (Node child in current.GetChildren())
+			{
+				if (child is not BoneAttachment3D &&
+					!child.Name.ToString().StartsWith("PseudoSocket_", StringComparison.OrdinalIgnoreCase) &&
+					!child.Name.ToString().StartsWith("SocketAttachment_", StringComparison.OrdinalIgnoreCase) &&
+					!child.Name.ToString().StartsWith("Att_", StringComparison.OrdinalIgnoreCase) &&
+					!child.Name.ToString().StartsWith("AttVisual_", StringComparison.OrdinalIgnoreCase))
+				{
+					Collect(child);
+				}
+			}
+		}
+
+		Collect(visualNode);
+		return foundMesh ? minY : 0f;
 	}
 }

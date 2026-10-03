@@ -74,6 +74,53 @@ public partial class ObjectManagerDialog : FloatingDialogBase
 		BodyContainer.AddChild(_objectTree);
 	}
 
+	private double _refreshCheckTimer = 0.0;
+	private int _lastUnitsCount = -1;
+	private int _lastPropsCount = -1;
+	private int _lastDecalsCount = -1;
+
+	public override void _Process(double delta)
+	{
+		base._Process(delta);
+		if (!IsOpen || GameHost.Instance == null) return;
+
+		_refreshCheckTimer += delta;
+		if (_refreshCheckTimer < 0.1) return;
+		_refreshCheckTimer = 0.0;
+
+		int curUnits = GameHost.Instance.AllUnits?.Count ?? 0;
+		int curProps = GameHost.Instance.AllProps?.Count ?? 0;
+		int curDecals = GameHost.Instance.AllDecals?.Count ?? 0;
+
+		bool countsChanged = curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount;
+		bool anyNodeInvalid = false;
+
+		if (!countsChanged)
+		{
+			foreach (var node in _treeItemToObjectMap.Values)
+			{
+				if (!GodotObject.IsInstanceValid(node) || node.IsQueuedForDeletion() || !node.IsInsideTree())
+				{
+					anyNodeInvalid = true;
+					break;
+				}
+			}
+		}
+
+		if (countsChanged || anyNodeInvalid)
+		{
+			RefreshObjectTree();
+		}
+	}
+
+	public void RefreshIfOpen()
+	{
+		if (IsOpen)
+		{
+			RefreshObjectTree();
+		}
+	}
+
 	public override void OpenDialog()
 	{
 		base.OpenDialog();
@@ -84,6 +131,13 @@ public partial class ObjectManagerDialog : FloatingDialogBase
 	{
 		_objectTree.Clear();
 		_treeItemToObjectMap.Clear();
+
+		if (GameHost.Instance != null)
+		{
+			_lastUnitsCount = GameHost.Instance.AllUnits?.Count ?? 0;
+			_lastPropsCount = GameHost.Instance.AllProps?.Count ?? 0;
+			_lastDecalsCount = GameHost.Instance.AllDecals?.Count ?? 0;
+		}
 
 		TreeItem rootNode = _objectTree.CreateItem();
 

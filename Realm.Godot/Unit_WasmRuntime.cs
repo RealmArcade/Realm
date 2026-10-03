@@ -535,6 +535,41 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		}
 	}
 
+	public float AttackSpeed
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return 1f;
+			if (_world.Has<Realm.Ecs.Components.Combat.AttackSpeed>(_entity))
+			{
+				return _world.Get<Realm.Ecs.Components.Combat.AttackSpeed>(_entity).Multiplier;
+			}
+			return 1f;
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity) || value <= 0f) return;
+			_world.SetOrAdd(_entity, new Realm.Ecs.Components.Combat.AttackSpeed(value));
+		}
+	}
+
+	public float ManaRegen
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return 0f;
+			if (_world.Has<Realm.Ecs.Components.Core.ManaRegen>(_entity))
+			{
+				return _world.Get<Realm.Ecs.Components.Core.ManaRegen>(_entity).PerSecond;
+			}
+			return 0f;
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			_world.SetOrAdd(_entity, new Realm.Ecs.Components.Core.ManaRegen(Math.Max(0f, value)));
+		}
+	}
 	public float Scale
 	{
 		get

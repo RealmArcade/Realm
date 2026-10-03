@@ -68,6 +68,17 @@ public interface IUnit
     float Armor { get; set; }
 
     /// <summary>
+    /// Gets or sets the attack speed multiplier of the unit. A value of 1 uses the unit's base attack cooldown,
+    /// 2 attacks twice as often, and 0.5 attacks half as often. Values less than or equal to 0 are ignored.
+    /// </summary>
+    float AttackSpeed { get; set; }
+
+    /// <summary>
+    /// Gets or sets the mana regeneration of the unit in mana points restored per second.
+    /// </summary>
+    float ManaRegen { get; set; }
+
+    /// <summary>
     /// Gets or sets the movement speed of the unit.
     /// </summary>
     float Speed { get; set; }

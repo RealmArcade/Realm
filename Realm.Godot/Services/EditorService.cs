@@ -89,14 +89,22 @@ public class EditorService
 		public bool IsEnemy;
 	}
 
-	private class CopiedAreaTemplate
+	public class CopiedAreaTemplate
 	{
 		public int Width;
 		public int Depth;
+		public int AnchorTileX;
+		public int AnchorTileZ;
+		public int SourceMinX;
+		public int SourceMinZ;
+		public int SourceMaxX;
+		public int SourceMaxZ;
 		public TerrainCell[,] Cells;
 		public TerrainSplatWeights[,] SplatMap;
+		public TerrainSplatWeights[,] CliffSplatMap;
 		public int[,] Pathing;
 		public List<CopiedEntityInfo> Entities;
+		public bool[,] Mask;
 	}
 
 	public class CopiedEntityInfo
@@ -175,9 +183,47 @@ public class EditorService
 	public Vector2I? SelectionStart => _selectionStart;
 	public Vector2I? SelectionEnd => _selectionEnd;
 	public bool IsSelectingArea => _isSelectingArea;
+	public CopiedAreaTemplate CopiedArea
+	{
+		get => _copiedArea;
+		set => _copiedArea = value;
+	}
 	public bool HasCopiedArea => _copiedArea != null;
 	public int CopiedAreaWidth => _copiedArea?.Width ?? 0;
 	public int CopiedAreaDepth => _copiedArea?.Depth ?? 0;
+	public int CopiedAreaAnchorX => _copiedArea?.AnchorTileX ?? 0;
+	public int CopiedAreaAnchorZ => _copiedArea?.AnchorTileZ ?? 0;
+	public int CopiedAreaSourceMinX => _copiedArea?.SourceMinX ?? 0;
+	public int CopiedAreaSourceMinZ => _copiedArea?.SourceMinZ ?? 0;
+	public int CopiedAreaSourceMaxX => _copiedArea?.SourceMaxX ?? 0;
+	public int CopiedAreaSourceMaxZ => _copiedArea?.SourceMaxZ ?? 0;
+	public bool HasCopiedAreaMask => _copiedArea?.Mask != null;
+	public bool IsCopiedCellMasked(int srcX, int srcZ) => _copiedArea == null || _copiedArea.Mask == null || (srcX >= 0 && srcX < _copiedArea.Width && srcZ >= 0 && srcZ < _copiedArea.Depth && _copiedArea.Mask[srcX, srcZ]);
+
+	public void SetCopiedAreaAnchor(int anchorTileX, int anchorTileZ)
+	{
+		if (_copiedArea != null)
+		{
+			_copiedArea.AnchorTileX = Mathf.Clamp(anchorTileX, 0, Math.Max(0, _copiedArea.Width - 1));
+			_copiedArea.AnchorTileZ = Mathf.Clamp(anchorTileZ, 0, Math.Max(0, _copiedArea.Depth - 1));
+		}
+	}
+
+	private Vector2 _symmetryPivot = Vector2.Zero;
+	private int _symmetryFolds = 4;
+
+	public Vector2 SymmetryPivot
+	{
+		get => _symmetryPivot;
+		set => _symmetryPivot = value;
+	}
+
+	public int SymmetryFolds
+	{
+		get => _symmetryFolds;
+		set => _symmetryFolds = Math.Clamp(value, 2, 32);
+	}
+
 	public Vector3? RampStartPos => _rampStartPos;
 	public bool IsDrawingTerrain => _isDrawingTerrain;
 	public bool IsDrawingClump => _isDrawingClump;
@@ -1664,17 +1710,33 @@ public class EditorService
 		return result;
 	}
 
-	public void CopyArea(int minX, int minZ, int maxX, int maxZ, List<CopiedEntityInfo> entities)
+	public void CopyArea(int minX, int minZ, int maxX, int maxZ, List<CopiedEntityInfo> entities, bool isSquare = true)
 	{
 		ref var terrain = ref GetTerrainState();
 		var cells = terrain.Cells;
 		if (cells == null) return;
 
+		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+		}
+		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+		}
+
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
 		var copiedCells = new TerrainCell[selWidth, selDepth];
-		var splatMap = new TerrainSplatWeights[selWidth, selDepth];
+		var splatMap = _terrainSplatMap != null ? new TerrainSplatWeights[selWidth + 1, selDepth + 1] : null;
+		var cliffSplatMap = _terrainCliffSplatMap != null ? new TerrainSplatWeights[selWidth + 1, selDepth + 1] : null;
 		var pathing = new int[selWidth, selDepth];
+		var mask = isSquare ? null : new bool[selWidth, selDepth];
+
+		float selCenterX = (minX + maxX) * 0.5f;
+		float selCenterZ = (minZ + maxZ) * 0.5f;
+		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
+		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
 
 		for (int sz = 0; sz < selDepth; sz++)
 		{
@@ -1682,11 +1744,55 @@ public class EditorService
 			{
 				int sourceX = Math.Clamp(minX + sx, 0, terrain.Width - 1);
 				int sourceZ = Math.Clamp(minZ + sz, 0, terrain.Depth - 1);
-				copiedCells[sx, sz] = cells[sourceX, sourceZ];
-				splatMap[sx, sz] = _terrainSplatMap[minX + sx, minZ + sz];
-				if (terrain.PathingCodes != null)
+				bool inBounds = true;
+				if (!isSquare)
 				{
-					pathing[sx, sz] = terrain.PathingCodes[minX + sx, minZ + sz];
+					float cellCenterX = minX + sx + 0.5f;
+					float cellCenterZ = minZ + sz + 0.5f;
+					float ndx = (cellCenterX - selCenterX) / rx;
+					float ndz = (cellCenterZ - selCenterZ) / rz;
+					inBounds = (ndx * ndx + ndz * ndz <= 1.05f);
+				}
+				if (mask != null)
+				{
+					mask[sx, sz] = inBounds;
+				}
+				if (inBounds)
+				{
+					copiedCells[sx, sz] = cells[sourceX, sourceZ];
+					if (terrain.PathingCodes != null && sourceX < terrain.PathingCodes.GetLength(0) && sourceZ < terrain.PathingCodes.GetLength(1))
+					{
+						pathing[sx, sz] = terrain.PathingCodes[sourceX, sourceZ];
+					}
+				}
+			}
+		}
+
+		if (_terrainSplatMap != null && splatMap != null)
+		{
+			int mapW = _terrainSplatMap.GetLength(0);
+			int mapD = _terrainSplatMap.GetLength(1);
+			for (int vz = 0; vz <= selDepth; vz++)
+			{
+				for (int vx = 0; vx <= selWidth; vx++)
+				{
+					int sourceVx = Math.Clamp(minX + vx, 0, mapW - 1);
+					int sourceVz = Math.Clamp(minZ + vz, 0, mapD - 1);
+					splatMap[vx, vz] = _terrainSplatMap[sourceVx, sourceVz];
+				}
+			}
+		}
+		if (_terrainCliffSplatMap != null && cliffSplatMap != null)
+		{
+			int mapCW = _terrainCliffSplatMap.GetLength(0);
+			int mapCD = _terrainCliffSplatMap.GetLength(1);
+			for (int vz = 0; vz <= selDepth; vz++)
+			{
+				for (int vx = 0; vx <= selWidth; vx++)
+				{
+					int sourceVx = Math.Clamp(minX + vx, 0, mapCW - 1);
+					int sourceVz = Math.Clamp(minZ + vz, 0, mapCD - 1);
+					cliffSplatMap[vx, vz] = _terrainCliffSplatMap[sourceVx, sourceVz];
 				}
 			}
 		}
@@ -1695,16 +1801,25 @@ public class EditorService
 		{
 			Width = selWidth,
 			Depth = selDepth,
+			AnchorTileX = selWidth / 2,
+			AnchorTileZ = selDepth / 2,
+			SourceMinX = minX,
+			SourceMinZ = minZ,
+			SourceMaxX = maxX,
+			SourceMaxZ = maxZ,
 			Cells = copiedCells,
 			SplatMap = splatMap,
+			CliffSplatMap = cliffSplatMap,
 			Pathing = pathing,
-			Entities = entities
+			Entities = entities,
+			Mask = mask
 		};
 	}
 
 	public List<CopiedEntityInfo> BuildCopiedEntityList(
 		int minX, int minZ, int maxX, int maxZ,
-		IEnumerable<Node3D> sceneChildren)
+		IEnumerable<Node3D> sceneChildren,
+		bool isSquare = true)
 	{
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return new List<CopiedEntityInfo>();
@@ -1717,6 +1832,10 @@ public class EditorService
 		float maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
 		float minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
 		float maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
+		float centerWorldX = (minWorldX + maxWorldX) * 0.5f;
+		float centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
+		float rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
+		float rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
 		Vector3 origin = new Vector3((minX - width / 2.0f) * quadSize, 0.0f, (minZ - depth / 2.0f) * quadSize);
 
 		var entities = new List<CopiedEntityInfo>();
@@ -1726,6 +1845,12 @@ public class EditorService
 			Vector3 pos = n3d.Position;
 			if (pos.X >= minWorldX && pos.X <= maxWorldX && pos.Z >= minWorldZ && pos.Z <= maxWorldZ)
 			{
+				if (!isSquare)
+				{
+					float ndx = (pos.X - centerWorldX) / rxWorld;
+					float ndz = (pos.Z - centerWorldZ) / rzWorld;
+					if (ndx * ndx + ndz * ndz > 1.0f) continue;
+				}
 				if (n3d is Unit3D unit)
 				{
 					entities.Add(new CopiedEntityInfo
@@ -1777,6 +1902,12 @@ public class EditorService
 				Vector3 worldPos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
 				if (worldPos.X >= minWorldX && worldPos.X <= maxWorldX && worldPos.Z >= minWorldZ && worldPos.Z <= maxWorldZ)
 				{
+					if (!isSquare)
+					{
+						float ndx = (worldPos.X - centerWorldX) / rxWorld;
+						float ndz = (worldPos.Z - centerWorldZ) / rzWorld;
+						if (ndx * ndx + ndz * ndz > 1.0f) return;
+					}
 					float rotY = world.Has<RotationY>(entity) ? world.Get<RotationY>(entity).Value : 0f;
 					float scale = world.Has<ModelScale>(entity) ? world.Get<ModelScale>(entity).Value : 1f;
 
@@ -1796,86 +1927,6 @@ public class EditorService
 		return entities;
 	}
 
-	public void MirrorCopiedAreaVertically()
-	{
-		if (_copiedArea == null) return;
-		int w = _copiedArea.Width;
-		int d = _copiedArea.Depth;
-		
-		var newCells = new TerrainCell[w, d];
-		var newSplatMap = new TerrainSplatWeights[w, d];
-		var newPathing = _copiedArea.Pathing != null ? new int[w, d] : null;
-
-		for (int z = 0; z < d; z++)
-		{
-			for (int x = 0; x < w; x++)
-			{
-				var srcCell = _copiedArea.Cells[x, d - 1 - z];
-				newCells[x, z] = MirrorCell(in srcCell, MirrorMode.Vertical);
-				newSplatMap[x, z] = _copiedArea.SplatMap[x, d - 1 - z];
-				if (newPathing != null)
-				{
-					newPathing[x, z] = _copiedArea.Pathing[x, d - 1 - z];
-				}
-			}
-		}
-		
-		_copiedArea.Cells = newCells;
-		_copiedArea.SplatMap = newSplatMap;
-		if (newPathing != null)
-		{
-			_copiedArea.Pathing = newPathing;
-		}
-		
-		ref var terrain = ref GetTerrainState();
-		float quadSize = terrain.QuadSize;
-		foreach (var ent in _copiedArea.Entities)
-		{
-			ent.RelativePos = new Vector3(ent.RelativePos.X, ent.RelativePos.Y, (d - 1) * quadSize - ent.RelativePos.Z);
-			ent.Rotation = 180.0f - ent.Rotation;
-		}
-	}
-
-	public void MirrorCopiedAreaHorizontally()
-	{
-		if (_copiedArea == null) return;
-		int w = _copiedArea.Width;
-		int d = _copiedArea.Depth;
-		
-		var newCells = new TerrainCell[w, d];
-		var newSplatMap = new TerrainSplatWeights[w, d];
-		var newPathing = _copiedArea.Pathing != null ? new int[w, d] : null;
-
-		for (int z = 0; z < d; z++)
-		{
-			for (int x = 0; x < w; x++)
-			{
-				var srcCell = _copiedArea.Cells[w - 1 - x, z];
-				newCells[x, z] = MirrorCell(in srcCell, MirrorMode.Horizontal);
-				newSplatMap[x, z] = _copiedArea.SplatMap[w - 1 - x, z];
-				if (newPathing != null)
-				{
-					newPathing[x, z] = _copiedArea.Pathing[w - 1 - x, z];
-				}
-			}
-		}
-		
-		_copiedArea.Cells = newCells;
-		_copiedArea.SplatMap = newSplatMap;
-		if (newPathing != null)
-		{
-			_copiedArea.Pathing = newPathing;
-		}
-		
-		ref var terrain = ref GetTerrainState();
-		float quadSize = terrain.QuadSize;
-		foreach (var ent in _copiedArea.Entities)
-		{
-			ent.RelativePos = new Vector3((w - 1) * quadSize - ent.RelativePos.X, ent.RelativePos.Y, ent.RelativePos.Z);
-			ent.Rotation = -ent.Rotation;
-		}
-	}
-
 	public PasteAreaResult BuildPasteAreaResult(
 		int startX,
 		int startZ,
@@ -1884,7 +1935,8 @@ public class EditorService
 		bool pasteEntities,
 		bool pastePathing,
 		MirrorMode mirrorMode,
-		float rotationDegrees)
+		float rotationDegrees,
+		PasteReflection pasteReflection = PasteReflection.None)
 	{
 		var result = new PasteAreaResult();
 		result.SpawnRequests = new List<EntitySpawnRequest>();
@@ -1893,6 +1945,15 @@ public class EditorService
 
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
+
+		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+		}
+		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+		}
 
 		int width = terrain.Width;
 		int depth = terrain.Depth;
@@ -1906,37 +1967,77 @@ public class EditorService
 		float r = rotationDegrees % 360.0f;
 		if (r < 0) r += 360.0f;
 		int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+		int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
+		int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
 
-		for (int sz = 0; sz < pasteDepth; sz++)
+		PasteBlock(startX, startZ, rotSteps, pasteReflection, MirrorMode.None, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+
+		if (mirrorMode != MirrorMode.None)
 		{
-			for (int sx = 0; sx < pasteWidth; sx++)
+			Vector3 centerPos = new Vector3((startX + targetWidth / 2.0f - width / 2.0f) * quadSize, 0, (startZ + targetDepth / 2.0f - depth / 2.0f) * quadSize);
+			var transforms = GetMirroredTransforms(centerPos, 0.0f, mirrorMode);
+			if (mirrorMode == MirrorMode.Horizontal)
 			{
-				int rotX = sx;
-				int rotZ = sz;
+				if (transforms.Count > 0)
+				{
+					var (rcx, rcz) = WorldPosToCellCoords(transforms[0].Position);
+					int rStartX = rcx - targetWidth / 2;
+					int rStartZ = rcz - targetDepth / 2;
+					PasteBlock(rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.Horizontal, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+				}
+			}
+			else if (mirrorMode == MirrorMode.Vertical)
+			{
+				if (transforms.Count > 0)
+				{
+					var (rcx, rcz) = WorldPosToCellCoords(transforms[0].Position);
+					int rStartX = rcx - targetWidth / 2;
+					int rStartZ = rcz - targetDepth / 2;
+					PasteBlock(rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.Vertical, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+				}
+			}
+			else if (mirrorMode == MirrorMode.Both)
+			{
+				if (transforms.Count >= 3)
+				{
+					var (rcx0, rcz0) = WorldPosToCellCoords(transforms[0].Position);
+					int rStartX0 = rcx0 - targetWidth / 2;
+					int rStartZ0 = rcz0 - targetDepth / 2;
+					PasteBlock(rStartX0, rStartZ0, rotSteps, pasteReflection, MirrorMode.Horizontal, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 
-				if (rotSteps == 1)
-				{
-					rotX = pasteDepth - 1 - sz;
-					rotZ = sx;
+					var (rcx1, rcz1) = WorldPosToCellCoords(transforms[1].Position);
+					int rStartX1 = rcx1 - targetWidth / 2;
+					int rStartZ1 = rcz1 - targetDepth / 2;
+					PasteBlock(rStartX1, rStartZ1, rotSteps, pasteReflection, MirrorMode.Vertical, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
+
+					var (rcx2, rcz2) = WorldPosToCellCoords(transforms[2].Position);
+					int rStartX2 = rcx2 - targetWidth / 2;
+					int rStartZ2 = rcz2 - targetDepth / 2;
+					PasteBlock(rStartX2, rStartZ2, rotSteps, pasteReflection, MirrorMode.Both, 0, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 				}
-				else if (rotSteps == 2)
+			}
+			else if (mirrorMode == MirrorMode.Rotational)
+			{
+				foreach (var t in transforms)
 				{
-					rotX = pasteWidth - 1 - sx;
-					rotZ = pasteDepth - 1 - sz;
+					int rotKSteps = ((int)Math.Round(t.Rotation / 90.0f) % 4 + 4) % 4;
+					int curTargetWidth = (rotKSteps == 1 || rotKSteps == 3) ? targetDepth : targetWidth;
+					int curTargetDepth = (rotKSteps == 1 || rotKSteps == 3) ? targetWidth : targetDepth;
+					var (rcx, rcz) = WorldPosToCellCoords(t.Position);
+					int rStartX = rcx - curTargetWidth / 2;
+					int rStartZ = rcz - curTargetDepth / 2;
+					PasteBlock(rStartX, rStartZ, rotSteps, pasteReflection, MirrorMode.None, rotKSteps, width, depth, pasteHeights, pasteTextures, pastePathing, ref terrain, ref modified, ref pathingModified);
 				}
-				else if (rotSteps == 3)
-				{
-					rotX = sz;
-					rotZ = pasteWidth - 1 - sx;
-				}
-				
-				PasteCellRotated(sx, sz, rotX, rotZ, startX, startZ, width, depth, pasteHeights, pasteTextures, pastePathing, mirrorMode, rotSteps, ref terrain, ref modified, ref pathingModified);
 			}
 		}
 
+		if (modified && pasteHeights)
+		{
+			SanitizeCornerHeights(ref terrain);
+		}
 		if (modified && pasteTextures)
 		{
-			AlignSplatMapSlots(0, 0, width - 1, depth - 1);
+			AlignSplatMapSlots(0, 0, width, depth);
 		}
 		result.TerrainModified = modified;
 		result.HeightsModified = pasteHeights && modified;
@@ -1944,9 +2045,6 @@ public class EditorService
 
 		if (pasteEntities)
 		{
-			int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
-			int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
-
 			Vector3 pasteCenter = new Vector3((startX + (targetWidth - 1) / 2.0f - width / 2.0f) * quadSize, 0, (startZ + (targetDepth - 1) / 2.0f - depth / 2.0f) * quadSize);
 
 			float rad = rotationDegrees * Mathf.Pi / 180.0f;
@@ -1957,8 +2055,22 @@ public class EditorService
 
 			foreach (var ent in _copiedArea.Entities)
 			{
-				Vector3 relativeToCenter = ent.RelativePos - originalCenterOffset;
-				
+				Vector3 relPos = ent.RelativePos;
+				float entRot = ent.Rotation;
+
+				if (pasteReflection == PasteReflection.Horizontal)
+				{
+					relPos = new Vector3((pasteWidth - 1) * quadSize - relPos.X, relPos.Y, relPos.Z);
+					entRot = -entRot;
+				}
+				else if (pasteReflection == PasteReflection.Vertical)
+				{
+					relPos = new Vector3(relPos.X, relPos.Y, (pasteDepth - 1) * quadSize - relPos.Z);
+					entRot = 180.0f - entRot;
+				}
+
+				Vector3 relativeToCenter = relPos - originalCenterOffset;
+
 				float rx = relativeToCenter.X * cosR - relativeToCenter.Z * sinR;
 				float rz = relativeToCenter.X * sinR + relativeToCenter.Z * cosR;
 
@@ -1967,7 +2079,7 @@ public class EditorService
 
 				destPos.Y = GetTerrainHeightAt(destPos);
 
-				float finalRot = ent.Rotation - rotationDegrees;
+				float finalRot = entRot - rotationDegrees;
 
 				result.SpawnRequests.Add(new EntitySpawnRequest
 				{
@@ -1993,13 +2105,23 @@ public class EditorService
 		bool pasteEntities,
 		bool pastePathing,
 		IEnumerable<Node3D> sceneChildren,
-		Node3D previewNode)
+		Node3D previewNode,
+		bool isSquare = true)
 	{
 		var result = new EraseAreaResult();
 		result.NodesToDelete = new List<Node3D>();
 
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
+
+		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+		}
+		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		{
+			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+		}
 
 		int width = terrain.Width;
 		int depth = terrain.Depth;
@@ -2010,23 +2132,44 @@ public class EditorService
 		bool terrainModified = false;
 		bool pathingModified = false;
 
+		float selCenterX = (minX + maxX) * 0.5f;
+		float selCenterZ = (minZ + maxZ) * 0.5f;
+		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
+		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
+
 		if (pasteHeights || pasteTextures || (pastePathing && terrain.PathingCodes != null))
 		{
 			for (int sz = 0; sz < selDepth; sz++)
 			{
 				for (int sx = 0; sx < selWidth; sx++)
 				{
+					if (!isSquare)
+					{
+						float cellCenterX = minX + sx + 0.5f;
+						float cellCenterZ = minZ + sz + 0.5f;
+						float ndx = (cellCenterX - selCenterX) / rx;
+						float ndz = (cellCenterZ - selCenterZ) / rz;
+						if (ndx * ndx + ndz * ndz > 1.05f) continue;
+					}
+
 					int targetX = minX + sx;
 					int targetZ = minZ + sz;
 					if (targetX >= 0 && targetX < width && targetZ >= 0 && targetZ < depth)
 					{
 						if (pasteHeights && terrain.Cells != null)
 						{
+							SetGridNodeHeight(ref terrain, targetX, targetZ, 0f);
+							SetGridNodeHeight(ref terrain, targetX + 1, targetZ, 0f);
+							SetGridNodeHeight(ref terrain, targetX + 1, targetZ + 1, 0f);
+							SetGridNodeHeight(ref terrain, targetX, targetZ + 1, 0f);
 							terrain.Cells[targetX, targetZ] = default;
 						}
-						if (pasteTextures && _terrainSplatMap != null)
+						if (pasteTextures)
 						{
-							_terrainSplatMap[targetX, targetZ] = TerrainSplatWeights.CreateSolid(3);
+							var defaultGround = TerrainSplatWeights.CreateSolid(3);
+							var defaultCliff = TerrainSplatWeights.CreateSolid(1);
+							SetGridNodeSplat(targetX, targetZ, in defaultGround, in defaultGround, in defaultGround, in defaultGround);
+							SetGridNodeCliffSplat(targetX, targetZ, in defaultCliff, in defaultCliff, in defaultCliff, in defaultCliff);
 						}
 						if (pastePathing && terrain.PathingCodes != null)
 						{
@@ -2036,6 +2179,10 @@ public class EditorService
 						terrainModified = true;
 					}
 				}
+			}
+			if (terrainModified && pasteHeights)
+			{
+				SanitizeCornerHeights(ref terrain);
 			}
 			if (terrainModified && pasteTextures)
 			{
@@ -2054,6 +2201,10 @@ public class EditorService
 			float maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
 			float minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
 			float maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
+			float centerWorldX = (minWorldX + maxWorldX) * 0.5f;
+			float centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
+			float rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
+			float rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
 
 			foreach (var n3d in sceneChildren)
 			{
@@ -2061,6 +2212,12 @@ public class EditorService
 				Vector3 pos = n3d.Position;
 				if (pos.X >= minWorldX && pos.X <= maxWorldX && pos.Z >= minWorldZ && pos.Z <= maxWorldZ)
 				{
+					if (!isSquare)
+					{
+						float ndx = (pos.X - centerWorldX) / rxWorld;
+						float ndz = (pos.Z - centerWorldZ) / rzWorld;
+						if (ndx * ndx + ndz * ndz > 1.0f) continue;
+					}
 					if (n3d is Unit3D || n3d is Prop3D || n3d is Decal)
 					{
 						result.NodesToDelete.Add(n3d);
@@ -2079,6 +2236,12 @@ public class EditorService
 					Vector3 wPos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
 					if (wPos.X >= minWorldX && wPos.X <= maxWorldX && wPos.Z >= minWorldZ && wPos.Z <= maxWorldZ)
 					{
+						if (!isSquare)
+						{
+							float ndx = (wPos.X - centerWorldX) / rxWorld;
+							float ndz = (wPos.Z - centerWorldZ) / rzWorld;
+							if (ndx * ndx + ndz * ndz > 1.0f) return;
+						}
 						staticPropsToDestroy.Add((entity, propIdComp.PropId));
 					}
 				});
@@ -2291,6 +2454,9 @@ public class EditorService
 			? splatBefore[clickX, clickZ].GetDominantIndex()
 			: 0;
 
+		WaterType startWaterType = terrain.Cells != null ? terrain.Cells[clickX, clickZ].WaterMode : WaterType.None;
+		float startHeight = terrain.Cells != null ? terrain.Cells[clickX, clickZ].CenterHeight : clickPos.Y;
+
 		var queue = new Queue<(int x, int z)>();
 		if (!visited[clickX, clickZ])
 		{
@@ -2319,9 +2485,10 @@ public class EditorService
 						}
 						if (terrain.Cells != null)
 						{
-							float hCurrent = terrain.Cells[currX, currZ].CenterHeight;
+							if (startWaterType != terrain.Cells[nextX, nextZ].WaterMode) continue;
+
 							float hNext = terrain.Cells[nextX, nextZ].CenterHeight;
-							if (Mathf.Abs(hNext - hCurrent) >= 1.0f) continue;
+							if (Mathf.Abs(hNext - startHeight) >= 3.0f) continue;
 						}
 						visited[nextX, nextZ] = true;
 						queue.Enqueue((nextX, nextZ));
@@ -2612,25 +2779,98 @@ public class EditorService
 		return (beforeCells, afterCells, beforePathing, afterPathing, !isRemoving);
 	}
 
-	public List<GameHost.MirroredTransform> GetMirroredTransforms(Vector3 pos, float rotation, MirrorMode mirrorMode)
+	public List<GameHost.MirroredTransform> GetMirroredTransforms(
+		Vector3 pos,
+		float rotation,
+		MirrorMode mirrorMode,
+		Vector2? pivot = null,
+		int? folds = null)
 	{
 		var list = new List<GameHost.MirroredTransform>();
 		if (mirrorMode == MirrorMode.None) return list;
 
+		Vector2 p = pivot ?? _symmetryPivot;
+		int n = folds ?? _symmetryFolds;
+		if (n < 2) n = 2;
+
+		float dx = pos.X - p.X;
+		float dz = pos.Z - p.Y;
+
 		if (mirrorMode == MirrorMode.Horizontal || mirrorMode == MirrorMode.Both)
 		{
-			list.Add(new GameHost.MirroredTransform { Position = new Vector3(-pos.X, pos.Y, pos.Z), Rotation = 180.0f - rotation });
+			list.Add(new GameHost.MirroredTransform { Position = new Vector3(p.X - dx, pos.Y, p.Y + dz), Rotation = 180.0f - rotation });
 		}
 		if (mirrorMode == MirrorMode.Vertical || mirrorMode == MirrorMode.Both)
 		{
-			list.Add(new GameHost.MirroredTransform { Position = new Vector3(pos.X, pos.Y, -pos.Z), Rotation = -rotation });
+			list.Add(new GameHost.MirroredTransform { Position = new Vector3(p.X + dx, pos.Y, p.Y - dz), Rotation = -rotation });
 		}
 		if (mirrorMode == MirrorMode.Both)
 		{
-			list.Add(new GameHost.MirroredTransform { Position = new Vector3(-pos.X, pos.Y, -pos.Z), Rotation = rotation + 180.0f });
+			list.Add(new GameHost.MirroredTransform { Position = new Vector3(p.X - dx, pos.Y, p.Y - dz), Rotation = rotation + 180.0f });
+		}
+		if (mirrorMode == MirrorMode.Rotational)
+		{
+			for (int k = 1; k < n; k++)
+			{
+				float angleRad = k * (Mathf.Tau / n);
+				float cosA = Mathf.Cos(angleRad);
+				float sinA = Mathf.Sin(angleRad);
+				float rx = p.X + dx * cosA - dz * sinA;
+				float rz = p.Y + dx * sinA + dz * cosA;
+				float rotK = (rotation + k * (360.0f / n)) % 360.0f;
+				if (rotK < 0) rotK += 360.0f;
+				list.Add(new GameHost.MirroredTransform { Position = new Vector3(rx, pos.Y, rz), Rotation = rotK });
+			}
 		}
 
 		return list;
+	}
+
+	public (int startX, int startZ, int targetWidth, int targetDepth) GetAnchoredPasteBounds(int targetX, int targetZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None)
+	{
+		if (_copiedArea == null) return (targetX, targetZ, 0, 0);
+
+		float r = rotationDegrees % 360.0f;
+		if (r < 0) r += 360.0f;
+		int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+
+		int pasteWidth = _copiedArea.Width;
+		int pasteDepth = _copiedArea.Depth;
+		int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
+		int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
+
+		int anchorX = _copiedArea.AnchorTileX;
+		int anchorZ = _copiedArea.AnchorTileZ;
+
+		if (reflection == PasteReflection.Horizontal)
+		{
+			anchorX = pasteWidth - 1 - anchorX;
+		}
+		else if (reflection == PasteReflection.Vertical)
+		{
+			anchorZ = pasteDepth - 1 - anchorZ;
+		}
+
+		int rotAnchorX = rotSteps switch
+		{
+			1 => pasteDepth - 1 - anchorZ,
+			2 => pasteWidth - 1 - anchorX,
+			3 => anchorZ,
+			_ => anchorX
+		};
+
+		int rotAnchorZ = rotSteps switch
+		{
+			1 => anchorX,
+			2 => pasteDepth - 1 - anchorZ,
+			3 => pasteWidth - 1 - anchorX,
+			_ => anchorZ
+		};
+
+		int startX = targetX - rotAnchorX;
+		int startZ = targetZ - rotAnchorZ;
+
+		return (startX, startZ, targetWidth, targetDepth);
 	}
 
 	public (int minX, int minZ, int maxX, int maxZ) GetCurrentSelectionBounds()
@@ -2651,8 +2891,8 @@ public class EditorService
 		float quadSize = terrain.QuadSize;
 		float fx = worldPos.X / quadSize + width / 2.0f;
 		float fz = worldPos.Z / quadSize + depth / 2.0f;
-		int cx = Mathf.Clamp((int)Math.Round(fx), 0, width - 1);
-		int cz = Mathf.Clamp((int)Math.Round(fz), 0, depth - 1);
+		int cx = Mathf.Clamp(Mathf.FloorToInt(fx), 0, width - 1);
+		int cz = Mathf.Clamp(Mathf.FloorToInt(fz), 0, depth - 1);
 		return (cx, cz);
 	}
 
@@ -2668,6 +2908,36 @@ public class EditorService
 		float fz = Mathf.Round(worldPos.Z / quadSize + depth / 2.0f);
 		worldPos.Z = (Mathf.Clamp(fz, 0, depth) - depth / 2.0f) * quadSize;
 		return worldPos;
+	}
+
+	public Vector3 SnapToVertex(Vector3 worldPos)
+	{
+		ref var terrain = ref GetTerrainState();
+		if (terrain.Cells == null) return worldPos;
+		float quadSize = terrain.QuadSize;
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float fx = Mathf.Round(worldPos.X / quadSize + width / 2.0f);
+		int vx = Mathf.Clamp((int)fx, 0, width);
+		float fz = Mathf.Round(worldPos.Z / quadSize + depth / 2.0f);
+		int vz = Mathf.Clamp((int)fz, 0, depth);
+		float worldX = (vx - width / 2.0f) * quadSize;
+		float worldZ = (vz - depth / 2.0f) * quadSize;
+		float height = RuntimeTerrain.GetGridNodeHeight(vx, vz, terrain.Cells, width, depth);
+		return new Vector3(worldX, height, worldZ);
+	}
+
+	public (int vx, int vz) WorldPosToVertexCoords(Vector3 worldPos)
+	{
+		ref var terrain = ref GetTerrainState();
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float quadSize = terrain.QuadSize;
+		float fx = worldPos.X / quadSize + width / 2.0f;
+		float fz = worldPos.Z / quadSize + depth / 2.0f;
+		int vx = Mathf.Clamp((int)Math.Round(fx), 0, width);
+		int vz = Mathf.Clamp((int)Math.Round(fz), 0, depth);
+		return (vx, vz);
 	}
 
 	private ref TerrainState GetTerrainState()
@@ -2739,35 +3009,23 @@ public class EditorService
 		bool isEnemy,
 		MirrorMode mirrorMode)
 	{
-		if (mirrorMode == MirrorMode.Horizontal || mirrorMode == MirrorMode.Both)
+		var mirrored = GetMirroredTransforms(pos, rotation, mirrorMode);
+		foreach (var m in mirrored)
 		{
-			Vector3 mPos = new Vector3(-pos.X, pos.Y, pos.Z);
+			Vector3 mPos = m.Position;
 			mPos.Y = GetTerrainHeightAt(mPos);
-			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = 180.0f - rotation, Scale = scale, IsEnemy = isEnemy });
-		}
-		if (mirrorMode == MirrorMode.Vertical || mirrorMode == MirrorMode.Both)
-		{
-			Vector3 mPos = new Vector3(pos.X, pos.Y, -pos.Z);
-			mPos.Y = GetTerrainHeightAt(mPos);
-			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = -rotation, Scale = scale, IsEnemy = isEnemy });
-		}
-		if (mirrorMode == MirrorMode.Both)
-		{
-			Vector3 mPos = new Vector3(-pos.X, pos.Y, -pos.Z);
-			mPos.Y = GetTerrainHeightAt(mPos);
-			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = rotation + 180.0f, Scale = scale, IsEnemy = isEnemy });
+			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = m.Rotation, Scale = scale, IsEnemy = isEnemy });
 		}
 	}
 
-	private List<Vector3> GetMirroredPositions(Vector3 pos, MirrorMode mirrorMode)
+	public List<Vector3> GetMirroredPositions(Vector3 pos, MirrorMode mirrorMode)
 	{
 		var list = new List<Vector3>();
-		if (mirrorMode == MirrorMode.Horizontal || mirrorMode == MirrorMode.Both)
-			list.Add(new Vector3(-pos.X, pos.Y, pos.Z));
-		if (mirrorMode == MirrorMode.Vertical || mirrorMode == MirrorMode.Both)
-			list.Add(new Vector3(pos.X, pos.Y, -pos.Z));
-		if (mirrorMode == MirrorMode.Both)
-			list.Add(new Vector3(-pos.X, pos.Y, -pos.Z));
+		var transforms = GetMirroredTransforms(pos, 0.0f, mirrorMode);
+		foreach (var t in transforms)
+		{
+			list.Add(t.Position);
+		}
 		return list;
 	}
 
@@ -2806,6 +3064,65 @@ public class EditorService
 		}
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static (TerrainSplatWeights NW, TerrainSplatWeights NE, TerrainSplatWeights SE, TerrainSplatWeights SW) MirrorSplatQuad(
+		in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw, MirrorMode mode)
+	{
+		switch (mode)
+		{
+			case MirrorMode.Horizontal:
+				return (ne, nw, sw, se);
+			case MirrorMode.Vertical:
+				return (sw, se, ne, nw);
+			case MirrorMode.Both:
+				return (se, sw, nw, ne);
+			case MirrorMode.None:
+			default:
+				return (nw, ne, se, sw);
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static (TerrainSplatWeights NW, TerrainSplatWeights NE, TerrainSplatWeights SE, TerrainSplatWeights SW) RotateSplatQuad(
+		in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw, int rotSteps)
+	{
+		rotSteps = (rotSteps % 4 + 4) % 4;
+		switch (rotSteps)
+		{
+			case 1:
+				return (sw, nw, ne, se);
+			case 2:
+				return (se, sw, nw, ne);
+			case 3:
+				return (ne, se, sw, nw);
+			case 0:
+			default:
+				return (nw, ne, se, sw);
+		}
+	}
+
+	private void SetGridNodeSplat(int gx, int gz, in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw)
+	{
+		if (_terrainSplatMap == null) return;
+		int w = _terrainSplatMap.GetLength(0);
+		int d = _terrainSplatMap.GetLength(1);
+		if (gx >= 0 && gx < w && gz >= 0 && gz < d) _terrainSplatMap[gx, gz] = nw;
+		if (gx + 1 >= 0 && gx + 1 < w && gz >= 0 && gz < d) _terrainSplatMap[gx + 1, gz] = ne;
+		if (gx + 1 >= 0 && gx + 1 < w && gz + 1 >= 0 && gz + 1 < d) _terrainSplatMap[gx + 1, gz + 1] = se;
+		if (gx >= 0 && gx < w && gz + 1 >= 0 && gz + 1 < d) _terrainSplatMap[gx, gz + 1] = sw;
+	}
+
+	private void SetGridNodeCliffSplat(int gx, int gz, in TerrainSplatWeights nw, in TerrainSplatWeights ne, in TerrainSplatWeights se, in TerrainSplatWeights sw)
+	{
+		if (_terrainCliffSplatMap == null) return;
+		int w = _terrainCliffSplatMap.GetLength(0);
+		int d = _terrainCliffSplatMap.GetLength(1);
+		if (gx >= 0 && gx < w && gz >= 0 && gz < d) _terrainCliffSplatMap[gx, gz] = nw;
+		if (gx + 1 >= 0 && gx + 1 < w && gz >= 0 && gz < d) _terrainCliffSplatMap[gx + 1, gz] = ne;
+		if (gx + 1 >= 0 && gx + 1 < w && gz + 1 >= 0 && gz + 1 < d) _terrainCliffSplatMap[gx + 1, gz + 1] = se;
+		if (gx >= 0 && gx < w && gz + 1 >= 0 && gz + 1 < d) _terrainCliffSplatMap[gx, gz + 1] = sw;
+	}
+
 	private void SanitizeCornerHeights(ref TerrainState terrain)
 	{
 		var cells = terrain.Cells;
@@ -2828,102 +3145,202 @@ public class EditorService
 		}
 	}
 
-	private void PasteCellRotated(
-		int srcX, int srcZ,
-		int rotX, int rotZ,
-		int startX, int startZ,
+	private void PasteBlock(
+		int blockStartX, int blockStartZ,
+		int rotSteps,
+		PasteReflection pasteReflection,
+		MirrorMode symmetryMirror,
+		int foldRotSteps,
 		int width, int depth,
 		bool pasteHeights, bool pasteTextures, bool pastePathing,
-		MirrorMode mirrorMode,
-		int rotSteps,
 		ref TerrainState terrain,
 		ref bool modified,
 		ref bool pathingModified)
 	{
-		int targetX = startX + rotX;
-		int targetZ = startZ + rotZ;
+		int pasteWidth = _copiedArea.Width;
+		int pasteDepth = _copiedArea.Depth;
+		int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
+		int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
 
 		var cells = terrain.Cells;
 		var srcCells = _copiedArea.Cells;
 
-		TerrainCell rotatedCell = default;
-		if (pasteHeights && srcCells != null && srcX < _copiedArea.Width && srcZ < _copiedArea.Depth)
+		for (int sz = 0; sz < pasteDepth; sz++)
 		{
-			rotatedCell = RotateCell(in srcCells[srcX, srcZ], rotSteps);
-		}
+			for (int sx = 0; sx < pasteWidth; sx++)
+			{
+				int srcX = sx;
+				int srcZ = sz;
+				if (pasteReflection == PasteReflection.Horizontal)
+				{
+					srcX = pasteWidth - 1 - sx;
+				}
+				else if (pasteReflection == PasteReflection.Vertical)
+				{
+					srcZ = pasteDepth - 1 - sz;
+				}
 
-		if (targetX >= 0 && targetX < width && targetZ >= 0 && targetZ < depth && srcX < _copiedArea.Width && srcZ < _copiedArea.Depth)
-		{
-			if (pasteHeights && srcCells != null)
-			{
-				cells[targetX, targetZ] = rotatedCell;
-			}
-			if (pasteTextures) _terrainSplatMap[targetX, targetZ] = _copiedArea.SplatMap[srcX, srcZ];
-			if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null)
-			{
-				terrain.PathingCodes[targetX, targetZ] = _copiedArea.Pathing[srcX, srcZ];
-				pathingModified = true;
-			}
-			modified = true;
-		}
+				if (_copiedArea.Mask != null && !_copiedArea.Mask[srcX, srcZ])
+				{
+					continue;
+				}
 
-		if (mirrorMode == MirrorMode.Horizontal || mirrorMode == MirrorMode.Both)
-		{
-			int mx = width - 1 - targetX;
-			int mz = targetZ;
-			if (mx >= 0 && mx < width && mz >= 0 && mz < depth && srcX < _copiedArea.Width && srcZ < _copiedArea.Depth)
-			{
-				if (pasteHeights && srcCells != null)
+				int rotX = sx;
+				int rotZ = sz;
+				if (rotSteps == 1)
 				{
-					cells[mx, mz] = MirrorCell(in rotatedCell, MirrorMode.Horizontal);
+					rotX = pasteDepth - 1 - sz;
+					rotZ = sx;
 				}
-				if (pasteTextures) _terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
-				if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null)
+				else if (rotSteps == 2)
 				{
-					terrain.PathingCodes[mx, mz] = _copiedArea.Pathing[srcX, srcZ];
-					pathingModified = true;
+					rotX = pasteWidth - 1 - sx;
+					rotZ = pasteDepth - 1 - sz;
 				}
-				modified = true;
-			}
-		}
+				else if (rotSteps == 3)
+				{
+					rotX = sz;
+					rotZ = pasteWidth - 1 - sx;
+				}
 
-		if (mirrorMode == MirrorMode.Vertical || mirrorMode == MirrorMode.Both)
-		{
-			int mx = targetX;
-			int mz = depth - 1 - targetZ;
-			if (mx >= 0 && mx < width && mz >= 0 && mz < depth && srcX < _copiedArea.Width && srcZ < _copiedArea.Depth)
-			{
-				if (pasteHeights && srcCells != null)
+				TerrainCell curCell = default;
+				if (pasteHeights && srcCells != null && srcX < pasteWidth && srcZ < pasteDepth)
 				{
-					cells[mx, mz] = MirrorCell(in rotatedCell, MirrorMode.Vertical);
+					curCell = srcCells[srcX, srcZ];
+					if (pasteReflection == PasteReflection.Horizontal)
+					{
+						curCell = MirrorCell(in curCell, MirrorMode.Horizontal);
+					}
+					else if (pasteReflection == PasteReflection.Vertical)
+					{
+						curCell = MirrorCell(in curCell, MirrorMode.Vertical);
+					}
+					curCell = RotateCell(in curCell, rotSteps);
 				}
-				if (pasteTextures) _terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
-				if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null)
-				{
-					terrain.PathingCodes[mx, mz] = _copiedArea.Pathing[srcX, srcZ];
-					pathingModified = true;
-				}
-				modified = true;
-			}
-		}
 
-		if (mirrorMode == MirrorMode.Both)
-		{
-			int mx = width - 1 - targetX;
-			int mz = depth - 1 - targetZ;
-			if (mx >= 0 && mx < width && mz >= 0 && mz < depth && srcX < _copiedArea.Width && srcZ < _copiedArea.Depth)
-			{
-				if (pasteHeights && srcCells != null)
+				TerrainSplatWeights sNW = default, sNE = default, sSE = default, sSW = default;
+				TerrainSplatWeights cS_NW = default, cS_NE = default, cS_SE = default, cS_SW = default;
+				if (pasteTextures)
 				{
-					cells[mx, mz] = MirrorCell(in rotatedCell, MirrorMode.Both);
+					if (_copiedArea.SplatMap != null && srcX + 1 < _copiedArea.SplatMap.GetLength(0) && srcZ + 1 < _copiedArea.SplatMap.GetLength(1))
+					{
+						sNW = _copiedArea.SplatMap[srcX, srcZ];
+						sNE = _copiedArea.SplatMap[srcX + 1, srcZ];
+						sSE = _copiedArea.SplatMap[srcX + 1, srcZ + 1];
+						sSW = _copiedArea.SplatMap[srcX, srcZ + 1];
+
+						if (pasteReflection == PasteReflection.Horizontal)
+						{
+							(sNW, sNE, sSE, sSW) = MirrorSplatQuad(in sNW, in sNE, in sSE, in sSW, MirrorMode.Horizontal);
+						}
+						else if (pasteReflection == PasteReflection.Vertical)
+						{
+							(sNW, sNE, sSE, sSW) = MirrorSplatQuad(in sNW, in sNE, in sSE, in sSW, MirrorMode.Vertical);
+						}
+						(sNW, sNE, sSE, sSW) = RotateSplatQuad(in sNW, in sNE, in sSE, in sSW, rotSteps);
+					}
+
+					if (_copiedArea.CliffSplatMap != null && srcX + 1 < _copiedArea.CliffSplatMap.GetLength(0) && srcZ + 1 < _copiedArea.CliffSplatMap.GetLength(1))
+					{
+						cS_NW = _copiedArea.CliffSplatMap[srcX, srcZ];
+						cS_NE = _copiedArea.CliffSplatMap[srcX + 1, srcZ];
+						cS_SE = _copiedArea.CliffSplatMap[srcX + 1, srcZ + 1];
+						cS_SW = _copiedArea.CliffSplatMap[srcX, srcZ + 1];
+
+						if (pasteReflection == PasteReflection.Horizontal)
+						{
+							(cS_NW, cS_NE, cS_SE, cS_SW) = MirrorSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, MirrorMode.Horizontal);
+						}
+						else if (pasteReflection == PasteReflection.Vertical)
+						{
+							(cS_NW, cS_NE, cS_SE, cS_SW) = MirrorSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, MirrorMode.Vertical);
+						}
+						(cS_NW, cS_NE, cS_SE, cS_SW) = RotateSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, rotSteps);
+					}
+					else if (_copiedArea.SplatMap != null)
+					{
+						cS_NW = sNW;
+						cS_NE = sNE;
+						cS_SE = sSE;
+						cS_SW = sSW;
+					}
 				}
-				if (pasteTextures) _terrainSplatMap[mx, mz] = _copiedArea.SplatMap[srcX, srcZ];
-				if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null)
+
+				int finalX = rotX;
+				int finalZ = rotZ;
+
+				if (symmetryMirror == MirrorMode.Horizontal)
 				{
-					terrain.PathingCodes[mx, mz] = _copiedArea.Pathing[srcX, srcZ];
-					pathingModified = true;
+					finalX = targetWidth - 1 - rotX;
+					curCell = MirrorCell(in curCell, MirrorMode.Horizontal);
+					(sNW, sNE, sSE, sSW) = MirrorSplatQuad(in sNW, in sNE, in sSE, in sSW, MirrorMode.Horizontal);
+					(cS_NW, cS_NE, cS_SE, cS_SW) = MirrorSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, MirrorMode.Horizontal);
 				}
-				modified = true;
+				else if (symmetryMirror == MirrorMode.Vertical)
+				{
+					finalZ = targetDepth - 1 - rotZ;
+					curCell = MirrorCell(in curCell, MirrorMode.Vertical);
+					(sNW, sNE, sSE, sSW) = MirrorSplatQuad(in sNW, in sNE, in sSE, in sSW, MirrorMode.Vertical);
+					(cS_NW, cS_NE, cS_SE, cS_SW) = MirrorSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, MirrorMode.Vertical);
+				}
+				else if (symmetryMirror == MirrorMode.Both)
+				{
+					finalX = targetWidth - 1 - rotX;
+					finalZ = targetDepth - 1 - rotZ;
+					curCell = MirrorCell(in curCell, MirrorMode.Both);
+					(sNW, sNE, sSE, sSW) = MirrorSplatQuad(in sNW, in sNE, in sSE, in sSW, MirrorMode.Both);
+					(cS_NW, cS_NE, cS_SE, cS_SW) = MirrorSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, MirrorMode.Both);
+				}
+				else if (foldRotSteps != 0)
+				{
+					if (foldRotSteps == 1)
+					{
+						finalX = targetDepth - 1 - rotZ;
+						finalZ = rotX;
+					}
+					else if (foldRotSteps == 2)
+					{
+						finalX = targetWidth - 1 - rotX;
+						finalZ = targetDepth - 1 - rotZ;
+					}
+					else if (foldRotSteps == 3)
+					{
+						finalX = rotZ;
+						finalZ = targetWidth - 1 - rotX;
+					}
+
+					curCell = RotateCell(in curCell, foldRotSteps);
+					(sNW, sNE, sSE, sSW) = RotateSplatQuad(in sNW, in sNE, in sSE, in sSW, foldRotSteps);
+					(cS_NW, cS_NE, cS_SE, cS_SW) = RotateSplatQuad(in cS_NW, in cS_NE, in cS_SE, in cS_SW, foldRotSteps);
+				}
+
+				int targetX = blockStartX + finalX;
+				int targetZ = blockStartZ + finalZ;
+
+				if (targetX >= 0 && targetX < width && targetZ >= 0 && targetZ < depth)
+				{
+					if (pasteHeights && srcCells != null && cells != null)
+					{
+						SetGridNodeHeight(ref terrain, targetX, targetZ, curCell.Y_NW);
+						SetGridNodeHeight(ref terrain, targetX + 1, targetZ, curCell.Y_NE);
+						SetGridNodeHeight(ref terrain, targetX + 1, targetZ + 1, curCell.Y_SE);
+						SetGridNodeHeight(ref terrain, targetX, targetZ + 1, curCell.Y_SW);
+						cells[targetX, targetZ].WaterMode = curCell.WaterMode;
+						cells[targetX, targetZ].WaterProfileIndex = curCell.WaterProfileIndex;
+						cells[targetX, targetZ].WaterHeight = curCell.WaterHeight;
+					}
+					if (pasteTextures)
+					{
+						SetGridNodeSplat(targetX, targetZ, in sNW, in sNE, in sSE, in sSW);
+						SetGridNodeCliffSplat(targetX, targetZ, in cS_NW, in cS_NE, in cS_SE, in cS_SW);
+					}
+					if (pastePathing && _copiedArea.Pathing != null && terrain.PathingCodes != null && srcX < pasteWidth && srcZ < pasteDepth)
+					{
+						terrain.PathingCodes[targetX, targetZ] = _copiedArea.Pathing[srcX, srcZ];
+						pathingModified = true;
+					}
+					modified = true;
+				}
 			}
 		}
 	}
@@ -3231,7 +3648,7 @@ public class EditorService
 			formattedToolName += $" ({shortId})";
 		}
 
-		string status = $"ACTIVE TOOL: {formattedToolName} | Pos: {pos.X:F1}, {pos.Y:F1}, {pos.Z:F1}";
+		string status = $"ACTIVE TOOL: {formattedToolName} | Pos: {pos.X:F1}, {pos.Z:F1}, {pos.Y:F1}";
 
 		ref var terrain = ref GetTerrainState();
 
