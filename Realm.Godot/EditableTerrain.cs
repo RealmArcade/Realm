@@ -38,14 +38,6 @@ public partial class EditableTerrain : RuntimeTerrain
 		}
 	}
 
-	public override void SetGridVisible(bool visible)
-	{
-		if (_material != null)
-		{
-			_material.SetShaderParameter("grid_visible", visible);
-		}
-	}
-
 	public override void SetWireframeMode(bool enabled)
 	{
 		Viewport viewport = GetViewport();
