@@ -156,7 +156,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		catRow.AddThemeConstantOverride("separation", 8);
 
 		var lblCat = new Label();
-		lblCat.Text = TranslationServer.Translate("Object Domain:");
+		lblCat.Text = TranslationServer.Translate("Type:");
 		lblCat.AddThemeFontSizeOverride("font_size", 11);
 		lblCat.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		catRow.AddChild(lblCat);
@@ -180,6 +180,14 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_optObjectCategory.SetItemMetadata(6, "upgrades");
 		_optObjectCategory.AddItem(TranslationServer.Translate("📦 Items (item/...)"), 7);
 		_optObjectCategory.SetItemMetadata(7, "items");
+		_optObjectCategory.AddItem(TranslationServer.Translate("🌱 Terrain"), 8);
+		_optObjectCategory.SetItemMetadata(8, "terrain");
+		_optObjectCategory.AddItem(TranslationServer.Translate("🎞️ Spritesheets"), 9);
+		_optObjectCategory.SetItemMetadata(9, "spritesheets");
+		_optObjectCategory.AddItem(TranslationServer.Translate("🎯 Decals"), 10);
+		_optObjectCategory.SetItemMetadata(10, "decals");
+		_optObjectCategory.AddItem(TranslationServer.Translate("✨ Shader"), 11);
+		_optObjectCategory.SetItemMetadata(11, "shaders");
 
 		_optObjectCategory.ItemSelected += (idx) =>
 		{
@@ -471,6 +479,94 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					}
 				}
 				break;
+
+			case "terrain":
+				if (meta.Textures != null)
+				{
+					foreach (var kvp in meta.Textures)
+					{
+						list.Add(new ObjectItemInfo
+						{
+							Category = "terrain",
+							TemplateID = kvp.Key,
+							Name = kvp.Key,
+							Description = "Terrain texture swatch config",
+							ModelPath = kvp.Key
+						});
+					}
+				}
+				if (meta.TerrainProfiles != null)
+				{
+					foreach (var tp in meta.TerrainProfiles)
+					{
+						if (!list.Any(x => string.Equals(x.TemplateID, tp.SwatchName, StringComparison.OrdinalIgnoreCase)))
+						{
+							list.Add(new ObjectItemInfo
+							{
+								Category = "terrain",
+								TemplateID = tp.SwatchName,
+								Name = tp.SwatchName,
+								Description = "Terrain swatch profile",
+								ModelPath = tp.SwatchName
+							});
+						}
+					}
+				}
+				break;
+
+			case "spritesheets":
+				if (meta.VfxSpritesheets != null)
+				{
+					foreach (var kvp in meta.VfxSpritesheets)
+					{
+						var sheetObj = kvp.Value as JsonObject;
+						int cols = sheetObj?["columns"]?.GetValue<int>() ?? 1;
+						int rows = sheetObj?["rows"]?.GetValue<int>() ?? 1;
+						float fps = sheetObj?["fps"]?.GetValue<float>() ?? 20.0f;
+						list.Add(new ObjectItemInfo
+						{
+							Category = "spritesheets",
+							TemplateID = kvp.Key,
+							Name = kvp.Key,
+							Description = $"{cols}x{rows} @ {fps} FPS",
+							ModelPath = kvp.Key
+						});
+					}
+				}
+				break;
+
+			case "decals":
+				if (meta.Decals != null)
+				{
+					foreach (var kvp in meta.Decals)
+					{
+						list.Add(new ObjectItemInfo
+						{
+							Category = "decals",
+							TemplateID = kvp.Key,
+							Name = kvp.Key,
+							Description = "Decal configuration",
+							ModelPath = kvp.Key
+						});
+					}
+				}
+				break;
+
+			case "shaders" or "shader":
+				if (meta.Shaders != null)
+				{
+					foreach (var kvp in meta.Shaders)
+					{
+						list.Add(new ObjectItemInfo
+						{
+							Category = "shaders",
+							TemplateID = kvp.Key,
+							Name = kvp.Key,
+							Description = "Custom visual shader config"
+						});
+					}
+				}
+				break;
 		}
 
 		return list;
@@ -608,6 +704,94 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				}
 				break;
 
+			case "terrain":
+				string wsPathTer = MapWorkspaceService.GetActiveWorkspacePath();
+				JsonObject curTerData = new JsonObject();
+				if (MetadataService.Instance.TryLoadMetadata(wsPathTer, out var metaTer) && metaTer?.Textures != null)
+				{
+					if (metaTer.Textures.TryGetValue(item.TemplateID, out var tNode) && tNode is JsonObject tObj)
+					{
+						curTerData = (JsonObject)tObj.DeepClone();
+					}
+				}
+				_textureEditDialog.OpenForTexture(item.TemplateID, curTerData, updatedObj =>
+				{
+					MetadataService.Instance.UpdateMetadata(wsPathTer, m =>
+					{
+						m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+						m.Textures[item.TemplateID] = updatedObj;
+					});
+					RefreshObjectList();
+				});
+				break;
+
+			case "spritesheets":
+				string wsPathSpr = MapWorkspaceService.GetActiveWorkspacePath();
+				int initCols = 1;
+				int initRows = 1;
+				float initFps = 20.0f;
+				bool initBlend = true;
+				if (MetadataService.Instance.TryLoadMetadata(wsPathSpr, out var metaSpr) && metaSpr?.VfxSpritesheets != null)
+				{
+					if (metaSpr.VfxSpritesheets.TryGetValue(item.TemplateID, out var sNode) && sNode is JsonObject sObj)
+					{
+						initCols = sObj["columns"]?.GetValue<int>() ?? 1;
+						initRows = sObj["rows"]?.GetValue<int>() ?? 1;
+						initFps = sObj["fps"]?.GetValue<float>() ?? 20.0f;
+						initBlend = sObj["subframe_blend"]?.GetValue<bool>() ?? true;
+					}
+				}
+				_spritesheetEditDialog.OpenForSheet(item.TemplateID, initCols, initRows, initFps, initBlend, (cols, rows, fps, blend) =>
+				{
+					MetadataService.Instance.UpdateMetadata(wsPathSpr, m =>
+					{
+						m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+						m.VfxSpritesheets[item.TemplateID] = new JsonObject
+						{
+							["columns"] = cols,
+							["rows"] = rows,
+							["fps"] = fps,
+							["subframe_blend"] = blend
+						};
+					});
+					RefreshObjectList();
+				});
+				break;
+
+			case "decals":
+				string wsPathDec = MapWorkspaceService.GetActiveWorkspacePath();
+				JsonObject curDecData = new JsonObject();
+				if (MetadataService.Instance.TryLoadMetadata(wsPathDec, out var metaDec) && metaDec?.Decals != null)
+				{
+					if (metaDec.Decals.TryGetValue(item.TemplateID, out var dNode) && dNode is JsonObject dObj)
+					{
+						curDecData = (JsonObject)dObj.DeepClone();
+					}
+				}
+				_decalEditDialog.OpenForDecal(item.TemplateID, curDecData, updatedObj =>
+				{
+					MetadataService.Instance.UpdateMetadata(wsPathDec, m =>
+					{
+						m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+						m.Decals[item.TemplateID] = updatedObj;
+					});
+					RefreshObjectList();
+				});
+				break;
+
+			case "shaders" or "shader":
+				string wsPathSha = MapWorkspaceService.GetActiveWorkspacePath();
+				_shaderEditDialog.OpenForShader(item.TemplateID, updatedConfig =>
+				{
+					MetadataService.Instance.UpdateMetadata(wsPathSha, m =>
+					{
+						m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
+						m.Shaders[item.TemplateID] = updatedConfig != null ? JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(updatedConfig)) ?? new JsonObject() : new JsonObject();
+					});
+					RefreshObjectList();
+				});
+				break;
+
 			default:
 				_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 				{
@@ -630,6 +814,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			"abilities" => "ability",
 			"upgrades" => "upgrade",
 			"items" => "item",
+			"terrain" => "terrain",
+			"spritesheets" => "spritesheet",
+			"decals" => "decal",
+			"shaders" or "shader" => "shader",
 			_ => "unit"
 		};
 
@@ -755,6 +943,44 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						ItemClass = "consumable"
 					});
 					break;
+
+				case "terrain":
+					m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+					m.Textures[newTemplateID] = new JsonObject
+					{
+						["TileMode"] = "Stochastic",
+						["UvScale"] = 1.0f,
+						["Brightness"] = 1.0f
+					};
+					break;
+
+				case "spritesheets":
+					m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+					m.VfxSpritesheets[newTemplateID] = new JsonObject
+					{
+						["columns"] = 4,
+						["rows"] = 4,
+						["fps"] = 20.0f,
+						["subframe_blend"] = true
+					};
+					break;
+
+				case "decals":
+					m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+					m.Decals[newTemplateID] = new JsonObject
+					{
+						["size"] = new JsonArray { 2, 2 }
+					};
+					break;
+
+				case "shaders" or "shader":
+					m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
+					m.Shaders[newTemplateID] = new JsonObject
+					{
+						["Name"] = parsedSlug,
+						["Key"] = newTemplateID
+					};
+					break;
 			}
 		});
 
@@ -805,6 +1031,19 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					case "abilities": meta.RemoveAbility(item.TemplateID); break;
 					case "upgrades": meta.RemoveUpgrade(item.TemplateID); break;
 					case "items": meta.RemoveItem(item.TemplateID); break;
+					case "terrain":
+						meta.Textures?.Remove(item.TemplateID);
+						meta.RemoveTerrainProfile(item.TemplateID);
+						break;
+					case "spritesheets":
+						meta.VfxSpritesheets?.Remove(item.TemplateID);
+						break;
+					case "decals":
+						meta.Decals?.Remove(item.TemplateID);
+						break;
+					case "shaders" or "shader":
+						meta.Shaders?.Remove(item.TemplateID);
+						break;
 				}
 			});
 
