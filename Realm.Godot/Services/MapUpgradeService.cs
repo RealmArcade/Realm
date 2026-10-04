@@ -862,6 +862,112 @@ public class Migration_0_0_3_WaterProfilesAndShaders : IMapMigration
 	}
 }
 
+public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
+{
+	public string FromVersion => "v0.0.3";
+	public string ToVersion => "v0.0.4";
+	public string Description => "Migrate custom entity IDs (UnitId, WeaponId, AbilityId, UpgradeId, ItemId) to canonical TemplateID prefixes";
+
+	public MigrationResult Up(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
+	{
+		try
+		{
+			string metadataPath = Path.Combine(mapDirectory, "metadata.json");
+			JsonObject? metadataRoot = null;
+			if (File.Exists(metadataPath))
+			{
+				string text = File.ReadAllText(metadataPath);
+				metadataRoot = JsonNode.Parse(text)?.AsObject();
+			}
+
+			metadataRoot ??= new JsonObject();
+
+			const int totalSteps = 3;
+
+			progress?.Report(new MigrationProgressUpdate(Description, 1, totalSteps, "Normalizing custom entity definitions to TemplateID..."));
+
+			var entityCategories = new (string ArrayKey, string ObjectType, string LegacyIdKey)[]
+			{
+				("CustomUnits", "unit", "UnitId"),
+				("CustomBuildings", "building", "UnitId"),
+				("CustomResources", "resource", "UnitId"),
+				("CustomProps", "prop", "UnitId"),
+				("CustomAbilities", "ability", "AbilityId"),
+				("CustomWeapons", "weapon", "WeaponId"),
+				("CustomUpgrades", "upgrade", "UpgradeId"),
+				("CustomItems", "item", "ItemId")
+			};
+
+			foreach (var (arrayKey, objectType, legacyIdKey) in entityCategories)
+			{
+				if (metadataRoot.TryGetPropertyValue(arrayKey, out var arrNode) && arrNode is JsonArray entityArray)
+				{
+					foreach (var item in entityArray)
+					{
+						if (item is JsonObject entityObj)
+						{
+							string rawId = string.Empty;
+							if (entityObj.TryGetPropertyValue("TemplateID", out var templateIdNode) && templateIdNode != null)
+							{
+								rawId = templateIdNode.ToString();
+							}
+							else if (entityObj.TryGetPropertyValue("ObjectID", out var objectIdNode) && objectIdNode != null)
+							{
+								rawId = objectIdNode.ToString();
+								entityObj.Remove("ObjectID");
+							}
+							else if (entityObj.TryGetPropertyValue(legacyIdKey, out var legacyIdNode) && legacyIdNode != null)
+							{
+								rawId = legacyIdNode.ToString();
+								entityObj.Remove(legacyIdKey);
+							}
+							else if (entityObj.TryGetPropertyValue("UnitId", out var fallbackUnitIdNode) && fallbackUnitIdNode != null)
+							{
+								rawId = fallbackUnitIdNode.ToString();
+								entityObj.Remove("UnitId");
+							}
+
+							if (!string.IsNullOrWhiteSpace(rawId))
+							{
+								entityObj["TemplateID"] = TemplateIDHelper.NormalizeTemplateID(objectType, rawId);
+							}
+						}
+					}
+				}
+			}
+
+			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Updating map build number and saving metadata.json..."));
+
+			metadataRoot["GameBuildNumber"] = ToVersion;
+			SaveLoadService.CleanMetadataJsonSchema(metadataRoot);
+
+			MapJsonFormatter.SaveFormattedJson(metadataPath, metadataRoot);
+
+			return new MigrationResult
+			{
+				Success = true,
+				FromVersion = FromVersion,
+				ToVersion = ToVersion
+			};
+		}
+		catch (Exception ex)
+		{
+			return new MigrationResult
+			{
+				Success = false,
+				ErrorMessage = $"Migration 0.0.4 failed: {ex.Message}",
+				FromVersion = FromVersion,
+				ToVersion = ToVersion
+			};
+		}
+	}
+
+	public Task<MigrationResult> UpAsync(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
+	{
+		return Task.Run(() => Up(mapDirectory, progress));
+	}
+}
+
 public class MapUpgradeService
 {
 	private readonly WorldAccessor _worldAccessor;
@@ -880,6 +986,7 @@ public class MapUpgradeService
 		_migrations.Add(new Migration_0_0_1_InitialCanonicalFormat());
 		_migrations.Add(new Migration_0_0_2_NormalizeModelProperties());
 		_migrations.Add(new Migration_0_0_3_WaterProfilesAndShaders());
+		_migrations.Add(new Migration_0_0_4_TemplateIDPrefixes());
 	}
 
 	public string GetMapBuildNumber(string mapDirectory)
