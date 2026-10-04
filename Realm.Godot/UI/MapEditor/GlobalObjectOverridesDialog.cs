@@ -232,7 +232,7 @@ public partial class GlobalObjectOverridesDialog : FloatingDialogBase
 				selectedKey = GameHost.Instance?.GetModelProceduralAnimation(_currentAssetKey) ?? "";
 			}
 
-			var cfg = ProceduralAnimationManager.GetConfig(selectedKey) ?? new Realm.Godot.VFX.ProceduralAnimationConfig { Id = _currentAssetKey + "_anim", Name = _currentAssetKey + " Animation" };
+			var cfg = ProceduralAnimationManager.GetConfig(selectedKey) ?? new ProceduralAnimationConfig { Id = _currentAssetKey + "_anim", Name = _currentAssetKey + " Animation" };
 			string selectedMesh = GameHost.Instance?.GetModelAssetKey(_currentSelectedObject ?? (object)_currentAssetKey) ?? _currentAssetKey;
 			Hud?.OpenProceduralAnimationStudioDialog(cfg, (savedCfg) =>
 			{

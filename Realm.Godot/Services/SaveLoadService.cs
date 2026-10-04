@@ -1750,14 +1750,14 @@ public class SaveLoadService
 
 		Type[] entityTypes = new[]
 		{
-			typeof(GameHost.UnitMetadata),
-			typeof(GameHost.PropMetadata),
-			typeof(GameHost.ResourceMetadata),
-			typeof(GameHost.WeaponMetadata),
-			typeof(GameHost.AttachmentMetadata),
-			typeof(GameHost.AbilityMetadata),
-			typeof(GameHost.UpgradeMetadata),
-			typeof(GameHost.ItemMetadata)
+			typeof(UnitMetadata),
+			typeof(PropMetadata),
+			typeof(ResourceMetadata),
+			typeof(WeaponMetadata),
+			typeof(AttachmentMetadata),
+			typeof(AbilityMetadata),
+			typeof(UpgradeMetadata),
+			typeof(ItemMetadata)
 		};
 
 		foreach (var t in entityTypes)
@@ -1844,12 +1844,12 @@ public class SaveLoadService
 		if (_cachedAllowedGlbItemProperties != null) return _cachedAllowedGlbItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		AddTypeMembersToSet(typeof(GameHost.GlbItemMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.UnitMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.PropMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.ResourceMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.WeaponMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.AttachmentMetadata), set);
+		AddTypeMembersToSet(typeof(ModelMetadata), set);
+		AddTypeMembersToSet(typeof(UnitMetadata), set);
+		AddTypeMembersToSet(typeof(PropMetadata), set);
+		AddTypeMembersToSet(typeof(ResourceMetadata), set);
+		AddTypeMembersToSet(typeof(WeaponMetadata), set);
+		AddTypeMembersToSet(typeof(AttachmentMetadata), set);
 
 		set.Add("spawn_shader");
 		set.Add("death_shader");
@@ -1871,7 +1871,7 @@ public class SaveLoadService
 	{
 		if (_cachedAllowedTextureItemProperties != null) return _cachedAllowedTextureItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(GameHost.TextureMetadata), set);
+		AddTypeMembersToSet(typeof(TextureMetadata), set);
 		AddTypeMembersToSet(typeof(TerrainTextureSnapshot), set);
 		_cachedAllowedTextureItemProperties = set;
 		return set;
@@ -1881,7 +1881,7 @@ public class SaveLoadService
 	{
 		if (_cachedAllowedDecalItemProperties != null) return _cachedAllowedDecalItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(GameHost.DecalMetadata), set);
+		AddTypeMembersToSet(typeof(DecalMetadata), set);
 		AddTypeMembersToSet(typeof(DecalSnapshot), set);
 		_cachedAllowedDecalItemProperties = set;
 		return set;
@@ -1891,7 +1891,7 @@ public class SaveLoadService
 	{
 		if (_cachedAllowedVfxItemProperties != null) return _cachedAllowedVfxItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(GameHost.VfxMetadata), set);
+		AddTypeMembersToSet(typeof(VfxMetadata), set);
 		_cachedAllowedVfxItemProperties = set;
 		return set;
 	}
@@ -1929,9 +1929,9 @@ public class SaveLoadService
 		if (_cachedAllowedEntityItemProperties != null) return _cachedAllowedEntityItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		AddTypeMembersToSet(typeof(GameHost.UnitMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.PropMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.ResourceMetadata), set);
+		AddTypeMembersToSet(typeof(UnitMetadata), set);
+		AddTypeMembersToSet(typeof(PropMetadata), set);
+		AddTypeMembersToSet(typeof(ResourceMetadata), set);
 
 		set.Add("spawn_shader");
 		set.Add("spawnshader");
@@ -1960,7 +1960,7 @@ public class SaveLoadService
 		if (_cachedAllowedAbilityItemProperties != null) return _cachedAllowedAbilityItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		AddTypeMembersToSet(typeof(GameHost.AbilityMetadata), set);
+		AddTypeMembersToSet(typeof(AbilityMetadata), set);
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
@@ -1979,7 +1979,7 @@ public class SaveLoadService
 		if (_cachedAllowedWeaponItemProperties != null) return _cachedAllowedWeaponItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		AddTypeMembersToSet(typeof(GameHost.WeaponMetadata), set);
+		AddTypeMembersToSet(typeof(WeaponMetadata), set);
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
@@ -1998,7 +1998,7 @@ public class SaveLoadService
 		if (_cachedAllowedUpgradeItemProperties != null) return _cachedAllowedUpgradeItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		AddTypeMembersToSet(typeof(GameHost.UpgradeMetadata), set);
+		AddTypeMembersToSet(typeof(UpgradeMetadata), set);
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
@@ -2017,7 +2017,7 @@ public class SaveLoadService
 		if (_cachedAllowedCustomItemProperties != null) return _cachedAllowedCustomItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		AddTypeMembersToSet(typeof(GameHost.ItemMetadata), set);
+		AddTypeMembersToSet(typeof(ItemMetadata), set);
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
@@ -2038,7 +2038,7 @@ public class SaveLoadService
 		if (_cachedAllowedAttachmentItemProperties != null) return _cachedAllowedAttachmentItemProperties;
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		AddTypeMembersToSet(typeof(GameHost.AttachmentMetadata), set);
+		AddTypeMembersToSet(typeof(AttachmentMetadata), set);
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{

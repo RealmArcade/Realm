@@ -612,6 +612,26 @@ public partial class FloatingDialogBase : PanelContainer
 	public (LineEdit X, LineEdit Y, LineEdit Z) AddVector3Input(
 		VBoxContainer parent,
 		string labelText,
+		Vector3Data initialValue,
+		Action<Vector3Data> onChanged,
+		float labelWidth = 110.0f)
+	{
+		return AddVector3Input(parent, labelText, initialValue.ToGodotVector3(), (v) => onChanged(v.ToVector3Data()), labelWidth);
+	}
+
+	public (LineEdit X, LineEdit Y) AddVector2Input(
+		VBoxContainer parent,
+		string labelText,
+		Vector2Data initialValue,
+		Action<Vector2Data> onChanged,
+		float labelWidth = 110.0f)
+	{
+		return AddVector2Input(parent, labelText, initialValue.ToGodotVector2(), (v) => onChanged(v.ToVector2Data()), labelWidth);
+	}
+
+	public (LineEdit X, LineEdit Y, LineEdit Z) AddVector3Input(
+		VBoxContainer parent,
+		string labelText,
 		Vector3 initialValue,
 		Action<Vector3> onChanged,
 		float labelWidth = 110.0f)

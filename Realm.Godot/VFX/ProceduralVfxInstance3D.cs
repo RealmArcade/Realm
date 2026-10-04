@@ -98,9 +98,9 @@ public partial class ProceduralVfxInstance3D : Node3D
 			_contentRoot.Name = "VfxContentRoot";
 			AddChild(_contentRoot);
 		}
-		_contentRoot.Position = _config.PositionOffset;
-		_contentRoot.RotationDegrees = _config.RotationOffset;
-		Vector3 scale = _config.ScaleOffset;
+		_contentRoot.Position = _config.PositionOffset.ToGodotVector3();
+		_contentRoot.RotationDegrees = _config.RotationOffset.ToGodotVector3();
+		Vector3 scale = _config.ScaleOffset.ToGodotVector3();
 		if (Mathf.IsZeroApprox(scale.X)) scale.X = 1f;
 		if (Mathf.IsZeroApprox(scale.Y)) scale.Y = 1f;
 		if (Mathf.IsZeroApprox(scale.Z)) scale.Z = 1f;

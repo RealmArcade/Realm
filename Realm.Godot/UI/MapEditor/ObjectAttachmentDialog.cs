@@ -66,9 +66,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private List<string> _availableAttachments = new();
 	private bool _isUpdatingUI;
 
-	private Action<GameHost.HandAttachmentOrientation> _onApplied;
-	private GameHost.UnitObjectAttachments? _initialSnapshot;
-	private GameHost.UnitObjectAttachments _workingAttachments;
+	private Action<HandAttachmentOrientation> _onApplied;
+	private UnitObjectAttachments? _initialSnapshot;
+	private UnitObjectAttachments _workingAttachments;
 
 	public struct SocketDefinition
 	{
@@ -312,7 +312,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		string attachmentId = null,
 		string socket = null,
 		Node3D sourceModel = null,
-		Action<GameHost.HandAttachmentOrientation> onApplied = null)
+		Action<HandAttachmentOrientation> onApplied = null)
 	{
 		OpenForTarget(unitId, attachmentId, socket, sourceModel, onApplied);
 	}
@@ -322,7 +322,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		string attachmentId = null,
 		string socket = null,
 		Node3D sourceModel = null,
-		Action<GameHost.HandAttachmentOrientation> onApplied = null)
+		Action<HandAttachmentOrientation> onApplied = null)
 	{
 		_onApplied = onApplied;
 
@@ -350,7 +350,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			_initialSnapshot = null;
 		}
 
-		_workingAttachments = _initialSnapshot?.Clone() ?? new GameHost.UnitObjectAttachments();
+		_workingAttachments = _initialSnapshot?.Clone() ?? new UnitObjectAttachments();
 
 		string defaultSocket = _isTargetBuilding ? "Center" : "RightHand";
 		_currentSocketId = NormalizeSocketId(string.IsNullOrEmpty(socket) ? defaultSocket : socket);
@@ -519,7 +519,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 	private void LoadAttachmentOrientationIntoSliders(string targetId, string socketId, string attachmentId, string? parentAttachmentId = null)
 	{
-		GameHost.HandAttachmentOrientation unitOrient = default;
+		HandAttachmentOrientation? unitOrient = null;
 		bool hasOrient = false;
 
 		if (!string.IsNullOrEmpty(targetId))
@@ -552,18 +552,18 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			}
 		}
 
-		if (hasOrient)
+		if (hasOrient && unitOrient != null)
 		{
-			_currentPosOffset = unitOrient.Position;
-			_currentRotOffset = unitOrient.RotationDegrees;
-			_currentScaleOffset = unitOrient.ScaleVector;
+			_currentPosOffset = unitOrient.Position.ToGodotVector3();
+			_currentRotOffset = unitOrient.RotationDegrees.ToGodotVector3();
+			_currentScaleOffset = unitOrient.ScaleVector.ToGodotVector3();
 			_currentNormalOffset = unitOrient.NormalOffset;
 			_currentParentAttachmentId = unitOrient.ParentAttachmentId;
 		}
 		else if (!string.IsNullOrEmpty(attachmentId) && GameHost.AttachmentRegistry.TryGetValue(attachmentId, out var attMeta))
 		{
-			_currentPosOffset = attMeta.PositionOffset;
-			_currentRotOffset = attMeta.RotationOffset;
+			_currentPosOffset = attMeta.PositionOffset.ToGodotVector3();
+			_currentRotOffset = attMeta.RotationOffset.ToGodotVector3();
 			_currentScaleOffset = Vector3.One * (attMeta.Scale <= 0f ? 1.0f : attMeta.Scale);
 			_currentNormalOffset = 0.0f;
 		}
@@ -600,7 +600,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		if (string.IsNullOrEmpty(_targetObjectId) || string.IsNullOrEmpty(_currentAttachmentId)) return;
 		if (IsAttachmentConfigured(_currentSocketId, _currentAttachmentId, _currentParentAttachmentId))
 		{
-			var orientation = new GameHost.HandAttachmentOrientation
+			var orientation = new HandAttachmentOrientation
 			{
 				PositionX = _currentPosOffset.X,
 				PositionY = _currentPosOffset.Y,
@@ -1083,7 +1083,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		public int Index;
 		public string SocketId;
 		public string AttachmentId;
-		public GameHost.HandAttachmentOrientation Orientation;
+		public HandAttachmentOrientation Orientation;
 	}
 
 	public static string GetAttachmentKey(string socketId, string attachmentId, int index = -1, string? parentAttachmentId = null)
@@ -1113,13 +1113,13 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		return new List<ConfiguredAttachmentEntry>();
 	}
 
-	public static List<ConfiguredAttachmentEntry> GetConfiguredAttachmentsFromData(GameHost.UnitObjectAttachments? attsNode, bool isBuilding = false)
+	public static List<ConfiguredAttachmentEntry> GetConfiguredAttachmentsFromData(UnitObjectAttachments? attsNode, bool isBuilding = false)
 	{
 		var list = new List<ConfiguredAttachmentEntry>();
-		if (attsNode.HasValue)
+		if (attsNode != null)
 		{
-			var atts = attsNode.Value;
-			void Collect(string socket, List<Dictionary<string, GameHost.HandAttachmentOrientation>>? sockList)
+			var atts = attsNode;
+			void Collect(string socket, List<Dictionary<string, HandAttachmentOrientation>>? sockList)
 			{
 				if (sockList == null) return;
 				for (int i = 0; i < sockList.Count; i++)
@@ -1174,9 +1174,10 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			string key = GetAttachmentKey(entry.SocketId, entry.AttachmentId, entry.Index, entry.Orientation.ParentAttachmentId);
 			if (_activeAttachmentVisuals.TryGetValue(key, out var visualNode) && GodotObject.IsInstanceValid(visualNode))
 			{
-				visualNode.Position = entry.Orientation.Position + (Vector3.Up * entry.Orientation.NormalOffset);
-				visualNode.RotationDegrees = entry.Orientation.RotationDegrees;
-				visualNode.Scale = entry.Orientation.ScaleVector == Vector3.Zero ? Vector3.One : entry.Orientation.ScaleVector;
+				visualNode.Position = entry.Orientation.Position.ToGodotVector3() + (Vector3.Up * entry.Orientation.NormalOffset);
+				visualNode.RotationDegrees = entry.Orientation.RotationDegrees.ToGodotVector3();
+				var entryScale = entry.Orientation.ScaleVector.ToGodotVector3();
+				visualNode.Scale = entryScale == Vector3.Zero ? Vector3.One : entryScale;
 			}
 		}
 	}
@@ -1273,14 +1274,14 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		{
 			if (string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
 			{
-				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position, entry.Orientation.RotationDegrees, entry.Orientation.ScaleVector, entry.Orientation.NormalOffset, entry.Index, null);
+				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position.ToGodotVector3(), entry.Orientation.RotationDegrees.ToGodotVector3(), entry.Orientation.ScaleVector.ToGodotVector3(), entry.Orientation.NormalOffset, entry.Index, null);
 			}
 		}
 		foreach (var entry in configured)
 		{
 			if (!string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
 			{
-				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position, entry.Orientation.RotationDegrees, entry.Orientation.ScaleVector, entry.Orientation.NormalOffset, entry.Index, entry.Orientation.ParentAttachmentId);
+				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position.ToGodotVector3(), entry.Orientation.RotationDegrees.ToGodotVector3(), entry.Orientation.ScaleVector.ToGodotVector3(), entry.Orientation.NormalOffset, entry.Index, entry.Orientation.ParentAttachmentId);
 			}
 		}
 	}
@@ -1513,9 +1514,10 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 		if (matched.HasValue)
 		{
-			_currentPosOffset = matched.Value.Orientation.Position;
-			_currentRotOffset = matched.Value.Orientation.RotationDegrees;
-			_currentScaleOffset = matched.Value.Orientation.ScaleVector == Vector3.Zero ? Vector3.One : matched.Value.Orientation.ScaleVector;
+			_currentPosOffset = matched.Value.Orientation.Position.ToGodotVector3();
+			_currentRotOffset = matched.Value.Orientation.RotationDegrees.ToGodotVector3();
+			var scaleVec = matched.Value.Orientation.ScaleVector.ToGodotVector3();
+			_currentScaleOffset = scaleVec == Vector3.Zero ? Vector3.One : scaleVec;
 			_currentNormalOffset = matched.Value.Orientation.NormalOffset;
 			_currentParentAttachmentId = matched.Value.Orientation.ParentAttachmentId;
 			UpdateSliderDisplayValues();
@@ -1573,7 +1575,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			return;
 		}
 
-		var orientation = new GameHost.HandAttachmentOrientation
+		var orientation = new HandAttachmentOrientation
 		{
 			PositionX = _currentPosOffset.X,
 			PositionY = _currentPosOffset.Y,

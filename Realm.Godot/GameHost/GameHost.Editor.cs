@@ -1789,7 +1789,7 @@ public partial class GameHost
 					if (ModelEnableProceduralAnimations.TryGetValue(key, out bool epVal)) modelMeta.EnableProceduralAnimation = epVal;
 				}
 
-				void UpdateEntityOverrides(List<GameHost.UnitMetadata> entities)
+				void UpdateEntityOverrides(List<UnitMetadata> entities)
 				{
 					if (entities == null) return;
 					for (int i = 0; i < entities.Count; i++)

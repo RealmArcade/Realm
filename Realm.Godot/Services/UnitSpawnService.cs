@@ -41,7 +41,7 @@ internal class UnitSpawnService
 		return modelPathOrId;
 	}
 
-	public int GetUnitPathingFlags(GameHost.UnitMetadata meta)
+	public int GetUnitPathingFlags(UnitMetadata meta)
 	{
 		if (meta.PathingType != 0)
 		{

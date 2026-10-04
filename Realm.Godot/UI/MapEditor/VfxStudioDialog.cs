@@ -759,7 +759,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Direction = val;
+			_currentConfig.ParticleConfig.Direction = val.ToVector3Data();
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -791,7 +791,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Gravity = val;
+			_currentConfig.ParticleConfig.Gravity = val.ToVector3Data();
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -1247,7 +1247,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			float dirX = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0), 2);
 			float dirY = (float)Math.Round(Random.Shared.NextDouble() * 1.5, 2);
 			float dirZ = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0), 2);
-			_currentConfig.ParticleConfig.Direction = new Vector3(dirX, dirY, dirZ).Normalized();
+			_currentConfig.ParticleConfig.Direction = new Vector3(dirX, dirY, dirZ).Normalized().ToVector3Data();
 
 			_currentConfig.ParticleConfig.SpreadDegrees = (float)Math.Round(Random.Shared.NextDouble() * 80.0 + 10.0, 1);
 
@@ -1257,7 +1257,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.ParticleConfig.InitialVelocityMax = vMax;
 
 			float gravY = (float)Math.Round(Random.Shared.NextDouble() * 12.0 - 6.0, 2);
-			_currentConfig.ParticleConfig.Gravity = new Vector3(0.0f, gravY, 0.0f);
+			_currentConfig.ParticleConfig.Gravity = new Vector3(0.0f, gravY, 0.0f).ToVector3Data();
 
 			_currentConfig.ParticleConfig.Damping = (float)Math.Round(Random.Shared.NextDouble() * 4.0, 2);
 			_currentConfig.ParticleConfig.RadialAccel = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 15.0, 2);
@@ -1297,21 +1297,21 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.BaseUvScroll = new Vector2(
 				(float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 1.5, 2),
 				(float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 1.5, 2)
-			);
+			).ToVector2Data();
 			_currentConfig.BaseUvScale = new Vector2(
 				(float)Math.Round(Random.Shared.NextDouble() * 2.5 + 0.5, 2),
 				(float)Math.Round(Random.Shared.NextDouble() * 2.5 + 0.5, 2)
-			);
+			).ToVector2Data();
 
 			_currentConfig.DistortionStrength = (float)Math.Round(Random.Shared.NextDouble() * 0.85 + 0.05, 2);
 			_currentConfig.NoiseUvScroll = new Vector2(
 				(float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 1.5, 2),
 				(float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 1.5, 2)
-			);
+			).ToVector2Data();
 			_currentConfig.NoiseUvScale = new Vector2(
 				(float)Math.Round(Random.Shared.NextDouble() * 2.5 + 0.5, 2),
 				(float)Math.Round(Random.Shared.NextDouble() * 2.5 + 0.5, 2)
-			);
+			).ToVector2Data();
 
 			float baseHue = (float)Random.Shared.NextDouble();
 			Color colBase = Color.FromHsv(baseHue, (float)(Random.Shared.NextDouble() * 0.3 + 0.7), 1.0f);

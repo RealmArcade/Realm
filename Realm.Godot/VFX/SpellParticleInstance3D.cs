@@ -155,7 +155,7 @@ public partial class SpellParticleInstance3D : Node3D
 
 	private void ApplyMotion()
 	{
-		Vector3 dir = _config.Direction;
+		Vector3 dir = _config.Direction.ToGodotVector3();
 		if (dir.LengthSquared() < 0.001f) dir = Vector3.Up;
 		_processMaterial.Direction = dir.Normalized();
 		_processMaterial.Spread = Mathf.Clamp(_config.SpreadDegrees, 0.0f, 180.0f);
@@ -163,9 +163,10 @@ public partial class SpellParticleInstance3D : Node3D
 		_processMaterial.InitialVelocityMin = _config.InitialVelocityMin;
 		_processMaterial.InitialVelocityMax = Math.Max(_config.InitialVelocityMin, _config.InitialVelocityMax);
 
-		_processMaterial.Gravity = _config.Gravity;
-		_processMaterial.LinearAccelMin = _config.LinearAccel.Length() * -0.5f;
-		_processMaterial.LinearAccelMax = _config.LinearAccel.Length();
+		_processMaterial.Gravity = _config.Gravity.ToGodotVector3();
+		Vector3 linearAccel = _config.LinearAccel.ToGodotVector3();
+		_processMaterial.LinearAccelMin = linearAccel.Length() * -0.5f;
+		_processMaterial.LinearAccelMax = linearAccel.Length();
 		_processMaterial.RadialAccelMin = _config.RadialAccel * 0.5f;
 		_processMaterial.RadialAccelMax = _config.RadialAccel;
 		_processMaterial.TangentialAccelMin = _config.TangentialAccel * -0.5f;

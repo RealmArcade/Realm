@@ -370,7 +370,7 @@ public static class AnimationRetargetingService
 		}
 		player.AddAnimationLibrary(string.Empty, new AnimationLibrary());
 
-		Dictionary<string, List<GameHost.UnitAnimationEntry>>? customAnimations = null;
+		Dictionary<string, List<UnitAnimationEntry>>? customAnimations = null;
 		if (!string.IsNullOrEmpty(unitId) && GameHost.Instance != null && GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
 		{
 			customAnimations = meta.Animations;

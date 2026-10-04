@@ -48,8 +48,8 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	private string _currentPreviewRanim = "";
 	private float _currentSpeed = 1.0f;
 
-	private Dictionary<string, List<GameHost.UnitAnimationEntry>> _workingAnimations = new(StringComparer.OrdinalIgnoreCase);
-	private Dictionary<string, List<GameHost.UnitAnimationEntry>> _initialAnimations = new(StringComparer.OrdinalIgnoreCase);
+	private Dictionary<string, List<UnitAnimationEntry>> _workingAnimations = new(StringComparer.OrdinalIgnoreCase);
+	private Dictionary<string, List<UnitAnimationEntry>> _initialAnimations = new(StringComparer.OrdinalIgnoreCase);
 
 	public AnimationPreviewDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Unit Animation Studio"), new Vector2(500, 720))
@@ -211,9 +211,9 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 					string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 					var metadata = MetadataService.Instance.LoadMetadata(wsPath);
 					var unit = metadata.GetUnit(unitId);
-					if (unit.HasValue && !string.IsNullOrEmpty(unit.Value.ModelPath))
+					if (unit != null && !string.IsNullOrEmpty(unit.ModelPath))
 					{
-						modelPath = unit.Value.ModelPath;
+						modelPath = unit.ModelPath;
 					}
 				}
 				catch { }
@@ -253,10 +253,10 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			foreach (var kvp in uMeta.Animations)
 			{
 				var list = kvp.Value != null
-					? new List<GameHost.UnitAnimationEntry>(kvp.Value)
-					: new List<GameHost.UnitAnimationEntry>();
+					? new List<UnitAnimationEntry>(kvp.Value)
+					: new List<UnitAnimationEntry>();
 				_workingAnimations[kvp.Key] = list;
-				_initialAnimations[kvp.Key] = new List<GameHost.UnitAnimationEntry>(list);
+				_initialAnimations[kvp.Key] = new List<UnitAnimationEntry>(list);
 			}
 		}
 
@@ -267,15 +267,15 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 				var metadata = MetadataService.Instance.LoadMetadata(wsPath);
 				var unit = metadata.GetUnit(_currentUnitId);
-				if (unit.HasValue && unit.Value.Animations != null)
+				if (unit != null && unit.Animations != null)
 				{
-					foreach (var kvp in unit.Value.Animations)
+					foreach (var kvp in unit.Animations)
 					{
 						var list = kvp.Value != null
-							? new List<GameHost.UnitAnimationEntry>(kvp.Value)
-							: new List<GameHost.UnitAnimationEntry>();
+							? new List<UnitAnimationEntry>(kvp.Value)
+							: new List<UnitAnimationEntry>();
 						_workingAnimations[kvp.Key] = list;
-						_initialAnimations[kvp.Key] = new List<GameHost.UnitAnimationEntry>(list);
+						_initialAnimations[kvp.Key] = new List<UnitAnimationEntry>(list);
 					}
 				}
 			}
@@ -560,7 +560,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		if (!_workingAnimations.TryGetValue(actionType, out var list) || list == null)
 		{
-			list = new List<GameHost.UnitAnimationEntry>();
+			list = new List<UnitAnimationEntry>();
 			_workingAnimations[actionType] = list;
 		}
 
@@ -572,7 +572,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			return;
 		}
 
-		list.Add(new GameHost.UnitAnimationEntry
+		list.Add(new UnitAnimationEntry
 		{
 			Animation = animFile
 		});
@@ -763,11 +763,12 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			loaded.SetMeta("AttachmentId", entry.AttachmentId);
 			loaded.SetMeta("CleanAttachmentId", cleanAttId);
 
-			loaded.Position = entry.Orientation.Position + (loaded.Transform.Basis.Y * entry.Orientation.NormalOffset);
-			loaded.RotationDegrees = entry.Orientation.RotationDegrees;
-			loaded.Scale = entry.Orientation.ScaleVector == Vector3.Zero
+			loaded.Position = entry.Orientation.Position.ToGodotVector3() + (loaded.Transform.Basis.Y * entry.Orientation.NormalOffset);
+			loaded.RotationDegrees = entry.Orientation.RotationDegrees.ToGodotVector3();
+			var scaleVec = entry.Orientation.ScaleVector.ToGodotVector3();
+			loaded.Scale = scaleVec == Vector3.Zero
 				? Vector3.One * (entry.Orientation.Scale <= 0f ? 1.0f : entry.Orientation.Scale)
-				: entry.Orientation.ScaleVector;
+				: scaleVec;
 
 			bool isVisible = !_attachmentVisibilities.TryGetValue(key, out bool vis) || vis;
 			loaded.Visible = isVisible;

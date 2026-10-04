@@ -1954,7 +1954,6 @@ public partial class MapEditorHUD : Control
 		catch (Exception ex)
 		{
 			GD.PrintErr($"CRITICAL ERROR IN MAPEDITORHUD _READY: {ex}");
-			System.IO.File.WriteAllText(@"C:\temp\Realm\ready_exception.txt", ex.ToString());
 			throw;
 		}
 	}
@@ -10440,7 +10439,7 @@ public partial class MapEditorHUD : Control
 
 	public WeaponVfxDialog WeaponVfxDialog => _weaponVfxDialog;
 
-	public void OpenWeaponVfxDialog(string weaponId, GameHost.WeaponMetadata weapon, Action<GameHost.WeaponMetadata> onApplied = null)
+	public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata> onApplied = null)
 	{
 		if (_weaponVfxDialog == null)
 		{
@@ -10476,7 +10475,7 @@ public partial class MapEditorHUD : Control
 		string attachmentId = null, 
 		string hand = "RightHand", 
 		Node3D sourceModel = null, 
-		Action<GameHost.HandAttachmentOrientation> onApplied = null)
+		Action<HandAttachmentOrientation> onApplied = null)
 	{
 		if (_objectAttachmentDialog == null)
 		{
@@ -10485,7 +10484,7 @@ public partial class MapEditorHUD : Control
 		_objectAttachmentDialog.OpenForUnitAndAttachment(unitId, attachmentId, hand, sourceModel, onApplied);
 	}
 
-	public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, GameHost.HandAttachmentOrientation orientation)
+	public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation)
 	{
 		string handKey = hand switch
 		{
@@ -10501,7 +10500,7 @@ public partial class MapEditorHUD : Control
 		SaveUnitObjectAttachment(unitId, handKey, attachmentId, orientation);
 	}
 
-	public void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, GameHost.HandAttachmentOrientation orientation)
+	public void SaveUnitObjectAttachment(string unitId, string socket, string attachmentId, HandAttachmentOrientation orientation)
 	{
 		try
 		{
@@ -10729,7 +10728,7 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
-	public void RestoreUnitObjectAttachments(string targetId, GameHost.UnitObjectAttachments? snapshot)
+	public void RestoreUnitObjectAttachments(string targetId, UnitObjectAttachments? snapshot)
 	{
 		try
 		{
@@ -10791,12 +10790,12 @@ public partial class MapEditorHUD : Control
 
 			if (isBuildingMeta && GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(regKey, out var bMeta))
 			{
-				bMeta.ObjectAttachments = (snapshot.HasValue && snapshot.Value.HasAny()) ? snapshot?.Clone() : null;
+				bMeta.ObjectAttachments = (snapshot != null && snapshot.HasAny()) ? snapshot?.Clone() : null;
 				GameHost.BuildingRegistry[regKey] = bMeta;
 			}
 			else if (GameHost.UnitRegistry.TryGetValue(regKey, out var uMeta))
 			{
-				uMeta.ObjectAttachments = (snapshot.HasValue && snapshot.Value.HasAny()) ? snapshot?.Clone() : null;
+				uMeta.ObjectAttachments = (snapshot != null && snapshot.HasAny()) ? snapshot?.Clone() : null;
 				GameHost.UnitRegistry[regKey] = uMeta;
 			}
 
@@ -10808,7 +10807,7 @@ public partial class MapEditorHUD : Control
 			{
 				MetadataService.Instance.UpdateMetadata(wsPath, meta =>
 				{
-					var atts = (snapshot.HasValue && snapshot.Value.HasAny()) ? snapshot?.Clone() : null;
+					var atts = (snapshot != null && snapshot.HasAny()) ? snapshot?.Clone() : null;
 					bool updated = meta.UpdateUnit(targetId, u => { u.ObjectAttachments = atts; return u; });
 					if (!updated) updated = meta.UpdateBuilding(targetId, b => { b.ObjectAttachments = atts; return b; });
 					if (!updated) updated = meta.UpdateUnit(regKey, u => { u.ObjectAttachments = atts; return u; });
@@ -10845,12 +10844,12 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
-	public void SaveAllUnitObjectAttachments(string targetId, GameHost.UnitObjectAttachments? attachments)
+	public void SaveAllUnitObjectAttachments(string targetId, UnitObjectAttachments? attachments)
 	{
 		RestoreUnitObjectAttachments(targetId, attachments);
 	}
 
-	public void SaveCustomWeaponToMetadata(string weaponId, GameHost.WeaponMetadata weapon)
+	public void SaveCustomWeaponToMetadata(string weaponId, WeaponMetadata weapon)
 	{
 		try
 		{
@@ -10927,7 +10926,7 @@ public partial class MapEditorHUD : Control
 		}
 	}
 
-	public void SaveCustomUnitAnimations(string unitId, Dictionary<string, List<GameHost.UnitAnimationEntry>> animations)
+	public void SaveCustomUnitAnimations(string unitId, Dictionary<string, List<UnitAnimationEntry>> animations)
 	{
 		try
 		{
@@ -10959,13 +10958,13 @@ public partial class MapEditorHUD : Control
 
 	public void SaveCustomUnitAnimations(string unitId, Dictionary<string, string[]> animations)
 	{
-		var converted = new Dictionary<string, List<GameHost.UnitAnimationEntry>>(StringComparer.OrdinalIgnoreCase);
+		var converted = new Dictionary<string, List<UnitAnimationEntry>>(StringComparer.OrdinalIgnoreCase);
 		if (animations != null)
 		{
 			foreach (var kvp in animations)
 			{
 				converted[kvp.Key] = (kvp.Value ?? Array.Empty<string>())
-					.Select(s => new GameHost.UnitAnimationEntry { Animation = s })
+					.Select(s => new UnitAnimationEntry { Animation = s })
 					.ToList();
 			}
 		}
@@ -10981,7 +10980,7 @@ public partial class MapEditorHUD : Control
 		_shaderEditorDialog.OpenForShader(shaderKey, onSaved);
 	}
 
-	public void OpenProceduralAnimationStudioDialog(Realm.Godot.VFX.ProceduralAnimationConfig initialConfig = null, Action<Realm.Godot.VFX.ProceduralAnimationConfig> onApplied = null, string previewModelKey = null)
+	public void OpenProceduralAnimationStudioDialog(ProceduralAnimationConfig initialConfig = null, Action<ProceduralAnimationConfig> onApplied = null, string previewModelKey = null)
 	{
 		if (_proceduralAnimationStudioDialog == null)
 		{

@@ -9,10 +9,10 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	public VisualProjectile3D PreviewProjectile => _previewProjectile;
 
-	private GameHost.WeaponMetadata _initialWeapon;
-	private GameHost.WeaponMetadata _currentWeapon;
+	private WeaponMetadata _initialWeapon = new();
+	private WeaponMetadata _currentWeapon = new();
 	private string _weaponId = "";
-	private Action<GameHost.WeaponMetadata> _onAppliedCallback;
+	private Action<WeaponMetadata> _onAppliedCallback;
 	private bool _isUpdatingUI;
 
 	private bool _isPlaybackPaused;
@@ -283,10 +283,10 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			_currentWeapon.PierceCount = (int)val;
 		}, "0", 140f);
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Tumble Angular Vel"), _currentWeapon.TumbleAngularVelocity, (val) =>
+		AddVector3Input(scrollBody, TranslationServer.Translate("Tumble Angular Vel"), _currentWeapon.TumbleAngularVelocity.ToGodotVector3(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.TumbleAngularVelocity = val;
+			_currentWeapon.TumbleAngularVelocity = val.ToVector3Data();
 		}, 140f);
 
 		AddVector2Input(scrollBody, TranslationServer.Translate("Spiral (Rad / Freq)"), new Vector2(_currentWeapon.SpiralRadius, _currentWeapon.SpiralFrequency), (val) =>
@@ -312,24 +312,25 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			RestartPreviewProjectile();
 		}, 140f);
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Translation Offset"), _currentWeapon.MeshTranslationOffset, (val) =>
+		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Translation Offset"), _currentWeapon.MeshTranslationOffset.ToGodotVector3(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.MeshTranslationOffset = val;
+			_currentWeapon.MeshTranslationOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Rotation Offset"), _currentWeapon.MeshRotationOffset, (val) =>
+		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Rotation Offset"), _currentWeapon.MeshRotationOffset.ToGodotVector3(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.MeshRotationOffset = val;
+			_currentWeapon.MeshRotationOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Scale Offset"), _currentWeapon.MeshScaleOffset == Vector3.Zero ? Vector3.One : _currentWeapon.MeshScaleOffset, (val) =>
+		Vector3 meshScale = _currentWeapon.MeshScaleOffset.ToGodotVector3();
+		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Scale Offset"), meshScale == Vector3.Zero ? Vector3.One : meshScale, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.MeshScaleOffset = val;
+			_currentWeapon.MeshScaleOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
@@ -419,17 +420,17 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			140f
 		);
 
-		AddVector2Input(scrollBody, TranslationServer.Translate("UV Scroll 1 (X, Y)"), _currentWeapon.UvScrollSpeed1, (val) =>
+		AddVector2Input(scrollBody, TranslationServer.Translate("UV Scroll 1 (X, Y)"), _currentWeapon.UvScrollSpeed1.ToGodotVector2(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.UvScrollSpeed1 = val;
+			_currentWeapon.UvScrollSpeed1 = val.ToVector2Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
-		AddVector2Input(scrollBody, TranslationServer.Translate("UV Scroll 2 (X, Y)"), _currentWeapon.UvScrollSpeed2, (val) =>
+		AddVector2Input(scrollBody, TranslationServer.Translate("UV Scroll 2 (X, Y)"), _currentWeapon.UvScrollSpeed2.ToGodotVector2(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.UvScrollSpeed2 = val;
+			_currentWeapon.UvScrollSpeed2 = val.ToVector2Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
@@ -528,15 +529,15 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			RestartPreviewProjectile();
 		});
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Trail Offset"), _currentWeapon.TrailOffset, (val) =>
+		AddVector3Input(scrollBody, TranslationServer.Translate("Trail Offset"), _currentWeapon.TrailOffset.ToGodotVector3(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.TrailOffset = val;
+			_currentWeapon.TrailOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
 	}
 
-	public void OpenForWeapon(string weaponId, GameHost.WeaponMetadata weapon, Action<GameHost.WeaponMetadata> onApplied = null)
+	public void OpenForWeapon(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata> onApplied = null)
 	{
 		_weaponId = weaponId;
 		_initialWeapon = weapon;

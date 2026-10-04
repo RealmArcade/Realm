@@ -643,7 +643,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						});
 						if (!updatedU)
 						{
-							meta.AddOrUpdateUnit(new GameHost.UnitMetadata
+							meta.AddOrUpdateUnit(new UnitMetadata
 							{
 								TemplateID = unitId,
 								Name = unitId,
@@ -665,7 +665,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						});
 						if (!updatedB)
 						{
-							meta.AddOrUpdateBuilding(new GameHost.UnitMetadata
+							meta.AddOrUpdateBuilding(new UnitMetadata
 							{
 								TemplateID = unitId,
 								Name = unitId,
@@ -687,7 +687,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						});
 						if (!updatedR)
 						{
-							meta.AddOrUpdateResource(new GameHost.ResourceMetadata
+							meta.AddOrUpdateResource(new ResourceMetadata
 							{
 								TemplateID = unitId,
 								Name = unitId,
@@ -710,7 +710,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						});
 						if (!updatedP)
 						{
-							meta.AddOrUpdateProp(new GameHost.PropMetadata
+							meta.AddOrUpdateProp(new PropMetadata
 							{
 								TemplateID = unitId,
 								Name = unitId,

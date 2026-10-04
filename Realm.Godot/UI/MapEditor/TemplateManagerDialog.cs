@@ -519,10 +519,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				{
 					foreach (var kvp in meta.VfxSpritesheets)
 					{
-						var sheetObj = kvp.Value as JsonObject;
-						int cols = sheetObj?["columns"]?.GetValue<int>() ?? 1;
-						int rows = sheetObj?["rows"]?.GetValue<int>() ?? 1;
-						float fps = sheetObj?["fps"]?.GetValue<float>() ?? 20.0f;
+						var sheetObj = kvp.Value;
+						int cols = sheetObj?.Columns ?? 1;
+						int rows = sheetObj?.Rows ?? 1;
+						float fps = sheetObj?.Fps ?? 20.0f;
 						list.Add(new ObjectItemInfo
 						{
 							Category = "spritesheets",
@@ -709,9 +709,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				JsonObject curTerData = new JsonObject();
 				if (MetadataService.Instance.TryLoadMetadata(wsPathTer, out var metaTer) && metaTer?.Textures != null)
 				{
-					if (metaTer.Textures.TryGetValue(item.TemplateID, out var tNode) && tNode is JsonObject tObj)
+					if (metaTer.Textures.TryGetValue(item.TemplateID, out var tNode) && tNode != null)
 					{
-						curTerData = (JsonObject)tObj.DeepClone();
+						curTerData = System.Text.Json.JsonSerializer.SerializeToNode(tNode) as JsonObject ?? new JsonObject();
 					}
 				}
 				_textureEditDialog.OpenForTexture(item.TemplateID, curTerData, updatedObj =>
@@ -719,7 +719,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					MetadataService.Instance.UpdateMetadata(wsPathTer, m =>
 					{
 						m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-						m.Textures[item.TemplateID] = updatedObj;
+						m.Textures[item.TemplateID] = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(updatedObj.ToJsonString()) ?? new TextureMetadata();
 					});
 					RefreshObjectList();
 				});
@@ -733,12 +733,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				bool initBlend = true;
 				if (MetadataService.Instance.TryLoadMetadata(wsPathSpr, out var metaSpr) && metaSpr?.VfxSpritesheets != null)
 				{
-					if (metaSpr.VfxSpritesheets.TryGetValue(item.TemplateID, out var sNode) && sNode is JsonObject sObj)
+					if (metaSpr.VfxSpritesheets.TryGetValue(item.TemplateID, out var sNode) && sNode != null)
 					{
-						initCols = sObj["columns"]?.GetValue<int>() ?? 1;
-						initRows = sObj["rows"]?.GetValue<int>() ?? 1;
-						initFps = sObj["fps"]?.GetValue<float>() ?? 20.0f;
-						initBlend = sObj["subframe_blend"]?.GetValue<bool>() ?? true;
+						initCols = sNode.Columns > 0 ? sNode.Columns : 1;
+						initRows = sNode.Rows > 0 ? sNode.Rows : 1;
+						initFps = sNode.Fps > 0 ? sNode.Fps : 20.0f;
+						initBlend = sNode.SubframeBlend;
 					}
 				}
 				_spritesheetEditDialog.OpenForSheet(item.TemplateID, initCols, initRows, initFps, initBlend, (cols, rows, fps, blend) =>
@@ -746,12 +746,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					MetadataService.Instance.UpdateMetadata(wsPathSpr, m =>
 					{
 						m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-						m.VfxSpritesheets[item.TemplateID] = new JsonObject
+						m.VfxSpritesheets[item.TemplateID] = new VfxMetadata
 						{
-							["columns"] = cols,
-							["rows"] = rows,
-							["fps"] = fps,
-							["subframe_blend"] = blend
+							Columns = cols,
+							Rows = rows,
+							Fps = fps,
+							SubframeBlend = blend
 						};
 					});
 					RefreshObjectList();
@@ -763,9 +763,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				JsonObject curDecData = new JsonObject();
 				if (MetadataService.Instance.TryLoadMetadata(wsPathDec, out var metaDec) && metaDec?.Decals != null)
 				{
-					if (metaDec.Decals.TryGetValue(item.TemplateID, out var dNode) && dNode is JsonObject dObj)
+					if (metaDec.Decals.TryGetValue(item.TemplateID, out var dNode) && dNode != null)
 					{
-						curDecData = (JsonObject)dObj.DeepClone();
+						curDecData = System.Text.Json.JsonSerializer.SerializeToNode(dNode) as JsonObject ?? new JsonObject();
 					}
 				}
 				_decalEditDialog.OpenForDecal(item.TemplateID, curDecData, updatedObj =>
@@ -773,7 +773,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					MetadataService.Instance.UpdateMetadata(wsPathDec, m =>
 					{
 						m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
-						m.Decals[item.TemplateID] = updatedObj;
+						m.Decals[item.TemplateID] = System.Text.Json.JsonSerializer.Deserialize<DecalMetadata>(updatedObj.ToJsonString()) ?? new DecalMetadata();
 					});
 					RefreshObjectList();
 				});
@@ -786,7 +786,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					MetadataService.Instance.UpdateMetadata(wsPathSha, m =>
 					{
 						m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
-						m.Shaders[item.TemplateID] = updatedConfig != null ? JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(updatedConfig)) ?? new JsonObject() : new JsonObject();
+						m.Shaders[item.TemplateID] = new ShaderMetadata();
 					});
 					RefreshObjectList();
 				});
@@ -836,7 +836,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			switch (category)
 			{
 				case "units":
-					m.AddOrUpdateUnit(new GameHost.UnitMetadata
+					m.AddOrUpdateUnit(new UnitMetadata
 					{
 						TemplateID = newTemplateID,
 						Name = parsedSlug,
@@ -857,7 +857,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					break;
 
 				case "buildings":
-					m.AddOrUpdateBuilding(new GameHost.UnitMetadata
+					m.AddOrUpdateBuilding(new UnitMetadata
 					{
 						TemplateID = newTemplateID,
 						Name = parsedSlug,
@@ -874,7 +874,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					break;
 
 				case "resources":
-					m.AddOrUpdateResource(new GameHost.ResourceMetadata
+					m.AddOrUpdateResource(new ResourceMetadata
 					{
 						TemplateID = newTemplateID,
 						Name = parsedSlug,
@@ -888,7 +888,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					break;
 
 				case "props":
-					m.AddOrUpdateProp(new GameHost.PropMetadata
+					m.AddOrUpdateProp(new PropMetadata
 					{
 						TemplateID = newTemplateID,
 						Name = parsedSlug,
@@ -899,7 +899,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					break;
 
 				case "weapons":
-					m.AddOrUpdateWeapon(new GameHost.WeaponMetadata
+					m.AddOrUpdateWeapon(new WeaponMetadata
 					{
 						TemplateID = newTemplateID,
 						Name = parsedSlug,
@@ -914,7 +914,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					break;
 
 				case "abilities":
-					m.AddOrUpdateAbility(new GameHost.AbilityMetadata
+					m.AddOrUpdateAbility(new AbilityMetadata
 					{
 						TemplateID = newTemplateID,
 						Name = parsedSlug,
@@ -926,7 +926,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					break;
 
 				case "upgrades":
-					m.AddOrUpdateUpgrade(new GameHost.UpgradeMetadata
+					m.AddOrUpdateUpgrade(new UpgradeMetadata
 					{
 						TemplateID = newTemplateID,
 						Name = parsedSlug,
@@ -935,7 +935,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					break;
 
 				case "items":
-					m.AddOrUpdateItem(new GameHost.ItemMetadata
+					m.AddOrUpdateItem(new ItemMetadata
 					{
 						TemplateID = newTemplateID,
 						Name = parsedSlug,
@@ -946,40 +946,33 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 				case "terrain":
 					m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-					m.Textures[newTemplateID] = new JsonObject
+					m.Textures[newTemplateID] = new TextureMetadata
 					{
-						["TileMode"] = "Stochastic",
-						["UvScale"] = 1.0f,
-						["Brightness"] = 1.0f
+						TileMode = "Stochastic",
+						UvScale = 1.0f,
+						Brightness = 1.0f
 					};
 					break;
 
 				case "spritesheets":
 					m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-					m.VfxSpritesheets[newTemplateID] = new JsonObject
+					m.VfxSpritesheets[newTemplateID] = new VfxMetadata
 					{
-						["columns"] = 4,
-						["rows"] = 4,
-						["fps"] = 20.0f,
-						["subframe_blend"] = true
+						Columns = 4,
+						Rows = 4,
+						Fps = 20.0f,
+						SubframeBlend = true
 					};
 					break;
 
 				case "decals":
 					m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
-					m.Decals[newTemplateID] = new JsonObject
-					{
-						["size"] = new JsonArray { 2, 2 }
-					};
+					m.Decals[newTemplateID] = new DecalMetadata();
 					break;
 
 				case "shaders" or "shader":
 					m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
-					m.Shaders[newTemplateID] = new JsonObject
-					{
-						["Name"] = parsedSlug,
-						["Key"] = newTemplateID
-					};
+					m.Shaders[newTemplateID] = new ShaderMetadata();
 					break;
 			}
 		});

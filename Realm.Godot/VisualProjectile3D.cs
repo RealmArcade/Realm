@@ -34,7 +34,7 @@ public partial class VisualProjectile3D : Node3D
 		_sharedUberShader = null;
 	}
 
-	private GameHost.WeaponMetadata _weapon;
+	private WeaponMetadata _weapon;
 	private Vector3 _startPosition;
 	private Vector3 _targetPosition;
 	private Vector3 _initialTargetPosition;
@@ -68,7 +68,7 @@ public partial class VisualProjectile3D : Node3D
 	public MeshInstance3D RibbonMeshInstance => _ribbonMeshInstance;
 	public ShaderMaterial UberShaderMaterial => _uberShaderMaterial;
 	public StandardMaterial3D RibbonMaterial => _ribbonMaterial;
-	public GameHost.WeaponMetadata Weapon => _weapon;
+	public WeaponMetadata Weapon => _weapon;
 	public float ElapsedFlightTime => _elapsedTime;
 	public float TotalFlightDuration => _totalFlightDuration;
 
@@ -173,7 +173,7 @@ public partial class VisualProjectile3D : Node3D
 		_ribbonMeshInstance.Rotation = Vector3.Zero;
 	}
 
-	public void Initialize(GameHost.WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)
+	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
 		Initialize(start, target, weapon, targetEntity);
@@ -188,7 +188,7 @@ public partial class VisualProjectile3D : Node3D
 		}
 		else
 		{
-			var fallback = new GameHost.WeaponMetadata
+			var fallback = new WeaponMetadata
 			{
 				TemplateID = weaponId ?? "arrow",
 				ProjectileSpeed = 25f,
@@ -198,7 +198,7 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
-	public void Initialize(Vector3 start, Vector3 target, GameHost.WeaponMetadata weapon, Entity targetEntity = default)
+	public void Initialize(Vector3 start, Vector3 target, WeaponMetadata weapon, Entity targetEntity = default)
 	{
 		_weapon = weapon;
 		_startPosition = start;
@@ -225,7 +225,7 @@ public partial class VisualProjectile3D : Node3D
 
 		UpdateVisualTransform();
 
-		Vector3 tumble = weapon.TumbleAngularVelocity;
+		Vector3 tumble = weapon.TumbleAngularVelocity.ToGodotVector3();
 		if (tumble.LengthSquared() > 0.001f)
 		{
 			_tumbleAxis = tumble.Normalized();
@@ -257,17 +257,18 @@ public partial class VisualProjectile3D : Node3D
 
 	private void UpdateVisualTransform()
 	{
-		_visualTransformContainer.Position = _weapon.MeshTranslationOffset;
+		_visualTransformContainer.Position = _weapon.MeshTranslationOffset.ToGodotVector3();
 
 		Vector3 baseEuler = GetForwardAxisEulerDegrees(_weapon.ForwardAxisPreset);
-		Vector3 totalEuler = baseEuler + _weapon.MeshRotationOffset;
+		Vector3 totalEuler = baseEuler + _weapon.MeshRotationOffset.ToGodotVector3();
 		_visualTransformContainer.Rotation = new Vector3(
 			Mathf.DegToRad(totalEuler.X),
 			Mathf.DegToRad(totalEuler.Y),
 			Mathf.DegToRad(totalEuler.Z)
 		);
 
-		Vector3 baseScale = (_weapon.MeshScaleOffset == Vector3.Zero) ? Vector3.One : _weapon.MeshScaleOffset;
+		Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
+		Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
 		baseScale = SafeScale(baseScale);
 		float initialScaleFactor = Mathf.Max(0.001f, CalculateScaleOverLifetime(0.0f, _weapon.ScaleCurve));
 		_visualTransformContainer.Scale = SafeScale(baseScale * initialScaleFactor);
@@ -389,8 +390,8 @@ public partial class VisualProjectile3D : Node3D
 		mat.SetShaderParameter("fresnel_color", fresnelCol);
 		mat.SetShaderParameter("fresnel_factor", _weapon.FresnelFactor);
 		mat.SetShaderParameter("noise_scale", _weapon.NoiseScale > 0.01f ? _weapon.NoiseScale : 3.0f);
-		mat.SetShaderParameter("uv_scroll_speed_1", _weapon.UvScrollSpeed1);
-		mat.SetShaderParameter("uv_scroll_speed_2", _weapon.UvScrollSpeed2);
+		mat.SetShaderParameter("uv_scroll_speed_1", _weapon.UvScrollSpeed1.ToGodotVector2());
+		mat.SetShaderParameter("uv_scroll_speed_2", _weapon.UvScrollSpeed2.ToGodotVector2());
 		mat.SetShaderParameter("threshold_cutoff", _weapon.ThresholdCutoff);
 		mat.SetShaderParameter("threshold_smoothness", _weapon.ThresholdSmoothness > 0.001f ? _weapon.ThresholdSmoothness : 0.1f);
 
@@ -724,12 +725,13 @@ public partial class VisualProjectile3D : Node3D
 
 		_meshContainer.RotateObjectLocal(_tumbleAxis, _tumbleSpeed * dt);
 
-		Vector3 baseScale = (_weapon.MeshScaleOffset == Vector3.Zero) ? Vector3.One : _weapon.MeshScaleOffset;
+		Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
+		Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
 		baseScale = SafeScale(baseScale);
 		float lifetimeScale = Mathf.Max(0.001f, CalculateScaleOverLifetime(rawT, _weapon.ScaleCurve));
 		_visualTransformContainer.Scale = SafeScale(baseScale * lifetimeScale);
 
-		Vector3 trailPos = GlobalPosition + GlobalTransform.Basis * _weapon.TrailOffset;
+		Vector3 trailPos = GlobalPosition + GlobalTransform.Basis * _weapon.TrailOffset.ToGodotVector3();
 		UpdateTrail(dt, trailPos);
 	}
 

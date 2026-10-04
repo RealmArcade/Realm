@@ -698,10 +698,10 @@ public partial class Unit3D : Prop3D
 			{
 				if (!scaleOverride.HasValue && !scaleVectorOverride.HasValue)
 				{
-					effectiveScaleVec = unitOrient.ScaleVector;
+					effectiveScaleVec = unitOrient.ScaleVector.ToGodotVector3();
 				}
-				if (!posOffsetOverride.HasValue) effectivePos = unitOrient.Position;
-				if (!rotOffsetOverride.HasValue) effectiveRot = unitOrient.RotationDegrees;
+				if (!posOffsetOverride.HasValue) effectivePos = unitOrient.Position.ToGodotVector3();
+				if (!rotOffsetOverride.HasValue) effectiveRot = unitOrient.RotationDegrees.ToGodotVector3();
 				if (!normalOffsetOverride.HasValue) effectiveNormalOffset = unitOrient.NormalOffset;
 			}
 
@@ -779,12 +779,12 @@ public partial class Unit3D : Prop3D
 
 		if (string.IsNullOrEmpty(UnitId) ||
 			!GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var uMeta) ||
-			!uMeta.ObjectAttachments.HasValue)
+			uMeta.ObjectAttachments == null)
 		{
 			return;
 		}
 
-		var atts = uMeta.ObjectAttachments.Value;
+		var atts = uMeta.ObjectAttachments;
 		var parentNode = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : (Node3D)this;
 		var skeleton = FindSkeleton(parentNode);
 		bool isNonRigged = IsBuilding || skeleton == null;
@@ -813,7 +813,7 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	private void ApplyBoneAttachmentList(HumanoidBone bone, List<Dictionary<string, GameHost.HandAttachmentOrientation>>? list)
+	private void ApplyBoneAttachmentList(HumanoidBone bone, List<Dictionary<string, HandAttachmentOrientation>>? list)
 	{
 		if (list == null) return;
 		foreach (var dict in list)
@@ -823,7 +823,7 @@ public partial class Unit3D : Prop3D
 			{
 				if (string.IsNullOrEmpty(kvp.Value.ParentAttachmentId))
 				{
-					SetSocketAttachment(bone, kvp.Key, kvp.Value.Position, kvp.Value.RotationDegrees, kvp.Value.Scale, kvp.Value.ScaleVector, kvp.Value.NormalOffset, false, null);
+					SetSocketAttachment(bone, kvp.Key, kvp.Value.Position.ToGodotVector3(), kvp.Value.RotationDegrees.ToGodotVector3(), kvp.Value.Scale, kvp.Value.ScaleVector.ToGodotVector3(), kvp.Value.NormalOffset, false, null);
 				}
 			}
 		}
@@ -834,13 +834,13 @@ public partial class Unit3D : Prop3D
 			{
 				if (!string.IsNullOrEmpty(kvp.Value.ParentAttachmentId))
 				{
-					SetSocketAttachment(bone, kvp.Key, kvp.Value.Position, kvp.Value.RotationDegrees, kvp.Value.Scale, kvp.Value.ScaleVector, kvp.Value.NormalOffset, false, kvp.Value.ParentAttachmentId);
+					SetSocketAttachment(bone, kvp.Key, kvp.Value.Position.ToGodotVector3(), kvp.Value.RotationDegrees.ToGodotVector3(), kvp.Value.Scale, kvp.Value.ScaleVector.ToGodotVector3(), kvp.Value.NormalOffset, false, kvp.Value.ParentAttachmentId);
 				}
 			}
 		}
 	}
 
-	private void ApplyPseudoSocketAttachmentList(string socket, List<Dictionary<string, GameHost.HandAttachmentOrientation>>? list)
+	private void ApplyPseudoSocketAttachmentList(string socket, List<Dictionary<string, HandAttachmentOrientation>>? list)
 	{
 		if (list == null) return;
 		foreach (var dict in list)
@@ -850,7 +850,7 @@ public partial class Unit3D : Prop3D
 			{
 				if (string.IsNullOrEmpty(kvp.Value.ParentAttachmentId))
 				{
-					SetPseudoSocketAttachment(socket, kvp.Key, kvp.Value.Position, kvp.Value.RotationDegrees, kvp.Value.Scale, kvp.Value.ScaleVector, kvp.Value.NormalOffset, false, null);
+					SetPseudoSocketAttachment(socket, kvp.Key, kvp.Value.Position.ToGodotVector3(), kvp.Value.RotationDegrees.ToGodotVector3(), kvp.Value.Scale, kvp.Value.ScaleVector.ToGodotVector3(), kvp.Value.NormalOffset, false, null);
 				}
 			}
 		}
@@ -861,7 +861,7 @@ public partial class Unit3D : Prop3D
 			{
 				if (!string.IsNullOrEmpty(kvp.Value.ParentAttachmentId))
 				{
-					SetPseudoSocketAttachment(socket, kvp.Key, kvp.Value.Position, kvp.Value.RotationDegrees, kvp.Value.Scale, kvp.Value.ScaleVector, kvp.Value.NormalOffset, false, kvp.Value.ParentAttachmentId);
+					SetPseudoSocketAttachment(socket, kvp.Key, kvp.Value.Position.ToGodotVector3(), kvp.Value.RotationDegrees.ToGodotVector3(), kvp.Value.Scale, kvp.Value.ScaleVector.ToGodotVector3(), kvp.Value.NormalOffset, false, kvp.Value.ParentAttachmentId);
 				}
 			}
 		}
@@ -1052,10 +1052,10 @@ public partial class Unit3D : Prop3D
 			{
 				if (!scaleOverride.HasValue && !scaleVectorOverride.HasValue)
 				{
-					effectiveScaleVec = unitOrient.ScaleVector;
+					effectiveScaleVec = unitOrient.ScaleVector.ToGodotVector3();
 				}
-				if (!posOffsetOverride.HasValue) effectivePos = unitOrient.Position;
-				if (!rotOffsetOverride.HasValue) effectiveRot = unitOrient.RotationDegrees;
+				if (!posOffsetOverride.HasValue) effectivePos = unitOrient.Position.ToGodotVector3();
+				if (!rotOffsetOverride.HasValue) effectiveRot = unitOrient.RotationDegrees.ToGodotVector3();
 				if (!normalOffsetOverride.HasValue) effectiveNormalOffset = unitOrient.NormalOffset;
 			}
 
@@ -1158,8 +1158,8 @@ public partial class Unit3D : Prop3D
 
 			var vfxInstance = new ProceduralVfxInstance3D(config);
 			defaultScale = 1.0f;
-			defaultPos = config.PositionOffset;
-			defaultRot = config.RotationOffset;
+			defaultPos = config.PositionOffset.ToGodotVector3();
+			defaultRot = config.RotationOffset.ToGodotVector3();
 			return vfxInstance;
 		}
 
@@ -1167,8 +1167,8 @@ public partial class Unit3D : Prop3D
 		{
 			var vfxInstance = new ProceduralVfxInstance3D(vfxCfg.Clone());
 			defaultScale = 1.0f;
-			defaultPos = vfxCfg.PositionOffset;
-			defaultRot = vfxCfg.RotationOffset;
+			defaultPos = vfxCfg.PositionOffset.ToGodotVector3();
+			defaultRot = vfxCfg.RotationOffset.ToGodotVector3();
 			return vfxInstance;
 		}
 
@@ -1177,21 +1177,21 @@ public partial class Unit3D : Prop3D
 			var cfg = new VfxAttachmentConfig { VfxId = attachmentId, PrimitiveType = parsedPrim };
 			var vfxInstance = new ProceduralVfxInstance3D(cfg);
 			defaultScale = 1.0f;
-			defaultPos = cfg.PositionOffset;
-			defaultRot = cfg.RotationOffset;
+			defaultPos = cfg.PositionOffset.ToGodotVector3();
+			defaultRot = cfg.RotationOffset.ToGodotVector3();
 			return vfxInstance;
 		}
 
 		string modelPath = string.Empty;
-		GameHost.AttachmentMetadata? attMeta = null;
+		AttachmentMetadata? attMeta = null;
 
 		if (GameHost.AttachmentRegistry.TryGetValue(attachmentId, out var meta))
 		{
 			attMeta = meta;
 			modelPath = meta.ModelPath;
 			defaultScale = meta.Scale <= 0f ? 1.0f : meta.Scale;
-			defaultPos = meta.PositionOffset;
-			defaultRot = meta.RotationOffset;
+			defaultPos = meta.PositionOffset.ToGodotVector3();
+			defaultRot = meta.RotationOffset.ToGodotVector3();
 		}
 		else if (GameHost.PropRegistry.TryGetValue(attachmentId, out var propMeta) && !string.IsNullOrEmpty(propMeta.ModelPath))
 		{
@@ -1218,19 +1218,20 @@ public partial class Unit3D : Prop3D
 
 		if (loaded is Node3D loadedNode)
 		{
-			if (attMeta.HasValue && !string.IsNullOrEmpty(attMeta.Value.ChildVfxId))
+			if (attMeta != null && !string.IsNullOrEmpty(attMeta.ChildVfxId))
 			{
-				var childVfx = ResolveAndInstantiateAttachment(attMeta.Value.ChildVfxId, out _, out _, out _);
+				var childVfx = ResolveAndInstantiateAttachment(attMeta.ChildVfxId, out _, out _, out _);
 				if (childVfx != null)
 				{
-					childVfx.Position = attMeta.Value.ChildVfxPosition;
-					childVfx.RotationDegrees = attMeta.Value.ChildVfxRotation;
-					childVfx.Scale = attMeta.Value.ChildVfxScale == Vector3.Zero ? Vector3.One : attMeta.Value.ChildVfxScale;
-					string cleanChildId = attMeta.Value.ChildVfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-						? attMeta.Value.ChildVfxId
-						: System.IO.Path.GetFileNameWithoutExtension(attMeta.Value.ChildVfxId);
+					childVfx.Position = attMeta.ChildVfxPosition.ToGodotVector3();
+					childVfx.RotationDegrees = attMeta.ChildVfxRotation.ToGodotVector3();
+					var childScale = attMeta.ChildVfxScale.ToGodotVector3();
+					childVfx.Scale = childScale == Vector3.Zero ? Vector3.One : childScale;
+					string cleanChildId = attMeta.ChildVfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
+						? attMeta.ChildVfxId
+						: System.IO.Path.GetFileNameWithoutExtension(attMeta.ChildVfxId);
 					childVfx.Name = $"ChildVfx_{cleanChildId}";
-					childVfx.SetMeta("AttachmentId", attMeta.Value.ChildVfxId);
+					childVfx.SetMeta("AttachmentId", attMeta.ChildVfxId);
 					childVfx.SetMeta("CleanAttachmentId", cleanChildId);
 					loadedNode.AddChild(childVfx);
 				}
@@ -1263,7 +1264,7 @@ public partial class Unit3D : Prop3D
 			variantIndex = parsedIdx;
 		}
 
-		GameHost.UnitAnimationEntry? matchedEntry = null;
+		UnitAnimationEntry? matchedEntry = null;
 
 		foreach (var kvp in uMeta.Animations)
 		{

@@ -803,7 +803,7 @@ public partial class VSCodeManager
 
 				Callable.From(() =>
 				{
-					GameHost.WeaponMetadata meta = default;
+					WeaponMetadata meta = null;
 					if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var existing))
 					{
 						meta = existing;
@@ -812,7 +812,7 @@ public partial class VSCodeManager
 					{
 						try
 						{
-							meta = System.Text.Json.JsonSerializer.Deserialize<GameHost.WeaponMetadata>(
+							meta = System.Text.Json.JsonSerializer.Deserialize<WeaponMetadata>(
 								weaponDataNode.ToJsonString(),
 								new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
 							);

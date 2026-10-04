@@ -488,19 +488,19 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			{
 				case "units":
 					var u = meta.CustomUnits?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-					if (u.HasValue) LoadFromUnitMetadata(u.Value);
+					if (u != null) LoadFromUnitMetadata(u);
 					break;
 				case "buildings":
 					var b = meta.CustomBuildings?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-					if (b.HasValue) LoadFromUnitMetadata(b.Value);
+					if (b != null) LoadFromUnitMetadata(b);
 					break;
 				case "resources":
 					var r = meta.CustomResources?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-					if (r.HasValue) LoadFromResourceMetadata(r.Value);
+					if (r != null) LoadFromResourceMetadata(r);
 					break;
 				case "props":
 					var p = meta.CustomProps?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-					if (p.HasValue) LoadFromPropMetadata(p.Value);
+					if (p != null) LoadFromPropMetadata(p);
 					break;
 			}
 		}
@@ -509,7 +509,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		OpenDialog();
 	}
 
-	private void LoadFromUnitMetadata(GameHost.UnitMetadata u)
+	private void LoadFromUnitMetadata(UnitMetadata u)
 	{
 		_modelPath = u.ModelPath ?? "";
 		_portraitModelPath = u.PortraitModelPath ?? "";
@@ -528,7 +528,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_deathShader = u.DeathShader ?? "";
 	}
 
-	private void LoadFromResourceMetadata(GameHost.ResourceMetadata r)
+	private void LoadFromResourceMetadata(ResourceMetadata r)
 	{
 		_modelPath = r.ModelPath ?? "";
 		_portraitModelPath = r.PortraitModelPath ?? "";
@@ -547,7 +547,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_deathShader = r.DeathShader ?? "";
 	}
 
-	private void LoadFromPropMetadata(GameHost.PropMetadata p)
+	private void LoadFromPropMetadata(PropMetadata p)
 	{
 		_modelPath = p.ModelPath ?? "";
 		_portraitModelPath = p.PortraitModelPath ?? "";
@@ -638,7 +638,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					});
 					if (!updatedU)
 					{
-						meta.AddOrUpdateUnit(new GameHost.UnitMetadata
+						meta.AddOrUpdateUnit(new UnitMetadata
 						{
 							TemplateID = newTemplateID,
 							Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
@@ -685,7 +685,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					});
 					if (!updatedB)
 					{
-						meta.AddOrUpdateBuilding(new GameHost.UnitMetadata
+						meta.AddOrUpdateBuilding(new UnitMetadata
 						{
 							TemplateID = newTemplateID,
 							Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
@@ -732,7 +732,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					});
 					if (!updatedR)
 					{
-						meta.AddOrUpdateResource(new GameHost.ResourceMetadata
+						meta.AddOrUpdateResource(new ResourceMetadata
 						{
 							TemplateID = newTemplateID,
 							Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
@@ -781,7 +781,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					});
 					if (!updatedP)
 					{
-						meta.AddOrUpdateProp(new GameHost.PropMetadata
+						meta.AddOrUpdateProp(new PropMetadata
 						{
 							TemplateID = newTemplateID,
 							Name = !string.IsNullOrEmpty(_name) ? _name : _slug,

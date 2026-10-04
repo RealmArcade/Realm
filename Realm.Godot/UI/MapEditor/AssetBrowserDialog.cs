@@ -847,7 +847,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_btnEditAssetType.Disabled = (validTypes.Length == 0);
 
 			string ext = _selectedAsset.Extension?.ToLowerInvariant() ?? "";
-			bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3";
+			bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac";
 			if (isAudio && File.Exists(_selectedAsset.FilePath))
 			{
 				try

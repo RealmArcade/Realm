@@ -135,8 +135,8 @@ public class VfxShaderManager
 			material.SetShaderParameter("base_texture", baseTex);
 		}
 
-		material.SetShaderParameter("base_uv_scroll", config.BaseUvScroll);
-		material.SetShaderParameter("base_uv_scale", config.BaseUvScale);
+		material.SetShaderParameter("base_uv_scroll", config.BaseUvScroll.ToGodotVector2());
+		material.SetShaderParameter("base_uv_scale", config.BaseUvScale.ToGodotVector2());
 		material.SetShaderParameter("use_flipbook", config.UseFlipbook);
 		material.SetShaderParameter("flipbook_columns", Math.Max(1, config.FlipbookColumns));
 		material.SetShaderParameter("flipbook_rows", Math.Max(1, config.FlipbookRows));
@@ -157,8 +157,8 @@ public class VfxShaderManager
 			material.SetShaderParameter("noise_texture", noiseTex);
 		}
 
-		material.SetShaderParameter("noise_uv_scroll", config.NoiseUvScroll);
-		material.SetShaderParameter("noise_uv_scale", config.NoiseUvScale);
+		material.SetShaderParameter("noise_uv_scroll", config.NoiseUvScroll.ToGodotVector2());
+		material.SetShaderParameter("noise_uv_scale", config.NoiseUvScale.ToGodotVector2());
 		material.SetShaderParameter("noise_distortion_strength", Mathf.Clamp(config.DistortionStrength, 0.0f, 2.0f));
 
 		material.SetShaderParameter("base_color", ParseColorSafe(config.BaseColor, new Color(1.0f, 0.45f, 0.1f, 1.0f)));

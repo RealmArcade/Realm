@@ -465,7 +465,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 									{
 										".rmesh" => "Prop",
 										".rtex" => "Terrain",
-										".raud" or ".ogg" => "SoundEffect",
+										".raud" => "SoundEffect",
 										".ranim" => "Animation",
 										_ => "Prop"
 									};
@@ -710,7 +710,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			_lblSelectedDetails.Text = metaSummary;
 
 			string ext = _selectedAsset.Extension?.ToLowerInvariant() ?? "";
-			bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3";
+			bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac";
 			if (isAudio && File.Exists(_selectedAsset.FilePath))
 			{
 				try
@@ -1000,7 +1000,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 					".rmesh" => "Prop",
 					".rtex" => "Terrain",
 					".ranim" => "Animation",
-					".raud" or ".ogg" => "SoundEffect",
+					".raud" => "SoundEffect",
 					_ => "Prop"
 				}));
 
@@ -1305,11 +1305,9 @@ public partial class AssetManagerDialog : FloatingDialogBase
 				m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
 				if (!m.Decals.ContainsKey(templateId))
 				{
-					m.Decals[templateId] = new JsonObject
+					m.Decals[templateId] = new DecalMetadata
 					{
-						["decal_id"] = templateId,
-						["texture_path"] = fileName,
-						["size"] = new JsonArray { 2, 2 }
+						TexturePath = fileName
 					};
 				}
 			});
