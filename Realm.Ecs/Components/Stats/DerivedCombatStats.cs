@@ -21,4 +21,10 @@ internal record struct DerivedCombatStats(
 	float StatusEffectBuffer = 0f,
 	float TotalArmor = 0f,
 	float TotalAttackDamage = 10f,
-	float AttackDelay = 1.5f);
+	float AttackDelay = 1.5f,
+	float LifeSteal = 0f,
+	float MagicPenetration = 0f,
+	float Evasion = 0f,
+	float ProcRateMultiplier = 1f,
+	float BountyMultiplier = 1f,
+	float HealingMultiplier = 1f);

@@ -14,61 +14,129 @@ namespace Realm.Ecs.Services;
 /// </summary>
 internal static class AttributeStatCalculator
 {
+	public const float STR_ATTACK_DAMAGE_SCALE = 1.5f;
+	public const float STR_ARMOR_SCALE = 0.15f;
+	public const float ARMOR_K = 50.0f;
+	public const float STR_TENACITY_K = 100.0f;
+	public const float MAX_TENACITY = 0.75f;
+
+	public const float AGI_HASTE_PER_POINT = 1.0f;
+	public const float AGI_BASE_MS_RATIO = 0.4f;
+	public const float MS_SOFT_CAP_1 = 450.0f;
+	public const float MS_SOFT_CAP_2 = 550.0f;
+	public const float AGI_CDR_HASTE_SCALE = 1.0f;
+	public const float MAX_CDR = 0.60f;
+
+	public const float VIT_HP_PER_POINT = 18.0f;
+	public const float VIT_MP_PER_POINT = 8.0f;
+	public const float VIT_LIFESTEAL_K = 150.0f;
+	public const float MAX_LIFESTEAL = 0.40f;
+
+	public const float INT_SPELL_AMP_PER_POINT = 0.0075f;
+	public const float INT_SPELL_AMP_EXPONENT = 1.05f;
+	public const float INT_MANA_REGEN_PER_POINT = 0.05f;
+	public const float INT_MAGIC_RESIST_K = 80.0f;
+	public const float MAX_MAGIC_RESIST = 0.75f;
+
+	public const float WIS_PENETRATION_K = 120.0f;
+	public const float MAX_MAGIC_PEN = 0.50f;
+	public const float WIS_HEAL_AMP_PER_POINT = 0.008f;
+	public const float WIS_HP_REGEN_BASE_SCALE = 0.04f;
+	public const float WIS_CRIT_MULT_PER_POINT = 0.006f;
+
+	public const float FORTUNE_CRIT_CHANCE_K = 100.0f;
+	public const float MAX_CRIT_CHANCE = 0.80f;
+	public const float FORTUNE_EVASION_K = 150.0f;
+	public const float MAX_EVASION = 0.50f;
+	public const float FORTUNE_PROC_MOD_K = 200.0f;
+	public const float MAX_PROC_BONUS = 0.50f;
+	public const float FORTUNE_BOUNTY_EXP_PER_POINT = 0.005f;
+
 	public static DerivedCombatStats CalculateDerivedStats(in UnitAttributes attr, in UnitBaseStats baseStats, float additionalAttackSpeedModifiers = 0f)
 	{
-		float vit = MathF.Max(0f, attr.Vitality);
-		float mig = MathF.Max(0f, attr.Might);
+		float str = MathF.Max(0f, attr.Strength);
 		float agi = MathF.Max(0f, attr.Agility);
-		float fin = MathF.Max(0f, attr.Finesse);
-		float foc = MathF.Max(0f, attr.Focus);
-		float wil = MathF.Max(0f, attr.Willpower);
+		float vit = MathF.Max(0f, attr.Vitality);
+		float intel = MathF.Max(0f, attr.Intelligence);
+		float wis = MathF.Max(0f, attr.Wisdom);
+		float fort = MathF.Max(0f, attr.Fortune);
 
-		float maxHp = baseStats.BaseMaxHp + (vit * 22f);
-		float hpRegen = baseStats.BaseHpRegen + (vit * 0.10f);
-		float tenacity = 1f - MathF.Pow(1f - 0.0015f, vit);
+		float bonusAttackDamage = str * STR_ATTACK_DAMAGE_SCALE;
+		float totalAttackDamage = MathF.Max(0f, baseStats.BaseDamage + bonusAttackDamage);
+		float rawArmor = str * STR_ARMOR_SCALE;
+		float totalArmor = baseStats.BaseArmor + rawArmor;
+		float rawTenacity = str / (str + STR_TENACITY_K);
+		float tenacity = MathF.Min(rawTenacity, MAX_TENACITY);
 
-		float knockbackResistance = mig * 1.2f;
+		float attackHaste = agi * AGI_HASTE_PER_POINT;
+		float baseAps = baseStats.BaseAttackInterval > 0f ? (1.0f / baseStats.BaseAttackInterval) : 1.0f;
+		float attacksPerSecond = baseAps * (1.0f + (attackHaste / 100.0f) + additionalAttackSpeedModifiers);
+		float attackDelay = MathF.Max(0.01f, 1.0f / MathF.Max(0.01f, attacksPerSecond));
 
-		float movementSpeed = MathF.Max(0f, baseStats.BaseSpeed + (agi * 0.40f));
-		float castPoint = MathF.Max(0f, baseStats.BaseCastPoint - (agi * 0.003f));
+		float rawSpeed = baseStats.BaseSpeed + (agi * AGI_BASE_MS_RATIO);
+		if (rawSpeed > MS_SOFT_CAP_2)
+		{
+			rawSpeed = MS_SOFT_CAP_2 + (rawSpeed - MS_SOFT_CAP_2) * 0.5f;
+		}
+		else if (rawSpeed > MS_SOFT_CAP_1)
+		{
+			rawSpeed = MS_SOFT_CAP_1 + (rawSpeed - MS_SOFT_CAP_1) * 0.8f;
+		}
+		float movementSpeed = MathF.Max(0f, rawSpeed);
 
-		float critChance = MathF.Max(0f, baseStats.BaseCritChance + (fin * 0.0035f));
-		float flatArmorPen = MathF.Max(0f, baseStats.BaseFlatArmorPenetration + (fin * 0.65f));
-		float critMultiplier = MathF.Max(1f, baseStats.BaseCritMultiplier + (fin * 0.0045f));
+		float abilityHaste = agi * AGI_CDR_HASTE_SCALE;
+		float rawCDR = abilityHaste / (abilityHaste + 100.0f);
+		float cooldownReduction = MathF.Min(rawCDR, MAX_CDR);
 
-		float maxMana = MathF.Max(0f, baseStats.BaseMaxMana + (foc * 14f));
-		float cdr = 1f - (1f / (1f + (foc * 0.005f)));
-		float spellPower = foc * 0.80f;
+		float maxHp = MathF.Max(1f, baseStats.BaseMaxHp + (vit * VIT_HP_PER_POINT));
+		float maxMana = MathF.Max(0f, baseStats.BaseMaxMana + (vit * VIT_MP_PER_POINT));
+		float rawLifesteal = (vit / (vit + VIT_LIFESTEAL_K)) * MAX_LIFESTEAL;
+		float lifeStealRate = MathF.Min(rawLifesteal, MAX_LIFESTEAL);
 
-		float manaRegen = baseStats.BaseManaRegen + (wil * 0.08f);
-		float spellWard = 1f - (100f / (100f + (wil * 0.8f)));
-		float statusBuffer = wil * 1.5f;
+		float spellDamageAmp = MathF.Pow(intel * INT_SPELL_AMP_PER_POINT, INT_SPELL_AMP_EXPONENT);
+		float manaRegen = baseStats.BaseManaRegen + (intel * INT_MANA_REGEN_PER_POINT);
+		float rawMR = intel / (intel + INT_MAGIC_RESIST_K);
+		float spellWard = MathF.Min(rawMR, MAX_MAGIC_RESIST);
 
-		float totalArmor = baseStats.BaseArmor + (mig * 0.18f) + (vit * 0.05f);
-		float totalDamage = MathF.Max(0f, (baseStats.BaseDamage + (mig * 1.4f)) * (1f + (fin * 0.002f)));
+		float magicPenetration = (wis / (wis + WIS_PENETRATION_K)) * MAX_MAGIC_PEN;
+		float healingOutputMultiplier = 1.0f + (wis * WIS_HEAL_AMP_PER_POINT);
+		float rawHpRegen = baseStats.BaseHpRegen + (wis * WIS_HP_REGEN_BASE_SCALE);
+		float hpRegen = rawHpRegen * healingOutputMultiplier;
+		float critMultiplier = MathF.Max(1f, baseStats.BaseCritMultiplier + (wis * WIS_CRIT_MULT_PER_POINT));
 
-		float attackSpeedDivisor = MathF.Max(0.01f, 1f + (agi * 0.014f) + (fin * 0.005f) + additionalAttackSpeedModifiers);
-		float attackDelay = MathF.Max(0.01f, baseStats.BaseAttackInterval / attackSpeedDivisor);
+		float rawCritChance = (fort / (fort + FORTUNE_CRIT_CHANCE_K)) * MAX_CRIT_CHANCE;
+		float critChance = MathF.Min(baseStats.BaseCritChance + rawCritChance, MAX_CRIT_CHANCE);
+		float rawEvasion = (fort / (fort + FORTUNE_EVASION_K)) * MAX_EVASION;
+		float evasionChance = MathF.Min(rawEvasion, MAX_EVASION);
+		float procBonus = (fort / (fort + FORTUNE_PROC_MOD_K)) * MAX_PROC_BONUS;
+		float procRateMultiplier = 1.0f + procBonus;
+		float bountyMultiplier = 1.0f + (fort * FORTUNE_BOUNTY_EXP_PER_POINT);
 
 		return new DerivedCombatStats(
 			MaxHp: maxHp,
 			HpRegen: hpRegen,
 			Tenacity: tenacity,
-			KnockbackResistance: knockbackResistance,
+			KnockbackResistance: 0f,
 			MovementSpeed: movementSpeed,
-			CastPoint: castPoint,
+			CastPoint: baseStats.BaseCastPoint,
 			CritChance: critChance,
-			FlatArmorPenetration: flatArmorPen,
+			FlatArmorPenetration: baseStats.BaseFlatArmorPenetration,
 			CritMultiplier: critMultiplier,
 			MaxMana: maxMana,
-			CooldownReduction: cdr,
-			SpellPower: spellPower,
+			CooldownReduction: cooldownReduction,
+			SpellPower: spellDamageAmp,
 			ManaRegen: manaRegen,
 			SpellWard: spellWard,
-			StatusEffectBuffer: statusBuffer,
+			StatusEffectBuffer: 0f,
 			TotalArmor: totalArmor,
-			TotalAttackDamage: totalDamage,
-			AttackDelay: attackDelay
+			TotalAttackDamage: totalAttackDamage,
+			AttackDelay: attackDelay,
+			LifeSteal: lifeStealRate,
+			MagicPenetration: magicPenetration,
+			Evasion: evasionChance,
+			ProcRateMultiplier: procRateMultiplier,
+			BountyMultiplier: bountyMultiplier,
+			HealingMultiplier: healingOutputMultiplier
 		);
 	}
 
@@ -194,6 +262,11 @@ internal static class AttributeStatCalculator
 			statsDict[new StatId("Tenacity")] = derived.Tenacity;
 			statsDict[new StatId("SpellWard")] = derived.SpellWard;
 			statsDict[new StatId("CooldownReduction")] = derived.CooldownReduction;
+			statsDict[new StatId("LifeSteal")] = derived.LifeSteal;
+			statsDict[new StatId("MagicPenetration")] = derived.MagicPenetration;
+			statsDict[new StatId("Evasion")] = derived.Evasion;
+			statsDict[new StatId("ProcRateMultiplier")] = derived.ProcRateMultiplier;
+			statsDict[new StatId("BountyMultiplier")] = derived.BountyMultiplier;
 		}
 
 		return derived;

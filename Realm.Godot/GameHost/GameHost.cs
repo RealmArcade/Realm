@@ -1234,12 +1234,12 @@ public partial class GameHost : Node3D, IGameAPI
 		public float ProductionTime { get; set; }
 		public string AttackType { get; set; }
 		public string ArmorType { get; set; }
-		public float Vitality { get; set; }
-		public float Might { get; set; }
+		public float Strength { get; set; }
 		public float Agility { get; set; }
-		public float Finesse { get; set; }
-		public float Focus { get; set; }
-		public float Willpower { get; set; }
+		public float Vitality { get; set; }
+		public float Intelligence { get; set; }
+		public float Wisdom { get; set; }
+		public float Fortune { get; set; }
 		public float HpRegen { get; set; }
 		public float HpRegenCombatDelay { get; set; }
 		public float MaxMana { get; set; }
@@ -4904,15 +4904,15 @@ public class {mapName} : IMapScript
 
 		if (UnitRegistry.TryGetValue(id, out var attrMeta) || TryGetUnitOrBuildingMetadata(id, out attrMeta))
 		{
-			if (attrMeta.Vitality != 0f || attrMeta.Might != 0f || attrMeta.Agility != 0f || attrMeta.Finesse != 0f || attrMeta.Focus != 0f || attrMeta.Willpower != 0f)
+			if (attrMeta.Strength != 0f || attrMeta.Agility != 0f || attrMeta.Vitality != 0f || attrMeta.Intelligence != 0f || attrMeta.Wisdom != 0f || attrMeta.Fortune != 0f)
 			{
 				var attributes = new Realm.Ecs.Components.Stats.UnitAttributes(
-					Vitality: attrMeta.Vitality,
-					Might: attrMeta.Might,
+					Strength: attrMeta.Strength,
 					Agility: attrMeta.Agility,
-					Finesse: attrMeta.Finesse,
-					Focus: attrMeta.Focus,
-					Willpower: attrMeta.Willpower
+					Vitality: attrMeta.Vitality,
+					Intelligence: attrMeta.Intelligence,
+					Wisdom: attrMeta.Wisdom,
+					Fortune: attrMeta.Fortune
 				);
 				EcsWorld.Set(entity, attributes);
 				AttributeStatCalculator.RecalculateEntityStats(EcsWorld, entity);

@@ -403,11 +403,11 @@ internal static partial class FormulaEvaluator
 			return statName switch
 			{
 				"vitality" or "vit" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Vitality : 0f,
-				"might" or "mig" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Might : 0f,
+				"strength" or "str" or "might" or "mig" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Strength : 0f,
 				"agility" or "agi" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Agility : 0f,
-				"finesse" or "fin" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Finesse : 0f,
-				"focus" or "foc" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Focus : 0f,
-				"willpower" or "wil" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Willpower : 0f,
+				"intelligence" or "int" or "focus" or "foc" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Intelligence : 0f,
+				"wisdom" or "wis" or "willpower" or "wil" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Wisdom : 0f,
+				"fortune" or "fort" or "for" or "finesse" or "fin" => world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity).Fortune : 0f,
 
 				"hero_level" or "lvl" => world.Has<Level>(entity) ? world.Get<Level>(entity).Value : 1f,
 
