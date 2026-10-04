@@ -2216,6 +2216,7 @@ public partial class GameHost
 	public class DecalAssetData
 	{
 		public string DecalId { get; set; } = "";
+		public string TexturePath { get; set; } = "";
 		public Texture2D PrimaryTexture { get; set; }
 		public Texture2D? PrimaryNormal { get; set; }
 		public Texture2D[]? AlbedoFrames { get; set; }
@@ -2267,6 +2268,7 @@ public partial class GameHost
 					var resData = new DecalAssetData
 					{
 						DecalId = decalId,
+						TexturePath = decalId,
 						PrimaryTexture = resTex,
 						Columns = 1,
 						Rows = 1
@@ -2282,28 +2284,11 @@ public partial class GameHost
 		string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 
-		List<string> candidatePaths = new List<string>();
-		if (System.IO.Path.IsPathRooted(decalId))
-		{
-			candidatePaths.Add(decalId);
-		}
-		else
-		{
-			candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename));
-			candidatePaths.Add(System.IO.Path.Combine(wsPath, decalId));
-			if (!filename.Contains('.'))
-			{
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".rtex"));
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".webp"));
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".png"));
-			}
-			candidatePaths.Add(decalId);
-		}
-
 		int detectedCols = 1;
 		int detectedRows = 1;
 		float detectedFps = 12.0f;
 		bool detectedSubframeBlend = true;
+		string? explicitTexturePath = null;
 
 		try
 		{
@@ -2312,13 +2297,19 @@ public partial class GameHost
 			if (decalsObj != null)
 			{
 				System.Text.Json.Nodes.JsonObject? meta = null;
-				if (decalsObj.TryGetPropertyValue(filename, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
+				if (decalsObj.TryGetPropertyValue(decalId, out var n0) && n0 is System.Text.Json.Nodes.JsonObject o0) meta = o0;
+				else if (decalsObj.TryGetPropertyValue(filename, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
 				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
 				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is System.Text.Json.Nodes.JsonObject o3) meta = o3;
 				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is System.Text.Json.Nodes.JsonObject o4) meta = o4;
 
 				if (meta != null)
 				{
+					if (meta.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString()))
+						explicitTexturePath = tpNode.ToString();
+					else if (meta.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString()))
+						explicitTexturePath = tpNode2.ToString();
+
 					if (meta.TryGetPropertyValue("columns", out var cNode) && int.TryParse(cNode?.ToString(), out int c) && c > 0) detectedCols = c;
 					if (meta.TryGetPropertyValue("rows", out var rNode) && int.TryParse(rNode?.ToString(), out int r) && r > 0) detectedRows = r;
 					if (meta.TryGetPropertyValue("fps", out var fNode) && float.TryParse(fNode?.ToString(), out float f) && f > 0.001f) detectedFps = f;
@@ -2328,6 +2319,35 @@ public partial class GameHost
 			}
 		}
 		catch { }
+
+		List<string> candidatePaths = new List<string>();
+		void AddTextureCandidates(string pathOrName)
+		{
+			if (string.IsNullOrWhiteSpace(pathOrName)) return;
+			string fName = System.IO.Path.GetFileName(pathOrName);
+			if (System.IO.Path.IsPathRooted(pathOrName))
+			{
+				candidatePaths.Add(pathOrName);
+			}
+			else
+			{
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", pathOrName));
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName));
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, pathOrName));
+				if (!fName.Contains('.'))
+				{
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".rtex"));
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".webp"));
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".png"));
+				}
+			}
+		}
+
+		if (!string.IsNullOrEmpty(explicitTexturePath))
+		{
+			AddTextureCandidates(explicitTexturePath);
+		}
+		AddTextureCandidates(decalId);
 
 		foreach (var path in candidatePaths)
 		{
@@ -2395,6 +2415,7 @@ public partial class GameHost
 						var assetData = new DecalAssetData
 						{
 							DecalId = decalId,
+							TexturePath = explicitTexturePath ?? decalId,
 							Columns = 1,
 							Rows = 1,
 							Fps = 12.0f,
@@ -2423,6 +2444,7 @@ public partial class GameHost
 		var fallback = new DecalAssetData
 		{
 			DecalId = decalId,
+			TexturePath = explicitTexturePath ?? decalId,
 			PrimaryTexture = GD.Load<Texture2D>("res://icon.svg"),
 			Columns = 1,
 			Rows = 1
@@ -2444,24 +2466,51 @@ public partial class GameHost
 		}
 		if (decalId.StartsWith("res://")) return decalId;
 
-		string filename = System.IO.Path.GetFileName(decalId);
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string targetKey = decalId;
 
-		string candidate1 = System.IO.Path.Combine(wsPath, "Assets", "decals", filename);
+		try
+		{
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
+			if (decalsObj != null)
+			{
+				string filename = System.IO.Path.GetFileName(decalId);
+				string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
+				System.Text.Json.Nodes.JsonObject? meta = null;
+				if (decalsObj.TryGetPropertyValue(decalId, out var n0) && n0 is System.Text.Json.Nodes.JsonObject o0) meta = o0;
+				else if (decalsObj.TryGetPropertyValue(filename, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
+				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
+
+				if (meta != null)
+				{
+					if (meta.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString()))
+						targetKey = tpNode.ToString();
+					else if (meta.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString()))
+						targetKey = tpNode2.ToString();
+				}
+			}
+		}
+		catch { }
+
+		string targetFilename = System.IO.Path.GetFileName(targetKey);
+		string candidate1 = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename);
 		if (System.IO.File.Exists(candidate1)) return candidate1;
 
-		if (!filename.Contains('.'))
+		if (!targetFilename.Contains('.'))
 		{
-			string candidate2 = System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".png");
+			string candidate2 = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename + ".png");
 			if (System.IO.File.Exists(candidate2)) return candidate2;
+			string candidateRtex = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename + ".rtex");
+			if (System.IO.File.Exists(candidateRtex)) return candidateRtex;
 		}
 
-		if (System.IO.Path.IsPathRooted(decalId) && System.IO.File.Exists(decalId))
+		if (System.IO.Path.IsPathRooted(targetKey) && System.IO.File.Exists(targetKey))
 		{
-			return decalId;
+			return targetKey;
 		}
 
-		string candidate3 = System.IO.Path.Combine(wsPath, decalId);
+		string candidate3 = System.IO.Path.Combine(wsPath, targetKey);
 		if (System.IO.File.Exists(candidate3)) return candidate3;
 
 		return "res://icon.svg";
@@ -3143,7 +3192,8 @@ public partial class GameHost
 			System.Text.Json.Nodes.JsonObject? meta = null;
 			if (decalsObj != null)
 			{
-				if (decalsObj.TryGetPropertyValue(key, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
+				if (decalsObj.TryGetPropertyValue(decalId, out var n0) && n0 is System.Text.Json.Nodes.JsonObject o0) meta = o0;
+				else if (decalsObj.TryGetPropertyValue(key, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
 				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
 				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is System.Text.Json.Nodes.JsonObject o3) meta = o3;
 				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is System.Text.Json.Nodes.JsonObject o4) meta = o4;

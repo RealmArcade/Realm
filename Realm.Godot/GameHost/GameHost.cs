@@ -1602,6 +1602,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public struct DecalMetadata
 	{
 		public string Hash { get; set; }
+		public string TexturePath { get; set; }
 		public string Tint { get; set; }
 		public float Brightness { get; set; }
 		public float Contrast { get; set; }
