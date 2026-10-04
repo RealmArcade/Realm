@@ -417,12 +417,12 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			AssetIndexService.Instance.RescanAllDirectories();
 		}
 
+		OpenDialog();
+
 		RefreshFolderChips();
 		RefreshAssetTypeFilterOptions();
 		RefreshSearchResults();
 		UpdateSelectedAssetDisplay();
-
-		OpenDialog();
 
 		Callable.From(() =>
 		{
@@ -698,32 +698,39 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 	private void RefreshSearchResults()
 	{
-		string searchTerm = _txtSearch.Text?.Trim() ?? string.Empty;
-		bool requirePlayerColorMask = _chkHasPlayerColorMask?.ButtonPressed ?? false;
-		_matchingAssets.Clear();
-		var searchResults = AssetIndexService.Instance.SearchAssets(
-			searchTerm,
-			_allowedExtensions,
-			_selectedDirectoryFilter,
-			_requireRealmMetadata,
-			_selectedAssetTypeFilter,
-			_selectedMapNameFilter,
-			_selectedMapVersionFilter,
-			requirePlayerColorMask);
-
-		_matchingAssets.AddRange(searchResults);
-
-		_lblResultsCount.Text = $"{_matchingAssets.Count} {TranslationServer.Translate("items found")}";
-		_lblEmptyState.Visible = _matchingAssets.Count == 0;
-
-		if (_selectedAsset != null && !_matchingAssets.Any(a => string.Equals(a.FilePath, _selectedAsset.FilePath, StringComparison.OrdinalIgnoreCase)))
+		try
 		{
-			_selectedAsset = null;
-			UpdateSelectedAssetDisplay();
-		}
+			string searchTerm = _txtSearch.Text?.Trim() ?? string.Empty;
+			bool requirePlayerColorMask = _chkHasPlayerColorMask?.ButtonPressed ?? false;
+			_matchingAssets.Clear();
+			var searchResults = AssetIndexService.Instance.SearchAssets(
+				searchTerm,
+				_allowedExtensions,
+				_selectedDirectoryFilter,
+				_requireRealmMetadata,
+				_selectedAssetTypeFilter,
+				_selectedMapNameFilter,
+				_selectedMapVersionFilter,
+				requirePlayerColorMask);
 
-		UpdateVirtualGridSize();
-		UpdateVisibleGridCells();
+			_matchingAssets.AddRange(searchResults);
+
+			_lblResultsCount.Text = $"{_matchingAssets.Count} {TranslationServer.Translate("items found")}";
+			_lblEmptyState.Visible = _matchingAssets.Count == 0;
+
+			if (_selectedAsset != null && !_matchingAssets.Any(a => string.Equals(a.FilePath, _selectedAsset.FilePath, StringComparison.OrdinalIgnoreCase)))
+			{
+				_selectedAsset = null;
+				UpdateSelectedAssetDisplay();
+			}
+
+			UpdateVirtualGridSize();
+			UpdateVisibleGridCells();
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetBrowserDialog] RefreshSearchResults error: {ex.Message}");
+		}
 	}
 
 	private void UpdateVirtualGridSize()

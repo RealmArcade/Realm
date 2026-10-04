@@ -1707,107 +1707,116 @@ public class AssetIndexService : IDisposable
 		string? mapVersionFilter = null,
 		bool requirePlayerColorMask = false)
 	{
-		lock (_syncLock)
+		try
 		{
-			var query = _assetCollection.Query();
-
-			if (!string.IsNullOrWhiteSpace(mapNameFilter))
+			lock (_syncLock)
 			{
-				string targetVersion = mapVersionFilter ?? "latest";
-				if (string.Equals(targetVersion, "latest", StringComparison.OrdinalIgnoreCase))
+				var query = _assetCollection.Query();
+
+				if (!string.IsNullOrWhiteSpace(mapNameFilter))
 				{
-					string? latest = GetLatestVersionForMap(mapNameFilter);
-					targetVersion = latest ?? "";
+					string targetVersion = mapVersionFilter ?? "latest";
+					if (string.Equals(targetVersion, "latest", StringComparison.OrdinalIgnoreCase))
+					{
+						string? latest = GetLatestVersionForMap(mapNameFilter);
+						targetVersion = latest ?? "";
+					}
+
+					if (!string.IsNullOrEmpty(targetVersion))
+					{
+						query = query.Where(x => x.MapName == mapNameFilter && x.MapVersion == targetVersion);
+					}
+					else
+					{
+						query = query.Where(x => x.MapName == mapNameFilter);
+					}
+				}
+				else if (!string.IsNullOrWhiteSpace(directoryFilter))
+				{
+					string normalizedDir = NormalizePath(directoryFilter);
+					query = query.Where(x => x.DirectoryPath == normalizedDir);
 				}
 
-				if (!string.IsNullOrEmpty(targetVersion))
+				HashSet<string>? extensionFilterSet = null;
+				if (allowedExtensions != null && allowedExtensions.Count > 0)
 				{
-					query = query.Where(x => x.MapName == mapNameFilter && x.MapVersion == targetVersion);
+					var normalizedExtensions = allowedExtensions
+						.Select(e => e.Trim().ToLowerInvariant())
+						.Select(e => e.StartsWith(".") ? e : "." + e)
+						.ToArray();
+
+					extensionFilterSet = normalizedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+					if (normalizedExtensions.Length == 1)
+					{
+						string singleExt = normalizedExtensions[0];
+						query = query.Where(x => x.Extension == singleExt);
+					}
+					else
+					{
+						var bsonExtensions = normalizedExtensions.Select(e => new BsonValue(e)).ToArray();
+						query = query.Where(Query.In("Extension", bsonExtensions));
+					}
+				}
+
+				if (requireRealmMetadata)
+				{
+					query = query.Where(x => x.HasRealmMetadata);
+				}
+
+				if (!string.IsNullOrWhiteSpace(requiredAssetType))
+				{
+					query = query.Where(x => x.AssetType == requiredAssetType);
+				}
+
+				if (requirePlayerColorMask)
+				{
+					query = query.Where(x => x.HasPlayerColorMask);
+				}
+
+				var candidateList = query.ToList();
+
+				if (extensionFilterSet != null)
+				{
+					candidateList = candidateList.Where(x => extensionFilterSet.Contains(x.Extension)).ToList();
+				}
+
+				List<IndexedAsset> filtered;
+				if (string.IsNullOrWhiteSpace(searchTerm))
+				{
+					filtered = candidateList.OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase).ToList();
 				}
 				else
 				{
-					query = query.Where(x => x.MapName == mapNameFilter);
+					string queryTerm = searchTerm.Trim().ToLowerInvariant();
+					filtered = candidateList
+						.Where(asset =>
+							(asset.Tags != null && asset.Tags.Any(t => t.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0)) ||
+							asset.FileName.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0 ||
+							asset.FilePath.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0 ||
+							(!string.IsNullOrEmpty(asset.MapName) && asset.MapName.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0))
+						.OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase)
+						.ToList();
 				}
-			}
-			else if (!string.IsNullOrWhiteSpace(directoryFilter))
-			{
-				string normalizedDir = NormalizePath(directoryFilter);
-				query = query.Where(x => x.DirectoryPath == normalizedDir);
-			}
 
-			HashSet<string>? extensionFilterSet = null;
-			if (allowedExtensions != null && allowedExtensions.Count > 0)
-			{
-				var normalizedExtensions = allowedExtensions
-					.Select(e => e.Trim().ToLowerInvariant())
-					.Select(e => e.StartsWith(".") ? e : "." + e)
-					.ToArray();
-
-				extensionFilterSet = normalizedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-				if (normalizedExtensions.Length == 1)
+				var seenBlake3 = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				var deduplicated = new List<IndexedAsset>();
+				foreach (var item in filtered)
 				{
-					string singleExt = normalizedExtensions[0];
-					query = query.Where(x => x.Extension == singleExt);
+					string blake3 = GetCanonicalBlake3(item);
+					if (string.IsNullOrEmpty(blake3) || seenBlake3.Add(blake3))
+					{
+						deduplicated.Add(item);
+					}
 				}
-				else
-				{
-					query = query.Where(x => normalizedExtensions.Contains(x.Extension));
-				}
-			}
 
-			if (requireRealmMetadata)
-			{
-				query = query.Where(x => x.HasRealmMetadata);
+				return deduplicated;
 			}
-
-			if (!string.IsNullOrWhiteSpace(requiredAssetType))
-			{
-				query = query.Where(x => x.AssetType == requiredAssetType);
-			}
-
-			if (requirePlayerColorMask)
-			{
-				query = query.Where(x => x.HasPlayerColorMask);
-			}
-
-			var candidateList = query.ToList();
-
-			if (extensionFilterSet != null)
-			{
-				candidateList = candidateList.Where(x => extensionFilterSet.Contains(x.Extension)).ToList();
-			}
-
-			List<IndexedAsset> filtered;
-			if (string.IsNullOrWhiteSpace(searchTerm))
-			{
-				filtered = candidateList.OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase).ToList();
-			}
-			else
-			{
-				string queryTerm = searchTerm.Trim().ToLowerInvariant();
-				filtered = candidateList
-					.Where(asset =>
-						(asset.Tags != null && asset.Tags.Any(t => t.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0)) ||
-						asset.FileName.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0 ||
-						asset.FilePath.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0 ||
-						(!string.IsNullOrEmpty(asset.MapName) && asset.MapName.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0))
-					.OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase)
-					.ToList();
-			}
-
-			var seenBlake3 = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-			var deduplicated = new List<IndexedAsset>();
-			foreach (var item in filtered)
-			{
-				string blake3 = GetCanonicalBlake3(item);
-				if (string.IsNullOrEmpty(blake3) || seenBlake3.Add(blake3))
-				{
-					deduplicated.Add(item);
-				}
-			}
-
-			return deduplicated;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetIndexService] SearchAssets error: {ex.Message}");
+			return new List<IndexedAsset>();
 		}
 	}
 
