@@ -936,7 +936,69 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				}
 			}
 
-			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Updating map build number and saving metadata.json..."));
+			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Migrating manifest.json asset keys to canonical categories..."));
+
+			string manifestPath = Path.Combine(mapDirectory, "manifest.json");
+			if (File.Exists(manifestPath))
+			{
+				string manifestText = File.ReadAllText(manifestPath);
+				JsonObject? manifestRoot = JsonNode.Parse(manifestText)?.AsObject();
+				if (manifestRoot != null && manifestRoot.TryGetPropertyValue("Assets", out var assetsNode) && assetsNode is JsonObject assetsObj)
+				{
+					var topLevelRenames = new (string OldKey, string NewKey)[]
+					{
+						("animations", "Animation"),
+						("decals", "Decal"),
+						("icons", "Icon"),
+						("music", "Music"),
+						("noise_textures", "Noise"),
+						("ribbons", "Ribbon"),
+						("sfx", "SoundEffect"),
+						("shaders", "Shader"),
+						("skyboxes", "Skybox"),
+						("textures", "Terrain")
+					};
+
+					foreach (var (oldKey, newKey) in topLevelRenames)
+					{
+						if (assetsObj.TryGetPropertyValue(oldKey, out var sourceNode) && sourceNode is JsonObject sourceObj)
+						{
+							UnionCategoryInto(assetsObj, newKey, sourceObj);
+							assetsObj.Remove(oldKey);
+						}
+					}
+
+					if (assetsObj.TryGetPropertyValue("glb", out var glbNode) && glbNode is JsonObject glbObj)
+					{
+						var glbRenames = new (string OldKey, string NewKey)[]
+						{
+							("units", "Character"),
+							("resources", "Prop"),
+							("props", "Prop"),
+							("projectiles", "Item"),
+							("buildings", "Building")
+						};
+
+						foreach (var (oldKey, newKey) in glbRenames)
+						{
+							if (glbObj.TryGetPropertyValue(oldKey, out var sourceNode) && sourceNode is JsonObject sourceObj)
+							{
+								UnionCategoryInto(assetsObj, newKey, sourceObj);
+								glbObj.Remove(oldKey);
+							}
+						}
+
+						if (glbObj.Count == 0)
+						{
+							assetsObj.Remove("glb");
+						}
+					}
+
+					MapJsonFormatter.SaveFormattedJson(manifestPath, manifestRoot);
+				}
+			}
+
+			progress?.Report(new MigrationProgressUpdate(Description, 3, totalSteps, "Updating map build number and saving metadata.json..."));
 
 			metadataRoot["GameBuildNumber"] = ToVersion;
 			SaveLoadService.CleanMetadataJsonSchema(metadataRoot);
@@ -965,6 +1027,30 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 	public Task<MigrationResult> UpAsync(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
 	{
 		return Task.Run(() => Up(mapDirectory, progress));
+	}
+
+	private static void UnionCategoryInto(JsonObject targetContainer, string targetCategory, JsonObject sourceObject)
+	{
+		if (!targetContainer.ContainsKey(targetCategory) || targetContainer[targetCategory] is not JsonObject)
+		{
+			targetContainer[targetCategory] = new JsonObject();
+		}
+		var categoryTarget = targetContainer[targetCategory]!.AsObject();
+
+		foreach (var pair in sourceObject)
+		{
+			if (categoryTarget.ContainsKey(pair.Key) && categoryTarget[pair.Key] is JsonObject existingObj && pair.Value is JsonObject sourceObj)
+			{
+				foreach (var prop in sourceObj)
+				{
+					existingObj[prop.Key] = prop.Value?.DeepClone();
+				}
+			}
+			else if (pair.Value != null)
+			{
+				categoryTarget[pair.Key] = pair.Value.DeepClone();
+			}
+		}
 	}
 }
 
