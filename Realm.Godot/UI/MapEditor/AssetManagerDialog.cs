@@ -1037,6 +1037,11 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 			MapAssetHelper.UpdateManifestAsset(wsPath, targetCategory, fileName, hash);
 
+			if (targetCategory == "Decal")
+			{
+				EnsureDecalTemplate(wsPath, fileName);
+			}
+
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported asset '{0}' into {1}"), fileName, targetCategory));
 			RefreshAssetListAndSelect(fileName);
 		}
@@ -1272,6 +1277,11 @@ public partial class AssetManagerDialog : FloatingDialogBase
 				}
 			});
 
+			if (targetCategory == "Decal")
+			{
+				EnsureDecalTemplate(wsPath, $"{cleanBase}.rtex");
+			}
+
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Converted and imported {0}.rtex"), cleanBase));
 			AssetIndexService.Instance?.RescanAllDirectories();
 			RefreshAssetListAndSelect($"{cleanBase}.rtex");
@@ -1280,6 +1290,33 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		{
 			GD.PrintErr($"[AssetManagerDialog] ConvertImageToRealmFormat error: {ex.Message}");
 			Hud?.ShowFeedback($"Error converting image: {ex.Message}");
+		}
+	}
+
+	private void EnsureDecalTemplate(string wsPath, string fileName)
+	{
+		try
+		{
+			string slug = TemplateIDHelper.GenerateSlug(fileName);
+			string templateId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
+
+			MetadataService.Instance.UpdateMetadata(wsPath, m =>
+			{
+				m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+				if (!m.Decals.ContainsKey(templateId))
+				{
+					m.Decals[templateId] = new JsonObject
+					{
+						["decal_id"] = templateId,
+						["texture_path"] = fileName,
+						["size"] = new JsonArray { 2, 2 }
+					};
+				}
+			});
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetManagerDialog] EnsureDecalTemplate error: {ex.Message}");
 		}
 	}
 

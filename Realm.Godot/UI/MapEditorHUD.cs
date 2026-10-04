@@ -9504,7 +9504,7 @@ public partial class MapEditorHUD : Control
 				? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 				: _tempWorkspacePath;
 			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			JsonObject? texturesObj = unionedAssets?["textures"] as JsonObject;
+			JsonObject? texturesObj = (unionedAssets?["Terrain"] ?? unionedAssets?["textures"]) as JsonObject;
 
 			var slots = Realm.Godot.Utils.TextureSwatchSlots.ResolveSlots(texturesObj, wsPath);
 			for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)

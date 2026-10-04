@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Realm.Godot.VFX;
 using Realm.Godot.Services;
+using Realm.Godot.Utils;
 
 public class MapEditorEntityPaletteController
 {
@@ -229,6 +230,19 @@ public class MapEditorEntityPaletteController
 				}
 				else if (category == "Decals")
 				{
+					if (metadata.Decals != null)
+					{
+						foreach (var kvp in metadata.Decals)
+						{
+							string decalKey = kvp.Key;
+							if (!_categoryFiles.Contains(decalKey))
+							{
+								_categoryFiles.Add(decalKey);
+								_idToDisplayName[decalKey] = TemplateIDHelper.ParseTemplateID(decalKey).Slug.Replace("_", " ");
+							}
+						}
+					}
+
 					var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(globalWs);
 					if (unionedAssets.ContainsKey("decals") && unionedAssets["decals"] is System.Text.Json.Nodes.JsonObject decalsObj)
 					{

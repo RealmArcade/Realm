@@ -32,7 +32,8 @@ public static class TextureSwatchSlots
 	{
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		if (allAssets != null && allAssets.TryGetPropertyValue("ribbons", out var ribNode) && ribNode is JsonObject ribObj)
+		var ribNode = allAssets?["Ribbon"] ?? allAssets?["ribbons"];
+		if (ribNode is JsonObject ribObj)
 		{
 			foreach (var kvp in ribObj)
 			{
@@ -116,6 +117,15 @@ public static class TextureSwatchSlots
 		var result = new SwatchSlotInfo[MaxSlots];
 		var occupied = new bool[MaxSlots];
 
+		JsonObject? allAssets = null;
+		try
+		{
+			allAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
+		}
+		catch { }
+
+		texturesObj ??= (allAssets?["Terrain"] ?? allAssets?["textures"]) as JsonObject;
+
 		if (texturesObj == null)
 		{
 			for (int i = 0; i < MaxSlots; i++)
@@ -125,12 +135,6 @@ public static class TextureSwatchSlots
 			return result;
 		}
 
-		JsonObject? allAssets = null;
-		try
-		{
-			allAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
-		}
-		catch { }
 		var knownRibbons = BuildKnownRibbonsCache(allAssets, mapDir);
 
 		var candidateItems = new List<(string BaseName, string FileName, int RequestedSlot, JsonNode? Node)>();

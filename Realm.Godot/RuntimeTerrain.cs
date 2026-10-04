@@ -2110,7 +2110,7 @@ void fragment() {
 			try
 			{
 				var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
-				var texturesObj = unionedAssets?["textures"] as System.Text.Json.Nodes.JsonObject;
+				var texturesObj = (unionedAssets?["Terrain"] ?? unionedAssets?["textures"]) as System.Text.Json.Nodes.JsonObject;
 					if (texturesObj != null)
 					{
 						foreach (var kvp in texturesObj)
@@ -2341,7 +2341,7 @@ void fragment() {
 		try
 		{
 			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
-			texturesObj = unionedAssets?["textures"] as System.Text.Json.Nodes.JsonObject;
+			texturesObj = (unionedAssets?["Terrain"] ?? unionedAssets?["textures"]) as System.Text.Json.Nodes.JsonObject;
 		}
 		catch { }
 

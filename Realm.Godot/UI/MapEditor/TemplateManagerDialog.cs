@@ -1069,7 +1069,17 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			_vfxSprite.Visible = false;
 		}
 
-		if (!string.IsNullOrEmpty(item.ModelPath))
+		if (item.Category == "decals")
+		{
+			PreviewSubViewport.GetParent<Control>().Visible = false;
+			_previewAudioContainer.Visible = false;
+			_preview2DContainer.Visible = true;
+
+			Texture2D? decalTex = GameHost.Instance?.LoadDecalTexture(item.TemplateID);
+			_preview2DImage.Texture = decalTex;
+			_lblPreview2DInfo.Text = item.Name;
+		}
+		else if (!string.IsNullOrEmpty(item.ModelPath))
 		{
 			_preview2DContainer.Visible = false;
 			_previewAudioContainer.Visible = false;
