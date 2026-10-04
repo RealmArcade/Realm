@@ -290,6 +290,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnEditVfx;
 	private Button _btnEditAttachments;
 	private Button _btnAssetsManager;
+	private Button _btnTemplateManager;
 	private Button _btnInstanceManager;
 	private bool _isUpdatingInspectorUI;
 
@@ -798,6 +799,11 @@ public partial class MapEditorHUD : Control
 		_btnAssetsManager.Name = "BtnAssetsManager";
 		SetupOptionButton(_btnAssetsManager, "\uf1b2 ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
 		_contentFile.AddChild(_btnAssetsManager);
+
+		_btnTemplateManager = new Button();
+		_btnTemplateManager.Name = "BtnTemplateManager";
+		SetupOptionButton(_btnTemplateManager, "\uf1b3 TYPES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
+		_contentFile.AddChild(_btnTemplateManager);
 
 		_btnInstanceManager = new Button();
 		_btnInstanceManager.Name = "BtnInstanceManager";
@@ -11970,6 +11976,15 @@ public partial class MapEditorHUD : Control
 			_templateManagerDialog?.RefreshObjectList();
 		};
 		_convertGlbDialog?.OpenWithPreset(initialPath, initialSubCat, chainedCallback);
+	}
+
+	public void OpenTemplateManagerDialog()
+	{
+		if (_templateManagerDialog == null)
+		{
+			_templateManagerDialog = new TemplateManagerDialog(this);
+		}
+		_templateManagerDialog.OpenDialog();
 	}
 
 	public void OpenInstanceManagerDialog()
