@@ -406,6 +406,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 				foreach (var categoryKvp in assetsObj)
 				{
 					string groupKey = categoryKvp.Key.ToLowerInvariant();
+					string normalizedCategory = MapAssetHelper.NormalizeCategoryKey(categoryKvp.Key);
 
 					if (categoryKvp.Value is JsonObject categoryDict)
 					{
@@ -431,15 +432,22 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 							if (string.IsNullOrEmpty(itemAssetType))
 							{
-								string ext = Path.GetExtension(fileName).ToLowerInvariant();
-								itemAssetType = ext switch
+								if (!string.IsNullOrEmpty(normalizedCategory) && !normalizedCategory.Equals("other", StringComparison.OrdinalIgnoreCase) && !normalizedCategory.Equals("assets", StringComparison.OrdinalIgnoreCase))
 								{
-									".rmesh" => "Prop",
-									".rtex" => "Terrain",
-									".raud" or ".ogg" => "SoundEffect",
-									".ranim" => "Animation",
-									_ => "Prop"
-								};
+									itemAssetType = normalizedCategory;
+								}
+								else
+								{
+									string ext = Path.GetExtension(fileName).ToLowerInvariant();
+									itemAssetType = ext switch
+									{
+										".rmesh" => "Prop",
+										".rtex" => "Terrain",
+										".raud" or ".ogg" => "SoundEffect",
+										".ranim" => "Animation",
+										_ => "Prop"
+									};
+								}
 							}
 
 							if (_selectedAssetType != "All" && !string.Equals(_selectedAssetType, itemAssetType, StringComparison.OrdinalIgnoreCase))

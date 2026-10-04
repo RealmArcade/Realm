@@ -191,7 +191,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		catRow.AddChild(spacer);
 
-		_btnAddObject = AddButton(catRow, "\uf067 " + TranslationServer.Translate("Add Object"), () => AddNewObjectForCategory(_currentCategory), "Add new object to metadata.json", 11, new Vector2(120, 26));
+		_btnAddObject = AddButton(catRow, "\uf067 " + TranslationServer.Translate("Add"), () => AddNewObjectForCategory(_currentCategory), "Add new object to metadata.json", 11, new Vector2(120, 26));
 
 		BodyContainer.AddChild(catRow);
 
