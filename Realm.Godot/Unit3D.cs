@@ -329,38 +329,6 @@ public partial class Unit3D : Prop3D
 			resolved = modelPath;
 		}
 
-		if (resolved.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || resolved.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || resolved.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
-		{
-			var decalNode = new Decal3D();
-			decalNode.Name = "VisualModel";
-			decalNode.DecalId = resolved;
-			decalNode.CullMask = RuntimeTerrain.TerrainDecalCullMask;
-			decalNode.Size = new Vector3(6.0f, 20.0f, 6.0f);
-			AddChild(decalNode);
-			_modelNode = decalNode;
-
-			GameHost.Instance?.ApplyDecalPropertiesFromMetadata(decalNode, resolved);
-
-			float gScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
-			float sScale = gScale <= 0.001f ? 1.0f : gScale;
-			_modelNode.Scale = new Vector3(sScale, sScale, sScale);
-
-			float offset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(this) : 0f;
-			_modelNode.Position = new Vector3(0f, offset, 0f);
-
-			var colShapeNode = GetNodeOrNull<CollisionShape3D>("CollisionShape");
-			if (colShapeNode != null)
-			{
-				float radius = GetBaseObstacleRadius();
-				float height = Math.Max(1.0f, radius * 2.5f);
-				colShapeNode.Shape = new BoxShape3D { Size = new Vector3(radius * 2.0f, height, radius * 2.0f) };
-				colShapeNode.Position = new Vector3(0, height * 0.5f, 0);
-			}
-
-			UpdateDropShadow();
-			return;
-		}
-
 		_modelNode = Realm.Godot.Utils.ModelCache.GetModel(modelPath) as Node3D;
 		if (_modelNode == null && !string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
 		{
@@ -452,6 +420,39 @@ public partial class Unit3D : Prop3D
 		}
 
 		UpdateDropShadow();
+		UpdateSlopeAlignment();
+	}
+
+	public override bool IsSlopeAligned
+	{
+		get
+		{
+			if (GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
+			{
+				return string.Equals(meta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
+			}
+			if (GameHost.BuildingRegistry.TryGetValue(UnitId, out var bMeta))
+			{
+				return string.Equals(bMeta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
+			}
+			return false;
+		}
+	}
+
+	public override void UpdateSlopeAlignment()
+	{
+		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && _modelNode != null && GodotObject.IsInstanceValid(_modelNode))
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
+			if (normal.LengthSquared() > 0.01f)
+			{
+				normal = normal.Normalized();
+				Vector3 up = normal;
+				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
+				Vector3 right = up.Cross(forward).Normalized();
+				_modelNode.Basis = new Basis(right, up, -forward);
+			}
+		}
 	}
 
 	public override float GetBaseObstacleRadius()

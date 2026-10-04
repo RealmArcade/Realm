@@ -313,6 +313,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 		public string Name;
 		public string Description;
 		public string ModelPath;
+		public string VisualMode;
 		public string IconPath;
 		public float Scale;
 	}
@@ -340,6 +341,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 							Name = u.Name ?? u.ObjectID,
 							Description = u.Description ?? "",
 							ModelPath = u.ModelPath ?? "",
+							VisualMode = u.VisualMode ?? "GroundPlane",
 							Scale = u.Scale > 0 ? u.Scale : 1.0f
 						});
 					}
@@ -358,6 +360,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 							Name = b.Name ?? b.ObjectID,
 							Description = b.Description ?? "",
 							ModelPath = b.ModelPath ?? "",
+							VisualMode = b.VisualMode ?? "GroundPlane",
 							Scale = b.Scale > 0 ? b.Scale : 1.0f
 						});
 					}
@@ -376,6 +379,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 							Name = r.Name ?? r.ObjectID,
 							Description = r.Description ?? "",
 							ModelPath = r.ModelPath ?? "",
+							VisualMode = r.VisualMode ?? "GroundPlane",
 							Scale = r.Scale > 0 ? r.Scale : 1.0f
 						});
 					}
@@ -394,6 +398,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 							Name = p.Name ?? p.ObjectID,
 							Description = p.Description ?? "",
 							ModelPath = p.ModelPath ?? "",
+							VisualMode = p.VisualMode ?? "GroundPlane",
 							Scale = p.Scale > 0 ? p.Scale : 1.0f
 						});
 					}
@@ -831,43 +836,17 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 			_previewAudioContainer.Visible = false;
 			PreviewSubViewport.GetParent<Control>().Visible = true;
 
-			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			string subFolder = item.Category switch
+			try
 			{
-				"units" => "models/units",
-				"buildings" => "models/buildings",
-				"resources" => "models/resources",
-				"props" => "models/props",
-				_ => "models"
-			};
-
-			string? fullPath = MapAssetHelper.FindModelOnDisk(wsPath, subFolder, item.ModelPath);
-			if (string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath))
-			{
-				fullPath = Path.Combine(wsPath, "Assets", subFolder, item.ModelPath);
-			}
-
-			if (File.Exists(fullPath))
-			{
-				try
+				Node mesh = ModelCache.GetModel(item.ModelPath);
+				if (mesh != null)
 				{
-					Realm.Godot.Services.ModelOptimization.GltfDocumentExtensionMsftLod.RegisterExtension();
-					var doc = new GltfDocument();
-					var state = new GltfState();
-					Error err = doc.AppendFromFile(fullPath, state);
-					if (err == Error.Ok)
-					{
-						var mesh = doc.GenerateScene(state);
-						if (mesh != null)
-						{
-							_currentModelRoot.AddChild(mesh);
-							float s = item.Scale > 0 ? item.Scale : 1.0f;
-							_currentModelRoot.Scale = new Vector3(s, s, s);
-						}
-					}
+					_currentModelRoot.AddChild(mesh);
+					float s = item.Scale > 0 ? item.Scale : 1.0f;
+					_currentModelRoot.Scale = new Vector3(s, s, s);
 				}
-				catch { }
 			}
+			catch { }
 		}
 		else if (!string.IsNullOrEmpty(item.IconPath))
 		{

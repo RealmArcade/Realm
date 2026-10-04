@@ -15,6 +15,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private string _originalObjectID = "";
 	private string _modelPath = "";
 	private string _portraitModelPath = "";
+	private string _visualMode = "GroundPlane";
 	private string _name = "";
 	private string _description = "";
 
@@ -39,6 +40,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private Action<string> _setModelPathValue;
 	private LineEdit _txtPortraitModelPath;
 	private Action<string> _setPortraitModelPathValue;
+	private OptionButton _optVisualMode;
 	private LineEdit _txtName;
 	private LineEdit _txtDescription;
 
@@ -112,20 +114,63 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_lblSlugValidation.Visible = false;
 		contentVBox.AddChild(_lblSlugValidation);
 
-		// Model Asset Dropdown (rmesh from manifest.json matching the entity type)
+		// Model Asset Dropdown (rmesh from manifest.json or rtex / textures)
 		(_txtModelPath, _setModelPathValue) = AddAssetFilterDropdown(
 			contentVBox,
-			TranslationServer.Translate("Model Asset (.rmesh):"),
+			TranslationServer.Translate("Model / Visual Asset:"),
 			_modelPath,
 			(all) => ScanCompatibleModels(all),
 			(val) =>
 			{
 				if (_isSyncing) return;
 				_modelPath = val ?? string.Empty;
+				if (!string.IsNullOrEmpty(_modelPath))
+				{
+					if (_modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || _modelPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || _modelPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+					{
+						if (_visualMode == "Mesh")
+						{
+							_visualMode = "GroundPlane";
+							SyncVisualModeControl();
+						}
+					}
+					else if (_modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+					{
+						_visualMode = "Mesh";
+						SyncVisualModeControl();
+					}
+				}
 			},
-			TranslationServer.Translate("Select .rmesh model asset..."),
+			TranslationServer.Translate("Select .rmesh or .rtex asset..."),
 			140f
 		);
+
+		// Visual Primitive Mode
+		var modeRow = new HBoxContainer();
+		modeRow.AddThemeConstantOverride("separation", 8);
+
+		var lblMode = new Label();
+		lblMode.Text = TranslationServer.Translate("Visual Primitive:");
+		lblMode.CustomMinimumSize = new Vector2(140, 0);
+		lblMode.AddThemeFontSizeOverride("font_size", 11);
+		modeRow.AddChild(lblMode);
+
+		_optVisualMode = new OptionButton();
+		_optVisualMode.CustomMinimumSize = new Vector2(180, 24);
+		_optVisualMode.AddThemeFontSizeOverride("font_size", 11);
+		_optVisualMode.AddItem(TranslationServer.Translate("Ground Plane (Horizontal)"), 0);
+		_optVisualMode.SetItemMetadata(0, "GroundPlane");
+		_optVisualMode.AddItem(TranslationServer.Translate("Slope-Aligned Quad"), 1);
+		_optVisualMode.SetItemMetadata(1, "SlopeAlignedQuad");
+		_optVisualMode.AddItem(TranslationServer.Translate("3D Mesh (.rmesh)"), 2);
+		_optVisualMode.SetItemMetadata(2, "Mesh");
+		_optVisualMode.ItemSelected += (idx) =>
+		{
+			if (_isSyncing) return;
+			_visualMode = _optVisualMode.GetItemMetadata((int)idx).AsString();
+		};
+		modeRow.AddChild(_optVisualMode);
+		contentVBox.AddChild(modeRow);
 
 		// Portrait Model Path
 		(_txtPortraitModelPath, _setPortraitModelPathValue) = AddAssetFilterDropdown(
@@ -272,6 +317,20 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		);
 	}
 
+	private void SyncVisualModeControl()
+	{
+		if (_optVisualMode == null) return;
+		for (int i = 0; i < _optVisualMode.ItemCount; i++)
+		{
+			if (string.Equals(_optVisualMode.GetItemMetadata(i).AsString(), _visualMode, StringComparison.OrdinalIgnoreCase))
+			{
+				_optVisualMode.Select(i);
+				return;
+			}
+		}
+		_optVisualMode.Select(0);
+	}
+
 	private List<string> ScanCompatibleModels(bool allFolders)
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -304,8 +363,46 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					}
 				}
 			}
+
+			if (assets["decals"] is System.Text.Json.Nodes.JsonObject decalsObj)
+			{
+				foreach (var kvp in decalsObj)
+				{
+					results.Add(kvp.Key);
+				}
+			}
+
+			if (assets["textures"] is System.Text.Json.Nodes.JsonObject texturesObj)
+			{
+				foreach (var kvp in texturesObj)
+				{
+					results.Add(kvp.Key);
+				}
+			}
 		}
 		catch { }
+
+		string[] candidateFolders = new[]
+		{
+			Path.Combine(wsPath, "Assets", "decals"),
+			Path.Combine(wsPath, "Assets", "textures"),
+			Path.Combine("MapTemplate", "Assets", "decals"),
+			Path.Combine("MapTemplate", "Assets", "textures")
+		};
+
+		foreach (var folder in candidateFolders)
+		{
+			if (Directory.Exists(folder))
+			{
+				foreach (var file in Directory.GetFiles(folder, "*.*", SearchOption.AllDirectories))
+				{
+					if (file.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+					{
+						results.Add(Path.GetFileName(file));
+					}
+				}
+			}
+		}
 
 		if (results.Count == 0)
 		{
@@ -416,6 +513,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	{
 		_modelPath = u.ModelPath ?? "";
 		_portraitModelPath = u.PortraitModelPath ?? "";
+		_visualMode = !string.IsNullOrEmpty(u.VisualMode) ? u.VisualMode : (u.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh");
 		_name = u.Name ?? "";
 		_description = u.Description ?? "";
 		_scale = u.Scale > 0 ? u.Scale : 1.0f;
@@ -434,6 +532,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	{
 		_modelPath = r.ModelPath ?? "";
 		_portraitModelPath = r.PortraitModelPath ?? "";
+		_visualMode = !string.IsNullOrEmpty(r.VisualMode) ? r.VisualMode : (r.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh");
 		_name = r.Name ?? "";
 		_description = r.Description ?? "";
 		_scale = r.Scale > 0 ? r.Scale : 2.75f;
@@ -452,6 +551,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	{
 		_modelPath = p.ModelPath ?? "";
 		_portraitModelPath = p.PortraitModelPath ?? "";
+		_visualMode = !string.IsNullOrEmpty(p.VisualMode) ? p.VisualMode : (p.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh");
 		_name = p.Name ?? "";
 		_description = p.Description ?? "";
 		_scale = p.Scale > 0 ? p.Scale : 1.25f;
@@ -475,6 +575,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			if (_txtSlug != null) _txtSlug.Text = _slug;
 			_setModelPathValue?.Invoke(_modelPath);
 			_setPortraitModelPathValue?.Invoke(_portraitModelPath);
+			SyncVisualModeControl();
 			if (_txtName != null) _txtName.Text = _name;
 			if (_txtDescription != null) _txtDescription.Text = _description;
 
@@ -522,6 +623,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 						u.Description = _description;
 						u.ModelPath = _modelPath;
 						u.PortraitModelPath = _portraitModelPath;
+						u.VisualMode = _visualMode;
 						u.Scale = _scale;
 						u.YOffset = _yOffset;
 						u.CollisionCircle = _collisionCircle;
@@ -543,6 +645,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 							Description = _description,
 							ModelPath = _modelPath,
 							PortraitModelPath = _portraitModelPath,
+							VisualMode = _visualMode,
 							Scale = _scale,
 							YOffset = _yOffset,
 							CollisionCircle = _collisionCircle,
@@ -567,6 +670,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 						b.Description = _description;
 						b.ModelPath = _modelPath;
 						b.PortraitModelPath = _portraitModelPath;
+						b.VisualMode = _visualMode;
 						b.Scale = _scale;
 						b.YOffset = _yOffset;
 						b.CollisionCircle = _collisionCircle;
@@ -588,6 +692,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 							Description = _description,
 							ModelPath = _modelPath,
 							PortraitModelPath = _portraitModelPath,
+							VisualMode = _visualMode,
 							Scale = _scale,
 							YOffset = _yOffset,
 							CollisionCircle = _collisionCircle,
@@ -612,6 +717,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 						r.Description = _description;
 						r.ModelPath = _modelPath;
 						r.PortraitModelPath = _portraitModelPath;
+						r.VisualMode = _visualMode;
 						r.Scale = _scale;
 						r.YOffset = _yOffset;
 						r.CollisionCircle = _collisionCircle;
@@ -633,6 +739,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 							Description = _description,
 							ModelPath = _modelPath,
 							PortraitModelPath = _portraitModelPath,
+							VisualMode = _visualMode,
 							Scale = _scale,
 							YOffset = _yOffset,
 							CollisionCircle = _collisionCircle,
@@ -659,6 +766,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 						p.Description = _description;
 						p.ModelPath = _modelPath;
 						p.PortraitModelPath = _portraitModelPath;
+						p.VisualMode = _visualMode;
 						p.Scale = _scale;
 						p.YOffset = _yOffset;
 						p.CollisionCircle = _collisionCircle;
@@ -680,6 +788,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 							Description = _description,
 							ModelPath = _modelPath,
 							PortraitModelPath = _portraitModelPath,
+							VisualMode = _visualMode,
 							Scale = _scale,
 							YOffset = _yOffset,
 							CollisionCircle = _collisionCircle,

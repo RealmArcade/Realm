@@ -1266,6 +1266,7 @@ public partial class GameHost : Node3D, IGameAPI
 		public float GoldBounty { get; set; }
 		public string ModelPath { get; set; }
 		public string PortraitModelPath { get; set; }
+		public string VisualMode { get; set; } = "GroundPlane";
 		public float Scale { get; set; } = 1.0f;
 		public float YOffset { get; set; }
 		public float CollisionCircle { get; set; }
@@ -1459,6 +1460,7 @@ public partial class GameHost : Node3D, IGameAPI
 		public string Description { get; set; }
 		public string ModelPath { get; set; }
 		public string PortraitModelPath { get; set; }
+		public string VisualMode { get; set; } = "GroundPlane";
 		public float Scale { get; set; } = 1.25f;
 		public float YOffset { get; set; }
 		public float CollisionCircle { get; set; }
@@ -1492,6 +1494,7 @@ public partial class GameHost : Node3D, IGameAPI
 		public string Description { get; set; }
 		public string ModelPath { get; set; }
 		public string PortraitModelPath { get; set; }
+		public string VisualMode { get; set; } = "GroundPlane";
 		public float MaxCapacity { get; set; }
 		public float HarvestRate { get; set; }
 		public float GrowthRate { get; set; }

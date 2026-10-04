@@ -533,12 +533,44 @@ public partial class Prop3D : StaticBody3D
 		CreatePropVisual();
 	}
 
+	public virtual bool IsSlopeAligned
+	{
+		get
+		{
+			if (GameHost.PropRegistry.TryGetValue(PropId, out var meta))
+			{
+				return string.Equals(meta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
+			}
+			if (GameHost.ResourceRegistry.TryGetValue(PropId, out var rMeta))
+			{
+				return string.Equals(rMeta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
+			}
+			return false;
+		}
+	}
+
+	public virtual void UpdateSlopeAlignment()
+	{
+		var visual = GetNodeOrNull<Node3D>("VisualModel");
+		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && visual != null && GodotObject.IsInstanceValid(visual))
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
+			if (normal.LengthSquared() > 0.01f)
+			{
+				normal = normal.Normalized();
+				Vector3 up = normal;
+				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
+				Vector3 right = up.Cross(forward).Normalized();
+				visual.Basis = new Basis(right, up, -forward);
+			}
+		}
+	}
+
 	private void CreatePropVisual()
 	{
 		string modelPath = ResolvePropModelPath(PropId);
-		bool isDecalArt = !string.IsNullOrEmpty(modelPath) && (modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase));
 
-		if (IsPreview || isDecalArt || GameHost.Instance?.IsMapEditorMode == true)
+		if (IsPreview || GameHost.Instance?.IsMapEditorMode == true)
 		{
 			var visual = GetNodeOrNull<Node3D>("VisualModel");
 			if (visual == null)
@@ -557,30 +589,16 @@ public partial class Prop3D : StaticBody3D
 				{
 					if (!string.IsNullOrEmpty(modelPath))
 					{
-						if (isDecalArt)
+						Node node = ModelCache.GetModel(modelPath);
+						if (node != null)
 						{
-							var decalNode = new Decal3D();
-							decalNode.Name = "DecalVisual";
-							decalNode.DecalId = modelPath;
-							decalNode.CullMask = RuntimeTerrain.TerrainDecalCullMask;
-							decalNode.Size = new Vector3(6.0f, 20.0f, 6.0f);
-							visual.AddChild(decalNode);
-							GameHost.Instance?.ApplyDecalPropertiesFromMetadata(decalNode, modelPath);
-							ModelShaderManager.SetHideInShroud(decalNode, true);
-						}
-						else
-						{
-							Node node = ModelCache.GetModel(modelPath);
-							if (node != null)
+							visual.AddChild(node);
+							Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(node, PropId);
+							if (!IsPreview)
 							{
-								visual.AddChild(node);
-								Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(node, PropId);
-								if (!IsPreview)
-								{
-									GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
-								}
-								ModelShaderManager.SetHideInShroud(node, true);
+								GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
 							}
+							ModelShaderManager.SetHideInShroud(node, true);
 						}
 					}
 				}
@@ -590,10 +608,11 @@ public partial class Prop3D : StaticBody3D
 				}
 
 				UpdateLodVisibility();
+				UpdateSlopeAlignment();
 			}
 		}
 
-		if (!IsPreview && !isDecalArt)
+		if (!IsPreview)
 		{
 			PropMultiMeshManager.Instance?.MarkDirty(PropId);
 		}
