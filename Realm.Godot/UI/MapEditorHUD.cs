@@ -270,7 +270,7 @@ public partial class MapEditorHUD : Control
 	private AbilityVfxDialog _abilityVfxDialog;
 	private AssetManagerDialog _assetManagerDialog;
 	private TemplateManagerDialog _templateManagerDialog;
-	private PlacedObjectsDialog _placedObjectsDialog;
+	private InstanceManagerDialog _instanceManagerDialog;
 	private AssetBrowserDialog _assetBrowserDialog;
 	private NoiseTextureDialog _noiseTextureDialog;
 	private ConvertGlbDialog _convertGlbDialog;
@@ -290,7 +290,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnEditVfx;
 	private Button _btnEditAttachments;
 	private Button _btnAssetsManager;
-	private Button _btnPlacedObjects;
+	private Button _btnInstanceManager;
 	private bool _isUpdatingInspectorUI;
 
 	private CheckBox _chkApplyGroundTexture;
@@ -799,10 +799,10 @@ public partial class MapEditorHUD : Control
 		SetupOptionButton(_btnAssetsManager, "\uf1b2 ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
 		_contentFile.AddChild(_btnAssetsManager);
 
-		_btnPlacedObjects = new Button();
-		_btnPlacedObjects.Name = "BtnPlacedObjects";
-		SetupOptionButton(_btnPlacedObjects, "\uf0cb OBJECTS", () => OpenPlacedObjectsDialog(), 13, "Open dialog to list and locate all placed objects");
-		_contentFile.AddChild(_btnPlacedObjects);
+		_btnInstanceManager = new Button();
+		_btnInstanceManager.Name = "BtnInstanceManager";
+		SetupOptionButton(_btnInstanceManager, "\uf0cb INSTANCES", () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
+		_contentFile.AddChild(_btnInstanceManager);
 
 		_btnEditorSettings = new Button();
 		_btnEditorSettings.Name = "BtnEditorSettings";
@@ -3297,7 +3297,7 @@ public partial class MapEditorHUD : Control
 			{
 				GameHost.Instance.DeleteNodeExternal(selected);
 			}
-			_placedObjectsDialog?.RefreshIfOpen();
+			_instanceManagerDialog?.RefreshIfOpen();
 		}
 	}
 
@@ -10336,7 +10336,7 @@ public partial class MapEditorHUD : Control
 		_abilityVfxDialog = new AbilityVfxDialog(this);
 		_assetManagerDialog = new AssetManagerDialog(this);
 		_templateManagerDialog = new TemplateManagerDialog(this);
-		_placedObjectsDialog = new PlacedObjectsDialog(this);
+		_instanceManagerDialog = new InstanceManagerDialog(this);
 		_assetBrowserDialog = new AssetBrowserDialog(this);
 		_noiseTextureDialog = new NoiseTextureDialog(this);
 		_convertGlbDialog = new ConvertGlbDialog(this);
@@ -11972,13 +11972,13 @@ public partial class MapEditorHUD : Control
 		_convertGlbDialog?.OpenWithPreset(initialPath, initialSubCat, chainedCallback);
 	}
 
-	public void OpenPlacedObjectsDialog()
+	public void OpenInstanceManagerDialog()
 	{
-		if (_placedObjectsDialog == null)
+		if (_instanceManagerDialog == null)
 		{
-			_placedObjectsDialog = new PlacedObjectsDialog(this);
+			_instanceManagerDialog = new InstanceManagerDialog(this);
 		}
-		_placedObjectsDialog.OpenDialog();
+		_instanceManagerDialog.OpenDialog();
 	}
 
 	public void OpenEditorSettingsDialog()

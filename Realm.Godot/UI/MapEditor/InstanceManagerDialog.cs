@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Realm.Godot.VFX;
 
-public partial class PlacedObjectsDialog : FloatingDialogBase
+public partial class InstanceManagerDialog : FloatingDialogBase
 {
 	private Tree _objectTree;
 	private LineEdit _filterInput;
@@ -17,8 +17,8 @@ public partial class PlacedObjectsDialog : FloatingDialogBase
 	private int _lastPropsCount = -1;
 	private int _lastDecalsCount = -1;
 
-	public PlacedObjectsDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Placed Objects"), new Vector2(500, 620))
+	public InstanceManagerDialog(MapEditorHUD hud)
+		: base(hud, TranslationServer.Translate("Instance Manager"), new Vector2(500, 620))
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_panel.png", 30, 40, 50, 50);
 		BuildControls();
