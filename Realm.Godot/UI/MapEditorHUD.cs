@@ -11901,7 +11901,7 @@ public partial class MapEditorHUD : Control
 			return;
 		}
 
-		OpenAssetBrowser("Import Texture Image", new[] { ".rtex", ".png", ".webp" }, imagePath =>
+		OpenAssetBrowser("Import Texture Image", new[] { ".rtex" }, imagePath =>
 		{
 			if (selectedIdx >= 0 && selectedIdx < _swatchPaths.Count && !string.IsNullOrEmpty(_swatchPaths[selectedIdx]))
 			{

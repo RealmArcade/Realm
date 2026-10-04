@@ -974,8 +974,8 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			"Character" or "Building" or "Prop" or "Item" => new[] { ".rmesh" },
 			"Terrain" or "Spritesheet" or "vfx_radial" or "vfx_vertical" or "Icon" or "Decal" or "Ribbon" or "Noise" or "Skybox" => new[] { ".rtex" },
 			"Animation" => new[] { ".ranim" },
-			"SoundEffect" or "Music" => new[] { ".raud", ".ogg" },
-			_ => new[] { ".rmesh", ".rtex", ".ranim", ".raud", ".ogg" }
+			"SoundEffect" or "Music" => new[] { ".raud" },
+			_ => new[] { ".rmesh", ".rtex", ".ranim", ".raud" }
 		};
 
 		string? requiredType = _selectedAssetType == "All" ? null : _selectedAssetType;

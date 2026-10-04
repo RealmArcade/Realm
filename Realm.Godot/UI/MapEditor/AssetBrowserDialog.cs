@@ -844,7 +844,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_txtAssetTypeEdit.Text = !string.IsNullOrEmpty(embeddedAssetType) ? embeddedAssetType : TranslationServer.Translate("None");
 			_txtAssetTypeEdit.Editable = false;
 			var validTypes = Realm.Shared.Metadata.RealmMetadataHelper.GetValidAssetTypesForExtension(_selectedAsset.FilePath);
-			_btnEditAssetType.Disabled = (validTypes.Length == 0);
+			_btnEditAssetType.Disabled = (validTypes.Count == 0);
 
 			string ext = _selectedAsset.Extension?.ToLowerInvariant() ?? "";
 			bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac";
