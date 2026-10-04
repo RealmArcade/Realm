@@ -150,7 +150,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 
 			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Migrating asset dictionaries to manifest..."));
 
-			var unionedAssets = MapAssetHelper.LoadUnionedAssets(mapDirectory);
+			var unionedAssets = MapAssetHelper.LoadAssets(mapDirectory);
 
 			if (metadataRoot.TryGetPropertyValue("vfx", out var vfxNode) && vfxNode is JsonObject vfxObj)
 			{
@@ -796,7 +796,7 @@ public class Migration_0_0_3_WaterProfilesAndShaders : IMapMigration
 
 			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Normalizing shaders in manifest and metadata..."));
 
-			var unionedAssets = MapAssetHelper.LoadUnionedAssets(mapDirectory);
+			var unionedAssets = MapAssetHelper.LoadAssets(mapDirectory);
 
 			if (metadataRoot.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObject)
 			{

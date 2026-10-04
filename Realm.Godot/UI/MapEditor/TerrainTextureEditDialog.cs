@@ -104,7 +104,7 @@ public class TerrainTextureUndoAction : IEditorAction
 		try
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			var texturesObj = (assetsObj?["Terrain"] ?? assetsObj?["textures"]) as JsonObject;
 			if (texturesObj != null)
 			{

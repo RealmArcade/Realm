@@ -547,7 +547,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 		try
 		{
-			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			var skyboxesObj = unionedAssets?["skyboxes"] as JsonObject;
 			if (skyboxesObj != null)
 			{

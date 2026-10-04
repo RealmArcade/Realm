@@ -120,7 +120,7 @@ public static class TextureSwatchSlots
 		JsonObject? allAssets = null;
 		try
 		{
-			allAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
+			allAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(mapDir);
 		}
 		catch { }
 

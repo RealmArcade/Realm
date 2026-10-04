@@ -2385,7 +2385,7 @@ public class SaveLoadService
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(mapDirectory);
+			var assetsObj = MapAssetHelper.LoadAssets(mapDirectory);
 			string assetsDir = Path.Combine(mapDirectory, "Assets");
 
 			var includedRelativePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

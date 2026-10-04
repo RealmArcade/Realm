@@ -1091,7 +1091,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
 				foreach (var catName in new[] { "ribbons", "decals", "textures", "vfx_spritesheets", "vfx", "noise_textures", "noise" })
@@ -1135,7 +1135,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
 				foreach (var catName in new[] { "noise_textures", "noise" })
@@ -1165,7 +1165,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
 				foreach (var cat in assetsObj)
@@ -1443,7 +1443,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			try
 			{
 				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-				var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
+				var assetsObj = MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
 				if (!assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] == null)
 				{
 					assetsObj["noise_textures"] = new JsonObject();
@@ -1482,7 +1482,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (!assetsObj.ContainsKey("vfx_spritesheets") || assetsObj["vfx_spritesheets"] == null)
 			{
 				assetsObj["vfx_spritesheets"] = new JsonObject();

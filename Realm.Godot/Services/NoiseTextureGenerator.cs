@@ -259,7 +259,7 @@ public static class NoiseTextureGenerator
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(workspacePath);
 			if (assetsObj == null || !assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] is not JsonObject noiseObj)
 			{
 				return;

@@ -6915,7 +6915,7 @@ public partial class MapEditorHUD : Control
 					}
 				}
 
-				var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+				var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 				if (treeModels.Count == 0 && assetsObj?["glb"]?["resources"] is System.Text.Json.Nodes.JsonObject glbRes)
 				{
 					foreach (var kvp in glbRes)
@@ -9503,7 +9503,7 @@ public partial class MapEditorHUD : Control
 			string wsPath = string.IsNullOrEmpty(_tempWorkspacePath) 
 				? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 				: _tempWorkspacePath;
-			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			JsonObject? texturesObj = (unionedAssets?["Terrain"] ?? unionedAssets?["textures"]) as JsonObject;
 
 			var slots = Realm.Godot.Utils.TextureSwatchSlots.ResolveSlots(texturesObj, wsPath);
@@ -12360,7 +12360,7 @@ public partial class MapEditorHUD : Control
 				}
 			}
 
-			JsonObject assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
+			JsonObject assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
 
 			if (!string.IsNullOrEmpty(subCategory))
 			{

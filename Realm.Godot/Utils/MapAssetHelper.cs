@@ -13,30 +13,15 @@ namespace Realm.Godot.Utils;
 
 public static class MapAssetHelper
 {
-	public static JsonObject LoadUnionedAssets(string mapDirectory)
+	public static JsonObject LoadAssets(string mapDirectory)
 	{
 		string targetDirectory = string.IsNullOrEmpty(mapDirectory)
 			? MapWorkspaceService.GetActiveWorkspacePath()
 			: mapDirectory;
 
-		var unionedAssets = new JsonObject();
+		var assets = new JsonObject();
 
 		string manifestPath = Path.Combine(targetDirectory, "manifest.json");
-		string metadataPath = Path.Combine(targetDirectory, "metadata.json");
-
-		JsonObject? metadataRoot = null;
-		if (File.Exists(metadataPath))
-		{
-			try
-			{
-				string metadataText = File.ReadAllText(metadataPath);
-				metadataRoot = JsonNode.Parse(metadataText)?.AsObject();
-			}
-			catch (Exception exception)
-			{
-				GD.PrintErr($"[MapAssetHelper] Failed to read metadata.json for assets: {exception.Message}");
-			}
-		}
 
 		if (File.Exists(manifestPath))
 		{
@@ -50,7 +35,7 @@ public static class MapAssetHelper
 					{
 						if (manifestRoot["Assets"] is JsonObject manifestAssets)
 						{
-							MergeAssetsInto(unionedAssets, manifestAssets);
+							MergeAssetsInto(assets, manifestAssets);
 						}
 					}
 				}
@@ -61,16 +46,11 @@ public static class MapAssetHelper
 			}
 		}
 
-		if (metadataRoot != null)
-		{
-			AttachMetadataAttributesToUnionedAssets(unionedAssets, metadataRoot, targetDirectory);
-		}
+		MapWorkspaceService.NormalizeTextureEntries(assets, targetDirectory);
 
-		MapWorkspaceService.NormalizeTextureEntries(unionedAssets, targetDirectory);
+		EnsureAllAssetsHaveBlake3Hashes(assets, targetDirectory);
 
-		EnsureAllAssetsHaveBlake3Hashes(unionedAssets, targetDirectory);
-
-		return unionedAssets;
+		return assets;
 	}
 
 	public static (bool IsValid, List<string> MissingFiles) ValidateWorkspaceAssets(string workspacePath)
@@ -374,7 +354,7 @@ public static class MapAssetHelper
 			? MapWorkspaceService.GetActiveWorkspacePath()
 			: mapDirectory;
 
-		var assets = LoadUnionedAssets(targetDirectory);
+		var assets = LoadAssets(targetDirectory);
 		string categoryKey = NormalizeCategoryKey(!string.IsNullOrEmpty(subCategory) ? subCategory : category);
 
 		if (!assets.ContainsKey(categoryKey) || assets[categoryKey] is not JsonObject)
@@ -423,7 +403,7 @@ public static class MapAssetHelper
 			? MapWorkspaceService.GetActiveWorkspacePath()
 			: mapDirectory;
 
-		var assets = LoadUnionedAssets(targetDirectory);
+		var assets = LoadAssets(targetDirectory);
 		string categoryKey = NormalizeCategoryKey(!string.IsNullOrEmpty(subCategory) ? subCategory : category);
 
 		if (assets.ContainsKey(categoryKey) && assets[categoryKey] is JsonObject categoryObject)
@@ -605,7 +585,7 @@ public static class MapAssetHelper
 			}
 		}
 
-		var unionedAssets = LoadUnionedAssets(directory);
+		var unionedAssets = LoadAssets(directory);
 		SaveAssetsToManifest(directory, unionedAssets, removeFromMetadata: false);
 	}
 
@@ -861,182 +841,6 @@ public static class MapAssetHelper
 		}
 	}
 
-	private static void AttachMetadataAttributesToUnionedAssets(JsonObject unionedAssets, JsonObject metadataRoot, string targetDirectory)
-	{
-		var categoryMappings = new (string MetadataKey, string CanonicalKey)[]
-		{
-			("textures", "Terrain"),
-			("Terrain", "Terrain"),
-			("decals", "Decal"),
-			("Decal", "Decal"),
-			("vfx_spritesheets", "Spritesheet"),
-			("Spritesheet", "Spritesheet"),
-			("noise_textures", "Noise"),
-			("Noise", "Noise"),
-			("icons", "Icon"),
-			("Icon", "Icon"),
-			("skyboxes", "Skybox"),
-			("Skybox", "Skybox"),
-			("ribbons", "Ribbon"),
-			("Ribbon", "Ribbon"),
-			("animations", "Animation"),
-			("Animation", "Animation"),
-			("sfx", "SoundEffect"),
-			("SoundEffect", "SoundEffect"),
-			("music", "Music"),
-			("Music", "Music"),
-			("shaders", "Shader"),
-			("Shader", "Shader"),
-			("other", "other")
-		};
-
-		foreach (var (mKey, cKey) in categoryMappings)
-		{
-			if (metadataRoot[mKey] is JsonObject mObj)
-			{
-				MergeCategoryAttributes(unionedAssets, cKey, mObj);
-			}
-		}
-
-		AttachCustomEntitiesToGlb(unionedAssets, metadataRoot, targetDirectory);
-		AttachModelMetadataAttributes(unionedAssets, metadataRoot);
-	}
-
-	private static void AttachCustomEntitiesToGlb(JsonObject unionedAssets, JsonObject metadataRoot, string targetDirectory)
-	{
-		var arrayMappings = new (string ArrayKey, string SubCategory, string CanonicalCategory)[]
-		{
-			("CustomUnits", "units", "Character"),
-			("CustomBuildings", "buildings", "Building"),
-			("CustomResources", "resources", "Prop"),
-			("CustomProps", "props", "Prop"),
-			("CustomAttachments", "attachments", "Item"),
-			("CustomWeapons", "weapons", "Item")
-		};
-
-		foreach (var (arrayKey, subCat, canonicalCat) in arrayMappings)
-		{
-			if (metadataRoot.TryGetPropertyValue(arrayKey, out var arrNode) && arrNode is JsonArray arr)
-			{
-				foreach (var itemNode in arr)
-				{
-					if (itemNode is JsonObject entityObj)
-					{
-						string modelPath = arrayKey switch
-						{
-							"CustomWeapons" => entityObj["ProjectileModelPath"]?.ToString() ?? entityObj["ModelPath"]?.ToString() ?? "",
-							_ => entityObj["ModelPath"]?.ToString() ?? ""
-						};
-
-						if (string.IsNullOrEmpty(modelPath))
-						{
-							string fallbackId = arrayKey switch
-							{
-								"CustomUnits" => entityObj["UnitId"]?.ToString() ?? "",
-								"CustomAttachments" => entityObj["AttachmentId"]?.ToString() ?? "",
-								_ => ""
-							};
-							if (!string.IsNullOrEmpty(fallbackId))
-							{
-								string? diskCheck = FindModelOnDisk(targetDirectory, subCat, fallbackId, out _);
-								if (!string.IsNullOrEmpty(diskCheck))
-								{
-									modelPath = fallbackId;
-								}
-							}
-						}
-
-						if (!string.IsNullOrEmpty(modelPath))
-						{
-							string fileName = Path.GetFileName(modelPath);
-							string? diskPath = FindModelOnDisk(targetDirectory, subCat, fileName, out string resolvedSub);
-							if (!string.IsNullOrEmpty(diskPath))
-							{
-								fileName = Path.GetFileName(diskPath);
-								EnsureCanonicalEntryExists(unionedAssets, canonicalCat, fileName, diskPath);
-							}
-						}
-
-						void TryAttachModel(string? path)
-						{
-							if (string.IsNullOrWhiteSpace(path) || path.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || path.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
-							{
-								return;
-							}
-							string fileName = Path.GetFileName(path);
-							string? diskPath = FindModelOnDisk(targetDirectory, subCat, fileName, out string resolvedSub);
-							if (!string.IsNullOrEmpty(diskPath))
-							{
-								fileName = Path.GetFileName(diskPath);
-								EnsureCanonicalEntryExists(unionedAssets, canonicalCat, fileName, diskPath);
-							}
-						}
-
-						TryAttachModel(entityObj["PortraitModelPath"]?.ToString());
-						TryAttachModel(entityObj["DeadModelPath"]?.ToString());
-						TryAttachModel(entityObj["PlacementModelPath"]?.ToString());
-					}
-				}
-			}
-		}
-
-		if (metadataRoot.TryGetPropertyValue("Models", out var modelsNode) && modelsNode is JsonObject modelsObj)
-		{
-			foreach (var prop in modelsObj)
-			{
-				string rawName = prop.Key;
-				string? existingCat = FindExistingCanonicalCategory(unionedAssets, rawName);
-				if (string.IsNullOrEmpty(existingCat))
-				{
-					string? diskPath = FindModelOnDisk(targetDirectory, null, rawName, out string foundSub);
-					if (!string.IsNullOrEmpty(diskPath))
-					{
-						string fileName = Path.GetFileName(diskPath);
-						string resolvedCat = foundSub switch
-						{
-							"units" or "characters" => "Character",
-							"buildings" => "Building",
-							"items" or "projectiles" or "attachments" or "weapons" => "Item",
-							_ => "Prop"
-						};
-						EnsureCanonicalEntryExists(unionedAssets, resolvedCat, fileName, diskPath);
-					}
-				}
-			}
-		}
-	}
-
-	private static void EnsureCanonicalEntryExists(JsonObject unionedAssets, string category, string fileName, string? diskPath = null)
-	{
-		string canonicalCat = NormalizeCategoryKey(category);
-		if (!unionedAssets.ContainsKey(canonicalCat) || unionedAssets[canonicalCat] is not JsonObject)
-		{
-			unionedAssets[canonicalCat] = new JsonObject();
-		}
-		var categoryObject = unionedAssets[canonicalCat]!.AsObject();
-
-		if (!categoryObject.ContainsKey(fileName))
-		{
-			var itemObject = new JsonObject();
-			if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
-			{
-				string hash = RealmMetadataHelper.ComputeBlake3(diskPath);
-				if (!string.IsNullOrEmpty(hash))
-				{
-					itemObject["hash"] = hash;
-				}
-			}
-			categoryObject[fileName] = itemObject;
-		}
-		else if (categoryObject[fileName] is JsonObject existingItem && !existingItem.ContainsKey("hash") && !string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
-		{
-			string hash = RealmMetadataHelper.ComputeBlake3(diskPath);
-			if (!string.IsNullOrEmpty(hash))
-			{
-				existingItem["hash"] = hash;
-			}
-		}
-	}
 
 	public static string? FindModelOnDisk(string targetDirectory, string? preferredSubCategory, string fileName, out string resolvedSubCategory)
 	{
@@ -1186,27 +990,6 @@ public static class MapAssetHelper
 		return null;
 	}
 
-	private static string? FindExistingCanonicalCategory(JsonObject unionedAssets, string fileName)
-	{
-		string[] candidates = fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase)
-			? new[] { fileName }
-			: new[] { fileName, $"{fileName}.rmesh", $"{Path.GetFileNameWithoutExtension(fileName)}.rmesh" };
-
-		foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
-		{
-			if (unionedAssets[catName] is JsonObject catObj)
-			{
-				foreach (var cand in candidates)
-				{
-					if (catObj.ContainsKey(cand))
-					{
-						return catName;
-					}
-				}
-			}
-		}
-		return null;
-	}
 
 	private static void EnsureAllAssetsHaveBlake3Hashes(JsonObject unionedAssets, string targetDirectory)
 	{
@@ -1272,144 +1055,6 @@ public static class MapAssetHelper
 		}
 	}
 
-	private static void MergeCategoryAttributes(JsonObject unionedAssets, string category, JsonObject sourceObject)
-	{
-		string categoryKey = NormalizeCategoryKey(category);
-		if (!unionedAssets.ContainsKey(categoryKey) || unionedAssets[categoryKey] is not JsonObject)
-		{
-			unionedAssets[categoryKey] = new JsonObject();
-		}
-		var targetCategoryObject = unionedAssets[categoryKey]!.AsObject();
-
-		foreach (var itemKeyValuePair in sourceObject)
-		{
-			string fileName = itemKeyValuePair.Key;
-			JsonObject targetItemObject;
-
-			if (targetCategoryObject.TryGetPropertyValue(fileName, out var existingNode) && existingNode is JsonObject existingObject)
-			{
-				targetItemObject = existingObject;
-			}
-			else
-			{
-				targetItemObject = new JsonObject();
-				if (existingNode is JsonValue val)
-				{
-					targetItemObject["hash"] = val.ToString();
-				}
-				targetCategoryObject[fileName] = targetItemObject;
-			}
-
-			if (itemKeyValuePair.Value is JsonObject sourceAttributes)
-			{
-				foreach (var attributeProperty in sourceAttributes)
-				{
-					if (string.Equals(attributeProperty.Key, "hash", StringComparison.OrdinalIgnoreCase))
-					{
-						if (!targetItemObject.ContainsKey("hash"))
-						{
-							targetItemObject["hash"] = attributeProperty.Value?.DeepClone();
-						}
-					}
-					else
-					{
-						targetItemObject[attributeProperty.Key] = attributeProperty.Value?.DeepClone();
-					}
-				}
-			}
-		}
-	}
-
-	private static void AttachModelMetadataAttributes(JsonObject unionedAssets, JsonObject metadataRoot)
-	{
-		var modelsObject = metadataRoot["Models"] as JsonObject;
-		if (modelsObject == null) return;
-
-		foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
-		{
-			if (unionedAssets[catName] is JsonObject subCategoryObject)
-			{
-				foreach (var itemKeyValuePair in subCategoryObject)
-				{
-					string fileName = itemKeyValuePair.Key;
-					string baseName = Path.GetFileNameWithoutExtension(fileName);
-					JsonObject modelObject;
-
-					if (itemKeyValuePair.Value is JsonObject existingObject)
-					{
-						modelObject = existingObject;
-					}
-					else
-					{
-						modelObject = new JsonObject();
-						if (itemKeyValuePair.Value is JsonValue value)
-						{
-							modelObject["hash"] = value.ToString();
-						}
-						subCategoryObject[fileName] = modelObject;
-					}
-
-					JsonObject? modelEntry = null;
-					if (modelsObject.TryGetPropertyValue(fileName, out var entryNode) && entryNode is JsonObject entryObj)
-					{
-						modelEntry = entryObj;
-					}
-					else if (modelsObject.TryGetPropertyValue(baseName, out var baseEntryNode) && baseEntryNode is JsonObject baseEntryObj)
-					{
-						modelEntry = baseEntryObj;
-					}
-
-					if (modelEntry != null)
-					{
-						if (modelEntry.TryGetPropertyValue("Offsets", out var offsetNode))
-						{
-							modelObject["y_offset"] = offsetNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("Scales", out var scaleNode))
-						{
-							modelObject["scale"] = scaleNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("CollisionCircleRatios", out var circleNode))
-						{
-							modelObject["collision_circle_ratio"] = circleNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("ObstacleRadii", out var radiusNode))
-						{
-							modelObject["collision_radius"] = radiusNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("Brightness", out var brightNode))
-						{
-							modelObject["brightness"] = brightNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("ColorTint", out var tintNode))
-						{
-							modelObject["tint"] = tintNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("DespillPlayerColor", out var despillNode))
-						{
-							modelObject["despill_player_color"] = despillNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("NormalizeLuminance", out var lumNode))
-						{
-							modelObject["normalize_luminance"] = lumNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("IgnorePlayerColor", out var ipcNode))
-						{
-							modelObject["ignore_player_color"] = ipcNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("SpawnShaders", out var spawnNode))
-						{
-							modelObject["spawn_shader"] = spawnNode?.DeepClone();
-						}
-						if (modelEntry.TryGetPropertyValue("DeathShaders", out var deathNode))
-						{
-							modelObject["death_shader"] = deathNode?.DeepClone();
-						}
-					}
-				}
-			}
-		}
-	}
 
 	private static void MergeAssetsInto(JsonObject target, JsonObject source)
 	{

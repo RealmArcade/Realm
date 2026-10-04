@@ -243,7 +243,7 @@ public class MapEditorEntityPaletteController
 						}
 					}
 
-					var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(globalWs);
+					var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(globalWs);
 					if (unionedAssets.ContainsKey("decals") && unionedAssets["decals"] is System.Text.Json.Nodes.JsonObject decalsObj)
 					{
 						foreach (var kvp in decalsObj)

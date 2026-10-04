@@ -1024,7 +1024,7 @@ please visit the URL above.
 			catch { }
 		}
 
-		JsonObject? assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
+		JsonObject? assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(workspacePath);
 
 		if (assetsObj != null)
 		{
@@ -1123,7 +1123,7 @@ please visit the URL above.
 	{
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(workspacePath);
 
 			string categoryKey = assetType switch
 			{
@@ -1498,7 +1498,7 @@ please visit the URL above.
 
 		try
 		{
-			var assets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
+			var assets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(workspacePath);
 			if (assets["textures"] is JsonObject)
 			{
 				NormalizeTextureEntries(assets, workspacePath);

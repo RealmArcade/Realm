@@ -2109,7 +2109,7 @@ void fragment() {
 			string mapDir = MapWorkspaceService.GetActiveWorkspacePath();
 			try
 			{
-				var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
+				var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(mapDir);
 				var texturesObj = (unionedAssets?["Terrain"] ?? unionedAssets?["textures"]) as System.Text.Json.Nodes.JsonObject;
 					if (texturesObj != null)
 					{
@@ -2340,7 +2340,7 @@ void fragment() {
 
 		try
 		{
-			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
+			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(mapDir);
 			texturesObj = (unionedAssets?["Terrain"] ?? unionedAssets?["textures"]) as System.Text.Json.Nodes.JsonObject;
 		}
 		catch { }

@@ -311,7 +311,7 @@ public class VfxShaderManager
 			// 1. Check workspace metadata.json / manifest.json / unioned assets
 			try
 			{
-				var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+				var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 				if (assetsObj != null)
 				{
 					foreach (var cat in new[] { "vfx_spritesheets", "vfx", "textures", "decals", "ribbons", "noise_textures" })

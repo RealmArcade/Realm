@@ -324,7 +324,7 @@ public partial class VfxManagerDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj?["vfx"] is JsonObject vfxObj)
 			{
 				foreach (var prop in vfxObj)

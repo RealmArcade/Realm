@@ -1649,7 +1649,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		// 3. Unioned Assets from manifest/metadata (Items and VFX imported into map)
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
 				if (assetsObj["glb"] is JsonObject glbObj)

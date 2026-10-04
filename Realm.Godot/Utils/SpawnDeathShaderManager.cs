@@ -256,7 +256,7 @@ public static class SpawnDeathShaderManager
 
 		try
 		{
-			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			var shadersObj = unionedAssets?["shaders"]?.AsObject();
 			if (shadersObj != null)
 			{
@@ -297,7 +297,7 @@ public static class SpawnDeathShaderManager
 			? workspacePath
 			: MapWorkspaceService.GetActiveWorkspacePath();
 
-		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
+		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
 		if (!assetsObj.ContainsKey("shaders") || assetsObj["shaders"] is not JsonObject)
 		{
 			assetsObj["shaders"] = new JsonObject();

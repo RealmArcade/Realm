@@ -533,7 +533,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 					: RealmMetadataHelper.ComputeBlake3(destPath);
 				bool isPropOrRes = subCategory == "resources" || subCategory == "props" || subCategory == "attachments" || subCategory == "weapons" || subCategory == "items" || subCategory == "projectiles";
 
-				var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
+				var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
 				if (!assetsObj.ContainsKey("glb") || assetsObj["glb"] == null) assetsObj["glb"] = new JsonObject();
 				var glbObj = assetsObj["glb"].AsObject();
 				if (!glbObj.ContainsKey(subCategory) || glbObj[subCategory] == null) glbObj[subCategory] = new JsonObject();
@@ -618,7 +618,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		{
 			var (minY, autoYOffset) = ModelCache.CalculateModelBounds(resultPath, defaultScale);
 			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			var entry = assetsObj?["glb"]?[subCategory]?[fileName]?.AsObject();
 			if (entry != null)
 			{

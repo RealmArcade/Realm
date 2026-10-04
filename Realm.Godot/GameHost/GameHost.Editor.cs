@@ -1473,7 +1473,7 @@ public partial class GameHost
 			ProcessEntities(metadata.CustomProps, 1.0f, p => p.TemplateID, p => p.ModelPath, p => p.YOffset, p => p.Scale, p => p.CollisionCircle, p => p.Brightness, p => p.Tint, p => p.DespillPlayerColor, p => p.NormalizeLuminance);
 			ProcessEntities(metadata.CustomUnits, 1.5f, u => u.TemplateID, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance);
 
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(mapDir);
 			if (assetsObj != null && assetsObj.ContainsKey("glb") && assetsObj["glb"] is System.Text.Json.Nodes.JsonObject glbObj)
 			{
 				foreach (var catKvp in glbObj)
@@ -2292,7 +2292,7 @@ public partial class GameHost
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
 			if (decalsObj != null)
 			{
@@ -2471,7 +2471,7 @@ public partial class GameHost
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
 			if (decalsObj != null)
 			{
@@ -3183,7 +3183,7 @@ public partial class GameHost
 			if (assetData.PrimaryNormal != null) decal.TextureNormal = assetData.PrimaryNormal;
 
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
 
 			string key = System.IO.Path.GetFileName(decalId);

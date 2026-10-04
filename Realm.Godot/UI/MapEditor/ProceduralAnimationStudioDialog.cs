@@ -449,7 +449,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 		try
 		{
-			var assets = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assets = MapAssetHelper.LoadAssets(wsPath);
 			if (assets["rmesh"] is JsonObject rmeshObj)
 			{
 				foreach (var sub in rmeshObj)

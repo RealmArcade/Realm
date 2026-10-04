@@ -438,7 +438,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assets = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assets = MapAssetHelper.LoadAssets(wsPath);
 			if (assets["rmesh"] is JsonObject rmeshObj)
 			{
 				foreach (var sub in rmeshObj)

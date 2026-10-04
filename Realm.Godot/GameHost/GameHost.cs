@@ -3788,7 +3788,7 @@ public class {mapName} : IMapScript
 		try
 		{
 			string dir = !string.IsNullOrEmpty(CurrentMapDirectory) ? CurrentMapDirectory : Godot.ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(dir) ?? new System.Text.Json.Nodes.JsonObject();
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(dir) ?? new System.Text.Json.Nodes.JsonObject();
 			var glbObj = assetsObj["glb"]?.AsObject();
 			if (glbObj == null)
 			{

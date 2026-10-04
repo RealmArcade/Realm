@@ -338,7 +338,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		try
 		{
-			var assets = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assets = MapAssetHelper.LoadAssets(wsPath);
 			if (assets["rmesh"] is System.Text.Json.Nodes.JsonObject rmeshObj)
 			{
 				foreach (var kvp in rmeshObj)

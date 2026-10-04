@@ -612,7 +612,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		try
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			var decalsObj = assetsObj?["decals"] as JsonObject;
 			if (decalsObj != null)
 			{

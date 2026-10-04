@@ -424,7 +424,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 	private string GetUniqueDefaultAssetName(string baseName = "procedural_noise_1")
 	{
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
+		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
 		var noiseObj = assetsObj["noise_textures"] as JsonObject;
 
 		string cleanBase = baseName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
@@ -464,7 +464,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		string cleanBase = rawName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 
-		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
+		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
 		if (!assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] == null) assetsObj["noise_textures"] = new JsonObject();
 		var noiseObj = assetsObj["noise_textures"].AsObject();
 

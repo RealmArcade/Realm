@@ -1124,7 +1124,7 @@ public partial class FloatingDialogBase : PanelContainer
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
 					if (category == "audio" || category == "sound" || category == "sfx" || category == "music")

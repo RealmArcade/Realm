@@ -930,7 +930,7 @@ public partial class VSCodeManager
 							if (rootObj != null && (rootObj.ContainsKey("Assets") || rootObj.ContainsKey("textures")))
 							{
 								string mapDir = System.IO.Path.GetDirectoryName(filePath) ?? MapWorkspaceService.GetActiveWorkspacePath();
-								var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir) ?? new JsonObject();
+								var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(mapDir) ?? new JsonObject();
 								if (rootObj.TryGetPropertyValue("Assets", out var aNode) && aNode is JsonObject aObj)
 								{
 									foreach (var kvp in aObj)

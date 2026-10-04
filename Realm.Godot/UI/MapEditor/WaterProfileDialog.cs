@@ -991,7 +991,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
 				foreach (var catName in new[] { "textures", "noise_textures", "noise", "decals", "ribbons", "vfx", "vfx_spritesheets" })
