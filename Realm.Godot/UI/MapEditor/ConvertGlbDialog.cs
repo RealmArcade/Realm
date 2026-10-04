@@ -645,7 +645,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						{
 							meta.AddOrUpdateUnit(new GameHost.UnitMetadata
 							{
-								UnitId = unitId,
+								ObjectID = unitId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -667,7 +667,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						{
 							meta.AddOrUpdateBuilding(new GameHost.UnitMetadata
 							{
-								UnitId = unitId,
+								ObjectID = unitId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -689,7 +689,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						{
 							meta.AddOrUpdateResource(new GameHost.ResourceMetadata
 							{
-								UnitId = unitId,
+								ObjectID = unitId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -712,7 +712,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						{
 							meta.AddOrUpdateProp(new GameHost.PropMetadata
 							{
-								UnitId = unitId,
+								ObjectID = unitId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,

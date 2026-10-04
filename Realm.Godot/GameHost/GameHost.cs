@@ -1803,7 +1803,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public static bool TryGetUnitOrBuildingMetadata(StringName objectId, out UnitMetadata meta)
 	{
 		meta = default;
-		if (StringName.IsNullOrEmpty(objectId)) return false;
+		if (objectId.IsEmpty) return false;
 		if (UnitRegistry.TryGetValue(objectId, out meta)) return true;
 		if (BuildingRegistry != null && BuildingRegistry.TryGetValue(objectId, out meta)) return true;
 		return false;

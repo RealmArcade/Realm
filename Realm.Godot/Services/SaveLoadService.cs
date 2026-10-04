@@ -1668,9 +1668,9 @@ public class SaveLoadService
 
 		if (MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata))
 		{
-			if (metadata.CustomProps != null && metadata.CustomProps.Any(p => propId.Equals(p.UnitId, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.CustomProps != null && metadata.CustomProps.Any(p => propId.Equals(p.ObjectID, StringComparison.OrdinalIgnoreCase)))
 				return true;
-			if (metadata.CustomResources != null && metadata.CustomResources.Any(r => propId.Equals(r.UnitId, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.CustomResources != null && metadata.CustomResources.Any(r => propId.Equals(r.ObjectID, StringComparison.OrdinalIgnoreCase)))
 				return true;
 		}
 
@@ -1690,9 +1690,9 @@ public class SaveLoadService
 
 		if (MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata))
 		{
-			if (metadata.CustomUnits != null && metadata.CustomUnits.Any(u => unitId.Equals(u.UnitId, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.CustomUnits != null && metadata.CustomUnits.Any(u => unitId.Equals(u.ObjectID, StringComparison.OrdinalIgnoreCase)))
 				return true;
-			if (metadata.CustomBuildings != null && metadata.CustomBuildings.Any(b => unitId.Equals(b.UnitId, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.CustomBuildings != null && metadata.CustomBuildings.Any(b => unitId.Equals(b.ObjectID, StringComparison.OrdinalIgnoreCase)))
 				return true;
 		}
 

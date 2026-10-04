@@ -262,10 +262,10 @@ public class MapEditorEntityPaletteController
 						{
 							foreach (var b in metadata.CustomBuildings)
 							{
-								if (!string.IsNullOrEmpty(b.UnitId) && !_categoryFiles.Contains(b.UnitId))
+								if (!string.IsNullOrEmpty(b.ObjectID) && !_categoryFiles.Contains(b.ObjectID))
 								{
-									_categoryFiles.Add(b.UnitId);
-									if (!string.IsNullOrEmpty(b.Name)) _idToDisplayName[b.UnitId] = b.Name;
+									_categoryFiles.Add(b.ObjectID);
+									if (!string.IsNullOrEmpty(b.Name)) _idToDisplayName[b.ObjectID] = b.Name;
 								}
 							}
 						}
@@ -287,10 +287,10 @@ public class MapEditorEntityPaletteController
 						{
 							foreach (var u in metadata.CustomUnits)
 							{
-								if (!string.IsNullOrEmpty(u.UnitId) && !_categoryFiles.Contains(u.UnitId))
+								if (!string.IsNullOrEmpty(u.ObjectID) && !_categoryFiles.Contains(u.ObjectID))
 								{
-									_categoryFiles.Add(u.UnitId);
-									if (!string.IsNullOrEmpty(u.Name)) _idToDisplayName[u.UnitId] = u.Name;
+									_categoryFiles.Add(u.ObjectID);
+									if (!string.IsNullOrEmpty(u.Name)) _idToDisplayName[u.ObjectID] = u.Name;
 								}
 							}
 						}
@@ -312,10 +312,10 @@ public class MapEditorEntityPaletteController
 						{
 							foreach (var r in metadata.CustomResources)
 							{
-								if (!string.IsNullOrEmpty(r.UnitId) && !_categoryFiles.Contains(r.UnitId))
+								if (!string.IsNullOrEmpty(r.ObjectID) && !_categoryFiles.Contains(r.ObjectID))
 								{
-									_categoryFiles.Add(r.UnitId);
-									if (!string.IsNullOrEmpty(r.Name)) _idToDisplayName[r.UnitId] = r.Name;
+									_categoryFiles.Add(r.ObjectID);
+									if (!string.IsNullOrEmpty(r.Name)) _idToDisplayName[r.ObjectID] = r.Name;
 								}
 							}
 						}
@@ -337,10 +337,10 @@ public class MapEditorEntityPaletteController
 						{
 							foreach (var p in metadata.CustomProps)
 							{
-								if (!string.IsNullOrEmpty(p.UnitId) && !_categoryFiles.Contains(p.UnitId))
+								if (!string.IsNullOrEmpty(p.ObjectID) && !_categoryFiles.Contains(p.ObjectID))
 								{
-									_categoryFiles.Add(p.UnitId);
-									if (!string.IsNullOrEmpty(p.Name)) _idToDisplayName[p.UnitId] = p.Name;
+									_categoryFiles.Add(p.ObjectID);
+									if (!string.IsNullOrEmpty(p.Name)) _idToDisplayName[p.ObjectID] = p.Name;
 								}
 							}
 						}

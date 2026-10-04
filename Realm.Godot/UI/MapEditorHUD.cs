@@ -6882,7 +6882,7 @@ public partial class MapEditorHUD : Control
 				{
 					foreach (var rObj in metadata.CustomResources)
 					{
-						string uId = rObj.UnitId ?? "";
+						string uId = rObj.ObjectID ?? "";
 						string name = rObj.Name ?? "";
 						string mPath = rObj.ModelPath ?? "";
 						if (!string.IsNullOrEmpty(uId))
@@ -6900,7 +6900,7 @@ public partial class MapEditorHUD : Control
 					{
 						foreach (var rObj in metadata.CustomResources)
 						{
-							string uId = rObj.UnitId ?? "";
+							string uId = rObj.ObjectID ?? "";
 							if (!string.IsNullOrEmpty(uId))
 							{
 								treeModels.Add(uId);
@@ -6940,7 +6940,7 @@ public partial class MapEditorHUD : Control
 		{
 			foreach (var kvp in GameHost.ResourceRegistry)
 			{
-				if (kvp.Key.Contains("tree", StringComparison.OrdinalIgnoreCase) ||
+				if (kvp.Key.ToString().Contains("tree", StringComparison.OrdinalIgnoreCase) ||
 				    (!string.IsNullOrEmpty(kvp.Value.Name) && kvp.Value.Name.Contains("tree", StringComparison.OrdinalIgnoreCase)) ||
 				    (!string.IsNullOrEmpty(kvp.Value.ModelPath) && kvp.Value.ModelPath.Contains("tree", StringComparison.OrdinalIgnoreCase)))
 				{
@@ -10528,9 +10528,10 @@ public partial class MapEditorHUD : Control
 				{
 					foreach (var k in GameHost.UnitRegistry.Keys)
 					{
-						if (k.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-							k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-							System.IO.Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
+						string kStr = k.ToString();
+						if (kStr.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
+							kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+							System.IO.Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
 						{
 							regKey = k;
 							break;
@@ -10540,9 +10541,10 @@ public partial class MapEditorHUD : Control
 					{
 						foreach (var k in GameHost.BuildingRegistry.Keys)
 						{
-							if (k.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-								k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-								System.IO.Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
+							string kStr = k.ToString();
+							if (kStr.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
+								kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+								System.IO.Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
 							{
 								regKey = k;
 								isBuildingMeta = true;
@@ -10640,9 +10642,10 @@ public partial class MapEditorHUD : Control
 				{
 					foreach (var k in GameHost.UnitRegistry.Keys)
 					{
-						if (k.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-							k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-							System.IO.Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
+						string kStr = k.ToString();
+						if (kStr.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
+							kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+							System.IO.Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
 						{
 							regKey = k;
 							break;
@@ -10652,9 +10655,10 @@ public partial class MapEditorHUD : Control
 					{
 						foreach (var k in GameHost.BuildingRegistry.Keys)
 						{
-							if (k.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-								k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-								System.IO.Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
+							string kStr = k.ToString();
+							if (kStr.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
+								kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+								System.IO.Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
 							{
 								regKey = k;
 								isBuildingMeta = true;
@@ -10752,9 +10756,10 @@ public partial class MapEditorHUD : Control
 				{
 					foreach (var k in GameHost.UnitRegistry.Keys)
 					{
-						if (k.Equals(targetId, StringComparison.OrdinalIgnoreCase) ||
-							k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-							System.IO.Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
+						string kStr = k.ToString();
+						if (kStr.Equals(targetId, StringComparison.OrdinalIgnoreCase) ||
+							kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+							System.IO.Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
 						{
 							regKey = k;
 							break;
@@ -10764,9 +10769,10 @@ public partial class MapEditorHUD : Control
 					{
 						foreach (var k in GameHost.BuildingRegistry.Keys)
 						{
-							if (k.Equals(targetId, StringComparison.OrdinalIgnoreCase) ||
-								k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-								System.IO.Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
+							string kStr = k.ToString();
+							if (kStr.Equals(targetId, StringComparison.OrdinalIgnoreCase) ||
+								kStr.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+								System.IO.Path.GetFileNameWithoutExtension(kStr).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
 							{
 								regKey = k;
 								isBuildingMeta = true;
@@ -11961,7 +11967,7 @@ public partial class MapEditorHUD : Control
 		{
 			onConverted?.Invoke(resultPath);
 			_assetManagerDialog?.RefreshAssetListAndSelect(resultPath);
-			_objectManagerDialog?.RefreshAssetListAndPreview(resultPath);
+			_objectManagerDialog?.RefreshObjectList();
 		};
 		_convertGlbDialog?.OpenWithPreset(initialPath, initialSubCat, chainedCallback);
 	}

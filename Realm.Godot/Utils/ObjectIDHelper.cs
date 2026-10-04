@@ -36,10 +36,10 @@ public static partial class ObjectIDHelper
 		return string.IsNullOrEmpty(name) ? "object" : name;
 	}
 
-	public static string GenerateSlug(string assetFileNameOrName, HashSet<string> existingSlugs)
+	public static string GenerateSlug(string assetFileNameOrName, HashSet<string>? existingSlugs = null)
 	{
 		string baseSlug = ToSnakeCase(assetFileNameOrName);
-		if (!existingSlugs.Contains(baseSlug))
+		if (existingSlugs == null || !existingSlugs.Contains(baseSlug))
 		{
 			return baseSlug;
 		}

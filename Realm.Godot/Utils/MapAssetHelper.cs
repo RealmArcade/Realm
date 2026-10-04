@@ -43,12 +43,15 @@ public static class MapAssetHelper
 			try
 			{
 				string manifestText = File.ReadAllText(manifestPath);
-				var manifestRoot = JsonNode.Parse(manifestText)?.AsObject();
-				if (manifestRoot != null)
+				if (!string.IsNullOrWhiteSpace(manifestText))
 				{
-					if (manifestRoot["Assets"] is JsonObject manifestAssets)
+					var manifestRoot = JsonNode.Parse(manifestText)?.AsObject();
+					if (manifestRoot != null)
 					{
-						MergeAssetsInto(unionedAssets, manifestAssets);
+						if (manifestRoot["Assets"] is JsonObject manifestAssets)
+						{
+							MergeAssetsInto(unionedAssets, manifestAssets);
+						}
 					}
 				}
 			}

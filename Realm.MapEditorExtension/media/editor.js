@@ -126,7 +126,7 @@
     const pasteUnitBtn = document.getElementById('paste-unit-btn');
 
     const formFields = {
-        UnitId: document.getElementById('field-UnitId'),
+        ObjectID: document.getElementById('field-ObjectID-slug'),
         Name: document.getElementById('field-Name'),
         Description: document.getElementById('field-Description'),
         ModelPath: document.getElementById('field-ModelPath'),
@@ -186,6 +186,58 @@
 
 
 
+
+    function toSnakeCase(input) {
+        if (!input) return 'object';
+        let s = String(input).trim();
+        const slashIdx = s.lastIndexOf('/');
+        if (slashIdx >= 0) s = s.substring(slashIdx + 1);
+        s = s.replace(/\.[^/.]+$/, '');
+        s = s.replace(/([a-z0-9])([A-Z])/g, '$1_$2');
+        s = s.replace(/[\s\-\.]+/g, '_');
+        s = s.toLowerCase();
+        s = s.replace(/[^a-z0-9_]/g, '');
+        s = s.replace(/_+/g, '_');
+        s = s.replace(/^_+|_+$/g, '');
+        return s || 'object';
+    }
+
+    function parseObjectID(objectId) {
+        if (!objectId || typeof objectId !== 'string') return { type: '', slug: '' };
+        const slashIdx = objectId.indexOf('/');
+        if (slashIdx >= 0) {
+            return {
+                type: objectId.substring(0, slashIdx),
+                slug: objectId.substring(slashIdx + 1)
+            };
+        }
+        return { type: '', slug: toSnakeCase(objectId) };
+    }
+
+    function generateSlug(baseName, existingSlugs) {
+        const baseSlug = toSnakeCase(baseName);
+        if (!existingSlugs || !existingSlugs.has(baseSlug)) {
+            return baseSlug;
+        }
+        let idx = 2;
+        while (existingSlugs.has(`${baseSlug}_${idx}`)) {
+            idx++;
+        }
+        return `${baseSlug}_${idx}`;
+    }
+
+    function generateObjectID(type, baseName, existingIDs) {
+        const existingSlugs = new Set();
+        if (existingIDs) {
+            for (const id of existingIDs) {
+                const parsed = parseObjectID(id);
+                if (parsed.slug) existingSlugs.add(parsed.slug);
+            }
+        }
+        const slug = generateSlug(baseName, existingSlugs);
+        return `${type}/${slug}`;
+    }
+
     function getAllEntities() {
         if (!Array.isArray(units.CustomUnits)) units.CustomUnits = [];
         if (!Array.isArray(units.CustomBuildings)) units.CustomBuildings = [];
@@ -204,7 +256,7 @@
     }
 
     function getUnitById(id) {
-        return getAllEntities().find(u => u && u.UnitId === id);
+        return getAllEntities().find(u => u && (u.ObjectID === id || u.UnitId === id));
     }
 
     const buildOptionInput = document.getElementById('build-option-input');
@@ -401,8 +453,8 @@
                                   domain === 'props' ? (units.CustomProps || []) :
                                   (units.CustomUnits || []);
             if (matchingUnits.length > 0) {
-                if (!selectedUnitId || !matchingUnits.some(u => u.UnitId === selectedUnitId)) {
-                    selectUnit(matchingUnits[0].UnitId);
+                if (!selectedUnitId || !matchingUnits.some(u => (u.ObjectID || u.UnitId) === selectedUnitId)) {
+                    selectUnit(matchingUnits[0].ObjectID || matchingUnits[0].UnitId);
                 } else {
                     selectUnit(selectedUnitId);
                 }
@@ -618,14 +670,19 @@
         unitListContainer.innerHTML = '';
         const query = searchQuery.toLowerCase();
         const activeDomain = getActiveDomain();
+        const defaultType = activeDomain === 'buildings' ? 'building' : activeDomain === 'resources' ? 'resource' : activeDomain === 'props' ? 'prop' : 'unit';
+        const parsed = parseObjectID(unit.ObjectID || unit.UnitId || id);
+        const prefixEl = document.getElementById('field-object-type-prefix');
+        if (prefixEl) prefixEl.textContent = `${parsed.type || defaultType}/`;
+
 
         const customUnitsList = activeDomain === 'buildings' ? (units.CustomBuildings || []) :
                                 activeDomain === 'resources' ? (units.CustomResources || []) :
                                 activeDomain === 'props' ? (units.CustomProps || []) :
                                 (units.CustomUnits || []);
         for (const unit of customUnitsList) {
-            if (!unit || !unit.UnitId) continue;
-            const id = unit.UnitId;
+            if (!unit || (!unit.ObjectID && !unit.UnitId)) continue;
+            const id = unit.ObjectID || unit.UnitId;
             const name = unit.Name || '';
             const desc = unit.Description || '';
 
@@ -1297,7 +1354,7 @@
                         <button type="button" class="btn small-btn edit-weapon-vfx-btn" data-index="${index}" title="Edit Visual & Audio Effects in Godot Dialog">✏️</button>
                     </td>
                     <td>
-                        <input type="text" class="weapon-id" data-index="${index}" value="${item.WeaponId || ''}" required />
+                        <input type="text" class="weapon-id" data-index="${index}" value="${parseObjectID(item.ObjectID || item.WeaponId).slug}" required />
                     </td>
                     <td>
                         <input type="text" class="weapon-name" data-index="${index}" value="${item.Name || ''}" />
@@ -1409,7 +1466,7 @@
                         if (newId && !dup) {
                             pushToUndoStack();
                             cascadeRename('weapon', oldId, newId);
-                            list[idx].WeaponId = newId;
+                            list[idx].ObjectID = 'weapon/' + toSnakeCase(newId); delete list[idx].WeaponId;
                         } else {
                             target.value = oldId;
                             return;
@@ -1452,7 +1509,7 @@
                         <button type="button" class="btn small-btn edit-ability-vfx-btn" data-index="${index}" title="Edit Ability VFX & Audio in Godot">✏️</button>
                     </td>
                     <td>
-                        <input type="text" class="ability-id" data-index="${index}" value="${item.AbilityId || ''}" required />
+                        <input type="text" class="ability-id" data-index="${index}" value="${parseObjectID(item.ObjectID || item.AbilityId).slug}" required />
                     </td>
                     <td>
                         <input type="text" class="ability-name" data-index="${index}" value="${item.Name || ''}" />
@@ -1653,7 +1710,7 @@
                         if (newId && !dup) {
                             pushToUndoStack();
                             cascadeRename('ability', oldId, newId);
-                            list[idx].AbilityId = newId;
+                            list[idx].ObjectID = 'ability/' + toSnakeCase(newId); delete list[idx].AbilityId;
                         } else {
                             target.value = oldId;
                             return;
@@ -1706,7 +1763,7 @@
                         <button type="button" class="row-expand-btn" data-target="upgrade-detail-${index}">▶</button>
                     </td>
                     <td>
-                        <input type="text" class="upgrade-id" data-index="${index}" value="${item.UpgradeId || ''}" required />
+                        <input type="text" class="upgrade-id" data-index="${index}" value="${parseObjectID(item.ObjectID || item.UpgradeId).slug}" required />
                     </td>
                     <td>
                         <input type="text" class="upgrade-name" data-index="${index}" value="${item.Name || ''}" />
@@ -1867,7 +1924,7 @@
                         if (newId && !dup) {
                             pushToUndoStack();
                             cascadeRename('upgrade', oldId, newId);
-                            list[idx].UpgradeId = newId;
+                            list[idx].ObjectID = 'upgrade/' + toSnakeCase(newId); delete list[idx].UpgradeId;
                         } else {
                             target.value = oldId;
                             return;
@@ -1913,7 +1970,7 @@
                         <button type="button" class="row-expand-btn" data-target="item-detail-${index}">▶</button>
                     </td>
                     <td>
-                        <input type="text" class="item-id" data-index="${index}" value="${item.ItemId || ''}" required />
+                        <input type="text" class="item-id" data-index="${index}" value="${parseObjectID(item.ObjectID || item.ItemId).slug}" required />
                     </td>
                     <td>
                         <input type="text" class="item-name" data-index="${index}" value="${item.Name || ''}" />
@@ -2128,7 +2185,7 @@
                         if (newId && !dup) {
                             pushToUndoStack();
                             cascadeRename('item', oldId, newId);
-                            list[idx].ItemId = newId;
+                            list[idx].ObjectID = 'item/' + toSnakeCase(newId); delete list[idx].ItemId;
                         } else {
                             target.value = oldId;
                             return;
@@ -2309,7 +2366,7 @@
 
     function getExistingUnitIds() {
         const customUnitsList = getCustomUnits();
-        return new Set(customUnitsList.map(u => u.UnitId).filter(Boolean));
+        return new Set(customUnitsList.map(u => u.ObjectID || u.UnitId).filter(Boolean));
     }
 
     // --- UNIT COPY / PASTE SYSTEM CLIPBOARD ---
@@ -2440,25 +2497,25 @@
     if (pasteCustomWeaponBtn) {
         pasteCustomWeaponBtn.addEventListener('click', () => {
             if (!units.CustomWeapons) units.CustomWeapons = [];
-            pasteRowData('weapon', units.CustomWeapons, 'WeaponId', 'Weapon');
+            pasteRowData('weapon', units.CustomWeapons, 'ObjectID', 'weapon');
         });
     }
     if (pasteCustomAbilityBtn) {
         pasteCustomAbilityBtn.addEventListener('click', () => {
             if (!units.CustomAbilities) units.CustomAbilities = [];
-            pasteRowData('ability', units.CustomAbilities, 'AbilityId', 'Ability');
+            pasteRowData('ability', units.CustomAbilities, 'ObjectID', 'ability');
         });
     }
     if (pasteCustomUpgradeBtn) {
         pasteCustomUpgradeBtn.addEventListener('click', () => {
             if (!units.CustomUpgrades) units.CustomUpgrades = [];
-            pasteRowData('upgrade', units.CustomUpgrades, 'UpgradeId', 'Upgrade');
+            pasteRowData('upgrade', units.CustomUpgrades, 'ObjectID', 'upgrade');
         });
     }
     if (pasteCustomItemBtn) {
         pasteCustomItemBtn.addEventListener('click', () => {
             if (!units.CustomItems) units.CustomItems = [];
-            pasteRowData('item', units.CustomItems, 'ItemId', 'Item');
+            pasteRowData('item', units.CustomItems, 'ObjectID', 'item');
         });
     }
 
@@ -2604,11 +2661,13 @@
         
         const existingIds = getExistingUnitIds();
         const domain = getActiveDomain();
-        const prefix = domain === 'buildings' ? 'Building' : domain === 'resources' ? 'Resource' : domain === 'props' ? 'Prop' : 'Unit';
-        const nextId = generateNextId(prefix, existingIds);
+        const type = domain === 'buildings' ? 'building' : domain === 'resources' ? 'resource' : domain === 'props' ? 'prop' : 'unit';
+        const parsed = parseObjectID(sourceUnit.ObjectID || sourceUnit.UnitId || selectedUnitId);
+        const nextId = generateObjectID(type, `${parsed.slug}_copy`, existingIds);
         
         const newUnit = JSON.parse(JSON.stringify(sourceUnit));
-        newUnit.UnitId = nextId;
+        newUnit.ObjectID = nextId;
+        delete newUnit.UnitId;
         newUnit.Name = `${sourceUnit.Name || 'New Entity'} (Copy)`;
         
         const targetArr = domain === 'buildings' ? (units.CustomBuildings = units.CustomBuildings || []) :
@@ -2625,11 +2684,13 @@
         if (!list[index]) return;
         
         const source = list[index];
-        const existingIds = new Set(list.map(w => w.WeaponId));
-        const nextId = incrementId(source.WeaponId, existingIds);
+        const existingIds = new Set(list.map(w => w.ObjectID || w.WeaponId));
+        const parsed = parseObjectID(source.ObjectID || source.WeaponId || 'weapon/new_weapon');
+        const nextId = generateObjectID('weapon', `${parsed.slug}_copy`, existingIds);
         
         const newWeapon = JSON.parse(JSON.stringify(source));
-        newWeapon.WeaponId = nextId;
+        newWeapon.ObjectID = nextId;
+        delete newWeapon.WeaponId;
         newWeapon.Name = `${source.Name || 'New Weapon'} (Copy)`;
         
         list.splice(index + 1, 0, newWeapon);
@@ -2643,11 +2704,13 @@
         if (!list[index]) return;
         
         const source = list[index];
-        const existingIds = new Set(list.map(a => a.AbilityId));
-        const nextId = incrementId(source.AbilityId, existingIds);
+        const existingIds = new Set(list.map(a => a.ObjectID || a.AbilityId));
+        const parsed = parseObjectID(source.ObjectID || source.AbilityId || 'ability/new_ability');
+        const nextId = generateObjectID('ability', `${parsed.slug}_copy`, existingIds);
         
         const newAbility = JSON.parse(JSON.stringify(source));
-        newAbility.AbilityId = nextId;
+        newAbility.ObjectID = nextId;
+        delete newAbility.AbilityId;
         newAbility.Name = `${source.Name || 'New Ability'} (Copy)`;
         
         list.splice(index + 1, 0, newAbility);
@@ -2661,11 +2724,13 @@
         if (!list[index]) return;
         
         const source = list[index];
-        const existingIds = new Set(list.map(u => u.UpgradeId));
-        const nextId = incrementId(source.UpgradeId, existingIds);
+        const existingIds = new Set(list.map(u => u.ObjectID || u.UpgradeId));
+        const parsed = parseObjectID(source.ObjectID || source.UpgradeId || 'upgrade/new_upgrade');
+        const nextId = generateObjectID('upgrade', `${parsed.slug}_copy`, existingIds);
         
         const newUpgrade = JSON.parse(JSON.stringify(source));
-        newUpgrade.UpgradeId = nextId;
+        newUpgrade.ObjectID = nextId;
+        delete newUpgrade.UpgradeId;
         newUpgrade.Name = `${source.Name || 'New Upgrade'} (Copy)`;
         
         list.splice(index + 1, 0, newUpgrade);
@@ -2679,11 +2744,13 @@
         if (!list[index]) return;
         
         const source = list[index];
-        const existingIds = new Set(list.map(i => i.ItemId));
-        const nextId = incrementId(source.ItemId, existingIds);
+        const existingIds = new Set(list.map(i => i.ObjectID || i.ItemId));
+        const parsed = parseObjectID(source.ObjectID || source.ItemId || 'item/new_item');
+        const nextId = generateObjectID('item', `${parsed.slug}_copy`, existingIds);
         
         const newItem = JSON.parse(JSON.stringify(source));
-        newItem.ItemId = nextId;
+        newItem.ObjectID = nextId;
+        delete newItem.ItemId;
         newItem.Name = `${source.Name || 'New Item'} (Copy)`;
         
         list.splice(index + 1, 0, newItem);
@@ -2714,10 +2781,10 @@
         try {
             pushToUndoStack();
             cascadeDelete('unit', id);
-            units.CustomUnits = (units.CustomUnits || []).filter(u => u && u.UnitId !== id);
-            units.CustomBuildings = (units.CustomBuildings || []).filter(u => u && u.UnitId !== id);
-            units.CustomResources = (units.CustomResources || []).filter(u => u && u.UnitId !== id);
-            units.CustomProps = (units.CustomProps || []).filter(u => u && u.UnitId !== id);
+            units.CustomUnits = (units.CustomUnits || []).filter(u => u && (u.ObjectID || u.UnitId) !== id);
+            units.CustomBuildings = (units.CustomBuildings || []).filter(u => u && (u.ObjectID || u.UnitId) !== id);
+            units.CustomResources = (units.CustomResources || []).filter(u => u && (u.ObjectID || u.UnitId) !== id);
+            units.CustomProps = (units.CustomProps || []).filter(u => u && (u.ObjectID || u.UnitId) !== id);
             if (selectedUnitId === id) {
                 selectedUnitId = null;
                 showEmptyState();
@@ -2732,36 +2799,22 @@
 
     addUnitBtn.addEventListener('click', () => {
         const domain = getActiveDomain();
-        const defaultType = domain === 'units' ? 'units' :
-                            domain === 'buildings' ? 'buildings' :
-                            domain === 'resources' ? 'resources' :
-                            domain === 'props' ? 'props' : 'units';
-        const defaultArmor = domain === 'buildings' ? 'building' : 'light';
-        const defaultPathing = domain === 'buildings' ? 32 : (domain === 'resources' || domain === 'props') ? 255 : 8;
-
+        const type = domain === 'buildings' ? 'building' : domain === 'resources' ? 'resource' : domain === 'props' ? 'prop' : 'unit';
         const prefix = domain === 'buildings' ? 'Building' : domain === 'resources' ? 'Resource' : domain === 'props' ? 'Prop' : 'Unit';
-        const nextId = generateNextId(prefix, getExistingUnitIds());
-
-        if (!Array.isArray(units.CustomUnits)) units.CustomUnits = [];
-        if (!Array.isArray(units.CustomBuildings)) units.CustomBuildings = [];
-        if (!Array.isArray(units.CustomResources)) units.CustomResources = [];
-        if (!Array.isArray(units.CustomProps)) units.CustomProps = [];
-
-        const targetArray = domain === 'buildings' ? units.CustomBuildings :
-                            domain === 'resources' ? units.CustomResources :
-                            domain === 'props' ? units.CustomProps : units.CustomUnits;
+        const existingIds = getExistingUnitIds();
+        const nextId = generateObjectID(type, `new_${type}`, existingIds);
+        const defaultPathing = (domain === 'resources' || domain === 'props') ? 255 : (domain === 'buildings') ? 32 : 8;
+        const defaultArmor = (domain === 'buildings') ? 'fortified' : 'flesh';
+        
+        const targetArray = domain === 'buildings' ? (units.CustomBuildings = units.CustomBuildings || []) :
+                            domain === 'resources' ? (units.CustomResources = units.CustomResources || []) :
+                            domain === 'props' ? (units.CustomProps = units.CustomProps || []) :
+                            (units.CustomUnits = units.CustomUnits || []);
 
         let defaultModelPath = '';
-        const glbAssets = (units.Assets && units.Assets.glb) ? units.Assets.glb : {};
-        const catGlbs = glbAssets[domain] || (domain === 'buildings' ? glbAssets['building'] : null) || {};
-        const glbKeys = Object.keys(catGlbs);
-        if (glbKeys.length > 0) {
-            defaultModelPath = glbKeys[0];
-        }
-
         if (domain === 'props') {
             targetArray.push({
-                UnitId: nextId,
+                ObjectID: nextId,
                 Name: `New ${prefix}`,
                 Description: `A decorative ${prefix.toLowerCase()} prop.`,
                 ModelPath: defaultModelPath,
@@ -2769,7 +2822,7 @@
             });
         } else if (domain === 'resources') {
             targetArray.push({
-                UnitId: nextId,
+                ObjectID: nextId,
                 Name: `New ${prefix}`,
                 Description: `Harvestable ${prefix.toLowerCase()} deposit.`,
                 ModelPath: defaultModelPath,
@@ -2781,7 +2834,7 @@
             });
         } else if (domain === 'buildings') {
             targetArray.push({
-                UnitId: nextId,
+                ObjectID: nextId,
                 Name: `New ${prefix}`,
                 Description: `A new ${prefix.toLowerCase()} entity.`,
                 ModelPath: defaultModelPath,
@@ -2804,7 +2857,7 @@
             });
         } else {
             targetArray.push({
-                UnitId: nextId,
+                ObjectID: nextId,
                 Name: `New ${prefix}`,
                 Description: `A new ${prefix.toLowerCase()} entity.`,
                 ModelPath: defaultModelPath,
@@ -2832,13 +2885,11 @@
     });
 
     addCustomWeaponBtn.addEventListener('click', () => {
-        if (!units.CustomWeapons) {
-            units.CustomWeapons = [];
-        }
+        if (!units.CustomWeapons) units.CustomWeapons = [];
         const list = units.CustomWeapons;
-        const nextId = generateNextId('Weapon', new Set(list.map(w => w.WeaponId)));
+        const nextId = generateObjectID('weapon', 'new_weapon', new Set(list.map(w => w.ObjectID || w.WeaponId)));
         list.push({
-            WeaponId: nextId,
+            ObjectID: nextId,
             Name: 'New Weapon',
             Damage: 10,
             Range: 8.0,
@@ -2854,13 +2905,11 @@
     });
 
     addCustomAbilityBtn.addEventListener('click', () => {
-        if (!units.CustomAbilities) {
-            units.CustomAbilities = [];
-        }
+        if (!units.CustomAbilities) units.CustomAbilities = [];
         const list = units.CustomAbilities;
-        const nextId = generateNextId('Ability', new Set(list.map(a => a.AbilityId)));
+        const nextId = generateObjectID('ability', 'new_ability', new Set(list.map(a => a.ObjectID || a.AbilityId)));
         list.push({
-            AbilityId: nextId,
+            ObjectID: nextId,
             Name: 'New Ability',
             Description: 'A new spell effect.',
             AbilityType: 'target_spell'
@@ -2871,13 +2920,11 @@
     });
 
     addCustomUpgradeBtn.addEventListener('click', () => {
-        if (!units.CustomUpgrades) {
-            units.CustomUpgrades = [];
-        }
+        if (!units.CustomUpgrades) units.CustomUpgrades = [];
         const list = units.CustomUpgrades;
-        const nextId = generateNextId('Upgrade', new Set(list.map(u => u.UpgradeId)));
+        const nextId = generateObjectID('upgrade', 'new_upgrade', new Set(list.map(u => u.ObjectID || u.UpgradeId)));
         list.push({
-            UpgradeId: nextId,
+            ObjectID: nextId,
             Name: 'New Upgrade',
             Description: 'Increases unit stats.'
         });
@@ -2887,13 +2934,11 @@
     });
 
     addCustomItemBtn.addEventListener('click', () => {
-        if (!units.CustomItems) {
-            units.CustomItems = [];
-        }
+        if (!units.CustomItems) units.CustomItems = [];
         const list = units.CustomItems;
-        const nextId = generateNextId('Item', new Set(list.map(i => i.ItemId)));
+        const nextId = generateObjectID('item', 'new_item', new Set(list.map(i => i.ObjectID || i.ItemId)));
         list.push({
-            ItemId: nextId,
+            ObjectID: nextId,
             Name: 'New Item',
             Description: 'A custom inventory item.',
             ItemClass: 'consumable'
@@ -3224,8 +3269,8 @@
         const existingItemIds = new Set((units.CustomItems || []).map(i => i.ItemId).filter(Boolean));
 
         for (const unit of customUnitsList) {
-            if (!unit || !unit.UnitId) continue;
-            const id = unit.UnitId;
+            if (!unit || (!unit.ObjectID && !unit.UnitId)) continue;
+            const id = unit.ObjectID || unit.UnitId;
             
             const unitErrors = {};
             if (unit.BuildOptions) {
@@ -3350,11 +3395,11 @@
         const upgrades = units.CustomUpgrades || [];
         const items = units.CustomItems || [];
 
-        populateDatalist('suggest-units', customUnitsList.map(u => ({ id: u.UnitId, name: u.Name })));
-        populateDatalist('suggest-weapons', weapons.map(w => ({ id: w.WeaponId, name: w.Name })));
-        populateDatalist('suggest-abilities', abilities.map(a => ({ id: a.AbilityId, name: a.Name })));
-        populateDatalist('suggest-upgrades', upgrades.map(u => ({ id: u.UpgradeId, name: u.Name })));
-        populateDatalist('suggest-items', items.map(i => ({ id: i.ItemId, name: i.Name })));
+        populateDatalist('suggest-units', customUnitsList.map(u => ({ id: u.ObjectID || u.UnitId, name: u.Name })));
+        populateDatalist('suggest-weapons', weapons.map(w => ({ id: w.ObjectID || w.WeaponId, name: w.Name })));
+        populateDatalist('suggest-abilities', abilities.map(a => ({ id: a.ObjectID || a.AbilityId, name: a.Name })));
+        populateDatalist('suggest-upgrades', upgrades.map(u => ({ id: u.ObjectID || u.UpgradeId, name: u.Name })));
+        populateDatalist('suggest-items', items.map(i => ({ id: i.ObjectID || i.ItemId, name: i.Name })));
 
         // Icons datalist (suggest-icons) - strictly imported *.png under Assets/icons
         const iconAssets = new Set();

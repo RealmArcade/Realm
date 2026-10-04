@@ -190,7 +190,7 @@ public partial class VisualProjectile3D : Node3D
 		{
 			var fallback = new GameHost.WeaponMetadata
 			{
-				WeaponId = weaponId ?? "arrow",
+				ObjectID = weaponId ?? "arrow",
 				ProjectileSpeed = 25f,
 				OrientToTrajectory = true
 			};
