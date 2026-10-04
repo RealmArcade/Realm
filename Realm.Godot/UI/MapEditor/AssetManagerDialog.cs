@@ -394,6 +394,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		try
 		{
 			string manifestJson = File.ReadAllText(manifestPath);
+			if (string.IsNullOrWhiteSpace(manifestJson)) return;
 			var manifestDoc = JsonNode.Parse(manifestJson)?.AsObject();
 			var assetsObj = manifestDoc?["Assets"]?.AsObject();
 
@@ -401,41 +402,71 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			{
 				foreach (var categoryKvp in assetsObj)
 				{
-					string categoryKey = MapAssetHelper.NormalizeCategoryKey(categoryKvp.Key);
-
-					if (_selectedAssetType != "All" && !string.Equals(_selectedAssetType, categoryKey, StringComparison.OrdinalIgnoreCase))
-					{
-						continue;
-					}
+					string groupKey = categoryKvp.Key.ToLowerInvariant();
 
 					if (categoryKvp.Value is JsonObject categoryDict)
 					{
-						string subFolder = categoryKey switch
-						{
-							"Character" => "models/units",
-							"Building" => "models/buildings",
-							"Prop" => "models/props",
-							"Item" => "models/items",
-							"Spritesheet" => "vfx",
-							"vfx_radial" => "vfx_radial",
-							"vfx_vertical" => "vfx_vertical",
-							"Animation" => "animations",
-							"SoundEffect" => "audio/sfx",
-							"Music" => "audio/music",
-							"Icon" => "icons",
-							"Decal" => "decals",
-							"Ribbon" => "ribbons",
-							"Noise" => "noise",
-							"Skybox" => "skyboxes",
-							"Terrain" => "textures",
-							"Shader" => "shaders",
-							_ => categoryKey.ToLowerInvariant()
-						};
-
 						foreach (var itemKvp in categoryDict)
 						{
 							string fileName = itemKvp.Key;
-							string? fullPath = (categoryKey is "Character" or "Building" or "Prop" or "Item")
+							string itemAssetType = string.Empty;
+
+							if (groupKey == "ranim" || fileName.EndsWith(".ranim", StringComparison.OrdinalIgnoreCase))
+							{
+								itemAssetType = "Animation";
+							}
+							else if (groupKey == "shaders" || fileName.EndsWith(".gdshader", StringComparison.OrdinalIgnoreCase))
+							{
+								itemAssetType = "Shader";
+							}
+							else if (itemKvp.Value is JsonObject itemObj)
+							{
+								itemAssetType = itemObj["asset_type"]?.ToString()
+									?? itemObj["AssetType"]?.ToString()
+									?? string.Empty;
+							}
+
+							if (string.IsNullOrEmpty(itemAssetType))
+							{
+								string ext = Path.GetExtension(fileName).ToLowerInvariant();
+								itemAssetType = ext switch
+								{
+									".rmesh" => "Prop",
+									".rtex" => "Terrain",
+									".raud" or ".ogg" => "SoundEffect",
+									".ranim" => "Animation",
+									_ => "Prop"
+								};
+							}
+
+							if (_selectedAssetType != "All" && !string.Equals(_selectedAssetType, itemAssetType, StringComparison.OrdinalIgnoreCase))
+							{
+								continue;
+							}
+
+							string subFolder = itemAssetType switch
+							{
+								"Character" => "models/units",
+								"Building" => "models/buildings",
+								"Prop" => "models/props",
+								"Item" => "models/items",
+								"Spritesheet" => "vfx",
+								"vfx_radial" => "vfx_radial",
+								"vfx_vertical" => "vfx_vertical",
+								"Animation" => "animations",
+								"SoundEffect" => "audio/sfx",
+								"Music" => "audio/music",
+								"Icon" => "icons",
+								"Decal" => "decals",
+								"Ribbon" => "ribbons",
+								"Noise" => "noise",
+								"Skybox" => "skyboxes",
+								"Terrain" => "textures",
+								"Shader" => "shaders",
+								_ => groupKey
+							};
+
+							string? fullPath = (itemAssetType is "Character" or "Building" or "Prop" or "Item")
 								? MapAssetHelper.FindModelOnDisk(wsPath, subFolder, fileName)
 								: MapAssetHelper.FindAssetOnDisk(wsPath, subFolder, fileName);
 
@@ -487,7 +518,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 								FileSizeBytes = fileSize,
 								LastModifiedUtc = lastModified,
 								Blake3 = blake3,
-								AssetType = categoryKey,
+								AssetType = itemAssetType,
 								Tags = tags
 							};
 

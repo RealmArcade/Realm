@@ -36,7 +36,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		return _entity.GetHashCode();
 	}
 
-	public string ObjectID
+	public string TemplateID
 	{
 		get
 		{
@@ -47,7 +47,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		}
 	}
 
-	public string UnitId => ObjectID;
+	public string UnitId => TemplateID;
 
 	public string Name
 	{

@@ -269,7 +269,7 @@ public partial class MapEditorHUD : Control
 	private ModelPickerDialog _modelPickerDialog;
 	private AbilityVfxDialog _abilityVfxDialog;
 	private AssetManagerDialog _assetManagerDialog;
-	private ObjectManagerDialog _objectManagerDialog;
+	private TemplateManagerDialog _templateManagerDialog;
 	private PlacedObjectsDialog _placedObjectsDialog;
 	private AssetBrowserDialog _assetBrowserDialog;
 	private NoiseTextureDialog _noiseTextureDialog;
@@ -6882,7 +6882,7 @@ public partial class MapEditorHUD : Control
 				{
 					foreach (var rObj in metadata.CustomResources)
 					{
-						string uId = rObj.ObjectID ?? "";
+						string uId = rObj.TemplateID ?? "";
 						string name = rObj.Name ?? "";
 						string mPath = rObj.ModelPath ?? "";
 						if (!string.IsNullOrEmpty(uId))
@@ -6900,7 +6900,7 @@ public partial class MapEditorHUD : Control
 					{
 						foreach (var rObj in metadata.CustomResources)
 						{
-							string uId = rObj.ObjectID ?? "";
+							string uId = rObj.TemplateID ?? "";
 							if (!string.IsNullOrEmpty(uId))
 							{
 								treeModels.Add(uId);
@@ -10335,7 +10335,7 @@ public partial class MapEditorHUD : Control
 		_modelPickerDialog = new ModelPickerDialog(this);
 		_abilityVfxDialog = new AbilityVfxDialog(this);
 		_assetManagerDialog = new AssetManagerDialog(this);
-		_objectManagerDialog = new ObjectManagerDialog(this);
+		_templateManagerDialog = new TemplateManagerDialog(this);
 		_placedObjectsDialog = new PlacedObjectsDialog(this);
 		_assetBrowserDialog = new AssetBrowserDialog(this);
 		_noiseTextureDialog = new NoiseTextureDialog(this);
@@ -11967,7 +11967,7 @@ public partial class MapEditorHUD : Control
 		{
 			onConverted?.Invoke(resultPath);
 			_assetManagerDialog?.RefreshAssetListAndSelect(resultPath);
-			_objectManagerDialog?.RefreshObjectList();
+			_templateManagerDialog?.RefreshObjectList();
 		};
 		_convertGlbDialog?.OpenWithPreset(initialPath, initialSubCat, chainedCallback);
 	}

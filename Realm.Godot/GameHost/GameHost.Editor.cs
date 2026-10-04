@@ -863,7 +863,7 @@ public partial class GameHost
 		{
 			if (!string.IsNullOrEmpty(propMeta.ModelPath) && NormalizeModelAssetKey(propMeta.ModelPath) == norm)
 				return true;
-			if (!string.IsNullOrEmpty(propMeta.ObjectID) && NormalizeModelAssetKey(propMeta.ObjectID) == norm)
+			if (!string.IsNullOrEmpty(propMeta.TemplateID) && NormalizeModelAssetKey(propMeta.TemplateID) == norm)
 				return true;
 		}
 
@@ -871,7 +871,7 @@ public partial class GameHost
 		{
 			if (!string.IsNullOrEmpty(resMeta.ModelPath) && NormalizeModelAssetKey(resMeta.ModelPath) == norm)
 				return true;
-			if (!string.IsNullOrEmpty(resMeta.ObjectID) && NormalizeModelAssetKey(resMeta.ObjectID) == norm)
+			if (!string.IsNullOrEmpty(resMeta.TemplateID) && NormalizeModelAssetKey(resMeta.TemplateID) == norm)
 				return true;
 		}
 
@@ -1468,10 +1468,10 @@ public partial class GameHost
 				}
 			}
 
-			ProcessEntities(metadata.CustomResources, 2.75f, r => r.ObjectID, r => r.ModelPath, r => r.YOffset, r => r.Scale, r => r.CollisionCircle, r => r.Brightness, r => r.Tint, r => r.DespillPlayerColor, r => r.NormalizeLuminance);
-			ProcessEntities(metadata.CustomBuildings, 1.2f, b => b.ObjectID, b => b.ModelPath, b => b.YOffset, b => b.Scale, b => b.CollisionCircle, b => b.Brightness, b => b.Tint, b => b.DespillPlayerColor, b => b.NormalizeLuminance);
-			ProcessEntities(metadata.CustomProps, 1.0f, p => p.ObjectID, p => p.ModelPath, p => p.YOffset, p => p.Scale, p => p.CollisionCircle, p => p.Brightness, p => p.Tint, p => p.DespillPlayerColor, p => p.NormalizeLuminance);
-			ProcessEntities(metadata.CustomUnits, 1.5f, u => u.ObjectID, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance);
+			ProcessEntities(metadata.CustomResources, 2.75f, r => r.TemplateID, r => r.ModelPath, r => r.YOffset, r => r.Scale, r => r.CollisionCircle, r => r.Brightness, r => r.Tint, r => r.DespillPlayerColor, r => r.NormalizeLuminance);
+			ProcessEntities(metadata.CustomBuildings, 1.2f, b => b.TemplateID, b => b.ModelPath, b => b.YOffset, b => b.Scale, b => b.CollisionCircle, b => b.Brightness, b => b.Tint, b => b.DespillPlayerColor, b => b.NormalizeLuminance);
+			ProcessEntities(metadata.CustomProps, 1.0f, p => p.TemplateID, p => p.ModelPath, p => p.YOffset, p => p.Scale, p => p.CollisionCircle, p => p.Brightness, p => p.Tint, p => p.DespillPlayerColor, p => p.NormalizeLuminance);
+			ProcessEntities(metadata.CustomUnits, 1.5f, u => u.TemplateID, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance);
 
 			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
 			if (assetsObj != null && assetsObj.ContainsKey("glb") && assetsObj["glb"] is System.Text.Json.Nodes.JsonObject glbObj)
@@ -1795,8 +1795,8 @@ public partial class GameHost
 					for (int i = 0; i < entities.Count; i++)
 					{
 						var entity = entities[i];
-						if (string.IsNullOrEmpty(entity.ObjectID)) continue;
-						string normKey = NormalizeModelAssetKey(entity.ObjectID);
+						if (string.IsNullOrEmpty(entity.TemplateID)) continue;
+						string normKey = NormalizeModelAssetKey(entity.TemplateID);
 						string normModel = !string.IsNullOrEmpty(entity.ModelPath) ? NormalizeModelAssetKey(entity.ModelPath) : "";
 
 						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) entity.DespillPlayerColor = dVal1;
@@ -1811,14 +1811,14 @@ public partial class GameHost
 						string sVal = "";
 						if (!string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1)) sVal = sv1;
 						else if (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2)) sVal = sv2;
-						else sVal = GetModelSpawnShader(entity.ObjectID);
+						else sVal = GetModelSpawnShader(entity.TemplateID);
 
 						entity.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
 
 						string dVal = "";
 						if (!string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1)) dVal = dv1;
 						else if (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2)) dVal = dv2;
-						else dVal = GetModelDeathShader(entity.ObjectID);
+						else dVal = GetModelDeathShader(entity.TemplateID);
 
 						entity.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
 						entities[i] = entity;
@@ -1833,8 +1833,8 @@ public partial class GameHost
 					for (int i = 0; i < meta.CustomResources.Count; i++)
 					{
 						var res = meta.CustomResources[i];
-						if (string.IsNullOrEmpty(res.ObjectID)) continue;
-						string normKey = NormalizeModelAssetKey(res.ObjectID);
+						if (string.IsNullOrEmpty(res.TemplateID)) continue;
+						string normKey = NormalizeModelAssetKey(res.TemplateID);
 						string normModel = !string.IsNullOrEmpty(res.ModelPath) ? NormalizeModelAssetKey(res.ModelPath) : "";
 
 						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) res.DespillPlayerColor = dVal1;
@@ -1846,8 +1846,8 @@ public partial class GameHost
 						if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) res.IgnorePlayerColor = iVal1;
 						else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) res.IgnorePlayerColor = iVal2;
 
-						string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(res.ObjectID));
-						string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(res.ObjectID));
+						string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(res.TemplateID));
+						string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(res.TemplateID));
 						res.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
 						res.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
 						meta.CustomResources[i] = res;
@@ -1859,8 +1859,8 @@ public partial class GameHost
 					for (int i = 0; i < meta.CustomProps.Count; i++)
 					{
 						var prop = meta.CustomProps[i];
-						if (string.IsNullOrEmpty(prop.ObjectID)) continue;
-						string normKey = NormalizeModelAssetKey(prop.ObjectID);
+						if (string.IsNullOrEmpty(prop.TemplateID)) continue;
+						string normKey = NormalizeModelAssetKey(prop.TemplateID);
 						string normModel = !string.IsNullOrEmpty(prop.ModelPath) ? NormalizeModelAssetKey(prop.ModelPath) : "";
 
 						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) prop.DespillPlayerColor = dVal1;
@@ -1872,8 +1872,8 @@ public partial class GameHost
 						if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) prop.IgnorePlayerColor = iVal1;
 						else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) prop.IgnorePlayerColor = iVal2;
 
-						string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(prop.ObjectID));
-						string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(prop.ObjectID));
+						string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(prop.TemplateID));
+						string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(prop.TemplateID));
 						prop.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
 						prop.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
 						meta.CustomProps[i] = prop;
@@ -3671,7 +3671,7 @@ public partial class GameHost
 				if (!UnitRegistry.TryGetValue(reqId, out meta) && BuildingRegistry.TryGetValue(reqId, out meta))
 					isBuilding = true;
 
-				if (meta.ObjectID != null)
+				if (meta.TemplateID != null)
 				{
 					string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : reqId;
 					string modelPath = GetFallbackModelPath(targetModel, isBuilding);

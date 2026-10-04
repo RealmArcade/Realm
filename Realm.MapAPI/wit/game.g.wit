@@ -195,7 +195,6 @@ interface game-api {
     unit-max-mana: func(id: s32) -> f32;
     unit-move-to: func(id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
     unit-name: func(id: s32) -> string;
-    unit-object-i-d: func(id: s32) -> string;
     unit-player: func(id: s32) -> s32;
     unit-position-x: func(id: s32) -> f32;
     unit-position-y: func(id: s32) -> f32;
@@ -211,6 +210,7 @@ interface game-api {
     unit-stop: func(id: s32);
     unit-stun: func(id: s32, duration: f32);
     unit-teleport: func(id: s32, position-x: f32, position-y: f32, position-z: f32);
+    unit-template-i-d: func(id: s32) -> string;
     unit-trigger-mesh-impulse: func(id: s32, strength: f32, duration: f32, frequency: f32);
     unit-xp-bounty: func(id: s32) -> f32;
     write-saved-data: func(file-name: string, content: string);

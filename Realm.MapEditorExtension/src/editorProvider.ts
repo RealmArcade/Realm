@@ -195,7 +195,7 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             function isEntityReferenced(item: any): boolean {
                 if (!item || typeof item !== 'object') return false;
                 const candidates = [
-                    item.ObjectID,
+                    item.TemplateID,
                     item.UnitId,
                     item.PropId,
                     item.WeaponId,
@@ -245,7 +245,7 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
 
                 for (const entity of allEntities) {
                     if (isEntityReferenced(entity)) {
-                        addIdentifier(entity.ObjectID || entity.UnitId);
+                        addIdentifier(entity.TemplateID || entity.UnitId);
                         addIdentifier(entity.Name);
                         addIdentifier(entity.ModelPath);
 
@@ -273,7 +273,7 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                 if (Array.isArray(metadata.CustomAbilities)) {
                     for (const abi of metadata.CustomAbilities) {
                         if (isEntityReferenced(abi)) {
-                            addIdentifier(abi.ObjectID || abi.AbilityId);
+                            addIdentifier(abi.TemplateID || abi.AbilityId);
                             addIdentifier(abi.Name);
                             if (abi.SummonedUnitId) addIdentifier(abi.SummonedUnitId);
                             if (Array.isArray(abi.GrantedWeapons)) abi.GrantedWeapons.forEach((w: string) => addIdentifier(w));
@@ -284,7 +284,7 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                 if (Array.isArray(metadata.CustomUpgrades)) {
                     for (const up of metadata.CustomUpgrades) {
                         if (isEntityReferenced(up)) {
-                            addIdentifier(up.ObjectID || up.UpgradeId);
+                            addIdentifier(up.TemplateID || up.UpgradeId);
                             addIdentifier(up.Name);
                             if (Array.isArray(up.GrantedWeapons)) up.GrantedWeapons.forEach((w: string) => addIdentifier(w));
                             if (Array.isArray(up.AffectedUnitIds)) up.AffectedUnitIds.forEach((uid: string) => addIdentifier(uid));
@@ -295,7 +295,7 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                 if (Array.isArray(metadata.CustomItems)) {
                     for (const itm of metadata.CustomItems) {
                         if (isEntityReferenced(itm)) {
-                            addIdentifier(itm.ObjectID || itm.ItemId);
+                            addIdentifier(itm.TemplateID || itm.ItemId);
                             addIdentifier(itm.Name);
                             if (Array.isArray(itm.Abilities)) itm.Abilities.forEach((a: string) => addIdentifier(a));
                             if (Array.isArray(itm.GrantedWeapons)) itm.GrantedWeapons.forEach((w: string) => addIdentifier(w));
@@ -646,10 +646,10 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                     <div class="form-section">
                         <h3>General Information</h3>
                         <div class="form-group">
-                            <label for="field-ObjectID-slug">ObjectID</label>
+                            <label for="field-TemplateID-slug">TemplateID</label>
                             <div style="display: flex; align-items: center; gap: 4px;">
-                                <span id="field-object-type-prefix" style="color: var(--vscode-descriptionForeground, #888888); font-family: var(--vscode-editor-font-family, monospace); font-size: 13px; font-weight: bold;">unit/</span>
-                                <input type="text" id="field-ObjectID-slug" style="flex: 1;" required />
+                                <span id="field-template-type-prefix" style="color: var(--vscode-descriptionForeground, #888888); font-family: var(--vscode-editor-font-family, monospace); font-size: 13px; font-weight: bold;">unit/</span>
+                                <input type="text" id="field-TemplateID-slug" style="flex: 1;" required />
                             </div>
                         </div>
                         <div class="form-group">

@@ -164,12 +164,12 @@
     "EntityItem": {
       "type": "object",
       "required": [
-        "ObjectID",
+        "TemplateID",
         "Name",
         "Description"
       ],
         "properties": {
-          "ObjectID": {
+          "TemplateID": {
             "type": "string",
             "pattern": "^[a-z0-9_]+/[a-z0-9_]+$",
             "description": "Unique identifier in the format object_type/slug (e.g. unit/footman, building/barracks, prop/rock, resource/gold_mine)"
@@ -324,9 +324,9 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["ObjectID", "Name", "Description", "AbilityType"],
+        "required": ["TemplateID", "Name", "Description", "AbilityType"],
         "properties": {
-          "ObjectID": {
+          "TemplateID": {
             "type": "string",
             "pattern": "^ability/[a-z0-9_]+$",
             "description": "Unique identifier in the format ability/slug (e.g. ability/fireball)"
@@ -357,9 +357,9 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["ObjectID", "Name", "Description"],
+        "required": ["TemplateID", "Name", "Description"],
         "properties": {
-          "ObjectID": {
+          "TemplateID": {
             "type": "string",
             "pattern": "^upgrade/[a-z0-9_]+$",
             "description": "Unique identifier in the format upgrade/slug (e.g. upgrade/iron_swords)"
@@ -387,9 +387,9 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["ObjectID", "Name", "Description", "ItemClass"],
+        "required": ["TemplateID", "Name", "Description", "ItemClass"],
         "properties": {
-          "ObjectID": {
+          "TemplateID": {
             "type": "string",
             "pattern": "^item/[a-z0-9_]+$",
             "description": "Unique identifier in the format item/slug (e.g. item/health_potion)"
@@ -422,9 +422,9 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["ObjectID", "Name", "Damage", "Range", "AttackCooldown", "AttackType"],
+        "required": ["TemplateID", "Name", "Damage", "Range", "AttackCooldown", "AttackType"],
         "properties": {
-          "ObjectID": {
+          "TemplateID": {
             "type": "string",
             "pattern": "^weapon/[a-z0-9_]+$",
             "description": "Unique identifier in the format weapon/slug (e.g. weapon/arrow)"

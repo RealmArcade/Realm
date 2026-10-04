@@ -82,7 +82,7 @@
             "Weapons": null,
             "XpBounty": 0,
             "YOffset": 0.8367,
-            "ObjectID": "unit/chad"
+            "TemplateID": "unit/chad"
         },
         {
             "Abilities": null,
@@ -132,7 +132,7 @@
             "Weapons": null,
             "XpBounty": 0,
             "YOffset": 0.909,
-            "ObjectID": "unit/kevin"
+            "TemplateID": "unit/kevin"
         }
     ],
     "CustomBuildings": [
@@ -184,7 +184,7 @@
             "Weapons": null,
             "XpBounty": 0,
             "YOffset": 1.5021,
-            "ObjectID": "building/clock_tower"
+            "TemplateID": "building/clock_tower"
         },
         {
             "Abilities": null,
@@ -234,7 +234,7 @@
             "Weapons": null,
             "XpBounty": 0,
             "YOffset": 1.5000001,
-            "ObjectID": "building/timber_framed_house"
+            "TemplateID": "building/timber_framed_house"
         }
     ],
     "CustomResources": [
@@ -259,7 +259,7 @@
             "SpawnShader": null,
             "Tint": "#ffffff",
             "YOffset": 2.7491,
-            "ObjectID": "resource/coniferous_tree_1"
+            "TemplateID": "resource/coniferous_tree_1"
         },
         {
             "Brightness": 0.5,
@@ -282,7 +282,7 @@
             "SpawnShader": null,
             "Tint": "#ffffff",
             "YOffset": 2.7498,
-            "ObjectID": "resource/palm_tree"
+            "TemplateID": "resource/palm_tree"
         }
     ],
     "CustomProps": [
@@ -303,7 +303,7 @@
             "SpawnShader": null,
             "Tint": "#ffffff",
             "YOffset": 1.2500001,
-            "ObjectID": "prop/crystal_cluster_29"
+            "TemplateID": "prop/crystal_cluster_29"
         },
         {
             "Brightness": 0.5,
@@ -322,7 +322,7 @@
             "SpawnShader": null,
             "Tint": "#ffffff",
             "YOffset": 1.2000002,
-            "ObjectID": "prop/spiked_wooden_stake"
+            "TemplateID": "prop/spiked_wooden_stake"
         }
     ],
     "CustomAbilities": [
@@ -343,7 +343,7 @@
             "SummonedUnitId": null,
             "TargetRange": 12,
             "VisualEffect": null,
-            "ObjectID": "ability/fireball"
+            "TemplateID": "ability/fireball"
         },
         {
             "AbilityType": "target_spell",
@@ -362,7 +362,7 @@
             "SummonedUnitId": null,
             "TargetRange": 12,
             "VisualEffect": null,
-            "ObjectID": "ability/holylight"
+            "TemplateID": "ability/holylight"
         },
         {
             "AbilityType": "target_spell",
@@ -381,7 +381,7 @@
             "SummonedUnitId": null,
             "TargetRange": 12,
             "VisualEffect": null,
-            "ObjectID": "ability/lightning"
+            "TemplateID": "ability/lightning"
         }
     ],
     "CustomWeapons": [],

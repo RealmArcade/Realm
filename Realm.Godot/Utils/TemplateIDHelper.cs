@@ -6,7 +6,7 @@ using Godot;
 
 namespace Realm.Godot.Utils;
 
-public static partial class ObjectIDHelper
+public static partial class TemplateIDHelper
 {
 	[GeneratedRegex(@"([a-z0-9])([A-Z])")]
 	private static partial Regex CamelCaseSplitRegex();
@@ -52,34 +52,34 @@ public static partial class ObjectIDHelper
 		return $"{baseSlug}_{index}";
 	}
 
-	public static string GenerateObjectID(string objectType, string assetFileNameOrName, HashSet<string> existingObjectIDs)
+	public static string GenerateTemplateID(string objectType, string assetFileNameOrName, HashSet<string> existingTemplateIDs)
 	{
 		string baseSlug = ToSnakeCase(assetFileNameOrName);
 		string candidate = $"{objectType}/{baseSlug}";
-		if (!existingObjectIDs.Contains(candidate))
+		if (!existingTemplateIDs.Contains(candidate))
 		{
 			return candidate;
 		}
 
 		int index = 2;
-		while (existingObjectIDs.Contains($"{objectType}/{baseSlug}_{index}"))
+		while (existingTemplateIDs.Contains($"{objectType}/{baseSlug}_{index}"))
 		{
 			index++;
 		}
 		return $"{objectType}/{baseSlug}_{index}";
 	}
 
-	public static string GenerateObjectID(string objectType, string assetFileNameOrName, IEnumerable<StringName> existingObjectIDs)
+	public static string GenerateTemplateID(string objectType, string assetFileNameOrName, IEnumerable<StringName> existingTemplateIDs)
 	{
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		foreach (var sn in existingObjectIDs)
+		foreach (var sn in existingTemplateIDs)
 		{
 			set.Add(sn.ToString());
 		}
-		return GenerateObjectID(objectType, assetFileNameOrName, set);
+		return GenerateTemplateID(objectType, assetFileNameOrName, set);
 	}
 
-	public static string NormalizeObjectID(string objectType, string rawId)
+	public static string NormalizeTemplateID(string objectType, string rawId)
 	{
 		if (string.IsNullOrWhiteSpace(rawId)) return string.Empty;
 		string trimmed = rawId.Trim();
@@ -87,7 +87,7 @@ public static partial class ObjectIDHelper
 		return $"{objectType}/{ToSnakeCase(trimmed)}";
 	}
 
-	public static (string ObjectType, string Slug) ParseObjectID(string objectId)
+	public static (string ObjectType, string Slug) ParseTemplateID(string objectId)
 	{
 		if (string.IsNullOrWhiteSpace(objectId)) return (string.Empty, string.Empty);
 		int slashIdx = objectId.IndexOf('/');

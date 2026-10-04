@@ -13,7 +13,7 @@ public partial class Unit3D : Prop3D
 	private string _objectId = "unit/worker";
 
 	[Export]
-	public override string ObjectID
+	public override string TemplateID
 	{
 		get
 		{
@@ -35,14 +35,14 @@ public partial class Unit3D : Prop3D
 
 	public string UnitId
 	{
-		get => ObjectID;
-		set => ObjectID = value;
+		get => TemplateID;
+		set => TemplateID = value;
 	}
 
 	public override string PropId
 	{
-		get => ObjectID;
-		set => ObjectID = value;
+		get => TemplateID;
+		set => TemplateID = value;
 	}
 
 	private bool _isBuilding;

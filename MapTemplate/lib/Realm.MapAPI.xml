@@ -1790,7 +1790,7 @@
             Gets a unique runtime identifier for this unit instance.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.IUnit.ObjectID">
+        <member name="P:Realm.MapAPI.IUnit.TemplateID">
             <summary>
             Gets the unique canonical object identifier for the unit's type or archetype (format: object_type/slug, e.g. unit/worker, building/barracks).
             </summary>

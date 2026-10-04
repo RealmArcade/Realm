@@ -12,7 +12,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private string _category = "units"; // "units", "buildings", "resources", "props"
 	private string _objectType = "unit";
 	private string _slug = "";
-	private string _originalObjectID = "";
+	private string _originalTemplateID = "";
 	private string _modelPath = "";
 	private string _portraitModelPath = "";
 	private string _visualMode = "GroundPlane";
@@ -31,7 +31,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private string _deathShader = "";
 
 	private bool _isSyncing = false;
-	private Action<string, string> _onAppliedCallback; // (oldObjectID, newObjectID)
+	private Action<string, string> _onAppliedCallback; // (oldTemplateID, newTemplateID)
 
 	private Label _lblObjectTypePrefix;
 	private LineEdit _txtSlug;
@@ -84,7 +84,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		idRow.AddThemeConstantOverride("separation", 6);
 
 		var lblId = new Label();
-		lblId.Text = TranslationServer.Translate("ObjectID:");
+		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(140, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		idRow.AddChild(lblId);
@@ -102,7 +102,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_txtSlug.TextChanged += (val) =>
 		{
 			if (_isSyncing) return;
-			_slug = ObjectIDHelper.ToSnakeCase(val);
+			_slug = TemplateIDHelper.ToSnakeCase(val);
 			ValidateSlug();
 		};
 		idRow.AddChild(_txtSlug);
@@ -436,17 +436,17 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			return;
 		}
 
-		if (!fullId.Equals(_originalObjectID, StringComparison.OrdinalIgnoreCase))
+		if (!fullId.Equals(_originalTemplateID, StringComparison.OrdinalIgnoreCase))
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
 			{
 				bool exists = _category switch
 				{
-					"units" => meta.CustomUnits?.Any(u => string.Equals(u.ObjectID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					"buildings" => meta.CustomBuildings?.Any(b => string.Equals(b.ObjectID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					"resources" => meta.CustomResources?.Any(r => string.Equals(r.ObjectID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					"props" => meta.CustomProps?.Any(p => string.Equals(p.ObjectID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+					"units" => meta.CustomUnits?.Any(u => string.Equals(u.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+					"buildings" => meta.CustomBuildings?.Any(b => string.Equals(b.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+					"resources" => meta.CustomResources?.Any(r => string.Equals(r.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+					"props" => meta.CustomProps?.Any(p => string.Equals(p.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
 					_ => false
 				};
 
@@ -474,9 +474,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			_ => "unit"
 		};
 
-		_originalObjectID = objectId;
-		var (parsedType, parsedSlug) = ObjectIDHelper.ParseObjectID(objectId);
-		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : ObjectIDHelper.GenerateSlug(objectId);
+		_originalTemplateID = objectId;
+		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(objectId);
+		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.GenerateSlug(objectId);
 
 		_onAppliedCallback = onApplied;
 
@@ -487,19 +487,19 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			switch (_category)
 			{
 				case "units":
-					var u = meta.CustomUnits?.FirstOrDefault(x => string.Equals(x.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+					var u = meta.CustomUnits?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 					if (u.HasValue) LoadFromUnitMetadata(u.Value);
 					break;
 				case "buildings":
-					var b = meta.CustomBuildings?.FirstOrDefault(x => string.Equals(x.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+					var b = meta.CustomBuildings?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 					if (b.HasValue) LoadFromUnitMetadata(b.Value);
 					break;
 				case "resources":
-					var r = meta.CustomResources?.FirstOrDefault(x => string.Equals(x.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+					var r = meta.CustomResources?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 					if (r.HasValue) LoadFromResourceMetadata(r.Value);
 					break;
 				case "props":
-					var p = meta.CustomProps?.FirstOrDefault(x => string.Equals(x.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+					var p = meta.CustomProps?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 					if (p.HasValue) LoadFromPropMetadata(p.Value);
 					break;
 			}
@@ -606,7 +606,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			return;
 		}
 
-		string newObjectID = $"{_objectType}/{_slug}";
+		string newTemplateID = $"{_objectType}/{_slug}";
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
 		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
@@ -616,9 +616,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			switch (_category)
 			{
 				case "units":
-					bool updatedU = meta.UpdateUnit(_originalObjectID, u =>
+					bool updatedU = meta.UpdateUnit(_originalTemplateID, u =>
 					{
-						u.ObjectID = newObjectID;
+						u.TemplateID = newTemplateID;
 						u.Name = _name;
 						u.Description = _description;
 						u.ModelPath = _modelPath;
@@ -640,7 +640,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					{
 						meta.AddOrUpdateUnit(new GameHost.UnitMetadata
 						{
-							ObjectID = newObjectID,
+							TemplateID = newTemplateID,
 							Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
 							Description = _description,
 							ModelPath = _modelPath,
@@ -663,9 +663,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					break;
 
 				case "buildings":
-					bool updatedB = meta.UpdateBuilding(_originalObjectID, b =>
+					bool updatedB = meta.UpdateBuilding(_originalTemplateID, b =>
 					{
-						b.ObjectID = newObjectID;
+						b.TemplateID = newTemplateID;
 						b.Name = _name;
 						b.Description = _description;
 						b.ModelPath = _modelPath;
@@ -687,7 +687,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					{
 						meta.AddOrUpdateBuilding(new GameHost.UnitMetadata
 						{
-							ObjectID = newObjectID,
+							TemplateID = newTemplateID,
 							Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
 							Description = _description,
 							ModelPath = _modelPath,
@@ -710,9 +710,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					break;
 
 				case "resources":
-					bool updatedR = meta.UpdateResource(_originalObjectID, r =>
+					bool updatedR = meta.UpdateResource(_originalTemplateID, r =>
 					{
-						r.ObjectID = newObjectID;
+						r.TemplateID = newTemplateID;
 						r.Name = _name;
 						r.Description = _description;
 						r.ModelPath = _modelPath;
@@ -734,7 +734,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					{
 						meta.AddOrUpdateResource(new GameHost.ResourceMetadata
 						{
-							ObjectID = newObjectID,
+							TemplateID = newTemplateID,
 							Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
 							Description = _description,
 							ModelPath = _modelPath,
@@ -759,9 +759,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					break;
 
 				case "props":
-					bool updatedP = meta.UpdateProp(_originalObjectID, p =>
+					bool updatedP = meta.UpdateProp(_originalTemplateID, p =>
 					{
-						p.ObjectID = newObjectID;
+						p.TemplateID = newTemplateID;
 						p.Name = _name;
 						p.Description = _description;
 						p.ModelPath = _modelPath;
@@ -783,7 +783,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					{
 						meta.AddOrUpdateProp(new GameHost.PropMetadata
 						{
-							ObjectID = newObjectID,
+							TemplateID = newTemplateID,
 							Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
 							Description = _description,
 							ModelPath = _modelPath,
@@ -808,8 +808,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		GameHost.Instance?.LoadUnitMetadata(wsPath);
 		Hud?.RefreshEntityPalette();
-		_onAppliedCallback?.Invoke(_originalObjectID, newObjectID);
-		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved visual properties for '{0}'"), newObjectID));
+		_onAppliedCallback?.Invoke(_originalTemplateID, newTemplateID);
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved visual properties for '{0}'"), newTemplateID));
 		CloseDialog();
 	}
 }

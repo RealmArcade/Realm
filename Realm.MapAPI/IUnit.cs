@@ -15,12 +15,12 @@ public interface IUnit
     /// <summary>
     /// Gets the unique canonical object identifier for the unit's type or archetype (format: object_type/slug, e.g. unit/worker, building/barracks).
     /// </summary>
-    string ObjectID { get; }
+    string TemplateID { get; }
 
     /// <summary>
     /// Gets the unique identifier for the unit's type or archetype.
     /// </summary>
-    string UnitId => ObjectID;
+    string UnitId => TemplateID;
 
     /// <summary>
     /// Gets or sets the display name of the unit.

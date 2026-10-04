@@ -42,7 +42,7 @@ public partial class Prop3D : StaticBody3D
 	private string _objectId = string.Empty;
 
 	[Export]
-	public virtual string ObjectID
+	public virtual string TemplateID
 	{
 		get
 		{
@@ -65,8 +65,8 @@ public partial class Prop3D : StaticBody3D
 
 	public virtual string PropId
 	{
-		get => ObjectID;
-		set => ObjectID = value;
+		get => TemplateID;
+		set => TemplateID = value;
 	}
 
 	private string _cachedResolvedModelPath;

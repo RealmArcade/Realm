@@ -262,10 +262,10 @@ public class MapEditorEntityPaletteController
 						{
 							foreach (var b in metadata.CustomBuildings)
 							{
-								if (!string.IsNullOrEmpty(b.ObjectID) && !_categoryFiles.Contains(b.ObjectID))
+								if (!string.IsNullOrEmpty(b.TemplateID) && !_categoryFiles.Contains(b.TemplateID))
 								{
-									_categoryFiles.Add(b.ObjectID);
-									if (!string.IsNullOrEmpty(b.Name)) _idToDisplayName[b.ObjectID] = b.Name;
+									_categoryFiles.Add(b.TemplateID);
+									if (!string.IsNullOrEmpty(b.Name)) _idToDisplayName[b.TemplateID] = b.Name;
 								}
 							}
 						}
@@ -287,10 +287,10 @@ public class MapEditorEntityPaletteController
 						{
 							foreach (var u in metadata.CustomUnits)
 							{
-								if (!string.IsNullOrEmpty(u.ObjectID) && !_categoryFiles.Contains(u.ObjectID))
+								if (!string.IsNullOrEmpty(u.TemplateID) && !_categoryFiles.Contains(u.TemplateID))
 								{
-									_categoryFiles.Add(u.ObjectID);
-									if (!string.IsNullOrEmpty(u.Name)) _idToDisplayName[u.ObjectID] = u.Name;
+									_categoryFiles.Add(u.TemplateID);
+									if (!string.IsNullOrEmpty(u.Name)) _idToDisplayName[u.TemplateID] = u.Name;
 								}
 							}
 						}
@@ -312,10 +312,10 @@ public class MapEditorEntityPaletteController
 						{
 							foreach (var r in metadata.CustomResources)
 							{
-								if (!string.IsNullOrEmpty(r.ObjectID) && !_categoryFiles.Contains(r.ObjectID))
+								if (!string.IsNullOrEmpty(r.TemplateID) && !_categoryFiles.Contains(r.TemplateID))
 								{
-									_categoryFiles.Add(r.ObjectID);
-									if (!string.IsNullOrEmpty(r.Name)) _idToDisplayName[r.ObjectID] = r.Name;
+									_categoryFiles.Add(r.TemplateID);
+									if (!string.IsNullOrEmpty(r.Name)) _idToDisplayName[r.TemplateID] = r.Name;
 								}
 							}
 						}
@@ -337,10 +337,10 @@ public class MapEditorEntityPaletteController
 						{
 							foreach (var p in metadata.CustomProps)
 							{
-								if (!string.IsNullOrEmpty(p.ObjectID) && !_categoryFiles.Contains(p.ObjectID))
+								if (!string.IsNullOrEmpty(p.TemplateID) && !_categoryFiles.Contains(p.TemplateID))
 								{
-									_categoryFiles.Add(p.ObjectID);
-									if (!string.IsNullOrEmpty(p.Name)) _idToDisplayName[p.ObjectID] = p.Name;
+									_categoryFiles.Add(p.TemplateID);
+									if (!string.IsNullOrEmpty(p.Name)) _idToDisplayName[p.TemplateID] = p.Name;
 								}
 							}
 						}

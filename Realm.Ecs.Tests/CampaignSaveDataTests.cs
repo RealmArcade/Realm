@@ -188,8 +188,8 @@ public class CampaignSaveDataTests
     private class TestUnit : IUnit
     {
         public int UniqueId { get; set; } = 1;
-        public string ObjectID { get; set; } = "unit/hero_paladin";
-        public string UnitId { get => ObjectID; set => ObjectID = value; }
+        public string TemplateID { get; set; } = "unit/hero_paladin";
+        public string UnitId { get => TemplateID; set => TemplateID = value; }
         public string Name { get; set; } = "Sir Arthur";
         public bool IsEnemy { get; set; } = false;
         public int Player { get; set; } = 0;

@@ -1217,7 +1217,7 @@ public partial class GameHost : Node3D, IGameAPI
 			DespillPlayerColor = false;
 		}
 
-		public string ObjectID { get; set; } = string.Empty;
+		public string TemplateID { get; set; } = string.Empty;
 		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public float MaxHp { get; set; }
@@ -1380,7 +1380,7 @@ public partial class GameHost : Node3D, IGameAPI
 			PointLightRange = 6.0f;
 		}
 
-		public string ObjectID { get; set; } = string.Empty;
+		public string TemplateID { get; set; } = string.Empty;
 		public string Name { get; set; } = string.Empty;
 		public float Damage { get; set; }
 		public float Range { get; set; }
@@ -1455,7 +1455,7 @@ public partial class GameHost : Node3D, IGameAPI
 			DespillPlayerColor = false;
 		}
 
-		public string ObjectID { get; set; } = string.Empty;
+		public string TemplateID { get; set; } = string.Empty;
 		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public string ModelPath { get; set; }
@@ -1489,7 +1489,7 @@ public partial class GameHost : Node3D, IGameAPI
 			DespillPlayerColor = false;
 		}
 
-		public string ObjectID { get; set; } = string.Empty;
+		public string TemplateID { get; set; } = string.Empty;
 		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public string ModelPath { get; set; }
@@ -1523,7 +1523,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 		}
 
-		public string ObjectID { get; set; } = string.Empty;
+		public string TemplateID { get; set; } = string.Empty;
 		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public string AbilityType { get; set; }
@@ -1548,7 +1548,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 		}
 
-		public string ObjectID { get; set; } = string.Empty;
+		public string TemplateID { get; set; } = string.Empty;
 		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public float CostGold { get; set; }
@@ -1570,7 +1570,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 		}
 
-		public string ObjectID { get; set; } = string.Empty;
+		public string TemplateID { get; set; } = string.Empty;
 		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public string ItemClass { get; set; }
@@ -3681,8 +3681,8 @@ public class {mapName} : IMapScript
 
 		foreach (var meta in metadata.CustomWeapons)
 		{
-			if (!string.IsNullOrEmpty(meta.ObjectID))
-				newWeapons[(StringName)meta.ObjectID] = meta;
+			if (!string.IsNullOrEmpty(meta.TemplateID))
+				newWeapons[(StringName)meta.TemplateID] = meta;
 		}
 
 		foreach (var meta in metadata.CustomAttachments)
@@ -3695,51 +3695,51 @@ public class {mapName} : IMapScript
 
 		foreach (var meta in metadata.CustomItems)
 		{
-			if (!string.IsNullOrEmpty(meta.ObjectID))
+			if (!string.IsNullOrEmpty(meta.TemplateID))
 			{
-				newItems[(StringName)meta.ObjectID] = meta;
+				newItems[(StringName)meta.TemplateID] = meta;
 			}
 		}
 
 		foreach (var meta in metadata.CustomUnits)
 		{
-			if (!string.IsNullOrEmpty(meta.ObjectID))
+			if (!string.IsNullOrEmpty(meta.TemplateID))
 			{
 				var copy = meta;
 				if (copy.Scale <= 0f) copy.Scale = 1.0f;
-				newUnits[(StringName)copy.ObjectID] = copy;
+				newUnits[(StringName)copy.TemplateID] = copy;
 			}
 		}
 
 		foreach (var meta in metadata.CustomBuildings)
 		{
-			if (!string.IsNullOrEmpty(meta.ObjectID))
+			if (!string.IsNullOrEmpty(meta.TemplateID))
 			{
 				var copy = meta;
 				if (copy.Scale <= 0f) copy.Scale = 1.5f;
-				newBuildings[(StringName)copy.ObjectID] = copy;
+				newBuildings[(StringName)copy.TemplateID] = copy;
 			}
 		}
 
 		foreach (var meta in metadata.CustomResources)
 		{
-			if (!string.IsNullOrEmpty(meta.ObjectID))
+			if (!string.IsNullOrEmpty(meta.TemplateID))
 			{
 				var copy = meta;
 				if (copy.Scale <= 0f) copy.Scale = 2.75f;
 				if (copy.PathingType == 0) copy.PathingType = 255;
-				newResources[(StringName)copy.ObjectID] = copy;
+				newResources[(StringName)copy.TemplateID] = copy;
 			}
 		}
 
 		foreach (var meta in metadata.CustomProps)
 		{
-			if (!string.IsNullOrEmpty(meta.ObjectID))
+			if (!string.IsNullOrEmpty(meta.TemplateID))
 			{
 				var copy = meta;
 				if (copy.Scale <= 0f) copy.Scale = 1.25f;
 				if (copy.PathingType == 0) copy.PathingType = 255;
-				newProps[(StringName)copy.ObjectID] = copy;
+				newProps[(StringName)copy.TemplateID] = copy;
 			}
 		}
 

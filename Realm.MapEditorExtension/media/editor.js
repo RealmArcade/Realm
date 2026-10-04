@@ -126,7 +126,7 @@
     const pasteUnitBtn = document.getElementById('paste-unit-btn');
 
     const formFields = {
-        ObjectID: document.getElementById('field-ObjectID-slug'),
+        TemplateID: document.getElementById('field-TemplateID-slug'),
         Name: document.getElementById('field-Name'),
         Description: document.getElementById('field-Description'),
         ModelPath: document.getElementById('field-ModelPath'),
@@ -202,7 +202,7 @@
         return s || 'object';
     }
 
-    function parseObjectID(objectId) {
+    function parseTemplateID(objectId) {
         if (!objectId || typeof objectId !== 'string') return { type: '', slug: '' };
         const slashIdx = objectId.indexOf('/');
         if (slashIdx >= 0) {
@@ -226,11 +226,11 @@
         return `${baseSlug}_${idx}`;
     }
 
-    function generateObjectID(type, baseName, existingIDs) {
+    function generateTemplateID(type, baseName, existingIDs) {
         const existingSlugs = new Set();
         if (existingIDs) {
             for (const id of existingIDs) {
-                const parsed = parseObjectID(id);
+                const parsed = parseTemplateID(id);
                 if (parsed.slug) existingSlugs.add(parsed.slug);
             }
         }
@@ -256,7 +256,7 @@
     }
 
     function getUnitById(id) {
-        return getAllEntities().find(u => u && (u.ObjectID === id || u.UnitId === id));
+        return getAllEntities().find(u => u && (u.TemplateID === id || u.UnitId === id));
     }
 
     const buildOptionInput = document.getElementById('build-option-input');
@@ -453,8 +453,8 @@
                                   domain === 'props' ? (units.CustomProps || []) :
                                   (units.CustomUnits || []);
             if (matchingUnits.length > 0) {
-                if (!selectedUnitId || !matchingUnits.some(u => (u.ObjectID || u.UnitId) === selectedUnitId)) {
-                    selectUnit(matchingUnits[0].ObjectID || matchingUnits[0].UnitId);
+                if (!selectedUnitId || !matchingUnits.some(u => (u.TemplateID || u.UnitId) === selectedUnitId)) {
+                    selectUnit(matchingUnits[0].TemplateID || matchingUnits[0].UnitId);
                 } else {
                     selectUnit(selectedUnitId);
                 }
@@ -670,19 +670,14 @@
         unitListContainer.innerHTML = '';
         const query = searchQuery.toLowerCase();
         const activeDomain = getActiveDomain();
-        const defaultType = activeDomain === 'buildings' ? 'building' : activeDomain === 'resources' ? 'resource' : activeDomain === 'props' ? 'prop' : 'unit';
-        const parsed = parseObjectID(unit.ObjectID || unit.UnitId || id);
-        const prefixEl = document.getElementById('field-object-type-prefix');
-        if (prefixEl) prefixEl.textContent = `${parsed.type || defaultType}/`;
-
 
         const customUnitsList = activeDomain === 'buildings' ? (units.CustomBuildings || []) :
                                 activeDomain === 'resources' ? (units.CustomResources || []) :
                                 activeDomain === 'props' ? (units.CustomProps || []) :
                                 (units.CustomUnits || []);
         for (const unit of customUnitsList) {
-            if (!unit || (!unit.ObjectID && !unit.UnitId)) continue;
-            const id = unit.ObjectID || unit.UnitId;
+            if (!unit || (!unit.TemplateID && !unit.UnitId)) continue;
+            const id = unit.TemplateID || unit.UnitId;
             const name = unit.Name || '';
             const desc = unit.Description || '';
 
@@ -831,6 +826,11 @@
         
         const activeDomain = getActiveDomain();
         const categoryTitle = activeDomain.charAt(0).toUpperCase() + activeDomain.slice(1);
+        const defaultType = activeDomain === 'buildings' ? 'building' : activeDomain === 'resources' ? 'resource' : activeDomain === 'props' ? 'prop' : 'unit';
+        const parsed = parseTemplateID(unit.TemplateID || unit.UnitId || id);
+        const prefixEl = document.getElementById('field-template-type-prefix');
+        if (prefixEl) prefixEl.textContent = `${parsed.type || defaultType}/`;
+
         const breadcrumb = document.getElementById('editor-breadcrumb');
         if (breadcrumb) {
             breadcrumb.textContent = `${categoryTitle} > ${id}`;
@@ -839,6 +839,11 @@
         for (const [key, element] of Object.entries(formFields)) {
             if (!element) continue;
             
+            if (key === 'TemplateID') {
+                element.value = parsed.slug || '';
+                continue;
+            }
+
             const val = unit[key];
             if (element.type === 'checkbox') {
                 element.checked = !!val;
@@ -1354,7 +1359,7 @@
                         <button type="button" class="btn small-btn edit-weapon-vfx-btn" data-index="${index}" title="Edit Visual & Audio Effects in Godot Dialog">✏️</button>
                     </td>
                     <td>
-                        <input type="text" class="weapon-id" data-index="${index}" value="${parseObjectID(item.ObjectID || item.WeaponId).slug}" required />
+                        <input type="text" class="weapon-id" data-index="${index}" value="${parseTemplateID(item.TemplateID || item.WeaponId).slug}" required />
                     </td>
                     <td>
                         <input type="text" class="weapon-name" data-index="${index}" value="${item.Name || ''}" />
@@ -1466,7 +1471,7 @@
                         if (newId && !dup) {
                             pushToUndoStack();
                             cascadeRename('weapon', oldId, newId);
-                            list[idx].ObjectID = 'weapon/' + toSnakeCase(newId); delete list[idx].WeaponId;
+                            list[idx].TemplateID = 'weapon/' + toSnakeCase(newId); delete list[idx].WeaponId;
                         } else {
                             target.value = oldId;
                             return;
@@ -1509,7 +1514,7 @@
                         <button type="button" class="btn small-btn edit-ability-vfx-btn" data-index="${index}" title="Edit Ability VFX & Audio in Godot">✏️</button>
                     </td>
                     <td>
-                        <input type="text" class="ability-id" data-index="${index}" value="${parseObjectID(item.ObjectID || item.AbilityId).slug}" required />
+                        <input type="text" class="ability-id" data-index="${index}" value="${parseTemplateID(item.TemplateID || item.AbilityId).slug}" required />
                     </td>
                     <td>
                         <input type="text" class="ability-name" data-index="${index}" value="${item.Name || ''}" />
@@ -1710,7 +1715,7 @@
                         if (newId && !dup) {
                             pushToUndoStack();
                             cascadeRename('ability', oldId, newId);
-                            list[idx].ObjectID = 'ability/' + toSnakeCase(newId); delete list[idx].AbilityId;
+                            list[idx].TemplateID = 'ability/' + toSnakeCase(newId); delete list[idx].AbilityId;
                         } else {
                             target.value = oldId;
                             return;
@@ -1763,7 +1768,7 @@
                         <button type="button" class="row-expand-btn" data-target="upgrade-detail-${index}">▶</button>
                     </td>
                     <td>
-                        <input type="text" class="upgrade-id" data-index="${index}" value="${parseObjectID(item.ObjectID || item.UpgradeId).slug}" required />
+                        <input type="text" class="upgrade-id" data-index="${index}" value="${parseTemplateID(item.TemplateID || item.UpgradeId).slug}" required />
                     </td>
                     <td>
                         <input type="text" class="upgrade-name" data-index="${index}" value="${item.Name || ''}" />
@@ -1924,7 +1929,7 @@
                         if (newId && !dup) {
                             pushToUndoStack();
                             cascadeRename('upgrade', oldId, newId);
-                            list[idx].ObjectID = 'upgrade/' + toSnakeCase(newId); delete list[idx].UpgradeId;
+                            list[idx].TemplateID = 'upgrade/' + toSnakeCase(newId); delete list[idx].UpgradeId;
                         } else {
                             target.value = oldId;
                             return;
@@ -1970,7 +1975,7 @@
                         <button type="button" class="row-expand-btn" data-target="item-detail-${index}">▶</button>
                     </td>
                     <td>
-                        <input type="text" class="item-id" data-index="${index}" value="${parseObjectID(item.ObjectID || item.ItemId).slug}" required />
+                        <input type="text" class="item-id" data-index="${index}" value="${parseTemplateID(item.TemplateID || item.ItemId).slug}" required />
                     </td>
                     <td>
                         <input type="text" class="item-name" data-index="${index}" value="${item.Name || ''}" />
@@ -2185,7 +2190,7 @@
                         if (newId && !dup) {
                             pushToUndoStack();
                             cascadeRename('item', oldId, newId);
-                            list[idx].ObjectID = 'item/' + toSnakeCase(newId); delete list[idx].ItemId;
+                            list[idx].TemplateID = 'item/' + toSnakeCase(newId); delete list[idx].ItemId;
                         } else {
                             target.value = oldId;
                             return;
@@ -2366,7 +2371,7 @@
 
     function getExistingUnitIds() {
         const customUnitsList = getCustomUnits();
-        return new Set(customUnitsList.map(u => u.ObjectID || u.UnitId).filter(Boolean));
+        return new Set(customUnitsList.map(u => u.TemplateID || u.UnitId).filter(Boolean));
     }
 
     // --- UNIT COPY / PASTE SYSTEM CLIPBOARD ---
@@ -2497,25 +2502,25 @@
     if (pasteCustomWeaponBtn) {
         pasteCustomWeaponBtn.addEventListener('click', () => {
             if (!units.CustomWeapons) units.CustomWeapons = [];
-            pasteRowData('weapon', units.CustomWeapons, 'ObjectID', 'weapon');
+            pasteRowData('weapon', units.CustomWeapons, 'TemplateID', 'weapon');
         });
     }
     if (pasteCustomAbilityBtn) {
         pasteCustomAbilityBtn.addEventListener('click', () => {
             if (!units.CustomAbilities) units.CustomAbilities = [];
-            pasteRowData('ability', units.CustomAbilities, 'ObjectID', 'ability');
+            pasteRowData('ability', units.CustomAbilities, 'TemplateID', 'ability');
         });
     }
     if (pasteCustomUpgradeBtn) {
         pasteCustomUpgradeBtn.addEventListener('click', () => {
             if (!units.CustomUpgrades) units.CustomUpgrades = [];
-            pasteRowData('upgrade', units.CustomUpgrades, 'ObjectID', 'upgrade');
+            pasteRowData('upgrade', units.CustomUpgrades, 'TemplateID', 'upgrade');
         });
     }
     if (pasteCustomItemBtn) {
         pasteCustomItemBtn.addEventListener('click', () => {
             if (!units.CustomItems) units.CustomItems = [];
-            pasteRowData('item', units.CustomItems, 'ObjectID', 'item');
+            pasteRowData('item', units.CustomItems, 'TemplateID', 'item');
         });
     }
 
@@ -2662,11 +2667,11 @@
         const existingIds = getExistingUnitIds();
         const domain = getActiveDomain();
         const type = domain === 'buildings' ? 'building' : domain === 'resources' ? 'resource' : domain === 'props' ? 'prop' : 'unit';
-        const parsed = parseObjectID(sourceUnit.ObjectID || sourceUnit.UnitId || selectedUnitId);
-        const nextId = generateObjectID(type, `${parsed.slug}_copy`, existingIds);
+        const parsed = parseTemplateID(sourceUnit.TemplateID || sourceUnit.UnitId || selectedUnitId);
+        const nextId = generateTemplateID(type, `${parsed.slug}_copy`, existingIds);
         
         const newUnit = JSON.parse(JSON.stringify(sourceUnit));
-        newUnit.ObjectID = nextId;
+        newUnit.TemplateID = nextId;
         delete newUnit.UnitId;
         newUnit.Name = `${sourceUnit.Name || 'New Entity'} (Copy)`;
         
@@ -2684,12 +2689,12 @@
         if (!list[index]) return;
         
         const source = list[index];
-        const existingIds = new Set(list.map(w => w.ObjectID || w.WeaponId));
-        const parsed = parseObjectID(source.ObjectID || source.WeaponId || 'weapon/new_weapon');
-        const nextId = generateObjectID('weapon', `${parsed.slug}_copy`, existingIds);
+        const existingIds = new Set(list.map(w => w.TemplateID || w.WeaponId));
+        const parsed = parseTemplateID(source.TemplateID || source.WeaponId || 'weapon/new_weapon');
+        const nextId = generateTemplateID('weapon', `${parsed.slug}_copy`, existingIds);
         
         const newWeapon = JSON.parse(JSON.stringify(source));
-        newWeapon.ObjectID = nextId;
+        newWeapon.TemplateID = nextId;
         delete newWeapon.WeaponId;
         newWeapon.Name = `${source.Name || 'New Weapon'} (Copy)`;
         
@@ -2704,12 +2709,12 @@
         if (!list[index]) return;
         
         const source = list[index];
-        const existingIds = new Set(list.map(a => a.ObjectID || a.AbilityId));
-        const parsed = parseObjectID(source.ObjectID || source.AbilityId || 'ability/new_ability');
-        const nextId = generateObjectID('ability', `${parsed.slug}_copy`, existingIds);
+        const existingIds = new Set(list.map(a => a.TemplateID || a.AbilityId));
+        const parsed = parseTemplateID(source.TemplateID || source.AbilityId || 'ability/new_ability');
+        const nextId = generateTemplateID('ability', `${parsed.slug}_copy`, existingIds);
         
         const newAbility = JSON.parse(JSON.stringify(source));
-        newAbility.ObjectID = nextId;
+        newAbility.TemplateID = nextId;
         delete newAbility.AbilityId;
         newAbility.Name = `${source.Name || 'New Ability'} (Copy)`;
         
@@ -2724,12 +2729,12 @@
         if (!list[index]) return;
         
         const source = list[index];
-        const existingIds = new Set(list.map(u => u.ObjectID || u.UpgradeId));
-        const parsed = parseObjectID(source.ObjectID || source.UpgradeId || 'upgrade/new_upgrade');
-        const nextId = generateObjectID('upgrade', `${parsed.slug}_copy`, existingIds);
+        const existingIds = new Set(list.map(u => u.TemplateID || u.UpgradeId));
+        const parsed = parseTemplateID(source.TemplateID || source.UpgradeId || 'upgrade/new_upgrade');
+        const nextId = generateTemplateID('upgrade', `${parsed.slug}_copy`, existingIds);
         
         const newUpgrade = JSON.parse(JSON.stringify(source));
-        newUpgrade.ObjectID = nextId;
+        newUpgrade.TemplateID = nextId;
         delete newUpgrade.UpgradeId;
         newUpgrade.Name = `${source.Name || 'New Upgrade'} (Copy)`;
         
@@ -2744,12 +2749,12 @@
         if (!list[index]) return;
         
         const source = list[index];
-        const existingIds = new Set(list.map(i => i.ObjectID || i.ItemId));
-        const parsed = parseObjectID(source.ObjectID || source.ItemId || 'item/new_item');
-        const nextId = generateObjectID('item', `${parsed.slug}_copy`, existingIds);
+        const existingIds = new Set(list.map(i => i.TemplateID || i.ItemId));
+        const parsed = parseTemplateID(source.TemplateID || source.ItemId || 'item/new_item');
+        const nextId = generateTemplateID('item', `${parsed.slug}_copy`, existingIds);
         
         const newItem = JSON.parse(JSON.stringify(source));
-        newItem.ObjectID = nextId;
+        newItem.TemplateID = nextId;
         delete newItem.ItemId;
         newItem.Name = `${source.Name || 'New Item'} (Copy)`;
         
@@ -2781,10 +2786,10 @@
         try {
             pushToUndoStack();
             cascadeDelete('unit', id);
-            units.CustomUnits = (units.CustomUnits || []).filter(u => u && (u.ObjectID || u.UnitId) !== id);
-            units.CustomBuildings = (units.CustomBuildings || []).filter(u => u && (u.ObjectID || u.UnitId) !== id);
-            units.CustomResources = (units.CustomResources || []).filter(u => u && (u.ObjectID || u.UnitId) !== id);
-            units.CustomProps = (units.CustomProps || []).filter(u => u && (u.ObjectID || u.UnitId) !== id);
+            units.CustomUnits = (units.CustomUnits || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
+            units.CustomBuildings = (units.CustomBuildings || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
+            units.CustomResources = (units.CustomResources || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
+            units.CustomProps = (units.CustomProps || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
             if (selectedUnitId === id) {
                 selectedUnitId = null;
                 showEmptyState();
@@ -2802,7 +2807,7 @@
         const type = domain === 'buildings' ? 'building' : domain === 'resources' ? 'resource' : domain === 'props' ? 'prop' : 'unit';
         const prefix = domain === 'buildings' ? 'Building' : domain === 'resources' ? 'Resource' : domain === 'props' ? 'Prop' : 'Unit';
         const existingIds = getExistingUnitIds();
-        const nextId = generateObjectID(type, `new_${type}`, existingIds);
+        const nextId = generateTemplateID(type, `new_${type}`, existingIds);
         const defaultPathing = (domain === 'resources' || domain === 'props') ? 255 : (domain === 'buildings') ? 32 : 8;
         const defaultArmor = (domain === 'buildings') ? 'fortified' : 'flesh';
         
@@ -2814,7 +2819,7 @@
         let defaultModelPath = '';
         if (domain === 'props') {
             targetArray.push({
-                ObjectID: nextId,
+                TemplateID: nextId,
                 Name: `New ${prefix}`,
                 Description: `A decorative ${prefix.toLowerCase()} prop.`,
                 ModelPath: defaultModelPath,
@@ -2822,7 +2827,7 @@
             });
         } else if (domain === 'resources') {
             targetArray.push({
-                ObjectID: nextId,
+                TemplateID: nextId,
                 Name: `New ${prefix}`,
                 Description: `Harvestable ${prefix.toLowerCase()} deposit.`,
                 ModelPath: defaultModelPath,
@@ -2834,7 +2839,7 @@
             });
         } else if (domain === 'buildings') {
             targetArray.push({
-                ObjectID: nextId,
+                TemplateID: nextId,
                 Name: `New ${prefix}`,
                 Description: `A new ${prefix.toLowerCase()} entity.`,
                 ModelPath: defaultModelPath,
@@ -2857,7 +2862,7 @@
             });
         } else {
             targetArray.push({
-                ObjectID: nextId,
+                TemplateID: nextId,
                 Name: `New ${prefix}`,
                 Description: `A new ${prefix.toLowerCase()} entity.`,
                 ModelPath: defaultModelPath,
@@ -2887,9 +2892,9 @@
     addCustomWeaponBtn.addEventListener('click', () => {
         if (!units.CustomWeapons) units.CustomWeapons = [];
         const list = units.CustomWeapons;
-        const nextId = generateObjectID('weapon', 'new_weapon', new Set(list.map(w => w.ObjectID || w.WeaponId)));
+        const nextId = generateTemplateID('weapon', 'new_weapon', new Set(list.map(w => w.TemplateID || w.WeaponId)));
         list.push({
-            ObjectID: nextId,
+            TemplateID: nextId,
             Name: 'New Weapon',
             Damage: 10,
             Range: 8.0,
@@ -2907,9 +2912,9 @@
     addCustomAbilityBtn.addEventListener('click', () => {
         if (!units.CustomAbilities) units.CustomAbilities = [];
         const list = units.CustomAbilities;
-        const nextId = generateObjectID('ability', 'new_ability', new Set(list.map(a => a.ObjectID || a.AbilityId)));
+        const nextId = generateTemplateID('ability', 'new_ability', new Set(list.map(a => a.TemplateID || a.AbilityId)));
         list.push({
-            ObjectID: nextId,
+            TemplateID: nextId,
             Name: 'New Ability',
             Description: 'A new spell effect.',
             AbilityType: 'target_spell'
@@ -2922,9 +2927,9 @@
     addCustomUpgradeBtn.addEventListener('click', () => {
         if (!units.CustomUpgrades) units.CustomUpgrades = [];
         const list = units.CustomUpgrades;
-        const nextId = generateObjectID('upgrade', 'new_upgrade', new Set(list.map(u => u.ObjectID || u.UpgradeId)));
+        const nextId = generateTemplateID('upgrade', 'new_upgrade', new Set(list.map(u => u.TemplateID || u.UpgradeId)));
         list.push({
-            ObjectID: nextId,
+            TemplateID: nextId,
             Name: 'New Upgrade',
             Description: 'Increases unit stats.'
         });
@@ -2936,9 +2941,9 @@
     addCustomItemBtn.addEventListener('click', () => {
         if (!units.CustomItems) units.CustomItems = [];
         const list = units.CustomItems;
-        const nextId = generateObjectID('item', 'new_item', new Set(list.map(i => i.ObjectID || i.ItemId)));
+        const nextId = generateTemplateID('item', 'new_item', new Set(list.map(i => i.TemplateID || i.ItemId)));
         list.push({
-            ObjectID: nextId,
+            TemplateID: nextId,
             Name: 'New Item',
             Description: 'A custom inventory item.',
             ItemClass: 'consumable'
@@ -3269,8 +3274,8 @@
         const existingItemIds = new Set((units.CustomItems || []).map(i => i.ItemId).filter(Boolean));
 
         for (const unit of customUnitsList) {
-            if (!unit || (!unit.ObjectID && !unit.UnitId)) continue;
-            const id = unit.ObjectID || unit.UnitId;
+            if (!unit || (!unit.TemplateID && !unit.UnitId)) continue;
+            const id = unit.TemplateID || unit.UnitId;
             
             const unitErrors = {};
             if (unit.BuildOptions) {
@@ -3395,11 +3400,11 @@
         const upgrades = units.CustomUpgrades || [];
         const items = units.CustomItems || [];
 
-        populateDatalist('suggest-units', customUnitsList.map(u => ({ id: u.ObjectID || u.UnitId, name: u.Name })));
-        populateDatalist('suggest-weapons', weapons.map(w => ({ id: w.ObjectID || w.WeaponId, name: w.Name })));
-        populateDatalist('suggest-abilities', abilities.map(a => ({ id: a.ObjectID || a.AbilityId, name: a.Name })));
-        populateDatalist('suggest-upgrades', upgrades.map(u => ({ id: u.ObjectID || u.UpgradeId, name: u.Name })));
-        populateDatalist('suggest-items', items.map(i => ({ id: i.ObjectID || i.ItemId, name: i.Name })));
+        populateDatalist('suggest-units', customUnitsList.map(u => ({ id: u.TemplateID || u.UnitId, name: u.Name })));
+        populateDatalist('suggest-weapons', weapons.map(w => ({ id: w.TemplateID || w.WeaponId, name: w.Name })));
+        populateDatalist('suggest-abilities', abilities.map(a => ({ id: a.TemplateID || a.AbilityId, name: a.Name })));
+        populateDatalist('suggest-upgrades', upgrades.map(u => ({ id: u.TemplateID || u.UpgradeId, name: u.Name })));
+        populateDatalist('suggest-items', items.map(i => ({ id: i.TemplateID || i.ItemId, name: i.Name })));
 
         // Icons datalist (suggest-icons) - strictly imported *.png under Assets/icons
         const iconAssets = new Set();
@@ -3456,10 +3461,14 @@
 
             const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
 
-            if (key === 'UnitId') {
-                const newId = val.trim();
-                if (!newId || (newId !== selectedUnitId && getUnitById(newId))) {
-                    element.value = selectedUnitId;
+            if (key === 'TemplateID' || key === 'UnitId') {
+                const cleanSlug = toSnakeCase(val);
+                const domain = getActiveDomain();
+                const type = domain === 'buildings' ? 'building' : domain === 'resources' ? 'resource' : domain === 'props' ? 'prop' : 'unit';
+                const newId = `${type}/${cleanSlug}`;
+                if (!cleanSlug || (newId !== selectedUnitId && getUnitById(newId))) {
+                    const parsed = parseTemplateID(selectedUnitId);
+                    element.value = parsed.slug;
                     const inputEvent = new Event('input', { bubbles: true });
                     element.dispatchEvent(inputEvent);
                     return;
@@ -3474,12 +3483,13 @@
 
                 pushToUndoStack();
                 cascadeRename('unit', selectedUnitId, newId);
-                targetUnit.UnitId = newId;
+                targetUnit.TemplateID = newId;
+                delete targetUnit.UnitId;
                 selectedUnitId = newId;
                 editorSubtitle.textContent = `ID: ${newId}`;
                 const breadcrumb = document.getElementById('editor-breadcrumb');
                 if (breadcrumb) {
-                    breadcrumb.textContent = `Units > ${newId}`;
+                    breadcrumb.textContent = `${domain} > ${newId}`;
                 }
                 renderUnitList();
                 saveChanges();

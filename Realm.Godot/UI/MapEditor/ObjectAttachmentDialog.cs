@@ -1721,7 +1721,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			{
 				foreach (var it in metadata.CustomItems)
 				{
-					string val = it.ObjectID ?? "";
+					string val = it.TemplateID ?? "";
 					if (!string.IsNullOrEmpty(val))
 					{
 						string cleanId = System.IO.Path.GetFileNameWithoutExtension(val);
@@ -1734,7 +1734,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			{
 				foreach (var wpn in metadata.CustomWeapons)
 				{
-					string val = wpn.ObjectID ?? "";
+					string val = wpn.TemplateID ?? "";
 					if (!string.IsNullOrEmpty(val))
 					{
 						string cleanId = System.IO.Path.GetFileNameWithoutExtension(val);

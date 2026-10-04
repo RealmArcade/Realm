@@ -13,7 +13,7 @@ using Realm.Shared.Audio;
 using Realm.Shared.Metadata;
 using Realm.Godot.Services;
 
-public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
+public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 {
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
@@ -43,10 +43,10 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 
 	private string _currentCategory = "units";
 	private string _searchFilter = "";
-	private string _currentPreviewObjectID = "";
+	private string _currentPreviewTemplateID = "";
 
-	public ObjectManagerDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Map Objects Manager"), new Vector2(720, 780))
+	public TemplateManagerDialog(MapEditorHUD hud)
+		: base(hud, TranslationServer.Translate("Map Templates Manager"), new Vector2(720, 780))
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 34, 40, 60, 60);
 
@@ -278,7 +278,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 		if (!string.IsNullOrEmpty(_searchFilter))
 		{
 			items = items.Where(i =>
-				i.ObjectID.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
+				i.TemplateID.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
 				i.Name.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase) ||
 				i.Description.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)
 			).ToList();
@@ -300,7 +300,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 			_listVBox.AddChild(row);
 		}
 
-		if (string.IsNullOrEmpty(_currentPreviewObjectID) || !items.Any(i => i.ObjectID.Equals(_currentPreviewObjectID, StringComparison.OrdinalIgnoreCase)))
+		if (string.IsNullOrEmpty(_currentPreviewTemplateID) || !items.Any(i => i.TemplateID.Equals(_currentPreviewTemplateID, StringComparison.OrdinalIgnoreCase)))
 		{
 			LoadPreviewForObject(items[0]);
 		}
@@ -309,7 +309,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 	private struct ObjectItemInfo
 	{
 		public string Category;
-		public string ObjectID;
+		public string TemplateID;
 		public string Name;
 		public string Description;
 		public string ModelPath;
@@ -337,8 +337,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 						list.Add(new ObjectItemInfo
 						{
 							Category = "units",
-							ObjectID = u.ObjectID,
-							Name = u.Name ?? u.ObjectID,
+							TemplateID = u.TemplateID,
+							Name = u.Name ?? u.TemplateID,
 							Description = u.Description ?? "",
 							ModelPath = u.ModelPath ?? "",
 							VisualMode = u.VisualMode ?? "GroundPlane",
@@ -356,8 +356,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 						list.Add(new ObjectItemInfo
 						{
 							Category = "buildings",
-							ObjectID = b.ObjectID,
-							Name = b.Name ?? b.ObjectID,
+							TemplateID = b.TemplateID,
+							Name = b.Name ?? b.TemplateID,
 							Description = b.Description ?? "",
 							ModelPath = b.ModelPath ?? "",
 							VisualMode = b.VisualMode ?? "GroundPlane",
@@ -375,8 +375,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 						list.Add(new ObjectItemInfo
 						{
 							Category = "resources",
-							ObjectID = r.ObjectID,
-							Name = r.Name ?? r.ObjectID,
+							TemplateID = r.TemplateID,
+							Name = r.Name ?? r.TemplateID,
 							Description = r.Description ?? "",
 							ModelPath = r.ModelPath ?? "",
 							VisualMode = r.VisualMode ?? "GroundPlane",
@@ -394,8 +394,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 						list.Add(new ObjectItemInfo
 						{
 							Category = "props",
-							ObjectID = p.ObjectID,
-							Name = p.Name ?? p.ObjectID,
+							TemplateID = p.TemplateID,
+							Name = p.Name ?? p.TemplateID,
 							Description = p.Description ?? "",
 							ModelPath = p.ModelPath ?? "",
 							VisualMode = p.VisualMode ?? "GroundPlane",
@@ -413,8 +413,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 						list.Add(new ObjectItemInfo
 						{
 							Category = "weapons",
-							ObjectID = w.ObjectID,
-							Name = w.Name ?? w.ObjectID,
+							TemplateID = w.TemplateID,
+							Name = w.Name ?? w.TemplateID,
 							Description = $"Damage: {w.Damage} | Range: {w.Range} | Type: {w.AttackType}",
 							ModelPath = w.ProjectileModelPath ?? ""
 						});
@@ -430,8 +430,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 						list.Add(new ObjectItemInfo
 						{
 							Category = "abilities",
-							ObjectID = a.ObjectID,
-							Name = a.Name ?? a.ObjectID,
+							TemplateID = a.TemplateID,
+							Name = a.Name ?? a.TemplateID,
 							Description = a.Description ?? "",
 							IconPath = a.IconPath ?? ""
 						});
@@ -447,8 +447,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 						list.Add(new ObjectItemInfo
 						{
 							Category = "upgrades",
-							ObjectID = u.ObjectID,
-							Name = u.Name ?? u.ObjectID,
+							TemplateID = u.TemplateID,
+							Name = u.Name ?? u.TemplateID,
 							Description = u.Description ?? ""
 						});
 					}
@@ -463,8 +463,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 						list.Add(new ObjectItemInfo
 						{
 							Category = "items",
-							ObjectID = itm.ObjectID,
-							Name = itm.Name ?? itm.ObjectID,
+							TemplateID = itm.TemplateID,
+							Name = itm.Name ?? itm.TemplateID,
 							Description = itm.Description ?? "",
 							IconPath = itm.IconPath ?? ""
 						});
@@ -509,7 +509,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 		infoVBox.AddChild(lblName);
 
 		var lblId = new Label();
-		lblId.Text = item.ObjectID;
+		lblId.Text = item.TemplateID;
 		lblId.AddThemeFontSizeOverride("font_size", 10);
 		lblId.AddThemeColorOverride("font_color", new Color(0.6f, 0.65f, 0.75f));
 		infoVBox.AddChild(lblId);
@@ -548,7 +548,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 		switch (item.Category)
 		{
 			case "units" or "buildings" or "resources" or "props" or "items":
-				_entityVisualEditDialog.OpenForObject(item.Category, item.ObjectID, (oldId, newId) =>
+				_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 				{
 					RefreshObjectList();
 				});
@@ -558,11 +558,11 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 				if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.CustomWeapons != null)
 				{
-					int wIdx = meta.CustomWeapons.FindIndex(x => string.Equals(x.ObjectID, item.ObjectID, StringComparison.OrdinalIgnoreCase));
+					int wIdx = meta.CustomWeapons.FindIndex(x => string.Equals(x.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 					if (wIdx >= 0)
 					{
 						var w = meta.CustomWeapons[wIdx];
-						_weaponVfxDialog.OpenForWeapon(w.ObjectID, w, updatedWeapon =>
+						_weaponVfxDialog.OpenForWeapon(w.TemplateID, w, updatedWeapon =>
 						{
 							MetadataService.Instance.UpdateMetadata(wsPath, m =>
 							{
@@ -578,7 +578,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				string wsPathAbi = MapWorkspaceService.GetActiveWorkspacePath();
 				if (MetadataService.Instance.TryLoadMetadata(wsPathAbi, out var metaAbi) && metaAbi?.CustomAbilities != null)
 				{
-					int aIdx = metaAbi.CustomAbilities.FindIndex(x => string.Equals(x.ObjectID, item.ObjectID, StringComparison.OrdinalIgnoreCase));
+					int aIdx = metaAbi.CustomAbilities.FindIndex(x => string.Equals(x.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 					if (aIdx >= 0)
 					{
 						var a = metaAbi.CustomAbilities[aIdx];
@@ -589,11 +589,11 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 							["IconPath"] = a.IconPath,
 							["AreaOfEffectRadius"] = a.AreaOfEffectRadius
 						};
-						_abilityVfxDialog.OpenForAbility(a.ObjectID, jsonObj, updatedObj =>
+						_abilityVfxDialog.OpenForAbility(a.TemplateID, jsonObj, updatedObj =>
 						{
 							MetadataService.Instance.UpdateMetadata(wsPathAbi, m =>
 							{
-								m.UpdateAbility(item.ObjectID, abi =>
+								m.UpdateAbility(item.TemplateID, abi =>
 								{
 									abi.VisualEffect = updatedObj["VisualEffect"]?.ToString();
 									abi.CastSound = updatedObj["CastSound"]?.ToString();
@@ -609,7 +609,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			default:
-				_entityVisualEditDialog.OpenForObject(item.Category, item.ObjectID, (oldId, newId) =>
+				_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 				{
 					RefreshObjectList();
 				});
@@ -637,11 +637,11 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
 		{
 			var currentList = GetObjectsForCategory(category);
-			foreach (var obj in currentList) existingIDs.Add(obj.ObjectID);
+			foreach (var obj in currentList) existingIDs.Add(obj.TemplateID);
 		}
 
-		string newObjectID = ObjectIDHelper.GenerateObjectID(objectType, $"new_{objectType}", existingIDs);
-		var (parsedType, parsedSlug) = ObjectIDHelper.ParseObjectID(newObjectID);
+		string newTemplateID = TemplateIDHelper.GenerateTemplateID(objectType, $"new_{objectType}", existingIDs);
+		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(newTemplateID);
 
 		MetadataService.Instance.UpdateMetadata(wsPath, m =>
 		{
@@ -650,7 +650,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				case "units":
 					m.AddOrUpdateUnit(new GameHost.UnitMetadata
 					{
-						ObjectID = newObjectID,
+						TemplateID = newTemplateID,
 						Name = parsedSlug,
 						Description = "A new unit entity.",
 						Scale = 1.0f,
@@ -671,7 +671,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				case "buildings":
 					m.AddOrUpdateBuilding(new GameHost.UnitMetadata
 					{
-						ObjectID = newObjectID,
+						TemplateID = newTemplateID,
 						Name = parsedSlug,
 						Description = "A new building entity.",
 						Scale = 1.5f,
@@ -688,7 +688,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				case "resources":
 					m.AddOrUpdateResource(new GameHost.ResourceMetadata
 					{
-						ObjectID = newObjectID,
+						TemplateID = newTemplateID,
 						Name = parsedSlug,
 						Description = "Harvestable resource deposit.",
 						Scale = 1.0f,
@@ -702,7 +702,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				case "props":
 					m.AddOrUpdateProp(new GameHost.PropMetadata
 					{
-						ObjectID = newObjectID,
+						TemplateID = newTemplateID,
 						Name = parsedSlug,
 						Description = "Decorative prop.",
 						Scale = 1.0f,
@@ -713,7 +713,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				case "weapons":
 					m.AddOrUpdateWeapon(new GameHost.WeaponMetadata
 					{
-						ObjectID = newObjectID,
+						TemplateID = newTemplateID,
 						Name = parsedSlug,
 						Damage = 10,
 						Range = 8.0f,
@@ -728,7 +728,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				case "abilities":
 					m.AddOrUpdateAbility(new GameHost.AbilityMetadata
 					{
-						ObjectID = newObjectID,
+						TemplateID = newTemplateID,
 						Name = parsedSlug,
 						Description = "A new ability.",
 						AbilityType = "target_spell",
@@ -740,7 +740,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				case "upgrades":
 					m.AddOrUpdateUpgrade(new GameHost.UpgradeMetadata
 					{
-						ObjectID = newObjectID,
+						TemplateID = newTemplateID,
 						Name = parsedSlug,
 						Description = "A new upgrade."
 					});
@@ -749,7 +749,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 				case "items":
 					m.AddOrUpdateItem(new GameHost.ItemMetadata
 					{
-						ObjectID = newObjectID,
+						TemplateID = newTemplateID,
 						Name = parsedSlug,
 						Description = "A new item.",
 						ItemClass = "consumable"
@@ -762,7 +762,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 		OpenEditDialogForObject(new ObjectItemInfo
 		{
 			Category = category,
-			ObjectID = newObjectID,
+			TemplateID = newTemplateID,
 			Name = parsedSlug,
 			Description = ""
 		});
@@ -779,7 +779,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 			try
 			{
 				string terrainJson = File.ReadAllText(terrainPath);
-				if (terrainJson.Contains(item.ObjectID, StringComparison.OrdinalIgnoreCase))
+				if (terrainJson.Contains(item.TemplateID, StringComparison.OrdinalIgnoreCase))
 				{
 					references.Add($"Placed instances found on map terrain (terrain.json)");
 				}
@@ -788,8 +788,8 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 		}
 
 		string message = references.Count > 0
-			? string.Format(TranslationServer.Translate("Object '{0}' is referenced:\n- {1}\n\nAre you sure you want to delete it?"), item.ObjectID, string.Join("\n- ", references))
-			: string.Format(TranslationServer.Translate("Are you sure you want to delete object '{0}' from metadata.json?"), item.ObjectID);
+			? string.Format(TranslationServer.Translate("Object '{0}' is referenced:\n- {1}\n\nAre you sure you want to delete it?"), item.TemplateID, string.Join("\n- ", references))
+			: string.Format(TranslationServer.Translate("Are you sure you want to delete object '{0}' from metadata.json?"), item.TemplateID);
 
 		Hud?.ShowConfirmationDialog(message, () =>
 		{
@@ -797,14 +797,14 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 			{
 				switch (item.Category)
 				{
-					case "units": meta.RemoveUnit(item.ObjectID); break;
-					case "buildings": meta.RemoveBuilding(item.ObjectID); break;
-					case "resources": meta.RemoveResource(item.ObjectID); break;
-					case "props": meta.RemoveProp(item.ObjectID); break;
-					case "weapons": meta.RemoveWeapon(item.ObjectID); break;
-					case "abilities": meta.RemoveAbility(item.ObjectID); break;
-					case "upgrades": meta.RemoveUpgrade(item.ObjectID); break;
-					case "items": meta.RemoveItem(item.ObjectID); break;
+					case "units": meta.RemoveUnit(item.TemplateID); break;
+					case "buildings": meta.RemoveBuilding(item.TemplateID); break;
+					case "resources": meta.RemoveResource(item.TemplateID); break;
+					case "props": meta.RemoveProp(item.TemplateID); break;
+					case "weapons": meta.RemoveWeapon(item.TemplateID); break;
+					case "abilities": meta.RemoveAbility(item.TemplateID); break;
+					case "upgrades": meta.RemoveUpgrade(item.TemplateID); break;
+					case "items": meta.RemoveItem(item.TemplateID); break;
 				}
 			});
 
@@ -814,7 +814,7 @@ public partial class ObjectManagerDialog : FloatingPreview3DDialogBase
 
 	private void LoadPreviewForObject(ObjectItemInfo item)
 	{
-		_currentPreviewObjectID = item.ObjectID;
+		_currentPreviewTemplateID = item.TemplateID;
 
 		// Clear previous 3D model
 		if (_currentModelRoot != null && GodotObject.IsInstanceValid(_currentModelRoot))
