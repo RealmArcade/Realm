@@ -372,7 +372,7 @@ public static class MapAssetHelper
 			: mapDirectory;
 
 		var assets = LoadUnionedAssets(targetDirectory);
-		string categoryKey = NormalizeCategoryKey(category);
+		string categoryKey = NormalizeCategoryKey(!string.IsNullOrEmpty(subCategory) ? subCategory : category);
 
 		if (!assets.ContainsKey(categoryKey) || assets[categoryKey] is not JsonObject)
 		{
@@ -381,56 +381,30 @@ public static class MapAssetHelper
 
 		var categoryObject = assets[categoryKey]!.AsObject();
 
-		if (categoryKey == "glb" || !string.IsNullOrEmpty(subCategory))
+		JsonObject itemObject;
+		if (categoryObject.TryGetPropertyValue(fileName, out var existingNode) && existingNode is JsonObject existingObject)
 		{
-			string subKey = NormalizeGlbSubCategory(subCategory ?? "props");
-			if (!categoryObject.ContainsKey(subKey) || categoryObject[subKey] is not JsonObject)
-			{
-				categoryObject[subKey] = new JsonObject();
-			}
-			var subCategoryObject = categoryObject[subKey]!.AsObject();
-
-			JsonObject itemObject;
-			if (subCategoryObject.TryGetPropertyValue(fileName, out var existingNode) && existingNode is JsonObject existingObject)
-			{
-				itemObject = existingObject;
-			}
-			else
-			{
-				itemObject = new JsonObject();
-			}
-
-			itemObject["hash"] = blake3Hash;
-			customizeEntry?.Invoke(itemObject);
-			subCategoryObject[fileName] = itemObject;
+			itemObject = existingObject;
 		}
 		else
 		{
-			JsonObject itemObject;
-			if (categoryObject.TryGetPropertyValue(fileName, out var existingNode) && existingNode is JsonObject existingObject)
+			itemObject = new JsonObject();
+			if (existingNode is JsonValue value)
 			{
-				itemObject = existingObject;
+				itemObject["hash"] = value.ToString();
 			}
-			else
-			{
-				itemObject = new JsonObject();
-				if (existingNode is JsonValue value)
-				{
-					itemObject["hash"] = value.ToString();
-				}
-			}
+		}
 
-			itemObject["hash"] = blake3Hash;
-			customizeEntry?.Invoke(itemObject);
+		itemObject["hash"] = blake3Hash;
+		customizeEntry?.Invoke(itemObject);
 
-			if (customizeEntry != null || categoryKey is "textures" or "vfx_spritesheets" or "decals" or "noise_textures")
-			{
-				categoryObject[fileName] = itemObject;
-			}
-			else
-			{
-				categoryObject[fileName] = blake3Hash;
-			}
+		if (customizeEntry != null || categoryKey is "Terrain" or "Spritesheet" or "Decal" or "Noise")
+		{
+			categoryObject[fileName] = itemObject;
+		}
+		else
+		{
+			categoryObject[fileName] = blake3Hash;
 		}
 
 		SaveAssetsToManifest(targetDirectory, assets, removeFromMetadata: true);
@@ -447,33 +421,14 @@ public static class MapAssetHelper
 			: mapDirectory;
 
 		var assets = LoadUnionedAssets(targetDirectory);
-		string categoryKey = NormalizeCategoryKey(category);
+		string categoryKey = NormalizeCategoryKey(!string.IsNullOrEmpty(subCategory) ? subCategory : category);
 
 		if (assets.ContainsKey(categoryKey) && assets[categoryKey] is JsonObject categoryObject)
 		{
-			if (categoryKey == "glb" || !string.IsNullOrEmpty(subCategory))
-			{
-				string subKey = NormalizeGlbSubCategory(subCategory ?? "props");
-				if (categoryObject.ContainsKey(subKey) && categoryObject[subKey] is JsonObject subCategoryObject)
-				{
-					subCategoryObject.Remove(fileName);
-				}
-				foreach (var fallbackSubCategory in new[] { "units", "buildings", "resources", "props", "projectiles", "attachments", "weapons" })
-				{
-					if (categoryObject.ContainsKey(fallbackSubCategory) && categoryObject[fallbackSubCategory] is JsonObject fallbackSubObject)
-					{
-						fallbackSubObject.Remove(fileName);
-					}
-				}
-			}
-			else
-			{
-				categoryObject.Remove(fileName);
-			}
+			categoryObject.Remove(fileName);
 		}
 
 		SaveAssetsToManifest(targetDirectory, assets, removeFromMetadata: true);
-
 		RemoveAssetFromMetadata(targetDirectory, categoryKey, fileName);
 	}
 
@@ -494,95 +449,44 @@ public static class MapAssetHelper
 			var manifestDoc = JsonNode.Parse(manifestJson)?.AsObject();
 			if (manifestDoc == null) return;
 
-			string assetsDir = Path.Combine(targetDirectory, "Assets");
-
 			if (manifestDoc["Assets"] is JsonObject assetsObj)
 			{
 				var categoriesToRemove = new List<string>();
 
 				foreach (var categoryKvp in assetsObj)
 				{
-					string category = categoryKvp.Key.ToLowerInvariant();
-					if (category == "glb" && categoryKvp.Value is JsonObject glbObj)
-					{
-						var subCategoriesToRemove = new List<string>();
-						foreach (var subKvp in glbObj)
-						{
-							string subCategory = NormalizeGlbSubCategory(subKvp.Key);
-							if (subKvp.Value is JsonObject subCatObj)
-							{
-								var itemsToRemove = new List<string>();
-								foreach (var itemKvp in subCatObj)
-								{
-									string fileName = itemKvp.Key;
-									string? diskPath = FindModelOnDisk(targetDirectory, subCategory, fileName);
-									if (string.IsNullOrEmpty(diskPath) || !File.Exists(diskPath))
-									{
-										itemsToRemove.Add(fileName);
-									}
-									else
-									{
-										string existingHash = ExtractHashString(itemKvp.Value);
-										if (string.IsNullOrEmpty(existingHash))
-										{
-											string hash = RealmMetadataHelper.ComputeBlake3(diskPath);
-											if (!string.IsNullOrEmpty(hash))
-											{
-												if (itemKvp.Value is JsonObject itemObj)
-												{
-													itemObj["hash"] = hash;
-												}
-												else
-												{
-													subCatObj[fileName] = hash;
-												}
-											}
-										}
-									}
-								}
-								foreach (var item in itemsToRemove)
-								{
-									subCatObj.Remove(item);
-								}
-								if (subCatObj.Count == 0)
-								{
-									subCategoriesToRemove.Add(subKvp.Key);
-								}
-							}
-						}
-						foreach (var sub in subCategoriesToRemove)
-						{
-							glbObj.Remove(sub);
-						}
-						if (glbObj.Count == 0)
-						{
-							categoriesToRemove.Add(categoryKvp.Key);
-						}
-					}
-					else if (categoryKvp.Value is JsonObject catObj)
+					string category = NormalizeCategoryKey(categoryKvp.Key);
+					if (categoryKvp.Value is JsonObject catObj)
 					{
 						string subFolder = category switch
 						{
-							"vfx" or "vfx_spritesheets" => "vfx",
-							"animations" => "animations",
-							"sfx" => "audio/sfx",
-							"music" => "audio/music",
-							"icons" => "icons",
-							"decals" => "decals",
-							"ribbons" or "ribbon_textures" => "ribbons",
-							"noise" or "noise_textures" => "noise",
-							"skyboxes" => "skyboxes",
-							"textures" => "textures",
-							"shaders" => "shaders",
-							"other" => "other",
-							_ => category
+							"Character" => "models/units",
+							"Building" => "models/buildings",
+							"Prop" => "models/props",
+							"Item" => "models/items",
+							"Spritesheet" => "vfx",
+							"vfx_radial" => "vfx_radial",
+							"vfx_vertical" => "vfx_vertical",
+							"Animation" => "animations",
+							"SoundEffect" => "audio/sfx",
+							"Music" => "audio/music",
+							"Icon" => "icons",
+							"Decal" => "decals",
+							"Ribbon" => "ribbons",
+							"Noise" => "noise",
+							"Skybox" => "skyboxes",
+							"Terrain" => "textures",
+							"Shader" => "shaders",
+							_ => category.ToLowerInvariant()
 						};
 
 						var itemsToRemove = new List<string>();
 						foreach (var itemKvp in catObj)
 						{
 							string fileName = itemKvp.Key;
-							string? diskPath = FindAssetOnDisk(targetDirectory, subFolder, fileName);
+							string? diskPath = (category is "Character" or "Building" or "Prop" or "Item")
+								? FindModelOnDisk(targetDirectory, subFolder, fileName)
+								: FindAssetOnDisk(targetDirectory, subFolder, fileName);
 
 							if (string.IsNullOrEmpty(diskPath) || !File.Exists(diskPath))
 							{
@@ -709,34 +613,13 @@ public static class MapAssetHelper
 		foreach (var categoryKeyValuePair in sourceAssets)
 		{
 			string category = NormalizeCategoryKey(categoryKeyValuePair.Key);
-			if (category == "glb" && categoryKeyValuePair.Value is JsonObject glbObject)
+			if (categoryKeyValuePair.Value is JsonObject categoryObject)
 			{
-				var cleanGlb = new JsonObject();
-				cleanAssets["glb"] = cleanGlb;
-
-				foreach (var subCategoryKeyValuePair in glbObject)
+				if (!cleanAssets.ContainsKey(category) || cleanAssets[category] is not JsonObject)
 				{
-					string subCategory = NormalizeGlbSubCategory(subCategoryKeyValuePair.Key);
-					if (subCategoryKeyValuePair.Value is JsonObject subCategoryObject)
-					{
-						var cleanSub = new JsonObject();
-						cleanGlb[subCategory] = cleanSub;
-
-						foreach (var itemKeyValuePair in subCategoryObject)
-						{
-							string hash = ExtractHashString(itemKeyValuePair.Value);
-							if (!string.IsNullOrEmpty(hash))
-							{
-								cleanSub[itemKeyValuePair.Key] = hash;
-							}
-						}
-					}
+					cleanAssets[category] = new JsonObject();
 				}
-			}
-			else if (categoryKeyValuePair.Value is JsonObject categoryObject)
-			{
-				var cleanCategory = new JsonObject();
-				cleanAssets[category] = cleanCategory;
+				var cleanCategory = cleanAssets[category]!.AsObject();
 
 				foreach (var itemKeyValuePair in categoryObject)
 				{
@@ -752,7 +635,7 @@ public static class MapAssetHelper
 		return cleanAssets;
 	}
 
-	private static string ExtractHashString(JsonNode? node)
+	public static string ExtractHashString(JsonNode? node)
 	{
 		if (node is JsonValue value)
 		{
@@ -792,11 +675,11 @@ public static class MapAssetHelper
 			mapPropertiesObject.Remove("Assets");
 		}
 
-		SyncCategoryAttributesToMetadata(metadataRoot, assets, "textures");
-		SyncCategoryAttributesToMetadata(metadataRoot, assets, "decals");
-		SyncCategoryAttributesToMetadata(metadataRoot, assets, "vfx_spritesheets");
-		SyncCategoryAttributesToMetadata(metadataRoot, assets, "noise_textures");
-		SyncCategoryAttributesToMetadata(metadataRoot, assets, "shaders");
+		SyncCategoryAttributesToMetadata(metadataRoot, assets, "Terrain");
+		SyncCategoryAttributesToMetadata(metadataRoot, assets, "Decal");
+		SyncCategoryAttributesToMetadata(metadataRoot, assets, "Spritesheet");
+		SyncCategoryAttributesToMetadata(metadataRoot, assets, "Noise");
+		SyncCategoryAttributesToMetadata(metadataRoot, assets, "Shader");
 
 		SyncModelAttributesToMetadata(metadataRoot, assets);
 
@@ -859,19 +742,14 @@ public static class MapAssetHelper
 
 	private static void SyncModelAttributesToMetadata(JsonObject metadataRoot, JsonObject assets)
 	{
-		if (!assets.ContainsKey("glb") || assets["glb"] is not JsonObject glbObject)
-		{
-			return;
-		}
-
 		EnsureMetadataTopLevelObject(metadataRoot, "Models");
 		var modelsObject = metadataRoot["Models"]!.AsObject();
 
-		foreach (var subCategoryKeyValuePair in glbObject)
+		foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
 		{
-			if (subCategoryKeyValuePair.Value is JsonObject subCategoryObject)
+			if (assets.ContainsKey(catName) && assets[catName] is JsonObject catObj)
 			{
-				foreach (var itemKeyValuePair in subCategoryObject)
+				foreach (var itemKeyValuePair in catObj)
 				{
 					string fileName = itemKeyValuePair.Key;
 					if (itemKeyValuePair.Value is JsonObject modelProperties)
@@ -957,7 +835,7 @@ public static class MapAssetHelper
 				}
 			}
 
-			if (categoryKey == "glb")
+			if (categoryKey is "Character" or "Building" or "Prop" or "Item")
 			{
 				if (metadataRoot.TryGetPropertyValue("Models", out var modelsNode) && modelsNode is JsonObject modelsObject)
 				{
@@ -982,64 +860,39 @@ public static class MapAssetHelper
 
 	private static void AttachMetadataAttributesToUnionedAssets(JsonObject unionedAssets, JsonObject metadataRoot, string targetDirectory)
 	{
-		if (metadataRoot["textures"] is JsonObject texturesObject)
+		var categoryMappings = new (string MetadataKey, string CanonicalKey)[]
 		{
-			MergeCategoryAttributes(unionedAssets, "textures", texturesObject);
-		}
+			("textures", "Terrain"),
+			("Terrain", "Terrain"),
+			("decals", "Decal"),
+			("Decal", "Decal"),
+			("vfx_spritesheets", "Spritesheet"),
+			("Spritesheet", "Spritesheet"),
+			("noise_textures", "Noise"),
+			("Noise", "Noise"),
+			("icons", "Icon"),
+			("Icon", "Icon"),
+			("skyboxes", "Skybox"),
+			("Skybox", "Skybox"),
+			("ribbons", "Ribbon"),
+			("Ribbon", "Ribbon"),
+			("animations", "Animation"),
+			("Animation", "Animation"),
+			("sfx", "SoundEffect"),
+			("SoundEffect", "SoundEffect"),
+			("music", "Music"),
+			("Music", "Music"),
+			("shaders", "Shader"),
+			("Shader", "Shader"),
+			("other", "other")
+		};
 
-		if (metadataRoot["decals"] is JsonObject decalsObject)
+		foreach (var (mKey, cKey) in categoryMappings)
 		{
-			MergeCategoryAttributes(unionedAssets, "decals", decalsObject);
-		}
-
-		if (metadataRoot["vfx_spritesheets"] is JsonObject vfxObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "vfx_spritesheets", vfxObject);
-		}
-
-		if (metadataRoot["noise_textures"] is JsonObject noiseObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "noise_textures", noiseObject);
-		}
-
-		if (metadataRoot["icons"] is JsonObject iconsObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "icons", iconsObject);
-		}
-
-		if (metadataRoot["skyboxes"] is JsonObject skyboxesObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "skyboxes", skyboxesObject);
-		}
-
-		if (metadataRoot["ribbons"] is JsonObject ribbonsObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "ribbons", ribbonsObject);
-		}
-
-		if (metadataRoot["animations"] is JsonObject animationsObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "animations", animationsObject);
-		}
-
-		if (metadataRoot["sfx"] is JsonObject sfxObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "sfx", sfxObject);
-		}
-
-		if (metadataRoot["music"] is JsonObject musicObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "music", musicObject);
-		}
-
-		if (metadataRoot["shaders"] is JsonObject shadersObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "shaders", shadersObject);
-		}
-
-		if (metadataRoot["other"] is JsonObject otherObject)
-		{
-			MergeCategoryAttributes(unionedAssets, "other", otherObject);
+			if (metadataRoot[mKey] is JsonObject mObj)
+			{
+				MergeCategoryAttributes(unionedAssets, cKey, mObj);
+			}
 		}
 
 		AttachCustomEntitiesToGlb(unionedAssets, metadataRoot, targetDirectory);
@@ -1048,17 +901,17 @@ public static class MapAssetHelper
 
 	private static void AttachCustomEntitiesToGlb(JsonObject unionedAssets, JsonObject metadataRoot, string targetDirectory)
 	{
-		var arrayMappings = new (string ArrayKey, string SubCategory)[]
+		var arrayMappings = new (string ArrayKey, string SubCategory, string CanonicalCategory)[]
 		{
-			("CustomUnits", "units"),
-			("CustomBuildings", "buildings"),
-			("CustomResources", "resources"),
-			("CustomProps", "props"),
-			("CustomAttachments", "attachments"),
-			("CustomWeapons", "weapons")
+			("CustomUnits", "units", "Character"),
+			("CustomBuildings", "buildings", "Building"),
+			("CustomResources", "resources", "Prop"),
+			("CustomProps", "props", "Prop"),
+			("CustomAttachments", "attachments", "Item"),
+			("CustomWeapons", "weapons", "Item")
 		};
 
-		foreach (var (arrayKey, subCat) in arrayMappings)
+		foreach (var (arrayKey, subCat, canonicalCat) in arrayMappings)
 		{
 			if (metadataRoot.TryGetPropertyValue(arrayKey, out var arrNode) && arrNode is JsonArray arr)
 			{
@@ -1097,7 +950,7 @@ public static class MapAssetHelper
 							if (!string.IsNullOrEmpty(diskPath))
 							{
 								fileName = Path.GetFileName(diskPath);
-								EnsureGlbEntryExists(unionedAssets, subCat, fileName, diskPath);
+								EnsureCanonicalEntryExists(unionedAssets, canonicalCat, fileName, diskPath);
 							}
 						}
 
@@ -1112,7 +965,7 @@ public static class MapAssetHelper
 							if (!string.IsNullOrEmpty(diskPath))
 							{
 								fileName = Path.GetFileName(diskPath);
-								EnsureGlbEntryExists(unionedAssets, subCat, fileName, diskPath);
+								EnsureCanonicalEntryExists(unionedAssets, canonicalCat, fileName, diskPath);
 							}
 						}
 
@@ -1129,49 +982,37 @@ public static class MapAssetHelper
 			foreach (var prop in modelsObj)
 			{
 				string rawName = prop.Key;
-				string? existingSub = FindExistingGlbSubCategory(unionedAssets, rawName);
-				if (string.IsNullOrEmpty(existingSub))
+				string? existingCat = FindExistingCanonicalCategory(unionedAssets, rawName);
+				if (string.IsNullOrEmpty(existingCat))
 				{
 					string? diskPath = FindModelOnDisk(targetDirectory, null, rawName, out string foundSub);
 					if (!string.IsNullOrEmpty(diskPath))
 					{
 						string fileName = Path.GetFileName(diskPath);
-						existingSub = !string.IsNullOrEmpty(foundSub) ? foundSub : "props";
-						EnsureGlbEntryExists(unionedAssets, existingSub, fileName, diskPath);
+						string resolvedCat = foundSub switch
+						{
+							"units" or "characters" => "Character",
+							"buildings" => "Building",
+							"items" or "projectiles" or "attachments" or "weapons" => "Item",
+							_ => "Prop"
+						};
+						EnsureCanonicalEntryExists(unionedAssets, resolvedCat, fileName, diskPath);
 					}
 				}
 			}
 		}
 	}
 
-	private static string DetermineTextureCategory(string relativeToAssets)
+	private static void EnsureCanonicalEntryExists(JsonObject unionedAssets, string category, string fileName, string? diskPath = null)
 	{
-		string lower = relativeToAssets.ToLowerInvariant();
-		if (lower.Contains("decals/")) return "decals";
-		if (lower.Contains("icons/")) return "icons";
-		if (lower.Contains("skyboxes/")) return "skyboxes";
-		if (lower.Contains("vfx/") || lower.Contains("vfx_spritesheets/")) return "vfx_spritesheets";
-		if (lower.Contains("noise/") || lower.Contains("noise_textures/")) return "noise_textures";
-		if (lower.Contains("ribbons/") || lower.Contains("ribbon_textures/")) return "ribbons";
-		return "textures";
-	}
-
-	private static void EnsureGlbEntryExists(JsonObject unionedAssets, string subCategory, string fileName, string? diskPath = null)
-	{
-		if (!unionedAssets.ContainsKey("glb") || unionedAssets["glb"] is not JsonObject)
+		string canonicalCat = NormalizeCategoryKey(category);
+		if (!unionedAssets.ContainsKey(canonicalCat) || unionedAssets[canonicalCat] is not JsonObject)
 		{
-			unionedAssets["glb"] = new JsonObject();
+			unionedAssets[canonicalCat] = new JsonObject();
 		}
-		var glbObject = unionedAssets["glb"]!.AsObject();
+		var categoryObject = unionedAssets[canonicalCat]!.AsObject();
 
-		string normalizedSub = NormalizeGlbSubCategory(subCategory);
-		if (!glbObject.ContainsKey(normalizedSub) || glbObject[normalizedSub] is not JsonObject)
-		{
-			glbObject[normalizedSub] = new JsonObject();
-		}
-		var subCategoryObject = glbObject[normalizedSub]!.AsObject();
-
-		if (!subCategoryObject.ContainsKey(fileName))
+		if (!categoryObject.ContainsKey(fileName))
 		{
 			var itemObject = new JsonObject();
 			if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
@@ -1182,61 +1023,14 @@ public static class MapAssetHelper
 					itemObject["hash"] = hash;
 				}
 			}
-			subCategoryObject[fileName] = itemObject;
+			categoryObject[fileName] = itemObject;
 		}
-		else if (subCategoryObject[fileName] is JsonObject existingItem && !existingItem.ContainsKey("hash") && !string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
+		else if (categoryObject[fileName] is JsonObject existingItem && !existingItem.ContainsKey("hash") && !string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
 		{
 			string hash = RealmMetadataHelper.ComputeBlake3(diskPath);
 			if (!string.IsNullOrEmpty(hash))
 			{
 				existingItem["hash"] = hash;
-			}
-		}
-	}
-
-	private static void EnsureCategoryEntryExists(JsonObject unionedAssets, string category, string fileName, string? diskPath = null)
-	{
-		string categoryKey = NormalizeCategoryKey(category);
-		if (!unionedAssets.ContainsKey(categoryKey) || unionedAssets[categoryKey] is not JsonObject)
-		{
-			unionedAssets[categoryKey] = new JsonObject();
-		}
-		var categoryObject = unionedAssets[categoryKey]!.AsObject();
-
-		if (!categoryObject.ContainsKey(fileName))
-		{
-			string hash = (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
-				? RealmMetadataHelper.ComputeBlake3(diskPath)
-				: string.Empty;
-
-			if (categoryKey is "textures" or "decals" or "vfx_spritesheets" or "noise_textures")
-			{
-				var itemObject = new JsonObject();
-				if (!string.IsNullOrEmpty(hash))
-				{
-					itemObject["hash"] = hash;
-				}
-				categoryObject[fileName] = itemObject;
-			}
-			else
-			{
-				categoryObject[fileName] = !string.IsNullOrEmpty(hash) ? hash : string.Empty;
-			}
-		}
-		else if (categoryObject[fileName] is JsonObject existingObject && !existingObject.ContainsKey("hash") && !string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
-		{
-			string hash = RealmMetadataHelper.ComputeBlake3(diskPath);
-			if (!string.IsNullOrEmpty(hash))
-			{
-				existingObject["hash"] = hash;
-			}
-		}
-		else if (categoryObject[fileName] is JsonValue val && string.IsNullOrEmpty(val.ToString()) && !string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
-		{
-			string hash = RealmMetadataHelper.ComputeBlake3(diskPath);
-			if (!string.IsNullOrEmpty(hash))
-			{
-				categoryObject[fileName] = hash;
 			}
 		}
 	}
@@ -1389,24 +1183,21 @@ public static class MapAssetHelper
 		return null;
 	}
 
-	private static string? FindExistingGlbSubCategory(JsonObject unionedAssets, string fileName)
+	private static string? FindExistingCanonicalCategory(JsonObject unionedAssets, string fileName)
 	{
-		if (unionedAssets["glb"] is JsonObject glbObj)
-		{
-			string[] candidates = fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase)
-				? new[] { fileName }
-				: new[] { fileName, $"{fileName}.rmesh", $"{Path.GetFileNameWithoutExtension(fileName)}.rmesh" };
+		string[] candidates = fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase)
+			? new[] { fileName }
+			: new[] { fileName, $"{fileName}.rmesh", $"{Path.GetFileNameWithoutExtension(fileName)}.rmesh" };
 
-			foreach (var subPair in glbObj)
+		foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
+		{
+			if (unionedAssets[catName] is JsonObject catObj)
 			{
-				if (subPair.Value is JsonObject subObj)
+				foreach (var cand in candidates)
 				{
-					foreach (var cand in candidates)
+					if (catObj.ContainsKey(cand))
 					{
-						if (subObj.ContainsKey(cand))
-						{
-							return subPair.Key;
-						}
+						return catName;
 					}
 				}
 			}
@@ -1422,42 +1213,7 @@ public static class MapAssetHelper
 		foreach (var categoryPair in unionedAssets)
 		{
 			string category = NormalizeCategoryKey(categoryPair.Key);
-			if (category == "glb" && categoryPair.Value is JsonObject glbObj)
-			{
-				foreach (var subPair in glbObj)
-				{
-					string subCat = NormalizeGlbSubCategory(subPair.Key);
-					if (subPair.Value is JsonObject subObj)
-					{
-						foreach (var itemPair in subObj)
-						{
-							string fileName = itemPair.Key;
-							string hash = ExtractHashString(itemPair.Value);
-							if (string.IsNullOrEmpty(hash))
-							{
-								string? diskPath = hasAssetsDir ? FindModelOnDisk(targetDirectory, subCat, fileName) : null;
-								if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
-								{
-									hash = RealmMetadataHelper.ComputeBlake3(diskPath);
-								}
-
-								if (!string.IsNullOrEmpty(hash))
-								{
-									if (itemPair.Value is JsonObject itemObj)
-									{
-										itemObj["hash"] = hash;
-									}
-									else
-									{
-										subObj[fileName] = hash;
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-			else if (categoryPair.Value is JsonObject catObj)
+			if (categoryPair.Value is JsonObject catObj)
 			{
 				foreach (var itemPair in catObj)
 				{
@@ -1468,20 +1224,28 @@ public static class MapAssetHelper
 					{
 						string subFolder = category switch
 						{
-							"vfx_spritesheets" => "vfx",
-							"animations" => "animations",
-							"sfx" => "audio/sfx",
-							"music" => "audio/music",
-							"icons" => "icons",
-							"decals" => "decals",
-							"ribbons" => "ribbons",
-							"noise_textures" => "noise",
-							"skyboxes" => "skyboxes",
-							"shaders" => "shaders",
-							"other" => "other",
-							_ => "textures"
+							"Character" => "models/units",
+							"Building" => "models/buildings",
+							"Prop" => "models/props",
+							"Item" => "models/items",
+							"Spritesheet" => "vfx",
+							"vfx_radial" => "vfx_radial",
+							"vfx_vertical" => "vfx_vertical",
+							"Animation" => "animations",
+							"SoundEffect" => "audio/sfx",
+							"Music" => "audio/music",
+							"Icon" => "icons",
+							"Decal" => "decals",
+							"Ribbon" => "ribbons",
+							"Noise" => "noise",
+							"Skybox" => "skyboxes",
+							"Terrain" => "textures",
+							"Shader" => "shaders",
+							_ => category.ToLowerInvariant()
 						};
-						string? diskPath = FindAssetOnDisk(targetDirectory, subFolder, fileName);
+						string? diskPath = (category is "Character" or "Building" or "Prop" or "Item")
+							? (hasAssetsDir ? FindModelOnDisk(targetDirectory, subFolder, fileName) : null)
+							: FindAssetOnDisk(targetDirectory, subFolder, fileName);
 
 						if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
 						{
@@ -1555,16 +1319,12 @@ public static class MapAssetHelper
 
 	private static void AttachModelMetadataAttributes(JsonObject unionedAssets, JsonObject metadataRoot)
 	{
-		if (!unionedAssets.ContainsKey("glb") || unionedAssets["glb"] is not JsonObject glbObject)
-		{
-			return;
-		}
-
 		var modelsObject = metadataRoot["Models"] as JsonObject;
+		if (modelsObject == null) return;
 
-		foreach (var subCategoryKeyValuePair in glbObject)
+		foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
 		{
-			if (subCategoryKeyValuePair.Value is JsonObject subCategoryObject)
+			if (unionedAssets[catName] is JsonObject subCategoryObject)
 			{
 				foreach (var itemKeyValuePair in subCategoryObject)
 				{
@@ -1587,16 +1347,13 @@ public static class MapAssetHelper
 					}
 
 					JsonObject? modelEntry = null;
-					if (modelsObject != null)
+					if (modelsObject.TryGetPropertyValue(fileName, out var entryNode) && entryNode is JsonObject entryObj)
 					{
-						if (modelsObject.TryGetPropertyValue(fileName, out var entryNode) && entryNode is JsonObject entryObj)
-						{
-							modelEntry = entryObj;
-						}
-						else if (modelsObject.TryGetPropertyValue(baseName, out var baseEntryNode) && baseEntryNode is JsonObject baseEntryObj)
-						{
-							modelEntry = baseEntryObj;
-						}
+						modelEntry = entryObj;
+					}
+					else if (modelsObject.TryGetPropertyValue(baseName, out var baseEntryNode) && baseEntryNode is JsonObject baseEntryObj)
+					{
+						modelEntry = baseEntryObj;
 					}
 
 					if (modelEntry != null)
@@ -1656,33 +1413,7 @@ public static class MapAssetHelper
 		foreach (var categoryKeyValuePair in source)
 		{
 			string category = NormalizeCategoryKey(categoryKeyValuePair.Key);
-			if (category == "glb" && categoryKeyValuePair.Value is JsonObject glbSource)
-			{
-				if (!target.ContainsKey("glb") || target["glb"] is not JsonObject)
-				{
-					target["glb"] = new JsonObject();
-				}
-				var glbTarget = target["glb"]!.AsObject();
-
-				foreach (var subCategoryKeyValuePair in glbSource)
-				{
-					string subCategory = NormalizeGlbSubCategory(subCategoryKeyValuePair.Key);
-					if (subCategoryKeyValuePair.Value is JsonObject subSource)
-					{
-						if (!glbTarget.ContainsKey(subCategory) || glbTarget[subCategory] is not JsonObject)
-						{
-							glbTarget[subCategory] = new JsonObject();
-						}
-						var subTarget = glbTarget[subCategory]!.AsObject();
-
-						foreach (var itemKeyValuePair in subSource)
-						{
-							MergeItemInto(subTarget, itemKeyValuePair.Key, itemKeyValuePair.Value);
-						}
-					}
-				}
-			}
-			else if (categoryKeyValuePair.Value is JsonObject categorySource)
+			if (categoryKeyValuePair.Value is JsonObject categorySource)
 			{
 				MergeCategoryInto(target, category, categorySource);
 			}
@@ -1723,14 +1454,28 @@ public static class MapAssetHelper
 
 	public static string NormalizeCategoryKey(string category)
 	{
-		string lower = category.ToLowerInvariant();
-		return lower switch
+		string trimmed = category.Trim();
+		string norm = trimmed.Replace("_", "").ToLowerInvariant();
+		return norm switch
 		{
-			"vfx" or "vfx_spritesheets" or "spritesheets" => "vfx_spritesheets",
-			"ribbon" or "ribbons" or "ribbon_textures" => "ribbons",
-			"noise" or "noise_textures" => "noise_textures",
-			"sound" or "sounds" or "audio" => "sfx",
-			_ => lower
+			"character" or "characters" or "unit" or "units" => "Character",
+			"building" or "buildings" => "Building",
+			"prop" or "props" or "resource" or "resources" or "environment" => "Prop",
+			"item" or "items" or "projectile" or "projectiles" or "attachment" or "attachments" or "weapon" or "weapons" => "Item",
+			"terrain" or "textures" or "texture" => "Terrain",
+			"decal" or "decals" => "Decal",
+			"icon" or "icons" => "Icon",
+			"noise" or "noisetextures" => "Noise",
+			"ribbon" or "ribbons" or "ribbontextures" => "Ribbon",
+			"skybox" or "skyboxes" => "Skybox",
+			"spritesheet" or "spritesheets" or "vfxspritesheets" or "vfx" => "Spritesheet",
+			"vfxradial" => "vfx_radial",
+			"vfxvertical" => "vfx_vertical",
+			"soundeffect" or "sfx" or "audio" or "sound" or "sounds" => "SoundEffect",
+			"music" => "Music",
+			"animation" or "animations" => "Animation",
+			"shader" or "shaders" => "Shader",
+			_ => trimmed
 		};
 	}
 

@@ -101,23 +101,23 @@ public class MapMetadata
 	[JsonExtensionData]
 	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
-	public GameHost.UnitMetadata? GetUnit(string unitId) => CustomUnits?.FirstOrDefault(u => string.Equals(u.UnitId, unitId, StringComparison.OrdinalIgnoreCase));
-	public GameHost.UnitMetadata? FindUnit(string unitId) => GetUnit(unitId);
+	public GameHost.UnitMetadata? GetUnit(string objectId) => CustomUnits?.FirstOrDefault(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+	public GameHost.UnitMetadata? FindUnit(string objectId) => GetUnit(objectId);
 
-	public GameHost.UnitMetadata? GetBuilding(string buildingId) => CustomBuildings?.FirstOrDefault(b => string.Equals(b.UnitId, buildingId, StringComparison.OrdinalIgnoreCase));
-	public GameHost.UnitMetadata? FindBuilding(string buildingId) => GetBuilding(buildingId);
+	public GameHost.UnitMetadata? GetBuilding(string objectId) => CustomBuildings?.FirstOrDefault(b => string.Equals(b.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+	public GameHost.UnitMetadata? FindBuilding(string objectId) => GetBuilding(objectId);
 
-	public GameHost.PropMetadata? GetProp(string propId) => CustomProps?.FirstOrDefault(p => string.Equals(p.UnitId, propId, StringComparison.OrdinalIgnoreCase));
-	public GameHost.PropMetadata? FindProp(string propId) => GetProp(propId);
+	public GameHost.PropMetadata? GetProp(string objectId) => CustomProps?.FirstOrDefault(p => string.Equals(p.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+	public GameHost.PropMetadata? FindProp(string objectId) => GetProp(objectId);
 
-	public GameHost.ResourceMetadata? GetResource(string resourceId) => CustomResources?.FirstOrDefault(r => string.Equals(r.UnitId, resourceId, StringComparison.OrdinalIgnoreCase));
-	public GameHost.ResourceMetadata? FindResource(string resourceId) => GetResource(resourceId);
+	public GameHost.ResourceMetadata? GetResource(string objectId) => CustomResources?.FirstOrDefault(r => string.Equals(r.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+	public GameHost.ResourceMetadata? FindResource(string objectId) => GetResource(objectId);
 
-	public GameHost.AbilityMetadata? GetAbility(string abilityId) => CustomAbilities?.FirstOrDefault(a => string.Equals(a.AbilityId, abilityId, StringComparison.OrdinalIgnoreCase));
-	public GameHost.AbilityMetadata? FindAbility(string abilityId) => GetAbility(abilityId);
+	public GameHost.AbilityMetadata? GetAbility(string objectId) => CustomAbilities?.FirstOrDefault(a => string.Equals(a.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+	public GameHost.AbilityMetadata? FindAbility(string objectId) => GetAbility(objectId);
 
-	public GameHost.WeaponMetadata? GetWeapon(string weaponId) => CustomWeapons?.FirstOrDefault(w => string.Equals(w.WeaponId, weaponId, StringComparison.OrdinalIgnoreCase));
-	public GameHost.WeaponMetadata? FindWeapon(string weaponId) => GetWeapon(weaponId);
+	public GameHost.WeaponMetadata? GetWeapon(string objectId) => CustomWeapons?.FirstOrDefault(w => string.Equals(w.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+	public GameHost.WeaponMetadata? FindWeapon(string objectId) => GetWeapon(objectId);
 
 	public GameHost.AttachmentMetadata? GetAttachment(string attachmentId) => CustomAttachments?.FirstOrDefault(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase));
 	public GameHost.AttachmentMetadata? FindAttachment(string attachmentId) => GetAttachment(attachmentId);
@@ -128,11 +128,11 @@ public class MapMetadata
 	public ProceduralAnimationConfig? GetProceduralAnimation(string animId) => CustomProceduralAnimations?.FirstOrDefault(a => string.Equals(a.Id, animId, StringComparison.OrdinalIgnoreCase));
 	public ProceduralAnimationConfig? FindProceduralAnimation(string animId) => GetProceduralAnimation(animId);
 
-	public GameHost.ItemMetadata? GetItem(string itemId) => CustomItems?.FirstOrDefault(i => string.Equals(i.ItemId, itemId, StringComparison.OrdinalIgnoreCase));
-	public GameHost.ItemMetadata? FindItem(string itemId) => GetItem(itemId);
+	public GameHost.ItemMetadata? GetItem(string objectId) => CustomItems?.FirstOrDefault(i => string.Equals(i.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+	public GameHost.ItemMetadata? FindItem(string objectId) => GetItem(objectId);
 
-	public GameHost.UpgradeMetadata? GetUpgrade(string upgradeId) => CustomUpgrades?.FirstOrDefault(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase));
-	public GameHost.UpgradeMetadata? FindUpgrade(string upgradeId) => GetUpgrade(upgradeId);
+	public GameHost.UpgradeMetadata? GetUpgrade(string objectId) => CustomUpgrades?.FirstOrDefault(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
+	public GameHost.UpgradeMetadata? FindUpgrade(string objectId) => GetUpgrade(objectId);
 
 	public EnvironmentPresetConfig? GetEnvironmentPreset(string presetId) => CustomEnvironmentPresets?.FirstOrDefault(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase));
 	public EnvironmentPresetConfig? FindEnvironmentPreset(string presetId) => GetEnvironmentPreset(presetId);
@@ -154,92 +154,92 @@ public class MapMetadata
 
 	public void AddOrUpdateUnit(GameHost.UnitMetadata unit)
 	{
-		if (string.IsNullOrWhiteSpace(unit.UnitId)) return;
+		if (string.IsNullOrWhiteSpace(unit.ObjectID)) return;
 		CustomUnits ??= new();
-		int idx = CustomUnits.FindIndex(u => string.Equals(u.UnitId, unit.UnitId, StringComparison.OrdinalIgnoreCase));
+		int idx = CustomUnits.FindIndex(u => string.Equals(u.ObjectID, unit.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) CustomUnits[idx] = unit;
 		else CustomUnits.Add(unit);
 	}
 
-	public bool RemoveUnit(string unitId)
+	public bool RemoveUnit(string objectId)
 	{
-		if (CustomUnits == null || string.IsNullOrWhiteSpace(unitId)) return false;
-		return CustomUnits.RemoveAll(u => string.Equals(u.UnitId, unitId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (CustomUnits == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return CustomUnits.RemoveAll(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateBuilding(GameHost.UnitMetadata building)
 	{
-		if (string.IsNullOrWhiteSpace(building.UnitId)) return;
+		if (string.IsNullOrWhiteSpace(building.ObjectID)) return;
 		CustomBuildings ??= new();
-		int idx = CustomBuildings.FindIndex(b => string.Equals(b.UnitId, building.UnitId, StringComparison.OrdinalIgnoreCase));
+		int idx = CustomBuildings.FindIndex(b => string.Equals(b.ObjectID, building.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) CustomBuildings[idx] = building;
 		else CustomBuildings.Add(building);
 	}
 
-	public bool RemoveBuilding(string buildingId)
+	public bool RemoveBuilding(string objectId)
 	{
-		if (CustomBuildings == null || string.IsNullOrWhiteSpace(buildingId)) return false;
-		return CustomBuildings.RemoveAll(b => string.Equals(b.UnitId, buildingId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (CustomBuildings == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return CustomBuildings.RemoveAll(b => string.Equals(b.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateProp(GameHost.PropMetadata prop)
 	{
-		if (string.IsNullOrWhiteSpace(prop.UnitId)) return;
+		if (string.IsNullOrWhiteSpace(prop.ObjectID)) return;
 		CustomProps ??= new();
-		int idx = CustomProps.FindIndex(p => string.Equals(p.UnitId, prop.UnitId, StringComparison.OrdinalIgnoreCase));
+		int idx = CustomProps.FindIndex(p => string.Equals(p.ObjectID, prop.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) CustomProps[idx] = prop;
 		else CustomProps.Add(prop);
 	}
 
-	public bool RemoveProp(string propId)
+	public bool RemoveProp(string objectId)
 	{
-		if (CustomProps == null || string.IsNullOrWhiteSpace(propId)) return false;
-		return CustomProps.RemoveAll(p => string.Equals(p.UnitId, propId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (CustomProps == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return CustomProps.RemoveAll(p => string.Equals(p.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateResource(GameHost.ResourceMetadata resource)
 	{
-		if (string.IsNullOrWhiteSpace(resource.UnitId)) return;
+		if (string.IsNullOrWhiteSpace(resource.ObjectID)) return;
 		CustomResources ??= new();
-		int idx = CustomResources.FindIndex(r => string.Equals(r.UnitId, resource.UnitId, StringComparison.OrdinalIgnoreCase));
+		int idx = CustomResources.FindIndex(r => string.Equals(r.ObjectID, resource.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) CustomResources[idx] = resource;
 		else CustomResources.Add(resource);
 	}
 
-	public bool RemoveResource(string resourceId)
+	public bool RemoveResource(string objectId)
 	{
-		if (CustomResources == null || string.IsNullOrWhiteSpace(resourceId)) return false;
-		return CustomResources.RemoveAll(r => string.Equals(r.UnitId, resourceId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (CustomResources == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return CustomResources.RemoveAll(r => string.Equals(r.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateAbility(GameHost.AbilityMetadata ability)
 	{
-		if (string.IsNullOrWhiteSpace(ability.AbilityId)) return;
+		if (string.IsNullOrWhiteSpace(ability.ObjectID)) return;
 		CustomAbilities ??= new();
-		int idx = CustomAbilities.FindIndex(a => string.Equals(a.AbilityId, ability.AbilityId, StringComparison.OrdinalIgnoreCase));
+		int idx = CustomAbilities.FindIndex(a => string.Equals(a.ObjectID, ability.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) CustomAbilities[idx] = ability;
 		else CustomAbilities.Add(ability);
 	}
 
-	public bool RemoveAbility(string abilityId)
+	public bool RemoveAbility(string objectId)
 	{
-		if (CustomAbilities == null || string.IsNullOrWhiteSpace(abilityId)) return false;
-		return CustomAbilities.RemoveAll(a => string.Equals(a.AbilityId, abilityId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (CustomAbilities == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return CustomAbilities.RemoveAll(a => string.Equals(a.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateWeapon(GameHost.WeaponMetadata weapon)
 	{
-		if (string.IsNullOrWhiteSpace(weapon.WeaponId)) return;
+		if (string.IsNullOrWhiteSpace(weapon.ObjectID)) return;
 		CustomWeapons ??= new();
-		int idx = CustomWeapons.FindIndex(w => string.Equals(w.WeaponId, weapon.WeaponId, StringComparison.OrdinalIgnoreCase));
+		int idx = CustomWeapons.FindIndex(w => string.Equals(w.ObjectID, weapon.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) CustomWeapons[idx] = weapon;
 		else CustomWeapons.Add(weapon);
 	}
 
-	public bool RemoveWeapon(string weaponId)
+	public bool RemoveWeapon(string objectId)
 	{
-		if (CustomWeapons == null || string.IsNullOrWhiteSpace(weaponId)) return false;
-		return CustomWeapons.RemoveAll(w => string.Equals(w.WeaponId, weaponId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (CustomWeapons == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return CustomWeapons.RemoveAll(w => string.Equals(w.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateAttachment(GameHost.AttachmentMetadata attachment)
@@ -274,32 +274,32 @@ public class MapMetadata
 
 	public void AddOrUpdateItem(GameHost.ItemMetadata item)
 	{
-		if (string.IsNullOrWhiteSpace(item.ItemId)) return;
+		if (string.IsNullOrWhiteSpace(item.ObjectID)) return;
 		CustomItems ??= new();
-		int idx = CustomItems.FindIndex(i => string.Equals(i.ItemId, item.ItemId, StringComparison.OrdinalIgnoreCase));
+		int idx = CustomItems.FindIndex(i => string.Equals(i.ObjectID, item.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) CustomItems[idx] = item;
 		else CustomItems.Add(item);
 	}
 
-	public bool RemoveItem(string itemId)
+	public bool RemoveItem(string objectId)
 	{
-		if (CustomItems == null || string.IsNullOrWhiteSpace(itemId)) return false;
-		return CustomItems.RemoveAll(i => string.Equals(i.ItemId, itemId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (CustomItems == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return CustomItems.RemoveAll(i => string.Equals(i.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateUpgrade(GameHost.UpgradeMetadata upgrade)
 	{
-		if (string.IsNullOrWhiteSpace(upgrade.UpgradeId)) return;
+		if (string.IsNullOrWhiteSpace(upgrade.ObjectID)) return;
 		CustomUpgrades ??= new();
-		int idx = CustomUpgrades.FindIndex(u => string.Equals(u.UpgradeId, upgrade.UpgradeId, StringComparison.OrdinalIgnoreCase));
+		int idx = CustomUpgrades.FindIndex(u => string.Equals(u.ObjectID, upgrade.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0) CustomUpgrades[idx] = upgrade;
 		else CustomUpgrades.Add(upgrade);
 	}
 
-	public bool RemoveUpgrade(string upgradeId)
+	public bool RemoveUpgrade(string objectId)
 	{
-		if (CustomUpgrades == null || string.IsNullOrWhiteSpace(upgradeId)) return false;
-		return CustomUpgrades.RemoveAll(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (CustomUpgrades == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return CustomUpgrades.RemoveAll(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public WaterProfileSaveData? GetWaterProfile(string id) => CustomWaterProfiles?.FirstOrDefault(w => string.Equals(w.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -344,10 +344,10 @@ public class MapMetadata
 		return TerrainProfiles.RemoveAll(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public bool UpdateUnit(string unitId, Func<GameHost.UnitMetadata, GameHost.UnitMetadata> update)
+	public bool UpdateUnit(string objectId, Func<GameHost.UnitMetadata, GameHost.UnitMetadata> update)
 	{
-		if (CustomUnits == null || string.IsNullOrWhiteSpace(unitId)) return false;
-		int idx = CustomUnits.FindIndex(u => string.Equals(u.UnitId, unitId, StringComparison.OrdinalIgnoreCase));
+		if (CustomUnits == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = CustomUnits.FindIndex(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			CustomUnits[idx] = update(CustomUnits[idx]);
@@ -356,10 +356,10 @@ public class MapMetadata
 		return false;
 	}
 
-	public bool UpdateBuilding(string buildingId, Func<GameHost.UnitMetadata, GameHost.UnitMetadata> update)
+	public bool UpdateBuilding(string objectId, Func<GameHost.UnitMetadata, GameHost.UnitMetadata> update)
 	{
-		if (CustomBuildings == null || string.IsNullOrWhiteSpace(buildingId)) return false;
-		int idx = CustomBuildings.FindIndex(b => string.Equals(b.UnitId, buildingId, StringComparison.OrdinalIgnoreCase));
+		if (CustomBuildings == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = CustomBuildings.FindIndex(b => string.Equals(b.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			CustomBuildings[idx] = update(CustomBuildings[idx]);
@@ -368,10 +368,10 @@ public class MapMetadata
 		return false;
 	}
 
-	public bool UpdateProp(string propId, Func<GameHost.PropMetadata, GameHost.PropMetadata> update)
+	public bool UpdateProp(string objectId, Func<GameHost.PropMetadata, GameHost.PropMetadata> update)
 	{
-		if (CustomProps == null || string.IsNullOrWhiteSpace(propId)) return false;
-		int idx = CustomProps.FindIndex(p => string.Equals(p.UnitId, propId, StringComparison.OrdinalIgnoreCase));
+		if (CustomProps == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = CustomProps.FindIndex(p => string.Equals(p.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			CustomProps[idx] = update(CustomProps[idx]);
@@ -380,10 +380,10 @@ public class MapMetadata
 		return false;
 	}
 
-	public bool UpdateResource(string resourceId, Func<GameHost.ResourceMetadata, GameHost.ResourceMetadata> update)
+	public bool UpdateResource(string objectId, Func<GameHost.ResourceMetadata, GameHost.ResourceMetadata> update)
 	{
-		if (CustomResources == null || string.IsNullOrWhiteSpace(resourceId)) return false;
-		int idx = CustomResources.FindIndex(r => string.Equals(r.UnitId, resourceId, StringComparison.OrdinalIgnoreCase));
+		if (CustomResources == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = CustomResources.FindIndex(r => string.Equals(r.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			CustomResources[idx] = update(CustomResources[idx]);
@@ -392,10 +392,10 @@ public class MapMetadata
 		return false;
 	}
 
-	public bool UpdateAbility(string abilityId, Func<GameHost.AbilityMetadata, GameHost.AbilityMetadata> update)
+	public bool UpdateAbility(string objectId, Func<GameHost.AbilityMetadata, GameHost.AbilityMetadata> update)
 	{
-		if (CustomAbilities == null || string.IsNullOrWhiteSpace(abilityId)) return false;
-		int idx = CustomAbilities.FindIndex(a => string.Equals(a.AbilityId, abilityId, StringComparison.OrdinalIgnoreCase));
+		if (CustomAbilities == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = CustomAbilities.FindIndex(a => string.Equals(a.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			CustomAbilities[idx] = update(CustomAbilities[idx]);
@@ -404,10 +404,10 @@ public class MapMetadata
 		return false;
 	}
 
-	public bool UpdateWeapon(string weaponId, Func<GameHost.WeaponMetadata, GameHost.WeaponMetadata> update)
+	public bool UpdateWeapon(string objectId, Func<GameHost.WeaponMetadata, GameHost.WeaponMetadata> update)
 	{
-		if (CustomWeapons == null || string.IsNullOrWhiteSpace(weaponId)) return false;
-		int idx = CustomWeapons.FindIndex(w => string.Equals(w.WeaponId, weaponId, StringComparison.OrdinalIgnoreCase));
+		if (CustomWeapons == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = CustomWeapons.FindIndex(w => string.Equals(w.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			CustomWeapons[idx] = update(CustomWeapons[idx]);
@@ -440,10 +440,10 @@ public class MapMetadata
 		return false;
 	}
 
-	public bool UpdateItem(string itemId, Func<GameHost.ItemMetadata, GameHost.ItemMetadata> update)
+	public bool UpdateItem(string objectId, Func<GameHost.ItemMetadata, GameHost.ItemMetadata> update)
 	{
-		if (CustomItems == null || string.IsNullOrWhiteSpace(itemId)) return false;
-		int idx = CustomItems.FindIndex(i => string.Equals(i.ItemId, itemId, StringComparison.OrdinalIgnoreCase));
+		if (CustomItems == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = CustomItems.FindIndex(i => string.Equals(i.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			CustomItems[idx] = update(CustomItems[idx]);
@@ -452,10 +452,10 @@ public class MapMetadata
 		return false;
 	}
 
-	public bool UpdateUpgrade(string upgradeId, Func<GameHost.UpgradeMetadata, GameHost.UpgradeMetadata> update)
+	public bool UpdateUpgrade(string objectId, Func<GameHost.UpgradeMetadata, GameHost.UpgradeMetadata> update)
 	{
-		if (CustomUpgrades == null || string.IsNullOrWhiteSpace(upgradeId)) return false;
-		int idx = CustomUpgrades.FindIndex(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase));
+		if (CustomUpgrades == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = CustomUpgrades.FindIndex(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			CustomUpgrades[idx] = update(CustomUpgrades[idx]);
@@ -832,10 +832,10 @@ public class MetadataService
 			}
 		}
 
-		ValidateEntityList(metadata.CustomUnits, u => u.UnitId, u => u.Scale, "CustomUnits");
-		ValidateEntityList(metadata.CustomBuildings, b => b.UnitId, b => b.Scale, "CustomBuildings");
-		ValidateEntityList(metadata.CustomResources, r => r.UnitId, r => r.Scale, "CustomResources");
-		ValidateEntityList(metadata.CustomProps, p => p.UnitId, p => p.Scale, "CustomProps");
+		ValidateEntityList(metadata.CustomUnits, u => u.ObjectID, u => u.Scale, "CustomUnits");
+		ValidateEntityList(metadata.CustomBuildings, b => b.ObjectID, b => b.Scale, "CustomBuildings");
+		ValidateEntityList(metadata.CustomResources, r => r.ObjectID, r => r.Scale, "CustomResources");
+		ValidateEntityList(metadata.CustomProps, p => p.ObjectID, p => p.Scale, "CustomProps");
 
 		if (metadata.Dependencies != null)
 		{
@@ -924,16 +924,16 @@ public class MetadataService
 		}
 	}
 
-	public GameHost.UnitMetadata? FindUnit(MapMetadata metadata, string unitId)
+	public GameHost.UnitMetadata? FindUnit(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomUnits == null || string.IsNullOrWhiteSpace(unitId)) return null;
-		return metadata.CustomUnits.FirstOrDefault(u => string.Equals(u.UnitId, unitId, StringComparison.OrdinalIgnoreCase));
+		if (metadata?.CustomUnits == null || string.IsNullOrWhiteSpace(objectId)) return null;
+		return metadata.CustomUnits.FirstOrDefault(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 	}
 
 	public void AddOrUpdateUnit(MapMetadata metadata, GameHost.UnitMetadata unit)
 	{
-		if (metadata == null || string.IsNullOrWhiteSpace(unit.UnitId)) return;
-		int index = metadata.CustomUnits.FindIndex(u => string.Equals(u.UnitId, unit.UnitId, StringComparison.OrdinalIgnoreCase));
+		if (metadata == null || string.IsNullOrWhiteSpace(unit.ObjectID)) return;
+		int index = metadata.CustomUnits.FindIndex(u => string.Equals(u.ObjectID, unit.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (index >= 0)
 		{
 			metadata.CustomUnits[index] = unit;
@@ -944,22 +944,22 @@ public class MetadataService
 		}
 	}
 
-	public bool RemoveUnit(MapMetadata metadata, string unitId)
+	public bool RemoveUnit(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomUnits == null || string.IsNullOrWhiteSpace(unitId)) return false;
-		return metadata.CustomUnits.RemoveAll(u => string.Equals(u.UnitId, unitId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (metadata?.CustomUnits == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return metadata.CustomUnits.RemoveAll(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public GameHost.UnitMetadata? FindBuilding(MapMetadata metadata, string buildingId)
+	public GameHost.UnitMetadata? FindBuilding(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomBuildings == null || string.IsNullOrWhiteSpace(buildingId)) return null;
-		return metadata.CustomBuildings.FirstOrDefault(b => string.Equals(b.UnitId, buildingId, StringComparison.OrdinalIgnoreCase));
+		if (metadata?.CustomBuildings == null || string.IsNullOrWhiteSpace(objectId)) return null;
+		return metadata.CustomBuildings.FirstOrDefault(b => string.Equals(b.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 	}
 
 	public void AddOrUpdateBuilding(MapMetadata metadata, GameHost.UnitMetadata building)
 	{
-		if (metadata == null || string.IsNullOrWhiteSpace(building.UnitId)) return;
-		int index = metadata.CustomBuildings.FindIndex(b => string.Equals(b.UnitId, building.UnitId, StringComparison.OrdinalIgnoreCase));
+		if (metadata == null || string.IsNullOrWhiteSpace(building.ObjectID)) return;
+		int index = metadata.CustomBuildings.FindIndex(b => string.Equals(b.ObjectID, building.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (index >= 0)
 		{
 			metadata.CustomBuildings[index] = building;
@@ -970,22 +970,22 @@ public class MetadataService
 		}
 	}
 
-	public bool RemoveBuilding(MapMetadata metadata, string buildingId)
+	public bool RemoveBuilding(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomBuildings == null || string.IsNullOrWhiteSpace(buildingId)) return false;
-		return metadata.CustomBuildings.RemoveAll(b => string.Equals(b.UnitId, buildingId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (metadata?.CustomBuildings == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return metadata.CustomBuildings.RemoveAll(b => string.Equals(b.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public GameHost.PropMetadata? FindProp(MapMetadata metadata, string propId)
+	public GameHost.PropMetadata? FindProp(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomProps == null || string.IsNullOrWhiteSpace(propId)) return null;
-		return metadata.CustomProps.FirstOrDefault(p => string.Equals(p.UnitId, propId, StringComparison.OrdinalIgnoreCase));
+		if (metadata?.CustomProps == null || string.IsNullOrWhiteSpace(objectId)) return null;
+		return metadata.CustomProps.FirstOrDefault(p => string.Equals(p.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 	}
 
 	public void AddOrUpdateProp(MapMetadata metadata, GameHost.PropMetadata prop)
 	{
-		if (metadata == null || string.IsNullOrWhiteSpace(prop.UnitId)) return;
-		int index = metadata.CustomProps.FindIndex(p => string.Equals(p.UnitId, prop.UnitId, StringComparison.OrdinalIgnoreCase));
+		if (metadata == null || string.IsNullOrWhiteSpace(prop.ObjectID)) return;
+		int index = metadata.CustomProps.FindIndex(p => string.Equals(p.ObjectID, prop.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (index >= 0)
 		{
 			metadata.CustomProps[index] = prop;
@@ -996,22 +996,22 @@ public class MetadataService
 		}
 	}
 
-	public bool RemoveProp(MapMetadata metadata, string propId)
+	public bool RemoveProp(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomProps == null || string.IsNullOrWhiteSpace(propId)) return false;
-		return metadata.CustomProps.RemoveAll(p => string.Equals(p.UnitId, propId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (metadata?.CustomProps == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return metadata.CustomProps.RemoveAll(p => string.Equals(p.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public GameHost.ResourceMetadata? FindResource(MapMetadata metadata, string resourceId)
+	public GameHost.ResourceMetadata? FindResource(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomResources == null || string.IsNullOrWhiteSpace(resourceId)) return null;
-		return metadata.CustomResources.FirstOrDefault(r => string.Equals(r.UnitId, resourceId, StringComparison.OrdinalIgnoreCase));
+		if (metadata?.CustomResources == null || string.IsNullOrWhiteSpace(objectId)) return null;
+		return metadata.CustomResources.FirstOrDefault(r => string.Equals(r.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 	}
 
 	public void AddOrUpdateResource(MapMetadata metadata, GameHost.ResourceMetadata resource)
 	{
-		if (metadata == null || string.IsNullOrWhiteSpace(resource.UnitId)) return;
-		int index = metadata.CustomResources.FindIndex(r => string.Equals(r.UnitId, resource.UnitId, StringComparison.OrdinalIgnoreCase));
+		if (metadata == null || string.IsNullOrWhiteSpace(resource.ObjectID)) return;
+		int index = metadata.CustomResources.FindIndex(r => string.Equals(r.ObjectID, resource.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (index >= 0)
 		{
 			metadata.CustomResources[index] = resource;
@@ -1022,22 +1022,22 @@ public class MetadataService
 		}
 	}
 
-	public bool RemoveResource(MapMetadata metadata, string resourceId)
+	public bool RemoveResource(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomResources == null || string.IsNullOrWhiteSpace(resourceId)) return false;
-		return metadata.CustomResources.RemoveAll(r => string.Equals(r.UnitId, resourceId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (metadata?.CustomResources == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return metadata.CustomResources.RemoveAll(r => string.Equals(r.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public GameHost.WeaponMetadata? FindWeapon(MapMetadata metadata, string weaponId)
+	public GameHost.WeaponMetadata? FindWeapon(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomWeapons == null || string.IsNullOrWhiteSpace(weaponId)) return null;
-		return metadata.CustomWeapons.FirstOrDefault(w => string.Equals(w.WeaponId, weaponId, StringComparison.OrdinalIgnoreCase));
+		if (metadata?.CustomWeapons == null || string.IsNullOrWhiteSpace(objectId)) return null;
+		return metadata.CustomWeapons.FirstOrDefault(w => string.Equals(w.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 	}
 
 	public void AddOrUpdateWeapon(MapMetadata metadata, GameHost.WeaponMetadata weapon)
 	{
-		if (metadata == null || string.IsNullOrWhiteSpace(weapon.WeaponId)) return;
-		int index = metadata.CustomWeapons.FindIndex(w => string.Equals(w.WeaponId, weapon.WeaponId, StringComparison.OrdinalIgnoreCase));
+		if (metadata == null || string.IsNullOrWhiteSpace(weapon.ObjectID)) return;
+		int index = metadata.CustomWeapons.FindIndex(w => string.Equals(w.ObjectID, weapon.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (index >= 0)
 		{
 			metadata.CustomWeapons[index] = weapon;
@@ -1048,22 +1048,22 @@ public class MetadataService
 		}
 	}
 
-	public bool RemoveWeapon(MapMetadata metadata, string weaponId)
+	public bool RemoveWeapon(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomWeapons == null || string.IsNullOrWhiteSpace(weaponId)) return false;
-		return metadata.CustomWeapons.RemoveAll(w => string.Equals(w.WeaponId, weaponId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (metadata?.CustomWeapons == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return metadata.CustomWeapons.RemoveAll(w => string.Equals(w.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public GameHost.AbilityMetadata? FindAbility(MapMetadata metadata, string abilityId)
+	public GameHost.AbilityMetadata? FindAbility(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomAbilities == null || string.IsNullOrWhiteSpace(abilityId)) return null;
-		return metadata.CustomAbilities.FirstOrDefault(a => string.Equals(a.AbilityId, abilityId, StringComparison.OrdinalIgnoreCase));
+		if (metadata?.CustomAbilities == null || string.IsNullOrWhiteSpace(objectId)) return null;
+		return metadata.CustomAbilities.FirstOrDefault(a => string.Equals(a.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 	}
 
 	public void AddOrUpdateAbility(MapMetadata metadata, GameHost.AbilityMetadata ability)
 	{
-		if (metadata == null || string.IsNullOrWhiteSpace(ability.AbilityId)) return;
-		int index = metadata.CustomAbilities.FindIndex(a => string.Equals(a.AbilityId, ability.AbilityId, StringComparison.OrdinalIgnoreCase));
+		if (metadata == null || string.IsNullOrWhiteSpace(ability.ObjectID)) return;
+		int index = metadata.CustomAbilities.FindIndex(a => string.Equals(a.ObjectID, ability.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (index >= 0)
 		{
 			metadata.CustomAbilities[index] = ability;
@@ -1074,22 +1074,22 @@ public class MetadataService
 		}
 	}
 
-	public bool RemoveAbility(MapMetadata metadata, string abilityId)
+	public bool RemoveAbility(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomAbilities == null || string.IsNullOrWhiteSpace(abilityId)) return false;
-		return metadata.CustomAbilities.RemoveAll(a => string.Equals(a.AbilityId, abilityId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (metadata?.CustomAbilities == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return metadata.CustomAbilities.RemoveAll(a => string.Equals(a.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public GameHost.UpgradeMetadata? FindUpgrade(MapMetadata metadata, string upgradeId)
+	public GameHost.UpgradeMetadata? FindUpgrade(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomUpgrades == null || string.IsNullOrWhiteSpace(upgradeId)) return null;
-		return metadata.CustomUpgrades.FirstOrDefault(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase));
+		if (metadata?.CustomUpgrades == null || string.IsNullOrWhiteSpace(objectId)) return null;
+		return metadata.CustomUpgrades.FirstOrDefault(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 	}
 
 	public void AddOrUpdateUpgrade(MapMetadata metadata, GameHost.UpgradeMetadata upgrade)
 	{
-		if (metadata == null || string.IsNullOrWhiteSpace(upgrade.UpgradeId)) return;
-		int index = metadata.CustomUpgrades.FindIndex(u => string.Equals(u.UpgradeId, upgrade.UpgradeId, StringComparison.OrdinalIgnoreCase));
+		if (metadata == null || string.IsNullOrWhiteSpace(upgrade.ObjectID)) return;
+		int index = metadata.CustomUpgrades.FindIndex(u => string.Equals(u.ObjectID, upgrade.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (index >= 0)
 		{
 			metadata.CustomUpgrades[index] = upgrade;
@@ -1100,22 +1100,22 @@ public class MetadataService
 		}
 	}
 
-	public bool RemoveUpgrade(MapMetadata metadata, string upgradeId)
+	public bool RemoveUpgrade(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomUpgrades == null || string.IsNullOrWhiteSpace(upgradeId)) return false;
-		return metadata.CustomUpgrades.RemoveAll(u => string.Equals(u.UpgradeId, upgradeId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (metadata?.CustomUpgrades == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return metadata.CustomUpgrades.RemoveAll(u => string.Equals(u.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public GameHost.ItemMetadata? FindItem(MapMetadata metadata, string itemId)
+	public GameHost.ItemMetadata? FindItem(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomItems == null || string.IsNullOrWhiteSpace(itemId)) return null;
-		return metadata.CustomItems.FirstOrDefault(i => string.Equals(i.ItemId, itemId, StringComparison.OrdinalIgnoreCase));
+		if (metadata?.CustomItems == null || string.IsNullOrWhiteSpace(objectId)) return null;
+		return metadata.CustomItems.FirstOrDefault(i => string.Equals(i.ObjectID, objectId, StringComparison.OrdinalIgnoreCase));
 	}
 
 	public void AddOrUpdateItem(MapMetadata metadata, GameHost.ItemMetadata item)
 	{
-		if (metadata == null || string.IsNullOrWhiteSpace(item.ItemId)) return;
-		int index = metadata.CustomItems.FindIndex(i => string.Equals(i.ItemId, item.ItemId, StringComparison.OrdinalIgnoreCase));
+		if (metadata == null || string.IsNullOrWhiteSpace(item.ObjectID)) return;
+		int index = metadata.CustomItems.FindIndex(i => string.Equals(i.ObjectID, item.ObjectID, StringComparison.OrdinalIgnoreCase));
 		if (index >= 0)
 		{
 			metadata.CustomItems[index] = item;
@@ -1126,10 +1126,10 @@ public class MetadataService
 		}
 	}
 
-	public bool RemoveItem(MapMetadata metadata, string itemId)
+	public bool RemoveItem(MapMetadata metadata, string objectId)
 	{
-		if (metadata?.CustomItems == null || string.IsNullOrWhiteSpace(itemId)) return false;
-		return metadata.CustomItems.RemoveAll(i => string.Equals(i.ItemId, itemId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (metadata?.CustomItems == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return metadata.CustomItems.RemoveAll(i => string.Equals(i.ObjectID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public GameHost.AttachmentMetadata? FindAttachment(MapMetadata metadata, string attachmentId)

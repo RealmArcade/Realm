@@ -39,21 +39,21 @@ public partial class Prop3D : StaticBody3D
 		SetProcess(true);
 	}
 
-	private string _propId = string.Empty;
+	private string _objectId = string.Empty;
 
 	[Export]
-	public virtual string PropId
+	public virtual string ObjectID
 	{
 		get
 		{
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld.IsAlive(Entity)
 				&& GameHost.Instance.EcsWorld.Has<PropIdentity>(Entity))
 				return GameHost.Instance.EcsWorld.Get<PropIdentity>(Entity).PropId;
-			return _propId;
+			return _objectId;
 		}
 		set
 		{
-			_propId = value;
+			_objectId = value;
 			_cachedResolvedModelPath = null;
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld.IsAlive(Entity))
 			{
@@ -61,6 +61,12 @@ public partial class Prop3D : StaticBody3D
 				world.SetOrAdd(Entity, new PropIdentity(value));
 			}
 		}
+	}
+
+	public virtual string PropId
+	{
+		get => ObjectID;
+		set => ObjectID = value;
 	}
 
 	private string _cachedResolvedModelPath;

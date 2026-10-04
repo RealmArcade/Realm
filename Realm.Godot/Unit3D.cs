@@ -10,20 +10,21 @@ using Realm.Godot.VFX;
 
 public partial class Unit3D : Prop3D
 {
-	private string _unitId = "worker";
+	private string _objectId = "unit/worker";
 
-	public string UnitId
+	[Export]
+	public override string ObjectID
 	{
 		get
 		{
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld.IsAlive(Entity)
 				&& GameHost.Instance.EcsWorld.Has<DefinitionId>(Entity))
 				return GameHost.Instance.EcsWorld.Get<DefinitionId>(Entity).Value;
-			return _unitId;
+			return _objectId;
 		}
 		set
 		{
-			_unitId = value;
+			_objectId = value;
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld.IsAlive(Entity))
 			{
 				var world = GameHost.Instance.EcsWorld;
@@ -32,10 +33,16 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
+	public string UnitId
+	{
+		get => ObjectID;
+		set => ObjectID = value;
+	}
+
 	public override string PropId
 	{
-		get => UnitId;
-		set => UnitId = value;
+		get => ObjectID;
+		set => ObjectID = value;
 	}
 
 	private bool _isBuilding;

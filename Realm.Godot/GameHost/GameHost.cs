@@ -1217,8 +1217,8 @@ public partial class GameHost : Node3D, IGameAPI
 			DespillPlayerColor = false;
 		}
 
-		public string UnitId { get; set; }
-		public string Name { get; set; }
+		public string ObjectID { get; set; } = string.Empty;
+		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public float MaxHp { get; set; }
 		public float Damage { get; set; }
@@ -1379,8 +1379,8 @@ public partial class GameHost : Node3D, IGameAPI
 			PointLightRange = 6.0f;
 		}
 
-		public string WeaponId { get; set; }
-		public string Name { get; set; }
+		public string ObjectID { get; set; } = string.Empty;
+		public string Name { get; set; } = string.Empty;
 		public float Damage { get; set; }
 		public float Range { get; set; }
 		public float AttackCooldown { get; set; }
@@ -1454,8 +1454,8 @@ public partial class GameHost : Node3D, IGameAPI
 			DespillPlayerColor = false;
 		}
 
-		public string UnitId { get; set; }
-		public string Name { get; set; }
+		public string ObjectID { get; set; } = string.Empty;
+		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public string ModelPath { get; set; }
 		public string PortraitModelPath { get; set; }
@@ -1487,8 +1487,8 @@ public partial class GameHost : Node3D, IGameAPI
 			DespillPlayerColor = false;
 		}
 
-		public string UnitId { get; set; }
-		public string Name { get; set; }
+		public string ObjectID { get; set; } = string.Empty;
+		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public string ModelPath { get; set; }
 		public string PortraitModelPath { get; set; }
@@ -1516,8 +1516,12 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public struct AbilityMetadata
 	{
-		public string AbilityId { get; set; }
-		public string Name { get; set; }
+		public AbilityMetadata()
+		{
+		}
+
+		public string ObjectID { get; set; } = string.Empty;
+		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public string AbilityType { get; set; }
 		public string IconPath { get; set; }
@@ -1537,8 +1541,12 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public struct UpgradeMetadata
 	{
-		public string UpgradeId { get; set; }
-		public string Name { get; set; }
+		public UpgradeMetadata()
+		{
+		}
+
+		public string ObjectID { get; set; } = string.Empty;
+		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public float CostGold { get; set; }
 		public float CostWood { get; set; }
@@ -1555,8 +1563,12 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public struct ItemMetadata
 	{
-		public string ItemId { get; set; }
-		public string Name { get; set; }
+		public ItemMetadata()
+		{
+		}
+
+		public string ObjectID { get; set; } = string.Empty;
+		public string Name { get; set; } = string.Empty;
 		public string Description { get; set; }
 		public string ItemClass { get; set; }
 		public float CostGold { get; set; }
@@ -1780,52 +1792,28 @@ public partial class GameHost : Node3D, IGameAPI
 
 
 
-	public static readonly Dictionary<string, UnitMetadata> UnitRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, UnitMetadata> BuildingRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, PropMetadata> PropRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, ResourceMetadata> ResourceRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, WeaponMetadata> WeaponRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, AttachmentMetadata> AttachmentRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, ItemMetadata> ItemRegistry = new(StringComparer.OrdinalIgnoreCase);
+	public static readonly Dictionary<StringName, UnitMetadata> UnitRegistry = new();
+	public static readonly Dictionary<StringName, UnitMetadata> BuildingRegistry = new();
+	public static readonly Dictionary<StringName, PropMetadata> PropRegistry = new();
+	public static readonly Dictionary<StringName, ResourceMetadata> ResourceRegistry = new();
+	public static readonly Dictionary<StringName, WeaponMetadata> WeaponRegistry = new();
+	public static readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
+	public static readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
 
-	public static bool TryGetUnitOrBuildingMetadata(string? unitId, out UnitMetadata meta)
+	public static bool TryGetUnitOrBuildingMetadata(StringName objectId, out UnitMetadata meta)
 	{
 		meta = default;
-		if (string.IsNullOrEmpty(unitId)) return false;
-
-		if (UnitRegistry.TryGetValue(unitId, out meta)) return true;
-		if (BuildingRegistry != null && BuildingRegistry.TryGetValue(unitId, out meta)) return true;
-
-		string cleanId = System.IO.Path.GetFileNameWithoutExtension(unitId);
-		if (UnitRegistry.TryGetValue(cleanId, out meta)) return true;
-		if (BuildingRegistry != null && BuildingRegistry.TryGetValue(cleanId, out meta)) return true;
-
-		foreach (var kvp in UnitRegistry)
-		{
-			if (kvp.Key.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-				kvp.Key.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-				System.IO.Path.GetFileNameWithoutExtension(kvp.Key).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-			{
-				meta = kvp.Value;
-				return true;
-			}
-		}
-
-		if (BuildingRegistry != null)
-		{
-			foreach (var kvp in BuildingRegistry)
-			{
-				if (kvp.Key.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-					kvp.Key.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-					System.IO.Path.GetFileNameWithoutExtension(kvp.Key).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-				{
-					meta = kvp.Value;
-					return true;
-				}
-			}
-		}
-
+		if (StringName.IsNullOrEmpty(objectId)) return false;
+		if (UnitRegistry.TryGetValue(objectId, out meta)) return true;
+		if (BuildingRegistry != null && BuildingRegistry.TryGetValue(objectId, out meta)) return true;
 		return false;
+	}
+
+	public static bool TryGetUnitOrBuildingMetadata(string? objectId, out UnitMetadata meta)
+	{
+		meta = default;
+		if (string.IsNullOrEmpty(objectId)) return false;
+		return TryGetUnitOrBuildingMetadata((StringName)objectId, out meta);
 	}
 
 	public string GetFallbackModelPath(string unitId, bool isBuilding)
@@ -3679,76 +3667,76 @@ public class {mapName} : IMapScript
 		var metaService = _metadataService ?? Realm.Godot.Services.MetadataService.Instance;
 		var metadata = metaService.LoadMetadata(path);
 
-		var newUnits = new Dictionary<string, UnitMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newBuildings = new Dictionary<string, UnitMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newProps = new Dictionary<string, PropMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newResources = new Dictionary<string, ResourceMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newWeapons = new Dictionary<string, WeaponMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newAttachments = new Dictionary<string, AttachmentMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newItems = new Dictionary<string, ItemMetadata>(StringComparer.OrdinalIgnoreCase);
+		var newUnits = new Dictionary<StringName, UnitMetadata>();
+		var newBuildings = new Dictionary<StringName, UnitMetadata>();
+		var newProps = new Dictionary<StringName, PropMetadata>();
+		var newResources = new Dictionary<StringName, ResourceMetadata>();
+		var newWeapons = new Dictionary<StringName, WeaponMetadata>();
+		var newAttachments = new Dictionary<StringName, AttachmentMetadata>();
+		var newItems = new Dictionary<StringName, ItemMetadata>();
 		var newVfx = new Dictionary<string, VfxAttachmentConfig>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var meta in metadata.CustomWeapons)
 		{
-			if (!string.IsNullOrEmpty(meta.WeaponId))
-				newWeapons[meta.WeaponId] = meta;
+			if (!string.IsNullOrEmpty(meta.ObjectID))
+				newWeapons[(StringName)meta.ObjectID] = meta;
 		}
 
 		foreach (var meta in metadata.CustomAttachments)
 		{
 			if (!string.IsNullOrEmpty(meta.AttachmentId))
 			{
-				newAttachments[meta.AttachmentId] = meta;
+				newAttachments[(StringName)meta.AttachmentId] = meta;
 			}
 		}
 
 		foreach (var meta in metadata.CustomItems)
 		{
-			if (!string.IsNullOrEmpty(meta.ItemId))
+			if (!string.IsNullOrEmpty(meta.ObjectID))
 			{
-				newItems[meta.ItemId] = meta;
+				newItems[(StringName)meta.ObjectID] = meta;
 			}
 		}
 
 		foreach (var meta in metadata.CustomUnits)
 		{
-			if (!string.IsNullOrEmpty(meta.UnitId))
+			if (!string.IsNullOrEmpty(meta.ObjectID))
 			{
 				var copy = meta;
 				if (copy.Scale <= 0f) copy.Scale = 1.0f;
-				newUnits[copy.UnitId] = copy;
+				newUnits[(StringName)copy.ObjectID] = copy;
 			}
 		}
 
 		foreach (var meta in metadata.CustomBuildings)
 		{
-			if (!string.IsNullOrEmpty(meta.UnitId))
+			if (!string.IsNullOrEmpty(meta.ObjectID))
 			{
 				var copy = meta;
 				if (copy.Scale <= 0f) copy.Scale = 1.5f;
-				newBuildings[copy.UnitId] = copy;
+				newBuildings[(StringName)copy.ObjectID] = copy;
 			}
 		}
 
 		foreach (var meta in metadata.CustomResources)
 		{
-			if (!string.IsNullOrEmpty(meta.UnitId))
+			if (!string.IsNullOrEmpty(meta.ObjectID))
 			{
 				var copy = meta;
 				if (copy.Scale <= 0f) copy.Scale = 2.75f;
 				if (copy.PathingType == 0) copy.PathingType = 255;
-				newResources[copy.UnitId] = copy;
+				newResources[(StringName)copy.ObjectID] = copy;
 			}
 		}
 
 		foreach (var meta in metadata.CustomProps)
 		{
-			if (!string.IsNullOrEmpty(meta.UnitId))
+			if (!string.IsNullOrEmpty(meta.ObjectID))
 			{
 				var copy = meta;
 				if (copy.Scale <= 0f) copy.Scale = 1.25f;
 				if (copy.PathingType == 0) copy.PathingType = 255;
-				newProps[copy.UnitId] = copy;
+				newProps[(StringName)copy.ObjectID] = copy;
 			}
 		}
 

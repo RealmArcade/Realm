@@ -74,51 +74,29 @@ public class MapManifest
     {
         foreach (var categoryKeyValuePair in assets)
         {
-            string category = categoryKeyValuePair.Key.ToLowerInvariant();
-            if (category == "glb" && categoryKeyValuePair.Value is JsonObject glbObject)
-            {
-                foreach (var subCategoryKeyValuePair in glbObject)
-                {
-                    string subCategory = subCategoryKeyValuePair.Key.ToLowerInvariant();
-                    if (subCategoryKeyValuePair.Value is JsonObject subCategoryObject)
-                    {
-                        foreach (var itemKeyValuePair in subCategoryObject)
-                        {
-                            string fileName = itemKeyValuePair.Key;
-                            string extension = Path.GetExtension(fileName).ToLowerInvariant();
-                            if (string.IsNullOrEmpty(extension))
-                            {
-                                extension = ".rmesh";
-                            }
-                            string hash = ExtractHashFromNode(itemKeyValuePair.Value);
-                            if (!string.IsNullOrEmpty(hash))
-                            {
-                                string assetKey = (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-                                    ? hash
-                                    : $"{hash}{extension}";
-                                string relativePath = $"Assets/models/{subCategory}/{fileName}".Replace('\\', '/');
-                                destinationFiles[relativePath] = assetKey;
-                            }
-                        }
-                    }
-                }
-            }
-            else if (categoryKeyValuePair.Value is JsonObject categoryObject)
+            string category = categoryKeyValuePair.Key;
+            if (categoryKeyValuePair.Value is JsonObject categoryObject)
             {
                 string subFolder = category switch
                 {
-                    "vfx" or "vfx_spritesheets" => "vfx",
-                    "animations" => "animations",
-                    "sfx" => "audio/sfx",
-                    "music" => "audio/music",
-                    "icons" => "icons",
-                    "decals" => "decals",
-                    "ribbons" or "ribbon_textures" => "ribbons",
-                    "noise" or "noise_textures" => "noise",
-                    "skyboxes" => "skyboxes",
-                    "textures" => "textures",
-                    "other" => "other",
-                    _ => category
+                    "Character" => "models/units",
+                    "Building" => "models/buildings",
+                    "Prop" => "models/props",
+                    "Item" => "models/items",
+                    "Spritesheet" => "vfx",
+                    "vfx_radial" => "vfx_radial",
+                    "vfx_vertical" => "vfx_vertical",
+                    "Animation" => "animations",
+                    "SoundEffect" => "audio/sfx",
+                    "Music" => "audio/music",
+                    "Icon" => "icons",
+                    "Decal" => "decals",
+                    "Ribbon" => "ribbons",
+                    "Noise" => "noise",
+                    "Skybox" => "skyboxes",
+                    "Terrain" => "textures",
+                    "Shader" => "shaders",
+                    _ => category.ToLowerInvariant()
                 };
 
                 foreach (var itemKeyValuePair in categoryObject)
@@ -138,9 +116,9 @@ public class MapManifest
                     {
                         extension = category switch
                         {
-                            "animations" => ".ranim",
-                            "sfx" or "music" => ".raud",
-                            "units" or "buildings" or "props" or "items" or "attachments" or "doodads" or "projectiles" or "decorations" => ".rmesh",
+                            "Animation" => ".ranim",
+                            "SoundEffect" or "Music" => ".raud",
+                            "Character" or "Building" or "Prop" or "Item" => ".rmesh",
                             _ => ".rtex"
                         };
                     }
@@ -150,7 +128,7 @@ public class MapManifest
                         string assetKey = (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
                             ? hash
                             : $"{hash}{extension}";
-                        string relativePath = subFolder == "other" ? rawKey : $"Assets/{subFolder}/{rawKey}".Replace('\\', '/');
+                        string relativePath = $"Assets/{subFolder}/{rawKey}".Replace('\\', '/');
                         destinationFiles[relativePath] = assetKey;
                     }
                 }
@@ -205,16 +183,20 @@ public class MapManifest
             {
                 string[] parts = relativePath.Split('/');
                 string subCategory = parts.Length >= 4 ? parts[2].ToLowerInvariant() : "props";
-                if (!assets.ContainsKey("glb") || assets["glb"] is not JsonObject)
+                string category = subCategory switch
                 {
-                    assets["glb"] = new JsonObject();
-                }
-                var glbObject = assets["glb"]!.AsObject();
-                if (!glbObject.ContainsKey(subCategory) || glbObject[subCategory] is not JsonObject)
+                    "units" or "characters" => "Character",
+                    "buildings" => "Building",
+                    "props" or "resources" => "Prop",
+                    "items" or "projectiles" or "attachments" or "weapons" => "Item",
+                    _ => "Prop"
+                };
+
+                if (!assets.ContainsKey(category) || assets[category] is not JsonObject)
                 {
-                    glbObject[subCategory] = new JsonObject();
+                    assets[category] = new JsonObject();
                 }
-                glbObject[subCategory]!.AsObject()[fileName] = hash;
+                assets[category]!.AsObject()[fileName] = hash;
             }
             else if (relativePath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
             {
@@ -222,17 +204,20 @@ public class MapManifest
                 string folder = parts.Length >= 3 ? parts[1].ToLowerInvariant() : "textures";
                 string category = folder switch
                 {
-                    "vfx" => "vfx_spritesheets",
-                    "animations" => "animations",
-                    "decals" => "decals",
-                    "icons" => "icons",
-                    "ribbons" => "ribbons",
-                    "noise" => "noise_textures",
-                    "skyboxes" => "skyboxes",
-                    "audio" when parts.Length >= 4 && parts[2].Equals("music", StringComparison.OrdinalIgnoreCase) => "music",
-                    "audio" when parts.Length >= 4 && parts[2].Equals("sfx", StringComparison.OrdinalIgnoreCase) => "sfx",
-                    "audio" => "sfx",
-                    "textures" => "textures",
+                    "vfx" => "Spritesheet",
+                    "vfx_radial" => "vfx_radial",
+                    "vfx_vertical" => "vfx_vertical",
+                    "animations" => "Animation",
+                    "decals" => "Decal",
+                    "icons" => "Icon",
+                    "ribbons" => "Ribbon",
+                    "noise" => "Noise",
+                    "skyboxes" => "Skybox",
+                    "audio" when parts.Length >= 4 && parts[2].Equals("music", StringComparison.OrdinalIgnoreCase) => "Music",
+                    "audio" when parts.Length >= 4 && parts[2].Equals("sfx", StringComparison.OrdinalIgnoreCase) => "SoundEffect",
+                    "audio" => "SoundEffect",
+                    "textures" => "Terrain",
+                    "shaders" => "Shader",
                     _ => folder
                 };
 
@@ -241,7 +226,7 @@ public class MapManifest
                     assets[category] = new JsonObject();
                 }
 
-                string key = (category is "music" or "sfx")
+                string key = (category is "Music" or "SoundEffect")
                     ? (parts.Length > 3 ? string.Join("/", parts.Skip(3)) : fileName)
                     : (parts.Length > 2 ? string.Join("/", parts.Skip(2)) : fileName);
 
@@ -264,46 +249,8 @@ public class MapManifest
     {
         foreach (var categoryPair in sourceAssets)
         {
-            string category = categoryPair.Key.ToLowerInvariant();
-            if (category == "glb" && categoryPair.Value is JsonObject glbSource)
-            {
-                if (targetAssets["glb"] is JsonObject glbTarget)
-                {
-                    foreach (var subPair in glbSource)
-                    {
-                        string subCat = subPair.Key.ToLowerInvariant();
-                        if (subPair.Value is JsonObject subSource && glbTarget[subCat] is JsonObject subTarget)
-                        {
-                            foreach (var itemPair in subSource)
-                            {
-                                if (itemPair.Value is JsonObject itemObj && subTarget[itemPair.Key] != null)
-                                {
-                                    JsonObject targetItemObj;
-                                    if (subTarget[itemPair.Key] is JsonObject existingObj)
-                                    {
-                                        targetItemObj = existingObj;
-                                    }
-                                    else
-                                    {
-                                        string currentHash = subTarget[itemPair.Key]!.ToString();
-                                        targetItemObj = new JsonObject { ["hash"] = currentHash };
-                                        subTarget[itemPair.Key] = targetItemObj;
-                                    }
-
-                                    foreach (var prop in itemObj)
-                                    {
-                                        if (!string.Equals(prop.Key, "hash", StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            targetItemObj[prop.Key] = prop.Value?.DeepClone();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            else if (categoryPair.Value is JsonObject catSource && targetAssets[category] is JsonObject catTarget)
+            string category = categoryPair.Key;
+            if (categoryPair.Value is JsonObject catSource && targetAssets[category] is JsonObject catTarget)
             {
                 foreach (var itemPair in catSource)
                 {

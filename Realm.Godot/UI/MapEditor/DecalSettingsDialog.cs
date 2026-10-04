@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 
 public class DecalSnapshot
 {
+	public string DecalId { get; set; } = "";
 	public string TexturePath { get; set; } = "";
 	public float Brightness { get; set; } = 1.0f;
 	public Color Tint { get; set; } = Colors.White;
@@ -39,6 +40,7 @@ public class DecalSnapshot
 	{
 		return new DecalSnapshot
 		{
+			DecalId = this.DecalId,
 			TexturePath = this.TexturePath,
 			Brightness = this.Brightness,
 			Tint = this.Tint,
@@ -102,6 +104,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private float _lowerFade = 0.3f;
 
 	private bool _isSyncingControls = false;
+	private LineEdit _txtDecalId;
 	private LineEdit _txtTexturePath;
 	private Action<string> _setTexturePathValue;
 	private CheckBox _chkAnimateOpacity;
@@ -217,6 +220,20 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		// SECTION 1: TEXTURE & ASSET
 		AddSectionHeader(contentVBox, "🖼 " + TranslationServer.Translate("TEXTURE & ASSET"), new Color(0.95f, 0.8f, 0.4f));
+
+		_txtDecalId = AddTextInput(
+			contentVBox,
+			TranslationServer.Translate("Decal ID:"),
+			_decalKey,
+			(val) =>
+			{
+				if (_isSyncingControls) return;
+				_decalKey = val?.Trim() ?? string.Empty;
+				if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("Decal ID:") + " " + _decalKey;
+			},
+			TranslationServer.Translate("Enter arbitrary Decal ID..."),
+			140f
+		);
 
 		(_txtTexturePath, _setTexturePathValue) = AddAssetFilterDropdown(
 			contentVBox,
@@ -809,6 +826,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		_initialSnapshot = new DecalSnapshot
 		{
+			DecalId = _decalKey,
 			TexturePath = _texturePath,
 			Brightness = _brightness,
 			Tint = _tint,
@@ -847,6 +865,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_isSyncingControls = true;
 		try
 		{
+			if (_txtDecalId != null) _txtDecalId.Text = _decalKey;
 			_setTexturePathValue?.Invoke(_texturePath);
 			_sldBrightness.Value = _brightness;
 			_lblBrightness.Text = $"{_brightness:F2}x";
@@ -1085,10 +1104,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
+		string finalDecalId = !string.IsNullOrWhiteSpace(_txtDecalId?.Text) ? _txtDecalId.Text.Trim() : _decalKey;
+		if (string.IsNullOrWhiteSpace(finalDecalId)) finalDecalId = _decalKey;
+		_decalKey = finalDecalId;
+
 		GameHost.Instance?.InvalidateDecalCache(_decalKey);
 
 		var result = new JsonObject
 		{
+			["decal_id"] = _decalKey,
 			["texture_path"] = _texturePath,
 			["brightness"] = Math.Round(_brightness, 3),
 			["tint"] = $"#{_tint.ToHtml(false)}",
@@ -1149,6 +1173,9 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		}
 		else if (_initialSnapshot != null)
 		{
+			_decalKey = _initialSnapshot.DecalId;
+			if (_txtDecalId != null) _txtDecalId.Text = _decalKey;
+			if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("Decal ID:") + " " + _decalKey;
 			_texturePath = _initialSnapshot.TexturePath;
 			_brightness = _initialSnapshot.Brightness;
 			_tint = _initialSnapshot.Tint;

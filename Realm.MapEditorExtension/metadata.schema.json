@@ -164,12 +164,16 @@
     "EntityItem": {
       "type": "object",
       "required": [
-        "UnitId",
+        "ObjectID",
         "Name",
         "Description"
       ],
         "properties": {
-          "UnitId": { "type": "string" },
+          "ObjectID": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+/[a-z0-9_]+$",
+            "description": "Unique identifier in the format object_type/slug (e.g. unit/footman, building/barracks, prop/rock, resource/gold_mine)"
+          },
           "Name": { "type": "string" },
           "Description": { "type": "string" },
           "MaxHp": { "type": "number", "minimum": 0 },
@@ -320,9 +324,13 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["AbilityId", "Name", "Description", "AbilityType"],
+        "required": ["ObjectID", "Name", "Description", "AbilityType"],
         "properties": {
-          "AbilityId": { "type": "string" },
+          "ObjectID": {
+            "type": "string",
+            "pattern": "^ability/[a-z0-9_]+$",
+            "description": "Unique identifier in the format ability/slug (e.g. ability/fireball)"
+          },
           "Name": { "type": "string" },
           "Description": { "type": "string" },
           "AbilityType": { "type": "string", "enum": ["target_spell", "instant_spell", "passive"] },
@@ -349,9 +357,13 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["UpgradeId", "Name", "Description"],
+        "required": ["ObjectID", "Name", "Description"],
         "properties": {
-          "UpgradeId": { "type": "string" },
+          "ObjectID": {
+            "type": "string",
+            "pattern": "^upgrade/[a-z0-9_]+$",
+            "description": "Unique identifier in the format upgrade/slug (e.g. upgrade/iron_swords)"
+          },
           "Name": { "type": "string" },
           "Description": { "type": "string" },
           "CostGold": { "type": "number", "minimum": 0 },
@@ -375,9 +387,13 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["ItemId", "Name", "Description", "ItemClass"],
+        "required": ["ObjectID", "Name", "Description", "ItemClass"],
         "properties": {
-          "ItemId": { "type": "string" },
+          "ObjectID": {
+            "type": "string",
+            "pattern": "^item/[a-z0-9_]+$",
+            "description": "Unique identifier in the format item/slug (e.g. item/health_potion)"
+          },
           "Name": { "type": "string" },
           "Description": { "type": "string" },
           "ItemClass": { "type": "string", "enum": ["consumable", "equipment", "quest"] },
@@ -406,9 +422,13 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["WeaponId", "Name", "Damage", "Range", "AttackCooldown", "AttackType"],
+        "required": ["ObjectID", "Name", "Damage", "Range", "AttackCooldown", "AttackType"],
         "properties": {
-          "WeaponId": { "type": "string" },
+          "ObjectID": {
+            "type": "string",
+            "pattern": "^weapon/[a-z0-9_]+$",
+            "description": "Unique identifier in the format weapon/slug (e.g. weapon/arrow)"
+          },
           "Name": { "type": "string" },
           "Damage": { "type": "number", "minimum": 0 },
           "Range": { "type": "number", "minimum": 0 },

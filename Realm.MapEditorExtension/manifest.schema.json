@@ -6,80 +6,67 @@
     "Assets": {
       "type": "object",
       "properties": {
-        "animations": {
+        "Animation": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "decals": {
+        "Building": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "glb": {
-          "type": "object",
-          "properties": {
-            "buildings": {
-              "type": "object",
-              "additionalProperties": { "type": "string" }
-            },
-            "projectiles": {
-              "type": "object",
-              "additionalProperties": { "type": "string" }
-            },
-            "props": {
-              "type": "object",
-              "additionalProperties": { "type": "string" }
-            },
-            "resources": {
-              "type": "object",
-              "additionalProperties": { "type": "string" }
-            },
-            "units": {
-              "type": "object",
-              "additionalProperties": { "type": "string" }
-            }
-          },
-          "additionalProperties": {
-            "type": "object",
-            "additionalProperties": { "type": "string" }
-          }
-        },
-        "icons": {
+        "Character": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "music": {
+        "Decal": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "noise_textures": {
+        "Icon": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "ribbons": {
+        "Item": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "sfx": {
+        "Music": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "shaders": {
+        "Noise": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "skyboxes": {
+        "Prop": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
-        "textures": {
+        "Ribbon": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "Shader": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "Skybox": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "SoundEffect": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "Spritesheet": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "Terrain": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
         "vfx_radial": {
-          "type": "object",
-          "additionalProperties": { "type": "string" }
-        },
-        "vfx_spritesheets": {
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
