@@ -242,7 +242,8 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		// 4. FOOTER DETAILS PANEL
 		_footerPanel = new PanelContainer();
-		_footerPanel.CustomMinimumSize = new Vector2(0, 90);
+		_footerPanel.CustomMinimumSize = new Vector2(0, 95);
+		_footerPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		var detailStyle = new StyleBoxFlat
 		{
 			BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f),
@@ -303,13 +304,15 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		footerInfoVBox.AddChild(titleRow);
 
 		_lblSelectedPath = new Label();
-		_lblSelectedPath.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		_lblSelectedPath.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_lblSelectedPath.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_lblSelectedPath.AddThemeFontSizeOverride("font_size", 10);
 		_lblSelectedPath.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		footerInfoVBox.AddChild(_lblSelectedPath);
 
 		_lblSelectedDetails = new Label();
-		_lblSelectedDetails.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		_lblSelectedDetails.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_lblSelectedDetails.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_lblSelectedDetails.AddThemeFontSizeOverride("font_size", 10);
 		_lblSelectedDetails.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlowDim);
 		footerInfoVBox.AddChild(_lblSelectedDetails);
