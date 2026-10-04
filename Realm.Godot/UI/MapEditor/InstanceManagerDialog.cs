@@ -62,7 +62,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		_objectTree.CustomMinimumSize = new Vector2(0, 420);
 		_objectTree.HideRoot = true;
 		_objectTree.Columns = 2;
-		_objectTree.SetColumnTitle(0, TranslationServer.Translate("Object / Asset"));
+		_objectTree.SetColumnTitle(0, TranslationServer.Translate("Instance"));
 		_objectTree.SetColumnTitle(1, TranslationServer.Translate("Position"));
 		_objectTree.SetColumnExpand(0, true);
 		_objectTree.SetColumnExpand(1, false);

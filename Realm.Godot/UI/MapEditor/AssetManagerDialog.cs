@@ -87,7 +87,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	};
 
 	public AssetManagerDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Map Asset Manager"), new Vector2(860, 720))
+		: base(hud, TranslationServer.Translate("Asset Manager"), new Vector2(860, 720))
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 34, 40, 60, 60);
 

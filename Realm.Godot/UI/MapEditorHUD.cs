@@ -802,7 +802,7 @@ public partial class MapEditorHUD : Control
 
 		_btnTemplateManager = new Button();
 		_btnTemplateManager.Name = "BtnTemplateManager";
-		SetupOptionButton(_btnTemplateManager, "\uf1b3 TYPES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
+		SetupOptionButton(_btnTemplateManager, "\uf1b3 TEMPLATES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
 		_contentFile.AddChild(_btnTemplateManager);
 
 		_btnInstanceManager = new Button();

@@ -46,7 +46,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private string _currentPreviewTemplateID = "";
 
 	public TemplateManagerDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Map Templates Manager"), new Vector2(720, 780))
+		: base(hud, TranslationServer.Translate("Templates Manager"), new Vector2(720, 780))
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 34, 40, 60, 60);
 
