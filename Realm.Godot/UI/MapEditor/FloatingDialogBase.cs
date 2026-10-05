@@ -262,9 +262,11 @@ public partial class FloatingDialogBase : PanelContainer
 		_openDialogs.Add(this);
 
 		Vector2 parentSize = Hud != null ? Hud.GetViewportRect().Size : GetViewportRect().Size;
+		float dialogWidth = Mathf.Max(Size.X, CustomMinimumSize.X);
+		float dialogHeight = Mathf.Max(Size.Y, CustomMinimumSize.Y);
 		Position = new Vector2(
-			Mathf.Max(20, (parentSize.X - CustomMinimumSize.X) * 0.5f),
-			Mathf.Max(20, (parentSize.Y - CustomMinimumSize.Y) * 0.4f)
+			Mathf.Max(20, (parentSize.X - dialogWidth) * 0.5f),
+			Mathf.Max(20, (parentSize.Y - dialogHeight) * 0.4f)
 		);
 	}
 

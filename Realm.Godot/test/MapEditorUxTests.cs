@@ -170,7 +170,7 @@ public class MapEditorUxTests
 		var hud = MapEditorHUD.Instance;
 		Assertions.AssertThat(hud).IsNotNull();
 
-		var btnTestMap = hud!.GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnTestMap");
+		var btnTestMap = hud!.GetNode<Button>("TopLeftBox/BtnTestMap");
 		Assertions.AssertThat(btnTestMap).IsNotNull();
 		
 		// Trigger TestMapAction on blank map

@@ -1,4 +1,4 @@
-﻿[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://UI/MapEditorHUD.cs" id="1_script"]
 [ext_resource type="Script" path="res://UI/MapEditor/MapEditorCameraIndicator.cs" id="2_camera_indicator"]
@@ -89,6 +89,12 @@ focus_mode = 0
 custom_minimum_size = Vector2(36, 32)
 layout_mode = 2
 focus_mode = 0
+
+[node name="BtnTestMap" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "🎮 TEST"
 
 [node name="TopBar" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(500, 60)
@@ -191,11 +197,6 @@ text = "📂 LOAD"
 layout_mode = 2
 focus_mode = 0
 text = "💾 SAVE"
-
-[node name="BtnTestMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
-layout_mode = 2
-focus_mode = 0
-text = "🎮 TEST"
 
 [node name="BtnExportMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2

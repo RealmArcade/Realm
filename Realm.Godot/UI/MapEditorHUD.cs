@@ -88,7 +88,7 @@ public partial class MapEditorHUD : Control
 	private bool _rightPanelExpanded = true;
 
 	private OptionButton _optModule;
-	private Button _btnSettings;
+	private Button _btnGameSettings;
 	private EditorModule _activeModule = EditorModule.Terrain;
 
 	private VBoxContainer _accordionBrush;
@@ -639,7 +639,7 @@ public partial class MapEditorHUD : Control
 		UpdateMapNameHeader();
 
 		var btnHelp = GetNode<Button>("TopLeftBox/BtnHelp");
-		SetupButton(btnHelp, "\uf059 HELP / HOTKEYS", () => ToggleHelpPanelExternal(), 13, "Toggle the hotkeys and editor guide overlay (H)");
+		SetupButton(btnHelp, "\uf059 HELP", () => ToggleHelpPanelExternal(), 13, "Toggle the hotkeys and editor guide overlay (H)");
 		StyleMapEditorTopButton(btnHelp);
 
 		if (OperatingSystem.IsWindows())
@@ -693,27 +693,44 @@ public partial class MapEditorHUD : Control
 		_optModule.ItemSelected += (index) => SwitchModule((EditorModule)index);
 		StyleMapEditorTopButton(_optModule);
 
-		_btnSettings = GetNodeOrNull<Button>("TopLeftBox/BtnSettings");
-		if (_btnSettings != null)
+		_btnGameSettings = GetNodeOrNull<Button>("TopLeftBox/BtnSettings");
+		if (_btnGameSettings != null)
 		{
-			SetupIconButton(_btnSettings, "res://Assets/UI/gear_icon.png", () =>
+			SetupIconButton(_btnGameSettings, "res://Assets/UI/gear_icon.png", () =>
 			{
 				UIManager.Instance?.OpenSettingsOverlay();
-			}, "Editor Settings");
-			StyleMapEditorTopButton(_btnSettings);
+			}, "Game Settings");
+			StyleMapEditorTopButton(_btnGameSettings);
 		}
 
-		var topLeftBox = GetNodeOrNull<HBoxContainer>("TopLeftBox");
-		if (topLeftBox != null)
+		_btnTestMap = GetNodeOrNull<Button>("TopLeftBox/BtnTestMap");
+		if (_btnTestMap == null)
 		{
+			_btnTestMap = new Button();
+			_btnTestMap.Name = "BtnTestMap";
+			if (_topLeftBox != null)
+			{
+				_topLeftBox.AddChild(_btnTestMap);
+			}
+		}
+		SetupButton(_btnTestMap, "\uf11b TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
+		StyleMapEditorTopButton(_btnTestMap);
+
+		if (_topLeftBox != null)
+		{
+			if (_btnTestMap != null && _btnGameSettings != null)
+			{
+				_topLeftBox.MoveChild(_btnTestMap, _btnGameSettings.GetIndex() + 1);
+			}
+
 			_btnResetLayout = new Button();
 			_btnResetLayout.Name = "BtnResetLayout";
 			SetupButton(_btnResetLayout, "\uf08d RESET LAYOUT", () => ResetAllPanelPositions(), 12, "Reset all floating panels back to default sidebar positions");
 			StyleMapEditorTopButton(_btnResetLayout);
-			topLeftBox.AddChild(_btnResetLayout);
-			if (_btnSettings != null)
+			_topLeftBox.AddChild(_btnResetLayout);
+			if (_btnGameSettings != null)
 			{
-				topLeftBox.MoveChild(_btnResetLayout, _btnSettings.GetIndex());
+				_topLeftBox.MoveChild(_btnResetLayout, _btnGameSettings.GetIndex());
 			}
 		}
 
@@ -754,10 +771,7 @@ public partial class MapEditorHUD : Control
 		_btnSaveAs = new Button();
 		_btnSaveAs.Name = "BtnSaveAs";
 		_btnSaveAs.Set("icon_max_width", 0);
-		SetupOptionButton(_btnSaveAs, "\uf0c7 SAVE AS", () => SaveAsMapAction(), 11, "Save map to a new folder location");
-
-		_btnTestMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnTestMap");
-		SetupOptionButton(_btnTestMap, "\uf11b TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
+		SetupOptionButton(_btnSaveAs, "\uf0c7 SAVE AS", () => SaveAsMapAction(), 13, "Save map to a new folder location");
 
 		_btnPublish = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnPublish");
 		SetupOptionButton(_btnPublish, "\uf093 PUBLISH", () => PublishMapActionExternal(), 13, "Publish/export map to custom map registry");
@@ -2189,7 +2203,7 @@ public partial class MapEditorHUD : Control
 		SetupCardScrollContainer(_contentPlacement, 320f);
 		SetupCardScrollContainer(_contentInspector, 300f);
 
-		foreach (var btn in new[] { _btnLoad, _btnSave, _btnSaveAs, _btnSaveMore })
+		foreach (var btn in new[] { _btnLoad, _btnSave, _btnSaveMore })
 		{
 			if (btn == null) continue;
 			StyleRowButton(btn);
@@ -2207,6 +2221,7 @@ public partial class MapEditorHUD : Control
 			}
 		}
 		StyleRowButton(_btnTestMap);
+		StyleRowButton(_btnSaveAs);
 		StyleRowButton(_btnPublish);
 		StyleRowButton(_btnExportMap);
 		StyleRowButton(_btnResetMap);
@@ -2214,6 +2229,7 @@ public partial class MapEditorHUD : Control
 		StyleRowButton(_btnImportMinimap);
 		StyleRowButton(_btnRandomGen);
 		StyleRowButton(_btnEditorSettings);
+		if (_btnEditorSettings != null) _btnEditorSettings.Alignment = HorizontalAlignment.Center;
 
 		StyleRowButton(_btnRaise);
 		StyleRowButton(_btnLower);
@@ -8279,14 +8295,6 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_btnSaveMore, saveGroupRow);
 			saveLoadRow.AddChild(saveGroupRow);
 
-			var fileGrid1 = new GridContainer();
-			fileGrid1.Columns = 2;
-			fileGrid1.AddThemeConstantOverride("h_separation", 6);
-			fileGrid1.AddThemeConstantOverride("v_separation", 6);
-			fileGrid1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-
-			SafeReparent(_btnTestMap, fileGrid1);
-
 			var fileGrid2 = new GridContainer();
 			fileGrid2.Columns = 2;
 			fileGrid2.AddThemeConstantOverride("h_separation", 6);
@@ -8300,7 +8308,6 @@ public partial class MapEditorHUD : Control
 			fileBox1.Name = "BoxFileOps";
 			fileBox1.AddThemeConstantOverride("separation", 6);
 			fileBox1.AddChild(saveLoadRow);
-			fileBox1.AddChild(fileGrid1);
 			StyleSubContainer(fileBox1, "File Operations");
 
 			var fileBox2 = new VBoxContainer();
