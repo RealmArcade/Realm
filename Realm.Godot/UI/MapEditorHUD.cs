@@ -263,7 +263,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnWaterProfiles;
 	private WaterProfileDialog _waterProfileDialog;
 	private EnvironmentConfigDialog _environmentConfigDialog;
-	private GlobalObjectOverridesDialog _globalOverridesDialog;
+	private EntityVisualEditDialog _entityVisualEditDialog;
 	private AnimationPreviewDialog _animationPreviewDialog;
 	private WeaponVfxDialog _weaponVfxDialog;
 	private ModelPickerDialog _modelPickerDialog;
@@ -10334,7 +10334,7 @@ public partial class MapEditorHUD : Control
 		_rigStatusContainer.AddChild(_lblRigStatus);
 		inspectorVBox.AddChild(_rigStatusContainer);
 
-		_globalOverridesDialog = new GlobalObjectOverridesDialog(this);
+		_entityVisualEditDialog = new EntityVisualEditDialog(this);
 		_animationPreviewDialog = new AnimationPreviewDialog(this);
 		_weaponVfxDialog = new WeaponVfxDialog(this);
 		_modelPickerDialog = new ModelPickerDialog(this);
@@ -10376,7 +10376,7 @@ public partial class MapEditorHUD : Control
 		_btnOpenGlobalOverrides = new Button();
 		_btnOpenGlobalOverrides.Name = "BtnOpenGlobalOverrides";
 		_btnOpenGlobalOverrides.Set("icon_max_width", 0);
-		_btnOpenGlobalOverrides.Text = "✏️ " + TranslationServer.Translate("Global Overrides");
+		_btnOpenGlobalOverrides.Text = "✏️ " + TranslationServer.Translate("Edit Template");
 		_btnOpenGlobalOverrides.AddThemeFontSizeOverride("font_size", 11);
 		_btnOpenGlobalOverrides.FocusMode = Control.FocusModeEnum.None;
 		_btnOpenGlobalOverrides.CustomMinimumSize = new Vector2(0, 28);
@@ -10385,7 +10385,7 @@ public partial class MapEditorHUD : Control
 		{
 			if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance.SelectedEditorObject))
 			{
-				_globalOverridesDialog?.OpenForObject(GameHost.Instance.SelectedEditorObject);
+				_entityVisualEditDialog?.OpenForObject(GameHost.Instance.SelectedEditorObject);
 			}
 		};
 		inspectorVBox.AddChild(_btnOpenGlobalOverrides);
