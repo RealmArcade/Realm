@@ -4008,7 +4008,7 @@ public partial class MapEditorHUD : Control
 
 	private void CheckPostLaunchPrompts()
 	{
-		if (AssetIndexService.Instance.IsIndexVersionMismatch())
+		if (AssetIndexService.Instance.IsIndexVersionMismatch() || AssetIndexService.Instance.HasIncorrectlyIndexedSample())
 		{
 			_ = ShowAssetIndexRepairModalAsync(() =>
 			{

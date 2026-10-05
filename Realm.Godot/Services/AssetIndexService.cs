@@ -159,6 +159,113 @@ public class AssetIndexService : IDisposable
 		return !string.Equals(currentIndexVersion, Realm.Shared.RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
 	}
 
+	public bool HasIncorrectlyIndexedSample()
+	{
+		lock (_syncLock)
+		{
+			try
+			{
+				var categories = _assetCollection.Find(Query.Not("AssetType", BsonValue.Null))
+					.Select(a => a.AssetType)
+					.Where(t => !string.IsNullOrEmpty(t))
+					.Distinct(StringComparer.OrdinalIgnoreCase)
+					.ToList();
+
+				if (categories.Count == 0)
+				{
+					return false;
+				}
+
+				foreach (var category in categories)
+				{
+					if (string.IsNullOrEmpty(category))
+					{
+						continue;
+					}
+
+					var matchingAssets = _assetCollection.Find(Query.EQ("AssetType", category)).ToList();
+					if (matchingAssets.Count == 0)
+					{
+						continue;
+					}
+
+					var sampledAsset = matchingAssets[Random.Shared.Next(matchingAssets.Count)];
+					if (string.IsNullOrEmpty(sampledAsset.FilePath) || !File.Exists(sampledAsset.FilePath))
+					{
+						return true;
+					}
+
+					var fileInfo = new FileInfo(sampledAsset.FilePath);
+					if (fileInfo.Length != sampledAsset.FileSizeBytes)
+					{
+						return true;
+					}
+
+					string diskExtension = Path.GetExtension(sampledAsset.FilePath).ToLowerInvariant();
+					if (!string.Equals(diskExtension, sampledAsset.Extension, StringComparison.OrdinalIgnoreCase))
+					{
+						return true;
+					}
+
+					string? diskMetadataJson = RealmMetadataHelper.ExtractMetadata(sampledAsset.FilePath);
+					bool diskHasMetadata = !string.IsNullOrEmpty(diskMetadataJson);
+
+					if (diskHasMetadata != sampledAsset.HasRealmMetadata)
+					{
+						return true;
+					}
+
+					string? diskAssetType = RealmMetadataHelper.ExtractAssetType(sampledAsset.FilePath);
+					if (!string.IsNullOrEmpty(diskAssetType))
+					{
+						if (!string.Equals(diskAssetType, sampledAsset.AssetType, StringComparison.OrdinalIgnoreCase))
+						{
+							return true;
+						}
+					}
+					else
+					{
+						if (!RealmMetadataHelper.IsValidAssetTypeForExtension(sampledAsset.FilePath, sampledAsset.AssetType, out string canonicalType, out _))
+						{
+							return true;
+						}
+						if (!string.Equals(canonicalType, sampledAsset.AssetType, StringComparison.OrdinalIgnoreCase))
+						{
+							return true;
+						}
+					}
+
+					if (!string.IsNullOrEmpty(sampledAsset.Blake3) && diskHasMetadata)
+					{
+						try
+						{
+							var node = JsonNode.Parse(diskMetadataJson!);
+							if (node is JsonObject obj && obj.ContainsKey("blake3"))
+							{
+								string? metaBlake3 = obj["blake3"]?.ToString();
+								if (!string.IsNullOrEmpty(metaBlake3) && !string.Equals(metaBlake3, sampledAsset.Blake3, StringComparison.OrdinalIgnoreCase))
+								{
+									return true;
+								}
+							}
+						}
+						catch
+						{
+							return true;
+						}
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[AssetIndexService] Error verifying asset index sample integrity: {ex.Message}");
+				return true;
+			}
+
+			return false;
+		}
+	}
+
 	public void RebuildIndexFromCas(IProgress<AssetIndexProgressUpdate>? progress = null)
 	{
 		lock (_syncLock)
