@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -320,6 +320,8 @@ public partial class MapEditorHUD : Control
 	private Button _btnGenerateMap;
 	private Button _btnRandomGen;
 	private PopupPanel _popupRandomGen;
+	private Button _btnSaveMore;
+	private PopupPanel _popupSaveMore;
 	private Button _btnImportMinimap;
 	private Button _btnEyedropper;
 	private OptionButton _optEyedropperMode;
@@ -753,8 +755,6 @@ public partial class MapEditorHUD : Control
 		_btnSaveAs.Name = "BtnSaveAs";
 		_btnSaveAs.Set("icon_max_width", 0);
 		SetupOptionButton(_btnSaveAs, "\uf0c7 SAVE AS", () => SaveAsMapAction(), 11, "Save map to a new folder location");
-		_contentFile.AddChild(_btnSaveAs);
-		_contentFile.MoveChild(_btnSaveAs, _btnSave.GetIndex() + 1);
 
 		_btnTestMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnTestMap");
 		SetupOptionButton(_btnTestMap, "\uf11b TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
@@ -768,18 +768,38 @@ public partial class MapEditorHUD : Control
 			_btnExportMap = new Button();
 			_btnExportMap.Name = "BtnExportMap";
 			_btnExportMap.Set("icon_max_width", 0);
-			int insertIndex = _contentFile.GetChildren().IndexOf(_btnTestMap);
-			if (insertIndex >= 0)
-			{
-				_contentFile.AddChild(_btnExportMap);
-				_contentFile.MoveChild(_btnExportMap, insertIndex + 1);
-			}
-			else
-			{
-				_contentFile.AddChild(_btnExportMap);
-			}
 		}
 		SetupOptionButton(_btnExportMap, "\uf56e EXPORT (.RMAP)", () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
+
+		_popupSaveMore = new PopupPanel();
+		_popupSaveMore.Name = "PopupSaveMore";
+		var saveMorePopupStyle = new StyleBoxFlat();
+		saveMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+		saveMorePopupStyle.BorderColor = UIStyle.ColorGold;
+		saveMorePopupStyle.SetBorderWidthAll(1);
+		saveMorePopupStyle.SetCornerRadiusAll(4);
+		saveMorePopupStyle.SetContentMarginAll(10);
+		_popupSaveMore.AddThemeStyleboxOverride("panel", saveMorePopupStyle);
+		var saveMoreVBox = new VBoxContainer();
+		saveMoreVBox.AddThemeConstantOverride("separation", 6);
+		saveMoreVBox.CustomMinimumSize = new Vector2(170, 0);
+		_popupSaveMore.AddChild(saveMoreVBox);
+		AddChild(_popupSaveMore);
+		SafeReparent(_btnSaveAs, saveMoreVBox);
+		SafeReparent(_btnExportMap, saveMoreVBox);
+		SafeReparent(_btnPublish, saveMoreVBox);
+		_btnSaveAs.Pressed += () => _popupSaveMore.Hide();
+		_btnExportMap.Pressed += () => _popupSaveMore.Hide();
+		_btnPublish.Pressed += () => _popupSaveMore.Hide();
+
+		_btnSaveMore = new Button();
+		_btnSaveMore.Name = "BtnSaveMore";
+		_btnSaveMore.Set("icon_max_width", 0);
+		SetupOptionButton(_btnSaveMore, "\uf078", () =>
+		{
+			var popupPosition = _btnSaveMore.GetScreenPosition() + new Vector2(0, _btnSaveMore.Size.Y);
+			_popupSaveMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+		}, 10, "More save & export options (Save As, Export, Publish)");
 
 		_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnResetMap");
 		SetupOptionButton(_btnResetMap, "\uf12d RESET MAP", () =>
@@ -2169,8 +2189,9 @@ public partial class MapEditorHUD : Control
 		SetupCardScrollContainer(_contentPlacement, 320f);
 		SetupCardScrollContainer(_contentInspector, 300f);
 
-		foreach (var btn in new[] { _btnLoad, _btnSave, _btnSaveAs })
+		foreach (var btn in new[] { _btnLoad, _btnSave, _btnSaveAs, _btnSaveMore })
 		{
+			if (btn == null) continue;
 			StyleRowButton(btn);
 			btn.AddThemeFontSizeOverride("font_size", 11);
 			btn.Alignment = HorizontalAlignment.Center;
@@ -8241,15 +8262,22 @@ public partial class MapEditorHUD : Control
 			_btnLoad.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 			_btnLoad.SizeFlagsStretchRatio = 1.0f;
 
+			var saveGroupRow = new HBoxContainer();
+			saveGroupRow.Name = "RowSaveGroup";
+			saveGroupRow.AddThemeConstantOverride("separation", 0);
+			saveGroupRow.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			saveGroupRow.SizeFlagsStretchRatio = 1.0f;
+
 			_btnSave.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 			_btnSave.SizeFlagsStretchRatio = 1.0f;
 
-			_btnSaveAs.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			_btnSaveAs.SizeFlagsStretchRatio = 1.0f;
+			_btnSaveMore.CustomMinimumSize = new Vector2(24, 30);
+			_btnSaveMore.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
 
 			SafeReparent(_btnLoad, saveLoadRow);
-			SafeReparent(_btnSave, saveLoadRow);
-			SafeReparent(_btnSaveAs, saveLoadRow);
+			SafeReparent(_btnSave, saveGroupRow);
+			SafeReparent(_btnSaveMore, saveGroupRow);
+			saveLoadRow.AddChild(saveGroupRow);
 
 			var fileGrid1 = new GridContainer();
 			fileGrid1.Columns = 2;
@@ -8258,8 +8286,6 @@ public partial class MapEditorHUD : Control
 			fileGrid1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 			SafeReparent(_btnTestMap, fileGrid1);
-			SafeReparent(_btnExportMap, fileGrid1);
-			SafeReparent(_btnPublish, fileGrid1);
 
 			var fileGrid2 = new GridContainer();
 			fileGrid2.Columns = 2;
