@@ -534,245 +534,26 @@ public class AssetIndexService : IDisposable
 		if (manifest == null) return indexedPaths;
 		string mapName = !string.IsNullOrWhiteSpace(manifest.MapName) ? manifest.MapName.Trim() : Path.GetFileNameWithoutExtension(manifestPath).Replace("_manifest", "");
 		string mapVersion = !string.IsNullOrWhiteSpace(manifest.Version) ? manifest.Version.Trim() : "1.0.0";
-		int manifestFileCount = manifest.Files?.Count ?? 0;
 
-		var manifestFileInfo = new FileInfo(manifestPath);
-		DateTime manifestLastWrite = manifestFileInfo.Exists ? manifestFileInfo.LastWriteTimeUtc : DateTime.UtcNow;
+		var database = isP2P ? GetP2PDatabase() : _database;
+		var mapPackageCollection = isP2P ? database.GetCollection<IndexedMapPackage>("map_packages") : _mapPackageCollection;
+		var assetCollection = isP2P ? database.GetCollection<IndexedAsset>("assets") : _assetCollection;
+		var storage = isP2P ? MapAssetManager.P2PStorage : MapAssetManager.Storage;
+		string storageDirectory = isP2P ? MapAssetManager.P2PArchiveDirectory : GlobalCasAssetsDirectory;
 
-		if (isP2P)
-		{
-			var p2pDb = GetP2PDatabase();
-			var p2pMapCol = p2pDb.GetCollection<IndexedMapPackage>("map_packages");
-			var p2pAssetCol = p2pDb.GetCollection<IndexedAsset>("assets");
-
-			var package = p2pMapCol.FindOne(p => p.MapName == mapName && p.MapVersion == mapVersion);
-			package ??= new IndexedMapPackage();
-			package.MapName = mapName;
-			package.MapVersion = mapVersion;
-			package.ManifestPath = manifestPath;
-			package.DownloadedUtc = DateTime.UtcNow;
-			package.IsP2P = true;
-			package.AssetHashes = manifest.Files != null ? manifest.Files.Values.ToList() : new List<string>();
-			p2pMapCol.Upsert(package);
-
-			if (manifest.Files != null)
-			{
-				var existingP2pMap = p2pAssetCol.Find(Query.EQ("DirectoryPath", MapAssetManager.P2PArchiveDirectory))
-					.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
-				var processedP2pPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-				var p2pToUpdate = new List<IndexedAsset>();
-				var p2pToInsert = new List<IndexedAsset>();
-
-				foreach (var kvp in manifest.Files)
-				{
-					string virtualPath = kvp.Key;
-					string hash = kvp.Value;
-					string norm = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(hash);
-					string? casPath = MapAssetManager.P2PStorage.FindAssetFilePath(norm);
-					if (casPath == null || !File.Exists(casPath))
-					{
-						continue;
-					}
-
-					string normPath = NormalizePath(casPath);
-					indexedPaths.Add(normPath);
-
-					if (!processedP2pPaths.Add(normPath))
-					{
-						continue;
-					}
-
-					if (existingP2pMap.TryGetValue(normPath, out var existingP2pAsset))
-					{
-						bool needsUpdate = false;
-						string? metaJson = MapAssetManager.P2PStorage.GetAssetMetadata(norm);
-						if (string.IsNullOrEmpty(metaJson))
-						{
-							metaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
-						}
-						var parsed = ParseMetadataHeaders(metaJson, virtualPath);
-						string? assetType = parsed.AssetType;
-						if (string.IsNullOrEmpty(assetType))
-						{
-							string? dir = Path.GetDirectoryName(virtualPath);
-							if (!string.IsNullOrEmpty(dir))
-							{
-								string[] dirParts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-								foreach (var part in dirParts.Reverse())
-								{
-									if (Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, part, out string canonical, out _))
-									{
-										assetType = canonical;
-										break;
-									}
-								}
-							}
-						}
-						if (!string.IsNullOrEmpty(assetType) && existingP2pAsset.AssetType != assetType)
-						{
-							existingP2pAsset.AssetType = assetType;
-							existingP2pAsset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || existingP2pAsset.HasRealmMetadata;
-							needsUpdate = true;
-						}
-						bool existingP2pHasMask = parsed.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
-						string resolvedP2pChroma = parsed.ChromaKey ?? string.Empty;
-						if (existingP2pAsset.HasPlayerColorMask != existingP2pHasMask || existingP2pAsset.ChromaKey != resolvedP2pChroma)
-						{
-							existingP2pAsset.HasPlayerColorMask = existingP2pHasMask;
-							existingP2pAsset.ChromaKey = resolvedP2pChroma;
-							needsUpdate = true;
-						}
-						if (string.IsNullOrEmpty(existingP2pAsset.MapName) || existingP2pAsset.MapName != mapName)
-						{
-							existingP2pAsset.MapName = mapName;
-							needsUpdate = true;
-						}
-						if (string.IsNullOrEmpty(existingP2pAsset.MapVersion) || existingP2pAsset.MapVersion != mapVersion)
-						{
-							existingP2pAsset.MapVersion = mapVersion;
-							needsUpdate = true;
-						}
-						if (needsUpdate)
-						{
-							p2pToUpdate.Add(existingP2pAsset);
-						}
-
-						var fiExisting = new FileInfo(normPath);
-						string extExisting = existingP2pAsset.Extension;
-						if (extExisting == ".rmesh")
-						{
-							if (!GlbThumbnailRenderer.HasDiskCache(normPath, norm))
-							{
-								GlbThumbnailRenderer.EnqueueRequest(normPath, fiExisting.LastWriteTimeUtc, norm, isHighPriority: false);
-							}
-						}
-						continue;
-					}
-
-					var fi = new FileInfo(normPath);
-					var asset = new IndexedAsset();
-					asset.FilePath = normPath;
-					asset.FileName = Path.GetFileName(virtualPath);
-					asset.Extension = !string.IsNullOrEmpty(Path.GetExtension(virtualPath)) ? Path.GetExtension(virtualPath).ToLowerInvariant() : Path.GetExtension(normPath).ToLowerInvariant();
-					asset.DirectoryPath = MapAssetManager.P2PArchiveDirectory;
-					asset.FileSizeBytes = fi.Length;
-					asset.LastModifiedUtc = fi.LastWriteTimeUtc;
-					asset.MapName = mapName;
-					asset.MapVersion = mapVersion;
-					asset.Blake3 = norm;
-
-					string? p2pMetaJson = MapAssetManager.P2PStorage.GetAssetMetadata(norm);
-					if (string.IsNullOrEmpty(p2pMetaJson))
-					{
-						p2pMetaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
-					}
-
-					var parsedMeta = ParseMetadataHeaders(p2pMetaJson, virtualPath);
-					var tags = parsedMeta.Tags;
-					string? p2pAssetType = parsedMeta.AssetType;
-					bool hasRealmMetadata = !string.IsNullOrEmpty(p2pMetaJson);
-
-					if (tags.Count == 0)
-					{
-						tags = LoadTagsForFile(normPath, MapAssetManager.P2PArchiveDirectory, tags);
-					}
-					string preferredNameNoExt = Path.GetFileNameWithoutExtension(asset.FileName);
-					var nameTokens = preferredNameNoExt.Split(new[] { '_', '-', ' ', '.', '@' }, StringSplitOptions.RemoveEmptyEntries);
-					foreach (var token in nameTokens)
-					{
-						if (token.Length > 1 && !char.IsDigit(token[0]) && !tags.Contains(token, StringComparer.OrdinalIgnoreCase))
-						{
-							tags.Add(token.ToLowerInvariant());
-						}
-					}
-					if (manifest.Tags != null)
-					{
-						foreach (var tag in manifest.Tags)
-						{
-							if (!string.IsNullOrWhiteSpace(tag) && !tags.Contains(tag.Trim(), StringComparer.OrdinalIgnoreCase))
-							{
-								tags.Add(tag.Trim().ToLowerInvariant());
-							}
-						}
-					}
-					asset.Tags = tags;
-					asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = tags });
-
-					if (string.IsNullOrEmpty(p2pAssetType))
-					{
-						string? dir = Path.GetDirectoryName(virtualPath);
-						if (!string.IsNullOrEmpty(dir))
-						{
-							string[] dirParts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-							foreach (var part in dirParts.Reverse())
-							{
-								if (Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, part, out string canonical, out _))
-								{
-									p2pAssetType = canonical;
-									break;
-								}
-							}
-						}
-					}
-					if (string.IsNullOrEmpty(p2pAssetType) && tags != null)
-					{
-						foreach (var tag in tags)
-						{
-							if (Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, tag, out string canonical, out _))
-							{
-								p2pAssetType = canonical;
-								break;
-							}
-						}
-					}
-
-					bool p2pHasMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(p2pMetaJson, normPath);
-					asset.HasPlayerColorMask = p2pHasMask;
-					asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
-
-					asset.AssetType = p2pAssetType;
-					asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(p2pAssetType);
-
-					p2pToInsert.Add(asset);
-					existingP2pMap[normPath] = asset;
-
-					string extNew = asset.Extension;
-					if (extNew == ".rmesh")
-					{
-						if (!GlbThumbnailRenderer.HasDiskCache(normPath, norm))
-						{
-							GlbThumbnailRenderer.EnqueueRequest(normPath, fi.LastWriteTimeUtc, norm, isHighPriority: false);
-						}
-					}
-				}
-
-				if (p2pToUpdate.Count > 0)
-				{
-					p2pAssetCol.Update(p2pToUpdate);
-				}
-				if (p2pToInsert.Count > 0)
-				{
-					p2pAssetCol.Insert(p2pToInsert);
-				}
-			}
-
-			p2pDb.Checkpoint();
-			return indexedPaths;
-		}
-
-		var pkg = _mapPackageCollection.FindOne(p => p.MapName == mapName && p.MapVersion == mapVersion);
+		var pkg = mapPackageCollection.FindOne(p => p.MapName == mapName && p.MapVersion == mapVersion);
 		pkg ??= new IndexedMapPackage();
 		pkg.MapName = mapName;
 		pkg.MapVersion = mapVersion;
 		pkg.ManifestPath = manifestPath;
 		pkg.DownloadedUtc = DateTime.UtcNow;
-		pkg.IsP2P = false;
+		pkg.IsP2P = isP2P;
 		pkg.AssetHashes = manifest.Files != null ? manifest.Files.Values.ToList() : new List<string>();
-		_mapPackageCollection.Upsert(pkg);
+		mapPackageCollection.Upsert(pkg);
 
 		if (manifest.Files != null)
 		{
-			var existingAssetMap = _assetCollection.Find(Query.EQ("DirectoryPath", GlobalCasAssetsDirectory))
+			var existingAssetMap = assetCollection.Find(Query.EQ("DirectoryPath", storageDirectory))
 				.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
 			var processedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			var assetsToUpdate = new List<IndexedAsset>();
@@ -783,7 +564,7 @@ public class AssetIndexService : IDisposable
 				string virtualPath = kvp.Key;
 				string hash = kvp.Value;
 				string norm = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(hash);
-				string? casPath = MapAssetManager.Storage.FindAssetFilePath(norm);
+				string? casPath = storage.FindAssetFilePath(norm);
 				if (casPath == null || !File.Exists(casPath))
 				{
 					continue;
@@ -800,7 +581,7 @@ public class AssetIndexService : IDisposable
 				if (existingAssetMap.TryGetValue(normPath, out var existingAsset))
 				{
 					bool needsUpdate = false;
-					string? existingMetaJson = MapAssetManager.Storage.GetAssetMetadata(norm);
+					string? existingMetaJson = storage.GetAssetMetadata(norm);
 					if (string.IsNullOrEmpty(existingMetaJson))
 					{
 						existingMetaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
@@ -829,12 +610,12 @@ public class AssetIndexService : IDisposable
 						existingAsset.HasRealmMetadata = !string.IsNullOrEmpty(existingMetaJson) || existingAsset.HasRealmMetadata;
 						needsUpdate = true;
 					}
-					bool existingCasHasMask = parsed.SupportsTeamColor ?? DetermineHasPlayerColorMask(existingMetaJson, normPath);
-					string resolvedCasChroma = parsed.ChromaKey ?? string.Empty;
-					if (existingAsset.HasPlayerColorMask != existingCasHasMask || existingAsset.ChromaKey != resolvedCasChroma)
+					bool existingHasMask = parsed.SupportsTeamColor ?? DetermineHasPlayerColorMask(existingMetaJson, normPath);
+					string resolvedChroma = parsed.ChromaKey ?? string.Empty;
+					if (existingAsset.HasPlayerColorMask != existingHasMask || existingAsset.ChromaKey != resolvedChroma)
 					{
-						existingAsset.HasPlayerColorMask = existingCasHasMask;
-						existingAsset.ChromaKey = resolvedCasChroma;
+						existingAsset.HasPlayerColorMask = existingHasMask;
+						existingAsset.ChromaKey = resolvedChroma;
 						needsUpdate = true;
 					}
 					if (string.IsNullOrEmpty(existingAsset.MapName) || existingAsset.MapName != mapName)
@@ -852,14 +633,9 @@ public class AssetIndexService : IDisposable
 						assetsToUpdate.Add(existingAsset);
 					}
 
-					var fiExisting = new FileInfo(normPath);
-					string extExisting = existingAsset.Extension;
-					if (extExisting == ".rmesh")
+					if (existingAsset.Extension == ".rmesh" && !GlbThumbnailRenderer.HasDiskCache(normPath, norm))
 					{
-						if (!GlbThumbnailRenderer.HasDiskCache(normPath, norm))
-						{
-							GlbThumbnailRenderer.EnqueueRequest(normPath, fiExisting.LastWriteTimeUtc, norm, isHighPriority: false);
-						}
+						GlbThumbnailRenderer.EnqueueRequest(normPath, new FileInfo(normPath).LastWriteTimeUtc, norm, isHighPriority: false);
 					}
 					continue;
 				}
@@ -869,14 +645,14 @@ public class AssetIndexService : IDisposable
 				asset.FilePath = normPath;
 				asset.FileName = Path.GetFileName(virtualPath);
 				asset.Extension = !string.IsNullOrEmpty(Path.GetExtension(virtualPath)) ? Path.GetExtension(virtualPath).ToLowerInvariant() : Path.GetExtension(normPath).ToLowerInvariant();
-				asset.DirectoryPath = GlobalCasAssetsDirectory;
+				asset.DirectoryPath = storageDirectory;
 				asset.FileSizeBytes = fi.Length;
 				asset.LastModifiedUtc = fi.LastWriteTimeUtc;
 				asset.MapName = mapName;
 				asset.MapVersion = mapVersion;
 				asset.Blake3 = norm;
 
-				string? metaJson = MapAssetManager.Storage.GetAssetMetadata(norm);
+				string? metaJson = storage.GetAssetMetadata(norm);
 				if (string.IsNullOrEmpty(metaJson))
 				{
 					metaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(normPath);
@@ -889,7 +665,7 @@ public class AssetIndexService : IDisposable
 
 				if (tags.Count == 0)
 				{
-					tags = LoadTagsForFile(normPath, GlobalCasAssetsDirectory, tags);
+					tags = LoadTagsForFile(normPath, storageDirectory, tags);
 				}
 				string preferredNameNoExt = Path.GetFileNameWithoutExtension(asset.FileName);
 				var nameTokens = preferredNameNoExt.Split(new[] { '_', '-', ' ', '.', '@' }, StringSplitOptions.RemoveEmptyEntries);
@@ -929,7 +705,7 @@ public class AssetIndexService : IDisposable
 						}
 					}
 				}
-				if (string.IsNullOrEmpty(assetType) && tags != null)
+				if (string.IsNullOrEmpty(assetType))
 				{
 					foreach (var tag in tags)
 					{
@@ -941,37 +717,31 @@ public class AssetIndexService : IDisposable
 					}
 				}
 
-				bool casHasMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
-				asset.HasPlayerColorMask = casHasMask;
+				asset.HasPlayerColorMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
 				asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
-
 				asset.AssetType = assetType;
 				asset.HasRealmMetadata = hasRealmMetadata || !string.IsNullOrEmpty(assetType);
 
 				assetsToInsert.Add(asset);
 				existingAssetMap[normPath] = asset;
 
-				string extNew = asset.Extension;
-				if (extNew == ".rmesh")
+				if (asset.Extension == ".rmesh" && !GlbThumbnailRenderer.HasDiskCache(normPath, norm))
 				{
-					if (!GlbThumbnailRenderer.HasDiskCache(normPath, norm))
-					{
-						GlbThumbnailRenderer.EnqueueRequest(normPath, fi.LastWriteTimeUtc, norm, isHighPriority: false);
-					}
+					GlbThumbnailRenderer.EnqueueRequest(normPath, fi.LastWriteTimeUtc, norm, isHighPriority: false);
 				}
 			}
 
 			if (assetsToUpdate.Count > 0)
 			{
-				_assetCollection.Update(assetsToUpdate);
+				assetCollection.Update(assetsToUpdate);
 			}
 			if (assetsToInsert.Count > 0)
 			{
-				_assetCollection.Insert(assetsToInsert);
+				assetCollection.Insert(assetsToInsert);
 			}
 		}
 
-		_database.Checkpoint();
+		database.Checkpoint();
 		return indexedPaths;
 	}
 
