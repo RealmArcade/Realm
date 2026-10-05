@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -318,6 +318,8 @@ public partial class MapEditorHUD : Control
 	private Button _btnBrushShape;
 	private Button _btnResetMap;
 	private Button _btnGenerateMap;
+	private Button _btnRandomGen;
+	private PopupPanel _popupRandomGen;
 	private Button _btnImportMinimap;
 	private Button _btnEyedropper;
 	private OptionButton _optEyedropperMode;
@@ -793,6 +795,33 @@ public partial class MapEditorHUD : Control
 
 		_btnImportMinimap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnImportMinimap");
 		SetupOptionButton(_btnImportMinimap, "\uf279 FROM IMAGE", () => ImportTerrainFromMinimapDialog(), 13, "Import terrain elevations, textures, and trees from a minimap image file");
+
+		_popupRandomGen = new PopupPanel();
+		_popupRandomGen.Name = "PopupRandomGen";
+		var randomGenPopupStyle = new StyleBoxFlat();
+		randomGenPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+		randomGenPopupStyle.BorderColor = UIStyle.ColorGold;
+		randomGenPopupStyle.SetBorderWidthAll(1);
+		randomGenPopupStyle.SetCornerRadiusAll(4);
+		randomGenPopupStyle.SetContentMarginAll(10);
+		_popupRandomGen.AddThemeStyleboxOverride("panel", randomGenPopupStyle);
+		var randomGenVBox = new VBoxContainer();
+		randomGenVBox.AddThemeConstantOverride("separation", 6);
+		randomGenVBox.CustomMinimumSize = new Vector2(170, 0);
+		_popupRandomGen.AddChild(randomGenVBox);
+		AddChild(_popupRandomGen);
+		SafeReparent(_btnGenerateMap, randomGenVBox);
+		SafeReparent(_btnImportMinimap, randomGenVBox);
+		_btnGenerateMap.Pressed += () => _popupRandomGen.Hide();
+		_btnImportMinimap.Pressed += () => _popupRandomGen.Hide();
+
+		_btnRandomGen = new Button();
+		_btnRandomGen.Name = "BtnRandomGen";
+		SetupOptionButton(_btnRandomGen, "\uf522 RANDOM GEN", () =>
+		{
+			var popupPosition = _btnRandomGen.GetScreenPosition() + new Vector2(0, _btnRandomGen.Size.Y);
+			_popupRandomGen.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+		}, 13, "Open random map generation options");
 
 		_btnAssetsManager = new Button();
 		_btnAssetsManager.Name = "BtnAssetsManager";
@@ -2162,6 +2191,7 @@ public partial class MapEditorHUD : Control
 		StyleRowButton(_btnResetMap);
 		StyleRowButton(_btnGenerateMap);
 		StyleRowButton(_btnImportMinimap);
+		StyleRowButton(_btnRandomGen);
 		StyleRowButton(_btnEditorSettings);
 
 		StyleRowButton(_btnRaise);
@@ -8237,8 +8267,7 @@ public partial class MapEditorHUD : Control
 			fileGrid2.AddThemeConstantOverride("v_separation", 6);
 			fileGrid2.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
-			SafeReparent(_btnGenerateMap, fileGrid2);
-			SafeReparent(_btnImportMinimap, fileGrid2);
+			SafeReparent(_btnRandomGen, fileGrid2);
 			SafeReparent(_btnResetMap, fileGrid2);
 
 			var fileBox1 = new VBoxContainer();
