@@ -1,3 +1,8 @@
+using Blake3;
+using Realm.Shared.Animation;
+using Realm.Shared.Audio;
+using Realm.Shared.ModelOptimization;
+using Realm.Shared.Textures;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -7,11 +12,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Blake3;
-using Realm.Shared.Animation;
-using Realm.Shared.Audio;
-using Realm.Shared.ModelOptimization;
-using Realm.Shared.Textures;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Realm.Shared.Metadata;
 
@@ -143,16 +144,68 @@ public static class RealmMetadataHelper
 
 	private static readonly Dictionary<string, ReadOnlySet<string>> ValidAssetTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
 	{
-		[".rtex"] = (new [] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" }).Select(GetCanonicalType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
-		[".rmesh"] = (new [] { "Character", "Building", "Prop", "Item" }).Select(GetCanonicalType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
-		[".ranim"] = (new [] { "Animation" }).Select(GetCanonicalType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
-		[".raud"] = (new [] { "Music", "SoundEffect" }).Select(GetCanonicalType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
-		[".gdshader"] = (new [] { "Shader" }).Select(GetCanonicalType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly()
+		[".rtex"] = (new [] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".rmesh"] = (new [] { "Character", "Building", "Prop", "Item" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".ranim"] = (new [] { "Animation" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".raud"] = (new [] { "Music", "SoundEffect" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".gdshader"] = (new [] { "Shader" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly()
 	};
+
+	private static ReadOnlySet<string> ValidAssetTypes = ValidAssetTypesByExtension.Values.SelectMany(x => x).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly();
+
+	public static string NormalizeAssetType(string? assetType)
+	{
+		return (assetType ?? "").Trim().ToLowerInvariant().Replace("_", "");
+	}
 
 	public static string GetCanonicalType(string? assetType)
 	{
-		return (assetType ?? "").Trim().ToLowerInvariant().Replace("_", "");
+		var result = NormalizeAssetType(assetType);
+
+		if (result.EndsWith("s"))
+		{
+			var withoutSuffix = result.Substring(0, result.Length - 1);
+			if (ValidAssetTypes.Any(x => x.Contains(withoutSuffix)))
+			{
+				return withoutSuffix;
+			}
+		}
+
+		if (result == "units")
+		{
+			result = "character";
+		}
+		else if (result == "attachments")
+		{
+			result = "item";
+		}
+		else if (result == "projectiles")
+		{
+			result = "item";
+		}
+		else if (result == "noisetextures")
+		{
+			result = "noise";
+		}
+		else if (result == "sfx")
+		{
+			result = "soundeffect";
+		}
+		else if (result == "skyboxes")
+		{
+			result = "skybox";
+		}
+		else if (result == "textures")
+		{
+			result = "terrain";
+		}
+
+		if (!ValidAssetTypes.Contains(result))
+		{
+			return "";
+		}
+
+		return NormalizeAssetType(result);
 	}
 
 	public static string GetExtension(string extensionOrPath)
@@ -172,39 +225,21 @@ public static class RealmMetadataHelper
 		return (new HashSet<string>()).AsReadOnly();
 	}
 
+	public static string GetDefaultAssetTypeForExtension(string extension)
+	{
+		return GetValidAssetTypesForExtension(extension).FirstOrDefault() ?? "";
+	}
+
 	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out ReadOnlySet<string> validTypes)
 	{
-		string ext = GetExtension(extensionOrPath);
-
-		if (string.IsNullOrWhiteSpace(assetType))
-		{
-			if (ext is ".rtex")
-			{
-				assetType = "Terrain";
-			}
-			else if (ext is ".rmesh")
-			{
-				assetType = "Prop";
-			}
-			else if (ext is ".ranim")
-			{
-				assetType = "Animation";
-			}
-			else if (ext is ".raud")
-			{
-				assetType = "SoundEffect";
-			}
-			else if (ext is ".gdshader")
-			{
-				assetType = "Shader";
-			}
-		}
-
 		canonicalType = GetCanonicalType(assetType);
+
+		string ext = GetExtension(extensionOrPath);
 		validTypes = GetValidAssetTypesForExtension(ext);
+
 		if (!validTypes.Contains(canonicalType))
 		{
-			canonicalType = "";
+			canonicalType = GetDefaultAssetTypeForExtension(ext);
 			return false;
 		}
 
