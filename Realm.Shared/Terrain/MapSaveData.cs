@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
 using System.Text.Json.Serialization;
 using Realm.Shared.Metadata;
+using Realm.Shared.Serialization;
 
 namespace Realm.Shared.Terrain;
 
@@ -126,4 +130,9 @@ public class MapSaveData
 	public float? CameraBoundsBottom { get; set; }
 	public string? SkyboxPath { get; set; }
 	public List<CoordinateSaveData>? Coordinates { get; set; }
+
+	public static string GenerateJsonSchema()
+	{
+		return RealmJsonSchemaExporter.GenerateJsonSchema(typeof(MapSaveData));
+	}
 }

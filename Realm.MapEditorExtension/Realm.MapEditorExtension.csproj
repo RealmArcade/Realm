@@ -6,6 +6,10 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;dist\**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <Target Name="GenerateSchemas" BeforeTargets="NpmBuild;Build;SyncToEmbedded">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/generate-schemas.ps1&quot;" />
+  </Target>
+
   <Target Name="SyncVersion" BeforeTargets="NpmBuild">
     <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/sync-version.ps1&quot;" ContinueOnError="true" />
   </Target>

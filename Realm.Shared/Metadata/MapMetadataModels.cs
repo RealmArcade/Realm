@@ -4,8 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Schema;
 using System.Text.Json.Serialization;
 using Realm.Shared.Animation;
+using Realm.Shared.Serialization;
 using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Metadata;
@@ -568,8 +570,12 @@ public class MapMetadata
 		if (string.IsNullOrWhiteSpace(modelKey) || Models == null) return;
 		Models.Remove(modelKey);
 	}
-}
 
+	public static string GenerateJsonSchema()
+	{
+		return RealmJsonSchemaExporter.GenerateJsonSchema(typeof(MapMetadata));
+	}
+}
 public class MapInfoMetadata
 {
 	public string? MapName { get; set; }
