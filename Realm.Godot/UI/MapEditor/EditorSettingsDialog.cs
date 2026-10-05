@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -169,6 +169,19 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		btnBackupsRow.AddChild(btnOpenBackups);
 
 		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
+
+		var btnAuthorSignatureRow = new HBoxContainer();
+		btnAuthorSignatureRow.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddChild(btnAuthorSignatureRow);
+
+		var btnAuthorSignature = new Button();
+		btnAuthorSignature.Set("icon_max_width", 0);
+		btnAuthorSignature.Text = "✍️ " + TranslationServer.Translate("Author Signature");
+		btnAuthorSignature.TooltipText = TranslationServer.Translate("View author identity key, signature details, and backup location");
+		btnAuthorSignature.FocusMode = FocusModeEnum.None;
+		btnAuthorSignature.CustomMinimumSize = new Vector2(240, 32);
+		btnAuthorSignature.Pressed += () => Hud?.OpenAuthorSignatureDialog();
+		btnAuthorSignatureRow.AddChild(btnAuthorSignature);
 
 		var btnRepairRow = new HBoxContainer();
 		btnRepairRow.AddThemeConstantOverride("separation", 10);

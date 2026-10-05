@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3]
+﻿[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://UI/MapEditorHUD.cs" id="1_script"]
 [ext_resource type="Script" path="res://UI/MapEditor/MapEditorCameraIndicator.cs" id="2_camera_indicator"]
@@ -215,7 +215,7 @@ text = "🧹 RESET TO BLANK MAP"
 [node name="BtnGenerateMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2
 focus_mode = 0
-text = "🎲 RANDOM GEN"
+text = "🎲 PROCEDURAL"
 
 [node name="BtnImportMinimap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2

@@ -1,4 +1,4 @@
-{
+﻿{
   "GAME SETTINGS": "AJUSTES DEL JUEGO",
   "VIDEO": "VIDEO",
   "Resolution": "Resolución",
@@ -347,7 +347,7 @@
   "📜 PUBLISH": "📜 PUBLICAR",
   "Untitled Map": "Mapa en blanco",
   "🧹 RESET TO BLANK MAP": "🧹 REINICIAR MAPA",
-  "🎲 RANDOM GEN": "🎲 GENERADOR ALEATORIO",
+  "🎲 PROCEDURAL": "🎲 PROCEDURAL",
   "🗺️ GEN FROM IMAGE": "🗺️ DESDE IMAGEN",
   "🎬 IMPORT MIXAMO / GLB": "🎬 IMPORTAR GLB/MIXAMO",
   "🌐 GRID OVERLAY: OFF": "🌐 REJILLA: INACTIVA",

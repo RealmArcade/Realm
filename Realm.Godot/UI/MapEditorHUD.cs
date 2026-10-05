@@ -281,7 +281,6 @@ public partial class MapEditorHUD : Control
 	private AuthorSignatureDialog _authorSignatureDialog;
 	private ReplaceTextureDialog _replaceTextureDialog;
 	private Button _btnEditorSettings;
-	private Button _btnAuthorSignature;
 	private PanelContainer _mapNameHeaderPanel;
 	private Label _lblMapNameHeader;
 	private double _mapNameUpdateTimer = 0.0;
@@ -790,7 +789,7 @@ public partial class MapEditorHUD : Control
 		}, 13, "Clear all terrain heights, colors, and placed entities");
 
 		_btnGenerateMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnGenerateMap");
-		SetupOptionButton(_btnGenerateMap, "\uf522 RANDOM GEN", () => _generationDialog.Show(), 13, "Open random terrain generator settings modal");
+		SetupOptionButton(_btnGenerateMap, "\uf522 PROCEDURAL", () => _generationDialog.Show(), 13, "Open random terrain generator settings modal");
 
 		_btnImportMinimap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnImportMinimap");
 		SetupOptionButton(_btnImportMinimap, "\uf279 FROM IMAGE", () => ImportTerrainFromMinimapDialog(), 13, "Import terrain elevations, textures, and trees from a minimap image file");
@@ -815,21 +814,6 @@ public partial class MapEditorHUD : Control
 		_btnEditorSettings.Set("icon_max_width", 0);
 		SetupOptionButton(_btnEditorSettings, "⚙️ " + TranslationServer.Translate("EDITOR SETTINGS"), () => _editorSettingsDialog?.OpenDialog(), 13, "Configure editor preferences, chrome border, and display overlays");
 		_contentFile.AddChild(_btnEditorSettings);
-
-		_btnAuthorSignature = new Button();
-		_btnAuthorSignature.Name = "BtnAuthorSignature";
-		_btnAuthorSignature.Set("icon_max_width", 0);
-		SetupOptionButton(_btnAuthorSignature, "✍️ " + TranslationServer.Translate("AUTHOR SIGNATURE"), () => _authorSignatureDialog?.OpenDialog(), 13, "View author identity key, signature details, and backup location");
-		int pubIdx = _contentFile.GetChildren().IndexOf(_btnPublish);
-		if (pubIdx >= 0)
-		{
-			_contentFile.AddChild(_btnAuthorSignature);
-			_contentFile.MoveChild(_btnAuthorSignature, pubIdx + 1);
-		}
-		else
-		{
-			_contentFile.AddChild(_btnAuthorSignature);
-		}
 
 		_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
 		_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
@@ -2179,7 +2163,6 @@ public partial class MapEditorHUD : Control
 		StyleRowButton(_btnGenerateMap);
 		StyleRowButton(_btnImportMinimap);
 		StyleRowButton(_btnEditorSettings);
-		StyleRowButton(_btnAuthorSignature);
 
 		StyleRowButton(_btnRaise);
 		StyleRowButton(_btnLower);
@@ -8247,7 +8230,6 @@ public partial class MapEditorHUD : Control
 			SafeReparent(_btnTestMap, fileGrid1);
 			SafeReparent(_btnExportMap, fileGrid1);
 			SafeReparent(_btnPublish, fileGrid1);
-			SafeReparent(_btnAuthorSignature, fileGrid1);
 
 			var fileGrid2 = new GridContainer();
 			fileGrid2.Columns = 2;
@@ -11993,6 +11975,11 @@ public partial class MapEditorHUD : Control
 			_instanceManagerDialog = new InstanceManagerDialog(this);
 		}
 		_instanceManagerDialog.OpenDialog();
+	}
+
+	public void OpenAuthorSignatureDialog()
+	{
+		_authorSignatureDialog?.OpenDialog();
 	}
 
 	public void OpenEditorSettingsDialog()
