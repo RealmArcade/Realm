@@ -411,7 +411,9 @@ public partial class MapEditorHUD : Control
 	private int _scaleDialogTargetDepth;
 
 	private Camera3D _camera3D;
+	private Button _btnEditors;
 	private Button _btnVSCode;
+	private PopupPanel _popupEditors;
 	private bool _isDraggingSlider = false;
 	private Panel _swatchHighlightPanel;
 	private Panel _swatchCliffHighlightPanel;
@@ -642,12 +644,37 @@ public partial class MapEditorHUD : Control
 		SetupButton(btnHelp, "\uf059 HELP", () => ToggleHelpPanelExternal(), 13, "Toggle the hotkeys and editor guide overlay (H)");
 		StyleMapEditorTopButton(btnHelp);
 
+		_popupEditors = new PopupPanel();
+		_popupEditors.Name = "PopupEditors";
+		var editorsPopupStyle = new StyleBoxFlat();
+		editorsPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+		editorsPopupStyle.BorderColor = UIStyle.ColorGold;
+		editorsPopupStyle.SetBorderWidthAll(1);
+		editorsPopupStyle.CornerRadiusTopLeft = 4;
+		editorsPopupStyle.CornerRadiusTopRight = 4;
+		editorsPopupStyle.CornerRadiusBottomLeft = 4;
+		editorsPopupStyle.CornerRadiusBottomRight = 4;
+		editorsPopupStyle.ContentMarginLeft = 10;
+		editorsPopupStyle.ContentMarginRight = 10;
+		editorsPopupStyle.ContentMarginTop = 10;
+		editorsPopupStyle.ContentMarginBottom = 10;
+		_popupEditors.AddThemeStyleboxOverride("panel", editorsPopupStyle);
+
+		var editorsVBox = new VBoxContainer();
+		editorsVBox.AddThemeConstantOverride("separation", 6);
+		editorsVBox.CustomMinimumSize = new Vector2(170, 0);
+		_popupEditors.AddChild(editorsVBox);
+		AddChild(_popupEditors);
+
+		_btnVSCode = new Button();
+		_btnVSCode.Name = "BtnVSCode";
+		SetupOptionButton(_btnVSCode, "\uf121 CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
+		_btnVSCode.Pressed += () => _popupEditors.Hide();
+
 		if (OperatingSystem.IsWindows())
 		{
 			GenerateVSCodeFilesExternal();
 			VSCodeManager.Instance.Initialize(this);
-			_btnVSCode = GetNode<Button>("TopLeftBox/BtnVSCode");
-			SetupButton(_btnVSCode, "\uf121 CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
 			_btnVSCode.GuiInput += (@event) =>
 			{
 				if (OperatingSystem.IsWindows() && @event is InputEventMouseButton mouseButton && mouseButton.Pressed)
@@ -663,12 +690,39 @@ public partial class MapEditorHUD : Control
 					}
 				}
 			};
-			StyleMapEditorTopButton(_btnVSCode);
+			editorsVBox.AddChild(_btnVSCode);
 		}
-		else
+
+		_btnAssetsManager = new Button();
+		_btnAssetsManager.Name = "BtnAssetsManager";
+		SetupOptionButton(_btnAssetsManager, "\uf1b2 ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
+		_btnAssetsManager.Pressed += () => _popupEditors.Hide();
+		editorsVBox.AddChild(_btnAssetsManager);
+
+		_btnTemplateManager = new Button();
+		_btnTemplateManager.Name = "BtnTemplateManager";
+		SetupOptionButton(_btnTemplateManager, "\uf1b3 TEMPLATES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
+		_btnTemplateManager.Pressed += () => _popupEditors.Hide();
+		editorsVBox.AddChild(_btnTemplateManager);
+
+		_btnInstanceManager = new Button();
+		_btnInstanceManager.Name = "BtnInstanceManager";
+		SetupOptionButton(_btnInstanceManager, "\uf0cb INSTANCES", () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
+		_btnInstanceManager.Pressed += () => _popupEditors.Hide();
+		editorsVBox.AddChild(_btnInstanceManager);
+
+		_btnEditors = GetNodeOrNull<Button>("TopLeftBox/BtnEditors") ?? GetNodeOrNull<Button>("TopLeftBox/BtnVSCode");
+		if (_btnEditors == null)
 		{
-			_btnVSCode = new Button();
+			_btnEditors = new Button();
+			_btnEditors.Name = "BtnEditors";
 		}
+		SetupButton(_btnEditors, "\uf078 EDITORS", () =>
+		{
+			var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
+			_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+		}, 13, "Open Map Editors & Managers menu");
+		StyleMapEditorTopButton(_btnEditors);
 
 		_btnUndo = GetNode<Button>("TopLeftBox/BtnUndo");
 		SetupButton(_btnUndo, "\uf0e2 UNDO", () => UndoAction(), 13, "Undo the last action (Ctrl+Z)");
@@ -856,21 +910,6 @@ public partial class MapEditorHUD : Control
 			var popupPosition = _btnRandomGen.GetScreenPosition() + new Vector2(0, _btnRandomGen.Size.Y);
 			_popupRandomGen.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
 		}, 13, "Open random map generation options");
-
-		_btnAssetsManager = new Button();
-		_btnAssetsManager.Name = "BtnAssetsManager";
-		SetupOptionButton(_btnAssetsManager, "\uf1b2 ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
-		_contentFile.AddChild(_btnAssetsManager);
-
-		_btnTemplateManager = new Button();
-		_btnTemplateManager.Name = "BtnTemplateManager";
-		SetupOptionButton(_btnTemplateManager, "\uf1b3 TEMPLATES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
-		_contentFile.AddChild(_btnTemplateManager);
-
-		_btnInstanceManager = new Button();
-		_btnInstanceManager.Name = "BtnInstanceManager";
-		SetupOptionButton(_btnInstanceManager, "\uf0cb INSTANCES", () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
-		_contentFile.AddChild(_btnInstanceManager);
 
 		_btnEditorSettings = new Button();
 		_btnEditorSettings.Name = "BtnEditorSettings";
@@ -1907,7 +1946,7 @@ public partial class MapEditorHUD : Control
 		_entityPaletteController = new MapEditorEntityPaletteController(this, _containerCategorySelector, _btnAddObject);
 		_generationDialog = new MapEditorGenerationDialog(this);
 
-		_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnVSCode, _statusLabel, _feedbackLabel);
+		_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnEditors, _statusLabel, _feedbackLabel);
 		_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _sldHeight, _lblHeightValue);
 		_placementSettingsController = new MapEditorPlacementSettings(_sldPlacementRotate, _lblPlacementRotateValue, _sldPlacementScale, _lblPlacementScaleValue, _chkRandomRotation, _chkRandomScale, _chkClumpMode, _sldClumpDensity, _lblClumpDensityValue, _sldClumpScaleVar, _lblClumpScaleVarValue);
 		InitializeInspectorPanel();
@@ -9923,6 +9962,10 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 		if (_optEnvWeather != null && _optEnvWeather.GetPopup() != null && _optEnvWeather.GetPopup().Visible)
+		{
+			return true;
+		}
+		if (_popupEditors != null && _popupEditors.Visible)
 		{
 			return true;
 		}

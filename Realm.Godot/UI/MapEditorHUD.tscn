@@ -54,11 +54,11 @@ layout_mode = 2
 focus_mode = 0
 text = "❓ HELP / HOTKEYS"
 
-[node name="BtnVSCode" type="Button" parent="TopLeftBox"]
+[node name="BtnEditors" type="Button" parent="TopLeftBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 focus_mode = 0
-text = "💻 CODE & DATA"
+text = "EDITORS"
 
 [node name="BtnUndo" type="Button" parent="TopLeftBox"]
 custom_minimum_size = Vector2(0, 40)
