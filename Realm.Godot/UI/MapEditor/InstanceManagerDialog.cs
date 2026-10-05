@@ -364,10 +364,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 		if (_treeItemToObjectMap.TryGetValue(selectedItem, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
 		{
-			if (GameHost.Instance != null)
-			{
-				GameHost.Instance.SelectedEditorObject = targetObject;
-			}
+			FocusOnObject(targetObject);
 		}
 	}
 
@@ -386,6 +383,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	{
 		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || GameHost.Instance == null) return;
 
+		Hud?.SelectToolFromHotkey(GameHost.EditorTool.SelectMove);
 		GameHost.Instance.SelectedEditorObject = targetObject;
 		(GameHost.Instance.MainCamera as CameraControl)?.FocusOnPosition(targetObject.Position);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Selected and focused on {0}"), targetObject.Name));

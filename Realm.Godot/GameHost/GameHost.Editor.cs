@@ -6448,10 +6448,32 @@ public partial class GameHost
 		{
 			_editorCoverageOverlayRoot.Visible = false;
 		}
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(false);
+				}
+			}
+		}
 	}
 
 	public void EndMinimapCapture()
 	{
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(true);
+				}
+			}
+		}
+
 		if (_selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh))
 		{
 			_selectionHighlightMesh.Visible = _wasSelectionHighlightVisible;
