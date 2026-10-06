@@ -985,6 +985,7 @@ public class UpgradeMetadata
 	public string TemplateID { get; set; } = string.Empty;
 	public string Name { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
+	public string? IconPath { get; set; }
 	public float CostGold { get; set; }
 	public float CostWood { get; set; }
 	public float CostStone { get; set; }

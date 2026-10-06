@@ -2,9 +2,11 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Realm.Godot.Services;
+using Realm.Godot.Utils;
 
 public class TerrainTextureSnapshot
 {
@@ -161,6 +163,10 @@ public class TerrainTextureUndoAction : IEditorAction
 public partial class TerrainTextureEditDialog : FloatingDialogBase
 {
 	private string _textureFileName = "";
+	private string _objectType = "terrain";
+	private string _slug = "";
+	private string _rtexAsset = "";
+
 	private float _brightness = 1.0f;
 	private Color _tint = Colors.White;
 	private float _heightScale = 1.0f;
@@ -178,6 +184,11 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 	private TerrainTextureSnapshot _initialSnapshot;
 	private Action<JsonObject> _onApplied;
+
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private LineEdit _txtRtexAsset;
+	private Action<string> _setRtexAssetValue;
 
 	private HSlider _sldBrightness;
 	private Label _lblBrightness;
@@ -237,6 +248,44 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
+
+		// SECTION 0: IDENTITY & TEXTURE ASSET
+		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & TEXTURE ASSET"), new Color(0.95f, 0.8f, 0.4f));
+
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "terrain/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("terrain_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+		};
+		rowId.AddChild(_txtSlug);
+		contentVBox.AddChild(rowId);
+
+		(_txtRtexAsset, _setRtexAssetValue) = AddAssetFilterDropdown(
+			contentVBox,
+			TranslationServer.Translate("Terrain .rtex:"),
+			_rtexAsset,
+			(all) => ScanTerrainRtexAssets(all),
+			(val) => _rtexAsset = val ?? string.Empty,
+			TranslationServer.Translate("Select terrain .rtex asset..."),
+			140f
+		);
 
 		// SECTION 1: COLOR & LIGHTING
 		AddSectionHeader(contentVBox, "🎨 " + TranslationServer.Translate("COLOR & LIGHTING"), new Color(0.95f, 0.8f, 0.4f));
@@ -569,6 +618,24 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		UpdateGraphicsQualityState();
 	}
 
+	private List<string> ScanTerrainRtexAssets(bool includeAllFolders)
+	{
+		var list = ScanAvailableAssets("textures", includeAllFolders);
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		var rtexFiles = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
+
+		string searchDir = Path.Combine(wsPath, "Assets", "textures");
+		if (Directory.Exists(searchDir))
+		{
+			foreach (var file in Directory.GetFiles(searchDir, "*.rtex", SearchOption.AllDirectories))
+			{
+				rtexFiles.Add(Path.GetFileName(file));
+			}
+		}
+
+		return rtexFiles.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+	}
+
 	private void UpdatePathingMask()
 	{
 		int mask = 0;
@@ -730,9 +797,23 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	public void OpenForTexture(string fileName, JsonObject textureData, Action<JsonObject> onApplied)
 	{
 		_textureFileName = fileName ?? string.Empty;
+		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_textureFileName);
+		_objectType = !string.IsNullOrEmpty(parsedType) ? parsedType : "terrain";
+		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_textureFileName);
+
+		_rtexAsset = textureData?["rtex"]?.ToString() ?? textureData?["TexturePath"]?.ToString() ?? textureData?["Hash"]?.ToString() ?? string.Empty;
+		if (string.IsNullOrEmpty(_rtexAsset))
+		{
+			_rtexAsset = _slug.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? _slug : $"{_slug}.rtex";
+		}
+
 		_onApplied = onApplied;
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Edit Texture Swatch")} - {_textureFileName}";
+
+		if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = $"{_objectType}/";
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		_setRtexAssetValue?.Invoke(_rtexAsset);
 
 		RuntimeTerrain.ActiveSwatchConfig activeConfig = default;
 		if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
@@ -915,6 +996,13 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	{
 		UpdatePathingMask();
 
+		if (_txtRtexAsset != null)
+		{
+			_rtexAsset = _txtRtexAsset.Text?.Trim() ?? string.Empty;
+		}
+
+		string newTemplateID = string.IsNullOrEmpty(_objectType) ? _slug : $"{_objectType}/{_slug}";
+
 		var currentSnapshot = new TerrainTextureSnapshot
 		{
 			Brightness = _brightness,
@@ -935,12 +1023,15 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 		if (_initialSnapshot != null)
 		{
-			var action = new TerrainTextureUndoAction(_textureFileName, _initialSnapshot, currentSnapshot);
+			var action = new TerrainTextureUndoAction(newTemplateID, _initialSnapshot, currentSnapshot);
 			EditorHistoryManager.RecordAction(action);
 		}
 
 		var result = new JsonObject
 		{
+			["TemplateID"] = newTemplateID,
+			["rtex"] = _rtexAsset,
+			["TexturePath"] = _rtexAsset,
 			["Brightness"] = _brightness,
 			["Tint"] = $"#{_tint.ToHtml(false)}",
 			["Roughness_Scale"] = _roughnessScale,
@@ -960,17 +1051,27 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		{
 			var prof = new TerrainSwatchProfileData
 			{
-				SwatchName = _textureFileName,
+				SwatchName = newTemplateID,
 				DefaultPathingCode = _defaultPathingCode,
 				DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules),
 				VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules)
 			};
 			metadataRoot.AddOrUpdateTerrainProfile(prof);
+
+			if (!string.Equals(_textureFileName, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_textureFileName))
+			{
+				metadataRoot.Textures?.Remove(_textureFileName);
+				metadataRoot.RemoveTerrainProfile(_textureFileName);
+			}
+
+			metadataRoot.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+			metadataRoot.Textures[newTemplateID] = JsonSerializer.Deserialize<Realm.Shared.Metadata.TextureMetadata>(result.ToJsonString()) ?? new Realm.Shared.Metadata.TextureMetadata();
+
 			MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
 		}
 
 		_onApplied?.Invoke(result);
-		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Texture swatch {0} updated successfully."), _textureFileName));
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Texture swatch {0} updated successfully."), newTemplateID));
 	}
 
 	protected override void OnCancel()

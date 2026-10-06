@@ -40,6 +40,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private ShaderEditorDialog _shaderEditDialog;
 	private SpritesheetAssetEditDialog _spritesheetEditDialog;
 	private TerrainTextureEditDialog _textureEditDialog;
+	private ItemUpgradeEditDialog _itemUpgradeEditDialog;
 
 	private string _currentCategory = "units";
 	private string _searchFilter = "";
@@ -57,6 +58,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_shaderEditDialog = new ShaderEditorDialog(hud);
 		_spritesheetEditDialog = new SpritesheetAssetEditDialog(hud);
 		_textureEditDialog = new TerrainTextureEditDialog(hud);
+		_itemUpgradeEditDialog = new ItemUpgradeEditDialog(hud);
 
 		DefaultDistance = 5.0f;
 		CameraDistance = 5.0f;
@@ -457,7 +459,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 							Category = "upgrades",
 							TemplateID = u.TemplateID,
 							Name = u.Name ?? u.TemplateID,
-							Description = u.Description ?? ""
+							Description = u.Description ?? "",
+							IconPath = u.IconPath ?? ""
 						});
 					}
 				}
@@ -643,8 +646,15 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		switch (item.Category)
 		{
-			case "units" or "buildings" or "resources" or "props" or "items":
+			case "units" or "buildings" or "resources" or "props":
 				_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
+				{
+					RefreshObjectList();
+				});
+				break;
+
+			case "upgrades" or "items":
+				_itemUpgradeEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 				{
 					RefreshObjectList();
 				});
@@ -731,6 +741,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				int initRows = 1;
 				float initFps = 20.0f;
 				bool initBlend = true;
+				string initRtex = "";
 				if (MetadataService.Instance.TryLoadMetadata(wsPathSpr, out var metaSpr) && metaSpr?.VfxSpritesheets != null)
 				{
 					if (metaSpr.VfxSpritesheets.TryGetValue(item.TemplateID, out var sNode) && sNode != null)
@@ -739,19 +750,25 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						initRows = sNode.Rows > 0 ? sNode.Rows : 1;
 						initFps = sNode.Fps > 0 ? sNode.Fps : 20.0f;
 						initBlend = sNode.SubframeBlend;
+						initRtex = sNode.AssetType ?? "";
 					}
 				}
-				_spritesheetEditDialog.OpenForSheet(item.TemplateID, initCols, initRows, initFps, initBlend, (cols, rows, fps, blend) =>
+				_spritesheetEditDialog.OpenForSheet(item.TemplateID, initRtex, initCols, initRows, initFps, initBlend, (newId, rtex, cols, rows, fps, blend) =>
 				{
 					MetadataService.Instance.UpdateMetadata(wsPathSpr, m =>
 					{
 						m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-						m.VfxSpritesheets[item.TemplateID] = new VfxMetadata
+						if (!string.Equals(item.TemplateID, newId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
+						{
+							m.VfxSpritesheets.Remove(item.TemplateID);
+						}
+						m.VfxSpritesheets[newId] = new VfxMetadata
 						{
 							Columns = cols,
 							Rows = rows,
 							Fps = fps,
-							SubframeBlend = blend
+							SubframeBlend = blend,
+							AssetType = rtex
 						};
 					});
 					RefreshObjectList();
@@ -793,10 +810,20 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			default:
-				_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
+				if (item.Category == "upgrades" || item.Category == "items")
 				{
-					RefreshObjectList();
-				});
+					_itemUpgradeEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
+					{
+						RefreshObjectList();
+					});
+				}
+				else
+				{
+					_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
+					{
+						RefreshObjectList();
+					});
+				}
 				break;
 		}
 	}
