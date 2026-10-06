@@ -22,40 +22,11 @@ public class RanimFile : RealmContainerFile
 
 	public static (string? MetadataJson, RealmAnimationData AnimationData, uint Version) Parse(ReadOnlySpan<byte> bytes)
 	{
-		if (HasMagic(bytes, MagicBytes))
-		{
-			if (RealmContainerHeader.TryReadHeader(bytes, MagicBytes, out uint ver, out string? metaJson, out int payloadOffset))
-			{
-				ReadOnlySpan<byte> payloadSpan = bytes.Slice(payloadOffset);
-				bool isCompressed = RealmCompressionHelper.IsZstdCompressed(payloadSpan) || RealmMetadataHelper.ExtractIsCompressed(metaJson);
-				byte[] decompressedPayload = isCompressed
-					? RealmCompressionHelper.Decompress(payloadSpan)
-					: payloadSpan.ToArray();
-
-				var animationData = decompressedPayload.Length > 0
-					? (MemoryPackSerializer.Deserialize<RealmAnimationData>(decompressedPayload) ?? new RealmAnimationData())
-					: new RealmAnimationData();
-				return (metaJson, animationData, ver);
-			}
-
-			try
-			{
-				var legacyData = MemoryPackSerializer.Deserialize<RealmAnimationData>(bytes.Slice(4));
-				if (legacyData != null)
-				{
-					return (null, legacyData, 0);
-				}
-			}
-			catch
-			{
-			}
-		}
-
-		var (metadataJson, decompressedPayloadDefault, version) = ParsePayload(bytes, MagicBytes, Name, defaultCompressed: true);
-		var fallbackAnimData = decompressedPayloadDefault.Length > 0
-			? (MemoryPackSerializer.Deserialize<RealmAnimationData>(decompressedPayloadDefault) ?? new RealmAnimationData())
+		var (metadataJson, decompressedPayload, version) = ParsePayload(bytes, MagicBytes, Name, defaultCompressed: true);
+		var animationData = decompressedPayload.Length > 0
+			? (MemoryPackSerializer.Deserialize<RealmAnimationData>(decompressedPayload) ?? new RealmAnimationData())
 			: new RealmAnimationData();
-		return (metadataJson, fallbackAnimData, version);
+		return (metadataJson, animationData, version);
 	}
 
 	public static byte[] Build(string? metadataJson, byte[] memoryPackBytes, bool? compressed = null, uint version = CurrentVersion)
