@@ -717,7 +717,7 @@ public partial class MapEditorHUD : Control
 			_btnEditors = new Button();
 			_btnEditors.Name = "BtnEditors";
 		}
-		SetupButton(_btnEditors, "\uf078 EDITORS", () =>
+		SetupButton(_btnEditors, "EDITORS \uf078", () =>
 		{
 			var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
 			_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
