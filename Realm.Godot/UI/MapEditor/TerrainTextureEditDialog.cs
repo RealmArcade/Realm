@@ -600,6 +600,30 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			}
 		}
 
+		string templateDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "textures");
+		if (Directory.Exists(templateDir))
+		{
+			foreach (var file in Directory.GetFiles(templateDir, "*.rtex", SearchOption.AllDirectories))
+			{
+				rtexFiles.Add(Path.GetFileName(file));
+			}
+		}
+
+		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.Textures != null)
+		{
+			foreach (var kvp in meta.Textures)
+			{
+				if (!string.IsNullOrWhiteSpace(kvp.Value?.AssetType))
+				{
+					rtexFiles.Add(kvp.Value.AssetType);
+				}
+				if (kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					rtexFiles.Add(kvp.Key);
+				}
+			}
+		}
+
 		return rtexFiles.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 	}
 
@@ -768,7 +792,22 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		_objectType = !string.IsNullOrEmpty(parsedType) ? parsedType : "terrain";
 		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_textureFileName);
 
-		_rtexAsset = textureData?["rtex"]?.ToString() ?? textureData?["TexturePath"]?.ToString() ?? textureData?["Hash"]?.ToString() ?? string.Empty;
+		_rtexAsset = textureData?["AssetType"]?.ToString()
+			?? textureData?["assetType"]?.ToString()
+			?? textureData?["rtex"]?.ToString()
+			?? textureData?["TexturePath"]?.ToString()
+			?? textureData?["asset_type"]?.ToString()
+			?? string.Empty;
+
+		if (string.IsNullOrEmpty(_rtexAsset) && textureData != null)
+		{
+			string hash = textureData["Hash"]?.ToString() ?? textureData["hash"]?.ToString() ?? string.Empty;
+			if (hash.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = hash;
+			}
+		}
+
 		if (string.IsNullOrEmpty(_rtexAsset))
 		{
 			_rtexAsset = _slug.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? _slug : $"{_slug}.rtex";
@@ -997,6 +1036,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		var result = new JsonObject
 		{
 			["TemplateID"] = newTemplateID,
+			["AssetType"] = _rtexAsset,
 			["rtex"] = _rtexAsset,
 			["TexturePath"] = _rtexAsset,
 			["Brightness"] = _brightness,
@@ -1029,10 +1069,17 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			{
 				metadataRoot.Textures?.Remove(_textureFileName);
 				metadataRoot.RemoveTerrainProfile(_textureFileName);
+				string alternateOld = _textureFileName.StartsWith("terrain/", StringComparison.OrdinalIgnoreCase)
+					? _textureFileName.Substring("terrain/".Length)
+					: $"terrain/{_textureFileName}";
+				metadataRoot.Textures?.Remove(alternateOld);
+				metadataRoot.RemoveTerrainProfile(alternateOld);
 			}
 
 			metadataRoot.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-			metadataRoot.Textures[newTemplateID] = JsonSerializer.Deserialize<Realm.Shared.Metadata.TextureMetadata>(result.ToJsonString()) ?? new Realm.Shared.Metadata.TextureMetadata();
+			var texMeta = JsonSerializer.Deserialize<Realm.Shared.Metadata.TextureMetadata>(result.ToJsonString()) ?? new Realm.Shared.Metadata.TextureMetadata();
+			texMeta.AssetType = _rtexAsset;
+			metadataRoot.Textures[newTemplateID] = texMeta;
 
 			MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
 		}

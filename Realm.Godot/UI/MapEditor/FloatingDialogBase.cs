@@ -1444,7 +1444,7 @@ public partial class FloatingDialogBase : PanelContainer
 					}
 					else if (category == "textures" || category == "terrain")
 					{
-						var tDict = assetsObj.GetCategory("Terrain");
+						var tDict = assetsObj.GetCategory("Terrain") ?? assetsObj.GetCategory("textures");
 						if (tDict != null)
 						{
 							foreach (var kvp in tDict)
@@ -1453,6 +1453,24 @@ public partial class FloatingDialogBase : PanelContainer
 								{
 									result.Add(kvp.Key);
 								}
+							}
+						}
+
+						string texturesDir = Path.Combine(wsPath, "Assets", "textures");
+						if (Directory.Exists(texturesDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(texturesDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+
+						string templateTexturesDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "textures");
+						if (Directory.Exists(templateTexturesDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(templateTexturesDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
 							}
 						}
 					}

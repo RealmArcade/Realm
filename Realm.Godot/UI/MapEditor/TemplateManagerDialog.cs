@@ -737,10 +737,23 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				}
 				_textureEditDialog.OpenForTexture(item.TemplateID, curTerData, updatedObj =>
 				{
+					string newId = updatedObj?["TemplateID"]?.ToString() ?? item.TemplateID;
 					MetadataService.Instance.UpdateMetadata(wsPathTer, m =>
 					{
 						m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-						m.Textures[item.TemplateID] = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(updatedObj.ToJsonString()) ?? new TextureMetadata();
+						if (!string.Equals(item.TemplateID, newId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
+						{
+							m.Textures.Remove(item.TemplateID);
+							m.RemoveTerrainProfile(item.TemplateID);
+							string alternateOld = item.TemplateID.StartsWith("terrain/", StringComparison.OrdinalIgnoreCase)
+								? item.TemplateID.Substring("terrain/".Length)
+								: $"terrain/{item.TemplateID}";
+							m.Textures.Remove(alternateOld);
+							m.RemoveTerrainProfile(alternateOld);
+						}
+						var texMeta = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(updatedObj.ToJsonString()) ?? new TextureMetadata();
+						texMeta.AssetType = updatedObj?["AssetType"]?.ToString() ?? updatedObj?["rtex"]?.ToString();
+						m.Textures[newId] = texMeta;
 					});
 					RefreshObjectList();
 				});
