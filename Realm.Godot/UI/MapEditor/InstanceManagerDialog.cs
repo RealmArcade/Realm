@@ -78,15 +78,6 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		var bottomHBox = new HBoxContainer();
 		bottomHBox.AddThemeConstantOverride("separation", 8);
 
-		AddButton(bottomHBox, "\uf002 " + TranslationServer.Translate("Focus Selected"), () =>
-		{
-			var selectedItem = _objectTree.GetSelected();
-			if (selectedItem != null && _treeItemToObjectMap.TryGetValue(selectedItem, out var node) && GodotObject.IsInstanceValid(node))
-			{
-				FocusOnObject(node);
-			}
-		}, "Focus camera on selected object", 11, new Vector2(130, 26));
-
 		AddButton(bottomHBox, "\uf2ed " + TranslationServer.Translate("Delete Selected"), () =>
 		{
 			var selectedItem = _objectTree.GetSelected();
