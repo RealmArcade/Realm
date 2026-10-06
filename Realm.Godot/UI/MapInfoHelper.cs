@@ -192,7 +192,7 @@ public static class MapInfoHelper
 			                        root.TryGetProperty("Files", out _) ||
 			                        root.TryGetProperty("Author", out _) ||
 			                        root.TryGetProperty("MapProperties", out _) ||
-			                        root.TryGetProperty("CustomUnits", out _) ||
+			                        root.TryGetProperty("Templates", out _) ||
 			                        root.TryGetProperty("MapName", out _);
 
 			if (!isLikelyManifest)

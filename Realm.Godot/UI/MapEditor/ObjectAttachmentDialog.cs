@@ -1719,9 +1719,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		{
 			var metadata = MetadataService.Instance.LoadMetadata(wsPath);
 
-			if (metadata.CustomItems != null)
+			if (metadata.Templates?.Items != null)
 			{
-				foreach (var it in metadata.CustomItems)
+				foreach (var it in metadata.Templates.Items)
 				{
 					string val = it.TemplateID ?? "";
 					if (!string.IsNullOrEmpty(val))
@@ -1732,9 +1732,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 				}
 			}
 
-			if (metadata.CustomWeapons != null)
+			if (metadata.Templates?.Weapons != null)
 			{
-				foreach (var wpn in metadata.CustomWeapons)
+				foreach (var wpn in metadata.Templates.Weapons)
 				{
 					string val = wpn.TemplateID ?? "";
 					if (!string.IsNullOrEmpty(val))
@@ -1745,9 +1745,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 				}
 			}
 
-			if (metadata.CustomAttachments != null)
+			if (metadata.Templates?.Attachments != null)
 			{
-				foreach (var att in metadata.CustomAttachments)
+				foreach (var att in metadata.Templates.Attachments)
 				{
 					string val = att.AttachmentId ?? "";
 					if (!string.IsNullOrEmpty(val))
@@ -1758,9 +1758,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 				}
 			}
 
-			if (metadata.CustomVfx != null)
+			if (metadata.Templates?.Vfx != null)
 			{
-				foreach (var vfx in metadata.CustomVfx)
+				foreach (var vfx in metadata.Templates.Vfx)
 				{
 					if (!string.IsNullOrEmpty(vfx.VfxId))
 					{

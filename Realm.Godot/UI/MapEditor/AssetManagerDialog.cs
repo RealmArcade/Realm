@@ -876,20 +876,26 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 			var arrayKeys = new (string Key, string Label)[]
 			{
-				("CustomUnits", "Unit"),
-				("CustomBuildings", "Building"),
-				("CustomResources", "Resource"),
-				("CustomProps", "Prop"),
-				("CustomAttachments", "Attachment"),
-				("CustomWeapons", "Weapon"),
-				("CustomAbilities", "Ability"),
-				("CustomTechTree", "Tech"),
-				("CustomStatusEffects", "Status Effect")
+				("Units", "Unit"),
+				("Buildings", "Building"),
+				("Resources", "Resource"),
+				("Props", "Prop"),
+				("Attachments", "Attachment"),
+				("Weapons", "Weapon"),
+				("Abilities", "Ability"),
+				("TechTree", "Tech"),
+				("StatusEffects", "Status Effect")
 			};
+
+			JsonObject? templatesObj = null;
+			if (metaRoot.TryGetPropertyValue("Templates", out var templatesNode) && templatesNode is JsonObject tObj)
+			{
+				templatesObj = tObj;
+			}
 
 			foreach (var (arrKey, label) in arrayKeys)
 			{
-				if (metaRoot.TryGetPropertyValue(arrKey, out var arrNode) && arrNode is JsonArray arr)
+				if (templatesObj != null && templatesObj.TryGetPropertyValue(arrKey, out var arrNode) && arrNode is JsonArray arr)
 				{
 					foreach (var itemNode in arr)
 					{

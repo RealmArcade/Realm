@@ -440,9 +440,9 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
 		{
-			if (meta.CustomUnits != null)
+			if (meta.Templates?.Units != null)
 			{
-				foreach (var u in meta.CustomUnits)
+				foreach (var u in meta.Templates.Units)
 				{
 					if (!string.IsNullOrEmpty(u.TemplateID) && existingIds.Add(u.TemplateID))
 					{
@@ -458,9 +458,9 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 				}
 			}
 
-			if (meta.CustomBuildings != null)
+			if (meta.Templates?.Buildings != null)
 			{
-				foreach (var b in meta.CustomBuildings)
+				foreach (var b in meta.Templates.Buildings)
 				{
 					if (!string.IsNullOrEmpty(b.TemplateID) && existingIds.Add(b.TemplateID))
 					{
@@ -476,9 +476,9 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 				}
 			}
 
-			if (meta.CustomResources != null)
+			if (meta.Templates?.Resources != null)
 			{
-				foreach (var r in meta.CustomResources)
+				foreach (var r in meta.Templates.Resources)
 				{
 					if (!string.IsNullOrEmpty(r.TemplateID) && existingIds.Add(r.TemplateID))
 					{
@@ -494,9 +494,9 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 				}
 			}
 
-			if (meta.CustomProps != null)
+			if (meta.Templates?.Props != null)
 			{
-				foreach (var p in meta.CustomProps)
+				foreach (var p in meta.Templates.Props)
 				{
 					if (!string.IsNullOrEmpty(p.TemplateID) && existingIds.Add(p.TemplateID))
 					{

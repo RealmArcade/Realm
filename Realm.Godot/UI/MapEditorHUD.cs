@@ -6972,9 +6972,9 @@ public partial class MapEditorHUD : Control
 		{
 			try
 			{
-				if (metadata.CustomResources != null && metadata.CustomResources.Count > 0)
+				if (metadata.Templates?.Resources != null && metadata.Templates.Resources.Count > 0)
 				{
-					foreach (var rObj in metadata.CustomResources)
+					foreach (var rObj in metadata.Templates.Resources)
 					{
 						string uId = rObj.TemplateID ?? "";
 						string name = rObj.Name ?? "";
@@ -6992,7 +6992,7 @@ public partial class MapEditorHUD : Control
 
 					if (treeModels.Count == 0)
 					{
-						foreach (var rObj in metadata.CustomResources)
+						foreach (var rObj in metadata.Templates.Resources)
 						{
 							string uId = rObj.TemplateID ?? "";
 							if (!string.IsNullOrEmpty(uId))
@@ -12508,18 +12508,23 @@ public partial class MapEditorHUD : Control
 					string unitId = System.IO.Path.GetFileNameWithoutExtension(fileName);
 					string targetArrayKey = subCategory.ToLowerInvariant() switch
 					{
-						"units" => "CustomUnits",
-						"buildings" => "CustomBuildings",
-						"resources" => "CustomResources",
-						"props" => "CustomProps",
-						_ => "CustomUnits"
+						"units" => "Units",
+						"buildings" => "Buildings",
+						"resources" => "Resources",
+						"props" => "Props",
+						_ => "Units"
 					};
 
-					if (!root.ContainsKey(targetArrayKey) || root[targetArrayKey] is not JsonArray)
+					if (!root.ContainsKey("Templates") || root["Templates"] is not JsonObject)
 					{
-						root[targetArrayKey] = new JsonArray();
+						root["Templates"] = new JsonObject();
 					}
-					JsonArray targetArr = (JsonArray)root[targetArrayKey];
+					JsonObject templatesObj = (JsonObject)root["Templates"]!;
+					if (!templatesObj.ContainsKey(targetArrayKey) || templatesObj[targetArrayKey] is not JsonArray)
+					{
+						templatesObj[targetArrayKey] = new JsonArray();
+					}
+					JsonArray targetArr = (JsonArray)templatesObj[targetArrayKey];
 					bool exists = false;
 					foreach (var item in targetArr)
 					{

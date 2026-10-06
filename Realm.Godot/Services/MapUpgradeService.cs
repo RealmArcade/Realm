@@ -866,7 +866,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 {
 	public string FromVersion => "v0.0.3";
 	public string ToVersion => "v0.0.4";
-	public string Description => "Migrate custom entity IDs (UnitId, WeaponId, AbilityId, UpgradeId, ItemId) to canonical TemplateID prefixes";
+	public string Description => "Migrate custom template keys to Templates container and normalize entity IDs to TemplateID";
 
 	public MigrationResult Up(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
 	{
@@ -884,23 +884,48 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			const int totalSteps = 3;
 
-			progress?.Report(new MigrationProgressUpdate(Description, 1, totalSteps, "Normalizing custom entity definitions to TemplateID..."));
+			progress?.Report(new MigrationProgressUpdate(Description, 1, totalSteps, "Normalizing entity template definitions into Templates container..."));
 
-			var entityCategories = new (string ArrayKey, string ObjectType, string LegacyIdKey)[]
+			if (!metadataRoot.ContainsKey("Templates") || metadataRoot["Templates"] is not JsonObject)
 			{
-				("CustomUnits", "unit", "UnitId"),
-				("CustomBuildings", "building", "UnitId"),
-				("CustomResources", "resource", "UnitId"),
-				("CustomProps", "prop", "UnitId"),
-				("CustomAbilities", "ability", "AbilityId"),
-				("CustomWeapons", "weapon", "WeaponId"),
-				("CustomUpgrades", "upgrade", "UpgradeId"),
-				("CustomItems", "item", "ItemId")
+				metadataRoot["Templates"] = new JsonObject();
+			}
+			var templatesObj = metadataRoot["Templates"]!.AsObject();
+
+			var entityCategories = new (string LegacyCustomKey, string CanonicalKey, string ObjectType, string LegacyIdKey)[]
+			{
+				("CustomUnits", "Units", "unit", "UnitId"),
+				("CustomBuildings", "Buildings", "building", "UnitId"),
+				("CustomResources", "Resources", "resource", "UnitId"),
+				("CustomProps", "Props", "prop", "UnitId"),
+				("CustomAbilities", "Abilities", "ability", "AbilityId"),
+				("CustomWeapons", "Weapons", "weapon", "WeaponId"),
+				("CustomUpgrades", "Upgrades", "upgrade", "UpgradeId"),
+				("CustomItems", "Items", "item", "ItemId"),
+				("CustomAttachments", "Attachments", "", ""),
+				("CustomVfx", "Vfx", "", "")
 			};
 
-			foreach (var (arrayKey, objectType, legacyIdKey) in entityCategories)
+			foreach (var (legacyCustomKey, canonicalKey, objectType, legacyIdKey) in entityCategories)
 			{
-				if (metadataRoot.TryGetPropertyValue(arrayKey, out var arrNode) && arrNode is JsonArray entityArray)
+				if (metadataRoot.TryGetPropertyValue(legacyCustomKey, out var legacyArrNode) && legacyArrNode is JsonArray legacyArray)
+				{
+					if (!templatesObj.ContainsKey(canonicalKey) || templatesObj[canonicalKey] is not JsonArray)
+					{
+						templatesObj[canonicalKey] = new JsonArray();
+					}
+					var canonicalArray = templatesObj[canonicalKey]!.AsArray();
+					foreach (var item in legacyArray)
+					{
+						if (item != null)
+						{
+							canonicalArray.Add(item.DeepClone());
+						}
+					}
+					metadataRoot.Remove(legacyCustomKey);
+				}
+
+				if (templatesObj.TryGetPropertyValue(canonicalKey, out var arrNode) && arrNode is JsonArray entityArray && !string.IsNullOrEmpty(objectType))
 				{
 					foreach (var item in entityArray)
 					{
@@ -916,7 +941,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 								rawId = objectIdNode.ToString();
 								entityObj.Remove("ObjectID");
 							}
-							else if (entityObj.TryGetPropertyValue(legacyIdKey, out var legacyIdNode) && legacyIdNode != null)
+							else if (!string.IsNullOrEmpty(legacyIdKey) && entityObj.TryGetPropertyValue(legacyIdKey, out var legacyIdNode) && legacyIdNode != null)
 							{
 								rawId = legacyIdNode.ToString();
 								entityObj.Remove(legacyIdKey);

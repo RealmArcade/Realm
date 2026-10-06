@@ -118,17 +118,23 @@ public static class MapAssetHelper
 				{
 					var arrayMappings = new (string ArrayKey, string SubCategory)[]
 					{
-						("CustomUnits", "units"),
-						("CustomBuildings", "buildings"),
-						("CustomResources", "resources"),
-						("CustomProps", "props"),
-						("CustomAttachments", "attachments"),
-						("CustomWeapons", "weapons")
+						("Units", "units"),
+						("Buildings", "buildings"),
+						("Resources", "resources"),
+						("Props", "props"),
+						("Attachments", "attachments"),
+						("Weapons", "weapons")
 					};
+
+					JsonObject? templatesObj = null;
+					if (metadataRoot.TryGetPropertyValue("Templates", out var templatesNode) && templatesNode is JsonObject tObj)
+					{
+						templatesObj = tObj;
+					}
 
 					foreach (var (arrayKey, subCat) in arrayMappings)
 					{
-						if (metadataRoot.TryGetPropertyValue(arrayKey, out var arrNode) && arrNode is JsonArray arr)
+						if (templatesObj != null && templatesObj.TryGetPropertyValue(arrayKey, out var arrNode) && arrNode is JsonArray arr)
 						{
 							foreach (var itemNode in arr)
 							{
@@ -136,7 +142,7 @@ public static class MapAssetHelper
 								{
 									string modelPath = arrayKey switch
 									{
-										"CustomWeapons" => entityObj["ProjectileModelPath"]?.ToString() ?? entityObj["ModelPath"]?.ToString() ?? "",
+										"Weapons" => entityObj["ProjectileModelPath"]?.ToString() ?? entityObj["ModelPath"]?.ToString() ?? "",
 										_ => entityObj["ModelPath"]?.ToString() ?? ""
 									};
 

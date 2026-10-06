@@ -1204,9 +1204,9 @@ public partial class FloatingDialogBase : PanelContainer
 						}
 						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var vfxMetaRoot) && vfxMetaRoot != null)
 						{
-							if (vfxMetaRoot.CustomVfx != null)
+							if (vfxMetaRoot.Templates?.Vfx != null)
 							{
-								foreach (var cv in vfxMetaRoot.CustomVfx)
+								foreach (var cv in vfxMetaRoot.Templates.Vfx)
 								{
 									if (!string.IsNullOrWhiteSpace(cv.VfxId))
 									{

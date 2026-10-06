@@ -12,6 +12,42 @@ using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Metadata;
 
+public class TemplateContainer
+{
+	[JsonPropertyName("Units")]
+	public List<UnitMetadata> Units { get; set; } = new();
+
+	[JsonPropertyName("Buildings")]
+	public List<UnitMetadata> Buildings { get; set; } = new();
+
+	[JsonPropertyName("Resources")]
+	public List<ResourceMetadata> Resources { get; set; } = new();
+
+	[JsonPropertyName("Props")]
+	public List<PropMetadata> Props { get; set; } = new();
+
+	[JsonPropertyName("Abilities")]
+	public List<AbilityMetadata> Abilities { get; set; } = new();
+
+	[JsonPropertyName("Weapons")]
+	public List<WeaponMetadata> Weapons { get; set; } = new();
+
+	[JsonPropertyName("Upgrades")]
+	public List<UpgradeMetadata> Upgrades { get; set; } = new();
+
+	[JsonPropertyName("Items")]
+	public List<ItemMetadata> Items { get; set; } = new();
+
+	[JsonPropertyName("Attachments")]
+	public List<AttachmentMetadata> Attachments { get; set; } = new();
+
+	[JsonPropertyName("Vfx")]
+	public List<VfxAttachmentConfig> Vfx { get; set; } = new();
+
+	[JsonExtensionData]
+	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+}
+
 public class MapMetadata
 {
 	[JsonPropertyName("license")]
@@ -26,35 +62,8 @@ public class MapMetadata
 	[JsonPropertyName("Dependencies")]
 	public List<MapDependencyMetadata> Dependencies { get; set; } = new();
 
-	[JsonPropertyName("CustomUnits")]
-	public List<UnitMetadata> CustomUnits { get; set; } = new();
-
-	[JsonPropertyName("CustomBuildings")]
-	public List<UnitMetadata> CustomBuildings { get; set; } = new();
-
-	[JsonPropertyName("CustomResources")]
-	public List<ResourceMetadata> CustomResources { get; set; } = new();
-
-	[JsonPropertyName("CustomProps")]
-	public List<PropMetadata> CustomProps { get; set; } = new();
-
-	[JsonPropertyName("CustomAbilities")]
-	public List<AbilityMetadata> CustomAbilities { get; set; } = new();
-
-	[JsonPropertyName("CustomWeapons")]
-	public List<WeaponMetadata> CustomWeapons { get; set; } = new();
-
-	[JsonPropertyName("CustomUpgrades")]
-	public List<UpgradeMetadata> CustomUpgrades { get; set; } = new();
-
-	[JsonPropertyName("CustomItems")]
-	public List<ItemMetadata> CustomItems { get; set; } = new();
-
-	[JsonPropertyName("CustomAttachments")]
-	public List<AttachmentMetadata> CustomAttachments { get; set; } = new();
-
-	[JsonPropertyName("CustomVfx")]
-	public List<VfxAttachmentConfig> CustomVfx { get; set; } = new();
+	[JsonPropertyName("Templates")]
+	public TemplateContainer Templates { get; set; } = new();
 
 	[JsonPropertyName("CustomProceduralAnimations")]
 	public List<ProceduralAnimationConfig> CustomProceduralAnimations { get; set; } = new();
@@ -101,37 +110,37 @@ public class MapMetadata
 	[JsonExtensionData]
 	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
-	public UnitMetadata? GetUnit(string objectId) => CustomUnits?.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+	public UnitMetadata? GetUnit(string objectId) => Templates?.Units?.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public UnitMetadata? FindUnit(string objectId) => GetUnit(objectId);
 
-	public UnitMetadata? GetBuilding(string objectId) => CustomBuildings?.FirstOrDefault(b => string.Equals(b.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+	public UnitMetadata? GetBuilding(string objectId) => Templates?.Buildings?.FirstOrDefault(b => string.Equals(b.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public UnitMetadata? FindBuilding(string objectId) => GetBuilding(objectId);
 
-	public PropMetadata? GetProp(string objectId) => CustomProps?.FirstOrDefault(p => string.Equals(p.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+	public PropMetadata? GetProp(string objectId) => Templates?.Props?.FirstOrDefault(p => string.Equals(p.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public PropMetadata? FindProp(string objectId) => GetProp(objectId);
 
-	public ResourceMetadata? GetResource(string objectId) => CustomResources?.FirstOrDefault(r => string.Equals(r.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+	public ResourceMetadata? GetResource(string objectId) => Templates?.Resources?.FirstOrDefault(r => string.Equals(r.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public ResourceMetadata? FindResource(string objectId) => GetResource(objectId);
 
-	public AbilityMetadata? GetAbility(string objectId) => CustomAbilities?.FirstOrDefault(a => string.Equals(a.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+	public AbilityMetadata? GetAbility(string objectId) => Templates?.Abilities?.FirstOrDefault(a => string.Equals(a.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public AbilityMetadata? FindAbility(string objectId) => GetAbility(objectId);
 
-	public WeaponMetadata? GetWeapon(string objectId) => CustomWeapons?.FirstOrDefault(w => string.Equals(w.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+	public WeaponMetadata? GetWeapon(string objectId) => Templates?.Weapons?.FirstOrDefault(w => string.Equals(w.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public WeaponMetadata? FindWeapon(string objectId) => GetWeapon(objectId);
 
-	public AttachmentMetadata? GetAttachment(string attachmentId) => CustomAttachments?.FirstOrDefault(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase));
+	public AttachmentMetadata? GetAttachment(string attachmentId) => Templates?.Attachments?.FirstOrDefault(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase));
 	public AttachmentMetadata? FindAttachment(string attachmentId) => GetAttachment(attachmentId);
 
-	public VfxAttachmentConfig? GetVfx(string vfxId) => CustomVfx?.FirstOrDefault(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase));
+	public VfxAttachmentConfig? GetVfx(string vfxId) => Templates?.Vfx?.FirstOrDefault(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase));
 	public VfxAttachmentConfig? FindVfx(string vfxId) => GetVfx(vfxId);
 
 	public ProceduralAnimationConfig? GetProceduralAnimation(string animId) => CustomProceduralAnimations?.FirstOrDefault(a => string.Equals(a.Id, animId, StringComparison.OrdinalIgnoreCase));
 	public ProceduralAnimationConfig? FindProceduralAnimation(string animId) => GetProceduralAnimation(animId);
 
-	public ItemMetadata? GetItem(string objectId) => CustomItems?.FirstOrDefault(i => string.Equals(i.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+	public ItemMetadata? GetItem(string objectId) => Templates?.Items?.FirstOrDefault(i => string.Equals(i.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public ItemMetadata? FindItem(string objectId) => GetItem(objectId);
 
-	public UpgradeMetadata? GetUpgrade(string objectId) => CustomUpgrades?.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+	public UpgradeMetadata? GetUpgrade(string objectId) => Templates?.Upgrades?.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public UpgradeMetadata? FindUpgrade(string objectId) => GetUpgrade(objectId);
 
 	public EnvironmentPresetConfig? GetEnvironmentPreset(string presetId) => CustomEnvironmentPresets?.FirstOrDefault(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase));
@@ -155,151 +164,161 @@ public class MapMetadata
 	public void AddOrUpdateUnit(UnitMetadata unit)
 	{
 		if (string.IsNullOrWhiteSpace(unit.TemplateID)) return;
-		CustomUnits ??= new();
-		int idx = CustomUnits.FindIndex(u => string.Equals(u.TemplateID, unit.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomUnits[idx] = unit;
-		else CustomUnits.Add(unit);
+		Templates ??= new();
+		Templates.Units ??= new();
+		int idx = Templates.Units.FindIndex(u => string.Equals(u.TemplateID, unit.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Units[idx] = unit;
+		else Templates.Units.Add(unit);
 	}
 
 	public bool RemoveUnit(string objectId)
 	{
-		if (CustomUnits == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return CustomUnits.RemoveAll(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Units == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return Templates.Units.RemoveAll(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateBuilding(UnitMetadata building)
 	{
 		if (string.IsNullOrWhiteSpace(building.TemplateID)) return;
-		CustomBuildings ??= new();
-		int idx = CustomBuildings.FindIndex(b => string.Equals(b.TemplateID, building.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomBuildings[idx] = building;
-		else CustomBuildings.Add(building);
+		Templates ??= new();
+		Templates.Buildings ??= new();
+		int idx = Templates.Buildings.FindIndex(b => string.Equals(b.TemplateID, building.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Buildings[idx] = building;
+		else Templates.Buildings.Add(building);
 	}
 
 	public bool RemoveBuilding(string objectId)
 	{
-		if (CustomBuildings == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return CustomBuildings.RemoveAll(b => string.Equals(b.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Buildings == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return Templates.Buildings.RemoveAll(b => string.Equals(b.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateProp(PropMetadata prop)
 	{
 		if (string.IsNullOrWhiteSpace(prop.TemplateID)) return;
-		CustomProps ??= new();
-		int idx = CustomProps.FindIndex(p => string.Equals(p.TemplateID, prop.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomProps[idx] = prop;
-		else CustomProps.Add(prop);
+		Templates ??= new();
+		Templates.Props ??= new();
+		int idx = Templates.Props.FindIndex(p => string.Equals(p.TemplateID, prop.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Props[idx] = prop;
+		else Templates.Props.Add(prop);
 	}
 
 	public bool RemoveProp(string objectId)
 	{
-		if (CustomProps == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return CustomProps.RemoveAll(p => string.Equals(p.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Props == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return Templates.Props.RemoveAll(p => string.Equals(p.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateResource(ResourceMetadata resource)
 	{
 		if (string.IsNullOrWhiteSpace(resource.TemplateID)) return;
-		CustomResources ??= new();
-		int idx = CustomResources.FindIndex(r => string.Equals(r.TemplateID, resource.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomResources[idx] = resource;
-		else CustomResources.Add(resource);
+		Templates ??= new();
+		Templates.Resources ??= new();
+		int idx = Templates.Resources.FindIndex(r => string.Equals(r.TemplateID, resource.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Resources[idx] = resource;
+		else Templates.Resources.Add(resource);
 	}
 
 	public bool RemoveResource(string objectId)
 	{
-		if (CustomResources == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return CustomResources.RemoveAll(r => string.Equals(r.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Resources == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return Templates.Resources.RemoveAll(r => string.Equals(r.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateAbility(AbilityMetadata ability)
 	{
 		if (string.IsNullOrWhiteSpace(ability.TemplateID)) return;
-		CustomAbilities ??= new();
-		int idx = CustomAbilities.FindIndex(a => string.Equals(a.TemplateID, ability.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomAbilities[idx] = ability;
-		else CustomAbilities.Add(ability);
+		Templates ??= new();
+		Templates.Abilities ??= new();
+		int idx = Templates.Abilities.FindIndex(a => string.Equals(a.TemplateID, ability.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Abilities[idx] = ability;
+		else Templates.Abilities.Add(ability);
 	}
 
 	public bool RemoveAbility(string objectId)
 	{
-		if (CustomAbilities == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return CustomAbilities.RemoveAll(a => string.Equals(a.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Abilities == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return Templates.Abilities.RemoveAll(a => string.Equals(a.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateWeapon(WeaponMetadata weapon)
 	{
 		if (string.IsNullOrWhiteSpace(weapon.TemplateID)) return;
-		CustomWeapons ??= new();
-		int idx = CustomWeapons.FindIndex(w => string.Equals(w.TemplateID, weapon.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomWeapons[idx] = weapon;
-		else CustomWeapons.Add(weapon);
+		Templates ??= new();
+		Templates.Weapons ??= new();
+		int idx = Templates.Weapons.FindIndex(w => string.Equals(w.TemplateID, weapon.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Weapons[idx] = weapon;
+		else Templates.Weapons.Add(weapon);
 	}
 
 	public bool RemoveWeapon(string objectId)
 	{
-		if (CustomWeapons == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return CustomWeapons.RemoveAll(w => string.Equals(w.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Weapons == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return Templates.Weapons.RemoveAll(w => string.Equals(w.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateAttachment(AttachmentMetadata attachment)
 	{
 		if (string.IsNullOrWhiteSpace(attachment.AttachmentId)) return;
-		CustomAttachments ??= new();
-		int idx = CustomAttachments.FindIndex(a => string.Equals(a.AttachmentId, attachment.AttachmentId, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomAttachments[idx] = attachment;
-		else CustomAttachments.Add(attachment);
+		Templates ??= new();
+		Templates.Attachments ??= new();
+		int idx = Templates.Attachments.FindIndex(a => string.Equals(a.AttachmentId, attachment.AttachmentId, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Attachments[idx] = attachment;
+		else Templates.Attachments.Add(attachment);
 	}
 
 	public bool RemoveAttachment(string attachmentId)
 	{
-		if (CustomAttachments == null || string.IsNullOrWhiteSpace(attachmentId)) return false;
-		return CustomAttachments.RemoveAll(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Attachments == null || string.IsNullOrWhiteSpace(attachmentId)) return false;
+		return Templates.Attachments.RemoveAll(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateVfx(VfxAttachmentConfig vfx)
 	{
 		if (string.IsNullOrWhiteSpace(vfx.VfxId)) return;
-		CustomVfx ??= new();
-		int idx = CustomVfx.FindIndex(v => string.Equals(v.VfxId, vfx.VfxId, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomVfx[idx] = vfx;
-		else CustomVfx.Add(vfx);
+		Templates ??= new();
+		Templates.Vfx ??= new();
+		int idx = Templates.Vfx.FindIndex(v => string.Equals(v.VfxId, vfx.VfxId, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Vfx[idx] = vfx;
+		else Templates.Vfx.Add(vfx);
 	}
 
 	public bool RemoveVfx(string vfxId)
 	{
-		if (CustomVfx == null || string.IsNullOrWhiteSpace(vfxId)) return false;
-		return CustomVfx.RemoveAll(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Vfx == null || string.IsNullOrWhiteSpace(vfxId)) return false;
+		return Templates.Vfx.RemoveAll(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateItem(ItemMetadata item)
 	{
 		if (string.IsNullOrWhiteSpace(item.TemplateID)) return;
-		CustomItems ??= new();
-		int idx = CustomItems.FindIndex(i => string.Equals(i.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomItems[idx] = item;
-		else CustomItems.Add(item);
+		Templates ??= new();
+		Templates.Items ??= new();
+		int idx = Templates.Items.FindIndex(i => string.Equals(i.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Items[idx] = item;
+		else Templates.Items.Add(item);
 	}
 
 	public bool RemoveItem(string objectId)
 	{
-		if (CustomItems == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return CustomItems.RemoveAll(i => string.Equals(i.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Items == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return Templates.Items.RemoveAll(i => string.Equals(i.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public void AddOrUpdateUpgrade(UpgradeMetadata upgrade)
 	{
 		if (string.IsNullOrWhiteSpace(upgrade.TemplateID)) return;
-		CustomUpgrades ??= new();
-		int idx = CustomUpgrades.FindIndex(u => string.Equals(u.TemplateID, upgrade.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) CustomUpgrades[idx] = upgrade;
-		else CustomUpgrades.Add(upgrade);
+		Templates ??= new();
+		Templates.Upgrades ??= new();
+		int idx = Templates.Upgrades.FindIndex(u => string.Equals(u.TemplateID, upgrade.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Upgrades[idx] = upgrade;
+		else Templates.Upgrades.Add(upgrade);
 	}
 
 	public bool RemoveUpgrade(string objectId)
 	{
-		if (CustomUpgrades == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return CustomUpgrades.RemoveAll(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
+		if (Templates?.Upgrades == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		return Templates.Upgrades.RemoveAll(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
 	public WaterProfileSaveData? GetWaterProfile(string id) => CustomWaterProfiles?.FirstOrDefault(w => string.Equals(w.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -346,11 +365,11 @@ public class MapMetadata
 
 	public bool UpdateUnit(string objectId, Func<UnitMetadata, UnitMetadata> update)
 	{
-		if (CustomUnits == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		int idx = CustomUnits.FindIndex(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Units == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = Templates.Units.FindIndex(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomUnits[idx] = update(CustomUnits[idx]);
+			Templates.Units[idx] = update(Templates.Units[idx]);
 			return true;
 		}
 		return false;
@@ -358,11 +377,11 @@ public class MapMetadata
 
 	public bool UpdateBuilding(string objectId, Func<UnitMetadata, UnitMetadata> update)
 	{
-		if (CustomBuildings == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		int idx = CustomBuildings.FindIndex(b => string.Equals(b.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Buildings == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = Templates.Buildings.FindIndex(b => string.Equals(b.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomBuildings[idx] = update(CustomBuildings[idx]);
+			Templates.Buildings[idx] = update(Templates.Buildings[idx]);
 			return true;
 		}
 		return false;
@@ -370,11 +389,11 @@ public class MapMetadata
 
 	public bool UpdateProp(string objectId, Func<PropMetadata, PropMetadata> update)
 	{
-		if (CustomProps == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		int idx = CustomProps.FindIndex(p => string.Equals(p.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Props == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = Templates.Props.FindIndex(p => string.Equals(p.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomProps[idx] = update(CustomProps[idx]);
+			Templates.Props[idx] = update(Templates.Props[idx]);
 			return true;
 		}
 		return false;
@@ -382,11 +401,11 @@ public class MapMetadata
 
 	public bool UpdateResource(string objectId, Func<ResourceMetadata, ResourceMetadata> update)
 	{
-		if (CustomResources == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		int idx = CustomResources.FindIndex(r => string.Equals(r.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Resources == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = Templates.Resources.FindIndex(r => string.Equals(r.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomResources[idx] = update(CustomResources[idx]);
+			Templates.Resources[idx] = update(Templates.Resources[idx]);
 			return true;
 		}
 		return false;
@@ -394,11 +413,11 @@ public class MapMetadata
 
 	public bool UpdateAbility(string objectId, Func<AbilityMetadata, AbilityMetadata> update)
 	{
-		if (CustomAbilities == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		int idx = CustomAbilities.FindIndex(a => string.Equals(a.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Abilities == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = Templates.Abilities.FindIndex(a => string.Equals(a.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomAbilities[idx] = update(CustomAbilities[idx]);
+			Templates.Abilities[idx] = update(Templates.Abilities[idx]);
 			return true;
 		}
 		return false;
@@ -406,11 +425,11 @@ public class MapMetadata
 
 	public bool UpdateWeapon(string objectId, Func<WeaponMetadata, WeaponMetadata> update)
 	{
-		if (CustomWeapons == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		int idx = CustomWeapons.FindIndex(w => string.Equals(w.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Weapons == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = Templates.Weapons.FindIndex(w => string.Equals(w.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomWeapons[idx] = update(CustomWeapons[idx]);
+			Templates.Weapons[idx] = update(Templates.Weapons[idx]);
 			return true;
 		}
 		return false;
@@ -418,11 +437,11 @@ public class MapMetadata
 
 	public bool UpdateAttachment(string attachmentId, Func<AttachmentMetadata, AttachmentMetadata> update)
 	{
-		if (CustomAttachments == null || string.IsNullOrWhiteSpace(attachmentId)) return false;
-		int idx = CustomAttachments.FindIndex(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Attachments == null || string.IsNullOrWhiteSpace(attachmentId)) return false;
+		int idx = Templates.Attachments.FindIndex(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomAttachments[idx] = update(CustomAttachments[idx]);
+			Templates.Attachments[idx] = update(Templates.Attachments[idx]);
 			return true;
 		}
 		return false;
@@ -430,11 +449,11 @@ public class MapMetadata
 
 	public bool UpdateVfx(string vfxId, Func<VfxAttachmentConfig, VfxAttachmentConfig> update)
 	{
-		if (CustomVfx == null || string.IsNullOrWhiteSpace(vfxId)) return false;
-		int idx = CustomVfx.FindIndex(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Vfx == null || string.IsNullOrWhiteSpace(vfxId)) return false;
+		int idx = Templates.Vfx.FindIndex(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomVfx[idx] = update(CustomVfx[idx]);
+			Templates.Vfx[idx] = update(Templates.Vfx[idx]);
 			return true;
 		}
 		return false;
@@ -442,11 +461,11 @@ public class MapMetadata
 
 	public bool UpdateItem(string objectId, Func<ItemMetadata, ItemMetadata> update)
 	{
-		if (CustomItems == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		int idx = CustomItems.FindIndex(i => string.Equals(i.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Items == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = Templates.Items.FindIndex(i => string.Equals(i.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomItems[idx] = update(CustomItems[idx]);
+			Templates.Items[idx] = update(Templates.Items[idx]);
 			return true;
 		}
 		return false;
@@ -454,11 +473,11 @@ public class MapMetadata
 
 	public bool UpdateUpgrade(string objectId, Func<UpgradeMetadata, UpgradeMetadata> update)
 	{
-		if (CustomUpgrades == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		int idx = CustomUpgrades.FindIndex(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+		if (Templates?.Upgrades == null || string.IsNullOrWhiteSpace(objectId)) return false;
+		int idx = Templates.Upgrades.FindIndex(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
-			CustomUpgrades[idx] = update(CustomUpgrades[idx]);
+			Templates.Upgrades[idx] = update(Templates.Upgrades[idx]);
 			return true;
 		}
 		return false;

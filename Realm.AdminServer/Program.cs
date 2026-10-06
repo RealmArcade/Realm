@@ -2477,41 +2477,44 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
                             }
                         }
 
-                        if (metaRoot.TryGetProperty("CustomUnits", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
+                        if (metaRoot.TryGetProperty("Templates", out var templatesObj) && templatesObj.ValueKind == JsonValueKind.Object)
                         {
-                            if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
-                        }
-                        if (metaRoot.TryGetProperty("CustomBuildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
-                        }
-                        if (metaRoot.TryGetProperty("CustomAbilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
-                        }
-                        if (metaRoot.TryGetProperty("CustomWeapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
-                        }
-                        if (metaRoot.TryGetProperty("CustomUpgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
-                        }
-                        if (metaRoot.TryGetProperty("CustomProps", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
-                        }
-                        if (metaRoot.TryGetProperty("CustomItems", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
-                        }
-                        if (metaRoot.TryGetProperty("CustomAttachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
-                        }
-                        if (metaRoot.TryGetProperty("CustomVfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
+                            if (templatesObj.TryGetProperty("Units", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
+                            }
+                            if (templatesObj.TryGetProperty("Buildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
+                            }
+                            if (templatesObj.TryGetProperty("Abilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
+                            }
+                            if (templatesObj.TryGetProperty("Weapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
+                            }
+                            if (templatesObj.TryGetProperty("Upgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
+                            }
+                            if (templatesObj.TryGetProperty("Props", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
+                            }
+                            if (templatesObj.TryGetProperty("Items", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
+                            }
+                            if (templatesObj.TryGetProperty("Attachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
+                            }
+                            if (templatesObj.TryGetProperty("Vfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
+                            }
                         }
                         if (metaRoot.TryGetProperty("EngineVersion", out var ev) && !string.IsNullOrEmpty(ev.GetString()))
                         {
@@ -2681,41 +2684,44 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
                                 }
                             }
 
-                            if (metaRoot.TryGetProperty("CustomUnits", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
+                            if (metaRoot.TryGetProperty("Templates", out var templatesObj) && templatesObj.ValueKind == JsonValueKind.Object)
                             {
-                                if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
-                            }
-                            if (metaRoot.TryGetProperty("CustomBuildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
-                            }
-                            if (metaRoot.TryGetProperty("CustomAbilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
-                            }
-                            if (metaRoot.TryGetProperty("CustomWeapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
-                            }
-                            if (metaRoot.TryGetProperty("CustomUpgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
-                            }
-                            if (metaRoot.TryGetProperty("CustomProps", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
-                            }
-                            if (metaRoot.TryGetProperty("CustomItems", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
-                            }
-                            if (metaRoot.TryGetProperty("CustomAttachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
-                            }
-                            if (metaRoot.TryGetProperty("CustomVfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
+                                if (templatesObj.TryGetProperty("Units", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
+                                }
+                                if (templatesObj.TryGetProperty("Buildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
+                                }
+                                if (templatesObj.TryGetProperty("Abilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
+                                }
+                                if (templatesObj.TryGetProperty("Weapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
+                                }
+                                if (templatesObj.TryGetProperty("Upgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
+                                }
+                                if (templatesObj.TryGetProperty("Props", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
+                                }
+                                if (templatesObj.TryGetProperty("Items", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
+                                }
+                                if (templatesObj.TryGetProperty("Attachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
+                                }
+                                if (templatesObj.TryGetProperty("Vfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
+                                }
                             }
                             if (metaRoot.TryGetProperty("EngineVersion", out var ev) && !string.IsNullOrEmpty(ev.GetString()))
                             {

@@ -351,9 +351,9 @@ public partial class VfxManagerDialog : FloatingPreview3DDialogBase
 		try
 		{
 			var metadata = MetadataService.Instance.LoadMetadata(wsPath);
-			if (metadata.CustomVfx != null)
+			if (metadata.Templates?.Vfx != null)
 			{
-				foreach (var cfg in metadata.CustomVfx)
+				foreach (var cfg in metadata.Templates.Vfx)
 				{
 					if (cfg != null && !string.IsNullOrEmpty(cfg.VfxId))
 					{

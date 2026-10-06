@@ -181,10 +181,10 @@ public class MetadataService
 			}
 		}
 
-		ValidateEntityList(metadata.CustomUnits, u => u.TemplateID, u => u.Scale, "CustomUnits");
-		ValidateEntityList(metadata.CustomBuildings, b => b.TemplateID, b => b.Scale, "CustomBuildings");
-		ValidateEntityList(metadata.CustomResources, r => r.TemplateID, r => r.Scale, "CustomResources");
-		ValidateEntityList(metadata.CustomProps, p => p.TemplateID, p => p.Scale, "CustomProps");
+		ValidateEntityList(metadata.Templates?.Units, u => u.TemplateID, u => u.Scale, "Units");
+		ValidateEntityList(metadata.Templates?.Buildings, b => b.TemplateID, b => b.Scale, "Buildings");
+		ValidateEntityList(metadata.Templates?.Resources, r => r.TemplateID, r => r.Scale, "Resources");
+		ValidateEntityList(metadata.Templates?.Props, p => p.TemplateID, p => p.Scale, "Props");
 
 		if (metadata.Dependencies != null)
 		{
@@ -232,16 +232,17 @@ public class MetadataService
 
 		metadata.MapProperties ??= new MapInfoMetadata();
 		metadata.Dependencies ??= new List<MapDependencyMetadata>();
-		metadata.CustomUnits ??= new List<UnitMetadata>();
-		metadata.CustomBuildings ??= new List<UnitMetadata>();
-		metadata.CustomResources ??= new List<ResourceMetadata>();
-		metadata.CustomProps ??= new List<PropMetadata>();
-		metadata.CustomAbilities ??= new List<AbilityMetadata>();
-		metadata.CustomWeapons ??= new List<WeaponMetadata>();
-		metadata.CustomUpgrades ??= new List<UpgradeMetadata>();
-		metadata.CustomItems ??= new List<ItemMetadata>();
-		metadata.CustomAttachments ??= new List<AttachmentMetadata>();
-		metadata.CustomVfx ??= new List<VfxAttachmentConfig>();
+		metadata.Templates ??= new TemplateContainer();
+		metadata.Templates.Units ??= new List<UnitMetadata>();
+		metadata.Templates.Buildings ??= new List<UnitMetadata>();
+		metadata.Templates.Resources ??= new List<ResourceMetadata>();
+		metadata.Templates.Props ??= new List<PropMetadata>();
+		metadata.Templates.Abilities ??= new List<AbilityMetadata>();
+		metadata.Templates.Weapons ??= new List<WeaponMetadata>();
+		metadata.Templates.Upgrades ??= new List<UpgradeMetadata>();
+		metadata.Templates.Items ??= new List<ItemMetadata>();
+		metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
+		metadata.Templates.Vfx ??= new List<VfxAttachmentConfig>();
 
 		metadata.Models ??= new Dictionary<string, ModelMetadata>(StringComparer.OrdinalIgnoreCase);
 		metadata.Textures ??= new Dictionary<string, TextureMetadata>(StringComparer.OrdinalIgnoreCase);
@@ -273,265 +274,45 @@ public class MetadataService
 		}
 	}
 
-	public UnitMetadata? FindUnit(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomUnits == null || string.IsNullOrWhiteSpace(objectId)) return null;
-		return metadata.CustomUnits.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-	}
+	public UnitMetadata? FindUnit(MapMetadata metadata, string objectId) => metadata?.FindUnit(objectId);
+	public void AddOrUpdateUnit(MapMetadata metadata, UnitMetadata unit) => metadata?.AddOrUpdateUnit(unit);
+	public bool RemoveUnit(MapMetadata metadata, string objectId) => metadata?.RemoveUnit(objectId) ?? false;
 
-	public void AddOrUpdateUnit(MapMetadata metadata, UnitMetadata unit)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(unit.TemplateID)) return;
-		int index = metadata.CustomUnits.FindIndex(u => string.Equals(u.TemplateID, unit.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomUnits[index] = unit;
-		}
-		else
-		{
-			metadata.CustomUnits.Add(unit);
-		}
-	}
+	public UnitMetadata? FindBuilding(MapMetadata metadata, string objectId) => metadata?.FindBuilding(objectId);
+	public void AddOrUpdateBuilding(MapMetadata metadata, UnitMetadata building) => metadata?.AddOrUpdateBuilding(building);
+	public bool RemoveBuilding(MapMetadata metadata, string objectId) => metadata?.RemoveBuilding(objectId) ?? false;
 
-	public bool RemoveUnit(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomUnits == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return metadata.CustomUnits.RemoveAll(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
+	public PropMetadata? FindProp(MapMetadata metadata, string objectId) => metadata?.FindProp(objectId);
+	public void AddOrUpdateProp(MapMetadata metadata, PropMetadata prop) => metadata?.AddOrUpdateProp(prop);
+	public bool RemoveProp(MapMetadata metadata, string objectId) => metadata?.RemoveProp(objectId) ?? false;
 
-	public UnitMetadata? FindBuilding(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomBuildings == null || string.IsNullOrWhiteSpace(objectId)) return null;
-		return metadata.CustomBuildings.FirstOrDefault(b => string.Equals(b.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-	}
+	public ResourceMetadata? FindResource(MapMetadata metadata, string objectId) => metadata?.FindResource(objectId);
+	public void AddOrUpdateResource(MapMetadata metadata, ResourceMetadata resource) => metadata?.AddOrUpdateResource(resource);
+	public bool RemoveResource(MapMetadata metadata, string objectId) => metadata?.RemoveResource(objectId) ?? false;
 
-	public void AddOrUpdateBuilding(MapMetadata metadata, UnitMetadata building)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(building.TemplateID)) return;
-		int index = metadata.CustomBuildings.FindIndex(b => string.Equals(b.TemplateID, building.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomBuildings[index] = building;
-		}
-		else
-		{
-			metadata.CustomBuildings.Add(building);
-		}
-	}
+	public WeaponMetadata? FindWeapon(MapMetadata metadata, string objectId) => metadata?.FindWeapon(objectId);
+	public void AddOrUpdateWeapon(MapMetadata metadata, WeaponMetadata weapon) => metadata?.AddOrUpdateWeapon(weapon);
+	public bool RemoveWeapon(MapMetadata metadata, string objectId) => metadata?.RemoveWeapon(objectId) ?? false;
 
-	public bool RemoveBuilding(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomBuildings == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return metadata.CustomBuildings.RemoveAll(b => string.Equals(b.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
+	public AbilityMetadata? FindAbility(MapMetadata metadata, string objectId) => metadata?.FindAbility(objectId);
+	public void AddOrUpdateAbility(MapMetadata metadata, AbilityMetadata ability) => metadata?.AddOrUpdateAbility(ability);
+	public bool RemoveAbility(MapMetadata metadata, string objectId) => metadata?.RemoveAbility(objectId) ?? false;
 
-	public PropMetadata? FindProp(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomProps == null || string.IsNullOrWhiteSpace(objectId)) return null;
-		return metadata.CustomProps.FirstOrDefault(p => string.Equals(p.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-	}
+	public UpgradeMetadata? FindUpgrade(MapMetadata metadata, string objectId) => metadata?.FindUpgrade(objectId);
+	public void AddOrUpdateUpgrade(MapMetadata metadata, UpgradeMetadata upgrade) => metadata?.AddOrUpdateUpgrade(upgrade);
+	public bool RemoveUpgrade(MapMetadata metadata, string objectId) => metadata?.RemoveUpgrade(objectId) ?? false;
 
-	public void AddOrUpdateProp(MapMetadata metadata, PropMetadata prop)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(prop.TemplateID)) return;
-		int index = metadata.CustomProps.FindIndex(p => string.Equals(p.TemplateID, prop.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomProps[index] = prop;
-		}
-		else
-		{
-			metadata.CustomProps.Add(prop);
-		}
-	}
+	public ItemMetadata? FindItem(MapMetadata metadata, string objectId) => metadata?.FindItem(objectId);
+	public void AddOrUpdateItem(MapMetadata metadata, ItemMetadata item) => metadata?.AddOrUpdateItem(item);
+	public bool RemoveItem(MapMetadata metadata, string objectId) => metadata?.RemoveItem(objectId) ?? false;
 
-	public bool RemoveProp(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomProps == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return metadata.CustomProps.RemoveAll(p => string.Equals(p.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
+	public AttachmentMetadata? FindAttachment(MapMetadata metadata, string attachmentId) => metadata?.FindAttachment(attachmentId);
+	public void AddOrUpdateAttachment(MapMetadata metadata, AttachmentMetadata attachment) => metadata?.AddOrUpdateAttachment(attachment);
+	public bool RemoveAttachment(MapMetadata metadata, string attachmentId) => metadata?.RemoveAttachment(attachmentId) ?? false;
 
-	public ResourceMetadata? FindResource(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomResources == null || string.IsNullOrWhiteSpace(objectId)) return null;
-		return metadata.CustomResources.FirstOrDefault(r => string.Equals(r.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-	}
-
-	public void AddOrUpdateResource(MapMetadata metadata, ResourceMetadata resource)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(resource.TemplateID)) return;
-		int index = metadata.CustomResources.FindIndex(r => string.Equals(r.TemplateID, resource.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomResources[index] = resource;
-		}
-		else
-		{
-			metadata.CustomResources.Add(resource);
-		}
-	}
-
-	public bool RemoveResource(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomResources == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return metadata.CustomResources.RemoveAll(r => string.Equals(r.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
-
-	public WeaponMetadata? FindWeapon(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomWeapons == null || string.IsNullOrWhiteSpace(objectId)) return null;
-		return metadata.CustomWeapons.FirstOrDefault(w => string.Equals(w.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-	}
-
-	public void AddOrUpdateWeapon(MapMetadata metadata, WeaponMetadata weapon)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(weapon.TemplateID)) return;
-		int index = metadata.CustomWeapons.FindIndex(w => string.Equals(w.TemplateID, weapon.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomWeapons[index] = weapon;
-		}
-		else
-		{
-			metadata.CustomWeapons.Add(weapon);
-		}
-	}
-
-	public bool RemoveWeapon(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomWeapons == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return metadata.CustomWeapons.RemoveAll(w => string.Equals(w.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
-
-	public AbilityMetadata? FindAbility(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomAbilities == null || string.IsNullOrWhiteSpace(objectId)) return null;
-		return metadata.CustomAbilities.FirstOrDefault(a => string.Equals(a.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-	}
-
-	public void AddOrUpdateAbility(MapMetadata metadata, AbilityMetadata ability)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(ability.TemplateID)) return;
-		int index = metadata.CustomAbilities.FindIndex(a => string.Equals(a.TemplateID, ability.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomAbilities[index] = ability;
-		}
-		else
-		{
-			metadata.CustomAbilities.Add(ability);
-		}
-	}
-
-	public bool RemoveAbility(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomAbilities == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return metadata.CustomAbilities.RemoveAll(a => string.Equals(a.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
-
-	public UpgradeMetadata? FindUpgrade(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomUpgrades == null || string.IsNullOrWhiteSpace(objectId)) return null;
-		return metadata.CustomUpgrades.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-	}
-
-	public void AddOrUpdateUpgrade(MapMetadata metadata, UpgradeMetadata upgrade)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(upgrade.TemplateID)) return;
-		int index = metadata.CustomUpgrades.FindIndex(u => string.Equals(u.TemplateID, upgrade.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomUpgrades[index] = upgrade;
-		}
-		else
-		{
-			metadata.CustomUpgrades.Add(upgrade);
-		}
-	}
-
-	public bool RemoveUpgrade(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomUpgrades == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return metadata.CustomUpgrades.RemoveAll(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
-
-	public ItemMetadata? FindItem(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomItems == null || string.IsNullOrWhiteSpace(objectId)) return null;
-		return metadata.CustomItems.FirstOrDefault(i => string.Equals(i.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
-	}
-
-	public void AddOrUpdateItem(MapMetadata metadata, ItemMetadata item)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(item.TemplateID)) return;
-		int index = metadata.CustomItems.FindIndex(i => string.Equals(i.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomItems[index] = item;
-		}
-		else
-		{
-			metadata.CustomItems.Add(item);
-		}
-	}
-
-	public bool RemoveItem(MapMetadata metadata, string objectId)
-	{
-		if (metadata?.CustomItems == null || string.IsNullOrWhiteSpace(objectId)) return false;
-		return metadata.CustomItems.RemoveAll(i => string.Equals(i.TemplateID, objectId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
-
-	public AttachmentMetadata? FindAttachment(MapMetadata metadata, string attachmentId)
-	{
-		if (metadata?.CustomAttachments == null || string.IsNullOrWhiteSpace(attachmentId)) return null;
-		return metadata.CustomAttachments.FirstOrDefault(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase));
-	}
-
-	public void AddOrUpdateAttachment(MapMetadata metadata, AttachmentMetadata attachment)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(attachment.AttachmentId)) return;
-		int index = metadata.CustomAttachments.FindIndex(a => string.Equals(a.AttachmentId, attachment.AttachmentId, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomAttachments[index] = attachment;
-		}
-		else
-		{
-			metadata.CustomAttachments.Add(attachment);
-		}
-	}
-
-	public bool RemoveAttachment(MapMetadata metadata, string attachmentId)
-	{
-		if (metadata?.CustomAttachments == null || string.IsNullOrWhiteSpace(attachmentId)) return false;
-		return metadata.CustomAttachments.RemoveAll(a => string.Equals(a.AttachmentId, attachmentId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
-
-	public VfxAttachmentConfig? FindVfx(MapMetadata metadata, string vfxId)
-	{
-		if (metadata?.CustomVfx == null || string.IsNullOrWhiteSpace(vfxId)) return null;
-		return metadata.CustomVfx.FirstOrDefault(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase));
-	}
-
-	public void AddOrUpdateVfx(MapMetadata metadata, VfxAttachmentConfig vfx)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(vfx.VfxId)) return;
-		int index = metadata.CustomVfx.FindIndex(v => string.Equals(v.VfxId, vfx.VfxId, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.CustomVfx[index] = vfx;
-		}
-		else
-		{
-			metadata.CustomVfx.Add(vfx);
-		}
-	}
-
-	public bool RemoveVfx(MapMetadata metadata, string vfxId)
-	{
-		if (metadata?.CustomVfx == null || string.IsNullOrWhiteSpace(vfxId)) return false;
-		return metadata.CustomVfx.RemoveAll(v => string.Equals(v.VfxId, vfxId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
+	public VfxAttachmentConfig? FindVfx(MapMetadata metadata, string vfxId) => metadata?.FindVfx(vfxId);
+	public void AddOrUpdateVfx(MapMetadata metadata, VfxAttachmentConfig vfx) => metadata?.AddOrUpdateVfx(vfx);
+	public bool RemoveVfx(MapMetadata metadata, string vfxId) => metadata?.RemoveVfx(vfxId) ?? false;
 
 	public EnvironmentPresetConfig? GetEnvironmentPreset(MapMetadata metadata, string presetId)
 	{

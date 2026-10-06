@@ -211,9 +211,9 @@ public class MapEditorEntityPaletteController
 						}
 					}
 
-					if (metadata.CustomVfx != null)
+					if (metadata.Templates?.Vfx != null)
 					{
-						foreach (var vObj in metadata.CustomVfx)
+						foreach (var vObj in metadata.Templates.Vfx)
 						{
 							string vId = vObj.VfxId ?? "";
 							string name = vObj.Name ?? "";
@@ -272,9 +272,9 @@ public class MapEditorEntityPaletteController
 				{
 					if (category == "Buildings")
 					{
-						if (metadata.CustomBuildings != null)
+						if (metadata.Templates?.Buildings != null)
 						{
-							foreach (var b in metadata.CustomBuildings)
+							foreach (var b in metadata.Templates.Buildings)
 							{
 								if (!string.IsNullOrEmpty(b.TemplateID) && !_categoryFiles.Contains(b.TemplateID))
 								{
@@ -297,9 +297,9 @@ public class MapEditorEntityPaletteController
 					}
 					else if (category == "Units" || category == "Characters")
 					{
-						if (metadata.CustomUnits != null)
+						if (metadata.Templates?.Units != null)
 						{
-							foreach (var u in metadata.CustomUnits)
+							foreach (var u in metadata.Templates.Units)
 							{
 								if (!string.IsNullOrEmpty(u.TemplateID) && !_categoryFiles.Contains(u.TemplateID))
 								{
@@ -322,9 +322,9 @@ public class MapEditorEntityPaletteController
 					}
 					else if (category == "Resources" || category == "Environment")
 					{
-						if (metadata.CustomResources != null)
+						if (metadata.Templates?.Resources != null)
 						{
-							foreach (var r in metadata.CustomResources)
+							foreach (var r in metadata.Templates.Resources)
 							{
 								if (!string.IsNullOrEmpty(r.TemplateID) && !_categoryFiles.Contains(r.TemplateID))
 								{
@@ -347,9 +347,9 @@ public class MapEditorEntityPaletteController
 					}
 					else if (category == "Props")
 					{
-						if (metadata.CustomProps != null)
+						if (metadata.Templates?.Props != null)
 						{
-							foreach (var p in metadata.CustomProps)
+							foreach (var p in metadata.Templates.Props)
 							{
 								if (!string.IsNullOrEmpty(p.TemplateID) && !_categoryFiles.Contains(p.TemplateID))
 								{

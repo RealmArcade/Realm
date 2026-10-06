@@ -834,10 +834,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			{
 				bool exists = _category switch
 				{
-					"units" => meta.CustomUnits?.Any(u => string.Equals(u.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					"buildings" => meta.CustomBuildings?.Any(b => string.Equals(b.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					"resources" => meta.CustomResources?.Any(r => string.Equals(r.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					"props" => meta.CustomProps?.Any(p => string.Equals(p.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+					"units" => meta.GetUnit(fullId) != null,
+					"buildings" => meta.GetBuilding(fullId) != null,
+					"resources" => meta.GetResource(fullId) != null,
+					"props" => meta.GetProp(fullId) != null,
 					_ => false
 				};
 
@@ -1091,19 +1091,19 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			switch (_category)
 			{
 				case "units":
-					var u = meta.CustomUnits?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+					var u = meta.GetUnit(objectId);
 					if (u != null) LoadFromUnitMetadata(u);
 					break;
 				case "buildings":
-					var b = meta.CustomBuildings?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+					var b = meta.GetBuilding(objectId);
 					if (b != null) LoadFromUnitMetadata(b);
 					break;
 				case "resources":
-					var r = meta.CustomResources?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+					var r = meta.GetResource(objectId);
 					if (r != null) LoadFromResourceMetadata(r);
 					break;
 				case "props":
-					var p = meta.CustomProps?.FirstOrDefault(x => string.Equals(x.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
+					var p = meta.GetProp(objectId);
 					if (p != null) LoadFromPropMetadata(p);
 					break;
 			}

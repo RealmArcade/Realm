@@ -6,11 +6,11 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;dist\**</DefaultItemExcludes>
   </PropertyGroup>
 
-  <Target Name="GenerateSchemas" BeforeTargets="NpmBuild;Build;SyncToEmbedded">
+  <Target Name="GenerateSchemas" BeforeTargets="NpmBuild;Build;SyncToEmbedded" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/generate-schemas.ps1&quot;" />
   </Target>
 
-  <Target Name="SyncVersion" BeforeTargets="NpmBuild">
+  <Target Name="SyncVersion" BeforeTargets="NpmBuild" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/sync-version.ps1&quot;" ContinueOnError="true" />
   </Target>
 
@@ -32,7 +32,7 @@
     <Copy SourceFiles="@(DistFiles)" DestinationFiles="@(DistFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/dist/%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(MediaFiles)" DestinationFiles="@(MediaFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/media/%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(RootFiles)" DestinationFiles="@(RootFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/%(Filename)%(Extension)')" />
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/sync-version_visualStudio_debug.ps1&quot;" ContinueOnError="true" />
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/sync-version_visualStudio_debug.ps1&quot;" ContinueOnError="true" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
   </Target>
 
   <Target Name="CopyToMapTemplate" AfterTargets="SyncToEmbedded">

@@ -340,9 +340,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		switch (category)
 		{
 			case "units":
-				if (meta.CustomUnits != null)
+				if (meta.Templates?.Units != null)
 				{
-					foreach (var u in meta.CustomUnits)
+					foreach (var u in meta.Templates.Units)
 					{
 						list.Add(new ObjectItemInfo
 						{
@@ -359,9 +359,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			case "buildings":
-				if (meta.CustomBuildings != null)
+				if (meta.Templates?.Buildings != null)
 				{
-					foreach (var b in meta.CustomBuildings)
+					foreach (var b in meta.Templates.Buildings)
 					{
 						list.Add(new ObjectItemInfo
 						{
@@ -378,9 +378,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			case "resources":
-				if (meta.CustomResources != null)
+				if (meta.Templates?.Resources != null)
 				{
-					foreach (var r in meta.CustomResources)
+					foreach (var r in meta.Templates.Resources)
 					{
 						list.Add(new ObjectItemInfo
 						{
@@ -397,9 +397,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			case "props":
-				if (meta.CustomProps != null)
+				if (meta.Templates?.Props != null)
 				{
-					foreach (var p in meta.CustomProps)
+					foreach (var p in meta.Templates.Props)
 					{
 						list.Add(new ObjectItemInfo
 						{
@@ -416,9 +416,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			case "weapons":
-				if (meta.CustomWeapons != null)
+				if (meta.Templates?.Weapons != null)
 				{
-					foreach (var w in meta.CustomWeapons)
+					foreach (var w in meta.Templates.Weapons)
 					{
 						list.Add(new ObjectItemInfo
 						{
@@ -433,9 +433,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			case "abilities":
-				if (meta.CustomAbilities != null)
+				if (meta.Templates?.Abilities != null)
 				{
-					foreach (var a in meta.CustomAbilities)
+					foreach (var a in meta.Templates.Abilities)
 					{
 						list.Add(new ObjectItemInfo
 						{
@@ -450,9 +450,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			case "upgrades":
-				if (meta.CustomUpgrades != null)
+				if (meta.Templates?.Upgrades != null)
 				{
-					foreach (var u in meta.CustomUpgrades)
+					foreach (var u in meta.Templates.Upgrades)
 					{
 						list.Add(new ObjectItemInfo
 						{
@@ -467,9 +467,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				break;
 
 			case "items":
-				if (meta.CustomItems != null)
+				if (meta.Templates?.Items != null)
 				{
-					foreach (var itm in meta.CustomItems)
+					foreach (var itm in meta.Templates.Items)
 					{
 						list.Add(new ObjectItemInfo
 						{
@@ -662,12 +662,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 			case "weapons":
 				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-				if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.CustomWeapons != null)
+				if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
 				{
-					int wIdx = meta.CustomWeapons.FindIndex(x => string.Equals(x.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
+					int wIdx = meta.Templates.Weapons.FindIndex(x => string.Equals(x.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 					if (wIdx >= 0)
 					{
-						var w = meta.CustomWeapons[wIdx];
+						var w = meta.Templates.Weapons[wIdx];
 						_weaponVfxDialog.OpenForWeapon(w.TemplateID, w, updatedWeapon =>
 						{
 							MetadataService.Instance.UpdateMetadata(wsPath, m =>
@@ -682,12 +682,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 			case "abilities":
 				string wsPathAbi = MapWorkspaceService.GetActiveWorkspacePath();
-				if (MetadataService.Instance.TryLoadMetadata(wsPathAbi, out var metaAbi) && metaAbi?.CustomAbilities != null)
+				if (MetadataService.Instance.TryLoadMetadata(wsPathAbi, out var metaAbi) && metaAbi?.Templates?.Abilities != null)
 				{
-					int aIdx = metaAbi.CustomAbilities.FindIndex(x => string.Equals(x.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
+					int aIdx = metaAbi.Templates.Abilities.FindIndex(x => string.Equals(x.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 					if (aIdx >= 0)
 					{
-						var a = metaAbi.CustomAbilities[aIdx];
+						var a = metaAbi.Templates.Abilities[aIdx];
 						var jsonObj = new JsonObject
 						{
 							["VisualEffect"] = a.VisualEffect,

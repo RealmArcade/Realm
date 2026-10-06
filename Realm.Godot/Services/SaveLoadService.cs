@@ -1668,9 +1668,9 @@ public class SaveLoadService
 
 		if (MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata))
 		{
-			if (metadata.CustomProps != null && metadata.CustomProps.Any(p => propId.Equals(p.TemplateID, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.Templates?.Props != null && metadata.Templates.Props.Any(p => propId.Equals(p.TemplateID, StringComparison.OrdinalIgnoreCase)))
 				return true;
-			if (metadata.CustomResources != null && metadata.CustomResources.Any(r => propId.Equals(r.TemplateID, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.Templates?.Resources != null && metadata.Templates.Resources.Any(r => propId.Equals(r.TemplateID, StringComparison.OrdinalIgnoreCase)))
 				return true;
 		}
 
@@ -1690,9 +1690,9 @@ public class SaveLoadService
 
 		if (MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata))
 		{
-			if (metadata.CustomUnits != null && metadata.CustomUnits.Any(u => unitId.Equals(u.TemplateID, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.Templates?.Units != null && metadata.Templates.Units.Any(u => unitId.Equals(u.TemplateID, StringComparison.OrdinalIgnoreCase)))
 				return true;
-			if (metadata.CustomBuildings != null && metadata.CustomBuildings.Any(b => unitId.Equals(b.TemplateID, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.Templates?.Buildings != null && metadata.Templates.Buildings.Any(b => unitId.Equals(b.TemplateID, StringComparison.OrdinalIgnoreCase)))
 				return true;
 		}
 
@@ -1737,43 +1737,7 @@ public class SaveLoadService
 		set.Add("skyboxes");
 		set.Add("ribbons");
 		set.Add("shaders");
-		set.Add("CustomUnits");
-		set.Add("CustomBuildings");
-		set.Add("CustomResources");
-		set.Add("CustomProps");
-		set.Add("CustomAbilities");
-		set.Add("CustomWeapons");
-		set.Add("CustomUpgrades");
-		set.Add("CustomItems");
-		set.Add("CustomAttachments");
-		set.Add("CustomVfx");
-
-		Type[] entityTypes = new[]
-		{
-			typeof(UnitMetadata),
-			typeof(PropMetadata),
-			typeof(ResourceMetadata),
-			typeof(WeaponMetadata),
-			typeof(AttachmentMetadata),
-			typeof(AbilityMetadata),
-			typeof(UpgradeMetadata),
-			typeof(ItemMetadata)
-		};
-
-		foreach (var t in entityTypes)
-		{
-			string baseName = t.Name;
-			if (baseName.EndsWith("Metadata", StringComparison.OrdinalIgnoreCase))
-			{
-				baseName = baseName[..^"Metadata".Length];
-			}
-
-			string plural = baseName.EndsWith("y", StringComparison.OrdinalIgnoreCase)
-				? baseName[..^1] + "ies"
-				: baseName + "s";
-
-			set.Add("Custom" + plural);
-		}
+		set.Add("Templates");
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("properties", out var propertiesNode) && propertiesNode is JsonObject propertiesObject)
 		{
@@ -1964,7 +1928,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("CustomAbilities", out var abilityDefinition))
+			if (definitionsObject.TryGetPropertyValue("Abilities", out var abilityDefinition) || definitionsObject.TryGetPropertyValue("CustomAbilities", out abilityDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(abilityDefinition, set);
 			}
@@ -1983,7 +1947,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("CustomWeapons", out var weaponDefinition))
+			if (definitionsObject.TryGetPropertyValue("Weapons", out var weaponDefinition) || definitionsObject.TryGetPropertyValue("CustomWeapons", out weaponDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(weaponDefinition, set);
 			}
@@ -2002,7 +1966,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("CustomUpgrades", out var upgradeDefinition))
+			if (definitionsObject.TryGetPropertyValue("Upgrades", out var upgradeDefinition) || definitionsObject.TryGetPropertyValue("CustomUpgrades", out upgradeDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(upgradeDefinition, set);
 			}
@@ -2021,7 +1985,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("CustomItems", out var itemDefinition))
+			if (definitionsObject.TryGetPropertyValue("Items", out var itemDefinition) || definitionsObject.TryGetPropertyValue("CustomItems", out itemDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(itemDefinition, set);
 			}
@@ -2042,7 +2006,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("CustomAttachments", out var attachDefinition))
+			if (definitionsObject.TryGetPropertyValue("Attachments", out var attachDefinition) || definitionsObject.TryGetPropertyValue("CustomAttachments", out attachDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(attachDefinition, set);
 			}
@@ -2063,7 +2027,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("CustomVfx", out var vfxDefinition))
+			if (definitionsObject.TryGetPropertyValue("Vfx", out var vfxDefinition) || definitionsObject.TryGetPropertyValue("CustomVfx", out vfxDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(vfxDefinition, set);
 			}
@@ -2322,49 +2286,52 @@ public class SaveLoadService
 			CleanMapPropertiesObject(mapPropertiesObject, schemaRoot);
 		}
 
-		var allowedEntityProperties = GetAllowedEntityItemProperties(schemaRoot);
-		foreach (var arrayName in GetMetadataEntityArrayNames())
+		if (root.TryGetPropertyValue("Templates", out var templatesNode) && templatesNode is JsonObject templatesObj)
 		{
-			if (root.TryGetPropertyValue(arrayName, out var node) && node is JsonArray array)
+			var allowedEntityProperties = GetAllowedEntityItemProperties(schemaRoot);
+			foreach (var arrayName in GetMetadataEntityArrayNames())
 			{
-				CleanJsonArrayObjects(array, allowedEntityProperties);
+				if (templatesObj.TryGetPropertyValue(arrayName, out var node) && node is JsonArray array)
+				{
+					CleanJsonArrayObjects(array, allowedEntityProperties);
+				}
 			}
-		}
 
-		var allowedAbilityProperties = GetAllowedAbilityItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomAbilities", out var abilitiesNode) && abilitiesNode is JsonArray abilitiesArray)
-		{
-			CleanJsonArrayObjects(abilitiesArray, allowedAbilityProperties);
-		}
+			var allowedAbilityProperties = GetAllowedAbilityItemProperties(schemaRoot);
+			if (templatesObj.TryGetPropertyValue("Abilities", out var abilitiesNode) && abilitiesNode is JsonArray abilitiesArray)
+			{
+				CleanJsonArrayObjects(abilitiesArray, allowedAbilityProperties);
+			}
 
-		var allowedWeaponProperties = GetAllowedWeaponItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomWeapons", out var weaponsNode) && weaponsNode is JsonArray weaponsArray)
-		{
-			CleanJsonArrayObjects(weaponsArray, allowedWeaponProperties);
-		}
+			var allowedWeaponProperties = GetAllowedWeaponItemProperties(schemaRoot);
+			if (templatesObj.TryGetPropertyValue("Weapons", out var weaponsNode) && weaponsNode is JsonArray weaponsArray)
+			{
+				CleanJsonArrayObjects(weaponsArray, allowedWeaponProperties);
+			}
 
-		var allowedUpgradeProperties = GetAllowedUpgradeItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomUpgrades", out var upgradesNode) && upgradesNode is JsonArray upgradesArray)
-		{
-			CleanJsonArrayObjects(upgradesArray, allowedUpgradeProperties);
-		}
+			var allowedUpgradeProperties = GetAllowedUpgradeItemProperties(schemaRoot);
+			if (templatesObj.TryGetPropertyValue("Upgrades", out var upgradesNode) && upgradesNode is JsonArray upgradesArray)
+			{
+				CleanJsonArrayObjects(upgradesArray, allowedUpgradeProperties);
+			}
 
-		var allowedCustomItemProperties = GetAllowedCustomItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomItems", out var customItemsNode) && customItemsNode is JsonArray customItemsArray)
-		{
-			CleanJsonArrayObjects(customItemsArray, allowedCustomItemProperties);
-		}
+			var allowedCustomItemProperties = GetAllowedCustomItemProperties(schemaRoot);
+			if (templatesObj.TryGetPropertyValue("Items", out var customItemsNode) && customItemsNode is JsonArray customItemsArray)
+			{
+				CleanJsonArrayObjects(customItemsArray, allowedCustomItemProperties);
+			}
 
-		var allowedAttachmentProperties = GetAllowedAttachmentItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomAttachments", out var attachmentsNode) && attachmentsNode is JsonArray attachmentsArray)
-		{
-			CleanJsonArrayObjects(attachmentsArray, allowedAttachmentProperties);
-		}
+			var allowedAttachmentProperties = GetAllowedAttachmentItemProperties(schemaRoot);
+			if (templatesObj.TryGetPropertyValue("Attachments", out var attachmentsNode) && attachmentsNode is JsonArray attachmentsArray)
+			{
+				CleanJsonArrayObjects(attachmentsArray, allowedAttachmentProperties);
+			}
 
-		var allowedVfxConfigProperties = GetAllowedVfxConfigProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomVfx", out var vfxConfigsNode) && vfxConfigsNode is JsonArray vfxConfigsArray)
-		{
-			CleanJsonArrayObjects(vfxConfigsArray, allowedVfxConfigProperties);
+			var allowedVfxConfigProperties = GetAllowedVfxConfigProperties(schemaRoot);
+			if (templatesObj.TryGetPropertyValue("Vfx", out var vfxConfigsNode) && vfxConfigsNode is JsonArray vfxConfigsArray)
+			{
+				CleanJsonArrayObjects(vfxConfigsArray, allowedVfxConfigProperties);
+			}
 		}
 	}
 
@@ -2372,10 +2339,10 @@ public class SaveLoadService
 	{
 		return new[]
 		{
-			"CustomUnits",
-			"CustomBuildings",
-			"CustomResources",
-			"CustomProps"
+			"Units",
+			"Buildings",
+			"Resources",
+			"Props"
 		};
 	}
 

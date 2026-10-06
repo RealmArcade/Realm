@@ -2732,80 +2732,83 @@ public class {mapName} : IMapScript
 		var newItems = new Dictionary<StringName, ItemMetadata>();
 		var newVfx = new Dictionary<string, VfxAttachmentConfig>(StringComparer.OrdinalIgnoreCase);
 
-		foreach (var meta in metadata.CustomWeapons)
+		if (metadata.Templates != null)
 		{
-			if (!string.IsNullOrEmpty(meta.TemplateID))
-				newWeapons[(StringName)meta.TemplateID] = meta;
-		}
-
-		foreach (var meta in metadata.CustomAttachments)
-		{
-			if (!string.IsNullOrEmpty(meta.AttachmentId))
+			foreach (var meta in metadata.Templates.Weapons)
 			{
-				newAttachments[(StringName)meta.AttachmentId] = meta;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+					newWeapons[(StringName)meta.TemplateID] = meta;
 			}
-		}
 
-		foreach (var meta in metadata.CustomItems)
-		{
-			if (!string.IsNullOrEmpty(meta.TemplateID))
+			foreach (var meta in metadata.Templates.Attachments)
 			{
-				newItems[(StringName)meta.TemplateID] = meta;
+				if (!string.IsNullOrEmpty(meta.AttachmentId))
+				{
+					newAttachments[(StringName)meta.AttachmentId] = meta;
+				}
 			}
-		}
 
-		foreach (var meta in metadata.CustomUnits)
-		{
-			if (!string.IsNullOrEmpty(meta.TemplateID))
+			foreach (var meta in metadata.Templates.Items)
 			{
-				var copy = meta;
-				if (copy.Scale <= 0f) copy.Scale = 1.0f;
-				newUnits[(StringName)copy.TemplateID] = copy;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					newItems[(StringName)meta.TemplateID] = meta;
+				}
 			}
-		}
 
-		foreach (var meta in metadata.CustomBuildings)
-		{
-			if (!string.IsNullOrEmpty(meta.TemplateID))
+			foreach (var meta in metadata.Templates.Units)
 			{
-				var copy = meta;
-				if (copy.Scale <= 0f) copy.Scale = 1.5f;
-				newBuildings[(StringName)copy.TemplateID] = copy;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					var copy = meta;
+					if (copy.Scale <= 0f) copy.Scale = 1.0f;
+					newUnits[(StringName)copy.TemplateID] = copy;
+				}
 			}
-		}
 
-		foreach (var meta in metadata.CustomResources)
-		{
-			if (!string.IsNullOrEmpty(meta.TemplateID))
+			foreach (var meta in metadata.Templates.Buildings)
 			{
-				var copy = meta;
-				if (copy.Scale <= 0f) copy.Scale = 2.75f;
-				if (copy.PathingType == 0) copy.PathingType = 255;
-				newResources[(StringName)copy.TemplateID] = copy;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					var copy = meta;
+					if (copy.Scale <= 0f) copy.Scale = 1.5f;
+					newBuildings[(StringName)copy.TemplateID] = copy;
+				}
 			}
-		}
 
-		foreach (var meta in metadata.CustomProps)
-		{
-			if (!string.IsNullOrEmpty(meta.TemplateID))
+			foreach (var meta in metadata.Templates.Resources)
 			{
-				var copy = meta;
-				if (copy.Scale <= 0f) copy.Scale = 1.25f;
-				if (copy.PathingType == 0) copy.PathingType = 255;
-				newProps[(StringName)copy.TemplateID] = copy;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					var copy = meta;
+					if (copy.Scale <= 0f) copy.Scale = 2.75f;
+					if (copy.PathingType == 0) copy.PathingType = 255;
+					newResources[(StringName)copy.TemplateID] = copy;
+				}
 			}
-		}
 
-		if (metadata.CustomAbilities.Count > 0)
-		{
-			RegisterCustomAbilities(metadata.CustomAbilities);
-		}
-
-		foreach (var cfg in metadata.CustomVfx)
-		{
-			if (!string.IsNullOrEmpty(cfg.VfxId))
+			foreach (var meta in metadata.Templates.Props)
 			{
-				newVfx[cfg.VfxId] = cfg;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					var copy = meta;
+					if (copy.Scale <= 0f) copy.Scale = 1.25f;
+					if (copy.PathingType == 0) copy.PathingType = 255;
+					newProps[(StringName)copy.TemplateID] = copy;
+				}
+			}
+
+			if (metadata.Templates.Abilities != null && metadata.Templates.Abilities.Count > 0)
+			{
+				RegisterCustomAbilities(metadata.Templates.Abilities);
+			}
+
+			foreach (var cfg in metadata.Templates.Vfx)
+			{
+				if (!string.IsNullOrEmpty(cfg.VfxId))
+				{
+					newVfx[cfg.VfxId] = cfg;
+				}
 			}
 		}
 
@@ -2885,7 +2888,7 @@ public class {mapName} : IMapScript
 			var root = System.Text.Json.Nodes.JsonNode.Parse(json)?.AsObject();
 			if (root == null) return;
 
-			var unitsArr = root["CustomUnits"]?.AsArray();
+			var unitsArr = root["Templates"]?["Units"]?.AsArray();
 			if (unitsArr != null)
 			{
 				for (int i = 0; i < unitsArr.Count; i++)
