@@ -1813,6 +1813,53 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
+	public IndexedAsset? GetAssetByBlake3(string blake3Hash)
+	{
+		if (string.IsNullOrWhiteSpace(blake3Hash))
+		{
+			return null;
+		}
+
+		string norm = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(blake3Hash);
+		lock (_syncLock)
+		{
+			return _assetCollection.FindOne(x => x.Blake3 == norm);
+		}
+	}
+
+	public static bool IsHexHash(string? str)
+	{
+		if (string.IsNullOrWhiteSpace(str) || str.Length != 64) return false;
+		for (int i = 0; i < str.Length; i++)
+		{
+			char c = str[i];
+			if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public string ResolvePrettyFileName(string filePath, string? fallbackFileName = null)
+	{
+		string rawFileName = !string.IsNullOrEmpty(fallbackFileName) ? fallbackFileName : Path.GetFileName(filePath);
+		string rawNoExt = Path.GetFileNameWithoutExtension(rawFileName);
+
+		if (!IsHexHash(rawNoExt))
+		{
+			return rawFileName;
+		}
+
+		var asset = GetAssetByPath(filePath) ?? GetAssetByBlake3(rawNoExt);
+		if (asset != null && !string.IsNullOrWhiteSpace(asset.FileName) && !IsHexHash(Path.GetFileNameWithoutExtension(asset.FileName)))
+		{
+			return asset.FileName;
+		}
+
+		return rawFileName;
+	}
+
 	public List<IndexedAsset> SearchAssets(
 		string? searchTerm,
 		IReadOnlyCollection<string>? allowedExtensions = null,

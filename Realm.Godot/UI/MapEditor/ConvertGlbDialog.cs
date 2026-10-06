@@ -273,7 +273,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 	{
 		if (string.IsNullOrWhiteSpace(path)) return;
 
-		string fileNameWithoutExt = Path.GetFileNameWithoutExtension(path);
+		string resolvedName = AssetIndexService.Instance?.ResolvePrettyFileName(path) ?? Path.GetFileName(path);
+		string fileNameWithoutExt = Path.GetFileNameWithoutExtension(resolvedName);
 		string cleanBase = fileNameWithoutExt.ToLowerInvariant().Replace(' ', '_');
 		_txtAssetName.Text = cleanBase;
 
@@ -406,7 +407,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		string assetName = _txtAssetName.Text?.Trim() ?? string.Empty;
 		if (string.IsNullOrEmpty(assetName))
 		{
-			assetName = Path.GetFileNameWithoutExtension(sourcePath).ToLowerInvariant().Replace(' ', '_');
+			string resolvedSource = AssetIndexService.Instance?.ResolvePrettyFileName(sourcePath) ?? Path.GetFileName(sourcePath);
+			assetName = Path.GetFileNameWithoutExtension(resolvedSource).ToLowerInvariant().Replace(' ', '_');
 		}
 		string cleanBase = assetName.ToLowerInvariant().Replace(' ', '_').Replace(".rmesh", "").Replace(".glb", "");
 		string fileName = $"{cleanBase}.rmesh";

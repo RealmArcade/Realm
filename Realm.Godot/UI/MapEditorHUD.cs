@@ -6916,6 +6916,15 @@ public partial class MapEditorHUD : Control
 		_assetBrowserDialog.OpenForImport(title, allowedExtensions, onAssetSelected, requireRealmMetadata, requiredAssetType);
 	}
 
+	public void OpenAssetBrowser(string title, IEnumerable<string> allowedExtensions, Action<string, string?> onAssetSelected, bool requireRealmMetadata = false, string? requiredAssetType = null)
+	{
+		if (_assetBrowserDialog == null)
+		{
+			_assetBrowserDialog = new AssetBrowserDialog(this);
+		}
+		_assetBrowserDialog.OpenForImport(title, allowedExtensions, onAssetSelected, requireRealmMetadata, requiredAssetType);
+	}
+
 	public void ImportTerrainFromMinimapDialog()
 	{
 		string initialDir = GetInitialDirectory();
@@ -12013,7 +12022,7 @@ public partial class MapEditorHUD : Control
 			return;
 		}
 
-		OpenAssetBrowser("Import Texture Image", new[] { ".rtex" }, imagePath =>
+		OpenAssetBrowser("Import Texture Image", new[] { ".rtex" }, (imagePath, preferredName) =>
 		{
 			if (selectedIdx >= 0 && selectedIdx < _swatchPaths.Count && !string.IsNullOrEmpty(_swatchPaths[selectedIdx]))
 			{
@@ -12021,19 +12030,22 @@ public partial class MapEditorHUD : Control
 				string msg = string.Format(TranslationServer.Translate("Replacing texture in Slot {0} ({1}) will update all areas of the terrain painted with this slot. Do you want to proceed?"), selectedIdx, cleanPrevName);
 				ShowConfirmationDialog(msg, () =>
 				{
-					ImportTextureFile(imagePath, selectedIdx);
+					ImportTextureFile(imagePath, selectedIdx, preferredName);
 				}, confirmText: "REPLACE", cancelText: "CANCEL");
 			}
 			else
 			{
-				ImportTextureFile(imagePath, selectedIdx);
+				ImportTextureFile(imagePath, selectedIdx, preferredName);
 			}
 		}, requireRealmMetadata: false);
 	}
 
-	private void ImportTextureFile(string imagePath, int index)
+	private void ImportTextureFile(string imagePath, int index, string? preferredFileName = null)
 	{
-		string cleanBaseName = System.IO.Path.GetFileNameWithoutExtension(imagePath).ToLowerInvariant().Replace(" ", "_") + ".rtex";
+		string resolvedName = !string.IsNullOrWhiteSpace(preferredFileName) && !AssetIndexService.IsHexHash(System.IO.Path.GetFileNameWithoutExtension(preferredFileName))
+			? preferredFileName
+			: (AssetIndexService.Instance?.ResolvePrettyFileName(imagePath, preferredFileName) ?? System.IO.Path.GetFileName(imagePath));
+		string cleanBaseName = System.IO.Path.GetFileNameWithoutExtension(resolvedName).ToLowerInvariant().Replace(" ", "_") + ".rtex";
 		string wsPath = string.IsNullOrEmpty(_tempWorkspacePath) 
 			? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 			: _tempWorkspacePath;
@@ -12669,13 +12681,13 @@ public partial class MapEditorHUD : Control
 
 	public void ImportMixamoOrAnimationDialog()
 	{
-		OpenAssetBrowser("Select Animation (.ranim)", new[] { ".ranim" }, path =>
+		OpenAssetBrowser("Select Animation (.ranim)", new[] { ".ranim" }, (path, preferredName) =>
 		{
-			ImportAnimationAssetFromExtension(path);
+			ImportAnimationAssetFromExtension(path, preferredName);
 		});
 	}
 
-	public void ImportAnimationAssetFromExtension(string sourceFilePath)
+	public void ImportAnimationAssetFromExtension(string sourceFilePath, string? preferredFileName = null)
 	{
 		try
 		{
@@ -12688,7 +12700,10 @@ public partial class MapEditorHUD : Control
 
 			if (ext == ".glb" || ext == ".gltf" || ext == ".fbx")
 			{
-				string originalFileName = System.IO.Path.GetFileNameWithoutExtension(sourceFilePath);
+				string originalFileName = !string.IsNullOrWhiteSpace(preferredFileName) && !AssetIndexService.IsHexHash(System.IO.Path.GetFileNameWithoutExtension(preferredFileName))
+					? System.IO.Path.GetFileNameWithoutExtension(preferredFileName)
+					: (AssetIndexService.Instance?.ResolvePrettyFileName(sourceFilePath, preferredFileName) ?? System.IO.Path.GetFileNameWithoutExtension(sourceFilePath));
+				originalFileName = System.IO.Path.GetFileNameWithoutExtension(originalFileName);
 				var extracted = Realm.Godot.Animation.MixamoAnimationImporter.ExtractAnimationsFromFile(sourceFilePath, originalFileName);
 				if (extracted.Count == 0)
 				{
@@ -12718,7 +12733,10 @@ public partial class MapEditorHUD : Control
 			}
 			else
 			{
-				string fileName = System.IO.Path.GetFileName(sourceFilePath);
+				string resolvedName = !string.IsNullOrWhiteSpace(preferredFileName) && !AssetIndexService.IsHexHash(System.IO.Path.GetFileNameWithoutExtension(preferredFileName))
+					? preferredFileName
+					: (AssetIndexService.Instance?.ResolvePrettyFileName(sourceFilePath, preferredFileName) ?? System.IO.Path.GetFileName(sourceFilePath));
+				string fileName = resolvedName;
 				byte[] sourceBytes = System.IO.File.ReadAllBytes(sourceFilePath);
 				string newHash = RealmMetadataHelper.ComputeBlake3(sourceBytes, ".ranim");
 

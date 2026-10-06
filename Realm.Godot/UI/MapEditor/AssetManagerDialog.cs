@@ -985,16 +985,18 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		};
 
 		string? requiredType = _selectedAssetType == "All" ? null : _selectedAssetType;
-		Hud?.OpenAssetBrowser($"Import Asset ({_selectedAssetType})", extensions, OnImportFileSelected, requireRealmMetadata: true, requiredAssetType: requiredType);
+		Hud?.OpenAssetBrowser($"Import Asset ({_selectedAssetType})", extensions, (filePath, preferredName) => OnImportFileSelected(filePath, preferredName), requireRealmMetadata: true, requiredAssetType: requiredType);
 	}
 
-	private void OnImportFileSelected(string sourceFilePath)
+	private void OnImportFileSelected(string sourceFilePath, string? preferredFileName = null)
 	{
 		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return;
 
 		string wsPath = GetWorkspacePath();
-		string fileName = Path.GetFileName(sourceFilePath);
-		string ext = Path.GetExtension(sourceFilePath).ToLowerInvariant();
+		string fileName = !string.IsNullOrWhiteSpace(preferredFileName) && !AssetIndexService.IsHexHash(Path.GetFileNameWithoutExtension(preferredFileName))
+			? preferredFileName
+			: (AssetIndexService.Instance?.ResolvePrettyFileName(sourceFilePath, preferredFileName) ?? Path.GetFileName(sourceFilePath));
+		string ext = Path.GetExtension(fileName).ToLowerInvariant();
 
 		try
 		{
@@ -1189,7 +1191,8 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return;
 
 		string wsPath = GetWorkspacePath();
-		string cleanBase = Path.GetFileNameWithoutExtension(sourceFilePath).ToLowerInvariant().Replace(' ', '_');
+		string resolvedName = AssetIndexService.Instance?.ResolvePrettyFileName(sourceFilePath) ?? Path.GetFileName(sourceFilePath);
+		string cleanBase = Path.GetFileNameWithoutExtension(resolvedName).ToLowerInvariant().Replace(' ', '_');
 		string ext = Path.GetExtension(sourceFilePath).ToLowerInvariant();
 
 		try
@@ -1553,7 +1556,8 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return;
 
 		string wsPath = GetWorkspacePath();
-		string cleanBase = Path.GetFileNameWithoutExtension(sourceFilePath).ToLowerInvariant().Replace(' ', '_');
+		string resolvedName = AssetIndexService.Instance?.ResolvePrettyFileName(sourceFilePath) ?? Path.GetFileName(sourceFilePath);
+		string cleanBase = Path.GetFileNameWithoutExtension(resolvedName).ToLowerInvariant().Replace(' ', '_');
 
 		try
 		{
