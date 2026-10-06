@@ -616,14 +616,24 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		contentBox.AddChild(infoVBox);
 		hBox.AddChild(selectBtn);
 
-		// Action buttons: Edit & Delete
+		// Action buttons: Preview, Edit & Delete
 		var actionsHBox = new HBoxContainer();
 		actionsHBox.AddThemeConstantOverride("separation", 4);
 
 		var faFont = Hud?.GetFontAwesomeFont();
 
+		var btnPreview = new Button();
+		btnPreview.Text = UnicodeIcons.EYE;
+		btnPreview.Set("icon_max_width", 0);
+		if (faFont != null) btnPreview.AddThemeFontOverride("font", faFont);
+		btnPreview.TooltipText = TranslationServer.Translate("Preview Object");
+		btnPreview.CustomMinimumSize = new Vector2(28, 28);
+		btnPreview.Pressed += () => LoadPreviewForObject(item);
+		actionsHBox.AddChild(btnPreview);
+
 		var btnEdit = new Button();
 		btnEdit.Text = UnicodeIcons.EDIT;
+		btnEdit.Set("icon_max_width", 0);
 		if (faFont != null) btnEdit.AddThemeFontOverride("font", faFont);
 		btnEdit.TooltipText = TranslationServer.Translate("Edit Object Properties");
 		btnEdit.CustomMinimumSize = new Vector2(28, 28);
@@ -632,6 +642,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		var btnDelete = new Button();
 		btnDelete.Text = UnicodeIcons.TRASH_ALT;
+		btnDelete.Set("icon_max_width", 0);
 		if (faFont != null) btnDelete.AddThemeFontOverride("font", faFont);
 		btnDelete.TooltipText = TranslationServer.Translate("Delete Object from metadata.json");
 		btnDelete.CustomMinimumSize = new Vector2(28, 28);
