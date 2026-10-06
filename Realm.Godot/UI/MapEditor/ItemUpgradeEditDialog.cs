@@ -119,6 +119,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		);
 
 		AddSectionHeader(contentVBox, "👁️ " + TranslationServer.Translate("TOOLTIP PREVIEW"), new Color(0.35f, 0.75f, 0.9f));
+		AddDescription(contentVBox, TranslationServer.Translate("Custom syntax supported: <b>Bold</b>, <i>Italics</i>, <color=#RRGGBB>Colors</color>, and standard BBCode tags."));
 
 		var previewPanel = new PanelContainer();
 		previewPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
