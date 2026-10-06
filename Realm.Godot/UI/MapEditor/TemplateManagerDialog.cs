@@ -811,10 +811,26 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				}
 				_decalEditDialog.OpenForDecal(item.TemplateID, curDecData, updatedObj =>
 				{
+					string newDecalId = updatedObj.TryGetPropertyValue("decal_id", out var idNode) && !string.IsNullOrWhiteSpace(idNode?.ToString())
+						? idNode.ToString().Trim()
+						: (updatedObj.TryGetPropertyValue("DecalId", out var idNode2) && !string.IsNullOrWhiteSpace(idNode2?.ToString())
+							? idNode2.ToString().Trim()
+							: item.TemplateID);
+
+					var serializerOptions = new System.Text.Json.JsonSerializerOptions
+					{
+						PropertyNameCaseInsensitive = true
+					};
+					var deserializedDecal = System.Text.Json.JsonSerializer.Deserialize<DecalMetadata>(updatedObj.ToJsonString(), serializerOptions) ?? new DecalMetadata();
+
 					MetadataService.Instance.UpdateMetadata(wsPathDec, m =>
 					{
 						m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
-						m.Decals[item.TemplateID] = System.Text.Json.JsonSerializer.Deserialize<DecalMetadata>(updatedObj.ToJsonString()) ?? new DecalMetadata();
+						if (!string.Equals(item.TemplateID, newDecalId, StringComparison.OrdinalIgnoreCase))
+						{
+							m.Decals.Remove(item.TemplateID);
+						}
+						m.Decals[newDecalId] = deserializedDecal;
 					});
 					RefreshObjectList();
 				});

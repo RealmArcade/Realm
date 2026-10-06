@@ -1272,37 +1272,62 @@ public partial class FloatingDialogBase : PanelContainer
 						{
 							foreach (var kvp in catDict)
 							{
-								if (!string.IsNullOrWhiteSpace(kvp.Key))
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									result.Add(kvp.Key);
+									result.Add(Path.GetFileName(kvp.Key));
 								}
 							}
 						}
 
-						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var decalMetaRoot) && decalMetaRoot != null)
+						string manifestPath = Path.Combine(wsPath, "manifest.json");
+						if (File.Exists(manifestPath))
 						{
-							if (decalMetaRoot.Decals != null)
+							try
 							{
-								foreach (var kvp in decalMetaRoot.Decals)
+								var manifest = Realm.Shared.Distribution.MapManifest.LoadFromFile(manifestPath);
+								if (manifest?.Assets?.Decal != null)
 								{
-									if (!string.IsNullOrWhiteSpace(kvp.Key))
+									foreach (var kvp in manifest.Assets.Decal)
 									{
-										result.Add(kvp.Key);
+										if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+										{
+											result.Add(Path.GetFileName(kvp.Key));
+										}
+									}
+								}
+								if (manifest?.Files != null)
+								{
+									foreach (var kvp in manifest.Files)
+									{
+										if (!string.IsNullOrWhiteSpace(kvp.Key) &&
+											kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) &&
+											(kvp.Key.StartsWith("Assets/decals/", StringComparison.OrdinalIgnoreCase) ||
+											 kvp.Key.StartsWith("assets/decals/", StringComparison.OrdinalIgnoreCase) ||
+											 kvp.Key.StartsWith("decals/", StringComparison.OrdinalIgnoreCase)))
+										{
+											result.Add(Path.GetFileName(kvp.Key));
+										}
 									}
 								}
 							}
+							catch { }
 						}
 
 						string decalsDir = Path.Combine(wsPath, "Assets", "decals");
 						if (Directory.Exists(decalsDir))
 						{
-							foreach (var file in Directory.EnumerateFiles(decalsDir, "*.*", SearchOption.AllDirectories))
+							foreach (var file in Directory.EnumerateFiles(decalsDir, "*.rtex", SearchOption.AllDirectories))
 							{
-								string ext = Path.GetExtension(file);
-								if (ext.Equals(".rtex", StringComparison.OrdinalIgnoreCase) || ext.Equals(".png", StringComparison.OrdinalIgnoreCase) || ext.Equals(".webp", StringComparison.OrdinalIgnoreCase))
-								{
-									result.Add(Path.GetFileName(file));
-								}
+								result.Add(Path.GetFileName(file));
+							}
+						}
+
+						string templateDecalsDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "decals");
+						if (Directory.Exists(templateDecalsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(templateDecalsDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
 							}
 						}
 					}

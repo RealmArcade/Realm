@@ -565,7 +565,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private void ReloadBaseTexture()
 	{
-		string texKey = !string.IsNullOrWhiteSpace(_texturePath) ? _texturePath : _decalKey;
+		string texKey = !string.IsNullOrWhiteSpace(_texturePath)
+			? _texturePath
+			: (!string.IsNullOrWhiteSpace(_decalKey) && _decalKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? _decalKey : string.Empty);
+		if (string.IsNullOrWhiteSpace(texKey))
+		{
+			_baseTexture = null;
+			return;
+		}
+
 		_baseTexture = GameHost.Instance?.LoadDecalTexture(texKey);
 		if (_baseTexture == null)
 		{
@@ -577,20 +585,24 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 				Path.Combine(wsPath, "Assets", "decals", texKey),
 				Path.Combine(wsPath, "Assets", "decals", filename),
 				Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.rtex"),
-				Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.png"),
-				Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.webp"),
+				Path.Combine(wsPath, "Assets", $"{baseKey}.rtex"),
 				Path.Combine(wsPath, texKey)
 			};
 
 			foreach (var p in candidates)
 			{
-				if (File.Exists(p))
+				if (File.Exists(p) && p.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 				{
-					var img = Image.LoadFromFile(p);
-					if (img != null)
+					byte[] rtexBytes = File.ReadAllBytes(p);
+					byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
+					if (webpBytes != null && webpBytes.Length > 0)
 					{
-						_baseTexture = ImageTexture.CreateFromImage(img);
-						break;
+						var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+						if (img.LoadWebpFromBuffer(webpBytes) == Error.Ok || img.LoadPngFromBuffer(webpBytes) == Error.Ok)
+						{
+							_baseTexture = ImageTexture.CreateFromImage(img);
+							break;
+						}
 					}
 				}
 			}
@@ -757,11 +769,29 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		var resolvedData = ResolveDecalMetadata(decalKey, decalData);
 
-		_texturePath = resolvedData.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString())
+		string rawTexturePath = resolvedData.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString())
 			? tpNode.ToString()
 			: (resolvedData.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString())
 				? tpNode2.ToString()
-				: decalKey);
+				: string.Empty);
+
+		if (string.IsNullOrWhiteSpace(rawTexturePath) && decalKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			rawTexturePath = decalKey;
+		}
+
+		if (string.IsNullOrWhiteSpace(rawTexturePath))
+		{
+			string baseKey = Path.GetFileNameWithoutExtension(decalKey);
+			string candidate = $"{baseKey}.rtex";
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			if (File.Exists(Path.Combine(wsPath, "Assets", "decals", candidate)))
+			{
+				rawTexturePath = candidate;
+			}
+		}
+
+		_texturePath = rawTexturePath ?? string.Empty;
 
 		_brightness = resolvedData.TryGetPropertyValue("brightness", out var bNode) && float.TryParse(bNode?.ToString(), out float b) ? b : 1.0f;
 		_contrast = resolvedData.TryGetPropertyValue("contrast", out var cNode) && float.TryParse(cNode?.ToString(), out float c) ? c : 1.0f;
@@ -1111,37 +1141,67 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		if (string.IsNullOrWhiteSpace(finalDecalId)) finalDecalId = _decalKey;
 		_decalKey = finalDecalId;
 
+		string finalTexturePath = !string.IsNullOrWhiteSpace(_txtTexturePath?.Text) ? _txtTexturePath.Text.Trim() : _texturePath;
+		_texturePath = finalTexturePath;
+
 		GameHost.Instance?.InvalidateDecalCache(_decalKey);
 
 		var result = new JsonObject
 		{
 			["decal_id"] = _decalKey,
+			["DecalId"] = _decalKey,
 			["texture_path"] = _texturePath,
+			["TexturePath"] = _texturePath,
 			["brightness"] = Math.Round(_brightness, 3),
+			["Brightness"] = Math.Round(_brightness, 3),
 			["tint"] = $"#{_tint.ToHtml(false)}",
+			["Tint"] = $"#{_tint.ToHtml(false)}",
 			["contrast"] = Math.Round(_contrast, 3),
+			["Contrast"] = Math.Round(_contrast, 3),
 			["saturation"] = Math.Round(_saturation, 3),
+			["Saturation"] = Math.Round(_saturation, 3),
 			["opacity"] = Math.Round(_opacity, 3),
+			["Opacity"] = Math.Round(_opacity, 3),
 			["albedo_mix"] = Math.Round(_albedoMix, 3),
+			["AlbedoMix"] = Math.Round(_albedoMix, 3),
 			["normal_strength"] = Math.Round(_normalStrength, 3),
+			["NormalStrength"] = Math.Round(_normalStrength, 3),
 			["roughness"] = Math.Round(_roughness, 3),
+			["Roughness"] = Math.Round(_roughness, 3),
 			["metallic"] = Math.Round(_metallic, 3),
+			["Metallic"] = Math.Round(_metallic, 3),
 			["blend_mode"] = _blendMode,
+			["BlendMode"] = _blendMode,
 			["animate_opacity"] = _animateOpacity,
+			["AnimateOpacity"] = _animateOpacity,
 			["opacity_pulse_speed"] = Math.Round(_opacityPulseSpeed, 2),
+			["OpacityPulseSpeed"] = Math.Round(_opacityPulseSpeed, 2),
 			["min_opacity"] = Math.Round(_minOpacity, 3),
+			["MinOpacity"] = Math.Round(_minOpacity, 3),
 			["max_opacity"] = Math.Round(_maxOpacity, 3),
+			["MaxOpacity"] = Math.Round(_maxOpacity, 3),
 			["animate_emission"] = _animateEmission,
+			["AnimateEmission"] = _animateEmission,
 			["emission_pulse_speed"] = Math.Round(_emissionPulseSpeed, 2),
+			["EmissionPulseSpeed"] = Math.Round(_emissionPulseSpeed, 2),
 			["min_emission"] = Math.Round(_minEmission, 2),
+			["MinEmission"] = Math.Round(_minEmission, 2),
 			["max_emission"] = Math.Round(_maxEmission, 2),
+			["MaxEmission"] = Math.Round(_maxEmission, 2),
 			["animate_scale"] = _animateScale,
+			["AnimateScale"] = _animateScale,
 			["scale_pulse_speed"] = Math.Round(_scalePulseSpeed, 2),
+			["ScalePulseSpeed"] = Math.Round(_scalePulseSpeed, 2),
 			["min_scale_ratio"] = Math.Round(_minScaleRatio, 3),
+			["MinScaleRatio"] = Math.Round(_minScaleRatio, 3),
 			["max_scale_ratio"] = Math.Round(_maxScaleRatio, 3),
+			["MaxScaleRatio"] = Math.Round(_maxScaleRatio, 3),
 			["upper_fade"] = Math.Round(_upperFade, 3),
+			["UpperFade"] = Math.Round(_upperFade, 3),
 			["lower_fade"] = Math.Round(_lowerFade, 3),
-			["asset_type"] = "Decal"
+			["LowerFade"] = Math.Round(_lowerFade, 3),
+			["asset_type"] = "Decal",
+			["AssetType"] = "Decal"
 		};
 
 		_onApplied?.Invoke(result);
