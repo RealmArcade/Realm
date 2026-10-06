@@ -60,6 +60,15 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_textureEditDialog = new TerrainTextureEditDialog(hud);
 		_itemUpgradeEditDialog = new ItemUpgradeEditDialog(hud);
 
+		_entityVisualEditDialog.DialogClosed += ReloadCurrentPreview;
+		_weaponVfxDialog.DialogClosed += ReloadCurrentPreview;
+		_abilityVfxDialog.DialogClosed += ReloadCurrentPreview;
+		_decalEditDialog.DialogClosed += ReloadCurrentPreview;
+		_shaderEditDialog.DialogClosed += ReloadCurrentPreview;
+		_spritesheetEditDialog.DialogClosed += ReloadCurrentPreview;
+		_textureEditDialog.DialogClosed += ReloadCurrentPreview;
+		_itemUpgradeEditDialog.DialogClosed += ReloadCurrentPreview;
+
 		DefaultDistance = 5.0f;
 		CameraDistance = 5.0f;
 		DefaultYaw = Mathf.DegToRad(45.0f);
@@ -310,7 +319,20 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			_listVBox.AddChild(row);
 		}
 
-		if (string.IsNullOrEmpty(_currentPreviewTemplateID) || !items.Any(i => i.TemplateID.Equals(_currentPreviewTemplateID, StringComparison.OrdinalIgnoreCase)))
+		ReloadCurrentPreview();
+	}
+
+	public void ReloadCurrentPreview()
+	{
+		var items = GetObjectsForCategory(_currentCategory);
+		if (items.Count == 0) return;
+
+		var match = items.FirstOrDefault(i => i.TemplateID.Equals(_currentPreviewTemplateID, StringComparison.OrdinalIgnoreCase));
+		if (!string.IsNullOrEmpty(match.TemplateID))
+		{
+			LoadPreviewForObject(match);
+		}
+		else
 		{
 			LoadPreviewForObject(items[0]);
 		}
@@ -655,11 +677,14 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 	private void OpenEditDialogForObject(ObjectItemInfo item)
 	{
+		_currentPreviewTemplateID = item.TemplateID;
+
 		switch (item.Category)
 		{
 			case "units" or "buildings" or "resources" or "props":
 				_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 				{
+					_currentPreviewTemplateID = newId;
 					RefreshObjectList();
 				});
 				break;
@@ -667,6 +692,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			case "upgrades" or "items":
 				_itemUpgradeEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 				{
+					_currentPreviewTemplateID = newId;
 					RefreshObjectList();
 				});
 				break;
@@ -685,6 +711,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 							{
 								m.AddOrUpdateWeapon(updatedWeapon);
 							});
+							_currentPreviewTemplateID = updatedWeapon.TemplateID;
 							RefreshObjectList();
 						});
 					}
@@ -719,6 +746,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 									return abi;
 								});
 							});
+							_currentPreviewTemplateID = item.TemplateID;
 							RefreshObjectList();
 						});
 					}
@@ -755,6 +783,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						texMeta.AssetType = updatedObj?["AssetType"]?.ToString() ?? updatedObj?["rtex"]?.ToString();
 						m.Textures[newId] = texMeta;
 					});
+					_currentPreviewTemplateID = newId;
 					RefreshObjectList();
 				});
 				break;
@@ -795,6 +824,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 							AssetType = rtex
 						};
 					});
+					_currentPreviewTemplateID = newId;
 					RefreshObjectList();
 				});
 				break;
@@ -832,6 +862,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						}
 						m.Decals[newDecalId] = deserializedDecal;
 					});
+					_currentPreviewTemplateID = newDecalId;
 					RefreshObjectList();
 				});
 				break;
@@ -845,6 +876,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
 						m.Shaders[item.TemplateID] = new ShaderMetadata();
 					});
+					_currentPreviewTemplateID = item.TemplateID;
 					RefreshObjectList();
 				});
 				break;
@@ -854,6 +886,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				{
 					_itemUpgradeEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 					{
+						_currentPreviewTemplateID = newId;
 						RefreshObjectList();
 					});
 				}
@@ -861,6 +894,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				{
 					_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 					{
+						_currentPreviewTemplateID = newId;
 						RefreshObjectList();
 					});
 				}

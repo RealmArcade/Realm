@@ -332,6 +332,8 @@ public partial class FloatingDialogBase : PanelContainer
 		CloseDialog();
 	}
 
+	public event Action? DialogClosed;
+
 	public virtual void CloseDialog()
 	{
 		_openDialogs.Remove(this);
@@ -340,6 +342,7 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			GetParent().RemoveChild(this);
 		}
+		DialogClosed?.Invoke();
 	}
 
 	protected virtual void OnApply() { }
