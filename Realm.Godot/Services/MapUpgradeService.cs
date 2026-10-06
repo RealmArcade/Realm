@@ -1210,7 +1210,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					break;
 				}
 
-			case "spritesheet" or "spritesheets" or "vfx" or "vfx_radial" or "vfx_vertical":
+			case "spritesheet" or "spritesheets" or "vfx":
 				{
 					if (!metadataRoot.ContainsKey("vfx_spritesheets") || metadataRoot["vfx_spritesheets"] is not JsonObject)
 					{
