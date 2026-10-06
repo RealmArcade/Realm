@@ -568,7 +568,7 @@ public class MapManifest
     }
 }
 
-public class MapManifestAssets : IEnumerable<KeyValuePair<string, Dictionary<string, string>>>
+public class MapManifestAssets
 {
     [JsonPropertyName("Animation")]
     public Dictionary<string, string>? Animation { get; set; }
@@ -636,16 +636,6 @@ public class MapManifestAssets : IEnumerable<KeyValuePair<string, Dictionary<str
         {
             if (value != null) SetCategory(category, value);
         }
-    }
-
-    public IEnumerator<KeyValuePair<string, Dictionary<string, string>>> GetEnumerator()
-    {
-        return GetAllCategories().GetEnumerator();
-    }
-
-    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
     }
 
     public bool ContainsCategory(string category)

@@ -571,7 +571,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				var assets = MapAssetHelper.LoadAssets(wsPath);
 				if (assets != null)
 				{
-					foreach (var groupKvp in assets)
+					foreach (var groupKvp in assets.GetAllCategories())
 					{
 						string groupName = groupKvp.Key;
 						bool groupMatches = allFolders;
@@ -662,7 +662,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				var assets = MapAssetHelper.LoadAssets(wsPath);
 				if (assets != null)
 				{
-					foreach (var groupKvp in assets)
+					foreach (var groupKvp in assets.GetAllCategories())
 					{
 						foreach (var itemKvp in groupKvp.Value)
 						{
@@ -714,7 +714,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			var assets = MapAssetHelper.LoadAssets(wsPath);
 			if (assets != null)
 			{
-				foreach (var groupKvp in assets)
+				foreach (var groupKvp in assets.GetAllCategories())
 				{
 					foreach (var itemKvp in groupKvp.Value)
 					{

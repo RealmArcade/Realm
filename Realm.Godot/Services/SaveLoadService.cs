@@ -2356,7 +2356,7 @@ public class SaveLoadService
 			var includedRelativePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			var assetsToSync = new List<(string RelativePath, string Category, string FileName)>();
 
-			foreach (var categoryKvp in assetsObj)
+			foreach (var categoryKvp in assetsObj.GetAllCategories())
 			{
 				string category = categoryKvp.Key;
 				var catDict = categoryKvp.Value;

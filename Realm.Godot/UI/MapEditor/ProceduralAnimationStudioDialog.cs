@@ -594,7 +594,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			var assets = MapAssetHelper.LoadAssets(wsPath);
 			if (assets != null)
 			{
-				foreach (var groupKvp in assets)
+				foreach (var groupKvp in assets.GetAllCategories())
 				{
 					string groupName = groupKvp.Key;
 					string category = groupName switch

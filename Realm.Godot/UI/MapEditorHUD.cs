@@ -5220,11 +5220,34 @@ public partial class MapEditorHUD : Control
 
 	public void ResetToBlankMap()
 	{
-		ResetFolderLocations();
-		GameHost.Instance?.ClearMapEntirely();
-		LoadMapProperties();
-		UpdateMapNameHeader();
-		SaveCurrentDirectoryBlake3();
+		if (_isSyncing) return;
+		_isSyncing = true;
+		if (_editorService != null)
+		{
+			_editorService.IsPaused = true;
+		}
+		try
+		{
+			ResetFolderLocations();
+			GameHost.Instance?.ClearMapEntirely();
+			string terrainPath = System.IO.Path.Combine(_tempWorkspacePath, "terrain.json");
+			string metadataPath = System.IO.Path.Combine(_tempWorkspacePath, "metadata.json");
+			_lastTerrainSyncTime = GetMaxTerrainWriteTime(terrainPath);
+			_lastMetadataSyncTime = GetLastWriteTimeSafe(metadataPath);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapEditorHUD] ResetToBlankMap error: {ex.Message}");
+		}
+		finally
+		{
+			if (_editorService != null)
+			{
+				_editorService.UpdateWatchedFileTimestamps();
+				_editorService.IsPaused = false;
+			}
+			_isSyncing = false;
+		}
 	}
 
 	public static string GetDocumentsDirectory()

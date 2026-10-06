@@ -411,7 +411,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_lblFilterExtensions.Visible = false;
 		}
 
-		if (!_hasAutoRescannedOnFirstOpen)
+		if (!_hasAutoRescannedOnFirstOpen || AssetIndexService.Instance.GetAssetCount() == 0)
 		{
 			_hasAutoRescannedOnFirstOpen = true;
 			AssetIndexService.Instance.RescanAllDirectories();

@@ -607,7 +607,7 @@ public class AssetIndexService : IDisposable
 					if (!string.IsNullOrEmpty(existingAssetType) && existingAsset.AssetType != existingAssetType)
 					{
 						existingAsset.AssetType = existingAssetType;
-						existingAsset.HasRealmMetadata = !string.IsNullOrEmpty(existingMetaJson) || existingAsset.HasRealmMetadata;
+						existingAsset.HasRealmMetadata = !string.IsNullOrEmpty(existingMetaJson) || existingAsset.HasRealmMetadata || !string.IsNullOrEmpty(existingAssetType);
 						needsUpdate = true;
 					}
 					bool existingHasMask = parsed.SupportsTeamColor ?? DetermineHasPlayerColorMask(existingMetaJson, normPath);
@@ -805,6 +805,14 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
+	public int GetAssetCount()
+	{
+		lock (_syncLock)
+		{
+			return _assetCollection.Count();
+		}
+	}
+
 	public void AddDirectory(string directoryPath)
 	{
 		if (string.IsNullOrWhiteSpace(directoryPath))
@@ -997,6 +1005,7 @@ public class AssetIndexService : IDisposable
 			try
 			{
 				ScanAllCasManifests();
+				DirectoryScanCompleted?.Invoke(GlobalCasAssetsDirectory);
 			}
 			catch (Exception ex)
 			{
@@ -1036,6 +1045,7 @@ public class AssetIndexService : IDisposable
 		if (string.Equals(normalizedDirectoryPath, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase))
 		{
 			ScanAllCasManifests();
+			DirectoryScanCompleted?.Invoke(GlobalCasAssetsDirectory);
 			return;
 		}
 
