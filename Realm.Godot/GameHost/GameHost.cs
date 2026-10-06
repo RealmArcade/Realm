@@ -4040,6 +4040,9 @@ public class {mapName} : IMapScript
 			unit3D.Scale *= EditorPlacementScale;
 		}
 
+		unit3D.Visible = true;
+		unit3D.UpdateLodVisibility();
+
 		EntityToUnit3D[entity] = unit3D;
 
 		if (!isEnemy && UnitRegistry.TryGetValue(id, out var popMeta))
