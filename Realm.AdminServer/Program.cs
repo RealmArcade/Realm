@@ -529,96 +529,29 @@ app.Map("/lobbies/ws", async (HttpContext context, LobbyRegistry registry) =>
     }
 });
 
-app.MapGet("/auth/login", (string provider, int port) =>
+app.MapGet("/auth/login", (string provider, int port, IWebHostEnvironment env) =>
 {
     long part1 = Random.Shared.Next(100000000, 999999999);
     long part2 = Random.Shared.Next(100000000, 999999999);
     string randomSnowflake = $"{part1}{part2}";
 
-    var html = $$"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Authorize Realm</title>
-        <style>
-            body {
-                background: #0f111a;
-                color: #e2e8f0;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                margin: 0;
-            }
-            .card {
-                background: #1a1d2e;
-                border: 2px solid #3b3f5c;
-                border-radius: 12px;
-                padding: 40px;
-                width: 400px;
-                text-align: center;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            }
-            h2 {
-                color: #ffd700;
-                margin-bottom: 10px;
-            }
-            .provider-title {
-                text-transform: capitalize;
-                font-weight: bold;
-                color: #5cd6ff;
-            }
-            .btn {
-                background: #5865F2;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-size: 16px;
-                font-weight: bold;
-                cursor: pointer;
-                transition: background 0.2s;
-                width: 100%;
-                margin-top: 20px;
-            }
-            .btn-steam {
-                background: #171a21;
-                border: 1px solid #66c0f4;
-            }
-            .btn:hover {
-                filter: brightness(1.1);
-            }
-            input {
-                width: 90%;
-                padding: 10px;
-                margin-top: 15px;
-                border-radius: 4px;
-                border: 1px solid #3b3f5c;
-                background: #0f111a;
-                color: #e2e8f0;
-                text-align: center;
-                font-size: 16px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h2>Authorize Realm</h2>
-            <p>Connect your <span class="provider-title">{{provider}}</span> account to play.</p>
-            <form action="/auth/authorize" method="GET">
-                <input type="hidden" name="provider" value="{{provider}}" />
-                <input type="hidden" name="port" value="{{port}}" />
-                <input type="text" name="username" placeholder="Enter Username" required value="Gamer_{{Random.Shared.Next(1000, 9999)}}" />
-                {{(provider == "discord" ? $"<input type=\"text\" name=\"discord_id\" placeholder=\"Discord Snowflake ID\" required value=\"{randomSnowflake}\" />" : "")}}
-                <button type="submit" class="btn {{ (provider == "steam" ? "btn-steam" : "") }}">
-                    Login with {{provider}}
-                </button>
-            </form>
-        </div>
-    </body>
-    </html>
-    """;
+    string templatePath = Path.Combine(env.ContentRootPath, "Templates", "login.html");
+    if (!File.Exists(templatePath))
+    {
+        templatePath = Path.Combine(AppContext.BaseDirectory, "Templates", "login.html");
+    }
+
+    string template = File.ReadAllText(templatePath);
+    string discordInput = provider == "discord" ? $"<input type=\"text\" name=\"discord_id\" placeholder=\"Discord Snowflake ID\" required value=\"{randomSnowflake}\" />" : "";
+    string buttonClass = provider == "steam" ? "btn-steam" : "";
+
+    string html = template
+        .Replace("{{provider}}", provider)
+        .Replace("{{port}}", port.ToString())
+        .Replace("{{random_number}}", Random.Shared.Next(1000, 9999).ToString())
+        .Replace("{{discord_input}}", discordInput)
+        .Replace("{{button_class}}", buttonClass);
+
     return Results.Content(html, "text/html");
 });
 

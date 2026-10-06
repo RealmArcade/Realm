@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: #0c0d14;
+    color: #e0e6ed;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: text;
+  }
+  .header {
+    display: flex;
+    flex-direction: column;
+    background: #141622;
+    padding: 8px 14px;
+    border-bottom: 1px solid #23273a;
+    font-size: 13px;
+  }
+  .shortcut-hint {
+    font-size: 11px;
+    color: #8a99ad;
+    margin-bottom: 3px;
+    font-weight: 500;
+  }
+  .status-text {
+    color: #00e5ff;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .btn {
+    background: #1e2235;
+    color: #d1d9e6;
+    border: 1px solid #323854;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn:hover {
+    background: #2a304b;
+    border-color: #4a547a;
+    color: #ffffff;
+  }
+  .btn-accent {
+    background: #0066cc;
+    border-color: #0077ee;
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn-accent:hover {
+    background: #0077ee;
+  }
+  .log-container {
+    flex: 1;
+    background: #090a0f;
+    padding: 10px 14px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .log-line {
+    margin-bottom: 2px;
+    color: #b5c4d6;
+  }
+  .log-line.cmd { color: #50fa7b; font-weight: bold; }
+  .log-line.error { color: #ff5555; }
+  .log-line.warn { color: #ffb86c; }
+  .log-line.info { color: #8be9fd; }
+  .cmd-bar {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #141622;
+    border-top: 1px solid #23273a;
+  }
+  .cmd-input {
+    flex: 1;
+    background: #090a0f;
+    border: 1px solid #2d334a;
+    border-radius: 4px;
+    color: #f1f5f9;
+    padding: 6px 10px;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    outline: none;
+  }
+  .cmd-input:focus {
+    border-color: #00b4d8;
+  }
+  .footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 6px 12px 10px 12px;
+    background: #141622;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="shortcut-hint">~ key: Hide/Show Console</div>
+    <div id="statusText" class="status-text">Initializing compilation pipeline...</div>
+  </div>
+  <div id="logContainer" class="log-container"></div>
+  <div class="cmd-bar">
+    <input type="text" id="cmdInput" class="cmd-input" placeholder="Enter console command (press Enter)..." onkeydown="handleKey(event)" />
+    <button class="btn btn-accent" onclick="sendCmd()">SEND</button>
+  </div>
+  <div class="footer">
+    <button class="btn" onclick="copyLogs()">📋 COPY</button>
+    <button class="btn" onclick="clearLogs()">CLEAR</button>
+  </div>
+  <script>
+    const logContainer = document.getElementById('logContainer');
+    const statusText = document.getElementById('statusText');
+    const cmdInput = document.getElementById('cmdInput');
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === '`' || e.key === '~' || e.code === 'Backquote' || e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        window.chrome.webview.postMessage({ action: 'hideConsole' });
+      }
+    }, true);
+
+    function appendLog(text) {
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      if (text.startsWith('> ')) line.classList.add('cmd');
+      else if (text.includes('[ERROR]') || text.includes('Error:') || text.includes('FAILED')) line.classList.add('error');
+      else if (text.includes('[WARN]')) line.classList.add('warn');
+      else if (text.includes('[INFO]')) line.classList.add('info');
+      line.textContent = text;
+      logContainer.appendChild(line);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    function setStatus(text, colorHex) {
+      statusText.textContent = text;
+      if (colorHex) statusText.style.color = colorHex;
+    }
+
+    function clearLogs() {
+      logContainer.innerHTML = '';
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter') {
+        sendCmd();
+      }
+    }
+
+    function sendCmd() {
+      const val = cmdInput.value;
+      if (!val || !val.trim()) return;
+      window.chrome.webview.postMessage({ action: 'sendCommand', text: val.trim() });
+      cmdInput.value = '';
+    }
+
+    function copyLogs() {
+      const sel = window.getSelection().toString();
+      const text = sel ? sel : logContainer.innerText;
+      window.chrome.webview.postMessage({ action: 'copyLogs', text: text });
+    }
+  </script>
+</body>
+</html>

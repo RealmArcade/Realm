@@ -126,7 +126,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		audioVBox.AddThemeConstantOverride("separation", 10);
 
 		var lblAudioIcon = new Label();
-		lblAudioIcon.Text = "\uf028";
+		lblAudioIcon.Text = UnicodeIcons.AUDIO;
 		var faFont = Hud?.GetFontAwesomeFont();
 		if (faFont != null) lblAudioIcon.AddThemeFontOverride("font", faFont);
 		lblAudioIcon.HorizontalAlignment = HorizontalAlignment.Center;
@@ -144,7 +144,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		audioBtnRow.Alignment = BoxContainer.AlignmentMode.Center;
 		audioBtnRow.AddThemeConstantOverride("separation", 8);
 
-		_btnAudioPlay = AddButton(audioBtnRow, "\uf04b " + TranslationServer.Translate("Play"), () => ToggleAudioPlayback(), "Play loaded audio", 11, new Vector2(80, 26));
+		_btnAudioPlay = AddButton(audioBtnRow, $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("Play"), () => ToggleAudioPlayback(), "Play loaded audio", 11, new Vector2(80, 26));
 
 		audioVBox.AddChild(audioBtnRow);
 		_previewAudioContainer.AddChild(audioVBox);
@@ -201,7 +201,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		catRow.AddChild(spacer);
 
-		_btnAddObject = AddButton(catRow, "\uf067 " + TranslationServer.Translate("Add"), () => AddNewObjectForCategory(_currentCategory), "Add new object to metadata.json", 11, new Vector2(120, 26));
+		_btnAddObject = AddButton(catRow, $"{UnicodeIcons.PLUS} " + TranslationServer.Translate("Add"), () => AddNewObjectForCategory(_currentCategory), "Add new object to metadata.json", 11, new Vector2(120, 26));
 
 		BodyContainer.AddChild(catRow);
 
@@ -210,7 +210,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		searchRow.AddThemeConstantOverride("separation", 6);
 
 		var lblSearch = new Label();
-		lblSearch.Text = "\uf002 " + TranslationServer.Translate("Filter:");
+		lblSearch.Text = $"{UnicodeIcons.SEARCH} " + TranslationServer.Translate("Filter:");
 		if (faFont != null) lblSearch.AddThemeFontOverride("font", faFont);
 		lblSearch.AddThemeFontSizeOverride("font_size", 11);
 		searchRow.AddChild(lblSearch);
@@ -623,7 +623,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		var faFont = Hud?.GetFontAwesomeFont();
 
 		var btnEdit = new Button();
-		btnEdit.Text = "\uf044";
+		btnEdit.Text = UnicodeIcons.EDIT;
 		if (faFont != null) btnEdit.AddThemeFontOverride("font", faFont);
 		btnEdit.TooltipText = TranslationServer.Translate("Edit Object Properties");
 		btnEdit.CustomMinimumSize = new Vector2(28, 28);
@@ -631,7 +631,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		actionsHBox.AddChild(btnEdit);
 
 		var btnDelete = new Button();
-		btnDelete.Text = "\uf2ed";
+		btnDelete.Text = UnicodeIcons.TRASH_ALT;
 		if (faFont != null) btnDelete.AddThemeFontOverride("font", faFont);
 		btnDelete.TooltipText = TranslationServer.Translate("Delete Object from metadata.json");
 		btnDelete.CustomMinimumSize = new Vector2(28, 28);
@@ -1139,17 +1139,17 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (_audioPlayer.Playing)
 		{
 			_audioPlayer.Stop();
-			_btnAudioPlay.Text = "\uf04b " + TranslationServer.Translate("Play");
+			_btnAudioPlay.Text = $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("Play");
 		}
 		else if (_audioPlayer.Stream != null)
 		{
 			_audioPlayer.Play();
-			_btnAudioPlay.Text = "\uf04c " + TranslationServer.Translate("Pause");
+			_btnAudioPlay.Text = $"{UnicodeIcons.PAUSE} " + TranslationServer.Translate("Pause");
 		}
 	}
 
 	private void OnAudioFinished()
 	{
-		_btnAudioPlay.Text = "\uf04b " + TranslationServer.Translate("Play");
+		_btnAudioPlay.Text = $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("Play");
 	}
 }

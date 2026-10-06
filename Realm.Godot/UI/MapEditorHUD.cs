@@ -598,7 +598,7 @@ public partial class MapEditorHUD : Control
 		}
 
 		_btnBackToHub = GetNode<Button>("TopLeftBox/BtnBack");
-		SetupButton(_btnBackToHub, "\uf2f5 BACK TO HUB", () => BackToHubAction(), 13, "Exit editor and return to game lobby");
+		SetupButton(_btnBackToHub, $"{UnicodeIcons.SIGN_OUT} BACK TO HUB", () => BackToHubAction(), 13, "Exit editor and return to game lobby");
 		StyleMapEditorTopButton(_btnBackToHub);
 		_mapNameHeaderPanel = new PanelContainer();
 		_mapNameHeaderPanel.Name = "MapNameHeaderPanel";
@@ -641,7 +641,7 @@ public partial class MapEditorHUD : Control
 		UpdateMapNameHeader();
 
 		var btnHelp = GetNode<Button>("TopLeftBox/BtnHelp");
-		SetupButton(btnHelp, "\uf059 HELP", () => ToggleHelpPanelExternal(), 13, "Toggle the hotkeys and editor guide overlay (H)");
+		SetupButton(btnHelp, $"{UnicodeIcons.HELP} HELP", () => ToggleHelpPanelExternal(), 13, "Toggle the hotkeys and editor guide overlay (H)");
 		StyleMapEditorTopButton(btnHelp);
 
 		_popupEditors = new PopupPanel();
@@ -668,7 +668,7 @@ public partial class MapEditorHUD : Control
 
 		_btnVSCode = new Button();
 		_btnVSCode.Name = "BtnVSCode";
-		SetupOptionButton(_btnVSCode, "\uf121 CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
+		SetupOptionButton(_btnVSCode, $"{UnicodeIcons.CODE} CODE & DATA", () => ToggleVSCodeEditor(), 13, "Toggle the embedded VSCode editor (Right-click or Middle-click: DevTools)");
 		_btnVSCode.Pressed += () => _popupEditors.Hide();
 
 		if (OperatingSystem.IsWindows())
@@ -695,19 +695,19 @@ public partial class MapEditorHUD : Control
 
 		_btnAssetsManager = new Button();
 		_btnAssetsManager.Name = "BtnAssetsManager";
-		SetupOptionButton(_btnAssetsManager, "\uf1b2 ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
+		SetupOptionButton(_btnAssetsManager, $"{UnicodeIcons.CUBE} ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
 		_btnAssetsManager.Pressed += () => _popupEditors.Hide();
 		editorsVBox.AddChild(_btnAssetsManager);
 
 		_btnTemplateManager = new Button();
 		_btnTemplateManager.Name = "BtnTemplateManager";
-		SetupOptionButton(_btnTemplateManager, "\uf1b3 TEMPLATES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
+		SetupOptionButton(_btnTemplateManager, $"{UnicodeIcons.CUBES} TEMPLATES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
 		_btnTemplateManager.Pressed += () => _popupEditors.Hide();
 		editorsVBox.AddChild(_btnTemplateManager);
 
 		_btnInstanceManager = new Button();
 		_btnInstanceManager.Name = "BtnInstanceManager";
-		SetupOptionButton(_btnInstanceManager, "\uf0cb INSTANCES", () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
+		SetupOptionButton(_btnInstanceManager, $"{UnicodeIcons.LIST} INSTANCES", () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
 		_btnInstanceManager.Pressed += () => _popupEditors.Hide();
 		editorsVBox.AddChild(_btnInstanceManager);
 
@@ -717,7 +717,7 @@ public partial class MapEditorHUD : Control
 			_btnEditors = new Button();
 			_btnEditors.Name = "BtnEditors";
 		}
-		SetupButton(_btnEditors, "EDITORS \uf078", () =>
+		SetupButton(_btnEditors, $"EDITORS {UnicodeIcons.CHEVRON_DOWN}", () =>
 		{
 			var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
 			_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
@@ -725,25 +725,25 @@ public partial class MapEditorHUD : Control
 		StyleMapEditorTopButton(_btnEditors);
 
 		_btnUndo = GetNode<Button>("TopLeftBox/BtnUndo");
-		SetupButton(_btnUndo, "\uf0e2 UNDO", () => UndoAction(), 13, "Undo the last action (Ctrl+Z)");
+		SetupButton(_btnUndo, $"{UnicodeIcons.UNDO} UNDO", () => UndoAction(), 13, "Undo the last action (Ctrl+Z)");
 		StyleMapEditorTopButton(_btnUndo);
 
 		_btnRedo = GetNode<Button>("TopLeftBox/BtnRedo");
-		SetupButton(_btnRedo, "\uf01e REDO", () => RedoAction(), 13, "Redo the last undone action (Ctrl+Y)");
+		SetupButton(_btnRedo, $"{UnicodeIcons.REDO} REDO", () => RedoAction(), 13, "Redo the last undone action (Ctrl+Y)");
 		StyleMapEditorTopButton(_btnRedo);
 
 		_btnEyedropper = GetNode<Button>("TopLeftBox/BtnEyedropper");
-		SetupButton(_btnEyedropper, "\uf1fb EYEDROPPER", () => TriggerToolSelection(GameHost.EditorTool.Eyedropper, _btnEyedropper), 13, "Pick / sample entities, terrain height (Shift+Click), or vertex color under cursor (I)");
+		SetupButton(_btnEyedropper, $"{UnicodeIcons.EYEDROPPER} EYEDROPPER", () => TriggerToolSelection(GameHost.EditorTool.Eyedropper, _btnEyedropper), 13, "Pick / sample entities, terrain height (Shift+Click), or vertex color under cursor (I)");
 		StyleMapEditorTopButton(_btnEyedropper);
 
 		_optModule = GetNode<OptionButton>("TopLeftBox/OptModule");
 		StyleOptionButtonPopup(_optModule);
-		_optModule.AddItem("\uf6e8 " + TranslationServer.Translate("TERRAIN"), (int)EditorModule.Terrain);
-		_optModule.AddItem("\uf1fc " + TranslationServer.Translate("TEXTURE"), (int)EditorModule.TextureDeco);
-		_optModule.AddItem("\uf4d7 " + TranslationServer.Translate("PATHING"), (int)EditorModule.Pathing);
-		_optModule.AddItem("\uf1b2 " + TranslationServer.Translate("OBJECTS"), (int)EditorModule.Objects);
-		_optModule.AddItem("\uf303 " + TranslationServer.Translate("COORDINATES"), (int)EditorModule.Coordinates);
-		_optModule.AddItem("\uf0ea " + TranslationServer.Translate("CLIPBOARD"), (int)EditorModule.Clipboard);
+		_optModule.AddItem($"{UnicodeIcons.MOUNTAIN} " + TranslationServer.Translate("TERRAIN"), (int)EditorModule.Terrain);
+		_optModule.AddItem($"{UnicodeIcons.PAINT_BRUSH} " + TranslationServer.Translate("TEXTURE"), (int)EditorModule.TextureDeco);
+		_optModule.AddItem($"{UnicodeIcons.VECTOR_SQUARE} " + TranslationServer.Translate("PATHING"), (int)EditorModule.Pathing);
+		_optModule.AddItem($"{UnicodeIcons.CUBE} " + TranslationServer.Translate("OBJECTS"), (int)EditorModule.Objects);
+		_optModule.AddItem($"{UnicodeIcons.DRAW_POLYGON} " + TranslationServer.Translate("COORDINATES"), (int)EditorModule.Coordinates);
+		_optModule.AddItem($"{UnicodeIcons.PASTE} " + TranslationServer.Translate("CLIPBOARD"), (int)EditorModule.Clipboard);
 		_optModule.ItemSelected += (index) => SwitchModule((EditorModule)index);
 		StyleMapEditorTopButton(_optModule);
 
@@ -767,7 +767,7 @@ public partial class MapEditorHUD : Control
 				_topLeftBox.AddChild(_btnTestMap);
 			}
 		}
-		SetupButton(_btnTestMap, "\uf11b TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
+		SetupButton(_btnTestMap, $"{UnicodeIcons.GAMEPAD} TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
 		StyleMapEditorTopButton(_btnTestMap);
 
 		if (_topLeftBox != null)
@@ -779,7 +779,7 @@ public partial class MapEditorHUD : Control
 
 			_btnResetLayout = new Button();
 			_btnResetLayout.Name = "BtnResetLayout";
-			SetupButton(_btnResetLayout, "\uf08d RESET LAYOUT", () => ResetAllPanelPositions(), 12, "Reset all floating panels back to default sidebar positions");
+			SetupButton(_btnResetLayout, $"{UnicodeIcons.PIN} RESET LAYOUT", () => ResetAllPanelPositions(), 12, "Reset all floating panels back to default sidebar positions");
 			StyleMapEditorTopButton(_btnResetLayout);
 			_topLeftBox.AddChild(_btnResetLayout);
 			if (_btnGameSettings != null)
@@ -817,18 +817,18 @@ public partial class MapEditorHUD : Control
 		SetupAccordion(_btnHeaderFile, _contentFile, TranslationServer.Translate("File"));
 
 		_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnLoad");
-		SetupOptionButton(_btnLoad, "\uf07c LOAD", () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
+		SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} LOAD", () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
 
 		_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnSave");
-		SetupOptionButton(_btnSave, "\uf0c7 SAVE", () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
+		SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} SAVE", () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
 
 		_btnSaveAs = new Button();
 		_btnSaveAs.Name = "BtnSaveAs";
 		_btnSaveAs.Set("icon_max_width", 0);
-		SetupOptionButton(_btnSaveAs, "\uf0c7 SAVE AS", () => SaveAsMapAction(), 13, "Save map to a new folder location");
+		SetupOptionButton(_btnSaveAs, $"{UnicodeIcons.SAVE} SAVE AS", () => SaveAsMapAction(), 13, "Save map to a new folder location");
 
 		_btnPublish = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnPublish");
-		SetupOptionButton(_btnPublish, "\uf093 PUBLISH", () => PublishMapActionExternal(), 13, "Publish/export map to custom map registry");
+		SetupOptionButton(_btnPublish, $"{UnicodeIcons.UPLOAD} PUBLISH", () => PublishMapActionExternal(), 13, "Publish/export map to custom map registry");
 
 		_btnExportMap = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnExportMap");
 		if (_btnExportMap == null)
@@ -837,7 +837,7 @@ public partial class MapEditorHUD : Control
 			_btnExportMap.Name = "BtnExportMap";
 			_btnExportMap.Set("icon_max_width", 0);
 		}
-		SetupOptionButton(_btnExportMap, "\uf56e EXPORT (.RMAP)", () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
+		SetupOptionButton(_btnExportMap, $"{UnicodeIcons.FILE_EXPORT} EXPORT (.RMAP)", () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
 
 		_popupSaveMore = new PopupPanel();
 		_popupSaveMore.Name = "PopupSaveMore";
@@ -863,14 +863,14 @@ public partial class MapEditorHUD : Control
 		_btnSaveMore = new Button();
 		_btnSaveMore.Name = "BtnSaveMore";
 		_btnSaveMore.Set("icon_max_width", 0);
-		SetupOptionButton(_btnSaveMore, "\uf078", () =>
+		SetupOptionButton(_btnSaveMore, UnicodeIcons.CHEVRON_DOWN, () =>
 		{
 			var popupPosition = _btnSaveMore.GetScreenPosition() + new Vector2(0, _btnSaveMore.Size.Y);
 			_popupSaveMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
 		}, 10, "More save & export options (Save As, Export, Publish)");
 
 		_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnResetMap");
-		SetupOptionButton(_btnResetMap, "\uf12d RESET MAP", () =>
+		SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} RESET MAP", () =>
 		{
 			ShowConfirmationDialog(
 				"Are you sure you want to clear the entire map? This will delete all placed entities and reset terrain heights.",
@@ -879,10 +879,10 @@ public partial class MapEditorHUD : Control
 		}, 13, "Clear all terrain heights, colors, and placed entities");
 
 		_btnGenerateMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnGenerateMap");
-		SetupOptionButton(_btnGenerateMap, "\uf522 PROCEDURAL", () => _generationDialog.Show(), 13, "Open random terrain generator settings modal");
+		SetupOptionButton(_btnGenerateMap, $"{UnicodeIcons.DICE} PROCEDURAL", () => _generationDialog.Show(), 13, "Open random terrain generator settings modal");
 
 		_btnImportMinimap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnImportMinimap");
-		SetupOptionButton(_btnImportMinimap, "\uf279 FROM IMAGE", () => ImportTerrainFromMinimapDialog(), 13, "Import terrain elevations, textures, and trees from a minimap image file");
+		SetupOptionButton(_btnImportMinimap, $"{UnicodeIcons.MAP_IMAGE} FROM IMAGE", () => ImportTerrainFromMinimapDialog(), 13, "Import terrain elevations, textures, and trees from a minimap image file");
 
 		_popupRandomGen = new PopupPanel();
 		_popupRandomGen.Name = "PopupRandomGen";
@@ -905,7 +905,7 @@ public partial class MapEditorHUD : Control
 
 		_btnRandomGen = new Button();
 		_btnRandomGen.Name = "BtnRandomGen";
-		SetupOptionButton(_btnRandomGen, "\uf522 RANDOM GEN", () =>
+		SetupOptionButton(_btnRandomGen, $"{UnicodeIcons.DICE} RANDOM GEN", () =>
 		{
 			var popupPosition = _btnRandomGen.GetScreenPosition() + new Vector2(0, _btnRandomGen.Size.Y);
 			_popupRandomGen.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
@@ -997,7 +997,7 @@ public partial class MapEditorHUD : Control
 		AddChild(_popupOverlayMode);
 
 		_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleGrid");
-		SetupButton(_btnToggleGrid, "\uf84c", () => OpenOverlayModePopup(), 12, "Overlay");
+		SetupButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, () => OpenOverlayModePopup(), 12, "Overlay");
 		_popupEnvironment = new PopupPanel();
 		_popupEnvironment.Name = "PopupEnvironment";
 		
@@ -1069,7 +1069,7 @@ public partial class MapEditorHUD : Control
 		_btnToggleEnvironment = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleEnvironment") ?? new Button();
 		_btnToggleEnvironment.Name = "BtnToggleEnvironment";
 		_btnToggleEnvironment.Set("icon_max_width", 0);
-		SetupButton(_btnToggleEnvironment, "\uf185", () => OpenEnvironmentPopup(), 12, "Environment");
+		SetupButton(_btnToggleEnvironment, UnicodeIcons.SUN, () => OpenEnvironmentPopup(), 12, "Environment");
 
 		_popupCamera = new PopupPanel();
 		_popupCamera.Name = "PopupCamera";
@@ -1096,7 +1096,7 @@ public partial class MapEditorHUD : Control
 		_btnRotate = new Button();
 		_btnRotate.Name = "BtnRotate";
 		_btnRotate.Set("icon_max_width", 0);
-		StylePopupButton(_btnRotate, "\uf01e Rotate 90° (R)", "Rotate camera 90 degrees (R)");
+		StylePopupButton(_btnRotate, $"{UnicodeIcons.ROTATE} Rotate 90° (R)", "Rotate camera 90 degrees (R)");
 		_btnRotate.Pressed += () =>
 		{
 			UIManager.Instance?.PlayClickSound();
@@ -1108,7 +1108,7 @@ public partial class MapEditorHUD : Control
 		_btnCameraAngle = new Button();
 		_btnCameraAngle.Name = "BtnCameraAngle";
 		_btnCameraAngle.Set("icon_max_width", 0);
-		StylePopupButton(_btnCameraAngle, "\uf1b2 Top-Down (C)", "Toggle perspective vs top-down angle (C)");
+		StylePopupButton(_btnCameraAngle, $"{UnicodeIcons.CUBE} Top-Down (C)", "Toggle perspective vs top-down angle (C)");
 		_btnCameraAngle.Pressed += () =>
 		{
 			var camera = (GameHost.Instance?.MainCamera as CameraControl);
@@ -1123,7 +1123,7 @@ public partial class MapEditorHUD : Control
 		_btnZoomIn = new Button();
 		_btnZoomIn.Name = "BtnZoomIn";
 		_btnZoomIn.Set("icon_max_width", 0);
-		StylePopupButton(_btnZoomIn, "\uf00e Zoom In (+)", "Zoom camera in (+)");
+		StylePopupButton(_btnZoomIn, $"{UnicodeIcons.ZOOM_IN} Zoom In (+)", "Zoom camera in (+)");
 		_btnZoomIn.Pressed += () =>
 		{
 			UIManager.Instance?.PlayClickSound();
@@ -1134,7 +1134,7 @@ public partial class MapEditorHUD : Control
 		_btnZoomOut = new Button();
 		_btnZoomOut.Name = "BtnZoomOut";
 		_btnZoomOut.Set("icon_max_width", 0);
-		StylePopupButton(_btnZoomOut, "\uf010 Zoom Out (-)", "Zoom camera out (-)");
+		StylePopupButton(_btnZoomOut, $"{UnicodeIcons.ZOOM_OUT} Zoom Out (-)", "Zoom camera out (-)");
 		_btnZoomOut.Pressed += () =>
 		{
 			UIManager.Instance?.PlayClickSound();
@@ -1165,7 +1165,7 @@ public partial class MapEditorHUD : Control
 		_btnToggleCamera = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleCamera") ?? new Button();
 		_btnToggleCamera.Name = "BtnToggleCamera";
 		_btnToggleCamera.Set("icon_max_width", 0);
-		SetupButton(_btnToggleCamera, "\uf030", () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
+		SetupButton(_btnToggleCamera, UnicodeIcons.CAMERA, () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
 
 		var initialCam = GameHost.Instance?.MainCamera as CameraControl;
 		UpdateFreeCameraExternal(initialCam != null && initialCam.IsFreeCamera);
@@ -1181,7 +1181,7 @@ public partial class MapEditorHUD : Control
 		_btnTapeMeasure = new Button();
 		_btnTapeMeasure.Name = "BtnTapeMeasure";
 		_btnTapeMeasure.Set("icon_max_width", 0);
-		SetupButton(_btnTapeMeasure, "\uf545", () =>
+		SetupButton(_btnTapeMeasure, UnicodeIcons.RULER, () =>
 		{
 			if (GameHost.Instance != null)
 			{
@@ -1211,7 +1211,7 @@ public partial class MapEditorHUD : Control
 		_btnResetPivotToCenter = new Button();
 		_btnResetPivotToCenter.Name = "BtnResetPivotToCenter";
 		_btnResetPivotToCenter.Set("icon_max_width", 0);
-		SetupOptionButton(_btnResetPivotToCenter, "\uf05b RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry and polar overlay center pivot to true map center");
+		SetupOptionButton(_btnResetPivotToCenter, $"{UnicodeIcons.CROSSHAIRS} RESET PIVOT", () => ResetPivotToMapCenter(), 10, "Reset symmetry and polar overlay center pivot to true map center");
 
 		var bottomBar = new HBoxContainer();
 		bottomBar.Name = "BottomCenterBar";
@@ -1281,53 +1281,53 @@ public partial class MapEditorHUD : Control
 		_panelClipboard = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard");
 
 		_btnRaise = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnRaise");
-		_cardRaise = CreateToolCard(_btnRaise, "\uf062", "Raise", () => TriggerToolSelection(GameHost.EditorTool.Raise, _btnRaise), "Elevate terrain height (1)");
+		_cardRaise = CreateToolCard(_btnRaise, UnicodeIcons.ARROW_UP, "Raise", () => TriggerToolSelection(GameHost.EditorTool.Raise, _btnRaise), "Elevate terrain height (1)");
 
 		_btnLower = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnLower");
-		_cardLower = CreateToolCard(_btnLower, "\uf063", "Lower", () => TriggerToolSelection(GameHost.EditorTool.Lower, _btnLower), "Lower terrain height (2)");
+		_cardLower = CreateToolCard(_btnLower, UnicodeIcons.ARROW_DOWN, "Lower", () => TriggerToolSelection(GameHost.EditorTool.Lower, _btnLower), "Lower terrain height (2)");
 
 		_btnHeight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnHeight");
-		_cardHeight = CreateToolCard(_btnHeight, "\uf07d", "Height", () => TriggerToolSelection(GameHost.EditorTool.Height, _btnHeight), "Set terrain to exact height (3)");
+		_cardHeight = CreateToolCard(_btnHeight, UnicodeIcons.ARROWS_V, "Height", () => TriggerToolSelection(GameHost.EditorTool.Height, _btnHeight), "Set terrain to exact height (3)");
 
 		_btnSmooth = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnSmooth");
-		_cardSmooth = CreateToolCard(_btnSmooth, "\uf043", "Smooth", () => TriggerToolSelection(GameHost.EditorTool.Smooth, _btnSmooth), "Smooth terrain height (4)");
+		_cardSmooth = CreateToolCard(_btnSmooth, UnicodeIcons.SMOOTH, "Smooth", () => TriggerToolSelection(GameHost.EditorTool.Smooth, _btnSmooth), "Smooth terrain height (4)");
 
 		_btnPlateau = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnPlateau");
-		_cardPlateau = CreateToolCard(_btnPlateau, "\uf0c8", "Flatten", () => TriggerToolSelection(GameHost.EditorTool.Plateau, _btnPlateau), "Flatten terrain to cursor height on click (5)");
+		_cardPlateau = CreateToolCard(_btnPlateau, UnicodeIcons.SQUARE, "Flatten", () => TriggerToolSelection(GameHost.EditorTool.Plateau, _btnPlateau), "Flatten terrain to cursor height on click (5)");
 
 		_btnRamp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnRamp");
-		_cardRamp = CreateToolCard(_btnRamp, "\uf542", "Ramp", () => TriggerToolSelection(GameHost.EditorTool.Ramp, _btnRamp), "Create ramp between two points (6)");
+		_cardRamp = CreateToolCard(_btnRamp, UnicodeIcons.RAMP, "Ramp", () => TriggerToolSelection(GameHost.EditorTool.Ramp, _btnRamp), "Create ramp between two points (6)");
 
 		_btnNoise = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnNoise");
-		_cardNoise = CreateToolCard(_btnNoise, "\uf6d9", "Noise", () => TriggerToolSelection(GameHost.EditorTool.Noise, _btnNoise), "Add random height variations/noise to terrain (7)");
+		_cardNoise = CreateToolCard(_btnNoise, UnicodeIcons.NOISE, "Noise", () => TriggerToolSelection(GameHost.EditorTool.Noise, _btnNoise), "Add random height variations/noise to terrain (7)");
 
 		_btnWater = new Button();
 		_btnWater.Name = "BtnWater";
-		_cardWater = CreateToolCard(_btnWater, "\uf773", "Water", () => TriggerToolSelection(GameHost.EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls");
+		_cardWater = CreateToolCard(_btnWater, UnicodeIcons.WATER, "Water", () => TriggerToolSelection(GameHost.EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls");
 
 		_btnTextureBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/BtnTextureBrush");
-		_cardTextureBrush = CreateToolCard(_btnTextureBrush, "\uf1fc", "Paint", () => TriggerToolSelection(GameHost.EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
+		_cardTextureBrush = CreateToolCard(_btnTextureBrush, UnicodeIcons.PAINT_BRUSH, "Paint", () => TriggerToolSelection(GameHost.EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
 
 		_btnFloodFill = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/BtnFloodFill");
-		_cardFloodFill = CreateToolCard(_btnFloodFill, "\uf576", "Flood Fill", () => TriggerToolSelection(GameHost.EditorTool.FloodFill, _btnFloodFill), "Flood fill terrain texture");
+		_cardFloodFill = CreateToolCard(_btnFloodFill, UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(GameHost.EditorTool.FloodFill, _btnFloodFill), "Flood fill terrain texture");
 
 		_btnSelectArea = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnSelectArea");
-		_cardSelectArea = CreateToolCard(_btnSelectArea, "\uf065", "Select Area", () => TriggerToolSelection(GameHost.EditorTool.SelectArea, _btnSelectArea), "Select rectangular area");
+		_cardSelectArea = CreateToolCard(_btnSelectArea, UnicodeIcons.EXPAND_ARROWS, "Select Area", () => TriggerToolSelection(GameHost.EditorTool.SelectArea, _btnSelectArea), "Select rectangular area");
 
 		_btnPathingBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox/BtnPathingBrush");
-		_cardPathingBrush = CreateToolCard(_btnPathingBrush, "\uf54b", "Brush", () => TriggerToolSelection(GameHost.EditorTool.PaintPathing, _btnPathingBrush), "Paint pathing attributes onto the terrain map");
+		_cardPathingBrush = CreateToolCard(_btnPathingBrush, UnicodeIcons.BRUSH_ALT, "Brush", () => TriggerToolSelection(GameHost.EditorTool.PaintPathing, _btnPathingBrush), "Paint pathing attributes onto the terrain map");
 
 		_btnFloodFillPathing = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox/BtnFloodFillPathing");
-		_cardFloodFillPathing = CreateToolCard(_btnFloodFillPathing, "\uf576", "Flood Fill", () => TriggerToolSelection(GameHost.EditorTool.FloodFillPathing, _btnFloodFillPathing), "Flood fill pathing attributes onto the terrain map");
+		_cardFloodFillPathing = CreateToolCard(_btnFloodFillPathing, UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(GameHost.EditorTool.FloodFillPathing, _btnFloodFillPathing), "Flood fill pathing attributes onto the terrain map");
 
 		_btnAddObject = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/BtnAddObject");
-		_cardAddObject = CreateToolCard(_btnAddObject, "\uf1b2", "Add Object", () => _entityPaletteController?.TriggerAddObjectMode(), "Place units, props, or decals");
+		_cardAddObject = CreateToolCard(_btnAddObject, UnicodeIcons.CUBE, "Add Object", () => _entityPaletteController?.TriggerAddObjectMode(), "Place units, props, or decals");
 
 		_btnSelectMove = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/BtnSelectMove");
-		_cardSelectMove = CreateToolCard(_btnSelectMove, "\uf0b2", "Select/Move", () => TriggerToolSelection(GameHost.EditorTool.SelectMove, _btnSelectMove), "Select and move units, props, or decals");
+		_cardSelectMove = CreateToolCard(_btnSelectMove, UnicodeIcons.MOVE, "Select/Move", () => TriggerToolSelection(GameHost.EditorTool.SelectMove, _btnSelectMove), "Select and move units, props, or decals");
 
 		_btnDeleteObject = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/BtnDeleteObject");
-		_cardDeleteObject = CreateToolCard(_btnDeleteObject, "\uf12d", "Erase", () =>
+		_cardDeleteObject = CreateToolCard(_btnDeleteObject, UnicodeIcons.TRASH, "Erase", () =>
 		{
 			if (GodotObject.IsInstanceValid(GameHost.Instance?.SelectedEditorObject))
 				DeleteSelectedObjectAction();
@@ -1336,7 +1336,7 @@ public partial class MapEditorHUD : Control
 		}, "Erase units, props, or decals");
 
 		_btnDrawCoordinate = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnDrawCoordinate");
-		SetupButton(_btnDrawCoordinate, "\uf303 DRAW COORD", () => TriggerToolSelection(GameHost.EditorTool.DrawCoordinate, _btnDrawCoordinate), 11, "Drag to define a named coordinate box exposed as C# variables");
+		SetupButton(_btnDrawCoordinate, $"{UnicodeIcons.DRAW_POLYGON} DRAW COORD", () => TriggerToolSelection(GameHost.EditorTool.DrawCoordinate, _btnDrawCoordinate), 11, "Drag to define a named coordinate box exposed as C# variables");
 
 		_txtCoordinateName = GetNode<LineEdit>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/CoordinateNameRow/TxtCoordinateName");
 		_btnCommitCoordinate = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnCommitCoordinate");
@@ -1365,16 +1365,16 @@ public partial class MapEditorHUD : Control
 		_coordinateListVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/CoordinateListVBox");
 
 		_btnCopy = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnCopy");
-		_cardCopy = CreateToolCard(_btnCopy, "\uf0c5", "Copy", () => GameHost.Instance?.PerformCopyAreaExternal(), "Copy selected area to clipboard (Ctrl+C)");
+		_cardCopy = CreateToolCard(_btnCopy, UnicodeIcons.COPY, "Copy", () => GameHost.Instance?.PerformCopyAreaExternal(), "Copy selected area to clipboard (Ctrl+C)");
 
 		_btnPaste = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnPaste");
-		_cardPaste = CreateToolCard(_btnPaste, "\uf0ea", "Paste", () => TriggerToolSelection(GameHost.EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
+		_cardPaste = CreateToolCard(_btnPaste, UnicodeIcons.PASTE, "Paste", () => TriggerToolSelection(GameHost.EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
 
 		_btnCut = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnCut");
-		_cardCut = CreateToolCard(_btnCut, "\uf0c4", "Cut", () => GameHost.Instance?.PerformCutAreaExternal(), "Cut selected area to clipboard (Ctrl+X)");
+		_cardCut = CreateToolCard(_btnCut, UnicodeIcons.SCISSORS, "Cut", () => GameHost.Instance?.PerformCutAreaExternal(), "Cut selected area to clipboard (Ctrl+X)");
 
 		_btnEraseArea = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnEraseArea");
-		_cardEraseArea = CreateToolCard(_btnEraseArea, "\uf12d", "Erase Area", () => GameHost.Instance?.PerformEraseAreaExternal(), "Erase heights, textures and objects within selection (Delete)");
+		_cardEraseArea = CreateToolCard(_btnEraseArea, UnicodeIcons.TRASH, "Erase Area", () => GameHost.Instance?.PerformEraseAreaExternal(), "Erase heights, textures and objects within selection (Delete)");
 
 		_accordionBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion");
 		_btnHeaderBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/BtnHeaderBrush");
@@ -1393,7 +1393,7 @@ public partial class MapEditorHUD : Control
 		_sldBrushStrength.DragEnded += (valueChanged) => _isDraggingSlider = false;
 
 		_btnBrushShape = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BtnBrushShape");
-		SetupOptionButton(_btnBrushShape, "\uf0c8 BRUSH: SQUARE", () =>
+		SetupOptionButton(_btnBrushShape, $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
 		{
 			if (GameHost.Instance != null)
 			{
@@ -1671,7 +1671,7 @@ public partial class MapEditorHUD : Control
 		}
 		
 		var btnTextureSwap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/BtnTextureSwap");
-		SetupOptionButton(btnTextureSwap, "\uf021 SWAP TEXTURES (GLOBAL)", () =>
+		SetupOptionButton(btnTextureSwap, $"{UnicodeIcons.REFRESH} SWAP TEXTURES (GLOBAL)", () =>
 		{
 			if (GameHost.Instance != null)
 			{
@@ -1702,7 +1702,7 @@ public partial class MapEditorHUD : Control
 		_btnReplaceTexture = new Button();
 		_btnReplaceTexture.Name = "BtnReplaceTexture";
 		_btnReplaceTexture.Set("icon_max_width", 0);
-		SetupOptionButton(_btnReplaceTexture, "\uf093 REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
+		SetupOptionButton(_btnReplaceTexture, $"{UnicodeIcons.UPLOAD} REPLACE TEXTURE", () => _replaceTextureDialog?.OpenDialog(), 11, "Replace all instances of a texture with another texture across the map");
 		_containerTextureSettings?.AddChild(_btnReplaceTexture);
 
 		_containerPathingSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing");
@@ -1800,7 +1800,7 @@ public partial class MapEditorHUD : Control
 		_btnClipboardBrushShape = new Button();
 		_btnClipboardBrushShape.Name = "BtnClipboardBrushShape";
 		_btnClipboardBrushShape.Set("icon_max_width", 0);
-		SetupOptionButton(_btnClipboardBrushShape, GameHost.Instance != null && !GameHost.Instance.EditorBrushIsSquare ? "\uf111 BRUSH: CIRCLE" : "\uf0c8 BRUSH: SQUARE", () =>
+		SetupOptionButton(_btnClipboardBrushShape, GameHost.Instance != null && !GameHost.Instance.EditorBrushIsSquare ? $"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE" : $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
 		{
 			if (GameHost.Instance != null)
 			{
@@ -1818,12 +1818,12 @@ public partial class MapEditorHUD : Control
 		_btnPasteReflection = new Button();
 		_btnPasteReflection.Name = "BtnPasteReflection";
 		_btnPasteReflection.Set("icon_max_width", 0);
-		SetupOptionButton(_btnPasteReflection, "\uf07e REFLECT: NONE", () => CyclePasteReflection(), 11, "Cycle reflection mode for paste operation (None, Horizontal, Vertical)");
+		SetupOptionButton(_btnPasteReflection, $"{UnicodeIcons.ARROWS_H} REFLECT: NONE", () => CyclePasteReflection(), 11, "Cycle reflection mode for paste operation (None, Horizontal, Vertical)");
 
 		_btnPasteAnchor = new Button();
 		_btnPasteAnchor.Name = "BtnPasteAnchor";
 		_btnPasteAnchor.Set("icon_max_width", 0);
-		SetupOptionButton(_btnPasteAnchor, "\uf245 ANCHOR: CENTER", () => CyclePasteAnchor(), 11, "Cycle pivot / anchor tile used to align pasted selection (Center, Corners)");
+		SetupOptionButton(_btnPasteAnchor, $"{UnicodeIcons.MOUSE_POINTER} ANCHOR: CENTER", () => CyclePasteAnchor(), 11, "Cycle pivot / anchor tile used to align pasted selection (Center, Corners)");
 
 		_lblPasteTelemetry = new Label();
 		_lblPasteTelemetry.Name = "LblPasteTelemetry";
@@ -1870,7 +1870,7 @@ public partial class MapEditorHUD : Control
 		_lblPlacementScaleValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblPlacementScaleValue");
 		
 		_btnToggleSnap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/BtnToggleSnap");
-		SetupOptionButton(_btnToggleSnap, "\uf0ce SNAP TO GRID: OFF", () =>
+		SetupOptionButton(_btnToggleSnap, $"{UnicodeIcons.TABLE} SNAP TO GRID: OFF", () =>
 		{
 			if (GameHost.Instance != null)
 			{
@@ -2618,7 +2618,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnToggleSnap != null)
 		{
-			_btnToggleSnap.Text = snap ? TranslationServer.Translate("\uf0ce SNAP TO GRID: ON") : TranslationServer.Translate("\uf0ce SNAP TO GRID: OFF");
+			_btnToggleSnap.Text = snap ? TranslationServer.Translate($"{UnicodeIcons.TABLE} SNAP TO GRID: ON") : TranslationServer.Translate($"{UnicodeIcons.TABLE} SNAP TO GRID: OFF");
 		}
 	}
 
@@ -2705,7 +2705,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnToggleGrid != null)
 		{
-			_btnToggleGrid.Text = "\uf84c";
+			_btnToggleGrid.Text = UnicodeIcons.BORDER_ALL;
 			_btnToggleGrid.TooltipText = TranslationServer.Translate("Overlay");
 		}
 		if (_popupOverlayMode != null)
@@ -2733,7 +2733,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnTapeMeasure != null)
 		{
-			_btnTapeMeasure.Text = "\uf545";
+			_btnTapeMeasure.Text = UnicodeIcons.RULER;
 			_btnTapeMeasure.TooltipText = TranslationServer.Translate($"Tape Measure Tool: {(active ? "ACTIVE" : "INACTIVE")} (U)");
 			_btnTapeMeasure.Modulate = active ? new Color(1.3f, 1.15f, 0.7f) : new Color(1f, 1f, 1f);
 		}
@@ -2777,7 +2777,7 @@ public partial class MapEditorHUD : Control
 		}
 
 		string text = string.Format(
-			TranslationServer.Translate("\uf545 MEASURE: Manhattan: {0:F1}T | Euclidean: {1:F1}T ({2:F1}m) | Angle: {3:F1}° | Slope: {4}"),
+			TranslationServer.Translate($"{UnicodeIcons.RULER} MEASURE: Manhattan: {0:F1}T | Euclidean: {1:F1}T ({2:F1}m) | Angle: {3:F1}° | Slope: {4}"),
 			manhattanTiles, eucTiles, eucWorld, angleDeg, slopeStr);
 
 		if (Mathf.Abs(dy) > 0.01f)
@@ -2922,20 +2922,20 @@ public partial class MapEditorHUD : Control
 	private void SetupEnvLightingDropdown(OptionButton opt)
 	{
 		opt.Clear();
-		opt.AddItem(TranslationServer.Translate("\uf185 Day"), 0);
-		opt.AddItem(TranslationServer.Translate("\uf6c4 Dusk"), 1);
-		opt.AddItem(TranslationServer.Translate("\uf186 Night"), 2);
-		opt.AddItem(TranslationServer.Translate("\uf6c3 Dawn"), 3);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.SUN} Day"), 0);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.CLOUD_SUN} Dusk"), 1);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.MOON} Night"), 2);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.HORIZON_SUN} Dawn"), 3);
 		StyleOptionButtonPopup(opt);
 	}
 
 	private void SetupEnvWeatherDropdown(OptionButton opt)
 	{
 		opt.Clear();
-		opt.AddItem(TranslationServer.Translate("\uf0c2 Clear"), 0);
-		opt.AddItem(TranslationServer.Translate("\uf73d Rain"), 1);
-		opt.AddItem(TranslationServer.Translate("\uf2dc Snow"), 2);
-		opt.AddItem(TranslationServer.Translate("\uf75f Fog"), 3);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.CLOUD} Clear"), 0);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.CLOUD_SHOWERS} Rain"), 1);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.SNOWFLAKE} Snow"), 2);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.SMOG} Fog"), 3);
 		StyleOptionButtonPopup(opt);
 	}
 
@@ -3500,11 +3500,11 @@ public partial class MapEditorHUD : Control
 		_lastBrushShapeIsSquare = isSquare;
 		if (_btnBrushShape != null)
 		{
-			_btnBrushShape.Text = isSquare ? TranslationServer.Translate("\uf0c8 BRUSH: SQUARE") : TranslationServer.Translate("\uf111 BRUSH: CIRCLE");
+			_btnBrushShape.Text = isSquare ? TranslationServer.Translate($"{UnicodeIcons.SQUARE} BRUSH: SQUARE") : TranslationServer.Translate($"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE");
 		}
 		if (_btnClipboardBrushShape != null)
 		{
-			_btnClipboardBrushShape.Text = isSquare ? TranslationServer.Translate("\uf0c8 BRUSH: SQUARE") : TranslationServer.Translate("\uf111 BRUSH: CIRCLE");
+			_btnClipboardBrushShape.Text = isSquare ? TranslationServer.Translate($"{UnicodeIcons.SQUARE} BRUSH: SQUARE") : TranslationServer.Translate($"{UnicodeIcons.CIRCLE} BRUSH: CIRCLE");
 		}
 		if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null && _editorService != null && _editorService.SelectionStart != null && _editorService.SelectionEnd != null)
 		{
@@ -3568,8 +3568,8 @@ public partial class MapEditorHUD : Control
 		if (_btnCameraAngle != null)
 		{
 			_btnCameraAngle.Text = isTopDown
-				? TranslationServer.Translate("\uf1b2 Tilt (C)")
-				: TranslationServer.Translate("\uf1b2 Top-Down (C)");
+				? TranslationServer.Translate($"{UnicodeIcons.CUBE} Tilt (C)")
+				: TranslationServer.Translate($"{UnicodeIcons.CUBE} Top-Down (C)");
 		}
 	}
 
@@ -7073,11 +7073,11 @@ public partial class MapEditorHUD : Control
 		opt.ClipText = true;
 
 		int folds = GameHost.Instance != null ? GameHost.Instance.EditorSymmetryFolds : 4;
-		opt.AddItem(TranslationServer.Translate("\uf05e SYMMETRY: NONE"), (int)MirrorMode.None);
-		opt.AddItem(TranslationServer.Translate("\uf07d MIRROR: VERTICAL"), (int)MirrorMode.Vertical);
-		opt.AddItem(TranslationServer.Translate("\uf07e MIRROR: HORIZONTAL"), (int)MirrorMode.Horizontal);
-		opt.AddItem(TranslationServer.Translate("\uf00a MIRROR: QUAD"), (int)MirrorMode.Both);
-		opt.AddItem(string.Format(TranslationServer.Translate("\uf01e ROTATIONAL ({0}-FOLD)"), folds), (int)MirrorMode.Rotational);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.BAN} SYMMETRY: NONE"), (int)MirrorMode.None);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.ARROWS_V} MIRROR: VERTICAL"), (int)MirrorMode.Vertical);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.ARROWS_H} MIRROR: HORIZONTAL"), (int)MirrorMode.Horizontal);
+		opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.GRID_QUAD} MIRROR: QUAD"), (int)MirrorMode.Both);
+		opt.AddItem(string.Format(TranslationServer.Translate($"{UnicodeIcons.ROTATE} ROTATIONAL ({0}-FOLD)"), folds), (int)MirrorMode.Rotational);
 
 		if (!string.IsNullOrEmpty(tooltip))
 		{
@@ -7129,7 +7129,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (opt == null) return;
 
-		string rotText = string.Format(TranslationServer.Translate("\uf01e ROTATIONAL ({0}-FOLD)"), folds);
+		string rotText = string.Format(TranslationServer.Translate($"{UnicodeIcons.ROTATE} ROTATIONAL ({0}-FOLD)"), folds);
 		for (int i = 0; i < opt.ItemCount; i++)
 		{
 			if (opt.GetItemId(i) == (int)MirrorMode.Rotational)
@@ -7165,7 +7165,7 @@ public partial class MapEditorHUD : Control
 		for (int i = 0; i < SpokeCountOptions.Length; i++)
 		{
 			int count = SpokeCountOptions[i];
-			opt.AddItem(string.Format(TranslationServer.Translate("\uf14e SPOKES: {0}"), count), count);
+			opt.AddItem(string.Format(TranslationServer.Translate($"{UnicodeIcons.COMPASS} SPOKES: {0}"), count), count);
 		}
 
 		if (!string.IsNullOrEmpty(tooltip))
@@ -7241,7 +7241,7 @@ public partial class MapEditorHUD : Control
 		for (int i = 0; i < PolarRingSpacingOptions.Length; i++)
 		{
 			float spacing = PolarRingSpacingOptions[i];
-			opt.AddItem(string.Format(TranslationServer.Translate("\uf111 RINGS: {0:F0}T"), spacing), (int)spacing);
+			opt.AddItem(string.Format(TranslationServer.Translate($"{UnicodeIcons.CIRCLE} RINGS: {0:F0}T"), spacing), (int)spacing);
 		}
 
 		if (!string.IsNullOrEmpty(tooltip))
@@ -7392,7 +7392,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnPasteAnchor != null)
 		{
-			_btnPasteAnchor.Text = string.Format(TranslationServer.Translate("\uf245 ANCHOR: {0}"), TranslationServer.Translate(_pasteAnchorNames[_currentPasteAnchorIndex]));
+			_btnPasteAnchor.Text = string.Format(TranslationServer.Translate($"{UnicodeIcons.MOUSE_POINTER} ANCHOR: {0}"), TranslationServer.Translate(_pasteAnchorNames[_currentPasteAnchorIndex]));
 		}
 	}
 
@@ -7416,7 +7416,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_btnPasteReflection != null && GameHost.Instance != null)
 		{
-			_btnPasteReflection.Text = string.Format(TranslationServer.Translate("\uf07e REFLECT: {0}"), TranslationServer.Translate(GameHost.Instance.EditorPasteReflection.ToString().ToUpperInvariant()));
+			_btnPasteReflection.Text = string.Format(TranslationServer.Translate($"{UnicodeIcons.ARROWS_H} REFLECT: {0}"), TranslationServer.Translate(GameHost.Instance.EditorPasteReflection.ToString().ToUpperInvariant()));
 		}
 	}
 
@@ -7579,7 +7579,7 @@ public partial class MapEditorHUD : Control
 	private void SetupAccordion(Button headerBtn, Control contentControl, string titleText)
 	{
 		string upperTitle = TranslationServer.Translate(titleText).ToString().ToUpperInvariant();
-		headerBtn.Text = upperTitle + (contentControl.Visible ? "  \uf0d7" : "  \uf0da");
+		headerBtn.Text = upperTitle + (contentControl.Visible ? $"  {UnicodeIcons.CARET_DOWN}" : $"  {UnicodeIcons.CARET_RIGHT}");
 		var font = GetFontAwesomeFont();
 		if (font != null)
 		{
@@ -7841,7 +7841,7 @@ public partial class MapEditorHUD : Control
 					expandBtn.TooltipText = "Expand panel height to view all options without scrolling";
 
 					bool isFull = false;
-					expandBtn.Text = "\uf078 EXPAND FULL";
+					expandBtn.Text = $"{UnicodeIcons.CHEVRON_DOWN} EXPAND FULL";
 					var fontExp = GetFontAwesomeFont();
 					if (fontExp != null) expandBtn.AddThemeFontOverride("font", fontExp);
 					expandBtn.Pressed += () =>
@@ -7852,12 +7852,12 @@ public partial class MapEditorHUD : Control
 							targetInner.ForceUpdateTransform();
 							float fullH = targetInner.GetCombinedMinimumSize().Y + 12f;
 							scroll.CustomMinimumSize = new Vector2(245, fullH);
-							expandBtn.Text = "\uf077 COMPACT VIEW";
+							expandBtn.Text = $"{UnicodeIcons.CHEVRON_UP} COMPACT VIEW";
 						}
 						else
 						{
 							scroll.CustomMinimumSize = new Vector2(245, maxHeight);
-							expandBtn.Text = "\uf078 EXPAND FULL";
+							expandBtn.Text = $"{UnicodeIcons.CHEVRON_DOWN} EXPAND FULL";
 						}
 						(contentControl as Container)?.QueueSort();
 						(contentControl.GetParent() as Container)?.QueueSort();
@@ -8372,10 +8372,10 @@ public partial class MapEditorHUD : Control
 			vpRow1.AddThemeConstantOverride("separation", 4);
 			vpRow1.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
-			StyleIconButton(_btnToggleGrid, "\uf84c", "Overlay");
-			StyleIconButton(_btnToggleEnvironment, "\uf185", "Environment");
-			StyleIconButton(_btnToggleCamera, "\uf030", "Configure camera controls (R / C / + / - / F8)");
-			StyleIconButton(_btnTapeMeasure, "\uf545", "Tape measure distance & slope tool (U)");
+			StyleIconButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, "Overlay");
+			StyleIconButton(_btnToggleEnvironment, UnicodeIcons.SUN, "Environment");
+			StyleIconButton(_btnToggleCamera, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)");
+			StyleIconButton(_btnTapeMeasure, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)");
 
 			SafeReparent(_btnToggleGrid, vpRow1);
 			SafeReparent(_btnToggleEnvironment, vpRow1);
@@ -8805,7 +8805,7 @@ public partial class MapEditorHUD : Control
 		if (!string.IsNullOrEmpty(titleText))
 		{
 			string upperTitle = TranslationServer.Translate(titleText).ToString().ToUpperInvariant();
-			headerBtn.Text = upperTitle + (contentControl.Visible ? "  \uf0d7" : "  \uf0da");
+			headerBtn.Text = upperTitle + (contentControl.Visible ? $"  {UnicodeIcons.CARET_DOWN}" : $"  {UnicodeIcons.CARET_RIGHT}");
 		}
 
 		var cardParent = headerBtn.GetParent() as Control;
@@ -9268,7 +9268,7 @@ public partial class MapEditorHUD : Control
 
 		var btnW_Dec = new Button();
 		btnW_Dec.Set("icon_max_width", 0);
-		SetupOptionButton(btnW_Dec, "\uf068", () =>
+		SetupOptionButton(btnW_Dec, UnicodeIcons.MINUS, () =>
 		{
 			if (_scaleDialogTargetWidth > 32)
 			{
@@ -9281,7 +9281,7 @@ public partial class MapEditorHUD : Control
 
 		var btnW_Inc = new Button();
 		btnW_Inc.Set("icon_max_width", 0);
-		SetupOptionButton(btnW_Inc, "\uf067", () =>
+		SetupOptionButton(btnW_Inc, UnicodeIcons.PLUS, () =>
 		{
 			if (_scaleDialogTargetWidth < 512)
 			{
@@ -9302,7 +9302,7 @@ public partial class MapEditorHUD : Control
 
 		var btnH_Dec = new Button();
 		btnH_Dec.Set("icon_max_width", 0);
-		SetupOptionButton(btnH_Dec, "\uf068", () =>
+		SetupOptionButton(btnH_Dec, UnicodeIcons.MINUS, () =>
 		{
 			if (_scaleDialogTargetDepth > 32)
 			{
@@ -9315,7 +9315,7 @@ public partial class MapEditorHUD : Control
 
 		var btnH_Inc = new Button();
 		btnH_Inc.Set("icon_max_width", 0);
-		SetupOptionButton(btnH_Inc, "\uf067", () =>
+		SetupOptionButton(btnH_Inc, UnicodeIcons.PLUS, () =>
 		{
 			if (_scaleDialogTargetDepth < 512)
 			{
@@ -9823,7 +9823,7 @@ public partial class MapEditorHUD : Control
 
 		if (_btnReplaceTexture != null)
 		{
-			_btnReplaceTexture.Text = $"\uf093 {TranslationServer.Translate("REPLACE TEXTURE")}";
+			_btnReplaceTexture.Text = $"{UnicodeIcons.UPLOAD} {TranslationServer.Translate("REPLACE TEXTURE")}";
 			_btnReplaceTexture.TooltipText = TranslationServer.Translate("Replace all instances of a texture with another texture across the map");
 		}
 	}
@@ -10336,28 +10336,28 @@ public partial class MapEditorHUD : Control
 		_lblInspectorPos = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorPos");
 		
 		_btnInspectorRotLeft = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorRotLeft");
-		SetupButton(_btnInspectorRotLeft, "\uf0e2 ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise");
+		SetupButton(_btnInspectorRotLeft, $"{UnicodeIcons.UNDO} ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise");
 
 		_btnInspectorRotRight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorRotRight");
-		SetupButton(_btnInspectorRotRight, "\uf01e ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise");
+		SetupButton(_btnInspectorRotRight, $"{UnicodeIcons.ROTATE} ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise");
 
 		_btnInspectorScaleDown = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorScaleDown");
-		SetupButton(_btnInspectorScaleDown, "\uf068 SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10%");
+		SetupButton(_btnInspectorScaleDown, $"{UnicodeIcons.MINUS} SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10%");
 
 		_btnInspectorScaleUp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorScaleUp");
-		SetupButton(_btnInspectorScaleUp, "\uf067 SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10%");
+		SetupButton(_btnInspectorScaleUp, $"{UnicodeIcons.PLUS} SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10%");
 
 		_btnInspectorScaleReset = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnInspectorScaleReset");
-		SetupButton(_btnInspectorScaleReset, "\uf0e2 RESET SCALE", () => ScaleSelectedObjectAction(-1f), 12, "Reset object scale size to 1.0x");
+		SetupButton(_btnInspectorScaleReset, $"{UnicodeIcons.UNDO} RESET SCALE", () => ScaleSelectedObjectAction(-1f), 12, "Reset object scale size to 1.0x");
 
 		_btnCenter = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnCenter");
-		SetupButton(_btnCenter, "\uf140 LOCATE OBJECT", () => LocateSelectedObjectAction(), 12, "Center camera on selected object");
+		SetupButton(_btnCenter, $"{UnicodeIcons.CROSSHAIRS_TARGET} LOCATE OBJECT", () => LocateSelectedObjectAction(), 12, "Center camera on selected object");
 
 		_btnInspectorDelete = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnInspectorDelete");
-		SetupButton(_btnInspectorDelete, "\uf2ed ERASE", () => DeleteSelectedObjectAction(), 12, "Erase selected unit, prop, or decal");
+		SetupButton(_btnInspectorDelete, $"{UnicodeIcons.TRASH_ALT} ERASE", () => DeleteSelectedObjectAction(), 12, "Erase selected unit, prop, or decal");
 
 		_btnShowCoverage = new Button();
-		_btnShowCoverage.Text = TranslationServer.Translate("\uf06e RANGES: OFF");
+		_btnShowCoverage.Text = TranslationServer.Translate($"{UnicodeIcons.EYE} RANGES: OFF");
 		var fontCoverage = GetFontAwesomeFont();
 		if (fontCoverage != null) _btnShowCoverage.AddThemeFontOverride("font", fontCoverage);
 		_btnShowCoverage.ToggleMode = true;
@@ -10369,7 +10369,7 @@ public partial class MapEditorHUD : Control
 			if (GameHost.Instance != null)
 			{
 				GameHost.Instance.EditorCoverageOverlayEnabled = pressed;
-				_btnShowCoverage.Text = pressed ? TranslationServer.Translate("\uf06e RANGES: ON") : TranslationServer.Translate("\uf06e RANGES: OFF");
+				_btnShowCoverage.Text = pressed ? TranslationServer.Translate($"{UnicodeIcons.EYE} RANGES: ON") : TranslationServer.Translate($"{UnicodeIcons.EYE} RANGES: OFF");
 				GameHost.Instance.UpdateEditorCoverageOverlay();
 			}
 		};

@@ -47,7 +47,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		};
 		topHBox.AddChild(_filterInput);
 
-		AddButton(topHBox, "\uf021 " + TranslationServer.Translate("Refresh"), () => RefreshObjectTree(), "Refresh object list", 11, new Vector2(85, 26));
+		AddButton(topHBox, $"{UnicodeIcons.REFRESH} " + TranslationServer.Translate("Refresh"), () => RefreshObjectTree(), "Refresh object list", 11, new Vector2(85, 26));
 
 		BodyContainer.AddChild(topHBox);
 
@@ -78,7 +78,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		var bottomHBox = new HBoxContainer();
 		bottomHBox.AddThemeConstantOverride("separation", 8);
 
-		AddButton(bottomHBox, "\uf2ed " + TranslationServer.Translate("Delete Selected"), () =>
+		AddButton(bottomHBox, $"{UnicodeIcons.TRASH_ALT} " + TranslationServer.Translate("Delete Selected"), () =>
 		{
 			var selectedItem = _objectTree.GetSelected();
 			if (selectedItem != null && _treeItemToObjectMap.TryGetValue(selectedItem, out var node) && GodotObject.IsInstanceValid(node))

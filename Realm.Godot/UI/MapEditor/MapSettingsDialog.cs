@@ -136,7 +136,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		camBoundsPanel.AddChild(camGrid);
 
 		_lblCamLeftVal = CreateBadgeLabel();
-		var btnLeftDec = CreateControlButton("\uf060", "Move Left boundary further left (West)", () =>
+		var btnLeftDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Left boundary further left (West)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -147,7 +147,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				UpdateCameraBoundsUI();
 			}
 		});
-		var btnLeftInc = CreateControlButton("\uf061", "Move Left boundary further right (East)", () =>
+		var btnLeftInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Left boundary further right (East)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -163,7 +163,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		camGrid.AddChild(btnLeftInc);
 
 		_lblCamRightVal = CreateBadgeLabel();
-		var btnRightDec = CreateControlButton("\uf060", "Move Right boundary further left (West)", () =>
+		var btnRightDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Right boundary further left (West)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -174,7 +174,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				UpdateCameraBoundsUI();
 			}
 		});
-		var btnRightInc = CreateControlButton("\uf061", "Move Right boundary further right (East)", () =>
+		var btnRightInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Right boundary further right (East)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -190,7 +190,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		camGrid.AddChild(btnRightInc);
 
 		_lblCamTopVal = CreateBadgeLabel();
-		var btnTopDec = CreateControlButton("\uf060", "Move Top boundary further North (Up)", () =>
+		var btnTopDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Top boundary further North (Up)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -201,12 +201,12 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				UpdateCameraBoundsUI();
 			}
 		});
-		var btnTopInc = CreateControlButton("\uf061", "Move Top boundary further South (Down)", () =>
+		var btnTopInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Top boundary further South (Down)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
 				Hud?.EnsureCameraBoundsVisible();
-				float maxZ = GameHost.Instance.EditorCameraBoundsBottom;
+				float maxZ = GameHost.Instance.EditorCameraBoundsTop;
 				GameHost.Instance.EditorCameraBoundsTop = Mathf.Min(maxZ, GameHost.Instance.EditorCameraBoundsTop + 5.0f);
 				GameHost.Instance.RebuildCameraBoundsOverlay();
 				UpdateCameraBoundsUI();
@@ -217,7 +217,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		camGrid.AddChild(btnTopInc);
 
 		_lblCamBottomVal = CreateBadgeLabel();
-		var btnBottomDec = CreateControlButton("\uf060", "Move Bottom boundary further North (Up)", () =>
+		var btnBottomDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Bottom boundary further North (Up)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -228,7 +228,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				UpdateCameraBoundsUI();
 			}
 		});
-		var btnBottomInc = CreateControlButton("\uf061", "Move Bottom boundary further South (Down)", () =>
+		var btnBottomInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Bottom boundary further South (Down)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -251,7 +251,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		mapSizePanel.AddChild(sizeGrid);
 
 		_lblMapWidthVal = CreateBadgeLabel();
-		var btnWidthDec = CreateControlButton("\uf068", "Decrease map tile columns (West)", () =>
+		var btnWidthDec = CreateControlButton(UnicodeIcons.MINUS, "Decrease map tile columns (West)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -264,7 +264,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				}
 			}
 		});
-		var btnWidthInc = CreateControlButton("\uf067", "Increase map tile columns (East)", () =>
+		var btnWidthInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile columns (East)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -282,7 +282,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		sizeGrid.AddChild(btnWidthInc);
 
 		_lblMapHeightVal = CreateBadgeLabel();
-		var btnHeightDec = CreateControlButton("\uf068", "Decrease map tile rows (North)", () =>
+		var btnHeightDec = CreateControlButton(UnicodeIcons.MINUS, "Decrease map tile rows (North)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -295,7 +295,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				}
 			}
 		});
-		var btnHeightInc = CreateControlButton("\uf067", "Increase map tile rows (South)", () =>
+		var btnHeightInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile rows (South)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
