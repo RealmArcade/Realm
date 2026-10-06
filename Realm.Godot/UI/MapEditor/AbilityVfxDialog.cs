@@ -27,6 +27,10 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private Action<string> _setCastSoundValue;
 
 	private string _abilityId = "";
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private bool _isUpdatingUI = false;
 	private string _abilityName = "";
 	private string _initialVisualEffect = "";
 	private string _initialCastSound = "";
@@ -112,6 +116,36 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		configVBox.AddThemeConstantOverride("separation", 10);
 		configVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		scrollBody.AddChild(configVBox);
+
+		// SECTION 0: IDENTITY
+		AddSectionHeader(configVBox, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
+
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "ability/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("ability_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
+		};
+		rowId.AddChild(_txtSlug);
+		configVBox.AddChild(rowId);
 
 		AddSectionHeader(configVBox, "🎨 " + TranslationServer.Translate("ABILITY ICON"), new Color(0.95f, 0.8f, 0.4f));
 
@@ -658,7 +692,15 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
 	{
-		_abilityId = abilityId ?? string.Empty;
+		string effectiveId = abilityData?.TryGetPropertyValue("TemplateID", out var tidNode) == true && !string.IsNullOrWhiteSpace(tidNode?.ToString())
+			? tidNode.ToString()
+			: (abilityData?.TryGetPropertyValue("AbilityId", out var aidNode) == true && !string.IsNullOrWhiteSpace(aidNode?.ToString())
+				? aidNode.ToString()
+				: abilityId);
+
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(effectiveId);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(effectiveId);
+		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
 		_abilityName = abilityData?["Name"]?.ToString() ?? _abilityId;
 		_onApplied = onApplied;
 
@@ -682,10 +724,13 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		_initialIconPath = _currentIconPath;
 		_initialAoeRadius = _currentAoeRadius;
 
+		_isUpdatingUI = true;
+		if (_txtSlug != null) _txtSlug.Text = _slug;
 		_setVisualEffectValue?.Invoke(_currentVisualEffect);
 		_setCastSoundValue?.Invoke(_currentCastSound);
 		_setIconPathValue?.Invoke(_currentIconPath);
 		if (_sldAoeRadius != null) _sldAoeRadius.Value = _currentAoeRadius;
+		_isUpdatingUI = false;
 
 		UpdateIconPreview(_currentIconPath);
 		UpdateAoEIndicator(_currentAoeRadius);
@@ -697,6 +742,11 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
+		_slug = finalSlug;
+		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
+
 		if (!string.IsNullOrEmpty(_abilityId))
 		{
 			Hud?.SaveCustomAbilityVfxToMetadata(
@@ -709,7 +759,10 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 			var updatedData = new JsonObject
 			{
+				["TemplateID"] = _abilityId,
+				["template_id"] = _abilityId,
 				["AbilityId"] = _abilityId,
+				["Name"] = _abilityName,
 				["VisualEffect"] = _currentVisualEffect,
 				["CastSound"] = _currentCastSound,
 				["IconPath"] = _currentIconPath,

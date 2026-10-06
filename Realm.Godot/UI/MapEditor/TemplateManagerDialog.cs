@@ -719,6 +719,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						{
 							MetadataService.Instance.UpdateMetadata(wsPath, m =>
 							{
+								if (!string.Equals(item.TemplateID, updatedWeapon.TemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
+								{
+									m.RemoveWeapon(item.TemplateID);
+								}
 								m.AddOrUpdateWeapon(updatedWeapon);
 							});
 							_currentPreviewTemplateID = updatedWeapon.TemplateID;
@@ -738,6 +742,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						var a = metaAbi.Templates.Abilities[aIdx];
 						var jsonObj = new JsonObject
 						{
+							["TemplateID"] = a.TemplateID,
+							["AbilityId"] = a.TemplateID,
+							["Name"] = a.Name,
 							["VisualEffect"] = a.VisualEffect,
 							["CastSound"] = a.CastSound,
 							["IconPath"] = a.IconPath,
@@ -745,18 +752,21 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						};
 						_abilityVfxDialog.OpenForAbility(a.TemplateID, jsonObj, updatedObj =>
 						{
+							string newAbilityId = updatedObj["TemplateID"]?.ToString() ?? updatedObj["AbilityId"]?.ToString() ?? item.TemplateID;
 							MetadataService.Instance.UpdateMetadata(wsPathAbi, m =>
 							{
-								m.UpdateAbility(item.TemplateID, abi =>
+								if (!string.Equals(item.TemplateID, newAbilityId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
 								{
-									abi.VisualEffect = updatedObj["VisualEffect"]?.ToString();
-									abi.CastSound = updatedObj["CastSound"]?.ToString();
-									abi.IconPath = updatedObj["IconPath"]?.ToString();
-									if (float.TryParse(updatedObj["AreaOfEffectRadius"]?.ToString(), out float radius)) abi.AreaOfEffectRadius = radius;
-									return abi;
-								});
+									m.RemoveAbility(item.TemplateID);
+								}
+								a.TemplateID = newAbilityId;
+								a.VisualEffect = updatedObj["VisualEffect"]?.ToString();
+								a.CastSound = updatedObj["CastSound"]?.ToString();
+								a.IconPath = updatedObj["IconPath"]?.ToString();
+								if (float.TryParse(updatedObj["AreaOfEffectRadius"]?.ToString(), out float radius)) a.AreaOfEffectRadius = radius;
+								m.AddOrUpdateAbility(a);
 							});
-							_currentPreviewTemplateID = item.TemplateID;
+							_currentPreviewTemplateID = newAbilityId;
 							RefreshObjectList();
 						});
 					}

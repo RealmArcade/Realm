@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using Realm.Godot.Utils;
 
 public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 {
@@ -12,6 +13,9 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	private WeaponMetadata _initialWeapon = new();
 	private WeaponMetadata _currentWeapon = new();
 	private string _weaponId = "";
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
 	private Action<WeaponMetadata> _onAppliedCallback;
 	private bool _isUpdatingUI;
 
@@ -96,6 +100,37 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		BodyContainer.AddChild(playbackToolbar);
 
 		var scrollBody = CreateScrollBody(360);
+
+		// SECTION 0: IDENTITY
+		AddSectionHeader(scrollBody, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
+
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "weapon/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("weapon_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_weaponId = TemplateIDHelper.NormalizeTemplateID("weapon", _slug);
+			_currentWeapon.TemplateID = _weaponId;
+		};
+		rowId.AddChild(_txtSlug);
+		scrollBody.AddChild(rowId);
 
 		// SECTION 1: AUDIO & IMPACT EFFECTS
 		AddSectionHeader(scrollBody, "🔊 " + TranslationServer.Translate("AUDIO & IMPACT EFFECTS"), new Color(0.3f, 0.8f, 0.7f));
@@ -539,9 +574,19 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	public void OpenForWeapon(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata> onApplied = null)
 	{
-		_weaponId = weaponId;
-		_initialWeapon = weapon;
-		_currentWeapon = weapon;
+		string effectiveId = !string.IsNullOrWhiteSpace(weapon?.TemplateID) ? weapon.TemplateID : weaponId;
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(effectiveId);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(effectiveId);
+		_weaponId = TemplateIDHelper.NormalizeTemplateID("weapon", _slug);
+		_initialWeapon = weapon ?? new WeaponMetadata();
+		_currentWeapon = weapon ?? new WeaponMetadata();
+		_currentWeapon.TemplateID = _weaponId;
+		if (_txtSlug != null)
+		{
+			_isUpdatingUI = true;
+			_txtSlug.Text = _slug;
+			_isUpdatingUI = false;
+		}
 		if (!string.IsNullOrEmpty(_currentWeapon.ProjectileModelPath) &&
 			!_currentWeapon.ProjectileModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) &&
 			!_currentWeapon.ProjectileModelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
@@ -561,7 +606,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_onAppliedCallback = onApplied;
 		_isPlaybackPaused = false;
 
-		TitleLabel.Text = $"{TranslationServer.Translate("Weapon VFX & Audio")} - {(!string.IsNullOrEmpty(weapon.Name) ? weapon.Name : weaponId)}";
+		TitleLabel.Text = $"{TranslationServer.Translate("Weapon VFX & Audio")} - {(!string.IsNullOrEmpty(weapon?.Name) ? weapon.Name : _weaponId)}";
 
 		OpenDialog();
 		ResetCameraDefault();
@@ -747,6 +792,12 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
+		_slug = finalSlug;
+		_weaponId = TemplateIDHelper.NormalizeTemplateID("weapon", _slug);
+		_currentWeapon.TemplateID = _weaponId;
+
 		if (GameHost.Instance != null && !string.IsNullOrEmpty(_weaponId))
 		{
 			GameHost.WeaponRegistry[_weaponId] = _currentWeapon;
