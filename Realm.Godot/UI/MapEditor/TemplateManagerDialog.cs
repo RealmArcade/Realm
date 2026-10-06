@@ -12,6 +12,7 @@ using Realm.Shared.Textures;
 using Realm.Shared.Audio;
 using Realm.Shared.Metadata;
 using Realm.Godot.Services;
+using Realm.Godot.UI;
 
 public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 {
@@ -20,6 +21,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private AnimatedSprite3D _vfxSprite;
 
 	private PanelContainer _preview2DContainer;
+	private VBoxContainer _tooltipPreviewContainer;
 	private TextureRect _preview2DImage;
 	private Label _lblPreview2DInfo;
 
@@ -108,6 +110,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		var preview2DVBox = new VBoxContainer();
 		preview2DVBox.Alignment = BoxContainer.AlignmentMode.Center;
 		preview2DVBox.AddThemeConstantOverride("separation", 6);
+
+		_tooltipPreviewContainer = new VBoxContainer();
+		_tooltipPreviewContainer.Alignment = BoxContainer.AlignmentMode.Center;
+		_tooltipPreviewContainer.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_tooltipPreviewContainer.Visible = false;
+		preview2DVBox.AddChild(_tooltipPreviewContainer);
 
 		_preview2DImage = new TextureRect();
 		_preview2DImage.CustomMinimumSize = new Vector2(140, 140);
@@ -1161,17 +1169,116 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (_vfxSprite != null && GodotObject.IsInstanceValid(_vfxSprite))
 		{
 			_vfxSprite.Visible = false;
+			_vfxSprite.Stop();
 		}
 
-		if (item.Category == "decals")
+		if (_tooltipPreviewContainer != null)
+		{
+			foreach (Node child in _tooltipPreviewContainer.GetChildren())
+			{
+				child.QueueFree();
+			}
+			_tooltipPreviewContainer.Visible = false;
+		}
+
+		string cat = item.Category?.ToLowerInvariant() ?? "";
+
+		if (cat == "terrain")
 		{
 			PreviewSubViewport.GetParent<Control>().Visible = false;
 			_previewAudioContainer.Visible = false;
 			_preview2DContainer.Visible = true;
 
-			Texture2D? decalTex = GameHost.Instance?.LoadDecalTexture(item.TemplateID);
+			_preview2DImage.CustomMinimumSize = new Vector2(140, 140);
+			string texPath = !string.IsNullOrEmpty(item.ModelPath) ? item.ModelPath : item.TemplateID;
+			_preview2DImage.Texture = LoadTexture2D(texPath, "textures");
+			_lblPreview2DInfo.Text = item.Name;
+		}
+		else if (cat == "decals")
+		{
+			PreviewSubViewport.GetParent<Control>().Visible = false;
+			_previewAudioContainer.Visible = false;
+			_preview2DContainer.Visible = true;
+
+			_preview2DImage.CustomMinimumSize = new Vector2(140, 140);
+			Texture2D? decalTex = GameHost.Instance?.LoadDecalTexture(item.TemplateID) ?? LoadTexture2D(item.ModelPath, "decals");
 			_preview2DImage.Texture = decalTex;
 			_lblPreview2DInfo.Text = item.Name;
+		}
+		else if (cat is "upgrades" or "items")
+		{
+			PreviewSubViewport.GetParent<Control>().Visible = false;
+			_previewAudioContainer.Visible = false;
+			_preview2DContainer.Visible = true;
+
+			string tooltipText = !string.IsNullOrWhiteSpace(item.Description)
+				? item.Description
+				: $"<b>{item.Name}</b>\n<color=#888888>{item.TemplateID}</color>";
+
+			Control tooltipWidget = RichTooltip.Create(tooltipText);
+			_tooltipPreviewContainer.AddChild(tooltipWidget);
+			_tooltipPreviewContainer.Visible = true;
+
+			_preview2DImage.CustomMinimumSize = new Vector2(56, 56);
+			string iconPath = !string.IsNullOrEmpty(item.IconPath) ? item.IconPath : item.ModelPath;
+			_preview2DImage.Texture = LoadTexture2D(iconPath, "icons");
+			_lblPreview2DInfo.Text = item.Name;
+		}
+		else if (cat == "spritesheets")
+		{
+			_preview2DContainer.Visible = false;
+			_previewAudioContainer.Visible = false;
+			PreviewSubViewport.GetParent<Control>().Visible = true;
+
+			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+			int columns = 4;
+			int rows = 4;
+			float fps = 20.0f;
+
+			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
+			{
+				if (meta.VfxSpritesheets.TryGetValue(item.TemplateID, out var sheetMeta) && sheetMeta != null)
+				{
+					columns = sheetMeta.Columns > 0 ? sheetMeta.Columns : 4;
+					rows = sheetMeta.Rows > 0 ? sheetMeta.Rows : 4;
+					fps = sheetMeta.Fps > 0 ? sheetMeta.Fps : 20.0f;
+				}
+			}
+
+			string spritePath = !string.IsNullOrEmpty(item.ModelPath) ? item.ModelPath : item.TemplateID;
+			Texture2D? sheetTex = LoadTexture2D(spritePath, "vfx");
+
+			if (sheetTex != null && _vfxSprite != null && GodotObject.IsInstanceValid(_vfxSprite))
+			{
+				int totalFrames = columns * rows;
+				var frames = new SpriteFrames();
+				frames.AddAnimation("play");
+				frames.SetAnimationLoopMode("play", SpriteFrames.LoopMode.Linear);
+				frames.SetAnimationSpeed("play", fps);
+
+				int frameWidth = sheetTex.GetWidth() / columns;
+				int frameHeight = sheetTex.GetHeight() / rows;
+
+				if (frameWidth > 0 && frameHeight > 0)
+				{
+					for (int frameIndex = 0; frameIndex < totalFrames; frameIndex++)
+					{
+						int c = frameIndex % columns;
+						int r = frameIndex / columns;
+						var atlasFrame = new AtlasTexture();
+						atlasFrame.Atlas = sheetTex;
+						atlasFrame.Region = new Rect2(c * frameWidth, r * frameHeight, frameWidth, frameHeight);
+						frames.AddFrame("play", atlasFrame);
+					}
+
+					_vfxSprite.SpriteFrames = frames;
+					_vfxSprite.Animation = "play";
+					_vfxSprite.Position = Vector3.Zero;
+					_vfxSprite.PixelSize = 2.0f / Math.Max(frameWidth, frameHeight);
+					_vfxSprite.Visible = true;
+					_vfxSprite.Play("play");
+				}
+			}
 		}
 		else if (!string.IsNullOrEmpty(item.ModelPath))
 		{
@@ -1197,7 +1304,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			_previewAudioContainer.Visible = false;
 			_preview2DContainer.Visible = true;
 
-			_preview2DImage.Texture = GD.Load<Texture2D>(item.IconPath);
+			_preview2DImage.CustomMinimumSize = new Vector2(100, 100);
+			_preview2DImage.Texture = LoadTexture2D(item.IconPath, "icons");
 			_lblPreview2DInfo.Text = item.Name;
 		}
 		else
@@ -1206,6 +1314,30 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			_previewAudioContainer.Visible = false;
 			PreviewSubViewport.GetParent<Control>().Visible = true;
 		}
+	}
+
+	private Texture2D? LoadTexture2D(string? assetPath, string defaultSubFolder = "textures")
+	{
+		if (string.IsNullOrWhiteSpace(assetPath)) return null;
+
+		var loaded = RtexIconLoader.Load(assetPath);
+		if (loaded != null) return loaded;
+
+		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string? diskPath = MapAssetHelper.FindAssetOnDisk(wsPath, defaultSubFolder, assetPath)
+			?? MapAssetHelper.FindAssetOnDisk(wsPath, "icons", assetPath)
+			?? MapAssetHelper.FindAssetOnDisk(wsPath, "vfx", assetPath)
+			?? MapAssetHelper.FindAssetOnDisk(wsPath, "vfx_radial", assetPath)
+			?? MapAssetHelper.FindAssetOnDisk(wsPath, "vfx_vertical", assetPath)
+			?? MapAssetHelper.FindAssetOnDisk(wsPath, "decals", assetPath)
+			?? MapAssetHelper.FindAssetOnDisk(wsPath, "textures", assetPath);
+
+		if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
+		{
+			return RtexIconLoader.Load(diskPath);
+		}
+
+		return null;
 	}
 
 	private void ToggleAudioPlayback()
