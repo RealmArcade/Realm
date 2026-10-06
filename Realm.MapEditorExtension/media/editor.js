@@ -239,15 +239,16 @@
     }
 
     function getAllEntities() {
-        if (!Array.isArray(units.CustomUnits)) units.CustomUnits = [];
-        if (!Array.isArray(units.CustomBuildings)) units.CustomBuildings = [];
-        if (!Array.isArray(units.CustomResources)) units.CustomResources = [];
-        if (!Array.isArray(units.CustomProps)) units.CustomProps = [];
+        if (!units.Templates) units.Templates = {};
+        if (!Array.isArray(units.Templates.Units)) units.Templates.Units = [];
+        if (!Array.isArray(units.Templates.Buildings)) units.Templates.Buildings = [];
+        if (!Array.isArray(units.Templates.Resources)) units.Templates.Resources = [];
+        if (!Array.isArray(units.Templates.Props)) units.Templates.Props = [];
         return [
-            ...units.CustomUnits,
-            ...units.CustomBuildings,
-            ...units.CustomResources,
-            ...units.CustomProps
+            ...units.Templates.Units,
+            ...units.Templates.Buildings,
+            ...units.Templates.Resources,
+            ...units.Templates.Props
         ];
     }
 
@@ -448,10 +449,10 @@
                                          domain === 'resources' ? 'Resources List' : 'Props List';
             }
             renderUnitList();
-            const matchingUnits = domain === 'buildings' ? (units.CustomBuildings || []) :
-                                  domain === 'resources' ? (units.CustomResources || []) :
-                                  domain === 'props' ? (units.CustomProps || []) :
-                                  (units.CustomUnits || []);
+            const matchingUnits = domain === 'buildings' ? (units.Templates?.Buildings || []) :
+                                  domain === 'resources' ? (units.Templates?.Resources || []) :
+                                  domain === 'props' ? (units.Templates?.Props || []) :
+                                  (units.Templates?.Units || []);
             if (matchingUnits.length > 0) {
                 if (!selectedUnitId || !matchingUnits.some(u => (u.TemplateID || u.UnitId) === selectedUnitId)) {
                     selectUnit(matchingUnits[0].TemplateID || matchingUnits[0].UnitId);
@@ -503,49 +504,18 @@
                 if (!units.MapProperties) {
                     units.MapProperties = {};
                 }
-                let migrated = false;
-                if (units.MapProperties.CustomWeapons) {
-                    units.CustomWeapons = units.MapProperties.CustomWeapons;
-                    delete units.MapProperties.CustomWeapons;
-                    migrated = true;
+                if (!units.Templates) {
+                    units.Templates = {};
                 }
-                if (units.MapProperties.CustomAbilities) {
-                    units.CustomAbilities = units.MapProperties.CustomAbilities;
-                    delete units.MapProperties.CustomAbilities;
-                    migrated = true;
-                }
-                if (units.MapProperties.CustomUpgrades) {
-                    units.CustomUpgrades = units.MapProperties.CustomUpgrades;
-                    delete units.MapProperties.CustomUpgrades;
-                    migrated = true;
-                }
-                if (units.MapProperties.CustomItems) {
-                    units.CustomItems = units.MapProperties.CustomItems;
-                    delete units.MapProperties.CustomItems;
-                    migrated = true;
-                }
-                if (!Array.isArray(units.CustomWeapons)) units.CustomWeapons = units.CustomWeapons || [];
-                if (!Array.isArray(units.CustomAbilities)) units.CustomAbilities = units.CustomAbilities || [];
-                if (!Array.isArray(units.CustomUpgrades)) units.CustomUpgrades = units.CustomUpgrades || [];
-                if (!Array.isArray(units.CustomItems)) units.CustomItems = units.CustomItems || [];
+                if (!Array.isArray(units.Templates.Weapons)) units.Templates.Weapons = [];
+                if (!Array.isArray(units.Templates.Abilities)) units.Templates.Abilities = [];
+                if (!Array.isArray(units.Templates.Upgrades)) units.Templates.Upgrades = [];
+                if (!Array.isArray(units.Templates.Items)) units.Templates.Items = [];
 
-                if (!Array.isArray(units.CustomUnits)) units.CustomUnits = [];
-                if (!Array.isArray(units.CustomBuildings)) units.CustomBuildings = [];
-                if (!Array.isArray(units.CustomResources)) units.CustomResources = [];
-                if (!Array.isArray(units.CustomProps)) units.CustomProps = [];
-
-                const knownTopKeys = [
-                    'MapProperties', 'CustomUnits', 'CustomBuildings', 'CustomResources', 'CustomProps',
-                    'CustomAbilities', 'CustomItems', 'CustomUpgrades', 'CustomWeapons', 'Assets', 'Models'
-                ];
-                for (const [key, val] of Object.entries(units)) {
-                    if (!knownTopKeys.includes(key) && val && typeof val === 'object' && !Array.isArray(val) && (val.UnitId || val.MaxHp !== undefined || val.CostGold !== undefined || val.AttackType !== undefined || val.PathingCapabilities || val.MovementType)) {
-                        if (!val.UnitId) val.UnitId = key;
-                        units.CustomUnits.push(val);
-                        delete units[key];
-                        migrated = true;
-                    }
-                }
+                if (!Array.isArray(units.Templates.Units)) units.Templates.Units = [];
+                if (!Array.isArray(units.Templates.Buildings)) units.Templates.Buildings = [];
+                if (!Array.isArray(units.Templates.Resources)) units.Templates.Resources = [];
+                if (!Array.isArray(units.Templates.Props)) units.Templates.Props = [];
 
                 const applyEntityMigration = (u, defaultPathing) => {
                     if (u.PathingType === undefined || u.PathingType === null) {
@@ -566,12 +536,8 @@
                     delete u.PathingCapabilities;
                     delete u.DefaultAssetType;
                 };
-                for (const u of (units.CustomBuildings || [])) applyEntityMigration(u, 32);
-                for (const u of [...(units.CustomUnits || []), ...(units.CustomResources || []), ...(units.CustomProps || [])]) applyEntityMigration(u, 8);
-
-                if (migrated) {
-                    saveChanges();
-                }
+                for (const u of (units.Templates.Buildings || [])) applyEntityMigration(u, 32);
+                for (const u of [...(units.Templates.Units || []), ...(units.Templates.Resources || []), ...(units.Templates.Props || [])]) applyEntityMigration(u, 8);
 
                 if (serializeDeterministic(units) !== oldUnitsStr) {
                     renderUnitList();
@@ -671,10 +637,10 @@
         const query = searchQuery.toLowerCase();
         const activeDomain = getActiveDomain();
 
-        const customUnitsList = activeDomain === 'buildings' ? (units.CustomBuildings || []) :
-                                activeDomain === 'resources' ? (units.CustomResources || []) :
-                                activeDomain === 'props' ? (units.CustomProps || []) :
-                                (units.CustomUnits || []);
+        const customUnitsList = activeDomain === 'buildings' ? (units.Templates?.Buildings || []) :
+                                activeDomain === 'resources' ? (units.Templates?.Resources || []) :
+                                activeDomain === 'props' ? (units.Templates?.Props || []) :
+                                (units.Templates?.Units || []);
         for (const unit of customUnitsList) {
             if (!unit || (!unit.TemplateID && !unit.UnitId)) continue;
             const id = unit.TemplateID || unit.UnitId;
@@ -1346,7 +1312,8 @@
     function renderCustomWeapons() {
         updateDatalists();
         customWeaponsList.innerHTML = '';
-        const list = units.CustomWeapons || [];
+        if (!units.Templates) units.Templates = {};
+        const list = units.Templates.Weapons || [];
 
         const tableContainer = document.createElement('div');
         tableContainer.className = 'spreadsheet-container';
@@ -1442,7 +1409,7 @@
                     pushToUndoStack();
                     cascadeDelete('weapon', targetId);
                     list.splice(idx, 1);
-                    units.CustomWeapons = list;
+                    units.Templates.Weapons = list;
                     saveChanges();
                     renderCustomWeapons();
                 }, 'Delete');
@@ -1484,7 +1451,7 @@
                 else if (target.classList.contains('weapon-cooldown')) list[idx].AttackCooldown = parseFloat(val) || 0;
                 else if (target.classList.contains('weapon-type')) list[idx].AttackType = val;
 
-                units.CustomWeapons = list;
+                units.Templates.Weapons = list;
                 saveChanges();
             });
         });
@@ -1494,7 +1461,8 @@
     // Custom Abilities
     function renderCustomAbilities() {
         customAbilitiesList.innerHTML = '';
-        const list = units.CustomAbilities || [];
+        if (!units.Templates) units.Templates = {};
+        const list = units.Templates.Abilities || [];
         const validation = getValidationErrors();
 
         const tableContainer = document.createElement('div');
@@ -1665,7 +1633,7 @@
                     pushToUndoStack();
                     cascadeDelete('ability', targetId);
                     list.splice(idx, 1);
-                    units.CustomAbilities = list;
+                    units.Templates.Abilities = list;
                     saveChanges();
                     renderCustomAbilities();
                 }, 'Delete');
@@ -1738,7 +1706,7 @@
                 else if (target.classList.contains('ability-summon-count')) list[idx].SummonCount = parseInt(val, 10) || 1;
                 else if (target.classList.contains('ability-summon-duration')) list[idx].SummonDuration = parseFloat(val) || 0;
 
-                units.CustomAbilities = list;
+                units.Templates.Abilities = list;
                 saveChanges();
             });
         });
@@ -1748,7 +1716,8 @@
     // Custom Upgrades
     function renderCustomUpgrades() {
         customUpgradesList.innerHTML = '';
-        const list = units.CustomUpgrades || [];
+        if (!units.Templates) units.Templates = {};
+        const list = units.Templates.Upgrades || [];
         const validation = getValidationErrors();
 
         const tableContainer = document.createElement('div');
@@ -1900,7 +1869,7 @@
                     pushToUndoStack();
                     cascadeDelete('upgrade', targetId);
                     list.splice(idx, 1);
-                    units.CustomUpgrades = list;
+                    units.Templates.Upgrades = list;
                     saveChanges();
                     renderCustomUpgrades();
                 }, 'Delete');
@@ -1949,7 +1918,7 @@
                 else if (target.classList.contains('upgrade-arm-bonus')) list[idx].ArmorBonus = parseFloat(val) || 0;
                 else if (target.classList.contains('upgrade-spd-bonus')) list[idx].SpeedBonus = parseFloat(val) || 0;
 
-                units.CustomUpgrades = list;
+                units.Templates.Upgrades = list;
                 saveChanges();
             });
         });
@@ -1958,7 +1927,8 @@
     // Custom Items
     function renderCustomItems() {
         customItemsList.innerHTML = '';
-        const list = units.CustomItems || [];
+        if (!units.Templates) units.Templates = {};
+        const list = units.Templates.Items || [];
         const validation = getValidationErrors();
 
         const tableContainer = document.createElement('div');
@@ -2161,7 +2131,7 @@
                     pushToUndoStack();
                     cascadeDelete('item', targetId);
                     list.splice(idx, 1);
-                    units.CustomItems = list;
+                    units.Templates.Items = list;
                     saveChanges();
                     renderCustomItems();
                 }, 'Delete');
@@ -2214,7 +2184,7 @@
                 else if (target.classList.contains('item-containersize')) list[idx].ContainerSize = parseInt(val, 10) || 0;
                 else if (target.classList.contains('item-req')) list[idx].Requirements = val;
 
-                units.CustomItems = list;
+                units.Templates.Items = list;
                 saveChanges();
             });
         });
@@ -2235,20 +2205,25 @@
 
     // --- INLINE SUB-TABLE HANDLERS (AppliedStatusEffects, AffectedUnitIds, PassiveStatusEffects, GrantedWeapons) ---
     function getSubitemArray(type, parentIndex) {
+        if (!units.Templates) units.Templates = {};
         if (type === 'AppliedStatusEffects') {
-            const item = units.CustomAbilities[parentIndex];
+            const item = (units.Templates.Abilities || [])[parentIndex];
+            if (!item) return null;
             if (!item.AppliedStatusEffects) item.AppliedStatusEffects = [];
             return item.AppliedStatusEffects;
         } else if (type === 'AffectedUnitIds') {
-            const item = units.CustomUpgrades[parentIndex];
+            const item = (units.Templates.Upgrades || [])[parentIndex];
+            if (!item) return null;
             if (!item.AffectedUnitIds) item.AffectedUnitIds = [];
             return item.AffectedUnitIds;
         } else if (type === 'PassiveStatusEffects') {
-            const item = units.CustomItems[parentIndex];
+            const item = (units.Templates.Items || [])[parentIndex];
+            if (!item) return null;
             if (!item.PassiveStatusEffects) item.PassiveStatusEffects = [];
             return item.PassiveStatusEffects;
         } else if (type === 'GrantedWeapons') {
-            const item = units.CustomItems[parentIndex];
+            const item = (units.Templates.Items || [])[parentIndex];
+            if (!item) return null;
             if (!item.GrantedWeapons) item.GrantedWeapons = [];
             return item.GrantedWeapons;
         }
@@ -2256,17 +2231,26 @@
     }
 
     function saveSubitemArray(type, parentIndex, arr) {
+        if (!units.Templates) units.Templates = {};
         if (type === 'AppliedStatusEffects') {
-            units.CustomAbilities[parentIndex].AppliedStatusEffects = arr;
+            if (units.Templates.Abilities && units.Templates.Abilities[parentIndex]) {
+                units.Templates.Abilities[parentIndex].AppliedStatusEffects = arr;
+            }
             renderCustomAbilities();
         } else if (type === 'AffectedUnitIds') {
-            units.CustomUpgrades[parentIndex].AffectedUnitIds = arr;
+            if (units.Templates.Upgrades && units.Templates.Upgrades[parentIndex]) {
+                units.Templates.Upgrades[parentIndex].AffectedUnitIds = arr;
+            }
             renderCustomUpgrades();
         } else if (type === 'PassiveStatusEffects') {
-            units.CustomItems[parentIndex].PassiveStatusEffects = arr;
+            if (units.Templates.Items && units.Templates.Items[parentIndex]) {
+                units.Templates.Items[parentIndex].PassiveStatusEffects = arr;
+            }
             renderCustomItems();
         } else if (type === 'GrantedWeapons') {
-            units.CustomItems[parentIndex].GrantedWeapons = arr;
+            if (units.Templates.Items && units.Templates.Items[parentIndex]) {
+                units.Templates.Items[parentIndex].GrantedWeapons = arr;
+            }
             renderCustomItems();
         }
         saveChanges();
@@ -2428,10 +2412,11 @@
                         sanitized.Name = `${sanitized.Name || 'Pasted Unit'} (Copy)`;
 
                         const domain = getActiveDomain();
-                        const targetArr = domain === 'buildings' ? (units.CustomBuildings = units.CustomBuildings || []) :
-                                          domain === 'resources' ? (units.CustomResources = units.CustomResources || []) :
-                                          domain === 'props' ? (units.CustomProps = units.CustomProps || []) :
-                                          (units.CustomUnits = units.CustomUnits || []);
+                        if (!units.Templates) units.Templates = {};
+                        const targetArr = domain === 'buildings' ? (units.Templates.Buildings = units.Templates.Buildings || []) :
+                                          domain === 'resources' ? (units.Templates.Resources = units.Templates.Resources || []) :
+                                          domain === 'props' ? (units.Templates.Props = units.Templates.Props || []) :
+                                          (units.Templates.Units = units.Templates.Units || []);
 
                         targetArr.push(sanitized);
                         selectUnit(nextId);
@@ -2451,10 +2436,11 @@
             const type = copyRowBtn.dataset.type;
             const index = parseInt(copyRowBtn.dataset.index, 10);
             let itemData = null;
-            if (type === 'weapon') itemData = units.CustomWeapons[index];
-            else if (type === 'ability') itemData = units.CustomAbilities[index];
-            else if (type === 'upgrade') itemData = units.CustomUpgrades[index];
-            else if (type === 'item') itemData = units.CustomItems[index];
+            if (!units.Templates) units.Templates = {};
+            if (type === 'weapon') itemData = (units.Templates.Weapons || [])[index];
+            else if (type === 'ability') itemData = (units.Templates.Abilities || [])[index];
+            else if (type === 'upgrade') itemData = (units.Templates.Upgrades || [])[index];
+            else if (type === 'item') itemData = (units.Templates.Items || [])[index];
 
             if (itemData) {
                 navigator.clipboard.writeText(JSON.stringify({
@@ -2501,26 +2487,30 @@
 
     if (pasteCustomWeaponBtn) {
         pasteCustomWeaponBtn.addEventListener('click', () => {
-            if (!units.CustomWeapons) units.CustomWeapons = [];
-            pasteRowData('weapon', units.CustomWeapons, 'TemplateID', 'weapon');
+            if (!units.Templates) units.Templates = {};
+            if (!units.Templates.Weapons) units.Templates.Weapons = [];
+            pasteRowData('weapon', units.Templates.Weapons, 'TemplateID', 'weapon');
         });
     }
     if (pasteCustomAbilityBtn) {
         pasteCustomAbilityBtn.addEventListener('click', () => {
-            if (!units.CustomAbilities) units.CustomAbilities = [];
-            pasteRowData('ability', units.CustomAbilities, 'TemplateID', 'ability');
+            if (!units.Templates) units.Templates = {};
+            if (!units.Templates.Abilities) units.Templates.Abilities = [];
+            pasteRowData('ability', units.Templates.Abilities, 'TemplateID', 'ability');
         });
     }
     if (pasteCustomUpgradeBtn) {
         pasteCustomUpgradeBtn.addEventListener('click', () => {
-            if (!units.CustomUpgrades) units.CustomUpgrades = [];
-            pasteRowData('upgrade', units.CustomUpgrades, 'TemplateID', 'upgrade');
+            if (!units.Templates) units.Templates = {};
+            if (!units.Templates.Upgrades) units.Templates.Upgrades = [];
+            pasteRowData('upgrade', units.Templates.Upgrades, 'TemplateID', 'upgrade');
         });
     }
     if (pasteCustomItemBtn) {
         pasteCustomItemBtn.addEventListener('click', () => {
-            if (!units.CustomItems) units.CustomItems = [];
-            pasteRowData('item', units.CustomItems, 'TemplateID', 'item');
+            if (!units.Templates) units.Templates = {};
+            if (!units.Templates.Items) units.Templates.Items = [];
+            pasteRowData('item', units.Templates.Items, 'TemplateID', 'item');
         });
     }
 
@@ -2675,17 +2665,19 @@
         delete newUnit.UnitId;
         newUnit.Name = `${sourceUnit.Name || 'New Entity'} (Copy)`;
         
-        const targetArr = domain === 'buildings' ? (units.CustomBuildings = units.CustomBuildings || []) :
-                          domain === 'resources' ? (units.CustomResources = units.CustomResources || []) :
-                          domain === 'props' ? (units.CustomProps = units.CustomProps || []) :
-                          (units.CustomUnits = units.CustomUnits || []);
+        if (!units.Templates) units.Templates = {};
+        const targetArr = domain === 'buildings' ? (units.Templates.Buildings = units.Templates.Buildings || []) :
+                          domain === 'resources' ? (units.Templates.Resources = units.Templates.Resources || []) :
+                          domain === 'props' ? (units.Templates.Props = units.Templates.Props || []) :
+                          (units.Templates.Units = units.Templates.Units || []);
         targetArr.push(newUnit);
         selectUnit(nextId);
         saveChanges();
     }
 
     function duplicateWeapon(index) {
-        const list = units.CustomWeapons || [];
+        if (!units.Templates) units.Templates = {};
+        const list = units.Templates.Weapons || [];
         if (!list[index]) return;
         
         const source = list[index];
@@ -2699,13 +2691,14 @@
         newWeapon.Name = `${source.Name || 'New Weapon'} (Copy)`;
         
         list.splice(index + 1, 0, newWeapon);
-        units.CustomWeapons = list;
+        units.Templates.Weapons = list;
         saveChanges();
         renderCustomWeapons();
     }
 
     function duplicateAbility(index) {
-        const list = units.CustomAbilities || [];
+        if (!units.Templates) units.Templates = {};
+        const list = units.Templates.Abilities || [];
         if (!list[index]) return;
         
         const source = list[index];
@@ -2719,13 +2712,14 @@
         newAbility.Name = `${source.Name || 'New Ability'} (Copy)`;
         
         list.splice(index + 1, 0, newAbility);
-        units.CustomAbilities = list;
+        units.Templates.Abilities = list;
         saveChanges();
         renderCustomAbilities();
     }
 
     function duplicateUpgrade(index) {
-        const list = units.CustomUpgrades || [];
+        if (!units.Templates) units.Templates = {};
+        const list = units.Templates.Upgrades || [];
         if (!list[index]) return;
         
         const source = list[index];
@@ -2739,13 +2733,14 @@
         newUpgrade.Name = `${source.Name || 'New Upgrade'} (Copy)`;
         
         list.splice(index + 1, 0, newUpgrade);
-        units.CustomUpgrades = list;
+        units.Templates.Upgrades = list;
         saveChanges();
         renderCustomUpgrades();
     }
 
     function duplicateItem(index) {
-        const list = units.CustomItems || [];
+        if (!units.Templates) units.Templates = {};
+        const list = units.Templates.Items || [];
         if (!list[index]) return;
         
         const source = list[index];
@@ -2759,7 +2754,7 @@
         newItem.Name = `${source.Name || 'New Item'} (Copy)`;
         
         list.splice(index + 1, 0, newItem);
-        units.CustomItems = list;
+        units.Templates.Items = list;
         saveChanges();
         renderCustomItems();
     }
@@ -2786,10 +2781,11 @@
         try {
             pushToUndoStack();
             cascadeDelete('unit', id);
-            units.CustomUnits = (units.CustomUnits || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
-            units.CustomBuildings = (units.CustomBuildings || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
-            units.CustomResources = (units.CustomResources || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
-            units.CustomProps = (units.CustomProps || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
+            if (!units.Templates) units.Templates = {};
+            units.Templates.Units = (units.Templates.Units || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
+            units.Templates.Buildings = (units.Templates.Buildings || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
+            units.Templates.Resources = (units.Templates.Resources || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
+            units.Templates.Props = (units.Templates.Props || []).filter(u => u && (u.TemplateID || u.UnitId) !== id);
             if (selectedUnitId === id) {
                 selectedUnitId = null;
                 showEmptyState();
@@ -2811,10 +2807,11 @@
         const defaultPathing = (domain === 'resources' || domain === 'props') ? 255 : (domain === 'buildings') ? 32 : 8;
         const defaultArmor = (domain === 'buildings') ? 'fortified' : 'flesh';
         
-        const targetArray = domain === 'buildings' ? (units.CustomBuildings = units.CustomBuildings || []) :
-                            domain === 'resources' ? (units.CustomResources = units.CustomResources || []) :
-                            domain === 'props' ? (units.CustomProps = units.CustomProps || []) :
-                            (units.CustomUnits = units.CustomUnits || []);
+        if (!units.Templates) units.Templates = {};
+        const targetArray = domain === 'buildings' ? (units.Templates.Buildings = units.Templates.Buildings || []) :
+                            domain === 'resources' ? (units.Templates.Resources = units.Templates.Resources || []) :
+                            domain === 'props' ? (units.Templates.Props = units.Templates.Props || []) :
+                            (units.Templates.Units = units.Templates.Units || []);
 
         let defaultModelPath = '';
         if (domain === 'props') {
@@ -2890,8 +2887,9 @@
     });
 
     addCustomWeaponBtn.addEventListener('click', () => {
-        if (!units.CustomWeapons) units.CustomWeapons = [];
-        const list = units.CustomWeapons;
+        if (!units.Templates) units.Templates = {};
+        if (!units.Templates.Weapons) units.Templates.Weapons = [];
+        const list = units.Templates.Weapons;
         const nextId = generateTemplateID('weapon', 'new_weapon', new Set(list.map(w => w.TemplateID || w.WeaponId)));
         list.push({
             TemplateID: nextId,
@@ -2904,14 +2902,15 @@
             ArcHeight: 2.0,
             OrientToTrajectory: true
         });
-        units.CustomWeapons = list;
+        units.Templates.Weapons = list;
         saveChanges();
         renderCustomWeapons();
     });
 
     addCustomAbilityBtn.addEventListener('click', () => {
-        if (!units.CustomAbilities) units.CustomAbilities = [];
-        const list = units.CustomAbilities;
+        if (!units.Templates) units.Templates = {};
+        if (!units.Templates.Abilities) units.Templates.Abilities = [];
+        const list = units.Templates.Abilities;
         const nextId = generateTemplateID('ability', 'new_ability', new Set(list.map(a => a.TemplateID || a.AbilityId)));
         list.push({
             TemplateID: nextId,
@@ -2919,28 +2918,30 @@
             Description: 'A new spell effect.',
             AbilityType: 'target_spell'
         });
-        units.CustomAbilities = list;
+        units.Templates.Abilities = list;
         saveChanges();
         renderCustomAbilities();
     });
 
     addCustomUpgradeBtn.addEventListener('click', () => {
-        if (!units.CustomUpgrades) units.CustomUpgrades = [];
-        const list = units.CustomUpgrades;
+        if (!units.Templates) units.Templates = {};
+        if (!units.Templates.Upgrades) units.Templates.Upgrades = [];
+        const list = units.Templates.Upgrades;
         const nextId = generateTemplateID('upgrade', 'new_upgrade', new Set(list.map(u => u.TemplateID || u.UpgradeId)));
         list.push({
             TemplateID: nextId,
             Name: 'New Upgrade',
             Description: 'Increases unit stats.'
         });
-        units.CustomUpgrades = list;
+        units.Templates.Upgrades = list;
         saveChanges();
         renderCustomUpgrades();
     });
 
     addCustomItemBtn.addEventListener('click', () => {
-        if (!units.CustomItems) units.CustomItems = [];
-        const list = units.CustomItems;
+        if (!units.Templates) units.Templates = {};
+        if (!units.Templates.Items) units.Templates.Items = [];
+        const list = units.Templates.Items;
         const nextId = generateTemplateID('item', 'new_item', new Set(list.map(i => i.TemplateID || i.ItemId)));
         list.push({
             TemplateID: nextId,
@@ -2948,7 +2949,7 @@
             Description: 'A custom inventory item.',
             ItemClass: 'consumable'
         });
-        units.CustomItems = list;
+        units.Templates.Items = list;
         saveChanges();
         renderCustomItems();
     });
@@ -3266,12 +3267,12 @@
         };
 
         const customUnitsList = getCustomUnits();
-        const existingUnitIds = new Set(customUnitsList.map(u => u.UnitId).filter(Boolean));
+        const existingUnitIds = new Set(customUnitsList.map(u => u.TemplateID || u.UnitId).filter(Boolean));
         
-        const existingWeaponIds = new Set((units.CustomWeapons || []).map(w => w.WeaponId).filter(Boolean));
-        const existingAbilityIds = new Set((units.CustomAbilities || []).map(a => a.AbilityId).filter(Boolean));
-        const existingUpgradeIds = new Set((units.CustomUpgrades || []).map(u => u.UpgradeId).filter(Boolean));
-        const existingItemIds = new Set((units.CustomItems || []).map(i => i.ItemId).filter(Boolean));
+        const existingWeaponIds = new Set((units.Templates?.Weapons || []).map(w => w.TemplateID || w.WeaponId).filter(Boolean));
+        const existingAbilityIds = new Set((units.Templates?.Abilities || []).map(a => a.TemplateID || a.AbilityId).filter(Boolean));
+        const existingUpgradeIds = new Set((units.Templates?.Upgrades || []).map(u => u.TemplateID || u.UpgradeId).filter(Boolean));
+        const existingItemIds = new Set((units.Templates?.Items || []).map(i => i.TemplateID || i.ItemId).filter(Boolean));
 
         for (const unit of customUnitsList) {
             if (!unit || (!unit.TemplateID && !unit.UnitId)) continue;
@@ -3319,7 +3320,7 @@
             }
         }
 
-        (units.CustomAbilities || []).forEach((item, index) => {
+        (units.Templates?.Abilities || []).forEach((item, index) => {
             const abiErrors = {};
             if (item.SummonedUnitId && !existingUnitIds.has(item.SummonedUnitId)) {
                 abiErrors['SummonedUnitId'] = `Unit ID "${item.SummonedUnitId}" does not exist.`;
@@ -3329,7 +3330,7 @@
             }
         });
 
-        (units.CustomUpgrades || []).forEach((item, index) => {
+        (units.Templates?.Upgrades || []).forEach((item, index) => {
             const upgErrors = {};
             if (item.AffectedUnitIds) {
                 item.AffectedUnitIds.forEach((targetId, affectedIdx) => {
@@ -3343,7 +3344,7 @@
             }
         });
 
-        (units.CustomItems || []).forEach((item, index) => {
+        (units.Templates?.Items || []).forEach((item, index) => {
             const itemErrors = {};
             if (item.UseAbility && !existingAbilityIds.has(item.UseAbility)) {
                 itemErrors['UseAbility'] = `Ability ID "${item.UseAbility}" does not exist in Custom Abilities.`;
@@ -3370,22 +3371,22 @@
                 return { title: u.Name || id, desc: u.Description || 'No description.' };
             }
         } else if (type === 'weapons' || type === 'suggest-weapons') {
-            const w = (units.CustomWeapons || []).find(x => x.WeaponId === id);
+            const w = (units.Templates?.Weapons || []).find(x => (x.TemplateID || x.WeaponId) === id);
             if (w) {
                 return { title: w.Name || id, desc: `Damage: ${w.Damage || 0}, Range: ${w.Range || 0}` };
             }
         } else if (type === 'abilities' || type === 'suggest-abilities') {
-            const a = (units.CustomAbilities || []).find(x => x.AbilityId === id);
+            const a = (units.Templates?.Abilities || []).find(x => (x.TemplateID || x.AbilityId) === id);
             if (a) {
                 return { title: a.Name || id, desc: a.Description || 'No description.' };
             }
         } else if (type === 'items' || type === 'suggest-items') {
-            const i = (units.CustomItems || []).find(x => x.ItemId === id);
+            const i = (units.Templates?.Items || []).find(x => (x.TemplateID || x.ItemId) === id);
             if (i) {
                 return { title: i.Name || id, desc: i.Description || 'No description.' };
             }
         } else if (type === 'upgrades' || type === 'suggest-upgrades') {
-            const u = (units.CustomUpgrades || []).find(x => x.UpgradeId === id);
+            const u = (units.Templates?.Upgrades || []).find(x => (x.TemplateID || x.UpgradeId) === id);
             if (u) {
                 return { title: u.Name || id, desc: u.Description || 'No description.' };
             }
@@ -3395,10 +3396,10 @@
 
     function updateDatalists() {
         const customUnitsList = getCustomUnits();
-        const weapons = units.CustomWeapons || [];
-        const abilities = units.CustomAbilities || [];
-        const upgrades = units.CustomUpgrades || [];
-        const items = units.CustomItems || [];
+        const weapons = units.Templates?.Weapons || [];
+        const abilities = units.Templates?.Abilities || [];
+        const upgrades = units.Templates?.Upgrades || [];
+        const items = units.Templates?.Items || [];
 
         populateDatalist('suggest-units', customUnitsList.map(u => ({ id: u.TemplateID || u.UnitId, name: u.Name })));
         populateDatalist('suggest-weapons', weapons.map(w => ({ id: w.TemplateID || w.WeaponId, name: w.Name })));
@@ -3830,7 +3831,7 @@
         if (data.MapProperties) {
             lines.push('  "MapProperties": {');
             const props = data.MapProperties;
-            const propKeys = Object.keys(props).filter(k => !['CustomWeapons', 'CustomAbilities', 'CustomUpgrades', 'CustomItems'].includes(k)).sort();
+            const propKeys = Object.keys(props).sort();
             
             propKeys.forEach((pKey, pIdx) => {
                 const pVal = props[pKey];
@@ -3864,64 +3865,37 @@
             lines.push('  },');
         }
         
-        // CustomUnits, CustomBuildings, CustomResources, CustomProps
-        const entityArrays = ['CustomUnits', 'CustomBuildings', 'CustomResources', 'CustomProps'];
-        entityArrays.forEach(arrKey => {
-            const list = (data[arrKey] && Array.isArray(data[arrKey])) ? data[arrKey] : [];
-            const sorted = [...list].sort((a, b) => (a.UnitId || '').localeCompare(b.UnitId || ''));
-            lines.push(`  "${arrKey}": [`);
-            sorted.forEach((u, uIdx) => {
-                const sortedU = sortObjectKeys(u);
-                const uLine = `    ${JSON.stringify(sortedU)}${uIdx === sorted.length - 1 ? '' : ','}`;
-                lines.push(uLine);
+        // 2. Templates
+        const templates = data.Templates || {};
+        lines.push('  "Templates": {');
+        
+        const templateCategories = [
+            { key: 'Units', idField: 'TemplateID', altId: 'UnitId' },
+            { key: 'Buildings', idField: 'TemplateID', altId: 'UnitId' },
+            { key: 'Resources', idField: 'TemplateID', altId: 'UnitId' },
+            { key: 'Props', idField: 'TemplateID', altId: 'UnitId' },
+            { key: 'Abilities', idField: 'TemplateID', altId: 'AbilityId' },
+            { key: 'Upgrades', idField: 'TemplateID', altId: 'UpgradeId' },
+            { key: 'Items', idField: 'TemplateID', altId: 'ItemId' },
+            { key: 'Weapons', idField: 'TemplateID', altId: 'WeaponId' },
+            { key: 'Attachments', idField: 'TemplateID', altId: 'AttachmentId' },
+            { key: 'Vfx', idField: 'TemplateID', altId: 'VfxId' }
+        ];
+
+        templateCategories.forEach((cat, catIdx) => {
+            const list = (templates[cat.key] && Array.isArray(templates[cat.key])) ? templates[cat.key] : [];
+            const sorted = [...list].sort((a, b) => ((a[cat.idField] || a[cat.altId] || '') + '').localeCompare((b[cat.idField] || b[cat.altId] || '') + ''));
+            const catComma = catIdx === templateCategories.length - 1 ? '' : ',';
+            lines.push(`    "${cat.key}": [`);
+            sorted.forEach((item, itemIdx) => {
+                const sortedItem = sortObjectKeys(item);
+                const itemLine = `      ${JSON.stringify(sortedItem)}${itemIdx === sorted.length - 1 ? '' : ','}`;
+                lines.push(itemLine);
             });
-            lines.push('  ],');
+            lines.push(`    ]${catComma}`);
         });
 
-        // 3. CustomAbilities
-        const abisList = (data.CustomAbilities && Array.isArray(data.CustomAbilities)) ? data.CustomAbilities : [];
-        const sortedAbis = [...abisList].sort((a, b) => (a.AbilityId || '').localeCompare(b.AbilityId || ''));
-        lines.push('  "CustomAbilities": [');
-        sortedAbis.forEach((a, aIdx) => {
-            const sortedA = sortObjectKeys(a);
-            const aLine = `    ${JSON.stringify(sortedA)}${aIdx === sortedAbis.length - 1 ? '' : ','}`;
-            lines.push(aLine);
-        });
-        lines.push('  ],');
-
-        // 4. CustomUpgrades
-        const upgsList = (data.CustomUpgrades && Array.isArray(data.CustomUpgrades)) ? data.CustomUpgrades : [];
-        const sortedUpgs = [...upgsList].sort((a, b) => (a.UpgradeId || '').localeCompare(b.UpgradeId || ''));
-        lines.push('  "CustomUpgrades": [');
-        sortedUpgs.forEach((u, uIdx) => {
-            const sortedU = sortObjectKeys(u);
-            const uLine = `    ${JSON.stringify(sortedU)}${uIdx === sortedUpgs.length - 1 ? '' : ','}`;
-            lines.push(uLine);
-        });
-        lines.push('  ],');
-
-        // 5. CustomItems
-        const itemsList = (data.CustomItems && Array.isArray(data.CustomItems)) ? data.CustomItems : [];
-        const sortedItems = [...itemsList].sort((a, b) => (a.ItemId || '').localeCompare(b.ItemId || ''));
-        lines.push('  "CustomItems": [');
-        sortedItems.forEach((item, iIdx) => {
-            const sortedI = sortObjectKeys(item);
-            const iLine = `    ${JSON.stringify(sortedI)}${iIdx === sortedItems.length - 1 ? '' : ','}`;
-            lines.push(iLine);
-        });
-        lines.push('  ],');
-
-        // 6. CustomWeapons
-        const weaponsList = (data.CustomWeapons && Array.isArray(data.CustomWeapons)) ? data.CustomWeapons : [];
-        const sortedWeapons = [...weaponsList].sort((a, b) => (a.WeaponId || '').localeCompare(b.WeaponId || ''));
-        lines.push('  "CustomWeapons": [');
-        sortedWeapons.forEach((w, wIdx) => {
-            const sortedW = sortObjectKeys(w);
-            const wLine = `    ${JSON.stringify(sortedW)}${wIdx === sortedWeapons.length - 1 ? '' : ','}`;
-            lines.push(wLine);
-        });
-        lines.push('  ]');
-
+        lines.push('  }');
         lines.push('}');
         return lines.join('\n');
     }
@@ -3955,19 +3929,20 @@
 
     // --- RECURSIVE CASCADING (RENAME / DELETE REFERENCES) ---
     function cascadeRename(type, oldId, newId) {
+        if (!units.Templates) units.Templates = {};
         if (type === 'unit') {
             for (const unit of getCustomUnits()) {
                 if (unit.BuildOptions) {
                     unit.BuildOptions = unit.BuildOptions.map(b => b === oldId ? newId : b);
                 }
             }
-            if (units.CustomAbilities) {
-                units.CustomAbilities.forEach(a => {
+            if (units.Templates.Abilities) {
+                units.Templates.Abilities.forEach(a => {
                     if (a.SummonedUnitId === oldId) a.SummonedUnitId = newId;
                 });
             }
-            if (units.CustomUpgrades) {
-                units.CustomUpgrades.forEach(upg => {
+            if (units.Templates.Upgrades) {
+                units.Templates.Upgrades.forEach(upg => {
                     if (upg.AffectedUnitIds) {
                         upg.AffectedUnitIds = upg.AffectedUnitIds.map(u => u === oldId ? newId : u);
                     }
@@ -3979,8 +3954,8 @@
                     unit.Weapons = unit.Weapons.map(w => w === oldId ? newId : w);
                 }
             }
-            if (units.CustomItems) {
-                units.CustomItems.forEach(item => {
+            if (units.Templates.Items) {
+                units.Templates.Items.forEach(item => {
                     if (item.GrantedWeapons) {
                         item.GrantedWeapons = item.GrantedWeapons.map(w => w === oldId ? newId : w);
                     }
@@ -3992,8 +3967,8 @@
                     unit.Abilities = unit.Abilities.map(a => a === oldId ? newId : a);
                 }
             }
-            if (units.CustomItems) {
-                units.CustomItems.forEach(item => {
+            if (units.Templates.Items) {
+                units.Templates.Items.forEach(item => {
                     if (item.UseAbility === oldId) item.UseAbility = newId;
                 });
             }
@@ -4013,19 +3988,20 @@
     }
 
     function cascadeDelete(type, targetId) {
+        if (!units.Templates) units.Templates = {};
         if (type === 'unit') {
             for (const unit of getCustomUnits()) {
                 if (unit.BuildOptions) {
                     unit.BuildOptions = unit.BuildOptions.filter(b => b !== targetId);
                 }
             }
-            if (units.CustomAbilities) {
-                units.CustomAbilities.forEach(a => {
+            if (units.Templates.Abilities) {
+                units.Templates.Abilities.forEach(a => {
                     if (a.SummonedUnitId === targetId) delete a.SummonedUnitId;
                 });
             }
-            if (units.CustomUpgrades) {
-                units.CustomUpgrades.forEach(upg => {
+            if (units.Templates.Upgrades) {
+                units.Templates.Upgrades.forEach(upg => {
                     if (upg.AffectedUnitIds) {
                         upg.AffectedUnitIds = upg.AffectedUnitIds.filter(u => u !== targetId);
                     }
@@ -4037,8 +4013,8 @@
                     unit.Weapons = unit.Weapons.filter(w => w !== targetId);
                 }
             }
-            if (units.CustomItems) {
-                units.CustomItems.forEach(item => {
+            if (units.Templates.Items) {
+                units.Templates.Items.forEach(item => {
                     if (item.GrantedWeapons) {
                         item.GrantedWeapons = item.GrantedWeapons.filter(w => w !== targetId);
                     }
@@ -4050,8 +4026,8 @@
                     unit.Abilities = unit.Abilities.filter(a => a !== targetId);
                 }
             }
-            if (units.CustomItems) {
-                units.CustomItems.forEach(item => {
+            if (units.Templates.Items) {
+                units.Templates.Items.forEach(item => {
                     if (item.UseAbility === targetId) delete item.UseAbility;
                 });
             }

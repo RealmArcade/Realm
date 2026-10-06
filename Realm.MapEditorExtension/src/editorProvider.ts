@@ -236,11 +236,16 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                 loopCount++;
                 const prevSize = placedIds.size;
 
+                if (!metadata.Templates) {
+                    metadata.Templates = {};
+                }
+                const templates = metadata.Templates;
+
                 const allEntities = [
-                    ...(metadata.CustomUnits || []),
-                    ...(metadata.CustomBuildings || []),
-                    ...(metadata.CustomResources || []),
-                    ...(metadata.CustomProps || [])
+                    ...(templates.Units || []),
+                    ...(templates.Buildings || []),
+                    ...(templates.Resources || []),
+                    ...(templates.Props || [])
                 ];
 
                 for (const entity of allEntities) {
@@ -270,8 +275,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                     }
                 }
 
-                if (Array.isArray(metadata.CustomAbilities)) {
-                    for (const abi of metadata.CustomAbilities) {
+                if (Array.isArray(templates.Abilities)) {
+                    for (const abi of templates.Abilities) {
                         if (isEntityReferenced(abi)) {
                             addIdentifier(abi.TemplateID || abi.AbilityId);
                             addIdentifier(abi.Name);
@@ -281,8 +286,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                     }
                 }
 
-                if (Array.isArray(metadata.CustomUpgrades)) {
-                    for (const up of metadata.CustomUpgrades) {
+                if (Array.isArray(templates.Upgrades)) {
+                    for (const up of templates.Upgrades) {
                         if (isEntityReferenced(up)) {
                             addIdentifier(up.TemplateID || up.UpgradeId);
                             addIdentifier(up.Name);
@@ -292,8 +297,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                     }
                 }
 
-                if (Array.isArray(metadata.CustomItems)) {
-                    for (const itm of metadata.CustomItems) {
+                if (Array.isArray(templates.Items)) {
+                    for (const itm of templates.Items) {
                         if (isEntityReferenced(itm)) {
                             addIdentifier(itm.TemplateID || itm.ItemId);
                             addIdentifier(itm.Name);
@@ -309,41 +314,46 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             }
 
             // 5. Filter target domain
+            if (!metadata.Templates) {
+                metadata.Templates = {};
+            }
+            const templates = metadata.Templates;
+
             let initialCount = 0;
             let finalCount = 0;
 
             if (domain === 'units') {
-                initialCount = (metadata.CustomUnits || []).length;
-                metadata.CustomUnits = (metadata.CustomUnits || []).filter((u: any) => isEntityReferenced(u));
-                finalCount = metadata.CustomUnits.length;
+                initialCount = (templates.Units || []).length;
+                templates.Units = (templates.Units || []).filter((u: any) => isEntityReferenced(u));
+                finalCount = templates.Units.length;
             } else if (domain === 'buildings') {
-                initialCount = (metadata.CustomBuildings || []).length;
-                metadata.CustomBuildings = (metadata.CustomBuildings || []).filter((b: any) => isEntityReferenced(b));
-                finalCount = metadata.CustomBuildings.length;
+                initialCount = (templates.Buildings || []).length;
+                templates.Buildings = (templates.Buildings || []).filter((b: any) => isEntityReferenced(b));
+                finalCount = templates.Buildings.length;
             } else if (domain === 'resources') {
-                initialCount = (metadata.CustomResources || []).length;
-                metadata.CustomResources = (metadata.CustomResources || []).filter((r: any) => isEntityReferenced(r));
-                finalCount = metadata.CustomResources.length;
+                initialCount = (templates.Resources || []).length;
+                templates.Resources = (templates.Resources || []).filter((r: any) => isEntityReferenced(r));
+                finalCount = templates.Resources.length;
             } else if (domain === 'props') {
-                initialCount = (metadata.CustomProps || []).length;
-                metadata.CustomProps = (metadata.CustomProps || []).filter((p: any) => isEntityReferenced(p));
-                finalCount = metadata.CustomProps.length;
+                initialCount = (templates.Props || []).length;
+                templates.Props = (templates.Props || []).filter((p: any) => isEntityReferenced(p));
+                finalCount = templates.Props.length;
             } else if (domain === 'weapons') {
-                initialCount = (metadata.CustomWeapons || []).length;
-                metadata.CustomWeapons = (metadata.CustomWeapons || []).filter((w: any) => isEntityReferenced(w));
-                finalCount = metadata.CustomWeapons.length;
+                initialCount = (templates.Weapons || []).length;
+                templates.Weapons = (templates.Weapons || []).filter((w: any) => isEntityReferenced(w));
+                finalCount = templates.Weapons.length;
             } else if (domain === 'abilities') {
-                initialCount = (metadata.CustomAbilities || []).length;
-                metadata.CustomAbilities = (metadata.CustomAbilities || []).filter((a: any) => isEntityReferenced(a));
-                finalCount = metadata.CustomAbilities.length;
+                initialCount = (templates.Abilities || []).length;
+                templates.Abilities = (templates.Abilities || []).filter((a: any) => isEntityReferenced(a));
+                finalCount = templates.Abilities.length;
             } else if (domain === 'upgrades') {
-                initialCount = (metadata.CustomUpgrades || []).length;
-                metadata.CustomUpgrades = (metadata.CustomUpgrades || []).filter((u: any) => isEntityReferenced(u));
-                finalCount = metadata.CustomUpgrades.length;
+                initialCount = (templates.Upgrades || []).length;
+                templates.Upgrades = (templates.Upgrades || []).filter((u: any) => isEntityReferenced(u));
+                finalCount = templates.Upgrades.length;
             } else if (domain === 'items') {
-                initialCount = (metadata.CustomItems || []).length;
-                metadata.CustomItems = (metadata.CustomItems || []).filter((i: any) => isEntityReferenced(i));
-                finalCount = metadata.CustomItems.length;
+                initialCount = (templates.Items || []).length;
+                templates.Items = (templates.Items || []).filter((i: any) => isEntityReferenced(i));
+                finalCount = templates.Items.length;
             }
 
             const removedCount = initialCount - finalCount;

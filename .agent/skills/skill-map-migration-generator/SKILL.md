@@ -25,7 +25,7 @@ git diff <prior_tag>..<target_tag> -- \
 
 ### 2. Schema and Property Change Analysis
 Identify any structural changes between the versions:
-- Renamed or moved properties in `MapMetadata`, `MapInfoMetadata`, or custom entity arrays (`CustomUnits`, `CustomBuildings`, `CustomResources`, `CustomProps`, `CustomAbilities`, `CustomWeapons`, `CustomUpgrades`, `CustomItems`, `CustomAttachments`, `CustomVfx`).
+- Renamed or moved properties in `MapMetadata`, `MapInfoMetadata`, or template entity arrays under `Templates` (`Units`, `Buildings`, `Resources`, `Props`, `Abilities`, `Weapons`, `Upgrades`, `Items`, `Attachments`, `Vfx`).
 - Changed asset category keys or texture metadata properties in `manifest.json` / `metadata.json`.
 - Changes to terrain data formats, navmesh definitions, or map script bindings.
 
