@@ -394,6 +394,8 @@ public class AssetIndexService : IDisposable
 		{
 			string legacyArchive = NormalizePath(Path.Combine(MapAssetManager.GlobalArchiveDirectory, "global_assets.rmap"));
 			string casAssetsDirectory = GlobalCasAssetsDirectory;
+			string globalArchive = NormalizePath(MapAssetManager.GlobalArchiveDirectory);
+			string p2pArchive = NormalizePath(MapAssetManager.P2PArchiveDirectory);
 
 			var forbiddenFolders = _folderCollection.FindAll()
 				.Where(f => IsForbiddenPath(f.DirectoryPath) ||
@@ -418,7 +420,11 @@ public class AssetIndexService : IDisposable
 				.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 			var orphanedAssets = _assetCollection.FindAll()
-				.Where(a => (!validFolders.Contains(a.DirectoryPath) && !string.Equals(a.DirectoryPath, casAssetsDirectory, StringComparison.OrdinalIgnoreCase)) ||
+				.Where(a => (!validFolders.Contains(a.DirectoryPath) &&
+							 !string.Equals(a.DirectoryPath, casAssetsDirectory, StringComparison.OrdinalIgnoreCase) &&
+							 !a.FilePath.StartsWith(globalArchive, StringComparison.OrdinalIgnoreCase) &&
+							 !a.FilePath.StartsWith(p2pArchive, StringComparison.OrdinalIgnoreCase) &&
+							 string.IsNullOrEmpty(a.MapName)) ||
 							IsForbiddenPath(a.DirectoryPath) ||
 							IsForbiddenPath(a.FilePath) ||
 							a.DirectoryPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
@@ -477,8 +483,14 @@ public class AssetIndexService : IDisposable
 
 		lock (_syncLock)
 		{
-			var orphanedCasAssets = _assetCollection.Find(Query.EQ("DirectoryPath", GlobalCasAssetsDirectory))
-				.Where(a => !referencedCasPaths.Contains(a.FilePath) || !File.Exists(a.FilePath))
+			string globalArchive = NormalizePath(MapAssetManager.GlobalArchiveDirectory);
+			string p2pArchive = NormalizePath(MapAssetManager.P2PArchiveDirectory);
+
+			var orphanedCasAssets = _assetCollection.Find(Query.Or(
+				Query.EQ("DirectoryPath", GlobalCasAssetsDirectory),
+				Query.Not("MapName", BsonValue.Null)
+			))
+				.Where(a => (a.FilePath.StartsWith(globalArchive, StringComparison.OrdinalIgnoreCase) || a.FilePath.StartsWith(p2pArchive, StringComparison.OrdinalIgnoreCase) || !string.IsNullOrEmpty(a.MapName)) && (!referencedCasPaths.Contains(a.FilePath) || !File.Exists(a.FilePath)))
 				.Select(a => (BsonValue)a.Id)
 				.ToArray();
 			if (orphanedCasAssets.Length > 0)
@@ -540,6 +552,7 @@ public class AssetIndexService : IDisposable
 		var assetCollection = isP2P ? database.GetCollection<IndexedAsset>("assets") : _assetCollection;
 		var storage = isP2P ? MapAssetManager.P2PStorage : MapAssetManager.Storage;
 		string storageDirectory = isP2P ? MapAssetManager.P2PArchiveDirectory : GlobalCasAssetsDirectory;
+		string manifestDir = Path.GetDirectoryName(manifestPath) ?? string.Empty;
 
 		var pkg = mapPackageCollection.FindOne(p => p.MapName == mapName && p.MapVersion == mapVersion);
 		pkg ??= new IndexedMapPackage();
@@ -548,12 +561,12 @@ public class AssetIndexService : IDisposable
 		pkg.ManifestPath = manifestPath;
 		pkg.DownloadedUtc = DateTime.UtcNow;
 		pkg.IsP2P = isP2P;
-		pkg.AssetHashes = manifest.Files != null ? manifest.Files.Values.ToList() : new List<string>();
+		pkg.AssetHashes = manifest.Files != null ? manifest.Files.Values.Select(v => Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(v)).ToList() : new List<string>();
 		mapPackageCollection.Upsert(pkg);
 
 		if (manifest.Files != null)
 		{
-			var existingAssetMap = assetCollection.Find(Query.EQ("DirectoryPath", storageDirectory))
+			var existingAssetMap = assetCollection.Find(Query.EQ("MapName", mapName))
 				.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
 			var processedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			var assetsToUpdate = new List<IndexedAsset>();
@@ -564,19 +577,48 @@ public class AssetIndexService : IDisposable
 				string virtualPath = kvp.Key;
 				string hash = kvp.Value;
 				string norm = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(hash);
-				string? casPath = storage.FindAssetFilePath(norm);
-				if (casPath == null || !File.Exists(casPath))
+				string? resolvedPath = storage.FindAssetFilePath(norm);
+				if (resolvedPath == null || !File.Exists(resolvedPath))
+				{
+					string candidatePkgPath = Path.Combine(manifestDir, virtualPath.TrimStart('/', '\\'));
+					if (File.Exists(candidatePkgPath))
+					{
+						resolvedPath = candidatePkgPath;
+					}
+					else
+					{
+						string? diskModel = MapAssetHelper.FindModelOnDisk(manifestDir, null, Path.GetFileName(virtualPath));
+						if (!string.IsNullOrEmpty(diskModel) && File.Exists(diskModel))
+						{
+							resolvedPath = diskModel;
+						}
+						else
+						{
+							string? diskAsset = MapAssetHelper.FindAssetOnDisk(manifestDir, "other", virtualPath);
+							if (!string.IsNullOrEmpty(diskAsset) && File.Exists(diskAsset))
+							{
+								resolvedPath = diskAsset;
+							}
+						}
+					}
+				}
+
+				if (resolvedPath == null || !File.Exists(resolvedPath))
 				{
 					continue;
 				}
 
-				string normPath = NormalizePath(casPath);
+				string normPath = NormalizePath(resolvedPath);
 				indexedPaths.Add(normPath);
 
 				if (!processedPaths.Add(normPath))
 				{
 					continue;
 				}
+
+				string assetDir = normPath.StartsWith(storageDirectory, StringComparison.OrdinalIgnoreCase)
+					? storageDirectory
+					: NormalizePath(Path.GetDirectoryName(normPath) ?? manifestDir);
 
 				if (existingAssetMap.TryGetValue(normPath, out var existingAsset))
 				{
@@ -628,6 +670,11 @@ public class AssetIndexService : IDisposable
 						existingAsset.MapVersion = mapVersion;
 						needsUpdate = true;
 					}
+					if (existingAsset.DirectoryPath != assetDir)
+					{
+						existingAsset.DirectoryPath = assetDir;
+						needsUpdate = true;
+					}
 					if (needsUpdate)
 					{
 						assetsToUpdate.Add(existingAsset);
@@ -645,7 +692,7 @@ public class AssetIndexService : IDisposable
 				asset.FilePath = normPath;
 				asset.FileName = Path.GetFileName(virtualPath);
 				asset.Extension = !string.IsNullOrEmpty(Path.GetExtension(virtualPath)) ? Path.GetExtension(virtualPath).ToLowerInvariant() : Path.GetExtension(normPath).ToLowerInvariant();
-				asset.DirectoryPath = storageDirectory;
+				asset.DirectoryPath = assetDir;
 				asset.FileSizeBytes = fi.Length;
 				asset.LastModifiedUtc = fi.LastWriteTimeUtc;
 				asset.MapName = mapName;
@@ -973,8 +1020,16 @@ public class AssetIndexService : IDisposable
 				.Select(f => f.DirectoryPath)
 				.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+			string globalArchive = NormalizePath(MapAssetManager.GlobalArchiveDirectory);
+			string p2pArchive = NormalizePath(MapAssetManager.P2PArchiveDirectory);
+
 			var orphanedAssets = _assetCollection.FindAll()
-				.Where(a => (!validFolders.Contains(a.DirectoryPath) && !string.Equals(a.DirectoryPath, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase)) || IsForbiddenPath(a.DirectoryPath))
+				.Where(a => (!validFolders.Contains(a.DirectoryPath) &&
+							 !string.Equals(a.DirectoryPath, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase) &&
+							 !a.FilePath.StartsWith(globalArchive, StringComparison.OrdinalIgnoreCase) &&
+							 !a.FilePath.StartsWith(p2pArchive, StringComparison.OrdinalIgnoreCase) &&
+							 string.IsNullOrEmpty(a.MapName)) ||
+							IsForbiddenPath(a.DirectoryPath))
 				.Select(a => (BsonValue)a.Id)
 				.ToArray();
 			if (orphanedAssets.Length > 0)
