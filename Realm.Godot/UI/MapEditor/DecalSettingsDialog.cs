@@ -2,6 +2,7 @@ using Godot;
 using System;
 using System.IO;
 using System.Text.Json.Nodes;
+using Realm.Godot.Utils;
 
 public class DecalSnapshot
 {
@@ -104,7 +105,9 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private float _lowerFade = 0.3f;
 
 	private bool _isSyncingControls = false;
-	private LineEdit _txtDecalId;
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
 	private LineEdit _txtTexturePath;
 	private Action<string> _setTexturePathValue;
 	private CheckBox _chkAnimateOpacity;
@@ -221,19 +224,33 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		// SECTION 1: TEXTURE & ASSET
 		AddSectionHeader(contentVBox, "🖼 " + TranslationServer.Translate("TEXTURE & ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
-		_txtDecalId = AddTextInput(
-			contentVBox,
-			TranslationServer.Translate("Decal ID:"),
-			_decalKey,
-			(val) =>
-			{
-				if (_isSyncingControls) return;
-				_decalKey = val?.Trim() ?? string.Empty;
-				if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("Decal ID:") + " " + _decalKey;
-			},
-			TranslationServer.Translate("Enter arbitrary Decal ID..."),
-			140f
-		);
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "decal/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("decal_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			if (_isSyncingControls) return;
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_decalKey = TemplateIDHelper.NormalizeTemplateID("decal", _slug);
+			if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
+		};
+		rowId.AddChild(_txtSlug);
+		contentVBox.AddChild(rowId);
 
 		(_txtTexturePath, _setTexturePathValue) = AddAssetFilterDropdown(
 			contentVBox,
@@ -763,9 +780,11 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	public void OpenForDecal(string decalKey, JsonObject decalData, Action<JsonObject> onApplied)
 	{
-		_decalKey = decalKey;
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(decalKey);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(decalKey);
+		_decalKey = TemplateIDHelper.NormalizeTemplateID("decal", _slug);
 		_onApplied = onApplied;
-		_lblDecalName.Text = TranslationServer.Translate("Decal ID:") + " " + decalKey;
+		_lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
 
 		var resolvedData = ResolveDecalMetadata(decalKey, decalData);
 
@@ -898,7 +917,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_isSyncingControls = true;
 		try
 		{
-			if (_txtDecalId != null) _txtDecalId.Text = _decalKey;
+			if (_txtSlug != null) _txtSlug.Text = _slug;
 			_setTexturePathValue?.Invoke(_texturePath);
 			_sldBrightness.Value = _brightness;
 			_lblBrightness.Text = $"{_brightness:F2}x";
@@ -1137,9 +1156,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
-		string finalDecalId = !string.IsNullOrWhiteSpace(_txtDecalId?.Text) ? _txtDecalId.Text.Trim() : _decalKey;
-		if (string.IsNullOrWhiteSpace(finalDecalId)) finalDecalId = _decalKey;
-		_decalKey = finalDecalId;
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
+		_slug = finalSlug;
+		_decalKey = TemplateIDHelper.NormalizeTemplateID("decal", _slug);
 
 		string finalTexturePath = !string.IsNullOrWhiteSpace(_txtTexturePath?.Text) ? _txtTexturePath.Text.Trim() : _texturePath;
 		_texturePath = finalTexturePath;
@@ -1148,6 +1168,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		var result = new JsonObject
 		{
+			["TemplateID"] = _decalKey,
+			["template_id"] = _decalKey,
 			["decal_id"] = _decalKey,
 			["DecalId"] = _decalKey,
 			["texture_path"] = _texturePath,
@@ -1237,8 +1259,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		else if (_initialSnapshot != null)
 		{
 			_decalKey = _initialSnapshot.DecalId;
-			if (_txtDecalId != null) _txtDecalId.Text = _decalKey;
-			if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("Decal ID:") + " " + _decalKey;
+			var (_, initSlug) = TemplateIDHelper.ParseTemplateID(_decalKey);
+			_slug = !string.IsNullOrWhiteSpace(initSlug) ? TemplateIDHelper.ToSnakeCase(initSlug) : TemplateIDHelper.ToSnakeCase(_decalKey);
+			if (_txtSlug != null) _txtSlug.Text = _slug;
+			if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
 			_texturePath = _initialSnapshot.TexturePath;
 			_brightness = _initialSnapshot.Brightness;
 			_tint = _initialSnapshot.Tint;
