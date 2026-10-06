@@ -332,6 +332,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 	public void ReloadCurrentPreview()
 	{
+		RtexIconLoader.ClearCache();
 		var items = GetObjectsForCategory(_currentCategory);
 		if (items.Count == 0) return;
 
@@ -556,13 +557,14 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						int cols = sheetObj?.Columns ?? 1;
 						int rows = sheetObj?.Rows ?? 1;
 						float fps = sheetObj?.Fps ?? 20.0f;
+						string rtex = !string.IsNullOrEmpty(sheetObj?.AssetType) ? sheetObj.AssetType : kvp.Key;
 						list.Add(new ObjectItemInfo
 						{
 							Category = "spritesheets",
 							TemplateID = kvp.Key,
 							Name = kvp.Key,
 							Description = $"{cols}x{rows} @ {fps} FPS",
-							ModelPath = kvp.Key
+							ModelPath = rtex
 						});
 					}
 				}
@@ -1234,6 +1236,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			int columns = 4;
 			int rows = 4;
 			float fps = 20.0f;
+			string spritePath = !string.IsNullOrEmpty(item.ModelPath) ? item.ModelPath : item.TemplateID;
 
 			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
 			{
@@ -1242,10 +1245,13 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					columns = sheetMeta.Columns > 0 ? sheetMeta.Columns : 4;
 					rows = sheetMeta.Rows > 0 ? sheetMeta.Rows : 4;
 					fps = sheetMeta.Fps > 0 ? sheetMeta.Fps : 20.0f;
+					if (!string.IsNullOrEmpty(sheetMeta.AssetType))
+					{
+						spritePath = sheetMeta.AssetType;
+					}
 				}
 			}
 
-			string spritePath = !string.IsNullOrEmpty(item.ModelPath) ? item.ModelPath : item.TemplateID;
 			Texture2D? sheetTex = LoadTexture2D(spritePath, "vfx");
 
 			if (sheetTex != null && _vfxSprite != null && GodotObject.IsInstanceValid(_vfxSprite))
