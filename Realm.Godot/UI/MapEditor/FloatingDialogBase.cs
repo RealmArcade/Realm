@@ -1371,7 +1371,7 @@ public partial class FloatingDialogBase : PanelContainer
 					}
 					else if (category == "icons" || category == "icon")
 					{
-						var iDict = assetsObj.GetCategory("Icon");
+						var iDict = assetsObj.GetCategory("Icon") ?? assetsObj.GetCategory("icons");
 						if (iDict != null)
 						{
 							foreach (var kvp in iDict)
@@ -1379,6 +1379,43 @@ public partial class FloatingDialogBase : PanelContainer
 								if (!string.IsNullOrWhiteSpace(kvp.Key))
 								{
 									result.Add(kvp.Key);
+								}
+							}
+						}
+
+						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var iconMetaRoot) && iconMetaRoot?.Icons != null)
+						{
+							foreach (var kvp in iconMetaRoot.Icons)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key))
+								{
+									result.Add(kvp.Key);
+								}
+							}
+						}
+
+						string iconsDir = Path.Combine(wsPath, "Assets", "icons");
+						if (Directory.Exists(iconsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(iconsDir, "*.*", SearchOption.AllDirectories))
+							{
+								string ext = Path.GetExtension(file);
+								if (ext.Equals(".rtex", StringComparison.OrdinalIgnoreCase) || ext.Equals(".png", StringComparison.OrdinalIgnoreCase) || ext.Equals(".webp", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(file));
+								}
+							}
+						}
+
+						string templateIconsDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "icons");
+						if (Directory.Exists(templateIconsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(templateIconsDir, "*.*", SearchOption.AllDirectories))
+							{
+								string ext = Path.GetExtension(file);
+								if (ext.Equals(".rtex", StringComparison.OrdinalIgnoreCase) || ext.Equals(".png", StringComparison.OrdinalIgnoreCase) || ext.Equals(".webp", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(file));
 								}
 							}
 						}
