@@ -1043,10 +1043,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 			MapAssetHelper.UpdateManifestAsset(wsPath, targetCategory, fileName, hash);
 
-			if (targetCategory == "Decal")
-			{
-				EnsureDecalTemplate(wsPath, fileName);
-			}
+			EnsureTemplateForAsset(wsPath, targetCategory, fileName, hash);
 
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported asset '{0}' into {1}"), fileName, targetCategory));
 			RefreshAssetListAndSelect(fileName);
@@ -1107,6 +1104,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 							{
 								var config = CustomShaderConfig.FromJson(kvp.Key, kvp.Value);
 								SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+								EnsureTemplateForAsset(wsPath, "Shader", config.Key, string.Empty);
 								lastKey = config.Key;
 								count++;
 							}
@@ -1123,6 +1121,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 							: (rootObj.TryGetPropertyValue("Key", out var keyNodeCap) && !string.IsNullOrWhiteSpace(keyNodeCap?.ToString()) ? keyNodeCap.ToString() : defaultKey);
 						var config = CustomShaderConfig.FromJson(key, rootObj);
 						SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+						EnsureTemplateForAsset(wsPath, "Shader", config.Key, string.Empty);
 						RefreshAssetListAndSelect(config.Key);
 						Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), config.Name));
 						return;
@@ -1146,6 +1145,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 					Name = shaderName
 				};
 				SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
+				EnsureTemplateForAsset(wsPath, "Shader", fileName, string.Empty);
 				RefreshAssetListAndSelect(config.Key);
 				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), config.Name));
 				return;
@@ -1269,24 +1269,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			string hash = RealmMetadataHelper.ComputeBlake3(bytes, ".rtex");
 
 			MapAssetHelper.UpdateManifestAsset(wsPath, targetCategory, $"{cleanBase}.rtex", hash);
-
-			if (targetCategory == "Spritesheet")
-			{
-				MetadataService.Instance.UpdateMetadata(wsPath, m =>
-				{
-					m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-					m.VfxSpritesheets[$"{cleanBase}.rtex"] = new Realm.Shared.Metadata.VfxMetadata
-					{
-						Columns = vfxCols,
-						Rows = vfxRows,
-						Fps = (float)Math.Round(vfxFps, 2)
-					};
-				});
-			}
-			else if (targetCategory == "Decal")
-			{
-				EnsureDecalTemplate(wsPath, $"{cleanBase}.rtex");
-			}
+			EnsureTemplateForAsset(wsPath, targetCategory, $"{cleanBase}.rtex", hash);
 
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Converted and imported {0}.rtex"), cleanBase));
 			AssetIndexService.Instance?.RescanAllDirectories();
@@ -1299,28 +1282,245 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private void EnsureDecalTemplate(string wsPath, string fileName)
+	public static void EnsureTemplateForAsset(string wsPath, string category, string fileName, string hash = "")
 	{
+		if (string.IsNullOrWhiteSpace(wsPath) || string.IsNullOrWhiteSpace(fileName)) return;
+
 		try
 		{
 			string slug = TemplateIDHelper.GenerateSlug(fileName);
-			string templateId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
+			string normalizedCategory = MapAssetHelper.NormalizeCategoryKey(category);
 
-			MetadataService.Instance.UpdateMetadata(wsPath, m =>
+			MetadataService.Instance.UpdateMetadata(wsPath, meta =>
 			{
-				m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
-				if (!m.Decals.ContainsKey(templateId))
+				switch (normalizedCategory.ToLowerInvariant())
 				{
-					m.Decals[templateId] = new DecalMetadata
-					{
-						TexturePath = fileName
-					};
+					case "character" or "unit" or "characters" or "units":
+						string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", slug);
+						meta.Templates ??= new();
+						meta.Templates.Units ??= new();
+						if (!meta.Templates.Units.Any(u => string.Equals(u.TemplateID, unitTemplateId, StringComparison.OrdinalIgnoreCase)))
+						{
+							meta.Templates.Units.Add(new UnitMetadata
+							{
+								TemplateID = unitTemplateId,
+								Name = slug,
+								Description = "",
+								ModelPath = fileName,
+								Scale = 1.0f,
+								PathingType = 9,
+								DespillPlayerColor = false,
+								NormalizeLuminance = true
+							});
+						}
+						break;
+
+					case "building" or "buildings":
+						string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", slug);
+						meta.Templates ??= new();
+						meta.Templates.Buildings ??= new();
+						if (!meta.Templates.Buildings.Any(b => string.Equals(b.TemplateID, buildingTemplateId, StringComparison.OrdinalIgnoreCase)))
+						{
+							meta.Templates.Buildings.Add(new UnitMetadata
+							{
+								TemplateID = buildingTemplateId,
+								Name = slug,
+								Description = "",
+								ModelPath = fileName,
+								Scale = 1.5f,
+								PathingType = 32,
+								DespillPlayerColor = false,
+								NormalizeLuminance = true
+							});
+						}
+						break;
+
+					case "prop" or "props":
+						string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", slug);
+						meta.Templates ??= new();
+						meta.Templates.Props ??= new();
+						if (!meta.Templates.Props.Any(p => string.Equals(p.TemplateID, propTemplateId, StringComparison.OrdinalIgnoreCase)))
+						{
+							meta.Templates.Props.Add(new PropMetadata
+							{
+								TemplateID = propTemplateId,
+								Name = slug,
+								Description = "",
+								ModelPath = fileName,
+								Scale = 1.25f,
+								PathingType = 255,
+								DespillPlayerColor = false,
+								NormalizeLuminance = true,
+								IgnorePlayerColor = true
+							});
+						}
+						break;
+
+					case "resource" or "resources":
+						string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", slug);
+						meta.Templates ??= new();
+						meta.Templates.Resources ??= new();
+						if (!meta.Templates.Resources.Any(r => string.Equals(r.TemplateID, resourceTemplateId, StringComparison.OrdinalIgnoreCase)))
+						{
+							meta.Templates.Resources.Add(new ResourceMetadata
+							{
+								TemplateID = resourceTemplateId,
+								Name = slug,
+								Description = "",
+								ModelPath = fileName,
+								Scale = 2.75f,
+								PathingType = 255,
+								DespillPlayerColor = false,
+								NormalizeLuminance = true,
+								IgnorePlayerColor = true
+							});
+						}
+						break;
+
+					case "item" or "items":
+						string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", slug);
+						meta.Templates ??= new();
+						meta.Templates.Items ??= new();
+						if (!meta.Templates.Items.Any(i => string.Equals(i.TemplateID, itemTemplateId, StringComparison.OrdinalIgnoreCase)))
+						{
+							meta.Templates.Items.Add(new ItemMetadata
+							{
+								TemplateID = itemTemplateId,
+								Name = slug,
+								Description = "",
+								ItemClass = "consumable",
+								IconPath = fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : null,
+								CanDrop = true
+							});
+						}
+						break;
+
+					case "decal" or "decals":
+						string decalTemplateId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
+						meta.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.Decals.ContainsKey(decalTemplateId))
+						{
+							meta.Decals[decalTemplateId] = new DecalMetadata
+							{
+								Hash = hash ?? string.Empty,
+								TexturePath = fileName,
+								Opacity = 1.0f,
+								Brightness = 1.0f,
+								Contrast = 1.0f,
+								Saturation = 1.0f
+							};
+						}
+						break;
+
+					case "terrain" or "textures":
+						meta.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.Textures.ContainsKey(fileName))
+						{
+							meta.Textures[fileName] = new TextureMetadata
+							{
+								Hash = hash ?? string.Empty,
+								AssetType = fileName,
+								ScaleFactor = 1.0f,
+								Brightness = 1.0f,
+								Contrast = 1.0f,
+								Saturation = 1.0f,
+								TileMode = "Stochastic"
+							};
+						}
+						meta.TerrainProfiles ??= new();
+						if (!meta.TerrainProfiles.Any(tp => string.Equals(tp.SwatchName, fileName, StringComparison.OrdinalIgnoreCase)))
+						{
+							meta.TerrainProfiles.Add(new TerrainSwatchProfileData
+							{
+								SwatchName = fileName,
+								DefaultPathingCode = 0,
+								DecalBombingRules = new(),
+								VfxBombingRules = new()
+							});
+						}
+						break;
+
+					case "spritesheet" or "spritesheets" or "vfx" or "vfx_radial" or "vfx_vertical":
+						meta.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.VfxSpritesheets.ContainsKey(fileName))
+						{
+							meta.VfxSpritesheets[fileName] = new VfxMetadata
+							{
+								Hash = hash ?? string.Empty,
+								AssetType = fileName,
+								Columns = 4,
+								Rows = 4,
+								Fps = 20.0f
+							};
+						}
+						break;
+
+					case "icon" or "icons":
+						string iconTemplateId = TemplateIDHelper.NormalizeTemplateID("icon", slug);
+						meta.Icons ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.Icons.ContainsKey(iconTemplateId))
+						{
+							meta.Icons[iconTemplateId] = new IconMetadata
+							{
+								Hash = hash ?? string.Empty
+							};
+						}
+						break;
+
+					case "ribbon" or "ribbons":
+						string ribbonTemplateId = TemplateIDHelper.NormalizeTemplateID("ribbon", slug);
+						meta.Ribbons ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.Ribbons.ContainsKey(ribbonTemplateId))
+						{
+							meta.Ribbons[ribbonTemplateId] = new RibbonMetadata
+							{
+								Hash = hash ?? string.Empty
+							};
+						}
+						break;
+
+					case "noise":
+						meta.NoiseTextures ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.NoiseTextures.ContainsKey(fileName))
+						{
+							meta.NoiseTextures[fileName] = new TextureMetadata
+							{
+								Hash = hash ?? string.Empty,
+								AssetType = fileName,
+								ScaleFactor = 1.0f
+							};
+						}
+						break;
+
+					case "skybox" or "skyboxes":
+						string skyboxTemplateId = TemplateIDHelper.NormalizeTemplateID("skybox", slug);
+						meta.Skyboxes ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.Skyboxes.ContainsKey(skyboxTemplateId))
+						{
+							meta.Skyboxes[skyboxTemplateId] = new SkyboxMetadata
+							{
+								Hash = hash ?? string.Empty
+							};
+						}
+						break;
+
+					case "shader" or "shaders":
+						string shaderTemplateId = TemplateIDHelper.NormalizeTemplateID("shader", slug);
+						meta.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.Shaders.ContainsKey(shaderTemplateId))
+						{
+							meta.Shaders[shaderTemplateId] = new ShaderMetadata
+							{
+								Hash = hash ?? string.Empty
+							};
+						}
+						break;
 				}
 			});
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[AssetManagerDialog] EnsureDecalTemplate error: {ex.Message}");
+			GD.PrintErr($"[AssetManagerDialog] EnsureTemplateForAsset error: {ex.Message}");
 		}
 	}
 

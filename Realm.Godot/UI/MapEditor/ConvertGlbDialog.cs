@@ -611,7 +611,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 				switch (subCategory)
 				{
 					case "units" or "characters":
-						bool updatedU = meta.UpdateUnit(unitId, u =>
+						string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", unitId);
+						bool updatedU = meta.UpdateUnit(unitTemplateId, u =>
 						{
 							if (autoYOffset != 0f) u.YOffset = autoYOffset;
 							return u;
@@ -620,7 +621,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						{
 							meta.AddOrUpdateUnit(new UnitMetadata
 							{
-								TemplateID = unitId,
+								TemplateID = unitTemplateId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -633,7 +634,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						}
 						break;
 					case "buildings":
-						bool updatedB = meta.UpdateBuilding(unitId, b =>
+						string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", unitId);
+						bool updatedB = meta.UpdateBuilding(buildingTemplateId, b =>
 						{
 							if (autoYOffset != 0f) b.YOffset = autoYOffset;
 							return b;
@@ -642,7 +644,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						{
 							meta.AddOrUpdateBuilding(new UnitMetadata
 							{
-								TemplateID = unitId,
+								TemplateID = buildingTemplateId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -655,7 +657,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						}
 						break;
 					case "resources":
-						bool updatedR = meta.UpdateResource(unitId, r =>
+						string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", unitId);
+						bool updatedR = meta.UpdateResource(resourceTemplateId, r =>
 						{
 							if (autoYOffset != 0f) r.YOffset = autoYOffset;
 							return r;
@@ -664,7 +667,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						{
 							meta.AddOrUpdateResource(new ResourceMetadata
 							{
-								TemplateID = unitId,
+								TemplateID = resourceTemplateId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -678,7 +681,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						}
 						break;
 					case "props":
-						bool updatedP = meta.UpdateProp(unitId, p =>
+						string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", unitId);
+						bool updatedP = meta.UpdateProp(propTemplateId, p =>
 						{
 							if (autoYOffset != 0f) p.YOffset = autoYOffset;
 							return p;
@@ -687,7 +691,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						{
 							meta.AddOrUpdateProp(new PropMetadata
 							{
-								TemplateID = unitId,
+								TemplateID = propTemplateId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -697,6 +701,21 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 								DespillPlayerColor = false,
 								NormalizeLuminance = true,
 								IgnorePlayerColor = true
+							});
+						}
+						break;
+					case "attachments" or "items":
+						string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", unitId);
+						bool updatedI = meta.UpdateItem(itemTemplateId, i => i);
+						if (!updatedI)
+						{
+							meta.AddOrUpdateItem(new ItemMetadata
+							{
+								TemplateID = itemTemplateId,
+								Name = unitId,
+								Description = "",
+								ItemClass = "consumable",
+								CanDrop = true
 							});
 						}
 						break;
