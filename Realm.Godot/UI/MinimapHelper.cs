@@ -213,6 +213,7 @@ public static class MinimapHelper
 
 			RuntimeTerrain.IsMinimapRendering = true;
 			RuntimeTerrain.Instance?.BeginMinimapCapture();
+			GameHost.Instance?.BeginMinimapCapture();
 			PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
 
 			try
@@ -231,6 +232,7 @@ public static class MinimapHelper
 			}
 			finally
 			{
+				GameHost.Instance?.EndMinimapCapture();
 				RuntimeTerrain.Instance?.EndMinimapCapture();
 				RuntimeTerrain.IsMinimapRendering = false;
 			}

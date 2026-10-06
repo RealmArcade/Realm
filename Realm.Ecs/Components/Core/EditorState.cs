@@ -7,7 +7,15 @@ namespace Realm.Ecs.Components.Core
 		None,
 		Horizontal,
 		Vertical,
-		Both
+		Both,
+		Rotational
+	}
+
+	public enum PasteReflection
+	{
+		None,
+		Horizontal,
+		Vertical
 	}
 
 	/// <summary>

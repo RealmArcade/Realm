@@ -75,9 +75,9 @@ public class MapDistributionClient
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, overallTimeoutCts.Token);
         var effectiveToken = linkedCts.Token;
 
-        if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingUploads())
+        if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
         {
-            GD.PrintErr("[MapDistributionClient] Download aborted: Insufficient disk space on target storage drive (< 10% free).");
+            GD.PrintErr("[MapDistributionClient] Download aborted: Insufficient disk space on target storage drive (< 1% free).");
             return false;
         }
 

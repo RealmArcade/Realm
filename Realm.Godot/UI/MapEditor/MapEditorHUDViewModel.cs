@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using PasteReflection = Realm.Ecs.Components.Core.PasteReflection;
 
 public class MapEditorHUDViewModel
 {
@@ -26,6 +27,7 @@ public class MapEditorHUDViewModel
 	public float PlacementRotate { get; set; } = 0f;
 	public float PlacementScale { get; set; } = 1.0f;
 	public float PasteRotation { get; set; } = 0f;
+	public PasteReflection PasteReflection { get; set; } = PasteReflection.None;
 	public bool SpawnAsEnemy { get; set; } = false;
 	public bool RandomRotation { get; set; } = false;
 	public bool RandomScale { get; set; } = false;
@@ -73,6 +75,7 @@ public class MapEditorHUDViewModel
 			PlacementRotate = GameHost.Instance.EditorPlacementRotation;
 			PlacementScale = GameHost.Instance.EditorPlacementScale;
 			PasteRotation = GameHost.Instance.EditorPasteRotation;
+			PasteReflection = GameHost.Instance.EditorPasteReflection;
 			SpawnAsEnemy = GameHost.Instance.PlaceUnitIsEnemy;
 			RandomRotation = GameHost.Instance.EditorRandomRotation;
 			RandomScale = GameHost.Instance.EditorRandomScale;

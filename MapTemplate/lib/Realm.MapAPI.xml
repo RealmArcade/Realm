@@ -1628,6 +1628,92 @@
             </summary>
             <returns>The weather name string.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)">
+            <summary>
+            Creates a persistent, stationary text label in the 3D world that stays in place until destroyed.
+            Unlike <see cref="M:Realm.MapAPI.IGameAPI.CreateFloatingText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)"/> it does not drift or fade.
+            </summary>
+            <param name="text">The initial text to display.</param>
+            <param name="position">The 3D world position of the label.</param>
+            <param name="color">The color of the text in RGB format.</param>
+            <param name="fontSize">The font size of the label. The default of 48 matches <see cref="M:Realm.MapAPI.IGameAPI.CreateFloatingText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)"/>.</param>
+            <returns>A handle used with <see cref="M:Realm.MapAPI.IGameAPI.SetStaticText(System.Int32,System.String)"/>, <see cref="M:Realm.MapAPI.IGameAPI.SetStaticTextVisible(System.Int32,System.Boolean)"/> and <see cref="M:Realm.MapAPI.IGameAPI.DestroyStaticText(System.Int32)"/>.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetStaticText(System.Int32,System.String)">
+            <summary>
+            Changes the text displayed by a static world label.
+            </summary>
+            <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
+            <param name="text">The new text to display.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetStaticTextVisible(System.Int32,System.Boolean)">
+            <summary>
+            Shows or hides a static world label without destroying it.
+            </summary>
+            <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
+            <param name="visible">True to show the label, false to hide it.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.DestroyStaticText(System.Int32)">
+            <summary>
+            Destroys a static world label.
+            </summary>
+            <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayerIndices(System.Int32)">
+            <summary>
+            Enumerates the zero-based indices of all active player slots below the given exclusive upper bound.
+            </summary>
+            <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="P:Realm.MapAPI.IGameAPI.PlayerCount"/>.</param>
+            <returns>A lazily-evaluated sequence of active player slot indices in ascending order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.PickRandom``1(System.Collections.Generic.IReadOnlyList{``0})">
+            <summary>
+            Returns a uniformly random element of the given list.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="items">The list to pick from.</param>
+            <returns>A random element, or the default value of <typeparamref name="T"/> if the list is empty.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.Shuffle``1(System.Collections.Generic.IList{``0})">
+            <summary>
+            Shuffles the given list in place using a Fisher-Yates shuffle driven by <see cref="M:Realm.MapAPI.IGameAPI.RandomInt(System.Int32,System.Int32)"/>.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="items">The list to shuffle.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetRandomUnitInRadius(System.Numerics.Vector3,System.Single,System.Func{Realm.MapAPI.IUnit,System.Boolean})">
+            <summary>
+            Returns a random alive unit within the radius that satisfies the optional filter.
+            </summary>
+            <param name="center">The center point in 3D world space.</param>
+            <param name="radius">The search radius.</param>
+            <param name="filter">Optional predicate that returns true for eligible units.</param>
+            <returns>A random matching unit, or null if none qualify.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.HealUnit(Realm.MapAPI.IUnit,System.Single)">
+            <summary>
+            Restores health to the unit, clamped to its maximum health. Dead units are ignored.
+            </summary>
+            <param name="unit">The unit to heal.</param>
+            <param name="amount">The amount of health to restore.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SwapUnitPositions(Realm.MapAPI.IUnit,Realm.MapAPI.IUnit)">
+            <summary>
+            Exchanges the world positions of two units.
+            </summary>
+            <param name="first">The first unit.</param>
+            <param name="second">The second unit.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetRingPosition(System.Numerics.Vector3,System.Single,System.Int32,System.Int32)">
+            <summary>
+            Returns a point on a ring around a center, useful for distributing player bases evenly.
+            </summary>
+            <param name="center">The ring center.</param>
+            <param name="radius">The ring radius.</param>
+            <param name="index">The zero-based slot index around the ring.</param>
+            <param name="count">The total number of slots on the ring.</param>
+            <returns>The position of the slot on the X/Z plane, preserving the center's Y.</returns>
+        </member>
         <member name="T:Realm.MapAPI.IMapScript">
             <summary>
             Defines the base lifecycle methods for map scripts.
@@ -1752,6 +1838,17 @@
         <member name="P:Realm.MapAPI.IUnit.Armor">
             <summary>
             Gets or sets the armor rating of the unit.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IUnit.AttackSpeed">
+            <summary>
+            Gets or sets the attack speed multiplier of the unit. A value of 1 uses the unit's base attack cooldown,
+            2 attacks twice as often, and 0.5 attacks half as often. Values less than or equal to 0 are ignored.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IUnit.ManaRegen">
+            <summary>
+            Gets or sets the mana regeneration of the unit in mana points restored per second.
             </summary>
         </member>
         <member name="P:Realm.MapAPI.IUnit.Speed">

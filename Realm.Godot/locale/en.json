@@ -833,5 +833,5 @@
   "IMPORT MAP (.ZIP / .7Z)": "IMPORT MAP (.ZIP / .7Z)",
   "IMPORT MAP (FOLDER)": "IMPORT MAP (FOLDER)",
   "Select Map Archive (.zip / .7z)": "Select Map Archive (.zip / .7z)",
-  "Insufficient disk space (at least 10% free required).": "Insufficient disk space (at least 10% free required)."
+  "Insufficient disk space (at least 1% free required).": "Insufficient disk space (at least 1% free required)."
 }

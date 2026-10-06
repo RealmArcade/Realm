@@ -23,6 +23,157 @@ New-Item -ItemType Directory -Force -Path $userDataDir | Out-Null
 New-Item -ItemType Directory -Force -Path $extsDir | Out-Null
 New-Item -ItemType Directory -Force -Path $editorDir | Out-Null
 
+function Get-VSCodeRoots {
+    param(
+        [string]$EditorDir,
+        [string]$EmbedDir
+    )
+
+    $roots = [System.Collections.Generic.List[string]]::new()
+    if ($EditorDir -and (Test-Path $EditorDir)) {
+        $appDir = Join-Path $EditorDir "resources\app"
+        if (Test-Path $appDir) { $roots.Add($appDir) } else { $roots.Add($EditorDir) }
+    }
+    if ($EmbedDir -and (Test-Path $EmbedDir)) {
+        $serveWeb = Join-Path $EmbedDir "cli-data-dir\serve-web"
+        if (Test-Path $serveWeb) {
+            $commitDirs = Get-ChildItem -Path $serveWeb -Directory -ErrorAction SilentlyContinue
+            foreach ($d in $commitDirs) {
+                $roots.Add($d.FullName)
+            }
+        }
+    }
+    if ($env:VSCODE_CLI_DATA_DIR -and (Test-Path $env:VSCODE_CLI_DATA_DIR)) {
+        $serveWeb = Join-Path $env:VSCODE_CLI_DATA_DIR "serve-web"
+        if (Test-Path $serveWeb) {
+            $commitDirs = Get-ChildItem -Path $serveWeb -Directory -ErrorAction SilentlyContinue
+            foreach ($d in $commitDirs) {
+                $roots.Add($d.FullName)
+            }
+        }
+    }
+    return $roots | Select-Object -Unique
+}
+
+function Patch-ProductJson {
+    param([string]$ProductJsonPath)
+
+    if (-not (Test-Path $ProductJsonPath)) { return }
+
+    try {
+        $pjContent = [System.IO.File]::ReadAllText($ProductJsonPath, [System.Text.Encoding]::UTF8)
+        $pj = $pjContent | ConvertFrom-Json
+        $changed = $false
+
+        $cdnTemplate = "/static/out/vs/workbench/contrib/webview/browser/pre/"
+        if ($pj.webviewContentExternalBaseUrlTemplate -ne $cdnTemplate) {
+            $pj.webviewContentExternalBaseUrlTemplate = $cdnTemplate
+            $changed = $true
+        }
+
+        if (-not $pj.extensionKind) {
+            $pj | Add-Member -MemberType NoteProperty -Name "extensionKind" -Value ([PSCustomObject]@{})
+            $changed = $true
+        }
+
+        $workspaceExts = @("google.google-antigravity", "muhammad-sammy.csharp", "patcx.vscode-nuget-gallery", "speige.realm-map-editor")
+        foreach ($ext in $workspaceExts) {
+            if (-not $pj.extensionKind.$ext) {
+                $pj.extensionKind | Add-Member -MemberType NoteProperty -Name $ext -Value @("workspace") -Force
+                $changed = $true
+            }
+        }
+
+
+
+        if ($changed) {
+            $updatedPj = $pj | ConvertTo-Json -Depth 20
+            [System.IO.File]::WriteAllText($ProductJsonPath, $updatedPj, [System.Text.UTF8Encoding]::new($false))
+            Write-Host "Updated product.json at $ProductJsonPath"
+        }
+    } catch {
+        Write-Warning "Failed to patch product.json at $ProductJsonPath : $_"
+    }
+}
+
+function Patch-WebviewHostAndStreams {
+    param([string]$RootDir)
+
+    if (-not (Test-Path $RootDir)) { return }
+
+    $outDirs = [System.Collections.Generic.List[string]]::new()
+    $candidateOut = Join-Path $RootDir "out"
+    if (Test-Path $candidateOut) { $outDirs.Add($candidateOut) }
+
+    foreach ($outDir in ($outDirs | Select-Object -Unique)) {
+        $jsPath = Join-Path $outDir "vs\code\browser\workbench\workbench.js"
+        if (Test-Path $jsPath) {
+            try {
+                $content = [System.IO.File]::ReadAllText($jsPath, [System.Text.Encoding]::UTF8)
+                $changed = $false
+
+                $wbTargetEndpoint = 'get webviewExternalEndpoint(){const i=this.options.webviewEndpoint||this.productService.webviewContentExternalBaseUrlTemplate||"https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/",e=this.payload?.get("webviewExternalEndpointCommit");return i.replace("{{commit}}",e??this.productService.commit??"ef65ac1ba57f57f2a3961bfe94aa20481caca4c6").replace("{{quality}}",(e?"insider":this.productService.quality)??"insider")}'
+                $wbReplEndpoint = 'get webviewExternalEndpoint(){return (window.location.origin + "/static/out/vs/workbench/contrib/webview/browser/pre/");}'
+                if ($content.Contains($wbTargetEndpoint)) {
+                    $content = $content.Replace($wbTargetEndpoint, $wbReplEndpoint)
+                    $changed = $true
+                }
+
+                if ($content.Contains("t.port1.postMessage(e,[e])")) {
+                    $content = $content.Replace("try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}", "try{return!1}catch{return!1}")
+                    $changed = $true
+                }
+
+                if ($changed) {
+                    [System.IO.File]::WriteAllText($jsPath, $content, [System.Text.UTF8Encoding]::new($false))
+                    Write-Host "Patched transferable streams support in $jsPath"
+                }
+            } catch {}
+        }
+
+        $htmlPath = Join-Path $outDir "vs\workbench\contrib\webview\browser\pre\index.html"
+        if (Test-Path $htmlPath) {
+            try {
+                $content = [System.IO.File]::ReadAllText($htmlPath, [System.Text.Encoding]::UTF8)
+                $changed = $false
+
+                $hostCheckTarget = "if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {"
+                $hostCheckRepl = "if (hostname === '127.0.0.1' || hostname === 'localhost' || hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {"
+                if ($content.Contains($hostCheckTarget)) {
+                    $content = $content.Replace($hostCheckTarget, $hostCheckRepl)
+                    $changed = $true
+                }
+
+                if ($content -match "script-src\s+[^;]+;" -and (-not $content.Contains("script-src 'self' 'unsafe-inline';"))) {
+                    $content = [System.Text.RegularExpressions.Regex]::Replace($content, "script-src\s+[^;]+;", "script-src 'self' 'unsafe-inline';")
+                    $changed = $true
+                }
+
+                $cspTarget = "frame-src 'self';"
+                $cspRepl = "frame-src 'self' http://127.0.0.1:* http://localhost:* vscode-webview:;"
+                if ($content.Contains($cspTarget)) {
+                    $content = $content.Replace($cspTarget, $cspRepl)
+                    $changed = $true
+                }
+
+                $pattern = "hostMessaging\.onMessage\('did-load-resource'[\s\S]*?assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource',\s*data \}[^\n\r;]*\);(?:\s*\}\s*catch[^\}]*\})?\s*\}\);"
+                if ($content -match $pattern) {
+                    $replacement = "hostMessaging.onMessage('did-load-resource', (_event, data) => {`n`t`t`tif (data && data.stream) { try { data.stream.cancel().catch(() => {}); } catch {} delete data.stream; }`n`t`t`ttry { if (navigator.serviceWorker && navigator.serviceWorker.controller) { navigator.serviceWorker.controller.postMessage({ channel: 'did-load-resource', data }); } } catch (e) { console.warn('SW did-load-resource postMessage failed:', e); }`n`t`t});"
+                    $content = [System.Text.RegularExpressions.Regex]::Replace($content, $pattern, $replacement)
+                    $changed = $true
+                }
+
+
+                if ($changed) {
+                    [System.IO.File]::WriteAllText($htmlPath, $content, [System.Text.UTF8Encoding]::new($false))
+                    Write-Host "Patched service worker postMessage error guard and CSP in $htmlPath"
+                }
+            } catch {}
+        }
+
+    }
+}
+
 $oldExtDest = Join-Path $extsDir "realm-map-editor"
 if (Test-Path $oldExtDest) {
     Remove-Item -Path $oldExtDest -Recurse -Force
@@ -35,8 +186,16 @@ if (Test-Path $extensionsJsonCheck) {
         if ($fi -and $fi.Length -gt 10MB) {
             Write-Host "Removing excessively large extensions.json ($($fi.Length) bytes)..."
             Remove-Item -Path $extensionsJsonCheck -Force -ErrorAction SilentlyContinue
+        } else {
+            $rawJson = [System.IO.File]::ReadAllText($extensionsJsonCheck, [System.Text.Encoding]::UTF8).Trim()
+            if (-not $rawJson.StartsWith("[")) {
+                Write-Host "Removing malformed non-array extensions.json..."
+                Remove-Item -Path $extensionsJsonCheck -Force -ErrorAction SilentlyContinue
+            }
         }
-    } catch {}
+    } catch {
+        Remove-Item -Path $extensionsJsonCheck -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $wasiVersion = "34"
@@ -163,15 +322,6 @@ if ($shouldInstallVSCode) {
     }
     Write-Host "VSCodium Desktop installed successfully."
 
-    $productJsonFiles = Get-ChildItem -Recurse -Filter "product.json" $editorDir
-    foreach ($pj in $productJsonFiles) {
-        $content = [System.IO.File]::ReadAllText($pj.FullName, [System.Text.Encoding]::UTF8)
-        if ($content -match 'vscode-cdn\.net') {
-            Write-Host "Patching webview CDN endpoint in $($pj.FullName)..."
-            $content = $content -replace '"webviewContentExternalBaseUrlTemplate":\s*"https://\{\{uuid\}\}\.vscode-cdn\.net/\{\{quality\}\}/\{\{commit\}\}/out/vs/workbench/contrib/webview/browser/pre/"', '"webviewContentExternalBaseUrlTemplate": "{{commit}}/out/vs/workbench/contrib/webview/browser/pre/"'
-            [System.IO.File]::WriteAllText($pj.FullName, $content, $utf8NoBom)
-        }
-    }
 
     if ($remoteStableName -and $remoteStableSha) {
         $meta = @{
@@ -220,97 +370,58 @@ New-Item -ItemType Directory -Force -Path $extDest | Out-Null
 
 $shouldInstallExt = $Force -or (-not (Test-Path (Join-Path $extDest "package.json")))
 if ($shouldInstallExt -and $extSrc -and (Test-Path $extSrc)) {
-    Write-Host "Installing Realm Map Editor extension version $extVersion to $extDest..."
-    if (Test-Path (Join-Path $extSrc "package.json")) {
-        Copy-Item -Path (Join-Path $extSrc "package.json") -Destination (Join-Path $extDest "package.json") -Force
-    }
-    if (Test-Path (Join-Path $extSrc "map_schema.json")) {
-        Copy-Item -Path (Join-Path $extSrc "map_schema.json") -Destination (Join-Path $extDest "map_schema.json") -Force
-    }
-    if (Test-Path (Join-Path $extSrc "dist")) {
-        $destDist = Join-Path $extDest "dist"
-        New-Item -ItemType Directory -Force -Path $destDist | Out-Null
-        Copy-Item -Path (Join-Path $extSrc "dist\*") -Destination $destDist -Recurse -Force
-    }
-    if (Test-Path (Join-Path $extSrc "media")) {
-        $destMedia = Join-Path $extDest "media"
-        New-Item -ItemType Directory -Force -Path $destMedia | Out-Null
-        Copy-Item -Path (Join-Path $extSrc "media\*") -Destination $destMedia -Recurse -Force
+    foreach ($item in @("package.json", "map_schema.json", "dist", "media")) {
+        $srcItem = Join-Path $extSrc $item
+        if (Test-Path $srcItem) {
+            $destItem = Join-Path $extDest $item
+            if (Test-Path $srcItem -PathType Container) {
+                New-Item -ItemType Directory -Force -Path $destItem | Out-Null
+                Copy-Item -Path (Join-Path $srcItem "*") -Destination $destItem -Recurse -Force
+            } else {
+                Copy-Item -Path $srcItem -Destination $destItem -Force
+            }
+        }
     }
 } else {
     Write-Host "Realm Map Editor extension ($extVersion) verified at $extDest"
 }
 
 $requiredExtensions = @(
+    "google.google-antigravity",
     "muhammad-sammy.csharp",
     "OHZIInteractiveStudio.ohzi-vscode-glb-viewer",
     "Gruntfuggly.todo-tree",
-    # "mechatroner.rainbow-json",
+	# "mechatroner.rainbow-json",
     "patcx.vscode-nuget-gallery",
-    "AykutSarac.jsoncrack-vscode",
-    # "akondratiuk1-dev.texture-viewer",
-    "Google.google-antigravity"
+    "AykutSarac.jsoncrack-vscode"
+	# "akondratiuk1-dev.texture-viewer"
 )
 
 foreach ($extId in $requiredExtensions) {
     $extMatch = Get-ChildItem -Path $extsDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$extId*" -or $_.Name -like "*$extId*" }
     if ((-not $extMatch) -or $Force) {
         Write-Host "Installing extension $extId from Open VSX..."
-        & $activeCliPath --extensions-dir $extsDir --user-data-dir $userDataDir --install-extension $extId
+        & $activeCliPath --extensions-dir $extsDir --user-data-dir $userDataDir --install-extension $extId --force
     } else {
         Write-Host "Extension $extId already installed."
     }
 }
 
-function Patch-OhziExtension {
-    param(
-        [string]$TargetExtensionsDir,
-        [switch]$ForcePatch
-    )
+$cliDataDir = Join-Path $embedDir "cli-data-dir"
+New-Item -ItemType Directory -Force -Path $cliDataDir | Out-Null
+try {
+    & $activeCliPath --cli-data-dir $cliDataDir serve-web --help | Out-Null
+} catch {}
 
-    $patchSrcCandidates = @(
-        (Join-Path $godotDir "vscode_extensions_dist\patches\ohzi-vscode-glb-viewer\extension.js"),
-        (Join-Path $godotDir "..\Realm.MapEditorExtension\patches\ohzi-vscode-glb-viewer\extension.js"),
-        (Join-Path $PSScriptRoot "..\Realm.MapEditorExtension\patches\ohzi-vscode-glb-viewer\extension.js")
-    )
-
-    $patchFile = $null
-    foreach ($candidate in $patchSrcCandidates) {
-        if (Test-Path $candidate) {
-            $patchFile = $candidate
-            break
-        }
+$roots = Get-VSCodeRoots -EditorDir $editorDir -EmbedDir $embedDir
+foreach ($root in $roots) {
+    $productJsonFiles = Get-ChildItem -Recurse -Filter "product.json" $root -ErrorAction SilentlyContinue
+    foreach ($pj in $productJsonFiles) {
+        Patch-ProductJson -ProductJsonPath $pj.FullName
     }
-
-    if (-not $patchFile) {
-        Write-Warning "OHZI patch file not found in candidates."
-        return
-    }
-
-    $ohziDirs = Get-ChildItem -Path $TargetExtensionsDir -Directory -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -like "*ohzi-vscode-glb-viewer*"
-    }
-
-    foreach ($ohziDir in $ohziDirs) {
-        $extJsPath = Join-Path $ohziDir.FullName "extension.js"
-        $needsPatch = $ForcePatch -or (-not (Test-Path $extJsPath))
-        if (-not $needsPatch -and (Test-Path $extJsPath)) {
-            $content = [System.IO.File]::ReadAllText($extJsPath, [System.Text.Encoding]::UTF8)
-            if (-not $content.Contains("REALM_PATCHED_OHZI_BASE64") -and (-not $content.Contains("threeDataUri") -or $content.Contains("loadModelFromUri"))) {
-                $needsPatch = $true
-            }
-        }
-
-        if ($needsPatch) {
-            Copy-Item -Path $patchFile -Destination $extJsPath -Force
-            Write-Host "Patched OHZI GLB viewer extension in $($ohziDir.FullName)"
-        } else {
-            Write-Host "OHZI GLB viewer extension in $($ohziDir.FullName) already patched."
-        }
-    }
+    Patch-WebviewHostAndStreams -RootDir $root
 }
-
-Patch-OhziExtension -TargetExtensionsDir $extsDir -ForcePatch:$Force
 
 Get-Date -Format "o" | Out-File -FilePath $completedMarkerPath -Encoding utf8
 Write-Host "VS Code Embedded and Extension setup completed successfully!"
+

@@ -1053,6 +1053,8 @@ public partial class RuntimeTerrain : StaticBody3D
 		{
 			_material.SetShaderParameter("shroud_world_min", shroudMin);
 			_material.SetShaderParameter("shroud_world_size", shroudSize);
+			_material.SetShaderParameter("terrain_size", shroudSize);
+			_material.SetShaderParameter("grid_spacing", QuadSize);
 		}
 		foreach (var wMat in _waterMaterials.Values)
 		{
@@ -1094,11 +1096,9 @@ uniform bool shroud_enabled = false;
 uniform sampler2D pathing_texture : hint_default_transparent, filter_nearest;
 uniform bool pathing_visible = false;
 
-uniform bool grid_visible = false;
-uniform vec4 grid_color_thick = vec4(1.0, 0.9, 0.0, 0.85);
-uniform vec4 grid_color_thin = vec4(1.0, 0.9, 0.0, 0.25);
-uniform float grid_spacing = 2.0;
 uniform vec2 terrain_size = vec2(1.0, 1.0);
+uniform float grid_spacing = 2.0;
+
 
 uniform float texture_scale = 0.5;
 uniform float macro_scale = 0.035;
@@ -1874,7 +1874,7 @@ void fragment() {
 		vec2 pathing_uv = (v_world_pos.xz + terrain_size / 2.0) / terrain_size;
 		int code = int(round(texture(pathing_texture, pathing_uv).r * 255.0));
 
-		vec2 cell_frac = fract(v_world_pos.xz / grid_spacing);
+		vec2 cell_frac = fract((v_world_pos.xz + terrain_size / 2.0) / grid_spacing);
 		int sx = int(floor(cell_frac.x * 3.0));
 		int sz = int(floor(cell_frac.y * 3.0));
 		int box_idx = sz * 3 + sx;
@@ -1911,31 +1911,6 @@ void fragment() {
 		}
 	}
 	
-	if (grid_visible) {
-		vec2 grid_uv = v_world_pos.xz / grid_spacing;
-		
-		vec2 df = fwidth(grid_uv) * 3.0;
-		vec2 grid_lines = smoothstep(vec2(1.0) - df, vec2(1.0), fract(grid_uv)) + 
-						  (1.0 - smoothstep(vec2(0.0), df, fract(grid_uv)));
-		
-		float thin_line = max(grid_lines.x, grid_lines.y);
-		
-		vec2 thick_grid_uv = grid_uv / 10.0;
-		vec2 df_thick = fwidth(thick_grid_uv) * 3.0;
-		vec2 thick_grid_lines = smoothstep(vec2(1.0) - df_thick, vec2(1.0), fract(thick_grid_uv)) + 
-								(1.0 - smoothstep(vec2(0.0), df_thick, fract(thick_grid_uv)));
-		
-		float thick_line = max(thick_grid_lines.x, thick_grid_lines.y);
-		
-		if (thick_line > 0.0) {
-			final_albedo = mix(final_albedo, grid_color_thick.rgb, grid_color_thick.a * thick_line);
-			emission_color = mix(emission_color, grid_color_thick.rgb, grid_color_thick.a * thick_line);
-		} else if (thin_line > 0.0) {
-			final_albedo = mix(final_albedo, grid_color_thin.rgb, grid_color_thin.a * thin_line);
-			emission_color = mix(emission_color, grid_color_thin.rgb, grid_color_thin.a * thin_line);
-		}
-	}
-
 	float final_roughness = 0.9;
 
 	if (enable_macro_noise) {
@@ -1964,6 +1939,7 @@ void fragment() {
 		}
 
 		ReloadTerrainTextures();
+		CreatePolarOverlayMaterial();
 
 		var defaultShroudImage = Image.CreateEmpty(32, 32, false, Image.Format.Rf);
 		defaultShroudImage.Fill(new Color(0f, 0f, 0f, 1f));
@@ -2720,12 +2696,176 @@ void fragment() {
 				_chunks.Add(chunk);
 			}
 		}
+
+		if (_material != null)
+		{
+			float halfW = (w * QuadSize) * 0.5f;
+			float halfD = (d * QuadSize) * 0.5f;
+			_material.SetShaderParameter("shroud_world_min", new Vector2(-halfW, -halfD));
+			_material.SetShaderParameter("shroud_world_size", new Vector2(w * QuadSize, d * QuadSize));
+			_material.SetShaderParameter("terrain_size", new Vector2(w * QuadSize, d * QuadSize));
+			_material.SetShaderParameter("grid_spacing", QuadSize);
+		}
 	}
 
 	protected static readonly StringName ShroudTextureParam = "shroud_texture";
 	protected static readonly StringName ShroudEnabledParam = "shroud_enabled";
 	protected ImageTexture _currentShroudTexture = null;
 	protected static ImageTexture _clearShroudTexture = null;
+	protected ShaderMaterial _polarOverlayMaterial;
+
+	private void CreatePolarOverlayMaterial()
+	{
+		var shader = new Shader();
+		shader.Code = @"
+shader_type spatial;
+render_mode unshaded, blend_mix, depth_test_disabled, depth_draw_never, cull_disabled;
+
+uniform sampler2D depth_texture : hint_depth_texture, filter_nearest;
+uniform bool grid_visible = false;
+uniform bool polar_overlay_visible = false;
+uniform vec2 terrain_size = vec2(1.0, 1.0);
+uniform vec2 polar_center = vec2(0.0, 0.0);
+uniform float polar_ring_spacing = 8.0;
+uniform float polar_radial_step_deg = 45.0;
+uniform float grid_spacing = 2.0;
+uniform vec4 polar_ring_color = vec4(0.2, 0.8, 1.0, 0.4);
+uniform vec4 polar_spoke_color = vec4(0.2, 0.8, 1.0, 0.25);
+uniform vec4 grid_color_cell = vec4(0.6, 0.6, 0.6, 0.35);
+uniform vec4 grid_color_group4 = vec4(0.2, 0.65, 1.0, 0.65);
+uniform vec4 grid_color_group16 = vec4(1.0, 0.85, 0.0, 0.85);
+uniform vec4 grid_color_center = vec4(0.2, 1.0, 0.3, 0.95);
+
+varying vec3 v_world_pos;
+
+void layer(inout vec3 rgb, inout float a, vec3 c, float ca) {
+	ca = clamp(ca, 0.0, 1.0);
+	rgb = c * ca + rgb * (1.0 - ca);
+	a = ca + a * (1.0 - ca);
+}
+
+void vertex() {
+	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+
+void fragment() {
+	float depth_raw = texture(depth_texture, SCREEN_UV).r;
+	vec4 upos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth_raw, 1.0);
+	float scene_z = -upos.z / upos.w;
+	if (scene_z < -VERTEX.z - 0.1) {
+		discard;
+	}
+
+	vec3 ov_rgb = vec3(0.0);
+	float ov_a = 0.0;
+
+		if (grid_visible) {
+			vec2 grid_uv = (v_world_pos.xz + terrain_size / 2.0) / grid_spacing;
+			vec2 df_cell = fwidth(grid_uv) * 3.0;
+			vec2 lines_cell = smoothstep(vec2(1.0) - df_cell, vec2(1.0), fract(grid_uv)) + 
+			                  (1.0 - smoothstep(vec2(0.0), df_cell, fract(grid_uv)));
+			float line_cell = max(lines_cell.x, lines_cell.y);
+			vec2 grid_uv_4 = grid_uv / 4.0;
+			vec2 df_4 = fwidth(grid_uv_4) * 3.0;
+			vec2 lines_4 = smoothstep(vec2(1.0) - df_4, vec2(1.0), fract(grid_uv_4)) + 
+			               (1.0 - smoothstep(vec2(0.0), df_4, fract(grid_uv_4)));
+			float line_4 = max(lines_4.x, lines_4.y);
+			vec2 grid_uv_16 = grid_uv / 16.0;
+			vec2 df_16 = fwidth(grid_uv_16) * 3.0;
+			vec2 lines_16 = smoothstep(vec2(1.0) - df_16, vec2(1.0), fract(grid_uv_16)) + 
+			                (1.0 - smoothstep(vec2(0.0), df_16, fract(grid_uv_16)));
+			float line_16 = max(lines_16.x, lines_16.y);
+			vec2 center_df = fwidth(v_world_pos.xz) * 1.5;
+			vec2 center_lines = 1.0 - smoothstep(vec2(0.0), center_df, abs(v_world_pos.xz));
+			float center_line = max(center_lines.x, center_lines.y);
+	
+			if (center_line > 0.0) {
+				layer(ov_rgb, ov_a, grid_color_center.rgb, grid_color_center.a * center_line);
+			} else if (line_16 > 0.0) {
+				layer(ov_rgb, ov_a, grid_color_group16.rgb, grid_color_group16.a * line_16);
+			} else if (line_4 > 0.0) {
+				layer(ov_rgb, ov_a, grid_color_group4.rgb, grid_color_group4.a * line_4);
+			} else if (line_cell > 0.0) {
+				layer(ov_rgb, ov_a, grid_color_cell.rgb, grid_color_cell.a * line_cell);
+			}
+		}
+
+	if (polar_overlay_visible) {
+		vec2 rel_pos = v_world_pos.xz - polar_center;
+		float ring_uv = length(rel_pos) / (polar_ring_spacing * grid_spacing);
+		float ring_df = fwidth(ring_uv) * 3.0;
+		float ring_line = smoothstep(1.0 - ring_df, 1.0, fract(ring_uv)) + (1.0 - smoothstep(0.0, ring_df, fract(ring_uv)));
+		float angle_deg = mod(degrees(atan(rel_pos.y, rel_pos.x)) + 360.0, 360.0);
+		float spoke_uv = angle_deg / max(1.0, polar_radial_step_deg);
+		float spoke_df = fwidth(spoke_uv) * 3.0;
+		float spoke_line = smoothstep(1.0 - spoke_df, 1.0, fract(spoke_uv)) + (1.0 - smoothstep(0.0, spoke_df, fract(spoke_uv)));
+		layer(ov_rgb, ov_a, polar_ring_color.rgb, polar_ring_color.a * ring_line);
+		layer(ov_rgb, ov_a, polar_spoke_color.rgb, polar_spoke_color.a * spoke_line);
+	}
+
+	if (ov_a <= 0.001) {
+		discard;
+	}
+	ALBEDO = ov_rgb / ov_a;
+	ALPHA = ov_a;
+}
+";		_polarOverlayMaterial = new ShaderMaterial();
+		_polarOverlayMaterial.Shader = shader;
+		_polarOverlayMaterial.RenderPriority = 100;
+		_polarOverlayMaterial.SetShaderParameter("grid_spacing", QuadSize);
+		ApplyOverlayPass();
+	}
+
+	private bool _gridWanted;
+	private bool _polarWanted;
+	private bool _overlaySuppressed;
+	private Vector2 _polarCenterWanted;
+	private float _polarRingSpacingWanted = 8.0f;
+	private float _polarRadialStepWanted = 45.0f;
+
+	private void ApplyOverlayPass()
+	{
+		if (_material == null || _polarOverlayMaterial == null) return;
+		_polarOverlayMaterial.SetShaderParameter("grid_visible", _gridWanted);
+		_polarOverlayMaterial.SetShaderParameter("polar_overlay_visible", _polarWanted);
+		_polarOverlayMaterial.SetShaderParameter("polar_center", _polarCenterWanted);
+		_polarOverlayMaterial.SetShaderParameter("polar_ring_spacing", _polarRingSpacingWanted);
+		_polarOverlayMaterial.SetShaderParameter("polar_radial_step_deg", _polarRadialStepWanted);
+		_polarOverlayMaterial.SetShaderParameter("terrain_size", _material.GetShaderParameter("terrain_size"));
+		_polarOverlayMaterial.SetShaderParameter("grid_spacing", _material.GetShaderParameter("grid_spacing"));
+		bool active = !_overlaySuppressed && (_gridWanted || _polarWanted);
+		_material.NextPass = active ? _polarOverlayMaterial : null;
+	}
+
+	public virtual void SetGridVisible(bool visible)
+	{
+		_gridWanted = visible;
+		ApplyOverlayPass();
+	}
+
+	public virtual void SetPolarOverlayVisible(bool visible)
+	{
+		_polarWanted = visible;
+		ApplyOverlayPass();
+	}
+	public virtual void SetPolarCenter(Vector2 center)
+	{
+		_polarCenterWanted = center;
+		ApplyOverlayPass();
+	}
+
+	public virtual void SetPolarRingSpacing(float spacing)
+	{
+		_polarRingSpacingWanted = spacing;
+		ApplyOverlayPass();
+	}
+
+	public virtual void SetPolarRadialStep(float angleDegrees)
+	{
+		_polarRadialStepWanted = angleDegrees;
+		ApplyOverlayPass();
+	}
+	private bool _wasPathingVisibleBeforeMinimap;
 
 	public void SetShroudEnabled(bool enabled)
 	{
@@ -2759,6 +2899,16 @@ void fragment() {
 		if (_material != null)
 		{
 			_material.SetShaderParameter(ShroudTextureParam, clearTex);
+
+			_overlaySuppressed = true;
+			ApplyOverlayPass();
+
+			var pathingParam = _material.GetShaderParameter("pathing_visible");
+			_wasPathingVisibleBeforeMinimap = pathingParam.VariantType == Variant.Type.Bool && pathingParam.AsBool();
+			if (_wasPathingVisibleBeforeMinimap)
+			{
+				_material.SetShaderParameter("pathing_visible", false);
+			}
 		}
 		foreach (var wMat in _waterMaterials.Values)
 		{
@@ -2776,6 +2926,12 @@ void fragment() {
 		if (_material != null)
 		{
 			_material.SetShaderParameter(ShroudTextureParam, restoreTex);
+			_overlaySuppressed = false;
+			ApplyOverlayPass();
+			if (_wasPathingVisibleBeforeMinimap)
+			{
+				_material.SetShaderParameter("pathing_visible", true);
+			}
 		}
 		foreach (var wMat in _waterMaterials.Values)
 		{
@@ -2852,6 +3008,11 @@ void fragment() {
 		if (_chunks.Count == 0 || _chunkedWidth != w || _chunkedDepth != d)
 		{
 			CreateChunks();
+		}
+		else if (_material != null)
+		{
+			_material.SetShaderParameter("terrain_size", new Vector2(w * QuadSize, d * QuadSize));
+			_material.SetShaderParameter("grid_spacing", QuadSize);
 		}
 
 		foreach (var chunk in _chunks)
@@ -2937,7 +3098,6 @@ void fragment() {
 	}
 
 	public virtual void SetPathingVisible(bool visible) { }
-	public virtual void SetGridVisible(bool visible) { }
 	public virtual void SetWireframeMode(bool enabled) { }
 	public virtual void ToggleWireframeMode() { }
 	public virtual void UpdatePathingTexture() { }

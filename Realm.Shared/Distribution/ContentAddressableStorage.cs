@@ -21,7 +21,7 @@ public class ContentAddressableStorage
     private readonly ConcurrentDictionary<string, string> _sidecarMemoryCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, bool> _writtenSidecars = new(StringComparer.OrdinalIgnoreCase);
     private long _lastDiskCheckTicks = 0;
-    private bool _lastDiskCheckResult = true;
+    private double _lastDiskCheckPercentage = 1.0;
 
     public string RootDirectory => _rootDirectory;
     public string AssetsDirectory => _assetsDirectory;
@@ -164,12 +164,12 @@ public class ContentAddressableStorage
         return extractedMetadata;
     }
 
-    public bool CheckFreeDiskSpaceAcceptingUploads()
+    public double GetFreeDiskSpacePercentage()
     {
         long now = Environment.TickCount64;
         if (now - _lastDiskCheckTicks < 5000)
         {
-            return _lastDiskCheckResult;
+            return _lastDiskCheckPercentage;
         }
 
         try
@@ -178,22 +178,36 @@ public class ContentAddressableStorage
             var driveInfo = new DriveInfo(rootPath);
             if (driveInfo.TotalSize <= 0)
             {
-                _lastDiskCheckResult = true;
+                _lastDiskCheckPercentage = 1.0;
             }
             else
             {
-                double freePercentage = (double)driveInfo.AvailableFreeSpace / driveInfo.TotalSize;
-                _lastDiskCheckResult = freePercentage >= 0.10;
+                _lastDiskCheckPercentage = (double)driveInfo.AvailableFreeSpace / driveInfo.TotalSize;
             }
             _lastDiskCheckTicks = now;
-            return _lastDiskCheckResult;
+            return _lastDiskCheckPercentage;
         }
         catch
         {
-            _lastDiskCheckResult = true;
+            _lastDiskCheckPercentage = 1.0;
             _lastDiskCheckTicks = now;
-            return true;
+            return 1.0;
         }
+    }
+
+    public bool CheckFreeDiskSpace(double minimumFreePercentage = 0.10)
+    {
+        return GetFreeDiskSpacePercentage() >= minimumFreePercentage;
+    }
+
+    public bool CheckFreeDiskSpaceAcceptingUploads()
+    {
+        return CheckFreeDiskSpace(0.10);
+    }
+
+    public bool CheckFreeDiskSpaceAcceptingDownloads()
+    {
+        return CheckFreeDiskSpace(0.01);
     }
 
     public (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAsset(
@@ -232,9 +246,9 @@ public class ContentAddressableStorage
             }
         }
 
-        if (!CheckFreeDiskSpaceAcceptingUploads())
+        if (!CheckFreeDiskSpaceAcceptingDownloads())
         {
-            return (false, "Upload rejected: available disk space is less than 10%.", false, false, normalizedHash);
+            return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
         }
 
         string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
@@ -401,9 +415,9 @@ public class ContentAddressableStorage
                 return (true, "Asset already exists (deduplicated).", true, merged, normalizedHash);
             }
 
-            if (!CheckFreeDiskSpaceAcceptingUploads())
+            if (!CheckFreeDiskSpaceAcceptingDownloads())
             {
-                return (false, "Upload rejected: available disk space is less than 10%.", false, false, normalizedHash);
+                return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
             }
 
             string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
@@ -489,9 +503,9 @@ public class ContentAddressableStorage
                 return (true, "Asset already exists (deduplicated).", true, merged, normalizedHash);
             }
 
-            if (!CheckFreeDiskSpaceAcceptingUploads())
+            if (!CheckFreeDiskSpaceAcceptingDownloads())
             {
-                return (false, "Upload rejected: available disk space is less than 10%.", false, false, normalizedHash);
+                return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
             }
 
             string shard = normalizedHash.Substring(0, 2);

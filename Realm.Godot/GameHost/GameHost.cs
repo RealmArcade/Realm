@@ -311,7 +311,7 @@ public partial class GameHost : Node3D, IGameAPI
 			_groundTerrain = value;
 			if (value != null && _editorService != null)
 			{
-				_editorService.SetTerrainSplatMap(value.SplatMap);
+				_editorService.SetTerrainSplatMap(value.SplatMap, value.CliffSplatMap);
 			}
 		}
 	}
@@ -355,7 +355,8 @@ public partial class GameHost : Node3D, IGameAPI
 		PaintPathing,
 		FloodFillPathing,
 		DrawCoordinate,
-		Water
+		Water,
+		Measure
 	}
 	private EditorTool _activeEditorTool = EditorTool.None;
 	public EditorTool ActiveEditorTool
@@ -450,9 +451,9 @@ public partial class GameHost : Node3D, IGameAPI
 		get => _editorPlacementScale;
 		set => _editorPlacementScale = Mathf.Clamp(value, MIN_PLACEMENT_SCALE, MAX_PLACEMENT_SCALE);
 	}
-	public enum GridOverlayMode { Off, Mesh }
+	public enum GridOverlayMode { Off, Grid, Polar, Both }
 	public GridOverlayMode EditorGridMode { get; set; } = GridOverlayMode.Off;
-	public bool EditorGridVisible => EditorGridMode != GridOverlayMode.Off;
+	public bool EditorGridVisible => EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both;
 	public bool EditorCameraBoundsVisible { get; set; } = false;
 	public bool EditorDisableShadows { get; set; } = false;
 	public float EditorCameraBoundsLeft
@@ -481,8 +482,56 @@ public partial class GameHost : Node3D, IGameAPI
 	public MirrorMode EditorMirrorMode
 	{
 		get => EcsWorld?.GetFieldOrDefault<EditorState, MirrorMode>(_worldEntity, s => s.MirrorMode, MirrorMode.None) ?? MirrorMode.None;
-		set => EcsWorld?.Mutate<EditorState>(_worldEntity, (ref EditorState s) => s.MirrorMode = value);
+		set
+		{
+			EcsWorld?.Mutate<EditorState>(_worldEntity, (ref EditorState s) => s.MirrorMode = value);
+			if (value == MirrorMode.Rotational)
+			{
+				EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
+				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+			}
+			else
+			{
+				EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorPolarSpokeFolds);
+				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+			}
+			UpdateGridOverlayVisibility();
+		}
 	}
+
+	public Vector2 EditorSymmetryPivot
+	{
+		get => _editorService?.SymmetryPivot ?? Vector2.Zero;
+		set
+		{
+			if (_editorService != null) _editorService.SymmetryPivot = value;
+			UpdateSymmetryPivotVisuals();
+		}
+	}
+
+	public int EditorSymmetryFolds
+	{
+		get => _editorService?.SymmetryFolds ?? 4;
+		set
+		{
+			if (_editorService != null) _editorService.SymmetryFolds = value;
+			if (EditorMirrorMode == MirrorMode.Rotational)
+			{
+				EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
+				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+			}
+		}
+	}
+
+	public int EditorPolarSpokeFolds { get; set; } = 4;
+	public bool EditorPolarOverlayVisible { get; set; } = false;
+	public float EditorPolarRingSpacing { get; set; } = 8.0f;
+	public float EditorPolarRadialStep { get; set; } = 90.0f;
+
+	public Vector3? EditorTapeMeasureStart { get; set; }
+	public Vector3? EditorTapeMeasureEnd { get; set; }
+	public bool EditorTapeMeasureActive { get; set; } = false;
+
 	public bool EditorBrushIsSquare { get; set; } = true;
 
 	private float _editorClumpCount = 5.0f;
@@ -594,6 +643,7 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 	public float EditorPasteRotation { get; set; } = 0.0f;
+	public PasteReflection EditorPasteReflection { get; set; } = PasteReflection.None;
 
 	public Node SelectedEditorObject
 	{
@@ -2412,6 +2462,60 @@ public class {mapName} : IMapScript
 		}).CallDeferred();
 	}
 
+	private readonly Dictionary<int, Label3D> _staticTextLabels = new();
+	private int _nextStaticTextHandle = 1;
+
+	int IGameAPI.CreateStaticText(string text, System.Numerics.Vector3 position, System.Numerics.Vector3 color, int fontSize)
+	{
+		int handle = _nextStaticTextHandle++;
+		Callable.From(() =>
+		{
+			var label = new Label3D();
+			label.Text = text;
+			label.Modulate = new Color(color.X, color.Y, color.Z);
+			label.OutlineModulate = Colors.Black;
+			label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
+			label.Position = new Vector3(position.X, position.Y + 1.5f, position.Z);
+			label.FontSize = fontSize;
+			AddChild(label);
+			_staticTextLabels[handle] = label;
+		}).CallDeferred();
+		return handle;
+	}
+
+	void IGameAPI.SetStaticText(int handle, string text)
+	{
+		Callable.From(() =>
+		{
+			if (_staticTextLabels.TryGetValue(handle, out var label))
+			{
+				label.Text = text;
+			}
+		}).CallDeferred();
+	}
+
+	void IGameAPI.SetStaticTextVisible(int handle, bool visible)
+	{
+		Callable.From(() =>
+		{
+			if (_staticTextLabels.TryGetValue(handle, out var label))
+			{
+				label.Visible = visible;
+			}
+		}).CallDeferred();
+	}
+
+	void IGameAPI.DestroyStaticText(int handle)
+	{
+		Callable.From(() =>
+		{
+			if (_staticTextLabels.Remove(handle, out var label))
+			{
+				label.QueueFree();
+			}
+		}).CallDeferred();
+	}
+
 	void IGameAPI.SpawnVisualEffect(string effectTypeId, System.Numerics.Vector3 position, float scale)
 	{
 		Callable.From(() =>
@@ -3922,7 +4026,7 @@ public class {mapName} : IMapScript
 		SetupWorldEntityComponents();
 
 		if (GroundTerrain != null)
-			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
 		SetupSkybox();
 
@@ -4359,7 +4463,7 @@ public class {mapName} : IMapScript
 		// a second time on every _Ready, stalling the main thread at startup.
 		if (_groundTerrain != null)
 		{
-			_editorService.SetTerrainSplatMap(_groundTerrain.SplatMap);
+			_editorService.SetTerrainSplatMap(_groundTerrain.SplatMap, _groundTerrain.CliffSplatMap);
 		}
 
 		InitializeGameEcs();
@@ -5331,6 +5435,11 @@ public class {mapName} : IMapScript
 	private void UpdateDayNightVisuals(float progress)
 	{
 		_environmentService?.UpdateDayNightVisuals(this, progress);
+	}
+
+	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(int timeOfDayIndex)
+	{
+		return _environmentService?.SetTimeOfDay(this, _worldEntity, timeOfDayIndex, TimeOfDayCycleDuration) ?? (0, 0f);
 	}
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay()
