@@ -976,23 +976,57 @@ public partial class VSCodeManager
 					{
 						if (fileName == "metadata.json" || fileName == "manifest.json")
 						{
-							if (MapEditorHUD.Instance != null)
+							string display = fileName == "manifest.json" ? "manifest.json" : "metadata.json";
+							Action reloadAction = () =>
 							{
-								MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-								string display = fileName == "manifest.json" ? "manifest.json" : "metadata.json";
-								MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
+								if (MapEditorHUD.Instance != null)
+								{
+									MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
+									MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
+								}
+								else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+								{
+									GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+								}
+							};
+
+							if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+							{
+								MapEditorHUD.Instance.ShowConfirmationDialog(
+									$"External edits detected in {display}. Reload external changes or keep current dialog changes?",
+									onConfirm: reloadAction,
+									confirmText: "RELOAD",
+									cancelText: "KEEP CHANGES"
+								);
 							}
-							else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+							else
 							{
-								GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+								reloadAction();
 							}
 						}
 						else if (fileName == "terrain.json")
 						{
-							if (GameHost.Instance != null && GameHost.Instance.IsMapEditorMode)
+							Action reloadAction = () =>
 							{
-								GameHost.Instance.LoadMapFromFile(filePath);
-								MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+								if (GameHost.Instance != null && GameHost.Instance.IsMapEditorMode)
+								{
+									GameHost.Instance.LoadMapFromFile(filePath);
+									MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+								}
+							};
+
+							if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+							{
+								MapEditorHUD.Instance.ShowConfirmationDialog(
+									"External edits detected in terrain.json. Reload external changes or keep current dialog changes?",
+									onConfirm: reloadAction,
+									confirmText: "RELOAD",
+									cancelText: "KEEP CHANGES"
+								);
+							}
+							else
+							{
+								reloadAction();
 							}
 						}
 					}).CallDeferred();
@@ -1015,14 +1049,31 @@ public partial class VSCodeManager
 			{
 				Callable.From(() =>
 				{
-					if (MapEditorHUD.Instance != null)
+					Action reloadAction = () =>
 					{
-						MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-						MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
+						if (MapEditorHUD.Instance != null)
+						{
+							MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
+							MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
+						}
+						else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+						{
+							GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+						}
+					};
+
+					if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+					{
+						MapEditorHUD.Instance.ShowConfirmationDialog(
+							"External edits detected in metadata.json. Reload external changes or keep current dialog changes?",
+							onConfirm: reloadAction,
+							confirmText: "RELOAD",
+							cancelText: "KEEP CHANGES"
+						);
 					}
-					else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+					else
 					{
-						GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+						reloadAction();
 					}
 				}).CallDeferred();
 

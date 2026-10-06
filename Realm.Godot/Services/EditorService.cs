@@ -3935,23 +3935,12 @@ public class EditorService
 
 	private void HandleExternalMetadataChange(string fullPath, Action? customCallback)
 	{
-		string name = Path.GetFileName(fullPath);
 		if (FloatingDialogBase.HasAnyDialogOpen)
 		{
-			MapEditorHUD.Instance?.ShowConfirmationDialog(
-				$"External edits detected in {name}. Reload external changes or keep current dialog changes?",
-				onConfirm: () =>
-				{
-					ExecuteMetadataReload(fullPath, customCallback);
-				},
-				confirmText: "RELOAD",
-				cancelText: "KEEP CHANGES"
-			);
+			return;
 		}
-		else
-		{
-			ExecuteMetadataReload(fullPath, customCallback);
-		}
+
+		ExecuteMetadataReload(fullPath, customCallback);
 	}
 
 	private void ExecuteMetadataReload(string fullPath, Action? customCallback)
@@ -3971,6 +3960,11 @@ public class EditorService
 
 	private void HandleExternalTerrainChange(string fullPath, Action? customCallback)
 	{
+		if (FloatingDialogBase.HasAnyDialogOpen)
+		{
+			return;
+		}
+
 		try
 		{
 			GameHost.Instance?.LoadMapFromFile(fullPath);
