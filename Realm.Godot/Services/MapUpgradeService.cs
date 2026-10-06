@@ -965,6 +965,23 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 						}
 					}
 
+					foreach (var categoryPair in assetsObj)
+					{
+						string categoryName = categoryPair.Key;
+						if (categoryPair.Value is JsonObject categoryObj)
+						{
+							foreach (var assetPair in categoryObj)
+							{
+								string fileName = assetPair.Key;
+								string hash = assetPair.Value is JsonObject obj
+									? (obj["hash"]?.ToString() ?? obj["blake3"]?.ToString() ?? string.Empty)
+									: (assetPair.Value?.ToString() ?? string.Empty);
+
+								EnsureTemplateForManifestAsset(metadataRoot, templatesObj, categoryName, fileName, hash);
+							}
+						}
+					}
+
 					MapJsonFormatter.SaveFormattedJson(manifestPath, manifestRoot);
 				}
 			}
@@ -998,6 +1015,349 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 	public Task<MigrationResult> UpAsync(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
 	{
 		return Task.Run(() => Up(mapDirectory, progress));
+	}
+
+	private static void EnsureTemplateForManifestAsset(JsonObject metadataRoot, JsonObject templatesObj, string category, string fileName, string hash)
+	{
+		if (string.IsNullOrWhiteSpace(fileName)) return;
+
+		string slug = TemplateIDHelper.GenerateSlug(fileName);
+		string normalizedCategory = MapAssetHelper.NormalizeCategoryKey(category);
+
+		switch (normalizedCategory.ToLowerInvariant())
+		{
+			case "character" or "unit" or "characters" or "units":
+				{
+					string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", slug);
+					if (!templatesObj.ContainsKey("Units") || templatesObj["Units"] is not JsonArray)
+					{
+						templatesObj["Units"] = new JsonArray();
+					}
+					var unitsArr = templatesObj["Units"]!.AsArray();
+					bool exists = unitsArr.OfType<JsonObject>().Any(u =>
+						string.Equals(u["TemplateID"]?.ToString(), unitTemplateId, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(u["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						unitsArr.Add(new JsonObject
+						{
+							["TemplateID"] = unitTemplateId,
+							["Name"] = slug,
+							["Description"] = "",
+							["ModelPath"] = fileName,
+							["Scale"] = 1.0f,
+							["PathingType"] = 9,
+							["DespillPlayerColor"] = false,
+							["NormalizeLuminance"] = true
+						});
+					}
+					break;
+				}
+
+			case "building" or "buildings":
+				{
+					string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", slug);
+					if (!templatesObj.ContainsKey("Buildings") || templatesObj["Buildings"] is not JsonArray)
+					{
+						templatesObj["Buildings"] = new JsonArray();
+					}
+					var buildingsArr = templatesObj["Buildings"]!.AsArray();
+					bool exists = buildingsArr.OfType<JsonObject>().Any(b =>
+						string.Equals(b["TemplateID"]?.ToString(), buildingTemplateId, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(b["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						buildingsArr.Add(new JsonObject
+						{
+							["TemplateID"] = buildingTemplateId,
+							["Name"] = slug,
+							["Description"] = "",
+							["ModelPath"] = fileName,
+							["Scale"] = 1.5f,
+							["PathingType"] = 32,
+							["DespillPlayerColor"] = false,
+							["NormalizeLuminance"] = true
+						});
+					}
+					break;
+				}
+
+			case "prop" or "props":
+				{
+					string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", slug);
+					if (!templatesObj.ContainsKey("Props") || templatesObj["Props"] is not JsonArray)
+					{
+						templatesObj["Props"] = new JsonArray();
+					}
+					var propsArr = templatesObj["Props"]!.AsArray();
+					bool exists = propsArr.OfType<JsonObject>().Any(p =>
+						string.Equals(p["TemplateID"]?.ToString(), propTemplateId, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(p["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						propsArr.Add(new JsonObject
+						{
+							["TemplateID"] = propTemplateId,
+							["Name"] = slug,
+							["Description"] = "",
+							["ModelPath"] = fileName,
+							["Scale"] = 1.25f,
+							["PathingType"] = 255,
+							["DespillPlayerColor"] = false,
+							["NormalizeLuminance"] = true,
+							["IgnorePlayerColor"] = true
+						});
+					}
+					break;
+				}
+
+			case "resource" or "resources":
+				{
+					string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", slug);
+					if (!templatesObj.ContainsKey("Resources") || templatesObj["Resources"] is not JsonArray)
+					{
+						templatesObj["Resources"] = new JsonArray();
+					}
+					var resourcesArr = templatesObj["Resources"]!.AsArray();
+					bool exists = resourcesArr.OfType<JsonObject>().Any(r =>
+						string.Equals(r["TemplateID"]?.ToString(), resourceTemplateId, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(r["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						resourcesArr.Add(new JsonObject
+						{
+							["TemplateID"] = resourceTemplateId,
+							["Name"] = slug,
+							["Description"] = "",
+							["ModelPath"] = fileName,
+							["Scale"] = 2.75f,
+							["PathingType"] = 255,
+							["DespillPlayerColor"] = false,
+							["NormalizeLuminance"] = true,
+							["IgnorePlayerColor"] = true
+						});
+					}
+					break;
+				}
+
+			case "item" or "items":
+				{
+					string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", slug);
+					if (!templatesObj.ContainsKey("Items") || templatesObj["Items"] is not JsonArray)
+					{
+						templatesObj["Items"] = new JsonArray();
+					}
+					var itemsArr = templatesObj["Items"]!.AsArray();
+					bool exists = itemsArr.OfType<JsonObject>().Any(i =>
+						string.Equals(i["TemplateID"]?.ToString(), itemTemplateId, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(i["IconPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						itemsArr.Add(new JsonObject
+						{
+							["TemplateID"] = itemTemplateId,
+							["Name"] = slug,
+							["Description"] = "",
+							["ItemClass"] = "consumable",
+							["IconPath"] = fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : null,
+							["CanDrop"] = true
+						});
+					}
+					break;
+				}
+
+			case "decal" or "decals":
+				{
+					string decalTemplateId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
+					if (!metadataRoot.ContainsKey("decals") || metadataRoot["decals"] is not JsonObject)
+					{
+						metadataRoot["decals"] = new JsonObject();
+					}
+					var decalsObj = metadataRoot["decals"]!.AsObject();
+					bool exists = decalsObj.Any(kvp =>
+						string.Equals(kvp.Key, decalTemplateId, StringComparison.OrdinalIgnoreCase) ||
+						(kvp.Value is JsonObject dObj && string.Equals(dObj["TexturePath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
+					if (!exists)
+					{
+						decalsObj[decalTemplateId] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty,
+							["TexturePath"] = fileName,
+							["Opacity"] = 1.0f,
+							["Brightness"] = 1.0f,
+							["Contrast"] = 1.0f,
+							["Saturation"] = 1.0f
+						};
+					}
+					break;
+				}
+
+			case "terrain" or "textures":
+				{
+					if (!metadataRoot.ContainsKey("textures") || metadataRoot["textures"] is not JsonObject)
+					{
+						metadataRoot["textures"] = new JsonObject();
+					}
+					var texturesObj = metadataRoot["textures"]!.AsObject();
+					bool exists = texturesObj.Any(kvp =>
+						string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
+						(kvp.Value is JsonObject tObj && string.Equals(tObj["AssetType"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
+					if (!exists)
+					{
+						texturesObj[fileName] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty,
+							["AssetType"] = fileName,
+							["ScaleFactor"] = 1.0f,
+							["Brightness"] = 1.0f,
+							["Contrast"] = 1.0f,
+							["Saturation"] = 1.0f,
+							["TileMode"] = "Stochastic"
+						};
+					}
+
+					if (!metadataRoot.ContainsKey("TerrainProfiles") || metadataRoot["TerrainProfiles"] is not JsonArray)
+					{
+						metadataRoot["TerrainProfiles"] = new JsonArray();
+					}
+					var terrainProfilesArr = metadataRoot["TerrainProfiles"]!.AsArray();
+					bool profileExists = terrainProfilesArr.OfType<JsonObject>().Any(tp =>
+						string.Equals(tp["SwatchName"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+					if (!profileExists)
+					{
+						terrainProfilesArr.Add(new JsonObject
+						{
+							["SwatchName"] = fileName,
+							["DefaultPathingCode"] = 0,
+							["DecalBombingRules"] = new JsonArray(),
+							["VfxBombingRules"] = new JsonArray()
+						});
+					}
+					break;
+				}
+
+			case "spritesheet" or "spritesheets" or "vfx" or "vfx_radial" or "vfx_vertical":
+				{
+					if (!metadataRoot.ContainsKey("vfx_spritesheets") || metadataRoot["vfx_spritesheets"] is not JsonObject)
+					{
+						metadataRoot["vfx_spritesheets"] = new JsonObject();
+					}
+					var vfxObj = metadataRoot["vfx_spritesheets"]!.AsObject();
+					bool exists = vfxObj.Any(kvp =>
+						string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
+						(kvp.Value is JsonObject sObj && string.Equals(sObj["AssetType"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
+					if (!exists)
+					{
+						vfxObj[fileName] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty,
+							["AssetType"] = fileName,
+							["Columns"] = 4,
+							["Rows"] = 4,
+							["Fps"] = 20.0f
+						};
+					}
+					break;
+				}
+
+			case "icon" or "icons":
+				{
+					string iconTemplateId = TemplateIDHelper.NormalizeTemplateID("icon", slug);
+					if (!metadataRoot.ContainsKey("icons") || metadataRoot["icons"] is not JsonObject)
+					{
+						metadataRoot["icons"] = new JsonObject();
+					}
+					var iconsObj = metadataRoot["icons"]!.AsObject();
+					bool exists = iconsObj.Any(kvp => string.Equals(kvp.Key, iconTemplateId, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						iconsObj[iconTemplateId] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty
+						};
+					}
+					break;
+				}
+
+			case "ribbon" or "ribbons":
+				{
+					string ribbonTemplateId = TemplateIDHelper.NormalizeTemplateID("ribbon", slug);
+					if (!metadataRoot.ContainsKey("ribbons") || metadataRoot["ribbons"] is not JsonObject)
+					{
+						metadataRoot["ribbons"] = new JsonObject();
+					}
+					var ribbonsObj = metadataRoot["ribbons"]!.AsObject();
+					bool exists = ribbonsObj.Any(kvp => string.Equals(kvp.Key, ribbonTemplateId, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						ribbonsObj[ribbonTemplateId] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty
+						};
+					}
+					break;
+				}
+
+			case "noise" or "noise_textures":
+				{
+					if (!metadataRoot.ContainsKey("noise_textures") || metadataRoot["noise_textures"] is not JsonObject)
+					{
+						metadataRoot["noise_textures"] = new JsonObject();
+					}
+					var noiseObj = metadataRoot["noise_textures"]!.AsObject();
+					bool exists = noiseObj.Any(kvp =>
+						string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
+						(kvp.Value is JsonObject nObj && string.Equals(nObj["AssetType"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
+					if (!exists)
+					{
+						noiseObj[fileName] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty,
+							["AssetType"] = fileName,
+							["ScaleFactor"] = 1.0f
+						};
+					}
+					break;
+				}
+
+			case "skybox" or "skyboxes":
+				{
+					string skyboxTemplateId = TemplateIDHelper.NormalizeTemplateID("skybox", slug);
+					if (!metadataRoot.ContainsKey("skyboxes") || metadataRoot["skyboxes"] is not JsonObject)
+					{
+						metadataRoot["skyboxes"] = new JsonObject();
+					}
+					var skyboxesObj = metadataRoot["skyboxes"]!.AsObject();
+					bool exists = skyboxesObj.Any(kvp => string.Equals(kvp.Key, skyboxTemplateId, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						skyboxesObj[skyboxTemplateId] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty
+						};
+					}
+					break;
+				}
+
+			case "shader" or "shaders":
+				{
+					string shaderTemplateId = TemplateIDHelper.NormalizeTemplateID("shader", slug);
+					if (!metadataRoot.ContainsKey("shaders") || metadataRoot["shaders"] is not JsonObject)
+					{
+						metadataRoot["shaders"] = new JsonObject();
+					}
+					var shadersObj = metadataRoot["shaders"]!.AsObject();
+					bool exists = shadersObj.Any(kvp => string.Equals(kvp.Key, shaderTemplateId, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						shadersObj[shaderTemplateId] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty
+						};
+					}
+					break;
+				}
+		}
 	}
 
 	private static void UnionCategoryInto(JsonObject targetContainer, string targetCategory, JsonObject sourceObject)
