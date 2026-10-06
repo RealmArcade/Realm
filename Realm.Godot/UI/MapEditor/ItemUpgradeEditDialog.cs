@@ -186,8 +186,8 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			{
 				bool exists = _category switch
 				{
-					"items" => meta.CustomItems?.Any(i => string.Equals(i.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					"upgrades" => meta.CustomUpgrades?.Any(u => string.Equals(u.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+					"items" => meta.Templates?.Items?.Any(i => string.Equals(i.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+					"upgrades" => meta.Templates?.Upgrades?.Any(u => string.Equals(u.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
 					_ => false
 				};
 

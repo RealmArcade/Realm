@@ -1928,7 +1928,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("Abilities", out var abilityDefinition) || definitionsObject.TryGetPropertyValue("CustomAbilities", out abilityDefinition))
+			if (definitionsObject.TryGetPropertyValue("Abilities", out var abilityDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(abilityDefinition, set);
 			}
@@ -1947,7 +1947,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("Weapons", out var weaponDefinition) || definitionsObject.TryGetPropertyValue("CustomWeapons", out weaponDefinition))
+			if (definitionsObject.TryGetPropertyValue("Weapons", out var weaponDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(weaponDefinition, set);
 			}
@@ -1966,7 +1966,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("Upgrades", out var upgradeDefinition) || definitionsObject.TryGetPropertyValue("CustomUpgrades", out upgradeDefinition))
+			if (definitionsObject.TryGetPropertyValue("Upgrades", out var upgradeDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(upgradeDefinition, set);
 			}
@@ -1985,7 +1985,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("Items", out var itemDefinition) || definitionsObject.TryGetPropertyValue("CustomItems", out itemDefinition))
+			if (definitionsObject.TryGetPropertyValue("Items", out var itemDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(itemDefinition, set);
 			}
@@ -2006,7 +2006,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("Attachments", out var attachDefinition) || definitionsObject.TryGetPropertyValue("CustomAttachments", out attachDefinition))
+			if (definitionsObject.TryGetPropertyValue("Attachments", out var attachDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(attachDefinition, set);
 			}
@@ -2027,7 +2027,7 @@ public class SaveLoadService
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
 		{
-			if (definitionsObject.TryGetPropertyValue("Vfx", out var vfxDefinition) || definitionsObject.TryGetPropertyValue("CustomVfx", out vfxDefinition))
+			if (definitionsObject.TryGetPropertyValue("Vfx", out var vfxDefinition))
 			{
 				ExtractPropertiesFromSchemaNode(vfxDefinition, set);
 			}
