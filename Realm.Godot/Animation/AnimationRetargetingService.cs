@@ -17,7 +17,7 @@ public static class AnimationRetargetingService
 		CachedRanimData.Clear();
 	}
 
-	public static RealmAnimationData GetOrLoadRanimData(string filePath)
+	public static RealmAnimationData? GetOrLoadRanimData(string filePath)
 	{
 		if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
 
@@ -26,12 +26,20 @@ public static class AnimationRetargetingService
 			return cached;
 		}
 
-		var data = RealmAnimationSerializer.LoadFromFile(filePath);
-		if (data != null)
+		try
 		{
-			CachedRanimData[filePath] = data;
+			var data = RealmAnimationSerializer.LoadFromFile(filePath);
+			if (data != null)
+			{
+				CachedRanimData[filePath] = data;
+			}
+			return data;
 		}
-		return data;
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AnimationRetargetingService] Failed to load RANIM from '{filePath}': {ex.Message}");
+			return null;
+		}
 	}
 
 	public static string ResolveAnimationFilePath(string animName, string unitId = null)

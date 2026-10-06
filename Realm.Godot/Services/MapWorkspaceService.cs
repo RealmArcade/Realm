@@ -304,6 +304,95 @@ public static partial class MapWorkspaceService
 		EnsureApiLib(directory);
 
 		EnsureDirectoryBuildTargets(directory);
+
+		EnsureNugetConfig(directory);
+	}
+
+	private const string CanonicalNugetConfigContent =
+		"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+		"<configuration>\n" +
+		"  <packageSources>\n" +
+		"    <add key=\"nuget.org\" value=\"https://api.nuget.org/v3/index.json\" />\n" +
+		"    <add key=\"dotnet-experimental\" value=\"https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-experimental/nuget/v3/index.json\" />\n" +
+		"  </packageSources>\n" +
+		"</configuration>\n";
+
+	public static void EnsureNugetConfig(string directory)
+	{
+		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
+
+		string configPath = Path.Combine(directory, "NuGet.config");
+		string templatePath = GetTemplatePath("NuGet.config");
+
+		try
+		{
+			if (!File.Exists(configPath))
+			{
+				if (!string.IsNullOrEmpty(templatePath) && File.Exists(templatePath))
+				{
+					PathUtils.CopyFileClearingReadOnly(templatePath, configPath);
+				}
+				else
+				{
+					File.WriteAllText(configPath, CanonicalNugetConfigContent);
+				}
+				return;
+			}
+
+			string content = File.ReadAllText(configPath);
+			const string experimentalKey = "dotnet-experimental";
+			const string experimentalUrl = "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-experimental/nuget/v3/index.json";
+			const string entryToAdd = "    <add key=\"dotnet-experimental\" value=\"https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-experimental/nuget/v3/index.json\" />\n";
+
+			bool contentModified = false;
+			if (!content.Contains(experimentalKey, StringComparison.OrdinalIgnoreCase))
+			{
+				int closingSourcesIndex = content.IndexOf("</packageSources>", StringComparison.OrdinalIgnoreCase);
+				if (closingSourcesIndex >= 0)
+				{
+					content = content.Insert(closingSourcesIndex, entryToAdd);
+					contentModified = true;
+				}
+				else
+				{
+					int closingConfigIndex = content.IndexOf("</configuration>", StringComparison.OrdinalIgnoreCase);
+					if (closingConfigIndex >= 0)
+					{
+						string sectionToAdd = "  <packageSources>\n" + entryToAdd + "  </packageSources>\n";
+						content = content.Insert(closingConfigIndex, sectionToAdd);
+						contentModified = true;
+					}
+					else
+					{
+						content = CanonicalNugetConfigContent;
+						contentModified = true;
+					}
+				}
+			}
+			else if (!content.Contains(experimentalUrl, StringComparison.OrdinalIgnoreCase))
+			{
+				content = Regex.Replace(content, @"<add\s+key\s*=\s*""dotnet-experimental""\s+value\s*=\s*""[^""]*""\s*/>",
+					$"<add key=\"{experimentalKey}\" value=\"{experimentalUrl}\" />", RegexOptions.IgnoreCase);
+				contentModified = true;
+			}
+
+			if (contentModified)
+			{
+				if (File.Exists(configPath))
+				{
+					var fileAttributes = File.GetAttributes(configPath);
+					if ((fileAttributes & FileAttributes.ReadOnly) != 0)
+					{
+						File.SetAttributes(configPath, fileAttributes & ~FileAttributes.ReadOnly);
+					}
+				}
+				File.WriteAllText(configPath, content);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Failed to ensure NuGet.config in {directory}: {ex.Message}");
+		}
 	}
 
 	public static void EnsureDirectoryBuildTargets(string directory)

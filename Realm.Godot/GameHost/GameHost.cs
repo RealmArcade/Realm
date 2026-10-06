@@ -1823,7 +1823,6 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private IMapScript _activeMapScript;
 	public static string? PendingMapScriptPath { get; set; }
-
 	private System.Runtime.Loader.AssemblyLoadContext? _mapScriptLoadContext;
 
 	private class MapScriptLoadContext : System.Runtime.Loader.AssemblyLoadContext
@@ -5286,8 +5285,11 @@ public class {mapName} : IMapScript
 		_fDelta = fDelta;
 
 		_simulationService.TickEcs(fDelta);
+
 		PollVFXQueue();
+
 		TickConstructionSystem(fDelta);
+
 		UpdateVisualNodesFromEcs(fDelta);
 
 		if (EcsWorld != null && EcsWorld.IsAlive(_worldEntity) && EcsWorld.Has<WorldState>(_worldEntity))
@@ -5308,7 +5310,9 @@ public class {mapName} : IMapScript
 		UpdateMinimapPings(fDelta);
 
 		TickScheduledTimers(fDelta);
+
 		TickZoneTriggers();
+
 		if (_activeMapScript != null)
 		{
 			_activeMapScript.Update(this, fDelta);
