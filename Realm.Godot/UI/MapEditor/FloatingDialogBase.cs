@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Realm.Godot.Services;
 using Realm.Godot.VFX;
 
@@ -1142,7 +1143,9 @@ public partial class FloatingDialogBase : PanelContainer
 	public static List<string> ScanAvailableAssets(string category, bool includeAllFolders = false, string subFolder = null)
 	{
 		var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
+			? MapWorkspaceService.GetActiveWorkspacePath()
+			: ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 
 		try
 		{
@@ -1246,6 +1249,19 @@ public partial class FloatingDialogBase : PanelContainer
 								}
 							}
 						}
+
+						string decalsDir = Path.Combine(wsPath, "Assets", "decals");
+						if (Directory.Exists(decalsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(decalsDir, "*.*", SearchOption.AllDirectories))
+							{
+								string ext = Path.GetExtension(file);
+								if (ext.Equals(".rtex", StringComparison.OrdinalIgnoreCase) || ext.Equals(".png", StringComparison.OrdinalIgnoreCase) || ext.Equals(".webp", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(file));
+								}
+							}
+						}
 					}
 					else if (category == "models" || category == "glb" || category == "attachments" || category == "items" || category == "weapons" || category == "projectiles")
 					{
@@ -1326,7 +1342,7 @@ public partial class FloatingDialogBase : PanelContainer
 							}
 						}
 					}
-					else if (category == "animations" || category == "ranim")
+					else if (category == "animations" || category == "ranim" || category == "animation")
 					{
 						var aDict = assetsObj.GetCategory("Animation");
 						if (aDict != null)
@@ -1336,6 +1352,19 @@ public partial class FloatingDialogBase : PanelContainer
 								if (!string.IsNullOrWhiteSpace(kvp.Key))
 								{
 									result.Add(kvp.Key);
+								}
+							}
+						}
+
+						string animsDir = Path.Combine(wsPath, "Assets", "animations");
+						if (Directory.Exists(animsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(animsDir, "*.*", SearchOption.AllDirectories))
+							{
+								string ext = Path.GetExtension(file);
+								if (ext.Equals(".ranim", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(file));
 								}
 							}
 						}

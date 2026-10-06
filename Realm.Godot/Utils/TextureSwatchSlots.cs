@@ -30,14 +30,22 @@ public static class TextureSwatchSlots
 {
 	public const int MaxSlots = 256;
 
-	public static HashSet<string> BuildKnownRibbonsCache(MapManifestAssets? allAssets = null, string? mapDir = null)
+	public static HashSet<string> BuildKnownRibbonsCache(MapMetadata? metadata = null, string? mapDir = null)
 	{
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		var ribbonDict = allAssets?.GetCategory("Ribbon");
-		if (ribbonDict != null)
+		if (metadata == null && !string.IsNullOrEmpty(mapDir))
 		{
-			foreach (var kvp in ribbonDict)
+			try
+			{
+				metadata = MapFileService.LoadMetadata(mapDir);
+			}
+			catch { }
+		}
+
+		if (metadata?.Ribbons != null)
+		{
+			foreach (var kvp in metadata.Ribbons)
 			{
 				set.Add(kvp.Key);
 				set.Add(Path.GetFileNameWithoutExtension(kvp.Key));
@@ -114,19 +122,29 @@ public static class TextureSwatchSlots
 		return -1;
 	}
 
-	public static SwatchSlotInfo[] ResolveSlots(Dictionary<string, string>? texturesDict, string mapDir)
+	public static SwatchSlotInfo[] ResolveSlots(Dictionary<string, TextureMetadata>? texturesDict, string mapDir)
 	{
 		var result = new SwatchSlotInfo[MaxSlots];
 		var occupied = new bool[MaxSlots];
 
-		MapManifestAssets? allAssets = null;
-		try
+		MapMetadata? metadata = null;
+		if (texturesDict == null && !string.IsNullOrEmpty(mapDir))
 		{
-			allAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(mapDir);
+			try
+			{
+				metadata = MapFileService.LoadMetadata(mapDir);
+				texturesDict = metadata?.Textures;
+			}
+			catch { }
 		}
-		catch { }
-
-		texturesDict ??= allAssets?.GetCategory("Terrain");
+		else if (!string.IsNullOrEmpty(mapDir))
+		{
+			try
+			{
+				metadata = MapFileService.LoadMetadata(mapDir);
+			}
+			catch { }
+		}
 
 		if (texturesDict == null)
 		{
@@ -137,17 +155,7 @@ public static class TextureSwatchSlots
 			return result;
 		}
 
-		MapMetadata? metadata = null;
-		try
-		{
-			if (!string.IsNullOrEmpty(mapDir))
-			{
-				metadata = MapFileService.LoadMetadata(mapDir);
-			}
-		}
-		catch { }
-
-		var knownRibbons = BuildKnownRibbonsCache(allAssets, mapDir);
+		var knownRibbons = BuildKnownRibbonsCache(metadata, mapDir);
 
 		var candidateItems = new List<(string BaseName, string FileName, int RequestedSlot, TextureMetadata? Node)>();
 
@@ -160,14 +168,8 @@ public static class TextureSwatchSlots
 			}
 
 			string baseName = Path.GetFileNameWithoutExtension(fileName);
-			int requestedSlot = -1;
-			TextureMetadata? texMeta = null;
-
-			if (metadata != null && metadata.Textures != null && metadata.Textures.TryGetValue(fileName, out var foundMeta) && foundMeta != null)
-			{
-				texMeta = foundMeta;
-				requestedSlot = foundMeta.SwatchIndex;
-			}
+			int requestedSlot = kvp.Value?.SwatchIndex ?? -1;
+			TextureMetadata? texMeta = kvp.Value;
 
 			candidateItems.Add((baseName, fileName, requestedSlot, texMeta));
 		}

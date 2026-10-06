@@ -9587,8 +9587,8 @@ public partial class MapEditorHUD : Control
 			string wsPath = string.IsNullOrEmpty(_tempWorkspacePath) 
 				? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 				: _tempWorkspacePath;
-			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			Dictionary<string, string>? texturesDict = unionedAssets?.GetCategory("Terrain");
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			Dictionary<string, Realm.Shared.Metadata.TextureMetadata>? texturesDict = metadata?.Textures;
 
 			var slots = Realm.Godot.Utils.TextureSwatchSlots.ResolveSlots(texturesDict, wsPath);
 			for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)

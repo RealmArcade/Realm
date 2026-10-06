@@ -54,16 +54,26 @@ public static class AnimationRetargetingService
 		{
 			string uClean = unitId.ToLowerInvariant();
 			candidateNames.Add($"{uClean}_{cleanName}");
+			candidateNames.Add($"{unitId}_{animName}");
+		}
+		candidateNames.Add(animName);
+		if (!animName.EndsWith(".ranim", StringComparison.OrdinalIgnoreCase))
+		{
+			candidateNames.Add($"{animName}.ranim");
 		}
 		candidateNames.Add(cleanName);
 
-		string tempWs = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-		if (!string.IsNullOrEmpty(tempWs))
+		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
+			? MapWorkspaceService.GetActiveWorkspacePath()
+			: ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		if (!string.IsNullOrEmpty(wsPath))
 		{
 			foreach (var candName in candidateNames)
 			{
-				string p = Path.Combine(tempWs, "Assets", "animations", candName);
+				string p = Path.Combine(wsPath, "Assets", "animations", candName);
 				if (File.Exists(p)) return p;
+				string directP = Path.Combine(wsPath, candName);
+				if (File.Exists(directP)) return directP;
 			}
 		}
 
