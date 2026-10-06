@@ -1140,32 +1140,6 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					break;
 				}
 
-			case "item" or "items":
-				{
-					string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", slug);
-					if (!templatesObj.ContainsKey("Items") || templatesObj["Items"] is not JsonArray)
-					{
-						templatesObj["Items"] = new JsonArray();
-					}
-					var itemsArr = templatesObj["Items"]!.AsArray();
-					bool exists = itemsArr.OfType<JsonObject>().Any(i =>
-						string.Equals(i["TemplateID"]?.ToString(), itemTemplateId, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(i["IconPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
-					if (!exists)
-					{
-						itemsArr.Add(new JsonObject
-						{
-							["TemplateID"] = itemTemplateId,
-							["Name"] = slug,
-							["Description"] = "",
-							["ItemClass"] = "consumable",
-							["IconPath"] = fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : null,
-							["CanDrop"] = true
-						});
-					}
-					break;
-				}
-
 			case "decal" or "decals":
 				{
 					string decalTemplateId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
@@ -1279,47 +1253,6 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					break;
 				}
 
-			case "ribbon" or "ribbons":
-				{
-					string ribbonTemplateId = TemplateIDHelper.NormalizeTemplateID("ribbon", slug);
-					if (!metadataRoot.ContainsKey("ribbons") || metadataRoot["ribbons"] is not JsonObject)
-					{
-						metadataRoot["ribbons"] = new JsonObject();
-					}
-					var ribbonsObj = metadataRoot["ribbons"]!.AsObject();
-					bool exists = ribbonsObj.Any(kvp => string.Equals(kvp.Key, ribbonTemplateId, StringComparison.OrdinalIgnoreCase));
-					if (!exists)
-					{
-						ribbonsObj[ribbonTemplateId] = new JsonObject
-						{
-							["Hash"] = hash ?? string.Empty
-						};
-					}
-					break;
-				}
-
-			case "noise" or "noise_textures":
-				{
-					if (!metadataRoot.ContainsKey("noise_textures") || metadataRoot["noise_textures"] is not JsonObject)
-					{
-						metadataRoot["noise_textures"] = new JsonObject();
-					}
-					var noiseObj = metadataRoot["noise_textures"]!.AsObject();
-					bool exists = noiseObj.Any(kvp =>
-						string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
-						(kvp.Value is JsonObject nObj && string.Equals(nObj["AssetType"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
-					if (!exists)
-					{
-						noiseObj[fileName] = new JsonObject
-						{
-							["Hash"] = hash ?? string.Empty,
-							["AssetType"] = fileName,
-							["ScaleFactor"] = 1.0f
-						};
-					}
-					break;
-				}
-
 			case "skybox" or "skyboxes":
 				{
 					string skyboxTemplateId = TemplateIDHelper.NormalizeTemplateID("skybox", slug);
@@ -1332,25 +1265,6 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					if (!exists)
 					{
 						skyboxesObj[skyboxTemplateId] = new JsonObject
-						{
-							["Hash"] = hash ?? string.Empty
-						};
-					}
-					break;
-				}
-
-			case "shader" or "shaders":
-				{
-					string shaderTemplateId = TemplateIDHelper.NormalizeTemplateID("shader", slug);
-					if (!metadataRoot.ContainsKey("shaders") || metadataRoot["shaders"] is not JsonObject)
-					{
-						metadataRoot["shaders"] = new JsonObject();
-					}
-					var shadersObj = metadataRoot["shaders"]!.AsObject();
-					bool exists = shadersObj.Any(kvp => string.Equals(kvp.Key, shaderTemplateId, StringComparison.OrdinalIgnoreCase));
-					if (!exists)
-					{
-						shadersObj[shaderTemplateId] = new JsonObject
 						{
 							["Hash"] = hash ?? string.Empty
 						};
