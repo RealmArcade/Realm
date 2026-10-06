@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Text.Json.Schema;
+using System.Linq;
 using System.Text.Json.Serialization;
 using Realm.Shared.Metadata;
 using Realm.Shared.Serialization;
+using Realm.Shared.Services;
 
 namespace Realm.Shared.Distribution;
 
@@ -152,26 +150,7 @@ public class MapManifest
         }
     }
 
-    public static void FlattenAssetsInto(Dictionary<string, string> destinationFiles, JsonObject assets)
-    {
-        var manifestAssets = JsonSerializer.Deserialize<MapManifestAssets>(assets.ToJsonString());
-        if (manifestAssets != null)
-        {
-            FlattenAssetsInto(destinationFiles, manifestAssets);
-        }
-    }
-
     public static Dictionary<string, string> FlattenAssetsToFiles(MapManifestAssets? assets)
-    {
-        var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (assets != null)
-        {
-            FlattenAssetsInto(files, assets);
-        }
-        return files;
-    }
-
-    public static Dictionary<string, string> FlattenAssetsToFiles(JsonObject? assets)
     {
         var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (assets != null)
@@ -399,7 +378,7 @@ public class MapManifest
         {
             try
             {
-                var existing = LoadFromFile(manifestJsonPath);
+                var existing = MapFileService.LoadManifest(manifestJsonPath);
                 if (existing != null)
                 {
                     if (string.IsNullOrEmpty(manifest.MapName) && !string.IsNullOrEmpty(existing.MapName))
@@ -475,76 +454,27 @@ public class MapManifest
             Assets = unflattened;
         }
 
-        var options = new JsonSerializerOptions
-        {
-            WriteIndented = writeIndented
-        };
-        return JsonSerializer.Serialize(this, options);
+        return MapFileService.SaveManifestToJson(this);
     }
 
     public void SaveToFile(string filePath)
     {
-        string? directory = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        if (_files.Count > 0)
         {
-            Directory.CreateDirectory(directory);
+            var unflattened = UnflattenFilesToAssets(_files);
+            if (Assets != null)
+            {
+                MergeCustomPropertiesIntoAssets(unflattened, Assets);
+            }
+            Assets = unflattened;
         }
 
-        File.WriteAllText(filePath, ToJson());
+        MapFileService.SaveManifest(filePath, this);
     }
 
-    private static readonly JsonSerializerOptions ManifestJsonOptions = new()
+    public static MapManifest LoadFromJson(string json)
     {
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
-    public static MapManifest? LoadFromJson(string json)
-    {
-        var manifest = JsonSerializer.Deserialize<MapManifest>(json, ManifestJsonOptions);
-        if (manifest != null)
-        {
-            if (manifest.Assets != null && manifest._files.Count == 0)
-            {
-                manifest.EnsureFilesFromAssets();
-            }
-            else if (manifest._files.Count == 0)
-            {
-                try
-                {
-                    var node = JsonNode.Parse(json, documentOptions: new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
-                    if (node is JsonObject rootObj)
-                    {
-                        var assetsObj = new JsonObject();
-                        foreach (var kvp in rootObj)
-                        {
-                            if (kvp.Value is JsonObject catObj &&
-                                !string.Equals(kvp.Key, "MapName", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Author", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Version", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Description", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Tags", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "GameBuildNumber", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Maintainers", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "GreenlitReferences", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Assets", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Files", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "FileSizes", StringComparison.OrdinalIgnoreCase))
-                            {
-                                assetsObj[kvp.Key] = catObj.DeepClone();
-                            }
-                        }
-                        if (assetsObj.Count > 0)
-                        {
-                            manifest.Assets = JsonSerializer.Deserialize<MapManifestAssets>(assetsObj.ToJsonString(), ManifestJsonOptions);
-                            manifest.EnsureFilesFromAssets();
-                        }
-                    }
-                }
-                catch { }
-            }
-        }
-        return manifest;
+        return MapFileService.LoadManifestFromJson(json);
     }
 
     public static string GenerateJsonSchema()
@@ -558,15 +488,9 @@ public class MapManifest
         return RealmMetadataHelper.ComputeBlake3(System.Text.Encoding.UTF8.GetBytes(json), ".json");
     }
 
-    public static MapManifest? LoadFromFile(string filePath)
+    public static MapManifest LoadFromFile(string filePath)
     {
-        if (!File.Exists(filePath))
-        {
-            return null;
-        }
-
-        string json = File.ReadAllText(filePath);
-        return LoadFromJson(json);
+        return MapFileService.LoadManifest(filePath);
     }
 
     public bool IsCandidateFile(string relativePath)
@@ -644,7 +568,7 @@ public class MapManifest
     }
 }
 
-public class MapManifestAssets
+public class MapManifestAssets : IEnumerable<KeyValuePair<string, Dictionary<string, string>>>
 {
     [JsonPropertyName("Animation")]
     public Dictionary<string, string>? Animation { get; set; }
@@ -697,275 +621,58 @@ public class MapManifestAssets
     [JsonPropertyName("vfx_vertical")]
     public Dictionary<string, string>? VfxVertical { get; set; }
 
-    [JsonPropertyName("animations")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Animation instead.")]
-    public Dictionary<string, string>? AnimationAlias
-    {
-        get => null;
-        set => Animation = MergeOrSet(Animation, value);
-    }
-
-    [JsonPropertyName("decals")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Decal instead.")]
-    public Dictionary<string, string>? DecalAlias
-    {
-        get => null;
-        set => Decal = MergeOrSet(Decal, value);
-    }
-
-    [JsonPropertyName("icons")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Icon instead.")]
-    public Dictionary<string, string>? IconAlias
-    {
-        get => null;
-        set => Icon = MergeOrSet(Icon, value);
-    }
-
-    [JsonPropertyName("music")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Music instead.")]
-    public Dictionary<string, string>? MusicAlias
-    {
-        get => null;
-        set => Music = MergeOrSet(Music, value);
-    }
-
-    [JsonPropertyName("noise_textures")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Noise instead.")]
-    public Dictionary<string, string>? NoiseTexturesAlias
-    {
-        get => null;
-        set => Noise = MergeOrSet(Noise, value);
-    }
-
-    [JsonPropertyName("ribbons")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Ribbon instead.")]
-    public Dictionary<string, string>? RibbonAlias
-    {
-        get => null;
-        set => Ribbon = MergeOrSet(Ribbon, value);
-    }
-
-    [JsonPropertyName("sfx")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use SoundEffect instead.")]
-    public Dictionary<string, string>? SfxAlias
-    {
-        get => null;
-        set => SoundEffect = MergeOrSet(SoundEffect, value);
-    }
-
-    [JsonPropertyName("shaders")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Shader instead.")]
-    public Dictionary<string, string>? ShaderAlias
-    {
-        get => null;
-        set => Shader = MergeOrSet(Shader, value);
-    }
-
-    [JsonPropertyName("skyboxes")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Skybox instead.")]
-    public Dictionary<string, string>? SkyboxAlias
-    {
-        get => null;
-        set => Skybox = MergeOrSet(Skybox, value);
-    }
-
-    [JsonPropertyName("textures")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Terrain instead.")]
-    public Dictionary<string, string>? TexturesAlias
-    {
-        get => null;
-        set => Terrain = MergeOrSet(Terrain, value);
-    }
-
-    [JsonPropertyName("units")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Character instead.")]
-    public Dictionary<string, string>? UnitsAlias
-    {
-        get => null;
-        set => Character = MergeOrSet(Character, value);
-    }
-
-    [JsonPropertyName("buildings")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Building instead.")]
-    public Dictionary<string, string>? BuildingsAlias
-    {
-        get => null;
-        set => Building = MergeOrSet(Building, value);
-    }
-
-    [JsonPropertyName("props")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Prop instead.")]
-    public Dictionary<string, string>? PropsAlias
-    {
-        get => null;
-        set => Prop = MergeOrSet(Prop, value);
-    }
-
-    [JsonPropertyName("resources")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Prop instead.")]
-    public Dictionary<string, string>? ResourcesAlias
-    {
-        get => null;
-        set => Prop = MergeOrSet(Prop, value);
-    }
-
-    [JsonPropertyName("items")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Item instead.")]
-    public Dictionary<string, string>? ItemsAlias
-    {
-        get => null;
-        set => Item = MergeOrSet(Item, value);
-    }
-
-    [JsonPropertyName("projectiles")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Item instead.")]
-    public Dictionary<string, string>? ProjectilesAlias
-    {
-        get => null;
-        set => Item = MergeOrSet(Item, value);
-    }
-
     [JsonPropertyName("Other")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? Other { get; set; }
 
-    [JsonPropertyName("other")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Other instead.")]
-    public Dictionary<string, string>? OtherAlias
-    {
-        get => null;
-        set => Other = MergeOrSet(Other, value);
-    }
+    [JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; set; }
 
-    [JsonPropertyName("attachments")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Item instead.")]
-    public Dictionary<string, string>? AttachmentsAlias
+    [System.Runtime.CompilerServices.IndexerName("CategoryItems")]
+    public Dictionary<string, string>? this[string category]
     {
-        get => null;
-        set => Item = MergeOrSet(Item, value);
-    }
-
-    [JsonPropertyName("weapons")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Item instead.")]
-    public Dictionary<string, string>? WeaponsAlias
-    {
-        get => null;
-        set => Item = MergeOrSet(Item, value);
-    }
-
-    [JsonPropertyName("vfx_spritesheets")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use Spritesheet instead.")]
-    public Dictionary<string, string>? VfxSpritesheetsAlias
-    {
-        get => null;
-        set => Spritesheet = MergeOrSet(Spritesheet, value);
-    }
-
-    [JsonPropertyName("glb")]
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Obsolete("Use canonical categories instead.")]
-    public Dictionary<string, Dictionary<string, string>>? GlbAlias
-    {
-        get => null;
+        get => GetCategory(category);
         set
         {
-            if (value == null) return;
-            foreach (var kvp in value)
-            {
-                switch (kvp.Key.ToLowerInvariant())
-                {
-                    case "units" or "characters":
-                        Character = MergeOrSet(Character, kvp.Value);
-                        break;
-                    case "resources" or "props":
-                        Prop = MergeOrSet(Prop, kvp.Value);
-                        break;
-                    case "projectiles" or "attachments" or "weapons" or "items":
-                        Item = MergeOrSet(Item, kvp.Value);
-                        break;
-                    case "buildings":
-                        Building = MergeOrSet(Building, kvp.Value);
-                        break;
-                }
-            }
+            if (value != null) SetCategory(category, value);
         }
     }
 
-    private static Dictionary<string, string>? MergeOrSet(Dictionary<string, string>? target, Dictionary<string, string>? source)
+    public IEnumerator<KeyValuePair<string, Dictionary<string, string>>> GetEnumerator()
     {
-        if (source == null) return target;
-        if (target == null) return new Dictionary<string, string>(source, StringComparer.OrdinalIgnoreCase);
-        foreach (var kvp in source)
-        {
-            target[kvp.Key] = kvp.Value;
-        }
-        return target;
+        return GetAllCategories().GetEnumerator();
     }
 
-    [JsonExtensionData]
-    public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    public bool ContainsCategory(string category)
+    {
+        return GetCategory(category) != null;
+    }
 
     public Dictionary<string, string>? GetCategory(string category)
     {
         return category switch
         {
-            "Animation" => Animation,
-            "Building" => Building,
-            "Character" => Character,
-            "Decal" => Decal,
-            "Icon" => Icon,
-            "Item" => Item,
-            "Music" => Music,
-            "Noise" => Noise,
+            "Animation" or "animations" => Animation,
+            "Building" or "buildings" => Building,
+            "Character" or "characters" or "units" => Character,
+            "Decal" or "decals" => Decal,
+            "Icon" or "icons" => Icon,
+            "Item" or "items" or "projectiles" or "attachments" or "weapons" => Item,
+            "Music" or "music" => Music,
+            "Noise" or "noise" or "noise_textures" => Noise,
             "Other" or "other" => Other,
-            "Prop" => Prop,
-            "Ribbon" => Ribbon,
-            "Shader" => Shader,
-            "Skybox" => Skybox,
-            "SoundEffect" => SoundEffect,
-            "Spritesheet" => Spritesheet,
-            "Terrain" => Terrain,
+            "Prop" or "props" or "resources" => Prop,
+            "Ribbon" or "ribbons" or "ribbon_textures" => Ribbon,
+            "Shader" or "shaders" => Shader,
+            "Skybox" or "skyboxes" => Skybox,
+            "SoundEffect" or "sfx" or "audio" or "sounds" => SoundEffect,
+            "Spritesheet" or "spritesheets" or "vfx" or "vfx_spritesheets" => Spritesheet,
+            "Terrain" or "textures" => Terrain,
             "vfx_radial" => VfxRadial,
             "vfx_vertical" => VfxVertical,
             _ => GetFromAdditionalProperties(category)
@@ -995,8 +702,8 @@ public class MapManifestAssets
             case "vfx_radial": VfxRadial = dictionary; break;
             case "vfx_vertical": VfxVertical = dictionary; break;
             default:
-                AdditionalProperties ??= new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-                AdditionalProperties[category] = JsonSerializer.SerializeToElement(dictionary);
+                AdditionalProperties ??= new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.OrdinalIgnoreCase);
+                AdditionalProperties[category] = System.Text.Json.JsonSerializer.SerializeToElement(dictionary);
                 break;
         }
     }
@@ -1036,12 +743,12 @@ public class MapManifestAssets
 
     private Dictionary<string, string>? GetFromAdditionalProperties(string category)
     {
-        if (AdditionalProperties != null && AdditionalProperties.TryGetValue(category, out var element) && element.ValueKind == JsonValueKind.Object)
+        if (AdditionalProperties != null && AdditionalProperties.TryGetValue(category, out var element) && element.ValueKind == System.Text.Json.JsonValueKind.Object)
         {
             var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var prop in element.EnumerateObject())
             {
-                dict[prop.Name] = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() ?? string.Empty : prop.Value.ToString();
+                dict[prop.Name] = prop.Value.ValueKind == System.Text.Json.JsonValueKind.String ? prop.Value.GetString() ?? string.Empty : prop.Value.ToString();
             }
             return dict;
         }

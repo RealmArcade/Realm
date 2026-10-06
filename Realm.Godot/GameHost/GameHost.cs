@@ -2844,30 +2844,25 @@ public class {mapName} : IMapScript
 		try
 		{
 			string dir = !string.IsNullOrEmpty(CurrentMapDirectory) ? CurrentMapDirectory : Godot.ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(dir) ?? new System.Text.Json.Nodes.JsonObject();
-			var glbObj = assetsObj["glb"]?.AsObject();
-			if (glbObj == null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(dir);
+			metadata.Templates ??= new TemplateContainer();
+			metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
+
+			int existingIndex = metadata.Templates.Attachments.FindIndex(a => string.Equals(a.AttachmentId, meta.AttachmentId, StringComparison.OrdinalIgnoreCase) || string.Equals(a.AttachmentId, fileName, StringComparison.OrdinalIgnoreCase));
+			if (existingIndex >= 0)
 			{
-				glbObj = new System.Text.Json.Nodes.JsonObject();
-				assetsObj["glb"] = glbObj;
+				metadata.Templates.Attachments[existingIndex] = meta;
 			}
-			var attObj = glbObj["attachments"]?.AsObject();
-			if (attObj == null)
+			else
 			{
-				attObj = new System.Text.Json.Nodes.JsonObject();
-				glbObj["attachments"] = attObj;
+				if (string.IsNullOrEmpty(meta.AttachmentId))
+				{
+					meta.AttachmentId = fileName;
+				}
+				metadata.Templates.Attachments.Add(meta);
 			}
 
-			var itemNode = attObj[fileName]?.AsObject() ?? new System.Text.Json.Nodes.JsonObject();
-			itemNode["scale"] = meta.Scale;
-			var posArr = new System.Text.Json.Nodes.JsonArray { meta.PositionOffset.X, meta.PositionOffset.Y, meta.PositionOffset.Z };
-			itemNode["position_offset"] = posArr;
-			var rotArr = new System.Text.Json.Nodes.JsonArray { meta.RotationOffset.X, meta.RotationOffset.Y, meta.RotationOffset.Z };
-			itemNode["rotation_offset"] = rotArr;
-			itemNode["default_hand"] = meta.DefaultHand ?? "RightHand";
-			attObj[fileName] = itemNode;
-
-			Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(dir, assetsObj, removeFromMetadata: true);
+			Realm.Shared.Services.MapFileService.SaveMetadata(dir, metadata);
 			LoadUnitMetadata(dir);
 		}
 		catch (Exception ex)

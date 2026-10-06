@@ -107,39 +107,6 @@ public class TerrainTextureUndoAction : IEditorAction
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			var texturesObj = (assetsObj?["Terrain"] ?? assetsObj?["textures"]) as JsonObject;
-			if (texturesObj != null)
-			{
-				bool anyUpdated = false;
-				foreach (var kvp in texturesObj)
-				{
-					if (string.Equals(kvp.Key, _textureFileName, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(Path.GetFileName(kvp.Key), _textureFileName, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(Path.GetFileNameWithoutExtension(kvp.Key), Path.GetFileNameWithoutExtension(_textureFileName), StringComparison.OrdinalIgnoreCase))
-					{
-						if (kvp.Value is JsonObject sObj)
-						{
-							sObj["Brightness"] = snapshot.Brightness;
-							sObj["Tint"] = tintHex;
-							sObj["Height_Scale"] = snapshot.HeightScale;
-							sObj["Height_Offset"] = snapshot.HeightOffset;
-							sObj["Crevice_Power"] = snapshot.CrevicePower;
-							sObj["Normal_Scale"] = snapshot.NormalScale;
-							sObj["Roughness_Scale"] = snapshot.RoughnessScale;
-							sObj["Tile_Mode"] = snapshot.TileMode;
-							sObj["UV_Scale"] = snapshot.UvScale;
-							sObj["Stochastic_Tile_Size"] = snapshot.StochasticTileSize;
-							sObj["Cross_Fade"] = snapshot.CrossFade;
-							anyUpdated = true;
-							break;
-						}
-					}
-				}
-				if (anyUpdated)
-				{
-					Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
-				}
-			}
 
 			string metaPath = Path.Combine(wsPath, "metadata.json");
 			if (File.Exists(metaPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot != null)

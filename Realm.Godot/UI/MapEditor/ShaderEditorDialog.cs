@@ -439,21 +439,19 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		try
 		{
 			var assets = MapAssetHelper.LoadAssets(wsPath);
-			if (assets["rmesh"] is JsonObject rmeshObj)
+			foreach (var categoryName in new[] { "Character", "Building", "Prop", "Item" })
 			{
-				foreach (var sub in rmeshObj)
+				var catDict = assets.GetCategory(categoryName);
+				if (catDict != null)
 				{
-					if (sub.Value is JsonObject subObj)
+					foreach (var model in catDict)
 					{
-						foreach (var model in subObj)
+						if (!string.IsNullOrEmpty(model.Key) && model.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 						{
-							if (!string.IsNullOrEmpty(model.Key) && model.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+							string name = Path.GetFileName(model.Key);
+							if (!_availableModels.Contains(name))
 							{
-								string name = Path.GetFileName(model.Key);
-								if (!_availableModels.Contains(name))
-								{
-									_availableModels.Add(name);
-								}
+								_availableModels.Add(name);
 							}
 						}
 					}

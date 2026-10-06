@@ -17,6 +17,7 @@ using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
+using Realm.Shared.Services;
 using Realm.Godot.Utils;
 using Realm.Godot.VFX;
 using Realm.Godot.Services;
@@ -7004,9 +7005,10 @@ public partial class MapEditorHUD : Control
 				}
 
 				var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-				if (treeModels.Count == 0 && assetsObj?["glb"]?["resources"] is System.Text.Json.Nodes.JsonObject glbRes)
+				var propsDict = assetsObj?.GetCategory("Prop");
+				if (treeModels.Count == 0 && propsDict != null)
 				{
-					foreach (var kvp in glbRes)
+					foreach (var kvp in propsDict)
 					{
 						string key = kvp.Key;
 						if (key.Contains("tree", StringComparison.OrdinalIgnoreCase))
@@ -7017,7 +7019,7 @@ public partial class MapEditorHUD : Control
 
 					if (treeModels.Count == 0)
 					{
-						foreach (var kvp in glbRes)
+						foreach (var kvp in propsDict)
 						{
 							treeModels.Add(System.IO.Path.GetFileNameWithoutExtension(kvp.Key));
 						}
@@ -9586,9 +9588,9 @@ public partial class MapEditorHUD : Control
 				? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 				: _tempWorkspacePath;
 			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			JsonObject? texturesObj = (unionedAssets?["Terrain"] ?? unionedAssets?["textures"]) as JsonObject;
+			Dictionary<string, string>? texturesDict = unionedAssets?.GetCategory("Terrain");
 
-			var slots = Realm.Godot.Utils.TextureSwatchSlots.ResolveSlots(texturesObj, wsPath);
+			var slots = Realm.Godot.Utils.TextureSwatchSlots.ResolveSlots(texturesDict, wsPath);
 			for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)
 			{
 				var slot = slots[i];
@@ -12192,56 +12194,20 @@ public partial class MapEditorHUD : Control
 		try
 		{
 			string workspacePath = !string.IsNullOrEmpty(_tempWorkspacePath) ? _tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
-			string manifestPath = System.IO.Path.Combine(workspacePath, "manifest.json");
-			if (System.IO.File.Exists(manifestPath))
+			var manifest = MapFileService.LoadManifest(workspacePath);
+			if (TrySanitizeCandidate(manifest.MapName, out var manifestMapName))
 			{
-				string json = System.IO.File.ReadAllText(manifestPath);
-				var root = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
-				if (root != null)
-				{
-					if (root.TryGetPropertyValue("MapName", out var n) && TrySanitizeCandidate(n?.ToString(), out var manifestMapName))
-					{
-						_cachedMapName = manifestMapName;
-						_lastMapNameCacheTicks = now;
-						return manifestMapName;
-					}
-				}
+				_cachedMapName = manifestMapName;
+				_lastMapNameCacheTicks = now;
+				return manifestMapName;
 			}
 
-			string metaJsonPath = System.IO.Path.Combine(workspacePath, "metadata.json");
-			if (System.IO.File.Exists(metaJsonPath))
+			var metadata = MapFileService.LoadMetadata(workspacePath);
+			if (TrySanitizeCandidate(metadata.MapProperties?.MapName, out var parsedMpName))
 			{
-				try
-				{
-					var metaObj = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(metaJsonPath)) as System.Text.Json.Nodes.JsonObject;
-					if (metaObj != null)
-					{
-						if (metaObj.TryGetPropertyValue("MapProperties", out var mpNode) && mpNode is System.Text.Json.Nodes.JsonObject mpObj &&
-							mpObj.TryGetPropertyValue("MapName", out var mpName) && TrySanitizeCandidate(mpName?.ToString(), out var parsedMpName))
-						{
-							_cachedMapName = parsedMpName;
-							_lastMapNameCacheTicks = now;
-							return parsedMpName;
-						}
-						if (metaObj.TryGetPropertyValue("MapName", out var rootNameNode) && TrySanitizeCandidate(rootNameNode?.ToString(), out var parsedRootName))
-						{
-							_cachedMapName = parsedRootName;
-							_lastMapNameCacheTicks = now;
-							return parsedRootName;
-						}
-					}
-				}
-				catch { }
-			}
-
-			if (MetadataService.Instance.TryLoadMetadata(workspacePath, out var metadata))
-			{
-				if (TrySanitizeCandidate(metadata.MapProperties?.MapName, out var name1))
-				{
-					_cachedMapName = name1;
-					_lastMapNameCacheTicks = now;
-					return name1;
-				}
+				_cachedMapName = parsedMpName;
+				_lastMapNameCacheTicks = now;
+				return parsedMpName;
 			}
 
 			if (!string.IsNullOrEmpty(GameHost.Instance?.ActiveMapName))
@@ -12289,57 +12255,18 @@ public partial class MapEditorHUD : Control
 		try
 		{
 			string workspacePath = !string.IsNullOrEmpty(_tempWorkspacePath) ? _tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
-			string manifestPath = System.IO.Path.Combine(workspacePath, "manifest.json");
-			if (System.IO.File.Exists(manifestPath))
+			var manifest = MapFileService.LoadManifest(workspacePath);
+			if (!string.IsNullOrWhiteSpace(manifest.Version))
 			{
-				string json = System.IO.File.ReadAllText(manifestPath);
-				var root = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
-				if (root != null && root.TryGetPropertyValue("Version", out var verNode) && verNode != null)
-				{
-					string v = verNode.ToString().Trim();
-					if (!string.IsNullOrEmpty(v))
-					{
-						_cachedMapVersion = v;
-						return v;
-					}
-				}
+				_cachedMapVersion = manifest.Version.Trim();
+				return _cachedMapVersion;
 			}
 
-			if (MetadataService.Instance.TryLoadMetadata(workspacePath, out var metadata))
+			var metadata = MapFileService.LoadMetadata(workspacePath);
+			if (!string.IsNullOrWhiteSpace(metadata.MapProperties?.Version))
 			{
-				string? ver = metadata.MapProperties?.Version;
-				if (!string.IsNullOrWhiteSpace(ver))
-				{
-					_cachedMapVersion = ver.Trim();
-					return _cachedMapVersion;
-				}
-			}
-
-			string metaJsonPath = System.IO.Path.Combine(workspacePath, "metadata.json");
-			if (System.IO.File.Exists(metaJsonPath))
-			{
-				var doc = JsonNode.Parse(System.IO.File.ReadAllText(metaJsonPath));
-				if (doc != null)
-				{
-					if (doc["MapProperties"] is JsonObject props)
-					{
-						string? v = props["MapVersion"]?.ToString() ?? props["Version"]?.ToString();
-						if (!string.IsNullOrWhiteSpace(v))
-						{
-							_cachedMapVersion = v.Trim();
-							return _cachedMapVersion;
-						}
-					}
-					else
-					{
-						string? v = doc["Version"]?.ToString() ?? doc["MapVersion"]?.ToString();
-						if (!string.IsNullOrWhiteSpace(v))
-						{
-							_cachedMapVersion = v.Trim();
-							return _cachedMapVersion;
-						}
-					}
-				}
+				_cachedMapVersion = metadata.MapProperties.Version.Trim();
+				return _cachedMapVersion;
 			}
 
 			_cachedMapVersion = "1.0.0";
@@ -12416,16 +12343,8 @@ public partial class MapEditorHUD : Control
 			string wsPath = string.IsNullOrEmpty(_tempWorkspacePath) 
 				? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath) 
 				: _tempWorkspacePath;
-			string metadataPath = System.IO.Path.Combine(wsPath, "metadata.json");
-			JsonObject root = new JsonObject();
-			if (System.IO.File.Exists(metadataPath))
-			{
-				string text = System.IO.File.ReadAllText(metadataPath);
-				if (!string.IsNullOrWhiteSpace(text))
-				{
-					root = System.Text.Json.Nodes.JsonNode.Parse(text) as JsonObject ?? new JsonObject();
-				}
-			}
+
+			var metadata = MapFileService.LoadMetadata(wsPath);
 
 			if (category == "glb" && GameHost.Instance != null)
 			{
@@ -12442,285 +12361,155 @@ public partial class MapEditorHUD : Control
 						{
 							float rounded = (float)Math.Round(radius, 2);
 							GameHost.Instance.ModelObstacleRadii[normKey] = rounded;
-							if (!root.ContainsKey("Models") || root["Models"] is not JsonObject) root["Models"] = new JsonObject();
-							var modelsObj = (JsonObject)root["Models"]!;
-							if (!modelsObj.ContainsKey(normKey) || modelsObj[normKey] is not JsonObject) modelsObj[normKey] = new JsonObject();
-							((JsonObject)modelsObj[normKey]!)["ObstacleRadii"] = rounded;
+							metadata.SetModelObstacleRadius(normKey, rounded);
 						}
 					}
 				}
 			}
 
-			JsonObject assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
-
-			if (!string.IsNullOrEmpty(subCategory))
+			if (!string.IsNullOrEmpty(subCategory) && category == "glb")
 			{
-				if (!assetsObj.ContainsKey(category)) assetsObj[category] = new JsonObject();
-				JsonObject catObj = assetsObj[category] as JsonObject ?? new JsonObject();
-				if (!catObj.ContainsKey(subCategory)) catObj[subCategory] = new JsonObject();
-				JsonObject subObj = catObj[subCategory] as JsonObject ?? new JsonObject();
-				if (category == "glb")
+				float defaultScale = subCategory.ToLowerInvariant() switch
 				{
-					float defaultScale = subCategory.ToLowerInvariant() switch
-					{
-						"resources" => 2.75f,
-						"buildings" => 1.5f,
-						"props" => 1.25f,
-						"units" => 1.0f,
-						_ => 1.0f
-					};
+					"resources" => 2.75f,
+					"buildings" => 1.5f,
+					"props" => 1.25f,
+					"units" => 1.0f,
+					_ => 1.0f
+				};
 
-					string modelFullPath = System.IO.Path.Combine(wsPath, "Assets", "models", subCategory, fileName);
-					if (!System.IO.File.Exists(modelFullPath))
-					{
-						modelFullPath = System.IO.Path.Combine(wsPath, "Assets", "glb", subCategory, fileName);
-					}
+				string modelFullPath = System.IO.Path.Combine(wsPath, "Assets", "models", subCategory, fileName);
+				if (!System.IO.File.Exists(modelFullPath))
+				{
+					modelFullPath = System.IO.Path.Combine(wsPath, "Assets", "glb", subCategory, fileName);
+				}
 
-					var (minY, autoYOffset) = Realm.Godot.Utils.ModelCache.CalculateModelBounds(modelFullPath, defaultScale);
-					string subLower = subCategory.ToLowerInvariant();
-					bool isPropOrRes = subLower == "props" || subLower == "resources" || subLower == "attachments" || subLower == "weapons" || subLower == "items" || subLower == "projectiles";
+				var (minY, autoYOffset) = Realm.Godot.Utils.ModelCache.CalculateModelBounds(modelFullPath, defaultScale);
+				string subLower = subCategory.ToLowerInvariant();
+				bool isPropOrRes = subLower == "props" || subLower == "resources" || subLower == "attachments" || subLower == "weapons" || subLower == "items" || subLower == "projectiles";
 
-					var glbMetaObj = new JsonObject
-					{
-						["hash"] = blake3Hash,
-						["min_y"] = minY,
-						["scale"] = defaultScale,
-						["y_offset"] = autoYOffset,
-						["default_asset_type"] = subCategory.ToLowerInvariant(),
-						["despill_player_color"] = false,
-						["normalize_luminance"] = true,
-						["ignore_player_color"] = isPropOrRes
-					};
-					subObj[fileName] = glbMetaObj;
-					catObj[subCategory] = subObj;
-					assetsObj[category] = catObj;
+				metadata.SetModelYOffset(fileName, autoYOffset);
+				metadata.SetModelScale(fileName, defaultScale);
 
-					if (!root.ContainsKey("Models") || root["Models"] is not JsonObject) root["Models"] = new JsonObject();
-					var modelsMap = (JsonObject)root["Models"]!;
-					if (!modelsMap.ContainsKey(fileName) || modelsMap[fileName] is not JsonObject) modelsMap[fileName] = new JsonObject();
-					var modelEntry = (JsonObject)modelsMap[fileName]!;
-					modelEntry["Offsets"] = autoYOffset;
-					modelEntry["Scales"] = defaultScale;
+				GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
+				GameHost.Instance?.SetModelScale(fileName, defaultScale);
 
-					GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
-					GameHost.Instance?.SetModelScale(fileName, defaultScale);
-
-					string unitId = System.IO.Path.GetFileNameWithoutExtension(fileName);
-					string targetArrayKey = subCategory.ToLowerInvariant() switch
+				string unitId = System.IO.Path.GetFileNameWithoutExtension(fileName);
+				if (subLower == "buildings")
+				{
+					var b = metadata.FindBuilding(unitId);
+					if (b == null)
 					{
-						"units" => "Units",
-						"buildings" => "Buildings",
-						"resources" => "Resources",
-						"props" => "Props",
-						_ => "Units"
-					};
-
-					if (!root.ContainsKey("Templates") || root["Templates"] is not JsonObject)
-					{
-						root["Templates"] = new JsonObject();
-					}
-					JsonObject templatesObj = (JsonObject)root["Templates"]!;
-					if (!templatesObj.ContainsKey(targetArrayKey) || templatesObj[targetArrayKey] is not JsonArray)
-					{
-						templatesObj[targetArrayKey] = new JsonArray();
-					}
-					JsonArray targetArr = (JsonArray)templatesObj[targetArrayKey];
-					bool exists = false;
-					foreach (var item in targetArr)
-					{
-						if (item is JsonObject uObj && (uObj["UnitId"]?.ToString() == unitId || uObj["ModelPath"]?.ToString() == fileName))
+						b = new UnitMetadata
 						{
-							exists = true;
-							if (autoYOffset != 0f) uObj["YOffset"] = autoYOffset;
-							break;
-						}
-					}
-
-					if (!exists)
-					{
-						int defaultPathing = subCategory.ToLowerInvariant() switch
-						{
-							"units" => (int)(Realm.Ecs.Components.Terrain.TerrainPathingFlags.Ground | Realm.Ecs.Components.Terrain.TerrainPathingFlags.ShallowWater),
-							"buildings" => (int)Realm.Ecs.Components.Terrain.TerrainPathingFlags.Buildable,
-							"resources" => 0xFF,
-							"props" => 0xFF,
-							_ => (int)Realm.Ecs.Components.Terrain.TerrainPathingFlags.Ground
+							TemplateID = unitId,
+							Name = unitId,
+							Scale = defaultScale,
+							YOffset = autoYOffset,
+							PathingType = (int)Realm.Ecs.Components.Terrain.TerrainPathingFlags.Buildable,
+							ModelPath = fileName,
+							NormalizeLuminance = true,
+							IgnorePlayerColor = isPropOrRes
 						};
-
-						var newUnitObj = new JsonObject
+						metadata.AddOrUpdateBuilding(b);
+					}
+					else if (autoYOffset != 0f)
+					{
+						b.YOffset = autoYOffset;
+					}
+				}
+				else if (subLower == "props")
+				{
+					var p = metadata.FindProp(unitId);
+					if (p == null)
+					{
+						p = new PropMetadata
 						{
-							["UnitId"] = unitId,
-							["Name"] = unitId,
-							["Description"] = "",
-							["Scale"] = defaultScale,
-							["YOffset"] = autoYOffset,
-							["PathingType"] = defaultPathing,
-							["ModelPath"] = fileName,
-							["DespillPlayerColor"] = false,
-							["NormalizeLuminance"] = true,
-							["IgnorePlayerColor"] = isPropOrRes
+							TemplateID = unitId,
+							Name = unitId,
+							Scale = defaultScale,
+							YOffset = autoYOffset,
+							PathingType = 0xFF,
+							ModelPath = fileName,
+							NormalizeLuminance = true,
+							IgnorePlayerColor = isPropOrRes
 						};
-						targetArr.Add(newUnitObj);
+						metadata.AddOrUpdateProp(p);
+					}
+					else if (autoYOffset != 0f)
+					{
+						p.YOffset = autoYOffset;
+					}
+				}
+				else if (subLower == "resources")
+				{
+					var r = metadata.FindResource(unitId);
+					if (r == null)
+					{
+						r = new ResourceMetadata
+						{
+							TemplateID = unitId,
+							Name = unitId,
+							Scale = defaultScale,
+							YOffset = autoYOffset,
+							PathingType = 0xFF,
+							ModelPath = fileName,
+							NormalizeLuminance = true,
+							IgnorePlayerColor = isPropOrRes
+						};
+						metadata.AddOrUpdateResource(r);
+					}
+					else if (autoYOffset != 0f)
+					{
+						r.YOffset = autoYOffset;
 					}
 				}
 				else
 				{
-					subObj[fileName] = blake3Hash;
-					catObj[subCategory] = subObj;
-					assetsObj[category] = catObj;
-				}
-			}
-			else
-			{
-				if (!assetsObj.ContainsKey(category)) assetsObj[category] = new JsonObject();
-				JsonObject catObj = assetsObj[category] as JsonObject ?? new JsonObject();
-				if (category == "textures")
-				{
-					var knownRibbons = Realm.Godot.Utils.TextureSwatchSlots.BuildKnownRibbonsCache(assetsObj, wsPath);
-					if (!Realm.Godot.Utils.TextureSwatchSlots.ValidateCategory(fileName, knownRibbons: knownRibbons))
+					var u = metadata.FindUnit(unitId);
+					if (u == null)
 					{
-						GD.PrintErr($"[MapEditorHUD] Asset '{fileName}' is not a valid terrain texture.");
-						return;
-					}
-
-					if (catObj.Count == 0 && root.ContainsKey("textures") && root["textures"] is JsonObject rootTexExisting)
-					{
-						foreach (var kvp in rootTexExisting)
+						u = new UnitMetadata
 						{
-							if (Realm.Godot.Utils.TextureSwatchSlots.ValidateCategory(kvp.Key, kvp.Value, knownRibbons))
-							{
-								catObj[kvp.Key] = kvp.Value?.DeepClone();
-							}
-						}
-					}
-
-					var occupiedSlots = new bool[Realm.Godot.Utils.TextureSwatchSlots.MaxSlots];
-					int existingItemIndex = -1;
-
-					foreach (var kvp in catObj)
-					{
-						if (!Realm.Godot.Utils.TextureSwatchSlots.ValidateCategory(kvp.Key, kvp.Value, knownRibbons))
-						{
-							continue;
-						}
-
-						int sIdx = -1;
-						if (kvp.Value is JsonObject sObj)
-						{
-							if (sObj.TryGetPropertyValue("swatchIndex", out var idxNode) && idxNode != null && int.TryParse(idxNode.ToString(), out int parsed))
-							{
-								sIdx = parsed;
-							}
-						}
-
-						if (kvp.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase))
-						{
-							existingItemIndex = sIdx;
-						}
-						else if (sIdx >= 0 && sIdx < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots)
-						{
-							occupiedSlots[sIdx] = true;
-						}
-					}
-
-					int swatchIdx = -1;
-					if (targetSlot >= 0 && targetSlot < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots)
-					{
-						swatchIdx = targetSlot;
-					}
-					else if (existingItemIndex >= 0 && existingItemIndex < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots)
-					{
-						swatchIdx = existingItemIndex;
-					}
-					else
-					{
-						swatchIdx = Realm.Godot.Utils.TextureSwatchSlots.FirstFreeSlot(occupiedSlots);
-					}
-
-					if (swatchIdx < 0 && GameHost.Instance != null && GameHost.Instance.EditorPaintTextureIndex >= 0 && GameHost.Instance.EditorPaintTextureIndex < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots)
-					{
-						swatchIdx = GameHost.Instance.EditorPaintTextureIndex;
-					}
-
-					if (swatchIdx < 0)
-					{
-						GD.PrintErr($"[MapEditorHUD] All 32 texture slots are occupied. Cannot assign slot to '{fileName}'.");
-						return;
-					}
-
-					string prevOccupantKey = null;
-					foreach (var kvp in catObj)
-					{
-						if (kvp.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase)) continue;
-						if (kvp.Value is JsonObject sObj)
-						{
-							int s = -1;
-							if (sObj.TryGetPropertyValue("swatchIndex", out var n1) && n1 != null && int.TryParse(n1.ToString(), out int p1)) s = p1;
-							else if (sObj.TryGetPropertyValue("swatch_index", out var n2) && n2 != null && int.TryParse(n2.ToString(), out int p2)) s = p2;
-							else if (sObj.TryGetPropertyValue("SwatchIndex", out var n3) && n3 != null && int.TryParse(n3.ToString(), out int p3)) s = p3;
-							if (s == swatchIdx)
-							{
-								prevOccupantKey = kvp.Key;
-								break;
-							}
-						}
-					}
-
-					if (!string.IsNullOrEmpty(prevOccupantKey))
-					{
-						catObj.Remove(prevOccupantKey);
-						if (root.ContainsKey("textures") && root["textures"] is JsonObject rootTex)
-						{
-							rootTex.Remove(prevOccupantKey);
-						}
-					}
-
-					JsonObject texEntry;
-					if (catObj.ContainsKey(fileName) && catObj[fileName] is JsonObject existingEntry)
-					{
-						texEntry = existingEntry;
-						texEntry["hash"] = blake3Hash;
-						texEntry["swatchIndex"] = swatchIdx;
-					}
-					else
-					{
-						texEntry = new JsonObject
-						{
-							["hash"] = blake3Hash,
-							["swatchIndex"] = swatchIdx
+							TemplateID = unitId,
+							Name = unitId,
+							Scale = defaultScale,
+							YOffset = autoYOffset,
+							PathingType = (int)(Realm.Ecs.Components.Terrain.TerrainPathingFlags.Ground | Realm.Ecs.Components.Terrain.TerrainPathingFlags.ShallowWater),
+							ModelPath = fileName,
+							NormalizeLuminance = true,
+							IgnorePlayerColor = isPropOrRes
 						};
+						metadata.AddOrUpdateUnit(u);
 					}
-
-					if (!texEntry.ContainsKey("Scale_Factor"))
+					else if (autoYOffset != 0f)
 					{
-						string texPath = System.IO.Path.Combine(wsPath, "Assets", "textures", fileName);
-						float scaleFactor = Realm.Shared.Textures.TextureConverter.CalculateLuminanceScaleFactor(texPath);
-						texEntry["Scale_Factor"] = scaleFactor;
+						u.YOffset = autoYOffset;
 					}
-
-					catObj[fileName] = texEntry;
 				}
-				else if (columns > 0 && rows > 0)
-				{
-					var metaObj = new JsonObject
-					{
-						["hash"] = blake3Hash,
-						["columns"] = columns,
-						["rows"] = rows
-					};
-					catObj[fileName] = metaObj;
-				}
-				else
-				{
-					catObj[fileName] = blake3Hash;
-				}
-				assetsObj[category] = catObj;
 			}
 
-			Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
-			root.Remove("Assets");
-			SaveLoadService.CleanMetadataJsonSchema(root);
-			MapJsonFormatter.SaveFormattedJson(metadataPath, root);
+			if (category == "textures")
+			{
+				int swatchIdx = targetSlot >= 0 ? targetSlot : 0;
+				metadata.Textures ??= new Dictionary<string, TextureMetadata>(StringComparer.OrdinalIgnoreCase);
+				if (!metadata.Textures.TryGetValue(fileName, out var texMeta) || texMeta == null)
+				{
+					texMeta = new TextureMetadata();
+					metadata.Textures[fileName] = texMeta;
+				}
+				texMeta.Hash = blake3Hash;
+				texMeta.SwatchIndex = swatchIdx;
+
+				string texPath = System.IO.Path.Combine(wsPath, "Assets", "textures", fileName);
+				if (System.IO.File.Exists(texPath))
+				{
+					texMeta.ScaleFactor = Realm.Shared.Textures.TextureConverter.CalculateLuminanceScaleFactor(texPath);
+				}
+			}
+
+			MapFileService.SaveMetadata(wsPath, metadata);
+			MapAssetHelper.UpdateManifestAsset(wsPath, category, fileName, blake3Hash);
 		}
 		catch (Exception ex)
 		{

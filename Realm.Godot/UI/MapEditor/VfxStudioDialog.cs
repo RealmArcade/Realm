@@ -1094,11 +1094,12 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				foreach (var catName in new[] { "ribbons", "decals", "textures", "vfx_spritesheets", "vfx", "noise_textures", "noise" })
+				foreach (var catName in new[] { "Ribbon", "Decal", "Terrain", "Spritesheet", "Noise" })
 				{
-					if (assetsObj[catName] is JsonObject catObj)
+					var catDict = assetsObj.GetCategory(catName);
+					if (catDict != null)
 					{
-						foreach (var kvp in catObj)
+						foreach (var kvp in catDict)
 						{
 							if (!string.IsNullOrEmpty(kvp.Key))
 							{
@@ -1138,16 +1139,14 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				foreach (var catName in new[] { "noise_textures", "noise" })
+				var noiseDict = assetsObj.GetCategory("Noise");
+				if (noiseDict != null)
 				{
-					if (assetsObj[catName] is JsonObject catObj)
+					foreach (var kvp in noiseDict)
 					{
-						foreach (var kvp in catObj)
+						if (!string.IsNullOrEmpty(kvp.Key))
 						{
-							if (!string.IsNullOrEmpty(kvp.Key))
-							{
-								results.Add(Path.GetFileName(kvp.Key));
-							}
+							results.Add(Path.GetFileName(kvp.Key));
 						}
 					}
 				}
@@ -1168,39 +1167,17 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				foreach (var cat in assetsObj)
+				foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
 				{
-					if (cat.Value is JsonObject subCats)
+					var catDict = assetsObj.GetCategory(catName);
+					if (catDict != null)
 					{
-						foreach (var subCat in subCats)
+						foreach (var modelProp in catDict)
 						{
-							if (subCat.Value is JsonObject modelsObj)
+							string fn = modelProp.Key;
+							if (!string.IsNullOrEmpty(fn) && fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 							{
-								foreach (var modelProp in modelsObj)
-								{
-									string fileName = modelProp.Key;
-									bool isProjectile = subCat.Key.Equals("projectiles", StringComparison.OrdinalIgnoreCase);
-
-									if (!isProjectile && modelProp.Value is JsonObject mObj)
-									{
-										string? at = mObj["asset_type"]?.ToString()
-											?? mObj["AssetType"]?.ToString()
-											?? mObj["default_asset_type"]?.ToString()
-											?? mObj["type"]?.ToString();
-										if (!string.IsNullOrEmpty(at) && (
-											at.Equals("Projectile", StringComparison.OrdinalIgnoreCase) ||
-											at.Equals("projectiles", StringComparison.OrdinalIgnoreCase) ||
-											at.Equals("projectile", StringComparison.OrdinalIgnoreCase)))
-										{
-											isProjectile = true;
-										}
-									}
-
-									if (isProjectile)
-									{
-										results.Add(fileName);
-									}
-								}
+								results.Add(Path.GetFileName(fn));
 							}
 						}
 					}
@@ -1443,14 +1420,20 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			try
 			{
 				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-				var assetsObj = MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
-				if (!assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] == null)
+				string outputRtex = Path.Combine(wsPath, "Assets", "noise", _tempGeneratedNoiseFileName);
+				string blake3Hash = NoiseTextureGenerator.GenerateAndSaveRtex(_tempGeneratedNoiseConfig, outputRtex);
+
+				MapAssetHelper.UpdateManifestAsset(wsPath, "Noise", _tempGeneratedNoiseFileName, blake3Hash);
+
+				MetadataService.Instance.UpdateMetadata(wsPath, m =>
 				{
-					assetsObj["noise_textures"] = new JsonObject();
-				}
-				var noiseObj = assetsObj["noise_textures"].AsObject();
-				noiseObj[_tempGeneratedNoiseFileName] = _tempGeneratedNoiseConfig;
-				MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
+					m.NoiseTextures ??= new(StringComparer.OrdinalIgnoreCase);
+					m.NoiseTextures[_tempGeneratedNoiseFileName] = new Realm.Shared.Metadata.TextureMetadata
+					{
+						Hash = blake3Hash,
+						NoiseConfig = _tempGeneratedNoiseConfig.ToJsonString()
+					};
+				});
 				Hud?.ReadMetadataAndRefreshTextures();
 			}
 			catch (Exception ex)
@@ -1482,44 +1465,18 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
-			if (!assetsObj.ContainsKey("vfx_spritesheets") || assetsObj["vfx_spritesheets"] == null)
-			{
-				assetsObj["vfx_spritesheets"] = new JsonObject();
-			}
-
-			var vfxSheets = assetsObj["vfx_spritesheets"]!.AsObject();
 			string fileName = Path.GetFileName(key);
-			string cleanBase = Path.GetFileNameWithoutExtension(key);
-
-			string targetKey = fileName;
-			JsonNode? existingNode = null;
-			if (vfxSheets.TryGetPropertyValue(fileName, out var s1)) { targetKey = fileName; existingNode = s1; }
-			else if (vfxSheets.TryGetPropertyValue(key, out var s2)) { targetKey = key; existingNode = s2; }
-			else if (vfxSheets.TryGetPropertyValue($"{cleanBase}.rtex", out var s3)) { targetKey = $"{cleanBase}.rtex"; existingNode = s3; }
-			else if (vfxSheets.TryGetPropertyValue($"{cleanBase}.png", out var s4)) { targetKey = $"{cleanBase}.png"; existingNode = s4; }
-
-			JsonObject newSheetObj;
-			if (existingNode is JsonObject exObj)
+			MetadataService.Instance.UpdateMetadata(wsPath, m =>
 			{
-				newSheetObj = exObj;
-			}
-			else
-			{
-				newSheetObj = new JsonObject();
-				if (existingNode is JsonValue v)
+				m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+				m.VfxSpritesheets[fileName] = new Realm.Shared.Metadata.VfxMetadata
 				{
-					newSheetObj["hash"] = v.ToString();
-				}
-			}
-
-			newSheetObj["columns"] = columns;
-			newSheetObj["rows"] = rows;
-			newSheetObj["fps"] = Math.Round(fps, 2);
-			newSheetObj["subframe_blend"] = subframeBlend;
-
-			vfxSheets[targetKey] = newSheetObj;
-			MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj);
+					Columns = columns,
+					Rows = rows,
+					Fps = fps,
+					SubframeBlend = subframeBlend
+				};
+			});
 		}
 		catch (Exception ex)
 		{

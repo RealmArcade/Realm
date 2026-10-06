@@ -1151,15 +1151,16 @@ public partial class FloatingDialogBase : PanelContainer
 			{
 					if (category == "audio" || category == "sound" || category == "sfx" || category == "music")
 					{
-						foreach (var key in new[] { "sfx", "music", "audio", "sound", "sounds" })
+						foreach (var key in new[] { "SoundEffect", "Music" })
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject sObj)
+							var catDict = assetsObj.GetCategory(key);
+							if (catDict != null)
 							{
-								foreach (var prop in sObj)
+								foreach (var kvp in catDict)
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
+									if (!string.IsNullOrWhiteSpace(kvp.Key))
 									{
-										result.Add(prop.Key);
+										result.Add(kvp.Key);
 									}
 								}
 							}
@@ -1184,20 +1185,21 @@ public partial class FloatingDialogBase : PanelContainer
 
 						string[] searchKeys = category switch
 						{
-							"vfx_radial" => new[] { "vfx_radial", "vfx" },
-							"vfx_vertical" => new[] { "vfx_vertical", "vfx" },
-							_ => new[] { "vfx_spritesheets", "vfx", "spritesheets", "vfx_radial", "vfx_vertical" }
+							"vfx_radial" => new[] { "vfx_radial", "Spritesheet" },
+							"vfx_vertical" => new[] { "vfx_vertical", "Spritesheet" },
+							_ => new[] { "Spritesheet", "vfx_radial", "vfx_vertical" }
 						};
 
 						foreach (var key in searchKeys)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject vObj)
+							var catDict = assetsObj.GetCategory(key);
+							if (catDict != null)
 							{
-								foreach (var prop in vObj)
+								foreach (var kvp in catDict)
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
+									if (!string.IsNullOrWhiteSpace(kvp.Key))
 									{
-										result.Add(prop.Key);
+										result.Add(kvp.Key);
 									}
 								}
 							}
@@ -1219,16 +1221,14 @@ public partial class FloatingDialogBase : PanelContainer
 					}
 					else if (category == "decals" || category == "decal")
 					{
-						foreach (var key in new[] { "decals", "decal" })
+						var catDict = assetsObj.GetCategory("Decal");
+						if (catDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject dObj)
+							foreach (var kvp in catDict)
 							{
-								foreach (var prop in dObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										result.Add(prop.Key);
-									}
+									result.Add(kvp.Key);
 								}
 							}
 						}
@@ -1266,47 +1266,38 @@ public partial class FloatingDialogBase : PanelContainer
 
 						if (includeAllFolders || category == "models")
 						{
-							foreach (var decalKey in new[] { "decals", "decal" })
+							var dDict = assetsObj.GetCategory("Decal");
+							if (dDict != null)
 							{
-								if (assetsObj[decalKey] is System.Text.Json.Nodes.JsonObject dObj)
+								foreach (var kvp in dDict)
 								{
-									foreach (var prop in dObj)
+									if (!string.IsNullOrWhiteSpace(kvp.Key))
 									{
-										if (!string.IsNullOrWhiteSpace(prop.Key))
-										{
-											result.Add(prop.Key);
-										}
+										result.Add(kvp.Key);
 									}
 								}
 							}
 						}
 
 						string defaultFolder = !string.IsNullOrEmpty(subFolder) ? subFolder : (category is "attachments" or "items" ? "items" : "projectiles");
-						foreach (var modelKey in new[] { "glb", "models" })
+						foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
 						{
-							if (assetsObj[modelKey] is System.Text.Json.Nodes.JsonObject glbObj)
+							bool matches = includeAllFolders || catName.Equals(defaultFolder, StringComparison.OrdinalIgnoreCase) ||
+								(defaultFolder == "items" && catName == "Item") ||
+								(defaultFolder == "units" && catName == "Character") ||
+								(defaultFolder == "buildings" && catName == "Building") ||
+								(defaultFolder == "props" && catName == "Prop");
+
+							if (matches)
 							{
-								foreach (var sub in glbObj)
+								var cDict = assetsObj.GetCategory(catName);
+								if (cDict != null)
 								{
-									bool matches = includeAllFolders || sub.Key.Equals(defaultFolder, StringComparison.OrdinalIgnoreCase);
-									if (sub.Value is System.Text.Json.Nodes.JsonObject subObj)
+									foreach (var kvp in cDict)
 									{
-										if (matches)
+										if (!string.IsNullOrWhiteSpace(kvp.Key))
 										{
-											foreach (var prop in subObj)
-											{
-												if (!string.IsNullOrWhiteSpace(prop.Key))
-												{
-													result.Add($"Assets/models/{sub.Key}/{prop.Key}");
-												}
-											}
-										}
-									}
-									else if (!string.IsNullOrWhiteSpace(sub.Key))
-									{
-										if (includeAllFolders || sub.Key.Contains(defaultFolder, StringComparison.OrdinalIgnoreCase))
-										{
-											result.Add(sub.Key);
+											result.Add(kvp.Key);
 										}
 									}
 								}
@@ -1315,23 +1306,21 @@ public partial class FloatingDialogBase : PanelContainer
 					}
 					else if (category == "ribbons" || category == "ribbon_textures")
 					{
-						foreach (var key in new[] { "ribbons", "ribbon_textures" })
+						var rDict = assetsObj.GetCategory("Ribbon");
+						if (rDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject rObj)
+							foreach (var kvp in rDict)
 							{
-								foreach (var prop in rObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
+									if (kvp.Key.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
 									{
-										if (prop.Key.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
-										{
-											result.Add(prop.Key);
-										}
-										else
-										{
-											result.Add($"Assets/ribbons/{prop.Key}");
-											result.Add(prop.Key);
-										}
+										result.Add(kvp.Key);
+									}
+									else
+									{
+										result.Add($"Assets/ribbons/{kvp.Key}");
+										result.Add(kvp.Key);
 									}
 								}
 							}
@@ -1339,55 +1328,49 @@ public partial class FloatingDialogBase : PanelContainer
 					}
 					else if (category == "animations" || category == "ranim")
 					{
-						foreach (var key in new[] { "animations", "ranim", "anim" })
+						var aDict = assetsObj.GetCategory("Animation");
+						if (aDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject aObj)
+							foreach (var kvp in aDict)
 							{
-								foreach (var prop in aObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										result.Add(prop.Key);
-									}
+									result.Add(kvp.Key);
 								}
 							}
 						}
 					}
 					else if (category == "icons" || category == "icon")
 					{
-						foreach (var key in new[] { "icons", "ui" })
+						var iDict = assetsObj.GetCategory("Icon");
+						if (iDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject iObj)
+							foreach (var kvp in iDict)
 							{
-								foreach (var prop in iObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										result.Add(prop.Key);
-									}
+									result.Add(kvp.Key);
 								}
 							}
 						}
 					}
 					else if (category == "noise" || category == "noise_textures")
 					{
-						foreach (var key in new[] { "noise_textures", "noise" })
+						var nDict = assetsObj.GetCategory("Noise");
+						if (nDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject nObj)
+							foreach (var kvp in nDict)
 							{
-								foreach (var prop in nObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
+									if (kvp.Key.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
 									{
-										if (prop.Key.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
-										{
-											result.Add(prop.Key);
-										}
-										else
-										{
-											result.Add($"Assets/textures/{prop.Key}");
-											result.Add(prop.Key);
-										}
+										result.Add(kvp.Key);
+									}
+									else
+									{
+										result.Add($"Assets/textures/{kvp.Key}");
+										result.Add(kvp.Key);
 									}
 								}
 							}
@@ -1395,16 +1378,14 @@ public partial class FloatingDialogBase : PanelContainer
 					}
 					else if (category == "textures" || category == "terrain")
 					{
-						foreach (var key in new[] { "textures" })
+						var tDict = assetsObj.GetCategory("Terrain");
+						if (tDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject tObj)
+							foreach (var kvp in tDict)
 							{
-								foreach (var prop in tObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										result.Add(prop.Key);
-									}
+									result.Add(kvp.Key);
 								}
 							}
 						}

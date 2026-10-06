@@ -1,7 +1,9 @@
 using Godot;
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
+using Realm.Shared.Distribution;
+using Realm.Shared.Metadata;
+using Realm.Shared.Services;
 
 public static class MapInfoHelper
 {
@@ -125,46 +127,20 @@ public static class MapInfoHelper
 	private static bool TryLoadMapFromManifestFile(string filePath, string fileName, out MapBriefingDetails details)
 	{
 		details = default;
-		string jsonText = "";
-
-		if (FileAccess.FileExists(filePath))
-		{
-			using var file = FileAccess.Open(filePath, FileAccess.ModeFlags.Read);
-			if (file != null)
-			{
-				jsonText = file.GetAsText();
-			}
-		}
-		else if (System.IO.File.Exists(filePath))
-		{
-			try
-			{
-				jsonText = System.IO.File.ReadAllText(filePath);
-			}
-			catch
-			{
-			}
-		}
-
-		if (string.IsNullOrWhiteSpace(jsonText))
+		if (!System.IO.File.Exists(filePath) && !FileAccess.FileExists(filePath))
 		{
 			return false;
 		}
 
 		try
 		{
-			using var jsonDoc = JsonDocument.Parse(jsonText);
-			var root = jsonDoc.RootElement;
+			MapManifest manifest = MapFileService.LoadManifest(filePath);
+			MapMetadata metadata = MapFileService.LoadMetadata(filePath);
 
-			string mapName = string.Empty;
-			if (root.TryGetProperty("MapName", out var mapNameProp) && mapNameProp.ValueKind == JsonValueKind.String)
+			string mapName = manifest.MapName;
+			if (string.IsNullOrWhiteSpace(mapName))
 			{
-				mapName = mapNameProp.GetString() ?? string.Empty;
-			}
-
-			if (string.IsNullOrWhiteSpace(mapName) && root.TryGetProperty("MapProperties", out var mapProps) && mapProps.TryGetProperty("MapName", out var mpNameProp) && mpNameProp.ValueKind == JsonValueKind.String)
-			{
-				mapName = mpNameProp.GetString() ?? string.Empty;
+				mapName = metadata.MapProperties?.MapName ?? string.Empty;
 			}
 
 			if (string.IsNullOrWhiteSpace(mapName))
@@ -188,64 +164,33 @@ public static class MapInfoHelper
 				return false;
 			}
 
-			bool isLikelyManifest = root.TryGetProperty("Assets", out _) ||
-			                        root.TryGetProperty("Files", out _) ||
-			                        root.TryGetProperty("Author", out _) ||
-			                        root.TryGetProperty("MapProperties", out _) ||
-			                        root.TryGetProperty("Templates", out _) ||
-			                        root.TryGetProperty("MapName", out _);
-
-			if (!isLikelyManifest)
-			{
-				return false;
-			}
-
 			string displayName = FormatMapDisplayName(mapName);
-			if (root.TryGetProperty("MapProperties", out var displayMapProps) && displayMapProps.TryGetProperty("MapName", out var explicitNameProp) && explicitNameProp.ValueKind == JsonValueKind.String)
+			if (!string.IsNullOrWhiteSpace(metadata.MapProperties?.MapName))
 			{
-				string? explicitName = explicitNameProp.GetString();
-				if (!string.IsNullOrWhiteSpace(explicitName))
-				{
-					displayName = explicitName;
-				}
+				displayName = metadata.MapProperties.MapName;
 			}
 
-			string description = string.Empty;
-			if (root.TryGetProperty("Description", out var descProp) && descProp.ValueKind == JsonValueKind.String)
-			{
-				description = descProp.GetString() ?? string.Empty;
-			}
-			else if (root.TryGetProperty("MapProperties", out var descMapProps) && descMapProps.TryGetProperty("MapDescription", out var explicitDescProp) && explicitDescProp.ValueKind == JsonValueKind.String)
-			{
-				description = explicitDescProp.GetString() ?? string.Empty;
-			}
+			string description = !string.IsNullOrEmpty(manifest.Description)
+				? manifest.Description
+				: metadata.MapProperties?.MapDescription ?? string.Empty;
 
-			string gameBuildNumber = Realm.Shared.RealmVersion.GameBuildNumber;
-			if (root.TryGetProperty("GameBuildNumber", out var gbnProp) && gbnProp.ValueKind == JsonValueKind.String)
-			{
-				string? gbn = gbnProp.GetString();
-				if (!string.IsNullOrWhiteSpace(gbn))
-				{
-					gameBuildNumber = gbn.Trim();
-				}
-			}
+			string gameBuildNumber = !string.IsNullOrEmpty(metadata.GameBuildNumber)
+				? metadata.GameBuildNumber.Trim()
+				: Realm.Shared.RealmVersion.GameBuildNumber;
 
-			string version = "1.0.0";
-			if (root.TryGetProperty("Version", out var verProp) && verProp.ValueKind == JsonValueKind.String)
-			{
-				string? v = verProp.GetString();
-				if (!string.IsNullOrWhiteSpace(v)) version = v.Trim();
-			}
+			string version = !string.IsNullOrEmpty(manifest.Version)
+				? manifest.Version.Trim()
+				: (metadata.MapProperties?.Version ?? "1.0.0");
 
 			string manifestHash = "";
-			if (!string.IsNullOrWhiteSpace(jsonText))
+			try
 			{
-				try
+				if (System.IO.File.Exists(filePath))
 				{
-					manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.Text.Encoding.UTF8.GetBytes(jsonText), ".json");
+					manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(filePath), ".json");
 				}
-				catch { }
 			}
+			catch { }
 
 			string? versionDir = System.IO.Path.GetDirectoryName(filePath);
 			string thumbPath = !string.IsNullOrEmpty(versionDir) && System.IO.File.Exists(System.IO.Path.Combine(versionDir, "thumbnail.png"))
@@ -330,101 +275,41 @@ public static class MapInfoHelper
 
 		foreach (var path in candidatePaths)
 		{
-			string jsonText = "";
-			if (FileAccess.FileExists(path))
+			string globalPath = path;
+			try
 			{
-				using var file = FileAccess.Open(path, FileAccess.ModeFlags.Read);
-				if (file != null)
-				{
-					jsonText = file.GetAsText();
-				}
+				globalPath = ProjectSettings.GlobalizePath(path);
 			}
-			else
-			{
-				string globalPath = path;
-				try
-				{
-					globalPath = ProjectSettings.GlobalizePath(path);
-				}
-				catch
-				{
-				}
+			catch { }
 
-				if (System.IO.File.Exists(globalPath))
-				{
-					try
-					{
-						jsonText = System.IO.File.ReadAllText(globalPath);
-					}
-					catch
-					{
-					}
-				}
-			}
-
-			if (!string.IsNullOrWhiteSpace(jsonText))
+			if (System.IO.File.Exists(globalPath) || FileAccess.FileExists(path))
 			{
 				try
 				{
-					using var jsonDoc = JsonDocument.Parse(jsonText);
-					var root = jsonDoc.RootElement;
+					MapManifest manifest = MapFileService.LoadManifest(globalPath);
+					MapMetadata metadata = MapFileService.LoadMetadata(globalPath);
 
 					string displayName = FormatMapDisplayName(mapFolder);
-					string description = string.Empty;
+					if (!string.IsNullOrWhiteSpace(manifest.MapName)) displayName = FormatMapDisplayName(manifest.MapName);
+					if (!string.IsNullOrWhiteSpace(metadata.MapProperties?.MapName)) displayName = metadata.MapProperties.MapName;
+
+					string description = !string.IsNullOrEmpty(manifest.Description)
+						? manifest.Description
+						: (metadata.MapProperties?.MapDescription ?? string.Empty);
+
 					string gameBuildNumber = path.EndsWith("manifest.json", StringComparison.OrdinalIgnoreCase)
 						? Realm.Shared.RealmVersion.GameBuildNumber
-						: "v0.0.0";
+						: (!string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber : "v0.0.0");
 
-					if (root.TryGetProperty("GameBuildNumber", out var gbnProp) && gbnProp.ValueKind == JsonValueKind.String)
-					{
-						string? gbn = gbnProp.GetString();
-						if (!string.IsNullOrWhiteSpace(gbn))
-						{
-							gameBuildNumber = gbn.Trim();
-						}
-					}
-
-					if (root.TryGetProperty("MapName", out var mapNameProp) && mapNameProp.ValueKind == JsonValueKind.String)
-					{
-						string? nameVal = mapNameProp.GetString();
-						if (!string.IsNullOrWhiteSpace(nameVal))
-						{
-							displayName = FormatMapDisplayName(nameVal);
-						}
-					}
-
-					if (root.TryGetProperty("Description", out var descProp) && descProp.ValueKind == JsonValueKind.String)
-					{
-						description = descProp.GetString() ?? string.Empty;
-					}
-
-					if (root.TryGetProperty("MapProperties", out var mapProps))
-					{
-						if (mapProps.TryGetProperty("MapName", out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
-						{
-							string? nameVal = nameProp.GetString();
-							if (!string.IsNullOrWhiteSpace(nameVal))
-							{
-								displayName = nameVal;
-							}
-						}
-						if (mapProps.TryGetProperty("MapDescription", out var propDescProp) && propDescProp.ValueKind == JsonValueKind.String)
-						{
-							description = propDescProp.GetString() ?? string.Empty;
-						}
-					}
-
-					string version = "1.0.0";
-					if (root.TryGetProperty("Version", out var verProp) && verProp.ValueKind == JsonValueKind.String)
-					{
-						string? v = verProp.GetString();
-						if (!string.IsNullOrWhiteSpace(v)) version = v.Trim();
-					}
+					string version = !string.IsNullOrEmpty(manifest.Version) ? manifest.Version : (metadata.MapProperties?.Version ?? "1.0.0");
 
 					string manifestHash = "";
 					try
 					{
-						manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.Text.Encoding.UTF8.GetBytes(jsonText), ".json");
+						if (System.IO.File.Exists(globalPath))
+						{
+							manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(globalPath), ".json");
+						}
 					}
 					catch { }
 
@@ -687,24 +572,11 @@ public static class MapInfoHelper
 		{
 			if (System.IO.File.Exists(jsonFilePath))
 			{
-				string text = System.IO.File.ReadAllText(jsonFilePath);
-				using var doc = JsonDocument.Parse(text);
-				var root = doc.RootElement;
-				if (root.TryGetProperty("Version", out var vProp) && vProp.ValueKind == JsonValueKind.String)
-				{
-					string? v = vProp.GetString();
-					if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
-				}
-				if (root.TryGetProperty("MapVersion", out var mvProp) && mvProp.ValueKind == JsonValueKind.String)
-				{
-					string? v = mvProp.GetString();
-					if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
-				}
-				if (root.TryGetProperty("MapProperties", out var mp) && mp.TryGetProperty("MapVersion", out var pMv) && pMv.ValueKind == JsonValueKind.String)
-				{
-					string? v = pMv.GetString();
-					if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
-				}
+				var manifest = MapFileService.LoadManifest(jsonFilePath);
+				if (!string.IsNullOrEmpty(manifest.Version)) return manifest.Version.Trim();
+
+				var metadata = MapFileService.LoadMetadata(jsonFilePath);
+				if (!string.IsNullOrEmpty(metadata.MapProperties?.Version)) return metadata.MapProperties.Version.Trim();
 			}
 		}
 		catch { }

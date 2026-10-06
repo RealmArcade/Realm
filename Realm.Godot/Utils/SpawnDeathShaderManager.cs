@@ -4,6 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Godot;
+using Realm.Godot.Services;
+using Realm.Shared.Metadata;
+using Realm.Shared.Services;
 
 namespace Realm.Godot.Utils;
 
@@ -256,13 +259,27 @@ public static class SpawnDeathShaderManager
 
 		try
 		{
-			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			var shadersObj = unionedAssets?["shaders"]?.AsObject();
-			if (shadersObj != null)
+			var metadata = MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Shaders != null)
 			{
-				foreach (var item in shadersObj)
+				foreach (var kvp in metadata.Shaders)
 				{
-					result[item.Key] = CustomShaderConfig.FromJson(item.Key, item.Value);
+					if (!string.IsNullOrEmpty(kvp.Value?.ConfigJson))
+					{
+						try
+						{
+							var cfgNode = JsonNode.Parse(kvp.Value.ConfigJson);
+							if (cfgNode != null)
+							{
+								var cfg = CustomShaderConfig.FromJson(kvp.Key, cfgNode);
+								if (cfg != null)
+								{
+									result[kvp.Key] = cfg;
+								}
+							}
+						}
+						catch { }
+					}
 				}
 			}
 		}
@@ -297,15 +314,14 @@ public static class SpawnDeathShaderManager
 			? workspacePath
 			: MapWorkspaceService.GetActiveWorkspacePath();
 
-		var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
-		if (!assetsObj.ContainsKey("shaders") || assetsObj["shaders"] is not JsonObject)
+		MetadataService.Instance.UpdateMetadata(wsPath, m =>
 		{
-			assetsObj["shaders"] = new JsonObject();
-		}
-		var shadersObj = assetsObj["shaders"]!.AsObject();
-		shadersObj[config.Key] = config.ToJsonObject();
-
-		Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
+			m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
+			m.Shaders[config.Key] = new ShaderMetadata
+			{
+				ConfigJson = config.ToJsonObject().ToJsonString()
+			};
+		});
 	}
 
 	public static void DeleteCustomShader(string shaderKey, string workspacePath = null)

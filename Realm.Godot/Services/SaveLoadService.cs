@@ -495,18 +495,7 @@ public class SaveLoadService
 			}
 
 			SortMapSaveData(saveData);
-
-			var saveDoc = JsonSerializer.SerializeToNode(saveData) as JsonObject;
-			if (saveDoc != null)
-			{
-				CleanTerrainJsonSchema(saveDoc);
-				MapJsonFormatter.SaveFormattedJson(absolutePath, saveDoc);
-			}
-			else
-			{
-				string json = JsonSerializer.Serialize(saveData);
-				MapJsonFormatter.SaveFormattedJson(absolutePath, json);
-			}
+			Realm.Shared.Services.MapFileService.SaveTerrain(absolutePath, saveData);
 
 			GameHost.Instance?.SaveModelYOffsetsToMetadataJson(directory);
 
@@ -569,8 +558,7 @@ public class SaveLoadService
 
 		try
 		{
-			string json = File.ReadAllText(absolutePath);
-			var saveData = JsonSerializer.Deserialize<MapSaveData>(json);
+			var saveData = Realm.Shared.Services.MapFileService.LoadTerrain(absolutePath);
 			if (saveData == null) return false;
 
 			string mapDir = Path.GetDirectoryName(absolutePath);
@@ -1738,6 +1726,16 @@ public class SaveLoadService
 		set.Add("ribbons");
 		set.Add("shaders");
 		set.Add("Templates");
+		set.Add("author");
+		set.Add("tags");
+		set.Add("AuthorPublicKey");
+		set.Add("AuthorSignature");
+		set.Add("Dependencies");
+		set.Add("CustomProceduralAnimations");
+		set.Add("CustomWaterProfiles");
+		set.Add("CustomEnvironmentPresets");
+		set.Add("DefaultEnvironmentPreset");
+		set.Add("TerrainProfiles");
 
 		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("properties", out var propertiesNode) && propertiesNode is JsonObject propertiesObject)
 		{
@@ -2356,59 +2354,44 @@ public class SaveLoadService
 			string assetsDir = Path.Combine(mapDirectory, "Assets");
 
 			var includedRelativePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-			var assetsToSync = new List<(string RelativePath, JsonNode? EntryNode, JsonObject ParentObj, string PropertyKey, string Category, string? SubCategory)>();
+			var assetsToSync = new List<(string RelativePath, string Category, string FileName)>();
 
 			foreach (var categoryKvp in assetsObj)
 			{
-				string category = categoryKvp.Key.ToLowerInvariant();
-				if (category == "glb" && categoryKvp.Value is JsonObject glbObj)
+				string category = categoryKvp.Key;
+				var catDict = categoryKvp.Value;
+				string subFolder = category switch
 				{
-					foreach (var subKvp in glbObj)
-					{
-						string subCategory = MapAssetHelper.NormalizeGlbSubCategory(subKvp.Key);
-						if (subKvp.Value is JsonObject subCatObj)
-						{
-							foreach (var itemKvp in subCatObj)
-							{
-								string fileName = itemKvp.Key;
-								string relPath = Path.Combine("Assets", "models", subCategory, fileName).Replace('\\', '/');
-								includedRelativePaths.Add(relPath);
-								assetsToSync.Add((relPath, itemKvp.Value, subCatObj, fileName, "glb", subCategory));
-							}
-						}
-					}
-				}
-				else if (categoryKvp.Value is JsonObject catObj)
+					"Character" => "models/units",
+					"Building" => "models/buildings",
+					"Prop" => "models/props",
+					"Item" => "models/items",
+					"Spritesheet" or "vfx" or "vfx_spritesheets" => "vfx",
+					"Animation" or "animations" => "animations",
+					"SoundEffect" or "sfx" => "audio/sfx",
+					"Music" or "music" => "audio/music",
+					"Icon" or "icons" => "icons",
+					"Decal" or "decals" => "decals",
+					"Ribbon" or "ribbons" or "ribbon_textures" => "ribbons",
+					"Noise" or "noise" or "noise_textures" => "noise",
+					"Skybox" or "skyboxes" => "skyboxes",
+					"Terrain" or "textures" => "textures",
+					"Shader" or "shaders" => "shaders",
+					_ => category.ToLowerInvariant()
+				};
+
+				foreach (var itemKvp in catDict)
 				{
-					string subFolder = category switch
+					string fileName = itemKvp.Key;
+					string relPath = Path.Combine("Assets", subFolder, fileName).Replace('\\', '/');
+					includedRelativePaths.Add(relPath);
+
+					if (subFolder is "sfx" or "music" or "audio/sfx" or "audio/music")
 					{
-						"vfx" or "vfx_spritesheets" => "vfx",
-						"animations" => "animations",
-						"sfx" => "sfx",
-						"music" => "music",
-						"icons" => "icons",
-						"decals" => "decals",
-						"ribbons" or "ribbon_textures" => "ribbons",
-						"noise" or "noise_textures" => "noise",
-						"skyboxes" => "skyboxes",
-						"textures" => "textures",
-						"shaders" => "shaders",
-						_ => category
-					};
-
-					foreach (var itemKvp in catObj)
-					{
-						string fileName = itemKvp.Key;
-						string relPath = Path.Combine("Assets", subFolder, fileName).Replace('\\', '/');
-						includedRelativePaths.Add(relPath);
-
-						if (subFolder is "sfx" or "music")
-						{
-							includedRelativePaths.Add(Path.Combine("Assets", "audio", subFolder, fileName).Replace('\\', '/'));
-						}
-
-						assetsToSync.Add((relPath, itemKvp.Value, catObj, fileName, category, null));
+						includedRelativePaths.Add(Path.Combine("Assets", "audio", subFolder.Replace("audio/", ""), fileName).Replace('\\', '/'));
 					}
+
+					assetsToSync.Add((relPath, category, fileName));
 				}
 			}
 
@@ -2431,18 +2414,17 @@ public class SaveLoadService
 				DeleteEmptyDirectoriesRecursive(assetsDir);
 			}
 
-			var nonExistentAssets = new List<(JsonObject ParentObj, string PropertyKey)>();
 			Dictionary<string, string>? cachedAssetFiles = null;
 
-			foreach (var (relPath, entryNode, parentObj, propertyKey, category, subCategory) in assetsToSync)
+			foreach (var (relPath, category, fileName) in assetsToSync)
 			{
 				string fullDiskPath = Path.Combine(mapDirectory, relPath);
 				if (!File.Exists(fullDiskPath))
 				{
-					string fileName = Path.GetFileName(relPath);
-					if (category == "glb")
+					string baseFileName = Path.GetFileName(relPath);
+					if (category is "Character" or "Building" or "Prop" or "Item")
 					{
-						string? modelDisk = MapAssetHelper.FindModelOnDisk(mapDirectory, subCategory, fileName);
+						string? modelDisk = MapAssetHelper.FindModelOnDisk(mapDirectory, category, baseFileName);
 						if (!string.IsNullOrEmpty(modelDisk) && File.Exists(modelDisk))
 						{
 							fullDiskPath = modelDisk;
@@ -2450,14 +2432,14 @@ public class SaveLoadService
 					}
 					else
 					{
-						string? altPath = FindAssetFileByName(assetsDir, fileName, ref cachedAssetFiles);
+						string? altPath = FindAssetFileByName(assetsDir, baseFileName, ref cachedAssetFiles);
 						if (altPath != null && File.Exists(altPath))
 						{
 							fullDiskPath = altPath;
 						}
 						else
 						{
-							string directMapPath = Path.Combine(mapDirectory, fileName);
+							string directMapPath = Path.Combine(mapDirectory, baseFileName);
 							if (File.Exists(directMapPath))
 							{
 								fullDiskPath = directMapPath;
@@ -2471,27 +2453,15 @@ public class SaveLoadService
 					string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(fullDiskPath);
 					if (!string.IsNullOrEmpty(canonicalBlake3))
 					{
-						if (entryNode is JsonObject itemObjRef)
+						var catDict = assetsObj.GetCategory(category);
+						if (catDict != null)
 						{
-							itemObjRef["hash"] = canonicalBlake3;
-						}
-						else if (entryNode is JsonValue)
-						{
-							parentObj[propertyKey] = canonicalBlake3;
+							catDict[fileName] = canonicalBlake3;
 						}
 
 						RealmMetadataHelper.SyncBlake3Metadata(fullDiskPath, canonicalBlake3);
 					}
 				}
-				else
-				{
-					nonExistentAssets.Add((parentObj, propertyKey));
-				}
-			}
-
-			foreach (var (parentObj, propertyKey) in nonExistentAssets)
-			{
-				parentObj.Remove(propertyKey);
 			}
 
 			MapAssetHelper.SaveAssetsToManifest(mapDirectory, assetsObj, removeFromMetadata: true);

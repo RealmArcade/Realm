@@ -1476,110 +1476,6 @@ public partial class GameHost
 				ProcessEntities(metadata.Templates.Units, 1.5f, u => u.TemplateID, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance);
 			}
 
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(mapDir);
-			if (assetsObj != null && assetsObj.ContainsKey("glb") && assetsObj["glb"] is System.Text.Json.Nodes.JsonObject glbObj)
-			{
-				foreach (var catKvp in glbObj)
-				{
-					if (catKvp.Value is System.Text.Json.Nodes.JsonObject catDict)
-					{
-						foreach (var itemKvp in catDict)
-						{
-							if (itemKvp.Value is System.Text.Json.Nodes.JsonObject itemObj)
-							{
-								if (itemObj.ContainsKey("y_offset") && float.TryParse(itemObj["y_offset"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float yVal))
-								{
-									if (IsValidModelYOffset(itemKvp.Key, yVal))
-									{
-										ModelYOffsets[NormalizeModelAssetKey(itemKvp.Key)] = yVal;
-									}
-								}
-								if (itemObj.ContainsKey("scale") && float.TryParse(itemObj["scale"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float sVal))
-								{
-									if (IsValidModelScale(itemKvp.Key, sVal))
-									{
-										ModelScales[NormalizeModelAssetKey(itemKvp.Key)] = sVal;
-									}
-								}
-								else if (itemObj.ContainsKey("model_scale") && float.TryParse(itemObj["model_scale"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float msVal))
-								{
-									if (IsValidModelScale(itemKvp.Key, msVal))
-									{
-										ModelScales[NormalizeModelAssetKey(itemKvp.Key)] = msVal;
-									}
-								}
-								if (itemObj.ContainsKey("collision_circle_ratio") && float.TryParse(itemObj["collision_circle_ratio"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float rVal))
-								{
-									if (IsValidModelCollisionRatio(itemKvp.Key, rVal))
-									{
-										ModelCollisionCircleRatios[NormalizeModelAssetKey(itemKvp.Key)] = rVal;
-									}
-								}
-								if (itemObj.ContainsKey("collision_radius") && float.TryParse(itemObj["collision_radius"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float radVal) && radVal > 0f)
-								{
-									ModelObstacleRadii[NormalizeModelAssetKey(itemKvp.Key)] = radVal;
-								}
-								if (itemObj.ContainsKey("brightness") && float.TryParse(itemObj["brightness"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float brightVal))
-								{
-									ModelBrightness[NormalizeModelAssetKey(itemKvp.Key)] = brightVal;
-								}
-								if (itemObj.ContainsKey("tint") && itemObj["tint"] != null && Color.HtmlIsValid(itemObj["tint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["tint"]!.ToString());
-								}
-								else if (itemObj.ContainsKey("color_tint") && itemObj["color_tint"] != null && Color.HtmlIsValid(itemObj["color_tint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["color_tint"]!.ToString());
-								}
-								else if (itemObj.ContainsKey("ColorTint") && itemObj["ColorTint"] != null && Color.HtmlIsValid(itemObj["ColorTint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["ColorTint"]!.ToString());
-								}
-								string normKey = NormalizeModelAssetKey(itemKvp.Key);
-								if (itemObj.ContainsKey("DespillPlayerColor") && bool.TryParse(itemObj["DespillPlayerColor"]?.ToString(), out bool dpcVal))
-								{
-									ModelDespillPlayerColor[normKey] = dpcVal;
-								}
-								else if (!ModelDespillPlayerColor.ContainsKey(normKey))
-								{
-									ModelDespillPlayerColor[normKey] = false;
-								}
-								if (itemObj.ContainsKey("normalize_luminance") && bool.TryParse(itemObj["normalize_luminance"]?.ToString(), out bool nlVal))
-								{
-									ModelNormalizeLuminance[normKey] = nlVal;
-								}
-								if (itemObj.ContainsKey("ignore_player_color") && bool.TryParse(itemObj["ignore_player_color"]?.ToString(), out bool ipcVal))
-								{
-									ModelIgnorePlayerColor[normKey] = ipcVal;
-								}
-								else if (itemObj.ContainsKey("IgnorePlayerColor") && bool.TryParse(itemObj["IgnorePlayerColor"]?.ToString(), out bool ipcVal2))
-								{
-									ModelIgnorePlayerColor[normKey] = ipcVal2;
-								}
-								else if (catKvp.Key == "props" || catKvp.Key == "resources" || catKvp.Key == "attachments" || catKvp.Key == "weapons" || catKvp.Key == "items" || (itemObj.ContainsKey("default_asset_type") && (itemObj["default_asset_type"]?.ToString() == "props" || itemObj["default_asset_type"]?.ToString() == "resources" || itemObj["default_asset_type"]?.ToString() == "attachments" || itemObj["default_asset_type"]?.ToString() == "weapons" || itemObj["default_asset_type"]?.ToString() == "items")))
-								{
-									ModelIgnorePlayerColor[normKey] = true;
-								}
-								else if (!ModelIgnorePlayerColor.ContainsKey(normKey))
-								{
-									ModelIgnorePlayerColor[normKey] = false;
-								}
-
-								string itemSpawn = itemObj["spawn_shader"]?.ToString() ?? itemObj["SpawnShader"]?.ToString();
-								if (!string.IsNullOrWhiteSpace(itemSpawn))
-								{
-									ModelSpawnShaders[normKey] = itemSpawn.Trim();
-								}
-								string itemDeath = itemObj["death_shader"]?.ToString() ?? itemObj["DeathShader"]?.ToString() ?? itemObj["despawn_shader"]?.ToString() ?? itemObj["DespawnShader"]?.ToString();
-								if (!string.IsNullOrWhiteSpace(itemDeath))
-								{
-									ModelDeathShaders[normKey] = itemDeath.Trim();
-								}
-							}
-						}
-					}
-				}
-			}
 
 			if (metadata.Models != null)
 			{
@@ -2298,29 +2194,35 @@ public partial class GameHost
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
-			if (decalsObj != null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Decals != null)
 			{
-				System.Text.Json.Nodes.JsonObject? meta = null;
-				if (decalsObj.TryGetPropertyValue(decalId, out var n0) && n0 is System.Text.Json.Nodes.JsonObject o0) meta = o0;
-				else if (decalsObj.TryGetPropertyValue(filename, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
-				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is System.Text.Json.Nodes.JsonObject o3) meta = o3;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is System.Text.Json.Nodes.JsonObject o4) meta = o4;
+				Realm.Shared.Metadata.DecalMetadata? meta = null;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(filename, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) meta = d3;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) meta = d4;
 
-				if (meta != null)
+				if (meta != null && !string.IsNullOrWhiteSpace(meta.TexturePath))
 				{
-					if (meta.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString()))
-						explicitTexturePath = tpNode.ToString();
-					else if (meta.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString()))
-						explicitTexturePath = tpNode2.ToString();
+					explicitTexturePath = meta.TexturePath;
+				}
+			}
 
-					if (meta.TryGetPropertyValue("columns", out var cNode) && int.TryParse(cNode?.ToString(), out int c) && c > 0) detectedCols = c;
-					if (meta.TryGetPropertyValue("rows", out var rNode) && int.TryParse(rNode?.ToString(), out int r) && r > 0) detectedRows = r;
-					if (meta.TryGetPropertyValue("fps", out var fNode) && float.TryParse(fNode?.ToString(), out float f) && f > 0.001f) detectedFps = f;
-					else if (meta.TryGetPropertyValue("seconds_per_frame", out var sNode) && float.TryParse(sNode?.ToString(), out float spf) && spf > 0.001f) detectedFps = 1.0f / spf;
-					if (meta.TryGetPropertyValue("subframe_blend", out var sbNode) && bool.TryParse(sbNode?.ToString(), out bool sb)) detectedSubframeBlend = sb;
+			if (metadata?.VfxSpritesheets != null)
+			{
+				Realm.Shared.Metadata.VfxMetadata? vmeta = null;
+				if (metadata.VfxSpritesheets.TryGetValue(decalId, out var v0)) vmeta = v0;
+				else if (metadata.VfxSpritesheets.TryGetValue(filename, out var v1)) vmeta = v1;
+				else if (metadata.VfxSpritesheets.TryGetValue(baseKey, out var v2)) vmeta = v2;
+
+				if (vmeta != null)
+				{
+					if (vmeta.Columns > 0) detectedCols = vmeta.Columns;
+					if (vmeta.Rows > 0) detectedRows = vmeta.Rows;
+					if (vmeta.Fps > 0.001f) detectedFps = vmeta.Fps;
+					detectedSubframeBlend = vmeta.SubframeBlend;
 				}
 			}
 		}
@@ -2477,23 +2379,19 @@ public partial class GameHost
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
-			if (decalsObj != null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Decals != null)
 			{
 				string filename = System.IO.Path.GetFileName(decalId);
 				string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
-				System.Text.Json.Nodes.JsonObject? meta = null;
-				if (decalsObj.TryGetPropertyValue(decalId, out var n0) && n0 is System.Text.Json.Nodes.JsonObject o0) meta = o0;
-				else if (decalsObj.TryGetPropertyValue(filename, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
-				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
+				Realm.Shared.Metadata.DecalMetadata? meta = null;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(filename, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
 
-				if (meta != null)
+				if (meta != null && !string.IsNullOrWhiteSpace(meta.TexturePath))
 				{
-					if (meta.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString()))
-						targetKey = tpNode.ToString();
-					else if (meta.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString()))
-						targetKey = tpNode2.ToString();
+					targetKey = meta.TexturePath;
 				}
 			}
 		}
@@ -3191,55 +3089,54 @@ public partial class GameHost
 			if (assetData.PrimaryNormal != null) decal.TextureNormal = assetData.PrimaryNormal;
 
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
 
 			string key = System.IO.Path.GetFileName(decalId);
 			string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
 
-			System.Text.Json.Nodes.JsonObject? meta = null;
-			if (decalsObj != null)
+			Realm.Shared.Metadata.DecalMetadata? meta = null;
+			if (metadata?.Decals != null)
 			{
-				if (decalsObj.TryGetPropertyValue(decalId, out var n0) && n0 is System.Text.Json.Nodes.JsonObject o0) meta = o0;
-				else if (decalsObj.TryGetPropertyValue(key, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
-				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is System.Text.Json.Nodes.JsonObject o3) meta = o3;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is System.Text.Json.Nodes.JsonObject o4) meta = o4;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(key, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) meta = d3;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) meta = d4;
 			}
 
-			float brightness = meta != null && meta.TryGetPropertyValue("brightness", out var bNode) && float.TryParse(bNode?.ToString(), out float b) ? b : 1.0f;
+			float brightness = meta?.Brightness > 0f ? meta.Brightness : 1.0f;
 			Color tint = Colors.White;
-			if (meta != null && meta.TryGetPropertyValue("tint", out var tNode) && tNode != null)
+			if (meta != null && !string.IsNullOrEmpty(meta.Tint))
 			{
-				string tStr = tNode.ToString();
+				string tStr = meta.Tint;
 				if (tStr.StartsWith("#")) tint = Color.FromHtml(tStr);
 			}
-			float contrast = meta != null && meta.TryGetPropertyValue("contrast", out var cNode) && float.TryParse(cNode?.ToString(), out float c) ? c : 1.0f;
-			float saturation = meta != null && meta.TryGetPropertyValue("saturation", out var sNode) && float.TryParse(sNode?.ToString(), out float s) ? s : 1.0f;
-			float opacity = meta != null && meta.TryGetPropertyValue("opacity", out var oNode) && float.TryParse(oNode?.ToString(), out float o) ? o : 1.0f;
-			float albedoMix = meta != null && meta.TryGetPropertyValue("albedo_mix", out var mNode) && float.TryParse(mNode?.ToString(), out float m) ? m : 1.0f;
-			float normalStrength = meta != null && meta.TryGetPropertyValue("normal_strength", out var nNode) && float.TryParse(nNode?.ToString(), out float n) ? n : (assetData.PrimaryNormal != null ? 1.0f : 0.0f);
-			float roughness = meta != null && meta.TryGetPropertyValue("roughness", out var rNode) && float.TryParse(rNode?.ToString(), out float r) ? r : 1.0f;
-			float metallic = meta != null && meta.TryGetPropertyValue("metallic", out var metNode) && float.TryParse(metNode?.ToString(), out float met) ? met : 0.0f;
-			string blendMode = meta != null && meta.TryGetPropertyValue("blend_mode", out var bmNode) ? bmNode?.ToString() ?? "Mix" : "Mix";
+			float contrast = meta?.Contrast > 0f ? meta.Contrast : 1.0f;
+			float saturation = meta?.Saturation > 0f ? meta.Saturation : 1.0f;
+			float opacity = meta?.Opacity > 0f ? meta.Opacity : 1.0f;
+			float albedoMix = meta?.AlbedoMix > 0f ? meta.AlbedoMix : 1.0f;
+			float normalStrength = meta?.NormalStrength > 0f ? meta.NormalStrength : (assetData.PrimaryNormal != null ? 1.0f : 0.0f);
+			float roughness = meta?.Roughness > 0f ? meta.Roughness : 1.0f;
+			float metallic = meta?.Metallic ?? 0.0f;
+			string blendMode = meta?.BlendMode ?? "Mix";
 
-			bool animateOpacity = meta != null && meta.TryGetPropertyValue("animate_opacity", out var aoNode) && bool.TryParse(aoNode?.ToString(), out bool ao) && ao;
-			float opacityPulseSpeed = meta != null && meta.TryGetPropertyValue("opacity_pulse_speed", out var opsNode) && float.TryParse(opsNode?.ToString(), out float ops) ? ops : 1.0f;
-			float minOpacity = meta != null && meta.TryGetPropertyValue("min_opacity", out var minONode) && float.TryParse(minONode?.ToString(), out float minO) ? minO : 0.2f;
-			float maxOpacity = meta != null && meta.TryGetPropertyValue("max_opacity", out var maxONode) && float.TryParse(maxONode?.ToString(), out float maxO) ? maxO : 1.0f;
+			bool animateOpacity = meta?.AnimateOpacity ?? false;
+			float opacityPulseSpeed = meta?.OpacityPulseSpeed > 0f ? meta.OpacityPulseSpeed : 1.0f;
+			float minOpacity = meta?.MinOpacity > 0f ? meta.MinOpacity : 0.2f;
+			float maxOpacity = meta?.MaxOpacity > 0f ? meta.MaxOpacity : 1.0f;
 
-			bool animateEmission = meta != null && meta.TryGetPropertyValue("animate_emission", out var aeNode) && bool.TryParse(aeNode?.ToString(), out bool ae) && ae;
-			float emissionPulseSpeed = meta != null && meta.TryGetPropertyValue("emission_pulse_speed", out var epsNode) && float.TryParse(epsNode?.ToString(), out float eps) ? eps : 1.0f;
-			float minEmission = meta != null && meta.TryGetPropertyValue("min_emission", out var minENode) && float.TryParse(minENode?.ToString(), out float minE) ? minE : 0.0f;
-			float maxEmission = meta != null && meta.TryGetPropertyValue("max_emission", out var maxENode) && float.TryParse(maxENode?.ToString(), out float maxE) ? maxE : 2.0f;
+			bool animateEmission = meta?.AnimateEmission ?? false;
+			float emissionPulseSpeed = meta?.EmissionPulseSpeed > 0f ? meta.EmissionPulseSpeed : 1.0f;
+			float minEmission = meta?.MinEmission ?? 0.0f;
+			float maxEmission = meta?.MaxEmission > 0f ? meta.MaxEmission : 2.0f;
 
-			bool animateScale = meta != null && meta.TryGetPropertyValue("animate_scale", out var asNode) && bool.TryParse(asNode?.ToString(), out bool aSc) && aSc;
-			float scalePulseSpeed = meta != null && meta.TryGetPropertyValue("scale_pulse_speed", out var scpsNode) && float.TryParse(scpsNode?.ToString(), out float scps) ? scps : 1.0f;
-			float minScaleRatio = meta != null && meta.TryGetPropertyValue("min_scale_ratio", out var minScNode) && float.TryParse(minScNode?.ToString(), out float minSc) ? minSc : 0.8f;
-			float maxScaleRatio = meta != null && meta.TryGetPropertyValue("max_scale_ratio", out var maxScNode) && float.TryParse(maxScNode?.ToString(), out float maxSc) ? maxSc : 1.2f;
+			bool animateScale = meta?.AnimateScale ?? false;
+			float scalePulseSpeed = meta?.ScalePulseSpeed > 0f ? meta.ScalePulseSpeed : 1.0f;
+			float minScaleRatio = meta?.MinScaleRatio > 0f ? meta.MinScaleRatio : 0.8f;
+			float maxScaleRatio = meta?.MaxScaleRatio > 0f ? meta.MaxScaleRatio : 1.2f;
 
-			float upperFade = meta != null && meta.TryGetPropertyValue("upper_fade", out var ufNode) && float.TryParse(ufNode?.ToString(), out float uf) ? uf : 0.3f;
-			float lowerFade = meta != null && meta.TryGetPropertyValue("lower_fade", out var lfNode) && float.TryParse(lfNode?.ToString(), out float lf) ? lf : 0.3f;
+			float upperFade = meta?.UpperFade > 0f ? meta.UpperFade : 0.3f;
+			float lowerFade = meta?.LowerFade > 0f ? meta.LowerFade : 0.3f;
 
 			ApplyDecalRenderingProperties(
 				decal,

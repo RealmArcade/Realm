@@ -324,24 +324,14 @@ public partial class VfxManagerDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
-			if (assetsObj?["vfx"] is JsonObject vfxObj)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Templates?.Vfx != null)
 			{
-				foreach (var prop in vfxObj)
+				foreach (var parsed in metadata.Templates.Vfx)
 				{
-					string key = prop.Key;
-					if (!result.ContainsKey(key) && prop.Value is JsonObject vNode)
+					if (parsed != null && !string.IsNullOrEmpty(parsed.VfxId) && !result.ContainsKey(parsed.VfxId))
 					{
-						try
-						{
-							var parsed = JsonSerializer.Deserialize<VfxAttachmentConfig>(vNode.ToJsonString());
-							if (parsed != null)
-							{
-								if (string.IsNullOrEmpty(parsed.VfxId)) parsed.VfxId = key;
-								result[key] = parsed;
-							}
-						}
-						catch { }
+						result[parsed.VfxId] = parsed;
 					}
 				}
 			}

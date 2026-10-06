@@ -3,9 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Realm.Godot.Services;
+using Realm.Shared.Services;
 
 public partial class MapSettingsDialog : FloatingDialogBase
 {
@@ -385,46 +384,25 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	public void LoadMapProperties()
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var metadata))
+		var metadata = MapFileService.LoadMetadata(wsPath);
+		var manifest = MapFileService.LoadManifest(wsPath);
+
+		string? name = !string.IsNullOrEmpty(metadata.MapProperties?.MapName)
+			? metadata.MapProperties.MapName
+			: manifest.MapName;
+		if (!string.IsNullOrEmpty(name) && _txtMapName != null)
 		{
-			string? name = metadata.MapProperties?.MapName;
-			if (!string.IsNullOrEmpty(name) && _txtMapName != null)
-			{
-				_txtMapName.Text = name.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-			}
-			string? ver = metadata.MapProperties?.Version;
-			if (!string.IsNullOrEmpty(ver) && _txtMapVersion != null)
-			{
-				_txtMapVersion.Text = ver;
-			}
+			_txtMapName.Text = name.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
 		}
 
-		string manifestJsonPath = Path.Combine(wsPath, "manifest.json");
-		if (File.Exists(manifestJsonPath))
+		string? ver = !string.IsNullOrEmpty(manifest.Version)
+			? manifest.Version
+			: metadata.MapProperties?.Version;
+		if (!string.IsNullOrEmpty(ver) && _txtMapVersion != null)
 		{
-			try
-			{
-				string manifestContent = File.ReadAllText(manifestJsonPath);
-				var manifestDoc = JsonNode.Parse(manifestContent) as JsonObject;
-				if (manifestDoc != null)
-				{
-					if (_txtMapVersion != null && manifestDoc.TryGetPropertyValue("Version", out var verNode))
-					{
-						_txtMapVersion.Text = verNode?.GetValue<string>() ?? "1.0.0";
-					}
-					if (_txtMapName != null && string.IsNullOrEmpty(_txtMapName.Text) && manifestDoc.TryGetPropertyValue("MapName", out var nameNode))
-					{
-						_txtMapName.Text = (nameNode?.GetValue<string>() ?? "").Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-					}
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed to load manifest.json properties: {ex.Message}");
-			}
+			_txtMapVersion.Text = ver;
 		}
-
-		if (_txtMapVersion != null && string.IsNullOrEmpty(_txtMapVersion.Text))
+		else if (_txtMapVersion != null && string.IsNullOrEmpty(_txtMapVersion.Text))
 		{
 			_txtMapVersion.Text = "1.0.0";
 		}
@@ -437,52 +415,25 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		string cleanVersion = (_txtMapVersion?.Text ?? "1.0.0").Trim();
 		if (string.IsNullOrEmpty(cleanVersion)) cleanVersion = "1.0.0";
 
-		string manifestJsonPath = Path.Combine(wsPath, "manifest.json");
-		if (File.Exists(manifestJsonPath))
-		{
-			try
-			{
-				string manifestContent = File.ReadAllText(manifestJsonPath);
-				var manifestDoc = JsonNode.Parse(manifestContent) as JsonObject;
-				if (manifestDoc != null)
-				{
-					manifestDoc["Version"] = cleanVersion;
-					if (!string.IsNullOrEmpty(cleanMapName)) manifestDoc["MapName"] = cleanMapName;
-					var options = new JsonSerializerOptions { WriteIndented = true };
-					File.WriteAllText(manifestJsonPath, manifestDoc.ToJsonString(options));
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed to save manifest.json version: {ex.Message}");
-			}
-		}
+		var manifest = MapFileService.LoadManifest(wsPath);
+		manifest.Version = cleanVersion;
+		if (!string.IsNullOrEmpty(cleanMapName)) manifest.MapName = cleanMapName;
+		MapFileService.SaveManifest(wsPath, manifest);
 
-		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (File.Exists(metaPath))
+		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
 		{
-			try
+			if (!string.IsNullOrEmpty(cleanMapName)) meta.MapProperties.MapName = cleanMapName;
+			meta.MapProperties.Version = cleanVersion;
+			if (GameHost.Instance?.GroundTerrain != null)
 			{
-				MetadataService.Instance.UpdateMetadata(wsPath, meta =>
-				{
-					if (!string.IsNullOrEmpty(cleanMapName)) meta.MapProperties.MapName = cleanMapName;
-					meta.MapProperties.Version = cleanVersion;
-					if (GameHost.Instance?.GroundTerrain != null)
-					{
-						meta.MapProperties.MapWidth = GameHost.Instance.GroundTerrain.Width;
-						meta.MapProperties.MapHeight = GameHost.Instance.GroundTerrain.Depth;
-					}
-					meta.MapProperties.CameraBoundsLeft = GameHost.Instance?.EditorCameraBoundsLeft;
-					meta.MapProperties.CameraBoundsRight = GameHost.Instance?.EditorCameraBoundsRight;
-					meta.MapProperties.CameraBoundsTop = GameHost.Instance?.EditorCameraBoundsTop;
-					meta.MapProperties.CameraBoundsBottom = GameHost.Instance?.EditorCameraBoundsBottom;
-				});
+				meta.MapProperties.MapWidth = GameHost.Instance.GroundTerrain.Width;
+				meta.MapProperties.MapHeight = GameHost.Instance.GroundTerrain.Depth;
 			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed to save metadata.json map properties: {ex.Message}");
-			}
-		}
+			meta.MapProperties.CameraBoundsLeft = GameHost.Instance?.EditorCameraBoundsLeft;
+			meta.MapProperties.CameraBoundsRight = GameHost.Instance?.EditorCameraBoundsRight;
+			meta.MapProperties.CameraBoundsTop = GameHost.Instance?.EditorCameraBoundsTop;
+			meta.MapProperties.CameraBoundsBottom = GameHost.Instance?.EditorCameraBoundsBottom;
+		});
 	}
 
 	public void RebuildTagsUI()
@@ -548,10 +499,9 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		try
 		{
 			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			var skyboxesObj = unionedAssets?["skyboxes"] as JsonObject;
-			if (skyboxesObj != null)
+			if (unionedAssets?.Skybox != null)
 			{
-				foreach (var kvp in skyboxesObj)
+				foreach (var kvp in unionedAssets.Skybox)
 				{
 					string filename = kvp.Key;
 					if (!_skyboxFiles.Contains(filename))

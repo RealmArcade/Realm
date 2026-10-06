@@ -587,34 +587,14 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 							};
 						}
 
-						if (groupKvp.Value is JsonObject subObj)
+						if (allFolders || groupMatches)
 						{
-							foreach (var itemKvp in subObj)
+							foreach (var itemKvp in groupKvp.Value)
 							{
-								if (itemKvp.Value is JsonObject nestedObj)
+								string fn = itemKvp.Key;
+								if (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 								{
-									foreach (var nestedItem in nestedObj)
-									{
-										string fn = nestedItem.Key;
-										if (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-										{
-											if (allFolders || groupMatches)
-											{
-												results.Add(Path.GetFileName(fn));
-											}
-										}
-									}
-								}
-								else
-								{
-									string fn = itemKvp.Key;
-									if (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-									{
-										if (allFolders || groupMatches)
-										{
-											results.Add(Path.GetFileName(fn));
-										}
-									}
+									results.Add(Path.GetFileName(fn));
 								}
 							}
 						}
@@ -684,29 +664,12 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				{
 					foreach (var groupKvp in assets)
 					{
-						if (groupKvp.Value is JsonObject subObj)
+						foreach (var itemKvp in groupKvp.Value)
 						{
-							foreach (var itemKvp in subObj)
+							string fn = itemKvp.Key;
+							if (fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 							{
-								if (itemKvp.Value is JsonObject nestedObj)
-								{
-									foreach (var nestedItem in nestedObj)
-									{
-										string fn = nestedItem.Key;
-										if (fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-										{
-											results.Add(Path.GetFileName(fn));
-										}
-									}
-								}
-								else
-								{
-									string fn = itemKvp.Key;
-									if (fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-									{
-										results.Add(Path.GetFileName(fn));
-									}
-								}
+								results.Add(Path.GetFileName(fn));
 							}
 						}
 					}
@@ -753,29 +716,12 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			{
 				foreach (var groupKvp in assets)
 				{
-					if (groupKvp.Value is JsonObject subObj)
+					foreach (var itemKvp in groupKvp.Value)
 					{
-						foreach (var itemKvp in subObj)
+						string fn = itemKvp.Key;
+						if (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 						{
-							if (itemKvp.Value is JsonObject nestedObj)
-							{
-								foreach (var nestedItem in nestedObj)
-								{
-									string fn = nestedItem.Key;
-									if (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-									{
-										results.Add(Path.GetFileName(fn));
-									}
-								}
-							}
-							else
-							{
-								string fn = itemKvp.Key;
-								if (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-								{
-									results.Add(Path.GetFileName(fn));
-								}
-							}
+							results.Add(Path.GetFileName(fn));
 						}
 					}
 				}

@@ -1173,6 +1173,7 @@ public class RibbonMetadata
 public class ShaderMetadata
 {
 	public string Hash { get; set; } = string.Empty;
+	public string? ConfigJson { get; set; }
 }
 
 public class HandAttachmentOrientation

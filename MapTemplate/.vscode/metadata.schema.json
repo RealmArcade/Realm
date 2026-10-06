@@ -3093,6 +3093,12 @@
         "properties": {
           "Hash": {
             "type": "string"
+          },
+          "ConfigJson": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }

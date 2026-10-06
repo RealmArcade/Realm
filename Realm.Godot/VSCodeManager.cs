@@ -922,77 +922,54 @@ public partial class VSCodeManager
 				try
 				{
 					string fileName = System.IO.Path.GetFileName(filePath).ToLowerInvariant();
+					EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 					if (fileName == "metadata.json")
 					{
 						try
 						{
-							var rootObj = JsonNode.Parse(content)?.AsObject();
-							if (rootObj != null && (rootObj.ContainsKey("Assets") || rootObj.ContainsKey("textures")))
-							{
-								string mapDir = System.IO.Path.GetDirectoryName(filePath) ?? MapWorkspaceService.GetActiveWorkspacePath();
-								var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(mapDir) ?? new JsonObject();
-								if (rootObj.TryGetPropertyValue("Assets", out var aNode) && aNode is JsonObject aObj)
-								{
-									foreach (var kvp in aObj)
-									{
-										if (kvp.Value != null)
-										{
-											unionedAssets[kvp.Key] = kvp.Value.DeepClone();
-										}
-									}
-								}
-								if (rootObj.TryGetPropertyValue("textures", out var tNode) && tNode is JsonObject tObj)
-								{
-									var existingTextures = unionedAssets["textures"] as JsonObject ?? new JsonObject();
-									foreach (var kvp in tObj)
-									{
-										if (kvp.Value is JsonObject incomingObj)
-										{
-											if (existingTextures.TryGetPropertyValue(kvp.Key, out var existNode) && existNode is JsonObject existObj)
-											{
-												foreach (var p in incomingObj)
-												{
-													existObj[p.Key] = p.Value?.DeepClone();
-												}
-											}
-											else
-											{
-												existingTextures[kvp.Key] = incomingObj.DeepClone();
-											}
-										}
-										else if (kvp.Value != null)
-										{
-											existingTextures[kvp.Key] = kvp.Value.DeepClone();
-										}
-									}
-									unionedAssets["textures"] = existingTextures;
-								}
-								MapWorkspaceService.NormalizeTextureEntries(unionedAssets, mapDir);
-								Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(mapDir, unionedAssets, removeFromMetadata: true);
-								if (unionedAssets["textures"] is JsonObject normTextures)
-								{
-									var targetTextures = new JsonObject();
-									foreach (var kvp in normTextures)
-									{
-										if (kvp.Value is JsonObject itemObj)
-										{
-											var cleanItem = itemObj.DeepClone() as JsonObject ?? new JsonObject();
-											cleanItem.Remove("hash");
-											targetTextures[kvp.Key] = cleanItem;
-										}
-									}
-									rootObj["textures"] = targetTextures;
-								}
-								SaveLoadService.CleanMetadataJsonSchema(rootObj);
-								content = rootObj.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-							}
+							var metadata = Realm.Shared.Services.MapFileService.LoadMetadataFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveMetadata(filePath, metadata);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveMetadataToJson(metadata);
 						}
-						catch { }
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
 					}
-
-					formattedContent = MapJsonFormatter.FormatJson(content);
-					EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-					MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+					else if (fileName == "manifest.json")
+					{
+						try
+						{
+							var manifest = Realm.Shared.Services.MapFileService.LoadManifestFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveManifest(filePath, manifest);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveManifestToJson(manifest);
+						}
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
+					}
+					else if (fileName == "terrain.json")
+					{
+						try
+						{
+							var terrain = Realm.Shared.Services.MapFileService.LoadTerrainFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveTerrain(filePath, terrain);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveTerrainToJson(terrain);
+						}
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
+					}
+					else
+					{
+						formattedContent = MapJsonFormatter.FormatJson(content);
+						MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+					}
 					success = true;
 
 					Callable.From(() =>

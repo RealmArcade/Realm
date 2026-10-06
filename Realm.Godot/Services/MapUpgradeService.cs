@@ -10,6 +10,7 @@ using Realm.Ecs.Services;
 using Realm.Godot.Utils;
 using Realm.Shared;
 using Realm.Shared.Audio;
+using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Textures;
@@ -154,58 +155,18 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 
 			if (metadataRoot.TryGetPropertyValue("vfx", out var vfxNode) && vfxNode is JsonObject vfxObj)
 			{
-				MergeCategoryInto(unionedAssets, "vfx_spritesheets", vfxObj);
+				MapUpgradeService.MergeCategoryInto(unionedAssets, "Spritesheet", vfxObj);
 				metadataRoot.Remove("vfx");
 			}
 			if (metadataRoot.TryGetPropertyValue("noise", out var noiseNode) && noiseNode is JsonObject noiseObj)
 			{
-				MergeCategoryInto(unionedAssets, "noise_textures", noiseObj);
+				MapUpgradeService.MergeCategoryInto(unionedAssets, "Noise", noiseObj);
 				metadataRoot.Remove("noise");
 			}
 			if (metadataRoot.TryGetPropertyValue("ribbon_textures", out var ribbonNode) && ribbonNode is JsonObject ribbonObj)
 			{
-				MergeCategoryInto(unionedAssets, "ribbons", ribbonObj);
+				MapUpgradeService.MergeCategoryInto(unionedAssets, "Ribbon", ribbonObj);
 				metadataRoot.Remove("ribbon_textures");
-			}
-
-			if (unionedAssets.TryGetPropertyValue("textures", out var texCatNode) && texCatNode is JsonObject texCat)
-			{
-				var renameProps = new (string OldKey, string NewKey)[]
-				{
-					("swatch_index", "swatchIndex"),
-					("SwatchIndex", "swatchIndex"),
-					("ScaleFactor", "Scale_Factor"),
-					("scale_factor", "Scale_Factor"),
-					("tile_mode", "TileMode"),
-					("Tile_Mode", "TileMode"),
-					("uv_scale", "UVScale"),
-					("UV_Scale", "UVScale"),
-					("stochastic_tile_size", "StochasticTileSize"),
-					("Stochastic_Tile_Size", "StochasticTileSize"),
-					("variants", "Variants"),
-					("cross_fade", "CrossFade"),
-					("Cross_Fade", "CrossFade"),
-					("grid_cross_fade", "GridCrossFade"),
-					("Grid_Cross_Fade", "GridCrossFade")
-				};
-
-				foreach (var texPair in texCat)
-				{
-					if (texPair.Value is JsonObject itemObj)
-					{
-						foreach (var (oldKey, newKey) in renameProps)
-						{
-							if (itemObj.TryGetPropertyValue(oldKey, out var valNode) && valNode != null)
-							{
-								if (!itemObj.ContainsKey(newKey))
-								{
-									itemObj[newKey] = valNode.DeepClone();
-								}
-								itemObj.Remove(oldKey);
-							}
-						}
-					}
-				}
 			}
 
 			progress?.Report(new MigrationProgressUpdate(Description, 3, totalSteps, "Converting 3D model assets to .rmesh..."));
@@ -262,7 +223,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 	private static void ConvertModelAssets(
 		string mapDirectory,
 		JsonObject metadataRoot,
-		JsonObject unionedAssets,
+		MapManifestAssets unionedAssets,
 		IProgress<MigrationProgressUpdate>? progress,
 		string description,
 		int stepIndex,
@@ -405,27 +366,25 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 			metadataRoot.Remove("ModelNormalModes");
 		}
 
-		if (unionedAssets.TryGetPropertyValue("glb", out var glbCatNode) && glbCatNode is JsonObject glbCat)
+		foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
 		{
-			foreach (var subPair in glbCat)
+			var dict = unionedAssets.GetCategory(catName);
+			if (dict != null)
 			{
-				if (subPair.Value is JsonObject subObj)
+				var keysToMigrate = new List<(string OldKey, string NewKey, string Value)>();
+				foreach (var item in dict)
 				{
-					var keysToMigrate = new List<(string OldKey, string NewKey, JsonNode? Value)>();
-					foreach (var item in subObj)
+					string ext = Path.GetExtension(item.Key);
+					if (ModelExtensions.Contains(ext))
 					{
-						string ext = Path.GetExtension(item.Key);
-						if (ModelExtensions.Contains(ext))
-						{
-							string newKey = Path.ChangeExtension(item.Key, ".rmesh");
-							keysToMigrate.Add((item.Key, newKey, item.Value?.DeepClone()));
-						}
+						string newKey = Path.ChangeExtension(item.Key, ".rmesh");
+						keysToMigrate.Add((item.Key, newKey, item.Value));
 					}
-					foreach (var (oldKey, newKey, val) in keysToMigrate)
-					{
-						subObj.Remove(oldKey);
-						subObj[newKey] = val;
-					}
+				}
+				foreach (var (oldKey, newKey, val) in keysToMigrate)
+				{
+					dict.Remove(oldKey);
+					dict[newKey] = val;
 				}
 			}
 		}
@@ -434,7 +393,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 	private static void ConvertAudioAssets(
 		string mapDirectory,
 		JsonObject metadataRoot,
-		JsonObject unionedAssets,
+		MapManifestAssets unionedAssets,
 		IProgress<MigrationProgressUpdate>? progress,
 		string description,
 		int stepIndex,
@@ -472,22 +431,26 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 			}
 		}
 
-		if (unionedAssets.TryGetPropertyValue("audio", out var audCatNode) && audCatNode is JsonObject audCat)
+		foreach (var catName in new[] { "SoundEffect", "Music" })
 		{
-			var keysToMigrate = new List<(string OldKey, string NewKey, JsonNode? Value)>();
-			foreach (var item in audCat)
+			var dict = unionedAssets.GetCategory(catName);
+			if (dict != null)
 			{
-				string ext = Path.GetExtension(item.Key);
-				if (AudioExtensions.Contains(ext))
+				var keysToMigrate = new List<(string OldKey, string NewKey, string Value)>();
+				foreach (var item in dict)
 				{
-					string newKey = Path.ChangeExtension(item.Key, ".raud");
-					keysToMigrate.Add((item.Key, newKey, item.Value?.DeepClone()));
+					string ext = Path.GetExtension(item.Key);
+					if (AudioExtensions.Contains(ext))
+					{
+						string newKey = Path.ChangeExtension(item.Key, ".raud");
+						keysToMigrate.Add((item.Key, newKey, item.Value));
+					}
 				}
-			}
-			foreach (var (oldKey, newKey, val) in keysToMigrate)
-			{
-				audCat.Remove(oldKey);
-				audCat[newKey] = val;
+				foreach (var (oldKey, newKey, val) in keysToMigrate)
+				{
+					dict.Remove(oldKey);
+					dict[newKey] = val;
+				}
 			}
 		}
 	}
@@ -495,7 +458,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 	private static void ConvertTextureAssets(
 		string mapDirectory,
 		JsonObject metadataRoot,
-		JsonObject unionedAssets,
+		MapManifestAssets unionedAssets,
 		IProgress<MigrationProgressUpdate>? progress,
 		string description,
 		int stepIndex,
@@ -574,26 +537,28 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		}
 	}
 
-	private static void MergeCategoryInto(JsonObject targetAssets, string category, JsonObject sourceObject)
+	public static void MergeCategoryInto(MapManifestAssets targetAssets, string category, JsonObject sourceObject)
 	{
-		if (!targetAssets.ContainsKey(category) || targetAssets[category] is not JsonObject)
+		var categoryTarget = targetAssets.GetCategory(category);
+		if (categoryTarget == null)
 		{
-			targetAssets[category] = new JsonObject();
+			categoryTarget = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			targetAssets.SetCategory(category, categoryTarget);
 		}
-		var categoryTarget = targetAssets[category]!.AsObject();
 
 		foreach (var pair in sourceObject)
 		{
-			if (categoryTarget.ContainsKey(pair.Key) && categoryTarget[pair.Key] is JsonObject existingObj && pair.Value is JsonObject sourceObj)
+			if (pair.Value is JsonObject sourceObj)
 			{
-				foreach (var prop in sourceObj)
+				string hash = sourceObj["hash"]?.ToString() ?? sourceObj["blake3"]?.ToString() ?? string.Empty;
+				if (!string.IsNullOrEmpty(hash))
 				{
-					existingObj[prop.Key] = prop.Value?.DeepClone();
+					categoryTarget[pair.Key] = hash;
 				}
 			}
-			else
+			else if (pair.Value != null)
 			{
-				categoryTarget[pair.Key] = pair.Value?.DeepClone();
+				categoryTarget[pair.Key] = pair.Value.ToString();
 			}
 		}
 	}
@@ -800,26 +765,7 @@ public class Migration_0_0_3_WaterProfilesAndShaders : IMapMigration
 
 			if (metadataRoot.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObject)
 			{
-				if (!unionedAssets.ContainsKey("shaders") || unionedAssets["shaders"] is not JsonObject)
-				{
-					unionedAssets["shaders"] = new JsonObject();
-				}
-				var categoryTarget = unionedAssets["shaders"]!.AsObject();
-
-				foreach (var pair in shadersObject)
-				{
-					if (categoryTarget.ContainsKey(pair.Key) && categoryTarget[pair.Key] is JsonObject existingObj && pair.Value is JsonObject sourceObj)
-					{
-						foreach (var prop in sourceObj)
-						{
-							existingObj[prop.Key] = prop.Value?.DeepClone();
-						}
-					}
-					else
-					{
-						categoryTarget[pair.Key] = pair.Value?.DeepClone();
-					}
-				}
+				MapUpgradeService.MergeCategoryInto(unionedAssets, "Shader", shadersObject);
 			}
 
 			MapAssetHelper.SaveAssetsToManifest(mapDirectory, unionedAssets, removeFromMetadata: true);
@@ -1081,6 +1027,31 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 public class MapUpgradeService
 {
+	public static void MergeCategoryInto(MapManifestAssets targetAssets, string category, JsonObject sourceObject)
+	{
+		var categoryTarget = targetAssets.GetCategory(category);
+		if (categoryTarget == null)
+		{
+			categoryTarget = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			targetAssets.SetCategory(category, categoryTarget);
+		}
+
+		foreach (var pair in sourceObject)
+		{
+			if (pair.Value is JsonObject sourceObj)
+			{
+				string hash = sourceObj["hash"]?.ToString() ?? sourceObj["blake3"]?.ToString() ?? string.Empty;
+				if (!string.IsNullOrEmpty(hash))
+				{
+					categoryTarget[pair.Key] = hash;
+				}
+			}
+			else if (pair.Value != null)
+			{
+				categoryTarget[pair.Key] = pair.Value.ToString();
+			}
+		}
+	}
 	private readonly WorldAccessor _worldAccessor;
 	private readonly List<IMapMigration> _migrations = new();
 

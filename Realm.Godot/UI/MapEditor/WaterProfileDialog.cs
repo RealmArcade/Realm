@@ -994,11 +994,12 @@ public partial class WaterProfileDialog : FloatingDialogBase
 			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				foreach (var catName in new[] { "textures", "noise_textures", "noise", "decals", "ribbons", "vfx", "vfx_spritesheets" })
+				foreach (var catName in new[] { "Terrain", "Noise", "Decal", "Ribbon", "Spritesheet" })
 				{
-					if (assetsObj[catName] is System.Text.Json.Nodes.JsonObject catObj)
+					var catDict = assetsObj.GetCategory(catName);
+					if (catDict != null)
 					{
-						foreach (var kvp in catObj)
+						foreach (var kvp in catDict)
 						{
 							if (!string.IsNullOrEmpty(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 							{

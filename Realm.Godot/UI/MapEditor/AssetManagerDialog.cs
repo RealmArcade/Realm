@@ -508,7 +508,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 								fullPath = Path.Combine(wsPath, "Assets", subFolder, fileName);
 							}
 
-							string blake3 = MapAssetHelper.ExtractHashString(itemKvp.Value);
+							string blake3 = itemKvp.Value?.ToString() ?? string.Empty;
 							long fileSize = File.Exists(fullPath) ? new FileInfo(fullPath).Length : 0;
 							DateTime lastModified = File.Exists(fullPath) ? File.GetLastWriteTimeUtc(fullPath) : DateTime.UtcNow;
 
@@ -1268,22 +1268,22 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			byte[] bytes = File.ReadAllBytes(destPath);
 			string hash = RealmMetadataHelper.ComputeBlake3(bytes, ".rtex");
 
-			MapAssetHelper.UpdateManifestAsset(wsPath, targetCategory, $"{cleanBase}.rtex", hash, customizeEntry: (entry) =>
-			{
-				if (targetCategory == "Spritesheet")
-				{
-					entry["columns"] = vfxCols;
-					entry["rows"] = vfxRows;
-					entry["fps"] = Math.Round(vfxFps, 2);
-				}
-				else if (targetCategory == "Decal" && (decalCols > 1 || decalRows > 1))
-				{
-					entry["columns"] = decalCols;
-					entry["rows"] = decalRows;
-				}
-			});
+			MapAssetHelper.UpdateManifestAsset(wsPath, targetCategory, $"{cleanBase}.rtex", hash);
 
-			if (targetCategory == "Decal")
+			if (targetCategory == "Spritesheet")
+			{
+				MetadataService.Instance.UpdateMetadata(wsPath, m =>
+				{
+					m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+					m.VfxSpritesheets[$"{cleanBase}.rtex"] = new Realm.Shared.Metadata.VfxMetadata
+					{
+						Columns = vfxCols,
+						Rows = vfxRows,
+						Fps = (float)Math.Round(vfxFps, 2)
+					};
+				});
+			}
+			else if (targetCategory == "Decal")
 			{
 				EnsureDecalTemplate(wsPath, $"{cleanBase}.rtex");
 			}

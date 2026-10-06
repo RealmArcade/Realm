@@ -244,9 +244,10 @@ public class MapEditorEntityPaletteController
 					}
 
 					var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(globalWs);
-					if (unionedAssets.ContainsKey("decals") && unionedAssets["decals"] is System.Text.Json.Nodes.JsonObject decalsObj)
+					var decalsDict = unionedAssets.GetCategory("Decal");
+					if (decalsDict != null)
 					{
-						foreach (var kvp in decalsObj)
+						foreach (var kvp in decalsDict)
 						{
 							string decalFile = kvp.Key;
 							string relDecalPath = System.IO.Path.Combine("Assets", "decals", decalFile);

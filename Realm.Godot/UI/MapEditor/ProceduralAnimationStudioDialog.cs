@@ -605,9 +605,10 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 						_ => "Prop"
 					};
 
-					if (groupKvp.Value is JsonObject subObj)
+					var subDict = groupKvp.Value;
+					if (subDict != null)
 					{
-						foreach (var itemKvp in subObj)
+						foreach (var itemKvp in subDict)
 						{
 							string fn = itemKvp.Key;
 							if (!string.IsNullOrEmpty(fn) && (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)))

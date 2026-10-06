@@ -612,28 +612,31 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		try
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			var decalsObj = assetsObj?["decals"] as JsonObject;
-			if (decalsObj != null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Decals != null)
 			{
 				string key = Path.GetFileName(decalKey);
 				string baseKey = Path.GetFileNameWithoutExtension(decalKey);
 
-				JsonObject? foundMeta = null;
-				if (decalsObj.TryGetPropertyValue(decalKey, out var n0) && n0 is JsonObject o0) foundMeta = o0;
-				else if (decalsObj.TryGetPropertyValue(key, out var n1) && n1 is JsonObject o1) foundMeta = o1;
-				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is JsonObject o2) foundMeta = o2;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is JsonObject o3) foundMeta = o3;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is JsonObject o4) foundMeta = o4;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.webp", out var n5) && n5 is JsonObject o5) foundMeta = o5;
+				Realm.Shared.Metadata.DecalMetadata? foundMeta = null;
+				if (metadata.Decals.TryGetValue(decalKey, out var d0)) foundMeta = d0;
+				else if (metadata.Decals.TryGetValue(key, out var d1)) foundMeta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) foundMeta = d2;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) foundMeta = d3;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) foundMeta = d4;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.webp", out var d5)) foundMeta = d5;
 
 				if (foundMeta != null)
 				{
-					foreach (var kvp in foundMeta)
+					var jsonMeta = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(foundMeta)) as JsonObject;
+					if (jsonMeta != null)
 					{
-						if (!result.ContainsKey(kvp.Key))
+						foreach (var kvp in jsonMeta)
 						{
-							result[kvp.Key] = kvp.Value?.DeepClone();
+							if (!result.ContainsKey(kvp.Key))
+							{
+								result[kvp.Key] = kvp.Value?.DeepClone();
+							}
 						}
 					}
 				}

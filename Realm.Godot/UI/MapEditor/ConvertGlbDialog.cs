@@ -533,31 +533,14 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 					: RealmMetadataHelper.ComputeBlake3(destPath);
 				bool isPropOrRes = subCategory == "resources" || subCategory == "props" || subCategory == "attachments" || subCategory == "weapons" || subCategory == "items" || subCategory == "projectiles";
 
-				var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath) ?? new JsonObject();
-				if (!assetsObj.ContainsKey("glb") || assetsObj["glb"] == null) assetsObj["glb"] = new JsonObject();
-				var glbObj = assetsObj["glb"].AsObject();
-				if (!glbObj.ContainsKey(subCategory) || glbObj[subCategory] == null) glbObj[subCategory] = new JsonObject();
-
-				var modelEntry = new JsonObject
+				string canonicalCat = subCategory switch
 				{
-					["hash"] = hash,
-					["scale"] = defaultScale,
-					["y_offset"] = 0.0f,
-					["min_y"] = 0.0f,
-					["default_asset_type"] = subCategory,
-					["despill_player_color"] = false,
-					["normalize_luminance"] = true,
-					["ignore_player_color"] = isPropOrRes,
-					["team_color"] = convRes.SupportsTeamColor
+					"units" => "Character",
+					"buildings" => "Building",
+					"attachments" or "items" or "weapons" or "projectiles" => "Item",
+					_ => "Prop"
 				};
-
-				if (!string.IsNullOrEmpty(chromaKeyHex))
-				{
-					modelEntry["chroma_key"] = chromaKeyHex;
-				}
-
-				glbObj[subCategory]![fileName] = modelEntry;
-				Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
+				MapAssetHelper.UpdateManifestAsset(wsPath, canonicalCat, fileName, hash);
 
 				resultPath = destPath;
 			}
@@ -618,14 +601,6 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		{
 			var (minY, autoYOffset) = ModelCache.CalculateModelBounds(resultPath, defaultScale);
 			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-			var entry = assetsObj?["glb"]?[subCategory]?[fileName]?.AsObject();
-			if (entry != null)
-			{
-				entry["min_y"] = minY;
-				entry["y_offset"] = autoYOffset;
-				Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
-			}
 
 			string unitId = Path.GetFileNameWithoutExtension(fileName);
 			MetadataService.Instance.UpdateMetadata(wsPath, meta =>

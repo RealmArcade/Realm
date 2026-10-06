@@ -65,36 +65,9 @@ public class MetadataService
 	public MapMetadata LoadMetadata(string pathOrDirectory)
 	{
 		string targetPath = ResolveMetadataPath(pathOrDirectory);
-		string jsonText = string.Empty;
-
-		if (File.Exists(targetPath))
-		{
-			try
-			{
-				jsonText = File.ReadAllText(targetPath);
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[MetadataService] Failed reading file at {targetPath}: {ex.Message}");
-			}
-		}
-
-		if (string.IsNullOrWhiteSpace(jsonText))
-		{
-			return new MapMetadata();
-		}
-
-		try
-		{
-			var metadata = JsonSerializer.Deserialize<MapMetadata>(jsonText, SerializerOptions) ?? new MapMetadata();
-			CleanMetadata(metadata);
-			return metadata;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MetadataService] Failed deserializing metadata from {targetPath}: {ex.Message}");
-			return new MapMetadata();
-		}
+		var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(targetPath);
+		CleanMetadata(metadata);
+		return metadata;
 	}
 
 	public bool TryLoadMetadata(string pathOrDirectory, out MapMetadata metadata)
@@ -115,18 +88,11 @@ public class MetadataService
 		if (metadata == null) return;
 
 		string targetPath = ResolveMetadataPath(pathOrDirectory);
-		string? directory = Path.GetDirectoryName(targetPath);
-		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-		{
-			Directory.CreateDirectory(directory);
-		}
-
 		CleanMetadata(metadata);
 
 		try
 		{
-			string jsonString = JsonSerializer.Serialize(metadata, SerializerOptions);
-			MapJsonFormatter.SaveFormattedJson(targetPath, jsonString);
+			Realm.Shared.Services.MapFileService.SaveMetadata(targetPath, metadata);
 			MetadataSaved?.Invoke(targetPath);
 		}
 		catch (Exception ex)

@@ -1651,55 +1651,27 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		// 3. Unioned Assets from manifest/metadata (Items and VFX imported into map)
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				if (assetsObj["glb"] is JsonObject glbObj)
+				var itemsDict = assetsObj.GetCategory("Item");
+				if (itemsDict != null)
 				{
-					foreach (var subCat in glbObj)
+					foreach (var modelProp in itemsDict)
 					{
-						string catName = subCat.Key;
-						bool isItemFolder = catName.Equals("items", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("attachments", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("weapons", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("projectiles", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_items", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_attachments", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_weapons", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_projectiles", StringComparison.OrdinalIgnoreCase);
-
-						if (subCat.Value is JsonObject modelsObj)
+						string fileName = modelProp.Key;
+						string id = System.IO.Path.GetFileNameWithoutExtension(fileName);
+						if (seen.Add(id))
 						{
-							foreach (var modelProp in modelsObj)
-							{
-								string fileName = modelProp.Key;
-								string id = System.IO.Path.GetFileNameWithoutExtension(fileName);
-								bool isAttachment = isItemFolder;
-
-								if (!isAttachment && modelProp.Value is JsonObject mObj)
-								{
-									string? at = mObj["asset_type"]?.ToString()
-										?? mObj["AssetType"]?.ToString()
-										?? mObj["default_asset_type"]?.ToString()
-										?? mObj["type"]?.ToString();
-									if (!string.IsNullOrEmpty(at) && Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(fileName, at, out string canonical, out _) && canonical.Equals("Item", StringComparison.OrdinalIgnoreCase))
-									{
-										isAttachment = true;
-									}
-								}
-
-								if (isAttachment && seen.Add(id))
-								{
-									result.Add(id);
-								}
-							}
+							result.Add(id);
 						}
 					}
 				}
 
-				if (assetsObj["vfx"] is JsonObject vfxObj)
+				var vfxDict = assetsObj.GetCategory("Spritesheet");
+				if (vfxDict != null)
 				{
-					foreach (var prop in vfxObj)
+					foreach (var prop in vfxDict)
 					{
 						string vfxKey = prop.Key.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? prop.Key : $"vfx:{prop.Key}";
 						if (seen.Add(vfxKey))
