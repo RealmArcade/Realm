@@ -1026,6 +1026,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		_enableProceduralAnimation = GameHost.Instance != null && GameHost.Instance.GetModelEnableProceduralAnimation(targetLookup);
 		_proceduralAnimation = GameHost.Instance != null ? (GameHost.Instance.GetModelProceduralAnimation(targetLookup) ?? "") : "";
 		_modelPath = GameHost.Instance != null ? (GameHost.Instance.GetModelAssetKey(targetLookup) ?? "") : "";
+		if (!string.IsNullOrEmpty(_modelPath) && !_modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && !_modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && !_modelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
+		{
+			_modelPath = "";
+		}
 		_portraitModelPath = "";
 		_visualMode = (_modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || _modelPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || _modelPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)) ? "GroundPlane" : "Mesh";
 		_name = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug.Replace("_", " ") : _originalTemplateID;
@@ -1083,8 +1087,14 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private void LoadFromUnitMetadata(UnitMetadata u)
 	{
-		_modelPath = u.ModelPath ?? _modelPath;
-		_portraitModelPath = u.PortraitModelPath ?? _portraitModelPath;
+		if (!string.IsNullOrEmpty(u.ModelPath) && (u.ModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || u.ModelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || u.ModelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)))
+		{
+			_modelPath = u.ModelPath;
+		}
+		if (!string.IsNullOrEmpty(u.PortraitModelPath) && u.PortraitModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+		{
+			_portraitModelPath = u.PortraitModelPath;
+		}
 		_visualMode = !string.IsNullOrEmpty(u.VisualMode) ? u.VisualMode : _visualMode;
 		_name = u.Name ?? _name;
 		_description = u.Description ?? _description;
@@ -1111,8 +1121,14 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private void LoadFromResourceMetadata(ResourceMetadata r)
 	{
-		_modelPath = r.ModelPath ?? _modelPath;
-		_portraitModelPath = r.PortraitModelPath ?? _portraitModelPath;
+		if (!string.IsNullOrEmpty(r.ModelPath) && (r.ModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || r.ModelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || r.ModelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)))
+		{
+			_modelPath = r.ModelPath;
+		}
+		if (!string.IsNullOrEmpty(r.PortraitModelPath) && r.PortraitModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+		{
+			_portraitModelPath = r.PortraitModelPath;
+		}
 		_visualMode = !string.IsNullOrEmpty(r.VisualMode) ? r.VisualMode : _visualMode;
 		_name = r.Name ?? _name;
 		_description = r.Description ?? _description;
@@ -1139,8 +1155,14 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private void LoadFromPropMetadata(PropMetadata p)
 	{
-		_modelPath = p.ModelPath ?? _modelPath;
-		_portraitModelPath = p.PortraitModelPath ?? _portraitModelPath;
+		if (!string.IsNullOrEmpty(p.ModelPath) && (p.ModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || p.ModelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || p.ModelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)))
+		{
+			_modelPath = p.ModelPath;
+		}
+		if (!string.IsNullOrEmpty(p.PortraitModelPath) && p.PortraitModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+		{
+			_portraitModelPath = p.PortraitModelPath;
+		}
 		_visualMode = !string.IsNullOrEmpty(p.VisualMode) ? p.VisualMode : _visualMode;
 		_name = p.Name ?? _name;
 		_description = p.Description ?? _description;

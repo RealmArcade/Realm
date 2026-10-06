@@ -542,6 +542,22 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_weaponId = weaponId;
 		_initialWeapon = weapon;
 		_currentWeapon = weapon;
+		if (!string.IsNullOrEmpty(_currentWeapon.ProjectileModelPath) &&
+			!_currentWeapon.ProjectileModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) &&
+			!_currentWeapon.ProjectileModelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentWeapon.ProjectileModelPath = "";
+		}
+		if (!string.IsNullOrEmpty(_currentWeapon.RibbonTexture) &&
+			!_currentWeapon.RibbonTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentWeapon.RibbonTexture = "";
+		}
+		if (!string.IsNullOrEmpty(_currentWeapon.NoiseTexture) &&
+			!_currentWeapon.NoiseTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentWeapon.NoiseTexture = "";
+		}
 		_onAppliedCallback = onApplied;
 		_isPlaybackPaused = false;
 

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Realm.Godot.Services;
 using Realm.Godot.Utils;
 
 public partial class SpritesheetAssetEditDialog : FloatingDialogBase
@@ -173,7 +174,7 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 
 	private List<string> ScanRtexAssets(bool includeAllFolders)
 	{
-		var list = ScanAvailableAssets("spritesheets", includeAllFolders);
+		var list = ScanAvailableAssets("spritesheet_rtex", includeAllFolders);
 		var rtexFiles = new HashSet<string>(list.Where(x => x.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
 		return rtexFiles.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 	}
@@ -184,7 +185,31 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_sheetFileName);
 		_objectType = !string.IsNullOrEmpty(parsedType) ? parsedType : "spritesheet";
 		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_sheetFileName);
-		_rtexAsset = rtexAsset ?? string.Empty;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (!string.IsNullOrEmpty(rtexAsset) && rtexAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_rtexAsset = Path.GetFileName(rtexAsset);
+		}
+		else if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
+		{
+			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.AssetType) && ssMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = Path.GetFileName(ssMeta.AssetType);
+			}
+			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.AssetType) && ssMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = Path.GetFileName(ssMeta2.AssetType);
+			}
+			else
+			{
+				_rtexAsset = string.Empty;
+			}
+		}
+		else
+		{
+			_rtexAsset = string.Empty;
+		}
 
 		_columns = Math.Max(1, initialCols);
 		_rows = Math.Max(1, initialRows);
@@ -212,7 +237,31 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_sheetFileName);
 		_objectType = !string.IsNullOrEmpty(parsedType) ? parsedType : "spritesheet";
 		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_sheetFileName);
-		_rtexAsset = fileName ?? string.Empty;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (!string.IsNullOrEmpty(fileName) && fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_rtexAsset = Path.GetFileName(fileName);
+		}
+		else if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
+		{
+			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.AssetType) && ssMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = Path.GetFileName(ssMeta.AssetType);
+			}
+			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.AssetType) && ssMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = Path.GetFileName(ssMeta2.AssetType);
+			}
+			else
+			{
+				_rtexAsset = string.Empty;
+			}
+		}
+		else
+		{
+			_rtexAsset = string.Empty;
+		}
 
 		_columns = Math.Max(1, initialCols);
 		_rows = Math.Max(1, initialRows);

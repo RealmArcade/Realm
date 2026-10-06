@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text.Json.Nodes;
 using Realm.Godot.Services;
 using Realm.Godot.Utils;
@@ -665,7 +666,15 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		_currentVisualEffect = abilityData?["VisualEffect"]?.ToString() ?? string.Empty;
 		_currentCastSound = abilityData?["CastSound"]?.ToString() ?? string.Empty;
-		_currentIconPath = abilityData?["IconPath"]?.ToString() ?? string.Empty;
+		string rawIcon = abilityData?["IconPath"]?.ToString() ?? string.Empty;
+		if (!string.IsNullOrEmpty(rawIcon) && rawIcon.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentIconPath = Path.GetFileName(rawIcon);
+		}
+		else
+		{
+			_currentIconPath = string.Empty;
+		}
 		_currentAoeRadius = abilityData?["AreaOfEffectRadius"] != null ? (float)abilityData["AreaOfEffectRadius"] : 4.0f;
 
 		_initialVisualEffect = _currentVisualEffect;

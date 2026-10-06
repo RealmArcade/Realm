@@ -589,7 +589,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	{
 		var list = ScanAvailableAssets("textures", includeAllFolders);
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		var rtexFiles = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
+		var rtexFiles = new HashSet<string>(list.Where(x => x.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
 
 		string searchDir = Path.Combine(wsPath, "Assets", "textures");
 		if (Directory.Exists(searchDir))
@@ -613,13 +613,13 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		{
 			foreach (var kvp in meta.Textures)
 			{
-				if (!string.IsNullOrWhiteSpace(kvp.Value?.AssetType))
+				if (!string.IsNullOrWhiteSpace(kvp.Value?.AssetType) && kvp.Value.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 				{
-					rtexFiles.Add(kvp.Value.AssetType);
+					rtexFiles.Add(Path.GetFileName(kvp.Value.AssetType));
 				}
 				if (kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 				{
-					rtexFiles.Add(kvp.Key);
+					rtexFiles.Add(Path.GetFileName(kvp.Key));
 				}
 			}
 		}
@@ -799,18 +799,42 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			?? textureData?["asset_type"]?.ToString()
 			?? string.Empty;
 
+		if (!string.IsNullOrEmpty(_rtexAsset) && _rtexAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_rtexAsset = Path.GetFileName(_rtexAsset);
+		}
+		else
+		{
+			_rtexAsset = string.Empty;
+		}
+
 		if (string.IsNullOrEmpty(_rtexAsset) && textureData != null)
 		{
 			string hash = textureData["Hash"]?.ToString() ?? textureData["hash"]?.ToString() ?? string.Empty;
 			if (hash.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
-				_rtexAsset = hash;
+				_rtexAsset = Path.GetFileName(hash);
 			}
 		}
 
 		if (string.IsNullOrEmpty(_rtexAsset))
 		{
-			_rtexAsset = _slug.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? _slug : $"{_slug}.rtex";
+			string wsPathTex = MapWorkspaceService.GetActiveWorkspacePath();
+			if (!string.IsNullOrEmpty(wsPathTex) && MetadataService.Instance.TryLoadMetadata(wsPathTex, out var metaTex) && metaTex?.Textures != null)
+			{
+				if (metaTex.Textures.TryGetValue(_textureFileName, out var tMeta) && !string.IsNullOrEmpty(tMeta?.AssetType) && tMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					_rtexAsset = Path.GetFileName(tMeta.AssetType);
+				}
+				else if (metaTex.Textures.TryGetValue(_slug, out var tMeta2) && !string.IsNullOrEmpty(tMeta2?.AssetType) && tMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					_rtexAsset = Path.GetFileName(tMeta2.AssetType);
+				}
+			}
+			else if (_textureFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = Path.GetFileName(_textureFileName);
+			}
 		}
 
 		_onApplied = onApplied;

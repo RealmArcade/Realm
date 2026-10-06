@@ -226,7 +226,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 				if (u != null)
 				{
 					_name = !string.IsNullOrEmpty(u.Name) ? u.Name : _slug;
-					_iconPath = u.IconPath ?? "";
+					_iconPath = !string.IsNullOrEmpty(u.IconPath) && u.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(u.IconPath) : "";
 					_tooltip = u.Description ?? "";
 				}
 			}
@@ -236,7 +236,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 				if (i != null)
 				{
 					_name = !string.IsNullOrEmpty(i.Name) ? i.Name : _slug;
-					_iconPath = i.IconPath ?? "";
+					_iconPath = !string.IsNullOrEmpty(i.IconPath) && i.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(i.IconPath) : "";
 					_tooltip = i.Description ?? "";
 				}
 			}
