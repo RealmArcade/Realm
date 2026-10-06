@@ -146,7 +146,7 @@ public partial class CommandPanel
 						var def = GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
 						if (def != null)
 						{
-							string transTooltip = !string.IsNullOrEmpty(def.Tooltip) ? TranslationServer.Translate(def.Tooltip) : "";
+							string transTooltip = !string.IsNullOrEmpty(def.Tooltip) ? def.Tooltip : "";
 							if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
 							{
 								btn.TooltipText = transTooltip;

@@ -68,6 +68,11 @@ public class WasmEntryPoint
         }
         catch (Exception ex)
         {
+            try
+            {
+                _gameApi?.BroadcastMessage($"[GUEST UPDATE ERROR] {ex.GetType().Name}: {ex.Message}");
+            }
+            catch { }
             Console.WriteLine($"Error in update: {ex}");
         }
     }
