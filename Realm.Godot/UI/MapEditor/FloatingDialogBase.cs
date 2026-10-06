@@ -1169,9 +1169,52 @@ public partial class FloatingDialogBase : PanelContainer
 							}
 						}
 					}
-					else if (category == "vfx" || category == "vfx_spritesheets" || category == "spritesheets" || category == "vfx_radial" || category == "vfx_vertical")
+					else if (category == "spritesheets" || category == "spritesheet" || category == "spritesheet_rtex")
 					{
-						if (category is "vfx" or "vfx_spritesheets" or "spritesheets")
+						var sDict = assetsObj.GetCategory("Spritesheet") ?? assetsObj.GetCategory("spritesheets");
+						if (sDict != null)
+						{
+							foreach (var kvp in sDict)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key))
+								{
+									result.Add(kvp.Key);
+								}
+							}
+						}
+
+						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var ssMetaRoot) && ssMetaRoot?.VfxSpritesheets != null)
+						{
+							foreach (var kvp in ssMetaRoot.VfxSpritesheets)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Value?.AssetType))
+								{
+									result.Add(kvp.Value.AssetType);
+								}
+							}
+						}
+
+						string vfxDir = Path.Combine(wsPath, "Assets", "vfx");
+						if (Directory.Exists(vfxDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(vfxDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+
+						string templateVfxDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "vfx");
+						if (Directory.Exists(templateVfxDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(templateVfxDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+					}
+					else if (category == "vfx" || category == "vfx_spritesheets" || category == "vfx_radial" || category == "vfx_vertical")
+					{
+						if (category is "vfx" or "vfx_spritesheets")
 						{
 							foreach (var prim in Enum.GetValues<VfxPrimitiveType>())
 							{

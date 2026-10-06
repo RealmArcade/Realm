@@ -174,26 +174,7 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private List<string> ScanRtexAssets(bool includeAllFolders)
 	{
 		var list = ScanAvailableAssets("spritesheets", includeAllFolders);
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		var rtexFiles = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
-
-		string[] searchDirs = new[]
-		{
-			Path.Combine(wsPath, "Assets", "vfx"),
-			Path.Combine(wsPath, "Assets", "textures")
-		};
-
-		foreach (var dir in searchDirs)
-		{
-			if (Directory.Exists(dir))
-			{
-				foreach (var file in Directory.GetFiles(dir, "*.rtex", SearchOption.AllDirectories))
-				{
-					rtexFiles.Add(Path.GetFileName(file));
-				}
-			}
-		}
-
+		var rtexFiles = new HashSet<string>(list.Where(x => x.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
 		return rtexFiles.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 	}
 
