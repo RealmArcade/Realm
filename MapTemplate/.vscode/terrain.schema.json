@@ -21,7 +21,7 @@
           "null"
         ],
         "properties": {
-          "UnitId": {
+          "TemplateId": {
             "type": "string"
           },
           "PosX": {
@@ -59,7 +59,7 @@
           "null"
         ],
         "properties": {
-          "PropId": {
+          "TemplateId": {
             "type": "string"
           },
           "PosX": {
@@ -91,7 +91,7 @@
           "null"
         ],
         "properties": {
-          "DecalId": {
+          "TemplateId": {
             "type": "string"
           },
           "PosX": {

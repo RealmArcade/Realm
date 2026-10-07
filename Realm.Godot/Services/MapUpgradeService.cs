@@ -895,7 +895,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				}
 			}
 
-			const int totalSteps = 3;
+			const int totalSteps = 4;
 
 			progress?.Report(new MigrationProgressUpdate(Description, 1, totalSteps, "Normalizing entity template definitions into Templates container..."));
 
@@ -1589,7 +1589,271 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				}
 			}
 
-			progress?.Report(new MigrationProgressUpdate(Description, 3, totalSteps, "Updating map build number and saving metadata.json..."));
+			progress?.Report(new MigrationProgressUpdate(Description, 3, totalSteps, "Normalizing terrain.json placed entities to TemplateId format..."));
+
+			string terrainPath = Path.Combine(mapDirectory, "terrain.json");
+			if (File.Exists(terrainPath))
+			{
+				try
+				{
+					string terrainText = File.ReadAllText(terrainPath);
+					var terrainRoot = JsonNode.Parse(terrainText)?.AsObject();
+					if (terrainRoot != null)
+					{
+						var unitOrBuildingLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+						var propOrResourceLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+						var decalLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+						var allTemplatesLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+						void RegisterInLookup(Dictionary<string, string> categoryLookup, string templateId, string? name, string? modelPath, string? rawLegacyId)
+						{
+							if (string.IsNullOrWhiteSpace(templateId)) return;
+							categoryLookup[templateId] = templateId;
+							allTemplatesLookup[templateId] = templateId;
+
+							var (_, pSlug) = TemplateIDHelper.ParseTemplateID(templateId);
+							if (!string.IsNullOrEmpty(pSlug))
+							{
+								if (!categoryLookup.ContainsKey(pSlug)) categoryLookup[pSlug] = templateId;
+								if (!allTemplatesLookup.ContainsKey(pSlug)) allTemplatesLookup[pSlug] = templateId;
+							}
+
+							if (!string.IsNullOrWhiteSpace(rawLegacyId))
+							{
+								categoryLookup[rawLegacyId] = templateId;
+								allTemplatesLookup[rawLegacyId] = templateId;
+								string legSlug = TemplateIDHelper.GenerateSlug(rawLegacyId);
+								if (!categoryLookup.ContainsKey(legSlug)) categoryLookup[legSlug] = templateId;
+								if (!allTemplatesLookup.ContainsKey(legSlug)) allTemplatesLookup[legSlug] = templateId;
+							}
+
+							if (!string.IsNullOrWhiteSpace(name))
+							{
+								categoryLookup[name] = templateId;
+								allTemplatesLookup[name] = templateId;
+								string nameSlug = TemplateIDHelper.GenerateSlug(name);
+								if (!categoryLookup.ContainsKey(nameSlug)) categoryLookup[nameSlug] = templateId;
+								if (!allTemplatesLookup.ContainsKey(nameSlug)) allTemplatesLookup[nameSlug] = templateId;
+							}
+
+							if (!string.IsNullOrWhiteSpace(modelPath))
+							{
+								string fileName = Path.GetFileName(modelPath);
+								string fileNoExt = Path.GetFileNameWithoutExtension(modelPath);
+								string modelSlug = TemplateIDHelper.GenerateSlug(modelPath);
+
+								if (!categoryLookup.ContainsKey(modelPath)) categoryLookup[modelPath] = templateId;
+								if (!categoryLookup.ContainsKey(fileName)) categoryLookup[fileName] = templateId;
+								if (!categoryLookup.ContainsKey(fileNoExt)) categoryLookup[fileNoExt] = templateId;
+								if (!categoryLookup.ContainsKey(modelSlug)) categoryLookup[modelSlug] = templateId;
+
+								if (!allTemplatesLookup.ContainsKey(modelPath)) allTemplatesLookup[modelPath] = templateId;
+								if (!allTemplatesLookup.ContainsKey(fileName)) allTemplatesLookup[fileName] = templateId;
+								if (!allTemplatesLookup.ContainsKey(fileNoExt)) allTemplatesLookup[fileNoExt] = templateId;
+								if (!allTemplatesLookup.ContainsKey(modelSlug)) allTemplatesLookup[modelSlug] = templateId;
+							}
+						}
+
+						void PopulateCategoryLookup(Dictionary<string, string> targetLookup, string categoryName)
+						{
+							if (templatesObj.TryGetPropertyValue(categoryName, out var catNode) && catNode is JsonArray catArr)
+							{
+								foreach (var item in catArr.OfType<JsonObject>())
+								{
+									string tId = item["TemplateID"]?.ToString() ?? string.Empty;
+									string? name = item["Name"]?.ToString();
+									string? model = item["ModelPath"]?.ToString();
+									string? rawId = item["UnitId"]?.ToString() ?? item["ObjectID"]?.ToString();
+									RegisterInLookup(targetLookup, tId, name, model, rawId);
+								}
+							}
+						}
+
+						PopulateCategoryLookup(unitOrBuildingLookup, "Units");
+						PopulateCategoryLookup(unitOrBuildingLookup, "Buildings");
+						PopulateCategoryLookup(propOrResourceLookup, "Props");
+						PopulateCategoryLookup(propOrResourceLookup, "Resources");
+
+						if (metadataRoot.TryGetPropertyValue("decals", out var decalsNodeFinal) && decalsNodeFinal is JsonObject decalsObjFinal)
+						{
+							foreach (var kvp in decalsObjFinal)
+							{
+								string decId = kvp.Key;
+								decalLookup[decId] = decId;
+								var (_, dSlug) = TemplateIDHelper.ParseTemplateID(decId);
+								if (!string.IsNullOrEmpty(dSlug)) decalLookup[dSlug] = decId;
+							}
+						}
+
+						if (terrainRoot.TryGetPropertyValue("Units", out var terrUnitsNode) && terrUnitsNode is JsonArray terrUnitsArr)
+						{
+							foreach (var uNode in terrUnitsArr.OfType<JsonObject>())
+							{
+								string rawId = uNode["TemplateId"]?.ToString()
+									?? uNode["TemplateID"]?.ToString()
+									?? uNode["UnitId"]?.ToString()
+									?? uNode["ObjectID"]?.ToString()
+									?? uNode["Id"]?.ToString()
+									?? string.Empty;
+
+								uNode.Remove("UnitId");
+								uNode.Remove("TemplateID");
+								uNode.Remove("ObjectID");
+								uNode.Remove("Id");
+
+								string targetTemplateId = string.Empty;
+								if (!string.IsNullOrWhiteSpace(rawId))
+								{
+									if (rawId.Contains('/'))
+									{
+										targetTemplateId = rawId;
+									}
+									else if (unitOrBuildingLookup.TryGetValue(rawId, out var matched))
+									{
+										targetTemplateId = matched;
+									}
+									else if (propOrResourceLookup.TryGetValue(rawId, out var matchedPropRes))
+									{
+										targetTemplateId = matchedPropRes;
+									}
+									else if (allTemplatesLookup.TryGetValue(rawId, out var matchedAll))
+									{
+										targetTemplateId = matchedAll;
+									}
+									else
+									{
+										string rawSlug = TemplateIDHelper.GenerateSlug(rawId);
+										if (unitOrBuildingLookup.TryGetValue(rawSlug, out var matchedSlug))
+										{
+											targetTemplateId = matchedSlug;
+										}
+										else if (allTemplatesLookup.TryGetValue(rawSlug, out var matchedAllSlug))
+										{
+											targetTemplateId = matchedAllSlug;
+										}
+										else
+										{
+											targetTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", rawId);
+										}
+									}
+								}
+
+								uNode["TemplateId"] = targetTemplateId;
+							}
+						}
+
+						if (terrainRoot.TryGetPropertyValue("Props", out var terrPropsNode) && terrPropsNode is JsonArray terrPropsArr)
+						{
+							foreach (var pNode in terrPropsArr.OfType<JsonObject>())
+							{
+								string rawId = pNode["TemplateId"]?.ToString()
+									?? pNode["TemplateID"]?.ToString()
+									?? pNode["PropId"]?.ToString()
+									?? pNode["UnitId"]?.ToString()
+									?? pNode["ObjectID"]?.ToString()
+									?? pNode["Id"]?.ToString()
+									?? string.Empty;
+
+								pNode.Remove("PropId");
+								pNode.Remove("UnitId");
+								pNode.Remove("TemplateID");
+								pNode.Remove("ObjectID");
+								pNode.Remove("Id");
+
+								string targetTemplateId = string.Empty;
+								if (!string.IsNullOrWhiteSpace(rawId))
+								{
+									if (rawId.Contains('/'))
+									{
+										targetTemplateId = rawId;
+									}
+									else if (propOrResourceLookup.TryGetValue(rawId, out var matched))
+									{
+										targetTemplateId = matched;
+									}
+									else if (unitOrBuildingLookup.TryGetValue(rawId, out var matchedUnitBld))
+									{
+										targetTemplateId = matchedUnitBld;
+									}
+									else if (allTemplatesLookup.TryGetValue(rawId, out var matchedAll))
+									{
+										targetTemplateId = matchedAll;
+									}
+									else
+									{
+										string rawSlug = TemplateIDHelper.GenerateSlug(rawId);
+										if (propOrResourceLookup.TryGetValue(rawSlug, out var matchedSlug))
+										{
+											targetTemplateId = matchedSlug;
+										}
+										else if (allTemplatesLookup.TryGetValue(rawSlug, out var matchedAllSlug))
+										{
+											targetTemplateId = matchedAllSlug;
+										}
+										else
+										{
+											targetTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", rawId);
+										}
+									}
+								}
+
+								pNode["TemplateId"] = targetTemplateId;
+							}
+						}
+
+						if (terrainRoot.TryGetPropertyValue("Decals", out var terrDecalsNode) && terrDecalsNode is JsonArray terrDecalsArr)
+						{
+							foreach (var dNode in terrDecalsArr.OfType<JsonObject>())
+							{
+								string rawId = dNode["TemplateId"]?.ToString()
+									?? dNode["TemplateID"]?.ToString()
+									?? dNode["DecalId"]?.ToString()
+									?? dNode["Id"]?.ToString()
+									?? string.Empty;
+
+								dNode.Remove("DecalId");
+								dNode.Remove("TemplateID");
+								dNode.Remove("Id");
+
+								string targetTemplateId = string.Empty;
+								if (!string.IsNullOrWhiteSpace(rawId))
+								{
+									if (rawId.Contains('/'))
+									{
+										targetTemplateId = rawId;
+									}
+									else if (decalLookup.TryGetValue(rawId, out var matched))
+									{
+										targetTemplateId = matched;
+									}
+									else
+									{
+										string rawSlug = TemplateIDHelper.GenerateSlug(rawId);
+										if (decalLookup.TryGetValue(rawSlug, out var matchedSlug))
+										{
+											targetTemplateId = matchedSlug;
+										}
+										else
+										{
+											targetTemplateId = TemplateIDHelper.NormalizeTemplateID("decal", rawId);
+										}
+									}
+								}
+
+								dNode["TemplateId"] = targetTemplateId;
+							}
+						}
+
+						MapJsonFormatter.SaveFormattedJson(terrainPath, terrainRoot);
+					}
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"[Migration_0_0_4] Failed to migrate terrain.json: {ex.Message}");
+				}
+			}
+
+			progress?.Report(new MigrationProgressUpdate(Description, 4, totalSteps, "Updating map build number and saving metadata.json..."));
 
 			metadataRoot["GameBuildNumber"] = ToVersion;
 

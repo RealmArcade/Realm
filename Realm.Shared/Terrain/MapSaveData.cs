@@ -67,7 +67,7 @@ public class CoordinateSaveData
 
 public class UnitSaveData
 {
-	public string UnitId { get; set; } = string.Empty;
+	public string TemplateId { get; set; } = string.Empty;
 	public float PosX { get; set; }
 	public float PosY { get; set; }
 	public float PosZ { get; set; }
@@ -79,7 +79,7 @@ public class UnitSaveData
 
 public class PropSaveData
 {
-	public string PropId { get; set; } = string.Empty;
+	public string TemplateId { get; set; } = string.Empty;
 	public float PosX { get; set; }
 	public float PosY { get; set; }
 	public float PosZ { get; set; }
@@ -89,7 +89,7 @@ public class PropSaveData
 
 public class DecalSaveData
 {
-	public string DecalId { get; set; } = string.Empty;
+	public string TemplateId { get; set; } = string.Empty;
 	public float PosX { get; set; }
 	public float PosY { get; set; }
 	public float PosZ { get; set; }

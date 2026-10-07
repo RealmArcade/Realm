@@ -164,6 +164,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             if (Array.isArray(terrainData.Units)) {
                 terrainData.Units.forEach((u: any) => {
                     if (u) {
+                        addIdentifier(u.TemplateId);
+                        addIdentifier(u.TemplateID);
                         addIdentifier(u.UnitId);
                         addIdentifier(u.Name);
                         addIdentifier(u.ModelPath);
@@ -173,6 +175,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             if (Array.isArray(terrainData.Props)) {
                 terrainData.Props.forEach((p: any) => {
                     if (p) {
+                        addIdentifier(p.TemplateId);
+                        addIdentifier(p.TemplateID);
                         addIdentifier(p.PropId);
                         addIdentifier(p.Name);
                         addIdentifier(p.ModelPath);
@@ -182,6 +186,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             if (Array.isArray(terrainData.Decals)) {
                 terrainData.Decals.forEach((d: any) => {
                     if (d) {
+                        addIdentifier(d.TemplateId);
+                        addIdentifier(d.TemplateID);
                         addIdentifier(d.DecalId);
                         addIdentifier(d.Name);
                     }
@@ -196,8 +202,10 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                 if (!item || typeof item !== 'object') return false;
                 const candidates = [
                     item.TemplateID,
+                    item.TemplateId,
                     item.UnitId,
                     item.PropId,
+                    item.DecalId,
                     item.WeaponId,
                     item.AbilityId,
                     item.UpgradeId,

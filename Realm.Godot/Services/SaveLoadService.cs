@@ -366,7 +366,7 @@ public class SaveLoadService
 
 				saveData.Units.Add(new UnitSaveData
 				{
-					UnitId = defId.Value,
+					TemplateId = defId.Value,
 					PosX = pos.Value.X,
 					PosY = pos.Value.Y,
 					PosZ = pos.Value.Z,
@@ -394,7 +394,7 @@ public class SaveLoadService
 
 				saveData.Props.Add(new PropSaveData
 				{
-					PropId = propId.PropId,
+					TemplateId = propId.PropId,
 					PosX = pos.Value.X,
 					PosY = pos.Value.Y,
 					PosZ = pos.Value.Z,
@@ -440,7 +440,7 @@ public class SaveLoadService
 
 				saveData.Decals.Add(new DecalSaveData
 				{
-					DecalId = decalId.DecalId,
+					TemplateId = decalId.DecalId,
 					PosX = pos.Value.X,
 					PosY = pos.Value.Y,
 					PosZ = pos.Value.Z,
@@ -950,15 +950,15 @@ public class SaveLoadService
 				{
 					foreach (var u in saveData.Units)
 					{
-						if (!IsValidUnitObjectId(u.UnitId, mapDir))
+						if (!IsValidUnitObjectId(u.TemplateId, mapDir))
 						{
-							GD.PushWarning($"[SaveLoadService] Ignored invalid unit '{u.UnitId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
+							GD.PushWarning($"[SaveLoadService] Ignored invalid unit '{u.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
 							continue;
 						}
 
 						var reqEnt = EcsWorld.Create();
 						EcsWorld.Add(reqEnt, new UnitSpawnRequest(
-							u.UnitId,
+							u.TemplateId,
 							new System.Numerics.Vector3(u.PosX, u.PosY, u.PosZ),
 							u.RotationY,
 							u.Scale,
@@ -972,15 +972,15 @@ public class SaveLoadService
 				{
 					foreach (var p in saveData.Props)
 					{
-						if (!IsValidPropObjectId(p.PropId, mapDir))
+						if (!IsValidPropObjectId(p.TemplateId, mapDir))
 						{
-							GD.PushWarning($"[SaveLoadService] Ignored invalid prop '{p.PropId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
+							GD.PushWarning($"[SaveLoadService] Ignored invalid prop '{p.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
 							continue;
 						}
 
 						var reqEnt = EcsWorld.Create();
 						EcsWorld.Add(reqEnt, new PropSpawnRequest(
-							p.PropId,
+							p.TemplateId,
 							new System.Numerics.Vector3(p.PosX, p.PosY, p.PosZ),
 							p.RotationY,
 							p.Scale
@@ -993,7 +993,7 @@ public class SaveLoadService
 					var loadedDecalFingerprints = new HashSet<string>();
 					foreach (var d in saveData.Decals)
 					{
-						string fingerprint = $"{d.DecalId}_{d.PosX:F3}_{d.PosY:F3}_{d.PosZ:F3}_{d.RotationX:F2}_{d.RotationY:F2}_{d.RotationZ:F2}_{d.Scale:F3}";
+						string fingerprint = $"{d.TemplateId}_{d.PosX:F3}_{d.PosY:F3}_{d.PosZ:F3}_{d.RotationX:F2}_{d.RotationY:F2}_{d.RotationZ:F2}_{d.Scale:F3}";
 						if (!loadedDecalFingerprints.Add(fingerprint))
 						{
 							continue;
@@ -1001,7 +1001,7 @@ public class SaveLoadService
 
 						var reqEnt = EcsWorld.Create();
 						EcsWorld.Add(reqEnt, new DecalSpawnRequest(
-							d.DecalId,
+							d.TemplateId,
 							new System.Numerics.Vector3(d.PosX, d.PosY, d.PosZ),
 							new System.Numerics.Vector3(d.RotationX, d.RotationY, d.RotationZ),
 							d.Scale
@@ -1096,9 +1096,9 @@ public class SaveLoadService
 		{
 			saveData.Units.Sort((a, b) =>
 			{
-				int comparison = string.Compare(a.UnitId, b.UnitId, StringComparison.OrdinalIgnoreCase);
+				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
 				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.UnitId, b.UnitId, StringComparison.Ordinal);
+				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 				if (comparison != 0) return comparison;
 
 				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
@@ -1126,9 +1126,9 @@ public class SaveLoadService
 		{
 			saveData.Props.Sort((a, b) =>
 			{
-				int comparison = string.Compare(a.PropId, b.PropId, StringComparison.OrdinalIgnoreCase);
+				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
 				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.PropId, b.PropId, StringComparison.Ordinal);
+				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 				if (comparison != 0) return comparison;
 
 				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
@@ -1152,9 +1152,9 @@ public class SaveLoadService
 		{
 			saveData.Decals.Sort((a, b) =>
 			{
-				int comparison = string.Compare(a.DecalId, b.DecalId, StringComparison.OrdinalIgnoreCase);
+				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
 				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.DecalId, b.DecalId, StringComparison.Ordinal);
+				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 				if (comparison != 0) return comparison;
 
 				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
