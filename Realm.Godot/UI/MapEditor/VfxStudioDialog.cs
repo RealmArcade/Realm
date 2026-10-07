@@ -1549,11 +1549,14 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		try
 		{
 			string fileName = Path.GetFileName(key);
+			string slug = Realm.Godot.Utils.TemplateIDHelper.GenerateSlug(fileName);
+			string spritesheetTemplateId = Realm.Godot.Utils.TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 			MetadataService.Instance.UpdateMetadata(wsPath, m =>
 			{
 				m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-				m.VfxSpritesheets[fileName] = new Realm.Shared.Metadata.VfxMetadata
+				m.VfxSpritesheets[spritesheetTemplateId] = new Realm.Shared.Metadata.VfxMetadata
 				{
+					AssetType = fileName,
 					Columns = columns,
 					Rows = rows,
 					Fps = fps,

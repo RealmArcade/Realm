@@ -44,7 +44,30 @@ public partial class GameHost
 			return cached;
 		}
 
-		string filename = System.IO.Path.GetFileName(pathOrId);
+		string trimmed = pathOrId.Trim().Replace('\\', '/');
+		if (trimmed.Contains('/'))
+		{
+			string prefix = trimmed.Substring(0, trimmed.IndexOf('/'));
+			if (string.Equals(prefix, "unit", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "building", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "prop", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "resource", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "item", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "ability", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "weapon", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "upgrade", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "terrain", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "spritesheet", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "decal", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "SpawnShader", StringComparison.OrdinalIgnoreCase))
+			{
+				string lower = trimmed.ToLowerInvariant();
+				_normalizedAssetKeyCache[pathOrId] = lower;
+				return lower;
+			}
+		}
+
+		string filename = System.IO.Path.GetFileName(trimmed);
 		if (filename.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".gltf", StringComparison.OrdinalIgnoreCase))
 		{
 			filename = System.IO.Path.GetFileNameWithoutExtension(filename) + ".rmesh";

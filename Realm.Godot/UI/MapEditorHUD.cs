@@ -12523,15 +12523,25 @@ public partial class MapEditorHUD : Control
 				}
 			}
 
-			if (category == "textures")
+			if (category == "textures" || category == "terrain" || category == "Terrain")
 			{
+				string slug = TemplateIDHelper.GenerateSlug(fileName);
+				string terrainTemplateId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
 				int swatchIdx = targetSlot >= 0 ? targetSlot : 0;
 				metadata.Textures ??= new Dictionary<string, TextureMetadata>(StringComparer.OrdinalIgnoreCase);
-				if (!metadata.Textures.TryGetValue(fileName, out var texMeta) || texMeta == null)
+				if (!metadata.Textures.TryGetValue(terrainTemplateId, out var texMeta) || texMeta == null)
 				{
-					texMeta = new TextureMetadata();
-					metadata.Textures[fileName] = texMeta;
+					if (!metadata.Textures.TryGetValue(fileName, out texMeta) || texMeta == null)
+					{
+						texMeta = new TextureMetadata();
+					}
+					else
+					{
+						metadata.Textures.Remove(fileName);
+					}
+					metadata.Textures[terrainTemplateId] = texMeta;
 				}
+				texMeta.AssetType = fileName;
 				texMeta.Hash = blake3Hash;
 				texMeta.SwatchIndex = swatchIdx;
 

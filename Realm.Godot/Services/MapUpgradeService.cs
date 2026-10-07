@@ -969,6 +969,133 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				}
 			}
 
+			if (metadataRoot.TryGetPropertyValue("textures", out var texturesNode) && texturesNode is JsonObject texturesObj)
+			{
+				var normalizedTextures = new JsonObject();
+				foreach (var kvp in texturesObj)
+				{
+					string rawKey = kvp.Key;
+					string slug = TemplateIDHelper.GenerateSlug(rawKey);
+					string normalizedId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
+					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					if (string.IsNullOrWhiteSpace(itemObj["AssetType"]?.ToString()))
+					{
+						itemObj["AssetType"] = rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
+					}
+					if (!normalizedTextures.ContainsKey(normalizedId))
+					{
+						normalizedTextures[normalizedId] = itemObj.DeepClone();
+					}
+					else if (normalizedTextures[normalizedId] is JsonObject existingObj)
+					{
+						foreach (var prop in itemObj)
+						{
+							if (prop.Value != null && (!existingObj.ContainsKey(prop.Key) || existingObj[prop.Key] == null))
+							{
+								existingObj[prop.Key] = prop.Value.DeepClone();
+							}
+						}
+					}
+				}
+				metadataRoot["textures"] = normalizedTextures;
+			}
+
+			if (metadataRoot.TryGetPropertyValue("vfx_spritesheets", out var vfxSpritesheetsNode) && vfxSpritesheetsNode is JsonObject vfxSpritesheetsObj)
+			{
+				var normalizedSpritesheets = new JsonObject();
+				foreach (var kvp in vfxSpritesheetsObj)
+				{
+					string rawKey = kvp.Key;
+					string slug = TemplateIDHelper.GenerateSlug(rawKey);
+					string normalizedId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
+					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					if (string.IsNullOrWhiteSpace(itemObj["AssetType"]?.ToString()))
+					{
+						itemObj["AssetType"] = rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
+					}
+					if (!normalizedSpritesheets.ContainsKey(normalizedId))
+					{
+						normalizedSpritesheets[normalizedId] = itemObj.DeepClone();
+					}
+					else if (normalizedSpritesheets[normalizedId] is JsonObject existingObj)
+					{
+						foreach (var prop in itemObj)
+						{
+							if (prop.Value != null && (!existingObj.ContainsKey(prop.Key) || existingObj[prop.Key] == null))
+							{
+								existingObj[prop.Key] = prop.Value.DeepClone();
+							}
+						}
+					}
+				}
+				metadataRoot["vfx_spritesheets"] = normalizedSpritesheets;
+			}
+
+			if (metadataRoot.TryGetPropertyValue("Models", out var modelsNode) && modelsNode is JsonObject modelsObj)
+			{
+				var modelToTemplateId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+				var categoryNames = new[] { "Units", "Buildings", "Resources", "Props", "Items", "Weapons" };
+				foreach (var cat in categoryNames)
+				{
+					if (templatesObj.TryGetPropertyValue(cat, out var catNode) && catNode is JsonArray arr)
+					{
+						foreach (var item in arr.OfType<JsonObject>())
+						{
+							string tId = item["TemplateID"]?.ToString() ?? "";
+							string mPath = item["ModelPath"]?.ToString() ?? "";
+							if (!string.IsNullOrEmpty(tId))
+							{
+								string slug = TemplateIDHelper.GenerateSlug(tId);
+								if (!modelToTemplateId.ContainsKey(slug)) modelToTemplateId[slug] = tId;
+								if (!string.IsNullOrEmpty(mPath))
+								{
+									string mFile = Path.GetFileName(mPath);
+									string mSlug = TemplateIDHelper.GenerateSlug(mPath);
+									if (!modelToTemplateId.ContainsKey(mFile)) modelToTemplateId[mFile] = tId;
+									if (!modelToTemplateId.ContainsKey(mSlug)) modelToTemplateId[mSlug] = tId;
+								}
+							}
+						}
+					}
+				}
+
+				var normalizedModels = new JsonObject();
+				foreach (var kvp in modelsObj)
+				{
+					string rawKey = kvp.Key;
+					string targetKey = rawKey;
+					if (modelToTemplateId.TryGetValue(rawKey, out var matchedTid))
+					{
+						targetKey = matchedTid;
+					}
+					else
+					{
+						string slug = TemplateIDHelper.GenerateSlug(rawKey);
+						if (modelToTemplateId.TryGetValue(slug, out matchedTid))
+						{
+							targetKey = matchedTid;
+						}
+					}
+
+					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					if (!normalizedModels.ContainsKey(targetKey))
+					{
+						normalizedModels[targetKey] = itemObj.DeepClone();
+					}
+					else if (normalizedModels[targetKey] is JsonObject existingObj)
+					{
+						foreach (var prop in itemObj)
+						{
+							if (prop.Value != null && (!existingObj.ContainsKey(prop.Key) || existingObj[prop.Key] == null))
+							{
+								existingObj[prop.Key] = prop.Value.DeepClone();
+							}
+						}
+					}
+				}
+				metadataRoot["Models"] = normalizedModels;
+			}
+
 			if (normalizedShaders.Count == 0)
 			{
 				normalizedShaders["SpawnShader/magic_blueprint"] = CreateDefaultShaderConfig("Magic Blueprint", 0, 0, "#00e5ffff", 0.06f, 6.0f, 12.0f, 0.4f, 3.0f, 0.0f, 0.9f, 1.2f);
@@ -1312,17 +1439,20 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			case "terrain" or "textures":
 				{
+					string terrainTemplateId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
 					if (!metadataRoot.ContainsKey("textures") || metadataRoot["textures"] is not JsonObject)
 					{
 						metadataRoot["textures"] = new JsonObject();
 					}
 					var texturesObj = metadataRoot["textures"]!.AsObject();
 					bool exists = texturesObj.Any(kvp =>
+						string.Equals(kvp.Key, terrainTemplateId, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(kvp.Key, slug, StringComparison.OrdinalIgnoreCase) ||
 						string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
 						(kvp.Value is JsonObject tObj && string.Equals(tObj["AssetType"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
 					if (!exists)
 					{
-						texturesObj[fileName] = new JsonObject
+						texturesObj[terrainTemplateId] = new JsonObject
 						{
 							["Hash"] = hash ?? string.Empty,
 							["AssetType"] = fileName,
@@ -1340,7 +1470,8 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					}
 					var terrainProfilesArr = metadataRoot["TerrainProfiles"]!.AsArray();
 					bool profileExists = terrainProfilesArr.OfType<JsonObject>().Any(tp =>
-						string.Equals(tp["SwatchName"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+						string.Equals(tp["SwatchName"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(tp["SwatchName"]?.ToString(), terrainTemplateId, StringComparison.OrdinalIgnoreCase));
 					if (!profileExists)
 					{
 						terrainProfilesArr.Add(new JsonObject
@@ -1356,17 +1487,20 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			case "spritesheet" or "spritesheets" or "vfx":
 				{
+					string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 					if (!metadataRoot.ContainsKey("vfx_spritesheets") || metadataRoot["vfx_spritesheets"] is not JsonObject)
 					{
 						metadataRoot["vfx_spritesheets"] = new JsonObject();
 					}
 					var vfxObj = metadataRoot["vfx_spritesheets"]!.AsObject();
 					bool exists = vfxObj.Any(kvp =>
+						string.Equals(kvp.Key, spritesheetTemplateId, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(kvp.Key, slug, StringComparison.OrdinalIgnoreCase) ||
 						string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
 						(kvp.Value is JsonObject sObj && string.Equals(sObj["AssetType"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
 					if (!exists)
 					{
-						vfxObj[fileName] = new JsonObject
+						vfxObj[spritesheetTemplateId] = new JsonObject
 						{
 							["Hash"] = hash ?? string.Empty,
 							["AssetType"] = fileName,

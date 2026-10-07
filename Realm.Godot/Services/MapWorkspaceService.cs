@@ -1112,11 +1112,14 @@ please visit the URL above.
 
 			if (string.Equals(categoryKey, "Spritesheet", StringComparison.OrdinalIgnoreCase))
 			{
+				string slug = TemplateIDHelper.GenerateSlug(rtexFileName);
+				string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 				MetadataService.Instance.UpdateMetadata(workspacePath, m =>
 				{
 					m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-					m.VfxSpritesheets[rtexFileName] = new VfxMetadata
+					m.VfxSpritesheets[spritesheetTemplateId] = new VfxMetadata
 					{
+						AssetType = rtexFileName,
 						Columns = columns,
 						Rows = rows
 					};
@@ -1124,14 +1127,17 @@ please visit the URL above.
 			}
 			else if (string.Equals(categoryKey, "Terrain", StringComparison.OrdinalIgnoreCase))
 			{
+				string slug = TemplateIDHelper.GenerateSlug(rtexFileName);
+				string terrainTemplateId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
 				MetadataService.Instance.UpdateMetadata(workspacePath, m =>
 				{
 					m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-					if (!m.Textures.TryGetValue(rtexFileName, out var tex))
+					if (!m.Textures.TryGetValue(terrainTemplateId, out var tex))
 					{
 						tex = new TextureMetadata();
-						m.Textures[rtexFileName] = tex;
+						m.Textures[terrainTemplateId] = tex;
 					}
+					tex.AssetType = rtexFileName;
 					tex.Hash = newHash;
 					if (tex.ScaleFactor <= 0.0001f)
 					{

@@ -303,7 +303,7 @@
 		"WeatherType": null
 	},
 	"Models": {
-		"chad.rmesh": {
+		"unit/chad": {
 			"Brightness": 0.5,
 			"CollisionCircleRatios": 0.75,
 			"ColorTint": "#ffffff",
@@ -313,14 +313,7 @@
 			"Offsets": 0.85000014,
 			"Scales": 1
 		},
-		"clock_tower_building.rmesh": {
-			"CollisionCircleRatios": 0.8,
-			"DespillPlayerColor": false,
-			"IgnorePlayerColor": false,
-			"NormalizeLuminance": true,
-			"Scales": 1.5
-		},
-		"clocktower.rmesh": {
+		"building/clock_tower": {
 			"Brightness": 0.5,
 			"CollisionCircleRatios": 0.8,
 			"ColorTint": "#ffffff",
@@ -328,9 +321,9 @@
 			"IgnorePlayerColor": false,
 			"NormalizeLuminance": true,
 			"Offsets": 3.0000002,
-			"Scales": 3
+			"Scales": 1.5
 		},
-		"coniferous_tree_1.rmesh": {
+		"resource/coniferous_tree_1": {
 			"Brightness": 0.5,
 			"CollisionCircleRatios": 3.3,
 			"ColorTint": "#ffffff",
@@ -340,7 +333,7 @@
 			"Offsets": 2.7500002,
 			"Scales": 2.75
 		},
-		"crystal_cluster_29.rmesh": {
+		"prop/crystal_cluster_29": {
 			"Brightness": 0.5,
 			"CollisionCircleRatios": 2.6000001,
 			"ColorTint": "#ffffff",
@@ -350,17 +343,7 @@
 			"Offsets": 1.2500001,
 			"Scales": 1.25
 		},
-		"fantasy_warrior_unit_1.rmesh": {
-			"CollisionCircleRatios": 0.65000004,
-			"DespillPlayerColor": false,
-			"IgnorePlayerColor": false,
-			"NormalizeLuminance": true,
-			"Scales": 1
-		},
-		"ice_castle_1.rmesh": {
-			"DespillPlayerColor": false
-		},
-		"kevin.rmesh": {
+		"unit/kevin": {
 			"Brightness": 0.5,
 			"CollisionCircleRatios": 0.65000004,
 			"ColorTint": "#ffffff",
@@ -370,18 +353,7 @@
 			"Offsets": 0.90000015,
 			"Scales": 1
 		},
-		"orc_warrior_7.rmesh": {
-			"CollisionCircleRatios": 0.75,
-			"DespillPlayerColor": true,
-			"IgnorePlayerColor": false,
-			"NormalizeLuminance": true,
-			"Scales": 1
-		},
-		"ornate_spear_1.rmesh": {
-			"DespillPlayerColor": false,
-			"IgnorePlayerColor": false
-		},
-		"palm_tree.rmesh": {
+		"resource/palm_tree": {
 			"Brightness": 0.5,
 			"CollisionCircleRatios": 3.9,
 			"ColorTint": "#ffffff",
@@ -391,7 +363,7 @@
 			"Offsets": 2.7500002,
 			"Scales": 2.75
 		},
-		"spiked_wooden_stake.rmesh": {
+		"prop/spiked_wooden_stake": {
 			"Brightness": 0.5,
 			"CollisionCircleRatios": 0.95,
 			"ColorTint": "#ffffff",
@@ -401,7 +373,7 @@
 			"Offsets": 1.2000002,
 			"Scales": 1.25
 		},
-		"timber_framed_house.rmesh": {
+		"building/timber_framed_house": {
 			"Brightness": 0.5,
 			"CollisionCircleRatios": 1.25,
 			"ColorTint": "#ffffff",
@@ -410,10 +382,6 @@
 			"NormalizeLuminance": true,
 			"Offsets": 1.5000001,
 			"Scales": 1.5
-		},
-		"wooden_spear_2.rmesh": {
-			"DespillPlayerColor": false,
-			"IgnorePlayerColor": true
 		}
 	},
 	"Templates": {
@@ -974,79 +942,97 @@
 		}
 	},
 	"textures": {
-		"abyssal_trench_void_clay.rtex": {
-			"Scale_Factor": 4,
-			"swatchIndex": 12
+		"terrain/abyssal_trench_void_clay": {
+			"AssetType": "abyssal_trench_void_clay.rtex",
+			"ScaleFactor": 4,
+			"SwatchIndex": 12
 		},
-		"ancient_jungle_mossy_stone.rtex": {
-			"Scale_Factor": 4,
-			"swatchIndex": 0
+		"terrain/ancient_jungle_mossy_stone": {
+			"AssetType": "ancient_jungle_mossy_stone.rtex",
+			"ScaleFactor": 4,
+			"SwatchIndex": 0
 		},
-		"ancient_jungle_overgrown_path.rtex": {
-			"Scale_Factor": 4,
-			"swatchIndex": 1
+		"terrain/ancient_jungle_overgrown_path": {
+			"AssetType": "ancient_jungle_overgrown_path.rtex",
+			"ScaleFactor": 4,
+			"SwatchIndex": 1
 		},
-		"deep_trench_dense_mud.rtex": {
-			"Scale_Factor": 4,
-			"swatchIndex": 2
+		"terrain/deep_trench_dense_mud": {
+			"AssetType": "deep_trench_dense_mud.rtex",
+			"ScaleFactor": 4,
+			"SwatchIndex": 2
 		},
-		"dusty_canyon_granite_basin.rtex": {
-			"Scale_Factor": 3.0932,
-			"swatchIndex": 3
+		"terrain/dusty_canyon_granite_basin": {
+			"AssetType": "dusty_canyon_granite_basin.rtex",
+			"ScaleFactor": 3.0932,
+			"SwatchIndex": 3
 		},
-		"dusty_canyon_scarce_soil.rtex": {
-			"Scale_Factor": 0.4576,
-			"swatchIndex": 4
+		"terrain/dusty_canyon_scarce_soil": {
+			"AssetType": "dusty_canyon_scarce_soil.rtex",
+			"ScaleFactor": 0.4576,
+			"SwatchIndex": 4
 		},
-		"frozen_tundra_mud.rtex": {
-			"Scale_Factor": 0.8652,
-			"swatchIndex": 5
+		"terrain/frozen_tundra_mud": {
+			"AssetType": "frozen_tundra_mud.rtex",
+			"ScaleFactor": 0.8652,
+			"SwatchIndex": 5
 		},
-		"magma_chambers_burning_ember.rtex": {
-			"Scale_Factor": 3.0168421,
-			"swatchIndex": 13
+		"terrain/magma_chambers_burning_ember": {
+			"AssetType": "magma_chambers_burning_ember.rtex",
+			"ScaleFactor": 3.0168421,
+			"SwatchIndex": 13
 		},
-		"mangrove_swamp_bog_grass.rtex": {
-			"Scale_Factor": 4,
-			"swatchIndex": 6
+		"terrain/mangrove_swamp_bog_grass": {
+			"AssetType": "mangrove_swamp_bog_grass.rtex",
+			"ScaleFactor": 4,
+			"SwatchIndex": 6
 		},
-		"petrified_forest_gray_granite.rtex": {
-			"Scale_Factor": 2.6072,
-			"swatchIndex": 7
+		"terrain/petrified_forest_gray_granite": {
+			"AssetType": "petrified_forest_gray_granite.rtex",
+			"ScaleFactor": 2.6072,
+			"SwatchIndex": 7
 		},
-		"submerged_city_hydro_glass.rtex": {
-			"Scale_Factor": 2.2827444,
-			"swatchIndex": 14
+		"terrain/submerged_city_hydro_glass": {
+			"AssetType": "submerged_city_hydro_glass.rtex",
+			"ScaleFactor": 2.2827444,
+			"SwatchIndex": 14
 		},
-		"sunken_reef_acid_pool.rtex": {
-			"Scale_Factor": 0.5208669,
-			"swatchIndex": 15
+		"terrain/sunken_reef_acid_pool": {
+			"AssetType": "sunken_reef_acid_pool.rtex",
+			"ScaleFactor": 0.5208669,
+			"SwatchIndex": 15
 		},
-		"sunken_ruins_crushed_granite.rtex": {
-			"Scale_Factor": 4,
-			"swatchIndex": 8
+		"terrain/sunken_ruins_crushed_granite": {
+			"AssetType": "sunken_ruins_crushed_granite.rtex",
+			"ScaleFactor": 4,
+			"SwatchIndex": 8
 		},
-		"sunken_ruins_mossy_stone.rtex": {
-			"Scale_Factor": 4,
-			"swatchIndex": 9
+		"terrain/sunken_ruins_mossy_stone": {
+			"AssetType": "sunken_ruins_mossy_stone.rtex",
+			"ScaleFactor": 4,
+			"SwatchIndex": 9
 		},
-		"sunken_ruins_reef_stone.rtex": {
-			"Scale_Factor": 1.1258,
-			"swatchIndex": 10
+		"terrain/sunken_ruins_reef_stone": {
+			"AssetType": "sunken_ruins_reef_stone.rtex",
+			"ScaleFactor": 1.1258,
+			"SwatchIndex": 10
 		},
-		"whispering_woods_soft_grass.rtex": {
-			"Scale_Factor": 1.331,
-			"swatchIndex": 11
+		"terrain/whispering_woods_soft_grass": {
+			"AssetType": "whispering_woods_soft_grass.rtex",
+			"ScaleFactor": 1.331,
+			"SwatchIndex": 11
 		}
 	},
 	"vfx_spritesheets": {
-		"ash_burst_sheet.rtex": {
-			"columns": 4,
-			"rows": 4
+		"spritesheet/ash_burst_sheet": {
+			"AssetType": "ash_burst_sheet.rtex",
+			"Columns": 4,
+			"Rows": 4
 		},
-		"blaze_streak_sheet.rtex": {
-			"columns": 4,
-			"rows": 4
+		"spritesheet/blaze_streak_sheet": {
+			"AssetType": "blaze_streak_sheet.rtex",
+			"Columns": 4,
+			"Rows": 4
 		}
 	}
 }

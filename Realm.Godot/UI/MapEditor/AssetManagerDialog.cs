@@ -1407,10 +1407,11 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						break;
 
 					case "terrain" or "textures":
+						string terrainTemplateId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
 						meta.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-						if (!meta.Textures.ContainsKey(fileName))
+						if (!meta.Textures.ContainsKey(terrainTemplateId))
 						{
-							meta.Textures[fileName] = new TextureMetadata
+							meta.Textures[terrainTemplateId] = new TextureMetadata
 							{
 								Hash = hash ?? string.Empty,
 								AssetType = fileName,
@@ -1422,7 +1423,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 							};
 						}
 						meta.TerrainProfiles ??= new();
-						if (!meta.TerrainProfiles.Any(tp => string.Equals(tp.SwatchName, fileName, StringComparison.OrdinalIgnoreCase)))
+						if (!meta.TerrainProfiles.Any(tp => string.Equals(tp.SwatchName, fileName, StringComparison.OrdinalIgnoreCase) || string.Equals(tp.SwatchName, terrainTemplateId, StringComparison.OrdinalIgnoreCase)))
 						{
 							meta.TerrainProfiles.Add(new TerrainSwatchProfileData
 							{
@@ -1435,10 +1436,11 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						break;
 
 					case "spritesheet" or "spritesheets" or "vfx" or "vfx_radial" or "vfx_vertical":
+						string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 						meta.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-						if (!meta.VfxSpritesheets.ContainsKey(fileName))
+						if (!meta.VfxSpritesheets.ContainsKey(spritesheetTemplateId))
 						{
-							meta.VfxSpritesheets[fileName] = new VfxMetadata
+							meta.VfxSpritesheets[spritesheetTemplateId] = new VfxMetadata
 							{
 								Hash = hash ?? string.Empty,
 								AssetType = fileName,
