@@ -115,19 +115,7 @@ public static class GlbPlayerColorProcessor
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
             if (ext is ".obj" or ".fbx" or ".dae")
             {
-                using var importer = new Assimp.AssimpContext();
-                var scene = importer.ImportFile(filePath, Assimp.PostProcessSteps.Triangulate | Assimp.PostProcessSteps.GenerateNormals | Assimp.PostProcessSteps.MakeLeftHanded | Assimp.PostProcessSteps.FlipUVs);
-                string tempGlb = Path.Combine(Path.GetTempPath(), $"realm_detect_{Guid.NewGuid():N}.glb");
-                try
-                {
-                    importer.ExportFile(scene, tempGlb, "glb2");
-                    byte[] bytes = File.ReadAllBytes(tempGlb);
-                    return AutoDetectChromaKey(bytes);
-                }
-                finally
-                {
-                    if (File.Exists(tempGlb)) try { File.Delete(tempGlb); } catch { }
-                }
+                return AutoDetectChromaKeyFromModel(filePath);
             }
             byte[] glbBytes = File.ReadAllBytes(filePath);
             return AutoDetectChromaKey(glbBytes);
@@ -135,6 +123,23 @@ public static class GlbPlayerColorProcessor
         catch
         {
             return null;
+        }
+    }
+
+    private static string? AutoDetectChromaKeyFromModel(string filePath)
+    {
+        using var importer = new Assimp.AssimpContext();
+        var scene = importer.ImportFile(filePath, Assimp.PostProcessSteps.Triangulate | Assimp.PostProcessSteps.GenerateNormals | Assimp.PostProcessSteps.MakeLeftHanded | Assimp.PostProcessSteps.FlipUVs);
+        string tempGlb = Path.Combine(Path.GetTempPath(), $"realm_detect_{Guid.NewGuid():N}.glb");
+        try
+        {
+            importer.ExportFile(scene, tempGlb, "glb2");
+            byte[] bytes = File.ReadAllBytes(tempGlb);
+            return AutoDetectChromaKey(bytes);
+        }
+        finally
+        {
+            if (File.Exists(tempGlb)) try { File.Delete(tempGlb); } catch { }
         }
     }
 
@@ -824,31 +829,7 @@ public static class GlbPlayerColorProcessor
             AddEdge(edgeToFaces, k2, k0, faceIdx);
         }
 
-        var smoothAdjacency = new Dictionary<int, HashSet<int>>();
-        for (int i = 0; i < faceCount; i++)
-        {
-            smoothAdjacency[i] = new HashSet<int>();
-        }
-
-        foreach (var faceList in edgeToFaces.Values)
-        {
-            for (int i = 0; i < faceList.Count; i++)
-            {
-                for (int j = i + 1; j < faceList.Count; j++)
-                {
-                    int fa = faceList[i];
-                    int fb = faceList[j];
-                    if (fa == fb) continue;
-
-                    float dot = Vector3.Dot(faceNormals[fa], faceNormals[fb]);
-                    if (dot >= cosCreaseThreshold)
-                    {
-                        smoothAdjacency[fa].Add(fb);
-                        smoothAdjacency[fb].Add(fa);
-                    }
-                }
-            }
-        }
+        var smoothAdjacency = BuildSmoothAdjacency(faceCount, edgeToFaces, faceNormals, cosCreaseThreshold);
 
         var isSeedFace = new bool[faceCount];
         var isFloodCandidateFace = new bool[faceCount];
@@ -1104,6 +1085,41 @@ public static class GlbPlayerColorProcessor
         bool hasPos = d1 > 0 || d2 > 0 || d3 > 0;
 
         return !(hasNeg && hasPos);
+    }
+
+    private static Dictionary<int, HashSet<int>> BuildSmoothAdjacency(int faceCount, Dictionary<(long, long), List<int>> edgeToFaces, Vector3[] faceNormals, float cosCreaseThreshold)
+    {
+        var smoothAdjacency = new Dictionary<int, HashSet<int>>();
+        for (int i = 0; i < faceCount; i++)
+        {
+            smoothAdjacency[i] = new HashSet<int>();
+        }
+
+        foreach (var faceList in edgeToFaces.Values)
+        {
+            ProcessFaceListForAdjacency(faceList, faceNormals, cosCreaseThreshold, smoothAdjacency);
+        }
+        return smoothAdjacency;
+    }
+
+    private static void ProcessFaceListForAdjacency(List<int> faceList, Vector3[] faceNormals, float cosCreaseThreshold, Dictionary<int, HashSet<int>> smoothAdjacency)
+    {
+        for (int i = 0; i < faceList.Count; i++)
+        {
+            for (int j = i + 1; j < faceList.Count; j++)
+            {
+                int fa = faceList[i];
+                int fb = faceList[j];
+                if (fa == fb) continue;
+
+                float dot = Vector3.Dot(faceNormals[fa], faceNormals[fb]);
+                if (dot >= cosCreaseThreshold)
+                {
+                    smoothAdjacency[fa].Add(fb);
+                    smoothAdjacency[fb].Add(fa);
+                }
+            }
+        }
     }
 
     private static void AddEdge(Dictionary<(long, long), List<int>> edgeToFaces, long kA, long kB, int faceIdx)
@@ -1528,30 +1544,99 @@ public static class GlbPlayerColorProcessor
             }
         }
 
+        UpdateImagesAndMaterials(images, ormImageIndex, oldBvToNewBv, newOrmBvIdx, textures, materials);
+
+        UpdateTextures(textures, images);
+
+        if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
+        {
+            bool exists = false;
+            foreach (var item in extArray)
+            {
+                if (item?.GetValue<string>() == "EXT_texture_webp")
+                {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) extArray.Add("EXT_texture_webp");
+        }
+        else
+        {
+            root["extensionsUsed"] = new JsonArray("EXT_texture_webp");
+        }
+
+        root["bufferViews"] = newBufferViewsList;
+
+        if (root["buffers"] is JsonArray buffers && buffers.Count > 0 && buffers[0] is JsonObject buf0)
+        {
+            buf0["byteLength"] = (int)newBinStream.Position;
+        }
+
+        byte[] newBin = newBinStream.ToArray();
+        return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
+    }
+
+    private static void UpdateTextures(JsonArray textures, JsonArray images)
+    {
+        for (int i = 0; i < textures.Count; i++)
+        {
+            if (textures[i] is not JsonObject texObj) continue;
+
+            int src = ResolveTextureSource(i, texObj, textures, images);
+            if (src >= 0)
+            {
+                ApplyWebpExtensionToTexture(texObj, src);
+            }
+        }
+    }
+
+    private static int ResolveTextureSource(int index, JsonObject texObj, JsonArray textures, JsonArray images)
+    {
+        int src = texObj["source"]?.GetValue<int>() ?? -1;
+        if (src >= 0) return src;
+
+        src = ResolveTextureToImage(index, textures);
+        if (src >= 0 && src < images.Count)
+        {
+            texObj["source"] = src;
+            return src;
+        }
+
+        if (images.Count > 0)
+        {
+            texObj["source"] = 0;
+            return 0;
+        }
+
+        return -1;
+    }
+
+    private static void ApplyWebpExtensionToTexture(JsonObject texObj, int src)
+    {
+        if (texObj["extensions"] is JsonObject texExt)
+        {
+            if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
+            texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
+        }
+        else
+        {
+            texObj["extensions"] = new JsonObject
+            {
+                ["EXT_texture_webp"] = new JsonObject { ["source"] = src }
+            };
+        }
+    }
+
+    private static void UpdateImagesAndMaterials(JsonArray images, int ormImageIndex, Dictionary<int, int> oldBvToNewBv, int newOrmBvIdx, JsonArray textures, JsonArray materials)
+    {
         for (int i = 0; i < images.Count; i++)
         {
             if (i == ormImageIndex) continue;
             if (images[i] is JsonObject imgObj)
             {
-                if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
-                {
-                    int oldBv = bvVal.GetValue<int>();
-                    if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
-                    {
-                        imgObj["bufferView"] = newBv;
-                    }
-                }
-                if (imgObj["extensions"] is JsonObject imgExt)
-                {
-                    if (imgExt["EXT_texture_webp"] is JsonObject webp && webp.TryGetPropertyValue("bufferView", out var wbVal) && wbVal != null)
-                    {
-                        int oldBv = wbVal.GetValue<int>();
-                        if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
-                        {
-                            webp["bufferView"] = newBv;
-                        }
-                    }
-                }
+                UpdateImageBufferView(imgObj, oldBvToNewBv);
+                UpdateImageWebpExtension(imgObj, oldBvToNewBv);
             }
         }
 
@@ -1583,80 +1668,53 @@ public static class GlbPlayerColorProcessor
 
             if (materials.Count > 0 && materials[0] is JsonObject firstMat)
             {
-                if (firstMat["pbrMetallicRoughness"] is not JsonObject pbr)
-                {
-                    pbr = new JsonObject();
-                    firstMat["pbrMetallicRoughness"] = pbr;
-                }
-
-                if (!pbr.ContainsKey("metallicRoughnessTexture"))
-                {
-                    pbr["metallicRoughnessTexture"] = new JsonObject { ["index"] = newOrmTextureIdx };
-                }
+                UpdateMaterialPbrRoughnessTexture(firstMat, newOrmTextureIdx);
             }
         }
+    }
 
-        for (int i = 0; i < textures.Count; i++)
+    private static void UpdateImageBufferView(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
+    {
+        if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
         {
-            if (textures[i] is not JsonObject texObj) continue;
-            int src = texObj["source"]?.GetValue<int>() ?? -1;
-            if (src < 0)
+            int oldBv = bvVal.GetValue<int>();
+            if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
             {
-                src = ResolveTextureToImage(i, textures);
-                if (src >= 0 && src < images.Count)
-                {
-                    texObj["source"] = src;
-                }
-                else if (images.Count > 0)
-                {
-                    texObj["source"] = 0;
-                    src = 0;
-                }
+                imgObj["bufferView"] = newBv;
             }
-            if (src >= 0)
+        }
+    }
+
+    private static void UpdateImageWebpExtension(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
+    {
+        if (imgObj.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject imgExt)
+        {
+            if (imgExt.TryGetPropertyValue("EXT_texture_webp", out var webpNode) && webpNode is JsonObject webp)
             {
-                if (texObj["extensions"] is JsonObject texExt)
+                if (webp.TryGetPropertyValue("bufferView", out var wbVal) && wbVal != null)
                 {
-                    if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
-                    texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
-                }
-                else
-                {
-                    texObj["extensions"] = new JsonObject
+                    int oldBv = wbVal.GetValue<int>();
+                    if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
                     {
-                        ["EXT_texture_webp"] = new JsonObject { ["source"] = src }
-                    };
+                        webp["bufferView"] = newBv;
+                    }
                 }
             }
         }
+    }
 
-        if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
+    private static void UpdateMaterialPbrRoughnessTexture(JsonObject material, int newOrmTextureIdx)
+    {
+        if (!material.TryGetPropertyValue("pbrMetallicRoughness", out var pbrNode) || pbrNode is not JsonObject pbr)
         {
-            bool exists = false;
-            foreach (var item in extArray)
-            {
-                if (item?.GetValue<string>() == "EXT_texture_webp")
-                {
-                    exists = true;
-                    break;
-                }
-            }
-            if (!exists) extArray.Add("EXT_texture_webp");
-        }
-        else
-        {
-            root["extensionsUsed"] = new JsonArray("EXT_texture_webp");
+            pbr = new JsonObject();
+            material["pbrMetallicRoughness"] = pbr;
         }
 
-        root["bufferViews"] = newBufferViewsList;
-
-        if (root["buffers"] is JsonArray buffers && buffers.Count > 0 && buffers[0] is JsonObject buf0)
+        if (!pbr.ContainsKey("metallicRoughnessTexture"))
         {
-            buf0["byteLength"] = (int)newBinStream.Position;
+            pbr["metallicRoughnessTexture"] = new JsonObject { ["index"] = newOrmTextureIdx };
         }
-
-        byte[] newBin = newBinStream.ToArray();
-        return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
     }
 
     private static List<Vector2> ReadAccessorVec2(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
