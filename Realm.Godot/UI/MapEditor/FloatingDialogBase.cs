@@ -471,7 +471,7 @@ public partial class FloatingDialogBase : PanelContainer
 		hueSlider.MinValue = 0.0f;
 		hueSlider.MaxValue = 1.0f;
 		hueSlider.Step = 0.01f;
-		hueSlider.Value = initialColor.H;
+		hueSlider.SetValueNoSignal(initialColor.H);
 		hueSlider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		row.AddChild(hueSlider);
 
@@ -481,17 +481,39 @@ public partial class FloatingDialogBase : PanelContainer
 		picker.Color = initialColor;
 		row.AddChild(picker);
 
+		bool isInternalSync = false;
+
 		hueSlider.ValueChanged += (double val) =>
 		{
-			Color tintColor = (val <= 0.0) ? new Color(1.0f, 1.0f, 1.0f, picker.Color.A) : Color.FromHsv((float)val, 0.75f, 1.0f, picker.Color.A);
-			picker.Color = tintColor;
-			onChanged(tintColor);
+			if (isInternalSync) return;
+			isInternalSync = true;
+			try
+			{
+				float s = picker.Color.S > 0.01f ? picker.Color.S : 0.85f;
+				float v = picker.Color.V > 0.01f ? picker.Color.V : 1.0f;
+				Color tintColor = Color.FromHsv((float)val, s, v, picker.Color.A);
+				picker.Color = tintColor;
+				onChanged(tintColor);
+			}
+			finally
+			{
+				isInternalSync = false;
+			}
 		};
 
 		picker.ColorChanged += (Color color) =>
 		{
-			hueSlider.Value = color.H;
-			onChanged(color);
+			if (isInternalSync) return;
+			isInternalSync = true;
+			try
+			{
+				hueSlider.SetValueNoSignal(color.H);
+				onChanged(color);
+			}
+			finally
+			{
+				isInternalSync = false;
+			}
 		};
 
 		parent.AddChild(row);
