@@ -969,6 +969,12 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 							{
 								entityObj["TemplateID"] = TemplateIDHelper.NormalizeTemplateID(objectType, rawId);
 							}
+
+							string modelPath = entityObj["ModelPath"]?.ToString() ?? string.Empty;
+							if (modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+							{
+								entityObj["VisualMode"] = "3D Mesh (.rmesh)";
+							}
 						}
 					}
 				}
@@ -1963,6 +1969,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 							["Name"] = slug,
 							["Description"] = "",
 							["ModelPath"] = fileName,
+							["VisualMode"] = fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ? "3D Mesh (.rmesh)" : "GroundPlane",
 							["Scale"] = 1.0f,
 							["PathingType"] = 9,
 							["DespillPlayerColor"] = false,
@@ -1994,6 +2001,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 							["Name"] = slug,
 							["Description"] = "",
 							["ModelPath"] = fileName,
+							["VisualMode"] = fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ? "3D Mesh (.rmesh)" : "GroundPlane",
 							["Scale"] = 1.5f,
 							["PathingType"] = 32,
 							["DespillPlayerColor"] = false,
@@ -2025,6 +2033,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 							["Name"] = slug,
 							["Description"] = "",
 							["ModelPath"] = fileName,
+							["VisualMode"] = fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ? "3D Mesh (.rmesh)" : "GroundPlane",
 							["Scale"] = 1.25f,
 							["PathingType"] = 255,
 							["DespillPlayerColor"] = false,
@@ -2057,6 +2066,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 							["Name"] = slug,
 							["Description"] = "",
 							["ModelPath"] = fileName,
+							["VisualMode"] = fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ? "3D Mesh (.rmesh)" : "GroundPlane",
 							["Scale"] = 2.75f,
 							["PathingType"] = 255,
 							["DespillPlayerColor"] = false,
