@@ -9525,6 +9525,7 @@ public partial class MapEditorHUD : Control
 		btn.AddThemeColorOverride("font_color", new Color(0.95f, 0.90f, 0.82f));
 		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		btn.FocusMode = FocusModeEnum.None;
+		btn.MouseFilter = Control.MouseFilterEnum.Stop;
 		if (!string.IsNullOrEmpty(tooltip))
 		{
 			btn.TooltipText = TranslationServer.Translate(tooltip);
@@ -9927,6 +9928,10 @@ public partial class MapEditorHUD : Control
 		{
 			return true;
 		}
+		if (GetNodeOrNull<Control>("AgreementOverlay") != null)
+		{
+			return true;
+		}
 		if (_scaleMapDialog != null && _scaleMapDialog.IsVisibleInTree())
 		{
 			return true;
@@ -10020,6 +10025,14 @@ public partial class MapEditorHUD : Control
 			return true;
 		}
 		if (_popupEditors != null && _popupEditors.Visible)
+		{
+			return true;
+		}
+		if (_popupSaveMore != null && _popupSaveMore.Visible)
+		{
+			return true;
+		}
+		if (_popupRandomGen != null && _popupRandomGen.Visible)
 		{
 			return true;
 		}

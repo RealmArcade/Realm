@@ -98,7 +98,7 @@ public class MapManifest
                 "Building" => "models/buildings",
                 "Prop" => "models/props",
                 "Item" => "models/items",
-                "Spritesheet" => "vfx",
+                "Spritesheet" or "vfx_spritesheets" or "vfxspritesheets" or "vfx" => "vfx_spritesheets",
                 "vfx_radial" => "vfx_radial",
                 "vfx_vertical" => "vfx_vertical",
                 "Animation" => "animations",
@@ -126,6 +126,14 @@ public class MapManifest
                     rawKey = rawKey.Substring($"Assets/{subFolder}/".Length);
                 }
 
+                string cleanKey = rawKey;
+                int slashIdx = cleanKey.IndexOf('/');
+                if (slashIdx >= 0)
+                {
+                    cleanKey = cleanKey.Substring(slashIdx + 1);
+                }
+                rawKey = Path.GetFileName(cleanKey);
+
                 string extension = Path.GetExtension(rawKey).ToLowerInvariant();
                 if (string.IsNullOrEmpty(extension))
                 {
@@ -136,6 +144,7 @@ public class MapManifest
                         "Character" or "Building" or "Prop" or "Item" => ".rmesh",
                         _ => ".rtex"
                     };
+                    rawKey = $"{rawKey}{extension}";
                 }
                 string hash = itemKeyValuePair.Value;
                 if (!string.IsNullOrEmpty(hash))
@@ -207,7 +216,7 @@ public class MapManifest
                 string folder = parts.Length >= 3 ? parts[1].ToLowerInvariant() : "textures";
                 string category = folder switch
                 {
-                    "vfx" => "Spritesheet",
+                    "vfx_spritesheets" or "vfx" => "Spritesheet",
                     "vfx_radial" => "vfx_radial",
                     "vfx_vertical" => "vfx_vertical",
                     "animations" => "Animation",

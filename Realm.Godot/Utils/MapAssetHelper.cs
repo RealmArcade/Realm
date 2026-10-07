@@ -164,26 +164,38 @@ public static class MapAssetHelper
 				void CheckDictionaryAssets(IEnumerable<string>? keys, string subFolder)
 				{
 					if (keys == null) return;
-					foreach (var fileName in keys)
+					foreach (var key in keys)
 					{
-						if (string.IsNullOrWhiteSpace(fileName)) continue;
+						if (string.IsNullOrWhiteSpace(key)) continue;
 
-						string? diskPath = FindAssetOnDisk(workspacePath, subFolder, fileName);
+						string? diskPath = FindAssetOnDisk(workspacePath, subFolder, key);
 						if (string.IsNullOrEmpty(diskPath) || !File.Exists(diskPath))
 						{
-							string expectedRel = subFolder == "other" ? fileName : $"Assets/{subFolder}/{fileName}".Replace('\\', '/');
+							var (pType, pSlug) = TemplateIDHelper.ParseTemplateID(key);
+							string fileToReport = (!string.IsNullOrEmpty(pType) && !string.IsNullOrEmpty(pSlug)) ? pSlug : key;
+							if (!Path.HasExtension(fileToReport))
+							{
+								string defaultExt = subFolder switch
+								{
+									"animations" => ".ranim",
+									"audio/sfx" or "audio/music" => ".raud",
+									_ => ".rtex"
+								};
+								fileToReport += defaultExt;
+							}
+							string expectedRel = subFolder == "other" ? fileToReport : $"Assets/{subFolder}/{fileToReport}".Replace('\\', '/');
 							missingFiles.Add(expectedRel);
 						}
 					}
 				}
 
-				if (metadata.Textures != null) CheckDictionaryAssets(metadata.Textures.Select(k => k.Value?.TexturePath ?? k.Key), "textures");
-				if (metadata.Decals != null) CheckDictionaryAssets(metadata.Decals.Select(k => k.Value?.TexturePath ?? k.Key), "decals");
-				if (metadata.VfxSpritesheets != null) CheckDictionaryAssets(metadata.VfxSpritesheets.Select(k => k.Value?.TexturePath ?? k.Key), "vfx");
-				if (metadata.NoiseTextures != null) CheckDictionaryAssets(metadata.NoiseTextures.Select(k => k.Value?.TexturePath ?? k.Key), "noise");
-				if (metadata.Icons != null) CheckDictionaryAssets(metadata.Icons.Select(k => k.Value?.TexturePath ?? k.Key), "icons");
-				if (metadata.Skyboxes != null) CheckDictionaryAssets(metadata.Skyboxes.Select(k => k.Value?.TexturePath ?? k.Key), "skyboxes");
-				if (metadata.Ribbons != null) CheckDictionaryAssets(metadata.Ribbons.Select(k => k.Value?.TexturePath ?? k.Key), "ribbons");
+				if (metadata.Textures != null) CheckDictionaryAssets(metadata.Textures.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "textures");
+				if (metadata.Decals != null) CheckDictionaryAssets(metadata.Decals.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "decals");
+				if (metadata.VfxSpritesheets != null) CheckDictionaryAssets(metadata.VfxSpritesheets.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "vfx_spritesheets");
+				if (metadata.NoiseTextures != null) CheckDictionaryAssets(metadata.NoiseTextures.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "noise");
+				if (metadata.Icons != null) CheckDictionaryAssets(metadata.Icons.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "icons");
+				if (metadata.Skyboxes != null) CheckDictionaryAssets(metadata.Skyboxes.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "skyboxes");
+				if (metadata.Ribbons != null) CheckDictionaryAssets(metadata.Ribbons.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "ribbons");
 			}
 			catch (Exception ex)
 			{
@@ -337,7 +349,7 @@ public static class MapAssetHelper
 					"Building" => "models/buildings",
 					"Prop" => "models/props",
 					"Item" => "models/items",
-					"Spritesheet" => "vfx",
+					"Spritesheet" or "vfx_spritesheets" or "vfxspritesheets" or "vfx" => "vfx_spritesheets",
 					"vfx_radial" => "vfx_radial",
 					"vfx_vertical" => "vfx_vertical",
 					"Animation" => "animations",
@@ -433,14 +445,22 @@ public static class MapAssetHelper
 			return null;
 		}
 
+		var (pType, pSlug) = TemplateIDHelper.ParseTemplateID(fileName);
+		string effectiveName = (!string.IsNullOrEmpty(pType) && !string.IsNullOrEmpty(pSlug)) ? pSlug : fileName;
+
 		string[] candidateFiles;
-		if (fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+		if (effectiveName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 		{
-			candidateFiles = new[] { fileName };
+			candidateFiles = new[] { effectiveName, Path.GetFileName(fileName) };
 		}
 		else
 		{
-			candidateFiles = new[] { $"{fileName}.rmesh", $"{Path.GetFileNameWithoutExtension(fileName)}.rmesh" };
+			candidateFiles = new[]
+			{
+				$"{effectiveName}.rmesh",
+				$"{Path.GetFileNameWithoutExtension(effectiveName)}.rmesh",
+				$"{Path.GetFileNameWithoutExtension(fileName)}.rmesh"
+			};
 		}
 
 		if (!string.IsNullOrEmpty(preferredSubCategory))
@@ -520,42 +540,77 @@ public static class MapAssetHelper
 			normKey = normKey.Substring($"Assets/{subFolder}/".Length);
 		}
 
+		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(normKey);
+		string effectiveKey = (!string.IsNullOrEmpty(parsedType) && !string.IsNullOrEmpty(parsedSlug))
+			? parsedSlug
+			: normKey;
+
 		string assetsDir = Path.Combine(workspacePath, "Assets");
 
-		string p1 = subFolder == "other" ? Path.Combine(workspacePath, normKey) : Path.Combine(assetsDir, subFolder, normKey);
-		if (File.Exists(p1)) return p1;
-
-		if (subFolder is "audio/sfx" or "audio/music")
+		string baseName = Path.GetFileName(effectiveKey);
+		var candidateNames = new List<string> { effectiveKey, baseName };
+		if (!Path.HasExtension(baseName))
 		{
-			string p2 = Path.Combine(assetsDir, subFolder.Substring(6), normKey);
-			if (File.Exists(p2)) return p2;
-		}
-
-		string baseName = Path.GetFileName(normKey);
-		if (subFolder == "icons")
-		{
-			string pAbilities = Path.Combine(assetsDir, "icons", "abilities", baseName);
-			if (File.Exists(pAbilities)) return pAbilities;
-		}
-
-		string pAssets = Path.Combine(assetsDir, baseName);
-		if (File.Exists(pAssets)) return pAssets;
-
-		string pRoot = Path.Combine(workspacePath, normKey);
-		if (File.Exists(pRoot)) return pRoot;
-
-		string pRootBase = Path.Combine(workspacePath, baseName);
-		if (File.Exists(pRootBase)) return pRootBase;
-
-		string searchRoot = Path.Combine(assetsDir, subFolder);
-		if (Directory.Exists(searchRoot))
-		{
-			try
+			string defaultExt = subFolder switch
 			{
-				var match = Directory.EnumerateFiles(searchRoot, baseName, SearchOption.AllDirectories).FirstOrDefault();
-				if (!string.IsNullOrEmpty(match) && File.Exists(match)) return match;
+				"animations" => ".ranim",
+				"audio/sfx" or "audio/music" => ".raud",
+				"models/units" or "models/buildings" or "models/props" or "models/items" => ".rmesh",
+				_ => ".rtex"
+			};
+			candidateNames.Add($"{effectiveKey}{defaultExt}");
+			candidateNames.Add($"{baseName}{defaultExt}");
+		}
+
+		var subFoldersToCheck = new List<string> { subFolder };
+		if (subFolder == "vfx_spritesheets") subFoldersToCheck.Add("vfx");
+		else if (subFolder == "vfx") subFoldersToCheck.Add("vfx_spritesheets");
+
+		foreach (var sf in subFoldersToCheck)
+		{
+			foreach (var cand in candidateNames)
+			{
+				string p1 = sf == "other" ? Path.Combine(workspacePath, cand) : Path.Combine(assetsDir, sf, cand);
+				if (File.Exists(p1)) return p1;
+
+				if (sf is "audio/sfx" or "audio/music")
+				{
+					string p2 = Path.Combine(assetsDir, sf.Substring(6), cand);
+					if (File.Exists(p2)) return p2;
+				}
+
+				if (sf == "icons")
+				{
+					string pAbilities = Path.Combine(assetsDir, "icons", "abilities", cand);
+					if (File.Exists(pAbilities)) return pAbilities;
+				}
 			}
-			catch { }
+		}
+
+		foreach (var cand in candidateNames)
+		{
+			string pAssets = Path.Combine(assetsDir, cand);
+			if (File.Exists(pAssets)) return pAssets;
+
+			string pRoot = Path.Combine(workspacePath, cand);
+			if (File.Exists(pRoot)) return pRoot;
+		}
+
+		foreach (var sf in subFoldersToCheck)
+		{
+			string searchRoot = Path.Combine(assetsDir, sf);
+			if (Directory.Exists(searchRoot))
+			{
+				try
+				{
+					foreach (var cand in candidateNames)
+					{
+						var match = Directory.EnumerateFiles(searchRoot, cand, SearchOption.AllDirectories).FirstOrDefault();
+						if (!string.IsNullOrEmpty(match) && File.Exists(match)) return match;
+					}
+				}
+				catch { }
+			}
 		}
 
 		return null;
@@ -582,7 +637,7 @@ public static class MapAssetHelper
 						"Building" => "models/buildings",
 						"Prop" => "models/props",
 						"Item" => "models/items",
-						"Spritesheet" => "vfx",
+						"Spritesheet" or "vfx_spritesheets" or "vfxspritesheets" or "vfx" => "vfx_spritesheets",
 						"vfx_radial" => "vfx_radial",
 						"vfx_vertical" => "vfx_vertical",
 						"Animation" => "animations",
@@ -631,7 +686,7 @@ public static class MapAssetHelper
 			"noise" or "noisetextures" => "Noise",
 			"ribbon" or "ribbons" or "ribbontextures" => "Ribbon",
 			"skybox" or "skyboxes" => "Skybox",
-			"spritesheet" or "spritesheets" or "vfxspritesheets" or "vfx" => "Spritesheet",
+			"spritesheet" or "spritesheets" or "vfxspritesheets" or "vfx" or "vfx_spritesheets" => "Spritesheet",
 			"vfxradial" => "vfx_radial",
 			"vfxvertical" => "vfx_vertical",
 			"soundeffect" or "sfx" or "audio" or "sound" or "sounds" => "SoundEffect",

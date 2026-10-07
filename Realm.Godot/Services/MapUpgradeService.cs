@@ -824,6 +824,77 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			metadataRoot ??= new JsonObject();
 
+			string assetsDir = Path.Combine(mapDirectory, "Assets");
+			if (Directory.Exists(assetsDir))
+			{
+				string legacyVfxDir = Path.Combine(assetsDir, "vfx");
+				string newVfxDir = Path.Combine(assetsDir, "vfx_spritesheets");
+				if (Directory.Exists(legacyVfxDir))
+				{
+					Directory.CreateDirectory(newVfxDir);
+					foreach (var file in Directory.GetFiles(legacyVfxDir, "*.*", SearchOption.AllDirectories))
+					{
+						string rel = Path.GetRelativePath(legacyVfxDir, file);
+						string target = Path.Combine(newVfxDir, rel);
+						string? targetDir = Path.GetDirectoryName(target);
+						if (!string.IsNullOrEmpty(targetDir)) Directory.CreateDirectory(targetDir);
+						if (!File.Exists(target))
+						{
+							File.Move(file, target);
+						}
+						else
+						{
+							File.Delete(file);
+						}
+					}
+					try
+					{
+						Directory.Delete(legacyVfxDir, true);
+					}
+					catch { }
+				}
+
+				var prefixSubfolderChecks = new (string Folder, string Prefix)[]
+				{
+					("icons", "icon"),
+					("skyboxes", "skybox"),
+					("textures", "terrain"),
+					("decals", "decal"),
+					("ribbons", "ribbon"),
+					("vfx_spritesheets", "spritesheet"),
+					("vfx_spritesheets", "vfx")
+				};
+
+				foreach (var (folder, prefix) in prefixSubfolderChecks)
+				{
+					string nestedDir = Path.Combine(assetsDir, folder, prefix);
+					if (Directory.Exists(nestedDir))
+					{
+						string parentDir = Path.Combine(assetsDir, folder);
+						foreach (var file in Directory.GetFiles(nestedDir, "*.*", SearchOption.AllDirectories))
+						{
+							string rel = Path.GetRelativePath(nestedDir, file);
+							string target = Path.Combine(parentDir, rel);
+							string? targetDir = Path.GetDirectoryName(target);
+							if (!string.IsNullOrEmpty(targetDir)) Directory.CreateDirectory(targetDir);
+							if (!File.Exists(target))
+							{
+								File.Move(file, target);
+							}
+							else
+							{
+								File.Delete(file);
+							}
+						}
+						try
+						{
+							Directory.Delete(nestedDir, true);
+						}
+						catch { }
+					}
+				}
+			}
+
 			const int totalSteps = 3;
 
 			progress?.Report(new MigrationProgressUpdate(Description, 1, totalSteps, "Normalizing entity template definitions into Templates container..."));
@@ -1425,7 +1496,10 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 						("sfx", "SoundEffect"),
 						("shaders", "Shader"),
 						("skyboxes", "Skybox"),
-						("textures", "Terrain")
+						("textures", "Terrain"),
+						("vfx", "Spritesheet"),
+						("vfx_spritesheets", "Spritesheet"),
+						("spritesheets", "Spritesheet")
 					};
 
 					foreach (var (oldKey, newKey) in topLevelRenames)
@@ -1468,6 +1542,37 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 						string categoryName = categoryPair.Key;
 						if (categoryPair.Value is JsonObject categoryObj)
 						{
+							var renamedKeys = new List<(string OldKey, string NewKey, JsonNode Value)>();
+							foreach (var assetPair in categoryObj)
+							{
+								string rawKey = assetPair.Key;
+								var (pType, pSlug) = TemplateIDHelper.ParseTemplateID(rawKey);
+								string cleanKey = (!string.IsNullOrEmpty(pType) && !string.IsNullOrEmpty(pSlug)) ? pSlug : rawKey;
+								if (!Path.HasExtension(cleanKey))
+								{
+									string defaultExt = categoryName switch
+									{
+										"Animation" => ".ranim",
+										"SoundEffect" or "Music" => ".raud",
+										"Character" or "Building" or "Prop" or "Item" => ".rmesh",
+										_ => ".rtex"
+									};
+									cleanKey += defaultExt;
+								}
+								if (!string.Equals(rawKey, cleanKey, StringComparison.OrdinalIgnoreCase) && assetPair.Value != null)
+								{
+									renamedKeys.Add((rawKey, cleanKey, assetPair.Value.DeepClone()));
+								}
+							}
+							foreach (var (oldK, newK, v) in renamedKeys)
+							{
+								categoryObj.Remove(oldK);
+								if (!categoryObj.ContainsKey(newK))
+								{
+									categoryObj[newK] = v;
+								}
+							}
+
 							foreach (var assetPair in categoryObj)
 							{
 								string fileName = assetPair.Key;

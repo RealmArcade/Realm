@@ -1489,7 +1489,7 @@ public class SaveLoadService
 					"Building" => "models/buildings",
 					"Prop" => "models/props",
 					"Item" => "models/items",
-					"Spritesheet" or "vfx" or "vfx_spritesheets" => "vfx",
+					"Spritesheet" or "vfx" or "vfx_spritesheets" => "vfx_spritesheets",
 					"Animation" or "animations" => "animations",
 					"SoundEffect" or "sfx" => "audio/sfx",
 					"Music" or "music" => "audio/music",

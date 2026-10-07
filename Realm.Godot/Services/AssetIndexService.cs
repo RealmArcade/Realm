@@ -1929,7 +1929,16 @@ public class AssetIndexService : IDisposable
 
 				if (!string.IsNullOrWhiteSpace(requiredAssetType))
 				{
-					query = query.Where(x => x.AssetType == requiredAssetType);
+					string normalizedRequiredType = RealmMetadataHelper.NormalizeAssetType(requiredAssetType);
+					if (string.Equals(requiredAssetType, normalizedRequiredType, StringComparison.OrdinalIgnoreCase))
+					{
+						query = query.Where(x => x.AssetType == requiredAssetType);
+					}
+					else
+					{
+						var bsonTypes = new BsonValue[] { new BsonValue(requiredAssetType), new BsonValue(normalizedRequiredType) };
+						query = query.Where(Query.In("AssetType", bsonTypes));
+					}
 				}
 
 				if (requirePlayerColorMask)

@@ -662,10 +662,18 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_optAssetTypeFilter.AddItem(TranslationServer.Translate(typeName), itemIdx);
 			_optAssetTypeFilter.SetItemMetadata(itemIdx, typeName);
 
-			if (!string.IsNullOrEmpty(_selectedAssetTypeFilter) && typeName.Equals(_selectedAssetTypeFilter, StringComparison.OrdinalIgnoreCase))
+			if (!string.IsNullOrEmpty(_selectedAssetTypeFilter) &&
+				(typeName.Equals(_selectedAssetTypeFilter, StringComparison.OrdinalIgnoreCase) ||
+				 Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(typeName).Equals(Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(_selectedAssetTypeFilter), StringComparison.OrdinalIgnoreCase)))
 			{
 				selectedIndex = itemIdx;
+				_selectedAssetTypeFilter = typeName;
 			}
+		}
+
+		if (selectedIndex == 0 && !string.IsNullOrEmpty(_selectedAssetTypeFilter))
+		{
+			_selectedAssetTypeFilter = null;
 		}
 
 		_optAssetTypeFilter.Selected = selectedIndex;
