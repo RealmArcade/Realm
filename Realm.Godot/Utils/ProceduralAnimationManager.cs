@@ -218,7 +218,7 @@ public static class ProceduralAnimationManager
 				metadata.CustomProceduralAnimations.Add(config);
 			}
 
-			MapFileService.SaveMetadata(wsPath, metadata);
+			MetadataService.Instance.SaveMetadata(wsPath, metadata);
 		}
 		catch (Exception ex)
 		{
@@ -237,7 +237,7 @@ public static class ProceduralAnimationManager
 			if (metadata.CustomProceduralAnimations != null)
 			{
 				metadata.CustomProceduralAnimations.RemoveAll(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
-				MapFileService.SaveMetadata(wsPath, metadata);
+				MetadataService.Instance.SaveMetadata(wsPath, metadata);
 			}
 		}
 		catch (Exception ex)

@@ -495,6 +495,7 @@ public class SaveLoadService
 			}
 
 			SortMapSaveData(saveData);
+			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			Realm.Shared.Services.MapFileService.SaveTerrain(absolutePath, saveData);
 
 			GameHost.Instance?.SaveModelYOffsetsToMetadataJson(directory);

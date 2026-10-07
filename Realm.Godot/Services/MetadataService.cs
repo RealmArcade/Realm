@@ -92,6 +92,7 @@ public class MetadataService
 
 		try
 		{
+			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			Realm.Shared.Services.MapFileService.SaveMetadata(targetPath, metadata);
 			MetadataSaved?.Invoke(targetPath);
 		}

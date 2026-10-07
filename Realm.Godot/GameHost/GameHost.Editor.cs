@@ -3647,6 +3647,7 @@ public partial class GameHost
 				}
 
 				var previewVfx = new ProceduralVfxInstance3D(config);
+				previewVfx.IsPreview = true;
 				AddChild(previewVfx);
 				_editorPreviewNode = previewVfx;
 			}

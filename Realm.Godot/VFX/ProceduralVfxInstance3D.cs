@@ -29,13 +29,15 @@ public partial class ProceduralVfxInstance3D : Node3D
 	private static StandardMaterial3D _sharedHoverMaterial;
 	private static StandardMaterial3D _sharedEditorBaseMaterial;
 
+	public bool IsPreview { get; set; } = false;
+
 	public bool IsHovered
 	{
 		get => _isHovered;
 		set
 		{
 			_isHovered = value;
-			if (GameHost.Instance?.IsMapEditorMode != true)
+			if (!ShouldShowEditorBaseRing())
 			{
 				if (_hoverRing != null) _hoverRing.Visible = false;
 				return;
@@ -57,7 +59,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		set
 		{
 			_isSelected = value;
-			if (GameHost.Instance?.IsMapEditorMode != true)
+			if (!ShouldShowEditorBaseRing())
 			{
 				if (_selectionRing != null) _selectionRing.Visible = false;
 				return;
@@ -93,9 +95,32 @@ public partial class ProceduralVfxInstance3D : Node3D
 		SetupEditorBaseRing();
 	}
 
+	private bool ShouldShowEditorBaseRing()
+	{
+		if (IsPreview) return false;
+		if (GameHost.Instance == null || !GameHost.Instance.IsMapEditorMode || RuntimeTerrain.IsMinimapRendering) return false;
+		if (GetViewport() is SubViewport) return false;
+
+		Node parent = GetParent();
+		while (parent != null)
+		{
+			if (parent is SubViewport || parent is Unit3D || parent is Prop3D || parent is VisualProjectile3D)
+			{
+				return false;
+			}
+			string parentName = parent.Name.ToString();
+			if (parentName.Contains("Preview", StringComparison.OrdinalIgnoreCase) || parentName.Contains("Dialog", StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+			parent = parent.GetParent();
+		}
+		return true;
+	}
+
 	private void SetupEditorBaseRing()
 	{
-		bool isEditor = GameHost.Instance?.IsMapEditorMode == true && !RuntimeTerrain.IsMinimapRendering;
+		bool isEditor = ShouldShowEditorBaseRing();
 		if (!isEditor)
 		{
 			if (_editorBaseRing != null) _editorBaseRing.Visible = false;
@@ -128,7 +153,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 	{
 		if (_editorBaseRing != null && GodotObject.IsInstanceValid(_editorBaseRing))
 		{
-			_editorBaseRing.Visible = visible && GameHost.Instance?.IsMapEditorMode == true && !RuntimeTerrain.IsMinimapRendering;
+			_editorBaseRing.Visible = visible && ShouldShowEditorBaseRing();
 		}
 	}
 
@@ -301,7 +326,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	private void SetupEditorCollision()
 	{
-		bool isEditor = GameHost.Instance?.IsMapEditorMode == true;
+		bool isEditor = ShouldShowEditorBaseRing();
 		if (!isEditor) return;
 
 		EnsureContentRoot();
@@ -501,7 +526,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		}
 		if (_editorBaseRing != null)
 		{
-			bool isEditor = GameHost.Instance?.IsMapEditorMode == true && !RuntimeTerrain.IsMinimapRendering;
+			bool isEditor = ShouldShowEditorBaseRing();
 			_editorBaseRing.Visible = isEditor;
 			if (isEditor)
 			{

@@ -675,6 +675,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		PreviewSceneRoot.AddChild(_previewGroundGrid);
 
 		_previewVfxInstance = new ProceduralVfxInstance3D();
+		_previewVfxInstance.IsPreview = true;
 		_previewVfxInstance.Name = "PreviewVfx";
 		PreviewSceneRoot.AddChild(_previewVfxInstance);
 		_previewVfxInstance.Initialize(_currentConfig);

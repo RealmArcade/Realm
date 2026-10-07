@@ -395,6 +395,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		var config = ResolveVfxConfig(_currentVisualEffect);
 		_vfxInstance = new ProceduralVfxInstance3D(config);
+		_vfxInstance.IsPreview = true;
 		_vfxInstance.Name = "AbilityVfxPreview";
 		PreviewSceneRoot.AddChild(_vfxInstance);
 		_vfxInstance.Position = new Vector3(0, 0.5f, 0);

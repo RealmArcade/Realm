@@ -184,6 +184,7 @@ public partial class VfxManagerDialog : FloatingPreview3DDialogBase
 		if (_selectedConfig != null && PreviewSceneRoot != null)
 		{
 			_previewVfxInstance = new ProceduralVfxInstance3D(_selectedConfig);
+			_previewVfxInstance.IsPreview = true;
 			PreviewSceneRoot.AddChild(_previewVfxInstance);
 		}
 	}

@@ -262,6 +262,7 @@ public static class MapAssetHelper
 
 		var manifest = MapFileService.LoadManifest(targetDirectory);
 		manifest.Assets = assets;
+		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 		MapFileService.SaveManifest(targetDirectory, manifest);
 	}
 
@@ -287,6 +288,7 @@ public static class MapAssetHelper
 		}
 
 		dict[fileName] = blake3Hash;
+		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 		MapFileService.SaveManifest(targetDirectory, manifest);
 	}
 
@@ -307,6 +309,7 @@ public static class MapAssetHelper
 			if (dict != null)
 			{
 				dict.Remove(fileName);
+				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 				MapFileService.SaveManifest(targetDirectory, manifest);
 			}
 		}
@@ -379,6 +382,7 @@ public static class MapAssetHelper
 				}
 			}
 
+			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			MapFileService.SaveManifest(targetDirectory, manifest);
 		}
 		catch (Exception ex)
@@ -411,6 +415,7 @@ public static class MapAssetHelper
 		if (manifest.Assets == null)
 		{
 			manifest.Assets = new MapManifestAssets();
+			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			MapFileService.SaveManifest(directory, manifest);
 		}
 	}
