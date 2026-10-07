@@ -13,13 +13,13 @@ Separate skill files are located in the `.agent/skills` folder.
 ## JSON Map Files
 
 ### metadata.json
-The primary map configuration file. Schema at `.vscode/metadata.schema.json` 
+The primary map configuration file. Schema at `.vscode/map_schema.json` 
 
 ### manifest.json
-Tracks map asset registrations Schema at `.vscode/manifest.schema.json`.
+Tracks map asset registrations Schema at `.vscode/manifest_schema.json`.
 
 ### terrain.json
-Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), and skybox path. Schema at `.vscode/terrain.schema.json`.
+Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), and skybox path. Schema at `.vscode/terrain_schema.json`.
 
 ## Terrain Binary Files
 

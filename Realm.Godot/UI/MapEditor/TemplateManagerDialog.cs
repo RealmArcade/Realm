@@ -11,6 +11,7 @@ using Realm.Ecs.Services;
 using Realm.Shared.Textures;
 using Realm.Shared.Audio;
 using Realm.Shared.Metadata;
+using Realm.Shared.Services;
 using Realm.Godot.Services;
 using Realm.Godot.UI;
 
@@ -47,6 +48,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private string _currentCategory = "units";
 	private string _searchFilter = "";
 	private string _currentPreviewTemplateID = "";
+
+	private HBoxContainer _previewMeshRow;
+	private OptionButton _optPreviewMesh;
+	private List<string> _availablePreviewMeshes = new();
+	private string _selectedPreviewMesh = "";
 
 	public TemplateManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Templates Manager"), new Vector2(720, 780))
@@ -215,6 +221,30 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		};
 		catRow.AddChild(_optObjectCategory);
 
+		_previewMeshRow = new HBoxContainer();
+		_previewMeshRow.AddThemeConstantOverride("separation", 6);
+		_previewMeshRow.Visible = false;
+
+		var lblMesh = new Label();
+		lblMesh.Text = TranslationServer.Translate("Preview Mesh:");
+		lblMesh.AddThemeFontSizeOverride("font_size", 11);
+		lblMesh.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		_previewMeshRow.AddChild(lblMesh);
+
+		_optPreviewMesh = new OptionButton();
+		_optPreviewMesh.AddThemeFontSizeOverride("font_size", 11);
+		_optPreviewMesh.CustomMinimumSize = new Vector2(160, 26);
+		_optPreviewMesh.ItemSelected += (idx) =>
+		{
+			if (idx >= 0 && idx < _availablePreviewMeshes.Count)
+			{
+				_selectedPreviewMesh = _availablePreviewMeshes[(int)idx];
+				ReloadCurrentPreview();
+			}
+		};
+		_previewMeshRow.AddChild(_optPreviewMesh);
+		catRow.AddChild(_previewMeshRow);
+
 		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		catRow.AddChild(spacer);
 
@@ -289,7 +319,95 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			}
 		}
 
+		bool isShader = _currentCategory is "shaders" or "shader";
+		if (_previewMeshRow != null)
+		{
+			_previewMeshRow.Visible = isShader;
+		}
+		if (isShader)
+		{
+			PopulatePreviewMeshList();
+		}
+
 		RefreshObjectList();
+	}
+
+	private void PopulatePreviewMeshList()
+	{
+		_availablePreviewMeshes.Clear();
+		if (_optPreviewMesh == null) return;
+		_optPreviewMesh.Clear();
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		try
+		{
+			var manifest = MapFileService.LoadManifest(wsPath);
+			if (manifest?.Assets != null)
+			{
+				foreach (var catKvp in manifest.Assets.GetAllCategories())
+				{
+					var catDict = catKvp.Value;
+					if (catDict != null)
+					{
+						foreach (var kvp in catDict)
+						{
+							string key = kvp.Key;
+							if (!string.IsNullOrEmpty(key) && key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+							{
+								string name = Path.GetFileName(key);
+								if (!_availablePreviewMeshes.Contains(name))
+								{
+									_availablePreviewMeshes.Add(name);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		catch { }
+
+		string modelsDir = Path.Combine(wsPath, "Assets", "models");
+		if (Directory.Exists(modelsDir))
+		{
+			try
+			{
+				var files = Directory.GetFiles(modelsDir, "*.rmesh", SearchOption.AllDirectories);
+				foreach (var f in files)
+				{
+					string name = Path.GetFileName(f);
+					if (!_availablePreviewMeshes.Contains(name))
+					{
+						_availablePreviewMeshes.Add(name);
+					}
+				}
+			}
+			catch { }
+		}
+
+		if (_availablePreviewMeshes.Count == 0)
+		{
+			_availablePreviewMeshes.Add("(Sample Building Cube)");
+			_availablePreviewMeshes.Add("(Sample Unit Capsule)");
+		}
+
+		int idx = 0;
+		foreach (var m in _availablePreviewMeshes)
+		{
+			_optPreviewMesh.AddItem(m, idx++);
+		}
+
+		int selectedIdx = !string.IsNullOrEmpty(_selectedPreviewMesh) ? _availablePreviewMeshes.IndexOf(_selectedPreviewMesh) : -1;
+		if (selectedIdx >= 0)
+		{
+			_optPreviewMesh.Selected = selectedIdx;
+		}
+		else if (_availablePreviewMeshes.Count > 0)
+		{
+			_selectedPreviewMesh = _availablePreviewMeshes[0];
+			_optPreviewMesh.Selected = 0;
+		}
 	}
 
 	public void RefreshObjectList()
@@ -791,8 +909,22 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				if (MetadataService.Instance.TryLoadMetadata(wsPathTer, out var metaTer) && metaTer?.Textures != null)
 				{
 					var (_, slug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if ((metaTer.Textures.TryGetValue(item.TemplateID, out var tNode) ||
-						(!string.IsNullOrEmpty(slug) && metaTer.Textures.TryGetValue(slug, out tNode))) && tNode != null)
+					TextureMetadata? tNode = null;
+					if (!metaTer.Textures.TryGetValue(item.TemplateID, out tNode))
+					{
+						if (!string.IsNullOrEmpty(slug) && !metaTer.Textures.TryGetValue(slug, out tNode))
+						{
+							if (!string.IsNullOrEmpty(item.ModelPath) && !metaTer.Textures.TryGetValue(item.ModelPath, out tNode))
+							{
+								if (!string.IsNullOrEmpty(slug) && !metaTer.Textures.TryGetValue($"{slug}.rtex", out tNode))
+								{
+									var matchKvp = metaTer.Textures.FirstOrDefault(k => string.Equals(Path.GetFileNameWithoutExtension(k.Key), slug, StringComparison.OrdinalIgnoreCase));
+									tNode = matchKvp.Value;
+								}
+							}
+						}
+					}
+					if (tNode != null)
 					{
 						curTerData = System.Text.Json.JsonSerializer.SerializeToNode(tNode) as JsonObject ?? new JsonObject();
 					}
@@ -805,14 +937,23 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
 						if (!string.Equals(item.TemplateID, newId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
 						{
-							m.Textures.Remove(item.TemplateID);
-							m.RemoveTerrainProfile(item.TemplateID);
 							var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							var keysToRemove = m.Textures.Keys.Where(k =>
+								string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
+								string.Equals(k, oldSlug, StringComparison.OrdinalIgnoreCase) ||
+								(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
+								(!string.IsNullOrEmpty(oldSlug) && (string.Equals(k, $"{oldSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), oldSlug, StringComparison.OrdinalIgnoreCase))) ||
+								string.Equals(TemplateIDHelper.NormalizeTemplateID("terrain", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+							).ToList();
+							foreach (var k in keysToRemove) m.Textures.Remove(k);
+
+							m.RemoveTerrainProfile(item.TemplateID);
 							if (!string.IsNullOrEmpty(oldSlug))
 							{
-								m.Textures.Remove(oldSlug);
 								m.RemoveTerrainProfile(oldSlug);
+								m.RemoveTerrainProfile($"{oldSlug}.rtex");
 							}
+							if (!string.IsNullOrEmpty(item.ModelPath)) m.RemoveTerrainProfile(item.ModelPath);
 						}
 						var texMeta = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(updatedObj.ToJsonString()) ?? new TextureMetadata();
 						texMeta.AssetType = updatedObj?["AssetType"]?.ToString() ?? updatedObj?["rtex"]?.ToString();
@@ -833,8 +974,22 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				if (MetadataService.Instance.TryLoadMetadata(wsPathSpr, out var metaSpr) && metaSpr?.VfxSpritesheets != null)
 				{
 					var (_, slug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if ((metaSpr.VfxSpritesheets.TryGetValue(item.TemplateID, out var sNode) ||
-						(!string.IsNullOrEmpty(slug) && metaSpr.VfxSpritesheets.TryGetValue(slug, out sNode))) && sNode != null)
+					VfxMetadata? sNode = null;
+					if (!metaSpr.VfxSpritesheets.TryGetValue(item.TemplateID, out sNode))
+					{
+						if (!string.IsNullOrEmpty(slug) && !metaSpr.VfxSpritesheets.TryGetValue(slug, out sNode))
+						{
+							if (!string.IsNullOrEmpty(item.ModelPath) && !metaSpr.VfxSpritesheets.TryGetValue(item.ModelPath, out sNode))
+							{
+								if (!string.IsNullOrEmpty(slug) && !metaSpr.VfxSpritesheets.TryGetValue($"{slug}.rtex", out sNode))
+								{
+									var matchKvp = metaSpr.VfxSpritesheets.FirstOrDefault(k => string.Equals(Path.GetFileNameWithoutExtension(k.Key), slug, StringComparison.OrdinalIgnoreCase));
+									sNode = matchKvp.Value;
+								}
+							}
+						}
+					}
+					if (sNode != null)
 					{
 						initCols = sNode.Columns > 0 ? sNode.Columns : 1;
 						initRows = sNode.Rows > 0 ? sNode.Rows : 1;
@@ -850,12 +1005,15 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
 						if (!string.Equals(item.TemplateID, newId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
 						{
-							m.VfxSpritesheets.Remove(item.TemplateID);
 							var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-							if (!string.IsNullOrEmpty(oldSlug))
-							{
-								m.VfxSpritesheets.Remove(oldSlug);
-							}
+							var keysToRemove = m.VfxSpritesheets.Keys.Where(k =>
+								string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
+								string.Equals(k, oldSlug, StringComparison.OrdinalIgnoreCase) ||
+								(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
+								(!string.IsNullOrEmpty(oldSlug) && (string.Equals(k, $"{oldSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), oldSlug, StringComparison.OrdinalIgnoreCase))) ||
+								string.Equals(TemplateIDHelper.NormalizeTemplateID("spritesheet", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+							).ToList();
+							foreach (var k in keysToRemove) m.VfxSpritesheets.Remove(k);
 						}
 						m.VfxSpritesheets[newId] = new VfxMetadata
 						{
@@ -923,9 +1081,21 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					MetadataService.Instance.UpdateMetadata(wsPathSha, m =>
 					{
 						m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
-						m.Shaders[item.TemplateID] = new ShaderMetadata();
+						if (!string.Equals(item.TemplateID, updatedConfig.Key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
+						{
+							m.Shaders.Remove(item.TemplateID);
+							var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							if (!string.IsNullOrEmpty(oldSlug))
+							{
+								m.Shaders.Remove(oldSlug);
+							}
+						}
+						m.Shaders[updatedConfig.Key] = new ShaderMetadata
+						{
+							ConfigJson = updatedConfig.ToJsonObject().ToJsonString()
+						};
 					});
-					_currentPreviewTemplateID = item.TemplateID;
+					_currentPreviewTemplateID = updatedConfig.Key;
 					RefreshObjectList();
 				});
 				break;
@@ -1122,7 +1292,15 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 				case "shaders" or "shader":
 					m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
-					m.Shaders[newTemplateID] = new ShaderMetadata();
+					var defaultCfg = new CustomShaderConfig
+					{
+						Key = newTemplateID,
+						Name = parsedSlug
+					};
+					m.Shaders[newTemplateID] = new ShaderMetadata
+					{
+						ConfigJson = defaultCfg.ToJsonObject().ToJsonString()
+					};
 					break;
 			}
 		});
@@ -1164,55 +1342,136 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		{
 			MetadataService.Instance.UpdateMetadata(wsPath, meta =>
 			{
+				var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
 				switch (item.Category)
 				{
-					case "units": meta.RemoveUnit(item.TemplateID); break;
-					case "buildings": meta.RemoveBuilding(item.TemplateID); break;
-					case "resources": meta.RemoveResource(item.TemplateID); break;
-					case "props": meta.RemoveProp(item.TemplateID); break;
-					case "weapons": meta.RemoveWeapon(item.TemplateID); break;
-					case "abilities": meta.RemoveAbility(item.TemplateID); break;
-					case "upgrades": meta.RemoveUpgrade(item.TemplateID); break;
-					case "items": meta.RemoveItem(item.TemplateID); break;
+					case "units":
+						meta.RemoveUnit(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveUnit(delSlug);
+						break;
+
+					case "buildings":
+						meta.RemoveBuilding(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveBuilding(delSlug);
+						break;
+
+					case "resources":
+						meta.RemoveResource(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveResource(delSlug);
+						break;
+
+					case "props":
+						meta.RemoveProp(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveProp(delSlug);
+						break;
+
+					case "weapons":
+						meta.RemoveWeapon(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveWeapon(delSlug);
+						break;
+
+					case "abilities":
+						meta.RemoveAbility(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveAbility(delSlug);
+						break;
+
+					case "upgrades":
+						meta.RemoveUpgrade(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveUpgrade(delSlug);
+						break;
+
+					case "items":
+						meta.RemoveItem(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveItem(delSlug);
+						break;
+
 					case "terrain":
-						meta.Textures?.Remove(item.TemplateID);
+						if (meta.Textures != null)
+						{
+							var keysToRemove = meta.Textures.Keys.Where(k =>
+								string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
+								string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
+								(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
+								(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
+								string.Equals(TemplateIDHelper.NormalizeTemplateID("terrain", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+							).ToList();
+
+							foreach (var k in keysToRemove)
+							{
+								meta.Textures.Remove(k);
+							}
+						}
+
 						meta.RemoveTerrainProfile(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug))
 						{
-							var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-							if (!string.IsNullOrEmpty(delSlug))
-							{
-								meta.Textures?.Remove(delSlug);
-								meta.RemoveTerrainProfile(delSlug);
-							}
+							meta.RemoveTerrainProfile(delSlug);
+							meta.RemoveTerrainProfile($"{delSlug}.rtex");
+						}
+						if (!string.IsNullOrEmpty(item.ModelPath))
+						{
+							meta.RemoveTerrainProfile(item.ModelPath);
+						}
+						if (meta.TerrainProfiles != null)
+						{
+							meta.TerrainProfiles.RemoveAll(tp =>
+								string.Equals(tp.SwatchName, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
+								string.Equals(tp.SwatchName, delSlug, StringComparison.OrdinalIgnoreCase) ||
+								(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(tp.SwatchName, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
+								(!string.IsNullOrEmpty(delSlug) && (string.Equals(tp.SwatchName, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(tp.SwatchName), delSlug, StringComparison.OrdinalIgnoreCase))) ||
+								string.Equals(TemplateIDHelper.NormalizeTemplateID("terrain", tp.SwatchName), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+							);
 						}
 						break;
+
 					case "spritesheets":
-						meta.VfxSpritesheets?.Remove(item.TemplateID);
+						if (meta.VfxSpritesheets != null)
 						{
-							var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-							if (!string.IsNullOrEmpty(delSlug))
+							var keysToRemove = meta.VfxSpritesheets.Keys.Where(k =>
+								string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
+								string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
+								(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
+								(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
+								string.Equals(TemplateIDHelper.NormalizeTemplateID("spritesheet", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+							).ToList();
+
+							foreach (var k in keysToRemove)
 							{
-								meta.VfxSpritesheets?.Remove(delSlug);
+								meta.VfxSpritesheets.Remove(k);
 							}
 						}
 						break;
+
 					case "decals":
-						meta.Decals?.Remove(item.TemplateID);
+						if (meta.Decals != null)
 						{
-							var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-							if (!string.IsNullOrEmpty(delSlug))
+							var keysToRemove = meta.Decals.Keys.Where(k =>
+								string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
+								string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
+								(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
+								(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
+								string.Equals(TemplateIDHelper.NormalizeTemplateID("decal", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+							).ToList();
+
+							foreach (var k in keysToRemove)
 							{
-								meta.Decals?.Remove(delSlug);
+								meta.Decals.Remove(k);
 							}
 						}
 						break;
+
 					case "shaders" or "shader":
-						meta.Shaders?.Remove(item.TemplateID);
+						if (meta.Shaders != null)
 						{
-							var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-							if (!string.IsNullOrEmpty(delSlug))
+							var keysToRemove = meta.Shaders.Keys.Where(k =>
+								string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
+								string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
+								string.Equals(TemplateIDHelper.NormalizeTemplateID("shader", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+							).ToList();
+
+							foreach (var k in keysToRemove)
 							{
-								meta.Shaders?.Remove(delSlug);
+								meta.Shaders.Remove(k);
 							}
 						}
 						break;
@@ -1354,6 +1613,91 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				}
 			}
 		}
+		else if (cat is "shaders" or "shader")
+		{
+			_preview2DContainer.Visible = false;
+			_previewAudioContainer.Visible = false;
+			PreviewSubViewport.GetParent<Control>().Visible = true;
+
+			string meshKey = !string.IsNullOrEmpty(_selectedPreviewMesh) ? _selectedPreviewMesh : (_availablePreviewMeshes.Count > 0 ? _availablePreviewMeshes[0] : "");
+			Node3D? loadedNode3D = null;
+
+			if (meshKey.StartsWith("("))
+			{
+				var meshInst = new MeshInstance3D();
+				if (meshKey.Contains("Capsule"))
+				{
+					meshInst.Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.8f };
+					meshInst.Position = new Vector3(0, 0.9f, 0);
+				}
+				else
+				{
+					meshInst.Mesh = new BoxMesh { Size = new Vector3(2f, 2f, 2f) };
+					meshInst.Position = new Vector3(0, 1.0f, 0);
+				}
+				var mat = new StandardMaterial3D { AlbedoColor = new Color(0.8f, 0.7f, 0.5f) };
+				meshInst.MaterialOverride = mat;
+				loadedNode3D = meshInst;
+			}
+			else if (!string.IsNullOrEmpty(meshKey))
+			{
+				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+				string? modelPath = null;
+				foreach (var sub in new[] { "units", "buildings", "resources", "props", "projectiles", "characters", "items", "attachments", "weapons" })
+				{
+					string p = Path.Combine(wsPath, "Assets", "models", sub, meshKey);
+					if (File.Exists(p)) { modelPath = p; break; }
+				}
+
+				if (!File.Exists(modelPath))
+				{
+					string modelsDir = Path.Combine(wsPath, "Assets", "models");
+					if (Directory.Exists(modelsDir))
+					{
+						var files = Directory.GetFiles(modelsDir, meshKey, SearchOption.AllDirectories);
+						if (files.Length > 0 && files[0].EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+						{
+							modelPath = files[0];
+						}
+					}
+				}
+
+				if (modelPath != null && modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(modelPath))
+				{
+					var loaded = ModelCache.GetModel(modelPath) ?? ModelCache.GetModel(meshKey);
+					if (loaded is Node3D n)
+					{
+						loadedNode3D = n;
+					}
+					else
+					{
+						var gltfDoc = new GltfDocument();
+						var gltfState = new GltfState();
+						byte[] rmeshBytes = File.ReadAllBytes(modelPath);
+						byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+						if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
+						{
+							var node = gltfDoc.GenerateScene(gltfState);
+							if (node is Node3D n3d) loadedNode3D = n3d;
+						}
+					}
+				}
+			}
+
+			if (loadedNode3D != null)
+			{
+				_currentModelRoot.AddChild(loadedNode3D);
+				Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, meshKey);
+
+				var shaderCfg = SpawnDeathShaderManager.GetShaderConfig(item.TemplateID);
+				if (shaderCfg != null)
+				{
+					SpawnDeathShaderManager.ApplyShaderPreview(loadedNode3D, shaderCfg, 0.5f);
+				}
+
+				CenterAndFrameNode(loadedNode3D);
+			}
+		}
 		else if (!string.IsNullOrEmpty(item.ModelPath))
 		{
 			_preview2DContainer.Visible = false;
@@ -1388,6 +1732,16 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			_previewAudioContainer.Visible = false;
 			PreviewSubViewport.GetParent<Control>().Visible = true;
 		}
+	}
+
+	private void CenterAndFrameNode(Node3D targetNode)
+	{
+		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
+		TargetPosition = aabb.Position + aabb.Size * 0.5f;
+		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
+		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
+		DefaultDistance = CameraDistance;
+		UpdateCameraTransform();
 	}
 
 	private Texture2D? LoadTexture2D(string? assetPath, string defaultSubFolder = "textures")

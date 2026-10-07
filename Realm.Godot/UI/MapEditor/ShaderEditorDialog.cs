@@ -13,7 +13,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 	private LineEdit _txtShaderKey;
 	private LineEdit _txtShaderName;
-	private OptionButton _optPreset;
 	private OptionButton _optModelPicker;
 	private OptionButton _optTransitionMode;
 	private OptionButton _optDirection;
@@ -151,42 +150,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		configVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
-
-		// PRESET LOADER ROW
-		var presetRow = new HBoxContainer();
-		presetRow.AddThemeConstantOverride("separation", 6);
-
-		var lblPreset = new Label();
-		lblPreset.Text = TranslationServer.Translate("Template Preset:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 11);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		presetRow.AddChild(lblPreset);
-
-		_optPreset = new OptionButton();
-		_optPreset.AddThemeFontSizeOverride("font_size", 11);
-		_optPreset.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		int pIdx = 0;
-		foreach (var kvp in SpawnDeathShaderManager.LoadAllCustomShaders())
-		{
-			_optPreset.AddItem(kvp.Value.Name, pIdx);
-			_optPreset.SetItemMetadata(pIdx, kvp.Key);
-			pIdx++;
-		}
-		_optPreset.ItemSelected += (idx) =>
-		{
-			string key = _optPreset.GetItemMetadata((int)idx).AsString();
-			var def = SpawnDeathShaderManager.GetShaderConfig(key);
-			if (def != null)
-			{
-				string oldKey = _config.Key;
-				_config = def.Clone();
-				_config.Key = oldKey;
-				SyncControlsFromConfig();
-				UpdateShaderParameters();
-			}
-		};
-		presetRow.AddChild(_optPreset);
-		configVBox.AddChild(presetRow);
 
 		// IDENTIFIERS
 		_txtShaderKey = AddTextInput(configVBox, TranslationServer.Translate("Shader Key / ID:"), _config.Key, (val) =>
@@ -654,9 +617,17 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
+		if (_txtShaderKey != null && !string.IsNullOrWhiteSpace(_txtShaderKey.Text))
+		{
+			_config.Key = _txtShaderKey.Text.Trim().ToLowerInvariant().Replace(" ", "_");
+		}
+		if (_txtShaderName != null && !string.IsNullOrWhiteSpace(_txtShaderName.Text))
+		{
+			_config.Name = _txtShaderName.Text.Trim();
+		}
 		if (string.IsNullOrWhiteSpace(_config.Key))
 		{
-			_config.Key = "custom_shader";
+			_config.Key = "shader/custom_shader";
 		}
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{
