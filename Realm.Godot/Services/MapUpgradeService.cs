@@ -973,7 +973,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 							string modelPath = entityObj["ModelPath"]?.ToString() ?? string.Empty;
 							if (modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 							{
-								entityObj["VisualMode"] = "3D Mesh (.rmesh)";
+								entityObj["VisualMode"] = "Mesh";
 							}
 						}
 					}
