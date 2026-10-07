@@ -3486,8 +3486,7 @@ public partial class MapEditorHUD : Control
 			}
 			else
 			{
-				HighlightSwatch(_swatchButtons[index]);
-				TriggerToolSelection(GameHost.EditorTool.PaintTexture, _swatchButtons[index]);
+				SelectTerrainTexture(index, _swatchButtons[index]);
 			}
 		}
 	}

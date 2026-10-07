@@ -201,15 +201,6 @@ public class SaveLoadService
 			{
 				Directory.CreateDirectory(directory);
 			}
-			else
-			{
-				int maxBackups = EditorSettingsDialog.CurrentSettings?.MaxBackupSnapshots ?? 3;
-				if (maxBackups > 0)
-				{
-					string backupSourceDir = directory;
-					_ = Task.Run(() => CreateWorkspaceBackup(backupSourceDir, maxBackups));
-				}
-			}
 
 			string heightsPath = Path.Combine(directory, "terrain_heights.exr");
 			string waterPath = Path.Combine(directory, "terrain_water.exr");
@@ -245,8 +236,8 @@ public class SaveLoadService
 
 			Image heightsImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, heightsBytes);
 			Image waterImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, waterBytes);
-			heightsImage.SaveExr(heightsPath);
-			waterImage.SaveExr(waterPath);
+			SaveExrSafe(heightsImage, heightsPath);
+			SaveExrSafe(waterImage, waterPath);
 
 			byte[] pathingBytes = new byte[width * depth * 4];
 			Span<byte> pathingSpan = pathingBytes.AsSpan();
@@ -266,7 +257,7 @@ public class SaveLoadService
 			}
 
 			Image pathingImage = Image.CreateFromData(width, depth, false, Image.Format.Rgba8, pathingBytes);
-			pathingImage.SavePng(pathingPath);
+			SavePngSafe(pathingImage, pathingPath);
 
 			int splatW = width;
 			int splatD = depth;
@@ -305,8 +296,8 @@ public class SaveLoadService
 
 			Image splatIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatIndicesBytes);
 			Image splatWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatWeightsBytes);
-			splatIndicesImage.SaveExr(splatIndicesPath);
-			splatWeightsImage.SaveExr(splatWeightsPath);
+			SaveExrSafe(splatIndicesImage, splatIndicesPath);
+			SaveExrSafe(splatWeightsImage, splatWeightsPath);
 
 			if (cliffHtmlColors != null && cliffHtmlColors.Length == splatW * splatD)
 			{
@@ -342,8 +333,8 @@ public class SaveLoadService
 
 				Image cliffIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, cliffIndicesBytes);
 				Image cliffWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, cliffWeightsBytes);
-				cliffIndicesImage.SaveExr(cliffSplatIndicesPath);
-				cliffWeightsImage.SaveExr(cliffSplatWeightsPath);
+				SaveExrSafe(cliffIndicesImage, cliffSplatIndicesPath);
+				SaveExrSafe(cliffWeightsImage, cliffSplatWeightsPath);
 			}
 
 			saveData.Units = new List<UnitSaveData>();
@@ -542,6 +533,13 @@ public class SaveLoadService
 				{
 					EcsWorld.Set(entity, updatedEditor);
 				});
+			}
+
+			int maxBackups = EditorSettingsDialog.CurrentSettings?.MaxBackupSnapshots ?? 3;
+			if (maxBackups > 0)
+			{
+				string backupSourceDir = directory;
+				_ = Task.Run(() => CreateWorkspaceBackup(backupSourceDir, maxBackups));
 			}
 
 			return true;
@@ -1361,10 +1359,36 @@ public class SaveLoadService
 		{
 			try
 			{
-				File.Copy(pair.SourcePath, pair.DestPath, true);
+				using var srcStream = new FileStream(pair.SourcePath, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+				using var dstStream = new FileStream(pair.DestPath, FileMode.Create, System.IO.FileAccess.Write, FileShare.ReadWrite);
+				srcStream.CopyTo(dstStream);
 			}
 			catch { }
 		});
+	}
+
+	private static bool SaveExrSafe(Image image, string path, int maxRetries = 5)
+	{
+		for (int i = 0; i < maxRetries; i++)
+		{
+			var err = image.SaveExr(path);
+			if (err == Error.Ok) return true;
+			System.Threading.Thread.Sleep(25);
+		}
+		GD.PrintErr($"[SaveLoadService] Failed to save EXR file: {path}");
+		return false;
+	}
+
+	private static bool SavePngSafe(Image image, string path, int maxRetries = 5)
+	{
+		for (int i = 0; i < maxRetries; i++)
+		{
+			var err = image.SavePng(path);
+			if (err == Error.Ok) return true;
+			System.Threading.Thread.Sleep(25);
+		}
+		GD.PrintErr($"[SaveLoadService] Failed to save PNG file: {path}");
+		return false;
 	}
 
 	private static void PruneOldBackups(string backupsRoot, int maxBackups)

@@ -2671,35 +2671,6 @@
         "null"
       ]
     },
-    "TerrainProfiles": {
-      "type": "array",
-      "items": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "SwatchName": {
-            "type": "string"
-          },
-          "DefaultPathingCode": {
-            "type": "integer"
-          },
-          "DecalBombingRules": {
-            "type": "array",
-            "items": {
-              "$ref": "#/properties/CustomWaterProfiles/items/properties/DecalBombingRules/items"
-            }
-          },
-          "VfxBombingRules": {
-            "type": "array",
-            "items": {
-              "$ref": "#/properties/CustomWaterProfiles/items/properties/VfxBombingRules/items"
-            }
-          }
-        }
-      }
-    },
     "Models": {
       "type": "object",
       "additionalProperties": {
@@ -2797,16 +2768,13 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
-          },
           "SwatchIndex": {
             "type": "integer"
           },
           "ScaleFactor": {
             "type": "number"
           },
-          "AssetType": {
+          "TexturePath": {
             "type": [
               "string",
               "null"
@@ -2874,6 +2842,21 @@
           },
           "Metallic": {
             "type": "number"
+          },
+          "DefaultPathingCode": {
+            "type": "integer"
+          },
+          "DecalBombingRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/CustomWaterProfiles/items/properties/DecalBombingRules/items"
+            }
+          },
+          "VfxBombingRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/CustomWaterProfiles/items/properties/VfxBombingRules/items"
+            }
           }
         }
       }
@@ -2886,9 +2869,6 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
-          },
           "TexturePath": {
             "type": [
               "string",
@@ -2926,12 +2906,6 @@
             "type": "number"
           },
           "BlendMode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "AssetType": {
             "type": [
               "string",
               "null"
@@ -3011,9 +2985,6 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
-          },
           "Columns": {
             "type": "integer"
           },
@@ -3026,7 +2997,7 @@
           "SubframeBlend": {
             "type": "boolean"
           },
-          "AssetType": {
+          "TexturePath": {
             "type": [
               "string",
               "null"
@@ -3049,8 +3020,11 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3063,8 +3037,11 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3077,8 +3054,11 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3091,14 +3071,44 @@
           "null"
         ],
         "properties": {
-          "Hash": {
+          "Name": {
             "type": "string"
           },
-          "ConfigJson": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "TransitionMode": {
+            "type": "integer"
+          },
+          "Direction": {
+            "type": "integer"
+          },
+          "EdgeColor": {
+            "type": "string"
+          },
+          "EdgeWidth": {
+            "type": "number"
+          },
+          "EdgeEmission": {
+            "type": "number"
+          },
+          "NoiseScale": {
+            "type": "number"
+          },
+          "NoiseRoughness": {
+            "type": "number"
+          },
+          "FresnelPower": {
+            "type": "number"
+          },
+          "VertexDisplacement": {
+            "type": "number"
+          },
+          "AlphaFade": {
+            "type": "number"
+          },
+          "Duration": {
+            "type": "number"
+          },
+          "AssetType": {
+            "type": "string"
           }
         }
       }
@@ -3106,7 +3116,18 @@
     "gdshader": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/properties/SpawnShader/additionalProperties"
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "ConfigJson": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       }
     }
   }

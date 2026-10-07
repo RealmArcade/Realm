@@ -2768,16 +2768,13 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
-          },
           "SwatchIndex": {
             "type": "integer"
           },
           "ScaleFactor": {
             "type": "number"
           },
-          "AssetType": {
+          "TexturePath": {
             "type": [
               "string",
               "null"
@@ -2872,9 +2869,6 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
-          },
           "TexturePath": {
             "type": [
               "string",
@@ -2912,12 +2906,6 @@
             "type": "number"
           },
           "BlendMode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "AssetType": {
             "type": [
               "string",
               "null"
@@ -2997,9 +2985,6 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
-          },
           "Columns": {
             "type": "integer"
           },
@@ -3012,7 +2997,7 @@
           "SubframeBlend": {
             "type": "boolean"
           },
-          "AssetType": {
+          "TexturePath": {
             "type": [
               "string",
               "null"
@@ -3035,8 +3020,11 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3049,8 +3037,11 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3063,8 +3054,11 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3077,9 +3071,6 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
-          },
           "Name": {
             "type": "string"
           },
@@ -3130,9 +3121,6 @@
           "null"
         ],
         "properties": {
-          "Hash": {
-            "type": "string"
-          },
           "ConfigJson": {
             "type": [
               "string",
