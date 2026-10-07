@@ -943,17 +943,29 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				metadataRoot["decals"] = normalizedDecals;
 			}
 
-			if (!metadataRoot.ContainsKey("shaders") || metadataRoot["shaders"] is not JsonObject)
+			if (!metadataRoot.ContainsKey("SpawnShader") || metadataRoot["SpawnShader"] is not JsonObject)
 			{
-				metadataRoot["shaders"] = new JsonObject();
+				metadataRoot["SpawnShader"] = new JsonObject();
 			}
-			var shadersObj = metadataRoot["shaders"]!.AsObject();
+			var spawnShadersObj = metadataRoot["SpawnShader"]!.AsObject();
+			if (metadataRoot.TryGetPropertyValue("shaders", out var legacyShadersNode) && legacyShadersNode is JsonObject legacyShadersObj)
+			{
+				foreach (var kvp in legacyShadersObj)
+				{
+					if (!spawnShadersObj.ContainsKey(kvp.Key) && kvp.Value != null)
+					{
+						spawnShadersObj[kvp.Key] = kvp.Value.DeepClone();
+					}
+				}
+				metadataRoot.Remove("shaders");
+			}
+
 			var normalizedShaders = new JsonObject();
-			foreach (var kvp in shadersObj)
+			foreach (var kvp in spawnShadersObj)
 			{
 				string rawKey = kvp.Key;
 				string slug = TemplateIDHelper.GenerateSlug(rawKey);
-				string normalizedId = TemplateIDHelper.NormalizeTemplateID("shader", slug);
+				string normalizedId = TemplateIDHelper.NormalizeTemplateID("SpawnShader", slug);
 				var itemObj = kvp.Value as JsonObject ?? new JsonObject();
 				if (!normalizedShaders.ContainsKey(normalizedId))
 				{
@@ -963,14 +975,14 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			if (normalizedShaders.Count == 0)
 			{
-				normalizedShaders["shader/magic_blueprint"] = CreateDefaultShaderConfig("Magic Blueprint", 0, 0, "#00e5ffff", 0.06f, 6.0f, 12.0f, 0.4f, 3.0f, 0.0f, 0.9f, 1.2f);
-				normalizedShaders["shader/fire_demolish"] = CreateDefaultShaderConfig("Fire Ember Dissolve", 1, 1, "#ff590cff", 0.08f, 7.0f, 16.0f, 0.7f, 1.5f, 0.15f, 1.0f, 1.5f);
-				normalizedShaders["shader/hologram_warp"] = CreateDefaultShaderConfig("Hologram Scanlines", 2, 0, "#66ff33ff", 0.04f, 4.0f, 20.0f, 0.2f, 4.0f, 0.02f, 0.75f, 1.0f);
-				normalizedShaders["shader/earth_crumble"] = CreateDefaultShaderConfig("Earth Ground Crumble", 3, 1, "#99734cff", 0.05f, 2.0f, 8.0f, 0.8f, 1.0f, 0.25f, 1.0f, 1.1f);
-				normalizedShaders["shader/frost_crystallize"] = CreateDefaultShaderConfig("Frost Crystallize", 4, 2, "#b2e5ffff", 0.05f, 5.0f, 25.0f, 0.6f, 3.5f, 0.03f, 0.95f, 1.3f);
-				normalizedShaders["shader/shadow_void"] = CreateDefaultShaderConfig("Shadow Void Collapse", 5, 3, "#b219ffff", 0.07f, 8.0f, 14.0f, 0.9f, 2.0f, 0.18f, 1.0f, 1.4f);
+				normalizedShaders["SpawnShader/magic_blueprint"] = CreateDefaultShaderConfig("Magic Blueprint", 0, 0, "#00e5ffff", 0.06f, 6.0f, 12.0f, 0.4f, 3.0f, 0.0f, 0.9f, 1.2f);
+				normalizedShaders["SpawnShader/fire_demolish"] = CreateDefaultShaderConfig("Fire Ember Dissolve", 1, 1, "#ff590cff", 0.08f, 7.0f, 16.0f, 0.7f, 1.5f, 0.15f, 1.0f, 1.5f);
+				normalizedShaders["SpawnShader/hologram_warp"] = CreateDefaultShaderConfig("Hologram Scanlines", 2, 0, "#66ff33ff", 0.04f, 4.0f, 20.0f, 0.2f, 4.0f, 0.02f, 0.75f, 1.0f);
+				normalizedShaders["SpawnShader/earth_crumble"] = CreateDefaultShaderConfig("Earth Ground Crumble", 3, 1, "#99734cff", 0.05f, 2.0f, 8.0f, 0.8f, 1.0f, 0.25f, 1.0f, 1.1f);
+				normalizedShaders["SpawnShader/frost_crystallize"] = CreateDefaultShaderConfig("Frost Crystallize", 4, 2, "#b2e5ffff", 0.05f, 5.0f, 25.0f, 0.6f, 3.5f, 0.03f, 0.95f, 1.3f);
+				normalizedShaders["SpawnShader/shadow_void"] = CreateDefaultShaderConfig("Shadow Void Collapse", 5, 3, "#b219ffff", 0.07f, 8.0f, 14.0f, 0.9f, 2.0f, 0.18f, 1.0f, 1.4f);
 			}
-			metadataRoot["shaders"] = normalizedShaders;
+			metadataRoot["SpawnShader"] = normalizedShaders;
 
 			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Migrating manifest.json asset keys to canonical categories..."));
 
@@ -1110,7 +1122,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			["vertex_displacement"] = vertexDisplacement,
 			["alpha_fade"] = alphaFade,
 			["duration"] = duration,
-			["asset_type"] = "Shader"
+			["asset_type"] = "SpawnShader"
 		};
 		return new JsonObject
 		{

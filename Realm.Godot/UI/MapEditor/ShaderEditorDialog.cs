@@ -11,7 +11,9 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 
-	private LineEdit _txtShaderKey;
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private string _slug = "";
 	private LineEdit _txtShaderName;
 	private OptionButton _optModelPicker;
 	private OptionButton _optTransitionMode;
@@ -152,10 +154,31 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		BodyContainer.AddChild(scroll);
 
 		// IDENTIFIERS
-		_txtShaderKey = AddTextInput(configVBox, TranslationServer.Translate("Shader Key / ID:"), _config.Key, (val) =>
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "shader/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("shader_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
 		{
-			_config.Key = val.Trim().ToLowerInvariant().Replace(" ", "_");
-		}, "", 140f);
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_config.Key = TemplateIDHelper.NormalizeTemplateID("shader", _slug);
+		};
+		rowId.AddChild(_txtSlug);
+		configVBox.AddChild(rowId);
 
 		_txtShaderName = AddTextInput(configVBox, TranslationServer.Translate("Display Name:"), _config.Name, (val) =>
 		{
@@ -449,7 +472,9 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 	private void SyncControlsFromConfig()
 	{
-		if (_txtShaderKey != null) _txtShaderKey.Text = _config.Key;
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(_config.Key);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(_config.Key);
+		if (_txtSlug != null) _txtSlug.Text = _slug;
 		if (_txtShaderName != null) _txtShaderName.Text = _config.Name;
 		if (_optTransitionMode != null) _optTransitionMode.Selected = _config.TransitionMode;
 		if (_optDirection != null) _optDirection.Selected = _config.Direction;
@@ -617,21 +642,18 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
-		if (_txtShaderKey != null && !string.IsNullOrWhiteSpace(_txtShaderKey.Text))
-		{
-			_config.Key = _txtShaderKey.Text.Trim().ToLowerInvariant().Replace(" ", "_");
-		}
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = "custom_shader";
+		_slug = finalSlug;
+		_config.Key = TemplateIDHelper.NormalizeTemplateID("shader", _slug);
+
 		if (_txtShaderName != null && !string.IsNullOrWhiteSpace(_txtShaderName.Text))
 		{
 			_config.Name = _txtShaderName.Text.Trim();
 		}
-		if (string.IsNullOrWhiteSpace(_config.Key))
-		{
-			_config.Key = "shader/custom_shader";
-		}
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{
-			_config.Name = _config.Key;
+			_config.Name = _slug;
 		}
 
 		SpawnDeathShaderManager.SaveCustomShader(_config);

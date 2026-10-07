@@ -681,7 +681,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						{
 							Category = "terrain",
 							TemplateID = normalizedId,
-							Name = slug,
+							Name = rtex,
 							Description = "Terrain texture swatch config",
 							ModelPath = rtex
 						});
@@ -695,13 +695,14 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
 						if (!list.Any(x => string.Equals(x.TemplateID, normalizedId, StringComparison.OrdinalIgnoreCase)))
 						{
+							string rtex = !string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : tp.SwatchName;
 							list.Add(new ObjectItemInfo
 							{
 								Category = "terrain",
 								TemplateID = normalizedId,
-								Name = slug,
+								Name = rtex,
 								Description = "Terrain swatch profile",
-								ModelPath = !string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : tp.SwatchName
+								ModelPath = rtex
 							});
 						}
 					}
@@ -724,7 +725,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						{
 							Category = "spritesheets",
 							TemplateID = normalizedId,
-							Name = slug,
+							Name = rtex,
 							Description = $"{cols}x{rows} @ {fps} FPS",
 							ModelPath = rtex
 						});
@@ -744,7 +745,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						{
 							Category = "decals",
 							TemplateID = normalizedId,
-							Name = slug,
+							Name = rtex,
 							Description = "Decal configuration",
 							ModelPath = rtex
 						});

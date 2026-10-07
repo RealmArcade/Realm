@@ -16,6 +16,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	private string _slug = "";
 	private Label _lblObjectTypePrefix;
 	private LineEdit _txtSlug;
+	private LineEdit _txtName;
 	private Action<WeaponMetadata> _onAppliedCallback;
 	private bool _isUpdatingUI;
 
@@ -131,6 +132,19 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		};
 		rowId.AddChild(_txtSlug);
 		scrollBody.AddChild(rowId);
+
+		_txtName = AddTextInput(
+			scrollBody,
+			TranslationServer.Translate("Display Name:"),
+			_currentWeapon.Name ?? "",
+			(val) =>
+			{
+				if (_isUpdatingUI) return;
+				_currentWeapon.Name = val;
+			},
+			TranslationServer.Translate("Weapon display name..."),
+			140f
+		);
 
 		// SECTION 1: AUDIO & IMPACT EFFECTS
 		AddSectionHeader(scrollBody, "🔊 " + TranslationServer.Translate("AUDIO & IMPACT EFFECTS"), new Color(0.3f, 0.8f, 0.7f));
@@ -581,10 +595,11 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_initialWeapon = weapon ?? new WeaponMetadata();
 		_currentWeapon = weapon ?? new WeaponMetadata();
 		_currentWeapon.TemplateID = _weaponId;
-		if (_txtSlug != null)
+		if (_txtSlug != null || _txtName != null)
 		{
 			_isUpdatingUI = true;
-			_txtSlug.Text = _slug;
+			if (_txtSlug != null) _txtSlug.Text = _slug;
+			if (_txtName != null) _txtName.Text = _currentWeapon.Name ?? "";
 			_isUpdatingUI = false;
 		}
 		if (!string.IsNullOrEmpty(_currentWeapon.ProjectileModelPath) &&
@@ -797,6 +812,10 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_slug = finalSlug;
 		_weaponId = TemplateIDHelper.NormalizeTemplateID("weapon", _slug);
 		_currentWeapon.TemplateID = _weaponId;
+		if (_txtName != null)
+		{
+			_currentWeapon.Name = _txtName.Text;
+		}
 
 		if (GameHost.Instance != null && !string.IsNullOrEmpty(_weaponId))
 		{

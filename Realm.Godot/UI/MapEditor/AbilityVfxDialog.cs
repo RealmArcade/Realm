@@ -30,6 +30,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private string _slug = "";
 	private Label _lblObjectTypePrefix;
 	private LineEdit _txtSlug;
+	private LineEdit _txtName;
 	private bool _isUpdatingUI = false;
 	private string _abilityName = "";
 	private string _initialVisualEffect = "";
@@ -146,6 +147,19 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		};
 		rowId.AddChild(_txtSlug);
 		configVBox.AddChild(rowId);
+
+		_txtName = AddTextInput(
+			configVBox,
+			TranslationServer.Translate("Display Name:"),
+			_abilityName,
+			(val) =>
+			{
+				if (_isUpdatingUI) return;
+				_abilityName = val ?? "";
+			},
+			TranslationServer.Translate("Ability display name..."),
+			140f
+		);
 
 		AddSectionHeader(configVBox, "🎨 " + TranslationServer.Translate("ABILITY ICON"), new Color(0.95f, 0.8f, 0.4f));
 
@@ -727,6 +741,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		_isUpdatingUI = true;
 		if (_txtSlug != null) _txtSlug.Text = _slug;
+		if (_txtName != null) _txtName.Text = _abilityName;
 		_setVisualEffectValue?.Invoke(_currentVisualEffect);
 		_setCastSoundValue?.Invoke(_currentCastSound);
 		_setIconPathValue?.Invoke(_currentIconPath);
@@ -747,6 +762,10 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
 		_slug = finalSlug;
 		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
+		if (_txtName != null)
+		{
+			_abilityName = _txtName.Text;
+		}
 
 		if (!string.IsNullOrEmpty(_abilityId))
 		{
