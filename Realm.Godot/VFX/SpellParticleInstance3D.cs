@@ -177,13 +177,13 @@ public partial class SpellParticleInstance3D : Node3D
 
 	private void ApplyColorsAndRamp()
 	{
-		Color cStart = Color.FromHtml(_config.ColorStart);
+		Color cStart = VfxShaderManager.ParseColorSafe(_config.ColorStart, Colors.Gold);
 		cStart.A = Mathf.Clamp(_config.AlphaStart, 0.0f, 1.0f);
 
-		Color cMid = Color.FromHtml(_config.ColorMid);
+		Color cMid = VfxShaderManager.ParseColorSafe(_config.ColorMid, Colors.DarkOrange);
 		cMid.A = Mathf.Clamp(_config.AlphaMid, 0.0f, 1.0f);
 
-		Color cEnd = Color.FromHtml(_config.ColorEnd);
+		Color cEnd = VfxShaderManager.ParseColorSafe(_config.ColorEnd, Colors.Maroon);
 		cEnd.A = Mathf.Clamp(_config.AlphaEnd, 0.0f, 1.0f);
 
 		var gradient = new Gradient();
@@ -287,7 +287,7 @@ public partial class SpellParticleInstance3D : Node3D
 			{
 				_billboardMaterial.EmissionEnabled = true;
 				_billboardMaterial.EmissionEnergyMultiplier = _config.EmissionEnergy;
-				_billboardMaterial.Emission = Color.FromHtml(_config.ColorStart);
+				_billboardMaterial.Emission = VfxShaderManager.ParseColorSafe(_config.ColorStart, Colors.Gold);
 			}
 			else
 			{

@@ -237,9 +237,9 @@ public static class MinimapHelper
 				}
 				finally
 				{
+					RuntimeTerrain.IsMinimapRendering = false;
 					GameHost.Instance?.EndMinimapCapture();
 					RuntimeTerrain.Instance?.EndMinimapCapture();
-					RuntimeTerrain.IsMinimapRendering = false;
 				}
 			}
 			finally

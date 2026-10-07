@@ -1494,6 +1494,8 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
+		SyncConfigFromControls();
+
 		if (!string.IsNullOrEmpty(_tempGeneratedNoiseFileName) &&
 		    _tempGeneratedNoiseConfig != null &&
 		    string.Equals(_currentConfig.NoiseTexture, _tempGeneratedNoiseFileName, StringComparison.OrdinalIgnoreCase))

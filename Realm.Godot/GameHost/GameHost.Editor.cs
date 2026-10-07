@@ -4420,6 +4420,17 @@ public partial class GameHost
 		UpdateEditorShadows();
 		UpdateDayNightVisuals(0.0f);
 		GroundTerrain?.SetShroudEnabled(false);
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(true);
+				}
+			}
+		}
 	}
 
 	public void ExitMapEditorMode()
@@ -4429,6 +4440,17 @@ public partial class GameHost
 		EditorHistoryManager.Clear();
 		ClearEditorPreview();
 		UpdateEditorShadows();
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(false);
+				}
+			}
+		}
 		
 		if (_brushIndicatorMesh != null)
 		{

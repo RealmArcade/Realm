@@ -151,9 +151,13 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	public void SetEditorBaseRingVisible(bool visible)
 	{
-		if (_editorBaseRing != null && GodotObject.IsInstanceValid(_editorBaseRing))
+		if (visible && ShouldShowEditorBaseRing())
 		{
-			_editorBaseRing.Visible = visible && ShouldShowEditorBaseRing();
+			SetupEditorBaseRing();
+		}
+		else if (_editorBaseRing != null && GodotObject.IsInstanceValid(_editorBaseRing))
+		{
+			_editorBaseRing.Visible = false;
 		}
 	}
 
