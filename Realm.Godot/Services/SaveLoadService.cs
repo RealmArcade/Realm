@@ -912,7 +912,7 @@ public class SaveLoadService
 			if (loadedColors == null)
 			{
 				loadedColors = new string[width * depth];
-				string defaultSolid = TerrainSplatWeights.CreateSolid(3).Serialize();
+				string defaultSolid = TerrainSplatWeights.CreateSolid(0).Serialize();
 				for (int i = 0; i < loadedColors.Length; i++)
 				{
 					loadedColors[i] = defaultSolid;

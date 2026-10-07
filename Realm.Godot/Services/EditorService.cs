@@ -2166,7 +2166,7 @@ public class EditorService
 						}
 						if (pasteTextures)
 						{
-							var defaultGround = TerrainSplatWeights.CreateSolid(3);
+							var defaultGround = TerrainSplatWeights.CreateSolid(0);
 							var defaultCliff = TerrainSplatWeights.CreateSolid(1);
 							SetGridNodeSplat(targetX, targetZ, in defaultGround, in defaultGround, in defaultGround, in defaultGround);
 							SetGridNodeCliffSplat(targetX, targetZ, in defaultCliff, in defaultCliff, in defaultCliff, in defaultCliff);
