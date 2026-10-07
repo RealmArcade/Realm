@@ -219,7 +219,7 @@ public class MetadataService
 		metadata.Icons ??= new Dictionary<string, IconMetadata>(StringComparer.OrdinalIgnoreCase);
 		metadata.Skyboxes ??= new Dictionary<string, SkyboxMetadata>(StringComparer.OrdinalIgnoreCase);
 		metadata.Ribbons ??= new Dictionary<string, RibbonMetadata>(StringComparer.OrdinalIgnoreCase);
-		metadata.SpawnShaders ??= new Dictionary<string, ShaderMetadata>(StringComparer.OrdinalIgnoreCase);
+		metadata.SpawnShaders ??= new Dictionary<string, SpawnShaderMetadata>(StringComparer.OrdinalIgnoreCase);
 		metadata.GdShaders ??= new Dictionary<string, ShaderMetadata>(StringComparer.OrdinalIgnoreCase);
 
 		if (string.IsNullOrEmpty(metadata.GameBuildNumber))

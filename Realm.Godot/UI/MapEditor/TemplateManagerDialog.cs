@@ -676,7 +676,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					{
 						string normalizedId = TemplateIDHelper.NormalizeTemplateID("terrain", kvp.Key);
 						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
-						string rtex = !string.IsNullOrWhiteSpace(kvp.Value?.AssetType) ? kvp.Value.AssetType : (!string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : kvp.Key);
+						string rtex = !string.IsNullOrWhiteSpace(kvp.Value?.TexturePath) ? kvp.Value.TexturePath : (!string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : kvp.Key);
 						list.Add(new ObjectItemInfo
 						{
 							Category = "terrain",
@@ -685,26 +685,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 							Description = "Terrain texture swatch config",
 							ModelPath = rtex
 						});
-					}
-				}
-				if (meta.TerrainProfiles != null)
-				{
-					foreach (var tp in meta.TerrainProfiles)
-					{
-						string normalizedId = TemplateIDHelper.NormalizeTemplateID("terrain", tp.SwatchName);
-						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
-						if (!list.Any(x => string.Equals(x.TemplateID, normalizedId, StringComparison.OrdinalIgnoreCase)))
-						{
-							string rtex = !string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : tp.SwatchName;
-							list.Add(new ObjectItemInfo
-							{
-								Category = "terrain",
-								TemplateID = normalizedId,
-								Name = rtex,
-								Description = "Terrain swatch profile",
-								ModelPath = rtex
-							});
-						}
 					}
 				}
 				break;
@@ -720,7 +700,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						int cols = sheetObj?.Columns ?? 1;
 						int rows = sheetObj?.Rows ?? 1;
 						float fps = sheetObj?.Fps ?? 20.0f;
-						string rtex = !string.IsNullOrEmpty(sheetObj?.AssetType) ? sheetObj.AssetType : (!string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : kvp.Key);
+						string rtex = !string.IsNullOrEmpty(sheetObj?.TexturePath) ? sheetObj.TexturePath : (!string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : kvp.Key);
 						list.Add(new ObjectItemInfo
 						{
 							Category = "spritesheets",
@@ -994,10 +974,19 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 							if (!string.IsNullOrEmpty(item.ModelPath)) m.RemoveTerrainProfile(item.ModelPath);
 						}
 						var texMeta = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(updatedObj.ToJsonString()) ?? new TextureMetadata();
-						texMeta.AssetType = updatedObj?["AssetType"]?.ToString() ?? updatedObj?["rtex"]?.ToString();
+						texMeta.TexturePath = updatedObj?["TexturePath"]?.ToString();
+						if (updatedObj != null && updatedObj.TryGetPropertyValue("SwatchIndex", out var swNode) && swNode != null && int.TryParse(swNode.ToString(), out int parsedSw))
+						{
+							texMeta.SwatchIndex = parsedSw;
+						}
 						m.Textures[newId] = texMeta;
 					});
 					_currentPreviewTemplateID = newId;
+					Hud?.SetupTextureSwatches(false);
+					if (GameHost.Instance?.GroundTerrain != null)
+					{
+						GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+					}
 					RefreshObjectList();
 				});
 				break;
@@ -1033,7 +1022,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						initRows = sNode.Rows > 0 ? sNode.Rows : 1;
 						initFps = sNode.Fps > 0 ? sNode.Fps : 20.0f;
 						initBlend = sNode.SubframeBlend;
-						initRtex = sNode.AssetType ?? "";
+						initRtex = sNode.TexturePath ?? "";
 					}
 				}
 				_spritesheetEditDialog.OpenForSheet(item.TemplateID, initRtex, initCols, initRows, initFps, initBlend, (newId, rtex, cols, rows, fps, blend) =>
@@ -1059,7 +1048,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 							Rows = rows,
 							Fps = fps,
 							SubframeBlend = blend,
-							AssetType = rtex
+							TexturePath = rtex
 						};
 					});
 					_currentPreviewTemplateID = newId;
@@ -1128,9 +1117,21 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 								m.SpawnShaders.Remove(oldSlug);
 							}
 						}
-						m.SpawnShaders[updatedConfig.Key] = new ShaderMetadata
+						m.SpawnShaders[updatedConfig.Key] = new SpawnShaderMetadata
 						{
-							ConfigJson = updatedConfig.ToJsonObject().ToJsonString()
+							Name = updatedConfig.Name,
+							TransitionMode = updatedConfig.TransitionMode,
+							Direction = updatedConfig.Direction,
+							EdgeColor = "#" + updatedConfig.EdgeColor.ToHtml(true),
+							EdgeWidth = updatedConfig.EdgeWidth,
+							EdgeEmission = updatedConfig.EdgeEmission,
+							NoiseScale = updatedConfig.NoiseScale,
+							NoiseRoughness = updatedConfig.NoiseRoughness,
+							FresnelPower = updatedConfig.FresnelPower,
+							VertexDisplacement = updatedConfig.VertexDisplacement,
+							AlphaFade = updatedConfig.AlphaFade,
+							Duration = updatedConfig.Duration,
+							AssetType = !string.IsNullOrWhiteSpace(updatedConfig.AssetType) ? updatedConfig.AssetType : "SpawnShader"
 						};
 					});
 					_currentPreviewTemplateID = updatedConfig.Key;
@@ -1304,11 +1305,25 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 				case "terrain":
 					m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+					var occupiedSlots = new bool[TextureSwatchSlots.MaxSlots];
+					foreach (var existingTex in m.Textures.Values)
+					{
+						if (existingTex != null && existingTex.SwatchIndex >= 0 && existingTex.SwatchIndex < TextureSwatchSlots.MaxSlots)
+						{
+							occupiedSlots[existingTex.SwatchIndex] = true;
+						}
+					}
+					int nextFreeSlot = TextureSwatchSlots.FirstFreeSlot(occupiedSlots);
+					if (nextFreeSlot < 0) nextFreeSlot = 0;
+
 					m.Textures[newTemplateID] = new TextureMetadata
 					{
 						TileMode = "Stochastic",
 						UvScale = 1.0f,
-						Brightness = 1.0f
+						Brightness = 1.0f,
+						TexturePath = $"{parsedSlug}.rtex",
+						SwatchIndex = nextFreeSlot,
+						DefaultPathingCode = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING
 					};
 					break;
 
@@ -1330,18 +1345,34 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 				case "shaders" or "shader" or "spawnshader" or "spawnshaders":
 					m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-					var defaultCfg = new CustomShaderConfig
+					m.SpawnShaders[newTemplateID] = new SpawnShaderMetadata
 					{
-						Key = newTemplateID,
-						Name = parsedSlug
-					};
-					m.SpawnShaders[newTemplateID] = new ShaderMetadata
-					{
-						ConfigJson = defaultCfg.ToJsonObject().ToJsonString()
+						Name = parsedSlug,
+						TransitionMode = 0,
+						Direction = 0,
+						EdgeColor = "#00e5ffff",
+						EdgeWidth = 0.06f,
+						EdgeEmission = 6.0f,
+						NoiseScale = 12.0f,
+						NoiseRoughness = 0.4f,
+						FresnelPower = 3.0f,
+						VertexDisplacement = 0.0f,
+						AlphaFade = 0.9f,
+						Duration = 1.2f,
+						AssetType = "SpawnShader"
 					};
 					break;
 			}
 		});
+
+		if (category == "terrain")
+		{
+			Hud?.SetupTextureSwatches(false);
+			if (GameHost.Instance?.GroundTerrain != null)
+			{
+				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+			}
+		}
 
 		RefreshObjectList();
 		OpenEditDialogForObject(new ObjectItemInfo
@@ -1439,27 +1470,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 								meta.Textures.Remove(k);
 							}
 						}
-
-						meta.RemoveTerrainProfile(item.TemplateID);
-						if (!string.IsNullOrEmpty(delSlug))
-						{
-							meta.RemoveTerrainProfile(delSlug);
-							meta.RemoveTerrainProfile($"{delSlug}.rtex");
-						}
-						if (!string.IsNullOrEmpty(item.ModelPath))
-						{
-							meta.RemoveTerrainProfile(item.ModelPath);
-						}
-						if (meta.TerrainProfiles != null)
-						{
-							meta.TerrainProfiles.RemoveAll(tp =>
-								string.Equals(tp.SwatchName, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
-								string.Equals(tp.SwatchName, delSlug, StringComparison.OrdinalIgnoreCase) ||
-								(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(tp.SwatchName, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
-								(!string.IsNullOrEmpty(delSlug) && (string.Equals(tp.SwatchName, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(tp.SwatchName), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-								string.Equals(TemplateIDHelper.NormalizeTemplateID("terrain", tp.SwatchName), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-							);
-						}
 						break;
 
 					case "spritesheets":
@@ -1515,6 +1525,15 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						break;
 				}
 			});
+
+			if (item.Category == "terrain")
+			{
+				Hud?.SetupTextureSwatches(false);
+				if (GameHost.Instance?.GroundTerrain != null)
+				{
+					GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				}
+			}
 
 			RefreshObjectList();
 		});
@@ -1611,9 +1630,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					columns = sheetMeta.Columns > 0 ? sheetMeta.Columns : 4;
 					rows = sheetMeta.Rows > 0 ? sheetMeta.Rows : 4;
 					fps = sheetMeta.Fps > 0 ? sheetMeta.Fps : 20.0f;
-					if (!string.IsNullOrEmpty(sheetMeta.AssetType))
+					if (!string.IsNullOrEmpty(sheetMeta.TexturePath))
 					{
-						spritePath = sheetMeta.AssetType;
+						spritePath = sheetMeta.TexturePath;
 					}
 				}
 			}

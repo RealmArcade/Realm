@@ -77,9 +77,6 @@ public class MapMetadata
 	[JsonPropertyName("DefaultEnvironmentPreset")]
 	public string? DefaultEnvironmentPreset { get; set; }
 
-	[JsonPropertyName("TerrainProfiles")]
-	public List<TerrainSwatchProfileData> TerrainProfiles { get; set; } = new();
-
 	[JsonPropertyName("Models")]
 	public Dictionary<string, ModelMetadata> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -105,7 +102,7 @@ public class MapMetadata
 	public Dictionary<string, RibbonMetadata> Ribbons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
 	[JsonPropertyName("SpawnShader")]
-	public Dictionary<string, ShaderMetadata> SpawnShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	public Dictionary<string, SpawnShaderMetadata> SpawnShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
 	[JsonPropertyName("gdshader")]
 	public Dictionary<string, ShaderMetadata> GdShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -342,28 +339,63 @@ public class MapMetadata
 		return CustomWaterProfiles.RemoveAll(w => string.Equals(w.Id, id, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 
-	public TerrainSwatchProfileData? GetTerrainProfile(string swatchName)
+	public TextureMetadata? GetTerrainTexture(string swatchOrKey)
 	{
-		if (TerrainProfiles == null) return null;
-		string clean = Path.GetFileNameWithoutExtension(swatchName);
-		return TerrainProfiles.FirstOrDefault(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase));
+		if (Textures == null || string.IsNullOrWhiteSpace(swatchOrKey)) return null;
+		if (Textures.TryGetValue(swatchOrKey, out var tex) && tex != null) return tex;
+		string clean = Path.GetFileNameWithoutExtension(swatchOrKey);
+		string normalized = clean.StartsWith("terrain/", StringComparison.OrdinalIgnoreCase) ? clean : $"terrain/{clean}";
+		if (Textures.TryGetValue(normalized, out tex) && tex != null) return tex;
+		return Textures.FirstOrDefault(kvp =>
+			string.Equals(kvp.Key, clean, StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(Path.GetFileNameWithoutExtension(kvp.Key), clean, StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(Path.GetFileNameWithoutExtension(kvp.Value.TexturePath ?? ""), clean, StringComparison.OrdinalIgnoreCase)
+		).Value;
 	}
 
-	public void AddOrUpdateTerrainProfile(TerrainSwatchProfileData profile)
+	public TerrainSwatchProfileData? GetTerrainProfile(string swatchName)
 	{
-		if (string.IsNullOrWhiteSpace(profile.SwatchName)) return;
-		TerrainProfiles ??= new();
-		string clean = Path.GetFileNameWithoutExtension(profile.SwatchName);
-		int idx = TerrainProfiles.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase));
-		if (idx >= 0) TerrainProfiles[idx] = profile;
-		else TerrainProfiles.Add(profile);
+		var tex = GetTerrainTexture(swatchName);
+		if (tex == null) return null;
+		return new TerrainSwatchProfileData
+		{
+			DefaultPathingCode = tex.DefaultPathingCode,
+			DecalBombingRules = tex.DecalBombingRules,
+			VfxBombingRules = tex.VfxBombingRules
+		};
+	}
+
+	public void AddOrUpdateTerrainProfile(string keyOrSwatch, TerrainSwatchProfileData profile)
+	{
+		if (string.IsNullOrWhiteSpace(keyOrSwatch)) return;
+		Textures ??= new(StringComparer.OrdinalIgnoreCase);
+		string clean = Path.GetFileNameWithoutExtension(keyOrSwatch);
+		string normalized = clean.StartsWith("terrain/", StringComparison.OrdinalIgnoreCase) ? clean : $"terrain/{clean}";
+		if (!Textures.TryGetValue(normalized, out var tex) || tex == null)
+		{
+			tex = GetTerrainTexture(keyOrSwatch) ?? new TextureMetadata
+			{
+				TexturePath = keyOrSwatch.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? keyOrSwatch : $"{clean}.rtex",
+				TileMode = "Stochastic",
+				UvScale = 1.0f,
+				Brightness = 1.0f
+			};
+			Textures[normalized] = tex;
+		}
+		tex.DefaultPathingCode = profile.DefaultPathingCode;
+		tex.DecalBombingRules = profile.DecalBombingRules ?? new();
+		tex.VfxBombingRules = profile.VfxBombingRules ?? new();
 	}
 
 	public bool RemoveTerrainProfile(string swatchName)
 	{
-		if (TerrainProfiles == null || string.IsNullOrWhiteSpace(swatchName)) return false;
+		if (Textures == null || string.IsNullOrWhiteSpace(swatchName)) return false;
 		string clean = Path.GetFileNameWithoutExtension(swatchName);
-		return TerrainProfiles.RemoveAll(t => string.Equals(Path.GetFileNameWithoutExtension(t.SwatchName), clean, StringComparison.OrdinalIgnoreCase)) > 0;
+		string normalized = clean.StartsWith("terrain/", StringComparison.OrdinalIgnoreCase) ? clean : $"terrain/{clean}";
+		bool removed = Textures.Remove(normalized);
+		removed |= Textures.Remove(swatchName);
+		removed |= Textures.Remove(clean);
+		return removed;
 	}
 
 	public bool UpdateUnit(string objectId, Func<UnitMetadata, UnitMetadata> update)
@@ -1058,45 +1090,45 @@ public class AttachmentMetadata
 
 public class TextureMetadata
 {
-	public string Hash { get; set; } = string.Empty;
 	public int SwatchIndex { get; set; }
 	public float ScaleFactor { get; set; }
-	public string? AssetType { get; set; }
+	public string? TexturePath { get; set; }
 	public int TextureSize { get; set; }
 	public string? NoiseConfig { get; set; }
-	public float Brightness { get; set; }
+	public float Brightness { get; set; } = 1.0f;
 	public string? Tint { get; set; }
-	public float RoughnessScale { get; set; }
-	public float NormalScale { get; set; }
-	public float HeightScale { get; set; }
-	public float HeightOffset { get; set; }
-	public float CrevicePower { get; set; }
-	public string? TileMode { get; set; }
-	public float UvScale { get; set; }
-	public float StochasticTileSize { get; set; }
-	public float CrossFade { get; set; }
+	public float RoughnessScale { get; set; } = 1.0f;
+	public float NormalScale { get; set; } = 1.0f;
+	public float HeightScale { get; set; } = 1.0f;
+	public float HeightOffset { get; set; } = 0.0f;
+	public float CrevicePower { get; set; } = 1.0f;
+	public string? TileMode { get; set; } = "Stochastic";
+	public float UvScale { get; set; } = 1.0f;
+	public float StochasticTileSize { get; set; } = 1.0f;
+	public float CrossFade { get; set; } = 0.0f;
 	public float Contrast { get; set; }
 	public float Saturation { get; set; }
 	public float Specular { get; set; }
 	public float Roughness { get; set; }
 	public float Metallic { get; set; }
+	public int DefaultPathingCode { get; set; } = 8 | 32 | 4;
+	public List<ProceduralBombingDecalRule> DecalBombingRules { get; set; } = new();
+	public List<ProceduralBombingVfxRule> VfxBombingRules { get; set; } = new();
 }
 
 public class DecalMetadata
 {
-	public string Hash { get; set; } = string.Empty;
 	public string? TexturePath { get; set; }
 	public string? Tint { get; set; }
-	public float Brightness { get; set; }
-	public float Contrast { get; set; }
-	public float Saturation { get; set; }
-	public float Opacity { get; set; }
+	public float Brightness { get; set; } = 1.0f;
+	public float Contrast { get; set; } = 1.0f;
+	public float Saturation { get; set; } = 1.0f;
+	public float Opacity { get; set; } = 1.0f;
 	public float AlbedoMix { get; set; }
 	public float NormalStrength { get; set; }
 	public float Roughness { get; set; }
 	public float Metallic { get; set; }
 	public string? BlendMode { get; set; }
-	public string? AssetType { get; set; }
 	public string? TextureNormal { get; set; }
 	public string? TextureOrm { get; set; }
 	public string? TextureEmission { get; set; }
@@ -1119,26 +1151,24 @@ public class DecalMetadata
 
 public class VfxMetadata
 {
-	public string Hash { get; set; } = string.Empty;
-	public int Columns { get; set; }
-	public int Rows { get; set; }
-	public float Fps { get; set; }
+	public int Columns { get; set; } = 1;
+	public int Rows { get; set; } = 1;
+	public float Fps { get; set; } = 20.0f;
 	public bool SubframeBlend { get; set; }
-	public string? AssetType { get; set; }
+	public string? TexturePath { get; set; }
 }
 
 public class GlbItemMetadata
 {
-	public string Hash { get; set; } = string.Empty;
 	public string? DefaultAssetType { get; set; }
 	public float MinY { get; set; }
 	public float YOffset { get; set; }
-	public float Scale { get; set; }
+	public float Scale { get; set; } = 1.0f;
 	public float CollisionCircleRatio { get; set; }
 	public float CollisionRadius { get; set; }
-	public float Brightness { get; set; }
-	public float Contrast { get; set; }
-	public float Saturation { get; set; }
+	public float Brightness { get; set; } = 1.0f;
+	public float Contrast { get; set; } = 1.0f;
+	public float Saturation { get; set; } = 1.0f;
 	public bool NormalizeLuminance { get; set; }
 	public bool DespillPlayerColor { get; set; }
 	public float RotX { get; set; }
@@ -1160,23 +1190,39 @@ public class GlbItemMetadata
 
 public class IconMetadata
 {
-	public string Hash { get; set; } = string.Empty;
+	public string? TexturePath { get; set; }
 }
 
 public class SkyboxMetadata
 {
-	public string Hash { get; set; } = string.Empty;
+	public string? TexturePath { get; set; }
 }
 
 public class RibbonMetadata
 {
-	public string Hash { get; set; } = string.Empty;
+	public string? TexturePath { get; set; }
 }
 
 public class ShaderMetadata
 {
-	public string Hash { get; set; } = string.Empty;
 	public string? ConfigJson { get; set; }
+}
+
+public class SpawnShaderMetadata
+{
+	public string Name { get; set; } = string.Empty;
+	public int TransitionMode { get; set; }
+	public int Direction { get; set; }
+	public string EdgeColor { get; set; } = "#ff661aff";
+	public float EdgeWidth { get; set; } = 0.06f;
+	public float EdgeEmission { get; set; } = 5.0f;
+	public float NoiseScale { get; set; } = 12.0f;
+	public float NoiseRoughness { get; set; } = 0.5f;
+	public float FresnelPower { get; set; } = 2.5f;
+	public float VertexDisplacement { get; set; } = 0.0f;
+	public float AlphaFade { get; set; } = 1.0f;
+	public float Duration { get; set; } = 1.2f;
+	public string AssetType { get; set; } = "SpawnShader";
 }
 
 public class HandAttachmentOrientation

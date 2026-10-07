@@ -2671,35 +2671,6 @@
         "null"
       ]
     },
-    "TerrainProfiles": {
-      "type": "array",
-      "items": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "SwatchName": {
-            "type": "string"
-          },
-          "DefaultPathingCode": {
-            "type": "integer"
-          },
-          "DecalBombingRules": {
-            "type": "array",
-            "items": {
-              "$ref": "#/properties/CustomWaterProfiles/items/properties/DecalBombingRules/items"
-            }
-          },
-          "VfxBombingRules": {
-            "type": "array",
-            "items": {
-              "$ref": "#/properties/CustomWaterProfiles/items/properties/VfxBombingRules/items"
-            }
-          }
-        }
-      }
-    },
     "Models": {
       "type": "object",
       "additionalProperties": {
@@ -2874,6 +2845,21 @@
           },
           "Metallic": {
             "type": "number"
+          },
+          "DefaultPathingCode": {
+            "type": "integer"
+          },
+          "DecalBombingRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/CustomWaterProfiles/items/properties/DecalBombingRules/items"
+            }
+          },
+          "VfxBombingRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/CustomWaterProfiles/items/properties/VfxBombingRules/items"
+            }
           }
         }
       }
@@ -3094,11 +3080,44 @@
           "Hash": {
             "type": "string"
           },
-          "ConfigJson": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "Name": {
+            "type": "string"
+          },
+          "TransitionMode": {
+            "type": "integer"
+          },
+          "Direction": {
+            "type": "integer"
+          },
+          "EdgeColor": {
+            "type": "string"
+          },
+          "EdgeWidth": {
+            "type": "number"
+          },
+          "EdgeEmission": {
+            "type": "number"
+          },
+          "NoiseScale": {
+            "type": "number"
+          },
+          "NoiseRoughness": {
+            "type": "number"
+          },
+          "FresnelPower": {
+            "type": "number"
+          },
+          "VertexDisplacement": {
+            "type": "number"
+          },
+          "AlphaFade": {
+            "type": "number"
+          },
+          "Duration": {
+            "type": "number"
+          },
+          "AssetType": {
+            "type": "string"
           }
         }
       }
@@ -3106,7 +3125,21 @@
     "gdshader": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/properties/SpawnShader/additionalProperties"
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Hash": {
+            "type": "string"
+          },
+          "ConfigJson": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       }
     }
   }

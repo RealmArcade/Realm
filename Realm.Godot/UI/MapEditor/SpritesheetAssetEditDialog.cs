@@ -193,13 +193,13 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		}
 		else if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
 		{
-			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.AssetType))
+			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.TexturePath))
 			{
-				_rtexAsset = ssMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ssMeta.AssetType) : $"{Path.GetFileName(ssMeta.AssetType)}.rtex";
+				_rtexAsset = ssMeta.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ssMeta.TexturePath) : $"{Path.GetFileName(ssMeta.TexturePath)}.rtex";
 			}
-			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.AssetType))
+			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.TexturePath))
 			{
-				_rtexAsset = ssMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ssMeta2.AssetType) : $"{Path.GetFileName(ssMeta2.AssetType)}.rtex";
+				_rtexAsset = ssMeta2.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ssMeta2.TexturePath) : $"{Path.GetFileName(ssMeta2.TexturePath)}.rtex";
 			}
 			else
 			{
@@ -256,13 +256,13 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		}
 		else if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
 		{
-			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.AssetType) && ssMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.TexturePath) && ssMeta.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
-				_rtexAsset = Path.GetFileName(ssMeta.AssetType);
+				_rtexAsset = Path.GetFileName(ssMeta.TexturePath);
 			}
-			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.AssetType) && ssMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.TexturePath) && ssMeta2.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
-				_rtexAsset = Path.GetFileName(ssMeta2.AssetType);
+				_rtexAsset = Path.GetFileName(ssMeta2.TexturePath);
 			}
 			else
 			{

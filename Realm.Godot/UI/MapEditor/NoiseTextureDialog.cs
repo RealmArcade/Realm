@@ -502,7 +502,6 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 				m.NoiseTextures ??= new(StringComparer.OrdinalIgnoreCase);
 				m.NoiseTextures[fileName] = new Realm.Shared.Metadata.TextureMetadata
 				{
-					Hash = blake3Hash,
 					NoiseConfig = config.ToJsonString()
 				};
 			});

@@ -328,9 +328,7 @@ public class VfxShaderManager
 						float fps = vmeta.Fps > 0.001f ? vmeta.Fps : 20.0f;
 						bool subframeBlend = vmeta.SubframeBlend;
 
-						bool isSpritesheet = string.Equals(vmeta.AssetType, "Spritesheet", StringComparison.OrdinalIgnoreCase) ||
-						                     string.Equals(vmeta.AssetType, "SpellSpritesheet", StringComparison.OrdinalIgnoreCase) ||
-						                     cols > 1 || rows > 1;
+						bool isSpritesheet = cols > 1 || rows > 1 || !string.IsNullOrEmpty(vmeta.TexturePath);
 
 						if (isSpritesheet)
 						{

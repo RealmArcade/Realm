@@ -2385,10 +2385,16 @@ void fragment() {
 
 			if (texScaleFactor <= 0.0001f || MathF.Abs(texScaleFactor - 1.0f) < 0.0001f)
 			{
-				string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", name + ".rtex");
-				if (!System.IO.File.Exists(rtexPath)) rtexPath = System.IO.Path.Combine(mapDir, name + ".rtex");
-				if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"Assets/textures/{name}.rtex");
-				if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{name}.rtex");
+				string rtexFileName = slot.MetadataNode?.TexturePath ?? slot.FileName ?? (name + ".rtex");
+				if (!rtexFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					rtexFileName += ".rtex";
+				}
+				rtexFileName = System.IO.Path.GetFileName(rtexFileName);
+				string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", rtexFileName);
+				if (!System.IO.File.Exists(rtexPath)) rtexPath = System.IO.Path.Combine(mapDir, rtexFileName);
+				if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"Assets/textures/{rtexFileName}");
+				if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexFileName}");
 
 				float rtexSf = ExtractRtexScaleFactor(rtexPath);
 				if (rtexSf > 0.0001f && MathF.Abs(rtexSf - 1.0f) > 0.001f)
@@ -2477,22 +2483,28 @@ void fragment() {
 			if (!slot.IsFiller && !string.IsNullOrEmpty(slot.BaseName))
 			{
 				string name = slot.BaseName;
-				string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", name + ".rtex");
+				string rtexFileName = slot.MetadataNode?.TexturePath ?? slot.FileName ?? (name + ".rtex");
+				if (!rtexFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					rtexFileName += ".rtex";
+				}
+				rtexFileName = System.IO.Path.GetFileName(rtexFileName);
+				string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", rtexFileName);
 				if (!System.IO.File.Exists(rtexPath))
 				{
-					rtexPath = System.IO.Path.Combine(mapDir, name + ".rtex");
+					rtexPath = System.IO.Path.Combine(mapDir, rtexFileName);
 				}
 				if (!System.IO.File.Exists(rtexPath))
 				{
-					rtexPath = PathUtils.FindPath($"Assets/textures/{name}.rtex");
+					rtexPath = PathUtils.FindPath($"Assets/textures/{rtexFileName}");
 				}
 				if (!System.IO.File.Exists(rtexPath))
 				{
-					rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{name}.rtex");
+					rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexFileName}");
 				}
 				if (!System.IO.File.Exists(rtexPath))
 				{
-					rtexPath = ProjectSettings.GlobalizePath($"res://Assets/2d/TileSheets/{name}.rtex");
+					rtexPath = ProjectSettings.GlobalizePath($"res://Assets/2d/TileSheets/{rtexFileName}");
 				}
 				if (!System.IO.File.Exists(rtexPath))
 				{

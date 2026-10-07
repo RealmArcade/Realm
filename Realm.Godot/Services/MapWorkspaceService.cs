@@ -1119,7 +1119,7 @@ please visit the URL above.
 					m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
 					m.VfxSpritesheets[spritesheetTemplateId] = new VfxMetadata
 					{
-						AssetType = rtexFileName,
+						TexturePath = rtexFileName,
 						Columns = columns,
 						Rows = rows
 					};
@@ -1137,8 +1137,7 @@ please visit the URL above.
 						tex = new TextureMetadata();
 						m.Textures[terrainTemplateId] = tex;
 					}
-					tex.AssetType = rtexFileName;
-					tex.Hash = newHash;
+					tex.TexturePath = rtexFileName;
 					if (tex.ScaleFactor <= 0.0001f)
 					{
 						string fullRtexPath = Path.Combine(workspacePath, "Assets", "textures", rtexFileName);

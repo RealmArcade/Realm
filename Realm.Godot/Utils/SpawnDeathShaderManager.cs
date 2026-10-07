@@ -26,7 +26,6 @@ public class CustomShaderConfig
 	public float AlphaFade { get; set; } = 1.0f;
 	public float Duration { get; set; } = 1.2f;
 	public string? AssetType { get; set; } = "SpawnShader";
-	public string? Hash { get; set; }
 
 	public CustomShaderConfig Clone()
 	{
@@ -45,8 +44,7 @@ public class CustomShaderConfig
 			VertexDisplacement = this.VertexDisplacement,
 			AlphaFade = this.AlphaFade,
 			Duration = this.Duration,
-			AssetType = this.AssetType,
-			Hash = this.Hash
+			AssetType = this.AssetType
 		};
 	}
 
@@ -159,21 +157,27 @@ public static class SpawnDeathShaderManager
 			{
 				foreach (var kvp in metadata.SpawnShaders)
 				{
-					if (!string.IsNullOrEmpty(kvp.Value?.ConfigJson))
+					if (kvp.Value != null)
 					{
-						try
+						var s = kvp.Value;
+						var cfg = new CustomShaderConfig
 						{
-							var cfgNode = JsonNode.Parse(kvp.Value.ConfigJson);
-							if (cfgNode != null)
-							{
-								var cfg = CustomShaderConfig.FromJson(kvp.Key, cfgNode);
-								if (cfg != null)
-								{
-									result[kvp.Key] = cfg;
-								}
-							}
-						}
-						catch { }
+							Key = kvp.Key,
+							Name = !string.IsNullOrWhiteSpace(s.Name) ? s.Name : kvp.Key,
+							TransitionMode = Math.Clamp(s.TransitionMode, 0, 6),
+							Direction = Math.Clamp(s.Direction, 0, 3),
+							EdgeColor = !string.IsNullOrWhiteSpace(s.EdgeColor) ? Color.FromHtml(s.EdgeColor) : new Color(1.0f, 0.4f, 0.1f, 1.0f),
+							EdgeWidth = s.EdgeWidth,
+							EdgeEmission = s.EdgeEmission,
+							NoiseScale = s.NoiseScale,
+							NoiseRoughness = s.NoiseRoughness,
+							FresnelPower = s.FresnelPower,
+							VertexDisplacement = s.VertexDisplacement,
+							AlphaFade = s.AlphaFade,
+							Duration = s.Duration,
+							AssetType = !string.IsNullOrWhiteSpace(s.AssetType) ? s.AssetType : "SpawnShader"
+						};
+						result[kvp.Key] = cfg;
 					}
 				}
 			}
@@ -213,9 +217,21 @@ public static class SpawnDeathShaderManager
 		MetadataService.Instance.UpdateMetadata(wsPath, m =>
 		{
 			m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-			m.SpawnShaders[config.Key] = new ShaderMetadata
+			m.SpawnShaders[config.Key] = new SpawnShaderMetadata
 			{
-				ConfigJson = config.ToJsonObject().ToJsonString()
+				Name = config.Name,
+				TransitionMode = config.TransitionMode,
+				Direction = config.Direction,
+				EdgeColor = "#" + config.EdgeColor.ToHtml(true),
+				EdgeWidth = config.EdgeWidth,
+				EdgeEmission = config.EdgeEmission,
+				NoiseScale = config.NoiseScale,
+				NoiseRoughness = config.NoiseRoughness,
+				FresnelPower = config.FresnelPower,
+				VertexDisplacement = config.VertexDisplacement,
+				AlphaFade = config.AlphaFade,
+				Duration = config.Duration,
+				AssetType = !string.IsNullOrWhiteSpace(config.AssetType) ? config.AssetType : "SpawnShader"
 			};
 		});
 	}

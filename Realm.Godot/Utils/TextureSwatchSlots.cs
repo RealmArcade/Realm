@@ -161,15 +161,24 @@ public static class TextureSwatchSlots
 
 		foreach (var kvp in texturesDict)
 		{
-			string fileName = kvp.Key;
-			if (!ValidateCategory(fileName, kvp.Value, knownRibbons))
+			string key = kvp.Key;
+			if (!ValidateCategory(key, kvp.Value, knownRibbons))
 			{
 				continue;
 			}
 
-			string baseName = Path.GetFileNameWithoutExtension(fileName);
+			string baseName = Path.GetFileNameWithoutExtension(key);
 			int requestedSlot = kvp.Value?.SwatchIndex ?? -1;
 			TextureMetadata? texMeta = kvp.Value;
+
+			string fileName = !string.IsNullOrWhiteSpace(texMeta?.TexturePath)
+				? Path.GetFileName(texMeta.TexturePath)
+				: (key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(key) : $"{baseName}.rtex");
+
+			if (!fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				fileName += ".rtex";
+			}
 
 			candidateItems.Add((baseName, fileName, requestedSlot, texMeta));
 		}

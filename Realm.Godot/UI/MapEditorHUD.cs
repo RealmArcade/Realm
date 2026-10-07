@@ -9627,12 +9627,24 @@ public partial class MapEditorHUD : Control
 				var slot = slots[i];
 				if (!slot.IsFiller && !string.IsNullOrEmpty(slot.BaseName))
 				{
-					string cleanDisplayName = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(slot.BaseName.Replace("_", " "));
-					_swatchDisplayNames.Add(cleanDisplayName);
-					string resolvedPath = System.IO.Path.Combine(wsPath, "Assets", "textures", slot.FileName ?? (slot.BaseName + ".rtex"));
+					string rtexName = slot.MetadataNode?.TexturePath ?? slot.FileName ?? (slot.BaseName + ".rtex");
+					if (!rtexName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+					{
+						rtexName += ".rtex";
+					}
+					rtexName = System.IO.Path.GetFileName(rtexName);
+					string resolvedPath = System.IO.Path.Combine(wsPath, "Assets", "textures", rtexName);
 					if (!System.IO.File.Exists(resolvedPath))
 					{
-						resolvedPath = System.IO.Path.Combine(wsPath, slot.FileName ?? (slot.BaseName + ".rtex"));
+						resolvedPath = System.IO.Path.Combine(wsPath, rtexName);
+					}
+					if (!System.IO.File.Exists(resolvedPath))
+					{
+						string? found = PathUtils.FindPath($"Assets/textures/{rtexName}");
+						if (!string.IsNullOrEmpty(found) && System.IO.File.Exists(found))
+						{
+							resolvedPath = found;
+						}
 					}
 					_swatchPaths.Add(resolvedPath);
 					_swatchColors.Add(new Color(0.6f, 0.6f, 0.6f));
@@ -12541,8 +12553,7 @@ public partial class MapEditorHUD : Control
 					}
 					metadata.Textures[terrainTemplateId] = texMeta;
 				}
-				texMeta.AssetType = fileName;
-				texMeta.Hash = blake3Hash;
+				texMeta.TexturePath = fileName;
 				texMeta.SwatchIndex = swatchIdx;
 
 				string texPath = System.IO.Path.Combine(wsPath, "Assets", "textures", fileName);

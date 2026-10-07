@@ -912,6 +912,10 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					string slug = TemplateIDHelper.GenerateSlug(rawKey);
 					string normalizedId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
 					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					itemObj.Remove("Hash");
+					itemObj.Remove("hash");
+					itemObj.Remove("AssetType");
+					itemObj.Remove("asset_type");
 					if (string.IsNullOrWhiteSpace(itemObj["TexturePath"]?.ToString()))
 					{
 						itemObj["TexturePath"] = rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
@@ -963,25 +967,230 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				string slug = TemplateIDHelper.GenerateSlug(rawKey);
 				string normalizedId = TemplateIDHelper.NormalizeTemplateID("SpawnShader", slug);
 				var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+
+				if (itemObj.TryGetPropertyValue("ConfigJson", out var configJsonNode) && configJsonNode != null)
+				{
+					string configJsonStr = configJsonNode.ToString();
+					if (!string.IsNullOrWhiteSpace(configJsonStr))
+					{
+						try
+						{
+							var parsedCfg = JsonNode.Parse(configJsonStr)?.AsObject();
+							if (parsedCfg != null)
+							{
+								foreach (var cfgProp in parsedCfg)
+								{
+									string propName = cfgProp.Key switch
+									{
+										"name" => "Name",
+										"transition_mode" => "TransitionMode",
+										"direction" => "Direction",
+										"edge_color" => "EdgeColor",
+										"edge_width" => "EdgeWidth",
+										"edge_emission" => "EdgeEmission",
+										"noise_scale" => "NoiseScale",
+										"noise_roughness" => "NoiseRoughness",
+										"fresnel_power" => "FresnelPower",
+										"vertex_displacement" => "VertexDisplacement",
+										"alpha_fade" => "AlphaFade",
+										"duration" => "Duration",
+										"asset_type" => "AssetType",
+										_ => cfgProp.Key
+									};
+									itemObj[propName] = cfgProp.Value?.DeepClone();
+								}
+							}
+						}
+						catch { }
+					}
+					itemObj.Remove("ConfigJson");
+				}
+
 				if (!normalizedShaders.ContainsKey(normalizedId))
 				{
 					normalizedShaders[normalizedId] = itemObj.DeepClone();
 				}
 			}
 
-			if (metadataRoot.TryGetPropertyValue("textures", out var texturesNode) && texturesNode is JsonObject texturesObj)
+			if (metadataRoot.TryGetPropertyValue("TerrainProfiles", out var legacyProfilesNode) && legacyProfilesNode is JsonArray legacyProfilesArr)
+			{
+				if (!metadataRoot.ContainsKey("textures") || metadataRoot["textures"] is not JsonObject)
+				{
+					metadataRoot["textures"] = new JsonObject();
+				}
+				var texturesObj = metadataRoot["textures"]!.AsObject();
+
+				foreach (var profItem in legacyProfilesArr)
+				{
+					if (profItem is JsonObject profObj)
+					{
+						string rawSwatch = profObj["SwatchName"]?.ToString() ?? string.Empty;
+						if (string.IsNullOrWhiteSpace(rawSwatch)) continue;
+
+						string slug = TemplateIDHelper.GenerateSlug(rawSwatch);
+						string normalizedId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
+
+						JsonObject? targetTexObj = null;
+						if (texturesObj.TryGetPropertyValue(normalizedId, out var existingNode) && existingNode is JsonObject existingObj)
+						{
+							targetTexObj = existingObj;
+						}
+						else if (texturesObj.TryGetPropertyValue(rawSwatch, out var directNode) && directNode is JsonObject directObj)
+						{
+							targetTexObj = directObj;
+						}
+						else if (texturesObj.TryGetPropertyValue(slug, out var slugNode) && slugNode is JsonObject slugObj)
+						{
+							targetTexObj = slugObj;
+						}
+
+						if (targetTexObj == null)
+						{
+							targetTexObj = new JsonObject
+							{
+								["AssetType"] = rawSwatch.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawSwatch : $"{slug}.rtex",
+								["TileMode"] = "Stochastic",
+								["UvScale"] = 1.0f,
+								["Brightness"] = 1.0f
+							};
+							texturesObj[normalizedId] = targetTexObj;
+						}
+
+						if (profObj.TryGetPropertyValue("DefaultPathingCode", out var dpcVal) && dpcVal != null)
+						{
+							targetTexObj["DefaultPathingCode"] = dpcVal.DeepClone();
+						}
+						if (profObj.TryGetPropertyValue("DecalBombingRules", out var dbrVal) && dbrVal != null)
+						{
+							targetTexObj["DecalBombingRules"] = dbrVal.DeepClone();
+						}
+						if (profObj.TryGetPropertyValue("VfxBombingRules", out var vbrVal) && vbrVal != null)
+						{
+							targetTexObj["VfxBombingRules"] = vbrVal.DeepClone();
+						}
+					}
+				}
+				metadataRoot.Remove("TerrainProfiles");
+			}
+
+			if (metadataRoot.TryGetPropertyValue("textures", out var texturesNodeFinal) && texturesNodeFinal is JsonObject texturesObjFinal)
 			{
 				var normalizedTextures = new JsonObject();
-				foreach (var kvp in texturesObj)
+				foreach (var kvp in texturesObjFinal)
 				{
 					string rawKey = kvp.Key;
 					string slug = TemplateIDHelper.GenerateSlug(rawKey);
 					string normalizedId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
 					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
-					if (string.IsNullOrWhiteSpace(itemObj["AssetType"]?.ToString()))
+
+					string rtexName = itemObj["TexturePath"]?.ToString()
+						?? itemObj["texturePath"]?.ToString()
+						?? itemObj["AssetType"]?.ToString()
+						?? itemObj["assetType"]?.ToString()
+						?? itemObj["rtex"]?.ToString()
+						?? (rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex");
+
+					itemObj.Remove("AssetType");
+					itemObj.Remove("assetType");
+					itemObj.Remove("asset_type");
+					itemObj.Remove("rtex");
+					itemObj.Remove("texturePath");
+					itemObj.Remove("Hash");
+					itemObj.Remove("hash");
+
+					itemObj["TexturePath"] = rtexName;
+
+					if (itemObj.TryGetPropertyValue("Scale_Factor", out var sfVal) || itemObj.TryGetPropertyValue("scale_factor", out sfVal))
 					{
-						itemObj["AssetType"] = rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
+						itemObj["ScaleFactor"] = sfVal?.DeepClone();
+						itemObj.Remove("Scale_Factor");
+						itemObj.Remove("scale_factor");
 					}
+					if (itemObj.TryGetPropertyValue("swatchIndex", out var swVal) || itemObj.TryGetPropertyValue("swatch_index", out swVal))
+					{
+						itemObj["SwatchIndex"] = swVal?.DeepClone();
+						itemObj.Remove("swatchIndex");
+						itemObj.Remove("swatch_index");
+					}
+					if (itemObj.TryGetPropertyValue("Roughness_Scale", out var rsVal) || itemObj.TryGetPropertyValue("roughness_scale", out rsVal) || itemObj.TryGetPropertyValue("roughnessScale", out rsVal))
+					{
+						itemObj["RoughnessScale"] = rsVal?.DeepClone();
+						itemObj.Remove("Roughness_Scale");
+						itemObj.Remove("roughness_scale");
+						itemObj.Remove("roughnessScale");
+					}
+					if (itemObj.TryGetPropertyValue("Normal_Scale", out var nsVal) || itemObj.TryGetPropertyValue("normal_scale", out nsVal) || itemObj.TryGetPropertyValue("normalScale", out nsVal))
+					{
+						itemObj["NormalScale"] = nsVal?.DeepClone();
+						itemObj.Remove("Normal_Scale");
+						itemObj.Remove("normal_scale");
+						itemObj.Remove("normalScale");
+					}
+					if (itemObj.TryGetPropertyValue("Height_Scale", out var hsVal) || itemObj.TryGetPropertyValue("height_scale", out hsVal) || itemObj.TryGetPropertyValue("heightScale", out hsVal))
+					{
+						itemObj["HeightScale"] = hsVal?.DeepClone();
+						itemObj.Remove("Height_Scale");
+						itemObj.Remove("height_scale");
+						itemObj.Remove("heightScale");
+					}
+					if (itemObj.TryGetPropertyValue("Height_Offset", out var hoVal) || itemObj.TryGetPropertyValue("height_offset", out hoVal) || itemObj.TryGetPropertyValue("heightOffset", out hoVal))
+					{
+						itemObj["HeightOffset"] = hoVal?.DeepClone();
+						itemObj.Remove("Height_Offset");
+						itemObj.Remove("height_offset");
+						itemObj.Remove("heightOffset");
+					}
+					if (itemObj.TryGetPropertyValue("Crevice_Power", out var cpVal) || itemObj.TryGetPropertyValue("crevice_power", out cpVal) || itemObj.TryGetPropertyValue("crevicePower", out cpVal))
+					{
+						itemObj["CrevicePower"] = cpVal?.DeepClone();
+						itemObj.Remove("Crevice_Power");
+						itemObj.Remove("crevice_power");
+						itemObj.Remove("crevicePower");
+					}
+					if (itemObj.TryGetPropertyValue("Tile_Mode", out var tmVal) || itemObj.TryGetPropertyValue("tile_mode", out tmVal) || itemObj.TryGetPropertyValue("tileMode", out tmVal))
+					{
+						itemObj["TileMode"] = tmVal?.DeepClone();
+						itemObj.Remove("Tile_Mode");
+						itemObj.Remove("tile_mode");
+						itemObj.Remove("tileMode");
+					}
+					if (itemObj.TryGetPropertyValue("UV_Scale", out var uvVal) || itemObj.TryGetPropertyValue("uv_scale", out uvVal) || itemObj.TryGetPropertyValue("uvScale", out uvVal))
+					{
+						itemObj["UvScale"] = uvVal?.DeepClone();
+						itemObj.Remove("UV_Scale");
+						itemObj.Remove("uv_scale");
+						itemObj.Remove("uvScale");
+					}
+					if (itemObj.TryGetPropertyValue("Stochastic_Tile_Size", out var stVal) || itemObj.TryGetPropertyValue("stochastic_tile_size", out stVal) || itemObj.TryGetPropertyValue("stochasticTileSize", out stVal))
+					{
+						itemObj["StochasticTileSize"] = stVal?.DeepClone();
+						itemObj.Remove("Stochastic_Tile_Size");
+						itemObj.Remove("stochastic_tile_size");
+						itemObj.Remove("stochasticTileSize");
+					}
+					if (itemObj.TryGetPropertyValue("Cross_Fade", out var cfVal) || itemObj.TryGetPropertyValue("cross_fade", out cfVal) || itemObj.TryGetPropertyValue("Grid_Cross_Fade", out cfVal) || itemObj.TryGetPropertyValue("grid_cross_fade", out cfVal) || itemObj.TryGetPropertyValue("crossFade", out cfVal))
+					{
+						itemObj["CrossFade"] = cfVal?.DeepClone();
+						itemObj.Remove("Cross_Fade");
+						itemObj.Remove("cross_fade");
+						itemObj.Remove("Grid_Cross_Fade");
+						itemObj.Remove("grid_cross_fade");
+						itemObj.Remove("crossFade");
+					}
+
+					if (!itemObj.ContainsKey("DefaultPathingCode") || itemObj["DefaultPathingCode"] == null)
+					{
+						itemObj["DefaultPathingCode"] = 8 | 32 | 4;
+					}
+					if (!itemObj.ContainsKey("DecalBombingRules") || itemObj["DecalBombingRules"] == null)
+					{
+						itemObj["DecalBombingRules"] = new JsonArray();
+					}
+					if (!itemObj.ContainsKey("VfxBombingRules") || itemObj["VfxBombingRules"] == null)
+					{
+						itemObj["VfxBombingRules"] = new JsonArray();
+					}
+
 					if (!normalizedTextures.ContainsKey(normalizedId))
 					{
 						normalizedTextures[normalizedId] = itemObj.DeepClone();
@@ -1000,6 +1209,60 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				metadataRoot["textures"] = normalizedTextures;
 			}
 
+			if (metadataRoot.TryGetPropertyValue("icons", out var iconsNode) && iconsNode is JsonObject iconsObj)
+			{
+				var normalizedIcons = new JsonObject();
+				foreach (var kvp in iconsObj)
+				{
+					string rawKey = kvp.Key;
+					string slug = TemplateIDHelper.GenerateSlug(rawKey);
+					string normalizedId = TemplateIDHelper.NormalizeTemplateID("icon", slug);
+					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					itemObj.Remove("Hash");
+					itemObj.Remove("hash");
+					string texPath = itemObj["TexturePath"]?.ToString() ?? (rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex");
+					itemObj["TexturePath"] = texPath;
+					normalizedIcons[normalizedId] = itemObj;
+				}
+				metadataRoot["icons"] = normalizedIcons;
+			}
+
+			if (metadataRoot.TryGetPropertyValue("skyboxes", out var skyboxesNode) && skyboxesNode is JsonObject skyboxesObj)
+			{
+				var normalizedSkyboxes = new JsonObject();
+				foreach (var kvp in skyboxesObj)
+				{
+					string rawKey = kvp.Key;
+					string slug = TemplateIDHelper.GenerateSlug(rawKey);
+					string normalizedId = TemplateIDHelper.NormalizeTemplateID("skybox", slug);
+					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					itemObj.Remove("Hash");
+					itemObj.Remove("hash");
+					string texPath = itemObj["TexturePath"]?.ToString() ?? (rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex");
+					itemObj["TexturePath"] = texPath;
+					normalizedSkyboxes[normalizedId] = itemObj;
+				}
+				metadataRoot["skyboxes"] = normalizedSkyboxes;
+			}
+
+			if (metadataRoot.TryGetPropertyValue("ribbons", out var ribbonsNode) && ribbonsNode is JsonObject ribbonsObj)
+			{
+				var normalizedRibbons = new JsonObject();
+				foreach (var kvp in ribbonsObj)
+				{
+					string rawKey = kvp.Key;
+					string slug = TemplateIDHelper.GenerateSlug(rawKey);
+					string normalizedId = TemplateIDHelper.NormalizeTemplateID("ribbon", slug);
+					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					itemObj.Remove("Hash");
+					itemObj.Remove("hash");
+					string texPath = itemObj["TexturePath"]?.ToString() ?? (rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex");
+					itemObj["TexturePath"] = texPath;
+					normalizedRibbons[normalizedId] = itemObj;
+				}
+				metadataRoot["ribbons"] = normalizedRibbons;
+			}
+
 			if (metadataRoot.TryGetPropertyValue("vfx_spritesheets", out var vfxSpritesheetsNode) && vfxSpritesheetsNode is JsonObject vfxSpritesheetsObj)
 			{
 				var normalizedSpritesheets = new JsonObject();
@@ -1009,10 +1272,35 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					string slug = TemplateIDHelper.GenerateSlug(rawKey);
 					string normalizedId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
-					if (string.IsNullOrWhiteSpace(itemObj["AssetType"]?.ToString()))
+					itemObj.Remove("Hash");
+					itemObj.Remove("hash");
+					string texPath = itemObj["TexturePath"]?.ToString() ?? itemObj["AssetType"]?.ToString() ?? (rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex");
+					itemObj.Remove("AssetType");
+					itemObj.Remove("asset_type");
+					itemObj["TexturePath"] = texPath;
+
+					if (itemObj.TryGetPropertyValue("columns", out var colVal))
 					{
-						itemObj["AssetType"] = rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
+						itemObj["Columns"] = colVal?.DeepClone();
+						itemObj.Remove("columns");
 					}
+					if (itemObj.TryGetPropertyValue("rows", out var rowVal))
+					{
+						itemObj["Rows"] = rowVal?.DeepClone();
+						itemObj.Remove("rows");
+					}
+					if (itemObj.TryGetPropertyValue("fps", out var fpsVal))
+					{
+						itemObj["Fps"] = fpsVal?.DeepClone();
+						itemObj.Remove("fps");
+					}
+					if (itemObj.TryGetPropertyValue("subframe_blend", out var sbVal) || itemObj.TryGetPropertyValue("subframeBlend", out sbVal))
+					{
+						itemObj["SubframeBlend"] = sbVal?.DeepClone();
+						itemObj.Remove("subframe_blend");
+						itemObj.Remove("subframeBlend");
+					}
+
 					if (!normalizedSpritesheets.ContainsKey(normalizedId))
 					{
 						normalizedSpritesheets[normalizedId] = itemObj.DeepClone();
@@ -1078,6 +1366,8 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					}
 
 					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					itemObj.Remove("Hash");
+					itemObj.Remove("hash");
 					if (!normalizedModels.ContainsKey(targetKey))
 					{
 						normalizedModels[targetKey] = itemObj.DeepClone();
@@ -1104,6 +1394,14 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				normalizedShaders["SpawnShader/earth_crumble"] = CreateDefaultShaderConfig("Earth Ground Crumble", 3, 1, "#99734cff", 0.05f, 2.0f, 8.0f, 0.8f, 1.0f, 0.25f, 1.0f, 1.1f);
 				normalizedShaders["SpawnShader/frost_crystallize"] = CreateDefaultShaderConfig("Frost Crystallize", 4, 2, "#b2e5ffff", 0.05f, 5.0f, 25.0f, 0.6f, 3.5f, 0.03f, 0.95f, 1.3f);
 				normalizedShaders["SpawnShader/shadow_void"] = CreateDefaultShaderConfig("Shadow Void Collapse", 5, 3, "#b219ffff", 0.07f, 8.0f, 14.0f, 0.9f, 2.0f, 0.18f, 1.0f, 1.4f);
+			}
+			foreach (var kvp in normalizedShaders)
+			{
+				if (kvp.Value is JsonObject sObj)
+				{
+					sObj.Remove("Hash");
+					sObj.Remove("hash");
+				}
 			}
 			metadataRoot["SpawnShader"] = normalizedShaders;
 
@@ -1230,25 +1528,21 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		float alphaFade,
 		float duration)
 	{
-		var inner = new JsonObject
-		{
-			["name"] = name,
-			["transition_mode"] = transitionMode,
-			["direction"] = direction,
-			["edge_color"] = edgeColorHex,
-			["edge_width"] = edgeWidth,
-			["edge_emission"] = edgeEmission,
-			["noise_scale"] = noiseScale,
-			["noise_roughness"] = noiseRoughness,
-			["fresnel_power"] = fresnelPower,
-			["vertex_displacement"] = vertexDisplacement,
-			["alpha_fade"] = alphaFade,
-			["duration"] = duration,
-			["asset_type"] = "SpawnShader"
-		};
 		return new JsonObject
 		{
-			["ConfigJson"] = inner.ToJsonString()
+			["Name"] = name,
+			["TransitionMode"] = transitionMode,
+			["Direction"] = direction,
+			["EdgeColor"] = edgeColorHex,
+			["EdgeWidth"] = edgeWidth,
+			["EdgeEmission"] = edgeEmission,
+			["NoiseScale"] = noiseScale,
+			["NoiseRoughness"] = noiseRoughness,
+			["FresnelPower"] = fresnelPower,
+			["VertexDisplacement"] = vertexDisplacement,
+			["AlphaFade"] = alphaFade,
+			["Duration"] = duration,
+			["AssetType"] = "SpawnShader"
 		};
 	}
 
@@ -1460,27 +1754,11 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 							["Brightness"] = 1.0f,
 							["Contrast"] = 1.0f,
 							["Saturation"] = 1.0f,
-							["TileMode"] = "Stochastic"
-						};
-					}
-
-					if (!metadataRoot.ContainsKey("TerrainProfiles") || metadataRoot["TerrainProfiles"] is not JsonArray)
-					{
-						metadataRoot["TerrainProfiles"] = new JsonArray();
-					}
-					var terrainProfilesArr = metadataRoot["TerrainProfiles"]!.AsArray();
-					bool profileExists = terrainProfilesArr.OfType<JsonObject>().Any(tp =>
-						string.Equals(tp["SwatchName"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(tp["SwatchName"]?.ToString(), terrainTemplateId, StringComparison.OrdinalIgnoreCase));
-					if (!profileExists)
-					{
-						terrainProfilesArr.Add(new JsonObject
-						{
-							["SwatchName"] = fileName,
-							["DefaultPathingCode"] = 0,
+							["TileMode"] = "Stochastic",
+							["DefaultPathingCode"] = 8 | 32 | 4,
 							["DecalBombingRules"] = new JsonArray(),
 							["VfxBombingRules"] = new JsonArray()
-						});
+						};
 					}
 					break;
 				}

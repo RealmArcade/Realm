@@ -497,7 +497,6 @@ public class WaterProfileSaveData
 
 public class TerrainSwatchProfileData
 {
-	public string SwatchName { get; set; } = "";
 	public int DefaultPathingCode { get; set; } = 8 | 32 | 4; // Ground | Buildable | Flying
 	public List<ProceduralBombingDecalRule> DecalBombingRules { get; set; } = new();
 	public List<ProceduralBombingVfxRule> VfxBombingRules { get; set; } = new();
@@ -506,7 +505,6 @@ public class TerrainSwatchProfileData
 	{
 		var clone = new TerrainSwatchProfileData
 		{
-			SwatchName = this.SwatchName,
 			DefaultPathingCode = this.DefaultPathingCode,
 			DecalBombingRules = new List<ProceduralBombingDecalRule>(),
 			VfxBombingRules = new List<ProceduralBombingVfxRule>()

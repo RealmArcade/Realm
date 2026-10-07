@@ -1279,9 +1279,9 @@ public partial class FloatingDialogBase : PanelContainer
 						{
 							foreach (var kvp in ssMetaRoot.VfxSpritesheets)
 							{
-								if (!string.IsNullOrWhiteSpace(kvp.Value?.AssetType) && kvp.Value.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+								if (!string.IsNullOrWhiteSpace(kvp.Value?.TexturePath) && kvp.Value.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									result.Add(Path.GetFileName(kvp.Value.AssetType));
+									result.Add(Path.GetFileName(kvp.Value.TexturePath));
 								}
 							}
 						}

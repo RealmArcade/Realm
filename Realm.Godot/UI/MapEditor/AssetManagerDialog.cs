@@ -1396,7 +1396,6 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						{
 							meta.Decals[decalTemplateId] = new DecalMetadata
 							{
-								Hash = hash ?? string.Empty,
 								TexturePath = fileName,
 								Opacity = 1.0f,
 								Brightness = 1.0f,
@@ -1413,25 +1412,16 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						{
 							meta.Textures[terrainTemplateId] = new TextureMetadata
 							{
-								Hash = hash ?? string.Empty,
-								AssetType = fileName,
+								TexturePath = fileName,
 								ScaleFactor = 1.0f,
 								Brightness = 1.0f,
 								Contrast = 1.0f,
 								Saturation = 1.0f,
-								TileMode = "Stochastic"
-							};
-						}
-						meta.TerrainProfiles ??= new();
-						if (!meta.TerrainProfiles.Any(tp => string.Equals(tp.SwatchName, fileName, StringComparison.OrdinalIgnoreCase) || string.Equals(tp.SwatchName, terrainTemplateId, StringComparison.OrdinalIgnoreCase)))
-						{
-							meta.TerrainProfiles.Add(new TerrainSwatchProfileData
-							{
-								SwatchName = fileName,
-								DefaultPathingCode = 0,
+								TileMode = "Stochastic",
+								DefaultPathingCode = 8 | 32 | 4,
 								DecalBombingRules = new(),
 								VfxBombingRules = new()
-							});
+							};
 						}
 						break;
 
@@ -1442,8 +1432,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						{
 							meta.VfxSpritesheets[spritesheetTemplateId] = new VfxMetadata
 							{
-								Hash = hash ?? string.Empty,
-								AssetType = fileName,
+								TexturePath = fileName,
 								Columns = 4,
 								Rows = 4,
 								Fps = 20.0f
@@ -1458,7 +1447,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						{
 							meta.Icons[iconTemplateId] = new IconMetadata
 							{
-								Hash = hash ?? string.Empty
+								TexturePath = fileName
 							};
 						}
 						break;
@@ -1470,7 +1459,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						{
 							meta.Ribbons[ribbonTemplateId] = new RibbonMetadata
 							{
-								Hash = hash ?? string.Empty
+								TexturePath = fileName
 							};
 						}
 						break;
@@ -1481,8 +1470,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						{
 							meta.NoiseTextures[fileName] = new TextureMetadata
 							{
-								Hash = hash ?? string.Empty,
-								AssetType = fileName,
+								TexturePath = fileName,
 								ScaleFactor = 1.0f
 							};
 						}
@@ -1495,7 +1483,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						{
 							meta.Skyboxes[skyboxTemplateId] = new SkyboxMetadata
 							{
-								Hash = hash ?? string.Empty
+								TexturePath = fileName
 							};
 						}
 						break;
@@ -1507,7 +1495,6 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						{
 							meta.GdShaders[gdshaderTemplateId] = new ShaderMetadata
 							{
-								Hash = hash ?? string.Empty
 							};
 						}
 						break;
@@ -1517,9 +1504,9 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						meta.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
 						if (!meta.SpawnShaders.ContainsKey(spawnShaderTemplateId))
 						{
-							meta.SpawnShaders[spawnShaderTemplateId] = new ShaderMetadata
+							meta.SpawnShaders[spawnShaderTemplateId] = new SpawnShaderMetadata
 							{
-								Hash = hash ?? string.Empty
+								Name = slug
 							};
 						}
 						break;

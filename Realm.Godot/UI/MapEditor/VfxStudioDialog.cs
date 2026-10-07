@@ -1513,7 +1513,6 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 					m.NoiseTextures ??= new(StringComparer.OrdinalIgnoreCase);
 					m.NoiseTextures[_tempGeneratedNoiseFileName] = new Realm.Shared.Metadata.TextureMetadata
 					{
-						Hash = blake3Hash,
 						NoiseConfig = _tempGeneratedNoiseConfig.ToJsonString()
 					};
 				});
@@ -1556,7 +1555,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
 				m.VfxSpritesheets[spritesheetTemplateId] = new Realm.Shared.Metadata.VfxMetadata
 				{
-					AssetType = fileName,
+					TexturePath = fileName,
 					Columns = columns,
 					Rows = rows,
 					Fps = fps,

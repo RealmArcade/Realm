@@ -161,12 +161,11 @@ public static class MapAssetHelper
 					CheckAttachments(metadata.Templates.Attachments, "attachments");
 				}
 
-				void CheckDictionaryAssets(Dictionary<string, string>? dict, string subFolder)
+				void CheckDictionaryAssets(IEnumerable<string>? keys, string subFolder)
 				{
-					if (dict == null) return;
-					foreach (var pair in dict)
+					if (keys == null) return;
+					foreach (var fileName in keys)
 					{
-						string fileName = pair.Key;
 						if (string.IsNullOrWhiteSpace(fileName)) continue;
 
 						string? diskPath = FindAssetOnDisk(workspacePath, subFolder, fileName);
@@ -178,13 +177,13 @@ public static class MapAssetHelper
 					}
 				}
 
-				if (metadata.Textures != null) CheckDictionaryAssets(metadata.Textures.ToDictionary(k => k.Key, v => v.Value.Hash), "textures");
-				if (metadata.Decals != null) CheckDictionaryAssets(metadata.Decals.ToDictionary(k => k.Key, v => v.Value.Hash), "decals");
-				if (metadata.VfxSpritesheets != null) CheckDictionaryAssets(metadata.VfxSpritesheets.ToDictionary(k => k.Key, v => v.Value.Hash), "vfx");
-				if (metadata.NoiseTextures != null) CheckDictionaryAssets(metadata.NoiseTextures.ToDictionary(k => k.Key, v => v.Value.Hash), "noise");
-				if (metadata.Icons != null) CheckDictionaryAssets(metadata.Icons.ToDictionary(k => k.Key, v => v.Value.Hash), "icons");
-				if (metadata.Skyboxes != null) CheckDictionaryAssets(metadata.Skyboxes.ToDictionary(k => k.Key, v => v.Value.Hash), "skyboxes");
-				if (metadata.Ribbons != null) CheckDictionaryAssets(metadata.Ribbons.ToDictionary(k => k.Key, v => v.Value.Hash), "ribbons");
+				if (metadata.Textures != null) CheckDictionaryAssets(metadata.Textures.Select(k => k.Value?.TexturePath ?? k.Key), "textures");
+				if (metadata.Decals != null) CheckDictionaryAssets(metadata.Decals.Select(k => k.Value?.TexturePath ?? k.Key), "decals");
+				if (metadata.VfxSpritesheets != null) CheckDictionaryAssets(metadata.VfxSpritesheets.Select(k => k.Value?.TexturePath ?? k.Key), "vfx");
+				if (metadata.NoiseTextures != null) CheckDictionaryAssets(metadata.NoiseTextures.Select(k => k.Value?.TexturePath ?? k.Key), "noise");
+				if (metadata.Icons != null) CheckDictionaryAssets(metadata.Icons.Select(k => k.Value?.TexturePath ?? k.Key), "icons");
+				if (metadata.Skyboxes != null) CheckDictionaryAssets(metadata.Skyboxes.Select(k => k.Value?.TexturePath ?? k.Key), "skyboxes");
+				if (metadata.Ribbons != null) CheckDictionaryAssets(metadata.Ribbons.Select(k => k.Value?.TexturePath ?? k.Key), "ribbons");
 			}
 			catch (Exception ex)
 			{
