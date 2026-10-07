@@ -54,6 +54,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private List<string> _availablePreviewMeshes = new();
 	private string _selectedPreviewMesh = "";
 
+	private CustomShaderConfig? _currentShaderConfig;
+	private float _shaderAnimTime;
+	private bool _shaderAnimForward = true;
+
 	public TemplateManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Templates Manager"), new Vector2(720, 780))
 	{
@@ -330,6 +334,39 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		}
 
 		RefreshObjectList();
+	}
+
+	public override void _Process(double delta)
+	{
+		base._Process(delta);
+
+		if (Visible && (_currentCategory is "shaders" or "shader") && _currentShaderConfig != null && _currentModelRoot != null && GodotObject.IsInstanceValid(_currentModelRoot))
+		{
+			float speed = (float)delta;
+			float dur = _currentShaderConfig.Duration > 0.05f ? _currentShaderConfig.Duration : 1.5f;
+
+			if (_shaderAnimForward)
+			{
+				_shaderAnimTime += speed;
+				if (_shaderAnimTime >= dur)
+				{
+					_shaderAnimTime = dur;
+					_shaderAnimForward = false;
+				}
+			}
+			else
+			{
+				_shaderAnimTime -= speed;
+				if (_shaderAnimTime <= 0.0f)
+				{
+					_shaderAnimTime = 0.0f;
+					_shaderAnimForward = true;
+				}
+			}
+
+			float prog = Mathf.Clamp(_shaderAnimTime / dur, 0.0f, 1.0f);
+			SpawnDeathShaderManager.ApplyShaderPreview(_currentModelRoot, _currentShaderConfig, prog);
+		}
 	}
 
 	private void PopulatePreviewMeshList()
@@ -1485,6 +1522,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private void LoadPreviewForObject(ObjectItemInfo item)
 	{
 		_currentPreviewTemplateID = item.TemplateID;
+		_currentShaderConfig = null;
 
 		// Clear previous 3D model
 		if (_currentModelRoot != null && GodotObject.IsInstanceValid(_currentModelRoot))
@@ -1689,10 +1727,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				_currentModelRoot.AddChild(loadedNode3D);
 				Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, meshKey);
 
-				var shaderCfg = SpawnDeathShaderManager.GetShaderConfig(item.TemplateID);
-				if (shaderCfg != null)
+				_currentShaderConfig = SpawnDeathShaderManager.GetShaderConfig(item.TemplateID);
+				_shaderAnimTime = 0.0f;
+				_shaderAnimForward = true;
+				if (_currentShaderConfig != null)
 				{
-					SpawnDeathShaderManager.ApplyShaderPreview(loadedNode3D, shaderCfg, 0.5f);
+					SpawnDeathShaderManager.ApplyShaderPreview(loadedNode3D, _currentShaderConfig, 0.0f);
 				}
 
 				CenterAndFrameNode(loadedNode3D);
