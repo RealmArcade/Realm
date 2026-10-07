@@ -950,43 +950,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				_textureEditDialog.OpenForTexture(item.TemplateID, curTerData, updatedObj =>
 				{
 					string newId = updatedObj?["TemplateID"]?.ToString() ?? item.TemplateID;
-					MetadataService.Instance.UpdateMetadata(wsPathTer, m =>
-					{
-						m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-						if (!string.Equals(item.TemplateID, newId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
-						{
-							var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-							var keysToRemove = m.Textures.Keys.Where(k =>
-								string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
-								string.Equals(k, oldSlug, StringComparison.OrdinalIgnoreCase) ||
-								(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
-								(!string.IsNullOrEmpty(oldSlug) && (string.Equals(k, $"{oldSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), oldSlug, StringComparison.OrdinalIgnoreCase))) ||
-								string.Equals(TemplateIDHelper.NormalizeTemplateID("terrain", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-							).ToList();
-							foreach (var k in keysToRemove) m.Textures.Remove(k);
-
-							m.RemoveTerrainProfile(item.TemplateID);
-							if (!string.IsNullOrEmpty(oldSlug))
-							{
-								m.RemoveTerrainProfile(oldSlug);
-								m.RemoveTerrainProfile($"{oldSlug}.rtex");
-							}
-							if (!string.IsNullOrEmpty(item.ModelPath)) m.RemoveTerrainProfile(item.ModelPath);
-						}
-						var texMeta = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(updatedObj.ToJsonString()) ?? new TextureMetadata();
-						texMeta.TexturePath = updatedObj?["TexturePath"]?.ToString();
-						if (updatedObj != null && updatedObj.TryGetPropertyValue("SwatchIndex", out var swNode) && swNode != null && int.TryParse(swNode.ToString(), out int parsedSw))
-						{
-							texMeta.SwatchIndex = parsedSw;
-						}
-						m.Textures[newId] = texMeta;
-					});
 					_currentPreviewTemplateID = newId;
-					Hud?.SetupTextureSwatches(false);
-					if (GameHost.Instance?.GroundTerrain != null)
-					{
-						GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
-					}
 					RefreshObjectList();
 				});
 				break;

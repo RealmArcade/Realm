@@ -106,18 +106,27 @@ public class TerrainTextureUndoAction : IEditorAction
 		try
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
-
 			string metaPath = Path.Combine(wsPath, "metadata.json");
 			if (File.Exists(metaPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot != null)
 			{
-				var prof = new TerrainSwatchProfileData
+				var existing = metadataRoot.GetTerrainTexture(_textureFileName);
+				if (existing != null)
 				{
-					DefaultPathingCode = snapshot.DefaultPathingCode,
-					DecalBombingRules = snapshot.DecalBombingRules != null ? new List<ProceduralBombingDecalRule>(snapshot.DecalBombingRules) : new(),
-					VfxBombingRules = snapshot.VfxBombingRules != null ? new List<ProceduralBombingVfxRule>(snapshot.VfxBombingRules) : new()
-				};
-				metadataRoot.AddOrUpdateTerrainProfile(_textureFileName, prof);
+					existing.Brightness = snapshot.Brightness;
+					existing.Tint = tintHex;
+					existing.RoughnessScale = snapshot.RoughnessScale;
+					existing.NormalScale = snapshot.NormalScale;
+					existing.HeightScale = snapshot.HeightScale;
+					existing.HeightOffset = snapshot.HeightOffset;
+					existing.CrevicePower = snapshot.CrevicePower;
+					existing.TileMode = snapshot.TileMode;
+					existing.UvScale = snapshot.UvScale;
+					existing.StochasticTileSize = snapshot.StochasticTileSize;
+					existing.CrossFade = snapshot.CrossFade;
+					existing.DefaultPathingCode = snapshot.DefaultPathingCode;
+					existing.DecalBombingRules = snapshot.DecalBombingRules != null ? new List<ProceduralBombingDecalRule>(snapshot.DecalBombingRules) : new();
+					existing.VfxBombingRules = snapshot.VfxBombingRules != null ? new List<ProceduralBombingVfxRule>(snapshot.VfxBombingRules) : new();
+				}
 				MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
 				MapEditorHUD.Instance?.UpdateLastMetadataSyncTime(metaPath);
 			}
@@ -849,40 +858,17 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		if (_txtSlug != null) _txtSlug.Text = _slug;
 		_setRtexAssetValue?.Invoke(_rtexAsset);
 
-		RuntimeTerrain.ActiveSwatchConfig activeConfig = default;
-		if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
-		{
-			activeConfig = GameHost.Instance.GroundTerrain.GetActiveSwatchConfig(_textureFileName);
-		}
-		else
-		{
-			activeConfig = new RuntimeTerrain.ActiveSwatchConfig
-			{
-				TileMode = "Stochastic",
-				UvScale = 1.0f,
-				StochasticTileSize = 1.0f,
-				CrossFade = 0.0f,
-				HeightScale = 1.0f,
-				HeightOffset = 0.0f,
-				CrevicePower = 1.0f,
-				NormalScale = 1.0f,
-				RoughnessScale = 1.0f,
-				Brightness = 1.0f,
-				Tint = Colors.White
-			};
-		}
-
-		_brightness = activeConfig.Brightness;
-		_tint = activeConfig.Tint;
-		_roughnessScale = activeConfig.RoughnessScale;
-		_normalScale = activeConfig.NormalScale;
-		_heightScale = activeConfig.HeightScale;
-		_heightOffset = activeConfig.HeightOffset;
-		_crevicePower = activeConfig.CrevicePower;
-		_tileMode = activeConfig.TileMode;
-		_uvScale = activeConfig.UvScale;
-		_stochasticTileSize = activeConfig.StochasticTileSize;
-		_crossFade = activeConfig.CrossFade;
+		_brightness = 1.0f;
+		_tint = Colors.White;
+		_roughnessScale = 1.0f;
+		_normalScale = 1.0f;
+		_heightScale = 1.0f;
+		_heightOffset = 0.0f;
+		_crevicePower = 1.0f;
+		_tileMode = "Stochastic";
+		_uvScale = 1.0f;
+		_stochasticTileSize = 1.0f;
+		_crossFade = 0.0f;
 		_defaultPathingCode = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING;
 		_decalRules.Clear();
 		_vfxRules.Clear();
@@ -892,24 +878,25 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		MapMetadata? metaRoot = null;
 		if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out metaRoot) && metaRoot != null)
 		{
-			var existingTex = metaRoot.GetTerrainTexture(_textureFileName);
+			var existingTex = metaRoot.GetTerrainTexture(_textureFileName) ?? metaRoot.GetTerrainTexture(_slug);
 			if (existingTex != null)
 			{
 				_swatchIndex = existingTex.SwatchIndex;
-				_brightness = existingTex.Brightness > 0.0001f ? existingTex.Brightness : _brightness;
+				if (!string.IsNullOrEmpty(existingTex.TexturePath)) _rtexAsset = Path.GetFileName(existingTex.TexturePath);
+				if (existingTex.Brightness > 0.0001f) _brightness = existingTex.Brightness;
 				if (!string.IsNullOrEmpty(existingTex.Tint) && Color.HtmlIsValid(existingTex.Tint))
 				{
 					_tint = Color.FromHtml(existingTex.Tint);
 				}
 				if (existingTex.RoughnessScale > 0.0001f) _roughnessScale = existingTex.RoughnessScale;
-				if (existingTex.NormalScale > 0.0001f) _normalScale = existingTex.NormalScale;
+				if (existingTex.NormalScale >= 0.0f) _normalScale = existingTex.NormalScale;
 				if (existingTex.HeightScale > 0.0001f) _heightScale = existingTex.HeightScale;
 				_heightOffset = existingTex.HeightOffset;
 				if (existingTex.CrevicePower > 0.0001f) _crevicePower = existingTex.CrevicePower;
 				if (!string.IsNullOrEmpty(existingTex.TileMode)) _tileMode = existingTex.TileMode;
 				if (existingTex.UvScale > 0.0001f) _uvScale = existingTex.UvScale;
 				if (existingTex.StochasticTileSize > 0.0001f) _stochasticTileSize = existingTex.StochasticTileSize;
-				_crossFade = existingTex.CrossFade;
+				if (existingTex.CrossFade >= 0.0f) _crossFade = existingTex.CrossFade;
 				_defaultPathingCode = existingTex.DefaultPathingCode;
 				if (existingTex.DecalBombingRules != null)
 				{
@@ -928,7 +915,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			{
 				_swatchIndex = parsedSw;
 			}
-			if (textureData.TryGetPropertyValue("Brightness", out var bNode) && bNode != null && float.TryParse(bNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedB))
+			if (textureData.TryGetPropertyValue("Brightness", out var bNode) && bNode != null && float.TryParse(bNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedB) && parsedB > 0.0001f)
 			{
 				_brightness = parsedB;
 			}
@@ -936,15 +923,15 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			{
 				_tint = Color.FromHtml(tintNode.ToString());
 			}
-			if (textureData.TryGetPropertyValue("RoughnessScale", out var rsNode) && rsNode != null && float.TryParse(rsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedRs))
+			if (textureData.TryGetPropertyValue("RoughnessScale", out var rsNode) && rsNode != null && float.TryParse(rsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedRs) && parsedRs > 0.0001f)
 			{
 				_roughnessScale = parsedRs;
 			}
-			if (textureData.TryGetPropertyValue("NormalScale", out var nsNode) && nsNode != null && float.TryParse(nsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedNs))
+			if (textureData.TryGetPropertyValue("NormalScale", out var nsNode) && nsNode != null && float.TryParse(nsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedNs) && parsedNs >= 0.0f)
 			{
 				_normalScale = parsedNs;
 			}
-			if (textureData.TryGetPropertyValue("HeightScale", out var hsNode) && hsNode != null && float.TryParse(hsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedHs))
+			if (textureData.TryGetPropertyValue("HeightScale", out var hsNode) && hsNode != null && float.TryParse(hsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedHs) && parsedHs > 0.0001f)
 			{
 				_heightScale = parsedHs;
 			}
@@ -952,7 +939,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			{
 				_heightOffset = parsedHo;
 			}
-			if (textureData.TryGetPropertyValue("CrevicePower", out var cpNode) && cpNode != null && float.TryParse(cpNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCp))
+			if (textureData.TryGetPropertyValue("CrevicePower", out var cpNode) && cpNode != null && float.TryParse(cpNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCp) && parsedCp > 0.0001f)
 			{
 				_crevicePower = parsedCp;
 			}
@@ -960,21 +947,37 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			{
 				_tileMode = string.Equals(tmNode.ToString(), "Grid", StringComparison.OrdinalIgnoreCase) ? "Grid" : "Stochastic";
 			}
-			if (textureData.TryGetPropertyValue("UvScale", out var uvNode) && uvNode != null && float.TryParse(uvNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedUv))
+			if (textureData.TryGetPropertyValue("UvScale", out var uvNode) && uvNode != null && float.TryParse(uvNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedUv) && parsedUv > 0.0001f)
 			{
 				_uvScale = parsedUv;
 			}
-			if (textureData.TryGetPropertyValue("StochasticTileSize", out var stNode) && stNode != null && float.TryParse(stNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedSt))
+			if (textureData.TryGetPropertyValue("StochasticTileSize", out var stNode) && stNode != null && float.TryParse(stNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedSt) && parsedSt > 0.0001f)
 			{
 				_stochasticTileSize = parsedSt;
 			}
-			if (textureData.TryGetPropertyValue("CrossFade", out var cfNode) && cfNode != null && float.TryParse(cfNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCf))
+			if (textureData.TryGetPropertyValue("CrossFade", out var cfNode) && cfNode != null && float.TryParse(cfNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCf) && parsedCf >= 0.0f)
 			{
 				_crossFade = parsedCf <= 0.10f && parsedCf > 0.0f ? parsedCf * 100.0f : parsedCf;
 			}
 			if (textureData.TryGetPropertyValue("DefaultPathingCode", out var dpcNode) && dpcNode != null && int.TryParse(dpcNode.ToString(), out int parsedDpc))
 			{
 				_defaultPathingCode = parsedDpc;
+			}
+			if (textureData.TryGetPropertyValue("DecalBombingRules", out var dbrNode) && dbrNode != null)
+			{
+				var list = System.Text.Json.JsonSerializer.Deserialize<List<ProceduralBombingDecalRule>>(dbrNode.ToJsonString());
+				if (list != null && list.Count > 0)
+				{
+					_decalRules = list;
+				}
+			}
+			if (textureData.TryGetPropertyValue("VfxBombingRules", out var vbrNode) && vbrNode != null)
+			{
+				var list = System.Text.Json.JsonSerializer.Deserialize<List<ProceduralBombingVfxRule>>(vbrNode.ToJsonString());
+				if (list != null && list.Count > 0)
+				{
+					_vfxRules = list;
+				}
 			}
 		}
 
@@ -1009,8 +1012,8 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			StochasticTileSize = _stochasticTileSize,
 			CrossFade = _crossFade,
 			DefaultPathingCode = _defaultPathingCode,
-			DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules),
-			VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules)
+			DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules.Select(r => r.Clone())),
+			VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules.Select(r => r.Clone()))
 		};
 
 		if (_sldBrightness != null) _sldBrightness.Value = _brightness;
@@ -1072,8 +1075,8 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			StochasticTileSize = _stochasticTileSize,
 			CrossFade = _crossFade,
 			DefaultPathingCode = _defaultPathingCode,
-			DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules),
-			VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules)
+			DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules.Select(r => r.Clone())),
+			VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules.Select(r => r.Clone()))
 		};
 
 		if (_initialSnapshot != null)
@@ -1098,7 +1101,9 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			["UvScale"] = _uvScale,
 			["StochasticTileSize"] = _stochasticTileSize,
 			["CrossFade"] = _crossFade,
-			["DefaultPathingCode"] = _defaultPathingCode
+			["DefaultPathingCode"] = _defaultPathingCode,
+			["DecalBombingRules"] = System.Text.Json.JsonSerializer.SerializeToNode(_decalRules),
+			["VfxBombingRules"] = System.Text.Json.JsonSerializer.SerializeToNode(_vfxRules)
 		};
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -1142,6 +1147,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		MapEditorHUD.Instance?.SetupTextureSwatches(false);
 		if (GameHost.Instance?.GroundTerrain != null)
 		{
+			GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
 			GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
 		}
 
@@ -1179,6 +1185,11 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			if (_optTileMode != null) _optTileMode.Selected = _tileMode == "Stochastic" ? 1 : 0;
 			UpdateTileModeVisibility();
 			ApplyLiveTerrainUpdate();
+			if (GameHost.Instance?.GroundTerrain != null)
+			{
+				GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides(_textureFileName);
+				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+			}
 		}
 	}
 }

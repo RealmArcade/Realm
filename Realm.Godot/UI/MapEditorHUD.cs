@@ -9646,6 +9646,15 @@ public partial class MapEditorHUD : Control
 							resolvedPath = found;
 						}
 					}
+					if (!System.IO.File.Exists(resolvedPath))
+					{
+						string? foundTemplate = PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexName}");
+						if (!string.IsNullOrEmpty(foundTemplate) && System.IO.File.Exists(foundTemplate))
+						{
+							resolvedPath = foundTemplate;
+						}
+					}
+					_swatchDisplayNames.Add(slot.BaseName);
 					_swatchPaths.Add(resolvedPath);
 					_swatchColors.Add(new Color(0.6f, 0.6f, 0.6f));
 				}
@@ -11988,11 +11997,47 @@ public partial class MapEditorHUD : Control
 		{
 			string texName = (i >= 0 && i < _swatchDisplayNames.Count) ? _swatchDisplayNames[i] : $"swatch_{i}";
 			if (string.IsNullOrEmpty(texName) || texName.EndsWith("(Empty)")) return null;
-			string cleanName = texName.ToLowerInvariant().Replace(" ", "_") + ".rtex";
-			localRtex = System.IO.Path.Combine(wsPath, "Assets", "textures", cleanName);
+
+			string rtexName = texName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? texName : $"{texName}.rtex";
+			try
+			{
+				var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+				if (metadata != null)
+				{
+					var texMeta = metadata.GetTerrainTexture(texName) ?? metadata.GetTerrainTexture($"terrain/{texName}");
+					if (texMeta != null && !string.IsNullOrWhiteSpace(texMeta.TexturePath))
+					{
+						rtexName = texMeta.TexturePath;
+						if (!rtexName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+						{
+							rtexName += ".rtex";
+						}
+						rtexName = System.IO.Path.GetFileName(rtexName);
+					}
+				}
+			}
+			catch { }
+
+			localRtex = System.IO.Path.Combine(wsPath, "Assets", "textures", rtexName);
 			if (!System.IO.File.Exists(localRtex))
 			{
-				localRtex = System.IO.Path.Combine(wsPath, cleanName);
+				localRtex = System.IO.Path.Combine(wsPath, rtexName);
+			}
+			if (!System.IO.File.Exists(localRtex))
+			{
+				string? found = PathUtils.FindPath($"Assets/textures/{rtexName}");
+				if (!string.IsNullOrEmpty(found) && System.IO.File.Exists(found))
+				{
+					localRtex = found;
+				}
+			}
+			if (!System.IO.File.Exists(localRtex))
+			{
+				string? foundTemplate = PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexName}");
+				if (!string.IsNullOrEmpty(foundTemplate) && System.IO.File.Exists(foundTemplate))
+				{
+					localRtex = foundTemplate;
+				}
 			}
 		}
 		if (System.IO.File.Exists(localRtex))

@@ -2253,6 +2253,19 @@ void fragment() {
 		return config;
 	}
 
+	public virtual void ClearLiveSwatchOverrides(string? swatchName = null)
+	{
+		if (string.IsNullOrEmpty(swatchName))
+		{
+			_liveSwatchOverrides.Clear();
+		}
+		else
+		{
+			string cleanName = System.IO.Path.GetFileNameWithoutExtension(swatchName);
+			_liveSwatchOverrides.Remove(cleanName);
+		}
+	}
+
 	private static float ExtractRtexScaleFactor(string rtexPath)
 	{
 		if (string.IsNullOrEmpty(rtexPath) || !System.IO.File.Exists(rtexPath)) return 1.0f;
@@ -2373,9 +2386,13 @@ void fragment() {
 
 			if (sObj != null)
 			{
+				if (!string.IsNullOrEmpty(sObj.TileMode)) tileMode = string.Equals(sObj.TileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0.0f : 1.0f;
+				if (sObj.UvScale > 0.0001f) uvScale = Math.Clamp(sObj.UvScale, 0.1f, 4.0f);
+				if (sObj.StochasticTileSize > 0.0001f) stochasticTileSize = Math.Clamp(sObj.StochasticTileSize, 0.5f, 3.0f);
+				if (sObj.CrossFade >= 0.0f) crossFade = Math.Clamp(sObj.CrossFade, 0.0f, 10.0f) * 0.01f;
 				if (sObj.ScaleFactor > 0.0001f) texScaleFactor = Math.Clamp(sObj.ScaleFactor, 0.10f, 4.0f);
 				if (sObj.Brightness > 0f) texBrightness = Math.Clamp(sObj.Brightness, 0.1f, 5.0f);
-				if (sObj.NormalScale > 0f) normalScale = Math.Clamp(sObj.NormalScale, 0.0f, 3.0f);
+				if (sObj.NormalScale >= 0f) normalScale = Math.Clamp(sObj.NormalScale, 0.0f, 3.0f);
 				if (sObj.RoughnessScale > 0f) roughnessScale = Math.Clamp(sObj.RoughnessScale, 0.10f, 3.0f);
 				if (sObj.HeightScale > 0f) heightScale = Math.Clamp(sObj.HeightScale, 0.1f, 3.0f);
 				if (sObj.HeightOffset != 0f) heightOffset = Math.Clamp(sObj.HeightOffset, -1.0f, 1.0f);
