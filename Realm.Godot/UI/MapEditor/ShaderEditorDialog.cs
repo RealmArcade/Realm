@@ -14,7 +14,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	private Label _lblObjectTypePrefix;
 	private LineEdit _txtSlug;
 	private string _slug = "";
-	private LineEdit _txtShaderName;
 	private OptionButton _optModelPicker;
 	private OptionButton _optTransitionMode;
 	private OptionButton _optDirection;
@@ -179,11 +178,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		};
 		rowId.AddChild(_txtSlug);
 		configVBox.AddChild(rowId);
-
-		_txtShaderName = AddTextInput(configVBox, TranslationServer.Translate("Display Name:"), _config.Name, (val) =>
-		{
-			_config.Name = val;
-		}, "", 140f);
 
 		var btnRandomizeAll = new Button();
 		btnRandomizeAll.Set("icon_max_width", 0);
@@ -475,7 +469,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(_config.Key);
 		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(_config.Key);
 		if (_txtSlug != null) _txtSlug.Text = _slug;
-		if (_txtShaderName != null) _txtShaderName.Text = _config.Name;
 		if (_optTransitionMode != null) _optTransitionMode.Selected = _config.TransitionMode;
 		if (_optDirection != null) _optDirection.Selected = _config.Direction;
 		if (_cpkEdgeColor != null) _cpkEdgeColor.Color = _config.EdgeColor;
@@ -646,11 +639,6 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = "custom_shader";
 		_slug = finalSlug;
 		_config.Key = TemplateIDHelper.NormalizeTemplateID("shader", _slug);
-
-		if (_txtShaderName != null && !string.IsNullOrWhiteSpace(_txtShaderName.Text))
-		{
-			_config.Name = _txtShaderName.Text.Trim();
-		}
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{
 			_config.Name = _slug;
