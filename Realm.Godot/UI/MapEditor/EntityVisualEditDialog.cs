@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
+using Realm.Godot.Animation;
 using Realm.Godot.Services;
 using Realm.Godot.Utils;
 using Realm.Shared.Metadata;
@@ -150,6 +151,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private CheckBox _chkEnableProceduralAnim;
 	private OptionButton _optProceduralAnim;
 	private Button _btnOpenProcAnimStudio;
+	private Button _btnOpenRiggedAnimStudio;
+	private Button _btnOpenSocketsAndVfx;
 
 	public EntityVisualEditDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Visual Properties & Overrides"), new Vector2(520, 740))
@@ -226,6 +229,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			if (_isSyncing) return;
 			_visualMode = _optVisualMode.GetItemMetadata((int)idx).AsString();
 			ApplyLiveModelAndVisualMode();
+			UpdateRiggedAnimationButtonVisibility();
 		};
 		_visualModeRow.AddChild(_optVisualMode);
 		contentVBox.AddChild(_visualModeRow);
@@ -240,6 +244,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				if (_isSyncing) return;
 				_modelPath = val ?? string.Empty;
 				ApplyLiveModelAndVisualMode();
+				UpdateRiggedAnimationButtonVisibility();
 			},
 			TranslationServer.Translate("Select asset..."),
 			140f
@@ -502,7 +507,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			}
 		}, 140f);
 
-		_btnOpenProcAnimStudio = AddButton(contentVBox, "✨ " + TranslationServer.Translate("Procedural Animation Studio..."), () =>
+		_btnOpenProcAnimStudio = AddButton(contentVBox, "✨ " + TranslationServer.Translate("Procedural Animation Studio [un-rigged]"), () =>
 		{
 			var currentConfigs = ProceduralAnimationManager.LoadAllConfigs();
 			string selectedKey = "";
@@ -541,6 +546,93 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				}
 			}, selectedMesh);
 		}, "Open Procedural Animation Studio to edit math formulas and motion parameters", 11, new Vector2(0, 28));
+
+		_btnOpenRiggedAnimStudio = AddButton(contentVBox, "🎬 " + TranslationServer.Translate("Animation Studio [rigged]"), () =>
+		{
+			string targetKey = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : (!string.IsNullOrEmpty(_slug) ? $"{_objectType}/{_slug}" : "object");
+			string selectedMesh = !string.IsNullOrEmpty(_modelPath) ? _modelPath : (GameHost.Instance?.GetModelAssetKey(_currentSelectedObject ?? (object)targetKey) ?? targetKey);
+			Hud?.OpenAnimationPreviewDialog(targetKey, selectedMesh);
+		}, "Open Animation Studio to preview and assign skeletal animations", 11, new Vector2(0, 28));
+
+		_btnOpenSocketsAndVfx = AddButton(contentVBox, "📎 " + TranslationServer.Translate("Sockets & VFX [rigged]"), () =>
+		{
+			string targetKey = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : (!string.IsNullOrEmpty(_slug) ? $"{_objectType}/{_slug}" : "object");
+			bool isBuilding = _objectType == "building" || (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(targetKey));
+			string defaultSocket = isBuilding ? "Center" : "RightHand";
+			Node3D sourceModel = _currentSelectedObject as Node3D;
+			Hud?.OpenObjectAttachmentDialog(targetKey, null, defaultSocket, sourceModel, (orient) =>
+			{
+				if (_currentSelectedObject is Unit3D u)
+				{
+					u.ApplyAllConfiguredAttachments();
+				}
+				else if (GameHost.Instance != null && !string.IsNullOrEmpty(targetKey))
+				{
+					GameHost.Instance.RefreshAllPlacedObjectModels(targetKey);
+				}
+			});
+		}, "Open Socket & VFX Attachment Studio", 11, new Vector2(0, 28));
+
+		UpdateRiggedAnimationButtonVisibility();
+	}
+
+	private void UpdateRiggedAnimationButtonVisibility()
+	{
+		bool isRigged = IsCurrentModelRigged();
+		if (_btnOpenRiggedAnimStudio != null) _btnOpenRiggedAnimStudio.Visible = isRigged;
+		if (_btnOpenSocketsAndVfx != null) _btnOpenSocketsAndVfx.Visible = isRigged;
+	}
+
+	private bool IsCurrentModelRigged()
+	{
+		if (!string.Equals(_visualMode, "Mesh", StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		string meshPath = !string.IsNullOrEmpty(_modelPath) ? _modelPath : "";
+		if (string.IsNullOrEmpty(meshPath) && _currentSelectedObject is Prop3D prop)
+		{
+			meshPath = prop.ModelAssetPath;
+		}
+		if (string.IsNullOrEmpty(meshPath) && GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+		{
+			meshPath = GameHost.Instance.GetModelAssetKey(_originalTemplateID) ?? "";
+		}
+
+		if (!string.IsNullOrEmpty(meshPath))
+		{
+			Node loadedNode = ModelCache.GetModel(meshPath);
+			if (loadedNode == null)
+			{
+				string resolved = ModelCache.ResolveModelPath(meshPath);
+				if (!string.IsNullOrEmpty(resolved))
+				{
+					loadedNode = ModelCache.GetModel(resolved);
+				}
+			}
+
+			if (loadedNode != null)
+			{
+				return SkeletonValidator.FindSkeleton(loadedNode) != null;
+			}
+		}
+
+		if (_currentSelectedObject != null && GodotObject.IsInstanceValid(_currentSelectedObject))
+		{
+			Node modelRoot = _currentSelectedObject;
+			if (_currentSelectedObject is Unit3D u && u.ModelNode != null)
+			{
+				modelRoot = u.ModelNode;
+			}
+			else if (_currentSelectedObject is Prop3D p)
+			{
+				modelRoot = p.GetNodeOrNull<Node3D>("VisualModel") ?? _currentSelectedObject;
+			}
+			return SkeletonValidator.FindSkeleton(modelRoot) != null;
+		}
+
+		return false;
 	}
 
 	private void SyncVisualModeControl()
@@ -975,6 +1067,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			}
 			_modelLocalMinY = CalculateModelLocalMinY(_currentSelectedObject);
 		}
+
+		UpdateRiggedAnimationButtonVisibility();
 	}
 
 	public void OpenForObject(Node selectedObject)
@@ -1298,6 +1392,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 			RefreshProceduralAnimationDropdown(_proceduralAnimation);
 			ValidateSlug();
+			UpdateRiggedAnimationButtonVisibility();
 		}
 		finally
 		{
@@ -1712,6 +1807,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		GameHost.Instance.FlushModelYOffsetSave();
 		GameHost.Instance.FlushModelCollisionCircleSave();
+		UpdateRiggedAnimationButtonVisibility();
 	}
 
 	private static float CalculateModelLocalMinY(Node selectedObject)
