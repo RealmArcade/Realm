@@ -796,11 +796,16 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			?? textureData?["assetType"]?.ToString()
 			?? textureData?["rtex"]?.ToString()
 			?? textureData?["TexturePath"]?.ToString()
+			?? textureData?["texturePath"]?.ToString()
 			?? textureData?["asset_type"]?.ToString()
 			?? string.Empty;
 
-		if (!string.IsNullOrEmpty(_rtexAsset) && _rtexAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		if (!string.IsNullOrEmpty(_rtexAsset))
 		{
+			if (!_rtexAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = $"{_rtexAsset}.rtex";
+			}
 			_rtexAsset = Path.GetFileName(_rtexAsset);
 		}
 		else
@@ -822,18 +827,32 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			string wsPathTex = MapWorkspaceService.GetActiveWorkspacePath();
 			if (!string.IsNullOrEmpty(wsPathTex) && MetadataService.Instance.TryLoadMetadata(wsPathTex, out var metaTex) && metaTex?.Textures != null)
 			{
-				if (metaTex.Textures.TryGetValue(_textureFileName, out var tMeta) && !string.IsNullOrEmpty(tMeta?.AssetType) && tMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				if (metaTex.Textures.TryGetValue(_textureFileName, out var tMeta) && !string.IsNullOrEmpty(tMeta?.AssetType))
 				{
-					_rtexAsset = Path.GetFileName(tMeta.AssetType);
+					_rtexAsset = tMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(tMeta.AssetType) : $"{Path.GetFileName(tMeta.AssetType)}.rtex";
 				}
-				else if (metaTex.Textures.TryGetValue(_slug, out var tMeta2) && !string.IsNullOrEmpty(tMeta2?.AssetType) && tMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				else if (metaTex.Textures.TryGetValue(_slug, out var tMeta2) && !string.IsNullOrEmpty(tMeta2?.AssetType))
 				{
-					_rtexAsset = Path.GetFileName(tMeta2.AssetType);
+					_rtexAsset = tMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(tMeta2.AssetType) : $"{Path.GetFileName(tMeta2.AssetType)}.rtex";
 				}
 			}
-			else if (_textureFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		}
+
+		if (string.IsNullOrEmpty(_rtexAsset))
+		{
+			if (_textureFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
 				_rtexAsset = Path.GetFileName(_textureFileName);
+			}
+			else
+			{
+				var candidates = ScanTerrainRtexAssets(true);
+				string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
+					?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
+				if (!string.IsNullOrEmpty(candidateMatch))
+				{
+					_rtexAsset = candidateMatch;
+				}
 			}
 		}
 

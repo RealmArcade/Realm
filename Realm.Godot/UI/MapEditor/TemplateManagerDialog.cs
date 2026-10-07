@@ -519,13 +519,16 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				{
 					foreach (var kvp in meta.Textures)
 					{
+						string normalizedId = TemplateIDHelper.NormalizeTemplateID("terrain", kvp.Key);
+						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
+						string rtex = !string.IsNullOrWhiteSpace(kvp.Value?.AssetType) ? kvp.Value.AssetType : (!string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : kvp.Key);
 						list.Add(new ObjectItemInfo
 						{
 							Category = "terrain",
-							TemplateID = kvp.Key,
-							Name = kvp.Key,
+							TemplateID = normalizedId,
+							Name = slug,
 							Description = "Terrain texture swatch config",
-							ModelPath = kvp.Key
+							ModelPath = rtex
 						});
 					}
 				}
@@ -533,15 +536,17 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				{
 					foreach (var tp in meta.TerrainProfiles)
 					{
-						if (!list.Any(x => string.Equals(x.TemplateID, tp.SwatchName, StringComparison.OrdinalIgnoreCase)))
+						string normalizedId = TemplateIDHelper.NormalizeTemplateID("terrain", tp.SwatchName);
+						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
+						if (!list.Any(x => string.Equals(x.TemplateID, normalizedId, StringComparison.OrdinalIgnoreCase)))
 						{
 							list.Add(new ObjectItemInfo
 							{
 								Category = "terrain",
-								TemplateID = tp.SwatchName,
-								Name = tp.SwatchName,
+								TemplateID = normalizedId,
+								Name = slug,
 								Description = "Terrain swatch profile",
-								ModelPath = tp.SwatchName
+								ModelPath = !string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : tp.SwatchName
 							});
 						}
 					}
@@ -553,16 +558,18 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				{
 					foreach (var kvp in meta.VfxSpritesheets)
 					{
+						string normalizedId = TemplateIDHelper.NormalizeTemplateID("spritesheet", kvp.Key);
+						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
 						var sheetObj = kvp.Value;
 						int cols = sheetObj?.Columns ?? 1;
 						int rows = sheetObj?.Rows ?? 1;
 						float fps = sheetObj?.Fps ?? 20.0f;
-						string rtex = !string.IsNullOrEmpty(sheetObj?.AssetType) ? sheetObj.AssetType : kvp.Key;
+						string rtex = !string.IsNullOrEmpty(sheetObj?.AssetType) ? sheetObj.AssetType : (!string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : kvp.Key);
 						list.Add(new ObjectItemInfo
 						{
 							Category = "spritesheets",
-							TemplateID = kvp.Key,
-							Name = kvp.Key,
+							TemplateID = normalizedId,
+							Name = slug,
 							Description = $"{cols}x{rows} @ {fps} FPS",
 							ModelPath = rtex
 						});
@@ -575,13 +582,16 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				{
 					foreach (var kvp in meta.Decals)
 					{
+						string normalizedId = TemplateIDHelper.NormalizeTemplateID("decal", kvp.Key);
+						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
+						string rtex = !string.IsNullOrWhiteSpace(kvp.Value?.TexturePath) ? kvp.Value.TexturePath : (!string.IsNullOrWhiteSpace(slug) ? $"{slug}.rtex" : kvp.Key);
 						list.Add(new ObjectItemInfo
 						{
 							Category = "decals",
-							TemplateID = kvp.Key,
-							Name = kvp.Key,
+							TemplateID = normalizedId,
+							Name = slug,
 							Description = "Decal configuration",
-							ModelPath = kvp.Key
+							ModelPath = rtex
 						});
 					}
 				}
@@ -592,11 +602,13 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				{
 					foreach (var kvp in meta.Shaders)
 					{
+						string normalizedId = TemplateIDHelper.NormalizeTemplateID("shader", kvp.Key);
+						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
 						list.Add(new ObjectItemInfo
 						{
 							Category = "shaders",
-							TemplateID = kvp.Key,
-							Name = kvp.Key,
+							TemplateID = normalizedId,
+							Name = slug,
 							Description = "Custom visual shader config"
 						});
 					}
@@ -778,7 +790,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				JsonObject curTerData = new JsonObject();
 				if (MetadataService.Instance.TryLoadMetadata(wsPathTer, out var metaTer) && metaTer?.Textures != null)
 				{
-					if (metaTer.Textures.TryGetValue(item.TemplateID, out var tNode) && tNode != null)
+					var (_, slug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if ((metaTer.Textures.TryGetValue(item.TemplateID, out var tNode) ||
+						(!string.IsNullOrEmpty(slug) && metaTer.Textures.TryGetValue(slug, out tNode))) && tNode != null)
 					{
 						curTerData = System.Text.Json.JsonSerializer.SerializeToNode(tNode) as JsonObject ?? new JsonObject();
 					}
@@ -793,11 +807,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						{
 							m.Textures.Remove(item.TemplateID);
 							m.RemoveTerrainProfile(item.TemplateID);
-							string alternateOld = item.TemplateID.StartsWith("terrain/", StringComparison.OrdinalIgnoreCase)
-								? item.TemplateID.Substring("terrain/".Length)
-								: $"terrain/{item.TemplateID}";
-							m.Textures.Remove(alternateOld);
-							m.RemoveTerrainProfile(alternateOld);
+							var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							if (!string.IsNullOrEmpty(oldSlug))
+							{
+								m.Textures.Remove(oldSlug);
+								m.RemoveTerrainProfile(oldSlug);
+							}
 						}
 						var texMeta = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(updatedObj.ToJsonString()) ?? new TextureMetadata();
 						texMeta.AssetType = updatedObj?["AssetType"]?.ToString() ?? updatedObj?["rtex"]?.ToString();
@@ -817,7 +832,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				string initRtex = "";
 				if (MetadataService.Instance.TryLoadMetadata(wsPathSpr, out var metaSpr) && metaSpr?.VfxSpritesheets != null)
 				{
-					if (metaSpr.VfxSpritesheets.TryGetValue(item.TemplateID, out var sNode) && sNode != null)
+					var (_, slug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if ((metaSpr.VfxSpritesheets.TryGetValue(item.TemplateID, out var sNode) ||
+						(!string.IsNullOrEmpty(slug) && metaSpr.VfxSpritesheets.TryGetValue(slug, out sNode))) && sNode != null)
 					{
 						initCols = sNode.Columns > 0 ? sNode.Columns : 1;
 						initRows = sNode.Rows > 0 ? sNode.Rows : 1;
@@ -834,6 +851,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						if (!string.Equals(item.TemplateID, newId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
 						{
 							m.VfxSpritesheets.Remove(item.TemplateID);
+							var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							if (!string.IsNullOrEmpty(oldSlug))
+							{
+								m.VfxSpritesheets.Remove(oldSlug);
+							}
 						}
 						m.VfxSpritesheets[newId] = new VfxMetadata
 						{
@@ -854,7 +876,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				JsonObject curDecData = new JsonObject();
 				if (MetadataService.Instance.TryLoadMetadata(wsPathDec, out var metaDec) && metaDec?.Decals != null)
 				{
-					if (metaDec.Decals.TryGetValue(item.TemplateID, out var dNode) && dNode != null)
+					var (_, slug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if ((metaDec.Decals.TryGetValue(item.TemplateID, out var dNode) ||
+						(!string.IsNullOrEmpty(slug) && metaDec.Decals.TryGetValue(slug, out dNode))) && dNode != null)
 					{
 						curDecData = System.Text.Json.JsonSerializer.SerializeToNode(dNode) as JsonObject ?? new JsonObject();
 					}
@@ -879,6 +903,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						if (!string.Equals(item.TemplateID, newDecalId, StringComparison.OrdinalIgnoreCase))
 						{
 							m.Decals.Remove(item.TemplateID);
+							var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							if (!string.IsNullOrEmpty(oldSlug))
+							{
+								m.Decals.Remove(oldSlug);
+							}
 						}
 						m.Decals[newDecalId] = deserializedDecal;
 					});
@@ -1148,15 +1177,44 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					case "terrain":
 						meta.Textures?.Remove(item.TemplateID);
 						meta.RemoveTerrainProfile(item.TemplateID);
+						{
+							var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							if (!string.IsNullOrEmpty(delSlug))
+							{
+								meta.Textures?.Remove(delSlug);
+								meta.RemoveTerrainProfile(delSlug);
+							}
+						}
 						break;
 					case "spritesheets":
 						meta.VfxSpritesheets?.Remove(item.TemplateID);
+						{
+							var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							if (!string.IsNullOrEmpty(delSlug))
+							{
+								meta.VfxSpritesheets?.Remove(delSlug);
+							}
+						}
 						break;
 					case "decals":
 						meta.Decals?.Remove(item.TemplateID);
+						{
+							var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							if (!string.IsNullOrEmpty(delSlug))
+							{
+								meta.Decals?.Remove(delSlug);
+							}
+						}
 						break;
 					case "shaders" or "shader":
 						meta.Shaders?.Remove(item.TemplateID);
+						{
+							var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+							if (!string.IsNullOrEmpty(delSlug))
+							{
+								meta.Shaders?.Remove(delSlug);
+							}
+						}
 						break;
 				}
 			});

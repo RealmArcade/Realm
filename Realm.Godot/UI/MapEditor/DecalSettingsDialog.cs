@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Realm.Godot.Utils;
 
@@ -801,12 +802,21 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		if (string.IsNullOrWhiteSpace(rawTexturePath))
 		{
-			string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-			string candidate = $"{baseKey}.rtex";
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			string candidate = $"{_slug}.rtex";
 			if (File.Exists(Path.Combine(wsPath, "Assets", "decals", candidate)))
 			{
 				rawTexturePath = candidate;
+			}
+			else
+			{
+				var candidates = ScanAvailableAssets("decals", true);
+				string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, candidate, StringComparison.OrdinalIgnoreCase))
+					?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
+				if (!string.IsNullOrEmpty(candidateMatch))
+				{
+					rawTexturePath = candidateMatch;
+				}
 			}
 		}
 

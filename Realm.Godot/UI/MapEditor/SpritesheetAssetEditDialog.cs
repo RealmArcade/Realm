@@ -187,19 +187,19 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_sheetFileName);
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		if (!string.IsNullOrEmpty(rtexAsset) && rtexAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		if (!string.IsNullOrEmpty(rtexAsset))
 		{
-			_rtexAsset = Path.GetFileName(rtexAsset);
+			_rtexAsset = rtexAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(rtexAsset) : $"{Path.GetFileName(rtexAsset)}.rtex";
 		}
 		else if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
 		{
-			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.AssetType) && ssMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.AssetType))
 			{
-				_rtexAsset = Path.GetFileName(ssMeta.AssetType);
+				_rtexAsset = ssMeta.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ssMeta.AssetType) : $"{Path.GetFileName(ssMeta.AssetType)}.rtex";
 			}
-			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.AssetType) && ssMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.AssetType))
 			{
-				_rtexAsset = Path.GetFileName(ssMeta2.AssetType);
+				_rtexAsset = ssMeta2.AssetType.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ssMeta2.AssetType) : $"{Path.GetFileName(ssMeta2.AssetType)}.rtex";
 			}
 			else
 			{
@@ -209,6 +209,17 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		else
 		{
 			_rtexAsset = string.Empty;
+		}
+
+		if (string.IsNullOrEmpty(_rtexAsset))
+		{
+			var candidates = ScanRtexAssets(true);
+			string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
+				?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
+			if (!string.IsNullOrEmpty(candidateMatch))
+			{
+				_rtexAsset = candidateMatch;
+			}
 		}
 
 		_columns = Math.Max(1, initialCols);

@@ -222,23 +222,34 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		{
 			if (_category == "upgrades")
 			{
-				var u = meta.GetUpgrade(_originalTemplateID);
+				var u = meta.GetUpgrade(_originalTemplateID) ?? meta.GetUpgrade(_slug);
 				if (u != null)
 				{
 					_name = !string.IsNullOrEmpty(u.Name) ? u.Name : _slug;
-					_iconPath = !string.IsNullOrEmpty(u.IconPath) && u.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(u.IconPath) : "";
+					_iconPath = !string.IsNullOrEmpty(u.IconPath) ? (u.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(u.IconPath) : $"{Path.GetFileName(u.IconPath)}.rtex") : "";
 					_tooltip = u.Description ?? "";
 				}
 			}
 			else
 			{
-				var i = meta.GetItem(_originalTemplateID);
+				var i = meta.GetItem(_originalTemplateID) ?? meta.GetItem(_slug);
 				if (i != null)
 				{
 					_name = !string.IsNullOrEmpty(i.Name) ? i.Name : _slug;
-					_iconPath = !string.IsNullOrEmpty(i.IconPath) && i.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(i.IconPath) : "";
+					_iconPath = !string.IsNullOrEmpty(i.IconPath) ? (i.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(i.IconPath) : $"{Path.GetFileName(i.IconPath)}.rtex") : "";
 					_tooltip = i.Description ?? "";
 				}
+			}
+		}
+
+		if (string.IsNullOrEmpty(_iconPath))
+		{
+			var candidates = ScanIconRtexAssets(true);
+			string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
+				?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
+			if (!string.IsNullOrEmpty(candidateMatch))
+			{
+				_iconPath = candidateMatch;
 			}
 		}
 

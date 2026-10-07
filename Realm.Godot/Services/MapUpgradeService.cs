@@ -907,6 +907,71 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				}
 			}
 
+			if (metadataRoot.TryGetPropertyValue("decals", out var decalsNode) && decalsNode is JsonObject decalsObj)
+			{
+				var normalizedDecals = new JsonObject();
+				foreach (var kvp in decalsObj)
+				{
+					string rawKey = kvp.Key;
+					string slug = TemplateIDHelper.GenerateSlug(rawKey);
+					string normalizedId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
+					var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+					if (string.IsNullOrWhiteSpace(itemObj["TexturePath"]?.ToString()))
+					{
+						itemObj["TexturePath"] = rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
+					}
+					if (!itemObj.ContainsKey("Opacity")) itemObj["Opacity"] = 1.0f;
+					if (!itemObj.ContainsKey("Brightness")) itemObj["Brightness"] = 1.0f;
+					if (!itemObj.ContainsKey("Contrast")) itemObj["Contrast"] = 1.0f;
+					if (!itemObj.ContainsKey("Saturation")) itemObj["Saturation"] = 1.0f;
+
+					if (!normalizedDecals.ContainsKey(normalizedId))
+					{
+						normalizedDecals[normalizedId] = itemObj.DeepClone();
+					}
+					else if (normalizedDecals[normalizedId] is JsonObject existingObj)
+					{
+						foreach (var prop in itemObj)
+						{
+							if (prop.Value != null && (!existingObj.ContainsKey(prop.Key) || existingObj[prop.Key] == null))
+							{
+								existingObj[prop.Key] = prop.Value.DeepClone();
+							}
+						}
+					}
+				}
+				metadataRoot["decals"] = normalizedDecals;
+			}
+
+			if (!metadataRoot.ContainsKey("shaders") || metadataRoot["shaders"] is not JsonObject)
+			{
+				metadataRoot["shaders"] = new JsonObject();
+			}
+			var shadersObj = metadataRoot["shaders"]!.AsObject();
+			var normalizedShaders = new JsonObject();
+			foreach (var kvp in shadersObj)
+			{
+				string rawKey = kvp.Key;
+				string slug = TemplateIDHelper.GenerateSlug(rawKey);
+				string normalizedId = TemplateIDHelper.NormalizeTemplateID("shader", slug);
+				var itemObj = kvp.Value as JsonObject ?? new JsonObject();
+				if (!normalizedShaders.ContainsKey(normalizedId))
+				{
+					normalizedShaders[normalizedId] = itemObj.DeepClone();
+				}
+			}
+
+			if (normalizedShaders.Count == 0)
+			{
+				normalizedShaders["shader/magic_blueprint"] = CreateDefaultShaderConfig("Magic Blueprint", 0, 0, "#00e5ffff", 0.06f, 6.0f, 12.0f, 0.4f, 3.0f, 0.0f, 0.9f, 1.2f);
+				normalizedShaders["shader/fire_demolish"] = CreateDefaultShaderConfig("Fire Ember Dissolve", 1, 1, "#ff590cff", 0.08f, 7.0f, 16.0f, 0.7f, 1.5f, 0.15f, 1.0f, 1.5f);
+				normalizedShaders["shader/hologram_warp"] = CreateDefaultShaderConfig("Hologram Scanlines", 2, 0, "#66ff33ff", 0.04f, 4.0f, 20.0f, 0.2f, 4.0f, 0.02f, 0.75f, 1.0f);
+				normalizedShaders["shader/earth_crumble"] = CreateDefaultShaderConfig("Earth Ground Crumble", 3, 1, "#99734cff", 0.05f, 2.0f, 8.0f, 0.8f, 1.0f, 0.25f, 1.0f, 1.1f);
+				normalizedShaders["shader/frost_crystallize"] = CreateDefaultShaderConfig("Frost Crystallize", 4, 2, "#b2e5ffff", 0.05f, 5.0f, 25.0f, 0.6f, 3.5f, 0.03f, 0.95f, 1.3f);
+				normalizedShaders["shader/shadow_void"] = CreateDefaultShaderConfig("Shadow Void Collapse", 5, 3, "#b219ffff", 0.07f, 8.0f, 14.0f, 0.9f, 2.0f, 0.18f, 1.0f, 1.4f);
+			}
+			metadataRoot["shaders"] = normalizedShaders;
+
 			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Migrating manifest.json asset keys to canonical categories..."));
 
 			string manifestPath = Path.Combine(mapDirectory, "manifest.json");
@@ -1017,6 +1082,59 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		return Task.Run(() => Up(mapDirectory, progress));
 	}
 
+	private static JsonObject CreateDefaultShaderConfig(
+		string name,
+		int transitionMode,
+		int direction,
+		string edgeColorHex,
+		float edgeWidth,
+		float edgeEmission,
+		float noiseScale,
+		float noiseRoughness,
+		float fresnelPower,
+		float vertexDisplacement,
+		float alphaFade,
+		float duration)
+	{
+		var inner = new JsonObject
+		{
+			["name"] = name,
+			["transition_mode"] = transitionMode,
+			["direction"] = direction,
+			["edge_color"] = edgeColorHex,
+			["edge_width"] = edgeWidth,
+			["edge_emission"] = edgeEmission,
+			["noise_scale"] = noiseScale,
+			["noise_roughness"] = noiseRoughness,
+			["fresnel_power"] = fresnelPower,
+			["vertex_displacement"] = vertexDisplacement,
+			["alpha_fade"] = alphaFade,
+			["duration"] = duration,
+			["asset_type"] = "Shader"
+		};
+		return new JsonObject
+		{
+			["ConfigJson"] = inner.ToJsonString()
+		};
+	}
+
+	private static bool ModelExistsInOtherCategories(JsonObject templatesObj, string fileName, string slug)
+	{
+		var categoryNames = new[] { "Units", "Buildings", "Resources", "Props" };
+		foreach (var cat in categoryNames)
+		{
+			if (templatesObj.TryGetPropertyValue(cat, out var catNode) && catNode is JsonArray arr)
+			{
+				bool found = arr.OfType<JsonObject>().Any(item =>
+					string.Equals(item["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(TemplateIDHelper.GenerateSlug(item["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(TemplateIDHelper.GenerateSlug(item["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase));
+				if (found) return true;
+			}
+		}
+		return false;
+	}
+
 	private static void EnsureTemplateForManifestAsset(JsonObject metadataRoot, JsonObject templatesObj, string category, string fileName, string hash)
 	{
 		if (string.IsNullOrWhiteSpace(fileName)) return;
@@ -1036,7 +1154,10 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					var unitsArr = templatesObj["Units"]!.AsArray();
 					bool exists = unitsArr.OfType<JsonObject>().Any(u =>
 						string.Equals(u["TemplateID"]?.ToString(), unitTemplateId, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(u["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+						string.Equals(TemplateIDHelper.GenerateSlug(u["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(u["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(TemplateIDHelper.GenerateSlug(u["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase))
+						|| ModelExistsInOtherCategories(templatesObj, fileName, slug);
 					if (!exists)
 					{
 						unitsArr.Add(new JsonObject
@@ -1064,7 +1185,10 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					var buildingsArr = templatesObj["Buildings"]!.AsArray();
 					bool exists = buildingsArr.OfType<JsonObject>().Any(b =>
 						string.Equals(b["TemplateID"]?.ToString(), buildingTemplateId, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(b["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+						string.Equals(TemplateIDHelper.GenerateSlug(b["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(b["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(TemplateIDHelper.GenerateSlug(b["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase))
+						|| ModelExistsInOtherCategories(templatesObj, fileName, slug);
 					if (!exists)
 					{
 						buildingsArr.Add(new JsonObject
@@ -1092,7 +1216,10 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					var propsArr = templatesObj["Props"]!.AsArray();
 					bool exists = propsArr.OfType<JsonObject>().Any(p =>
 						string.Equals(p["TemplateID"]?.ToString(), propTemplateId, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(p["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+						string.Equals(TemplateIDHelper.GenerateSlug(p["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(p["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(TemplateIDHelper.GenerateSlug(p["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase))
+						|| ModelExistsInOtherCategories(templatesObj, fileName, slug);
 					if (!exists)
 					{
 						propsArr.Add(new JsonObject
@@ -1121,7 +1248,10 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					var resourcesArr = templatesObj["Resources"]!.AsArray();
 					bool exists = resourcesArr.OfType<JsonObject>().Any(r =>
 						string.Equals(r["TemplateID"]?.ToString(), resourceTemplateId, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(r["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase));
+						string.Equals(TemplateIDHelper.GenerateSlug(r["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(r["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(TemplateIDHelper.GenerateSlug(r["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase))
+						|| ModelExistsInOtherCategories(templatesObj, fileName, slug);
 					if (!exists)
 					{
 						resourcesArr.Add(new JsonObject
@@ -1150,7 +1280,14 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					var decalsObj = metadataRoot["decals"]!.AsObject();
 					bool exists = decalsObj.Any(kvp =>
 						string.Equals(kvp.Key, decalTemplateId, StringComparison.OrdinalIgnoreCase) ||
-						(kvp.Value is JsonObject dObj && string.Equals(dObj["TexturePath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase)));
+						string.Equals(kvp.Key, slug, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(kvp.Key, fileName, StringComparison.OrdinalIgnoreCase) ||
+						string.Equals(TemplateIDHelper.GenerateSlug(kvp.Key), slug, StringComparison.OrdinalIgnoreCase) ||
+						(kvp.Value is JsonObject dObj && (
+							string.Equals(dObj["TexturePath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
+							string.Equals(dObj["TexturePath"]?.ToString(), slug, StringComparison.OrdinalIgnoreCase) ||
+							string.Equals(TemplateIDHelper.GenerateSlug(dObj["TexturePath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase)
+						)));
 					if (!exists)
 					{
 						decalsObj[decalTemplateId] = new JsonObject

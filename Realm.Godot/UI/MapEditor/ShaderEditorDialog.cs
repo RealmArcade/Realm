@@ -166,7 +166,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		_optPreset.AddThemeFontSizeOverride("font_size", 11);
 		_optPreset.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		int pIdx = 0;
-		foreach (var kvp in SpawnDeathShaderManager.GetDefaultPresets())
+		foreach (var kvp in SpawnDeathShaderManager.LoadAllCustomShaders())
 		{
 			_optPreset.AddItem(kvp.Value.Name, pIdx);
 			_optPreset.SetItemMetadata(pIdx, kvp.Key);

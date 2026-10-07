@@ -131,106 +131,6 @@ public static class SpawnDeathShaderManager
 	private const string ShaderPath = "res://Assets/shaders/universal_dissolve_spatial.gdshader";
 	private static Shader _shader;
 
-	private static readonly Dictionary<string, CustomShaderConfig> _defaultPresets = new(StringComparer.OrdinalIgnoreCase)
-	{
-		["magic_blueprint"] = new CustomShaderConfig
-		{
-			Key = "magic_blueprint",
-			Name = "Magic Blueprint",
-			TransitionMode = 0,
-			Direction = 0,
-			EdgeColor = new Color(0.0f, 0.9f, 1.0f, 1.0f),
-			EdgeWidth = 0.06f,
-			EdgeEmission = 6.0f,
-			NoiseScale = 12.0f,
-			NoiseRoughness = 0.4f,
-			FresnelPower = 3.0f,
-			VertexDisplacement = 0.0f,
-			AlphaFade = 0.9f,
-			Duration = 1.2f
-		},
-		["fire_demolish"] = new CustomShaderConfig
-		{
-			Key = "fire_demolish",
-			Name = "Fire Ember Dissolve",
-			TransitionMode = 1,
-			Direction = 1,
-			EdgeColor = new Color(1.0f, 0.35f, 0.05f, 1.0f),
-			EdgeWidth = 0.08f,
-			EdgeEmission = 7.0f,
-			NoiseScale = 16.0f,
-			NoiseRoughness = 0.7f,
-			FresnelPower = 1.5f,
-			VertexDisplacement = 0.15f,
-			AlphaFade = 1.0f,
-			Duration = 1.5f
-		},
-		["hologram_warp"] = new CustomShaderConfig
-		{
-			Key = "hologram_warp",
-			Name = "Hologram Scanlines",
-			TransitionMode = 2,
-			Direction = 0,
-			EdgeColor = new Color(0.4f, 1.0f, 0.2f, 1.0f),
-			EdgeWidth = 0.04f,
-			EdgeEmission = 4.0f,
-			NoiseScale = 20.0f,
-			NoiseRoughness = 0.2f,
-			FresnelPower = 4.0f,
-			VertexDisplacement = 0.02f,
-			AlphaFade = 0.75f,
-			Duration = 1.0f
-		},
-		["earth_crumble"] = new CustomShaderConfig
-		{
-			Key = "earth_crumble",
-			Name = "Earth Ground Crumble",
-			TransitionMode = 3,
-			Direction = 1,
-			EdgeColor = new Color(0.6f, 0.45f, 0.3f, 1.0f),
-			EdgeWidth = 0.05f,
-			EdgeEmission = 2.0f,
-			NoiseScale = 8.0f,
-			NoiseRoughness = 0.8f,
-			FresnelPower = 1.0f,
-			VertexDisplacement = 0.25f,
-			AlphaFade = 1.0f,
-			Duration = 1.1f
-		},
-		["frost_crystallize"] = new CustomShaderConfig
-		{
-			Key = "frost_crystallize",
-			Name = "Frost Crystallize",
-			TransitionMode = 4,
-			Direction = 2,
-			EdgeColor = new Color(0.7f, 0.9f, 1.0f, 1.0f),
-			EdgeWidth = 0.05f,
-			EdgeEmission = 5.0f,
-			NoiseScale = 25.0f,
-			NoiseRoughness = 0.6f,
-			FresnelPower = 3.5f,
-			VertexDisplacement = 0.03f,
-			AlphaFade = 0.95f,
-			Duration = 1.3f
-		},
-		["shadow_void"] = new CustomShaderConfig
-		{
-			Key = "shadow_void",
-			Name = "Shadow Void Collapse",
-			TransitionMode = 5,
-			Direction = 3,
-			EdgeColor = new Color(0.7f, 0.1f, 1.0f, 1.0f),
-			EdgeWidth = 0.07f,
-			EdgeEmission = 8.0f,
-			NoiseScale = 14.0f,
-			NoiseRoughness = 0.9f,
-			FresnelPower = 2.0f,
-			VertexDisplacement = 0.18f,
-			AlphaFade = 1.0f,
-			Duration = 1.4f
-		}
-	};
-
 	public static Shader GetOrCreateShader()
 	{
 		if (_shader != null && GodotObject.IsInstanceValid(_shader))
@@ -242,16 +142,9 @@ public static class SpawnDeathShaderManager
 		return _shader;
 	}
 
-	public static Dictionary<string, CustomShaderConfig> GetDefaultPresets() => _defaultPresets;
-
 	public static Dictionary<string, CustomShaderConfig> LoadAllCustomShaders(string workspacePath = null)
 	{
 		var result = new Dictionary<string, CustomShaderConfig>(StringComparer.OrdinalIgnoreCase);
-
-		foreach (var kvp in _defaultPresets)
-		{
-			result[kvp.Key] = kvp.Value.Clone();
-		}
 
 		string wsPath = !string.IsNullOrEmpty(workspacePath)
 			? workspacePath
@@ -299,9 +192,10 @@ public static class SpawnDeathShaderManager
 		{
 			return cfg;
 		}
-		if (_defaultPresets.TryGetValue(shaderKey, out var def))
+		string normalizedKey = TemplateIDHelper.NormalizeTemplateID("shader", shaderKey);
+		if (all.TryGetValue(normalizedKey, out var normCfg))
 		{
-			return def.Clone();
+			return normCfg;
 		}
 		return null;
 	}
@@ -512,7 +406,16 @@ public static class SpawnDeathShaderManager
 			return;
 		}
 
-		var config = GetShaderConfig(shaderKey) ?? _defaultPresets[isSpawn ? "magic_blueprint" : "fire_demolish"];
+		var config = GetShaderConfig(shaderKey)
+			?? GetShaderConfig(isSpawn ? "shader/magic_blueprint" : "shader/fire_demolish")
+			?? LoadAllCustomShaders().Values.FirstOrDefault()
+			?? new CustomShaderConfig
+			{
+				Key = isSpawn ? "shader/magic_blueprint" : "shader/fire_demolish",
+				Name = isSpawn ? "Magic Blueprint" : "Fire Ember Dissolve",
+				TransitionMode = isSpawn ? 0 : 1,
+				Duration = 1.0f
+			};
 		float duration = durationOverride ?? config.Duration;
 		if (duration <= 0.05f) duration = 0.05f;
 
