@@ -191,8 +191,6 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 
 			metadataRoot["GameBuildNumber"] = ToVersion;
 
-			SaveLoadService.CleanMetadataJsonSchema(metadataRoot);
-
 			progress?.Report(new MigrationProgressUpdate(Description, 6, totalSteps, "Saving migrated metadata.json..."));
 			MapJsonFormatter.SaveFormattedJson(metadataPath, metadataRoot);
 
@@ -649,7 +647,6 @@ public class Migration_0_0_2_NormalizeModelProperties : IMapMigration
 			}
 
 			metadataRoot["GameBuildNumber"] = ToVersion;
-			SaveLoadService.CleanMetadataJsonSchema(metadataRoot);
 
 			progress?.Report(new MigrationProgressUpdate(Description, 2, totalSteps, "Saving migrated metadata.json..."));
 			MapJsonFormatter.SaveFormattedJson(metadataPath, metadataRoot);
@@ -779,7 +776,6 @@ public class Migration_0_0_3_WaterProfilesAndShaders : IMapMigration
 			progress?.Report(new MigrationProgressUpdate(Description, 3, totalSteps, "Updating map build number and saving metadata.json..."));
 
 			metadataRoot["GameBuildNumber"] = ToVersion;
-			SaveLoadService.CleanMetadataJsonSchema(metadataRoot);
 
 			MapJsonFormatter.SaveFormattedJson(metadataPath, metadataRoot);
 
@@ -1066,7 +1062,6 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			progress?.Report(new MigrationProgressUpdate(Description, 3, totalSteps, "Updating map build number and saving metadata.json..."));
 
 			metadataRoot["GameBuildNumber"] = ToVersion;
-			SaveLoadService.CleanMetadataJsonSchema(metadataRoot);
 
 			MapJsonFormatter.SaveFormattedJson(metadataPath, metadataRoot);
 
@@ -1414,6 +1409,25 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					if (!exists)
 					{
 						skyboxesObj[skyboxTemplateId] = new JsonObject
+						{
+							["Hash"] = hash ?? string.Empty
+						};
+					}
+					break;
+				}
+
+			case "shader" or "shaders" or "gdshader":
+				{
+					string gdshaderTemplateId = TemplateIDHelper.NormalizeTemplateID("gdshader", slug);
+					if (!metadataRoot.ContainsKey("gdshader") || metadataRoot["gdshader"] is not JsonObject)
+					{
+						metadataRoot["gdshader"] = new JsonObject();
+					}
+					var gdshadersObj = metadataRoot["gdshader"]!.AsObject();
+					bool exists = gdshadersObj.Any(kvp => string.Equals(kvp.Key, gdshaderTemplateId, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						gdshadersObj[gdshaderTemplateId] = new JsonObject
 						{
 							["Hash"] = hash ?? string.Empty
 						};

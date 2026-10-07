@@ -944,14 +944,27 @@
 		}
 	},
 	"ribbons": {},
-	"shaders": {
-		"shader/earth_crumble": {},
-		"shader/fire_demolish": {},
-		"shader/frost_crystallize": {},
-		"shader/hologram_warp": {},
-		"shader/magic_blueprint": {},
-		"shader/shadow_void": {}
+	"SpawnShader": {
+		"SpawnShader/earth_crumble": {
+			"ConfigJson": "{\"name\":\"Earth Ground Crumble\",\"transition_mode\":3,\"direction\":1,\"edge_color\":\"#99734cff\",\"edge_width\":0.05,\"edge_emission\":2,\"noise_scale\":8,\"noise_roughness\":0.8,\"fresnel_power\":1,\"vertex_displacement\":0.25,\"alpha_fade\":1,\"duration\":1.1,\"asset_type\":\"SpawnShader\"}"
+		},
+		"SpawnShader/fire_demolish": {
+			"ConfigJson": "{\"name\":\"Fire Ember Dissolve\",\"transition_mode\":1,\"direction\":1,\"edge_color\":\"#ff590cff\",\"edge_width\":0.08,\"edge_emission\":7,\"noise_scale\":16,\"noise_roughness\":0.7,\"fresnel_power\":1.5,\"vertex_displacement\":0.15,\"alpha_fade\":1,\"duration\":1.5,\"asset_type\":\"SpawnShader\"}"
+		},
+		"SpawnShader/frost_crystallize": {
+			"ConfigJson": "{\"name\":\"Frost Crystallize\",\"transition_mode\":4,\"direction\":2,\"edge_color\":\"#b2e5ffff\",\"edge_width\":0.05,\"edge_emission\":5,\"noise_scale\":25,\"noise_roughness\":0.6,\"fresnel_power\":3.5,\"vertex_displacement\":0.03,\"alpha_fade\":0.95,\"duration\":1.3,\"asset_type\":\"SpawnShader\"}"
+		},
+		"SpawnShader/hologram_warp": {
+			"ConfigJson": "{\"name\":\"Hologram Scanlines\",\"transition_mode\":2,\"direction\":0,\"edge_color\":\"#66ff33ff\",\"edge_width\":0.04,\"edge_emission\":4,\"noise_scale\":20,\"noise_roughness\":0.2,\"fresnel_power\":4,\"vertex_displacement\":0.02,\"alpha_fade\":0.75,\"duration\":1,\"asset_type\":\"SpawnShader\"}"
+		},
+		"SpawnShader/magic_blueprint": {
+			"ConfigJson": "{\"name\":\"Magic Blueprint\",\"transition_mode\":0,\"direction\":0,\"edge_color\":\"#00e5ffff\",\"edge_width\":0.06,\"edge_emission\":6,\"noise_scale\":12,\"noise_roughness\":0.4,\"fresnel_power\":3,\"vertex_displacement\":0,\"alpha_fade\":0.9,\"duration\":1.2,\"asset_type\":\"SpawnShader\"}"
+		},
+		"SpawnShader/shadow_void": {
+			"ConfigJson": "{\"name\":\"Shadow Void Collapse\",\"transition_mode\":5,\"direction\":3,\"edge_color\":\"#b219ffff\",\"edge_width\":0.07,\"edge_emission\":8,\"noise_scale\":14,\"noise_roughness\":0.9,\"fresnel_power\":2,\"vertex_displacement\":0.18,\"alpha_fade\":1,\"duration\":1.4,\"asset_type\":\"SpawnShader\"}"
+		}
 	},
+	"gdshader": {},
 	"skyboxes": {
 		"skybox/jade_shrine": {
 			"Hash": "128fbaed7adbb0d6fd54edb36808fcc3991b478a927e144323d7896cae71c93e"

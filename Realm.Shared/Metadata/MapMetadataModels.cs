@@ -104,8 +104,11 @@ public class MapMetadata
 	[JsonPropertyName("ribbons")]
 	public Dictionary<string, RibbonMetadata> Ribbons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("shaders")]
-	public Dictionary<string, ShaderMetadata> Shaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("SpawnShader")]
+	public Dictionary<string, ShaderMetadata> SpawnShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+	[JsonPropertyName("gdshader")]
+	public Dictionary<string, ShaderMetadata> GdShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
 	[JsonExtensionData]
 	public Dictionary<string, JsonElement>? ExtensionData { get; set; }

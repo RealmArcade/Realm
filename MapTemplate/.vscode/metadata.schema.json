@@ -3083,7 +3083,7 @@
         }
       }
     },
-    "shaders": {
+    "SpawnShader": {
       "type": "object",
       "additionalProperties": {
         "type": [
@@ -3101,6 +3101,12 @@
             ]
           }
         }
+      }
+    },
+    "gdshader": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/properties/SpawnShader/additionalProperties"
       }
     }
   }

@@ -162,7 +162,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		rowId.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Text = "shader/";
+		_lblObjectTypePrefix.Text = "SpawnShader/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		rowId.AddChild(_lblObjectTypePrefix);
@@ -174,7 +174,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		_txtSlug.TextChanged += (val) =>
 		{
 			_slug = TemplateIDHelper.ToSnakeCase(val);
-			_config.Key = TemplateIDHelper.NormalizeTemplateID("shader", _slug);
+			_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
 		};
 		rowId.AddChild(_txtSlug);
 		configVBox.AddChild(rowId);
@@ -638,7 +638,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
 		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = "custom_shader";
 		_slug = finalSlug;
-		_config.Key = TemplateIDHelper.NormalizeTemplateID("shader", _slug);
+		_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{
 			_config.Name = _slug;

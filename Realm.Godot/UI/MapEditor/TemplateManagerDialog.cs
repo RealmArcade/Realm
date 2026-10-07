@@ -753,12 +753,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				}
 				break;
 
-			case "shaders" or "shader":
-				if (meta.Shaders != null)
+			case "shaders" or "shader" or "spawnshader" or "spawnshaders":
+				if (meta.SpawnShaders != null)
 				{
-					foreach (var kvp in meta.Shaders)
+					foreach (var kvp in meta.SpawnShaders)
 					{
-						string normalizedId = TemplateIDHelper.NormalizeTemplateID("shader", kvp.Key);
+						string normalizedId = TemplateIDHelper.NormalizeTemplateID("SpawnShader", kvp.Key);
 						var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
 						list.Add(new ObjectItemInfo
 						{
@@ -1112,23 +1112,23 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				});
 				break;
 
-			case "shaders" or "shader":
+			case "shaders" or "shader" or "spawnshader" or "spawnshaders":
 				string wsPathSha = MapWorkspaceService.GetActiveWorkspacePath();
 				_shaderEditDialog.OpenForShader(item.TemplateID, updatedConfig =>
 				{
 					MetadataService.Instance.UpdateMetadata(wsPathSha, m =>
 					{
-						m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
+						m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
 						if (!string.Equals(item.TemplateID, updatedConfig.Key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
 						{
-							m.Shaders.Remove(item.TemplateID);
+							m.SpawnShaders.Remove(item.TemplateID);
 							var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
 							if (!string.IsNullOrEmpty(oldSlug))
 							{
-								m.Shaders.Remove(oldSlug);
+								m.SpawnShaders.Remove(oldSlug);
 							}
 						}
-						m.Shaders[updatedConfig.Key] = new ShaderMetadata
+						m.SpawnShaders[updatedConfig.Key] = new ShaderMetadata
 						{
 							ConfigJson = updatedConfig.ToJsonObject().ToJsonString()
 						};
@@ -1175,7 +1175,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			"terrain" => "terrain",
 			"spritesheets" => "spritesheet",
 			"decals" => "decal",
-			"shaders" or "shader" => "shader",
+			"shaders" or "shader" or "spawnshader" or "spawnshaders" => "SpawnShader",
 			_ => "unit"
 		};
 
@@ -1328,14 +1328,14 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					m.Decals[newTemplateID] = new DecalMetadata();
 					break;
 
-				case "shaders" or "shader":
-					m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
+				case "shaders" or "shader" or "spawnshader" or "spawnshaders":
+					m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
 					var defaultCfg = new CustomShaderConfig
 					{
 						Key = newTemplateID,
 						Name = parsedSlug
 					};
-					m.Shaders[newTemplateID] = new ShaderMetadata
+					m.SpawnShaders[newTemplateID] = new ShaderMetadata
 					{
 						ConfigJson = defaultCfg.ToJsonObject().ToJsonString()
 					};
@@ -1498,18 +1498,18 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						}
 						break;
 
-					case "shaders" or "shader":
-						if (meta.Shaders != null)
+					case "shaders" or "shader" or "spawnshader" or "spawnshaders":
+						if (meta.SpawnShaders != null)
 						{
-							var keysToRemove = meta.Shaders.Keys.Where(k =>
+							var keysToRemove = meta.SpawnShaders.Keys.Where(k =>
 								string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
 								string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
-								string.Equals(TemplateIDHelper.NormalizeTemplateID("shader", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+								string.Equals(TemplateIDHelper.NormalizeTemplateID("SpawnShader", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
 							).ToList();
 
 							foreach (var k in keysToRemove)
 							{
-								meta.Shaders.Remove(k);
+								meta.SpawnShaders.Remove(k);
 							}
 						}
 						break;

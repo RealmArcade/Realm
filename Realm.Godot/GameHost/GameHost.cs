@@ -2876,31 +2876,14 @@ public class {mapName} : IMapScript
 		try
 		{
 			string dir = !string.IsNullOrEmpty(CurrentMapDirectory) ? CurrentMapDirectory : Godot.ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			string metaPath = System.IO.Path.Combine(dir, "metadata.json");
-			if (!System.IO.File.Exists(metaPath)) return;
-
-			string json = System.IO.File.ReadAllText(metaPath);
-			var root = System.Text.Json.Nodes.JsonNode.Parse(json)?.AsObject();
-			if (root == null) return;
-
-			var unitsArr = root["Templates"]?["Units"]?.AsArray();
-			if (unitsArr != null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(dir);
+			var unit = metadata.GetUnit(unitId);
+			if (unit != null)
 			{
-				for (int i = 0; i < unitsArr.Count; i++)
-				{
-					var uObj = unitsArr[i]?.AsObject();
-					if (uObj != null && uObj["UnitId"]?.ToString() == unitId)
-					{
-						var animsJson = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(animations, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
-						uObj["Animations"] = animsJson;
-						break;
-					}
-				}
+				unit.Animations = animations;
+				Realm.Shared.Services.MapFileService.SaveMetadata(dir, metadata);
+				LoadUnitMetadata(dir);
 			}
-
-			SaveLoadService.CleanMetadataJsonSchema(root);
-			MapJsonFormatter.SaveFormattedJson(metaPath, root);
-			LoadUnitMetadata(dir);
 		}
 		catch (Exception ex)
 		{

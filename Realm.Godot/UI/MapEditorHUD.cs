@@ -5748,7 +5748,6 @@ public partial class MapEditorHUD : Control
 					if (metaDoc != null)
 					{
 						metaDoc["EngineVersion"] = RealmVersion.GameBinaryVersion;
-						SaveLoadService.CleanMetadataJsonSchema(metaDoc);
 						MapJsonFormatter.SaveFormattedJson(activeConfigPath, metaDoc);
 					}
 				}

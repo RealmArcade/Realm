@@ -25,7 +25,7 @@ public class CustomShaderConfig
 	public float VertexDisplacement { get; set; } = 0.0f;
 	public float AlphaFade { get; set; } = 1.0f;
 	public float Duration { get; set; } = 1.2f;
-	public string? AssetType { get; set; } = "Shader";
+	public string? AssetType { get; set; } = "SpawnShader";
 	public string? Hash { get; set; }
 
 	public CustomShaderConfig Clone()
@@ -44,7 +44,9 @@ public class CustomShaderConfig
 			FresnelPower = this.FresnelPower,
 			VertexDisplacement = this.VertexDisplacement,
 			AlphaFade = this.AlphaFade,
-			Duration = this.Duration
+			Duration = this.Duration,
+			AssetType = this.AssetType,
+			Hash = this.Hash
 		};
 	}
 
@@ -64,7 +66,7 @@ public class CustomShaderConfig
 			["vertex_displacement"] = VertexDisplacement,
 			["alpha_fade"] = AlphaFade,
 			["duration"] = Duration,
-			["asset_type"] = "Shader"
+			["asset_type"] = "SpawnShader"
 		};
 	}
 
@@ -153,9 +155,9 @@ public static class SpawnDeathShaderManager
 		try
 		{
 			var metadata = MapFileService.LoadMetadata(wsPath);
-			if (metadata?.Shaders != null)
+			if (metadata?.SpawnShaders != null)
 			{
-				foreach (var kvp in metadata.Shaders)
+				foreach (var kvp in metadata.SpawnShaders)
 				{
 					if (!string.IsNullOrEmpty(kvp.Value?.ConfigJson))
 					{
@@ -192,7 +194,7 @@ public static class SpawnDeathShaderManager
 		{
 			return cfg;
 		}
-		string normalizedKey = TemplateIDHelper.NormalizeTemplateID("shader", shaderKey);
+		string normalizedKey = TemplateIDHelper.NormalizeTemplateID("SpawnShader", shaderKey);
 		if (all.TryGetValue(normalizedKey, out var normCfg))
 		{
 			return normCfg;
@@ -210,8 +212,8 @@ public static class SpawnDeathShaderManager
 
 		MetadataService.Instance.UpdateMetadata(wsPath, m =>
 		{
-			m.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
-			m.Shaders[config.Key] = new ShaderMetadata
+			m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+			m.SpawnShaders[config.Key] = new ShaderMetadata
 			{
 				ConfigJson = config.ToJsonObject().ToJsonString()
 			};
@@ -407,11 +409,11 @@ public static class SpawnDeathShaderManager
 		}
 
 		var config = GetShaderConfig(shaderKey)
-			?? GetShaderConfig(isSpawn ? "shader/magic_blueprint" : "shader/fire_demolish")
+			?? GetShaderConfig(isSpawn ? "SpawnShader/magic_blueprint" : "SpawnShader/fire_demolish")
 			?? LoadAllCustomShaders().Values.FirstOrDefault()
 			?? new CustomShaderConfig
 			{
-				Key = isSpawn ? "shader/magic_blueprint" : "shader/fire_demolish",
+				Key = isSpawn ? "SpawnShader/magic_blueprint" : "SpawnShader/fire_demolish",
 				Name = isSpawn ? "Magic Blueprint" : "Fire Ember Dissolve",
 				TransitionMode = isSpawn ? 0 : 1,
 				Duration = 1.0f

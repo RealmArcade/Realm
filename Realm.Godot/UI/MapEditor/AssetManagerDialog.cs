@@ -1106,7 +1106,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 							{
 								var config = CustomShaderConfig.FromJson(kvp.Key, kvp.Value);
 								SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
-								EnsureTemplateForAsset(wsPath, "Shader", config.Key, string.Empty);
+								EnsureTemplateForAsset(wsPath, "SpawnShader", config.Key, string.Empty);
 								lastKey = config.Key;
 								count++;
 							}
@@ -1123,7 +1123,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 							: (rootObj.TryGetPropertyValue("Key", out var keyNodeCap) && !string.IsNullOrWhiteSpace(keyNodeCap?.ToString()) ? keyNodeCap.ToString() : defaultKey);
 						var config = CustomShaderConfig.FromJson(key, rootObj);
 						SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
-						EnsureTemplateForAsset(wsPath, "Shader", config.Key, string.Empty);
+						EnsureTemplateForAsset(wsPath, "SpawnShader", config.Key, string.Empty);
 						RefreshAssetListAndSelect(config.Key);
 						Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), config.Name));
 						return;
@@ -1133,23 +1133,14 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			else if (ext is ".gdshader" or ".shader")
 			{
 				string fileName = Path.GetFileName(sourceFilePath);
-				string shaderKey = Path.GetFileNameWithoutExtension(sourceFilePath).ToLowerInvariant().Replace(" ", "_");
-				string shaderName = Path.GetFileNameWithoutExtension(sourceFilePath);
-
 				string targetDir = Path.Combine(wsPath, "Assets", "shaders");
 				Directory.CreateDirectory(targetDir);
 				string destPath = Path.Combine(targetDir, fileName);
 				File.Copy(sourceFilePath, destPath, true);
 
-				var config = new CustomShaderConfig
-				{
-					Key = shaderKey,
-					Name = shaderName
-				};
-				SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
 				EnsureTemplateForAsset(wsPath, "Shader", fileName, string.Empty);
-				RefreshAssetListAndSelect(config.Key);
-				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), config.Name));
+				RefreshAssetListAndSelect(fileName);
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported shader '{0}' successfully."), fileName));
 				return;
 			}
 
@@ -1507,12 +1498,24 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						}
 						break;
 
-					case "shader" or "shaders":
-						string shaderTemplateId = TemplateIDHelper.NormalizeTemplateID("shader", slug);
-						meta.Shaders ??= new(StringComparer.OrdinalIgnoreCase);
-						if (!meta.Shaders.ContainsKey(shaderTemplateId))
+					case "shader" or "shaders" or "gdshader":
+						string gdshaderTemplateId = TemplateIDHelper.NormalizeTemplateID("gdshader", slug);
+						meta.GdShaders ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.GdShaders.ContainsKey(gdshaderTemplateId))
 						{
-							meta.Shaders[shaderTemplateId] = new ShaderMetadata
+							meta.GdShaders[gdshaderTemplateId] = new ShaderMetadata
+							{
+								Hash = hash ?? string.Empty
+							};
+						}
+						break;
+
+					case "spawnshader" or "spawnshaders":
+						string spawnShaderTemplateId = TemplateIDHelper.NormalizeTemplateID("SpawnShader", slug);
+						meta.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+						if (!meta.SpawnShaders.ContainsKey(spawnShaderTemplateId))
+						{
+							meta.SpawnShaders[spawnShaderTemplateId] = new ShaderMetadata
 							{
 								Hash = hash ?? string.Empty
 							};
