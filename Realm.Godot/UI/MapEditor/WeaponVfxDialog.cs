@@ -181,7 +181,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			(snd) => PlaySound(snd)
 		);
 
-		var (impactInput, setImpactValue) = AddAssetFilterDropdown(
+		AddAssetFilterDropdown(
 			scrollBody,
 			TranslationServer.Translate("Impact Visual VFX"),
 			_currentWeapon.ImpactVisualEffect ?? "",
@@ -195,25 +195,10 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			140f
 		);
 
-		var impactBtnRow = new HBoxContainer();
-		impactBtnRow.AddThemeConstantOverride("separation", 6);
-		var impactSpacer = new Control { CustomMinimumSize = new Vector2(140f, 0) };
-		impactBtnRow.AddChild(impactSpacer);
-		AddButton(impactBtnRow, "✨ " + TranslationServer.Translate("VFX Studio (Impact)"), () =>
-		{
-			Hud?.OpenVfxStudioDialog(null, (cfg) =>
-			{
-				string key = $"vfx:{cfg.VfxId}";
-				_currentWeapon.ImpactVisualEffect = key;
-				setImpactValue?.Invoke(key);
-			});
-		}, "Open Procedural VFX Studio to create or edit impact VFX", 10, new Vector2(180, 24));
-		scrollBody.AddChild(impactBtnRow);
-
 		// SECTION 2: PROGRAMMATIC PROJECTILE MOVEMENT
 		AddSectionHeader(scrollBody, "🚀 " + TranslationServer.Translate("PROJECTILE MOVEMENT"), new Color(0.35f, 0.6f, 0.85f));
 
-		var (modelInput, setModelValue) = AddAssetFilterDropdown(
+		AddAssetFilterDropdown(
 			scrollBody,
 			TranslationServer.Translate("3D Model / VFX"),
 			_currentWeapon.ProjectileModelPath ?? "",
@@ -228,22 +213,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			140f,
 			true
 		);
-
-		var modelBtnRow = new HBoxContainer();
-		modelBtnRow.AddThemeConstantOverride("separation", 6);
-		var modelSpacer = new Control { CustomMinimumSize = new Vector2(140f, 0) };
-		modelBtnRow.AddChild(modelSpacer);
-		AddButton(modelBtnRow, "✨ " + TranslationServer.Translate("VFX Studio (Projectile)"), () =>
-		{
-			Hud?.OpenVfxStudioDialog(null, (cfg) =>
-			{
-				string key = $"vfx:{cfg.VfxId}";
-				_currentWeapon.ProjectileModelPath = key;
-				setModelValue?.Invoke(key);
-				RestartPreviewProjectile();
-			});
-		}, "Open Procedural VFX Studio to create or edit projectile VFX", 10, new Vector2(180, 24));
-		scrollBody.AddChild(modelBtnRow);
 
 		AddSlider(scrollBody, TranslationServer.Translate("Speed (Units/s)"), 0f, 100f, 1f, _currentWeapon.ProjectileSpeed > 0 ? _currentWeapon.ProjectileSpeed : 25f, (val) =>
 		{
