@@ -1,0 +1,596 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "Width": {
+      "type": "integer"
+    },
+    "Depth": {
+      "type": "integer"
+    },
+    "Units": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "TemplateId": {
+            "type": "string"
+          },
+          "PosX": {
+            "type": "number"
+          },
+          "PosY": {
+            "type": "number"
+          },
+          "PosZ": {
+            "type": "number"
+          },
+          "RotationY": {
+            "type": "number"
+          },
+          "Scale": {
+            "type": "number"
+          },
+          "IsEnemy": {
+            "type": "boolean"
+          },
+          "Player": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "Props": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "TemplateId": {
+            "type": "string"
+          },
+          "PosX": {
+            "type": "number"
+          },
+          "PosY": {
+            "type": "number"
+          },
+          "PosZ": {
+            "type": "number"
+          },
+          "RotationY": {
+            "type": "number"
+          },
+          "Scale": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "Decals": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "TemplateId": {
+            "type": "string"
+          },
+          "PosX": {
+            "type": "number"
+          },
+          "PosY": {
+            "type": "number"
+          },
+          "PosZ": {
+            "type": "number"
+          },
+          "RotationX": {
+            "type": "number"
+          },
+          "RotationY": {
+            "type": "number"
+          },
+          "RotationZ": {
+            "type": "number"
+          },
+          "Scale": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "Vfx": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "VfxId": {
+            "type": "string"
+          },
+          "PosX": {
+            "type": "number"
+          },
+          "PosY": {
+            "type": "number"
+          },
+          "PosZ": {
+            "type": "number"
+          },
+          "RotationX": {
+            "type": "number"
+          },
+          "RotationY": {
+            "type": "number"
+          },
+          "RotationZ": {
+            "type": "number"
+          },
+          "ScaleX": {
+            "type": "number"
+          },
+          "ScaleY": {
+            "type": "number"
+          },
+          "ScaleZ": {
+            "type": "number"
+          },
+          "NormalOffset": {
+            "type": "number"
+          },
+          "Config": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "VfxId": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "PrimitiveType": {
+                "type": "integer"
+              },
+              "ParticleConfig": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "ParticleId": {
+                    "type": "string"
+                  },
+                  "Name": {
+                    "type": "string"
+                  },
+                  "Amount": {
+                    "type": "integer"
+                  },
+                  "Lifetime": {
+                    "type": "number"
+                  },
+                  "Explosiveness": {
+                    "type": "number"
+                  },
+                  "Randomness": {
+                    "type": "number"
+                  },
+                  "LocalCoords": {
+                    "type": "boolean"
+                  },
+                  "EmitterShape": {
+                    "type": "integer"
+                  },
+                  "SphereRadius": {
+                    "type": "number"
+                  },
+                  "BoxExtents": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "RingRadius": {
+                    "type": "number"
+                  },
+                  "RingInnerRadius": {
+                    "type": "number"
+                  },
+                  "RingHeight": {
+                    "type": "number"
+                  },
+                  "Direction": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "SpreadDegrees": {
+                    "type": "number"
+                  },
+                  "InitialVelocityMin": {
+                    "type": "number"
+                  },
+                  "InitialVelocityMax": {
+                    "type": "number"
+                  },
+                  "Gravity": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "LinearAccel": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "RadialAccel": {
+                    "type": "number"
+                  },
+                  "TangentialAccel": {
+                    "type": "number"
+                  },
+                  "Damping": {
+                    "type": "number"
+                  },
+                  "InitialScaleMin": {
+                    "type": "number"
+                  },
+                  "InitialScaleMax": {
+                    "type": "number"
+                  },
+                  "EndScaleRatio": {
+                    "type": "number"
+                  },
+                  "ColorStart": {
+                    "type": "string"
+                  },
+                  "ColorMid": {
+                    "type": "string"
+                  },
+                  "ColorEnd": {
+                    "type": "string"
+                  },
+                  "AlphaStart": {
+                    "type": "number"
+                  },
+                  "AlphaMid": {
+                    "type": "number"
+                  },
+                  "AlphaEnd": {
+                    "type": "number"
+                  },
+                  "EmissionEnergy": {
+                    "type": "number"
+                  },
+                  "RenderMode": {
+                    "type": "integer"
+                  },
+                  "BlendMode": {
+                    "type": "integer"
+                  },
+                  "ParticleTexture": {
+                    "type": "string"
+                  },
+                  "MeshAssetPath": {
+                    "type": "string"
+                  }
+                }
+              },
+              "BlendMode": {
+                "type": "integer"
+              },
+              "PlacementMode": {
+                "type": "integer"
+              },
+              "TargetSocket": {
+                "type": "string"
+              },
+              "BaseTexture": {
+                "type": "string"
+              },
+              "NoiseTexture": {
+                "type": "string"
+              },
+              "BaseUvScroll": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "BaseUvScale": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "UseFlipbook": {
+                "type": "boolean"
+              },
+              "FlipbookColumns": {
+                "type": "integer"
+              },
+              "FlipbookRows": {
+                "type": "integer"
+              },
+              "FlipbookFps": {
+                "type": "number"
+              },
+              "FlipbookSubframeBlend": {
+                "type": "boolean"
+              },
+              "NoiseUvScroll": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "NoiseUvScale": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "DistortionStrength": {
+                "type": "number"
+              },
+              "BaseColor": {
+                "type": "string"
+              },
+              "SecondaryColor": {
+                "type": "string"
+              },
+              "CoreColor": {
+                "type": "string"
+              },
+              "EmissionBoost": {
+                "type": "number"
+              },
+              "CoreThreshold": {
+                "type": "number"
+              },
+              "LuminanceToAlpha": {
+                "type": "boolean"
+              },
+              "LuminanceThreshold": {
+                "type": "number"
+              },
+              "LuminanceSmoothness": {
+                "type": "number"
+              },
+              "UseGrayscale": {
+                "type": "boolean"
+              },
+              "InvertMask": {
+                "type": "boolean"
+              },
+              "HighPassCutoff": {
+                "type": "number"
+              },
+              "EnableRadialFalloff": {
+                "type": "boolean"
+              },
+              "RadialFalloffStart": {
+                "type": "number"
+              },
+              "RadialFalloffEnd": {
+                "type": "number"
+              },
+              "EnableLengthFade": {
+                "type": "boolean"
+              },
+              "LengthFadeStart": {
+                "type": "number"
+              },
+              "LengthFadeEnd": {
+                "type": "number"
+              },
+              "ErosionProgress": {
+                "type": "number"
+              },
+              "EnableFresnel": {
+                "type": "boolean"
+              },
+              "FresnelPower": {
+                "type": "number"
+              },
+              "FresnelIntensity": {
+                "type": "number"
+              },
+              "EnableDepthFade": {
+                "type": "boolean"
+              },
+              "DepthFadeDistance": {
+                "type": "number"
+              },
+              "SurfaceNormalOffset": {
+                "type": "number"
+              },
+              "PositionOffset": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "RotationOffset": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "ScaleOffset": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CameraBoundsLeft": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "CameraBoundsRight": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "CameraBoundsTop": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "CameraBoundsBottom": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "SkyboxPath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "Coordinates": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Name": {
+            "type": "string"
+          },
+          "MinX": {
+            "type": "number"
+          },
+          "MinZ": {
+            "type": "number"
+          },
+          "MaxX": {
+            "type": "number"
+          },
+          "MaxZ": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}

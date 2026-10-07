@@ -44,10 +44,37 @@ public partial class GameHost
 			return cached;
 		}
 
-		string filename = System.IO.Path.GetFileName(pathOrId);
+		string trimmed = pathOrId.Trim().Replace('\\', '/');
+		if (trimmed.Contains('/'))
+		{
+			string prefix = trimmed.Substring(0, trimmed.IndexOf('/'));
+			if (string.Equals(prefix, "unit", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "building", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "prop", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "resource", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "item", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "ability", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "weapon", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "upgrade", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "terrain", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "spritesheet", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "decal", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "SpawnShader", StringComparison.OrdinalIgnoreCase))
+			{
+				string lower = trimmed.ToLowerInvariant();
+				_normalizedAssetKeyCache[pathOrId] = lower;
+				return lower;
+			}
+		}
+
+		string filename = System.IO.Path.GetFileName(trimmed);
 		if (filename.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".gltf", StringComparison.OrdinalIgnoreCase))
 		{
 			filename = System.IO.Path.GetFileNameWithoutExtension(filename) + ".rmesh";
+		}
+		else if (filename.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+		{
+			// Preserve decal/texture extension
 		}
 		else if (!filename.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 		{
@@ -859,7 +886,7 @@ public partial class GameHost
 		{
 			if (!string.IsNullOrEmpty(propMeta.ModelPath) && NormalizeModelAssetKey(propMeta.ModelPath) == norm)
 				return true;
-			if (!string.IsNullOrEmpty(propMeta.UnitId) && NormalizeModelAssetKey(propMeta.UnitId) == norm)
+			if (!string.IsNullOrEmpty(propMeta.TemplateID) && NormalizeModelAssetKey(propMeta.TemplateID) == norm)
 				return true;
 		}
 
@@ -867,7 +894,7 @@ public partial class GameHost
 		{
 			if (!string.IsNullOrEmpty(resMeta.ModelPath) && NormalizeModelAssetKey(resMeta.ModelPath) == norm)
 				return true;
-			if (!string.IsNullOrEmpty(resMeta.UnitId) && NormalizeModelAssetKey(resMeta.UnitId) == norm)
+			if (!string.IsNullOrEmpty(resMeta.TemplateID) && NormalizeModelAssetKey(resMeta.TemplateID) == norm)
 				return true;
 		}
 
@@ -1464,115 +1491,14 @@ public partial class GameHost
 				}
 			}
 
-			ProcessEntities(metadata.CustomResources, 2.75f, r => r.UnitId, r => r.ModelPath, r => r.YOffset, r => r.Scale, r => r.CollisionCircle, r => r.Brightness, r => r.Tint, r => r.DespillPlayerColor, r => r.NormalizeLuminance);
-			ProcessEntities(metadata.CustomBuildings, 1.2f, b => b.UnitId, b => b.ModelPath, b => b.YOffset, b => b.Scale, b => b.CollisionCircle, b => b.Brightness, b => b.Tint, b => b.DespillPlayerColor, b => b.NormalizeLuminance);
-			ProcessEntities(metadata.CustomProps, 1.0f, p => p.UnitId, p => p.ModelPath, p => p.YOffset, p => p.Scale, p => p.CollisionCircle, p => p.Brightness, p => p.Tint, p => p.DespillPlayerColor, p => p.NormalizeLuminance);
-			ProcessEntities(metadata.CustomUnits, 1.5f, u => u.UnitId, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance);
-
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
-			if (assetsObj != null && assetsObj.ContainsKey("glb") && assetsObj["glb"] is System.Text.Json.Nodes.JsonObject glbObj)
+			if (metadata.Templates != null)
 			{
-				foreach (var catKvp in glbObj)
-				{
-					if (catKvp.Value is System.Text.Json.Nodes.JsonObject catDict)
-					{
-						foreach (var itemKvp in catDict)
-						{
-							if (itemKvp.Value is System.Text.Json.Nodes.JsonObject itemObj)
-							{
-								if (itemObj.ContainsKey("y_offset") && float.TryParse(itemObj["y_offset"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float yVal))
-								{
-									if (IsValidModelYOffset(itemKvp.Key, yVal))
-									{
-										ModelYOffsets[NormalizeModelAssetKey(itemKvp.Key)] = yVal;
-									}
-								}
-								if (itemObj.ContainsKey("scale") && float.TryParse(itemObj["scale"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float sVal))
-								{
-									if (IsValidModelScale(itemKvp.Key, sVal))
-									{
-										ModelScales[NormalizeModelAssetKey(itemKvp.Key)] = sVal;
-									}
-								}
-								else if (itemObj.ContainsKey("model_scale") && float.TryParse(itemObj["model_scale"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float msVal))
-								{
-									if (IsValidModelScale(itemKvp.Key, msVal))
-									{
-										ModelScales[NormalizeModelAssetKey(itemKvp.Key)] = msVal;
-									}
-								}
-								if (itemObj.ContainsKey("collision_circle_ratio") && float.TryParse(itemObj["collision_circle_ratio"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float rVal))
-								{
-									if (IsValidModelCollisionRatio(itemKvp.Key, rVal))
-									{
-										ModelCollisionCircleRatios[NormalizeModelAssetKey(itemKvp.Key)] = rVal;
-									}
-								}
-								if (itemObj.ContainsKey("collision_radius") && float.TryParse(itemObj["collision_radius"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float radVal) && radVal > 0f)
-								{
-									ModelObstacleRadii[NormalizeModelAssetKey(itemKvp.Key)] = radVal;
-								}
-								if (itemObj.ContainsKey("brightness") && float.TryParse(itemObj["brightness"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float brightVal))
-								{
-									ModelBrightness[NormalizeModelAssetKey(itemKvp.Key)] = brightVal;
-								}
-								if (itemObj.ContainsKey("tint") && itemObj["tint"] != null && Color.HtmlIsValid(itemObj["tint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["tint"]!.ToString());
-								}
-								else if (itemObj.ContainsKey("color_tint") && itemObj["color_tint"] != null && Color.HtmlIsValid(itemObj["color_tint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["color_tint"]!.ToString());
-								}
-								else if (itemObj.ContainsKey("ColorTint") && itemObj["ColorTint"] != null && Color.HtmlIsValid(itemObj["ColorTint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["ColorTint"]!.ToString());
-								}
-								string normKey = NormalizeModelAssetKey(itemKvp.Key);
-								if (itemObj.ContainsKey("DespillPlayerColor") && bool.TryParse(itemObj["DespillPlayerColor"]?.ToString(), out bool dpcVal))
-								{
-									ModelDespillPlayerColor[normKey] = dpcVal;
-								}
-								else if (!ModelDespillPlayerColor.ContainsKey(normKey))
-								{
-									ModelDespillPlayerColor[normKey] = false;
-								}
-								if (itemObj.ContainsKey("normalize_luminance") && bool.TryParse(itemObj["normalize_luminance"]?.ToString(), out bool nlVal))
-								{
-									ModelNormalizeLuminance[normKey] = nlVal;
-								}
-								if (itemObj.ContainsKey("ignore_player_color") && bool.TryParse(itemObj["ignore_player_color"]?.ToString(), out bool ipcVal))
-								{
-									ModelIgnorePlayerColor[normKey] = ipcVal;
-								}
-								else if (itemObj.ContainsKey("IgnorePlayerColor") && bool.TryParse(itemObj["IgnorePlayerColor"]?.ToString(), out bool ipcVal2))
-								{
-									ModelIgnorePlayerColor[normKey] = ipcVal2;
-								}
-								else if (catKvp.Key == "props" || catKvp.Key == "resources" || catKvp.Key == "attachments" || catKvp.Key == "weapons" || catKvp.Key == "items" || (itemObj.ContainsKey("default_asset_type") && (itemObj["default_asset_type"]?.ToString() == "props" || itemObj["default_asset_type"]?.ToString() == "resources" || itemObj["default_asset_type"]?.ToString() == "attachments" || itemObj["default_asset_type"]?.ToString() == "weapons" || itemObj["default_asset_type"]?.ToString() == "items")))
-								{
-									ModelIgnorePlayerColor[normKey] = true;
-								}
-								else if (!ModelIgnorePlayerColor.ContainsKey(normKey))
-								{
-									ModelIgnorePlayerColor[normKey] = false;
-								}
-
-								string itemSpawn = itemObj["spawn_shader"]?.ToString() ?? itemObj["SpawnShader"]?.ToString();
-								if (!string.IsNullOrWhiteSpace(itemSpawn))
-								{
-									ModelSpawnShaders[normKey] = itemSpawn.Trim();
-								}
-								string itemDeath = itemObj["death_shader"]?.ToString() ?? itemObj["DeathShader"]?.ToString() ?? itemObj["despawn_shader"]?.ToString() ?? itemObj["DespawnShader"]?.ToString();
-								if (!string.IsNullOrWhiteSpace(itemDeath))
-								{
-									ModelDeathShaders[normKey] = itemDeath.Trim();
-								}
-							}
-						}
-					}
-				}
+				ProcessEntities(metadata.Templates.Resources, 2.75f, r => r.TemplateID, r => r.ModelPath, r => r.YOffset, r => r.Scale, r => r.CollisionCircle, r => r.Brightness, r => r.Tint, r => r.DespillPlayerColor, r => r.NormalizeLuminance);
+				ProcessEntities(metadata.Templates.Buildings, 1.2f, b => b.TemplateID, b => b.ModelPath, b => b.YOffset, b => b.Scale, b => b.CollisionCircle, b => b.Brightness, b => b.Tint, b => b.DespillPlayerColor, b => b.NormalizeLuminance);
+				ProcessEntities(metadata.Templates.Props, 1.0f, p => p.TemplateID, p => p.ModelPath, p => p.YOffset, p => p.Scale, p => p.CollisionCircle, p => p.Brightness, p => p.Tint, p => p.DespillPlayerColor, p => p.NormalizeLuminance);
+				ProcessEntities(metadata.Templates.Units, 1.5f, u => u.TemplateID, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance);
 			}
+
 
 			if (metadata.Models != null)
 			{
@@ -1785,14 +1711,14 @@ public partial class GameHost
 					if (ModelEnableProceduralAnimations.TryGetValue(key, out bool epVal)) modelMeta.EnableProceduralAnimation = epVal;
 				}
 
-				void UpdateEntityOverrides(List<GameHost.UnitMetadata> entities)
+				void UpdateEntityOverrides(List<UnitMetadata> entities)
 				{
 					if (entities == null) return;
 					for (int i = 0; i < entities.Count; i++)
 					{
 						var entity = entities[i];
-						if (string.IsNullOrEmpty(entity.UnitId)) continue;
-						string normKey = NormalizeModelAssetKey(entity.UnitId);
+						if (string.IsNullOrEmpty(entity.TemplateID)) continue;
+						string normKey = NormalizeModelAssetKey(entity.TemplateID);
 						string normModel = !string.IsNullOrEmpty(entity.ModelPath) ? NormalizeModelAssetKey(entity.ModelPath) : "";
 
 						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) entity.DespillPlayerColor = dVal1;
@@ -1807,72 +1733,75 @@ public partial class GameHost
 						string sVal = "";
 						if (!string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1)) sVal = sv1;
 						else if (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2)) sVal = sv2;
-						else sVal = GetModelSpawnShader(entity.UnitId);
+						else sVal = GetModelSpawnShader(entity.TemplateID);
 
 						entity.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
 
 						string dVal = "";
 						if (!string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1)) dVal = dv1;
 						else if (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2)) dVal = dv2;
-						else dVal = GetModelDeathShader(entity.UnitId);
+						else dVal = GetModelDeathShader(entity.TemplateID);
 
 						entity.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
 						entities[i] = entity;
 					}
 				}
 
-				UpdateEntityOverrides(meta.CustomUnits);
-				UpdateEntityOverrides(meta.CustomBuildings);
-
-				if (meta.CustomResources != null)
+				if (meta.Templates != null)
 				{
-					for (int i = 0; i < meta.CustomResources.Count; i++)
+					UpdateEntityOverrides(meta.Templates.Units);
+					UpdateEntityOverrides(meta.Templates.Buildings);
+
+					if (meta.Templates.Resources != null)
 					{
-						var res = meta.CustomResources[i];
-						if (string.IsNullOrEmpty(res.UnitId)) continue;
-						string normKey = NormalizeModelAssetKey(res.UnitId);
-						string normModel = !string.IsNullOrEmpty(res.ModelPath) ? NormalizeModelAssetKey(res.ModelPath) : "";
+						for (int i = 0; i < meta.Templates.Resources.Count; i++)
+						{
+							var res = meta.Templates.Resources[i];
+							if (string.IsNullOrEmpty(res.TemplateID)) continue;
+							string normKey = NormalizeModelAssetKey(res.TemplateID);
+							string normModel = !string.IsNullOrEmpty(res.ModelPath) ? NormalizeModelAssetKey(res.ModelPath) : "";
 
-						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) res.DespillPlayerColor = dVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelDespillPlayerColor.TryGetValue(normModel, out bool dVal2)) res.DespillPlayerColor = dVal2;
+							if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) res.DespillPlayerColor = dVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelDespillPlayerColor.TryGetValue(normModel, out bool dVal2)) res.DespillPlayerColor = dVal2;
 
-						if (ModelNormalizeLuminance.TryGetValue(normKey, out bool nVal1)) res.NormalizeLuminance = nVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelNormalizeLuminance.TryGetValue(normModel, out bool nVal2)) res.NormalizeLuminance = nVal2;
+							if (ModelNormalizeLuminance.TryGetValue(normKey, out bool nVal1)) res.NormalizeLuminance = nVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelNormalizeLuminance.TryGetValue(normModel, out bool nVal2)) res.NormalizeLuminance = nVal2;
 
-						if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) res.IgnorePlayerColor = iVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) res.IgnorePlayerColor = iVal2;
+							if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) res.IgnorePlayerColor = iVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) res.IgnorePlayerColor = iVal2;
 
-						string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(res.UnitId));
-						string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(res.UnitId));
-						res.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
-						res.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
-						meta.CustomResources[i] = res;
+							string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(res.TemplateID));
+							string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(res.TemplateID));
+							res.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
+							res.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
+							meta.Templates.Resources[i] = res;
+						}
 					}
-				}
 
-				if (meta.CustomProps != null)
-				{
-					for (int i = 0; i < meta.CustomProps.Count; i++)
+					if (meta.Templates.Props != null)
 					{
-						var prop = meta.CustomProps[i];
-						if (string.IsNullOrEmpty(prop.UnitId)) continue;
-						string normKey = NormalizeModelAssetKey(prop.UnitId);
-						string normModel = !string.IsNullOrEmpty(prop.ModelPath) ? NormalizeModelAssetKey(prop.ModelPath) : "";
+						for (int i = 0; i < meta.Templates.Props.Count; i++)
+						{
+							var prop = meta.Templates.Props[i];
+							if (string.IsNullOrEmpty(prop.TemplateID)) continue;
+							string normKey = NormalizeModelAssetKey(prop.TemplateID);
+							string normModel = !string.IsNullOrEmpty(prop.ModelPath) ? NormalizeModelAssetKey(prop.ModelPath) : "";
 
-						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) prop.DespillPlayerColor = dVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelDespillPlayerColor.TryGetValue(normModel, out bool dVal2)) prop.DespillPlayerColor = dVal2;
+							if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) prop.DespillPlayerColor = dVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelDespillPlayerColor.TryGetValue(normModel, out bool dVal2)) prop.DespillPlayerColor = dVal2;
 
-						if (ModelNormalizeLuminance.TryGetValue(normKey, out bool nVal1)) prop.NormalizeLuminance = nVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelNormalizeLuminance.TryGetValue(normModel, out bool nVal2)) prop.NormalizeLuminance = nVal2;
+							if (ModelNormalizeLuminance.TryGetValue(normKey, out bool nVal1)) prop.NormalizeLuminance = nVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelNormalizeLuminance.TryGetValue(normModel, out bool nVal2)) prop.NormalizeLuminance = nVal2;
 
-						if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) prop.IgnorePlayerColor = iVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) prop.IgnorePlayerColor = iVal2;
+							if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) prop.IgnorePlayerColor = iVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) prop.IgnorePlayerColor = iVal2;
 
-						string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(prop.UnitId));
-						string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(prop.UnitId));
-						prop.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
-						prop.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
-						meta.CustomProps[i] = prop;
+							string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(prop.TemplateID));
+							string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(prop.TemplateID));
+							prop.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
+							prop.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
+							meta.Templates.Props[i] = prop;
+						}
 					}
 				}
 			});
@@ -2212,6 +2141,7 @@ public partial class GameHost
 	public class DecalAssetData
 	{
 		public string DecalId { get; set; } = "";
+		public string TexturePath { get; set; } = "";
 		public Texture2D PrimaryTexture { get; set; }
 		public Texture2D? PrimaryNormal { get; set; }
 		public Texture2D[]? AlbedoFrames { get; set; }
@@ -2263,6 +2193,7 @@ public partial class GameHost
 					var resData = new DecalAssetData
 					{
 						DecalId = decalId,
+						TexturePath = decalId,
 						PrimaryTexture = resTex,
 						Columns = 1,
 						Rows = 1
@@ -2278,52 +2209,76 @@ public partial class GameHost
 		string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 
-		List<string> candidatePaths = new List<string>();
-		if (System.IO.Path.IsPathRooted(decalId))
-		{
-			candidatePaths.Add(decalId);
-		}
-		else
-		{
-			candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename));
-			candidatePaths.Add(System.IO.Path.Combine(wsPath, decalId));
-			if (!filename.Contains('.'))
-			{
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".rtex"));
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".webp"));
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".png"));
-			}
-			candidatePaths.Add(decalId);
-		}
-
 		int detectedCols = 1;
 		int detectedRows = 1;
 		float detectedFps = 12.0f;
 		bool detectedSubframeBlend = true;
+		string? explicitTexturePath = null;
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
-			if (decalsObj != null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Decals != null)
 			{
-				System.Text.Json.Nodes.JsonObject? meta = null;
-				if (decalsObj.TryGetPropertyValue(filename, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
-				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is System.Text.Json.Nodes.JsonObject o3) meta = o3;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is System.Text.Json.Nodes.JsonObject o4) meta = o4;
+				Realm.Shared.Metadata.DecalMetadata? meta = null;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(filename, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) meta = d3;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) meta = d4;
 
-				if (meta != null)
+				if (meta != null && !string.IsNullOrWhiteSpace(meta.TexturePath))
 				{
-					if (meta.TryGetPropertyValue("columns", out var cNode) && int.TryParse(cNode?.ToString(), out int c) && c > 0) detectedCols = c;
-					if (meta.TryGetPropertyValue("rows", out var rNode) && int.TryParse(rNode?.ToString(), out int r) && r > 0) detectedRows = r;
-					if (meta.TryGetPropertyValue("fps", out var fNode) && float.TryParse(fNode?.ToString(), out float f) && f > 0.001f) detectedFps = f;
-					else if (meta.TryGetPropertyValue("seconds_per_frame", out var sNode) && float.TryParse(sNode?.ToString(), out float spf) && spf > 0.001f) detectedFps = 1.0f / spf;
-					if (meta.TryGetPropertyValue("subframe_blend", out var sbNode) && bool.TryParse(sbNode?.ToString(), out bool sb)) detectedSubframeBlend = sb;
+					explicitTexturePath = meta.TexturePath;
+				}
+			}
+
+			if (metadata?.VfxSpritesheets != null)
+			{
+				Realm.Shared.Metadata.VfxMetadata? vmeta = null;
+				if (metadata.VfxSpritesheets.TryGetValue(decalId, out var v0)) vmeta = v0;
+				else if (metadata.VfxSpritesheets.TryGetValue(filename, out var v1)) vmeta = v1;
+				else if (metadata.VfxSpritesheets.TryGetValue(baseKey, out var v2)) vmeta = v2;
+
+				if (vmeta != null)
+				{
+					if (vmeta.Columns > 0) detectedCols = vmeta.Columns;
+					if (vmeta.Rows > 0) detectedRows = vmeta.Rows;
+					if (vmeta.Fps > 0.001f) detectedFps = vmeta.Fps;
+					detectedSubframeBlend = vmeta.SubframeBlend;
 				}
 			}
 		}
 		catch { }
+
+		List<string> candidatePaths = new List<string>();
+		void AddTextureCandidates(string pathOrName)
+		{
+			if (string.IsNullOrWhiteSpace(pathOrName)) return;
+			string fName = System.IO.Path.GetFileName(pathOrName);
+			if (System.IO.Path.IsPathRooted(pathOrName))
+			{
+				candidatePaths.Add(pathOrName);
+			}
+			else
+			{
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", pathOrName));
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName));
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, pathOrName));
+				if (!fName.Contains('.'))
+				{
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".rtex"));
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".webp"));
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".png"));
+				}
+			}
+		}
+
+		if (!string.IsNullOrEmpty(explicitTexturePath))
+		{
+			AddTextureCandidates(explicitTexturePath);
+		}
+		AddTextureCandidates(decalId);
 
 		foreach (var path in candidatePaths)
 		{
@@ -2391,6 +2346,7 @@ public partial class GameHost
 						var assetData = new DecalAssetData
 						{
 							DecalId = decalId,
+							TexturePath = explicitTexturePath ?? decalId,
 							Columns = 1,
 							Rows = 1,
 							Fps = 12.0f,
@@ -2419,6 +2375,7 @@ public partial class GameHost
 		var fallback = new DecalAssetData
 		{
 			DecalId = decalId,
+			TexturePath = explicitTexturePath ?? decalId,
 			PrimaryTexture = GD.Load<Texture2D>("res://icon.svg"),
 			Columns = 1,
 			Rows = 1
@@ -2440,24 +2397,47 @@ public partial class GameHost
 		}
 		if (decalId.StartsWith("res://")) return decalId;
 
-		string filename = System.IO.Path.GetFileName(decalId);
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string targetKey = decalId;
 
-		string candidate1 = System.IO.Path.Combine(wsPath, "Assets", "decals", filename);
+		try
+		{
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Decals != null)
+			{
+				string filename = System.IO.Path.GetFileName(decalId);
+				string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
+				Realm.Shared.Metadata.DecalMetadata? meta = null;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(filename, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
+
+				if (meta != null && !string.IsNullOrWhiteSpace(meta.TexturePath))
+				{
+					targetKey = meta.TexturePath;
+				}
+			}
+		}
+		catch { }
+
+		string targetFilename = System.IO.Path.GetFileName(targetKey);
+		string candidate1 = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename);
 		if (System.IO.File.Exists(candidate1)) return candidate1;
 
-		if (!filename.Contains('.'))
+		if (!targetFilename.Contains('.'))
 		{
-			string candidate2 = System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".png");
+			string candidate2 = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename + ".png");
 			if (System.IO.File.Exists(candidate2)) return candidate2;
+			string candidateRtex = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename + ".rtex");
+			if (System.IO.File.Exists(candidateRtex)) return candidateRtex;
 		}
 
-		if (System.IO.Path.IsPathRooted(decalId) && System.IO.File.Exists(decalId))
+		if (System.IO.Path.IsPathRooted(targetKey) && System.IO.File.Exists(targetKey))
 		{
-			return decalId;
+			return targetKey;
 		}
 
-		string candidate3 = System.IO.Path.Combine(wsPath, decalId);
+		string candidate3 = System.IO.Path.Combine(wsPath, targetKey);
 		if (System.IO.File.Exists(candidate3)) return candidate3;
 
 		return "res://icon.svg";
@@ -2684,6 +2664,8 @@ public partial class GameHost
 		var unit3D = SpawnUnit3D(entity, unitId, modelPath, position, isBuilding, actualIsEnemy, false, playerIndex);
 		unit3D.RotationDegrees = new Vector3(0.0f, rotationY, 0.0f);
 		unit3D.Scale = Vector3.One * (scale <= 0.001f ? 1.0f : scale);
+		unit3D.Visible = true;
+		unit3D.UpdateLodVisibility();
 
 		EcsWorld.SetOrAdd(entity, new CollisionScale(scale));
 
@@ -3130,54 +3112,54 @@ public partial class GameHost
 			if (assetData.PrimaryNormal != null) decal.TextureNormal = assetData.PrimaryNormal;
 
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
 
 			string key = System.IO.Path.GetFileName(decalId);
 			string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
 
-			System.Text.Json.Nodes.JsonObject? meta = null;
-			if (decalsObj != null)
+			Realm.Shared.Metadata.DecalMetadata? meta = null;
+			if (metadata?.Decals != null)
 			{
-				if (decalsObj.TryGetPropertyValue(key, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
-				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is System.Text.Json.Nodes.JsonObject o3) meta = o3;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is System.Text.Json.Nodes.JsonObject o4) meta = o4;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(key, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) meta = d3;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) meta = d4;
 			}
 
-			float brightness = meta != null && meta.TryGetPropertyValue("brightness", out var bNode) && float.TryParse(bNode?.ToString(), out float b) ? b : 1.0f;
+			float brightness = meta?.Brightness > 0f ? meta.Brightness : 1.0f;
 			Color tint = Colors.White;
-			if (meta != null && meta.TryGetPropertyValue("tint", out var tNode) && tNode != null)
+			if (meta != null && !string.IsNullOrEmpty(meta.Tint))
 			{
-				string tStr = tNode.ToString();
+				string tStr = meta.Tint;
 				if (tStr.StartsWith("#")) tint = Color.FromHtml(tStr);
 			}
-			float contrast = meta != null && meta.TryGetPropertyValue("contrast", out var cNode) && float.TryParse(cNode?.ToString(), out float c) ? c : 1.0f;
-			float saturation = meta != null && meta.TryGetPropertyValue("saturation", out var sNode) && float.TryParse(sNode?.ToString(), out float s) ? s : 1.0f;
-			float opacity = meta != null && meta.TryGetPropertyValue("opacity", out var oNode) && float.TryParse(oNode?.ToString(), out float o) ? o : 1.0f;
-			float albedoMix = meta != null && meta.TryGetPropertyValue("albedo_mix", out var mNode) && float.TryParse(mNode?.ToString(), out float m) ? m : 1.0f;
-			float normalStrength = meta != null && meta.TryGetPropertyValue("normal_strength", out var nNode) && float.TryParse(nNode?.ToString(), out float n) ? n : (assetData.PrimaryNormal != null ? 1.0f : 0.0f);
-			float roughness = meta != null && meta.TryGetPropertyValue("roughness", out var rNode) && float.TryParse(rNode?.ToString(), out float r) ? r : 1.0f;
-			float metallic = meta != null && meta.TryGetPropertyValue("metallic", out var metNode) && float.TryParse(metNode?.ToString(), out float met) ? met : 0.0f;
-			string blendMode = meta != null && meta.TryGetPropertyValue("blend_mode", out var bmNode) ? bmNode?.ToString() ?? "Mix" : "Mix";
+			float contrast = meta?.Contrast > 0f ? meta.Contrast : 1.0f;
+			float saturation = meta?.Saturation > 0f ? meta.Saturation : 1.0f;
+			float opacity = meta?.Opacity > 0f ? meta.Opacity : 1.0f;
+			float albedoMix = meta?.AlbedoMix > 0f ? meta.AlbedoMix : 1.0f;
+			float normalStrength = meta?.NormalStrength > 0f ? meta.NormalStrength : (assetData.PrimaryNormal != null ? 1.0f : 0.0f);
+			float roughness = meta?.Roughness > 0f ? meta.Roughness : 1.0f;
+			float metallic = meta?.Metallic ?? 0.0f;
+			string blendMode = meta?.BlendMode ?? "Mix";
 
-			bool animateOpacity = meta != null && meta.TryGetPropertyValue("animate_opacity", out var aoNode) && bool.TryParse(aoNode?.ToString(), out bool ao) && ao;
-			float opacityPulseSpeed = meta != null && meta.TryGetPropertyValue("opacity_pulse_speed", out var opsNode) && float.TryParse(opsNode?.ToString(), out float ops) ? ops : 1.0f;
-			float minOpacity = meta != null && meta.TryGetPropertyValue("min_opacity", out var minONode) && float.TryParse(minONode?.ToString(), out float minO) ? minO : 0.2f;
-			float maxOpacity = meta != null && meta.TryGetPropertyValue("max_opacity", out var maxONode) && float.TryParse(maxONode?.ToString(), out float maxO) ? maxO : 1.0f;
+			bool animateOpacity = meta?.AnimateOpacity ?? false;
+			float opacityPulseSpeed = meta?.OpacityPulseSpeed > 0f ? meta.OpacityPulseSpeed : 1.0f;
+			float minOpacity = meta?.MinOpacity > 0f ? meta.MinOpacity : 0.2f;
+			float maxOpacity = meta?.MaxOpacity > 0f ? meta.MaxOpacity : 1.0f;
 
-			bool animateEmission = meta != null && meta.TryGetPropertyValue("animate_emission", out var aeNode) && bool.TryParse(aeNode?.ToString(), out bool ae) && ae;
-			float emissionPulseSpeed = meta != null && meta.TryGetPropertyValue("emission_pulse_speed", out var epsNode) && float.TryParse(epsNode?.ToString(), out float eps) ? eps : 1.0f;
-			float minEmission = meta != null && meta.TryGetPropertyValue("min_emission", out var minENode) && float.TryParse(minENode?.ToString(), out float minE) ? minE : 0.0f;
-			float maxEmission = meta != null && meta.TryGetPropertyValue("max_emission", out var maxENode) && float.TryParse(maxENode?.ToString(), out float maxE) ? maxE : 2.0f;
+			bool animateEmission = meta?.AnimateEmission ?? false;
+			float emissionPulseSpeed = meta?.EmissionPulseSpeed > 0f ? meta.EmissionPulseSpeed : 1.0f;
+			float minEmission = meta?.MinEmission ?? 0.0f;
+			float maxEmission = meta?.MaxEmission > 0f ? meta.MaxEmission : 2.0f;
 
-			bool animateScale = meta != null && meta.TryGetPropertyValue("animate_scale", out var asNode) && bool.TryParse(asNode?.ToString(), out bool aSc) && aSc;
-			float scalePulseSpeed = meta != null && meta.TryGetPropertyValue("scale_pulse_speed", out var scpsNode) && float.TryParse(scpsNode?.ToString(), out float scps) ? scps : 1.0f;
-			float minScaleRatio = meta != null && meta.TryGetPropertyValue("min_scale_ratio", out var minScNode) && float.TryParse(minScNode?.ToString(), out float minSc) ? minSc : 0.8f;
-			float maxScaleRatio = meta != null && meta.TryGetPropertyValue("max_scale_ratio", out var maxScNode) && float.TryParse(maxScNode?.ToString(), out float maxSc) ? maxSc : 1.2f;
+			bool animateScale = meta?.AnimateScale ?? false;
+			float scalePulseSpeed = meta?.ScalePulseSpeed > 0f ? meta.ScalePulseSpeed : 1.0f;
+			float minScaleRatio = meta?.MinScaleRatio > 0f ? meta.MinScaleRatio : 0.8f;
+			float maxScaleRatio = meta?.MaxScaleRatio > 0f ? meta.MaxScaleRatio : 1.2f;
 
-			float upperFade = meta != null && meta.TryGetPropertyValue("upper_fade", out var ufNode) && float.TryParse(ufNode?.ToString(), out float uf) ? uf : 0.3f;
-			float lowerFade = meta != null && meta.TryGetPropertyValue("lower_fade", out var lfNode) && float.TryParse(lfNode?.ToString(), out float lf) ? lf : 0.3f;
+			float upperFade = meta?.UpperFade > 0f ? meta.UpperFade : 0.3f;
+			float lowerFade = meta?.LowerFade > 0f ? meta.LowerFade : 0.3f;
 
 			ApplyDecalRenderingProperties(
 				decal,
@@ -3617,7 +3599,7 @@ public partial class GameHost
 				if (!UnitRegistry.TryGetValue(reqId, out meta) && BuildingRegistry.TryGetValue(reqId, out meta))
 					isBuilding = true;
 
-				if (meta.UnitId != null)
+				if (meta.TemplateID != null)
 				{
 					string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : reqId;
 					string modelPath = GetFallbackModelPath(targetModel, isBuilding);
@@ -3688,6 +3670,7 @@ public partial class GameHost
 				}
 
 				var previewVfx = new ProceduralVfxInstance3D(config);
+				previewVfx.IsPreview = true;
 				AddChild(previewVfx);
 				_editorPreviewNode = previewVfx;
 			}
@@ -4460,6 +4443,17 @@ public partial class GameHost
 		UpdateEditorShadows();
 		UpdateDayNightVisuals(0.0f);
 		GroundTerrain?.SetShroudEnabled(false);
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(true);
+				}
+			}
+		}
 	}
 
 	public void ExitMapEditorMode()
@@ -4469,6 +4463,17 @@ public partial class GameHost
 		EditorHistoryManager.Clear();
 		ClearEditorPreview();
 		UpdateEditorShadows();
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(false);
+				}
+			}
+		}
 		
 		if (_brushIndicatorMesh != null)
 		{
@@ -6394,10 +6399,32 @@ public partial class GameHost
 		{
 			_editorCoverageOverlayRoot.Visible = false;
 		}
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(false);
+				}
+			}
+		}
 	}
 
 	public void EndMinimapCapture()
 	{
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(true);
+				}
+			}
+		}
+
 		if (_selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh))
 		{
 			_selectionHighlightMesh.Visible = _wasSelectionHighlightVisible;

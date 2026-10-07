@@ -1288,6 +1288,11 @@ public interface IGameAPI
     string GetWeather();
 
     /// <summary>
+    /// Disables the vision shroud and fog of war, making the entire map and all entities fully visible.
+    /// </summary>
+    void DisableShroud();
+
+    /// <summary>
     /// Creates a persistent, stationary text label in the 3D world that stays in place until destroyed.
     /// Unlike <see cref="CreateFloatingText"/> it does not drift or fade.
     /// </summary>

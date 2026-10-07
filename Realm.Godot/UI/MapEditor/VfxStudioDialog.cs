@@ -13,7 +13,10 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private ProceduralVfxInstance3D _previewVfxInstance;
 	private MeshInstance3D _previewGroundGrid;
 
-	private LineEdit _txtVfxId;
+	private string _vfxId = "";
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
 	private LineEdit _txtVfxName;
 	private OptionButton _optMode;
 	private OptionButton _optPrimitive;
@@ -181,11 +184,37 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		var scrollBody = CreateScrollBody(440);
 
-		_txtVfxId = AddTextInput(scrollBody, TranslationServer.Translate("VFX ID:"), _currentConfig.VfxId, (val) =>
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "vfx/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("vfx_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.VfxId = val;
-		}, "Unique identifier e.g. vfx_fire_blade", 140f);
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
+			_currentConfig.VfxId = _vfxId;
+			if (_currentConfig.ParticleConfig != null)
+			{
+				_currentConfig.ParticleConfig.ParticleId = _vfxId;
+			}
+		};
+		rowId.AddChild(_txtSlug);
+		scrollBody.AddChild(rowId);
 
 		_txtVfxName = AddTextInput(scrollBody, TranslationServer.Translate("Display Name:"), _currentConfig.Name, (val) =>
 		{
@@ -201,6 +230,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			if (idx == 1)
 			{
 				_currentConfig.PrimitiveType = VfxPrimitiveType.ParticleSystem;
+				EnsureParticleConfig();
 			}
 			else
 			{
@@ -674,6 +704,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		PreviewSceneRoot.AddChild(_previewGroundGrid);
 
 		_previewVfxInstance = new ProceduralVfxInstance3D();
+		_previewVfxInstance.IsPreview = true;
 		_previewVfxInstance.Name = "PreviewVfx";
 		PreviewSceneRoot.AddChild(_previewVfxInstance);
 		_previewVfxInstance.Initialize(_currentConfig);
@@ -684,6 +715,11 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		_initialConfig = config?.Clone() ?? new VfxAttachmentConfig();
 		_currentConfig = config?.Clone() ?? new VfxAttachmentConfig();
 		_onAppliedCallback = onApplied;
+
+		if (_currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem || _currentConfig.ParticleConfig != null)
+		{
+			EnsureParticleConfig();
+		}
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Procedural VFX Studio")} - {(!string.IsNullOrEmpty(_currentConfig.Name) ? _currentConfig.Name : _currentConfig.VfxId)}";
 
@@ -759,7 +795,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Direction = val;
+			_currentConfig.ParticleConfig.Direction = val.ToVector3Data();
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -791,7 +827,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
-			_currentConfig.ParticleConfig.Gravity = val;
+			_currentConfig.ParticleConfig.Gravity = val.ToVector3Data();
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -895,7 +931,13 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		_isUpdatingUI = true;
 		try
 		{
-			if (_txtVfxId != null) _txtVfxId.Text = _currentConfig.VfxId;
+			var (prefix, slug) = TemplateIDHelper.ParseTemplateID(_currentConfig.VfxId);
+			_slug = slug;
+			_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
+			_currentConfig.VfxId = _vfxId;
+
+			if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = "vfx/";
+			if (_txtSlug != null) _txtSlug.Text = _slug;
 			if (_txtVfxName != null) _txtVfxName.Text = _currentConfig.Name;
 			bool isParticle = _currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem;
 			if (_optMode != null) _optMode.Selected = isParticle ? 1 : 0;
@@ -907,13 +949,13 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			if (_setNoiseTextureVal != null) _setNoiseTextureVal(_currentConfig.NoiseTexture ?? string.Empty);
 
 			if (_chkLuminanceToAlpha != null) _chkLuminanceToAlpha.ButtonPressed = _currentConfig.LuminanceToAlpha;
-			if (_sliderLuminanceThreshold != null) _sliderLuminanceThreshold.Value = _currentConfig.LuminanceThreshold;
+			if (_sliderLuminanceThreshold != null) _sliderLuminanceThreshold.SetValueNoSignal(_currentConfig.LuminanceThreshold);
 			if (_lblLuminanceThreshold != null) _lblLuminanceThreshold.Text = _currentConfig.LuminanceThreshold.ToString("0.00");
-			if (_sliderLuminanceSmoothness != null) _sliderLuminanceSmoothness.Value = _currentConfig.LuminanceSmoothness;
+			if (_sliderLuminanceSmoothness != null) _sliderLuminanceSmoothness.SetValueNoSignal(_currentConfig.LuminanceSmoothness);
 			if (_lblLuminanceSmoothness != null) _lblLuminanceSmoothness.Text = _currentConfig.LuminanceSmoothness.ToString("0.00");
 			if (_chkUseGrayscale != null) _chkUseGrayscale.ButtonPressed = _currentConfig.UseGrayscale;
 			if (_chkInvertMask != null) _chkInvertMask.ButtonPressed = _currentConfig.InvertMask;
-			if (_sliderHighPassCutoff != null) _sliderHighPassCutoff.Value = _currentConfig.HighPassCutoff;
+			if (_sliderHighPassCutoff != null) _sliderHighPassCutoff.SetValueNoSignal(_currentConfig.HighPassCutoff);
 			if (_lblHighPassCutoff != null) _lblHighPassCutoff.Text = _currentConfig.HighPassCutoff.ToString("0.00");
 
 			if (_txtBaseUvScrollX != null) _txtBaseUvScrollX.Text = _currentConfig.BaseUvScroll.X.ToString("0.##");
@@ -921,7 +963,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			if (_txtBaseUvScaleX != null) _txtBaseUvScaleX.Text = _currentConfig.BaseUvScale.X.ToString("0.##");
 			if (_txtBaseUvScaleY != null) _txtBaseUvScaleY.Text = _currentConfig.BaseUvScale.Y.ToString("0.##");
 
-			if (_sliderDistortionStrength != null) _sliderDistortionStrength.Value = _currentConfig.DistortionStrength;
+			if (_sliderDistortionStrength != null) _sliderDistortionStrength.SetValueNoSignal(_currentConfig.DistortionStrength);
 			if (_lblDistortionStrength != null) _lblDistortionStrength.Text = _currentConfig.DistortionStrength.ToString("0.00");
 			if (_txtNoiseUvScrollX != null) _txtNoiseUvScrollX.Text = _currentConfig.NoiseUvScroll.X.ToString("0.##");
 			if (_txtNoiseUvScrollY != null) _txtNoiseUvScrollY.Text = _currentConfig.NoiseUvScroll.Y.ToString("0.##");
@@ -929,44 +971,44 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			if (_txtNoiseUvScaleY != null) _txtNoiseUvScaleY.Text = _currentConfig.NoiseUvScale.Y.ToString("0.##");
 
 			Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
+			if (_sliderBaseColorHue != null) _sliderBaseColorHue.SetValueNoSignal(baseCol.H);
 			if (_pickerBaseColor != null) _pickerBaseColor.Color = baseCol;
-			if (_sliderBaseColorHue != null) _sliderBaseColorHue.Value = baseCol.H;
 
 			Color secCol = VfxShaderManager.ParseColorSafe(_currentConfig.SecondaryColor, Colors.DarkRed);
+			if (_sliderSecondaryColorHue != null) _sliderSecondaryColorHue.SetValueNoSignal(secCol.H);
 			if (_pickerSecondaryColor != null) _pickerSecondaryColor.Color = secCol;
-			if (_sliderSecondaryColorHue != null) _sliderSecondaryColorHue.Value = secCol.H;
 
 			Color coreCol = VfxShaderManager.ParseColorSafe(_currentConfig.CoreColor, Colors.White);
+			if (_sliderCoreColorHue != null) _sliderCoreColorHue.SetValueNoSignal(coreCol.H);
 			if (_pickerCoreColor != null) _pickerCoreColor.Color = coreCol;
-			if (_sliderCoreColorHue != null) _sliderCoreColorHue.Value = coreCol.H;
 
-			if (_sliderEmissionBoost != null) _sliderEmissionBoost.Value = _currentConfig.EmissionBoost;
+			if (_sliderEmissionBoost != null) _sliderEmissionBoost.SetValueNoSignal(_currentConfig.EmissionBoost);
 			if (_lblEmissionBoost != null) _lblEmissionBoost.Text = _currentConfig.EmissionBoost.ToString("0.0");
-			if (_sliderCoreThreshold != null) _sliderCoreThreshold.Value = _currentConfig.CoreThreshold;
+			if (_sliderCoreThreshold != null) _sliderCoreThreshold.SetValueNoSignal(_currentConfig.CoreThreshold);
 			if (_lblCoreThreshold != null) _lblCoreThreshold.Text = _currentConfig.CoreThreshold.ToString("0.00");
 
 			if (_chkRadialFalloff != null) _chkRadialFalloff.ButtonPressed = _currentConfig.EnableRadialFalloff;
-			if (_sliderRadialFalloffStart != null) _sliderRadialFalloffStart.Value = _currentConfig.RadialFalloffStart;
+			if (_sliderRadialFalloffStart != null) _sliderRadialFalloffStart.SetValueNoSignal(_currentConfig.RadialFalloffStart);
 			if (_lblRadialFalloffStart != null) _lblRadialFalloffStart.Text = _currentConfig.RadialFalloffStart.ToString("0.00");
-			if (_sliderRadialFalloffEnd != null) _sliderRadialFalloffEnd.Value = _currentConfig.RadialFalloffEnd;
+			if (_sliderRadialFalloffEnd != null) _sliderRadialFalloffEnd.SetValueNoSignal(_currentConfig.RadialFalloffEnd);
 			if (_lblRadialFalloffEnd != null) _lblRadialFalloffEnd.Text = _currentConfig.RadialFalloffEnd.ToString("0.00");
 
 			if (_chkLengthFade != null) _chkLengthFade.ButtonPressed = _currentConfig.EnableLengthFade;
-			if (_sliderLengthFadeStart != null) _sliderLengthFadeStart.Value = _currentConfig.LengthFadeStart;
+			if (_sliderLengthFadeStart != null) _sliderLengthFadeStart.SetValueNoSignal(_currentConfig.LengthFadeStart);
 			if (_lblLengthFadeStart != null) _lblLengthFadeStart.Text = _currentConfig.LengthFadeStart.ToString("0.00");
-			if (_sliderLengthFadeEnd != null) _sliderLengthFadeEnd.Value = _currentConfig.LengthFadeEnd;
+			if (_sliderLengthFadeEnd != null) _sliderLengthFadeEnd.SetValueNoSignal(_currentConfig.LengthFadeEnd);
 			if (_lblLengthFadeEnd != null) _lblLengthFadeEnd.Text = _currentConfig.LengthFadeEnd.ToString("0.00");
-			if (_sliderErosionProgress != null) _sliderErosionProgress.Value = _currentConfig.ErosionProgress;
+			if (_sliderErosionProgress != null) _sliderErosionProgress.SetValueNoSignal(_currentConfig.ErosionProgress);
 			if (_lblErosionProgress != null) _lblErosionProgress.Text = _currentConfig.ErosionProgress.ToString("0.00");
 
 			if (_chkFresnel != null) _chkFresnel.ButtonPressed = _currentConfig.EnableFresnel;
-			if (_sliderFresnelPower != null) _sliderFresnelPower.Value = _currentConfig.FresnelPower;
+			if (_sliderFresnelPower != null) _sliderFresnelPower.SetValueNoSignal(_currentConfig.FresnelPower);
 			if (_lblFresnelPower != null) _lblFresnelPower.Text = _currentConfig.FresnelPower.ToString("0.0");
-			if (_sliderFresnelIntensity != null) _sliderFresnelIntensity.Value = _currentConfig.FresnelIntensity;
+			if (_sliderFresnelIntensity != null) _sliderFresnelIntensity.SetValueNoSignal(_currentConfig.FresnelIntensity);
 			if (_lblFresnelIntensity != null) _lblFresnelIntensity.Text = _currentConfig.FresnelIntensity.ToString("0.0");
 
 			if (_chkDepthFade != null) _chkDepthFade.ButtonPressed = _currentConfig.EnableDepthFade;
-			if (_sliderDepthFadeDistance != null) _sliderDepthFadeDistance.Value = _currentConfig.DepthFadeDistance;
+			if (_sliderDepthFadeDistance != null) _sliderDepthFadeDistance.SetValueNoSignal(_currentConfig.DepthFadeDistance);
 			if (_lblDepthFadeDistance != null) _lblDepthFadeDistance.Text = _currentConfig.DepthFadeDistance.ToString("0.00");
 
 			if (_currentConfig.ParticleConfig != null)
@@ -976,11 +1018,11 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				if (_setParticleTextureVal != null) _setParticleTextureVal(_currentConfig.ParticleConfig.ParticleTexture ?? string.Empty);
 				if (_setParticleMeshVal != null) _setParticleMeshVal(_currentConfig.ParticleConfig.MeshAssetPath ?? string.Empty);
 
-				if (_sliderParticleAmount != null) _sliderParticleAmount.Value = _currentConfig.ParticleConfig.Amount;
+				if (_sliderParticleAmount != null) _sliderParticleAmount.SetValueNoSignal(_currentConfig.ParticleConfig.Amount);
 				if (_lblParticleAmount != null) _lblParticleAmount.Text = _currentConfig.ParticleConfig.Amount.ToString();
-				if (_sliderParticleLifetime != null) _sliderParticleLifetime.Value = _currentConfig.ParticleConfig.Lifetime;
+				if (_sliderParticleLifetime != null) _sliderParticleLifetime.SetValueNoSignal(_currentConfig.ParticleConfig.Lifetime);
 				if (_lblParticleLifetime != null) _lblParticleLifetime.Text = _currentConfig.ParticleConfig.Lifetime.ToString("0.0");
-				if (_sliderParticleExplosiveness != null) _sliderParticleExplosiveness.Value = _currentConfig.ParticleConfig.Explosiveness;
+				if (_sliderParticleExplosiveness != null) _sliderParticleExplosiveness.SetValueNoSignal(_currentConfig.ParticleConfig.Explosiveness);
 				if (_lblParticleExplosiveness != null) _lblParticleExplosiveness.Text = _currentConfig.ParticleConfig.Explosiveness.ToString("0.00");
 				if (_chkParticleLocalCoords != null) _chkParticleLocalCoords.ButtonPressed = _currentConfig.ParticleConfig.LocalCoords;
 
@@ -988,48 +1030,48 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				if (_txtParticleDirY != null) _txtParticleDirY.Text = _currentConfig.ParticleConfig.Direction.Y.ToString("0.##");
 				if (_txtParticleDirZ != null) _txtParticleDirZ.Text = _currentConfig.ParticleConfig.Direction.Z.ToString("0.##");
 
-				if (_sliderParticleSpread != null) _sliderParticleSpread.Value = _currentConfig.ParticleConfig.SpreadDegrees;
+				if (_sliderParticleSpread != null) _sliderParticleSpread.SetValueNoSignal(_currentConfig.ParticleConfig.SpreadDegrees);
 				if (_lblParticleSpread != null) _lblParticleSpread.Text = _currentConfig.ParticleConfig.SpreadDegrees.ToString("0");
-				if (_sliderParticleVelMin != null) _sliderParticleVelMin.Value = _currentConfig.ParticleConfig.InitialVelocityMin;
+				if (_sliderParticleVelMin != null) _sliderParticleVelMin.SetValueNoSignal(_currentConfig.ParticleConfig.InitialVelocityMin);
 				if (_lblParticleVelMin != null) _lblParticleVelMin.Text = _currentConfig.ParticleConfig.InitialVelocityMin.ToString("0.0");
-				if (_sliderParticleVelMax != null) _sliderParticleVelMax.Value = _currentConfig.ParticleConfig.InitialVelocityMax;
+				if (_sliderParticleVelMax != null) _sliderParticleVelMax.SetValueNoSignal(_currentConfig.ParticleConfig.InitialVelocityMax);
 				if (_lblParticleVelMax != null) _lblParticleVelMax.Text = _currentConfig.ParticleConfig.InitialVelocityMax.ToString("0.0");
 
 				if (_txtParticleGravX != null) _txtParticleGravX.Text = _currentConfig.ParticleConfig.Gravity.X.ToString("0.##");
 				if (_txtParticleGravY != null) _txtParticleGravY.Text = _currentConfig.ParticleConfig.Gravity.Y.ToString("0.##");
 				if (_txtParticleGravZ != null) _txtParticleGravZ.Text = _currentConfig.ParticleConfig.Gravity.Z.ToString("0.##");
 
-				if (_sliderParticleDamping != null) _sliderParticleDamping.Value = _currentConfig.ParticleConfig.Damping;
+				if (_sliderParticleDamping != null) _sliderParticleDamping.SetValueNoSignal(_currentConfig.ParticleConfig.Damping);
 				if (_lblParticleDamping != null) _lblParticleDamping.Text = _currentConfig.ParticleConfig.Damping.ToString("0.0");
-				if (_sliderParticleRadialAccel != null) _sliderParticleRadialAccel.Value = _currentConfig.ParticleConfig.RadialAccel;
+				if (_sliderParticleRadialAccel != null) _sliderParticleRadialAccel.SetValueNoSignal(_currentConfig.ParticleConfig.RadialAccel);
 				if (_lblParticleRadialAccel != null) _lblParticleRadialAccel.Text = _currentConfig.ParticleConfig.RadialAccel.ToString("0.0");
-				if (_sliderParticleTangentialAccel != null) _sliderParticleTangentialAccel.Value = _currentConfig.ParticleConfig.TangentialAccel;
+				if (_sliderParticleTangentialAccel != null) _sliderParticleTangentialAccel.SetValueNoSignal(_currentConfig.ParticleConfig.TangentialAccel);
 				if (_lblParticleTangentialAccel != null) _lblParticleTangentialAccel.Text = _currentConfig.ParticleConfig.TangentialAccel.ToString("0.0");
 
-				if (_sliderParticleScaleMin != null) _sliderParticleScaleMin.Value = _currentConfig.ParticleConfig.InitialScaleMin;
+				if (_sliderParticleScaleMin != null) _sliderParticleScaleMin.SetValueNoSignal(_currentConfig.ParticleConfig.InitialScaleMin);
 				if (_lblParticleScaleMin != null) _lblParticleScaleMin.Text = _currentConfig.ParticleConfig.InitialScaleMin.ToString("0.00");
-				if (_sliderParticleScaleMax != null) _sliderParticleScaleMax.Value = _currentConfig.ParticleConfig.InitialScaleMax;
+				if (_sliderParticleScaleMax != null) _sliderParticleScaleMax.SetValueNoSignal(_currentConfig.ParticleConfig.InitialScaleMax);
 				if (_lblParticleScaleMax != null) _lblParticleScaleMax.Text = _currentConfig.ParticleConfig.InitialScaleMax.ToString("0.00");
-				if (_sliderParticleEndScaleRatio != null) _sliderParticleEndScaleRatio.Value = _currentConfig.ParticleConfig.EndScaleRatio;
+				if (_sliderParticleEndScaleRatio != null) _sliderParticleEndScaleRatio.SetValueNoSignal(_currentConfig.ParticleConfig.EndScaleRatio);
 				if (_lblParticleEndScaleRatio != null) _lblParticleEndScaleRatio.Text = _currentConfig.ParticleConfig.EndScaleRatio.ToString("0.00");
 
 				Color pStart = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorStart, Colors.Gold);
+				if (_sliderParticleColorStartHue != null) _sliderParticleColorStartHue.SetValueNoSignal(pStart.H);
 				if (_pickerParticleColorStart != null) _pickerParticleColorStart.Color = pStart;
-				if (_sliderParticleColorStartHue != null) _sliderParticleColorStartHue.Value = pStart.H;
 
 				Color pMid = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorMid, Colors.DarkOrange);
+				if (_sliderParticleColorMidHue != null) _sliderParticleColorMidHue.SetValueNoSignal(pMid.H);
 				if (_pickerParticleColorMid != null) _pickerParticleColorMid.Color = pMid;
-				if (_sliderParticleColorMidHue != null) _sliderParticleColorMidHue.Value = pMid.H;
 
 				Color pEnd = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorEnd, Colors.Maroon);
+				if (_sliderParticleColorEndHue != null) _sliderParticleColorEndHue.SetValueNoSignal(pEnd.H);
 				if (_pickerParticleColorEnd != null) _pickerParticleColorEnd.Color = pEnd;
-				if (_sliderParticleColorEndHue != null) _sliderParticleColorEndHue.Value = pEnd.H;
 
-				if (_sliderParticleEmissionEnergy != null) _sliderParticleEmissionEnergy.Value = _currentConfig.ParticleConfig.EmissionEnergy;
+				if (_sliderParticleEmissionEnergy != null) _sliderParticleEmissionEnergy.SetValueNoSignal(_currentConfig.ParticleConfig.EmissionEnergy);
 				if (_lblParticleEmissionEnergy != null) _lblParticleEmissionEnergy.Text = _currentConfig.ParticleConfig.EmissionEnergy.ToString("0.0");
 			}
 
-			if (_sliderSurfaceNormalOffset != null) _sliderSurfaceNormalOffset.Value = _currentConfig.SurfaceNormalOffset;
+			if (_sliderSurfaceNormalOffset != null) _sliderSurfaceNormalOffset.SetValueNoSignal(_currentConfig.SurfaceNormalOffset);
 			if (_lblSurfaceNormalOffset != null) _lblSurfaceNormalOffset.Text = _currentConfig.SurfaceNormalOffset.ToString("0.000");
 
 			if (_txtPosOffsetX != null) _txtPosOffsetX.Text = _currentConfig.PositionOffset.X.ToString("0.##");
@@ -1050,6 +1092,89 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		{
 			_isUpdatingUI = false;
 		}
+	}
+
+	private void SyncConfigFromControls()
+	{
+		if (_txtSlug != null)
+		{
+			_slug = TemplateIDHelper.ToSnakeCase(_txtSlug.Text);
+			_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
+			_currentConfig.VfxId = _vfxId;
+			if (_currentConfig.ParticleConfig != null)
+			{
+				_currentConfig.ParticleConfig.ParticleId = _vfxId;
+			}
+		}
+		if (_txtVfxName != null) _currentConfig.Name = _txtVfxName.Text.Trim();
+		if (_optMode != null)
+		{
+			if (_optMode.Selected == 1)
+			{
+				_currentConfig.PrimitiveType = VfxPrimitiveType.ParticleSystem;
+			}
+			else if (_optPrimitive != null)
+			{
+				_currentConfig.PrimitiveType = (VfxPrimitiveType)_optPrimitive.Selected;
+			}
+		}
+		if (_optBlendMode != null) _currentConfig.BlendMode = (VfxBlendMode)_optBlendMode.Selected;
+		if (_optPlacementMode != null) _currentConfig.PlacementMode = (VfxPlacementMode)_optPlacementMode.Selected;
+
+		if (_currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem || _currentConfig.ParticleConfig != null)
+		{
+			EnsureParticleConfig();
+			if (_sliderParticleAmount != null) _currentConfig.ParticleConfig.Amount = (int)_sliderParticleAmount.Value;
+			if (_sliderParticleLifetime != null) _currentConfig.ParticleConfig.Lifetime = (float)_sliderParticleLifetime.Value;
+			if (_sliderParticleExplosiveness != null) _currentConfig.ParticleConfig.Explosiveness = (float)_sliderParticleExplosiveness.Value;
+			if (_chkParticleLocalCoords != null) _currentConfig.ParticleConfig.LocalCoords = _chkParticleLocalCoords.ButtonPressed;
+			if (_optParticleShape != null) _currentConfig.ParticleConfig.EmitterShape = (SpellParticleShape)_optParticleShape.Selected;
+			if (_optParticleRenderMode != null) _currentConfig.ParticleConfig.RenderMode = (SpellParticleRenderMode)_optParticleRenderMode.Selected;
+			if (_pickerParticleColorStart != null) _currentConfig.ParticleConfig.ColorStart = "#" + _pickerParticleColorStart.Color.ToHtml(false);
+			if (_pickerParticleColorMid != null) _currentConfig.ParticleConfig.ColorMid = "#" + _pickerParticleColorMid.Color.ToHtml(false);
+			if (_pickerParticleColorEnd != null) _currentConfig.ParticleConfig.ColorEnd = "#" + _pickerParticleColorEnd.Color.ToHtml(false);
+			if (_sliderParticleEmissionEnergy != null) _currentConfig.ParticleConfig.EmissionEnergy = (float)_sliderParticleEmissionEnergy.Value;
+			if (_sliderParticleSpread != null) _currentConfig.ParticleConfig.SpreadDegrees = (float)_sliderParticleSpread.Value;
+			if (_sliderParticleVelMin != null) _currentConfig.ParticleConfig.InitialVelocityMin = (float)_sliderParticleVelMin.Value;
+			if (_sliderParticleVelMax != null) _currentConfig.ParticleConfig.InitialVelocityMax = (float)_sliderParticleVelMax.Value;
+			if (_sliderParticleDamping != null) _currentConfig.ParticleConfig.Damping = (float)_sliderParticleDamping.Value;
+			if (_sliderParticleRadialAccel != null) _currentConfig.ParticleConfig.RadialAccel = (float)_sliderParticleRadialAccel.Value;
+			if (_sliderParticleTangentialAccel != null) _currentConfig.ParticleConfig.TangentialAccel = (float)_sliderParticleTangentialAccel.Value;
+			if (_sliderParticleScaleMin != null) _currentConfig.ParticleConfig.InitialScaleMin = (float)_sliderParticleScaleMin.Value;
+			if (_sliderParticleScaleMax != null) _currentConfig.ParticleConfig.InitialScaleMax = (float)_sliderParticleScaleMax.Value;
+			if (_sliderParticleEndScaleRatio != null) _currentConfig.ParticleConfig.EndScaleRatio = (float)_sliderParticleEndScaleRatio.Value;
+		}
+
+		if (_chkLuminanceToAlpha != null) _currentConfig.LuminanceToAlpha = _chkLuminanceToAlpha.ButtonPressed;
+		if (_sliderLuminanceThreshold != null) _currentConfig.LuminanceThreshold = (float)_sliderLuminanceThreshold.Value;
+		if (_sliderLuminanceSmoothness != null) _currentConfig.LuminanceSmoothness = (float)_sliderLuminanceSmoothness.Value;
+		if (_chkUseGrayscale != null) _currentConfig.UseGrayscale = _chkUseGrayscale.ButtonPressed;
+		if (_chkInvertMask != null) _currentConfig.InvertMask = _chkInvertMask.ButtonPressed;
+		if (_sliderHighPassCutoff != null) _currentConfig.HighPassCutoff = (float)_sliderHighPassCutoff.Value;
+
+		if (_pickerBaseColor != null) _currentConfig.BaseColor = "#" + _pickerBaseColor.Color.ToHtml(false);
+		if (_pickerSecondaryColor != null) _currentConfig.SecondaryColor = "#" + _pickerSecondaryColor.Color.ToHtml(false);
+		if (_pickerCoreColor != null) _currentConfig.CoreColor = "#" + _pickerCoreColor.Color.ToHtml(false);
+		if (_sliderEmissionBoost != null) _currentConfig.EmissionBoost = (float)_sliderEmissionBoost.Value;
+		if (_sliderCoreThreshold != null) _currentConfig.CoreThreshold = (float)_sliderCoreThreshold.Value;
+
+		if (_chkRadialFalloff != null) _currentConfig.EnableRadialFalloff = _chkRadialFalloff.ButtonPressed;
+		if (_sliderRadialFalloffStart != null) _currentConfig.RadialFalloffStart = (float)_sliderRadialFalloffStart.Value;
+		if (_sliderRadialFalloffEnd != null) _currentConfig.RadialFalloffEnd = (float)_sliderRadialFalloffEnd.Value;
+
+		if (_chkLengthFade != null) _currentConfig.EnableLengthFade = _chkLengthFade.ButtonPressed;
+		if (_sliderLengthFadeStart != null) _currentConfig.LengthFadeStart = (float)_sliderLengthFadeStart.Value;
+		if (_sliderLengthFadeEnd != null) _currentConfig.LengthFadeEnd = (float)_sliderLengthFadeEnd.Value;
+		if (_sliderErosionProgress != null) _currentConfig.ErosionProgress = (float)_sliderErosionProgress.Value;
+
+		if (_chkFresnel != null) _currentConfig.EnableFresnel = _chkFresnel.ButtonPressed;
+		if (_sliderFresnelPower != null) _currentConfig.FresnelPower = (float)_sliderFresnelPower.Value;
+		if (_sliderFresnelIntensity != null) _currentConfig.FresnelIntensity = (float)_sliderFresnelIntensity.Value;
+
+		if (_chkDepthFade != null) _currentConfig.EnableDepthFade = _chkDepthFade.ButtonPressed;
+		if (_sliderDepthFadeDistance != null) _currentConfig.DepthFadeDistance = (float)_sliderDepthFadeDistance.Value;
+
+		if (_sliderSurfaceNormalOffset != null) _currentConfig.SurfaceNormalOffset = (float)_sliderSurfaceNormalOffset.Value;
 	}
 
 	public void RestartPreviewVfx()
@@ -1091,14 +1216,15 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				foreach (var catName in new[] { "ribbons", "decals", "textures", "vfx_spritesheets", "vfx", "noise_textures", "noise" })
+				foreach (var catName in new[] { "Ribbon", "Decal", "Terrain", "Spritesheet", "Noise" })
 				{
-					if (assetsObj[catName] is JsonObject catObj)
+					var catDict = assetsObj.GetCategory(catName);
+					if (catDict != null)
 					{
-						foreach (var kvp in catObj)
+						foreach (var kvp in catDict)
 						{
 							if (!string.IsNullOrEmpty(kvp.Key))
 							{
@@ -1135,19 +1261,17 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				foreach (var catName in new[] { "noise_textures", "noise" })
+				var noiseDict = assetsObj.GetCategory("Noise");
+				if (noiseDict != null)
 				{
-					if (assetsObj[catName] is JsonObject catObj)
+					foreach (var kvp in noiseDict)
 					{
-						foreach (var kvp in catObj)
+						if (!string.IsNullOrEmpty(kvp.Key))
 						{
-							if (!string.IsNullOrEmpty(kvp.Key))
-							{
-								results.Add(Path.GetFileName(kvp.Key));
-							}
+							results.Add(Path.GetFileName(kvp.Key));
 						}
 					}
 				}
@@ -1165,42 +1289,20 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				foreach (var cat in assetsObj)
+				foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
 				{
-					if (cat.Value is JsonObject subCats)
+					var catDict = assetsObj.GetCategory(catName);
+					if (catDict != null)
 					{
-						foreach (var subCat in subCats)
+						foreach (var modelProp in catDict)
 						{
-							if (subCat.Value is JsonObject modelsObj)
+							string fn = modelProp.Key;
+							if (!string.IsNullOrEmpty(fn) && fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 							{
-								foreach (var modelProp in modelsObj)
-								{
-									string fileName = modelProp.Key;
-									bool isProjectile = subCat.Key.Equals("projectiles", StringComparison.OrdinalIgnoreCase);
-
-									if (!isProjectile && modelProp.Value is JsonObject mObj)
-									{
-										string? at = mObj["asset_type"]?.ToString()
-											?? mObj["AssetType"]?.ToString()
-											?? mObj["default_asset_type"]?.ToString()
-											?? mObj["type"]?.ToString();
-										if (!string.IsNullOrEmpty(at) && (
-											at.Equals("Projectile", StringComparison.OrdinalIgnoreCase) ||
-											at.Equals("projectiles", StringComparison.OrdinalIgnoreCase) ||
-											at.Equals("projectile", StringComparison.OrdinalIgnoreCase)))
-										{
-											isProjectile = true;
-										}
-									}
-
-									if (isProjectile)
-									{
-										results.Add(fileName);
-									}
-								}
+								results.Add(Path.GetFileName(fn));
 							}
 						}
 					}
@@ -1247,7 +1349,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			float dirX = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0), 2);
 			float dirY = (float)Math.Round(Random.Shared.NextDouble() * 1.5, 2);
 			float dirZ = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0), 2);
-			_currentConfig.ParticleConfig.Direction = new Vector3(dirX, dirY, dirZ).Normalized();
+			_currentConfig.ParticleConfig.Direction = new Vector3(dirX, dirY, dirZ).Normalized().ToVector3Data();
 
 			_currentConfig.ParticleConfig.SpreadDegrees = (float)Math.Round(Random.Shared.NextDouble() * 80.0 + 10.0, 1);
 
@@ -1257,7 +1359,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.ParticleConfig.InitialVelocityMax = vMax;
 
 			float gravY = (float)Math.Round(Random.Shared.NextDouble() * 12.0 - 6.0, 2);
-			_currentConfig.ParticleConfig.Gravity = new Vector3(0.0f, gravY, 0.0f);
+			_currentConfig.ParticleConfig.Gravity = new Vector3(0.0f, gravY, 0.0f).ToVector3Data();
 
 			_currentConfig.ParticleConfig.Damping = (float)Math.Round(Random.Shared.NextDouble() * 4.0, 2);
 			_currentConfig.ParticleConfig.RadialAccel = (float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 15.0, 2);
@@ -1297,21 +1399,21 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.BaseUvScroll = new Vector2(
 				(float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 1.5, 2),
 				(float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 1.5, 2)
-			);
+			).ToVector2Data();
 			_currentConfig.BaseUvScale = new Vector2(
 				(float)Math.Round(Random.Shared.NextDouble() * 2.5 + 0.5, 2),
 				(float)Math.Round(Random.Shared.NextDouble() * 2.5 + 0.5, 2)
-			);
+			).ToVector2Data();
 
 			_currentConfig.DistortionStrength = (float)Math.Round(Random.Shared.NextDouble() * 0.85 + 0.05, 2);
 			_currentConfig.NoiseUvScroll = new Vector2(
 				(float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 1.5, 2),
 				(float)Math.Round((Random.Shared.NextDouble() * 2.0 - 1.0) * 1.5, 2)
-			);
+			).ToVector2Data();
 			_currentConfig.NoiseUvScale = new Vector2(
 				(float)Math.Round(Random.Shared.NextDouble() * 2.5 + 0.5, 2),
 				(float)Math.Round(Random.Shared.NextDouble() * 2.5 + 0.5, 2)
-			);
+			).ToVector2Data();
 
 			float baseHue = (float)Random.Shared.NextDouble();
 			Color colBase = Color.FromHsv(baseHue, (float)(Random.Shared.NextDouble() * 0.3 + 0.7), 1.0f);
@@ -1436,6 +1538,8 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
+		SyncConfigFromControls();
+
 		if (!string.IsNullOrEmpty(_tempGeneratedNoiseFileName) &&
 		    _tempGeneratedNoiseConfig != null &&
 		    string.Equals(_currentConfig.NoiseTexture, _tempGeneratedNoiseFileName, StringComparison.OrdinalIgnoreCase))
@@ -1443,14 +1547,19 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			try
 			{
 				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-				var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
-				if (!assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] == null)
+				string outputRtex = Path.Combine(wsPath, "Assets", "noise", _tempGeneratedNoiseFileName);
+				string blake3Hash = NoiseTextureGenerator.GenerateAndSaveRtex(_tempGeneratedNoiseConfig, outputRtex);
+
+				MapAssetHelper.UpdateManifestAsset(wsPath, "Noise", _tempGeneratedNoiseFileName, blake3Hash);
+
+				MetadataService.Instance.UpdateMetadata(wsPath, m =>
 				{
-					assetsObj["noise_textures"] = new JsonObject();
-				}
-				var noiseObj = assetsObj["noise_textures"].AsObject();
-				noiseObj[_tempGeneratedNoiseFileName] = _tempGeneratedNoiseConfig;
-				MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
+					m.NoiseTextures ??= new(StringComparer.OrdinalIgnoreCase);
+					m.NoiseTextures[_tempGeneratedNoiseFileName] = new Realm.Shared.Metadata.TextureMetadata
+					{
+						NoiseConfig = _tempGeneratedNoiseConfig.ToJsonString()
+					};
+				});
 				Hud?.ReadMetadataAndRefreshTextures();
 			}
 			catch (Exception ex)
@@ -1482,44 +1591,21 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
-			if (!assetsObj.ContainsKey("vfx_spritesheets") || assetsObj["vfx_spritesheets"] == null)
-			{
-				assetsObj["vfx_spritesheets"] = new JsonObject();
-			}
-
-			var vfxSheets = assetsObj["vfx_spritesheets"]!.AsObject();
 			string fileName = Path.GetFileName(key);
-			string cleanBase = Path.GetFileNameWithoutExtension(key);
-
-			string targetKey = fileName;
-			JsonNode? existingNode = null;
-			if (vfxSheets.TryGetPropertyValue(fileName, out var s1)) { targetKey = fileName; existingNode = s1; }
-			else if (vfxSheets.TryGetPropertyValue(key, out var s2)) { targetKey = key; existingNode = s2; }
-			else if (vfxSheets.TryGetPropertyValue($"{cleanBase}.rtex", out var s3)) { targetKey = $"{cleanBase}.rtex"; existingNode = s3; }
-			else if (vfxSheets.TryGetPropertyValue($"{cleanBase}.png", out var s4)) { targetKey = $"{cleanBase}.png"; existingNode = s4; }
-
-			JsonObject newSheetObj;
-			if (existingNode is JsonObject exObj)
+			string slug = Realm.Godot.Utils.TemplateIDHelper.GenerateSlug(fileName);
+			string spritesheetTemplateId = Realm.Godot.Utils.TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
+			MetadataService.Instance.UpdateMetadata(wsPath, m =>
 			{
-				newSheetObj = exObj;
-			}
-			else
-			{
-				newSheetObj = new JsonObject();
-				if (existingNode is JsonValue v)
+				m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+				m.VfxSpritesheets[spritesheetTemplateId] = new Realm.Shared.Metadata.VfxMetadata
 				{
-					newSheetObj["hash"] = v.ToString();
-				}
-			}
-
-			newSheetObj["columns"] = columns;
-			newSheetObj["rows"] = rows;
-			newSheetObj["fps"] = Math.Round(fps, 2);
-			newSheetObj["subframe_blend"] = subframeBlend;
-
-			vfxSheets[targetKey] = newSheetObj;
-			MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj);
+					TexturePath = fileName,
+					Columns = columns,
+					Rows = rows,
+					Fps = fps,
+					SubframeBlend = subframeBlend
+				};
+			});
 		}
 		catch (Exception ex)
 		{

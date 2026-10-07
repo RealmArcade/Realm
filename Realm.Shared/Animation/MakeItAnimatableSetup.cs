@@ -81,6 +81,8 @@ public static class MakeItAnimatableSetup
         var asm = Assembly.GetExecutingAssembly();
 
         ExtractEmbeddedToFile(asm, "MiaSetup.server.py", Path.Combine(NodeDir, "server.py"));
+        ExtractEmbeddedToFile(asm, "MiaSetup.download_models.py", Path.Combine(NodeDir, "download_models.py"));
+        ExtractEmbeddedToFile(asm, "MiaSetup.download_mixamo.py", Path.Combine(NodeDir, "download_mixamo.py"));
 
         string patchesDestDir = Path.Combine(NodeDir, "patches");
         Directory.CreateDirectory(patchesDestDir);
@@ -269,18 +271,8 @@ public static class MakeItAnimatableSetup
         log("[MIA] Downloading pretrained models from HuggingFace (jasongzy/Make-It-Animatable)...");
         log("[MIA] (Pinned revision: " + ModelRevision[..8] + "...)");
 
-        RunPythonInline($"""
-import sys
-from huggingface_hub import snapshot_download
-snapshot_download(
-    repo_type="model",
-    repo_id="{ModelRepoId}",
-    revision="{ModelRevision}",
-    local_dir=r"{EscapeForPython(RepoDir)}",
-    allow_patterns=["output/best/new/*"],
-)
-print("[MIA] Pretrained models downloaded successfully.")
-""", log);
+        string scriptPath = Path.Combine(NodeDir, "download_models.py");
+        RunPythonScript(scriptPath, new[] { ModelRepoId, ModelRevision, RepoDir }, log);
     }
 
     private static void DownloadMixamoBones(Action<string> log)
@@ -297,51 +289,32 @@ print("[MIA] Pretrained models downloaded successfully.")
         log("[MIA] Downloading Mixamo bone data from HuggingFace (jasongzy/Mixamo)...");
         log("[MIA] (Pinned revision: " + MixamoRevision[..8] + "...)");
 
-        RunPythonInline($"""
-import sys
-from huggingface_hub import snapshot_download
-snapshot_download(
-    repo_type="dataset",
-    repo_id="{MixamoDatasetId}",
-    revision="{MixamoRevision}",
-    local_dir=r"{EscapeForPython(mixamoDir)}",
-    allow_patterns=["bones*.fbx"],
-)
-print("[MIA] Mixamo data downloaded successfully.")
-""", log);
+        string scriptPath = Path.Combine(NodeDir, "download_mixamo.py");
+        RunPythonScript(scriptPath, new[] { MixamoDatasetId, MixamoRevision, mixamoDir }, log);
     }
 
-    private static void RunPythonInline(string script, Action<string>? log = null)
+    private static void RunPythonScript(string scriptPath, string[] args, Action<string>? log = null)
     {
-        string tempScript = Path.Combine(
-            Path.GetTempPath(),
-            $"mia_setup_{Guid.NewGuid():N}.py");
-
-        try
+        var psi = new ProcessStartInfo
         {
-            File.WriteAllText(tempScript, script, Encoding.UTF8);
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = PythonExePath,
-                WorkingDirectory = RepoDir,
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-            psi.Environment["PYTHONUNBUFFERED"] = "1";
-            psi.Environment["PYTHONIOENCODING"] = "utf-8";
-            psi.ArgumentList.Add("-u");
-            psi.ArgumentList.Add(tempScript);
-
-            RunProcess(psi, "[MIA]", throwOnNonZero: true, log);
-        }
-        finally
+            FileName = PythonExePath,
+            WorkingDirectory = RepoDir,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        psi.Environment["PYTHONUNBUFFERED"] = "1";
+        psi.Environment["PYTHONIOENCODING"] = "utf-8";
+        psi.ArgumentList.Add("-u");
+        psi.ArgumentList.Add(scriptPath);
+        foreach (var arg in args)
         {
-            try { File.Delete(tempScript); } catch { }
+            psi.ArgumentList.Add(arg);
         }
+
+        RunProcess(psi, "[MIA]", throwOnNonZero: true, log);
     }
 
     private static void CheckToolAvailable(string tool, string testArg, string errorMessage)
@@ -432,7 +405,4 @@ print("[MIA] Mixamo data downloaded successfully.")
 
         return (proc.ExitCode, stdoutSb.ToString(), stderrSb.ToString());
     }
-
-    private static string EscapeForPython(string path) =>
-        path.Replace("\\", "\\\\");
 }

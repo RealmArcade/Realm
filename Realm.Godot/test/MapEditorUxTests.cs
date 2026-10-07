@@ -170,7 +170,7 @@ public class MapEditorUxTests
 		var hud = MapEditorHUD.Instance;
 		Assertions.AssertThat(hud).IsNotNull();
 
-		var btnTestMap = hud!.GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnTestMap");
+		var btnTestMap = hud!.GetNode<Button>("TopLeftBox/BtnTestMap");
 		Assertions.AssertThat(btnTestMap).IsNotNull();
 		
 		// Trigger TestMapAction on blank map
@@ -999,62 +999,64 @@ public class MapEditorUxTests
 	""Author"": ""TestAuthor"",
 	""Description"": ""Custom Projectile 3-Layer Test""
   },
-  ""CustomWeapons"": [
-    {
-	  ""WeaponId"": ""spiked_fireball_weapon"",
-	  ""Name"": ""Spiked Fireball Launcher"",
-	  ""Damage"": 30.0,
-	  ""Range"": 20.0,
-	  ""AttackCooldown"": 0.8,
-	  ""ProjectileSpeed"": 16.0,
-	  ""ProjectileModelPath"": ""Assets/models/projectiles/spiked_orb_projectile.glb"",
-	  ""ArcHeight"": 3.5,
-	  ""HomingWeight"": 0.25,
-	  ""TumbleAngularVelocity"": { ""X"": 4.0, ""Y"": 3.0, ""Z"": 1.5 },
-	  ""ShaderEffectType"": ""fire"",
-	  ""BaseColor"": ""#261e19"",
-	  ""EmissionColor"": ""#ff5500"",
-	  ""EmissionEnergy"": 5.0,
-	  ""FresnelPower"": 2.5,
-	  ""FresnelColor"": ""#ff9922"",
-	  ""FresnelFactor"": 2.0,
-	  ""NoiseScale"": 3.5,
-	  ""UvScrollSpeed1"": { ""X"": 0.4, ""Y"": 0.2 },
-	  ""UvScrollSpeed2"": { ""X"": -0.3, ""Y"": 0.4 },
-	  ""ThresholdCutoff"": 0.45,
-	  ""ThresholdSmoothness"": 0.1,
-	  ""RibbonTexture"": ""Assets/ribbons/void_whisper_shadow_veil.png"",
-	  ""RibbonColor"": ""#ff7711"",
-	  ""RibbonWidth"": 0.45,
-	  ""RibbonLifetime"": 0.6,
-	  ""RibbonTaper"": true,
-	  ""RibbonAdditive"": true
-    }
-  ],
-  ""CustomUnits"": [
-    {
-	  ""UnitId"": ""fire_orb_mage"",
-	  ""Name"": ""Fire Orb Mage"",
-	  ""MaxHp"": 250.0,
-	  ""Damage"": 30.0,
-	  ""Range"": 20.0,
-	  ""AttackCooldown"": 0.8,
-	  ""Speed"": 6.0,
-	  ""ScanRadius"": 30.0,
-	  ""ModelPath"": ""Assets/models/units/soldier.glb"",
-	  ""Weapons"": [""spiked_fireball_weapon""]
-    },
-    {
-	  ""UnitId"": ""enemy_training_dummy"",
-	  ""Name"": ""Enemy Training Dummy"",
-	  ""MaxHp"": 600.0,
-	  ""Damage"": 0.0,
-	  ""Range"": 0.0,
-	  ""Speed"": 0.0,
-	  ""ScanRadius"": 0.0,
-	  ""ModelPath"": ""Assets/models/units/worker.glb""
-    }
-  ],
+  ""Templates"": {
+	""Weapons"": [
+      {
+		""WeaponId"": ""spiked_fireball_weapon"",
+		""Name"": ""Spiked Fireball Launcher"",
+		""Damage"": 30.0,
+		""Range"": 20.0,
+		""AttackCooldown"": 0.8,
+		""ProjectileSpeed"": 16.0,
+		""ProjectileModelPath"": ""Assets/models/projectiles/spiked_orb_projectile.glb"",
+		""ArcHeight"": 3.5,
+		""HomingWeight"": 0.25,
+		""TumbleAngularVelocity"": { ""X"": 4.0, ""Y"": 3.0, ""Z"": 1.5 },
+		""ShaderEffectType"": ""fire"",
+		""BaseColor"": ""#261e19"",
+		""EmissionColor"": ""#ff5500"",
+		""EmissionEnergy"": 5.0,
+		""FresnelPower"": 2.5,
+		""FresnelColor"": ""#ff9922"",
+		""FresnelFactor"": 2.0,
+		""NoiseScale"": 3.5,
+		""UvScrollSpeed1"": { ""X"": 0.4, ""Y"": 0.2 },
+		""UvScrollSpeed2"": { ""X"": -0.3, ""Y"": 0.4 },
+		""ThresholdCutoff"": 0.45,
+		""ThresholdSmoothness"": 0.1,
+		""RibbonTexture"": ""Assets/ribbons/void_whisper_shadow_veil.png"",
+		""RibbonColor"": ""#ff7711"",
+		""RibbonWidth"": 0.45,
+		""RibbonLifetime"": 0.6,
+		""RibbonTaper"": true,
+		""RibbonAdditive"": true
+      }
+    ],
+	""Units"": [
+      {
+		""UnitId"": ""fire_orb_mage"",
+		""Name"": ""Fire Orb Mage"",
+		""MaxHp"": 250.0,
+		""Damage"": 30.0,
+		""Range"": 20.0,
+		""AttackCooldown"": 0.8,
+		""Speed"": 6.0,
+		""ScanRadius"": 30.0,
+		""ModelPath"": ""Assets/models/units/soldier.glb"",
+		""Weapons"": [""spiked_fireball_weapon""]
+      },
+      {
+		""UnitId"": ""enemy_training_dummy"",
+		""Name"": ""Enemy Training Dummy"",
+		""MaxHp"": 600.0,
+		""Damage"": 0.0,
+		""Range"": 0.0,
+		""Speed"": 0.0,
+		""ScanRadius"": 0.0,
+		""ModelPath"": ""Assets/models/units/worker.glb""
+      }
+    ]
+  },
   ""Assets"": {
 	""glb"": {
 	  ""projectiles"": {
@@ -1435,8 +1437,9 @@ public class CustomProjMap : IWasmModule
 	[TestCase]
 	public void TestIsIgnoredPathFilters()
 	{
-		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath(".vscode/settings.json")).IsTrue();
-		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("subfolder/.vscode/tasks.json")).IsTrue();
+		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath(".vscode/settings.json")).IsFalse();
+		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("subfolder/.vscode/tasks.json")).IsFalse();
+		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath(".vscode/metadata.schema.json")).IsFalse();
 		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("export.rmap")).IsTrue();
 		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("temp.tmp")).IsTrue();
 		Assertions.AssertThat(MapEditorHUD.IsIgnoredPath("debug.log")).IsTrue();

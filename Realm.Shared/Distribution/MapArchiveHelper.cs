@@ -431,23 +431,12 @@ public static class MapArchiveHelper
         {
             try
             {
-                string jsonText = File.ReadAllText(manifestPath);
-                var manifest = MapManifest.LoadFromJson(jsonText);
-                if (manifest != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(manifest.MapName)) mapName = manifest.MapName.Trim();
-                    if (!string.IsNullOrWhiteSpace(manifest.Version)) version = manifest.Version.Trim();
-                    if (!string.IsNullOrWhiteSpace(manifest.Author)) author = manifest.Author.Trim();
-                    if (!string.IsNullOrWhiteSpace(manifest.Description)) description = manifest.Description;
-                    if (manifest.Tags != null) tags.AddRange(manifest.Tags);
-                }
-
-                using var doc = JsonDocument.Parse(jsonText);
-                if (doc.RootElement.TryGetProperty("GameBuildNumber", out var gbnProp) && gbnProp.ValueKind == JsonValueKind.String)
-                {
-                    string? gbn = gbnProp.GetString();
-                    if (!string.IsNullOrWhiteSpace(gbn)) gameBuildNumber = gbn.Trim();
-                }
+                var manifest = Services.MapFileService.LoadManifest(manifestPath);
+                if (!string.IsNullOrWhiteSpace(manifest.MapName)) mapName = manifest.MapName.Trim();
+                if (!string.IsNullOrWhiteSpace(manifest.Version)) version = manifest.Version.Trim();
+                if (!string.IsNullOrWhiteSpace(manifest.Author)) author = manifest.Author.Trim();
+                if (!string.IsNullOrWhiteSpace(manifest.Description)) description = manifest.Description;
+                if (manifest.Tags != null) tags.AddRange(manifest.Tags);
             }
             catch
             {
@@ -459,12 +448,10 @@ public static class MapArchiveHelper
         {
             try
             {
-                string metaText = File.ReadAllText(metadataPath);
-                using var metaDoc = JsonDocument.Parse(metaText);
-                if (metaDoc.RootElement.TryGetProperty("GameBuildNumber", out var gbnProp) && gbnProp.ValueKind == JsonValueKind.String)
+                var metadata = Services.MapFileService.LoadMetadata(metadataPath);
+                if (!string.IsNullOrWhiteSpace(metadata.GameBuildNumber))
                 {
-                    string? gbn = gbnProp.GetString();
-                    if (!string.IsNullOrWhiteSpace(gbn)) gameBuildNumber = gbn.Trim();
+                    gameBuildNumber = metadata.GameBuildNumber.Trim();
                 }
             }
             catch

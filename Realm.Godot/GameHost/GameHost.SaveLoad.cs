@@ -23,6 +23,8 @@ public partial class GameHost
 		bool savedBlockMode = EditorBlockMode;
 		float savedBlockLevelHeight = EditorBlockLevelHeight;
 		float savedExactHeight = EditorExactHeight;
+		int savedPaintTextureIndex = EditorPaintTextureIndex;
+		int savedCliffPaintTextureIndex = EditorCliffPaintTextureIndex;
 		EditorTool savedActiveTool = ActiveEditorTool;
 		string savedActivePlaceId = ActivePlaceId;
 		var savedCopiedArea = _editorService?.CopiedArea;
@@ -204,6 +206,8 @@ public partial class GameHost
 				EditorBlockMode = savedBlockMode;
 				EditorBlockLevelHeight = savedBlockLevelHeight;
 				EditorExactHeight = savedExactHeight;
+				EditorPaintTextureIndex = savedPaintTextureIndex;
+				EditorCliffPaintTextureIndex = savedCliffPaintTextureIndex;
 				if (_editorService != null)
 				{
 					_editorService.CopiedArea = savedCopiedArea;
@@ -211,6 +215,7 @@ public partial class GameHost
 					_editorService.SetSelectionEnd(savedSelectionEnd);
 				}
 				MapEditorHUD.Instance?.SelectToolFromHotkey(savedActiveTool);
+				MapEditorHUD.Instance?.UpdateTextureLabels();
 				MapEditorHUD.Instance?.RefreshWaterSwatches();
 				MapEditorHUD.Instance?.UpdateMapNameHeader();
 				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));
@@ -359,53 +364,109 @@ public partial class GameHost
 
 			int splatW = width + 1;
 			int splatD = depth + 1;
-			if (GroundTerrain.SplatMap == null || GroundTerrain.SplatMap.GetLength(0) != splatW || GroundTerrain.SplatMap.GetLength(1) != splatD)
-			{
-				GroundTerrain.SplatMap = new TerrainSplatWeights[splatW, splatD];
-				for (int z = 0; z < splatD; z++)
-				{
-					for (int x = 0; x < splatW; x++)
-					{
-						GroundTerrain.SplatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
-					}
-				}
-			}
 			GroundTerrain.UpdateWaterSize();
 
-			TerrainColorsState colorsState = default;
-			bool foundColors = false;
-			EcsWorld.Query(in worldQuery, (Entity entity) =>
-			{
-				if (EcsWorld.Has<TerrainColorsState>(entity))
-				{
-					colorsState = EcsWorld.Get<TerrainColorsState>(entity);
-					foundColors = true;
-				}
-			});
+			string groundIndicesPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(absolutePath), "terrain_splat_indices.exr");
+			string groundWeightsPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(absolutePath), "terrain_splat_weights.exr");
+			bool groundSplatLoaded = false;
 
-			if (foundColors && colorsState.Colors != null)
+			if (System.IO.File.Exists(groundIndicesPath) && System.IO.File.Exists(groundWeightsPath))
 			{
-				int colorLen = colorsState.Colors.Length;
-
-				for (int z = 0; z < splatD; z++)
+				Image splatIdxImg = Image.LoadFromFile(groundIndicesPath);
+				Image splatWgtImg = Image.LoadFromFile(groundWeightsPath);
+				if (splatIdxImg != null && splatWgtImg != null)
 				{
-					for (int x = 0; x < splatW; x++)
+					splatIdxImg.Convert(Image.Format.Rgbaf);
+					splatWgtImg.Convert(Image.Format.Rgbaf);
+					int sW = splatIdxImg.GetWidth();
+					int sD = splatIdxImg.GetHeight();
+					int wgtW = splatWgtImg.GetWidth();
+					int wgtD = splatWgtImg.GetHeight();
+					ReadOnlySpan<float> idxData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(splatIdxImg.GetData());
+					ReadOnlySpan<float> wgtData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(splatWgtImg.GetData());
+
+					GroundTerrain.SplatMap = new TerrainSplatWeights[splatW, splatD];
+					for (int z = 0; z < splatD; z++)
 					{
-						int idx;
-						if (colorLen == splatW * splatD)
+						for (int x = 0; x < splatW; x++)
 						{
-							idx = z * splatW + x;
+							int srcIdxX = sW == splatW ? x : System.Math.Clamp((int)System.Math.Floor(x * (float)(sW - 1) / System.Math.Max(1, splatW - 1)), 0, sW - 1);
+							int srcIdxZ = sD == splatD ? z : System.Math.Clamp((int)System.Math.Floor(z * (float)(sD - 1) / System.Math.Max(1, splatD - 1)), 0, sD - 1);
+							int idxOffset = (srcIdxZ * sW + srcIdxX) * 4;
+
+							int srcWgtX = wgtW == splatW ? x : System.Math.Clamp((int)System.Math.Floor(x * (float)(wgtW - 1) / System.Math.Max(1, splatW - 1)), 0, wgtW - 1);
+							int srcWgtZ = wgtD == splatD ? z : System.Math.Clamp((int)System.Math.Floor(z * (float)(wgtD - 1) / System.Math.Max(1, splatD - 1)), 0, wgtD - 1);
+							int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
+
+							GroundTerrain.SplatMap[x, z] = new TerrainSplatWeights
+							{
+								Index0 = (int)System.Math.Round(idxData[idxOffset + 0]),
+								Index1 = (int)System.Math.Round(idxData[idxOffset + 1]),
+								Index2 = (int)System.Math.Round(idxData[idxOffset + 2]),
+								Index3 = (int)System.Math.Round(idxData[idxOffset + 3]),
+								Weight0 = wgtData[weightOffset + 0],
+								Weight1 = wgtData[weightOffset + 1],
+								Weight2 = wgtData[weightOffset + 2],
+								Weight3 = wgtData[weightOffset + 3]
+							};
 						}
-						else
+					}
+					groundSplatLoaded = true;
+				}
+			}
+
+			if (!groundSplatLoaded)
+			{
+				TerrainColorsState colorsState = default;
+				bool foundColors = false;
+				EcsWorld.Query(in worldQuery, (Entity entity) =>
+				{
+					if (EcsWorld.Has<TerrainColorsState>(entity))
+					{
+						colorsState = EcsWorld.Get<TerrainColorsState>(entity);
+						foundColors = true;
+					}
+				});
+
+				GroundTerrain.SplatMap = new TerrainSplatWeights[splatW, splatD];
+				if (foundColors && colorsState.Colors != null)
+				{
+					int colorLen = colorsState.Colors.Length;
+
+					for (int z = 0; z < splatD; z++)
+					{
+						for (int x = 0; x < splatW; x++)
 						{
-							int srcX = System.Math.Clamp(x, 0, width - 1);
-							int srcZ = System.Math.Clamp(z, 0, depth - 1);
-							idx = srcZ * width + srcX;
+							int idx;
+							if (colorLen == splatW * splatD)
+							{
+								idx = z * splatW + x;
+							}
+							else
+							{
+								int srcX = System.Math.Clamp(x, 0, width - 1);
+								int srcZ = System.Math.Clamp(z, 0, depth - 1);
+								idx = srcZ * width + srcX;
+							}
+							if (idx < colorLen)
+							{
+								string serialized = colorsState.Colors[idx];
+								GroundTerrain.SplatMap[x, z] = TerrainSplatWeights.Deserialize(serialized);
+							}
+							else
+							{
+								GroundTerrain.SplatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
+							}
 						}
-						if (idx < colorLen)
+					}
+				}
+				else
+				{
+					for (int z = 0; z < splatD; z++)
+					{
+						for (int x = 0; x < splatW; x++)
 						{
-							string serialized = colorsState.Colors[idx];
-							GroundTerrain.SplatMap[x, z] = TerrainSplatWeights.Deserialize(serialized);
+							GroundTerrain.SplatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
 						}
 					}
 				}

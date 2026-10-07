@@ -54,11 +54,11 @@ layout_mode = 2
 focus_mode = 0
 text = "❓ HELP / HOTKEYS"
 
-[node name="BtnVSCode" type="Button" parent="TopLeftBox"]
+[node name="BtnEditors" type="Button" parent="TopLeftBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 focus_mode = 0
-text = "💻 CODE & DATA"
+text = "EDITORS"
 
 [node name="BtnUndo" type="Button" parent="TopLeftBox"]
 custom_minimum_size = Vector2(0, 40)
@@ -89,6 +89,12 @@ focus_mode = 0
 custom_minimum_size = Vector2(36, 32)
 layout_mode = 2
 focus_mode = 0
+
+[node name="BtnTestMap" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "🎮 TEST"
 
 [node name="TopBar" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(500, 60)
@@ -192,11 +198,6 @@ layout_mode = 2
 focus_mode = 0
 text = "💾 SAVE"
 
-[node name="BtnTestMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
-layout_mode = 2
-focus_mode = 0
-text = "🎮 TEST"
-
 [node name="BtnExportMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2
 focus_mode = 0
@@ -215,7 +216,7 @@ text = "🧹 RESET TO BLANK MAP"
 [node name="BtnGenerateMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2
 focus_mode = 0
-text = "🎲 RANDOM GEN"
+text = "🎲 PROCEDURAL"
 
 [node name="BtnImportMinimap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2

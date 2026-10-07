@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json.Nodes;
 using Godot;
+using Realm.Shared.Distribution;
+using Realm.Shared.Metadata;
+using Realm.Shared.Services;
 
 namespace Realm.Godot.Utils;
 
@@ -12,9 +14,9 @@ public readonly struct SwatchSlotInfo
 	public readonly string? BaseName;
 	public readonly string? FileName;
 	public readonly bool IsFiller;
-	public readonly JsonNode? MetadataNode;
+	public readonly TextureMetadata? MetadataNode;
 
-	public SwatchSlotInfo(int slotIndex, string? baseName, string? fileName, bool isFiller, JsonNode? metadataNode)
+	public SwatchSlotInfo(int slotIndex, string? baseName, string? fileName, bool isFiller, TextureMetadata? metadataNode)
 	{
 		SlotIndex = slotIndex;
 		BaseName = baseName;
@@ -28,13 +30,22 @@ public static class TextureSwatchSlots
 {
 	public const int MaxSlots = 256;
 
-	public static HashSet<string> BuildKnownRibbonsCache(JsonObject? allAssets = null, string? mapDir = null)
+	public static HashSet<string> BuildKnownRibbonsCache(MapMetadata? metadata = null, string? mapDir = null)
 	{
 		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		if (allAssets != null && allAssets.TryGetPropertyValue("ribbons", out var ribNode) && ribNode is JsonObject ribObj)
+		if (metadata == null && !string.IsNullOrEmpty(mapDir))
 		{
-			foreach (var kvp in ribObj)
+			try
+			{
+				metadata = MapFileService.LoadMetadata(mapDir);
+			}
+			catch { }
+		}
+
+		if (metadata?.Ribbons != null)
+		{
+			foreach (var kvp in metadata.Ribbons)
 			{
 				set.Add(kvp.Key);
 				set.Add(Path.GetFileNameWithoutExtension(kvp.Key));
@@ -62,7 +73,7 @@ public static class TextureSwatchSlots
 		return set;
 	}
 
-	public static bool ValidateCategory(string fileName, JsonNode? node = null, HashSet<string>? knownRibbons = null)
+	public static bool ValidateCategory(string fileName, object? node = null, HashSet<string>? knownRibbons = null)
 	{
 		if (string.IsNullOrWhiteSpace(fileName))
 		{
@@ -111,12 +122,31 @@ public static class TextureSwatchSlots
 		return -1;
 	}
 
-	public static SwatchSlotInfo[] ResolveSlots(JsonObject? texturesObj, string mapDir)
+	public static SwatchSlotInfo[] ResolveSlots(Dictionary<string, TextureMetadata>? texturesDict, string mapDir)
 	{
 		var result = new SwatchSlotInfo[MaxSlots];
 		var occupied = new bool[MaxSlots];
 
-		if (texturesObj == null)
+		MapMetadata? metadata = null;
+		if (texturesDict == null && !string.IsNullOrEmpty(mapDir))
+		{
+			try
+			{
+				metadata = MapFileService.LoadMetadata(mapDir);
+				texturesDict = metadata?.Textures;
+			}
+			catch { }
+		}
+		else if (!string.IsNullOrEmpty(mapDir))
+		{
+			try
+			{
+				metadata = MapFileService.LoadMetadata(mapDir);
+			}
+			catch { }
+		}
+
+		if (texturesDict == null)
 		{
 			for (int i = 0; i < MaxSlots; i++)
 			{
@@ -125,47 +155,35 @@ public static class TextureSwatchSlots
 			return result;
 		}
 
-		JsonObject? allAssets = null;
-		try
-		{
-			allAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
-		}
-		catch { }
-		var knownRibbons = BuildKnownRibbonsCache(allAssets, mapDir);
+		var knownRibbons = BuildKnownRibbonsCache(metadata, mapDir);
 
-		var candidateItems = new List<(string BaseName, string FileName, int RequestedSlot, JsonNode? Node)>();
+		var candidateItems = new List<(string BaseName, string FileName, int RequestedSlot, TextureMetadata? Node)>();
 
-		foreach (var kvp in texturesObj)
+		foreach (var kvp in texturesDict)
 		{
-			string fileName = kvp.Key;
-			if (!ValidateCategory(fileName, kvp.Value, knownRibbons))
+			string key = kvp.Key;
+			if (!ValidateCategory(key, kvp.Value, knownRibbons))
 			{
 				continue;
 			}
 
-			string baseName = Path.GetFileNameWithoutExtension(fileName);
-			int requestedSlot = -1;
+			string baseName = Path.GetFileNameWithoutExtension(key);
+			int requestedSlot = kvp.Value?.SwatchIndex ?? -1;
+			TextureMetadata? texMeta = kvp.Value;
 
-			if (kvp.Value is JsonObject sObj)
+			string fileName = !string.IsNullOrWhiteSpace(texMeta?.TexturePath)
+				? Path.GetFileName(texMeta.TexturePath)
+				: (key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(key) : $"{baseName}.rtex");
+
+			if (!fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
-				if (sObj.TryGetPropertyValue("swatchIndex", out var idxNode) && idxNode != null && int.TryParse(idxNode.ToString(), out int parsed))
-				{
-					requestedSlot = parsed;
-				}
-				else if (sObj.TryGetPropertyValue("swatch_index", out var idxNode2) && idxNode2 != null && int.TryParse(idxNode2.ToString(), out int parsed2))
-				{
-					requestedSlot = parsed2;
-				}
-				else if (sObj.TryGetPropertyValue("SwatchIndex", out var idxNode3) && idxNode3 != null && int.TryParse(idxNode3.ToString(), out int parsed3))
-				{
-					requestedSlot = parsed3;
-				}
+				fileName += ".rtex";
 			}
 
-			candidateItems.Add((baseName, fileName, requestedSlot, kvp.Value));
+			candidateItems.Add((baseName, fileName, requestedSlot, texMeta));
 		}
 
-		var pendingReassign = new List<(string BaseName, string FileName, JsonNode? Node)>();
+		var pendingReassign = new List<(string BaseName, string FileName, TextureMetadata? Node)>();
 
 		foreach (var item in candidateItems)
 		{

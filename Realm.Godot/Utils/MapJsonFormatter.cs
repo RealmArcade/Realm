@@ -41,8 +41,8 @@ public static class MapJsonFormatter
 				if (key == "Units" && value is JsonArray unitsArr && unitsArr.All(item => item is JsonObject))
 				{
 					var sortedList = unitsArr.OfType<JsonObject>()
-						.OrderBy(item => GetStringProperty(item, "UnitId"), StringComparer.OrdinalIgnoreCase)
-						.ThenBy(item => GetStringProperty(item, "UnitId"), StringComparer.Ordinal)
+						.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
+						.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
 						.ThenBy(item =>
 						{
 							float x = GetFloatProperty(item, "PosX");
@@ -72,8 +72,8 @@ public static class MapJsonFormatter
 				if (key == "Props" && value is JsonArray propsArr && propsArr.All(item => item is JsonObject))
 				{
 					var sortedList = propsArr.OfType<JsonObject>()
-						.OrderBy(item => GetStringProperty(item, "PropId"), StringComparer.OrdinalIgnoreCase)
-						.ThenBy(item => GetStringProperty(item, "PropId"), StringComparer.Ordinal)
+						.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
+						.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
 						.ThenBy(item =>
 						{
 							float x = GetFloatProperty(item, "PosX");
@@ -101,8 +101,8 @@ public static class MapJsonFormatter
 				if (key == "Decals" && value is JsonArray decalsArr && decalsArr.All(item => item is JsonObject))
 				{
 					var sortedList = decalsArr.OfType<JsonObject>()
-						.OrderBy(item => GetStringProperty(item, "DecalId"), StringComparer.OrdinalIgnoreCase)
-						.ThenBy(item => GetStringProperty(item, "DecalId"), StringComparer.Ordinal)
+						.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
+						.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
 						.ThenBy(item =>
 						{
 							float x = GetFloatProperty(item, "PosX");

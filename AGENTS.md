@@ -26,6 +26,7 @@
 - 2D button: always specify the `icon_max_width` property.
 - For any text labels that appear on screen, ensure they are translated via `LocalizationManager.cs`.
 - Labels in Containers: When setting autowrap_mode, always set custom_minimum_size.x (explicit width) and size_flags_horizontal = SIZE_EXPAND_FILL. Otherwise Godot calculates custom_minimum_size.y based on single-word wrapping, causing container to stretch excessively tall.
+- Unicode Icons: Never hardcode `\uXXXX` escape sequences inside string literals in UI or HUD scripts. Always reference named glyph constants defined in `UnicodeIcons` (e.g. `${UnicodeIcons.UPLOAD}`).
 
 ### Realm.ECS Data Layer:
 - The core ECS classes and data must be kept internal.

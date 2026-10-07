@@ -2166,7 +2166,7 @@ public class EditorService
 						}
 						if (pasteTextures)
 						{
-							var defaultGround = TerrainSplatWeights.CreateSolid(3);
+							var defaultGround = TerrainSplatWeights.CreateSolid(0);
 							var defaultCliff = TerrainSplatWeights.CreateSolid(1);
 							SetGridNodeSplat(targetX, targetZ, in defaultGround, in defaultGround, in defaultGround, in defaultGround);
 							SetGridNodeCliffSplat(targetX, targetZ, in defaultCliff, in defaultCliff, in defaultCliff, in defaultCliff);
@@ -3782,7 +3782,37 @@ public class EditorService
 	private long _lastProcessedMetadataWriteTime;
 	private long _lastProcessedTerrainWriteTime;
 	public static DateTime LastInternalSaveTimeUtc { get; set; } = DateTime.MinValue;
-	public bool IsPaused { get; set; }
+	private bool _isPaused;
+	public bool IsPaused
+	{
+		get => _isPaused;
+		set
+		{
+			_isPaused = value;
+			if (value)
+			{
+				lock (_watcherLock)
+				{
+					_debounceTimer?.Dispose();
+					_debounceTimer = null;
+				}
+			}
+		}
+	}
+
+	public void UpdateWatchedFileTimestamps()
+	{
+		lock (_watcherLock)
+		{
+			if (!string.IsNullOrEmpty(_watchedDirectory) && Directory.Exists(_watchedDirectory))
+			{
+				string metaPath = Path.Combine(_watchedDirectory, "metadata.json");
+				string terrainPath = Path.Combine(_watchedDirectory, "terrain.json");
+				if (File.Exists(metaPath)) _lastProcessedMetadataWriteTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
+				if (File.Exists(terrainPath)) _lastProcessedTerrainWriteTime = File.GetLastWriteTimeUtc(terrainPath).Ticks;
+			}
+		}
+	}
 
 	public void StartWorkspaceWatcher(string directory, Action? onMetadataChanged = null, Action? onTerrainChanged = null)
 	{
@@ -3798,6 +3828,11 @@ public class EditorService
 			_watchedDirectory = directory;
 			try
 			{
+				string metaPath = Path.Combine(directory, "metadata.json");
+				string terrainPath = Path.Combine(directory, "terrain.json");
+				if (File.Exists(metaPath)) _lastProcessedMetadataWriteTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
+				if (File.Exists(terrainPath)) _lastProcessedTerrainWriteTime = File.GetLastWriteTimeUtc(terrainPath).Ticks;
+
 				_workspaceWatcher = new FileSystemWatcher(directory)
 				{
 					NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
@@ -3900,23 +3935,12 @@ public class EditorService
 
 	private void HandleExternalMetadataChange(string fullPath, Action? customCallback)
 	{
-		string name = Path.GetFileName(fullPath);
 		if (FloatingDialogBase.HasAnyDialogOpen)
 		{
-			MapEditorHUD.Instance?.ShowConfirmationDialog(
-				$"External edits detected in {name}. Reload external changes or keep current dialog changes?",
-				onConfirm: () =>
-				{
-					ExecuteMetadataReload(fullPath, customCallback);
-				},
-				confirmText: "RELOAD",
-				cancelText: "KEEP CHANGES"
-			);
+			return;
 		}
-		else
-		{
-			ExecuteMetadataReload(fullPath, customCallback);
-		}
+
+		ExecuteMetadataReload(fullPath, customCallback);
 	}
 
 	private void ExecuteMetadataReload(string fullPath, Action? customCallback)
@@ -3936,6 +3960,11 @@ public class EditorService
 
 	private void HandleExternalTerrainChange(string fullPath, Action? customCallback)
 	{
+		if (FloatingDialogBase.HasAnyDialogOpen)
+		{
+			return;
+		}
+
 		try
 		{
 			GameHost.Instance?.LoadMapFromFile(fullPath);

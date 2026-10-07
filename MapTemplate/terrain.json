@@ -1,14 +1,14 @@
 {
-	"CameraBoundsBottom": 125,
-	"CameraBoundsLeft": -95,
-	"CameraBoundsRight": 95,
-	"CameraBoundsTop": -95,
-	"Coordinates": [],
-	"Decals": [],
-	"Depth": 128,
-	"Props": [],
-	"SkyboxPath": "",
-	"Units": [],
-	"Vfx": [],
-	"Width": 128
+  "Width": 128,
+  "Depth": 128,
+  "Units": [],
+  "Props": [],
+  "Decals": [],
+  "Vfx": [],
+  "CameraBoundsLeft": -95,
+  "CameraBoundsRight": 95,
+  "CameraBoundsTop": -95,
+  "CameraBoundsBottom": 125,
+  "SkyboxPath": "",
+  "Coordinates": []
 }

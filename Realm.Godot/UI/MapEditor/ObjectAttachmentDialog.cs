@@ -66,9 +66,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private List<string> _availableAttachments = new();
 	private bool _isUpdatingUI;
 
-	private Action<GameHost.HandAttachmentOrientation> _onApplied;
-	private GameHost.UnitObjectAttachments? _initialSnapshot;
-	private GameHost.UnitObjectAttachments _workingAttachments;
+	private Action<HandAttachmentOrientation> _onApplied;
+	private UnitObjectAttachments? _initialSnapshot;
+	private UnitObjectAttachments _workingAttachments;
 
 	public struct SocketDefinition
 	{
@@ -312,7 +312,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		string attachmentId = null,
 		string socket = null,
 		Node3D sourceModel = null,
-		Action<GameHost.HandAttachmentOrientation> onApplied = null)
+		Action<HandAttachmentOrientation> onApplied = null)
 	{
 		OpenForTarget(unitId, attachmentId, socket, sourceModel, onApplied);
 	}
@@ -322,7 +322,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		string attachmentId = null,
 		string socket = null,
 		Node3D sourceModel = null,
-		Action<GameHost.HandAttachmentOrientation> onApplied = null)
+		Action<HandAttachmentOrientation> onApplied = null)
 	{
 		_onApplied = onApplied;
 
@@ -350,7 +350,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			_initialSnapshot = null;
 		}
 
-		_workingAttachments = _initialSnapshot?.Clone() ?? new GameHost.UnitObjectAttachments();
+		_workingAttachments = _initialSnapshot?.Clone() ?? new UnitObjectAttachments();
 
 		string defaultSocket = _isTargetBuilding ? "Center" : "RightHand";
 		_currentSocketId = NormalizeSocketId(string.IsNullOrEmpty(socket) ? defaultSocket : socket);
@@ -519,7 +519,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 	private void LoadAttachmentOrientationIntoSliders(string targetId, string socketId, string attachmentId, string? parentAttachmentId = null)
 	{
-		GameHost.HandAttachmentOrientation unitOrient = default;
+		HandAttachmentOrientation? unitOrient = null;
 		bool hasOrient = false;
 
 		if (!string.IsNullOrEmpty(targetId))
@@ -552,18 +552,18 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			}
 		}
 
-		if (hasOrient)
+		if (hasOrient && unitOrient != null)
 		{
-			_currentPosOffset = unitOrient.Position;
-			_currentRotOffset = unitOrient.RotationDegrees;
-			_currentScaleOffset = unitOrient.ScaleVector;
+			_currentPosOffset = unitOrient.Position.ToGodotVector3();
+			_currentRotOffset = unitOrient.RotationDegrees.ToGodotVector3();
+			_currentScaleOffset = unitOrient.ScaleVector.ToGodotVector3();
 			_currentNormalOffset = unitOrient.NormalOffset;
 			_currentParentAttachmentId = unitOrient.ParentAttachmentId;
 		}
 		else if (!string.IsNullOrEmpty(attachmentId) && GameHost.AttachmentRegistry.TryGetValue(attachmentId, out var attMeta))
 		{
-			_currentPosOffset = attMeta.PositionOffset;
-			_currentRotOffset = attMeta.RotationOffset;
+			_currentPosOffset = attMeta.PositionOffset.ToGodotVector3();
+			_currentRotOffset = attMeta.RotationOffset.ToGodotVector3();
 			_currentScaleOffset = Vector3.One * (attMeta.Scale <= 0f ? 1.0f : attMeta.Scale);
 			_currentNormalOffset = 0.0f;
 		}
@@ -600,7 +600,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		if (string.IsNullOrEmpty(_targetObjectId) || string.IsNullOrEmpty(_currentAttachmentId)) return;
 		if (IsAttachmentConfigured(_currentSocketId, _currentAttachmentId, _currentParentAttachmentId))
 		{
-			var orientation = new GameHost.HandAttachmentOrientation
+			var orientation = new HandAttachmentOrientation
 			{
 				PositionX = _currentPosOffset.X,
 				PositionY = _currentPosOffset.Y,
@@ -1083,7 +1083,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		public int Index;
 		public string SocketId;
 		public string AttachmentId;
-		public GameHost.HandAttachmentOrientation Orientation;
+		public HandAttachmentOrientation Orientation;
 	}
 
 	public static string GetAttachmentKey(string socketId, string attachmentId, int index = -1, string? parentAttachmentId = null)
@@ -1113,13 +1113,13 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		return new List<ConfiguredAttachmentEntry>();
 	}
 
-	public static List<ConfiguredAttachmentEntry> GetConfiguredAttachmentsFromData(GameHost.UnitObjectAttachments? attsNode, bool isBuilding = false)
+	public static List<ConfiguredAttachmentEntry> GetConfiguredAttachmentsFromData(UnitObjectAttachments? attsNode, bool isBuilding = false)
 	{
 		var list = new List<ConfiguredAttachmentEntry>();
-		if (attsNode.HasValue)
+		if (attsNode != null)
 		{
-			var atts = attsNode.Value;
-			void Collect(string socket, List<Dictionary<string, GameHost.HandAttachmentOrientation>>? sockList)
+			var atts = attsNode;
+			void Collect(string socket, List<Dictionary<string, HandAttachmentOrientation>>? sockList)
 			{
 				if (sockList == null) return;
 				for (int i = 0; i < sockList.Count; i++)
@@ -1174,9 +1174,10 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			string key = GetAttachmentKey(entry.SocketId, entry.AttachmentId, entry.Index, entry.Orientation.ParentAttachmentId);
 			if (_activeAttachmentVisuals.TryGetValue(key, out var visualNode) && GodotObject.IsInstanceValid(visualNode))
 			{
-				visualNode.Position = entry.Orientation.Position + (Vector3.Up * entry.Orientation.NormalOffset);
-				visualNode.RotationDegrees = entry.Orientation.RotationDegrees;
-				visualNode.Scale = entry.Orientation.ScaleVector == Vector3.Zero ? Vector3.One : entry.Orientation.ScaleVector;
+				visualNode.Position = entry.Orientation.Position.ToGodotVector3() + (Vector3.Up * entry.Orientation.NormalOffset);
+				visualNode.RotationDegrees = entry.Orientation.RotationDegrees.ToGodotVector3();
+				var entryScale = entry.Orientation.ScaleVector.ToGodotVector3();
+				visualNode.Scale = entryScale == Vector3.Zero ? Vector3.One : entryScale;
 			}
 		}
 	}
@@ -1273,14 +1274,14 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		{
 			if (string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
 			{
-				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position, entry.Orientation.RotationDegrees, entry.Orientation.ScaleVector, entry.Orientation.NormalOffset, entry.Index, null);
+				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position.ToGodotVector3(), entry.Orientation.RotationDegrees.ToGodotVector3(), entry.Orientation.ScaleVector.ToGodotVector3(), entry.Orientation.NormalOffset, entry.Index, null);
 			}
 		}
 		foreach (var entry in configured)
 		{
 			if (!string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
 			{
-				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position, entry.Orientation.RotationDegrees, entry.Orientation.ScaleVector, entry.Orientation.NormalOffset, entry.Index, entry.Orientation.ParentAttachmentId);
+				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position.ToGodotVector3(), entry.Orientation.RotationDegrees.ToGodotVector3(), entry.Orientation.ScaleVector.ToGodotVector3(), entry.Orientation.NormalOffset, entry.Index, entry.Orientation.ParentAttachmentId);
 			}
 		}
 	}
@@ -1513,9 +1514,10 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 		if (matched.HasValue)
 		{
-			_currentPosOffset = matched.Value.Orientation.Position;
-			_currentRotOffset = matched.Value.Orientation.RotationDegrees;
-			_currentScaleOffset = matched.Value.Orientation.ScaleVector == Vector3.Zero ? Vector3.One : matched.Value.Orientation.ScaleVector;
+			_currentPosOffset = matched.Value.Orientation.Position.ToGodotVector3();
+			_currentRotOffset = matched.Value.Orientation.RotationDegrees.ToGodotVector3();
+			var scaleVec = matched.Value.Orientation.ScaleVector.ToGodotVector3();
+			_currentScaleOffset = scaleVec == Vector3.Zero ? Vector3.One : scaleVec;
 			_currentNormalOffset = matched.Value.Orientation.NormalOffset;
 			_currentParentAttachmentId = matched.Value.Orientation.ParentAttachmentId;
 			UpdateSliderDisplayValues();
@@ -1573,7 +1575,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			return;
 		}
 
-		var orientation = new GameHost.HandAttachmentOrientation
+		var orientation = new HandAttachmentOrientation
 		{
 			PositionX = _currentPosOffset.X,
 			PositionY = _currentPosOffset.Y,
@@ -1649,55 +1651,27 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		// 3. Unioned Assets from manifest/metadata (Items and VFX imported into map)
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				if (assetsObj["glb"] is JsonObject glbObj)
+				var itemsDict = assetsObj.GetCategory("Item");
+				if (itemsDict != null)
 				{
-					foreach (var subCat in glbObj)
+					foreach (var modelProp in itemsDict)
 					{
-						string catName = subCat.Key;
-						bool isItemFolder = catName.Equals("items", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("attachments", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("weapons", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("projectiles", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_items", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_attachments", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_weapons", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_projectiles", StringComparison.OrdinalIgnoreCase);
-
-						if (subCat.Value is JsonObject modelsObj)
+						string fileName = modelProp.Key;
+						string id = System.IO.Path.GetFileNameWithoutExtension(fileName);
+						if (seen.Add(id))
 						{
-							foreach (var modelProp in modelsObj)
-							{
-								string fileName = modelProp.Key;
-								string id = System.IO.Path.GetFileNameWithoutExtension(fileName);
-								bool isAttachment = isItemFolder;
-
-								if (!isAttachment && modelProp.Value is JsonObject mObj)
-								{
-									string? at = mObj["asset_type"]?.ToString()
-										?? mObj["AssetType"]?.ToString()
-										?? mObj["default_asset_type"]?.ToString()
-										?? mObj["type"]?.ToString();
-									if (!string.IsNullOrEmpty(at) && Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(fileName, at, out string canonical, out _) && canonical.Equals("Item", StringComparison.OrdinalIgnoreCase))
-									{
-										isAttachment = true;
-									}
-								}
-
-								if (isAttachment && seen.Add(id))
-								{
-									result.Add(id);
-								}
-							}
+							result.Add(id);
 						}
 					}
 				}
 
-				if (assetsObj["vfx"] is JsonObject vfxObj)
+				var vfxDict = assetsObj.GetCategory("Spritesheet");
+				if (vfxDict != null)
 				{
-					foreach (var prop in vfxObj)
+					foreach (var prop in vfxDict)
 					{
 						string vfxKey = prop.Key.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? prop.Key : $"vfx:{prop.Key}";
 						if (seen.Add(vfxKey))
@@ -1717,11 +1691,11 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		{
 			var metadata = MetadataService.Instance.LoadMetadata(wsPath);
 
-			if (metadata.CustomItems != null)
+			if (metadata.Templates?.Items != null)
 			{
-				foreach (var it in metadata.CustomItems)
+				foreach (var it in metadata.Templates.Items)
 				{
-					string val = it.ItemId ?? "";
+					string val = it.TemplateID ?? "";
 					if (!string.IsNullOrEmpty(val))
 					{
 						string cleanId = System.IO.Path.GetFileNameWithoutExtension(val);
@@ -1730,11 +1704,11 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 				}
 			}
 
-			if (metadata.CustomWeapons != null)
+			if (metadata.Templates?.Weapons != null)
 			{
-				foreach (var wpn in metadata.CustomWeapons)
+				foreach (var wpn in metadata.Templates.Weapons)
 				{
-					string val = wpn.WeaponId ?? "";
+					string val = wpn.TemplateID ?? "";
 					if (!string.IsNullOrEmpty(val))
 					{
 						string cleanId = System.IO.Path.GetFileNameWithoutExtension(val);
@@ -1743,9 +1717,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 				}
 			}
 
-			if (metadata.CustomAttachments != null)
+			if (metadata.Templates?.Attachments != null)
 			{
-				foreach (var att in metadata.CustomAttachments)
+				foreach (var att in metadata.Templates.Attachments)
 				{
 					string val = att.AttachmentId ?? "";
 					if (!string.IsNullOrEmpty(val))
@@ -1756,9 +1730,9 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 				}
 			}
 
-			if (metadata.CustomVfx != null)
+			if (metadata.Templates?.Vfx != null)
 			{
-				foreach (var vfx in metadata.CustomVfx)
+				foreach (var vfx in metadata.Templates.Vfx)
 				{
 					if (!string.IsNullOrEmpty(vfx.VfxId))
 					{

@@ -19,6 +19,8 @@ using System.Text.Json.Serialization;
 using Realm.Godot.Animation;
 using Realm.Godot.Utils;
 using Realm.Godot.VFX;
+using Realm.Shared.Metadata;
+using Realm.Shared.Terrain;
 
 public partial class GameHost : Node3D, IGameAPI
 {
@@ -742,910 +744,6 @@ public partial class GameHost : Node3D, IGameAPI
 
 
 
-	public struct AttachmentMetadata
-	{
-		public AttachmentMetadata()
-		{
-			Scale = 1.0f;
-			PositionOffset = Vector3.Zero;
-			RotationOffset = Vector3.Zero;
-			DefaultHand = "RightHand";
-			ChildVfxScale = Vector3.One;
-		}
-
-		public string AttachmentId { get; set; }
-		public string Name { get; set; }
-		public string ModelPath { get; set; }
-		public float Scale { get; set; } = 1.0f;
-		public Vector3 PositionOffset { get; set; }
-		public Vector3 RotationOffset { get; set; }
-		public string DefaultHand { get; set; } = "RightHand";
-		public string? ChildVfxId { get; set; }
-		public Vector3 ChildVfxPosition { get; set; }
-		public Vector3 ChildVfxRotation { get; set; }
-		public Vector3 ChildVfxScale { get; set; } = Vector3.One;
-	}
-
-	public struct HandAttachmentOrientation
-	{
-		public float PositionX { get; set; }
-		public float PositionY { get; set; }
-		public float PositionZ { get; set; }
-		public float PitchX { get; set; }
-		public float YawY { get; set; }
-		public float RollZ { get; set; }
-		public float Scale { get; set; }
-		public float ScaleX { get; set; }
-		public float ScaleY { get; set; }
-		public float ScaleZ { get; set; }
-		public float NormalOffset { get; set; }
-		public string? ParentAttachmentId { get; set; }
-
-		[JsonIgnore]
-		public Vector3 Position => new Vector3(PositionX, PositionY, PositionZ);
-		[JsonIgnore]
-		public Vector3 RotationDegrees => new Vector3(PitchX, YawY, RollZ);
-		[JsonIgnore]
-		public Vector3 ScaleVector => new Vector3(
-			ScaleX > 0.0001f ? ScaleX : (Scale > 0f ? Scale : 1.0f),
-			ScaleY > 0.0001f ? ScaleY : (Scale > 0f ? Scale : 1.0f),
-			ScaleZ > 0.0001f ? ScaleZ : (Scale > 0f ? Scale : 1.0f));
-	}
-
-	public struct UnitObjectAttachments
-	{
-		public List<Dictionary<string, HandAttachmentOrientation>>? right_hand { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? left_hand { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? chest { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? root { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? head { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? left_foot { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? right_foot { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? ground { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? center { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? overhead { get; set; }
-		public List<Dictionary<string, HandAttachmentOrientation>>? pivot { get; set; }
-
-		public List<Dictionary<string, HandAttachmentOrientation>>? GetSocketList(string socket)
-		{
-			if (string.IsNullOrEmpty(socket)) return right_hand;
-			string s = socket.ToLowerInvariant().Replace("_", "").Replace(" ", "");
-			return s switch
-			{
-				"ground" or "footprint" or "base" => ground,
-				"center" or "centerofmass" => center,
-				"overhead" or "top" or "crown" or "roof" => overhead,
-				"pivot" or "origin" => pivot,
-				"root" or "hips" => root,
-				"chest" or "spine" => chest,
-				"head" => head,
-				"lefthand" => left_hand,
-				"righthand" => right_hand,
-				"leftfoot" => left_foot,
-				"rightfoot" => right_foot,
-				_ => right_hand
-			};
-		}
-
-		public void SetSocketList(string socket, List<Dictionary<string, HandAttachmentOrientation>> list)
-		{
-			string s = (socket ?? "righthand").ToLowerInvariant().Replace("_", "").Replace(" ", "");
-			switch (s)
-			{
-				case "ground":
-				case "footprint":
-				case "base":
-					ground = list;
-					break;
-				case "center":
-				case "centerofmass":
-					center = list;
-					break;
-				case "overhead":
-				case "top":
-				case "crown":
-				case "roof":
-					overhead = list;
-					break;
-				case "pivot":
-				case "origin":
-					pivot = list;
-					break;
-				case "root":
-				case "hips":
-					root = list;
-					break;
-				case "chest":
-				case "spine":
-					chest = list;
-					break;
-				case "head":
-					head = list;
-					break;
-				case "lefthand":
-					left_hand = list;
-					break;
-				case "righthand":
-					right_hand = list;
-					break;
-				case "leftfoot":
-					left_foot = list;
-					break;
-				case "rightfoot":
-					right_foot = list;
-					break;
-				default:
-					right_hand = list;
-					break;
-			}
-		}
-
-		public List<Dictionary<string, HandAttachmentOrientation>>? GetBoneList(HumanoidBone bone)
-		{
-			return bone switch
-			{
-				HumanoidBone.LeftHand => left_hand,
-				HumanoidBone.RightHand => right_hand,
-				HumanoidBone.Chest or HumanoidBone.Spine => chest,
-				HumanoidBone.Hips => root,
-				HumanoidBone.Head => head,
-				HumanoidBone.LeftFoot => left_foot,
-				HumanoidBone.RightFoot => right_foot,
-				_ => right_hand
-			};
-		}
-
-		public void SetBoneList(HumanoidBone bone, List<Dictionary<string, HandAttachmentOrientation>> list)
-		{
-			switch (bone)
-			{
-				case HumanoidBone.LeftHand: left_hand = list; break;
-				case HumanoidBone.RightHand: right_hand = list; break;
-				case HumanoidBone.Chest:
-				case HumanoidBone.Spine: chest = list; break;
-				case HumanoidBone.Hips: root = list; break;
-				case HumanoidBone.Head: head = list; break;
-				case HumanoidBone.LeftFoot: left_foot = list; break;
-				case HumanoidBone.RightFoot: right_foot = list; break;
-				default: right_hand = list; break;
-			}
-		}
-
-		public bool TryGetOrientation(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation orientation)
-		{
-			var list = GetBoneList(hand);
-			if (list != null && !string.IsNullOrEmpty(attachmentId))
-			{
-				string cleanId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-					? attachmentId
-					: System.IO.Path.GetFileNameWithoutExtension(attachmentId);
-				foreach (var dict in list)
-				{
-					if (dict != null)
-					{
-						foreach (var kvp in dict)
-						{
-							if (kvp.Key.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
-								kvp.Key.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-								System.IO.Path.GetFileNameWithoutExtension(kvp.Key).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-							{
-								orientation = kvp.Value;
-								return true;
-							}
-						}
-					}
-				}
-			}
-			orientation = default;
-			return false;
-		}
-
-		public void SetOrientation(HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation)
-		{
-			string cleanId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-				? attachmentId
-				: System.IO.Path.GetFileNameWithoutExtension(attachmentId);
-			var list = GetBoneList(hand);
-			if (list == null)
-			{
-				list = new List<Dictionary<string, HandAttachmentOrientation>>();
-				SetBoneList(hand, list);
-			}
-			UpdateList(list, cleanId, orientation);
-		}
-
-		public bool TryGetSocketOrientation(string socket, string attachmentId, out HandAttachmentOrientation orientation)
-		{
-			var list = GetSocketList(socket);
-			if (list != null && !string.IsNullOrEmpty(attachmentId))
-			{
-				string cleanId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-					? attachmentId
-					: System.IO.Path.GetFileNameWithoutExtension(attachmentId);
-				foreach (var dict in list)
-				{
-					if (dict != null)
-					{
-						foreach (var kvp in dict)
-						{
-							if (kvp.Key.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
-								kvp.Key.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-								System.IO.Path.GetFileNameWithoutExtension(kvp.Key).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-							{
-								orientation = kvp.Value;
-								return true;
-							}
-						}
-					}
-				}
-			}
-			orientation = default;
-			return false;
-		}
-
-		public void SetSocketOrientation(string socket, string attachmentId, HandAttachmentOrientation orientation)
-		{
-			string cleanId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-				? attachmentId
-				: System.IO.Path.GetFileNameWithoutExtension(attachmentId);
-			var list = GetSocketList(socket);
-			if (list == null)
-			{
-				list = new List<Dictionary<string, HandAttachmentOrientation>>();
-				SetSocketList(socket, list);
-			}
-			UpdateList(list, cleanId, orientation);
-		}
-
-		private static void UpdateList(List<Dictionary<string, HandAttachmentOrientation>> list, string attachmentId, HandAttachmentOrientation orientation)
-		{
-			foreach (var dict in list)
-			{
-				if (dict != null)
-				{
-					foreach (var key in dict.Keys.ToList())
-					{
-						if (key.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
-							System.IO.Path.GetFileNameWithoutExtension(key).Equals(attachmentId, StringComparison.OrdinalIgnoreCase))
-						{
-							if (string.Equals(dict[key].ParentAttachmentId, orientation.ParentAttachmentId, StringComparison.OrdinalIgnoreCase))
-							{
-								dict[key] = orientation;
-								return;
-							}
-						}
-					}
-				}
-			}
-			list.Add(new Dictionary<string, HandAttachmentOrientation>(StringComparer.OrdinalIgnoreCase)
-			{
-				[attachmentId] = orientation
-			});
-		}
-
-		public bool RemoveSocketAttachment(string socket, string attachmentId, string? parentAttachmentId = null)
-		{
-			var list = GetSocketList(socket);
-			if (list == null || string.IsNullOrEmpty(attachmentId)) return false;
-			string cleanId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-				? attachmentId
-				: System.IO.Path.GetFileNameWithoutExtension(attachmentId);
-			bool removed = false;
-			for (int i = list.Count - 1; i >= 0; i--)
-			{
-				var dict = list[i];
-				if (dict != null)
-				{
-					var keysToRemove = dict.Keys.Where(k =>
-					{
-						bool keyMatch = k.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
-							k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-							System.IO.Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase);
-
-						if (!string.IsNullOrEmpty(parentAttachmentId))
-						{
-							return keyMatch && string.Equals(dict[k].ParentAttachmentId, parentAttachmentId, StringComparison.OrdinalIgnoreCase);
-						}
-
-						bool isChildOfThis = dict[k].ParentAttachmentId != null &&
-							(dict[k].ParentAttachmentId.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
-							 dict[k].ParentAttachmentId.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-							 System.IO.Path.GetFileNameWithoutExtension(dict[k].ParentAttachmentId).Equals(cleanId, StringComparison.OrdinalIgnoreCase));
-
-						return (keyMatch && string.IsNullOrEmpty(dict[k].ParentAttachmentId)) || isChildOfThis;
-					}).ToList();
-
-					foreach (var k in keysToRemove)
-					{
-						dict.Remove(k);
-						removed = true;
-					}
-					if (dict.Count == 0)
-					{
-						list.RemoveAt(i);
-					}
-				}
-			}
-			return removed;
-		}
-
-		public UnitObjectAttachments Clone()
-		{
-			static List<Dictionary<string, HandAttachmentOrientation>>? CloneList(List<Dictionary<string, HandAttachmentOrientation>>? src)
-			{
-				if (src == null) return null;
-				var res = new List<Dictionary<string, HandAttachmentOrientation>>(src.Count);
-				foreach (var dict in src)
-				{
-					if (dict == null) continue;
-					var d = new Dictionary<string, HandAttachmentOrientation>(dict, StringComparer.OrdinalIgnoreCase);
-					res.Add(d);
-				}
-				return res;
-			}
-
-			return new UnitObjectAttachments
-			{
-				right_hand = CloneList(right_hand),
-				left_hand = CloneList(left_hand),
-				chest = CloneList(chest),
-				root = CloneList(root),
-				head = CloneList(head),
-				left_foot = CloneList(left_foot),
-				right_foot = CloneList(right_foot),
-				ground = CloneList(ground),
-				center = CloneList(center),
-				overhead = CloneList(overhead),
-				pivot = CloneList(pivot)
-			};
-		}
-
-		public bool HasAny()
-		{
-			return (right_hand != null && right_hand.Count > 0) ||
-				   (left_hand != null && left_hand.Count > 0) ||
-				   (chest != null && chest.Count > 0) ||
-				   (root != null && root.Count > 0) ||
-				   (head != null && head.Count > 0) ||
-				   (left_foot != null && left_foot.Count > 0) ||
-				   (right_foot != null && right_foot.Count > 0) ||
-				   (ground != null && ground.Count > 0) ||
-				   (center != null && center.Count > 0) ||
-				   (overhead != null && overhead.Count > 0) ||
-				   (pivot != null && pivot.Count > 0);
-		}
-	}
-
-	[JsonConverter(typeof(UnitAnimationEntryJsonConverter))]
-	public struct UnitAnimationEntry
-	{
-		public string Animation { get; set; }
-		public string? RightHandAttachment { get; set; }
-		public string? LeftHandAttachment { get; set; }
-	}
-
-	public class UnitAnimationEntryJsonConverter : JsonConverter<UnitAnimationEntry>
-	{
-		public override UnitAnimationEntry Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-		{
-			if (reader.TokenType == JsonTokenType.String)
-			{
-				return new UnitAnimationEntry
-				{
-					Animation = reader.GetString() ?? string.Empty
-				};
-			}
-
-			if (reader.TokenType == JsonTokenType.StartObject)
-			{
-				using var doc = JsonDocument.ParseValue(ref reader);
-				var root = doc.RootElement;
-				string anim = string.Empty;
-				string? right = null;
-				string? left = null;
-
-				foreach (var prop in root.EnumerateObject())
-				{
-					if (prop.Name.Equals("Animation", StringComparison.OrdinalIgnoreCase) ||
-						prop.Name.Equals("Name", StringComparison.OrdinalIgnoreCase) ||
-						prop.Name.Equals("Path", StringComparison.OrdinalIgnoreCase))
-					{
-						anim = prop.Value.GetString() ?? string.Empty;
-					}
-					else if (prop.Name.Equals("RightHandAttachment", StringComparison.OrdinalIgnoreCase) ||
-							 prop.Name.Equals("RightHand", StringComparison.OrdinalIgnoreCase) ||
-							 prop.Name.Equals("AttachmentRight", StringComparison.OrdinalIgnoreCase))
-					{
-						right = prop.Value.ValueKind == JsonValueKind.Null ? null : prop.Value.GetString();
-					}
-					else if (prop.Name.Equals("LeftHandAttachment", StringComparison.OrdinalIgnoreCase) ||
-							 prop.Name.Equals("LeftHand", StringComparison.OrdinalIgnoreCase) ||
-							 prop.Name.Equals("AttachmentLeft", StringComparison.OrdinalIgnoreCase))
-					{
-						left = prop.Value.ValueKind == JsonValueKind.Null ? null : prop.Value.GetString();
-					}
-				}
-
-				return new UnitAnimationEntry
-				{
-					Animation = anim,
-					RightHandAttachment = right,
-					LeftHandAttachment = left
-				};
-			}
-
-			return default;
-		}
-
-		public override void Write(Utf8JsonWriter writer, UnitAnimationEntry value, JsonSerializerOptions options)
-		{
-			if (string.IsNullOrEmpty(value.RightHandAttachment) && string.IsNullOrEmpty(value.LeftHandAttachment))
-			{
-				writer.WriteStringValue(value.Animation ?? string.Empty);
-			}
-			else
-			{
-				writer.WriteStartObject();
-				writer.WriteString("Animation", value.Animation ?? string.Empty);
-				if (value.RightHandAttachment != null)
-				{
-					writer.WriteString("RightHandAttachment", value.RightHandAttachment);
-				}
-				else
-				{
-					writer.WriteNull("RightHandAttachment");
-				}
-				if (value.LeftHandAttachment != null)
-				{
-					writer.WriteString("LeftHandAttachment", value.LeftHandAttachment);
-				}
-				else
-				{
-					writer.WriteNull("LeftHandAttachment");
-				}
-				writer.WriteEndObject();
-			}
-		}
-	}
-
-	public struct UnitMetadata
-	{
-		public UnitMetadata()
-		{
-			Brightness = 0.5f;
-			NormalizeLuminance = true;
-			DespillPlayerColor = false;
-		}
-
-		public string UnitId { get; set; }
-		public string Name { get; set; }
-		public string Description { get; set; }
-		public float MaxHp { get; set; }
-		public float Damage { get; set; }
-		public float Range { get; set; }
-		public float Armor { get; set; }
-		public float Speed { get; set; }
-		public float AttackCooldown { get; set; }
-		public float ScanRadius { get; set; }
-		public float CostGold { get; set; }
-		public float CostWood { get; set; }
-		public float CostStone { get; set; }
-		public int   PopCost { get; set; }
-		public float ProductionTime { get; set; }
-		public string AttackType { get; set; }
-		public string ArmorType { get; set; }
-		public float GoldBounty { get; set; }
-		public string ModelPath { get; set; }
-		public string PortraitModelPath { get; set; }
-		public float Scale { get; set; } = 1.0f;
-		public float YOffset { get; set; }
-		public float CollisionCircle { get; set; }
-		public float Brightness { get; set; } = 0.5f;
-		public string Tint { get; set; }
-		public bool NormalizeLuminance { get; set; } = true;
-		public bool IgnorePlayerColor { get; set; }
-		public bool DespillPlayerColor { get; set; } = false;
-		public string[]? BuildOptions { get; set; }
-		public bool IsHero { get; set; }
-		public string[]? Abilities { get; set; }
-		public float XpBounty { get; set; }
-		public string[]? PathingCapabilities { get; set; }
-		public int PathingType { get; set; }
-		public float? ObstacleRadius { get; set; }
-		public string[]? Targets { get; set; }
-		public string[]? Weapons { get; set; }
-		public string? ProjectileModelPath { get; set; }
-		public Dictionary<string, List<UnitAnimationEntry>>? Animations { get; set; }
-		public UnitObjectAttachments? ObjectAttachments { get; set; }
-		public UnitSoundsMetadata? Sounds { get; set; }
-		public string[]? StartingItems { get; set; }
-		public string[]? Upgrades { get; set; }
-		public string[]? StatusEffects { get; set; }
-		public string[]? SoundEvents { get; set; }
-		public string SpawnShader { get; set; }
-		public string DeathShader { get; set; }
-		public string DespawnShader
-		{
-			get => DeathShader;
-			set => DeathShader = value;
-		}
-
-		public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation orientation)
-		{
-			if (ObjectAttachments.HasValue)
-			{
-				return ObjectAttachments.Value.TryGetOrientation(hand, attachmentId, out orientation);
-			}
-			orientation = default;
-			return false;
-		}
-
-		public bool TryGetObjectAttachment(string socket, string attachmentId, out HandAttachmentOrientation orientation)
-		{
-			if (ObjectAttachments.HasValue)
-			{
-				return ObjectAttachments.Value.TryGetSocketOrientation(socket, attachmentId, out orientation);
-			}
-			orientation = default;
-			return false;
-		}
-
-		public void SetObjectAttachment(HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation)
-		{
-			var atts = ObjectAttachments ?? new UnitObjectAttachments();
-			atts.SetOrientation(hand, attachmentId, orientation);
-			ObjectAttachments = atts;
-		}
-
-		public void SetObjectAttachment(string socket, string attachmentId, HandAttachmentOrientation orientation)
-		{
-			var atts = ObjectAttachments ?? new UnitObjectAttachments();
-			atts.SetSocketOrientation(socket, attachmentId, orientation);
-			ObjectAttachments = atts;
-		}
-
-		public bool RemoveObjectAttachment(string socket, string attachmentId, string? parentAttachmentId = null)
-		{
-			if (ObjectAttachments.HasValue)
-			{
-				var atts = ObjectAttachments.Value;
-				bool removed = atts.RemoveSocketAttachment(socket, attachmentId, parentAttachmentId);
-				ObjectAttachments = atts;
-				return removed;
-			}
-			return false;
-		}
-	}
-
-	public struct UnitSoundsMetadata
-	{
-		public string[]? OnSelect { get; set; }
-		public string[]? OnMoveOrder { get; set; }
-		public string[]? OnAttackOrder { get; set; }
-		public string[]? OnWounded { get; set; }
-		public string[]? OnDeath { get; set; }
-		public string[]? OnReady { get; set; }
-		public string[]? OnSpellCast { get; set; }
-	}
-
-	public struct WeaponMetadata
-	{
-		public WeaponMetadata()
-		{
-			OrientToTrajectory = true;
-			RibbonTaper = true;
-			RibbonAdditive = true;
-			EmissionEnergy = 4f;
-			FresnelPower = 3f;
-			FresnelFactor = 1.5f;
-			NoiseScale = 3f;
-			ThresholdCutoff = 0.5f;
-			ThresholdSmoothness = 0.1f;
-			RibbonWidth = 0.4f;
-			RibbonLifetime = 0.5f;
-			EmissionMaskSource = "noise";
-			ForwardAxisPreset = "-Z";
-			MeshScaleOffset = Vector3.One;
-			PointLightIntensity = 2.0f;
-			PointLightRange = 6.0f;
-		}
-
-		public string WeaponId { get; set; }
-		public string Name { get; set; }
-		public float Damage { get; set; }
-		public float Range { get; set; }
-		public float AttackCooldown { get; set; }
-		public string AttackType { get; set; }
-		public float ProjectileSpeed { get; set; }
-		public string VisualEffect { get; set; }
-		public string AttackSound { get; set; }
-		public string ProjectileModelPath { get; set; }
-		public string ImpactVisualEffect { get; set; }
-		public string ImpactSound { get; set; }
-
-		public float ArcHeight { get; set; }
-		public float HomingWeight { get; set; }
-		public float TurnRateLimit { get; set; }
-		public string EaseCurve { get; set; }
-		public string SpeedCurve { get; set; }
-		public float Acceleration { get; set; }
-		public float MaxLifetime { get; set; }
-		public float FailsafeRange { get; set; }
-		public string ScaleCurve { get; set; }
-		public Vector3 TumbleAngularVelocity { get; set; }
-		public bool OrientToTrajectory { get; set; } = true;
-		public string ForwardAxisPreset { get; set; } = "-Z";
-		public Vector3 MeshRotationOffset { get; set; }
-		public Vector3 MeshTranslationOffset { get; set; }
-		public Vector3 MeshScaleOffset { get; set; } = Vector3.One;
-		public float SpiralRadius { get; set; }
-		public float SpiralFrequency { get; set; }
-		public float ZigzagAmplitude { get; set; }
-		public float ZigzagFrequency { get; set; }
-		public int MaxBounces { get; set; }
-		public int PierceCount { get; set; }
-
-		public string ShaderEffectType { get; set; }
-		public string EmissionMaskSource { get; set; } = "noise";
-		public string BaseColor { get; set; }
-		public string EmissionColor { get; set; }
-		public float EmissionEnergy { get; set; } = 4f;
-		public float FresnelPower { get; set; } = 3f;
-		public string FresnelColor { get; set; }
-		public float FresnelFactor { get; set; } = 1.5f;
-		public float NoiseScale { get; set; } = 3f;
-		public string NoiseTexture { get; set; }
-		public Vector2 UvScrollSpeed1 { get; set; }
-		public Vector2 UvScrollSpeed2 { get; set; }
-		public float ThresholdCutoff { get; set; } = 0.5f;
-		public float ThresholdSmoothness { get; set; } = 0.1f;
-
-		public bool PointLightEnabled { get; set; }
-		public string PointLightColor { get; set; }
-		public float PointLightIntensity { get; set; } = 2.0f;
-		public float PointLightRange { get; set; } = 6.0f;
-
-		public string RibbonTexture { get; set; }
-		public string RibbonColor { get; set; }
-		public float RibbonWidth { get; set; } = 0.4f;
-		public float RibbonLifetime { get; set; } = 0.5f;
-		public bool RibbonTaper { get; set; } = true;
-		public bool RibbonAdditive { get; set; } = true;
-		public float RibbonScrollSpeed { get; set; }
-		public Vector3 TrailOffset { get; set; }
-	}
-
-	public struct PropMetadata
-	{
-		public PropMetadata()
-		{
-			Brightness = 0.5f;
-			NormalizeLuminance = true;
-			IgnorePlayerColor = true;
-			DespillPlayerColor = false;
-		}
-
-		public string UnitId { get; set; }
-		public string Name { get; set; }
-		public string Description { get; set; }
-		public string ModelPath { get; set; }
-		public string PortraitModelPath { get; set; }
-		public float Scale { get; set; } = 1.25f;
-		public float YOffset { get; set; }
-		public float CollisionCircle { get; set; }
-		public float Brightness { get; set; } = 0.5f;
-		public string Tint { get; set; }
-		public bool NormalizeLuminance { get; set; } = true;
-		public bool IgnorePlayerColor { get; set; } = true;
-		public bool DespillPlayerColor { get; set; } = false;
-		public int PathingType { get; set; }
-		public string SpawnShader { get; set; }
-		public string DeathShader { get; set; }
-		public string DespawnShader
-		{
-			get => DeathShader;
-			set => DeathShader = value;
-		}
-	}
-
-	public struct ResourceMetadata
-	{
-		public ResourceMetadata()
-		{
-			Brightness = 0.5f;
-			NormalizeLuminance = true;
-			IgnorePlayerColor = true;
-			DespillPlayerColor = false;
-		}
-
-		public string UnitId { get; set; }
-		public string Name { get; set; }
-		public string Description { get; set; }
-		public string ModelPath { get; set; }
-		public string PortraitModelPath { get; set; }
-		public float MaxCapacity { get; set; }
-		public float HarvestRate { get; set; }
-		public float GrowthRate { get; set; }
-		public int MaxWorkers { get; set; }
-		public float Scale { get; set; } = 2.75f;
-		public float YOffset { get; set; }
-		public float CollisionCircle { get; set; }
-		public float Brightness { get; set; } = 0.5f;
-		public string Tint { get; set; }
-		public bool NormalizeLuminance { get; set; } = true;
-		public bool IgnorePlayerColor { get; set; } = true;
-		public bool DespillPlayerColor { get; set; } = false;
-		public int PathingType { get; set; }
-		public string SpawnShader { get; set; }
-		public string DeathShader { get; set; }
-		public string DespawnShader
-		{
-			get => DeathShader;
-			set => DeathShader = value;
-		}
-	}
-
-	public struct AbilityMetadata
-	{
-		public string AbilityId { get; set; }
-		public string Name { get; set; }
-		public string Description { get; set; }
-		public string AbilityType { get; set; }
-		public string IconPath { get; set; }
-		public float ManaCost { get; set; }
-		public float Cooldown { get; set; }
-		public float TargetRange { get; set; }
-		public string? VisualEffect { get; set; }
-		public string? CastSound { get; set; }
-		public string[]? AppliedStatusEffects { get; set; }
-		public float AreaOfEffectRadius { get; set; }
-		public float Damage { get; set; }
-		public float Healing { get; set; }
-		public string? SummonedUnitId { get; set; }
-		public int SummonCount { get; set; }
-		public float SummonDuration { get; set; }
-	}
-
-	public struct UpgradeMetadata
-	{
-		public string UpgradeId { get; set; }
-		public string Name { get; set; }
-		public string Description { get; set; }
-		public float CostGold { get; set; }
-		public float CostWood { get; set; }
-		public float CostStone { get; set; }
-		public float ResearchTime { get; set; }
-		public string Requirement { get; set; }
-		public int MaxLevel { get; set; }
-		public string[]? AffectedUnitIds { get; set; }
-		public float MaxHpBonus { get; set; }
-		public float DamageBonus { get; set; }
-		public float ArmorBonus { get; set; }
-		public float SpeedBonus { get; set; }
-	}
-
-	public struct ItemMetadata
-	{
-		public string ItemId { get; set; }
-		public string Name { get; set; }
-		public string Description { get; set; }
-		public string ItemClass { get; set; }
-		public float CostGold { get; set; }
-		public string UseAbility { get; set; }
-		public int ChargeCount { get; set; }
-		public string CooldownLink { get; set; }
-		public bool CanDrop { get; set; }
-		public int ItemLevel { get; set; }
-		public string IconPath { get; set; }
-		public string[]? PassiveStatusEffects { get; set; }
-		public string[]? GrantedWeapons { get; set; }
-		public bool IsContainer { get; set; }
-		public int ContainerSize { get; set; }
-		public string Requirements { get; set; }
-	}
-
-	public struct TextureMetadata
-	{
-		public string Hash { get; set; }
-		public int SwatchIndex { get; set; }
-		public float ScaleFactor { get; set; }
-		public string AssetType { get; set; }
-		public int TextureSize { get; set; }
-		public string NoiseConfig { get; set; }
-		public float Brightness { get; set; }
-		public string Tint { get; set; }
-		public float RoughnessScale { get; set; }
-		public float NormalScale { get; set; }
-		public float HeightScale { get; set; }
-		public float HeightOffset { get; set; }
-		public float CrevicePower { get; set; }
-		public string TileMode { get; set; }
-		public float UvScale { get; set; }
-		public float StochasticTileSize { get; set; }
-		public float CrossFade { get; set; }
-		public float Contrast { get; set; }
-		public float Saturation { get; set; }
-		public float Specular { get; set; }
-		public float Roughness { get; set; }
-		public float Metallic { get; set; }
-	}
-
-	public struct DecalMetadata
-	{
-		public string Hash { get; set; }
-		public string Tint { get; set; }
-		public float Brightness { get; set; }
-		public float Contrast { get; set; }
-		public float Saturation { get; set; }
-		public float Opacity { get; set; }
-		public float AlbedoMix { get; set; }
-		public float NormalStrength { get; set; }
-		public float Roughness { get; set; }
-		public float Metallic { get; set; }
-		public string BlendMode { get; set; }
-		public string AssetType { get; set; }
-		public string TextureNormal { get; set; }
-		public string TextureOrm { get; set; }
-		public string TextureEmission { get; set; }
-		public float EmissionEnergy { get; set; }
-		public bool AnimateOpacity { get; set; }
-		public float OpacityPulseSpeed { get; set; }
-		public float MinOpacity { get; set; }
-		public float MaxOpacity { get; set; }
-		public bool AnimateEmission { get; set; }
-		public float EmissionPulseSpeed { get; set; }
-		public float MinEmission { get; set; }
-		public float MaxEmission { get; set; }
-		public bool AnimateScale { get; set; }
-		public float ScalePulseSpeed { get; set; }
-		public float MinScaleRatio { get; set; }
-		public float MaxScaleRatio { get; set; }
-		public float UpperFade { get; set; }
-		public float LowerFade { get; set; }
-	}
-
-	public struct VfxMetadata
-	{
-		public string Hash { get; set; }
-		public int Columns { get; set; }
-		public int Rows { get; set; }
-		public float Fps { get; set; }
-		public bool SubframeBlend { get; set; }
-		public string AssetType { get; set; }
-	}
-
-	public struct GlbItemMetadata
-	{
-		public GlbItemMetadata() { }
-
-		public string Hash { get; set; }
-		public string DefaultAssetType { get; set; }
-		public float MinY { get; set; }
-		public float YOffset { get; set; }
-		public float Scale { get; set; }
-		public float CollisionCircleRatio { get; set; }
-		public float CollisionRadius { get; set; }
-		public float Brightness { get; set; }
-		public float Contrast { get; set; }
-		public float Saturation { get; set; }
-		public bool NormalizeLuminance { get; set; }
-		public bool DespillPlayerColor { get; set; } = false;
-		public float RotX { get; set; }
-		public float RotY { get; set; }
-		public float RotZ { get; set; }
-		public object WeaponLayers { get; set; }
-		public string WeaponPreset { get; set; }
-		public string WeaponRibbon { get; set; }
-		public bool IgnorePlayerColor { get; set; }
-		public string TeamColorMask { get; set; }
-		public string SpawnShader { get; set; }
-		public string DeathShader { get; set; }
-		public string DespawnShader
-		{
-			get => DeathShader;
-			set => DeathShader = value;
-		}
-	}
 
 	public enum AssetCategory
 	{
@@ -1750,52 +848,28 @@ public partial class GameHost : Node3D, IGameAPI
 
 
 
-	public static readonly Dictionary<string, UnitMetadata> UnitRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, UnitMetadata> BuildingRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, PropMetadata> PropRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, ResourceMetadata> ResourceRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, WeaponMetadata> WeaponRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, AttachmentMetadata> AttachmentRegistry = new(StringComparer.OrdinalIgnoreCase);
-	public static readonly Dictionary<string, ItemMetadata> ItemRegistry = new(StringComparer.OrdinalIgnoreCase);
+	public static readonly Dictionary<StringName, UnitMetadata> UnitRegistry = new();
+	public static readonly Dictionary<StringName, UnitMetadata> BuildingRegistry = new();
+	public static readonly Dictionary<StringName, PropMetadata> PropRegistry = new();
+	public static readonly Dictionary<StringName, ResourceMetadata> ResourceRegistry = new();
+	public static readonly Dictionary<StringName, WeaponMetadata> WeaponRegistry = new();
+	public static readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
+	public static readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
 
-	public static bool TryGetUnitOrBuildingMetadata(string? unitId, out UnitMetadata meta)
+	public static bool TryGetUnitOrBuildingMetadata(StringName objectId, out UnitMetadata meta)
 	{
 		meta = default;
-		if (string.IsNullOrEmpty(unitId)) return false;
-
-		if (UnitRegistry.TryGetValue(unitId, out meta)) return true;
-		if (BuildingRegistry != null && BuildingRegistry.TryGetValue(unitId, out meta)) return true;
-
-		string cleanId = System.IO.Path.GetFileNameWithoutExtension(unitId);
-		if (UnitRegistry.TryGetValue(cleanId, out meta)) return true;
-		if (BuildingRegistry != null && BuildingRegistry.TryGetValue(cleanId, out meta)) return true;
-
-		foreach (var kvp in UnitRegistry)
-		{
-			if (kvp.Key.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-				kvp.Key.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-				System.IO.Path.GetFileNameWithoutExtension(kvp.Key).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-			{
-				meta = kvp.Value;
-				return true;
-			}
-		}
-
-		if (BuildingRegistry != null)
-		{
-			foreach (var kvp in BuildingRegistry)
-			{
-				if (kvp.Key.Equals(unitId, StringComparison.OrdinalIgnoreCase) ||
-					kvp.Key.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-					System.IO.Path.GetFileNameWithoutExtension(kvp.Key).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-				{
-					meta = kvp.Value;
-					return true;
-				}
-			}
-		}
-
+		if (objectId.IsEmpty) return false;
+		if (UnitRegistry.TryGetValue(objectId, out meta)) return true;
+		if (BuildingRegistry != null && BuildingRegistry.TryGetValue(objectId, out meta)) return true;
 		return false;
+	}
+
+	public static bool TryGetUnitOrBuildingMetadata(string? objectId, out UnitMetadata meta)
+	{
+		meta = default;
+		if (string.IsNullOrEmpty(objectId)) return false;
+		return TryGetUnitOrBuildingMetadata((StringName)objectId, out meta);
 	}
 
 	public string GetFallbackModelPath(string unitId, bool isBuilding)
@@ -2792,6 +1866,23 @@ public class {mapName} : IMapScript
 		return _environmentService?.GetCurrentWeather() ?? "clear";
 	}
 
+	void IGameAPI.DisableShroud()
+	{
+		Entity worldEntity = Entity.Null;
+		var query = QueryCache.AllShroudStateQuery;
+		EcsWorld.Query(in query, ent => worldEntity = ent);
+
+		if (worldEntity != Entity.Null && EcsWorld.IsAlive(worldEntity) && EcsWorld.Has<ShroudState>(worldEntity))
+		{
+			ref var state = ref EcsWorld.Get<ShroudState>(worldEntity);
+			state.ShroudType = "visible";
+		}
+		if (_shroudService != null)
+		{
+			_shroudService.TriggerImmediateUpdate();
+		}
+	}
+
 	void IGameAPI.SetUnitAnimation(IUnit unit, string animationName)
 	{
 		if (unit is IEcsEntityWrapper wrapper && EcsWorld.IsAlive(wrapper.Entity))
@@ -3631,89 +2722,92 @@ public class {mapName} : IMapScript
 		var metaService = _metadataService ?? Realm.Godot.Services.MetadataService.Instance;
 		var metadata = metaService.LoadMetadata(path);
 
-		var newUnits = new Dictionary<string, UnitMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newBuildings = new Dictionary<string, UnitMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newProps = new Dictionary<string, PropMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newResources = new Dictionary<string, ResourceMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newWeapons = new Dictionary<string, WeaponMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newAttachments = new Dictionary<string, AttachmentMetadata>(StringComparer.OrdinalIgnoreCase);
-		var newItems = new Dictionary<string, ItemMetadata>(StringComparer.OrdinalIgnoreCase);
+		var newUnits = new Dictionary<StringName, UnitMetadata>();
+		var newBuildings = new Dictionary<StringName, UnitMetadata>();
+		var newProps = new Dictionary<StringName, PropMetadata>();
+		var newResources = new Dictionary<StringName, ResourceMetadata>();
+		var newWeapons = new Dictionary<StringName, WeaponMetadata>();
+		var newAttachments = new Dictionary<StringName, AttachmentMetadata>();
+		var newItems = new Dictionary<StringName, ItemMetadata>();
 		var newVfx = new Dictionary<string, VfxAttachmentConfig>(StringComparer.OrdinalIgnoreCase);
 
-		foreach (var meta in metadata.CustomWeapons)
+		if (metadata.Templates != null)
 		{
-			if (!string.IsNullOrEmpty(meta.WeaponId))
-				newWeapons[meta.WeaponId] = meta;
-		}
-
-		foreach (var meta in metadata.CustomAttachments)
-		{
-			if (!string.IsNullOrEmpty(meta.AttachmentId))
+			foreach (var meta in metadata.Templates.Weapons)
 			{
-				newAttachments[meta.AttachmentId] = meta;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+					newWeapons[(StringName)meta.TemplateID] = meta;
 			}
-		}
 
-		foreach (var meta in metadata.CustomItems)
-		{
-			if (!string.IsNullOrEmpty(meta.ItemId))
+			foreach (var meta in metadata.Templates.Attachments)
 			{
-				newItems[meta.ItemId] = meta;
+				if (!string.IsNullOrEmpty(meta.AttachmentId))
+				{
+					newAttachments[(StringName)meta.AttachmentId] = meta;
+				}
 			}
-		}
 
-		foreach (var meta in metadata.CustomUnits)
-		{
-			if (!string.IsNullOrEmpty(meta.UnitId))
+			foreach (var meta in metadata.Templates.Items)
 			{
-				var copy = meta;
-				if (copy.Scale <= 0f) copy.Scale = 1.0f;
-				newUnits[copy.UnitId] = copy;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					newItems[(StringName)meta.TemplateID] = meta;
+				}
 			}
-		}
 
-		foreach (var meta in metadata.CustomBuildings)
-		{
-			if (!string.IsNullOrEmpty(meta.UnitId))
+			foreach (var meta in metadata.Templates.Units)
 			{
-				var copy = meta;
-				if (copy.Scale <= 0f) copy.Scale = 1.5f;
-				newBuildings[copy.UnitId] = copy;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					var copy = meta;
+					if (copy.Scale <= 0f) copy.Scale = 1.0f;
+					newUnits[(StringName)copy.TemplateID] = copy;
+				}
 			}
-		}
 
-		foreach (var meta in metadata.CustomResources)
-		{
-			if (!string.IsNullOrEmpty(meta.UnitId))
+			foreach (var meta in metadata.Templates.Buildings)
 			{
-				var copy = meta;
-				if (copy.Scale <= 0f) copy.Scale = 2.75f;
-				if (copy.PathingType == 0) copy.PathingType = 255;
-				newResources[copy.UnitId] = copy;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					var copy = meta;
+					if (copy.Scale <= 0f) copy.Scale = 1.5f;
+					newBuildings[(StringName)copy.TemplateID] = copy;
+				}
 			}
-		}
 
-		foreach (var meta in metadata.CustomProps)
-		{
-			if (!string.IsNullOrEmpty(meta.UnitId))
+			foreach (var meta in metadata.Templates.Resources)
 			{
-				var copy = meta;
-				if (copy.Scale <= 0f) copy.Scale = 1.25f;
-				if (copy.PathingType == 0) copy.PathingType = 255;
-				newProps[copy.UnitId] = copy;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					var copy = meta;
+					if (copy.Scale <= 0f) copy.Scale = 2.75f;
+					if (copy.PathingType == 0) copy.PathingType = 255;
+					newResources[(StringName)copy.TemplateID] = copy;
+				}
 			}
-		}
 
-		if (metadata.CustomAbilities.Count > 0)
-		{
-			RegisterCustomAbilities(metadata.CustomAbilities);
-		}
-
-		foreach (var cfg in metadata.CustomVfx)
-		{
-			if (!string.IsNullOrEmpty(cfg.VfxId))
+			foreach (var meta in metadata.Templates.Props)
 			{
-				newVfx[cfg.VfxId] = cfg;
+				if (!string.IsNullOrEmpty(meta.TemplateID))
+				{
+					var copy = meta;
+					if (copy.Scale <= 0f) copy.Scale = 1.25f;
+					if (copy.PathingType == 0) copy.PathingType = 255;
+					newProps[(StringName)copy.TemplateID] = copy;
+				}
+			}
+
+			if (metadata.Templates.Abilities != null && metadata.Templates.Abilities.Count > 0)
+			{
+				RegisterCustomAbilities(metadata.Templates.Abilities);
+			}
+
+			foreach (var cfg in metadata.Templates.Vfx)
+			{
+				if (!string.IsNullOrEmpty(cfg.VfxId))
+				{
+					newVfx[cfg.VfxId] = cfg;
+				}
 			}
 		}
 
@@ -3749,30 +2843,25 @@ public class {mapName} : IMapScript
 		try
 		{
 			string dir = !string.IsNullOrEmpty(CurrentMapDirectory) ? CurrentMapDirectory : Godot.ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(dir) ?? new System.Text.Json.Nodes.JsonObject();
-			var glbObj = assetsObj["glb"]?.AsObject();
-			if (glbObj == null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(dir);
+			metadata.Templates ??= new TemplateContainer();
+			metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
+
+			int existingIndex = metadata.Templates.Attachments.FindIndex(a => string.Equals(a.AttachmentId, meta.AttachmentId, StringComparison.OrdinalIgnoreCase) || string.Equals(a.AttachmentId, fileName, StringComparison.OrdinalIgnoreCase));
+			if (existingIndex >= 0)
 			{
-				glbObj = new System.Text.Json.Nodes.JsonObject();
-				assetsObj["glb"] = glbObj;
+				metadata.Templates.Attachments[existingIndex] = meta;
 			}
-			var attObj = glbObj["attachments"]?.AsObject();
-			if (attObj == null)
+			else
 			{
-				attObj = new System.Text.Json.Nodes.JsonObject();
-				glbObj["attachments"] = attObj;
+				if (string.IsNullOrEmpty(meta.AttachmentId))
+				{
+					meta.AttachmentId = fileName;
+				}
+				metadata.Templates.Attachments.Add(meta);
 			}
 
-			var itemNode = attObj[fileName]?.AsObject() ?? new System.Text.Json.Nodes.JsonObject();
-			itemNode["scale"] = meta.Scale;
-			var posArr = new System.Text.Json.Nodes.JsonArray { meta.PositionOffset.X, meta.PositionOffset.Y, meta.PositionOffset.Z };
-			itemNode["position_offset"] = posArr;
-			var rotArr = new System.Text.Json.Nodes.JsonArray { meta.RotationOffset.X, meta.RotationOffset.Y, meta.RotationOffset.Z };
-			itemNode["rotation_offset"] = rotArr;
-			itemNode["default_hand"] = meta.DefaultHand ?? "RightHand";
-			attObj[fileName] = itemNode;
-
-			Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(dir, assetsObj, removeFromMetadata: true);
+			Realm.Shared.Services.MapFileService.SaveMetadata(dir, metadata);
 			LoadUnitMetadata(dir);
 		}
 		catch (Exception ex)
@@ -3786,31 +2875,14 @@ public class {mapName} : IMapScript
 		try
 		{
 			string dir = !string.IsNullOrEmpty(CurrentMapDirectory) ? CurrentMapDirectory : Godot.ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			string metaPath = System.IO.Path.Combine(dir, "metadata.json");
-			if (!System.IO.File.Exists(metaPath)) return;
-
-			string json = System.IO.File.ReadAllText(metaPath);
-			var root = System.Text.Json.Nodes.JsonNode.Parse(json)?.AsObject();
-			if (root == null) return;
-
-			var unitsArr = root["CustomUnits"]?.AsArray();
-			if (unitsArr != null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(dir);
+			var unit = metadata.GetUnit(unitId);
+			if (unit != null)
 			{
-				for (int i = 0; i < unitsArr.Count; i++)
-				{
-					var uObj = unitsArr[i]?.AsObject();
-					if (uObj != null && uObj["UnitId"]?.ToString() == unitId)
-					{
-						var animsJson = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(animations, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
-						uObj["Animations"] = animsJson;
-						break;
-					}
-				}
+				unit.Animations = animations;
+				Realm.Shared.Services.MapFileService.SaveMetadata(dir, metadata);
+				LoadUnitMetadata(dir);
 			}
-
-			SaveLoadService.CleanMetadataJsonSchema(root);
-			MapJsonFormatter.SaveFormattedJson(metaPath, root);
-			LoadUnitMetadata(dir);
 		}
 		catch (Exception ex)
 		{
@@ -4811,19 +3883,74 @@ public class {mapName} : IMapScript
 		bool isHero = false;
 		int pathingFlags = 8;
 		string[]? targets = null;
-		if (UnitRegistry.TryGetValue(id, out var regMeta))
+		float hpRegen = 0f, hpRegenCombatDelay = 0f, maxMana = 0f, manaRegen = 0f;
+		float ratedArmor = 0f, flatArmorPen = 0f, percentArmorPen = 0f, damageVariance = 0f;
+		string damageType = "normal", armorType = "unarmored", splashType = "None", movementType = "Ground";
+		float critChance = 0f, critMultiplier = 1f;
+		float splashInnerR = 0f, splashMedR = 0f, splashOuterR = 0f;
+		float splashInnerRatio = 1f, splashMedRatio = 0.5f, splashOuterRatio = 0.25f;
+		bool friendlyFire = false;
+		int pushPriority = 0;
+
+		if (UnitRegistry.TryGetValue(id, out var regMeta) || TryGetUnitOrBuildingMetadata(id, out regMeta))
 		{
 			if (regMeta.ScanRadius > 0) scanRadius = regMeta.ScanRadius;
 			if (regMeta.AttackCooldown > 0) attackCooldown = regMeta.AttackCooldown;
 			isHero = regMeta.IsHero;
 			pathingFlags = GetUnitPathingFlags(regMeta);
 			targets = regMeta.Targets;
+
+			hpRegen = regMeta.HpRegen;
+			hpRegenCombatDelay = regMeta.HpRegenCombatDelay;
+			maxMana = regMeta.MaxMana;
+			manaRegen = regMeta.ManaRegen;
+			ratedArmor = regMeta.RatedArmor;
+			armorType = !string.IsNullOrEmpty(regMeta.ArmorType) ? regMeta.ArmorType : "unarmored";
+			flatArmorPen = regMeta.FlatArmorPenetration;
+			percentArmorPen = regMeta.PercentArmorPenetration;
+			damageVariance = regMeta.DamageVariance;
+			damageType = !string.IsNullOrEmpty(regMeta.DamageType) ? regMeta.DamageType : (!string.IsNullOrEmpty(regMeta.AttackType) ? regMeta.AttackType : "normal");
+			critChance = regMeta.CritChance;
+			critMultiplier = regMeta.CritMultiplier > 0f ? regMeta.CritMultiplier : 1f;
+			splashType = regMeta.SplashType;
+			splashInnerR = regMeta.SplashInnerRadius;
+			splashMedR = regMeta.SplashMediumRadius;
+			splashOuterR = regMeta.SplashOuterRadius;
+			splashInnerRatio = regMeta.SplashInnerRatio;
+			splashMedRatio = regMeta.SplashMediumRatio;
+			splashOuterRatio = regMeta.SplashOuterRatio;
+			friendlyFire = regMeta.FriendlyFire;
+			pushPriority = regMeta.PushPriority;
+			movementType = !string.IsNullOrEmpty(regMeta.MovementType) ? regMeta.MovementType : "Ground";
 		}
 
 		var entity = _unitSpawnService.CreateEcsUnitEntity(
 			id, name, hp, damage, range, armor, speed, scanRadius, isHero, attackCooldown, pathingFlags, pos, owner,
-			_playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade, targets
+			_playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade, targets,
+			hpRegen, hpRegenCombatDelay, maxMana, manaRegen,
+			ratedArmor, armorType, flatArmorPen, percentArmorPen,
+			damageVariance, damageType, critChance, critMultiplier,
+			splashType, splashInnerR, splashMedR, splashOuterR,
+			splashInnerRatio, splashMedRatio, splashOuterRatio, friendlyFire,
+			pushPriority, movementType
 		);
+
+		if (UnitRegistry.TryGetValue(id, out var attrMeta) || TryGetUnitOrBuildingMetadata(id, out attrMeta))
+		{
+			if (attrMeta.Strength != 0f || attrMeta.Agility != 0f || attrMeta.Vitality != 0f || attrMeta.Intelligence != 0f || attrMeta.Wisdom != 0f || attrMeta.Fortune != 0f)
+			{
+				var attributes = new Realm.Ecs.Components.Stats.UnitAttributes(
+					Strength: attrMeta.Strength,
+					Agility: attrMeta.Agility,
+					Vitality: attrMeta.Vitality,
+					Intelligence: attrMeta.Intelligence,
+					Wisdom: attrMeta.Wisdom,
+					Fortune: attrMeta.Fortune
+				);
+				EcsWorld.Set(entity, attributes);
+				AttributeStatCalculator.RecalculateEntityStats(EcsWorld, entity);
+			}
+		}
 
 		OnUnitCreated?.Invoke(GetUnitWrapper(entity));
 		return entity;
@@ -4892,6 +4019,9 @@ public class {mapName} : IMapScript
 			unit3D.RotationDegrees = new Vector3(0.0f, EditorPlacementRotation, 0.0f);
 			unit3D.Scale *= EditorPlacementScale;
 		}
+
+		unit3D.Visible = true;
+		unit3D.UpdateLodVisibility();
 
 		EntityToUnit3D[entity] = unit3D;
 

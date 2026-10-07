@@ -201,15 +201,6 @@ public class SaveLoadService
 			{
 				Directory.CreateDirectory(directory);
 			}
-			else
-			{
-				int maxBackups = EditorSettingsDialog.CurrentSettings?.MaxBackupSnapshots ?? 3;
-				if (maxBackups > 0)
-				{
-					string backupSourceDir = directory;
-					_ = Task.Run(() => CreateWorkspaceBackup(backupSourceDir, maxBackups));
-				}
-			}
 
 			string heightsPath = Path.Combine(directory, "terrain_heights.exr");
 			string waterPath = Path.Combine(directory, "terrain_water.exr");
@@ -245,8 +236,8 @@ public class SaveLoadService
 
 			Image heightsImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, heightsBytes);
 			Image waterImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, waterBytes);
-			heightsImage.SaveExr(heightsPath);
-			waterImage.SaveExr(waterPath);
+			SaveExrSafe(heightsImage, heightsPath);
+			SaveExrSafe(waterImage, waterPath);
 
 			byte[] pathingBytes = new byte[width * depth * 4];
 			Span<byte> pathingSpan = pathingBytes.AsSpan();
@@ -266,7 +257,7 @@ public class SaveLoadService
 			}
 
 			Image pathingImage = Image.CreateFromData(width, depth, false, Image.Format.Rgba8, pathingBytes);
-			pathingImage.SavePng(pathingPath);
+			SavePngSafe(pathingImage, pathingPath);
 
 			int splatW = width;
 			int splatD = depth;
@@ -305,8 +296,8 @@ public class SaveLoadService
 
 			Image splatIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatIndicesBytes);
 			Image splatWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatWeightsBytes);
-			splatIndicesImage.SaveExr(splatIndicesPath);
-			splatWeightsImage.SaveExr(splatWeightsPath);
+			SaveExrSafe(splatIndicesImage, splatIndicesPath);
+			SaveExrSafe(splatWeightsImage, splatWeightsPath);
 
 			if (cliffHtmlColors != null && cliffHtmlColors.Length == splatW * splatD)
 			{
@@ -342,8 +333,8 @@ public class SaveLoadService
 
 				Image cliffIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, cliffIndicesBytes);
 				Image cliffWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, cliffWeightsBytes);
-				cliffIndicesImage.SaveExr(cliffSplatIndicesPath);
-				cliffWeightsImage.SaveExr(cliffSplatWeightsPath);
+				SaveExrSafe(cliffIndicesImage, cliffSplatIndicesPath);
+				SaveExrSafe(cliffWeightsImage, cliffSplatWeightsPath);
 			}
 
 			saveData.Units = new List<UnitSaveData>();
@@ -375,7 +366,7 @@ public class SaveLoadService
 
 				saveData.Units.Add(new UnitSaveData
 				{
-					UnitId = defId.Value,
+					TemplateId = defId.Value,
 					PosX = pos.Value.X,
 					PosY = pos.Value.Y,
 					PosZ = pos.Value.Z,
@@ -403,7 +394,7 @@ public class SaveLoadService
 
 				saveData.Props.Add(new PropSaveData
 				{
-					PropId = propId.PropId,
+					TemplateId = propId.PropId,
 					PosX = pos.Value.X,
 					PosY = pos.Value.Y,
 					PosZ = pos.Value.Z,
@@ -449,7 +440,7 @@ public class SaveLoadService
 
 				saveData.Decals.Add(new DecalSaveData
 				{
-					DecalId = decalId.DecalId,
+					TemplateId = decalId.DecalId,
 					PosX = pos.Value.X,
 					PosY = pos.Value.Y,
 					PosZ = pos.Value.Z,
@@ -495,18 +486,8 @@ public class SaveLoadService
 			}
 
 			SortMapSaveData(saveData);
-
-			var saveDoc = JsonSerializer.SerializeToNode(saveData) as JsonObject;
-			if (saveDoc != null)
-			{
-				CleanTerrainJsonSchema(saveDoc);
-				MapJsonFormatter.SaveFormattedJson(absolutePath, saveDoc);
-			}
-			else
-			{
-				string json = JsonSerializer.Serialize(saveData);
-				MapJsonFormatter.SaveFormattedJson(absolutePath, json);
-			}
+			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
+			Realm.Shared.Services.MapFileService.SaveTerrain(absolutePath, saveData);
 
 			GameHost.Instance?.SaveModelYOffsetsToMetadataJson(directory);
 
@@ -554,6 +535,13 @@ public class SaveLoadService
 				});
 			}
 
+			int maxBackups = EditorSettingsDialog.CurrentSettings?.MaxBackupSnapshots ?? 3;
+			if (maxBackups > 0)
+			{
+				string backupSourceDir = directory;
+				_ = Task.Run(() => CreateWorkspaceBackup(backupSourceDir, maxBackups));
+			}
+
 			return true;
 		}
 		catch (Exception ex)
@@ -569,8 +557,7 @@ public class SaveLoadService
 
 		try
 		{
-			string json = File.ReadAllText(absolutePath);
-			var saveData = JsonSerializer.Deserialize<MapSaveData>(json);
+			var saveData = Realm.Shared.Services.MapFileService.LoadTerrain(absolutePath);
 			if (saveData == null) return false;
 
 			string mapDir = Path.GetDirectoryName(absolutePath);
@@ -923,7 +910,7 @@ public class SaveLoadService
 			if (loadedColors == null)
 			{
 				loadedColors = new string[width * depth];
-				string defaultSolid = TerrainSplatWeights.CreateSolid(3).Serialize();
+				string defaultSolid = TerrainSplatWeights.CreateSolid(0).Serialize();
 				for (int i = 0; i < loadedColors.Length; i++)
 				{
 					loadedColors[i] = defaultSolid;
@@ -963,15 +950,15 @@ public class SaveLoadService
 				{
 					foreach (var u in saveData.Units)
 					{
-						if (!IsValidUnitObjectId(u.UnitId, mapDir))
+						if (!IsValidUnitObjectId(u.TemplateId, mapDir))
 						{
-							GD.PushWarning($"[SaveLoadService] Ignored invalid unit '{u.UnitId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
+							GD.PushWarning($"[SaveLoadService] Ignored invalid unit '{u.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
 							continue;
 						}
 
 						var reqEnt = EcsWorld.Create();
 						EcsWorld.Add(reqEnt, new UnitSpawnRequest(
-							u.UnitId,
+							u.TemplateId,
 							new System.Numerics.Vector3(u.PosX, u.PosY, u.PosZ),
 							u.RotationY,
 							u.Scale,
@@ -985,15 +972,15 @@ public class SaveLoadService
 				{
 					foreach (var p in saveData.Props)
 					{
-						if (!IsValidPropObjectId(p.PropId, mapDir))
+						if (!IsValidPropObjectId(p.TemplateId, mapDir))
 						{
-							GD.PushWarning($"[SaveLoadService] Ignored invalid prop '{p.PropId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
+							GD.PushWarning($"[SaveLoadService] Ignored invalid prop '{p.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
 							continue;
 						}
 
 						var reqEnt = EcsWorld.Create();
 						EcsWorld.Add(reqEnt, new PropSpawnRequest(
-							p.PropId,
+							p.TemplateId,
 							new System.Numerics.Vector3(p.PosX, p.PosY, p.PosZ),
 							p.RotationY,
 							p.Scale
@@ -1006,7 +993,7 @@ public class SaveLoadService
 					var loadedDecalFingerprints = new HashSet<string>();
 					foreach (var d in saveData.Decals)
 					{
-						string fingerprint = $"{d.DecalId}_{d.PosX:F3}_{d.PosY:F3}_{d.PosZ:F3}_{d.RotationX:F2}_{d.RotationY:F2}_{d.RotationZ:F2}_{d.Scale:F3}";
+						string fingerprint = $"{d.TemplateId}_{d.PosX:F3}_{d.PosY:F3}_{d.PosZ:F3}_{d.RotationX:F2}_{d.RotationY:F2}_{d.RotationZ:F2}_{d.Scale:F3}";
 						if (!loadedDecalFingerprints.Add(fingerprint))
 						{
 							continue;
@@ -1014,7 +1001,7 @@ public class SaveLoadService
 
 						var reqEnt = EcsWorld.Create();
 						EcsWorld.Add(reqEnt, new DecalSpawnRequest(
-							d.DecalId,
+							d.TemplateId,
 							new System.Numerics.Vector3(d.PosX, d.PosY, d.PosZ),
 							new System.Numerics.Vector3(d.RotationX, d.RotationY, d.RotationZ),
 							d.Scale
@@ -1109,9 +1096,9 @@ public class SaveLoadService
 		{
 			saveData.Units.Sort((a, b) =>
 			{
-				int comparison = string.Compare(a.UnitId, b.UnitId, StringComparison.OrdinalIgnoreCase);
+				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
 				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.UnitId, b.UnitId, StringComparison.Ordinal);
+				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 				if (comparison != 0) return comparison;
 
 				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
@@ -1139,9 +1126,9 @@ public class SaveLoadService
 		{
 			saveData.Props.Sort((a, b) =>
 			{
-				int comparison = string.Compare(a.PropId, b.PropId, StringComparison.OrdinalIgnoreCase);
+				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
 				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.PropId, b.PropId, StringComparison.Ordinal);
+				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 				if (comparison != 0) return comparison;
 
 				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
@@ -1165,9 +1152,9 @@ public class SaveLoadService
 		{
 			saveData.Decals.Sort((a, b) =>
 			{
-				int comparison = string.Compare(a.DecalId, b.DecalId, StringComparison.OrdinalIgnoreCase);
+				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
 				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.DecalId, b.DecalId, StringComparison.Ordinal);
+				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 				if (comparison != 0) return comparison;
 
 				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
@@ -1372,10 +1359,36 @@ public class SaveLoadService
 		{
 			try
 			{
-				File.Copy(pair.SourcePath, pair.DestPath, true);
+				using var srcStream = new FileStream(pair.SourcePath, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+				using var dstStream = new FileStream(pair.DestPath, FileMode.Create, System.IO.FileAccess.Write, FileShare.ReadWrite);
+				srcStream.CopyTo(dstStream);
 			}
 			catch { }
 		});
+	}
+
+	private static bool SaveExrSafe(Image image, string path, int maxRetries = 5)
+	{
+		for (int i = 0; i < maxRetries; i++)
+		{
+			var err = image.SaveExr(path);
+			if (err == Error.Ok) return true;
+			System.Threading.Thread.Sleep(25);
+		}
+		GD.PrintErr($"[SaveLoadService] Failed to save EXR file: {path}");
+		return false;
+	}
+
+	private static bool SavePngSafe(Image image, string path, int maxRetries = 5)
+	{
+		for (int i = 0; i < maxRetries; i++)
+		{
+			var err = image.SavePng(path);
+			if (err == Error.Ok) return true;
+			System.Threading.Thread.Sleep(25);
+		}
+		GD.PrintErr($"[SaveLoadService] Failed to save PNG file: {path}");
+		return false;
 	}
 
 	private static void PruneOldBackups(string backupsRoot, int maxBackups)
@@ -1432,229 +1445,6 @@ public class SaveLoadService
 		}
 	}
 
-	private static HashSet<string>? _cachedAllowedTerrainTopLevel;
-	private static HashSet<string>? _cachedAllowedTerrainUnitProperties;
-	private static HashSet<string>? _cachedAllowedTerrainPropProperties;
-	private static HashSet<string>? _cachedAllowedTerrainDecalProperties;
-	private static HashSet<string>? _cachedAllowedTerrainCoordinateProperties;
-
-	private static HashSet<string>? _cachedAllowedMetadataTopLevel;
-	private static HashSet<string>? _cachedAllowedAssetCategories;
-	private static HashSet<string>? _cachedAllowedGlbSubCategories;
-	private static HashSet<string>? _cachedAllowedGlbItemProperties;
-	private static HashSet<string>? _cachedAllowedTextureItemProperties;
-	private static HashSet<string>? _cachedAllowedDecalItemProperties;
-	private static HashSet<string>? _cachedAllowedVfxItemProperties;
-	private static HashSet<string>? _cachedAllowedShaderItemProperties;
-	private static HashSet<string>? _cachedAllowedMapProperties;
-	private static HashSet<string>? _cachedAllowedEntityItemProperties;
-	private static HashSet<string>? _cachedAllowedAbilityItemProperties;
-	private static HashSet<string>? _cachedAllowedWeaponItemProperties;
-	private static HashSet<string>? _cachedAllowedUpgradeItemProperties;
-	private static HashSet<string>? _cachedAllowedCustomItemProperties;
-
-	private static void AddTypeMembersToSet(Type type, HashSet<string> destination)
-	{
-		foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-		{
-			destination.Add(property.Name);
-			destination.Add(property.Name.ToLowerInvariant());
-			destination.Add(ConvertToSnakeCase(property.Name));
-		}
-		foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
-		{
-			destination.Add(field.Name);
-			destination.Add(field.Name.ToLowerInvariant());
-			destination.Add(ConvertToSnakeCase(field.Name));
-		}
-	}
-
-	private static string ConvertToSnakeCase(string input)
-	{
-		if (string.IsNullOrEmpty(input)) return input;
-		var stringBuilder = new System.Text.StringBuilder();
-		for (int index = 0; index < input.Length; index++)
-		{
-			char character = input[index];
-			if (char.IsUpper(character))
-			{
-				if (index > 0 && input[index - 1] != '_')
-				{
-					stringBuilder.Append('_');
-				}
-				stringBuilder.Append(char.ToLowerInvariant(character));
-			}
-			else
-			{
-				stringBuilder.Append(character);
-			}
-		}
-		return stringBuilder.ToString();
-	}
-
-	private static JsonObject? LoadMapSchemaJson()
-	{
-		string[] candidatePaths = new[]
-		{
-			PathUtils.FindPath("Realm.MapEditorExtension/map_schema.json"),
-			PathUtils.FindPath("MapTemplate/.vscode/map_schema.json"),
-			PathUtils.FindPath(".vscode/map_schema.json")
-		};
-
-		foreach (var candidatePath in candidatePaths)
-		{
-			if (!string.IsNullOrEmpty(candidatePath) && File.Exists(candidatePath))
-			{
-				try
-				{
-					return JsonNode.Parse(File.ReadAllText(candidatePath)) as JsonObject;
-				}
-				catch
-				{
-				}
-			}
-		}
-
-		return null;
-	}
-
-	private static void ExtractPropertiesFromSchemaNode(JsonNode? node, HashSet<string> destination)
-	{
-		if (node is JsonObject jsonObject)
-		{
-			if (jsonObject.TryGetPropertyValue("properties", out var propertiesNode) && propertiesNode is JsonObject propertiesObject)
-			{
-				foreach (var property in propertiesObject)
-				{
-					destination.Add(property.Key);
-					destination.Add(ConvertToSnakeCase(property.Key));
-				}
-			}
-			if (jsonObject.TryGetPropertyValue("items", out var itemsNode))
-			{
-				ExtractPropertiesFromSchemaNode(itemsNode, destination);
-			}
-		}
-	}
-
-	private static HashSet<string> GetAllowedTerrainTopLevel()
-	{
-		if (_cachedAllowedTerrainTopLevel != null) return _cachedAllowedTerrainTopLevel;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(MapSaveData), set);
-		_cachedAllowedTerrainTopLevel = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedTerrainUnitProperties()
-	{
-		if (_cachedAllowedTerrainUnitProperties != null) return _cachedAllowedTerrainUnitProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(UnitSaveData), set);
-		_cachedAllowedTerrainUnitProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedTerrainPropProperties()
-	{
-		if (_cachedAllowedTerrainPropProperties != null) return _cachedAllowedTerrainPropProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(PropSaveData), set);
-		_cachedAllowedTerrainPropProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedTerrainDecalProperties()
-	{
-		if (_cachedAllowedTerrainDecalProperties != null) return _cachedAllowedTerrainDecalProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(DecalSaveData), set);
-		_cachedAllowedTerrainDecalProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedTerrainCoordinateProperties()
-	{
-		if (_cachedAllowedTerrainCoordinateProperties != null) return _cachedAllowedTerrainCoordinateProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(CoordinateSaveData), set);
-		_cachedAllowedTerrainCoordinateProperties = set;
-		return set;
-	}
-
-	private static HashSet<string>? _cachedAllowedTerrainVfxProperties;
-
-	private static HashSet<string> GetAllowedTerrainVfxProperties()
-	{
-		if (_cachedAllowedTerrainVfxProperties != null) return _cachedAllowedTerrainVfxProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(VfxSaveData), set);
-		_cachedAllowedTerrainVfxProperties = set;
-		return set;
-	}
-
-	public static void CleanTerrainJsonSchema(JsonObject root)
-	{
-		if (root == null) return;
-
-		var allowedTopLevel = GetAllowedTerrainTopLevel();
-		var topKeysToRemove = root.Select(keyValuePair => keyValuePair.Key).Where(key => !allowedTopLevel.Contains(key)).ToList();
-		foreach (var key in topKeysToRemove)
-		{
-			root.Remove(key);
-		}
-
-		var allowedUnitProperties = GetAllowedTerrainUnitProperties();
-		if (root.TryGetPropertyValue("Units", out var unitsNode) && unitsNode is JsonArray unitsArray)
-		{
-			foreach (var item in unitsArray.OfType<JsonObject>())
-			{
-				var propertiesToRemove = item.Select(property => property.Key).Where(property => !allowedUnitProperties.Contains(property)).ToList();
-				foreach (var property in propertiesToRemove) item.Remove(property);
-			}
-		}
-
-		var allowedPropProperties = GetAllowedTerrainPropProperties();
-		if (root.TryGetPropertyValue("Props", out var propsNode) && propsNode is JsonArray propsArray)
-		{
-			foreach (var item in propsArray.OfType<JsonObject>())
-			{
-				var propertiesToRemove = item.Select(property => property.Key).Where(property => !allowedPropProperties.Contains(property)).ToList();
-				foreach (var property in propertiesToRemove) item.Remove(property);
-			}
-		}
-
-		var allowedDecalProperties = GetAllowedTerrainDecalProperties();
-		if (root.TryGetPropertyValue("Decals", out var decalsNode) && decalsNode is JsonArray decalsArray)
-		{
-			foreach (var item in decalsArray.OfType<JsonObject>())
-			{
-				var propertiesToRemove = item.Select(property => property.Key).Where(property => !allowedDecalProperties.Contains(property)).ToList();
-				foreach (var property in propertiesToRemove) item.Remove(property);
-			}
-		}
-
-		var allowedCoordinateProperties = GetAllowedTerrainCoordinateProperties();
-		if (root.TryGetPropertyValue("Coordinates", out var coordinatesNode) && coordinatesNode is JsonArray coordinatesArray)
-		{
-			foreach (var item in coordinatesArray.OfType<JsonObject>())
-			{
-				var propertiesToRemove = item.Select(property => property.Key).Where(property => !allowedCoordinateProperties.Contains(property)).ToList();
-				foreach (var property in propertiesToRemove) item.Remove(property);
-			}
-		}
-
-		var allowedVfxProperties = GetAllowedTerrainVfxProperties();
-		if (root.TryGetPropertyValue("Vfx", out var vfxNode) && vfxNode is JsonArray vfxArray)
-		{
-			foreach (var item in vfxArray.OfType<JsonObject>())
-			{
-				var propertiesToRemove = item.Select(property => property.Key).Where(property => !allowedVfxProperties.Contains(property)).ToList();
-				foreach (var property in propertiesToRemove) item.Remove(property);
-			}
-		}
-	}
-
 	public static bool IsValidPropObjectId(string propId, string mapDirectory = null)
 	{
 		if (string.IsNullOrWhiteSpace(propId)) return false;
@@ -1668,9 +1458,9 @@ public class SaveLoadService
 
 		if (MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata))
 		{
-			if (metadata.CustomProps != null && metadata.CustomProps.Any(p => propId.Equals(p.UnitId, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.Templates?.Props != null && metadata.Templates.Props.Any(p => propId.Equals(p.TemplateID, StringComparison.OrdinalIgnoreCase)))
 				return true;
-			if (metadata.CustomResources != null && metadata.CustomResources.Any(r => propId.Equals(r.UnitId, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.Templates?.Resources != null && metadata.Templates.Resources.Any(r => propId.Equals(r.TemplateID, StringComparison.OrdinalIgnoreCase)))
 				return true;
 		}
 
@@ -1690,694 +1480,16 @@ public class SaveLoadService
 
 		if (MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata))
 		{
-			if (metadata.CustomUnits != null && metadata.CustomUnits.Any(u => unitId.Equals(u.UnitId, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.Templates?.Units != null && metadata.Templates.Units.Any(u => unitId.Equals(u.TemplateID, StringComparison.OrdinalIgnoreCase)))
 				return true;
-			if (metadata.CustomBuildings != null && metadata.CustomBuildings.Any(b => unitId.Equals(b.UnitId, StringComparison.OrdinalIgnoreCase)))
+			if (metadata.Templates?.Buildings != null && metadata.Templates.Buildings.Any(b => unitId.Equals(b.TemplateID, StringComparison.OrdinalIgnoreCase)))
 				return true;
 		}
 
 		return false;
 	}
 
-	private static void AddEnumNamesToSet<T>(HashSet<string> destination) where T : struct, Enum
-	{
-		foreach (var name in Enum.GetNames<T>())
-		{
-			destination.Add(name);
-			destination.Add(name.ToLowerInvariant());
-			destination.Add(ConvertToSnakeCase(name));
-		}
-	}
 
-	private static HashSet<string> GetAllowedMetadataTopLevel(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedMetadataTopLevel != null) return _cachedAllowedMetadataTopLevel;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		set.Add("GameBuildNumber");
-		set.Add("license");
-		AddTypeMembersToSet(typeof(Realm.Ecs.Definitions.MapProperties), set);
-		set.Add(nameof(Realm.Ecs.Definitions.MapProperties));
-
-		foreach (var prop in typeof(MapMetadata).GetProperties(BindingFlags.Public | BindingFlags.Instance))
-		{
-			set.Add(prop.Name);
-			var jsonAttr = prop.GetCustomAttribute<System.Text.Json.Serialization.JsonPropertyNameAttribute>();
-			if (jsonAttr != null && !string.IsNullOrEmpty(jsonAttr.Name))
-			{
-				set.Add(jsonAttr.Name);
-			}
-		}
-		set.Add("Models");
-		set.Add("textures");
-		set.Add("decals");
-		set.Add("vfx_spritesheets");
-		set.Add("noise_textures");
-		set.Add("icons");
-		set.Add("skyboxes");
-		set.Add("ribbons");
-		set.Add("shaders");
-		set.Add("CustomUnits");
-		set.Add("CustomBuildings");
-		set.Add("CustomResources");
-		set.Add("CustomProps");
-		set.Add("CustomAbilities");
-		set.Add("CustomWeapons");
-		set.Add("CustomUpgrades");
-		set.Add("CustomItems");
-		set.Add("CustomAttachments");
-		set.Add("CustomVfx");
-
-		Type[] entityTypes = new[]
-		{
-			typeof(GameHost.UnitMetadata),
-			typeof(GameHost.PropMetadata),
-			typeof(GameHost.ResourceMetadata),
-			typeof(GameHost.WeaponMetadata),
-			typeof(GameHost.AttachmentMetadata),
-			typeof(GameHost.AbilityMetadata),
-			typeof(GameHost.UpgradeMetadata),
-			typeof(GameHost.ItemMetadata)
-		};
-
-		foreach (var t in entityTypes)
-		{
-			string baseName = t.Name;
-			if (baseName.EndsWith("Metadata", StringComparison.OrdinalIgnoreCase))
-			{
-				baseName = baseName[..^"Metadata".Length];
-			}
-
-			string plural = baseName.EndsWith("y", StringComparison.OrdinalIgnoreCase)
-				? baseName[..^1] + "ies"
-				: baseName + "s";
-
-			set.Add("Custom" + plural);
-		}
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("properties", out var propertiesNode) && propertiesNode is JsonObject propertiesObject)
-		{
-			foreach (var property in propertiesObject)
-			{
-				set.Add(property.Key);
-			}
-		}
-
-		_cachedAllowedMetadataTopLevel = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedAssetCategories(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedAssetCategories != null) return _cachedAllowedAssetCategories;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddEnumNamesToSet<GameHost.AssetCategory>(set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("properties", out var propertiesNode) && propertiesNode is JsonObject propertiesObject)
-		{
-			if (propertiesObject.TryGetPropertyValue("Assets", out var assetsDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(assetsDefinition, set);
-			}
-		}
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("Assets", out var assetsDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(assetsDefinition, set);
-			}
-		}
-
-		_cachedAllowedAssetCategories = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedGlbSubCategories(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedGlbSubCategories != null) return _cachedAllowedGlbSubCategories;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddEnumNamesToSet<GameHost.GlbSubCategory>(set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("Assets", out var assetsDefinition) && assetsDefinition is JsonObject assetsObj)
-			{
-				if (assetsObj.TryGetPropertyValue("properties", out var assetsProps) && assetsProps is JsonObject assetsPropsObj)
-				{
-					if (assetsPropsObj.TryGetPropertyValue("glb", out var glbDefinition))
-					{
-						ExtractPropertiesFromSchemaNode(glbDefinition, set);
-					}
-				}
-			}
-		}
-
-		_cachedAllowedGlbSubCategories = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedGlbItemProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedGlbItemProperties != null) return _cachedAllowedGlbItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(GameHost.GlbItemMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.UnitMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.PropMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.ResourceMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.WeaponMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.AttachmentMetadata), set);
-
-		set.Add("spawn_shader");
-		set.Add("death_shader");
-		set.Add("despawn_shader");
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("EntityItem", out var entityDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(entityDefinition, set);
-			}
-		}
-
-		_cachedAllowedGlbItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedTextureItemProperties()
-	{
-		if (_cachedAllowedTextureItemProperties != null) return _cachedAllowedTextureItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(GameHost.TextureMetadata), set);
-		AddTypeMembersToSet(typeof(TerrainTextureSnapshot), set);
-		_cachedAllowedTextureItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedDecalItemProperties()
-	{
-		if (_cachedAllowedDecalItemProperties != null) return _cachedAllowedDecalItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(GameHost.DecalMetadata), set);
-		AddTypeMembersToSet(typeof(DecalSnapshot), set);
-		_cachedAllowedDecalItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedVfxItemProperties()
-	{
-		if (_cachedAllowedVfxItemProperties != null) return _cachedAllowedVfxItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(GameHost.VfxMetadata), set);
-		_cachedAllowedVfxItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedShaderItemProperties()
-	{
-		if (_cachedAllowedShaderItemProperties != null) return _cachedAllowedShaderItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		AddTypeMembersToSet(typeof(CustomShaderConfig), set);
-		_cachedAllowedShaderItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedMapProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedMapProperties != null) return _cachedAllowedMapProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(Realm.Ecs.Definitions.MapProperties), set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("properties", out var propertiesNode) && propertiesNode is JsonObject propertiesObject)
-		{
-			if (propertiesObject.TryGetPropertyValue("MapProperties", out var mapPropertiesDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(mapPropertiesDefinition, set);
-			}
-		}
-
-		_cachedAllowedMapProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedEntityItemProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedEntityItemProperties != null) return _cachedAllowedEntityItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(GameHost.UnitMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.PropMetadata), set);
-		AddTypeMembersToSet(typeof(GameHost.ResourceMetadata), set);
-
-		set.Add("spawn_shader");
-		set.Add("spawnshader");
-		set.Add("SpawnShader");
-		set.Add("death_shader");
-		set.Add("deathshader");
-		set.Add("DeathShader");
-		set.Add("despawn_shader");
-		set.Add("despawnshader");
-		set.Add("DespawnShader");
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("EntityItem", out var entityDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(entityDefinition, set);
-			}
-		}
-
-		_cachedAllowedEntityItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedAbilityItemProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedAbilityItemProperties != null) return _cachedAllowedAbilityItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(GameHost.AbilityMetadata), set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("CustomAbilities", out var abilityDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(abilityDefinition, set);
-			}
-		}
-
-		_cachedAllowedAbilityItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedWeaponItemProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedWeaponItemProperties != null) return _cachedAllowedWeaponItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(GameHost.WeaponMetadata), set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("CustomWeapons", out var weaponDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(weaponDefinition, set);
-			}
-		}
-
-		_cachedAllowedWeaponItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedUpgradeItemProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedUpgradeItemProperties != null) return _cachedAllowedUpgradeItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(GameHost.UpgradeMetadata), set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("CustomUpgrades", out var upgradeDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(upgradeDefinition, set);
-			}
-		}
-
-		_cachedAllowedUpgradeItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string> GetAllowedCustomItemProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedCustomItemProperties != null) return _cachedAllowedCustomItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(GameHost.ItemMetadata), set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("CustomItems", out var itemDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(itemDefinition, set);
-			}
-		}
-
-		_cachedAllowedCustomItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string>? _cachedAllowedAttachmentItemProperties;
-
-	private static HashSet<string> GetAllowedAttachmentItemProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedAttachmentItemProperties != null) return _cachedAllowedAttachmentItemProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(GameHost.AttachmentMetadata), set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("CustomAttachments", out var attachDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(attachDefinition, set);
-			}
-		}
-
-		_cachedAllowedAttachmentItemProperties = set;
-		return set;
-	}
-
-	private static HashSet<string>? _cachedAllowedVfxConfigProperties;
-
-	private static HashSet<string> GetAllowedVfxConfigProperties(JsonObject? schemaRoot)
-	{
-		if (_cachedAllowedVfxConfigProperties != null) return _cachedAllowedVfxConfigProperties;
-		var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-		AddTypeMembersToSet(typeof(VfxAttachmentConfig), set);
-
-		if (schemaRoot != null && schemaRoot.TryGetPropertyValue("definitions", out var definitionsNode) && definitionsNode is JsonObject definitionsObject)
-		{
-			if (definitionsObject.TryGetPropertyValue("CustomVfx", out var vfxDefinition))
-			{
-				ExtractPropertiesFromSchemaNode(vfxDefinition, set);
-			}
-		}
-
-		_cachedAllowedVfxConfigProperties = set;
-		return set;
-	}
-
-	private static void CleanJsonArrayObjects(JsonArray array, HashSet<string> allowedProperties)
-	{
-		foreach (var item in array.OfType<JsonObject>())
-		{
-			var propertiesToRemove = item.Select(property => property.Key).Where(property => !allowedProperties.Contains(property)).ToList();
-			foreach (var property in propertiesToRemove)
-			{
-				item.Remove(property);
-			}
-		}
-	}
-
-	private static void CleanTexturesObject(JsonObject texturesObject)
-	{
-		var allowedTextureItemProperties = GetAllowedTextureItemProperties();
-		foreach (var keyValuePair in texturesObject)
-		{
-			if (keyValuePair.Value is JsonObject itemObject)
-			{
-				var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedTextureItemProperties.Contains(property)).ToList();
-				foreach (var property in propertiesToRemove)
-				{
-					itemObject.Remove(property);
-				}
-			}
-		}
-	}
-
-	internal static void CleanAssetsObject(JsonObject root, JsonObject? schemaRoot)
-	{
-		if (!root.TryGetPropertyValue("Assets", out var assetsNode) || assetsNode is not JsonObject assetsObject)
-		{
-			return;
-		}
-
-		var allowedCategories = GetAllowedAssetCategories(schemaRoot);
-		var categoryKeysToRemove = assetsObject.Select(keyValuePair => keyValuePair.Key).Where(key => !allowedCategories.Contains(key)).ToList();
-		foreach (var key in categoryKeysToRemove)
-		{
-			assetsObject.Remove(key);
-		}
-
-		if (assetsObject.TryGetPropertyValue("glb", out var glbNode) && glbNode is JsonObject glbObject)
-		{
-			var allowedGlbSubCategories = GetAllowedGlbSubCategories(schemaRoot);
-			var subCategoryKeysToRemove = glbObject.Select(keyValuePair => keyValuePair.Key).Where(key => !allowedGlbSubCategories.Contains(key)).ToList();
-			foreach (var key in subCategoryKeysToRemove)
-			{
-				glbObject.Remove(key);
-			}
-
-			var allowedGlbItemProperties = GetAllowedGlbItemProperties(schemaRoot);
-			foreach (var subCategoryKeyValuePair in glbObject)
-			{
-				if (subCategoryKeyValuePair.Value is JsonObject subCategoryDictionary)
-				{
-					foreach (var itemKeyValuePair in subCategoryDictionary)
-					{
-						if (itemKeyValuePair.Value is JsonObject itemObject)
-						{
-							var itemPropertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedGlbItemProperties.Contains(property)).ToList();
-							foreach (var property in itemPropertiesToRemove) itemObject.Remove(property);
-						}
-					}
-				}
-			}
-		}
-
-		if (assetsObject.TryGetPropertyValue("textures", out var texturesNode) && texturesNode is JsonObject texturesObject)
-		{
-			CleanTexturesObject(texturesObject);
-		}
-
-		if (assetsObject.TryGetPropertyValue("decals", out var decalsNode) && decalsNode is JsonObject decalsObject)
-		{
-			var allowedDecalItemProperties = GetAllowedDecalItemProperties();
-			foreach (var keyValuePair in decalsObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedDecalItemProperties.Contains(property)).ToList();
-					foreach (var property in propertiesToRemove) itemObject.Remove(property);
-				}
-			}
-		}
-
-		if (assetsObject.TryGetPropertyValue("vfx_spritesheets", out var vfxNode) && vfxNode is JsonObject vfxObject)
-		{
-			var allowedVfxItemProperties = GetAllowedVfxItemProperties();
-			foreach (var keyValuePair in vfxObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedVfxItemProperties.Contains(property)).ToList();
-					foreach (var property in propertiesToRemove) itemObject.Remove(property);
-				}
-			}
-		}
-
-		if (assetsObject.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObject)
-		{
-			var allowedShaderItemProperties = GetAllowedShaderItemProperties();
-			foreach (var keyValuePair in shadersObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedShaderItemProperties.Contains(property)).ToList();
-					foreach (var property in propertiesToRemove) itemObject.Remove(property);
-				}
-			}
-		}
-	}
-
-	private static void CleanMapPropertiesObject(JsonObject mapPropertiesObject, JsonObject? schemaRoot)
-	{
-		var allowedMapProperties = GetAllowedMapProperties(schemaRoot);
-		var propertiesToRemove = mapPropertiesObject.Select(property => property.Key).Where(property => !allowedMapProperties.Contains(property)).ToList();
-		foreach (var property in propertiesToRemove)
-		{
-			mapPropertiesObject.Remove(property);
-		}
-
-		mapPropertiesObject.Remove("Assets");
-	}
-
-	public static void CleanMetadataJsonSchema(JsonObject root)
-	{
-		if (root == null) return;
-
-		root["license"] = MetadataService.UgcLicenseUrl;
-
-		root.Remove("Assets");
-		root.Remove("Ratings");
-		root.Remove("Greenlight");
-		root.Remove("ModelOffsets");
-		root.Remove("ModelScales");
-		root.Remove("ModelCollisionCircleRatios");
-		root.Remove("ModelObstacleRadii");
-		root.Remove("ModelBrightness");
-		root.Remove("ModelColorTint");
-		root.Remove("ModelDespillPlayerColor");
-		root.Remove("ModelNormalizeLuminance");
-		root.Remove("ModelIgnorePlayerColor");
-		root.Remove("ModelSpawnShaders");
-		root.Remove("ModelDeathShaders");
-		root.Remove("ModelNormalModes");
-
-		if (root.TryGetPropertyValue("Models", out var modelsNode) && modelsNode is JsonObject modelsObject)
-		{
-			var allowedModelProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-			{
-				"Offsets", "Scales", "CollisionCircleRatios", "ObstacleRadii", "Brightness",
-				"ColorTint", "DespillPlayerColor", "NormalizeLuminance", "IgnorePlayerColor",
-				"SpawnShaders", "DeathShaders"
-			};
-			foreach (var keyValuePair in modelsObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					itemObject.Remove("hash");
-					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedModelProperties.Contains(property)).ToList();
-					foreach (var property in propertiesToRemove) itemObject.Remove(property);
-				}
-			}
-		}
-
-		if (root.TryGetPropertyValue("textures", out var texturesNode) && texturesNode is JsonObject texturesObject)
-		{
-			CleanTexturesObject(texturesObject);
-			foreach (var keyValuePair in texturesObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					itemObject.Remove("hash");
-				}
-			}
-		}
-
-		if (root.TryGetPropertyValue("decals", out var decalsNode) && decalsNode is JsonObject decalsObject)
-		{
-			var allowedDecalProperties = GetAllowedDecalItemProperties();
-			foreach (var keyValuePair in decalsObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					itemObject.Remove("hash");
-					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedDecalProperties.Contains(property)).ToList();
-					foreach (var property in propertiesToRemove) itemObject.Remove(property);
-				}
-			}
-		}
-
-		if (root.TryGetPropertyValue("vfx_spritesheets", out var vfxNode) && vfxNode is JsonObject vfxObject)
-		{
-			var allowedVfxProperties = GetAllowedVfxItemProperties();
-			foreach (var keyValuePair in vfxObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					itemObject.Remove("hash");
-					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedVfxProperties.Contains(property)).ToList();
-					foreach (var property in propertiesToRemove) itemObject.Remove(property);
-				}
-			}
-		}
-
-		if (root.TryGetPropertyValue("noise_textures", out var noiseNode) && noiseNode is JsonObject noiseObject)
-		{
-			foreach (var keyValuePair in noiseObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					itemObject.Remove("hash");
-				}
-			}
-		}
-
-		if (root.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObject)
-		{
-			var allowedShaderProperties = GetAllowedShaderItemProperties();
-			foreach (var keyValuePair in shadersObject)
-			{
-				if (keyValuePair.Value is JsonObject itemObject)
-				{
-					itemObject.Remove("hash");
-					var propertiesToRemove = itemObject.Select(property => property.Key).Where(property => !allowedShaderProperties.Contains(property)).ToList();
-					foreach (var property in propertiesToRemove) itemObject.Remove(property);
-				}
-			}
-		}
-
-		var schemaRoot = LoadMapSchemaJson();
-		var allowedTopLevel = GetAllowedMetadataTopLevel(schemaRoot);
-
-		var topKeysToRemove = root.Select(keyValuePair => keyValuePair.Key)
-			.Where(key => !allowedTopLevel.Contains(key))
-			.ToList();
-
-		foreach (var key in topKeysToRemove)
-		{
-			root.Remove(key);
-		}
-
-		string mapPropsName = nameof(Realm.Ecs.Definitions.MapProperties);
-		if (root.TryGetPropertyValue(mapPropsName, out var mapPropertiesNode) && mapPropertiesNode is JsonObject mapPropertiesObject)
-		{
-			CleanMapPropertiesObject(mapPropertiesObject, schemaRoot);
-		}
-
-		var allowedEntityProperties = GetAllowedEntityItemProperties(schemaRoot);
-		foreach (var arrayName in GetMetadataEntityArrayNames())
-		{
-			if (root.TryGetPropertyValue(arrayName, out var node) && node is JsonArray array)
-			{
-				CleanJsonArrayObjects(array, allowedEntityProperties);
-			}
-		}
-
-		var allowedAbilityProperties = GetAllowedAbilityItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomAbilities", out var abilitiesNode) && abilitiesNode is JsonArray abilitiesArray)
-		{
-			CleanJsonArrayObjects(abilitiesArray, allowedAbilityProperties);
-		}
-
-		var allowedWeaponProperties = GetAllowedWeaponItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomWeapons", out var weaponsNode) && weaponsNode is JsonArray weaponsArray)
-		{
-			CleanJsonArrayObjects(weaponsArray, allowedWeaponProperties);
-		}
-
-		var allowedUpgradeProperties = GetAllowedUpgradeItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomUpgrades", out var upgradesNode) && upgradesNode is JsonArray upgradesArray)
-		{
-			CleanJsonArrayObjects(upgradesArray, allowedUpgradeProperties);
-		}
-
-		var allowedCustomItemProperties = GetAllowedCustomItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomItems", out var customItemsNode) && customItemsNode is JsonArray customItemsArray)
-		{
-			CleanJsonArrayObjects(customItemsArray, allowedCustomItemProperties);
-		}
-
-		var allowedAttachmentProperties = GetAllowedAttachmentItemProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomAttachments", out var attachmentsNode) && attachmentsNode is JsonArray attachmentsArray)
-		{
-			CleanJsonArrayObjects(attachmentsArray, allowedAttachmentProperties);
-		}
-
-		var allowedVfxConfigProperties = GetAllowedVfxConfigProperties(schemaRoot);
-		if (root.TryGetPropertyValue("CustomVfx", out var vfxConfigsNode) && vfxConfigsNode is JsonArray vfxConfigsArray)
-		{
-			CleanJsonArrayObjects(vfxConfigsArray, allowedVfxConfigProperties);
-		}
-	}
-
-	private static string[] GetMetadataEntityArrayNames()
-	{
-		return new[]
-		{
-			"CustomUnits",
-			"CustomBuildings",
-			"CustomResources",
-			"CustomProps"
-		};
-	}
 
 	public static void SyncMetadataAssetsAndPrune(string mapDirectory)
 	{
@@ -2385,63 +1497,48 @@ public class SaveLoadService
 
 		try
 		{
-			var assetsObj = MapAssetHelper.LoadUnionedAssets(mapDirectory);
+			var assetsObj = MapAssetHelper.LoadAssets(mapDirectory);
 			string assetsDir = Path.Combine(mapDirectory, "Assets");
 
 			var includedRelativePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-			var assetsToSync = new List<(string RelativePath, JsonNode? EntryNode, JsonObject ParentObj, string PropertyKey, string Category, string? SubCategory)>();
+			var assetsToSync = new List<(string RelativePath, string Category, string FileName)>();
 
-			foreach (var categoryKvp in assetsObj)
+			foreach (var categoryKvp in assetsObj.GetAllCategories())
 			{
-				string category = categoryKvp.Key.ToLowerInvariant();
-				if (category == "glb" && categoryKvp.Value is JsonObject glbObj)
+				string category = categoryKvp.Key;
+				var catDict = categoryKvp.Value;
+				string subFolder = category switch
 				{
-					foreach (var subKvp in glbObj)
-					{
-						string subCategory = MapAssetHelper.NormalizeGlbSubCategory(subKvp.Key);
-						if (subKvp.Value is JsonObject subCatObj)
-						{
-							foreach (var itemKvp in subCatObj)
-							{
-								string fileName = itemKvp.Key;
-								string relPath = Path.Combine("Assets", "models", subCategory, fileName).Replace('\\', '/');
-								includedRelativePaths.Add(relPath);
-								assetsToSync.Add((relPath, itemKvp.Value, subCatObj, fileName, "glb", subCategory));
-							}
-						}
-					}
-				}
-				else if (categoryKvp.Value is JsonObject catObj)
+					"Character" => "models/units",
+					"Building" => "models/buildings",
+					"Prop" => "models/props",
+					"Item" => "models/items",
+					"Spritesheet" or "vfx" or "vfx_spritesheets" => "vfx_spritesheets",
+					"Animation" or "animations" => "animations",
+					"SoundEffect" or "sfx" => "audio/sfx",
+					"Music" or "music" => "audio/music",
+					"Icon" or "icons" => "icons",
+					"Decal" or "decals" => "decals",
+					"Ribbon" or "ribbons" or "ribbon_textures" => "ribbons",
+					"Noise" or "noise" or "noise_textures" => "noise",
+					"Skybox" or "skyboxes" => "skyboxes",
+					"Terrain" or "textures" => "textures",
+					"Shader" or "shaders" => "shaders",
+					_ => category.ToLowerInvariant()
+				};
+
+				foreach (var itemKvp in catDict)
 				{
-					string subFolder = category switch
+					string fileName = itemKvp.Key;
+					string relPath = Path.Combine("Assets", subFolder, fileName).Replace('\\', '/');
+					includedRelativePaths.Add(relPath);
+
+					if (subFolder is "sfx" or "music" or "audio/sfx" or "audio/music")
 					{
-						"vfx" or "vfx_spritesheets" => "vfx",
-						"animations" => "animations",
-						"sfx" => "sfx",
-						"music" => "music",
-						"icons" => "icons",
-						"decals" => "decals",
-						"ribbons" or "ribbon_textures" => "ribbons",
-						"noise" or "noise_textures" => "noise",
-						"skyboxes" => "skyboxes",
-						"textures" => "textures",
-						"shaders" => "shaders",
-						_ => category
-					};
-
-					foreach (var itemKvp in catObj)
-					{
-						string fileName = itemKvp.Key;
-						string relPath = Path.Combine("Assets", subFolder, fileName).Replace('\\', '/');
-						includedRelativePaths.Add(relPath);
-
-						if (subFolder is "sfx" or "music")
-						{
-							includedRelativePaths.Add(Path.Combine("Assets", "audio", subFolder, fileName).Replace('\\', '/'));
-						}
-
-						assetsToSync.Add((relPath, itemKvp.Value, catObj, fileName, category, null));
+						includedRelativePaths.Add(Path.Combine("Assets", "audio", subFolder.Replace("audio/", ""), fileName).Replace('\\', '/'));
 					}
+
+					assetsToSync.Add((relPath, category, fileName));
 				}
 			}
 
@@ -2464,18 +1561,17 @@ public class SaveLoadService
 				DeleteEmptyDirectoriesRecursive(assetsDir);
 			}
 
-			var nonExistentAssets = new List<(JsonObject ParentObj, string PropertyKey)>();
 			Dictionary<string, string>? cachedAssetFiles = null;
 
-			foreach (var (relPath, entryNode, parentObj, propertyKey, category, subCategory) in assetsToSync)
+			foreach (var (relPath, category, fileName) in assetsToSync)
 			{
 				string fullDiskPath = Path.Combine(mapDirectory, relPath);
 				if (!File.Exists(fullDiskPath))
 				{
-					string fileName = Path.GetFileName(relPath);
-					if (category == "glb")
+					string baseFileName = Path.GetFileName(relPath);
+					if (category is "Character" or "Building" or "Prop" or "Item")
 					{
-						string? modelDisk = MapAssetHelper.FindModelOnDisk(mapDirectory, subCategory, fileName);
+						string? modelDisk = MapAssetHelper.FindModelOnDisk(mapDirectory, category, baseFileName);
 						if (!string.IsNullOrEmpty(modelDisk) && File.Exists(modelDisk))
 						{
 							fullDiskPath = modelDisk;
@@ -2483,14 +1579,14 @@ public class SaveLoadService
 					}
 					else
 					{
-						string? altPath = FindAssetFileByName(assetsDir, fileName, ref cachedAssetFiles);
+						string? altPath = FindAssetFileByName(assetsDir, baseFileName, ref cachedAssetFiles);
 						if (altPath != null && File.Exists(altPath))
 						{
 							fullDiskPath = altPath;
 						}
 						else
 						{
-							string directMapPath = Path.Combine(mapDirectory, fileName);
+							string directMapPath = Path.Combine(mapDirectory, baseFileName);
 							if (File.Exists(directMapPath))
 							{
 								fullDiskPath = directMapPath;
@@ -2504,27 +1600,15 @@ public class SaveLoadService
 					string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(fullDiskPath);
 					if (!string.IsNullOrEmpty(canonicalBlake3))
 					{
-						if (entryNode is JsonObject itemObjRef)
+						var catDict = assetsObj.GetCategory(category);
+						if (catDict != null)
 						{
-							itemObjRef["hash"] = canonicalBlake3;
-						}
-						else if (entryNode is JsonValue)
-						{
-							parentObj[propertyKey] = canonicalBlake3;
+							catDict[fileName] = canonicalBlake3;
 						}
 
 						RealmMetadataHelper.SyncBlake3Metadata(fullDiskPath, canonicalBlake3);
 					}
 				}
-				else
-				{
-					nonExistentAssets.Add((parentObj, propertyKey));
-				}
-			}
-
-			foreach (var (parentObj, propertyKey) in nonExistentAssets)
-			{
-				parentObj.Remove(propertyKey);
 			}
 
 			MapAssetHelper.SaveAssetsToManifest(mapDirectory, assetsObj, removeFromMetadata: true);

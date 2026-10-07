@@ -11,9 +11,9 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 
-	private LineEdit _txtShaderKey;
-	private LineEdit _txtShaderName;
-	private OptionButton _optPreset;
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private string _slug = "";
 	private OptionButton _optModelPicker;
 	private OptionButton _optTransitionMode;
 	private OptionButton _optDirection;
@@ -107,7 +107,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		_chkLoop = new CheckBox();
 		_chkLoop.Text = TranslationServer.Translate("Loop");
-		_chkLoop.ButtonPressed = false;
+		_chkLoop.ButtonPressed = true;
 		_chkLoop.AddThemeFontSizeOverride("font_size", 10);
 		playRow.AddChild(_chkLoop);
 
@@ -152,52 +152,32 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
-		// PRESET LOADER ROW
-		var presetRow = new HBoxContainer();
-		presetRow.AddThemeConstantOverride("separation", 6);
-
-		var lblPreset = new Label();
-		lblPreset.Text = TranslationServer.Translate("Template Preset:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 11);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		presetRow.AddChild(lblPreset);
-
-		_optPreset = new OptionButton();
-		_optPreset.AddThemeFontSizeOverride("font_size", 11);
-		_optPreset.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		int pIdx = 0;
-		foreach (var kvp in SpawnDeathShaderManager.GetDefaultPresets())
-		{
-			_optPreset.AddItem(kvp.Value.Name, pIdx);
-			_optPreset.SetItemMetadata(pIdx, kvp.Key);
-			pIdx++;
-		}
-		_optPreset.ItemSelected += (idx) =>
-		{
-			string key = _optPreset.GetItemMetadata((int)idx).AsString();
-			var def = SpawnDeathShaderManager.GetShaderConfig(key);
-			if (def != null)
-			{
-				string oldKey = _config.Key;
-				_config = def.Clone();
-				_config.Key = oldKey;
-				SyncControlsFromConfig();
-				UpdateShaderParameters();
-			}
-		};
-		presetRow.AddChild(_optPreset);
-		configVBox.AddChild(presetRow);
-
 		// IDENTIFIERS
-		_txtShaderKey = AddTextInput(configVBox, TranslationServer.Translate("Shader Key / ID:"), _config.Key, (val) =>
-		{
-			_config.Key = val.Trim().ToLowerInvariant().Replace(" ", "_");
-		}, "", 140f);
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
 
-		_txtShaderName = AddTextInput(configVBox, TranslationServer.Translate("Display Name:"), _config.Name, (val) =>
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "SpawnShader/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("shader_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
 		{
-			_config.Name = val;
-		}, "", 140f);
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
+		};
+		rowId.AddChild(_txtSlug);
+		configVBox.AddChild(rowId);
 
 		var btnRandomizeAll = new Button();
 		btnRandomizeAll.Set("icon_max_width", 0);
@@ -438,22 +418,20 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			var assets = MapAssetHelper.LoadUnionedAssets(wsPath);
-			if (assets["rmesh"] is JsonObject rmeshObj)
+			var assets = MapAssetHelper.LoadAssets(wsPath);
+			foreach (var categoryName in new[] { "Character", "Building", "Prop", "Item" })
 			{
-				foreach (var sub in rmeshObj)
+				var catDict = assets.GetCategory(categoryName);
+				if (catDict != null)
 				{
-					if (sub.Value is JsonObject subObj)
+					foreach (var model in catDict)
 					{
-						foreach (var model in subObj)
+						if (!string.IsNullOrEmpty(model.Key) && model.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 						{
-							if (!string.IsNullOrEmpty(model.Key) && model.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+							string name = Path.GetFileName(model.Key);
+							if (!_availableModels.Contains(name))
 							{
-								string name = Path.GetFileName(model.Key);
-								if (!_availableModels.Contains(name))
-								{
-									_availableModels.Add(name);
-								}
+								_availableModels.Add(name);
 							}
 						}
 					}
@@ -488,8 +466,9 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 	private void SyncControlsFromConfig()
 	{
-		if (_txtShaderKey != null) _txtShaderKey.Text = _config.Key;
-		if (_txtShaderName != null) _txtShaderName.Text = _config.Name;
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(_config.Key);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(_config.Key);
+		if (_txtSlug != null) _txtSlug.Text = _slug;
 		if (_optTransitionMode != null) _optTransitionMode.Selected = _config.TransitionMode;
 		if (_optDirection != null) _optDirection.Selected = _config.Direction;
 		if (_cpkEdgeColor != null) _cpkEdgeColor.Color = _config.EdgeColor;
@@ -656,13 +635,13 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
-		if (string.IsNullOrWhiteSpace(_config.Key))
-		{
-			_config.Key = "custom_shader";
-		}
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = "custom_shader";
+		_slug = finalSlug;
+		_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{
-			_config.Name = _config.Key;
+			_config.Name = _slug;
 		}
 
 		SpawnDeathShaderManager.SaveCustomShader(_config);

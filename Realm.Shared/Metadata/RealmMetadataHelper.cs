@@ -1,16 +1,18 @@
-using System;
-using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Blake3;
 using Realm.Shared.Animation;
 using Realm.Shared.Audio;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Textures;
+using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Realm.Shared.Metadata;
 
@@ -140,150 +142,108 @@ public static class RealmMetadataHelper
 		}
 	}
 
-	private static readonly Dictionary<string, string[]> ValidAssetTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
+	private static readonly Dictionary<string, ReadOnlySet<string>> ValidAssetTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
 	{
-		[".rtex"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".png"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".jpg"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".jpeg"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".webp"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".dds"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".tga"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".bmp"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".rmesh"] = new[] { "Character", "Building", "Prop", "Item" },
-		[".glb"] = new[] { "Character", "Building", "Prop", "Item" },
-		[".gltf"] = new[] { "Character", "Building", "Prop", "Item" },
-		[".fbx"] = new[] { "Character", "Building", "Prop", "Item" },
-		[".obj"] = new[] { "Character", "Building", "Prop", "Item" },
-		[".ranim"] = new[] { "Animation" },
-		[".raud"] = new[] { "Music", "SoundEffect" },
-		[".ogg"] = new[] { "Music", "SoundEffect" },
-		[".wav"] = new[] { "Music", "SoundEffect" },
-		[".mp3"] = new[] { "Music", "SoundEffect" },
-		[".flac"] = new[] { "Music", "SoundEffect" },
-		[".aac"] = new[] { "Music", "SoundEffect" },
-		[".gdshader"] = new[] { "Shader" }
+		[".rtex"] = (new [] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".rmesh"] = (new [] { "Character", "Building", "Prop", "Item" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".ranim"] = (new [] { "Animation" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".raud"] = (new [] { "Music", "SoundEffect" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".gdshader"] = (new [] { "Shader" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly()
 	};
 
-	public static string[] GetValidAssetTypesForExtension(string extensionOrPath)
+	private static ReadOnlySet<string> ValidAssetTypes = ValidAssetTypesByExtension.Values.SelectMany(x => x).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly();
+
+	public static string NormalizeAssetType(string? assetType)
+	{
+		return (assetType ?? "").Trim().ToLowerInvariant().Replace("_", "");
+	}
+
+	public static string GetCanonicalType(string? assetType)
+	{
+		var result = NormalizeAssetType(assetType);
+
+		if (result.EndsWith("s"))
+		{
+			var withoutSuffix = result.Substring(0, result.Length - 1);
+			if (ValidAssetTypes.Any(x => x.Contains(withoutSuffix)))
+			{
+				return withoutSuffix;
+			}
+		}
+
+		if (result == "units")
+		{
+			result = "character";
+		}
+		else if (result == "attachments")
+		{
+			result = "item";
+		}
+		else if (result == "projectiles")
+		{
+			result = "item";
+		}
+		else if (result == "noisetextures")
+		{
+			result = "noise";
+		}
+		else if (result == "sfx")
+		{
+			result = "soundeffect";
+		}
+		else if (result == "skyboxes")
+		{
+			result = "skybox";
+		}
+		else if (result == "textures")
+		{
+			result = "terrain";
+		}
+
+		if (!ValidAssetTypes.Contains(result))
+		{
+			return "";
+		}
+
+		return NormalizeAssetType(result);
+	}
+
+	public static string GetExtension(string extensionOrPath)
 	{
 		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
 		if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
+		return ext;
+	}
+
+	public static ReadOnlySet<string> GetValidAssetTypesForExtension(string extensionOrPath)
+	{
+		string ext = GetExtension(extensionOrPath);
 		if (ValidAssetTypesByExtension.TryGetValue(ext, out var types))
 		{
 			return types;
 		}
-		return Array.Empty<string>();
+		return (new HashSet<string>()).AsReadOnly();
 	}
 
-	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out string[] validTypes)
+	public static string GetDefaultAssetTypeForExtension(string extension)
 	{
-		validTypes = GetValidAssetTypesForExtension(extensionOrPath);
-		canonicalType = string.Empty;
-		if (string.IsNullOrWhiteSpace(assetType)) return false;
+		return GetValidAssetTypesForExtension(extension).FirstOrDefault() ?? "";
+	}
 
-		string trimmed = assetType.Trim();
-		string norm = trimmed.Replace("_", "").ToLowerInvariant();
+	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out ReadOnlySet<string> validTypes)
+	{
+		canonicalType = GetCanonicalType(assetType);
 
-		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
-		if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
+		string ext = GetExtension(extensionOrPath);
+		validTypes = GetValidAssetTypesForExtension(ext);
 
-		if (validTypes.Length > 0)
+		if (!validTypes.Contains(canonicalType))
 		{
-			foreach (var validType in validTypes)
-			{
-				if (string.Equals(validType, trimmed, StringComparison.OrdinalIgnoreCase) ||
-					string.Equals(validType.Replace("_", ""), norm, StringComparison.OrdinalIgnoreCase))
-				{
-					canonicalType = validType;
-					return true;
-				}
-			}
-		}
-
-		if (ext is ".rtex" or ".png" or ".jpg" or ".jpeg" or ".webp" or ".dds" or ".tga" or ".bmp")
-		{
-			if (norm is "terrain")
-			{
-				canonicalType = "Terrain";
-				return true;
-			}
-			if (norm is "spritesheet" )
-			{
-				canonicalType = "Spritesheet";
-				return true;
-			}
-			if (norm is "decal") { canonicalType = "Decal"; return true; }
-			if (norm is "icon") { canonicalType = "Icon"; return true; }
-			if (norm is "noise") { canonicalType = "Noise"; return true; }
-			if (norm is "ribbon") { canonicalType = "Ribbon"; return true; }
-			if (norm is "skybox") { canonicalType = "Skybox"; return true; }
-			if (norm is "vfxradial") { canonicalType = "vfx_radial"; return true; }
-			if (norm is "vfxvertical") { canonicalType = "vfx_vertical"; return true; }
-
+			canonicalType = GetDefaultAssetTypeForExtension(ext);
 			return false;
 		}
-		else if (ext is ".rmesh" or ".glb" or ".gltf" or ".fbx" or ".obj")
-		{
-			if (norm is "character") { canonicalType = "Character"; return true; }
-			if (norm is "building") { canonicalType = "Building"; return true; }
-			if (norm is "prop") { canonicalType = "Prop"; return true; }
-			if (norm is "item") { canonicalType = "Item"; return true; }
 
-			return false;
-		}
-		else if (ext is ".ranim")
-		{
-			canonicalType = "Animation";
-			return true;
-		}
-		else if (ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac")
-		{
-			if (norm is "music") { canonicalType = "Music"; return true; }
-			if (norm is "soundeffect") { canonicalType = "SoundEffect"; return true; }
-
-			return false;
-		}
-		else if (ext is ".gdshader")
-		{
-			canonicalType = "Shader";
-			return true;
-		}
-		else
-		{
-			foreach (var allTypes in ValidAssetTypesByExtension.Values)
-			{
-				foreach (var vt in allTypes)
-				{
-					if (string.Equals(vt, trimmed, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(vt.Replace("_", ""), norm, StringComparison.OrdinalIgnoreCase))
-					{
-						canonicalType = vt;
-						return true;
-					}
-				}
-			}
-
-			if (norm is "terrain") { canonicalType = "Terrain"; return true; }
-			if (norm is "spritesheet") { canonicalType = "Spritesheet"; return true; }
-			if (norm is "decal") { canonicalType = "Decal"; return true; }
-			if (norm is "icon") { canonicalType = "Icon"; return true; }
-			if (norm is "noise") { canonicalType = "Noise"; return true; }
-			if (norm is "ribbon") { canonicalType = "Ribbon"; return true; }
-			if (norm is "skybox") { canonicalType = "Skybox"; return true; }
-			if (norm is "vfxradial") { canonicalType = "vfx_radial"; return true; }
-			if (norm is "vfxvertical") { canonicalType = "vfx_vertical"; return true; }
-			if (norm is "character") { canonicalType = "Character"; return true; }
-			if (norm is "building") { canonicalType = "Building"; return true; }
-			if (norm is "prop") { canonicalType = "Prop"; return true; }
-			if (norm is "item") { canonicalType = "Item"; return true; }
-			if (norm is "animation") { canonicalType = "Animation"; return true; }
-			if (norm is "music") { canonicalType = "Music"; return true; }
-			if (norm is "soundeffect") { canonicalType = "SoundEffect"; return true; }
-			if (norm is "shader") { canonicalType = "Shader"; return true; }
-		}
-
-		return false;
+		return true;
 	}
 
 	public static string? ExtractAssetType(string filePath)

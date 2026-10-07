@@ -871,7 +871,7 @@ public partial class CommandPanel
 				{
 					foreach (var itemMeta in GameHost.ItemRegistry.Values)
 					{
-						string itemId = itemMeta.ItemId;
+						string itemId = itemMeta.TemplateID;
 						string itemName = !string.IsNullOrEmpty(itemMeta.Name) ? itemMeta.Name : itemId;
 						float itemCost = itemMeta.CostGold;
 						string itemIcon = !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.png";

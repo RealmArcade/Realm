@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text.Json.Nodes;
 using Realm.Godot.Services;
 using Realm.Godot.Utils;
@@ -26,6 +27,11 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private Action<string> _setCastSoundValue;
 
 	private string _abilityId = "";
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private LineEdit _txtName;
+	private bool _isUpdatingUI = false;
 	private string _abilityName = "";
 	private string _initialVisualEffect = "";
 	private string _initialCastSound = "";
@@ -112,6 +118,49 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		configVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		scrollBody.AddChild(configVBox);
 
+		// SECTION 0: IDENTITY
+		AddSectionHeader(configVBox, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
+
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "ability/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("ability_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
+		};
+		rowId.AddChild(_txtSlug);
+		configVBox.AddChild(rowId);
+
+		_txtName = AddTextInput(
+			configVBox,
+			TranslationServer.Translate("Display Name:"),
+			_abilityName,
+			(val) =>
+			{
+				if (_isUpdatingUI) return;
+				_abilityName = val ?? "";
+			},
+			TranslationServer.Translate("Ability display name..."),
+			140f
+		);
+
 		AddSectionHeader(configVBox, "🎨 " + TranslationServer.Translate("ABILITY ICON"), new Color(0.95f, 0.8f, 0.4f));
 
 		var iconRow = new HBoxContainer();
@@ -164,16 +213,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 			140f
 		);
 
-		var vfxButtonsRow = new HBoxContainer();
-		vfxButtonsRow.AddThemeConstantOverride("separation", 6);
 
-		var vfxSpacer = new Control { CustomMinimumSize = new Vector2(140f, 0) };
-		vfxButtonsRow.AddChild(vfxSpacer);
-
-		AddButton(vfxButtonsRow, "✨ " + TranslationServer.Translate("Edit in VFX Studio..."), () => OpenVfxStudioForCurrentAbility(), "Open Procedural VFX Studio to edit this VFX preset or create custom visuals", 10, new Vector2(160, 24));
-		AddButton(vfxButtonsRow, "➕ " + TranslationServer.Translate("New VFX Preset..."), () => CreateNewVfxForAbility(), "Create a new custom procedural VFX preset for this ability", 10, new Vector2(140, 24));
-
-		configVBox.AddChild(vfxButtonsRow);
 
 		AddSectionHeader(configVBox, "🎯 " + TranslationServer.Translate("AREA OF EFFECT (AOE)"), new Color(0.4f, 0.85f, 0.5f));
 
@@ -360,76 +400,13 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		var config = ResolveVfxConfig(_currentVisualEffect);
 		_vfxInstance = new ProceduralVfxInstance3D(config);
+		_vfxInstance.IsPreview = true;
 		_vfxInstance.Name = "AbilityVfxPreview";
 		PreviewSceneRoot.AddChild(_vfxInstance);
 		_vfxInstance.Position = new Vector3(0, 0.5f, 0);
 		_vfxInstance.SetSpeedScale(_playbackSpeed);
 	}
 
-	private void OpenVfxStudioForCurrentAbility()
-	{
-		VfxAttachmentConfig targetConfig = null;
-		if (!string.IsNullOrWhiteSpace(_currentVisualEffect))
-		{
-			targetConfig = ResolveVfxConfig(_currentVisualEffect);
-		}
-
-		if (targetConfig == null || string.IsNullOrWhiteSpace(targetConfig.VfxId) || targetConfig.VfxId == "vfx_none")
-		{
-			targetConfig = new VfxAttachmentConfig
-			{
-				VfxId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_custom",
-				Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Ability VFX",
-				PrimitiveType = VfxPrimitiveType.ParticleSystem,
-				ParticleConfig = new SpellParticleConfig
-				{
-					ParticleId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_custom",
-					Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} Particles" : "Ability Particles",
-					RenderMode = SpellParticleRenderMode.BillboardQuad,
-					Amount = 32,
-					Lifetime = 1.0f
-				}
-			};
-		}
-
-		Hud?.OpenVfxStudioDialog(targetConfig, (savedCfg) =>
-		{
-			string key = $"vfx:{savedCfg.VfxId}";
-			_currentVisualEffect = key;
-			_setVisualEffectValue?.Invoke(key);
-			ReloadVfx();
-		});
-	}
-
-	private void CreateNewVfxForAbility()
-	{
-		var newConfig = new VfxAttachmentConfig
-		{
-			VfxId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : $"vfx_spell_{Random.Shared.Next(100, 999)}",
-			Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Spell VFX",
-			PrimitiveType = VfxPrimitiveType.ParticleSystem,
-			ParticleConfig = new SpellParticleConfig
-			{
-				ParticleId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_spell",
-				Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Spell VFX",
-				RenderMode = SpellParticleRenderMode.BillboardQuad,
-				Amount = 32,
-				Lifetime = 1.2f,
-				ColorStart = "#FFE066",
-				ColorMid = "#FF6600",
-				ColorEnd = "#990000",
-				EmissionEnergy = 3.5f
-			}
-		};
-
-		Hud?.OpenVfxStudioDialog(newConfig, (savedCfg) =>
-		{
-			string key = $"vfx:{savedCfg.VfxId}";
-			_currentVisualEffect = key;
-			_setVisualEffectValue?.Invoke(key);
-			ReloadVfx();
-		});
-	}
 
 	private void TriggerCastTest()
 	{
@@ -657,7 +634,15 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
 	{
-		_abilityId = abilityId ?? string.Empty;
+		string effectiveId = abilityData?.TryGetPropertyValue("TemplateID", out var tidNode) == true && !string.IsNullOrWhiteSpace(tidNode?.ToString())
+			? tidNode.ToString()
+			: (abilityData?.TryGetPropertyValue("AbilityId", out var aidNode) == true && !string.IsNullOrWhiteSpace(aidNode?.ToString())
+				? aidNode.ToString()
+				: abilityId);
+
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(effectiveId);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(effectiveId);
+		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
 		_abilityName = abilityData?["Name"]?.ToString() ?? _abilityId;
 		_onApplied = onApplied;
 
@@ -665,7 +650,15 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		_currentVisualEffect = abilityData?["VisualEffect"]?.ToString() ?? string.Empty;
 		_currentCastSound = abilityData?["CastSound"]?.ToString() ?? string.Empty;
-		_currentIconPath = abilityData?["IconPath"]?.ToString() ?? string.Empty;
+		string rawIcon = abilityData?["IconPath"]?.ToString() ?? string.Empty;
+		if (!string.IsNullOrEmpty(rawIcon) && rawIcon.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentIconPath = Path.GetFileName(rawIcon);
+		}
+		else
+		{
+			_currentIconPath = string.Empty;
+		}
 		_currentAoeRadius = abilityData?["AreaOfEffectRadius"] != null ? (float)abilityData["AreaOfEffectRadius"] : 4.0f;
 
 		_initialVisualEffect = _currentVisualEffect;
@@ -673,10 +666,14 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		_initialIconPath = _currentIconPath;
 		_initialAoeRadius = _currentAoeRadius;
 
+		_isUpdatingUI = true;
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		if (_txtName != null) _txtName.Text = _abilityName;
 		_setVisualEffectValue?.Invoke(_currentVisualEffect);
 		_setCastSoundValue?.Invoke(_currentCastSound);
 		_setIconPathValue?.Invoke(_currentIconPath);
 		if (_sldAoeRadius != null) _sldAoeRadius.Value = _currentAoeRadius;
+		_isUpdatingUI = false;
 
 		UpdateIconPreview(_currentIconPath);
 		UpdateAoEIndicator(_currentAoeRadius);
@@ -688,6 +685,15 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
+		_slug = finalSlug;
+		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
+		if (_txtName != null)
+		{
+			_abilityName = _txtName.Text;
+		}
+
 		if (!string.IsNullOrEmpty(_abilityId))
 		{
 			Hud?.SaveCustomAbilityVfxToMetadata(
@@ -700,7 +706,10 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 			var updatedData = new JsonObject
 			{
+				["TemplateID"] = _abilityId,
+				["template_id"] = _abilityId,
 				["AbilityId"] = _abilityId,
+				["Name"] = _abilityName,
 				["VisualEffect"] = _currentVisualEffect,
 				["CastSound"] = _currentCastSound,
 				["IconPath"] = _currentIconPath,

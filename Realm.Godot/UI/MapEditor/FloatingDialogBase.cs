@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Realm.Godot.Services;
 using Realm.Godot.VFX;
 
@@ -262,9 +263,11 @@ public partial class FloatingDialogBase : PanelContainer
 		_openDialogs.Add(this);
 
 		Vector2 parentSize = Hud != null ? Hud.GetViewportRect().Size : GetViewportRect().Size;
+		float dialogWidth = Mathf.Max(Size.X, CustomMinimumSize.X);
+		float dialogHeight = Mathf.Max(Size.Y, CustomMinimumSize.Y);
 		Position = new Vector2(
-			Mathf.Max(20, (parentSize.X - CustomMinimumSize.X) * 0.5f),
-			Mathf.Max(20, (parentSize.Y - CustomMinimumSize.Y) * 0.4f)
+			Mathf.Max(20, (parentSize.X - dialogWidth) * 0.5f),
+			Mathf.Max(20, (parentSize.Y - dialogHeight) * 0.4f)
 		);
 	}
 
@@ -329,6 +332,8 @@ public partial class FloatingDialogBase : PanelContainer
 		CloseDialog();
 	}
 
+	public event Action? DialogClosed;
+
 	public virtual void CloseDialog()
 	{
 		_openDialogs.Remove(this);
@@ -337,6 +342,7 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			GetParent().RemoveChild(this);
 		}
+		DialogClosed?.Invoke();
 	}
 
 	protected virtual void OnApply() { }
@@ -465,7 +471,7 @@ public partial class FloatingDialogBase : PanelContainer
 		hueSlider.MinValue = 0.0f;
 		hueSlider.MaxValue = 1.0f;
 		hueSlider.Step = 0.01f;
-		hueSlider.Value = initialColor.H;
+		hueSlider.SetValueNoSignal(initialColor.H);
 		hueSlider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		row.AddChild(hueSlider);
 
@@ -475,17 +481,39 @@ public partial class FloatingDialogBase : PanelContainer
 		picker.Color = initialColor;
 		row.AddChild(picker);
 
+		bool isInternalSync = false;
+
 		hueSlider.ValueChanged += (double val) =>
 		{
-			Color tintColor = (val <= 0.0) ? new Color(1.0f, 1.0f, 1.0f, picker.Color.A) : Color.FromHsv((float)val, 0.75f, 1.0f, picker.Color.A);
-			picker.Color = tintColor;
-			onChanged(tintColor);
+			if (isInternalSync) return;
+			isInternalSync = true;
+			try
+			{
+				float s = picker.Color.S > 0.01f ? picker.Color.S : 0.85f;
+				float v = picker.Color.V > 0.01f ? picker.Color.V : 1.0f;
+				Color tintColor = Color.FromHsv((float)val, s, v, picker.Color.A);
+				picker.Color = tintColor;
+				onChanged(tintColor);
+			}
+			finally
+			{
+				isInternalSync = false;
+			}
 		};
 
 		picker.ColorChanged += (Color color) =>
 		{
-			hueSlider.Value = color.H;
-			onChanged(color);
+			if (isInternalSync) return;
+			isInternalSync = true;
+			try
+			{
+				hueSlider.SetValueNoSignal(color.H);
+				onChanged(color);
+			}
+			finally
+			{
+				isInternalSync = false;
+			}
 		};
 
 		parent.AddChild(row);
@@ -607,6 +635,26 @@ public partial class FloatingDialogBase : PanelContainer
 
 		parent.AddChild(row);
 		return (txt, (val) => txt.Text = val.ToString("0.##"));
+	}
+
+	public (LineEdit X, LineEdit Y, LineEdit Z) AddVector3Input(
+		VBoxContainer parent,
+		string labelText,
+		Vector3Data initialValue,
+		Action<Vector3Data> onChanged,
+		float labelWidth = 110.0f)
+	{
+		return AddVector3Input(parent, labelText, initialValue.ToGodotVector3(), (v) => onChanged(v.ToVector3Data()), labelWidth);
+	}
+
+	public (LineEdit X, LineEdit Y) AddVector2Input(
+		VBoxContainer parent,
+		string labelText,
+		Vector2Data initialValue,
+		Action<Vector2Data> onChanged,
+		float labelWidth = 110.0f)
+	{
+		return AddVector2Input(parent, labelText, initialValue.ToGodotVector2(), (v) => onChanged(v.ToVector2Data()), labelWidth);
 	}
 
 	public (LineEdit X, LineEdit Y, LineEdit Z) AddVector3Input(
@@ -1120,32 +1168,145 @@ public partial class FloatingDialogBase : PanelContainer
 	public static List<string> ScanAvailableAssets(string category, bool includeAllFolders = false, string subFolder = null)
 	{
 		var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
+			? MapWorkspaceService.GetActiveWorkspacePath()
+			: ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			if (assetsObj != null)
+			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
+			string manifestPath = Path.Combine(wsPath, "manifest.json");
+			Realm.Shared.Distribution.MapManifest manifest = null;
+			if (File.Exists(manifestPath))
+			{
+				try
+				{
+					manifest = Realm.Shared.Distribution.MapManifest.LoadFromFile(manifestPath);
+				}
+				catch { }
+			}
+
+			if (assetsObj != null || manifest != null)
 			{
 					if (category == "audio" || category == "sound" || category == "sfx" || category == "music")
 					{
-						foreach (var key in new[] { "sfx", "music", "audio", "sound", "sounds" })
+						foreach (var key in new[] { "SoundEffect", "Music" })
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject sObj)
+							var catDict = assetsObj?.GetCategory(key);
+							if (catDict != null)
 							{
-								foreach (var prop in sObj)
+								foreach (var kvp in catDict)
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
+									if (!string.IsNullOrWhiteSpace(kvp.Key) &&
+										(kvp.Key.EndsWith(".raud", StringComparison.OrdinalIgnoreCase) ||
+										 kvp.Key.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase) ||
+										 kvp.Key.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)))
 									{
-										result.Add(prop.Key);
+										result.Add(Path.GetFileName(kvp.Key));
 									}
 								}
 							}
 						}
+
+						if (manifest?.Files != null)
+						{
+							foreach (var kvp in manifest.Files)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) &&
+									(kvp.Key.EndsWith(".raud", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						string audioDir = Path.Combine(wsPath, "Assets", "audio");
+						if (Directory.Exists(audioDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(audioDir, "*.*", SearchOption.AllDirectories))
+							{
+								string ext = Path.GetExtension(file);
+								if (ext.Equals(".raud", StringComparison.OrdinalIgnoreCase) || ext.Equals(".ogg", StringComparison.OrdinalIgnoreCase) || ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(file));
+								}
+							}
+						}
 					}
-					else if (category == "vfx" || category == "vfx_spritesheets" || category == "spritesheets" || category == "vfx_radial" || category == "vfx_vertical")
+					else if (category == "spritesheets" || category == "spritesheet" || category == "spritesheet_rtex")
 					{
-						if (category is "vfx" or "vfx_spritesheets" or "spritesheets")
+						var sDict = assetsObj?.GetCategory("Spritesheet") ?? assetsObj?.GetCategory("spritesheets");
+						if (sDict != null)
+						{
+							foreach (var kvp in sDict)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						if (manifest?.Assets?.Spritesheet != null)
+						{
+							foreach (var kvp in manifest.Assets.Spritesheet)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						if (manifest?.Files != null)
+						{
+							foreach (var kvp in manifest.Files)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) &&
+									kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) &&
+									(kvp.Key.StartsWith("Assets/vfx/spritesheets/", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.StartsWith("Assets/spritesheets/", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.StartsWith("Assets/vfx/", StringComparison.OrdinalIgnoreCase)))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var ssMetaRoot) && ssMetaRoot?.VfxSpritesheets != null)
+						{
+							foreach (var kvp in ssMetaRoot.VfxSpritesheets)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Value?.TexturePath) && kvp.Value.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Value.TexturePath));
+								}
+							}
+						}
+
+						string vfxDir = Path.Combine(wsPath, "Assets", "vfx");
+						if (Directory.Exists(vfxDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(vfxDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+
+						string templateVfxDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "vfx");
+						if (Directory.Exists(templateVfxDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(templateVfxDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+					}
+					else if (category == "vfx" || category == "vfx_spritesheets" || category == "vfx_radial" || category == "vfx_vertical")
+					{
+						if (category is "vfx" or "vfx_spritesheets")
 						{
 							foreach (var prim in Enum.GetValues<VfxPrimitiveType>())
 							{
@@ -1162,29 +1323,31 @@ public partial class FloatingDialogBase : PanelContainer
 
 						string[] searchKeys = category switch
 						{
-							"vfx_radial" => new[] { "vfx_radial", "vfx" },
-							"vfx_vertical" => new[] { "vfx_vertical", "vfx" },
-							_ => new[] { "vfx_spritesheets", "vfx", "spritesheets", "vfx_radial", "vfx_vertical" }
+							"vfx_radial" => new[] { "vfx_radial", "Spritesheet" },
+							"vfx_vertical" => new[] { "vfx_vertical", "Spritesheet" },
+							_ => new[] { "Spritesheet", "vfx_radial", "vfx_vertical" }
 						};
 
 						foreach (var key in searchKeys)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject vObj)
+							var catDict = assetsObj?.GetCategory(key);
+							if (catDict != null)
 							{
-								foreach (var prop in vObj)
+								foreach (var kvp in catDict)
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
+									if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 									{
-										result.Add(prop.Key);
+										result.Add(Path.GetFileName(kvp.Key));
 									}
 								}
 							}
 						}
+
 						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var vfxMetaRoot) && vfxMetaRoot != null)
 						{
-							if (vfxMetaRoot.CustomVfx != null)
+							if (vfxMetaRoot.Templates?.Vfx != null)
 							{
-								foreach (var cv in vfxMetaRoot.CustomVfx)
+								foreach (var cv in vfxMetaRoot.Templates.Vfx)
 								{
 									if (!string.IsNullOrWhiteSpace(cv.VfxId))
 									{
@@ -1197,31 +1360,58 @@ public partial class FloatingDialogBase : PanelContainer
 					}
 					else if (category == "decals" || category == "decal")
 					{
-						foreach (var key in new[] { "decals", "decal" })
+						var catDict = assetsObj?.GetCategory("Decal");
+						if (catDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject dObj)
+							foreach (var kvp in catDict)
 							{
-								foreach (var prop in dObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										result.Add(prop.Key);
-									}
+									result.Add(Path.GetFileName(kvp.Key));
 								}
 							}
 						}
 
-						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var decalMetaRoot) && decalMetaRoot != null)
+						if (manifest?.Assets?.Decal != null)
 						{
-							if (decalMetaRoot.Decals != null)
+							foreach (var kvp in manifest.Assets.Decal)
 							{
-								foreach (var kvp in decalMetaRoot.Decals)
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									if (!string.IsNullOrWhiteSpace(kvp.Key))
-									{
-										result.Add(kvp.Key);
-									}
+									result.Add(Path.GetFileName(kvp.Key));
 								}
+							}
+						}
+						if (manifest?.Files != null)
+						{
+							foreach (var kvp in manifest.Files)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) &&
+									kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) &&
+									(kvp.Key.StartsWith("Assets/decals/", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.StartsWith("assets/decals/", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.StartsWith("decals/", StringComparison.OrdinalIgnoreCase)))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						string decalsDir = Path.Combine(wsPath, "Assets", "decals");
+						if (Directory.Exists(decalsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(decalsDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+
+						string templateDecalsDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "decals");
+						if (Directory.Exists(templateDecalsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(templateDecalsDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
 							}
 						}
 					}
@@ -1243,130 +1433,265 @@ public partial class FloatingDialogBase : PanelContainer
 						}
 
 						string defaultFolder = !string.IsNullOrEmpty(subFolder) ? subFolder : (category is "attachments" or "items" ? "items" : "projectiles");
-						foreach (var modelKey in new[] { "glb", "models" })
+						foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
 						{
-							if (assetsObj[modelKey] is System.Text.Json.Nodes.JsonObject glbObj)
+							bool matches = includeAllFolders || catName.Equals(defaultFolder, StringComparison.OrdinalIgnoreCase) ||
+								(defaultFolder == "items" && catName == "Item") ||
+								(defaultFolder == "units" && catName == "Character") ||
+								(defaultFolder == "buildings" && catName == "Building") ||
+								(defaultFolder == "props" && catName == "Prop");
+
+							if (matches)
 							{
-								foreach (var sub in glbObj)
+								var cDict = assetsObj?.GetCategory(catName);
+								if (cDict != null)
 								{
-									bool matches = includeAllFolders || sub.Key.Equals(defaultFolder, StringComparison.OrdinalIgnoreCase);
-									if (sub.Value is System.Text.Json.Nodes.JsonObject subObj)
+									foreach (var kvp in cDict)
 									{
-										if (matches)
+										if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 										{
-											foreach (var prop in subObj)
-											{
-												if (!string.IsNullOrWhiteSpace(prop.Key))
-												{
-													result.Add($"Assets/models/{sub.Key}/{prop.Key}");
-												}
-											}
-										}
-									}
-									else if (!string.IsNullOrWhiteSpace(sub.Key))
-									{
-										if (includeAllFolders || sub.Key.Contains(defaultFolder, StringComparison.OrdinalIgnoreCase))
-										{
-											result.Add(sub.Key);
+											result.Add(Path.GetFileName(kvp.Key));
 										}
 									}
 								}
+							}
+						}
+
+						if (manifest?.Files != null)
+						{
+							foreach (var kvp in manifest.Files)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						string modelsDir = Path.Combine(wsPath, "Assets", "models");
+						if (Directory.Exists(modelsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(modelsDir, "*.rmesh", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
 							}
 						}
 					}
 					else if (category == "ribbons" || category == "ribbon_textures")
 					{
-						foreach (var key in new[] { "ribbons", "ribbon_textures" })
+						var rDict = assetsObj?.GetCategory("Ribbon");
+						if (rDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject rObj)
+							foreach (var kvp in rDict)
 							{
-								foreach (var prop in rObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										if (prop.Key.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
-										{
-											result.Add(prop.Key);
-										}
-										else
-										{
-											result.Add($"Assets/ribbons/{prop.Key}");
-											result.Add(prop.Key);
-										}
-									}
+									result.Add(Path.GetFileName(kvp.Key));
 								}
 							}
 						}
-					}
-					else if (category == "animations" || category == "ranim")
-					{
-						foreach (var key in new[] { "animations", "ranim", "anim" })
+
+						if (manifest?.Assets?.Ribbon != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject aObj)
+							foreach (var kvp in manifest.Assets.Ribbon)
 							{
-								foreach (var prop in aObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										result.Add(prop.Key);
-									}
+									result.Add(Path.GetFileName(kvp.Key));
 								}
+							}
+						}
+
+						string ribbonsDir = Path.Combine(wsPath, "Assets", "ribbons");
+						if (Directory.Exists(ribbonsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(ribbonsDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+					}
+					else if (category == "animations" || category == "ranim" || category == "animation")
+					{
+						var aDict = assetsObj?.GetCategory("Animation");
+						if (aDict != null)
+						{
+							foreach (var kvp in aDict)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".ranim", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						string animsDir = Path.Combine(wsPath, "Assets", "animations");
+						if (Directory.Exists(animsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(animsDir, "*.ranim", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
 							}
 						}
 					}
 					else if (category == "icons" || category == "icon")
 					{
-						foreach (var key in new[] { "icons", "ui" })
+						var iDict = assetsObj?.GetCategory("Icon") ?? assetsObj?.GetCategory("icons");
+						if (iDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject iObj)
+							foreach (var kvp in iDict)
 							{
-								foreach (var prop in iObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										result.Add(prop.Key);
-									}
+									result.Add(Path.GetFileName(kvp.Key));
 								}
+							}
+						}
+
+						if (manifest?.Assets?.Icon != null)
+						{
+							foreach (var kvp in manifest.Assets.Icon)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						if (manifest?.Files != null)
+						{
+							foreach (var kvp in manifest.Files)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) &&
+									kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) &&
+									(kvp.Key.StartsWith("Assets/icons/", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.StartsWith("assets/icons/", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.StartsWith("icons/", StringComparison.OrdinalIgnoreCase)))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						if (MetadataService.Instance.TryLoadMetadata(wsPath, out var iconMetaRoot) && iconMetaRoot?.Icons != null)
+						{
+							foreach (var kvp in iconMetaRoot.Icons)
+							{
+								if (kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						string iconsDir = Path.Combine(wsPath, "Assets", "icons");
+						if (Directory.Exists(iconsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(iconsDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+
+						string templateIconsDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "icons");
+						if (Directory.Exists(templateIconsDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(templateIconsDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
 							}
 						}
 					}
 					else if (category == "noise" || category == "noise_textures")
 					{
-						foreach (var key in new[] { "noise_textures", "noise" })
+						var nDict = assetsObj?.GetCategory("Noise");
+						if (nDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject nObj)
+							foreach (var kvp in nDict)
 							{
-								foreach (var prop in nObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										if (prop.Key.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
-										{
-											result.Add(prop.Key);
-										}
-										else
-										{
-											result.Add($"Assets/textures/{prop.Key}");
-											result.Add(prop.Key);
-										}
-									}
+									result.Add(Path.GetFileName(kvp.Key));
 								}
+							}
+						}
+
+						if (manifest?.Assets?.Noise != null)
+						{
+							foreach (var kvp in manifest.Assets.Noise)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						string noiseDir = Path.Combine(wsPath, "Assets", "noise");
+						if (Directory.Exists(noiseDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(noiseDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
 							}
 						}
 					}
 					else if (category == "textures" || category == "terrain")
 					{
-						foreach (var key in new[] { "textures" })
+						var tDict = assetsObj?.GetCategory("Terrain") ?? assetsObj?.GetCategory("textures");
+						if (tDict != null)
 						{
-							if (assetsObj[key] is System.Text.Json.Nodes.JsonObject tObj)
+							foreach (var kvp in tDict)
 							{
-								foreach (var prop in tObj)
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 								{
-									if (!string.IsNullOrWhiteSpace(prop.Key))
-									{
-										result.Add(prop.Key);
-									}
+									result.Add(Path.GetFileName(kvp.Key));
 								}
+							}
+						}
+
+						if (manifest?.Assets?.Terrain != null)
+						{
+							foreach (var kvp in manifest.Assets.Terrain)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						if (manifest?.Files != null)
+						{
+							foreach (var kvp in manifest.Files)
+							{
+								if (!string.IsNullOrWhiteSpace(kvp.Key) &&
+									kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) &&
+									(kvp.Key.StartsWith("Assets/textures/", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.StartsWith("assets/textures/", StringComparison.OrdinalIgnoreCase) ||
+									 kvp.Key.StartsWith("textures/", StringComparison.OrdinalIgnoreCase)))
+								{
+									result.Add(Path.GetFileName(kvp.Key));
+								}
+							}
+						}
+
+						string texturesDir = Path.Combine(wsPath, "Assets", "textures");
+						if (Directory.Exists(texturesDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(texturesDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
+							}
+						}
+
+						string templateTexturesDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "textures");
+						if (Directory.Exists(templateTexturesDir))
+						{
+							foreach (var file in Directory.EnumerateFiles(templateTexturesDir, "*.rtex", SearchOption.AllDirectories))
+							{
+								result.Add(Path.GetFileName(file));
 							}
 						}
 					}

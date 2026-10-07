@@ -20,21 +20,32 @@ internal class CombatService
 	}
 
 	/// <summary>
-	///     Makes one entity attack another.
-	///     This shows the interplay of Attack, Armor, and Health components.
+	///     Makes one entity attack another using the 3-stage combat resolution pipeline.
 	/// </summary>
 	public void PerformAttack(Entity attacker, Entity defender)
 	{
 		if (!_ecsWorldAccessor.Current.Has<Attack>(attacker) || !_ecsWorldAccessor.Current.Has<Health>(defender)) return;
+		if (_ecsWorldAccessor.Current.Has<Invulnerable>(defender)) return;
 
 		var attack = _ecsWorldAccessor.Current.Get<Attack>(attacker);
 		var health = _ecsWorldAccessor.Current.Get<Health>(defender);
-		var armor = _ecsWorldAccessor.Current.Has<Armor>(defender) ? _ecsWorldAccessor.Current.Get<Armor>(defender) : new Armor(0);
+		var armor = _ecsWorldAccessor.Current.Has<Armor>(defender) ? _ecsWorldAccessor.Current.Get<Armor>(defender) : new Armor(0f);
 
-		var damage = attack.Damage - armor.Value;
-		if (damage < 1) damage = 1;
+		var result = CombatResolver.ResolveDamage(
+			baseDamage: attack.Damage,
+			damageVariance: attack.DamageVariance,
+			critChance: attack.CritChance,
+			critMultiplier: attack.CritMultiplier,
+			flatArmor: armor.FlatArmor,
+			ratedArmor: armor.RatedArmor,
+			flatArmorPen: attack.FlatArmorPenetration,
+			percentArmorPen: attack.PercentArmorPenetration,
+			damageType: attack.DamageType,
+			armorType: armor.ArmorType
+		);
 
-		health.Current -= damage;
+		health.Current -= result.FinalDamage;
+		health.TimeSinceLastDamage = 0f;
 
 		if (health.Current <= 0)
 		{

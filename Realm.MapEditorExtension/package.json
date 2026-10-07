@@ -161,7 +161,15 @@
                         "jsonValidation":  [
                                                {
                                                    "fileMatch":  "**/metadata.json",
-                                                   "url":  "./map_schema.json"
+                                                   "url":  "./metadata.schema.json"
+                                               },
+                                               {
+                                                   "fileMatch":  "**/manifest.json",
+                                                   "url":  "./manifest.schema.json"
+                                               },
+                                               {
+                                                   "fileMatch":  "**/terrain.json",
+                                                   "url":  "./terrain.schema.json"
                                                }
                                            ]
                     },

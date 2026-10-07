@@ -122,153 +122,163 @@ public static class MinimapHelper
 		return minimapBg;
 	}
 
+	private static readonly System.Threading.SemaphoreSlim _captureLock = new(1, 1);
+
 	public static async Task<Image?> CaptureTerrainMinimapImageAsync(Node parentNode, int resolution = 256)
 	{
 		if (parentNode == null || !GodotObject.IsInstanceValid(parentNode)) return null;
 		var tree = parentNode.GetTree();
 		if (tree == null) return null;
 
-		var (physicalWidth, physicalDepth, quadSize) = GetTerrainDimensions();
-
-		int viewportWidth = resolution;
-		int viewportHeight = resolution;
-
-		if (physicalWidth >= physicalDepth && physicalWidth > 0.0f)
-		{
-			viewportHeight = Mathf.Max(16, Mathf.RoundToInt(resolution * physicalDepth / physicalWidth));
-		}
-		else if (physicalDepth > physicalWidth && physicalDepth > 0.0f)
-		{
-			viewportWidth = Mathf.Max(16, Mathf.RoundToInt(resolution * physicalWidth / physicalDepth));
-		}
-
-		var shroudMesh = GameHost.Instance?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DShroudMesh")
-		              ?? GameHost.Instance?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DFogMesh");
-		bool wasShroudVisible = false;
-		if (shroudMesh != null && GodotObject.IsInstanceValid(shroudMesh))
-		{
-			wasShroudVisible = shroudMesh.Visible;
-			shroudMesh.Visible = false;
-		}
-
-		bool wasBrushVisible = false;
-		if (GameHost.Instance?.BrushIndicatorMesh != null && GodotObject.IsInstanceValid(GameHost.Instance.BrushIndicatorMesh))
-		{
-			wasBrushVisible = GameHost.Instance.BrushIndicatorMesh.Visible;
-			GameHost.Instance.BrushIndicatorMesh.Visible = false;
-		}
-
-		var wasGridMode = GameHost.GridOverlayMode.Off;
-		bool wasPathingVisible = false;
-		if (GameHost.Instance != null)
-		{
-			wasGridMode = GameHost.Instance.EditorGridMode;
-			wasPathingVisible = GameHost.Instance.PathingOverlayVisible;
-			GameHost.Instance.EditorGridMode = GameHost.GridOverlayMode.Off;
-			GameHost.Instance.PathingOverlayVisible = false;
-			GameHost.Instance.UpdateGridOverlayVisibility();
-			GameHost.Instance.UpdatePathingOverlay();
-		}
-
-		var pathingMesh = GameHost.Instance?.PathingOverlayMesh;
-		bool wasPathingMeshVisible = false;
-		if (pathingMesh != null && GodotObject.IsInstanceValid(pathingMesh))
-		{
-			wasPathingMeshVisible = pathingMesh.Visible;
-			pathingMesh.Visible = false;
-		}
-
-		var unitsList = GameHost.Instance?.AllUnits;
-		var unitVisibility = new List<(Unit3D unit, bool visible)>();
-		if (unitsList != null)
-		{
-			foreach (var u in unitsList)
-			{
-				if (u != null && GodotObject.IsInstanceValid(u))
-				{
-					unitVisibility.Add((u, u.Visible));
-					u.Visible = false;
-				}
-			}
-		}
-
-		SubViewport viewport = null;
+		await _captureLock.WaitAsync();
 		try
 		{
-			viewport = new SubViewport();
-			viewport.TransparentBg = true;
-			viewport.Size = new Vector2I(viewportWidth, viewportHeight);
-			viewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
-			viewport.DebugDraw = Viewport.DebugDrawEnum.Unshaded;
-			parentNode.AddChild(viewport);
+			var (physicalWidth, physicalDepth, quadSize) = GetTerrainDimensions();
 
-			var camera = new Camera3D();
-			camera.Projection = Camera3D.ProjectionType.Orthogonal;
-			camera.KeepAspect = Camera3D.KeepAspectEnum.Height;
-			camera.Size = physicalDepth;
-			camera.Far = 200.0f;
-			camera.Position = new Vector3(-0.5f * quadSize, 100.0f, -0.5f * quadSize);
-			camera.RotationDegrees = new Vector3(-90.0f, 0.0f, 0.0f);
-			viewport.AddChild(camera);
+			int viewportWidth = resolution;
+			int viewportHeight = resolution;
 
-			RuntimeTerrain.IsMinimapRendering = true;
-			RuntimeTerrain.Instance?.BeginMinimapCapture();
-			GameHost.Instance?.BeginMinimapCapture();
-			PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
+			if (physicalWidth >= physicalDepth && physicalWidth > 0.0f)
+			{
+				viewportHeight = Mathf.Max(16, Mathf.RoundToInt(resolution * physicalDepth / physicalWidth));
+			}
+			else if (physicalDepth > physicalWidth && physicalDepth > 0.0f)
+			{
+				viewportWidth = Mathf.Max(16, Mathf.RoundToInt(resolution * physicalWidth / physicalDepth));
+			}
 
+			var shroudMesh = GameHost.Instance?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DShroudMesh")
+			              ?? GameHost.Instance?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DFogMesh");
+			bool wasShroudVisible = false;
+			if (shroudMesh != null && GodotObject.IsInstanceValid(shroudMesh))
+			{
+				wasShroudVisible = shroudMesh.Visible;
+				shroudMesh.Visible = false;
+			}
+
+			bool wasBrushVisible = false;
+			if (GameHost.Instance?.BrushIndicatorMesh != null && GodotObject.IsInstanceValid(GameHost.Instance.BrushIndicatorMesh))
+			{
+				wasBrushVisible = GameHost.Instance.BrushIndicatorMesh.Visible;
+				GameHost.Instance.BrushIndicatorMesh.Visible = false;
+			}
+
+			var wasGridMode = GameHost.GridOverlayMode.Off;
+			bool wasPathingVisible = false;
+			if (GameHost.Instance != null)
+			{
+				wasGridMode = GameHost.Instance.EditorGridMode;
+				wasPathingVisible = GameHost.Instance.PathingOverlayVisible;
+				GameHost.Instance.EditorGridMode = GameHost.GridOverlayMode.Off;
+				GameHost.Instance.PathingOverlayVisible = false;
+				GameHost.Instance.UpdateGridOverlayVisibility();
+				GameHost.Instance.UpdatePathingOverlay();
+			}
+
+			var pathingMesh = GameHost.Instance?.PathingOverlayMesh;
+			bool wasPathingMeshVisible = false;
+			if (pathingMesh != null && GodotObject.IsInstanceValid(pathingMesh))
+			{
+				wasPathingMeshVisible = pathingMesh.Visible;
+				pathingMesh.Visible = false;
+			}
+
+			var unitsList = GameHost.Instance?.AllUnits;
+			var unitVisibility = new List<(Unit3D unit, bool visible)>();
+			if (unitsList != null)
+			{
+				foreach (var u in unitsList)
+				{
+					if (u != null && GodotObject.IsInstanceValid(u))
+					{
+						unitVisibility.Add((u, u.Visible));
+						u.Visible = false;
+					}
+				}
+			}
+
+			SubViewport viewport = null;
 			try
 			{
-				await parentNode.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+				viewport = new SubViewport();
+				viewport.TransparentBg = true;
+				viewport.Size = new Vector2I(viewportWidth, viewportHeight);
+				viewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
+				viewport.DebugDraw = Viewport.DebugDrawEnum.Unshaded;
+				parentNode.AddChild(viewport);
 
-				var texture = viewport.GetTexture();
-				if (texture != null)
+				var camera = new Camera3D();
+				camera.Projection = Camera3D.ProjectionType.Orthogonal;
+				camera.KeepAspect = Camera3D.KeepAspectEnum.Height;
+				camera.Size = physicalDepth;
+				camera.Far = 200.0f;
+				camera.Position = new Vector3(-0.5f * quadSize, 100.0f, -0.5f * quadSize);
+				camera.RotationDegrees = new Vector3(-90.0f, 0.0f, 0.0f);
+				viewport.AddChild(camera);
+
+				RuntimeTerrain.IsMinimapRendering = true;
+				RuntimeTerrain.Instance?.BeginMinimapCapture();
+				GameHost.Instance?.BeginMinimapCapture();
+				PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
+
+				try
 				{
-					var img = texture.GetImage();
-					if (img != null && !img.IsEmpty())
+					await parentNode.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+
+					var texture = viewport.GetTexture();
+					if (texture != null)
 					{
-						return (Image)img.Duplicate();
+						var img = texture.GetImage();
+						if (img != null && !img.IsEmpty())
+						{
+							return (Image)img.Duplicate();
+						}
 					}
+				}
+				finally
+				{
+					RuntimeTerrain.IsMinimapRendering = false;
+					GameHost.Instance?.EndMinimapCapture();
+					RuntimeTerrain.Instance?.EndMinimapCapture();
 				}
 			}
 			finally
 			{
-				GameHost.Instance?.EndMinimapCapture();
-				RuntimeTerrain.Instance?.EndMinimapCapture();
-				RuntimeTerrain.IsMinimapRendering = false;
+				if (viewport != null && GodotObject.IsInstanceValid(viewport))
+				{
+					viewport.QueueFree();
+				}
+				if (shroudMesh != null && GodotObject.IsInstanceValid(shroudMesh))
+				{
+					shroudMesh.Visible = wasShroudVisible;
+				}
+				if (pathingMesh != null && GodotObject.IsInstanceValid(pathingMesh))
+				{
+					pathingMesh.Visible = wasPathingMeshVisible;
+				}
+				if (GameHost.Instance?.BrushIndicatorMesh != null && GodotObject.IsInstanceValid(GameHost.Instance.BrushIndicatorMesh))
+				{
+					GameHost.Instance.BrushIndicatorMesh.Visible = wasBrushVisible;
+				}
+				if (GameHost.Instance != null)
+				{
+					GameHost.Instance.EditorGridMode = wasGridMode;
+					GameHost.Instance.PathingOverlayVisible = wasPathingVisible;
+					GameHost.Instance.UpdateGridOverlayVisibility();
+					GameHost.Instance.UpdatePathingOverlay();
+				}
+				foreach (var (u, vis) in unitVisibility)
+				{
+					if (u != null && GodotObject.IsInstanceValid(u))
+					{
+						u.Visible = vis || (GameHost.Instance?.IsMapEditorMode == true && GameHost.Instance.AllUnits.Contains(u));
+					}
+				}
 			}
 		}
 		finally
 		{
-			if (viewport != null && GodotObject.IsInstanceValid(viewport))
-			{
-				viewport.QueueFree();
-			}
-			if (shroudMesh != null && GodotObject.IsInstanceValid(shroudMesh))
-			{
-				shroudMesh.Visible = wasShroudVisible;
-			}
-			if (pathingMesh != null && GodotObject.IsInstanceValid(pathingMesh))
-			{
-				pathingMesh.Visible = wasPathingMeshVisible;
-			}
-			if (GameHost.Instance?.BrushIndicatorMesh != null && GodotObject.IsInstanceValid(GameHost.Instance.BrushIndicatorMesh))
-			{
-				GameHost.Instance.BrushIndicatorMesh.Visible = wasBrushVisible;
-			}
-			if (GameHost.Instance != null)
-			{
-				GameHost.Instance.EditorGridMode = wasGridMode;
-				GameHost.Instance.PathingOverlayVisible = wasPathingVisible;
-				GameHost.Instance.UpdateGridOverlayVisibility();
-				GameHost.Instance.UpdatePathingOverlay();
-			}
-			foreach (var (u, vis) in unitVisibility)
-			{
-				if (u != null && GodotObject.IsInstanceValid(u))
-				{
-					u.Visible = vis;
-				}
-			}
+			_captureLock.Release();
 		}
 
 		return null;

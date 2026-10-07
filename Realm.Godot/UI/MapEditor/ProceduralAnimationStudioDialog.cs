@@ -4,18 +4,29 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Godot;
+using Realm.Godot.Services;
 using Realm.Godot.Utils;
 using Realm.Godot.VFX;
 
 public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBase
 {
+	public class TemplateItemInfo
+	{
+		public string Id { get; set; } = "";
+		public string DisplayName { get; set; } = "";
+		public string Category { get; set; } = "";
+		public string ModelPath { get; set; } = "";
+		public string VisualMode { get; set; } = "Mesh";
+		public string FormattedLabel { get; set; } = "";
+	}
+
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 
 	private LineEdit _txtAnimId;
 	private LineEdit _txtAnimName;
 	private OptionButton _optPreset;
-	private OptionButton _optModelPicker;
+	private OptionButton _optTemplatePicker;
 	private OptionButton _optMotionType;
 	private OptionButton _optMaskMode;
 
@@ -57,8 +68,8 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 	private ProceduralAnimationConfig _config = new();
 	private ProceduralAnimationConfig _snapshot = new();
-	private string _selectedModelKey = "";
-	private List<string> _availableModels = new();
+	private string _selectedTemplateKey = "";
+	private List<TemplateItemInfo> _availableTemplates = new();
 
 	private float _impulseStrength = 0.0f;
 	private float _impulseTime = 0.0f;
@@ -74,7 +85,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 	private void BuildControls()
 	{
-		// 1. TOP LIVE PREVIEW (3D VIEWPORT)
 		var previewContainer = new PanelContainer();
 		previewContainer.CustomMinimumSize = new Vector2(0, 220);
 		previewContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
@@ -84,36 +94,33 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 		Setup3DEnvironment();
 
-		// CAMERA TOOLBAR WITH EMBEDDED CONTROLS
 		AddCameraPresetToolbar(BodyContainer, includeBack: true, includeLightingToggle: true);
 
-		// ROW 1: MODEL PICKER
-		var modelRow = new HBoxContainer();
-		modelRow.AddThemeConstantOverride("separation", 6);
+		var templateRow = new HBoxContainer();
+		templateRow.AddThemeConstantOverride("separation", 6);
 
-		var lblModel = new Label();
-		lblModel.Text = TranslationServer.Translate("Preview Model:");
-		lblModel.AddThemeFontSizeOverride("font_size", 11);
-		lblModel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		modelRow.AddChild(lblModel);
+		var lblTemplate = new Label();
+		lblTemplate.Text = TranslationServer.Translate("Template:");
+		lblTemplate.AddThemeFontSizeOverride("font_size", 11);
+		lblTemplate.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		templateRow.AddChild(lblTemplate);
 
-		_optModelPicker = new OptionButton();
-		_optModelPicker.AddThemeFontSizeOverride("font_size", 11);
-		_optModelPicker.CustomMinimumSize = new Vector2(160, 24);
-		_optModelPicker.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_optModelPicker.ItemSelected += (idx) =>
+		_optTemplatePicker = new OptionButton();
+		_optTemplatePicker.AddThemeFontSizeOverride("font_size", 11);
+		_optTemplatePicker.CustomMinimumSize = new Vector2(160, 24);
+		_optTemplatePicker.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optTemplatePicker.ItemSelected += (idx) =>
 		{
-			if (idx >= 0 && idx < _availableModels.Count)
+			if (idx >= 0 && idx < _availableTemplates.Count)
 			{
-				_selectedModelKey = _availableModels[(int)idx];
-				LoadPreviewModel(_selectedModelKey);
+				_selectedTemplateKey = _availableTemplates[(int)idx].Id;
+				LoadPreviewTemplate(_availableTemplates[(int)idx]);
 			}
 		};
-		modelRow.AddChild(_optModelPicker);
+		templateRow.AddChild(_optTemplatePicker);
 
-		BodyContainer.AddChild(modelRow);
+		BodyContainer.AddChild(templateRow);
 
-		// ROW 2: PLAYBACK & INTERACTIVE TESTING
 		var playRow = new HBoxContainer();
 		playRow.AddThemeConstantOverride("separation", 6);
 
@@ -154,7 +161,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 		BodyContainer.AddChild(playRow);
 
-		// 2. CONFIGURATION CONTROLS
 		var scroll = new ScrollContainer();
 		scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
@@ -166,7 +172,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
-		// PRESET LOADER ROW
 		var presetRow = new HBoxContainer();
 		presetRow.AddThemeConstantOverride("separation", 6);
 
@@ -197,7 +202,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		presetRow.AddChild(_optPreset);
 		configVBox.AddChild(presetRow);
 
-		// IDENTIFIERS
 		_txtAnimId = AddTextInput(configVBox, TranslationServer.Translate("Profile ID:"), _config.Id, (val) =>
 		{
 			_config.Id = val.Trim().ToLowerInvariant().Replace(" ", "_");
@@ -208,9 +212,8 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			_config.Name = val;
 		}, "", 150f);
 
-		var btnRandomize = AddButton(configVBox, "🎲 " + TranslationServer.Translate("Randomize Sway & Flutter"), () => RandomizeParameters(), "Randomize motion parameters", 11, new Vector2(0, 26));
+		AddButton(configVBox, "🎲 " + TranslationServer.Translate("Randomize Sway & Flutter"), () => RandomizeParameters(), "Randomize motion parameters", 11, new Vector2(0, 26));
 
-		// MOTION TYPE
 		string[] motionTypes = new[]
 		{
 			TranslationServer.Translate("Cloth / Cape Sway").ToString(),
@@ -225,7 +228,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			UpdateShaderParameters();
 		}, 150f);
 
-		// SECTION 1: SPATIAL MASK
 		AddSectionHeader(configVBox, "📐 " + TranslationServer.Translate("SPATIAL MESH DETECTION MASK"), new Color(0.85f, 0.65f, 0.35f));
 
 		string[] maskModes = new[]
@@ -265,7 +267,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			UpdateShaderParameters();
 		});
 
-		// SECTION 2: SWAY & FLUTTER DYNAMICS
 		AddSectionHeader(configVBox, "🌊 " + TranslationServer.Translate("SWAY & WIND MOTION DYNAMICS"), new Color(0.35f, 0.75f, 0.85f));
 
 		(_sldSwayFrequency, _lblSwayFrequency) = AddSlider(configVBox, TranslationServer.Translate("Sway Frequency (Hz):"), 0.0f, 10.0f, 0.1f, _config.SwayFrequency, (val) =>
@@ -310,7 +311,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			UpdateShaderParameters();
 		}, "0.00", 150f);
 
-		// SECTION 3: TRANSIENT IMPACT / SHAKE
 		AddSectionHeader(configVBox, "⚡ " + TranslationServer.Translate("TRANSIENT HIT / HARVEST SHAKE"), new Color(0.95f, 0.45f, 0.25f));
 
 		(_sldImpulseAmplitude, _lblImpulseAmplitude) = AddSlider(configVBox, TranslationServer.Translate("Impact Shake Amplitude (m):"), 0.0f, 1.0f, 0.02f, _config.ImpulseAmplitude, (val) =>
@@ -379,11 +379,11 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		_onSaved = onSaved;
 		if (!string.IsNullOrWhiteSpace(previewModelKey))
 		{
-			_selectedModelKey = previewModelKey;
+			_selectedTemplateKey = previewModelKey;
 		}
 
 		PopulatePresetList();
-		PopulateModelList();
+		PopulateTemplateList();
 
 		if (config != null && !string.IsNullOrWhiteSpace(config.Id))
 		{
@@ -417,53 +417,213 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			_optPreset.Selected = selectedPresetIdx;
 		}
 
-		if (_availableModels.Count > 0 && string.IsNullOrEmpty(_selectedModelKey))
+		if (_optTemplatePicker != null && _optTemplatePicker.Selected >= 0 && _optTemplatePicker.Selected < _availableTemplates.Count)
 		{
-			_selectedModelKey = _availableModels[0];
+			LoadPreviewTemplate(_availableTemplates[_optTemplatePicker.Selected]);
 		}
-		LoadPreviewModel(_selectedModelKey);
+		else if (_availableTemplates.Count > 0)
+		{
+			LoadPreviewTemplate(_availableTemplates[0]);
+		}
 
 		OpenDialog();
 	}
 
-	private void PopulateModelList()
+	private void PopulateTemplateList()
 	{
-		_availableModels.Clear();
-		if (_optModelPicker == null) return;
-		_optModelPicker.Clear();
+		_availableTemplates.Clear();
+		if (_optTemplatePicker == null) return;
+		_optTemplatePicker.Clear();
 
+		var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string modelsDir = Path.Combine(wsPath, "Assets", "models");
-		if (Directory.Exists(modelsDir))
+
+		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
 		{
-			var files = Directory.GetFiles(modelsDir, "*.rmesh", SearchOption.AllDirectories);
-			foreach (var f in files)
+			if (meta.Templates?.Units != null)
 			{
-				string name = Path.GetFileName(f);
-				if (!_availableModels.Contains(name))
+				foreach (var u in meta.Templates.Units)
 				{
-					_availableModels.Add(name);
+					if (!string.IsNullOrEmpty(u.TemplateID) && existingIds.Add(u.TemplateID))
+					{
+						_availableTemplates.Add(new TemplateItemInfo
+						{
+							Id = u.TemplateID,
+							DisplayName = !string.IsNullOrEmpty(u.Name) ? u.Name : u.TemplateID,
+							Category = "Unit",
+							ModelPath = u.ModelPath ?? "",
+							VisualMode = !string.IsNullOrEmpty(u.VisualMode) ? u.VisualMode : (u.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
+						});
+					}
+				}
+			}
+
+			if (meta.Templates?.Buildings != null)
+			{
+				foreach (var b in meta.Templates.Buildings)
+				{
+					if (!string.IsNullOrEmpty(b.TemplateID) && existingIds.Add(b.TemplateID))
+					{
+						_availableTemplates.Add(new TemplateItemInfo
+						{
+							Id = b.TemplateID,
+							DisplayName = !string.IsNullOrEmpty(b.Name) ? b.Name : b.TemplateID,
+							Category = "Building",
+							ModelPath = b.ModelPath ?? "",
+							VisualMode = !string.IsNullOrEmpty(b.VisualMode) ? b.VisualMode : (b.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
+						});
+					}
+				}
+			}
+
+			if (meta.Templates?.Resources != null)
+			{
+				foreach (var r in meta.Templates.Resources)
+				{
+					if (!string.IsNullOrEmpty(r.TemplateID) && existingIds.Add(r.TemplateID))
+					{
+						_availableTemplates.Add(new TemplateItemInfo
+						{
+							Id = r.TemplateID,
+							DisplayName = !string.IsNullOrEmpty(r.Name) ? r.Name : r.TemplateID,
+							Category = "Resource",
+							ModelPath = r.ModelPath ?? "",
+							VisualMode = !string.IsNullOrEmpty(r.VisualMode) ? r.VisualMode : (r.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
+						});
+					}
+				}
+			}
+
+			if (meta.Templates?.Props != null)
+			{
+				foreach (var p in meta.Templates.Props)
+				{
+					if (!string.IsNullOrEmpty(p.TemplateID) && existingIds.Add(p.TemplateID))
+					{
+						_availableTemplates.Add(new TemplateItemInfo
+						{
+							Id = p.TemplateID,
+							DisplayName = !string.IsNullOrEmpty(p.Name) ? p.Name : p.TemplateID,
+							Category = "Prop",
+							ModelPath = p.ModelPath ?? "",
+							VisualMode = !string.IsNullOrEmpty(p.VisualMode) ? p.VisualMode : (p.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
+						});
+					}
+				}
+			}
+		}
+
+		if (GameHost.UnitRegistry != null)
+		{
+			foreach (var kvp in GameHost.UnitRegistry)
+			{
+				string id = kvp.Key.ToString();
+				if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
+				{
+					_availableTemplates.Add(new TemplateItemInfo
+					{
+						Id = id,
+						DisplayName = !string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : id,
+						Category = "Unit",
+						ModelPath = kvp.Value.ModelPath ?? "",
+						VisualMode = !string.IsNullOrEmpty(kvp.Value.VisualMode) ? kvp.Value.VisualMode : (kvp.Value.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
+					});
+				}
+			}
+		}
+
+		if (GameHost.BuildingRegistry != null)
+		{
+			foreach (var kvp in GameHost.BuildingRegistry)
+			{
+				string id = kvp.Key.ToString();
+				if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
+				{
+					_availableTemplates.Add(new TemplateItemInfo
+					{
+						Id = id,
+						DisplayName = !string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : id,
+						Category = "Building",
+						ModelPath = kvp.Value.ModelPath ?? "",
+						VisualMode = !string.IsNullOrEmpty(kvp.Value.VisualMode) ? kvp.Value.VisualMode : (kvp.Value.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
+					});
+				}
+			}
+		}
+
+		if (GameHost.ResourceRegistry != null)
+		{
+			foreach (var kvp in GameHost.ResourceRegistry)
+			{
+				string id = kvp.Key.ToString();
+				if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
+				{
+					_availableTemplates.Add(new TemplateItemInfo
+					{
+						Id = id,
+						DisplayName = !string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : id,
+						Category = "Resource",
+						ModelPath = kvp.Value.ModelPath ?? "",
+						VisualMode = !string.IsNullOrEmpty(kvp.Value.VisualMode) ? kvp.Value.VisualMode : (kvp.Value.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
+					});
+				}
+			}
+		}
+
+		if (GameHost.PropRegistry != null)
+		{
+			foreach (var kvp in GameHost.PropRegistry)
+			{
+				string id = kvp.Key.ToString();
+				if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
+				{
+					_availableTemplates.Add(new TemplateItemInfo
+					{
+						Id = id,
+						DisplayName = !string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : id,
+						Category = "Prop",
+						ModelPath = kvp.Value.ModelPath ?? "",
+						VisualMode = !string.IsNullOrEmpty(kvp.Value.VisualMode) ? kvp.Value.VisualMode : (kvp.Value.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
+					});
 				}
 			}
 		}
 
 		try
 		{
-			var assets = MapAssetHelper.LoadUnionedAssets(wsPath);
-			if (assets["rmesh"] is JsonObject rmeshObj)
+			var assets = MapAssetHelper.LoadAssets(wsPath);
+			if (assets != null)
 			{
-				foreach (var sub in rmeshObj)
+				foreach (var groupKvp in assets.GetAllCategories())
 				{
-					if (sub.Value is JsonObject subObj)
+					string groupName = groupKvp.Key;
+					string category = groupName switch
 					{
-						foreach (var model in subObj)
+						"Character" or "units" or "characters" => "Unit",
+						"Building" or "buildings" => "Building",
+						"Resource" or "resources" => "Resource",
+						_ => "Prop"
+					};
+
+					var subDict = groupKvp.Value;
+					if (subDict != null)
+					{
+						foreach (var itemKvp in subDict)
 						{
-							if (!string.IsNullOrEmpty(model.Key) && model.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+							string fn = itemKvp.Key;
+							if (!string.IsNullOrEmpty(fn) && (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)))
 							{
-								string name = Path.GetFileName(model.Key);
-								if (!_availableModels.Contains(name))
+								string id = Path.GetFileName(fn);
+								if (existingIds.Add(id))
 								{
-									_availableModels.Add(name);
+									_availableTemplates.Add(new TemplateItemInfo
+									{
+										Id = id,
+										DisplayName = id,
+										Category = category,
+										ModelPath = fn,
+										VisualMode = fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? "GroundPlane" : "Mesh"
+									});
 								}
 							}
 						}
@@ -473,51 +633,67 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		}
 		catch { }
 
-		if (_availableModels.Count == 0)
+		_availableTemplates.Add(new TemplateItemInfo
 		{
-			_availableModels.Add("(Sample Tree Cylinder)");
-			_availableModels.Add("(Sample Unit Capsule)");
-		}
+			Id = "(Sample Tree Cylinder)",
+			DisplayName = "(Sample Tree Cylinder)",
+			Category = "Sample",
+			ModelPath = "",
+			VisualMode = "Mesh"
+		});
+		_availableTemplates.Add(new TemplateItemInfo
+		{
+			Id = "(Sample Unit Capsule)",
+			DisplayName = "(Sample Unit Capsule)",
+			Category = "Sample",
+			ModelPath = "",
+			VisualMode = "Mesh"
+		});
 
 		int selectedIdx = -1;
-		if (!string.IsNullOrWhiteSpace(_selectedModelKey))
+		if (!string.IsNullOrWhiteSpace(_selectedTemplateKey))
 		{
-			string targetName = Path.GetFileName(_selectedModelKey);
-			string targetWithoutExt = Path.GetFileNameWithoutExtension(_selectedModelKey);
+			string targetName = Path.GetFileName(_selectedTemplateKey);
+			string targetWithoutExt = Path.GetFileNameWithoutExtension(_selectedTemplateKey);
 
-			selectedIdx = _availableModels.FindIndex(m => string.Equals(m, _selectedModelKey, StringComparison.OrdinalIgnoreCase));
+			selectedIdx = _availableTemplates.FindIndex(t => string.Equals(t.Id, _selectedTemplateKey, StringComparison.OrdinalIgnoreCase));
 			if (selectedIdx < 0)
 			{
-				selectedIdx = _availableModels.FindIndex(m => string.Equals(Path.GetFileName(m), targetName, StringComparison.OrdinalIgnoreCase));
+				selectedIdx = _availableTemplates.FindIndex(t => string.Equals(t.ModelPath, _selectedTemplateKey, StringComparison.OrdinalIgnoreCase));
 			}
 			if (selectedIdx < 0)
 			{
-				selectedIdx = _availableModels.FindIndex(m => string.Equals(Path.GetFileNameWithoutExtension(m), targetWithoutExt, StringComparison.OrdinalIgnoreCase));
+				selectedIdx = _availableTemplates.FindIndex(t => string.Equals(Path.GetFileName(t.ModelPath), targetName, StringComparison.OrdinalIgnoreCase));
 			}
-
-			if (selectedIdx < 0 && !string.IsNullOrWhiteSpace(targetName))
+			if (selectedIdx < 0)
 			{
-				string modelToAdd = targetName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ? targetName : targetName + ".rmesh";
-				_availableModels.Insert(0, modelToAdd);
-				selectedIdx = 0;
+				selectedIdx = _availableTemplates.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.Id), targetWithoutExt, StringComparison.OrdinalIgnoreCase));
+			}
+			if (selectedIdx < 0)
+			{
+				selectedIdx = _availableTemplates.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.ModelPath), targetWithoutExt, StringComparison.OrdinalIgnoreCase));
 			}
 		}
 
-		int idx = 0;
-		foreach (var m in _availableModels)
+		for (int i = 0; i < _availableTemplates.Count; i++)
 		{
-			_optModelPicker.AddItem(m, idx++);
+			var t = _availableTemplates[i];
+			string label = !string.IsNullOrEmpty(t.DisplayName) && !string.Equals(t.DisplayName, t.Id, StringComparison.OrdinalIgnoreCase)
+				? $"[{t.Category}] {t.DisplayName} ({t.Id})"
+				: $"[{t.Category}] {t.Id}";
+			t.FormattedLabel = label;
+			_optTemplatePicker.AddItem(label, i);
 		}
 
-		if (selectedIdx >= 0 && selectedIdx < _availableModels.Count)
+		if (selectedIdx >= 0 && selectedIdx < _availableTemplates.Count)
 		{
-			_selectedModelKey = _availableModels[selectedIdx];
-			_optModelPicker.Selected = selectedIdx;
+			_selectedTemplateKey = _availableTemplates[selectedIdx].Id;
+			_optTemplatePicker.Selected = selectedIdx;
 		}
-		else if (_availableModels.Count > 0)
+		else if (_availableTemplates.Count > 0)
 		{
-			_selectedModelKey = _availableModels[0];
-			_optModelPicker.Selected = 0;
+			_selectedTemplateKey = _availableTemplates[0].Id;
+			_optTemplatePicker.Selected = 0;
 		}
 	}
 
@@ -582,7 +758,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		UpdateCameraTransform();
 	}
 
-	private void LoadPreviewModel(string key)
+	private void LoadPreviewTemplate(TemplateItemInfo template)
 	{
 		if (_currentModelRoot == null) return;
 		foreach (Node child in _currentModelRoot.GetChildren())
@@ -590,12 +766,12 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			child.QueueFree();
 		}
 
-		if (string.IsNullOrEmpty(key)) return;
+		if (template == null) return;
 
-		if (key.StartsWith("("))
+		if (template.Id.StartsWith("(") || template.Category.Equals("Sample", StringComparison.OrdinalIgnoreCase))
 		{
 			var meshInst = new MeshInstance3D();
-			if (key.Contains("Capsule"))
+			if (template.Id.Contains("Capsule"))
 			{
 				meshInst.Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.8f };
 				meshInst.Position = new Vector3(0, 0.9f, 0);
@@ -614,54 +790,96 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			return;
 		}
 
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string modelPath = null;
-		foreach (var sub in new[] { "props", "units", "buildings", "resources", "characters", "items" })
-		{
-			string p = Path.Combine(wsPath, "Assets", "models", sub, key);
-			if (File.Exists(p)) { modelPath = p; break; }
-		}
-
-		if (!File.Exists(modelPath))
-		{
-			string modelsDir = Path.Combine(wsPath, "Assets", "models");
-			if (Directory.Exists(modelsDir))
-			{
-				var files = Directory.GetFiles(modelsDir, key, SearchOption.AllDirectories);
-				if (files.Length > 0 && files[0].EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-				{
-					modelPath = files[0];
-				}
-			}
-		}
+		string assetPath = !string.IsNullOrEmpty(template.ModelPath) ? template.ModelPath : template.Id;
+		string visualMode = !string.IsNullOrEmpty(template.VisualMode) ? template.VisualMode : (assetPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? "GroundPlane" : "Mesh");
 
 		Node3D loadedNode3D = null;
-		if (modelPath != null && modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(modelPath))
+
+		bool is2DTexture = string.Equals(visualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(visualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase) ||
+			assetPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ||
+			assetPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+			assetPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+
+		if (is2DTexture)
 		{
-			var loaded = ModelCache.GetModel(modelPath) ?? ModelCache.GetModel(key);
+			var loaded = ModelCache.GetModel(assetPath);
 			if (loaded is Node3D n)
 			{
 				loadedNode3D = n;
 			}
 			else
 			{
-				var gltfDoc = new GltfDocument();
-				var gltfState = new GltfState();
-				byte[] rmeshBytes = File.ReadAllBytes(modelPath);
-				byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-				if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
+				string resolved = ModelCache.ResolveModelPath(assetPath);
+				if (!string.IsNullOrEmpty(resolved))
 				{
-					var node = gltfDoc.GenerateScene(gltfState);
-					if (node is Node3D n3d) loadedNode3D = n3d;
+					loaded = ModelCache.GetModel(resolved);
+					if (loaded is Node3D nResolved) loadedNode3D = nResolved;
 				}
 			}
-		}
-		else if (!string.IsNullOrEmpty(key))
-		{
-			var loaded = ModelCache.GetModel(key);
-			if (loaded is Node3D n)
+
+			if (loadedNode3D != null && string.Equals(visualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase))
 			{
-				loadedNode3D = n;
+				loadedNode3D.RotationDegrees = new Vector3(45f, 0f, 0f);
+			}
+		}
+		else
+		{
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			string resolvedDiskPath = null;
+			foreach (var sub in new[] { "props", "units", "buildings", "resources", "characters", "items", "projectiles", "attachments" })
+			{
+				string p = Path.Combine(wsPath, "Assets", "models", sub, assetPath);
+				if (File.Exists(p)) { resolvedDiskPath = p; break; }
+				p = Path.Combine("MapTemplate", "Assets", "models", sub, assetPath);
+				if (File.Exists(p)) { resolvedDiskPath = p; break; }
+			}
+
+			if (resolvedDiskPath == null)
+			{
+				string modelsDir = Path.Combine(wsPath, "Assets", "models");
+				if (Directory.Exists(modelsDir))
+				{
+					var files = Directory.GetFiles(modelsDir, assetPath, SearchOption.AllDirectories);
+					if (files.Length > 0 && files[0].EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+					{
+						resolvedDiskPath = files[0];
+					}
+				}
+			}
+
+			if (resolvedDiskPath != null && File.Exists(resolvedDiskPath))
+			{
+				var loaded = ModelCache.GetModel(resolvedDiskPath) ?? ModelCache.GetModel(assetPath);
+				if (loaded is Node3D n)
+				{
+					loadedNode3D = n;
+				}
+				else
+				{
+					var gltfDoc = new GltfDocument();
+					var gltfState = new GltfState();
+					byte[] rmeshBytes = File.ReadAllBytes(resolvedDiskPath);
+					byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+					if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
+					{
+						var node = gltfDoc.GenerateScene(gltfState);
+						if (node is Node3D n3d) loadedNode3D = n3d;
+					}
+				}
+			}
+			else if (!string.IsNullOrEmpty(assetPath))
+			{
+				var loaded = ModelCache.GetModel(assetPath);
+				if (loaded is Node3D n)
+				{
+					loadedNode3D = n;
+				}
+			}
+
+			if (loadedNode3D != null)
+			{
+				Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, resolvedDiskPath ?? assetPath);
 			}
 		}
 
@@ -669,7 +887,18 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		{
 			_currentModelRoot.AddChild(loadedNode3D);
 			ModelShaderManager.RefreshShaderMaterialsForNode(loadedNode3D, false);
-			Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, modelPath ?? key);
+
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(template.Id))
+			{
+				float scale = GameHost.Instance.GetModelScale(template.Id);
+				if (scale > 0.01f)
+				{
+					loadedNode3D.Scale = new Vector3(scale, scale, scale);
+				}
+				float yOffset = GameHost.Instance.GetModelYOffset(template.Id);
+				loadedNode3D.Position = new Vector3(0, yOffset, 0);
+			}
+
 			CenterAndFrameNode(loadedNode3D);
 		}
 

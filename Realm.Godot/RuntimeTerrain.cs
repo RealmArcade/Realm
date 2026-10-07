@@ -2109,24 +2109,22 @@ void fragment() {
 			string mapDir = MapWorkspaceService.GetActiveWorkspacePath();
 			try
 			{
-				var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
-				var texturesObj = unionedAssets?["textures"] as System.Text.Json.Nodes.JsonObject;
-					if (texturesObj != null)
+				var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(mapDir);
+				if (metadata?.Textures != null)
+				{
+					foreach (var kvp in metadata.Textures)
 					{
-						foreach (var kvp in texturesObj)
+						string baseName = System.IO.Path.GetFileNameWithoutExtension(kvp.Key);
+						if (string.Equals(baseName, cleanName, StringComparison.OrdinalIgnoreCase))
 						{
-							string baseName = System.IO.Path.GetFileNameWithoutExtension(kvp.Key);
-							if (string.Equals(baseName, cleanName, StringComparison.OrdinalIgnoreCase) && kvp.Value is System.Text.Json.Nodes.JsonObject sObj)
+							if (kvp.Value != null && kvp.Value.ScaleFactor > 0.0001f)
 							{
-								string scaleStr = sObj["Scale_Factor"]?.ToString() ?? sObj["scale_factor"]?.ToString() ?? sObj["ScaleFactor"]?.ToString();
-								if (!string.IsNullOrEmpty(scaleStr) && float.TryParse(scaleStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedScale) && parsedScale > 0.0001f)
-								{
-									currentScaleFactor = Math.Clamp(parsedScale, 0.10f, 4.0f);
-								}
-								break;
+								currentScaleFactor = Math.Clamp(kvp.Value.ScaleFactor, 0.10f, 4.0f);
 							}
+							break;
 						}
 					}
+				}
 			}
 			catch { }
 
@@ -2255,6 +2253,19 @@ void fragment() {
 		return config;
 	}
 
+	public virtual void ClearLiveSwatchOverrides(string? swatchName = null)
+	{
+		if (string.IsNullOrEmpty(swatchName))
+		{
+			_liveSwatchOverrides.Clear();
+		}
+		else
+		{
+			string cleanName = System.IO.Path.GetFileNameWithoutExtension(swatchName);
+			_liveSwatchOverrides.Remove(cleanName);
+		}
+	}
+
 	private static float ExtractRtexScaleFactor(string rtexPath)
 	{
 		if (string.IsNullOrEmpty(rtexPath) || !System.IO.File.Exists(rtexPath)) return 1.0f;
@@ -2336,16 +2347,7 @@ void fragment() {
 		string mapDir = MapWorkspaceService.GetActiveWorkspacePath();
 
 		var textureList = new List<string>();
-		System.Text.Json.Nodes.JsonObject? texturesObj = null;
-
-		try
-		{
-			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
-			texturesObj = unionedAssets?["textures"] as System.Text.Json.Nodes.JsonObject;
-		}
-		catch { }
-
-		var swatchSlots = Realm.Godot.Utils.TextureSwatchSlots.ResolveSlots(texturesObj, mapDir);
+		var swatchSlots = Realm.Godot.Utils.TextureSwatchSlots.ResolveSlots(null, mapDir);
 		for (int i = 0; i < Realm.Godot.Utils.TextureSwatchSlots.MaxSlots; i++)
 		{
 			textureList.Add(swatchSlots[i].BaseName ?? "");
@@ -2367,7 +2369,7 @@ void fragment() {
 			}
 
 			string name = slot.BaseName;
-			System.Text.Json.Nodes.JsonNode? swatchNode = slot.MetadataNode;
+			var sObj = slot.MetadataNode;
 
 			float tileMode = 1.0f;
 			float uvScale = 1.0f;
@@ -2382,102 +2384,48 @@ void fragment() {
 			float texBrightness = 1.0f;
 			Color texTint = new Color(1.0f, 1.0f, 1.0f);
 
-			if (swatchNode is System.Text.Json.Nodes.JsonObject sObj)
+			if (sObj != null)
 			{
-				string tm = sObj["Tile_Mode"]?.ToString() ?? sObj["tile_mode"]?.ToString() ?? "Stochastic";
-				if (string.Equals(tm, "Grid", StringComparison.OrdinalIgnoreCase))
-				{
-					tileMode = 0.0f;
-				}
+				if (!string.IsNullOrEmpty(sObj.TileMode)) tileMode = string.Equals(sObj.TileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0.0f : 1.0f;
+				if (sObj.UvScale > 0.0001f) uvScale = Math.Clamp(sObj.UvScale, 0.1f, 4.0f);
+				if (sObj.StochasticTileSize > 0.0001f) stochasticTileSize = Math.Clamp(sObj.StochasticTileSize, 0.5f, 3.0f);
+				if (sObj.CrossFade >= 0.0f) crossFade = Math.Clamp(sObj.CrossFade, 0.0f, 10.0f) * 0.01f;
+				if (sObj.ScaleFactor > 0.0001f) texScaleFactor = Math.Clamp(sObj.ScaleFactor, 0.10f, 4.0f);
+				if (sObj.Brightness > 0f) texBrightness = Math.Clamp(sObj.Brightness, 0.1f, 5.0f);
+				if (sObj.NormalScale >= 0f) normalScale = Math.Clamp(sObj.NormalScale, 0.0f, 3.0f);
+				if (sObj.RoughnessScale > 0f) roughnessScale = Math.Clamp(sObj.RoughnessScale, 0.10f, 3.0f);
+				if (sObj.HeightScale > 0f) heightScale = Math.Clamp(sObj.HeightScale, 0.1f, 3.0f);
+				if (sObj.HeightOffset != 0f) heightOffset = Math.Clamp(sObj.HeightOffset, -1.0f, 1.0f);
+				if (sObj.CrevicePower > 0f) crevicePower = Math.Clamp(sObj.CrevicePower, 0.5f, 4.0f);
+				if (!string.IsNullOrEmpty(sObj.Tint) && sObj.Tint.StartsWith("#")) texTint = Color.FromHtml(sObj.Tint);
+			}
 
-				string uvStr = sObj["UV_Scale"]?.ToString() ?? sObj["uv_scale"]?.ToString();
-				if (!string.IsNullOrEmpty(uvStr) && float.TryParse(uvStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedUv))
+			if (texScaleFactor <= 0.0001f || MathF.Abs(texScaleFactor - 1.0f) < 0.0001f)
+			{
+				string rtexFileName = slot.MetadataNode?.TexturePath ?? slot.FileName ?? (name + ".rtex");
+				if (!rtexFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 				{
-					uvScale = Math.Clamp(parsedUv, 0.1f, 4.0f);
+					rtexFileName += ".rtex";
 				}
+				rtexFileName = System.IO.Path.GetFileName(rtexFileName);
+				string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", rtexFileName);
+				if (!System.IO.File.Exists(rtexPath)) rtexPath = System.IO.Path.Combine(mapDir, rtexFileName);
+				if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"Assets/textures/{rtexFileName}");
+				if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexFileName}");
 
-				string stochStr = sObj["Stochastic_Tile_Size"]?.ToString() ?? sObj["stochastic_tile_size"]?.ToString();
-				if (!string.IsNullOrEmpty(stochStr) && float.TryParse(stochStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedStoch))
+				float rtexSf = ExtractRtexScaleFactor(rtexPath);
+				if (rtexSf > 0.0001f && MathF.Abs(rtexSf - 1.0f) > 0.001f)
 				{
-					stochasticTileSize = Math.Clamp(parsedStoch, 0.5f, 3.0f);
+					texScaleFactor = rtexSf;
 				}
-
-				string cfStr = sObj["Cross_Fade"]?.ToString() ?? sObj["cross_fade"]?.ToString() ?? sObj["Grid_Cross_Fade"]?.ToString() ?? sObj["grid_cross_fade"]?.ToString();
-				if (!string.IsNullOrEmpty(cfStr) && float.TryParse(cfStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCf))
+				else if (System.IO.File.Exists(rtexPath))
 				{
-					crossFade = parsedCf > 0.10f ? Math.Clamp(parsedCf, 0.0f, 10.0f) * 0.01f : Math.Clamp(parsedCf, 0.0f, 0.10f);
-				}
-
-				string hsStr = sObj["Height_Scale"]?.ToString() ?? sObj["height_scale"]?.ToString() ?? sObj["heightScale"]?.ToString();
-				if (!string.IsNullOrEmpty(hsStr) && float.TryParse(hsStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedHs))
-				{
-					heightScale = Math.Clamp(parsedHs, 0.1f, 3.0f);
-				}
-
-				string hoStr = sObj["Height_Offset"]?.ToString() ?? sObj["height_offset"]?.ToString() ?? sObj["heightOffset"]?.ToString();
-				if (!string.IsNullOrEmpty(hoStr) && float.TryParse(hoStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedHo))
-				{
-					heightOffset = Math.Clamp(parsedHo, -1.0f, 1.0f);
-				}
-
-				string cpStr = sObj["Crevice_Power"]?.ToString() ?? sObj["crevice_power"]?.ToString() ?? sObj["crevicePower"]?.ToString();
-				if (!string.IsNullOrEmpty(cpStr) && float.TryParse(cpStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCp))
-				{
-					crevicePower = Math.Clamp(parsedCp, 0.5f, 4.0f);
-				}
-
-				string normScaleStr = sObj["Normal_Scale"]?.ToString() ?? sObj["normal_scale"]?.ToString() ?? sObj["normalScale"]?.ToString();
-				if (!string.IsNullOrEmpty(normScaleStr) && float.TryParse(normScaleStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedNormScale))
-				{
-					normalScale = Math.Clamp(parsedNormScale, 0.0f, 3.0f);
-				}
-
-				string roughScaleStr = sObj["Roughness_Scale"]?.ToString() ?? sObj["roughness_scale"]?.ToString() ?? sObj["roughnessScale"]?.ToString();
-				if (!string.IsNullOrEmpty(roughScaleStr) && float.TryParse(roughScaleStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedRoughScale))
-				{
-					roughnessScale = Math.Clamp(parsedRoughScale, 0.10f, 3.0f);
-				}
-
-				string scaleStr = sObj["Scale_Factor"]?.ToString() ?? sObj["scale_factor"]?.ToString() ?? sObj["ScaleFactor"]?.ToString();
-				if (!string.IsNullOrEmpty(scaleStr) && float.TryParse(scaleStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedScale) && parsedScale > 0.0001f)
-				{
-					texScaleFactor = Math.Clamp(parsedScale, 0.10f, 4.0f);
+					float calc = Realm.Shared.Textures.TextureConverter.CalculateLuminanceScaleFactor(rtexPath);
+					texScaleFactor = calc > 0.0001f ? Math.Clamp(calc, 0.10f, 4.0f) : 1.0f;
 				}
 				else
 				{
-					string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", name + ".rtex");
-					if (!System.IO.File.Exists(rtexPath)) rtexPath = System.IO.Path.Combine(mapDir, name + ".rtex");
-					if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"Assets/textures/{name}.rtex");
-					if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{name}.rtex");
-
-					float rtexSf = ExtractRtexScaleFactor(rtexPath);
-					if (rtexSf > 0.0001f && MathF.Abs(rtexSf - 1.0f) > 0.001f)
-					{
-						texScaleFactor = rtexSf;
-					}
-					else if (System.IO.File.Exists(rtexPath))
-					{
-						float calc = Realm.Shared.Textures.TextureConverter.CalculateLuminanceScaleFactor(rtexPath);
-						texScaleFactor = calc > 0.0001f ? Math.Clamp(calc, 0.10f, 4.0f) : 1.0f;
-					}
-					else
-					{
-						texScaleFactor = 1.0f;
-					}
-				}
-
-				if (texScaleFactor <= 0.0001f) texScaleFactor = 1.0f;
-
-				string brightStr = sObj["Brightness"]?.ToString() ?? sObj["brightness"]?.ToString();
-				if (!string.IsNullOrEmpty(brightStr) && float.TryParse(brightStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedBright))
-				{
-					texBrightness = Math.Clamp(parsedBright, 0.10f, 2.5f);
-				}
-
-				string tintStr = sObj["Tint"]?.ToString() ?? sObj["tint"]?.ToString();
-				if (!string.IsNullOrEmpty(tintStr) && Color.HtmlIsValid(tintStr))
-				{
-					texTint = Color.FromHtml(tintStr);
+					texScaleFactor = 1.0f;
 				}
 			}
 
@@ -2552,22 +2500,28 @@ void fragment() {
 			if (!slot.IsFiller && !string.IsNullOrEmpty(slot.BaseName))
 			{
 				string name = slot.BaseName;
-				string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", name + ".rtex");
+				string rtexFileName = slot.MetadataNode?.TexturePath ?? slot.FileName ?? (name + ".rtex");
+				if (!rtexFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					rtexFileName += ".rtex";
+				}
+				rtexFileName = System.IO.Path.GetFileName(rtexFileName);
+				string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", rtexFileName);
 				if (!System.IO.File.Exists(rtexPath))
 				{
-					rtexPath = System.IO.Path.Combine(mapDir, name + ".rtex");
+					rtexPath = System.IO.Path.Combine(mapDir, rtexFileName);
 				}
 				if (!System.IO.File.Exists(rtexPath))
 				{
-					rtexPath = PathUtils.FindPath($"Assets/textures/{name}.rtex");
+					rtexPath = PathUtils.FindPath($"Assets/textures/{rtexFileName}");
 				}
 				if (!System.IO.File.Exists(rtexPath))
 				{
-					rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{name}.rtex");
+					rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexFileName}");
 				}
 				if (!System.IO.File.Exists(rtexPath))
 				{
-					rtexPath = ProjectSettings.GlobalizePath($"res://Assets/2d/TileSheets/{name}.rtex");
+					rtexPath = ProjectSettings.GlobalizePath($"res://Assets/2d/TileSheets/{rtexFileName}");
 				}
 				if (!System.IO.File.Exists(rtexPath))
 				{

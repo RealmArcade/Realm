@@ -803,7 +803,7 @@ public partial class VSCodeManager
 
 				Callable.From(() =>
 				{
-					GameHost.WeaponMetadata meta = default;
+					WeaponMetadata meta = null;
 					if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var existing))
 					{
 						meta = existing;
@@ -812,7 +812,7 @@ public partial class VSCodeManager
 					{
 						try
 						{
-							meta = System.Text.Json.JsonSerializer.Deserialize<GameHost.WeaponMetadata>(
+							meta = System.Text.Json.JsonSerializer.Deserialize<WeaponMetadata>(
 								weaponDataNode.ToJsonString(),
 								new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
 							);
@@ -922,100 +922,111 @@ public partial class VSCodeManager
 				try
 				{
 					string fileName = System.IO.Path.GetFileName(filePath).ToLowerInvariant();
+					EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 					if (fileName == "metadata.json")
 					{
 						try
 						{
-							var rootObj = JsonNode.Parse(content)?.AsObject();
-							if (rootObj != null && (rootObj.ContainsKey("Assets") || rootObj.ContainsKey("textures")))
-							{
-								string mapDir = System.IO.Path.GetDirectoryName(filePath) ?? MapWorkspaceService.GetActiveWorkspacePath();
-								var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir) ?? new JsonObject();
-								if (rootObj.TryGetPropertyValue("Assets", out var aNode) && aNode is JsonObject aObj)
-								{
-									foreach (var kvp in aObj)
-									{
-										if (kvp.Value != null)
-										{
-											unionedAssets[kvp.Key] = kvp.Value.DeepClone();
-										}
-									}
-								}
-								if (rootObj.TryGetPropertyValue("textures", out var tNode) && tNode is JsonObject tObj)
-								{
-									var existingTextures = unionedAssets["textures"] as JsonObject ?? new JsonObject();
-									foreach (var kvp in tObj)
-									{
-										if (kvp.Value is JsonObject incomingObj)
-										{
-											if (existingTextures.TryGetPropertyValue(kvp.Key, out var existNode) && existNode is JsonObject existObj)
-											{
-												foreach (var p in incomingObj)
-												{
-													existObj[p.Key] = p.Value?.DeepClone();
-												}
-											}
-											else
-											{
-												existingTextures[kvp.Key] = incomingObj.DeepClone();
-											}
-										}
-										else if (kvp.Value != null)
-										{
-											existingTextures[kvp.Key] = kvp.Value.DeepClone();
-										}
-									}
-									unionedAssets["textures"] = existingTextures;
-								}
-								MapWorkspaceService.NormalizeTextureEntries(unionedAssets, mapDir);
-								Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(mapDir, unionedAssets, removeFromMetadata: true);
-								if (unionedAssets["textures"] is JsonObject normTextures)
-								{
-									var targetTextures = new JsonObject();
-									foreach (var kvp in normTextures)
-									{
-										if (kvp.Value is JsonObject itemObj)
-										{
-											var cleanItem = itemObj.DeepClone() as JsonObject ?? new JsonObject();
-											cleanItem.Remove("hash");
-											targetTextures[kvp.Key] = cleanItem;
-										}
-									}
-									rootObj["textures"] = targetTextures;
-								}
-								SaveLoadService.CleanMetadataJsonSchema(rootObj);
-								content = rootObj.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-							}
+							var metadata = Realm.Shared.Services.MapFileService.LoadMetadataFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveMetadata(filePath, metadata);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveMetadataToJson(metadata);
 						}
-						catch { }
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
 					}
-
-					formattedContent = MapJsonFormatter.FormatJson(content);
-					EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-					MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+					else if (fileName == "manifest.json")
+					{
+						try
+						{
+							var manifest = Realm.Shared.Services.MapFileService.LoadManifestFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveManifest(filePath, manifest);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveManifestToJson(manifest);
+						}
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
+					}
+					else if (fileName == "terrain.json")
+					{
+						try
+						{
+							var terrain = Realm.Shared.Services.MapFileService.LoadTerrainFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveTerrain(filePath, terrain);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveTerrainToJson(terrain);
+						}
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
+					}
+					else
+					{
+						formattedContent = MapJsonFormatter.FormatJson(content);
+						MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+					}
 					success = true;
 
 					Callable.From(() =>
 					{
 						if (fileName == "metadata.json" || fileName == "manifest.json")
 						{
-							if (MapEditorHUD.Instance != null)
+							string display = fileName == "manifest.json" ? "manifest.json" : "metadata.json";
+							Action reloadAction = () =>
 							{
-								MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-								string display = fileName == "manifest.json" ? "manifest.json" : "metadata.json";
-								MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
+								if (MapEditorHUD.Instance != null)
+								{
+									MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
+									MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
+								}
+								else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+								{
+									GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+								}
+							};
+
+							if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+							{
+								MapEditorHUD.Instance.ShowConfirmationDialog(
+									$"External edits detected in {display}. Reload external changes or keep current dialog changes?",
+									onConfirm: reloadAction,
+									confirmText: "RELOAD",
+									cancelText: "KEEP CHANGES"
+								);
 							}
-							else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+							else
 							{
-								GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+								reloadAction();
 							}
 						}
 						else if (fileName == "terrain.json")
 						{
-							if (GameHost.Instance != null && GameHost.Instance.IsMapEditorMode)
+							Action reloadAction = () =>
 							{
-								GameHost.Instance.LoadMapFromFile(filePath);
-								MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+								if (GameHost.Instance != null && GameHost.Instance.IsMapEditorMode)
+								{
+									GameHost.Instance.LoadMapFromFile(filePath);
+									MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+								}
+							};
+
+							if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+							{
+								MapEditorHUD.Instance.ShowConfirmationDialog(
+									"External edits detected in terrain.json. Reload external changes or keep current dialog changes?",
+									onConfirm: reloadAction,
+									confirmText: "RELOAD",
+									cancelText: "KEEP CHANGES"
+								);
+							}
+							else
+							{
+								reloadAction();
 							}
 						}
 					}).CallDeferred();
@@ -1038,14 +1049,31 @@ public partial class VSCodeManager
 			{
 				Callable.From(() =>
 				{
-					if (MapEditorHUD.Instance != null)
+					Action reloadAction = () =>
 					{
-						MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-						MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
+						if (MapEditorHUD.Instance != null)
+						{
+							MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
+							MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
+						}
+						else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+						{
+							GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+						}
+					};
+
+					if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+					{
+						MapEditorHUD.Instance.ShowConfirmationDialog(
+							"External edits detected in metadata.json. Reload external changes or keep current dialog changes?",
+							onConfirm: reloadAction,
+							confirmText: "RELOAD",
+							cancelText: "KEEP CHANGES"
+						);
 					}
-					else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+					else
 					{
-						GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+						reloadAction();
 					}
 				}).CallDeferred();
 
@@ -2104,71 +2132,24 @@ public partial class VSCodeManager
 				navigationCount++;
 				if (navigationCount == 1)
 				{
-					string jsScript = """
-					(async () => {
-						const DB_NAME = 'vscode-web-db';
-						const STORE_NAME = 'vscode-userdata-store'; 
-						const TARGET_KEY = '/User/settings.json';
-
-						const request = indexedDB.open(DB_NAME);
-
-						request.onsuccess = (event) => {
-							const db = event.target.result;
-							const transaction = db.transaction([STORE_NAME], 'readwrite');
-							const store = transaction.objectStore(STORE_NAME);
-							
-							const getRequest = store.get(TARGET_KEY);
-
-							getRequest.onsuccess = () => {
-								let config = {};
-								const rawData = getRequest.result;
-
-								if (rawData) {
-									const buffer = rawData instanceof Uint8Array ? rawData : rawData.value;
-									
-									if (buffer instanceof Uint8Array) {
-										try {
-											const decoder = new TextDecoder('utf-8');
-											const jsonString = decoder.decode(buffer);
-											if (jsonString.trim()) {
-												config = JSON.parse(jsonString);
-											}
-										} catch (e) {
-											console.warn("Error parsing existing binary settings. Resetting configuration layer.", e);
-										}
-									}
-								}
-
-								config["security.workspace.trust.enabled"] = false;
-								config["security.workspace.trust.startupPrompt"] = "never";
-
-								const updatedJsonString = JSON.stringify(config, null, '\t');
-								const encoder = new TextEncoder();
-								const encodedUint8Array = encoder.encode(updatedJsonString);
-
-								let putPayload;
-								if (rawData && typeof rawData === 'object' && !(rawData instanceof Uint8Array) && 'key' in rawData) {
-									putPayload = { key: TARGET_KEY, value: encodedUint8Array };
-								} else {
-									putPayload = encodedUint8Array;
-								}
-
-								const putRequest = store.keyPath === null || !store.keyPath
-									? store.put(putPayload, TARGET_KEY)
-									: store.put(putPayload);
-
-								putRequest.onsuccess = () => {
-									console.log("%c[Success] Restricted mode successfully disabled via binary mutation! Reloading...", "color: #00ff00; font-weight: bold;");
-									window.location.reload();
-								};
-
-								putRequest.onerror = (e) => console.error("Failed to write binary buffer to IndexedDB store:", e);
-							};
-						};
-
-						request.onerror = () => console.error("Could not establish a database connection to:", DB_NAME);
-					})();
-					""";
+					string jsScript = string.Empty;
+					const string templatePath = "res://Templates/vscode_bypass_trust.js";
+					if (Godot.FileAccess.FileExists(templatePath))
+					{
+						using var file = Godot.FileAccess.Open(templatePath, Godot.FileAccess.ModeFlags.Read);
+						if (file != null)
+						{
+							jsScript = file.GetAsText();
+						}
+					}
+					else
+					{
+						string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "vscode_bypass_trust.js");
+						if (File.Exists(diskPath))
+						{
+							jsScript = File.ReadAllText(diskPath);
+						}
+					}
 					try
 					{
 						await localController.CoreWebView2.ExecuteScriptAsync(jsScript);
@@ -2273,7 +2254,9 @@ public partial class VSCodeManager
 				{
 					Directory.CreateDirectory(dstPath);
 					CopyItemIfExists(Path.Combine(srcPath, "package.json"), Path.Combine(dstPath, "package.json"));
-					CopyItemIfExists(Path.Combine(srcPath, "map_schema.json"), Path.Combine(dstPath, "map_schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "metadata.schema.json"), Path.Combine(dstPath, "metadata.schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "terrain.schema.json"), Path.Combine(dstPath, "terrain.schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "manifest.schema.json"), Path.Combine(dstPath, "manifest.schema.json"));
 					CopyDirectoryIfExists(Path.Combine(srcPath, "dist"), Path.Combine(dstPath, "dist"));
 					CopyDirectoryIfExists(Path.Combine(srcPath, "media"), Path.Combine(dstPath, "media"));
 				}

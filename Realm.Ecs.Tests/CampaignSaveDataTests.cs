@@ -178,6 +178,7 @@ public class CampaignSaveDataTests
         public string GetCurrentEnvironmentPreset() => "day";
         public void SetWeather(string weatherType) { }
         public string GetWeather() => "clear";
+        public void DisableShroud() { }
         public int CreateStaticText(string text, System.Numerics.Vector3 position, System.Numerics.Vector3 color, int fontSize = 48) => 0;
         public void SetStaticText(int handle, string text) { }
         public void SetStaticTextVisible(int handle, bool visible) { }
@@ -187,7 +188,8 @@ public class CampaignSaveDataTests
     private class TestUnit : IUnit
     {
         public int UniqueId { get; set; } = 1;
-        public string UnitId { get; set; } = "hero_paladin";
+        public string TemplateID { get; set; } = "unit/hero_paladin";
+        public string UnitId { get => TemplateID; set => TemplateID = value; }
         public string Name { get; set; } = "Sir Arthur";
         public bool IsEnemy { get; set; } = false;
         public int Player { get; set; } = 0;

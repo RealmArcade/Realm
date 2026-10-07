@@ -38,8 +38,4 @@ internal class MapProperties
 	public string[]? Tags { get; set; }
 	public object? Assets { get; set; }
 	public string? MapType { get; set; }
-	public object? CustomWeapons { get; set; }
-	public object? CustomAbilities { get; set; }
-	public object? CustomUpgrades { get; set; }
-	public object? CustomItems { get; set; }
 }

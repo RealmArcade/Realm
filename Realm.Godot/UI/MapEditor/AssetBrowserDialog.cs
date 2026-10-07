@@ -54,6 +54,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	private static string? _selectedMapVersionFilter;
 	private IndexedAsset? _selectedAsset;
 	private Action<string>? _onAssetSelectedCallback;
+	private Action<string, string?>? _onAssetSelectedWithPreferredNameCallback;
 
 	public AssetBrowserDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Asset Browser"), new Vector2(780, 640))
@@ -377,6 +378,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	public void OpenForImport(string titleText, IEnumerable<string> allowedExtensions, Action<string> onAssetSelected, bool requireRealmMetadata = false, string? requiredAssetType = null)
 	{
 		_onAssetSelectedCallback = onAssetSelected;
+		_onAssetSelectedWithPreferredNameCallback = null;
 		_selectedAsset = null;
 		_txtSearch.Text = string.Empty;
 		if (_chkHasPlayerColorMask != null)
@@ -411,18 +413,76 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_lblFilterExtensions.Visible = false;
 		}
 
-		if (!_hasAutoRescannedOnFirstOpen)
+		if (!_hasAutoRescannedOnFirstOpen || AssetIndexService.Instance.GetAssetCount() == 0)
 		{
 			_hasAutoRescannedOnFirstOpen = true;
 			AssetIndexService.Instance.RescanAllDirectories();
 		}
+
+		OpenDialog();
 
 		RefreshFolderChips();
 		RefreshAssetTypeFilterOptions();
 		RefreshSearchResults();
 		UpdateSelectedAssetDisplay();
 
+		Callable.From(() =>
+		{
+			UpdateVirtualGridSize();
+			UpdateVisibleGridCells();
+		}).CallDeferred();
+	}
+
+	public void OpenForImport(string titleText, IEnumerable<string> allowedExtensions, Action<string, string?> onAssetSelected, bool requireRealmMetadata = false, string? requiredAssetType = null)
+	{
+		_onAssetSelectedCallback = null;
+		_onAssetSelectedWithPreferredNameCallback = onAssetSelected;
+		_selectedAsset = null;
+		_txtSearch.Text = string.Empty;
+		if (_chkHasPlayerColorMask != null)
+		{
+			_chkHasPlayerColorMask.ButtonPressed = false;
+		}
+		_requireRealmMetadata = requireRealmMetadata;
+		_selectedAssetTypeFilter = requiredAssetType;
+
+		TitleLabel.Text = string.IsNullOrWhiteSpace(titleText)
+			? TranslationServer.Translate("Asset Browser")
+			: TranslationServer.Translate(titleText);
+
+		_allowedExtensions = (allowedExtensions ?? Array.Empty<string>())
+			.Select(e => e.Trim().ToLowerInvariant())
+			.Select(e => e.StartsWith(".") ? e : "." + e)
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		if (_allowedExtensions.Contains(".rmesh"))
+		{
+			requireRealmMetadata = true;
+		}
+		_requireRealmMetadata = requireRealmMetadata;
+
+		if (_allowedExtensions.Count > 0)
+		{
+			_lblFilterExtensions.Text = $"{TranslationServer.Translate("Extensions")}: {string.Join(", ", _allowedExtensions)}";
+			_lblFilterExtensions.Visible = true;
+		}
+		else
+		{
+			_lblFilterExtensions.Visible = false;
+		}
+
+		if (!_hasAutoRescannedOnFirstOpen || AssetIndexService.Instance.GetAssetCount() == 0)
+		{
+			_hasAutoRescannedOnFirstOpen = true;
+			AssetIndexService.Instance.RescanAllDirectories();
+		}
+
 		OpenDialog();
+
+		RefreshFolderChips();
+		RefreshAssetTypeFilterOptions();
+		RefreshSearchResults();
+		UpdateSelectedAssetDisplay();
 
 		Callable.From(() =>
 		{
@@ -602,10 +662,18 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_optAssetTypeFilter.AddItem(TranslationServer.Translate(typeName), itemIdx);
 			_optAssetTypeFilter.SetItemMetadata(itemIdx, typeName);
 
-			if (!string.IsNullOrEmpty(_selectedAssetTypeFilter) && typeName.Equals(_selectedAssetTypeFilter, StringComparison.OrdinalIgnoreCase))
+			if (!string.IsNullOrEmpty(_selectedAssetTypeFilter) &&
+				(typeName.Equals(_selectedAssetTypeFilter, StringComparison.OrdinalIgnoreCase) ||
+				 Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(typeName).Equals(Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(_selectedAssetTypeFilter), StringComparison.OrdinalIgnoreCase)))
 			{
 				selectedIndex = itemIdx;
+				_selectedAssetTypeFilter = typeName;
 			}
+		}
+
+		if (selectedIndex == 0 && !string.IsNullOrEmpty(_selectedAssetTypeFilter))
+		{
+			_selectedAssetTypeFilter = null;
 		}
 
 		_optAssetTypeFilter.Selected = selectedIndex;
@@ -698,32 +766,39 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 	private void RefreshSearchResults()
 	{
-		string searchTerm = _txtSearch.Text?.Trim() ?? string.Empty;
-		bool requirePlayerColorMask = _chkHasPlayerColorMask?.ButtonPressed ?? false;
-		_matchingAssets.Clear();
-		var searchResults = AssetIndexService.Instance.SearchAssets(
-			searchTerm,
-			_allowedExtensions,
-			_selectedDirectoryFilter,
-			_requireRealmMetadata,
-			_selectedAssetTypeFilter,
-			_selectedMapNameFilter,
-			_selectedMapVersionFilter,
-			requirePlayerColorMask);
-
-		_matchingAssets.AddRange(searchResults);
-
-		_lblResultsCount.Text = $"{_matchingAssets.Count} {TranslationServer.Translate("items found")}";
-		_lblEmptyState.Visible = _matchingAssets.Count == 0;
-
-		if (_selectedAsset != null && !_matchingAssets.Any(a => string.Equals(a.FilePath, _selectedAsset.FilePath, StringComparison.OrdinalIgnoreCase)))
+		try
 		{
-			_selectedAsset = null;
-			UpdateSelectedAssetDisplay();
-		}
+			string searchTerm = _txtSearch.Text?.Trim() ?? string.Empty;
+			bool requirePlayerColorMask = _chkHasPlayerColorMask?.ButtonPressed ?? false;
+			_matchingAssets.Clear();
+			var searchResults = AssetIndexService.Instance.SearchAssets(
+				searchTerm,
+				_allowedExtensions,
+				_selectedDirectoryFilter,
+				_requireRealmMetadata,
+				_selectedAssetTypeFilter,
+				_selectedMapNameFilter,
+				_selectedMapVersionFilter,
+				requirePlayerColorMask);
 
-		UpdateVirtualGridSize();
-		UpdateVisibleGridCells();
+			_matchingAssets.AddRange(searchResults);
+
+			_lblResultsCount.Text = $"{_matchingAssets.Count} {TranslationServer.Translate("items found")}";
+			_lblEmptyState.Visible = _matchingAssets.Count == 0;
+
+			if (_selectedAsset != null && !_matchingAssets.Any(a => string.Equals(a.FilePath, _selectedAsset.FilePath, StringComparison.OrdinalIgnoreCase)))
+			{
+				_selectedAsset = null;
+				UpdateSelectedAssetDisplay();
+			}
+
+			UpdateVirtualGridSize();
+			UpdateVisibleGridCells();
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetBrowserDialog] RefreshSearchResults error: {ex.Message}");
+		}
 	}
 
 	private void UpdateVirtualGridSize()
@@ -837,10 +912,10 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_txtAssetTypeEdit.Text = !string.IsNullOrEmpty(embeddedAssetType) ? embeddedAssetType : TranslationServer.Translate("None");
 			_txtAssetTypeEdit.Editable = false;
 			var validTypes = Realm.Shared.Metadata.RealmMetadataHelper.GetValidAssetTypesForExtension(_selectedAsset.FilePath);
-			_btnEditAssetType.Disabled = (validTypes.Length == 0);
+			_btnEditAssetType.Disabled = (validTypes.Count == 0);
 
 			string ext = _selectedAsset.Extension?.ToLowerInvariant() ?? "";
-			bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3";
+			bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac";
 			if (isAudio && File.Exists(_selectedAsset.FilePath))
 			{
 				try
@@ -997,6 +1072,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		if (_selectedAsset != null && File.Exists(_selectedAsset.FilePath))
 		{
 			Realm.Shared.Metadata.RealmMetadataHelper.EnsureMetadata(_selectedAsset.FilePath);
+			_onAssetSelectedWithPreferredNameCallback?.Invoke(_selectedAsset.FilePath, _selectedAsset.FileName);
 			_onAssetSelectedCallback?.Invoke(_selectedAsset.FilePath);
 		}
 	}

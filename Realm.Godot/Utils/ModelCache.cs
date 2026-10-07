@@ -36,12 +36,12 @@ namespace Realm.Godot.Utils
 			{
 				withRmesh = System.IO.Path.ChangeExtension(withRmesh, ".rmesh");
 			}
-			else if (!withRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+			else if (!withRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && !withRmesh.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
 				withRmesh = $"{withRmesh}.rmesh";
 			}
 
-			if (modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(modelPath))
+			if ((modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) && System.IO.File.Exists(modelPath))
 			{
 				return modelPath;
 			}
@@ -50,6 +50,12 @@ namespace Realm.Godot.Utils
 			if (candDirectRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candDirectRmesh))
 			{
 				return candDirectRmesh;
+			}
+
+			string candDirectRtex = System.IO.Path.ChangeExtension(modelPath, ".rtex");
+			if (candDirectRtex.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candDirectRtex))
+			{
+				return candDirectRtex;
 			}
 
 			if (modelPath.StartsWith("res://") || modelPath.StartsWith("user://"))
@@ -160,6 +166,15 @@ namespace Realm.Godot.Utils
 					string candRmesh = System.IO.Path.Combine(loc, "Assets", "models", sub, withRmesh);
 					if (candRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candRmesh)) return candRmesh;
 				}
+				string candDecalDirect = System.IO.Path.Combine(loc, "Assets", "decals", cleanPath);
+				if (candDecalDirect.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candDecalDirect)) return candDecalDirect;
+				string candDecalRtex = System.IO.Path.Combine(loc, "Assets", "decals", $"{cleanPath}.rtex");
+				if (System.IO.File.Exists(candDecalRtex)) return candDecalRtex;
+
+				string candTexDirect = System.IO.Path.Combine(loc, "Assets", "textures", cleanPath);
+				if (candTexDirect.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candTexDirect)) return candTexDirect;
+				string candTexRtex = System.IO.Path.Combine(loc, "Assets", "textures", $"{cleanPath}.rtex");
+				if (System.IO.File.Exists(candTexRtex)) return candTexRtex;
 			}
 
 			if (cleanPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
@@ -192,7 +207,7 @@ namespace Realm.Godot.Utils
 			}
 
 			string resolvedPath = ResolveModelPath(modelPath);
-			if (string.IsNullOrEmpty(resolvedPath) || !resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+			if (string.IsNullOrEmpty(resolvedPath))
 			{
 				return null;
 			}
@@ -223,6 +238,11 @@ namespace Realm.Godot.Utils
 				if (targetPath.StartsWith("res://") || targetPath.StartsWith("user://"))
 				{
 					targetPath = ProjectSettings.GlobalizePath(targetPath);
+				}
+
+				if (targetPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || targetPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || targetPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+				{
+					return BuildPrimitiveMeshScene(targetPath);
 				}
 
 				if (!targetPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
@@ -275,6 +295,96 @@ namespace Realm.Godot.Utils
 			catch (Exception ex)
 			{
 				GD.PrintErr($"ModelCache error loading '{modelPath}': {ex.Message}");
+			}
+			return null;
+		}
+
+		private static PackedScene BuildPrimitiveMeshScene(string texturePath)
+		{
+			try
+			{
+				Texture2D albedoTex = null;
+				Texture2D normalTex = null;
+
+				if (texturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					byte[] rtexBytes = System.IO.File.ReadAllBytes(texturePath);
+					var (_, layers, _) = Realm.Shared.Textures.RtexFile.Parse(rtexBytes);
+					if (layers.Count > 0 && layers[0] != null && layers[0].Length > 0)
+					{
+						var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+						if (img.LoadWebpFromBuffer(layers[0]) == Error.Ok || img.LoadPngFromBuffer(layers[0]) == Error.Ok)
+						{
+							if (!img.HasMipmaps()) img.GenerateMipmaps();
+							albedoTex = ImageTexture.CreateFromImage(img);
+						}
+					}
+					if (layers.Count > 1 && layers[1] != null && layers[1].Length > 0)
+					{
+						var normImg = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+						if (normImg.LoadWebpFromBuffer(layers[1]) == Error.Ok || normImg.LoadPngFromBuffer(layers[1]) == Error.Ok)
+						{
+							if (!normImg.HasMipmaps()) normImg.GenerateMipmaps();
+							normalTex = ImageTexture.CreateFromImage(normImg);
+						}
+					}
+				}
+				else
+				{
+					var img = Image.LoadFromFile(texturePath);
+					if (img != null)
+					{
+						if (!img.HasMipmaps()) img.GenerateMipmaps();
+						albedoTex = ImageTexture.CreateFromImage(img);
+					}
+				}
+
+				if (albedoTex == null) return null;
+
+				var rootNode = new Node3D { Name = "VisualModel" };
+				var meshInstance = new MeshInstance3D { Name = "Mesh" };
+
+				var planeMesh = new PlaneMesh
+				{
+					Size = new Vector2(2.0f, 2.0f),
+					SubdivideWidth = 4,
+					SubdivideDepth = 4,
+					Orientation = PlaneMesh.OrientationEnum.Y
+				};
+				meshInstance.Mesh = planeMesh;
+
+				var mat = new ShaderMaterial
+				{
+					Shader = ModelShaderManager.GetOrCreateShader()
+				};
+				mat.SetShaderParameter("texture_albedo", albedoTex);
+				mat.SetShaderParameter("use_alpha_blend", true);
+				mat.SetShaderParameter("albedo_color", new Color(1.0f, 1.0f, 1.0f, 1.0f));
+				mat.SetShaderParameter("roughness_value", 1.0f);
+				mat.SetShaderParameter("specular_value", 0.5f);
+
+				if (normalTex != null)
+				{
+					mat.SetShaderParameter("texture_normal", normalTex);
+					mat.SetShaderParameter("has_normal_texture", true);
+				}
+
+				meshInstance.MaterialOverride = mat;
+				rootNode.AddChild(meshInstance);
+
+				SetOwnerRecursive(rootNode, rootNode);
+				var packedScene = new PackedScene();
+				Error packErr = packedScene.Pack(rootNode);
+				rootNode.Free();
+
+				if (packErr == Error.Ok)
+				{
+					return packedScene;
+				}
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[ModelCache] Error building primitive mesh scene for '{texturePath}': {ex.Message}");
 			}
 			return null;
 		}

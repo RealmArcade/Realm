@@ -370,7 +370,7 @@ New-Item -ItemType Directory -Force -Path $extDest | Out-Null
 
 $shouldInstallExt = $Force -or (-not (Test-Path (Join-Path $extDest "package.json")))
 if ($shouldInstallExt -and $extSrc -and (Test-Path $extSrc)) {
-    foreach ($item in @("package.json", "map_schema.json", "dist", "media")) {
+    foreach ($item in @("package.json", "metadata.schema.json", "terrain.schema.json", "manifest.schema.json", "dist", "media")) {
         $srcItem = Join-Path $extSrc $item
         if (Test-Path $srcItem) {
             $destItem = Join-Path $extDest $item

@@ -83,7 +83,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		_txtPublicKey.AddThemeFontSizeOverride("font_size", 11);
 		pubHBox.AddChild(_txtPublicKey);
 
-		var btnCopyPub = AddButton(pubHBox, "\uf0c5 " + TranslationServer.Translate("Copy"), () => CopyPublicKeyToClipboard(), "Copy public key to clipboard", 11, new Vector2(70, 26));
+		var btnCopyPub = AddButton(pubHBox, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy"), () => CopyPublicKeyToClipboard(), "Copy public key to clipboard", 11, new Vector2(70, 26));
 		grid.AddChild(pubHBox);
 
 		var lblPriv = new Label();

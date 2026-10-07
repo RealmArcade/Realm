@@ -2751,22 +2751,24 @@ public partial class LobbyManager : Node
 
                 GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");
 
-                var successHtml = """
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Login Successful</title>
-                    <style>
-                        body { background: #0f111a; color: #e2e8f0; font-family: sans-serif; text-align: center; padding-top: 50px; }
-                        h1 { color: #ffd700; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Login Successful!</h1>
-                    <p>You have successfully logged in to Realm. You may close this window and return to the game.</p>
-                </body>
-                </html>
-                """;
+                string successHtml = string.Empty;
+                const string templatePath = "res://Templates/login_success.html";
+                if (Godot.FileAccess.FileExists(templatePath))
+                {
+                    using var file = Godot.FileAccess.Open(templatePath, Godot.FileAccess.ModeFlags.Read);
+                    if (file != null)
+                    {
+                        successHtml = file.GetAsText();
+                    }
+                }
+                else
+                {
+                    string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "login_success.html");
+                    if (File.Exists(diskPath))
+                    {
+                        successHtml = File.ReadAllText(diskPath);
+                    }
+                }
 
                 byte[] buffer = Encoding.UTF8.GetBytes(successHtml);
                 response.ContentLength64 = buffer.Length;

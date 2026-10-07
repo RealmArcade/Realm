@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using Realm.Godot.Utils;
 
 public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 {
@@ -9,10 +10,14 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	public VisualProjectile3D PreviewProjectile => _previewProjectile;
 
-	private GameHost.WeaponMetadata _initialWeapon;
-	private GameHost.WeaponMetadata _currentWeapon;
+	private WeaponMetadata _initialWeapon = new();
+	private WeaponMetadata _currentWeapon = new();
 	private string _weaponId = "";
-	private Action<GameHost.WeaponMetadata> _onAppliedCallback;
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private LineEdit _txtName;
+	private Action<WeaponMetadata> _onAppliedCallback;
 	private bool _isUpdatingUI;
 
 	private bool _isPlaybackPaused;
@@ -97,6 +102,50 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 		var scrollBody = CreateScrollBody(360);
 
+		// SECTION 0: IDENTITY
+		AddSectionHeader(scrollBody, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
+
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "weapon/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("weapon_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_weaponId = TemplateIDHelper.NormalizeTemplateID("weapon", _slug);
+			_currentWeapon.TemplateID = _weaponId;
+		};
+		rowId.AddChild(_txtSlug);
+		scrollBody.AddChild(rowId);
+
+		_txtName = AddTextInput(
+			scrollBody,
+			TranslationServer.Translate("Display Name:"),
+			_currentWeapon.Name ?? "",
+			(val) =>
+			{
+				if (_isUpdatingUI) return;
+				_currentWeapon.Name = val;
+			},
+			TranslationServer.Translate("Weapon display name..."),
+			140f
+		);
+
 		// SECTION 1: AUDIO & IMPACT EFFECTS
 		AddSectionHeader(scrollBody, "🔊 " + TranslationServer.Translate("AUDIO & IMPACT EFFECTS"), new Color(0.3f, 0.8f, 0.7f));
 		
@@ -132,7 +181,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			(snd) => PlaySound(snd)
 		);
 
-		var (impactInput, setImpactValue) = AddAssetFilterDropdown(
+		AddAssetFilterDropdown(
 			scrollBody,
 			TranslationServer.Translate("Impact Visual VFX"),
 			_currentWeapon.ImpactVisualEffect ?? "",
@@ -146,25 +195,10 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			140f
 		);
 
-		var impactBtnRow = new HBoxContainer();
-		impactBtnRow.AddThemeConstantOverride("separation", 6);
-		var impactSpacer = new Control { CustomMinimumSize = new Vector2(140f, 0) };
-		impactBtnRow.AddChild(impactSpacer);
-		AddButton(impactBtnRow, "✨ " + TranslationServer.Translate("VFX Studio (Impact)"), () =>
-		{
-			Hud?.OpenVfxStudioDialog(null, (cfg) =>
-			{
-				string key = $"vfx:{cfg.VfxId}";
-				_currentWeapon.ImpactVisualEffect = key;
-				setImpactValue?.Invoke(key);
-			});
-		}, "Open Procedural VFX Studio to create or edit impact VFX", 10, new Vector2(180, 24));
-		scrollBody.AddChild(impactBtnRow);
-
 		// SECTION 2: PROGRAMMATIC PROJECTILE MOVEMENT
 		AddSectionHeader(scrollBody, "🚀 " + TranslationServer.Translate("PROJECTILE MOVEMENT"), new Color(0.35f, 0.6f, 0.85f));
 
-		var (modelInput, setModelValue) = AddAssetFilterDropdown(
+		AddAssetFilterDropdown(
 			scrollBody,
 			TranslationServer.Translate("3D Model / VFX"),
 			_currentWeapon.ProjectileModelPath ?? "",
@@ -179,22 +213,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			140f,
 			true
 		);
-
-		var modelBtnRow = new HBoxContainer();
-		modelBtnRow.AddThemeConstantOverride("separation", 6);
-		var modelSpacer = new Control { CustomMinimumSize = new Vector2(140f, 0) };
-		modelBtnRow.AddChild(modelSpacer);
-		AddButton(modelBtnRow, "✨ " + TranslationServer.Translate("VFX Studio (Projectile)"), () =>
-		{
-			Hud?.OpenVfxStudioDialog(null, (cfg) =>
-			{
-				string key = $"vfx:{cfg.VfxId}";
-				_currentWeapon.ProjectileModelPath = key;
-				setModelValue?.Invoke(key);
-				RestartPreviewProjectile();
-			});
-		}, "Open Procedural VFX Studio to create or edit projectile VFX", 10, new Vector2(180, 24));
-		scrollBody.AddChild(modelBtnRow);
 
 		AddSlider(scrollBody, TranslationServer.Translate("Speed (Units/s)"), 0f, 100f, 1f, _currentWeapon.ProjectileSpeed > 0 ? _currentWeapon.ProjectileSpeed : 25f, (val) =>
 		{
@@ -283,10 +301,10 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			_currentWeapon.PierceCount = (int)val;
 		}, "0", 140f);
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Tumble Angular Vel"), _currentWeapon.TumbleAngularVelocity, (val) =>
+		AddVector3Input(scrollBody, TranslationServer.Translate("Tumble Angular Vel"), _currentWeapon.TumbleAngularVelocity.ToGodotVector3(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.TumbleAngularVelocity = val;
+			_currentWeapon.TumbleAngularVelocity = val.ToVector3Data();
 		}, 140f);
 
 		AddVector2Input(scrollBody, TranslationServer.Translate("Spiral (Rad / Freq)"), new Vector2(_currentWeapon.SpiralRadius, _currentWeapon.SpiralFrequency), (val) =>
@@ -312,24 +330,25 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			RestartPreviewProjectile();
 		}, 140f);
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Translation Offset"), _currentWeapon.MeshTranslationOffset, (val) =>
+		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Translation Offset"), _currentWeapon.MeshTranslationOffset.ToGodotVector3(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.MeshTranslationOffset = val;
+			_currentWeapon.MeshTranslationOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Rotation Offset"), _currentWeapon.MeshRotationOffset, (val) =>
+		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Rotation Offset"), _currentWeapon.MeshRotationOffset.ToGodotVector3(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.MeshRotationOffset = val;
+			_currentWeapon.MeshRotationOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Scale Offset"), _currentWeapon.MeshScaleOffset == Vector3.Zero ? Vector3.One : _currentWeapon.MeshScaleOffset, (val) =>
+		Vector3 meshScale = _currentWeapon.MeshScaleOffset.ToGodotVector3();
+		AddVector3Input(scrollBody, TranslationServer.Translate("Mesh Scale Offset"), meshScale == Vector3.Zero ? Vector3.One : meshScale, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.MeshScaleOffset = val;
+			_currentWeapon.MeshScaleOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
@@ -419,17 +438,17 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			140f
 		);
 
-		AddVector2Input(scrollBody, TranslationServer.Translate("UV Scroll 1 (X, Y)"), _currentWeapon.UvScrollSpeed1, (val) =>
+		AddVector2Input(scrollBody, TranslationServer.Translate("UV Scroll 1 (X, Y)"), _currentWeapon.UvScrollSpeed1.ToGodotVector2(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.UvScrollSpeed1 = val;
+			_currentWeapon.UvScrollSpeed1 = val.ToVector2Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
-		AddVector2Input(scrollBody, TranslationServer.Translate("UV Scroll 2 (X, Y)"), _currentWeapon.UvScrollSpeed2, (val) =>
+		AddVector2Input(scrollBody, TranslationServer.Translate("UV Scroll 2 (X, Y)"), _currentWeapon.UvScrollSpeed2.ToGodotVector2(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.UvScrollSpeed2 = val;
+			_currentWeapon.UvScrollSpeed2 = val.ToVector2Data();
 			RestartPreviewProjectile();
 		}, 140f);
 
@@ -528,23 +547,50 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			RestartPreviewProjectile();
 		});
 
-		AddVector3Input(scrollBody, TranslationServer.Translate("Trail Offset"), _currentWeapon.TrailOffset, (val) =>
+		AddVector3Input(scrollBody, TranslationServer.Translate("Trail Offset"), _currentWeapon.TrailOffset.ToGodotVector3(), (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentWeapon.TrailOffset = val;
+			_currentWeapon.TrailOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
 	}
 
-	public void OpenForWeapon(string weaponId, GameHost.WeaponMetadata weapon, Action<GameHost.WeaponMetadata> onApplied = null)
+	public void OpenForWeapon(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata> onApplied = null)
 	{
-		_weaponId = weaponId;
-		_initialWeapon = weapon;
-		_currentWeapon = weapon;
+		string effectiveId = !string.IsNullOrWhiteSpace(weapon?.TemplateID) ? weapon.TemplateID : weaponId;
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(effectiveId);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(effectiveId);
+		_weaponId = TemplateIDHelper.NormalizeTemplateID("weapon", _slug);
+		_initialWeapon = weapon ?? new WeaponMetadata();
+		_currentWeapon = weapon ?? new WeaponMetadata();
+		_currentWeapon.TemplateID = _weaponId;
+		if (_txtSlug != null || _txtName != null)
+		{
+			_isUpdatingUI = true;
+			if (_txtSlug != null) _txtSlug.Text = _slug;
+			if (_txtName != null) _txtName.Text = _currentWeapon.Name ?? "";
+			_isUpdatingUI = false;
+		}
+		if (!string.IsNullOrEmpty(_currentWeapon.ProjectileModelPath) &&
+			!_currentWeapon.ProjectileModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) &&
+			!_currentWeapon.ProjectileModelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentWeapon.ProjectileModelPath = "";
+		}
+		if (!string.IsNullOrEmpty(_currentWeapon.RibbonTexture) &&
+			!_currentWeapon.RibbonTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentWeapon.RibbonTexture = "";
+		}
+		if (!string.IsNullOrEmpty(_currentWeapon.NoiseTexture) &&
+			!_currentWeapon.NoiseTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentWeapon.NoiseTexture = "";
+		}
 		_onAppliedCallback = onApplied;
 		_isPlaybackPaused = false;
 
-		TitleLabel.Text = $"{TranslationServer.Translate("Weapon VFX & Audio")} - {(!string.IsNullOrEmpty(weapon.Name) ? weapon.Name : weaponId)}";
+		TitleLabel.Text = $"{TranslationServer.Translate("Weapon VFX & Audio")} - {(!string.IsNullOrEmpty(weapon?.Name) ? weapon.Name : _weaponId)}";
 
 		OpenDialog();
 		ResetCameraDefault();
@@ -730,6 +776,16 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
+		_slug = finalSlug;
+		_weaponId = TemplateIDHelper.NormalizeTemplateID("weapon", _slug);
+		_currentWeapon.TemplateID = _weaponId;
+		if (_txtName != null)
+		{
+			_currentWeapon.Name = _txtName.Text;
+		}
+
 		if (GameHost.Instance != null && !string.IsNullOrEmpty(_weaponId))
 		{
 			GameHost.WeaponRegistry[_weaponId] = _currentWeapon;

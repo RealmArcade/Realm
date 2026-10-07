@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Godot;
+using Realm.Godot.Services;
 using Realm.Godot.VFX;
+using Realm.Shared.Metadata;
+using Realm.Shared.Services;
 
 namespace Realm.Godot.Utils;
 
@@ -159,34 +160,23 @@ public static class ProceduralAnimationManager
 		}
 
 		string wsPath = workspacePath ?? MapWorkspaceService.GetActiveWorkspacePath();
-		string metaPath = Path.Combine(wsPath, "metadata.json");
-		if (File.Exists(metaPath))
+		try
 		{
-			try
+			var metadata = MapFileService.LoadMetadata(wsPath);
+			if (metadata.CustomProceduralAnimations != null)
 			{
-				string json = File.ReadAllText(metaPath);
-				var rootNode = JsonNode.Parse(json);
-				if (rootNode is JsonObject rootObj && rootObj.TryGetPropertyValue("CustomProceduralAnimations", out var animsNode) && animsNode is JsonArray animsArray)
+				foreach (var cfg in metadata.CustomProceduralAnimations)
 				{
-					foreach (var item in animsArray)
+					if (cfg != null && !string.IsNullOrEmpty(cfg.Id))
 					{
-						if (item == null) continue;
-						try
-						{
-							var cfg = JsonSerializer.Deserialize<ProceduralAnimationConfig>(item.ToJsonString());
-							if (cfg != null && !string.IsNullOrEmpty(cfg.Id))
-							{
-								result[cfg.Id] = cfg;
-							}
-						}
-						catch { }
+						result[cfg.Id] = cfg;
 					}
 				}
 			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[ProceduralAnimationManager] LoadAllConfigs error: {ex.Message}");
-			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[ProceduralAnimationManager] LoadAllConfigs error: {ex.Message}");
 		}
 
 		return result;
@@ -213,49 +203,22 @@ public static class ProceduralAnimationManager
 		if (config == null || string.IsNullOrWhiteSpace(config.Id)) return;
 
 		string wsPath = workspacePath ?? MapWorkspaceService.GetActiveWorkspacePath();
-		string metaPath = Path.Combine(wsPath, "metadata.json");
-		if (!File.Exists(metaPath)) return;
-
 		try
 		{
-			string json = File.ReadAllText(metaPath);
-			var rootNode = JsonNode.Parse(json) as JsonObject ?? new JsonObject();
-			JsonArray animsArray;
-			if (rootNode.TryGetPropertyValue("CustomProceduralAnimations", out var existing) && existing is JsonArray arr)
+			var metadata = MapFileService.LoadMetadata(wsPath);
+			metadata.CustomProceduralAnimations ??= new List<ProceduralAnimationConfig>();
+
+			int idx = metadata.CustomProceduralAnimations.FindIndex(a => string.Equals(a.Id, config.Id, StringComparison.OrdinalIgnoreCase));
+			if (idx >= 0)
 			{
-				animsArray = arr;
+				metadata.CustomProceduralAnimations[idx] = config;
 			}
 			else
 			{
-				animsArray = new JsonArray();
-				rootNode["CustomProceduralAnimations"] = animsArray;
+				metadata.CustomProceduralAnimations.Add(config);
 			}
 
-			int replaceIndex = -1;
-			for (int i = 0; i < animsArray.Count; i++)
-			{
-				if (animsArray[i] is JsonObject obj && obj.TryGetPropertyValue("Id", out var idNode) && string.Equals(idNode?.ToString(), config.Id, StringComparison.OrdinalIgnoreCase))
-				{
-					replaceIndex = i;
-					break;
-				}
-			}
-
-			var serialized = JsonNode.Parse(JsonSerializer.Serialize(config));
-			if (serialized != null)
-			{
-				if (replaceIndex >= 0)
-				{
-					animsArray[replaceIndex] = serialized;
-				}
-				else
-				{
-					animsArray.Add(serialized);
-				}
-			}
-
-			var options = new JsonSerializerOptions { WriteIndented = true };
-			File.WriteAllText(metaPath, rootNode.ToJsonString(options));
+			MetadataService.Instance.SaveMetadata(wsPath, metadata);
 		}
 		catch (Exception ex)
 		{
@@ -268,25 +231,13 @@ public static class ProceduralAnimationManager
 		if (string.IsNullOrWhiteSpace(id)) return;
 
 		string wsPath = workspacePath ?? MapWorkspaceService.GetActiveWorkspacePath();
-		string metaPath = Path.Combine(wsPath, "metadata.json");
-		if (!File.Exists(metaPath)) return;
-
 		try
 		{
-			string json = File.ReadAllText(metaPath);
-			var rootNode = JsonNode.Parse(json) as JsonObject;
-			if (rootNode != null && rootNode.TryGetPropertyValue("CustomProceduralAnimations", out var existing) && existing is JsonArray animsArray)
+			var metadata = MapFileService.LoadMetadata(wsPath);
+			if (metadata.CustomProceduralAnimations != null)
 			{
-				for (int i = animsArray.Count - 1; i >= 0; i--)
-				{
-					if (animsArray[i] is JsonObject obj && obj.TryGetPropertyValue("Id", out var idNode) && string.Equals(idNode?.ToString(), id, StringComparison.OrdinalIgnoreCase))
-					{
-						animsArray.RemoveAt(i);
-					}
-				}
-
-				var options = new JsonSerializerOptions { WriteIndented = true };
-				File.WriteAllText(metaPath, rootNode.ToJsonString(options));
+				metadata.CustomProceduralAnimations.RemoveAll(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
+				MetadataService.Instance.SaveMetadata(wsPath, metadata);
 			}
 		}
 		catch (Exception ex)

@@ -39,21 +39,21 @@ public partial class Prop3D : StaticBody3D
 		SetProcess(true);
 	}
 
-	private string _propId = string.Empty;
+	private string _objectId = string.Empty;
 
 	[Export]
-	public virtual string PropId
+	public virtual string TemplateID
 	{
 		get
 		{
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld.IsAlive(Entity)
 				&& GameHost.Instance.EcsWorld.Has<PropIdentity>(Entity))
 				return GameHost.Instance.EcsWorld.Get<PropIdentity>(Entity).PropId;
-			return _propId;
+			return _objectId;
 		}
 		set
 		{
-			_propId = value;
+			_objectId = value;
 			_cachedResolvedModelPath = null;
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld.IsAlive(Entity))
 			{
@@ -61,6 +61,12 @@ public partial class Prop3D : StaticBody3D
 				world.SetOrAdd(Entity, new PropIdentity(value));
 			}
 		}
+	}
+
+	public virtual string PropId
+	{
+		get => TemplateID;
+		set => TemplateID = value;
 	}
 
 	private string _cachedResolvedModelPath;
@@ -527,9 +533,44 @@ public partial class Prop3D : StaticBody3D
 		CreatePropVisual();
 	}
 
+	public virtual bool IsSlopeAligned
+	{
+		get
+		{
+			if (GameHost.PropRegistry.TryGetValue(PropId, out var meta))
+			{
+				return string.Equals(meta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
+			}
+			if (GameHost.ResourceRegistry.TryGetValue(PropId, out var rMeta))
+			{
+				return string.Equals(rMeta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
+			}
+			return false;
+		}
+	}
+
+	public virtual void UpdateSlopeAlignment()
+	{
+		var visual = GetNodeOrNull<Node3D>("VisualModel");
+		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && visual != null && GodotObject.IsInstanceValid(visual))
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
+			if (normal.LengthSquared() > 0.01f)
+			{
+				normal = normal.Normalized();
+				Vector3 up = normal;
+				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
+				Vector3 right = up.Cross(forward).Normalized();
+				visual.Basis = new Basis(right, up, -forward);
+			}
+		}
+	}
+
 	private void CreatePropVisual()
 	{
-		if (IsPreview)
+		string modelPath = ResolvePropModelPath(PropId);
+
+		if (IsPreview || GameHost.Instance?.IsMapEditorMode == true)
 		{
 			var visual = GetNodeOrNull<Node3D>("VisualModel");
 			if (visual == null)
@@ -544,7 +585,6 @@ public partial class Prop3D : StaticBody3D
 				visual.Scale = new Vector3(safeScale, safeScale, safeScale);
 				AddChild(visual);
 
-				string modelPath = ResolvePropModelPath(PropId);
 				try
 				{
 					if (!string.IsNullOrEmpty(modelPath))
@@ -568,6 +608,7 @@ public partial class Prop3D : StaticBody3D
 				}
 
 				UpdateLodVisibility();
+				UpdateSlopeAlignment();
 			}
 		}
 

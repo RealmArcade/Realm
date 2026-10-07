@@ -18,6 +18,7 @@ interface game-api {
     define-zone: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
     destroy-static-text: func(handle: s32);
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
+    disable-shroud: func();
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
     get-all-units: func() -> list<s32>;
@@ -209,8 +210,8 @@ interface game-api {
     unit-stop: func(id: s32);
     unit-stun: func(id: s32, duration: f32);
     unit-teleport: func(id: s32, position-x: f32, position-y: f32, position-z: f32);
+    unit-template-i-d: func(id: s32) -> string;
     unit-trigger-mesh-impulse: func(id: s32, strength: f32, duration: f32, frequency: f32);
-    unit-unit-id: func(id: s32) -> string;
     unit-xp-bounty: func(id: s32) -> f32;
     write-saved-data: func(file-name: string, content: string);
 }

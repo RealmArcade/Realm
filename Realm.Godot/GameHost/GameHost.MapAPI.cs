@@ -41,10 +41,10 @@ public partial class GameHost
 		if (customAbilities == null) return;
 		foreach (var meta in customAbilities)
 		{
-			if (string.IsNullOrEmpty(meta.AbilityId)) continue;
-			_abilityDefinitions[meta.AbilityId] = new AbilityDefinition
+			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
+			_abilityDefinitions[meta.TemplateID] = new AbilityDefinition
 			{
-				Id = meta.AbilityId,
+				Id = meta.TemplateID,
 				DisplayName = meta.Name ?? "",
 				Tooltip = meta.Description ?? "",
 				IconPath = meta.IconPath ?? "",

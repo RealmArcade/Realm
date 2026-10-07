@@ -259,18 +259,13 @@ public static class NoiseTextureGenerator
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
-			if (assetsObj == null || !assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] is not JsonObject noiseObj)
-			{
-				return;
-			}
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(workspacePath);
+			if (metadata?.NoiseTextures == null) return;
 
 			string noiseDir = Path.Combine(workspacePath, "Assets", "noise");
 			Directory.CreateDirectory(noiseDir);
 
-			bool manifestModified = false;
-
-			foreach (var kvp in noiseObj)
+			foreach (var kvp in metadata.NoiseTextures)
 			{
 				string fileName = kvp.Key;
 				if (!fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
@@ -278,36 +273,26 @@ public static class NoiseTextureGenerator
 					fileName += ".rtex";
 				}
 
-				if (kvp.Value is JsonObject itemConfig)
+				if (kvp.Value != null && !string.IsNullOrEmpty(kvp.Value.NoiseConfig))
 				{
-					bool isProcedural = string.Equals(itemConfig["generator"]?.ToString(), "FastNoiseLite", StringComparison.OrdinalIgnoreCase)
-						|| itemConfig.ContainsKey("noise_type");
-
-					if (isProcedural)
+					try
 					{
-						string rtexPath = Path.Combine(noiseDir, fileName);
-						if (!File.Exists(rtexPath))
+						var itemConfig = JsonNode.Parse(kvp.Value.NoiseConfig) as JsonObject;
+						if (itemConfig != null)
 						{
-							try
+							string rtexPath = Path.Combine(noiseDir, fileName);
+							if (!File.Exists(rtexPath))
 							{
-								string hash = GenerateAndSaveRtex(itemConfig, rtexPath);
-								itemConfig["hash"] = hash;
-								itemConfig["generator"] = "FastNoiseLite";
-								manifestModified = true;
+								GenerateAndSaveRtex(itemConfig, rtexPath);
 								GD.Print($"[NoiseTextureGenerator] Idempotently generated procedural noise texture: {fileName}");
-							}
-							catch (Exception ex)
-							{
-								GD.PrintErr($"[NoiseTextureGenerator] Failed to generate noise texture {fileName}: {ex.Message}");
 							}
 						}
 					}
+					catch (Exception ex)
+					{
+						GD.PrintErr($"[NoiseTextureGenerator] Failed to generate noise texture {fileName}: {ex.Message}");
+					}
 				}
-			}
-
-			if (manifestModified)
-			{
-				Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(workspacePath, assetsObj, removeFromMetadata: true);
 			}
 		}
 		catch (Exception ex)

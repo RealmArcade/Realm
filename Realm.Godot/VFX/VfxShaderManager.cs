@@ -5,6 +5,7 @@ using System.IO;
 using System.Text.Json.Nodes;
 using Realm.Godot.Utils;
 using Realm.Shared.Metadata;
+using Realm.Shared.Services;
 
 namespace Realm.Godot.VFX;
 
@@ -135,8 +136,8 @@ public class VfxShaderManager
 			material.SetShaderParameter("base_texture", baseTex);
 		}
 
-		material.SetShaderParameter("base_uv_scroll", config.BaseUvScroll);
-		material.SetShaderParameter("base_uv_scale", config.BaseUvScale);
+		material.SetShaderParameter("base_uv_scroll", config.BaseUvScroll.ToGodotVector2());
+		material.SetShaderParameter("base_uv_scale", config.BaseUvScale.ToGodotVector2());
 		material.SetShaderParameter("use_flipbook", config.UseFlipbook);
 		material.SetShaderParameter("flipbook_columns", Math.Max(1, config.FlipbookColumns));
 		material.SetShaderParameter("flipbook_rows", Math.Max(1, config.FlipbookRows));
@@ -157,8 +158,8 @@ public class VfxShaderManager
 			material.SetShaderParameter("noise_texture", noiseTex);
 		}
 
-		material.SetShaderParameter("noise_uv_scroll", config.NoiseUvScroll);
-		material.SetShaderParameter("noise_uv_scale", config.NoiseUvScale);
+		material.SetShaderParameter("noise_uv_scroll", config.NoiseUvScroll.ToGodotVector2());
+		material.SetShaderParameter("noise_uv_scale", config.NoiseUvScale.ToGodotVector2());
 		material.SetShaderParameter("noise_distortion_strength", Mathf.Clamp(config.DistortionStrength, 0.0f, 2.0f));
 
 		material.SetShaderParameter("base_color", ParseColorSafe(config.BaseColor, new Color(1.0f, 0.45f, 0.1f, 1.0f)));
@@ -311,53 +312,32 @@ public class VfxShaderManager
 			// 1. Check workspace metadata.json / manifest.json / unioned assets
 			try
 			{
-				var assetsObj = MapAssetHelper.LoadUnionedAssets(wsPath);
-				if (assetsObj != null)
+				var metadata = MapFileService.LoadMetadata(wsPath);
+				if (metadata?.VfxSpritesheets != null)
 				{
-					foreach (var cat in new[] { "vfx_spritesheets", "vfx", "textures", "decals", "ribbons", "noise_textures" })
+					VfxMetadata? vmeta = null;
+					if (metadata.VfxSpritesheets.TryGetValue(path, out var v1)) vmeta = v1;
+					else if (metadata.VfxSpritesheets.TryGetValue(fileName, out var v2)) vmeta = v2;
+					else if (metadata.VfxSpritesheets.TryGetValue($"{cleanBase}.rtex", out var v3)) vmeta = v3;
+					else if (metadata.VfxSpritesheets.TryGetValue($"{cleanBase}.png", out var v4)) vmeta = v4;
+
+					if (vmeta != null)
 					{
-						if (assetsObj.TryGetPropertyValue(cat, out var catNode))
+						int cols = vmeta.Columns > 0 ? vmeta.Columns : 1;
+						int rows = vmeta.Rows > 0 ? vmeta.Rows : 1;
+						float fps = vmeta.Fps > 0.001f ? vmeta.Fps : 20.0f;
+						bool subframeBlend = vmeta.SubframeBlend;
+
+						bool isSpritesheet = cols > 1 || rows > 1 || !string.IsNullOrEmpty(vmeta.TexturePath);
+
+						if (isSpritesheet)
 						{
-							if (catNode is JsonObject catObj)
-							{
-								JsonNode? entry = null;
-								if (catObj.TryGetPropertyValue(path, out var e1)) entry = e1;
-								else if (catObj.TryGetPropertyValue(fileName, out var e2)) entry = e2;
-								else if (catObj.TryGetPropertyValue($"{cleanBase}.rtex", out var e3)) entry = e3;
-								else if (catObj.TryGetPropertyValue($"{cleanBase}.png", out var e4)) entry = e4;
-
-							if (entry is JsonObject eObj)
-							{
-								int cols = 1;
-								int rows = 1;
-								float fps = 20.0f;
-								bool subframeBlend = true;
-
-								if (eObj.TryGetPropertyValue("columns", out var cNode) && int.TryParse(cNode?.ToString(), out int parsedCols) && parsedCols > 0)
-									cols = parsedCols;
-								if (eObj.TryGetPropertyValue("rows", out var rNode) && int.TryParse(rNode?.ToString(), out int parsedRows) && parsedRows > 0)
-									rows = parsedRows;
-								if (eObj.TryGetPropertyValue("fps", out var fNode) && float.TryParse(fNode?.ToString(), out float parsedFps) && parsedFps > 0.001f)
-									fps = parsedFps;
-								if (eObj.TryGetPropertyValue("subframe_blend", out var sbNode) && bool.TryParse(sbNode?.ToString(), out bool parsedSb))
-									subframeBlend = parsedSb;
-
-								string? assetType = eObj["asset_type"]?.ToString() ?? eObj["type"]?.ToString();
-								bool isSpritesheet = string.Equals(assetType, "Spritesheet", StringComparison.OrdinalIgnoreCase) ||
-								                     string.Equals(assetType, "SpellSpritesheet", StringComparison.OrdinalIgnoreCase) ||
-								                     cols > 1 || rows > 1;
-
-								if (isSpritesheet)
-								{
-									var result = (cols, rows, fps, subframeBlend);
-									SpritesheetMetaCache[path] = result;
-									return result;
-								}
-							}
+							var result = (cols, rows, fps, subframeBlend);
+							SpritesheetMetaCache[path] = result;
+							return result;
 						}
 					}
 				}
-			}
 			}
 			catch { }
 
