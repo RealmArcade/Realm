@@ -4391,6 +4391,8 @@ public partial class MapEditorHUD : Control
 			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(System.IO.Path.Combine(dir, "terrain_water.exr")));
 			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(System.IO.Path.Combine(dir, "terrain_splat_indices.exr")));
 			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(System.IO.Path.Combine(dir, "terrain_splat_weights.exr")));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(System.IO.Path.Combine(dir, "terrain_cliff_splat_indices.exr")));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(System.IO.Path.Combine(dir, "terrain_cliff_splat_weights.exr")));
 			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(System.IO.Path.Combine(dir, "terrain_splat_indices.png")));
 			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(System.IO.Path.Combine(dir, "terrain_splat_weights.png")));
 			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(System.IO.Path.Combine(dir, "terrain_pathing.png")));
@@ -9858,7 +9860,7 @@ public partial class MapEditorHUD : Control
 		_ => false
 	};
 
-	private void UpdateTextureLabels()
+	public void UpdateTextureLabels()
 	{
 		if (GameHost.Instance == null) return;
 		int terrainIdx = GameHost.Instance.EditorPaintTextureIndex;

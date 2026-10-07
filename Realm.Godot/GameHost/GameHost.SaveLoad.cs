@@ -23,6 +23,8 @@ public partial class GameHost
 		bool savedBlockMode = EditorBlockMode;
 		float savedBlockLevelHeight = EditorBlockLevelHeight;
 		float savedExactHeight = EditorExactHeight;
+		int savedPaintTextureIndex = EditorPaintTextureIndex;
+		int savedCliffPaintTextureIndex = EditorCliffPaintTextureIndex;
 		EditorTool savedActiveTool = ActiveEditorTool;
 		string savedActivePlaceId = ActivePlaceId;
 		var savedCopiedArea = _editorService?.CopiedArea;
@@ -204,6 +206,8 @@ public partial class GameHost
 				EditorBlockMode = savedBlockMode;
 				EditorBlockLevelHeight = savedBlockLevelHeight;
 				EditorExactHeight = savedExactHeight;
+				EditorPaintTextureIndex = savedPaintTextureIndex;
+				EditorCliffPaintTextureIndex = savedCliffPaintTextureIndex;
 				if (_editorService != null)
 				{
 					_editorService.CopiedArea = savedCopiedArea;
@@ -211,6 +215,7 @@ public partial class GameHost
 					_editorService.SetSelectionEnd(savedSelectionEnd);
 				}
 				MapEditorHUD.Instance?.SelectToolFromHotkey(savedActiveTool);
+				MapEditorHUD.Instance?.UpdateTextureLabels();
 				MapEditorHUD.Instance?.RefreshWaterSwatches();
 				MapEditorHUD.Instance?.UpdateMapNameHeader();
 				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));
