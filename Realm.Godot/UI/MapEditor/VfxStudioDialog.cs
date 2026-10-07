@@ -13,7 +13,10 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private ProceduralVfxInstance3D _previewVfxInstance;
 	private MeshInstance3D _previewGroundGrid;
 
-	private LineEdit _txtVfxId;
+	private string _vfxId = "";
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
 	private LineEdit _txtVfxName;
 	private OptionButton _optMode;
 	private OptionButton _optPrimitive;
@@ -181,11 +184,37 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		var scrollBody = CreateScrollBody(440);
 
-		_txtVfxId = AddTextInput(scrollBody, TranslationServer.Translate("VFX ID:"), _currentConfig.VfxId, (val) =>
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "vfx/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("vfx_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.VfxId = val;
-		}, "Unique identifier e.g. vfx_fire_blade", 140f);
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
+			_currentConfig.VfxId = _vfxId;
+			if (_currentConfig.ParticleConfig != null)
+			{
+				_currentConfig.ParticleConfig.ParticleId = _vfxId;
+			}
+		};
+		rowId.AddChild(_txtSlug);
+		scrollBody.AddChild(rowId);
 
 		_txtVfxName = AddTextInput(scrollBody, TranslationServer.Translate("Display Name:"), _currentConfig.Name, (val) =>
 		{
@@ -902,7 +931,13 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		_isUpdatingUI = true;
 		try
 		{
-			if (_txtVfxId != null) _txtVfxId.Text = _currentConfig.VfxId;
+			var (prefix, slug) = TemplateIDHelper.ParseTemplateID(_currentConfig.VfxId);
+			_slug = slug;
+			_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
+			_currentConfig.VfxId = _vfxId;
+
+			if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = "vfx/";
+			if (_txtSlug != null) _txtSlug.Text = _slug;
 			if (_txtVfxName != null) _txtVfxName.Text = _currentConfig.Name;
 			bool isParticle = _currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem;
 			if (_optMode != null) _optMode.Selected = isParticle ? 1 : 0;
@@ -1061,7 +1096,16 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 	private void SyncConfigFromControls()
 	{
-		if (_txtVfxId != null) _currentConfig.VfxId = _txtVfxId.Text.Trim();
+		if (_txtSlug != null)
+		{
+			_slug = TemplateIDHelper.ToSnakeCase(_txtSlug.Text);
+			_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
+			_currentConfig.VfxId = _vfxId;
+			if (_currentConfig.ParticleConfig != null)
+			{
+				_currentConfig.ParticleConfig.ParticleId = _vfxId;
+			}
+		}
 		if (_txtVfxName != null) _currentConfig.Name = _txtVfxName.Text.Trim();
 		if (_optMode != null)
 		{
