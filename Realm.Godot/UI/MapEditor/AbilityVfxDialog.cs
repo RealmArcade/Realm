@@ -213,16 +213,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 			140f
 		);
 
-		var vfxButtonsRow = new HBoxContainer();
-		vfxButtonsRow.AddThemeConstantOverride("separation", 6);
 
-		var vfxSpacer = new Control { CustomMinimumSize = new Vector2(140f, 0) };
-		vfxButtonsRow.AddChild(vfxSpacer);
-
-		AddButton(vfxButtonsRow, "✨ " + TranslationServer.Translate("Edit in VFX Studio..."), () => OpenVfxStudioForCurrentAbility(), "Open Procedural VFX Studio to edit this VFX preset or create custom visuals", 10, new Vector2(160, 24));
-		AddButton(vfxButtonsRow, "➕ " + TranslationServer.Translate("New VFX Preset..."), () => CreateNewVfxForAbility(), "Create a new custom procedural VFX preset for this ability", 10, new Vector2(140, 24));
-
-		configVBox.AddChild(vfxButtonsRow);
 
 		AddSectionHeader(configVBox, "🎯 " + TranslationServer.Translate("AREA OF EFFECT (AOE)"), new Color(0.4f, 0.85f, 0.5f));
 
@@ -416,70 +407,6 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		_vfxInstance.SetSpeedScale(_playbackSpeed);
 	}
 
-	private void OpenVfxStudioForCurrentAbility()
-	{
-		VfxAttachmentConfig targetConfig = null;
-		if (!string.IsNullOrWhiteSpace(_currentVisualEffect))
-		{
-			targetConfig = ResolveVfxConfig(_currentVisualEffect);
-		}
-
-		if (targetConfig == null || string.IsNullOrWhiteSpace(targetConfig.VfxId) || targetConfig.VfxId == "vfx_none")
-		{
-			targetConfig = new VfxAttachmentConfig
-			{
-				VfxId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_custom",
-				Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Ability VFX",
-				PrimitiveType = VfxPrimitiveType.ParticleSystem,
-				ParticleConfig = new SpellParticleConfig
-				{
-					ParticleId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_custom",
-					Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} Particles" : "Ability Particles",
-					RenderMode = SpellParticleRenderMode.BillboardQuad,
-					Amount = 32,
-					Lifetime = 1.0f
-				}
-			};
-		}
-
-		Hud?.OpenVfxStudioDialog(targetConfig, (savedCfg) =>
-		{
-			string key = $"vfx:{savedCfg.VfxId}";
-			_currentVisualEffect = key;
-			_setVisualEffectValue?.Invoke(key);
-			ReloadVfx();
-		});
-	}
-
-	private void CreateNewVfxForAbility()
-	{
-		var newConfig = new VfxAttachmentConfig
-		{
-			VfxId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : $"vfx_spell_{Random.Shared.Next(100, 999)}",
-			Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Spell VFX",
-			PrimitiveType = VfxPrimitiveType.ParticleSystem,
-			ParticleConfig = new SpellParticleConfig
-			{
-				ParticleId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_spell",
-				Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Spell VFX",
-				RenderMode = SpellParticleRenderMode.BillboardQuad,
-				Amount = 32,
-				Lifetime = 1.2f,
-				ColorStart = "#FFE066",
-				ColorMid = "#FF6600",
-				ColorEnd = "#990000",
-				EmissionEnergy = 3.5f
-			}
-		};
-
-		Hud?.OpenVfxStudioDialog(newConfig, (savedCfg) =>
-		{
-			string key = $"vfx:{savedCfg.VfxId}";
-			_currentVisualEffect = key;
-			_setVisualEffectValue?.Invoke(key);
-			ReloadVfx();
-		});
-	}
 
 	private void TriggerCastTest()
 	{
