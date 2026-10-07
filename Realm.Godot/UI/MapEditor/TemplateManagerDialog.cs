@@ -14,12 +14,14 @@ using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 using Realm.Godot.Services;
 using Realm.Godot.UI;
+using Realm.Godot.VFX;
 
 public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 {
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 	private AnimatedSprite3D _vfxSprite;
+	private ProceduralVfxInstance3D? _previewVfxInstance;
 
 	private PanelContainer _preview2DContainer;
 	private VBoxContainer _tooltipPreviewContainer;
@@ -39,6 +41,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private EntityVisualEditDialog _entityVisualEditDialog;
 	private WeaponVfxDialog _weaponVfxDialog;
 	private AbilityVfxDialog _abilityVfxDialog;
+	private VfxStudioDialog _vfxStudioDialog;
 	private DecalSettingsDialog _decalEditDialog;
 	private ShaderEditorDialog _shaderEditDialog;
 	private SpritesheetAssetEditDialog _spritesheetEditDialog;
@@ -66,6 +69,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_entityVisualEditDialog = new EntityVisualEditDialog(hud);
 		_weaponVfxDialog = new WeaponVfxDialog(hud);
 		_abilityVfxDialog = new AbilityVfxDialog(hud);
+		_vfxStudioDialog = new VfxStudioDialog(hud);
 		_decalEditDialog = new DecalSettingsDialog(hud);
 		_shaderEditDialog = new ShaderEditorDialog(hud);
 		_spritesheetEditDialog = new SpritesheetAssetEditDialog(hud);
@@ -75,6 +79,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_entityVisualEditDialog.DialogClosed += ReloadCurrentPreview;
 		_weaponVfxDialog.DialogClosed += ReloadCurrentPreview;
 		_abilityVfxDialog.DialogClosed += ReloadCurrentPreview;
+		_vfxStudioDialog.DialogClosed += ReloadCurrentPreview;
 		_decalEditDialog.DialogClosed += ReloadCurrentPreview;
 		_shaderEditDialog.DialogClosed += ReloadCurrentPreview;
 		_spritesheetEditDialog.DialogClosed += ReloadCurrentPreview;
@@ -217,6 +222,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_optObjectCategory.SetItemMetadata(10, "decals");
 		_optObjectCategory.AddItem(TranslationServer.Translate("✨ Shader"), 11);
 		_optObjectCategory.SetItemMetadata(11, "shaders");
+		_optObjectCategory.AddItem(TranslationServer.Translate("✨ VFX (vfx/...)"), 12);
+		_optObjectCategory.SetItemMetadata(12, "vfx");
 
 		_optObjectCategory.ItemSelected += (idx) =>
 		{
@@ -750,6 +757,23 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 					}
 				}
 				break;
+
+			case "vfx":
+				if (meta.Templates?.Vfx != null)
+				{
+					foreach (var v in meta.Templates.Vfx)
+					{
+						list.Add(new ObjectItemInfo
+						{
+							Category = "vfx",
+							TemplateID = v.VfxId,
+							Name = v.Name ?? v.VfxId,
+							Description = $"{v.PrimitiveType} | {v.BlendMode}",
+							ModelPath = v.BaseTexture
+						});
+					}
+				}
+				break;
 		}
 
 		return list;
@@ -1103,6 +1127,30 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				});
 				break;
 
+			case "vfx":
+				string wsPathVfx = MapWorkspaceService.GetActiveWorkspacePath();
+				if (MetadataService.Instance.TryLoadMetadata(wsPathVfx, out var metaVfx) && metaVfx?.Templates?.Vfx != null)
+				{
+					var vfxConfig = metaVfx.Templates.Vfx.FirstOrDefault(x => string.Equals(x.VfxId, item.TemplateID, StringComparison.OrdinalIgnoreCase));
+					if (vfxConfig != null)
+					{
+						_vfxStudioDialog.OpenForConfig(vfxConfig, updatedCfg =>
+						{
+							MetadataService.Instance.UpdateMetadata(wsPathVfx, m =>
+							{
+								if (!string.Equals(item.TemplateID, updatedCfg.VfxId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
+								{
+									m.RemoveVfx(item.TemplateID);
+								}
+								m.AddOrUpdateVfx(updatedCfg);
+							});
+							_currentPreviewTemplateID = updatedCfg.VfxId;
+							RefreshObjectList();
+						});
+					}
+				}
+				break;
+
 			default:
 				if (item.Category == "upgrades" || item.Category == "items")
 				{
@@ -1141,6 +1189,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			"spritesheets" => "spritesheet",
 			"decals" => "decal",
 			"shaders" or "shader" or "spawnshader" or "spawnshaders" => "SpawnShader",
+			"vfx" => "vfx",
 			_ => "unit"
 		};
 
@@ -1326,6 +1375,14 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						AssetType = "SpawnShader"
 					};
 					break;
+
+				case "vfx":
+					m.AddOrUpdateVfx(new VfxAttachmentConfig
+					{
+						VfxId = newTemplateID,
+						Name = parsedSlug
+					});
+					break;
 			}
 		});
 
@@ -1486,6 +1543,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 								meta.SpawnShaders.Remove(k);
 							}
 						}
+						break;
+
+					case "vfx":
+						meta.RemoveVfx(item.TemplateID);
+						if (!string.IsNullOrEmpty(delSlug)) meta.RemoveVfx(delSlug);
 						break;
 				}
 			});
@@ -1720,6 +1782,24 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				}
 
 				CenterAndFrameNode(loadedNode3D);
+			}
+		}
+		else if (cat == "vfx")
+		{
+			_preview2DContainer.Visible = false;
+			_previewAudioContainer.Visible = false;
+			PreviewSubViewport.GetParent<Control>().Visible = true;
+
+			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Vfx != null)
+			{
+				var vfxConfig = meta.Templates.Vfx.FirstOrDefault(v => string.Equals(v.VfxId, item.TemplateID, StringComparison.OrdinalIgnoreCase));
+				if (vfxConfig != null)
+				{
+					_previewVfxInstance = new ProceduralVfxInstance3D { IsPreview = true };
+					_currentModelRoot.AddChild(_previewVfxInstance);
+					_previewVfxInstance.Initialize(vfxConfig);
+				}
 			}
 		}
 		else if (!string.IsNullOrEmpty(item.ModelPath))
