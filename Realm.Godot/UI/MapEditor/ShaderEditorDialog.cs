@@ -106,7 +106,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		_chkLoop = new CheckBox();
 		_chkLoop.Text = TranslationServer.Translate("Loop");
-		_chkLoop.ButtonPressed = false;
+		_chkLoop.ButtonPressed = true;
 		_chkLoop.AddThemeFontSizeOverride("font_size", 10);
 		playRow.AddChild(_chkLoop);
 
