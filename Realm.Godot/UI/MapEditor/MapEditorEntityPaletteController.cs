@@ -368,16 +368,6 @@ public class MapEditorEntityPaletteController
 
 		if (category == "VFX" && _categoryFiles.Count == 0)
 		{
-			foreach (var prim in Enum.GetValues<VfxPrimitiveType>())
-			{
-				string primKey = $"vfx:{prim}";
-				if (!_categoryFiles.Contains(primKey))
-				{
-					_categoryFiles.Add(primKey);
-					_idToDisplayName[primKey] = "✨ " + prim.ToString();
-				}
-			}
-
 			if (GameHost.VfxRegistry != null)
 			{
 				foreach (var kvp in GameHost.VfxRegistry)

@@ -1324,10 +1324,6 @@ public partial class FloatingDialogBase : PanelContainer
 					{
 						if (category is "vfx" or "vfx_spritesheets")
 						{
-							foreach (var prim in Enum.GetValues<VfxPrimitiveType>())
-							{
-								result.Add($"vfx:{prim}");
-							}
 							if (GameHost.VfxRegistry != null)
 							{
 								foreach (var kvp in GameHost.VfxRegistry)
@@ -1435,10 +1431,6 @@ public partial class FloatingDialogBase : PanelContainer
 					{
 						if (category is "attachments" or "items" || includeAllFolders)
 						{
-							foreach (var prim in Enum.GetValues<VfxPrimitiveType>())
-							{
-								result.Add($"vfx:{prim}");
-							}
 							if (GameHost.VfxRegistry != null)
 							{
 								foreach (var kvp in GameHost.VfxRegistry)
