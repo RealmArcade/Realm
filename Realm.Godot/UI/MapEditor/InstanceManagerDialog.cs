@@ -74,20 +74,6 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		_objectTree.ItemActivated += OnTreeItemActivated;
 
 		BodyContainer.AddChild(_objectTree);
-
-		var bottomHBox = new HBoxContainer();
-		bottomHBox.AddThemeConstantOverride("separation", 8);
-
-		AddButton(bottomHBox, $"{UnicodeIcons.TRASH_ALT} " + TranslationServer.Translate("Delete Selected"), () =>
-		{
-			var selectedItem = _objectTree.GetSelected();
-			if (selectedItem != null && _treeItemToObjectMap.TryGetValue(selectedItem, out var node) && GodotObject.IsInstanceValid(node))
-			{
-				DeleteObject(node);
-			}
-		}, "Delete selected object", 11, new Vector2(130, 26));
-
-		BodyContainer.AddChild(bottomHBox);
 	}
 
 	public override void _Process(double delta)
