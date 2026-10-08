@@ -180,7 +180,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		var topToolbar = new HBoxContainer();
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
-		AddButton(topToolbar, "📋 " + TranslationServer.Translate("Copy Code"), () =>
+		AddButton(topToolbar, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () =>
 		{
 			string code;
 			if (_currentConfig.PrimitiveType == VfxPrimitiveType.VortexDisc)

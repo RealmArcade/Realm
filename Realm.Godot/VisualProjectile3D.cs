@@ -639,6 +639,11 @@ public partial class VisualProjectile3D : Node3D
 		if (isLinearVector)
 		{
 			_currentFlightPosition += _currentFlightDirection * (currentSpeed * dt);
+			if (rawT >= 1.0f)
+			{
+				HandleImpact(_currentFlightPosition);
+				return;
+			}
 		}
 		else if (isBoomerang)
 		{

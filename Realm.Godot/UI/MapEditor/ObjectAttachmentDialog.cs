@@ -151,7 +151,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		var infoSpacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		infoRow.AddChild(infoSpacer);
 
-		AddButton(infoRow, "📋 " + TranslationServer.Translate("Copy Code"), () =>
+		AddButton(infoRow, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () =>
 		{
 			string code = $"api.SetUnitHandAttachment(unit, \"{_currentSocketId}\", \"{_currentAttachmentId}\");";
 			DisplayServer.ClipboardSet(code);

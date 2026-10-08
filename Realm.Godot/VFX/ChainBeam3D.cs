@@ -125,14 +125,14 @@ public partial class ChainBeam3D : Node3D
 			? camera.GlobalPosition
 			: GlobalPosition + new Vector3(0, 5, 10);
 
-		_immediateMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip, _material);
+		_immediateMesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, _material);
 
 		for (int i = 0; i < activePointCount - 1; i++)
 		{
 			Vector3 p1 = _targetPositions[i];
 			Vector3 p2 = _targetPositions[i + 1];
 
-			DrawSegment(p1, p2, camPos, alpha, i == activePointCount - 2);
+			DrawSegment(p1, p2, camPos, alpha);
 
 			if (ForkCount > 0 && i < _targetPositions.Count - 1)
 			{
@@ -142,7 +142,7 @@ public partial class ChainBeam3D : Node3D
 					Vector3 forkDir = (p2 - p1).Cross(Vector3.Up).Normalized();
 					if (f % 2 == 1) forkDir = -forkDir;
 					Vector3 forkEnd = mid + (forkDir * (1.5f + JitterAmount * 2.0f)) + new Vector3(0, (float)(_rng.NextDouble() - 0.5) * JitterAmount, 0);
-					DrawSegment(mid, forkEnd, camPos, alpha * 0.6f, true);
+					DrawSegment(mid, forkEnd, camPos, alpha * 0.6f);
 				}
 			}
 		}
@@ -150,7 +150,7 @@ public partial class ChainBeam3D : Node3D
 		_immediateMesh.SurfaceEnd();
 	}
 
-	private void DrawSegment(Vector3 p1, Vector3 p2, Vector3 camPos, float alpha, bool isLastSegment)
+	private void DrawSegment(Vector3 p1, Vector3 p2, Vector3 camPos, float alpha)
 	{
 		Vector3 dir = p2 - p1;
 		float dist = dir.Length();
@@ -163,34 +163,35 @@ public partial class ChainBeam3D : Node3D
 		if (side.LengthSquared() < 0.001f) side = Vector3.Right;
 
 		float halfWidth = RibbonWidth * 0.5f;
+		Vector3 widthOffset = side * halfWidth;
+		Color col = new Color(BeamColor.R, BeamColor.G, BeamColor.B, BeamColor.A * alpha);
 
-		for (int s = 0; s <= subSegments; s++)
+		for (int s = 0; s < subSegments; s++)
 		{
-			float t = (float)s / subSegments;
-			Vector3 basePos = p1.Lerp(p2, t);
+			float t0 = (float)s / subSegments;
+			float t1 = (float)(s + 1) / subSegments;
 
-			Vector3 jitter = Vector3.Zero;
-			if (s > 0 && s < subSegments)
-			{
-				jitter = new Vector3(
-					(float)(_rng.NextDouble() - 0.5) * JitterAmount,
-					(float)(_rng.NextDouble() - 0.5) * JitterAmount,
-					(float)(_rng.NextDouble() - 0.5) * JitterAmount
-				);
-			}
+			Vector3 basePos0 = p1.Lerp(p2, t0);
+			Vector3 basePos1 = p1.Lerp(p2, t1);
 
-			Vector3 currPos = basePos + jitter;
-			Vector3 widthOffset = side * halfWidth;
+			Vector3 jitter0 = (s > 0) ? new Vector3((float)(_rng.NextDouble() - 0.5) * JitterAmount, (float)(_rng.NextDouble() - 0.5) * JitterAmount, (float)(_rng.NextDouble() - 0.5) * JitterAmount) : Vector3.Zero;
+			Vector3 jitter1 = (s + 1 < subSegments) ? new Vector3((float)(_rng.NextDouble() - 0.5) * JitterAmount, (float)(_rng.NextDouble() - 0.5) * JitterAmount, (float)(_rng.NextDouble() - 0.5) * JitterAmount) : Vector3.Zero;
 
-			Color col = new Color(BeamColor.R, BeamColor.G, BeamColor.B, BeamColor.A * alpha);
+			Vector3 currPos0 = basePos0 + jitter0;
+			Vector3 currPos1 = basePos1 + jitter1;
 
-			_immediateMesh.SurfaceSetColor(col);
-			_immediateMesh.SurfaceSetUV(new Vector2(t, 0.0f));
-			_immediateMesh.SurfaceAddVertex(currPos - widthOffset);
+			Vector3 v0 = currPos0 - widthOffset;
+			Vector3 v1 = currPos0 + widthOffset;
+			Vector3 v2 = currPos1 - widthOffset;
+			Vector3 v3 = currPos1 + widthOffset;
 
-			_immediateMesh.SurfaceSetColor(col);
-			_immediateMesh.SurfaceSetUV(new Vector2(t, 1.0f));
-			_immediateMesh.SurfaceAddVertex(currPos + widthOffset);
+			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t0, 0.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v0));
+			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t0, 1.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v1));
+			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t1, 0.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v2));
+
+			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t0, 1.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v1));
+			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t1, 1.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v3));
+			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t1, 0.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v2));
 		}
 	}
 }

@@ -49,8 +49,8 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		var topToolbar = new HBoxContainer();
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
-		AddButton(topToolbar, "▶ " + TranslationServer.Translate("Fire Test"), () => RestartPreviewProjectile(), "Restart preview projectile", 10, new Vector2(0, 22));
-		AddButton(topToolbar, "📋 " + TranslationServer.Translate("Copy Code"), () =>
+		AddButton(topToolbar, $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("Fire Test"), () => RestartPreviewProjectile(), "Restart preview projectile", 10, new Vector2(0, 22));
+		AddButton(topToolbar, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () =>
 		{
 			string code = $"api.SpawnProjectile(\"{_weaponId}\", startPos, targetPos, {(_currentWeapon.ProjectileSpeed > 0 ? _currentWeapon.ProjectileSpeed : 25f):0.0}f);";
 			DisplayServer.ClipboardSet(code);
