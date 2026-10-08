@@ -1,16 +1,18 @@
-using System;
-using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Blake3;
 using Realm.Shared.Animation;
 using Realm.Shared.Audio;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Textures;
+using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Realm.Shared.Metadata;
 
@@ -23,14 +25,32 @@ public static class RealmMetadataHelper
 	{
 		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
 		if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
-		return ext is ".rtex" or ".ranim" or ".rmesh" or ".raud" or ".rkey";
+		if (ext is ".rtex" or ".ranim" or ".rmesh" or ".raud" or ".rkey") return true;
+		if (File.Exists(extensionOrPath))
+		{
+			try
+			{
+				Span<byte> magic = stackalloc byte[4];
+				using var fs = new FileStream(extensionOrPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+				if (fs.Read(magic) == 4)
+				{
+					return magic.SequenceEqual(RmeshFile.MagicBytes) ||
+						magic.SequenceEqual(Realm.Shared.Textures.RtexFile.MagicBytes) ||
+						magic.SequenceEqual(RanimFile.MagicBytes) ||
+						magic.SequenceEqual(RaudFile.MagicBytes) ||
+						magic.SequenceEqual(RkeyFile.MagicBytes);
+				}
+			}
+			catch { }
+		}
+		return false;
 	}
 
 	public static string? ExtractMetadata(string filePath)
 	{
 		if (!File.Exists(filePath)) return null;
 		string ext = Path.GetExtension(filePath).ToLowerInvariant();
-		return ext switch
+		string? meta = ext switch
 		{
 			".rmesh" => ExtractMetadataFromRmesh(filePath),
 			".rtex" => ExtractMetadataFromRtex(filePath),
@@ -39,6 +59,23 @@ public static class RealmMetadataHelper
 			".rkey" => ExtractMetadataFromRkey(filePath),
 			_ => null
 		};
+		if (meta != null) return meta;
+
+		try
+		{
+			Span<byte> magic = stackalloc byte[4];
+			using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+			if (fs.Read(magic) == 4)
+			{
+				if (magic.SequenceEqual(RmeshFile.MagicBytes)) return ExtractMetadataFromRmesh(filePath);
+				if (magic.SequenceEqual(Realm.Shared.Textures.RtexFile.MagicBytes)) return ExtractMetadataFromRtex(filePath);
+				if (magic.SequenceEqual(RanimFile.MagicBytes)) return ExtractMetadataFromRanim(filePath);
+				if (magic.SequenceEqual(RaudFile.MagicBytes)) return ExtractMetadataFromRaud(filePath);
+				if (magic.SequenceEqual(RkeyFile.MagicBytes)) return ExtractMetadataFromRkey(filePath);
+			}
+		}
+		catch { }
+		return null;
 	}
 
 	public static bool HasRealmMetadata(string filePath)
@@ -105,70 +142,108 @@ public static class RealmMetadataHelper
 		}
 	}
 
-	private static readonly Dictionary<string, string[]> ValidAssetTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
+	private static readonly Dictionary<string, ReadOnlySet<string>> ValidAssetTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
 	{
-		[".rtex"] = new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" },
-		[".rmesh"] = new[] { "Character", "Building", "Prop", "Item" },
-		[".ranim"] = new[] { "Animation" },
-		[".raud"] = new[] { "Music", "SoundEffect" }
+		[".rtex"] = (new [] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".rmesh"] = (new [] { "Character", "Building", "Prop", "Item" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".ranim"] = (new [] { "Animation" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".raud"] = (new [] { "Music", "SoundEffect" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
+		[".gdshader"] = (new [] { "Shader" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly()
 	};
 
-	public static string[] GetValidAssetTypesForExtension(string extensionOrPath)
+	private static ReadOnlySet<string> ValidAssetTypes = ValidAssetTypesByExtension.Values.SelectMany(x => x).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly();
+
+	public static string NormalizeAssetType(string? assetType)
+	{
+		return (assetType ?? "").Trim().ToLowerInvariant().Replace("_", "");
+	}
+
+	public static string GetCanonicalType(string? assetType)
+	{
+		var result = NormalizeAssetType(assetType);
+
+		if (result.EndsWith("s"))
+		{
+			var withoutSuffix = result.Substring(0, result.Length - 1);
+			if (ValidAssetTypes.Any(x => x.Contains(withoutSuffix)))
+			{
+				return withoutSuffix;
+			}
+		}
+
+		if (result == "units")
+		{
+			result = "character";
+		}
+		else if (result == "attachments")
+		{
+			result = "item";
+		}
+		else if (result == "projectiles")
+		{
+			result = "item";
+		}
+		else if (result == "noisetextures")
+		{
+			result = "noise";
+		}
+		else if (result == "sfx")
+		{
+			result = "soundeffect";
+		}
+		else if (result == "skyboxes")
+		{
+			result = "skybox";
+		}
+		else if (result == "textures")
+		{
+			result = "terrain";
+		}
+
+		if (!ValidAssetTypes.Contains(result))
+		{
+			return "";
+		}
+
+		return NormalizeAssetType(result);
+	}
+
+	public static string GetExtension(string extensionOrPath)
 	{
 		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
 		if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
+		return ext;
+	}
+
+	public static ReadOnlySet<string> GetValidAssetTypesForExtension(string extensionOrPath)
+	{
+		string ext = GetExtension(extensionOrPath);
 		if (ValidAssetTypesByExtension.TryGetValue(ext, out var types))
 		{
 			return types;
 		}
-		return Array.Empty<string>();
+		return (new HashSet<string>()).AsReadOnly();
 	}
 
-	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out string[] validTypes)
+	public static string GetDefaultAssetTypeForExtension(string extension)
 	{
-		validTypes = GetValidAssetTypesForExtension(extensionOrPath);
-		canonicalType = string.Empty;
-		if (string.IsNullOrWhiteSpace(assetType)) return false;
+		return GetValidAssetTypesForExtension(extension).FirstOrDefault() ?? "";
+	}
 
-		string norm = assetType.Trim().Replace("_", "").ToLowerInvariant();
+	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out ReadOnlySet<string> validTypes)
+	{
+		canonicalType = GetCanonicalType(assetType);
 
-		string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
-		if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
+		string ext = GetExtension(extensionOrPath);
+		validTypes = GetValidAssetTypesForExtension(ext);
 
-		if (ext is ".rtex")
+		if (!validTypes.Contains(canonicalType))
 		{
-			if (norm.Contains("radial")) { canonicalType = "vfx_radial"; return true; }
-			if (norm.Contains("vertical")) { canonicalType = "vfx_vertical"; return true; }
-			if (norm.Contains("tile") || norm.Contains("terrain")) { canonicalType = "Terrain"; return true; }
-			if (norm.Contains("decal")) { canonicalType = "Decal"; return true; }
-			if (norm.Contains("icon")) { canonicalType = "Icon"; return true; }
-			if (norm.Contains("noise")) { canonicalType = "Noise"; return true; }
-			if (norm.Contains("ribbon")) { canonicalType = "Ribbon"; return true; }
-			if (norm.Contains("skybox")) { canonicalType = "Skybox"; return true; }
-			if (norm.Contains("sprite") || norm.Contains("vfx") || norm.Contains("spell")) { canonicalType = "Spritesheet"; return true; }
-			return false;
-		}
-		else if (ext is ".rmesh")
-		{
-			if (norm.Contains("character") || norm.Contains("unit")) { canonicalType = "Character"; return true; }
-			if (norm.Contains("building") || norm.Contains("structure")) { canonicalType = "Building"; return true; }
-			if (norm.Contains("environment") || norm.Contains("resource") || norm.Contains("prop")) { canonicalType = "Prop"; return true; }
-			if (norm.Contains("item") || norm.Contains("attachment") || norm.Contains("weapon") || norm.Contains("projectile") || norm.Contains("gear") || norm.Contains("equipment") || norm.Contains("accessory") || norm.Contains("object")) { canonicalType = "Item"; return true; }
-			return false;
-		}
-		else if (ext is ".ranim")
-		{
-			canonicalType = "Animation";
-			return true;
-		}
-		else if (ext is ".raud")
-		{
-			if (norm.Contains("music")) { canonicalType = "Music"; return true; }
-			if (norm.Contains("sound") || norm.Contains("sfx")) { canonicalType = "SoundEffect"; return true; }
+			canonicalType = GetDefaultAssetTypeForExtension(ext);
 			return false;
 		}
 
-		return false;
+		return true;
 	}
 
 	public static string? ExtractAssetType(string filePath)
@@ -182,7 +257,6 @@ public static class RealmMetadataHelper
 			{
 				string? typeVal = obj["asset_type"]?.ToString()
 					?? obj["AssetType"]?.ToString()
-					?? obj["type"]?.ToString()
 					?? obj["default_asset_type"]?.ToString();
 				if (!string.IsNullOrEmpty(typeVal) && IsValidAssetTypeForExtension(filePath, typeVal, out string canonical, out _))
 				{
@@ -312,34 +386,97 @@ public static class RealmMetadataHelper
 		return AddMetadata(filePath, metaObj.ToJsonString());
 	}
 
-	public static bool? ExtractSupportsTeamColor(string filePath)
+	public static bool ExtractSupportsTeamColorFromMetadataJson(string? metaJson)
 	{
-		string? metaJson = ExtractMetadata(filePath);
-		if (string.IsNullOrEmpty(metaJson)) return null;
+		if (string.IsNullOrEmpty(metaJson)) return false;
 		try
 		{
 			var node = JsonNode.Parse(metaJson);
 			if (node is JsonObject obj)
 			{
-				if (obj.TryGetPropertyValue("team_color", out var tcVal) && tcVal != null)
+				var booleanKeys = new[]
 				{
-					if (tcVal.GetValueKind() == System.Text.Json.JsonValueKind.True) return true;
-					if (tcVal.GetValueKind() == System.Text.Json.JsonValueKind.False) return false;
-				}
-				if (obj.TryGetPropertyValue("chroma_key", out var val) && val != null)
+					"team_color", "teamColor",
+					"supports_team_color", "supportsTeamColor",
+					"player_color", "playerColor",
+					"has_player_color_mask", "hasPlayerColorMask",
+					"has_player_color", "hasPlayerColor"
+				};
+
+				foreach (var key in booleanKeys)
 				{
-					if (val.GetValueKind() == System.Text.Json.JsonValueKind.True) return true;
-					if (val.GetValueKind() == System.Text.Json.JsonValueKind.False) return false;
-					if (val.GetValueKind() == System.Text.Json.JsonValueKind.String)
+					if (obj.TryGetPropertyValue(key, out var val) && val != null)
 					{
-						string s = val.GetValue<string>();
-						return !string.IsNullOrWhiteSpace(s);
+						if (val.GetValueKind() == JsonValueKind.True) return true;
+						if (val.GetValueKind() == JsonValueKind.False) return false;
+						if (bool.TryParse(val.ToString(), out bool b)) return b;
+					}
+				}
+
+				var stringKeys = new[]
+				{
+					"chroma_key", "chromaKey",
+					"target_hex", "targetHex"
+				};
+
+				foreach (var key in stringKeys)
+				{
+					if (obj.TryGetPropertyValue(key, out var val) && val != null)
+					{
+						if (val.GetValueKind() == JsonValueKind.True) return true;
+						if (val.GetValueKind() == JsonValueKind.False) return false;
+						string s = val.ToString().Trim();
+						if (!string.IsNullOrEmpty(s) && !string.Equals(s, "none", StringComparison.OrdinalIgnoreCase))
+						{
+							return true;
+						}
 					}
 				}
 			}
 		}
 		catch { }
+		return false;
+	}
+
+	public static bool? ExtractSupportsTeamColorWithMetadata(string? metaJson, string filePath)
+	{
+		if (!string.IsNullOrEmpty(metaJson))
+		{
+			if (ExtractSupportsTeamColorFromMetadataJson(metaJson))
+			{
+				return true;
+			}
+			try
+			{
+				var node = JsonNode.Parse(metaJson);
+				if (node is JsonObject obj)
+				{
+					if (obj.TryGetPropertyValue("team_color", out var tcVal) && tcVal != null && tcVal.GetValueKind() == JsonValueKind.False)
+					{
+						return false;
+					}
+				}
+			}
+			catch { }
+		}
+
+		string ext = Path.GetExtension(filePath).ToLowerInvariant();
+		if (ext is ".rmesh" or ".glb" or ".gltf")
+		{
+			if (File.Exists(filePath))
+			{
+				return GlbPlayerColorProcessor.DetectSupportsTeamColor(filePath);
+			}
+		}
+
 		return null;
+	}
+
+	public static bool? ExtractSupportsTeamColor(string filePath)
+	{
+		if (!File.Exists(filePath)) return null;
+		string? metaJson = ExtractMetadata(filePath);
+		return ExtractSupportsTeamColorWithMetadata(metaJson, filePath);
 	}
 
 	public static bool SetSupportsTeamColor(string filePath, bool supportsTeamColor)

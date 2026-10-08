@@ -273,7 +273,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 	{
 		if (string.IsNullOrWhiteSpace(path)) return;
 
-		string fileNameWithoutExt = Path.GetFileNameWithoutExtension(path);
+		string resolvedName = AssetIndexService.Instance?.ResolvePrettyFileName(path) ?? Path.GetFileName(path);
+		string fileNameWithoutExt = Path.GetFileNameWithoutExtension(resolvedName);
 		string cleanBase = fileNameWithoutExt.ToLowerInvariant().Replace(' ', '_');
 		_txtAssetName.Text = cleanBase;
 
@@ -406,7 +407,8 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		string assetName = _txtAssetName.Text?.Trim() ?? string.Empty;
 		if (string.IsNullOrEmpty(assetName))
 		{
-			assetName = Path.GetFileNameWithoutExtension(sourcePath).ToLowerInvariant().Replace(' ', '_');
+			string resolvedSource = AssetIndexService.Instance?.ResolvePrettyFileName(sourcePath) ?? Path.GetFileName(sourcePath);
+			assetName = Path.GetFileNameWithoutExtension(resolvedSource).ToLowerInvariant().Replace(' ', '_');
 		}
 		string cleanBase = assetName.ToLowerInvariant().Replace(' ', '_').Replace(".rmesh", "").Replace(".glb", "");
 		string fileName = $"{cleanBase}.rmesh";
@@ -533,31 +535,14 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 					: RealmMetadataHelper.ComputeBlake3(destPath);
 				bool isPropOrRes = subCategory == "resources" || subCategory == "props" || subCategory == "attachments" || subCategory == "weapons" || subCategory == "items" || subCategory == "projectiles";
 
-				var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
-				if (!assetsObj.ContainsKey("glb") || assetsObj["glb"] == null) assetsObj["glb"] = new JsonObject();
-				var glbObj = assetsObj["glb"].AsObject();
-				if (!glbObj.ContainsKey(subCategory) || glbObj[subCategory] == null) glbObj[subCategory] = new JsonObject();
-
-				var modelEntry = new JsonObject
+				string canonicalCat = subCategory switch
 				{
-					["hash"] = hash,
-					["scale"] = defaultScale,
-					["y_offset"] = 0.0f,
-					["min_y"] = 0.0f,
-					["default_asset_type"] = subCategory,
-					["despill_player_color"] = false,
-					["normalize_luminance"] = true,
-					["ignore_player_color"] = isPropOrRes,
-					["team_color"] = convRes.SupportsTeamColor
+					"units" => "Character",
+					"buildings" => "Building",
+					"attachments" or "items" or "weapons" or "projectiles" => "Item",
+					_ => "Prop"
 				};
-
-				if (!string.IsNullOrEmpty(chromaKeyHex))
-				{
-					modelEntry["chroma_key"] = chromaKeyHex;
-				}
-
-				glbObj[subCategory]![fileName] = modelEntry;
-				Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
+				MapAssetHelper.UpdateManifestAsset(wsPath, canonicalCat, fileName, hash);
 
 				resultPath = destPath;
 			}
@@ -618,14 +603,6 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		{
 			var (minY, autoYOffset) = ModelCache.CalculateModelBounds(resultPath, defaultScale);
 			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			var entry = assetsObj?["glb"]?[subCategory]?[fileName]?.AsObject();
-			if (entry != null)
-			{
-				entry["min_y"] = minY;
-				entry["y_offset"] = autoYOffset;
-				Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
-			}
 
 			string unitId = Path.GetFileNameWithoutExtension(fileName);
 			MetadataService.Instance.UpdateMetadata(wsPath, meta =>
@@ -636,16 +613,17 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 				switch (subCategory)
 				{
 					case "units" or "characters":
-						bool updatedU = meta.UpdateUnit(unitId, u =>
+						string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", unitId);
+						bool updatedU = meta.UpdateUnit(unitTemplateId, u =>
 						{
 							if (autoYOffset != 0f) u.YOffset = autoYOffset;
 							return u;
 						});
 						if (!updatedU)
 						{
-							meta.AddOrUpdateUnit(new GameHost.UnitMetadata
+							meta.AddOrUpdateUnit(new UnitMetadata
 							{
-								UnitId = unitId,
+								TemplateID = unitTemplateId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -658,16 +636,17 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						}
 						break;
 					case "buildings":
-						bool updatedB = meta.UpdateBuilding(unitId, b =>
+						string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", unitId);
+						bool updatedB = meta.UpdateBuilding(buildingTemplateId, b =>
 						{
 							if (autoYOffset != 0f) b.YOffset = autoYOffset;
 							return b;
 						});
 						if (!updatedB)
 						{
-							meta.AddOrUpdateBuilding(new GameHost.UnitMetadata
+							meta.AddOrUpdateBuilding(new UnitMetadata
 							{
-								UnitId = unitId,
+								TemplateID = buildingTemplateId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -680,16 +659,17 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						}
 						break;
 					case "resources":
-						bool updatedR = meta.UpdateResource(unitId, r =>
+						string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", unitId);
+						bool updatedR = meta.UpdateResource(resourceTemplateId, r =>
 						{
 							if (autoYOffset != 0f) r.YOffset = autoYOffset;
 							return r;
 						});
 						if (!updatedR)
 						{
-							meta.AddOrUpdateResource(new GameHost.ResourceMetadata
+							meta.AddOrUpdateResource(new ResourceMetadata
 							{
-								UnitId = unitId,
+								TemplateID = resourceTemplateId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -703,16 +683,17 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 						}
 						break;
 					case "props":
-						bool updatedP = meta.UpdateProp(unitId, p =>
+						string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", unitId);
+						bool updatedP = meta.UpdateProp(propTemplateId, p =>
 						{
 							if (autoYOffset != 0f) p.YOffset = autoYOffset;
 							return p;
 						});
 						if (!updatedP)
 						{
-							meta.AddOrUpdateProp(new GameHost.PropMetadata
+							meta.AddOrUpdateProp(new PropMetadata
 							{
-								UnitId = unitId,
+								TemplateID = propTemplateId,
 								Name = unitId,
 								Description = "",
 								ModelPath = fileName,
@@ -722,6 +703,21 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 								DespillPlayerColor = false,
 								NormalizeLuminance = true,
 								IgnorePlayerColor = true
+							});
+						}
+						break;
+					case "attachments" or "items":
+						string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", unitId);
+						bool updatedI = meta.UpdateItem(itemTemplateId, i => i);
+						if (!updatedI)
+						{
+							meta.AddOrUpdateItem(new ItemMetadata
+							{
+								TemplateID = itemTemplateId,
+								Name = unitId,
+								Description = "",
+								ItemClass = "consumable",
+								CanDrop = true
 							});
 						}
 						break;

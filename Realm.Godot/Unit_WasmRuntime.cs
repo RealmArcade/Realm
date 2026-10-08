@@ -36,7 +36,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		return _entity.GetHashCode();
 	}
 
-	public string UnitId
+	public string TemplateID
 	{
 		get
 		{
@@ -46,6 +46,8 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			return string.Empty;
 		}
 	}
+
+	public string UnitId => TemplateID;
 
 	public string Name
 	{
@@ -535,6 +537,41 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		}
 	}
 
+	public float AttackSpeed
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return 1f;
+			if (_world.Has<Realm.Ecs.Components.Combat.AttackSpeed>(_entity))
+			{
+				return _world.Get<Realm.Ecs.Components.Combat.AttackSpeed>(_entity).Multiplier;
+			}
+			return 1f;
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity) || value <= 0f) return;
+			_world.SetOrAdd(_entity, new Realm.Ecs.Components.Combat.AttackSpeed(value));
+		}
+	}
+
+	public float ManaRegen
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return 0f;
+			if (_world.Has<Realm.Ecs.Components.Core.ManaRegen>(_entity))
+			{
+				return _world.Get<Realm.Ecs.Components.Core.ManaRegen>(_entity).PerSecond;
+			}
+			return 0f;
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			_world.SetOrAdd(_entity, new Realm.Ecs.Components.Core.ManaRegen(Math.Max(0f, value)));
+		}
+	}
 	public float Scale
 	{
 		get
@@ -818,5 +855,13 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			return dict.ContainsKey(key);
 		}
 		return false;
+	}
+
+	public void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
+	{
+		if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+		{
+			unit3D.TriggerImpulse(strength, duration, frequency);
+		}
 	}
 }

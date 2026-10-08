@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
-using System.Text.Json.Nodes;
+using System.Linq;
 using System.Text.Json.Serialization;
 using Realm.Shared.Metadata;
+using Realm.Shared.Serialization;
+using Realm.Shared.Services;
 
 namespace Realm.Shared.Distribution;
 
@@ -18,9 +19,11 @@ public class MapManifest
     public string Version { get; set; } = "1.0.0";
     public string Description { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();
+    public List<string> Maintainers { get; set; } = new();
+    public List<string> GreenlitReferences { get; set; } = new();
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonObject? Assets { get; set; }
+    public MapManifestAssets? Assets { get; set; }
 
     [JsonIgnore]
     public Dictionary<string, string> Files
@@ -68,99 +71,95 @@ public class MapManifest
         return _fileNamesSet.Contains(fileName);
     }
 
-    public static void FlattenAssetsInto(Dictionary<string, string> destinationFiles, JsonObject assets)
+    public static void FlattenAssetsInto(Dictionary<string, string> destinationFiles, MapManifestAssets assets)
     {
-        foreach (var categoryKeyValuePair in assets)
+        foreach (var categoryKeyValuePair in assets.GetAllCategories())
         {
-            string category = categoryKeyValuePair.Key.ToLowerInvariant();
-            if (category == "glb" && categoryKeyValuePair.Value is JsonObject glbObject)
-            {
-                foreach (var subCategoryKeyValuePair in glbObject)
-                {
-                    string subCategory = subCategoryKeyValuePair.Key.ToLowerInvariant();
-                    if (subCategoryKeyValuePair.Value is JsonObject subCategoryObject)
-                    {
-                        foreach (var itemKeyValuePair in subCategoryObject)
-                        {
-                            string fileName = itemKeyValuePair.Key;
-                            string extension = Path.GetExtension(fileName).ToLowerInvariant();
-                            if (string.IsNullOrEmpty(extension))
-                            {
-                                extension = ".rmesh";
-                            }
-                            string hash = ExtractHashFromNode(itemKeyValuePair.Value);
-                            if (!string.IsNullOrEmpty(hash))
-                            {
-                                string assetKey = (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-                                    ? hash
-                                    : $"{hash}{extension}";
-                                string relativePath = $"Assets/models/{subCategory}/{fileName}".Replace('\\', '/');
-                                destinationFiles[relativePath] = assetKey;
-                            }
-                        }
-                    }
-                }
-            }
-            else if (categoryKeyValuePair.Value is JsonObject categoryObject)
-            {
-                string subFolder = category switch
-                {
-                    "vfx" or "vfx_spritesheets" => "vfx",
-                    "animations" => "animations",
-                    "sfx" => "audio/sfx",
-                    "music" => "audio/music",
-                    "icons" => "icons",
-                    "decals" => "decals",
-                    "ribbons" or "ribbon_textures" => "ribbons",
-                    "noise" or "noise_textures" => "noise",
-                    "skyboxes" => "skyboxes",
-                    "textures" => "textures",
-                    "other" => "other",
-                    _ => category
-                };
+            string category = categoryKeyValuePair.Key;
+            var categoryObject = categoryKeyValuePair.Value;
 
+            if (string.Equals(category, "other", StringComparison.OrdinalIgnoreCase))
+            {
                 foreach (var itemKeyValuePair in categoryObject)
                 {
-                    string fileName = itemKeyValuePair.Key;
-                    string extension = Path.GetExtension(fileName).ToLowerInvariant();
-                    if (string.IsNullOrEmpty(extension))
-                    {
-                        extension = category switch
-                        {
-                            "animations" => ".ranim",
-                            "sfx" or "music" => ".raud",
-                            "units" or "buildings" or "props" or "items" or "attachments" or "doodads" or "projectiles" or "decorations" => ".rmesh",
-                            _ => ".rtex"
-                        };
-                    }
-                    string hash = ExtractHashFromNode(itemKeyValuePair.Value);
+                    string rawKey = itemKeyValuePair.Key.Replace('\\', '/').TrimStart('/');
+                    string hash = itemKeyValuePair.Value;
                     if (!string.IsNullOrEmpty(hash))
                     {
-                        string assetKey = (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-                            ? hash
-                            : $"{hash}{extension}";
-                        string relativePath = subFolder == "other" ? fileName : $"Assets/{subFolder}/{fileName}".Replace('\\', '/');
-                        destinationFiles[relativePath] = assetKey;
+                        destinationFiles[rawKey] = hash;
                     }
+                }
+                continue;
+            }
+
+            string subFolder = category switch
+            {
+                "Character" => "models/units",
+                "Building" => "models/buildings",
+                "Prop" => "models/props",
+                "Item" => "models/items",
+                "Spritesheet" or "vfx_spritesheets" or "vfxspritesheets" or "vfx" => "vfx_spritesheets",
+                "vfx_radial" => "vfx_radial",
+                "vfx_vertical" => "vfx_vertical",
+                "Animation" => "animations",
+                "SoundEffect" => "audio/sfx",
+                "Music" => "audio/music",
+                "Icon" => "icons",
+                "Decal" => "decals",
+                "Ribbon" => "ribbons",
+                "Noise" => "noise",
+                "Skybox" => "skyboxes",
+                "Terrain" => "textures",
+                "Shader" => "shaders",
+                _ => category.ToLowerInvariant()
+            };
+
+            foreach (var itemKeyValuePair in categoryObject)
+            {
+                string rawKey = itemKeyValuePair.Key.Replace('\\', '/').TrimStart('/');
+                if (rawKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+                {
+                    rawKey = rawKey.Substring(6).TrimStart('/');
+                }
+                if (rawKey.StartsWith($"Assets/{subFolder}/", StringComparison.OrdinalIgnoreCase))
+                {
+                    rawKey = rawKey.Substring($"Assets/{subFolder}/".Length);
+                }
+
+                string cleanKey = rawKey;
+                int slashIdx = cleanKey.IndexOf('/');
+                if (slashIdx >= 0)
+                {
+                    cleanKey = cleanKey.Substring(slashIdx + 1);
+                }
+                rawKey = Path.GetFileName(cleanKey);
+
+                string extension = Path.GetExtension(rawKey).ToLowerInvariant();
+                if (string.IsNullOrEmpty(extension))
+                {
+                    extension = category switch
+                    {
+                        "Animation" => ".ranim",
+                        "SoundEffect" or "Music" => ".raud",
+                        "Character" or "Building" or "Prop" or "Item" => ".rmesh",
+                        _ => ".rtex"
+                    };
+                    rawKey = $"{rawKey}{extension}";
+                }
+                string hash = itemKeyValuePair.Value;
+                if (!string.IsNullOrEmpty(hash))
+                {
+                    string assetKey = (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+                        ? hash
+                        : $"{hash}{extension}";
+                    string relativePath = $"Assets/{subFolder}/{rawKey}".Replace('\\', '/');
+                    destinationFiles[relativePath] = assetKey;
                 }
             }
         }
     }
 
-    private static string ExtractHashFromNode(JsonNode? node)
-    {
-        if (node is JsonValue value)
-        {
-            return value.ToString();
-        }
-        if (node is JsonObject jsonObject && jsonObject.TryGetPropertyValue("hash", out var hashNode) && hashNode != null)
-        {
-            return hashNode.ToString();
-        }
-        return string.Empty;
-    }
-
-    public static Dictionary<string, string> FlattenAssetsToFiles(JsonObject? assets)
+    public static Dictionary<string, string> FlattenAssetsToFiles(MapManifestAssets? assets)
     {
         var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (assets != null)
@@ -170,9 +169,9 @@ public class MapManifest
         return files;
     }
 
-    public static JsonObject UnflattenFilesToAssets(IDictionary<string, string> files)
+    public static MapManifestAssets UnflattenFilesToAssets(IDictionary<string, string> files)
     {
-        var assets = new JsonObject();
+        var assets = new MapManifestAssets();
         foreach (var keyValuePair in files)
         {
             string relativePath = keyValuePair.Key.Replace('\\', '/');
@@ -194,16 +193,22 @@ public class MapManifest
             {
                 string[] parts = relativePath.Split('/');
                 string subCategory = parts.Length >= 4 ? parts[2].ToLowerInvariant() : "props";
-                if (!assets.ContainsKey("glb") || assets["glb"] is not JsonObject)
+                string category = subCategory switch
                 {
-                    assets["glb"] = new JsonObject();
-                }
-                var glbObject = assets["glb"]!.AsObject();
-                if (!glbObject.ContainsKey(subCategory) || glbObject[subCategory] is not JsonObject)
+                    "units" or "characters" => "Character",
+                    "buildings" => "Building",
+                    "props" or "resources" => "Prop",
+                    "items" or "projectiles" or "attachments" or "weapons" => "Item",
+                    _ => "Prop"
+                };
+
+                var dict = assets.GetCategory(category);
+                if (dict == null)
                 {
-                    glbObject[subCategory] = new JsonObject();
+                    dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    assets.SetCategory(category, dict);
                 }
-                glbObject[subCategory]!.AsObject()[fileName] = hash;
+                dict[fileName] = hash;
             }
             else if (relativePath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
             {
@@ -211,108 +216,93 @@ public class MapManifest
                 string folder = parts.Length >= 3 ? parts[1].ToLowerInvariant() : "textures";
                 string category = folder switch
                 {
-                    "vfx" => "vfx_spritesheets",
-                    "animations" => "animations",
-                    "decals" => "decals",
-                    "icons" => "icons",
-                    "ribbons" => "ribbons",
-                    "noise" => "noise_textures",
-                    "skyboxes" => "skyboxes",
-                    "audio" when parts.Length >= 4 && parts[2].Equals("music", StringComparison.OrdinalIgnoreCase) => "music",
-                    "audio" when parts.Length >= 4 && parts[2].Equals("sfx", StringComparison.OrdinalIgnoreCase) => "sfx",
-                    "audio" => "sfx",
-                    "textures" => "textures",
+                    "vfx_spritesheets" or "vfx" => "Spritesheet",
+                    "vfx_radial" => "vfx_radial",
+                    "vfx_vertical" => "vfx_vertical",
+                    "animations" => "Animation",
+                    "decals" => "Decal",
+                    "icons" => "Icon",
+                    "ribbons" => "Ribbon",
+                    "noise" => "Noise",
+                    "skyboxes" => "Skybox",
+                    "audio" when parts.Length >= 4 && parts[2].Equals("music", StringComparison.OrdinalIgnoreCase) => "Music",
+                    "audio" when parts.Length >= 4 && parts[2].Equals("sfx", StringComparison.OrdinalIgnoreCase) => "SoundEffect",
+                    "audio" => "SoundEffect",
+                    "textures" => "Terrain",
+                    "shaders" => "Shader",
                     _ => folder
                 };
 
-                if (!assets.ContainsKey(category) || assets[category] is not JsonObject)
+                var dict = assets.GetCategory(category);
+                if (dict == null)
                 {
-                    assets[category] = new JsonObject();
+                    dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    assets.SetCategory(category, dict);
                 }
-                assets[category]!.AsObject()[fileName] = hash;
+
+                string key = (category is "Music" or "SoundEffect")
+                    ? (parts.Length > 3 ? string.Join("/", parts.Skip(3)) : fileName)
+                    : (parts.Length > 2 ? string.Join("/", parts.Skip(2)) : fileName);
+
+                dict[key] = hash;
             }
             else
             {
                 string category = "other";
-                if (!assets.ContainsKey(category) || assets[category] is not JsonObject)
+                var dict = assets.GetCategory(category);
+                if (dict == null)
                 {
-                    assets[category] = new JsonObject();
+                    dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    assets.SetCategory(category, dict);
                 }
-                assets[category]!.AsObject()[relativePath] = hash;
+                dict[relativePath] = hash;
             }
         }
         return assets;
     }
 
-    public static void MergeCustomPropertiesIntoAssets(JsonObject targetAssets, JsonObject sourceAssets)
+    public static void MergeCustomPropertiesIntoAssets(MapManifestAssets targetAssets, MapManifestAssets sourceAssets)
     {
-        foreach (var categoryPair in sourceAssets)
+        foreach (var categoryPair in sourceAssets.GetAllCategories())
         {
-            string category = categoryPair.Key.ToLowerInvariant();
-            if (category == "glb" && categoryPair.Value is JsonObject glbSource)
+            string category = categoryPair.Key;
+            var catSource = categoryPair.Value;
+            var catTarget = targetAssets.GetCategory(category);
+            if (catTarget == null)
             {
-                if (targetAssets["glb"] is JsonObject glbTarget)
-                {
-                    foreach (var subPair in glbSource)
-                    {
-                        string subCat = subPair.Key.ToLowerInvariant();
-                        if (subPair.Value is JsonObject subSource && glbTarget[subCat] is JsonObject subTarget)
-                        {
-                            foreach (var itemPair in subSource)
-                            {
-                                if (itemPair.Value is JsonObject itemObj && subTarget[itemPair.Key] != null)
-                                {
-                                    JsonObject targetItemObj;
-                                    if (subTarget[itemPair.Key] is JsonObject existingObj)
-                                    {
-                                        targetItemObj = existingObj;
-                                    }
-                                    else
-                                    {
-                                        string currentHash = subTarget[itemPair.Key]!.ToString();
-                                        targetItemObj = new JsonObject { ["hash"] = currentHash };
-                                        subTarget[itemPair.Key] = targetItemObj;
-                                    }
+                catTarget = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                targetAssets.SetCategory(category, catTarget);
+            }
+            foreach (var itemPair in catSource)
+            {
+                string sourceKey = itemPair.Key;
+                string? targetMatchKey = null;
 
-                                    foreach (var prop in itemObj)
-                                    {
-                                        if (!string.Equals(prop.Key, "hash", StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            targetItemObj[prop.Key] = prop.Value?.DeepClone();
-                                        }
-                                    }
-                                }
-                            }
+                if (catTarget.ContainsKey(sourceKey))
+                {
+                    targetMatchKey = sourceKey;
+                }
+                else
+                {
+                    string sourceBaseName = Path.GetFileName(sourceKey);
+                    foreach (var targetKvp in catTarget)
+                    {
+                        if (string.Equals(Path.GetFileName(targetKvp.Key), sourceBaseName, StringComparison.OrdinalIgnoreCase) ||
+                            targetKvp.Key.EndsWith("/" + sourceKey, StringComparison.OrdinalIgnoreCase))
+                        {
+                            targetMatchKey = targetKvp.Key;
+                            break;
                         }
                     }
                 }
-            }
-            else if (categoryPair.Value is JsonObject catSource && targetAssets[category] is JsonObject catTarget)
-            {
-                foreach (var itemPair in catSource)
-                {
-                    if (itemPair.Value is JsonObject itemObj && catTarget[itemPair.Key] != null)
-                    {
-                        JsonObject targetItemObj;
-                        if (catTarget[itemPair.Key] is JsonObject existingObj)
-                        {
-                            targetItemObj = existingObj;
-                        }
-                        else
-                        {
-                            string currentHash = catTarget[itemPair.Key]!.ToString();
-                            targetItemObj = new JsonObject { ["hash"] = currentHash };
-                            catTarget[itemPair.Key] = targetItemObj;
-                        }
 
-                        foreach (var prop in itemObj)
-                        {
-                            if (!string.Equals(prop.Key, "hash", StringComparison.OrdinalIgnoreCase))
-                            {
-                                targetItemObj[prop.Key] = prop.Value?.DeepClone();
-                            }
-                        }
-                    }
+                if (targetMatchKey != null)
+                {
+                    catTarget[targetMatchKey] = itemPair.Value;
+                }
+                else
+                {
+                    catTarget[sourceKey] = itemPair.Value;
                 }
             }
         }
@@ -351,6 +341,7 @@ public class MapManifest
                 relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) ||
+                relativePath.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) ||
                 relativePath.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) ||
@@ -391,12 +382,12 @@ public class MapManifest
         }
 
         string manifestJsonPath = Path.Combine(fullDirectoryPath, "manifest.json");
-        JsonObject? existingAssets = null;
+        MapManifestAssets? existingAssets = null;
         if (File.Exists(manifestJsonPath))
         {
             try
             {
-                var existing = LoadFromFile(manifestJsonPath);
+                var existing = MapFileService.LoadManifest(manifestJsonPath);
                 if (existing != null)
                 {
                     if (string.IsNullOrEmpty(manifest.MapName) && !string.IsNullOrEmpty(existing.MapName))
@@ -419,9 +410,17 @@ public class MapManifest
                     {
                         manifest.Tags = new List<string>(existing.Tags);
                     }
+                    if ((manifest.Maintainers == null || manifest.Maintainers.Count == 0) && existing.Maintainers != null && existing.Maintainers.Count > 0)
+                    {
+                        manifest.Maintainers = new List<string>(existing.Maintainers);
+                    }
+                    if ((manifest.GreenlitReferences == null || manifest.GreenlitReferences.Count == 0) && existing.GreenlitReferences != null && existing.GreenlitReferences.Count > 0)
+                    {
+                        manifest.GreenlitReferences = new List<string>(existing.GreenlitReferences);
+                    }
                     if (existing.Assets != null)
                     {
-                        existingAssets = existing.Assets.DeepClone() as JsonObject;
+                        existingAssets = existing.Assets;
                     }
                 }
             }
@@ -464,68 +463,32 @@ public class MapManifest
             Assets = unflattened;
         }
 
-        var options = new JsonSerializerOptions
-        {
-            WriteIndented = writeIndented
-        };
-        return JsonSerializer.Serialize(this, options);
+        return MapFileService.SaveManifestToJson(this);
     }
 
     public void SaveToFile(string filePath)
     {
-        string? directory = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        if (_files.Count > 0)
         {
-            Directory.CreateDirectory(directory);
+            var unflattened = UnflattenFilesToAssets(_files);
+            if (Assets != null)
+            {
+                MergeCustomPropertiesIntoAssets(unflattened, Assets);
+            }
+            Assets = unflattened;
         }
 
-        File.WriteAllText(filePath, ToJson());
+        MapFileService.SaveManifest(filePath, this);
     }
 
-    public static MapManifest? LoadFromJson(string json)
+    public static MapManifest LoadFromJson(string json)
     {
-        var manifest = JsonSerializer.Deserialize<MapManifest>(json);
-        if (manifest != null)
-        {
-            if (manifest.Assets != null && manifest._files.Count == 0)
-            {
-                manifest.EnsureFilesFromAssets();
-            }
-            else if (manifest._files.Count == 0)
-            {
-                try
-                {
-                    var node = JsonNode.Parse(json);
-                    if (node is JsonObject rootObj)
-                    {
-                        var assetsObj = new JsonObject();
-                        foreach (var kvp in rootObj)
-                        {
-                            if (kvp.Value is JsonObject catObj &&
-                                !string.Equals(kvp.Key, "MapName", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Author", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Version", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Description", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Tags", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "GameBuildNumber", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Assets", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "Files", StringComparison.OrdinalIgnoreCase) &&
-                                !string.Equals(kvp.Key, "FileSizes", StringComparison.OrdinalIgnoreCase))
-                            {
-                                assetsObj[kvp.Key] = catObj.DeepClone();
-                            }
-                        }
-                        if (assetsObj.Count > 0)
-                        {
-                            manifest.Assets = assetsObj;
-                            manifest.EnsureFilesFromAssets();
-                        }
-                    }
-                }
-                catch { }
-            }
-        }
-        return manifest;
+        return MapFileService.LoadManifestFromJson(json);
+    }
+
+    public static string GenerateJsonSchema()
+    {
+        return RealmJsonSchemaExporter.GenerateJsonSchema(typeof(MapManifest));
     }
 
     public string ComputeManifestBlake3()
@@ -534,15 +497,9 @@ public class MapManifest
         return RealmMetadataHelper.ComputeBlake3(System.Text.Encoding.UTF8.GetBytes(json), ".json");
     }
 
-    public static MapManifest? LoadFromFile(string filePath)
+    public static MapManifest LoadFromFile(string filePath)
     {
-        if (!File.Exists(filePath))
-        {
-            return null;
-        }
-
-        string json = File.ReadAllText(filePath);
-        return LoadFromJson(json);
+        return MapFileService.LoadManifest(filePath);
     }
 
     public bool IsCandidateFile(string relativePath)
@@ -617,5 +574,183 @@ public class MapManifest
         }
 
         return false;
+    }
+}
+
+public class MapManifestAssets
+{
+    [JsonPropertyName("Animation")]
+    public Dictionary<string, string>? Animation { get; set; }
+
+    [JsonPropertyName("Building")]
+    public Dictionary<string, string>? Building { get; set; }
+
+    [JsonPropertyName("Character")]
+    public Dictionary<string, string>? Character { get; set; }
+
+    [JsonPropertyName("Decal")]
+    public Dictionary<string, string>? Decal { get; set; }
+
+    [JsonPropertyName("Icon")]
+    public Dictionary<string, string>? Icon { get; set; }
+
+    [JsonPropertyName("Item")]
+    public Dictionary<string, string>? Item { get; set; }
+
+    [JsonPropertyName("Music")]
+    public Dictionary<string, string>? Music { get; set; }
+
+    [JsonPropertyName("Noise")]
+    public Dictionary<string, string>? Noise { get; set; }
+
+    [JsonPropertyName("Prop")]
+    public Dictionary<string, string>? Prop { get; set; }
+
+    [JsonPropertyName("Ribbon")]
+    public Dictionary<string, string>? Ribbon { get; set; }
+
+    [JsonPropertyName("Shader")]
+    public Dictionary<string, string>? Shader { get; set; }
+
+    [JsonPropertyName("Skybox")]
+    public Dictionary<string, string>? Skybox { get; set; }
+
+    [JsonPropertyName("SoundEffect")]
+    public Dictionary<string, string>? SoundEffect { get; set; }
+
+    [JsonPropertyName("Spritesheet")]
+    public Dictionary<string, string>? Spritesheet { get; set; }
+
+    [JsonPropertyName("Terrain")]
+    public Dictionary<string, string>? Terrain { get; set; }
+
+    [JsonPropertyName("vfx_radial")]
+    public Dictionary<string, string>? VfxRadial { get; set; }
+
+    [JsonPropertyName("vfx_vertical")]
+    public Dictionary<string, string>? VfxVertical { get; set; }
+
+    [JsonPropertyName("Other")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? Other { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; set; }
+
+    [System.Runtime.CompilerServices.IndexerName("CategoryItems")]
+    public Dictionary<string, string>? this[string category]
+    {
+        get => GetCategory(category);
+        set
+        {
+            if (value != null) SetCategory(category, value);
+        }
+    }
+
+    public bool ContainsCategory(string category)
+    {
+        return GetCategory(category) != null;
+    }
+
+    public Dictionary<string, string>? GetCategory(string category)
+    {
+        return category switch
+        {
+            "Animation" or "animations" => Animation,
+            "Building" or "buildings" => Building,
+            "Character" or "characters" or "units" => Character,
+            "Decal" or "decals" => Decal,
+            "Icon" or "icons" => Icon,
+            "Item" or "items" or "projectiles" or "attachments" or "weapons" => Item,
+            "Music" or "music" => Music,
+            "Noise" or "noise" or "noise_textures" => Noise,
+            "Other" or "other" => Other,
+            "Prop" or "props" or "resources" => Prop,
+            "Ribbon" or "ribbons" or "ribbon_textures" => Ribbon,
+            "Shader" or "shaders" => Shader,
+            "Skybox" or "skyboxes" => Skybox,
+            "SoundEffect" or "sfx" or "audio" or "sounds" => SoundEffect,
+            "Spritesheet" or "spritesheets" or "vfx" or "vfx_spritesheets" => Spritesheet,
+            "Terrain" or "textures" => Terrain,
+            "vfx_radial" => VfxRadial,
+            "vfx_vertical" => VfxVertical,
+            _ => GetFromAdditionalProperties(category)
+        };
+    }
+
+    public void SetCategory(string category, Dictionary<string, string> dictionary)
+    {
+        switch (category)
+        {
+            case "Animation": Animation = dictionary; break;
+            case "Building": Building = dictionary; break;
+            case "Character": Character = dictionary; break;
+            case "Decal": Decal = dictionary; break;
+            case "Icon": Icon = dictionary; break;
+            case "Item": Item = dictionary; break;
+            case "Music": Music = dictionary; break;
+            case "Noise": Noise = dictionary; break;
+            case "Other" or "other": Other = dictionary; break;
+            case "Prop": Prop = dictionary; break;
+            case "Ribbon": Ribbon = dictionary; break;
+            case "Shader": Shader = dictionary; break;
+            case "Skybox": Skybox = dictionary; break;
+            case "SoundEffect": SoundEffect = dictionary; break;
+            case "Spritesheet": Spritesheet = dictionary; break;
+            case "Terrain": Terrain = dictionary; break;
+            case "vfx_radial": VfxRadial = dictionary; break;
+            case "vfx_vertical": VfxVertical = dictionary; break;
+            default:
+                AdditionalProperties ??= new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.OrdinalIgnoreCase);
+                AdditionalProperties[category] = System.Text.Json.JsonSerializer.SerializeToElement(dictionary);
+                break;
+        }
+    }
+
+    public IEnumerable<KeyValuePair<string, Dictionary<string, string>>> GetAllCategories()
+    {
+        if (Animation != null) yield return new("Animation", Animation);
+        if (Building != null) yield return new("Building", Building);
+        if (Character != null) yield return new("Character", Character);
+        if (Decal != null) yield return new("Decal", Decal);
+        if (Icon != null) yield return new("Icon", Icon);
+        if (Item != null) yield return new("Item", Item);
+        if (Music != null) yield return new("Music", Music);
+        if (Noise != null) yield return new("Noise", Noise);
+        if (Other != null) yield return new("other", Other);
+        if (Prop != null) yield return new("Prop", Prop);
+        if (Ribbon != null) yield return new("Ribbon", Ribbon);
+        if (Shader != null) yield return new("Shader", Shader);
+        if (Skybox != null) yield return new("Skybox", Skybox);
+        if (SoundEffect != null) yield return new("SoundEffect", SoundEffect);
+        if (Spritesheet != null) yield return new("Spritesheet", Spritesheet);
+        if (Terrain != null) yield return new("Terrain", Terrain);
+        if (VfxRadial != null) yield return new("vfx_radial", VfxRadial);
+        if (VfxVertical != null) yield return new("vfx_vertical", VfxVertical);
+        if (AdditionalProperties != null)
+        {
+            foreach (var kvp in AdditionalProperties)
+            {
+                var dict = GetFromAdditionalProperties(kvp.Key);
+                if (dict != null)
+                {
+                    yield return new(kvp.Key, dict);
+                }
+            }
+        }
+    }
+
+    private Dictionary<string, string>? GetFromAdditionalProperties(string category)
+    {
+        if (AdditionalProperties != null && AdditionalProperties.TryGetValue(category, out var element) && element.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var prop in element.EnumerateObject())
+            {
+                dict[prop.Name] = prop.Value.ValueKind == System.Text.Json.JsonValueKind.String ? prop.Value.GetString() ?? string.Empty : prop.Value.ToString();
+            }
+            return dict;
+        }
+        return null;
     }
 }

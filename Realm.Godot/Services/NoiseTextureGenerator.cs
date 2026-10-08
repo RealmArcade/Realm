@@ -138,6 +138,46 @@ public static class NoiseTextureGenerator
 
 		bool invert = config.TryGetPropertyValue("invert", out var invNode) && bool.TryParse(invNode?.ToString(), out bool inv) && inv;
 		bool normalize = !config.TryGetPropertyValue("normalize", out var normNode) || !bool.TryParse(normNode?.ToString(), out bool nrm) || nrm;
+		bool isFlowMap = (config.TryGetPropertyValue("is_flow_map", out var flowNode) && bool.TryParse(flowNode?.ToString(), out bool fm1) && fm1)
+			|| (config.TryGetPropertyValue("flow_map", out var fmNode) && bool.TryParse(fmNode?.ToString(), out bool fm2) && fm2);
+
+		if (isFlowMap)
+		{
+			var flowImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
+			for (int y = 0; y < height; y++)
+			{
+				for (int x = 0; x < width; x++)
+				{
+					float dx = (noise.GetNoise2D(x + 1f, y) - noise.GetNoise2D(x - 1f, y)) * 0.5f;
+					float dy = (noise.GetNoise2D(x, y + 1f) - noise.GetNoise2D(x, y - 1f)) * 0.5f;
+					if (invert)
+					{
+						dx = -dx;
+						dy = -dy;
+					}
+
+					float vx = dy;
+					float vy = -dx;
+
+					float len = MathF.Sqrt(vx * vx + vy * vy);
+					if (len > 0.00001f)
+					{
+						vx /= len;
+						vy /= len;
+					}
+					else
+					{
+						vx = 0f;
+						vy = 0f;
+					}
+
+					float r = Math.Clamp(vx * 0.5f + 0.5f, 0f, 1f);
+					float g = Math.Clamp(vy * 0.5f + 0.5f, 0f, 1f);
+					flowImage.SetPixel(x, y, new Color(r, g, 1.0f, 1.0f));
+				}
+			}
+			return flowImage;
+		}
 
 		Image baseImage = noise.GetImage(width, height, invert, false, normalize);
 
@@ -219,18 +259,13 @@ public static class NoiseTextureGenerator
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
-			if (assetsObj == null || !assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] is not JsonObject noiseObj)
-			{
-				return;
-			}
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(workspacePath);
+			if (metadata?.NoiseTextures == null) return;
 
 			string noiseDir = Path.Combine(workspacePath, "Assets", "noise");
 			Directory.CreateDirectory(noiseDir);
 
-			bool manifestModified = false;
-
-			foreach (var kvp in noiseObj)
+			foreach (var kvp in metadata.NoiseTextures)
 			{
 				string fileName = kvp.Key;
 				if (!fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
@@ -238,36 +273,26 @@ public static class NoiseTextureGenerator
 					fileName += ".rtex";
 				}
 
-				if (kvp.Value is JsonObject itemConfig)
+				if (kvp.Value != null && !string.IsNullOrEmpty(kvp.Value.NoiseConfig))
 				{
-					bool isProcedural = string.Equals(itemConfig["generator"]?.ToString(), "FastNoiseLite", StringComparison.OrdinalIgnoreCase)
-						|| itemConfig.ContainsKey("noise_type");
-
-					if (isProcedural)
+					try
 					{
-						string rtexPath = Path.Combine(noiseDir, fileName);
-						if (!File.Exists(rtexPath))
+						var itemConfig = JsonNode.Parse(kvp.Value.NoiseConfig) as JsonObject;
+						if (itemConfig != null)
 						{
-							try
+							string rtexPath = Path.Combine(noiseDir, fileName);
+							if (!File.Exists(rtexPath))
 							{
-								string hash = GenerateAndSaveRtex(itemConfig, rtexPath);
-								itemConfig["hash"] = hash;
-								itemConfig["generator"] = "FastNoiseLite";
-								manifestModified = true;
+								GenerateAndSaveRtex(itemConfig, rtexPath);
 								GD.Print($"[NoiseTextureGenerator] Idempotently generated procedural noise texture: {fileName}");
-							}
-							catch (Exception ex)
-							{
-								GD.PrintErr($"[NoiseTextureGenerator] Failed to generate noise texture {fileName}: {ex.Message}");
 							}
 						}
 					}
+					catch (Exception ex)
+					{
+						GD.PrintErr($"[NoiseTextureGenerator] Failed to generate noise texture {fileName}: {ex.Message}");
+					}
 				}
-			}
-
-			if (manifestModified)
-			{
-				Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(workspacePath, assetsObj, removeFromMetadata: true);
 			}
 		}
 		catch (Exception ex)

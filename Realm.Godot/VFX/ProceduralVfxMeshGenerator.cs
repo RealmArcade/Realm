@@ -4,23 +4,6 @@ using System.Collections.Generic;
 
 namespace Realm.Godot.VFX;
 
-public enum VfxPrimitiveType
-{
-	VortexDisc,
-	FunnelCone,
-	RibbonRing,
-	HemisphereDome,
-	GroundPlane,
-	WeaponFin,
-	CrossQuad,
-	SlashArc,
-	LightShaft,
-	AuraCapsule,
-	AuraSphere,
-	ProjectedVolumeCube,
-	ParticleSystem
-}
-
 public class ProceduralVfxMeshGenerator
 {
 	private static readonly Dictionary<VfxPrimitiveType, ArrayMesh> PrimitiveMeshCache = new();

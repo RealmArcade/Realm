@@ -10,23 +10,50 @@ using Realm.Godot.Utils;
 public partial class Prop3D : StaticBody3D
 {
 	public Entity Entity { get; set; }
-	public Vector3 Velocity { get; set; } = Vector3.Zero;
 
-	private string _propId = string.Empty;
+	private Vector3 _velocity = Vector3.Zero;
+	public Vector3 Velocity
+	{
+		get => _velocity;
+		set
+		{
+			if (_velocity != value)
+			{
+				_velocity = value;
+				ModelShaderManager.SetProceduralAnimationVelocity(this, value);
+			}
+		}
+	}
+
+	private float _impulseStrength = 0f;
+	private float _impulseDuration = 0.5f;
+	private float _impulseTime = 0f;
+	private float _impulseFrequency = 12.0f;
+
+	public virtual void TriggerImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
+	{
+		_impulseStrength = strength;
+		_impulseDuration = duration <= 0.001f ? 0.001f : duration;
+		_impulseTime = _impulseDuration;
+		_impulseFrequency = frequency;
+		SetProcess(true);
+	}
+
+	private string _objectId = string.Empty;
 
 	[Export]
-	public virtual string PropId
+	public virtual string TemplateID
 	{
 		get
 		{
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld.IsAlive(Entity)
 				&& GameHost.Instance.EcsWorld.Has<PropIdentity>(Entity))
 				return GameHost.Instance.EcsWorld.Get<PropIdentity>(Entity).PropId;
-			return _propId;
+			return _objectId;
 		}
 		set
 		{
-			_propId = value;
+			_objectId = value;
 			_cachedResolvedModelPath = null;
 			if (GameHost.Instance != null && GameHost.Instance.EcsWorld.IsAlive(Entity))
 			{
@@ -34,6 +61,12 @@ public partial class Prop3D : StaticBody3D
 				world.SetOrAdd(Entity, new PropIdentity(value));
 			}
 		}
+	}
+
+	public virtual string PropId
+	{
+		get => TemplateID;
+		set => TemplateID = value;
 	}
 
 	private string _cachedResolvedModelPath;
@@ -65,6 +98,10 @@ public partial class Prop3D : StaticBody3D
 			if (world.Has<ResourceNode>(Entity))
 			{
 				var existing = world.Get<ResourceNode>(Entity);
+				if (value < existing.Amount)
+				{
+					TriggerImpulse(0.35f, 0.45f);
+				}
 				world.Set(Entity, new ResourceNode(existing.ResourceTypeId, value));
 			}
 			else
@@ -353,11 +390,23 @@ public partial class Prop3D : StaticBody3D
 
 	private (Shape3D Shape, Vector3 Offset) GetOrCreateCollisionShape()
 	{
+		string propIdKey = PropId ?? string.Empty;
+		if (!string.IsNullOrEmpty(propIdKey) && _modelShapeCache.TryGetValue(propIdKey, out var cachedProp))
+		{
+			return cachedProp;
+		}
+
 		string modelPath = ResolvePropModelPath(PropId);
 		if (!string.IsNullOrEmpty(modelPath) && _modelShapeCache.TryGetValue(modelPath, out var cached))
 		{
+			if (!string.IsNullOrEmpty(propIdKey))
+			{
+				_modelShapeCache[propIdKey] = cached;
+			}
 			return cached;
 		}
+
+		(Shape3D Shape, Vector3 Offset) shapeResult;
 
 		if (!string.IsNullOrEmpty(modelPath))
 		{
@@ -374,9 +423,10 @@ public partial class Prop3D : StaticBody3D
 						var (analShape, analOffset) = Realm.Godot.Services.ModelOptimization.ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, isBuilding: true);
 						if (analShape != null)
 						{
-							var result = (analShape, analOffset);
-							_modelShapeCache[modelPath] = result;
-							return result;
+							shapeResult = (analShape, analOffset);
+							if (!string.IsNullOrEmpty(propIdKey)) _modelShapeCache[propIdKey] = shapeResult;
+							_modelShapeCache[modelPath] = shapeResult;
+							return shapeResult;
 						}
 					}
 				}
@@ -393,12 +443,16 @@ public partial class Prop3D : StaticBody3D
 		{
 			Size = new Vector3(radius * 2.0f, height, radius * 2.0f)
 		};
-		var fallbackResult = (fallbackBox, new Vector3(0, height * 0.5f, 0));
+		shapeResult = (fallbackBox, new Vector3(0, height * 0.5f, 0));
+		if (!string.IsNullOrEmpty(propIdKey))
+		{
+			_modelShapeCache[propIdKey] = shapeResult;
+		}
 		if (!string.IsNullOrEmpty(modelPath))
 		{
-			_modelShapeCache[modelPath] = fallbackResult;
+			_modelShapeCache[modelPath] = shapeResult;
 		}
-		return fallbackResult;
+		return shapeResult;
 	}
 
 	public bool IsPreview { get; set; } = false;
@@ -412,6 +466,7 @@ public partial class Prop3D : StaticBody3D
 		if (IsPreview)
 		{
 			CreatePropVisual();
+			SetProcess(false);
 			return;
 		}
 
@@ -424,6 +479,27 @@ public partial class Prop3D : StaticBody3D
 		collisionShape.Position = offset;
 
 		CreatePropVisual();
+		SetProcess(false);
+	}
+
+	public override void _Process(double delta)
+	{
+		base._Process(delta);
+		if (_impulseTime > 0f)
+		{
+			_impulseTime -= (float)delta;
+			float currentStrength = _impulseStrength * MathF.Max(0f, _impulseTime / _impulseDuration);
+			ModelShaderManager.SetProceduralAnimationImpulse(this, currentStrength, _impulseFrequency, _impulseTime);
+			if (_impulseTime <= 0f)
+			{
+				_impulseTime = 0f;
+				ModelShaderManager.SetProceduralAnimationImpulse(this, 0f, 0f, 0f);
+				if (!IsSelected)
+				{
+					SetProcess(false);
+				}
+			}
+		}
 	}
 
 	public virtual void UpdateVisualYOffset(float yOffset)
@@ -457,9 +533,44 @@ public partial class Prop3D : StaticBody3D
 		CreatePropVisual();
 	}
 
+	public virtual bool IsSlopeAligned
+	{
+		get
+		{
+			if (GameHost.PropRegistry.TryGetValue(PropId, out var meta))
+			{
+				return string.Equals(meta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
+			}
+			if (GameHost.ResourceRegistry.TryGetValue(PropId, out var rMeta))
+			{
+				return string.Equals(rMeta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
+			}
+			return false;
+		}
+	}
+
+	public virtual void UpdateSlopeAlignment()
+	{
+		var visual = GetNodeOrNull<Node3D>("VisualModel");
+		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && visual != null && GodotObject.IsInstanceValid(visual))
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
+			if (normal.LengthSquared() > 0.01f)
+			{
+				normal = normal.Normalized();
+				Vector3 up = normal;
+				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
+				Vector3 right = up.Cross(forward).Normalized();
+				visual.Basis = new Basis(right, up, -forward);
+			}
+		}
+	}
+
 	private void CreatePropVisual()
 	{
-		if (IsPreview)
+		string modelPath = ResolvePropModelPath(PropId);
+
+		if (IsPreview || GameHost.Instance?.IsMapEditorMode == true)
 		{
 			var visual = GetNodeOrNull<Node3D>("VisualModel");
 			if (visual == null)
@@ -474,7 +585,6 @@ public partial class Prop3D : StaticBody3D
 				visual.Scale = new Vector3(safeScale, safeScale, safeScale);
 				AddChild(visual);
 
-				string modelPath = ResolvePropModelPath(PropId);
 				try
 				{
 					if (!string.IsNullOrEmpty(modelPath))
@@ -483,6 +593,7 @@ public partial class Prop3D : StaticBody3D
 						if (node != null)
 						{
 							visual.AddChild(node);
+							Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(node, PropId);
 							if (!IsPreview)
 							{
 								GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
@@ -497,6 +608,7 @@ public partial class Prop3D : StaticBody3D
 				}
 
 				UpdateLodVisibility();
+				UpdateSlopeAlignment();
 			}
 		}
 
@@ -539,6 +651,13 @@ public partial class Prop3D : StaticBody3D
 		string resolved = ResolvePropModelPathInternal(propId);
 		_resolvedModelPathCache[propId] = resolved;
 		return resolved;
+	}
+
+	public static void InvalidateModelPathCache(string propId)
+	{
+		if (string.IsNullOrEmpty(propId)) return;
+		_resolvedModelPathCache.Remove(propId);
+		_modelShapeCache.Remove(propId);
 	}
 
 	public static void ClearModelPathCache()

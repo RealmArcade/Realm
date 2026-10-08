@@ -88,6 +88,22 @@ public partial class GameHost
 				
 				if (editorKeyEvent.Keycode == Key.Escape)
 				{
+					if (ActiveEditorTool == EditorTool.Measure)
+					{
+						ClearMeasureVisuals();
+						MapEditorHUD.Instance?.ClearMeasureTelemetry();
+						GetViewport().SetInputAsHandled();
+						return;
+					}
+					if (ActiveEditorTool == EditorTool.PasteArea)
+					{
+						ActiveEditorTool = EditorTool.SelectArea;
+						MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
+						HideSelectionHighlight();
+						MapEditorHUD.Instance?.ClearPasteTelemetry();
+						GetViewport().SetInputAsHandled();
+						return;
+					}
 					if (_is3DDragOperationActive)
 					{
 						_is3DDragOperationActive = false;
@@ -211,6 +227,46 @@ public partial class GameHost
 				{
 					SaveMapToFile();
 					MapEditorHUD.Instance?.ShowFeedbackExternal("Map published & compiled!");
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+				if ((editorKeyEvent.Keycode == Key.O || editorKeyEvent.Keycode == Key.V) && !ctrlPressed && !shiftPressed)
+				{
+					EditorGridMode = EditorGridMode switch
+					{
+						GridOverlayMode.Off => GridOverlayMode.Grid,
+						GridOverlayMode.Grid => GridOverlayMode.Polar,
+						GridOverlayMode.Polar => GridOverlayMode.Both,
+						GridOverlayMode.Both => GridOverlayMode.Off,
+						_ => GridOverlayMode.Off
+					};
+					UpdateGridOverlayVisibility();
+					MapEditorHUD.Instance?.UpdateGridOverlayExternal(EditorGridMode);
+					string modeName = EditorGridMode switch
+					{
+						GridOverlayMode.Off => "OFF",
+						GridOverlayMode.Grid => "GRID",
+						GridOverlayMode.Polar => "POLAR",
+						GridOverlayMode.Both => "GRID + POLAR",
+						_ => "OFF"
+					};
+					MapEditorHUD.Instance?.ShowFeedbackExternal($"Overlay Mode: {modeName}");
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+				if (editorKeyEvent.Keycode == Key.U && !ctrlPressed && !shiftPressed)
+				{
+					ActiveEditorTool = ActiveEditorTool == EditorTool.Measure ? EditorTool.None : EditorTool.Measure;
+					MapEditorHUD.Instance?.SelectToolFromHotkey(ActiveEditorTool);
+					if (ActiveEditorTool != EditorTool.Measure)
+					{
+						ClearMeasureVisuals();
+						MapEditorHUD.Instance?.ClearMeasureTelemetry();
+					}
+					else
+					{
+						MapEditorHUD.Instance?.ShowFeedbackExternal("Tape Measure Active - Click Point A then Point B");
+					}
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -586,12 +642,13 @@ public partial class GameHost
 					{
 						0 => EditorTool.Raise,
 						1 => EditorTool.Lower,
-						2 => EditorTool.Smooth,
-						3 => EditorTool.Plateau,
-						4 => EditorTool.Ramp,
-						5 => EditorTool.Noise,
-						6 => EditorTool.PaintTexture,
-						7 => EditorTool.PlaceProp,
+						2 => EditorTool.Height,
+						3 => EditorTool.Smooth,
+						4 => EditorTool.Plateau,
+						5 => EditorTool.Ramp,
+						6 => EditorTool.Noise,
+						7 => EditorTool.PaintTexture,
+						8 => EditorTool.PlaceProp,
 						_ => EditorTool.None
 					};
 					if (targetTool != EditorTool.None)
@@ -609,19 +666,7 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
-				if (editorKeyEvent.Keycode == Key.V && !ctrlPressed && !shiftPressed)
-				{
-					EditorGridMode = EditorGridMode switch
-					{
-						GridOverlayMode.Off => GridOverlayMode.Mesh,
-						GridOverlayMode.Mesh => GridOverlayMode.Off,
-						_ => GridOverlayMode.Off
-					};
-					UpdateGridOverlayVisibility();
-					MapEditorHUD.Instance?.UpdateGridOverlayExternal(EditorGridMode);
-					GetViewport().SetInputAsHandled();
-					return;
-				}
+
 				if (editorKeyEvent.Keycode == Key.T && !ctrlPressed && !shiftPressed)
 				{
 					GenerateNewRandomPlacementRotationAndScale();
@@ -632,7 +677,6 @@ public partial class GameHost
 				if (editorKeyEvent.Keycode == Key.L && !ctrlPressed && !shiftPressed)
 				{
 					var res = CycleTimeOfDay();
-					MapEditorHUD.Instance?.UpdateLightingTuningSlidersFromPhase(res.TimeOfDayIndex);
 					string timeName = EnvironmentService?.GetTimeOfDayName(res.TimeOfDayIndex) ?? "Day";
 					string icon = res.TimeOfDayIndex switch
 					{
@@ -642,13 +686,38 @@ public partial class GameHost
 						3 => "🌄",
 						_ => "☀️"
 					};
+					MapEditorHUD.Instance?.UpdateEnvLightingSelection(res.TimeOfDayIndex);
 					MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Lighting: {0} {1}"), icon, TranslationServer.Translate(timeName)));
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+				if (editorKeyEvent.Keycode == Key.K && !ctrlPressed && !shiftPressed && !editorKeyEvent.AltPressed)
+				{
+					if (EnvironmentService != null)
+					{
+						string nextWeather = EnvironmentService.CycleWeather(this);
+						string icon = nextWeather switch
+						{
+							"rain" => "🌧️",
+							"snow" => "❄️",
+							"fog" => "🌫️",
+							_ => "☀️"
+						};
+						MapEditorHUD.Instance?.UpdateEnvWeatherSelection(nextWeather);
+						MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Weather: {0} {1}"), icon, TranslationServer.Translate(nextWeather.Capitalize())));
+					}
 					GetViewport().SetInputAsHandled();
 					return;
 				}
 				if (editorKeyEvent.Keycode == Key.F8 || (editorKeyEvent.Keycode == Key.Y && !ctrlPressed && !shiftPressed && !editorKeyEvent.AltPressed))
 				{
 					MapEditorHUD.Instance?.ToggleFreeCamera();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+				if (editorKeyEvent.Keycode == Key.F9)
+				{
+					MapEditorHUD.Instance?.ToggleShadows();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -663,6 +732,7 @@ public partial class GameHost
 
 				bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
 									 ActiveEditorTool == EditorTool.Lower ||
+									 ActiveEditorTool == EditorTool.Height ||
 									 ActiveEditorTool == EditorTool.Smooth ||
 									 ActiveEditorTool == EditorTool.Plateau ||
 									 ActiveEditorTool == EditorTool.PaintTexture ||
@@ -760,6 +830,24 @@ public partial class GameHost
 				{
 					return;
 				}
+				if (GroundTerrain != null && EditorPolarOverlayVisible)
+				{
+					var terrainHit = RaycastTerrainFromMouse(editorRightMouseBtn.Position);
+					if (terrainHit != null && terrainHit.ContainsKey("position"))
+					{
+						Vector3 hitPos = terrainHit["position"].AsVector3();
+						var pivot = new Vector2(hitPos.X, hitPos.Z);
+						EditorSymmetryPivot = pivot;
+						GroundTerrain.SetPolarCenter(pivot);
+						UpdateSymmetryPivotVisuals();
+						InvalidateSelectionHighlightMesh();
+						var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
+						MapEditorHUD.Instance?.ShowFeedbackExternal($"Pivot set to tile ({cx}, {cz})");
+						GetViewport().SetInputAsHandled();
+						return;
+					}
+				}
+
 				if (_editorService.RampStartPos != null)
 				{
 					_editorService.SetRampStartPos(null);
@@ -774,19 +862,29 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
-				else if (ActiveEditorTool == EditorTool.PasteArea)
+				if (ActiveEditorTool == EditorTool.Measure)
 				{
-					ActiveEditorTool = EditorTool.SelectArea;
-					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
-					if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
+					ClearMeasureVisuals();
+					MapEditorHUD.Instance?.ClearMeasureTelemetry();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
-				else if (ActiveEditorTool != EditorTool.SelectMove)
+
+				if (ActiveEditorTool == EditorTool.PasteArea)
+				{
+					ActiveEditorTool = EditorTool.SelectArea;
+					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
+					HideSelectionHighlight();
+					MapEditorHUD.Instance?.ClearPasteTelemetry();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
+				if (ActiveEditorTool != EditorTool.SelectMove)
 				{
 					ActiveEditorTool = EditorTool.SelectMove;
 					MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectMove);
-					if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
+					HideSelectionHighlight();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -1232,25 +1330,9 @@ public partial class GameHost
 							if (wantHeight)
 							{
 								float sampledHeight = GetTerrainHeightAt(hitPos);
-								EditorBlockLevelHeight = sampledHeight;
-								MapEditorHUD.Instance?.UpdateBlockLevelHeightExternal(sampledHeight);
-								float avgHeight = 0f;
-								if (GroundTerrain != null && GroundTerrain.Cells != null)
-								{
-									int w = GroundTerrain.Width;
-									int d = GroundTerrain.Depth;
-									var cells = GroundTerrain.Cells;
-									float sum = 0f;
-									for (int z = 0; z < d; z++)
-									{
-										for (int x = 0; x < w; x++)
-										{
-											sum += cells[x, z].CenterHeight;
-										}
-									}
-									avgHeight = sum / (w * d);
-								}
-								EditorTool targetTool = sampledHeight >= avgHeight ? EditorTool.Raise : EditorTool.Lower;
+								EditorExactHeight = sampledHeight;
+								MapEditorHUD.Instance?.UpdateExactHeightExternal(sampledHeight);
+								EditorTool targetTool = EditorTool.Height;
 								if (MapEditorHUD.Instance != null)
 								{
 									MapEditorHUD.Instance.SelectToolFromHotkey(targetTool);
@@ -1486,6 +1568,18 @@ public partial class GameHost
 						PerformFloodFillPathing(hitPos, pathingMask, pathingAdd);
 						GetViewport().SetInputAsHandled();
 					}
+					else if (ActiveEditorTool == EditorTool.Water)
+					{
+						bool isRemove = MapEditorHUD.Instance != null && MapEditorHUD.Instance.IsWaterRemoveAction();
+						if (MapEditorHUD.Instance != null)
+						{
+							EditorWaterMode = MapEditorHUD.Instance.GetSelectedWaterMode();
+							ActiveWaterProfileIndex = MapEditorHUD.Instance.GetSelectedWaterProfileIndex();
+							EditorWaterHeight = MapEditorHUD.Instance.GetSelectedWaterHeight();
+						}
+						PerformWaterFloodFill(hitPos, isRemove);
+						GetViewport().SetInputAsHandled();
+					}
 					else if (ActiveEditorTool == EditorTool.SelectArea)
 					{
 						if (GroundTerrain != null)
@@ -1521,14 +1615,30 @@ public partial class GameHost
 					{
 						if (GroundTerrain != null && _editorService.HasCopiedArea)
 						{
-							float fx = hitPos.X / GroundTerrain.QuadSize + (GroundTerrain.Width - 1) / 2.0f;
-							float fz = hitPos.Z / GroundTerrain.QuadSize + (GroundTerrain.Depth - 1) / 2.0f;
-							int cx = Mathf.Clamp((int)Math.Round(fx), 0, GroundTerrain.Width - 1);
-							int cz = Mathf.Clamp((int)Math.Round(fz), 0, GroundTerrain.Depth - 1);
-							PerformPasteArea(cx, cz, EditorPasteRotation);
-							ActiveEditorTool = EditorTool.SelectArea;
-							MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
-							if (_selectionHighlightMesh != null) _selectionHighlightMesh.Visible = false;
+							var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
+							var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation, EditorPasteReflection);
+							PerformPasteArea(startX, startZ, EditorPasteRotation, EditorPasteReflection);
+							MapEditorHUD.Instance?.ShowFeedbackExternal("Pasted clipboard contents");
+						}
+						GetViewport().SetInputAsHandled();
+					}
+					else if (ActiveEditorTool == EditorTool.Measure)
+					{
+						if (GroundTerrain != null)
+						{
+							if (!EditorTapeMeasureActive)
+							{
+								EditorTapeMeasureStart = hitPos;
+								EditorTapeMeasureEnd = hitPos;
+								EditorTapeMeasureActive = true;
+								UpdateMeasureVisuals(hitPos, hitPos);
+							}
+							else if (EditorTapeMeasureStart.HasValue)
+							{
+								EditorTapeMeasureEnd = hitPos;
+								UpdateMeasureVisuals(EditorTapeMeasureStart.Value, hitPos);
+								EditorTapeMeasureActive = false;
+							}
 						}
 						GetViewport().SetInputAsHandled();
 					}

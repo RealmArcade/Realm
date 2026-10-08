@@ -252,7 +252,7 @@ public partial class GameOver : Control
 		_btnReportCopyright.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
-			OS.ShellOpen("https://github.com/speige/Realm/issues/new?title=DMCA/Copyright+Infringement+Report");
+			OS.ShellOpen("https://github.com/RealmArcade/Realm/issues/new?title=DMCA/Copyright+Infringement+Report");
 		};
 		_btnReportCopyright.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}

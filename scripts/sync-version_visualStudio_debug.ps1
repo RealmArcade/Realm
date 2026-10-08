@@ -83,12 +83,14 @@ foreach ($extensionsDir in $uniqueExtensionDirs) {
         Copy-Item -Path $packageJsonSrc -Destination (Join-Path $targetExtensionPath "package.json") -Force
     }
 
-    $schemaSrc = Join-Path $sourceExtensionDir "map_schema.json"
-    if (-not (Test-Path $schemaSrc)) {
-        $schemaSrc = Join-Path $fallbackSourceExtensionDir "map_schema.json"
-    }
-    if (Test-Path $schemaSrc) {
-        Copy-Item -Path $schemaSrc -Destination (Join-Path $targetExtensionPath "map_schema.json") -Force
+    foreach ($schemaFile in @("metadata.schema.json", "terrain.schema.json", "manifest.schema.json")) {
+        $schemaSrc = Join-Path $sourceExtensionDir $schemaFile
+        if (-not (Test-Path $schemaSrc)) {
+            $schemaSrc = Join-Path $fallbackSourceExtensionDir $schemaFile
+        }
+        if (Test-Path $schemaSrc) {
+            Copy-Item -Path $schemaSrc -Destination (Join-Path $targetExtensionPath $schemaFile) -Force
+        }
     }
 
     $distSrc = Join-Path $sourceExtensionDir "dist"
@@ -147,99 +149,15 @@ foreach ($extensionsDir in $uniqueExtensionDirs) {
     }
 
     $extensionsJsonPath = Join-Path $extensionsDir "extensions.json"
-    $extArray = @()
     if (Test-Path $extensionsJsonPath) {
         try {
-            $extFi = Get-Item $extensionsJsonPath -ErrorAction SilentlyContinue
-            if ($extFi -and $extFi.Length -lt 10MB) {
-                $extJsonText = [System.IO.File]::ReadAllText($extensionsJsonPath, [System.Text.Encoding]::UTF8)
-                $extList = $extJsonText | ConvertFrom-Json
-                if ($extList) {
-                    $extArray = @($extList)
-                }
-            } else {
+            $rawContent = [System.IO.File]::ReadAllText($extensionsJsonPath, [System.Text.Encoding]::UTF8).Trim()
+            if (-not $rawContent.StartsWith("[")) {
                 Remove-Item -Path $extensionsJsonPath -Force -ErrorAction SilentlyContinue
+                Write-Host "Removed malformed non-array extensions.json from $extensionsDir"
             }
         } catch {
-            Write-Warning "Failed to parse extensions.json: $_. Resetting..."
             Remove-Item -Path $extensionsJsonPath -Force -ErrorAction SilentlyContinue
-            $extArray = @()
-        }
-    }
-
-    try {
-        $targetId = "speige.realm-map-editor"
-        $targetRelativeLocation = $targetExtensionDirName
-        $normalizedTargetPath = "/" + ([System.IO.Path]::GetFullPath($targetExtensionPath).Replace("\", "/"))
-        $found = $false
-
-        foreach ($item in $extArray) {
-            if ($item.identifier -and $item.identifier.id -eq $targetId) {
-                $item.version = $extVersion
-                $item.relativeLocation = $targetRelativeLocation
-                if ($item.location) {
-                    $item.location.path = $normalizedTargetPath
-                }
-                $found = $true
-                break
-            }
-        }
-
-        if (-not $found) {
-            $newEntry = [PSCustomObject]@{
-                identifier = [PSCustomObject]@{ id = $targetId }
-                version = $extVersion
-                location = [PSCustomObject]@{
-                    '$mid' = 1
-                    path = $normalizedTargetPath
-                    scheme = "file"
-                }
-                relativeLocation = $targetRelativeLocation
-                metadata = [PSCustomObject]@{
-                    installedTimestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-                    source = "local"
-                    isApplicationScoped = $false
-                    isMachineScoped = $false
-                }
-            }
-            $extArray += $newEntry
-        }
-
-        $updatedJson = $extArray | ConvertTo-Json -Depth 10 -Compress
-        [System.IO.File]::WriteAllText($extensionsJsonPath, $updatedJson, $utf8NoBom)
-        Write-Host "Updated extensions.json in $extensionsDir"
-    } catch {
-        Write-Warning "Failed to update extensions.json: $_"
-    }
-
-    $ohziPatchSrcCandidates = @(
-        (Join-Path $rootDir "Realm.MapEditorExtension\patches\ohzi-vscode-glb-viewer\extension.js"),
-        (Join-Path $rootDir "Realm.Godot\vscode_extensions_dist\patches\ohzi-vscode-glb-viewer\extension.js")
-    )
-    $ohziPatchFile = $null
-    foreach ($cand in $ohziPatchSrcCandidates) {
-        if (Test-Path $cand) {
-            $ohziPatchFile = $cand
-            break
-        }
-    }
-    if ($ohziPatchFile) {
-        $ohziDirs = Get-ChildItem -Path $extensionsDir -Directory -ErrorAction SilentlyContinue | Where-Object {
-            $_.Name -like "*ohzi-vscode-glb-viewer*"
-        }
-        foreach ($ohziDir in $ohziDirs) {
-            $extJsPath = Join-Path $ohziDir.FullName "extension.js"
-            $needsPatch = -not (Test-Path $extJsPath)
-            if (-not $needsPatch -and (Test-Path $extJsPath)) {
-                $extJsContent = [System.IO.File]::ReadAllText($extJsPath, [System.Text.Encoding]::UTF8)
-                if (-not $extJsContent.Contains("REALM_PATCHED_OHZI_BASE64") -and (-not $extJsContent.Contains("threeDataUri") -or $extJsContent.Contains("loadModelFromUri"))) {
-                    $needsPatch = $true
-                }
-            }
-            if ($needsPatch) {
-                Copy-Item -Path $ohziPatchFile -Destination $extJsPath -Force
-                Write-Host "Patched OHZI GLB viewer extension in $($ohziDir.FullName)"
-            }
         }
     }
 }

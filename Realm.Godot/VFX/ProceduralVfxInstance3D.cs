@@ -23,9 +23,13 @@ public partial class ProceduralVfxInstance3D : Node3D
 	private bool _isSelected = false;
 	private MeshInstance3D _hoverRing;
 	private bool _isHovered = false;
+	private MeshInstance3D _editorBaseRing;
 
 	private static StandardMaterial3D _sharedSelectionMaterial;
 	private static StandardMaterial3D _sharedHoverMaterial;
+	private static StandardMaterial3D _sharedEditorBaseMaterial;
+
+	public bool IsPreview { get; set; } = false;
 
 	public bool IsHovered
 	{
@@ -33,7 +37,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		set
 		{
 			_isHovered = value;
-			if (GameHost.Instance?.IsMapEditorMode != true)
+			if (!ShouldShowEditorBaseRing())
 			{
 				if (_hoverRing != null) _hoverRing.Visible = false;
 				return;
@@ -55,7 +59,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		set
 		{
 			_isSelected = value;
-			if (GameHost.Instance?.IsMapEditorMode != true)
+			if (!ShouldShowEditorBaseRing())
 			{
 				if (_selectionRing != null) _selectionRing.Visible = false;
 				return;
@@ -88,6 +92,73 @@ public partial class ProceduralVfxInstance3D : Node3D
 	{
 		EnsureMeshAndMaterial();
 		SetupEditorCollision();
+		SetupEditorBaseRing();
+	}
+
+	private bool ShouldShowEditorBaseRing()
+	{
+		if (IsPreview) return false;
+		if (GameHost.Instance == null || !GameHost.Instance.IsMapEditorMode || RuntimeTerrain.IsMinimapRendering) return false;
+		if (GetViewport() is SubViewport) return false;
+
+		Node parent = GetParent();
+		while (parent != null)
+		{
+			if (parent is SubViewport || parent is Unit3D || parent is Prop3D || parent is VisualProjectile3D)
+			{
+				return false;
+			}
+			string parentName = parent.Name.ToString();
+			if (parentName.Contains("Preview", StringComparison.OrdinalIgnoreCase) || parentName.Contains("Dialog", StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+			parent = parent.GetParent();
+		}
+		return true;
+	}
+
+	private void SetupEditorBaseRing()
+	{
+		bool isEditor = ShouldShowEditorBaseRing();
+		if (!isEditor)
+		{
+			if (_editorBaseRing != null) _editorBaseRing.Visible = false;
+			return;
+		}
+
+		if (_editorBaseRing == null)
+		{
+			float radius = GetSelectionRadius();
+			_editorBaseRing = new MeshInstance3D
+			{
+				Name = "_editor_base_ring",
+				CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+				GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+				Mesh = CreateTorusMesh(radius),
+				Position = new Vector3(0, 0.04f, 0),
+				MaterialOverride = GetOrCreateEditorBaseMaterial(),
+				Visible = true
+			};
+			AddChild(_editorBaseRing);
+		}
+		else
+		{
+			_editorBaseRing.Visible = true;
+			_editorBaseRing.Mesh = CreateTorusMesh(GetSelectionRadius());
+		}
+	}
+
+	public void SetEditorBaseRingVisible(bool visible)
+	{
+		if (visible && ShouldShowEditorBaseRing())
+		{
+			SetupEditorBaseRing();
+		}
+		else if (_editorBaseRing != null && GodotObject.IsInstanceValid(_editorBaseRing))
+		{
+			_editorBaseRing.Visible = false;
+		}
 	}
 
 	private void EnsureContentRoot()
@@ -98,9 +169,9 @@ public partial class ProceduralVfxInstance3D : Node3D
 			_contentRoot.Name = "VfxContentRoot";
 			AddChild(_contentRoot);
 		}
-		_contentRoot.Position = _config.PositionOffset;
-		_contentRoot.RotationDegrees = _config.RotationOffset;
-		Vector3 scale = _config.ScaleOffset;
+		_contentRoot.Position = _config.PositionOffset.ToGodotVector3();
+		_contentRoot.RotationDegrees = _config.RotationOffset.ToGodotVector3();
+		Vector3 scale = _config.ScaleOffset.ToGodotVector3();
 		if (Mathf.IsZeroApprox(scale.X)) scale.X = 1f;
 		if (Mathf.IsZeroApprox(scale.Y)) scale.Y = 1f;
 		if (Mathf.IsZeroApprox(scale.Z)) scale.Z = 1f;
@@ -259,7 +330,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	private void SetupEditorCollision()
 	{
-		bool isEditor = GameHost.Instance?.IsMapEditorMode == true;
+		bool isEditor = ShouldShowEditorBaseRing();
 		if (!isEditor) return;
 
 		EnsureContentRoot();
@@ -350,6 +421,24 @@ public partial class ProceduralVfxInstance3D : Node3D
 		return 1.5f;
 	}
 
+	private static StandardMaterial3D GetOrCreateEditorBaseMaterial()
+	{
+		if (_sharedEditorBaseMaterial == null || !GodotObject.IsInstanceValid(_sharedEditorBaseMaterial))
+		{
+			_sharedEditorBaseMaterial = new StandardMaterial3D
+			{
+				AlbedoColor = new Color(0.72f, 0.22f, 0.95f, 0.75f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				DisableReceiveShadows = true,
+				EmissionEnabled = true,
+				Emission = new Color(0.72f, 0.22f, 0.95f),
+				EmissionEnergyMultiplier = 0.5f,
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
+			};
+		}
+		return _sharedEditorBaseMaterial;
+	}
+
 	private static StandardMaterial3D GetOrCreateSelectionMaterial()
 	{
 		if (_sharedSelectionMaterial == null || !GodotObject.IsInstanceValid(_sharedSelectionMaterial))
@@ -429,7 +518,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	private void UpdateSelectionRingRadius()
 	{
-		if (_selectionRing == null && _hoverRing == null) return;
+		if (_selectionRing == null && _hoverRing == null && _editorBaseRing == null) return;
 		float radius = GetSelectionRadius();
 		if (_selectionRing != null)
 		{
@@ -438,6 +527,15 @@ public partial class ProceduralVfxInstance3D : Node3D
 		if (_hoverRing != null)
 		{
 			_hoverRing.Mesh = CreateTorusMesh(radius);
+		}
+		if (_editorBaseRing != null)
+		{
+			bool isEditor = ShouldShowEditorBaseRing();
+			_editorBaseRing.Visible = isEditor;
+			if (isEditor)
+			{
+				_editorBaseRing.Mesh = CreateTorusMesh(radius);
+			}
 		}
 	}
 }

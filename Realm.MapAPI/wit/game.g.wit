@@ -14,8 +14,11 @@ interface game-api {
     clear-summary-table: func();
     count-units-owned-by-player: func(player-index: s32) -> s32;
     create-floating-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, duration: f32);
+    create-static-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, font-size: s32) -> s32;
     define-zone: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
+    destroy-static-text: func(handle: s32);
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
+    disable-shroud: func();
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
     get-all-units: func() -> list<s32>;
@@ -26,6 +29,7 @@ interface game-api {
     get-coordinate-min-x: func(coordinate-name: string) -> f32;
     get-coordinate-min-y: func(coordinate-name: string) -> f32;
     get-coordinate-min-z: func(coordinate-name: string) -> f32;
+    get-current-environment-preset: func() -> string;
     get-current-population: func() -> s32;
     get-game-elapsed-time: func() -> f32;
     get-gold: func() -> f32;
@@ -52,6 +56,7 @@ interface game-api {
     get-unit-route-state: func(unit-id: s32) -> s32;
     get-units-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
     get-units-owned-by-player: func(player-index: s32) -> list<s32>;
+    get-weather: func() -> string;
     get-wood: func() -> f32;
     get-zone-center-x: func(zone-handle: s32) -> f32;
     get-zone-center-y: func(zone-handle: s32) -> f32;
@@ -72,7 +77,7 @@ interface game-api {
     play-warning-sound: func();
     random-float: func(min: f32, max: f32) -> f32;
     random-int: func(min: s32, max: s32) -> s32;
-    read-saved-data: func(file-name: string) -> string;
+    read-saved-data: func(file-name: string, source-map-name: string) -> string;
     register-ability: func(ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
     remove-buff: func(unit-id: s32, buff-id: string);
@@ -83,6 +88,7 @@ interface game-api {
     resource-node-position-z: func(id: s32) -> f32;
     resource-node-resource-amount: func(id: s32) -> f32;
     resource-node-resource-type: func(id: s32) -> string;
+    resource-node-trigger-mesh-impulse: func(id: s32, strength: f32, duration: f32, frequency: f32);
     schedule-repeating-timer: func(interval: f32) -> s32;
     schedule-timer: func(delay: f32) -> s32;
     select-unit: func(unit-id: s32);
@@ -95,6 +101,7 @@ interface game-api {
     set-ability-tooltip: func(ability-id: string, tooltip: string);
     set-countdown-timer-label: func(label: string);
     set-day-night-cycle-enabled: func(enabled: bool);
+    set-environment-preset: func(preset-id: string);
     set-gold: func(val: f32);
     set-leaderboard-value: func(label: string, value: string);
     set-leaderboard-visible: func(title: string, visible: bool);
@@ -107,11 +114,14 @@ interface game-api {
     set-player-wood: func(player-index: s32, amount: f32);
     set-players-allied: func(player-index: s32, other-player-index: s32, allied: bool);
     set-resource-node-resource-amount: func(id: s32, val: f32);
+    set-static-text: func(handle: s32, text: string);
+    set-static-text-visible: func(handle: s32, visible: bool);
     set-stone: func(val: f32);
     set-summary-table-headers: func(column-headers: list<string>);
     set-summary-table-row: func(row-key: string, cell-values: list<string>);
     set-time-of-day: func(time: f32);
     set-unit-armor: func(id: s32, val: f32);
+    set-unit-attack-speed: func(id: s32, val: f32);
     set-unit-color: func(unit-id: s32, color-x: f32, color-y: f32, color-z: f32);
     set-unit-damage: func(id: s32, val: f32);
     set-unit-experience: func(id: s32, val: f32);
@@ -120,6 +130,7 @@ interface game-api {
     set-unit-is-enemy: func(id: s32, val: bool);
     set-unit-level: func(unit-id: s32, level: s32);
     set-unit-mana: func(id: s32, val: f32);
+    set-unit-mana-regen: func(id: s32, val: f32);
     set-unit-max-health: func(id: s32, val: f32);
     set-unit-max-mana: func(id: s32, val: f32);
     set-unit-name: func(id: s32, val: string);
@@ -130,6 +141,7 @@ interface game-api {
     set-unit-scale: func(id: s32, val: f32);
     set-unit-speed: func(id: s32, val: f32);
     set-unit-spell-immune: func(unit-id: s32, immune: bool);
+    set-weather: func(weather-type: string);
     set-wood: func(val: f32);
     shake-camera: func(intensity: f32, duration: f32);
     show-feedback-text: func(text: string, color-x: f32, color-y: f32, color-z: f32);
@@ -143,16 +155,20 @@ interface game-api {
     start-building-placement: func(unit-type-id: string);
     start-countdown-timer: func(duration: f32, label: string);
     stop-countdown-timer: func();
+    transition-environment-preset: func(preset-id: string, duration-seconds: f32);
     translate: func(key: string, player-index: s32) -> string;
     trigger-defeat: func();
+    trigger-mesh-impulse: func(unit-id: s32, strength: f32, duration: f32, frequency: f32);
     trigger-player-defeat: func(player-index: s32, reason: string);
     trigger-player-victory: func(player-index: s32);
+    trigger-resource-mesh-impulse: func(node-id: s32, strength: f32, duration: f32, frequency: f32);
     trigger-victory: func();
     unit-add-buff: func(id: s32, buff-id: string, duration: f32);
     unit-add-item: func(id: s32, item-id: string) -> bool;
     unit-armor: func(id: s32) -> f32;
     unit-attack: func(id: s32, target-id: s32);
     unit-attack-move: func(id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
+    unit-attack-speed: func(id: s32) -> f32;
     unit-damage: func(id: s32) -> f32;
     unit-experience: func(id: s32) -> f32;
     unit-gather: func(id: s32, resource-node-id: s32);
@@ -174,6 +190,7 @@ interface game-api {
     unit-is-hero: func(id: s32) -> bool;
     unit-level: func(id: s32) -> s32;
     unit-mana: func(id: s32) -> f32;
+    unit-mana-regen: func(id: s32) -> f32;
     unit-max-health: func(id: s32) -> f32;
     unit-max-mana: func(id: s32) -> f32;
     unit-move-to: func(id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
@@ -193,7 +210,8 @@ interface game-api {
     unit-stop: func(id: s32);
     unit-stun: func(id: s32, duration: f32);
     unit-teleport: func(id: s32, position-x: f32, position-y: f32, position-z: f32);
-    unit-unit-id: func(id: s32) -> string;
+    unit-template-i-d: func(id: s32) -> string;
+    unit-trigger-mesh-impulse: func(id: s32, strength: f32, duration: f32, frequency: f32);
     unit-xp-bounty: func(id: s32) -> f32;
     write-saved-data: func(file-name: string, content: string);
 }

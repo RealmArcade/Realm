@@ -180,8 +180,6 @@ public partial class InGameHUD : Control
 		set => GameHost.Instance?.EnvironmentService?.SetCurrentWeather(value);
 	}
 
-	private CpuParticles3D _rainParticles = null;
-
 	private float _baseFogDensity
 	{
 		get => GameHost.Instance?.EnvironmentService?.GetBaseFogDensity() ?? 0f;
@@ -217,7 +215,7 @@ public partial class InGameHUD : Control
 	private Label _feedbackLabel;
 	private Label _connectionWarningLabel;
 	private Control _minimapArea;
-	private Control _cameraIndicator;
+	private MinimapCameraIndicator _cameraIndicator;
 
 	private Label _populationLabel;
 	private Label _clockLabel;
@@ -441,7 +439,7 @@ public partial class InGameHUD : Control
 		_connectionWarningLabel.Visible = false;
 
 		_minimapArea = GetNode<Control>("BottomConsole/HBox/MinimapFrame/MinimapArea");
-		_cameraIndicator = GetNode<Control>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
+		_cameraIndicator = GetNode<MinimapCameraIndicator>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
 
 		_minimapControls = new VBoxContainer();
 		_minimapControls.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
@@ -792,12 +790,6 @@ public partial class InGameHUD : Control
 		{
 			LobbyManager.Instance.ChatReceived -= OnLobbyChatReceived;
 		}
-
-		if (GodotObject.IsInstanceValid(_rainParticles))
-		{
-			_rainParticles.QueueFree();
-			_rainParticles = null;
-		}
 	}
 
 	private bool _isGeneratingMinimap = false;
@@ -823,102 +815,16 @@ public partial class InGameHUD : Control
 				var minimapBg = _minimapArea.GetChildCount() > 0 ? _minimapArea.GetChild<TextureRect>(0) : null;
 				if (minimapBg == null) return;
 
-				var shroudMesh = GameHost.Instance?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DShroudMesh") ?? GameHost.Instance?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DFogMesh");
-				bool wasVisible = false;
-				if (shroudMesh != null)
+				var imgTexture = await MinimapHelper.CaptureTerrainMinimapTextureAsync(this, 256);
+				if (imgTexture != null)
 				{
-					wasVisible = shroudMesh.Visible;
-					shroudMesh.Visible = false;
-				}
-
-				bool wasPathingVisible = false;
-				if (GameHost.Instance?.PathingOverlayMesh != null)
-				{
-					wasPathingVisible = GameHost.Instance.PathingOverlayMesh.Visible;
-					GameHost.Instance.PathingOverlayMesh.Visible = false;
-				}
-
-				var unitsList = GameHost.Instance?.AllUnits;
-				var unitVisibility = new System.Collections.Generic.List<(Unit3D unit, bool visible)>();
-				if (unitsList != null)
-				{
-					foreach (var u in unitsList)
-					{
-						if (u != null && GodotObject.IsInstanceValid(u))
-						{
-							unitVisibility.Add((u, u.Visible));
-							u.Visible = false;
-						}
-					}
-				}
-
-				SubViewport viewport = null;
-				try
-				{
-					viewport = new SubViewport();
-					viewport.Size = new Vector2I(256, 256);
-					viewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
-					AddChild(viewport);
-
-					var camera = new Camera3D();
-					camera.Projection = Camera3D.ProjectionType.Orthogonal;
-					camera.Size = 250f;
-					camera.Far = 200f;
-					camera.Position = new Vector3(0, 100, 0);
-					camera.RotationDegrees = new Vector3(-90, 0, 0);
-					viewport.AddChild(camera);
-
-					RuntimeTerrain.IsMinimapRendering = true;
-					RuntimeTerrain.Instance?.BeginMinimapCapture();
-					PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
-					try
-					{
-						await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-						var texture = viewport.GetTexture();
-						if (texture != null)
-						{
-							var img = texture.GetImage();
-							if (img != null)
-							{
-								var imgTexture = ImageTexture.CreateFromImage(img);
-								minimapBg.Texture = imgTexture;
-							}
-						}
-					}
-					finally
-					{
-						RuntimeTerrain.Instance?.EndMinimapCapture();
-						RuntimeTerrain.IsMinimapRendering = false;
-					}
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"Failed to dynamically capture terrain minimap: {ex.Message}");
-				}
-				finally
-				{
-					if (viewport != null && GodotObject.IsInstanceValid(viewport))
-					{
-						viewport.QueueFree();
-					}
-					if (shroudMesh != null && GodotObject.IsInstanceValid(shroudMesh))
-					{
-						shroudMesh.Visible = wasVisible;
-					}
-					if (GameHost.Instance?.PathingOverlayMesh != null)
-					{
-						GameHost.Instance.PathingOverlayMesh.Visible = wasPathingVisible;
-					}
-					foreach (var (u, vis) in unitVisibility)
-					{
-						if (u != null && GodotObject.IsInstanceValid(u))
-						{
-							u.Visible = vis;
-						}
-					}
+					minimapBg.Texture = imgTexture;
 				}
 			} while (_minimapNeedsRegen);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to dynamically capture terrain minimap: {ex.Message}");
 		}
 		finally
 		{
@@ -1156,13 +1062,7 @@ public partial class InGameHUD : Control
 
 		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
-		var minimapBg = new TextureRect();
-		minimapBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		minimapBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
-		minimapBg.MouseFilter = MouseFilterEnum.Ignore;
-		_minimapArea.AddChild(minimapBg);
-		minimapBg.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		_minimapArea.MoveChild(minimapBg, 0); 
+		MinimapHelper.SetupMinimapBackground(_minimapArea);
 
 		var overlay = new MinimapOverlay();
 		overlay.Name = "MinimapOverlay";
@@ -1737,68 +1637,38 @@ public partial class InGameHUD : Control
 			{
 				"clear" => 0f,
 				"rain" => 0.0075f,
-				"fog" => 0.0175f,
+				"snow" => 0.005f,
+				"fog" => 0.045f,
 				_ => 0f
 			};
 			GameHost.Instance.EnvironmentService.SetBaseFogDensity(density);
+			GameHost.Instance.EnvironmentService.ApplyWeatherVisuals(GameHost.Instance, weather);
 		}
 		ApplyWeatherEffects(weather);
 	}
 
-	private void ApplyWeatherEffects(string weather)
+	public void ApplyWeatherEffects(string weather)
 	{
-		var worldEnv = (GameHost.Instance != null ? GameHost.Instance.MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") : null);
-		if (worldEnv == null || worldEnv.Environment == null) return;
-
-		var mainNode = (GameHost.Instance != null ? GameHost.Instance.MainNode : null);
-		if (mainNode == null) return;
-
-		if (GodotObject.IsInstanceValid(_rainParticles)) { _rainParticles.QueueFree(); _rainParticles = null; }
-		
-		var sky = worldEnv.Environment.Sky;
+		if (GameHost.Instance?.EnvironmentService != null)
+		{
+			GameHost.Instance.EnvironmentService.ApplyWeatherVisuals(GameHost.Instance, weather);
+		}
 
 		if (weather == "clear")
 		{
-			worldEnv.Environment.FogEnabled = false;
-			_baseFogDensity = 0f;
-			ShowFeedbackText("Weather Forecast: Clear Skies", new Color(0.3f, 0.9f, 1.0f));
+			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Clear Skies"), new Color(0.3f, 0.9f, 1.0f));
 		}
 		else if (weather == "rain")
 		{
-			worldEnv.Environment.FogEnabled = true;
-			_baseFogDensity = 0.0075f;
-			
-			_rainParticles = new CpuParticles3D();
-			_rainParticles.Name = "RainParticles";
-			_rainParticles.Amount = 800;
-			_rainParticles.Lifetime = 2.0f;
-			_rainParticles.Preprocess = 2.0f;
-			
-			var mesh = new BoxMesh();
-			mesh.Size = new Vector3(0.05f, 1.5f, 0.05f);
-			var mat = new StandardMaterial3D();
-			mat.AlbedoColor = new Color(0.5f, 0.6f, 0.9f, 0.4f);
-			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-			mesh.Material = mat;
-			_rainParticles.Mesh = mesh;
-			
-			_rainParticles.EmissionShape = CpuParticles3D.EmissionShapeEnum.Box;
-			_rainParticles.EmissionBoxExtents = new Vector3(150f, 1f, 150f);
-			_rainParticles.Direction = new Vector3(0.1f, -1f, 0f);
-			_rainParticles.Spread = 5f;
-			_rainParticles.InitialVelocityMin = 20f;
-			_rainParticles.InitialVelocityMax = 30f;
-			
-			mainNode.AddChild(_rainParticles);
-			_rainParticles.GlobalPosition = new Vector3(0f, 40f, 0f);
-			
-			ShowFeedbackText("Weather Forecast: Light Rain Shower", new Color(0.2f, 0.5f, 0.9f));
+			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Light Rain Shower"), new Color(0.2f, 0.5f, 0.9f));
+		}
+		else if (weather == "snow")
+		{
+			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Snowfall"), new Color(0.8f, 0.9f, 1.0f));
 		}
 		else if (weather == "fog")
 		{
-			worldEnv.Environment.FogEnabled = true;
-			_baseFogDensity = 0.0175f;
-			ShowFeedbackText("Weather Forecast: Dense Fog Warning", new Color(0.7f, 0.7f, 0.8f));
+			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Dense Fog Warning"), new Color(0.7f, 0.7f, 0.8f));
 		}
 	}
 

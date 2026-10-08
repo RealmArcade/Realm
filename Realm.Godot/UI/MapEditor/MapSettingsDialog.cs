@@ -3,9 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Realm.Godot.Services;
+using Realm.Shared.Services;
 
 public partial class MapSettingsDialog : FloatingDialogBase
 {
@@ -135,6 +134,12 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		};
 		skyboxPanel.AddChild(_optSkybox);
 
+		var btnEnvConfig = new Button();
+		btnEnvConfig.Set("icon_max_width", 0);
+		btnEnvConfig.Text = "💡 " + TranslationServer.Translate("Configure Weather & Lighting Presets");
+		btnEnvConfig.Pressed += () => Hud?.OpenEnvironmentConfigDialog();
+		skyboxPanel.AddChild(btnEnvConfig);
+
 		var camBoundsPanel = CreateSectionBox(contentVBox, "\uf03d " + TranslationServer.Translate("Camera Boundaries"));
 		var camGrid = new GridContainer();
 		camGrid.Columns = 3;
@@ -143,7 +148,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		camBoundsPanel.AddChild(camGrid);
 
 		_lblCamLeftVal = CreateBadgeLabel();
-		var btnLeftDec = CreateControlButton("\uf060", "Move Left boundary further left (West)", () =>
+		var btnLeftDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Left boundary further left (West)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -154,7 +159,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				UpdateCameraBoundsUI();
 			}
 		});
-		var btnLeftInc = CreateControlButton("\uf061", "Move Left boundary further right (East)", () =>
+		var btnLeftInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Left boundary further right (East)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -170,7 +175,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		camGrid.AddChild(btnLeftInc);
 
 		_lblCamRightVal = CreateBadgeLabel();
-		var btnRightDec = CreateControlButton("\uf060", "Move Right boundary further left (West)", () =>
+		var btnRightDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Right boundary further left (West)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -181,7 +186,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				UpdateCameraBoundsUI();
 			}
 		});
-		var btnRightInc = CreateControlButton("\uf061", "Move Right boundary further right (East)", () =>
+		var btnRightInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Right boundary further right (East)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -197,7 +202,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		camGrid.AddChild(btnRightInc);
 
 		_lblCamTopVal = CreateBadgeLabel();
-		var btnTopDec = CreateControlButton("\uf060", "Move Top boundary further North (Up)", () =>
+		var btnTopDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Top boundary further North (Up)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -208,12 +213,12 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				UpdateCameraBoundsUI();
 			}
 		});
-		var btnTopInc = CreateControlButton("\uf061", "Move Top boundary further South (Down)", () =>
+		var btnTopInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Top boundary further South (Down)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
 				Hud?.EnsureCameraBoundsVisible();
-				float maxZ = GameHost.Instance.EditorCameraBoundsBottom;
+				float maxZ = GameHost.Instance.EditorCameraBoundsTop;
 				GameHost.Instance.EditorCameraBoundsTop = Mathf.Min(maxZ, GameHost.Instance.EditorCameraBoundsTop + 5.0f);
 				GameHost.Instance.RebuildCameraBoundsOverlay();
 				UpdateCameraBoundsUI();
@@ -224,7 +229,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		camGrid.AddChild(btnTopInc);
 
 		_lblCamBottomVal = CreateBadgeLabel();
-		var btnBottomDec = CreateControlButton("\uf060", "Move Bottom boundary further North (Up)", () =>
+		var btnBottomDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Bottom boundary further North (Up)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -235,7 +240,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				UpdateCameraBoundsUI();
 			}
 		});
-		var btnBottomInc = CreateControlButton("\uf061", "Move Bottom boundary further South (Down)", () =>
+		var btnBottomInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Bottom boundary further South (Down)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -258,7 +263,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		mapSizePanel.AddChild(sizeGrid);
 
 		_lblMapWidthVal = CreateBadgeLabel();
-		var btnWidthDec = CreateControlButton("\uf068", "Decrease map tile columns (West)", () =>
+		var btnWidthDec = CreateControlButton(UnicodeIcons.MINUS, "Decrease map tile columns (West)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -271,7 +276,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				}
 			}
 		});
-		var btnWidthInc = CreateControlButton("\uf067", "Increase map tile columns (East)", () =>
+		var btnWidthInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile columns (East)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -289,7 +294,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		sizeGrid.AddChild(btnWidthInc);
 
 		_lblMapHeightVal = CreateBadgeLabel();
-		var btnHeightDec = CreateControlButton("\uf068", "Decrease map tile rows (North)", () =>
+		var btnHeightDec = CreateControlButton(UnicodeIcons.MINUS, "Decrease map tile rows (North)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -302,7 +307,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 				}
 			}
 		});
-		var btnHeightInc = CreateControlButton("\uf067", "Increase map tile rows (South)", () =>
+		var btnHeightInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile rows (South)", () =>
 		{
 			if (GameHost.Instance?.GroundTerrain != null)
 			{
@@ -407,46 +412,25 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	public void LoadMapProperties()
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var metadata))
+		var metadata = MapFileService.LoadMetadata(wsPath);
+		var manifest = MapFileService.LoadManifest(wsPath);
+
+		string? name = !string.IsNullOrEmpty(metadata.MapProperties?.MapName)
+			? metadata.MapProperties.MapName
+			: manifest.MapName;
+		if (!string.IsNullOrEmpty(name) && _txtMapName != null)
 		{
-			string? name = metadata.MapProperties?.MapName;
-			if (!string.IsNullOrEmpty(name) && _txtMapName != null)
-			{
-				_txtMapName.Text = name.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-			}
-			string? ver = metadata.MapProperties?.Version;
-			if (!string.IsNullOrEmpty(ver) && _txtMapVersion != null)
-			{
-				_txtMapVersion.Text = ver;
-			}
+			_txtMapName.Text = name.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
 		}
 
-		string manifestJsonPath = Path.Combine(wsPath, "manifest.json");
-		if (File.Exists(manifestJsonPath))
+		string? ver = !string.IsNullOrEmpty(manifest.Version)
+			? manifest.Version
+			: metadata.MapProperties?.Version;
+		if (!string.IsNullOrEmpty(ver) && _txtMapVersion != null)
 		{
-			try
-			{
-				string manifestContent = File.ReadAllText(manifestJsonPath);
-				var manifestDoc = JsonNode.Parse(manifestContent) as JsonObject;
-				if (manifestDoc != null)
-				{
-					if (_txtMapVersion != null && manifestDoc.TryGetPropertyValue("Version", out var verNode))
-					{
-						_txtMapVersion.Text = verNode?.GetValue<string>() ?? "1.0.0";
-					}
-					if (_txtMapName != null && string.IsNullOrEmpty(_txtMapName.Text) && manifestDoc.TryGetPropertyValue("MapName", out var nameNode))
-					{
-						_txtMapName.Text = (nameNode?.GetValue<string>() ?? "").Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-					}
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed to load manifest.json properties: {ex.Message}");
-			}
+			_txtMapVersion.Text = ver;
 		}
-
-		if (_txtMapVersion != null && string.IsNullOrEmpty(_txtMapVersion.Text))
+		else if (_txtMapVersion != null && string.IsNullOrEmpty(_txtMapVersion.Text))
 		{
 			_txtMapVersion.Text = "1.0.0";
 		}
@@ -459,47 +443,25 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		string cleanVersion = (_txtMapVersion?.Text ?? "1.0.0").Trim();
 		if (string.IsNullOrEmpty(cleanVersion)) cleanVersion = "1.0.0";
 
-		string manifestJsonPath = Path.Combine(wsPath, "manifest.json");
-		if (File.Exists(manifestJsonPath))
-		{
-			try
-			{
-				string manifestContent = File.ReadAllText(manifestJsonPath);
-				var manifestDoc = JsonNode.Parse(manifestContent) as JsonObject;
-				if (manifestDoc != null)
-				{
-					manifestDoc["Version"] = cleanVersion;
-					if (!string.IsNullOrEmpty(cleanMapName)) manifestDoc["MapName"] = cleanMapName;
-					var options = new JsonSerializerOptions { WriteIndented = true };
-					File.WriteAllText(manifestJsonPath, manifestDoc.ToJsonString(options));
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed to save manifest.json version: {ex.Message}");
-			}
-		}
+		var manifest = MapFileService.LoadManifest(wsPath);
+		manifest.Version = cleanVersion;
+		if (!string.IsNullOrEmpty(cleanMapName)) manifest.MapName = cleanMapName;
+		MapFileService.SaveManifest(wsPath, manifest);
 
-		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (File.Exists(metaPath))
+		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
 		{
-			try
+			if (!string.IsNullOrEmpty(cleanMapName)) meta.MapProperties.MapName = cleanMapName;
+			meta.MapProperties.Version = cleanVersion;
+			if (GameHost.Instance?.GroundTerrain != null)
 			{
-				MetadataService.Instance.UpdateMetadata(wsPath, meta =>
-				{
-					if (!string.IsNullOrEmpty(cleanMapName)) meta.MapProperties.MapName = cleanMapName;
-					meta.MapProperties.Version = cleanVersion;
-					meta.MapProperties.CameraBoundsLeft = GameHost.Instance?.EditorCameraBoundsLeft;
-					meta.MapProperties.CameraBoundsRight = GameHost.Instance?.EditorCameraBoundsRight;
-					meta.MapProperties.CameraBoundsTop = GameHost.Instance?.EditorCameraBoundsTop;
-					meta.MapProperties.CameraBoundsBottom = GameHost.Instance?.EditorCameraBoundsBottom;
-				});
+				meta.MapProperties.MapWidth = GameHost.Instance.GroundTerrain.Width;
+				meta.MapProperties.MapHeight = GameHost.Instance.GroundTerrain.Depth;
 			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"Failed to save metadata.json map properties: {ex.Message}");
-			}
-		}
+			meta.MapProperties.CameraBoundsLeft = GameHost.Instance?.EditorCameraBoundsLeft;
+			meta.MapProperties.CameraBoundsRight = GameHost.Instance?.EditorCameraBoundsRight;
+			meta.MapProperties.CameraBoundsTop = GameHost.Instance?.EditorCameraBoundsTop;
+			meta.MapProperties.CameraBoundsBottom = GameHost.Instance?.EditorCameraBoundsBottom;
+		});
 	}
 
 	public void RebuildTagsUI()
@@ -564,11 +526,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 		try
 		{
-			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			var skyboxesObj = unionedAssets?["skyboxes"] as JsonObject;
-			if (skyboxesObj != null)
+			var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(wsPath);
+			if (unionedAssets?.Skybox != null)
 			{
-				foreach (var kvp in skyboxesObj)
+				foreach (var kvp in unionedAssets.Skybox)
 				{
 					string filename = kvp.Key;
 					if (!_skyboxFiles.Contains(filename))

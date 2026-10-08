@@ -1,6 +1,9 @@
-﻿using Godot;
+using Godot;
 using System;
 using Realm.Shared.Metadata;
+using System.Collections.ObjectModel;
+using System.Collections.Generic;
+using System.Linq;
 
 public partial class AssetTypeEditorDialog : FloatingDialogBase
 {
@@ -8,7 +11,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 	private readonly Action<string> _onSaveCallback;
 	private Label _lblPrompt;
 	private OptionButton _optAssetType;
-	private string[] _validTypes = Array.Empty<string>();
+	private ReadOnlySet<string> _validTypes = new HashSet<string>().AsReadOnly();
 
 	public AssetTypeEditorDialog(MapEditorHUD hud, IndexedAsset asset, Action<string> onSaveCallback)
 		: base(hud, string.Format(TranslationServer.Translate("Edit Asset Type - {0}"), asset?.FileName ?? string.Empty), new Vector2(380, 200))
@@ -54,9 +57,10 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 			_validTypes = RealmMetadataHelper.GetValidAssetTypesForExtension(_asset.FilePath);
 			string currentType = RealmMetadataHelper.ExtractAssetType(_asset.FilePath) ?? string.Empty;
 
-			for (int i = 0; i < _validTypes.Length; i++)
+			var validTypesArray = _validTypes.ToArray();
+			for (int i = 0; i < validTypesArray.Length; i++)
 			{
-				string typeName = _validTypes[i];
+				string typeName = validTypesArray[i];
 				_optAssetType.AddItem(typeName, i);
 				_optAssetType.SetItemMetadata(i, typeName);
 				if (typeName.Equals(currentType, StringComparison.OrdinalIgnoreCase))
@@ -65,7 +69,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 				}
 			}
 
-			if (_optAssetType.Selected < 0 && _validTypes.Length > 0)
+			if (_optAssetType.Selected < 0 && _validTypes.Count > 0)
 			{
 				_optAssetType.Selected = 0;
 			}

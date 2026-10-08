@@ -7,6 +7,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Components.Terrain;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -28,6 +29,8 @@ public partial class GameHost
 	public readonly Dictionary<string, bool> ModelNormalizeLuminance = new(StringComparer.OrdinalIgnoreCase);
 	public readonly Dictionary<string, string> ModelSpawnShaders = new(StringComparer.OrdinalIgnoreCase);
 	public readonly Dictionary<string, string> ModelDeathShaders = new(StringComparer.OrdinalIgnoreCase);
+	public readonly Dictionary<string, string> ModelProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
+	public readonly Dictionary<string, bool> ModelEnableProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
 	private bool _modelYOffsetSavePending = false;
 	private bool _modelCollisionCircleSavePending = false;
 
@@ -41,10 +44,37 @@ public partial class GameHost
 			return cached;
 		}
 
-		string filename = System.IO.Path.GetFileName(pathOrId);
+		string trimmed = pathOrId.Trim().Replace('\\', '/');
+		if (trimmed.Contains('/'))
+		{
+			string prefix = trimmed.Substring(0, trimmed.IndexOf('/'));
+			if (string.Equals(prefix, "unit", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "building", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "prop", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "resource", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "item", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "ability", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "weapon", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "upgrade", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "terrain", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "spritesheet", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "decal", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(prefix, "SpawnShader", StringComparison.OrdinalIgnoreCase))
+			{
+				string lower = trimmed.ToLowerInvariant();
+				_normalizedAssetKeyCache[pathOrId] = lower;
+				return lower;
+			}
+		}
+
+		string filename = System.IO.Path.GetFileName(trimmed);
 		if (filename.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".gltf", StringComparison.OrdinalIgnoreCase))
 		{
 			filename = System.IO.Path.GetFileNameWithoutExtension(filename) + ".rmesh";
+		}
+		else if (filename.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || filename.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+		{
+			// Preserve decal/texture extension
 		}
 		else if (!filename.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 		{
@@ -753,6 +783,97 @@ public partial class GameHost
 		EditorHasUnsavedChanges = true;
 	}
 
+	public string GetModelProceduralAnimation(object objOrId)
+	{
+		if (objOrId == null) return "";
+		string primaryKey = GetSelectedEntityOrAssetKey(objOrId);
+		string normPrimary = NormalizeModelAssetKey(primaryKey);
+		if (!string.IsNullOrEmpty(normPrimary) && ModelProceduralAnimations.TryGetValue(normPrimary, out string pa1))
+			return pa1;
+
+		string assetKey = GetModelAssetKey(objOrId);
+		string normAsset = NormalizeModelAssetKey(assetKey);
+		if (!string.IsNullOrEmpty(normAsset) && ModelProceduralAnimations.TryGetValue(normAsset, out string pa2))
+			return pa2;
+
+		return "";
+	}
+
+	public void SetModelProceduralAnimation(string assetKey, string animId)
+	{
+		string norm = NormalizeModelAssetKey(assetKey);
+		if (string.IsNullOrEmpty(norm)) return;
+
+		string modelAsset = GetModelAssetKey(assetKey);
+		string normModel = !string.IsNullOrEmpty(modelAsset) ? NormalizeModelAssetKey(modelAsset) : null;
+
+		if (string.IsNullOrWhiteSpace(animId))
+		{
+			ModelProceduralAnimations.Remove(norm);
+			if (!string.IsNullOrEmpty(normModel))
+			{
+				ModelProceduralAnimations.Remove(normModel);
+			}
+		}
+		else
+		{
+			string trimmed = animId.Trim();
+			ModelProceduralAnimations[norm] = trimmed;
+			if (!string.IsNullOrEmpty(normModel))
+			{
+				ModelProceduralAnimations[normModel] = trimmed;
+			}
+		}
+
+		_modelYOffsetSavePending = true;
+		EditorHasUnsavedChanges = true;
+	}
+
+	public bool GetModelEnableProceduralAnimation(object objOrId)
+	{
+		if (objOrId == null) return false;
+		string primaryKey = GetSelectedEntityOrAssetKey(objOrId);
+		string normPrimary = NormalizeModelAssetKey(primaryKey);
+		if (!string.IsNullOrEmpty(normPrimary) && ModelEnableProceduralAnimations.TryGetValue(normPrimary, out bool ep1))
+			return ep1;
+
+		string assetKey = GetModelAssetKey(objOrId);
+		string normAsset = NormalizeModelAssetKey(assetKey);
+		if (!string.IsNullOrEmpty(normAsset) && ModelEnableProceduralAnimations.TryGetValue(normAsset, out bool ep2))
+			return ep2;
+
+		return false;
+	}
+
+	public void SetModelEnableProceduralAnimation(string assetKey, bool enable)
+	{
+		string norm = NormalizeModelAssetKey(assetKey);
+		if (string.IsNullOrEmpty(norm)) return;
+
+		string modelAsset = GetModelAssetKey(assetKey);
+		string normModel = !string.IsNullOrEmpty(modelAsset) ? NormalizeModelAssetKey(modelAsset) : null;
+
+		if (!enable)
+		{
+			ModelEnableProceduralAnimations.Remove(norm);
+			if (!string.IsNullOrEmpty(normModel))
+			{
+				ModelEnableProceduralAnimations.Remove(normModel);
+			}
+		}
+		else
+		{
+			ModelEnableProceduralAnimations[norm] = true;
+			if (!string.IsNullOrEmpty(normModel))
+			{
+				ModelEnableProceduralAnimations[normModel] = true;
+			}
+		}
+
+		_modelYOffsetSavePending = true;
+		EditorHasUnsavedChanges = true;
+	}
+
 	public bool IsPropOrResourceKey(string key)
 	{
 		if (string.IsNullOrEmpty(key)) return false;
@@ -765,7 +886,7 @@ public partial class GameHost
 		{
 			if (!string.IsNullOrEmpty(propMeta.ModelPath) && NormalizeModelAssetKey(propMeta.ModelPath) == norm)
 				return true;
-			if (!string.IsNullOrEmpty(propMeta.UnitId) && NormalizeModelAssetKey(propMeta.UnitId) == norm)
+			if (!string.IsNullOrEmpty(propMeta.TemplateID) && NormalizeModelAssetKey(propMeta.TemplateID) == norm)
 				return true;
 		}
 
@@ -773,7 +894,7 @@ public partial class GameHost
 		{
 			if (!string.IsNullOrEmpty(resMeta.ModelPath) && NormalizeModelAssetKey(resMeta.ModelPath) == norm)
 				return true;
-			if (!string.IsNullOrEmpty(resMeta.UnitId) && NormalizeModelAssetKey(resMeta.UnitId) == norm)
+			if (!string.IsNullOrEmpty(resMeta.TemplateID) && NormalizeModelAssetKey(resMeta.TemplateID) == norm)
 				return true;
 		}
 
@@ -1048,6 +1169,21 @@ public partial class GameHost
 			{
 				unit.UpdatePlayerColorVisual();
 			}
+
+			bool enableProcAnim = GetModelEnableProceduralAnimation(unit);
+			string procAnimId = GetModelProceduralAnimation(unit);
+			if (enableProcAnim && !string.IsNullOrEmpty(procAnimId))
+			{
+				var cfg = ProceduralAnimationManager.GetConfig(procAnimId);
+				if (cfg != null)
+				{
+					ModelShaderManager.SetProceduralAnimation(unit, cfg);
+				}
+			}
+			else
+			{
+				ModelShaderManager.DisableProceduralAnimation(unit);
+			}
 		}
 		else if (objOrNode is Prop3D prop && GodotObject.IsInstanceValid(prop))
 		{
@@ -1073,6 +1209,21 @@ public partial class GameHost
 			bool ignorePlayerColor = GetModelIgnorePlayerColor(prop);
 			bool normalizeLuminance = GetModelNormalizeLuminance(prop);
 			ApplyMaterialOverridesToNode(prop, brightness, tint, normalizeLuminance, ignorePlayerColor, false);
+
+			bool enableProcAnimProp = GetModelEnableProceduralAnimation(prop);
+			string procAnimIdProp = GetModelProceduralAnimation(prop);
+			if (enableProcAnimProp && !string.IsNullOrEmpty(procAnimIdProp))
+			{
+				var cfg = ProceduralAnimationManager.GetConfig(procAnimIdProp);
+				if (cfg != null)
+				{
+					ModelShaderManager.SetProceduralAnimation(prop, cfg);
+				}
+			}
+			else
+			{
+				ModelShaderManager.DisableProceduralAnimation(prop);
+			}
 		}
 	}
 
@@ -1340,115 +1491,14 @@ public partial class GameHost
 				}
 			}
 
-			ProcessEntities(metadata.CustomResources, 2.75f, r => r.UnitId, r => r.ModelPath, r => r.YOffset, r => r.Scale, r => r.CollisionCircle, r => r.Brightness, r => r.Tint, r => r.DespillPlayerColor, r => r.NormalizeLuminance);
-			ProcessEntities(metadata.CustomBuildings, 1.2f, b => b.UnitId, b => b.ModelPath, b => b.YOffset, b => b.Scale, b => b.CollisionCircle, b => b.Brightness, b => b.Tint, b => b.DespillPlayerColor, b => b.NormalizeLuminance);
-			ProcessEntities(metadata.CustomProps, 1.0f, p => p.UnitId, p => p.ModelPath, p => p.YOffset, p => p.Scale, p => p.CollisionCircle, p => p.Brightness, p => p.Tint, p => p.DespillPlayerColor, p => p.NormalizeLuminance);
-			ProcessEntities(metadata.CustomUnits, 1.5f, u => u.UnitId, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance);
-
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir);
-			if (assetsObj != null && assetsObj.ContainsKey("glb") && assetsObj["glb"] is System.Text.Json.Nodes.JsonObject glbObj)
+			if (metadata.Templates != null)
 			{
-				foreach (var catKvp in glbObj)
-				{
-					if (catKvp.Value is System.Text.Json.Nodes.JsonObject catDict)
-					{
-						foreach (var itemKvp in catDict)
-						{
-							if (itemKvp.Value is System.Text.Json.Nodes.JsonObject itemObj)
-							{
-								if (itemObj.ContainsKey("y_offset") && float.TryParse(itemObj["y_offset"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float yVal))
-								{
-									if (IsValidModelYOffset(itemKvp.Key, yVal))
-									{
-										ModelYOffsets[NormalizeModelAssetKey(itemKvp.Key)] = yVal;
-									}
-								}
-								if (itemObj.ContainsKey("scale") && float.TryParse(itemObj["scale"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float sVal))
-								{
-									if (IsValidModelScale(itemKvp.Key, sVal))
-									{
-										ModelScales[NormalizeModelAssetKey(itemKvp.Key)] = sVal;
-									}
-								}
-								else if (itemObj.ContainsKey("model_scale") && float.TryParse(itemObj["model_scale"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float msVal))
-								{
-									if (IsValidModelScale(itemKvp.Key, msVal))
-									{
-										ModelScales[NormalizeModelAssetKey(itemKvp.Key)] = msVal;
-									}
-								}
-								if (itemObj.ContainsKey("collision_circle_ratio") && float.TryParse(itemObj["collision_circle_ratio"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float rVal))
-								{
-									if (IsValidModelCollisionRatio(itemKvp.Key, rVal))
-									{
-										ModelCollisionCircleRatios[NormalizeModelAssetKey(itemKvp.Key)] = rVal;
-									}
-								}
-								if (itemObj.ContainsKey("collision_radius") && float.TryParse(itemObj["collision_radius"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float radVal) && radVal > 0f)
-								{
-									ModelObstacleRadii[NormalizeModelAssetKey(itemKvp.Key)] = radVal;
-								}
-								if (itemObj.ContainsKey("brightness") && float.TryParse(itemObj["brightness"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float brightVal))
-								{
-									ModelBrightness[NormalizeModelAssetKey(itemKvp.Key)] = brightVal;
-								}
-								if (itemObj.ContainsKey("tint") && itemObj["tint"] != null && Color.HtmlIsValid(itemObj["tint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["tint"]!.ToString());
-								}
-								else if (itemObj.ContainsKey("color_tint") && itemObj["color_tint"] != null && Color.HtmlIsValid(itemObj["color_tint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["color_tint"]!.ToString());
-								}
-								else if (itemObj.ContainsKey("ColorTint") && itemObj["ColorTint"] != null && Color.HtmlIsValid(itemObj["ColorTint"]?.ToString()))
-								{
-									ModelColorTint[NormalizeModelAssetKey(itemKvp.Key)] = Color.FromHtml(itemObj["ColorTint"]!.ToString());
-								}
-								string normKey = NormalizeModelAssetKey(itemKvp.Key);
-								if (itemObj.ContainsKey("DespillPlayerColor") && bool.TryParse(itemObj["DespillPlayerColor"]?.ToString(), out bool dpcVal))
-								{
-									ModelDespillPlayerColor[normKey] = dpcVal;
-								}
-								else if (!ModelDespillPlayerColor.ContainsKey(normKey))
-								{
-									ModelDespillPlayerColor[normKey] = false;
-								}
-								if (itemObj.ContainsKey("normalize_luminance") && bool.TryParse(itemObj["normalize_luminance"]?.ToString(), out bool nlVal))
-								{
-									ModelNormalizeLuminance[normKey] = nlVal;
-								}
-								if (itemObj.ContainsKey("ignore_player_color") && bool.TryParse(itemObj["ignore_player_color"]?.ToString(), out bool ipcVal))
-								{
-									ModelIgnorePlayerColor[normKey] = ipcVal;
-								}
-								else if (itemObj.ContainsKey("IgnorePlayerColor") && bool.TryParse(itemObj["IgnorePlayerColor"]?.ToString(), out bool ipcVal2))
-								{
-									ModelIgnorePlayerColor[normKey] = ipcVal2;
-								}
-								else if (catKvp.Key == "props" || catKvp.Key == "resources" || catKvp.Key == "attachments" || catKvp.Key == "weapons" || catKvp.Key == "items" || (itemObj.ContainsKey("default_asset_type") && (itemObj["default_asset_type"]?.ToString() == "props" || itemObj["default_asset_type"]?.ToString() == "resources" || itemObj["default_asset_type"]?.ToString() == "attachments" || itemObj["default_asset_type"]?.ToString() == "weapons" || itemObj["default_asset_type"]?.ToString() == "items")))
-								{
-									ModelIgnorePlayerColor[normKey] = true;
-								}
-								else if (!ModelIgnorePlayerColor.ContainsKey(normKey))
-								{
-									ModelIgnorePlayerColor[normKey] = false;
-								}
-
-								string itemSpawn = itemObj["spawn_shader"]?.ToString() ?? itemObj["SpawnShader"]?.ToString();
-								if (!string.IsNullOrWhiteSpace(itemSpawn))
-								{
-									ModelSpawnShaders[normKey] = itemSpawn.Trim();
-								}
-								string itemDeath = itemObj["death_shader"]?.ToString() ?? itemObj["DeathShader"]?.ToString() ?? itemObj["despawn_shader"]?.ToString() ?? itemObj["DespawnShader"]?.ToString();
-								if (!string.IsNullOrWhiteSpace(itemDeath))
-								{
-									ModelDeathShaders[normKey] = itemDeath.Trim();
-								}
-							}
-						}
-					}
-				}
+				ProcessEntities(metadata.Templates.Resources, 2.75f, r => r.TemplateID, r => r.ModelPath, r => r.YOffset, r => r.Scale, r => r.CollisionCircle, r => r.Brightness, r => r.Tint, r => r.DespillPlayerColor, r => r.NormalizeLuminance);
+				ProcessEntities(metadata.Templates.Buildings, 1.2f, b => b.TemplateID, b => b.ModelPath, b => b.YOffset, b => b.Scale, b => b.CollisionCircle, b => b.Brightness, b => b.Tint, b => b.DespillPlayerColor, b => b.NormalizeLuminance);
+				ProcessEntities(metadata.Templates.Props, 1.0f, p => p.TemplateID, p => p.ModelPath, p => p.YOffset, p => p.Scale, p => p.CollisionCircle, p => p.Brightness, p => p.Tint, p => p.DespillPlayerColor, p => p.NormalizeLuminance);
+				ProcessEntities(metadata.Templates.Units, 1.5f, u => u.TemplateID, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance);
 			}
+
 
 			if (metadata.Models != null)
 			{
@@ -1502,6 +1552,14 @@ public partial class GameHost
 					{
 						ModelIgnorePlayerColor[normKey] = model.IgnorePlayerColor.Value;
 					}
+					if (!string.IsNullOrWhiteSpace(model.ProceduralAnimation))
+					{
+						ModelProceduralAnimations[normKey] = model.ProceduralAnimation.Trim();
+					}
+					if (model.EnableProceduralAnimation.HasValue)
+					{
+						ModelEnableProceduralAnimations[normKey] = model.EnableProceduralAnimation.Value;
+					}
 				}
 			}
 
@@ -1526,12 +1584,22 @@ public partial class GameHost
 		ModelIgnorePlayerColor.Clear();
 		ModelSpawnShaders.Clear();
 		ModelDeathShaders.Clear();
+		ModelProceduralAnimations.Clear();
+		ModelEnableProceduralAnimations.Clear();
 	}
 
 	public void RefreshAllPlacedObjectModels(string targetId = null)
 	{
-		ModelCache.Clear();
-		Prop3D.ClearModelPathCache();
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			ModelCache.InvalidateModelPath(targetId);
+			Prop3D.InvalidateModelPathCache(targetId);
+		}
+		else
+		{
+			ModelCache.Clear();
+			Prop3D.ClearModelPathCache();
+		}
 
 		foreach (var unit in AllUnits)
 		{
@@ -1617,6 +1685,8 @@ public partial class GameHost
 				foreach (var k in ModelIgnorePlayerColor.Keys) allKeys.Add(k);
 				foreach (var k in ModelSpawnShaders.Keys) allKeys.Add(k);
 				foreach (var k in ModelDeathShaders.Keys) allKeys.Add(k);
+				foreach (var k in ModelProceduralAnimations.Keys) allKeys.Add(k);
+				foreach (var k in ModelEnableProceduralAnimations.Keys) allKeys.Add(k);
 
 				foreach (var key in allKeys)
 				{
@@ -1637,16 +1707,18 @@ public partial class GameHost
 					if (ModelIgnorePlayerColor.TryGetValue(key, out bool iVal)) modelMeta.IgnorePlayerColor = iVal;
 					if (ModelSpawnShaders.TryGetValue(key, out string? ssVal) && !string.IsNullOrWhiteSpace(ssVal)) modelMeta.SpawnShaders = ssVal;
 					if (ModelDeathShaders.TryGetValue(key, out string? dsVal) && !string.IsNullOrWhiteSpace(dsVal)) modelMeta.DeathShaders = dsVal;
+					if (ModelProceduralAnimations.TryGetValue(key, out string? paVal) && !string.IsNullOrWhiteSpace(paVal)) modelMeta.ProceduralAnimation = paVal;
+					if (ModelEnableProceduralAnimations.TryGetValue(key, out bool epVal)) modelMeta.EnableProceduralAnimation = epVal;
 				}
 
-				void UpdateEntityOverrides(List<GameHost.UnitMetadata> entities)
+				void UpdateEntityOverrides(List<UnitMetadata> entities)
 				{
 					if (entities == null) return;
 					for (int i = 0; i < entities.Count; i++)
 					{
 						var entity = entities[i];
-						if (string.IsNullOrEmpty(entity.UnitId)) continue;
-						string normKey = NormalizeModelAssetKey(entity.UnitId);
+						if (string.IsNullOrEmpty(entity.TemplateID)) continue;
+						string normKey = NormalizeModelAssetKey(entity.TemplateID);
 						string normModel = !string.IsNullOrEmpty(entity.ModelPath) ? NormalizeModelAssetKey(entity.ModelPath) : "";
 
 						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) entity.DespillPlayerColor = dVal1;
@@ -1661,72 +1733,75 @@ public partial class GameHost
 						string sVal = "";
 						if (!string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1)) sVal = sv1;
 						else if (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2)) sVal = sv2;
-						else sVal = GetModelSpawnShader(entity.UnitId);
+						else sVal = GetModelSpawnShader(entity.TemplateID);
 
 						entity.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
 
 						string dVal = "";
 						if (!string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1)) dVal = dv1;
 						else if (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2)) dVal = dv2;
-						else dVal = GetModelDeathShader(entity.UnitId);
+						else dVal = GetModelDeathShader(entity.TemplateID);
 
 						entity.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
 						entities[i] = entity;
 					}
 				}
 
-				UpdateEntityOverrides(meta.CustomUnits);
-				UpdateEntityOverrides(meta.CustomBuildings);
-
-				if (meta.CustomResources != null)
+				if (meta.Templates != null)
 				{
-					for (int i = 0; i < meta.CustomResources.Count; i++)
+					UpdateEntityOverrides(meta.Templates.Units);
+					UpdateEntityOverrides(meta.Templates.Buildings);
+
+					if (meta.Templates.Resources != null)
 					{
-						var res = meta.CustomResources[i];
-						if (string.IsNullOrEmpty(res.UnitId)) continue;
-						string normKey = NormalizeModelAssetKey(res.UnitId);
-						string normModel = !string.IsNullOrEmpty(res.ModelPath) ? NormalizeModelAssetKey(res.ModelPath) : "";
+						for (int i = 0; i < meta.Templates.Resources.Count; i++)
+						{
+							var res = meta.Templates.Resources[i];
+							if (string.IsNullOrEmpty(res.TemplateID)) continue;
+							string normKey = NormalizeModelAssetKey(res.TemplateID);
+							string normModel = !string.IsNullOrEmpty(res.ModelPath) ? NormalizeModelAssetKey(res.ModelPath) : "";
 
-						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) res.DespillPlayerColor = dVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelDespillPlayerColor.TryGetValue(normModel, out bool dVal2)) res.DespillPlayerColor = dVal2;
+							if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) res.DespillPlayerColor = dVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelDespillPlayerColor.TryGetValue(normModel, out bool dVal2)) res.DespillPlayerColor = dVal2;
 
-						if (ModelNormalizeLuminance.TryGetValue(normKey, out bool nVal1)) res.NormalizeLuminance = nVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelNormalizeLuminance.TryGetValue(normModel, out bool nVal2)) res.NormalizeLuminance = nVal2;
+							if (ModelNormalizeLuminance.TryGetValue(normKey, out bool nVal1)) res.NormalizeLuminance = nVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelNormalizeLuminance.TryGetValue(normModel, out bool nVal2)) res.NormalizeLuminance = nVal2;
 
-						if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) res.IgnorePlayerColor = iVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) res.IgnorePlayerColor = iVal2;
+							if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) res.IgnorePlayerColor = iVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) res.IgnorePlayerColor = iVal2;
 
-						string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(res.UnitId));
-						string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(res.UnitId));
-						res.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
-						res.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
-						meta.CustomResources[i] = res;
+							string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(res.TemplateID));
+							string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(res.TemplateID));
+							res.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
+							res.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
+							meta.Templates.Resources[i] = res;
+						}
 					}
-				}
 
-				if (meta.CustomProps != null)
-				{
-					for (int i = 0; i < meta.CustomProps.Count; i++)
+					if (meta.Templates.Props != null)
 					{
-						var prop = meta.CustomProps[i];
-						if (string.IsNullOrEmpty(prop.UnitId)) continue;
-						string normKey = NormalizeModelAssetKey(prop.UnitId);
-						string normModel = !string.IsNullOrEmpty(prop.ModelPath) ? NormalizeModelAssetKey(prop.ModelPath) : "";
+						for (int i = 0; i < meta.Templates.Props.Count; i++)
+						{
+							var prop = meta.Templates.Props[i];
+							if (string.IsNullOrEmpty(prop.TemplateID)) continue;
+							string normKey = NormalizeModelAssetKey(prop.TemplateID);
+							string normModel = !string.IsNullOrEmpty(prop.ModelPath) ? NormalizeModelAssetKey(prop.ModelPath) : "";
 
-						if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) prop.DespillPlayerColor = dVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelDespillPlayerColor.TryGetValue(normModel, out bool dVal2)) prop.DespillPlayerColor = dVal2;
+							if (ModelDespillPlayerColor.TryGetValue(normKey, out bool dVal1)) prop.DespillPlayerColor = dVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelDespillPlayerColor.TryGetValue(normModel, out bool dVal2)) prop.DespillPlayerColor = dVal2;
 
-						if (ModelNormalizeLuminance.TryGetValue(normKey, out bool nVal1)) prop.NormalizeLuminance = nVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelNormalizeLuminance.TryGetValue(normModel, out bool nVal2)) prop.NormalizeLuminance = nVal2;
+							if (ModelNormalizeLuminance.TryGetValue(normKey, out bool nVal1)) prop.NormalizeLuminance = nVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelNormalizeLuminance.TryGetValue(normModel, out bool nVal2)) prop.NormalizeLuminance = nVal2;
 
-						if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) prop.IgnorePlayerColor = iVal1;
-						else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) prop.IgnorePlayerColor = iVal2;
+							if (ModelIgnorePlayerColor.TryGetValue(normKey, out bool iVal1)) prop.IgnorePlayerColor = iVal1;
+							else if (!string.IsNullOrEmpty(normModel) && ModelIgnorePlayerColor.TryGetValue(normModel, out bool iVal2)) prop.IgnorePlayerColor = iVal2;
 
-						string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(prop.UnitId));
-						string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(prop.UnitId));
-						prop.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
-						prop.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
-						meta.CustomProps[i] = prop;
+							string sVal = !string.IsNullOrEmpty(normKey) && ModelSpawnShaders.TryGetValue(normKey, out string sv1) ? sv1 : (!string.IsNullOrEmpty(normModel) && ModelSpawnShaders.TryGetValue(normModel, out string sv2) ? sv2 : GetModelSpawnShader(prop.TemplateID));
+							string dVal = !string.IsNullOrEmpty(normKey) && ModelDeathShaders.TryGetValue(normKey, out string dv1) ? dv1 : (!string.IsNullOrEmpty(normModel) && ModelDeathShaders.TryGetValue(normModel, out string dv2) ? dv2 : GetModelDeathShader(prop.TemplateID));
+							prop.SpawnShader = !string.IsNullOrWhiteSpace(sVal) ? sVal : null;
+							prop.DeathShader = !string.IsNullOrWhiteSpace(dVal) ? dVal : null;
+							meta.Templates.Props[i] = prop;
+						}
 					}
 				}
 			});
@@ -1934,6 +2009,7 @@ public partial class GameHost
 
 		bool anyModified = false;
 
+		float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 		foreach (var pos in positions)
 		{
 			var result = _editorService.ApplyContinuousTerrainEditing(
@@ -1941,7 +2017,7 @@ public partial class GameHost
 				ActiveEditorTool,
 				EditorBrushRadius, EditorBrushStrength,
 				EditorBrushIsSquare,
-				EditorBlockMode, EditorBlockLevelHeight,
+				EditorBlockMode, targetBlockHeight,
 				EditorPaintTextureIndex, EditorCliffPaintTextureIndex,
 				pathingMask, pathingAdd,
 				isFirstClick,
@@ -1995,7 +2071,7 @@ public partial class GameHost
 		if (_terrainGeometryDirty && _terrainFlushRegion.HasValue && GroundTerrain != null)
 		{
 			var flushRegion = _terrainFlushRegion.Value;
-			GroundTerrain.UpdateMeshAndPhysics(false, false, flushRegion, _terrainHeightsDirty);
+			GroundTerrain.UpdateMeshAndPhysics(_terrainHeightsDirty, false, flushRegion, _terrainHeightsDirty);
 			if (_terrainHeightsDirty)
 			{
 				AlignAllEntitiesToTerrain(flushRegion);
@@ -2065,6 +2141,7 @@ public partial class GameHost
 	public class DecalAssetData
 	{
 		public string DecalId { get; set; } = "";
+		public string TexturePath { get; set; } = "";
 		public Texture2D PrimaryTexture { get; set; }
 		public Texture2D? PrimaryNormal { get; set; }
 		public Texture2D[]? AlbedoFrames { get; set; }
@@ -2116,6 +2193,7 @@ public partial class GameHost
 					var resData = new DecalAssetData
 					{
 						DecalId = decalId,
+						TexturePath = decalId,
 						PrimaryTexture = resTex,
 						Columns = 1,
 						Rows = 1
@@ -2131,52 +2209,76 @@ public partial class GameHost
 		string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 
-		List<string> candidatePaths = new List<string>();
-		if (System.IO.Path.IsPathRooted(decalId))
-		{
-			candidatePaths.Add(decalId);
-		}
-		else
-		{
-			candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename));
-			candidatePaths.Add(System.IO.Path.Combine(wsPath, decalId));
-			if (!filename.Contains('.'))
-			{
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".rtex"));
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".webp"));
-				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".png"));
-			}
-			candidatePaths.Add(decalId);
-		}
-
 		int detectedCols = 1;
 		int detectedRows = 1;
 		float detectedFps = 12.0f;
 		bool detectedSubframeBlend = true;
+		string? explicitTexturePath = null;
 
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
-			if (decalsObj != null)
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Decals != null)
 			{
-				System.Text.Json.Nodes.JsonObject? meta = null;
-				if (decalsObj.TryGetPropertyValue(filename, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
-				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is System.Text.Json.Nodes.JsonObject o3) meta = o3;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is System.Text.Json.Nodes.JsonObject o4) meta = o4;
+				Realm.Shared.Metadata.DecalMetadata? meta = null;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(filename, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) meta = d3;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) meta = d4;
 
-				if (meta != null)
+				if (meta != null && !string.IsNullOrWhiteSpace(meta.TexturePath))
 				{
-					if (meta.TryGetPropertyValue("columns", out var cNode) && int.TryParse(cNode?.ToString(), out int c) && c > 0) detectedCols = c;
-					if (meta.TryGetPropertyValue("rows", out var rNode) && int.TryParse(rNode?.ToString(), out int r) && r > 0) detectedRows = r;
-					if (meta.TryGetPropertyValue("fps", out var fNode) && float.TryParse(fNode?.ToString(), out float f) && f > 0.001f) detectedFps = f;
-					else if (meta.TryGetPropertyValue("seconds_per_frame", out var sNode) && float.TryParse(sNode?.ToString(), out float spf) && spf > 0.001f) detectedFps = 1.0f / spf;
-					if (meta.TryGetPropertyValue("subframe_blend", out var sbNode) && bool.TryParse(sbNode?.ToString(), out bool sb)) detectedSubframeBlend = sb;
+					explicitTexturePath = meta.TexturePath;
+				}
+			}
+
+			if (metadata?.VfxSpritesheets != null)
+			{
+				Realm.Shared.Metadata.VfxMetadata? vmeta = null;
+				if (metadata.VfxSpritesheets.TryGetValue(decalId, out var v0)) vmeta = v0;
+				else if (metadata.VfxSpritesheets.TryGetValue(filename, out var v1)) vmeta = v1;
+				else if (metadata.VfxSpritesheets.TryGetValue(baseKey, out var v2)) vmeta = v2;
+
+				if (vmeta != null)
+				{
+					if (vmeta.Columns > 0) detectedCols = vmeta.Columns;
+					if (vmeta.Rows > 0) detectedRows = vmeta.Rows;
+					if (vmeta.Fps > 0.001f) detectedFps = vmeta.Fps;
+					detectedSubframeBlend = vmeta.SubframeBlend;
 				}
 			}
 		}
 		catch { }
+
+		List<string> candidatePaths = new List<string>();
+		void AddTextureCandidates(string pathOrName)
+		{
+			if (string.IsNullOrWhiteSpace(pathOrName)) return;
+			string fName = System.IO.Path.GetFileName(pathOrName);
+			if (System.IO.Path.IsPathRooted(pathOrName))
+			{
+				candidatePaths.Add(pathOrName);
+			}
+			else
+			{
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", pathOrName));
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName));
+				candidatePaths.Add(System.IO.Path.Combine(wsPath, pathOrName));
+				if (!fName.Contains('.'))
+				{
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".rtex"));
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".webp"));
+					candidatePaths.Add(System.IO.Path.Combine(wsPath, "Assets", "decals", fName + ".png"));
+				}
+			}
+		}
+
+		if (!string.IsNullOrEmpty(explicitTexturePath))
+		{
+			AddTextureCandidates(explicitTexturePath);
+		}
+		AddTextureCandidates(decalId);
 
 		foreach (var path in candidatePaths)
 		{
@@ -2244,6 +2346,7 @@ public partial class GameHost
 						var assetData = new DecalAssetData
 						{
 							DecalId = decalId,
+							TexturePath = explicitTexturePath ?? decalId,
 							Columns = 1,
 							Rows = 1,
 							Fps = 12.0f,
@@ -2272,6 +2375,7 @@ public partial class GameHost
 		var fallback = new DecalAssetData
 		{
 			DecalId = decalId,
+			TexturePath = explicitTexturePath ?? decalId,
 			PrimaryTexture = GD.Load<Texture2D>("res://icon.svg"),
 			Columns = 1,
 			Rows = 1
@@ -2293,24 +2397,47 @@ public partial class GameHost
 		}
 		if (decalId.StartsWith("res://")) return decalId;
 
-		string filename = System.IO.Path.GetFileName(decalId);
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string targetKey = decalId;
 
-		string candidate1 = System.IO.Path.Combine(wsPath, "Assets", "decals", filename);
+		try
+		{
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Decals != null)
+			{
+				string filename = System.IO.Path.GetFileName(decalId);
+				string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
+				Realm.Shared.Metadata.DecalMetadata? meta = null;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(filename, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
+
+				if (meta != null && !string.IsNullOrWhiteSpace(meta.TexturePath))
+				{
+					targetKey = meta.TexturePath;
+				}
+			}
+		}
+		catch { }
+
+		string targetFilename = System.IO.Path.GetFileName(targetKey);
+		string candidate1 = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename);
 		if (System.IO.File.Exists(candidate1)) return candidate1;
 
-		if (!filename.Contains('.'))
+		if (!targetFilename.Contains('.'))
 		{
-			string candidate2 = System.IO.Path.Combine(wsPath, "Assets", "decals", filename + ".png");
+			string candidate2 = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename + ".png");
 			if (System.IO.File.Exists(candidate2)) return candidate2;
+			string candidateRtex = System.IO.Path.Combine(wsPath, "Assets", "decals", targetFilename + ".rtex");
+			if (System.IO.File.Exists(candidateRtex)) return candidateRtex;
 		}
 
-		if (System.IO.Path.IsPathRooted(decalId) && System.IO.File.Exists(decalId))
+		if (System.IO.Path.IsPathRooted(targetKey) && System.IO.File.Exists(targetKey))
 		{
-			return decalId;
+			return targetKey;
 		}
 
-		string candidate3 = System.IO.Path.Combine(wsPath, decalId);
+		string candidate3 = System.IO.Path.Combine(wsPath, targetKey);
 		if (System.IO.File.Exists(candidate3)) return candidate3;
 
 		return "res://icon.svg";
@@ -2355,8 +2482,8 @@ public partial class GameHost
 	private void AlignAllEntitiesToTerrain(Rect2I? affectedRegion = null)
 	{
 		float quadSize = GroundTerrain != null ? GroundTerrain.QuadSize : EditableTerrain.DefaultQuadSize;
-		float halfW = GroundTerrain != null ? (GroundTerrain.Width - 1) / 2.0f * quadSize : 0f;
-		float halfD = GroundTerrain != null ? (GroundTerrain.Depth - 1) / 2.0f * quadSize : 0f;
+		float halfW = GroundTerrain != null ? GroundTerrain.Width / 2.0f * quadSize : 0f;
+		float halfD = GroundTerrain != null ? GroundTerrain.Depth / 2.0f * quadSize : 0f;
 
 		bool IsInRegion(Vector3 pos)
 		{
@@ -2537,6 +2664,8 @@ public partial class GameHost
 		var unit3D = SpawnUnit3D(entity, unitId, modelPath, position, isBuilding, actualIsEnemy, false, playerIndex);
 		unit3D.RotationDegrees = new Vector3(0.0f, rotationY, 0.0f);
 		unit3D.Scale = Vector3.One * (scale <= 0.001f ? 1.0f : scale);
+		unit3D.Visible = true;
+		unit3D.UpdateLodVisibility();
 
 		EcsWorld.SetOrAdd(entity, new CollisionScale(scale));
 
@@ -2701,17 +2830,62 @@ public partial class GameHost
 		{
 			config = customConfig.Clone();
 		}
-		else if (VfxRegistry.TryGetValue(vfxId, out var regCfg))
-		{
-			config = regCfg.Clone();
-		}
-		else if (Enum.TryParse<VfxPrimitiveType>(vfxId, true, out var primType))
-		{
-			config = new VfxAttachmentConfig { VfxId = vfxId, PrimitiveType = primType };
-		}
 		else
 		{
-			config = new VfxAttachmentConfig { VfxId = vfxId, Name = vfxId };
+			string cleanId = vfxId ?? string.Empty;
+			if (cleanId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
+			{
+				cleanId = cleanId.Substring(4);
+			}
+
+			if (!string.IsNullOrEmpty(vfxId) && VfxRegistry.TryGetValue(vfxId, out var regCfg))
+			{
+				config = regCfg.Clone();
+			}
+			else if (!string.IsNullOrEmpty(cleanId) && VfxRegistry.TryGetValue(cleanId, out var regCfg2))
+			{
+				config = regCfg2.Clone();
+			}
+			else if (!string.IsNullOrEmpty(cleanId) && Enum.TryParse<VfxPrimitiveType>(cleanId, true, out var primType))
+			{
+				config = new VfxAttachmentConfig { VfxId = cleanId, PrimitiveType = primType };
+				if (primType == VfxPrimitiveType.ParticleSystem)
+				{
+					config.ParticleConfig = SpellParticleConfig.CreatePreset(cleanId);
+				}
+			}
+			else if (!string.IsNullOrEmpty(vfxId) && Enum.TryParse<VfxPrimitiveType>(vfxId, true, out var primType2))
+			{
+				config = new VfxAttachmentConfig { VfxId = vfxId, PrimitiveType = primType2 };
+				if (primType2 == VfxPrimitiveType.ParticleSystem)
+				{
+					config.ParticleConfig = SpellParticleConfig.CreatePreset(vfxId);
+				}
+			}
+			else
+			{
+				var particlePresets = SpellParticleConfig.GetAllPresets();
+				if (particlePresets.ContainsKey(cleanId) || cleanId.StartsWith("particle_", StringComparison.OrdinalIgnoreCase))
+				{
+					config = new VfxAttachmentConfig
+					{
+						VfxId = cleanId,
+						Name = cleanId,
+						PrimitiveType = VfxPrimitiveType.ParticleSystem,
+						ParticleConfig = SpellParticleConfig.CreatePreset(cleanId)
+					};
+				}
+				else
+				{
+					config = new VfxAttachmentConfig
+					{
+						VfxId = vfxId,
+						Name = cleanId,
+						BaseTexture = cleanId,
+						PrimitiveType = VfxPrimitiveType.VortexDisc
+					};
+				}
+			}
 		}
 
 		if (normalOffset != 0f)
@@ -2938,54 +3112,54 @@ public partial class GameHost
 			if (assetData.PrimaryNormal != null) decal.TextureNormal = assetData.PrimaryNormal;
 
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			var decalsObj = assetsObj?["decals"] as System.Text.Json.Nodes.JsonObject;
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
 
 			string key = System.IO.Path.GetFileName(decalId);
 			string baseKey = System.IO.Path.GetFileNameWithoutExtension(decalId);
 
-			System.Text.Json.Nodes.JsonObject? meta = null;
-			if (decalsObj != null)
+			Realm.Shared.Metadata.DecalMetadata? meta = null;
+			if (metadata?.Decals != null)
 			{
-				if (decalsObj.TryGetPropertyValue(key, out var n1) && n1 is System.Text.Json.Nodes.JsonObject o1) meta = o1;
-				else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is System.Text.Json.Nodes.JsonObject o2) meta = o2;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is System.Text.Json.Nodes.JsonObject o3) meta = o3;
-				else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is System.Text.Json.Nodes.JsonObject o4) meta = o4;
+				if (metadata.Decals.TryGetValue(decalId, out var d0)) meta = d0;
+				else if (metadata.Decals.TryGetValue(key, out var d1)) meta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) meta = d2;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) meta = d3;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) meta = d4;
 			}
 
-			float brightness = meta != null && meta.TryGetPropertyValue("brightness", out var bNode) && float.TryParse(bNode?.ToString(), out float b) ? b : 1.0f;
+			float brightness = meta?.Brightness > 0f ? meta.Brightness : 1.0f;
 			Color tint = Colors.White;
-			if (meta != null && meta.TryGetPropertyValue("tint", out var tNode) && tNode != null)
+			if (meta != null && !string.IsNullOrEmpty(meta.Tint))
 			{
-				string tStr = tNode.ToString();
+				string tStr = meta.Tint;
 				if (tStr.StartsWith("#")) tint = Color.FromHtml(tStr);
 			}
-			float contrast = meta != null && meta.TryGetPropertyValue("contrast", out var cNode) && float.TryParse(cNode?.ToString(), out float c) ? c : 1.0f;
-			float saturation = meta != null && meta.TryGetPropertyValue("saturation", out var sNode) && float.TryParse(sNode?.ToString(), out float s) ? s : 1.0f;
-			float opacity = meta != null && meta.TryGetPropertyValue("opacity", out var oNode) && float.TryParse(oNode?.ToString(), out float o) ? o : 1.0f;
-			float albedoMix = meta != null && meta.TryGetPropertyValue("albedo_mix", out var mNode) && float.TryParse(mNode?.ToString(), out float m) ? m : 1.0f;
-			float normalStrength = meta != null && meta.TryGetPropertyValue("normal_strength", out var nNode) && float.TryParse(nNode?.ToString(), out float n) ? n : (assetData.PrimaryNormal != null ? 1.0f : 0.0f);
-			float roughness = meta != null && meta.TryGetPropertyValue("roughness", out var rNode) && float.TryParse(rNode?.ToString(), out float r) ? r : 1.0f;
-			float metallic = meta != null && meta.TryGetPropertyValue("metallic", out var metNode) && float.TryParse(metNode?.ToString(), out float met) ? met : 0.0f;
-			string blendMode = meta != null && meta.TryGetPropertyValue("blend_mode", out var bmNode) ? bmNode?.ToString() ?? "Mix" : "Mix";
+			float contrast = meta?.Contrast > 0f ? meta.Contrast : 1.0f;
+			float saturation = meta?.Saturation > 0f ? meta.Saturation : 1.0f;
+			float opacity = meta?.Opacity > 0f ? meta.Opacity : 1.0f;
+			float albedoMix = meta?.AlbedoMix > 0f ? meta.AlbedoMix : 1.0f;
+			float normalStrength = meta?.NormalStrength > 0f ? meta.NormalStrength : (assetData.PrimaryNormal != null ? 1.0f : 0.0f);
+			float roughness = meta?.Roughness > 0f ? meta.Roughness : 1.0f;
+			float metallic = meta?.Metallic ?? 0.0f;
+			string blendMode = meta?.BlendMode ?? "Mix";
 
-			bool animateOpacity = meta != null && meta.TryGetPropertyValue("animate_opacity", out var aoNode) && bool.TryParse(aoNode?.ToString(), out bool ao) && ao;
-			float opacityPulseSpeed = meta != null && meta.TryGetPropertyValue("opacity_pulse_speed", out var opsNode) && float.TryParse(opsNode?.ToString(), out float ops) ? ops : 1.0f;
-			float minOpacity = meta != null && meta.TryGetPropertyValue("min_opacity", out var minONode) && float.TryParse(minONode?.ToString(), out float minO) ? minO : 0.2f;
-			float maxOpacity = meta != null && meta.TryGetPropertyValue("max_opacity", out var maxONode) && float.TryParse(maxONode?.ToString(), out float maxO) ? maxO : 1.0f;
+			bool animateOpacity = meta?.AnimateOpacity ?? false;
+			float opacityPulseSpeed = meta?.OpacityPulseSpeed > 0f ? meta.OpacityPulseSpeed : 1.0f;
+			float minOpacity = meta?.MinOpacity > 0f ? meta.MinOpacity : 0.2f;
+			float maxOpacity = meta?.MaxOpacity > 0f ? meta.MaxOpacity : 1.0f;
 
-			bool animateEmission = meta != null && meta.TryGetPropertyValue("animate_emission", out var aeNode) && bool.TryParse(aeNode?.ToString(), out bool ae) && ae;
-			float emissionPulseSpeed = meta != null && meta.TryGetPropertyValue("emission_pulse_speed", out var epsNode) && float.TryParse(epsNode?.ToString(), out float eps) ? eps : 1.0f;
-			float minEmission = meta != null && meta.TryGetPropertyValue("min_emission", out var minENode) && float.TryParse(minENode?.ToString(), out float minE) ? minE : 0.0f;
-			float maxEmission = meta != null && meta.TryGetPropertyValue("max_emission", out var maxENode) && float.TryParse(maxENode?.ToString(), out float maxE) ? maxE : 2.0f;
+			bool animateEmission = meta?.AnimateEmission ?? false;
+			float emissionPulseSpeed = meta?.EmissionPulseSpeed > 0f ? meta.EmissionPulseSpeed : 1.0f;
+			float minEmission = meta?.MinEmission ?? 0.0f;
+			float maxEmission = meta?.MaxEmission > 0f ? meta.MaxEmission : 2.0f;
 
-			bool animateScale = meta != null && meta.TryGetPropertyValue("animate_scale", out var asNode) && bool.TryParse(asNode?.ToString(), out bool aSc) && aSc;
-			float scalePulseSpeed = meta != null && meta.TryGetPropertyValue("scale_pulse_speed", out var scpsNode) && float.TryParse(scpsNode?.ToString(), out float scps) ? scps : 1.0f;
-			float minScaleRatio = meta != null && meta.TryGetPropertyValue("min_scale_ratio", out var minScNode) && float.TryParse(minScNode?.ToString(), out float minSc) ? minSc : 0.8f;
-			float maxScaleRatio = meta != null && meta.TryGetPropertyValue("max_scale_ratio", out var maxScNode) && float.TryParse(maxScNode?.ToString(), out float maxSc) ? maxSc : 1.2f;
+			bool animateScale = meta?.AnimateScale ?? false;
+			float scalePulseSpeed = meta?.ScalePulseSpeed > 0f ? meta.ScalePulseSpeed : 1.0f;
+			float minScaleRatio = meta?.MinScaleRatio > 0f ? meta.MinScaleRatio : 0.8f;
+			float maxScaleRatio = meta?.MaxScaleRatio > 0f ? meta.MaxScaleRatio : 1.2f;
 
-			float upperFade = meta != null && meta.TryGetPropertyValue("upper_fade", out var ufNode) && float.TryParse(ufNode?.ToString(), out float uf) ? uf : 0.3f;
-			float lowerFade = meta != null && meta.TryGetPropertyValue("lower_fade", out var lfNode) && float.TryParse(lfNode?.ToString(), out float lf) ? lf : 0.3f;
+			float upperFade = meta?.UpperFade > 0f ? meta.UpperFade : 0.3f;
+			float lowerFade = meta?.LowerFade > 0f ? meta.LowerFade : 0.3f;
 
 			ApplyDecalRenderingProperties(
 				decal,
@@ -3425,7 +3599,7 @@ public partial class GameHost
 				if (!UnitRegistry.TryGetValue(reqId, out meta) && BuildingRegistry.TryGetValue(reqId, out meta))
 					isBuilding = true;
 
-				if (meta.UnitId != null)
+				if (meta.TemplateID != null)
 				{
 					string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : reqId;
 					string modelPath = GetFallbackModelPath(targetModel, isBuilding);
@@ -3496,6 +3670,7 @@ public partial class GameHost
 				}
 
 				var previewVfx = new ProceduralVfxInstance3D(config);
+				previewVfx.IsPreview = true;
 				AddChild(previewVfx);
 				_editorPreviewNode = previewVfx;
 			}
@@ -3840,31 +4015,48 @@ public partial class GameHost
 				else if (ActiveEditorTool == EditorTool.PasteArea && _editorService.HasCopiedArea)
 				{
 					var (cx, cz) = _editorService.WorldPosToCellCoords(hitPos);
-					float r = EditorPasteRotation % 360.0f;
-					if (r < 0) r += 360.0f;
-					int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+					var (startX, startZ, targetWidth, targetDepth) = _editorService.GetAnchoredPasteBounds(cx, cz, EditorPasteRotation, EditorPasteReflection);
 
-					int pasteWidth = _editorService.CopiedAreaWidth;
-					int pasteDepth = _editorService.CopiedAreaDepth;
+					UpdatePasteSelectionHighlights(startX, startZ, targetWidth, targetDepth);
 
-					int targetWidth = (rotSteps == 1 || rotSteps == 3) ? pasteDepth : pasteWidth;
-					int targetDepth = (rotSteps == 1 || rotSteps == 3) ? pasteWidth : pasteDepth;
+					int srcAnchorX = _editorService.CopiedAreaSourceMinX + _editorService.CopiedAreaAnchorX;
+					int srcAnchorZ = _editorService.CopiedAreaSourceMinZ + _editorService.CopiedAreaAnchorZ;
+					int deltaX = cx - srcAnchorX;
+					int deltaZ = cz - srcAnchorZ;
 
-					int dX = 0;
-					int dZ = 0;
-					if (rotSteps == 1 || rotSteps == 3)
+					float quadSize = GroundTerrain.QuadSize;
+					float halfW = GroundTerrain.Width / 2.0f;
+					float halfD = GroundTerrain.Depth / 2.0f;
+					Vector2 targetWorld2D = new Vector2((cx - halfW) * quadSize, (cz - halfD) * quadSize);
+					Vector2 pivotWorld2D = _editorService.SymmetryPivot;
+					Vector2 diffFromPivot = targetWorld2D - pivotWorld2D;
+					float distFromPivot = diffFromPivot.Length();
+					float angleFromPivot = Mathf.RadToDeg(Mathf.Atan2(diffFromPivot.Y, diffFromPivot.X));
+					if (angleFromPivot < 0) angleFromPivot += 360.0f;
+
+					MapEditorHUD.Instance?.UpdatePasteTelemetry(deltaX, deltaZ, distFromPivot / quadSize, distFromPivot, angleFromPivot);
+				}
+				else if (ActiveEditorTool == EditorTool.Measure)
+				{
+					if (EditorTapeMeasureActive && EditorTapeMeasureStart.HasValue)
 					{
-						dX = (pasteWidth - pasteDepth) / 2;
-						dZ = (pasteDepth - pasteWidth) / 2;
+						EditorTapeMeasureEnd = hitPos;
+						UpdateMeasureVisuals(EditorTapeMeasureStart.Value, hitPos);
+
+						Vector3 delta = hitPos - EditorTapeMeasureStart.Value;
+						float quadSize = GroundTerrain.QuadSize;
+						float dx = delta.X / quadSize;
+						float dz = delta.Z / quadSize;
+						float dy = delta.Y;
+						float eucTiles = Mathf.Sqrt(dx * dx + dz * dz);
+						float eucWorld = delta.Length();
+						float manhattanTiles = Mathf.Abs(dx) + Mathf.Abs(dz);
+						float angleDeg = Mathf.RadToDeg(Mathf.Atan2(delta.Z, delta.X));
+						if (angleDeg < 0) angleDeg += 360.0f;
+						float slopePct = eucTiles > 0.001f ? (Mathf.Abs(dy) / (eucTiles * quadSize)) * 100.0f : 0.0f;
+
+						MapEditorHUD.Instance?.UpdateMeasureTelemetry(eucTiles, eucWorld, manhattanTiles, dx, dz, dy, angleDeg, slopePct);
 					}
-
-					int minX = Mathf.Clamp(cx + dX, 0, GroundTerrain.Width - 1);
-					int minZ = Mathf.Clamp(cz + dZ, 0, GroundTerrain.Depth - 1);
-					int maxX = Mathf.Clamp(cx + dX + targetWidth - 1, 0, GroundTerrain.Width - 1);
-					int maxZ = Mathf.Clamp(cz + dZ + targetDepth - 1, 0, GroundTerrain.Depth - 1);
-
-					CreateSelectionHighlight();
-					RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 				}
 			}
 			
@@ -3988,6 +4180,7 @@ public partial class GameHost
 
 					bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
 										 ActiveEditorTool == EditorTool.Lower ||
+										 ActiveEditorTool == EditorTool.Height ||
 										 ActiveEditorTool == EditorTool.Smooth ||
 										 ActiveEditorTool == EditorTool.Plateau ||
 										 ActiveEditorTool == EditorTool.PaintTexture ||
@@ -3998,11 +4191,12 @@ public partial class GameHost
 					if (isTerrainTool && !_editorService.IsDrawingTerrain && GroundTerrain != null)
 					{
 						firstClick = true;
+						float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 						_editorService.BeginTerrainDraw(
 							hitPos,
 							ActiveEditorTool,
 							EditorBlockMode,
-							EditorBlockLevelHeight,
+							targetBlockHeight,
 							null,
 							GroundTerrain.SplatMap,
 							GroundTerrain.PathingCodes,
@@ -4076,6 +4270,7 @@ public partial class GameHost
 						EditorHistoryManager.RecordAction(action);
 						bool isHeightsTool = ActiveEditorTool == EditorTool.Raise ||
 											 ActiveEditorTool == EditorTool.Lower ||
+											 ActiveEditorTool == EditorTool.Height ||
 											 ActiveEditorTool == EditorTool.Smooth ||
 											 ActiveEditorTool == EditorTool.Plateau ||
 											 ActiveEditorTool == EditorTool.Noise ||
@@ -4156,6 +4351,7 @@ public partial class GameHost
 					EditorHistoryManager.RecordAction(action);
 					bool isHeightsTool = ActiveEditorTool == EditorTool.Raise ||
 										 ActiveEditorTool == EditorTool.Lower ||
+										 ActiveEditorTool == EditorTool.Height ||
 										 ActiveEditorTool == EditorTool.Smooth ||
 										 ActiveEditorTool == EditorTool.Plateau ||
 										 ActiveEditorTool == EditorTool.Noise ||
@@ -4207,6 +4403,7 @@ public partial class GameHost
 
 				EditorGridMode = MapEditorHUD.SavedGridMode;
 				EditorCameraBoundsVisible = MapEditorHUD.SavedCameraBoundsVisible;
+				EditorDisableShadows = MapEditorHUD.SavedDisableShadows;
 
 				var camera = MainCamera as CameraControl;
 				if (camera != null)
@@ -4243,8 +4440,20 @@ public partial class GameHost
 		CreateBrushIndicator();
 		UpdateGridOverlayVisibility();
 		InitializeCameraBoundsOverlay();
+		UpdateEditorShadows();
 		UpdateDayNightVisuals(0.0f);
 		GroundTerrain?.SetShroudEnabled(false);
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(true);
+				}
+			}
+		}
 	}
 
 	public void ExitMapEditorMode()
@@ -4253,6 +4462,18 @@ public partial class GameHost
 		ActiveEditorTool = EditorTool.None;
 		EditorHistoryManager.Clear();
 		ClearEditorPreview();
+		UpdateEditorShadows();
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(false);
+				}
+			}
+		}
 		
 		if (_brushIndicatorMesh != null)
 		{
@@ -4312,9 +4533,14 @@ public partial class GameHost
 			{
 				decal.QueueFree();
 			}
+			else if (child is ProceduralVfxInstance3D vfx)
+			{
+				vfx.QueueFree();
+			}
 		}
 		AllProps.Clear();
 		AllDecals.Clear();
+		AllVfx.Clear();
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
 		
@@ -4376,21 +4602,140 @@ public partial class GameHost
 	{
 		if (_brushIndicatorMesh == null) return;
 		
-		_brushIndicatorMesh.Position = new Vector3(position.X, position.Y + 0.1f, position.Z);
+		bool isVertexTool = ActiveEditorTool == EditorTool.Raise ||
+							ActiveEditorTool == EditorTool.Lower ||
+							ActiveEditorTool == EditorTool.Height ||
+							ActiveEditorTool == EditorTool.Smooth ||
+							ActiveEditorTool == EditorTool.Plateau ||
+							ActiveEditorTool == EditorTool.PaintTexture ||
+							ActiveEditorTool == EditorTool.Noise ||
+							ActiveEditorTool == EditorTool.Ramp;
+
+		Vector3 targetPos = position;
+		if (isVertexTool && GroundTerrain != null)
+		{
+			targetPos = _editorService.SnapToVertex(position);
+		}
+		else if (EditorSnapToGrid && GroundTerrain != null)
+		{
+			targetPos = _editorService.SnapToGrid(position);
+		}
+		
+		_brushIndicatorMesh.Position = new Vector3(targetPos.X, targetPos.Y + 0.1f, targetPos.Z);
 		_brushIndicatorMesh.Scale = new Vector3(EditorBrushRadius, 0.1f, EditorBrushRadius);
 		
-		bool isTerrainTool = ActiveEditorTool == EditorTool.Raise ||
-							 ActiveEditorTool == EditorTool.Lower ||
-							 ActiveEditorTool == EditorTool.Smooth ||
-							 ActiveEditorTool == EditorTool.Plateau ||
-							 ActiveEditorTool == EditorTool.PaintTexture ||
-							 ActiveEditorTool == EditorTool.Noise ||
-							 ActiveEditorTool == EditorTool.Ramp ||
+		bool isTerrainTool = isVertexTool ||
 							 ActiveEditorTool == EditorTool.PlacePropClump ||
 							 ActiveEditorTool == EditorTool.PaintPathing ||
 							 ((ActiveEditorTool == EditorTool.PlaceUnit || ActiveEditorTool == EditorTool.PlaceProp || ActiveEditorTool == EditorTool.PlaceDecal) && EditorClumpMode);
 							 
 		_brushIndicatorMesh.Visible = isTerrainTool;
+	}
+
+	private MeshInstance3D _measureMeshInstance;
+	private ImmediateMesh _measureImmediateMesh;
+
+	public void UpdateMeasureVisuals(Vector3 start, Vector3 end)
+	{
+		if (_measureMeshInstance == null)
+		{
+			_measureMeshInstance = new MeshInstance3D();
+			_measureMeshInstance.Name = "TapeMeasureIndicator";
+			_measureImmediateMesh = new ImmediateMesh();
+			_measureMeshInstance.Mesh = _measureImmediateMesh;
+			var mat = new StandardMaterial3D
+			{
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				AlbedoColor = new Color(1.0f, 0.85f, 0.1f, 0.95f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				CullMode = BaseMaterial3D.CullModeEnum.Disabled
+			};
+			_measureMeshInstance.MaterialOverride = mat;
+			AddChild(_measureMeshInstance);
+		}
+
+		_measureImmediateMesh.ClearSurfaces();
+		_measureImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, 0));
+		
+		float markerSize = 0.5f;
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(-markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, -markerSize));
+		_measureImmediateMesh.SurfaceAddVertex(start + new Vector3(0, 0.2f, markerSize));
+
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(-markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(markerSize, 0.2f, 0));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, -markerSize));
+		_measureImmediateMesh.SurfaceAddVertex(end + new Vector3(0, 0.2f, markerSize));
+		
+		_measureImmediateMesh.SurfaceEnd();
+		_measureMeshInstance.Visible = true;
+	}
+
+	public void ClearMeasureVisuals()
+	{
+		if (_measureMeshInstance != null)
+		{
+			_measureMeshInstance.Visible = false;
+			_measureImmediateMesh?.ClearSurfaces();
+		}
+		EditorTapeMeasureStart = null;
+		EditorTapeMeasureEnd = null;
+		EditorTapeMeasureActive = false;
+	}
+
+	private MeshInstance3D _symmetryPivotMarkerMesh;
+
+	public void UpdateSymmetryPivotVisuals()
+	{
+		if (!IsMapEditorMode || GroundTerrain == null)
+		{
+			if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
+			return;
+		}
+
+		bool showPivot = EditorMirrorMode != MirrorMode.Rotational && (EditorMirrorMode != MirrorMode.None || EditorPolarOverlayVisible);
+		if (!showPivot)
+		{
+			if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
+			return;
+		}
+
+		if (_symmetryPivotMarkerMesh == null)
+		{
+			_symmetryPivotMarkerMesh = new MeshInstance3D();
+			_symmetryPivotMarkerMesh.Name = "SymmetryPivotMarker";
+			var imm = new ImmediateMesh();
+			_symmetryPivotMarkerMesh.Mesh = imm;
+			var mat = new StandardMaterial3D
+			{
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				AlbedoColor = new Color(0.2f, 0.9f, 1.0f, 0.95f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				CullMode = BaseMaterial3D.CullModeEnum.Disabled
+			};
+			_symmetryPivotMarkerMesh.MaterialOverride = mat;
+			AddChild(_symmetryPivotMarkerMesh);
+		}
+
+		var immMesh = (ImmediateMesh)_symmetryPivotMarkerMesh.Mesh;
+		immMesh.ClearSurfaces();
+		immMesh.SurfaceBegin(Mesh.PrimitiveType.Lines);
+		
+		float px = _editorService.SymmetryPivot.X;
+		float pz = _editorService.SymmetryPivot.Y;
+		float py = _editorService.GetTerrainHeightAt(new Vector3(px, 0, pz)) + 0.25f;
+		float s = 1.5f;
+
+		immMesh.SurfaceAddVertex(new Vector3(px - s, py, pz));
+		immMesh.SurfaceAddVertex(new Vector3(px + s, py, pz));
+		immMesh.SurfaceAddVertex(new Vector3(px, py, pz - s));
+		immMesh.SurfaceAddVertex(new Vector3(px, py, pz + s));
+
+		immMesh.SurfaceEnd();
+		_symmetryPivotMarkerMesh.Visible = true;
 	}
 
 	public MeshInstance3D BrushIndicatorMesh => _brushIndicatorMesh;
@@ -4562,7 +4907,7 @@ public partial class GameHost
 	{
 		if (GroundTerrain != null)
 		{
-			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+			_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 		}
 	}
 
@@ -4588,12 +4933,31 @@ public partial class GameHost
 
 		GroundTerrain.ResizeTerrain(newWidth, newDepth);
 
-		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 		DeleteEntitiesOutsideBounds();
+		PropMultiMeshManager.Instance?.RebuildAll();
 
 		RebuildCameraBoundsOverlay();
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 		MapEditorHUD.Instance?.RegenerateMinimap();
+
+		string activeWsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string metaPath = MetadataService.ResolveMetadataPath(activeWsPath);
+		if (System.IO.File.Exists(metaPath))
+		{
+			try
+			{
+				MetadataService.Instance.UpdateMetadata(activeWsPath, meta =>
+				{
+					meta.MapProperties.MapWidth = newWidth;
+					meta.MapProperties.MapHeight = newDepth;
+				});
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"Failed to update metadata.json map dimensions: {ex.Message}");
+			}
+		}
 
 		EditorHasUnsavedChanges = true;
 		MapEditorHUD.Instance?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
@@ -4629,6 +4993,10 @@ public partial class GameHost
 			if (GodotObject.IsInstanceValid(unit))
 			{
 				unit.Position = new Godot.Vector3(unit.Position.X * scaleX, unit.Position.Y, unit.Position.Z * scaleZ);
+				if (EcsWorld != null && EcsWorld.IsAlive(unit.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(unit.Entity))
+				{
+					EcsWorld.Set(unit.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(unit.Position.X, unit.Position.Y, unit.Position.Z)));
+				}
 			}
 		}
 
@@ -4637,27 +5005,86 @@ public partial class GameHost
 			if (GodotObject.IsInstanceValid(prop))
 			{
 				prop.Position = new Godot.Vector3(prop.Position.X * scaleX, prop.Position.Y, prop.Position.Z * scaleZ);
+				if (EcsWorld != null && EcsWorld.IsAlive(prop.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(prop.Entity))
+				{
+					EcsWorld.Set(prop.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(prop.Position.X, prop.Position.Y, prop.Position.Z)));
+				}
 			}
 		}
 
-		foreach (var child in GetChildren())
+		if (EcsWorld != null)
 		{
-			if (child is Decal decal && GodotObject.IsInstanceValid(decal))
+			var allPropEntitiesQuery = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
+			EcsWorld.Query(in allPropEntitiesQuery, (Arch.Core.Entity entity, ref Realm.Ecs.Components.Core.Position posComp) =>
+			{
+				if (!EntityToProp3D.ContainsKey(entity))
+				{
+					EcsWorld.Set(entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(posComp.Value.X * scaleX, posComp.Value.Y, posComp.Value.Z * scaleZ)));
+				}
+			});
+		}
+
+		foreach (var decal in AllDecals)
+		{
+			if (GodotObject.IsInstanceValid(decal))
 			{
 				decal.Position = new Godot.Vector3(decal.Position.X * scaleX, decal.Position.Y, decal.Position.Z * scaleZ);
+				if (decal is Decal3D decal3D && EcsWorld != null && EcsWorld.IsAlive(decal3D.Entity) && EcsWorld.Has<Realm.Ecs.Components.Core.Position>(decal3D.Entity))
+				{
+					EcsWorld.Set(decal3D.Entity, new Realm.Ecs.Components.Core.Position(new System.Numerics.Vector3(decal.Position.X, decal.Position.Y, decal.Position.Z)));
+				}
 			}
 		}
 
-		float diffWidth = (newWidth - oldWidth) * quadSize;
-		float diffDepth = (newDepth - oldDepth) * quadSize;
-		EditorCameraBoundsLeft -= diffWidth / 2.0f;
-		EditorCameraBoundsRight += diffWidth / 2.0f;
-		EditorCameraBoundsTop -= diffDepth / 2.0f;
-		EditorCameraBoundsBottom += diffDepth / 2.0f;
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.Position = new Godot.Vector3(vfx.Position.X * scaleX, vfx.Position.Y, vfx.Position.Z * scaleZ);
+				}
+			}
+		}
+
+		for (int i = 0; i < EditorCoordinates.Count; i++)
+		{
+			var coord = EditorCoordinates[i];
+			coord.MinX *= scaleX;
+			coord.MaxX *= scaleX;
+			coord.MinZ *= scaleZ;
+			coord.MaxZ *= scaleZ;
+		}
+		RebuildAllCoordinatePersistentMeshes();
+		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+
+		EditorCameraBoundsLeft *= scaleX;
+		EditorCameraBoundsRight *= scaleX;
+		EditorCameraBoundsTop *= scaleZ;
+		EditorCameraBoundsBottom *= scaleZ;
 
 		DeleteEntitiesOutsideBounds();
+		PropMultiMeshManager.Instance?.RebuildAll();
 
-		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap);
+		_editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+
+		string scaleWsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string scaleMetaPath = MetadataService.ResolveMetadataPath(scaleWsPath);
+		if (System.IO.File.Exists(scaleMetaPath))
+		{
+			try
+			{
+				MetadataService.Instance.UpdateMetadata(scaleWsPath, meta =>
+				{
+					meta.MapProperties.MapWidth = newWidth;
+					meta.MapProperties.MapHeight = newDepth;
+				});
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"Failed to update metadata.json map dimensions during scale: {ex.Message}");
+			}
+		}
 		RebuildCameraBoundsOverlay();
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 		MapEditorHUD.Instance?.RegenerateMinimap();
@@ -4673,8 +5100,8 @@ public partial class GameHost
 	{
 		if (GroundTerrain == null) return;
 
-		float halfW = (GroundTerrain.Width - 1) / 2.0f * GroundTerrain.QuadSize;
-		float halfD = (GroundTerrain.Depth - 1) / 2.0f * GroundTerrain.QuadSize;
+		float halfW = GroundTerrain.Width / 2.0f * GroundTerrain.QuadSize;
+		float halfD = GroundTerrain.Depth / 2.0f * GroundTerrain.QuadSize;
 
 		var unitsToDelete = new List<Unit3D>();
 		foreach (var unit in AllUnits)
@@ -4708,6 +5135,43 @@ public partial class GameHost
 		foreach (var prop in propsToDelete)
 		{
 			DeleteNodeExternal(prop);
+		}
+
+		var decalsToDelete = new List<Decal>();
+		foreach (var decal in AllDecals)
+		{
+			if (GodotObject.IsInstanceValid(decal))
+			{
+				var pos = decal.Position;
+				if (pos.X < -halfW || pos.X > halfW || pos.Z < -halfD || pos.Z > halfD)
+				{
+					decalsToDelete.Add(decal);
+				}
+			}
+		}
+		foreach (var decal in decalsToDelete)
+		{
+			DeleteNodeExternal(decal);
+		}
+
+		if (AllVfx != null)
+		{
+			var vfxToDelete = new List<ProceduralVfxInstance3D>();
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					var pos = vfx.Position;
+					if (pos.X < -halfW || pos.X > halfW || pos.Z < -halfD || pos.Z > halfD)
+					{
+						vfxToDelete.Add(vfx);
+					}
+				}
+			}
+			foreach (var vfx in vfxToDelete)
+			{
+				DeleteNodeExternal(vfx);
+			}
 		}
 	}
 
@@ -4899,8 +5363,8 @@ public partial class GameHost
 			if (child is Node3D n3d) node3Ds.Add(n3d);
 		}
 
-		var entities = _editorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, node3Ds);
-		_editorService.CopyArea(minX, minZ, maxX, maxZ, entities);
+		var entities = _editorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, node3Ds, EditorBrushIsSquare);
+		_editorService.CopyArea(minX, minZ, maxX, maxZ, entities, EditorBrushIsSquare);
 
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
@@ -4941,9 +5405,18 @@ public partial class GameHost
 	{
 		if (GroundTerrain != null)
 		{
-			bool meshVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Mesh);
-			GroundTerrain.SetGridVisible(meshVisible);
+			bool gridVisible = IsMapEditorMode && (EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both);
+			GroundTerrain.SetGridVisible(gridVisible);
+			bool polarVisible = IsMapEditorMode && (EditorMirrorMode == MirrorMode.Rotational || EditorGridMode == GridOverlayMode.Polar || EditorGridMode == GridOverlayMode.Both);
+			GroundTerrain.SetPolarOverlayVisible(polarVisible);
+			EditorPolarOverlayVisible = polarVisible;
 		}
+		UpdateSymmetryPivotVisuals();
+	}
+
+	public void UpdatePolarOverlayVisibility()
+	{
+		UpdateGridOverlayVisibility();
 	}
 
 	public void PerformFloodFill(Vector3 clickPos, int fillTextureIndex, bool isCliff = false)
@@ -4997,15 +5470,112 @@ public partial class GameHost
 		}
 	}
 
+	public void PerformWaterFloodFill(Vector3 clickPos, bool isRemoveAction = false)
+	{
+		if (GroundTerrain == null || GroundTerrain.Cells == null) return;
+
+		WaterType activeMode = EditorWaterMode;
+		byte activeProfile = ActiveWaterProfileIndex;
+		float waterHeight = EditorWaterHeight;
+
+		var result = _editorService.PerformWaterFloodFill(clickPos, activeMode, activeProfile, waterHeight, EditorMirrorMode, isRemoveAction);
+		if (result.BeforeCells == null || result.AfterCells == null) return;
+
+		GroundTerrain.UpdateMeshAndPhysics(rebuildPhysics: false, rebuildNavMesh: true, affectedRegions: null, rebuildWater: true);
+
+		var action = new TerrainModifyAction(result.BeforeCells, result.AfterCells, null, null, result.BeforePathing, result.AfterPathing);
+		EditorHistoryManager.RecordAction(action);
+		EditorHasUnsavedChanges = true;
+
+		string statusMsg = result.WasAdded ? "Water added via flood fill" : "Water removed via flood fill";
+		MapEditorHUD.Instance?.ShowFeedbackExternal(statusMsg);
+	}
+
+	private readonly List<MeshInstance3D> _symmetryHighlightMeshes = new();
+
 	public void HideSelectionHighlight()
 	{
 		if (_selectionHighlightMesh != null)
 		{
 			_selectionHighlightMesh.Visible = false;
 		}
+		foreach (var symMesh in _symmetryHighlightMeshes)
+		{
+			if (GodotObject.IsInstanceValid(symMesh))
+			{
+				symMesh.Visible = false;
+			}
+		}
 		_editorService?.SetIsSelectingArea(false);
 		_editorService?.SetSelectionStart(null);
 		_editorService?.SetSelectionEnd(null);
+	}
+
+	private MeshInstance3D GetOrCreateSymmetryHighlightMesh(int index)
+	{
+		while (_symmetryHighlightMeshes.Count <= index)
+		{
+			var meshInst = new MeshInstance3D();
+			meshInst.Name = $"SymmetrySelectionHighlight_{_symmetryHighlightMeshes.Count}";
+			var mat = new StandardMaterial3D();
+			mat.AlbedoColor = new Color(0.0f, 0.6f, 1.0f, 0.35f);
+			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+			mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+			mat.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
+			meshInst.MaterialOverride = mat;
+			AddChild(meshInst);
+			meshInst.Visible = false;
+			_symmetryHighlightMeshes.Add(meshInst);
+		}
+		return _symmetryHighlightMeshes[index];
+	}
+
+	public void UpdatePasteSelectionHighlights(int startX, int startZ, int targetWidth, int targetDepth)
+	{
+		if (GroundTerrain == null || GroundTerrain.Cells == null || !_editorService.HasCopiedArea) return;
+
+		int width = GroundTerrain.Width;
+		int depth = GroundTerrain.Depth;
+
+		int minX = Mathf.Clamp(startX, 0, width - 1);
+		int minZ = Mathf.Clamp(startZ, 0, depth - 1);
+		int maxX = Mathf.Clamp(startX + targetWidth - 1, 0, width - 1);
+		int maxZ = Mathf.Clamp(startZ + targetDepth - 1, 0, depth - 1);
+
+		CreateSelectionHighlight();
+		RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+
+		int symCount = 0;
+		if (EditorMirrorMode != MirrorMode.None)
+		{
+			float quadSize = GroundTerrain.QuadSize;
+			Vector3 centerPos = new Vector3((startX + targetWidth / 2.0f - width / 2.0f) * quadSize, 0, (startZ + targetDepth / 2.0f - depth / 2.0f) * quadSize);
+			var transforms = _editorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+			symCount = transforms.Count;
+			for (int i = 0; i < transforms.Count; i++)
+			{
+				var t = transforms[i];
+				var (rcx, rcz) = _editorService.WorldPosToCellCoords(t.Position);
+				int rStartX = rcx - targetWidth / 2;
+				int rStartZ = rcz - targetDepth / 2;
+				int rMinX = Mathf.Clamp(rStartX, 0, width - 1);
+				int rMinZ = Mathf.Clamp(rStartZ, 0, depth - 1);
+				int rMaxX = Mathf.Clamp(rStartX + targetWidth - 1, 0, width - 1);
+				int rMaxZ = Mathf.Clamp(rStartZ + targetDepth - 1, 0, depth - 1);
+
+				var meshInst = GetOrCreateSymmetryHighlightMesh(i);
+				BuildHighlightMeshForBounds(meshInst, rMinX, rMinZ, rMaxX, rMaxZ);
+				meshInst.Visible = true;
+			}
+		}
+
+		for (int i = symCount; i < _symmetryHighlightMeshes.Count; i++)
+		{
+			if (GodotObject.IsInstanceValid(_symmetryHighlightMeshes[i]))
+			{
+				_symmetryHighlightMeshes[i].Visible = false;
+			}
+		}
 	}
 
 	private void CreateSelectionHighlight()
@@ -5036,26 +5606,33 @@ public partial class GameHost
 		_lastSelectionMaxZ = -1;
 	}
 
-	private void RebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
+	private bool _lastSelectionBrushIsSquare = true;
+
+	public void RebuildSelectionHighlightMeshExternal(int minX, int minZ, int maxX, int maxZ)
 	{
-		if (_selectionHighlightMesh == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
+		_lastSelectionMinX = -1;
+		if (ActiveEditorTool == EditorTool.PasteArea && _editorService.HasCopiedArea)
+		{
+			int w = maxX - minX + 1;
+			int d = maxZ - minZ + 1;
+			UpdatePasteSelectionHighlights(minX, minZ, w, d);
+		}
+		else
+		{
+			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
+		}
+	}
+
+	private void BuildHighlightMeshForBounds(MeshInstance3D meshInst, int minX, int minZ, int maxX, int maxZ)
+	{
+		if (meshInst == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
 		int selWidth = maxX - minX + 1;
 		int selDepth = maxZ - minZ + 1;
 		if (selWidth < 2 || selDepth < 2)
 		{
-			_selectionHighlightMesh.Visible = false;
-			_lastSelectionMinX = -1;
+			meshInst.Visible = false;
 			return;
 		}
-
-		if (minX == _lastSelectionMinX && minZ == _lastSelectionMinZ && maxX == _lastSelectionMaxX && maxZ == _lastSelectionMaxZ && _selectionHighlightMesh.Visible)
-		{
-			return;
-		}
-		_lastSelectionMinX = minX;
-		_lastSelectionMinZ = minZ;
-		_lastSelectionMaxX = maxX;
-		_lastSelectionMaxZ = maxZ;
 
 		int vertexCount = selWidth * selDepth;
 		var vertices = new Vector3[vertexCount];
@@ -5063,8 +5640,8 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 		var cells = GroundTerrain.Cells;
-		float halfW = (width - 1) * 0.5f;
-		float halfD = (depth - 1) * 0.5f;
+		float halfW = width * 0.5f;
+		float halfD = depth * 0.5f;
 
 		for (int sz = 0; sz < selDepth; sz++)
 		{
@@ -5085,23 +5662,101 @@ public partial class GameHost
 		int indexCount = cellWidth * cellDepth * 6;
 		var indices = new int[indexCount];
 		int iIdx = 0;
+
+		float selCenterX = (minX + maxX) * 0.5f;
+		float selCenterZ = (minZ + maxZ) * 0.5f;
+		float rx = Math.Max(0.5f, (maxX - minX) * 0.5f);
+		float rz = Math.Max(0.5f, (maxZ - minZ) * 0.5f);
+
 		for (int sz = 0; sz < cellDepth; sz++)
 		{
 			int row0 = sz * selWidth;
 			int row1 = (sz + 1) * selWidth;
 			for (int sx = 0; sx < cellWidth; sx++)
 			{
-				int v00 = row0 + sx;
-				int v10 = row0 + (sx + 1);
-				int v01 = row1 + sx;
-				int v11 = row1 + (sx + 1);
-				indices[iIdx++] = v00;
-				indices[iIdx++] = v10;
-				indices[iIdx++] = v01;
-				indices[iIdx++] = v10;
-				indices[iIdx++] = v11;
-				indices[iIdx++] = v01;
+				bool includeQuad = true;
+				if (ActiveEditorTool == EditorTool.SelectArea)
+				{
+					if (!EditorBrushIsSquare)
+					{
+						float cellCenterX = minX + sx + 0.5f;
+						float cellCenterZ = minZ + sz + 0.5f;
+						float ndx = (cellCenterX - selCenterX) / rx;
+						float ndz = (cellCenterZ - selCenterZ) / rz;
+						includeQuad = (ndx * ndx + ndz * ndz <= 1.05f);
+					}
+				}
+				else if (ActiveEditorTool == EditorTool.PasteArea)
+				{
+					if (_editorService.HasCopiedArea && _editorService.HasCopiedAreaMask)
+					{
+						int rotX = sx;
+						int rotZ = sz;
+						float r = EditorPasteRotation % 360.0f;
+						if (r < 0) r += 360.0f;
+						int rotSteps = (int)Math.Round(r / 90.0f) % 4;
+						int pasteWidth = _editorService.CopiedAreaWidth;
+						int pasteDepth = _editorService.CopiedAreaDepth;
+
+						int origSx = sx;
+						int origSz = sz;
+						if (rotSteps == 1)
+						{
+							origSx = sz;
+							origSz = pasteDepth - 1 - sx;
+						}
+						else if (rotSteps == 2)
+						{
+							origSx = pasteWidth - 1 - sx;
+							origSz = pasteDepth - 1 - sz;
+						}
+						else if (rotSteps == 3)
+						{
+							origSx = pasteWidth - 1 - sz;
+							origSz = sx;
+						}
+
+						int srcX = origSx;
+						int srcZ = origSz;
+						if (EditorPasteReflection == PasteReflection.Horizontal)
+						{
+							srcX = pasteWidth - 1 - origSx;
+						}
+						else if (EditorPasteReflection == PasteReflection.Vertical)
+						{
+							srcZ = pasteDepth - 1 - origSz;
+						}
+
+						includeQuad = _editorService.IsCopiedCellMasked(srcX, srcZ);
+					}
+					else if (!EditorBrushIsSquare && !_editorService.HasCopiedArea)
+					{
+						float cellCenterX = minX + sx + 0.5f;
+						float cellCenterZ = minZ + sz + 0.5f;
+						float ndx = (cellCenterX - selCenterX) / rx;
+						float ndz = (cellCenterZ - selCenterZ) / rz;
+						includeQuad = (ndx * ndx + ndz * ndz <= 1.05f);
+					}
+				}
+
+				if (includeQuad)
+				{
+					int v00 = row0 + sx;
+					int v10 = row0 + (sx + 1);
+					int v01 = row1 + sx;
+					int v11 = row1 + (sx + 1);
+					indices[iIdx++] = v00;
+					indices[iIdx++] = v10;
+					indices[iIdx++] = v01;
+					indices[iIdx++] = v10;
+					indices[iIdx++] = v11;
+					indices[iIdx++] = v01;
+				}
 			}
+		}
+		if (iIdx < indexCount)
+		{
+			System.Array.Resize(ref indices, iIdx);
 		}
 		var arrays = new Godot.Collections.Array();
 		arrays.Resize((int)Mesh.ArrayType.Max);
@@ -5109,8 +5764,33 @@ public partial class GameHost
 		arrays[(int)Mesh.ArrayType.Index] = indices;
 		var arrayMesh = new ArrayMesh();
 		arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
-		_selectionHighlightMesh.Mesh = arrayMesh;
-		_selectionHighlightMesh.Visible = true;
+		meshInst.Mesh = arrayMesh;
+		meshInst.Visible = true;
+	}
+
+	private void RebuildSelectionHighlightMesh(int minX, int minZ, int maxX, int maxZ)
+	{
+		if (_selectionHighlightMesh == null || GroundTerrain == null || GroundTerrain.Cells == null) return;
+		int selWidth = maxX - minX + 1;
+		int selDepth = maxZ - minZ + 1;
+		if (selWidth < 2 || selDepth < 2)
+		{
+			_selectionHighlightMesh.Visible = false;
+			_lastSelectionMinX = -1;
+			return;
+		}
+
+		if (minX == _lastSelectionMinX && minZ == _lastSelectionMinZ && maxX == _lastSelectionMaxX && maxZ == _lastSelectionMaxZ && _lastSelectionBrushIsSquare == EditorBrushIsSquare && _selectionHighlightMesh.Visible)
+		{
+			return;
+		}
+		_lastSelectionMinX = minX;
+		_lastSelectionMinZ = minZ;
+		_lastSelectionMaxX = maxX;
+		_lastSelectionMaxZ = maxZ;
+		_lastSelectionBrushIsSquare = EditorBrushIsSquare;
+
+		BuildHighlightMeshForBounds(_selectionHighlightMesh, minX, minZ, maxX, maxZ);
 	}
 
 	private void CreateCoordinatePreviewMesh()
@@ -5155,8 +5835,8 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 		var cells = GroundTerrain.Cells;
-		float halfW = (width - 1) * 0.5f;
-		float halfD = (depth - 1) * 0.5f;
+		float halfW = width * 0.5f;
+		float halfD = depth * 0.5f;
 
 		for (int sz = 0; sz < selDepth; sz++)
 		{
@@ -5220,10 +5900,10 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 
-		float worldMinX = (minX - (width - 1) / 2.0f) * quadSize;
-		float worldMinZ = (minZ - (depth - 1) / 2.0f) * quadSize;
-		float worldMaxX = (maxX - (width - 1) / 2.0f) * quadSize;
-		float worldMaxZ = (maxZ - (depth - 1) / 2.0f) * quadSize;
+		float worldMinX = (minX - width / 2.0f) * quadSize;
+		float worldMinZ = (minZ - depth / 2.0f) * quadSize;
+		float worldMaxX = (maxX - width / 2.0f) * quadSize;
+		float worldMaxZ = (maxZ - depth / 2.0f) * quadSize;
 
 		bool committed = false;
 		for (int i = 0; i < EditorCoordinates.Count; i++)
@@ -5296,10 +5976,10 @@ public partial class GameHost
 
 		foreach (var coord in EditorCoordinates)
 		{
-			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
-			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
 
 			var meshInst = new MeshInstance3D();
 			meshInst.Name = $"Coordinate_{coord.Name}";
@@ -5360,10 +6040,10 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 		float quadSize = GroundTerrain.QuadSize;
 
-		int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-		int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
-		int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + (width - 1) / 2.0f), 0, width - 1);
-		int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + (depth - 1) / 2.0f), 0, depth - 1);
+		int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+		int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+		int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+		int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
 
 		_coordinateSelectionOutlineMesh.Visible = true;
 		RebuildCoordinateMeshInstance(_coordinateSelectionOutlineMesh, minX, minZ, maxX, maxZ, new Color(1.0f, 0.6f, 0.0f, 0.45f), 0.25f);
@@ -5399,74 +6079,6 @@ public partial class GameHost
 				RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 			}
 		}
-	}
-
-	public void PerformMirrorSelectionVerticallyExternal()
-	{
-		if (GroundTerrain == null || _editorService.SelectionStart == null || _editorService.SelectionEnd == null)
-		{
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to mirror (select an area first)");
-			return;
-		}
-
-		PerformCopyArea();
-		var eraseActions = PerformEraseArea(false);
-		_editorService.MirrorCopiedAreaVertically();
-
-		var (minX, minZ, maxX, maxZ) = _editorService.GetCurrentSelectionBounds();
-		var pasteActions = PerformPasteArea(minX, minZ, 0.0f, false);
-
-		var combined = new List<IEditorAction>();
-		if (eraseActions != null) combined.AddRange(eraseActions);
-		if (pasteActions != null) combined.AddRange(pasteActions);
-
-		if (combined.Count > 0)
-		{
-			var composite = new CompositeAction(combined);
-			EditorHistoryManager.RecordAction(composite);
-			EditorHasUnsavedChanges = true;
-		}
-
-		if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
-		{
-			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
-		}
-
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Selection Mirrored Vertically");
-	}
-
-	public void PerformMirrorSelectionHorizontallyExternal()
-	{
-		if (GroundTerrain == null || _editorService.SelectionStart == null || _editorService.SelectionEnd == null)
-		{
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to mirror (select an area first)");
-			return;
-		}
-
-		PerformCopyArea();
-		var eraseActions = PerformEraseArea(false);
-		_editorService.MirrorCopiedAreaHorizontally();
-
-		var (minX, minZ, maxX, maxZ) = _editorService.GetCurrentSelectionBounds();
-		var pasteActions = PerformPasteArea(minX, minZ, 0.0f, false);
-
-		var combined = new List<IEditorAction>();
-		if (eraseActions != null) combined.AddRange(eraseActions);
-		if (pasteActions != null) combined.AddRange(pasteActions);
-
-		if (combined.Count > 0)
-		{
-			var composite = new CompositeAction(combined);
-			EditorHistoryManager.RecordAction(composite);
-			EditorHasUnsavedChanges = true;
-		}
-
-		if (_selectionHighlightMesh != null && _selectionHighlightMesh.Visible)
-		{
-			RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
-		}
-
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Selection Mirrored Horizontally");
 	}
 
 	public void PerformCopyAreaExternal()
@@ -5525,14 +6137,13 @@ public partial class GameHost
 		var eraseResult = _editorService.BuildEraseAreaResult(
 			minX, minZ, maxX, maxZ,
 			PasteOptionHeights, PasteOptionTextures, PasteOptionEntities, PasteOptionPathing,
-			node3Ds, _editorPreviewNode as Node3D);
+			node3Ds, _editorPreviewNode as Node3D, EditorBrushIsSquare);
 
 		if (eraseResult.TerrainModified)
 		{
 			Rect2I affected = new Rect2I(minX - 2, minZ - 2, maxX - minX + 4, maxZ - minZ + 4);
 			if (eraseResult.HeightsModified)
 			{
-				GroundTerrain.SanitizeCornerHeights();
 				AlignAllEntitiesToTerrain(affected);
 			}
 			GroundTerrain.UpdateMeshAndPhysics(eraseResult.HeightsModified, false, affected, eraseResult.HeightsModified);
@@ -5576,7 +6187,7 @@ public partial class GameHost
 		return actions;
 	}
 
-	private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, bool recordToHistory = true)
+	private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None, bool recordToHistory = true)
 	{
 		if (GroundTerrain == null || GroundTerrain.Cells == null || GroundTerrain.SplatMap == null || !_editorService.HasCopiedArea) return new List<IEditorAction>();
 
@@ -5589,20 +6200,38 @@ public partial class GameHost
 			startX, startZ,
 			PasteOptionHeights, PasteOptionTextures, PasteOptionEntities, PasteOptionPathing,
 			EditorMirrorMode,
-			rotationDegrees);
+			rotationDegrees,
+			reflection);
 
 		if (pasteResult.TerrainModified)
 		{
 			int pasteW = Math.Max(_editorService.CopiedAreaWidth, _editorService.CopiedAreaDepth);
 			int pasteD = pasteW;
-			Rect2I affected = new Rect2I(startX - 2, startZ - 2, pasteW + 4, pasteD + 4);
+			var affectedRegions = new List<Rect2I>();
+			affectedRegions.Add(new Rect2I(startX - 2, startZ - 2, pasteW + 4, pasteD + 4));
+
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			if (EditorMirrorMode != MirrorMode.None)
+			{
+				float quadSize = GroundTerrain.QuadSize;
+				Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - depth / 2.0f) * quadSize);
+				var transforms = _editorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+				foreach (var t in transforms)
+				{
+					var (rcx, rcz) = _editorService.WorldPosToCellCoords(t.Position);
+					affectedRegions.Add(new Rect2I(rcx - pasteW / 2 - 2, rcz - pasteD / 2 - 2, pasteW + 4, pasteD + 4));
+				}
+			}
 
 			if (pasteResult.HeightsModified)
 			{
-				GroundTerrain.SanitizeCornerHeights();
-				AlignAllEntitiesToTerrain(affected);
+				foreach (var aff in affectedRegions)
+				{
+					AlignAllEntitiesToTerrain(aff);
+				}
 			}
-			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affected, pasteResult.HeightsModified);
+			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affectedRegions, pasteResult.HeightsModified);
 			if (pasteResult.PathingModified)
 			{
 				UpdatePathingOverlay();
@@ -5688,6 +6317,161 @@ public partial class GameHost
 			{
 				RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 			}
+		}
+	}
+
+	public void UpdateEditorShadows()
+	{
+		var sun = GetNodeOrNull<DirectionalLight3D>("DirectionalLight3D");
+		if (sun != null && GodotObject.IsInstanceValid(sun))
+		{
+			GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
+		}
+	}
+
+	private bool _wasSelectionHighlightVisible;
+	private readonly List<bool> _wasSymmetryHighlightsVisible = new();
+	private bool _wasCameraBoundsVisible;
+	private bool _wasMeasureMeshVisible;
+	private bool _wasSymmetryPivotVisible;
+	private bool _wasCoordinatePreviewVisible;
+	private bool _wasCoordinateOutlineVisible;
+	private bool _wasScaleSilhouetteVisible;
+	private bool _wasCoverageOverlayVisible;
+
+	public void BeginMinimapCapture()
+	{
+		_wasSelectionHighlightVisible = _selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh) && _selectionHighlightMesh.Visible;
+		if (_selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh))
+		{
+			_selectionHighlightMesh.Visible = false;
+		}
+
+		_wasSymmetryHighlightsVisible.Clear();
+		foreach (var symMesh in _symmetryHighlightMeshes)
+		{
+			bool vis = symMesh != null && GodotObject.IsInstanceValid(symMesh) && symMesh.Visible;
+			_wasSymmetryHighlightsVisible.Add(vis);
+			if (vis)
+			{
+				symMesh.Visible = false;
+			}
+		}
+
+		_wasCameraBoundsVisible = _cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh) && _cameraBoundsOverlayMesh.Visible;
+		if (_cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh))
+		{
+			_cameraBoundsOverlayMesh.Visible = false;
+		}
+
+		_wasMeasureMeshVisible = _measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance) && _measureMeshInstance.Visible;
+		if (_measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance))
+		{
+			_measureMeshInstance.Visible = false;
+		}
+
+		_wasSymmetryPivotVisible = _symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh) && _symmetryPivotMarkerMesh.Visible;
+		if (_symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh))
+		{
+			_symmetryPivotMarkerMesh.Visible = false;
+		}
+
+		_wasCoordinatePreviewVisible = _coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh) && _coordinatePreviewMesh.Visible;
+		if (_coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh))
+		{
+			_coordinatePreviewMesh.Visible = false;
+		}
+
+		_wasCoordinateOutlineVisible = _coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh) && _coordinateSelectionOutlineMesh.Visible;
+		if (_coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh))
+		{
+			_coordinateSelectionOutlineMesh.Visible = false;
+		}
+
+		_wasScaleSilhouetteVisible = _scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh) && _scaleMapSilhouetteMesh.Visible;
+		if (_scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh))
+		{
+			_scaleMapSilhouetteMesh.Visible = false;
+		}
+
+		_wasCoverageOverlayVisible = _editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot) && _editorCoverageOverlayRoot.Visible;
+		if (_editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot))
+		{
+			_editorCoverageOverlayRoot.Visible = false;
+		}
+
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(false);
+				}
+			}
+		}
+	}
+
+	public void EndMinimapCapture()
+	{
+		if (AllVfx != null)
+		{
+			foreach (var vfx in AllVfx)
+			{
+				if (vfx != null && GodotObject.IsInstanceValid(vfx))
+				{
+					vfx.SetEditorBaseRingVisible(true);
+				}
+			}
+		}
+
+		if (_selectionHighlightMesh != null && GodotObject.IsInstanceValid(_selectionHighlightMesh))
+		{
+			_selectionHighlightMesh.Visible = _wasSelectionHighlightVisible;
+		}
+
+		for (int i = 0; i < _wasSymmetryHighlightsVisible.Count && i < _symmetryHighlightMeshes.Count; i++)
+		{
+			var symMesh = _symmetryHighlightMeshes[i];
+			if (symMesh != null && GodotObject.IsInstanceValid(symMesh))
+			{
+				symMesh.Visible = _wasSymmetryHighlightsVisible[i];
+			}
+		}
+
+		if (_cameraBoundsOverlayMesh != null && GodotObject.IsInstanceValid(_cameraBoundsOverlayMesh))
+		{
+			_cameraBoundsOverlayMesh.Visible = _wasCameraBoundsVisible;
+		}
+
+		if (_measureMeshInstance != null && GodotObject.IsInstanceValid(_measureMeshInstance))
+		{
+			_measureMeshInstance.Visible = _wasMeasureMeshVisible;
+		}
+
+		if (_symmetryPivotMarkerMesh != null && GodotObject.IsInstanceValid(_symmetryPivotMarkerMesh))
+		{
+			_symmetryPivotMarkerMesh.Visible = _wasSymmetryPivotVisible;
+		}
+
+		if (_coordinatePreviewMesh != null && GodotObject.IsInstanceValid(_coordinatePreviewMesh))
+		{
+			_coordinatePreviewMesh.Visible = _wasCoordinatePreviewVisible;
+		}
+
+		if (_coordinateSelectionOutlineMesh != null && GodotObject.IsInstanceValid(_coordinateSelectionOutlineMesh))
+		{
+			_coordinateSelectionOutlineMesh.Visible = _wasCoordinateOutlineVisible;
+		}
+
+		if (_scaleMapSilhouetteMesh != null && GodotObject.IsInstanceValid(_scaleMapSilhouetteMesh))
+		{
+			_scaleMapSilhouetteMesh.Visible = _wasScaleSilhouetteVisible;
+		}
+
+		if (_editorCoverageOverlayRoot != null && GodotObject.IsInstanceValid(_editorCoverageOverlayRoot))
+		{
+			_editorCoverageOverlayRoot.Visible = _wasCoverageOverlayVisible;
 		}
 	}
 }

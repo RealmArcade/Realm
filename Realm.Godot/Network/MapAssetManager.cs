@@ -741,7 +741,7 @@ public static class MapAssetManager
                     try
                     {
                         string content = File.ReadAllText(file);
-                        var manifest = JsonSerializer.Deserialize<MapManifest>(content);
+                        var manifest = MapManifest.LoadFromJson(content);
                         if (manifest != null && manifest.Files != null)
                         {
                             foreach (var hash in manifest.Files.Values)

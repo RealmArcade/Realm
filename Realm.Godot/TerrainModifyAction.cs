@@ -167,7 +167,6 @@ public class TerrainModifyAction : IEditorAction
 		Rect2I affected = new Rect2I(_minX - 2, _minZ - 2, _width + 4, _depth + 4);
 		if (heightsChanged)
 		{
-			GameHost.Instance.GroundTerrain.SanitizeCornerHeights();
 			GameHost.Instance.AlignAllEntitiesToTerrainExternal(affected);
 			GameHost.Instance.RebuildGridOverlayMeshExternal();
 		}
@@ -230,7 +229,6 @@ public class TerrainModifyAction : IEditorAction
 		Rect2I affected = new Rect2I(_minX - 2, _minZ - 2, _width + 4, _depth + 4);
 		if (heightsChanged)
 		{
-			GameHost.Instance.GroundTerrain.SanitizeCornerHeights();
 			GameHost.Instance.AlignAllEntitiesToTerrainExternal(affected);
 			GameHost.Instance.RebuildGridOverlayMeshExternal();
 		}

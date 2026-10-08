@@ -11,6 +11,7 @@ using Realm.Shared.Audio;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
+using Realm.Shared.Terrain;
 using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
@@ -103,7 +104,7 @@ public class RanimRenderOptions
 	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
 	public string? Output { get; set; }
 
-	[Option('f', "format", Required = false, Default = "auto", HelpText = "Output format: auto (default), webp, spritesheet.")]
+	[Option("format", Required = false, Default = "auto", HelpText = "Output format: auto (default), webp, spritesheet.")]
 	public string Format { get; set; } = "auto";
 
 	[Option("fps", Required = false, Default = 12.0f, HelpText = "Target frames per second (default 12).")]
@@ -259,6 +260,34 @@ public class KeygenOptions
 	public bool Register { get; set; }
 }
 
+[Verb("generate_manifest_schema", HelpText = "Generate the JSON Schema for MapManifest assets.")]
+public class GenerateManifestSchemaOptions
+{
+	[Option('o', "output", Required = false, HelpText = "Output path to write manifest.schema.json.")]
+	public string? Output { get; set; }
+}
+
+[Verb("generate_metadata_schema", HelpText = "Generate the JSON Schema for MapMetadata (metadata.json).")]
+public class GenerateMetadataSchemaOptions
+{
+	[Option('o', "output", Required = false, HelpText = "Output path to write metadata.schema.json.")]
+	public string? Output { get; set; }
+}
+
+[Verb("generate_terrain_schema", HelpText = "Generate the JSON Schema for MapTerrain (terrain.json).")]
+public class GenerateTerrainSchemaOptions
+{
+	[Option('o', "output", Required = false, HelpText = "Output path to write terrain.schema.json.")]
+	public string? Output { get; set; }
+}
+
+[Verb("generate_schemas", HelpText = "Generate all map JSON schemas (manifest, metadata, terrain).")]
+public class GenerateSchemasOptions
+{
+	[Option('o', "output", Required = false, HelpText = "Target directory to write all generated schema files.")]
+	public string? Output { get; set; }
+}
+
 public static class Program
 {
 	public static int Main(string[] args)
@@ -288,9 +317,13 @@ public static class Program
 			typeof(Blake3Options),
 			typeof(MeshPlayerColorCliOptions),
 			typeof(RigHumanoidOptions),
-			typeof(KeygenOptions));
+			typeof(KeygenOptions),
+			typeof(GenerateManifestSchemaOptions),
+			typeof(GenerateMetadataSchemaOptions),
+			typeof(GenerateTerrainSchemaOptions),
+			typeof(GenerateSchemasOptions));
 
-		return Parser.Default.ParseArguments<MeshConvertOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions>(sanitizedArgs)
+		return Parser.Default.ParseArguments<MeshConvertOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions, GenerateManifestSchemaOptions, GenerateMetadataSchemaOptions, GenerateTerrainSchemaOptions, GenerateSchemasOptions>(sanitizedArgs)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
 				(MeshConvertOptions options) => ExecuteMeshConvert(options),
@@ -303,6 +336,10 @@ public static class Program
 				(MeshPlayerColorCliOptions options) => ExecuteMeshPlayerColor(options),
 				(RigHumanoidOptions options) => ExecuteRigHumanoid(options),
 				(KeygenOptions options) => ExecuteKeygen(options),
+				(GenerateManifestSchemaOptions options) => ExecuteGenerateManifestSchema(options),
+				(GenerateMetadataSchemaOptions options) => ExecuteGenerateMetadataSchema(options),
+				(GenerateTerrainSchemaOptions options) => ExecuteGenerateTerrainSchema(options),
+				(GenerateSchemasOptions options) => ExecuteGenerateSchemas(options),
 				errors => 1);
 	}
 
@@ -1570,6 +1607,62 @@ public static class Program
 		Console.WriteLine("2. Add the Public Key to Realm.AdminServer/appsettings.json under 'AdminPublicKeys':");
 		Console.WriteLine($"   \"AdminPublicKeys\": [\n     \"{publicKeyBase64}\"\n   ]");
 		Console.WriteLine("=================================================");
+		return 0;
+	}
+
+	private static int ExecuteGenerateManifestSchema(GenerateManifestSchemaOptions options)
+	{
+		string schemaJson = MapManifest.GenerateJsonSchema();
+		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "manifest.schema.json";
+		string? outDir = Path.GetDirectoryName(outputPath);
+		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
+		{
+			Directory.CreateDirectory(outDir);
+		}
+		File.WriteAllText(outputPath, schemaJson, new System.Text.UTF8Encoding(false));
+		Console.WriteLine($"Generated schema: {outputPath}");
+		return 0;
+	}
+
+	private static int ExecuteGenerateMetadataSchema(GenerateMetadataSchemaOptions options)
+	{
+		string schemaJson = MapMetadata.GenerateJsonSchema();
+		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "metadata.schema.json";
+		string? outDir = Path.GetDirectoryName(outputPath);
+		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
+		{
+			Directory.CreateDirectory(outDir);
+		}
+		File.WriteAllText(outputPath, schemaJson, new System.Text.UTF8Encoding(false));
+		Console.WriteLine($"Generated schema: {outputPath}");
+		return 0;
+	}
+
+	private static int ExecuteGenerateTerrainSchema(GenerateTerrainSchemaOptions options)
+	{
+		string schemaJson = MapSaveData.GenerateJsonSchema();
+		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "terrain.schema.json";
+		string? outDir = Path.GetDirectoryName(outputPath);
+		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
+		{
+			Directory.CreateDirectory(outDir);
+		}
+		File.WriteAllText(outputPath, schemaJson, new System.Text.UTF8Encoding(false));
+		Console.WriteLine($"Generated schema: {outputPath}");
+		return 0;
+	}
+
+	private static int ExecuteGenerateSchemas(GenerateSchemasOptions options)
+	{
+		string baseDir = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : Directory.GetCurrentDirectory();
+		if (!Directory.Exists(baseDir))
+		{
+			Directory.CreateDirectory(baseDir);
+		}
+
+		ExecuteGenerateManifestSchema(new GenerateManifestSchemaOptions { Output = Path.Combine(baseDir, "manifest.schema.json") });
+		ExecuteGenerateMetadataSchema(new GenerateMetadataSchemaOptions { Output = Path.Combine(baseDir, "metadata.schema.json") });
+		ExecuteGenerateTerrainSchema(new GenerateTerrainSchemaOptions { Output = Path.Combine(baseDir, "terrain.schema.json") });
 		return 0;
 	}
 }

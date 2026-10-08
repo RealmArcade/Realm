@@ -411,8 +411,8 @@ internal class MovementAndPathfindingService
 			System.Numerics.Vector3 currentVelocity = EcsWorld.Has<Velocity>(entity)
 				? EcsWorld.Get<Velocity>(entity).Value
 				: System.Numerics.Vector3.Zero;
-			float accel = stats.Acceleration > 0f ? stats.Acceleration : DefaultAcceleration;
-			System.Numerics.Vector3 velocity = MoveTowards(currentVelocity, steering, accel * _fDelta);
+			float accel = stats.Acceleration;
+			System.Numerics.Vector3 velocity = accel > 0f ? MoveTowards(currentVelocity, steering, accel * _fDelta) : steering;
 			System.Numerics.Vector3 nextPos = current + velocity * _fDelta;
 
 			float scale1 = EcsWorld.Has<CollisionScale>(entity) ? EcsWorld.Get<CollisionScale>(entity).Value : 1.0f;

@@ -66,6 +66,8 @@ internal class SimulationService
 	private readonly QueryDescription _patrolArrivalQuery = Realm.Ecs.Common.QueryCache.AllPatrolAndPositionNoneDeadAndAttackTargetQuery;
 	private readonly QueryDescription _followQuery = Realm.Ecs.Common.QueryCache.AllFollowAndPositionNoneDeadQuery;
 	private readonly QueryDescription _attackCooldownQuery = Realm.Ecs.Common.QueryCache.AllAttackQuery;
+	private readonly QueryDescription _healthRegenQuery = Realm.Ecs.Common.QueryCache.AllHealthNoneDeadQuery;
+	private readonly QueryDescription _manaRegenQuery = Realm.Ecs.Common.QueryCache.AllManaAndManaRegenNoneDeadQuery;
 	private readonly QueryDescription _prodQuery = Realm.Ecs.Common.QueryCache.AllProductionQueueQuery;
 	private readonly QueryDescription _spellCooldownQuery = Realm.Ecs.Common.QueryCache.AllSpellCooldownsQuery;
 	private readonly QueryDescription _cooldownsQuery = Realm.Ecs.Common.QueryCache.AllCooldownsQuery;
@@ -76,6 +78,8 @@ internal class SimulationService
 	private ForEachWithEntity<Patrol, Position> _patrolArrivalQueryDelegate = null!;
 	private ForEachWithEntity<Follow, Position> _followQueryDelegate = null!;
 	private ForEachWithEntity<Attack> _attackCooldownQueryDelegate = null!;
+	private ForEachWithEntity<Health> _healthRegenQueryDelegate = null!;
+	private ForEachWithEntity<Mana, ManaRegen> _manaRegenQueryDelegate = null!;
 	private ForEachWithEntity<Realm.Ecs.Components.Core.ProductionQueue> _prodQueryDelegate = null!;
 	private ForEachWithEntity<InterpolationTarget> _interpolationQueryDelegate = null!;
 	private ForEachWithEntity<SpellCooldowns> _spellCooldownQueryDelegate = null!;
@@ -96,6 +100,7 @@ internal class SimulationService
 	public Action<Entity> OnStopGatheringMovementRequested;
 	public Action OnUiRefreshRequested;
 	public Action<Entity> OnPropDepleted;
+	public Action<Entity>? OnResourceHarvested;
 	public Action<string, float> OnResourceDepositedForPlayer;
 	public Action<string> OnProductionCompleted;
 	public Func<string, float> GetProductionBuildTime;
@@ -148,6 +153,7 @@ internal class SimulationService
 		_economyService.OnClearUnitOrdersRequested = ent => OnClearUnitOrdersRequested?.Invoke(ent);
 		_economyService.OnStopGatheringMovementRequested = ent => OnStopGatheringMovementRequested?.Invoke(ent);
 		_economyService.OnPropDepleted = ent => OnPropDepleted?.Invoke(ent);
+		_economyService.OnResourceHarvested = ent => OnResourceHarvested?.Invoke(ent);
 	}
 
 	public void Initialize()
@@ -158,6 +164,8 @@ internal class SimulationService
 		_patrolArrivalQueryDelegate = PatrolArrivalQueryAction;
 		_followQueryDelegate = FollowQueryAction;
 		_attackCooldownQueryDelegate = AttackCooldownQueryAction;
+		_healthRegenQueryDelegate = HealthRegenQueryAction;
+		_manaRegenQueryDelegate = ManaRegenQueryAction;
 		_prodQueryDelegate = ProdQueryAction;
 		_cooldownsQueryDelegate = CooldownsQueryAction;
 		_interpolationQueryDelegate = InterpolationQueryAction;
@@ -230,6 +238,8 @@ internal class SimulationService
 		ProcessFollowMovements();
 
 		EcsWorld.Query(in _attackCooldownQuery, _attackCooldownQueryDelegate);
+		EcsWorld.Query(in _healthRegenQuery, _healthRegenQueryDelegate);
+		EcsWorld.Query(in _manaRegenQuery, _manaRegenQueryDelegate);
 		EcsWorld.Query(in _prodQuery, _prodQueryDelegate);
 
 		foreach (var (entity, pf) in _tickAddPathFollow)
@@ -245,6 +255,113 @@ internal class SimulationService
 		ApplyDeferredTickCommands();
 	}
 
+	private readonly Dictionary<int, List<Realm.Ecs.AI.Affordances.GenericAffordance>> _customDecisionsPerPlayer = new();
+	public event Action<int, string, string, System.Numerics.Vector3, string>? OnBotCustomActionExecuted;
+
+	public void SetBotProfile(int playerIndex, Realm.Ecs.AI.Policy.BotProfile profile)
+	{
+		if (!_botControllers.TryGetValue(playerIndex, out var bot))
+		{
+			bot = new Realm.Ecs.AI.BotController(playerIndex, profile);
+			bot.CustomActionCallback = (pIdx, actId, pos, intent) =>
+			{
+				OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty);
+			};
+			_botControllers[playerIndex] = bot;
+		}
+		else
+		{
+			bot.LoadProfile(profile);
+		}
+	}
+
+	public Realm.Ecs.AI.Policy.BotProfile? GetBotProfile(int playerIndex)
+	{
+		return _botControllers.TryGetValue(playerIndex, out var bot) ? bot.Profile : null;
+	}
+
+	public void SetBotGenre(int playerIndex, string genreName, string? configJson = null)
+	{
+		var genreProvider = Realm.Ecs.AI.Genres.AiGenreRegistry.Get(genreName);
+		if (!string.IsNullOrWhiteSpace(configJson))
+		{
+			try
+			{
+				var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(configJson);
+				if (dict != null)
+				{
+					genreProvider.ConfigureFromParameters(dict);
+				}
+			}
+			catch { }
+		}
+
+		if (string.Equals(genreName, "custom", StringComparison.OrdinalIgnoreCase) && genreProvider is Realm.Ecs.AI.Genres.CustomGenreProvider customProvider)
+		{
+			customProvider.CustomScanner = (world, pIdx, dest, ctx) =>
+			{
+				if (_customDecisionsPerPlayer.TryGetValue(pIdx, out var list) && list != null)
+				{
+					dest.AddRange(list);
+				}
+			};
+		}
+
+		if (!_botControllers.TryGetValue(playerIndex, out var bot))
+		{
+			var profile = genreProvider.CreateDefaultProfile(GameHost.Instance?.ActiveMapName ?? "GenericMap");
+			bot = new Realm.Ecs.AI.BotController(playerIndex, profile, genreProvider);
+			bot.CustomActionCallback = (pIdx, actId, pos, intent) =>
+			{
+				OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty);
+			};
+			_botControllers[playerIndex] = bot;
+		}
+		else
+		{
+			bot.GenreProvider = genreProvider;
+			var profile = genreProvider.CreateDefaultProfile(bot.Profile.MapName);
+			bot.LoadProfile(profile);
+		}
+	}
+
+	public string GetBotGenre(int playerIndex)
+	{
+		return _botControllers.TryGetValue(playerIndex, out var bot) ? bot.GenreProvider.GenreName : "rts";
+	}
+
+	public void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, System.Numerics.Vector3 position, string payload)
+	{
+		if (!_customDecisionsPerPlayer.TryGetValue(playerIndex, out var list))
+		{
+			list = new List<Realm.Ecs.AI.Affordances.GenericAffordance>();
+			_customDecisionsPerPlayer[playerIndex] = list;
+		}
+
+		Realm.Ecs.AI.Affordances.CommandIntent cmdIntent = Realm.Ecs.AI.Affordances.CommandIntent.Interact;
+		if (Enum.TryParse<Realm.Ecs.AI.Affordances.CommandIntent>(intent, true, out var parsedIntent))
+		{
+			cmdIntent = parsedIntent;
+		}
+
+		list.Add(new Realm.Ecs.AI.Affordances.GenericAffordance(
+			Arch.Core.Entity.Null,
+			cmdIntent,
+			Arch.Core.Entity.Null,
+			position,
+			actionId,
+			featureVector
+		));
+	}
+
+	public void ClearCustomBotDecisions(int playerIndex)
+	{
+		if (_customDecisionsPerPlayer.TryGetValue(playerIndex, out var list))
+		{
+			list.Clear();
+		}
+	}
+
 	private void TickBotControllers(float fDelta)
 	{
 		if (EcsWorld == null) return;
@@ -252,7 +369,7 @@ internal class SimulationService
 		for (int pIdx = 0; pIdx < 8; pIdx++)
 		{
 			bool isBot = false;
-			if (pIdx > 0 && GameHost.Instance != null && ((Realm.MapAPI.IGameAPI)GameHost.Instance).IsPlayerComputer(pIdx))
+			if (GameHost.Instance != null && ((Realm.MapAPI.IGameAPI)GameHost.Instance).IsPlayerComputer(pIdx))
 			{
 				isBot = true;
 			}
@@ -261,7 +378,11 @@ internal class SimulationService
 			{
 				if (!_botControllers.TryGetValue(pIdx, out var bot))
 				{
-					bot = new Realm.Ecs.AI.BotController();
+					bot = new Realm.Ecs.AI.BotController(pIdx);
+					bot.CustomActionCallback = (botPIdx, actId, pos, intent) =>
+					{
+						OnBotCustomActionExecuted?.Invoke(botPIdx, actId, intent, pos, string.Empty);
+					};
 					string mapName = GameHost.Instance?.ActiveMapName ?? "";
 					string botPath = System.IO.Path.Combine(Godot.OS.GetUserDataDir(), $"{mapName}_bot.json");
 					if (System.IO.File.Exists(botPath))
@@ -662,6 +783,29 @@ internal class SimulationService
 		{
 			atk.CurrentCooldown = Math.Max(0, atk.CurrentCooldown - _fDelta);
 		}
+	}
+
+	private void HealthRegenQueryAction(Entity entity, ref Health health)
+	{
+		health.TimeSinceLastDamage += _fDelta;
+		if (health.HpRegen <= 0f || health.Current >= health.Max)
+		{
+			return;
+		}
+		if (health.HpRegenCombatDelay > 0f && health.TimeSinceLastDamage < health.HpRegenCombatDelay)
+		{
+			return;
+		}
+		health.Current = Math.Min(health.Max, health.Current + health.HpRegen * _fDelta);
+	}
+
+	private void ManaRegenQueryAction(Entity entity, ref Mana mana, ref ManaRegen regen)
+	{
+		if (regen.PerSecond <= 0f || mana.Current >= mana.Max)
+		{
+			return;
+		}
+		mana.Current = Math.Min(mana.Max, mana.Current + regen.PerSecond * _fDelta);
 	}
 
 	private readonly List<string> _tickExpiredSpellCooldowns = new();

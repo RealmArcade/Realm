@@ -54,11 +54,11 @@ layout_mode = 2
 focus_mode = 0
 text = "❓ HELP / HOTKEYS"
 
-[node name="BtnVSCode" type="Button" parent="TopLeftBox"]
+[node name="BtnEditors" type="Button" parent="TopLeftBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 focus_mode = 0
-text = "💻 CODE & DATA"
+text = "EDITORS"
 
 [node name="BtnUndo" type="Button" parent="TopLeftBox"]
 custom_minimum_size = Vector2(0, 40)
@@ -89,6 +89,12 @@ focus_mode = 0
 custom_minimum_size = Vector2(36, 32)
 layout_mode = 2
 focus_mode = 0
+
+[node name="BtnTestMap" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "🎮 TEST"
 
 [node name="TopBar" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(500, 60)
@@ -192,11 +198,6 @@ layout_mode = 2
 focus_mode = 0
 text = "💾 SAVE"
 
-[node name="BtnTestMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
-layout_mode = 2
-focus_mode = 0
-text = "🎮 TEST"
-
 [node name="BtnExportMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2
 focus_mode = 0
@@ -215,7 +216,7 @@ text = "🧹 RESET TO BLANK MAP"
 [node name="BtnGenerateMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2
 focus_mode = 0
-text = "🎲 RANDOM GEN"
+text = "🎲 PROCEDURAL"
 
 [node name="BtnImportMinimap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
 layout_mode = 2
@@ -239,45 +240,15 @@ layout_mode = 2
 focus_mode = 0
 text = "🌐 GRID OVERLAY: OFF"
 
-[node name="BtnToggleCameraBounds" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+[node name="BtnToggleEnvironment" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0
-text = "📹 CAM BOUNDS: OFF"
+text = "☀️ Environment"
 
-[node name="BtnToggleWireframe" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+[node name="BtnToggleCamera" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
 focus_mode = 0
-text = "🕸️ WIREFRAME: OFF"
-
-[node name="BtnRotate" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "🔄 Rotate"
-
-[node name="BtnCameraAngle" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "📐 Tilt"
-
-[node name="BtnSkybox" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "☀️ Cycle Lighting"
-
-[node name="BtnZoomIn" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "➕ Zoom In"
-
-[node name="BtnZoomOut" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "➖ Zoom Out"
-
-[node name="BtnFreeCamera" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
-layout_mode = 2
-focus_mode = 0
-text = "📹 Free Camera"
+text = "📷 Camera"
 
 [node name="MinimapFrame" type="PanelContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
 layout_mode = 2
@@ -366,6 +337,12 @@ custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 focus_mode = 0
 text = "🕳️ Lower"
+
+[node name="BtnHeight" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "↕️ Height"
 
 [node name="BtnSmooth" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
 custom_minimum_size = Vector2(0, 36)
@@ -534,18 +511,6 @@ layout_mode = 2
 focus_mode = 0
 text = "🧹 ERASE SELECTED AREA"
 
-[node name="BtnMirrorHorizontally" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
-focus_mode = 0
-text = "🪞 MIRROR HORIZONTALLY"
-
-[node name="BtnMirrorVertically" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
-focus_mode = 0
-text = "🪞 MIRROR VERTICALLY"
-
 [node name="BrushAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
 layout_mode = 2
 
@@ -616,10 +581,9 @@ layout_mode = 2
 focus_mode = 0
 text = "🔳 BRUSH: SQUARE"
 
-[node name="BtnMirrorMode" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+[node name="OptMirrorMode" type="OptionButton" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
 layout_mode = 2
 focus_mode = 0
-text = "🪞 MIRROR: NONE"
 
 [node name="ChkBlockMode" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
 layout_mode = 2
@@ -653,6 +617,32 @@ max_value = 16.0
 step = 3.0
 value = 3.0
 
+[node name="HeightBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox"]
+layout_mode = 2
+
+[node name="LblHeightTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Height"
+
+[node name="LblHeightValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "0.0m"
+
+[node name="SldHeight" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox"]
+layout_mode = 2
+focus_mode = 0
+min_value = -48.0
+max_value = 48.0
+step = 0.5
+value = 0.0
+
 [node name="ToolSettingsAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
 layout_mode = 2
 
@@ -677,73 +667,18 @@ text = "Terrain Paint Swatch"
 [node name="LblCliffTexture" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
-text = "Cliff Face Texture"
-
-[node name="GridSwatches" type="GridContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
+[node name="ScrollSwatches" type="ScrollContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
 layout_mode = 2
+size_flags_horizontal = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+
+[node name="GridSwatches" type="GridContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/h_separation = 6
 theme_override_constants/v_separation = 6
-columns = 5
-
-[node name="Swatch1" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch2" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch3" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch4" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch5" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch6" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch7" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch8" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch9" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch10" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch11" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
-
-[node name="Swatch12" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/GridSwatches"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
-focus_mode = 0
+columns = 6
 
 [node name="BtnTextureSwap" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
 layout_mode = 2

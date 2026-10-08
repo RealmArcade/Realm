@@ -52,11 +52,6 @@ public static class RanimSkeletonThumbnailGenerator
 			return null;
 		}
 
-		if (System.Threading.Thread.CurrentThread.ManagedThreadId != 1)
-		{
-			return null;
-		}
-
 		var options = new RanimRenderOptions
 		{
 			Width = 128,

@@ -6,7 +6,11 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;dist\**</DefaultItemExcludes>
   </PropertyGroup>
 
-  <Target Name="SyncVersion" BeforeTargets="NpmBuild">
+  <Target Name="GenerateSchemas" BeforeTargets="NpmBuild;Build;SyncToEmbedded" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/generate-schemas.ps1&quot;" />
+  </Target>
+
+  <Target Name="SyncVersion" BeforeTargets="NpmBuild" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/sync-version.ps1&quot;" ContinueOnError="true" />
   </Target>
 
@@ -22,14 +26,22 @@
     <ItemGroup>
       <DistFiles Include="dist\**\*.*" />
       <MediaFiles Include="media\**\*.*" />
-      <RootFiles Include="package.json;map_schema.json" />
-      <PatchFiles Include="patches\**\*.*" />
+      <RootFiles Include="package.json;metadata.schema.json;terrain.schema.json;manifest.schema.json" />
     </ItemGroup>
 
     <Copy SourceFiles="@(DistFiles)" DestinationFiles="@(DistFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/dist/%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(MediaFiles)" DestinationFiles="@(MediaFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/media/%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(RootFiles)" DestinationFiles="@(RootFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/speige.realm-map-editor/%(Filename)%(Extension)')" />
-    <Copy SourceFiles="@(PatchFiles)" DestinationFiles="@(PatchFiles->'$(MSBuildProjectDirectory)/../Realm.Godot/vscode_extensions_dist/patches/%(RecursiveDir)%(Filename)%(Extension)')" />
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/sync-version_visualStudio_debug.ps1&quot;" ContinueOnError="true" />
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/sync-version_visualStudio_debug.ps1&quot;" ContinueOnError="true" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+  </Target>
+
+  <Target Name="CopyToMapTemplate" AfterTargets="SyncToEmbedded">
+    <PropertyGroup>
+      <MapTemplateVsCodeDir>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)\..\MapTemplate\.vscode'))</MapTemplateVsCodeDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(MapTemplateVsCodeDir)" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\metadata.schema.json" DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\terrain.schema.json"  DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\manifest.schema.json" DestinationFolder="$(MapTemplateVsCodeDir)" SkipUnchangedFiles="true" />
   </Target>
 </Project>

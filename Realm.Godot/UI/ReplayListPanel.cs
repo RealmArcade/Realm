@@ -343,7 +343,7 @@ public partial class ReplayListPanel : Control
 			}
 			else
 			{
-				OS.ShellOpen("https://github.com/speige/Realm/releases");
+				OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
 			}
 		};
 		hBox.AddChild(okBtn);

@@ -11,7 +11,7 @@ using Realm.Shared.Distribution;
 
 public class MapDistributionClient
 {
-    private readonly System.Net.Http.HttpClient _httpClient = new System.Net.Http.HttpClient();
+    private readonly System.Net.Http.HttpClient _httpClient = new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan };
 
     public event Action<float>? DownloadProgressChanged;
 
@@ -71,6 +71,16 @@ public class MapDistributionClient
         Action<float>? progressCallback = null,
         CancellationToken cancellationToken = default)
     {
+        using var overallTimeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, overallTimeoutCts.Token);
+        var effectiveToken = linkedCts.Token;
+
+        if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
+        {
+            GD.PrintErr("[MapDistributionClient] Download aborted: Insufficient disk space on target storage drive (< 1% free).");
+            return false;
+        }
+
         var lm = GetLobbyManager();
         List<string> serverUrls = lm != null && lm.OfficialServers.Count > 0
             ? lm.OfficialServers
@@ -83,13 +93,13 @@ public class MapDistributionClient
 
         foreach (var serverUrl in serverUrls)
         {
-            if (cancellationToken.IsCancellationRequested) break;
+            if (effectiveToken.IsCancellationRequested) break;
 
             try
             {
                 string baseUrl = serverUrl.TrimEnd('/');
                 var distClient = new Realm.Shared.Distribution.DistributionClient(baseUrl, _httpClient);
-                var manifest = await distClient.GetManifestAsync(mapId, cancellationToken);
+                var manifest = await distClient.GetManifestAsync(mapId, effectiveToken);
                 if (manifest != null && manifest.Files != null && manifest.Files.Count > 0)
                 {
                     string version = !string.IsNullOrWhiteSpace(manifest.Version) ? manifest.Version.Trim() : "1.0.0";
@@ -102,9 +112,9 @@ public class MapDistributionClient
                     }
 
                     string localManifestPath = Path.Combine(localMapDir, "manifest.json");
-                    await File.WriteAllTextAsync(localManifestPath, manifest.ToJson(), cancellationToken);
+                    await File.WriteAllTextAsync(localManifestPath, manifest.ToJson(), effectiveToken);
 
-                    var seeders = await distClient.GetActiveSeedersAsync(cancellationToken);
+                    var seeders = await distClient.GetActiveSeedersAsync(effectiveToken);
                     bool httpSuccess = await distClient.DownloadMissingAssetsMultiThreadedAsync(
                         manifest,
                         MapAssetManager.Storage,
@@ -115,8 +125,8 @@ public class MapDistributionClient
                             progressCallback?.Invoke(p);
                             DownloadProgressChanged?.Invoke(p);
                         },
-                        maximumConcurrency: 6,
-                        cancellationToken: cancellationToken,
+                        maximumConcurrency: 12,
+                        cancellationToken: effectiveToken,
                         onAssetReady: (virtualPath, assetKey, normalizedHash) =>
                         {
                             MapAssetManager.ExtractSingleAsset(virtualPath, normalizedHash, localMapDir, isP2P: false);

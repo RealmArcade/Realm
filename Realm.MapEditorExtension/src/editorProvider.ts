@@ -164,6 +164,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             if (Array.isArray(terrainData.Units)) {
                 terrainData.Units.forEach((u: any) => {
                     if (u) {
+                        addIdentifier(u.TemplateId);
+                        addIdentifier(u.TemplateID);
                         addIdentifier(u.UnitId);
                         addIdentifier(u.Name);
                         addIdentifier(u.ModelPath);
@@ -173,6 +175,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             if (Array.isArray(terrainData.Props)) {
                 terrainData.Props.forEach((p: any) => {
                     if (p) {
+                        addIdentifier(p.TemplateId);
+                        addIdentifier(p.TemplateID);
                         addIdentifier(p.PropId);
                         addIdentifier(p.Name);
                         addIdentifier(p.ModelPath);
@@ -182,6 +186,8 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             if (Array.isArray(terrainData.Decals)) {
                 terrainData.Decals.forEach((d: any) => {
                     if (d) {
+                        addIdentifier(d.TemplateId);
+                        addIdentifier(d.TemplateID);
                         addIdentifier(d.DecalId);
                         addIdentifier(d.Name);
                     }
@@ -195,8 +201,11 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             function isEntityReferenced(item: any): boolean {
                 if (!item || typeof item !== 'object') return false;
                 const candidates = [
+                    item.TemplateID,
+                    item.TemplateId,
                     item.UnitId,
                     item.PropId,
+                    item.DecalId,
                     item.WeaponId,
                     item.AbilityId,
                     item.UpgradeId,
@@ -235,16 +244,21 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                 loopCount++;
                 const prevSize = placedIds.size;
 
+                if (!metadata.Templates) {
+                    metadata.Templates = {};
+                }
+                const templates = metadata.Templates;
+
                 const allEntities = [
-                    ...(metadata.CustomUnits || []),
-                    ...(metadata.CustomBuildings || []),
-                    ...(metadata.CustomResources || []),
-                    ...(metadata.CustomProps || [])
+                    ...(templates.Units || []),
+                    ...(templates.Buildings || []),
+                    ...(templates.Resources || []),
+                    ...(templates.Props || [])
                 ];
 
                 for (const entity of allEntities) {
                     if (isEntityReferenced(entity)) {
-                        addIdentifier(entity.UnitId);
+                        addIdentifier(entity.TemplateID || entity.UnitId);
                         addIdentifier(entity.Name);
                         addIdentifier(entity.ModelPath);
 
@@ -269,10 +283,10 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                     }
                 }
 
-                if (Array.isArray(metadata.CustomAbilities)) {
-                    for (const abi of metadata.CustomAbilities) {
+                if (Array.isArray(templates.Abilities)) {
+                    for (const abi of templates.Abilities) {
                         if (isEntityReferenced(abi)) {
-                            addIdentifier(abi.AbilityId);
+                            addIdentifier(abi.TemplateID || abi.AbilityId);
                             addIdentifier(abi.Name);
                             if (abi.SummonedUnitId) addIdentifier(abi.SummonedUnitId);
                             if (Array.isArray(abi.GrantedWeapons)) abi.GrantedWeapons.forEach((w: string) => addIdentifier(w));
@@ -280,10 +294,10 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                     }
                 }
 
-                if (Array.isArray(metadata.CustomUpgrades)) {
-                    for (const up of metadata.CustomUpgrades) {
+                if (Array.isArray(templates.Upgrades)) {
+                    for (const up of templates.Upgrades) {
                         if (isEntityReferenced(up)) {
-                            addIdentifier(up.UpgradeId);
+                            addIdentifier(up.TemplateID || up.UpgradeId);
                             addIdentifier(up.Name);
                             if (Array.isArray(up.GrantedWeapons)) up.GrantedWeapons.forEach((w: string) => addIdentifier(w));
                             if (Array.isArray(up.AffectedUnitIds)) up.AffectedUnitIds.forEach((uid: string) => addIdentifier(uid));
@@ -291,10 +305,10 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                     }
                 }
 
-                if (Array.isArray(metadata.CustomItems)) {
-                    for (const itm of metadata.CustomItems) {
+                if (Array.isArray(templates.Items)) {
+                    for (const itm of templates.Items) {
                         if (isEntityReferenced(itm)) {
-                            addIdentifier(itm.ItemId);
+                            addIdentifier(itm.TemplateID || itm.ItemId);
                             addIdentifier(itm.Name);
                             if (Array.isArray(itm.Abilities)) itm.Abilities.forEach((a: string) => addIdentifier(a));
                             if (Array.isArray(itm.GrantedWeapons)) itm.GrantedWeapons.forEach((w: string) => addIdentifier(w));
@@ -308,41 +322,46 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
             }
 
             // 5. Filter target domain
+            if (!metadata.Templates) {
+                metadata.Templates = {};
+            }
+            const templates = metadata.Templates;
+
             let initialCount = 0;
             let finalCount = 0;
 
             if (domain === 'units') {
-                initialCount = (metadata.CustomUnits || []).length;
-                metadata.CustomUnits = (metadata.CustomUnits || []).filter((u: any) => isEntityReferenced(u));
-                finalCount = metadata.CustomUnits.length;
+                initialCount = (templates.Units || []).length;
+                templates.Units = (templates.Units || []).filter((u: any) => isEntityReferenced(u));
+                finalCount = templates.Units.length;
             } else if (domain === 'buildings') {
-                initialCount = (metadata.CustomBuildings || []).length;
-                metadata.CustomBuildings = (metadata.CustomBuildings || []).filter((b: any) => isEntityReferenced(b));
-                finalCount = metadata.CustomBuildings.length;
+                initialCount = (templates.Buildings || []).length;
+                templates.Buildings = (templates.Buildings || []).filter((b: any) => isEntityReferenced(b));
+                finalCount = templates.Buildings.length;
             } else if (domain === 'resources') {
-                initialCount = (metadata.CustomResources || []).length;
-                metadata.CustomResources = (metadata.CustomResources || []).filter((r: any) => isEntityReferenced(r));
-                finalCount = metadata.CustomResources.length;
+                initialCount = (templates.Resources || []).length;
+                templates.Resources = (templates.Resources || []).filter((r: any) => isEntityReferenced(r));
+                finalCount = templates.Resources.length;
             } else if (domain === 'props') {
-                initialCount = (metadata.CustomProps || []).length;
-                metadata.CustomProps = (metadata.CustomProps || []).filter((p: any) => isEntityReferenced(p));
-                finalCount = metadata.CustomProps.length;
+                initialCount = (templates.Props || []).length;
+                templates.Props = (templates.Props || []).filter((p: any) => isEntityReferenced(p));
+                finalCount = templates.Props.length;
             } else if (domain === 'weapons') {
-                initialCount = (metadata.CustomWeapons || []).length;
-                metadata.CustomWeapons = (metadata.CustomWeapons || []).filter((w: any) => isEntityReferenced(w));
-                finalCount = metadata.CustomWeapons.length;
+                initialCount = (templates.Weapons || []).length;
+                templates.Weapons = (templates.Weapons || []).filter((w: any) => isEntityReferenced(w));
+                finalCount = templates.Weapons.length;
             } else if (domain === 'abilities') {
-                initialCount = (metadata.CustomAbilities || []).length;
-                metadata.CustomAbilities = (metadata.CustomAbilities || []).filter((a: any) => isEntityReferenced(a));
-                finalCount = metadata.CustomAbilities.length;
+                initialCount = (templates.Abilities || []).length;
+                templates.Abilities = (templates.Abilities || []).filter((a: any) => isEntityReferenced(a));
+                finalCount = templates.Abilities.length;
             } else if (domain === 'upgrades') {
-                initialCount = (metadata.CustomUpgrades || []).length;
-                metadata.CustomUpgrades = (metadata.CustomUpgrades || []).filter((u: any) => isEntityReferenced(u));
-                finalCount = metadata.CustomUpgrades.length;
+                initialCount = (templates.Upgrades || []).length;
+                templates.Upgrades = (templates.Upgrades || []).filter((u: any) => isEntityReferenced(u));
+                finalCount = templates.Upgrades.length;
             } else if (domain === 'items') {
-                initialCount = (metadata.CustomItems || []).length;
-                metadata.CustomItems = (metadata.CustomItems || []).filter((i: any) => isEntityReferenced(i));
-                finalCount = metadata.CustomItems.length;
+                initialCount = (templates.Items || []).length;
+                templates.Items = (templates.Items || []).filter((i: any) => isEntityReferenced(i));
+                finalCount = templates.Items.length;
             }
 
             const removedCount = initialCount - finalCount;
@@ -645,8 +664,11 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                     <div class="form-section">
                         <h3>General Information</h3>
                         <div class="form-group">
-                            <label for="field-UnitId">ID</label>
-                            <input type="text" id="field-UnitId" required />
+                            <label for="field-TemplateID-slug">TemplateID</label>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <span id="field-template-type-prefix" style="color: var(--vscode-descriptionForeground, #888888); font-family: var(--vscode-editor-font-family, monospace); font-size: 13px; font-weight: bold;">unit/</span>
+                                <input type="text" id="field-TemplateID-slug" style="flex: 1;" required />
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="field-Name">Name</label>
@@ -715,6 +737,36 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                         <h3>Attributes & Stats</h3>
                         <div class="form-row">
                             <div class="form-group">
+                                <label for="field-Strength">Strength (STR)</label>
+                                <input type="number" id="field-Strength" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-Agility">Agility (AGI)</label>
+                                <input type="number" id="field-Agility" min="0" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-Vitality">Vitality (VIT)</label>
+                                <input type="number" id="field-Vitality" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-Intelligence">Intelligence (INT)</label>
+                                <input type="number" id="field-Intelligence" min="0" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-Wisdom">Wisdom (WIS)</label>
+                                <input type="number" id="field-Wisdom" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-Fortune">Fortune (FORT)</label>
+                                <input type="number" id="field-Fortune" min="0" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
                                 <label for="field-MaxHp">Max HP</label>
                                 <input type="number" id="field-MaxHp" min="0" step="any" required />
                             </div>
@@ -746,6 +798,132 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                         <div class="form-group">
                             <label for="field-ScanRadius">Scan Radius</label>
                             <input type="number" id="field-ScanRadius" min="0" step="any" required />
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-HpRegen">HP Regen / sec</label>
+                                <input type="number" id="field-HpRegen" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-HpRegenCombatDelay">HP Regen Combat Delay (sec)</label>
+                                <input type="number" id="field-HpRegenCombatDelay" min="0" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-MaxMana">Max Mana</label>
+                                <input type="number" id="field-MaxMana" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-ManaRegen">Mana Regen / sec</label>
+                                <input type="number" id="field-ManaRegen" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-RatedArmor">Rated Armor (EHP Scaling)</label>
+                                <input type="number" id="field-RatedArmor" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-ArmorType">Armor Type Tag</label>
+                                <input type="text" id="field-ArmorType" placeholder="unarmored" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-FlatArmorPenetration">Flat Armor Pen</label>
+                                <input type="number" id="field-FlatArmorPenetration" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-PercentArmorPenetration">Percent Armor Pen (0.0 - 1.0)</label>
+                                <input type="number" id="field-PercentArmorPenetration" min="0" max="1" step="any" placeholder="0.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-DamageVariance">Damage Variance (±)</label>
+                                <input type="number" id="field-DamageVariance" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-DamageType">Damage Type Tag</label>
+                                <input type="text" id="field-DamageType" placeholder="normal" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-CritChance">Crit Chance (0.0 - 1.0)</label>
+                                <input type="number" id="field-CritChance" min="0" max="1" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-CritMultiplier">Crit Multiplier</label>
+                                <input type="number" id="field-CritMultiplier" min="0" step="any" placeholder="1.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SplashType">Splash Falloff Type</label>
+                                <select id="field-SplashType">
+                                    <option value="None">None</option>
+                                    <option value="RadialStep">RadialStep</option>
+                                    <option value="RadialLinear">RadialLinear</option>
+                                </select>
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label for="field-FriendlyFire">
+                                    <input type="checkbox" id="field-FriendlyFire" />
+                                    Friendly Fire Splash
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SplashInnerRadius">Splash Inner Radius</label>
+                                <input type="number" id="field-SplashInnerRadius" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-SplashInnerRatio">Splash Inner Ratio</label>
+                                <input type="number" id="field-SplashInnerRatio" min="0" step="any" placeholder="1.0" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SplashMediumRadius">Splash Medium Radius</label>
+                                <input type="number" id="field-SplashMediumRadius" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-SplashMediumRatio">Splash Medium Ratio</label>
+                                <input type="number" id="field-SplashMediumRatio" min="0" step="any" placeholder="0.5" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SplashOuterRadius">Splash Outer Radius</label>
+                                <input type="number" id="field-SplashOuterRadius" min="0" step="any" placeholder="0.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-SplashOuterRatio">Splash Outer Ratio</label>
+                                <input type="number" id="field-SplashOuterRatio" min="0" step="any" placeholder="0.25" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-PushPriority">Push Priority</label>
+                                <input type="number" id="field-PushPriority" step="1" placeholder="0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-MovementType">Movement Type</label>
+                                <input type="text" id="field-MovementType" placeholder="Ground" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="field-SightRange">Sight Range</label>
+                                <input type="number" id="field-SightRange" min="0" step="any" placeholder="15.0" />
+                            </div>
+                            <div class="form-group">
+                                <label for="field-AcquisitionRange">Acquisition Range</label>
+                                <input type="number" id="field-AcquisitionRange" min="0" step="any" placeholder="15.0" />
+                            </div>
                         </div>
                     </div>
 

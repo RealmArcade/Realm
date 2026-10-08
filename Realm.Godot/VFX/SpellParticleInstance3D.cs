@@ -155,7 +155,7 @@ public partial class SpellParticleInstance3D : Node3D
 
 	private void ApplyMotion()
 	{
-		Vector3 dir = _config.Direction;
+		Vector3 dir = _config.Direction.ToGodotVector3();
 		if (dir.LengthSquared() < 0.001f) dir = Vector3.Up;
 		_processMaterial.Direction = dir.Normalized();
 		_processMaterial.Spread = Mathf.Clamp(_config.SpreadDegrees, 0.0f, 180.0f);
@@ -163,9 +163,10 @@ public partial class SpellParticleInstance3D : Node3D
 		_processMaterial.InitialVelocityMin = _config.InitialVelocityMin;
 		_processMaterial.InitialVelocityMax = Math.Max(_config.InitialVelocityMin, _config.InitialVelocityMax);
 
-		_processMaterial.Gravity = _config.Gravity;
-		_processMaterial.LinearAccelMin = _config.LinearAccel.Length() * -0.5f;
-		_processMaterial.LinearAccelMax = _config.LinearAccel.Length();
+		_processMaterial.Gravity = _config.Gravity.ToGodotVector3();
+		Vector3 linearAccel = _config.LinearAccel.ToGodotVector3();
+		_processMaterial.LinearAccelMin = linearAccel.Length() * -0.5f;
+		_processMaterial.LinearAccelMax = linearAccel.Length();
 		_processMaterial.RadialAccelMin = _config.RadialAccel * 0.5f;
 		_processMaterial.RadialAccelMax = _config.RadialAccel;
 		_processMaterial.TangentialAccelMin = _config.TangentialAccel * -0.5f;
@@ -176,13 +177,13 @@ public partial class SpellParticleInstance3D : Node3D
 
 	private void ApplyColorsAndRamp()
 	{
-		Color cStart = Color.FromHtml(_config.ColorStart);
+		Color cStart = VfxShaderManager.ParseColorSafe(_config.ColorStart, Colors.Gold);
 		cStart.A = Mathf.Clamp(_config.AlphaStart, 0.0f, 1.0f);
 
-		Color cMid = Color.FromHtml(_config.ColorMid);
+		Color cMid = VfxShaderManager.ParseColorSafe(_config.ColorMid, Colors.DarkOrange);
 		cMid.A = Mathf.Clamp(_config.AlphaMid, 0.0f, 1.0f);
 
-		Color cEnd = Color.FromHtml(_config.ColorEnd);
+		Color cEnd = VfxShaderManager.ParseColorSafe(_config.ColorEnd, Colors.Maroon);
 		cEnd.A = Mathf.Clamp(_config.AlphaEnd, 0.0f, 1.0f);
 
 		var gradient = new Gradient();
@@ -286,7 +287,7 @@ public partial class SpellParticleInstance3D : Node3D
 			{
 				_billboardMaterial.EmissionEnabled = true;
 				_billboardMaterial.EmissionEnergyMultiplier = _config.EmissionEnergy;
-				_billboardMaterial.Emission = Color.FromHtml(_config.ColorStart);
+				_billboardMaterial.Emission = VfxShaderManager.ParseColorSafe(_config.ColorStart, Colors.Gold);
 			}
 			else
 			{

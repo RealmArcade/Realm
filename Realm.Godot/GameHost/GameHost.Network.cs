@@ -546,4 +546,223 @@ public partial class GameHost
 	{
 		InGameHUD.Instance?.UpdatePauseUI();
 	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void SyncWorldState(float gameElapsedTime, int timeOfDayIndex, float timeOfDayTimer, bool dayNightCycleEnabled)
+	{
+		if (EcsWorld != null && _worldEntity != Entity.Null && EcsWorld.IsAlive(_worldEntity))
+		{
+			EcsWorld.SetOrAdd(_worldEntity, new WorldState(gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled));
+			if (dayNightCycleEnabled && TimeOfDayCycleDuration > 0)
+			{
+				float progress = timeOfDayTimer / TimeOfDayCycleDuration;
+				if (!IsMapEditorMode)
+				{
+					UpdateDayNightVisuals(progress);
+				}
+			}
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void SyncEnvironmentPresetRpc(string presetId, float durationSeconds)
+	{
+		if (durationSeconds <= 0.001f)
+		{
+			_environmentService?.ApplyPresetById(this, presetId);
+		}
+		else
+		{
+			_environmentService?.TransitionToPreset(this, presetId, durationSeconds);
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void SyncWeatherRpc(string weatherType)
+	{
+		_environmentService?.SetCurrentWeather(weatherType);
+		InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
+	}
+
+	public void HandlePeerReconnected(int oldPeerId, int newPeerId, int slot)
+	{
+		if (!Multiplayer.IsServer()) return;
+
+		GD.Print($"[GameHost] HandlePeerReconnected: OldPeer={oldPeerId}, NewPeer={newPeerId}, Slot={slot}");
+
+		Entity playerEntity = Entity.Null;
+		if (_peerIdToPlayerEntityMap.TryGetValue(oldPeerId, out var existingEntity))
+		{
+			playerEntity = existingEntity;
+			_peerIdToPlayerEntityMap.Remove(oldPeerId);
+		}
+		else if (_peerIdToPlayerEntityMap.TryGetValue(newPeerId, out var directEntity))
+		{
+			playerEntity = directEntity;
+		}
+
+		if (playerEntity != Entity.Null)
+		{
+			_peerIdToPlayerEntityMap[newPeerId] = playerEntity;
+		}
+
+		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<NetworkMappingState>(_worldEntity))
+		{
+			var mapping = EcsWorld.Get<NetworkMappingState>(_worldEntity);
+			if (playerEntity != Entity.Null)
+			{
+				mapping.PeerIdToPlayerEntityMap.Remove(oldPeerId);
+				mapping.PeerIdToPlayerEntityMap[newPeerId] = playerEntity;
+			}
+		}
+
+		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<WorldState>(_worldEntity))
+		{
+			var ws = EcsWorld.Get<WorldState>(_worldEntity);
+			RpcId(newPeerId, nameof(SyncWorldState), ws.GameElapsedTime, ws.TimeOfDayIndex, ws.TimeOfDayTimer, ws.DayNightCycleEnabled);
+		}
+
+		var baselinePayload = _networkService.BuildExplicitBaselineSnapshot(newPeerId, AllUnits);
+		if (baselinePayload != null && baselinePayload.Length > 0)
+		{
+			RpcId(newPeerId, nameof(ReceiveSnapshot), baselinePayload);
+		}
+
+		if (playerEntity != Entity.Null && EcsWorld != null && EcsWorld.IsAlive(playerEntity) && EcsWorld.TryGet<PlayerResources>(playerEntity, out var res))
+		{
+			float gold = res.Value.TryGetValue(_goldResourceId, out var g) ? g : 0;
+			float wood = res.Value.TryGetValue(_woodResourceId, out var w) ? w : 0;
+			float stone = res.Value.TryGetValue(_stoneResourceId, out var s) ? s : 0;
+			RpcId(newPeerId, nameof(SyncPlayerResources), gold, wood, stone);
+		}
+
+		foreach (var unit in AllUnits)
+		{
+			if (GodotObject.IsInstanceValid(unit) && EcsWorld != null && EcsWorld.IsAlive(unit.Entity) && EcsWorld.Has<ProductionQueue>(unit.Entity))
+			{
+				var prod = EcsWorld.Get<ProductionQueue>(unit.Entity);
+				RpcId(newPeerId, nameof(SyncProductionQueue), unit.Entity.Id, prod.UnitIds.ToArray(), prod.CurrentProgress, prod.BuildTime);
+			}
+		}
+
+		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<CountdownState>(_worldEntity))
+		{
+			var countdown = EcsWorld.Get<CountdownState>(_worldEntity);
+			if (countdown.Active)
+			{
+				RpcId(newPeerId, nameof(ClientStartCountdownTimer), countdown.Duration, countdown.Text);
+			}
+		}
+
+		foreach (var kvp in _abilityDefinitions)
+		{
+			RpcId(newPeerId, nameof(ClientRegisterAbility), kvp.Key, kvp.Value.DisplayName, kvp.Value.Tooltip, kvp.Value.IconPath ?? "", kvp.Value.IsInstant);
+		}
+
+		if (IsPaused)
+		{
+			RpcId(newPeerId, nameof(BroadcastPauseState), true, 1, false);
+			var serializedReady = System.Text.Json.JsonSerializer.Serialize(_playerReadyStates);
+			RpcId(newPeerId, nameof(BroadcastReadyStates), serializedReady);
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientRegisterAbility(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
+	{
+		if (string.IsNullOrEmpty(abilityId)) return;
+
+		if (!_abilityDefinitions.TryGetValue(abilityId, out var def))
+		{
+			def = new AbilityDefinition { Id = abilityId };
+			_abilityDefinitions[abilityId] = def;
+		}
+
+		def.DisplayName = displayName ?? "";
+		def.Tooltip = tooltip ?? "";
+		if (!string.IsNullOrEmpty(iconPath)) def.IconPath = iconPath;
+		def.IsInstant = isInstant;
+
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientShowFeedbackText(string text, Vector3 color)
+	{
+		if (InGameHUD.Instance != null)
+		{
+			var gColor = new Color(color.X, color.Y, color.Z);
+			InGameHUD.Instance.CallDeferred(nameof(InGameHUD.ShowFeedbackText), text, gColor);
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
+	public void ClientCreateFloatingText(string text, Vector3 position, Vector3 color, float duration)
+	{
+		CreateFloatingTextInternal(text, position, new Color(color.X, color.Y, color.Z), duration);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientStartCountdownTimer(float duration, string label)
+	{
+		Callable.From(() => InGameHUD.Instance?.StartCountdownTimer(duration, label)).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientStopCountdownTimer()
+	{
+		Callable.From(() => InGameHUD.Instance?.StopCountdownTimer()).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPanCameraTo(Vector3 position, float duration)
+	{
+		Callable.From(() =>
+		{
+			PanCameraInternal(position, duration);
+		}).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientGameOver(bool isVictory)
+	{
+		IsGameOver = true;
+		UIManager.Instance?.CallDeferred(nameof(UIManager.TransitionTo), (int)GameScreen.GameOver, isVictory);
+	}
+
+	public void OnClientReconnected(int slot)
+	{
+		_localPeerId = Multiplayer.GetUniqueId();
+		_networkService.LocalPeerId = _localPeerId;
+		_networkService.MarkClientEnteredMultiplayer();
+		_networkService.ResetReconnectionState();
+
+		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+		{
+			foreach (var p in LobbyManager.Instance.PlayerList)
+			{
+				if (p.Slot == slot || p.PeerId == _localPeerId)
+				{
+					if (_peerIdToPlayerEntityMap.TryGetValue(_localPeerId, out var myEntity))
+					{
+						_playerEntity = myEntity;
+					}
+				}
+			}
+		}
+
+		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<NetworkMappingState>(_worldEntity))
+		{
+			var mapping = EcsWorld.Get<NetworkMappingState>(_worldEntity);
+			mapping.PlayerEntity = _playerEntity;
+			mapping.EnemyPlayerEntity = _enemyPlayerEntity;
+			if (_playerEntity != Entity.Null)
+			{
+				mapping.PeerIdToPlayerEntityMap[_localPeerId] = _playerEntity;
+			}
+		}
+
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");
+	}
 }

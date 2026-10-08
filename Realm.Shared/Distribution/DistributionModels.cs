@@ -235,6 +235,43 @@ public class PublishMapFinalizeRequest
     public string Signature { get; set; } = string.Empty;
 }
 
+public class AddMapMaintainerRequest
+{
+    public string MapTitle { get; set; } = string.Empty;
+    public string MaintainerPublicKey { get; set; } = string.Empty;
+    public string? MaintainerUsername { get; set; }
+    public string RequesterPublicKey { get; set; } = string.Empty;
+    public string Signature { get; set; } = string.Empty;
+}
+
+public class RemoveMapMaintainerRequest
+{
+    public string MapTitle { get; set; } = string.Empty;
+    public string MaintainerPublicKey { get; set; } = string.Empty;
+    public string RequesterPublicKey { get; set; } = string.Empty;
+    public string Signature { get; set; } = string.Empty;
+}
+
+public class MapMaintainersResponseDto
+{
+    public bool Success { get; set; }
+    public string MapTitle { get; set; } = string.Empty;
+    public string OwnerPublicKey { get; set; } = string.Empty;
+    public List<string> Maintainers { get; set; } = new();
+    public string Message { get; set; } = string.Empty;
+}
+
+public class MapMaintainersUpdatedEventPayload
+{
+    public string MapTitle { get; set; } = string.Empty;
+    public string Action { get; set; } = "add";
+    public string MaintainerPublicKey { get; set; } = string.Empty;
+    public string? MaintainerUsername { get; set; }
+    public string RequesterPublicKey { get; set; } = string.Empty;
+    public string Signature { get; set; } = string.Empty;
+    public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
+}
+
 public class PublishMapFinalizeResponse
 {
     public bool Success { get; set; }
@@ -270,6 +307,7 @@ public class ClusterSnapshotDto
     public List<CreatorSyncDto> Creators { get; set; } = new();
     public List<PublishedMapSyncDto> PublishedMaps { get; set; } = new();
     public Dictionary<string, string> MapOwnership { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, List<string>> MapMaintainers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<MapStatsSyncDto> MapStats { get; set; } = new();
     public Dictionary<string, string> NameLocks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> AssetSignatures { get; set; } = new(StringComparer.OrdinalIgnoreCase);

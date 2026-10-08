@@ -16,4 +16,10 @@
     <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Templates\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

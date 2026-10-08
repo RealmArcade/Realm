@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Realm.Godot.VFX;
 using Realm.Godot.Services;
+using Realm.Godot.Utils;
 
 public class MapEditorEntityPaletteController
 {
@@ -187,16 +188,6 @@ public class MapEditorEntityPaletteController
 			{
 				if (category == "VFX")
 				{
-					foreach (var prim in Enum.GetValues<VfxPrimitiveType>())
-					{
-						string primKey = $"vfx:{prim}";
-						if (!_categoryFiles.Contains(primKey))
-						{
-							_categoryFiles.Add(primKey);
-							_idToDisplayName[primKey] = "✨ " + prim.ToString();
-						}
-					}
-
 					if (GameHost.VfxRegistry != null)
 					{
 						foreach (var kvp in GameHost.VfxRegistry)
@@ -210,9 +201,9 @@ public class MapEditorEntityPaletteController
 						}
 					}
 
-					if (metadata.CustomVfx != null)
+					if (metadata.Templates?.Vfx != null)
 					{
-						foreach (var vObj in metadata.CustomVfx)
+						foreach (var vObj in metadata.Templates.Vfx)
 						{
 							string vId = vObj.VfxId ?? "";
 							string name = vObj.Name ?? "";
@@ -229,10 +220,24 @@ public class MapEditorEntityPaletteController
 				}
 				else if (category == "Decals")
 				{
-					var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(globalWs);
-					if (unionedAssets.ContainsKey("decals") && unionedAssets["decals"] is System.Text.Json.Nodes.JsonObject decalsObj)
+					if (metadata.Decals != null)
 					{
-						foreach (var kvp in decalsObj)
+						foreach (var kvp in metadata.Decals)
+						{
+							string decalKey = kvp.Key;
+							if (!_categoryFiles.Contains(decalKey))
+							{
+								_categoryFiles.Add(decalKey);
+								_idToDisplayName[decalKey] = TemplateIDHelper.ParseTemplateID(decalKey).Slug.Replace("_", " ");
+							}
+						}
+					}
+
+					var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(globalWs);
+					var decalsDict = unionedAssets.GetCategory("Decal");
+					if (decalsDict != null)
+					{
+						foreach (var kvp in decalsDict)
 						{
 							string decalFile = kvp.Key;
 							string relDecalPath = System.IO.Path.Combine("Assets", "decals", decalFile);
@@ -258,14 +263,14 @@ public class MapEditorEntityPaletteController
 				{
 					if (category == "Buildings")
 					{
-						if (metadata.CustomBuildings != null)
+						if (metadata.Templates?.Buildings != null)
 						{
-							foreach (var b in metadata.CustomBuildings)
+							foreach (var b in metadata.Templates.Buildings)
 							{
-								if (!string.IsNullOrEmpty(b.UnitId) && !_categoryFiles.Contains(b.UnitId))
+								if (!string.IsNullOrEmpty(b.TemplateID) && !_categoryFiles.Contains(b.TemplateID))
 								{
-									_categoryFiles.Add(b.UnitId);
-									if (!string.IsNullOrEmpty(b.Name)) _idToDisplayName[b.UnitId] = b.Name;
+									_categoryFiles.Add(b.TemplateID);
+									if (!string.IsNullOrEmpty(b.Name)) _idToDisplayName[b.TemplateID] = b.Name;
 								}
 							}
 						}
@@ -283,14 +288,14 @@ public class MapEditorEntityPaletteController
 					}
 					else if (category == "Units" || category == "Characters")
 					{
-						if (metadata.CustomUnits != null)
+						if (metadata.Templates?.Units != null)
 						{
-							foreach (var u in metadata.CustomUnits)
+							foreach (var u in metadata.Templates.Units)
 							{
-								if (!string.IsNullOrEmpty(u.UnitId) && !_categoryFiles.Contains(u.UnitId))
+								if (!string.IsNullOrEmpty(u.TemplateID) && !_categoryFiles.Contains(u.TemplateID))
 								{
-									_categoryFiles.Add(u.UnitId);
-									if (!string.IsNullOrEmpty(u.Name)) _idToDisplayName[u.UnitId] = u.Name;
+									_categoryFiles.Add(u.TemplateID);
+									if (!string.IsNullOrEmpty(u.Name)) _idToDisplayName[u.TemplateID] = u.Name;
 								}
 							}
 						}
@@ -308,14 +313,14 @@ public class MapEditorEntityPaletteController
 					}
 					else if (category == "Resources" || category == "Environment")
 					{
-						if (metadata.CustomResources != null)
+						if (metadata.Templates?.Resources != null)
 						{
-							foreach (var r in metadata.CustomResources)
+							foreach (var r in metadata.Templates.Resources)
 							{
-								if (!string.IsNullOrEmpty(r.UnitId) && !_categoryFiles.Contains(r.UnitId))
+								if (!string.IsNullOrEmpty(r.TemplateID) && !_categoryFiles.Contains(r.TemplateID))
 								{
-									_categoryFiles.Add(r.UnitId);
-									if (!string.IsNullOrEmpty(r.Name)) _idToDisplayName[r.UnitId] = r.Name;
+									_categoryFiles.Add(r.TemplateID);
+									if (!string.IsNullOrEmpty(r.Name)) _idToDisplayName[r.TemplateID] = r.Name;
 								}
 							}
 						}
@@ -333,14 +338,14 @@ public class MapEditorEntityPaletteController
 					}
 					else if (category == "Props")
 					{
-						if (metadata.CustomProps != null)
+						if (metadata.Templates?.Props != null)
 						{
-							foreach (var p in metadata.CustomProps)
+							foreach (var p in metadata.Templates.Props)
 							{
-								if (!string.IsNullOrEmpty(p.UnitId) && !_categoryFiles.Contains(p.UnitId))
+								if (!string.IsNullOrEmpty(p.TemplateID) && !_categoryFiles.Contains(p.TemplateID))
 								{
-									_categoryFiles.Add(p.UnitId);
-									if (!string.IsNullOrEmpty(p.Name)) _idToDisplayName[p.UnitId] = p.Name;
+									_categoryFiles.Add(p.TemplateID);
+									if (!string.IsNullOrEmpty(p.Name)) _idToDisplayName[p.TemplateID] = p.Name;
 								}
 							}
 						}

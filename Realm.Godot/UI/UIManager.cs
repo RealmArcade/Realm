@@ -552,13 +552,6 @@ public partial class UIManager : Control
 		}
 	}
 
-	public override void _Input(InputEvent @event)
-	{
-		if (@event is InputEventKey keyEvent && keyEvent.Keycode == Key.F8)
-		{
-			GetViewport().SetInputAsHandled();
-		}
-	}
 
 	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true)
 	{
@@ -727,7 +720,14 @@ public partial class UIManager : Control
 						}
 						if (GodotObject.IsInstanceValid(statusLabel))
 						{
-							statusLabel.Text = string.Format(TranslationServer.Translate("Importing assets... {0}%"), (int)(progress * 100));
+							string phaseText = progress < 0.30f
+								? TranslationServer.Translate("Extracting to CAS...")
+								: progress < 0.50f
+									? TranslationServer.Translate("Extracting archive...")
+									: progress < 0.90f
+										? string.Format(TranslationServer.Translate("Linking assets... {0}%"), (int)(progress * 100))
+										: TranslationServer.Translate("Registering map...");
+							statusLabel.Text = phaseText;
 						}
 					}).CallDeferred();
 				}

@@ -1,5 +1,6 @@
 using Realm.AdminServer.Models;
 using Realm.AdminServer.Services;
+using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 
@@ -143,7 +144,7 @@ app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext 
     var clientIpStr = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
     var clientCoords = geoIp.GetCoordinates(clientIpStr);
     
-    var list = registry.GetAllLobbies().Select(lobby =>
+    var list = registry.GetAllLobbies().Where(lobby => !lobby.IsGameInProgress).Select(lobby =>
     {
         var distance = GeoIpService.CalculateDistance(
             clientCoords.lat, clientCoords.lon,
@@ -228,30 +229,9 @@ app.MapPost("/lobbies/register", async (RegisterRequest req, LobbyRegistry regis
             return Results.BadRequest(new { Message = "Invalid signature or public key format." });
         }
         
-        string slug = req.Map.ToLowerInvariant().Replace(" ", "-");
-        string? officialOwner = db.Get<string>("map_ownership", req.Map) ?? db.Get<string>("map_ownership", slug);
-        if (officialOwner == null)
+        if (MapMaintainerHelper.HasMapConflict(db, req.Map, req.PublicKey, out var conflictingMap))
         {
-            var publishedMap = db.Get<JsonDocument>("published_maps", req.Map) ?? db.Get<JsonDocument>("published_maps", slug);
-            if (publishedMap != null)
-            {
-                if (publishedMap.RootElement.TryGetProperty("owner_public_key", out var opk))
-                {
-                    officialOwner = opk.GetString();
-                }
-                else if (publishedMap.RootElement.TryGetProperty("OwnerPublicKey", out var opk2))
-                {
-                    officialOwner = opk2.GetString();
-                }
-            }
-        }
-
-        if (!string.IsNullOrEmpty(officialOwner))
-        {
-            if (!string.Equals(officialOwner, req.PublicKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return Results.BadRequest(new { Message = $"The map name '{req.Map}' conflicts with an officially published map. Please rename your map to host a lobby." });
-            }
+            return Results.BadRequest(new { Message = $"The map name '{req.Map}' conflicts with an officially published map ('{conflictingMap}'). Please rename your map to host a lobby." });
         }
     }
 
@@ -355,6 +335,10 @@ app.MapPost("/lobbies/heartbeat", async (HeartbeatRequest req, LobbyRegistry reg
     {
         lobby.LastHeartbeat = DateTime.UtcNow;
         lobby.SlotsUsed = req.SlotsUsed;
+        if (req.IsGameInProgress.HasValue)
+        {
+            lobby.IsGameInProgress = req.IsGameInProgress.Value;
+        }
 
 
         _ = Task.Run(async () =>
@@ -545,103 +529,38 @@ app.Map("/lobbies/ws", async (HttpContext context, LobbyRegistry registry) =>
     }
 });
 
-app.MapGet("/auth/login", (string provider, int port) =>
+app.MapGet("/auth/login", (string provider, int port, IWebHostEnvironment env) =>
 {
     long part1 = Random.Shared.Next(100000000, 999999999);
     long part2 = Random.Shared.Next(100000000, 999999999);
     string randomSnowflake = $"{part1}{part2}";
 
-    var html = $$"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Authorize Realm</title>
-        <style>
-            body {
-                background: #0f111a;
-                color: #e2e8f0;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                margin: 0;
-            }
-            .card {
-                background: #1a1d2e;
-                border: 2px solid #3b3f5c;
-                border-radius: 12px;
-                padding: 40px;
-                width: 400px;
-                text-align: center;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            }
-            h2 {
-                color: #ffd700;
-                margin-bottom: 10px;
-            }
-            .provider-title {
-                text-transform: capitalize;
-                font-weight: bold;
-                color: #5cd6ff;
-            }
-            .btn {
-                background: #5865F2;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-size: 16px;
-                font-weight: bold;
-                cursor: pointer;
-                transition: background 0.2s;
-                width: 100%;
-                margin-top: 20px;
-            }
-            .btn-steam {
-                background: #171a21;
-                border: 1px solid #66c0f4;
-            }
-            .btn:hover {
-                filter: brightness(1.1);
-            }
-            input {
-                width: 90%;
-                padding: 10px;
-                margin-top: 15px;
-                border-radius: 4px;
-                border: 1px solid #3b3f5c;
-                background: #0f111a;
-                color: #e2e8f0;
-                text-align: center;
-                font-size: 16px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h2>Authorize Realm</h2>
-            <p>Connect your <span class="provider-title">{{provider}}</span> account to play.</p>
-            <form action="/auth/authorize" method="GET">
-                <input type="hidden" name="provider" value="{{provider}}" />
-                <input type="hidden" name="port" value="{{port}}" />
-                <input type="text" name="username" placeholder="Enter Username" required value="Gamer_{{Random.Shared.Next(1000, 9999)}}" />
-                {{(provider == "discord" ? $"<input type=\"text\" name=\"discord_id\" placeholder=\"Discord Snowflake ID\" required value=\"{randomSnowflake}\" />" : "")}}
-                <button type="submit" class="btn {{ (provider == "steam" ? "btn-steam" : "") }}">
-                    Login with {{provider}}
-                </button>
-            </form>
-        </div>
-    </body>
-    </html>
-    """;
+    string templatePath = Path.Combine(env.ContentRootPath, "Templates", "login.html");
+    if (!File.Exists(templatePath))
+    {
+        templatePath = Path.Combine(AppContext.BaseDirectory, "Templates", "login.html");
+    }
+
+    string template = File.ReadAllText(templatePath);
+    string discordInput = provider == "discord" ? $"<input type=\"text\" name=\"discord_id\" placeholder=\"Discord Snowflake ID\" required value=\"{randomSnowflake}\" />" : "";
+    string buttonClass = provider == "steam" ? "btn-steam" : "";
+
+    string html = template
+        .Replace("{{provider}}", provider)
+        .Replace("{{port}}", port.ToString())
+        .Replace("{{random_number}}", Random.Shared.Next(1000, 9999).ToString())
+        .Replace("{{discord_input}}", discordInput)
+        .Replace("{{button_class}}", buttonClass);
+
     return Results.Content(html, "text/html");
 });
 
 app.MapGet("/auth/authorize", (string provider, int port, string username, string? discord_id, DataStoreService db) =>
 {
-    string finalUsername = username;
+    string candidateUsername = username?.Trim() ?? string.Empty;
     string playerId = "";
+    string playerKey = "";
+
     if (provider == "discord")
     {
         string snowflake = discord_id ?? "";
@@ -651,39 +570,53 @@ app.MapGet("/auth/authorize", (string provider, int port, string username, strin
             long part2 = Random.Shared.Next(100000000, 999999999);
             snowflake = $"{part1}{part2}";
         }
+        playerKey = snowflake;
         playerId = $"discord_{snowflake}";
-
-        var existingPlayer = db.Get<JsonDocument>("players", snowflake);
-        if (existingPlayer != null)
-        {
-            var root = existingPlayer.RootElement;
-            if (root.TryGetProperty("username", out var uProp))
-            {
-                finalUsername = uProp.GetString() ?? username;
-            }
-        }
-        else
-        {
-            var playerDoc = JsonSerializer.SerializeToDocument(new
-            {
-                id = snowflake,
-                username = username,
-                provider = "discord",
-                registration_date = DateTime.UtcNow
-            });
-            db.Upsert("players", snowflake, playerDoc);
-        }
     }
     else
     {
-        playerId = $"{provider}_{Guid.NewGuid().ToString("N")[..8]}";
-        var playerDoc = JsonSerializer.SerializeToDocument(new
+        playerKey = $"{provider}_{Guid.NewGuid().ToString("N")[..8]}";
+        playerId = playerKey;
+    }
+
+    string finalUsername = candidateUsername;
+    var existingPlayer = db.Get<JsonDocument>("players", playerKey) ?? db.Get<JsonDocument>("players", playerId);
+
+    if (existingPlayer != null)
+    {
+        var root = existingPlayer.RootElement;
+        if (root.TryGetProperty("username", out var uProp))
         {
-            id = playerId,
-            username = username,
-            provider = provider,
-            registration_date = DateTime.UtcNow
-        });
+            string existingUsername = uProp.GetString() ?? "";
+            if (!string.IsNullOrWhiteSpace(existingUsername))
+            {
+                finalUsername = existingUsername;
+            }
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(finalUsername) || !NameNormalizationHelper.ValidateUsername(finalUsername, out _))
+    {
+        finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
+    }
+
+    string normalizedUser = NameNormalizationHelper.NormalizeUsername(finalUsername);
+    var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
+    if (existingLock != null && existingPlayer == null)
+    {
+        finalUsername = $"Gamer_{Random.Shared.Next(1000, 9999)}";
+    }
+
+    var playerDoc = JsonSerializer.SerializeToDocument(new
+    {
+        id = playerId,
+        username = finalUsername,
+        provider = provider,
+        registration_date = DateTime.UtcNow
+    });
+    db.Upsert("players", playerKey, playerDoc);
+    if (playerKey != playerId)
+    {
         db.Upsert("players", playerId, playerDoc);
     }
 
@@ -700,6 +633,68 @@ app.MapGet("/auth/authorize", (string provider, int port, string username, strin
 
     var callbackUrl = $"http://localhost:{port}/auth/callback/?username={Uri.EscapeDataString(finalUsername)}&token={token}&provider={provider}";
     return Results.Redirect(callbackUrl);
+});
+
+app.MapPost("/api/players/username", (UpdatePlayerUsernameRequest req, DataStoreService db) =>
+{
+    if (string.IsNullOrWhiteSpace(req.PlayerId))
+    {
+        return Results.BadRequest(new { Message = "PlayerId is required." });
+    }
+
+    if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
+    {
+        return Results.BadRequest(new { Message = usernameError });
+    }
+
+    string trimmedUsername = req.Username.Trim();
+    string normalizedUser = NameNormalizationHelper.NormalizeUsername(trimmedUsername);
+
+    var existingLock = db.Get<JsonDocument>("name_locks", normalizedUser);
+    if (existingLock != null)
+    {
+        return Results.Conflict(new { Message = $"The username '{trimmedUsername}' conflicts with a registered creator name." });
+    }
+
+    var allPlayers = db.GetAllWithKeys<JsonDocument>("players");
+    foreach (var pair in allPlayers)
+    {
+        if (string.Equals(pair.Key, req.PlayerId, StringComparison.OrdinalIgnoreCase))
+        {
+            continue;
+        }
+
+        var root = pair.Value.RootElement;
+        if (root.TryGetProperty("username", out var uProp))
+        {
+            string existingU = uProp.GetString() ?? "";
+            if (NameNormalizationHelper.AreUsernamesConflicting(existingU, trimmedUsername))
+            {
+                return Results.Conflict(new { Message = $"The username '{trimmedUsername}' is already in use by another player." });
+            }
+        }
+    }
+
+    var existingDoc = db.Get<JsonDocument>("players", req.PlayerId);
+    string provider = "custom";
+    DateTime regDate = DateTime.UtcNow;
+    if (existingDoc != null)
+    {
+        var root = existingDoc.RootElement;
+        if (root.TryGetProperty("provider", out var pProp)) provider = pProp.GetString() ?? "custom";
+        if (root.TryGetProperty("registration_date", out var rProp) && rProp.TryGetDateTime(out var dt)) regDate = dt;
+    }
+
+    var updatedDoc = JsonSerializer.SerializeToDocument(new
+    {
+        id = req.PlayerId,
+        username = trimmedUsername,
+        provider = provider,
+        registration_date = regDate
+    });
+    db.Upsert("players", req.PlayerId, updatedDoc);
+
+    return Results.Ok(new { Status = "Updated", Username = trimmedUsername, PlayerId = req.PlayerId });
 });
 
 app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
@@ -774,6 +769,12 @@ app.MapMethods("/api/assets/{hash}", new[] { "HEAD" }, (string hash, ContentAddr
 
 app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressableStorage cas) =>
 {
+    var syncIoFeature = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpBodyControlFeature>();
+    if (syncIoFeature != null)
+    {
+        syncIoFeature.AllowSynchronousIO = true;
+    }
+
     using var reader = new StreamReader(context.Request.Body, Encoding.UTF8);
     string json = await reader.ReadToEndAsync(context.RequestAborted);
     AssetBundleRequestDto? req = null;
@@ -803,14 +804,31 @@ app.MapPost("/api/assets/bundle", async (HttpContext context, ContentAddressable
         }
     }
 
-    context.Response.ContentType = "application/octet-stream";
-    context.Response.StatusCode = StatusCodes.Status200OK;
+    try
+    {
+        using var memoryStream = new MemoryStream();
+        await ZstdAssetBundleHelper.StreamAssetsToBundleAsync(
+            memoryStream,
+            assetInfos,
+            compressionLevel: 1,
+            cancellationToken: context.RequestAborted);
 
-    await ZstdAssetBundleHelper.StreamAssetsToBundleAsync(
-        context.Response.Body,
-        assetInfos,
-        compressionLevel: 1,
-        cancellationToken: context.RequestAborted);
+        memoryStream.Position = 0;
+        context.Response.ContentType = "application/octet-stream";
+        context.Response.ContentLength = memoryStream.Length;
+        context.Response.StatusCode = StatusCodes.Status200OK;
+
+        await memoryStream.CopyToAsync(context.Response.Body, context.RequestAborted);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"[AdminServer] Error streaming asset bundle: {ex.Message}");
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            await context.Response.WriteAsJsonAsync(new { Error = ex.Message }, context.RequestAborted);
+        }
+    }
 });
 
 app.MapGet("/api/assets/{hash}", (string hash, ContentAddressableStorage cas, HttpContext context) =>
@@ -1118,13 +1136,12 @@ app.MapPost("/api/publish_map/initiate", (PublishMapInitiateRequest req, DataSto
             }, statusCode: StatusCodes.Status403Forbidden);
         }
 
-        var existingOwner = db.Get<string>("map_ownership", mapTitle);
-        if (existingOwner != null && !string.Equals(existingOwner, req.PublicKey, StringComparison.OrdinalIgnoreCase))
+        if (!MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, req.PublicKey))
         {
             return Results.BadRequest(new PublishMapInitiateResponse
             {
                 Success = false,
-                Message = "A map with this title already exists and is owned by a different key."
+                Message = "A map with this title already exists and is owned by different maintainers."
             });
         }
 
@@ -1295,11 +1312,15 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
             });
         }
 
-        var existingOwner = db.Get<string>("map_ownership", mapTitle);
-        if (existingOwner == null)
+        if (!MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, publicKey))
         {
-            db.Upsert("map_ownership", mapTitle, publicKey);
+            return Results.BadRequest(new PublishMapFinalizeResponse
+            {
+                Success = false,
+                Message = "A map with this title already exists and is owned by different maintainers."
+            });
         }
+        MapMaintainerHelper.AddMaintainer(db, mapTitle, publicKey);
 
         string manifestDir = Path.Combine(cas.RootDirectory, "manifests");
         if (!Directory.Exists(manifestDir)) Directory.CreateDirectory(manifestDir);
@@ -1429,13 +1450,10 @@ app.MapPost("/api/publish_map", (PublishMapRequest req, DataStoreService db, Con
             return Results.BadRequest(new { Message = $"Map with Title '{mapTitle}' and Version '{mapVersion}' already exists." });
         }
         
-        var ownership = db.Get<string>("map_ownership", mapTitle);
-        if (ownership != null && ownership != req.PublicKey) {
-            return Results.BadRequest(new { Message = "A map with this title already exists and is owned by a different key." });
+        if (!MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, req.PublicKey)) {
+            return Results.BadRequest(new { Message = "A map with this title already exists and is owned by different maintainers." });
         }
-        if (ownership == null) {
-            db.Upsert("map_ownership", mapTitle, req.PublicKey);
-        }
+        MapMaintainerHelper.AddMaintainer(db, mapTitle, req.PublicKey);
 
         var contributors = new HashSet<string>();
         if (root.TryGetProperty("Contributors", out var contProp) && contProp.ValueKind == JsonValueKind.Array) {
@@ -1962,8 +1980,13 @@ app.MapPost("/api/cluster/sync_creators", async (HttpRequest request, ClusterEve
         {
             if (string.IsNullOrWhiteSpace(creator.PublicKey) || string.IsNullOrWhiteSpace(creator.Username)) continue;
 
-            string slug = creator.Username.ToLowerInvariant().Replace(" ", "-");
-            var existingLock = db.Get<JsonDocument>("name_locks", slug);
+            string slug = NameNormalizationHelper.NormalizeUsername(creator.Username);
+            if (string.IsNullOrEmpty(slug))
+            {
+                slug = creator.Username.ToLowerInvariant().Replace(" ", "-");
+            }
+            var existingLock = db.Get<JsonDocument>("name_locks", slug)
+                ?? db.Get<JsonDocument>("name_locks", creator.Username.ToLowerInvariant().Replace(" ", "-"));
             if (existingLock == null)
             {
                 var lockDoc = JsonSerializer.SerializeToDocument(new
@@ -2092,9 +2115,9 @@ app.MapGet("/api/publish_map/asset_author/{hash}", (string hash, DataStoreServic
 
 app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreatorRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-    if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.PublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+    if (!NameNormalizationHelper.ValidateUsername(req.Username, out var usernameError))
     {
-        return Results.BadRequest(new { Message = "Username, PublicKey, and Signature are required." });
+        return Results.BadRequest(new { Message = usernameError });
     }
 
     string username = req.Username.Trim();
@@ -2109,8 +2132,14 @@ app.MapPost("/api/creators/register", async (HttpRequest request, RegisterCreato
         return Results.BadRequest(new { Message = "Invalid cryptographic signature for public key." });
     }
 
-    string slug = username.ToLowerInvariant().Replace(" ", "-");
-    var existingLock = db.Get<JsonDocument>("name_locks", slug);
+    string slug = NameNormalizationHelper.NormalizeUsername(username);
+    if (string.IsNullOrEmpty(slug))
+    {
+        slug = username.ToLowerInvariant().Replace(" ", "-");
+    }
+
+    var existingLock = db.Get<JsonDocument>("name_locks", slug)
+        ?? db.Get<JsonDocument>("name_locks", username.ToLowerInvariant().Replace(" ", "-"));
     if (existingLock != null)
     {
         var root = existingLock.RootElement;
@@ -2381,41 +2410,44 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
                             }
                         }
 
-                        if (metaRoot.TryGetProperty("CustomUnits", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
+                        if (metaRoot.TryGetProperty("Templates", out var templatesObj) && templatesObj.ValueKind == JsonValueKind.Object)
                         {
-                            if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
-                        }
-                        if (metaRoot.TryGetProperty("CustomBuildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
-                        }
-                        if (metaRoot.TryGetProperty("CustomAbilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
-                        }
-                        if (metaRoot.TryGetProperty("CustomWeapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
-                        }
-                        if (metaRoot.TryGetProperty("CustomUpgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
-                        }
-                        if (metaRoot.TryGetProperty("CustomProps", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
-                        }
-                        if (metaRoot.TryGetProperty("CustomItems", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
-                        }
-                        if (metaRoot.TryGetProperty("CustomAttachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
-                        }
-                        if (metaRoot.TryGetProperty("CustomVfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
-                        {
-                            if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
+                            if (templatesObj.TryGetProperty("Units", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
+                            }
+                            if (templatesObj.TryGetProperty("Buildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
+                            }
+                            if (templatesObj.TryGetProperty("Abilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
+                            }
+                            if (templatesObj.TryGetProperty("Weapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
+                            }
+                            if (templatesObj.TryGetProperty("Upgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
+                            }
+                            if (templatesObj.TryGetProperty("Props", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
+                            }
+                            if (templatesObj.TryGetProperty("Items", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
+                            }
+                            if (templatesObj.TryGetProperty("Attachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
+                            }
+                            if (templatesObj.TryGetProperty("Vfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
+                            {
+                                if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
+                            }
                         }
                         if (metaRoot.TryGetProperty("EngineVersion", out var ev) && !string.IsNullOrEmpty(ev.GetString()))
                         {
@@ -2585,41 +2617,44 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
                                 }
                             }
 
-                            if (metaRoot.TryGetProperty("CustomUnits", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
+                            if (metaRoot.TryGetProperty("Templates", out var templatesObj) && templatesObj.ValueKind == JsonValueKind.Object)
                             {
-                                if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
-                            }
-                            if (metaRoot.TryGetProperty("CustomBuildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
-                            }
-                            if (metaRoot.TryGetProperty("CustomAbilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
-                            }
-                            if (metaRoot.TryGetProperty("CustomWeapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
-                            }
-                            if (metaRoot.TryGetProperty("CustomUpgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
-                            }
-                            if (metaRoot.TryGetProperty("CustomProps", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
-                            }
-                            if (metaRoot.TryGetProperty("CustomItems", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
-                            }
-                            if (metaRoot.TryGetProperty("CustomAttachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
-                            }
-                            if (metaRoot.TryGetProperty("CustomVfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
-                            {
-                                if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
+                                if (templatesObj.TryGetProperty("Units", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
+                                }
+                                if (templatesObj.TryGetProperty("Buildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
+                                }
+                                if (templatesObj.TryGetProperty("Abilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
+                                }
+                                if (templatesObj.TryGetProperty("Weapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
+                                }
+                                if (templatesObj.TryGetProperty("Upgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
+                                }
+                                if (templatesObj.TryGetProperty("Props", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
+                                }
+                                if (templatesObj.TryGetProperty("Items", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
+                                }
+                                if (templatesObj.TryGetProperty("Attachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
+                                }
+                                if (templatesObj.TryGetProperty("Vfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
+                                {
+                                    if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
+                                }
                             }
                             if (metaRoot.TryGetProperty("EngineVersion", out var ev) && !string.IsNullOrEmpty(ev.GetString()))
                             {
@@ -2820,6 +2855,388 @@ app.MapGet("/api/maps/greenlight_status/{mapId}", (string mapId, DataStoreServic
         TotalReviewsCount = stats.ReviewsCount,
         AverageRating = stats.AverageRating
     });
+});
+
+app.MapGet("/api/maps/{mapTitle}/maintainers", (string mapTitle, DataStoreService db) =>
+{
+    var maintainers = MapMaintainerHelper.GetMaintainers(db, mapTitle);
+    string owner = MapMaintainerHelper.GetOwner(db, mapTitle);
+    return Results.Ok(new MapMaintainersResponseDto
+    {
+        Success = true,
+        MapTitle = mapTitle,
+        OwnerPublicKey = owner,
+        Maintainers = maintainers,
+        Message = $"Found {maintainers.Count} maintainer(s) for map '{mapTitle}'."
+    });
+});
+
+app.MapPost("/api/maps/{mapTitle}/maintainers/add", (string mapTitle, AddMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        string targetMap = !string.IsNullOrWhiteSpace(req.MapTitle) ? req.MapTitle : mapTitle;
+        if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+            });
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            return Results.Json(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+            }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        string canonicalPayload = $"add_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"add_maintainer:{targetMap}:{req.MaintainerPublicKey}";
+        string fallbackPayload2 = $"add:{targetMap}:{req.MaintainerPublicKey}";
+
+        bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
+
+        if (!isSigValid)
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Invalid signature for adding maintainer."
+            });
+        }
+
+        var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
+        string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+
+        var clusterEvt = new ClusterEventDto
+        {
+            EventType = "map_maintainers_updated",
+            PublicKey = req.RequesterPublicKey,
+            Signature = req.Signature,
+            PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
+            {
+                MapTitle = targetMap,
+                Action = "add",
+                MaintainerPublicKey = req.MaintainerPublicKey,
+                MaintainerUsername = req.MaintainerUsername,
+                RequesterPublicKey = req.RequesterPublicKey,
+                Signature = req.Signature
+            })
+        };
+        clusterEvents.RecordEvent(clusterEvt, db);
+        clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
+
+        return Results.Ok(new MapMaintainersResponseDto
+        {
+            Success = true,
+            MapTitle = targetMap,
+            OwnerPublicKey = owner,
+            Maintainers = updatedMaintainers,
+            Message = $"Successfully added maintainer '{req.MaintainerPublicKey}' to map '{targetMap}'."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new MapMaintainersResponseDto
+        {
+            Success = false,
+            MapTitle = mapTitle,
+            Message = ex.Message
+        });
+    }
+});
+
+app.MapPost("/api/maps/maintainers/add", (AddMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        string targetMap = req.MapTitle;
+        if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+            });
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            return Results.Json(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+            }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        string canonicalPayload = $"add_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"add_maintainer:{targetMap}:{req.MaintainerPublicKey}";
+        string fallbackPayload2 = $"add:{targetMap}:{req.MaintainerPublicKey}";
+
+        bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
+
+        if (!isSigValid)
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Invalid signature for adding maintainer."
+            });
+        }
+
+        var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
+        string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+
+        var clusterEvt = new ClusterEventDto
+        {
+            EventType = "map_maintainers_updated",
+            PublicKey = req.RequesterPublicKey,
+            Signature = req.Signature,
+            PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
+            {
+                MapTitle = targetMap,
+                Action = "add",
+                MaintainerPublicKey = req.MaintainerPublicKey,
+                MaintainerUsername = req.MaintainerUsername,
+                RequesterPublicKey = req.RequesterPublicKey,
+                Signature = req.Signature
+            })
+        };
+        clusterEvents.RecordEvent(clusterEvt, db);
+        clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
+
+        return Results.Ok(new MapMaintainersResponseDto
+        {
+            Success = true,
+            MapTitle = targetMap,
+            OwnerPublicKey = owner,
+            Maintainers = updatedMaintainers,
+            Message = $"Successfully added maintainer '{req.MaintainerPublicKey}' to map '{targetMap}'."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new MapMaintainersResponseDto
+        {
+            Success = false,
+            MapTitle = req.MapTitle,
+            Message = ex.Message
+        });
+    }
+});
+
+app.MapPost("/api/maps/{mapTitle}/maintainers/remove", (string mapTitle, RemoveMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        string targetMap = !string.IsNullOrWhiteSpace(req.MapTitle) ? req.MapTitle : mapTitle;
+        if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+            });
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            return Results.Json(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+            }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        string canonicalPayload = $"remove_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"remove_maintainer:{targetMap}:{req.MaintainerPublicKey}";
+        string fallbackPayload2 = $"remove:{targetMap}:{req.MaintainerPublicKey}";
+
+        bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
+
+        if (!isSigValid)
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Invalid signature for removing maintainer."
+            });
+        }
+
+        var currentMaintainers = MapMaintainerHelper.GetMaintainers(db, targetMap);
+        if (!isAdmin && currentMaintainers.Count <= 1 && currentMaintainers.Any(m => string.Equals(m, req.MaintainerPublicKey.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Cannot remove the only remaining maintainer of the map. Transfer ownership or add another maintainer first."
+            });
+        }
+
+        var updatedMaintainers = MapMaintainerHelper.RemoveMaintainer(db, targetMap, req.MaintainerPublicKey);
+        string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+
+        var clusterEvt = new ClusterEventDto
+        {
+            EventType = "map_maintainers_updated",
+            PublicKey = req.RequesterPublicKey,
+            Signature = req.Signature,
+            PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
+            {
+                MapTitle = targetMap,
+                Action = "remove",
+                MaintainerPublicKey = req.MaintainerPublicKey,
+                RequesterPublicKey = req.RequesterPublicKey,
+                Signature = req.Signature
+            })
+        };
+        clusterEvents.RecordEvent(clusterEvt, db);
+        clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
+
+        return Results.Ok(new MapMaintainersResponseDto
+        {
+            Success = true,
+            MapTitle = targetMap,
+            OwnerPublicKey = owner,
+            Maintainers = updatedMaintainers,
+            Message = $"Successfully removed maintainer '{req.MaintainerPublicKey}' from map '{targetMap}'."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new MapMaintainersResponseDto
+        {
+            Success = false,
+            MapTitle = mapTitle,
+            Message = ex.Message
+        });
+    }
+});
+
+app.MapPost("/api/maps/maintainers/remove", (RemoveMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        string targetMap = req.MapTitle;
+        if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+            });
+        }
+
+        bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
+        bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
+
+        if (!isAdmin && !isMaintainer)
+        {
+            return Results.Json(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+            }, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        string canonicalPayload = $"remove_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
+        string fallbackPayload1 = $"remove_maintainer:{targetMap}:{req.MaintainerPublicKey}";
+        string fallbackPayload2 = $"remove:{targetMap}:{req.MaintainerPublicKey}";
+
+        bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
+                       || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
+
+        if (!isSigValid)
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Invalid signature for removing maintainer."
+            });
+        }
+
+        var currentMaintainers = MapMaintainerHelper.GetMaintainers(db, targetMap);
+        if (!isAdmin && currentMaintainers.Count <= 1 && currentMaintainers.Any(m => string.Equals(m, req.MaintainerPublicKey.Trim(), StringComparison.OrdinalIgnoreCase)))
+        {
+            return Results.BadRequest(new MapMaintainersResponseDto
+            {
+                Success = false,
+                MapTitle = targetMap,
+                Message = "Cannot remove the only remaining maintainer of the map. Transfer ownership or add another maintainer first."
+            });
+        }
+
+        var updatedMaintainers = MapMaintainerHelper.RemoveMaintainer(db, targetMap, req.MaintainerPublicKey);
+        string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+
+        var clusterEvt = new ClusterEventDto
+        {
+            EventType = "map_maintainers_updated",
+            PublicKey = req.RequesterPublicKey,
+            Signature = req.Signature,
+            PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
+            {
+                MapTitle = targetMap,
+                Action = "remove",
+                MaintainerPublicKey = req.MaintainerPublicKey,
+                RequesterPublicKey = req.RequesterPublicKey,
+                Signature = req.Signature
+            })
+        };
+        clusterEvents.RecordEvent(clusterEvt, db);
+        clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
+
+        return Results.Ok(new MapMaintainersResponseDto
+        {
+            Success = true,
+            MapTitle = targetMap,
+            OwnerPublicKey = owner,
+            Maintainers = updatedMaintainers,
+            Message = $"Successfully removed maintainer '{req.MaintainerPublicKey}' from map '{targetMap}'."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(new MapMaintainersResponseDto
+        {
+            Success = false,
+            MapTitle = req.MapTitle,
+            Message = ex.Message
+        });
+    }
 });
 
 app.MapGet("/api/data/{collection}/{id}", (string collection, string id, DataStoreService db, HttpContext context) =>

@@ -1,18 +1,14 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text.Json.Nodes;
 using Realm.Godot.Services;
 using Realm.Godot.Utils;
 using Realm.Godot.VFX;
 
-public partial class AbilityVfxDialog : FloatingDialogBase
+public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
-	private Node3D _simRoot;
 	private ProceduralVfxInstance3D _vfxInstance;
 	private MeshInstance3D _aoeRingMesh;
 	private MeshInstance3D _aoeDiskMesh;
@@ -31,6 +27,11 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 	private Action<string> _setCastSoundValue;
 
 	private string _abilityId = "";
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private LineEdit _txtName;
+	private bool _isUpdatingUI = false;
 	private string _abilityName = "";
 	private string _initialVisualEffect = "";
 	private string _initialCastSound = "";
@@ -44,32 +45,27 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 	private float _playbackSpeed = 1.0f;
 	private Action<JsonObject> _onApplied;
 
-	private float _defaultDistance = 8.0f;
-	private float _cameraDistance = 8.0f;
-	private float _defaultYaw = Mathf.DegToRad(45.0f);
-	private float _defaultPitch = Mathf.DegToRad(30.0f);
-	private float _cameraYaw = Mathf.DegToRad(45.0f);
-	private float _cameraPitch = Mathf.DegToRad(30.0f);
-	private Vector3 _targetPosition = Vector3.Zero;
-
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-
 	public AbilityVfxDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Ability VFX & Audio Studio"), new Vector2(500, 720))
 	{
 		_sfxPlayer = new AudioStreamPlayer();
 		AddChild(_sfxPlayer);
 
+		DefaultDistance = 8.0f;
+		CameraDistance = 8.0f;
+		DefaultYaw = Mathf.DegToRad(45.0f);
+		DefaultPitch = Mathf.DegToRad(30.0f);
+		CameraYaw = Mathf.DegToRad(45.0f);
+		CameraPitch = Mathf.DegToRad(30.0f);
+		DefaultTargetPosition = new Vector3(0, 0.5f, 0);
+		TargetPosition = DefaultTargetPosition;
+
 		BuildControls();
 	}
 
 	private void BuildControls()
 	{
-		_viewportContainer = Add3DViewportContainer(BodyContainer, new Vector2(480, 230), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
+		Add3DPreviewViewport(BodyContainer, new Vector2(480, 230));
 
 		Setup3DEnvironment();
 
@@ -77,27 +73,12 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
-		var presetRow = new HBoxContainer();
-		presetRow.AddThemeConstantOverride("separation", 4);
-
-		var lblPreset = new Label();
-		lblPreset.Text = TranslationServer.Translate("Camera:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 10);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		presetRow.AddChild(lblPreset);
-
-		AddButton(presetRow, TranslationServer.Translate("Front"), () => SetCameraPreset(0f, 15f), "Front view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Side"), () => SetCameraPreset(90f, 15f), "Side view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 30f), "Isometric view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("⟲ Reset"), () => ResetCameraDefault(), "Reset camera", 10, new Vector2(0, 22));
+		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: false);
 
 		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		presetRow.AddChild(spacer);
 
 		AddButton(presetRow, "🔥 " + TranslationServer.Translate("Cast Test"), () => TriggerCastTest(), "Simulate casting ability VFX & sound", 10, new Vector2(90, 22));
-
-		topControlsVBox.AddChild(presetRow);
 
 		var playbackRow = new HBoxContainer();
 		playbackRow.AddThemeConstantOverride("separation", 6);
@@ -136,6 +117,49 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 		configVBox.AddThemeConstantOverride("separation", 10);
 		configVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		scrollBody.AddChild(configVBox);
+
+		// SECTION 0: IDENTITY
+		AddSectionHeader(configVBox, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
+
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "ability/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("ability_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
+		};
+		rowId.AddChild(_txtSlug);
+		configVBox.AddChild(rowId);
+
+		_txtName = AddTextInput(
+			configVBox,
+			TranslationServer.Translate("Display Name:"),
+			_abilityName,
+			(val) =>
+			{
+				if (_isUpdatingUI) return;
+				_abilityName = val ?? "";
+			},
+			TranslationServer.Translate("Ability display name..."),
+			140f
+		);
 
 		AddSectionHeader(configVBox, "🎨 " + TranslationServer.Translate("ABILITY ICON"), new Color(0.95f, 0.8f, 0.4f));
 
@@ -189,16 +213,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 			140f
 		);
 
-		var vfxButtonsRow = new HBoxContainer();
-		vfxButtonsRow.AddThemeConstantOverride("separation", 6);
 
-		var vfxSpacer = new Control { CustomMinimumSize = new Vector2(140f, 0) };
-		vfxButtonsRow.AddChild(vfxSpacer);
-
-		AddButton(vfxButtonsRow, "✨ " + TranslationServer.Translate("Edit in VFX Studio..."), () => OpenVfxStudioForCurrentAbility(), "Open Procedural VFX Studio to edit this VFX preset or create custom visuals", 10, new Vector2(160, 24));
-		AddButton(vfxButtonsRow, "➕ " + TranslationServer.Translate("New VFX Preset..."), () => CreateNewVfxForAbility(), "Create a new custom procedural VFX preset for this ability", 10, new Vector2(140, 24));
-
-		configVBox.AddChild(vfxButtonsRow);
 
 		AddSectionHeader(configVBox, "🎯 " + TranslationServer.Translate("AREA OF EFFECT (AOE)"), new Color(0.4f, 0.85f, 0.5f));
 
@@ -238,10 +253,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 	private void Setup3DEnvironment()
 	{
-		if (_subViewport == null) return;
-
-		_simRoot = new Node3D();
-		_subViewport.AddChild(_simRoot);
+		if (PreviewSceneRoot == null) return;
 
 		_groundGrid = new MeshInstance3D();
 		_groundGrid.Name = "GroundGrid";
@@ -255,7 +267,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 		};
 		_groundGrid.MaterialOverride = gridMat;
 		_groundGrid.Position = new Vector3(0, -0.01f, 0);
-		_simRoot.AddChild(_groundGrid);
+		PreviewSceneRoot.AddChild(_groundGrid);
 
 		var diskMesh = new CylinderMesh
 		{
@@ -270,7 +282,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 		};
 		_aoeDiskMesh = new MeshInstance3D { Mesh = diskMesh, MaterialOverride = diskMat, Position = new Vector3(0, 0.01f, 0) };
-		_simRoot.AddChild(_aoeDiskMesh);
+		PreviewSceneRoot.AddChild(_aoeDiskMesh);
 
 		var ringMesh = new TorusMesh
 		{
@@ -286,105 +298,9 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 		};
 		_aoeRingMesh = new MeshInstance3D { Mesh = ringMesh, MaterialOverride = ringMat, Position = new Vector3(0, 0.015f, 0) };
-		_simRoot.AddChild(_aoeRingMesh);
+		PreviewSceneRoot.AddChild(_aoeRingMesh);
 
 		UpdateAoEIndicator(_currentAoeRadius);
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mouseButton)
-		{
-			if (mouseButton.ButtonIndex == MouseButton.Left)
-			{
-				_isOrbiting = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
-			{
-				ZoomCamera(1.0f);
-			}
-		}
-		else if (@event is InputEventMouseMotion mouseMotion)
-		{
-			Vector2 delta = mouseMotion.Position - _lastMousePosition;
-			_lastMousePosition = mouseMotion.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (_isPanning && _camera != null)
-			{
-				Vector3 camRight = _camera.GlobalTransform.Basis.X;
-				Vector3 camUp = _camera.GlobalTransform.Basis.Y;
-				float panSpeed = _cameraDistance * 0.0025f;
-				_targetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
-		}
-	}
-
-	private void ZoomCamera(float direction)
-	{
-		float factor = direction > 0 ? 1.15f : 0.85f;
-		_cameraDistance = Mathf.Clamp(_cameraDistance * factor, _defaultDistance * 0.2f, _defaultDistance * 4.0f);
-		UpdateCameraTransform();
-	}
-
-	public void SetCameraPreset(float yawDegrees, float pitchDegrees)
-	{
-		_cameraYaw = Mathf.DegToRad(yawDegrees);
-		_cameraPitch = Mathf.DegToRad(pitchDegrees);
-		_targetPosition = new Vector3(0, 0.5f, 0);
-		UpdateCameraTransform();
-	}
-
-	public void ResetCameraDefault()
-	{
-		_cameraDistance = _defaultDistance;
-		_targetPosition = new Vector3(0, 0.5f, 0);
-		_cameraYaw = _defaultYaw;
-		_cameraPitch = _defaultPitch;
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-
-		_cameraPitch = Mathf.Clamp(_cameraPitch, -1.45f, 1.45f);
-
-		float cosPitch = Mathf.Cos(_cameraPitch);
-		float sinPitch = Mathf.Sin(_cameraPitch);
-		float cosYaw = Mathf.Cos(_cameraYaw);
-		float sinYaw = Mathf.Sin(_cameraYaw);
-
-		Vector3 offset = new Vector3(
-			sinYaw * cosPitch,
-			sinPitch,
-			cosYaw * cosPitch
-		) * _cameraDistance;
-
-		Vector3 newPos = _targetPosition + offset;
-		_camera.Position = newPos;
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
 	}
 
 	private void UpdateAoEIndicator(float radius)
@@ -469,7 +385,7 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 	private void ReloadVfx()
 	{
-		if (_simRoot == null) return;
+		if (PreviewSceneRoot == null) return;
 
 		if (_vfxInstance != null && GodotObject.IsInstanceValid(_vfxInstance))
 		{
@@ -484,76 +400,13 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 		var config = ResolveVfxConfig(_currentVisualEffect);
 		_vfxInstance = new ProceduralVfxInstance3D(config);
+		_vfxInstance.IsPreview = true;
 		_vfxInstance.Name = "AbilityVfxPreview";
-		_simRoot.AddChild(_vfxInstance);
+		PreviewSceneRoot.AddChild(_vfxInstance);
 		_vfxInstance.Position = new Vector3(0, 0.5f, 0);
 		_vfxInstance.SetSpeedScale(_playbackSpeed);
 	}
 
-	private void OpenVfxStudioForCurrentAbility()
-	{
-		VfxAttachmentConfig targetConfig = null;
-		if (!string.IsNullOrWhiteSpace(_currentVisualEffect))
-		{
-			targetConfig = ResolveVfxConfig(_currentVisualEffect);
-		}
-
-		if (targetConfig == null || string.IsNullOrWhiteSpace(targetConfig.VfxId) || targetConfig.VfxId == "vfx_none")
-		{
-			targetConfig = new VfxAttachmentConfig
-			{
-				VfxId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_custom",
-				Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Ability VFX",
-				PrimitiveType = VfxPrimitiveType.ParticleSystem,
-				ParticleConfig = new SpellParticleConfig
-				{
-					ParticleId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_custom",
-					Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} Particles" : "Ability Particles",
-					RenderMode = SpellParticleRenderMode.BillboardQuad,
-					Amount = 32,
-					Lifetime = 1.0f
-				}
-			};
-		}
-
-		Hud?.OpenVfxStudioDialog(targetConfig, (savedCfg) =>
-		{
-			string key = $"vfx:{savedCfg.VfxId}";
-			_currentVisualEffect = key;
-			_setVisualEffectValue?.Invoke(key);
-			ReloadVfx();
-		});
-	}
-
-	private void CreateNewVfxForAbility()
-	{
-		var newConfig = new VfxAttachmentConfig
-		{
-			VfxId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : $"vfx_spell_{Random.Shared.Next(100, 999)}",
-			Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Spell VFX",
-			PrimitiveType = VfxPrimitiveType.ParticleSystem,
-			ParticleConfig = new SpellParticleConfig
-			{
-				ParticleId = !string.IsNullOrWhiteSpace(_abilityId) ? $"vfx_{_abilityId}" : "vfx_spell",
-				Name = !string.IsNullOrWhiteSpace(_abilityName) ? $"{_abilityName} VFX" : "Spell VFX",
-				RenderMode = SpellParticleRenderMode.BillboardQuad,
-				Amount = 32,
-				Lifetime = 1.2f,
-				ColorStart = "#FFE066",
-				ColorMid = "#FF6600",
-				ColorEnd = "#990000",
-				EmissionEnergy = 3.5f
-			}
-		};
-
-		Hud?.OpenVfxStudioDialog(newConfig, (savedCfg) =>
-		{
-			string key = $"vfx:{savedCfg.VfxId}";
-			_currentVisualEffect = key;
-			_setVisualEffectValue?.Invoke(key);
-			ReloadVfx();
-		});
-	}
 
 	private void TriggerCastTest()
 	{
@@ -781,7 +634,15 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
 	{
-		_abilityId = abilityId ?? string.Empty;
+		string effectiveId = abilityData?.TryGetPropertyValue("TemplateID", out var tidNode) == true && !string.IsNullOrWhiteSpace(tidNode?.ToString())
+			? tidNode.ToString()
+			: (abilityData?.TryGetPropertyValue("AbilityId", out var aidNode) == true && !string.IsNullOrWhiteSpace(aidNode?.ToString())
+				? aidNode.ToString()
+				: abilityId);
+
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(effectiveId);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(effectiveId);
+		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
 		_abilityName = abilityData?["Name"]?.ToString() ?? _abilityId;
 		_onApplied = onApplied;
 
@@ -789,7 +650,15 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 		_currentVisualEffect = abilityData?["VisualEffect"]?.ToString() ?? string.Empty;
 		_currentCastSound = abilityData?["CastSound"]?.ToString() ?? string.Empty;
-		_currentIconPath = abilityData?["IconPath"]?.ToString() ?? string.Empty;
+		string rawIcon = abilityData?["IconPath"]?.ToString() ?? string.Empty;
+		if (!string.IsNullOrEmpty(rawIcon) && rawIcon.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			_currentIconPath = Path.GetFileName(rawIcon);
+		}
+		else
+		{
+			_currentIconPath = string.Empty;
+		}
 		_currentAoeRadius = abilityData?["AreaOfEffectRadius"] != null ? (float)abilityData["AreaOfEffectRadius"] : 4.0f;
 
 		_initialVisualEffect = _currentVisualEffect;
@@ -797,10 +666,14 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 		_initialIconPath = _currentIconPath;
 		_initialAoeRadius = _currentAoeRadius;
 
+		_isUpdatingUI = true;
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		if (_txtName != null) _txtName.Text = _abilityName;
 		_setVisualEffectValue?.Invoke(_currentVisualEffect);
 		_setCastSoundValue?.Invoke(_currentCastSound);
 		_setIconPathValue?.Invoke(_currentIconPath);
 		if (_sldAoeRadius != null) _sldAoeRadius.Value = _currentAoeRadius;
+		_isUpdatingUI = false;
 
 		UpdateIconPreview(_currentIconPath);
 		UpdateAoEIndicator(_currentAoeRadius);
@@ -812,6 +685,15 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
+		_slug = finalSlug;
+		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
+		if (_txtName != null)
+		{
+			_abilityName = _txtName.Text;
+		}
+
 		if (!string.IsNullOrEmpty(_abilityId))
 		{
 			Hud?.SaveCustomAbilityVfxToMetadata(
@@ -824,7 +706,10 @@ public partial class AbilityVfxDialog : FloatingDialogBase
 
 			var updatedData = new JsonObject
 			{
+				["TemplateID"] = _abilityId,
+				["template_id"] = _abilityId,
 				["AbilityId"] = _abilityId,
+				["Name"] = _abilityName,
 				["VisualEffect"] = _currentVisualEffect,
 				["CastSound"] = _currentCastSound,
 				["IconPath"] = _currentIconPath,

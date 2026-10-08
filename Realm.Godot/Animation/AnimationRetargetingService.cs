@@ -17,7 +17,7 @@ public static class AnimationRetargetingService
 		CachedRanimData.Clear();
 	}
 
-	public static RealmAnimationData GetOrLoadRanimData(string filePath)
+	public static RealmAnimationData? GetOrLoadRanimData(string filePath)
 	{
 		if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
 
@@ -26,12 +26,20 @@ public static class AnimationRetargetingService
 			return cached;
 		}
 
-		var data = RealmAnimationSerializer.LoadFromFile(filePath);
-		if (data != null)
+		try
 		{
-			CachedRanimData[filePath] = data;
+			var data = RealmAnimationSerializer.LoadFromFile(filePath);
+			if (data != null)
+			{
+				CachedRanimData[filePath] = data;
+			}
+			return data;
 		}
-		return data;
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AnimationRetargetingService] Failed to load RANIM from '{filePath}': {ex.Message}");
+			return null;
+		}
 	}
 
 	public static string ResolveAnimationFilePath(string animName, string unitId = null)
@@ -54,16 +62,26 @@ public static class AnimationRetargetingService
 		{
 			string uClean = unitId.ToLowerInvariant();
 			candidateNames.Add($"{uClean}_{cleanName}");
+			candidateNames.Add($"{unitId}_{animName}");
+		}
+		candidateNames.Add(animName);
+		if (!animName.EndsWith(".ranim", StringComparison.OrdinalIgnoreCase))
+		{
+			candidateNames.Add($"{animName}.ranim");
 		}
 		candidateNames.Add(cleanName);
 
-		string tempWs = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-		if (!string.IsNullOrEmpty(tempWs))
+		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
+			? MapWorkspaceService.GetActiveWorkspacePath()
+			: ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		if (!string.IsNullOrEmpty(wsPath))
 		{
 			foreach (var candName in candidateNames)
 			{
-				string p = Path.Combine(tempWs, "Assets", "animations", candName);
+				string p = Path.Combine(wsPath, "Assets", "animations", candName);
 				if (File.Exists(p)) return p;
+				string directP = Path.Combine(wsPath, candName);
+				if (File.Exists(directP)) return directP;
 			}
 		}
 
@@ -370,7 +388,7 @@ public static class AnimationRetargetingService
 		}
 		player.AddAnimationLibrary(string.Empty, new AnimationLibrary());
 
-		Dictionary<string, List<GameHost.UnitAnimationEntry>>? customAnimations = null;
+		Dictionary<string, List<UnitAnimationEntry>>? customAnimations = null;
 		if (!string.IsNullOrEmpty(unitId) && GameHost.Instance != null && GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
 		{
 			customAnimations = meta.Animations;
@@ -414,9 +432,9 @@ public static class AnimationRetargetingService
 				}
 				else
 				{
-					RealmAnimationData fallbackAnim = animType switch
+					RealmAnimationData? fallbackAnim = animType switch
 					{
-						"Idle" => RealmDefaultAnimations.Idle,
+						"Idle" => GetIdleAnimationData(unitId),
 						"Walk" => RealmDefaultAnimations.Walk,
 						"Attack" => RealmDefaultAnimations.Attack,
 						"Death" => RealmDefaultAnimations.Death,
@@ -436,5 +454,73 @@ public static class AnimationRetargetingService
 		}
 
 		return true;
+	}
+
+	public static RealmAnimationData? GetIdleAnimationData(string? unitId = null)
+	{
+		if (!string.IsNullOrEmpty(unitId))
+		{
+			string? customPath = ResolveAnimationFilePath("Idle", unitId);
+			if (!string.IsNullOrEmpty(customPath) && File.Exists(customPath))
+			{
+				var data = GetOrLoadRanimData(customPath);
+				if (data != null) return data;
+			}
+		}
+
+		if (RealmDefaultAnimations.Idle != null)
+		{
+			return RealmDefaultAnimations.Idle;
+		}
+
+		string? filePath = ResolveAnimationFilePath("idle.ranim", unitId);
+		if (string.IsNullOrEmpty(filePath))
+		{
+			string resPath = ProjectSettings.GlobalizePath("res://Assets/animations/idle.ranim");
+			if (File.Exists(resPath))
+			{
+				filePath = resPath;
+			}
+		}
+
+		if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+		{
+			return GetOrLoadRanimData(filePath);
+		}
+
+		return null;
+	}
+
+	public static bool TryApplyRiggedIdlePose(Node scene, string? unitId = null)
+	{
+		try
+		{
+			if (scene == null || !GodotObject.IsInstanceValid(scene)) return false;
+
+			var validation = SkeletonValidator.Validate(scene);
+			if (!validation.IsValid) return false;
+
+			var idleData = GetIdleAnimationData(unitId);
+			if (idleData == null) return false;
+
+			if (RetargetAndBind(idleData, scene, "Idle", out _))
+			{
+				var player = FindOrCreateAnimationPlayer(scene);
+				if (player != null && player.HasAnimation("Idle"))
+				{
+					player.ProcessMode = Node.ProcessModeEnum.Inherit;
+					player.Play("Idle");
+					player.Seek(0.0, update: true);
+					player.Pause();
+					return true;
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to apply idle pose to rigged mesh: {ex.Message}");
+		}
+
+		return false;
 	}
 }

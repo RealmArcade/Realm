@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
-import { sendGodotIpc } from './extension';
 import { REALM_ASSET_AGREEMENT_WARNING } from './constants';
+import { formatFileSize, getErrorHtml } from './viewerUtils';
 
 export class RealmRaudViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'realm.raudViewer';
@@ -93,7 +92,7 @@ export class RealmRaudViewerProvider implements vscode.CustomReadonlyEditorProvi
                 track0Base64
             );
         } catch (error: any) {
-            webviewPanel.webview.html = this.getErrorHtml(error?.message || 'Failed to load RAUD file.');
+            webviewPanel.webview.html = getErrorHtml('Error Loading .raud', error?.message || 'Failed to load RAUD file.');
         }
     }
 
@@ -131,11 +130,6 @@ export class RealmRaudViewerProvider implements vscode.CustomReadonlyEditorProvi
     }
 
     private getPreviewHtml(webview: vscode.Webview, fileName: string, fileSize: number, metadata: any, trackCount: number, audioBase64: string | null): string {
-        const formatSize = (bytes: number) => {
-            if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-            if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return bytes + ' B';
-        };
 
         const author = metadata?.author || 'Unknown';
         const blake3 = metadata?.blake3 || 'None';
@@ -273,7 +267,7 @@ export class RealmRaudViewerProvider implements vscode.CustomReadonlyEditorProvi
             <div class="meta-value">${trackCount} track(s)</div>
 
             <div class="meta-label">File Size:</div>
-            <div class="meta-value">${formatSize(fileSize)}</div>
+            <div class="meta-value">${formatFileSize(fileSize)}</div>
 
             <div class="meta-label">Preferred Name:</div>
             <div class="meta-value">${prefName}</div>
@@ -303,22 +297,5 @@ export class RealmRaudViewerProvider implements vscode.CustomReadonlyEditorProvi
 </html>`;
     }
 
-    private getErrorHtml(errorMessage: string): string {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: var(--vscode-editor-background); color: var(--vscode-errorForeground, #f48771); font-family: var(--vscode-font-family); }
-        .error-box { padding: 16px; border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100); border-radius: 4px; background-color: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1)); max-width: 80%; }
-    </style>
-</head>
-<body>
-    <div class="error-box">
-        <strong>Error Loading .raud:</strong><br/>
-        ${errorMessage}
-    </div>
-</body>
-</html>`;
-    }
+
 }

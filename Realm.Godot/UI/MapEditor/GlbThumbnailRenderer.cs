@@ -219,7 +219,7 @@ public partial class GlbThumbnailRenderer : Node
 		string hash = GetBlake3(normPath, blake3);
 		if (string.IsNullOrEmpty(hash) || hash.Length < 2) return false;
 
-		string cacheDirectory = ProjectSettings.GlobalizePath("user://model_thumb_cache");
+		string cacheDirectory = AssetThumbnailProvider.ModelCacheDir;
 		string cachedPngPath = Path.Combine(cacheDirectory, hash.Substring(0, 2), $"{hash}.png");
 
 		if (File.Exists(cachedPngPath))
@@ -247,7 +247,7 @@ public partial class GlbThumbnailRenderer : Node
 		string hash = GetBlake3(normPath, blake3);
 		if (string.IsNullOrEmpty(hash) || hash.Length < 2) return false;
 
-		string cacheDirectory = ProjectSettings.GlobalizePath("user://model_thumb_cache");
+		string cacheDirectory = AssetThumbnailProvider.ModelCacheDir;
 		string cachedPngPath = Path.Combine(cacheDirectory, hash.Substring(0, 2), $"{hash}.png");
 
 		return File.Exists(cachedPngPath);
@@ -407,10 +407,7 @@ public partial class GlbThumbnailRenderer : Node
 
 			_modelContainer.AddChild(scene);
 
-			if (request.FilePath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-			{
-				TryApplyRiggedIdlePose(scene);
-			}
+			AnimationRetargetingService.TryApplyRiggedIdlePose(scene);
 
 			Aabb aabb = CalculateVisualAabb(scene);
 			if (aabb.Size.LengthSquared() < 0.0001f)
@@ -464,7 +461,7 @@ public partial class GlbThumbnailRenderer : Node
 						img.Convert(Image.Format.Rgba8);
 					}
 
-					string cacheDirectory = ProjectSettings.GlobalizePath("user://model_thumb_cache");
+					string cacheDirectory = AssetThumbnailProvider.ModelCacheDir;
 					string hash = !string.IsNullOrEmpty(_currentRequest.Blake3)
 						? _currentRequest.Blake3
 						: GetBlake3(_currentRequest.FilePath, null);
@@ -585,54 +582,11 @@ public partial class GlbThumbnailRenderer : Node
 
 	private static void TryApplyRiggedIdlePose(Node scene)
 	{
-		try
-		{
-			var validation = SkeletonValidator.Validate(scene);
-			if (!validation.IsValid) return;
-
-			var idleData = GetIdleAnimationData();
-			if (idleData == null) return;
-
-			if (AnimationRetargetingService.RetargetAndBind(idleData, scene, "Idle", out _))
-			{
-				var player = AnimationRetargetingService.FindOrCreateAnimationPlayer(scene);
-				if (player != null && player.HasAnimation("Idle"))
-				{
-					player.ProcessMode = ProcessModeEnum.Inherit;
-					player.Play("Idle");
-					player.Seek(0.0, update: true);
-					player.Pause();
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[GlbThumbnailRenderer] Failed to apply idle pose to rigged rmesh: {ex.Message}");
-		}
+		AnimationRetargetingService.TryApplyRiggedIdlePose(scene);
 	}
 
 	private static RealmAnimationData? GetIdleAnimationData()
 	{
-		if (RealmDefaultAnimations.Idle != null)
-		{
-			return RealmDefaultAnimations.Idle;
-		}
-
-		string? filePath = AnimationRetargetingService.ResolveAnimationFilePath("idle.ranim");
-		if (string.IsNullOrEmpty(filePath))
-		{
-			string resPath = ProjectSettings.GlobalizePath("res://Assets/animations/idle.ranim");
-			if (File.Exists(resPath))
-			{
-				filePath = resPath;
-			}
-		}
-
-		if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
-		{
-			return AnimationRetargetingService.GetOrLoadRanimData(filePath);
-		}
-
-		return null;
+		return AnimationRetargetingService.GetIdleAnimationData();
 	}
 }

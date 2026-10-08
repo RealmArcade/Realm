@@ -1,10 +1,14 @@
 using Godot;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
+using Realm.Godot.Utils;
 
 public class DecalSnapshot
 {
+	public string DecalId { get; set; } = "";
+	public string TexturePath { get; set; } = "";
 	public float Brightness { get; set; } = 1.0f;
 	public Color Tint { get; set; } = Colors.White;
 	public float Contrast { get; set; } = 1.0f;
@@ -38,6 +42,8 @@ public class DecalSnapshot
 	{
 		return new DecalSnapshot
 		{
+			DecalId = this.DecalId,
+			TexturePath = this.TexturePath,
 			Brightness = this.Brightness,
 			Tint = this.Tint,
 			Contrast = this.Contrast,
@@ -69,6 +75,7 @@ public class DecalSnapshot
 public partial class DecalSettingsDialog : FloatingDialogBase
 {
 	private string _decalKey = "";
+	private string _texturePath = "";
 	private float _brightness = 1.0f;
 	private Color _tint = Colors.White;
 	private float _contrast = 1.0f;
@@ -99,6 +106,11 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private float _lowerFade = 0.3f;
 
 	private bool _isSyncingControls = false;
+	private string _slug = "";
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private LineEdit _txtTexturePath;
+	private Action<string> _setTexturePathValue;
 	private CheckBox _chkAnimateOpacity;
 	private HSlider _sldOpacitySpeed;
 	private Label _lblOpacitySpeed;
@@ -210,7 +222,54 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		previewPanel.AddChild(previewVBox);
 		contentVBox.AddChild(previewPanel);
 
-		// SECTION 1: COLOR & LIGHTING
+		// SECTION 1: TEXTURE & ASSET
+		AddSectionHeader(contentVBox, "🖼 " + TranslationServer.Translate("TEXTURE & ASSET"), new Color(0.95f, 0.8f, 0.4f));
+
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "decal/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("decal_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			if (_isSyncingControls) return;
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_decalKey = TemplateIDHelper.NormalizeTemplateID("decal", _slug);
+			if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
+		};
+		rowId.AddChild(_txtSlug);
+		contentVBox.AddChild(rowId);
+
+		(_txtTexturePath, _setTexturePathValue) = AddAssetFilterDropdown(
+			contentVBox,
+			TranslationServer.Translate("Texture Path:"),
+			_texturePath,
+			(all) => ScanAvailableAssets("decals", all),
+			(val) =>
+			{
+				if (_isSyncingControls) return;
+				_texturePath = val ?? string.Empty;
+				ReloadBaseTexture();
+				UpdateLivePreviewAndWorld();
+			},
+			TranslationServer.Translate("Select or enter decal texture path..."),
+			140f
+		);
+
+		// SECTION 2: COLOR & LIGHTING
 		AddSectionHeader(contentVBox, "🎨 " + TranslationServer.Translate("COLOR & LIGHTING"), new Color(0.95f, 0.8f, 0.4f));
 
 		(_sldBrightness, _lblBrightness) = AddSlider(
@@ -522,6 +581,52 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		}, "0.00x", 140f);
 	}
 
+	private void ReloadBaseTexture()
+	{
+		string texKey = !string.IsNullOrWhiteSpace(_texturePath)
+			? _texturePath
+			: (!string.IsNullOrWhiteSpace(_decalKey) && _decalKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? _decalKey : string.Empty);
+		if (string.IsNullOrWhiteSpace(texKey))
+		{
+			_baseTexture = null;
+			return;
+		}
+
+		_baseTexture = GameHost.Instance?.LoadDecalTexture(texKey);
+		if (_baseTexture == null)
+		{
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			string filename = Path.GetFileName(texKey);
+			string baseKey = Path.GetFileNameWithoutExtension(texKey);
+			string[] candidates = new[]
+			{
+				Path.Combine(wsPath, "Assets", "decals", texKey),
+				Path.Combine(wsPath, "Assets", "decals", filename),
+				Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.rtex"),
+				Path.Combine(wsPath, "Assets", $"{baseKey}.rtex"),
+				Path.Combine(wsPath, texKey)
+			};
+
+			foreach (var p in candidates)
+			{
+				if (File.Exists(p) && p.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					byte[] rtexBytes = File.ReadAllBytes(p);
+					byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
+					if (webpBytes != null && webpBytes.Length > 0)
+					{
+						var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+						if (img.LoadWebpFromBuffer(webpBytes) == Error.Ok || img.LoadPngFromBuffer(webpBytes) == Error.Ok)
+						{
+							_baseTexture = ImageTexture.CreateFromImage(img);
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+
 	public static JsonObject ResolveDecalMetadata(string decalKey, JsonObject? providedData = null)
 	{
 		var result = new JsonObject();
@@ -533,29 +638,30 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			}
 		}
 
-		// 1. Check metadata.json if properties are missing
-		if (!result.ContainsKey("brightness") && !result.ContainsKey("tint") && !result.ContainsKey("contrast") && !result.ContainsKey("roughness"))
+		// 1. Check metadata.json / unioned assets if properties are missing
+		try
 		{
-			try
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			if (metadata?.Decals != null)
 			{
-				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-				var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-				var decalsObj = assetsObj?["decals"] as JsonObject;
-				if (decalsObj != null)
+				string key = Path.GetFileName(decalKey);
+				string baseKey = Path.GetFileNameWithoutExtension(decalKey);
+
+				Realm.Shared.Metadata.DecalMetadata? foundMeta = null;
+				if (metadata.Decals.TryGetValue(decalKey, out var d0)) foundMeta = d0;
+				else if (metadata.Decals.TryGetValue(key, out var d1)) foundMeta = d1;
+				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) foundMeta = d2;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) foundMeta = d3;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) foundMeta = d4;
+				else if (metadata.Decals.TryGetValue($"{baseKey}.webp", out var d5)) foundMeta = d5;
+
+				if (foundMeta != null)
 				{
-					string key = Path.GetFileName(decalKey);
-					string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-
-					JsonObject? foundMeta = null;
-					if (decalsObj.TryGetPropertyValue(key, out var n1) && n1 is JsonObject o1) foundMeta = o1;
-					else if (decalsObj.TryGetPropertyValue(baseKey, out var n2) && n2 is JsonObject o2) foundMeta = o2;
-					else if (decalsObj.TryGetPropertyValue($"{baseKey}.rtex", out var n3) && n3 is JsonObject o3) foundMeta = o3;
-					else if (decalsObj.TryGetPropertyValue($"{baseKey}.png", out var n4) && n4 is JsonObject o4) foundMeta = o4;
-					else if (decalsObj.TryGetPropertyValue($"{baseKey}.webp", out var n5) && n5 is JsonObject o5) foundMeta = o5;
-
-					if (foundMeta != null)
+					var jsonMeta = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(foundMeta)) as JsonObject;
+					if (jsonMeta != null)
 					{
-						foreach (var kvp in foundMeta)
+						foreach (var kvp in jsonMeta)
 						{
 							if (!result.ContainsKey(kvp.Key))
 							{
@@ -565,8 +671,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 					}
 				}
 			}
-			catch { }
 		}
+		catch { }
 
 		// 2. Check .rtex file metadata if still missing
 		if (!result.ContainsKey("brightness") && !result.ContainsKey("tint"))
@@ -574,10 +680,17 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			try
 			{
 				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-				string filename = Path.GetFileName(decalKey);
-				string baseKey = Path.GetFileNameWithoutExtension(decalKey);
+				string targetTexture = result.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString())
+					? tpNode.ToString()
+					: (result.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString())
+						? tpNode2.ToString()
+						: decalKey);
+
+				string filename = Path.GetFileName(targetTexture);
+				string baseKey = Path.GetFileNameWithoutExtension(targetTexture);
 				string[] candidates = new[]
 				{
+					Path.Combine(wsPath, "Assets", "decals", targetTexture),
 					Path.Combine(wsPath, "Assets", "decals", filename),
 					Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.rtex"),
 					Path.Combine(wsPath, "Assets", $"{baseKey}.rtex")
@@ -668,11 +781,46 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	public void OpenForDecal(string decalKey, JsonObject decalData, Action<JsonObject> onApplied)
 	{
-		_decalKey = decalKey;
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(decalKey);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(decalKey);
+		_decalKey = TemplateIDHelper.NormalizeTemplateID("decal", _slug);
 		_onApplied = onApplied;
-		_lblDecalName.Text = "Decal: " + decalKey;
+		_lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
 
 		var resolvedData = ResolveDecalMetadata(decalKey, decalData);
+
+		string rawTexturePath = resolvedData.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString())
+			? tpNode.ToString()
+			: (resolvedData.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString())
+				? tpNode2.ToString()
+				: string.Empty);
+
+		if (string.IsNullOrWhiteSpace(rawTexturePath) && decalKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			rawTexturePath = decalKey;
+		}
+
+		if (string.IsNullOrWhiteSpace(rawTexturePath))
+		{
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			string candidate = $"{_slug}.rtex";
+			if (File.Exists(Path.Combine(wsPath, "Assets", "decals", candidate)))
+			{
+				rawTexturePath = candidate;
+			}
+			else
+			{
+				var candidates = ScanAvailableAssets("decals", true);
+				string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, candidate, StringComparison.OrdinalIgnoreCase))
+					?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
+				if (!string.IsNullOrEmpty(candidateMatch))
+				{
+					rawTexturePath = candidateMatch;
+				}
+			}
+		}
+
+		_texturePath = rawTexturePath ?? string.Empty;
 
 		_brightness = resolvedData.TryGetPropertyValue("brightness", out var bNode) && float.TryParse(bNode?.ToString(), out float b) ? b : 1.0f;
 		_contrast = resolvedData.TryGetPropertyValue("contrast", out var cNode) && float.TryParse(cNode?.ToString(), out float c) ? c : 1.0f;
@@ -740,6 +888,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		_initialSnapshot = new DecalSnapshot
 		{
+			DecalId = _decalKey,
+			TexturePath = _texturePath,
 			Brightness = _brightness,
 			Tint = _tint,
 			Contrast = _contrast,
@@ -767,19 +917,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		};
 
 		SyncControlsWithValues();
-
-		_baseTexture = GameHost.Instance?.LoadDecalTexture(decalKey);
-		if (_baseTexture == null)
-		{
-			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			string p = Path.Combine(wsPath, "Assets", "decals", decalKey);
-			if (File.Exists(p))
-			{
-				var img = Image.LoadFromFile(p);
-				if (img != null) _baseTexture = ImageTexture.CreateFromImage(img);
-			}
-		}
-
+		ReloadBaseTexture();
 		UpdateLivePreviewAndWorld();
 		OpenDialog();
 	}
@@ -789,6 +927,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_isSyncingControls = true;
 		try
 		{
+			if (_txtSlug != null) _txtSlug.Text = _slug;
+			_setTexturePathValue?.Invoke(_texturePath);
 			_sldBrightness.Value = _brightness;
 			_lblBrightness.Text = $"{_brightness:F2}x";
 			_btnTint.Color = _tint;
@@ -1026,35 +1166,74 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
+		_slug = finalSlug;
+		_decalKey = TemplateIDHelper.NormalizeTemplateID("decal", _slug);
+
+		string finalTexturePath = !string.IsNullOrWhiteSpace(_txtTexturePath?.Text) ? _txtTexturePath.Text.Trim() : _texturePath;
+		_texturePath = finalTexturePath;
+
 		GameHost.Instance?.InvalidateDecalCache(_decalKey);
 
 		var result = new JsonObject
 		{
+			["TemplateID"] = _decalKey,
+			["template_id"] = _decalKey,
+			["decal_id"] = _decalKey,
+			["DecalId"] = _decalKey,
+			["texture_path"] = _texturePath,
+			["TexturePath"] = _texturePath,
 			["brightness"] = Math.Round(_brightness, 3),
+			["Brightness"] = Math.Round(_brightness, 3),
 			["tint"] = $"#{_tint.ToHtml(false)}",
+			["Tint"] = $"#{_tint.ToHtml(false)}",
 			["contrast"] = Math.Round(_contrast, 3),
+			["Contrast"] = Math.Round(_contrast, 3),
 			["saturation"] = Math.Round(_saturation, 3),
+			["Saturation"] = Math.Round(_saturation, 3),
 			["opacity"] = Math.Round(_opacity, 3),
+			["Opacity"] = Math.Round(_opacity, 3),
 			["albedo_mix"] = Math.Round(_albedoMix, 3),
+			["AlbedoMix"] = Math.Round(_albedoMix, 3),
 			["normal_strength"] = Math.Round(_normalStrength, 3),
+			["NormalStrength"] = Math.Round(_normalStrength, 3),
 			["roughness"] = Math.Round(_roughness, 3),
+			["Roughness"] = Math.Round(_roughness, 3),
 			["metallic"] = Math.Round(_metallic, 3),
+			["Metallic"] = Math.Round(_metallic, 3),
 			["blend_mode"] = _blendMode,
+			["BlendMode"] = _blendMode,
 			["animate_opacity"] = _animateOpacity,
+			["AnimateOpacity"] = _animateOpacity,
 			["opacity_pulse_speed"] = Math.Round(_opacityPulseSpeed, 2),
+			["OpacityPulseSpeed"] = Math.Round(_opacityPulseSpeed, 2),
 			["min_opacity"] = Math.Round(_minOpacity, 3),
+			["MinOpacity"] = Math.Round(_minOpacity, 3),
 			["max_opacity"] = Math.Round(_maxOpacity, 3),
+			["MaxOpacity"] = Math.Round(_maxOpacity, 3),
 			["animate_emission"] = _animateEmission,
+			["AnimateEmission"] = _animateEmission,
 			["emission_pulse_speed"] = Math.Round(_emissionPulseSpeed, 2),
+			["EmissionPulseSpeed"] = Math.Round(_emissionPulseSpeed, 2),
 			["min_emission"] = Math.Round(_minEmission, 2),
+			["MinEmission"] = Math.Round(_minEmission, 2),
 			["max_emission"] = Math.Round(_maxEmission, 2),
+			["MaxEmission"] = Math.Round(_maxEmission, 2),
 			["animate_scale"] = _animateScale,
+			["AnimateScale"] = _animateScale,
 			["scale_pulse_speed"] = Math.Round(_scalePulseSpeed, 2),
+			["ScalePulseSpeed"] = Math.Round(_scalePulseSpeed, 2),
 			["min_scale_ratio"] = Math.Round(_minScaleRatio, 3),
+			["MinScaleRatio"] = Math.Round(_minScaleRatio, 3),
 			["max_scale_ratio"] = Math.Round(_maxScaleRatio, 3),
+			["MaxScaleRatio"] = Math.Round(_maxScaleRatio, 3),
 			["upper_fade"] = Math.Round(_upperFade, 3),
+			["UpperFade"] = Math.Round(_upperFade, 3),
 			["lower_fade"] = Math.Round(_lowerFade, 3),
-			["asset_type"] = "Decal"
+			["LowerFade"] = Math.Round(_lowerFade, 3),
+			["asset_type"] = "Decal",
+			["AssetType"] = "Decal"
 		};
 
 		_onApplied?.Invoke(result);
@@ -1089,6 +1268,12 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		}
 		else if (_initialSnapshot != null)
 		{
+			_decalKey = _initialSnapshot.DecalId;
+			var (_, initSlug) = TemplateIDHelper.ParseTemplateID(_decalKey);
+			_slug = !string.IsNullOrWhiteSpace(initSlug) ? TemplateIDHelper.ToSnakeCase(initSlug) : TemplateIDHelper.ToSnakeCase(_decalKey);
+			if (_txtSlug != null) _txtSlug.Text = _slug;
+			if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
+			_texturePath = _initialSnapshot.TexturePath;
 			_brightness = _initialSnapshot.Brightness;
 			_tint = _initialSnapshot.Tint;
 			_contrast = _initialSnapshot.Contrast;
@@ -1114,6 +1299,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			_upperFade = _initialSnapshot.UpperFade;
 			_lowerFade = _initialSnapshot.LowerFade;
 
+			ReloadBaseTexture();
 			UpdateLivePreviewAndWorld();
 		}
 		base.OnCancel();

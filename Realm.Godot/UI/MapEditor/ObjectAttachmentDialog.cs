@@ -9,13 +9,8 @@ using Realm.Godot.Utils;
 using Realm.Godot.VFX;
 using Realm.Godot.Services;
 
-public partial class ObjectAttachmentDialog : FloatingDialogBase
+public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
-	private Node3D _previewSceneRoot;
 	private Node3D _previewModel;
 
 	private readonly Dictionary<string, Node3D> _socketAnchorNodes = new(StringComparer.OrdinalIgnoreCase);
@@ -71,18 +66,9 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 	private List<string> _availableAttachments = new();
 	private bool _isUpdatingUI;
 
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-	private float _cameraYaw = 0f;
-	private float _cameraPitch = 0.2f;
-	private float _cameraDistance = 3.5f;
-	private const float DefaultDistance = 3.5f;
-	private Vector3 _targetPosition = new Vector3(0f, 1.0f, 0f);
-
-	private Action<GameHost.HandAttachmentOrientation> _onApplied;
-	private GameHost.UnitObjectAttachments? _initialSnapshot;
-	private GameHost.UnitObjectAttachments _workingAttachments;
+	private Action<HandAttachmentOrientation> _onApplied;
+	private UnitObjectAttachments? _initialSnapshot;
+	private UnitObjectAttachments _workingAttachments;
 
 	public struct SocketDefinition
 	{
@@ -127,33 +113,27 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 	public ObjectAttachmentDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Socket & VFX Attachment Studio"), new Vector2(580, 720))
 	{
+		DefaultDistance = 3.5f;
+		CameraDistance = 3.5f;
+		DefaultYaw = 0f;
+		DefaultPitch = 0.2f;
+		CameraYaw = 0f;
+		CameraPitch = 0.2f;
+		DefaultTargetPosition = new Vector3(0f, 1.0f, 0f);
+		TargetPosition = DefaultTargetPosition;
+
 		BuildControls();
 	}
 
 	private void BuildControls()
 	{
-		_viewportContainer = Add3DViewportContainer(BodyContainer, new Vector2(530, 230), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
-
-		_previewSceneRoot = new Node3D { Name = "PreviewRoot" };
-		_subViewport.AddChild(_previewSceneRoot);
+		Add3DPreviewViewport(BodyContainer, new Vector2(530, 230));
 
 		var topControlsVBox = new VBoxContainer();
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
-		var presetRow = new HBoxContainer();
-		presetRow.AddThemeConstantOverride("separation", 4);
-
-		AddButton(presetRow, TranslationServer.Translate("Front"), () => SetCameraPreset(0f, 0f), "View front", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Side"), () => SetCameraPreset(90f, 0f), "View side", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Back"), () => SetCameraPreset(180f, 0f), "View back", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 25f), "Isometric view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
-		AddButton(presetRow, TranslationServer.Translate("⟲ Reset"), () => ResetCameraDefault(), "Reset camera zoom and position", 10, new Vector2(0, 22));
-
-		topControlsVBox.AddChild(presetRow);
+		AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 
 		var infoRow = new HBoxContainer();
 		infoRow.AddThemeConstantOverride("separation", 8);
@@ -332,7 +312,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		string attachmentId = null,
 		string socket = null,
 		Node3D sourceModel = null,
-		Action<GameHost.HandAttachmentOrientation> onApplied = null)
+		Action<HandAttachmentOrientation> onApplied = null)
 	{
 		OpenForTarget(unitId, attachmentId, socket, sourceModel, onApplied);
 	}
@@ -342,7 +322,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		string attachmentId = null,
 		string socket = null,
 		Node3D sourceModel = null,
-		Action<GameHost.HandAttachmentOrientation> onApplied = null)
+		Action<HandAttachmentOrientation> onApplied = null)
 	{
 		_onApplied = onApplied;
 
@@ -370,7 +350,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 			_initialSnapshot = null;
 		}
 
-		_workingAttachments = _initialSnapshot?.Clone() ?? new GameHost.UnitObjectAttachments();
+		_workingAttachments = _initialSnapshot?.Clone() ?? new UnitObjectAttachments();
 
 		string defaultSocket = _isTargetBuilding ? "Center" : "RightHand";
 		_currentSocketId = NormalizeSocketId(string.IsNullOrEmpty(socket) ? defaultSocket : socket);
@@ -539,7 +519,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 
 	private void LoadAttachmentOrientationIntoSliders(string targetId, string socketId, string attachmentId, string? parentAttachmentId = null)
 	{
-		GameHost.HandAttachmentOrientation unitOrient = default;
+		HandAttachmentOrientation? unitOrient = null;
 		bool hasOrient = false;
 
 		if (!string.IsNullOrEmpty(targetId))
@@ -572,18 +552,18 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 			}
 		}
 
-		if (hasOrient)
+		if (hasOrient && unitOrient != null)
 		{
-			_currentPosOffset = unitOrient.Position;
-			_currentRotOffset = unitOrient.RotationDegrees;
-			_currentScaleOffset = unitOrient.ScaleVector;
+			_currentPosOffset = unitOrient.Position.ToGodotVector3();
+			_currentRotOffset = unitOrient.RotationDegrees.ToGodotVector3();
+			_currentScaleOffset = unitOrient.ScaleVector.ToGodotVector3();
 			_currentNormalOffset = unitOrient.NormalOffset;
 			_currentParentAttachmentId = unitOrient.ParentAttachmentId;
 		}
 		else if (!string.IsNullOrEmpty(attachmentId) && GameHost.AttachmentRegistry.TryGetValue(attachmentId, out var attMeta))
 		{
-			_currentPosOffset = attMeta.PositionOffset;
-			_currentRotOffset = attMeta.RotationOffset;
+			_currentPosOffset = attMeta.PositionOffset.ToGodotVector3();
+			_currentRotOffset = attMeta.RotationOffset.ToGodotVector3();
 			_currentScaleOffset = Vector3.One * (attMeta.Scale <= 0f ? 1.0f : attMeta.Scale);
 			_currentNormalOffset = 0.0f;
 		}
@@ -620,7 +600,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		if (string.IsNullOrEmpty(_targetObjectId) || string.IsNullOrEmpty(_currentAttachmentId)) return;
 		if (IsAttachmentConfigured(_currentSocketId, _currentAttachmentId, _currentParentAttachmentId))
 		{
-			var orientation = new GameHost.HandAttachmentOrientation
+			var orientation = new HandAttachmentOrientation
 			{
 				PositionX = _currentPosOffset.X,
 				PositionY = _currentPosOffset.Y,
@@ -732,7 +712,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		}
 
 		Vector3 handPos = targetAnchor.GlobalPosition;
-		Vector3 camPos = _camera != null ? _camera.GlobalPosition : new Vector3(0f, 1.5f, 3f);
+		Vector3 camPos = PreviewCamera != null ? PreviewCamera.GlobalPosition : new Vector3(0f, 1.5f, 3f);
 		Vector3 dirToCam = (camPos - handPos).Normalized();
 
 		Vector3 wristNormal = targetAnchor.GlobalTransform.Basis.Y.Normalized();
@@ -753,7 +733,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		Vector3 desiredRight = desiredTopDir.Cross(Vector3.Up).Normalized();
 		if (desiredRight.LengthSquared() < 0.001f)
 		{
-			Vector3 camRight = _camera != null ? _camera.GlobalTransform.Basis.X.Normalized() : Vector3.Right;
+			Vector3 camRight = PreviewCamera != null ? PreviewCamera.GlobalTransform.Basis.X.Normalized() : Vector3.Right;
 			desiredRight = desiredTopDir.Cross(camRight).Normalized();
 		}
 
@@ -967,7 +947,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		_previewModel.Position = Vector3.Zero;
 		_previewModel.Rotation = Vector3.Zero;
 		_previewModel.Scale = Vector3.One;
-		_previewSceneRoot.AddChild(_previewModel);
+		PreviewSceneRoot.AddChild(_previewModel);
 
 		var skeleton = SkeletonValidator.FindSkeleton(_previewModel);
 		Aabb modelAabb = CalculateAttachmentLocalAabb(_previewModel);
@@ -1103,7 +1083,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		public int Index;
 		public string SocketId;
 		public string AttachmentId;
-		public GameHost.HandAttachmentOrientation Orientation;
+		public HandAttachmentOrientation Orientation;
 	}
 
 	public static string GetAttachmentKey(string socketId, string attachmentId, int index = -1, string? parentAttachmentId = null)
@@ -1133,13 +1113,13 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		return new List<ConfiguredAttachmentEntry>();
 	}
 
-	public static List<ConfiguredAttachmentEntry> GetConfiguredAttachmentsFromData(GameHost.UnitObjectAttachments? attsNode, bool isBuilding = false)
+	public static List<ConfiguredAttachmentEntry> GetConfiguredAttachmentsFromData(UnitObjectAttachments? attsNode, bool isBuilding = false)
 	{
 		var list = new List<ConfiguredAttachmentEntry>();
-		if (attsNode.HasValue)
+		if (attsNode != null)
 		{
-			var atts = attsNode.Value;
-			void Collect(string socket, List<Dictionary<string, GameHost.HandAttachmentOrientation>>? sockList)
+			var atts = attsNode;
+			void Collect(string socket, List<Dictionary<string, HandAttachmentOrientation>>? sockList)
 			{
 				if (sockList == null) return;
 				for (int i = 0; i < sockList.Count; i++)
@@ -1194,9 +1174,10 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 			string key = GetAttachmentKey(entry.SocketId, entry.AttachmentId, entry.Index, entry.Orientation.ParentAttachmentId);
 			if (_activeAttachmentVisuals.TryGetValue(key, out var visualNode) && GodotObject.IsInstanceValid(visualNode))
 			{
-				visualNode.Position = entry.Orientation.Position + (Vector3.Up * entry.Orientation.NormalOffset);
-				visualNode.RotationDegrees = entry.Orientation.RotationDegrees;
-				visualNode.Scale = entry.Orientation.ScaleVector == Vector3.Zero ? Vector3.One : entry.Orientation.ScaleVector;
+				visualNode.Position = entry.Orientation.Position.ToGodotVector3() + (Vector3.Up * entry.Orientation.NormalOffset);
+				visualNode.RotationDegrees = entry.Orientation.RotationDegrees.ToGodotVector3();
+				var entryScale = entry.Orientation.ScaleVector.ToGodotVector3();
+				visualNode.Scale = entryScale == Vector3.Zero ? Vector3.One : entryScale;
 			}
 		}
 	}
@@ -1293,14 +1274,14 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		{
 			if (string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
 			{
-				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position, entry.Orientation.RotationDegrees, entry.Orientation.ScaleVector, entry.Orientation.NormalOffset, entry.Index, null);
+				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position.ToGodotVector3(), entry.Orientation.RotationDegrees.ToGodotVector3(), entry.Orientation.ScaleVector.ToGodotVector3(), entry.Orientation.NormalOffset, entry.Index, null);
 			}
 		}
 		foreach (var entry in configured)
 		{
 			if (!string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
 			{
-				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position, entry.Orientation.RotationDegrees, entry.Orientation.ScaleVector, entry.Orientation.NormalOffset, entry.Index, entry.Orientation.ParentAttachmentId);
+				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position.ToGodotVector3(), entry.Orientation.RotationDegrees.ToGodotVector3(), entry.Orientation.ScaleVector.ToGodotVector3(), entry.Orientation.NormalOffset, entry.Index, entry.Orientation.ParentAttachmentId);
 			}
 		}
 	}
@@ -1533,9 +1514,10 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 
 		if (matched.HasValue)
 		{
-			_currentPosOffset = matched.Value.Orientation.Position;
-			_currentRotOffset = matched.Value.Orientation.RotationDegrees;
-			_currentScaleOffset = matched.Value.Orientation.ScaleVector == Vector3.Zero ? Vector3.One : matched.Value.Orientation.ScaleVector;
+			_currentPosOffset = matched.Value.Orientation.Position.ToGodotVector3();
+			_currentRotOffset = matched.Value.Orientation.RotationDegrees.ToGodotVector3();
+			var scaleVec = matched.Value.Orientation.ScaleVector.ToGodotVector3();
+			_currentScaleOffset = scaleVec == Vector3.Zero ? Vector3.One : scaleVec;
 			_currentNormalOffset = matched.Value.Orientation.NormalOffset;
 			_currentParentAttachmentId = matched.Value.Orientation.ParentAttachmentId;
 			UpdateSliderDisplayValues();
@@ -1593,7 +1575,7 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 			return;
 		}
 
-		var orientation = new GameHost.HandAttachmentOrientation
+		var orientation = new HandAttachmentOrientation
 		{
 			PositionX = _currentPosOffset.X,
 			PositionY = _currentPosOffset.Y,
@@ -1669,55 +1651,27 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		// 3. Unioned Assets from manifest/metadata (Items and VFX imported into map)
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj != null)
 			{
-				if (assetsObj["glb"] is JsonObject glbObj)
+				var itemsDict = assetsObj.GetCategory("Item");
+				if (itemsDict != null)
 				{
-					foreach (var subCat in glbObj)
+					foreach (var modelProp in itemsDict)
 					{
-						string catName = subCat.Key;
-						bool isItemFolder = catName.Equals("items", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("attachments", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("weapons", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("projectiles", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_items", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_attachments", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_weapons", StringComparison.OrdinalIgnoreCase) ||
-							catName.Equals("rmesh_projectiles", StringComparison.OrdinalIgnoreCase);
-
-						if (subCat.Value is JsonObject modelsObj)
+						string fileName = modelProp.Key;
+						string id = System.IO.Path.GetFileNameWithoutExtension(fileName);
+						if (seen.Add(id))
 						{
-							foreach (var modelProp in modelsObj)
-							{
-								string fileName = modelProp.Key;
-								string id = System.IO.Path.GetFileNameWithoutExtension(fileName);
-								bool isAttachment = isItemFolder;
-
-								if (!isAttachment && modelProp.Value is JsonObject mObj)
-								{
-									string? at = mObj["asset_type"]?.ToString()
-										?? mObj["AssetType"]?.ToString()
-										?? mObj["default_asset_type"]?.ToString()
-										?? mObj["type"]?.ToString();
-									if (!string.IsNullOrEmpty(at) && Realm.Shared.Metadata.RealmMetadataHelper.IsValidAssetTypeForExtension(fileName, at, out string canonical, out _) && canonical.Equals("Item", StringComparison.OrdinalIgnoreCase))
-									{
-										isAttachment = true;
-									}
-								}
-
-								if (isAttachment && seen.Add(id))
-								{
-									result.Add(id);
-								}
-							}
+							result.Add(id);
 						}
 					}
 				}
 
-				if (assetsObj["vfx"] is JsonObject vfxObj)
+				var vfxDict = assetsObj.GetCategory("Spritesheet");
+				if (vfxDict != null)
 				{
-					foreach (var prop in vfxObj)
+					foreach (var prop in vfxDict)
 					{
 						string vfxKey = prop.Key.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? prop.Key : $"vfx:{prop.Key}";
 						if (seen.Add(vfxKey))
@@ -1737,11 +1691,11 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		{
 			var metadata = MetadataService.Instance.LoadMetadata(wsPath);
 
-			if (metadata.CustomItems != null)
+			if (metadata.Templates?.Items != null)
 			{
-				foreach (var it in metadata.CustomItems)
+				foreach (var it in metadata.Templates.Items)
 				{
-					string val = it.ItemId ?? "";
+					string val = it.TemplateID ?? "";
 					if (!string.IsNullOrEmpty(val))
 					{
 						string cleanId = System.IO.Path.GetFileNameWithoutExtension(val);
@@ -1750,11 +1704,11 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 				}
 			}
 
-			if (metadata.CustomWeapons != null)
+			if (metadata.Templates?.Weapons != null)
 			{
-				foreach (var wpn in metadata.CustomWeapons)
+				foreach (var wpn in metadata.Templates.Weapons)
 				{
-					string val = wpn.WeaponId ?? "";
+					string val = wpn.TemplateID ?? "";
 					if (!string.IsNullOrEmpty(val))
 					{
 						string cleanId = System.IO.Path.GetFileNameWithoutExtension(val);
@@ -1763,9 +1717,9 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 				}
 			}
 
-			if (metadata.CustomAttachments != null)
+			if (metadata.Templates?.Attachments != null)
 			{
-				foreach (var att in metadata.CustomAttachments)
+				foreach (var att in metadata.Templates.Attachments)
 				{
 					string val = att.AttachmentId ?? "";
 					if (!string.IsNullOrEmpty(val))
@@ -1776,9 +1730,9 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 				}
 			}
 
-			if (metadata.CustomVfx != null)
+			if (metadata.Templates?.Vfx != null)
 			{
-				foreach (var vfx in metadata.CustomVfx)
+				foreach (var vfx in metadata.Templates.Vfx)
 				{
 					if (!string.IsNullOrEmpty(vfx.VfxId))
 					{
@@ -1807,98 +1761,5 @@ public partial class ObjectAttachmentDialog : FloatingDialogBase
 		}
 
 		return result;
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mouseButton)
-		{
-			if (mouseButton.ButtonIndex == MouseButton.Left)
-			{
-				_isOrbiting = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.Right || mouseButton.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mouseButton.Pressed;
-				_lastMousePosition = mouseButton.Position;
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelUp && mouseButton.Pressed)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mouseButton.ButtonIndex == MouseButton.WheelDown && mouseButton.Pressed)
-			{
-				ZoomCamera(1.0f);
-			}
-		}
-		else if (@event is InputEventMouseMotion mouseMotion)
-		{
-			Vector2 delta = mouseMotion.Position - _lastMousePosition;
-			_lastMousePosition = mouseMotion.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (_isPanning && _camera != null)
-			{
-				Vector3 camRight = _camera.GlobalTransform.Basis.X;
-				Vector3 camUp = _camera.GlobalTransform.Basis.Y;
-				float panSpeed = _cameraDistance * 0.0025f;
-				_targetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
-		}
-	}
-
-	private void ZoomCamera(float direction)
-	{
-		float factor = direction > 0 ? 1.15f : 0.85f;
-		_cameraDistance = Mathf.Clamp(_cameraDistance * factor, DefaultDistance * 0.15f, DefaultDistance * 6.0f);
-		UpdateCameraTransform();
-	}
-
-	public void SetCameraPreset(float yawDegrees, float pitchDegrees)
-	{
-		_cameraYaw = Mathf.DegToRad(yawDegrees);
-		_cameraPitch = Mathf.DegToRad(pitchDegrees);
-		UpdateCameraTransform();
-	}
-
-	public void ResetCameraDefault()
-	{
-		_cameraYaw = 0f;
-		_cameraPitch = 0.2f;
-		_cameraDistance = DefaultDistance;
-		_targetPosition = new Vector3(0f, 1.0f, 0f);
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-		_cameraPitch = Mathf.Clamp(_cameraPitch, -Mathf.Pi * 0.48f, Mathf.Pi * 0.48f);
-
-		float cosPitch = Mathf.Cos(_cameraPitch);
-		float sinPitch = Mathf.Sin(_cameraPitch);
-		float cosYaw = Mathf.Cos(_cameraYaw);
-		float sinYaw = Mathf.Sin(_cameraYaw);
-
-		Vector3 offset = new Vector3(
-			sinYaw * cosPitch,
-			sinPitch,
-			cosYaw * cosPitch
-		) * _cameraDistance;
-
-		Vector3 newPos = _targetPosition + offset;
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
 	}
 }

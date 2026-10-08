@@ -1,13 +1,15 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Realm.Godot.Services;
 
 public class EditorPreferencesData
 {
 	public bool HideChromeBorderOverlay { get; set; } = false;
+	public bool HideHudDuringToolUsage { get; set; } = true;
 	public float PanelOpacity { get; set; } = 0.95f;
 	public int AutoBackupIntervalMinutes { get; set; } = 30;
 	public int MaxBackupSnapshots { get; set; } = 3;
@@ -17,6 +19,7 @@ public class EditorPreferencesData
 		return new EditorPreferencesData
 		{
 			HideChromeBorderOverlay = this.HideChromeBorderOverlay,
+			HideHudDuringToolUsage = this.HideHudDuringToolUsage,
 			PanelOpacity = this.PanelOpacity,
 			AutoBackupIntervalMinutes = this.AutoBackupIntervalMinutes,
 			MaxBackupSnapshots = this.MaxBackupSnapshots
@@ -33,6 +36,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	private EditorPreferencesData _snapshot = new EditorPreferencesData();
 
 	private CheckBox _chkHideChromeBorder;
+	private CheckBox _chkHideHudDuringToolUsage;
 
 	private HSlider _sldPanelOpacity;
 	private Label _lblPanelOpacity;
@@ -82,6 +86,18 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 				ApplyLiveSettings();
 			},
 			TranslationServer.Translate("Hides the decorative border frames and chrome overlays around editor panels for a cleaner workspace")
+		);
+
+		_chkHideHudDuringToolUsage = AddCheckBox(
+			contentVBox,
+			TranslationServer.Translate("Hide HUD during tool usage"),
+			CurrentSettings.HideHudDuringToolUsage,
+			(val) =>
+			{
+				CurrentSettings.HideHudDuringToolUsage = val;
+				ApplyLiveSettings();
+			},
+			TranslationServer.Translate("Temporarily hides side panels and UI overlays while actively painting, sculpting, or using 3D tools")
 		);
 
 		(_sldPanelOpacity, _lblPanelOpacity) = AddSlider(
@@ -176,6 +192,44 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
 
+		var btnAuthorSignatureRow = new HBoxContainer();
+		btnAuthorSignatureRow.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddChild(btnAuthorSignatureRow);
+
+		var btnAuthorSignature = new Button();
+		btnAuthorSignature.Set("icon_max_width", 0);
+		btnAuthorSignature.Text = "✍️ " + TranslationServer.Translate("Author Signature");
+		btnAuthorSignature.TooltipText = TranslationServer.Translate("View author identity key, signature details, and backup location");
+		btnAuthorSignature.FocusMode = FocusModeEnum.None;
+		btnAuthorSignature.CustomMinimumSize = new Vector2(240, 32);
+		btnAuthorSignature.Pressed += () => Hud?.OpenAuthorSignatureDialog();
+		btnAuthorSignatureRow.AddChild(btnAuthorSignature);
+
+		var btnRepairRow = new HBoxContainer();
+		btnRepairRow.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddChild(btnRepairRow);
+
+		var btnRepairAssetIndex = new Button();
+		btnRepairAssetIndex.Set("icon_max_width", 0);
+		btnRepairAssetIndex.Text = "🗄️ " + TranslationServer.Translate("Repair Asset Index");
+		btnRepairAssetIndex.TooltipText = TranslationServer.Translate("Completely deletes and re-creates the asset index database from CAS");
+		btnRepairAssetIndex.FocusMode = FocusModeEnum.None;
+		btnRepairAssetIndex.CustomMinimumSize = new Vector2(240, 32);
+		btnRepairAssetIndex.Pressed += async () =>
+		{
+			btnRepairAssetIndex.Disabled = true;
+			if (Hud != null)
+			{
+				await Hud.ShowAssetIndexRepairModalAsync();
+			}
+			else
+			{
+				await Task.Run(() => AssetIndexService.Instance.RebuildIndexFromCas());
+			}
+			btnRepairAssetIndex.Disabled = false;
+		};
+		btnRepairRow.AddChild(btnRepairAssetIndex);
+
 		var btnReinstallRow = new HBoxContainer();
 		btnReinstallRow.AddThemeConstantOverride("separation", 10);
 		contentVBox.AddChild(btnReinstallRow);
@@ -240,6 +294,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	private void SyncControls()
 	{
 		if (_chkHideChromeBorder != null) _chkHideChromeBorder.ButtonPressed = CurrentSettings.HideChromeBorderOverlay;
+		if (_chkHideHudDuringToolUsage != null) _chkHideHudDuringToolUsage.ButtonPressed = CurrentSettings.HideHudDuringToolUsage;
 		if (_sldPanelOpacity != null)
 		{
 			_sldPanelOpacity.Value = CurrentSettings.PanelOpacity;

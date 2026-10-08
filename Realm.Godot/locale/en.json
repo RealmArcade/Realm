@@ -1,4 +1,4 @@
-{
+﻿{
   "GAME SETTINGS": "GAME SETTINGS",
   "VIDEO": "VIDEO",
   "Resolution": "Resolution",
@@ -352,7 +352,7 @@
   "📜 PUBLISH": "📜 PUBLISH",
   "Untitled Map": "Untitled Map",
   "🧹 RESET TO BLANK MAP": "🧹 RESET TO BLANK MAP",
-  "🎲 RANDOM GEN": "🎲 RANDOM GEN",
+  "🎲 PROCEDURAL": "🎲 PROCEDURAL",
   "🗺️ GEN FROM IMAGE": "🗺️ GEN FROM IMAGE",
   "🎬 IMPORT MIXAMO / GLB": "🎬 IMPORT MIXAMO / GLB",
   "🌐 GRID OVERLAY: OFF": "🌐 GRID OVERLAY: OFF",
@@ -832,5 +832,6 @@
   "Import Map from .7z Archive": "Import Map from .7z Archive",
   "IMPORT MAP (.ZIP / .7Z)": "IMPORT MAP (.ZIP / .7Z)",
   "IMPORT MAP (FOLDER)": "IMPORT MAP (FOLDER)",
-  "Select Map Archive (.zip / .7z)": "Select Map Archive (.zip / .7z)"
+  "Select Map Archive (.zip / .7z)": "Select Map Archive (.zip / .7z)",
+  "Insufficient disk space (at least 1% free required).": "Insufficient disk space (at least 1% free required)."
 }

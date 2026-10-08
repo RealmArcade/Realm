@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 import { sendGodotIpc } from './extension';
 import { MIXAMO_EXPORT_LICENSING_WARNING } from './constants';
+import { getPreviewTempPath, getLoadingHtml, getErrorHtml } from './viewerUtils';
 
 export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'realm.ranimViewer';
@@ -35,16 +35,10 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
         webviewPanel: vscode.WebviewPanel,
         _token: vscode.CancellationToken
     ): Promise<void> {
-        const tempDir = path.join(os.tmpdir(), 'realm_extension_previews');
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
-
         webviewPanel.webview.options = { enableScripts: true };
 
         const ranimPath = document.uri.fsPath;
-        const fileNameHash = Buffer.from(ranimPath).toString('hex').substring(0, 12);
-        const outputWebpPath = path.join(tempDir, `${fileNameHash}_${path.basename(ranimPath, '.ranim')}.webp`);
+        const outputWebpPath = getPreviewTempPath(ranimPath, '.webp');
 
         webviewPanel.webview.onDidReceiveMessage(async message => {
             if (message.command === 'exportRanim') {
@@ -52,7 +46,7 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
             }
         });
 
-        webviewPanel.webview.html = this.getLoadingHtml();
+        webviewPanel.webview.html = getLoadingHtml('Rendering skeletal animation preview (.webp)...');
 
         try {
             const response = await sendGodotIpc({
@@ -69,29 +63,8 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
             const base64DataUri = `data:image/webp;base64,${webpBytes.toString('base64')}`;
             webviewPanel.webview.html = this.getPreviewHtml(base64DataUri, path.basename(ranimPath));
         } catch (error: any) {
-            webviewPanel.webview.html = this.getErrorHtml(error?.message || 'Failed to render .ranim animation.');
+            webviewPanel.webview.html = getErrorHtml('Failed to load .ranim preview', error?.message || 'Failed to render .ranim animation.');
         }
-    }
-
-    private getLoadingHtml(): string {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); font-family: var(--vscode-font-family); }
-        .spinner { border: 4px solid rgba(255, 255, 255, 0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: var(--vscode-progressBar-background, #0e639c); animation: spin 1s linear infinite; margin-bottom: 12px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .container { display: flex; flex-direction: column; align-items: center; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="spinner"></div>
-        <div>Rendering skeletal animation preview (.webp)...</div>
-    </div>
-</body>
-</html>`;
     }
 
     private getPreviewHtml(base64DataUri: string, title: string): string {
@@ -136,25 +109,6 @@ export class RealmRanimViewerProvider implements vscode.CustomReadonlyEditorProv
             vscode.postMessage({ command: 'exportRanim' });
         }
     </script>
-</body>
-</html>`;
-    }
-
-    private getErrorHtml(errorMessage: string): string {
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: var(--vscode-editor-background); color: var(--vscode-errorForeground, #f48771); font-family: var(--vscode-font-family); padding: 20px; text-align: center; }
-        .error-box { border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100); background-color: var(--vscode-inputValidation-errorBackground, #5a1d1d); padding: 16px 24px; border-radius: 6px; max-width: 600px; }
-    </style>
-</head>
-<body>
-    <div class="error-box">
-        <h3>Failed to load .ranim preview</h3>
-        <p>${errorMessage}</p>
-    </div>
 </body>
 </html>`;
     }

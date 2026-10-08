@@ -6,12 +6,15 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Net.Http;
 using System.Text.Json.Nodes;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-public class VSCodeManager
+public partial class VSCodeManager
 {
 	private static VSCodeManager _instance;
 	public static VSCodeManager Instance => _instance ??= new VSCodeManager();
@@ -29,17 +32,23 @@ public class VSCodeManager
 	private System.Threading.Tasks.Task _installTask;
 	private readonly object _installLock = new object();
 	private int _vscodePort = 8089;
+	private static readonly System.Net.Http.HttpClient _localProxyHttpClient = new System.Net.Http.HttpClient(new System.Net.Http.SocketsHttpHandler
+	{
+		AllowAutoRedirect = false,
+		UseCookies = false,
+		AutomaticDecompression = System.Net.DecompressionMethods.All
+	});
 
 	private static readonly string[] RequiredExtensions = new[]
 	{
+		"google.google-antigravity",
 		"muhammad-sammy.csharp",
 		"OHZIInteractiveStudio.ohzi-vscode-glb-viewer",
 		"Gruntfuggly.todo-tree",
 		// "mechatroner.rainbow-json",
 		"patcx.vscode-nuget-gallery",
-		"AykutSarac.jsoncrack-vscode",
+		"AykutSarac.jsoncrack-vscode"
 		// "akondratiuk1-dev.texture-viewer",
-		"Google.google-antigravity"
 	};
 
 	public bool IsInstalling
@@ -66,35 +75,6 @@ public class VSCodeManager
 
 	public static string GetVSCodeDirectory()
 	{
-		try
-		{
-			string appDataDir = OS.GetUserDataDir();
-			if (!string.IsNullOrWhiteSpace(appDataDir))
-			{
-				string appDataVSCode = Path.Combine(appDataDir, "vscode");
-				if (Directory.Exists(appDataVSCode))
-				{
-					return appDataVSCode;
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		try
-		{
-			string appData = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData);
-			string appDataFallback = Path.Combine(appData, "Godot", "app_userdata", "Realm", "vscode");
-			if (Directory.Exists(appDataFallback))
-			{
-				return appDataFallback;
-			}
-		}
-		catch
-		{
-		}
-
 		try
 		{
 			string appDataDir = OS.GetUserDataDir();
@@ -166,8 +146,6 @@ public class VSCodeManager
 		string extensionsDir = Path.Combine(embedDir, "user-data-dir", "extensions");
 
 		if (!File.Exists(exePath)
-			|| new FileInfo(exePath).Length == 0
-			|| !File.Exists(exePath)
 			|| new FileInfo(exePath).Length == 0
 			|| (!File.Exists(completedMarkerPath) && !File.Exists(bypassMarkerPath))
 			|| string.IsNullOrEmpty(wasiClangPath)
@@ -638,9 +616,12 @@ public class VSCodeManager
 			}
 
 			EnsureWorkspaceMapApiDll(projectRoot);
+			PatchVSCodiumConfiguration(embedDir);
 
 			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
 			string extensionsDir = Path.Combine(serverDataDir, "extensions");
+			string cliDataDir = Path.Combine(embedDir, "cli-data-dir");
+			Directory.CreateDirectory(cliDataDir);
 
 			if (IsInstalling)
 			{
@@ -654,9 +635,10 @@ public class VSCodeManager
 
 			_vscodeProcess = new Process();
 			_vscodeProcess.StartInfo.FileName = Path.ChangeExtension(exePath, ".cmd");
-			_vscodeProcess.StartInfo.Arguments = $"--extensions-dir \"{extensionsDir}\" serve-web --port {_vscodePort} --server-data-dir \"{serverDataDir}\" --accept-server-license-terms --without-connection-token";
+			_vscodeProcess.StartInfo.Arguments = $"--cli-data-dir \"{cliDataDir}\" --extensions-dir \"{extensionsDir}\" serve-web --port {_vscodePort} --server-data-dir \"{serverDataDir}\" --accept-server-license-terms --without-connection-token";
 			_vscodeProcess.StartInfo.CreateNoWindow = true;
 			_vscodeProcess.StartInfo.UseShellExecute = false;
+			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_CLI_DATA_DIR"] = cliDataDir;
 			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
 			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
 			_vscodeProcess.Start();
@@ -821,7 +803,7 @@ public class VSCodeManager
 
 				Callable.From(() =>
 				{
-					GameHost.WeaponMetadata meta = default;
+					WeaponMetadata meta = null;
 					if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var existing))
 					{
 						meta = existing;
@@ -830,7 +812,7 @@ public class VSCodeManager
 					{
 						try
 						{
-							meta = System.Text.Json.JsonSerializer.Deserialize<GameHost.WeaponMetadata>(
+							meta = System.Text.Json.JsonSerializer.Deserialize<WeaponMetadata>(
 								weaponDataNode.ToJsonString(),
 								new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
 							);
@@ -940,100 +922,111 @@ public class VSCodeManager
 				try
 				{
 					string fileName = System.IO.Path.GetFileName(filePath).ToLowerInvariant();
+					EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 					if (fileName == "metadata.json")
 					{
 						try
 						{
-							var rootObj = JsonNode.Parse(content)?.AsObject();
-							if (rootObj != null && (rootObj.ContainsKey("Assets") || rootObj.ContainsKey("textures")))
-							{
-								string mapDir = System.IO.Path.GetDirectoryName(filePath) ?? MapWorkspaceService.GetActiveWorkspacePath();
-								var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(mapDir) ?? new JsonObject();
-								if (rootObj.TryGetPropertyValue("Assets", out var aNode) && aNode is JsonObject aObj)
-								{
-									foreach (var kvp in aObj)
-									{
-										if (kvp.Value != null)
-										{
-											unionedAssets[kvp.Key] = kvp.Value.DeepClone();
-										}
-									}
-								}
-								if (rootObj.TryGetPropertyValue("textures", out var tNode) && tNode is JsonObject tObj)
-								{
-									var existingTextures = unionedAssets["textures"] as JsonObject ?? new JsonObject();
-									foreach (var kvp in tObj)
-									{
-										if (kvp.Value is JsonObject incomingObj)
-										{
-											if (existingTextures.TryGetPropertyValue(kvp.Key, out var existNode) && existNode is JsonObject existObj)
-											{
-												foreach (var p in incomingObj)
-												{
-													existObj[p.Key] = p.Value?.DeepClone();
-												}
-											}
-											else
-											{
-												existingTextures[kvp.Key] = incomingObj.DeepClone();
-											}
-										}
-										else if (kvp.Value != null)
-										{
-											existingTextures[kvp.Key] = kvp.Value.DeepClone();
-										}
-									}
-									unionedAssets["textures"] = existingTextures;
-								}
-								MapWorkspaceService.NormalizeTextureEntries(unionedAssets, mapDir);
-								Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(mapDir, unionedAssets, removeFromMetadata: true);
-								if (unionedAssets["textures"] is JsonObject normTextures)
-								{
-									var targetTextures = new JsonObject();
-									foreach (var kvp in normTextures)
-									{
-										if (kvp.Value is JsonObject itemObj)
-										{
-											var cleanItem = itemObj.DeepClone() as JsonObject ?? new JsonObject();
-											cleanItem.Remove("hash");
-											targetTextures[kvp.Key] = cleanItem;
-										}
-									}
-									rootObj["textures"] = targetTextures;
-								}
-								SaveLoadService.CleanMetadataJsonSchema(rootObj);
-								content = rootObj.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-							}
+							var metadata = Realm.Shared.Services.MapFileService.LoadMetadataFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveMetadata(filePath, metadata);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveMetadataToJson(metadata);
 						}
-						catch { }
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
 					}
-
-					formattedContent = MapJsonFormatter.FormatJson(content);
-					EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-					MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+					else if (fileName == "manifest.json")
+					{
+						try
+						{
+							var manifest = Realm.Shared.Services.MapFileService.LoadManifestFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveManifest(filePath, manifest);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveManifestToJson(manifest);
+						}
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
+					}
+					else if (fileName == "terrain.json")
+					{
+						try
+						{
+							var terrain = Realm.Shared.Services.MapFileService.LoadTerrainFromJson(content);
+							Realm.Shared.Services.MapFileService.SaveTerrain(filePath, terrain);
+							formattedContent = Realm.Shared.Services.MapFileService.SaveTerrainToJson(terrain);
+						}
+						catch
+						{
+							formattedContent = MapJsonFormatter.FormatJson(content);
+							MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+						}
+					}
+					else
+					{
+						formattedContent = MapJsonFormatter.FormatJson(content);
+						MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
+					}
 					success = true;
 
 					Callable.From(() =>
 					{
 						if (fileName == "metadata.json" || fileName == "manifest.json")
 						{
-							if (MapEditorHUD.Instance != null)
+							string display = fileName == "manifest.json" ? "manifest.json" : "metadata.json";
+							Action reloadAction = () =>
 							{
-								MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-								string display = fileName == "manifest.json" ? "manifest.json" : "metadata.json";
-								MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
+								if (MapEditorHUD.Instance != null)
+								{
+									MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
+									MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
+								}
+								else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+								{
+									GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+								}
+							};
+
+							if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+							{
+								MapEditorHUD.Instance.ShowConfirmationDialog(
+									$"External edits detected in {display}. Reload external changes or keep current dialog changes?",
+									onConfirm: reloadAction,
+									confirmText: "RELOAD",
+									cancelText: "KEEP CHANGES"
+								);
 							}
-							else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+							else
 							{
-								GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+								reloadAction();
 							}
 						}
 						else if (fileName == "terrain.json")
 						{
-							if (GameHost.Instance != null && GameHost.Instance.IsMapEditorMode)
+							Action reloadAction = () =>
 							{
-								GameHost.Instance.LoadMapFromFile(filePath);
-								MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+								if (GameHost.Instance != null && GameHost.Instance.IsMapEditorMode)
+								{
+									GameHost.Instance.LoadMapFromFile(filePath);
+									MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+								}
+							};
+
+							if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+							{
+								MapEditorHUD.Instance.ShowConfirmationDialog(
+									"External edits detected in terrain.json. Reload external changes or keep current dialog changes?",
+									onConfirm: reloadAction,
+									confirmText: "RELOAD",
+									cancelText: "KEEP CHANGES"
+								);
+							}
+							else
+							{
+								reloadAction();
 							}
 						}
 					}).CallDeferred();
@@ -1056,14 +1049,31 @@ public class VSCodeManager
 			{
 				Callable.From(() =>
 				{
-					if (MapEditorHUD.Instance != null)
+					Action reloadAction = () =>
 					{
-						MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-						MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
+						if (MapEditorHUD.Instance != null)
+						{
+							MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
+							MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
+						}
+						else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+						{
+							GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+						}
+					};
+
+					if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
+					{
+						MapEditorHUD.Instance.ShowConfirmationDialog(
+							"External edits detected in metadata.json. Reload external changes or keep current dialog changes?",
+							onConfirm: reloadAction,
+							confirmText: "RELOAD",
+							cancelText: "KEEP CHANGES"
+						);
 					}
-					else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+					else
 					{
-						GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+						reloadAction();
 					}
 				}).CallDeferred();
 
@@ -1267,6 +1277,9 @@ public class VSCodeManager
 
 	private void STAThreadLoop()
 	{
+		var syncContext = new SingleThreadSynchronizationContext();
+		SynchronizationContext.SetSynchronizationContext(syncContext);
+
 		var wndClass = new WNDCLASSEX();
 		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
 		wndClass.style = 0;
@@ -1304,6 +1317,8 @@ public class VSCodeManager
 			return;
 		}
 
+		syncContext.SetTargetHwnd(_childHwnd);
+
 		InitializeWebView();
 
 		MSG msg;
@@ -1311,6 +1326,8 @@ public class VSCodeManager
 		{
 			TranslateMessage(ref msg);
 			DispatchMessage(ref msg);
+
+			syncContext.RunPending();
 
 			while (_actionQueue.TryDequeue(out var action))
 			{
@@ -1362,10 +1379,25 @@ public class VSCodeManager
 		{
 			string projectRoot = PathUtils.GetProjectRoot();
 			string embedDir = GetVSCodeDirectory();
+			PatchVSCodiumConfiguration(embedDir);
 			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
 			string cachePath = Path.Combine(serverDataDir, "webview-cache");
+			try
+			{
+				string swDir = Path.Combine(cachePath, "Default", "Service Worker");
+				if (Directory.Exists(swDir)) Directory.Delete(swDir, true);
+				string codeCache = Path.Combine(cachePath, "Default", "Code Cache");
+				if (Directory.Exists(codeCache)) Directory.Delete(codeCache, true);
+				string cacheDir = Path.Combine(cachePath, "Default", "Cache");
+				if (Directory.Exists(cacheDir)) Directory.Delete(cacheDir, true);
+			}
+			catch { }
 
-			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath);
+			var envOptions = new CoreWebView2EnvironmentOptions
+			{
+				AdditionalBrowserArguments = "--disable-web-security --allow-running-insecure-content"
+			};
+			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath, options: envOptions);
 			_controller = await env.CreateCoreWebView2ControllerAsync(_childHwnd);
 			_controller.Bounds = new System.Drawing.Rectangle(0, 0, 800, 600);
 			if (_controller.CoreWebView2?.Settings != null)
@@ -1373,6 +1405,150 @@ public class VSCodeManager
 				_controller.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
 				_controller.CoreWebView2.Settings.AreDevToolsEnabled = true;
 			}
+
+			if (_controller.CoreWebView2 != null)
+			{
+				_controller.CoreWebView2.AddWebResourceRequestedFilter("http://127.0.0.1:*", CoreWebView2WebResourceContext.All);
+				_controller.CoreWebView2.AddWebResourceRequestedFilter("http://localhost:*", CoreWebView2WebResourceContext.All);
+				_controller.CoreWebView2.AddWebResourceRequestedFilter("http://[::1]:*", CoreWebView2WebResourceContext.All);
+				_controller.CoreWebView2.AddWebResourceRequestedFilter("https://127.0.0.1:*", CoreWebView2WebResourceContext.All);
+				_controller.CoreWebView2.AddWebResourceRequestedFilter("https://localhost:*", CoreWebView2WebResourceContext.All);
+				_controller.CoreWebView2.AddWebResourceRequestedFilter("https://[::1]:*", CoreWebView2WebResourceContext.All);
+
+				_controller.CoreWebView2.WebResourceRequested += async (sender, args) =>
+				{
+					try
+					{
+						string uri = args.Request.Uri;
+						if (!Uri.TryCreate(uri, UriKind.Absolute, out var uriObj)) return;
+						if (uriObj.Port == _ipcHttpPort) return;
+
+						bool isVSCodeServer = uriObj.Port == _vscodePort;
+						bool isSpecialVSCodeResource = isVSCodeServer && (
+							uriObj.AbsolutePath.EndsWith("index.html", StringComparison.OrdinalIgnoreCase) ||
+							uriObj.AbsolutePath.EndsWith("workbench.js", StringComparison.OrdinalIgnoreCase)
+						);
+
+						if (isVSCodeServer && !isSpecialVSCodeResource) return;
+
+						if (args.Request.Headers.Contains("Upgrade") || args.Request.Headers.Contains("Sec-WebSocket-Key"))
+						{
+							return;
+						}
+
+						var deferral = args.GetDeferral();
+						try
+						{
+							var requestMsg = new HttpRequestMessage(new HttpMethod(args.Request.Method), uri);
+							foreach (var h in args.Request.Headers)
+							{
+								if (h.Key.Equals("Host", StringComparison.OrdinalIgnoreCase)) continue;
+								if (h.Key.Equals("Connection", StringComparison.OrdinalIgnoreCase)) continue;
+								if (h.Key.Equals("Upgrade", StringComparison.OrdinalIgnoreCase)) continue;
+								if (h.Key.StartsWith("Sec-WebSocket", StringComparison.OrdinalIgnoreCase)) continue;
+								requestMsg.Headers.TryAddWithoutValidation(h.Key, h.Value);
+							}
+
+							if (args.Request.Content != null)
+							{
+								var ms = new MemoryStream();
+								args.Request.Content.CopyTo(ms);
+								ms.Position = 0;
+								requestMsg.Content = new StreamContent(ms);
+								if (args.Request.Headers.Contains("Content-Type"))
+								{
+									requestMsg.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(args.Request.Headers.GetHeader("Content-Type"));
+								}
+							}
+
+							var responseMsg = await _localProxyHttpClient.SendAsync(requestMsg, HttpCompletionOption.ResponseHeadersRead);
+							byte[] responseBytes = await responseMsg.Content.ReadAsByteArrayAsync();
+
+							if (isSpecialVSCodeResource)
+							{
+								string originalContent = System.Text.Encoding.UTF8.GetString(responseBytes);
+								string patchedContent = originalContent;
+								if (uriObj.AbsolutePath.EndsWith("index.html", StringComparison.OrdinalIgnoreCase))
+								{
+									patchedContent = PatchIndexHtmlContent(originalContent);
+								}
+								else
+								{
+									patchedContent = PatchWorkbenchJsContent(originalContent);
+								}
+
+								if (!object.ReferenceEquals(originalContent, patchedContent))
+								{
+									responseBytes = System.Text.Encoding.UTF8.GetBytes(patchedContent);
+								}
+							}
+
+							var responseStream = new MemoryStream(responseBytes);
+
+							var headersBuilder = new System.Text.StringBuilder();
+							void AppendHeader(string key, IEnumerable<string> values)
+							{
+								if (key.Equals("X-Frame-Options", StringComparison.OrdinalIgnoreCase)) return;
+								if (key.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)) return;
+								if (key.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase)) return;
+								if (key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase)) return;
+
+								if (key.Equals("Content-Security-Policy", StringComparison.OrdinalIgnoreCase))
+								{
+									string relaxed = RelaxContentSecurityPolicy(string.Join(" ", values));
+									if (!string.IsNullOrWhiteSpace(relaxed))
+									{
+										headersBuilder.AppendLine($"Content-Security-Policy: {relaxed}");
+									}
+									return;
+								}
+								headersBuilder.AppendLine($"{key}: {string.Join(" ", values)}");
+							}
+
+							foreach (var h in responseMsg.Headers)
+							{
+								AppendHeader(h.Key, h.Value);
+							}
+							foreach (var h in responseMsg.Content.Headers)
+							{
+								AppendHeader(h.Key, h.Value);
+							}
+
+							if (!headersBuilder.ToString().Contains("Content-Security-Policy", StringComparison.OrdinalIgnoreCase))
+							{
+								headersBuilder.AppendLine("Content-Security-Policy: frame-ancestors *;");
+							}
+
+							headersBuilder.AppendLine("Access-Control-Allow-Origin: *");
+							headersBuilder.AppendLine("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD");
+							headersBuilder.AppendLine("Access-Control-Allow-Headers: *");
+							headersBuilder.AppendLine("Access-Control-Allow-Private-Network: true");
+
+							var webResponse = _controller.CoreWebView2.Environment.CreateWebResourceResponse(
+								responseStream,
+								(int)responseMsg.StatusCode,
+								responseMsg.ReasonPhrase ?? "OK",
+								headersBuilder.ToString()
+							);
+
+							args.Response = webResponse;
+						}
+						catch (Exception ex)
+						{
+							GD.PrintErr($"[VSCodeManager] WebResourceRequested proxy error for {uri}: {ex.Message}");
+						}
+						finally
+						{
+							deferral.Complete();
+						}
+					}
+					catch (Exception ex)
+					{
+						GD.PrintErr($"[VSCodeManager] WebResourceRequested outer error: {ex.Message}");
+					}
+				};
+			}
+
 			_controller.AcceleratorKeyPressed += (sender, args) =>
 			{
 				if (args.VirtualKey == 0x73) // VK_F4
@@ -1410,7 +1586,20 @@ public class VSCodeManager
 					}
 				}
 			};
-			
+
+			try
+			{
+				if (_controller?.CoreWebView2?.Profile != null)
+				{
+					await _controller.CoreWebView2.Profile.ClearBrowsingDataAsync(
+						CoreWebView2BrowsingDataKinds.ServiceWorkers |
+						CoreWebView2BrowsingDataKinds.CacheStorage |
+						CoreWebView2BrowsingDataKinds.DiskCache
+					);
+				}
+			}
+			catch { }
+
 			string mapFolderRaw = GetMapFolderToOpen(projectRoot);
 			string unitsPathRaw = Path.Combine(mapFolderRaw, "metadata.json");
 			string scriptPathRaw = Path.Combine(mapFolderRaw, "MapScript.cs");
@@ -1564,7 +1753,7 @@ public class VSCodeManager
 				string projectRoot = PathUtils.GetProjectRoot();
 				string mapFolderRaw = GetMapFolderToOpen(projectRoot);
 				string mapFolder = FormatWinPathForUrl(mapFolderRaw);
-				string targetUrl = $"http://127.0.0.1:{_vscodePort}/?folder={Uri.EscapeDataString(mapFolder)}";
+				string targetUrl = $"http://127.0.0.1:{_vscodePort}/?folder={Uri.EscapeDataString(mapFolder)}&ipcPort={_ipcHttpPort}";
 				_controller.CoreWebView2.Navigate(targetUrl);
 
 				_controller.IsVisible = true;
@@ -1638,7 +1827,7 @@ public class VSCodeManager
 			if (_controller != null)
 			{
 				string payload = System.Text.Json.JsonSerializer.Serialize(new[] { new[] { "openFile", fullPath } });
-				string targetUrl = $"http://127.0.0.1:{_vscodePort}/?folder={Uri.EscapeDataString(mapFolder)}&payload={Uri.EscapeDataString(payload)}";
+				string targetUrl = $"http://127.0.0.1:{_vscodePort}/?folder={Uri.EscapeDataString(mapFolder)}&payload={Uri.EscapeDataString(payload)}&ipcPort={_ipcHttpPort}";
 				_controller.CoreWebView2.Navigate(targetUrl);
 			}
 		});
@@ -1862,6 +2051,8 @@ public class VSCodeManager
 			return;
 		}
 
+		syncContext.SetTargetHwnd(bypassHwnd);
+
 		CoreWebView2Controller controller = null;
 		bool running = true;
 
@@ -1941,71 +2132,24 @@ public class VSCodeManager
 				navigationCount++;
 				if (navigationCount == 1)
 				{
-					string jsScript = """
-					(async () => {
-						const DB_NAME = 'vscode-web-db';
-						const STORE_NAME = 'vscode-userdata-store'; 
-						const TARGET_KEY = '/User/settings.json';
-
-						const request = indexedDB.open(DB_NAME);
-
-						request.onsuccess = (event) => {
-							const db = event.target.result;
-							const transaction = db.transaction([STORE_NAME], 'readwrite');
-							const store = transaction.objectStore(STORE_NAME);
-							
-							const getRequest = store.get(TARGET_KEY);
-
-							getRequest.onsuccess = () => {
-								let config = {};
-								const rawData = getRequest.result;
-
-								if (rawData) {
-									const buffer = rawData instanceof Uint8Array ? rawData : rawData.value;
-									
-									if (buffer instanceof Uint8Array) {
-										try {
-											const decoder = new TextDecoder('utf-8');
-											const jsonString = decoder.decode(buffer);
-											if (jsonString.trim()) {
-												config = JSON.parse(jsonString);
-											}
-										} catch (e) {
-											console.warn("Error parsing existing binary settings. Resetting configuration layer.", e);
-										}
-									}
-								}
-
-								config["security.workspace.trust.enabled"] = false;
-								config["security.workspace.trust.startupPrompt"] = "never";
-
-								const updatedJsonString = JSON.stringify(config, null, '\t');
-								const encoder = new TextEncoder();
-								const encodedUint8Array = encoder.encode(updatedJsonString);
-
-								let putPayload;
-								if (rawData && typeof rawData === 'object' && !(rawData instanceof Uint8Array) && 'key' in rawData) {
-									putPayload = { key: TARGET_KEY, value: encodedUint8Array };
-								} else {
-									putPayload = encodedUint8Array;
-								}
-
-								const putRequest = store.keyPath === null || !store.keyPath
-									? store.put(putPayload, TARGET_KEY)
-									: store.put(putPayload);
-
-								putRequest.onsuccess = () => {
-									console.log("%c[Success] Restricted mode successfully disabled via binary mutation! Reloading...", "color: #00ff00; font-weight: bold;");
-									window.location.reload();
-								};
-
-								putRequest.onerror = (e) => console.error("Failed to write binary buffer to IndexedDB store:", e);
-							};
-						};
-
-						request.onerror = () => console.error("Could not establish a database connection to:", DB_NAME);
-					})();
-					""";
+					string jsScript = string.Empty;
+					const string templatePath = "res://Templates/vscode_bypass_trust.js";
+					if (Godot.FileAccess.FileExists(templatePath))
+					{
+						using var file = Godot.FileAccess.Open(templatePath, Godot.FileAccess.ModeFlags.Read);
+						if (file != null)
+						{
+							jsScript = file.GetAsText();
+						}
+					}
+					else
+					{
+						string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "vscode_bypass_trust.js");
+						if (File.Exists(diskPath))
+						{
+							jsScript = File.ReadAllText(diskPath);
+						}
+					}
 					try
 					{
 						await localController.CoreWebView2.ExecuteScriptAsync(jsScript);
@@ -2041,6 +2185,32 @@ public class VSCodeManager
 			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
 			string extensionsDir = Path.Combine(serverDataDir, "extensions");
 
+			string extensionsJsonPath = Path.Combine(extensionsDir, "extensions.json");
+			if (File.Exists(extensionsJsonPath))
+			{
+				try
+				{
+					var fi = new FileInfo(extensionsJsonPath);
+					if (fi.Length > 10 * 1024 * 1024)
+					{
+						File.Delete(extensionsJsonPath);
+					}
+					else
+					{
+						string content = File.ReadAllText(extensionsJsonPath, System.Text.Encoding.UTF8).Trim();
+						if (!content.StartsWith("[", StringComparison.Ordinal))
+						{
+							File.Delete(extensionsJsonPath);
+							GD.Print("VS Code: Removed malformed non-array extensions.json.");
+						}
+					}
+				}
+				catch
+				{
+					try { File.Delete(extensionsJsonPath); } catch { }
+				}
+			}
+
 			foreach (string extensionId in RequiredExtensions)
 			{
 				if (!IsExtensionInstalled(extensionsDir, extensionId))
@@ -2049,7 +2219,7 @@ public class VSCodeManager
 					using (var process = new Process())
 					{
 						process.StartInfo.FileName = Path.ChangeExtension(exePath, ".cmd");
-						process.StartInfo.Arguments = $"--extensions-dir \"{extensionsDir}\" --user-data-dir \"{serverDataDir}\" --install-extension {extensionId}";
+						process.StartInfo.Arguments = $"--extensions-dir \"{extensionsDir}\" --user-data-dir \"{serverDataDir}\" --install-extension {extensionId} --force";
 						process.StartInfo.CreateNoWindow = true;
 						process.StartInfo.UseShellExecute = false;
 						process.StartInfo.RedirectStandardOutput = true;
@@ -2084,7 +2254,9 @@ public class VSCodeManager
 				{
 					Directory.CreateDirectory(dstPath);
 					CopyItemIfExists(Path.Combine(srcPath, "package.json"), Path.Combine(dstPath, "package.json"));
-					CopyItemIfExists(Path.Combine(srcPath, "map_schema.json"), Path.Combine(dstPath, "map_schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "metadata.schema.json"), Path.Combine(dstPath, "metadata.schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "terrain.schema.json"), Path.Combine(dstPath, "terrain.schema.json"));
+					CopyItemIfExists(Path.Combine(srcPath, "manifest.schema.json"), Path.Combine(dstPath, "manifest.schema.json"));
 					CopyDirectoryIfExists(Path.Combine(srcPath, "dist"), Path.Combine(dstPath, "dist"));
 					CopyDirectoryIfExists(Path.Combine(srcPath, "media"), Path.Combine(dstPath, "media"));
 				}
@@ -2109,11 +2281,14 @@ public class VSCodeManager
 								var obsoleteJson = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, bool>>(File.ReadAllText(obsoletePath, System.Text.Encoding.UTF8));
 								if (obsoleteJson != null)
 								{
-									bool changed = obsoleteJson.Remove($"{realmMapEditorId}-{extVersion}") | obsoleteJson.Remove("speige.realm-map-editor-1.0.0");
+									bool changed = obsoleteJson.Remove($"{realmMapEditorId}-{extVersion}")
+										| obsoleteJson.Remove("speige.realm-map-editor-1.0.0")
+										| obsoleteJson.Remove("google.google-antigravity-1.5.0-universal")
+										| obsoleteJson.Remove("google.google-antigravity-1.6.0");
 									if (changed)
 									{
-										File.WriteAllText(obsoletePath, System.Text.Json.JsonSerializer.Serialize(obsoleteJson), System.Text.Encoding.UTF8);
-										GD.Print("VS Code: Removed Realm Map Editor from .obsolete.");
+										File.WriteAllText(obsoletePath, System.Text.Json.JsonSerializer.Serialize(obsoleteJson), new System.Text.UTF8Encoding(false));
+										GD.Print("VS Code: Cleaned obsolete extensions from .obsolete.");
 									}
 								}
 							}
@@ -2129,91 +2304,19 @@ public class VSCodeManager
 						}
 					}
 
-					string extensionsJsonPath = Path.Combine(extensionsDir, "extensions.json");
-					JsonNode jsonNode = null;
-					if (File.Exists(extensionsJsonPath))
-					{
-						try
-						{
-							var fi = new FileInfo(extensionsJsonPath);
-							if (fi.Length < 10 * 1024 * 1024)
-							{
-								jsonNode = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(extensionsJsonPath, System.Text.Encoding.UTF8));
-							}
-							else
-							{
-								GD.PrintErr($"VS Code: extensions.json was excessively large ({fi.Length} bytes). Resetting...");
-								try { File.Delete(extensionsJsonPath); } catch { }
-							}
-						}
-						catch (Exception ex)
-						{
-							GD.PrintErr($"VS Code: extensions.json was corrupted or unreadable ({ex.Message}). Resetting...");
-							try { File.Delete(extensionsJsonPath); } catch { }
-							jsonNode = null;
-						}
-					}
-
-					var jsonArray = jsonNode as System.Text.Json.Nodes.JsonArray ?? new System.Text.Json.Nodes.JsonArray();
-					System.Text.Json.Nodes.JsonObject existingEntry = null;
-					foreach (var item in jsonArray)
-					{
-						if (item?["identifier"]?["id"]?.GetValue<string>() == realmMapEditorId)
-						{
-							existingEntry = item as System.Text.Json.Nodes.JsonObject;
-							break;
-						}
-					}
-
-					string dstAbsPath = Path.GetFullPath(dstPath).Replace("\\", "/");
-					if (existingEntry != null)
-					{
-						existingEntry["version"] = extVersion;
-						existingEntry["relativeLocation"] = $"{realmMapEditorId}-{extVersion}";
-						if (existingEntry["location"] is System.Text.Json.Nodes.JsonObject locObj)
-						{
-							locObj["path"] = "/" + dstAbsPath;
-						}
-					}
-					else
-					{
-						var newEntry = new System.Text.Json.Nodes.JsonObject
-						{
-							["identifier"] = new System.Text.Json.Nodes.JsonObject { ["id"] = realmMapEditorId },
-							["version"] = extVersion,
-							["location"] = new System.Text.Json.Nodes.JsonObject
-							{
-								["$mid"] = 1,
-								["path"] = "/" + dstAbsPath,
-								["scheme"] = "file"
-							},
-							["relativeLocation"] = $"{realmMapEditorId}-{extVersion}",
-							["metadata"] = new System.Text.Json.Nodes.JsonObject
-							{
-								["installedTimestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-								["source"] = "local",
-								["isApplicationScoped"] = false,
-								["isMachineScoped"] = false
-							}
-						};
-						jsonArray.Add(newEntry);
-					}
-					File.WriteAllText(extensionsJsonPath, jsonArray.ToJsonString(), System.Text.Encoding.UTF8);
-					GD.Print("VS Code: Registered Realm Map Editor in extensions.json.");
-
-					GD.Print("VS Code: Realm Map Editor extension installed successfully.");
+					GD.Print("VS Code: Synced Realm Map Editor extension files.");
 				}
 				else
 				{
-					GD.PrintErr("VS Code: Realm Map Editor extension source not found at " + srcPath);
+					GD.PrintErr("VS Code: Extension sources not found.");
 				}
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr("VS Code: Failed to install Realm Map Editor extension: " + ex.Message);
+				GD.PrintErr("VS Code: Failed to sync local extensions: " + ex.Message);
 			}
 
-			PatchOhziExtension(extensionsDir);
+			PatchVSCodiumConfiguration(embedDir);
 		}
 		catch (Exception ex)
 		{
@@ -2221,56 +2324,246 @@ public class VSCodeManager
 		}
 	}
 
-	private static void PatchOhziExtension(string extensionsDir)
+
+	[GeneratedRegex(@"\bframe-ancestors\s+[^;]+;?", RegexOptions.IgnoreCase)]
+	private static partial Regex FrameAncestorsRegex();
+
+	[GeneratedRegex(@"hostMessaging\.onMessage\('did-load-resource'[\s\S]*?assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource',\s*data \}[^\n\r;]*\);(?:\s*\}\s*catch[^\}]*\})?\s*\}\);")]
+	private static partial Regex DidLoadResourceRegex();
+
+	[GeneratedRegex(@"script-src\s+[^;]+;")]
+	private static partial Regex IndexHtmlScriptCspRegex();
+
+	private static string RelaxContentSecurityPolicy(string csp)
+	{
+		if (string.IsNullOrWhiteSpace(csp)) return "frame-ancestors *;";
+		if (FrameAncestorsRegex().IsMatch(csp))
+		{
+			return FrameAncestorsRegex().Replace(csp, "frame-ancestors *;");
+		}
+		return csp.TrimEnd(';', ' ') + "; frame-ancestors *;";
+	}
+
+	private static IEnumerable<string> GetVSCodeTargetDirectories(string embedDir)
+	{
+		var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		if (!string.IsNullOrEmpty(embedDir) && Directory.Exists(embedDir))
+		{
+			string appDir = Path.Combine(embedDir, "editor", "resources", "app");
+			if (Directory.Exists(appDir))
+			{
+				roots.Add(appDir);
+			}
+			else
+			{
+				string editorDir = Path.Combine(embedDir, "editor");
+				if (Directory.Exists(editorDir)) roots.Add(editorDir);
+			}
+
+			string serveWeb = Path.Combine(embedDir, "cli-data-dir", "serve-web");
+			if (Directory.Exists(serveWeb))
+			{
+				foreach (string commitDir in Directory.GetDirectories(serveWeb))
+				{
+					roots.Add(commitDir);
+				}
+			}
+		}
+
+		string envCliData = System.Environment.GetEnvironmentVariable("VSCODE_CLI_DATA_DIR");
+		if (!string.IsNullOrEmpty(envCliData) && Directory.Exists(envCliData))
+		{
+			string envServeWeb = Path.Combine(envCliData, "serve-web");
+			if (Directory.Exists(envServeWeb))
+			{
+				foreach (string commitDir in Directory.GetDirectories(envServeWeb))
+				{
+					roots.Add(commitDir);
+				}
+			}
+		}
+
+		return roots;
+	}
+
+	private static void PatchVSCodiumConfiguration(string embedDir)
 	{
 		try
 		{
-			if (!Directory.Exists(extensionsDir)) return;
-
-			string patchSrc = Path.Combine(PathUtils.GetProjectRoot(), "vscode_extensions_dist", "patches", "ohzi-vscode-glb-viewer", "extension.js");
-			if (!File.Exists(patchSrc))
+			foreach (string root in GetVSCodeTargetDirectories(embedDir))
 			{
-				patchSrc = Path.GetFullPath(Path.Combine(PathUtils.GetProjectRoot(), "..", "Realm.MapEditorExtension", "patches", "ohzi-vscode-glb-viewer", "extension.js"));
-			}
-			if (!File.Exists(patchSrc))
-			{
-				string found = PathUtils.FindPath(Path.Combine("patches", "ohzi-vscode-glb-viewer", "extension.js"));
-				if (File.Exists(found)) patchSrc = found;
-			}
-			if (!File.Exists(patchSrc))
-			{
-				GD.PrintErr("VS Code: OHZI patch source file not found.");
-				return;
-			}
-
-			string[] extDirs = Directory.GetDirectories(extensionsDir);
-			foreach (string dir in extDirs)
-			{
-				string dirName = Path.GetFileName(dir);
-				if (dirName.Contains("ohzi-vscode-glb-viewer", StringComparison.OrdinalIgnoreCase))
+				if (!Directory.Exists(root)) continue;
+				string productJsonPath = Path.Combine(root, "product.json");
+				if (File.Exists(productJsonPath))
 				{
-					string extJsPath = Path.Combine(dir, "extension.js");
-					bool needsPatch = !File.Exists(extJsPath);
-					if (!needsPatch && File.Exists(extJsPath))
-					{
-						string content = File.ReadAllText(extJsPath, System.Text.Encoding.UTF8);
-						if (!content.Contains("REALM_PATCHED_OHZI_BASE64", StringComparison.Ordinal) && (!content.Contains("threeDataUri", StringComparison.Ordinal) || content.Contains("loadModelFromUri", StringComparison.Ordinal)))
-						{
-							needsPatch = true;
-						}
-					}
-
-					if (needsPatch)
-					{
-						File.Copy(patchSrc, extJsPath, true);
-						GD.Print($"VS Code: Patched OHZI GLB viewer extension in {dir}");
-					}
+					PatchProductJson(productJsonPath);
+				}
+				string outDir = Path.Combine(root, "out");
+				if (Directory.Exists(outDir))
+				{
+					PatchWebviewOutDirectory(outDir);
 				}
 			}
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"VS Code: Failed to patch OHZI extension: {ex.Message}");
+			GD.PrintErr($"VS Code: Failed to patch VSCodium configuration: {ex.Message}");
+		}
+	}
+
+	private static void PatchProductJson(string productJsonPath)
+	{
+		try
+		{
+			if (!File.Exists(productJsonPath)) return;
+
+			string pjContent = File.ReadAllText(productJsonPath, System.Text.Encoding.UTF8);
+			var jsonNode = JsonNode.Parse(pjContent)?.AsObject();
+			if (jsonNode == null) return;
+
+			bool changed = false;
+
+			string cdnTemplate = "/static/out/vs/workbench/contrib/webview/browser/pre/";
+			if (jsonNode["webviewContentExternalBaseUrlTemplate"]?.GetValue<string>() != cdnTemplate)
+			{
+				jsonNode["webviewContentExternalBaseUrlTemplate"] = cdnTemplate;
+				changed = true;
+			}
+
+			if (jsonNode["extensionKind"] is not JsonObject extKindObj)
+			{
+				extKindObj = new JsonObject();
+				jsonNode["extensionKind"] = extKindObj;
+				changed = true;
+			}
+
+			string[] workspaceExtensions = new[]
+			{
+				"google.google-antigravity",
+				"muhammad-sammy.csharp",
+				"patcx.vscode-nuget-gallery",
+				"speige.realm-map-editor"
+			};
+
+			foreach (string ext in workspaceExtensions)
+			{
+				bool needsUpdate = !extKindObj.ContainsKey(ext);
+				if (!needsUpdate && extKindObj[ext] is JsonArray arr)
+				{
+					needsUpdate = arr.Count != 1 || arr[0]?.GetValue<string>() != "workspace";
+				}
+				if (needsUpdate)
+				{
+					extKindObj[ext] = new JsonArray("workspace");
+					changed = true;
+				}
+			}
+
+
+
+			if (changed)
+			{
+				File.WriteAllText(productJsonPath, jsonNode.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }), new System.Text.UTF8Encoding(false));
+				GD.Print($"VS Code: Updated product.json settings at {productJsonPath}");
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to patch product.json at {productJsonPath}: {ex.Message}");
+		}
+	}
+
+	private static string PatchWorkbenchJsContent(string content)
+	{
+		if (string.IsNullOrEmpty(content)) return content;
+
+		string wbTargetEndpoint = "get webviewExternalEndpoint(){const i=this.options.webviewEndpoint||this.productService.webviewContentExternalBaseUrlTemplate||\"https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/\",e=this.payload?.get(\"webviewExternalEndpointCommit\");return i.replace(\"{{commit}}\",e??this.productService.commit??\"ef65ac1ba57f57f2a3961bfe94aa20481caca4c6\").replace(\"{{quality}}\",(e?\"insider\":this.productService.quality)??\"insider\")}";
+		string wbReplEndpoint = "get webviewExternalEndpoint(){return (window.location.origin + \"/static/out/vs/workbench/contrib/webview/browser/pre/\");}";
+		if (content.Contains(wbTargetEndpoint, StringComparison.Ordinal))
+		{
+			content = content.Replace(wbTargetEndpoint, wbReplEndpoint, StringComparison.Ordinal);
+		}
+
+		if (content.Contains("t.port1.postMessage(e,[e])", StringComparison.Ordinal))
+		{
+			content = content.Replace("try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}", "try{return!1}catch{return!1}", StringComparison.Ordinal);
+		}
+
+		return content;
+	}
+
+	private static string PatchIndexHtmlContent(string content)
+	{
+		if (string.IsNullOrEmpty(content)) return content;
+
+		string hostCheckTarget = "if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {";
+		string hostCheckRepl = "if (hostname === '127.0.0.1' || hostname === 'localhost' || hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {";
+		if (content.Contains(hostCheckTarget, StringComparison.Ordinal))
+		{
+			content = content.Replace(hostCheckTarget, hostCheckRepl, StringComparison.Ordinal);
+		}
+
+		if (IndexHtmlScriptCspRegex().IsMatch(content) && !content.Contains("script-src 'self' 'unsafe-inline';", StringComparison.Ordinal))
+		{
+			content = IndexHtmlScriptCspRegex().Replace(content, "script-src 'self' 'unsafe-inline';");
+		}
+
+		string cspTarget = "frame-src 'self';";
+		string cspRepl = "frame-src 'self' http://127.0.0.1:* http://localhost:* vscode-webview:;";
+		if (content.Contains(cspTarget, StringComparison.Ordinal))
+		{
+			content = content.Replace(cspTarget, cspRepl, StringComparison.Ordinal);
+		}
+
+		if (DidLoadResourceRegex().IsMatch(content))
+		{
+			string replacement = "hostMessaging.onMessage('did-load-resource', (_event, data) => {\n\t\t\t\tif (data && data.stream) { try { data.stream.cancel().catch(() => {}); } catch {} delete data.stream; }\n\t\t\t\ttry { if (navigator.serviceWorker && navigator.serviceWorker.controller) { navigator.serviceWorker.controller.postMessage({ channel: 'did-load-resource', data }); } } catch (e) { console.warn('SW did-load-resource postMessage failed:', e); }\n\t\t\t});";
+			content = DidLoadResourceRegex().Replace(content, replacement);
+		}
+
+
+		return content;
+	}
+
+	private static void PatchWebviewOutDirectory(string outDir)
+	{
+		try
+		{
+			string jsPath = Path.Combine(outDir, "vs", "code", "browser", "workbench", "workbench.js");
+			if (File.Exists(jsPath))
+			{
+				try
+				{
+					string content = File.ReadAllText(jsPath, System.Text.Encoding.UTF8);
+					string patched = PatchWorkbenchJsContent(content);
+					if (patched != content)
+					{
+						File.WriteAllText(jsPath, patched, new System.Text.UTF8Encoding(false));
+						GD.Print($"VS Code: Patched transferable stream support in {jsPath}");
+					}
+				}
+				catch { }
+			}
+
+			string htmlPath = Path.Combine(outDir, "vs", "workbench", "contrib", "webview", "browser", "pre", "index.html");
+			if (File.Exists(htmlPath))
+			{
+				try
+				{
+					string content = File.ReadAllText(htmlPath, System.Text.Encoding.UTF8);
+					string patched = PatchIndexHtmlContent(content);
+					if (patched != content)
+					{
+						File.WriteAllText(htmlPath, patched, new System.Text.UTF8Encoding(false));
+						GD.Print($"VS Code: Patched service worker postMessage error guard in {htmlPath}");
+					}
+				}
+				catch { }
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to patch webview out directory {outDir}: {ex.Message}");
 		}
 	}
 
@@ -2320,10 +2613,20 @@ public class VSCodeManager
 	private class SingleThreadSynchronizationContext : SynchronizationContext
 	{
 		private readonly ConcurrentQueue<Action> _queue = new ConcurrentQueue<Action>();
+		private IntPtr _targetHwnd = IntPtr.Zero;
+
+		public void SetTargetHwnd(IntPtr hwnd)
+		{
+			_targetHwnd = hwnd;
+		}
 
 		public override void Post(SendOrPostCallback d, object? state)
 		{
 			_queue.Enqueue(() => d(state));
+			if (_targetHwnd != IntPtr.Zero)
+			{
+				PostMessage(_targetHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+			}
 		}
 
 		public override void Send(SendOrPostCallback d, object? state)
@@ -2335,7 +2638,14 @@ public class VSCodeManager
 		{
 			while (_queue.TryDequeue(out var action))
 			{
-				action();
+				try
+				{
+					action();
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr("Error in SingleThreadSynchronizationContext: " + ex.Message);
+				}
 			}
 		}
 	}

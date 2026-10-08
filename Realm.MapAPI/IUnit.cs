@@ -13,9 +13,14 @@ public interface IUnit
     int UniqueId { get; }
 
     /// <summary>
+    /// Gets the unique canonical object identifier for the unit's type or archetype (format: object_type/slug, e.g. unit/worker, building/barracks).
+    /// </summary>
+    string TemplateID { get; }
+
+    /// <summary>
     /// Gets the unique identifier for the unit's type or archetype.
     /// </summary>
-    string UnitId { get; }
+    string UnitId => TemplateID;
 
     /// <summary>
     /// Gets or sets the display name of the unit.
@@ -66,6 +71,17 @@ public interface IUnit
     /// Gets or sets the armor rating of the unit.
     /// </summary>
     float Armor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the attack speed multiplier of the unit. A value of 1 uses the unit's base attack cooldown,
+    /// 2 attacks twice as often, and 0.5 attacks half as often. Values less than or equal to 0 are ignored.
+    /// </summary>
+    float AttackSpeed { get; set; }
+
+    /// <summary>
+    /// Gets or sets the mana regeneration of the unit in mana points restored per second.
+    /// </summary>
+    float ManaRegen { get; set; }
 
     /// <summary>
     /// Gets or sets the movement speed of the unit.
@@ -279,4 +295,12 @@ public interface IUnit
     /// <param name="key">The data key to check.</param>
     /// <returns>True if the data exists, false otherwise.</returns>
     bool HasCustomData(string key);
+
+    /// <summary>
+    /// Triggers a transient procedural mesh deformation or hit impulse on this unit.
+    /// </summary>
+    /// <param name="strength">The peak strength of the impulse deformation.</param>
+    /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
+    /// <param name="frequency">The oscillation frequency in Hz.</param>
+    void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
 }

@@ -6,18 +6,14 @@ using System.Text.Json.Nodes;
 using Godot;
 using Realm.Godot.Utils;
 
-public partial class ShaderEditorDialog : FloatingDialogBase
+public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 {
-	private SubViewportContainer _viewportContainer;
-	private SubViewport _subViewport;
-	private Camera3D _camera;
-	private DirectionalLight3D _light;
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 
-	private LineEdit _txtShaderKey;
-	private LineEdit _txtShaderName;
-	private OptionButton _optPreset;
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private string _slug = "";
 	private OptionButton _optModelPicker;
 	private OptionButton _optTransitionMode;
 	private OptionButton _optDirection;
@@ -49,18 +45,6 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 	private string _selectedModelKey = "";
 	private List<string> _availableModels = new();
 
-	private float _defaultDistance = 5.0f;
-	private float _cameraDistance = 5.0f;
-	private float _defaultYaw = Mathf.DegToRad(45.0f);
-	private float _defaultPitch = Mathf.DegToRad(25.0f);
-	private float _cameraYaw = Mathf.DegToRad(45.0f);
-	private float _cameraPitch = Mathf.DegToRad(25.0f);
-	private Vector3 _targetPosition = Vector3.Zero;
-
-	private bool _isOrbiting;
-	private bool _isPanning;
-	private Vector2 _lastMousePosition;
-
 	private bool _isPlaying = false;
 	private bool _isPlayingForward = true;
 	private float _currentAnimTime = 0.0f;
@@ -80,13 +64,14 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 		previewContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		BodyContainer.AddChild(previewContainer);
 
-		_viewportContainer = Add3DViewportContainer(previewContainer, new Vector2(0, 220), out _subViewport, out _camera, out _light);
-		_viewportContainer.GuiInput += OnViewportGuiInput;
-		_viewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
+		Add3DPreviewViewport(previewContainer, new Vector2(0, 220));
 
 		Setup3DEnvironment();
 
-		// ROW 1: MODEL PICKER & CAMERA PRESETS
+		// CAMERA TOOLBAR WITH EMBEDDED CONTROLS
+		AddCameraPresetToolbar(BodyContainer, includeBack: true, includeLightingToggle: true);
+
+		// ROW 1: MODEL PICKER
 		var modelRow = new HBoxContainer();
 		modelRow.AddThemeConstantOverride("separation", 6);
 
@@ -110,9 +95,6 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 		};
 		modelRow.AddChild(_optModelPicker);
 
-		AddButton(modelRow, "⟲", () => ResetCameraDefault(), "Reset camera", 10, new Vector2(26, 24));
-		AddButton(modelRow, "☀️", () => ToggleLighting(), "Toggle light angle", 10, new Vector2(26, 24));
-
 		BodyContainer.AddChild(modelRow);
 
 		// ROW 2: PLAYBACK & SCRUBBING
@@ -125,7 +107,7 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 
 		_chkLoop = new CheckBox();
 		_chkLoop.Text = TranslationServer.Translate("Loop");
-		_chkLoop.ButtonPressed = false;
+		_chkLoop.ButtonPressed = true;
 		_chkLoop.AddThemeFontSizeOverride("font_size", 10);
 		playRow.AddChild(_chkLoop);
 
@@ -170,52 +152,32 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
-		// PRESET LOADER ROW
-		var presetRow = new HBoxContainer();
-		presetRow.AddThemeConstantOverride("separation", 6);
-
-		var lblPreset = new Label();
-		lblPreset.Text = TranslationServer.Translate("Template Preset:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 11);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		presetRow.AddChild(lblPreset);
-
-		_optPreset = new OptionButton();
-		_optPreset.AddThemeFontSizeOverride("font_size", 11);
-		_optPreset.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		int pIdx = 0;
-		foreach (var kvp in SpawnDeathShaderManager.GetDefaultPresets())
-		{
-			_optPreset.AddItem(kvp.Value.Name, pIdx);
-			_optPreset.SetItemMetadata(pIdx, kvp.Key);
-			pIdx++;
-		}
-		_optPreset.ItemSelected += (idx) =>
-		{
-			string key = _optPreset.GetItemMetadata((int)idx).AsString();
-			var def = SpawnDeathShaderManager.GetShaderConfig(key);
-			if (def != null)
-			{
-				string oldKey = _config.Key;
-				_config = def.Clone();
-				_config.Key = oldKey;
-				SyncControlsFromConfig();
-				UpdateShaderParameters();
-			}
-		};
-		presetRow.AddChild(_optPreset);
-		configVBox.AddChild(presetRow);
-
 		// IDENTIFIERS
-		_txtShaderKey = AddTextInput(configVBox, TranslationServer.Translate("Shader Key / ID:"), _config.Key, (val) =>
-		{
-			_config.Key = val.Trim().ToLowerInvariant().Replace(" ", "_");
-		}, "", 140f);
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
 
-		_txtShaderName = AddTextInput(configVBox, TranslationServer.Translate("Display Name:"), _config.Name, (val) =>
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "SpawnShader/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("shader_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
 		{
-			_config.Name = val;
-		}, "", 140f);
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+			_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
+		};
+		rowId.AddChild(_txtSlug);
+		configVBox.AddChild(rowId);
 
 		var btnRandomizeAll = new Button();
 		btnRandomizeAll.Set("icon_max_width", 0);
@@ -456,22 +418,20 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 
 		try
 		{
-			var assets = MapAssetHelper.LoadUnionedAssets(wsPath);
-			if (assets["rmesh"] is JsonObject rmeshObj)
+			var assets = MapAssetHelper.LoadAssets(wsPath);
+			foreach (var categoryName in new[] { "Character", "Building", "Prop", "Item" })
 			{
-				foreach (var sub in rmeshObj)
+				var catDict = assets.GetCategory(categoryName);
+				if (catDict != null)
 				{
-					if (sub.Value is JsonObject subObj)
+					foreach (var model in catDict)
 					{
-						foreach (var model in subObj)
+						if (!string.IsNullOrEmpty(model.Key) && model.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 						{
-							if (!string.IsNullOrEmpty(model.Key) && model.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+							string name = Path.GetFileName(model.Key);
+							if (!_availableModels.Contains(name))
 							{
-								string name = Path.GetFileName(model.Key);
-								if (!_availableModels.Contains(name))
-								{
-									_availableModels.Add(name);
-								}
+								_availableModels.Add(name);
 							}
 						}
 					}
@@ -506,8 +466,9 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 
 	private void SyncControlsFromConfig()
 	{
-		if (_txtShaderKey != null) _txtShaderKey.Text = _config.Key;
-		if (_txtShaderName != null) _txtShaderName.Text = _config.Name;
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(_config.Key);
+		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(_config.Key);
+		if (_txtSlug != null) _txtSlug.Text = _slug;
 		if (_optTransitionMode != null) _optTransitionMode.Selected = _config.TransitionMode;
 		if (_optDirection != null) _optDirection.Selected = _config.Direction;
 		if (_cpkEdgeColor != null) _cpkEdgeColor.Color = _config.EdgeColor;
@@ -557,7 +518,7 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 	{
 		_simRoot = new Node3D();
 		_simRoot.Name = "SimRoot";
-		_subViewport.AddChild(_simRoot);
+		PreviewSubViewport.AddChild(_simRoot);
 
 		_currentModelRoot = new Node3D();
 		_currentModelRoot.Name = "ModelRoot";
@@ -655,6 +616,7 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 		if (loadedNode3D != null)
 		{
 			_currentModelRoot.AddChild(loadedNode3D);
+			Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, modelPath ?? key);
 			CenterAndFrameNode(loadedNode3D);
 		}
 
@@ -664,104 +626,22 @@ public partial class ShaderEditorDialog : FloatingDialogBase
 	private void CenterAndFrameNode(Node3D targetNode)
 	{
 		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
-		_targetPosition = aabb.Position + aabb.Size * 0.5f;
+		TargetPosition = aabb.Position + aabb.Size * 0.5f;
 		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-		_cameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
-		_defaultDistance = _cameraDistance;
+		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
+		DefaultDistance = CameraDistance;
 		UpdateCameraTransform();
-	}
-
-	private void ToggleLighting()
-	{
-		if (_light != null)
-		{
-			_light.RotationDegrees = new Vector3(
-				(_light.RotationDegrees.X + 25f) % 90f,
-				(_light.RotationDegrees.Y + 60f) % 360f,
-				0
-			);
-		}
-	}
-
-	private void ResetCameraDefault()
-	{
-		_cameraYaw = _defaultYaw;
-		_cameraPitch = _defaultPitch;
-		_cameraDistance = _defaultDistance;
-		UpdateCameraTransform();
-	}
-
-	private void UpdateCameraTransform()
-	{
-		if (_camera == null) return;
-		float x = _cameraDistance * Mathf.Cos(_cameraPitch) * Mathf.Sin(_cameraYaw);
-		float y = _cameraDistance * Mathf.Sin(_cameraPitch);
-		float z = _cameraDistance * Mathf.Cos(_cameraPitch) * Mathf.Cos(_cameraYaw);
-
-		Vector3 newPos = _targetPosition + new Vector3(x, y, z);
-		if (newPos.DistanceSquaredTo(_targetPosition) > 0.0001f)
-		{
-			Vector3 dir = (_targetPosition - newPos).Normalized();
-			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			_camera.LookAtFromPosition(newPos, _targetPosition, up);
-		}
-	}
-
-	private void OnViewportGuiInput(InputEvent @event)
-	{
-		if (@event is InputEventMouseButton mb)
-		{
-			if (mb.ButtonIndex == MouseButton.Right)
-			{
-				_isOrbiting = mb.Pressed;
-				_lastMousePosition = mb.Position;
-			}
-			else if (mb.ButtonIndex == MouseButton.Middle)
-			{
-				_isPanning = mb.Pressed;
-				_lastMousePosition = mb.Position;
-			}
-			else if (mb.ButtonIndex == MouseButton.WheelUp)
-			{
-				_cameraDistance = Mathf.Max(1.0f, _cameraDistance - 0.4f);
-				UpdateCameraTransform();
-			}
-			else if (mb.ButtonIndex == MouseButton.WheelDown)
-			{
-				_cameraDistance = Mathf.Min(40.0f, _cameraDistance + 0.4f);
-				UpdateCameraTransform();
-			}
-		}
-		else if (@event is InputEventMouseMotion mm)
-		{
-			Vector2 delta = mm.Position - _lastMousePosition;
-			_lastMousePosition = mm.Position;
-
-			if (_isOrbiting)
-			{
-				_cameraYaw -= delta.X * 0.01f;
-				_cameraPitch = Mathf.Clamp(_cameraPitch + delta.Y * 0.01f, Mathf.DegToRad(-80.0f), Mathf.DegToRad(85.0f));
-				UpdateCameraTransform();
-			}
-			else if (_isPanning)
-			{
-				Vector3 right = _camera.Transform.Basis.X;
-				Vector3 up = _camera.Transform.Basis.Y;
-				_targetPosition -= (right * delta.X - up * delta.Y) * (_cameraDistance * 0.002f);
-				UpdateCameraTransform();
-			}
-		}
 	}
 
 	protected override void OnApply()
 	{
-		if (string.IsNullOrWhiteSpace(_config.Key))
-		{
-			_config.Key = "custom_shader";
-		}
+		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
+		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = "custom_shader";
+		_slug = finalSlug;
+		_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{
-			_config.Name = _config.Key;
+			_config.Name = _slug;
 		}
 
 		SpawnDeathShaderManager.SaveCustomShader(_config);

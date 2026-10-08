@@ -12,9 +12,11 @@ using System.Threading.Tasks;
 using Realm.Godot.Services.ModelOptimization;
 using Realm.Godot.Utils;
 using Realm.Godot.Animation;
+using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
 using Realm.Ecs.Services;
 using Realm.Godot.Services;
+using Realm.Shared.Services;
 
 public static partial class MapWorkspaceService
 {
@@ -70,7 +72,7 @@ public static partial class MapWorkspaceService
 
 	private static string GetSchemaSourcePath()
 	{
-		return FindRootFile("Realm.MapEditorExtension/map_schema.json");
+		return FindRootFile("Realm.MapEditorExtension/metadata.schema.json");
 	}
 
 	public static string GetTemplatePath(string fileName)
@@ -116,6 +118,77 @@ public static partial class MapWorkspaceService
 		Realm.Godot.Services.NoiseTextureGenerator.EnsureAllNoiseTexturesGenerated(directory);
 	}
 
+	public static void CleanWorkspaceDirectory(string targetDir)
+	{
+		if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir)) return;
+		try
+		{
+			foreach (var file in Directory.GetFiles(targetDir, "*", SearchOption.AllDirectories))
+			{
+				var fileAttributes = File.GetAttributes(file);
+				if ((fileAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+				{
+					File.SetAttributes(file, fileAttributes & ~FileAttributes.ReadOnly);
+				}
+				File.Delete(file);
+			}
+
+			foreach (var directory in Directory.GetDirectories(targetDir))
+			{
+				Directory.Delete(directory, true);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] CleanWorkspaceDirectory error: {ex.Message}");
+		}
+	}
+
+	public static void CopyFolderToWorkspace(string sourceFolder, string targetWorkspacePath, string? mapName = null)
+	{
+		if (string.IsNullOrEmpty(sourceFolder) || !Directory.Exists(sourceFolder)) return;
+		if (string.IsNullOrEmpty(targetWorkspacePath)) return;
+
+		CleanWorkspaceDirectory(targetWorkspacePath);
+		Directory.CreateDirectory(targetWorkspacePath);
+
+		string resolvedMapName = !string.IsNullOrWhiteSpace(mapName)
+			? mapName
+			: Path.GetFileName(sourceFolder) ?? "MapScript";
+
+		var allFiles = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);
+		var filesToProcess = new List<(string Source, string Target, bool IsMutable)>(allFiles.Length);
+		var createdDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		foreach (var file in allFiles)
+		{
+			string relativePath = file.Substring(sourceFolder.Length + 1);
+			if (MapEditorHUD.IsIgnoredPath(relativePath)) continue;
+
+			string targetFile = Path.Combine(targetWorkspacePath, relativePath);
+			string? targetDir = Path.GetDirectoryName(targetFile);
+			if (!string.IsNullOrEmpty(targetDir) && createdDirs.Add(targetDir))
+			{
+				Directory.CreateDirectory(targetDir);
+			}
+			filesToProcess.Add((file, targetFile, PathUtils.IsMutableMapFileType(relativePath)));
+		}
+
+		Parallel.ForEach(filesToProcess, item =>
+		{
+			if (item.IsMutable)
+			{
+				PathUtils.CopyFileClearingReadOnly(item.Source, item.Target);
+			}
+			else
+			{
+				PathUtils.LinkOrCopyFile(item.Source, item.Target, preferHardLink: true);
+			}
+		});
+
+		SetupWorkspace(targetWorkspacePath, resolvedMapName);
+	}
+
 	public static void CleanWorkspaceBinaries(string directory)
 	{
 		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
@@ -150,11 +223,14 @@ public static partial class MapWorkspaceService
 		string vscodeDir = Path.Combine(directory, ".vscode");
 		Directory.CreateDirectory(vscodeDir);
 
-		string sourceSchema = GetSchemaSourcePath();
-		string targetSchema = Path.Combine(vscodeDir, "map_schema.json");
-		if (File.Exists(sourceSchema))
+		string[] schemas = { "metadata.schema.json", "terrain.schema.json", "manifest.schema.json" };
+		foreach (string schema in schemas)
 		{
-			File.Copy(sourceSchema, targetSchema, true);
+			string schemaSrc = FindRootFile("Realm.MapEditorExtension/" + schema);
+			if (!string.IsNullOrEmpty(schemaSrc) && File.Exists(schemaSrc))
+			{
+				File.Copy(schemaSrc, Path.Combine(vscodeDir, schema), true);
+			}
 		}
 
 		string templateVsCodeDir = GetTemplatePath(".vscode");
@@ -233,6 +309,95 @@ public static partial class MapWorkspaceService
 		EnsureApiLib(directory);
 
 		EnsureDirectoryBuildTargets(directory);
+
+		EnsureNugetConfig(directory);
+	}
+
+	private const string CanonicalNugetConfigContent =
+		"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+		"<configuration>\n" +
+		"  <packageSources>\n" +
+		"    <add key=\"nuget.org\" value=\"https://api.nuget.org/v3/index.json\" />\n" +
+		"    <add key=\"dotnet-experimental\" value=\"https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-experimental/nuget/v3/index.json\" />\n" +
+		"  </packageSources>\n" +
+		"</configuration>\n";
+
+	public static void EnsureNugetConfig(string directory)
+	{
+		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
+
+		string configPath = Path.Combine(directory, "NuGet.config");
+		string templatePath = GetTemplatePath("NuGet.config");
+
+		try
+		{
+			if (!File.Exists(configPath))
+			{
+				if (!string.IsNullOrEmpty(templatePath) && File.Exists(templatePath))
+				{
+					PathUtils.CopyFileClearingReadOnly(templatePath, configPath);
+				}
+				else
+				{
+					File.WriteAllText(configPath, CanonicalNugetConfigContent);
+				}
+				return;
+			}
+
+			string content = File.ReadAllText(configPath);
+			const string experimentalKey = "dotnet-experimental";
+			const string experimentalUrl = "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-experimental/nuget/v3/index.json";
+			const string entryToAdd = "    <add key=\"dotnet-experimental\" value=\"https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-experimental/nuget/v3/index.json\" />\n";
+
+			bool contentModified = false;
+			if (!content.Contains(experimentalKey, StringComparison.OrdinalIgnoreCase))
+			{
+				int closingSourcesIndex = content.IndexOf("</packageSources>", StringComparison.OrdinalIgnoreCase);
+				if (closingSourcesIndex >= 0)
+				{
+					content = content.Insert(closingSourcesIndex, entryToAdd);
+					contentModified = true;
+				}
+				else
+				{
+					int closingConfigIndex = content.IndexOf("</configuration>", StringComparison.OrdinalIgnoreCase);
+					if (closingConfigIndex >= 0)
+					{
+						string sectionToAdd = "  <packageSources>\n" + entryToAdd + "  </packageSources>\n";
+						content = content.Insert(closingConfigIndex, sectionToAdd);
+						contentModified = true;
+					}
+					else
+					{
+						content = CanonicalNugetConfigContent;
+						contentModified = true;
+					}
+				}
+			}
+			else if (!content.Contains(experimentalUrl, StringComparison.OrdinalIgnoreCase))
+			{
+				content = Regex.Replace(content, @"<add\s+key\s*=\s*""dotnet-experimental""\s+value\s*=\s*""[^""]*""\s*/>",
+					$"<add key=\"{experimentalKey}\" value=\"{experimentalUrl}\" />", RegexOptions.IgnoreCase);
+				contentModified = true;
+			}
+
+			if (contentModified)
+			{
+				if (File.Exists(configPath))
+				{
+					var fileAttributes = File.GetAttributes(configPath);
+					if ((fileAttributes & FileAttributes.ReadOnly) != 0)
+					{
+						File.SetAttributes(configPath, fileAttributes & ~FileAttributes.ReadOnly);
+					}
+				}
+				File.WriteAllText(configPath, content);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Failed to ensure NuGet.config in {directory}: {ex.Message}");
+		}
 	}
 
 	public static void EnsureDirectoryBuildTargets(string directory)
@@ -691,6 +856,7 @@ please visit the URL above.
 						{
 							File.SetAttributes(glbPath, attrs & ~FileAttributes.ReadOnly);
 						}
+						File.Delete(glbPath);
 						File.WriteAllBytes(glbPath, optResult.OutputGlbBytes);
 						anyReimported = true;
 
@@ -889,6 +1055,7 @@ please visit the URL above.
 						{
 							File.SetAttributes(glbPath, attrs & ~FileAttributes.ReadOnly);
 						}
+						File.Delete(glbPath);
 						File.WriteAllBytes(glbPath, optResult.OutputGlbBytes);
 						anyReimported = true;
 
@@ -948,63 +1115,47 @@ please visit the URL above.
 			catch { }
 		}
 
-		JsonObject? assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
-
+		var assetsObj = MapAssetHelper.LoadAssets(workspacePath);
 		if (assetsObj != null)
 		{
-				if (assetsObj["decals"] is JsonObject decals)
-				{
-					JsonNode? entry = null;
-					if (decals.TryGetPropertyValue(fileName, out var e1)) entry = e1;
-					else if (decals.TryGetPropertyValue($"{cleanName}.rtex", out var e2)) entry = e2;
-					else if (decals.TryGetPropertyValue(cleanName, out var e3)) entry = e3;
-
-					int cols = 1;
-					int rows = 1;
-					if (entry is JsonObject dObj)
-					{
-						if (dObj.TryGetPropertyValue("columns", out var cNode) && int.TryParse(cNode?.ToString(), out int c) && c > 0) cols = c;
-						if (dObj.TryGetPropertyValue("rows", out var rNode) && int.TryParse(rNode?.ToString(), out int r) && r > 0) rows = r;
-					}
-					return ("decal", cols, rows);
-				}
-
-				if (assetsObj["icons"] is JsonObject icons && (icons.ContainsKey(fileName) || icons.ContainsKey($"{cleanName}.rtex")))
-					return ("icon", 4, 4);
-
-				if (assetsObj["skyboxes"] is JsonObject skyboxes && (skyboxes.ContainsKey(fileName) || skyboxes.ContainsKey($"{cleanName}.rtex")))
-					return ("skybox", 4, 4);
-
-				if (assetsObj["textures"] is JsonObject textures && (textures.ContainsKey(fileName) || textures.ContainsKey($"{cleanName}.rtex")))
-					return ("terrain_texture", 4, 4);
-
-				if (assetsObj["vfx_spritesheets"] is JsonObject spritesheets)
-				{
-					JsonNode? entry = null;
-					if (spritesheets.TryGetPropertyValue(fileName, out var e1)) entry = e1;
-					else if (spritesheets.TryGetPropertyValue($"{cleanName}.rtex", out var e2)) entry = e2;
-
-					if (entry != null)
-					{
-						int cols = 4;
-						int rows = 4;
-						if (entry is JsonObject sObj)
-						{
-							if (sObj.TryGetPropertyValue("columns", out var cNode) && int.TryParse(cNode?.ToString(), out int c)) cols = c;
-							if (sObj.TryGetPropertyValue("rows", out var rNode) && int.TryParse(rNode?.ToString(), out int r)) rows = r;
-						}
-						return ("vfx_spritesheet", cols, rows);
-					}
-				}
-
-				if ((assetsObj["ribbons"] is JsonObject r1 && (r1.ContainsKey(fileName) || r1.ContainsKey($"{cleanName}.rtex")))
-					|| (assetsObj["ribbon_textures"] is JsonObject r2 && (r2.ContainsKey(fileName) || r2.ContainsKey($"{cleanName}.rtex"))))
-					return ("ribbon_texture", 4, 4);
-
-				if ((assetsObj["noise"] is JsonObject n1 && (n1.ContainsKey(fileName) || n1.ContainsKey($"{cleanName}.rtex")))
-					|| (assetsObj["noise_textures"] is JsonObject n2 && (n2.ContainsKey(fileName) || n2.ContainsKey($"{cleanName}.rtex"))))
-					return ("noise_texture", 4, 4);
+			var loadedMetadata = metadata ?? MapFileService.LoadMetadata(workspacePath);
+			if (loadedMetadata?.Decals != null && (loadedMetadata.Decals.ContainsKey(fileName) || loadedMetadata.Decals.ContainsKey($"{cleanName}.rtex")))
+			{
+				return ("decal", 1, 1);
 			}
+
+			bool ContainsAssetKey(Dictionary<string, string>? dict) =>
+				dict != null && (dict.ContainsKey(fileName) || dict.ContainsKey($"{cleanName}.rtex") || dict.Any(kvp => kvp.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase) || kvp.Key.EndsWith($"/{cleanName}.rtex", StringComparison.OrdinalIgnoreCase)));
+
+			if (ContainsAssetKey(assetsObj.GetCategory("Icon")))
+				return ("icon", 4, 4);
+
+			if (ContainsAssetKey(assetsObj.GetCategory("Skybox")))
+				return ("skybox", 4, 4);
+
+			if (ContainsAssetKey(assetsObj.GetCategory("Terrain")))
+				return ("terrain_texture", 4, 4);
+
+			if (metadata?.VfxSpritesheets != null)
+			{
+				VfxMetadata? vmeta = null;
+				if (metadata.VfxSpritesheets.TryGetValue(fileName, out var v1)) vmeta = v1;
+				else if (metadata.VfxSpritesheets.TryGetValue($"{cleanName}.rtex", out var v2)) vmeta = v2;
+
+				if (vmeta != null)
+				{
+					int cols = vmeta.Columns > 0 ? vmeta.Columns : 4;
+					int rows = vmeta.Rows > 0 ? vmeta.Rows : 4;
+					return ("vfx_spritesheet", cols, rows);
+				}
+			}
+
+			if (ContainsAssetKey(assetsObj.GetCategory("Ribbon")))
+				return ("ribbon_texture", 4, 4);
+
+			if (ContainsAssetKey(assetsObj.GetCategory("Noise")))
+				return ("noise_texture", 4, 4);
+		}
 
 		if (normalized.Contains("/assets/decals/"))
 			return ("decal", 1, 1);
@@ -1041,89 +1192,53 @@ please visit the URL above.
 	{
 		try
 		{
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
-
-			string categoryKey = assetType switch
+			string categoryKey = MapAssetHelper.NormalizeCategoryKey(assetType);
+			MapAssetHelper.UpdateManifestAsset(workspacePath, categoryKey, rtexFileName, newHash);
+			if (!string.Equals(pngFileName, rtexFileName, StringComparison.OrdinalIgnoreCase))
 			{
-				"decal" or "decals" => "decals",
-				"icon" or "icons" => "icons",
-				"skybox" or "skyboxes" => "skyboxes",
-				"vfx_spritesheet" or "spritesheet" or "spritesheets" => "vfx_spritesheets",
-				"ribbon_texture" or "ribbon" or "ribbons" => (assetsObj.ContainsKey("ribbon_textures") && !assetsObj.ContainsKey("ribbons")) ? "ribbon_textures" : "ribbons",
-				"noise_texture" or "noise" => (assetsObj.ContainsKey("noise") && !assetsObj.ContainsKey("noise_textures")) ? "noise" : "noise_textures",
-				_ => "textures"
-			};
-
-			if (!assetsObj.ContainsKey(categoryKey) || assetsObj[categoryKey] is not JsonObject)
-			{
-				assetsObj[categoryKey] = new JsonObject();
+				MapAssetHelper.RemoveManifestAsset(workspacePath, categoryKey, pngFileName);
 			}
 
-			if (assetsObj[categoryKey] is JsonObject targetCatObj)
+			if (string.Equals(categoryKey, "Spritesheet", StringComparison.OrdinalIgnoreCase))
 			{
-				int existingSwatchIndex = -1;
-				JsonObject? preservedProps = null;
-				if (targetCatObj.ContainsKey(pngFileName))
+				string slug = TemplateIDHelper.GenerateSlug(rtexFileName);
+				string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
+				MetadataService.Instance.UpdateMetadata(workspacePath, m =>
 				{
-					if (targetCatObj[pngFileName] is JsonObject oldEntry)
+					m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+					m.VfxSpritesheets[spritesheetTemplateId] = new VfxMetadata
 					{
-						if (oldEntry.TryGetPropertyValue("swatchIndex", out var sIdx) && int.TryParse(sIdx?.ToString(), out int parsed))
-						{
-							existingSwatchIndex = parsed;
-						}
-						preservedProps = oldEntry.DeepClone() as JsonObject;
-					}
-					targetCatObj.Remove(pngFileName);
-				}
-
-				if (categoryKey == "vfx_spritesheets")
-				{
-					targetCatObj[rtexFileName] = new JsonObject
-					{
-						["columns"] = columns,
-						["rows"] = rows,
-						["hash"] = newHash
+						TexturePath = rtexFileName,
+						Columns = columns,
+						Rows = rows
 					};
-				}
-				else if (categoryKey == "decals")
+				});
+			}
+			else if (string.Equals(categoryKey, "Terrain", StringComparison.OrdinalIgnoreCase))
+			{
+				string slug = TemplateIDHelper.GenerateSlug(rtexFileName);
+				string terrainTemplateId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
+				MetadataService.Instance.UpdateMetadata(workspacePath, m =>
 				{
-					var decalEntry = preservedProps ?? (targetCatObj.ContainsKey(rtexFileName) && targetCatObj[rtexFileName] is JsonObject exObj ? (exObj.DeepClone() as JsonObject) : new JsonObject());
-					decalEntry["hash"] = newHash;
-					if (columns > 1 || rows > 1 || decalEntry.ContainsKey("columns") || decalEntry.ContainsKey("rows"))
+					m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+					if (!m.Textures.TryGetValue(terrainTemplateId, out var tex))
 					{
-						decalEntry["columns"] = columns;
-						decalEntry["rows"] = rows;
+						tex = new TextureMetadata();
+						m.Textures[terrainTemplateId] = tex;
 					}
-					targetCatObj[rtexFileName] = decalEntry;
-				}
-				else if (categoryKey == "textures")
-				{
-					var texEntry = preservedProps ?? (targetCatObj.ContainsKey(rtexFileName) && targetCatObj[rtexFileName] is JsonObject exObj ? (exObj.DeepClone() as JsonObject) : new JsonObject());
-					texEntry["hash"] = newHash;
-					if (existingSwatchIndex >= 0)
-					{
-						texEntry["swatchIndex"] = existingSwatchIndex;
-					}
-					if (!texEntry.ContainsKey("Scale_Factor") || texEntry["Scale_Factor"] == null)
+					tex.TexturePath = rtexFileName;
+					if (tex.ScaleFactor <= 0.0001f)
 					{
 						string fullRtexPath = Path.Combine(workspacePath, "Assets", "textures", rtexFileName);
 						float sf = Realm.Shared.Textures.TextureConverter.CalculateLuminanceScaleFactor(fullRtexPath);
-						if (sf <= 0.0001f) sf = 1.0f;
-						texEntry["Scale_Factor"] = sf;
+						tex.ScaleFactor = sf <= 0.0001f ? 1.0f : sf;
 					}
-					targetCatObj[rtexFileName] = texEntry;
-				}
-				else
-				{
-					targetCatObj[rtexFileName] = newHash;
-				}
+				});
 			}
-
-			Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(workspacePath, assetsObj, removeFromMetadata: true);
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapWorkspaceService] Failed to update metadata.json for converted texture {pngFileName}: {ex.Message}");
+			GD.PrintErr($"[MapWorkspaceService] Failed to update metadata for converted texture {pngFileName}: {ex.Message}");
 		}
 	}
 
@@ -1410,19 +1525,20 @@ please visit the URL above.
 		return modified;
 	}
 
+	public static void NormalizeTextureEntries(MapManifestAssets assets, string workspacePath)
+	{
+		if (assets == null || string.IsNullOrEmpty(workspacePath)) return;
+		MapAssetHelper.SaveAssetsToManifest(workspacePath, assets, removeFromMetadata: true);
+	}
+
 	public static void NormalizeMetadataTextureEntries(string workspacePath)
 	{
 		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
 
 		try
 		{
-			var assets = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(workspacePath);
-			if (assets["textures"] is JsonObject)
-			{
-				NormalizeTextureEntries(assets, workspacePath);
-			}
-
-			Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(workspacePath, assets, removeFromMetadata: true);
+			var assets = MapAssetHelper.LoadAssets(workspacePath);
+			NormalizeTextureEntries(assets, workspacePath);
 		}
 		catch (Exception ex)
 		{
@@ -1434,7 +1550,8 @@ please visit the URL above.
 	{
 		try
 		{
-			Realm.Godot.Utils.MapAssetHelper.UpdateManifestAsset(workspacePath, "glb", fileName, newHash, null);
+			string category = MapAssetHelper.NormalizeCategoryKey("Prop");
+			MapAssetHelper.UpdateManifestAsset(workspacePath, category, fileName, newHash);
 		}
 		catch (Exception ex)
 		{

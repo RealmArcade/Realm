@@ -3,6 +3,7 @@ using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Realm.Shared.Textures;
 using SkiaSharp;
 
@@ -16,23 +17,10 @@ namespace Realm.Shared;
 // original albedos when 'ignore_player_color' is active.
 public static class GlbInMemoryColorPreprocessor
 {
+	private static readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, byte[]> DespilledGlbCache = new();
 	private static readonly float[] SrgbToLinearTable = PrecomputeSrgbToLinear();
-
-	private static readonly Vector3 RgbToLmsRow0 = new(0.4122214708f, 0.5363325363f, 0.0514459929f);
-	private static readonly Vector3 RgbToLmsRow1 = new(0.2119034982f, 0.6806995451f, 0.1073969566f);
-	private static readonly Vector3 RgbToLmsRow2 = new(0.0883024619f, 0.2817188376f, 0.6299787005f);
-
-	private static readonly Vector3 LmsToOklabRow0 = new(0.2104542553f, 0.7936177850f, -0.0040720468f);
-	private static readonly Vector3 LmsToOklabRow1 = new(1.9779984951f, -2.4285922050f, 0.4505937099f);
-	private static readonly Vector3 LmsToOklabRow2 = new(0.0259040371f, 0.7827717662f, -0.8086757660f);
-
-	private static readonly Vector3 OklabToLmsRootRow0 = new(1.0f, +0.3963377774f, +0.2158037573f);
-	private static readonly Vector3 OklabToLmsRootRow1 = new(1.0f, -0.1055613458f, -0.0638541728f);
-	private static readonly Vector3 OklabToLmsRootRow2 = new(1.0f, -0.0894841775f, -1.2914855480f);
-
-	private static readonly Vector3 LmsToLinearRgbRow0 = new(+4.0767416621f, -3.3077115913f, +0.2309699292f);
-	private static readonly Vector3 LmsToLinearRgbRow1 = new(-1.2684380046f, +2.6097574011f, -0.3413193965f);
-	private static readonly Vector3 LmsToLinearRgbRow2 = new(-0.0041960863f, -0.7034186147f, +1.7076147010f);
+	private static readonly byte[] LinearToSrgbLut = PrecomputeLinearToSrgbLut();
+	private static readonly float[] CbrtLut = PrecomputeCbrtLut();
 
 	private static float[] PrecomputeSrgbToLinear()
 	{
@@ -45,51 +33,128 @@ public static class GlbInMemoryColorPreprocessor
 		return table;
 	}
 
+	private static byte[] PrecomputeLinearToSrgbLut()
+	{
+		byte[] table = new byte[65536];
+		for (int i = 0; i < 65536; i++)
+		{
+			float linear = i / 65535.0f;
+			float srgb = linear <= 0.0031308f
+				? 12.92f * linear
+				: 1.055f * MathF.Pow(linear, 1.0f / 2.4f) - 0.055f;
+			table[i] = (byte)Math.Clamp((int)(srgb * 255.0f + 0.5f), 0, 255);
+		}
+		return table;
+	}
+
+	private static float[] PrecomputeCbrtLut()
+	{
+		float[] table = new float[65536];
+		for (int i = 0; i < 65536; i++)
+		{
+			table[i] = MathF.Cbrt(i / 65535.0f);
+		}
+		return table;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static float FastCbrt(float val)
+	{
+		int idx = (int)(val * 65535.0f);
+		if ((uint)idx >= 65536)
+		{
+			return val <= 0.0f ? 0.0f : MathF.Cbrt(val);
+		}
+		return CbrtLut[idx];
+	}
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static byte LinearToSrgbByte(float linear)
 	{
-		if (linear <= 0.0f) return 0;
-		if (linear >= 1.0f) return 255;
-		float srgb = linear <= 0.0031308f
-			? 12.92f * linear
-			: 1.055f * MathF.Pow(linear, 1.0f / 2.4f) - 0.055f;
-		return (byte)Math.Clamp((int)(srgb * 255.0f + 0.5f), 0, 255);
+		int idx = (int)(linear * 65535.0f);
+		if ((uint)idx >= 65536)
+		{
+			return idx < 0 ? (byte)0 : (byte)255;
+		}
+		return LinearToSrgbLut[idx];
+	}
+
+	private static void StoreInCache(ulong cacheKey, byte[] value)
+	{
+		DespilledGlbCache[cacheKey] = value;
+	}
+
+	private static ulong ComputeFnv1a64(byte[] bytes, string chromaKey)
+	{
+		ulong hash = 14695981039346656037UL;
+		hash ^= (ulong)bytes.Length;
+		hash *= 1099511628211UL;
+
+		int sampleSize = Math.Min(bytes.Length, 256);
+		for (int i = 0; i < sampleSize; i++)
+		{
+			hash ^= bytes[i];
+			hash *= 1099511628211UL;
+		}
+
+		if (bytes.Length > 512)
+		{
+			int midStart = (bytes.Length / 2) - 128;
+			int midEnd = midStart + 256;
+			for (int i = midStart; i < midEnd; i++)
+			{
+				hash ^= bytes[i];
+				hash *= 1099511628211UL;
+			}
+
+			int tailStart = bytes.Length - 256;
+			for (int i = tailStart; i < bytes.Length; i++)
+			{
+				hash ^= bytes[i];
+				hash *= 1099511628211UL;
+			}
+		}
+
+		for (int i = 0; i < chromaKey.Length; i++)
+		{
+			hash ^= (byte)chromaKey[i];
+			hash *= 1099511628211UL;
+		}
+		return hash;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Vector3 ConvertLinearRgbToOklab(Vector3 linearRgb)
 	{
-		float l = Vector3.Dot(linearRgb, RgbToLmsRow0);
-		float m = Vector3.Dot(linearRgb, RgbToLmsRow1);
-		float s = Vector3.Dot(linearRgb, RgbToLmsRow2);
+		float l = linearRgb.X * 0.4122214708f + linearRgb.Y * 0.5363325363f + linearRgb.Z * 0.0514459929f;
+		float m = linearRgb.X * 0.2119034982f + linearRgb.Y * 0.6806995451f + linearRgb.Z * 0.1073969566f;
+		float s = linearRgb.X * 0.0883024619f + linearRgb.Y * 0.2817188376f + linearRgb.Z * 0.6299787005f;
 
-		Vector3 lmsRoot = new(
-			MathF.Cbrt(MathF.Max(0.0f, l)),
-			MathF.Cbrt(MathF.Max(0.0f, m)),
-			MathF.Cbrt(MathF.Max(0.0f, s)));
+		float lRoot = FastCbrt(MathF.Max(0.0f, l));
+		float mRoot = FastCbrt(MathF.Max(0.0f, m));
+		float sRoot = FastCbrt(MathF.Max(0.0f, s));
 
 		return new Vector3(
-			Vector3.Dot(lmsRoot, LmsToOklabRow0),
-			Vector3.Dot(lmsRoot, LmsToOklabRow1),
-			Vector3.Dot(lmsRoot, LmsToOklabRow2));
+			lRoot * 0.2104542553f + mRoot * 0.7936177850f + sRoot * -0.0040720468f,
+			lRoot * 1.9779984951f + mRoot * -2.4285922050f + sRoot * 0.4505937099f,
+			lRoot * 0.0259040371f + mRoot * 0.7827717662f + sRoot * -0.8086757660f);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static Vector3 ConvertOklabToLinearRgb(Vector3 oklab)
 	{
-		float lRoot = Vector3.Dot(oklab, OklabToLmsRootRow0);
-		float mRoot = Vector3.Dot(oklab, OklabToLmsRootRow1);
-		float sRoot = Vector3.Dot(oklab, OklabToLmsRootRow2);
+		float lRoot = oklab.X + oklab.Y * 0.3963377774f + oklab.Z * 0.2158037573f;
+		float mRoot = oklab.X + oklab.Y * -0.1055613458f + oklab.Z * -0.0638541728f;
+		float sRoot = oklab.X + oklab.Y * -0.0894841775f + oklab.Z * -1.2914855480f;
 
-		Vector3 lms = new(
-			lRoot * lRoot * lRoot,
-			mRoot * mRoot * mRoot,
-			sRoot * sRoot * sRoot);
+		float l = lRoot * lRoot * lRoot;
+		float m = mRoot * mRoot * mRoot;
+		float s = sRoot * sRoot * sRoot;
 
 		return new Vector3(
-			Vector3.Dot(lms, LmsToLinearRgbRow0),
-			Vector3.Dot(lms, LmsToLinearRgbRow1),
-			Vector3.Dot(lms, LmsToLinearRgbRow2));
+			l * 4.0767416621f + m * -3.3077115913f + s * 0.2309699292f,
+			l * -1.2684380046f + m * 2.6097574011f + s * -0.3413193965f,
+			l * -0.0041960863f + m * -0.7034186147f + s * 1.7076147010f);
 	}
 
 	public static byte[] PreprocessGlbInMemory(byte[] glbBytes, string? chromaKeyHex = null)
@@ -97,6 +162,26 @@ public static class GlbInMemoryColorPreprocessor
 		if (glbBytes == null || glbBytes.Length == 0)
 		{
 			return glbBytes ?? Array.Empty<byte>();
+		}
+
+		string effectiveChromaKey = chromaKeyHex ?? string.Empty;
+		if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
+		{
+			effectiveChromaKey = "#FF00FF";
+		}
+		else
+		{
+			effectiveChromaKey = effectiveChromaKey.Trim();
+			if (!effectiveChromaKey.StartsWith('#'))
+			{
+				effectiveChromaKey = "#" + effectiveChromaKey;
+			}
+		}
+
+		ulong cacheKey = ComputeFnv1a64(glbBytes, effectiveChromaKey);
+		if (DespilledGlbCache.TryGetValue(cacheKey, out var cachedBytes))
+		{
+			return cachedBytes;
 		}
 
 		try
@@ -144,50 +229,89 @@ public static class GlbInMemoryColorPreprocessor
 			using var ormImg = SKBitmap.Decode(ormRaw);
 			if (ormImg == null) return glbBytes;
 
-			bool hasMask = false;
-			for (int y = 0; y < ormImg.Height; y++)
+			if (!HasMaskInOrm(ormImg))
 			{
-				for (int x = 0; x < ormImg.Width; x++)
-				{
-					if (ormImg.GetPixel(x, y).Red > 0)
-					{
-						hasMask = true;
-						break;
-					}
-				}
-				if (hasMask) break;
-			}
-
-			if (!hasMask)
-			{
+				StoreInCache(cacheKey, glbBytes);
 				return glbBytes;
 			}
 
 			using var albedoImg = SKBitmap.Decode(albedoRaw);
-			if (albedoImg == null) return glbBytes;
-
-			string effectiveChromaKey = chromaKeyHex ?? string.Empty;
-			if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
+			if (albedoImg == null)
 			{
-				effectiveChromaKey = "#FF00FF";
-			}
-			else
-			{
-				effectiveChromaKey = effectiveChromaKey.Trim();
-				if (!effectiveChromaKey.StartsWith('#'))
-				{
-					effectiveChromaKey = "#" + effectiveChromaKey;
-				}
+				StoreInCache(cacheKey, glbBytes);
+				return glbBytes;
 			}
 
 			ApplyAnalyticalChromaDespill(albedoImg, ormImg, effectiveChromaKey);
 
-			byte[] newAlbedoBytes = TextureConverter.EncodeWebp(albedoImg, lossless: false, quality: 90);
-			return RebuildGlbWithUpdatedAlbedoTexture(root, binChunk, albedoImageIndex, newAlbedoBytes, glbVersion);
+			byte[] newAlbedoBytes = TextureConverter.EncodeWebp(albedoImg, lossless: false, quality: 90, method: 1, sharpYuv: false);
+			byte[] resultGlb = RebuildGlbWithUpdatedAlbedoTexture(root, binChunk, albedoImageIndex, newAlbedoBytes, glbVersion);
+			StoreInCache(cacheKey, resultGlb);
+			return resultGlb;
 		}
 		catch
 		{
+			StoreInCache(cacheKey, glbBytes);
 			return glbBytes;
+		}
+	}
+
+	private static bool HasMaskInOrm(SKBitmap ormImg)
+	{
+		SKBitmap workBitmap = ormImg;
+		bool disposeWork = false;
+		if (ormImg.ColorType != SKColorType.Rgba8888 && ormImg.ColorType != SKColorType.Bgra8888)
+		{
+			workBitmap = ormImg.Copy(SKColorType.Rgba8888);
+			disposeWork = workBitmap != null && workBitmap != ormImg;
+			if (workBitmap == null) workBitmap = ormImg;
+		}
+
+		try
+		{
+			IntPtr pixelsPtr = workBitmap.GetPixels();
+			if (pixelsPtr != IntPtr.Zero)
+			{
+				unsafe
+				{
+					byte* basePtr = (byte*)pixelsPtr;
+					int rowBytes = workBitmap.RowBytes;
+					int rOffset = workBitmap.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+					int width = workBitmap.Width;
+					int height = workBitmap.Height;
+
+					for (int y = 0; y < height; y++)
+					{
+						byte* row = basePtr + (y * rowBytes);
+						for (int x = 0; x < width; x++)
+						{
+							if (row[x * 4 + rOffset] > 0)
+							{
+								return true;
+							}
+						}
+					}
+					return false;
+				}
+			}
+
+			int h = workBitmap.Height;
+			int w = workBitmap.Width;
+			for (int y = 0; y < h; y++)
+			{
+				for (int x = 0; x < w; x++)
+				{
+					if (workBitmap.GetPixel(x, y).Red > 0)
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		finally
+		{
+			if (disposeWork) workBitmap.Dispose();
 		}
 	}
 
@@ -217,34 +341,124 @@ public static class GlbInMemoryColorPreprocessor
 		int ormHeight = ormImg.Height;
 		bool sameDimensions = (width == ormWidth && height == ormHeight);
 
-		float[] maskValues = new float[width * height];
-		for (int y = 0; y < height; y++)
+		SKBitmap workAlbedo = albedoImg;
+		bool disposeWorkAlbedo = false;
+		if (albedoImg.ColorType != SKColorType.Rgba8888 && albedoImg.ColorType != SKColorType.Bgra8888)
 		{
-			int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
-			int rowOffset = y * width;
-
-			for (int x = 0; x < width; x++)
-			{
-				int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
-				maskValues[rowOffset + x] = ormImg.GetPixel(ormX, ormY).Red / 255.0f;
-			}
+			workAlbedo = albedoImg.Copy(SKColorType.Rgba8888);
+			disposeWorkAlbedo = workAlbedo != null && workAlbedo != albedoImg;
+			if (workAlbedo == null) workAlbedo = albedoImg;
 		}
 
-		for (int y = 0; y < height; y++)
+		SKBitmap workOrm = ormImg;
+		bool disposeWorkOrm = false;
+		if (ormImg.ColorType != SKColorType.Rgba8888 && ormImg.ColorType != SKColorType.Bgra8888)
 		{
-			int rowOffset = y * width;
+			workOrm = ormImg.Copy(SKColorType.Rgba8888);
+			disposeWorkOrm = workOrm != null && workOrm != ormImg;
+			if (workOrm == null) workOrm = ormImg;
+		}
 
-			for (int x = 0; x < width; x++)
+		try
+		{
+			IntPtr albedoPtr = workAlbedo.GetPixels();
+			IntPtr ormPtr = workOrm.GetPixels();
+
+			if (albedoPtr != IntPtr.Zero && ormPtr != IntPtr.Zero)
 			{
-				float mask = maskValues[rowOffset + x];
-				if (mask >= 0.999f) continue;
-
-				var pixel = albedoImg.GetPixel(x, y);
-				if (TryDespillPixel(pixel.Red, pixel.Green, pixel.Blue, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
+				unsafe
 				{
-					albedoImg.SetPixel(x, y, new SKColor(newR, newG, newB, pixel.Alpha));
+					byte* albBase = (byte*)albedoPtr;
+					byte* ormBase = (byte*)ormPtr;
+					int albRowBytes = workAlbedo.RowBytes;
+					int ormRowBytes = workOrm.RowBytes;
+
+					int albROff = workAlbedo.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+					int albGOff = 1;
+					int albBOff = workAlbedo.ColorType == SKColorType.Bgra8888 ? 0 : 2;
+
+					int ormROff = workOrm.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+
+					Parallel.For(0, height, y =>
+					{
+						int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
+						byte* albRow = albBase + y * albRowBytes;
+						byte* ormRow = ormBase + ormY * ormRowBytes;
+
+						for (int x = 0; x < width; x++)
+						{
+							int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
+							float mask = ormRow[ormX * 4 + ormROff] / 255.0f;
+							if (mask >= 0.999f) continue;
+
+							int albIdx = x * 4;
+							byte r = albRow[albIdx + albROff];
+							byte g = albRow[albIdx + albGOff];
+							byte b = albRow[albIdx + albBOff];
+
+							if (TryDespillPixel(r, g, b, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
+							{
+								albRow[albIdx + albROff] = newR;
+								albRow[albIdx + albGOff] = newG;
+								albRow[albIdx + albBOff] = newB;
+							}
+						}
+					});
+				}
+
+				if (disposeWorkAlbedo)
+				{
+					using var skImg = SKImage.FromBitmap(workAlbedo);
+					using var canvas = new SKCanvas(albedoImg);
+					canvas.Clear();
+					canvas.DrawImage(skImg, 0, 0);
 				}
 			}
+			else
+			{
+				float[] maskValues = new float[width * height];
+				for (int y = 0; y < height; y++)
+				{
+					int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
+					int rowOffset = y * width;
+
+					for (int x = 0; x < width; x++)
+					{
+						int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
+						maskValues[rowOffset + x] = workOrm.GetPixel(ormX, ormY).Red / 255.0f;
+					}
+				}
+
+				for (int y = 0; y < height; y++)
+				{
+					int rowOffset = y * width;
+
+					for (int x = 0; x < width; x++)
+					{
+						float mask = maskValues[rowOffset + x];
+						if (mask >= 0.999f) continue;
+
+						var pixel = workAlbedo.GetPixel(x, y);
+						if (TryDespillPixel(pixel.Red, pixel.Green, pixel.Blue, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
+						{
+							workAlbedo.SetPixel(x, y, new SKColor(newR, newG, newB, pixel.Alpha));
+						}
+					}
+				}
+
+				if (disposeWorkAlbedo)
+				{
+					using var skImg = SKImage.FromBitmap(workAlbedo);
+					using var canvas = new SKCanvas(albedoImg);
+					canvas.Clear();
+					canvas.DrawImage(skImg, 0, 0);
+				}
+			}
+		}
+		finally
+		{
+			if (disposeWorkAlbedo) workAlbedo.Dispose();
+			if (disposeWorkOrm) workOrm.Dispose();
 		}
 	}
 
@@ -259,7 +473,7 @@ public static class GlbInMemoryColorPreprocessor
 		outG = gByte;
 		outB = bByte;
 
-		if (maskFactor >= 0.999f)
+		if (maskFactor >= 0.999f || (rByte == gByte && gByte == bByte))
 		{
 			return false;
 		}

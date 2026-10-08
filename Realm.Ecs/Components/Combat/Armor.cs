@@ -1,6 +1,12 @@
 namespace Realm.Ecs.Components.Combat;
 
 /// <summary>
-///     Defines the armor value of an entity, used to reduce incoming damage.
+///     Defines the flat and rated armor values and armor type of an entity.
 /// </summary>
-internal record struct Armor(float Value);
+internal record struct Armor(
+	float FlatArmor,
+	float RatedArmor = 0f,
+	string ArmorType = "unarmored")
+{
+	public readonly float Value => FlatArmor;
+}

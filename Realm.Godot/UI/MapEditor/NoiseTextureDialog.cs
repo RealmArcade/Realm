@@ -2,10 +2,14 @@ using Godot;
 using System;
 using System.IO;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Realm.Godot.Services;
 
 public partial class NoiseTextureDialog : FloatingDialogBase
 {
+	[GeneratedRegex(@"^(.*)_(\d+)$")]
+	private static partial Regex TrailingIndexRegex();
+
 	private LineEdit _txtName;
 	private OptionButton _optResolution;
 	private OptionButton _optNoiseType;
@@ -41,6 +45,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 	private CheckBox _chkInvert;
 	private CheckBox _chkNormalize;
+	private CheckBox _chkFlowMap;
 
 	private OptionButton _optColorMode;
 	private HBoxContainer _colorRampRow;
@@ -53,7 +58,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 	private Action<string> _onSavedCallback;
 	private bool _isUpdatingPreview;
 
-	public NoiseTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("Procedural Noise Texture Generator (FastNoiseLite)"), new Vector2(740, 560))
+	public NoiseTextureDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("Procedural Noise Texture Generator"), new Vector2(740, 560))
 	{
 		BuildDialogUi();
 	}
@@ -117,6 +122,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 		_chkInvert = AddCheckBox(leftVBox, TranslationServer.Translate("Invert Colors"), false, (_) => SchedulePreviewUpdate());
 		_chkNormalize = AddCheckBox(leftVBox, TranslationServer.Translate("Normalize (Full Contrast)"), true, (_) => SchedulePreviewUpdate());
+		_chkFlowMap = AddCheckBox(leftVBox, TranslationServer.Translate("Flow Map"), false, (_) => SchedulePreviewUpdate());
 
 		var btnRandomizeAll = new Button();
 		btnRandomizeAll.Set("icon_max_width", 0);
@@ -296,9 +302,6 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		_sliderDomainWarpFrequency.Value = Math.Round(Random.Shared.NextDouble() * (0.15 - 0.005) + 0.005, 3);
 		_sliderDomainWarpOctaves.Value = Random.Shared.Next(1, 8);
 
-		_chkInvert.ButtonPressed = Random.Shared.NextDouble() > 0.7;
-		_chkNormalize.ButtonPressed = Random.Shared.NextDouble() > 0.15;
-
 		UpdateVisibility();
 		SchedulePreviewUpdate();
 	}
@@ -322,6 +325,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 
 		var config = new JsonObject
 		{
+			["asset_type"] = "Noise",
 			["generator"] = "FastNoiseLite",
 			["noise_type"] = _optNoiseType.GetItemText(_optNoiseType.Selected),
 			["seed"] = seed,
@@ -333,6 +337,8 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 			["fractal_weighted_strength"] = (float)_sliderWeightedStrength.Value,
 			["invert"] = _chkInvert.ButtonPressed,
 			["normalize"] = _chkNormalize.ButtonPressed,
+			["flow_map"] = _chkFlowMap.ButtonPressed,
+			["is_flow_map"] = _chkFlowMap.ButtonPressed,
 			["width"] = res,
 			["height"] = res
 		};
@@ -399,6 +405,15 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}
 	}
 
+	public override void OpenDialog()
+	{
+		base.OpenDialog();
+		if (_txtName != null)
+		{
+			_txtName.Text = GetUniqueDefaultAssetName("procedural_noise_1");
+		}
+	}
+
 	public void OpenWithCallback(Action<string> onSaved = null)
 	{
 		_onSavedCallback = onSaved;
@@ -406,37 +421,97 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		SchedulePreviewUpdate();
 	}
 
+	private string GetUniqueDefaultAssetName(string baseName = "procedural_noise_1")
+	{
+		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		var assetsObj = MapAssetHelper.LoadAssets(wsPath);
+		var noiseObj = assetsObj.GetCategory("Noise");
+
+		string cleanBase = baseName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
+		var match = TrailingIndexRegex().Match(cleanBase);
+		string prefix = match.Success ? match.Groups[1].Value : cleanBase;
+		int counter = match.Success && int.TryParse(match.Groups[2].Value, out int idx) ? idx : 1;
+
+		string candidate = $"{prefix}_{counter}";
+		string candidateFileName = $"{candidate}.rtex";
+		string candidatePath = Path.Combine(wsPath, "Assets", "noise", candidateFileName);
+
+		while (File.Exists(candidatePath) || (noiseObj != null && noiseObj.ContainsKey(candidateFileName)))
+		{
+			counter++;
+			candidate = $"{prefix}_{counter}";
+			candidateFileName = $"{candidate}.rtex";
+			candidatePath = Path.Combine(wsPath, "Assets", "noise", candidateFileName);
+		}
+
+		return candidate;
+	}
+
+	public override void ApplyAndClose()
+	{
+		CommitPendingInputFocus();
+		OnApply();
+	}
+
 	protected override void OnApply()
 	{
 		string rawName = _txtName.Text?.Trim();
 		if (string.IsNullOrEmpty(rawName))
 		{
-			rawName = $"noise_{Random.Shared.Next(100, 999)}";
+			rawName = GetUniqueDefaultAssetName("procedural_noise_1");
 		}
 
 		string cleanBase = rawName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
-		string fileName = $"{cleanBase}.rtex";
-
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+
+		var assetsObj = MapAssetHelper.LoadAssets(wsPath);
+		var noiseObj = assetsObj.GetCategory("Noise");
+
+		string fileName = $"{cleanBase}.rtex";
 		string outputRtex = Path.Combine(wsPath, "Assets", "noise", fileName);
 
+		if (File.Exists(outputRtex) || (noiseObj != null && noiseObj.ContainsKey(fileName)))
+		{
+			string msg = string.Format(TranslationServer.Translate("An asset named '{0}' already exists.\nOverwriting will replace the existing file. Do you want to continue?"), fileName);
+			Hud?.ShowConfirmationDialog(
+				msg,
+				() =>
+				{
+					ExecuteSave(fileName, outputRtex, wsPath, assetsObj);
+				},
+				confirmText: "SAVE",
+				cancelText: "CANCEL"
+			);
+			return;
+		}
+
+		ExecuteSave(fileName, outputRtex, wsPath, assetsObj);
+	}
+
+	private void ExecuteSave(string fileName, string outputRtex, string wsPath, Realm.Shared.Distribution.MapManifestAssets assetsObj)
+	{
 		try
 		{
 			var config = BuildConfigObject();
 			string blake3Hash = NoiseTextureGenerator.GenerateAndSaveRtex(config, outputRtex);
-			config["hash"] = blake3Hash;
 
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath) ?? new JsonObject();
-			if (!assetsObj.ContainsKey("noise_textures") || assetsObj["noise_textures"] == null) assetsObj["noise_textures"] = new JsonObject();
-			var noiseObj = assetsObj["noise_textures"].AsObject();
+			MapAssetHelper.UpdateManifestAsset(wsPath, "Noise", fileName, blake3Hash);
 
-			noiseObj[fileName] = config;
+			MetadataService.Instance.UpdateMetadata(wsPath, m =>
+			{
+				m.NoiseTextures ??= new(StringComparer.OrdinalIgnoreCase);
+				m.NoiseTextures[fileName] = new Realm.Shared.Metadata.TextureMetadata
+				{
+					NoiseConfig = config.ToJsonString()
+				};
+			});
 
-			Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
-			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Generated noise texture '{0}' ({1}x{1})!"), fileName, config["width"]));
+			int width = config.TryGetPropertyValue("width", out var wNode) && int.TryParse(wNode?.ToString(), out int w) ? w : 512;
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Generated noise texture '{0}' ({1}x{1})!"), fileName, width));
 
 			Hud?.ReadMetadataAndRefreshTextures();
 			_onSavedCallback?.Invoke(fileName);
+			CloseDialog();
 		}
 		catch (Exception ex)
 		{

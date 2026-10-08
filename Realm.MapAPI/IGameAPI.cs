@@ -1017,11 +1017,12 @@ public interface IGameAPI
 
     /// <summary>
     /// Reads string content from a file in the whitelisted, map-specific subfolder in AppData saved_data directory.
-    /// The target location is sandboxed to user://saved_data/{mapName}/{fileName}.
+    /// The target location is sandboxed to user://saved_data/{sourceMapName}/{fileName}.
     /// </summary>
     /// <param name="fileName">The name of the file to read from. Must be a safe, relative file name without directory traversal characters.</param>
+    /// <param name="sourceMapName">The name of the source map to read saved data from, or empty string to use the active map.</param>
     /// <returns>The string content read from the file, or an empty string if the file does not exist or has invalid path characters.</returns>
-    string ReadSavedData(string fileName);
+    string ReadSavedData(string fileName, string sourceMapName = "");
 
     /// <summary>
     /// Triggered when a unit buys or receives an item from a shop or altar.
@@ -1172,5 +1173,255 @@ public interface IGameAPI
         int playerIndex = unit.Player;
         DestroyUnit(unit);
         return SpawnUnitForPlayer(typeId, position, playerIndex);
+    }
+
+    /// <summary>
+    /// Triggers a transient mesh deformation or hit impulse on a unit.
+    /// </summary>
+    /// <param name="unit">The target unit.</param>
+    /// <param name="strength">The peak strength of the impulse deformation.</param>
+    /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
+    /// <param name="frequency">The oscillation frequency in Hz.</param>
+    void TriggerMeshImpulse(IUnit unit, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
+
+    /// <summary>
+    /// Triggers a transient mesh deformation or harvest shake impulse on a resource node.
+    /// </summary>
+    /// <param name="node">The target resource node.</param>
+    /// <param name="strength">The peak strength of the impulse deformation.</param>
+    /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
+    /// <param name="frequency">The oscillation frequency in Hz.</param>
+    void TriggerResourceMeshImpulse(IResourceNode node, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
+
+    /// <summary>
+    /// Configures the AI decision profile for the specified player slot using a serialized JSON string.
+    /// </summary>
+    /// <param name="playerIndex">The zero-based player slot index.</param>
+    /// <param name="profileJson">The serialized JSON string representing the bot profile weights and personality.</param>
+    void SetPlayerBotProfile(int playerIndex, string profileJson) { }
+
+    /// <summary>
+    /// Retrieves the serialized JSON string of the active AI bot decision profile for the specified player slot.
+    /// </summary>
+    /// <param name="playerIndex">The zero-based player slot index.</param>
+    /// <returns>The serialized JSON string representing the active bot profile, or an empty string if not configured.</returns>
+    string GetPlayerBotProfile(int playerIndex) => string.Empty;
+
+    /// <summary>
+    /// Sets the AI sub-genre provider for the specified player slot (e.g., "rts", "tower_defense", "auto_battler", "custom").
+    /// </summary>
+    /// <param name="playerIndex">The zero-based player slot index.</param>
+    /// <param name="genreName">The identifier of the AI genre provider.</param>
+    /// <param name="configJson">Optional JSON configuration parameters for the genre provider.</param>
+    void SetPlayerBotGenre(int playerIndex, string genreName, string? configJson = null) { }
+
+    /// <summary>
+    /// Retrieves the identifier of the active AI sub-genre provider for the specified player slot.
+    /// </summary>
+    /// <param name="playerIndex">The zero-based player slot index.</param>
+    /// <returns>The genre identifier string (e.g., "rts", "tower_defense", "auto_battler").</returns>
+    string GetPlayerBotGenre(int playerIndex) => "rts";
+
+    /// <summary>
+    /// Registers a map-defined custom candidate action for evaluation by the bot utility decision loop.
+    /// </summary>
+    /// <param name="playerIndex">The zero-based player slot index.</param>
+    /// <param name="actionId">The unique action identifier.</param>
+    /// <param name="intent">The action intent category (e.g., "Build", "Cast", "Transact", "Interact").</param>
+    /// <param name="featureVector">The normalized feature vector scored against the AI weights.</param>
+    /// <param name="position">The target world coordinate for the action.</param>
+    /// <param name="payload">Optional metadata or argument string passed when the action executes.</param>
+    void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload = "") { }
+
+    /// <summary>
+    /// Clears all registered custom bot candidate actions for the specified player slot.
+    /// </summary>
+    /// <param name="playerIndex">The zero-based player slot index.</param>
+    void ClearCustomBotDecisions(int playerIndex) { }
+
+    /// <summary>
+    /// Triggered when an autonomous AI bot executes a custom map-defined action.
+    /// Parameters are: playerIndex, actionId, intent, targetPosition, payload.
+    /// </summary>
+    event Action<int, string, string, Vector3, string>? OnBotCustomActionExecuted { add { } remove { } }
+
+    /// <summary>
+    /// Executes an automated self-play genetic training simulation on CPU and returns the resulting serialized bot profile JSON.
+    /// </summary>
+    /// <param name="mapName">The identifier or name of the map being trained.</param>
+    /// <param name="generations">The number of evolutionary generations to execute.</param>
+    /// <param name="populationSize">The candidate population size per generation.</param>
+    /// <param name="matchesPerEvaluation">The number of evaluation matches each candidate plays per generation.</param>
+    /// <param name="genre">The AI sub-genre provider identifier (e.g. "rts", "tower_defense", "auto_battler").</param>
+    /// <returns>The serialized JSON string of the best evolved bot profile.</returns>
+    string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts") => string.Empty;
+
+    /// <summary>
+    /// Sets the active environment lighting, fog, and atmospheric preset immediately without transition interpolation.
+    /// </summary>
+    /// <param name="presetId">The unique identifier of the environment preset configured in map metadata.</param>
+    void SetEnvironmentPreset(string presetId);
+
+    /// <summary>
+    /// Smoothly transitions active environment lighting, fog, SSAO, and post-processing visual settings to the target preset over the specified duration.
+    /// </summary>
+    /// <param name="presetId">The unique identifier of the target environment preset configured in map metadata.</param>
+    /// <param name="durationSeconds">The transition duration in seconds. If 0 or negative, the preset applies immediately.</param>
+    void TransitionEnvironmentPreset(string presetId, float durationSeconds);
+
+    /// <summary>
+    /// Retrieves the unique identifier of the currently active environment preset.
+    /// </summary>
+    /// <returns>The preset identifier string.</returns>
+    string GetCurrentEnvironmentPreset();
+
+    /// <summary>
+    /// Sets the active weather effect condition (e.g., "clear", "rain", "fog", "snow").
+    /// </summary>
+    /// <param name="weatherType">The name of the weather condition.</param>
+    void SetWeather(string weatherType);
+
+    /// <summary>
+    /// Retrieves the name of the currently active weather condition.
+    /// </summary>
+    /// <returns>The weather name string.</returns>
+    string GetWeather();
+
+    /// <summary>
+    /// Disables the vision shroud and fog of war, making the entire map and all entities fully visible.
+    /// </summary>
+    void DisableShroud();
+
+    /// <summary>
+    /// Creates a persistent, stationary text label in the 3D world that stays in place until destroyed.
+    /// Unlike <see cref="CreateFloatingText"/> it does not drift or fade.
+    /// </summary>
+    /// <param name="text">The initial text to display.</param>
+    /// <param name="position">The 3D world position of the label.</param>
+    /// <param name="color">The color of the text in RGB format.</param>
+    /// <param name="fontSize">The font size of the label. The default of 48 matches <see cref="CreateFloatingText"/>.</param>
+    /// <returns>A handle used with <see cref="SetStaticText"/>, <see cref="SetStaticTextVisible"/> and <see cref="DestroyStaticText"/>.</returns>
+    int CreateStaticText(string text, Vector3 position, Vector3 color, int fontSize = 48);
+
+    /// <summary>
+    /// Changes the text displayed by a static world label.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    /// <param name="text">The new text to display.</param>
+    void SetStaticText(int handle, string text);
+
+    /// <summary>
+    /// Shows or hides a static world label without destroying it.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    /// <param name="visible">True to show the label, false to hide it.</param>
+    void SetStaticTextVisible(int handle, bool visible);
+
+    /// <summary>
+    /// Destroys a static world label.
+    /// </summary>
+    /// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+    void DestroyStaticText(int handle);
+
+    /// <summary>
+    /// Enumerates the zero-based indices of all active player slots below the given exclusive upper bound.
+    /// </summary>
+    /// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
+    /// <returns>A lazily-evaluated sequence of active player slot indices in ascending order.</returns>
+    IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
+    {
+        int limit = exclusiveUpperBound < 0 ? PlayerCount : Math.Min(exclusiveUpperBound, PlayerCount);
+        for (int playerIndex = 0; playerIndex < limit; playerIndex++)
+        {
+            if (IsPlayerActive(playerIndex))
+                yield return playerIndex;
+        }
+    }
+
+    /// <summary>
+    /// Returns a uniformly random element of the given list.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="items">The list to pick from.</param>
+    /// <returns>A random element, or the default value of <typeparamref name="T"/> if the list is empty.</returns>
+    T? PickRandom<T>(IReadOnlyList<T> items)
+    {
+        if (items.Count == 0)
+            return default;
+        return items[RandomInt(0, items.Count - 1)];
+    }
+
+    /// <summary>
+    /// Shuffles the given list in place using a Fisher-Yates shuffle driven by <see cref="RandomInt"/>.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="items">The list to shuffle.</param>
+    void Shuffle<T>(IList<T> items)
+    {
+        for (int index = items.Count - 1; index > 0; index--)
+        {
+            int swapIndex = RandomInt(0, index);
+            (items[index], items[swapIndex]) = (items[swapIndex], items[index]);
+        }
+    }
+
+    /// <summary>
+    /// Returns a random alive unit within the radius that satisfies the optional filter.
+    /// </summary>
+    /// <param name="center">The center point in 3D world space.</param>
+    /// <param name="radius">The search radius.</param>
+    /// <param name="filter">Optional predicate that returns true for eligible units.</param>
+    /// <returns>A random matching unit, or null if none qualify.</returns>
+    IUnit? GetRandomUnitInRadius(Vector3 center, float radius, Func<IUnit, bool>? filter = null)
+    {
+        var candidates = new List<IUnit>();
+        foreach (IUnit unit in GetUnitsInRadius(center, radius))
+        {
+            if (unit.IsDead)
+                continue;
+            if (filter != null && !filter(unit))
+                continue;
+            candidates.Add(unit);
+        }
+        return PickRandom(candidates);
+    }
+
+    /// <summary>
+    /// Restores health to the unit, clamped to its maximum health. Dead units are ignored.
+    /// </summary>
+    /// <param name="unit">The unit to heal.</param>
+    /// <param name="amount">The amount of health to restore.</param>
+    void HealUnit(IUnit unit, float amount)
+    {
+        if (unit == null || unit.IsDead || amount <= 0f)
+            return;
+        unit.Health = MathF.Min(unit.MaxHealth, unit.Health + amount);
+    }
+
+    /// <summary>
+    /// Exchanges the world positions of two units.
+    /// </summary>
+    /// <param name="first">The first unit.</param>
+    /// <param name="second">The second unit.</param>
+    void SwapUnitPositions(IUnit first, IUnit second)
+    {
+        Vector3 firstPosition = first.Position;
+        Vector3 secondPosition = second.Position;
+        first.Teleport(secondPosition);
+        second.Teleport(firstPosition);
+    }
+
+    /// <summary>
+    /// Returns a point on a ring around a center, useful for distributing player bases evenly.
+    /// </summary>
+    /// <param name="center">The ring center.</param>
+    /// <param name="radius">The ring radius.</param>
+    /// <param name="index">The zero-based slot index around the ring.</param>
+    /// <param name="count">The total number of slots on the ring.</param>
+    /// <returns>The position of the slot on the X/Z plane, preserving the center's Y.</returns>
+    Vector3 GetRingPosition(Vector3 center, float radius, int index, int count)
+    {
+        float angle = MathF.Tau * index / Math.Max(1, count);
+        return new Vector3(center.X + MathF.Cos(angle) * radius, center.Y, center.Z + MathF.Sin(angle) * radius);
     }
 }

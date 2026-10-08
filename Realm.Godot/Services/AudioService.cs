@@ -276,10 +276,10 @@ public class AudioService
 		}
 	}
 
-	public void PlayUnitSound(GameHost.UnitMetadata meta, UnitSoundEvent eventType, Vector3 position, float volumeDb = 0f)
+	public void PlayUnitSound(UnitMetadata meta, UnitSoundEvent eventType, Vector3 position, float volumeDb = 0f)
 	{
 		if (meta.Sounds == null) return;
-		var sounds = meta.Sounds.Value;
+		var sounds = meta.Sounds;
 
 		string[]? pool = eventType switch
 		{

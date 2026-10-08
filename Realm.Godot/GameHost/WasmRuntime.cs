@@ -34,9 +34,17 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
 {
     public static event Action<string>? OnWasmLog;
 
-    public static void LogToConsole(string message)
+    public static void LogToConsole(string message, bool isError = false)
     {
         OnWasmLog?.Invoke(message);
+        if (isError || message.Contains("[ERROR]") || message.Contains("[WASM RUNTIME ERROR]") || message.Contains("[GUEST UPDATE ERROR]"))
+        {
+            global::Godot.GD.PrintErr($"[WASM] {message}");
+        }
+        else
+        {
+            global::Godot.GD.Print($"[WASM] {message}");
+        }
     }
 
     private readonly Wasmtime.Engine _engine;
@@ -52,6 +60,8 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
 
     private IGameAPI? _cachedApi;
     private readonly string? _wasiLogPath;
+    private long _wasiLogBytesFlushed = 0;
+    private int _updateTickCounter = 0;
 
     public WasmRuntime(string wasmPath, string mapName)
     {
@@ -101,7 +111,7 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
         catch (Exception ex)
         {
             FlushWasiLogFile();
-            LogToConsole($"[WASM RUNTIME ERROR] Failed to instantiate WASM module: {ex.Message}");
+            LogToConsole($"[WASM RUNTIME ERROR] Failed to instantiate WASM module: {ex.Message}", true);
             throw;
         }
     }
@@ -111,10 +121,17 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
         if (string.IsNullOrEmpty(_wasiLogPath) || !File.Exists(_wasiLogPath)) return;
         try
         {
-            string text = File.ReadAllText(_wasiLogPath);
-            if (!string.IsNullOrWhiteSpace(text))
+            using var fs = new System.IO.FileStream(_wasiLogPath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite);
+            if (fs.Length <= _wasiLogBytesFlushed) return;
+
+            fs.Seek(_wasiLogBytesFlushed, System.IO.SeekOrigin.Begin);
+            using var reader = new System.IO.StreamReader(fs, Encoding.UTF8);
+            string newText = reader.ReadToEnd();
+            _wasiLogBytesFlushed = fs.Position;
+
+            if (!string.IsNullOrWhiteSpace(newText))
             {
-                foreach (var rawLine in text.Split('\n'))
+                foreach (var rawLine in newText.Split('\n'))
                 {
                     string trimmed = rawLine.TrimEnd('\r');
                     if (!string.IsNullOrWhiteSpace(trimmed))
@@ -233,11 +250,16 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
         try
         {
             _update?.Invoke(delta);
+            if (++_updateTickCounter >= 30)
+            {
+                _updateTickCounter = 0;
+                FlushWasiLogFile();
+            }
         }
         catch (Exception ex)
         {
             FlushWasiLogFile();
-            LogToConsole($"[WASM RUNTIME ERROR] Exception in update(): {ex}");
+            LogToConsole($"[WASM RUNTIME ERROR] Exception in update(): {ex}", true);
             throw;
         }
     }

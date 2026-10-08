@@ -58,4 +58,12 @@ public class ResourceNode_WasmRuntime : IResourceNode, IEcsPropWrapper
 			return !GodotObject.IsInstanceValid(_prop) || _prop.ResourceAmount <= 0f;
 		}
 	}
+
+	public void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
+	{
+		if (GodotObject.IsInstanceValid(_prop))
+		{
+			_prop.TriggerImpulse(strength, duration, frequency);
+		}
+	}
 }

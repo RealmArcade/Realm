@@ -195,7 +195,7 @@ public class FXService
 
 	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Arch.Core.Entity targetEntity = default)
 	{
-		GameHost.WeaponMetadata weaponMeta = default;
+		WeaponMetadata weaponMeta = null;
 		bool hasWeapon = false;
 		if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var registeredWeapon))
 		{

@@ -41,10 +41,10 @@ public partial class GameHost
 		if (customAbilities == null) return;
 		foreach (var meta in customAbilities)
 		{
-			if (string.IsNullOrEmpty(meta.AbilityId)) continue;
-			_abilityDefinitions[meta.AbilityId] = new AbilityDefinition
+			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
+			_abilityDefinitions[meta.TemplateID] = new AbilityDefinition
 			{
-				Id = meta.AbilityId,
+				Id = meta.TemplateID,
 				DisplayName = meta.Name ?? "",
 				Tooltip = meta.Description ?? "",
 				IconPath = meta.IconPath ?? "",
@@ -82,6 +82,11 @@ public partial class GameHost
 		def.Tooltip = tooltip ?? "";
 		if (!string.IsNullOrEmpty(iconPath)) def.IconPath = iconPath;
 		def.IsInstant = isInstant;
+
+		if (_multiplayerActive && IsServerActive())
+		{
+			Rpc(nameof(ClientRegisterAbility), abilityId, def.DisplayName, def.Tooltip, def.IconPath, isInstant);
+		}
 	}
 
 	void IGameAPI.SetAbilityInstant(string abilityId, bool isInstant)
@@ -178,5 +183,17 @@ public partial class GameHost
 	string IGameAPI.Translate(string key, int playerIndex)
 	{
 		return LocalizationManager.TranslateKey(key);
+	}
+
+	void IGameAPI.TriggerMeshImpulse(IUnit unit, float strength, float duration, float frequency)
+	{
+		if (unit == null) return;
+		unit.TriggerMeshImpulse(strength, duration, frequency);
+	}
+
+	void IGameAPI.TriggerResourceMeshImpulse(IResourceNode node, float strength, float duration, float frequency)
+	{
+		if (node == null) return;
+		node.TriggerMeshImpulse(strength, duration, frequency);
 	}
 }

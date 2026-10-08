@@ -321,7 +321,13 @@ public class DistributionClient
 
         foreach (var item in missingHashes)
         {
-            hashToExtMap[item.NormalizedHash] = Path.GetExtension(item.AssetKey).ToLowerInvariant();
+            string ext = Path.GetExtension(item.AssetKey).ToLowerInvariant();
+            if (string.IsNullOrEmpty(ext))
+            {
+                ext = Path.GetExtension(item.VirtualPath).ToLowerInvariant();
+            }
+            hashToExtMap[item.NormalizedHash] = ext;
+
             if (!remainingMissingMap.TryGetValue(item.NormalizedHash, out var list))
             {
                 list = new List<(string VirtualPath, string AssetKey, string NormalizedHash)>();
@@ -381,7 +387,6 @@ public class DistributionClient
                 }
                 else
                 {
-                    circuit.RecordFailure(DateTime.UtcNow);
                     break;
                 }
             }
@@ -409,9 +414,15 @@ public class DistributionClient
                         return true;
                     }
 
+                    string effectiveAssetKey = item.AssetKey;
+                    if (string.IsNullOrEmpty(Path.GetExtension(effectiveAssetKey)) && hashToExtMap.TryGetValue(item.NormalizedHash, out var mappedExt) && !string.IsNullOrEmpty(mappedExt))
+                    {
+                        effectiveAssetKey = $"{item.AssetKey}{mappedExt}";
+                    }
+
                     bool downloaded = await DownloadSingleAssetWithRetriesAsync(
                         item.NormalizedHash,
-                        item.AssetKey,
+                        effectiveAssetKey,
                         targetStorage,
                         seeders,
                         fallbackHostUrl,
@@ -1213,6 +1224,56 @@ public class DistributionClient
         catch
         {
             return new List<DiscoveryMapDto>();
+        }
+    }
+
+    public async Task<MapMaintainersResponseDto> GetMapMaintainersAsync(string mapTitle, CancellationToken cancellationToken = default)
+    {
+        string url = $"{_registryServerUrl}/api/maps/{Uri.EscapeDataString(mapTitle)}/maintainers";
+        try
+        {
+            var response = await _httpClient.GetAsync(url, cancellationToken);
+            string json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var dto = JsonSerializer.Deserialize<MapMaintainersResponseDto>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return dto ?? new MapMaintainersResponseDto { Success = false, Message = "Failed to deserialize server response." };
+        }
+        catch (Exception ex)
+        {
+            return new MapMaintainersResponseDto { Success = false, Message = ex.Message };
+        }
+    }
+
+    public async Task<MapMaintainersResponseDto> AddMapMaintainerAsync(AddMapMaintainerRequest request, CancellationToken cancellationToken = default)
+    {
+        string url = $"{_registryServerUrl}/api/maps/{Uri.EscapeDataString(request.MapTitle)}/maintainers/add";
+        try
+        {
+            var content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync(url, content, cancellationToken);
+            string json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var dto = JsonSerializer.Deserialize<MapMaintainersResponseDto>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return dto ?? new MapMaintainersResponseDto { Success = false, Message = "Failed to deserialize server response." };
+        }
+        catch (Exception ex)
+        {
+            return new MapMaintainersResponseDto { Success = false, Message = ex.Message };
+        }
+    }
+
+    public async Task<MapMaintainersResponseDto> RemoveMapMaintainerAsync(RemoveMapMaintainerRequest request, CancellationToken cancellationToken = default)
+    {
+        string url = $"{_registryServerUrl}/api/maps/{Uri.EscapeDataString(request.MapTitle)}/maintainers/remove";
+        try
+        {
+            var content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync(url, content, cancellationToken);
+            string json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var dto = JsonSerializer.Deserialize<MapMaintainersResponseDto>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return dto ?? new MapMaintainersResponseDto { Success = false, Message = "Failed to deserialize server response." };
+        }
+        catch (Exception ex)
+        {
+            return new MapMaintainersResponseDto { Success = false, Message = ex.Message };
         }
     }
 }

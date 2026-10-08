@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using Realm.Shared.Metadata;
 using SkiaSharp;
@@ -314,39 +315,120 @@ public static class TextureConverter
 		}
 	}
 
-	public static byte[] EncodeWebp(SKBitmap image, bool lossless = false, int quality = 90)
+	public static byte[] EncodeWebp(SKBitmap image, bool lossless = false, int quality = 90, int method = 6, bool sharpYuv = true)
 	{
 		int width = image.Width;
 		int height = image.Height;
 		byte[] pixelBytes = new byte[width * height * 4];
 
-		for (int y = 0; y < height; y++)
+		SKBitmap workBitmap = image;
+		bool disposeWork = false;
+
+		if (image.ColorType != SKColorType.Rgba8888 && image.ColorType != SKColorType.Bgra8888)
 		{
-			for (int x = 0; x < width; x++)
+			workBitmap = image.Copy(SKColorType.Rgba8888);
+			disposeWork = workBitmap != null && workBitmap != image;
+			if (workBitmap == null) workBitmap = image;
+		}
+
+		try
+		{
+			IntPtr pixelsPtr = workBitmap.GetPixels();
+			if (pixelsPtr != IntPtr.Zero)
 			{
-				SKColor color = image.GetPixel(x, y);
-				int idx = (y * width + x) * 4;
-				pixelBytes[idx] = color.Red;
-				pixelBytes[idx + 1] = color.Green;
-				pixelBytes[idx + 2] = color.Blue;
-				pixelBytes[idx + 3] = color.Alpha;
+				unsafe
+				{
+					byte* srcBase = (byte*)pixelsPtr;
+					int rowBytes = workBitmap.RowBytes;
+					bool isRgba = workBitmap.ColorType == SKColorType.Rgba8888;
+					bool isBgra = workBitmap.ColorType == SKColorType.Bgra8888;
+
+					fixed (byte* dstPtr = pixelBytes)
+					{
+						if (isRgba && rowBytes == width * 4)
+						{
+							Buffer.MemoryCopy(srcBase, dstPtr, pixelBytes.Length, pixelBytes.Length);
+						}
+						else if (isRgba)
+						{
+							for (int y = 0; y < height; y++)
+							{
+								Buffer.MemoryCopy(srcBase + y * rowBytes, dstPtr + y * width * 4, width * 4, width * 4);
+							}
+						}
+						else if (isBgra)
+						{
+							for (int y = 0; y < height; y++)
+							{
+								byte* srcRow = srcBase + y * rowBytes;
+								byte* dstRow = dstPtr + y * width * 4;
+								for (int x = 0; x < width; x++)
+								{
+									int idx = x * 4;
+									dstRow[idx] = srcRow[idx + 2];     // Red
+									dstRow[idx + 1] = srcRow[idx + 1]; // Green
+									dstRow[idx + 2] = srcRow[idx];     // Blue
+									dstRow[idx + 3] = srcRow[idx + 3]; // Alpha
+								}
+							}
+						}
+						else
+						{
+							for (int y = 0; y < height; y++)
+							{
+								for (int x = 0; x < width; x++)
+								{
+									SKColor color = workBitmap.GetPixel(x, y);
+									int idx = (y * width + x) * 4;
+									pixelBytes[idx] = color.Red;
+									pixelBytes[idx + 1] = color.Green;
+									pixelBytes[idx + 2] = color.Blue;
+									pixelBytes[idx + 3] = color.Alpha;
+								}
+							}
+						}
+					}
+				}
+			}
+			else
+			{
+				for (int y = 0; y < height; y++)
+				{
+					for (int x = 0; x < width; x++)
+					{
+						SKColor color = workBitmap.GetPixel(x, y);
+						int idx = (y * width + x) * 4;
+						pixelBytes[idx] = color.Red;
+						pixelBytes[idx + 1] = color.Green;
+						pixelBytes[idx + 2] = color.Blue;
+						pixelBytes[idx + 3] = color.Alpha;
+					}
+				}
+			}
+		}
+		finally
+		{
+			if (disposeWork)
+			{
+				workBitmap.Dispose();
 			}
 		}
 
+		int effMethod = Math.Clamp(method, 0, 6);
 		var config = new WebPEncoderConfig();
 		if (lossless)
 		{
 			config.SetLossless(true)
 				.SetLosslessPreset(9)
-				.SetMethod(6)
+				.SetMethod(effMethod)
 				.SetExact(true)
 				.SetMultiThreaded(true);
 		}
 		else
 		{
 			config.SetQuality(Math.Clamp(quality, 0, 100))
-				.SetMethod(6)
-				.SetSharpYuv(true)
+				.SetMethod(effMethod)
+				.SetSharpYuv(sharpYuv)
 				.SetMultiThreaded(true);
 		}
 
@@ -983,22 +1065,22 @@ public static class TextureConverter
 			? Path.ChangeExtension(fullInput, ".rtex")
 			: Path.GetFullPath(outputPath);
 
-		if (normType is "terrain" or "terrain_texture" or "terrain_textures" or "tilesheet" or "tilesheets" or "terraintexture" or "terraintextures" or "textures" or "texture")
+		if (normType is "terrain")
 		{
 			return ProcessAndSaveTerrainTexture(fullInput, targetRtex);
 		}
 
-		if (normType is "decal" or "decals")
+		if (normType is "decal")
 		{
 			return ProcessAndSaveDecalTexture(fullInput, targetRtex, columns: columns ?? 1, rows: rows ?? 1);
 		}
 
-		if (normType is "spritesheet" or "vfx_spritesheet" or "vfx_spritesheets" or "spritesheets" or "spellspritesheet" or "spellspritesheets" or "spell_spritesheet" or "spell_spritesheets" or "vfxspritesheet" or "vfxspritesheets" or "vfx")
+		if (normType is "spritesheet")
 		{
 			return ProcessAndSaveSpritesheet(fullInput, targetRtex, columns ?? 4, rows ?? 4, fps: fps ?? 20.0f);
 		}
 
-		if (normType is "skybox" or "skyboxes")
+		if (normType is "skybox")
 		{
 			string outExt = Path.GetExtension(targetRtex).ToLowerInvariant();
 			if (outExt is not ".rtex")
@@ -1009,27 +1091,27 @@ public static class TextureConverter
 			return ProcessAndSaveSkybox(fullInput, targetRtex);
 		}
 
-		if (normType is "ribbon" or "ribbon_texture" or "ribbon_textures" or "ribbons" or "ribbontexture" or "ribbontextures")
+		if (normType is "ribbon")
 		{
 			return ProcessAndSaveRibbonTexture(fullInput, targetRtex);
 		}
 
-		if (normType is "noise" or "noise_texture" or "noise_textures" or "noisetexture" or "noisetextures")
+		if (normType is "noise")
 		{
 			return ProcessAndSaveSingleLayerTexture(fullInput, targetRtex, "noise_texture");
 		}
 
-		if (normType is "icon" or "icons")
+		if (normType is "icon")
 		{
 			return ProcessAndSaveIconTexture(fullInput, targetRtex);
 		}
 
-		if (normType is "vfx_radial" or "vfxradial" or "radial" or "radial_mask" or "radialmask")
+		if (normType is "vfx_radial")
 		{
 			return ProcessAndSaveVfxRadialTexture(fullInput, targetRtex);
 		}
 
-		if (normType is "vfx_vertical" or "vfxvertical" or "vertical" or "vertical_fin" or "verticalfin")
+		if (normType is "vfx_vertical")
 		{
 			return ProcessAndSaveVfxVerticalTexture(fullInput, targetRtex);
 		}

@@ -1,8 +1,12 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Realm.Godot.Services;
+using Realm.Godot.Utils;
 
 public class TerrainTextureSnapshot
 {
@@ -17,10 +21,13 @@ public class TerrainTextureSnapshot
 	public float UvScale { get; set; } = 1.0f;
 	public float StochasticTileSize { get; set; } = 1.0f;
 	public float CrossFade { get; set; } = 0.0f;
+	public int DefaultPathingCode { get; set; } = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING;
+	public List<ProceduralBombingDecalRule> DecalBombingRules { get; set; } = new();
+	public List<ProceduralBombingVfxRule> VfxBombingRules { get; set; } = new();
 
 	public TerrainTextureSnapshot Clone()
 	{
-		return new TerrainTextureSnapshot
+		var clone = new TerrainTextureSnapshot
 		{
 			Brightness = this.Brightness,
 			Tint = this.Tint,
@@ -32,8 +39,20 @@ public class TerrainTextureSnapshot
 			TileMode = this.TileMode,
 			UvScale = this.UvScale,
 			StochasticTileSize = this.StochasticTileSize,
-			CrossFade = this.CrossFade
+			CrossFade = this.CrossFade,
+			DefaultPathingCode = this.DefaultPathingCode,
+			DecalBombingRules = new List<ProceduralBombingDecalRule>(),
+			VfxBombingRules = new List<ProceduralBombingVfxRule>()
 		};
+		if (this.DecalBombingRules != null)
+		{
+			foreach (var r in this.DecalBombingRules) clone.DecalBombingRules.Add(r.Clone());
+		}
+		if (this.VfxBombingRules != null)
+		{
+			foreach (var r in this.VfxBombingRules) clone.VfxBombingRules.Add(r.Clone());
+		}
+		return clone;
 	}
 }
 
@@ -87,38 +106,29 @@ public class TerrainTextureUndoAction : IEditorAction
 		try
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var assetsObj = Realm.Godot.Utils.MapAssetHelper.LoadUnionedAssets(wsPath);
-			if (assetsObj?["textures"] is JsonObject texturesObj)
+			string metaPath = Path.Combine(wsPath, "metadata.json");
+			if (File.Exists(metaPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot != null)
 			{
-				bool anyUpdated = false;
-				foreach (var kvp in texturesObj)
+				var existing = metadataRoot.GetTerrainTexture(_textureFileName);
+				if (existing != null)
 				{
-					if (string.Equals(kvp.Key, _textureFileName, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(Path.GetFileName(kvp.Key), _textureFileName, StringComparison.OrdinalIgnoreCase) ||
-						string.Equals(Path.GetFileNameWithoutExtension(kvp.Key), Path.GetFileNameWithoutExtension(_textureFileName), StringComparison.OrdinalIgnoreCase))
-					{
-						if (kvp.Value is JsonObject sObj)
-						{
-							sObj["Brightness"] = snapshot.Brightness;
-							sObj["Tint"] = tintHex;
-							sObj["Height_Scale"] = snapshot.HeightScale;
-							sObj["Height_Offset"] = snapshot.HeightOffset;
-							sObj["Crevice_Power"] = snapshot.CrevicePower;
-							sObj["Normal_Scale"] = snapshot.NormalScale;
-							sObj["Roughness_Scale"] = snapshot.RoughnessScale;
-							sObj["Tile_Mode"] = snapshot.TileMode;
-							sObj["UV_Scale"] = snapshot.UvScale;
-							sObj["Stochastic_Tile_Size"] = snapshot.StochasticTileSize;
-							sObj["Cross_Fade"] = snapshot.CrossFade;
-							anyUpdated = true;
-							break;
-						}
-					}
+					existing.Brightness = snapshot.Brightness;
+					existing.Tint = tintHex;
+					existing.RoughnessScale = snapshot.RoughnessScale;
+					existing.NormalScale = snapshot.NormalScale;
+					existing.HeightScale = snapshot.HeightScale;
+					existing.HeightOffset = snapshot.HeightOffset;
+					existing.CrevicePower = snapshot.CrevicePower;
+					existing.TileMode = snapshot.TileMode;
+					existing.UvScale = snapshot.UvScale;
+					existing.StochasticTileSize = snapshot.StochasticTileSize;
+					existing.CrossFade = snapshot.CrossFade;
+					existing.DefaultPathingCode = snapshot.DefaultPathingCode;
+					existing.DecalBombingRules = snapshot.DecalBombingRules != null ? new List<ProceduralBombingDecalRule>(snapshot.DecalBombingRules) : new();
+					existing.VfxBombingRules = snapshot.VfxBombingRules != null ? new List<ProceduralBombingVfxRule>(snapshot.VfxBombingRules) : new();
 				}
-				if (anyUpdated)
-				{
-					Realm.Godot.Utils.MapAssetHelper.SaveAssetsToManifest(wsPath, assetsObj, removeFromMetadata: true);
-				}
+				MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+				MapEditorHUD.Instance?.UpdateLastMetadataSyncTime(metaPath);
 			}
 		}
 		catch { }
@@ -128,6 +138,11 @@ public class TerrainTextureUndoAction : IEditorAction
 public partial class TerrainTextureEditDialog : FloatingDialogBase
 {
 	private string _textureFileName = "";
+	private string _objectType = "terrain";
+	private string _slug = "";
+	private string _rtexAsset = "";
+	private int _swatchIndex = -1;
+
 	private float _brightness = 1.0f;
 	private Color _tint = Colors.White;
 	private float _heightScale = 1.0f;
@@ -139,10 +154,17 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private float _uvScale = 1.0f;
 	private float _stochasticTileSize = 1.0f;
 	private float _crossFade = 0.0f;
+	private int _defaultPathingCode = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING;
+	private List<ProceduralBombingDecalRule> _decalRules = new();
+	private List<ProceduralBombingVfxRule> _vfxRules = new();
 
 	private TerrainTextureSnapshot _initialSnapshot;
-
 	private Action<JsonObject> _onApplied;
+
+	private Label _lblObjectTypePrefix;
+	private LineEdit _txtSlug;
+	private LineEdit _txtRtexAsset;
+	private Action<string> _setRtexAssetValue;
 
 	private HSlider _sldBrightness;
 	private Label _lblBrightness;
@@ -169,19 +191,77 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private HSlider _sldCrossFade;
 	private Label _lblCrossFade;
 
+	private CheckBox _chkPathGround;
+	private CheckBox _chkPathBuildable;
+	private CheckBox _chkPathShallow;
+	private CheckBox _chkPathDeep;
+	private CheckBox _chkPathFlying;
+
+	private ItemList _lstDecals;
+	private LineEdit _txtDecalId;
+	private Action<string> _setDecalIdValue;
+	private HSlider _sldDecalDensity;
+	private HSlider _sldDecalMinScale;
+	private HSlider _sldDecalMaxScale;
+
+	private ItemList _lstVfx;
+	private LineEdit _txtVfxId;
+	private Action<string> _setVfxIdValue;
+	private HSlider _sldVfxDensity;
+	private HSlider _sldVfxMinScale;
+	private HSlider _sldVfxMaxScale;
+
 	public TerrainTextureEditDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Edit Terrain Texture Swatch"), new Vector2(460, 640))
+		: base(hud, TranslationServer.Translate("Edit Terrain Texture Swatch"), new Vector2(560, 720))
 	{
 		BuildControls();
 	}
 
 	private void BuildControls()
 	{
-		var scrollBody = CreateScrollBody(520);
+		var scrollBody = CreateScrollBody(580);
 		var contentVBox = new VBoxContainer();
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
+
+		// SECTION 0: IDENTITY & TEXTURE ASSET
+		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & TEXTURE ASSET"), new Color(0.95f, 0.8f, 0.4f));
+
+		var rowId = new HBoxContainer();
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Text = "terrain/";
+		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(_lblObjectTypePrefix);
+
+		_txtSlug = new LineEdit();
+		_txtSlug.PlaceholderText = TranslationServer.Translate("terrain_slug");
+		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug.TextChanged += (val) =>
+		{
+			_slug = TemplateIDHelper.ToSnakeCase(val);
+		};
+		rowId.AddChild(_txtSlug);
+		contentVBox.AddChild(rowId);
+
+		(_txtRtexAsset, _setRtexAssetValue) = AddAssetFilterDropdown(
+			contentVBox,
+			TranslationServer.Translate("Terrain .rtex:"),
+			_rtexAsset,
+			(all) => ScanTerrainRtexAssets(all),
+			(val) => _rtexAsset = val ?? string.Empty,
+			TranslationServer.Translate("Select terrain .rtex asset..."),
+			140f
+		);
 
 		// SECTION 1: COLOR & LIGHTING
 		AddSectionHeader(contentVBox, "🎨 " + TranslationServer.Translate("COLOR & LIGHTING"), new Color(0.95f, 0.8f, 0.4f));
@@ -373,8 +453,264 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			140f
 		);
 
+		// SECTION 4: DEFAULT PATHING
+		AddSectionHeader(contentVBox, "🚶 " + TranslationServer.Translate("DEFAULT PATHING CAPABILITIES"), new Color(0.85f, 0.65f, 0.35f));
+		AddDescription(contentVBox, TranslationServer.Translate("Automatically assigned to cells when painted with this terrain swatch:"));
+		_chkPathGround = AddCheckBox(contentVBox, TranslationServer.Translate("Ground"), (_defaultPathingCode & EditableTerrain.PATHING_GROUND) != 0, (v) => UpdatePathingMask());
+		_chkPathBuildable = AddCheckBox(contentVBox, TranslationServer.Translate("Buildable"), (_defaultPathingCode & EditableTerrain.PATHING_BUILDABLE) != 0, (v) => UpdatePathingMask());
+		_chkPathShallow = AddCheckBox(contentVBox, TranslationServer.Translate("Shallow Water"), (_defaultPathingCode & EditableTerrain.PATHING_SHALLOW_WATER) != 0, (v) => UpdatePathingMask());
+		_chkPathDeep = AddCheckBox(contentVBox, TranslationServer.Translate("Deep Water"), (_defaultPathingCode & EditableTerrain.PATHING_DEEP_WATER) != 0, (v) => UpdatePathingMask());
+		_chkPathFlying = AddCheckBox(contentVBox, TranslationServer.Translate("Flying"), (_defaultPathingCode & EditableTerrain.PATHING_FLYING) != 0, (v) => UpdatePathingMask());
+
+		// SECTION 5: PROCEDURAL DECAL BOMBING
+		AddSectionHeader(contentVBox, "🎯 " + TranslationServer.Translate("PROCEDURAL DECAL BOMBING"), new Color(0.9f, 0.5f, 0.7f));
+		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered decals placed at terrain elevation during texture painting:"));
+		var decalListRow = new HBoxContainer();
+		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstDecals.ItemSelected += (idx) =>
+		{
+			if (idx >= 0 && idx < _decalRules.Count)
+			{
+				var r = _decalRules[(int)idx];
+				_setDecalIdValue?.Invoke(r.DecalId);
+				if (_sldDecalDensity != null) _sldDecalDensity.Value = r.Density;
+				if (_sldDecalMinScale != null) _sldDecalMinScale.Value = r.MinScale;
+				if (_sldDecalMaxScale != null) _sldDecalMaxScale.Value = r.MaxScale;
+			}
+		};
+		decalListRow.AddChild(_lstDecals);
+
+		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
+			decalBtnBox,
+			string.Empty,
+			string.Empty,
+			(all) => ScanAvailableAssets("decals", all),
+			(val) => { },
+			TranslationServer.Translate("decal_texture_id"),
+			0f
+		);
+
+		var btnAddDecal = new Button { Text = "+ " + TranslationServer.Translate("Add Decal") };
+		btnAddDecal.Set("icon_max_width", 0);
+		btnAddDecal.Pressed += OnAddDecalRule;
+		decalBtnBox.AddChild(btnAddDecal);
+
+		var btnRemoveDecal = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
+		btnRemoveDecal.Set("icon_max_width", 0);
+		btnRemoveDecal.Pressed += OnRemoveDecalRule;
+		decalBtnBox.AddChild(btnRemoveDecal);
+
+		decalListRow.AddChild(decalBtnBox);
+		contentVBox.AddChild(decalListRow);
+
+		var sldDecalDensRes = AddSlider(contentVBox, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) =>
+		{
+			var sel = _lstDecals.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _decalRules.Count) _decalRules[idx].Density = v;
+		});
+		_sldDecalDensity = sldDecalDensRes.Slider;
+		var sldDecalMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) =>
+		{
+			var sel = _lstDecals.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _decalRules.Count) _decalRules[idx].MinScale = v;
+		});
+		_sldDecalMinScale = sldDecalMinScRes.Slider;
+		var sldDecalMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) =>
+		{
+			var sel = _lstDecals.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _decalRules.Count) _decalRules[idx].MaxScale = v;
+		});
+		_sldDecalMaxScale = sldDecalMaxScRes.Slider;
+
+		// SECTION 6: PROCEDURAL VFX BOMBING
+		AddSectionHeader(contentVBox, "✨ " + TranslationServer.Translate("PROCEDURAL VFX BOMBING"), new Color(0.4f, 0.7f, 1.0f));
+		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered particle systems placed at terrain elevation during painting:"));
+		var vfxListRow = new HBoxContainer();
+		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstVfx.ItemSelected += (idx) =>
+		{
+			if (idx >= 0 && idx < _vfxRules.Count)
+			{
+				var r = _vfxRules[(int)idx];
+				_setVfxIdValue?.Invoke(r.VfxId);
+				if (_sldVfxDensity != null) _sldVfxDensity.Value = r.Density;
+				if (_sldVfxMinScale != null) _sldVfxMinScale.Value = r.MinScale;
+				if (_sldVfxMaxScale != null) _sldVfxMaxScale.Value = r.MaxScale;
+			}
+		};
+		vfxListRow.AddChild(_lstVfx);
+
+		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
+			vfxBtnBox,
+			string.Empty,
+			string.Empty,
+			(all) => ScanAvailableAssets("vfx", all),
+			(val) => { },
+			TranslationServer.Translate("vfx_template_id"),
+			0f
+		);
+
+		var btnAddVfx = new Button { Text = "+ " + TranslationServer.Translate("Add VFX") };
+		btnAddVfx.Set("icon_max_width", 0);
+		btnAddVfx.Pressed += OnAddVfxRule;
+		vfxBtnBox.AddChild(btnAddVfx);
+
+		var btnRemoveVfx = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
+		btnRemoveVfx.Set("icon_max_width", 0);
+		btnRemoveVfx.Pressed += OnRemoveVfxRule;
+		vfxBtnBox.AddChild(btnRemoveVfx);
+
+		vfxListRow.AddChild(vfxBtnBox);
+		contentVBox.AddChild(vfxListRow);
+
+		var sldVfxDensRes = AddSlider(contentVBox, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) =>
+		{
+			var sel = _lstVfx.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _vfxRules.Count) _vfxRules[idx].Density = v;
+		});
+		_sldVfxDensity = sldVfxDensRes.Slider;
+		var sldVfxMinScRes = AddSlider(contentVBox, TranslationServer.Translate("Min VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) =>
+		{
+			var sel = _lstVfx.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _vfxRules.Count) _vfxRules[idx].MinScale = v;
+		});
+		_sldVfxMinScale = sldVfxMinScRes.Slider;
+		var sldVfxMaxScRes = AddSlider(contentVBox, TranslationServer.Translate("Max VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) =>
+		{
+			var sel = _lstVfx.GetSelectedItems();
+			int idx = sel.Length > 0 ? sel[0] : 0;
+			if (idx >= 0 && idx < _vfxRules.Count) _vfxRules[idx].MaxScale = v;
+		});
+		_sldVfxMaxScale = sldVfxMaxScRes.Slider;
+
 		UpdateTileModeVisibility();
 		UpdateGraphicsQualityState();
+	}
+
+	private List<string> ScanTerrainRtexAssets(bool includeAllFolders)
+	{
+		var list = ScanAvailableAssets("textures", includeAllFolders);
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		var rtexFiles = new HashSet<string>(list.Where(x => x.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
+
+		string searchDir = Path.Combine(wsPath, "Assets", "textures");
+		if (Directory.Exists(searchDir))
+		{
+			foreach (var file in Directory.GetFiles(searchDir, "*.rtex", SearchOption.AllDirectories))
+			{
+				rtexFiles.Add(Path.GetFileName(file));
+			}
+		}
+
+		string templateDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "textures");
+		if (Directory.Exists(templateDir))
+		{
+			foreach (var file in Directory.GetFiles(templateDir, "*.rtex", SearchOption.AllDirectories))
+			{
+				rtexFiles.Add(Path.GetFileName(file));
+			}
+		}
+
+		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.Textures != null)
+		{
+			foreach (var kvp in meta.Textures)
+			{
+				if (!string.IsNullOrWhiteSpace(kvp.Value?.TexturePath) && kvp.Value.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					rtexFiles.Add(Path.GetFileName(kvp.Value.TexturePath));
+				}
+				if (kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+				{
+					rtexFiles.Add(Path.GetFileName(kvp.Key));
+				}
+			}
+		}
+
+		return rtexFiles.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+	}
+
+	private void UpdatePathingMask()
+	{
+		int mask = 0;
+		if (_chkPathGround != null && _chkPathGround.ButtonPressed) mask |= EditableTerrain.PATHING_GROUND;
+		if (_chkPathBuildable != null && _chkPathBuildable.ButtonPressed) mask |= EditableTerrain.PATHING_BUILDABLE;
+		if (_chkPathShallow != null && _chkPathShallow.ButtonPressed) mask |= EditableTerrain.PATHING_SHALLOW_WATER;
+		if (_chkPathDeep != null && _chkPathDeep.ButtonPressed) mask |= EditableTerrain.PATHING_DEEP_WATER;
+		if (_chkPathFlying != null && _chkPathFlying.ButtonPressed) mask |= EditableTerrain.PATHING_FLYING;
+		_defaultPathingCode = mask;
+	}
+
+	private void OnAddDecalRule()
+	{
+		string id = _txtDecalId?.Text?.Trim() ?? string.Empty;
+		if (string.IsNullOrEmpty(id)) return;
+		_decalRules.Add(new ProceduralBombingDecalRule
+		{
+			DecalId = id,
+			Density = (float)(_sldDecalDensity?.Value ?? 0.5f),
+			MinScale = (float)(_sldDecalMinScale?.Value ?? 0.2f),
+			MaxScale = (float)(_sldDecalMaxScale?.Value ?? 0.5f)
+		});
+		UpdateDecalList();
+	}
+
+	private void OnRemoveDecalRule()
+	{
+		var selected = _lstDecals.GetSelectedItems();
+		if (selected.Length > 0 && selected[0] >= 0 && selected[0] < _decalRules.Count)
+		{
+			_decalRules.RemoveAt(selected[0]);
+			UpdateDecalList();
+		}
+	}
+
+	private void UpdateDecalList()
+	{
+		_lstDecals.Clear();
+		foreach (var r in _decalRules)
+		{
+			_lstDecals.AddItem($"{r.DecalId} ({TranslationServer.Translate("Density")}: {r.Density:0.00})");
+		}
+	}
+
+	private void OnAddVfxRule()
+	{
+		string id = _txtVfxId?.Text?.Trim() ?? string.Empty;
+		if (string.IsNullOrEmpty(id)) return;
+		_vfxRules.Add(new ProceduralBombingVfxRule
+		{
+			VfxId = id,
+			Density = (float)(_sldVfxDensity?.Value ?? 0.5f),
+			MinScale = (float)(_sldVfxMinScale?.Value ?? 0.2f),
+			MaxScale = (float)(_sldVfxMaxScale?.Value ?? 0.5f)
+		});
+		UpdateVfxList();
+	}
+
+	private void OnRemoveVfxRule()
+	{
+		var selected = _lstVfx.GetSelectedItems();
+		if (selected.Length > 0 && selected[0] >= 0 && selected[0] < _vfxRules.Count)
+		{
+			_vfxRules.RemoveAt(selected[0]);
+			UpdateVfxList();
+		}
+	}
+
+	private void UpdateVfxList()
+	{
+		_lstVfx.Clear();
+		foreach (var r in _vfxRules)
+		{
+			_lstVfx.AddItem($"{r.VfxId} ({TranslationServer.Translate("Density")}: {r.Density:0.00})");
+		}
 	}
 
 	private Label CreateHelpTooltipIcon(HSlider slider)
@@ -461,112 +797,205 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	public void OpenForTexture(string fileName, JsonObject textureData, Action<JsonObject> onApplied)
 	{
 		_textureFileName = fileName ?? string.Empty;
+		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_textureFileName);
+		_objectType = !string.IsNullOrEmpty(parsedType) ? parsedType : "terrain";
+		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_textureFileName);
+
+		_rtexAsset = textureData?["TexturePath"]?.ToString() ?? string.Empty;
+
+		if (!string.IsNullOrEmpty(_rtexAsset))
+		{
+			if (!_rtexAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = $"{_rtexAsset}.rtex";
+			}
+			_rtexAsset = Path.GetFileName(_rtexAsset);
+		}
+		else
+		{
+			_rtexAsset = string.Empty;
+		}
+
+		if (string.IsNullOrEmpty(_rtexAsset))
+		{
+			string wsPathTex = MapWorkspaceService.GetActiveWorkspacePath();
+			if (!string.IsNullOrEmpty(wsPathTex) && MetadataService.Instance.TryLoadMetadata(wsPathTex, out var metaTex) && metaTex?.Textures != null)
+			{
+				if (metaTex.Textures.TryGetValue(_textureFileName, out var tMeta) && !string.IsNullOrEmpty(tMeta?.TexturePath))
+				{
+					_rtexAsset = tMeta.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(tMeta.TexturePath) : $"{Path.GetFileName(tMeta.TexturePath)}.rtex";
+				}
+				else if (metaTex.Textures.TryGetValue(_slug, out var tMeta2) && !string.IsNullOrEmpty(tMeta2?.TexturePath))
+				{
+					_rtexAsset = tMeta2.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(tMeta2.TexturePath) : $"{Path.GetFileName(tMeta2.TexturePath)}.rtex";
+				}
+			}
+		}
+
+		if (string.IsNullOrEmpty(_rtexAsset))
+		{
+			if (_textureFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				_rtexAsset = Path.GetFileName(_textureFileName);
+			}
+			else
+			{
+				var candidates = ScanTerrainRtexAssets(true);
+				string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
+					?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
+				if (!string.IsNullOrEmpty(candidateMatch))
+				{
+					_rtexAsset = candidateMatch;
+				}
+			}
+		}
+
 		_onApplied = onApplied;
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Edit Texture Swatch")} - {_textureFileName}";
 
-		RuntimeTerrain.ActiveSwatchConfig activeConfig = default;
-		if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
-		{
-			activeConfig = GameHost.Instance.GroundTerrain.GetActiveSwatchConfig(_textureFileName);
-		}
-		else
-		{
-			activeConfig = new RuntimeTerrain.ActiveSwatchConfig
-			{
-				TileMode = "Stochastic",
-				UvScale = 1.0f,
-				StochasticTileSize = 1.0f,
-				CrossFade = 0.0f,
-				HeightScale = 1.0f,
-				HeightOffset = 0.0f,
-				CrevicePower = 1.0f,
-				NormalScale = 1.0f,
-				RoughnessScale = 1.0f,
-				Brightness = 1.0f,
-				Tint = Colors.White
-			};
-		}
+		if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = $"{_objectType}/";
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		_setRtexAssetValue?.Invoke(_rtexAsset);
 
-		_brightness = activeConfig.Brightness;
-		_tint = activeConfig.Tint;
-		_roughnessScale = activeConfig.RoughnessScale;
-		_normalScale = activeConfig.NormalScale;
-		_heightScale = activeConfig.HeightScale;
-		_heightOffset = activeConfig.HeightOffset;
-		_crevicePower = activeConfig.CrevicePower;
-		_tileMode = activeConfig.TileMode;
-		_uvScale = activeConfig.UvScale;
-		_stochasticTileSize = activeConfig.StochasticTileSize;
-		_crossFade = activeConfig.CrossFade;
+		_brightness = 1.0f;
+		_tint = Colors.White;
+		_roughnessScale = 1.0f;
+		_normalScale = 1.0f;
+		_heightScale = 1.0f;
+		_heightOffset = 0.0f;
+		_crevicePower = 1.0f;
+		_tileMode = "Stochastic";
+		_uvScale = 1.0f;
+		_stochasticTileSize = 1.0f;
+		_crossFade = 0.0f;
+		_defaultPathingCode = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING;
+		_decalRules.Clear();
+		_vfxRules.Clear();
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		_swatchIndex = -1;
+		MapMetadata? metaRoot = null;
+		if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out metaRoot) && metaRoot != null)
+		{
+			var existingTex = metaRoot.GetTerrainTexture(_textureFileName) ?? metaRoot.GetTerrainTexture(_slug);
+			if (existingTex != null)
+			{
+				_swatchIndex = existingTex.SwatchIndex;
+				if (!string.IsNullOrEmpty(existingTex.TexturePath)) _rtexAsset = Path.GetFileName(existingTex.TexturePath);
+				if (existingTex.Brightness > 0.0001f) _brightness = existingTex.Brightness;
+				if (!string.IsNullOrEmpty(existingTex.Tint) && Color.HtmlIsValid(existingTex.Tint))
+				{
+					_tint = Color.FromHtml(existingTex.Tint);
+				}
+				if (existingTex.RoughnessScale > 0.0001f) _roughnessScale = existingTex.RoughnessScale;
+				if (existingTex.NormalScale >= 0.0f) _normalScale = existingTex.NormalScale;
+				if (existingTex.HeightScale > 0.0001f) _heightScale = existingTex.HeightScale;
+				_heightOffset = existingTex.HeightOffset;
+				if (existingTex.CrevicePower > 0.0001f) _crevicePower = existingTex.CrevicePower;
+				if (!string.IsNullOrEmpty(existingTex.TileMode)) _tileMode = existingTex.TileMode;
+				if (existingTex.UvScale > 0.0001f) _uvScale = existingTex.UvScale;
+				if (existingTex.StochasticTileSize > 0.0001f) _stochasticTileSize = existingTex.StochasticTileSize;
+				if (existingTex.CrossFade >= 0.0f) _crossFade = existingTex.CrossFade;
+				_defaultPathingCode = existingTex.DefaultPathingCode;
+				if (existingTex.DecalBombingRules != null)
+				{
+					_decalRules = new List<ProceduralBombingDecalRule>(existingTex.DecalBombingRules.Select(r => r.Clone()));
+				}
+				if (existingTex.VfxBombingRules != null)
+				{
+					_vfxRules = new List<ProceduralBombingVfxRule>(existingTex.VfxBombingRules.Select(r => r.Clone()));
+				}
+			}
+		}
 
 		if (textureData != null)
 		{
-			string brightStr = textureData["Brightness"]?.ToString() ?? textureData["brightness"]?.ToString();
-			if (!string.IsNullOrEmpty(brightStr) && float.TryParse(brightStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedB))
+			if (textureData.TryGetPropertyValue("SwatchIndex", out var swNode) && swNode != null && int.TryParse(swNode.ToString(), out int parsedSw))
+			{
+				_swatchIndex = parsedSw;
+			}
+			if (textureData.TryGetPropertyValue("Brightness", out var bNode) && bNode != null && float.TryParse(bNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedB) && parsedB > 0.0001f)
 			{
 				_brightness = parsedB;
 			}
-
-			string tintStr = textureData["Tint"]?.ToString() ?? textureData["tint"]?.ToString();
-			if (!string.IsNullOrEmpty(tintStr) && Color.HtmlIsValid(tintStr))
+			if (textureData.TryGetPropertyValue("Tint", out var tintNode) && tintNode != null && Color.HtmlIsValid(tintNode.ToString()))
 			{
-				_tint = Color.FromHtml(tintStr);
+				_tint = Color.FromHtml(tintNode.ToString());
 			}
-
-			string roughStr = textureData["Roughness_Scale"]?.ToString() ?? textureData["roughness_scale"]?.ToString() ?? textureData["roughnessScale"]?.ToString();
-			if (!string.IsNullOrEmpty(roughStr) && float.TryParse(roughStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedR))
+			if (textureData.TryGetPropertyValue("RoughnessScale", out var rsNode) && rsNode != null && float.TryParse(rsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedRs) && parsedRs > 0.0001f)
 			{
-				_roughnessScale = parsedR;
+				_roughnessScale = parsedRs;
 			}
-
-			string normStr = textureData["Normal_Scale"]?.ToString() ?? textureData["normal_scale"]?.ToString() ?? textureData["normalScale"]?.ToString();
-			if (!string.IsNullOrEmpty(normStr) && float.TryParse(normStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedN))
+			if (textureData.TryGetPropertyValue("NormalScale", out var nsNode) && nsNode != null && float.TryParse(nsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedNs) && parsedNs >= 0.0f)
 			{
-				_normalScale = parsedN;
+				_normalScale = parsedNs;
 			}
-
-			string hsStr = textureData["Height_Scale"]?.ToString() ?? textureData["height_scale"]?.ToString() ?? textureData["heightScale"]?.ToString();
-			if (!string.IsNullOrEmpty(hsStr) && float.TryParse(hsStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedHs))
+			if (textureData.TryGetPropertyValue("HeightScale", out var hsNode) && hsNode != null && float.TryParse(hsNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedHs) && parsedHs > 0.0001f)
 			{
 				_heightScale = parsedHs;
 			}
-
-			string hoStr = textureData["Height_Offset"]?.ToString() ?? textureData["height_offset"]?.ToString() ?? textureData["heightOffset"]?.ToString();
-			if (!string.IsNullOrEmpty(hoStr) && float.TryParse(hoStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedHo))
+			if (textureData.TryGetPropertyValue("HeightOffset", out var hoNode) && hoNode != null && float.TryParse(hoNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedHo))
 			{
 				_heightOffset = parsedHo;
 			}
-
-			string cpStr = textureData["Crevice_Power"]?.ToString() ?? textureData["crevice_power"]?.ToString() ?? textureData["crevicePower"]?.ToString();
-			if (!string.IsNullOrEmpty(cpStr) && float.TryParse(cpStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCp))
+			if (textureData.TryGetPropertyValue("CrevicePower", out var cpNode) && cpNode != null && float.TryParse(cpNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCp) && parsedCp > 0.0001f)
 			{
 				_crevicePower = parsedCp;
 			}
-
-			string tmStr = textureData["Tile_Mode"]?.ToString() ?? textureData["tile_mode"]?.ToString() ?? textureData["tileMode"]?.ToString();
-			if (!string.IsNullOrEmpty(tmStr))
+			if (textureData.TryGetPropertyValue("TileMode", out var tmNode) && tmNode != null && !string.IsNullOrEmpty(tmNode.ToString()))
 			{
-				_tileMode = string.Equals(tmStr, "Grid", StringComparison.OrdinalIgnoreCase) ? "Grid" : "Stochastic";
+				_tileMode = string.Equals(tmNode.ToString(), "Grid", StringComparison.OrdinalIgnoreCase) ? "Grid" : "Stochastic";
 			}
-
-			string uvStr = textureData["UV_Scale"]?.ToString() ?? textureData["uv_scale"]?.ToString() ?? textureData["uvScale"]?.ToString();
-			if (!string.IsNullOrEmpty(uvStr) && float.TryParse(uvStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedUv))
+			if (textureData.TryGetPropertyValue("UvScale", out var uvNode) && uvNode != null && float.TryParse(uvNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedUv) && parsedUv > 0.0001f)
 			{
 				_uvScale = parsedUv;
 			}
-
-			string stochStr = textureData["Stochastic_Tile_Size"]?.ToString() ?? textureData["stochastic_tile_size"]?.ToString() ?? textureData["stochasticTileSize"]?.ToString();
-			if (!string.IsNullOrEmpty(stochStr) && float.TryParse(stochStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedStoch))
+			if (textureData.TryGetPropertyValue("StochasticTileSize", out var stNode) && stNode != null && float.TryParse(stNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedSt) && parsedSt > 0.0001f)
 			{
-				_stochasticTileSize = parsedStoch;
+				_stochasticTileSize = parsedSt;
 			}
-
-			string cfStr = textureData["Cross_Fade"]?.ToString() ?? textureData["cross_fade"]?.ToString() ?? textureData["Grid_Cross_Fade"]?.ToString() ?? textureData["grid_cross_fade"]?.ToString() ?? textureData["crossFade"]?.ToString();
-			if (!string.IsNullOrEmpty(cfStr) && float.TryParse(cfStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCf))
+			if (textureData.TryGetPropertyValue("CrossFade", out var cfNode) && cfNode != null && float.TryParse(cfNode.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedCf) && parsedCf >= 0.0f)
 			{
 				_crossFade = parsedCf <= 0.10f && parsedCf > 0.0f ? parsedCf * 100.0f : parsedCf;
 			}
+			if (textureData.TryGetPropertyValue("DefaultPathingCode", out var dpcNode) && dpcNode != null && int.TryParse(dpcNode.ToString(), out int parsedDpc))
+			{
+				_defaultPathingCode = parsedDpc;
+			}
+			if (textureData.TryGetPropertyValue("DecalBombingRules", out var dbrNode) && dbrNode != null)
+			{
+				var list = System.Text.Json.JsonSerializer.Deserialize<List<ProceduralBombingDecalRule>>(dbrNode.ToJsonString());
+				if (list != null && list.Count > 0)
+				{
+					_decalRules = list;
+				}
+			}
+			if (textureData.TryGetPropertyValue("VfxBombingRules", out var vbrNode) && vbrNode != null)
+			{
+				var list = System.Text.Json.JsonSerializer.Deserialize<List<ProceduralBombingVfxRule>>(vbrNode.ToJsonString());
+				if (list != null && list.Count > 0)
+				{
+					_vfxRules = list;
+				}
+			}
+		}
+
+		if (_swatchIndex < 0)
+		{
+			var occupied = new bool[TextureSwatchSlots.MaxSlots];
+			if (metaRoot?.Textures != null)
+			{
+				foreach (var t in metaRoot.Textures.Values)
+				{
+					if (t != null && t.SwatchIndex >= 0 && t.SwatchIndex < TextureSwatchSlots.MaxSlots)
+					{
+						occupied[t.SwatchIndex] = true;
+					}
+				}
+			}
+			_swatchIndex = TextureSwatchSlots.FirstFreeSlot(occupied);
+			if (_swatchIndex < 0) _swatchIndex = 0;
 		}
 
 		_initialSnapshot = new TerrainTextureSnapshot
@@ -581,7 +1010,10 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			TileMode = _tileMode,
 			UvScale = _uvScale,
 			StochasticTileSize = _stochasticTileSize,
-			CrossFade = _crossFade
+			CrossFade = _crossFade,
+			DefaultPathingCode = _defaultPathingCode,
+			DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules.Select(r => r.Clone())),
+			VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules.Select(r => r.Clone()))
 		};
 
 		if (_sldBrightness != null) _sldBrightness.Value = _brightness;
@@ -596,6 +1028,17 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		if (_sldStochasticTileSize != null) _sldStochasticTileSize.Value = _stochasticTileSize;
 		if (_sldCrossFade != null) _sldCrossFade.Value = _crossFade;
 
+		if (_chkPathGround != null) _chkPathGround.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_GROUND) != 0;
+		if (_chkPathBuildable != null) _chkPathBuildable.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_BUILDABLE) != 0;
+		if (_chkPathShallow != null) _chkPathShallow.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_SHALLOW_WATER) != 0;
+		if (_chkPathDeep != null) _chkPathDeep.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_DEEP_WATER) != 0;
+		if (_chkPathFlying != null) _chkPathFlying.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_FLYING) != 0;
+
+		_setDecalIdValue?.Invoke(string.Empty);
+		_setVfxIdValue?.Invoke(string.Empty);
+		UpdateDecalList();
+		UpdateVfxList();
+
 		UpdateTileModeVisibility();
 		UpdateGraphicsQualityState();
 		OpenDialog();
@@ -609,6 +1052,15 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 	protected override void OnApply()
 	{
+		UpdatePathingMask();
+
+		if (_txtRtexAsset != null)
+		{
+			_rtexAsset = _txtRtexAsset.Text?.Trim() ?? string.Empty;
+		}
+
+		string newTemplateID = string.IsNullOrEmpty(_objectType) ? _slug : $"{_objectType}/{_slug}";
+
 		var currentSnapshot = new TerrainTextureSnapshot
 		{
 			Brightness = _brightness,
@@ -621,32 +1073,86 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			TileMode = _tileMode,
 			UvScale = _uvScale,
 			StochasticTileSize = _stochasticTileSize,
-			CrossFade = _crossFade
+			CrossFade = _crossFade,
+			DefaultPathingCode = _defaultPathingCode,
+			DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules.Select(r => r.Clone())),
+			VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules.Select(r => r.Clone()))
 		};
 
 		if (_initialSnapshot != null)
 		{
-			var action = new TerrainTextureUndoAction(_textureFileName, _initialSnapshot, currentSnapshot);
+			var action = new TerrainTextureUndoAction(newTemplateID, _initialSnapshot, currentSnapshot);
 			EditorHistoryManager.RecordAction(action);
 		}
 
 		var result = new JsonObject
 		{
+			["TemplateID"] = newTemplateID,
+			["SwatchIndex"] = _swatchIndex,
+			["TexturePath"] = _rtexAsset,
 			["Brightness"] = _brightness,
 			["Tint"] = $"#{_tint.ToHtml(false)}",
-			["Roughness_Scale"] = _roughnessScale,
-			["Normal_Scale"] = _normalScale,
-			["Height_Scale"] = _heightScale,
-			["Height_Offset"] = _heightOffset,
-			["Crevice_Power"] = _crevicePower,
-			["Tile_Mode"] = _tileMode,
-			["UV_Scale"] = _uvScale,
-			["Stochastic_Tile_Size"] = _stochasticTileSize,
-			["Cross_Fade"] = _crossFade
+			["RoughnessScale"] = _roughnessScale,
+			["NormalScale"] = _normalScale,
+			["HeightScale"] = _heightScale,
+			["HeightOffset"] = _heightOffset,
+			["CrevicePower"] = _crevicePower,
+			["TileMode"] = _tileMode,
+			["UvScale"] = _uvScale,
+			["StochasticTileSize"] = _stochasticTileSize,
+			["CrossFade"] = _crossFade,
+			["DefaultPathingCode"] = _defaultPathingCode,
+			["DecalBombingRules"] = System.Text.Json.JsonSerializer.SerializeToNode(_decalRules),
+			["VfxBombingRules"] = System.Text.Json.JsonSerializer.SerializeToNode(_vfxRules)
 		};
 
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string metaPath = Path.Combine(wsPath, "metadata.json");
+		if (File.Exists(metaPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot != null)
+		{
+			if (!string.Equals(_textureFileName, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_textureFileName))
+			{
+				metadataRoot.Textures?.Remove(_textureFileName);
+				string alternateOld = _textureFileName.StartsWith("terrain/", StringComparison.OrdinalIgnoreCase)
+					? _textureFileName.Substring("terrain/".Length)
+					: $"terrain/{_textureFileName}";
+				metadataRoot.Textures?.Remove(alternateOld);
+			}
+
+			metadataRoot.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+			var texMeta = new Realm.Shared.Metadata.TextureMetadata
+			{
+				TexturePath = _rtexAsset,
+				SwatchIndex = _swatchIndex,
+				Brightness = _brightness,
+				Tint = $"#{_tint.ToHtml(false)}",
+				RoughnessScale = _roughnessScale,
+				NormalScale = _normalScale,
+				HeightScale = _heightScale,
+				HeightOffset = _heightOffset,
+				CrevicePower = _crevicePower,
+				TileMode = _tileMode,
+				UvScale = _uvScale,
+				StochasticTileSize = _stochasticTileSize,
+				CrossFade = _crossFade,
+				DefaultPathingCode = _defaultPathingCode,
+				DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules),
+				VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules)
+			};
+			metadataRoot.Textures[newTemplateID] = texMeta;
+
+			MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+		}
+
+		MapEditorHUD.Instance?.SetupTextureSwatches(false);
+		if (GameHost.Instance?.GroundTerrain != null)
+		{
+			GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
+			GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+		}
+
 		_onApplied?.Invoke(result);
-		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Texture swatch {0} updated successfully."), _textureFileName));
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Texture swatch {0} updated successfully."), newTemplateID));
 	}
 
 	protected override void OnCancel()
@@ -664,10 +1170,26 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			_uvScale = _initialSnapshot.UvScale;
 			_stochasticTileSize = _initialSnapshot.StochasticTileSize;
 			_crossFade = _initialSnapshot.CrossFade;
+			_defaultPathingCode = _initialSnapshot.DefaultPathingCode;
+			_decalRules.Clear();
+			_vfxRules.Clear();
+			if (_initialSnapshot.DecalBombingRules != null)
+			{
+				foreach (var r in _initialSnapshot.DecalBombingRules) _decalRules.Add(r.Clone());
+			}
+			if (_initialSnapshot.VfxBombingRules != null)
+			{
+				foreach (var r in _initialSnapshot.VfxBombingRules) _vfxRules.Add(r.Clone());
+			}
 
 			if (_optTileMode != null) _optTileMode.Selected = _tileMode == "Stochastic" ? 1 : 0;
 			UpdateTileModeVisibility();
 			ApplyLiveTerrainUpdate();
+			if (GameHost.Instance?.GroundTerrain != null)
+			{
+				GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides(_textureFileName);
+				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+			}
 		}
 	}
 }
