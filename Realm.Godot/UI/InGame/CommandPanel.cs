@@ -949,6 +949,7 @@ public partial class CommandPanel
 			}
 		}
 
+		items.RemoveAll(i => i == null);
 		return items;
 	}
 
@@ -1033,9 +1034,16 @@ public partial class CommandPanel
 		return string.Format(TranslationServer.Translate("Cast {0}"), abilityId.ToUpper());
 	}
 
-	private CommandCardItem CreateAbilityItem(string abilityId, Entity casterEntity)
+	private CommandCardItem? CreateAbilityItem(string abilityId, Entity casterEntity)
 	{
-		var abilityDef = GameHost.Instance?.GetAbilityDefinition(abilityId);
+		var host = GameHost.Instance;
+		var unitWrapper = host?.AllUnits.Find(u => u.Entity == casterEntity);
+		if (host != null && host.IsAbilityHiddenForUnit(unitWrapper, abilityId))
+		{
+			return null;
+		}
+
+		var abilityDef = host?.GetAbilityDefinition(abilityId);
 
 		string iconPath = !string.IsNullOrEmpty(abilityDef?.IconPath)
 			? abilityDef.IconPath
@@ -1045,8 +1053,14 @@ public partial class CommandPanel
 			? abilityDef.Tooltip
 			: GetDefaultAbilityTooltip(abilityId);
 
-		float manaCost = abilityDef?.ManaCost ?? 0f;
+		float manaCost = host != null ? host.GetAbilityManaCostForUnit(unitWrapper, abilityId) : (abilityDef?.ManaCost ?? 0f);
 		bool isInstant = abilityDef != null && abilityDef.IsInstant;
+
+		Key hotkey = Key.None;
+		if (!string.IsNullOrEmpty(abilityDef?.Hotkey) && Enum.TryParse<Key>(abilityDef.Hotkey, true, out var parsedKey))
+		{
+			hotkey = parsedKey;
+		}
 
 		Action callback;
 		if (isInstant)
@@ -1066,11 +1080,15 @@ public partial class CommandPanel
 			ManaCost = manaCost,
 			IconPath = iconPath,
 			Tooltip = tooltip,
-			Hotkey = Key.None,
+			Hotkey = hotkey,
 			Callback = callback,
 			IsDisabled = () => {
-				if (GameHost.Instance?.EcsWorld == null) return false;
-				var world = GameHost.Instance.EcsWorld;
+				if (host != null && host.IsAbilityDisabledForUnit(unitWrapper, abilityId))
+				{
+					return true;
+				}
+				if (host?.EcsWorld == null) return false;
+				var world = host.EcsWorld;
 				if (casterEntity != Entity.Null && world.IsAlive(casterEntity))
 				{
 					if (world.Has<Realm.Ecs.Components.Core.Mana>(casterEntity))
@@ -1087,7 +1105,7 @@ public partial class CommandPanel
 						if (scd != null && scd.TryGetValue(abilityId, out float cd) && cd > 0f) return true;
 					}
 				}
-				if (GameHost.Instance != null && GameHost.Instance.GetPlayerSpellCooldown(abilityId) > 0f)
+				if (host != null && host.GetPlayerSpellCooldown(abilityId) > 0f)
 				{
 					return true;
 				}

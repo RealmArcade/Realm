@@ -10,6 +10,7 @@ public class AbilityDefinition
 	public string Tooltip { get; set; } = "";
 	public string IconPath { get; set; } = "";
 	public bool IsInstant { get; set; }
+	public string Hotkey { get; set; } = "";
 	public int GridX { get; set; } = -1;
 	public int GridY { get; set; } = -1;
 	public float ManaCost { get; set; } = 0f;
@@ -24,7 +25,11 @@ public class AbilityDefinition
 
 public partial class GameHost
 {
-	private readonly Dictionary<string, AbilityDefinition> _abilityDefinitions = CreateDefaultAbilityCatalog();
+		private readonly Dictionary<string, AbilityDefinition> _abilityDefinitions = CreateDefaultAbilityCatalog();
+	private readonly Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> _unitAbilityStates = new();
+	private readonly Dictionary<(int UnitUniqueId, string AbilityId), float> _unitAbilityManaCosts = new();
+	private readonly Dictionary<string, string> _itemTooltips = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<(int PlayerIndex, string TechId), int> _playerTechLevels = new();
 
 	private static Dictionary<string, AbilityDefinition> CreateDefaultAbilityCatalog()
 	{
@@ -201,4 +206,81 @@ public partial class GameHost
 		if (node == null) return;
 		node.TriggerMeshImpulse(strength, duration, frequency);
 	}
+
+	void IGameAPI.SetAbilityHotkey(string abilityId, string hotkey)
+	{
+		if (string.IsNullOrEmpty(abilityId)) return;
+
+		if (!_abilityDefinitions.TryGetValue(abilityId, out var def))
+		{
+			def = new AbilityDefinition { Id = abilityId };
+			_abilityDefinitions[abilityId] = def;
+		}
+
+		def.Hotkey = hotkey ?? "";
+	}
+
+	void IGameAPI.SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden)
+	{
+		if (unit == null || string.IsNullOrEmpty(abilityId)) return;
+		_unitAbilityStates[(unit.UniqueId, abilityId)] = (disabled, hidden);
+	}
+
+	public bool IsAbilityDisabledForUnit(IUnit unit, string abilityId)
+	{
+		if (unit != null && _unitAbilityStates.TryGetValue((unit.UniqueId, abilityId), out var state))
+		{
+			return state.Disabled;
+		}
+		return false;
+	}
+
+	public bool IsAbilityHiddenForUnit(IUnit unit, string abilityId)
+	{
+		if (unit != null && _unitAbilityStates.TryGetValue((unit.UniqueId, abilityId), out var state))
+		{
+			return state.Hidden;
+		}
+		return false;
+	}
+
+	public float GetAbilityManaCostForUnit(IUnit unit, string abilityId)
+	{
+		if (unit != null && _unitAbilityManaCosts.TryGetValue((unit.UniqueId, abilityId), out float cost))
+		{
+			return cost;
+		}
+		var def = GetAbilityDefinition(abilityId);
+		return def?.ManaCost ?? 0f;
+	}
+
+	void IGameAPI.SetItemTooltip(string itemId, string tooltip)
+	{
+		if (string.IsNullOrEmpty(itemId)) return;
+		_itemTooltips[itemId] = tooltip ?? "";
+		if (ItemRegistry.TryGetValue(itemId, out var itemMeta))
+		{
+			itemMeta.Description = tooltip ?? "";
+		}
+	}
+
+	int IGameAPI.GetPlayerTechLevel(int playerIndex, string techId)
+	{
+		if (string.IsNullOrEmpty(techId)) return 0;
+		return _playerTechLevels.TryGetValue((playerIndex, techId), out int level) ? level : 0;
+	}
+
+	void IGameAPI.SetPlayerTechLevel(int playerIndex, string techId, int level)
+	{
+		if (string.IsNullOrEmpty(techId)) return;
+		_playerTechLevels[(playerIndex, techId)] = level;
+	}
+
+	void IGameAPI.AddPlayerTechLevel(int playerIndex, string techId, int delta)
+	{
+		if (string.IsNullOrEmpty(techId)) return;
+		int current = ((IGameAPI)this).GetPlayerTechLevel(playerIndex, techId);
+		_playerTechLevels[(playerIndex, techId)] = current + delta;
+	}
+
 }

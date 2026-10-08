@@ -1634,6 +1634,47 @@ public class {mapName} : IMapScript
 		}).CallDeferred();
 	}
 
+	public event Action<IUnit, string>? OnItemSold;
+	event Action<IUnit, string>? IGameAPI.OnItemSold
+	{
+		add => OnItemSold += value;
+		remove => OnItemSold -= value;
+	}
+
+	public event Action<IUnit>? OnConstructionFinished;
+	event Action<IUnit>? IGameAPI.OnConstructionFinished
+	{
+		add => OnConstructionFinished += value;
+		remove => OnConstructionFinished -= value;
+	}
+
+	public event Action<IUnit, string, System.Numerics.Vector3>? OnUnitOrdered;
+	event Action<IUnit, string, System.Numerics.Vector3>? IGameAPI.OnUnitOrdered
+	{
+		add => OnUnitOrdered += value;
+		remove => OnUnitOrdered -= value;
+	}
+
+	void IGameAPI.SetUnitFacing(IUnit unit, float facingRadians)
+	{
+		if (unit is IEcsEntityWrapper wrapper && EcsWorld.IsAlive(wrapper.Entity))
+		{
+			EcsWorld.SetOrAdd(wrapper.Entity, new RotationY(facingRadians));
+			if (EcsWorld.Has<InterpolationTarget>(wrapper.Entity))
+			{
+				ref var interp = ref EcsWorld.Get<InterpolationTarget>(wrapper.Entity);
+				interp.RotationY = facingRadians;
+			}
+			if (GameHost.TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			{
+				var rot = unit3D.Rotation;
+				rot.Y = facingRadians;
+				unit3D.Rotation = rot;
+			}
+		}
+	}
+
+
 	void IGameAPI.CreateFloatingText(string text, System.Numerics.Vector3 position, System.Numerics.Vector3 color, float duration)
 	{
 		var godotPos = new Vector3(position.X, position.Y, position.Z);
@@ -2388,17 +2429,30 @@ public class {mapName} : IMapScript
 
 	void IGameAPI.IssueAttackMoveOrder(IUnit unit, System.Numerics.Vector3 destination)
 	{
-		unit.AttackMove(destination);
+		if (unit != null)
+		{
+			unit.AttackMove(destination);
+			OnUnitOrdered?.Invoke(unit, "AttackMove", destination);
+		}
 	}
 
 	void IGameAPI.IssueCastOrder(IUnit caster, string abilityId, IUnit target)
 	{
-		caster.Attack(target);
+		if (caster != null)
+		{
+			caster.Attack(target);
+			System.Numerics.Vector3 pos = target?.Position ?? System.Numerics.Vector3.Zero;
+			OnUnitOrdered?.Invoke(caster, abilityId ?? "Cast", pos);
+		}
 	}
 
 	void IGameAPI.IssueCastOrderAt(IUnit caster, string abilityId, System.Numerics.Vector3 position)
 	{
-		caster.AttackMove(position);
+		if (caster != null)
+		{
+			caster.AttackMove(position);
+			OnUnitOrdered?.Invoke(caster, abilityId ?? "CastAt", position);
+		}
 	}
 
 	void IGameAPI.SetAbilityAutoCast(IUnit unit, string abilityId, bool active)
@@ -2610,7 +2664,11 @@ public class {mapName} : IMapScript
 
 	void IGameAPI.IssueMoveOrder(IUnit unit, System.Numerics.Vector3 destination)
 	{
-		unit.MoveTo(destination);
+		if (unit != null)
+		{
+			unit.MoveTo(destination);
+			OnUnitOrdered?.Invoke(unit, "Move", destination);
+		}
 	}
 
 	void IGameAPI.SetUnitSpellImmune(IUnit unit, bool immune)

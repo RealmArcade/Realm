@@ -13,8 +13,16 @@ using System.Collections.Generic;
 
 public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 {
-	private readonly Entity _entity;
+		private readonly Entity _entity;
 	private readonly World _world;
+	private readonly Dictionary<string, int> _itemCharges = new(StringComparer.OrdinalIgnoreCase);
+	private bool _hideHealthAndManaBars;
+
+	public bool HideHealthAndManaBars
+	{
+		get => _hideHealthAndManaBars;
+		set => _hideHealthAndManaBars = value;
+	}
 
 	public Unit_WasmRuntime(Entity entity, World world)
 	{
@@ -684,12 +692,40 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		return true;
 	}
 
+		public bool AddItem(string itemId, int charges)
+	{
+		bool added = AddItem(itemId);
+		if (added)
+		{
+			_itemCharges[itemId] = charges;
+		}
+		return added;
+	}
+
+	public int GetItemCharges(string itemId)
+	{
+		if (HasItem(itemId))
+		{
+			return _itemCharges.TryGetValue(itemId, out int charges) ? charges : 1;
+		}
+		return 0;
+	}
+
+	public void SetItemCharges(string itemId, int charges)
+	{
+		if (HasItem(itemId))
+		{
+			_itemCharges[itemId] = charges;
+		}
+	}
+
 	public bool RemoveItem(string itemId)
 	{
 		if (!_world.IsAlive(_entity)) return false;
 		if (_world.Has<Realm.Ecs.Components.Core.UnitItems>(_entity))
 		{
 			var items = _world.Get<Realm.Ecs.Components.Core.UnitItems>(_entity).Value;
+			_itemCharges.Remove(itemId);
 			return items.Remove(itemId);
 		}
 		return false;

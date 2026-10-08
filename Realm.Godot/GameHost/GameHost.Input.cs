@@ -3179,6 +3179,7 @@ public partial class GameHost
 					var targetUnit = AllUnits.Find(u => u.Entity == targetUnitEntity);
 					InGameHUD.Instance.Gold -= costGold;
 
+					if (targetUnit != null) { OnItemSold?.Invoke(targetUnit, itemId); }
 					InGameHUD.Instance.ShowFeedbackText($"Bought {itemName} for {targetUnit.UnitId.ToUpper()}!", new Color(0.3f, 0.9f, 0.4f));
 					UIManager.Instance?.PlayClickSound();
 					InGameHUD.Instance.RefreshUI(SelectedUnits);
