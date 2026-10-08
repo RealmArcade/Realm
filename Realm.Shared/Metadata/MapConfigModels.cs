@@ -981,6 +981,7 @@ public class VfxAttachmentConfig
 	public string BaseColor { get; set; } = "#ff7711";
 	public string SecondaryColor { get; set; } = "#aa1100";
 	public string CoreColor { get; set; } = "#ffffff";
+	public float ColorMixRatio { get; set; } = 1.0f;
 	public float EmissionBoost { get; set; } = 3.5f;
 	public float CoreThreshold { get; set; } = 0.65f;
 
@@ -1038,6 +1039,7 @@ public class VfxAttachmentConfig
 			BaseColor = BaseColor,
 			SecondaryColor = SecondaryColor,
 			CoreColor = CoreColor,
+			ColorMixRatio = ColorMixRatio,
 			EmissionBoost = EmissionBoost,
 			CoreThreshold = CoreThreshold,
 			LuminanceToAlpha = LuminanceToAlpha,

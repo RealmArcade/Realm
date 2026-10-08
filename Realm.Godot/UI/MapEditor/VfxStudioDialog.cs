@@ -65,6 +65,8 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private HSlider _sliderSecondaryColorHue;
 	private ColorPickerButton _pickerCoreColor;
 	private HSlider _sliderCoreColorHue;
+	private HSlider _sliderColorMixRatio;
+	private Label _lblColorMixRatio;
 	private HSlider _sliderEmissionBoost;
 	private Label _lblEmissionBoost;
 	private HSlider _sliderCoreThreshold;
@@ -551,6 +553,13 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			RestartPreviewVfx();
 		}, 140f);
 
+		(_sliderColorMixRatio, _lblColorMixRatio) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Color Mix Ratio"), 0.0f, 1.0f, 0.02f, _currentConfig.ColorMixRatio, (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_currentConfig.ColorMixRatio = val;
+			RestartPreviewVfx();
+		}, "0.00", 140f);
+
 		(_sliderEmissionBoost, _lblEmissionBoost) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Emission Boost"), 0.0f, 15.0f, 0.2f, _currentConfig.EmissionBoost, (val) =>
 		{
 			if (_isUpdatingUI) return;
@@ -984,6 +993,9 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			if (_sliderCoreColorHue != null) _sliderCoreColorHue.SetValueNoSignal(coreCol.H);
 			if (_pickerCoreColor != null) _pickerCoreColor.Color = coreCol;
 
+			if (_sliderColorMixRatio != null) _sliderColorMixRatio.SetValueNoSignal(_currentConfig.ColorMixRatio);
+			if (_lblColorMixRatio != null) _lblColorMixRatio.Text = _currentConfig.ColorMixRatio.ToString("0.00");
+
 			if (_sliderEmissionBoost != null) _sliderEmissionBoost.SetValueNoSignal(_currentConfig.EmissionBoost);
 			if (_lblEmissionBoost != null) _lblEmissionBoost.Text = _currentConfig.EmissionBoost.ToString("0.0");
 			if (_sliderCoreThreshold != null) _sliderCoreThreshold.SetValueNoSignal(_currentConfig.CoreThreshold);
@@ -1157,6 +1169,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		if (_pickerBaseColor != null) _currentConfig.BaseColor = "#" + _pickerBaseColor.Color.ToHtml(false);
 		if (_pickerSecondaryColor != null) _currentConfig.SecondaryColor = "#" + _pickerSecondaryColor.Color.ToHtml(false);
 		if (_pickerCoreColor != null) _currentConfig.CoreColor = "#" + _pickerCoreColor.Color.ToHtml(false);
+		if (_sliderColorMixRatio != null) _currentConfig.ColorMixRatio = (float)_sliderColorMixRatio.Value;
 		if (_sliderEmissionBoost != null) _currentConfig.EmissionBoost = (float)_sliderEmissionBoost.Value;
 		if (_sliderCoreThreshold != null) _currentConfig.CoreThreshold = (float)_sliderCoreThreshold.Value;
 
@@ -1425,6 +1438,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.BaseColor = "#" + colBase.ToHtml(false);
 			_currentConfig.SecondaryColor = "#" + colSec.ToHtml(false);
 			_currentConfig.CoreColor = "#" + colCore.ToHtml(false);
+			_currentConfig.ColorMixRatio = (float)Math.Round(Random.Shared.NextDouble() * 0.8 + 0.2, 2);
 			_currentConfig.EmissionBoost = (float)Math.Round(Random.Shared.NextDouble() * 7.0 + 1.5, 1);
 			_currentConfig.CoreThreshold = (float)Math.Round(Random.Shared.NextDouble() * 0.6 + 0.3, 2);
 

@@ -27,6 +27,7 @@ uniform float noise_distortion_strength : hint_range(0.0, 2.0) = 0.0;
 uniform vec4 base_color : source_color = vec4(1.0, 0.45, 0.1, 1.0);
 uniform vec4 secondary_color : source_color = vec4(0.8, 0.1, 0.0, 1.0);
 uniform vec4 core_color : source_color = vec4(1.0, 0.95, 0.8, 1.0);
+uniform float color_mix_ratio : hint_range(0.0, 1.0) = 1.0;
 uniform float emission_boost : hint_range(0.0, 20.0) = 3.0;
 uniform float core_threshold : hint_range(0.0, 1.0) = 0.7;
 
@@ -80,6 +81,7 @@ void fragment() {
 	vec2 final_base_uv = UV * base_uv_scale + base_uv_scroll * TIME + noise_offset * (noise_distortion_strength * 0.5);
 
 	float mask = 1.0;
+	vec3 base_tex_rgb = vec3(1.0);
 	if (use_base_texture) {
 		vec4 base_sample;
 		if (use_flipbook && flipbook_columns > 0 && flipbook_rows > 0 && (flipbook_columns > 1 || flipbook_rows > 1)) {
@@ -107,6 +109,8 @@ void fragment() {
 		} else {
 			base_sample = texture(base_texture, final_base_uv);
 		}
+
+		base_tex_rgb = base_sample.rgb;
 
 		if (luminance_to_alpha || use_grayscale) {
 			float lum = dot(base_sample.rgb, vec3(0.299, 0.587, 0.114));
@@ -156,11 +160,13 @@ void fragment() {
 		mask *= depth_fade;
 	}
 
-	vec3 color = mix(secondary_color.rgb, base_color.rgb, clamp(mask * 1.4, 0.0, 1.0));
+	vec3 ramp_color = mix(secondary_color.rgb, base_color.rgb, clamp(mask * 1.4, 0.0, 1.0));
 	if (mask > core_threshold) {
 		float core_factor = clamp((mask - core_threshold) / max(0.001, 1.0 - core_threshold), 0.0, 1.0);
-		color = mix(color, core_color.rgb, core_factor);
+		ramp_color = mix(ramp_color, core_color.rgb, core_factor);
 	}
+
+	vec3 color = use_base_texture ? mix(base_tex_rgb, ramp_color, color_mix_ratio) : ramp_color;
 	color *= (1.0 + (emission_boost - 1.0) * mask);
 
 	if (enable_fresnel) {

@@ -165,6 +165,7 @@ public class VfxShaderManager
 		material.SetShaderParameter("base_color", ParseColorSafe(config.BaseColor, new Color(1.0f, 0.45f, 0.1f, 1.0f)));
 		material.SetShaderParameter("secondary_color", ParseColorSafe(config.SecondaryColor, new Color(0.8f, 0.1f, 0.0f, 1.0f)));
 		material.SetShaderParameter("core_color", ParseColorSafe(config.CoreColor, new Color(1.0f, 0.95f, 0.8f, 1.0f)));
+		material.SetShaderParameter("color_mix_ratio", Mathf.Clamp(config.ColorMixRatio, 0.0f, 1.0f));
 		material.SetShaderParameter("emission_boost", Mathf.Clamp(config.EmissionBoost, 0.0f, 20.0f));
 		material.SetShaderParameter("core_threshold", Mathf.Clamp(config.CoreThreshold, 0.0f, 1.0f));
 
