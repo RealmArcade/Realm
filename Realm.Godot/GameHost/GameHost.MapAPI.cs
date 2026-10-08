@@ -82,6 +82,11 @@ public partial class GameHost
 		def.Tooltip = tooltip ?? "";
 		if (!string.IsNullOrEmpty(iconPath)) def.IconPath = iconPath;
 		def.IsInstant = isInstant;
+
+		if (_multiplayerActive && IsServerActive())
+		{
+			Rpc(nameof(ClientRegisterAbility), abilityId, def.DisplayName, def.Tooltip, def.IconPath, isInstant);
+		}
 	}
 
 	void IGameAPI.SetAbilityInstant(string abilityId, bool isInstant)

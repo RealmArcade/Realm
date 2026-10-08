@@ -1188,6 +1188,10 @@ public partial class GameHost : Node3D, IGameAPI
 			var gColor = new Color(color.X, color.Y, color.Z);
 			InGameHUD.Instance.CallDeferred(nameof(InGameHUD.ShowFeedbackText), text, gColor);
 		}
+		if (_multiplayerActive && IsServerActive())
+		{
+			Rpc(nameof(ClientShowFeedbackText), text, new Vector3(color.X, color.Y, color.Z));
+		}
 	}
 
 
@@ -1196,6 +1200,10 @@ public partial class GameHost : Node3D, IGameAPI
 		GD.Print("[GameHost] Victory triggered by map script!");
 		IsGameOver = true;
 		UIManager.Instance?.CallDeferred(nameof(UIManager.TransitionTo), (int)GameScreen.GameOver, true);
+		if (_multiplayerActive && IsServerActive())
+		{
+			Rpc(nameof(ClientGameOver), true);
+		}
 	}
 
 	void IGameAPI.TriggerDefeat()
@@ -1203,6 +1211,10 @@ public partial class GameHost : Node3D, IGameAPI
 		GD.Print("[GameHost] Defeat triggered by map script!");
 		IsGameOver = true;
 		UIManager.Instance?.CallDeferred(nameof(UIManager.TransitionTo), (int)GameScreen.GameOver, false);
+		if (_multiplayerActive && IsServerActive())
+		{
+			Rpc(nameof(ClientGameOver), false);
+		}
 	}
 
 	IUnit? IGameAPI.GetCastle(bool isEnemy)
@@ -1515,13 +1527,13 @@ public class {mapName} : IMapScript
 	}
 
 
-	void IGameAPI.CreateFloatingText(string text, System.Numerics.Vector3 position, System.Numerics.Vector3 color, float duration)
+	public void CreateFloatingTextInternal(string text, Vector3 position, Color color, float duration)
 	{
 		Callable.From(() =>
 		{
 			var label = new Label3D();
 			label.Text = text;
-			label.Modulate = new Color(color.X, color.Y, color.Z);
+			label.Modulate = color;
 			label.OutlineModulate = Colors.Black;
 			label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
 			label.Position = new Vector3(position.X, position.Y + 1.5f, position.Z);
@@ -1529,11 +1541,25 @@ public class {mapName} : IMapScript
 			AddChild(label);
 
 			var tween = CreateTween();
-			tween.SetParallel(true);
-			tween.TweenProperty(label, "position", label.Position + new Vector3(0, 2.0f, 0), duration);
-			tween.TweenProperty(label, "modulate:a", 0.0f, duration);
-			tween.Chain().TweenCallback(Callable.From(label.QueueFree));
+			if (tween != null)
+			{
+				tween.SetParallel(true);
+				tween.TweenProperty(label, "position", label.Position + new Vector3(0, 2.0f, 0), duration);
+				tween.TweenProperty(label, "modulate:a", 0.0f, duration);
+				tween.Chain().TweenCallback(Callable.From(label.QueueFree));
+			}
 		}).CallDeferred();
+	}
+
+	void IGameAPI.CreateFloatingText(string text, System.Numerics.Vector3 position, System.Numerics.Vector3 color, float duration)
+	{
+		var godotPos = new Vector3(position.X, position.Y, position.Z);
+		var godotCol = new Color(color.X, color.Y, color.Z);
+		CreateFloatingTextInternal(text, godotPos, godotCol, duration);
+		if (_multiplayerActive && IsServerActive())
+		{
+			Rpc(nameof(ClientCreateFloatingText), text, godotPos, new Vector3(color.X, color.Y, color.Z), duration);
+		}
 	}
 
 	private readonly Dictionary<int, Label3D> _staticTextLabels = new();
@@ -1750,11 +1776,19 @@ public class {mapName} : IMapScript
 	void IGameAPI.StartCountdownTimer(float duration, string label)
 	{
 		Callable.From(() => InGameHUD.Instance?.StartCountdownTimer(duration, label)).CallDeferred();
+		if (_multiplayerActive && IsServerActive())
+		{
+			Rpc(nameof(ClientStartCountdownTimer), duration, label);
+		}
 	}
 
 	void IGameAPI.StopCountdownTimer()
 	{
 		Callable.From(() => InGameHUD.Instance?.StopCountdownTimer()).CallDeferred();
+		if (_multiplayerActive && IsServerActive())
+		{
+			Rpc(nameof(ClientStopCountdownTimer));
+		}
 	}
 
 	void IGameAPI.ShakeCamera(float intensity, float duration)
@@ -1780,17 +1814,29 @@ public class {mapName} : IMapScript
 		}).CallDeferred();
 	}
 
-	void IGameAPI.PanCameraTo(System.Numerics.Vector3 position, float duration)
+	public void PanCameraInternal(Vector3 position, float duration)
 	{
 		Callable.From(() =>
 		{
-			var camera = MainCamera;
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<Camera3D>("Main/Camera3D");
 			if (camera == null) return;
 
 			var targetPos = new Vector3(position.X, camera.Position.Y, position.Z + 15.0f);
-			var tween = CreateTween();
-			tween.TweenProperty(camera, "position", targetPos, duration);
+			if (duration <= 0.05f)
+			{
+				camera.Position = targetPos;
+			}
+			else
+			{
+				var tween = CreateTween();
+				tween?.TweenProperty(camera, "position", targetPos, duration);
+			}
 		}).CallDeferred();
+	}
+
+	void IGameAPI.PanCameraTo(System.Numerics.Vector3 position, float duration)
+	{
+		PanCameraInternal(new Vector3(position.X, position.Y, position.Z), duration);
 	}
 
 	void IGameAPI.SetTimeOfDay(float time)
@@ -2056,24 +2102,37 @@ public class {mapName} : IMapScript
 		return 0f;
 	}
 
+	private void SyncPlayerResourceEcs(int playerIndex, float goldAmount)
+	{
+		if (LobbyManager.Instance != null && _peerIdToPlayerEntityMap != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null && _peerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var pe) && EcsWorld.IsAlive(pe))
+			{
+				if (EcsWorld.TryGet<PlayerResources>(pe, out var res))
+				{
+					res.Value[_goldResourceId] = (int)Math.Max(0f, goldAmount);
+				}
+			}
+		}
+	}
+
 	void IGameAPI.SetPlayerGold(int playerIndex, float amount)
 	{
-		if (playerIndex == 0) { ((IGameAPI)this).Gold = amount; return; }
+		if (playerIndex == 0) { ((IGameAPI)this).Gold = amount; }
 		if (EcsWorld?.TryGet<ScriptPlayersState>(_worldEntity, out var playersState) == true
 			&& playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Gold = Math.Max(0f, amount);
 		}
+		SyncPlayerResourceEcs(playerIndex, amount);
 	}
 
 	void IGameAPI.AdjustPlayerGold(int playerIndex, float delta)
 	{
-		if (playerIndex == 0) { ((IGameAPI)this).Gold += delta; return; }
-		if (EcsWorld?.TryGet<ScriptPlayersState>(_worldEntity, out var playersState) == true
-			&& playerIndex >= 0 && playerIndex < playersState.Players.Length)
-		{
-			playersState.Players[playerIndex].Gold = Math.Max(0f, playersState.Players[playerIndex].Gold + delta);
-		}
+		float current = ((IGameAPI)this).GetPlayerGold(playerIndex);
+		float newAmount = Math.Max(0f, current + delta);
+		((IGameAPI)this).SetPlayerGold(playerIndex, newAmount);
 	}
 
 	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, System.Numerics.Vector3 position, int playerIndex, bool executeSpawnShader)
@@ -2081,6 +2140,14 @@ public class {mapName} : IMapScript
 		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
 		var unit = ((IGameAPI)this).SpawnUnit(unitTypeId, position, isEnemy, false, executeSpawnShader);
 		unit.Player = playerIndex;
+		if (playerIndex > 0 && _multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null && p.PeerId > 1)
+			{
+				RpcId(p.PeerId, nameof(ClientPanCameraTo), new Vector3(position.X, position.Y, position.Z), 0f);
+			}
+		}
 		return unit;
 	}
 
@@ -2094,7 +2161,10 @@ public class {mapName} : IMapScript
 
 	void IGameAPI.TriggerPlayerDefeat(int playerIndex, string reason)
 	{
-		if (playerIndex == 0) ((IGameAPI)this).TriggerDefeat();
+		if (!_multiplayerActive && playerIndex == 0)
+		{
+			((IGameAPI)this).TriggerDefeat();
+		}
 	}
 
 	void IGameAPI.TriggerPlayerVictory(int playerIndex)
@@ -2108,13 +2178,31 @@ public class {mapName} : IMapScript
 		GD.Print(formatted);
 		Realm.Godot.WasmRuntime.LogToConsole(formatted);
 		((IGameAPI)this).ShowFeedbackText(message, new System.Numerics.Vector3(0.9f, 0.9f, 0.9f));
+		if (_multiplayerActive && IsServerActive())
+		{
+			LobbyManager.Instance?.SendChatMessage("System", message, false);
+		}
 	}
 
 	void IGameAPI.SendMessageToPlayer(int playerIndex, string message)
 	{
 		string formatted = $"[HOST MESSAGE P{playerIndex}] {message}";
 		Realm.Godot.WasmRuntime.LogToConsole(formatted);
-		if (playerIndex == 0) ((IGameAPI)this).ShowFeedbackText(message, new System.Numerics.Vector3(0.9f, 0.9f, 0.9f));
+		if (playerIndex == 0)
+		{
+			if (InGameHUD.Instance != null)
+			{
+				InGameHUD.Instance.CallDeferred(nameof(InGameHUD.ShowFeedbackText), message, new Color(0.9f, 0.9f, 0.9f));
+			}
+		}
+		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null && p.PeerId > 1)
+			{
+				RpcId(p.PeerId, nameof(ClientShowFeedbackText), message, new Vector3(0.9f, 0.9f, 0.9f));
+			}
+		}
 	}
 
 	private event Action<int>? _onTimerExpired;
@@ -3066,6 +3154,10 @@ public class {mapName} : IMapScript
 		GD.Print($"[GAMEHOST_READY] GameHost _Ready starting");
 		Instance = this;
 		GameSettings.ApplyGraphicsSettings(this);
+		if (LobbyManager.Instance != null)
+		{
+			LobbyManager.Instance.ServerChatCommandReceived += HandleServerChatCommand;
+		}
 		ReinitializeEcsAndServices();
 	}
 
@@ -3562,6 +3654,11 @@ public class {mapName} : IMapScript
 			HostStabilityTracker.AddGameSummary(summary);
 		}
 
+		if (LobbyManager.Instance != null)
+		{
+			LobbyManager.Instance.ServerChatCommandReceived -= HandleServerChatCommand;
+		}
+
 		if (Instance == this) Instance = null;
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
@@ -3572,6 +3669,23 @@ public class {mapName} : IMapScript
 		_shroudService?.CleanUp();
 		_environmentService?.Cleanup();
 		StopRecording();
+	}
+
+	private void HandleServerChatCommand(int slot, string message)
+	{
+		if (!IsServerActive()) return;
+
+		IUnit? heroUnit = null;
+		foreach (var u in AllUnits)
+		{
+			if (GodotObject.IsInstanceValid(u) && u.Player == slot && EcsWorld != null && EcsWorld.IsAlive(u.Entity) && !EcsWorld.Has<Dead>(u.Entity))
+			{
+				heroUnit = GetUnitWrapper(u.Entity);
+				break;
+			}
+		}
+
+		OnPlayerChatMessage?.Invoke(message, heroUnit);
 	}
 
 	private void CreateGround()

@@ -231,6 +231,7 @@ public partial class LobbyManager : Node
 
     public event Action? PlayerListUpdated;
     public event Action<string, string, bool>? ChatReceived;
+    public event Action<int, string>? ServerChatCommandReceived;
     public event Action<string>? ConnectionFailed;
     public event Action<string>? KickReceived;
     public event Action? NatTestCompleted;
@@ -2183,6 +2184,7 @@ public partial class LobbyManager : Node
             }
             else
             {
+                ServerChatCommandReceived?.Invoke(LocalPlayer?.Slot ?? 0, message);
                 _ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly);
             }
         }
@@ -2465,6 +2467,11 @@ public partial class LobbyManager : Node
     {
         if (IsHost)
         {
+            int senderPeerId = Multiplayer.GetRemoteSenderId();
+            if (senderPeerId <= 0) senderPeerId = 1;
+            var senderPlayer = PlayerList.Find(p => p.PeerId == senderPeerId);
+            int senderSlot = senderPlayer?.Slot ?? 0;
+            ServerChatCommandReceived?.Invoke(senderSlot, message);
             _ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly);
         }
         else

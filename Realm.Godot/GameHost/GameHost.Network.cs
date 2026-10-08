@@ -645,12 +645,89 @@ public partial class GameHost
 			}
 		}
 
+		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<CountdownState>(_worldEntity))
+		{
+			var countdown = EcsWorld.Get<CountdownState>(_worldEntity);
+			if (countdown.Active)
+			{
+				RpcId(newPeerId, nameof(ClientStartCountdownTimer), countdown.Duration, countdown.Text);
+			}
+		}
+
+		foreach (var kvp in _abilityDefinitions)
+		{
+			RpcId(newPeerId, nameof(ClientRegisterAbility), kvp.Key, kvp.Value.DisplayName, kvp.Value.Tooltip, kvp.Value.IconPath ?? "", kvp.Value.IsInstant);
+		}
+
 		if (IsPaused)
 		{
 			RpcId(newPeerId, nameof(BroadcastPauseState), true, 1, false);
 			var serializedReady = System.Text.Json.JsonSerializer.Serialize(_playerReadyStates);
 			RpcId(newPeerId, nameof(BroadcastReadyStates), serializedReady);
 		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientRegisterAbility(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
+	{
+		if (string.IsNullOrEmpty(abilityId)) return;
+
+		if (!_abilityDefinitions.TryGetValue(abilityId, out var def))
+		{
+			def = new AbilityDefinition { Id = abilityId };
+			_abilityDefinitions[abilityId] = def;
+		}
+
+		def.DisplayName = displayName ?? "";
+		def.Tooltip = tooltip ?? "";
+		if (!string.IsNullOrEmpty(iconPath)) def.IconPath = iconPath;
+		def.IsInstant = isInstant;
+
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientShowFeedbackText(string text, Vector3 color)
+	{
+		if (InGameHUD.Instance != null)
+		{
+			var gColor = new Color(color.X, color.Y, color.Z);
+			InGameHUD.Instance.CallDeferred(nameof(InGameHUD.ShowFeedbackText), text, gColor);
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
+	public void ClientCreateFloatingText(string text, Vector3 position, Vector3 color, float duration)
+	{
+		CreateFloatingTextInternal(text, position, new Color(color.X, color.Y, color.Z), duration);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientStartCountdownTimer(float duration, string label)
+	{
+		Callable.From(() => InGameHUD.Instance?.StartCountdownTimer(duration, label)).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientStopCountdownTimer()
+	{
+		Callable.From(() => InGameHUD.Instance?.StopCountdownTimer()).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPanCameraTo(Vector3 position, float duration)
+	{
+		Callable.From(() =>
+		{
+			PanCameraInternal(position, duration);
+		}).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientGameOver(bool isVictory)
+	{
+		IsGameOver = true;
+		UIManager.Instance?.CallDeferred(nameof(UIManager.TransitionTo), (int)GameScreen.GameOver, isVictory);
 	}
 
 	public void OnClientReconnected(int slot)
