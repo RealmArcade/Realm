@@ -1372,20 +1372,23 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						break;
 
 					case "item" or "items":
-						string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", slug);
-						meta.Templates ??= new();
-						meta.Templates.Items ??= new();
-						if (!meta.Templates.Items.Any(i => string.Equals(i.TemplateID, itemTemplateId, StringComparison.OrdinalIgnoreCase)))
+						if (fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 						{
-							meta.Templates.Items.Add(new ItemMetadata
+							string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", slug);
+							meta.Templates ??= new();
+							meta.Templates.Items ??= new();
+							if (!meta.Templates.Items.Any(i => string.Equals(i.TemplateID, itemTemplateId, StringComparison.OrdinalIgnoreCase)))
 							{
-								TemplateID = itemTemplateId,
-								Name = slug,
-								Description = "",
-								ItemClass = "consumable",
-								IconPath = fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : null,
-								CanDrop = true
-							});
+								meta.Templates.Items.Add(new ItemMetadata
+								{
+									TemplateID = itemTemplateId,
+									Name = slug,
+									Description = "",
+									ItemClass = "consumable",
+									IconPath = fileName,
+									CanDrop = true
+								});
+							}
 						}
 						break;
 
