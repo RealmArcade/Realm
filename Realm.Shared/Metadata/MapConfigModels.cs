@@ -636,12 +636,7 @@ public enum VfxPrimitiveType
 	AuraCapsule,
 	AuraSphere,
 	ProjectedVolumeCube,
-	ParticleSystem,
-	EnergyCylinder,
-	GroundAuraRing,
-	BurstSphere,
-	ProjectedDecal,
-	ParticleEmitter
+	ParticleSystem
 }
 
 public enum VfxBlendMode
