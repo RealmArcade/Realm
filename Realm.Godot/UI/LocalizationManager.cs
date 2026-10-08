@@ -134,6 +134,12 @@ public static class LocalizationManager
 		return dict;
 	}
 
+	private static readonly object SyncLock = new object();
+	private static Dictionary<string, string>? _enCatalog;
+	private static bool _isDirty;
+	private static System.Threading.Timer? _debounceTimer;
+	private static bool _initializedProcessExit;
+
 	public static bool IsLocaleRtl(string locale)
 	{
 		return locale == "ar";
@@ -144,17 +150,129 @@ public static class LocalizationManager
 		return TranslationServer.GetLocale();
 	}
 
+	public static string Translate(string key, string fallback = "")
+	{
+		return TranslateKey(key, fallback);
+	}
+
 	public static string TranslateKey(string key, string fallback = "")
 	{
 		if (string.IsNullOrEmpty(key)) return "";
 		string translated = TranslationServer.Translate(key);
-		if (string.IsNullOrEmpty(translated) || translated == key)
+		if (!string.IsNullOrEmpty(translated) && translated != key)
+		{
+			return translated;
+		}
+		if (!OS.IsDebugBuild())
 		{
 			var enDict = GetDictionary("en");
 			if (enDict != null && enDict.TryGetValue(key, out var enVal))
 				return enVal;
 			return !string.IsNullOrEmpty(fallback) ? fallback : key;
 		}
-		return translated;
+		return TranslateKeyDebug(key, fallback);
+	}
+
+	private static string TranslateKeyDebug(string key, string fallback)
+	{
+		EnsureEnCatalogLoaded();
+		lock (SyncLock)
+		{
+			if (_enCatalog!.TryGetValue(key, out var enVal))
+			{
+				return enVal;
+			}
+
+			string recordVal = !string.IsNullOrEmpty(fallback) ? fallback : key;
+			_enCatalog[key] = recordVal;
+			_isDirty = true;
+			ScheduleDebouncedFlush();
+			return recordVal;
+		}
+	}
+
+	private static void EnsureEnCatalogLoaded()
+	{
+		if (_enCatalog != null) return;
+		lock (SyncLock)
+		{
+			if (_enCatalog != null) return;
+			_enCatalog = GetDictionary("en") ?? new Dictionary<string, string>();
+			if (!_initializedProcessExit)
+			{
+				_initializedProcessExit = true;
+				AppDomain.CurrentDomain.ProcessExit += (s, e) => FlushPendingWrites();
+			}
+		}
+	}
+
+	private static void ScheduleDebouncedFlush()
+	{
+		lock (SyncLock)
+		{
+			_debounceTimer?.Dispose();
+			_debounceTimer = new System.Threading.Timer(_ => FlushPendingWrites(), null, 1000, System.Threading.Timeout.Infinite);
+		}
+	}
+
+	public static void FlushPendingWrites()
+	{
+		if (!OS.IsDebugBuild() || !_isDirty || _enCatalog == null) return;
+
+		lock (SyncLock)
+		{
+			if (!_isDirty || _enCatalog == null) return;
+			_isDirty = false;
+			_debounceTimer?.Dispose();
+			_debounceTimer = null;
+
+			try
+			{
+				string filePath = GetEnJsonDiskPath();
+				if (string.IsNullOrEmpty(filePath)) return;
+
+				string? dir = System.IO.Path.GetDirectoryName(filePath);
+				if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir))
+				{
+					System.IO.Directory.CreateDirectory(dir);
+				}
+
+				var options = new JsonSerializerOptions
+				{
+					WriteIndented = true,
+					Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+				};
+				string json = JsonSerializer.Serialize(_enCatalog, options);
+				System.IO.File.WriteAllText(filePath, json);
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"Failed to flush en.json: {ex.Message}");
+			}
+		}
+	}
+
+	private static string GetEnJsonDiskPath()
+	{
+		try
+		{
+			string resPath = ProjectSettings.GlobalizePath("res://locale/en.json");
+			if (!string.IsNullOrEmpty(resPath) && resPath != "res://locale/en.json")
+			{
+				return resPath;
+			}
+		}
+		catch
+		{
+		}
+
+		string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+		string localPath = System.IO.Path.Combine(baseDir, "locale", "en.json");
+		if (System.IO.File.Exists(localPath)) return localPath;
+
+		string repoPath = System.IO.Path.Combine(baseDir, "..", "..", "..", "..", "Realm.Godot", "locale", "en.json");
+		if (System.IO.File.Exists(repoPath)) return System.IO.Path.GetFullPath(repoPath);
+
+		return localPath;
 	}
 }

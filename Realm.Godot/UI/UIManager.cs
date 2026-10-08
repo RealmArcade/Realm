@@ -95,6 +95,13 @@ public partial class UIManager : Control
 	public override void _Notification(int what)
 	{
 		base._Notification(what);
+		if (what == unchecked((int)NotificationWMCloseRequest) ||
+		    what == unchecked((int)NotificationApplicationPaused) ||
+		    what == unchecked((int)NotificationApplicationFocusOut))
+		{
+			LocalizationManager.FlushPendingWrites();
+		}
+
 		if (what == unchecked((int)NotificationWMCloseRequest))
 		{
 			if (MapEditorHUD.Instance != null && GodotObject.IsInstanceValid(MapEditorHUD.Instance) && MapEditorHUD.Instance.IsInsideTree())
