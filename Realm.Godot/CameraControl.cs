@@ -625,6 +625,25 @@ public partial class CameraControl : Camera3D
 					{
 						return;
 					}
+					if (GameHost.Instance != null)
+					{
+						if (GameHost.Instance.IsMapEditorMode && MapEditorHUD.Instance != null && MapEditorHUD.Instance.IsMouseOverUI(mouseBtn.Position))
+						{
+							return;
+						}
+						if (!GameHost.Instance.IsMapEditorMode && InGameHUD.Instance != null && InGameHUD.Instance.IsMouseOverUI(mouseBtn.Position))
+						{
+							return;
+						}
+					}
+					var hoveredControl = GetViewport()?.GuiGetHoveredControl();
+					if (hoveredControl != null && hoveredControl is not SubViewport && hoveredControl is not Window && hoveredControl.GetType().Name != "GameHost")
+					{
+						if (MapEditorHUD.Instance == null || hoveredControl != MapEditorHUD.Instance)
+						{
+							return;
+						}
+					}
 				}
 
 				if (mouseBtn.ButtonIndex == MouseButton.WheelUp)

@@ -10,6 +10,22 @@ public partial class FloatingDialogBase : PanelContainer
 	private static readonly List<FloatingDialogBase> _openDialogs = new();
 	public static bool HasAnyDialogOpen => _openDialogs.Count > 0;
 
+	public static bool IsMouseOverAnyDialogOpen(Vector2 mousePos)
+	{
+		for (int i = _openDialogs.Count - 1; i >= 0; i--)
+		{
+			var dialog = _openDialogs[i];
+			if (dialog != null && GodotObject.IsInstanceValid(dialog) && dialog.IsOpen && dialog.IsVisibleInTree())
+			{
+				if (dialog.GetGlobalRect().HasPoint(mousePos))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	public static bool CloseTopmostDialog()
 	{
 		for (int i = _openDialogs.Count - 1; i >= 0; i--)

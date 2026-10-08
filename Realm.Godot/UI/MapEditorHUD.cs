@@ -9937,7 +9937,7 @@ public partial class MapEditorHUD : Control
 		{
 			return true;
 		}
-		if (FloatingDialogBase.HasAnyDialogOpen)
+		if (FloatingDialogBase.IsMouseOverAnyDialogOpen(mousePos))
 		{
 			return true;
 		}
