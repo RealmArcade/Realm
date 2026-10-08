@@ -180,28 +180,14 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		var topToolbar = new HBoxContainer();
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
-		AddButton(topToolbar, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () =>
-		{
-			string code;
-			if (_currentConfig.PrimitiveType == VfxPrimitiveType.VortexDisc)
-			{
-				code = $"api.SpawnExpandingGroundRing(targetPos, 8.0f, 12.0f, 1.0f);";
-			}
-			else if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraSphere)
-			{
-				code = $"api.SpawnExpandingBurstSphere(targetPos, 6.0f, 15.0f, 0.8f);";
-			}
-			else if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraCapsule || _currentConfig.PrimitiveType == VfxPrimitiveType.HemisphereDome)
-			{
-				code = $"api.AttachPersistentAura(unit, \"{_vfxId}\", 1.0f);";
-			}
-			else
-			{
-				code = $"api.SpawnVisualEffect(\"{_vfxId}\", targetPos, 1.0f);";
-			}
-			DisplayServer.ClipboardSet(code);
-			Hud?.ShowFeedback(TranslationServer.Translate("Copied script code to clipboard"));
-		}, "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
+		AddButton(topToolbar, $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("VFX"), () => RestartPreviewVfx(), "Restart procedural effect", 10, new Vector2(0, 22));
+		AddButton(topToolbar, $"{UnicodeIcons.WATER} " + TranslationServer.Translate("Wave"), () => TriggerPreviewShockwave(), "Test directional ground planar shockwave", 10, new Vector2(0, 22));
+		AddButton(topToolbar, $"{UnicodeIcons.CIRCLE} " + TranslationServer.Translate("Ring"), () => TriggerPreviewRing(), "Test radial expanding ground ring", 10, new Vector2(0, 22));
+		AddButton(topToolbar, $"{UnicodeIcons.SUN} " + TranslationServer.Translate("Burst"), () => TriggerPreviewBurst(), "Test expanding 3D burst sphere", 10, new Vector2(0, 22));
+		AddButton(topToolbar, $"{UnicodeIcons.EXPAND_ARROWS} " + TranslationServer.Translate("Chain"), () => TriggerPreviewChain(), "Test multi-segment ribbon chain beam", 10, new Vector2(0, 22));
+		AddButton(topToolbar, $"{UnicodeIcons.CLOUD_SHOWERS} " + TranslationServer.Translate("Barrage"), () => TriggerPreviewBarrage(), "Test randomized area barrage volley", 10, new Vector2(0, 22));
+
+		AddButton(topToolbar, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () => CopyScriptCode(), "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
 
 		var separator = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		topToolbar.AddChild(separator);
@@ -1657,6 +1643,102 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[VfxStudioDialog] SaveSpritesheetGrid error: {ex.Message}");
+		}
+	}
+
+	private void CopyScriptCode()
+	{
+		string code;
+		if (_currentConfig.PrimitiveType == VfxPrimitiveType.VortexDisc)
+		{
+			code = $"api.SpawnExpandingGroundRing(targetPos, 8.0f, 12.0f, 1.0f);";
+		}
+		else if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraSphere)
+		{
+			code = $"api.SpawnExpandingBurstSphere(targetPos, 6.0f, 15.0f, 0.8f);";
+		}
+		else if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraCapsule || _currentConfig.PrimitiveType == VfxPrimitiveType.HemisphereDome)
+		{
+			code = $"api.AttachPersistentAura(unit, \"{_vfxId}\", 1.0f);";
+		}
+		else
+		{
+			code = $"api.SpawnVisualEffect(\"{_vfxId}\", targetPos, 1.0f);";
+		}
+		DisplayServer.ClipboardSet(code);
+		Hud?.ShowFeedback(TranslationServer.Translate("Copied script code to clipboard"));
+	}
+
+	private void TriggerPreviewShockwave()
+	{
+		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
+		Color col = new Color(baseCol.R, baseCol.G, baseCol.B, 0.9f);
+		var shock = GroundShockwave3D.Create(PreviewSceneRoot, new Vector3(0, 0, -2.5f), ShockwaveType.PlanarWave, maxRadius: 6.0f, speed: 10.0f, duration: 0.9f, col);
+		shock.ConformToTerrain = false;
+		shock.Direction = Vector3.Back;
+	}
+
+	private void TriggerPreviewRing()
+	{
+		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
+		Color col = new Color(baseCol.R, baseCol.G, baseCol.B, 0.9f);
+		var ring = GroundShockwave3D.Create(PreviewSceneRoot, Vector3.Zero, ShockwaveType.ExpandingGroundRing, maxRadius: 5.0f, speed: 8.0f, duration: 0.9f, col);
+		ring.ConformToTerrain = false;
+	}
+
+	private void TriggerPreviewBurst()
+	{
+		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
+		Color col = new Color(baseCol.R, baseCol.G, baseCol.B, 0.8f);
+		var burst = GroundShockwave3D.Create(PreviewSceneRoot, new Vector3(0, 0.8f, 0), ShockwaveType.ExpandingBurstSphere, maxRadius: 4.0f, speed: 10.0f, duration: 0.7f, col);
+		burst.ConformToTerrain = false;
+	}
+
+	private void TriggerPreviewChain()
+	{
+		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
+		Color col = new Color(baseCol.R, baseCol.G, baseCol.B, 1.0f);
+		var pts = new Vector3[]
+		{
+			new Vector3(-2.5f, 0.5f, -1.5f),
+			new Vector3(-0.5f, 1.2f, 0.5f),
+			new Vector3(1.5f, 0.6f, -0.5f),
+			new Vector3(2.5f, 1.0f, 1.5f)
+		};
+		ChainBeam3D.Create(PreviewSceneRoot, pts, jumpDelay: 0.08f, forkCount: 2, fadeLifetime: 0.45f, width: 0.35f, col);
+	}
+
+	private void TriggerPreviewBarrage()
+	{
+		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		var rng = new Random();
+		int count = 8;
+		float interval = 0.12f;
+		for (int i = 0; i < count; i++)
+		{
+			float delay = i * interval;
+			var timer = GetTree().CreateTimer(delay);
+			timer.Timeout += () =>
+			{
+				if (!GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+				float angle = (float)(rng.NextDouble() * Math.PI * 2.0);
+				float dist = (float)(rng.NextDouble() * 3.5f);
+				var impactPos = new Vector3(Mathf.Cos(angle) * dist, 0.05f, Mathf.Sin(angle) * dist);
+				var subVfx = new ProceduralVfxInstance3D();
+				subVfx.IsPreview = true;
+				PreviewSceneRoot.AddChild(subVfx);
+				subVfx.Position = impactPos;
+				subVfx.Initialize(_currentConfig);
+				var cleanupTimer = GetTree().CreateTimer(1.2f);
+				cleanupTimer.Timeout += () =>
+				{
+					if (GodotObject.IsInstanceValid(subVfx)) subVfx.QueueFree();
+				};
+			};
 		}
 	}
 }
