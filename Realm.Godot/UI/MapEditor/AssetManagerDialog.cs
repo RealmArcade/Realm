@@ -1437,7 +1437,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						}
 						break;
 
-					case "spritesheet" or "spritesheets" or "vfx" or "vfx_radial" or "vfx_vertical":
+					case "spritesheet" or "spritesheets" or "vfx":
 						string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 						meta.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
 						if (!meta.VfxSpritesheets.ContainsKey(spritesheetTemplateId))
