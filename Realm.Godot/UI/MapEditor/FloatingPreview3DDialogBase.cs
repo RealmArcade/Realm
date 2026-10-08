@@ -146,53 +146,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		Aabb totalAabb = new Aabb();
 		bool hasMesh = false;
 
-		void CollectAabb(Node node, Transform3D parentTransform)
-		{
-			Transform3D currentTransform = parentTransform;
-			if (node is Node3D n3D)
-			{
-				currentTransform = parentTransform * n3D.Transform;
-			}
-
-			if (node is MeshInstance3D meshInstance && meshInstance.Mesh != null)
-			{
-				Aabb localAabb = meshInstance.GetAabb();
-				Vector3 min = localAabb.Position;
-				Vector3 max = localAabb.End;
-				Vector3[] corners = new Vector3[]
-				{
-					currentTransform * new Vector3(min.X, min.Y, min.Z),
-					currentTransform * new Vector3(max.X, min.Y, min.Z),
-					currentTransform * new Vector3(min.X, max.Y, min.Z),
-					currentTransform * new Vector3(max.X, max.Y, min.Z),
-					currentTransform * new Vector3(min.X, min.Y, max.Z),
-					currentTransform * new Vector3(max.X, min.Y, max.Z),
-					currentTransform * new Vector3(min.X, max.Y, max.Z),
-					currentTransform * max
-				};
-
-				Aabb globalMeshAabb = new Aabb(corners[0], Vector3.Zero);
-				foreach (var c in corners) globalMeshAabb = globalMeshAabb.Expand(c);
-
-				if (!hasMesh)
-				{
-					totalAabb = globalMeshAabb;
-					hasMesh = true;
-				}
-				else
-				{
-					totalAabb = totalAabb.Merge(globalMeshAabb);
-				}
-			}
-
-			int childCount = node.GetChildCount();
-			for (int i = 0; i < childCount; i++)
-			{
-				CollectAabb(node.GetChild(i), currentTransform);
-			}
-		}
-
-		CollectAabb(rootNode, Transform3D.Identity);
+		CollectAabb(rootNode, Transform3D.Identity, ref totalAabb, ref hasMesh);
 
 		if (hasMesh && totalAabb.Size.LengthSquared() > 0.001f)
 		{
@@ -210,55 +164,127 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		UpdateCameraTransform();
 	}
 
+	private void CollectAabb(Node node, Transform3D parentTransform, ref Aabb totalAabb, ref bool hasMesh)
+	{
+		Transform3D currentTransform = parentTransform;
+		if (node is Node3D n3D)
+		{
+			currentTransform = parentTransform * n3D.Transform;
+		}
+
+		ProcessMeshInstance(node, currentTransform, ref totalAabb, ref hasMesh);
+
+		int childCount = node.GetChildCount();
+		for (int i = 0; i < childCount; i++)
+		{
+			CollectAabb(node.GetChild(i), currentTransform, ref totalAabb, ref hasMesh);
+		}
+	}
+
+	private void ProcessMeshInstance(Node node, Transform3D currentTransform, ref Aabb totalAabb, ref bool hasMesh)
+	{
+		if (node is not MeshInstance3D meshInstance || meshInstance.Mesh == null) return;
+
+		Aabb globalMeshAabb = GetGlobalAabb(meshInstance, currentTransform);
+
+		if (!hasMesh)
+		{
+			totalAabb = globalMeshAabb;
+			hasMesh = true;
+		}
+		else
+		{
+			totalAabb = totalAabb.Merge(globalMeshAabb);
+		}
+	}
+
+	private Aabb GetGlobalAabb(MeshInstance3D meshInstance, Transform3D currentTransform)
+	{
+		Aabb localAabb = meshInstance.GetAabb();
+		Vector3 min = localAabb.Position;
+		Vector3 max = localAabb.End;
+		Vector3[] corners = new Vector3[]
+		{
+			currentTransform * new Vector3(min.X, min.Y, min.Z),
+			currentTransform * new Vector3(max.X, min.Y, min.Z),
+			currentTransform * new Vector3(min.X, max.Y, min.Z),
+			currentTransform * new Vector3(max.X, max.Y, min.Z),
+			currentTransform * new Vector3(min.X, min.Y, max.Z),
+			currentTransform * new Vector3(max.X, min.Y, max.Z),
+			currentTransform * new Vector3(min.X, max.Y, max.Z),
+			currentTransform * max
+		};
+
+		Aabb globalMeshAabb = new Aabb(corners[0], Vector3.Zero);
+		foreach (var c in corners) globalMeshAabb = globalMeshAabb.Expand(c);
+
+		return globalMeshAabb;
+	}
+
 	protected virtual void OnViewportGuiInput(InputEvent @event)
 	{
 		if (@event is InputEventMouseButton mb)
 		{
-			if (mb.ButtonIndex == MouseButton.Left || mb.ButtonIndex == MouseButton.Right)
-			{
-				if (mb.ButtonIndex == MouseButton.Right && (Input.IsKeyPressed(Key.Shift) || Input.IsKeyPressed(Key.Ctrl)))
-				{
-					IsPanning = mb.Pressed;
-				}
-				else
-				{
-					IsOrbiting = mb.Pressed;
-				}
-				LastMousePosition = mb.Position;
-			}
-			else if (mb.ButtonIndex == MouseButton.Middle)
-			{
-				IsPanning = mb.Pressed;
-				LastMousePosition = mb.Position;
-			}
-			else if (mb.ButtonIndex == MouseButton.WheelUp)
-			{
-				ZoomCamera(-1.0f);
-			}
-			else if (mb.ButtonIndex == MouseButton.WheelDown)
-			{
-				ZoomCamera(1.0f);
-			}
+			HandleMouseButton(mb);
 		}
 		else if (@event is InputEventMouseMotion mm)
 		{
-			Vector2 delta = mm.Position - LastMousePosition;
-			LastMousePosition = mm.Position;
+			HandleMouseMotion(mm);
+		}
+	}
 
-			if (IsOrbiting)
-			{
-				CameraYaw -= delta.X * 0.01f;
-				CameraPitch -= delta.Y * 0.01f;
-				UpdateCameraTransform();
-			}
-			else if (IsPanning && PreviewCamera != null && GodotObject.IsInstanceValid(PreviewCamera))
-			{
-				Vector3 camRight = PreviewCamera.GlobalTransform.Basis.X;
-				Vector3 camUp = PreviewCamera.GlobalTransform.Basis.Y;
-				float panSpeed = CameraDistance * 0.0025f;
-				TargetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
-				UpdateCameraTransform();
-			}
+	private void HandleMouseButton(InputEventMouseButton mb)
+	{
+		if (mb.ButtonIndex == MouseButton.Left || mb.ButtonIndex == MouseButton.Right)
+		{
+			HandleLeftOrRightClick(mb);
+		}
+		else if (mb.ButtonIndex == MouseButton.Middle)
+		{
+			IsPanning = mb.Pressed;
+			LastMousePosition = mb.Position;
+		}
+		else if (mb.ButtonIndex == MouseButton.WheelUp)
+		{
+			ZoomCamera(-1.0f);
+		}
+		else if (mb.ButtonIndex == MouseButton.WheelDown)
+		{
+			ZoomCamera(1.0f);
+		}
+	}
+
+	private void HandleLeftOrRightClick(InputEventMouseButton mb)
+	{
+		if (mb.ButtonIndex == MouseButton.Right && (Input.IsKeyPressed(Key.Shift) || Input.IsKeyPressed(Key.Ctrl)))
+		{
+			IsPanning = mb.Pressed;
+		}
+		else
+		{
+			IsOrbiting = mb.Pressed;
+		}
+		LastMousePosition = mb.Position;
+	}
+
+	private void HandleMouseMotion(InputEventMouseMotion mm)
+	{
+		Vector2 delta = mm.Position - LastMousePosition;
+		LastMousePosition = mm.Position;
+
+		if (IsOrbiting)
+		{
+			CameraYaw -= delta.X * 0.01f;
+			CameraPitch -= delta.Y * 0.01f;
+			UpdateCameraTransform();
+		}
+		else if (IsPanning && PreviewCamera != null && GodotObject.IsInstanceValid(PreviewCamera))
+		{
+			Vector3 camRight = PreviewCamera.GlobalTransform.Basis.X;
+			Vector3 camUp = PreviewCamera.GlobalTransform.Basis.Y;
+			float panSpeed = CameraDistance * 0.0025f;
+			TargetPosition -= (camRight * delta.X - camUp * delta.Y) * panSpeed;
+			UpdateCameraTransform();
 		}
 	}
 

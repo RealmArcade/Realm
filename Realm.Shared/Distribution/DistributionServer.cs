@@ -899,26 +899,54 @@ public class DistributionServer
         string? partName = ExtractHeaderParameter(headers, "name");
         string? partFileName = ExtractHeaderParameter(headers, "filename");
 
-        if (string.Equals(partName, "file", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrEmpty(partFileName))
+        if (IsFileSection(partName, partFileName))
         {
-            if (!string.IsNullOrEmpty(partFileName)) fileName = partFileName;
-            fileBytes = contentBytes;
+            ProcessFileSection(partFileName, contentBytes, ref fileName, ref fileBytes);
+            return;
         }
-        else if (string.Equals(partName, "metadata", StringComparison.OrdinalIgnoreCase))
+
+        ProcessTextSection(partName, contentBytes, ref metadataJson, ref authorPublicKey, ref authorSignature, ref hash);
+    }
+
+    private static bool IsFileSection(string? partName, string? partFileName)
+    {
+        return string.Equals(partName, "file", StringComparison.OrdinalIgnoreCase) || !string.IsNullOrEmpty(partFileName);
+    }
+
+    private static void ProcessFileSection(string? partFileName, byte[] contentBytes, ref string? fileName, ref byte[]? fileBytes)
+    {
+        if (!string.IsNullOrEmpty(partFileName))
+        {
+            fileName = partFileName;
+        }
+        fileBytes = contentBytes;
+    }
+
+    private static void ProcessTextSection(string? partName, byte[] contentBytes,
+        ref string? metadataJson, ref string? authorPublicKey, ref string? authorSignature, ref string? hash)
+    {
+        if (string.Equals(partName, "metadata", StringComparison.OrdinalIgnoreCase))
         {
             metadataJson = Encoding.UTF8.GetString(contentBytes);
+            return;
         }
-        else if (string.Equals(partName, "authorPublicKey", StringComparison.OrdinalIgnoreCase) || string.Equals(partName, "PublicKey", StringComparison.OrdinalIgnoreCase))
+
+        if (string.Equals(partName, "authorPublicKey", StringComparison.OrdinalIgnoreCase) || string.Equals(partName, "PublicKey", StringComparison.OrdinalIgnoreCase))
         {
             authorPublicKey = Encoding.UTF8.GetString(contentBytes);
+            return;
         }
-        else if (string.Equals(partName, "authorSignature", StringComparison.OrdinalIgnoreCase) || string.Equals(partName, "Signature", StringComparison.OrdinalIgnoreCase))
+
+        if (string.Equals(partName, "authorSignature", StringComparison.OrdinalIgnoreCase) || string.Equals(partName, "Signature", StringComparison.OrdinalIgnoreCase))
         {
             authorSignature = Encoding.UTF8.GetString(contentBytes);
+            return;
         }
-        else if (string.Equals(partName, "Hash", StringComparison.OrdinalIgnoreCase) || string.Equals(partName, "hash", StringComparison.OrdinalIgnoreCase))
+
+        if (string.Equals(partName, "hash", StringComparison.OrdinalIgnoreCase))
         {
             hash = Encoding.UTF8.GetString(contentBytes);
+            return;
         }
     }
 

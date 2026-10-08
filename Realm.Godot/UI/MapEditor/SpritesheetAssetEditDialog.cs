@@ -179,56 +179,60 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		return rtexFiles.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 	}
 
-	public void OpenForSheet(string fullTemplateId, string rtexAsset, int initialCols, int initialRows, float initialFps, bool initialSubframeBlend, Action<string, string, int, int, float, bool> onApplied)
+	private void InitializeBaseData(string fileName, int initialCols, int initialRows, float initialFps, bool initialSubframeBlend)
 	{
-		_sheetFileName = fullTemplateId ?? string.Empty;
+		_sheetFileName = fileName ?? string.Empty;
 		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_sheetFileName);
 		_objectType = !string.IsNullOrEmpty(parsedType) ? parsedType : "spritesheet";
 		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_sheetFileName);
-
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		if (!string.IsNullOrEmpty(rtexAsset))
-		{
-			_rtexAsset = rtexAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(rtexAsset) : $"{Path.GetFileName(rtexAsset)}.rtex";
-		}
-		else if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
-		{
-			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.TexturePath))
-			{
-				_rtexAsset = ssMeta.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ssMeta.TexturePath) : $"{Path.GetFileName(ssMeta.TexturePath)}.rtex";
-			}
-			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.TexturePath))
-			{
-				_rtexAsset = ssMeta2.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(ssMeta2.TexturePath) : $"{Path.GetFileName(ssMeta2.TexturePath)}.rtex";
-			}
-			else
-			{
-				_rtexAsset = string.Empty;
-			}
-		}
-		else
-		{
-			_rtexAsset = string.Empty;
-		}
-
-		if (string.IsNullOrEmpty(_rtexAsset))
-		{
-			var candidates = ScanRtexAssets(true);
-			string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
-				?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
-			if (!string.IsNullOrEmpty(candidateMatch))
-			{
-				_rtexAsset = candidateMatch;
-			}
-		}
 
 		_columns = Math.Max(1, initialCols);
 		_rows = Math.Max(1, initialRows);
 		_fps = initialFps > 0.001f ? initialFps : 20.0f;
 		_subframeBlend = initialSubframeBlend;
-		_onAppliedWithTemplateIdAndRtex = onApplied;
-		_onApplied = null;
+	}
 
+	private static string FormatRtexFilename(string texturePath)
+	{
+		if (texturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			return Path.GetFileName(texturePath);
+		
+		return $"{Path.GetFileName(texturePath)}.rtex";
+	}
+
+	private string GetRtexFromMetadata(string wsPath, string sheetFileName, string slug)
+	{
+		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta))
+			return string.Empty;
+
+		if (meta.VfxSpritesheets == null)
+			return string.Empty;
+
+		if (meta.VfxSpritesheets.TryGetValue(sheetFileName, out var ssMeta))
+		{
+			if (ssMeta != null && !string.IsNullOrEmpty(ssMeta.TexturePath))
+				return FormatRtexFilename(ssMeta.TexturePath);
+		}
+
+		if (meta.VfxSpritesheets.TryGetValue(slug, out var ssMeta2))
+		{
+			if (ssMeta2 != null && !string.IsNullOrEmpty(ssMeta2.TexturePath))
+				return FormatRtexFilename(ssMeta2.TexturePath);
+		}
+
+		return string.Empty;
+	}
+
+	private string FindCandidateRtexAsset(string slug)
+	{
+		var candidates = ScanRtexAssets(true);
+		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{slug}.rtex", StringComparison.OrdinalIgnoreCase))
+			?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), slug, StringComparison.OrdinalIgnoreCase));
+		return candidateMatch ?? string.Empty;
+	}
+
+	private void UpdateUIAndOpen()
+	{
 		TitleLabel.Text = $"{TranslationServer.Translate("Edit Spritesheet")} - {_sheetFileName}";
 
 		if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = $"{_objectType}/";
@@ -242,56 +246,48 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		OpenDialog();
 	}
 
+	private string ResolveRtexAsset(string providedAsset, string wsPath, string sheetFileName, string slug, bool searchCandidates)
+	{
+		if (!string.IsNullOrEmpty(providedAsset))
+		{
+			return providedAsset.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(providedAsset) : $"{Path.GetFileName(providedAsset)}.rtex";
+		}
+
+		string metadataAsset = GetRtexFromMetadata(wsPath, sheetFileName, slug);
+		if (!string.IsNullOrEmpty(metadataAsset))
+		{
+			return metadataAsset;
+		}
+
+		if (searchCandidates)
+		{
+			return FindCandidateRtexAsset(slug);
+		}
+
+		return string.Empty;
+	}
+
+	public void OpenForSheet(string fullTemplateId, string rtexAsset, int initialCols, int initialRows, float initialFps, bool initialSubframeBlend, Action<string, string, int, int, float, bool> onApplied)
+	{
+		InitializeBaseData(fullTemplateId, initialCols, initialRows, initialFps, initialSubframeBlend);
+		_onAppliedWithTemplateIdAndRtex = onApplied;
+		_onApplied = null;
+
+		_rtexAsset = ResolveRtexAsset(rtexAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, true);
+
+		UpdateUIAndOpen();
+	}
+
 	public void OpenForSheet(string fileName, int initialCols, int initialRows, float initialFps, bool initialSubframeBlend, Action<int, int, float, bool> onApplied)
 	{
-		_sheetFileName = fileName ?? string.Empty;
-		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_sheetFileName);
-		_objectType = !string.IsNullOrEmpty(parsedType) ? parsedType : "spritesheet";
-		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_sheetFileName);
-
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		if (!string.IsNullOrEmpty(fileName) && fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			_rtexAsset = Path.GetFileName(fileName);
-		}
-		else if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
-		{
-			if (meta.VfxSpritesheets.TryGetValue(_sheetFileName, out var ssMeta) && !string.IsNullOrEmpty(ssMeta?.TexturePath) && ssMeta.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-			{
-				_rtexAsset = Path.GetFileName(ssMeta.TexturePath);
-			}
-			else if (meta.VfxSpritesheets.TryGetValue(_slug, out var ssMeta2) && !string.IsNullOrEmpty(ssMeta2?.TexturePath) && ssMeta2.TexturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-			{
-				_rtexAsset = Path.GetFileName(ssMeta2.TexturePath);
-			}
-			else
-			{
-				_rtexAsset = string.Empty;
-			}
-		}
-		else
-		{
-			_rtexAsset = string.Empty;
-		}
-
-		_columns = Math.Max(1, initialCols);
-		_rows = Math.Max(1, initialRows);
-		_fps = initialFps > 0.001f ? initialFps : 20.0f;
-		_subframeBlend = initialSubframeBlend;
+		InitializeBaseData(fileName, initialCols, initialRows, initialFps, initialSubframeBlend);
 		_onApplied = onApplied;
 		_onAppliedWithTemplateIdAndRtex = null;
 
-		TitleLabel.Text = $"{TranslationServer.Translate("Edit Spritesheet")} - {_sheetFileName}";
+		string providedAsset = !string.IsNullOrEmpty(fileName) && fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : string.Empty;
+		_rtexAsset = ResolveRtexAsset(providedAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, false);
 
-		if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = $"{_objectType}/";
-		if (_txtSlug != null) _txtSlug.Text = _slug;
-		_setRtexAssetValue?.Invoke(_rtexAsset);
-		if (_spinCols != null) _spinCols.Value = _columns;
-		if (_spinRows != null) _spinRows.Value = _rows;
-		if (_spinFps != null) _spinFps.Value = _fps;
-		if (_chkSubframeBlend != null) _chkSubframeBlend.ButtonPressed = _subframeBlend;
-
-		OpenDialog();
+		UpdateUIAndOpen();
 	}
 
 	public void OpenForSheet(string fileName, int initialCols, int initialRows, float initialFps, Action<int, int, float> onApplied)
@@ -304,34 +300,29 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		OpenForSheet(fileName, initialCols, initialRows, 20.0f, (cols, rows, fps) => onApplied?.Invoke(cols, rows));
 	}
 
+	private int GetSpinBoxInt(SpinBox spinBox, int fallback)
+	{
+		if (spinBox == null) return fallback;
+		spinBox.Apply();
+		if (int.TryParse(spinBox.GetLineEdit()?.Text, out int result))
+			return Math.Clamp(result, (int)spinBox.MinValue, (int)spinBox.MaxValue);
+		return (int)spinBox.Value;
+	}
+
+	private float GetSpinBoxFloat(SpinBox spinBox, float fallback)
+	{
+		if (spinBox == null) return fallback;
+		spinBox.Apply();
+		if (float.TryParse(spinBox.GetLineEdit()?.Text, out float result))
+			return Math.Clamp(result, (float)spinBox.MinValue, (float)spinBox.MaxValue);
+		return (float)spinBox.Value;
+	}
+
 	protected override void OnApply()
 	{
-		if (_spinCols != null)
-		{
-			_spinCols.Apply();
-			if (int.TryParse(_spinCols.GetLineEdit()?.Text, out int c))
-				_columns = Math.Clamp(c, (int)_spinCols.MinValue, (int)_spinCols.MaxValue);
-			else
-				_columns = (int)_spinCols.Value;
-		}
-
-		if (_spinRows != null)
-		{
-			_spinRows.Apply();
-			if (int.TryParse(_spinRows.GetLineEdit()?.Text, out int r))
-				_rows = Math.Clamp(r, (int)_spinRows.MinValue, (int)_spinRows.MaxValue);
-			else
-				_rows = (int)_spinRows.Value;
-		}
-
-		if (_spinFps != null)
-		{
-			_spinFps.Apply();
-			if (float.TryParse(_spinFps.GetLineEdit()?.Text, out float f))
-				_fps = Math.Clamp(f, (float)_spinFps.MinValue, (float)_spinFps.MaxValue);
-			else
-				_fps = (float)_spinFps.Value;
-		}
+		_columns = GetSpinBoxInt(_spinCols, _columns);
+		_rows = GetSpinBoxInt(_spinRows, _rows);
+		_fps = GetSpinBoxFloat(_spinFps, _fps);
 
 		if (_chkSubframeBlend != null)
 		{

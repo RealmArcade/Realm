@@ -305,38 +305,55 @@ public class WasmConsoleWindow
 	{
 		if (msg == WM_SIZE)
 		{
-			int w = (int)(lParam.ToInt64() & 0xFFFF);
-			int h = (int)((lParam.ToInt64() >> 16) & 0xFFFF);
-			long sizeType = wParam.ToInt64();
-			if (sizeType == 1) // SIZE_MINIMIZED
-			{
-				_isVisible = false;
-			}
-			else if (sizeType == 0 || sizeType == 2) // SIZE_RESTORED or SIZE_MAXIMIZED
-			{
-				if (w > 0 && h > 0 && IsWindowVisible(hWnd))
-				{
-					_isVisible = true;
-				}
-			}
-
-			if (_controller != null && sizeType != 1)
-			{
-				_controller.Bounds = new System.Drawing.Rectangle(0, 0, w, h);
-			}
+			return HandleWmSize(hWnd, msg, wParam, lParam);
 		}
-		else if (msg == WM_CLOSE)
+		
+		if (msg == WM_CLOSE)
 		{
-			_actionQueue.Enqueue(() =>
-			{
-				ShowWindow(hWnd, SW_HIDE);
-				_isVisible = false;
-				RestoreGodotFocus();
-			});
-			PostMessage(hWnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-			return IntPtr.Zero;
+			return HandleWmClose(hWnd);
 		}
+		
 		return DefWindowProc(hWnd, msg, wParam, lParam);
+	}
+
+	private IntPtr HandleWmSize(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+	{
+		int w = (int)(lParam.ToInt64() & 0xFFFF);
+		int h = (int)((lParam.ToInt64() >> 16) & 0xFFFF);
+		long sizeType = wParam.ToInt64();
+
+		if (sizeType == 1) // SIZE_MINIMIZED
+		{
+			_isVisible = false;
+			return DefWindowProc(hWnd, msg, wParam, lParam);
+		}
+
+		if (sizeType == 0 || sizeType == 2) // SIZE_RESTORED or SIZE_MAXIMIZED
+		{
+			if (w > 0 && h > 0 && IsWindowVisible(hWnd))
+			{
+				_isVisible = true;
+			}
+		}
+
+		if (_controller != null)
+		{
+			_controller.Bounds = new System.Drawing.Rectangle(0, 0, w, h);
+		}
+
+		return DefWindowProc(hWnd, msg, wParam, lParam);
+	}
+
+	private IntPtr HandleWmClose(IntPtr hWnd)
+	{
+		_actionQueue.Enqueue(() =>
+		{
+			ShowWindow(hWnd, SW_HIDE);
+			_isVisible = false;
+			RestoreGodotFocus();
+		});
+		PostMessage(hWnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+		return IntPtr.Zero;
 	}
 
 	private async void InitializeWebView()
@@ -351,79 +368,102 @@ public class WasmConsoleWindow
 			_controller.Bounds = new System.Drawing.Rectangle(0, 0, 760, 520);
 			_controller.IsVisible = false;
 
-			_controller.AcceleratorKeyPressed += (sender, args) =>
-			{
-				if (args.VirtualKey == 0xC0 || args.VirtualKey == 0xDF || args.VirtualKey == 0x1B) // VK_OEM_3 (~), VK_OEM_8, or VK_ESCAPE
-				{
-					if (args.KeyEventKind == CoreWebView2KeyEventKind.KeyDown || args.KeyEventKind == CoreWebView2KeyEventKind.SystemKeyDown)
-					{
-						args.Handled = true;
-						_actionQueue.Enqueue(() =>
-						{
-							SetVisible(false);
-							RestoreGodotFocus();
-						});
-						PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-					}
-				}
-			};
-
-			_controller.CoreWebView2.WebMessageReceived += (sender, args) =>
-			{
-				try
-				{
-					string rawJson = args.WebMessageAsJson;
-					using var doc = System.Text.Json.JsonDocument.Parse(rawJson);
-					var root = doc.RootElement;
-					if (root.TryGetProperty("action", out var actionProp))
-					{
-						string action = actionProp.GetString() ?? "";
-						if (action == "sendCommand" && root.TryGetProperty("text", out var textProp))
-						{
-							SendCommand(textProp.GetString() ?? "");
-						}
-						else if (action == "copyLogs" && root.TryGetProperty("text", out var copyTextProp))
-						{
-							string textToCopy = copyTextProp.GetString() ?? "";
-							Callable.From(() => DisplayServer.ClipboardSet(textToCopy)).CallDeferred();
-							SetStatus("✓ Console output copied to clipboard!", new Color(0, 0.9f, 1.0f));
-						}
-						else if (action == "hideConsole")
-						{
-							SetVisible(false);
-							RestoreGodotFocus();
-						}
-					}
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr("Error handling WebView message: " + ex.Message);
-				}
-			};
-
-			_controller.CoreWebView2.NavigationCompleted += (sender, args) =>
-			{
-				_isWebViewReady = true;
-				FlushBufferedLogs();
-				if (_isVisible)
-				{
-					PositionOnScreen();
-					ShowWindow(_childHwnd, SW_SHOW);
-					ShowWindow(_childHwnd, SW_RESTORE);
-					SetForegroundWindow(_childHwnd);
-					if (_controller != null) _controller.IsVisible = true;
-				}
-				else
-				{
-					ShowWindow(_childHwnd, SW_HIDE);
-				}
-			};
+			_controller.AcceleratorKeyPressed += HandleAcceleratorKey;
+			_controller.CoreWebView2.WebMessageReceived += HandleWebMessage;
+			_controller.CoreWebView2.NavigationCompleted += HandleNavigationCompleted;
 
 			_controller.CoreWebView2.NavigateToString(GetConsoleHtml());
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr("Failed to initialize WasmConsole WebView2: " + ex.Message);
+		}
+	}
+
+	private void HandleAcceleratorKey(object? sender, CoreWebView2AcceleratorKeyPressedEventArgs args)
+	{
+		if (args.VirtualKey != 0xC0 && args.VirtualKey != 0xDF && args.VirtualKey != 0x1B) // VK_OEM_3 (~), VK_OEM_8, or VK_ESCAPE
+		{
+			return;
+		}
+
+		if (args.KeyEventKind != CoreWebView2KeyEventKind.KeyDown && args.KeyEventKind != CoreWebView2KeyEventKind.SystemKeyDown)
+		{
+			return;
+		}
+
+		args.Handled = true;
+		_actionQueue.Enqueue(() =>
+		{
+			SetVisible(false);
+			RestoreGodotFocus();
+		});
+		PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+	}
+
+	private void HandleWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs args)
+	{
+		try
+		{
+			string rawJson = args.WebMessageAsJson;
+			using var doc = System.Text.Json.JsonDocument.Parse(rawJson);
+			var root = doc.RootElement;
+			if (!root.TryGetProperty("action", out var actionProp))
+			{
+				return;
+			}
+
+			string action = actionProp.GetString() ?? "";
+			HandleWebViewAction(action, root);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr("Error handling WebView message: " + ex.Message);
+		}
+	}
+
+	private void HandleWebViewAction(string action, System.Text.Json.JsonElement root)
+	{
+		if (action == "sendCommand" && root.TryGetProperty("text", out var textProp))
+		{
+			SendCommand(textProp.GetString() ?? "");
+			return;
+		}
+		
+		if (action == "copyLogs" && root.TryGetProperty("text", out var copyTextProp))
+		{
+			string textToCopy = copyTextProp.GetString() ?? "";
+			Callable.From(() => DisplayServer.ClipboardSet(textToCopy)).CallDeferred();
+			SetStatus("✓ Console output copied to clipboard!", new Color(0, 0.9f, 1.0f));
+			return;
+		}
+		
+		if (action == "hideConsole")
+		{
+			SetVisible(false);
+			RestoreGodotFocus();
+			return;
+		}
+	}
+
+	private void HandleNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
+	{
+		_isWebViewReady = true;
+		FlushBufferedLogs();
+		
+		if (!_isVisible)
+		{
+			ShowWindow(_childHwnd, SW_HIDE);
+			return;
+		}
+
+		PositionOnScreen();
+		ShowWindow(_childHwnd, SW_SHOW);
+		ShowWindow(_childHwnd, SW_RESTORE);
+		SetForegroundWindow(_childHwnd);
+		if (_controller != null)
+		{
+			_controller.IsVisible = true;
 		}
 	}
 

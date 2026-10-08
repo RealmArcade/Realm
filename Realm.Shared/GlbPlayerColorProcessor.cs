@@ -90,29 +90,34 @@ public static class GlbPlayerColorProcessor
             byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
             if (glbBytes == null) return false;
 
-            var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
-            if (jsonNode is not JsonObject root || binChunk == null) return false;
-
-            var textures = root["textures"] as JsonArray;
-            var materials = root["materials"] as JsonArray;
-            var images = root["images"] as JsonArray;
-            var bufferViews = root["bufferViews"] as JsonArray;
-
-            if (textures == null || materials == null || images == null || bufferViews == null) return false;
-
-            int ormImageIndex = FindOrmImageIndex(textures, materials);
-            if (ormImageIndex < 0) return false;
-
-            byte[] ormRaw = ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
-            if (ormRaw.Length == 0) return false;
-
-            using var ormImg = SKBitmap.Decode(ormRaw);
-            return CheckOrmTeamColorMask(ormImg);
+            return DetectSupportsTeamColorFromGlb(glbBytes);
         }
         catch
         {
             return false;
         }
+    }
+
+    private static bool DetectSupportsTeamColorFromGlb(byte[] glbBytes)
+    {
+        var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
+        if (jsonNode is not JsonObject root || binChunk == null) return false;
+
+        var textures = root["textures"] as JsonArray;
+        var materials = root["materials"] as JsonArray;
+        var images = root["images"] as JsonArray;
+        var bufferViews = root["bufferViews"] as JsonArray;
+
+        if (textures == null || materials == null || images == null || bufferViews == null) return false;
+
+        int ormImageIndex = FindOrmImageIndex(textures, materials);
+        if (ormImageIndex < 0) return false;
+
+        byte[] ormRaw = ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
+        if (ormRaw.Length == 0) return false;
+
+        using var ormImg = SKBitmap.Decode(ormRaw);
+        return CheckOrmTeamColorMask(ormImg);
     }
 
     private static string? AutoDetectChromaKeyFromModel(string filePath)
@@ -142,8 +147,7 @@ public static class GlbPlayerColorProcessor
             {
                 return AutoDetectChromaKeyFromModel(filePath);
             }
-            byte[] glbBytes = File.ReadAllBytes(filePath);
-            return AutoDetectChromaKey(glbBytes);
+            return AutoDetectChromaKey(File.ReadAllBytes(filePath));
         }
         catch
         {
@@ -159,29 +163,34 @@ public static class GlbPlayerColorProcessor
             byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
             if (glbBytes == null) return null;
 
-            var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
-            if (jsonNode is not JsonObject root || binChunk == null) return null;
-
-            var textures = root["textures"] as JsonArray;
-            var materials = root["materials"] as JsonArray;
-            var images = root["images"] as JsonArray;
-            var bufferViews = root["bufferViews"] as JsonArray;
-
-            if (textures == null || materials == null || images == null || bufferViews == null) return null;
-
-            int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
-            if (albedoImageIndex < 0) return null;
-
-            byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
-            if (albedoRaw.Length == 0) return null;
-
-            using var albedoImg = SKBitmap.Decode(albedoRaw);
-            return AutoDetectChromaKey(albedoImg);
+            return ExtractAlbedoAndDetectChroma(glbBytes);
         }
         catch
         {
             return null;
         }
+    }
+
+    private static string? ExtractAlbedoAndDetectChroma(byte[] glbBytes)
+    {
+        var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
+        if (jsonNode is not JsonObject root || binChunk == null) return null;
+
+        var textures = root["textures"] as JsonArray;
+        var materials = root["materials"] as JsonArray;
+        var images = root["images"] as JsonArray;
+        var bufferViews = root["bufferViews"] as JsonArray;
+
+        if (textures == null || materials == null || images == null || bufferViews == null) return null;
+
+        int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
+        if (albedoImageIndex < 0) return null;
+
+        byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
+        if (albedoRaw.Length == 0) return null;
+
+        using var albedoImg = SKBitmap.Decode(albedoRaw);
+        return AutoDetectChromaKey(albedoImg);
     }
 
     public static string AutoDetectChromaKey(SKBitmap albedoImg)
@@ -195,13 +204,44 @@ public static class GlbPlayerColorProcessor
         return "#FF00FF";
     }
 
+    private static int ProcessCandidatePixelsForChromaKey(SKBitmap albedoImg, float targetHueUnitX, float targetHueUnitY, Dictionary<int, int> candidateColorCounts)
+    {
+        int totalCandidatePixels = 0;
+        for (int y = 0; y < albedoImg.Height; y++)
+        {
+            for (int x = 0; x < albedoImg.Width; x++)
+            {
+                var pixel = albedoImg.GetPixel(x, y);
+                if (pixel.Alpha < 128) continue;
+
+                float r = pixel.Red / 255f;
+                float g = pixel.Green / 255f;
+                float b = pixel.Blue / 255f;
+
+                var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+                float pChromaSquared = pA * pA + pB * pB;
+
+                if (pChromaSquared < 0.0036f || pL < 0.08f || pL > 0.98f) continue;
+
+                float pChroma = MathF.Sqrt(pChromaSquared);
+                float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
+
+                if (hueDot < 0.75f) continue;
+
+                int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
+                candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
+                totalCandidatePixels++;
+            }
+        }
+        return totalCandidatePixels;
+    }
+
     public static string? FindClosestMatchingChromaKey(string filePath, string inputChromaKey)
     {
         if (!File.Exists(filePath)) return null;
         try
         {
-            byte[] glbBytes = File.ReadAllBytes(filePath);
-            return FindClosestMatchingChromaKey(glbBytes, inputChromaKey);
+            return FindClosestMatchingChromaKey(File.ReadAllBytes(filePath), inputChromaKey);
         }
         catch
         {
@@ -214,27 +254,16 @@ public static class GlbPlayerColorProcessor
         if (glbOrRmeshBytes.Length == 0) return null;
         try
         {
-            byte[] glbBytes;
-            if (RmeshFile.IsRmeshBytes(glbOrRmeshBytes))
-            {
-                byte[]? extractedGlb = RmeshFile.GetGlbBytes(glbOrRmeshBytes);
-                if (extractedGlb == null || extractedGlb.Length == 0) return null;
-                glbBytes = extractedGlb;
-            }
-            else
-            {
-                glbBytes = glbOrRmeshBytes.ToArray();
-            }
+            byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
+            if (glbBytes == null) return null;
 
             var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
             if (jsonNode is not JsonObject root || binChunk == null) return null;
 
-            var textures = root["textures"] as JsonArray;
-            var materials = root["materials"] as JsonArray;
-            var images = root["images"] as JsonArray;
-            var bufferViews = root["bufferViews"] as JsonArray;
-
-            if (textures == null || materials == null || images == null || bufferViews == null) return null;
+            if (!TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
+            {
+                return null;
+            }
 
             int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
             if (albedoImageIndex < 0) return null;
@@ -277,35 +306,7 @@ public static class GlbPlayerColorProcessor
         float targetHueUnitY = targetBComponent / targetChroma;
 
         var candidateColorCounts = new Dictionary<int, int>();
-        int totalCandidatePixels = 0;
-
-        for (int y = 0; y < albedoImg.Height; y++)
-        {
-            for (int x = 0; x < albedoImg.Width; x++)
-            {
-                var pixel = albedoImg.GetPixel(x, y);
-                if (pixel.Alpha < 128) continue;
-
-                float r = pixel.Red / 255f;
-                float g = pixel.Green / 255f;
-                float b = pixel.Blue / 255f;
-
-                var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-                float pChromaSquared = pA * pA + pB * pB;
-
-                if (pChromaSquared < 0.0036f) continue;
-                if (pL < 0.08f || pL > 0.98f) continue;
-
-                float pChroma = MathF.Sqrt(pChromaSquared);
-                float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-                if (hueDot < 0.75f) continue;
-
-                int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
-                candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
-                totalCandidatePixels++;
-            }
-        }
+        int totalCandidatePixels = ProcessCandidatePixelsForChromaKey(albedoImg, targetHueUnitX, targetHueUnitY, candidateColorCounts);
 
         if (candidateColorCounts.Count == 0)
         {
@@ -324,52 +325,14 @@ public static class GlbPlayerColorProcessor
                 continue;
             }
 
-            byte rByte = (byte)((rgbKey >> 16) & 0xFF);
-            byte gByte = (byte)((rgbKey >> 8) & 0xFF);
-            byte bByte = (byte)(rgbKey & 0xFF);
-
-            float r = rByte / 255f;
-            float g = gByte / 255f;
-            float b = bByte / 255f;
-
-            var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-            float pChroma = MathF.Sqrt(pA * pA + pB * pB);
-            float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-            float hueFactor = MathF.Pow(MathF.Max(0f, hueDot), 2f);
-            float score = (pL * pL) * pChroma * hueFactor * MathF.Log2(1 + count);
-
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestRgbKey = rgbKey;
-            }
+            CalculateAndCheckScore(rgbKey, count, targetHueUnitX, targetHueUnitY, ref bestScore, ref bestRgbKey);
         }
 
         if (bestRgbKey < 0)
         {
             foreach (var (rgbKey, count) in candidateColorCounts)
             {
-                byte rByte = (byte)((rgbKey >> 16) & 0xFF);
-                byte gByte = (byte)((rgbKey >> 8) & 0xFF);
-                byte bByte = (byte)(rgbKey & 0xFF);
-
-                float r = rByte / 255f;
-                float g = gByte / 255f;
-                float b = bByte / 255f;
-
-                var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-                float pChroma = MathF.Sqrt(pA * pA + pB * pB);
-                float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-                float hueFactor = MathF.Pow(MathF.Max(0f, hueDot), 2f);
-                float score = (pL * pL) * pChroma * hueFactor * MathF.Log2(1 + count);
-
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    bestRgbKey = rgbKey;
-                }
+                CalculateAndCheckScore(rgbKey, count, targetHueUnitX, targetHueUnitY, ref bestScore, ref bestRgbKey);
             }
         }
 
@@ -709,27 +672,16 @@ public static class GlbPlayerColorProcessor
         GlbPlayerColorOptions options)
     {
         var (jsonNode, binChunk, glbVersion) = GlbManifestUtils.ParseGlb(glbBytes);
-
-        if (jsonNode is not JsonObject root || binChunk == null)
+        var root = jsonNode as JsonObject;
+        
+        if (root == null || binChunk == null || !TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
         {
-            return (false, null, "Failed to parse GLB: missing JSON or BIN chunk.", 0, 0, null);
+            return (false, null, "Failed to parse GLB or missing basic arrays.", 0, 0, null);
         }
 
-        var meshes = root["meshes"] as JsonArray;
-        var accessors = root["accessors"] as JsonArray;
-        var bufferViews = root["bufferViews"] as JsonArray;
-        var materials = root["materials"] as JsonArray;
-        var images = root["images"] as JsonArray;
-        var textures = root["textures"] as JsonArray;
-
-        if (meshes == null || accessors == null || bufferViews == null)
+        if (!TryGetMeshArrays(root, out var meshes, out var accessors))
         {
-            return (false, null, "GLB lacks required mesh/accessor/bufferView data.", 0, 0, null);
-        }
-
-        if (images == null || textures == null || materials == null)
-        {
-            return (false, null, "GLB lacks required image/texture/material data.", 0, 0, null);
+            return (false, null, "GLB lacks required mesh/accessor data.", 0, 0, null);
         }
 
         int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
@@ -916,10 +868,7 @@ public static class GlbPlayerColorProcessor
         }
     }
 
-    private static void EvaluateFaceSeedStatus(
-        int faceIdx, Vector2 uv0, Vector2 uv1, Vector2 uv2,
-        bool[] seedMask, bool[] floodFillMask, int texW, int texH,
-        bool[] isSeedFace, bool[] isFloodCandidateFace)
+    private static (int SeedHits, int FloodHits, int TotalSampled) SampleTriangleMasks(Vector2 uv0, Vector2 uv1, Vector2 uv2, bool[] seedMask, bool[] floodFillMask, int texW, int texH)
     {
         int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
         int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
@@ -943,6 +892,15 @@ public static class GlbPlayerColorProcessor
                 if (floodFillMask[idx]) floodHits++;
             }
         }
+        return (seedHits, floodHits, totalSampled);
+    }
+
+    private static void EvaluateFaceSeedStatus(
+        int faceIdx, Vector2 uv0, Vector2 uv1, Vector2 uv2,
+        bool[] seedMask, bool[] floodFillMask, int texW, int texH,
+        bool[] isSeedFace, bool[] isFloodCandidateFace)
+    {
+        var (seedHits, floodHits, totalSampled) = SampleTriangleMasks(uv0, uv1, uv2, seedMask, floodFillMask, texW, texH);
 
         if (totalSampled > 0)
         {
@@ -1346,6 +1304,26 @@ public static class GlbPlayerColorProcessor
         return (cb, cr);
     }
 
+    private static void AppendIndexedVec2Faces(List<(Vector2, Vector2, Vector2)> result, List<Vector2> data, List<int> indices)
+    {
+        for (int i = 0; i + 2 < indices.Count; i += 3)
+        {
+            int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+            if (i0 < data.Count && i1 < data.Count && i2 < data.Count)
+            {
+                result.Add((data[i0], data[i1], data[i2]));
+            }
+        }
+    }
+
+    private static void AppendSequentialVec2Faces(List<(Vector2, Vector2, Vector2)> result, List<Vector2> data)
+    {
+        for (int i = 0; i + 2 < data.Count; i += 3)
+        {
+            result.Add((data[i], data[i + 1], data[i + 2]));
+        }
+    }
+
     private static List<(Vector2 UV0, Vector2 UV1, Vector2 UV2)> ExtractFaceUvData(
         JsonObject primObj,
         JsonArray accessors,
@@ -1365,24 +1343,34 @@ public static class GlbPlayerColorProcessor
         if (indexAccessorIndex >= 0 && indexAccessorIndex < accessors.Count)
         {
             var indices = ReadAccessorIndices(accessors, bufferViews, bin, indexAccessorIndex);
-            for (int i = 0; i + 2 < indices.Count; i += 3)
-            {
-                int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
-                if (i0 < uvData.Count && i1 < uvData.Count && i2 < uvData.Count)
-                {
-                    result.Add((uvData[i0], uvData[i1], uvData[i2]));
-                }
-            }
+            AppendIndexedVec2Faces(result, uvData, indices);
         }
         else
         {
-            for (int i = 0; i + 2 < uvData.Count; i += 3)
-            {
-                result.Add((uvData[i], uvData[i + 1], uvData[i + 2]));
-            }
+            AppendSequentialVec2Faces(result, uvData);
         }
 
         return result;
+    }
+
+    private static void AppendIndexedVec3Faces(List<(Vector3, Vector3, Vector3)> result, List<Vector3> data, List<int> indices)
+    {
+        for (int i = 0; i + 2 < indices.Count; i += 3)
+        {
+            int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+            if (i0 < data.Count && i1 < data.Count && i2 < data.Count)
+            {
+                result.Add((data[i0], data[i1], data[i2]));
+            }
+        }
+    }
+
+    private static void AppendSequentialVec3Faces(List<(Vector3, Vector3, Vector3)> result, List<Vector3> data)
+    {
+        for (int i = 0; i + 2 < data.Count; i += 3)
+        {
+            result.Add((data[i], data[i + 1], data[i + 2]));
+        }
     }
 
     private static List<(Vector3 Pos0, Vector3 Pos1, Vector3 Pos2)> ExtractFacePositionData(
@@ -1404,21 +1392,11 @@ public static class GlbPlayerColorProcessor
         if (indexAccessorIndex >= 0 && indexAccessorIndex < accessors.Count)
         {
             var indices = ReadAccessorIndices(accessors, bufferViews, bin, indexAccessorIndex);
-            for (int i = 0; i + 2 < indices.Count; i += 3)
-            {
-                int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
-                if (i0 < posData.Count && i1 < posData.Count && i2 < posData.Count)
-                {
-                    result.Add((posData[i0], posData[i1], posData[i2]));
-                }
-            }
+            AppendIndexedVec3Faces(result, posData, indices);
         }
         else
         {
-            for (int i = 0; i + 2 < posData.Count; i += 3)
-            {
-                result.Add((posData[i], posData[i + 1], posData[i + 2]));
-            }
+            AppendSequentialVec3Faces(result, posData);
         }
 
         return result;
@@ -1495,6 +1473,16 @@ public static class GlbPlayerColorProcessor
         return texObj["index"]?.GetValue<int>() ?? -1;
     }
 
+    private static int GetImageSourceFromExtension(JsonObject texExt, string extensionName)
+    {
+        if (texExt[extensionName] is JsonObject extObj)
+        {
+            int src = extObj["source"]?.GetValue<int>() ?? -1;
+            if (src >= 0) return src;
+        }
+        return -1;
+    }
+
     internal static int ResolveTextureToImage(int textureIndex, JsonArray textures)
     {
         if (textureIndex < 0 || textureIndex >= textures.Count) return -1;
@@ -1502,16 +1490,11 @@ public static class GlbPlayerColorProcessor
 
         if (texObj["extensions"] is JsonObject texExt)
         {
-            if (texExt["EXT_texture_webp"] is JsonObject webpObj)
-            {
-                int src = webpObj["source"]?.GetValue<int>() ?? -1;
-                if (src >= 0) return src;
-            }
-            if (texExt["KHR_texture_basisu"] is JsonObject basisObj)
-            {
-                int src = basisObj["source"]?.GetValue<int>() ?? -1;
-                if (src >= 0) return src;
-            }
+            int src = GetImageSourceFromExtension(texExt, "EXT_texture_webp");
+            if (src >= 0) return src;
+
+            src = GetImageSourceFromExtension(texExt, "KHR_texture_basisu");
+            if (src >= 0) return src;
         }
 
         return texObj["source"]?.GetValue<int>() ?? -1;
@@ -1546,8 +1529,9 @@ public static class GlbPlayerColorProcessor
         if (bvIdx < 0 || bvIdx >= bufferViews.Count) return Array.Empty<byte>();
         if (bufferViews[bvIdx] is not JsonObject bv) return Array.Empty<byte>();
 
-        int byteOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-        int byteLength = bv["byteLength"]?.GetValue<int>() ?? 0;
+        int byteOffset = GetJsonNodeIntValue(bv, "byteOffset", 0);
+        int byteLength = GetJsonNodeIntValue(bv, "byteLength", 0);
+
         if (byteOffset + byteLength > bin.Length) return Array.Empty<byte>();
 
         byte[] result = new byte[byteLength];
@@ -1571,8 +1555,8 @@ public static class GlbPlayerColorProcessor
             if (!retainedBvIndices.Contains(oldBvIdx)) continue;
             if (bufferViews[oldBvIdx] is not JsonObject oldBv) continue;
 
-            int origOffset = oldBv["byteOffset"]?.GetValue<int>() ?? 0;
-            int origLength = oldBv["byteLength"]?.GetValue<int>() ?? 0;
+            int origOffset = GetJsonNodeIntValue(oldBv, "byteOffset", 0);
+            int origLength = GetJsonNodeIntValue(oldBv, "byteLength", 0);
 
             while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
             int newOffset = (int)newBinStream.Position;
@@ -1607,36 +1591,55 @@ public static class GlbPlayerColorProcessor
         }
     }
 
-    private static void UpdateImagesAndMaterials(
-        JsonArray images, JsonArray textures, JsonArray materials, Dictionary<int, int> oldBvToNewBv,
-        int ormImageIndex, int newOrmBvIdx)
+    private static void UpdateImageBufferViews(JsonArray images, Dictionary<int, int> oldBvToNewBv, int ormImageIndex)
     {
         for (int i = 0; i < images.Count; i++)
         {
             if (i == ormImageIndex) continue;
-            if (images[i] is JsonObject imgObj)
+            if (images[i] is not JsonObject imgObj) continue;
+
+            if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
             {
-                if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
-                {
-                    int oldBv = bvVal.GetValue<int>();
-                    if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
-                    {
-                        imgObj["bufferView"] = newBv;
-                    }
-                }
-                if (imgObj["extensions"] is JsonObject imgExt)
-                {
-                    if (imgExt["EXT_texture_webp"] is JsonObject webp && webp.TryGetPropertyValue("bufferView", out var wbVal) && wbVal != null)
-                    {
-                        int oldBv = wbVal.GetValue<int>();
-                        if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
-                        {
-                            webp["bufferView"] = newBv;
-                        }
-                    }
-                }
+                int oldBv = bvVal.GetValue<int>();
+                if (oldBvToNewBv.TryGetValue(oldBv, out int newBv)) imgObj["bufferView"] = newBv;
+            }
+
+            UpdateWebpExtensionBufferView(imgObj, oldBvToNewBv);
+        }
+    }
+
+    private static void CreateMissingOrmTexture(JsonArray images, JsonArray textures, JsonArray materials, int newOrmBvIdx)
+    {
+        int newOrmImageIdx = images.Count;
+        images.Add(new JsonObject { ["mimeType"] = "image/webp", ["bufferView"] = newOrmBvIdx });
+
+        int newOrmTextureIdx = textures.Count;
+        textures.Add(new JsonObject
+        {
+            ["source"] = newOrmImageIdx,
+            ["extensions"] = new JsonObject { ["EXT_texture_webp"] = new JsonObject { ["source"] = newOrmImageIdx } }
+        });
+
+        if (materials.Count > 0 && materials[0] is JsonObject firstMat)
+        {
+            if (firstMat["pbrMetallicRoughness"] is not JsonObject pbr)
+            {
+                pbr = new JsonObject();
+                firstMat["pbrMetallicRoughness"] = pbr;
+            }
+
+            if (!pbr.ContainsKey("metallicRoughnessTexture"))
+            {
+                pbr["metallicRoughnessTexture"] = new JsonObject { ["index"] = newOrmTextureIdx };
             }
         }
+    }
+
+    private static void UpdateImagesAndMaterials(
+        JsonArray images, JsonArray textures, JsonArray materials, Dictionary<int, int> oldBvToNewBv,
+        int ormImageIndex, int newOrmBvIdx)
+    {
+        UpdateImageBufferViews(images, oldBvToNewBv, ormImageIndex);
 
         if (ormImageIndex >= 0 && ormImageIndex < images.Count && images[ormImageIndex] is JsonObject ormImgObj)
         {
@@ -1647,29 +1650,41 @@ public static class GlbPlayerColorProcessor
         }
         else
         {
-            int newOrmImageIdx = images.Count;
-            images.Add(new JsonObject { ["mimeType"] = "image/webp", ["bufferView"] = newOrmBvIdx });
+            CreateMissingOrmTexture(images, textures, materials, newOrmBvIdx);
+        }
+    }
 
-            int newOrmTextureIdx = textures.Count;
-            textures.Add(new JsonObject
+    private static int EnsureTextureSource(JsonObject texObj, int textureIndex, JsonArray textures, JsonArray images)
+    {
+        int src = texObj["source"]?.GetValue<int>() ?? -1;
+        if (src < 0)
+        {
+            src = ResolveTextureToImage(textureIndex, textures);
+            if (src >= 0 && src < images.Count)
             {
-                ["source"] = newOrmImageIdx,
-                ["extensions"] = new JsonObject { ["EXT_texture_webp"] = new JsonObject { ["source"] = newOrmImageIdx } }
-            });
-
-            if (materials.Count > 0 && materials[0] is JsonObject firstMat)
-            {
-                if (firstMat["pbrMetallicRoughness"] is not JsonObject pbr)
-                {
-                    pbr = new JsonObject();
-                    firstMat["pbrMetallicRoughness"] = pbr;
-                }
-
-                if (!pbr.ContainsKey("metallicRoughnessTexture"))
-                {
-                    pbr["metallicRoughnessTexture"] = new JsonObject { ["index"] = newOrmTextureIdx };
-                }
+                texObj["source"] = src;
             }
+            else if (images.Count > 0)
+            {
+                texObj["source"] = 0;
+                src = 0;
+            }
+        }
+        return src;
+    }
+
+    private static void UpdateTextureExtensions(JsonObject texObj, int src)
+    {
+        if (src < 0) return;
+
+        if (texObj["extensions"] is JsonObject texExt)
+        {
+            if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
+            texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
+        }
+        else
+        {
+            texObj["extensions"] = new JsonObject { ["EXT_texture_webp"] = new JsonObject { ["source"] = src } };
         }
     }
 
@@ -1678,32 +1693,40 @@ public static class GlbPlayerColorProcessor
         for (int i = 0; i < textures.Count; i++)
         {
             if (textures[i] is not JsonObject texObj) continue;
-            int src = texObj["source"]?.GetValue<int>() ?? -1;
-            if (src < 0)
+            
+            int src = EnsureTextureSource(texObj, i, textures, images);
+            UpdateTextureExtensions(texObj, src);
+        }
+    }
+
+    private static HashSet<int> GetRetainedBufferViews(JsonArray accessors, JsonArray bufferViews, JsonArray images, int excludeImageIndex)
+    {
+        var retainedBvIndices = new HashSet<int>();
+        
+        AddAccessorBufferViews(accessors, bufferViews, retainedBvIndices);
+        AddImageBufferViews(images, bufferViews, retainedBvIndices, excludeImageIndex);
+
+        return retainedBvIndices;
+    }
+
+    private static void EnsureWebPExtension(JsonObject root)
+    {
+        if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
+        {
+            bool exists = false;
+            foreach (var item in extArray)
             {
-                src = ResolveTextureToImage(i, textures);
-                if (src >= 0 && src < images.Count)
+                if (item?.GetValue<string>() == "EXT_texture_webp")
                 {
-                    texObj["source"] = src;
-                }
-                else if (images.Count > 0)
-                {
-                    texObj["source"] = 0;
-                    src = 0;
+                    exists = true;
+                    break;
                 }
             }
-            if (src >= 0)
-            {
-                if (texObj["extensions"] is JsonObject texExt)
-                {
-                    if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
-                    texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
-                }
-                else
-                {
-                    texObj["extensions"] = new JsonObject { ["EXT_texture_webp"] = new JsonObject { ["source"] = src } };
-                }
-            }
+            if (!exists) extArray.Add("EXT_texture_webp");
+        }
+        else
+        {
+            root["extensionsUsed"] = new JsonArray("EXT_texture_webp");
         }
     }
 
@@ -1714,37 +1737,13 @@ public static class GlbPlayerColorProcessor
         byte[] newOrmBytes,
         uint glbVersion)
     {
-        var accessors = root["accessors"] as JsonArray ?? new JsonArray();
-        var bufferViews = root["bufferViews"] as JsonArray ?? new JsonArray();
-        var images = root["images"] as JsonArray ?? new JsonArray();
-        var textures = root["textures"] as JsonArray ?? new JsonArray();
-        var materials = root["materials"] as JsonArray ?? new JsonArray();
+        var accessors = GetJsonArrayOrDefault(root, "accessors");
+        var bufferViews = GetJsonArrayOrDefault(root, "bufferViews");
+        var images = GetJsonArrayOrDefault(root, "images");
+        var textures = GetJsonArrayOrDefault(root, "textures");
+        var materials = GetJsonArrayOrDefault(root, "materials");
 
-        var retainedBvIndices = new HashSet<int>();
-        foreach (var acc in accessors)
-        {
-            if (acc is JsonObject accObj && accObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
-            {
-                int bvIdx = bvVal.GetValue<int>();
-                if (bvIdx >= 0 && bvIdx < bufferViews.Count)
-                {
-                    retainedBvIndices.Add(bvIdx);
-                }
-            }
-        }
-
-        for (int i = 0; i < images.Count; i++)
-        {
-            if (i == ormImageIndex) continue;
-            if (images[i] is JsonObject imgObj)
-            {
-                int imgBv = GetImageBufferViewIndex(imgObj);
-                if (imgBv >= 0 && imgBv < bufferViews.Count)
-                {
-                    retainedBvIndices.Add(imgBv);
-                }
-            }
-        }
+        var retainedBvIndices = GetRetainedBufferViews(accessors, bufferViews, images, ormImageIndex);
 
         using var newBinStream = new MemoryStream();
         var oldBvToNewBv = new Dictionary<int, int>();
@@ -1769,23 +1768,7 @@ public static class GlbPlayerColorProcessor
         UpdateImagesAndMaterials(images, textures, materials, oldBvToNewBv, ormImageIndex, newOrmBvIdx);
         UpdateTextures(textures, images);
 
-        if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
-        {
-            bool exists = false;
-            foreach (var item in extArray)
-            {
-                if (item?.GetValue<string>() == "EXT_texture_webp")
-                {
-                    exists = true;
-                    break;
-                }
-            }
-            if (!exists) extArray.Add("EXT_texture_webp");
-        }
-        else
-        {
-            root["extensionsUsed"] = new JsonArray("EXT_texture_webp");
-        }
+        EnsureWebPExtension(root);
 
         root["bufferViews"] = newBufferViewsList;
 
@@ -1794,30 +1777,39 @@ public static class GlbPlayerColorProcessor
             buf0["byteLength"] = (int)newBinStream.Position;
         }
 
-        byte[] newBin = newBinStream.ToArray();
-        return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
+        return GlbManifestUtils.BuildGlb(root, newBinStream.ToArray(), glbVersion);
+    }
+
+    private static (bool Valid, int Count, int BaseOffset, int Stride, int ComponentType) GetAccessorBufferInfo(JsonArray accessors, JsonArray bufferViews, int accessorIndex, int defaultElementSize)
+    {
+        if (accessorIndex < 0 || accessorIndex >= accessors.Count) return (false, 0, 0, 0, 0);
+        if (accessors[accessorIndex] is not JsonObject acc) return (false, 0, 0, 0, 0);
+
+        int bvIdx = GetJsonNodeIntValue(acc, "bufferView", -1);
+        int count = GetJsonNodeIntValue(acc, "count", 0);
+        int accessorByteOffset = GetJsonNodeIntValue(acc, "byteOffset", 0);
+        int componentType = GetJsonNodeIntValue(acc, "componentType", 5126);
+
+        if (bvIdx < 0 || bvIdx >= bufferViews.Count) return (false, 0, 0, 0, 0);
+        if (bufferViews[bvIdx] is not JsonObject bv) return (false, 0, 0, 0, 0);
+
+        int bvByteOffset = GetJsonNodeIntValue(bv, "byteOffset", 0);
+        int bvStride = GetJsonNodeIntValue(bv, "byteStride", 0);
+
+        int stride = bvStride > 0 ? bvStride : defaultElementSize;
+        int baseOffset = bvByteOffset + accessorByteOffset;
+
+        return (true, count, baseOffset, stride, componentType);
     }
 
     private static List<Vector2> ReadAccessorVec2(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
     {
         var result = new List<Vector2>();
-        if (accessorIndex < 0 || accessorIndex >= accessors.Count) return result;
-        if (accessors[accessorIndex] is not JsonObject acc) return result;
-
-        int bvIdx = acc["bufferView"]?.GetValue<int>() ?? -1;
-        int count = acc["count"]?.GetValue<int>() ?? 0;
-        int accessorByteOffset = acc["byteOffset"]?.GetValue<int>() ?? 0;
-        int componentType = acc["componentType"]?.GetValue<int>() ?? 5126;
-
-        if (bvIdx < 0 || bvIdx >= bufferViews.Count) return result;
-        if (bufferViews[bvIdx] is not JsonObject bv) return result;
-
-        int bvByteOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-        int bvStride = bv["byteStride"]?.GetValue<int>() ?? 0;
+        var (valid, count, baseOffset, stride, componentType) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 8);
+        if (!valid) return result;
 
         int elementSize = componentType == 5126 ? 8 : 4;
-        int stride = bvStride > 0 ? bvStride : elementSize;
-        int baseOffset = bvByteOffset + accessorByteOffset;
+        stride = stride == 8 && elementSize == 4 ? 4 : stride; // adjust default if needed
 
         for (int i = 0; i < count; i++)
         {
@@ -1845,20 +1837,8 @@ public static class GlbPlayerColorProcessor
     private static List<Vector3> ReadAccessorVec3(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
     {
         var result = new List<Vector3>();
-        if (accessorIndex < 0 || accessorIndex >= accessors.Count) return result;
-        if (accessors[accessorIndex] is not JsonObject acc) return result;
-
-        int bvIdx = acc["bufferView"]?.GetValue<int>() ?? -1;
-        int count = acc["count"]?.GetValue<int>() ?? 0;
-        int accessorByteOffset = acc["byteOffset"]?.GetValue<int>() ?? 0;
-
-        if (bvIdx < 0 || bvIdx >= bufferViews.Count) return result;
-        if (bufferViews[bvIdx] is not JsonObject bv) return result;
-
-        int bvByteOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-        int bvStride = bv["byteStride"]?.GetValue<int>() ?? 0;
-        int stride = bvStride > 0 ? bvStride : 12;
-        int baseOffset = bvByteOffset + accessorByteOffset;
+        var (valid, count, baseOffset, stride, _) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 12);
+        if (!valid) return result;
 
         for (int i = 0; i < count; i++)
         {
@@ -1877,19 +1857,8 @@ public static class GlbPlayerColorProcessor
     private static List<int> ReadAccessorIndices(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
     {
         var result = new List<int>();
-        if (accessorIndex < 0 || accessorIndex >= accessors.Count) return result;
-        if (accessors[accessorIndex] is not JsonObject acc) return result;
-
-        int bvIdx = acc["bufferView"]?.GetValue<int>() ?? -1;
-        int count = acc["count"]?.GetValue<int>() ?? 0;
-        int accessorByteOffset = acc["byteOffset"]?.GetValue<int>() ?? 0;
-        int componentType = acc["componentType"]?.GetValue<int>() ?? 5125;
-
-        if (bvIdx < 0 || bvIdx >= bufferViews.Count) return result;
-        if (bufferViews[bvIdx] is not JsonObject bv) return result;
-
-        int bvByteOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-        int baseOffset = bvByteOffset + accessorByteOffset;
+        var (valid, count, baseOffset, _, componentType) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 4);
+        if (!valid) return result;
 
         int elementSize = componentType switch
         {
@@ -1915,4 +1884,103 @@ public static class GlbPlayerColorProcessor
 
         return result;
     }
+
+    private static bool TryGetBaseGlbArrays(JsonObject root, out JsonArray textures, out JsonArray materials, out JsonArray images, out JsonArray bufferViews)
+    {
+        textures = root["textures"] as JsonArray ?? new JsonArray();
+        materials = root["materials"] as JsonArray ?? new JsonArray();
+        images = root["images"] as JsonArray ?? new JsonArray();
+        bufferViews = root["bufferViews"] as JsonArray ?? new JsonArray();
+
+        return root.ContainsKey("textures") && root.ContainsKey("materials") && root.ContainsKey("images") && root.ContainsKey("bufferViews");
+    }
+
+    private static bool TryGetMeshArrays(JsonObject root, out JsonArray meshes, out JsonArray accessors)
+    {
+        meshes = root["meshes"] as JsonArray ?? new JsonArray();
+        accessors = root["accessors"] as JsonArray ?? new JsonArray();
+        return root.ContainsKey("meshes") && root.ContainsKey("accessors");
+    }
+
+    private static void CalculateAndCheckScore(int rgbKey, int count, float targetHueUnitX, float targetHueUnitY, ref float bestScore, ref int bestRgbKey)
+    {
+        byte rByte = (byte)((rgbKey >> 16) & 0xFF);
+        byte gByte = (byte)((rgbKey >> 8) & 0xFF);
+        byte bByte = (byte)(rgbKey & 0xFF);
+
+        float r = rByte / 255f;
+        float g = gByte / 255f;
+        float b = bByte / 255f;
+
+        var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+        float pChroma = MathF.Sqrt(pA * pA + pB * pB);
+        float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
+
+        float hueFactor = MathF.Pow(MathF.Max(0f, hueDot), 2f);
+        float score = (pL * pL) * pChroma * hueFactor * MathF.Log2(1 + count);
+
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestRgbKey = rgbKey;
+        }
+    }
+
+    private static int GetJsonNodeIntValue(JsonObject obj, string propertyName, int defaultValue)
+    {
+        if (obj.TryGetPropertyValue(propertyName, out var propVal) && propVal != null)
+        {
+            return propVal.GetValue<int>();
+        }
+        return defaultValue;
+    }
+
+    private static void UpdateWebpExtensionBufferView(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
+    {
+        if (imgObj.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject imgExt &&
+            imgExt.TryGetPropertyValue("EXT_texture_webp", out var webpNode) && webpNode is JsonObject webp &&
+            webp.TryGetPropertyValue("bufferView", out var wbVal) && wbVal != null)
+        {
+            int oldBv = wbVal.GetValue<int>();
+            if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
+            {
+                webp["bufferView"] = newBv;
+            }
+        }
+    }
+
+    private static void AddAccessorBufferViews(JsonArray accessors, JsonArray bufferViews, HashSet<int> retainedBvIndices)
+    {
+        foreach (var acc in accessors)
+        {
+            if (acc is JsonObject accObj && accObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
+            {
+                int bvIdx = bvVal.GetValue<int>();
+                if (bvIdx >= 0 && bvIdx < bufferViews.Count) retainedBvIndices.Add(bvIdx);
+            }
+        }
+    }
+
+    private static void AddImageBufferViews(JsonArray images, JsonArray bufferViews, HashSet<int> retainedBvIndices, int excludeImageIndex)
+    {
+        for (int i = 0; i < images.Count; i++)
+        {
+            if (i == excludeImageIndex) continue;
+            if (images[i] is JsonObject imgObj)
+            {
+                int imgBv = GetImageBufferViewIndex(imgObj);
+                if (imgBv >= 0 && imgBv < bufferViews.Count) retainedBvIndices.Add(imgBv);
+            }
+        }
+    }
+
+    private static JsonArray GetJsonArrayOrDefault(JsonObject root, string propertyName)
+    {
+        if (root.TryGetPropertyValue(propertyName, out var arrayNode) && arrayNode is JsonArray array)
+        {
+            return array;
+        }
+        return new JsonArray();
+    }
+
 }

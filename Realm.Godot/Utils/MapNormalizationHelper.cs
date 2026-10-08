@@ -66,45 +66,7 @@ public static class MapNormalizationHelper
 			? new HashSet<string>(currentManifest.GreenlitReferences, StringComparer.OrdinalIgnoreCase)
 			: new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		var workspaceHashes = new Dictionary<string, (List<string> RelativePaths, long Size)>(StringComparer.OrdinalIgnoreCase);
-		foreach (var pair in currentManifest.Files)
-		{
-			string relativePath = pair.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? pair.Key.Substring(6) : pair.Key;
-			relativePath = relativePath.TrimStart('/', '\\').Replace('\\', '/');
-
-			if (!relativePath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
-			{
-				continue;
-			}
-
-			string normalizedHash = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
-			if (string.IsNullOrEmpty(normalizedHash))
-			{
-				continue;
-			}
-
-			long size = 0;
-			if (currentManifest.FileSizes != null && currentManifest.FileSizes.TryGetValue(pair.Key, out long foundSize))
-			{
-				size = foundSize;
-			}
-			else
-			{
-				string diskPath = Path.Combine(targetDirectory, relativePath);
-				if (File.Exists(diskPath))
-				{
-					size = new FileInfo(diskPath).Length;
-				}
-			}
-
-			if (!workspaceHashes.TryGetValue(normalizedHash, out var entry))
-			{
-				entry = (new List<string>(), size);
-				workspaceHashes[normalizedHash] = entry;
-			}
-			entry.RelativePaths.Add(relativePath);
-		}
-
+		var workspaceHashes = LoadWorkspaceHashes(currentManifest, targetDirectory);
 		if (workspaceHashes.Count == 0)
 		{
 			return new List<GreenlitReferenceSuggestion>();
@@ -116,44 +78,8 @@ public static class MapNormalizationHelper
 
 		while (uncoveredHashes.Count > 0)
 		{
-			CandidateMapInfo? bestCandidate = null;
-			List<string> bestMatchedHashes = new();
-			long bestMatchedBytes = 0;
-
-			foreach (var candidate in candidateMaps)
-			{
-				if (existingReferences.Contains(candidate.MapTitle) || suggestions.Any(s => string.Equals(s.MapTitle, candidate.MapTitle, StringComparison.OrdinalIgnoreCase)))
-				{
-					continue;
-				}
-
-				var matched = candidate.AssetHashes.Where(h => uncoveredHashes.Contains(h)).ToList();
-				if (matched.Count == 0)
-				{
-					continue;
-				}
-
-				long matchedBytes = 0;
-				foreach (var hash in matched)
-				{
-					if (workspaceHashes.TryGetValue(hash, out var hashEntry))
-					{
-						matchedBytes += hashEntry.Size;
-					}
-				}
-
-				if (matched.Count < minMatchingAssets && matchedBytes < minMatchingBytes)
-				{
-					continue;
-				}
-
-				if (bestCandidate == null || matched.Count > bestMatchedHashes.Count || (matched.Count == bestMatchedHashes.Count && matchedBytes > bestMatchedBytes))
-				{
-					bestCandidate = candidate;
-					bestMatchedHashes = matched;
-					bestMatchedBytes = matchedBytes;
-				}
-			}
+			var (bestCandidate, bestMatchedHashes, bestMatchedBytes) = FindBestCandidate(
+				candidateMaps, existingReferences, suggestions, uncoveredHashes, workspaceHashes, minMatchingAssets, minMatchingBytes);
 
 			if (bestCandidate == null || bestMatchedHashes.Count == 0)
 			{
@@ -182,6 +108,97 @@ public static class MapNormalizationHelper
 		}
 
 		return suggestions;
+	}
+
+	private static long GetFileSize(MapManifest currentManifest, string targetDirectory, string fileKey, string relativePath)
+	{
+		if (currentManifest.FileSizes != null && currentManifest.FileSizes.TryGetValue(fileKey, out long foundSize))
+		{
+			return foundSize;
+		}
+
+		string diskPath = Path.Combine(targetDirectory, relativePath);
+		return File.Exists(diskPath) ? new FileInfo(diskPath).Length : 0;
+	}
+
+	private static Dictionary<string, (List<string> RelativePaths, long Size)> LoadWorkspaceHashes(MapManifest currentManifest, string targetDirectory)
+	{
+		var workspaceHashes = new Dictionary<string, (List<string> RelativePaths, long Size)>(StringComparer.OrdinalIgnoreCase);
+		if (currentManifest.Files == null) return workspaceHashes;
+
+		foreach (var pair in currentManifest.Files)
+		{
+			string relativePath = pair.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? pair.Key.Substring(6) : pair.Key;
+			relativePath = relativePath.TrimStart('/', '\\').Replace('\\', '/');
+
+			if (!relativePath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			string normalizedHash = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
+			if (string.IsNullOrEmpty(normalizedHash))
+			{
+				continue;
+			}
+
+			long size = GetFileSize(currentManifest, targetDirectory, pair.Key, relativePath);
+
+			if (!workspaceHashes.TryGetValue(normalizedHash, out var entry))
+			{
+				entry = (new List<string>(), size);
+				workspaceHashes[normalizedHash] = entry;
+			}
+			entry.RelativePaths.Add(relativePath);
+		}
+
+		return workspaceHashes;
+	}
+
+	private static (CandidateMapInfo? bestCandidate, List<string> bestMatchedHashes, long bestMatchedBytes) FindBestCandidate(
+		List<CandidateMapInfo> candidateMaps,
+		HashSet<string> existingReferences,
+		List<GreenlitReferenceSuggestion> suggestions,
+		HashSet<string> uncoveredHashes,
+		Dictionary<string, (List<string> RelativePaths, long Size)> workspaceHashes,
+		int minMatchingAssets,
+		long minMatchingBytes)
+	{
+		CandidateMapInfo? bestCandidate = null;
+		List<string> bestMatchedHashes = new();
+		long bestMatchedBytes = 0;
+
+		foreach (var candidate in candidateMaps)
+		{
+			if (existingReferences.Contains(candidate.MapTitle) || suggestions.Any(s => string.Equals(s.MapTitle, candidate.MapTitle, StringComparison.OrdinalIgnoreCase)))
+			{
+				continue;
+			}
+
+			var matched = candidate.AssetHashes.Where(h => uncoveredHashes.Contains(h)).ToList();
+			if (matched.Count == 0)
+			{
+				continue;
+			}
+
+			long matchedBytes = matched
+				.Select(h => workspaceHashes.TryGetValue(h, out var entry) ? entry.Size : 0L)
+				.Sum();
+
+			if (matched.Count < minMatchingAssets && matchedBytes < minMatchingBytes)
+			{
+				continue;
+			}
+
+			if (bestCandidate == null || matched.Count > bestMatchedHashes.Count || (matched.Count == bestMatchedHashes.Count && matchedBytes > bestMatchedBytes))
+			{
+				bestCandidate = candidate;
+				bestMatchedHashes = matched;
+				bestMatchedBytes = matchedBytes;
+			}
+		}
+
+		return (bestCandidate, bestMatchedHashes, bestMatchedBytes);
 	}
 
 	public static HashSet<string> GetExcludedRelativePaths(string workspacePath)
@@ -216,11 +233,23 @@ public static class MapNormalizationHelper
 			return excluded;
 		}
 
+		var referencedHashes = BuildReferencedHashes(manifest);
+		if (referencedHashes.Count == 0)
+		{
+			return excluded;
+		}
+
+		GatherExcludedPaths(manifest, referencedHashes, excluded);
+		return excluded;
+	}
+
+	private static HashSet<string> BuildReferencedHashes(MapManifest manifest)
+	{
+		var referencedHashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		var candidateMaps = DiscoverAllCandidateManifests(manifest.MapName ?? string.Empty);
 		var candidateMapDictionary = candidateMaps.ToDictionary(c => c.MapTitle, c => c, StringComparer.OrdinalIgnoreCase);
 
-		var referencedHashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		foreach (var referenceTitle in manifest.GreenlitReferences)
+		foreach (var referenceTitle in manifest.GreenlitReferences ?? Enumerable.Empty<string>())
 		{
 			if (candidateMapDictionary.TryGetValue(referenceTitle, out var candidate))
 			{
@@ -231,12 +260,12 @@ public static class MapNormalizationHelper
 			}
 		}
 
-		if (referencedHashes.Count == 0)
-		{
-			return excluded;
-		}
+		return referencedHashes;
+	}
 
-		foreach (var pair in manifest.Files)
+	private static void GatherExcludedPaths(MapManifest manifest, HashSet<string> referencedHashes, HashSet<string> excluded)
+	{
+		foreach (var pair in manifest.Files ?? new Dictionary<string, string>())
 		{
 			string relativePath = pair.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? pair.Key.Substring(6) : pair.Key;
 			relativePath = relativePath.TrimStart('/', '\\').Replace('\\', '/');
@@ -252,8 +281,6 @@ public static class MapNormalizationHelper
 				excluded.Add(relativePath);
 			}
 		}
-
-		return excluded;
 	}
 
 	public static void ApplyGreenlitReferences(string workspacePath, IEnumerable<string> selectedMapTitles)
@@ -383,6 +410,47 @@ public static class MapNormalizationHelper
 	{
 		var results = new Dictionary<string, CandidateMapInfo>(StringComparer.OrdinalIgnoreCase);
 
+		DiscoverFromStorageService(currentMapName, results);
+		DiscoverFromAssetIndex(currentMapName, results);
+		DiscoverFromResourceMaps(currentMapName, results);
+
+		return results.Values.ToList();
+	}
+
+	private static HashSet<string>? GetHashesFromManifestFile(string manifestPath)
+	{
+		try
+		{
+			var manifest = MapManifest.LoadFromJson(File.ReadAllText(manifestPath));
+			if (manifest?.Files != null && manifest.Files.Count > 0)
+			{
+				return manifest.Files.Values
+					.Select(ContentAddressableStorage.NormalizeBlake3Hash)
+					.Where(h => !string.IsNullOrEmpty(h))
+					.ToHashSet(StringComparer.OrdinalIgnoreCase);
+			}
+		}
+		catch
+		{
+		}
+		return null;
+	}
+
+	private static void UpdateCandidateIfBetter(Dictionary<string, CandidateMapInfo> results, string mapTitle, string mapVersion, HashSet<string> hashes)
+	{
+		if (!results.TryGetValue(mapTitle, out var existing) || hashes.Count > existing.AssetHashes.Count)
+		{
+			results[mapTitle] = new CandidateMapInfo
+			{
+				MapTitle = mapTitle,
+				MapVersion = mapVersion,
+				AssetHashes = hashes
+			};
+		}
+	}
+
+	private static void DiscoverFromStorageService(string currentMapName, Dictionary<string, CandidateMapInfo> results)
+	{
 		try
 		{
 			var storageService = ServiceLocator.TryGet<MapStorageService>() ?? new MapStorageService(null!);
@@ -396,32 +464,15 @@ public static class MapNormalizationHelper
 
 				foreach (var versionInfo in map.Versions)
 				{
-					if (!string.IsNullOrEmpty(versionInfo.ManifestFilePath) && File.Exists(versionInfo.ManifestFilePath))
+					if (string.IsNullOrEmpty(versionInfo.ManifestFilePath) || !File.Exists(versionInfo.ManifestFilePath))
 					{
-						try
-						{
-							var manifest = MapManifest.LoadFromJson(File.ReadAllText(versionInfo.ManifestFilePath));
-							if (manifest?.Files != null && manifest.Files.Count > 0)
-							{
-								var hashes = manifest.Files.Values
-									.Select(ContentAddressableStorage.NormalizeBlake3Hash)
-									.Where(h => !string.IsNullOrEmpty(h))
-									.ToHashSet(StringComparer.OrdinalIgnoreCase);
+						continue;
+					}
 
-								if (!results.ContainsKey(map.Title) || hashes.Count > results[map.Title].AssetHashes.Count)
-								{
-									results[map.Title] = new CandidateMapInfo
-									{
-										MapTitle = map.Title,
-										MapVersion = versionInfo.Version,
-										AssetHashes = hashes
-									};
-								}
-							}
-						}
-						catch
-						{
-						}
+					var hashes = GetHashesFromManifestFile(versionInfo.ManifestFilePath);
+					if (hashes != null)
+					{
+						UpdateCandidateIfBetter(results, map.Title, versionInfo.Version, hashes);
 					}
 				}
 			}
@@ -429,7 +480,10 @@ public static class MapNormalizationHelper
 		catch
 		{
 		}
+	}
 
+	private static void DiscoverFromAssetIndex(string currentMapName, Dictionary<string, CandidateMapInfo> results)
+	{
 		try
 		{
 			var packages = AssetIndexService.Instance.GetDownloadedMapPackages();
@@ -442,29 +496,10 @@ public static class MapNormalizationHelper
 
 				if (!string.IsNullOrEmpty(package.ManifestPath) && File.Exists(package.ManifestPath))
 				{
-					try
+					var hashes = GetHashesFromManifestFile(package.ManifestPath);
+					if (hashes != null)
 					{
-						var manifest = MapManifest.LoadFromJson(File.ReadAllText(package.ManifestPath));
-						if (manifest?.Files != null && manifest.Files.Count > 0)
-						{
-							var hashes = manifest.Files.Values
-								.Select(ContentAddressableStorage.NormalizeBlake3Hash)
-								.Where(h => !string.IsNullOrEmpty(h))
-								.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-							if (!results.ContainsKey(package.MapName) || hashes.Count > results[package.MapName].AssetHashes.Count)
-							{
-								results[package.MapName] = new CandidateMapInfo
-								{
-									MapTitle = package.MapName,
-									MapVersion = package.MapVersion,
-									AssetHashes = hashes
-								};
-							}
-						}
-					}
-					catch
-					{
+						UpdateCandidateIfBetter(results, package.MapName, package.MapVersion, hashes);
 					}
 				}
 				else if (package.AssetHashes != null && package.AssetHashes.Count > 0)
@@ -474,61 +509,53 @@ public static class MapNormalizationHelper
 						.Where(h => !string.IsNullOrEmpty(h))
 						.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-					if (!results.ContainsKey(package.MapName) || hashes.Count > results[package.MapName].AssetHashes.Count)
-					{
-						results[package.MapName] = new CandidateMapInfo
-						{
-							MapTitle = package.MapName,
-							MapVersion = package.MapVersion,
-							AssetHashes = hashes
-						};
-					}
+					UpdateCandidateIfBetter(results, package.MapName, package.MapVersion, hashes);
 				}
 			}
 		}
 		catch
 		{
 		}
+	}
 
+	private static void DiscoverFromResourceMaps(string currentMapName, Dictionary<string, CandidateMapInfo> results)
+	{
 		try
 		{
 			string resourceMapsDirectory = ProjectSettings.GlobalizePath("res://Maps");
-			if (Directory.Exists(resourceMapsDirectory))
+			if (!Directory.Exists(resourceMapsDirectory))
 			{
-				var manifestFiles = Directory.GetFiles(resourceMapsDirectory, "manifest.json", SearchOption.AllDirectories);
-				foreach (var manifestFile in manifestFiles)
-				{
-					try
-					{
-						var manifest = MapManifest.LoadFromJson(File.ReadAllText(manifestFile));
-						if (manifest != null && !string.IsNullOrEmpty(manifest.MapName) && !string.Equals(manifest.MapName, currentMapName, StringComparison.OrdinalIgnoreCase))
-						{
-							var hashes = manifest.Files.Values
-								.Select(ContentAddressableStorage.NormalizeBlake3Hash)
-								.Where(h => !string.IsNullOrEmpty(h))
-								.ToHashSet(StringComparer.OrdinalIgnoreCase);
+				return;
+			}
 
-							if (!results.ContainsKey(manifest.MapName) || hashes.Count > results[manifest.MapName].AssetHashes.Count)
-							{
-								results[manifest.MapName] = new CandidateMapInfo
-								{
-									MapTitle = manifest.MapName,
-									MapVersion = manifest.Version ?? "1.0.0",
-									AssetHashes = hashes
-								};
-							}
-						}
-					}
-					catch
+			var manifestFiles = Directory.GetFiles(resourceMapsDirectory, "manifest.json", SearchOption.AllDirectories);
+			foreach (var manifestFile in manifestFiles)
+			{
+				try
+				{
+					var manifest = MapManifest.LoadFromJson(File.ReadAllText(manifestFile));
+					if (manifest == null || string.IsNullOrEmpty(manifest.MapName) || string.Equals(manifest.MapName, currentMapName, StringComparison.OrdinalIgnoreCase))
 					{
+						continue;
 					}
+
+					if (manifest.Files != null && manifest.Files.Count > 0)
+					{
+						var hashes = manifest.Files.Values
+							.Select(ContentAddressableStorage.NormalizeBlake3Hash)
+							.Where(h => !string.IsNullOrEmpty(h))
+							.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+						UpdateCandidateIfBetter(results, manifest.MapName, manifest.Version ?? "1.0.0", hashes);
+					}
+				}
+				catch
+				{
 				}
 			}
 		}
 		catch
 		{
 		}
-
-		return results.Values.ToList();
 	}
 }

@@ -64,11 +64,7 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
     {
         float targetWeight = Math.Clamp(intensityLevel * 0.1f, 0.0f, 1.0f);
 
-        int slotForTarget = -1;
-        if (current.Index0 == targetTextureIndex) slotForTarget = 0;
-        else if (current.Index1 == targetTextureIndex) slotForTarget = 1;
-        else if (current.Index2 == targetTextureIndex) slotForTarget = 2;
-        else if (current.Index3 == targetTextureIndex) slotForTarget = 3;
+        int slotForTarget = GetSlotForTarget(current, targetTextureIndex);
 
         if (slotForTarget < 0)
         {
@@ -77,46 +73,19 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
                 return current;
             }
 
-            int lowestSlot = 0;
-            float minW = current.Weight0;
-            float w1n = current.Weight1;
-            float w2n = current.Weight2;
-            float w3n = current.Weight3;
-            if (w1n < minW) { minW = w1n; lowestSlot = 1; }
-            if (w2n < minW) { minW = w2n; lowestSlot = 2; }
-            if (w3n < minW) { lowestSlot = 3; }
-
-            switch (lowestSlot)
-            {
-                case 0: current.Index0 = targetTextureIndex; current.Weight0 = 0.0f; break;
-                case 1: current.Index1 = targetTextureIndex; current.Weight1 = 0.0f; break;
-                case 2: current.Index2 = targetTextureIndex; current.Weight2 = 0.0f; break;
-                case 3: current.Index3 = targetTextureIndex; current.Weight3 = 0.0f; break;
-            }
-            slotForTarget = lowestSlot;
+            slotForTarget = GetLowestWeightSlot(current);
+            current = SetTextureIndexForSlot(current, slotForTarget, targetTextureIndex);
         }
 
         float[] weights = new float[4] { current.Weight0, current.Weight1, current.Weight2, current.Weight3 };
         weights[slotForTarget] = targetWeight;
 
-        float otherSum = 0.0f;
-        for (int i = 0; i < 4; i++)
-        {
-            if (i != slotForTarget) otherSum += weights[i];
-        }
-
+        float otherSum = GetOtherWeightsSum(weights, slotForTarget);
         float remainingWeight = 1.0f - targetWeight;
+
         if (otherSum > 0.0001f && remainingWeight > 0.0001f)
         {
-            float scale = remainingWeight / otherSum;
-            for (int i = 0; i < 4; i++)
-            {
-                if (i != slotForTarget)
-                {
-                    weights[i] *= scale;
-                    if (weights[i] < 0.01f) weights[i] = 0.0f;
-                }                
-            }
+            ScaleOtherWeights(weights, slotForTarget, remainingWeight / otherSum);
         }
         else
         {
@@ -124,12 +93,7 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
             {
                 return current;
             }
-            
-            for (int i = 0; i < 4; i++)
-            {
-                if (i != slotForTarget)
-                    weights[i] = 0.0f;
-            }
+            ClearOtherWeights(weights, slotForTarget);
         }
 
         current.Weight0 = weights[0];
@@ -138,6 +102,65 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
         current.Weight3 = weights[3];
 
         return current;
+    }
+
+    private static int GetSlotForTarget(TerrainSplatWeights current, int targetTextureIndex)
+    {
+        if (current.Index0 == targetTextureIndex) return 0;
+        if (current.Index1 == targetTextureIndex) return 1;
+        if (current.Index2 == targetTextureIndex) return 2;
+        if (current.Index3 == targetTextureIndex) return 3;
+        return -1;
+    }
+
+    private static int GetLowestWeightSlot(TerrainSplatWeights current)
+    {
+        int lowestSlot = 0;
+        float minW = current.Weight0;
+        if (current.Weight1 < minW) { minW = current.Weight1; lowestSlot = 1; }
+        if (current.Weight2 < minW) { minW = current.Weight2; lowestSlot = 2; }
+        if (current.Weight3 < minW) { lowestSlot = 3; }
+        return lowestSlot;
+    }
+
+    private static TerrainSplatWeights SetTextureIndexForSlot(TerrainSplatWeights current, int slot, int textureIndex)
+    {
+        switch (slot)
+        {
+            case 0: current.Index0 = textureIndex; current.Weight0 = 0.0f; break;
+            case 1: current.Index1 = textureIndex; current.Weight1 = 0.0f; break;
+            case 2: current.Index2 = textureIndex; current.Weight2 = 0.0f; break;
+            case 3: current.Index3 = textureIndex; current.Weight3 = 0.0f; break;
+        }
+        return current;
+    }
+
+    private static float GetOtherWeightsSum(float[] weights, int skipSlot)
+    {
+        float sum = 0.0f;
+        for (int i = 0; i < 4; i++)
+        {
+            if (i != skipSlot) sum += weights[i];
+        }
+        return sum;
+    }
+
+    private static void ScaleOtherWeights(float[] weights, int skipSlot, float scale)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            if (i == skipSlot) continue;
+            weights[i] *= scale;
+            if (weights[i] < 0.01f) weights[i] = 0.0f;
+        }
+    }
+
+    private static void ClearOtherWeights(float[] weights, int skipSlot)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            if (i != skipSlot) weights[i] = 0.0f;
+        }
     }
 
     public bool Equals(TerrainSplatWeights other)
@@ -162,46 +185,39 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
     {
         if (span.IsEmpty) return CreateSolid(3);
 
-        int idx0 = 0, idx1 = 0, idx2 = 0, idx3 = 0;
-        float w0 = 0f, w1 = 0f, w2 = 0f, w3 = 0f;
-
+        TerrainSplatWeights result = new TerrainSplatWeights();
         int fieldIndex = 0;
         int start = 0;
+
         for (int i = 0; i <= span.Length; i++)
         {
-            if (i == span.Length || span[i] == ',')
-            {
-                ReadOnlySpan<char> field = span.Slice(start, i - start);
-                start = i + 1;
+            if (i != span.Length && span[i] != ',') continue;
 
-                switch (fieldIndex)
-                {
-                    case 0: int.TryParse(field, out idx0); break;
-                    case 1: int.TryParse(field, out idx1); break;
-                    case 2: int.TryParse(field, out idx2); break;
-                    case 3: int.TryParse(field, out idx3); break;
-                    case 4: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out w0); break;
-                    case 5: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out w1); break;
-                    case 6: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out w2); break;
-                    case 7: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out w3); break;
-                }
-                fieldIndex++;
-            }
+            ReadOnlySpan<char> field = span.Slice(start, i - start);
+            start = i + 1;
+
+            ParseField(field, fieldIndex, ref result);
+            fieldIndex++;
         }
 
         if (fieldIndex < 8) return CreateSolid(3);
 
-        return new TerrainSplatWeights
+        return result;
+    }
+
+    private static void ParseField(ReadOnlySpan<char> field, int fieldIndex, ref TerrainSplatWeights weights)
+    {
+        switch (fieldIndex)
         {
-            Index0 = idx0,
-            Index1 = idx1,
-            Index2 = idx2,
-            Index3 = idx3,
-            Weight0 = w0,
-            Weight1 = w1,
-            Weight2 = w2,
-            Weight3 = w3
-        };
+            case 0: int.TryParse(field, out weights.Index0); break;
+            case 1: int.TryParse(field, out weights.Index1); break;
+            case 2: int.TryParse(field, out weights.Index2); break;
+            case 3: int.TryParse(field, out weights.Index3); break;
+            case 4: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out weights.Weight0); break;
+            case 5: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out weights.Weight1); break;
+            case 6: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out weights.Weight2); break;
+            case 7: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out weights.Weight3); break;
+        }
     }
 
     public static TerrainSplatWeights Deserialize(string? serialized)

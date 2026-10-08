@@ -30,56 +30,11 @@ namespace Realm.Godot.ReplaySystem
 				if (!File.Exists(path)) return false;
 
 				using var fs = new FileStream(path, FileMode.Open, System.IO.FileAccess.Read, FileShare.Read);
-
-				byte[] magicBytes = new byte[8];
-				fs.ReadExactly(magicBytes, 0, 8);
-				string magic = System.Text.Encoding.ASCII.GetString(magicBytes);
-				if (magic != "REALMREP") return false;
-
-				byte[] lenBytes = new byte[4];
-				fs.ReadExactly(lenBytes, 0, 4);
-				int headerLen = BitConverter.ToInt32(lenBytes, 0);
-
-				byte[] headerBytes = new byte[headerLen];
-				fs.ReadExactly(headerBytes, 0, headerLen);
-				Header = MemoryPackSerializer.Deserialize<ReplayHeader>(headerBytes);
-
-				fs.ReadExactly(lenBytes, 0, 4);
-				TotalTicks = BitConverter.ToInt32(lenBytes, 0);
-
+				if (!ReadReplayHeaderInternal(fs)) return false;
 				if (TotalTicks <= 0) return false;
 
 				_frames = new ReplayFrame[TotalTicks];
-
-				using var deflate = new DeflateStream(fs, CompressionMode.Decompress, true);
-				byte[] frameLenBytes = new byte[4];
-				byte[] buffer = new byte[512 * 1024];
-
-				int framesRead = 0;
-				for (int i = 0; i < TotalTicks; i++)
-				{
-					int read = deflate.Read(frameLenBytes, 0, 4);
-					if (read < 4) break;
-
-					int frameLen = BitConverter.ToInt32(frameLenBytes, 0);
-					if (frameLen <= 0) break;
-					if (frameLen > buffer.Length)
-					{
-						buffer = new byte[frameLen * 2];
-					}
-
-					int offset = 0;
-					while (offset < frameLen)
-					{
-						int chunk = deflate.Read(buffer, offset, frameLen - offset);
-						if (chunk <= 0) break;
-						offset += chunk;
-					}
-
-					_frames[i] = MemoryPackSerializer.Deserialize<ReplayFrame>(buffer.AsSpan(0, frameLen));
-					framesRead++;
-				}
-
+				int framesRead = ReadReplayFrames(fs);
 				if (framesRead == 0) return false;
 
 				TotalTicks = framesRead;
@@ -97,6 +52,65 @@ namespace Realm.Godot.ReplaySystem
 				GD.PrintErr($"[ReplayPlaybackManager] Error loading replay: {ex.Message}");
 				return false;
 			}
+		}
+
+		private bool ReadReplayHeaderInternal(FileStream fs)
+		{
+			byte[] magicBytes = new byte[8];
+			fs.ReadExactly(magicBytes, 0, 8);
+			if (System.Text.Encoding.ASCII.GetString(magicBytes) != "REALMREP") return false;
+
+			byte[] lenBytes = new byte[4];
+			fs.ReadExactly(lenBytes, 0, 4);
+			int headerLen = BitConverter.ToInt32(lenBytes, 0);
+
+			byte[] headerBytes = new byte[headerLen];
+			fs.ReadExactly(headerBytes, 0, headerLen);
+			Header = MemoryPackSerializer.Deserialize<ReplayHeader>(headerBytes);
+
+			fs.ReadExactly(lenBytes, 0, 4);
+			TotalTicks = BitConverter.ToInt32(lenBytes, 0);
+
+			return true;
+		}
+
+		private int ReadReplayFrames(FileStream fs)
+		{
+			using var deflate = new DeflateStream(fs, CompressionMode.Decompress, true);
+			byte[] frameLenBytes = new byte[4];
+			byte[] buffer = new byte[512 * 1024];
+
+			int framesRead = 0;
+			for (int i = 0; i < TotalTicks; i++)
+			{
+				int read = deflate.Read(frameLenBytes, 0, 4);
+				if (read < 4) break;
+
+				int frameLen = BitConverter.ToInt32(frameLenBytes, 0);
+				if (frameLen <= 0) break;
+				if (frameLen > buffer.Length)
+				{
+					buffer = new byte[frameLen * 2];
+				}
+
+				if (!ReadFrameData(deflate, buffer, frameLen)) break;
+
+				_frames[i] = MemoryPackSerializer.Deserialize<ReplayFrame>(buffer.AsSpan(0, frameLen));
+				framesRead++;
+			}
+			return framesRead;
+		}
+
+		private bool ReadFrameData(DeflateStream deflate, byte[] buffer, int frameLen)
+		{
+			int offset = 0;
+			while (offset < frameLen)
+			{
+				int chunk = deflate.Read(buffer, offset, frameLen - offset);
+				if (chunk <= 0) return false;
+				offset += chunk;
+			}
+			return true;
 		}
 
 		public void StopReplay()
@@ -177,6 +191,13 @@ namespace Realm.Godot.ReplaySystem
 		{
 			if (GameHost.Instance == null || frame == null) return;
 
+			ApplyResources(frame);
+			ApplyProjectiles(frame);
+			ApplyUnits(frame);
+		}
+
+		private void ApplyResources(ReplayFrame frame)
+		{
 			if (InGameHUD.Instance != null)
 			{
 				InGameHUD.Instance.Gold = frame.Resources.Gold;
@@ -187,85 +208,105 @@ namespace Realm.Godot.ReplaySystem
 			{
 				GameHost.Instance.SetBackupResources(frame.Resources.Gold, frame.Resources.Wood, frame.Resources.Stone);
 			}
+		}
 
-			if (frame.Projectiles != null)
+		private void ApplyProjectiles(ReplayFrame frame)
+		{
+			if (frame.Projectiles == null) return;
+
+			foreach (var proj in frame.Projectiles)
 			{
-				foreach (var proj in frame.Projectiles)
+				if (proj.ProjectileTypeId == "arrow")
 				{
-					if (proj.ProjectileTypeId == "arrow")
-					{
-						GameHost.Instance.SpawnArrowProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics());
-					}
-					else
-					{
-						((Realm.MapAPI.IGameAPI)GameHost.Instance).SpawnProjectile(proj.ProjectileTypeId, proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.Speed);
-					}
-				}
-			}
-
-			foreach (var snap in frame.Units)
-			{
-				if (GameHost.Instance.TryGetLocalEntity(snap.EntityId, out var localEntity))
-				{
-					if (GameHost.Instance.EcsWorld.IsAlive(localEntity))
-					{
-						if (snap.IsDead)
-						{
-							if (!GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Tags.Dead>(localEntity))
-							{
-								GameHost.Instance.EcsWorld.Add<Realm.Ecs.Components.Tags.Dead>(localEntity);
-								GameHost.TryGetUnit3D(localEntity, out var unit3D);
-								GameHost.Instance.KillUnitDeferredExternal(unit3D);
-							}
-							continue;
-						}
-
-						if (GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Core.Health>(localEntity))
-						{
-							var hp = GameHost.Instance.EcsWorld.Get<Realm.Ecs.Components.Core.Health>(localEntity);
-							hp.Current = snap.CurrentHp;
-							hp.Max = snap.MaxHp;
-							GameHost.Instance.EcsWorld.Set(localEntity, hp);
-						}
-
-						if (GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Core.Position>(localEntity))
-						{
-							GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Core.Position(snap.Position.ToNumerics()));
-						}
-
-						if (GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Movement.Velocity>(localEntity))
-						{
-							GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Movement.Velocity(snap.Velocity.ToNumerics()));
-						}
-
-						if (GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Movement.InterpolationTarget>(localEntity))
-						{
-							GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Movement.InterpolationTarget
-							{
-								Position = snap.Position.ToNumerics(),
-								Velocity = snap.Velocity.ToNumerics(),
-								RotationY = snap.RotationY
-							});
-						}
-
-						GameHost.Instance.EcsWorld.SetOrAdd(localEntity, new Realm.Ecs.Components.Meta.ReplayAnimationState(snap.Animation ?? "Idle"));
-
-						GameHost.TryGetUnit3D(localEntity, out var unit3DNode);
-						if (GodotObject.IsInstanceValid(unit3DNode))
-						{
-							unit3DNode.GlobalPosition = snap.Position.ToGodot();
-							unit3DNode.Velocity = snap.Velocity.ToGodot();
-							unit3DNode.GlobalRotation = new Vector3(0, snap.RotationY, 0);
-						}
-					}
+					GameHost.Instance.SpawnArrowProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics());
 				}
 				else
 				{
-					if (!snap.IsDead)
+					((Realm.MapAPI.IGameAPI)GameHost.Instance).SpawnProjectile(proj.ProjectileTypeId, proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.Speed);
+				}
+			}
+		}
+
+		private void ApplyUnits(ReplayFrame frame)
+		{
+			if (frame.Units == null) return;
+
+			foreach (var snap in frame.Units)
+			{
+				ApplyUnitSnapshot(snap);
+			}
+		}
+
+		private void ApplyUnitSnapshot(ReplayUnitSnapshot snap)
+		{
+			if (GameHost.Instance.TryGetLocalEntity(snap.EntityId, out var localEntity))
+			{
+				if (GameHost.Instance.EcsWorld.IsAlive(localEntity))
+				{
+					if (snap.IsDead)
 					{
-						GameHost.Instance.SpawnUnitFromReplaySnapshot(snap);
+						HandleDeadUnit(localEntity);
+					}
+					else
+					{
+						UpdateUnitState(localEntity, snap);
 					}
 				}
+			}
+			else if (!snap.IsDead)
+			{
+				GameHost.Instance.SpawnUnitFromReplaySnapshot(snap);
+			}
+		}
+
+		private void HandleDeadUnit(Arch.Core.Entity localEntity)
+		{
+			if (!GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Tags.Dead>(localEntity))
+			{
+				GameHost.Instance.EcsWorld.Add<Realm.Ecs.Components.Tags.Dead>(localEntity);
+				GameHost.TryGetUnit3D(localEntity, out var unit3D);
+				GameHost.Instance.KillUnitDeferredExternal(unit3D);
+			}
+		}
+
+		private void UpdateUnitState(Arch.Core.Entity localEntity, ReplayUnitSnapshot snap)
+		{
+			if (GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Core.Health>(localEntity))
+			{
+				var hp = GameHost.Instance.EcsWorld.Get<Realm.Ecs.Components.Core.Health>(localEntity);
+				hp.Current = snap.CurrentHp;
+				hp.Max = snap.MaxHp;
+				GameHost.Instance.EcsWorld.Set(localEntity, hp);
+			}
+
+			if (GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Core.Position>(localEntity))
+			{
+				GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Core.Position(snap.Position.ToNumerics()));
+			}
+
+			if (GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Movement.Velocity>(localEntity))
+			{
+				GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Movement.Velocity(snap.Velocity.ToNumerics()));
+			}
+
+			if (GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Movement.InterpolationTarget>(localEntity))
+			{
+				GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Movement.InterpolationTarget
+				{
+					Position = snap.Position.ToNumerics(),
+					Velocity = snap.Velocity.ToNumerics(),
+					RotationY = snap.RotationY
+				});
+			}
+
+			GameHost.Instance.EcsWorld.SetOrAdd(localEntity, new Realm.Ecs.Components.Meta.ReplayAnimationState(snap.Animation ?? "Idle"));
+
+			GameHost.TryGetUnit3D(localEntity, out var unit3DNode);
+			if (GodotObject.IsInstanceValid(unit3DNode))
+			{
+				unit3DNode.GlobalPosition = snap.Position.ToGodot();
+				unit3DNode.Velocity = snap.Velocity.ToGodot();
+				unit3DNode.GlobalRotation = new Vector3(0, snap.RotationY, 0);
 			}
 		}
 

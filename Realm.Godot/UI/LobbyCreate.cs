@@ -238,84 +238,78 @@ public partial class LobbyCreate : Control
 	}
 
 	private async void OnCreatePressed()
-	{
-		UIManager.Instance.PlayClickSound();
-
-		string selectedVersion = "1.0.0";
-		if (_availableVersions.Count > 0 && _versionSelectButton.Selected >= 0 && _versionSelectButton.Selected < _availableVersions.Count)
 		{
-			selectedVersion = _availableVersions[_versionSelectButton.Selected];
-		}
+			UIManager.Instance.PlayClickSound();
 
-		if (LobbyManager.Instance.IsSinglePlayer)
-		{
-			string singleMapPathName = "melee";
-			string singleMapDisplayName = "Melee Battlefield";
-			string singleMapBuildNumber = Realm.Shared.RealmVersion.GameBuildNumber;
-			int singleSelectedIndex = _mapSelectButton.Selected;
-			if (singleSelectedIndex >= 0 && singleSelectedIndex < _availableMaps.Count)
-			{
-				singleMapPathName = _availableMaps[singleSelectedIndex].PathName;
-				singleMapDisplayName = _availableMaps[singleSelectedIndex].DisplayName;
-				singleMapBuildNumber = _availableMaps[singleSelectedIndex].GameBuildNumber;
-			}
+			string selectedVersion = GetSelectedVersion();
+			var mapInfo = GetSelectedMapInfo();
 
-			if (!string.IsNullOrEmpty(singleMapBuildNumber) && !string.Equals(singleMapBuildNumber, Realm.Shared.RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase))
+			if (IsMapBuildMismatch(mapInfo.BuildNumber))
 			{
 				UIManager.Instance.PlayWarningSound();
-				ShowMapBuildMismatchModal(singleMapPathName, singleMapDisplayName, singleMapBuildNumber, Realm.Shared.RealmVersion.GameBuildNumber);
+				ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, Realm.Shared.RealmVersion.GameBuildNumber);
 				return;
 			}
 
+			if (LobbyManager.Instance.IsSinglePlayer)
+			{
+				_createButton.Disabled = true;
+				LobbyManager.Instance.HostSinglePlayerGame(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+				_createButton.Disabled = false;
+				return;
+			}
+
+			if (LobbyManager.Instance.LocalNatType == NatType.Symmetric)
+			{
+				UIManager.Instance.PlayWarningSound();
+				ShowSTUNErrorModal();
+				return;
+			}
+			
 			_createButton.Disabled = true;
-			LobbyManager.Instance.HostSinglePlayerGame(singleMapPathName, singleMapDisplayName, selectedVersion);
+			bool success = await LobbyManager.Instance.HostLobbyAsync(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
 			_createButton.Disabled = false;
-			return;
+
+			if (success)
+			{
+				UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
+			}
+			else
+			{
+				UIManager.Instance.PlayWarningSound();
+				GD.PrintErr("[LobbyCreate] Failed to host lobby.");
+				string errorMsg = LobbyManager.Instance.LastHostError ?? Tr("Failed to host lobby on the registry server.");
+				ShowHostErrorModal(errorMsg);
+			}
 		}
 
-		if (LobbyManager.Instance.LocalNatType == NatType.Symmetric)
+		private string GetSelectedVersion()
 		{
-			UIManager.Instance.PlayWarningSound();
-			ShowSTUNErrorModal();
-			return;
-		}
-		
-		string mapPathName = "melee";
-		string mapDisplayName = "Melee Battlefield";
-		string mapBuildNumber = Realm.Shared.RealmVersion.GameBuildNumber;
-		int selectedIndex = _mapSelectButton.Selected;
-		if (selectedIndex >= 0 && selectedIndex < _availableMaps.Count)
-		{
-			mapPathName = _availableMaps[selectedIndex].PathName;
-			mapDisplayName = _availableMaps[selectedIndex].DisplayName;
-			mapBuildNumber = _availableMaps[selectedIndex].GameBuildNumber;
+			if (_availableVersions.Count > 0 && _versionSelectButton.Selected >= 0 && _versionSelectButton.Selected < _availableVersions.Count)
+			{
+				return _availableVersions[_versionSelectButton.Selected];
+			}
+			return "1.0.0";
 		}
 
-		if (!string.IsNullOrEmpty(mapBuildNumber) && !string.Equals(mapBuildNumber, Realm.Shared.RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase))
+		private (string PathName, string DisplayName, string BuildNumber) GetSelectedMapInfo()
 		{
-			UIManager.Instance.PlayWarningSound();
-			ShowMapBuildMismatchModal(mapPathName, mapDisplayName, mapBuildNumber, Realm.Shared.RealmVersion.GameBuildNumber);
-			return;
+			int selectedIndex = _mapSelectButton.Selected;
+			if (selectedIndex >= 0 && selectedIndex < _availableMaps.Count)
+			{
+				var map = _availableMaps[selectedIndex];
+				return (map.PathName, map.DisplayName, map.GameBuildNumber);
+			}
+			return ("melee", "Melee Battlefield", Realm.Shared.RealmVersion.GameBuildNumber);
 		}
 
-		_createButton.Disabled = true;
-		bool success = await LobbyManager.Instance.HostLobbyAsync(mapPathName, mapDisplayName, selectedVersion);
-		_createButton.Disabled = false;
-
-		if (success)
+		private bool IsMapBuildMismatch(string mapBuildNumber)
 		{
-			UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
+			return !string.IsNullOrEmpty(mapBuildNumber) && 
+				   !string.Equals(mapBuildNumber, Realm.Shared.RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
 		}
-		else
-		{
-			UIManager.Instance.PlayWarningSound();
-			GD.PrintErr("[LobbyCreate] Failed to host lobby.");
-			string errorMsg = LobbyManager.Instance.LastHostError ?? Tr("Failed to host lobby on the registry server.");
-			ShowHostErrorModal(errorMsg);
-		}
-	}
 
-	private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
+		private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
 	{
 		var warningPopup = new Panel();
 		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -564,46 +558,59 @@ public partial class LobbyCreate : Control
 	}
 
 	private void OnMapSelected(long index, string? targetVersion)
-	{
-		UIManager.Instance?.PlayClickSound();
-		if (index >= 0 && index < _availableMaps.Count)
 		{
+			UIManager.Instance?.PlayClickSound();
+			
+			if (index < 0 || index >= _availableMaps.Count)
+			{
+				return;
+			}
+
 			var selectedMap = _availableMaps[(int)index];
 			_briefingText.Text = selectedMap.Description;
 			RefreshVersionsForSelectedMap(selectedMap, targetVersion);
 
-			string thumbPath = !string.IsNullOrEmpty(selectedMap.ThumbnailPath) && System.IO.File.Exists(selectedMap.ThumbnailPath)
-				? selectedMap.ThumbnailPath
-				: MapInfoHelper.FindThumbnailForMap(selectedMap.PathName, selectedMap.Version);
+			string thumbPath = GetMapThumbnailPath(selectedMap);
+			LoadThumbnailTexture(thumbPath);
+		}
 
-			if (!string.IsNullOrEmpty(thumbPath) && System.IO.File.Exists(thumbPath))
+		private string GetMapThumbnailPath(MapBriefingDetails selectedMap)
+		{
+			if (!string.IsNullOrEmpty(selectedMap.ThumbnailPath) && System.IO.File.Exists(selectedMap.ThumbnailPath))
 			{
-				try
+				return selectedMap.ThumbnailPath;
+			}
+			return MapInfoHelper.FindThumbnailForMap(selectedMap.PathName, selectedMap.Version);
+		}
+
+		private void LoadThumbnailTexture(string thumbPath)
+		{
+			if (string.IsNullOrEmpty(thumbPath) || !System.IO.File.Exists(thumbPath))
+			{
+				_mapThumbnail.Texture = UIStyle.EmptyBlackTexture;
+				return;
+			}
+
+			try
+			{
+				var img = Image.LoadFromFile(thumbPath);
+				if (img != null && !img.IsEmpty())
 				{
-					var img = Image.LoadFromFile(thumbPath);
-					if (img != null && !img.IsEmpty())
-					{
-						_mapThumbnail.Texture = ImageTexture.CreateFromImage(img);
-						_mapThumbnail.Modulate = Colors.White;
-					}
-					else
-					{
-						_mapThumbnail.Texture = UIStyle.EmptyBlackTexture;
-					}
+					_mapThumbnail.Texture = ImageTexture.CreateFromImage(img);
+					_mapThumbnail.Modulate = Colors.White;
 				}
-				catch
+				else
 				{
 					_mapThumbnail.Texture = UIStyle.EmptyBlackTexture;
 				}
 			}
-			else
+			catch
 			{
 				_mapThumbnail.Texture = UIStyle.EmptyBlackTexture;
 			}
 		}
-	}
 
-	private void RefreshVersionsForSelectedMap(MapBriefingDetails selectedMap, string? targetVersion = null)
+		private void RefreshVersionsForSelectedMap(MapBriefingDetails selectedMap, string? targetVersion = null)
 	{
 		_availableVersions = MapInfoHelper.GetDownloadedVersionsForMap(selectedMap.PathName, selectedMap.DisplayName);
 		_versionSelectButton.Clear();

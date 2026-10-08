@@ -59,7 +59,13 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
-		// SECTION 1: INTERFACE & OVERLAYS
+		BuildInterfaceSection(contentVBox);
+		BuildWorkflowSection(contentVBox);
+		BuildDeveloperToolsSection(contentVBox);
+	}
+
+	private void BuildInterfaceSection(VBoxContainer contentVBox)
+	{
 		AddSectionHeader(contentVBox, "🖥️ " + TranslationServer.Translate("INTERFACE & OVERLAYS"), new Color(0.95f, 0.8f, 0.4f));
 
 		_chkHideChromeBorder = AddCheckBox(
@@ -101,8 +107,10 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			"0.00",
 			140f
 		);
+	}
 
-		// SECTION 2: BACKUPS & WORKFLOW
+	private void BuildWorkflowSection(VBoxContainer contentVBox)
+	{
 		AddSectionHeader(contentVBox, "💾 " + TranslationServer.Translate("BACKUPS & WORKFLOW"), new Color(0.7f, 0.95f, 0.6f));
 
 		string[] autoBackupOptions = new[]
@@ -167,7 +175,10 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		btnOpenBackups.CustomMinimumSize = new Vector2(220, 32);
 		btnOpenBackups.Pressed += OpenMapBackupsFolder;
 		btnBackupsRow.AddChild(btnOpenBackups);
+	}
 
+	private void BuildDeveloperToolsSection(VBoxContainer contentVBox)
+	{
 		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
 
 		var btnAuthorSignatureRow = new HBoxContainer();
@@ -325,26 +336,25 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		try
 		{
 			string fullPath = ProjectSettings.GlobalizePath(SettingsFilePath);
-			if (File.Exists(fullPath))
+			if (!File.Exists(fullPath)) return;
+			
+			string json = File.ReadAllText(fullPath);
+			var loaded = JsonSerializer.Deserialize<EditorPreferencesData>(json);
+			if (loaded == null) return;
+			
+			var jNode = JsonNode.Parse(json)?.AsObject();
+			if (jNode != null && !jNode.ContainsKey(nameof(EditorPreferencesData.AutoBackupIntervalMinutes)) && jNode.ContainsKey("AutoSaveIntervalMinutes"))
 			{
-				string json = File.ReadAllText(fullPath);
-				var loaded = JsonSerializer.Deserialize<EditorPreferencesData>(json);
-				if (loaded != null)
+				int legacyVal = (int)(jNode["AutoSaveIntervalMinutes"] ?? 30);
+				loaded.AutoBackupIntervalMinutes = legacyVal switch
 				{
-					var jNode = JsonNode.Parse(json)?.AsObject();
-					if (jNode != null && !jNode.ContainsKey(nameof(EditorPreferencesData.AutoBackupIntervalMinutes)) && jNode.ContainsKey("AutoSaveIntervalMinutes"))
-					{
-						int legacyVal = (int)(jNode["AutoSaveIntervalMinutes"] ?? 30);
-						loaded.AutoBackupIntervalMinutes = legacyVal switch
-						{
-							<= 15 => 15,
-							<= 30 => 30,
-							_ => 60
-						};
-					}
-					CurrentSettings = loaded;
-				}
+					<= 15 => 15,
+					<= 30 => 30,
+					_ => 60
+				};
 			}
+			
+			CurrentSettings = loaded;
 		}
 		catch (Exception ex)
 		{

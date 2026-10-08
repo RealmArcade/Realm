@@ -15,37 +15,56 @@ public static class RealmDefaultAnimations
     public static RealmAnimationData Dance { get; private set; }
 
     public static void EnsureDefaultTemplateAnimations(string baseAssetsDirectory)
-	{
-		try
-		{
-			string animsDir = Path.Combine(baseAssetsDirectory, "animations");
-			if (!Directory.Exists(animsDir))
-			{
-				animsDir = Path.Combine(baseAssetsDirectory, "Assets", "animations");
-			}
-			if (!Directory.Exists(animsDir))
-			{
-				Directory.CreateDirectory(animsDir);
-			}
+    {
+        try
+        {
+            string animsDir = GetOrCreateAnimationsDirectory(baseAssetsDirectory);
+            LoadAllAnimations(animsDir);
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"[RealmDefaultAnimations] Error ensuring default animations: {ex.Message}");
+        }
+    }
 
-			Idle = AnimationRetargetingService.GetOrLoadRanimData(Path.Combine(animsDir, "idle.ranim"))
-				?? AnimationRetargetingService.GetOrLoadRanimData(ProjectSettings.GlobalizePath("res://Assets/animations/idle.ranim"));
-			Walk = AnimationRetargetingService.GetOrLoadRanimData(Path.Combine(animsDir, "walk.ranim"))
-				?? AnimationRetargetingService.GetOrLoadRanimData(ProjectSettings.GlobalizePath("res://Assets/animations/walk.ranim"));
-			Attack = AnimationRetargetingService.GetOrLoadRanimData(Path.Combine(animsDir, "attack.ranim"))
-				?? AnimationRetargetingService.GetOrLoadRanimData(ProjectSettings.GlobalizePath("res://Assets/animations/attack.ranim"));
-			Death = AnimationRetargetingService.GetOrLoadRanimData(Path.Combine(animsDir, "death.ranim"))
-				?? AnimationRetargetingService.GetOrLoadRanimData(ProjectSettings.GlobalizePath("res://Assets/animations/death.ranim"));
-			Labor = AnimationRetargetingService.GetOrLoadRanimData(Path.Combine(animsDir, "labor.ranim"))
-				?? AnimationRetargetingService.GetOrLoadRanimData(ProjectSettings.GlobalizePath("res://Assets/animations/labor.ranim"));
-			Spell_Cast = AnimationRetargetingService.GetOrLoadRanimData(Path.Combine(animsDir, "spell_cast.ranim"))
-				?? AnimationRetargetingService.GetOrLoadRanimData(ProjectSettings.GlobalizePath("res://Assets/animations/spell_cast.ranim"));
-			Dance = AnimationRetargetingService.GetOrLoadRanimData(Path.Combine(animsDir, "dance.ranim"))
-				?? AnimationRetargetingService.GetOrLoadRanimData(ProjectSettings.GlobalizePath("res://Assets/animations/dance.ranim"));
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[RealmDefaultAnimations] Error ensuring default animations: {ex.Message}");
-		}
-	}
+    private static string GetOrCreateAnimationsDirectory(string baseAssetsDirectory)
+    {
+        string animsDir = Path.Combine(baseAssetsDirectory, "animations");
+        if (Directory.Exists(animsDir))
+        {
+            return animsDir;
+        }
+
+        animsDir = Path.Combine(baseAssetsDirectory, "Assets", "animations");
+        if (!Directory.Exists(animsDir))
+        {
+            Directory.CreateDirectory(animsDir);
+        }
+
+        return animsDir;
+    }
+
+    private static void LoadAllAnimations(string animsDir)
+    {
+        Idle = LoadAnimation(animsDir, "idle.ranim");
+        Walk = LoadAnimation(animsDir, "walk.ranim");
+        Attack = LoadAnimation(animsDir, "attack.ranim");
+        Death = LoadAnimation(animsDir, "death.ranim");
+        Labor = LoadAnimation(animsDir, "labor.ranim");
+        Spell_Cast = LoadAnimation(animsDir, "spell_cast.ranim");
+        Dance = LoadAnimation(animsDir, "dance.ranim");
+    }
+
+    private static RealmAnimationData LoadAnimation(string animsDir, string fileName)
+    {
+        string localPath = Path.Combine(animsDir, fileName);
+        RealmAnimationData data = AnimationRetargetingService.GetOrLoadRanimData(localPath);
+        if (data != null)
+        {
+            return data;
+        }
+
+        string defaultPath = ProjectSettings.GlobalizePath($"res://Assets/animations/{fileName}");
+        return AnimationRetargetingService.GetOrLoadRanimData(defaultPath);
+    }
 }

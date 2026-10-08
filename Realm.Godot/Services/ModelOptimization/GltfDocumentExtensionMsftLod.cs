@@ -58,135 +58,16 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		{
 			var gltfNodes = state.GetNodes();
 			var gltfMeshes = state.GetMeshes();
-
 			var meshInstances = new List<MeshInstance3D>();
 			CollectMeshInstances(root, meshInstances);
 
 			var masterGltfNodes = new Dictionary<string, (int NodeIndex, GltfNode Node)>();
 			var companionLodNodes = new Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>>();
-
-			for (int n = 0; n < gltfNodes.Count; n++)
-			{
-				var gNode = gltfNodes[n];
-				string rawName = !string.IsNullOrEmpty(gNode.OriginalName) ? gNode.OriginalName : gNode.ResourceName;
-
-				if (string.IsNullOrEmpty(rawName))
-				{
-					continue;
-				}
-
-				if (rawName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase) || rawName.EndsWith("LOD0", StringComparison.OrdinalIgnoreCase))
-				{
-					string prefix = rawName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase)
-						? rawName.Substring(0, rawName.Length - 5)
-						: rawName.Substring(0, rawName.Length - 4);
-					masterGltfNodes[prefix] = (n, gNode);
-				}
-				else if (rawName.Contains("_LOD") || rawName.Contains("LOD"))
-				{
-					int lodTagIdx = rawName.LastIndexOf("_LOD", StringComparison.OrdinalIgnoreCase);
-					int tagLen = 4;
-					if (lodTagIdx < 0)
-					{
-						lodTagIdx = rawName.LastIndexOf("LOD", StringComparison.OrdinalIgnoreCase);
-						tagLen = 3;
-					}
-
-					if (lodTagIdx >= 0 && lodTagIdx + tagLen < rawName.Length && int.TryParse(rawName.Substring(lodTagIdx + tagLen), out int level))
-					{
-						string prefix = rawName.Substring(0, lodTagIdx);
-						if (!companionLodNodes.TryGetValue(prefix, out var dict))
-						{
-							dict = new SortedDictionary<int, (int NodeIndex, GltfNode Node)>();
-							companionLodNodes[prefix] = dict;
-						}
-						dict[level] = (n, gNode);
-					}
-				}
-			}
+			CategorizeGltfNodes(gltfNodes, masterGltfNodes, companionLodNodes);
 
 			foreach (var kvp in masterGltfNodes)
 			{
-				string prefix = kvp.Key;
-				var masterData = kvp.Value;
-				int masterNodeIndex = masterData.NodeIndex;
-				GltfNode masterGltfNode = masterData.Node;
-
-				string masterNodeName = !string.IsNullOrEmpty(masterGltfNode.OriginalName) ? masterGltfNode.OriginalName : masterGltfNode.ResourceName;
-				MeshInstance3D masterInstance = FindMeshInstanceByNameOrIndex(meshInstances, masterNodeName, masterNodeIndex);
-
-				if (masterInstance == null && meshInstances.Count == 1)
-				{
-					masterInstance = meshInstances[0];
-				}
-
-				if (masterInstance != null)
-				{
-					Node parentNode = masterInstance.GetParent() ?? root;
-
-					if (companionLodNodes.TryGetValue(prefix, out var lodDict))
-					{
-						foreach (var lodKvp in lodDict)
-						{
-							int lodLevel = lodKvp.Key;
-							var lodData = lodKvp.Value;
-							int lodNodeIndex = lodData.NodeIndex;
-							GltfNode lodGltfNode = lodData.Node;
-
-							string lodNodeName = !string.IsNullOrEmpty(lodGltfNode.OriginalName) ? lodGltfNode.OriginalName : lodGltfNode.ResourceName;
-							if (string.IsNullOrEmpty(lodNodeName))
-							{
-								lodNodeName = $"{prefix}_LOD{lodLevel}";
-							}
-
-							MeshInstance3D existingLodInstance = FindMeshInstanceByNameOrIndex(meshInstances, lodNodeName, lodNodeIndex);
-							if (existingLodInstance == null || existingLodInstance == masterInstance)
-							{
-								int meshIndex = lodGltfNode.Mesh;
-								if (meshIndex >= 0 && meshIndex < gltfMeshes.Count)
-								{
-									var gltfMesh = gltfMeshes[meshIndex];
-									Mesh importedMesh = gltfMesh.Mesh?.GetMesh();
-
-									if (importedMesh != null)
-									{
-										var newLodInstance = new MeshInstance3D
-										{
-											Name = lodNodeName,
-											Mesh = importedMesh,
-											Transform = masterInstance.Transform
-										};
-
-										int surfaceCount = importedMesh.GetSurfaceCount();
-										for (int s = 0; s < surfaceCount; s++)
-										{
-											var mat = masterInstance.GetSurfaceOverrideMaterial(s) ?? masterInstance.Mesh?.SurfaceGetMaterial(s);
-											if (mat != null)
-											{
-												newLodInstance.SetSurfaceOverrideMaterial(s, mat);
-											}
-										}
-
-										if (masterInstance.MaterialOverride != null)
-										{
-											newLodInstance.MaterialOverride = masterInstance.MaterialOverride;
-										}
-
-										if (masterInstance.Skin != null)
-										{
-											newLodInstance.Skin = masterInstance.Skin;
-											newLodInstance.Skeleton = masterInstance.Skeleton;
-										}
-
-										parentNode.AddChild(newLodInstance);
-										newLodInstance.Owner = root;
-										meshInstances.Add(newLodInstance);
-									}
-								}
-							}
-						}
-					}
-				}
+				ProcessMasterNode(kvp.Key, kvp.Value, meshInstances, companionLodNodes, gltfMeshes, root);
 			}
 
 			ConfigureExistingLodNodes(meshInstances);
@@ -196,6 +77,140 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		}
 	}
 
+	private static void CategorizeGltfNodes(
+		global::Godot.Collections.Array<GltfNode> gltfNodes,
+		Dictionary<string, (int NodeIndex, GltfNode Node)> masterGltfNodes,
+		Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>> companionLodNodes)
+	{
+		for (int n = 0; n < gltfNodes.Count; n++)
+		{
+			var gNode = gltfNodes[n];
+			string rawName = !string.IsNullOrEmpty(gNode.OriginalName) ? gNode.OriginalName : gNode.ResourceName;
+			if (string.IsNullOrEmpty(rawName))
+				continue;
+
+			var info = TryParseLodInfo(rawName);
+			if (info == null)
+				continue;
+
+			if (info.Value.Level == 0)
+			{
+				masterGltfNodes[info.Value.Prefix] = (n, gNode);
+			}
+			else
+			{
+				if (!companionLodNodes.TryGetValue(info.Value.Prefix, out var dict))
+				{
+					dict = new SortedDictionary<int, (int NodeIndex, GltfNode Node)>();
+					companionLodNodes[info.Value.Prefix] = dict;
+				}
+				dict[info.Value.Level] = (n, gNode);
+			}
+		}
+	}
+
+	private static void ProcessMasterNode(
+		string prefix,
+		(int NodeIndex, GltfNode Node) masterData,
+		List<MeshInstance3D> meshInstances,
+		Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>> companionLodNodes,
+		global::Godot.Collections.Array<GltfMesh> gltfMeshes,
+		Node root)
+	{
+		string masterNodeName = !string.IsNullOrEmpty(masterData.Node.OriginalName) ? masterData.Node.OriginalName : masterData.Node.ResourceName;
+		MeshInstance3D masterInstance = FindMeshInstanceByNameOrIndex(meshInstances, masterNodeName, masterData.NodeIndex);
+
+		if (masterInstance == null && meshInstances.Count == 1)
+		{
+			masterInstance = meshInstances[0];
+		}
+
+		if (masterInstance == null)
+			return;
+
+		Node parentNode = masterInstance.GetParent() ?? root;
+
+		if (companionLodNodes.TryGetValue(prefix, out var lodDict))
+		{
+			foreach (var lodKvp in lodDict)
+			{
+				ProcessCompanionLodNode(prefix, lodKvp.Key, lodKvp.Value, masterInstance, meshInstances, gltfMeshes, parentNode, root);
+			}
+		}
+	}
+
+	private static void ProcessCompanionLodNode(
+		string prefix,
+		int lodLevel,
+		(int NodeIndex, GltfNode Node) lodData,
+		MeshInstance3D masterInstance,
+		List<MeshInstance3D> meshInstances,
+		global::Godot.Collections.Array<GltfMesh> gltfMeshes,
+		Node parentNode,
+		Node root)
+	{
+		string lodNodeName = !string.IsNullOrEmpty(lodData.Node.OriginalName) ? lodData.Node.OriginalName : lodData.Node.ResourceName;
+		if (string.IsNullOrEmpty(lodNodeName))
+		{
+			lodNodeName = $"{prefix}_LOD{lodLevel}";
+		}
+
+		MeshInstance3D existingLodInstance = FindMeshInstanceByNameOrIndex(meshInstances, lodNodeName, lodData.NodeIndex);
+		if (existingLodInstance != null && existingLodInstance != masterInstance)
+			return;
+
+		int meshIndex = lodData.Node.Mesh;
+		if (meshIndex < 0 || meshIndex >= gltfMeshes.Count)
+			return;
+
+		var gltfMesh = gltfMeshes[meshIndex];
+		Mesh importedMesh = gltfMesh.Mesh?.GetMesh();
+		if (importedMesh == null)
+			return;
+
+		CreateLodInstance(lodNodeName, importedMesh, masterInstance, meshInstances, parentNode, root);
+	}
+
+	private static void CreateLodInstance(
+		string lodNodeName,
+		Mesh importedMesh,
+		MeshInstance3D masterInstance,
+		List<MeshInstance3D> meshInstances,
+		Node parentNode,
+		Node root)
+	{
+		var newLodInstance = new MeshInstance3D
+		{
+			Name = lodNodeName,
+			Mesh = importedMesh,
+			Transform = masterInstance.Transform
+		};
+
+		int surfaceCount = importedMesh.GetSurfaceCount();
+		for (int s = 0; s < surfaceCount; s++)
+		{
+			var mat = masterInstance.GetSurfaceOverrideMaterial(s) ?? masterInstance.Mesh?.SurfaceGetMaterial(s);
+			if (mat != null)
+			{
+				newLodInstance.SetSurfaceOverrideMaterial(s, mat);
+			}
+		}
+
+		if (masterInstance.MaterialOverride != null)
+		{
+			newLodInstance.MaterialOverride = masterInstance.MaterialOverride;
+		}
+
+		if (masterInstance.Skin != null)
+		{
+			newLodInstance.Skin = masterInstance.Skin;
+			newLodInstance.Skeleton = masterInstance.Skeleton;
+		}
+
+		parentNode.AddChild(newLodInstance);
+		newLodInstance.Owner = root;
+		meshInstances.Add(newLodInstance);
+	}
 	private static void CollectMeshInstances(Node current, List<MeshInstance3D> list)
 	{
 		if (current is MeshInstance3D mi && mi.Mesh != null)
@@ -213,32 +228,41 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 	private static MeshInstance3D FindMeshInstanceByNameOrIndex(List<MeshInstance3D> instances, string name, int index)
 	{
 		if (instances == null || instances.Count == 0)
-		{
 			return null;
-		}
 
 		if (!string.IsNullOrEmpty(name))
 		{
-			foreach (var mi in instances)
-			{
-				string miName = mi.Name.ToString();
-				if (miName == name || miName.StartsWith(name, StringComparison.OrdinalIgnoreCase) || name.StartsWith(miName, StringComparison.OrdinalIgnoreCase))
-				{
-					return mi;
-				}
-			}
+			var byName = FindByName(instances, name);
+			if (byName != null) return byName;
 		}
 
 		if (index >= 0 && index < instances.Count)
-		{
 			return instances[index];
-		}
 
 		if (instances.Count == 1)
-		{
 			return instances[0];
-		}
 
+		var byLod0 = FindByLod0(instances);
+		if (byLod0 != null) return byLod0;
+
+		return instances[0];
+	}
+
+	private static MeshInstance3D FindByName(List<MeshInstance3D> instances, string name)
+	{
+		foreach (var mi in instances)
+		{
+			string miName = mi.Name.ToString();
+			if (miName == name || miName.StartsWith(name, StringComparison.OrdinalIgnoreCase) || name.StartsWith(miName, StringComparison.OrdinalIgnoreCase))
+			{
+				return mi;
+			}
+		}
+		return null;
+	}
+
+	private static MeshInstance3D FindByLod0(List<MeshInstance3D> instances)
+	{
 		foreach (var mi in instances)
 		{
 			string miName = mi.Name.ToString();
@@ -247,8 +271,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 				return mi;
 			}
 		}
-
-		return instances[0];
+		return null;
 	}
 
 	private static (string Prefix, int Level)? TryParseLodInfo(string name)

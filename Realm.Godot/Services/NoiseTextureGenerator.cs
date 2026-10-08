@@ -11,172 +11,21 @@ public static class NoiseTextureGenerator
 {
 	public static Image GenerateNoiseImage(JsonObject config, int? overrideWidth = null, int? overrideHeight = null)
 	{
-		int width = overrideWidth ?? (config.TryGetPropertyValue("width", out var wNode) && int.TryParse(wNode?.ToString(), out int w) ? w : 512);
-		int height = overrideHeight ?? (config.TryGetPropertyValue("height", out var hNode) && int.TryParse(hNode?.ToString(), out int h) ? h : 512);
+		int width = overrideWidth ?? GetIntProperty(config, "width", 512);
+		int height = overrideHeight ?? GetIntProperty(config, "height", 512);
 		width = Math.Clamp(width, 32, 2048);
 		height = Math.Clamp(height, 32, 2048);
 
 		var noise = new FastNoiseLite();
+		ApplyNoiseConfig(noise, config);
 
-		if (config.TryGetPropertyValue("noise_type", out var ntNode) && Enum.TryParse<FastNoiseLite.NoiseTypeEnum>(ntNode?.ToString(), true, out var noiseType))
-		{
-			noise.NoiseType = noiseType;
-		}
-		else
-		{
-			noise.NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin;
-		}
-
-		if (config.TryGetPropertyValue("seed", out var seedNode) && int.TryParse(seedNode?.ToString(), out int seed))
-		{
-			noise.Seed = seed;
-		}
-		else
-		{
-			noise.Seed = 1337;
-		}
-
-		if (config.TryGetPropertyValue("frequency", out var freqNode) && float.TryParse(freqNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float freq))
-		{
-			noise.Frequency = freq;
-		}
-		else
-		{
-			noise.Frequency = 0.015f;
-		}
-
-		if (config.TryGetPropertyValue("fractal_type", out var ftNode) && Enum.TryParse<FastNoiseLite.FractalTypeEnum>(ftNode?.ToString(), true, out var fractalType))
-		{
-			noise.FractalType = fractalType;
-		}
-		else
-		{
-			noise.FractalType = FastNoiseLite.FractalTypeEnum.Fbm;
-		}
-
-		if (config.TryGetPropertyValue("fractal_octaves", out var octNode) && int.TryParse(octNode?.ToString(), out int octaves))
-		{
-			noise.FractalOctaves = Math.Clamp(octaves, 1, 10);
-		}
-		else
-		{
-			noise.FractalOctaves = 5;
-		}
-
-		if (config.TryGetPropertyValue("fractal_lacunarity", out var lacNode) && float.TryParse(lacNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float lac))
-		{
-			noise.FractalLacunarity = lac;
-		}
-		else
-		{
-			noise.FractalLacunarity = 2.0f;
-		}
-
-		if (config.TryGetPropertyValue("fractal_gain", out var gainNode) && float.TryParse(gainNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float gain))
-		{
-			noise.FractalGain = gain;
-		}
-		else
-		{
-			noise.FractalGain = 0.5f;
-		}
-
-		if (config.TryGetPropertyValue("fractal_weighted_strength", out var wsNode) && float.TryParse(wsNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ws))
-		{
-			noise.FractalWeightedStrength = ws;
-		}
-
-		if (config.TryGetPropertyValue("cellular_distance_function", out var cdfNode) && Enum.TryParse<FastNoiseLite.CellularDistanceFunctionEnum>(cdfNode?.ToString(), true, out var cdf))
-		{
-			noise.CellularDistanceFunction = cdf;
-		}
-
-		if (config.TryGetPropertyValue("cellular_return_type", out var crtNode) && Enum.TryParse<FastNoiseLite.CellularReturnTypeEnum>(crtNode?.ToString(), true, out var crt))
-		{
-			noise.CellularReturnType = crt;
-		}
-
-		if (config.TryGetPropertyValue("cellular_jitter", out var cjNode) && float.TryParse(cjNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float cj))
-		{
-			noise.CellularJitter = cj;
-		}
-
-		if (config.TryGetPropertyValue("domain_warp_enabled", out var dweNode) && bool.TryParse(dweNode?.ToString(), out bool dwe))
-		{
-			noise.DomainWarpEnabled = dwe;
-		}
-
-		if (config.TryGetPropertyValue("domain_warp_type", out var dwtNode) && Enum.TryParse<FastNoiseLite.DomainWarpTypeEnum>(dwtNode?.ToString(), true, out var dwt))
-		{
-			noise.DomainWarpType = dwt;
-		}
-
-		if (config.TryGetPropertyValue("domain_warp_amplitude", out var dwaNode) && float.TryParse(dwaNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dwa))
-		{
-			noise.DomainWarpAmplitude = dwa;
-		}
-
-		if (config.TryGetPropertyValue("domain_warp_frequency", out var dwfNode) && float.TryParse(dwfNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dwf))
-		{
-			noise.DomainWarpFrequency = dwf;
-		}
-
-		if (config.TryGetPropertyValue("domain_warp_fractal_octaves", out var dwoNode) && int.TryParse(dwoNode?.ToString(), out int dwo))
-		{
-			noise.DomainWarpFractalOctaves = Math.Clamp(dwo, 1, 10);
-		}
-
-		if (config.TryGetPropertyValue("domain_warp_fractal_lacunarity", out var dwlNode) && float.TryParse(dwlNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dwl))
-		{
-			noise.DomainWarpFractalLacunarity = dwl;
-		}
-
-		if (config.TryGetPropertyValue("domain_warp_fractal_gain", out var dwgNode) && float.TryParse(dwgNode?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float dwg))
-		{
-			noise.DomainWarpFractalGain = dwg;
-		}
-
-		bool invert = config.TryGetPropertyValue("invert", out var invNode) && bool.TryParse(invNode?.ToString(), out bool inv) && inv;
-		bool normalize = !config.TryGetPropertyValue("normalize", out var normNode) || !bool.TryParse(normNode?.ToString(), out bool nrm) || nrm;
-		bool isFlowMap = (config.TryGetPropertyValue("is_flow_map", out var flowNode) && bool.TryParse(flowNode?.ToString(), out bool fm1) && fm1)
-			|| (config.TryGetPropertyValue("flow_map", out var fmNode) && bool.TryParse(fmNode?.ToString(), out bool fm2) && fm2);
+		bool invert = GetBoolProperty(config, "invert", false);
+		bool normalize = GetBoolProperty(config, "normalize", true);
+		bool isFlowMap = GetBoolProperty(config, "is_flow_map", false) || GetBoolProperty(config, "flow_map", false);
 
 		if (isFlowMap)
 		{
-			var flowImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
-			for (int y = 0; y < height; y++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					float dx = (noise.GetNoise2D(x + 1f, y) - noise.GetNoise2D(x - 1f, y)) * 0.5f;
-					float dy = (noise.GetNoise2D(x, y + 1f) - noise.GetNoise2D(x, y - 1f)) * 0.5f;
-					if (invert)
-					{
-						dx = -dx;
-						dy = -dy;
-					}
-
-					float vx = dy;
-					float vy = -dx;
-
-					float len = MathF.Sqrt(vx * vx + vy * vy);
-					if (len > 0.00001f)
-					{
-						vx /= len;
-						vy /= len;
-					}
-					else
-					{
-						vx = 0f;
-						vy = 0f;
-					}
-
-					float r = Math.Clamp(vx * 0.5f + 0.5f, 0f, 1f);
-					float g = Math.Clamp(vy * 0.5f + 0.5f, 0f, 1f);
-					flowImage.SetPixel(x, y, new Color(r, g, 1.0f, 1.0f));
-				}
-			}
-			return flowImage;
+			return GenerateFlowMap(noise, width, height, invert);
 		}
 
 		Image baseImage = noise.GetImage(width, height, invert, false, normalize);
@@ -184,33 +33,126 @@ public static class NoiseTextureGenerator
 		string colorMode = config["color_mode"]?.ToString() ?? "Grayscale";
 		if (string.Equals(colorMode, "ColorRamp", StringComparison.OrdinalIgnoreCase))
 		{
-			Color colorA = Colors.Black;
-			Color colorB = Colors.White;
-
-			if (config.TryGetPropertyValue("color_a", out var caNode) && !string.IsNullOrEmpty(caNode?.ToString()))
-			{
-				colorA = Color.FromHtml(caNode.ToString());
-			}
-
-			if (config.TryGetPropertyValue("color_b", out var cbNode) && !string.IsNullOrEmpty(cbNode?.ToString()))
-			{
-				colorB = Color.FromHtml(cbNode.ToString());
-			}
-
-			var coloredImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
-			for (int y = 0; y < height; y++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					float gray = baseImage.GetPixel(x, y).R;
-					Color blended = colorA.Lerp(colorB, gray);
-					coloredImage.SetPixel(x, y, blended);
-				}
-			}
-			return coloredImage;
+			return ApplyColorRamp(baseImage, config, width, height);
 		}
 
 		return baseImage;
+	}
+
+	private static void ApplyNoiseConfig(FastNoiseLite noise, JsonObject config)
+	{
+		noise.NoiseType = GetEnumProperty(config, "noise_type", FastNoiseLite.NoiseTypeEnum.Perlin);
+		noise.Seed = GetIntProperty(config, "seed", 1337);
+		noise.Frequency = GetFloatProperty(config, "frequency", 0.015f);
+		noise.FractalType = GetEnumProperty(config, "fractal_type", FastNoiseLite.FractalTypeEnum.Fbm);
+		noise.FractalOctaves = Math.Clamp(GetIntProperty(config, "fractal_octaves", 5), 1, 10);
+		noise.FractalLacunarity = GetFloatProperty(config, "fractal_lacunarity", 2.0f);
+		noise.FractalGain = GetFloatProperty(config, "fractal_gain", 0.5f);
+		noise.FractalWeightedStrength = GetFloatProperty(config, "fractal_weighted_strength", noise.FractalWeightedStrength);
+		noise.CellularDistanceFunction = GetEnumProperty(config, "cellular_distance_function", noise.CellularDistanceFunction);
+		noise.CellularReturnType = GetEnumProperty(config, "cellular_return_type", noise.CellularReturnType);
+		noise.CellularJitter = GetFloatProperty(config, "cellular_jitter", noise.CellularJitter);
+		noise.DomainWarpEnabled = GetBoolProperty(config, "domain_warp_enabled", noise.DomainWarpEnabled);
+		noise.DomainWarpType = GetEnumProperty(config, "domain_warp_type", noise.DomainWarpType);
+		noise.DomainWarpAmplitude = GetFloatProperty(config, "domain_warp_amplitude", noise.DomainWarpAmplitude);
+		noise.DomainWarpFrequency = GetFloatProperty(config, "domain_warp_frequency", noise.DomainWarpFrequency);
+		noise.DomainWarpFractalOctaves = Math.Clamp(GetIntProperty(config, "domain_warp_fractal_octaves", noise.DomainWarpFractalOctaves), 1, 10);
+		noise.DomainWarpFractalLacunarity = GetFloatProperty(config, "domain_warp_fractal_lacunarity", noise.DomainWarpFractalLacunarity);
+		noise.DomainWarpFractalGain = GetFloatProperty(config, "domain_warp_fractal_gain", noise.DomainWarpFractalGain);
+	}
+
+	private static Image GenerateFlowMap(FastNoiseLite noise, int width, int height, bool invert)
+	{
+		var flowImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
+		for (int y = 0; y < height; y++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				float dx = (noise.GetNoise2D(x + 1f, y) - noise.GetNoise2D(x - 1f, y)) * 0.5f;
+				float dy = (noise.GetNoise2D(x, y + 1f) - noise.GetNoise2D(x, y - 1f)) * 0.5f;
+				if (invert)
+				{
+					dx = -dx;
+					dy = -dy;
+				}
+
+				float vx = dy;
+				float vy = -dx;
+
+				float len = MathF.Sqrt(vx * vx + vy * vy);
+				if (len > 0.00001f)
+				{
+					vx /= len;
+					vy /= len;
+				}
+				else
+				{
+					vx = 0f;
+					vy = 0f;
+				}
+
+				float r = Math.Clamp(vx * 0.5f + 0.5f, 0f, 1f);
+				float g = Math.Clamp(vy * 0.5f + 0.5f, 0f, 1f);
+				flowImage.SetPixel(x, y, new Color(r, g, 1.0f, 1.0f));
+			}
+		}
+		return flowImage;
+	}
+
+	private static Image ApplyColorRamp(Image baseImage, JsonObject config, int width, int height)
+	{
+		Color colorA = Colors.Black;
+		Color colorB = Colors.White;
+
+		if (config.TryGetPropertyValue("color_a", out var caNode) && !string.IsNullOrEmpty(caNode?.ToString()))
+		{
+			colorA = Color.FromHtml(caNode.ToString());
+		}
+
+		if (config.TryGetPropertyValue("color_b", out var cbNode) && !string.IsNullOrEmpty(cbNode?.ToString()))
+		{
+			colorB = Color.FromHtml(cbNode.ToString());
+		}
+
+		var coloredImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
+		for (int y = 0; y < height; y++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				float gray = baseImage.GetPixel(x, y).R;
+				Color blended = colorA.Lerp(colorB, gray);
+				coloredImage.SetPixel(x, y, blended);
+			}
+		}
+		return coloredImage;
+	}
+
+	private static int GetIntProperty(JsonObject config, string key, int defaultValue)
+	{
+		if (config.TryGetPropertyValue(key, out var node) && int.TryParse(node?.ToString(), out int value))
+			return value;
+		return defaultValue;
+	}
+
+	private static float GetFloatProperty(JsonObject config, string key, float defaultValue)
+	{
+		if (config.TryGetPropertyValue(key, out var node) && float.TryParse(node?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value))
+			return value;
+		return defaultValue;
+	}
+
+	private static bool GetBoolProperty(JsonObject config, string key, bool defaultValue)
+	{
+		if (config.TryGetPropertyValue(key, out var node) && bool.TryParse(node?.ToString(), out bool value))
+			return value;
+		return defaultValue;
+	}
+
+	private static TEnum GetEnumProperty<TEnum>(JsonObject config, string key, TEnum defaultValue) where TEnum : struct
+	{
+		if (config.TryGetPropertyValue(key, out var node) && Enum.TryParse<TEnum>(node?.ToString(), true, out var value))
+			return value;
+		return defaultValue;
 	}
 
 	public static string GenerateAndSaveRtex(JsonObject config, string outputRtexPath)
@@ -273,31 +215,34 @@ public static class NoiseTextureGenerator
 					fileName += ".rtex";
 				}
 
-				if (kvp.Value != null && !string.IsNullOrEmpty(kvp.Value.NoiseConfig))
-				{
-					try
-					{
-						var itemConfig = JsonNode.Parse(kvp.Value.NoiseConfig) as JsonObject;
-						if (itemConfig != null)
-						{
-							string rtexPath = Path.Combine(noiseDir, fileName);
-							if (!File.Exists(rtexPath))
-							{
-								GenerateAndSaveRtex(itemConfig, rtexPath);
-								GD.Print($"[NoiseTextureGenerator] Idempotently generated procedural noise texture: {fileName}");
-							}
-						}
-					}
-					catch (Exception ex)
-					{
-						GD.PrintErr($"[NoiseTextureGenerator] Failed to generate noise texture {fileName}: {ex.Message}");
-					}
-				}
+				if (kvp.Value == null || string.IsNullOrEmpty(kvp.Value.NoiseConfig))
+					continue;
+
+				GenerateSingleNoiseTexture(noiseDir, fileName, kvp.Value.NoiseConfig);
 			}
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[NoiseTextureGenerator] EnsureAllNoiseTexturesGenerated error: {ex.Message}");
+		}
+	}
+
+	private static void GenerateSingleNoiseTexture(string noiseDir, string fileName, string noiseConfig)
+	{
+		try
+		{
+			var itemConfig = JsonNode.Parse(noiseConfig) as JsonObject;
+			if (itemConfig == null) return;
+
+			string rtexPath = Path.Combine(noiseDir, fileName);
+			if (File.Exists(rtexPath)) return;
+
+			GenerateAndSaveRtex(itemConfig, rtexPath);
+			GD.Print($"[NoiseTextureGenerator] Idempotently generated procedural noise texture: {fileName}");
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[NoiseTextureGenerator] Failed to generate noise texture {fileName}: {ex.Message}");
 		}
 	}
 }

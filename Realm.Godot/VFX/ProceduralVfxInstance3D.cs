@@ -97,25 +97,44 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	private bool ShouldShowEditorBaseRing()
 	{
-		if (IsPreview) return false;
-		if (GameHost.Instance == null || !GameHost.Instance.IsMapEditorMode || RuntimeTerrain.IsMinimapRendering) return false;
-		if (GetViewport() is SubViewport) return false;
+		if (!IsBaseEnvironmentValid()) return false;
+		if (HasInvalidParentNode()) return false;
+		return true;
+	}
 
+	private bool IsBaseEnvironmentValid()
+	{
+		if (IsPreview) return false;
+		if (GameHost.Instance == null) return false;
+		if (!GameHost.Instance.IsMapEditorMode) return false;
+		if (RuntimeTerrain.IsMinimapRendering) return false;
+		if (GetViewport() is SubViewport) return false;
+		return true;
+	}
+
+	private bool HasInvalidParentNode()
+	{
 		Node parent = GetParent();
 		while (parent != null)
 		{
-			if (parent is SubViewport || parent is Unit3D || parent is Prop3D || parent is VisualProjectile3D)
-			{
-				return false;
-			}
-			string parentName = parent.Name.ToString();
-			if (parentName.Contains("Preview", StringComparison.OrdinalIgnoreCase) || parentName.Contains("Dialog", StringComparison.OrdinalIgnoreCase))
-			{
-				return false;
-			}
+			if (IsInvalidParent(parent)) return true;
 			parent = parent.GetParent();
 		}
-		return true;
+		return false;
+	}
+
+	private bool IsInvalidParent(Node parent)
+	{
+		if (parent is SubViewport) return true;
+		if (parent is Unit3D) return true;
+		if (parent is Prop3D) return true;
+		if (parent is VisualProjectile3D) return true;
+		
+		string parentName = parent.Name.ToString();
+		if (parentName.Contains("Preview", StringComparison.OrdinalIgnoreCase)) return true;
+		if (parentName.Contains("Dialog", StringComparison.OrdinalIgnoreCase)) return true;
+		
+		return false;
 	}
 
 	private void SetupEditorBaseRing()

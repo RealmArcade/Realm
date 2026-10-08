@@ -68,60 +68,63 @@ public class CustomShaderConfig
 		};
 	}
 
+	private static string ParseString(JsonObject obj, string propName, string defaultVal)
+	{
+		if (obj.TryGetPropertyValue(propName, out var val) && !string.IsNullOrWhiteSpace(val?.ToString()))
+		{
+			return val.ToString();
+		}
+		return defaultVal;
+	}
+
+	private static int ParseIntClamp(JsonObject obj, string propName, int defaultVal, int min, int max)
+	{
+		if (obj.TryGetPropertyValue(propName, out var val) && int.TryParse(val?.ToString(), out int parsed))
+		{
+			return Math.Clamp(parsed, min, max);
+		}
+		return defaultVal;
+	}
+
+	private static float ParseFloat(JsonObject obj, string propName, float defaultVal)
+	{
+		if (obj.TryGetPropertyValue(propName, out var val) && float.TryParse(val?.ToString(), out float parsed))
+		{
+			return parsed;
+		}
+		return defaultVal;
+	}
+
+	private static Color ParseColor(JsonObject obj, string propName, Color defaultVal)
+	{
+		if (obj.TryGetPropertyValue(propName, out var val) && !string.IsNullOrWhiteSpace(val?.ToString()))
+		{
+			return Color.FromHtml(val.ToString());
+		}
+		return defaultVal;
+	}
+
 	public static CustomShaderConfig FromJson(string key, JsonNode node)
 	{
 		var config = new CustomShaderConfig { Key = key, Name = key };
-		if (node is JsonObject obj)
+		if (node is not JsonObject obj)
 		{
-			if (obj.TryGetPropertyValue("name", out var nameVal) && !string.IsNullOrWhiteSpace(nameVal?.ToString()))
-			{
-				config.Name = nameVal.ToString();
-			}
-			if (obj.TryGetPropertyValue("transition_mode", out var tmVal) && int.TryParse(tmVal?.ToString(), out int tm))
-			{
-				config.TransitionMode = Math.Clamp(tm, 0, 6);
-			}
-			if (obj.TryGetPropertyValue("direction", out var dirVal) && int.TryParse(dirVal?.ToString(), out int dir))
-			{
-				config.Direction = Math.Clamp(dir, 0, 3);
-			}
-			if (obj.TryGetPropertyValue("edge_color", out var colVal) && !string.IsNullOrWhiteSpace(colVal?.ToString()))
-			{
-				config.EdgeColor = Color.FromHtml(colVal.ToString());
-			}
-			if (obj.TryGetPropertyValue("edge_width", out var ewVal) && float.TryParse(ewVal?.ToString(), out float ew))
-			{
-				config.EdgeWidth = ew;
-			}
-			if (obj.TryGetPropertyValue("edge_emission", out var eeVal) && float.TryParse(eeVal?.ToString(), out float ee))
-			{
-				config.EdgeEmission = ee;
-			}
-			if (obj.TryGetPropertyValue("noise_scale", out var nsVal) && float.TryParse(nsVal?.ToString(), out float ns))
-			{
-				config.NoiseScale = ns;
-			}
-			if (obj.TryGetPropertyValue("noise_roughness", out var nrVal) && float.TryParse(nrVal?.ToString(), out float nr))
-			{
-				config.NoiseRoughness = nr;
-			}
-			if (obj.TryGetPropertyValue("fresnel_power", out var fpVal) && float.TryParse(fpVal?.ToString(), out float fp))
-			{
-				config.FresnelPower = fp;
-			}
-			if (obj.TryGetPropertyValue("vertex_displacement", out var vdVal) && float.TryParse(vdVal?.ToString(), out float vd))
-			{
-				config.VertexDisplacement = vd;
-			}
-			if (obj.TryGetPropertyValue("alpha_fade", out var afVal) && float.TryParse(afVal?.ToString(), out float af))
-			{
-				config.AlphaFade = af;
-			}
-			if (obj.TryGetPropertyValue("duration", out var durVal) && float.TryParse(durVal?.ToString(), out float dur))
-			{
-				config.Duration = dur;
-			}
+			return config;
 		}
+
+		config.Name = ParseString(obj, "name", config.Name);
+		config.TransitionMode = ParseIntClamp(obj, "transition_mode", config.TransitionMode, 0, 6);
+		config.Direction = ParseIntClamp(obj, "direction", config.Direction, 0, 3);
+		config.EdgeColor = ParseColor(obj, "edge_color", config.EdgeColor);
+		config.EdgeWidth = ParseFloat(obj, "edge_width", config.EdgeWidth);
+		config.EdgeEmission = ParseFloat(obj, "edge_emission", config.EdgeEmission);
+		config.NoiseScale = ParseFloat(obj, "noise_scale", config.NoiseScale);
+		config.NoiseRoughness = ParseFloat(obj, "noise_roughness", config.NoiseRoughness);
+		config.FresnelPower = ParseFloat(obj, "fresnel_power", config.FresnelPower);
+		config.VertexDisplacement = ParseFloat(obj, "vertex_displacement", config.VertexDisplacement);
+		config.AlphaFade = ParseFloat(obj, "alpha_fade", config.AlphaFade);
+		config.Duration = ParseFloat(obj, "duration", config.Duration);
+
 		return config;
 	}
 }
@@ -334,66 +337,67 @@ public static class SpawnDeathShaderManager
 		return combined;
 	}
 
+	private static Texture2D GetAlbedoTexture(MeshInstance3D mesh)
+	{
+		var activeMat = mesh.GetActiveMaterial(0);
+		if (activeMat is StandardMaterial3D stdMat) return stdMat.AlbedoTexture;
+		if (activeMat is OrmMaterial3D ormMat) return ormMat.AlbedoTexture;
+		if (activeMat is ShaderMaterial sMat) return sMat.GetShaderParameter("texture_albedo").As<Texture2D>();
+
+		if (mesh.Mesh != null && mesh.Mesh.GetSurfaceCount() > 0)
+		{
+			var surfMat = mesh.Mesh.SurfaceGetMaterial(0);
+			if (surfMat is StandardMaterial3D sm) return sm.AlbedoTexture;
+			if (surfMat is OrmMaterial3D om) return om.AlbedoTexture;
+			if (surfMat is ShaderMaterial shm) return shm.GetShaderParameter("texture_albedo").As<Texture2D>();
+		}
+
+		return null;
+	}
+
+	private static void ApplyShaderToMeshNode(Node node, CustomShaderConfig config, Aabb aabb, float progress, Shader shader)
+	{
+		if (IsExcludedMesh(node)) return;
+
+		if (node is MeshInstance3D mesh)
+		{
+			ShaderMaterial mat = mesh.MaterialOverride as ShaderMaterial;
+			if (mat == null || mat.Shader != shader)
+			{
+				Texture2D albedo = GetAlbedoTexture(mesh);
+				mat = CreateShaderMaterial(config, aabb, albedo);
+				mesh.MaterialOverride = mat;
+			}
+
+			mat.SetShaderParameter("progress", Mathf.Clamp(progress, 0.0f, 1.0f));
+			mat.SetShaderParameter("transition_mode", config.TransitionMode);
+			mat.SetShaderParameter("direction", config.Direction);
+			mat.SetShaderParameter("edge_color", config.EdgeColor);
+			mat.SetShaderParameter("edge_width", config.EdgeWidth);
+			mat.SetShaderParameter("edge_emission", config.EdgeEmission);
+			mat.SetShaderParameter("noise_scale", config.NoiseScale);
+			mat.SetShaderParameter("noise_roughness", config.NoiseRoughness);
+			mat.SetShaderParameter("fresnel_power", config.FresnelPower);
+			mat.SetShaderParameter("vertex_displacement", config.VertexDisplacement);
+			mat.SetShaderParameter("alpha_fade", config.AlphaFade);
+			mat.SetShaderParameter("model_bounds_min", aabb.Position);
+			mat.SetShaderParameter("model_bounds_max", aabb.Position + aabb.Size);
+		}
+
+		foreach (Node child in node.GetChildren())
+		{
+			ApplyShaderToMeshNode(child, config, aabb, progress, shader);
+		}
+	}
+
 	public static void ApplyShaderPreview(Node3D targetNode, CustomShaderConfig config, float progress)
 	{
 		if (targetNode == null || !GodotObject.IsInstanceValid(targetNode)) return;
 
 		var aabb = CalculateNodeAabb(targetNode);
+		var shader = GetOrCreateShader();
 
-		void ApplyToMesh(Node node)
-		{
-			if (IsExcludedMesh(node)) return;
-			if (node is MeshInstance3D mesh)
-			{
-				ShaderMaterial mat = mesh.MaterialOverride as ShaderMaterial;
-				if (mat == null || mat.Shader != GetOrCreateShader())
-				{
-					Texture2D albedo = null;
-					if (mesh.GetActiveMaterial(0) is StandardMaterial3D stdMat)
-					{
-						albedo = stdMat.AlbedoTexture;
-					}
-					else if (mesh.GetActiveMaterial(0) is OrmMaterial3D ormMat)
-					{
-						albedo = ormMat.AlbedoTexture;
-					}
-					else if (mesh.GetActiveMaterial(0) is ShaderMaterial sMat)
-					{
-						albedo = sMat.GetShaderParameter("texture_albedo").As<Texture2D>();
-					}
-					else if (mesh.Mesh != null && mesh.Mesh.GetSurfaceCount() > 0)
-					{
-						var surfMat = mesh.Mesh.SurfaceGetMaterial(0);
-						if (surfMat is StandardMaterial3D sm) albedo = sm.AlbedoTexture;
-						else if (surfMat is OrmMaterial3D om) albedo = om.AlbedoTexture;
-						else if (surfMat is ShaderMaterial shm) albedo = shm.GetShaderParameter("texture_albedo").As<Texture2D>();
-					}
-					mat = CreateShaderMaterial(config, aabb, albedo);
-					mesh.MaterialOverride = mat;
-				}
-
-				mat.SetShaderParameter("progress", Mathf.Clamp(progress, 0.0f, 1.0f));
-				mat.SetShaderParameter("transition_mode", config.TransitionMode);
-				mat.SetShaderParameter("direction", config.Direction);
-				mat.SetShaderParameter("edge_color", config.EdgeColor);
-				mat.SetShaderParameter("edge_width", config.EdgeWidth);
-				mat.SetShaderParameter("edge_emission", config.EdgeEmission);
-				mat.SetShaderParameter("noise_scale", config.NoiseScale);
-				mat.SetShaderParameter("noise_roughness", config.NoiseRoughness);
-				mat.SetShaderParameter("fresnel_power", config.FresnelPower);
-				mat.SetShaderParameter("vertex_displacement", config.VertexDisplacement);
-				mat.SetShaderParameter("alpha_fade", config.AlphaFade);
-				mat.SetShaderParameter("model_bounds_min", aabb.Position);
-				mat.SetShaderParameter("model_bounds_max", aabb.Position + aabb.Size);
-			}
-
-			foreach (Node child in node.GetChildren())
-			{
-				ApplyToMesh(child);
-			}
-		}
-
-		ApplyToMesh(targetNode);
+		ApplyShaderToMeshNode(targetNode, config, aabb, progress, shader);
 	}
 
 	public static void ClearShaderOverride(Node3D targetNode)
@@ -416,60 +420,77 @@ public static class SpawnDeathShaderManager
 		ClearMesh(targetNode);
 	}
 
+	private static CustomShaderConfig GetTransitionConfig(string shaderKey, bool isSpawn)
+	{
+		var fallbackKey = isSpawn ? "SpawnShader/magic_blueprint" : "SpawnShader/fire_demolish";
+		var config = GetShaderConfig(shaderKey) ?? GetShaderConfig(fallbackKey) ?? LoadAllCustomShaders().Values.FirstOrDefault();
+
+		if (config != null) return config;
+
+		return new CustomShaderConfig
+		{
+			Key = fallbackKey,
+			Name = isSpawn ? "Magic Blueprint" : "Fire Ember Dissolve",
+			TransitionMode = isSpawn ? 0 : 1,
+			Duration = 1.0f
+		};
+	}
+
 	public static void AnimateTransition(Node3D targetNode, string shaderKey, bool isSpawn, float? durationOverride = null, Action onComplete = null)
 	{
-		if (targetNode == null || !GodotObject.IsInstanceValid(targetNode))
+		if (!IsValidForTransition(targetNode))
 		{
-			onComplete?.Invoke();
-			return;
-		}
-
-		var config = GetShaderConfig(shaderKey)
-			?? GetShaderConfig(isSpawn ? "SpawnShader/magic_blueprint" : "SpawnShader/fire_demolish")
-			?? LoadAllCustomShaders().Values.FirstOrDefault()
-			?? new CustomShaderConfig
+			if (onComplete != null)
 			{
-				Key = isSpawn ? "SpawnShader/magic_blueprint" : "SpawnShader/fire_demolish",
-				Name = isSpawn ? "Magic Blueprint" : "Fire Ember Dissolve",
-				TransitionMode = isSpawn ? 0 : 1,
-				Duration = 1.0f
-			};
-		float duration = durationOverride ?? config.Duration;
-		if (duration <= 0.05f) duration = 0.05f;
-
-		var aabb = CalculateNodeAabb(targetNode);
-		var tree = targetNode.GetTree();
-		if (tree == null)
-		{
-			onComplete?.Invoke();
+				onComplete();
+			}
 			return;
 		}
 
-		var tween = targetNode.CreateTween();
+		var config = GetTransitionConfig(shaderKey, isSpawn);
+
+		float duration = Math.Max(durationOverride.GetValueOrDefault(config.Duration), 0.05f);
 		float startProgress = isSpawn ? 0.0f : 1.0f;
 		float endProgress = isSpawn ? 1.0f : 0.0f;
 
 		ApplyShaderPreview(targetNode, config, startProgress);
 
-		var callable = Callable.From((float prog) =>
-		{
-			if (GodotObject.IsInstanceValid(targetNode))
-			{
-				ApplyShaderPreview(targetNode, config, prog);
-			}
-		});
+		var tween = targetNode.CreateTween();
 
-		tween.TweenMethod(callable, startProgress, endProgress, duration);
-		tween.TweenCallback(Callable.From(() =>
+		tween.TweenMethod(Callable.From((float prog) => UpdateTransitionProgress(targetNode, config, prog)), startProgress, endProgress, duration);
+
+		tween.TweenCallback(Callable.From(() => CompleteTransition(targetNode, isSpawn, onComplete)));
+	}
+
+	private static bool IsValidForTransition(Node3D targetNode)
+	{
+		if (targetNode == null) return false;
+		if (!GodotObject.IsInstanceValid(targetNode)) return false;
+		if (targetNode.GetTree() == null) return false;
+		return true;
+	}
+
+	private static void UpdateTransitionProgress(Node3D targetNode, CustomShaderConfig config, float prog)
+	{
+		if (GodotObject.IsInstanceValid(targetNode))
 		{
-			if (GodotObject.IsInstanceValid(targetNode))
+			ApplyShaderPreview(targetNode, config, prog);
+		}
+	}
+
+	private static void CompleteTransition(Node3D targetNode, bool isSpawn, Action onComplete)
+	{
+		if (GodotObject.IsInstanceValid(targetNode))
+		{
+			if (isSpawn)
 			{
-				if (isSpawn)
-				{
-					ClearShaderOverride(targetNode);
-				}
+				ClearShaderOverride(targetNode);
 			}
-			onComplete?.Invoke();
-		}));
+		}
+
+		if (onComplete != null)
+		{
+			onComplete();
+		}
 	}
 }

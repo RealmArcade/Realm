@@ -8,6 +8,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.MapAPI;
 using System.Collections.Generic;
+using Realm.Godot.Services;
 
 public partial class GameHost
 {
@@ -49,56 +50,152 @@ public partial class GameHost
 		RpcId(1, nameof(SubmitCommand), payload);
 	}
 
+	private void SendUnacknowledgedCommands()
+	{
+		foreach (var payload in _networkService.GetUnacknowledgedCommandPayloads())
+		{
+			RpcId(1, nameof(SubmitCommand), payload);
+		}
+	}
+
+	private void UpdateClientCameraPosition()
+	{
+		var camera = GetViewport().GetCamera3D();
+		if (camera == null) return;
+		var pos = new NetworkVector3(camera.GlobalPosition);
+		RpcId(1, nameof(UpdateClientCamera), MemoryPackSerializer.Serialize(pos));
+	}
+
+	private void UpdateClientWorldState(float fDelta)
+	{
+		if (EcsWorld == null || !EcsWorld.IsAlive(_worldEntity) || !EcsWorld.Has<WorldState>(_worldEntity)) return;
+
+		var state = EcsWorld.Get<WorldState>(_worldEntity);
+		float elapsed = state.GameElapsedTime + fDelta;
+		float timer = state.TimeOfDayTimer;
+		int index = state.TimeOfDayIndex;
+
+		if (state.DayNightCycleEnabled)
+		{
+			timer += fDelta;
+			if (timer >= TimeOfDayCycleDuration)
+			{
+				timer -= TimeOfDayCycleDuration;
+			}
+
+			float progress = timer / TimeOfDayCycleDuration;
+			index = (int)(progress * 4f) % 4;
+
+			if (!IsMapEditorMode)
+			{
+				UpdateDayNightVisuals(progress);
+			}
+		}
+		EcsWorld.Set(_worldEntity, new WorldState(elapsed, index, timer, state.DayNightCycleEnabled));
+	}
+
 	private void UpdateClientTick(float fDelta)
 	{
 		_commandSendTimer += fDelta;
 		if (_commandSendTimer >= 0.05f)
 		{
 			_commandSendTimer = 0f;
-			foreach (var payload in _networkService.GetUnacknowledgedCommandPayloads())
-			{
-				RpcId(1, nameof(SubmitCommand), payload);
-			}
-			var camera = GetViewport().GetCamera3D();
-			if (camera != null)
-			{
-				var pos = new NetworkVector3(camera.GlobalPosition);
-				RpcId(1, nameof(UpdateClientCamera), MemoryPackSerializer.Serialize(pos));
-			}
+			SendUnacknowledgedCommands();
+			UpdateClientCameraPosition();
 		}
+		
 		EcsWorld?.Mutate<Realm.Ecs.Components.Core.NetworkState>(_worldEntity, (ref Realm.Ecs.Components.Core.NetworkState netState) =>
 			netState.DynamicInterpolationFactor = _networkService.ComputeDynamicInterpolationFactor());
 
-		if (EcsWorld != null && EcsWorld.IsAlive(_worldEntity) && EcsWorld.Has<WorldState>(_worldEntity))
-		{
-			var state = EcsWorld.Get<WorldState>(_worldEntity);
-			float elapsed = state.GameElapsedTime + fDelta;
-			float timer = state.TimeOfDayTimer;
-			int index = state.TimeOfDayIndex;
-
-			if (state.DayNightCycleEnabled)
-			{
-				timer += fDelta;
-				if (timer >= TimeOfDayCycleDuration)
-				{
-					timer -= TimeOfDayCycleDuration;
-				}
-
-				float progress = timer / TimeOfDayCycleDuration;
-				index = (int)(progress * 4f) % 4;
-
-				if (!IsMapEditorMode)
-				{
-					UpdateDayNightVisuals(progress);
-				}
-			}
-			EcsWorld.Set(_worldEntity, new WorldState(elapsed, index, timer, state.DayNightCycleEnabled));
-		}
+		UpdateClientWorldState(fDelta);
 
 		var query = Realm.Ecs.Common.QueryCache.AllInterpolationTargetQuery;
 		_simulationService.SetDelta(fDelta);
 		EcsWorld.Query(in query, _simulationService.InterpolationQueryDelegate);
 		UpdateVisualNodesFromEcs(fDelta);
+	}
+
+	private void StopUnitVelocities(IEnumerable<int> entityIds)
+	{
+		foreach (int entityId in entityIds)
+		{
+			foreach (var unit in AllUnits)
+			{
+				if (unit.Entity.Id == entityId)
+				{
+					unit.Velocity = Vector3.Zero;
+					break;
+				}
+			}
+		}
+	}
+
+	private void ProcessServerCommandBuild(NetworkService.ServerCommandResult result)
+	{
+		if (!result.NeedsBuildUnit || !UnitRegistry.TryGetValue(result.BuildUnitType, out var meta)) return;
+
+		var playerOwner = _peerIdToPlayerEntityMap[result.BuildPeerOwner].AsPlayerEntity(EcsWorld);
+		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : result.BuildUnitType;
+		string modelPath = GetFallbackModelPath(targetModel, true);
+		var bldEntity = CreateEcsUnit(result.BuildUnitType, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, 0f, result.BuildPosition, playerOwner);
+		SpawnUnit3D(bldEntity, result.BuildUnitType, modelPath, result.BuildPosition, true, false);
+	}
+
+	private IUnit GetSpellCaster(NetworkCommand cmd)
+	{
+		if (cmd.UnitEntityIds.Count == 0) return null;
+		
+		var casterEntity = _networkService.FindServerEntity(cmd.UnitEntityIds[0], AllUnits);
+		if (casterEntity != Entity.Null && EcsWorld.IsAlive(casterEntity))
+		{
+			return GetUnitWrapper(casterEntity);
+		}
+		return null;
+	}
+
+	private void ApplySpellEffect(string spellId, Vector3 position, Entity casterEnt)
+	{
+		var def = GetAbilityDefinition(spellId);
+		if (def == null) return;
+
+		float aoe = def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 4.0f;
+		var pos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
+		
+		if (def.Damage > 0f)
+		{
+			_simulationService.DealSpellDamageAOE(pos, aoe, def.Damage, casterEnt);
+		}
+		else if (def.Healing > 0f)
+		{
+			_simulationService.HealAOE(pos, aoe, def.Healing);
+		}
+	}
+
+	private void BroadcastSpellEffect(string spellId, Vector3 position)
+	{
+		if (LobbyManager.Instance == null) return;
+
+		foreach (var p in LobbyManager.Instance.PlayerList)
+		{
+			if (p.PeerId == _localPeerId || p.PeerId < 0) continue;
+			QueueOrSendPacket(p.PeerId, nameof(PlaySpellEffect), spellId, position);
+		}
+	}
+
+	private void ProcessServerCommandSpell(NetworkCommand cmd, NetworkService.ServerCommandResult result)
+	{
+		if (!result.NeedsSpellEffect) return;
+
+		string spellId = result.SpellId;
+		Vector3 position = result.SpellPosition;
+		var caster = GetSpellCaster(cmd);
+		var casterEnt = caster != null ? ((IEcsEntityWrapper)caster).Entity : Entity.Null;
+		
+		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
+
+		ApplySpellEffect(spellId, position, casterEnt);
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		BroadcastSpellEffect(spellId, position);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -112,79 +209,11 @@ public partial class GameHost
 
 		var result = _networkService.ExecuteServerCommand(senderId, cmd, AllUnits, AllProps);
 
-		foreach (int entityId in result.StopVelocityEntityIds)
-		{
-			foreach (var unit in AllUnits)
-			{
-				if (unit.Entity.Id == entityId)
-				{
-					unit.Velocity = Vector3.Zero;
-					break;
-				}
-			}
-		}
+		StopUnitVelocities(result.StopVelocityEntityIds);
+		StopUnitVelocities(result.HoldVelocityEntityIds);
 
-		foreach (int entityId in result.HoldVelocityEntityIds)
-		{
-			foreach (var unit in AllUnits)
-			{
-				if (unit.Entity.Id == entityId)
-				{
-					unit.Velocity = Vector3.Zero;
-					break;
-				}
-			}
-		}
-
-		if (result.NeedsBuildUnit && UnitRegistry.TryGetValue(result.BuildUnitType, out var meta))
-		{
-			var playerOwner = _peerIdToPlayerEntityMap[result.BuildPeerOwner].AsPlayerEntity(EcsWorld);
-			string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : result.BuildUnitType;
-			string modelPath = GetFallbackModelPath(targetModel, true);
-			var bldEntity = CreateEcsUnit(result.BuildUnitType, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, 0f, result.BuildPosition, playerOwner);
-			SpawnUnit3D(bldEntity, result.BuildUnitType, modelPath, result.BuildPosition, true, false);
-		}
-
-		if (result.NeedsSpellEffect)
-		{
-			string spellId = result.SpellId;
-			Vector3 position = result.SpellPosition;
-			IUnit caster = null;
-			if (cmd.UnitEntityIds.Count > 0)
-			{
-				var casterEntity = _networkService.FindServerEntity(cmd.UnitEntityIds[0], AllUnits);
-				if (casterEntity != Entity.Null && EcsWorld.IsAlive(casterEntity))
-				{
-					caster = GetUnitWrapper(casterEntity);
-				}
-			}
-			var casterEnt = caster != null ? ((IEcsEntityWrapper)caster).Entity : Entity.Null;
-			OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
-
-			var def = GetAbilityDefinition(spellId);
-			if (def != null)
-			{
-				if (def.Damage > 0f)
-				{
-					float aoe = def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 4.0f;
-					_simulationService.DealSpellDamageAOE(new System.Numerics.Vector3(position.X, position.Y, position.Z), aoe, def.Damage, casterEnt);
-				}
-				else if (def.Healing > 0f)
-				{
-					float aoe = def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 4.0f;
-					_simulationService.HealAOE(new System.Numerics.Vector3(position.X, position.Y, position.Z), aoe, def.Healing);
-				}
-			}
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-			if (LobbyManager.Instance != null)
-			{
-				foreach (var p in LobbyManager.Instance.PlayerList)
-				{
-					if (p.PeerId == _localPeerId || p.PeerId < 0) continue;
-					QueueOrSendPacket(p.PeerId, nameof(PlaySpellEffect), spellId, position);
-				}
-			}
-		}
+		ProcessServerCommandBuild(result);
+		ProcessServerCommandSpell(cmd, result);
 
 		RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId);
 		sw.Stop();
@@ -276,6 +305,41 @@ public partial class GameHost
 		}
 	}
 
+	private void SyncServerPlayerResources()
+	{
+		foreach (var kvp in _peerIdToPlayerEntityMap)
+		{
+			int peerId = kvp.Key;
+			if (peerId == _localPeerId) continue;
+			
+			if (EcsWorld.IsAlive(kvp.Value) && EcsWorld.TryGet<PlayerResources>(kvp.Value, out var res))
+			{
+				float gold = res.Value.TryGetValue(_goldResourceId, out var g) ? g : 0;
+				float wood = res.Value.TryGetValue(_woodResourceId, out var w) ? w : 0;
+				float stone = res.Value.TryGetValue(_stoneResourceId, out var s) ? s : 0;
+				RpcId(peerId, nameof(SyncPlayerResources), gold, wood, stone);
+			}
+		}
+	}
+
+	private void SyncServerProductionQueues()
+	{
+		foreach (var unit in AllUnits)
+		{
+			if (!EcsWorld.IsAlive(unit.Entity) || !EcsWorld.Has<ProductionQueue>(unit.Entity)) continue;
+
+			var prod = EcsWorld.Get<ProductionQueue>(unit.Entity);
+			foreach (var kvp in _peerIdToPlayerEntityMap)
+			{
+				int peerId = kvp.Key;
+				if (peerId != _localPeerId)
+				{
+					RpcId(peerId, nameof(SyncProductionQueue), unit.Entity.Id, prod.UnitIds.ToArray(), prod.CurrentProgress, prod.BuildTime);
+				}
+			}
+		}
+	}
+
 	private void UpdateServerSnapshotTick(float fDelta)
 	{
 		var snapshots = _networkService.BuildServerSnapshots(_localPeerId, AllUnits);
@@ -284,36 +348,8 @@ public partial class GameHost
 			QueueOrSendPacket(peerId, nameof(ReceiveSnapshot), payload);
 		}
 
-		foreach (var kvp in _peerIdToPlayerEntityMap)
-		{
-			int peerId = kvp.Key;
-			if (peerId != _localPeerId)
-			{
-				if (EcsWorld.IsAlive(kvp.Value) && EcsWorld.TryGet<PlayerResources>(kvp.Value, out var res))
-				{
-					float gold = res.Value.TryGetValue(_goldResourceId, out var g) ? g : 0;
-					float wood = res.Value.TryGetValue(_woodResourceId, out var w) ? w : 0;
-					float stone = res.Value.TryGetValue(_stoneResourceId, out var s) ? s : 0;
-					RpcId(peerId, nameof(SyncPlayerResources), gold, wood, stone);
-				}
-			}
-		}
-
-		foreach (var unit in AllUnits)
-		{
-			if (EcsWorld.IsAlive(unit.Entity) && EcsWorld.Has<ProductionQueue>(unit.Entity))
-			{
-				var prod = EcsWorld.Get<ProductionQueue>(unit.Entity);
-				foreach (var kvp in _peerIdToPlayerEntityMap)
-				{
-					int peerId = kvp.Key;
-					if (peerId != _localPeerId)
-					{
-						RpcId(peerId, nameof(SyncProductionQueue), unit.Entity.Id, prod.UnitIds.ToArray(), prod.CurrentProgress, prod.BuildTime);
-					}
-				}
-			}
-		}
+		SyncServerPlayerResources();
+		SyncServerProductionQueues();
 	}
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
@@ -584,12 +620,8 @@ public partial class GameHost
 		InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
 	}
 
-	public void HandlePeerReconnected(int oldPeerId, int newPeerId, int slot)
+	private Entity ResolveReconnectedPlayerEntity(int oldPeerId, int newPeerId)
 	{
-		if (!Multiplayer.IsServer()) return;
-
-		GD.Print($"[GameHost] HandlePeerReconnected: OldPeer={oldPeerId}, NewPeer={newPeerId}, Slot={slot}");
-
 		Entity playerEntity = Entity.Null;
 		if (_peerIdToPlayerEntityMap.TryGetValue(oldPeerId, out var existingEntity))
 		{
@@ -605,37 +637,50 @@ public partial class GameHost
 		{
 			_peerIdToPlayerEntityMap[newPeerId] = playerEntity;
 		}
+		return playerEntity;
+	}
 
-		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<NetworkMappingState>(_worldEntity))
+	private void UpdateReconnectedNetworkMapping(int oldPeerId, int newPeerId, Entity playerEntity)
+	{
+		if (_worldEntity == Entity.Null || EcsWorld == null || !EcsWorld.Has<NetworkMappingState>(_worldEntity)) return;
+		
+		if (playerEntity != Entity.Null)
 		{
 			var mapping = EcsWorld.Get<NetworkMappingState>(_worldEntity);
-			if (playerEntity != Entity.Null)
-			{
-				mapping.PeerIdToPlayerEntityMap.Remove(oldPeerId);
-				mapping.PeerIdToPlayerEntityMap[newPeerId] = playerEntity;
-			}
+			mapping.PeerIdToPlayerEntityMap.Remove(oldPeerId);
+			mapping.PeerIdToPlayerEntityMap[newPeerId] = playerEntity;
 		}
+	}
 
-		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<WorldState>(_worldEntity))
-		{
-			var ws = EcsWorld.Get<WorldState>(_worldEntity);
-			RpcId(newPeerId, nameof(SyncWorldState), ws.GameElapsedTime, ws.TimeOfDayIndex, ws.TimeOfDayTimer, ws.DayNightCycleEnabled);
-		}
+	private void SyncReconnectedWorldState(int newPeerId)
+	{
+		if (_worldEntity == Entity.Null || EcsWorld == null || !EcsWorld.Has<WorldState>(_worldEntity)) return;
+		
+		var ws = EcsWorld.Get<WorldState>(_worldEntity);
+		RpcId(newPeerId, nameof(SyncWorldState), ws.GameElapsedTime, ws.TimeOfDayIndex, ws.TimeOfDayTimer, ws.DayNightCycleEnabled);
+	}
 
+	private void SendReconnectedBaselineSnapshot(int newPeerId)
+	{
 		var baselinePayload = _networkService.BuildExplicitBaselineSnapshot(newPeerId, AllUnits);
 		if (baselinePayload != null && baselinePayload.Length > 0)
 		{
 			RpcId(newPeerId, nameof(ReceiveSnapshot), baselinePayload);
 		}
+	}
 
-		if (playerEntity != Entity.Null && EcsWorld != null && EcsWorld.IsAlive(playerEntity) && EcsWorld.TryGet<PlayerResources>(playerEntity, out var res))
-		{
-			float gold = res.Value.TryGetValue(_goldResourceId, out var g) ? g : 0;
-			float wood = res.Value.TryGetValue(_woodResourceId, out var w) ? w : 0;
-			float stone = res.Value.TryGetValue(_stoneResourceId, out var s) ? s : 0;
-			RpcId(newPeerId, nameof(SyncPlayerResources), gold, wood, stone);
-		}
+	private void SyncReconnectedPlayerResources(int newPeerId, Entity playerEntity)
+	{
+		if (playerEntity == Entity.Null || EcsWorld == null || !EcsWorld.IsAlive(playerEntity) || !EcsWorld.TryGet<PlayerResources>(playerEntity, out var res)) return;
+		
+		float gold = res.Value.TryGetValue(_goldResourceId, out var g) ? g : 0;
+		float wood = res.Value.TryGetValue(_woodResourceId, out var w) ? w : 0;
+		float stone = res.Value.TryGetValue(_stoneResourceId, out var s) ? s : 0;
+		RpcId(newPeerId, nameof(SyncPlayerResources), gold, wood, stone);
+	}
 
+	private void SyncReconnectedProductionQueues(int newPeerId)
+	{
 		foreach (var unit in AllUnits)
 		{
 			if (GodotObject.IsInstanceValid(unit) && EcsWorld != null && EcsWorld.IsAlive(unit.Entity) && EcsWorld.Has<ProductionQueue>(unit.Entity))
@@ -644,27 +689,52 @@ public partial class GameHost
 				RpcId(newPeerId, nameof(SyncProductionQueue), unit.Entity.Id, prod.UnitIds.ToArray(), prod.CurrentProgress, prod.BuildTime);
 			}
 		}
+	}
 
-		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<CountdownState>(_worldEntity))
+	private void SyncReconnectedCountdown(int newPeerId)
+	{
+		if (_worldEntity == Entity.Null || EcsWorld == null || !EcsWorld.Has<CountdownState>(_worldEntity)) return;
+		
+		var countdown = EcsWorld.Get<CountdownState>(_worldEntity);
+		if (countdown.Active)
 		{
-			var countdown = EcsWorld.Get<CountdownState>(_worldEntity);
-			if (countdown.Active)
-			{
-				RpcId(newPeerId, nameof(ClientStartCountdownTimer), countdown.Duration, countdown.Text);
-			}
+			RpcId(newPeerId, nameof(ClientStartCountdownTimer), countdown.Duration, countdown.Text);
 		}
+	}
 
+	private void RegisterReconnectedAbilities(int newPeerId)
+	{
 		foreach (var kvp in _abilityDefinitions)
 		{
 			RpcId(newPeerId, nameof(ClientRegisterAbility), kvp.Key, kvp.Value.DisplayName, kvp.Value.Tooltip, kvp.Value.IconPath ?? "", kvp.Value.IsInstant);
 		}
+	}
 
-		if (IsPaused)
-		{
-			RpcId(newPeerId, nameof(BroadcastPauseState), true, 1, false);
-			var serializedReady = System.Text.Json.JsonSerializer.Serialize(_playerReadyStates);
-			RpcId(newPeerId, nameof(BroadcastReadyStates), serializedReady);
-		}
+	private void SyncReconnectedPauseState(int newPeerId)
+	{
+		if (!IsPaused) return;
+		
+		RpcId(newPeerId, nameof(BroadcastPauseState), true, 1, false);
+		var serializedReady = System.Text.Json.JsonSerializer.Serialize(_playerReadyStates);
+		RpcId(newPeerId, nameof(BroadcastReadyStates), serializedReady);
+	}
+
+	public void HandlePeerReconnected(int oldPeerId, int newPeerId, int slot)
+	{
+		if (!Multiplayer.IsServer()) return;
+
+		GD.Print($"[GameHost] HandlePeerReconnected: OldPeer={oldPeerId}, NewPeer={newPeerId}, Slot={slot}");
+
+		Entity playerEntity = ResolveReconnectedPlayerEntity(oldPeerId, newPeerId);
+
+		UpdateReconnectedNetworkMapping(oldPeerId, newPeerId, playerEntity);
+		SyncReconnectedWorldState(newPeerId);
+		SendReconnectedBaselineSnapshot(newPeerId);
+		SyncReconnectedPlayerResources(newPeerId, playerEntity);
+		SyncReconnectedProductionQueues(newPeerId);
+		SyncReconnectedCountdown(newPeerId);
+		RegisterReconnectedAbilities(newPeerId);
+		SyncReconnectedPauseState(newPeerId);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -730,6 +800,35 @@ public partial class GameHost
 		UIManager.Instance?.CallDeferred(nameof(UIManager.TransitionTo), (int)GameScreen.GameOver, isVictory);
 	}
 
+	private void AssignReconnectedPlayerEntity(int slot)
+	{
+		if (LobbyManager.Instance == null || LobbyManager.Instance.PlayerList.Count == 0) return;
+
+		foreach (var p in LobbyManager.Instance.PlayerList)
+		{
+			if (p.Slot == slot || p.PeerId == _localPeerId)
+			{
+				if (_peerIdToPlayerEntityMap.TryGetValue(_localPeerId, out var myEntity))
+				{
+					_playerEntity = myEntity;
+				}
+			}
+		}
+	}
+
+	private void UpdateReconnectedClientMapping()
+	{
+		if (_worldEntity == Entity.Null || EcsWorld == null || !EcsWorld.Has<NetworkMappingState>(_worldEntity)) return;
+		
+		var mapping = EcsWorld.Get<NetworkMappingState>(_worldEntity);
+		mapping.PlayerEntity = _playerEntity;
+		mapping.EnemyPlayerEntity = _enemyPlayerEntity;
+		if (_playerEntity != Entity.Null)
+		{
+			mapping.PeerIdToPlayerEntityMap[_localPeerId] = _playerEntity;
+		}
+	}
+
 	public void OnClientReconnected(int slot)
 	{
 		_localPeerId = Multiplayer.GetUniqueId();
@@ -737,30 +836,8 @@ public partial class GameHost
 		_networkService.MarkClientEnteredMultiplayer();
 		_networkService.ResetReconnectionState();
 
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
-		{
-			foreach (var p in LobbyManager.Instance.PlayerList)
-			{
-				if (p.Slot == slot || p.PeerId == _localPeerId)
-				{
-					if (_peerIdToPlayerEntityMap.TryGetValue(_localPeerId, out var myEntity))
-					{
-						_playerEntity = myEntity;
-					}
-				}
-			}
-		}
-
-		if (_worldEntity != Entity.Null && EcsWorld != null && EcsWorld.Has<NetworkMappingState>(_worldEntity))
-		{
-			var mapping = EcsWorld.Get<NetworkMappingState>(_worldEntity);
-			mapping.PlayerEntity = _playerEntity;
-			mapping.EnemyPlayerEntity = _enemyPlayerEntity;
-			if (_playerEntity != Entity.Null)
-			{
-				mapping.PeerIdToPlayerEntityMap[_localPeerId] = _playerEntity;
-			}
-		}
+		AssignReconnectedPlayerEntity(slot);
+		UpdateReconnectedClientMapping();
 
 		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");

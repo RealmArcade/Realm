@@ -120,45 +120,98 @@ public static class PathUtils
 			return primaryPath;
 		}
 
+		string baseDirPath = ResolveFromBaseDir(normalizedRelative);
+		if (baseDirPath != null)
+		{
+			return baseDirPath;
+		}
+
+		string exeDirPath = ResolveFromExeDir(normalizedRelative);
+		if (exeDirPath != null)
+		{
+			return exeDirPath;
+		}
+
+		string globalizedResPath = ResolveFromGlobalizedRes(normalizedRelative);
+		if (globalizedResPath != null)
+		{
+			return globalizedResPath;
+		}
+
+		string parentRootPath = ResolveFromParentRoot(normalizedRelative);
+		if (parentRootPath != null)
+		{
+			return parentRootPath;
+		}
+
+		return primaryPath;
+	}
+
+	private static string ResolveFromBaseDir(string normalizedRelative)
+	{
 		string baseDir = AppDomain.CurrentDomain.BaseDirectory.Replace("\\", "/").TrimEnd('/');
-		if (!string.IsNullOrWhiteSpace(baseDir))
+		if (string.IsNullOrWhiteSpace(baseDir))
 		{
-			string directPath = Path.Combine(baseDir, normalizedRelative).Replace("\\", "/");
-			if (File.Exists(directPath) || Directory.Exists(directPath))
-			{
-				return directPath;
-			}
+			return null;
 		}
 
+		string directPath = Path.Combine(baseDir, normalizedRelative).Replace("\\", "/");
+		if (File.Exists(directPath) || Directory.Exists(directPath))
+		{
+			return directPath;
+		}
+
+		return null;
+	}
+
+	private static string ResolveFromExeDir(string normalizedRelative)
+	{
 		string exeDir = OS.GetExecutablePath().GetBaseDir().Replace("\\", "/").TrimEnd('/');
-		if (!string.IsNullOrWhiteSpace(exeDir))
+		if (string.IsNullOrWhiteSpace(exeDir))
 		{
-			string exeDirectPath = Path.Combine(exeDir, normalizedRelative).Replace("\\", "/");
-			if (File.Exists(exeDirectPath) || Directory.Exists(exeDirectPath))
-			{
-				return exeDirectPath;
-			}
-
-			string dataDirPath = FindInDataDirs(exeDir, normalizedRelative);
-			if (dataDirPath != null)
-			{
-				return dataDirPath;
-			}
+			return null;
 		}
 
+		string exeDirectPath = Path.Combine(exeDir, normalizedRelative).Replace("\\", "/");
+		if (File.Exists(exeDirectPath) || Directory.Exists(exeDirectPath))
+		{
+			return exeDirectPath;
+		}
+
+		string dataDirPath = FindInDataDirs(exeDir, normalizedRelative);
+		if (dataDirPath != null)
+		{
+			return dataDirPath;
+		}
+
+		return null;
+	}
+
+	private static string ResolveFromGlobalizedRes(string normalizedRelative)
+	{
 		string globalizedRes = ProjectSettings.GlobalizePath("res://" + normalizedRelative).Replace("\\", "/");
-		if (!string.IsNullOrWhiteSpace(globalizedRes) && (File.Exists(globalizedRes) || Directory.Exists(globalizedRes)))
+		if (string.IsNullOrWhiteSpace(globalizedRes))
+		{
+			return null;
+		}
+
+		if (File.Exists(globalizedRes) || Directory.Exists(globalizedRes))
 		{
 			return globalizedRes;
 		}
 
+		return null;
+	}
+
+	private static string ResolveFromParentRoot(string normalizedRelative)
+	{
 		string parentRootPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), "..", normalizedRelative)).Replace("\\", "/");
 		if (File.Exists(parentRootPath) || Directory.Exists(parentRootPath))
 		{
 			return parentRootPath;
 		}
 
-		return primaryPath;
+		return null;
 	}
 
 	private static string FindInDataDirs(string exeDir, string normalizedRelative)

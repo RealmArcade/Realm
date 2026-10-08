@@ -33,6 +33,191 @@ public class SaveLoadService
 
 	public List<CoordinateSaveData> GetLastLoadedCoordinates() => _lastLoadedCoordinates;
 
+	private void UpdateEntityTransforms(Entity entity, System.Numerics.Vector3? position, float rotationY, float scale)
+	{
+		if (!EcsWorld.IsAlive(entity)) return;
+
+		if (position.HasValue)
+		{
+			if (EcsWorld.Has<Position>(entity))
+			{
+				var existingPos = EcsWorld.Get<Position>(entity).Value;
+				if ((position.Value - existingPos).Length() > 0.0001f)
+				{
+					EcsWorld.Set(entity, new Position(position.Value));
+				}
+			}
+			else
+			{
+				EcsWorld.Add(entity, new Position(position.Value));
+			}
+		}
+
+		if (EcsWorld.Has<RotationY>(entity))
+		{
+			float existing = EcsWorld.Get<RotationY>(entity).Value;
+			if (MathF.Abs(existing - rotationY) > 0.001f && MathF.Abs(MathF.Abs(existing - rotationY) - 360f) > 0.001f)
+			{
+				EcsWorld.Set(entity, new RotationY(rotationY));
+			}
+		}
+		else
+		{
+			EcsWorld.Add(entity, new RotationY(rotationY));
+		}
+
+		if (EcsWorld.Has<ModelScale>(entity))
+		{
+			float existing = EcsWorld.Get<ModelScale>(entity).Value;
+			if (MathF.Abs(existing - scale) > 0.0001f)
+			{
+				EcsWorld.Set(entity, new ModelScale(scale));
+			}
+		}
+		else
+		{
+			EcsWorld.Add(entity, new ModelScale(scale));
+		}
+	}
+
+	private void SaveTerrainData(string directory, int width, int depth, TerrainState terrain, string[] htmlColors, string[] cliffHtmlColors)
+	{
+	string heightsPath = Path.Combine(directory, "terrain_heights.exr");
+	string waterPath = Path.Combine(directory, "terrain_water.exr");
+	string splatIndicesPath = Path.Combine(directory, "terrain_splat_indices.exr");
+	string splatWeightsPath = Path.Combine(directory, "terrain_splat_weights.exr");
+	string pathingPath = Path.Combine(directory, "terrain_pathing.png");
+
+	var cells = terrain.Cells;
+	byte[] heightsBytes = new byte[width * depth * 4 * sizeof(float)];
+	Span<float> heightsSpan = MemoryMarshal.Cast<byte, float>(heightsBytes.AsSpan());
+
+	byte[] waterBytes = new byte[width * depth * 4 * sizeof(float)];
+	Span<float> waterSpan = MemoryMarshal.Cast<byte, float>(waterBytes.AsSpan());
+
+	for (int z = 0; z < depth; z++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			var cell = cells != null ? cells[x, z] : default;
+			int baseIdx = (z * width + x) * 4;
+
+			heightsSpan[baseIdx + 0] = cell.Y_NW;
+			heightsSpan[baseIdx + 1] = cell.Y_NE;
+			heightsSpan[baseIdx + 2] = cell.Y_SE;
+			heightsSpan[baseIdx + 3] = cell.Y_SW;
+
+			waterSpan[baseIdx + 0] = (float)cell.WaterMode;
+			waterSpan[baseIdx + 1] = (float)cell.WaterProfileIndex;
+			waterSpan[baseIdx + 2] = cell.WaterHeight;
+			waterSpan[baseIdx + 3] = 1f;
+		}
+	}
+
+	Image heightsImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, heightsBytes);
+	Image waterImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, waterBytes);
+	SaveExrSafe(heightsImage, heightsPath);
+	SaveExrSafe(waterImage, waterPath);
+
+	byte[] pathingBytes = new byte[width * depth * 4];
+	Span<byte> pathingSpan = pathingBytes.AsSpan();
+
+	for (int z = 0; z < depth; z++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			int code = terrain.PathingCodes != null ? terrain.PathingCodes[x, z] : EditableTerrain.GetDefaultPathingCode(Realm.Ecs.Components.Terrain.WaterType.None);
+			int baseIdx = (z * width + x) * 4;
+
+			pathingSpan[baseIdx + 0] = (byte)code;
+			pathingSpan[baseIdx + 1] = 0;
+			pathingSpan[baseIdx + 2] = 0;
+			pathingSpan[baseIdx + 3] = 255;
+		}
+	}
+
+	Image pathingImage = Image.CreateFromData(width, depth, false, Image.Format.Rgba8, pathingBytes);
+	SavePngSafe(pathingImage, pathingPath);
+
+	int splatW = width;
+	int splatD = depth;
+	if (htmlColors != null && htmlColors.Length == (width + 1) * (depth + 1))
+	{
+		splatW = width + 1;
+		splatD = depth + 1;
+	}
+
+	byte[] splatIndicesBytes = new byte[splatW * splatD * 4 * sizeof(float)];
+	Span<float> splatIndicesSpan = MemoryMarshal.Cast<byte, float>(splatIndicesBytes.AsSpan());
+
+	byte[] splatWeightsBytes = new byte[splatW * splatD * 4 * sizeof(float)];
+	Span<float> splatWeightsSpan = MemoryMarshal.Cast<byte, float>(splatWeightsBytes.AsSpan());
+
+	for (int z = 0; z < splatD; z++)
+	{
+		for (int x = 0; x < splatW; x++)
+		{
+			int idx = z * splatW + x;
+			string serialized = (htmlColors != null && idx < htmlColors.Length) ? htmlColors[idx] : null;
+			TerrainSplatWeights s = TerrainSplatWeights.Deserialize(serialized);
+			int baseIdx = idx * 4;
+
+			splatIndicesSpan[baseIdx + 0] = s.Index0;
+			splatIndicesSpan[baseIdx + 1] = s.Index1;
+			splatIndicesSpan[baseIdx + 2] = s.Index2;
+			splatIndicesSpan[baseIdx + 3] = s.Index3;
+
+			splatWeightsSpan[baseIdx + 0] = s.Weight0;
+			splatWeightsSpan[baseIdx + 1] = s.Weight1;
+			splatWeightsSpan[baseIdx + 2] = s.Weight2;
+			splatWeightsSpan[baseIdx + 3] = s.Weight3;
+		}
+	}
+
+	Image splatIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatIndicesBytes);
+	Image splatWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatWeightsBytes);
+	SaveExrSafe(splatIndicesImage, splatIndicesPath);
+	SaveExrSafe(splatWeightsImage, splatWeightsPath);
+
+	if (cliffHtmlColors != null && cliffHtmlColors.Length == splatW * splatD)
+	{
+		string cliffSplatIndicesPath = Path.Combine(directory, "terrain_cliff_splat_indices.exr");
+		string cliffSplatWeightsPath = Path.Combine(directory, "terrain_cliff_splat_weights.exr");
+
+		byte[] cliffIndicesBytes = new byte[splatW * splatD * 4 * sizeof(float)];
+		Span<float> cliffIndicesSpan = MemoryMarshal.Cast<byte, float>(cliffIndicesBytes.AsSpan());
+
+		byte[] cliffWeightsBytes = new byte[splatW * splatD * 4 * sizeof(float)];
+		Span<float> cliffWeightsSpan = MemoryMarshal.Cast<byte, float>(cliffWeightsBytes.AsSpan());
+
+		for (int z = 0; z < splatD; z++)
+		{
+			for (int x = 0; x < splatW; x++)
+			{
+				int idx = z * splatW + x;
+				string serialized = cliffHtmlColors[idx];
+				TerrainSplatWeights s = TerrainSplatWeights.Deserialize(serialized);
+				int baseIdx = idx * 4;
+
+				cliffIndicesSpan[baseIdx + 0] = s.Index0;
+				cliffIndicesSpan[baseIdx + 1] = s.Index1;
+				cliffIndicesSpan[baseIdx + 2] = s.Index2;
+				cliffIndicesSpan[baseIdx + 3] = s.Index3;
+
+				cliffWeightsSpan[baseIdx + 0] = s.Weight0;
+				cliffWeightsSpan[baseIdx + 1] = s.Weight1;
+				cliffWeightsSpan[baseIdx + 2] = s.Weight2;
+				cliffWeightsSpan[baseIdx + 3] = s.Weight3;
+			}
+		}
+
+		Image cliffIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, cliffIndicesBytes);
+		Image cliffWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, cliffWeightsBytes);
+		SaveExrSafe(cliffIndicesImage, cliffSplatIndicesPath);
+		SaveExrSafe(cliffWeightsImage, cliffSplatWeightsPath);
+	}
+	}
+
 	public bool SaveMapToFile(
 		string absolutePath,
 		string[] htmlColors,
@@ -53,69 +238,8 @@ public class SaveLoadService
 				EcsWorld.SetOrAdd(worldEntity, new TerrainColorsState(htmlColors));
 			}
 
-			foreach (var u in unitsData)
-			{
-				if (EcsWorld.IsAlive(u.Entity))
-				{
-					if (EcsWorld.Has<RotationY>(u.Entity))
-					{
-						float existing = EcsWorld.Get<RotationY>(u.Entity).Value;
-						if (MathF.Abs(existing - u.RotationY) > 0.001f && MathF.Abs(MathF.Abs(existing - u.RotationY) - 360f) > 0.001f)
-						{
-							EcsWorld.Set(u.Entity, new RotationY(u.RotationY));
-						}
-					}
-					else
-					{
-						EcsWorld.Add(u.Entity, new RotationY(u.RotationY));
-					}
-
-					if (EcsWorld.Has<ModelScale>(u.Entity))
-					{
-						float existing = EcsWorld.Get<ModelScale>(u.Entity).Value;
-						if (MathF.Abs(existing - u.Scale) > 0.0001f)
-						{
-							EcsWorld.Set(u.Entity, new ModelScale(u.Scale));
-						}
-					}
-					else
-					{
-						EcsWorld.Add(u.Entity, new ModelScale(u.Scale));
-					}
-				}
-			}
-
-			foreach (var p in propsData)
-			{
-				if (EcsWorld.IsAlive(p.Entity))
-				{
-					if (EcsWorld.Has<RotationY>(p.Entity))
-					{
-						float existing = EcsWorld.Get<RotationY>(p.Entity).Value;
-						if (MathF.Abs(existing - p.RotationY) > 0.001f && MathF.Abs(MathF.Abs(existing - p.RotationY) - 360f) > 0.001f)
-						{
-							EcsWorld.Set(p.Entity, new RotationY(p.RotationY));
-						}
-					}
-					else
-					{
-						EcsWorld.Add(p.Entity, new RotationY(p.RotationY));
-					}
-
-					if (EcsWorld.Has<ModelScale>(p.Entity))
-					{
-						float existing = EcsWorld.Get<ModelScale>(p.Entity).Value;
-						if (MathF.Abs(existing - p.Scale) > 0.0001f)
-						{
-							EcsWorld.Set(p.Entity, new ModelScale(p.Scale));
-						}
-					}
-					else
-					{
-						EcsWorld.Add(p.Entity, new ModelScale(p.Scale));
-					}
-				}
-			}
+			foreach (var u in unitsData) UpdateEntityTransforms(u.Entity, null, u.RotationY, u.Scale);
+			foreach (var p in propsData) UpdateEntityTransforms(p.Entity, null, p.RotationY, p.Scale);
 
 			var validDecalEntities = decalsData != null
 				? new HashSet<Entity>(decalsData.Select(d => d.Entity))
@@ -123,50 +247,7 @@ public class SaveLoadService
 
 			if (decalsData != null)
 			{
-				foreach (var d in decalsData)
-				{
-					if (EcsWorld.IsAlive(d.Entity))
-					{
-						if (EcsWorld.Has<Position>(d.Entity))
-						{
-							var existingPos = EcsWorld.Get<Position>(d.Entity).Value;
-							if ((d.Position - existingPos).Length() > 0.0001f)
-							{
-								EcsWorld.Set(d.Entity, new Position(d.Position));
-							}
-						}
-						else
-						{
-							EcsWorld.Add(d.Entity, new Position(d.Position));
-						}
-
-						if (EcsWorld.Has<RotationY>(d.Entity))
-						{
-							float existing = EcsWorld.Get<RotationY>(d.Entity).Value;
-							if (MathF.Abs(existing - d.RotationY) > 0.001f && MathF.Abs(MathF.Abs(existing - d.RotationY) - 360f) > 0.001f)
-							{
-								EcsWorld.Set(d.Entity, new RotationY(d.RotationY));
-							}
-						}
-						else
-						{
-							EcsWorld.Add(d.Entity, new RotationY(d.RotationY));
-						}
-
-						if (EcsWorld.Has<ModelScale>(d.Entity))
-						{
-							float existing = EcsWorld.Get<ModelScale>(d.Entity).Value;
-							if (MathF.Abs(existing - d.Scale) > 0.0001f)
-							{
-								EcsWorld.Set(d.Entity, new ModelScale(d.Scale));
-							}
-						}
-						else
-						{
-							EcsWorld.Add(d.Entity, new ModelScale(d.Scale));
-						}
-					}
-				}
+				foreach (var d in decalsData) UpdateEntityTransforms(d.Entity, d.Position, d.RotationY, d.Scale);
 			}
 
 			TerrainState terrain = default;
@@ -202,140 +283,7 @@ public class SaveLoadService
 				Directory.CreateDirectory(directory);
 			}
 
-			string heightsPath = Path.Combine(directory, "terrain_heights.exr");
-			string waterPath = Path.Combine(directory, "terrain_water.exr");
-			string splatIndicesPath = Path.Combine(directory, "terrain_splat_indices.exr");
-			string splatWeightsPath = Path.Combine(directory, "terrain_splat_weights.exr");
-			string pathingPath = Path.Combine(directory, "terrain_pathing.png");
-
-			var cells = terrain.Cells;
-			byte[] heightsBytes = new byte[width * depth * 4 * sizeof(float)];
-			Span<float> heightsSpan = MemoryMarshal.Cast<byte, float>(heightsBytes.AsSpan());
-
-			byte[] waterBytes = new byte[width * depth * 4 * sizeof(float)];
-			Span<float> waterSpan = MemoryMarshal.Cast<byte, float>(waterBytes.AsSpan());
-
-			for (int z = 0; z < depth; z++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					var cell = cells != null ? cells[x, z] : default;
-					int baseIdx = (z * width + x) * 4;
-
-					heightsSpan[baseIdx + 0] = cell.Y_NW;
-					heightsSpan[baseIdx + 1] = cell.Y_NE;
-					heightsSpan[baseIdx + 2] = cell.Y_SE;
-					heightsSpan[baseIdx + 3] = cell.Y_SW;
-
-					waterSpan[baseIdx + 0] = (float)cell.WaterMode;
-					waterSpan[baseIdx + 1] = (float)cell.WaterProfileIndex;
-					waterSpan[baseIdx + 2] = cell.WaterHeight;
-					waterSpan[baseIdx + 3] = 1f;
-				}
-			}
-
-			Image heightsImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, heightsBytes);
-			Image waterImage = Image.CreateFromData(width, depth, false, Image.Format.Rgbaf, waterBytes);
-			SaveExrSafe(heightsImage, heightsPath);
-			SaveExrSafe(waterImage, waterPath);
-
-			byte[] pathingBytes = new byte[width * depth * 4];
-			Span<byte> pathingSpan = pathingBytes.AsSpan();
-
-			for (int z = 0; z < depth; z++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					int code = terrain.PathingCodes != null ? terrain.PathingCodes[x, z] : EditableTerrain.GetDefaultPathingCode(Realm.Ecs.Components.Terrain.WaterType.None);
-					int baseIdx = (z * width + x) * 4;
-
-					pathingSpan[baseIdx + 0] = (byte)code;
-					pathingSpan[baseIdx + 1] = 0;
-					pathingSpan[baseIdx + 2] = 0;
-					pathingSpan[baseIdx + 3] = 255;
-				}
-			}
-
-			Image pathingImage = Image.CreateFromData(width, depth, false, Image.Format.Rgba8, pathingBytes);
-			SavePngSafe(pathingImage, pathingPath);
-
-			int splatW = width;
-			int splatD = depth;
-			if (htmlColors != null && htmlColors.Length == (width + 1) * (depth + 1))
-			{
-				splatW = width + 1;
-				splatD = depth + 1;
-			}
-
-			byte[] splatIndicesBytes = new byte[splatW * splatD * 4 * sizeof(float)];
-			Span<float> splatIndicesSpan = MemoryMarshal.Cast<byte, float>(splatIndicesBytes.AsSpan());
-
-			byte[] splatWeightsBytes = new byte[splatW * splatD * 4 * sizeof(float)];
-			Span<float> splatWeightsSpan = MemoryMarshal.Cast<byte, float>(splatWeightsBytes.AsSpan());
-
-			for (int z = 0; z < splatD; z++)
-			{
-				for (int x = 0; x < splatW; x++)
-				{
-					int idx = z * splatW + x;
-					string serialized = (htmlColors != null && idx < htmlColors.Length) ? htmlColors[idx] : null;
-					TerrainSplatWeights s = TerrainSplatWeights.Deserialize(serialized);
-					int baseIdx = idx * 4;
-
-					splatIndicesSpan[baseIdx + 0] = s.Index0;
-					splatIndicesSpan[baseIdx + 1] = s.Index1;
-					splatIndicesSpan[baseIdx + 2] = s.Index2;
-					splatIndicesSpan[baseIdx + 3] = s.Index3;
-
-					splatWeightsSpan[baseIdx + 0] = s.Weight0;
-					splatWeightsSpan[baseIdx + 1] = s.Weight1;
-					splatWeightsSpan[baseIdx + 2] = s.Weight2;
-					splatWeightsSpan[baseIdx + 3] = s.Weight3;
-				}
-			}
-
-			Image splatIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatIndicesBytes);
-			Image splatWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, splatWeightsBytes);
-			SaveExrSafe(splatIndicesImage, splatIndicesPath);
-			SaveExrSafe(splatWeightsImage, splatWeightsPath);
-
-			if (cliffHtmlColors != null && cliffHtmlColors.Length == splatW * splatD)
-			{
-				string cliffSplatIndicesPath = Path.Combine(directory, "terrain_cliff_splat_indices.exr");
-				string cliffSplatWeightsPath = Path.Combine(directory, "terrain_cliff_splat_weights.exr");
-
-				byte[] cliffIndicesBytes = new byte[splatW * splatD * 4 * sizeof(float)];
-				Span<float> cliffIndicesSpan = MemoryMarshal.Cast<byte, float>(cliffIndicesBytes.AsSpan());
-
-				byte[] cliffWeightsBytes = new byte[splatW * splatD * 4 * sizeof(float)];
-				Span<float> cliffWeightsSpan = MemoryMarshal.Cast<byte, float>(cliffWeightsBytes.AsSpan());
-
-				for (int z = 0; z < splatD; z++)
-				{
-					for (int x = 0; x < splatW; x++)
-					{
-						int idx = z * splatW + x;
-						string serialized = cliffHtmlColors[idx];
-						TerrainSplatWeights s = TerrainSplatWeights.Deserialize(serialized);
-						int baseIdx = idx * 4;
-
-						cliffIndicesSpan[baseIdx + 0] = s.Index0;
-						cliffIndicesSpan[baseIdx + 1] = s.Index1;
-						cliffIndicesSpan[baseIdx + 2] = s.Index2;
-						cliffIndicesSpan[baseIdx + 3] = s.Index3;
-
-						cliffWeightsSpan[baseIdx + 0] = s.Weight0;
-						cliffWeightsSpan[baseIdx + 1] = s.Weight1;
-						cliffWeightsSpan[baseIdx + 2] = s.Weight2;
-						cliffWeightsSpan[baseIdx + 3] = s.Weight3;
-					}
-				}
-
-				Image cliffIndicesImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, cliffIndicesBytes);
-				Image cliffWeightsImage = Image.CreateFromData(splatW, splatD, false, Image.Format.Rgbaf, cliffWeightsBytes);
-				SaveExrSafe(cliffIndicesImage, cliffSplatIndicesPath);
-				SaveExrSafe(cliffWeightsImage, cliffSplatWeightsPath);
-			}
+			SaveTerrainData(directory, width, depth, terrain, htmlColors, cliffHtmlColors);
 
 			saveData.Units = new List<UnitSaveData>();
 			var unitQuery = Realm.Ecs.Common.QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
@@ -551,6 +499,89 @@ public class SaveLoadService
 		}
 	}
 
+	private void CleanupOldMapEntities()
+	{
+		var unitQuery = Realm.Ecs.Common.QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
+		var unitsToDestroy = new List<Entity>();
+		EcsWorld.Query(in unitQuery, (Entity entity) => unitsToDestroy.Add(entity));
+		foreach (var ent in unitsToDestroy) EcsWorld.Destroy(ent);
+
+		var propQuery = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
+		var propsToDestroy = new List<Entity>();
+		EcsWorld.Query(in propQuery, (Entity entity) => propsToDestroy.Add(entity));
+		foreach (var ent in propsToDestroy) EcsWorld.Destroy(ent);
+
+		var decalQuery = Realm.Ecs.Common.QueryCache.AllDecalIdentityAndPositionQuery;
+		var decalsToDestroy = new List<Entity>();
+		EcsWorld.Query(in decalQuery, (Entity entity) => decalsToDestroy.Add(entity));
+		foreach (var ent in decalsToDestroy) EcsWorld.Destroy(ent);
+
+		var req1 = Realm.Ecs.Common.QueryCache.AllUnitSpawnRequestQuery;
+		var req1List = new List<Entity>();
+		EcsWorld.Query(in req1, (Entity entity) => req1List.Add(entity));
+		foreach (var ent in req1List) EcsWorld.Destroy(ent);
+
+		var req2 = Realm.Ecs.Common.QueryCache.AllPropSpawnRequestQuery;
+		var req2List = new List<Entity>();
+		EcsWorld.Query(in req2, (Entity entity) => req2List.Add(entity));
+		foreach (var ent in req2List) EcsWorld.Destroy(ent);
+
+		var req3 = Realm.Ecs.Common.QueryCache.AllDecalSpawnRequestQuery;
+		var req3List = new List<Entity>();
+		EcsWorld.Query(in req3, (Entity entity) => req3List.Add(entity));
+		foreach (var ent in req3List) EcsWorld.Destroy(ent);
+	}
+
+	private void DetermineMapDimensions(string mapDir, MapSaveData saveData, out int width, out int depth)
+	{
+		width = 0;
+		depth = 0;
+		if (MetadataService.Instance.TryLoadMetadata(mapDir, out var loadedMeta) && loadedMeta.MapProperties != null)
+		{
+			if (loadedMeta.MapProperties.MapWidth.HasValue && loadedMeta.MapProperties.MapWidth.Value > 0)
+			{
+				width = loadedMeta.MapProperties.MapWidth.Value;
+			}
+			if (loadedMeta.MapProperties.MapHeight.HasValue && loadedMeta.MapProperties.MapHeight.Value > 0)
+			{
+				depth = loadedMeta.MapProperties.MapHeight.Value;
+			}
+		}
+
+		if (width <= 0) width = saveData.Width > 0 ? saveData.Width : 128;
+		if (depth <= 0) depth = saveData.Depth > 0 ? saveData.Depth : 128;
+
+		width = Math.Clamp((int)Math.Round(width / 32.0) * 32, 32, 512);
+		depth = Math.Clamp((int)Math.Round(depth / 32.0) * 32, 32, 512);
+	}
+
+	private Entity InitializeTerrainState(int width, int depth)
+	{
+		Entity foundEntity = Entity.Null;
+		var worldQuery = Realm.Ecs.Common.QueryCache.AllTerrainStateQuery;
+		EcsWorld.Query(in worldQuery, (Entity entity) => foundEntity = entity);
+
+		if (foundEntity == Entity.Null)
+		{
+			foundEntity = EcsWorld.Create();
+		}
+
+		if (!EcsWorld.Has<TerrainState>(foundEntity))
+		{
+			EcsWorld.Add(foundEntity, new TerrainState(width, depth, TerrainState.DefaultQuadSize, TerrainState.DefaultCellSize, new TerrainCell[width, depth], new int[width, depth], null, null));
+		}
+		else
+		{
+			ref var ts = ref EcsWorld.Get<TerrainState>(foundEntity);
+			ts.Width = width;
+			ts.Depth = depth;
+			ts.Cells = new TerrainCell[width, depth];
+			ts.PathingCodes = new int[width, depth];
+			EcsWorld.Set(foundEntity, ts);
+		}
+		return foundEntity;
+	}
+
 	public bool LoadMapFromFile(string absolutePath, bool terrainOnly = false)
 	{
 		if (!File.Exists(absolutePath)) return false;
@@ -565,81 +596,13 @@ public class SaveLoadService
 
 			_lastLoadedCoordinates = saveData.Coordinates ?? new List<CoordinateSaveData>();
 
-			var unitQuery = Realm.Ecs.Common.QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
-			var unitsToDestroy = new List<Entity>();
-			EcsWorld.Query(in unitQuery, (Entity entity) => unitsToDestroy.Add(entity));
-			foreach (var ent in unitsToDestroy) EcsWorld.Destroy(ent);
+			CleanupOldMapEntities();
 
-			var propQuery = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
-			var propsToDestroy = new List<Entity>();
-			EcsWorld.Query(in propQuery, (Entity entity) => propsToDestroy.Add(entity));
-			foreach (var ent in propsToDestroy) EcsWorld.Destroy(ent);
-
-			var decalQuery = Realm.Ecs.Common.QueryCache.AllDecalIdentityAndPositionQuery;
-			var decalsToDestroy = new List<Entity>();
-			EcsWorld.Query(in decalQuery, (Entity entity) => decalsToDestroy.Add(entity));
-			foreach (var ent in decalsToDestroy) EcsWorld.Destroy(ent);
-
-			var req1 = Realm.Ecs.Common.QueryCache.AllUnitSpawnRequestQuery;
-			var req1List = new List<Entity>();
-			EcsWorld.Query(in req1, (Entity entity) => req1List.Add(entity));
-			foreach (var ent in req1List) EcsWorld.Destroy(ent);
-
-			var req2 = Realm.Ecs.Common.QueryCache.AllPropSpawnRequestQuery;
-			var req2List = new List<Entity>();
-			EcsWorld.Query(in req2, (Entity entity) => req2List.Add(entity));
-			foreach (var ent in req2List) EcsWorld.Destroy(ent);
-
-			var req3 = Realm.Ecs.Common.QueryCache.AllDecalSpawnRequestQuery;
-			var req3List = new List<Entity>();
-			EcsWorld.Query(in req3, (Entity entity) => req3List.Add(entity));
-			foreach (var ent in req3List) EcsWorld.Destroy(ent);
-
-			int width = 0;
-			int depth = 0;
-			if (MetadataService.Instance.TryLoadMetadata(mapDir, out var loadedMeta) && loadedMeta.MapProperties != null)
-			{
-				if (loadedMeta.MapProperties.MapWidth.HasValue && loadedMeta.MapProperties.MapWidth.Value > 0)
-				{
-					width = loadedMeta.MapProperties.MapWidth.Value;
-				}
-				if (loadedMeta.MapProperties.MapHeight.HasValue && loadedMeta.MapProperties.MapHeight.Value > 0)
-				{
-					depth = loadedMeta.MapProperties.MapHeight.Value;
-				}
-			}
-
-			if (width <= 0) width = saveData.Width > 0 ? saveData.Width : 128;
-			if (depth <= 0) depth = saveData.Depth > 0 ? saveData.Depth : 128;
-
-			width = Math.Clamp((int)Math.Round(width / 32.0) * 32, 32, 512);
-			depth = Math.Clamp((int)Math.Round(depth / 32.0) * 32, 32, 512);
-
+			DetermineMapDimensions(mapDir, saveData, out int width, out int depth);
 			saveData.Width = width;
 			saveData.Depth = depth;
 
-			Entity worldEntity = Entity.Null;
-			var worldQuery = Realm.Ecs.Common.QueryCache.AllTerrainStateQuery;
-			EcsWorld.Query(in worldQuery, (Entity entity) => worldEntity = entity);
-
-			if (worldEntity == Entity.Null)
-			{
-				worldEntity = EcsWorld.Create();
-			}
-
-			if (!EcsWorld.Has<TerrainState>(worldEntity))
-			{
-				EcsWorld.Add(worldEntity, new TerrainState(width, depth, TerrainState.DefaultQuadSize, TerrainState.DefaultCellSize, new TerrainCell[width, depth], new int[width, depth], null, null));
-			}
-			else
-			{
-				ref var ts = ref EcsWorld.Get<TerrainState>(worldEntity);
-				ts.Width = width;
-				ts.Depth = depth;
-				ts.Cells = new TerrainCell[width, depth];
-				ts.PathingCodes = new int[width, depth];
-				EcsWorld.Set(worldEntity, ts);
-			}
+			Entity worldEntity = InitializeTerrainState(width, depth);
 
 			if (EcsWorld.Has<TerrainState>(worldEntity))
 			{
@@ -1046,42 +1009,168 @@ public class SaveLoadService
 
 		foreach (string file in indicesFiles)
 		{
-			if (File.Exists(file))
-			{
-				try
-				{
-					var img = Image.LoadFromFile(file);
-					if (img != null)
-					{
-						img.Convert(Image.Format.Rgbaf);
-						int w = img.GetWidth();
-						int h = img.GetHeight();
-						byte[] data = img.GetData();
-						Span<float> floats = MemoryMarshal.Cast<byte, float>(data.AsSpan());
-						bool modified = false;
-						for (int i = 0; i < floats.Length; i++)
-						{
-							int oldIdx = (int)MathF.Round(floats[i]);
-							if (remap.TryGetValue(oldIdx, out int newIdx) && newIdx != oldIdx)
-							{
-								floats[i] = newIdx;
-								modified = true;
-							}
-						}
-						if (modified)
-						{
-							var updatedImg = Image.CreateFromData(w, h, false, Image.Format.Rgbaf, data);
-							updatedImg.SaveExr(file);
-						}
-					}
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"[SaveLoadService] Failed to remap splat EXR {file}: {ex.Message}");
-				}
-			}
+			RemapSingleSplatExrFile(file, remap);
 		}
 	}
+
+	private static void RemapSingleSplatExrFile(string file, IReadOnlyDictionary<int, int> remap)
+	{
+		if (!File.Exists(file)) return;
+		try
+		{
+			var img = Image.LoadFromFile(file);
+			if (img == null) return;
+			
+			img.Convert(Image.Format.Rgbaf);
+			int w = img.GetWidth();
+			int h = img.GetHeight();
+			byte[] data = img.GetData();
+			Span<float> floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(data.AsSpan());
+			bool modified = false;
+			for (int i = 0; i < floats.Length; i++)
+			{
+				int oldIdx = (int)MathF.Round(floats[i]);
+				if (remap.TryGetValue(oldIdx, out int newIdx) && newIdx != oldIdx)
+				{
+					floats[i] = newIdx;
+					modified = true;
+				}
+			}
+			if (modified)
+			{
+				var updatedImg = Image.CreateFromData(w, h, false, Image.Format.Rgbaf, data);
+				updatedImg.SaveExr(file);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[SaveLoadService] Failed to remap splat EXR {file}: {ex.Message}");
+		}
+	}
+
+	private static int CompareUnits(UnitSaveData a, UnitSaveData b, float topLeftX, float topLeftZ)
+	{
+		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
+		if (comparison != 0) return comparison;
+		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
+		if (comparison != 0) return comparison;
+
+		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
+		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
+		comparison = distanceA.CompareTo(distanceB);
+		if (comparison != 0) return comparison;
+
+		comparison = a.PosX.CompareTo(b.PosX);
+		if (comparison != 0) return comparison;
+		comparison = a.PosZ.CompareTo(b.PosZ);
+		if (comparison != 0) return comparison;
+		comparison = a.PosY.CompareTo(b.PosY);
+		if (comparison != 0) return comparison;
+		comparison = a.RotationY.CompareTo(b.RotationY);
+		if (comparison != 0) return comparison;
+		comparison = a.Scale.CompareTo(b.Scale);
+		if (comparison != 0) return comparison;
+		comparison = a.Player.CompareTo(b.Player);
+		if (comparison != 0) return comparison;
+		return a.IsEnemy.CompareTo(b.IsEnemy);
+	}
+
+	private static int CompareProps(PropSaveData a, PropSaveData b, float topLeftX, float topLeftZ)
+	{
+		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
+		if (comparison != 0) return comparison;
+		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
+		if (comparison != 0) return comparison;
+
+		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
+		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
+		comparison = distanceA.CompareTo(distanceB);
+		if (comparison != 0) return comparison;
+
+		comparison = a.PosX.CompareTo(b.PosX);
+		if (comparison != 0) return comparison;
+		comparison = a.PosZ.CompareTo(b.PosZ);
+		if (comparison != 0) return comparison;
+		comparison = a.PosY.CompareTo(b.PosY);
+		if (comparison != 0) return comparison;
+		comparison = a.RotationY.CompareTo(b.RotationY);
+		if (comparison != 0) return comparison;
+		return a.Scale.CompareTo(b.Scale);
+	}
+
+	private static int CompareDecals(DecalSaveData a, DecalSaveData b, float topLeftX, float topLeftZ)
+	{
+		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
+		if (comparison != 0) return comparison;
+		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
+		if (comparison != 0) return comparison;
+
+		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
+		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
+		comparison = distanceA.CompareTo(distanceB);
+		if (comparison != 0) return comparison;
+
+		comparison = a.PosX.CompareTo(b.PosX);
+		if (comparison != 0) return comparison;
+		comparison = a.PosZ.CompareTo(b.PosZ);
+		if (comparison != 0) return comparison;
+		comparison = a.PosY.CompareTo(b.PosY);
+		if (comparison != 0) return comparison;
+		comparison = a.RotationY.CompareTo(b.RotationY);
+		if (comparison != 0) return comparison;
+		return a.Scale.CompareTo(b.Scale);
+	}
+
+	private static int CompareVfx(VfxSaveData a, VfxSaveData b, float topLeftX, float topLeftZ)
+	{
+		int comparison = string.Compare(a.VfxId, b.VfxId, StringComparison.OrdinalIgnoreCase);
+		if (comparison != 0) return comparison;
+		comparison = string.Compare(a.VfxId, b.VfxId, StringComparison.Ordinal);
+		if (comparison != 0) return comparison;
+
+		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
+		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
+		comparison = distanceA.CompareTo(distanceB);
+		if (comparison != 0) return comparison;
+
+		comparison = a.PosX.CompareTo(b.PosX);
+		if (comparison != 0) return comparison;
+		comparison = a.PosZ.CompareTo(b.PosZ);
+		if (comparison != 0) return comparison;
+		comparison = a.PosY.CompareTo(b.PosY);
+		if (comparison != 0) return comparison;
+		comparison = a.RotationY.CompareTo(b.RotationY);
+		if (comparison != 0) return comparison;
+		return a.ScaleX.CompareTo(b.ScaleX);
+	}
+
+	private static int CompareCoordinates(CoordinateSaveData a, CoordinateSaveData b, float topLeftX, float topLeftZ)
+	{
+		int comparison = string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+		if (comparison != 0) return comparison;
+		comparison = string.Compare(a.Name, b.Name, StringComparison.Ordinal);
+		if (comparison != 0) return comparison;
+
+		float centerAX = (a.MinX + a.MaxX) * 0.5f;
+		float centerAZ = (a.MinZ + a.MaxZ) * 0.5f;
+		float centerBX = (b.MinX + b.MaxX) * 0.5f;
+		float centerBZ = (b.MinZ + b.MaxZ) * 0.5f;
+
+		float distanceA = MathF.Sqrt(MathF.Pow(centerAX - topLeftX, 2) + MathF.Pow(centerAZ - topLeftZ, 2));
+		float distanceB = MathF.Sqrt(MathF.Pow(centerBX - topLeftX, 2) + MathF.Pow(centerBZ - topLeftZ, 2));
+		comparison = distanceA.CompareTo(distanceB);
+		if (comparison != 0) return comparison;
+
+		comparison = a.MinX.CompareTo(b.MinX);
+		if (comparison != 0) return comparison;
+		comparison = a.MinZ.CompareTo(b.MinZ);
+		if (comparison != 0) return comparison;
+		comparison = a.MaxX.CompareTo(b.MaxX);
+		if (comparison != 0) return comparison;
+		return a.MaxZ.CompareTo(b.MaxZ);
+	}
+
+
 
 	public static void SortMapSaveData(MapSaveData saveData)
 	{
@@ -1094,140 +1183,66 @@ public class SaveLoadService
 
 		if (saveData.Units != null)
 		{
-			saveData.Units.Sort((a, b) =>
-			{
-				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
-				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
-				if (comparison != 0) return comparison;
-
-				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-				float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-				comparison = distanceA.CompareTo(distanceB);
-				if (comparison != 0) return comparison;
-
-				comparison = a.PosX.CompareTo(b.PosX);
-				if (comparison != 0) return comparison;
-				comparison = a.PosZ.CompareTo(b.PosZ);
-				if (comparison != 0) return comparison;
-				comparison = a.PosY.CompareTo(b.PosY);
-				if (comparison != 0) return comparison;
-				comparison = a.RotationY.CompareTo(b.RotationY);
-				if (comparison != 0) return comparison;
-				comparison = a.Scale.CompareTo(b.Scale);
-				if (comparison != 0) return comparison;
-				comparison = a.Player.CompareTo(b.Player);
-				if (comparison != 0) return comparison;
-				return a.IsEnemy.CompareTo(b.IsEnemy);
-			});
+			saveData.Units.Sort((a, b) => CompareUnits(a, b, topLeftX, topLeftZ));
 		}
 
 		if (saveData.Props != null)
 		{
-			saveData.Props.Sort((a, b) =>
-			{
-				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
-				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
-				if (comparison != 0) return comparison;
-
-				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-				float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-				comparison = distanceA.CompareTo(distanceB);
-				if (comparison != 0) return comparison;
-
-				comparison = a.PosX.CompareTo(b.PosX);
-				if (comparison != 0) return comparison;
-				comparison = a.PosZ.CompareTo(b.PosZ);
-				if (comparison != 0) return comparison;
-				comparison = a.PosY.CompareTo(b.PosY);
-				if (comparison != 0) return comparison;
-				comparison = a.RotationY.CompareTo(b.RotationY);
-				if (comparison != 0) return comparison;
-				return a.Scale.CompareTo(b.Scale);
-			});
+			saveData.Props.Sort((a, b) => CompareProps(a, b, topLeftX, topLeftZ));
 		}
 
 		if (saveData.Decals != null)
 		{
-			saveData.Decals.Sort((a, b) =>
-			{
-				int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
-				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
-				if (comparison != 0) return comparison;
-
-				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-				float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-				comparison = distanceA.CompareTo(distanceB);
-				if (comparison != 0) return comparison;
-
-				comparison = a.PosX.CompareTo(b.PosX);
-				if (comparison != 0) return comparison;
-				comparison = a.PosZ.CompareTo(b.PosZ);
-				if (comparison != 0) return comparison;
-				comparison = a.PosY.CompareTo(b.PosY);
-				if (comparison != 0) return comparison;
-				comparison = a.RotationY.CompareTo(b.RotationY);
-				if (comparison != 0) return comparison;
-				return a.Scale.CompareTo(b.Scale);
-			});
+			saveData.Decals.Sort((a, b) => CompareDecals(a, b, topLeftX, topLeftZ));
 		}
 
 		if (saveData.Vfx != null)
 		{
-			saveData.Vfx.Sort((a, b) =>
-			{
-				int comparison = string.Compare(a.VfxId, b.VfxId, StringComparison.OrdinalIgnoreCase);
-				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.VfxId, b.VfxId, StringComparison.Ordinal);
-				if (comparison != 0) return comparison;
-
-				float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-				float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-				comparison = distanceA.CompareTo(distanceB);
-				if (comparison != 0) return comparison;
-
-				comparison = a.PosX.CompareTo(b.PosX);
-				if (comparison != 0) return comparison;
-				comparison = a.PosZ.CompareTo(b.PosZ);
-				if (comparison != 0) return comparison;
-				comparison = a.PosY.CompareTo(b.PosY);
-				if (comparison != 0) return comparison;
-				comparison = a.RotationY.CompareTo(b.RotationY);
-				if (comparison != 0) return comparison;
-				return a.ScaleX.CompareTo(b.ScaleX);
-			});
+			saveData.Vfx.Sort((a, b) => CompareVfx(a, b, topLeftX, topLeftZ));
 		}
 
 		if (saveData.Coordinates != null)
 		{
-			saveData.Coordinates.Sort((a, b) =>
-			{
-				int comparison = string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-				if (comparison != 0) return comparison;
-				comparison = string.Compare(a.Name, b.Name, StringComparison.Ordinal);
-				if (comparison != 0) return comparison;
-
-				float centerAX = (a.MinX + a.MaxX) * 0.5f;
-				float centerAZ = (a.MinZ + a.MaxZ) * 0.5f;
-				float centerBX = (b.MinX + b.MaxX) * 0.5f;
-				float centerBZ = (b.MinZ + b.MaxZ) * 0.5f;
-
-				float distanceA = MathF.Sqrt(MathF.Pow(centerAX - topLeftX, 2) + MathF.Pow(centerAZ - topLeftZ, 2));
-				float distanceB = MathF.Sqrt(MathF.Pow(centerBX - topLeftX, 2) + MathF.Pow(centerBZ - topLeftZ, 2));
-				comparison = distanceA.CompareTo(distanceB);
-				if (comparison != 0) return comparison;
-
-				comparison = a.MinX.CompareTo(b.MinX);
-				if (comparison != 0) return comparison;
-				comparison = a.MinZ.CompareTo(b.MinZ);
-				if (comparison != 0) return comparison;
-				comparison = a.MaxX.CompareTo(b.MaxX);
-				if (comparison != 0) return comparison;
-				return a.MaxZ.CompareTo(b.MaxZ);
-			});
+			saveData.Coordinates.Sort((a, b) => CompareCoordinates(a, b, topLeftX, topLeftZ));
 		}
+
+
+	}
+
+	private static bool IsValidWorkspaceForBackup(string fullWsPath, string globalBackupsRoot, string globalUpgradesRoot)
+	{
+		string fullUserDataDir = Path.GetFullPath(OS.GetUserDataDir()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string resGlobalPath = Path.GetFullPath(ProjectSettings.GlobalizePath("res://")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+		if (string.Equals(fullWsPath, fullUserDataDir, StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(fullWsPath, resGlobalPath, StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		if (fullWsPath.Equals(globalBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
+			fullWsPath.StartsWith(globalBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+			fullWsPath.Equals(globalUpgradesRoot, StringComparison.OrdinalIgnoreCase) ||
+			fullWsPath.StartsWith(globalUpgradesRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+			fullWsPath.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
+			fullWsPath.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
+			fullWsPath.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
+		{
+			return false;
+		}
+
+		string wsName = Path.GetFileName(fullWsPath);
+		if (string.IsNullOrEmpty(wsName) ||
+			string.Equals(wsName, "map_backups", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(wsName, "map_upgrades", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(wsName, "backups", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(wsName, ".backups", StringComparison.OrdinalIgnoreCase) ||
+			wsName.StartsWith("backup_", StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		return true;
 	}
 
 	public static string CreateWorkspaceBackup(string workspacePath, int maxBackups = 3)
@@ -1241,36 +1256,13 @@ public class SaveLoadService
 			string fullUserDataDir = Path.GetFullPath(OS.GetUserDataDir()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 			string globalBackupsRoot = Path.GetFullPath(Path.Combine(fullUserDataDir, "map_backups")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 			string globalUpgradesRoot = Path.GetFullPath(Path.Combine(fullUserDataDir, "map_upgrades")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-			string resGlobalPath = Path.GetFullPath(ProjectSettings.GlobalizePath("res://")).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-			if (string.Equals(fullWsPath, fullUserDataDir, StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(fullWsPath, resGlobalPath, StringComparison.OrdinalIgnoreCase))
-			{
-				return string.Empty;
-			}
-
-			if (fullWsPath.Equals(globalBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
-				fullWsPath.StartsWith(globalBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-				fullWsPath.Equals(globalUpgradesRoot, StringComparison.OrdinalIgnoreCase) ||
-				fullWsPath.StartsWith(globalUpgradesRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-				fullWsPath.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
-				fullWsPath.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
-				fullWsPath.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
+			if (!IsValidWorkspaceForBackup(fullWsPath, globalBackupsRoot, globalUpgradesRoot))
 			{
 				return string.Empty;
 			}
 
 			string wsName = Path.GetFileName(fullWsPath);
-			if (string.IsNullOrEmpty(wsName) ||
-				string.Equals(wsName, "map_backups", StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(wsName, "map_upgrades", StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(wsName, "backups", StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(wsName, ".backups", StringComparison.OrdinalIgnoreCase) ||
-				wsName.StartsWith("backup_", StringComparison.OrdinalIgnoreCase))
-			{
-				return string.Empty;
-			}
-
 			string backupsRoot = Path.GetFullPath(Path.Combine(globalBackupsRoot, wsName)).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 			if (!Directory.Exists(backupsRoot))
 			{
@@ -1293,6 +1285,49 @@ public class SaveLoadService
 			GD.PrintErr($"[SaveLoadService] Failed to create workspace backup: {ex.Message}");
 			return string.Empty;
 		}
+	}
+
+	private static bool ShouldExcludeDirectory(DirectoryInfo subDir, string subDirFull, string normalizedTarget, string normalizedBackupsRoot, HashSet<string> excludedFolders)
+	{
+		if (excludedFolders.Contains(subDir.Name)) return true;
+		if (subDir.Name.StartsWith("backup_", StringComparison.OrdinalIgnoreCase)) return true;
+
+		if (subDirFull.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
+			subDirFull.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
+			subDirFull.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
+		{
+			return true;
+		}
+
+		if (!string.IsNullOrEmpty(normalizedBackupsRoot) &&
+			(string.Equals(subDirFull, normalizedBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
+			 subDirFull.StartsWith(normalizedBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+		{
+			return true;
+		}
+
+		if (string.Equals(subDirFull, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
+			subDirFull.StartsWith(normalizedTarget + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+			normalizedTarget.StartsWith(subDirFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	private static void CopyFilesParallel(List<(string SourcePath, string DestPath)> filesToCopy)
+	{
+		Parallel.ForEach(filesToCopy, pair =>
+		{
+			try
+			{
+				using var srcStream = new FileStream(pair.SourcePath, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+				using var dstStream = new FileStream(pair.DestPath, FileMode.Create, System.IO.FileAccess.Write, FileShare.ReadWrite);
+				srcStream.CopyTo(dstStream);
+			}
+			catch { }
+		});
 	}
 
 	private static void CopyDirectoryContentsSafe(string sourceDir, string targetDir, string backupsRoot = null)
@@ -1325,28 +1360,8 @@ public class SaveLoadService
 
 			foreach (var subDir in curDir.GetDirectories())
 			{
-				if (excludedFolders.Contains(subDir.Name)) continue;
-				if (subDir.Name.StartsWith("backup_", StringComparison.OrdinalIgnoreCase)) continue;
-
 				string subDirFull = Path.GetFullPath(subDir.FullName).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-				if (subDirFull.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
-					subDirFull.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
-					subDirFull.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
-				{
-					continue;
-				}
-
-				if (!string.IsNullOrEmpty(normalizedBackupsRoot) &&
-					(string.Equals(subDirFull, normalizedBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
-					 subDirFull.StartsWith(normalizedBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
-				{
-					continue;
-				}
-
-				if (string.Equals(subDirFull, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
-					subDirFull.StartsWith(normalizedTarget + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-					normalizedTarget.StartsWith(subDirFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+				if (ShouldExcludeDirectory(subDir, subDirFull, normalizedTarget, normalizedBackupsRoot, excludedFolders))
 				{
 					continue;
 				}
@@ -1355,16 +1370,7 @@ public class SaveLoadService
 			}
 		}
 
-		Parallel.ForEach(filesToCopy, pair =>
-		{
-			try
-			{
-				using var srcStream = new FileStream(pair.SourcePath, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-				using var dstStream = new FileStream(pair.DestPath, FileMode.Create, System.IO.FileAccess.Write, FileShare.ReadWrite);
-				srcStream.CopyTo(dstStream);
-			}
-			catch { }
-		});
+		CopyFilesParallel(filesToCopy);
 	}
 
 	private static bool SaveExrSafe(Image image, string path, int maxRetries = 5)
@@ -1449,20 +1455,14 @@ public class SaveLoadService
 	{
 		if (string.IsNullOrWhiteSpace(propId)) return false;
 
-		if (GameHost.PropRegistry != null && GameHost.PropRegistry.ContainsKey(propId)) return true;
-		if (GameHost.ResourceRegistry != null && GameHost.ResourceRegistry.ContainsKey(propId)) return true;
+		if (GameHost.PropRegistry?.ContainsKey(propId) == true) return true;
+		if (GameHost.ResourceRegistry?.ContainsKey(propId) == true) return true;
 
-		string targetDir = !string.IsNullOrEmpty(mapDirectory)
-			? mapDirectory
-			: MapWorkspaceService.GetActiveWorkspacePath();
+		string targetDir = !string.IsNullOrEmpty(mapDirectory) ? mapDirectory : MapWorkspaceService.GetActiveWorkspacePath();
+		if (!MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata)) return false;
 
-		if (MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata))
-		{
-			if (metadata.Templates?.Props != null && metadata.Templates.Props.Any(p => propId.Equals(p.TemplateID, StringComparison.OrdinalIgnoreCase)))
-				return true;
-			if (metadata.Templates?.Resources != null && metadata.Templates.Resources.Any(r => propId.Equals(r.TemplateID, StringComparison.OrdinalIgnoreCase)))
-				return true;
-		}
+		if (metadata.Templates?.Props?.Any(p => propId.Equals(p.TemplateID, StringComparison.OrdinalIgnoreCase)) == true) return true;
+		if (metadata.Templates?.Resources?.Any(r => propId.Equals(r.TemplateID, StringComparison.OrdinalIgnoreCase)) == true) return true;
 
 		return false;
 	}
@@ -1471,25 +1471,75 @@ public class SaveLoadService
 	{
 		if (string.IsNullOrWhiteSpace(unitId)) return false;
 
-		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.ContainsKey(unitId)) return true;
-		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(unitId)) return true;
+		if (GameHost.UnitRegistry?.ContainsKey(unitId) == true) return true;
+		if (GameHost.BuildingRegistry?.ContainsKey(unitId) == true) return true;
 
-		string targetDir = !string.IsNullOrEmpty(mapDirectory)
-			? mapDirectory
-			: MapWorkspaceService.GetActiveWorkspacePath();
+		string targetDir = !string.IsNullOrEmpty(mapDirectory) ? mapDirectory : MapWorkspaceService.GetActiveWorkspacePath();
+		if (!MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata)) return false;
 
-		if (MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata))
-		{
-			if (metadata.Templates?.Units != null && metadata.Templates.Units.Any(u => unitId.Equals(u.TemplateID, StringComparison.OrdinalIgnoreCase)))
-				return true;
-			if (metadata.Templates?.Buildings != null && metadata.Templates.Buildings.Any(b => unitId.Equals(b.TemplateID, StringComparison.OrdinalIgnoreCase)))
-				return true;
-		}
+		if (metadata.Templates?.Units?.Any(u => unitId.Equals(u.TemplateID, StringComparison.OrdinalIgnoreCase)) == true) return true;
+		if (metadata.Templates?.Buildings?.Any(b => unitId.Equals(b.TemplateID, StringComparison.OrdinalIgnoreCase)) == true) return true;
 
 		return false;
 	}
 
 
+
+	private static string GetSubFolderForCategory(string category)
+	{
+		return category switch
+		{
+			"Character" => "models/units",
+			"Building" => "models/buildings",
+			"Prop" => "models/props",
+			"Item" => "models/items",
+			"Spritesheet" or "vfx" or "vfx_spritesheets" => "vfx_spritesheets",
+			"Animation" or "animations" => "animations",
+			"SoundEffect" or "sfx" => "audio/sfx",
+			"Music" or "music" => "audio/music",
+			"Icon" or "icons" => "icons",
+			"Decal" or "decals" => "decals",
+			"Ribbon" or "ribbons" or "ribbon_textures" => "ribbons",
+			"Noise" or "noise" or "noise_textures" => "noise",
+			"Skybox" or "skyboxes" => "skyboxes",
+			"Terrain" or "textures" => "textures",
+			"Shader" or "shaders" => "shaders",
+			_ => category.ToLowerInvariant()
+		};
+	}
+
+	private static string ResolveFullDiskPath(string mapDirectory, string assetsDir, string relPath, string category, string baseFileName, ref Dictionary<string, string>? cachedAssetFiles)
+	{
+		string fullDiskPath = Path.Combine(mapDirectory, relPath);
+		if (!File.Exists(fullDiskPath))
+		{
+			if (category is "Character" or "Building" or "Prop" or "Item")
+			{
+				string? modelDisk = MapAssetHelper.FindModelOnDisk(mapDirectory, category, baseFileName);
+				if (!string.IsNullOrEmpty(modelDisk) && File.Exists(modelDisk))
+				{
+					fullDiskPath = modelDisk;
+				}
+			}
+			else
+			{
+				string? altPath = FindAssetFileByName(assetsDir, baseFileName, ref cachedAssetFiles);
+				if (altPath != null && File.Exists(altPath))
+				{
+					fullDiskPath = altPath;
+				}
+				else
+				{
+					string directMapPath = Path.Combine(mapDirectory, baseFileName);
+					if (File.Exists(directMapPath))
+					{
+						fullDiskPath = directMapPath;
+					}
+				}
+			}
+		}
+		return fullDiskPath;
+	}
 
 	public static void SyncMetadataAssetsAndPrune(string mapDirectory)
 	{
@@ -1507,25 +1557,7 @@ public class SaveLoadService
 			{
 				string category = categoryKvp.Key;
 				var catDict = categoryKvp.Value;
-				string subFolder = category switch
-				{
-					"Character" => "models/units",
-					"Building" => "models/buildings",
-					"Prop" => "models/props",
-					"Item" => "models/items",
-					"Spritesheet" or "vfx" or "vfx_spritesheets" => "vfx_spritesheets",
-					"Animation" or "animations" => "animations",
-					"SoundEffect" or "sfx" => "audio/sfx",
-					"Music" or "music" => "audio/music",
-					"Icon" or "icons" => "icons",
-					"Decal" or "decals" => "decals",
-					"Ribbon" or "ribbons" or "ribbon_textures" => "ribbons",
-					"Noise" or "noise" or "noise_textures" => "noise",
-					"Skybox" or "skyboxes" => "skyboxes",
-					"Terrain" or "textures" => "textures",
-					"Shader" or "shaders" => "shaders",
-					_ => category.ToLowerInvariant()
-				};
+				string subFolder = GetSubFolderForCategory(category);
 
 				foreach (var itemKvp in catDict)
 				{
@@ -1565,35 +1597,8 @@ public class SaveLoadService
 
 			foreach (var (relPath, category, fileName) in assetsToSync)
 			{
-				string fullDiskPath = Path.Combine(mapDirectory, relPath);
-				if (!File.Exists(fullDiskPath))
-				{
-					string baseFileName = Path.GetFileName(relPath);
-					if (category is "Character" or "Building" or "Prop" or "Item")
-					{
-						string? modelDisk = MapAssetHelper.FindModelOnDisk(mapDirectory, category, baseFileName);
-						if (!string.IsNullOrEmpty(modelDisk) && File.Exists(modelDisk))
-						{
-							fullDiskPath = modelDisk;
-						}
-					}
-					else
-					{
-						string? altPath = FindAssetFileByName(assetsDir, baseFileName, ref cachedAssetFiles);
-						if (altPath != null && File.Exists(altPath))
-						{
-							fullDiskPath = altPath;
-						}
-						else
-						{
-							string directMapPath = Path.Combine(mapDirectory, baseFileName);
-							if (File.Exists(directMapPath))
-							{
-								fullDiskPath = directMapPath;
-							}
-						}
-					}
-				}
+				string baseFileName = Path.GetFileName(relPath);
+				string fullDiskPath = ResolveFullDiskPath(mapDirectory, assetsDir, relPath, category, baseFileName, ref cachedAssetFiles);
 
 				if (File.Exists(fullDiskPath))
 				{

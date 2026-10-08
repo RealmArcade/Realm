@@ -43,35 +43,34 @@ public enum WindowMode
 
 public static class GameLanguageExtensions
 {
-	public static string ToLocaleCode(this GameLanguage language) => language switch
+	private static readonly string[] _localeCodes = { "en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi" };
+	private static readonly Dictionary<string, GameLanguage> _languageMap = new(StringComparer.OrdinalIgnoreCase)
 	{
-		GameLanguage.English => "en",
-		GameLanguage.Spanish => "es",
-		GameLanguage.French => "fr",
-		GameLanguage.German => "de",
-		GameLanguage.Portuguese => "pt",
-		GameLanguage.Russian => "ru",
-		GameLanguage.Chinese => "zh",
-		GameLanguage.Japanese => "ja",
-		GameLanguage.Arabic => "ar",
-		GameLanguage.Hindi => "hi",
-		_ => "en"
+		{ "en", GameLanguage.English }, { "english", GameLanguage.English },
+		{ "es", GameLanguage.Spanish }, { "spanish", GameLanguage.Spanish },
+		{ "fr", GameLanguage.French }, { "french", GameLanguage.French },
+		{ "de", GameLanguage.German }, { "german", GameLanguage.German },
+		{ "pt", GameLanguage.Portuguese }, { "portuguese", GameLanguage.Portuguese },
+		{ "ru", GameLanguage.Russian }, { "russian", GameLanguage.Russian },
+		{ "zh", GameLanguage.Chinese }, { "chinese", GameLanguage.Chinese },
+		{ "ja", GameLanguage.Japanese }, { "japanese", GameLanguage.Japanese },
+		{ "ar", GameLanguage.Arabic }, { "arabic", GameLanguage.Arabic },
+		{ "hi", GameLanguage.Hindi }, { "hindi", GameLanguage.Hindi }
 	};
 
-	public static GameLanguage ParseGameLanguage(string code) => code?.ToLowerInvariant() switch
+	public static string ToLocaleCode(this GameLanguage language)
 	{
-		"en" or "english" => GameLanguage.English,
-		"es" or "spanish" => GameLanguage.Spanish,
-		"fr" or "french" => GameLanguage.French,
-		"de" or "german" => GameLanguage.German,
-		"pt" or "portuguese" => GameLanguage.Portuguese,
-		"ru" or "russian" => GameLanguage.Russian,
-		"zh" or "chinese" => GameLanguage.Chinese,
-		"ja" or "japanese" => GameLanguage.Japanese,
-		"ar" or "arabic" => GameLanguage.Arabic,
-		"hi" or "hindi" => GameLanguage.Hindi,
-		_ => GameLanguage.English
-	};
+		int index = (int)language;
+		if (index >= 0 && index < _localeCodes.Length)
+			return _localeCodes[index];
+		return "en";
+	}
+
+	public static GameLanguage ParseGameLanguage(string code)
+	{
+		if (string.IsNullOrEmpty(code)) return GameLanguage.English;
+		return _languageMap.TryGetValue(code, out var lang) ? lang : GameLanguage.English;
+	}
 }
 
 public static class GameSettings
@@ -224,13 +223,7 @@ public static class GameSettings
 		}
 		if (!FileAccess.FileExists(SettingsPath))
 		{
-			QualityIdx = AutoDetectQuality();
-			if (Resolutions != null && Resolutions.Count > 0)
-			{
-				WindowedResolutionWidth = Resolutions[0].X;
-				WindowedResolutionHeight = Resolutions[0].Y;
-			}
-			Save();
+			SetDefaultLoadSettings();
 			return;
 		}
 
@@ -243,52 +236,7 @@ public static class GameSettings
 			var data = JsonSerializer.Deserialize<SettingsData>(json, JsonOptions);
 			if (data != null)
 			{
-				ResolutionIdx = data.ResolutionIdx;
-				WindowedResolutionWidth = data.WindowedResolutionWidth;
-				WindowedResolutionHeight = data.WindowedResolutionHeight;
-				QualityIdx = data.QualityIdx;
-				WindowModeIdx = data.WindowModeIdx;
-				Vsync = data.Vsync;
-				MasterVolume = data.MasterVolume;
-				MusicVolume = data.MusicVolume;
-				SfxVolume = data.SfxVolume;
-				VoiceVolume = data.VoiceVolume;
-				ScrollSpeed = data.ScrollSpeed;
-				MouseSens = data.MouseSens;
-				HudScale = data.HudScale;
-				Language = data.Language;
-				DisplayFps = data.DisplayFps;
-				RecordReplays = data.RecordReplays;
-				SeedMapFiles = data.SeedMapFiles;
-				DisableShadows = data.DisableShadows;
-				DisableDayNightLighting = data.DisableDayNightLighting;
-				FloatingCombatText = data.FloatingCombatText;
-				ShowHealthBars = data.ShowHealthBars;
-				LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
-
-				if (Resolutions != null && Resolutions.Count > 0)
-				{
-					if (WindowedResolutionWidth > 0 && WindowedResolutionHeight > 0)
-					{
-						int matchIndex = Resolutions.FindIndex(r => r.X == WindowedResolutionWidth && r.Y == WindowedResolutionHeight);
-						if (matchIndex >= 0)
-						{
-							ResolutionIdx = matchIndex;
-						}
-						else
-						{
-							ResolutionIdx = Math.Clamp(ResolutionIdx, 0, Resolutions.Count - 1);
-							WindowedResolutionWidth = Resolutions[ResolutionIdx].X;
-							WindowedResolutionHeight = Resolutions[ResolutionIdx].Y;
-						}
-					}
-					else
-					{
-						ResolutionIdx = Math.Clamp(ResolutionIdx, 0, Resolutions.Count - 1);
-						WindowedResolutionWidth = Resolutions[ResolutionIdx].X;
-						WindowedResolutionHeight = Resolutions[ResolutionIdx].Y;
-					}
-				}
+				ApplySettingsData(data);
 			}
 		}
 		catch (System.Exception e)
@@ -296,6 +244,64 @@ public static class GameSettings
 			GD.PrintErr($"Failed to deserialize settings: {e.Message}");
 			ResetToDefaults();
 		}
+	}
+
+	private static void SetDefaultLoadSettings()
+	{
+		QualityIdx = AutoDetectQuality();
+		if (Resolutions != null && Resolutions.Count > 0)
+		{
+			WindowedResolutionWidth = Resolutions[0].X;
+			WindowedResolutionHeight = Resolutions[0].Y;
+		}
+		Save();
+	}
+
+	private static void ApplySettingsData(SettingsData data)
+	{
+		ResolutionIdx = data.ResolutionIdx;
+		WindowedResolutionWidth = data.WindowedResolutionWidth;
+		WindowedResolutionHeight = data.WindowedResolutionHeight;
+		QualityIdx = data.QualityIdx;
+		WindowModeIdx = data.WindowModeIdx;
+		Vsync = data.Vsync;
+		MasterVolume = data.MasterVolume;
+		MusicVolume = data.MusicVolume;
+		SfxVolume = data.SfxVolume;
+		VoiceVolume = data.VoiceVolume;
+		ScrollSpeed = data.ScrollSpeed;
+		MouseSens = data.MouseSens;
+		HudScale = data.HudScale;
+		Language = data.Language;
+		DisplayFps = data.DisplayFps;
+		RecordReplays = data.RecordReplays;
+		SeedMapFiles = data.SeedMapFiles;
+		DisableShadows = data.DisableShadows;
+		DisableDayNightLighting = data.DisableDayNightLighting;
+		FloatingCombatText = data.FloatingCombatText;
+		ShowHealthBars = data.ShowHealthBars;
+		LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
+
+		ValidateResolution();
+	}
+
+	private static void ValidateResolution()
+	{
+		if (Resolutions == null || Resolutions.Count == 0) return;
+
+		if (WindowedResolutionWidth > 0 && WindowedResolutionHeight > 0)
+		{
+			int matchIndex = Resolutions.FindIndex(r => r.X == WindowedResolutionWidth && r.Y == WindowedResolutionHeight);
+			if (matchIndex >= 0)
+			{
+				ResolutionIdx = matchIndex;
+				return;
+			}
+		}
+
+		ResolutionIdx = Math.Clamp(ResolutionIdx, 0, Resolutions.Count - 1);
+		WindowedResolutionWidth = Resolutions[ResolutionIdx].X;
+		WindowedResolutionHeight = Resolutions[ResolutionIdx].Y;
 	}
 
 	public static void Save()
@@ -338,53 +344,54 @@ public static class GameSettings
 	{
 		if (contextNode == null || !GodotObject.IsInstanceValid(contextNode)) return;
 
-		var viewport = contextNode.GetViewport();
-		if (viewport != null && GodotObject.IsInstanceValid(viewport))
-		{
-			switch (QualityIdx)
-			{
-				case GraphicsQuality.Low:
-					viewport.PositionalShadowAtlasSize = 512;
-					viewport.UseTaa = false;
-					viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Disabled;
-					break;
-				case GraphicsQuality.Medium:
-					viewport.PositionalShadowAtlasSize = 1024;
-					viewport.UseTaa = false;
-					viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Fxaa;
-					break;
-				case GraphicsQuality.High:
-					viewport.PositionalShadowAtlasSize = 2048;
-					viewport.UseTaa = false;
-					viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Fxaa;
-					break;
-				case GraphicsQuality.Ultra:
-					viewport.PositionalShadowAtlasSize = 4096;
-					viewport.UseTaa = QualityIdx == GraphicsQuality.Ultra;
-					viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Disabled;
-					break;
-			}
-
-			viewport.Scaling3DScale = 1.0f;
-			viewport.Msaa3D = Viewport.Msaa.Disabled;
-			viewport.Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear;
-		}
-
-		WorldEnvironment worldEnv = null;
-		DirectionalLight3D light = null;
-		Window root = null;
+		ApplyViewportQuality(contextNode.GetViewport());
 
 		var tree = contextNode.GetTree();
-		if (tree != null && GodotObject.IsInstanceValid(tree))
+		var root = (tree != null && GodotObject.IsInstanceValid(tree)) ? tree.Root : null;
+
+		ApplyWorldEnvironment(root);
+		ApplyTerrainQuality(root);
+		ApplyGameHostSettings(root);
+	}
+
+	private static void ApplyViewportQuality(Viewport viewport)
+	{
+		if (viewport == null || !GodotObject.IsInstanceValid(viewport)) return;
+
+		switch (QualityIdx)
 		{
-			root = tree.Root;
-			if (root != null && GodotObject.IsInstanceValid(root))
-			{
-				worldEnv = FindNodeInTree<WorldEnvironment>(root);
-				light = FindNodeInTree<DirectionalLight3D>(root);
-			}
+			case GraphicsQuality.Low:
+				viewport.PositionalShadowAtlasSize = 512;
+				viewport.UseTaa = false;
+				viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Disabled;
+				break;
+			case GraphicsQuality.Medium:
+				viewport.PositionalShadowAtlasSize = 1024;
+				viewport.UseTaa = false;
+				viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Fxaa;
+				break;
+			case GraphicsQuality.High:
+				viewport.PositionalShadowAtlasSize = 2048;
+				viewport.UseTaa = false;
+				viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Fxaa;
+				break;
+			case GraphicsQuality.Ultra:
+				viewport.PositionalShadowAtlasSize = 4096;
+				viewport.UseTaa = true;
+				viewport.ScreenSpaceAA = Viewport.ScreenSpaceAAEnum.Disabled;
+				break;
 		}
 
+		viewport.Scaling3DScale = 1.0f;
+		viewport.Msaa3D = Viewport.Msaa.Disabled;
+		viewport.Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear;
+	}
+
+	private static void ApplyWorldEnvironment(Window root)
+	{
+		if (root == null || !GodotObject.IsInstanceValid(root)) return;
+
+		var worldEnv = FindNodeInTree<WorldEnvironment>(root);
 		if (worldEnv != null && GodotObject.IsInstanceValid(worldEnv) && worldEnv.Environment != null)
 		{
 			var env = worldEnv.Environment;
@@ -393,41 +400,45 @@ public static class GameSettings
 				env = (Godot.Environment)env.Duplicate();
 				worldEnv.Environment = env;
 			}
-
 			ApplyEnvironmentQuality(env, QualityIdx);
 		}
 
+		var light = FindNodeInTree<DirectionalLight3D>(root);
 		if (light != null && GodotObject.IsInstanceValid(light))
 		{
 			ApplyDirectionalLightQuality(light, QualityIdx);
 		}
+	}
 
+	private static void ApplyTerrainQuality(Window root)
+	{
 		var terrain = (root != null ? FindNodeInTree<RuntimeTerrain>(root) : null) ?? RuntimeTerrain.Instance;
 		if (terrain != null && GodotObject.IsInstanceValid(terrain))
 		{
 			terrain.ApplyQualitySettings((int)QualityIdx);
 		}
+	}
 
+	private static void ApplyGameHostSettings(Window root)
+	{
 		var gameHost = (root != null ? FindNodeInTree<GameHost>(root) : null) ?? GameHost.Instance;
-		if (gameHost != null && GodotObject.IsInstanceValid(gameHost))
+		if (gameHost == null || !GodotObject.IsInstanceValid(gameHost)) return;
+
+		if (DisableDayNightLighting)
 		{
-			if (DisableDayNightLighting)
-			{
-				gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, 0f);
-			}
-			else
-			{
-				if (gameHost.EcsWorld != null && gameHost.EcsWorld.IsAlive(gameHost.WorldEntity) && gameHost.EcsWorld.Has<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity))
-				{
-					var state = gameHost.EcsWorld.Get<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity);
-					float progress = state.TimeOfDayTimer / GameHost.TimeOfDayCycleDuration;
-					gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, progress);
-				}
-				else
-				{
-					gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, 0f);
-				}
-			}
+			gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, 0f);
+			return;
+		}
+
+		if (gameHost.EcsWorld != null && gameHost.EcsWorld.IsAlive(gameHost.WorldEntity) && gameHost.EcsWorld.Has<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity))
+		{
+			var state = gameHost.EcsWorld.Get<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity);
+			float progress = state.TimeOfDayTimer / GameHost.TimeOfDayCycleDuration;
+			gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, progress);
+		}
+		else
+		{
+			gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, 0f);
 		}
 	}
 
@@ -451,27 +462,17 @@ public static class GameSettings
 
 		bool editorDisabled = GameHost.Instance != null && GameHost.Instance.IsMapEditorMode && GameHost.Instance.EditorDisableShadows;
 		light.ShadowEnabled = !GameSettings.DisableShadows && !editorDisabled && light.LightEnergy > 0.05f;
-		if (!light.ShadowEnabled) {
-			return;
-		}
+		if (!light.ShadowEnabled) return;
 
 		light.DirectionalShadowMaxDistance = 200.0f;
-		if (quality == GraphicsQuality.Low)
+		light.DirectionalShadowMode = quality switch
 		{
-			light.DirectionalShadowMode = DirectionalLight3D.ShadowMode.Orthogonal;
-		}
-		else if (quality == GraphicsQuality.Medium)
-		{
-			light.DirectionalShadowMode = DirectionalLight3D.ShadowMode.Orthogonal;
-		}
-		else if (quality == GraphicsQuality.High)
-		{
-			light.DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel2Splits;
-		}
-		else
-		{
-			light.DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits;
-		}
+			GraphicsQuality.Low => DirectionalLight3D.ShadowMode.Orthogonal,
+			GraphicsQuality.Medium => DirectionalLight3D.ShadowMode.Orthogonal,
+			GraphicsQuality.High => DirectionalLight3D.ShadowMode.Parallel2Splits,
+			GraphicsQuality.Ultra => DirectionalLight3D.ShadowMode.Parallel4Splits,
+			_ => DirectionalLight3D.ShadowMode.Parallel4Splits
+		};
 	}
 
 	private static T FindNodeInTree<T>(Node parent) where T : Node
@@ -535,58 +536,18 @@ public static class GameSettings
 
 	public static float GetGpuVramGb()
 	{
-		if (!System.OperatingSystem.IsWindows())
-		{
-			return 8.0f;
-		}
+		if (!System.OperatingSystem.IsWindows()) return 8.0f;
 
 		try
 		{
 			var guid = IID_IDXGIFactory1;
 			if (CreateDXGIFactory1(ref guid, out System.IntPtr pFactory) != 0 || pFactory == System.IntPtr.Zero)
-			{
 				return 8.0f;
-			}
 
-			ulong maxDedicatedVramBytes = 0;
-			uint adapterIndex = 0;
-
-			unsafe
-			{
-				void** factoryVtbl = *(void***)pFactory;
-				var enumAdapters1 = (delegate* unmanaged[Stdcall]<System.IntPtr, uint, out System.IntPtr, int>)factoryVtbl[12];
-				var releaseFactory = (delegate* unmanaged[Stdcall]<System.IntPtr, uint>)factoryVtbl[2];
-
-				while (enumAdapters1(pFactory, adapterIndex, out System.IntPtr pAdapter) == 0 && pAdapter != System.IntPtr.Zero)
-				{
-					void** adapterVtbl = *(void***)pAdapter;
-					var getDesc1 = (delegate* unmanaged[Stdcall]<System.IntPtr, out DXGI_ADAPTER_DESC1, int>)adapterVtbl[10];
-					var releaseAdapter = (delegate* unmanaged[Stdcall]<System.IntPtr, uint>)adapterVtbl[2];
-
-					if (getDesc1(pAdapter, out DXGI_ADAPTER_DESC1 desc) == 0)
-					{
-						const uint DXGI_ADAPTER_FLAG_SOFTWARE = 2;
-						if ((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0)
-						{
-							ulong vram = (ulong)desc.DedicatedVideoMemory;
-							if (vram > maxDedicatedVramBytes)
-							{
-								maxDedicatedVramBytes = vram;
-							}
-						}
-					}
-
-					releaseAdapter(pAdapter);
-					adapterIndex++;
-				}
-
-				releaseFactory(pFactory);
-			}
+			ulong maxDedicatedVramBytes = GetMaxVramFromFactory(pFactory);
 
 			if (maxDedicatedVramBytes > 0)
-			{
 				return (float)(maxDedicatedVramBytes / (1024.0 * 1024.0 * 1024.0));
-			}
 		}
 		catch (System.Exception ex)
 		{
@@ -594,6 +555,45 @@ public static class GameSettings
 		}
 
 		return 8.0f;
+	}
+
+	private static unsafe ulong GetMaxVramFromFactory(System.IntPtr pFactory)
+	{
+		ulong maxDedicatedVramBytes = 0;
+		uint adapterIndex = 0;
+		void** factoryVtbl = *(void***)pFactory;
+		var enumAdapters1 = (delegate* unmanaged[Stdcall]<System.IntPtr, uint, out System.IntPtr, int>)factoryVtbl[12];
+		var releaseFactory = (delegate* unmanaged[Stdcall]<System.IntPtr, uint>)factoryVtbl[2];
+
+		while (enumAdapters1(pFactory, adapterIndex, out System.IntPtr pAdapter) == 0 && pAdapter != System.IntPtr.Zero)
+		{
+			ulong vram = GetVramFromAdapter(pAdapter);
+			if (vram > maxDedicatedVramBytes) maxDedicatedVramBytes = vram;
+			adapterIndex++;
+		}
+
+		releaseFactory(pFactory);
+		return maxDedicatedVramBytes;
+	}
+
+	private static unsafe ulong GetVramFromAdapter(System.IntPtr pAdapter)
+	{
+		void** adapterVtbl = *(void***)pAdapter;
+		var getDesc1 = (delegate* unmanaged[Stdcall]<System.IntPtr, out DXGI_ADAPTER_DESC1, int>)adapterVtbl[10];
+		var releaseAdapter = (delegate* unmanaged[Stdcall]<System.IntPtr, uint>)adapterVtbl[2];
+
+		ulong vram = 0;
+		if (getDesc1(pAdapter, out DXGI_ADAPTER_DESC1 desc) == 0)
+		{
+			const uint DXGI_ADAPTER_FLAG_SOFTWARE = 2;
+			if ((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0)
+			{
+				vram = (ulong)desc.DedicatedVideoMemory;
+			}
+		}
+
+		releaseAdapter(pAdapter);
+		return vram;
 	}
 
 	public static GraphicsQuality AutoDetectQuality()

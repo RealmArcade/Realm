@@ -101,22 +101,8 @@ public class MapEditorMinimap
 			do
 			{
 				_needsRegen = false;
-				if (_hudNode == null || !GodotObject.IsInstanceValid(_hudNode)) return;
-				var tree = _hudNode.GetTree();
-				if (tree == null) return;
-
-				await _hudNode.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
-				await _hudNode.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
-
-				if (_minimapArea == null) return;
-				var minimapBg = _minimapArea.GetChildCount() > 0 ? _minimapArea.GetChild<TextureRect>(0) : null;
-				if (minimapBg == null) return;
-
-				var imgTexture = await MinimapHelper.CaptureTerrainMinimapTextureAsync(_hudNode, 256);
-				if (imgTexture != null)
-				{
-					minimapBg.Texture = imgTexture;
-				}
+				bool success = await TryGenerateSingleMinimapPassAsync();
+				if (!success) break;
 			} while (_needsRegen);
 		}
 		catch (Exception ex)
@@ -129,6 +115,27 @@ public class MapEditorMinimap
 		}
 	}
 
+	private async System.Threading.Tasks.Task<bool> TryGenerateSingleMinimapPassAsync()
+	{
+		if (_hudNode == null || !GodotObject.IsInstanceValid(_hudNode)) return false;
+		var tree = _hudNode.GetTree();
+		if (tree == null) return false;
+
+		await _hudNode.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+		await _hudNode.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+
+		if (_minimapArea == null) return false;
+		var minimapBg = _minimapArea.GetChildCount() > 0 ? _minimapArea.GetChild<TextureRect>(0) : null;
+		if (minimapBg == null) return false;
+
+		var imgTexture = await MinimapHelper.CaptureTerrainMinimapTextureAsync(_hudNode, 256);
+		if (imgTexture != null)
+		{
+			minimapBg.Texture = imgTexture;
+		}
+		return true;
+	}
+
 	public async System.Threading.Tasks.Task<bool> GenerateAndSaveMinimapThumbnailAsync(string workspacePath)
 	{
 		if (string.IsNullOrWhiteSpace(workspacePath) || !System.IO.Directory.Exists(workspacePath)) return false;
@@ -137,26 +144,9 @@ public class MapEditorMinimap
 		try
 		{
 			var img = await MinimapHelper.CaptureTerrainMinimapImageAsync(_hudNode, 512);
-			if (img != null && !img.IsEmpty())
-			{
-				if (img.GetFormat() != Image.Format.Rgba8)
-				{
-					img.Convert(Image.Format.Rgba8);
-				}
-				if (img.GetWidth() != 512 || img.GetHeight() != 512)
-				{
-					img.Resize(512, 512, Image.Interpolation.Bilinear);
-				}
+			if (img == null || img.IsEmpty()) return false;
 
-				string destinationPngPath = System.IO.Path.Combine(workspacePath, "thumbnail.png");
-				Realm.Shared.Textures.IndexedPngHelper.SaveAs256ColorPng(
-					img.GetData(),
-					img.GetWidth(),
-					img.GetHeight(),
-					destinationPngPath);
-
-				return true;
-			}
+			return ProcessAndSaveThumbnailImage(img, workspacePath);
 		}
 		catch (Exception ex)
 		{
@@ -164,5 +154,26 @@ public class MapEditorMinimap
 		}
 
 		return false;
+	}
+
+	private bool ProcessAndSaveThumbnailImage(Image img, string workspacePath)
+	{
+		if (img.GetFormat() != Image.Format.Rgba8)
+		{
+			img.Convert(Image.Format.Rgba8);
+		}
+		if (img.GetWidth() != 512 || img.GetHeight() != 512)
+		{
+			img.Resize(512, 512, Image.Interpolation.Bilinear);
+		}
+
+		string destinationPngPath = System.IO.Path.Combine(workspacePath, "thumbnail.png");
+		Realm.Shared.Textures.IndexedPngHelper.SaveAs256ColorPng(
+			img.GetData(),
+			img.GetWidth(),
+			img.GetHeight(),
+			destinationPngPath);
+
+		return true;
 	}
 }

@@ -297,65 +297,70 @@ public class NetworkService
 
 		if (snapshot.IsBaseline)
 		{
-			var serverIdsInSnapshot = new HashSet<int>(snapshot.Units.Count);
-			for (int i = 0; i < snapshot.Units.Count; i++)
-			{
-				serverIdsInSnapshot.Add(snapshot.Units[i].EntityId);
-			}
-			foreach (var kvp in mapping.ServerToClientEntityMap)
-			{
-				if (!serverIdsInSnapshot.Contains(kvp.Key))
-				{
-					var localEnt = kvp.Value;
-					if (EcsWorld.IsAlive(localEnt) && !EcsWorld.Has<Dead>(localEnt))
-					{
-						EcsWorld.Add<Dead>(localEnt);
-						_pendingUnitKills.Add(localEnt);
-					}
-				}
-			}
+			ProcessBaselineSnapshotMismatches(snapshot, mapping);
 		}
 
 		foreach (var snap in snapshot.Units)
 		{
-			if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
-			{
-				if (EcsWorld.IsAlive(localEntity))
-				{
-					if (snap.IsDead)
-					{
-						if (!EcsWorld.Has<Dead>(localEntity))
-						{
-							EcsWorld.Add<Dead>(localEntity);
-							_pendingUnitKills.Add(localEntity);
-						}
-						continue;
-					}
-					if (EcsWorld.Has<Health>(localEntity))
-					{
-						var hp = EcsWorld.Get<Health>(localEntity);
-						hp.Current = snap.CurrentHp;
-						hp.Max = snap.MaxHp;
-						EcsWorld.Set(localEntity, hp);
-					}
-					var target = new InterpolationTarget
-					{
-						Position = snap.Position.ToNumerics(),
-						Velocity = snap.Velocity.ToNumerics(),
-						RotationY = snap.RotationY
-					};
-					EcsWorld.SetOrAdd(localEntity, target);
-					GD.Print($"[CLIENT_SNAPSHOT_APPLIED] Sequence={snapshot.Sequence} Unit={snap.EntityId} ServerPos={snap.Position.ToGodot()}");
-				}
-			}
-			else
-			{
-				if (!snap.IsDead)
-				{
-					_pendingUnitSpawns.Add(snap);
-				}
-			}
+			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
+	}
+
+	private void ProcessBaselineSnapshotMismatches(WorldSnapshot snapshot, NetworkMappingState mapping)
+	{
+		var serverIdsInSnapshot = new HashSet<int>(snapshot.Units.Count);
+		for (int i = 0; i < snapshot.Units.Count; i++)
+		{
+			serverIdsInSnapshot.Add(snapshot.Units[i].EntityId);
+		}
+		foreach (var kvp in mapping.ServerToClientEntityMap)
+		{
+			if (serverIdsInSnapshot.Contains(kvp.Key)) continue;
+
+			var localEnt = kvp.Value;
+			if (!EcsWorld.IsAlive(localEnt) || EcsWorld.Has<Dead>(localEnt)) continue;
+
+			EcsWorld.Add<Dead>(localEnt);
+			_pendingUnitKills.Add(localEnt);
+		}
+	}
+
+	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
+	{
+		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
+		{
+			if (!snap.IsDead) _pendingUnitSpawns.Add(snap);
+			return;
+		}
+
+		if (!EcsWorld.IsAlive(localEntity)) return;
+
+		if (snap.IsDead)
+		{
+			if (!EcsWorld.Has<Dead>(localEntity))
+			{
+				EcsWorld.Add<Dead>(localEntity);
+				_pendingUnitKills.Add(localEntity);
+			}
+			return;
+		}
+
+		if (EcsWorld.Has<Health>(localEntity))
+		{
+			var hp = EcsWorld.Get<Health>(localEntity);
+			hp.Current = snap.CurrentHp;
+			hp.Max = snap.MaxHp;
+			EcsWorld.Set(localEntity, hp);
+		}
+
+		var target = new InterpolationTarget
+		{
+			Position = snap.Position.ToNumerics(),
+			Velocity = snap.Velocity.ToNumerics(),
+			RotationY = snap.RotationY
+		};
+		EcsWorld.SetOrAdd(localEntity, target);
+		GD.Print($"[CLIENT_SNAPSHOT_APPLIED] Sequence={sequence} Unit={snap.EntityId} ServerPos={snap.Position.ToGodot()}");
 	}
 
 	public IReadOnlyList<UnitSnapshot> FlushPendingUnitSpawns()
@@ -495,444 +500,42 @@ public class NetworkService
 		var stopVelocityEntityIds = new List<int>();
 		var holdVelocityEntityIds = new List<int>();
 
-		if (cmd.CommandType == "move")
+		switch (cmd.CommandType)
 		{
-			int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
-			float spacing = 2.2f;
-			int unitIndex = 0;
-
-			System.Numerics.Vector3 groupCenter = System.Numerics.Vector3.Zero;
-			int movableCount = 0;
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				if (EcsWorld.Has<Position>(entity))
-				{
-					groupCenter += EcsWorld.Get<Position>(entity).Value;
-					movableCount++;
-				}
-			}
-			if (movableCount > 0)
-			{
-				groupCenter /= movableCount;
-			}
-
-			System.Numerics.Vector3 moveDir = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z) - groupCenter;
-			moveDir.Y = 0f;
-			if (moveDir.LengthSquared() > 0.01f)
-			{
-				moveDir = System.Numerics.Vector3.Normalize(moveDir);
-			}
-			else
-			{
-				moveDir = new System.Numerics.Vector3(0f, 0f, -1f);
-			}
-			System.Numerics.Vector3 right = new System.Numerics.Vector3(-moveDir.Z, 0f, moveDir.X);
-
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				ClearUnitOrders(entity);
-				int row = unitIndex / cols;
-				int col = unitIndex % cols;
-				float offsetX = (col - cols * 0.5f + 0.5f) * spacing;
-				float offsetZ = -row * spacing;
-				var targetPos = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z);
-				var scattered = targetPos + right * offsetX + moveDir * offsetZ;
-				var moveTo = new MoveTo(scattered);
-				EcsWorld.SetOrAdd(entity, moveTo);
-				unitIndex++;
-			}
-		}
-		else if (cmd.CommandType == "attack" || cmd.CommandType == "attack_queued")
-		{
-			bool isQueued = cmd.CommandType == "attack_queued";
-			var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
-			if (targetEntity != Entity.Null)
-			{
-				var targetPos = EcsWorld.Has<Position>(targetEntity) ? EcsWorld.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
-				foreach (int serverId in cmd.UnitEntityIds)
-				{
-					var entity = FindServerEntity(serverId, allUnits);
-					if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-					
-					if (isQueued && IsUnitActive(entity))
-					{
-						EnqueueCommand(entity, "attack", targetPos, targetEntity);
-					}
-					else
-					{
-						if (!isQueued)
-						{
-							ClearUnitOrders(entity);
-						}
-						var attackTarget = new AttackTarget(targetEntity);
-						EcsWorld.SetOrAdd(entity, attackTarget);
-					}
-				}
-			}
-		}
-		else if (cmd.CommandType == "follow" || cmd.CommandType == "follow_queued")
-		{
-			bool isQueued = cmd.CommandType == "follow_queued";
-			var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
-			if (targetEntity != Entity.Null)
-			{
-				var targetPos = EcsWorld.Has<Position>(targetEntity) ? EcsWorld.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
-				foreach (int serverId in cmd.UnitEntityIds)
-				{
-					var entity = FindServerEntity(serverId, allUnits);
-					if (entity == Entity.Null || !IsClientAuthorized(peerId, entity) || entity == targetEntity) continue;
-					
-					if (isQueued && IsUnitActive(entity))
-					{
-						EnqueueCommand(entity, "follow", targetPos, targetEntity);
-					}
-					else
-					{
-						if (!isQueued)
-						{
-							ClearUnitOrders(entity);
-						}
-						if (EcsWorld.Has<DefinitionId>(entity) && EcsWorld.Get<DefinitionId>(entity).Value == "priest")
-						{
-							var healTarget = new HealingTarget(targetEntity);
-							EcsWorld.SetOrAdd(entity, healTarget);
-						}
-						else if (EcsWorld.Has<Movable>(entity))
-						{
-							var follow = new Realm.Ecs.Components.Movement.Follow(targetEntity);
-							EcsWorld.SetOrAdd(entity, follow);
-						}
-					}
-				}
-			}
-		}
-		else if (cmd.CommandType == "gather" || cmd.CommandType == "gather_queued")
-		{
-			bool isQueued = cmd.CommandType == "gather_queued";
-			var targetPos = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z);
-			Prop3D prop = FindClosestProp(targetPos, "", allProps);
-			if (prop != null)
-			{
-				string resType = prop.PropId switch
-				{
-					"goldmine" => "gold",
-					"tree" => "wood",
-					"rock" => "stone",
-					_ => null
-				};
-				if (resType != null)
-				{
-					foreach (int serverId in cmd.UnitEntityIds)
-					{
-						var entity = FindServerEntity(serverId, allUnits);
-						if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-						if (EcsWorld.Has<DefinitionId>(entity) && EcsWorld.Get<DefinitionId>(entity).Value != "worker") continue;
-						
-						if (isQueued && IsUnitActive(entity))
-						{
-							EnqueueCommand(entity, "gather", new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z), prop.Entity);
-						}
-						else
-						{
-							if (!isQueued)
-							{
-								ClearUnitOrders(entity);
-							}
-							var gatherer = new Gatherer(resType, prop.Entity);
-							EcsWorld.SetOrAdd(entity, gatherer);
-							var moveTo = new MoveTo(new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z));
-							EcsWorld.SetOrAdd(entity, moveTo);
-						}
-					}
-				}
-			}
-		}
-		else if (cmd.CommandType == "stop")
-		{
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				ClearUnitOrders(entity);
-				stopVelocityEntityIds.Add(serverId);
-			}
-		}
-		else if (cmd.CommandType == "hold")
-		{
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				ClearUnitOrders(entity);
-				holdVelocityEntityIds.Add(serverId);
-				if (!EcsWorld.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity))
-				{
-					EcsWorld.Add<Realm.Ecs.Components.Movement.HoldPosition>(entity);
-				}
-			}
-		}
-		else if (cmd.CommandType == "patrol" || cmd.CommandType == "patrol_queued")
-		{
-			bool isQueued = cmd.CommandType == "patrol_queued";
-			int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
-			float spacing = 2.2f;
-			int unitIndex = 0;
-
-			System.Numerics.Vector3 groupCenter = System.Numerics.Vector3.Zero;
-			int movableCount = 0;
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				if (EcsWorld.Has<Position>(entity))
-				{
-					groupCenter += EcsWorld.Get<Position>(entity).Value;
-					movableCount++;
-				}
-			}
-			if (movableCount > 0)
-			{
-				groupCenter /= movableCount;
-			}
-
-			System.Numerics.Vector3 moveDir = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z) - groupCenter;
-			moveDir.Y = 0f;
-			if (moveDir.LengthSquared() > 0.01f)
-			{
-				moveDir = System.Numerics.Vector3.Normalize(moveDir);
-			}
-			else
-			{
-				moveDir = new System.Numerics.Vector3(0f, 0f, -1f);
-			}
-			System.Numerics.Vector3 right = new System.Numerics.Vector3(-moveDir.Z, 0f, moveDir.X);
-
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				if (EcsWorld.Has<Movable>(entity))
-				{
-					int row = unitIndex / cols;
-					int col = unitIndex % cols;
-					float offsetX = (col - cols * 0.5f + 0.5f) * spacing;
-					float offsetZ = -row * spacing;
-					Vector3 unitPos = Vector3.Zero;
-					foreach (var u in allUnits)
-					{
-						if (u.Entity == entity)
-						{
-							unitPos = u.GlobalPosition;
-							break;
-						}
-					}
-					var patrolA = new System.Numerics.Vector3(unitPos.X, unitPos.Y, unitPos.Z);
-					var targetPos = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z);
-					var patrolB = targetPos + right * offsetX + moveDir * offsetZ;
-
-					if (isQueued && IsUnitActive(entity))
-					{
-						EnqueueCommand(entity, "patrol", patrolB);
-					}
-					else
-					{
-						if (!isQueued)
-						{
-							ClearUnitOrders(entity);
-						}
-						var patrol = new Patrol(patrolA, patrolB);
-						EcsWorld.SetOrAdd(entity, patrol);
-						var moveTo = new MoveTo(patrolB);
-						EcsWorld.SetOrAdd(entity, moveTo);
-					}
-					unitIndex++;
-				}
-			}
-		}
-		else if (cmd.CommandType == "move_queued")
-		{
-			int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
-			float spacing = 2.2f;
-			int unitIndex = 0;
-
-			System.Numerics.Vector3 groupCenter = System.Numerics.Vector3.Zero;
-			int movableCount = 0;
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				if (EcsWorld.Has<Position>(entity))
-				{
-					groupCenter += EcsWorld.Get<Position>(entity).Value;
-					movableCount++;
-				}
-			}
-			if (movableCount > 0)
-			{
-				groupCenter /= movableCount;
-			}
-
-			System.Numerics.Vector3 moveDir = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z) - groupCenter;
-			moveDir.Y = 0f;
-			if (moveDir.LengthSquared() > 0.01f)
-			{
-				moveDir = System.Numerics.Vector3.Normalize(moveDir);
-			}
-			else
-			{
-				moveDir = new System.Numerics.Vector3(0f, 0f, -1f);
-			}
-			System.Numerics.Vector3 right = new System.Numerics.Vector3(-moveDir.Z, 0f, moveDir.X);
-
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				if (!EcsWorld.Has<Movable>(entity)) continue;
-
-				int row = unitIndex / cols;
-				int col = unitIndex % cols;
-				float offsetX = (col - cols * 0.5f + 0.5f) * spacing;
-				float offsetZ = -row * spacing;
-				var targetPos = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z);
-				var scattered = targetPos + right * offsetX + moveDir * offsetZ;
-
-				bool hasNonMoveTasks = EcsWorld.Has<Realm.Ecs.Components.Resources.BuildTask>(entity) ||
-									   EcsWorld.Has<AttackTarget>(entity) ||
-									   EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(entity) ||
-									   EcsWorld.Has<Realm.Ecs.Components.Movement.Follow>(entity) ||
-									   EcsWorld.Has<Realm.Ecs.Components.Movement.Patrol>(entity) ||
-									   EcsWorld.Has<Gatherer>(entity);
-
-				if (hasNonMoveTasks)
-				{
-					EnqueueCommand(entity, "move", scattered);
-				}
-				else
-				{
-					bool alreadyMoving = EcsWorld.Has<MoveTo>(entity);
-					if (alreadyMoving)
-					{
-						if (EcsWorld.Has<WaypointQueue>(entity))
-						{
-							var q = EcsWorld.Get<WaypointQueue>(entity);
-							q.Add(scattered);
-							EcsWorld.Set(entity, q);
-						}
-						else
-						{
-							var q = new WaypointQueue(scattered);
-							EcsWorld.Add(entity, q);
-						}
-					}
-					else
-					{
-						ClearUnitOrders(entity);
-						var moveTo = new MoveTo(scattered);
-						EcsWorld.SetOrAdd(entity, moveTo);
-					}
-				}
-				unitIndex++;
-			}
-		}
-		else if (cmd.CommandType == "train")
-		{
-			var goldResourceId = new ResourceId("Gold");
-			var woodResourceId = new ResourceId("Wood");
-			var stoneResourceId = new ResourceId("Stone");
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				
-				string unitId = cmd.ArgString;
-				if (GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
-				{
-					var ownerComp = EcsWorld.Get<Owner>(entity);
-					var ownerEntity = ownerComp.PlayerEntity.Value;
-					if (EcsWorld.TryGet<PlayerResources>(ownerEntity, out var res))
-					{
-						int costGold = (int)meta.CostGold;
-						int costWood = (int)meta.CostWood;
-						int costStone = (int)meta.CostStone;
-						if (res.Value[goldResourceId] >= costGold && 
-							res.Value[woodResourceId] >= costWood && 
-							res.Value[stoneResourceId] >= costStone)
-						{
-							res.Value[goldResourceId] -= costGold;
-							res.Value[woodResourceId] -= costWood;
-							res.Value[stoneResourceId] -= costStone;
-							EcsWorld.Set(ownerEntity, res);
-
-							if (!EcsWorld.Has<ProductionQueue>(entity))
-							{
-								EcsWorld.Add(entity, new ProductionQueue());
-							}
-							ref var prod = ref EcsWorld.Get<ProductionQueue>(entity);
-							prod.UnitIds.Add(unitId);
-							if (prod.UnitIds.Count == 1)
-							{
-								prod.BuildTime = meta.ProductionTime;
-								prod.CurrentProgress = 0f;
-							}
-						}
-					}
-				}
-			}
-		}
-		else if (cmd.CommandType == "cancel_train")
-		{
-			var goldResourceId = new ResourceId("Gold");
-			var woodResourceId = new ResourceId("Wood");
-			var stoneResourceId = new ResourceId("Stone");
-			foreach (int serverId in cmd.UnitEntityIds)
-			{
-				var entity = FindServerEntity(serverId, allUnits);
-				if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-				if (!EcsWorld.Has<ProductionQueue>(entity)) continue;
-
-				ref var prod = ref EcsWorld.Get<ProductionQueue>(entity);
-				int idx = cmd.TargetEntityId;
-				if (idx >= 0 && idx < prod.UnitIds.Count)
-				{
-					string unitId = prod.UnitIds[idx];
-					prod.UnitIds.RemoveAt(idx);
-					if (idx == 0)
-					{
-						prod.CurrentProgress = 0f;
-						if (prod.UnitIds.Count > 0)
-						{
-							if (GameHost.UnitRegistry.TryGetValue(prod.UnitIds[0], out var meta))
-							{
-								prod.BuildTime = meta.ProductionTime;
-							}
-						}
-					}
-					
-					if (GameHost.UnitRegistry.TryGetValue(unitId, out var regMeta))
-					{
-						var ownerComp = EcsWorld.Get<Owner>(entity);
-						var ownerEntity = ownerComp.PlayerEntity.Value;
-						if (EcsWorld.TryGet<PlayerResources>(ownerEntity, out var res))
-						{
-							res.Value[goldResourceId] += (int)regMeta.CostGold;
-							res.Value[woodResourceId] += (int)regMeta.CostWood;
-							res.Value[stoneResourceId] += (int)regMeta.CostStone;
-							EcsWorld.Set(ownerEntity, res);
-						}
-
-						if (regMeta.PopCost > 0 && EcsWorld.IsAlive(ownerEntity) && EcsWorld.Has<PlayerPopulation>(ownerEntity))
-						{
-							ref var pop = ref EcsWorld.Get<PlayerPopulation>(ownerEntity);
-							pop.Current = System.Math.Max(0, pop.Current - regMeta.PopCost);
-						}
-					}
-				}
-			}
+			case "move":
+				HandleMoveCommand(peerId, cmd, allUnits);
+				break;
+			case "move_queued":
+				HandleMoveQueuedCommand(peerId, cmd, allUnits);
+				break;
+			case "attack":
+			case "attack_queued":
+				HandleAttackCommand(peerId, cmd, allUnits, cmd.CommandType == "attack_queued");
+				break;
+			case "follow":
+			case "follow_queued":
+				HandleFollowCommand(peerId, cmd, allUnits, cmd.CommandType == "follow_queued");
+				break;
+			case "gather":
+			case "gather_queued":
+				HandleGatherCommand(peerId, cmd, allUnits, allProps, cmd.CommandType == "gather_queued");
+				break;
+			case "stop":
+				HandleStopCommand(peerId, cmd, allUnits, stopVelocityEntityIds);
+				break;
+			case "hold":
+				HandleHoldCommand(peerId, cmd, allUnits, holdVelocityEntityIds);
+				break;
+			case "patrol":
+			case "patrol_queued":
+				HandlePatrolCommand(peerId, cmd, allUnits, cmd.CommandType == "patrol_queued");
+				break;
+			case "train":
+				HandleTrainCommand(peerId, cmd, allUnits);
+				break;
+			case "cancel_train":
+				HandleCancelTrainCommand(peerId, cmd, allUnits);
+				break;
 		}
 
 		bool needsBuildUnit = cmd.CommandType == "build";
@@ -948,6 +551,371 @@ public class NetworkService
 			needsBuildUnit, buildUnitType, buildPosition, buildPeerOwner,
 			needsSpellEffect, spellId, spellPosition,
 			stopVelocityEntityIds, holdVelocityEntityIds);
+	}
+
+	private void HandleMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	{
+		CalculateGroupMovement(peerId, cmd.UnitEntityIds, allUnits, cmd.TargetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right);
+		int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
+		float spacing = 2.2f;
+		int unitIndex = 0;
+
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			
+			ClearUnitOrders(entity);
+			var scattered = CalculateScatteredPosition(cmd.TargetPosition, moveDir, right, unitIndex, cols, spacing);
+			var moveTo = new MoveTo(scattered);
+			EcsWorld.SetOrAdd(entity, moveTo);
+			unitIndex++;
+		}
+	}
+
+	private void HandleMoveQueuedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	{
+		CalculateGroupMovement(peerId, cmd.UnitEntityIds, allUnits, cmd.TargetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right);
+		int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
+		float spacing = 2.2f;
+		int unitIndex = 0;
+
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (!EcsWorld.Has<Movable>(entity)) continue;
+
+			var scattered = CalculateScatteredPosition(cmd.TargetPosition, moveDir, right, unitIndex, cols, spacing);
+			ProcessQueuedMoveForEntity(entity, scattered);
+			unitIndex++;
+		}
+	}
+
+	private void ProcessQueuedMoveForEntity(Entity entity, System.Numerics.Vector3 scattered)
+	{
+		bool hasNonMoveTasks = EcsWorld.Has<Realm.Ecs.Components.Resources.BuildTask>(entity) ||
+							   EcsWorld.Has<AttackTarget>(entity) ||
+							   EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(entity) ||
+							   EcsWorld.Has<Realm.Ecs.Components.Movement.Follow>(entity) ||
+							   EcsWorld.Has<Patrol>(entity) ||
+							   EcsWorld.Has<Gatherer>(entity);
+
+		if (hasNonMoveTasks)
+		{
+			EnqueueCommand(entity, "move", scattered);
+			return;
+		}
+
+		if (EcsWorld.Has<MoveTo>(entity))
+		{
+			if (EcsWorld.Has<WaypointQueue>(entity))
+			{
+				var q = EcsWorld.Get<WaypointQueue>(entity);
+				q.Add(scattered);
+				EcsWorld.Set(entity, q);
+			}
+			else
+			{
+				EcsWorld.Add(entity, new WaypointQueue(scattered));
+			}
+		}
+		else
+		{
+			ClearUnitOrders(entity);
+			EcsWorld.SetOrAdd(entity, new MoveTo(scattered));
+		}
+	}
+
+	private void HandleAttackCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
+	{
+		var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
+		if (targetEntity == Entity.Null) return;
+
+		var targetPos = EcsWorld.Has<Position>(targetEntity) ? EcsWorld.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+
+			if (isQueued && IsUnitActive(entity))
+			{
+				EnqueueCommand(entity, "attack", targetPos, targetEntity);
+			}
+			else
+			{
+				if (!isQueued) ClearUnitOrders(entity);
+				EcsWorld.SetOrAdd(entity, new AttackTarget(targetEntity));
+			}
+		}
+	}
+
+	private void HandleFollowCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
+	{
+		var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
+		if (targetEntity == Entity.Null) return;
+
+		var targetPos = EcsWorld.Has<Position>(targetEntity) ? EcsWorld.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity) || entity == targetEntity) continue;
+
+			if (isQueued && IsUnitActive(entity))
+			{
+				EnqueueCommand(entity, "follow", targetPos, targetEntity);
+			}
+			else
+			{
+				if (!isQueued) ClearUnitOrders(entity);
+
+				if (EcsWorld.Has<DefinitionId>(entity) && EcsWorld.Get<DefinitionId>(entity).Value == "priest")
+				{
+					EcsWorld.SetOrAdd(entity, new HealingTarget(targetEntity));
+				}
+				else if (EcsWorld.Has<Movable>(entity))
+				{
+					EcsWorld.SetOrAdd(entity, new Realm.Ecs.Components.Movement.Follow(targetEntity));
+				}
+			}
+		}
+	}
+
+	private void HandleGatherCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, bool isQueued)
+	{
+		var targetPos = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z);
+		Prop3D prop = FindClosestProp(targetPos, "", allProps);
+		if (prop == null) return;
+
+		string resType = GetPropResourceType(prop.PropId);
+		if (resType == null) return;
+
+		var propPos = new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z);
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (EcsWorld.Has<DefinitionId>(entity) && EcsWorld.Get<DefinitionId>(entity).Value != "worker") continue;
+
+			if (isQueued && IsUnitActive(entity))
+			{
+				EnqueueCommand(entity, "gather", propPos, prop.Entity);
+			}
+			else
+			{
+				if (!isQueued) ClearUnitOrders(entity);
+				EcsWorld.SetOrAdd(entity, new Gatherer(resType, prop.Entity));
+				EcsWorld.SetOrAdd(entity, new MoveTo(propPos));
+			}
+		}
+	}
+
+	private string GetPropResourceType(string propId)
+	{
+		return propId switch
+		{
+			"goldmine" => "gold",
+			"tree" => "wood",
+			"rock" => "stone",
+			_ => null
+		};
+	}
+
+	private void HandleStopCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds)
+	{
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			ClearUnitOrders(entity);
+			stopVelocityEntityIds.Add(serverId);
+		}
+	}
+
+	private void HandleHoldCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> holdVelocityEntityIds)
+	{
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			ClearUnitOrders(entity);
+			holdVelocityEntityIds.Add(serverId);
+			if (!EcsWorld.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity))
+			{
+				EcsWorld.Add<Realm.Ecs.Components.Movement.HoldPosition>(entity);
+			}
+		}
+	}
+
+	private void HandlePatrolCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
+	{
+		CalculateGroupMovement(peerId, cmd.UnitEntityIds, allUnits, cmd.TargetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right);
+		int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
+		float spacing = 2.2f;
+		int unitIndex = 0;
+
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (!EcsWorld.Has<Movable>(entity)) continue;
+
+			var scattered = CalculateScatteredPosition(cmd.TargetPosition, moveDir, right, unitIndex, cols, spacing);
+			var unitPos = GetUnitPosition(entity, allUnits);
+			var patrolA = new System.Numerics.Vector3(unitPos.X, unitPos.Y, unitPos.Z);
+
+			if (isQueued && IsUnitActive(entity))
+			{
+				EnqueueCommand(entity, "patrol", scattered);
+			}
+			else
+			{
+				if (!isQueued) ClearUnitOrders(entity);
+				EcsWorld.SetOrAdd(entity, new Patrol(patrolA, scattered));
+				EcsWorld.SetOrAdd(entity, new MoveTo(scattered));
+			}
+			unitIndex++;
+		}
+	}
+
+	private Vector3 GetUnitPosition(Entity entity, List<Unit3D> allUnits)
+	{
+		foreach (var u in allUnits)
+		{
+			if (u.Entity == entity) return u.GlobalPosition;
+		}
+		return Vector3.Zero;
+	}
+
+	private void HandleTrainCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	{
+		var goldResourceId = new ResourceId("Gold");
+		var woodResourceId = new ResourceId("Wood");
+		var stoneResourceId = new ResourceId("Stone");
+		
+		string unitId = cmd.ArgString;
+		if (!GameHost.UnitRegistry.TryGetValue(unitId, out var meta)) return;
+
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+
+			var ownerComp = EcsWorld.Get<Owner>(entity);
+			var ownerEntity = ownerComp.PlayerEntity.Value;
+			if (!EcsWorld.TryGet<PlayerResources>(ownerEntity, out var res)) continue;
+
+			int costGold = (int)meta.CostGold;
+			int costWood = (int)meta.CostWood;
+			int costStone = (int)meta.CostStone;
+			
+			if (res.Value[goldResourceId] >= costGold && res.Value[woodResourceId] >= costWood && res.Value[stoneResourceId] >= costStone)
+			{
+				res.Value[goldResourceId] -= costGold;
+				res.Value[woodResourceId] -= costWood;
+				res.Value[stoneResourceId] -= costStone;
+				EcsWorld.Set(ownerEntity, res);
+
+				if (!EcsWorld.Has<ProductionQueue>(entity)) EcsWorld.Add(entity, new ProductionQueue());
+
+				ref var prod = ref EcsWorld.Get<ProductionQueue>(entity);
+				prod.UnitIds.Add(unitId);
+				if (prod.UnitIds.Count == 1)
+				{
+					prod.BuildTime = meta.ProductionTime;
+					prod.CurrentProgress = 0f;
+				}
+			}
+		}
+	}
+
+	private void HandleCancelTrainCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	{
+		var goldResourceId = new ResourceId("Gold");
+		var woodResourceId = new ResourceId("Wood");
+		var stoneResourceId = new ResourceId("Stone");
+
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (!EcsWorld.Has<ProductionQueue>(entity)) continue;
+
+			ref var prod = ref EcsWorld.Get<ProductionQueue>(entity);
+			int idx = cmd.TargetEntityId;
+			if (idx < 0 || idx >= prod.UnitIds.Count) continue;
+
+			string unitId = prod.UnitIds[idx];
+			prod.UnitIds.RemoveAt(idx);
+
+			if (idx == 0)
+			{
+				prod.CurrentProgress = 0f;
+				if (prod.UnitIds.Count > 0 && GameHost.UnitRegistry.TryGetValue(prod.UnitIds[0], out var nextMeta))
+				{
+					prod.BuildTime = nextMeta.ProductionTime;
+				}
+			}
+
+			if (GameHost.UnitRegistry.TryGetValue(unitId, out var regMeta))
+			{
+				var ownerComp = EcsWorld.Get<Owner>(entity);
+				var ownerEntity = ownerComp.PlayerEntity.Value;
+				
+				if (EcsWorld.TryGet<PlayerResources>(ownerEntity, out var res))
+				{
+					res.Value[goldResourceId] += (int)regMeta.CostGold;
+					res.Value[woodResourceId] += (int)regMeta.CostWood;
+					res.Value[stoneResourceId] += (int)regMeta.CostStone;
+					EcsWorld.Set(ownerEntity, res);
+				}
+
+				if (regMeta.PopCost > 0 && EcsWorld.IsAlive(ownerEntity) && EcsWorld.Has<PlayerPopulation>(ownerEntity))
+				{
+					ref var pop = ref EcsWorld.Get<PlayerPopulation>(ownerEntity);
+					pop.Current = System.Math.Max(0, pop.Current - regMeta.PopCost);
+				}
+			}
+		}
+	}
+
+	private void CalculateGroupMovement(int peerId, List<int> unitEntityIds, List<Unit3D> allUnits, NetworkVector3 targetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right)
+	{
+		System.Numerics.Vector3 groupCenter = System.Numerics.Vector3.Zero;
+		int movableCount = 0;
+		foreach (int serverId in unitEntityIds)
+		{
+			var entity = FindServerEntity(serverId, allUnits);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (EcsWorld.Has<Position>(entity))
+			{
+				groupCenter += EcsWorld.Get<Position>(entity).Value;
+				movableCount++;
+			}
+		}
+		if (movableCount > 0) groupCenter /= movableCount;
+
+		moveDir = new System.Numerics.Vector3(targetPosition.X, targetPosition.Y, targetPosition.Z) - groupCenter;
+		moveDir.Y = 0f;
+		if (moveDir.LengthSquared() > 0.01f)
+		{
+			moveDir = System.Numerics.Vector3.Normalize(moveDir);
+		}
+		else
+		{
+			moveDir = new System.Numerics.Vector3(0f, 0f, -1f);
+		}
+		right = new System.Numerics.Vector3(-moveDir.Z, 0f, moveDir.X);
+	}
+
+	private System.Numerics.Vector3 CalculateScatteredPosition(NetworkVector3 targetPos, System.Numerics.Vector3 moveDir, System.Numerics.Vector3 right, int unitIndex, int cols, float spacing)
+	{
+		int row = unitIndex / cols;
+		int col = unitIndex % cols;
+		float offsetX = (col - cols * 0.5f + 0.5f) * spacing;
+		float offsetZ = -row * spacing;
+		var tPos = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
+		return tPos + right * offsetX + moveDir * offsetZ;
 	}
 
 	public List<(int PeerId, byte[] Payload)> BuildServerSnapshots(int localPeerId, List<Unit3D> allUnits)
@@ -969,86 +937,13 @@ public class NetworkService
 		foreach (var p in LobbyManager.Instance.PlayerList)
 		{
 			if (p.PeerId == localPeerId || p.PeerId < 0) continue;
-			int peerId = p.PeerId;
+			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var playerEntity)) continue;
 
-			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(peerId, out var playerEntity)) continue;
-
-			Vector3 cameraPos = _clientCameraPositions.TryGetValue(peerId, out var cam) ? cam : Vector3.Zero;
-			var snapshotUnits = new List<UnitSnapshot>();
-			bool hasBaseline = _lastBaselineSnapshotsPerClient.TryGetValue(peerId, out var lastBaselineMap);
+			bool hasBaseline = _lastBaselineSnapshotsPerClient.TryGetValue(p.PeerId, out var lastBaselineMap);
 			if (!hasBaseline && !isBaseline) continue;
-			var nextBaselineMap = isBaseline ? new Dictionary<int, UnitSnapshot>() : null;
 
-			foreach (var unit in allUnits)
-			{
-				if (!GodotObject.IsInstanceValid(unit)) continue;
-				if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity, allUnits)) continue;
-				float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
-				bool isDetailed = distToCamera <= 35.0f;
-				var currentSnap = new UnitSnapshot
-				{
-					EntityId = unit.Entity.Id,
-					UnitId = unit.UnitId,
-					OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
-					Position = new NetworkVector3(unit.GlobalPosition),
-					RotationY = unit.GlobalRotation.Y,
-					CurrentHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Current : 0f,
-					MaxHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Max : 0f,
-					IsDead = EcsWorld.Has<Dead>(unit.Entity),
-					IsBuilding = unit.IsBuilding,
-					IsDetailed = isDetailed,
-					Velocity = new NetworkVector3(unit.Velocity)
-				};
-				if (isBaseline)
-				{
-					snapshotUnits.Add(currentSnap);
-					nextBaselineMap[unit.Entity.Id] = currentSnap;
-				}
-				else
-				{
-					bool changed = true;
-					if (lastBaselineMap.TryGetValue(unit.Entity.Id, out var baseSnap))
-					{
-						if (isDetailed)
-						{
-							bool posChanged = baseSnap.Position.ToGodot().DistanceTo(unit.GlobalPosition) > 0.05f;
-							bool rotChanged = Mathf.Abs(baseSnap.RotationY - unit.GlobalRotation.Y) > 0.05f;
-							bool hpChanged = Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 0.1f;
-							bool deadChanged = baseSnap.IsDead != currentSnap.IsDead;
-							changed = posChanged || rotChanged || hpChanged || deadChanged;
-						}
-						else
-						{
-							bool posChanged = baseSnap.Position.ToGodot().DistanceTo(unit.GlobalPosition) > 1.0f;
-							bool deadChanged = baseSnap.IsDead != currentSnap.IsDead;
-							changed = posChanged || deadChanged;
-							currentSnap.RotationY = 0f;
-							currentSnap.CurrentHp = 0f;
-							currentSnap.MaxHp = 0f;
-							currentSnap.Velocity = new NetworkVector3(0f, 0f, 0f);
-						}
-					}
-					if (changed)
-					{
-						snapshotUnits.Add(currentSnap);
-					}
-				}
-			}
-
-			if (isBaseline)
-			{
-				_lastBaselineSnapshotsPerClient[peerId] = nextBaselineMap;
-			}
-
-			var worldSnapshot = new WorldSnapshot
-			{
-				Sequence = snapshotSequence,
-				IsBaseline = isBaseline,
-				BaseSequence = isBaseline ? snapshotSequence : (snapshotSequence / 30) * 30,
-				Units = snapshotUnits
-			};
-			var payload = MemoryPackSerializer.Serialize(worldSnapshot);
-			results.Add((peerId, payload));
+			var payload = BuildClientSnapshotPayload(p.PeerId, playerEntity, allUnits, isBaseline, snapshotSequence, lastBaselineMap);
+			results.Add((p.PeerId, payload));
 		}
 
 		foreach (var unit in allUnits)
@@ -1062,20 +957,97 @@ public class NetworkService
 		return results;
 	}
 
+	private byte[] BuildClientSnapshotPayload(int peerId, Entity playerEntity, List<Unit3D> allUnits, bool isBaseline, int snapshotSequence, Dictionary<int, UnitSnapshot> lastBaselineMap)
+	{
+		Vector3 cameraPos = _clientCameraPositions.TryGetValue(peerId, out var cam) ? cam : Vector3.Zero;
+		var snapshotUnits = new List<UnitSnapshot>();
+		var nextBaselineMap = isBaseline ? new Dictionary<int, UnitSnapshot>() : null;
+
+		foreach (var unit in allUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity, allUnits)) continue;
+
+			var currentSnap = CreateUnitSnapshot(unit, cameraPos, out bool isDetailed);
+
+			if (isBaseline)
+			{
+				snapshotUnits.Add(currentSnap);
+				nextBaselineMap[unit.Entity.Id] = currentSnap;
+			}
+			else if (HasUnitChanged(unit, ref currentSnap, isDetailed, lastBaselineMap))
+			{
+				snapshotUnits.Add(currentSnap);
+			}
+		}
+
+		if (isBaseline)
+		{
+			_lastBaselineSnapshotsPerClient[peerId] = nextBaselineMap;
+		}
+
+		var worldSnapshot = new WorldSnapshot
+		{
+			Sequence = snapshotSequence,
+			IsBaseline = isBaseline,
+			BaseSequence = isBaseline ? snapshotSequence : (snapshotSequence / 30) * 30,
+			Units = snapshotUnits
+		};
+		return MemoryPackSerializer.Serialize(worldSnapshot);
+	}
+
+	private UnitSnapshot CreateUnitSnapshot(Unit3D unit, Vector3 cameraPos, out bool isDetailed)
+	{
+		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
+		isDetailed = distToCamera <= 35.0f;
+		return new UnitSnapshot
+		{
+			EntityId = unit.Entity.Id,
+			UnitId = unit.UnitId,
+			OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
+			Position = new NetworkVector3(unit.GlobalPosition),
+			RotationY = unit.GlobalRotation.Y,
+			CurrentHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Current : 0f,
+			MaxHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Max : 0f,
+			IsDead = EcsWorld.Has<Dead>(unit.Entity),
+			IsBuilding = unit.IsBuilding,
+			IsDetailed = isDetailed,
+			Velocity = new NetworkVector3(unit.Velocity)
+		};
+	}
+
+	private bool HasUnitChanged(Unit3D unit, ref UnitSnapshot currentSnap, bool isDetailed, Dictionary<int, UnitSnapshot> lastBaselineMap)
+	{
+		if (!lastBaselineMap.TryGetValue(unit.Entity.Id, out var baseSnap)) return true;
+
+		if (isDetailed)
+		{
+			bool posChanged = baseSnap.Position.ToGodot().DistanceTo(unit.GlobalPosition) > 0.05f;
+			bool rotChanged = Mathf.Abs(baseSnap.RotationY - unit.GlobalRotation.Y) > 0.05f;
+			bool hpChanged = Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 0.1f;
+			bool deadChanged = baseSnap.IsDead != currentSnap.IsDead;
+			return posChanged || rotChanged || hpChanged || deadChanged;
+		}
+		
+		bool posFarChanged = baseSnap.Position.ToGodot().DistanceTo(unit.GlobalPosition) > 1.0f;
+		bool deadFarChanged = baseSnap.IsDead != currentSnap.IsDead;
+		
+		currentSnap.RotationY = 0f;
+		currentSnap.CurrentHp = 0f;
+		currentSnap.MaxHp = 0f;
+		currentSnap.Velocity = new NetworkVector3(0f, 0f, 0f);
+
+		return posFarChanged || deadFarChanged;
+	}
+
 	public byte[] BuildExplicitBaselineSnapshot(int targetPeerId, List<Unit3D> allUnits)
 	{
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !EcsWorld.Has<NetworkState>(worldEntity) || !EcsWorld.Has<NetworkMappingState>(worldEntity))
-		{
-			return System.Array.Empty<byte>();
-		}
+		if (worldEntity == Entity.Null || !EcsWorld.Has<NetworkState>(worldEntity) || !EcsWorld.Has<NetworkMappingState>(worldEntity)) return System.Array.Empty<byte>();
 
 		ref var networkState = ref EcsWorld.Get<NetworkState>(worldEntity);
 		var mapping = EcsWorld.Get<NetworkMappingState>(worldEntity);
-		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var playerEntity))
-		{
-			return System.Array.Empty<byte>();
-		}
+		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var playerEntity)) return System.Array.Empty<byte>();
 
 		Vector3 cameraPos = _clientCameraPositions.TryGetValue(targetPeerId, out var cam) ? cam : Vector3.Zero;
 		var snapshotUnits = new List<UnitSnapshot>();
@@ -1083,26 +1055,7 @@ public class NetworkService
 
 		foreach (var unit in allUnits)
 		{
-			if (!GodotObject.IsInstanceValid(unit)) continue;
-			if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity, allUnits)) continue;
-			float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
-			bool isDetailed = distToCamera <= 35.0f;
-			var currentSnap = new UnitSnapshot
-			{
-				EntityId = unit.Entity.Id,
-				UnitId = unit.UnitId,
-				OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
-				Position = new NetworkVector3(unit.GlobalPosition),
-				RotationY = unit.GlobalRotation.Y,
-				CurrentHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Current : 0f,
-				MaxHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Max : 0f,
-				IsDead = EcsWorld.Has<Dead>(unit.Entity),
-				IsBuilding = unit.IsBuilding,
-				IsDetailed = isDetailed,
-				Velocity = new NetworkVector3(unit.Velocity)
-			};
-			snapshotUnits.Add(currentSnap);
-			nextBaselineMap[unit.Entity.Id] = currentSnap;
+			ProcessUnitForBaselineSnapshot(unit, playerEntity, cameraPos, allUnits, snapshotUnits, nextBaselineMap);
 		}
 
 		_lastBaselineSnapshotsPerClient[targetPeerId] = nextBaselineMap;
@@ -1115,6 +1068,31 @@ public class NetworkService
 			Units = snapshotUnits
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);
+	}
+
+	private void ProcessUnitForBaselineSnapshot(Unit3D unit, Entity playerEntity, Vector3 cameraPos, List<Unit3D> allUnits, List<UnitSnapshot> snapshotUnits, Dictionary<int, UnitSnapshot> nextBaselineMap)
+	{
+		if (!GodotObject.IsInstanceValid(unit)) return;
+		if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity, allUnits)) return;
+
+		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
+		bool isDetailed = distToCamera <= 35.0f;
+		var currentSnap = new UnitSnapshot
+		{
+			EntityId = unit.Entity.Id,
+			UnitId = unit.UnitId,
+			OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
+			Position = new NetworkVector3(unit.GlobalPosition),
+			RotationY = unit.GlobalRotation.Y,
+			CurrentHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Current : 0f,
+			MaxHp = EcsWorld.Has<Health>(unit.Entity) ? EcsWorld.Get<Health>(unit.Entity).Max : 0f,
+			IsDead = EcsWorld.Has<Dead>(unit.Entity),
+			IsBuilding = unit.IsBuilding,
+			IsDetailed = isDetailed,
+			Velocity = new NetworkVector3(unit.Velocity)
+		};
+		snapshotUnits.Add(currentSnap);
+		nextBaselineMap[unit.Entity.Id] = currentSnap;
 	}
 
 	public void QueueSpectatorDelayedPacket(int peerId, string functionName, object[] arguments)
@@ -1200,15 +1178,25 @@ public class NetworkService
 
 	private void ClearUnitOrders(Entity entity)
 	{
+		ClearMovementOrders(entity);
+		ClearActionOrders(entity);
+	}
+
+	private void ClearMovementOrders(Entity entity)
+	{
 		if (EcsWorld.Has<MoveTo>(entity)) EcsWorld.Remove<MoveTo>(entity);
 		if (EcsWorld.Has<PathFollow>(entity)) EcsWorld.Remove<PathFollow>(entity);
+		if (EcsWorld.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity)) EcsWorld.Remove<Realm.Ecs.Components.Movement.HoldPosition>(entity);
+		if (EcsWorld.Has<WaypointQueue>(entity)) EcsWorld.Remove<WaypointQueue>(entity);
+		if (EcsWorld.Has<Realm.Ecs.Components.Movement.Follow>(entity)) EcsWorld.Remove<Realm.Ecs.Components.Movement.Follow>(entity);
+	}
+
+	private void ClearActionOrders(Entity entity)
+	{
 		if (EcsWorld.Has<AttackTarget>(entity)) EcsWorld.Remove<AttackTarget>(entity);
 		if (EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(entity)) EcsWorld.Remove<Realm.Ecs.Components.Movement.AttackMove>(entity);
-		if (EcsWorld.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity)) EcsWorld.Remove<Realm.Ecs.Components.Movement.HoldPosition>(entity);
-		if (EcsWorld.Has<Realm.Ecs.Components.Movement.Follow>(entity)) EcsWorld.Remove<Realm.Ecs.Components.Movement.Follow>(entity);
 		if (EcsWorld.Has<Patrol>(entity)) EcsWorld.Remove<Patrol>(entity);
 		if (EcsWorld.Has<HealingTarget>(entity)) EcsWorld.Remove<HealingTarget>(entity);
-		if (EcsWorld.Has<WaypointQueue>(entity)) EcsWorld.Remove<WaypointQueue>(entity);
 		if (EcsWorld.Has<Gatherer>(entity)) EcsWorld.Remove<Gatherer>(entity);
 	}
 
@@ -1333,43 +1321,36 @@ public class NetworkService
 	{
 		if (peerId1 == peerId2) return false;
 
-		if (LobbyManager.Instance == null || LobbyManager.Instance.PlayerList == null || LobbyManager.Instance.PlayerList.Count == 0)
-		{
-			return peerId1 != peerId2;
-		}
+		bool hasLobby = LobbyManager.Instance?.PlayerList?.Count > 0;
+		if (!hasLobby) return peerId1 != peerId2;
 
 		var p1 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId1);
 		var p2 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId2);
 
-		if (p1 == null || p2 == null)
-		{
-			string t1 = p1?.Team ?? "Team 1";
-			string t2 = p2?.Team ?? "Team 2";
-			return t1 != t2;
-		}
+		if (p1 != null && p2 != null) return p1.Team != p2.Team;
 
-		return p1.Team != p2.Team;
+		string t1 = p1?.Team ?? "Team 1";
+		string t2 = p2?.Team ?? "Team 2";
+		return t1 != t2;
 	}
 
 	public static bool ArePlayerIndicesEnemies(int playerIndex1, int playerIndex2)
 	{
 		if (playerIndex1 == playerIndex2) return false;
 
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList != null && LobbyManager.Instance.PlayerList.Count > 0)
-		{
-			var p1 = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex1);
-			var p2 = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex2);
+		bool hasLobby = LobbyManager.Instance?.PlayerList?.Count > 0;
+		if (!hasLobby) return playerIndex1 != playerIndex2;
 
-			if (p1 != null && p2 != null)
-			{
-				return p1.Team != p2.Team;
-			}
-			if (p1 != null || p2 != null)
-			{
-				string t1 = p1?.Team ?? $"Team {playerIndex1 + 1}";
-				string t2 = p2?.Team ?? $"Team {playerIndex2 + 1}";
-				return t1 != t2;
-			}
+		var p1 = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex1);
+		var p2 = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex2);
+
+		if (p1 != null && p2 != null) return p1.Team != p2.Team;
+
+		if (p1 != null || p2 != null)
+		{
+			string t1 = p1?.Team ?? $"Team {playerIndex1 + 1}";
+			string t2 = p2?.Team ?? $"Team {playerIndex2 + 1}";
+			return t1 != t2;
 		}
 
 		return playerIndex1 != playerIndex2;

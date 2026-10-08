@@ -234,39 +234,63 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		}
 
 		string? detectedKey = GlbPlayerColorProcessor.AutoDetectChromaKey(sourcePath);
-		if (!string.IsNullOrEmpty(detectedKey))
-		{
-			if (_chkTeamColorMask != null && !_chkTeamColorMask.ButtonPressed)
-			{
-				_chkTeamColorMask.ButtonPressed = true;
-				if (_colorPickerRow != null) _colorPickerRow.Visible = true;
-			}
-			if (_colorPicker != null)
-			{
-				_colorPicker.Color = Color.FromHtml(detectedKey);
-			}
-			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Detected mask color: {0}"), detectedKey));
-		}
-		else
+		if (string.IsNullOrEmpty(detectedKey))
 		{
 			Hud?.ShowFeedback(TranslationServer.Translate("No dominant mask color detected."));
+			return;
 		}
+
+		ApplyDetectedMaskColor(detectedKey);
+	}
+
+	private void ApplyDetectedMaskColor(string detectedKey)
+	{
+		if (_chkTeamColorMask != null && !_chkTeamColorMask.ButtonPressed)
+		{
+			_chkTeamColorMask.ButtonPressed = true;
+			if (_colorPickerRow != null) _colorPickerRow.Visible = true;
+		}
+		
+		if (_colorPicker != null)
+		{
+			_colorPicker.Color = Color.FromHtml(detectedKey);
+		}
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Detected mask color: {0}"), detectedKey));
 	}
 
 	private void OnColorPickerPopupClosed()
 	{
-		if (_chkAutoCorrectChromaKey != null && !_chkAutoCorrectChromaKey.ButtonPressed) return;
+		if (!ShouldAutoCorrectChromaKey()) return;
 
 		string sourcePath = _txtSourceFile?.Text?.Trim() ?? string.Empty;
-		if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath) || _colorPicker == null) return;
+		if (!IsValidSourcePathForColorPicker(sourcePath)) return;
 
-		string hexColor = $"#{_colorPicker.Color.ToHtml(false)}";
+		string hexColor = $"#{_colorPicker!.Color.ToHtml(false)}";
 		string? correctedKey = GlbPlayerColorProcessor.FindClosestMatchingChromaKey(sourcePath, hexColor);
-		if (!string.IsNullOrEmpty(correctedKey) && !string.Equals(correctedKey, hexColor, StringComparison.OrdinalIgnoreCase))
-		{
-			_colorPicker.Color = Color.FromHtml(correctedKey);
-			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Corrected mask color to texture: {0}"), correctedKey));
-		}
+		
+		ApplyCorrectedChromaKey(correctedKey, hexColor);
+	}
+
+	private bool ShouldAutoCorrectChromaKey()
+	{
+		return _chkAutoCorrectChromaKey == null || _chkAutoCorrectChromaKey.ButtonPressed;
+	}
+
+	private bool IsValidSourcePathForColorPicker(string sourcePath)
+	{
+		if (string.IsNullOrEmpty(sourcePath)) return false;
+		if (!File.Exists(sourcePath)) return false;
+		if (_colorPicker == null) return false;
+		return true;
+	}
+
+	private void ApplyCorrectedChromaKey(string? correctedKey, string hexColor)
+	{
+		if (string.IsNullOrEmpty(correctedKey)) return;
+		if (string.Equals(correctedKey, hexColor, StringComparison.OrdinalIgnoreCase)) return;
+
+		_colorPicker!.Color = Color.FromHtml(correctedKey);
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Corrected mask color to texture: {0}"), correctedKey));
 	}
 
 	private void OnSourceFileChanged(string path)
@@ -326,7 +350,17 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 	{
 		if (_optSubCategory == null) return;
 
-		string subCat = _optSubCategory.Selected switch
+		string subCat = GetSelectedSubCategoryForDefaults();
+		bool teamColor = subCat is "characters" or "buildings";
+		bool autoRig = subCat == "characters";
+
+		ApplyTeamColorDefaults(teamColor);
+		ApplyAutoRigDefaults(autoRig);
+	}
+
+	private string GetSelectedSubCategoryForDefaults()
+	{
+		return _optSubCategory!.Selected switch
 		{
 			0 => "characters",
 			1 => "buildings",
@@ -334,21 +368,23 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			3 => "items",
 			_ => "props"
 		};
+	}
 
-		bool teamColor = subCat is "characters" or "buildings";
-		bool autoRig = subCat == "characters";
+	private void ApplyTeamColorDefaults(bool teamColor)
+	{
+		if (_chkTeamColorMask == null) return;
+		
+		_chkTeamColorMask.ButtonPressed = teamColor;
+		if (_colorPickerRow != null) _colorPickerRow.Visible = teamColor;
+		if (_chkAutoCorrectChromaKey != null) _chkAutoCorrectChromaKey.Visible = teamColor;
+	}
 
-		if (_chkTeamColorMask != null)
-		{
-			_chkTeamColorMask.ButtonPressed = teamColor;
-			if (_colorPickerRow != null) _colorPickerRow.Visible = teamColor;
-			if (_chkAutoCorrectChromaKey != null) _chkAutoCorrectChromaKey.Visible = teamColor;
-		}
-		if (_chkAutoRig != null)
-		{
-			_chkAutoRig.ButtonPressed = autoRig;
-			if (_autoRigRow != null) _autoRigRow.Visible = autoRig;
-		}
+	private void ApplyAutoRigDefaults(bool autoRig)
+	{
+		if (_chkAutoRig == null) return;
+
+		_chkAutoRig.ButtonPressed = autoRig;
+		if (_autoRigRow != null) _autoRigRow.Visible = autoRig;
 	}
 
 	private void SetProgressStatus(string message, float progressPercent, bool isError = false)
@@ -398,30 +434,15 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		string sourcePath = _txtSourceFile.Text?.Trim() ?? string.Empty;
 		if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath))
 		{
-			_lblStatus.Text = TranslationServer.Translate("Please select a valid source 3D model file.");
-			_lblStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.35f, 0.35f));
-			_lblStatus.Visible = true;
+			ShowInvalidSourceFileError();
 			return;
 		}
 
-		string assetName = _txtAssetName.Text?.Trim() ?? string.Empty;
-		if (string.IsNullOrEmpty(assetName))
-		{
-			string resolvedSource = AssetIndexService.Instance?.ResolvePrettyFileName(sourcePath) ?? Path.GetFileName(sourcePath);
-			assetName = Path.GetFileNameWithoutExtension(resolvedSource).ToLowerInvariant().Replace(' ', '_');
-		}
+		string assetName = GetAssetName(sourcePath);
 		string cleanBase = assetName.ToLowerInvariant().Replace(' ', '_').Replace(".rmesh", "").Replace(".glb", "");
 		string fileName = $"{cleanBase}.rmesh";
 
-		string subCategory = _optSubCategory.Selected switch
-		{
-			0 => "units",
-			1 => "buildings",
-			2 => "props",
-			3 => "attachments",
-			_ => "props"
-		};
-
+		string subCategory = GetSubCategoryForApply();
 		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
 		string destDir = Path.Combine(wsPath, "Assets", "models", subCategory);
 		Directory.CreateDirectory(destDir);
@@ -435,6 +456,41 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		SetConvertingState(true);
 		SetProgressStatus(TranslationServer.Translate("Starting conversion..."), 2, false);
 
+		StartConversionTask(sourcePath, cleanBase, fileName, subCategory, wsPath, destPath, doAutoRig, doTeamColor, autoCorrectChromaKey, maskColor);
+	}
+
+	private void ShowInvalidSourceFileError()
+	{
+		_lblStatus.Text = TranslationServer.Translate("Please select a valid source 3D model file.");
+		_lblStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.35f, 0.35f));
+		_lblStatus.Visible = true;
+	}
+
+	private string GetAssetName(string sourcePath)
+	{
+		string assetName = _txtAssetName.Text?.Trim() ?? string.Empty;
+		if (string.IsNullOrEmpty(assetName))
+		{
+			string resolvedSource = AssetIndexService.Instance?.ResolvePrettyFileName(sourcePath) ?? Path.GetFileName(sourcePath);
+			return Path.GetFileNameWithoutExtension(resolvedSource).ToLowerInvariant().Replace(' ', '_');
+		}
+		return assetName;
+	}
+
+	private string GetSubCategoryForApply()
+	{
+		return _optSubCategory.Selected switch
+		{
+			0 => "units",
+			1 => "buildings",
+			2 => "props",
+			3 => "attachments",
+			_ => "props"
+		};
+	}
+
+	private void StartConversionTask(string sourcePath, string cleanBase, string fileName, string subCategory, string wsPath, string destPath, bool doAutoRig, bool doTeamColor, bool autoCorrectChromaKey, Color maskColor)
+	{
 		Task.Run(() =>
 		{
 			string tempWorkingDir = Path.Combine(Path.GetTempPath(), $"realm_glb_conv_{Guid.NewGuid():N}");
@@ -449,102 +505,18 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 
 				if (doAutoRig)
 				{
-					SetProgressStatus(TranslationServer.Translate("Step 1/4: Auto-rigging skeleton..."), 10, false);
-					string riggedPath = Path.Combine(tempWorkingDir, $"{cleanBase}_rigged.glb");
-					var rigResult = GlbAutoRigger.RigHumanoid(currentPath, riggedPath, new GlbAutoRiggerOptions
-					{
-						LogCallback = (msg) => GD.Print($"[ConvertGlb] {msg}")
-					});
-
-					if (!rigResult.Success)
-					{
-						errorMessage = string.Format(TranslationServer.Translate("Auto-rigging failed: {0}"), rigResult.ErrorMessage);
-						return;
-					}
-					currentPath = riggedPath;
+					if (!PerformAutoRigging(ref currentPath, tempWorkingDir, cleanBase, out errorMessage)) return;
 				}
 
 				string? chromaKeyHex = null;
 				if (doTeamColor)
 				{
-					SetProgressStatus(TranslationServer.Translate("Step 2/4: Applying team color mask..."), doAutoRig ? 25 : 15, false);
-					string maskedPath = Path.Combine(tempWorkingDir, $"{cleanBase}_masked.glb");
-					string hexColor = $"#{maskColor.ToHtml(false)}";
-					chromaKeyHex = hexColor;
-					var maskResult = GlbPlayerColorProcessor.ProcessFile(currentPath, maskedPath, new GlbPlayerColorOptions
-					{
-						ChromaKey = hexColor,
-						AutoCorrectChromaKey = autoCorrectChromaKey
-					});
-
-					if (!maskResult.Success)
-					{
-						errorMessage = string.Format(TranslationServer.Translate("Team color mask failed: {0}"), maskResult.ErrorMessage);
-						return;
-					}
-					if (!string.IsNullOrEmpty(maskResult.DetectedChromaKey))
-					{
-						chromaKeyHex = maskResult.DetectedChromaKey;
-					}
-					currentPath = maskedPath;
+					if (!PerformTeamColorMasking(ref currentPath, tempWorkingDir, cleanBase, maskColor, autoCorrectChromaKey, doAutoRig, ref chromaKeyHex, out errorMessage)) return;
 				}
 
-				SetProgressStatus(TranslationServer.Translate("Step 3/4: Optimizing geometry & packaging RMESH..."), 40, false);
-				int maxRes = subCategory is "attachments" or "items" ? 512 : 1024;
-				string canonicalAssetType = subCategory switch
-				{
-					"units" => "Character",
-					"buildings" => "Building",
-					"attachments" or "items" => "Item",
-					_ => "Prop"
-				};
+				if (!PerformModelConversion(currentPath, destPath, subCategory, chromaKeyHex, out errorMessage, out byte[]? outputBytes)) return;
 
-				var convRes = Realm.Shared.ModelOptimization.ModelConverter.ConvertToRmesh(
-					currentPath,
-					destPath,
-					canonicalAssetType,
-					force: true,
-					options: new Realm.Shared.OptimizationOptions
-					{
-						SimplificationRatio = 0.5f,
-						MaxTextureResolution = maxRes,
-						ForceReDecimate = true
-					},
-					chromaKey: chromaKeyHex);
-
-				if (!convRes.Success)
-				{
-					errorMessage = string.Format(TranslationServer.Translate("Conversion failed: {0}"), convRes.ErrorMessage);
-					return;
-				}
-
-				SetProgressStatus(TranslationServer.Translate("Step 4/4: Computing bounds & saving metadata..."), 80, false);
-
-				float defaultScale = subCategory switch
-				{
-					"resources" => 2.75f,
-					"buildings" => 1.5f,
-					"props" => 1.25f,
-					"units" => 1.0f,
-					"attachments" or "items" => 1.0f,
-					_ => 1.0f
-				};
-
-				string hash = convRes.OutputBytes != null
-					? RealmMetadataHelper.ComputeBlake3(convRes.OutputBytes, ".rmesh")
-					: RealmMetadataHelper.ComputeBlake3(destPath);
-				bool isPropOrRes = subCategory == "resources" || subCategory == "props" || subCategory == "attachments" || subCategory == "weapons" || subCategory == "items" || subCategory == "projectiles";
-
-				string canonicalCat = subCategory switch
-				{
-					"units" => "Character",
-					"buildings" => "Building",
-					"attachments" or "items" or "weapons" or "projectiles" => "Item",
-					_ => "Prop"
-				};
-				MapAssetHelper.UpdateManifestAsset(wsPath, canonicalCat, fileName, hash);
-
-				resultPath = destPath;
+				PerformFinalMetadataSave(destPath, fileName, subCategory, wsPath, outputBytes, out resultPath);
 			}
 			catch (Exception ex)
 			{
@@ -553,182 +525,148 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			}
 			finally
 			{
-				try
-				{
-					if (Directory.Exists(tempWorkingDir))
-						Directory.Delete(tempWorkingDir, true);
-				}
-				catch { }
+				CleanupTempDir(tempWorkingDir);
 			}
 
 			CallDeferred(nameof(OnConversionFinished), resultPath ?? string.Empty, errorMessage ?? string.Empty);
 		});
 	}
 
+	private bool PerformAutoRigging(ref string currentPath, string tempWorkingDir, string cleanBase, out string? errorMessage)
+	{
+		errorMessage = null;
+		SetProgressStatus(TranslationServer.Translate("Step 1/4: Auto-rigging skeleton..."), 10, false);
+		string riggedPath = Path.Combine(tempWorkingDir, $"{cleanBase}_rigged.glb");
+		var rigResult = GlbAutoRigger.RigHumanoid(currentPath, riggedPath, new GlbAutoRiggerOptions
+		{
+			LogCallback = (msg) => GD.Print($"[ConvertGlb] {msg}")
+		});
+
+		if (!rigResult.Success)
+		{
+			errorMessage = string.Format(TranslationServer.Translate("Auto-rigging failed: {0}"), rigResult.ErrorMessage);
+			return false;
+		}
+		currentPath = riggedPath;
+		return true;
+	}
+
+	private bool PerformTeamColorMasking(ref string currentPath, string tempWorkingDir, string cleanBase, Color maskColor, bool autoCorrectChromaKey, bool doAutoRig, ref string? chromaKeyHex, out string? errorMessage)
+	{
+		errorMessage = null;
+		SetProgressStatus(TranslationServer.Translate("Step 2/4: Applying team color mask..."), doAutoRig ? 25 : 15, false);
+		string maskedPath = Path.Combine(tempWorkingDir, $"{cleanBase}_masked.glb");
+		string hexColor = $"#{maskColor.ToHtml(false)}";
+		chromaKeyHex = hexColor;
+		var maskResult = GlbPlayerColorProcessor.ProcessFile(currentPath, maskedPath, new GlbPlayerColorOptions
+		{
+			ChromaKey = hexColor,
+			AutoCorrectChromaKey = autoCorrectChromaKey
+		});
+
+		if (!maskResult.Success)
+		{
+			errorMessage = string.Format(TranslationServer.Translate("Team color mask failed: {0}"), maskResult.ErrorMessage);
+			return false;
+		}
+		if (!string.IsNullOrEmpty(maskResult.DetectedChromaKey))
+		{
+			chromaKeyHex = maskResult.DetectedChromaKey;
+		}
+		currentPath = maskedPath;
+		return true;
+	}
+
+	private bool PerformModelConversion(string currentPath, string destPath, string subCategory, string? chromaKeyHex, out string? errorMessage, out byte[]? outputBytes)
+	{
+		errorMessage = null;
+		outputBytes = null;
+		SetProgressStatus(TranslationServer.Translate("Step 3/4: Optimizing geometry & packaging RMESH..."), 40, false);
+		int maxRes = subCategory is "attachments" or "items" ? 512 : 1024;
+		string canonicalAssetType = GetCanonicalAssetType(subCategory);
+
+		var convRes = Realm.Shared.ModelOptimization.ModelConverter.ConvertToRmesh(
+			currentPath,
+			destPath,
+			canonicalAssetType,
+			force: true,
+			options: new Realm.Shared.OptimizationOptions
+			{
+				SimplificationRatio = 0.5f,
+				MaxTextureResolution = maxRes,
+				ForceReDecimate = true
+			},
+			chromaKey: chromaKeyHex);
+
+		if (!convRes.Success)
+		{
+			errorMessage = string.Format(TranslationServer.Translate("Conversion failed: {0}"), convRes.ErrorMessage);
+			return false;
+		}
+		
+		outputBytes = convRes.OutputBytes;
+		return true;
+	}
+
+	private string GetCanonicalAssetType(string subCategory)
+	{
+		return subCategory switch
+		{
+			"units" => "Character",
+			"buildings" => "Building",
+			"attachments" or "items" => "Item",
+			_ => "Prop"
+		};
+	}
+
+	private void PerformFinalMetadataSave(string destPath, string fileName, string subCategory, string wsPath, byte[]? outputBytes, out string? resultPath)
+	{
+		SetProgressStatus(TranslationServer.Translate("Step 4/4: Computing bounds & saving metadata..."), 80, false);
+
+		string hash = outputBytes != null
+			? RealmMetadataHelper.ComputeBlake3(outputBytes, ".rmesh")
+			: RealmMetadataHelper.ComputeBlake3(destPath);
+
+		string canonicalCat = subCategory switch
+		{
+			"units" => "Character",
+			"buildings" => "Building",
+			"attachments" or "items" or "weapons" or "projectiles" => "Item",
+			_ => "Prop"
+		};
+		MapAssetHelper.UpdateManifestAsset(wsPath, canonicalCat, fileName, hash);
+
+		resultPath = destPath;
+	}
+
+	private void CleanupTempDir(string tempWorkingDir)
+	{
+		try
+		{
+			if (Directory.Exists(tempWorkingDir))
+				Directory.Delete(tempWorkingDir, true);
+		}
+		catch { }
+	}
 	private void OnConversionFinished(string resultPath, string errorMessage)
 	{
 		SetConvertingState(false);
 
 		if (!string.IsNullOrEmpty(errorMessage))
 		{
-			_lblStatus.Text = errorMessage;
-			_lblStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.35f, 0.35f));
-			_lblStatus.Visible = true;
-			_progressBar.Visible = false;
+			HandleConversionError(errorMessage);
 			return;
 		}
 
 		_progressBar.Value = 100;
 
 		string fileName = Path.GetFileName(resultPath);
-		string subCategory = _optSubCategory.Selected switch
-		{
-			0 => "units",
-			1 => "buildings",
-			2 => "props",
-			3 => "attachments",
-			_ => "props"
-		};
-		float defaultScale = subCategory switch
-		{
-			"resources" => 2.75f,
-			"buildings" => 1.5f,
-			"props" => 1.25f,
-			"units" => 1.0f,
-			"attachments" or "items" => 1.0f,
-			_ => 1.0f
-		};
+		string subCategory = GetSubCategoryForApply();
+		float defaultScale = GetDefaultScaleForSubCategory(subCategory);
 
 		try
 		{
-			var (minY, autoYOffset) = ModelCache.CalculateModelBounds(resultPath, defaultScale);
-			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-
-			string unitId = Path.GetFileNameWithoutExtension(fileName);
-			MetadataService.Instance.UpdateMetadata(wsPath, meta =>
-			{
-				meta.SetModelYOffset(fileName, autoYOffset);
-				meta.SetModelScale(fileName, defaultScale);
-
-				switch (subCategory)
-				{
-					case "units" or "characters":
-						string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", unitId);
-						bool updatedU = meta.UpdateUnit(unitTemplateId, u =>
-						{
-							if (autoYOffset != 0f) u.YOffset = autoYOffset;
-							return u;
-						});
-						if (!updatedU)
-						{
-							meta.AddOrUpdateUnit(new UnitMetadata
-							{
-								TemplateID = unitTemplateId,
-								Name = unitId,
-								Description = "",
-								ModelPath = fileName,
-								Scale = defaultScale,
-								YOffset = autoYOffset,
-								PathingType = 9,
-								DespillPlayerColor = false,
-								NormalizeLuminance = true
-							});
-						}
-						break;
-					case "buildings":
-						string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", unitId);
-						bool updatedB = meta.UpdateBuilding(buildingTemplateId, b =>
-						{
-							if (autoYOffset != 0f) b.YOffset = autoYOffset;
-							return b;
-						});
-						if (!updatedB)
-						{
-							meta.AddOrUpdateBuilding(new UnitMetadata
-							{
-								TemplateID = buildingTemplateId,
-								Name = unitId,
-								Description = "",
-								ModelPath = fileName,
-								Scale = defaultScale,
-								YOffset = autoYOffset,
-								PathingType = 32,
-								DespillPlayerColor = false,
-								NormalizeLuminance = true
-							});
-						}
-						break;
-					case "resources":
-						string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", unitId);
-						bool updatedR = meta.UpdateResource(resourceTemplateId, r =>
-						{
-							if (autoYOffset != 0f) r.YOffset = autoYOffset;
-							return r;
-						});
-						if (!updatedR)
-						{
-							meta.AddOrUpdateResource(new ResourceMetadata
-							{
-								TemplateID = resourceTemplateId,
-								Name = unitId,
-								Description = "",
-								ModelPath = fileName,
-								Scale = defaultScale,
-								YOffset = autoYOffset,
-								PathingType = 255,
-								DespillPlayerColor = false,
-								NormalizeLuminance = true,
-								IgnorePlayerColor = true
-							});
-						}
-						break;
-					case "props":
-						string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", unitId);
-						bool updatedP = meta.UpdateProp(propTemplateId, p =>
-						{
-							if (autoYOffset != 0f) p.YOffset = autoYOffset;
-							return p;
-						});
-						if (!updatedP)
-						{
-							meta.AddOrUpdateProp(new PropMetadata
-							{
-								TemplateID = propTemplateId,
-								Name = unitId,
-								Description = "",
-								ModelPath = fileName,
-								Scale = defaultScale,
-								YOffset = autoYOffset,
-								PathingType = 255,
-								DespillPlayerColor = false,
-								NormalizeLuminance = true,
-								IgnorePlayerColor = true
-							});
-						}
-						break;
-					case "attachments" or "items":
-						string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", unitId);
-						bool updatedI = meta.UpdateItem(itemTemplateId, i => i);
-						if (!updatedI)
-						{
-							meta.AddOrUpdateItem(new ItemMetadata
-							{
-								TemplateID = itemTemplateId,
-								Name = unitId,
-								Description = "",
-								ItemClass = "consumable",
-								CanDrop = true
-							});
-						}
-						break;
-				}
-			});
-
-			MetadataService.Instance.CleanMetadata(wsPath);
-			GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
-			GameHost.Instance?.SetModelScale(fileName, defaultScale);
-			GameHost.Instance?.FlushModelYOffsetSave();
-			GameHost.Instance?.LoadUnitMetadata(wsPath);
+			CalculateAndSaveMetadata(resultPath, fileName, subCategory, defaultScale);
 		}
 		catch (Exception ex)
 		{
@@ -739,5 +677,188 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		AssetIndexService.Instance.RescanAllDirectories();
 		_onConvertedCallback?.Invoke(resultPath);
 		CloseDialog();
+	}
+
+	private void HandleConversionError(string errorMessage)
+	{
+		_lblStatus.Text = errorMessage;
+		_lblStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.35f, 0.35f));
+		_lblStatus.Visible = true;
+		_progressBar.Visible = false;
+	}
+
+	private float GetDefaultScaleForSubCategory(string subCategory)
+	{
+		return subCategory switch
+		{
+			"resources" => 2.75f,
+			"buildings" => 1.5f,
+			"props" => 1.25f,
+			"units" => 1.0f,
+			"attachments" or "items" => 1.0f,
+			_ => 1.0f
+		};
+	}
+
+	private void CalculateAndSaveMetadata(string resultPath, string fileName, string subCategory, float defaultScale)
+	{
+		var (minY, autoYOffset) = ModelCache.CalculateModelBounds(resultPath, defaultScale);
+		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string unitId = Path.GetFileNameWithoutExtension(fileName);
+
+		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+		{
+			meta.SetModelYOffset(fileName, autoYOffset);
+			meta.SetModelScale(fileName, defaultScale);
+
+			UpdateSpecificMetadata(meta, subCategory, unitId, fileName, defaultScale, autoYOffset);
+		});
+
+		MetadataService.Instance.CleanMetadata(wsPath);
+		GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
+		GameHost.Instance?.SetModelScale(fileName, defaultScale);
+		GameHost.Instance?.FlushModelYOffsetSave();
+		GameHost.Instance?.LoadUnitMetadata(wsPath);
+	}
+
+	private void UpdateSpecificMetadata(MapMetadata meta, string subCategory, string unitId, string fileName, float defaultScale, float autoYOffset)
+	{
+		switch (subCategory)
+		{
+			case "units" or "characters":
+				UpdateUnitMetadata(meta, unitId, fileName, defaultScale, autoYOffset);
+				break;
+			case "buildings":
+				UpdateBuildingMetadata(meta, unitId, fileName, defaultScale, autoYOffset);
+				break;
+			case "resources":
+				UpdateResourceMetadata(meta, unitId, fileName, defaultScale, autoYOffset);
+				break;
+			case "props":
+				UpdatePropMetadata(meta, unitId, fileName, defaultScale, autoYOffset);
+				break;
+			case "attachments" or "items":
+				UpdateItemMetadata(meta, unitId);
+				break;
+		}
+	}
+
+	private void UpdateUnitMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset)
+	{
+		string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", unitId);
+		bool updatedU = meta.UpdateUnit(unitTemplateId, u =>
+		{
+			if (autoYOffset != 0f) u.YOffset = autoYOffset;
+			return u;
+		});
+		if (!updatedU)
+		{
+			meta.AddOrUpdateUnit(new UnitMetadata
+			{
+				TemplateID = unitTemplateId,
+				Name = unitId,
+				Description = "",
+				ModelPath = fileName,
+				Scale = defaultScale,
+				YOffset = autoYOffset,
+				PathingType = 9,
+				DespillPlayerColor = false,
+				NormalizeLuminance = true
+			});
+		}
+	}
+
+	private void UpdateBuildingMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset)
+	{
+		string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", unitId);
+		bool updatedB = meta.UpdateBuilding(buildingTemplateId, b =>
+		{
+			if (autoYOffset != 0f) b.YOffset = autoYOffset;
+			return b;
+		});
+		if (!updatedB)
+		{
+			meta.AddOrUpdateBuilding(new UnitMetadata
+			{
+				TemplateID = buildingTemplateId,
+				Name = unitId,
+				Description = "",
+				ModelPath = fileName,
+				Scale = defaultScale,
+				YOffset = autoYOffset,
+				PathingType = 32,
+				DespillPlayerColor = false,
+				NormalizeLuminance = true
+			});
+		}
+	}
+
+	private void UpdateResourceMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset)
+	{
+		string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", unitId);
+		bool updatedR = meta.UpdateResource(resourceTemplateId, r =>
+		{
+			if (autoYOffset != 0f) r.YOffset = autoYOffset;
+			return r;
+		});
+		if (!updatedR)
+		{
+			meta.AddOrUpdateResource(new ResourceMetadata
+			{
+				TemplateID = resourceTemplateId,
+				Name = unitId,
+				Description = "",
+				ModelPath = fileName,
+				Scale = defaultScale,
+				YOffset = autoYOffset,
+				PathingType = 255,
+				DespillPlayerColor = false,
+				NormalizeLuminance = true,
+				IgnorePlayerColor = true
+			});
+		}
+	}
+
+	private void UpdatePropMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset)
+	{
+		string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", unitId);
+		bool updatedP = meta.UpdateProp(propTemplateId, p =>
+		{
+			if (autoYOffset != 0f) p.YOffset = autoYOffset;
+			return p;
+		});
+		if (!updatedP)
+		{
+			meta.AddOrUpdateProp(new PropMetadata
+			{
+				TemplateID = propTemplateId,
+				Name = unitId,
+				Description = "",
+				ModelPath = fileName,
+				Scale = defaultScale,
+				YOffset = autoYOffset,
+				PathingType = 255,
+				DespillPlayerColor = false,
+				NormalizeLuminance = true,
+				IgnorePlayerColor = true
+			});
+		}
+	}
+
+	private void UpdateItemMetadata(MapMetadata meta, string unitId)
+	{
+		string itemTemplateId = TemplateIDHelper.NormalizeTemplateID("item", unitId);
+		bool updatedI = meta.UpdateItem(itemTemplateId, i => i);
+		if (!updatedI)
+		{
+			meta.AddOrUpdateItem(new ItemMetadata
+			{
+				TemplateID = itemTemplateId,
+				Name = unitId,
+				Description = "",
+				ItemClass = "consumable",
+				CanDrop = true
+			});
+		}
 	}
 }

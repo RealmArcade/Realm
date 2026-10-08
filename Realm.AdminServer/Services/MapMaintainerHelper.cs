@@ -11,9 +11,7 @@ public static class MapMaintainerHelper
     public static List<string> GetMaintainers(DataStoreService db, string mapTitle)
     {
         if (string.IsNullOrWhiteSpace(mapTitle))
-        {
             return new List<string>();
-        }
 
         string trimmed = mapTitle.Trim();
         string slug = trimmed.ToLowerInvariant().Replace(" ", "-");
@@ -22,88 +20,76 @@ public static class MapMaintainerHelper
 
         var maintainerSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var list1 = db.Get<List<string>>("map_maintainers", trimmed);
-        if (list1 != null)
-        {
-            foreach (var key in list1)
-            {
-                if (!string.IsNullOrWhiteSpace(key)) maintainerSet.Add(key.Trim());
-            }
-        }
-
-        var list2 = db.Get<List<string>>("map_maintainers", slug);
-        if (list2 != null)
-        {
-            foreach (var key in list2)
-            {
-                if (!string.IsNullOrWhiteSpace(key)) maintainerSet.Add(key.Trim());
-            }
-        }
-
-        var list3 = db.Get<List<string>>("map_maintainers", lower);
-        if (list3 != null)
-        {
-            foreach (var key in list3)
-            {
-                if (!string.IsNullOrWhiteSpace(key)) maintainerSet.Add(key.Trim());
-            }
-        }
+        AddMaintainersFromList(db, "map_maintainers", trimmed, maintainerSet);
+        AddMaintainersFromList(db, "map_maintainers", slug, maintainerSet);
+        AddMaintainersFromList(db, "map_maintainers", lower, maintainerSet);
 
         if (!string.IsNullOrEmpty(norm) && norm != lower && norm != slug)
-        {
-            var list4 = db.Get<List<string>>("map_maintainers", norm);
-            if (list4 != null)
-            {
-                foreach (var key in list4)
-                {
-                    if (!string.IsNullOrWhiteSpace(key)) maintainerSet.Add(key.Trim());
-                }
-            }
-        }
+            AddMaintainersFromList(db, "map_maintainers", norm, maintainerSet);
 
-        string? owner1 = db.Get<string>("map_ownership", trimmed);
-        if (!string.IsNullOrWhiteSpace(owner1)) maintainerSet.Add(owner1.Trim());
-
-        string? owner2 = db.Get<string>("map_ownership", slug);
-        if (!string.IsNullOrWhiteSpace(owner2)) maintainerSet.Add(owner2.Trim());
-
-        string? owner3 = db.Get<string>("map_ownership", lower);
-        if (!string.IsNullOrWhiteSpace(owner3)) maintainerSet.Add(owner3.Trim());
+        AddMaintainerFromOwner(db, trimmed, maintainerSet);
+        AddMaintainerFromOwner(db, slug, maintainerSet);
+        AddMaintainerFromOwner(db, lower, maintainerSet);
 
         if (!string.IsNullOrEmpty(norm) && norm != lower && norm != slug)
-        {
-            string? owner4 = db.Get<string>("map_ownership", norm);
-            if (!string.IsNullOrWhiteSpace(owner4)) maintainerSet.Add(owner4.Trim());
-        }
+            AddMaintainerFromOwner(db, norm, maintainerSet);
 
+        ExtractMaintainersFromJson(db, trimmed, slug, lower, norm, maintainerSet);
+
+        return maintainerSet.ToList();
+    }
+
+    private static void AddMaintainersFromList(DataStoreService db, string collection, string key, HashSet<string> maintainerSet)
+    {
+        var list = db.Get<List<string>>(collection, key);
+        if (list == null) return;
+
+        foreach (var m in list)
+        {
+            if (!string.IsNullOrWhiteSpace(m)) maintainerSet.Add(m.Trim());
+        }
+    }
+
+    private static void AddMaintainerFromOwner(DataStoreService db, string key, HashSet<string> maintainerSet)
+    {
+        string? owner = db.Get<string>("map_ownership", key);
+        if (!string.IsNullOrWhiteSpace(owner)) maintainerSet.Add(owner.Trim());
+    }
+
+    private static void ExtractMaintainersFromJson(DataStoreService db, string trimmed, string slug, string lower, string norm, HashSet<string> maintainerSet)
+    {
         var publishedMap = db.Get<JsonDocument>("published_maps", trimmed) 
                         ?? db.Get<JsonDocument>("published_maps", slug)
                         ?? db.Get<JsonDocument>("published_maps", lower)
                         ?? (!string.IsNullOrEmpty(norm) ? db.Get<JsonDocument>("published_maps", norm) : null);
-        if (publishedMap != null)
+
+        if (publishedMap == null) return;
+
+        var root = publishedMap.RootElement;
+        ExtractStringProperty(root, "owner_public_key", maintainerSet);
+        ExtractStringProperty(root, "OwnerPublicKey", maintainerSet);
+        ExtractArrayProperty(root, "Maintainers", maintainerSet);
+    }
+
+    private static void ExtractStringProperty(JsonElement root, string propertyName, HashSet<string> maintainerSet)
+    {
+        if (root.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.String)
         {
-            var root = publishedMap.RootElement;
-            if (root.TryGetProperty("owner_public_key", out var opk) && opk.ValueKind == JsonValueKind.String)
+            string? val = prop.GetString();
+            if (!string.IsNullOrWhiteSpace(val)) maintainerSet.Add(val.Trim());
+        }
+    }
+
+    private static void ExtractArrayProperty(JsonElement root, string propertyName, HashSet<string> maintainerSet)
+    {
+        if (root.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var el in prop.EnumerateArray())
             {
-                string? opkStr = opk.GetString();
-                if (!string.IsNullOrWhiteSpace(opkStr)) maintainerSet.Add(opkStr.Trim());
-            }
-            if (root.TryGetProperty("OwnerPublicKey", out var opk2) && opk2.ValueKind == JsonValueKind.String)
-            {
-                string? opkStr2 = opk2.GetString();
-                if (!string.IsNullOrWhiteSpace(opkStr2)) maintainerSet.Add(opkStr2.Trim());
-            }
-            if (root.TryGetProperty("Maintainers", out var maintProp) && maintProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var el in maintProp.EnumerateArray())
-                {
-                    string? m = el.GetString();
-                    if (!string.IsNullOrWhiteSpace(m)) maintainerSet.Add(m.Trim());
-                }
+                string? m = el.GetString();
+                if (!string.IsNullOrWhiteSpace(m)) maintainerSet.Add(m.Trim());
             }
         }
-
-        return maintainerSet.ToList();
     }
 
     public static string GetOwner(DataStoreService db, string mapTitle)
@@ -144,26 +130,14 @@ public static class MapMaintainerHelper
         conflictingMapTitle = null;
 
         if (string.IsNullOrWhiteSpace(mapTitle))
-        {
             return false;
-        }
 
         string trimmed = mapTitle.Trim();
         string slug = trimmed.ToLowerInvariant().Replace(" ", "-");
         string lower = trimmed.ToLowerInvariant();
         string norm = NameNormalizationHelper.NormalizeMapName(trimmed);
 
-        bool hasDirectRecord = db.Get<string>("map_ownership", trimmed) != null
-            || db.Get<string>("map_ownership", slug) != null
-            || db.Get<string>("map_ownership", lower) != null
-            || (!string.IsNullOrEmpty(norm) && db.Get<string>("map_ownership", norm) != null)
-            || db.Get<JsonDocument>("published_maps", trimmed) != null
-            || db.Get<JsonDocument>("published_maps", slug) != null
-            || db.Get<JsonDocument>("published_maps", lower) != null
-            || (!string.IsNullOrEmpty(norm) && db.Get<JsonDocument>("published_maps", norm) != null)
-            || (db.Get<List<string>>("map_maintainers", trimmed)?.Count > 0);
-
-        if (hasDirectRecord)
+        if (HasDirectRecord(db, trimmed, slug, lower, norm))
         {
             if (!IsAuthorizedMaintainer(db, mapTitle, publicKey))
             {
@@ -173,20 +147,52 @@ public static class MapMaintainerHelper
             return false;
         }
 
+        return CheckSimilarTitleConflict(db, mapTitle, publicKey, out conflictingMapTitle);
+    }
+
+    private static bool HasDirectRecord(DataStoreService db, string trimmed, string slug, string lower, string norm)
+    {
+        return HasOwnershipRecord(db, trimmed, slug, lower, norm) ||
+               HasPublishedMapRecord(db, trimmed, slug, lower, norm) ||
+               HasMaintainerRecord(db, trimmed);
+    }
+
+    private static bool HasOwnershipRecord(DataStoreService db, string trimmed, string slug, string lower, string norm)
+    {
+        return db.Get<string>("map_ownership", trimmed) != null ||
+               db.Get<string>("map_ownership", slug) != null ||
+               db.Get<string>("map_ownership", lower) != null ||
+               (!string.IsNullOrEmpty(norm) && db.Get<string>("map_ownership", norm) != null);
+    }
+
+    private static bool HasPublishedMapRecord(DataStoreService db, string trimmed, string slug, string lower, string norm)
+    {
+        return db.Get<JsonDocument>("published_maps", trimmed) != null ||
+               db.Get<JsonDocument>("published_maps", slug) != null ||
+               db.Get<JsonDocument>("published_maps", lower) != null ||
+               (!string.IsNullOrEmpty(norm) && db.Get<JsonDocument>("published_maps", norm) != null);
+    }
+
+    private static bool HasMaintainerRecord(DataStoreService db, string trimmed)
+    {
+        return db.Get<List<string>>("map_maintainers", trimmed)?.Count > 0;
+    }
+
+    private static bool CheckSimilarTitleConflict(DataStoreService db, string mapTitle, string publicKey, out string? conflictingMapTitle)
+    {
+        conflictingMapTitle = null;
         var allPublished = db.GetAllWithKeys<JsonDocument>("published_maps");
-        if (allPublished.Count > 0)
+        if (allPublished.Count == 0) return false;
+
+        var publishedTitles = allPublished.Keys.ToList();
+        if (NameNormalizationHelper.IsMapNameTooSimilar(mapTitle, publishedTitles, 2, out var similarTitle))
         {
-            var publishedTitles = allPublished.Keys.ToList();
-            if (NameNormalizationHelper.IsMapNameTooSimilar(mapTitle, publishedTitles, 2, out var similarTitle))
+            if (!IsAuthorizedMaintainer(db, similarTitle ?? mapTitle, publicKey))
             {
-                if (!IsAuthorizedMaintainer(db, similarTitle ?? mapTitle, publicKey))
-                {
-                    conflictingMapTitle = similarTitle ?? mapTitle;
-                    return true;
-                }
+                conflictingMapTitle = similarTitle ?? mapTitle;
+                return true;
             }
         }
-
         return false;
     }
 

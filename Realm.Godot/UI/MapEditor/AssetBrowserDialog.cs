@@ -502,9 +502,24 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_optDirectoryFilter.AddItem(TranslationServer.Translate("All Indexed Folders & Maps"), 0);
 		_optDirectoryFilter.SetItemMetadata(0, "all");
 
-		int selectedIndex = 0;
 		int currentItemIndex = 1;
+		int selectedIndex = 0;
 
+		selectedIndex = PopulateMapGroupsFilter(ref currentItemIndex, selectedIndex);
+		selectedIndex = PopulateIndexedDirsFilter(ref currentItemIndex, selectedIndex);
+
+		if (selectedIndex == 0 && (_selectedDirectoryFilter != null || _selectedMapNameFilter != null))
+		{
+			_selectedDirectoryFilter = null;
+			_selectedMapNameFilter = null;
+			_selectedMapVersionFilter = null;
+		}
+
+		_optDirectoryFilter.Selected = selectedIndex;
+	}
+
+	private int PopulateMapGroupsFilter(ref int currentItemIndex, int selectedIndex)
+	{
 		var downloadedPackages = AssetIndexService.Instance.GetDownloadedMapPackages();
 		var mapGroups = downloadedPackages
 			.GroupBy(p => p.MapName, StringComparer.OrdinalIgnoreCase)
@@ -528,9 +543,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 				_optDirectoryFilter.AddItem(label, currentItemIndex);
 				_optDirectoryFilter.SetItemMetadata(currentItemIndex, metaKey);
 
-				if (!string.IsNullOrEmpty(_selectedMapNameFilter) &&
-					string.Equals(mapName, _selectedMapNameFilter, StringComparison.OrdinalIgnoreCase) &&
-					(string.IsNullOrEmpty(_selectedMapVersionFilter) || string.Equals(_selectedMapVersionFilter, "latest", StringComparison.OrdinalIgnoreCase) && isFirst || string.Equals(_selectedMapVersionFilter, ver, StringComparison.OrdinalIgnoreCase)))
+				if (IsMapFilterSelected(mapName, ver, isFirst))
 				{
 					selectedIndex = currentItemIndex;
 				}
@@ -540,89 +553,115 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			}
 		}
 
+		return selectedIndex;
+	}
+
+	private bool IsMapFilterSelected(string mapName, string ver, bool isFirst)
+	{
+		if (string.IsNullOrEmpty(_selectedMapNameFilter)) return false;
+		if (!string.Equals(mapName, _selectedMapNameFilter, StringComparison.OrdinalIgnoreCase)) return false;
+
+		if (string.IsNullOrEmpty(_selectedMapVersionFilter)) return true;
+		if (string.Equals(_selectedMapVersionFilter, "latest", StringComparison.OrdinalIgnoreCase) && isFirst) return true;
+		if (string.Equals(_selectedMapVersionFilter, ver, StringComparison.OrdinalIgnoreCase)) return true;
+		
+		return false;
+	}
+
+	private int PopulateIndexedDirsFilter(ref int currentItemIndex, int selectedIndex)
+	{
 		var indexedDirs = AssetIndexService.Instance.GetIndexedDirectories();
 
 		for (int i = 0; i < indexedDirs.Count; i++)
 		{
 			string dirPath = indexedDirs[i];
-			bool isGlobalCas = string.Equals(dirPath, AssetIndexService.GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase);
-			if (isGlobalCas)
+			if (string.Equals(dirPath, AssetIndexService.GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase))
 			{
 				continue;
 			}
 
-			string folderName = Path.GetFileName(dirPath.TrimEnd('/', '\\'));
-			if (string.IsNullOrEmpty(folderName))
-			{
-				folderName = dirPath;
-			}
-
-			bool isIndexing = AssetIndexService.Instance.IsDirectoryIndexing(dirPath);
-
 			int itemIdx = currentItemIndex++;
-			string metaKey = $"dir:{dirPath}";
-			_optDirectoryFilter.AddItem(isIndexing ? $"⏳ {folderName} ({TranslationServer.Translate("Indexing...")})" : folderName, itemIdx);
-			_optDirectoryFilter.SetItemMetadata(itemIdx, metaKey);
-
-			if (string.IsNullOrEmpty(_selectedMapNameFilter) && !string.IsNullOrEmpty(_selectedDirectoryFilter) && string.Equals(dirPath, _selectedDirectoryFilter, StringComparison.OrdinalIgnoreCase))
-			{
-				selectedIndex = itemIdx;
-			}
-
-			var chip = new PanelContainer();
-			var chipStyle = new StyleBoxFlat();
-			chipStyle.BgColor = isIndexing ? new Color(0.18f, 0.16f, 0.12f, 0.9f) : new Color(0.15f, 0.16f, 0.19f, 0.9f);
-			chipStyle.BorderColor = isIndexing ? UIStyle.ColorGold : new Color(0.35f, 0.32f, 0.28f, 0.7f);
-			chipStyle.SetBorderWidthAll(1);
-			chipStyle.CornerRadiusTopLeft = 3;
-			chipStyle.CornerRadiusTopRight = 3;
-			chipStyle.CornerRadiusBottomLeft = 3;
-			chipStyle.CornerRadiusBottomRight = 3;
-			chipStyle.ContentMarginLeft = 6;
-			chipStyle.ContentMarginRight = 4;
-			chipStyle.ContentMarginTop = 2;
-			chipStyle.ContentMarginBottom = 2;
-			chip.AddThemeStyleboxOverride("panel", chipStyle);
-			chip.TooltipText = isIndexing
-				? $"{dirPath}\n({TranslationServer.Translate("Indexing in progress...")})"
-				: dirPath;
-
-			var chipHBox = new HBoxContainer();
-			chipHBox.AddThemeConstantOverride("separation", 4);
-			chip.AddChild(chipHBox);
-
-			var lblName = new Label();
-			lblName.Text = isIndexing ? $"⏳ {folderName}" : $"📁 {folderName}";
-			lblName.AddThemeFontSizeOverride("font_size", 10);
-			lblName.AddThemeColorOverride("font_color", isIndexing ? UIStyle.ColorCyanGlow : UIStyle.ColorGold);
-			chipHBox.AddChild(lblName);
-
-			var btnRemove = new Button();
-			btnRemove.Set("icon_max_width", 0);
-			btnRemove.Text = "✕";
-			btnRemove.AddThemeFontSizeOverride("font_size", 9);
-			btnRemove.CustomMinimumSize = new Vector2(16, 16);
-			btnRemove.FocusMode = FocusModeEnum.None;
-			btnRemove.TooltipText = $"{TranslationServer.Translate("Remove folder from index")}: {dirPath}";
-			btnRemove.Pressed += () =>
-			{
-				AssetIndexService.Instance.RemoveDirectory(dirPath);
-				RefreshFolderChips();
-				RefreshSearchResults();
-			};
-			chipHBox.AddChild(btnRemove);
-
-			_folderChipsContainer.AddChild(chip);
+			selectedIndex = AddIndexedDirItem(dirPath, itemIdx, selectedIndex);
+			AddIndexedDirChip(dirPath);
 		}
 
-		if (selectedIndex == 0 && (_selectedDirectoryFilter != null || _selectedMapNameFilter != null))
+		return selectedIndex;
+	}
+
+	private int AddIndexedDirItem(string dirPath, int itemIdx, int selectedIndex)
+	{
+		string folderName = Path.GetFileName(dirPath.TrimEnd('/', '\\'));
+		if (string.IsNullOrEmpty(folderName))
 		{
-			_selectedDirectoryFilter = null;
-			_selectedMapNameFilter = null;
-			_selectedMapVersionFilter = null;
+			folderName = dirPath;
 		}
 
-		_optDirectoryFilter.Selected = selectedIndex;
+		bool isIndexing = AssetIndexService.Instance.IsDirectoryIndexing(dirPath);
+		string metaKey = $"dir:{dirPath}";
+		_optDirectoryFilter.AddItem(isIndexing ? $"⏳ {folderName} ({TranslationServer.Translate("Indexing...")})" : folderName, itemIdx);
+		_optDirectoryFilter.SetItemMetadata(itemIdx, metaKey);
+
+		if (string.IsNullOrEmpty(_selectedMapNameFilter) && !string.IsNullOrEmpty(_selectedDirectoryFilter) && string.Equals(dirPath, _selectedDirectoryFilter, StringComparison.OrdinalIgnoreCase))
+		{
+			return itemIdx;
+		}
+
+		return selectedIndex;
+	}
+
+	private void AddIndexedDirChip(string dirPath)
+	{
+		string folderName = Path.GetFileName(dirPath.TrimEnd('/', '\\'));
+		if (string.IsNullOrEmpty(folderName))
+		{
+			folderName = dirPath;
+		}
+
+		bool isIndexing = AssetIndexService.Instance.IsDirectoryIndexing(dirPath);
+		var chip = new PanelContainer();
+		var chipStyle = new StyleBoxFlat();
+		chipStyle.BgColor = isIndexing ? new Color(0.18f, 0.16f, 0.12f, 0.9f) : new Color(0.15f, 0.16f, 0.19f, 0.9f);
+		chipStyle.BorderColor = isIndexing ? UIStyle.ColorGold : new Color(0.35f, 0.32f, 0.28f, 0.7f);
+		chipStyle.SetBorderWidthAll(1);
+		chipStyle.CornerRadiusTopLeft = 3;
+		chipStyle.CornerRadiusTopRight = 3;
+		chipStyle.CornerRadiusBottomLeft = 3;
+		chipStyle.CornerRadiusBottomRight = 3;
+		chipStyle.ContentMarginLeft = 6;
+		chipStyle.ContentMarginRight = 4;
+		chipStyle.ContentMarginTop = 2;
+		chipStyle.ContentMarginBottom = 2;
+		chip.AddThemeStyleboxOverride("panel", chipStyle);
+		chip.TooltipText = isIndexing
+			? $"{dirPath}\n({TranslationServer.Translate("Indexing in progress...")})"
+			: dirPath;
+
+		var chipHBox = new HBoxContainer();
+		chipHBox.AddThemeConstantOverride("separation", 4);
+		chip.AddChild(chipHBox);
+
+		var lblName = new Label();
+		lblName.Text = isIndexing ? $"⏳ {folderName}" : $"📁 {folderName}";
+		lblName.AddThemeFontSizeOverride("font_size", 10);
+		lblName.AddThemeColorOverride("font_color", isIndexing ? UIStyle.ColorCyanGlow : UIStyle.ColorGold);
+		chipHBox.AddChild(lblName);
+
+		var btnRemove = new Button();
+		btnRemove.Set("icon_max_width", 0);
+		btnRemove.Text = "✕";
+		btnRemove.AddThemeFontSizeOverride("font_size", 9);
+		btnRemove.CustomMinimumSize = new Vector2(16, 16);
+		btnRemove.FocusMode = FocusModeEnum.None;
+		btnRemove.TooltipText = $"{TranslationServer.Translate("Remove folder from index")}: {dirPath}";
+		btnRemove.Pressed += () =>
+		{
+			AssetIndexService.Instance.RemoveDirectory(dirPath);
+			RefreshFolderChips();
+			RefreshSearchResults();
+		};
+		chipHBox.AddChild(btnRemove);
+
+		_folderChipsContainer.AddChild(chip);
 	}
 
 	private void RefreshAssetTypeFilterOptions()
@@ -630,18 +669,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		if (_optAssetTypeFilter == null) return;
 		_optAssetTypeFilter.Clear();
 
-		var validTypes = new List<string>();
-		foreach (var ext in _allowedExtensions)
-		{
-			var types = Realm.Shared.Metadata.RealmMetadataHelper.GetValidAssetTypesForExtension(ext);
-			foreach (var t in types)
-			{
-				if (!validTypes.Contains(t, StringComparer.OrdinalIgnoreCase))
-				{
-					validTypes.Add(t);
-				}
-			}
-		}
+		var validTypes = GetValidAssetTypes();
 
 		if (validTypes.Count == 0)
 		{
@@ -654,6 +682,35 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_optAssetTypeFilter.AddItem(TranslationServer.Translate("All Types"), 0);
 		_optAssetTypeFilter.SetItemMetadata(0, "");
 
+		int selectedIndex = PopulateAssetTypeFilterDropdown(validTypes);
+
+		if (selectedIndex == 0 && !string.IsNullOrEmpty(_selectedAssetTypeFilter))
+		{
+			_selectedAssetTypeFilter = null;
+		}
+
+		_optAssetTypeFilter.Selected = selectedIndex;
+	}
+
+	private List<string> GetValidAssetTypes()
+	{
+		var validTypes = new List<string>();
+		foreach (var ext in _allowedExtensions)
+		{
+			var types = Realm.Shared.Metadata.RealmMetadataHelper.GetValidAssetTypesForExtension(ext);
+			foreach (var t in types)
+			{
+				if (!validTypes.Contains(t, StringComparer.OrdinalIgnoreCase))
+				{
+					validTypes.Add(t);
+				}
+			}
+		}
+		return validTypes;
+	}
+
+	private int PopulateAssetTypeFilterDropdown(List<string> validTypes)
+	{
 		int selectedIndex = 0;
 		for (int i = 0; i < validTypes.Count; i++)
 		{
@@ -662,21 +719,24 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_optAssetTypeFilter.AddItem(TranslationServer.Translate(typeName), itemIdx);
 			_optAssetTypeFilter.SetItemMetadata(itemIdx, typeName);
 
-			if (!string.IsNullOrEmpty(_selectedAssetTypeFilter) &&
-				(typeName.Equals(_selectedAssetTypeFilter, StringComparison.OrdinalIgnoreCase) ||
-				 Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(typeName).Equals(Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(_selectedAssetTypeFilter), StringComparison.OrdinalIgnoreCase)))
+			if (IsAssetTypeSelected(typeName))
 			{
 				selectedIndex = itemIdx;
 				_selectedAssetTypeFilter = typeName;
 			}
 		}
+		return selectedIndex;
+	}
 
-		if (selectedIndex == 0 && !string.IsNullOrEmpty(_selectedAssetTypeFilter))
-		{
-			_selectedAssetTypeFilter = null;
-		}
-
-		_optAssetTypeFilter.Selected = selectedIndex;
+	private bool IsAssetTypeSelected(string typeName)
+	{
+		if (string.IsNullOrEmpty(_selectedAssetTypeFilter)) return false;
+		
+		if (typeName.Equals(_selectedAssetTypeFilter, StringComparison.OrdinalIgnoreCase)) return true;
+		
+		string normType = Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(typeName);
+		string normSelected = Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(_selectedAssetTypeFilter);
+		return normType.Equals(normSelected, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private void OnAssetTypeFilterChanged(long index)
@@ -829,13 +889,23 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 		if (_matchingAssets.Count == 0)
 		{
-			foreach (var cell in _cellPool)
-			{
-				cell.Visible = false;
-			}
+			HideAllGridCells();
 			return;
 		}
 
+		UpdateGridCellPositions(columns, totalRows);
+	}
+
+	private void HideAllGridCells()
+	{
+		foreach (var cell in _cellPool)
+		{
+			cell.Visible = false;
+		}
+	}
+
+	private void UpdateGridCellPositions(int columns, int totalRows)
+	{
 		float scrollY = (float)_scrollContainer.GetVScrollBar().Value;
 		float viewHeight = _scrollContainer.Size.Y;
 		if (viewHeight <= 0)
@@ -850,13 +920,27 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		int endIndex = Math.Min(_matchingAssets.Count - 1, (endRow + 1) * columns - 1);
 		int visibleCount = endIndex >= startIndex ? (endIndex - startIndex + 1) : 0;
 
+		EnsureCellPoolSize(visibleCount);
+		BindVisibleGridCells(startIndex, visibleCount, columns);
+
+		for (int i = visibleCount; i < _cellPool.Count; i++)
+		{
+			_cellPool[i].Visible = false;
+		}
+	}
+
+	private void EnsureCellPoolSize(int visibleCount)
+	{
 		while (_cellPool.Count < visibleCount)
 		{
 			var newCell = new AssetGridCell();
 			_cellPool.Add(newCell);
 			_virtualGridContent.AddChild(newCell);
 		}
+	}
 
+	private void BindVisibleGridCells(int startIndex, int visibleCount, int columns)
+	{
 		for (int i = 0; i < visibleCount; i++)
 		{
 			int assetIndex = startIndex + i;
@@ -874,11 +958,6 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 			bool isSelected = _selectedAsset != null && string.Equals(_selectedAsset.FilePath, asset.FilePath, StringComparison.OrdinalIgnoreCase);
 			cell.Bind(asset, isSelected, OnAssetCellClicked);
-		}
-
-		for (int i = visibleCount; i < _cellPool.Count; i++)
-		{
-			_cellPool[i].Visible = false;
 		}
 	}
 
@@ -898,82 +977,100 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	{
 		StopAudio();
 
-		if (_selectedAsset != null)
+		if (_selectedAsset == null)
 		{
-			_lblSelectedFileName.Text = _selectedAsset.FileName;
-			_lblSelectedPath.Text = _selectedAsset.FilePath;
-			_lblSelectedSize.Text = FormatFileSize(_selectedAsset.FileSizeBytes);
-			_bottomThumbnail.Texture = AssetThumbnailProvider.GetThumbnail(_selectedAsset);
-			_txtTagsEdit.Text = _selectedAsset.Tags != null ? string.Join(", ", _selectedAsset.Tags) : string.Empty;
-			_txtTagsEdit.Editable = false;
-			_btnEditTags.Disabled = false;
+			ResetAssetDisplay();
+			return;
+		}
 
-			string embeddedAssetType = Realm.Shared.Metadata.RealmMetadataHelper.ExtractAssetType(_selectedAsset.FilePath) ?? string.Empty;
-			_txtAssetTypeEdit.Text = !string.IsNullOrEmpty(embeddedAssetType) ? embeddedAssetType : TranslationServer.Translate("None");
-			_txtAssetTypeEdit.Editable = false;
-			var validTypes = Realm.Shared.Metadata.RealmMetadataHelper.GetValidAssetTypesForExtension(_selectedAsset.FilePath);
-			_btnEditAssetType.Disabled = (validTypes.Count == 0);
+		_lblSelectedFileName.Text = _selectedAsset.FileName;
+		_lblSelectedPath.Text = _selectedAsset.FilePath;
+		_lblSelectedSize.Text = FormatFileSize(_selectedAsset.FileSizeBytes);
+		_bottomThumbnail.Texture = AssetThumbnailProvider.GetThumbnail(_selectedAsset);
+		_txtTagsEdit.Text = _selectedAsset.Tags != null ? string.Join(", ", _selectedAsset.Tags) : string.Empty;
+		_txtTagsEdit.Editable = false;
+		_btnEditTags.Disabled = false;
 
-			string ext = _selectedAsset.Extension?.ToLowerInvariant() ?? "";
-			bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac";
-			if (isAudio && File.Exists(_selectedAsset.FilePath))
-			{
-				try
-				{
-					if (ext == ".raud")
-					{
-						byte[] raudBytes = File.ReadAllBytes(_selectedAsset.FilePath);
-						byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
-						if (oggBytes != null && oggBytes.Length > 0)
-						{
-							var oggStream = AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
-							if (oggStream != null)
-							{
-								oggStream.Loop = false;
-								_audioPlayer.Stream = oggStream;
-							}
-						}
-					}
-					else if (ext == ".ogg")
-					{
-						var oggStream = AudioStreamOggVorbis.LoadFromFile(_selectedAsset.FilePath);
-						if (oggStream != null)
-						{
-							oggStream.Loop = false;
-							_audioPlayer.Stream = oggStream;
-						}
-					}
-					else
-					{
-						_audioPlayer.Stream = GD.Load<AudioStream>(_selectedAsset.FilePath);
-					}
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"[AssetBrowserDialog] Failed to load audio stream: {ex.Message}");
-				}
-				_btnAudioPlayPause.Visible = (_audioPlayer.Stream != null);
-				_btnAudioPlayPause.Text = "▶ " + TranslationServer.Translate("Play");
-				_btnAudioPlayPause.TooltipText = TranslationServer.Translate("Play audio");
-			}
-			else
-			{
-				_btnAudioPlayPause.Visible = false;
-			}
+		UpdateAssetTypeDisplay();
+		UpdateAudioDisplay();
+	}
+
+	private void ResetAssetDisplay()
+	{
+		_lblSelectedFileName.Text = TranslationServer.Translate("No asset selected");
+		_lblSelectedPath.Text = string.Empty;
+		_lblSelectedSize.Text = string.Empty;
+		_bottomThumbnail.Texture = null;
+		_txtTagsEdit.Text = string.Empty;
+		_txtTagsEdit.Editable = false;
+		_btnEditTags.Disabled = true;
+		_txtAssetTypeEdit.Text = string.Empty;
+		_txtAssetTypeEdit.Editable = false;
+		_btnEditAssetType.Disabled = true;
+		_btnAudioPlayPause.Visible = false;
+	}
+
+	private void UpdateAssetTypeDisplay()
+	{
+		string embeddedAssetType = Realm.Shared.Metadata.RealmMetadataHelper.ExtractAssetType(_selectedAsset!.FilePath) ?? string.Empty;
+		_txtAssetTypeEdit.Text = !string.IsNullOrEmpty(embeddedAssetType) ? embeddedAssetType : TranslationServer.Translate("None");
+		_txtAssetTypeEdit.Editable = false;
+		var validTypes = Realm.Shared.Metadata.RealmMetadataHelper.GetValidAssetTypesForExtension(_selectedAsset.FilePath);
+		_btnEditAssetType.Disabled = (validTypes.Count == 0);
+	}
+
+	private void UpdateAudioDisplay()
+	{
+		string ext = _selectedAsset!.Extension?.ToLowerInvariant() ?? "";
+		bool isAudio = ext is ".raud" or ".ogg" or ".wav" or ".mp3" or ".flac" or ".aac";
+		if (isAudio && File.Exists(_selectedAsset.FilePath))
+		{
+			LoadSelectedAudioFile(ext);
+			_btnAudioPlayPause.Visible = (_audioPlayer.Stream != null);
+			_btnAudioPlayPause.Text = "▶ " + TranslationServer.Translate("Play");
+			_btnAudioPlayPause.TooltipText = TranslationServer.Translate("Play audio");
 		}
 		else
 		{
-			_lblSelectedFileName.Text = TranslationServer.Translate("No asset selected");
-			_lblSelectedPath.Text = string.Empty;
-			_lblSelectedSize.Text = string.Empty;
-			_bottomThumbnail.Texture = null;
-			_txtTagsEdit.Text = string.Empty;
-			_txtTagsEdit.Editable = false;
-			_btnEditTags.Disabled = true;
-			_txtAssetTypeEdit.Text = string.Empty;
-			_txtAssetTypeEdit.Editable = false;
-			_btnEditAssetType.Disabled = true;
 			_btnAudioPlayPause.Visible = false;
+		}
+	}
+
+	private void LoadSelectedAudioFile(string ext)
+	{
+		try
+		{
+			if (ext == ".raud")
+			{
+				byte[] raudBytes = File.ReadAllBytes(_selectedAsset!.FilePath);
+				byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
+				if (oggBytes != null && oggBytes.Length > 0)
+				{
+					var oggStream = AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
+					if (oggStream != null)
+					{
+						oggStream.Loop = false;
+						_audioPlayer.Stream = oggStream;
+					}
+				}
+			}
+			else if (ext == ".ogg")
+			{
+				var oggStream = AudioStreamOggVorbis.LoadFromFile(_selectedAsset!.FilePath);
+				if (oggStream != null)
+				{
+					oggStream.Loop = false;
+					_audioPlayer.Stream = oggStream;
+				}
+			}
+			else
+			{
+				_audioPlayer.Stream = GD.Load<AudioStream>(_selectedAsset!.FilePath);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetBrowserDialog] Failed to load audio stream: {ex.Message}");
 		}
 	}
 

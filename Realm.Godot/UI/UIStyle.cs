@@ -984,28 +984,43 @@ public static class UIStyle
 		{
 			for (int x = 0; x < size; x++)
 			{
-				if (x == 0 || x == size - 1 || y == 0 || y == size - 1)
-				{
-					img.SetPixel(x, y, border);
-				}
-				else if (x == 1 || y == 1)
-				{
-					img.SetPixel(x, y, topLight);
-				}
-				else if (x == size - 2 || y == size - 2)
-				{
-					img.SetPixel(x, y, bottomDark);
-				}
-				else if ((x >= size / 2 - 1 && x <= size / 2 + 1) && (y >= 5 && y <= size - 6))
-				{
-					img.SetPixel(x, y, centerGrip);
-				}
-				else
-				{
-					img.SetPixel(x, y, fill);
-				}
+				Color pixelColor = GetSquareStoneGrabberPixelColor(x, y, size, border, topLight, bottomDark, centerGrip, fill);
+				img.SetPixel(x, y, pixelColor);
 			}
 		}
 		return ImageTexture.CreateFromImage(img);
+	}
+
+	private static Color GetSquareStoneGrabberPixelColor(int x, int y, int size, Color border, Color topLight, Color bottomDark, Color centerGrip, Color fill)
+	{
+		if (IsGrabberBorder(x, y, size))
+			return border;
+		if (IsGrabberTopLight(x, y))
+			return topLight;
+		if (IsGrabberBottomDark(x, y, size))
+			return bottomDark;
+		if (IsGrabberCenterGrip(x, y, size))
+			return centerGrip;
+		return fill;
+	}
+
+	private static bool IsGrabberBorder(int x, int y, int size)
+	{
+		return x == 0 || x == size - 1 || y == 0 || y == size - 1;
+	}
+
+	private static bool IsGrabberTopLight(int x, int y)
+	{
+		return x == 1 || y == 1;
+	}
+
+	private static bool IsGrabberBottomDark(int x, int y, int size)
+	{
+		return x == size - 2 || y == size - 2;
+	}
+
+	private static bool IsGrabberCenterGrip(int x, int y, int size)
+	{
+		return x >= size / 2 - 1 && x <= size / 2 + 1 && y >= 5 && y <= size - 6;
 	}
 }

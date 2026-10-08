@@ -37,15 +37,23 @@ public class MapEditorPathingPanel
 	public void Update(MapEditorHUDViewModel viewModel)
 	{
 		if (viewModel == null) return;
-		if (_chkShallowWater != null && _chkShallowWater.ButtonPressed != viewModel.ShallowWater) _chkShallowWater.ButtonPressed = viewModel.ShallowWater;
-		if (_chkDeepWater != null && _chkDeepWater.ButtonPressed != viewModel.DeepWater) _chkDeepWater.ButtonPressed = viewModel.DeepWater;
-		if (_chkFlying != null && _chkFlying.ButtonPressed != viewModel.Flying) _chkFlying.ButtonPressed = viewModel.Flying;
-		if (_chkGround != null && _chkGround.ButtonPressed != viewModel.Ground) _chkGround.ButtonPressed = viewModel.Ground;
-		if (_chkBuildable != null && _chkBuildable.ButtonPressed != viewModel.Buildable) _chkBuildable.ButtonPressed = viewModel.Buildable;
-		
-		if (_optPathingMode != null && _optPathingMode.Selected != viewModel.PathingModeIndex && viewModel.PathingModeIndex < _optPathingMode.ItemCount)
-		{
-			_optPathingMode.Selected = viewModel.PathingModeIndex;
-		}
+		UpdateCheckBox(_chkShallowWater, viewModel.ShallowWater);
+		UpdateCheckBox(_chkDeepWater, viewModel.DeepWater);
+		UpdateCheckBox(_chkFlying, viewModel.Flying);
+		UpdateCheckBox(_chkGround, viewModel.Ground);
+		UpdateCheckBox(_chkBuildable, viewModel.Buildable);
+		UpdatePathingMode(viewModel.PathingModeIndex);
+	}
+
+	private void UpdateCheckBox(CheckBox checkBox, bool value)
+	{
+		if (checkBox == null || checkBox.ButtonPressed == value) return;
+		checkBox.ButtonPressed = value;
+	}
+
+	private void UpdatePathingMode(int modeIndex)
+	{
+		if (_optPathingMode == null || _optPathingMode.Selected == modeIndex || modeIndex >= _optPathingMode.ItemCount) return;
+		_optPathingMode.Selected = modeIndex;
 	}
 }

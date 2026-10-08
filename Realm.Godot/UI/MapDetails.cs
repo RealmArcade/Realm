@@ -292,17 +292,9 @@ public partial class MapDetails : Control
 			return true;
 		}
 
-		if (FileAccess.FileExists($"res://Maps/{map.Title}/manifest.json"))
+		if (FileAccess.FileExists($"res://Maps/{map.Title}/manifest.json") && CheckManifestByTitle(map.Title, version))
 		{
-			try
-			{
-				var mf = MapManifest.LoadFromJson(FileAccess.GetFileAsString($"res://Maps/{map.Title}/manifest.json"));
-				if (mf != null && (string.Equals(mf.Version, version, StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(mf.Version)))
-				{
-					return true;
-				}
-			}
-			catch { }
+			return true;
 		}
 
 		if (!string.IsNullOrWhiteSpace(map.MapId) && MapAssetManager.IsMapDownloaded(map.MapId))
@@ -318,15 +310,47 @@ public partial class MapDetails : Control
 		return false;
 	}
 
+	private bool CheckManifestByTitle(string title, string version)
+	{
+		try
+		{
+			var mf = MapManifest.LoadFromJson(FileAccess.GetFileAsString($"res://Maps/{title}/manifest.json"));
+			return mf != null && (string.Equals(mf.Version, version, StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(mf.Version));
+		}
+		catch 
+		{
+			return false;
+		}
+	}
+
 	private void ApplyStyles()
 	{
+		ApplyBackgroundStyles();
+		ApplyPanelStyles();
+		ApplyWrapperStyles();
+		ApplyTextStyles();
+
+		SetupPillarButton(_backButton, "◀ BACK", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery));
+
+		_downloadButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		_downloadButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		_downloadButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		_downloadButton.AddThemeStyleboxOverride("disabled", UIStyle.CreateButtonPressed());
+		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_downloadSubtitle.AddThemeFontSizeOverride("font_size", 12);
+
+		ApplyMapFrame();
+		ApplyCarouselButtons();
+
+		_carouselSlider.AddThemeStyleboxOverride("slider", UIStyle.CreateSliderTrack());
+		_carouselSlider.AddThemeStyleboxOverride("grabber_area", UIStyle.CreateSliderFill());
+		_carouselSlider.AddThemeStyleboxOverride("grabber_area_highlight", UIStyle.CreateSliderFill());
+	}
+
+	private void ApplyBackgroundStyles()
+	{
 		Texture2D bgTexture = null;
-		string[] bgPaths = new string[]
-		{
-			"res://Assets/UI/map_details_bg.png",
-			"res://Assets/UI/map_details_bg.jpg",
-			"res://Assets/UI/map_discovery_background.png"
-		};
+		string[] bgPaths = { "res://Assets/UI/map_details_bg.png", "res://Assets/UI/map_details_bg.jpg", "res://Assets/UI/map_discovery_background.png" };
 
 		foreach (var path in bgPaths)
 		{
@@ -339,8 +363,7 @@ public partial class MapDetails : Control
 
 		if (bgTexture != null)
 		{
-			var style = new StyleBoxTexture();
-			style.Texture = bgTexture;
+			var style = new StyleBoxTexture { Texture = bgTexture };
 			_bgPanel.AddThemeStyleboxOverride("panel", style);
 			_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		}
@@ -351,295 +374,174 @@ public partial class MapDetails : Control
 
 		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
-		
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_header.png"))
+	}
+
+	private void ApplyPanelStyles()
+	{
+		ApplyStyleBox(_headerPanel, "res://Assets/UI/map_details_header.png", 0, 0, 0, 0);
+		ApplyStyleBox(_descriptionPanel, "res://Assets/UI/map_details_panel_description.png", 52, 52, 38, 42);
+		ApplyStyleBox(_featuresPanel, "res://Assets/UI/map_details_panel_features.png", 40, 40, 38, 35);
+		ApplyStyleBox(_statsPanel, "res://Assets/UI/map_details_info_panel.png", 45, 50, 48, 38);
+	}
+
+	private void ApplyStyleBox(Control panel, string path, int left, int right, int top, int bottom)
+	{
+		if (ResourceLoader.Exists(path))
 		{
-			var headerStyle = new StyleBoxTexture();
-			headerStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/map_details_header.png");
-			_headerPanel.AddThemeStyleboxOverride("panel", headerStyle);
-			_headerPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			var style = new StyleBoxTexture();
+			style.Texture = GD.Load<Texture2D>(path);
+			style.ContentMarginLeft = left;
+			style.ContentMarginRight = right;
+			style.ContentMarginTop = top;
+			style.ContentMarginBottom = bottom;
+			panel.AddThemeStyleboxOverride("panel", style);
+			panel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
-			_headerPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
+			panel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 		}
+	}
 
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_description.png"))
-		{
-			var descStyle = new StyleBoxTexture();
-			descStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/map_details_panel_description.png");
-			descStyle.ContentMarginLeft = 52;
-			descStyle.ContentMarginRight = 52;
-			descStyle.ContentMarginTop = 38;
-			descStyle.ContentMarginBottom = 42;
-			_descriptionPanel.AddThemeStyleboxOverride("panel", descStyle);
-			_descriptionPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		}
-		else
-		{
-			_descriptionPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
-		}
-
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_features.png"))
-		{
-			var featuresStyle = new StyleBoxTexture();
-			featuresStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/map_details_panel_features.png");
-			featuresStyle.ContentMarginLeft = 40;
-			featuresStyle.ContentMarginRight = 40;
-			featuresStyle.ContentMarginTop = 38;
-			featuresStyle.ContentMarginBottom = 35;
-			_featuresPanel.AddThemeStyleboxOverride("panel", featuresStyle);
-			_featuresPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		}
-		else
-		{
-			_featuresPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
-		}
-
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_info_panel.png"))
-		{
-			var statsStyle = new StyleBoxTexture();
-			statsStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/map_details_info_panel.png");
-			statsStyle.ContentMarginLeft = 45;
-			statsStyle.ContentMarginRight = 50;
-			statsStyle.ContentMarginTop = 48;
-			statsStyle.ContentMarginBottom = 38;
-			_statsPanel.AddThemeStyleboxOverride("panel", statsStyle);
-			_statsPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		}
-		else
-		{
-			_statsPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
-		}
-
+	private void ApplyWrapperStyles()
+	{
 		var descVBox = _descriptionPanel.GetNode<VBoxContainer>("VBoxContainer");
 		descVBox.AddThemeConstantOverride("separation", 16);
+		WrapInPanelContainer(descVBox, "res://Assets/UI/map_details_panel_description.png");
+
 		var featuresVBox = _featuresPanel.GetNode<VBoxContainer>("VBoxContainer");
 		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_features.png"))
 		{
 			featuresVBox.AddThemeConstantOverride("separation", 16);
 		}
+		WrapInPanelContainer(featuresVBox, "res://Assets/UI/map_details_panel_features.png");
+
 		var statsVBox = _statsPanel.GetNode<VBoxContainer>("VBoxContainer");
 		statsVBox.AddThemeConstantOverride("separation", 18);
+		WrapInPanelContainer(statsVBox, "res://Assets/UI/map_details_info_panel.png");
+	}
 
-		var descWrapper = new PanelContainer();
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_description.png"))
+	private void WrapInPanelContainer(Control content, string stylePath)
+	{
+		var wrapper = new PanelContainer();
+		if (ResourceLoader.Exists(stylePath))
 		{
-			descWrapper.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+			wrapper.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		}
 		else
 		{
-			descWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
+			wrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 		}
-		descVBox.GetParent().AddChild(descWrapper);
-		descVBox.GetParent().MoveChild(descWrapper, descVBox.GetIndex());
-		descVBox.GetParent().RemoveChild(descVBox);
-		descWrapper.AddChild(descVBox);
+		content.GetParent().AddChild(wrapper);
+		content.GetParent().MoveChild(wrapper, content.GetIndex());
+		content.GetParent().RemoveChild(content);
+		wrapper.AddChild(content);
+	}
 
-		var featuresWrapper = new PanelContainer();
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_features.png"))
-		{
-			featuresWrapper.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		}
-		else
-		{
-			featuresWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
-		}
-		featuresVBox.GetParent().AddChild(featuresWrapper);
-		featuresVBox.GetParent().MoveChild(featuresWrapper, featuresVBox.GetIndex());
-		featuresVBox.GetParent().RemoveChild(featuresVBox);
-		featuresWrapper.AddChild(featuresVBox);
-
-		var statsWrapper = new PanelContainer();
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_info_panel.png"))
-		{
-			statsWrapper.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		}
-		else
-		{
-			statsWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
-		}
-		statsVBox.GetParent().AddChild(statsWrapper);
-		statsVBox.GetParent().MoveChild(statsWrapper, statsVBox.GetIndex());
-		statsVBox.GetParent().RemoveChild(statsVBox);
-		statsWrapper.AddChild(statsVBox);
-
-		SetupPillarButton(_backButton, "◀ BACK", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery));
-
-
-		_descTitle.Text = Tr("MAP DESCRIPTION");
-		_descTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_descTitle.AddThemeFontSizeOverride("font_size", 15);
-
+	private void ApplyTextStyles()
+	{
+		ApplyTitleStyle(_descTitle, "MAP DESCRIPTION", 15);
 		_descText.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f));
 		_descText.AddThemeFontSizeOverride("font_size", 13);
 		_descText.AddThemeConstantOverride("line_spacing", 4);
 
-		_featuresTitle.Text = Tr("MAP FEATURES");
-		_featuresTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_featuresTitle.AddThemeFontSizeOverride("font_size", 16);
-
-		_statsTitle.Text = Tr("MAP INFO & STATS");
-		_statsTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_statsTitle.AddThemeFontSizeOverride("font_size", 20);
-
-		_ratingTitle.Text = Tr("RATINGS & COMMUNITY");
-		_ratingTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_ratingTitle.AddThemeFontSizeOverride("font_size", 13);
-
-		_awardsTitle.Text = Tr("AWARDS");
-		_awardsTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_awardsTitle.AddThemeFontSizeOverride("font_size", 13);
-
-		_gameplayTitle.Text = Tr("GAMEPLAY STATS");
-		_gameplayTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_gameplayTitle.AddThemeFontSizeOverride("font_size", 13);
-
-		_techTitle.Text = Tr("TECHNICAL INFO");
-		_techTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_techTitle.AddThemeFontSizeOverride("font_size", 13);
+		ApplyTitleStyle(_featuresTitle, "MAP FEATURES", 16);
+		ApplyTitleStyle(_statsTitle, "MAP INFO & STATS", 20);
+		ApplyTitleStyle(_ratingTitle, "RATINGS & COMMUNITY", 13);
+		ApplyTitleStyle(_awardsTitle, "AWARDS", 13);
+		ApplyTitleStyle(_gameplayTitle, "GAMEPLAY STATS", 13);
+		ApplyTitleStyle(_techTitle, "TECHNICAL INFO", 13);
 
 		var contentVBox = _statsPanel.GetNodeOrNull<VBoxContainer>("VBoxContainer/ScrollContainer/ContentVBox");
 		if (contentVBox != null)
 		{
-			var sep1 = contentVBox.GetNodeOrNull<HSeparator>("HSeparator1");
-			if (sep1 != null) sep1.Visible = false;
-			var sep2 = contentVBox.GetNodeOrNull<HSeparator>("HSeparator2");
-			if (sep2 != null) sep2.Visible = false;
-			var sep3 = contentVBox.GetNodeOrNull<HSeparator>("HSeparator3");
-			if (sep3 != null) sep3.Visible = false;
-
-			var ratingGrid = contentVBox.GetNodeOrNull<GridContainer>("RatingGrid");
-			WrapSectionInCard(contentVBox, _ratingTitle, ratingGrid, isAccentCard: true);
+			HideSeparators(contentVBox);
+			WrapSectionInCard(contentVBox, _ratingTitle, contentVBox.GetNodeOrNull<GridContainer>("RatingGrid"), isAccentCard: true);
 			WrapSectionInCard(contentVBox, _awardsTitle, _awardsContainer);
 			WrapSectionInCard(contentVBox, _gameplayTitle, _gameplayStatsContainer);
 			WrapSectionInCard(contentVBox, _techTitle, _techInfoContainer);
-
-			var bottomSpacer = new Control();
-			bottomSpacer.CustomMinimumSize = new Vector2(0, 24);
-			contentVBox.AddChild(bottomSpacer);
+			contentVBox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 24) });
 		}
+	}
 
+	private void ApplyTitleStyle(Label label, string text, int fontSize)
+	{
+		label.Text = Tr(text);
+		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		label.AddThemeFontSizeOverride("font_size", fontSize);
+	}
 
-		_downloadButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_downloadButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_downloadButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_downloadButton.AddThemeStyleboxOverride("disabled", UIStyle.CreateButtonPressed());
-		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_downloadSubtitle.AddThemeFontSizeOverride("font_size", 12);
-		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") 
-		                        ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
-
-		if (mapFrameTex != null)
+	private void HideSeparators(Node container)
+	{
+		for (int i = 1; i <= 3; i++)
 		{
-			_texLeftPeek.Visible = false;
-			_texRightPeek.Visible = false;
-			_texLeftPeek.Hide();
-			_texRightPeek.Hide();
-
-			var carouselPanel = GetNode<Control>("CarouselPanel");
-
-			var oldOverlay = carouselPanel.GetNodeOrNull<TextureRect>("MapFrameOverlay");
-			if (oldOverlay != null)
-			{
-				oldOverlay.QueueFree();
-			}
-
-			var mapFrame = carouselPanel.GetNodeOrNull<PanelContainer>("MapFramePanel");
-			if (mapFrame == null)
-			{
-				mapFrame = new PanelContainer();
-				mapFrame.Name = "MapFramePanel";
-				carouselPanel.AddChild(mapFrame);
-			}
-
-			var frameStyle = new StyleBoxTexture();
-			frameStyle.Texture = mapFrameTex;
-			frameStyle.ContentMarginLeft = 36;
-			frameStyle.ContentMarginRight = 36;
-			frameStyle.ContentMarginTop = 32;
-			frameStyle.ContentMarginBottom = 32;
-			mapFrame.AddThemeStyleboxOverride("panel", frameStyle);
-			mapFrame.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-			mapFrame.Position = new Vector2(170, 0);
-			mapFrame.Size = new Vector2(650, 380);
-
-			if (_texCenter.GetParent() != mapFrame)
-			{
-				_texCenter.GetParent()?.RemoveChild(_texCenter);
-				mapFrame.AddChild(_texCenter);
-			}
-
-			_texCenter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			_texCenter.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-			_texCenter.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-			_texCenter.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
-
-			carouselPanel.MoveChild(mapFrame, 0);
-			carouselPanel.MoveChild(_btnLeftArrow, 1);
-			carouselPanel.MoveChild(_btnRightArrow, 2);
-			if (_carouselSlider != null) carouselPanel.MoveChild(_carouselSlider, 3);
-
-			_btnLeftArrow.Position = new Vector2(130, 160);
-			_btnRightArrow.Position = new Vector2(790, 160);
+			var sep = container.GetNodeOrNull<HSeparator>($"HSeparator{i}");
+			if (sep != null) sep.Visible = false;
 		}
-		else
+	}
+
+	private void ApplyMapFrame()
+	{
+		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+
+		if (mapFrameTex == null)
 		{
 			_texLeftPeek.Modulate = new Color(0.3f, 0.3f, 0.3f, 0.7f);
 			_texRightPeek.Modulate = new Color(0.3f, 0.3f, 0.3f, 0.7f);
+			return;
 		}
 
-		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.png")
-		                     ?? LoadTextureSafe("res://Assets/UI/map_details_prev_next.jpg");
+		_texLeftPeek.Visible = false;
+		_texRightPeek.Visible = false;
+		_texLeftPeek.Hide();
+		_texRightPeek.Hide();
+
+		var carouselPanel = GetNode<Control>("CarouselPanel");
+		carouselPanel.GetNodeOrNull<TextureRect>("MapFrameOverlay")?.QueueFree();
+
+		var mapFrame = carouselPanel.GetNodeOrNull<PanelContainer>("MapFramePanel");
+		if (mapFrame == null)
+		{
+			mapFrame = new PanelContainer { Name = "MapFramePanel" };
+			carouselPanel.AddChild(mapFrame);
+		}
+
+		var frameStyle = new StyleBoxTexture { Texture = mapFrameTex, ContentMarginLeft = 36, ContentMarginRight = 36, ContentMarginTop = 32, ContentMarginBottom = 32 };
+		mapFrame.AddThemeStyleboxOverride("panel", frameStyle);
+		mapFrame.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		mapFrame.Position = new Vector2(170, 0);
+		mapFrame.Size = new Vector2(650, 380);
+
+		if (_texCenter.GetParent() != mapFrame)
+		{
+			_texCenter.GetParent()?.RemoveChild(_texCenter);
+			mapFrame.AddChild(_texCenter);
+		}
+
+		_texCenter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_texCenter.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		_texCenter.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		_texCenter.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
+
+		carouselPanel.MoveChild(mapFrame, 0);
+		carouselPanel.MoveChild(_btnLeftArrow, 1);
+		carouselPanel.MoveChild(_btnRightArrow, 2);
+		if (_carouselSlider != null) carouselPanel.MoveChild(_carouselSlider, 3);
+
+		_btnLeftArrow.Position = new Vector2(130, 160);
+		_btnRightArrow.Position = new Vector2(790, 160);
+	}
+
+	private void ApplyCarouselButtons()
+	{
+		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.png") ?? LoadTextureSafe("res://Assets/UI/map_details_prev_next.jpg");
 
 		if (arrowTex != null)
 		{
-			_btnLeftArrow.Text = "";
-			_btnRightArrow.Text = "";
+			ApplyImageCarouselButton(_btnLeftArrow, arrowTex, true);
+			ApplyImageCarouselButton(_btnRightArrow, arrowTex, false);
 
-			_btnLeftArrow.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-			_btnLeftArrow.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
-			_btnLeftArrow.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
-			_btnLeftArrow.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-			_btnRightArrow.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-			_btnRightArrow.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
-			_btnRightArrow.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
-			_btnRightArrow.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-			_btnLeftArrow.Size = new Vector2(40, 70);
-			_btnRightArrow.Size = new Vector2(40, 70);
-
-			var leftIcon = _btnLeftArrow.GetNodeOrNull<TextureRect>("ArrowIcon");
-			if (leftIcon == null)
-			{
-				leftIcon = new TextureRect();
-				leftIcon.Name = "ArrowIcon";
-				leftIcon.MouseFilter = Control.MouseFilterEnum.Ignore;
-				_btnLeftArrow.AddChild(leftIcon);
-			}
-			leftIcon.Texture = arrowTex;
-			leftIcon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-			leftIcon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			leftIcon.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-			leftIcon.FlipH = true;
-			leftIcon.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-
-			var rightIcon = _btnRightArrow.GetNodeOrNull<TextureRect>("ArrowIcon");
-			if (rightIcon == null)
-			{
-				rightIcon = new TextureRect();
-				rightIcon.Name = "ArrowIcon";
-				rightIcon.MouseFilter = Control.MouseFilterEnum.Ignore;
-				_btnRightArrow.AddChild(rightIcon);
-			}
-			rightIcon.Texture = arrowTex;
-			rightIcon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-			rightIcon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			rightIcon.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-			rightIcon.FlipH = false;
-			rightIcon.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-
+			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
 			if (mapFrameTex != null)
 			{
 				_btnLeftArrow.Position = new Vector2(132, 155);
@@ -648,22 +550,41 @@ public partial class MapDetails : Control
 		}
 		else
 		{
-			_btnLeftArrow.AddThemeStyleboxOverride("normal", UIStyle.CreateFlatButtonStyle(false, false));
-			_btnLeftArrow.AddThemeStyleboxOverride("hover", UIStyle.CreateFlatButtonStyle(true, false));
-			_btnLeftArrow.AddThemeStyleboxOverride("pressed", UIStyle.CreateFlatButtonStyle(false, true));
-			_btnLeftArrow.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			UIStyle.ApplyButtonText(_btnLeftArrow, "◀", 24);
-
-			_btnRightArrow.AddThemeStyleboxOverride("normal", UIStyle.CreateFlatButtonStyle(false, false));
-			_btnRightArrow.AddThemeStyleboxOverride("hover", UIStyle.CreateFlatButtonStyle(true, false));
-			_btnRightArrow.AddThemeStyleboxOverride("pressed", UIStyle.CreateFlatButtonStyle(false, true));
-			_btnRightArrow.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			UIStyle.ApplyButtonText(_btnRightArrow, "▶", 24);
+			ApplyFlatCarouselButton(_btnLeftArrow, "◀");
+			ApplyFlatCarouselButton(_btnRightArrow, "▶");
 		}
+	}
 
-		_carouselSlider.AddThemeStyleboxOverride("slider", UIStyle.CreateSliderTrack());
-		_carouselSlider.AddThemeStyleboxOverride("grabber_area", UIStyle.CreateSliderFill());
-		_carouselSlider.AddThemeStyleboxOverride("grabber_area_highlight", UIStyle.CreateSliderFill());
+	private void ApplyImageCarouselButton(Button button, Texture2D texture, bool flipH)
+	{
+		button.Text = "";
+		button.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
+		button.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
+		button.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		button.Size = new Vector2(40, 70);
+
+		var icon = button.GetNodeOrNull<TextureRect>("ArrowIcon");
+		if (icon == null)
+		{
+			icon = new TextureRect { Name = "ArrowIcon", MouseFilter = Control.MouseFilterEnum.Ignore };
+			button.AddChild(icon);
+		}
+		icon.Texture = texture;
+		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+		icon.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		icon.FlipH = flipH;
+		icon.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+	}
+
+	private void ApplyFlatCarouselButton(Button button, string text)
+	{
+		button.AddThemeStyleboxOverride("normal", UIStyle.CreateFlatButtonStyle(false, false));
+		button.AddThemeStyleboxOverride("hover", UIStyle.CreateFlatButtonStyle(true, false));
+		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateFlatButtonStyle(false, true));
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(button, text, 24);
 	}
 
 	private void SetupPillarButton(Button button, string text, Action onClick)
@@ -681,6 +602,14 @@ public partial class MapDetails : Control
 	}
 
 	private void RegisterEvents()
+	{
+		RegisterCarouselEvents();
+		RegisterDownloadEvents();
+		RegisterAllScrollEvents();
+		RegisterHoverEvents();
+	}
+
+	private void RegisterCarouselEvents()
 	{
 		_btnLeftArrow.Pressed += () =>
 		{
@@ -705,7 +634,10 @@ public partial class MapDetails : Control
 			_carouselIndex = (int)value;
 			UpdateCarousel();
 		};
+	}
 
+	private void RegisterDownloadEvents()
+	{
 		_versionDropdown.ItemSelected += (index) =>
 		{
 			UIManager.Instance.PlayClickSound();
@@ -725,79 +657,51 @@ public partial class MapDetails : Control
 				StartMapDownloadAsync();
 			}
 		};
+	}
 
+	private void RegisterAllScrollEvents()
+	{
 		if (_statsScrollContainer != null)
 		{
 			_targetScrollVertical = _statsScrollContainer.ScrollVertical;
-			_statsScrollContainer.GuiInput += (@event) =>
-			{
-				if (@event is InputEventMouseButton mb && mb.Pressed)
-				{
-					var vScroll = _statsScrollContainer.GetVScrollBar();
-					float maxScroll = vScroll != null ? (float)Mathf.Max(0, vScroll.MaxValue - vScroll.Page) : 1000f;
-
-					if (mb.ButtonIndex == MouseButton.WheelUp)
-					{
-						_targetScrollVertical = Mathf.Max(0, _targetScrollVertical - 70f);
-						GetViewport().SetInputAsHandled();
-					}
-					else if (mb.ButtonIndex == MouseButton.WheelDown)
-					{
-						_targetScrollVertical = Mathf.Min(maxScroll, _targetScrollVertical + 70f);
-						GetViewport().SetInputAsHandled();
-					}
-				}
-			};
+			_statsScrollContainer.GuiInput += (@event) => HandleScrollInput(@event, _statsScrollContainer, ref _targetScrollVertical, 70f);
 		}
 
 		if (_descScrollContainer != null)
 		{
 			_targetDescScrollVertical = _descScrollContainer.ScrollVertical;
-			_descScrollContainer.GuiInput += (@event) =>
-			{
-				if (@event is InputEventMouseButton mb && mb.Pressed)
-				{
-					var vScroll = _descScrollContainer.GetVScrollBar();
-					float maxScroll = vScroll != null ? (float)Mathf.Max(0, vScroll.MaxValue - vScroll.Page) : 1000f;
-
-					if (mb.ButtonIndex == MouseButton.WheelUp)
-					{
-						_targetDescScrollVertical = Mathf.Max(0, _targetDescScrollVertical - 50f);
-						GetViewport().SetInputAsHandled();
-					}
-					else if (mb.ButtonIndex == MouseButton.WheelDown)
-					{
-						_targetDescScrollVertical = Mathf.Min(maxScroll, _targetDescScrollVertical + 50f);
-						GetViewport().SetInputAsHandled();
-					}
-				}
-			};
+			_descScrollContainer.GuiInput += (@event) => HandleScrollInput(@event, _descScrollContainer, ref _targetDescScrollVertical, 50f);
 		}
 
 		if (_featuresScrollContainer != null)
 		{
 			_targetFeaturesScrollVertical = _featuresScrollContainer.ScrollVertical;
-			_featuresScrollContainer.GuiInput += (@event) =>
-			{
-				if (@event is InputEventMouseButton mb && mb.Pressed)
-				{
-					var vScroll = _featuresScrollContainer.GetVScrollBar();
-					float maxScroll = vScroll != null ? (float)Mathf.Max(0, vScroll.MaxValue - vScroll.Page) : 1000f;
-
-					if (mb.ButtonIndex == MouseButton.WheelUp)
-					{
-						_targetFeaturesScrollVertical = Mathf.Max(0, _targetFeaturesScrollVertical - 50f);
-						GetViewport().SetInputAsHandled();
-					}
-					else if (mb.ButtonIndex == MouseButton.WheelDown)
-					{
-						_targetFeaturesScrollVertical = Mathf.Min(maxScroll, _targetFeaturesScrollVertical + 50f);
-						GetViewport().SetInputAsHandled();
-					}
-				}
-			};
+			_featuresScrollContainer.GuiInput += (@event) => HandleScrollInput(@event, _featuresScrollContainer, ref _targetFeaturesScrollVertical, 50f);
 		}
+	}
 
+	private void HandleScrollInput(InputEvent @event, ScrollContainer container, ref float targetScroll, float step)
+	{
+		if (@event is InputEventMouseButton mb && mb.Pressed)
+		{
+			var vScroll = container.GetVScrollBar();
+			float maxScroll = vScroll != null ? (float)Mathf.Max(0, vScroll.MaxValue - vScroll.Page) : 1000f;
+
+			if (mb.ButtonIndex == MouseButton.WheelUp)
+			{
+				targetScroll = Mathf.Max(0, targetScroll - step);
+				GetViewport().SetInputAsHandled();
+			}
+			else if (mb.ButtonIndex == MouseButton.WheelDown)
+			{
+				targetScroll = Mathf.Min(maxScroll, targetScroll + step);
+				GetViewport().SetInputAsHandled();
+			}
+		}
+	}
+
+	private void RegisterHoverEvents()
+	{
 		_texCenter.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
 		_texLeftPeek.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
 		_texRightPeek.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
@@ -841,11 +745,10 @@ public partial class MapDetails : Control
 		if (_texLeftPeek != null) _texLeftPeek.Visible = !hasMapFrame;
 		if (_texRightPeek != null) _texRightPeek.Visible = !hasMapFrame;
 
-		if (!hasMapFrame)
-		{
-			if (_texLeftPeek != null) _texLeftPeek.Texture = LoadTextureSafe(_mapData.Screenshots[leftIndex]);
-			if (_texRightPeek != null) _texRightPeek.Texture = LoadTextureSafe(_mapData.Screenshots[rightIndex]);
-		}
+		if (hasMapFrame) return;
+
+		if (_texLeftPeek != null) _texLeftPeek.Texture = LoadTextureSafe(_mapData.Screenshots[leftIndex]);
+		if (_texRightPeek != null) _texRightPeek.Texture = LoadTextureSafe(_mapData.Screenshots[rightIndex]);
 	}
 
 	private Texture2D LoadTextureSafe(string resPath)
@@ -902,64 +805,48 @@ public partial class MapDetails : Control
 
 		foreach (var feat in displayList)
 		{
-			bool isActive = featureSet.Contains(feat);
-
-			var rowPanel = new PanelContainer();
-			var rowStyle = new StyleBoxFlat();
-			rowStyle.BgColor = isActive
-				? new Color(0.03f, 0.05f, 0.08f, 0.65f)
-				: new Color(0.02f, 0.03f, 0.04f, 0.35f);
-			rowStyle.BorderColor = isActive
-				? new Color(0.15f, 0.65f, 1.0f, 0.5f)
-				: new Color(0.35f, 0.3f, 0.22f, 0.25f);
-			rowStyle.SetBorderWidthAll(1);
-			rowStyle.SetCornerRadiusAll(6);
-			rowStyle.ContentMarginLeft = 12;
-			rowStyle.ContentMarginRight = 12;
-			rowStyle.ContentMarginTop = 8;
-			rowStyle.ContentMarginBottom = 8;
-			rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
-
-			var hBox = new HBoxContainer();
-			hBox.AddThemeConstantOverride("separation", 10);
-			rowPanel.AddChild(hBox);
-
-			var iconRect = new TextureRect();
-			iconRect.CustomMinimumSize = new Vector2(22, 22);
-			iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-			iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			if (isActive)
-			{
-				iconRect.Texture = LoadTextureSafe("res://Assets/UI/checked_box.jpg");
-			}
-			else
-			{
-				iconRect.Texture = LoadTextureSafe("res://Assets/UI/unchecked_box.jpg");
-			}
-			hBox.AddChild(iconRect);
-
-			var label = new Label();
-			label.Text = feat;
-			label.VerticalAlignment = VerticalAlignment.Center;
-			if (isActive)
-			{
-				label.AddThemeColorOverride("font_color", new Color(0.92f, 0.95f, 1.0f));
-				label.AddThemeFontSizeOverride("font_size", 13);
-			}
-			else
-			{
-				label.AddThemeColorOverride("font_color", new Color(0.55f, 0.58f, 0.65f));
-				label.AddThemeFontSizeOverride("font_size", 13);
-			}
-			label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-			hBox.AddChild(label);
-
-			AttachHoverAnimation(rowPanel, 1.03f,
-				isActive ? UIStyle.ColorCyanGlow : UIStyle.ColorGold,
-				isActive ? new Color(0.15f, 0.65f, 1.0f, 0.5f) : new Color(0.35f, 0.3f, 0.22f, 0.25f));
-
-			_featuresList.AddChild(rowPanel);
+			CreateFeatureRow(feat, featureSet.Contains(feat));
 		}
+	}
+
+	private void CreateFeatureRow(string feat, bool isActive)
+	{
+		var rowPanel = new PanelContainer();
+		var rowStyle = new StyleBoxFlat();
+		rowStyle.BgColor = isActive ? new Color(0.03f, 0.05f, 0.08f, 0.65f) : new Color(0.02f, 0.03f, 0.04f, 0.35f);
+		rowStyle.BorderColor = isActive ? new Color(0.15f, 0.65f, 1.0f, 0.5f) : new Color(0.35f, 0.3f, 0.22f, 0.25f);
+		rowStyle.SetBorderWidthAll(1);
+		rowStyle.SetCornerRadiusAll(6);
+		rowStyle.ContentMarginLeft = 12;
+		rowStyle.ContentMarginRight = 12;
+		rowStyle.ContentMarginTop = 8;
+		rowStyle.ContentMarginBottom = 8;
+		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
+
+		var hBox = new HBoxContainer();
+		hBox.AddThemeConstantOverride("separation", 10);
+		rowPanel.AddChild(hBox);
+
+		var iconRect = new TextureRect();
+		iconRect.CustomMinimumSize = new Vector2(22, 22);
+		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+		iconRect.Texture = LoadTextureSafe(isActive ? "res://Assets/UI/checked_box.jpg" : "res://Assets/UI/unchecked_box.jpg");
+		hBox.AddChild(iconRect);
+
+		var label = new Label();
+		label.Text = feat;
+		label.VerticalAlignment = VerticalAlignment.Center;
+		label.AddThemeColorOverride("font_color", isActive ? new Color(0.92f, 0.95f, 1.0f) : new Color(0.55f, 0.58f, 0.65f));
+		label.AddThemeFontSizeOverride("font_size", 13);
+		label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		hBox.AddChild(label);
+
+		AttachHoverAnimation(rowPanel, 1.03f,
+			isActive ? UIStyle.ColorCyanGlow : UIStyle.ColorGold,
+			isActive ? new Color(0.15f, 0.65f, 1.0f, 0.5f) : new Color(0.35f, 0.3f, 0.22f, 0.25f));
+
+		_featuresList.AddChild(rowPanel);
 	}
 
 	private void PopulateRatings()

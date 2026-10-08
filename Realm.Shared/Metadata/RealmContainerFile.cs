@@ -202,26 +202,15 @@ public abstract class RealmContainerFile
 		var (version, oldMetadataJson, payloadOffset) = RealmContainerHeader.ReadHeader(bytes, expectedMagic, formatName);
 		var payloadSpan = bytes.Slice(payloadOffset);
 
-		bool isCompressed = RealmCompressionHelper.IsZstdCompressed(payloadSpan);
-		if (!isCompressed && !string.IsNullOrWhiteSpace(oldMetadataJson) && RealmMetadataHelper.TryExtractIsCompressed(oldMetadataJson, out bool oldCompressed))
-		{
-			isCompressed = oldCompressed;
-		}
-
+		bool isCompressed = DetermineCompressionState(payloadSpan, oldMetadataJson);
 		JsonObject metaObj = ParseMetadataSafe(newMetadataJson);
 
-		if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
-		{
-			string? oldCreatedUtc = ExtractCreatedUtcSafe(oldMetadataJson);
-			metaObj["created_utc"] = oldCreatedUtc ?? DateTime.UtcNow.ToString("O");
-		}
+		UpdateCreatedUtc(metaObj, oldMetadataJson);
 
 		metaObj["format"] = formatExtension.ToLowerInvariant().TrimStart('.');
 		metaObj["is_compressed"] = isCompressed;
-		if (!metaObj.ContainsKey("blake3") || string.IsNullOrWhiteSpace(metaObj["blake3"]?.ToString()))
-		{
-			metaObj["blake3"] = Hasher.Hash(payloadSpan).ToString();
-		}
+
+		UpdateBlake3(metaObj, payloadSpan);
 
 		configureMetadata?.Invoke(metaObj);
 
@@ -235,6 +224,30 @@ public abstract class RealmContainerFile
 		}
 
 		return memoryStream.ToArray();
+	}
+
+	private static bool DetermineCompressionState(ReadOnlySpan<byte> payloadSpan, string? oldMetadataJson)
+	{
+		bool isCompressed = RealmCompressionHelper.IsZstdCompressed(payloadSpan);
+		if (isCompressed) return true;
+		if (string.IsNullOrWhiteSpace(oldMetadataJson)) return false;
+		if (!RealmMetadataHelper.TryExtractIsCompressed(oldMetadataJson, out bool oldCompressed)) return false;
+		return oldCompressed;
+	}
+
+	private static void UpdateCreatedUtc(JsonObject metaObj, string? oldMetadataJson)
+	{
+		if (metaObj.ContainsKey("created_utc") && metaObj["created_utc"] != null) return;
+		
+		string? oldCreatedUtc = ExtractCreatedUtcSafe(oldMetadataJson);
+		metaObj["created_utc"] = oldCreatedUtc ?? DateTime.UtcNow.ToString("O");
+	}
+
+	private static void UpdateBlake3(JsonObject metaObj, ReadOnlySpan<byte> payloadSpan)
+	{
+		if (metaObj.ContainsKey("blake3") && !string.IsNullOrWhiteSpace(metaObj["blake3"]?.ToString())) return;
+		
+		metaObj["blake3"] = Hasher.Hash(payloadSpan).ToString();
 	}
 
 	public static string? ExtractMetadataFromBytes(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> expectedMagic)

@@ -41,42 +41,31 @@ internal class UnitSpawnService
 		return modelPathOrId;
 	}
 
+	private static int GetFlagForPathingCapability(string cap)
+	{
+		return cap.ToLower() switch
+		{
+			"shallow_water" => 1,
+			"deep_water" => 2,
+			"flying" or "air" => 4,
+			"ground" => 8,
+			"buildable" => 32,
+			_ => 0,
+		};
+	}
+
 	public int GetUnitPathingFlags(UnitMetadata meta)
 	{
-		if (meta.PathingType != 0)
+		if (meta.PathingType != 0) return meta.PathingType;
+		if (meta.PathingCapabilities == null || meta.PathingCapabilities.Length == 0) return 8;
+
+		int flags = 0;
+		foreach (var cap in meta.PathingCapabilities)
 		{
-			return meta.PathingType;
+			flags |= GetFlagForPathingCapability(cap);
 		}
 
-		if (meta.PathingCapabilities != null && meta.PathingCapabilities.Length > 0)
-		{
-			int flags = 0;
-			foreach (var cap in meta.PathingCapabilities)
-			{
-				switch (cap.ToLower())
-				{
-					case "shallow_water":
-						flags |= 1;
-						break;
-					case "deep_water":
-						flags |= 2;
-						break;
-					case "flying":
-					case "air":
-						flags |= 4;
-						break;
-					case "ground":
-						flags |= 8;
-						break;
-					case "buildable":
-						flags |= 32;
-						break;
-				}
-			}
-			if (flags != 0) return flags;
-		}
-
-		return 8;
+		return flags != 0 ? flags : 8;
 	}
 
 	public string GetEnemyUnitName(string unitTypeId, string defaultName)
@@ -96,6 +85,25 @@ internal class UnitSpawnService
 		return SplashType.None;
 	}
 
+	private static void ParseCombatTargeting(string[]? targets, out bool canTargetAir, out bool canTargetGround)
+	{
+		canTargetAir = true;
+		canTargetGround = true;
+
+		if (targets == null || targets.Length == 0) return;
+
+		bool hasAir = false;
+		bool hasGround = false;
+		foreach (var targetType in targets)
+		{
+			string normalized = targetType.Trim().ToLowerInvariant();
+			if (normalized == "air") hasAir = true;
+			else if (normalized == "ground") hasGround = true;
+		}
+		canTargetAir = hasAir;
+		canTargetGround = hasGround;
+	}
+
 	public Entity CreateEcsUnitEntity(
 		string id, string name, float hp, float damage, float range, float armor, float speed, float scanRadius, bool isHero, float attackCooldown, int pathingFlags, Vector3 pos, Realm.Ecs.Common.PlayerEntity owner, Entity playerEntity, bool hasShieldsUpgrade, bool hasWeaponsUpgrade, string[]? targets = null,
 		float hpRegen = 0f, float hpRegenCombatDelay = 0f, float maxMana = 0f, float manaRegen = 0f,
@@ -111,21 +119,7 @@ internal class UnitSpawnService
 		EcsWorld.Add(entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
 		EcsWorld.Add(entity, new Owner(owner));
 
-		bool canTargetAir = true;
-		bool canTargetGround = true;
-		if (targets != null && targets.Length > 0)
-		{
-			bool hasAir = false;
-			bool hasGround = false;
-			foreach (var targetType in targets)
-			{
-				string normalized = targetType.Trim().ToLowerInvariant();
-				if (normalized == "air") hasAir = true;
-				else if (normalized == "ground") hasGround = true;
-			}
-			canTargetAir = hasAir;
-			canTargetGround = hasGround;
-		}
+		ParseCombatTargeting(targets, out bool canTargetAir, out bool canTargetGround);
 		EcsWorld.Add(entity, new CombatTargeting(canTargetAir, canTargetGround));
 
 		if (isHero)

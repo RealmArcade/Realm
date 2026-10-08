@@ -42,7 +42,18 @@ public partial class MainMenu : Control
 	{
 		TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 
-		// Bind nodes
+		BindNodes();
+		StylePanels();
+		SetupButtons();
+		SetupSocialPopover();
+		ApplyDevelopmentVisibility();
+
+		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
+		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
+	}
+
+	private void BindNodes()
+	{
 		_bgPanel = GetNode<Panel>("Background");
 		_norseFont ??= GD.Load<Font>("res://Assets/UI/Norse.otf");
 		_norseBoldFont ??= GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
@@ -73,15 +84,19 @@ public partial class MainMenu : Control
 		_donateButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/DonateButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/DonateButton");
 		_announcementsButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/AnnouncementsButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/AnnouncementsButton");
 		_bugReportButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/BugReportButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/BugReportButton");
+	}
 
-		// Style background & panels
+	private void StylePanels()
+	{
 		_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateEntranceBgTexture());
 		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
 		_centralPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		GetNode<VBoxContainer>("CentralPanel/VBoxContainer").AddThemeConstantOverride("separation", 10);
+	}
 
-		// Style buttons
+	private void SetupButtons()
+	{
 		SetupPlayButton(_playButton, () => UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser));
 		if (_singlePlayerButton != null)
 		{
@@ -113,49 +128,50 @@ public partial class MainMenu : Control
 		SetupAvatarButton(_profileButton, () => ShowProfilePopup());
 		SetupButton(_quitButton, "QUIT GAME", () => GetTree().Quit());
 
-		if (_socialButton != null && _socialPopover != null && _socialPopoverOverlay != null)
-		{
-			SetupIconButton(_socialButton, "", "res://Assets/UI/social_icon.png", () => ToggleSocialPopover(), new Vector2(32, 32));
-			var popoverBg = _socialPopover.GetNodeOrNull<TextureRect>("Background");
-			if (popoverBg != null)
-			{
-				popoverBg.Texture = LoadTrimmedTexture("res://Assets/UI/menu_popup.png");
-				popoverBg.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-				popoverBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-				popoverBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			}
-
-			if (_websiteButton != null) SetupMenuButton(_websiteButton, "WEBSITE", () => { OS.ShellOpen("https://www.realm-game.com/"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/globe_icon.png");
-			if (_discordButton != null) SetupMenuButton(_discordButton, "DISCORD", () => { OS.ShellOpen("http://discord.realm-game.com"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/discord_icon.png");
-			if (_youtubeButton != null) SetupMenuButton(_youtubeButton, "YOUTUBE", () => { OS.ShellOpen("https://www.youtube.com/@Realm-Game"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/youtube_icon.png");
-			if (_donateButton != null) SetupMenuButton(_donateButton, "DONATE", () => { OS.ShellOpen("http://realm-game.com/#donate"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/donate_icon.png");
-			if (_announcementsButton != null) SetupMenuButton(_announcementsButton, "ANNOUNCEMENTS", () => { OS.ShellOpen("https://realm-game.com/#subscribe"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/email_icon.png");
-			if (_bugReportButton != null) SetupMenuButton(_bugReportButton, "BUG REPORT", () => { OS.ShellOpen("https://github.com/RealmArcade/Realm/issues"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/bug_icon.png");
-
-			_socialPopoverOverlay.GuiInput += (@event) =>
-			{
-				if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
-				{
-					HideSocialPopover();
-				}
-			};
-		}
-
 		_mapDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
 		_mapEditorButton.AddThemeConstantOverride("icon_max_width", 28);
 		_playButton.AddThemeConstantOverride("icon_max_width", 28);
+	}
 
-		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
-		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
+	private void SetupSocialPopover()
+	{
+		if (_socialButton == null || _socialPopover == null || _socialPopoverOverlay == null) return;
 
-		if (!PathUtils.IsDevelopmentBuild)
+		SetupIconButton(_socialButton, "", "res://Assets/UI/social_icon.png", () => ToggleSocialPopover(), new Vector2(32, 32));
+		var popoverBg = _socialPopover.GetNodeOrNull<TextureRect>("Background");
+		if (popoverBg != null)
 		{
-			if (_playButton != null) _playButton.Visible = false;
-			if (_singlePlayerButton != null) _singlePlayerButton.Visible = false;
-			if (_creatorDiscoveryButton != null) _creatorDiscoveryButton.Visible = false;
-			if (_replaysButton != null) _replaysButton.Visible = false;
-			if (_profileButton != null) _profileButton.Visible = false;
+			popoverBg.Texture = LoadTrimmedTexture("res://Assets/UI/menu_popup.png");
+			popoverBg.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			popoverBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+			popoverBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		}
+
+		if (_websiteButton != null) SetupMenuButton(_websiteButton, "WEBSITE", () => { OS.ShellOpen("https://www.realm-game.com/"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/globe_icon.png");
+		if (_discordButton != null) SetupMenuButton(_discordButton, "DISCORD", () => { OS.ShellOpen("http://discord.realm-game.com"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/discord_icon.png");
+		if (_youtubeButton != null) SetupMenuButton(_youtubeButton, "YOUTUBE", () => { OS.ShellOpen("https://www.youtube.com/@Realm-Game"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/youtube_icon.png");
+		if (_donateButton != null) SetupMenuButton(_donateButton, "DONATE", () => { OS.ShellOpen("http://realm-game.com/#donate"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/donate_icon.png");
+		if (_announcementsButton != null) SetupMenuButton(_announcementsButton, "ANNOUNCEMENTS", () => { OS.ShellOpen("https://realm-game.com/#subscribe"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/email_icon.png");
+		if (_bugReportButton != null) SetupMenuButton(_bugReportButton, "BUG REPORT", () => { OS.ShellOpen("https://github.com/RealmArcade/Realm/issues"); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, "res://Assets/UI/bug_icon.png");
+
+		_socialPopoverOverlay.GuiInput += (@event) =>
+		{
+			if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
+			{
+				HideSocialPopover();
+			}
+		};
+	}
+
+	private void ApplyDevelopmentVisibility()
+	{
+		if (PathUtils.IsDevelopmentBuild) return;
+
+		if (_playButton != null) _playButton.Visible = false;
+		if (_singlePlayerButton != null) _singlePlayerButton.Visible = false;
+		if (_creatorDiscoveryButton != null) _creatorDiscoveryButton.Visible = false;
+		if (_replaysButton != null) _replaysButton.Visible = false;
+		if (_profileButton != null) _profileButton.Visible = false;
 	}
 
 	private void ToggleSocialPopover()
@@ -226,28 +242,37 @@ public partial class MainMenu : Control
 		button.Text = TranslationServer.Translate(text);
 		button.CustomMinimumSize = minSize ?? (texturePath != null ? new Vector2(240, 59) : new Vector2(240, 40));
 
+		ApplyMenuButtonIcon(button, iconPath);
+		ApplyMenuButtonTextStyles(button);
+		ApplyMenuButtonStyleBoxes(button, texturePath);
+
+		button.Pressed += () =>
+		{
+			PlayClickSound();
+			onClick?.Invoke();
+		};
+
+		button.MouseEntered += () => PlayHoverSound();
+	}
+
+	private void ApplyMenuButtonIcon(Button button, string iconPath)
+	{
 		if (!string.IsNullOrEmpty(iconPath))
 		{
 			button.Icon = LoadTrimmedTexture(iconPath);
-			button.ExpandIcon = true;
-			button.IconAlignment = HorizontalAlignment.Left;
-			button.VerticalIconAlignment = VerticalAlignment.Center;
-			button.AddThemeConstantOverride("icon_max_width", 24);
-			button.AddThemeConstantOverride("h_separation", 10);
-		}
-		else if (button.Icon != null)
-		{
-			button.ExpandIcon = true;
-			button.IconAlignment = HorizontalAlignment.Left;
-			button.VerticalIconAlignment = VerticalAlignment.Center;
-			button.AddThemeConstantOverride("icon_max_width", 24);
-			button.AddThemeConstantOverride("h_separation", 10);
-		}
-		else
-		{
-			button.Icon = null;
 		}
 
+		if (button.Icon == null) return;
+
+		button.ExpandIcon = true;
+		button.IconAlignment = HorizontalAlignment.Left;
+		button.VerticalIconAlignment = VerticalAlignment.Center;
+		button.AddThemeConstantOverride("icon_max_width", 24);
+		button.AddThemeConstantOverride("h_separation", 10);
+	}
+
+	private void ApplyMenuButtonTextStyles(Button button)
+	{
 		button.AddThemeFontOverride("font", _norseBoldFont);
 		button.AddThemeFontSizeOverride("font_size", 20);
 
@@ -262,63 +287,36 @@ public partial class MainMenu : Control
 		button.AddThemeColorOverride("font_shadow_color", Color.FromHtml("#8C8171"));
 		button.AddThemeConstantOverride("shadow_offset_x", 0);
 		button.AddThemeConstantOverride("shadow_offset_y", 2);
+	}
 
-		var normalTexPath = texturePath ?? "res://Assets/UI/menu_button_normal.png";
-		var hoverTexPath = texturePath ?? "res://Assets/UI/menu_button_hover.png";
-		var pressedTexPath = texturePath ?? "res://Assets/UI/menu_button_pressed.png";
-
-		int texMarginLR = texturePath != null ? 0 : 32;
-		int texMarginTB = texturePath != null ? 0 : 10;
-		int contentMarginLR = texturePath != null ? 24 : 32;
-		int contentMarginTB = texturePath != null ? 6 : 10;
-
-		var normalStyle = new StyleBoxTexture();
-		normalStyle.Texture = LoadTrimmedTexture(normalTexPath);
-		normalStyle.TextureMarginLeft = texMarginLR;
-		normalStyle.TextureMarginRight = texMarginLR;
-		normalStyle.TextureMarginTop = texMarginTB;
-		normalStyle.TextureMarginBottom = texMarginTB;
-		normalStyle.ContentMarginLeft = contentMarginLR;
-		normalStyle.ContentMarginRight = contentMarginLR;
-		normalStyle.ContentMarginTop = contentMarginTB;
-		normalStyle.ContentMarginBottom = contentMarginTB;
-
-		var hoverStyle = new StyleBoxTexture();
-		hoverStyle.Texture = LoadTrimmedTexture(hoverTexPath);
-		if (texturePath != null) hoverStyle.ModulateColor = new Color(1.12f, 1.10f, 0.96f);
-		hoverStyle.TextureMarginLeft = texMarginLR;
-		hoverStyle.TextureMarginRight = texMarginLR;
-		hoverStyle.TextureMarginTop = texMarginTB;
-		hoverStyle.TextureMarginBottom = texMarginTB;
-		hoverStyle.ContentMarginLeft = contentMarginLR;
-		hoverStyle.ContentMarginRight = contentMarginLR;
-		hoverStyle.ContentMarginTop = contentMarginTB;
-		hoverStyle.ContentMarginBottom = contentMarginTB;
-
-		var pressedStyle = new StyleBoxTexture();
-		pressedStyle.Texture = LoadTrimmedTexture(pressedTexPath);
-		if (texturePath != null) pressedStyle.ModulateColor = new Color(0.85f, 0.82f, 0.75f);
-		pressedStyle.TextureMarginLeft = texMarginLR;
-		pressedStyle.TextureMarginRight = texMarginLR;
-		pressedStyle.TextureMarginTop = texMarginTB;
-		pressedStyle.TextureMarginBottom = texMarginTB;
-		pressedStyle.ContentMarginLeft = contentMarginLR;
-		pressedStyle.ContentMarginRight = contentMarginLR;
-		pressedStyle.ContentMarginTop = contentMarginTB;
-		pressedStyle.ContentMarginBottom = contentMarginTB;
+	private void ApplyMenuButtonStyleBoxes(Button button, string texturePath)
+	{
+		var normalStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_normal.png", texturePath, null);
+		var hoverStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_hover.png", texturePath, new Color(1.12f, 1.10f, 0.96f));
+		var pressedStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_pressed.png", texturePath, new Color(0.85f, 0.82f, 0.75f));
 
 		button.AddThemeStyleboxOverride("normal", normalStyle);
 		button.AddThemeStyleboxOverride("hover", hoverStyle);
 		button.AddThemeStyleboxOverride("pressed", pressedStyle);
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
 
-		button.Pressed += () =>
-		{
-			PlayClickSound();
-			onClick?.Invoke();
-		};
+	private StyleBoxTexture CreateMenuButtonStyleBox(string texPath, string customPath, Color? modColor)
+	{
+		var style = new StyleBoxTexture();
+		style.Texture = LoadTrimmedTexture(texPath);
+		if (customPath != null && modColor.HasValue) style.ModulateColor = modColor.Value;
 
-		button.MouseEntered += () => PlayHoverSound();
+		style.TextureMarginLeft = customPath != null ? 0 : 32;
+		style.TextureMarginRight = customPath != null ? 0 : 32;
+		style.TextureMarginTop = customPath != null ? 0 : 10;
+		style.TextureMarginBottom = customPath != null ? 0 : 10;
+		style.ContentMarginLeft = customPath != null ? 24 : 32;
+		style.ContentMarginRight = customPath != null ? 24 : 32;
+		style.ContentMarginTop = customPath != null ? 6 : 10;
+		style.ContentMarginBottom = customPath != null ? 6 : 10;
+
+		return style;
 	}
 
 	private void CreateVersionSelector()
@@ -653,6 +651,21 @@ public partial class MainMenu : Control
 			}
 		}
 
+		var container = CreateIconButtonContainer();
+		
+		var iconRect = CreateIconButtonIcon(iconPath, iconSize);
+		container.AddChild(iconRect);
+
+		var label = CreateIconButtonLabel(text);
+		container.AddChild(label);
+
+		button.AddChild(container);
+
+		BindIconButtonEvents(button, label, iconRect, rotateOnHover, onClick);
+	}
+
+	private HBoxContainer CreateIconButtonContainer()
+	{
 		var container = new HBoxContainer();
 		container.Name = "ButtonContent";
 		container.AnchorLeft = 0.0f;
@@ -662,9 +675,11 @@ public partial class MainMenu : Control
 		container.Alignment = BoxContainer.AlignmentMode.Center;
 		container.MouseFilter = Control.MouseFilterEnum.Ignore;
 		container.AddThemeConstantOverride("separation", 6);
+		return container;
+	}
 
-		button.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-
+	private TextureRect CreateIconButtonIcon(string iconPath, Vector2? iconSize)
+	{
 		var iconRect = new TextureRect();
 		iconRect.Texture = LoadTrimmedTexture(iconPath);
 		iconRect.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
@@ -676,8 +691,11 @@ public partial class MainMenu : Control
 		iconRect.PivotOffset = size / 2.0f;
 		iconRect.MouseFilter = Control.MouseFilterEnum.Ignore;
 		iconRect.Modulate = UIStyle.ColorGoldDull;
-		container.AddChild(iconRect);
+		return iconRect;
+	}
 
+	private Label CreateIconButtonLabel(string text)
+	{
 		var label = new Label();
 		label.Text = TranslationServer.Translate(text);
 		label.AddThemeFontOverride("font", _norseBoldFont);
@@ -687,10 +705,11 @@ public partial class MainMenu : Control
 		label.AddThemeConstantOverride("shadow_offset_x", 0);
 		label.AddThemeConstantOverride("shadow_offset_y", 2);
 		label.MouseFilter = Control.MouseFilterEnum.Ignore;
-		container.AddChild(label);
+		return label;
+	}
 
-		button.AddChild(container);
-
+	private void BindIconButtonEvents(Button button, Label label, TextureRect iconRect, bool rotateOnHover, Action onClick)
+	{
 		Tween scaleTween = null;
 		Tween rotationTween = null;
 
@@ -800,17 +819,43 @@ public partial class MainMenu : Control
 			_profilePopup.QueueFree();
 		}
 
-		_profilePopup = new Panel();
-		_profilePopup.AnchorLeft = 0.0f;
-		_profilePopup.AnchorRight = 1.0f;
-		_profilePopup.AnchorTop = 0.0f;
-		_profilePopup.AnchorBottom = 1.0f;
-		_profilePopup.OffsetLeft = 0.0f;
-		_profilePopup.OffsetRight = 0.0f;
-		_profilePopup.OffsetTop = 0.0f;
-		_profilePopup.OffsetBottom = 0.0f;
-		_profilePopup.GrowHorizontal = Control.GrowDirection.Both;
-		_profilePopup.GrowVertical = Control.GrowDirection.Both;
+		_profilePopup = CreateProfilePopupBase();
+		AddChild(_profilePopup);
+
+		var cardPanel = CreateProfileCardPanel();
+		_profilePopup.AddChild(cardPanel);
+
+		var marginContainer = CreateProfileMarginContainer();
+		cardPanel.AddChild(marginContainer);
+
+		var vbox = CreateProfileVBox();
+		marginContainer.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+		vbox.AddChild(CreateProfileTitle());
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
+		vbox.AddChild(CreateProfileFactionFlag());
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
+		
+		CreateProfileDataRows(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+		vbox.AddChild(CreateProfileBackButton());
+	}
+
+	private Panel CreateProfilePopupBase()
+	{
+		var popup = new Panel();
+		popup.AnchorLeft = 0.0f;
+		popup.AnchorRight = 1.0f;
+		popup.AnchorTop = 0.0f;
+		popup.AnchorBottom = 1.0f;
+		popup.OffsetLeft = 0.0f;
+		popup.OffsetRight = 0.0f;
+		popup.OffsetTop = 0.0f;
+		popup.OffsetBottom = 0.0f;
+		popup.GrowHorizontal = Control.GrowDirection.Both;
+		popup.GrowVertical = Control.GrowDirection.Both;
 
 		Texture2D profileBgTexture = null;
 		string profileBgPath = "res://Assets/UI/player_profile_bg.png";
@@ -823,17 +868,19 @@ public partial class MainMenu : Control
 		{
 			var bgStyle = new StyleBoxTexture();
 			bgStyle.Texture = profileBgTexture;
-			_profilePopup.AddThemeStyleboxOverride("panel", bgStyle);
-			_profilePopup.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			popup.AddThemeStyleboxOverride("panel", bgStyle);
+			popup.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
-			_profilePopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		}
 
-		AddChild(_profilePopup);
+		return popup;
+	}
 
-		// Load and patch the background image from the user to remove the Gemini watermark
+	private Panel CreateProfileCardPanel()
+	{
 		Texture2D cardTexture = null;
 		string targetPath = Godot.ProjectSettings.GlobalizePath("res://Assets/UI/player_profile_card_bg.png");
 		if (System.IO.File.Exists(targetPath))
@@ -868,7 +915,6 @@ public partial class MainMenu : Control
 			}
 		}
 
-		// Stone card in the center to hold the stats
 		var cardPanel = new Panel();
 		cardPanel.CustomMinimumSize = new Vector2(600, 700);
 		cardPanel.AnchorLeft = 0.5f;
@@ -883,8 +929,11 @@ public partial class MainMenu : Control
 		cardPanel.GrowVertical = Control.GrowDirection.Both;
 		cardPanel.ClipContents = true;
 		cardPanel.AddThemeStyleboxOverride("panel", cardStyle);
-		_profilePopup.AddChild(cardPanel);
+		return cardPanel;
+	}
 
+	private MarginContainer CreateProfileMarginContainer()
+	{
 		var marginContainer = new MarginContainer();
 		marginContainer.AnchorLeft = 0.0f;
 		marginContainer.AnchorRight = 1.0f;
@@ -896,18 +945,20 @@ public partial class MainMenu : Control
 		marginContainer.OffsetBottom = -30.0f;
 		marginContainer.GrowHorizontal = Control.GrowDirection.Both;
 		marginContainer.GrowVertical = Control.GrowDirection.Both;
-		cardPanel.AddChild(marginContainer);
+		return marginContainer;
+	}
 
+	private VBoxContainer CreateProfileVBox()
+	{
 		var vbox = new VBoxContainer();
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
 		vbox.Alignment = BoxContainer.AlignmentMode.Begin;
-		marginContainer.AddChild(vbox);
+		return vbox;
+	}
 
-		// Top Spacer
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		// Title
+	private Label CreateProfileTitle()
+	{
 		var title = new Label();
 		UIStyle.ApplyTitle(title, "PLAYER PROFILE", 26);
 		
@@ -918,11 +969,11 @@ public partial class MainMenu : Control
 		title.AddThemeColorOverride("font_color", new Color(0.85f, 0.65f, 0.4f));
 		title.AddThemeFontSizeOverride("font_size", 28);
 		
-		vbox.AddChild(title);
+		return title;
+	}
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		// Faction Emblem / Badge Frame (alliance_flag.png)
+	private TextureRect CreateProfileFactionFlag()
+	{
 		var factionFlag = new TextureRect();
 		Texture2D flagTexture = LoadTrimmedTexture("res://Assets/UI/alliance_flag.png");
 		if (flagTexture == null && ResourceLoader.Exists("res://Assets/UI/alliance_flag.png"))
@@ -939,17 +990,17 @@ public partial class MainMenu : Control
 		factionFlag.CustomMinimumSize = new Vector2(210, 210);
 		factionFlag.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		factionFlag.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		vbox.AddChild(factionFlag);
+		return factionFlag;
+	}
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
-
+	private void CreateProfileDataRows(VBoxContainer vbox)
+	{
 		var profileInfoColor = new Color(0.95f, 0.78f, 0.52f);
 
 		var profileFont = new SystemFont();
 		profileFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Garamond", "Georgia", "serif" };
 		profileFont.FontWeight = 700;
 
-		// Centered profile data rows matching exact distribution
 		var profileDataRows = new (string Key, string Value, Color ValueColor)[]
 		{
 			("Username", "Horald_Topa", profileInfoColor),
@@ -991,16 +1042,22 @@ public partial class MainMenu : Control
 			vbox.AddChild(rowContainer);
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
 		}
+	}
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
-
-		// Back button
+	private Button CreateProfileBackButton()
+	{
 		var backBtn = new Button();
-		SetupButton(backBtn, "BACK", () => 
+		
+		backBtn.Flat = false;
+		backBtn.Text = TranslationServer.Translate("BACK");
+		
+		backBtn.Pressed += () => 
 		{
-			_profilePopup.QueueFree();
+			PlayClickSound();
+			_profilePopup?.QueueFree();
 			_profilePopup = null;
-		});
+		};
+		backBtn.MouseEntered += () => PlayHoverSound();
 
 		Texture2D profileBtnTex = null;
 		string profileBtnPath = "res://Assets/UI/player_profile_button.png";
@@ -1044,8 +1101,8 @@ public partial class MainMenu : Control
 		backBtn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
 		backBtn.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
 		backBtn.AddThemeFontSizeOverride("font_size", 18);
-
-		vbox.AddChild(backBtn);
+		
+		return backBtn;
 	}
 
 	private Control _installWaitingPopup;

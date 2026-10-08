@@ -100,10 +100,8 @@ public static class ModelShaderManager
 		return ImageTexture.CreateFromImage(normalizedImg);
 	}
 
-	public static Image NormalizeAlbedoImage(Image sourceImage, float targetLinearLuminance = 0.22f, float minScaleFactor = 0.2f, float maxScaleFactor = 8.0f)
+	private static Image PrepareWorkingImage(Image sourceImage, out Image.Format fmt)
 	{
-		if (sourceImage == null) return null;
-
 		Image workingImage = (Image)sourceImage.Duplicate();
 		if (workingImage.IsCompressed())
 		{
@@ -115,22 +113,20 @@ public static class ModelShaderManager
 			workingImage.ClearMipmaps();
 		}
 
-		var fmt = workingImage.GetFormat();
+		fmt = workingImage.GetFormat();
 		if (fmt != Image.Format.Rgba8 && fmt != Image.Format.Rgb8)
 		{
 			workingImage.Convert(Image.Format.Rgba8);
 			fmt = Image.Format.Rgba8;
 		}
 
-		int w = workingImage.GetWidth();
-		int h = workingImage.GetHeight();
-		byte[] data = workingImage.GetData();
-		int channels = fmt == Image.Format.Rgba8 ? 4 : 3;
+		return workingImage;
+	}
 
+	private static double CalculateTotalLinearLuminance(byte[] data, int stride, int channels, bool allowBlackPixels, out long validPixelCount)
+	{
 		double totalLinearLuminance = 0.0;
-		long validPixelCount = 0;
-		int step = (w * h > 262144) ? 4 : 1;
-		int stride = channels * step;
+		validPixelCount = 0;
 
 		for (int i = 0; i < data.Length; i += stride)
 		{
@@ -139,57 +135,22 @@ public static class ModelShaderManager
 			byte b = data[i + 2];
 			byte a = channels >= 4 ? data[i + 3] : (byte)255;
 
-			if (a < 13)
-			{
-				continue;
-			}
-
-			if (r == 0 && g == 0 && b == 0)
-			{
-				continue;
-			}
+			if (a < 13) continue;
+			if (!allowBlackPixels && r == 0 && g == 0 && b == 0) continue;
 
 			float rLin = SrgbToLinearLut[r];
 			float gLin = SrgbToLinearLut[g];
 			float bLin = SrgbToLinearLut[b];
 
-			float lum = (0.2126f * rLin) + (0.7152f * gLin) + (0.0722f * bLin);
-			totalLinearLuminance += lum;
+			totalLinearLuminance += (0.2126f * rLin) + (0.7152f * gLin) + (0.0722f * bLin);
 			validPixelCount++;
 		}
 
-		if (validPixelCount == 0)
-		{
-			for (int i = 0; i < data.Length; i += stride)
-			{
-				byte r = data[i];
-				byte g = data[i + 1];
-				byte b = data[i + 2];
-				byte a = channels >= 4 ? data[i + 3] : (byte)255;
-				if (a < 13) continue;
+		return totalLinearLuminance;
+	}
 
-				float rLin = SrgbToLinearLut[r];
-				float gLin = SrgbToLinearLut[g];
-				float bLin = SrgbToLinearLut[b];
-				float lum = (0.2126f * rLin) + (0.7152f * gLin) + (0.0722f * bLin);
-				totalLinearLuminance += lum;
-				validPixelCount++;
-			}
-		}
-
-		if (validPixelCount == 0) return sourceImage;
-
-		float avgLuminance = (float)(totalLinearLuminance / validPixelCount);
-		if (avgLuminance <= 0.0001f) return sourceImage;
-
-		float rawScaleFactor = targetLinearLuminance / avgLuminance;
-		float scaleFactor = Mathf.Clamp(rawScaleFactor, minScaleFactor, maxScaleFactor);
-
-		if (MathF.Abs(scaleFactor - 1.0f) < 0.01f)
-		{
-			return sourceImage;
-		}
-
+	private static Image ApplyLuminanceScaleFactor(byte[] data, int channels, float scaleFactor, int w, int h, Image.Format fmt)
+	{
 		byte[] resultData = new byte[data.Length];
 		for (int i = 0; i < data.Length; i += channels)
 		{
@@ -217,6 +178,42 @@ public static class ModelShaderManager
 		return result;
 	}
 
+	public static Image NormalizeAlbedoImage(Image sourceImage, float targetLinearLuminance = 0.22f, float minScaleFactor = 0.2f, float maxScaleFactor = 8.0f)
+	{
+		if (sourceImage == null) return null;
+
+		Image workingImage = PrepareWorkingImage(sourceImage, out Image.Format fmt);
+		int w = workingImage.GetWidth();
+		int h = workingImage.GetHeight();
+		byte[] data = workingImage.GetData();
+		int channels = fmt == Image.Format.Rgba8 ? 4 : 3;
+
+		int step = (w * h > 262144) ? 4 : 1;
+		int stride = channels * step;
+
+		double totalLinearLuminance = CalculateTotalLinearLuminance(data, stride, channels, false, out long validPixelCount);
+
+		if (validPixelCount == 0)
+		{
+			totalLinearLuminance = CalculateTotalLinearLuminance(data, stride, channels, true, out validPixelCount);
+		}
+
+		if (validPixelCount == 0) return sourceImage;
+
+		float avgLuminance = (float)(totalLinearLuminance / validPixelCount);
+		if (avgLuminance <= 0.0001f) return sourceImage;
+
+		float rawScaleFactor = targetLinearLuminance / avgLuminance;
+		float scaleFactor = Mathf.Clamp(rawScaleFactor, minScaleFactor, maxScaleFactor);
+
+		if (MathF.Abs(scaleFactor - 1.0f) < 0.01f)
+		{
+			return sourceImage;
+		}
+
+		return ApplyLuminanceScaleFactor(data, channels, scaleFactor, w, h, fmt);
+	}
+
 	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
 	private static byte LinearToSrgbByte(float lin)
 	{
@@ -226,6 +223,32 @@ public static class ModelShaderManager
 			return lin <= 0.0f ? (byte)0 : (byte)255;
 		}
 		return LinearToSrgbLut[idx];
+	}
+
+	private static bool EvaluateMaskPresence(byte[] data, int stride)
+	{
+		int maskCount = 0;
+		int unmaskCount = 0;
+
+		for (int i = 0; i < data.Length; i += stride)
+		{
+			if (data[i] > 32)
+			{
+				maskCount++;
+			}
+			else
+			{
+				unmaskCount++;
+			}
+		}
+
+		return maskCount > 5 && unmaskCount > 5;
+	}
+
+	private static bool UpdatePlayerMaskCache(ulong ormId, bool hasMask)
+	{
+		_playerMaskCheckCache[ormId] = hasMask;
+		return hasMask;
 	}
 
 	internal static bool CheckHasPlayerMask(Texture2D ormTexture, Material sourceMaterial)
@@ -239,60 +262,46 @@ public static class ModelShaderManager
 		}
 
 		Image img = ormTexture.GetImage();
-		if (img == null)
-		{
-			_playerMaskCheckCache[ormId] = false;
-			return false;
-		}
+		if (img == null) return UpdatePlayerMaskCache(ormId, false);
 
+		Image workingImg = GetMaskWorkingImage(img, out Image.Format fmt);
+		byte[] data = GetMaskDataFromImage(workingImg, fmt, out int stride);
+		
+		if (data == null) return UpdatePlayerMaskCache(ormId, false);
+
+		bool hasMask = EvaluateMaskPresence(data, stride);
+		return UpdatePlayerMaskCache(ormId, hasMask);
+	}
+
+	private static Image GetMaskWorkingImage(Image img, out Image.Format fmt)
+	{
 		Image workingImg = (Image)img.Duplicate();
-		if (workingImg.IsCompressed())
-		{
-			workingImg.Decompress();
-		}
+		if (workingImg.IsCompressed()) workingImg.Decompress();
+		if (workingImg.HasMipmaps()) workingImg.ClearMipmaps();
 
-		if (workingImg.HasMipmaps())
-		{
-			workingImg.ClearMipmaps();
-		}
-
-		var fmt = workingImg.GetFormat();
+		fmt = workingImg.GetFormat();
 		if (fmt != Image.Format.Rgba8 && fmt != Image.Format.Rgb8 && fmt != Image.Format.R8)
 		{
 			workingImg.Convert(Image.Format.Rgba8);
 			fmt = Image.Format.Rgba8;
 		}
+		return workingImg;
+	}
 
-		byte[] data = workingImg.GetData();
-		int channels = fmt == Image.Format.Rgba8 ? 4 : (fmt == Image.Format.Rgb8 ? 3 : 1);
+	private static byte[] GetMaskDataFromImage(Image workingImg, Image.Format fmt, out int stride)
+	{
 		int totalPixels = workingImg.GetWidth() * workingImg.GetHeight();
 		if (totalPixels == 0)
 		{
-			_playerMaskCheckCache[ormId] = false;
-			return false;
+			stride = 0;
+			return null;
 		}
 
+		int channels = fmt == Image.Format.Rgba8 ? 4 : (fmt == Image.Format.Rgb8 ? 3 : 1);
 		int step = totalPixels > 262144 ? 4 : 1;
-		int stride = channels * step;
-		int maskCount = 0;
-		int unmaskCount = 0;
+		stride = channels * step;
 
-		for (int i = 0; i < data.Length; i += stride)
-		{
-			byte r = data[i];
-			if (r > 32)
-			{
-				maskCount++;
-			}
-			else
-			{
-				unmaskCount++;
-			}
-		}
-
-		bool hasMask = maskCount > 5 && unmaskCount > 5;
-		_playerMaskCheckCache[ormId] = hasMask;
-		return hasMask;
+		return workingImg.GetData();
 	}
 
 	public static bool ModelHasPlayerMask(Node rootNode)
@@ -301,61 +310,66 @@ public static class ModelShaderManager
 		return ModelHasPlayerMaskRecursive(rootNode);
 	}
 
-	private static bool ModelHasPlayerMaskRecursive(Node node)
+	private static Texture2D GetOrmTextureFromMaterial(Material srcMat)
 	{
-		if (node is MeshInstance3D meshInst && !IsExcludedMesh(meshInst))
+		if (srcMat is OrmMaterial3D ormMat)
 		{
-			int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
-			for (int i = 0; i < surfaceCount; i++)
+			return ormMat.OrmTexture;
+		}
+		else if (srcMat is BaseMaterial3D baseMat)
+		{
+			return baseMat.RoughnessTexture ?? baseMat.MetallicTexture;
+		}
+		else if (srcMat is ShaderMaterial sm)
+		{
+			var ormVar = sm.GetShaderParameter("texture_orm");
+			return ormVar.VariantType != Variant.Type.Nil ? ormVar.As<Texture2D>() : null;
+		}
+		return null;
+	}
+
+	private static bool CheckMeshInstanceForPlayerMask(MeshInstance3D meshInst)
+	{
+		if (IsExcludedMesh(meshInst)) return false;
+
+		if (CheckSurfaceMaterialForPlayerMask(meshInst)) return true;
+		if (CheckOverrideMaterialForPlayerMask(meshInst)) return true;
+
+		return false;
+	}
+
+	private static bool CheckSurfaceMaterialForPlayerMask(MeshInstance3D meshInst)
+	{
+		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
+		for (int i = 0; i < surfaceCount; i++)
+		{
+			Material srcMat = meshInst.GetSurfaceOverrideMaterial(i);
+			if (srcMat == null && meshInst.Mesh != null)
 			{
-				Material srcMat = meshInst.GetSurfaceOverrideMaterial(i);
-				if (srcMat == null && meshInst.Mesh != null)
-				{
-					srcMat = meshInst.Mesh.SurfaceGetMaterial(i);
-				}
-
-				Texture2D ormTexture = null;
-				if (srcMat is OrmMaterial3D ormMat)
-				{
-					ormTexture = ormMat.OrmTexture;
-				}
-				else if (srcMat is BaseMaterial3D baseMat)
-				{
-					ormTexture = baseMat.RoughnessTexture ?? baseMat.MetallicTexture;
-				}
-				else if (srcMat is ShaderMaterial sm)
-				{
-					var ormVar = sm.GetShaderParameter("texture_orm");
-					ormTexture = ormVar.VariantType != Variant.Type.Nil ? ormVar.As<Texture2D>() : null;
-				}
-
-				if (ormTexture != null && CheckHasPlayerMask(ormTexture, srcMat))
-				{
-					return true;
-				}
+				srcMat = meshInst.Mesh.SurfaceGetMaterial(i);
 			}
 
-			if (meshInst.MaterialOverride != null)
-			{
-				Texture2D ormTexture = null;
-				if (meshInst.MaterialOverride is OrmMaterial3D ormMat)
-				{
-					ormTexture = ormMat.OrmTexture;
-				}
-				else if (meshInst.MaterialOverride is BaseMaterial3D baseMat)
-				{
-					ormTexture = baseMat.RoughnessTexture ?? baseMat.MetallicTexture;
-				}
-				else if (meshInst.MaterialOverride is ShaderMaterial sm)
-				{
-					var ormVar = sm.GetShaderParameter("texture_orm");
-					ormTexture = ormVar.VariantType != Variant.Type.Nil ? ormVar.As<Texture2D>() : null;
-				}
+			Texture2D ormTexture = GetOrmTextureFromMaterial(srcMat);
+			if (ormTexture != null && CheckHasPlayerMask(ormTexture, srcMat)) return true;
+		}
+		return false;
+	}
 
-				if (ormTexture != null && CheckHasPlayerMask(ormTexture, meshInst.MaterialOverride))
-				{
-					return true;
-				}
+	private static bool CheckOverrideMaterialForPlayerMask(MeshInstance3D meshInst)
+	{
+		if (meshInst.MaterialOverride == null) return false;
+
+		Texture2D ormTexture = GetOrmTextureFromMaterial(meshInst.MaterialOverride);
+		return ormTexture != null && CheckHasPlayerMask(ormTexture, meshInst.MaterialOverride);
+	}
+
+	private static bool ModelHasPlayerMaskRecursive(Node node)
+	{
+		if (node is MeshInstance3D meshInst)
+		{
+			if (CheckMeshInstanceForPlayerMask(meshInst))
+			{
+				return true;
 			}
 		}
 
@@ -370,118 +384,212 @@ public static class ModelShaderManager
 		return false;
 	}
 
+	private struct MaterialParameters
+	{
+		public Texture2D RawAlbedoTexture;
+		public Texture2D OrmTexture;
+		public Texture2D NormalTexture;
+		public Texture2D EmissionTexture;
+		public Color AlbedoColor;
+		public Color EmissionColor;
+		public float EmissionEnergy;
+		public float Roughness;
+		public float Metallic;
+		public float Specular;
+		public Vector3 Uv1Scale;
+		public Vector3 Uv1Offset;
+		public bool UseAlphaBlend;
+		public bool UseAlphaScissor;
+		public float AlphaScissorThreshold;
+
+		public static MaterialParameters Default => new MaterialParameters
+		{
+			AlbedoColor = new Color(1f, 1f, 1f, 1f),
+			EmissionColor = new Color(0f, 0f, 0f, 1f),
+			EmissionEnergy = 1f,
+			Roughness = 1f,
+			Metallic = 0f,
+			Specular = 0.5f,
+			Uv1Scale = Vector3.One,
+			Uv1Offset = Vector3.Zero,
+			AlphaScissorThreshold = 0.5f
+		};
+	}
+
+	private static MaterialParameters ExtractBaseMaterialParameters(BaseMaterial3D baseMat)
+	{
+		var p = MaterialParameters.Default;
+		p.RawAlbedoTexture = baseMat.AlbedoTexture;
+		p.OrmTexture = baseMat is OrmMaterial3D ormMat ? ormMat.OrmTexture : (baseMat.RoughnessTexture ?? baseMat.MetallicTexture);
+		p.NormalTexture = baseMat.NormalEnabled ? baseMat.NormalTexture : null;
+		p.EmissionTexture = baseMat.EmissionEnabled ? baseMat.EmissionTexture : null;
+		p.AlbedoColor = baseMat.AlbedoColor;
+		p.EmissionColor = baseMat.EmissionEnabled ? baseMat.Emission : new Color(0f, 0f, 0f, 1f);
+		p.EmissionEnergy = baseMat.EmissionEnabled ? baseMat.EmissionEnergyMultiplier : 1f;
+		p.Roughness = baseMat.Roughness;
+		p.Metallic = baseMat.Metallic;
+		p.Specular = baseMat.MetallicSpecular;
+		p.Uv1Scale = baseMat.Uv1Scale;
+		p.Uv1Offset = baseMat.Uv1Offset;
+
+		if (baseMat.Transparency == BaseMaterial3D.TransparencyEnum.Alpha || baseMat.Transparency == BaseMaterial3D.TransparencyEnum.AlphaDepthPrePass)
+		{
+			p.UseAlphaBlend = true;
+		}
+		else if (baseMat.Transparency == BaseMaterial3D.TransparencyEnum.AlphaScissor)
+		{
+			p.UseAlphaScissor = true;
+			p.AlphaScissorThreshold = baseMat.AlphaScissorThreshold;
+		}
+
+		return p;
+	}
+
+	private static MaterialParameters ExtractShaderMaterialParameters(ShaderMaterial sm)
+	{
+		var p = MaterialParameters.Default;
+		p.RawAlbedoTexture = GetShaderTexture(sm, "texture_albedo");
+		p.OrmTexture = GetShaderTexture(sm, "texture_orm");
+		p.NormalTexture = GetShaderTexture(sm, "texture_normal");
+		p.EmissionTexture = GetShaderTexture(sm, "texture_emission");
+		
+		p.AlbedoColor = GetShaderColor(sm, "albedo_color", p.AlbedoColor);
+		p.EmissionColor = GetShaderColor(sm, "emission_color", p.EmissionColor);
+		
+		p.EmissionEnergy = GetShaderFloat(sm, "emission_energy", p.EmissionEnergy);
+		p.Roughness = GetShaderFloat(sm, "roughness_value", p.Roughness);
+		p.Metallic = GetShaderFloat(sm, "metallic_value", p.Metallic);
+		p.Specular = GetShaderFloat(sm, "specular_value", p.Specular);
+		p.AlphaScissorThreshold = GetShaderFloat(sm, "alpha_scissor_threshold", p.AlphaScissorThreshold);
+		
+		p.Uv1Scale = GetShaderVector3(sm, "uv1_scale", p.Uv1Scale);
+		p.Uv1Offset = GetShaderVector3(sm, "uv1_offset", p.Uv1Offset);
+		
+		p.UseAlphaBlend = GetShaderBool(sm, "use_alpha_blend", p.UseAlphaBlend);
+		p.UseAlphaScissor = GetShaderBool(sm, "use_alpha_scissor", p.UseAlphaScissor);
+
+		return p;
+	}
+
+	private static Texture2D GetShaderTexture(ShaderMaterial sm, string paramName)
+	{
+		var variant = sm.GetShaderParameter(paramName);
+		return variant.VariantType != Variant.Type.Nil ? variant.As<Texture2D>() : null;
+	}
+
+	private static Color GetShaderColor(ShaderMaterial sm, string paramName, Color defaultValue)
+	{
+		var variant = sm.GetShaderParameter(paramName);
+		return variant.VariantType != Variant.Type.Nil ? variant.As<Color>() : defaultValue;
+	}
+
+	private static float GetShaderFloat(ShaderMaterial sm, string paramName, float defaultValue)
+	{
+		var variant = sm.GetShaderParameter(paramName);
+		return variant.VariantType != Variant.Type.Nil ? variant.As<float>() : defaultValue;
+	}
+
+	private static Vector3 GetShaderVector3(ShaderMaterial sm, string paramName, Vector3 defaultValue)
+	{
+		var variant = sm.GetShaderParameter(paramName);
+		return variant.VariantType != Variant.Type.Nil ? variant.As<Vector3>() : defaultValue;
+	}
+
+	private static bool GetShaderBool(ShaderMaterial sm, string paramName, bool defaultValue)
+	{
+		var variant = sm.GetShaderParameter(paramName);
+		return variant.VariantType != Variant.Type.Nil ? variant.As<bool>() : defaultValue;
+	}
+
+	private static MaterialParameters ExtractMaterialParameters(Material sourceMaterial)
+	{
+		if (sourceMaterial is BaseMaterial3D baseMat)
+		{
+			return ExtractBaseMaterialParameters(baseMat);
+		}
+		else if (sourceMaterial is ShaderMaterial sm)
+		{
+			return ExtractShaderMaterialParameters(sm);
+		}
+		return MaterialParameters.Default;
+	}
+
+	private static void ApplyMaterialParametersToShader(ShaderMaterial material, MaterialParameters p, Texture2D albedoTexture, bool hasPlayerMask)
+	{
+		if (albedoTexture != null)
+		{
+			material.SetShaderParameter("texture_albedo", albedoTexture);
+		}
+
+		if (p.OrmTexture != null)
+		{
+			material.SetShaderParameter("texture_orm", p.OrmTexture);
+			material.SetShaderParameter("has_orm_texture", true);
+			material.SetShaderParameter("has_player_mask", hasPlayerMask);
+		}
+		else
+		{
+			material.SetShaderParameter("has_orm_texture", false);
+			material.SetShaderParameter("has_player_mask", false);
+		}
+
+		if (p.NormalTexture != null)
+		{
+			material.SetShaderParameter("texture_normal", p.NormalTexture);
+			material.SetShaderParameter("has_normal_texture", true);
+		}
+		else
+		{
+			material.SetShaderParameter("has_normal_texture", false);
+		}
+
+		if (p.EmissionTexture != null)
+		{
+			material.SetShaderParameter("texture_emission", p.EmissionTexture);
+			material.SetShaderParameter("has_emission_texture", true);
+		}
+		else
+		{
+			material.SetShaderParameter("has_emission_texture", false);
+		}
+
+		material.SetShaderParameter("use_alpha_blend", p.UseAlphaBlend);
+		material.SetShaderParameter("use_alpha_scissor", p.UseAlphaScissor);
+		material.SetShaderParameter("alpha_scissor_threshold", p.AlphaScissorThreshold);
+
+		material.SetShaderParameter("albedo_color", p.AlbedoColor);
+		material.SetShaderParameter("emission_color", p.EmissionColor);
+		material.SetShaderParameter("emission_energy", p.EmissionEnergy);
+		material.SetShaderParameter("roughness_value", p.Roughness);
+		material.SetShaderParameter("metallic_value", p.Metallic);
+		material.SetShaderParameter("specular_value", p.Specular);
+		material.SetShaderParameter("uv1_scale", p.Uv1Scale);
+		material.SetShaderParameter("uv1_offset", p.Uv1Offset);
+
+		if (_currentShroudTexture != null)
+		{
+			material.SetShaderParameter(_paramShroudTexture, _currentShroudTexture);
+		}
+		material.SetShaderParameter(_paramShroudWorldMin, _currentShroudWorldMin);
+		material.SetShaderParameter(_paramShroudWorldSize, _currentShroudWorldSize);
+		material.SetShaderParameter(_paramShroudEnabled, _currentShroudEnabled);
+	}
+
 	public static ShaderMaterial GetOrCreateShaderMaterial(Material sourceMaterial, bool normalizeLuminance = true)
 	{
 		var shader = GetOrCreateShader();
 
-		Texture2D rawAlbedoTexture = null;
-		Texture2D ormTexture = null;
-		Texture2D normalTexture = null;
-		Texture2D emissionTexture = null;
-		Color albedoColor = new Color(1f, 1f, 1f, 1f);
-		Color emissionColor = new Color(0f, 0f, 0f, 1f);
-		float emissionEnergy = 1f;
-		float roughness = 1f;
-		float metallic = 0f;
-		float specular = 0.5f;
-		Vector3 uv1Scale = Vector3.One;
-		Vector3 uv1Offset = Vector3.Zero;
-		bool useAlphaBlend = false;
-		bool useAlphaScissor = false;
-		float alphaScissorThreshold = 0.5f;
+		MaterialParameters p = ExtractMaterialParameters(sourceMaterial);
 
-		if (sourceMaterial is OrmMaterial3D ormMat)
-		{
-			rawAlbedoTexture = ormMat.AlbedoTexture;
-			ormTexture = ormMat.OrmTexture;
-			normalTexture = ormMat.NormalEnabled ? ormMat.NormalTexture : null;
-			emissionTexture = ormMat.EmissionEnabled ? ormMat.EmissionTexture : null;
-			albedoColor = ormMat.AlbedoColor;
-			emissionColor = ormMat.EmissionEnabled ? ormMat.Emission : new Color(0f, 0f, 0f, 1f);
-			emissionEnergy = ormMat.EmissionEnabled ? ormMat.EmissionEnergyMultiplier : 1f;
-			roughness = ormMat.Roughness;
-			metallic = ormMat.Metallic;
-			specular = ormMat.MetallicSpecular;
-			uv1Scale = ormMat.Uv1Scale;
-			uv1Offset = ormMat.Uv1Offset;
-			if (ormMat.Transparency == BaseMaterial3D.TransparencyEnum.Alpha || ormMat.Transparency == BaseMaterial3D.TransparencyEnum.AlphaDepthPrePass)
-			{
-				useAlphaBlend = true;
-			}
-			else if (ormMat.Transparency == BaseMaterial3D.TransparencyEnum.AlphaScissor)
-			{
-				useAlphaScissor = true;
-				alphaScissorThreshold = ormMat.AlphaScissorThreshold;
-			}
-		}
-		else if (sourceMaterial is BaseMaterial3D baseMat)
-		{
-			rawAlbedoTexture = baseMat.AlbedoTexture;
-			ormTexture = baseMat.RoughnessTexture ?? baseMat.MetallicTexture;
-			normalTexture = baseMat.NormalEnabled ? baseMat.NormalTexture : null;
-			emissionTexture = baseMat.EmissionEnabled ? baseMat.EmissionTexture : null;
-			albedoColor = baseMat.AlbedoColor;
-			emissionColor = baseMat.EmissionEnabled ? baseMat.Emission : new Color(0f, 0f, 0f, 1f);
-			emissionEnergy = baseMat.EmissionEnabled ? baseMat.EmissionEnergyMultiplier : 1f;
-			roughness = baseMat.Roughness;
-			metallic = baseMat.Metallic;
-			specular = baseMat.MetallicSpecular;
-			uv1Scale = baseMat.Uv1Scale;
-			uv1Offset = baseMat.Uv1Offset;
-			if (baseMat.Transparency == BaseMaterial3D.TransparencyEnum.Alpha || baseMat.Transparency == BaseMaterial3D.TransparencyEnum.AlphaDepthPrePass)
-			{
-				useAlphaBlend = true;
-			}
-			else if (baseMat.Transparency == BaseMaterial3D.TransparencyEnum.AlphaScissor)
-			{
-				useAlphaScissor = true;
-				alphaScissorThreshold = baseMat.AlphaScissorThreshold;
-			}
-		}
-		else if (sourceMaterial is ShaderMaterial sm)
-		{
-			var rawTexVar = sm.GetShaderParameter("texture_albedo");
-			rawAlbedoTexture = rawTexVar.VariantType != Variant.Type.Nil ? rawTexVar.As<Texture2D>() : null;
-			var ormTexVar = sm.GetShaderParameter("texture_orm");
-			ormTexture = ormTexVar.VariantType != Variant.Type.Nil ? ormTexVar.As<Texture2D>() : null;
-			var normTexVar = sm.GetShaderParameter("texture_normal");
-			normalTexture = normTexVar.VariantType != Variant.Type.Nil ? normTexVar.As<Texture2D>() : null;
-			var emissTexVar = sm.GetShaderParameter("texture_emission");
-			emissionTexture = emissTexVar.VariantType != Variant.Type.Nil ? emissTexVar.As<Texture2D>() : null;
+		Texture2D albedoTexture = normalizeLuminance ? GetOrCreateNormalizedAlbedoTexture(p.RawAlbedoTexture) : p.RawAlbedoTexture;
+		bool hasPlayerMask = CheckHasPlayerMask(p.OrmTexture, sourceMaterial);
 
-			var albColVar = sm.GetShaderParameter("albedo_color");
-			if (albColVar.VariantType != Variant.Type.Nil) albedoColor = albColVar.As<Color>();
-			var emissColVar = sm.GetShaderParameter("emission_color");
-			if (emissColVar.VariantType != Variant.Type.Nil) emissionColor = emissColVar.As<Color>();
-			var emissEnVar = sm.GetShaderParameter("emission_energy");
-			if (emissEnVar.VariantType != Variant.Type.Nil) emissionEnergy = emissEnVar.As<float>();
-			var roughVar = sm.GetShaderParameter("roughness_value");
-			if (roughVar.VariantType != Variant.Type.Nil) roughness = roughVar.As<float>();
-			var metVar = sm.GetShaderParameter("metallic_value");
-			if (metVar.VariantType != Variant.Type.Nil) metallic = metVar.As<float>();
-			var specVar = sm.GetShaderParameter("specular_value");
-			if (specVar.VariantType != Variant.Type.Nil) specular = specVar.As<float>();
-			var uvScaleVar = sm.GetShaderParameter("uv1_scale");
-			if (uvScaleVar.VariantType != Variant.Type.Nil) uv1Scale = uvScaleVar.As<Vector3>();
-			var uvOffsetVar = sm.GetShaderParameter("uv1_offset");
-			if (uvOffsetVar.VariantType != Variant.Type.Nil) uv1Offset = uvOffsetVar.As<Vector3>();
-			var alphaBlendVar = sm.GetShaderParameter("use_alpha_blend");
-			if (alphaBlendVar.VariantType != Variant.Type.Nil) useAlphaBlend = alphaBlendVar.As<bool>();
-			var alphaScissorVar = sm.GetShaderParameter("use_alpha_scissor");
-			if (alphaScissorVar.VariantType != Variant.Type.Nil) useAlphaScissor = alphaScissorVar.As<bool>();
-			var alphaThresholdVar = sm.GetShaderParameter("alpha_scissor_threshold");
-			if (alphaThresholdVar.VariantType != Variant.Type.Nil) alphaScissorThreshold = alphaThresholdVar.As<float>();
-		}
+		ulong rawAlbedoId = p.RawAlbedoTexture != null ? p.RawAlbedoTexture.GetInstanceId() : 0;
+		ulong ormId = p.OrmTexture != null ? p.OrmTexture.GetInstanceId() : 0;
+		ulong normalId = p.NormalTexture != null ? p.NormalTexture.GetInstanceId() : 0;
+		ulong emissionId = p.EmissionTexture != null ? p.EmissionTexture.GetInstanceId() : 0;
 
-		Texture2D albedoTexture = normalizeLuminance ? GetOrCreateNormalizedAlbedoTexture(rawAlbedoTexture) : rawAlbedoTexture;
-		bool hasPlayerMask = CheckHasPlayerMask(ormTexture, sourceMaterial);
-
-		ulong rawAlbedoId = rawAlbedoTexture != null ? rawAlbedoTexture.GetInstanceId() : 0;
-		ulong ormId = ormTexture != null ? ormTexture.GetInstanceId() : 0;
-		ulong normalId = normalTexture != null ? normalTexture.GetInstanceId() : 0;
-		ulong emissionId = emissionTexture != null ? emissionTexture.GetInstanceId() : 0;
-
-		string key = $"{rawAlbedoId}_{normalizeLuminance}_{ormId}_{hasPlayerMask}_{normalId}_{emissionId}_{albedoColor.ToHtml()}_{emissionColor.ToHtml()}_{emissionEnergy:F2}_{roughness:F2}_{metallic:F2}_{specular:F2}_{uv1Scale.X:F2}_{uv1Scale.Y:F2}_{uv1Offset.X:F2}_{uv1Offset.Y:F2}_{useAlphaBlend}_{useAlphaScissor}_{alphaScissorThreshold:F2}";
+		string key = $"{rawAlbedoId}_{normalizeLuminance}_{ormId}_{hasPlayerMask}_{normalId}_{emissionId}_{p.AlbedoColor.ToHtml()}_{p.EmissionColor.ToHtml()}_{p.EmissionEnergy:F2}_{p.Roughness:F2}_{p.Metallic:F2}_{p.Specular:F2}_{p.Uv1Scale.X:F2}_{p.Uv1Scale.Y:F2}_{p.Uv1Offset.X:F2}_{p.Uv1Offset.Y:F2}_{p.UseAlphaBlend}_{p.UseAlphaScissor}_{p.AlphaScissorThreshold:F2}";
 
 		if (_materialCache.TryGetValue(key, out var cached) && GodotObject.IsInstanceValid(cached))
 		{
@@ -493,60 +601,7 @@ public static class ModelShaderManager
 			Shader = shader
 		};
 
-		if (albedoTexture != null)
-		{
-			material.SetShaderParameter("texture_albedo", albedoTexture);
-		}
-		if (ormTexture != null)
-		{
-			material.SetShaderParameter("texture_orm", ormTexture);
-			material.SetShaderParameter("has_orm_texture", true);
-			material.SetShaderParameter("has_player_mask", hasPlayerMask);
-		}
-		else
-		{
-			material.SetShaderParameter("has_orm_texture", false);
-			material.SetShaderParameter("has_player_mask", false);
-		}
-		if (normalTexture != null)
-		{
-			material.SetShaderParameter("texture_normal", normalTexture);
-			material.SetShaderParameter("has_normal_texture", true);
-		}
-		else
-		{
-			material.SetShaderParameter("has_normal_texture", false);
-		}
-		if (emissionTexture != null)
-		{
-			material.SetShaderParameter("texture_emission", emissionTexture);
-			material.SetShaderParameter("has_emission_texture", true);
-		}
-		else
-		{
-			material.SetShaderParameter("has_emission_texture", false);
-		}
-
-		material.SetShaderParameter("use_alpha_blend", useAlphaBlend);
-		material.SetShaderParameter("use_alpha_scissor", useAlphaScissor);
-		material.SetShaderParameter("alpha_scissor_threshold", alphaScissorThreshold);
-
-		material.SetShaderParameter("albedo_color", albedoColor);
-		material.SetShaderParameter("emission_color", emissionColor);
-		material.SetShaderParameter("emission_energy", emissionEnergy);
-		material.SetShaderParameter("roughness_value", roughness);
-		material.SetShaderParameter("metallic_value", metallic);
-		material.SetShaderParameter("specular_value", specular);
-		material.SetShaderParameter("uv1_scale", uv1Scale);
-		material.SetShaderParameter("uv1_offset", uv1Offset);
-
-		if (_currentShroudTexture != null)
-		{
-			material.SetShaderParameter(_paramShroudTexture, _currentShroudTexture);
-		}
-		material.SetShaderParameter(_paramShroudWorldMin, _currentShroudWorldMin);
-		material.SetShaderParameter(_paramShroudWorldSize, _currentShroudWorldSize);
-		material.SetShaderParameter(_paramShroudEnabled, _currentShroudEnabled);
+		ApplyMaterialParametersToShader(material, p, albedoTexture, hasPlayerMask);
 
 		_materialCache[key] = material;
 		return material;
@@ -583,44 +638,54 @@ public static class ModelShaderManager
 		ApplyPlayerColorShaderRecursive(rootNode, playerColor, ignorePlayerColor, normalizeLuminance, isUnitOrBuilding);
 	}
 
+	private static void ApplyPlayerColorShaderToMesh(MeshInstance3D meshInst, Color playerColor, bool ignorePlayerColor, bool normalizeLuminance, bool isUnitOrBuilding)
+	{
+		if (IsExcludedMesh(meshInst)) return;
+
+		ApplyPlayerColorShaderToSurfaces(meshInst, normalizeLuminance);
+		ApplyPlayerColorShaderToOverrideMaterial(meshInst, normalizeLuminance);
+
+		meshInst.SetInstanceShaderParameter(_paramPlayerColor, playerColor);
+		meshInst.SetInstanceShaderParameter(_paramIgnorePlayerColor, ignorePlayerColor ? 1.0f : 0.0f);
+		meshInst.SetInstanceShaderParameter(_paramUnitAmbientBoost, isUnitOrBuilding ? 0.10f : 0.0f);
+		meshInst.SetInstanceShaderParameter(_paramUnitRimIntensity, isUnitOrBuilding ? 0.25f : 0.0f);
+	}
+
+	private static void ApplyPlayerColorShaderToSurfaces(MeshInstance3D meshInst, bool normalizeLuminance)
+	{
+		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
+		for (int i = 0; i < surfaceCount; i++)
+		{
+			Material srcMat = meshInst.GetSurfaceOverrideMaterial(i);
+			if (srcMat == null && meshInst.Mesh != null)
+			{
+				srcMat = meshInst.Mesh.SurfaceGetMaterial(i);
+			}
+
+			if (srcMat is ShaderMaterial sm && sm.Shader == _sharedShader) continue;
+
+			if (srcMat is BaseMaterial3D || srcMat is ShaderMaterial || srcMat == null)
+			{
+				var shaderMat = GetOrCreateShaderMaterial(srcMat, normalizeLuminance);
+				meshInst.SetSurfaceOverrideMaterial(i, shaderMat);
+			}
+		}
+	}
+
+	private static void ApplyPlayerColorShaderToOverrideMaterial(MeshInstance3D meshInst, bool normalizeLuminance)
+	{
+		if (meshInst.MaterialOverride == null) return;
+		if (meshInst.MaterialOverride is ShaderMaterial smOver && smOver.Shader == _sharedShader) return;
+
+		var shaderMat = GetOrCreateShaderMaterial(meshInst.MaterialOverride, normalizeLuminance);
+		meshInst.MaterialOverride = shaderMat;
+	}
+
 	private static void ApplyPlayerColorShaderRecursive(Node node, Color playerColor, bool ignorePlayerColor = false, bool normalizeLuminance = true, bool isUnitOrBuilding = true)
 	{
 		if (node is MeshInstance3D meshInst)
 		{
-			if (!IsExcludedMesh(meshInst))
-			{
-				int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
-				for (int i = 0; i < surfaceCount; i++)
-				{
-					Material srcMat = meshInst.GetSurfaceOverrideMaterial(i);
-					if (srcMat == null && meshInst.Mesh != null)
-					{
-						srcMat = meshInst.Mesh.SurfaceGetMaterial(i);
-					}
-
-					if (srcMat is ShaderMaterial sm && sm.Shader == _sharedShader)
-					{
-						continue;
-					}
-
-					if (srcMat is BaseMaterial3D || srcMat is ShaderMaterial || srcMat == null)
-					{
-						var shaderMat = GetOrCreateShaderMaterial(srcMat, normalizeLuminance);
-						meshInst.SetSurfaceOverrideMaterial(i, shaderMat);
-					}
-				}
-
-				if (meshInst.MaterialOverride != null && !(meshInst.MaterialOverride is ShaderMaterial smOver && smOver.Shader == _sharedShader))
-				{
-					var shaderMat = GetOrCreateShaderMaterial(meshInst.MaterialOverride, normalizeLuminance);
-					meshInst.MaterialOverride = shaderMat;
-				}
-
-				meshInst.SetInstanceShaderParameter(_paramPlayerColor, playerColor);
-				meshInst.SetInstanceShaderParameter(_paramIgnorePlayerColor, ignorePlayerColor ? 1.0f : 0.0f);
-				meshInst.SetInstanceShaderParameter(_paramUnitAmbientBoost, isUnitOrBuilding ? 0.10f : 0.0f);
-				meshInst.SetInstanceShaderParameter(_paramUnitRimIntensity, isUnitOrBuilding ? 0.25f : 0.0f);
-			}
+			ApplyPlayerColorShaderToMesh(meshInst, playerColor, ignorePlayerColor, normalizeLuminance, isUnitOrBuilding);
 		}
 
 		foreach (var child in node.GetChildren())
@@ -664,27 +729,34 @@ public static class ModelShaderManager
 		RefreshShaderMaterialsRecursive(rootNode, normalizeLuminance);
 	}
 
+	private static void RefreshMeshInstanceMaterials(MeshInstance3D meshInst, bool normalizeLuminance)
+	{
+		if (IsExcludedMesh(meshInst)) return;
+
+		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
+		for (int i = 0; i < surfaceCount; i++)
+		{
+			Material srcMat = meshInst.Mesh != null ? meshInst.Mesh.SurfaceGetMaterial(i) : null;
+			if (srcMat == null) srcMat = meshInst.GetSurfaceOverrideMaterial(i);
+			if (srcMat != null)
+			{
+				var shaderMat = GetOrCreateShaderMaterial(srcMat, normalizeLuminance);
+				meshInst.SetSurfaceOverrideMaterial(i, shaderMat);
+			}
+		}
+
+		if (meshInst.MaterialOverride != null)
+		{
+			var shaderMat = GetOrCreateShaderMaterial(meshInst.MaterialOverride, normalizeLuminance);
+			meshInst.MaterialOverride = shaderMat;
+		}
+	}
+
 	private static void RefreshShaderMaterialsRecursive(Node node, bool normalizeLuminance)
 	{
-		if (node is MeshInstance3D meshInst && !IsExcludedMesh(meshInst))
+		if (node is MeshInstance3D meshInst)
 		{
-			int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
-			for (int i = 0; i < surfaceCount; i++)
-			{
-				Material srcMat = meshInst.Mesh != null ? meshInst.Mesh.SurfaceGetMaterial(i) : null;
-				if (srcMat == null) srcMat = meshInst.GetSurfaceOverrideMaterial(i);
-				if (srcMat != null)
-				{
-					var shaderMat = GetOrCreateShaderMaterial(srcMat, normalizeLuminance);
-					meshInst.SetSurfaceOverrideMaterial(i, shaderMat);
-				}
-			}
-
-			if (meshInst.MaterialOverride != null)
-			{
-				var shaderMat = GetOrCreateShaderMaterial(meshInst.MaterialOverride, normalizeLuminance);
-				meshInst.MaterialOverride = shaderMat;
-			}
+			RefreshMeshInstanceMaterials(meshInst, normalizeLuminance);
 		}
 
 		foreach (var child in node.GetChildren())

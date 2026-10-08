@@ -161,30 +161,43 @@ public class ChatPanel
 		HideChatInput();
 		if (string.IsNullOrWhiteSpace(text)) return;
 
-		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer;
-		if (InGameHUD.Instance != null && (InGameHUD.Instance.Multiplayer.MultiplayerPeer == null || InGameHUD.Instance.Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer))
-		{
-			isMultiplayer = false;
-		}
-
-		if (!isMultiplayer && InGameHUD.Instance != null)
-		{
-			if (InGameHUD.Instance.TryTriggerCheat(text))
-			{
-				return;
-			}
-		}
+		bool isMultiplayer = IsMultiplayer();
+		if (TryHandleCheat(text, isMultiplayer)) return;
 
 		string trimmedText = text.Trim();
-		if (trimmedText.Equals("/pause", StringComparison.OrdinalIgnoreCase))
-		{
-			if (GameHost.Instance != null)
-			{
-				GameHost.Instance.TogglePauseRequest();
-			}
-			return;
-		}
+		if (TryHandleCommand(trimmedText)) return;
 
+		DispatchChatMessage(trimmedText);
+	}
+
+	private bool IsMultiplayer()
+	{
+		if (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer) return false;
+		if (InGameHUD.Instance != null && (InGameHUD.Instance.Multiplayer.MultiplayerPeer == null || InGameHUD.Instance.Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer))
+		{
+			return false;
+		}
+		return true;
+	}
+
+	private bool TryHandleCheat(string text, bool isMultiplayer)
+	{
+		if (isMultiplayer || InGameHUD.Instance == null) return false;
+		return InGameHUD.Instance.TryTriggerCheat(text);
+	}
+
+	private bool TryHandleCommand(string trimmedText)
+	{
+		if (!trimmedText.Equals("/pause", StringComparison.OrdinalIgnoreCase)) return false;
+		if (GameHost.Instance != null)
+		{
+			GameHost.Instance.TogglePauseRequest();
+		}
+		return true;
+	}
+
+	private void DispatchChatMessage(string trimmedText)
+	{
 		string sender = LobbyManager.Instance?.LocalPlayer?.Name ?? "Player";
 		bool alliesOnly = _currentMode == ChatMode.Allies;
 

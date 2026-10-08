@@ -343,7 +343,7 @@ public static class MixamoFbxConverter
 	{
 		if (string.IsNullOrEmpty(assimpAnimName) || totalAnims <= 1)
 		{
-			return !string.IsNullOrEmpty(fileBaseName) ? fileBaseName : (assimpAnimName ?? "anim");
+			return GetDefaultAnimName(assimpAnimName, fileBaseName);
 		}
 
 		string name = assimpAnimName;
@@ -353,16 +353,32 @@ public static class MixamoFbxConverter
 			name = parts[^1];
 		}
 
-		string cleanCheck = name.Replace(':', '_').Replace('.', '_');
-		if (cleanCheck.StartsWith("mixamo", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.Equals("Layer0", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.Equals("default", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.StartsWith("Take", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.Equals("Animation", StringComparison.OrdinalIgnoreCase))
+		if (IsDefaultMixamoName(name))
 		{
 			return fileBaseName;
 		}
 
 		return name;
+	}
+
+	private static string GetDefaultAnimName(string assimpAnimName, string fileBaseName)
+	{
+		if (!string.IsNullOrEmpty(fileBaseName))
+		{
+			return fileBaseName;
+		}
+
+		return assimpAnimName ?? "anim";
+	}
+
+	private static bool IsDefaultMixamoName(string name)
+	{
+		string cleanCheck = name.Replace(':', '_').Replace('.', '_');
+		if (cleanCheck.StartsWith("mixamo", StringComparison.OrdinalIgnoreCase)) return true;
+		if (cleanCheck.Equals("Layer0", StringComparison.OrdinalIgnoreCase)) return true;
+		if (cleanCheck.Equals("default", StringComparison.OrdinalIgnoreCase)) return true;
+		if (cleanCheck.StartsWith("Take", StringComparison.OrdinalIgnoreCase)) return true;
+		if (cleanCheck.Equals("Animation", StringComparison.OrdinalIgnoreCase)) return true;
+		return false;
 	}
 }

@@ -13,65 +13,69 @@ public partial class GameHost
 {
 	public void ResetStateForReplayPlayback()
 	{
-		foreach (var unit in AllUnits)
-		{
-			if (GodotObject.IsInstanceValid(unit))
-			{
-				unit.QueueFree();
-			}
-		}
-		AllUnits.Clear();
-		
-		foreach (var prop in AllProps)
-		{
-			if (GodotObject.IsInstanceValid(prop))
-			{
-				prop.QueueFree();
-			}
-		}
-		AllProps.Clear();
-		
-		EntityToUnit3D.Clear();
-		EntityToProp3D.Clear();
+		ClearInitialState();
 
 		_isResettingForReplay = true;
 		try
 		{
 			ReinitializeEcsAndServices();
-
-			if (_activeMapScript != null)
-			{
-				_activeMapScript.Initialize(this);
-				
-				foreach (var unit in AllUnits)
-				{
-					if (EcsWorld.IsAlive(unit.Entity))
-					{
-						EcsWorld.Destroy(unit.Entity);
-					}
-					if (GodotObject.IsInstanceValid(unit))
-					{
-						unit.QueueFree();
-					}
-				}
-				AllUnits.Clear();
-				EntityToUnit3D.Clear();
-			}
+			InitializeMapScript();
 		}
 		finally
 		{
 			_isResettingForReplay = false;
 		}
 
-		var players = new List<(int PeerId, string Name)>();
-		if (ReplayPlaybackManager.Instance.Header.Players != null)
+		SetupReplayPlayers();
+
+		void ClearInitialState()
 		{
+			foreach (var unit in AllUnits)
+			{
+				if (GodotObject.IsInstanceValid(unit)) unit.QueueFree();
+			}
+			AllUnits.Clear();
+			
+			foreach (var prop in AllProps)
+			{
+				if (GodotObject.IsInstanceValid(prop)) prop.QueueFree();
+			}
+			AllProps.Clear();
+			
+			EntityToUnit3D.Clear();
+			EntityToProp3D.Clear();
+		}
+
+		void InitializeMapScript()
+		{
+			if (_activeMapScript == null) return;
+			
+			_activeMapScript.Initialize(this);
+			
+			foreach (var unit in AllUnits)
+			{
+				if (EcsWorld.IsAlive(unit.Entity)) EcsWorld.Destroy(unit.Entity);
+				if (GodotObject.IsInstanceValid(unit)) unit.QueueFree();
+			}
+			AllUnits.Clear();
+			EntityToUnit3D.Clear();
+		}
+
+		void SetupReplayPlayers()
+		{
+			var players = new List<(int PeerId, string Name)>();
+			if (ReplayPlaybackManager.Instance.Header.Players == null)
+			{
+				_replayService.SetupPlayersForPlayback(players);
+				return;
+			}
+			
 			foreach (var p in ReplayPlaybackManager.Instance.Header.Players)
 			{
 				players.Add((p.PeerId, p.Name));
 			}
+			_replayService.SetupPlayersForPlayback(players);
 		}
-		_replayService.SetupPlayersForPlayback(players);
 	}
 
 	public void SpawnUnitFromReplaySnapshot(ReplayUnitSnapshot snap)

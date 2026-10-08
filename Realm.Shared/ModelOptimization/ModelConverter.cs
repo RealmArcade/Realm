@@ -216,6 +216,108 @@ public static class ModelConverter
 		}
 	}
 
+	private static (byte[] GlbBytes, string? MetaJson) ParseInputBytes(ReadOnlySpan<byte> inputBytes, string? existingMetadataJson)
+	{
+		if (!RmeshFile.IsRmeshBytes(inputBytes))
+		{
+			return (inputBytes.ToArray(), existingMetadataJson);
+		}
+
+		var (parsedMeta, parsedGlb, _) = RmeshFile.Parse(inputBytes);
+		return (parsedGlb, existingMetadataJson ?? parsedMeta);
+	}
+
+	private static ModelConversionResult BuildFinalRmeshResult(
+		ModelConversionResult result,
+		JsonObject metaObj,
+		byte[] finalGlbBytes,
+		bool supportsTeamColor,
+		string effectiveAssetType)
+	{
+		byte[] rmeshBytes = RmeshFile.Build(metaObj.ToJsonString(), finalGlbBytes, compressed: true);
+		result.Success = true;
+		result.OutputBytes = rmeshBytes;
+		result.OptimizedSize = rmeshBytes.Length;
+		result.SupportsTeamColor = supportsTeamColor;
+		result.AssetType = effectiveAssetType;
+		result.Author = metaObj["author"]?.ToString();
+		result.PreferredFileName = metaObj["preferred_file_name"]?.ToString();
+		return result;
+	}
+
+	private static void UpdateMetadataObject(
+		JsonObject metaObj,
+		string? inputFileName,
+		string effectiveAssetType,
+		string? author,
+		string? chromaKey,
+		byte[] finalGlbBytes,
+		bool supportsTeamColor)
+	{
+		UpdateCreatedUtc(metaObj);
+
+		metaObj["format"] = "rmesh";
+		metaObj["asset_type"] = effectiveAssetType;
+		metaObj["team_color"] = supportsTeamColor;
+		metaObj["is_compressed"] = true;
+
+		UpdatePreferredFileName(metaObj, inputFileName);
+		UpdateAuthor(metaObj, author);
+		UpdateChromaKey(metaObj, chromaKey, finalGlbBytes);
+	}
+
+	private static void UpdateCreatedUtc(JsonObject metaObj)
+	{
+		if (metaObj.ContainsKey("created_utc") && metaObj["created_utc"] != null)
+		{
+			return;
+		}
+			
+		metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
+	}
+
+	private static void UpdatePreferredFileName(JsonObject metaObj, string? inputFileName)
+	{
+		if (string.IsNullOrEmpty(inputFileName))
+		{
+			return;
+		}
+
+		string currentPreferred = metaObj["preferred_file_name"]?.ToString() ?? string.Empty;
+		if (!string.IsNullOrEmpty(currentPreferred) && inputFileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+		{
+			return;
+		}
+
+		metaObj["preferred_file_name"] = Path.GetFileName(inputFileName);
+	}
+
+	private static void UpdateAuthor(JsonObject metaObj, string? author)
+	{
+		if (string.IsNullOrEmpty(author))
+		{
+			return;
+		}
+
+		if (metaObj.ContainsKey("author") && !string.IsNullOrWhiteSpace(metaObj["author"]?.ToString()))
+		{
+			return;
+		}
+
+		metaObj["author"] = author;
+	}
+
+	private static void UpdateChromaKey(JsonObject metaObj, string? chromaKey, byte[] finalGlbBytes)
+	{
+		string finalChromaKey = DetermineChromaKey(chromaKey, metaObj, finalGlbBytes);
+		if (string.IsNullOrEmpty(finalChromaKey))
+		{
+			return;
+		}
+
+		metaObj["chroma_key"] = finalChromaKey;
+	}
+
 	public static ModelConversionResult ConvertToRmesh(
 		ReadOnlySpan<byte> inputBytes,
 		string? inputFileName = null,
@@ -240,17 +342,9 @@ public static class ModelConverter
 
 		try
 		{
-			byte[] rawGlbBytes = inputBytes.ToArray();
-			string? existingMetaJson = existingMetadataJson;
-
-			if (RmeshFile.IsRmeshBytes(inputBytes))
-			{
-				var (parsedMeta, parsedGlb, _) = RmeshFile.Parse(inputBytes);
-				existingMetaJson ??= parsedMeta;
-				rawGlbBytes = parsedGlb;
-			}
-
-			JsonObject metaObj = ParseExistingMetadata(existingMetaJson);
+			var (rawGlbBytes, metaJson) = ParseInputBytes(inputBytes, existingMetadataJson);
+			
+			JsonObject metaObj = ParseExistingMetadata(metaJson);
 			string? effectiveAssetType = DetermineEffectiveAssetType(assetType, metaObj);
 
 			if (string.IsNullOrWhiteSpace(effectiveAssetType))
@@ -267,50 +361,13 @@ public static class ModelConverter
 				result.ErrorMessage = optRes.ErrorMessage ?? "Optimization failed.";
 				return result;
 			}
-			byte[] finalGlbBytes = optRes.OutputGlb;
 
+			byte[] finalGlbBytes = optRes.OutputGlb;
 			bool supportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(finalGlbBytes);
 
-			if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
-			{
-				metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			}
+			UpdateMetadataObject(metaObj, inputFileName, effectiveAssetType, author, chromaKey, finalGlbBytes, supportsTeamColor);
 
-			metaObj["format"] = "rmesh";
-			metaObj["asset_type"] = effectiveAssetType;
-			metaObj["team_color"] = supportsTeamColor;
-
-			if (!string.IsNullOrEmpty(inputFileName))
-			{
-				string currentPreferred = metaObj["preferred_file_name"]?.ToString() ?? string.Empty;
-				if (string.IsNullOrEmpty(currentPreferred) || !inputFileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-				{
-					metaObj["preferred_file_name"] = Path.GetFileName(inputFileName);
-				}
-			}
-
-			if (!string.IsNullOrEmpty(author) && (!metaObj.ContainsKey("author") || string.IsNullOrWhiteSpace(metaObj["author"]?.ToString())))
-			{
-				metaObj["author"] = author;
-			}
-
-			string finalChromaKey = DetermineChromaKey(chromaKey, metaObj, finalGlbBytes);
-			if (!string.IsNullOrEmpty(finalChromaKey))
-			{
-				metaObj["chroma_key"] = finalChromaKey;
-			}
-
-			metaObj["is_compressed"] = true;
-			byte[] rmeshBytes = RmeshFile.Build(metaObj.ToJsonString(), finalGlbBytes, compressed: true);
-
-			result.Success = true;
-			result.OutputBytes = rmeshBytes;
-			result.OptimizedSize = rmeshBytes.Length;
-			result.SupportsTeamColor = supportsTeamColor;
-			result.AssetType = effectiveAssetType;
-			result.Author = metaObj["author"]?.ToString();
-			result.PreferredFileName = metaObj["preferred_file_name"]?.ToString();
-			return result;
+			return BuildFinalRmeshResult(result, metaObj, finalGlbBytes, supportsTeamColor, effectiveAssetType);
 		}
 		catch (Exception ex)
 		{

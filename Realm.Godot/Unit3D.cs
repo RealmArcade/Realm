@@ -308,20 +308,7 @@ public partial class Unit3D : Prop3D
 		if (string.IsNullOrEmpty(modelPath)) return;
 		ModelPath = modelPath;
 
-		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
-		{
-			RemoveChild(_modelNode);
-			_modelNode.QueueFree();
-			_modelNode = null;
-			_rightHandAttachment = null;
-			_leftHandAttachment = null;
-			_currentRightAttachmentId = null;
-			_currentLeftAttachmentId = null;
-			_boneAttachments.Clear();
-			_currentBoneAttachmentIds.Clear();
-			_pseudoSockets.Clear();
-			_currentPseudoSocketAttachmentIds.Clear();
-		}
+		CleanupExistingModel();
 
 		string resolved = ResolvePropModelPath(modelPath);
 		if (string.IsNullOrEmpty(resolved))
@@ -329,11 +316,7 @@ public partial class Unit3D : Prop3D
 			resolved = modelPath;
 		}
 
-		_modelNode = Realm.Godot.Utils.ModelCache.GetModel(modelPath) as Node3D;
-		if (_modelNode == null && !string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
-		{
-			_modelNode = Realm.Godot.Utils.ModelCache.GetModel(resolved) as Node3D;
-		}
+		_modelNode = ResolveAndGetModelNode(modelPath, resolved);
 
 		if (_modelNode == null)
 		{
@@ -344,8 +327,47 @@ public partial class Unit3D : Prop3D
 		_modelNode.Name = "VisualModel";
 		AddChild(_modelNode);
 
+		ConfigureAnimations(modelPath);
+		ApplyAttachmentsSafely();
+		ApplyTransformations();
+		ApplyVisuals(modelPath);
+		UpdateCollisionShape();
+		UpdateDropShadow();
+		UpdateSlopeAlignment();
+	}
+
+	private void CleanupExistingModel()
+	{
+		if (_modelNode == null || !GodotObject.IsInstanceValid(_modelNode)) return;
+		
+		RemoveChild(_modelNode);
+		_modelNode.QueueFree();
+		_modelNode = null;
+		_rightHandAttachment = null;
+		_leftHandAttachment = null;
+		_currentRightAttachmentId = null;
+		_currentLeftAttachmentId = null;
+		_boneAttachments.Clear();
+		_currentBoneAttachmentIds.Clear();
+		_pseudoSockets.Clear();
+		_currentPseudoSocketAttachmentIds.Clear();
+	}
+
+	private Node3D? ResolveAndGetModelNode(string modelPath, string resolved)
+	{
+		var node = Realm.Godot.Utils.ModelCache.GetModel(modelPath) as Node3D;
+		if (node == null && !string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
+		{
+			node = Realm.Godot.Utils.ModelCache.GetModel(resolved) as Node3D;
+		}
+		return node;
+	}
+
+	private void ConfigureAnimations(string modelPath)
+	{
 		try
 		{
+			if (_modelNode == null) return;
 			_animationPlayer = Realm.Godot.Animation.AnimationRetargetingService.FindOrCreateAnimationPlayer(_modelNode);
 			Realm.Godot.Animation.AnimationRetargetingService.LoadAndBindUnitAnimations(_modelNode, UnitId, modelPath);
 			SeekToIdleFirstFrame();
@@ -354,7 +376,10 @@ public partial class Unit3D : Prop3D
 		{
 			GD.PrintErr($"Error configuring animations for unit '{UnitId}' ({modelPath}): {ex.Message}");
 		}
+	}
 
+	private void ApplyAttachmentsSafely()
+	{
 		try
 		{
 			ApplyAllConfiguredAttachments();
@@ -363,7 +388,11 @@ public partial class Unit3D : Prop3D
 		{
 			GD.PrintErr($"Error applying attachments for unit '{UnitId}': {ex.Message}");
 		}
+	}
 
+	private void ApplyTransformations()
+	{
+		if (_modelNode == null) return;
 		float globalScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
 		float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
 		_modelNode.Scale = new Vector3(safeScale, safeScale, safeScale);
@@ -372,31 +401,35 @@ public partial class Unit3D : Prop3D
 
 		float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(this) : 0f;
 		_modelNode.Position = new Vector3(0f, yOffset, 0f);
+	}
 
-		if (!IsPreview)
+	private void ApplyVisuals(string modelPath)
+	{
+		if (IsPreview || _modelNode == null) return;
+		try
 		{
-			try
+			bool ignorePlayerColor = GameHost.Instance != null && (GameHost.Instance.GetModelIgnorePlayerColor(modelPath) || GameHost.Instance.GetModelIgnorePlayerColor(UnitId));
+			bool normalizeLuminance = GameHost.Instance != null && (GameHost.Instance.GetModelNormalizeLuminance(modelPath) || GameHost.Instance.GetModelNormalizeLuminance(UnitId));
+			Realm.Godot.Utils.ModelShaderManager.ApplyPlayerColorShader(_modelNode, PlayerColor, ignorePlayerColor, normalizeLuminance);
+			if (!ignorePlayerColor)
 			{
-				bool ignorePlayerColor = GameHost.Instance != null && (GameHost.Instance.GetModelIgnorePlayerColor(modelPath) || GameHost.Instance.GetModelIgnorePlayerColor(UnitId));
-				bool normalizeLuminance = GameHost.Instance != null && (GameHost.Instance.GetModelNormalizeLuminance(modelPath) || GameHost.Instance.GetModelNormalizeLuminance(UnitId));
-				Realm.Godot.Utils.ModelShaderManager.ApplyPlayerColorShader(_modelNode, PlayerColor, ignorePlayerColor, normalizeLuminance);
-				if (!ignorePlayerColor)
-				{
-					UpdatePlayerColorVisual();
-				}
-				else
-				{
-					Realm.Godot.Utils.ModelShaderManager.SetIgnorePlayerColor(_modelNode, true);
-				}
+				UpdatePlayerColorVisual();
+			}
+			else
+			{
+				Realm.Godot.Utils.ModelShaderManager.SetIgnorePlayerColor(_modelNode, true);
+			}
 
-				GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
-			}
-			catch (System.Exception ex)
-			{
-				GD.PrintErr($"Error applying shaders for unit '{UnitId}': {ex.Message}");
-			}
+			GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
 		}
+		catch (System.Exception ex)
+		{
+			GD.PrintErr($"Error applying shaders for unit '{UnitId}': {ex.Message}");
+		}
+	}
 
+	private void UpdateCollisionShape()
+	{
 		try
 		{
 			var colShapeNode = GetNodeOrNull<CollisionShape3D>("CollisionShape");
@@ -418,9 +451,6 @@ public partial class Unit3D : Prop3D
 		{
 			GD.PrintErr($"Error generating collision shape for unit '{UnitId}': {ex.Message}");
 		}
-
-		UpdateDropShadow();
-		UpdateSlopeAlignment();
 	}
 
 	public override bool IsSlopeAligned

@@ -208,19 +208,37 @@ public static class TextureConverter
 		return luminance;
 	}
 
+	private static int GetPrevCoord(int coord, bool isDecal, int maxVal)
+	{
+		if (coord > 0)
+		{
+			return coord - 1;
+		}
+		return isDecal ? coord : maxVal - 1;
+	}
+
+	private static int GetNextCoord(int coord, bool isDecal, int maxVal)
+	{
+		if (coord < maxVal - 1)
+		{
+			return coord + 1;
+		}
+		return isDecal ? coord : 0;
+	}
+
 	private static float[,] ComputeRawHeight(float[,] luminance, float[,] fineMean, float[,] coarseMean, int width, int height, bool isDecal, float[] flatHeights)
 	{
 		float[,] rawHeight = new float[width, height];
 		int idx = 0;
 		for (int y = 0; y < height; y++)
 		{
-			int py = isDecal ? (y > 0 ? y - 1 : y) : (y > 0 ? y - 1 : height - 1);
-			int ny = isDecal ? (y < height - 1 ? y + 1 : y) : (y < height - 1 ? y + 1 : 0);
+			int py = GetPrevCoord(y, isDecal, height);
+			int ny = GetNextCoord(y, isDecal, height);
 
 			for (int x = 0; x < width; x++)
 			{
-				int px = isDecal ? (x > 0 ? x - 1 : x) : (x > 0 ? x - 1 : width - 1);
-				int nx = isDecal ? (x < width - 1 ? x + 1 : x) : (x < width - 1 ? x + 1 : 0);
+				int px = GetPrevCoord(x, isDecal, width);
+				int nx = GetNextCoord(x, isDecal, width);
 
 				float lum = luminance[x, y];
 				float highFreq = lum - fineMean[x, y];
@@ -277,17 +295,17 @@ public static class TextureConverter
 		layer0 = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 		layer1 = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
-		float normalStrength = isDecal ? 2.5f : 2.5f;
+		float normalStrength = 2.5f;
 
 		for (int y = 0; y < height; y++)
 		{
-			int py = isDecal ? (y > 0 ? y - 1 : y) : (y > 0 ? y - 1 : height - 1);
-			int ny = isDecal ? (y < height - 1 ? y + 1 : y) : (y < height - 1 ? y + 1 : 0);
+			int py = GetPrevCoord(y, isDecal, height);
+			int ny = GetNextCoord(y, isDecal, height);
 
 			for (int x = 0; x < width; x++)
 			{
-				int px = isDecal ? (x > 0 ? x - 1 : x) : (x > 0 ? x - 1 : width - 1);
-				int nx = isDecal ? (x < width - 1 ? x + 1 : x) : (x < width - 1 ? x + 1 : 0);
+				int px = GetPrevCoord(x, isDecal, width);
+				int nx = GetNextCoord(x, isDecal, width);
 
 				SKColor albedoCol = sourceImage.GetPixel(x, y);
 				float heightVal = normalizedHeight[x, y];
@@ -1090,14 +1108,31 @@ public static class TextureConverter
 
 		if (ext == ".rtex")
 		{
-			string targetWebp = string.IsNullOrEmpty(outputPath)
-				? Path.ChangeExtension(fullInput, ".webp")
-				: Path.GetFullPath(outputPath);
-			return targetWebp.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-				? ExtractPngFromRtex(fullInput, targetWebp)
-				: ExtractWebpFromRtex(fullInput, targetWebp);
+			return HandleRtexConversion(fullInput, outputPath);
 		}
 
+		string normType = ResolveAssetType(fullInput, assetType, ref columns, ref rows, ref fps);
+		string targetRtex = GetTargetRtexPath(fullInput, outputPath);
+
+		return ProcessByAssetType(normType, fullInput, targetRtex, columns, rows, fps);
+	}
+
+	private static TextureConversionResult HandleRtexConversion(string fullInput, string? outputPath)
+	{
+		string targetWebp = string.IsNullOrEmpty(outputPath)
+			? Path.ChangeExtension(fullInput, ".webp")
+			: Path.GetFullPath(outputPath);
+
+		if (targetWebp.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+		{
+			return ExtractPngFromRtex(fullInput, targetWebp);
+		}
+		
+		return ExtractWebpFromRtex(fullInput, targetWebp);
+	}
+
+	private static string ResolveAssetType(string fullInput, string? assetType, ref int? columns, ref int? rows, ref float? fps)
+	{
 		string normType = (assetType ?? string.Empty).Trim().ToLowerInvariant();
 
 		if (string.IsNullOrEmpty(normType))
@@ -1107,28 +1142,63 @@ public static class TextureConverter
 
 		if (string.IsNullOrEmpty(normType))
 		{
-			throw new InvalidOperationException($"Asset type was not specified and could not be detected from image metadata in '{inputPath}'. Please specify -t / --type (Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical).");
+			throw new InvalidOperationException($"Asset type was not specified and could not be detected from image metadata in '{fullInput}'. Please specify -t / --type (Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical).");
 		}
 
-		string targetRtex = string.IsNullOrEmpty(outputPath)
-			? Path.ChangeExtension(fullInput, ".rtex")
-			: Path.GetFullPath(outputPath);
+		return normType;
+	}
 
+	private static string GetTargetRtexPath(string fullInput, string? outputPath)
+	{
+		if (string.IsNullOrEmpty(outputPath))
+		{
+			return Path.ChangeExtension(fullInput, ".rtex");
+		}
+		return Path.GetFullPath(outputPath);
+	}
+
+	private static TextureConversionResult ProcessByAssetType(string normType, string fullInput, string targetRtex, int? columns, int? rows, float? fps)
+	{
 		return normType switch
 		{
 			"terrain" => ProcessAndSaveTerrainTexture(fullInput, targetRtex),
-			"decal" => ProcessAndSaveDecalTexture(fullInput, targetRtex, columns: columns ?? 1, rows: rows ?? 1),
-			"spritesheet" => ProcessAndSaveSpritesheet(fullInput, targetRtex, columns ?? 4, rows ?? 4, fps: fps ?? 20.0f),
-			"skybox" => Path.GetExtension(targetRtex).ToLowerInvariant() is not ".rtex"
-				? SkyboxProcessor.ProcessSkyboxFile(fullInput, targetRtex)
-				: ProcessAndSaveSkybox(fullInput, targetRtex),
+			"decal" => ProcessDecalAsset(fullInput, targetRtex, columns, rows),
+			"spritesheet" => ProcessSpritesheetAsset(fullInput, targetRtex, columns, rows, fps),
+			"skybox" => ProcessSkybox(fullInput, targetRtex),
 			"ribbon" => ProcessAndSaveRibbonTexture(fullInput, targetRtex),
 			"noise" => ProcessAndSaveSingleLayerTexture(fullInput, targetRtex, "noise_texture"),
 			"icon" => ProcessAndSaveIconTexture(fullInput, targetRtex),
+			_ => ProcessVfxOrThrow(normType, fullInput, targetRtex)
+		};
+	}
+
+	private static TextureConversionResult ProcessDecalAsset(string fullInput, string targetRtex, int? columns, int? rows)
+	{
+		return ProcessAndSaveDecalTexture(fullInput, targetRtex, columns: columns ?? 1, rows: rows ?? 1);
+	}
+
+	private static TextureConversionResult ProcessSpritesheetAsset(string fullInput, string targetRtex, int? columns, int? rows, float? fps)
+	{
+		return ProcessAndSaveSpritesheet(fullInput, targetRtex, columns ?? 4, rows ?? 4, fps: fps ?? 20.0f);
+	}
+
+	private static TextureConversionResult ProcessVfxOrThrow(string normType, string fullInput, string targetRtex)
+	{
+		return normType switch
+		{
 			"vfx_radial" => ProcessAndSaveVfxRadialTexture(fullInput, targetRtex),
 			"vfx_vertical" => ProcessAndSaveVfxVerticalTexture(fullInput, targetRtex),
 			_ => throw new InvalidOperationException($"Unsupported asset type '{normType}'. Supported types: Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical.")
 		};
+	}
+
+	private static TextureConversionResult ProcessSkybox(string fullInput, string targetRtex)
+	{
+		if (Path.GetExtension(targetRtex).ToLowerInvariant() is not ".rtex")
+		{
+			return SkyboxProcessor.ProcessSkyboxFile(fullInput, targetRtex);
+		}
+		return ProcessAndSaveSkybox(fullInput, targetRtex);
 	}
 
 	private static void ProcessSingleDirectoryFile(

@@ -17,16 +17,11 @@ public class InventoryPanel
 	{
 		if (_inventoryGrid == null) return;
 
-		foreach (Node child in _inventoryGrid.GetChildren())
-		{
-			child.QueueFree();
-		}
+		ClearGrid();
 
 		if (viewModel.SelectedUnits.Count == 0)
 		{
-            for(int i = 0; i < 6; i++) {
-                _inventoryGrid.AddChild(CreateBlackTile());
-            }
+			FillWithBlackTiles(6);
 			return;
 		}
 
@@ -36,59 +31,77 @@ public class InventoryPanel
 
 		if (focusedUnit.IsEnemy || focusedUnit.IsBuilding)
 		{
-            // Empty 2x3 grid
-            for(int i = 0; i < 6; i++) {
-                _inventoryGrid.AddChild(CreateBlackTile());
-            }
+			FillWithBlackTiles(6);
 			return;
 		}
 
-        int totalItems = 0;
+		int totalItems = PopulateInventoryItems(focusedUnit, focusIdx);
+		FillWithBlackTiles(6 - totalItems);
+	}
 
-        if (focusedUnit.InventoryItems != null)
-        {
-            foreach (var kvp in focusedUnit.InventoryItems)
-            {
-                if (totalItems >= 6) break;
+	private void ClearGrid()
+	{
+		foreach (Node child in _inventoryGrid.GetChildren())
+		{
+			child.QueueFree();
+		}
+	}
 
-                string itemId = kvp.Key;
-                int count = kvp.Value;
-                if (count <= 0) continue;
+	private void FillWithBlackTiles(int count)
+	{
+		for (int i = 0; i < count; i++)
+		{
+			_inventoryGrid.AddChild(CreateBlackTile());
+		}
+	}
 
-                string name = itemId.ToUpper();
-                string desc = "Item";
-                string iconPath = "res://Assets/UI/alliance_flag.png";
+	private int PopulateInventoryItems(InGameHUDViewModel.SelectedUnitInfo focusedUnit, int focusIdx)
+	{
+		if (focusedUnit.InventoryItems == null) return 0;
 
-                if (GameHost.ItemRegistry.TryGetValue(itemId, out var itemMeta))
-                {
-                    if (!string.IsNullOrEmpty(itemMeta.Name)) name = itemMeta.Name;
-                    if (!string.IsNullOrEmpty(itemMeta.Description)) desc = itemMeta.Description;
-                    if (!string.IsNullOrEmpty(itemMeta.IconPath)) iconPath = itemMeta.IconPath;
-                }
+		int totalItems = 0;
+		foreach (var kvp in focusedUnit.InventoryItems)
+		{
+			if (totalItems >= 6) break;
 
-                string capturedItemId = itemId;
-                var btn = CreateButton(
-                    iconPath,
-                    $"{name} (Have: {count})\n{desc}",
-                    $" {count} ",
-                    () => {
-                        var selected = GameHost.Instance?.SelectedUnits;
-                        if (selected != null && selected.Count > focusIdx && !selected[focusIdx].IsEnemy)
-                        {
-                            GameHost.Instance.UseItem(selected[focusIdx], capturedItemId);
-                        }
-                    }
-                );
-                _inventoryGrid.AddChild(btn);
-                totalItems++;
-            }
-        }
+			string itemId = kvp.Key;
+			int count = kvp.Value;
+			if (count <= 0) continue;
 
-        // Fill rest of the 2x3 grid
-        for (int i = totalItems; i < 6; i++)
-        {
-            _inventoryGrid.AddChild(CreateBlackTile());
-        }
+			var btn = CreateItemButton(itemId, count, focusIdx);
+			_inventoryGrid.AddChild(btn);
+			totalItems++;
+		}
+		
+		return totalItems;
+	}
+
+	private Button CreateItemButton(string itemId, int count, int focusIdx)
+	{
+		string name = itemId.ToUpper();
+		string desc = "Item";
+		string iconPath = "res://Assets/UI/alliance_flag.png";
+
+		if (GameHost.ItemRegistry.TryGetValue(itemId, out var itemMeta))
+		{
+			if (!string.IsNullOrEmpty(itemMeta.Name)) name = itemMeta.Name;
+			if (!string.IsNullOrEmpty(itemMeta.Description)) desc = itemMeta.Description;
+			if (!string.IsNullOrEmpty(itemMeta.IconPath)) iconPath = itemMeta.IconPath;
+		}
+
+		string capturedItemId = itemId;
+		return CreateButton(
+			iconPath,
+			$"{name} (Have: {count})\n{desc}",
+			$" {count} ",
+			() => {
+				var selected = GameHost.Instance?.SelectedUnits;
+				if (selected != null && selected.Count > focusIdx && !selected[focusIdx].IsEnemy)
+				{
+					GameHost.Instance.UseItem(selected[focusIdx], capturedItemId);
+				}
+			}
+		);
 	}
 
 	private ColorRect CreateBlackTile()

@@ -378,55 +378,60 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	{
 		_onSaved = onSaved;
 		if (!string.IsNullOrWhiteSpace(previewModelKey))
-		{
 			_selectedTemplateKey = previewModelKey;
-		}
 
 		PopulatePresetList();
 		PopulateTemplateList();
+		InitializeConfig(config);
 
+		_snapshot = _config.Clone();
+		SyncControlsFromConfig();
+		SelectPresetOption();
+		SelectInitialTemplate();
+
+		OpenDialog();
+	}
+
+	private void InitializeConfig(ProceduralAnimationConfig config)
+	{
 		if (config != null && !string.IsNullOrWhiteSpace(config.Id))
 		{
 			var existing = ProceduralAnimationManager.GetConfig(config.Id);
 			_config = existing != null ? existing.Clone() : config.Clone();
+			return;
 		}
-		else
+		_config = new ProceduralAnimationConfig
 		{
-			_config = new ProceduralAnimationConfig
-			{
-				Id = "new_procedural_anim",
-				Name = "New Procedural Animation"
-			};
-		}
+			Id = "new_procedural_anim",
+			Name = "New Procedural Animation"
+		};
+	}
 
-		_snapshot = _config.Clone();
-		SyncControlsFromConfig();
-
-		int selectedPresetIdx = -1;
-		if (_optPreset != null && !string.IsNullOrEmpty(_config.Id))
+	private void SelectPresetOption()
+	{
+		if (_optPreset == null || string.IsNullOrEmpty(_config.Id)) return;
+		for (int i = 0; i < _optPreset.ItemCount; i++)
 		{
-			for (int i = 0; i < _optPreset.ItemCount; i++)
+			string metaKey = _optPreset.GetItemMetadata(i).AsString();
+			if (string.Equals(metaKey, _config.Id, StringComparison.OrdinalIgnoreCase))
 			{
-				string metaKey = _optPreset.GetItemMetadata(i).AsString();
-				if (string.Equals(metaKey, _config.Id, StringComparison.OrdinalIgnoreCase))
-				{
-					selectedPresetIdx = i;
-					break;
-				}
+				_optPreset.Selected = i;
+				return;
 			}
-			_optPreset.Selected = selectedPresetIdx;
 		}
+	}
 
+	private void SelectInitialTemplate()
+	{
 		if (_optTemplatePicker != null && _optTemplatePicker.Selected >= 0 && _optTemplatePicker.Selected < _availableTemplates.Count)
 		{
 			LoadPreviewTemplate(_availableTemplates[_optTemplatePicker.Selected]);
+			return;
 		}
-		else if (_availableTemplates.Count > 0)
+		if (_availableTemplates.Count > 0)
 		{
 			LoadPreviewTemplate(_availableTemplates[0]);
 		}
-
-		OpenDialog();
 	}
 
 	private void PopulateTemplateList()
@@ -438,201 +443,104 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
+		LoadMetadataTemplates(wsPath, existingIds);
+		LoadGameHostRegistryTemplates(existingIds);
+		LoadMapAssetsTemplates(wsPath, existingIds);
+		AddSampleTemplates();
+
+		PopulateTemplatePickerAndSelect();
+	}
+
+	private void AddTemplateIfNotExists(string id, string name, string category, string modelPath, string visualMode, HashSet<string> existingIds)
+	{
+		if (string.IsNullOrEmpty(id) || !existingIds.Add(id)) return;
+		
+		string actualVisualMode = !string.IsNullOrEmpty(visualMode) ? visualMode : (modelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh");
+		_availableTemplates.Add(new TemplateItemInfo
 		{
-			if (meta.Templates?.Units != null)
-			{
-				foreach (var u in meta.Templates.Units)
-				{
-					if (!string.IsNullOrEmpty(u.TemplateID) && existingIds.Add(u.TemplateID))
-					{
-						_availableTemplates.Add(new TemplateItemInfo
-						{
-							Id = u.TemplateID,
-							DisplayName = !string.IsNullOrEmpty(u.Name) ? u.Name : u.TemplateID,
-							Category = "Unit",
-							ModelPath = u.ModelPath ?? "",
-							VisualMode = !string.IsNullOrEmpty(u.VisualMode) ? u.VisualMode : (u.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
-						});
-					}
-				}
-			}
+			Id = id,
+			DisplayName = !string.IsNullOrEmpty(name) ? name : id,
+			Category = category,
+			ModelPath = modelPath ?? "",
+			VisualMode = actualVisualMode
+		});
+	}
 
-			if (meta.Templates?.Buildings != null)
-			{
-				foreach (var b in meta.Templates.Buildings)
-				{
-					if (!string.IsNullOrEmpty(b.TemplateID) && existingIds.Add(b.TemplateID))
-					{
-						_availableTemplates.Add(new TemplateItemInfo
-						{
-							Id = b.TemplateID,
-							DisplayName = !string.IsNullOrEmpty(b.Name) ? b.Name : b.TemplateID,
-							Category = "Building",
-							ModelPath = b.ModelPath ?? "",
-							VisualMode = !string.IsNullOrEmpty(b.VisualMode) ? b.VisualMode : (b.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
-						});
-					}
-				}
-			}
+	private void LoadMetadataTemplates(string wsPath, HashSet<string> existingIds)
+	{
+		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta?.Templates == null) return;
+		
+		AddMetadataTemplates(meta.Templates.Units, "Unit", existingIds, u => u.TemplateID, u => u.Name, u => u.ModelPath, u => u.VisualMode);
+		AddMetadataTemplates(meta.Templates.Buildings, "Building", existingIds, b => b.TemplateID, b => b.Name, b => b.ModelPath, b => b.VisualMode);
+		AddMetadataTemplates(meta.Templates.Resources, "Resource", existingIds, r => r.TemplateID, r => r.Name, r => r.ModelPath, r => r.VisualMode);
+		AddMetadataTemplates(meta.Templates.Props, "Prop", existingIds, p => p.TemplateID, p => p.Name, p => p.ModelPath, p => p.VisualMode);
+	}
 
-			if (meta.Templates?.Resources != null)
-			{
-				foreach (var r in meta.Templates.Resources)
-				{
-					if (!string.IsNullOrEmpty(r.TemplateID) && existingIds.Add(r.TemplateID))
-					{
-						_availableTemplates.Add(new TemplateItemInfo
-						{
-							Id = r.TemplateID,
-							DisplayName = !string.IsNullOrEmpty(r.Name) ? r.Name : r.TemplateID,
-							Category = "Resource",
-							ModelPath = r.ModelPath ?? "",
-							VisualMode = !string.IsNullOrEmpty(r.VisualMode) ? r.VisualMode : (r.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
-						});
-					}
-				}
-			}
+	private void AddMetadataTemplates<T>(IEnumerable<T> items, string category, HashSet<string> existingIds, Func<T, string> getId, Func<T, string> getName, Func<T, string> getModelPath, Func<T, string> getVisualMode)
+	{
+		if (items == null) return;
+		
+		foreach (var item in items)
+			AddTemplateIfNotExists(getId(item), getName(item), category, getModelPath(item), getVisualMode(item), existingIds);
+	}
 
-			if (meta.Templates?.Props != null)
-			{
-				foreach (var p in meta.Templates.Props)
-				{
-					if (!string.IsNullOrEmpty(p.TemplateID) && existingIds.Add(p.TemplateID))
-					{
-						_availableTemplates.Add(new TemplateItemInfo
-						{
-							Id = p.TemplateID,
-							DisplayName = !string.IsNullOrEmpty(p.Name) ? p.Name : p.TemplateID,
-							Category = "Prop",
-							ModelPath = p.ModelPath ?? "",
-							VisualMode = !string.IsNullOrEmpty(p.VisualMode) ? p.VisualMode : (p.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
-						});
-					}
-				}
-			}
-		}
-
+	private void LoadGameHostRegistryTemplates(HashSet<string> existingIds)
+	{
 		if (GameHost.UnitRegistry != null)
-		{
 			foreach (var kvp in GameHost.UnitRegistry)
-			{
-				string id = kvp.Key.ToString();
-				if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
-				{
-					_availableTemplates.Add(new TemplateItemInfo
-					{
-						Id = id,
-						DisplayName = !string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : id,
-						Category = "Unit",
-						ModelPath = kvp.Value.ModelPath ?? "",
-						VisualMode = !string.IsNullOrEmpty(kvp.Value.VisualMode) ? kvp.Value.VisualMode : (kvp.Value.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
-					});
-				}
-			}
-		}
+				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Unit", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
 
 		if (GameHost.BuildingRegistry != null)
-		{
 			foreach (var kvp in GameHost.BuildingRegistry)
-			{
-				string id = kvp.Key.ToString();
-				if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
-				{
-					_availableTemplates.Add(new TemplateItemInfo
-					{
-						Id = id,
-						DisplayName = !string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : id,
-						Category = "Building",
-						ModelPath = kvp.Value.ModelPath ?? "",
-						VisualMode = !string.IsNullOrEmpty(kvp.Value.VisualMode) ? kvp.Value.VisualMode : (kvp.Value.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
-					});
-				}
-			}
-		}
+				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Building", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
 
 		if (GameHost.ResourceRegistry != null)
-		{
 			foreach (var kvp in GameHost.ResourceRegistry)
-			{
-				string id = kvp.Key.ToString();
-				if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
-				{
-					_availableTemplates.Add(new TemplateItemInfo
-					{
-						Id = id,
-						DisplayName = !string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : id,
-						Category = "Resource",
-						ModelPath = kvp.Value.ModelPath ?? "",
-						VisualMode = !string.IsNullOrEmpty(kvp.Value.VisualMode) ? kvp.Value.VisualMode : (kvp.Value.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
-					});
-				}
-			}
-		}
+				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Resource", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
 
 		if (GameHost.PropRegistry != null)
-		{
 			foreach (var kvp in GameHost.PropRegistry)
-			{
-				string id = kvp.Key.ToString();
-				if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
-				{
-					_availableTemplates.Add(new TemplateItemInfo
-					{
-						Id = id,
-						DisplayName = !string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : id,
-						Category = "Prop",
-						ModelPath = kvp.Value.ModelPath ?? "",
-						VisualMode = !string.IsNullOrEmpty(kvp.Value.VisualMode) ? kvp.Value.VisualMode : (kvp.Value.ModelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh")
-					});
-				}
-			}
-		}
+				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Prop", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
+	}
 
+	private void LoadMapAssetsTemplates(string wsPath, HashSet<string> existingIds)
+	{
 		try
 		{
 			var assets = MapAssetHelper.LoadAssets(wsPath);
-			if (assets != null)
+			if (assets == null) return;
+			
+			foreach (var groupKvp in assets.GetAllCategories())
 			{
-				foreach (var groupKvp in assets.GetAllCategories())
-				{
-					string groupName = groupKvp.Key;
-					string category = groupName switch
-					{
-						"Character" or "units" or "characters" => "Unit",
-						"Building" or "buildings" => "Building",
-						"Resource" or "resources" => "Resource",
-						_ => "Prop"
-					};
-
-					var subDict = groupKvp.Value;
-					if (subDict != null)
-					{
-						foreach (var itemKvp in subDict)
-						{
-							string fn = itemKvp.Key;
-							if (!string.IsNullOrEmpty(fn) && (fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)))
-							{
-								string id = Path.GetFileName(fn);
-								if (existingIds.Add(id))
-								{
-									_availableTemplates.Add(new TemplateItemInfo
-									{
-										Id = id,
-										DisplayName = id,
-										Category = category,
-										ModelPath = fn,
-										VisualMode = fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? "GroundPlane" : "Mesh"
-									});
-								}
-							}
-						}
-					}
-				}
+				ProcessAssetGroup(groupKvp.Key, groupKvp.Value, existingIds);
 			}
 		}
 		catch { }
+	}
 
+	private void ProcessAssetGroup(string groupName, Dictionary<string, string> subDict, HashSet<string> existingIds)
+	{
+		if (subDict == null) return;
+		string category = groupName switch
+		{
+			"Character" or "units" or "characters" => "Unit",
+			"Building" or "buildings" => "Building",
+			"Resource" or "resources" => "Resource",
+			_ => "Prop"
+		};
+
+		foreach (var itemKvp in subDict)
+		{
+			string fn = itemKvp.Key;
+			if (string.IsNullOrEmpty(fn) || (!fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && !fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))) continue;
+			
+			string id = Path.GetFileName(fn);
+			AddTemplateIfNotExists(id, id, category, fn, null, existingIds);
+		}
+	}
+
+	private void AddSampleTemplates()
+	{
 		_availableTemplates.Add(new TemplateItemInfo
 		{
 			Id = "(Sample Tree Cylinder)",
@@ -649,31 +557,11 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			ModelPath = "",
 			VisualMode = "Mesh"
 		});
+	}
 
-		int selectedIdx = -1;
-		if (!string.IsNullOrWhiteSpace(_selectedTemplateKey))
-		{
-			string targetName = Path.GetFileName(_selectedTemplateKey);
-			string targetWithoutExt = Path.GetFileNameWithoutExtension(_selectedTemplateKey);
-
-			selectedIdx = _availableTemplates.FindIndex(t => string.Equals(t.Id, _selectedTemplateKey, StringComparison.OrdinalIgnoreCase));
-			if (selectedIdx < 0)
-			{
-				selectedIdx = _availableTemplates.FindIndex(t => string.Equals(t.ModelPath, _selectedTemplateKey, StringComparison.OrdinalIgnoreCase));
-			}
-			if (selectedIdx < 0)
-			{
-				selectedIdx = _availableTemplates.FindIndex(t => string.Equals(Path.GetFileName(t.ModelPath), targetName, StringComparison.OrdinalIgnoreCase));
-			}
-			if (selectedIdx < 0)
-			{
-				selectedIdx = _availableTemplates.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.Id), targetWithoutExt, StringComparison.OrdinalIgnoreCase));
-			}
-			if (selectedIdx < 0)
-			{
-				selectedIdx = _availableTemplates.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.ModelPath), targetWithoutExt, StringComparison.OrdinalIgnoreCase));
-			}
-		}
+	private void PopulateTemplatePickerAndSelect()
+	{
+		int selectedIdx = FindSelectedTemplateIndex();
 
 		for (int i = 0; i < _availableTemplates.Count; i++)
 		{
@@ -697,30 +585,75 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		}
 	}
 
+	private int FindSelectedTemplateIndex()
+	{
+		if (string.IsNullOrWhiteSpace(_selectedTemplateKey)) return -1;
+
+		string targetName = Path.GetFileName(_selectedTemplateKey);
+		string targetWithoutExt = Path.GetFileNameWithoutExtension(_selectedTemplateKey);
+
+		int idx = _availableTemplates.FindIndex(t => string.Equals(t.Id, _selectedTemplateKey, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) return idx;
+
+		idx = _availableTemplates.FindIndex(t => string.Equals(t.ModelPath, _selectedTemplateKey, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) return idx;
+
+		idx = _availableTemplates.FindIndex(t => string.Equals(Path.GetFileName(t.ModelPath), targetName, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) return idx;
+
+		idx = _availableTemplates.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.Id), targetWithoutExt, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) return idx;
+
+		return _availableTemplates.FindIndex(t => string.Equals(Path.GetFileNameWithoutExtension(t.ModelPath), targetWithoutExt, StringComparison.OrdinalIgnoreCase));
+	}
+
 	private void SyncControlsFromConfig()
+	{
+		UpdateTextControls();
+		UpdateMaskControls();
+		UpdateSwayAndFlutterControls();
+		UpdateImpulseControls();
+	}
+
+	private void UpdateTextControls()
 	{
 		if (_txtAnimId != null) _txtAnimId.Text = _config.Id;
 		if (_txtAnimName != null) _txtAnimName.Text = _config.Name;
 		if (_optMotionType != null) _optMotionType.Selected = (int)_config.MotionType - 1;
 		if (_optMaskMode != null) _optMaskMode.Selected = (int)_config.MaskMode;
+	}
 
-		if (_sldMaskMin != null) { _sldMaskMin.Value = _config.MaskMin; _lblMaskMin.Text = $"{_config.MaskMin:F2}"; }
-		if (_sldMaskMax != null) { _sldMaskMax.Value = _config.MaskMax; _lblMaskMax.Text = $"{_config.MaskMax:F2}"; }
-		if (_sldMaskPower != null) { _sldMaskPower.Value = _config.MaskPower; _lblMaskPower.Text = $"{_config.MaskPower:F1}"; }
+	private void UpdateMaskControls()
+	{
+		SetSlider(_sldMaskMin, _lblMaskMin, _config.MaskMin, "F2");
+		SetSlider(_sldMaskMax, _lblMaskMax, _config.MaskMax, "F2");
+		SetSlider(_sldMaskPower, _lblMaskPower, _config.MaskPower, "F1");
 		if (_chkMaskInvert != null) _chkMaskInvert.ButtonPressed = _config.MaskInvert;
+	}
 
-		if (_sldSwayFrequency != null) { _sldSwayFrequency.Value = _config.SwayFrequency; _lblSwayFrequency.Text = $"{_config.SwayFrequency:F1} Hz"; }
-		if (_sldSwayAmplitude != null) { _sldSwayAmplitude.Value = _config.SwayAmplitude; _lblSwayAmplitude.Text = $"{_config.SwayAmplitude:F2} m"; }
-		if (_sldFlutterFrequency != null) { _sldFlutterFrequency.Value = _config.FlutterFrequency; _lblFlutterFrequency.Text = $"{_config.FlutterFrequency:F1} Hz"; }
-		if (_sldFlutterAmplitude != null) { _sldFlutterAmplitude.Value = _config.FlutterAmplitude; _lblFlutterAmplitude.Text = $"{_config.FlutterAmplitude:F3} m"; }
-		if (_sldWindInfluence != null) { _sldWindInfluence.Value = _config.WindInfluence; _lblWindInfluence.Text = $"{_config.WindInfluence:F2}"; }
-		if (_sldVelocityDragInfluence != null) { _sldVelocityDragInfluence.Value = _config.VelocityDragInfluence; _lblVelocityDragInfluence.Text = $"{_config.VelocityDragInfluence:F2}"; }
-		if (_sldWaveTurbulence != null) { _sldWaveTurbulence.Value = _config.WaveTurbulence; _lblWaveTurbulence.Text = $"{_config.WaveTurbulence:F2}"; }
+	private void UpdateSwayAndFlutterControls()
+	{
+		SetSlider(_sldSwayFrequency, _lblSwayFrequency, _config.SwayFrequency, "F1", " Hz");
+		SetSlider(_sldSwayAmplitude, _lblSwayAmplitude, _config.SwayAmplitude, "F2", " m");
+		SetSlider(_sldFlutterFrequency, _lblFlutterFrequency, _config.FlutterFrequency, "F1", " Hz");
+		SetSlider(_sldFlutterAmplitude, _lblFlutterAmplitude, _config.FlutterAmplitude, "F3", " m");
+		SetSlider(_sldWindInfluence, _lblWindInfluence, _config.WindInfluence, "F2");
+		SetSlider(_sldVelocityDragInfluence, _lblVelocityDragInfluence, _config.VelocityDragInfluence, "F2");
+		SetSlider(_sldWaveTurbulence, _lblWaveTurbulence, _config.WaveTurbulence, "F2");
+	}
 
-		if (_sldImpulseAmplitude != null) { _sldImpulseAmplitude.Value = _config.ImpulseAmplitude; _lblImpulseAmplitude.Text = $"{_config.ImpulseAmplitude:F2} m"; }
-		if (_sldImpulseFrequency != null) { _sldImpulseFrequency.Value = _config.ImpulseFrequency; _lblImpulseFrequency.Text = $"{_config.ImpulseFrequency:F1} Hz"; }
-		if (_sldImpulseDecay != null) { _sldImpulseDecay.Value = _config.ImpulseDecay; _lblImpulseDecay.Text = $"{_config.ImpulseDecay:F1}"; }
-		if (_sldImpulseDuration != null) { _sldImpulseDuration.Value = _config.ImpulseDuration; _lblImpulseDuration.Text = $"{_config.ImpulseDuration:F2} s"; }
+	private void UpdateImpulseControls()
+	{
+		SetSlider(_sldImpulseAmplitude, _lblImpulseAmplitude, _config.ImpulseAmplitude, "F2", " m");
+		SetSlider(_sldImpulseFrequency, _lblImpulseFrequency, _config.ImpulseFrequency, "F1", " Hz");
+		SetSlider(_sldImpulseDecay, _lblImpulseDecay, _config.ImpulseDecay, "F1");
+		SetSlider(_sldImpulseDuration, _lblImpulseDuration, _config.ImpulseDuration, "F2", " s");
+	}
+
+	private void SetSlider(Slider sld, Label lbl, float val, string format, string suffix = "")
+	{
+		if (sld != null) sld.Value = val;
+		if (lbl != null) lbl.Text = $"{val.ToString(format)}{suffix}";
 	}
 
 	private void RandomizeParameters()
@@ -761,39 +694,59 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private void LoadPreviewTemplate(TemplateItemInfo template)
 	{
 		if (_currentModelRoot == null) return;
-		foreach (Node child in _currentModelRoot.GetChildren())
-		{
-			child.QueueFree();
-		}
+		ClearCurrentModelRoot();
 
 		if (template == null) return;
 
 		if (template.Id.StartsWith("(") || template.Category.Equals("Sample", StringComparison.OrdinalIgnoreCase))
 		{
-			var meshInst = new MeshInstance3D();
-			if (template.Id.Contains("Capsule"))
-			{
-				meshInst.Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.8f };
-				meshInst.Position = new Vector3(0, 0.9f, 0);
-			}
-			else
-			{
-				meshInst.Mesh = new CylinderMesh { TopRadius = 0.4f, BottomRadius = 0.6f, Height = 3.0f };
-				meshInst.Position = new Vector3(0, 1.5f, 0);
-			}
-			var mat = new StandardMaterial3D { AlbedoColor = new Color(0.35f, 0.65f, 0.45f) };
-			meshInst.MaterialOverride = mat;
-			_currentModelRoot.AddChild(meshInst);
-			ModelShaderManager.RefreshShaderMaterialsForNode(_currentModelRoot, false);
-			CenterAndFrameNode(_currentModelRoot);
-			UpdateShaderParameters();
+			LoadSampleTemplate(template);
 			return;
 		}
 
+		Node3D loadedNode3D = LoadTemplateModel(template);
+
+		if (loadedNode3D != null)
+		{
+			SetupLoadedModel(loadedNode3D, template);
+		}
+
+		UpdateShaderParameters();
+	}
+
+	private void ClearCurrentModelRoot()
+	{
+		foreach (Node child in _currentModelRoot.GetChildren())
+		{
+			child.QueueFree();
+		}
+	}
+
+	private void LoadSampleTemplate(TemplateItemInfo template)
+	{
+		var meshInst = new MeshInstance3D();
+		if (template.Id.Contains("Capsule"))
+		{
+			meshInst.Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.8f };
+			meshInst.Position = new Vector3(0, 0.9f, 0);
+		}
+		else
+		{
+			meshInst.Mesh = new CylinderMesh { TopRadius = 0.4f, BottomRadius = 0.6f, Height = 3.0f };
+			meshInst.Position = new Vector3(0, 1.5f, 0);
+		}
+		var mat = new StandardMaterial3D { AlbedoColor = new Color(0.35f, 0.65f, 0.45f) };
+		meshInst.MaterialOverride = mat;
+		_currentModelRoot.AddChild(meshInst);
+		ModelShaderManager.RefreshShaderMaterialsForNode(_currentModelRoot, false);
+		CenterAndFrameNode(_currentModelRoot);
+		UpdateShaderParameters();
+	}
+
+	private Node3D LoadTemplateModel(TemplateItemInfo template)
+	{
 		string assetPath = !string.IsNullOrEmpty(template.ModelPath) ? template.ModelPath : template.Id;
 		string visualMode = !string.IsNullOrEmpty(template.VisualMode) ? template.VisualMode : (assetPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? "GroundPlane" : "Mesh");
-
-		Node3D loadedNode3D = null;
 
 		bool is2DTexture = string.Equals(visualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase) ||
 			string.Equals(visualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase) ||
@@ -803,106 +756,118 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 
 		if (is2DTexture)
 		{
+			return Load2DTextureModel(assetPath, visualMode);
+		}
+		return Load3DModel(assetPath);
+	}
+
+	private Node3D Load2DTextureModel(string assetPath, string visualMode)
+	{
+		Node3D loadedNode3D = null;
+		var loaded = ModelCache.GetModel(assetPath);
+		if (loaded is Node3D n)
+		{
+			loadedNode3D = n;
+		}
+		else
+		{
+			string resolved = ModelCache.ResolveModelPath(assetPath);
+			if (!string.IsNullOrEmpty(resolved))
+			{
+				loaded = ModelCache.GetModel(resolved);
+				if (loaded is Node3D nResolved) loadedNode3D = nResolved;
+			}
+		}
+
+		if (loadedNode3D != null && string.Equals(visualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase))
+		{
+			loadedNode3D.RotationDegrees = new Vector3(45f, 0f, 0f);
+		}
+		return loadedNode3D;
+	}
+
+	private Node3D Load3DModel(string assetPath)
+	{
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string resolvedDiskPath = ResolveDiskPath(wsPath, assetPath);
+
+		Node3D loadedNode3D = null;
+		if (resolvedDiskPath != null && File.Exists(resolvedDiskPath))
+		{
+			loadedNode3D = LoadFromDiskPath(resolvedDiskPath, assetPath);
+		}
+		else if (!string.IsNullOrEmpty(assetPath))
+		{
 			var loaded = ModelCache.GetModel(assetPath);
 			if (loaded is Node3D n)
 			{
 				loadedNode3D = n;
 			}
-			else
-			{
-				string resolved = ModelCache.ResolveModelPath(assetPath);
-				if (!string.IsNullOrEmpty(resolved))
-				{
-					loaded = ModelCache.GetModel(resolved);
-					if (loaded is Node3D nResolved) loadedNode3D = nResolved;
-				}
-			}
-
-			if (loadedNode3D != null && string.Equals(visualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase))
-			{
-				loadedNode3D.RotationDegrees = new Vector3(45f, 0f, 0f);
-			}
-		}
-		else
-		{
-			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			string resolvedDiskPath = null;
-			foreach (var sub in new[] { "props", "units", "buildings", "resources", "characters", "items", "projectiles", "attachments" })
-			{
-				string p = Path.Combine(wsPath, "Assets", "models", sub, assetPath);
-				if (File.Exists(p)) { resolvedDiskPath = p; break; }
-				p = Path.Combine("MapTemplate", "Assets", "models", sub, assetPath);
-				if (File.Exists(p)) { resolvedDiskPath = p; break; }
-			}
-
-			if (resolvedDiskPath == null)
-			{
-				string modelsDir = Path.Combine(wsPath, "Assets", "models");
-				if (Directory.Exists(modelsDir))
-				{
-					var files = Directory.GetFiles(modelsDir, assetPath, SearchOption.AllDirectories);
-					if (files.Length > 0 && files[0].EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-					{
-						resolvedDiskPath = files[0];
-					}
-				}
-			}
-
-			if (resolvedDiskPath != null && File.Exists(resolvedDiskPath))
-			{
-				var loaded = ModelCache.GetModel(resolvedDiskPath) ?? ModelCache.GetModel(assetPath);
-				if (loaded is Node3D n)
-				{
-					loadedNode3D = n;
-				}
-				else
-				{
-					var gltfDoc = new GltfDocument();
-					var gltfState = new GltfState();
-					byte[] rmeshBytes = File.ReadAllBytes(resolvedDiskPath);
-					byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-					if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
-					{
-						var node = gltfDoc.GenerateScene(gltfState);
-						if (node is Node3D n3d) loadedNode3D = n3d;
-					}
-				}
-			}
-			else if (!string.IsNullOrEmpty(assetPath))
-			{
-				var loaded = ModelCache.GetModel(assetPath);
-				if (loaded is Node3D n)
-				{
-					loadedNode3D = n;
-				}
-			}
-
-			if (loadedNode3D != null)
-			{
-				Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, resolvedDiskPath ?? assetPath);
-			}
 		}
 
 		if (loadedNode3D != null)
 		{
-			_currentModelRoot.AddChild(loadedNode3D);
-			ModelShaderManager.RefreshShaderMaterialsForNode(loadedNode3D, false);
+			Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, resolvedDiskPath ?? assetPath);
+		}
+		return loadedNode3D;
+	}
 
-			if (GameHost.Instance != null && !string.IsNullOrEmpty(template.Id))
-			{
-				float scale = GameHost.Instance.GetModelScale(template.Id);
-				if (scale > 0.01f)
-				{
-					loadedNode3D.Scale = new Vector3(scale, scale, scale);
-				}
-				float yOffset = GameHost.Instance.GetModelYOffset(template.Id);
-				loadedNode3D.Position = new Vector3(0, yOffset, 0);
-			}
-
-			CenterAndFrameNode(loadedNode3D);
+	private string ResolveDiskPath(string wsPath, string assetPath)
+	{
+		foreach (var sub in new[] { "props", "units", "buildings", "resources", "characters", "items", "projectiles", "attachments" })
+		{
+			string p = Path.Combine(wsPath, "Assets", "models", sub, assetPath);
+			if (File.Exists(p)) return p;
+			p = Path.Combine("MapTemplate", "Assets", "models", sub, assetPath);
+			if (File.Exists(p)) return p;
 		}
 
-		UpdateShaderParameters();
+		string modelsDir = Path.Combine(wsPath, "Assets", "models");
+		if (Directory.Exists(modelsDir))
+		{
+			var files = Directory.GetFiles(modelsDir, assetPath, SearchOption.AllDirectories);
+			if (files.Length > 0 && files[0].EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
+			{
+				return files[0];
+			}
+		}
+		return null;
+	}
+
+	private Node3D LoadFromDiskPath(string resolvedDiskPath, string assetPath)
+	{
+		var loaded = ModelCache.GetModel(resolvedDiskPath) ?? ModelCache.GetModel(assetPath);
+		if (loaded is Node3D n) return n;
+		
+		var gltfDoc = new GltfDocument();
+		var gltfState = new GltfState();
+		byte[] rmeshBytes = File.ReadAllBytes(resolvedDiskPath);
+		byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+		if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
+		{
+			var node = gltfDoc.GenerateScene(gltfState);
+			if (node is Node3D n3d) return n3d;
+		}
+		return null;
+	}
+
+	private void SetupLoadedModel(Node3D loadedNode3D, TemplateItemInfo template)
+	{
+		_currentModelRoot.AddChild(loadedNode3D);
+		ModelShaderManager.RefreshShaderMaterialsForNode(loadedNode3D, false);
+
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(template.Id))
+		{
+			float scale = GameHost.Instance.GetModelScale(template.Id);
+			if (scale > 0.01f)
+			{
+				loadedNode3D.Scale = new Vector3(scale, scale, scale);
+			}
+			float yOffset = GameHost.Instance.GetModelYOffset(template.Id);
+			loadedNode3D.Position = new Vector3(0, yOffset, 0);
+		}
+
+		CenterAndFrameNode(loadedNode3D);
 	}
 
 	private void CenterAndFrameNode(Node3D targetNode)

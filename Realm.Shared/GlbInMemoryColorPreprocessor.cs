@@ -201,13 +201,8 @@ public static class GlbInMemoryColorPreprocessor
 		if (!TryGetGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
 			return glbBytes;
 
-		int albedoImageIndex = GlbPlayerColorProcessor.FindAlbedoImageIndex(textures, materials);
-		int ormImageIndex = GlbPlayerColorProcessor.FindOrmImageIndex(textures, materials);
-		if (albedoImageIndex < 0 || ormImageIndex < 0) return glbBytes;
-
-		byte[] albedoRaw = GlbPlayerColorProcessor.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
-		byte[] ormRaw = GlbPlayerColorProcessor.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
-		if (albedoRaw.Length == 0 || ormRaw.Length == 0) return glbBytes;
+		if (!TryExtractImageBytes(textures, materials, images, bufferViews, binChunk, out int albedoIdx, out byte[] albedoRaw, out byte[] ormRaw))
+			return glbBytes;
 
 		using var ormImg = SKBitmap.Decode(ormRaw);
 		if (ormImg == null || !HasMaskInOrm(ormImg))
@@ -223,7 +218,27 @@ public static class GlbInMemoryColorPreprocessor
 			return glbBytes;
 		}
 
-		return ProcessDecodedImages(albedoImg, ormImg, effectiveChromaKey, root, binChunk, albedoImageIndex, glbVersion, cacheKey);
+		return ProcessDecodedImages(albedoImg, ormImg, effectiveChromaKey, root, binChunk, albedoIdx, glbVersion, cacheKey);
+	}
+
+	private static bool TryExtractImageBytes(
+		JsonArray textures, JsonArray materials, JsonArray images, JsonArray bufferViews, byte[] binChunk,
+		out int albedoImageIndex, out byte[] albedoRaw, out byte[] ormRaw)
+	{
+		albedoImageIndex = GlbPlayerColorProcessor.FindAlbedoImageIndex(textures, materials);
+		int ormImageIndex = GlbPlayerColorProcessor.FindOrmImageIndex(textures, materials);
+		
+		if (albedoImageIndex < 0 || ormImageIndex < 0)
+		{
+			albedoRaw = [];
+			ormRaw = [];
+			return false;
+		}
+
+		albedoRaw = GlbPlayerColorProcessor.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
+		ormRaw = GlbPlayerColorProcessor.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
+		
+		return albedoRaw.Length > 0 && ormRaw.Length > 0;
 	}
 
 	private static bool TryGetGlbArrays(JsonObject root, out JsonArray textures, out JsonArray materials, out JsonArray images, out JsonArray bufferViews)

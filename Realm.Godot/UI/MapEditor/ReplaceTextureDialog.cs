@@ -89,7 +89,7 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		base.OpenDialog();
 	}
 
-	private void PopulateDropdowns()
+private void PopulateDropdowns()
 	{
 		if (_optSource == null || _optTarget == null) return;
 
@@ -97,11 +97,16 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		_optTarget.Clear();
 
 		var displayNames = Hud?.SwatchDisplayNames;
-		int count = displayNames != null ? displayNames.Count : 0;
+		int count = displayNames?.Count ?? 0;
 
-		int defaultSourceIndex = GameHost.Instance != null ? GameHost.Instance.EditorPaintTextureIndex : 0;
-		int defaultTargetIndex = GameHost.Instance != null ? GameHost.Instance.EditorCliffPaintTextureIndex : 0;
+		int defaultSourceIndex = GameHost.Instance?.EditorPaintTextureIndex ?? 0;
+		int defaultTargetIndex = GameHost.Instance?.EditorCliffPaintTextureIndex ?? 0;
 
+		PopulateDropdownItems(displayNames, count, defaultSourceIndex, defaultTargetIndex);
+	}
+
+	private void PopulateDropdownItems(System.Collections.Generic.IReadOnlyList<string> displayNames, int count, int defaultSourceIndex, int defaultTargetIndex)
+	{
 		int itemIndex = 0;
 		int selectedSourceItem = 0;
 		int selectedTargetItem = 0;
@@ -121,169 +126,45 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 			_optTarget.AddItem(label, itemIndex);
 			_optTarget.SetItemMetadata(itemIndex, i);
 
-			if (i == defaultSourceIndex)
-			{
-				selectedSourceItem = itemIndex;
-			}
-			if (i == defaultTargetIndex)
-			{
-				selectedTargetItem = itemIndex;
-			}
+			if (i == defaultSourceIndex) selectedSourceItem = itemIndex;
+			if (i == defaultTargetIndex) selectedTargetItem = itemIndex;
 
 			itemIndex++;
 		}
 
-		if (_optSource.ItemCount > 0)
-		{
-			_optSource.Selected = selectedSourceItem;
-		}
-		if (_optTarget.ItemCount > 0)
-		{
-			_optTarget.Selected = selectedTargetItem;
-		}
+		if (_optSource.ItemCount > 0) _optSource.Selected = selectedSourceItem;
+		if (_optTarget.ItemCount > 0) _optTarget.Selected = selectedTargetItem;
 	}
 
-	private void ApplyLivePreview()
+private void ApplyLivePreview()
 	{
-		if (_snapshotSplatMap == null || GameHost.Instance?.GroundTerrain == null || GameHost.Instance.GroundTerrain.SplatMap == null)
-		{
-			return;
-		}
-
-		if (_optSource.Selected < 0 || _optTarget.Selected < 0)
-		{
-			return;
-		}
+		var groundTerrain = GameHost.Instance?.GroundTerrain;
+		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return;
+		if (_optSource.Selected < 0 || _optTarget.Selected < 0) return;
 
 		var sourceMeta = _optSource.GetItemMetadata(_optSource.Selected);
 		var targetMeta = _optTarget.GetItemMetadata(_optTarget.Selected);
-		if (sourceMeta.VariantType == Variant.Type.Nil || targetMeta.VariantType == Variant.Type.Nil)
-		{
-			return;
-		}
+		if (sourceMeta.VariantType == Variant.Type.Nil || targetMeta.VariantType == Variant.Type.Nil) return;
 
 		int sourceSlot = (int)sourceMeta;
 		int targetSlot = (int)targetMeta;
 
-		var groundTerrain = GameHost.Instance.GroundTerrain;
-		int width = _snapshotSplatMap.GetLength(0);
-		int depth = _snapshotSplatMap.GetLength(1);
-
 		if (sourceSlot == targetSlot)
 		{
-			for (int z = 0; z < depth; z++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					groundTerrain.SplatMap[x, z] = _snapshotSplatMap[x, z];
-				}
-			}
-
-			if (_snapshotCliffSplatMap != null && groundTerrain.CliffSplatMap != null)
-			{
-				int cliffWidth = _snapshotCliffSplatMap.GetLength(0);
-				int cliffDepth = _snapshotCliffSplatMap.GetLength(1);
-				for (int z = 0; z < cliffDepth; z++)
-				{
-					for (int x = 0; x < cliffWidth; x++)
-					{
-						groundTerrain.CliffSplatMap[x, z] = _snapshotCliffSplatMap[x, z];
-					}
-				}
-			}
+			RestoreSplatMap(groundTerrain);
 		}
 		else
 		{
-			for (int z = 0; z < depth; z++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					groundTerrain.SplatMap[x, z] = ReplaceIndexInSplat(_snapshotSplatMap[x, z], sourceSlot, targetSlot);
-				}
-			}
-
-			if (_snapshotCliffSplatMap != null && groundTerrain.CliffSplatMap != null)
-			{
-				int cliffWidth = _snapshotCliffSplatMap.GetLength(0);
-				int cliffDepth = _snapshotCliffSplatMap.GetLength(1);
-				for (int z = 0; z < cliffDepth; z++)
-				{
-					for (int x = 0; x < cliffWidth; x++)
-					{
-						groundTerrain.CliffSplatMap[x, z] = ReplaceIndexInSplat(_snapshotCliffSplatMap[x, z], sourceSlot, targetSlot);
-					}
-				}
-			}
+			ReplaceSplatMap(groundTerrain, sourceSlot, targetSlot);
 		}
 
 		groundTerrain.UpdateMeshAndPhysics(false, false, (Rect2I?)null, false);
 	}
 
-	protected override void OnCancel()
+	private void RestoreSplatMap(RuntimeTerrain groundTerrain)
 	{
-		RevertToSnapshot();
-	}
-
-	protected override void OnApply()
-	{
-		if (_snapshotSplatMap == null || GameHost.Instance?.GroundTerrain == null || GameHost.Instance.GroundTerrain.SplatMap == null)
-		{
-			return;
-		}
-
-		if (_optSource.Selected < 0 || _optTarget.Selected < 0)
-		{
-			return;
-		}
-
-		var sourceMeta = _optSource.GetItemMetadata(_optSource.Selected);
-		var targetMeta = _optTarget.GetItemMetadata(_optTarget.Selected);
-		if (sourceMeta.VariantType == Variant.Type.Nil || targetMeta.VariantType == Variant.Type.Nil)
-		{
-			return;
-		}
-
-		int sourceSlot = (int)sourceMeta;
-		int targetSlot = (int)targetMeta;
-
-		if (sourceSlot != targetSlot)
-		{
-			var currentSplat = (TerrainSplatWeights[,])GameHost.Instance.GroundTerrain.SplatMap.Clone();
-			var currentCliffSplat = GameHost.Instance.GroundTerrain.CliffSplatMap != null
-				? (TerrainSplatWeights[,])GameHost.Instance.GroundTerrain.CliffSplatMap.Clone()
-				: null;
-
-			var action = new TerrainModifyAction(
-				(Realm.Ecs.Components.Terrain.TerrainCell[,])null,
-				(Realm.Ecs.Components.Terrain.TerrainCell[,])null,
-				_snapshotSplatMap,
-				currentSplat,
-				null,
-				null,
-				_snapshotCliffSplatMap,
-				currentCliffSplat
-			);
-
-			EditorHistoryManager.RecordAction(action);
-			GameHost.Instance.EditorHasUnsavedChanges = true;
-
-			string sourceName = _optSource.GetItemText(_optSource.Selected);
-			string targetName = _optTarget.GetItemText(_optTarget.Selected);
-			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Replaced {0} with {1}"), sourceName, targetName));
-		}
-	}
-
-	private void RevertToSnapshot()
-	{
-		if (_snapshotSplatMap == null || GameHost.Instance?.GroundTerrain == null || GameHost.Instance.GroundTerrain.SplatMap == null)
-		{
-			return;
-		}
-
-		var groundTerrain = GameHost.Instance.GroundTerrain;
 		int width = _snapshotSplatMap.GetLength(0);
 		int depth = _snapshotSplatMap.GetLength(1);
-
 		for (int z = 0; z < depth; z++)
 		{
 			for (int x = 0; x < width; x++)
@@ -292,53 +173,137 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 			}
 		}
 
-		if (_snapshotCliffSplatMap != null && groundTerrain.CliffSplatMap != null)
+		if (_snapshotCliffSplatMap == null || groundTerrain.CliffSplatMap == null) return;
+
+		int cliffWidth = _snapshotCliffSplatMap.GetLength(0);
+		int cliffDepth = _snapshotCliffSplatMap.GetLength(1);
+		for (int z = 0; z < cliffDepth; z++)
 		{
-			int cliffWidth = _snapshotCliffSplatMap.GetLength(0);
-			int cliffDepth = _snapshotCliffSplatMap.GetLength(1);
-			for (int z = 0; z < cliffDepth; z++)
+			for (int x = 0; x < cliffWidth; x++)
 			{
-				for (int x = 0; x < cliffWidth; x++)
-				{
-					groundTerrain.CliffSplatMap[x, z] = _snapshotCliffSplatMap[x, z];
-				}
+				groundTerrain.CliffSplatMap[x, z] = _snapshotCliffSplatMap[x, z];
+			}
+		}
+	}
+
+	private void ReplaceSplatMap(RuntimeTerrain groundTerrain, int sourceSlot, int targetSlot)
+	{
+		int width = _snapshotSplatMap.GetLength(0);
+		int depth = _snapshotSplatMap.GetLength(1);
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				groundTerrain.SplatMap[x, z] = ReplaceIndexInSplat(_snapshotSplatMap[x, z], sourceSlot, targetSlot);
 			}
 		}
 
+		if (_snapshotCliffSplatMap == null || groundTerrain.CliffSplatMap == null) return;
+
+		int cliffWidth = _snapshotCliffSplatMap.GetLength(0);
+		int cliffDepth = _snapshotCliffSplatMap.GetLength(1);
+		for (int z = 0; z < cliffDepth; z++)
+		{
+			for (int x = 0; x < cliffWidth; x++)
+			{
+				groundTerrain.CliffSplatMap[x, z] = ReplaceIndexInSplat(_snapshotCliffSplatMap[x, z], sourceSlot, targetSlot);
+			}
+		}
+	}
+
+	protected override void OnCancel()
+	{
+		RevertToSnapshot();
+	}
+
+protected override void OnApply()
+	{
+		var groundTerrain = GameHost.Instance?.GroundTerrain;
+		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return;
+		if (_optSource.Selected < 0 || _optTarget.Selected < 0) return;
+
+		var sourceMeta = _optSource.GetItemMetadata(_optSource.Selected);
+		var targetMeta = _optTarget.GetItemMetadata(_optTarget.Selected);
+		if (sourceMeta.VariantType == Variant.Type.Nil || targetMeta.VariantType == Variant.Type.Nil) return;
+
+		int sourceSlot = (int)sourceMeta;
+		int targetSlot = (int)targetMeta;
+		if (sourceSlot == targetSlot) return;
+
+		var currentSplat = (TerrainSplatWeights[,])groundTerrain.SplatMap.Clone();
+		var currentCliffSplat = groundTerrain.CliffSplatMap != null
+			? (TerrainSplatWeights[,])groundTerrain.CliffSplatMap.Clone()
+			: null;
+
+		var action = new TerrainModifyAction(
+			(Realm.Ecs.Components.Terrain.TerrainCell[,])null,
+			(Realm.Ecs.Components.Terrain.TerrainCell[,])null,
+			_snapshotSplatMap,
+			currentSplat,
+			null,
+			null,
+			_snapshotCliffSplatMap,
+			currentCliffSplat
+		);
+
+		EditorHistoryManager.RecordAction(action);
+		GameHost.Instance.EditorHasUnsavedChanges = true;
+
+		string sourceName = _optSource.GetItemText(_optSource.Selected);
+		string targetName = _optTarget.GetItemText(_optTarget.Selected);
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Replaced {0} with {1}"), sourceName, targetName));
+	}
+
+private void RevertToSnapshot()
+	{
+		var groundTerrain = GameHost.Instance?.GroundTerrain;
+		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return;
+
+		RestoreSplatMap(groundTerrain);
 		groundTerrain.UpdateMeshAndPhysics(false, false, (Rect2I?)null, false);
 	}
 
-	private static TerrainSplatWeights ReplaceIndexInSplat(TerrainSplatWeights current, int sourceIndex, int targetIndex)
+private static TerrainSplatWeights ReplaceIndexInSplat(TerrainSplatWeights current, int sourceIndex, int targetIndex)
 	{
 		if (sourceIndex == targetIndex) return current;
 
-		int i0 = current.Index0 == sourceIndex ? targetIndex : current.Index0;
-		int i1 = current.Index1 == sourceIndex ? targetIndex : current.Index1;
-		int i2 = current.Index2 == sourceIndex ? targetIndex : current.Index2;
-		int i3 = current.Index3 == sourceIndex ? targetIndex : current.Index3;
+		int[] indices = {
+			current.Index0 == sourceIndex ? targetIndex : current.Index0,
+			current.Index1 == sourceIndex ? targetIndex : current.Index1,
+			current.Index2 == sourceIndex ? targetIndex : current.Index2,
+			current.Index3 == sourceIndex ? targetIndex : current.Index3
+		};
 
-		float w0 = current.Weight0;
-		float w1 = current.Weight1;
-		float w2 = current.Weight2;
-		float w3 = current.Weight3;
+		float[] weights = { current.Weight0, current.Weight1, current.Weight2, current.Weight3 };
 
-		if (i1 == i0) { w0 += w1; w1 = 0f; }
-		if (i2 == i0) { w0 += w2; w2 = 0f; }
-		else if (i2 == i1) { w1 += w2; w2 = 0f; }
-		if (i3 == i0) { w0 += w3; w3 = 0f; }
-		else if (i3 == i1) { w1 += w3; w3 = 0f; }
-		else if (i3 == i2) { w2 += w3; w3 = 0f; }
+		AccumulateWeights(indices, weights);
 
 		return new TerrainSplatWeights
 		{
-			Index0 = i0,
-			Index1 = i1,
-			Index2 = i2,
-			Index3 = i3,
-			Weight0 = w0,
-			Weight1 = w1,
-			Weight2 = w2,
-			Weight3 = w3
+			Index0 = indices[0],
+			Index1 = indices[1],
+			Index2 = indices[2],
+			Index3 = indices[3],
+			Weight0 = weights[0],
+			Weight1 = weights[1],
+			Weight2 = weights[2],
+			Weight3 = weights[3]
 		};
+	}
+
+	private static void AccumulateWeights(int[] indices, float[] weights)
+	{
+		for (int i = 1; i < 4; i++)
+		{
+			for (int j = 0; j < i; j++)
+			{
+				if (indices[i] == indices[j])
+				{
+					weights[j] += weights[i];
+					weights[i] = 0f;
+					break;
+				}
+			}
+		}
 	}
 }

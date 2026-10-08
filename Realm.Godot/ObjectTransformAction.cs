@@ -39,93 +39,53 @@ public class ObjectTransformAction : IEditorAction
 
 	public void Undo()
 	{
-		if (GodotObject.IsInstanceValid(_targetNode))
-		{
-			_targetNode.Position = _beforePos;
-			_targetNode.RotationDegrees = _beforeRot;
-			_targetNode.Scale = _beforeScale;
-			if (_targetNode is Unit3D unit)
-			{
-				GameHost.Instance?.SetUnitPlayerExternal(unit, _beforePlayer);
-				if (GameHost.Instance?.EcsWorld != null && unit.Entity != Arch.Core.Entity.Null && GameHost.Instance.EcsWorld.IsAlive(unit.Entity))
-				{
-					GameHost.Instance.EcsWorld.Set(unit.Entity, new Position(new System.Numerics.Vector3(_beforePos.X, _beforePos.Y, _beforePos.Z)));
-					if (GameHost.Instance.EcsWorld.Has<RotationY>(unit.Entity))
-						GameHost.Instance.EcsWorld.Set(unit.Entity, new RotationY(_beforeRot.Y));
-					if (GameHost.Instance.EcsWorld.Has<ModelScale>(unit.Entity))
-						GameHost.Instance.EcsWorld.Set(unit.Entity, new ModelScale(_beforeScale.X));
-				}
-			}
-			else if (_targetNode is Prop3D prop)
-			{
-				if (GameHost.Instance?.EcsWorld != null && prop.Entity != Arch.Core.Entity.Null && GameHost.Instance.EcsWorld.IsAlive(prop.Entity))
-				{
-					GameHost.Instance.EcsWorld.Set(prop.Entity, new Position(new System.Numerics.Vector3(_beforePos.X, _beforePos.Y, _beforePos.Z)));
-					if (GameHost.Instance.EcsWorld.Has<RotationY>(prop.Entity))
-						GameHost.Instance.EcsWorld.Set(prop.Entity, new RotationY(_beforeRot.Y));
-					if (GameHost.Instance.EcsWorld.Has<ModelScale>(prop.Entity))
-						GameHost.Instance.EcsWorld.Set(prop.Entity, new ModelScale(_beforeScale.X));
-				}
-				PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
-			}
-			else if (_targetNode is Decal3D decal3D)
-			{
-				if (GameHost.Instance?.EcsWorld != null && decal3D.Entity != Arch.Core.Entity.Null && GameHost.Instance.EcsWorld.IsAlive(decal3D.Entity))
-				{
-					GameHost.Instance.EcsWorld.Set(decal3D.Entity, new Position(new System.Numerics.Vector3(_beforePos.X, _beforePos.Y, _beforePos.Z)));
-					if (GameHost.Instance.EcsWorld.Has<RotationY>(decal3D.Entity))
-						GameHost.Instance.EcsWorld.Set(decal3D.Entity, new RotationY(_beforeRot.Y));
-					if (GameHost.Instance.EcsWorld.Has<ModelScale>(decal3D.Entity))
-						GameHost.Instance.EcsWorld.Set(decal3D.Entity, new ModelScale(_beforeScale.X));
-				}
-			}
-			MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
-		}
+		ApplyState(_beforePos, _beforeRot, _beforeScale, _beforePlayer);
 	}
 
 	public void Redo()
 	{
-		if (GodotObject.IsInstanceValid(_targetNode))
+		ApplyState(_afterPos, _afterRot, _afterScale, _afterPlayer);
+	}
+
+	private void ApplyState(Vector3 pos, Vector3 rot, Vector3 scale, int player)
+	{
+		if (!GodotObject.IsInstanceValid(_targetNode))
+			return;
+
+		_targetNode.Position = pos;
+		_targetNode.RotationDegrees = rot;
+		_targetNode.Scale = scale;
+
+		if (_targetNode is Unit3D unit)
 		{
-			_targetNode.Position = _afterPos;
-			_targetNode.RotationDegrees = _afterRot;
-			_targetNode.Scale = _afterScale;
-			if (_targetNode is Unit3D unit)
-			{
-				GameHost.Instance?.SetUnitPlayerExternal(unit, _afterPlayer);
-				if (GameHost.Instance?.EcsWorld != null && unit.Entity != Arch.Core.Entity.Null && GameHost.Instance.EcsWorld.IsAlive(unit.Entity))
-				{
-					GameHost.Instance.EcsWorld.Set(unit.Entity, new Position(new System.Numerics.Vector3(_afterPos.X, _afterPos.Y, _afterPos.Z)));
-					if (GameHost.Instance.EcsWorld.Has<RotationY>(unit.Entity))
-						GameHost.Instance.EcsWorld.Set(unit.Entity, new RotationY(_afterRot.Y));
-					if (GameHost.Instance.EcsWorld.Has<ModelScale>(unit.Entity))
-						GameHost.Instance.EcsWorld.Set(unit.Entity, new ModelScale(_afterScale.X));
-				}
-			}
-			else if (_targetNode is Prop3D prop)
-			{
-				if (GameHost.Instance?.EcsWorld != null && prop.Entity != Arch.Core.Entity.Null && GameHost.Instance.EcsWorld.IsAlive(prop.Entity))
-				{
-					GameHost.Instance.EcsWorld.Set(prop.Entity, new Position(new System.Numerics.Vector3(_afterPos.X, _afterPos.Y, _afterPos.Z)));
-					if (GameHost.Instance.EcsWorld.Has<RotationY>(prop.Entity))
-						GameHost.Instance.EcsWorld.Set(prop.Entity, new RotationY(_afterRot.Y));
-					if (GameHost.Instance.EcsWorld.Has<ModelScale>(prop.Entity))
-						GameHost.Instance.EcsWorld.Set(prop.Entity, new ModelScale(_afterScale.X));
-				}
-				PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
-			}
-			else if (_targetNode is Decal3D decal3D)
-			{
-				if (GameHost.Instance?.EcsWorld != null && decal3D.Entity != Arch.Core.Entity.Null && GameHost.Instance.EcsWorld.IsAlive(decal3D.Entity))
-				{
-					GameHost.Instance.EcsWorld.Set(decal3D.Entity, new Position(new System.Numerics.Vector3(_afterPos.X, _afterPos.Y, _afterPos.Z)));
-					if (GameHost.Instance.EcsWorld.Has<RotationY>(decal3D.Entity))
-						GameHost.Instance.EcsWorld.Set(decal3D.Entity, new RotationY(_afterRot.Y));
-					if (GameHost.Instance.EcsWorld.Has<ModelScale>(decal3D.Entity))
-						GameHost.Instance.EcsWorld.Set(decal3D.Entity, new ModelScale(_afterScale.X));
-				}
-			}
-			MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+			GameHost.Instance?.SetUnitPlayerExternal(unit, player);
+			UpdateEcsEntity(unit.Entity, pos, rot, scale);
 		}
+		else if (_targetNode is Prop3D prop)
+		{
+			UpdateEcsEntity(prop.Entity, pos, rot, scale);
+			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+		}
+		else if (_targetNode is Decal3D decal3D)
+		{
+			UpdateEcsEntity(decal3D.Entity, pos, rot, scale);
+		}
+
+		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+	}
+
+	private static void UpdateEcsEntity(Arch.Core.Entity entity, Vector3 pos, Vector3 rot, Vector3 scale)
+	{
+		var ecsWorld = GameHost.Instance?.EcsWorld;
+		if (ecsWorld == null || entity == Arch.Core.Entity.Null || !ecsWorld.IsAlive(entity))
+			return;
+
+		ecsWorld.Set(entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
+
+		if (ecsWorld.Has<RotationY>(entity))
+			ecsWorld.Set(entity, new RotationY(rot.Y));
+
+		if (ecsWorld.Has<ModelScale>(entity))
+			ecsWorld.Set(entity, new ModelScale(scale.X));
 	}
 }

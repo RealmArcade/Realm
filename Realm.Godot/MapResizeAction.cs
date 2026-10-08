@@ -92,75 +92,11 @@ public class MapStateSnapshot
 		snapshot.CameraBoundsTop = host.EditorCameraBoundsTop;
 		snapshot.CameraBoundsBottom = host.EditorCameraBoundsBottom;
 
-		foreach (var unit in host.AllUnits)
-		{
-			if (GodotObject.IsInstanceValid(unit))
-			{
-				snapshot.Units.Add(new SavedUnit
-				{
-					Id = unit.UnitId,
-					Position = unit.Position,
-					RotationY = unit.RotationDegrees.Y,
-					Scale = unit.Scale.X,
-					IsEnemy = unit.IsEnemy
-				});
-			}
-		}
-
-		foreach (var prop in host.AllProps)
-		{
-			if (GodotObject.IsInstanceValid(prop))
-			{
-				snapshot.Props.Add(new SavedProp
-				{
-					Id = prop.PropId,
-					Position = prop.Position,
-					RotationY = prop.RotationDegrees.Y,
-					Scale = prop.Scale.X
-				});
-			}
-		}
-
-		foreach (var child in host.GetChildren())
-		{
-			if (child is Decal decal && GodotObject.IsInstanceValid(decal))
-			{
-				string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
-				snapshot.Decals.Add(new SavedDecal
-				{
-					Id = decalId,
-					Position = decal.Position,
-					RotationY = decal.RotationDegrees.Y,
-					Scale = decal.Scale.X
-				});
-			}
-		}
-
-		if (host.AllVfx != null)
-		{
-			foreach (var vfx in host.AllVfx)
-			{
-				if (vfx != null && GodotObject.IsInstanceValid(vfx))
-				{
-					snapshot.Vfx.Add(new VfxSaveData
-					{
-						VfxId = vfx.Config?.VfxId ?? "vfx",
-						PosX = vfx.Position.X,
-						PosY = vfx.Position.Y,
-						PosZ = vfx.Position.Z,
-						RotationX = vfx.RotationDegrees.X,
-						RotationY = vfx.RotationDegrees.Y,
-						RotationZ = vfx.RotationDegrees.Z,
-						ScaleX = vfx.Scale.X,
-						ScaleY = vfx.Scale.Y,
-						ScaleZ = vfx.Scale.Z,
-						NormalOffset = vfx.Config?.SurfaceNormalOffset ?? 0f,
-						Config = vfx.Config?.Clone()
-					});
-				}
-			}
-		}
-
+		SaveUnitsToSnapshot(host, snapshot);
+		SavePropsToSnapshot(host, snapshot);
+		SaveDecalsToSnapshot(host, snapshot);
+		SaveVfxToSnapshot(host, snapshot);
+		
 		snapshot.Coordinates = host.EditorCoordinates.Select(r => new CoordinateSaveData
 		{
 			Name = r.Name,
@@ -171,6 +107,77 @@ public class MapStateSnapshot
 		}).ToList();
 
 		return snapshot;
+	}
+
+	private static void SaveUnitsToSnapshot(GameHost host, MapStateSnapshot snapshot)
+	{
+		foreach (var unit in host.AllUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			snapshot.Units.Add(new SavedUnit
+			{
+				Id = unit.UnitId,
+				Position = unit.Position,
+				RotationY = unit.RotationDegrees.Y,
+				Scale = unit.Scale.X,
+				IsEnemy = unit.IsEnemy
+			});
+		}
+	}
+
+	private static void SavePropsToSnapshot(GameHost host, MapStateSnapshot snapshot)
+	{
+		foreach (var prop in host.AllProps)
+		{
+			if (!GodotObject.IsInstanceValid(prop)) continue;
+			snapshot.Props.Add(new SavedProp
+			{
+				Id = prop.PropId,
+				Position = prop.Position,
+				RotationY = prop.RotationDegrees.Y,
+				Scale = prop.Scale.X
+			});
+		}
+	}
+
+	private static void SaveDecalsToSnapshot(GameHost host, MapStateSnapshot snapshot)
+	{
+		foreach (var child in host.GetChildren())
+		{
+			if (!(child is Decal decal) || !GodotObject.IsInstanceValid(decal)) continue;
+			string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
+			snapshot.Decals.Add(new SavedDecal
+			{
+				Id = decalId,
+				Position = decal.Position,
+				RotationY = decal.RotationDegrees.Y,
+				Scale = decal.Scale.X
+			});
+		}
+	}
+
+	private static void SaveVfxToSnapshot(GameHost host, MapStateSnapshot snapshot)
+	{
+		if (host.AllVfx == null) return;
+		foreach (var vfx in host.AllVfx)
+		{
+			if (vfx == null || !GodotObject.IsInstanceValid(vfx)) continue;
+			snapshot.Vfx.Add(new VfxSaveData
+			{
+				VfxId = vfx.Config?.VfxId ?? "vfx",
+				PosX = vfx.Position.X,
+				PosY = vfx.Position.Y,
+				PosZ = vfx.Position.Z,
+				RotationX = vfx.RotationDegrees.X,
+				RotationY = vfx.RotationDegrees.Y,
+				RotationZ = vfx.RotationDegrees.Z,
+				ScaleX = vfx.Scale.X,
+				ScaleY = vfx.Scale.Y,
+				ScaleZ = vfx.Scale.Z,
+				NormalOffset = vfx.Config?.SurfaceNormalOffset ?? 0f,
+				Config = vfx.Config?.Clone()
+			});
+		}
 	}
 }
 
@@ -200,6 +207,16 @@ public class MapResizeAction : IEditorAction
 		var host = GameHost.Instance;
 		if (host == null || host.GroundTerrain == null) return;
 
+		ClearCurrentState(host);
+		RestoreTerrain(host, snapshot);
+		RestoreEntities(host, snapshot);
+		RestoreCoordinates(host, snapshot);
+		UpdateMetadata(snapshot);
+		RebuildUI(host);
+	}
+
+	private static void ClearCurrentState(GameHost host)
+	{
 		var unitsCopy = new List<Unit3D>(host.AllUnits);
 		foreach (var unit in unitsCopy)
 		{
@@ -227,7 +244,10 @@ public class MapResizeAction : IEditorAction
 				host.DeleteNodeExternal(vfx);
 			}
 		}
+	}
 
+	private static void RestoreTerrain(GameHost host, MapStateSnapshot snapshot)
+	{
 		host.GroundTerrain.RestoreTerrainFromSnapshot(
 			snapshot.Width,
 			snapshot.Depth,
@@ -242,7 +262,10 @@ public class MapResizeAction : IEditorAction
 		host.EditorCameraBoundsRight = snapshot.CameraBoundsRight;
 		host.EditorCameraBoundsTop = snapshot.CameraBoundsTop;
 		host.EditorCameraBoundsBottom = snapshot.CameraBoundsBottom;
+	}
 
+	private static void RestoreEntities(GameHost host, MapStateSnapshot snapshot)
+	{
 		foreach (var u in snapshot.Units)
 		{
 			host.SpawnUnitExternal(u.Id, u.Position, u.IsEnemy, u.RotationY, u.Scale);
@@ -256,47 +279,52 @@ public class MapResizeAction : IEditorAction
 			host.SpawnDecalExternalWithParams(d.Id, d.Position, d.RotationY, d.Scale);
 		}
 
-		if (snapshot.Vfx != null)
+		if (snapshot.Vfx == null) return;
+		foreach (var v in snapshot.Vfx)
 		{
-			foreach (var v in snapshot.Vfx)
-			{
-				host.SpawnVfxExternalWithParams(
-					v.VfxId,
-					new Vector3(v.PosX, v.PosY, v.PosZ),
-					new Vector3(v.RotationX, v.RotationY, v.RotationZ),
-					new Vector3(v.ScaleX <= 0f ? 1f : v.ScaleX, v.ScaleY <= 0f ? 1f : v.ScaleY, v.ScaleZ <= 0f ? 1f : v.ScaleZ),
-					v.NormalOffset,
-					v.Config
-				);
-			}
+			host.SpawnVfxExternalWithParams(
+				v.VfxId,
+				new Vector3(v.PosX, v.PosY, v.PosZ),
+				new Vector3(v.RotationX, v.RotationY, v.RotationZ),
+				new Vector3(v.ScaleX <= 0f ? 1f : v.ScaleX, v.ScaleY <= 0f ? 1f : v.ScaleY, v.ScaleZ <= 0f ? 1f : v.ScaleZ),
+				v.NormalOffset,
+				v.Config
+			);
 		}
+	}
 
-		if (snapshot.Coordinates != null)
-		{
-			host.EditorCoordinates.Clear();
-			host.EditorCoordinates.AddRange(snapshot.Coordinates.Select(r => new GameHost.EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
-			host.RebuildAllCoordinatePersistentMeshes();
-			MapEditorHUD.Instance?.RefreshCoordinateListExternal();
-		}
+	private static void RestoreCoordinates(GameHost host, MapStateSnapshot snapshot)
+	{
+		if (snapshot.Coordinates == null) return;
+		
+		host.EditorCoordinates.Clear();
+		host.EditorCoordinates.AddRange(snapshot.Coordinates.Select(r => new GameHost.EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
+		host.RebuildAllCoordinatePersistentMeshes();
+		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+	}
 
+	private static void UpdateMetadata(MapStateSnapshot snapshot)
+	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (System.IO.File.Exists(metaPath))
+		if (!System.IO.File.Exists(metaPath)) return;
+		
+		try
 		{
-			try
+			MetadataService.Instance.UpdateMetadata(wsPath, meta =>
 			{
-				MetadataService.Instance.UpdateMetadata(wsPath, meta =>
-				{
-					meta.MapProperties.MapWidth = snapshot.Width;
-					meta.MapProperties.MapHeight = snapshot.Depth;
-				});
-			}
-			catch (System.Exception ex)
-			{
-				GD.PrintErr($"Failed to update metadata.json during snapshot restore: {ex.Message}");
-			}
+				meta.MapProperties.MapWidth = snapshot.Width;
+				meta.MapProperties.MapHeight = snapshot.Depth;
+			});
 		}
+		catch (System.Exception ex)
+		{
+			GD.PrintErr($"Failed to update metadata.json during snapshot restore: {ex.Message}");
+		}
+	}
 
+	private static void RebuildUI(GameHost host)
+	{
 		host.RebuildCameraBoundsOverlay();
 		PropMultiMeshManager.Instance?.RebuildAll();
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();

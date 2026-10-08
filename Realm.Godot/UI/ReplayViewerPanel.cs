@@ -19,7 +19,23 @@ public partial class ReplayViewerPanel : PanelContainer
 	private bool _suppressScrubberSignal = false;
 	private bool _reachedEnd = false;
 
+
 	public override void _Ready()
+	{
+		SetupNodes();
+		ConfigureThemeOverrides();
+		BindEvents();
+		SetupScrubber();
+
+		ApplyButtonStyles();
+		PopulatePerspectives();
+		UpdateSpeedButtonHighlights();
+		UpdatePlayPauseButtonText();
+
+		AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel());
+	}
+
+	private void SetupNodes()
 	{
 		_playPauseBtn = GetNode<Button>("MarginContainer/VBox/ControlsRow/PlayPauseButton");
 		_speedBtn05 = GetNode<Button>("MarginContainer/VBox/ControlsRow/Speed05");
@@ -32,9 +48,10 @@ public partial class ReplayViewerPanel : PanelContainer
 		_perspectiveOpt = GetNode<OptionButton>("MarginContainer/VBox/ControlsRow/PerspectiveOpt");
 		_tetherBtn = GetNode<Button>("MarginContainer/VBox/ControlsRow/TetherButton");
 		_quitBtn = GetNode<Button>("MarginContainer/VBox/ControlsRow/QuitButton");
+	}
 
-		_playPauseBtn.Pressed += OnPlayPausePressed;
-		_playPauseBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+	private void ConfigureThemeOverrides()
+	{
 		_playPauseBtn.AddThemeConstantOverride("icon_max_width", 0);
 		_speedBtn05.AddThemeConstantOverride("icon_max_width", 0);
 		_speedBtn1.AddThemeConstantOverride("icon_max_width", 0);
@@ -44,62 +61,73 @@ public partial class ReplayViewerPanel : PanelContainer
 		_tetherBtn.AddThemeConstantOverride("icon_max_width", 0);
 		_quitBtn.AddThemeConstantOverride("icon_max_width", 0);
 		_perspectiveOpt.AddThemeConstantOverride("icon_max_width", 0);
+	}
 
+	private void BindEvents()
+	{
+		_playPauseBtn.Pressed += OnPlayPausePressed;
+		_playPauseBtn.MouseEntered += PlayHoverSound;
+		
 		_speedBtn05.Pressed += () => SetSpeed(0.5f);
 		_speedBtn1.Pressed += () => SetSpeed(1.0f);
 		_speedBtn2.Pressed += () => SetSpeed(2.0f);
 		_speedBtn4.Pressed += () => SetSpeed(4.0f);
 		_speedBtn8.Pressed += () => SetSpeed(8.0f);
 
-		_speedBtn05.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		_speedBtn1.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		_speedBtn2.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		_speedBtn4.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		_speedBtn8.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		_tetherBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		_quitBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		_speedBtn05.MouseEntered += PlayHoverSound;
+		_speedBtn1.MouseEntered += PlayHoverSound;
+		_speedBtn2.MouseEntered += PlayHoverSound;
+		_speedBtn4.MouseEntered += PlayHoverSound;
+		_speedBtn8.MouseEntered += PlayHoverSound;
+		_tetherBtn.MouseEntered += PlayHoverSound;
+		_quitBtn.MouseEntered += PlayHoverSound;
+		
+		_tetherBtn.Pressed += OnTetherPressed;
+		_quitBtn.Pressed += OnQuitPressed;
+	}
 
+	private void PlayHoverSound()
+	{
+		UIManager.Instance?.PlayHoverSound();
+	}
+
+	private void SetupScrubber()
+	{
 		int totalTicks = ReplayPlaybackManager.Instance.TotalTicks;
 		_scrubber.MinValue = 0;
 		_scrubber.MaxValue = totalTicks > 1 ? totalTicks - 1 : 1;
 		_scrubber.Step = 1;
 
-		_scrubber.DragStarted += () =>
+		_scrubber.DragStarted += OnScrubberDragStarted;
+		_scrubber.DragEnded += OnScrubberDragEnded;
+		_scrubber.ValueChanged += OnScrubberValueChanged;
+	}
+
+	private void OnScrubberDragStarted()
+	{
+		_isDraggingScrubber = true;
+		ReplayPlaybackManager.Instance.IsPlaying = false;
+	}
+
+	private void OnScrubberDragEnded(bool valueHasChanged)
+	{
+		_isDraggingScrubber = false;
+		if (valueHasChanged)
 		{
-			_isDraggingScrubber = true;
-			ReplayPlaybackManager.Instance.IsPlaying = false;
-		};
+			ReplayPlaybackManager.Instance.ScrubTo((int)_scrubber.Value);
+		}
+		ReplayPlaybackManager.Instance.IsPlaying = true;
+		_reachedEnd = false;
+	}
 
-		_scrubber.DragEnded += (valueHasChanged) =>
+	private void OnScrubberValueChanged(double val)
+	{
+		if (_suppressScrubberSignal || _isDraggingScrubber)
 		{
-			_isDraggingScrubber = false;
-			if (valueHasChanged)
-			{
-				ReplayPlaybackManager.Instance.ScrubTo((int)_scrubber.Value);
-			}
-			ReplayPlaybackManager.Instance.IsPlaying = true;
-			_reachedEnd = false;
-		};
-
-		_scrubber.ValueChanged += (val) =>
-		{
-			if (_suppressScrubberSignal || _isDraggingScrubber)
-			{
-				return;
-			}
-			ReplayPlaybackManager.Instance.ScrubTo((int)val);
-			_reachedEnd = false;
-		};
-
-		_tetherBtn.Pressed += OnTetherPressed;
-		_quitBtn.Pressed += OnQuitPressed;
-
-		ApplyButtonStyles();
-		PopulatePerspectives();
-		UpdateSpeedButtonHighlights();
-		UpdatePlayPauseButtonText();
-
-		AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel());
+			return;
+		}
+		ReplayPlaybackManager.Instance.ScrubTo((int)val);
+		_reachedEnd = false;
 	}
 
 	private void ApplyButtonStyles()

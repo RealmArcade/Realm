@@ -28,9 +28,19 @@ public static class MapArchiveHelper
         string sourceDirectory,
         string destinationRmapPath,
         Action<float, string>? progressCallback = null,
-        int compressionLevel = 1,
+        int compressionLevel = 1, // Note: Not currently used for files in code below, uses NoCompression, keeping for signature match.
         bool fullExport = false,
         IReadOnlyCollection<string>? excludedRelativePaths = null)
+    {
+        PrepareArchiveDestination(sourceDirectory, destinationRmapPath);
+
+        var filesToArchive = GetFilesToArchive(sourceDirectory, fullExport, excludedRelativePaths);
+        SortFilesForArchive(filesToArchive, sourceDirectory);
+
+        WriteFilesToZipArchive(filesToArchive, sourceDirectory, destinationRmapPath, progressCallback);
+    }
+
+    private static void PrepareArchiveDestination(string sourceDirectory, string destinationRmapPath)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
         {
@@ -47,51 +57,67 @@ public static class MapArchiveHelper
         {
             File.Delete(destinationRmapPath);
         }
+    }
 
+    private static bool IsIgnoredPath(string relPath)
+    {
+        string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/"];
+        string[] suffixes = [".tmp", ".rmap", ".zip", ".tar", ".gz", ".bak", ".backup", ".rkey"];
+        
+        if (prefixes.Any(p => relPath.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
+        if (suffixes.Any(s => relPath.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
+        if (relPath.Contains("/obj/", StringComparison.OrdinalIgnoreCase)) return true;
+        
+        return string.Equals(Path.GetFileName(relPath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllowedExcludedFile(string fn)
+    {
+        string[] allowedExact = ["manifest.json", "metadata.json", "terrain.json"];
+        string[] allowedSuffixes = [".cs", ".wasm", ".csproj"];
+        
+        if (allowedExact.Any(a => fn.Equals(a, StringComparison.OrdinalIgnoreCase))) return true;
+        if (allowedSuffixes.Any(s => fn.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
+        
+        return false;
+    }
+
+    private static List<string> GetFilesToArchive(string sourceDirectory, bool fullExport, IReadOnlyCollection<string>? excludedRelativePaths)
+    {
         var allFiles = Directory.GetFiles(sourceDirectory, "*.*", SearchOption.AllDirectories);
         var filesToArchive = new List<string>(allFiles.Length);
 
-        static bool IsIgnoredPath(string relPath)
-        {
-            string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/"];
-            string[] suffixes = [".tmp", ".rmap", ".zip", ".tar", ".gz", ".bak", ".backup", ".rkey"];
-            
-            if (prefixes.Any(p => relPath.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
-            if (suffixes.Any(s => relPath.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
-            if (relPath.Contains("/obj/", StringComparison.OrdinalIgnoreCase)) return true;
-            
-            return string.Equals(Path.GetFileName(relPath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
-        }
-
-        static bool IsAllowedExcludedFile(string fn)
-        {
-            string[] allowedExact = ["manifest.json", "metadata.json", "terrain.json"];
-            string[] allowedSuffixes = [".cs", ".wasm", ".csproj"];
-            
-            if (allowedExact.Any(a => fn.Equals(a, StringComparison.OrdinalIgnoreCase))) return true;
-            if (allowedSuffixes.Any(s => fn.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
-            
-            return false;
-        }
-
         foreach (var file in allFiles)
         {
-            string relativePath = Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/');
-            
-            if (IsIgnoredPath(relativePath)) continue;
-
-            if (!fullExport && excludedRelativePaths != null && excludedRelativePaths.Contains(relativePath))
+            if (ShouldIncludeFile(file, sourceDirectory, fullExport, excludedRelativePaths))
             {
-                string fn = Path.GetFileName(relativePath);
-                if (!IsAllowedExcludedFile(fn)) continue;
+                filesToArchive.Add(file);
             }
-
-            var fileInfo = new FileInfo(file);
-            if (!fileInfo.Exists || fileInfo.Length == 0) continue;
-
-            filesToArchive.Add(file);
         }
 
+        return filesToArchive;
+    }
+
+    private static bool ShouldIncludeFile(string file, string sourceDirectory, bool fullExport, IReadOnlyCollection<string>? excludedRelativePaths)
+    {
+        string relativePath = Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/');
+        
+        if (IsIgnoredPath(relativePath)) return false;
+
+        if (!fullExport && excludedRelativePaths != null && excludedRelativePaths.Contains(relativePath))
+        {
+            string fn = Path.GetFileName(relativePath);
+            if (!IsAllowedExcludedFile(fn)) return false;
+        }
+
+        var fileInfo = new FileInfo(file);
+        if (!fileInfo.Exists || fileInfo.Length == 0) return false;
+
+        return true;
+    }
+
+    private static void SortFilesForArchive(List<string> filesToArchive, string sourceDirectory)
+    {
         filesToArchive.Sort((a, b) =>
         {
             string relA = Path.GetRelativePath(sourceDirectory, a).Replace('\\', '/');
@@ -101,7 +127,10 @@ public static class MapArchiveHelper
             if (priorityA != priorityB) return priorityA.CompareTo(priorityB);
             return string.Compare(relA, relB, StringComparison.OrdinalIgnoreCase);
         });
+    }
 
+    private static void WriteFilesToZipArchive(List<string> filesToArchive, string sourceDirectory, string destinationRmapPath, Action<float, string>? progressCallback)
+    {
         using var fileStream = new FileStream(destinationRmapPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
         using var zipArchive = new ZipArchive(fileStream, ZipArchiveMode.Create, leaveOpen: false);
 

@@ -24,152 +24,176 @@ public static class MapJsonFormatter
 
 	public static JsonNode? SortKeysRecursively(JsonNode? node)
 	{
-		if (node is JsonObject obj)
+		if (node is JsonArray arr)
 		{
-			var sortedObj = new JsonObject();
-			var keys = obj.Select(kvp => kvp.Key).OrderBy(k => k, StringComparer.Ordinal).ToList();
-
-			float width = obj.TryGetPropertyValue("Width", out var wNode) && float.TryParse(wNode?.ToString(), out float w) && w > 0 ? w : 128f;
-			float depth = obj.TryGetPropertyValue("Depth", out var dNode) && float.TryParse(dNode?.ToString(), out float d) && d > 0 ? d : 128f;
-			float topLeftX = -width / 2.0f;
-			float topLeftZ = -depth / 2.0f;
-
-			foreach (var key in keys)
-			{
-				var value = obj[key];
-
-				if (key == "Units" && value is JsonArray unitsArr && unitsArr.All(item => item is JsonObject))
-				{
-					var sortedList = unitsArr.OfType<JsonObject>()
-						.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
-						.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
-						.ThenBy(item =>
-						{
-							float x = GetFloatProperty(item, "PosX");
-							float z = GetFloatProperty(item, "PosZ");
-							return MathF.Sqrt(MathF.Pow(x - topLeftX, 2) + MathF.Pow(z - topLeftZ, 2));
-						})
-						.ThenBy(item => GetFloatProperty(item, "PosX"))
-						.ThenBy(item => GetFloatProperty(item, "PosZ"))
-						.ThenBy(item => GetFloatProperty(item, "PosY"))
-						.ThenBy(item => GetFloatProperty(item, "RotationX"))
-						.ThenBy(item => GetFloatProperty(item, "RotationY"))
-						.ThenBy(item => GetFloatProperty(item, "RotationZ"))
-						.ThenBy(item => GetFloatProperty(item, "Scale"))
-						.ThenBy(item => GetFloatProperty(item, "Player"))
-						.ThenBy(item => GetBoolProperty(item, "IsEnemy"))
-						.ToList();
-
-					var newUnitsArr = new JsonArray();
-					foreach (var item in sortedList)
-					{
-						newUnitsArr.Add(SortKeysRecursively(item.DeepClone()));
-					}
-					sortedObj[key] = newUnitsArr;
-					continue;
-				}
-
-				if (key == "Props" && value is JsonArray propsArr && propsArr.All(item => item is JsonObject))
-				{
-					var sortedList = propsArr.OfType<JsonObject>()
-						.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
-						.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
-						.ThenBy(item =>
-						{
-							float x = GetFloatProperty(item, "PosX");
-							float z = GetFloatProperty(item, "PosZ");
-							return MathF.Sqrt(MathF.Pow(x - topLeftX, 2) + MathF.Pow(z - topLeftZ, 2));
-						})
-						.ThenBy(item => GetFloatProperty(item, "PosX"))
-						.ThenBy(item => GetFloatProperty(item, "PosZ"))
-						.ThenBy(item => GetFloatProperty(item, "PosY"))
-						.ThenBy(item => GetFloatProperty(item, "RotationX"))
-						.ThenBy(item => GetFloatProperty(item, "RotationY"))
-						.ThenBy(item => GetFloatProperty(item, "RotationZ"))
-						.ThenBy(item => GetFloatProperty(item, "Scale"))
-						.ToList();
-
-					var newPropsArr = new JsonArray();
-					foreach (var item in sortedList)
-					{
-						newPropsArr.Add(SortKeysRecursively(item.DeepClone()));
-					}
-					sortedObj[key] = newPropsArr;
-					continue;
-				}
-
-				if (key == "Decals" && value is JsonArray decalsArr && decalsArr.All(item => item is JsonObject))
-				{
-					var sortedList = decalsArr.OfType<JsonObject>()
-						.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
-						.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
-						.ThenBy(item =>
-						{
-							float x = GetFloatProperty(item, "PosX");
-							float z = GetFloatProperty(item, "PosZ");
-							return MathF.Sqrt(MathF.Pow(x - topLeftX, 2) + MathF.Pow(z - topLeftZ, 2));
-						})
-						.ThenBy(item => GetFloatProperty(item, "PosX"))
-						.ThenBy(item => GetFloatProperty(item, "PosZ"))
-						.ThenBy(item => GetFloatProperty(item, "PosY"))
-						.ThenBy(item => GetFloatProperty(item, "RotationY"))
-						.ThenBy(item => GetFloatProperty(item, "Scale"))
-						.ToList();
-
-					var newDecalsArr = new JsonArray();
-					foreach (var item in sortedList)
-					{
-						newDecalsArr.Add(SortKeysRecursively(item.DeepClone()));
-					}
-					sortedObj[key] = newDecalsArr;
-					continue;
-				}
-
-				if (key == "Coordinates" && value is JsonArray coordsArr && coordsArr.All(item => item is JsonObject))
-				{
-					var sortedList = coordsArr.OfType<JsonObject>()
-						.OrderBy(item => GetStringProperty(item, "Name"), StringComparer.OrdinalIgnoreCase)
-						.ThenBy(item => GetStringProperty(item, "Name"), StringComparer.Ordinal)
-						.ThenBy(item =>
-						{
-							float minX = GetFloatProperty(item, "MinX");
-							float minZ = GetFloatProperty(item, "MinZ");
-							float maxX = GetFloatProperty(item, "MaxX");
-							float maxZ = GetFloatProperty(item, "MaxZ");
-							float midX = (minX + maxX) * 0.5f;
-							float midZ = (minZ + maxZ) * 0.5f;
-							return MathF.Sqrt(MathF.Pow(midX - topLeftX, 2) + MathF.Pow(midZ - topLeftZ, 2));
-						})
-						.ThenBy(item => GetFloatProperty(item, "MinX"))
-						.ThenBy(item => GetFloatProperty(item, "MinZ"))
-						.ThenBy(item => GetFloatProperty(item, "MaxX"))
-						.ThenBy(item => GetFloatProperty(item, "MaxZ"))
-						.ToList();
-
-					var newCoordsArr = new JsonArray();
-					foreach (var item in sortedList)
-					{
-						newCoordsArr.Add(SortKeysRecursively(item.DeepClone()));
-					}
-					sortedObj[key] = newCoordsArr;
-					continue;
-				}
-
-				sortedObj[key] = value != null ? SortKeysRecursively(value.DeepClone()) : null;
-			}
-			return sortedObj;
-		}
-		else if (node is JsonArray arr)
-		{
-			var newArr = new JsonArray();
-			foreach (var item in arr)
-			{
-				newArr.Add(item != null ? SortKeysRecursively(item.DeepClone()) : null);
-			}
-			return newArr;
+			return SortJsonArray(arr);
 		}
 
-		return node?.DeepClone();
+		if (node is not JsonObject obj)
+		{
+			return node?.DeepClone();
+		}
+
+		return SortJsonObject(obj);
+	}
+
+	private static JsonArray SortJsonArray(JsonArray arr)
+	{
+		var newArr = new JsonArray();
+		foreach (var item in arr)
+		{
+			newArr.Add(item != null ? SortKeysRecursively(item.DeepClone()) : null);
+		}
+		return newArr;
+	}
+
+	private static JsonObject SortJsonObject(JsonObject obj)
+	{
+		var sortedObj = new JsonObject();
+		var keys = obj.Select(kvp => kvp.Key).OrderBy(k => k, StringComparer.Ordinal).ToList();
+
+		float topLeftX = -GetMapDimension(obj, "Width") / 2.0f;
+		float topLeftZ = -GetMapDimension(obj, "Depth") / 2.0f;
+
+		foreach (var key in keys)
+		{
+			ProcessObjectKey(obj, sortedObj, key, topLeftX, topLeftZ);
+		}
+
+		return sortedObj;
+	}
+
+	private static float GetMapDimension(JsonObject obj, string dimension)
+	{
+		return obj.TryGetPropertyValue(dimension, out var node) && float.TryParse(node?.ToString(), out float val) && val > 0 ? val : 128f;
+	}
+
+	private static void ProcessObjectKey(JsonObject obj, JsonObject sortedObj, string key, float topLeftX, float topLeftZ)
+	{
+		var value = obj[key];
+
+		if (key == "Units" && TryGetJsonObjectArray(value, out var unitsArr))
+		{
+			sortedObj[key] = SortUnits(unitsArr, topLeftX, topLeftZ);
+			return;
+		}
+
+		if (key == "Props" && TryGetJsonObjectArray(value, out var propsArr))
+		{
+			sortedObj[key] = SortProps(propsArr, topLeftX, topLeftZ);
+			return;
+		}
+
+		if (key == "Decals" && TryGetJsonObjectArray(value, out var decalsArr))
+		{
+			sortedObj[key] = SortDecals(decalsArr, topLeftX, topLeftZ);
+			return;
+		}
+
+		if (key == "Coordinates" && TryGetJsonObjectArray(value, out var coordsArr))
+		{
+			sortedObj[key] = SortCoordinates(coordsArr, topLeftX, topLeftZ);
+			return;
+		}
+
+		sortedObj[key] = value != null ? SortKeysRecursively(value.DeepClone()) : null;
+	}
+
+	private static bool TryGetJsonObjectArray(JsonNode? node, out JsonArray array)
+	{
+		array = node as JsonArray;
+		return array != null && array.All(item => item is JsonObject);
+	}
+
+	private static JsonArray SortUnits(JsonArray unitsArr, float topLeftX, float topLeftZ)
+	{
+		var sortedList = unitsArr.OfType<JsonObject>()
+			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
+			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
+			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
+			.ThenBy(item => GetFloatProperty(item, "PosX"))
+			.ThenBy(item => GetFloatProperty(item, "PosZ"))
+			.ThenBy(item => GetFloatProperty(item, "PosY"))
+			.ThenBy(item => GetFloatProperty(item, "RotationX"))
+			.ThenBy(item => GetFloatProperty(item, "RotationY"))
+			.ThenBy(item => GetFloatProperty(item, "RotationZ"))
+			.ThenBy(item => GetFloatProperty(item, "Scale"))
+			.ThenBy(item => GetFloatProperty(item, "Player"))
+			.ThenBy(item => GetBoolProperty(item, "IsEnemy"))
+			.ToList();
+
+		return CreateSortedArray(sortedList);
+	}
+
+	private static JsonArray SortProps(JsonArray propsArr, float topLeftX, float topLeftZ)
+	{
+		var sortedList = propsArr.OfType<JsonObject>()
+			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
+			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
+			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
+			.ThenBy(item => GetFloatProperty(item, "PosX"))
+			.ThenBy(item => GetFloatProperty(item, "PosZ"))
+			.ThenBy(item => GetFloatProperty(item, "PosY"))
+			.ThenBy(item => GetFloatProperty(item, "RotationX"))
+			.ThenBy(item => GetFloatProperty(item, "RotationY"))
+			.ThenBy(item => GetFloatProperty(item, "RotationZ"))
+			.ThenBy(item => GetFloatProperty(item, "Scale"))
+			.ToList();
+
+		return CreateSortedArray(sortedList);
+	}
+
+	private static JsonArray SortDecals(JsonArray decalsArr, float topLeftX, float topLeftZ)
+	{
+		var sortedList = decalsArr.OfType<JsonObject>()
+			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
+			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
+			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
+			.ThenBy(item => GetFloatProperty(item, "PosX"))
+			.ThenBy(item => GetFloatProperty(item, "PosZ"))
+			.ThenBy(item => GetFloatProperty(item, "PosY"))
+			.ThenBy(item => GetFloatProperty(item, "RotationY"))
+			.ThenBy(item => GetFloatProperty(item, "Scale"))
+			.ToList();
+
+		return CreateSortedArray(sortedList);
+	}
+
+	private static JsonArray SortCoordinates(JsonArray coordsArr, float topLeftX, float topLeftZ)
+	{
+		var sortedList = coordsArr.OfType<JsonObject>()
+			.OrderBy(item => GetStringProperty(item, "Name"), StringComparer.OrdinalIgnoreCase)
+			.ThenBy(item => GetStringProperty(item, "Name"), StringComparer.Ordinal)
+			.ThenBy(item =>
+			{
+				float midX = (GetFloatProperty(item, "MinX") + GetFloatProperty(item, "MaxX")) * 0.5f;
+				float midZ = (GetFloatProperty(item, "MinZ") + GetFloatProperty(item, "MaxZ")) * 0.5f;
+				return MathF.Sqrt(MathF.Pow(midX - topLeftX, 2) + MathF.Pow(midZ - topLeftZ, 2));
+			})
+			.ThenBy(item => GetFloatProperty(item, "MinX"))
+			.ThenBy(item => GetFloatProperty(item, "MinZ"))
+			.ThenBy(item => GetFloatProperty(item, "MaxX"))
+			.ThenBy(item => GetFloatProperty(item, "MaxZ"))
+			.ToList();
+
+		return CreateSortedArray(sortedList);
+	}
+
+	private static float CalculateDistance(JsonObject item, string propX, string propZ, float topLeftX, float topLeftZ)
+	{
+		float x = GetFloatProperty(item, propX);
+		float z = GetFloatProperty(item, propZ);
+		return MathF.Sqrt(MathF.Pow(x - topLeftX, 2) + MathF.Pow(z - topLeftZ, 2));
+	}
+
+	private static JsonArray CreateSortedArray(System.Collections.Generic.List<JsonObject> sortedList)
+	{
+		var newArr = new JsonArray();
+		foreach (var item in sortedList)
+		{
+			newArr.Add(SortKeysRecursively(item.DeepClone()));
+		}
+		return newArr;
 	}
 
 	private static float GetFloatProperty(JsonObject obj, string propertyName)

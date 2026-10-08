@@ -31,36 +31,7 @@ public static class MixamoAnimationImporter
 		if (!File.Exists(filePath)) return result;
 
 		string ext = Path.GetExtension(filePath).ToLowerInvariant();
-		Node rootNode = null;
-
-		if (ext == ".fbx")
-		{
-			var doc = new FbxDocument();
-			var state = new FbxState();
-			var err = doc.AppendFromFile(filePath, state);
-			if (err == Error.Ok)
-			{
-				rootNode = doc.GenerateScene(state);
-			}
-			else
-			{
-				GD.PrintErr($"[MixamoAnimationImporter] Failed to parse FBX: {filePath}, error: {err}");
-			}
-		}
-		else
-		{
-			var doc = new GltfDocument();
-			var state = new GltfState();
-			var err = doc.AppendFromFile(filePath, state);
-			if (err == Error.Ok)
-			{
-				rootNode = doc.GenerateScene(state);
-			}
-			else
-			{
-				GD.PrintErr($"[MixamoAnimationImporter] Failed to parse GLB/GLTF: {filePath}, error: {err}");
-			}
-		}
+		Node rootNode = LoadSceneDocument(filePath, ext);
 
 		if (rootNode == null) return result;
 
@@ -71,22 +42,7 @@ public static class MixamoAnimationImporter
 				? Path.GetFileNameWithoutExtension(originalFileName) 
 				: Path.GetFileNameWithoutExtension(filePath);
 
-			foreach (var player in players)
-			{
-				var animList = player.GetAnimationList();
-				foreach (var animName in animList)
-				{
-					var godotAnim = player.GetAnimation(animName);
-					if (godotAnim == null) continue;
-
-					string sanitizedName = SanitizeAnimationName(animName.ToString(), fileBaseName, animList.Length);
-					var animData = ConvertGodotAnimationToRealm(godotAnim, sanitizedName);
-					if (animData != null && animData.Tracks.Length > 0)
-					{
-						result.Add((sanitizedName, animData));
-					}
-				}
-			}
+			ExtractAnimationsFromPlayers(players, fileBaseName, result);
 		}
 		finally
 		{
@@ -94,6 +50,50 @@ public static class MixamoAnimationImporter
 		}
 
 		return result;
+	}
+
+	private static Node LoadSceneDocument(string filePath, string ext)
+	{
+		if (ext == ".fbx")
+		{
+			var doc = new FbxDocument();
+			var state = new FbxState();
+			var err = doc.AppendFromFile(filePath, state);
+			if (err == Error.Ok) return doc.GenerateScene(state);
+			
+			GD.PrintErr($"[MixamoAnimationImporter] Failed to parse FBX: {filePath}, error: {err}");
+			return null;
+		}
+		else
+		{
+			var doc = new GltfDocument();
+			var state = new GltfState();
+			var err = doc.AppendFromFile(filePath, state);
+			if (err == Error.Ok) return doc.GenerateScene(state);
+			
+			GD.PrintErr($"[MixamoAnimationImporter] Failed to parse GLB/GLTF: {filePath}, error: {err}");
+			return null;
+		}
+	}
+
+	private static void ExtractAnimationsFromPlayers(List<AnimationPlayer> players, string fileBaseName, List<(string AnimationName, RealmAnimationData Data)> result)
+	{
+		foreach (var player in players)
+		{
+			var animList = player.GetAnimationList();
+			foreach (var animName in animList)
+			{
+				var godotAnim = player.GetAnimation(animName);
+				if (godotAnim == null) continue;
+
+				string sanitizedName = SanitizeAnimationName(animName.ToString(), fileBaseName, animList.Length);
+				var animData = ConvertGodotAnimationToRealm(godotAnim, sanitizedName);
+				if (animData != null && animData.Tracks.Length > 0)
+				{
+					result.Add((sanitizedName, animData));
+				}
+			}
+		}
 	}
 
 	public static (string SavedFileName, string Blake3Hash, bool AlreadyExisted) SaveAnimationWithDeduplication(string outputDir, string baseAnimName, RealmAnimationData animData)
@@ -173,73 +173,93 @@ public static class MixamoAnimationImporter
 		int trackCount = godotAnim.GetTrackCount();
 		for (int t = 0; t < trackCount; t++)
 		{
-			var trackType = godotAnim.TrackGetType(t);
-			if (trackType != GAnimation.TrackType.Position3D &&
-				trackType != GAnimation.TrackType.Rotation3D &&
-				trackType != GAnimation.TrackType.Scale3D)
-			{
-				continue;
-			}
-
-			NodePath path = godotAnim.TrackGetPath(t);
-			string pathStr = path.ToString();
-			string rawBoneName = ExtractBoneNameFromTrackPath(pathStr);
-			if (string.IsNullOrEmpty(rawBoneName)) continue;
-
-			string canonicalName = rawBoneName;
-			if (HumanoidBoneMapper.TryMapToCanonical(rawBoneName, out var canonicalBone))
-			{
-				canonicalName = canonicalBone.ToString();
-			}
-
-			if (!boneTrackDict.TryGetValue(canonicalName, out var boneTrack))
-			{
-				boneTrack = new RealmAnimationBoneTrack
-				{
-					BoneName = canonicalName
-				};
-				boneTrackDict[canonicalName] = boneTrack;
-				trackList.Add(boneTrack);
-			}
-
-			int keyCount = godotAnim.TrackGetKeyCount(t);
-			if (trackType == GAnimation.TrackType.Position3D)
-			{
-				var posKeys = new RealmKeyframeVector3[keyCount];
-				for (int k = 0; k < keyCount; k++)
-				{
-					float time = (float)godotAnim.TrackGetKeyTime(t, k);
-					Vector3 val = godotAnim.PositionTrackInterpolate(t, time);
-					posKeys[k] = new RealmKeyframeVector3(time, val.X, val.Y, val.Z);
-				}
-				boneTrack.PositionKeys = posKeys;
-			}
-			else if (trackType == GAnimation.TrackType.Rotation3D)
-			{
-				var rotKeys = new RealmKeyframeQuaternion[keyCount];
-				for (int k = 0; k < keyCount; k++)
-				{
-					float time = (float)godotAnim.TrackGetKeyTime(t, k);
-					Quaternion val = godotAnim.RotationTrackInterpolate(t, time);
-					rotKeys[k] = new RealmKeyframeQuaternion(time, val.X, val.Y, val.Z, val.W);
-				}
-				boneTrack.RotationKeys = rotKeys;
-			}
-			else if (trackType == GAnimation.TrackType.Scale3D)
-			{
-				var scaleKeys = new RealmKeyframeVector3[keyCount];
-				for (int k = 0; k < keyCount; k++)
-				{
-					float time = (float)godotAnim.TrackGetKeyTime(t, k);
-					Vector3 val = godotAnim.ScaleTrackInterpolate(t, time);
-					scaleKeys[k] = new RealmKeyframeVector3(time, val.X, val.Y, val.Z);
-				}
-				boneTrack.ScaleKeys = scaleKeys;
-			}
+			ProcessTrack(godotAnim, t, trackList, boneTrackDict);
 		}
 
 		data.Tracks = trackList.ToArray();
 		return data;
+	}
+
+	private static void ProcessTrack(GAnimation godotAnim, int t, List<RealmAnimationBoneTrack> trackList, Dictionary<string, RealmAnimationBoneTrack> boneTrackDict)
+	{
+		var trackType = godotAnim.TrackGetType(t);
+		if (trackType != GAnimation.TrackType.Position3D &&
+			trackType != GAnimation.TrackType.Rotation3D &&
+			trackType != GAnimation.TrackType.Scale3D)
+		{
+			return;
+		}
+
+		NodePath path = godotAnim.TrackGetPath(t);
+		string pathStr = path.ToString();
+		string rawBoneName = ExtractBoneNameFromTrackPath(pathStr);
+		if (string.IsNullOrEmpty(rawBoneName)) return;
+
+		string canonicalName = rawBoneName;
+		if (HumanoidBoneMapper.TryMapToCanonical(rawBoneName, out var canonicalBone))
+		{
+			canonicalName = canonicalBone.ToString();
+		}
+
+		if (!boneTrackDict.TryGetValue(canonicalName, out var boneTrack))
+		{
+			boneTrack = new RealmAnimationBoneTrack
+			{
+				BoneName = canonicalName
+			};
+			boneTrackDict[canonicalName] = boneTrack;
+			trackList.Add(boneTrack);
+		}
+
+		int keyCount = godotAnim.TrackGetKeyCount(t);
+		if (trackType == GAnimation.TrackType.Position3D)
+		{
+			boneTrack.PositionKeys = ExtractPositionKeys(godotAnim, t, keyCount);
+		}
+		else if (trackType == GAnimation.TrackType.Rotation3D)
+		{
+			boneTrack.RotationKeys = ExtractRotationKeys(godotAnim, t, keyCount);
+		}
+		else if (trackType == GAnimation.TrackType.Scale3D)
+		{
+			boneTrack.ScaleKeys = ExtractScaleKeys(godotAnim, t, keyCount);
+		}
+	}
+
+	private static RealmKeyframeVector3[] ExtractPositionKeys(GAnimation godotAnim, int trackIndex, int keyCount)
+	{
+		var posKeys = new RealmKeyframeVector3[keyCount];
+		for (int k = 0; k < keyCount; k++)
+		{
+			float time = (float)godotAnim.TrackGetKeyTime(trackIndex, k);
+			Vector3 val = godotAnim.PositionTrackInterpolate(trackIndex, time);
+			posKeys[k] = new RealmKeyframeVector3(time, val.X, val.Y, val.Z);
+		}
+		return posKeys;
+	}
+
+	private static RealmKeyframeQuaternion[] ExtractRotationKeys(GAnimation godotAnim, int trackIndex, int keyCount)
+	{
+		var rotKeys = new RealmKeyframeQuaternion[keyCount];
+		for (int k = 0; k < keyCount; k++)
+		{
+			float time = (float)godotAnim.TrackGetKeyTime(trackIndex, k);
+			Quaternion val = godotAnim.RotationTrackInterpolate(trackIndex, time);
+			rotKeys[k] = new RealmKeyframeQuaternion(time, val.X, val.Y, val.Z, val.W);
+		}
+		return rotKeys;
+	}
+
+	private static RealmKeyframeVector3[] ExtractScaleKeys(GAnimation godotAnim, int trackIndex, int keyCount)
+	{
+		var scaleKeys = new RealmKeyframeVector3[keyCount];
+		for (int k = 0; k < keyCount; k++)
+		{
+			float time = (float)godotAnim.TrackGetKeyTime(trackIndex, k);
+			Vector3 val = godotAnim.ScaleTrackInterpolate(trackIndex, time);
+			scaleKeys[k] = new RealmKeyframeVector3(time, val.X, val.Y, val.Z);
+		}
+		return scaleKeys;
 	}
 
 	public static bool StripAnimationsFromGlb(string sourceGlbPath, string destGlbPath)
@@ -247,93 +267,23 @@ public static class MixamoAnimationImporter
 		try
 		{
 			byte[] glbBytes = File.ReadAllBytes(sourceGlbPath);
-			if (glbBytes.Length < 20)
+			if (!IsValidGlbHeader(glbBytes, out uint magic, out uint version, out uint jsonChunkLength))
 			{
 				File.Copy(sourceGlbPath, destGlbPath, true);
 				return false;
 			}
 
-			uint magic = BitConverter.ToUInt32(glbBytes, 0);
-			if (magic != 0x46546C67)
+			if (!TryStripAnimationsFromJson(glbBytes, jsonChunkLength, out byte[] paddedJson, out int paddedJsonLength, out bool noAnimationsPresent))
 			{
 				File.Copy(sourceGlbPath, destGlbPath, true);
-				return false;
-			}
-
-			uint version = BitConverter.ToUInt32(glbBytes, 4);
-			uint totalLength = BitConverter.ToUInt32(glbBytes, 8);
-
-			uint jsonChunkLength = BitConverter.ToUInt32(glbBytes, 12);
-			uint jsonChunkType = BitConverter.ToUInt32(glbBytes, 16);
-			if (jsonChunkType != 0x4E4F534A)
-			{
-				File.Copy(sourceGlbPath, destGlbPath, true);
-				return false;
-			}
-
-			string jsonString = Encoding.UTF8.GetString(glbBytes, 20, (int)jsonChunkLength);
-			var jsonNode = JsonNode.Parse(jsonString);
-			if (jsonNode is not JsonObject rootObj)
-			{
-				File.Copy(sourceGlbPath, destGlbPath, true);
-				return false;
-			}
-
-			if (!rootObj.ContainsKey("animations"))
-			{
-				File.Copy(sourceGlbPath, destGlbPath, true);
-				return true;
-			}
-
-			rootObj.Remove("animations");
-			string strippedJson = rootObj.ToJsonString();
-			byte[] strippedJsonBytes = Encoding.UTF8.GetBytes(strippedJson);
-
-			int paddedJsonLength = (strippedJsonBytes.Length + 3) & ~3;
-			byte[] paddedJson = new byte[paddedJsonLength];
-			Array.Copy(strippedJsonBytes, paddedJson, strippedJsonBytes.Length);
-			for (int i = strippedJsonBytes.Length; i < paddedJsonLength; i++)
-			{
-				paddedJson[i] = 0x20;
+				return noAnimationsPresent;
 			}
 
 			int binChunkStart = 20 + (int)jsonChunkLength;
 			int binChunkTotalLength = glbBytes.Length - binChunkStart;
-
 			uint newTotalLength = 12 + 8 + (uint)paddedJsonLength + (uint)Math.Max(0, binChunkTotalLength);
 
-			string destDir = Path.GetDirectoryName(destGlbPath);
-			if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
-			{
-				Directory.CreateDirectory(destDir);
-			}
-
-			if (File.Exists(destGlbPath))
-			{
-				var attrs = File.GetAttributes(destGlbPath);
-				if ((attrs & FileAttributes.ReadOnly) != 0)
-				{
-					File.SetAttributes(destGlbPath, attrs & ~FileAttributes.ReadOnly);
-				}
-				File.Delete(destGlbPath);
-			}
-
-			using var fs = new FileStream(destGlbPath, FileMode.Create, System.IO.FileAccess.Write);
-			using var writer = new BinaryWriter(fs);
-
-			writer.Write(magic);
-			writer.Write(version);
-			writer.Write(newTotalLength);
-
-			writer.Write((uint)paddedJsonLength);
-			writer.Write(0x4E4F534A);
-			writer.Write(paddedJson);
-
-			if (binChunkTotalLength > 0)
-			{
-				writer.Write(glbBytes, binChunkStart, binChunkTotalLength);
-			}
-
+			WriteStrippedGlb(destGlbPath, magic, version, newTotalLength, paddedJsonLength, paddedJson, glbBytes, binChunkStart, binChunkTotalLength);
 			return true;
 		}
 		catch (Exception ex)
@@ -341,6 +291,90 @@ public static class MixamoAnimationImporter
 			GD.PrintErr($"[MixamoAnimationImporter] Error stripping animations from GLB: {ex.Message}");
 			File.Copy(sourceGlbPath, destGlbPath, true);
 			return false;
+		}
+	}
+
+	private static bool IsValidGlbHeader(byte[] glbBytes, out uint magic, out uint version, out uint jsonChunkLength)
+	{
+		magic = 0;
+		version = 0;
+		jsonChunkLength = 0;
+
+		if (glbBytes.Length < 20) return false;
+
+		magic = BitConverter.ToUInt32(glbBytes, 0);
+		if (magic != 0x46546C67) return false;
+
+		version = BitConverter.ToUInt32(glbBytes, 4);
+		jsonChunkLength = BitConverter.ToUInt32(glbBytes, 12);
+		
+		uint jsonChunkType = BitConverter.ToUInt32(glbBytes, 16);
+		return jsonChunkType == 0x4E4F534A;
+	}
+
+	private static bool TryStripAnimationsFromJson(byte[] glbBytes, uint jsonChunkLength, out byte[] paddedJson, out int paddedJsonLength, out bool noAnimationsPresent)
+	{
+		paddedJson = null;
+		paddedJsonLength = 0;
+		noAnimationsPresent = false;
+
+		string jsonString = Encoding.UTF8.GetString(glbBytes, 20, (int)jsonChunkLength);
+		var jsonNode = JsonNode.Parse(jsonString);
+		if (jsonNode is not JsonObject rootObj) return false;
+
+		if (!rootObj.ContainsKey("animations"))
+		{
+			noAnimationsPresent = true;
+			return false;
+		}
+
+		rootObj.Remove("animations");
+		string strippedJson = rootObj.ToJsonString();
+		byte[] strippedJsonBytes = Encoding.UTF8.GetBytes(strippedJson);
+
+		paddedJsonLength = (strippedJsonBytes.Length + 3) & ~3;
+		paddedJson = new byte[paddedJsonLength];
+		Array.Copy(strippedJsonBytes, paddedJson, strippedJsonBytes.Length);
+		for (int i = strippedJsonBytes.Length; i < paddedJsonLength; i++)
+		{
+			paddedJson[i] = 0x20;
+		}
+
+		return true;
+	}
+
+	private static void WriteStrippedGlb(string destGlbPath, uint magic, uint version, uint newTotalLength, int paddedJsonLength, byte[] paddedJson, byte[] glbBytes, int binChunkStart, int binChunkTotalLength)
+	{
+		string destDir = Path.GetDirectoryName(destGlbPath);
+		if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+		{
+			Directory.CreateDirectory(destDir);
+		}
+
+		if (File.Exists(destGlbPath))
+		{
+			var attrs = File.GetAttributes(destGlbPath);
+			if ((attrs & FileAttributes.ReadOnly) != 0)
+			{
+				File.SetAttributes(destGlbPath, attrs & ~FileAttributes.ReadOnly);
+			}
+			File.Delete(destGlbPath);
+		}
+
+		using var fs = new FileStream(destGlbPath, FileMode.Create, System.IO.FileAccess.Write);
+		using var writer = new BinaryWriter(fs);
+
+		writer.Write(magic);
+		writer.Write(version);
+		writer.Write(newTotalLength);
+
+		writer.Write((uint)paddedJsonLength);
+		writer.Write(0x4E4F534A);
+		writer.Write(paddedJson);
+
+		if (binChunkTotalLength > 0)
+		{
+			writer.Write(glbBytes, binChunkStart, binChunkTotalLength);
 		}
 	}
 
@@ -412,17 +446,16 @@ public static class MixamoAnimationImporter
 		}
 
 		string cleanCheck = name.Replace(':', '_').Replace('.', '_');
+		return IsGenericAnimationName(cleanCheck) ? fileBaseName : name;
+	}
 
-		if (cleanCheck.StartsWith("mixamo", StringComparison.OrdinalIgnoreCase) ||
+	private static bool IsGenericAnimationName(string cleanCheck)
+	{
+		return cleanCheck.StartsWith("mixamo", StringComparison.OrdinalIgnoreCase) ||
 			cleanCheck.Equals("Layer0", StringComparison.OrdinalIgnoreCase) ||
 			cleanCheck.Equals("default", StringComparison.OrdinalIgnoreCase) ||
 			cleanCheck.StartsWith("Take", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.Equals("Animation", StringComparison.OrdinalIgnoreCase))
-		{
-			return fileBaseName;
-		}
-
-		return name;
+			cleanCheck.Equals("Animation", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static string ExtractBoneNameFromTrackPath(string trackPath)

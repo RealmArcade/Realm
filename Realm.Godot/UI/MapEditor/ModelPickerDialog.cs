@@ -70,15 +70,8 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 
 	public void OpenForEntity(string entityId, string fieldName, string domain, string currentPath, Action<string> onApplied = null)
 	{
-		_entityId = entityId ?? string.Empty;
-		_fieldName = string.IsNullOrEmpty(fieldName) ? "ModelPath" : fieldName;
-		_domain = string.IsNullOrEmpty(domain) ? "units" : domain;
-		_selectedModelPath = currentPath ?? string.Empty;
-		_initialModelPath = _selectedModelPath;
-		_onApplied = onApplied;
-
-		string fieldDisplay = _fieldName == "PortraitModelPath" ? "Portrait Model" : "Model Asset";
-		TitleLabel.Text = $"{TranslationServer.Translate("Model Asset Picker")} - {_entityId} ({fieldDisplay})";
+		InitializeFields(entityId, fieldName, domain, currentPath, onApplied);
+		UpdateTitleLabel();
 
 		_setModelPathValue?.Invoke(_selectedModelPath);
 		ClearPreviewModel();
@@ -86,6 +79,27 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		OpenDialog();
 		ResetCameraDefault();
 
+		LoadInitialOrFallbackModel();
+	}
+
+	private void InitializeFields(string entityId, string fieldName, string domain, string currentPath, Action<string> onApplied)
+	{
+		_entityId = entityId ?? string.Empty;
+		_fieldName = string.IsNullOrEmpty(fieldName) ? "ModelPath" : fieldName;
+		_domain = string.IsNullOrEmpty(domain) ? "units" : domain;
+		_selectedModelPath = currentPath ?? string.Empty;
+		_initialModelPath = _selectedModelPath;
+		_onApplied = onApplied;
+	}
+
+	private void UpdateTitleLabel()
+	{
+		string fieldDisplay = _fieldName == "PortraitModelPath" ? "Portrait Model" : "Model Asset";
+		TitleLabel.Text = $"{TranslationServer.Translate("Model Asset Picker")} - {_entityId} ({fieldDisplay})";
+	}
+
+	private void LoadInitialOrFallbackModel()
+	{
 		if (!string.IsNullOrWhiteSpace(_selectedModelPath))
 		{
 			LoadAndPreviewModel(_selectedModelPath);
@@ -95,7 +109,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		var available = ScanAvailableAssets("models", false, _domain);
 		if (available.Count == 0)
 		{
-			if (_lblStatus != null) _lblStatus.Text = TranslationServer.Translate("No model currently selected.");
+			SetNoModelStatus();
 			return;
 		}
 
@@ -103,6 +117,12 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		_setModelPathValue?.Invoke(_selectedModelPath);
 		LoadAndPreviewModel(_selectedModelPath);
 	}
+
+	private void SetNoModelStatus()
+	{
+		if (_lblStatus != null) _lblStatus.Text = TranslationServer.Translate("No model currently selected.");
+	}
+
 
 	private void ClearPreviewModel()
 	{

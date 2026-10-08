@@ -117,51 +117,73 @@ public class TerrainModifyAction : IEditorAction
 
 	public void Undo()
 	{
-		if (GameHost.Instance?.GroundTerrain == null) return;
-		var cells = GameHost.Instance.GroundTerrain.Cells;
+		var host = GameHost.Instance;
+		if (host == null) return;
+		var terrain = host.GroundTerrain;
+		if (terrain == null) return;
 
 		bool heightsChanged = _beforeCells != null;
 		bool pathingChanged = _beforePathing != null;
-		bool splatChanged = _beforeSplatMap != null || _beforeCliffSplatMap != null;
+		bool splatChanged = GetSplatChanged(_beforeSplatMap, _beforeCliffSplatMap);
 
-		if (_beforeCells != null && cells != null)
-		{
-			int cW = Math.Min(_width, _beforeCells.GetLength(0));
-			int cD = Math.Min(_depth, _beforeCells.GetLength(1));
-			for (int z = 0; z < cD; z++)
-				for (int x = 0; x < cW; x++)
-					if (_minX + x < cells.GetLength(0) && _minZ + z < cells.GetLength(1))
-						cells[_minX + x, _minZ + z] = _beforeCells[x, z];
-		}
-		if (_beforeSplatMap != null && GameHost.Instance.GroundTerrain.SplatMap != null)
-		{
-			int sW = _beforeSplatMap.GetLength(0);
-			int sD = _beforeSplatMap.GetLength(1);
-			for (int z = 0; z < sD; z++)
-				for (int x = 0; x < sW; x++)
-					if (_minX + x < GameHost.Instance.GroundTerrain.SplatMap.GetLength(0) && _minZ + z < GameHost.Instance.GroundTerrain.SplatMap.GetLength(1))
-						GameHost.Instance.GroundTerrain.SplatMap[_minX + x, _minZ + z] = _beforeSplatMap[x, z];
-		}
-		if (_beforeCliffSplatMap != null && GameHost.Instance.GroundTerrain.CliffSplatMap != null)
-		{
-			int sW = _beforeCliffSplatMap.GetLength(0);
-			int sD = _beforeCliffSplatMap.GetLength(1);
-			for (int z = 0; z < sD; z++)
-				for (int x = 0; x < sW; x++)
-					if (_minX + x < GameHost.Instance.GroundTerrain.CliffSplatMap.GetLength(0) && _minZ + z < GameHost.Instance.GroundTerrain.CliffSplatMap.GetLength(1))
-						GameHost.Instance.GroundTerrain.CliffSplatMap[_minX + x, _minZ + z] = _beforeCliffSplatMap[x, z];
-		}
-		if (_beforePathing != null && GameHost.Instance.GroundTerrain.PathingCodes != null)
-		{
-			for (int z = 0; z < _depth; z++)
-				for (int x = 0; x < _width; x++)
-					if (_minX + x < GameHost.Instance.GroundTerrain.PathingCodes.GetLength(0) && _minZ + z < GameHost.Instance.GroundTerrain.PathingCodes.GetLength(1))
-						GameHost.Instance.GroundTerrain.PathingCodes[_minX + x, _minZ + z] = _beforePathing[x, z];
-		}
+		ApplyState(_beforeCells, _beforeSplatMap, _beforeCliffSplatMap, _beforePathing);
+		UpdateTerrainSystems(heightsChanged, pathingChanged, splatChanged);
+	}
 
-		if (splatChanged && GameHost.Instance.GroundTerrain.SplatMap != null)
+	private void ApplyState(
+		TerrainCell[,] cells,
+		TerrainSplatWeights[,] splatMap,
+		TerrainSplatWeights[,] cliffSplatMap,
+		int[,] pathingCodes)
+	{
+		var terrain = GameHost.Instance.GroundTerrain;
+		if (cells != null && terrain.Cells != null)
 		{
-			ServiceLocator.Get<EditorService>()?.AlignSplatMapSlots(_minX - 2, _minZ - 2, _minX + _width + 2, _minZ + _depth + 2);
+			ApplyArray(cells, terrain.Cells, Math.Min(_width, cells.GetLength(0)), Math.Min(_depth, cells.GetLength(1)));
+		}
+		if (splatMap != null && terrain.SplatMap != null)
+		{
+			ApplyArray(splatMap, terrain.SplatMap, splatMap.GetLength(0), splatMap.GetLength(1));
+		}
+		if (cliffSplatMap != null && terrain.CliffSplatMap != null)
+		{
+			ApplyArray(cliffSplatMap, terrain.CliffSplatMap, cliffSplatMap.GetLength(0), cliffSplatMap.GetLength(1));
+		}
+		if (pathingCodes != null && terrain.PathingCodes != null)
+		{
+			ApplyArray(pathingCodes, terrain.PathingCodes, _width, _depth);
+		}
+	}
+
+	private void ApplyArray<T>(T[,] source, T[,] target, int width, int depth)
+	{
+		for (int z = 0; z < depth; z++)
+		{
+			ApplyArrayRow(source, target, width, z);
+		}
+	}
+
+	private void ApplyArrayRow<T>(T[,] source, T[,] target, int width, int z)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			if (_minX + x < target.GetLength(0) && _minZ + z < target.GetLength(1))
+			{
+				target[_minX + x, _minZ + z] = source[x, z];
+			}
+		}
+	}
+
+	private void UpdateTerrainSystems(bool heightsChanged, bool pathingChanged, bool splatChanged)
+	{
+		var terrain = GameHost.Instance.GroundTerrain;
+		if (splatChanged && terrain.SplatMap != null)
+		{
+			var editorService = ServiceLocator.Get<EditorService>();
+			if (editorService != null)
+			{
+				editorService.AlignSplatMapSlots(_minX - 2, _minZ - 2, _minX + _width + 2, _minZ + _depth + 2);
+			}
 		}
 
 		Rect2I affected = new Rect2I(_minX - 2, _minZ - 2, _width + 4, _depth + 4);
@@ -170,72 +192,30 @@ public class TerrainModifyAction : IEditorAction
 			GameHost.Instance.AlignAllEntitiesToTerrainExternal(affected);
 			GameHost.Instance.RebuildGridOverlayMeshExternal();
 		}
-		GameHost.Instance.GroundTerrain.UpdateMeshAndPhysics(heightsChanged, false, affected, heightsChanged);
+		terrain.UpdateMeshAndPhysics(heightsChanged, false, affected, heightsChanged);
 		if (pathingChanged)
 		{
 			GameHost.Instance.UpdatePathingOverlay();
 		}
 	}
 
+	private bool GetSplatChanged(TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap)
+	{
+		return splatMap != null || cliffSplatMap != null;
+	}
+
 	public void Redo()
 	{
-		if (GameHost.Instance?.GroundTerrain == null) return;
-		var cells = GameHost.Instance.GroundTerrain.Cells;
+		var host = GameHost.Instance;
+		if (host == null) return;
+		var terrain = host.GroundTerrain;
+		if (terrain == null) return;
 
 		bool heightsChanged = _afterCells != null;
 		bool pathingChanged = _afterPathing != null;
-		bool splatChanged = _afterSplatMap != null || _afterCliffSplatMap != null;
+		bool splatChanged = GetSplatChanged(_afterSplatMap, _afterCliffSplatMap);
 
-		if (_afterCells != null && cells != null)
-		{
-			int cW = Math.Min(_width, _afterCells.GetLength(0));
-			int cD = Math.Min(_depth, _afterCells.GetLength(1));
-			for (int z = 0; z < cD; z++)
-				for (int x = 0; x < cW; x++)
-					if (_minX + x < cells.GetLength(0) && _minZ + z < cells.GetLength(1))
-						cells[_minX + x, _minZ + z] = _afterCells[x, z];
-		}
-		if (_afterSplatMap != null && GameHost.Instance.GroundTerrain.SplatMap != null)
-		{
-			int sW = _afterSplatMap.GetLength(0);
-			int sD = _afterSplatMap.GetLength(1);
-			for (int z = 0; z < sD; z++)
-				for (int x = 0; x < sW; x++)
-					if (_minX + x < GameHost.Instance.GroundTerrain.SplatMap.GetLength(0) && _minZ + z < GameHost.Instance.GroundTerrain.SplatMap.GetLength(1))
-						GameHost.Instance.GroundTerrain.SplatMap[_minX + x, _minZ + z] = _afterSplatMap[x, z];
-		}
-		if (_afterCliffSplatMap != null && GameHost.Instance.GroundTerrain.CliffSplatMap != null)
-		{
-			int sW = _afterCliffSplatMap.GetLength(0);
-			int sD = _afterCliffSplatMap.GetLength(1);
-			for (int z = 0; z < sD; z++)
-				for (int x = 0; x < sW; x++)
-					if (_minX + x < GameHost.Instance.GroundTerrain.CliffSplatMap.GetLength(0) && _minZ + z < GameHost.Instance.GroundTerrain.CliffSplatMap.GetLength(1))
-						GameHost.Instance.GroundTerrain.CliffSplatMap[_minX + x, _minZ + z] = _afterCliffSplatMap[x, z];
-		}
-		if (_afterPathing != null && GameHost.Instance.GroundTerrain.PathingCodes != null)
-		{
-			for (int z = 0; z < _depth; z++)
-				for (int x = 0; x < _width; x++)
-					if (_minX + x < GameHost.Instance.GroundTerrain.PathingCodes.GetLength(0) && _minZ + z < GameHost.Instance.GroundTerrain.PathingCodes.GetLength(1))
-						GameHost.Instance.GroundTerrain.PathingCodes[_minX + x, _minZ + z] = _afterPathing[x, z];
-		}
-
-		if (splatChanged && GameHost.Instance.GroundTerrain.SplatMap != null)
-		{
-			ServiceLocator.Get<EditorService>()?.AlignSplatMapSlots(_minX - 2, _minZ - 2, _minX + _width + 2, _minZ + _depth + 2);
-		}
-
-		Rect2I affected = new Rect2I(_minX - 2, _minZ - 2, _width + 4, _depth + 4);
-		if (heightsChanged)
-		{
-			GameHost.Instance.AlignAllEntitiesToTerrainExternal(affected);
-			GameHost.Instance.RebuildGridOverlayMeshExternal();
-		}
-		GameHost.Instance.GroundTerrain.UpdateMeshAndPhysics(heightsChanged, false, affected, heightsChanged);
-		if (pathingChanged)
-		{
-			GameHost.Instance.UpdatePathingOverlay();
-		}
+		ApplyState(_afterCells, _afterSplatMap, _afterCliffSplatMap, _afterPathing);
+		UpdateTerrainSystems(heightsChanged, pathingChanged, splatChanged);
 	}
 }

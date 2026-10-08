@@ -226,60 +226,69 @@ public class EnvironmentService
 	{
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
 
+		ApplyWorldEnvironmentState(host, state);
+		ApplySunState(host, state);
+		ApplyFillLightState(host, state);
+	}
+
+	private void ApplyWorldEnvironmentState(Node3D host, LiveEnvironmentState state)
+	{
 		var worldEnv = host.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+		if (worldEnv == null || worldEnv.Environment == null) return;
+
+		var env = worldEnv.Environment;
+		env.AmbientLightSource = Godot.Environment.AmbientSource.Color;
+		env.AmbientLightColor = state.AmbientColor;
+		env.AmbientLightEnergy = state.AmbientEnergy;
+
+		GameSettings.ApplyEnvironmentQuality(env, GameSettings.QualityIdx);
+
+		if (GameSettings.QualityIdx > GraphicsQuality.Low)
+		{
+			env.SsaoEnabled = state.SsaoEnabled;
+			env.SsaoRadius = state.SsaoRadius;
+			env.SsaoIntensity = state.SsaoIntensity;
+			env.SsaoDetail = state.SsaoDetail;
+
+			env.GlowIntensity = state.GlowIntensity;
+			env.GlowStrength = state.GlowStrength;
+			env.GlowBloom = state.GlowBloom;
+			env.GlowBlendMode = Godot.Environment.GlowBlendModeEnum.Additive;
+		}
+
+		env.TonemapExposure = state.TonemapExposure;
+		env.AdjustmentContrast = state.AdjustmentContrast;
+		env.AdjustmentSaturation = state.AdjustmentSaturation;
+
+		string weather = state.WeatherType ?? "clear";
+		bool isFogActive = state.FogEnabled && (state.FogDensity > 0f || weather != "clear" || GetBaseFogDensity() > 0f);
+		env.FogEnabled = isFogActive;
+		env.FogLightColor = state.FogColor;
+		env.FogDensity = isFogActive ? state.FogDensity : 0f;
+	}
+
+	private void ApplySunState(Node3D host, LiveEnvironmentState state)
+	{
 		var sun = host.GetNodeOrNull<DirectionalLight3D>("DirectionalLight3D");
+		if (sun == null || !GodotObject.IsInstanceValid(sun)) return;
 
-		if (worldEnv != null && worldEnv.Environment != null)
-		{
-			var env = worldEnv.Environment;
-			env.AmbientLightSource = Godot.Environment.AmbientSource.Color;
-			env.AmbientLightColor = state.AmbientColor;
-			env.AmbientLightEnergy = state.AmbientEnergy;
+		sun.DirectionalShadowBlendSplits = true;
+		sun.DirectionalShadowFadeStart = 0.8f;
+		sun.ShadowBias = state.ShadowBias;
+		sun.ShadowNormalBias = state.ShadowNormalBias;
+		sun.LightColor = state.SunColor;
+		sun.LightEnergy = state.SunEnergy;
+		sun.LightSpecular = 0.5f;
+		sun.RotationDegrees = new Vector3(state.SunPitch, state.SunYaw, 0f);
+		GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
+	}
 
-			GameSettings.ApplyEnvironmentQuality(env, GameSettings.QualityIdx);
-
-			if (GameSettings.QualityIdx > GraphicsQuality.Low)
-			{
-				env.SsaoEnabled = state.SsaoEnabled;
-				env.SsaoRadius = state.SsaoRadius;
-				env.SsaoIntensity = state.SsaoIntensity;
-				env.SsaoDetail = state.SsaoDetail;
-
-				env.GlowIntensity = state.GlowIntensity;
-				env.GlowStrength = state.GlowStrength;
-				env.GlowBloom = state.GlowBloom;
-				env.GlowBlendMode = Godot.Environment.GlowBlendModeEnum.Additive;
-			}
-
-			env.TonemapExposure = state.TonemapExposure;
-			env.AdjustmentContrast = state.AdjustmentContrast;
-			env.AdjustmentSaturation = state.AdjustmentSaturation;
-
-			string weather = state.WeatherType ?? "clear";
-			bool isFogActive = state.FogEnabled && (state.FogDensity > 0f || weather != "clear" || GetBaseFogDensity() > 0f);
-			env.FogEnabled = isFogActive;
-			env.FogLightColor = state.FogColor;
-			env.FogDensity = isFogActive ? state.FogDensity : 0f;
-		}
-
-		if (sun != null && GodotObject.IsInstanceValid(sun))
-		{
-			sun.DirectionalShadowBlendSplits = true;
-			sun.DirectionalShadowFadeStart = 0.8f;
-			sun.ShadowBias = state.ShadowBias;
-			sun.ShadowNormalBias = state.ShadowNormalBias;
-			sun.LightColor = state.SunColor;
-			sun.LightEnergy = state.SunEnergy;
-			sun.LightSpecular = 0.5f;
-			sun.RotationDegrees = new Vector3(state.SunPitch, state.SunYaw, 0f);
-			GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
-		}
-
+	private void ApplyFillLightState(Node3D host, LiveEnvironmentState state)
+	{
 		var fillLight = host.GetNodeOrNull<Camera3D>("Camera3D")?.GetNodeOrNull<DirectionalLight3D>("CharacterFillLight");
-		if (fillLight != null && GodotObject.IsInstanceValid(fillLight))
-		{
-			fillLight.LightEnergy = state.CharacterFillEnergy;
-		}
+		if (fillLight == null || !GodotObject.IsInstanceValid(fillLight)) return;
+
+		fillLight.LightEnergy = state.CharacterFillEnergy;
 	}
 
 	private Entity FindWorldEntity()
@@ -332,18 +341,9 @@ public class EnvironmentService
 
 	public void UpdateEnvironmentalFog(Camera3D camera3D, WorldEnvironment worldEnv)
 	{
-		if (worldEnv == null || worldEnv.Environment == null) return;
+		if (worldEnv?.Environment == null) return;
 
-		string weather = GetCurrentWeather();
-		float baseFogDensity = GetBaseFogDensity();
-
-		if (!_currentState.FogEnabled || (weather == "clear" && baseFogDensity <= 0f && _currentState.FogDensity <= 0f))
-		{
-			worldEnv.Environment.FogEnabled = false;
-			return;
-		}
-
-		if (baseFogDensity <= 0f && _currentState.FogDensity <= 0f)
+		if (!ShouldEnableFog())
 		{
 			worldEnv.Environment.FogEnabled = false;
 			return;
@@ -351,105 +351,149 @@ public class EnvironmentService
 
 		worldEnv.Environment.FogEnabled = true;
 		worldEnv.Environment.FogLightColor = _currentState.FogColor;
+		worldEnv.Environment.FogDensity = CalculateFogDensity(camera3D, GetBaseFogDensity());
+	}
 
-		if (baseFogDensity > 0f && camera3D != null && GodotObject.IsInstanceValid(camera3D))
+	private bool ShouldEnableFog()
+	{
+		if (!_currentState.FogEnabled) return false;
+		if (GetCurrentWeather() != "clear") return true;
+		if (GetBaseFogDensity() > 0f) return true;
+		return _currentState.FogDensity > 0f;
+	}
+
+	private float CalculateFogDensity(Camera3D camera3D, float baseFogDensity)
+	{
+		bool isValidCamera = camera3D != null && GodotObject.IsInstanceValid(camera3D);
+		if (!isValidCamera || baseFogDensity <= 0f)
 		{
-			float height = camera3D.GlobalPosition.Y;
-			float scale = 18.0f / Mathf.Max(8.0f, height);
-			worldEnv.Environment.FogDensity = _currentState.FogDensity > 0f
-				? _currentState.FogDensity + (baseFogDensity * scale)
-				: baseFogDensity * scale;
+			return _currentState.FogDensity;
 		}
-		else
+
+		float height = camera3D.GlobalPosition.Y;
+		float scale = 18.0f / Mathf.Max(8.0f, height);
+		float scaledDensity = baseFogDensity * scale;
+
+		if (_currentState.FogDensity > 0f)
 		{
-			worldEnv.Environment.FogDensity = _currentState.FogDensity;
+			return _currentState.FogDensity + scaledDensity;
 		}
+		return scaledDensity;
 	}
 
 	public void ApplyWeatherVisuals(Node3D host, string weatherType, int particleDensity = 0)
 	{
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
-		var parentNode = host is GameHost gh && gh.MainNode != null ? gh.MainNode : host;
 
 		weatherType = (weatherType ?? "clear").Trim().ToLowerInvariant();
 
-		if (weatherType == "clear" || (weatherType != "rain" && weatherType != "snow"))
+		if (!IsValidWeather(weatherType))
 		{
-			if (GodotObject.IsInstanceValid(_weatherParticles))
-			{
-				_weatherParticles.QueueFree();
-				_weatherParticles = null;
-			}
-			_activeWeatherVisualType = "clear";
-			_activeParticleDensity = 0;
+			Cleanup();
 			return;
 		}
 
-		int count = particleDensity > 0 ? particleDensity : (weatherType == "rain" ? 800 : 600);
+		int count = GetParticleDensity(weatherType, particleDensity);
 
 		if (_activeWeatherVisualType == weatherType && GodotObject.IsInstanceValid(_weatherParticles))
 		{
-			if (_activeParticleDensity != count)
-			{
-				_activeParticleDensity = count;
-				_weatherParticles.Amount = Mathf.Clamp(count, 10, 5000);
-			}
-			UpdateWeatherParticlePosition(GameHost.Instance?.MainCamera);
+			UpdateExistingWeatherParticles(count);
 			return;
 		}
 
-		if (GodotObject.IsInstanceValid(_weatherParticles))
-		{
-			_weatherParticles.QueueFree();
-			_weatherParticles = null;
-		}
+		Cleanup();
 
 		_activeWeatherVisualType = weatherType;
 		_activeParticleDensity = count;
 
-		_weatherParticles = new CpuParticles3D();
-		_weatherParticles.Name = "ActiveWeatherParticles";
-		_weatherParticles.Amount = Mathf.Clamp(count, 10, 5000);
-		_weatherParticles.Preprocess = 2.0f;
-		_weatherParticles.EmissionShape = CpuParticles3D.EmissionShapeEnum.Box;
-		_weatherParticles.EmissionBoxExtents = new Vector3(150f, 1f, 150f);
+		_weatherParticles = InitializeWeatherParticles(count);
+		ConfigureParticleType(_weatherParticles, weatherType);
 
+		Node3D parentNode = GetWeatherHost(host);
+		parentNode.AddChild(_weatherParticles);
+		UpdateWeatherParticlePosition(GameHost.Instance?.MainCamera);
+	}
+
+	private bool IsValidWeather(string weatherType)
+	{
+		return weatherType == "rain" || weatherType == "snow";
+	}
+
+	private int GetParticleDensity(string weatherType, int particleDensity)
+	{
+		if (particleDensity > 0) return particleDensity;
+		return weatherType == "rain" ? 800 : 600;
+	}
+
+	private Node3D GetWeatherHost(Node3D host)
+	{
+		if (host is GameHost gh && gh.MainNode != null && gh.MainNode is Node3D node3D)
+		{
+			return node3D;
+		}
+		return host;
+	}
+
+	private void UpdateExistingWeatherParticles(int newCount)
+	{
+		if (_activeParticleDensity != newCount)
+		{
+			_activeParticleDensity = newCount;
+			_weatherParticles.Amount = Mathf.Clamp(newCount, 10, 5000);
+		}
+		UpdateWeatherParticlePosition(GameHost.Instance?.MainCamera);
+	}
+
+	private CpuParticles3D InitializeWeatherParticles(int count)
+	{
+		var particles = new CpuParticles3D
+		{
+			Name = "ActiveWeatherParticles",
+			Amount = Mathf.Clamp(count, 10, 5000),
+			Preprocess = 2.0f,
+			EmissionShape = CpuParticles3D.EmissionShapeEnum.Box,
+			EmissionBoxExtents = new Vector3(150f, 1f, 150f)
+		};
+		return particles;
+	}
+
+	private void ConfigureParticleType(CpuParticles3D particles, string weatherType)
+	{
 		if (weatherType == "rain")
 		{
-			_weatherParticles.Lifetime = 2.0f;
-			var mesh = new BoxMesh();
-			mesh.Size = new Vector3(0.05f, 1.5f, 0.05f);
-			var mat = new StandardMaterial3D();
-			mat.AlbedoColor = new Color(0.5f, 0.6f, 0.9f, 0.4f);
-			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-			mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+			particles.Lifetime = 2.0f;
+			var mesh = new BoxMesh { Size = new Vector3(0.05f, 1.5f, 0.05f) };
+			var mat = new StandardMaterial3D
+			{
+				AlbedoColor = new Color(0.5f, 0.6f, 0.9f, 0.4f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
+			};
 			mesh.Material = mat;
-			_weatherParticles.Mesh = mesh;
-			_weatherParticles.Direction = new Vector3(0.1f, -1f, 0f);
-			_weatherParticles.Spread = 5f;
-			_weatherParticles.InitialVelocityMin = 20f;
-			_weatherParticles.InitialVelocityMax = 30f;
+			particles.Mesh = mesh;
+			particles.Direction = new Vector3(0.1f, -1f, 0f);
+			particles.Spread = 5f;
+			particles.InitialVelocityMin = 20f;
+			particles.InitialVelocityMax = 30f;
 		}
 		else if (weatherType == "snow")
 		{
-			_weatherParticles.Lifetime = 4.0f;
-			_weatherParticles.Preprocess = 4.0f;
-			var mesh = new BoxMesh();
-			mesh.Size = new Vector3(0.12f, 0.12f, 0.12f);
-			var mat = new StandardMaterial3D();
-			mat.AlbedoColor = new Color(0.95f, 0.95f, 1.0f, 0.8f);
-			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-			mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+			particles.Lifetime = 4.0f;
+			particles.Preprocess = 4.0f;
+			var mesh = new BoxMesh { Size = new Vector3(0.12f, 0.12f, 0.12f) };
+			var mat = new StandardMaterial3D
+			{
+				AlbedoColor = new Color(0.95f, 0.95f, 1.0f, 0.8f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
+			};
 			mesh.Material = mat;
-			_weatherParticles.Mesh = mesh;
-			_weatherParticles.Direction = new Vector3(0.1f, -1f, 0.05f);
-			_weatherParticles.Spread = 20f;
-			_weatherParticles.InitialVelocityMin = 2f;
-			_weatherParticles.InitialVelocityMax = 5f;
+			particles.Mesh = mesh;
+			particles.Direction = new Vector3(0.1f, -1f, 0.05f);
+			particles.Spread = 20f;
+			particles.InitialVelocityMin = 2f;
+			particles.InitialVelocityMax = 5f;
 		}
-
-		parentNode.AddChild(_weatherParticles);
-		UpdateWeatherParticlePosition(GameHost.Instance?.MainCamera);
 	}
 
 	public void UpdateWeatherParticlePosition(Camera3D? camera)
@@ -480,55 +524,62 @@ public class EnvironmentService
 
 	public string SetWeather(string weatherType, Node3D? host = null)
 	{
-		string weather = weatherType?.ToLowerInvariant() switch
+		string weather = NormalizeWeatherType(weatherType);
+		SetCurrentWeather(weather);
+
+		var settings = GetWeatherSettings(weather);
+		SetBaseFogDensity(settings.Density);
+
+		_currentState.WeatherType = weather;
+		_currentState.FogEnabled = weather != "clear";
+		
+		if (weather == "clear")
+		{
+			_currentState.FogDensity = 0f;
+		}
+
+		ApplyWeatherToTarget(host ?? GameHost.Instance, weather, settings.ParticleDensity);
+
+		return weather;
+	}
+
+	private string NormalizeWeatherType(string? weatherType)
+	{
+		return weatherType?.ToLowerInvariant() switch
 		{
 			"rain" => "rain",
 			"snow" => "snow",
 			"fog" => "fog",
 			_ => "clear"
 		};
-		SetCurrentWeather(weather);
+	}
 
-		float density = weather switch
+	private (float Density, int ParticleDensity) GetWeatherSettings(string weather)
+	{
+		return weather switch
 		{
-			"clear" => 0f,
-			"rain" => 0.0075f,
-			"snow" => 0.005f,
-			"fog" => 0.045f,
-			_ => 0f
+			"rain" => (0.0075f, 800),
+			"snow" => (0.005f, 600),
+			"fog" => (0.045f, 0),
+			_ => (0f, 0)
 		};
-		SetBaseFogDensity(density);
+	}
 
-		int particleDensity = weather switch
-		{
-			"rain" => 800,
-			"snow" => 600,
-			_ => 0
-		};
+	private void ApplyWeatherToTarget(Node3D? targetHost, string weather, int particleDensity)
+	{
+		if (targetHost == null) return;
 
-		_currentState.WeatherType = weather;
-		_currentState.FogEnabled = weather != "clear";
+		ApplyWeatherVisuals(targetHost, weather, particleDensity);
+		
 		if (weather == "clear")
 		{
-			_currentState.FogDensity = 0f;
-		}
-
-		var targetHost = host ?? GameHost.Instance;
-		if (targetHost != null)
-		{
-			ApplyWeatherVisuals(targetHost, weather, particleDensity);
-			if (weather == "clear")
+			var worldEnv = targetHost.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+			if (worldEnv?.Environment != null)
 			{
-				var worldEnv = targetHost.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
-				if (worldEnv != null && worldEnv.Environment != null)
-				{
-					worldEnv.Environment.FogEnabled = false;
-					worldEnv.Environment.FogDensity = 0f;
-				}
+				worldEnv.Environment.FogEnabled = false;
+				worldEnv.Environment.FogDensity = 0f;
 			}
 		}
-
-		return weather;
 	}
 
 	public string CycleWeather(Node3D? host = null)

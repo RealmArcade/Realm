@@ -164,226 +164,209 @@ public class ReplayService
 		if (_replayRecorder == null) return;
 
 		Entity worldEntity = Entity.Null;
-		var worldQuery = QueryCache.AllReplayStateAndNetworkMappingStateQuery;
-		EcsWorld.Query(in worldQuery, (Entity entity) => worldEntity = entity);
-
+		EcsWorld.Query(in QueryCache.AllReplayStateAndNetworkMappingStateQuery, (Entity entity) => worldEntity = entity);
 		if (worldEntity == Entity.Null) return;
 
 		ref var replayState = ref EcsWorld.Get<ReplayState>(worldEntity);
 		int currentTick = replayState.ReplayTickCounter;
-
 		bool isKeyframe = (currentTick % 600 == 0);
+
 		List<ReplayUnitSnapshot> unitsToRecord = ReplayObjectPool.RentList();
 		List<int> activeIds = ReplayObjectPool.RentIntList();
-		List<ReplayProjectileSnapshot> projectilesToRecord = null;
-		if (_tickProjectiles.Count > 0)
-		{
-			projectilesToRecord = ReplayObjectPool.RentProjectileList();
-			projectilesToRecord.AddRange(_tickProjectiles);
-			_tickProjectiles.Clear();
-		}
+		List<ReplayProjectileSnapshot> projectilesToRecord = GetTickProjectiles();
 
-		if (isKeyframe)
-		{
-			_lastRecordedUnits.Clear();
-		}
+		if (isKeyframe) _lastRecordedUnits.Clear();
 
 		var mapping = EcsWorld.Get<NetworkMappingState>(worldEntity);
 
-		var unitQuery = QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
-		EcsWorld.Query(in unitQuery, (Entity entity, ref DefinitionId defId, ref Position posComp, ref Owner ownerComp) =>
+		EcsWorld.Query(in QueryCache.AllDefinitionIdAndPositionAndOwnerQuery, (Entity entity, ref DefinitionId defId, ref Position posComp, ref Owner ownerComp) =>
 		{
 			int entityId = entity.Id;
 			string unitId = defId.Value;
-			
-			int ownerPlayerEntityId = -1;
-			var owner = ownerComp.PlayerEntity;
-			foreach (var kvp in mapping.PeerIdToPlayerEntityMap)
-			{
-				if (kvp.Value == owner.Value)
-				{
-					ownerPlayerEntityId = kvp.Key;
-					break;
-				}
-			}
+			int ownerPlayerEntityId = GetOwnerPlayerEntityId(mapping, ownerComp.PlayerEntity);
 
 			System.Numerics.Vector3 pos = posComp.Value;
+			GetUnitState(entity, out float rotY, out float currentHp, out float maxHp, out bool isDead, out bool isBuilding, out System.Numerics.Vector3 vel);
 
-			float rotY = 0f;
-			if (EcsWorld.Has<RotationY>(entity))
-			{
-				rotY = EcsWorld.Get<RotationY>(entity).Value;
-			}
-
-			float currentHp = EcsWorld.Has<Health>(entity) ? EcsWorld.Get<Health>(entity).Current : 0f;
-			float maxHp = EcsWorld.Has<Health>(entity) ? EcsWorld.Get<Health>(entity).Max : 0f;
-			bool isDead = EcsWorld.Has<Dead>(entity);
-			bool isBuilding = EcsWorld.Has<Building>(entity);
-
-			System.Numerics.Vector3 vel = System.Numerics.Vector3.Zero;
-			if (EcsWorld.Has<Velocity>(entity))
-			{
-				vel = EcsWorld.Get<Velocity>(entity).Value;
-			}
-
-			string anim = "Idle";
-			if (isDead) anim = "Death";
-			else if (EcsWorld.Has<MoveTo>(entity) && vel.LengthSquared() > 0.01f) anim = "Walk";
-			else if (EcsWorld.Has<AttackTarget>(entity)) anim = "Attack";
-			else if (EcsWorld.Has<HealingTarget>(entity)) anim = "Spell_Cast";
-			else if (EcsWorld.Has<Gatherer>(entity) && !EcsWorld.Get<Gatherer>(entity).ReturningToBase) anim = "Labor";
-			else if (EcsWorld.Has<BuildTask>(entity))
-			{
-				var task = EcsWorld.Get<BuildTask>(entity);
-				var target = task.BuildingEntity;
-				if (EcsWorld.IsAlive(target) && EcsWorld.Has<Position>(target))
-				{
-					var tPos = EcsWorld.Get<Position>(target).Value;
-					var wPos = pos;
-					if (System.Numerics.Vector3.Distance(wPos, tPos) < 4.0f) anim = "Labor";
-					else anim = "Walk";
-				}
-				else anim = "Labor";
-			}
-
+			string anim = DetermineAnimation(entity, pos, isDead, vel);
 			activeIds.Add(entityId);
 
-			if (isKeyframe)
+			if (isKeyframe || !_lastRecordedUnits.TryGetValue(entityId, out var last) || HasSnapshotChanged(last, unitId, ownerPlayerEntityId, pos, rotY, currentHp, maxHp, isDead, isBuilding, vel, anim))
 			{
-				var snap = new ReplayUnitSnapshot
-				{
-					EntityId = entityId,
-					UnitId = unitId,
-					OwnerPlayerEntityId = ownerPlayerEntityId,
-					Position = new NetworkVector3(pos.X, pos.Y, pos.Z),
-					RotationY = rotY,
-					CurrentHp = currentHp,
-					MaxHp = maxHp,
-					IsDead = isDead,
-					IsBuilding = isBuilding,
-					Velocity = new NetworkVector3(vel.X, vel.Y, vel.Z),
-					Animation = anim
-				};
+				var snap = CreateUnitSnapshot(entityId, unitId, ownerPlayerEntityId, pos, rotY, currentHp, maxHp, isDead, isBuilding, vel, anim);
 				unitsToRecord.Add(snap);
 				_lastRecordedUnits[entityId] = snap;
-			}
-			else
-			{
-				if (_lastRecordedUnits.TryGetValue(entityId, out var last))
-				{
-					bool changed = last.UnitId != unitId ||
-								   last.OwnerPlayerEntityId != ownerPlayerEntityId ||
-								   last.Position.X != pos.X ||
-								   last.Position.Y != pos.Y ||
-								   last.Position.Z != pos.Z ||
-								   last.RotationY != rotY ||
-								   last.CurrentHp != currentHp ||
-								   last.MaxHp != maxHp ||
-								   last.IsDead != isDead ||
-								   last.IsBuilding != isBuilding ||
-								   last.Velocity.X != vel.X ||
-								   last.Velocity.Y != vel.Y ||
-								   last.Velocity.Z != vel.Z ||
-								   last.Animation != anim;
-
-					if (changed)
-					{
-						var snap = new ReplayUnitSnapshot
-						{
-							EntityId = entityId,
-							UnitId = unitId,
-							OwnerPlayerEntityId = ownerPlayerEntityId,
-							Position = new NetworkVector3(pos.X, pos.Y, pos.Z),
-							RotationY = rotY,
-							CurrentHp = currentHp,
-							MaxHp = maxHp,
-							IsDead = isDead,
-							IsBuilding = isBuilding,
-							Velocity = new NetworkVector3(vel.X, vel.Y, vel.Z),
-							Animation = anim
-						};
-						unitsToRecord.Add(snap);
-						_lastRecordedUnits[entityId] = snap;
-					}
-				}
-				else
-				{
-					var snap = new ReplayUnitSnapshot
-					{
-						EntityId = entityId,
-						UnitId = unitId,
-						OwnerPlayerEntityId = ownerPlayerEntityId,
-						Position = new NetworkVector3(pos.X, pos.Y, pos.Z),
-						RotationY = rotY,
-						CurrentHp = currentHp,
-						MaxHp = maxHp,
-						IsDead = isDead,
-						IsBuilding = isBuilding,
-						Velocity = new NetworkVector3(vel.X, vel.Y, vel.Z),
-						Animation = anim
-					};
-					unitsToRecord.Add(snap);
-					_lastRecordedUnits[entityId] = snap;
-				}
 			}
 		});
 
 		if (!isKeyframe)
 		{
-			List<int> destroyedIds = ReplayObjectPool.RentIntList();
-			foreach (var pair in _lastRecordedUnits)
-			{
-				if (!activeIds.Contains(pair.Key))
-				{
-					destroyedIds.Add(pair.Key);
-				}
-			}
-
-			foreach (int id in destroyedIds)
-			{
-				var deadSnap = _lastRecordedUnits[id];
-				var deadEventSnap = new ReplayUnitSnapshot
-				{
-					EntityId = deadSnap.EntityId,
-					UnitId = deadSnap.UnitId,
-					OwnerPlayerEntityId = deadSnap.OwnerPlayerEntityId,
-					Position = deadSnap.Position,
-					RotationY = deadSnap.RotationY,
-					CurrentHp = 0f,
-					MaxHp = deadSnap.MaxHp,
-					IsDead = true,
-					IsBuilding = deadSnap.IsBuilding,
-					Velocity = default,
-					Animation = "Death"
-				};
-				unitsToRecord.Add(deadEventSnap);
-				_lastRecordedUnits.Remove(id);
-			}
-			ReplayObjectPool.ReturnIntList(destroyedIds);
+			ProcessDestroyedUnits(activeIds, unitsToRecord);
 		}
 
-		float gold = replayState.GoldBackup;
-		float wood = replayState.WoodBackup;
-		float stone = replayState.StoneBackup;
-
-		Entity playerEnt = mapping.PlayerEntity;
-		if (EcsWorld.IsAlive(playerEnt) && EcsWorld.Has<PlayerResources>(playerEnt))
-		{
-			var dict = EcsWorld.Get<PlayerResources>(playerEnt).Value;
-			if (dict.TryGetValue(new ResourceId("gold"), out var gVal)) gold = gVal;
-			if (dict.TryGetValue(new ResourceId("wood"), out var wVal)) wood = wVal;
-			if (dict.TryGetValue(new ResourceId("stone"), out var sVal)) stone = sVal;
-		}
+		float gold = replayState.GoldBackup, wood = replayState.WoodBackup, stone = replayState.StoneBackup;
+		GetPlayerResources(mapping, ref gold, ref wood, ref stone);
 
 		_replayRecorder.RecordTick(currentTick, unitsToRecord, projectilesToRecord, gold, wood, stone, isKeyframe);
 
 		ReplayObjectPool.ReturnList(unitsToRecord);
 		ReplayObjectPool.ReturnIntList(activeIds);
-		if (projectilesToRecord != null)
-		{
-			ReplayObjectPool.ReturnProjectileList(projectilesToRecord);
-		}
+		if (projectilesToRecord != null) ReplayObjectPool.ReturnProjectileList(projectilesToRecord);
 
 		replayState.ReplayTickCounter++;
 	}
+
+	private void GetUnitState(Entity entity, out float rotY, out float currentHp, out float maxHp, out bool isDead, out bool isBuilding, out System.Numerics.Vector3 vel)
+	{
+		rotY = EcsWorld.Has<RotationY>(entity) ? EcsWorld.Get<RotationY>(entity).Value : 0f;
+		currentHp = EcsWorld.Has<Health>(entity) ? EcsWorld.Get<Health>(entity).Current : 0f;
+		maxHp = EcsWorld.Has<Health>(entity) ? EcsWorld.Get<Health>(entity).Max : 0f;
+		isDead = EcsWorld.Has<Dead>(entity);
+		isBuilding = EcsWorld.Has<Building>(entity);
+		vel = EcsWorld.Has<Velocity>(entity) ? EcsWorld.Get<Velocity>(entity).Value : System.Numerics.Vector3.Zero;
+	}
+
+	private List<ReplayProjectileSnapshot> GetTickProjectiles()
+	{
+		if (_tickProjectiles.Count == 0) return null;
+		var list = ReplayObjectPool.RentProjectileList();
+		list.AddRange(_tickProjectiles);
+		_tickProjectiles.Clear();
+		return list;
+	}
+
+	private int GetOwnerPlayerEntityId(NetworkMappingState mapping, Realm.Ecs.Common.PlayerEntity owner)
+	{
+		foreach (var kvp in mapping.PeerIdToPlayerEntityMap)
+		{
+			if (kvp.Value == owner.Value)
+			{
+				return kvp.Key;
+			}
+		}
+		return -1;
+	}
+
+	private string DetermineAnimation(Entity entity, System.Numerics.Vector3 pos, bool isDead, System.Numerics.Vector3 vel)
+	{
+		if (isDead) return "Death";
+		if (EcsWorld.Has<MoveTo>(entity) && vel.LengthSquared() > 0.01f) return "Walk";
+		if (EcsWorld.Has<AttackTarget>(entity)) return "Attack";
+		if (EcsWorld.Has<HealingTarget>(entity)) return "Spell_Cast";
+		if (EcsWorld.Has<Gatherer>(entity) && !EcsWorld.Get<Gatherer>(entity).ReturningToBase) return "Labor";
+		
+		if (EcsWorld.Has<BuildTask>(entity))
+		{
+			return DetermineBuildAnimation(entity, pos);
+		}
+		
+		return "Idle";
+	}
+
+	private string DetermineBuildAnimation(Entity entity, System.Numerics.Vector3 pos)
+	{
+		var task = EcsWorld.Get<BuildTask>(entity);
+		var target = task.BuildingEntity;
+		if (EcsWorld.IsAlive(target) && EcsWorld.Has<Position>(target))
+		{
+			var tPos = EcsWorld.Get<Position>(target).Value;
+			if (System.Numerics.Vector3.Distance(pos, tPos) < 4.0f) return "Labor";
+			return "Walk";
+		}
+		return "Labor";
+	}
+
+	private ReplayUnitSnapshot CreateUnitSnapshot(int entityId, string unitId, int ownerPlayerEntityId, System.Numerics.Vector3 pos, float rotY, float currentHp, float maxHp, bool isDead, bool isBuilding, System.Numerics.Vector3 vel, string anim)
+	{
+		return new ReplayUnitSnapshot
+		{
+			EntityId = entityId,
+			UnitId = unitId,
+			OwnerPlayerEntityId = ownerPlayerEntityId,
+			Position = new NetworkVector3(pos.X, pos.Y, pos.Z),
+			RotationY = rotY,
+			CurrentHp = currentHp,
+			MaxHp = maxHp,
+			IsDead = isDead,
+			IsBuilding = isBuilding,
+			Velocity = new NetworkVector3(vel.X, vel.Y, vel.Z),
+			Animation = anim
+		};
+	}
+
+	private bool HasSnapshotChanged(ReplayUnitSnapshot last, string unitId, int ownerPlayerEntityId, System.Numerics.Vector3 pos, float rotY, float currentHp, float maxHp, bool isDead, bool isBuilding, System.Numerics.Vector3 vel, string anim)
+	{
+		return HasStateChanged(last, unitId, ownerPlayerEntityId, currentHp, maxHp, isDead, isBuilding, anim) || 
+		       HasPositionChanged(last, pos, rotY) || 
+		       HasVelocityChanged(last, vel);
+	}
+
+	private bool HasStateChanged(ReplayUnitSnapshot last, string unitId, int ownerPlayerEntityId, float currentHp, float maxHp, bool isDead, bool isBuilding, string anim)
+	{
+		if (last.UnitId != unitId) return true;
+		if (last.OwnerPlayerEntityId != ownerPlayerEntityId) return true;
+		if (last.CurrentHp != currentHp || last.MaxHp != maxHp) return true;
+		if (last.IsDead != isDead || last.IsBuilding != isBuilding) return true;
+		if (last.Animation != anim) return true;
+		return false;
+	}
+
+	private bool HasPositionChanged(ReplayUnitSnapshot last, System.Numerics.Vector3 pos, float rotY)
+	{
+		if (last.Position.X != pos.X || last.Position.Y != pos.Y || last.Position.Z != pos.Z) return true;
+		if (last.RotationY != rotY) return true;
+		return false;
+	}
+
+	private bool HasVelocityChanged(ReplayUnitSnapshot last, System.Numerics.Vector3 vel)
+	{
+		if (last.Velocity.X != vel.X || last.Velocity.Y != vel.Y || last.Velocity.Z != vel.Z) return true;
+		return false;
+	}
+
+	private void ProcessDestroyedUnits(List<int> activeIds, List<ReplayUnitSnapshot> unitsToRecord)
+	{
+		List<int> destroyedIds = ReplayObjectPool.RentIntList();
+		foreach (var pair in _lastRecordedUnits)
+		{
+			if (!activeIds.Contains(pair.Key))
+			{
+				destroyedIds.Add(pair.Key);
+			}
+		}
+
+		foreach (int id in destroyedIds)
+		{
+			var deadSnap = _lastRecordedUnits[id];
+			var deadEventSnap = new ReplayUnitSnapshot
+			{
+				EntityId = deadSnap.EntityId,
+				UnitId = deadSnap.UnitId,
+				OwnerPlayerEntityId = deadSnap.OwnerPlayerEntityId,
+				Position = deadSnap.Position,
+				RotationY = deadSnap.RotationY,
+				CurrentHp = 0f,
+				MaxHp = deadSnap.MaxHp,
+				IsDead = true,
+				IsBuilding = deadSnap.IsBuilding,
+				Velocity = default,
+				Animation = "Death"
+			};
+			unitsToRecord.Add(deadEventSnap);
+			_lastRecordedUnits.Remove(id);
+		}
+		ReplayObjectPool.ReturnIntList(destroyedIds);
+	}
+
+	private void GetPlayerResources(NetworkMappingState mapping, ref float gold, ref float wood, ref float stone)
+	{
+		Entity playerEnt = mapping.PlayerEntity;
+		if (!EcsWorld.IsAlive(playerEnt) || !EcsWorld.Has<PlayerResources>(playerEnt)) return;
+
+		var dict = EcsWorld.Get<PlayerResources>(playerEnt).Value;
+		if (dict.TryGetValue(new ResourceId("gold"), out var gVal)) gold = gVal;
+		if (dict.TryGetValue(new ResourceId("wood"), out var wVal)) wood = wVal;
+		if (dict.TryGetValue(new ResourceId("stone"), out var sVal)) stone = sVal;
+	}
+
 }

@@ -322,63 +322,50 @@ internal class CombatAndDamageService
 
 	private void TargetAcquisitionQueryAction(Entity entity, ref Position pos, ref Attack atk, ref Owner owner)
 	{
-		if (EcsWorld.Has<DefinitionId>(entity) && EcsWorld.Get<DefinitionId>(entity).Value == "priest")
-		{
-			return;
-		}
+		if (EcsWorld.Has<DefinitionId>(entity) && EcsWorld.Get<DefinitionId>(entity).Value == "priest") return;
 
 		bool isAttackMove = EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(entity);
 		bool isPatrol     = EcsWorld.Has<Patrol>(entity);
 		bool isIdle = !EcsWorld.Has<MoveTo>(entity) && !isAttackMove;
 
-		if (isIdle || isAttackMove || isPatrol)
+		if (!isIdle && !isAttackMove && !isPatrol) return;
+
+		float scanRadius = EcsWorld.Has<ScanRadius>(entity) ? EcsWorld.Get<ScanRadius>(entity).Value : 15.0f;
+		if (GetTimeOfDayIndex() == 2) scanRadius *= 0.7f;
+
+		_scanAttackerPos = pos.Value;
+		_scanAttackerOwner = owner.PlayerEntity;
+		_scanAttacker = entity;
+		_scanIsAttackerEnemy = EcsWorld.Has<UnitFaction>(entity) && EcsWorld.Get<UnitFaction>(entity).IsEnemy;
+
+		// A ground-pathing melee attacker can never hit a unit hovering at flight
+		// altitude, so flyers are excluded from its scan entirely.
+		_scanAttackerIsGroundMelee = !IsFlying(entity) && atk.Range <= MeleeRangeThreshold;
+		_scanMaxDistSq = scanRadius * scanRadius;
+		_scanCandidateCount = 0;
+
+		EcsWorld.Query(in _enemyQuery, _potentialEnemyQueryDelegate);
+		FindAndSetBestReachableCandidate(entity, ref pos, ref atk);
+	}
+
+	private void FindAndSetBestReachableCandidate(Entity entity, ref Position pos, ref Attack atk)
+	{
+		for (int i = 0; i < _scanCandidateCount; i++)
 		{
-			float scanRadius = EcsWorld.Has<ScanRadius>(entity)
-				? EcsWorld.Get<ScanRadius>(entity).Value
-				: 15.0f;
+			var candidate = _scanCandidates[i];
+			if (candidate.Enemy == Entity.Null) continue;
+			if (IsTargetStillAbandoned(entity, candidate.Enemy)) continue;
+			if (!EcsWorld.Has<Position>(candidate.Enemy)) continue;
 
-			if (GetTimeOfDayIndex() == 2)
+			var enemyPos = EcsWorld.Get<Position>(candidate.Enemy).Value;
+			float effectiveRange = GetEffectiveRange(entity, candidate.Enemy, atk.Range, out bool isMelee, out float meleeVerticalReach);
+			if (!IsReachableWithinRange(entity, candidate.Enemy, pos.Value, enemyPos, effectiveRange, isMelee, meleeVerticalReach))
 			{
-				scanRadius *= 0.7f;
+				continue;
 			}
 
-			_scanAttackerPos = pos.Value;
-			_scanAttackerOwner = owner.PlayerEntity;
-			_scanAttacker = entity;
-			_scanIsAttackerEnemy = false;
-			if (EcsWorld.Has<UnitFaction>(entity))
-			{
-				_scanIsAttackerEnemy = EcsWorld.Get<UnitFaction>(entity).IsEnemy;
-			}
-			// A ground-pathing melee attacker can never hit a unit hovering at flight
-			// altitude, so flyers are excluded from its scan entirely (they used to become
-			// the closest candidate and block acquisition for every reachable enemy).
-			_scanAttackerIsGroundMelee = !IsFlying(entity) && atk.Range <= MeleeRangeThreshold;
-			_scanMaxDistSq = scanRadius * scanRadius;
-			_scanCandidateCount = 0;
-
-			EcsWorld.Query(in _enemyQuery, _potentialEnemyQueryDelegate);
-
-			// Walk the scan candidates in distance order and commit to the closest one that
-			// is not abandoned and is truly reachable. A single unreachable nearest enemy
-			// (plateau mount, hovering flyer) must not make the unit ignore everyone else.
-			for (int i = 0; i < _scanCandidateCount; i++)
-			{
-				var candidate = _scanCandidates[i];
-				if (candidate.Enemy == Entity.Null) continue;
-				if (IsTargetStillAbandoned(entity, candidate.Enemy)) continue;
-				if (!EcsWorld.Has<Position>(candidate.Enemy)) continue;
-
-				var enemyPos = EcsWorld.Get<Position>(candidate.Enemy).Value;
-				float effectiveRange = GetEffectiveRange(entity, candidate.Enemy, atk.Range, out bool isMelee, out float meleeVerticalReach);
-				if (!IsReachableWithinRange(entity, candidate.Enemy, pos.Value, enemyPos, effectiveRange, isMelee, meleeVerticalReach))
-				{
-					continue;
-				}
-
-				_tickNewAttackTargets.Add((entity, new AttackTarget(candidate.Enemy)));
-				break;
-			}
+			_tickNewAttackTargets.Add((entity, new AttackTarget(candidate.Enemy)));
+			break;
 		}
 	}
 
@@ -462,106 +449,90 @@ internal class CombatAndDamageService
 
 		EcsWorld.Query(in _combatQuery, _combatQueryDelegate);
 
+		ProcessLastAttackers();
+		ProcessUnitsToKill();
+		ProcessTargetRemovals();
+		ProcessChaseActions();
+		ProcessStopChasingActions();
+	}
+
+	private void ProcessLastAttackers()
+	{
 		foreach (var (targetEnt, attackerEnt) in _tickActionsToAddLastAttacker)
 		{
 			if (EcsWorld.IsAlive(targetEnt))
 			{
-				// Several attackers can hit the same target in the same tick, so the target may
-				// appear here more than once. AddOrGet overwrites instead of re-adding the
-				// component (re-adding would move the entity to its own archetype and trip
-				// Arch's structural-change assertion in Debug builds).
 				EcsWorld.AddOrGet(targetEnt, new LastAttacker(attackerEnt)) = new LastAttacker(attackerEnt);
 			}
 		}
+	}
 
+	private void ProcessUnitsToKill()
+	{
 		foreach (var targetEntity in _tickUnitsToKill)
 		{
 			ClearChaseTracking(targetEntity);
 			_abandonedTargetCooldown.Remove(targetEntity);
-			if (EcsWorld.IsAlive(targetEntity))
-			{
-				if (!EcsWorld.Has<Dead>(targetEntity))
-				{
-					EcsWorld.Add<Dead>(targetEntity);
-					OnKillUnitRequested?.Invoke(targetEntity);
-				}
-			}
-		}
+			if (!EcsWorld.IsAlive(targetEntity) || EcsWorld.Has<Dead>(targetEntity)) continue;
 
+			EcsWorld.Add<Dead>(targetEntity);
+			OnKillUnitRequested?.Invoke(targetEntity);
+		}
+	}
+
+	private void ProcessTargetRemovals()
+	{
 		foreach (var ent in _tickActionsToRemoveTarget)
 		{
 			ClearChaseTracking(ent);
-			if (EcsWorld.IsAlive(ent))
-			{
-				if (EcsWorld.Has<AttackTarget>(ent))
-				{
-					EcsWorld.Remove<AttackTarget>(ent);
-				}
+			if (!EcsWorld.IsAlive(ent)) continue;
 
-				if (EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(ent))
-				{
-					var am = EcsWorld.Get<Realm.Ecs.Components.Movement.AttackMove>(ent);
-					if (!EcsWorld.Has<MoveTo>(ent))
-						EcsWorld.Add(ent, new MoveTo(am.Target));
-				}
-				else if (EcsWorld.Has<Patrol>(ent))
-				{
-					var patrol = EcsWorld.Get<Patrol>(ent);
-					var destVec = patrol.GoingToB ? patrol.PointB : patrol.PointA;
-					if (!EcsWorld.Has<MoveTo>(ent))
-						EcsWorld.Add(ent, new MoveTo(destVec));
-				}
-				else if (EcsWorld.Has<MoveTo>(ent))
-				{
-					// Plain unit (no AttackMove/Patrol): the MoveTo, if present, is a chase
-					// order pointing at the dead/escaped target's position. Clear it (and the
-					// leftover velocity) so the unit re-acquires immediately instead of
-					// marching to the corpse while enemies walk past it.
-					EcsWorld.Remove<MoveTo>(ent);
-					if (EcsWorld.Has<Velocity>(ent))
-					{
-						EcsWorld.Set(ent, new Velocity(System.Numerics.Vector3.Zero));
-					}
-				}
+			if (EcsWorld.Has<AttackTarget>(ent)) EcsWorld.Remove<AttackTarget>(ent);
+
+			if (EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(ent))
+			{
+				var am = EcsWorld.Get<Realm.Ecs.Components.Movement.AttackMove>(ent);
+				if (!EcsWorld.Has<MoveTo>(ent)) EcsWorld.Add(ent, new MoveTo(am.Target));
+			}
+			else if (EcsWorld.Has<Patrol>(ent))
+			{
+				var patrol = EcsWorld.Get<Patrol>(ent);
+				var destVec = patrol.GoingToB ? patrol.PointB : patrol.PointA;
+				if (!EcsWorld.Has<MoveTo>(ent)) EcsWorld.Add(ent, new MoveTo(destVec));
+			}
+			else if (EcsWorld.Has<MoveTo>(ent))
+			{
+				EcsWorld.Remove<MoveTo>(ent);
+				if (EcsWorld.Has<Velocity>(ent)) EcsWorld.Set(ent, new Velocity(System.Numerics.Vector3.Zero));
 			}
 		}
+	}
 
+	private void ProcessChaseActions()
+	{
 		foreach (var (attacker, targetPos) in _tickActionsToChase)
 		{
-			if (EcsWorld.IsAlive(attacker) && EcsWorld.Has<AttackTarget>(attacker))
+			if (!EcsWorld.IsAlive(attacker) || !EcsWorld.Has<AttackTarget>(attacker)) continue;
+
+			bool needsRetarget = true;
+			if (EcsWorld.Has<MoveTo>(attacker))
 			{
-				// Do not re-push a chase destination every combat frame. Re-planning the
-				// whole navmesh path per frame made chasers jitter and wander off the flat
-				// path; only refresh when the target has actually moved a meaningful amount.
-				bool needsRetarget = true;
-				if (EcsWorld.Has<MoveTo>(attacker))
-				{
-					var existingTarget = EcsWorld.Get<MoveTo>(attacker).Target;
-					if (Distance(existingTarget, targetPos) < ChaseRetargetDistance)
-					{
-						needsRetarget = false;
-					}
-				}
-				if (!needsRetarget) continue;
-
-				var moveTo = new MoveTo(targetPos);
-				EcsWorld.SetOrAdd(attacker, moveTo);
+				var existingTarget = EcsWorld.Get<MoveTo>(attacker).Target;
+				if (Distance(existingTarget, targetPos) < ChaseRetargetDistance) needsRetarget = false;
 			}
+			
+			if (needsRetarget) EcsWorld.SetOrAdd(attacker, new MoveTo(targetPos));
 		}
+	}
 
+	private void ProcessStopChasingActions()
+	{
 		foreach (var attacker in _tickActionsToStopChasing)
 		{
-			if (EcsWorld.IsAlive(attacker))
-			{
-				if (EcsWorld.Has<MoveTo>(attacker))
-				{
-					EcsWorld.Remove<MoveTo>(attacker);
-				}
-				if (EcsWorld.Has<Velocity>(attacker))
-				{
-					EcsWorld.Set(attacker, new Velocity(System.Numerics.Vector3.Zero));
-				}
-			}
+			if (!EcsWorld.IsAlive(attacker)) continue;
+
+			if (EcsWorld.Has<MoveTo>(attacker)) EcsWorld.Remove<MoveTo>(attacker);
+			if (EcsWorld.Has<Velocity>(attacker)) EcsWorld.Set(attacker, new Velocity(System.Numerics.Vector3.Zero));
 		}
 	}
 
@@ -579,186 +550,171 @@ internal class CombatAndDamageService
 			return;
 		}
 
-		var targetPosComp = EcsWorld.Get<Position>(target.Target);
 		var currentPos = pos.Value;
-		var targetPos = targetPosComp.Value;
-
+		var targetPos = EcsWorld.Get<Position>(target.Target).Value;
 		float effectiveRange = GetEffectiveRange(entity, target.Target, atk.Range, out bool isMelee, out float meleeVerticalReach);
 
-		bool withinRange = false;
-		if (isMelee)
-		{
-			float horizontalDist = new System.Numerics.Vector2(currentPos.X - targetPos.X, currentPos.Z - targetPos.Z).Length();
-			float verticalDist = Math.Abs(currentPos.Y - targetPos.Y);
-			withinRange = horizontalDist <= effectiveRange && verticalDist <= meleeVerticalReach;
-		}
-		else
-		{
-			withinRange = Distance(currentPos, targetPos) <= effectiveRange;
-		}
+		bool withinRange = isMelee 
+			? IsWithinMeleeRange(currentPos, targetPos, effectiveRange, meleeVerticalReach) 
+			: Distance(currentPos, targetPos) <= effectiveRange;
 
 		if (withinRange)
 		{
 			ClearChaseTracking(entity);
 			_tickActionsToStopChasing.Add(entity);
 
-			if (atk.CurrentCooldown <= 0)
+			if (atk.CurrentCooldown > 0) return;
+			
+			if (EcsWorld.Has<Realm.Ecs.Components.Tags.Invulnerable>(target.Target))
 			{
-				if (EcsWorld.Has<Realm.Ecs.Components.Tags.Invulnerable>(target.Target))
-				{
-					atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
-					return;
-				}
-
-				var targetHealth = EcsWorld.Get<Health>(target.Target);
-				var armorComp = EcsWorld.Has<Armor>(target.Target) ? EcsWorld.Get<Armor>(target.Target) : new Armor(0f);
-
-				float baseDamage = _statService != null ? _statService.GetStatValue(entity, new Realm.Ecs.Common.StatId("Attack")) : 0f;
-				if (baseDamage <= 0) baseDamage = atk.Damage;
-
-				float flatArmor = _statService != null ? _statService.GetStatValue(target.Target, new Realm.Ecs.Common.StatId("Armor")) : 0f;
-				if (flatArmor <= 0) flatArmor = armorComp.FlatArmor;
-
-				var damageResult = CombatResolver.ResolveDamage(
-					baseDamage: baseDamage,
-					damageVariance: atk.DamageVariance,
-					critChance: atk.CritChance,
-					critMultiplier: atk.CritMultiplier,
-					flatArmor: flatArmor,
-					ratedArmor: armorComp.RatedArmor,
-					flatArmorPen: atk.FlatArmorPenetration,
-					percentArmorPen: atk.PercentArmorPenetration,
-					damageType: atk.DamageType,
-					armorType: armorComp.ArmorType,
-					config: _combatConfig
-				);
-
-				float damage = damageResult.FinalDamage;
-
-				if (EcsWorld.Has<LastAttacker>(target.Target))
-				{
-					EcsWorld.Set(target.Target, new LastAttacker(entity));
-				}
-				else
-				{
-					_tickActionsToAddLastAttacker.Add((target.Target, entity));
-				}
-
-				OnUnitAttackedCallback?.Invoke(entity, target.Target);
-				OnUnitDamagedCallback?.Invoke(target.Target, entity, damage);
-
-				float newHp = Math.Max(0, targetHealth.Current - damage);
-				targetHealth.Current = newHp;
-				targetHealth.TimeSinceLastDamage = 0f;
-				EcsWorld.Set(target.Target, targetHealth);
-
-				if (atk.SplashType != SplashType.None && atk.SplashOuterRadius > 0f)
-				{
-					EvaluateSplashDamage(entity, target.Target, targetPos, baseDamage, atk, owner);
-				}
-
-				if (EcsWorld.Has<DefinitionId>(target.Target))
-				{
-					string targetUnitId = EcsWorld.Get<DefinitionId>(target.Target).Value;
-					bool targetIsEnemy = EcsWorld.Has<UnitFaction>(target.Target) && EcsWorld.Get<UnitFaction>(target.Target).IsEnemy;
-					if (!targetIsEnemy)
-					{
-						float currentTimer = GetCombatAlertTimer();
-						if (currentTimer <= 0f)
-						{
-							SetCombatAlertTimer(UnderAttackAlertCooldown);
-							OnUnderAttackAlertRequested?.Invoke(targetUnitId);
-						}
-					}
-				}
-
-				if (EcsWorld.IsAlive(target.Target) && !EcsWorld.Has<Dead>(target.Target) && !EcsWorld.Has<AttackTarget>(target.Target))
-				{
-					if (EcsWorld.Has<Attack>(target.Target))
-					{
-						bool hasMoveTo = EcsWorld.Has<MoveTo>(target.Target);
-						if (!hasMoveTo || EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(target.Target))
-						{
-							if (IsFlying(entity) && !CanAttackTarget(target.Target, entity))
-							{
-								return;
-							}
-							_tickNewAttackTargets.Add((target.Target, new AttackTarget(entity)));
-						}
-					}
-				}
-
 				atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
-
-				if (atk.Range > 3f)
-				{
-					string? weaponId = null;
-					if (EcsWorld.Has<DefinitionId>(entity))
-					{
-						var defId = EcsWorld.Get<DefinitionId>(entity).Value;
-						var weapons = UnitWeaponsProvider?.Invoke(defId);
-						if (weapons != null && weapons.Length > 0)
-						{
-							weaponId = weapons[0];
-						}
-						else
-						{
-							weaponId = defId;
-						}
-					}
-					OnWeaponProjectileRequested?.Invoke(currentPos, targetPos, weaponId, target.Target);
-				}
-
-				if (newHp <= 0)
-				{
-					_tickUnitsToKill.Add(target.Target);
-				}
-				else
-				{
-					OnDamageFlashRequested?.Invoke(target.Target);
-				}
+				return;
 			}
+
+			ExecuteAttack(entity, target.Target, ref atk, currentPos, targetPos, owner);
 		}
 		else
 		{
-			if (EcsWorld.Has<Building>(entity))
+			HandleOutOfRangeAction(entity, target.Target, currentPos, targetPos, effectiveRange, isMelee, meleeVerticalReach);
+		}
+	}
+
+	private bool IsWithinMeleeRange(System.Numerics.Vector3 currentPos, System.Numerics.Vector3 targetPos, float effectiveRange, float meleeVerticalReach)
+	{
+		float horizontalDist = new System.Numerics.Vector2(currentPos.X - targetPos.X, currentPos.Z - targetPos.Z).Length();
+		float verticalDist = Math.Abs(currentPos.Y - targetPos.Y);
+		return horizontalDist <= effectiveRange && verticalDist <= meleeVerticalReach;
+	}
+
+	private void ExecuteAttack(Entity entity, Entity target, ref Attack atk, System.Numerics.Vector3 currentPos, System.Numerics.Vector3 targetPos, Owner owner)
+	{
+		float baseDamage = ResolveAttackDamage(entity, target, ref atk, out float finalDamage);
+		ApplyDamageAndEffects(entity, target, finalDamage, baseDamage, ref atk, targetPos, owner);
+		
+		atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
+		
+		HandleProjectile(entity, target, currentPos, targetPos, atk.Range);
+	}
+
+	private float ResolveAttackDamage(Entity entity, Entity target, ref Attack atk, out float finalDamage)
+	{
+		var armorComp = EcsWorld.Has<Armor>(target) ? EcsWorld.Get<Armor>(target) : new Armor(0f);
+		float baseDamage = _statService != null ? _statService.GetStatValue(entity, new Realm.Ecs.Common.StatId("Attack")) : 0f;
+		if (baseDamage <= 0) baseDamage = atk.Damage;
+
+		float flatArmor = _statService != null ? _statService.GetStatValue(target, new Realm.Ecs.Common.StatId("Armor")) : 0f;
+		if (flatArmor <= 0) flatArmor = armorComp.FlatArmor;
+
+		var damageResult = CombatResolver.ResolveDamage(
+			baseDamage: baseDamage, damageVariance: atk.DamageVariance,
+			critChance: atk.CritChance, critMultiplier: atk.CritMultiplier,
+			flatArmor: flatArmor, ratedArmor: armorComp.RatedArmor,
+			flatArmorPen: atk.FlatArmorPenetration, percentArmorPen: atk.PercentArmorPenetration,
+			damageType: atk.DamageType, armorType: armorComp.ArmorType, config: _combatConfig
+		);
+
+		finalDamage = damageResult.FinalDamage;
+		return baseDamage;
+	}
+
+	private void ApplyDamageAndEffects(Entity entity, Entity target, float damage, float baseDamage, ref Attack atk, System.Numerics.Vector3 targetPos, Owner owner)
+	{
+		if (EcsWorld.Has<LastAttacker>(target)) EcsWorld.Set(target, new LastAttacker(entity));
+		else _tickActionsToAddLastAttacker.Add((target, entity));
+
+		OnUnitAttackedCallback?.Invoke(entity, target);
+		OnUnitDamagedCallback?.Invoke(target, entity, damage);
+
+		var targetHealth = EcsWorld.Get<Health>(target);
+		float newHp = Math.Max(0, targetHealth.Current - damage);
+		targetHealth.Current = newHp;
+		targetHealth.TimeSinceLastDamage = 0f;
+		EcsWorld.Set(target, targetHealth);
+
+		if (atk.SplashType != SplashType.None && atk.SplashOuterRadius > 0f)
+			EvaluateSplashDamage(entity, target, targetPos, baseDamage, atk, owner);
+
+		CheckCombatAlert(target);
+		AcquireNewTargetFromAttacker(entity, target);
+
+		if (newHp <= 0) _tickUnitsToKill.Add(target);
+		else OnDamageFlashRequested?.Invoke(target);
+	}
+
+	private void CheckCombatAlert(Entity target)
+	{
+		if (!EcsWorld.Has<DefinitionId>(target)) return;
+		
+		string targetUnitId = EcsWorld.Get<DefinitionId>(target).Value;
+		bool targetIsEnemy = EcsWorld.Has<UnitFaction>(target) && EcsWorld.Get<UnitFaction>(target).IsEnemy;
+		
+		if (targetIsEnemy) return;
+
+		if (GetCombatAlertTimer() <= 0f)
+		{
+			SetCombatAlertTimer(UnderAttackAlertCooldown);
+			OnUnderAttackAlertRequested?.Invoke(targetUnitId);
+		}
+	}
+
+	private void AcquireNewTargetFromAttacker(Entity entity, Entity target)
+	{
+		if (!EcsWorld.IsAlive(target) || EcsWorld.Has<Dead>(target) || EcsWorld.Has<AttackTarget>(target)) return;
+		if (!EcsWorld.Has<Attack>(target)) return;
+
+		bool hasMoveTo = EcsWorld.Has<MoveTo>(target);
+		if (!hasMoveTo || EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(target))
+		{
+			if (IsFlying(entity) && !CanAttackTarget(target, entity)) return;
+			_tickNewAttackTargets.Add((target, new AttackTarget(entity)));
+		}
+	}
+
+	private void HandleProjectile(Entity entity, Entity target, System.Numerics.Vector3 currentPos, System.Numerics.Vector3 targetPos, float range)
+	{
+		if (range <= 3f) return;
+
+		string? weaponId = null;
+		if (EcsWorld.Has<DefinitionId>(entity))
+		{
+			var defId = EcsWorld.Get<DefinitionId>(entity).Value;
+			var weapons = UnitWeaponsProvider?.Invoke(defId);
+			weaponId = (weapons != null && weapons.Length > 0) ? weapons[0] : defId;
+		}
+		OnWeaponProjectileRequested?.Invoke(currentPos, targetPos, weaponId, target);
+	}
+
+	private void HandleOutOfRangeAction(Entity entity, Entity target, System.Numerics.Vector3 currentPos, System.Numerics.Vector3 targetPos, float effectiveRange, bool isMelee, float meleeVerticalReach)
+	{
+		if (EcsWorld.Has<Building>(entity))
+		{
+			_tickActionsToRemoveTarget.Add(entity);
+			ClearChaseTracking(entity);
+		}
+		else if (!EcsWorld.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity) && EcsWorld.Has<Realm.Ecs.Components.Tags.Movable>(entity))
+		{
+			if (!IsReachableWithinRange(entity, target, currentPos, targetPos, effectiveRange, isMelee, meleeVerticalReach))
 			{
+				RegisterAbandonedTarget(entity, target);
 				_tickActionsToRemoveTarget.Add(entity);
 				ClearChaseTracking(entity);
+				return;
 			}
-			else if (!EcsWorld.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity) && EcsWorld.Has<Realm.Ecs.Components.Tags.Movable>(entity))
-			{
-				// Do not let a ground unit mill around at the foot of a cliff trying to
-				// reach a target that sits above its effective range (mountain-top towers,
-				// targets on stepped terrain). Step 1: real navmesh route must exist AND
-				// bring the attacker within range. Step 2: if it ever cannot, drop it
-				// immediately and let it resume its order instead of poke-walk-turn-back looping.
-				// The route cache makes the verdict stick while geometry is unchanged, so the
-				// unit does not re-acquire the unreachable target on a later combat frame.
-				if (!IsReachableWithinRange(entity, target.Target, currentPos, targetPos, effectiveRange, isMelee, meleeVerticalReach))
-				{
-					RegisterAbandonedTarget(entity, target.Target);
-					_tickActionsToRemoveTarget.Add(entity);
-					ClearChaseTracking(entity);
-					return;
-				}
-				_tickActionsToChase.Add((entity, targetPos));
-				float dist = Distance(currentPos, targetPos);
-				UpdateChaseTracking(entity, dist, target.Target);
-			}
-			else
-			{
-				_tickActionsToRemoveTarget.Add(entity);
-				ClearChaseTracking(entity);
-			}
+			_tickActionsToChase.Add((entity, targetPos));
+			UpdateChaseTracking(entity, Distance(currentPos, targetPos), target);
+		}
+		else
+		{
+			_tickActionsToRemoveTarget.Add(entity);
+			ClearChaseTracking(entity);
 		}
 	}
 
 	private void EvaluateSplashDamage(Entity attacker, Entity primaryTarget, System.Numerics.Vector3 impactPos, float baseDamage, Attack atk, Owner attackerOwner)
 	{
 		bool attackerIsEnemy = EcsWorld.Has<UnitFaction>(attacker) && EcsWorld.Get<UnitFaction>(attacker).IsEnemy;
-
 		var splashQuery = Realm.Ecs.Common.QueryCache.AllPositionAndHealthAndOwnerNoneDeadQuery;
+
 		EcsWorld.Query(in splashQuery, (Entity splashEnt, ref Position sPos, ref Health sHp, ref Owner sOwner) =>
 		{
 			if (splashEnt == primaryTarget || splashEnt == attacker) return;
@@ -767,70 +723,49 @@ internal class CombatAndDamageService
 			if (!atk.FriendlyFire)
 			{
 				bool splashIsEnemy = EcsWorld.Has<UnitFaction>(splashEnt) && EcsWorld.Get<UnitFaction>(splashEnt).IsEnemy;
-				if (splashIsEnemy == attackerIsEnemy || sOwner.PlayerEntity == attackerOwner.PlayerEntity)
-				{
-					return;
-				}
+				if (splashIsEnemy == attackerIsEnemy || sOwner.PlayerEntity == attackerOwner.PlayerEntity) return;
 			}
 
 			float distToImpact = Distance(impactPos, sPos.Value);
 			float splashRatio = CombatResolver.CalculateSplashRatio(
-				distToImpact,
-				atk.SplashType,
-				atk.SplashInnerRadius,
-				atk.SplashMediumRadius,
-				atk.SplashOuterRadius,
-				atk.SplashInnerRatio,
-				atk.SplashMediumRatio,
-				atk.SplashOuterRatio
+				distToImpact, atk.SplashType,
+				atk.SplashInnerRadius, atk.SplashMediumRadius, atk.SplashOuterRadius,
+				atk.SplashInnerRatio, atk.SplashMediumRatio, atk.SplashOuterRatio
 			);
 
 			if (splashRatio > 0f)
 			{
-				var sArmorComp = EcsWorld.Has<Armor>(splashEnt) ? EcsWorld.Get<Armor>(splashEnt) : new Armor(0f);
-				float sFlatArmor = _statService != null ? _statService.GetStatValue(splashEnt, new Realm.Ecs.Common.StatId("Armor")) : 0f;
-				if (sFlatArmor <= 0) sFlatArmor = sArmorComp.FlatArmor;
-
-				var sResult = CombatResolver.ResolveDamage(
-					baseDamage: baseDamage * splashRatio,
-					damageVariance: atk.DamageVariance,
-					critChance: atk.CritChance,
-					critMultiplier: atk.CritMultiplier,
-					flatArmor: sFlatArmor,
-					ratedArmor: sArmorComp.RatedArmor,
-					flatArmorPen: atk.FlatArmorPenetration,
-					percentArmorPen: atk.PercentArmorPenetration,
-					damageType: atk.DamageType,
-					armorType: sArmorComp.ArmorType,
-					config: _combatConfig
-				);
-
-				float splashDamage = sResult.FinalDamage;
-				sHp.Current = Math.Max(0, sHp.Current - splashDamage);
-				sHp.TimeSinceLastDamage = 0f;
-				EcsWorld.Set(splashEnt, sHp);
-
-				OnUnitDamagedCallback?.Invoke(splashEnt, attacker, splashDamage);
-
-				if (EcsWorld.Has<LastAttacker>(splashEnt))
-				{
-					EcsWorld.Set(splashEnt, new LastAttacker(attacker));
-				}
-				else
-				{
-					_tickActionsToAddLastAttacker.Add((splashEnt, attacker));
-				}
-
-				if (sHp.Current <= 0)
-				{
-					_tickUnitsToKill.Add(splashEnt);
-				}
-				else
-				{
-					OnDamageFlashRequested?.Invoke(splashEnt);
-				}
+				ApplySplashDamage(attacker, splashEnt, splashRatio, baseDamage, ref atk, ref sHp);
 			}
 		});
+	}
+
+	private void ApplySplashDamage(Entity attacker, Entity splashEnt, float splashRatio, float baseDamage, ref Attack atk, ref Health sHp)
+	{
+		var sArmorComp = EcsWorld.Has<Armor>(splashEnt) ? EcsWorld.Get<Armor>(splashEnt) : new Armor(0f);
+		float sFlatArmor = _statService != null ? _statService.GetStatValue(splashEnt, new Realm.Ecs.Common.StatId("Armor")) : 0f;
+		if (sFlatArmor <= 0) sFlatArmor = sArmorComp.FlatArmor;
+
+		var sResult = CombatResolver.ResolveDamage(
+			baseDamage: baseDamage * splashRatio, damageVariance: atk.DamageVariance,
+			critChance: atk.CritChance, critMultiplier: atk.CritMultiplier,
+			flatArmor: sFlatArmor, ratedArmor: sArmorComp.RatedArmor,
+			flatArmorPen: atk.FlatArmorPenetration, percentArmorPen: atk.PercentArmorPenetration,
+			damageType: atk.DamageType, armorType: sArmorComp.ArmorType, config: _combatConfig
+		);
+
+		float splashDamage = sResult.FinalDamage;
+		sHp.Current = Math.Max(0, sHp.Current - splashDamage);
+		sHp.TimeSinceLastDamage = 0f;
+		EcsWorld.Set(splashEnt, sHp);
+
+		OnUnitDamagedCallback?.Invoke(splashEnt, attacker, splashDamage);
+
+		if (EcsWorld.Has<LastAttacker>(splashEnt)) EcsWorld.Set(splashEnt, new LastAttacker(attacker));
+		else _tickActionsToAddLastAttacker.Add((splashEnt, attacker));
+
+		if (sHp.Current <= 0) _tickUnitsToKill.Add(splashEnt);
+		else OnDamageFlashRequested?.Invoke(splashEnt);
 	}
 
 	private float GetEffectiveAttackCooldown(Entity entity, float baseCooldown)
@@ -945,19 +880,12 @@ internal class CombatAndDamageService
 		}
 
 		var key = (attacker, target);
-		if (_routeReachabilityCache.TryGetValue(key, out var cached)
-			&& cached.Query == ts.NavMeshQuery
-			&& Distance(cached.AttackerPos, attackerPos) <= RouteCacheAttackerMoveLimit
-			&& Distance(cached.TargetPos, targetPos) <= RouteCacheTargetMoveLimit
-			&& (!cached.Reachable || _combatTotalTime - cached.Timestamp <= RouteCacheMaxAge))
+		if (IsRouteReachabilityCached(key, ts.NavMeshQuery, attackerPos, targetPos, out bool cachedResult))
 		{
-			return cached.Reachable;
+			return cachedResult;
 		}
 
-		int includeFlags = EcsWorld.Has<PathingFlags>(attacker)
-			? EcsWorld.Get<PathingFlags>(attacker).Value
-			: (int)TerrainPathingFlags.Ground;
-
+		int includeFlags = EcsWorld.Has<PathingFlags>(attacker) ? EcsWorld.Get<PathingFlags>(attacker).Value : (int)TerrainPathingFlags.Ground;
 		PathFollow pf = default;
 		_pathfinder.ComputePath(ts.NavMeshQuery, attackerPos, targetPos, (ushort)includeFlags, ref pf);
 
@@ -965,27 +893,33 @@ internal class CombatAndDamageService
 		if (reachable)
 		{
 			var last = pf.Waypoints[pf.WaypointCount - 1];
-			if (isMelee)
-			{
-				float horiz = new System.Numerics.Vector2(last.X - targetPos.X, last.Z - targetPos.Z).Length();
-				float vert = Math.Abs(last.Y - targetPos.Y);
-				// effectiveRange already includes both collision radii (plus the movement
-				// separation contact distance for melee), so it represents the physical
-				// distance the attacker can close to. Comparing the route endpoint against the
-				// FULL effectiveRange (no padding subtraction) keeps targets reachable at
-				// walls and large structures; previously the padding shortfall made the
-				// verdict flip to "unreachable" and combat dropped the target, leaving the
-				// melee fighter frozen and idle instead of attacking.
-				reachable = horiz <= Math.Max(0.5f, effectiveRange) && vert <= meleeVerticalReach;
-			}
-			else
-			{
-				reachable = Distance(last, targetPos) <= effectiveRange + RouteReachMargin;
-			}
+			reachable = isMelee 
+				? EvaluateMeleeReachability(last, targetPos, effectiveRange, meleeVerticalReach) 
+				: Distance(last, targetPos) <= effectiveRange + RouteReachMargin;
 		}
 
 		_routeReachabilityCache[key] = new RouteReachabilityEntry(reachable, attackerPos, targetPos, ts.NavMeshQuery, _combatTotalTime);
 		return reachable;
+	}
+
+	private bool IsRouteReachabilityCached((Entity, Entity) key, DotRecast.Detour.DtNavMeshQuery navMeshQuery, System.Numerics.Vector3 attackerPos, System.Numerics.Vector3 targetPos, out bool reachable)
+	{
+		reachable = false;
+		if (!_routeReachabilityCache.TryGetValue(key, out var cached)) return false;
+		if (cached.Query != navMeshQuery) return false;
+		if (Distance(cached.AttackerPos, attackerPos) > RouteCacheAttackerMoveLimit) return false;
+		if (Distance(cached.TargetPos, targetPos) > RouteCacheTargetMoveLimit) return false;
+		if (cached.Reachable && _combatTotalTime - cached.Timestamp > RouteCacheMaxAge) return false;
+
+		reachable = cached.Reachable;
+		return true;
+	}
+
+	private bool EvaluateMeleeReachability(System.Numerics.Vector3 last, System.Numerics.Vector3 targetPos, float effectiveRange, float meleeVerticalReach)
+	{
+		float horiz = new System.Numerics.Vector2(last.X - targetPos.X, last.Z - targetPos.Z).Length();
+		float vert = Math.Abs(last.Y - targetPos.Y);
+		return horiz <= Math.Max(0.5f, effectiveRange) && vert <= meleeVerticalReach;
 	}
 
 	private bool IsVerticallyReachableForRange(Entity attacker, System.Numerics.Vector3 attackerPos, System.Numerics.Vector3 targetPos, float effectiveRange, bool isMelee, float meleeVerticalReach)
@@ -1031,20 +965,28 @@ internal class CombatAndDamageService
 	{
 		_tickNewHealingTargets.Clear();
 		EcsWorld.Query(in _priestScanQuery, _priestScanQueryDelegate);
-		foreach (var (priest, target) in _tickNewHealingTargets)
-		{
-			if (EcsWorld.IsAlive(priest))
-			{
-				EcsWorld.SetOrAdd(priest, target);
-			}
-		}
+		ProcessNewHealingTargets();
 
 		_tickHealRemoveTargets.Clear();
 		_tickHealChaseTargets.Clear();
 		_tickHealStopChasing.Clear();
-
 		EcsWorld.Query(in _healingExecutionQuery, _healingExecutionQueryDelegate);
 
+		ProcessHealRemovals();
+		ProcessHealChases();
+		ProcessHealStopChasing();
+	}
+
+	private void ProcessNewHealingTargets()
+	{
+		foreach (var (priest, target) in _tickNewHealingTargets)
+		{
+			if (EcsWorld.IsAlive(priest)) EcsWorld.SetOrAdd(priest, target);
+		}
+	}
+
+	private void ProcessHealRemovals()
+	{
 		foreach (var ent in _tickHealRemoveTargets)
 		{
 			if (EcsWorld.IsAlive(ent) && EcsWorld.Has<HealingTarget>(ent))
@@ -1052,37 +994,33 @@ internal class CombatAndDamageService
 				EcsWorld.Remove<HealingTarget>(ent);
 			}
 		}
+	}
 
+	private void ProcessHealChases()
+	{
 		foreach (var (priest, targetPos) in _tickHealChaseTargets)
 		{
-			if (EcsWorld.IsAlive(priest))
+			if (!EcsWorld.IsAlive(priest)) continue;
+
+			bool needsRetarget = true;
+			if (EcsWorld.Has<MoveTo>(priest))
 			{
-				bool needsRetarget = true;
-				if (EcsWorld.Has<MoveTo>(priest))
-				{
-					var existingTarget = EcsWorld.Get<MoveTo>(priest).Target;
-					if (Distance(existingTarget, targetPos) < ChaseRetargetDistance)
-					{
-						needsRetarget = false;
-					}
-				}
-				if (!needsRetarget) continue;
-
-				var moveTo = new MoveTo(targetPos);
-				EcsWorld.SetOrAdd(priest, moveTo);
+				var existingTarget = EcsWorld.Get<MoveTo>(priest).Target;
+				if (Distance(existingTarget, targetPos) < ChaseRetargetDistance) needsRetarget = false;
 			}
+			
+			if (needsRetarget) EcsWorld.SetOrAdd(priest, new MoveTo(targetPos));
 		}
+	}
 
+	private void ProcessHealStopChasing()
+	{
 		foreach (var priest in _tickHealStopChasing)
 		{
-			if (EcsWorld.IsAlive(priest))
-			{
-				if (EcsWorld.Has<MoveTo>(priest)) EcsWorld.Remove<MoveTo>(priest);
-				if (EcsWorld.Has<Velocity>(priest))
-				{
-					EcsWorld.Set(priest, new Velocity(System.Numerics.Vector3.Zero));
-				}
-			}
+			if (!EcsWorld.IsAlive(priest)) continue;
+
+			if (EcsWorld.Has<MoveTo>(priest)) EcsWorld.Remove<MoveTo>(priest);
+			if (EcsWorld.Has<Velocity>(priest)) EcsWorld.Set(priest, new Velocity(System.Numerics.Vector3.Zero));
 		}
 	}
 
@@ -1136,43 +1074,33 @@ internal class CombatAndDamageService
 			return;
 		}
 
-		var targetPosComp = EcsWorld.Get<Position>(target.Target);
 		var currentPos = pos.Value;
-		var targetPos = targetPosComp.Value;
+		var targetPos = EcsWorld.Get<Position>(target.Target).Value;
 
-		float dist = Distance(currentPos, targetPos);
-		// A heal must be able to reach the same contact distance the movement separation
-		// enforces, otherwise a big-scaled damaged unit is permanently out of heal range.
-		float effectiveRange = atk.Range + GetTargetCollisionRadius(target.Target);
-		float minimumContactReach = GetMinimumMeleeContactReach(entity, target.Target);
-		if (effectiveRange < minimumContactReach)
-		{
-			effectiveRange = minimumContactReach;
-		}
-		if (dist <= effectiveRange)
-		{
-			_tickHealStopChasing.Add(entity);
+		float effectiveRange = Math.Max(atk.Range + GetTargetCollisionRadius(target.Target), GetMinimumMeleeContactReach(entity, target.Target));
 
-			if (atk.CurrentCooldown <= 0)
-			{
-				float healAmount = atk.Damage;
-				float newHp = Math.Min(targetHealth.Max, targetHealth.Current + healAmount);
-				EcsWorld.Set(target.Target, new Health(newHp, targetHealth.Max));
-
-				atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
-
-				OnHealEffectRequested?.Invoke(currentPos, targetPos);
-				OnHealFlashRequested?.Invoke(target.Target);
-				OnUnitHealedCallback?.Invoke(target.Target, entity, healAmount);
-			}
-		}
-		else
+		if (Distance(currentPos, targetPos) > effectiveRange)
 		{
 			if (!EcsWorld.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity) && EcsWorld.Has<Realm.Ecs.Components.Tags.Movable>(entity))
 			{
 				_tickHealChaseTargets.Add((entity, targetPos));
 			}
+			return;
 		}
+
+		_tickHealStopChasing.Add(entity);
+
+		if (atk.CurrentCooldown > 0) return;
+
+		float healAmount = atk.Damage;
+		float newHp = Math.Min(targetHealth.Max, targetHealth.Current + healAmount);
+		EcsWorld.Set(target.Target, new Health(newHp, targetHealth.Max));
+
+		atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
+
+		OnHealEffectRequested?.Invoke(currentPos, targetPos);
+		OnHealFlashRequested?.Invoke(target.Target);
+		OnUnitHealedCallback?.Invoke(target.Target, entity, healAmount);
 	}
 
 	public void DealSpellDamageAOE(System.Numerics.Vector3 position, float radius, float damage, Entity casterEntity, bool enemyOnly = true)
@@ -1190,53 +1118,46 @@ internal class CombatAndDamageService
 				if (!isEnemy) return;
 			}
 
-			if (System.Numerics.Vector3.Distance(pos.Value, position) <= radius)
+			if (System.Numerics.Vector3.Distance(pos.Value, position) > radius) return;
+
+			if (casterEntity != Entity.Null && EcsWorld.IsAlive(casterEntity))
 			{
-				if (casterEntity != Entity.Null && EcsWorld.IsAlive(casterEntity))
-				{
-					if (EcsWorld.Has<LastAttacker>(entity))
-					{
-						EcsWorld.Set(entity, new LastAttacker(casterEntity));
-					}
-					else
-					{
-						_aoeLastAttackerList.Add((entity, casterEntity));
-					}
-				}
-
-				float newHp = Math.Max(0, hp.Current - damage);
-				hp.Current = newHp;
-
-				OnUnitDamagedCallback?.Invoke(entity, casterEntity, damage);
-
-				if (newHp <= 0)
-				{
-					_aoeKillList.Add(entity);
-				}
-				else
-				{
-					OnDamageFlashRequested?.Invoke(entity);
-				}
+				if (EcsWorld.Has<LastAttacker>(entity)) EcsWorld.Set(entity, new LastAttacker(casterEntity));
+				else _aoeLastAttackerList.Add((entity, casterEntity));
 			}
+
+			float newHp = Math.Max(0, hp.Current - damage);
+			hp.Current = newHp;
+
+			OnUnitDamagedCallback?.Invoke(entity, casterEntity, damage);
+
+			if (newHp <= 0) _aoeKillList.Add(entity);
+			else OnDamageFlashRequested?.Invoke(entity);
 		});
 
+		ProcessAoeLastAttackers();
+		ProcessAoeKillList();
+	}
+
+	private void ProcessAoeLastAttackers()
+	{
 		foreach (var (targetEnt, attackerEnt) in _aoeLastAttackerList)
 		{
 			if (EcsWorld.IsAlive(targetEnt))
 			{
-				// AddOrGet so a target that just received LastAttacker from another AOE this
-				// frame is overwritten instead of re-adding the component.
 				EcsWorld.AddOrGet(targetEnt, new LastAttacker(attackerEnt)) = new LastAttacker(attackerEnt);
 			}
 		}
+	}
 
+	private void ProcessAoeKillList()
+	{
 		foreach (var entity in _aoeKillList)
 		{
-			if (EcsWorld.IsAlive(entity) && !EcsWorld.Has<Dead>(entity))
-			{
-				EcsWorld.Add<Dead>(entity);
-				OnKillUnitRequested?.Invoke(entity);
-			}
+			if (!EcsWorld.IsAlive(entity) || EcsWorld.Has<Dead>(entity)) continue;
+
+			EcsWorld.Add<Dead>(entity);
+			OnKillUnitRequested?.Invoke(entity);
 		}
 	}
 

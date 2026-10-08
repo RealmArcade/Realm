@@ -75,87 +75,124 @@ public class MapManifest
     {
         foreach (var categoryKeyValuePair in assets.GetAllCategories())
         {
-            string category = categoryKeyValuePair.Key;
-            var categoryObject = categoryKeyValuePair.Value;
+            ProcessFlattenCategory(destinationFiles, categoryKeyValuePair.Key, categoryKeyValuePair.Value);
+        }
+    }
 
-            if (string.Equals(category, "other", StringComparison.OrdinalIgnoreCase))
+    private static void ProcessFlattenCategory(Dictionary<string, string> destinationFiles, string category, Dictionary<string, string> categoryObject)
+    {
+        if (string.Equals(category, "other", StringComparison.OrdinalIgnoreCase))
+        {
+            ProcessOtherFlattenCategory(destinationFiles, categoryObject);
+            return;
+        }
+
+        string subFolder = GetSubFolderForCategory(category);
+        foreach (var itemKeyValuePair in categoryObject)
+        {
+            ProcessStandardFlattenItem(destinationFiles, category, subFolder, itemKeyValuePair.Key, itemKeyValuePair.Value);
+        }
+    }
+
+    private static void ProcessOtherFlattenCategory(Dictionary<string, string> destinationFiles, Dictionary<string, string> categoryObject)
+    {
+        foreach (var itemKeyValuePair in categoryObject)
+        {
+            string rawKey = itemKeyValuePair.Key.Replace('\\', '/').TrimStart('/');
+            string hash = itemKeyValuePair.Value;
+            if (!string.IsNullOrEmpty(hash))
             {
-                foreach (var itemKeyValuePair in categoryObject)
-                {
-                    string rawKey = itemKeyValuePair.Key.Replace('\\', '/').TrimStart('/');
-                    string hash = itemKeyValuePair.Value;
-                    if (!string.IsNullOrEmpty(hash))
-                    {
-                        destinationFiles[rawKey] = hash;
-                    }
-                }
-                continue;
+                destinationFiles[rawKey] = hash;
             }
+        }
+    }
 
-            string subFolder = category switch
-            {
-                "Character" => "models/units",
-                "Building" => "models/buildings",
-                "Prop" => "models/props",
-                "Item" => "models/items",
-                "Spritesheet" or "vfx_spritesheets" or "vfxspritesheets" or "vfx" => "vfx_spritesheets",
-                "vfx_radial" => "vfx_radial",
-                "vfx_vertical" => "vfx_vertical",
-                "Animation" => "animations",
-                "SoundEffect" => "audio/sfx",
-                "Music" => "audio/music",
-                "Icon" => "icons",
-                "Decal" => "decals",
-                "Ribbon" => "ribbons",
-                "Noise" => "noise",
-                "Skybox" => "skyboxes",
-                "Terrain" => "textures",
-                "Shader" => "shaders",
-                _ => category.ToLowerInvariant()
-            };
+    private static string GetSubFolderForCategory(string category)
+    {
+        string? modelOrVfx = GetModelOrVfxSubFolder(category);
+        if (modelOrVfx != null)
+            return modelOrVfx;
 
-            foreach (var itemKeyValuePair in categoryObject)
-            {
-                string rawKey = itemKeyValuePair.Key.Replace('\\', '/').TrimStart('/');
-                if (rawKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
-                {
-                    rawKey = rawKey.Substring(6).TrimStart('/');
-                }
-                if (rawKey.StartsWith($"Assets/{subFolder}/", StringComparison.OrdinalIgnoreCase))
-                {
-                    rawKey = rawKey.Substring($"Assets/{subFolder}/".Length);
-                }
+        string? audioOrVisual = GetAudioOrVisualSubFolder(category);
+        if (audioOrVisual != null)
+            return audioOrVisual;
 
-                string cleanKey = rawKey;
-                int slashIdx = cleanKey.IndexOf('/');
-                if (slashIdx >= 0)
-                {
-                    cleanKey = cleanKey.Substring(slashIdx + 1);
-                }
-                rawKey = Path.GetFileName(cleanKey);
+        return category.ToLowerInvariant();
+    }
 
-                string extension = Path.GetExtension(rawKey).ToLowerInvariant();
-                if (string.IsNullOrEmpty(extension))
-                {
-                    extension = category switch
-                    {
-                        "Animation" => ".ranim",
-                        "SoundEffect" or "Music" => ".raud",
-                        "Character" or "Building" or "Prop" or "Item" => ".rmesh",
-                        _ => ".rtex"
-                    };
-                    rawKey = $"{rawKey}{extension}";
-                }
-                string hash = itemKeyValuePair.Value;
-                if (!string.IsNullOrEmpty(hash))
-                {
-                    string assetKey = (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-                        ? hash
-                        : $"{hash}{extension}";
-                    string relativePath = $"Assets/{subFolder}/{rawKey}".Replace('\\', '/');
-                    destinationFiles[relativePath] = assetKey;
-                }
-            }
+    private static string? GetModelOrVfxSubFolder(string category)
+    {
+        return category switch
+        {
+            "Character" => "models/units",
+            "Building" => "models/buildings",
+            "Prop" => "models/props",
+            "Item" => "models/items",
+            "Spritesheet" or "vfx_spritesheets" or "vfxspritesheets" or "vfx" => "vfx_spritesheets",
+            "vfx_radial" => "vfx_radial",
+            "vfx_vertical" => "vfx_vertical",
+            _ => null
+        };
+    }
+
+    private static string? GetAudioOrVisualSubFolder(string category)
+    {
+        return category switch
+        {
+            "Animation" => "animations",
+            "SoundEffect" => "audio/sfx",
+            "Music" => "audio/music",
+            "Icon" => "icons",
+            "Decal" => "decals",
+            "Ribbon" => "ribbons",
+            "Noise" => "noise",
+            "Skybox" => "skyboxes",
+            "Terrain" => "textures",
+            "Shader" => "shaders",
+            _ => null
+        };
+    }
+
+    private static string GetExtensionForCategory(string category)
+    {
+        return category switch
+        {
+            "Animation" => ".ranim",
+            "SoundEffect" or "Music" => ".raud",
+            "Character" or "Building" or "Prop" or "Item" => ".rmesh",
+            _ => ".rtex"
+        };
+    }
+
+    private static void ProcessStandardFlattenItem(Dictionary<string, string> destinationFiles, string category, string subFolder, string key, string hash)
+    {
+        string rawKey = key.Replace('\\', '/').TrimStart('/');
+        if (rawKey.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+            rawKey = rawKey.Substring(6).TrimStart('/');
+        
+        string prefix = $"Assets/{subFolder}/";
+        if (rawKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            rawKey = rawKey.Substring(prefix.Length);
+
+        int slashIdx = rawKey.IndexOf('/');
+        if (slashIdx >= 0)
+            rawKey = rawKey.Substring(slashIdx + 1);
+        rawKey = Path.GetFileName(rawKey);
+
+        string extension = Path.GetExtension(rawKey).ToLowerInvariant();
+        if (string.IsNullOrEmpty(extension))
+        {
+            extension = GetExtensionForCategory(category);
+            rawKey = $"{rawKey}{extension}";
+        }
+        
+        if (!string.IsNullOrEmpty(hash))
+        {
+            string assetKey = (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+                ? hash
+                : $"{hash}{extension}";
+            string relativePath = $"{prefix}{rawKey}";
+            destinationFiles[relativePath] = assetKey;
         }
     }
 
@@ -174,91 +211,161 @@ public class MapManifest
         var assets = new MapManifestAssets();
         foreach (var keyValuePair in files)
         {
-            string relativePath = keyValuePair.Key.Replace('\\', '/');
-            if (relativePath.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
-            {
-                relativePath = relativePath.Substring(6);
-            }
-            relativePath = relativePath.TrimStart('/');
-
-            string hash = keyValuePair.Value;
-            string fileName = Path.GetFileName(relativePath);
-            string extension = Path.GetExtension(relativePath).ToLowerInvariant();
-            if (!string.IsNullOrEmpty(extension) && hash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
-            {
-                hash = hash.Substring(0, hash.Length - extension.Length);
-            }
-
-            if (relativePath.StartsWith("Assets/models/", StringComparison.OrdinalIgnoreCase))
-            {
-                string[] parts = relativePath.Split('/');
-                string subCategory = parts.Length >= 4 ? parts[2].ToLowerInvariant() : "props";
-                string category = subCategory switch
-                {
-                    "units" or "characters" => "Character",
-                    "buildings" => "Building",
-                    "props" or "resources" => "Prop",
-                    "items" or "projectiles" or "attachments" or "weapons" => "Item",
-                    _ => "Prop"
-                };
-
-                var dict = assets.GetCategory(category);
-                if (dict == null)
-                {
-                    dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    assets.SetCategory(category, dict);
-                }
-                dict[fileName] = hash;
-            }
-            else if (relativePath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
-            {
-                string[] parts = relativePath.Split('/');
-                string folder = parts.Length >= 3 ? parts[1].ToLowerInvariant() : "textures";
-                string category = folder switch
-                {
-                    "vfx_spritesheets" or "vfx" => "Spritesheet",
-                    "vfx_radial" => "vfx_radial",
-                    "vfx_vertical" => "vfx_vertical",
-                    "animations" => "Animation",
-                    "decals" => "Decal",
-                    "icons" => "Icon",
-                    "ribbons" => "Ribbon",
-                    "noise" => "Noise",
-                    "skyboxes" => "Skybox",
-                    "audio" when parts.Length >= 4 && parts[2].Equals("music", StringComparison.OrdinalIgnoreCase) => "Music",
-                    "audio" when parts.Length >= 4 && parts[2].Equals("sfx", StringComparison.OrdinalIgnoreCase) => "SoundEffect",
-                    "audio" => "SoundEffect",
-                    "textures" => "Terrain",
-                    "shaders" => "Shader",
-                    _ => folder
-                };
-
-                var dict = assets.GetCategory(category);
-                if (dict == null)
-                {
-                    dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    assets.SetCategory(category, dict);
-                }
-
-                string key = (category is "Music" or "SoundEffect")
-                    ? (parts.Length > 3 ? string.Join("/", parts.Skip(3)) : fileName)
-                    : (parts.Length > 2 ? string.Join("/", parts.Skip(2)) : fileName);
-
-                dict[key] = hash;
-            }
-            else
-            {
-                string category = "other";
-                var dict = assets.GetCategory(category);
-                if (dict == null)
-                {
-                    dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    assets.SetCategory(category, dict);
-                }
-                dict[relativePath] = hash;
-            }
+            ProcessUnflattenFile(assets, keyValuePair.Key, keyValuePair.Value);
         }
         return assets;
+    }
+
+    private static void ProcessUnflattenFile(MapManifestAssets assets, string rawPath, string rawHash)
+    {
+        string relativePath = CleanRelativePath(rawPath);
+        string extension = Path.GetExtension(relativePath).ToLowerInvariant();
+        string hash = CleanHash(rawHash, extension);
+        string fileName = Path.GetFileName(relativePath);
+
+        if (relativePath.StartsWith("Assets/models/", StringComparison.OrdinalIgnoreCase))
+        {
+            ProcessUnflattenModel(assets, relativePath, fileName, hash);
+        }
+        else if (relativePath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+        {
+            ProcessUnflattenStandard(assets, relativePath, fileName, hash);
+        }
+        else
+        {
+            ProcessUnflattenOther(assets, relativePath, hash);
+        }
+    }
+
+    private static string CleanRelativePath(string rawPath)
+    {
+        string relativePath = rawPath.Replace('\\', '/');
+        if (relativePath.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+        {
+            relativePath = relativePath.Substring(6);
+        }
+        return relativePath.TrimStart('/');
+    }
+
+    private static string CleanHash(string rawHash, string extension)
+    {
+        if (!string.IsNullOrEmpty(extension) && rawHash.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+        {
+            return rawHash.Substring(0, rawHash.Length - extension.Length);
+        }
+        return rawHash;
+    }
+
+    private static void ProcessUnflattenModel(MapManifestAssets assets, string relativePath, string fileName, string hash)
+    {
+        string[] parts = relativePath.Split('/');
+        string subCategory = parts.Length >= 4 ? parts[2].ToLowerInvariant() : "props";
+        string category = GetCategoryFromModelSubCategory(subCategory);
+
+        var dict = GetOrCreateCategoryDict(assets, category);
+        dict[fileName] = hash;
+    }
+
+    private static string GetCategoryFromModelSubCategory(string subCategory)
+    {
+        return subCategory switch
+        {
+            "units" or "characters" => "Character",
+            "buildings" => "Building",
+            "props" or "resources" => "Prop",
+            "items" or "projectiles" or "attachments" or "weapons" => "Item",
+            _ => "Prop"
+        };
+    }
+
+    private static void ProcessUnflattenStandard(MapManifestAssets assets, string relativePath, string fileName, string hash)
+    {
+        string[] parts = relativePath.Split('/');
+        string folder = parts.Length >= 3 ? parts[1].ToLowerInvariant() : "textures";
+        string category = GetCategoryFromStandardFolder(folder, parts);
+
+        var dict = GetOrCreateCategoryDict(assets, category);
+
+        string key = (category is "Music" or "SoundEffect")
+            ? (parts.Length > 3 ? string.Join("/", parts.Skip(3)) : fileName)
+            : (parts.Length > 2 ? string.Join("/", parts.Skip(2)) : fileName);
+
+        dict[key] = hash;
+    }
+
+    private static string GetCategoryFromStandardFolder(string folder, string[] parts)
+    {
+        string? vfxCategory = GetVfxCategory(folder);
+        if (vfxCategory != null)
+            return vfxCategory;
+
+        string? audioCategory = GetAudioCategory(folder, parts);
+        if (audioCategory != null)
+            return audioCategory;
+
+        string? visualCategory = GetVisualCategory(folder);
+        if (visualCategory != null)
+            return visualCategory;
+
+        return folder;
+    }
+
+    private static string? GetVfxCategory(string folder)
+    {
+        return folder switch
+        {
+            "vfx_spritesheets" or "vfx" => "Spritesheet",
+            "vfx_radial" => "vfx_radial",
+            "vfx_vertical" => "vfx_vertical",
+            _ => null
+        };
+    }
+
+    private static string? GetAudioCategory(string folder, string[] parts)
+    {
+        if (folder != "audio")
+            return null;
+
+        if (parts.Length >= 4 && parts[2].Equals("music", StringComparison.OrdinalIgnoreCase))
+            return "Music";
+
+        if (parts.Length >= 4 && parts[2].Equals("sfx", StringComparison.OrdinalIgnoreCase))
+            return "SoundEffect";
+
+        return "SoundEffect";
+    }
+
+    private static string? GetVisualCategory(string folder)
+    {
+        return folder switch
+        {
+            "animations" => "Animation",
+            "decals" => "Decal",
+            "icons" => "Icon",
+            "ribbons" => "Ribbon",
+            "noise" => "Noise",
+            "skyboxes" => "Skybox",
+            "textures" => "Terrain",
+            "shaders" => "Shader",
+            _ => null
+        };
+    }
+
+    private static void ProcessUnflattenOther(MapManifestAssets assets, string relativePath, string hash)
+    {
+        var dict = GetOrCreateCategoryDict(assets, "other");
+        dict[relativePath] = hash;
+    }
+
+    private static Dictionary<string, string> GetOrCreateCategoryDict(MapManifestAssets assets, string category)
+    {
+        var dict = assets.GetCategory(category);
+        if (dict == null)
+        {
+            dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            assets.SetCategory(category, dict);
+        }
+        return dict;
     }
 
     public static void MergeCustomPropertiesIntoAssets(MapManifestAssets targetAssets, MapManifestAssets sourceAssets)
@@ -325,122 +432,21 @@ public class MapManifest
             Tags = tags ?? new List<string>()
         };
 
-        if (!Directory.Exists(directoryPath))
-        {
-            return manifest;
-        }
+        if (!Directory.Exists(directoryPath)) return manifest;
 
         string fullDirectoryPath = Path.GetFullPath(directoryPath);
-        string[] allFiles = Directory.GetFiles(fullDirectoryPath, "*.*", SearchOption.AllDirectories);
-
-        foreach (string filePath in allFiles)
-        {
-            string relativePath = Path.GetRelativePath(fullDirectoryPath, filePath).Replace('\\', '/');
-
-            if ((relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase)) ||
-                relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".backup", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".rkey", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var fileInfo = new FileInfo(filePath);
-            if (!fileInfo.Exists || fileInfo.Length == 0)
-            {
-                continue;
-            }
-
-            byte[] fileBytes = File.ReadAllBytes(filePath);
-            if (fileBytes.Length == 0)
-            {
-                continue;
-            }
-
-            string extension = Path.GetExtension(filePath).ToLowerInvariant();
-            string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, extension);
-            string assetKey = string.IsNullOrEmpty(extension) ? canonicalBlake3 : $"{canonicalBlake3}{extension}";
-
-            manifest.Files[relativePath] = assetKey;
-            manifest.FileSizes![relativePath] = fileBytes.Length;
-        }
+        ScanDirectoryForManifestFiles(fullDirectoryPath, manifest);
 
         string manifestJsonPath = Path.Combine(fullDirectoryPath, "manifest.json");
         MapManifestAssets? existingAssets = null;
         if (File.Exists(manifestJsonPath))
         {
-            try
-            {
-                var existing = MapFileService.LoadManifest(manifestJsonPath);
-                if (existing != null)
-                {
-                    if (string.IsNullOrEmpty(manifest.MapName) && !string.IsNullOrEmpty(existing.MapName))
-                    {
-                        manifest.MapName = existing.MapName;
-                    }
-                    if (string.IsNullOrEmpty(manifest.Author) && !string.IsNullOrEmpty(existing.Author))
-                    {
-                        manifest.Author = existing.Author;
-                    }
-                    if ((string.IsNullOrEmpty(manifest.Version) || manifest.Version == "1.0.0") && !string.IsNullOrEmpty(existing.Version))
-                    {
-                        manifest.Version = existing.Version;
-                    }
-                    if (string.IsNullOrEmpty(manifest.Description) && !string.IsNullOrEmpty(existing.Description))
-                    {
-                        manifest.Description = existing.Description;
-                    }
-                    if ((manifest.Tags == null || manifest.Tags.Count == 0) && existing.Tags != null && existing.Tags.Count > 0)
-                    {
-                        manifest.Tags = new List<string>(existing.Tags);
-                    }
-                    if ((manifest.Maintainers == null || manifest.Maintainers.Count == 0) && existing.Maintainers != null && existing.Maintainers.Count > 0)
-                    {
-                        manifest.Maintainers = new List<string>(existing.Maintainers);
-                    }
-                    if ((manifest.GreenlitReferences == null || manifest.GreenlitReferences.Count == 0) && existing.GreenlitReferences != null && existing.GreenlitReferences.Count > 0)
-                    {
-                        manifest.GreenlitReferences = new List<string>(existing.GreenlitReferences);
-                    }
-                    if (existing.Assets != null)
-                    {
-                        existingAssets = existing.Assets;
-                    }
-                }
-            }
-            catch
-            {
-            }
+            existingAssets = LoadAndMergeExistingManifest(manifestJsonPath, manifest);
         }
 
-        if (string.IsNullOrEmpty(manifest.MapName))
-        {
-            manifest.MapName = Path.GetFileName(fullDirectoryPath);
-        }
-        if (string.IsNullOrEmpty(manifest.Version))
-        {
-            manifest.Version = "1.0.0";
-        }
-        if (manifest.Tags == null)
-        {
-            manifest.Tags = new List<string>();
-        }
+        if (string.IsNullOrEmpty(manifest.MapName)) manifest.MapName = Path.GetFileName(fullDirectoryPath);
+        if (string.IsNullOrEmpty(manifest.Version)) manifest.Version = "1.0.0";
+        if (manifest.Tags == null) manifest.Tags = new List<string>();
 
         manifest.Assets = UnflattenFilesToAssets(manifest.Files);
         if (existingAssets != null)
@@ -449,6 +455,150 @@ public class MapManifest
         }
 
         return manifest;
+    }
+
+    private static void ScanDirectoryForManifestFiles(string fullDirectoryPath, MapManifest manifest)
+    {
+        string[] allFiles = Directory.GetFiles(fullDirectoryPath, "*.*", SearchOption.AllDirectories);
+
+        foreach (string filePath in allFiles)
+        {
+            string relativePath = Path.GetRelativePath(fullDirectoryPath, filePath).Replace('\\', '/');
+
+            if (IsIgnoredPath(relativePath)) continue;
+
+            var fileInfo = new FileInfo(filePath);
+            if (!fileInfo.Exists || fileInfo.Length == 0) continue;
+
+            byte[] fileBytes = File.ReadAllBytes(filePath);
+            if (fileBytes.Length == 0) continue;
+
+            string extension = Path.GetExtension(filePath).ToLowerInvariant();
+            string canonicalBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, extension);
+            string assetKey = string.IsNullOrEmpty(extension) ? canonicalBlake3 : $"{canonicalBlake3}{extension}";
+
+            manifest.Files[relativePath] = assetKey;
+            manifest.FileSizes![relativePath] = fileBytes.Length;
+        }
+    }
+
+    private static bool IsIgnoredPath(string relativePath)
+    {
+        if (IsIgnoredBuildDirectory(relativePath))
+            return true;
+
+        if (IsIgnoredHiddenDirectory(relativePath))
+            return true;
+
+        if (IsIgnoredExactFile(relativePath))
+            return true;
+
+        if (IsIgnoredArchiveExtension(relativePath))
+            return true;
+
+        if (IsIgnoredTemporaryExtension(relativePath))
+            return true;
+
+        return false;
+    }
+
+    private static bool IsIgnoredBuildDirectory(string relativePath)
+    {
+        if (relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsIgnoredHiddenDirectory(string relativePath)
+    {
+        return relativePath.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsIgnoredExactFile(string relativePath)
+    {
+        if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsIgnoredArchiveExtension(string relativePath)
+    {
+        return relativePath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.EndsWith(".rar", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsIgnoredTemporaryExtension(string relativePath)
+    {
+        return relativePath.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.EndsWith(".backup", StringComparison.OrdinalIgnoreCase) ||
+               relativePath.EndsWith(".rkey", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static MapManifestAssets? LoadAndMergeExistingManifest(string manifestJsonPath, MapManifest manifest)
+    {
+        try
+        {
+            var existing = MapFileService.LoadManifest(manifestJsonPath);
+            if (existing == null) return null;
+
+            MergeBasicProperties(manifest, existing);
+            MergeCollectionProperties(manifest, existing);
+
+            return existing.Assets;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void MergeBasicProperties(MapManifest manifest, MapManifest existing)
+    {
+        if (string.IsNullOrEmpty(manifest.MapName) && !string.IsNullOrEmpty(existing.MapName))
+            manifest.MapName = existing.MapName;
+
+        if (string.IsNullOrEmpty(manifest.Author) && !string.IsNullOrEmpty(existing.Author))
+            manifest.Author = existing.Author;
+
+        if (ShouldMergeVersion(manifest, existing))
+            manifest.Version = existing.Version;
+
+        if (string.IsNullOrEmpty(manifest.Description) && !string.IsNullOrEmpty(existing.Description))
+            manifest.Description = existing.Description;
+    }
+
+    private static void MergeCollectionProperties(MapManifest manifest, MapManifest existing)
+    {
+        if (ShouldMergeList(manifest.Tags, existing.Tags))
+            manifest.Tags = new List<string>(existing.Tags);
+
+        if (ShouldMergeList(manifest.Maintainers, existing.Maintainers))
+            manifest.Maintainers = new List<string>(existing.Maintainers);
+
+        if (ShouldMergeList(manifest.GreenlitReferences, existing.GreenlitReferences))
+            manifest.GreenlitReferences = new List<string>(existing.GreenlitReferences);
+    }
+
+    private static bool ShouldMergeVersion(MapManifest manifest, MapManifest existing)
+    {
+        return (string.IsNullOrEmpty(manifest.Version) || manifest.Version == "1.0.0") && !string.IsNullOrEmpty(existing.Version);
+    }
+
+    private static bool ShouldMergeList(List<string>? manifestList, List<string>? existingList)
+    {
+        return (manifestList == null || manifestList.Count == 0) && existingList != null && existingList.Count > 0;
     }
 
     public string ToJson(bool writeIndented = true)
@@ -502,77 +652,64 @@ public class MapManifest
         return MapFileService.LoadManifest(filePath);
     }
 
+    private static readonly HashSet<string> ValidCandidateFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "manifest.json", "metadata.json", "terrain.json", "Coordinates.cs", "MapScript.cs",
+        "WasmEntryPoint.cs", "Directory.Build.targets", "Directory.Build.props", "global.json",
+        "NuGet.config", "AGENTS.md", "LICENSE.md", "LICENSE", ".gitignore"
+    };
+
+    private static readonly HashSet<string> ValidCandidateExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".csproj", ".slnx", ".sln", ".wasm", ".exr", ".png", ".jpg", ".jpeg",
+        ".ranim", ".rtex", ".rmesh", ".ogg", ".wav", ".mp3"
+    };
+
+    private static readonly string[] ValidCandidatePrefixes = { "terrain_", "thumbnail", "preview", "icon" };
+    private static readonly string[] ValidCandidateDirPrefixes = { "lib/", "wit/", "locale/", "bin/", "Assets/", ".vscode/" };
+
     public bool IsCandidateFile(string relativePath)
     {
-        if (string.IsNullOrWhiteSpace(relativePath))
-        {
-            return false;
-        }
+        if (string.IsNullOrWhiteSpace(relativePath)) return false;
 
         string norm = relativePath.Replace('\\', '/').TrimStart('/');
 
-        if (Files.ContainsKey(norm))
-        {
-            return true;
-        }
+        if (Files.ContainsKey(norm)) return true;
 
         string fileName = Path.GetFileName(norm);
-        if (string.IsNullOrEmpty(fileName))
+        if (string.IsNullOrEmpty(fileName)) return false;
+
+        if (HasFileName(fileName)) return true;
+
+        if (IsCandidateFileName(fileName)) return true;
+        if (IsCandidateNormPath(norm)) return true;
+
+        return false;
+    }
+
+    private static bool IsCandidateFileName(string fileName)
+    {
+        if (ValidCandidateFileNames.Contains(fileName)) return true;
+
+        foreach (var ext in ValidCandidateExtensions)
         {
-            return false;
+            if (fileName.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) return true;
         }
 
-        if (HasFileName(fileName))
+        foreach (var prefix in ValidCandidatePrefixes)
         {
-            return true;
+            if (fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
         }
 
-        if (string.Equals(fileName, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "metadata.json", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "terrain.json", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "Coordinates.cs", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "MapScript.cs", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "Directory.Build.targets", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "Directory.Build.props", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "global.json", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "NuGet.config", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "AGENTS.md", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "LICENSE.md", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, "LICENSE", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(fileName, ".gitignore", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".exr", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".ranim", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
-            fileName.StartsWith("terrain_", StringComparison.OrdinalIgnoreCase) ||
-            fileName.StartsWith("thumbnail", StringComparison.OrdinalIgnoreCase) ||
-            fileName.StartsWith("preview", StringComparison.OrdinalIgnoreCase) ||
-            fileName.StartsWith("icon", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
+        return false;
+    }
 
-        if (norm.StartsWith("lib/", StringComparison.OrdinalIgnoreCase) ||
-            norm.StartsWith("wit/", StringComparison.OrdinalIgnoreCase) ||
-            norm.StartsWith("locale/", StringComparison.OrdinalIgnoreCase) ||
-            norm.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) ||
-            norm.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase) ||
-            norm.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase))
+    private static bool IsCandidateNormPath(string norm)
+    {
+        foreach (var dir in ValidCandidateDirPrefixes)
         {
-            return true;
+            if (norm.StartsWith(dir, StringComparison.OrdinalIgnoreCase)) return true;
         }
-
         return false;
     }
 }
@@ -652,90 +789,90 @@ public class MapManifestAssets
         return GetCategory(category) != null;
     }
 
+    private static readonly Dictionary<string, Func<MapManifestAssets, Dictionary<string, string>?>> CategoryGetters = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "Animation", a => a.Animation }, { "animations", a => a.Animation },
+        { "Building", a => a.Building }, { "buildings", a => a.Building },
+        { "Character", a => a.Character }, { "characters", a => a.Character }, { "units", a => a.Character },
+        { "Decal", a => a.Decal }, { "decals", a => a.Decal },
+        { "Icon", a => a.Icon }, { "icons", a => a.Icon },
+        { "Item", a => a.Item }, { "items", a => a.Item }, { "projectiles", a => a.Item }, { "attachments", a => a.Item }, { "weapons", a => a.Item },
+        { "Music", a => a.Music },
+        { "Noise", a => a.Noise }, { "noise_textures", a => a.Noise },
+        { "Other", a => a.Other },
+        { "Prop", a => a.Prop }, { "props", a => a.Prop }, { "resources", a => a.Prop },
+        { "Ribbon", a => a.Ribbon }, { "ribbons", a => a.Ribbon }, { "ribbon_textures", a => a.Ribbon },
+        { "Shader", a => a.Shader }, { "shaders", a => a.Shader },
+        { "Skybox", a => a.Skybox }, { "skyboxes", a => a.Skybox },
+        { "SoundEffect", a => a.SoundEffect }, { "sfx", a => a.SoundEffect }, { "audio", a => a.SoundEffect }, { "sounds", a => a.SoundEffect },
+        { "Spritesheet", a => a.Spritesheet }, { "spritesheets", a => a.Spritesheet }, { "vfx", a => a.Spritesheet }, { "vfx_spritesheets", a => a.Spritesheet },
+        { "Terrain", a => a.Terrain }, { "textures", a => a.Terrain },
+        { "vfx_radial", a => a.VfxRadial },
+        { "vfx_vertical", a => a.VfxVertical }
+    };
+
+    private static readonly Dictionary<string, Action<MapManifestAssets, Dictionary<string, string>>> CategorySetters = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "Animation", (a, d) => a.Animation = d },
+        { "Building", (a, d) => a.Building = d },
+        { "Character", (a, d) => a.Character = d },
+        { "Decal", (a, d) => a.Decal = d },
+        { "Icon", (a, d) => a.Icon = d },
+        { "Item", (a, d) => a.Item = d },
+        { "Music", (a, d) => a.Music = d },
+        { "Noise", (a, d) => a.Noise = d },
+        { "Other", (a, d) => a.Other = d },
+        { "Prop", (a, d) => a.Prop = d },
+        { "Ribbon", (a, d) => a.Ribbon = d },
+        { "Shader", (a, d) => a.Shader = d },
+        { "Skybox", (a, d) => a.Skybox = d },
+        { "SoundEffect", (a, d) => a.SoundEffect = d },
+        { "Spritesheet", (a, d) => a.Spritesheet = d },
+        { "Terrain", (a, d) => a.Terrain = d },
+        { "vfx_radial", (a, d) => a.VfxRadial = d },
+        { "vfx_vertical", (a, d) => a.VfxVertical = d }
+    };
+
+    private static readonly string[] CategoryProperties = {
+        "Animation", "Building", "Character", "Decal", "Icon", "Item", "Music", "Noise", "other",
+        "Prop", "Ribbon", "Shader", "Skybox", "SoundEffect", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical"
+    };
+
     public Dictionary<string, string>? GetCategory(string category)
     {
-        return category switch
+        if (CategoryGetters.TryGetValue(category, out var getter))
         {
-            "Animation" or "animations" => Animation,
-            "Building" or "buildings" => Building,
-            "Character" or "characters" or "units" => Character,
-            "Decal" or "decals" => Decal,
-            "Icon" or "icons" => Icon,
-            "Item" or "items" or "projectiles" or "attachments" or "weapons" => Item,
-            "Music" or "music" => Music,
-            "Noise" or "noise" or "noise_textures" => Noise,
-            "Other" or "other" => Other,
-            "Prop" or "props" or "resources" => Prop,
-            "Ribbon" or "ribbons" or "ribbon_textures" => Ribbon,
-            "Shader" or "shaders" => Shader,
-            "Skybox" or "skyboxes" => Skybox,
-            "SoundEffect" or "sfx" or "audio" or "sounds" => SoundEffect,
-            "Spritesheet" or "spritesheets" or "vfx" or "vfx_spritesheets" => Spritesheet,
-            "Terrain" or "textures" => Terrain,
-            "vfx_radial" => VfxRadial,
-            "vfx_vertical" => VfxVertical,
-            _ => GetFromAdditionalProperties(category)
-        };
+            return getter(this);
+        }
+        return GetFromAdditionalProperties(category);
     }
 
     public void SetCategory(string category, Dictionary<string, string> dictionary)
     {
-        switch (category)
+        if (CategorySetters.TryGetValue(category, out var setter))
         {
-            case "Animation": Animation = dictionary; break;
-            case "Building": Building = dictionary; break;
-            case "Character": Character = dictionary; break;
-            case "Decal": Decal = dictionary; break;
-            case "Icon": Icon = dictionary; break;
-            case "Item": Item = dictionary; break;
-            case "Music": Music = dictionary; break;
-            case "Noise": Noise = dictionary; break;
-            case "Other" or "other": Other = dictionary; break;
-            case "Prop": Prop = dictionary; break;
-            case "Ribbon": Ribbon = dictionary; break;
-            case "Shader": Shader = dictionary; break;
-            case "Skybox": Skybox = dictionary; break;
-            case "SoundEffect": SoundEffect = dictionary; break;
-            case "Spritesheet": Spritesheet = dictionary; break;
-            case "Terrain": Terrain = dictionary; break;
-            case "vfx_radial": VfxRadial = dictionary; break;
-            case "vfx_vertical": VfxVertical = dictionary; break;
-            default:
-                AdditionalProperties ??= new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.OrdinalIgnoreCase);
-                AdditionalProperties[category] = System.Text.Json.JsonSerializer.SerializeToElement(dictionary);
-                break;
+            setter(this, dictionary);
+            return;
         }
+        
+        AdditionalProperties ??= new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.OrdinalIgnoreCase);
+        AdditionalProperties[category] = System.Text.Json.JsonSerializer.SerializeToElement(dictionary);
     }
 
     public IEnumerable<KeyValuePair<string, Dictionary<string, string>>> GetAllCategories()
     {
-        if (Animation != null) yield return new("Animation", Animation);
-        if (Building != null) yield return new("Building", Building);
-        if (Character != null) yield return new("Character", Character);
-        if (Decal != null) yield return new("Decal", Decal);
-        if (Icon != null) yield return new("Icon", Icon);
-        if (Item != null) yield return new("Item", Item);
-        if (Music != null) yield return new("Music", Music);
-        if (Noise != null) yield return new("Noise", Noise);
-        if (Other != null) yield return new("other", Other);
-        if (Prop != null) yield return new("Prop", Prop);
-        if (Ribbon != null) yield return new("Ribbon", Ribbon);
-        if (Shader != null) yield return new("Shader", Shader);
-        if (Skybox != null) yield return new("Skybox", Skybox);
-        if (SoundEffect != null) yield return new("SoundEffect", SoundEffect);
-        if (Spritesheet != null) yield return new("Spritesheet", Spritesheet);
-        if (Terrain != null) yield return new("Terrain", Terrain);
-        if (VfxRadial != null) yield return new("vfx_radial", VfxRadial);
-        if (VfxVertical != null) yield return new("vfx_vertical", VfxVertical);
+        foreach (var prop in CategoryProperties)
+        {
+            var dict = CategoryGetters[prop](this);
+            if (dict != null) yield return new(prop, dict);
+        }
+
         if (AdditionalProperties != null)
         {
             foreach (var kvp in AdditionalProperties)
             {
                 var dict = GetFromAdditionalProperties(kvp.Key);
-                if (dict != null)
-                {
-                    yield return new(kvp.Key, dict);
-                }
+                if (dict != null) yield return new(kvp.Key, dict);
             }
         }
     }

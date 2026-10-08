@@ -86,43 +86,55 @@ public class MapEditorBrushSettings
 	{
 		if (viewModel == null) return;
 
-		if (!Mathf.IsEqualApprox((float)_sldBrushSize.Value, viewModel.BrushSize))
-		{
-			_sldBrushSize.Value = viewModel.BrushSize;
-			_lblBrushSizeValue.Text = viewModel.BrushSize.ToString("F0");
-		}
+		UpdateBrushSize(viewModel);
+		UpdateBrushStrength(viewModel);
+		UpdateBlockMode();
+		UpdateExactHeight(viewModel);
+		UpdateBlockStep(viewModel);
+	}
 
-		if (!Mathf.IsEqualApprox((float)_sldBrushStrength.Value, viewModel.BrushStrength))
-		{
-			_sldBrushStrength.Value = viewModel.BrushStrength;
-			_lblBrushStrengthValue.Text = viewModel.BrushStrength.ToString("F0");
-		}
+	private void UpdateBrushSize(MapEditorHUDViewModel viewModel)
+	{
+		if (Mathf.IsEqualApprox((float)_sldBrushSize.Value, viewModel.BrushSize)) return;
 
-		if (_chkBlockMode != null && GameHost.Instance != null)
-		{
-			bool isBlock = GameHost.Instance.EditorBlockMode;
-			if (_chkBlockMode.ButtonPressed != isBlock)
-			{
-				_chkBlockMode.ButtonPressed = isBlock;
-			}
-		}
+		_sldBrushSize.Value = viewModel.BrushSize;
+		_lblBrushSizeValue.Text = viewModel.BrushSize.ToString("F0");
+	}
 
-		if (_sldHeight != null)
-		{
-			if (!Mathf.IsEqualApprox((float)_sldHeight.Value, viewModel.ExactHeight))
-			{
-				_sldHeight.Value = viewModel.ExactHeight;
-				if (_lblHeightValue != null) _lblHeightValue.Text = viewModel.ExactHeight.ToString("F1") + "m";
-			}
-		}
+	private void UpdateBrushStrength(MapEditorHUDViewModel viewModel)
+	{
+		if (Mathf.IsEqualApprox((float)_sldBrushStrength.Value, viewModel.BrushStrength)) return;
 
-		if (_sldBlockStep != null)
+		_sldBrushStrength.Value = viewModel.BrushStrength;
+		_lblBrushStrengthValue.Text = viewModel.BrushStrength.ToString("F0");
+	}
+
+	private void UpdateBlockMode()
+	{
+		if (_chkBlockMode == null || GameHost.Instance == null) return;
+
+		bool isBlock = GameHost.Instance.EditorBlockMode;
+		if (_chkBlockMode.ButtonPressed != isBlock)
 		{
-			if (!Mathf.IsEqualApprox((float)_sldBlockStep.Value, viewModel.BlockStep))
-			{
-				_sldBlockStep.Value = viewModel.BlockStep;
-				_lblBlockStepValue.Text = viewModel.BlockStep.ToString("F1") + "m";
-			}
+			_chkBlockMode.ButtonPressed = isBlock;
 		}
+	}
+
+	private void UpdateExactHeight(MapEditorHUDViewModel viewModel)
+	{
+		if (_sldHeight == null) return;
+		if (Mathf.IsEqualApprox((float)_sldHeight.Value, viewModel.ExactHeight)) return;
+
+		_sldHeight.Value = viewModel.ExactHeight;
+		if (_lblHeightValue != null) _lblHeightValue.Text = viewModel.ExactHeight.ToString("F1") + "m";
+	}
+
+	private void UpdateBlockStep(MapEditorHUDViewModel viewModel)
+	{
+		if (_sldBlockStep == null) return;
+		if (Mathf.IsEqualApprox((float)_sldBlockStep.Value, viewModel.BlockStep)) return;
+
+		_sldBlockStep.Value = viewModel.BlockStep;
+		_lblBlockStepValue.Text = viewModel.BlockStep.ToString("F1") + "m";
 	}
 }

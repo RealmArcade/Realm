@@ -343,14 +343,22 @@ public class MapMetadata
 	{
 		if (Textures == null || string.IsNullOrWhiteSpace(swatchOrKey)) return null;
 		if (Textures.TryGetValue(swatchOrKey, out var tex) && tex != null) return tex;
+		return FindTextureByCleanName(swatchOrKey);
+	}
+
+	private TextureMetadata? FindTextureByCleanName(string swatchOrKey)
+	{
 		string clean = Path.GetFileNameWithoutExtension(swatchOrKey);
 		string normalized = clean.StartsWith("terrain/", StringComparison.OrdinalIgnoreCase) ? clean : $"terrain/{clean}";
-		if (Textures.TryGetValue(normalized, out tex) && tex != null) return tex;
-		return Textures.FirstOrDefault(kvp =>
-			string.Equals(kvp.Key, clean, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(Path.GetFileNameWithoutExtension(kvp.Key), clean, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(Path.GetFileNameWithoutExtension(kvp.Value.TexturePath ?? ""), clean, StringComparison.OrdinalIgnoreCase)
-		).Value;
+		if (Textures!.TryGetValue(normalized, out var tex) && tex != null) return tex;
+		return Textures.FirstOrDefault(kvp => IsTextureMatch(kvp, clean)).Value;
+	}
+
+	private bool IsTextureMatch(KeyValuePair<string, TextureMetadata> kvp, string clean)
+	{
+		if (string.Equals(kvp.Key, clean, StringComparison.OrdinalIgnoreCase)) return true;
+		if (string.Equals(Path.GetFileNameWithoutExtension(kvp.Key), clean, StringComparison.OrdinalIgnoreCase)) return true;
+		return string.Equals(Path.GetFileNameWithoutExtension(kvp.Value.TexturePath ?? ""), clean, StringComparison.OrdinalIgnoreCase);
 	}
 
 	public TerrainSwatchProfileData? GetTerrainProfile(string swatchName)

@@ -173,16 +173,38 @@ public static class RealmMetadataHelper
     {
         var result = NormalizeAssetType(assetType);
 
-        if (result.EndsWith("s"))
+        if (TryStripSuffix(result, out var strippedType))
         {
-            var withoutSuffix = result.Substring(0, result.Length - 1);
-            if (ValidAssetTypes.Any(x => x.Contains(withoutSuffix)))
-            {
-                return withoutSuffix;
-            }
+            return strippedType;
         }
 
-        result = result switch
+        result = MapLegacyAssetType(result);
+
+        if (!ValidAssetTypes.Contains(result))
+        {
+            return "";
+        }
+
+        return NormalizeAssetType(result);
+    }
+
+    private static bool TryStripSuffix(string result, out string strippedType)
+    {
+        strippedType = "";
+        if (!result.EndsWith("s")) return false;
+        
+        var withoutSuffix = result.Substring(0, result.Length - 1);
+        if (ValidAssetTypes.Any(x => x.Contains(withoutSuffix)))
+        {
+            strippedType = withoutSuffix;
+            return true;
+        }
+        return false;
+    }
+
+    private static string MapLegacyAssetType(string type)
+    {
+        return type switch
         {
             "units" => "character",
             "attachments" => "item",
@@ -191,15 +213,8 @@ public static class RealmMetadataHelper
             "sfx" => "soundeffect",
             "skyboxes" => "skybox",
             "textures" => "terrain",
-            _ => result
+            _ => type
         };
-
-        if (!ValidAssetTypes.Contains(result))
-        {
-            return "";
-        }
-
-        return NormalizeAssetType(result);
     }
 
     public static string GetExtension(string extensionOrPath)
@@ -245,13 +260,16 @@ public static class RealmMetadataHelper
         string? metaJson = ExtractMetadata(filePath);
         if (string.IsNullOrEmpty(metaJson)) return null;
 
+        return TryExtractAssetTypeFromJson(filePath, metaJson);
+    }
+
+    private static string? TryExtractAssetTypeFromJson(string filePath, string metaJson)
+    {
         try
         {
             if (JsonNode.Parse(metaJson) is not JsonObject obj) return null;
-
-            string? typeVal = obj["asset_type"]?.ToString()
-                ?? obj["AssetType"]?.ToString()
-                ?? obj["default_asset_type"]?.ToString();
+            
+            string? typeVal = GetAssetTypeFromObject(obj);
 
             if (!string.IsNullOrEmpty(typeVal) && IsValidAssetTypeForExtension(filePath, typeVal, out string canonical, out _))
             {
@@ -260,6 +278,13 @@ public static class RealmMetadataHelper
         }
         catch { }
         return null;
+    }
+
+    private static string? GetAssetTypeFromObject(JsonObject obj)
+    {
+        return obj["asset_type"]?.ToString()
+            ?? obj["AssetType"]?.ToString()
+            ?? obj["default_asset_type"]?.ToString();
     }
 
     public static bool SetAssetType(string filePath, string assetType)
@@ -841,12 +866,19 @@ public static class RealmMetadataHelper
     {
         if (bytes == null || bytes.Length == 0) return bytes ?? Array.Empty<byte>();
 
-        string extension = string.Empty;
-        if (!string.IsNullOrEmpty(extensionOrPath))
-        {
-            extension = Path.GetExtension(extensionOrPath).ToLowerInvariant();
-        }
+        string extension = GetExtensionOrDefault(extensionOrPath);
 
+        return TryStripFormatMetadata(extension, bytes);
+    }
+
+    private static string GetExtensionOrDefault(string? extensionOrPath)
+    {
+        if (string.IsNullOrEmpty(extensionOrPath)) return string.Empty;
+        return Path.GetExtension(extensionOrPath).ToLowerInvariant();
+    }
+
+    private static byte[] TryStripFormatMetadata(string extension, byte[] bytes)
+    {
         try
         {
             if (ShouldProcessFormat(extension, bytes, ".rmesh", RmeshFile.IsRmeshBytes)) return StripFormatMetadata(bytes, RmeshFile.Magic, RmeshFile.SetMetadata);
@@ -857,7 +889,7 @@ public static class RealmMetadataHelper
         }
         catch
         {
-            return bytes;
+            // fallback
         }
 
         return bytes;
@@ -964,31 +996,51 @@ public static class RealmMetadataHelper
     public static byte[] SyncBlake3MetadataBytes(byte[] bytes, string extensionOrPath)
     {
         if (bytes == null || bytes.Length == 0) return bytes ?? Array.Empty<byte>();
+        
+        string ext = NormalizeExtension(extensionOrPath);
+        if (!IsSupportedBlake3Extension(ext)) return bytes;
+
+        return TrySyncBlake3ForBytes(bytes, ext);
+    }
+
+    private static string NormalizeExtension(string extensionOrPath)
+    {
         string ext = Path.GetExtension(extensionOrPath).ToLowerInvariant();
         if (string.IsNullOrEmpty(ext) && extensionOrPath.StartsWith('.')) ext = extensionOrPath.ToLowerInvariant();
-        if (ext is not (".rtex" or ".ranim" or ".rmesh" or ".raud" or ".rkey")) return bytes;
+        return ext;
+    }
 
+    private static bool IsSupportedBlake3Extension(string ext)
+    {
+        return ext is ".rtex" or ".ranim" or ".rmesh" or ".raud" or ".rkey";
+    }
+
+    private static byte[] TrySyncBlake3ForBytes(byte[] bytes, string ext)
+    {
         try
         {
             string canonicalBlake3 = ComputeBlake3(bytes, ext);
             string? existingMeta = ExtractMetadataFromBytes(bytes, ext);
-
             JsonObject metaObj = ParseOrCreateMetadata(existingMeta, ext);
 
-            if (metaObj.TryGetPropertyValue("blake3", out var existingB3) && existingB3 != null && string.Equals(existingB3.ToString(), canonicalBlake3, StringComparison.OrdinalIgnoreCase))
+            if (IsBlake3Matching(metaObj, canonicalBlake3))
             {
                 return bytes;
             }
 
             metaObj["blake3"] = canonicalBlake3;
-            string newMetaJson = metaObj.ToJsonString();
-
-            return SetMetadataToBytes(bytes, ext, newMetaJson);
+            return SetMetadataToBytes(bytes, ext, metaObj.ToJsonString());
         }
         catch
         {
             return bytes;
         }
+    }
+
+    private static bool IsBlake3Matching(JsonObject metaObj, string canonicalBlake3)
+    {
+        if (!metaObj.TryGetPropertyValue("blake3", out var existingB3) || existingB3 == null) return false;
+        return string.Equals(existingB3.ToString(), canonicalBlake3, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ExtractMetadataFromBytes(byte[] bytes, string ext)

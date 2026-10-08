@@ -110,28 +110,54 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyStyles()
 	{
-		Texture2D bgTexture = null;
-		string[] bgPaths = new string[]
+		ApplyBackgroundStyle();
+		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
+		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
+		ApplyFilterPanelStyle();
+		ApplyMainPanelStyle();
+		
+		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
+		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+
+		UIStyle.ApplyTitle(_browserTitle, "CUSTOM LOBBY BROWSER", 36);
+		UIStyle.ApplyTitle(_filterTitle, "FILTER", 20);
+
+		ApplyTableHeaderStyle();
+
+		SetupBackButton();
+		SetupRefreshButton();
+		SetupHostButton();
+
+		SetupCheckboxes();
+		SetupSearchBar();
+
+		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
+		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
+	}
+
+	private static Texture2D LoadFirstAvailableTexture(params string[] paths)
+	{
+		foreach (var path in paths)
 		{
+			if (!ResourceLoader.Exists(path)) continue;
+			var tex = GD.Load<Texture2D>(path);
+			if (tex != null) return tex;
+		}
+		return null;
+	}
+
+	private void ApplyBackgroundStyle()
+	{
+		Texture2D bgTexture = LoadFirstAvailableTexture(
 			"res://Assets/UI/custom_lobby_bg.png",
 			"res://Assets/UI/custom_lobby_bg.jpg",
 			"res://Assets/UI/procedural_bg.png",
 			"res://Assets/UI/lobby_bg_forest.png"
-		};
-
-		foreach (var path in bgPaths)
-		{
-			if (ResourceLoader.Exists(path))
-			{
-				bgTexture = GD.Load<Texture2D>(path);
-				if (bgTexture != null) break;
-			}
-		}
+		);
 
 		if (bgTexture != null)
 		{
-			var style = new StyleBoxTexture();
-			style.Texture = bgTexture;
+			var style = new StyleBoxTexture { Texture = bgTexture };
 			_bgPanel.AddThemeStyleboxOverride("panel", style);
 			_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		}
@@ -139,40 +165,31 @@ public partial class LobbyBrowser : Control
 		{
 			_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		}
+	}
 
-		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
-		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
-
-		Texture2D filterPanelTex = null;
-		string[] filterPanelPaths = new string[]
-		{
+	private void ApplyFilterPanelStyle()
+	{
+		Texture2D filterPanelTex = LoadFirstAvailableTexture(
 			"res://Assets/UI/custom_lobby_panel_filter.png",
 			"res://Assets/UI/custom_panel_filter.png",
 			"res://Assets/UI/procedural_filter_panel.png",
 			"res://Assets/UI/lobby_filter_panel.png"
-		};
-
-		foreach (var path in filterPanelPaths)
-		{
-			if (ResourceLoader.Exists(path))
-			{
-				filterPanelTex = GD.Load<Texture2D>(path);
-				if (filterPanelTex != null) break;
-			}
-		}
+		);
 
 		if (filterPanelTex != null)
 		{
-			var filterPanelStyle = new StyleBoxTexture();
-			filterPanelStyle.Texture = filterPanelTex;
-			filterPanelStyle.TextureMarginLeft = 40;
-			filterPanelStyle.TextureMarginRight = 40;
-			filterPanelStyle.TextureMarginTop = 40;
-			filterPanelStyle.TextureMarginBottom = 40;
-			filterPanelStyle.ContentMarginLeft = 46;
-			filterPanelStyle.ContentMarginRight = 46;
-			filterPanelStyle.ContentMarginTop = 44;
-			filterPanelStyle.ContentMarginBottom = 30;
+			var filterPanelStyle = new StyleBoxTexture
+			{
+				Texture = filterPanelTex,
+				TextureMarginLeft = 40,
+				TextureMarginRight = 40,
+				TextureMarginTop = 40,
+				TextureMarginBottom = 40,
+				ContentMarginLeft = 46,
+				ContentMarginRight = 46,
+				ContentMarginTop = 44,
+				ContentMarginBottom = 30
+			};
 			_filterPanel.AddThemeStyleboxOverride("panel", filterPanelStyle);
 			_filterPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		}
@@ -180,36 +197,30 @@ public partial class LobbyBrowser : Control
 		{
 			_filterPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 		}
+	}
 
-		Texture2D mainPanelTex = null;
-		string[] mainPanelPaths = new string[]
-		{
+	private void ApplyMainPanelStyle()
+	{
+		Texture2D mainPanelTex = LoadFirstAvailableTexture(
 			"res://Assets/UI/custom_lobby_panel_main.png",
 			"res://Assets/UI/procedural_main_panel.png",
 			"res://Assets/UI/lobby_central_panel.png"
-		};
-
-		foreach (var path in mainPanelPaths)
-		{
-			if (ResourceLoader.Exists(path))
-			{
-				mainPanelTex = GD.Load<Texture2D>(path);
-				if (mainPanelTex != null) break;
-			}
-		}
+		);
 
 		if (mainPanelTex != null)
 		{
-			var mainPanelStyle = new StyleBoxTexture();
-			mainPanelStyle.Texture = mainPanelTex;
-			mainPanelStyle.TextureMarginLeft = 60;
-			mainPanelStyle.TextureMarginRight = 60;
-			mainPanelStyle.TextureMarginTop = 60;
-			mainPanelStyle.TextureMarginBottom = 60;
-			mainPanelStyle.ContentMarginLeft = 50;
-			mainPanelStyle.ContentMarginRight = 50;
-			mainPanelStyle.ContentMarginTop = 45;
-			mainPanelStyle.ContentMarginBottom = 45;
+			var mainPanelStyle = new StyleBoxTexture
+			{
+				Texture = mainPanelTex,
+				TextureMarginLeft = 60,
+				TextureMarginRight = 60,
+				TextureMarginTop = 60,
+				TextureMarginBottom = 60,
+				ContentMarginLeft = 50,
+				ContentMarginRight = 50,
+				ContentMarginTop = 45,
+				ContentMarginBottom = 45
+			};
 			_lobbyPanel.AddThemeStyleboxOverride("panel", mainPanelStyle);
 			_lobbyPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		}
@@ -217,15 +228,10 @@ public partial class LobbyBrowser : Control
 		{
 			_lobbyPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 		}
-		
-		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
-		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+	}
 
-
-		UIStyle.ApplyTitle(_browserTitle, "CUSTOM LOBBY BROWSER", 36);
-		UIStyle.ApplyTitle(_filterTitle, "FILTER", 20);
-
-
+	private void ApplyTableHeaderStyle()
+	{
 		var tableHeader = _lobbyPanel.GetNode<HBoxContainer>("VBoxContainer/TableHeader");
 		var headerWrapper = new PanelContainer();
 		headerWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
@@ -236,23 +242,15 @@ public partial class LobbyBrowser : Control
 
 		foreach (var lbl in new[] { _mapCol, _sizeCol, _modeCol, _playersCol, _pingCol })
 		{
-			if (lbl != null)
-			{
-				lbl.Text = Tr(lbl.Text);
-				lbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-				lbl.AddThemeFontSizeOverride("font_size", 16);
-			}
+			if (lbl == null) continue;
+			lbl.Text = Tr(lbl.Text);
+			lbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			lbl.AddThemeFontSizeOverride("font_size", 16);
 		}
+	}
 
-
-		SetupBackButton();
-		SetupRefreshButton();
-
-
-		SetupHostButton();
-
-
-
+	private void SetupCheckboxes()
+	{
 		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck };
 		foreach (var cb in checkBoxes)
 		{
@@ -264,8 +262,10 @@ public partial class LobbyBrowser : Control
 			cb.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 			UIStyle.ApplyCheckboxStyle(cb);
 		}
+	}
 
-
+	private void SetupSearchBar()
+	{
 		_searchBar.TextChanged += (text) => ApplyFilters();
 		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
 		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
@@ -277,10 +277,6 @@ public partial class LobbyBrowser : Control
 		_searchBar.Alignment = HorizontalAlignment.Left;
 		_searchBar.PlaceholderText = "Search Lobbies...";
 		_searchBar.RightIcon = null;
-
-
-		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
-		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
 	}
 
 	private void SetupPillarButton(Button btn, string text, Action onClick)
@@ -443,96 +439,22 @@ public partial class LobbyBrowser : Control
 			try
 			{
 				var json = await LobbyManager.Instance.FetchLobbiesRawAsync();
-				if (json != null)
-				{
-					int clientBaseline = await LobbyManager.Instance.MeasurePingToRegistryAsync();
-					using var doc = JsonDocument.Parse(json);
-					var lobbyList = new List<LobbyData>();
-					
-					foreach (var item in doc.RootElement.EnumerateArray())
-					{
-						string hostIp = "";
-						if (item.TryGetProperty("hostIP", out var hostIpProp))
-						{
-							hostIp = hostIpProp.GetString() ?? "";
-						}
-						else if (item.TryGetProperty("hostIp", out hostIpProp))
-						{
-							hostIp = hostIpProp.GetString() ?? "";
-						}
-
-						int calculatedPing;
-						if (hostIp == "127.0.0.1" || hostIp == "localhost" || string.IsNullOrEmpty(hostIp))
-						{
-							calculatedPing = 5;
-						}
-						else
-						{
-							double distanceKm = 0;
-							if (item.TryGetProperty("distanceKm", out var distProp))
-							{
-								distanceKm = distProp.GetDouble();
-							}
-							else if (item.TryGetProperty("distance", out distProp))
-							{
-								distanceKm = distProp.GetDouble();
-							}
-
-							int hostPingBaseline = 20;
-							if (item.TryGetProperty("hostPingBaseline", out var baselineProp))
-							{
-								hostPingBaseline = baselineProp.GetInt32();
-							}
-
-							double geoPing = 10.0 + (distanceKm / 100.0);
-							double clientOverhead = Math.Max(0, clientBaseline - 20);
-							double hostOverhead = Math.Max(0, hostPingBaseline - 20);
-							calculatedPing = (int)Math.Round(geoPing + clientOverhead + hostOverhead);
-						}
-
-						long mapSizeBytes = 0;
-						if (item.TryGetProperty("mapSizeBytes", out var sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-						{
-							mapSizeBytes = sizeProp.GetInt64();
-						}
-						else if (item.TryGetProperty("MapSizeBytes", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-						{
-							mapSizeBytes = sizeProp.GetInt64();
-						}
-						else if (item.TryGetProperty("mapSize", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-						{
-							mapSizeBytes = sizeProp.GetInt64();
-						}
-
-						string mapName = item.TryGetProperty("map", out var mapProp) ? mapProp.GetString() ?? "" : "";
-						string mapVersion = item.TryGetProperty("mapVersion", out var mvProp) ? mvProp.GetString() ?? "" : "";
-
-						if (mapSizeBytes <= 0)
-						{
-							mapSizeBytes = MapAssetManager.GetMapTotalSizeBytes(mapName, mapVersion);
-						}
-
-						string mapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes);
-
-						lobbyList.Add(new LobbyData
-						{
-							LobbyId = item.TryGetProperty("lobbyId", out var idProp) ? idProp.GetString() ?? "" : "",
-							Map = mapName,
-							Mode = "Melee", // Default mode
-							Players = $"{(item.TryGetProperty("slotsUsed", out var slotsProp) ? slotsProp.GetInt32() : 0)}/{(item.TryGetProperty("maxPlayers", out var maxProp) ? maxProp.GetInt32() : 8)}",
-							Ping = calculatedPing,
-							GameVersion = item.TryGetProperty("gameVersion", out var gvProp) ? gvProp.GetString() ?? "" : "",
-							MapSizeBytes = mapSizeBytes,
-							MapSizeFormatted = mapSizeFormatted
-						});
-					}
-
-					Callable.From(() => OnLobbiesFetched(lobbyList)).CallDeferred();
-				}
-				else
+				if (json == null)
 				{
 					Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
+					return;
 				}
+
+				int clientBaseline = await LobbyManager.Instance.MeasurePingToRegistryAsync();
+				using var doc = JsonDocument.Parse(json);
+				var lobbyList = new List<LobbyData>();
+				
+				foreach (var item in doc.RootElement.EnumerateArray())
+				{
+					lobbyList.Add(ParseLobbyData(item, clientBaseline));
+				}
+
+				Callable.From(() => OnLobbiesFetched(lobbyList)).CallDeferred();
 			}
 			catch (Exception ex)
 			{
@@ -540,6 +462,88 @@ public partial class LobbyBrowser : Control
 				Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
 			}
 		});
+	}
+
+	private static LobbyData ParseLobbyData(JsonElement item, int clientBaseline)
+	{
+		string hostIp = "";
+		if (item.TryGetProperty("hostIP", out var hostIpProp))
+		{
+			hostIp = hostIpProp.GetString() ?? "";
+		}
+		else if (item.TryGetProperty("hostIp", out hostIpProp))
+		{
+			hostIp = hostIpProp.GetString() ?? "";
+		}
+
+		int calculatedPing = CalculatePing(item, hostIp, clientBaseline);
+		long mapSizeBytes = GetMapSizeBytes(item);
+		
+		string mapName = item.TryGetProperty("map", out var mapProp) ? mapProp.GetString() ?? "" : "";
+		string mapVersion = item.TryGetProperty("mapVersion", out var mvProp) ? mvProp.GetString() ?? "" : "";
+
+		if (mapSizeBytes <= 0)
+		{
+			mapSizeBytes = MapAssetManager.GetMapTotalSizeBytes(mapName, mapVersion);
+		}
+
+		return new LobbyData
+		{
+			LobbyId = item.TryGetProperty("lobbyId", out var idProp) ? idProp.GetString() ?? "" : "",
+			Map = mapName,
+			Mode = "Melee", // Default mode
+			Players = $"{(item.TryGetProperty("slotsUsed", out var slotsProp) ? slotsProp.GetInt32() : 0)}/{(item.TryGetProperty("maxPlayers", out var maxProp) ? maxProp.GetInt32() : 8)}",
+			Ping = calculatedPing,
+			GameVersion = item.TryGetProperty("gameVersion", out var gvProp) ? gvProp.GetString() ?? "" : "",
+			MapSizeBytes = mapSizeBytes,
+			MapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes)
+		};
+	}
+
+	private static int CalculatePing(JsonElement item, string hostIp, int clientBaseline)
+	{
+		if (hostIp == "127.0.0.1" || hostIp == "localhost" || string.IsNullOrEmpty(hostIp))
+		{
+			return 5;
+		}
+
+		double distanceKm = 0;
+		if (item.TryGetProperty("distanceKm", out var distProp))
+		{
+			distanceKm = distProp.GetDouble();
+		}
+		else if (item.TryGetProperty("distance", out distProp))
+		{
+			distanceKm = distProp.GetDouble();
+		}
+
+		int hostPingBaseline = 20;
+		if (item.TryGetProperty("hostPingBaseline", out var baselineProp))
+		{
+			hostPingBaseline = baselineProp.GetInt32();
+		}
+
+		double geoPing = 10.0 + (distanceKm / 100.0);
+		double clientOverhead = Math.Max(0, clientBaseline - 20);
+		double hostOverhead = Math.Max(0, hostPingBaseline - 20);
+		return (int)Math.Round(geoPing + clientOverhead + hostOverhead);
+	}
+
+	private static long GetMapSizeBytes(JsonElement item)
+	{
+		if (item.TryGetProperty("mapSizeBytes", out var sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
+		{
+			return sizeProp.GetInt64();
+		}
+		if (item.TryGetProperty("MapSizeBytes", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
+		{
+			return sizeProp.GetInt64();
+		}
+		if (item.TryGetProperty("mapSize", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
+		{
+			return sizeProp.GetInt64();
+		}
+		return 0;
 	}
 
 	private void OnLobbiesFetched(List<LobbyData> list)
@@ -570,22 +574,23 @@ public partial class LobbyBrowser : Control
 			_filteredLobbies = _filteredLobbies.Where(x => x.Map.ToLower().Contains(query)).ToList();
 		}
 
-		bool campaign = _campaignCheck.ButtonPressed;
-		bool melee = _meleeCheck.ButtonPressed;
-		bool tutorial = _tutorialCheck.ButtonPressed;
-		bool arcade = _arcadeCheck.ButtonPressed;
-
-		if (campaign || melee || tutorial || arcade)
+		var activeModes = GetActiveModes();
+		if (activeModes.Count > 0)
 		{
-			_filteredLobbies = _filteredLobbies.Where(x =>
-				(campaign && x.Mode.Equals("Campaign", StringComparison.OrdinalIgnoreCase)) ||
-				(melee && x.Mode.Equals("Melee", StringComparison.OrdinalIgnoreCase)) ||
-				(tutorial && x.Mode.Equals("Tutorial", StringComparison.OrdinalIgnoreCase)) ||
-				(arcade && x.Mode.Equals("Arcade", StringComparison.OrdinalIgnoreCase))
-			).ToList();
+			_filteredLobbies = _filteredLobbies.Where(x => activeModes.Contains(x.Mode.ToLower())).ToList();
 		}
 
 		RefreshLobbyDisplay();
+	}
+
+	private HashSet<string> GetActiveModes()
+	{
+		var modes = new HashSet<string>();
+		if (_campaignCheck.ButtonPressed) modes.Add("campaign");
+		if (_meleeCheck.ButtonPressed) modes.Add("melee");
+		if (_tutorialCheck.ButtonPressed) modes.Add("tutorial");
+		if (_arcadeCheck.ButtonPressed) modes.Add("arcade");
+		return modes;
 	}
 
 	private void RefreshLobbyDisplay()

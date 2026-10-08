@@ -203,7 +203,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_lblDecalName.HorizontalAlignment = HorizontalAlignment.Center;
 		contentVBox.AddChild(_lblDecalName);
 
-		// PREVIEW BOX
+		BuildPreviewSection(contentVBox);
+		BuildTextureAssetSection(contentVBox);
+		BuildColorLightingSection(contentVBox);
+		BuildBlendingMaterialSection(contentVBox);
+		BuildPropertyAnimationSection(contentVBox);
+	}
+
+	private void BuildPreviewSection(VBoxContainer contentVBox)
+	{
 		var previewPanel = new PanelContainer();
 		previewPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		previewPanel.CustomMinimumSize = new Vector2(0, 130);
@@ -221,8 +229,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		previewVBox.AddChild(_previewRect);
 		previewPanel.AddChild(previewVBox);
 		contentVBox.AddChild(previewPanel);
+	}
 
-		// SECTION 1: TEXTURE & ASSET
+	private void BuildTextureAssetSection(VBoxContainer contentVBox)
+	{
 		AddSectionHeader(contentVBox, "🖼 " + TranslationServer.Translate("TEXTURE & ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = new HBoxContainer();
@@ -268,8 +278,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			TranslationServer.Translate("Select or enter decal texture path..."),
 			140f
 		);
+	}
 
-		// SECTION 2: COLOR & LIGHTING
+	private void BuildColorLightingSection(VBoxContainer contentVBox)
+	{
 		AddSectionHeader(contentVBox, "🎨 " + TranslationServer.Translate("COLOR & LIGHTING"), new Color(0.95f, 0.8f, 0.4f));
 
 		(_sldBrightness, _lblBrightness) = AddSlider(
@@ -342,10 +354,19 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			"0.00x",
 			140f
 		);
+	}
 
-		// SECTION 2: BLENDING & TRANSPARENCY
+	private void BuildBlendingMaterialSection(VBoxContainer contentVBox)
+	{
 		AddSectionHeader(contentVBox, "✨ " + TranslationServer.Translate("BLENDING & MATERIAL"), new Color(0.5f, 0.85f, 1.0f));
 
+		BuildOpacityAndMixControls(contentVBox);
+		BuildPBRControls(contentVBox);
+		BuildFadeControls(contentVBox);
+	}
+
+	private void BuildOpacityAndMixControls(VBoxContainer contentVBox)
+	{
 		(_sldOpacity, _lblOpacity) = AddSlider(
 			contentVBox,
 			TranslationServer.Translate("Opacity / Alpha:"),
@@ -379,7 +400,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			"0.00",
 			140f
 		);
+	}
 
+	private void BuildPBRControls(VBoxContainer contentVBox)
+	{
 		(_sldNormalStrength, _lblNormalStrength) = AddSlider(
 			contentVBox,
 			TranslationServer.Translate("Normal Depth:"),
@@ -458,7 +482,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			},
 			140f
 		);
+	}
 
+	private void BuildFadeControls(VBoxContainer contentVBox)
+	{
 		(_sldUpperFade, _lblUpperFade) = AddSlider(
 			contentVBox,
 			TranslationServer.Translate("Upper Fade:"),
@@ -492,10 +519,19 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			"0.00",
 			140f
 		);
+	}
 
-		// SECTION 3: PROPERTY ANIMATION
+	private void BuildPropertyAnimationSection(VBoxContainer contentVBox)
+	{
 		AddSectionHeader(contentVBox, "⚡ " + TranslationServer.Translate("DYNAMIC PROPERTY ANIMATION"), new Color(0.4f, 0.8f, 0.95f));
 
+		BuildOpacityAnimationControls(contentVBox);
+		BuildEmissionAnimationControls(contentVBox);
+		BuildScaleAnimationControls(contentVBox);
+	}
+
+	private void BuildOpacityAnimationControls(VBoxContainer contentVBox)
+	{
 		_chkAnimateOpacity = AddCheckBox(contentVBox, TranslationServer.Translate("Enable Opacity Pulse:"), _animateOpacity, (val) =>
 		{
 			if (_isSyncingControls) return;
@@ -523,7 +559,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			_maxOpacity = val;
 			UpdateLivePreviewAndWorld();
 		}, "0.00", 140f);
+	}
 
+	private void BuildEmissionAnimationControls(VBoxContainer contentVBox)
+	{
 		_chkAnimateEmission = AddCheckBox(contentVBox, TranslationServer.Translate("Enable Emission Pulse:"), _animateEmission, (val) =>
 		{
 			if (_isSyncingControls) return;
@@ -551,7 +590,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			_maxEmission = val;
 			UpdateLivePreviewAndWorld();
 		}, "0.0", 140f);
+	}
 
+	private void BuildScaleAnimationControls(VBoxContainer contentVBox)
+	{
 		_chkAnimateScale = AddCheckBox(contentVBox, TranslationServer.Translate("Enable Scale Pulse:"), _animateScale, (val) =>
 		{
 			if (_isSyncingControls) return;
@@ -580,12 +622,12 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			UpdateLivePreviewAndWorld();
 		}, "0.00x", 140f);
 	}
-
-	private void ReloadBaseTexture()
+private void ReloadBaseTexture()
 	{
 		string texKey = !string.IsNullOrWhiteSpace(_texturePath)
 			? _texturePath
 			: (!string.IsNullOrWhiteSpace(_decalKey) && _decalKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? _decalKey : string.Empty);
+		
 		if (string.IsNullOrWhiteSpace(texKey))
 		{
 			_baseTexture = null;
@@ -593,38 +635,43 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		}
 
 		_baseTexture = GameHost.Instance?.LoadDecalTexture(texKey);
-		if (_baseTexture == null)
-		{
-			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			string filename = Path.GetFileName(texKey);
-			string baseKey = Path.GetFileNameWithoutExtension(texKey);
-			string[] candidates = new[]
-			{
-				Path.Combine(wsPath, "Assets", "decals", texKey),
-				Path.Combine(wsPath, "Assets", "decals", filename),
-				Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.rtex"),
-				Path.Combine(wsPath, "Assets", $"{baseKey}.rtex"),
-				Path.Combine(wsPath, texKey)
-			};
+		if (_baseTexture != null) return;
 
-			foreach (var p in candidates)
-			{
-				if (File.Exists(p) && p.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-				{
-					byte[] rtexBytes = File.ReadAllBytes(p);
-					byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
-					if (webpBytes != null && webpBytes.Length > 0)
-					{
-						var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
-						if (img.LoadWebpFromBuffer(webpBytes) == Error.Ok || img.LoadPngFromBuffer(webpBytes) == Error.Ok)
-						{
-							_baseTexture = ImageTexture.CreateFromImage(img);
-							break;
-						}
-					}
-				}
-			}
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string filename = Path.GetFileName(texKey);
+		string baseKey = Path.GetFileNameWithoutExtension(texKey);
+		
+		string[] candidates = new[]
+		{
+			Path.Combine(wsPath, "Assets", "decals", texKey),
+			Path.Combine(wsPath, "Assets", "decals", filename),
+			Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.rtex"),
+			Path.Combine(wsPath, "Assets", $"{baseKey}.rtex"),
+			Path.Combine(wsPath, texKey)
+		};
+
+		foreach (var p in candidates)
+		{
+			if (TryLoadRtexTexture(p)) break;
 		}
+	}
+
+	private bool TryLoadRtexTexture(string path)
+	{
+		if (!File.Exists(path) || !path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) return false;
+
+		byte[] rtexBytes = File.ReadAllBytes(path);
+		byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
+		if (webpBytes == null || webpBytes.Length == 0) return false;
+
+		var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+		if (img.LoadWebpFromBuffer(webpBytes) == Error.Ok || img.LoadPngFromBuffer(webpBytes) == Error.Ok)
+		{
+			_baseTexture = ImageTexture.CreateFromImage(img);
+			return true;
+		}
+
+		return false;
 	}
 
 	public static JsonObject ResolveDecalMetadata(string decalKey, JsonObject? providedData = null)
@@ -638,145 +685,204 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			}
 		}
 
-		// 1. Check metadata.json / unioned assets if properties are missing
+		ResolveFromMetadataJson(decalKey, result);
+		ResolveFromRtexFile(decalKey, result);
+		ResolveFromInWorldDecal(decalKey, result);
+
+		return result;
+	}
+
+	private static void ResolveFromMetadataJson(string decalKey, JsonObject result)
+	{
 		try
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
-			if (metadata?.Decals != null)
+			if (metadata?.Decals == null) return;
+
+			string key = Path.GetFileName(decalKey);
+			string baseKey = Path.GetFileNameWithoutExtension(decalKey);
+
+			Realm.Shared.Metadata.DecalMetadata? foundMeta = null;
+			string[] candidates = new[] { decalKey, key, baseKey, $"{baseKey}.rtex", $"{baseKey}.png", $"{baseKey}.webp" };
+			
+			foreach (var candidate in candidates)
 			{
-				string key = Path.GetFileName(decalKey);
-				string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-
-				Realm.Shared.Metadata.DecalMetadata? foundMeta = null;
-				if (metadata.Decals.TryGetValue(decalKey, out var d0)) foundMeta = d0;
-				else if (metadata.Decals.TryGetValue(key, out var d1)) foundMeta = d1;
-				else if (metadata.Decals.TryGetValue(baseKey, out var d2)) foundMeta = d2;
-				else if (metadata.Decals.TryGetValue($"{baseKey}.rtex", out var d3)) foundMeta = d3;
-				else if (metadata.Decals.TryGetValue($"{baseKey}.png", out var d4)) foundMeta = d4;
-				else if (metadata.Decals.TryGetValue($"{baseKey}.webp", out var d5)) foundMeta = d5;
-
-				if (foundMeta != null)
+				if (metadata.Decals.TryGetValue(candidate, out var meta))
 				{
-					var jsonMeta = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(foundMeta)) as JsonObject;
-					if (jsonMeta != null)
-					{
-						foreach (var kvp in jsonMeta)
-						{
-							if (!result.ContainsKey(kvp.Key))
-							{
-								result[kvp.Key] = kvp.Value?.DeepClone();
-							}
-						}
-					}
+					foundMeta = meta;
+					break;
 				}
 			}
+
+			if (foundMeta == null) return;
+
+			MergeMetadataJson(foundMeta, result);
 		}
 		catch { }
+	}
 
-		// 2. Check .rtex file metadata if still missing
-		if (!result.ContainsKey("brightness") && !result.ContainsKey("tint"))
+	private static void MergeMetadataJson(Realm.Shared.Metadata.DecalMetadata foundMeta, JsonObject result)
+	{
+		var jsonMeta = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(foundMeta)) as JsonObject;
+		if (jsonMeta == null) return;
+
+		foreach (var kvp in jsonMeta)
 		{
-			try
+			if (!result.ContainsKey(kvp.Key))
 			{
-				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-				string targetTexture = result.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString())
-					? tpNode.ToString()
-					: (result.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString())
-						? tpNode2.ToString()
-						: decalKey);
-
-				string filename = Path.GetFileName(targetTexture);
-				string baseKey = Path.GetFileNameWithoutExtension(targetTexture);
-				string[] candidates = new[]
-				{
-					Path.Combine(wsPath, "Assets", "decals", targetTexture),
-					Path.Combine(wsPath, "Assets", "decals", filename),
-					Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.rtex"),
-					Path.Combine(wsPath, "Assets", $"{baseKey}.rtex")
-				};
-
-				foreach (var path in candidates)
-				{
-					if (File.Exists(path) && path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-					{
-						byte[] bytes = File.ReadAllBytes(path);
-						if (Realm.Shared.Textures.RtexFile.IsRtexBytes(bytes))
-						{
-							var (customJson, _, _) = Realm.Shared.Textures.RtexFile.Parse(bytes);
-							if (!string.IsNullOrEmpty(customJson))
-							{
-								var rtexMeta = JsonNode.Parse(customJson)?.AsObject();
-								if (rtexMeta != null)
-								{
-									foreach (var kvp in rtexMeta)
-									{
-										if (!result.ContainsKey(kvp.Key))
-										{
-											result[kvp.Key] = kvp.Value?.DeepClone();
-										}
-									}
-									break;
-								}
-							}
-						}
-					}
-				}
+				result[kvp.Key] = kvp.Value?.DeepClone();
 			}
-			catch { }
+		}
+	}
+
+	private static void ResolveFromRtexFile(string decalKey, JsonObject result)
+	{
+		if (result.ContainsKey("brightness") || result.ContainsKey("tint")) return;
+
+		try
+		{
+			string targetTexture = GetTargetTexturePath(decalKey, result);
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+			ResolveRtexCandidates(wsPath, targetTexture, result);
+		}
+		catch { }
+	}
+
+	private static string GetTargetTexturePath(string decalKey, JsonObject result)
+	{
+		if (result.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString()))
+		{
+			return tpNode.ToString()!;
+		}
+		
+		if (result.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString()))
+		{
+			return tpNode2.ToString()!;
 		}
 
-		// 3. Inspect existing in-world Decal node if still missing
-		if (!result.ContainsKey("brightness") && !result.ContainsKey("tint") && GameHost.Instance?.AllDecals != null)
-		{
-			string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-			foreach (var d in GameHost.Instance.AllDecals)
-			{
-				if (d != null && GodotObject.IsInstanceValid(d))
-				{
-					string dId = d is Decal3D d3d ? d3d.DecalId : "";
-					string dBase = Path.GetFileNameWithoutExtension(dId);
-					if (dId.Equals(decalKey, StringComparison.OrdinalIgnoreCase) || dBase.Equals(baseKey, StringComparison.OrdinalIgnoreCase))
-					{
-						result["albedo_mix"] = d.AlbedoMix;
-						result["tint"] = $"#{d.Modulate.ToHtml(false)}";
-						result["opacity"] = d.Modulate.A;
-						result["normal_strength"] = (d.TextureNormal != null) ? 1.0f : 0.0f;
-						result["roughness"] = 1.0f;
-						result["metallic"] = 0.0f;
-						result["upper_fade"] = d.UpperFade;
-						result["lower_fade"] = d.LowerFade;
-						if (d.TextureEmission != null)
-						{
-							result["blend_mode"] = d.AlbedoMix <= 0.01f ? "Additive" : "Screen";
-						}
-						else
-						{
-							result["blend_mode"] = "Mix";
-						}
+		return decalKey;
+	}
 
-						if (d is Decal3D d3dAnim)
-						{
-							result["animate_opacity"] = d3dAnim.AnimateOpacity;
-							result["opacity_pulse_speed"] = d3dAnim.OpacityPulseSpeed;
-							result["min_opacity"] = d3dAnim.MinOpacity;
-							result["max_opacity"] = d3dAnim.MaxOpacity;
-							result["animate_emission"] = d3dAnim.AnimateEmission;
-							result["emission_pulse_speed"] = d3dAnim.EmissionPulseSpeed;
-							result["min_emission"] = d3dAnim.MinEmission;
-							result["max_emission"] = d3dAnim.MaxEmission;
-							result["animate_scale"] = d3dAnim.AnimateScale;
-							result["scale_pulse_speed"] = d3dAnim.ScalePulseSpeed;
-							result["min_scale_ratio"] = d3dAnim.MinScaleRatio;
-							result["max_scale_ratio"] = d3dAnim.MaxScaleRatio;
-						}
-						break;
-					}
-				}
+	private static void ResolveRtexCandidates(string wsPath, string targetTexture, JsonObject result)
+	{
+		string filename = Path.GetFileName(targetTexture);
+		string baseKey = Path.GetFileNameWithoutExtension(targetTexture);
+		string[] candidates = new[]
+		{
+			Path.Combine(wsPath, "Assets", "decals", targetTexture),
+			Path.Combine(wsPath, "Assets", "decals", filename),
+			Path.Combine(wsPath, "Assets", "decals", $"{baseKey}.rtex"),
+			Path.Combine(wsPath, "Assets", $"{baseKey}.rtex")
+		};
+
+		foreach (var path in candidates)
+		{
+			if (TryResolveRtexFile(path, result)) break;
+		}
+	}
+
+	private static bool TryResolveRtexFile(string path, JsonObject result)
+	{
+		if (!File.Exists(path) || !path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) return false;
+
+		byte[] bytes = File.ReadAllBytes(path);
+		if (!Realm.Shared.Textures.RtexFile.IsRtexBytes(bytes)) return false;
+
+		var (customJson, _, _) = Realm.Shared.Textures.RtexFile.Parse(bytes);
+		if (string.IsNullOrEmpty(customJson)) return false;
+
+		var rtexMeta = JsonNode.Parse(customJson)?.AsObject();
+		if (rtexMeta == null) return false;
+
+		foreach (var kvp in rtexMeta)
+		{
+			if (!result.ContainsKey(kvp.Key))
+			{
+				result[kvp.Key] = kvp.Value?.DeepClone();
 			}
 		}
 
-		return result;
+		return true;
+	}
+
+	private static void ResolveFromInWorldDecal(string decalKey, JsonObject result)
+	{
+		if (result.ContainsKey("brightness")) return;
+		if (result.ContainsKey("tint")) return;
+		if (GameHost.Instance == null) return;
+		if (GameHost.Instance.AllDecals == null) return;
+
+		string baseKey = Path.GetFileNameWithoutExtension(decalKey);
+		foreach (var d in GameHost.Instance.AllDecals)
+		{
+			if (TryMatchAndApplyDecal(d, decalKey, baseKey, result))
+			{
+				break;
+			}
+		}
+	}
+
+	private static bool TryMatchAndApplyDecal(Decal d, string decalKey, string baseKey, JsonObject result)
+	{
+		if (d == null) return false;
+		if (!GodotObject.IsInstanceValid(d)) return false;
+		if (!(d is Decal3D d3d)) return false;
+
+		string dId = d3d.DecalId;
+		string dBase = Path.GetFileNameWithoutExtension(dId);
+
+		if (dId.Equals(decalKey, StringComparison.OrdinalIgnoreCase))
+		{
+			ApplyDecalStateToResult(d, result);
+			return true;
+		}
+		
+		if (dBase.Equals(baseKey, StringComparison.OrdinalIgnoreCase))
+		{
+			ApplyDecalStateToResult(d, result);
+			return true;
+		}
+
+		return false;
+	}
+
+	private static void ApplyDecalStateToResult(Decal d, JsonObject result)
+	{
+		result["albedo_mix"] = d.AlbedoMix;
+		result["tint"] = $"#{d.Modulate.ToHtml(false)}";
+		result["opacity"] = d.Modulate.A;
+		result["normal_strength"] = (d.TextureNormal != null) ? 1.0f : 0.0f;
+		result["roughness"] = 1.0f;
+		result["metallic"] = 0.0f;
+		result["upper_fade"] = d.UpperFade;
+		result["lower_fade"] = d.LowerFade;
+		
+		if (d.TextureEmission != null)
+		{
+			result["blend_mode"] = d.AlbedoMix <= 0.01f ? "Additive" : "Screen";
+		}
+		else
+		{
+			result["blend_mode"] = "Mix";
+		}
+
+		if (d is Decal3D d3dAnim)
+		{
+			result["animate_opacity"] = d3dAnim.AnimateOpacity;
+			result["opacity_pulse_speed"] = d3dAnim.OpacityPulseSpeed;
+			result["min_opacity"] = d3dAnim.MinOpacity;
+			result["max_opacity"] = d3dAnim.MaxOpacity;
+			result["animate_emission"] = d3dAnim.AnimateEmission;
+			result["emission_pulse_speed"] = d3dAnim.EmissionPulseSpeed;
+			result["min_emission"] = d3dAnim.MinEmission;
+			result["max_emission"] = d3dAnim.MaxEmission;
+			result["animate_scale"] = d3dAnim.AnimateScale;
+			result["scale_pulse_speed"] = d3dAnim.ScalePulseSpeed;
+			result["min_scale_ratio"] = d3dAnim.MinScaleRatio;
+			result["max_scale_ratio"] = d3dAnim.MaxScaleRatio;
+		}
 	}
 
 	public void OpenForDecal(string decalKey, JsonObject decalData, Action<JsonObject> onApplied)
@@ -789,66 +895,35 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		var resolvedData = ResolveDecalMetadata(decalKey, decalData);
 
-		string rawTexturePath = resolvedData.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString())
-			? tpNode.ToString()
-			: (resolvedData.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString())
-				? tpNode2.ToString()
-				: string.Empty);
+		_texturePath = ResolveTexturePath(decalKey, resolvedData);
 
-		if (string.IsNullOrWhiteSpace(rawTexturePath) && decalKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			rawTexturePath = decalKey;
-		}
+		_brightness = GetFloat(resolvedData, "brightness", 1.0f);
+		_contrast = GetFloat(resolvedData, "contrast", 1.0f);
+		_saturation = GetFloat(resolvedData, "saturation", 1.0f);
+		_opacity = GetFloat(resolvedData, "opacity", 1.0f);
+		_albedoMix = GetFloat(resolvedData, "albedo_mix", 1.0f);
+		_normalStrength = GetFloat(resolvedData, "normal_strength", 0.0f);
+		_roughness = GetFloat(resolvedData, "roughness", 1.0f);
+		_metallic = GetFloat(resolvedData, "metallic", 0.0f);
+		_blendMode = GetString(resolvedData, "blend_mode", "Mix");
 
-		if (string.IsNullOrWhiteSpace(rawTexturePath))
-		{
-			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			string candidate = $"{_slug}.rtex";
-			if (File.Exists(Path.Combine(wsPath, "Assets", "decals", candidate)))
-			{
-				rawTexturePath = candidate;
-			}
-			else
-			{
-				var candidates = ScanAvailableAssets("decals", true);
-				string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, candidate, StringComparison.OrdinalIgnoreCase))
-					?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
-				if (!string.IsNullOrEmpty(candidateMatch))
-				{
-					rawTexturePath = candidateMatch;
-				}
-			}
-		}
+		_animateOpacity = GetBool(resolvedData, "animate_opacity", false);
+		_opacityPulseSpeed = GetFloat(resolvedData, "opacity_pulse_speed", 1.0f);
+		_minOpacity = GetFloat(resolvedData, "min_opacity", 0.2f);
+		_maxOpacity = GetFloat(resolvedData, "max_opacity", 1.0f);
 
-		_texturePath = rawTexturePath ?? string.Empty;
+		_animateEmission = GetBool(resolvedData, "animate_emission", false);
+		_emissionPulseSpeed = GetFloat(resolvedData, "emission_pulse_speed", 1.0f);
+		_minEmission = GetFloat(resolvedData, "min_emission", 0.0f);
+		_maxEmission = GetFloat(resolvedData, "max_emission", 2.0f);
 
-		_brightness = resolvedData.TryGetPropertyValue("brightness", out var bNode) && float.TryParse(bNode?.ToString(), out float b) ? b : 1.0f;
-		_contrast = resolvedData.TryGetPropertyValue("contrast", out var cNode) && float.TryParse(cNode?.ToString(), out float c) ? c : 1.0f;
-		_saturation = resolvedData.TryGetPropertyValue("saturation", out var sNode) && float.TryParse(sNode?.ToString(), out float s) ? s : 1.0f;
-		_opacity = resolvedData.TryGetPropertyValue("opacity", out var oNode) && float.TryParse(oNode?.ToString(), out float o) ? o : 1.0f;
-		_albedoMix = resolvedData.TryGetPropertyValue("albedo_mix", out var mNode) && float.TryParse(mNode?.ToString(), out float m) ? m : 1.0f;
-		_normalStrength = resolvedData.TryGetPropertyValue("normal_strength", out var nNode) && float.TryParse(nNode?.ToString(), out float n) ? n : 0.0f;
-		_roughness = resolvedData.TryGetPropertyValue("roughness", out var rNode) && float.TryParse(rNode?.ToString(), out float r) ? r : 1.0f;
-		_metallic = resolvedData.TryGetPropertyValue("metallic", out var metNode) && float.TryParse(metNode?.ToString(), out float met) ? met : 0.0f;
-		_blendMode = resolvedData.TryGetPropertyValue("blend_mode", out var bmNode) ? bmNode?.ToString() ?? "Mix" : "Mix";
+		_animateScale = GetBool(resolvedData, "animate_scale", false);
+		_scalePulseSpeed = GetFloat(resolvedData, "scale_pulse_speed", 1.0f);
+		_minScaleRatio = GetFloat(resolvedData, "min_scale_ratio", 0.8f);
+		_maxScaleRatio = GetFloat(resolvedData, "max_scale_ratio", 1.2f);
 
-		_animateOpacity = resolvedData.TryGetPropertyValue("animate_opacity", out var aoNode) && bool.TryParse(aoNode?.ToString(), out bool ao) && ao;
-		_opacityPulseSpeed = resolvedData.TryGetPropertyValue("opacity_pulse_speed", out var opsNode) && float.TryParse(opsNode?.ToString(), out float ops) ? ops : 1.0f;
-		_minOpacity = resolvedData.TryGetPropertyValue("min_opacity", out var minONode) && float.TryParse(minONode?.ToString(), out float minO) ? minO : 0.2f;
-		_maxOpacity = resolvedData.TryGetPropertyValue("max_opacity", out var maxONode) && float.TryParse(maxONode?.ToString(), out float maxO) ? maxO : 1.0f;
-
-		_animateEmission = resolvedData.TryGetPropertyValue("animate_emission", out var aeNode) && bool.TryParse(aeNode?.ToString(), out bool ae) && ae;
-		_emissionPulseSpeed = resolvedData.TryGetPropertyValue("emission_pulse_speed", out var epsNode) && float.TryParse(epsNode?.ToString(), out float eps) ? eps : 1.0f;
-		_minEmission = resolvedData.TryGetPropertyValue("min_emission", out var minENode) && float.TryParse(minENode?.ToString(), out float minE) ? minE : 0.0f;
-		_maxEmission = resolvedData.TryGetPropertyValue("max_emission", out var maxENode) && float.TryParse(maxENode?.ToString(), out float maxE) ? maxE : 2.0f;
-
-		_animateScale = resolvedData.TryGetPropertyValue("animate_scale", out var asNode) && bool.TryParse(asNode?.ToString(), out bool aSc) && aSc;
-		_scalePulseSpeed = resolvedData.TryGetPropertyValue("scale_pulse_speed", out var scpsNode) && float.TryParse(scpsNode?.ToString(), out float scps) ? scps : 1.0f;
-		_minScaleRatio = resolvedData.TryGetPropertyValue("min_scale_ratio", out var minScNode) && float.TryParse(minScNode?.ToString(), out float minSc) ? minSc : 0.8f;
-		_maxScaleRatio = resolvedData.TryGetPropertyValue("max_scale_ratio", out var maxScNode) && float.TryParse(maxScNode?.ToString(), out float maxSc) ? maxSc : 1.2f;
-
-		_upperFade = resolvedData.TryGetPropertyValue("upper_fade", out var ufNode) && float.TryParse(ufNode?.ToString(), out float uf) ? uf : 0.3f;
-		_lowerFade = resolvedData.TryGetPropertyValue("lower_fade", out var lfNode) && float.TryParse(lfNode?.ToString(), out float lf) ? lf : 0.3f;
+		_upperFade = GetFloat(resolvedData, "upper_fade", 0.3f);
+		_lowerFade = GetFloat(resolvedData, "lower_fade", 0.3f);
 
 		_tint = Colors.White;
 		if (resolvedData.TryGetPropertyValue("tint", out var tNode) && tNode != null)
@@ -857,35 +932,111 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			if (tStr.StartsWith("#")) _tint = Color.FromHtml(tStr);
 		}
 
-		_originalDecalStates.Clear();
-		if (GameHost.Instance?.AllDecals != null)
+		TrackOriginalDecalStates(decalKey);
+		TakeInitialSnapshot();
+
+		SyncControlsWithValues();
+		ReloadBaseTexture();
+		UpdateLivePreviewAndWorld();
+		OpenDialog();
+	}
+
+	private string ResolveTexturePath(string decalKey, JsonObject resolvedData)
+	{
+		string rawTexturePath = GetRawTexturePath(resolvedData);
+
+		if (string.IsNullOrWhiteSpace(rawTexturePath) && decalKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 		{
-			string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-			foreach (var d in GameHost.Instance.AllDecals)
-			{
-				if (d != null && GodotObject.IsInstanceValid(d))
-				{
-					string dId = d is Decal3D d3d ? d3d.DecalId : "";
-					string dBase = Path.GetFileNameWithoutExtension(dId);
-					if (dId.Equals(decalKey, StringComparison.OrdinalIgnoreCase) || dBase.Equals(baseKey, StringComparison.OrdinalIgnoreCase))
-					{
-						_originalDecalStates[d.GetInstanceId()] = new DecalNodeState
-						{
-							Modulate = d.Modulate,
-							AlbedoMix = d.AlbedoMix,
-							TextureNormal = d.TextureNormal,
-							TextureOrm = d.TextureOrm,
-							TextureEmission = d.TextureEmission,
-							EmissionEnergy = d.EmissionEnergy,
-							Size = d.Size,
-							UpperFade = d.UpperFade,
-							LowerFade = d.LowerFade
-						};
-					}
-				}
-			}
+			rawTexturePath = decalKey;
 		}
 
+		if (string.IsNullOrWhiteSpace(rawTexturePath))
+		{
+			rawTexturePath = ResolveFallbackTexturePath();
+		}
+
+		return rawTexturePath ?? string.Empty;
+	}
+
+	private string GetRawTexturePath(JsonObject resolvedData)
+	{
+		if (resolvedData.TryGetPropertyValue("texture_path", out var tpNode) && !string.IsNullOrWhiteSpace(tpNode?.ToString()))
+		{
+			return tpNode.ToString()!;
+		}
+
+		if (resolvedData.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString()))
+		{
+			return tpNode2.ToString()!;
+		}
+
+		return string.Empty;
+	}
+
+	private string ResolveFallbackTexturePath()
+	{
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string candidate = $"{_slug}.rtex";
+		
+		if (File.Exists(Path.Combine(wsPath, "Assets", "decals", candidate)))
+		{
+			return candidate;
+		}
+
+		var candidates = ScanAvailableAssets("decals", true);
+		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, candidate, StringComparison.OrdinalIgnoreCase))
+			?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
+			
+		return !string.IsNullOrEmpty(candidateMatch) ? candidateMatch : string.Empty;
+	}
+
+	private float GetFloat(JsonObject data, string key, float defaultVal)
+	{
+		return data.TryGetPropertyValue(key, out var node) && float.TryParse(node?.ToString(), out float val) ? val : defaultVal;
+	}
+
+	private bool GetBool(JsonObject data, string key, bool defaultVal)
+	{
+		return data.TryGetPropertyValue(key, out var node) && bool.TryParse(node?.ToString(), out bool val) ? val : defaultVal;
+	}
+
+	private string GetString(JsonObject data, string key, string defaultVal)
+	{
+		return data.TryGetPropertyValue(key, out var node) ? node?.ToString() ?? defaultVal : defaultVal;
+	}
+
+	private void TrackOriginalDecalStates(string decalKey)
+	{
+		_originalDecalStates.Clear();
+		if (GameHost.Instance?.AllDecals == null) return;
+
+		string baseKey = Path.GetFileNameWithoutExtension(decalKey);
+		foreach (var d in GameHost.Instance.AllDecals)
+		{
+			if (d == null || !GodotObject.IsInstanceValid(d)) continue;
+
+			string dId = d is Decal3D d3d ? d3d.DecalId : "";
+			string dBase = Path.GetFileNameWithoutExtension(dId);
+			if (dId.Equals(decalKey, StringComparison.OrdinalIgnoreCase) || dBase.Equals(baseKey, StringComparison.OrdinalIgnoreCase))
+			{
+				_originalDecalStates[d.GetInstanceId()] = new DecalNodeState
+				{
+					Modulate = d.Modulate,
+					AlbedoMix = d.AlbedoMix,
+					TextureNormal = d.TextureNormal,
+					TextureOrm = d.TextureOrm,
+					TextureEmission = d.TextureEmission,
+					EmissionEnergy = d.EmissionEnergy,
+					Size = d.Size,
+					UpperFade = d.UpperFade,
+					LowerFade = d.LowerFade
+				};
+			}
+		}
+	}
+
+	private void TakeInitialSnapshot()
+	{
 		_initialSnapshot = new DecalSnapshot
 		{
 			DecalId = _decalKey,
@@ -915,11 +1066,6 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			UpperFade = _upperFade,
 			LowerFade = _lowerFade
 		};
-
-		SyncControlsWithValues();
-		ReloadBaseTexture();
-		UpdateLivePreviewAndWorld();
-		OpenDialog();
 	}
 
 	private void SyncControlsWithValues()
@@ -927,99 +1073,122 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_isSyncingControls = true;
 		try
 		{
-			if (_txtSlug != null) _txtSlug.Text = _slug;
-			_setTexturePathValue?.Invoke(_texturePath);
-			_sldBrightness.Value = _brightness;
-			_lblBrightness.Text = $"{_brightness:F2}x";
-			_btnTint.Color = _tint;
-			_sldContrast.Value = _contrast;
-			_lblContrast.Text = $"{_contrast:F2}x";
-			_sldSaturation.Value = _saturation;
-			_lblSaturation.Text = $"{_saturation:F2}x";
-			_sldOpacity.Value = _opacity;
-			_lblOpacity.Text = $"{_opacity:F2}";
-			_sldAlbedoMix.Value = _albedoMix;
-			_lblAlbedoMix.Text = $"{_albedoMix:F2}";
-			_sldNormalStrength.Value = _normalStrength;
-			_lblNormalStrength.Text = $"{_normalStrength:F2}x";
-			_sldRoughness.Value = _roughness;
-			_lblRoughness.Text = $"{_roughness:F2}";
-			_sldMetallic.Value = _metallic;
-			_lblMetallic.Text = $"{_metallic:F2}";
-
-			_optBlendMode.Selected = _blendMode switch
-			{
-				"Additive" => 1,
-				"Multiply" => 2,
-				"Screen" => 3,
-				_ => 0
-			};
-
-			if (_chkAnimateOpacity != null) _chkAnimateOpacity.ButtonPressed = _animateOpacity;
-			if (_sldOpacitySpeed != null)
-			{
-				_sldOpacitySpeed.Value = _opacityPulseSpeed;
-				_lblOpacitySpeed.Text = $"{_opacityPulseSpeed:F1}x";
-			}
-			if (_sldMinOpacity != null)
-			{
-				_sldMinOpacity.Value = _minOpacity;
-				_lblMinOpacity.Text = $"{_minOpacity:F2}";
-			}
-			if (_sldMaxOpacity != null)
-			{
-				_sldMaxOpacity.Value = _maxOpacity;
-				_lblMaxOpacity.Text = $"{_maxOpacity:F2}";
-			}
-
-			if (_chkAnimateEmission != null) _chkAnimateEmission.ButtonPressed = _animateEmission;
-			if (_sldEmissionSpeed != null)
-			{
-				_sldEmissionSpeed.Value = _emissionPulseSpeed;
-				_lblEmissionSpeed.Text = $"{_emissionPulseSpeed:F1}x";
-			}
-			if (_sldMinEmission != null)
-			{
-				_sldMinEmission.Value = _minEmission;
-				_lblMinEmission.Text = $"{_minEmission:F1}";
-			}
-			if (_sldMaxEmission != null)
-			{
-				_sldMaxEmission.Value = _maxEmission;
-				_lblMaxEmission.Text = $"{_maxEmission:F1}";
-			}
-
-			if (_chkAnimateScale != null) _chkAnimateScale.ButtonPressed = _animateScale;
-			if (_sldScaleSpeed != null)
-			{
-				_sldScaleSpeed.Value = _scalePulseSpeed;
-				_lblScaleSpeed.Text = $"{_scalePulseSpeed:F1}x";
-			}
-			if (_sldMinScale != null)
-			{
-				_sldMinScale.Value = _minScaleRatio;
-				_lblMinScale.Text = $"{_minScaleRatio:F2}x";
-			}
-			if (_sldMaxScale != null)
-			{
-				_sldMaxScale.Value = _maxScaleRatio;
-				_lblMaxScale.Text = $"{_maxScaleRatio:F2}x";
-			}
-
-			if (_sldUpperFade != null)
-			{
-				_sldUpperFade.Value = _upperFade;
-				_lblUpperFade.Text = $"{_upperFade:F2}";
-			}
-			if (_sldLowerFade != null)
-			{
-				_sldLowerFade.Value = _lowerFade;
-				_lblLowerFade.Text = $"{_lowerFade:F2}";
-			}
+			SyncBaseControls();
+			SyncMaterialControls();
+			SyncAnimationControls();
+			SyncFadeControls();
 		}
 		finally
 		{
 			_isSyncingControls = false;
+		}
+	}
+
+	private void SyncBaseControls()
+	{
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		_setTexturePathValue?.Invoke(_texturePath);
+
+		SyncSlider(_sldBrightness, _lblBrightness, _brightness, "F2");
+		if (_lblBrightness != null) _lblBrightness.Text += "x"; // Append x for brightness
+
+		if (_btnTint != null) _btnTint.Color = _tint;
+		
+		SyncSlider(_sldContrast, _lblContrast, _contrast, "F2");
+		if (_lblContrast != null) _lblContrast.Text += "x"; // Append x for contrast
+
+		SyncSlider(_sldSaturation, _lblSaturation, _saturation, "F2");
+		if (_lblSaturation != null) _lblSaturation.Text += "x"; // Append x for saturation
+
+		SyncSlider(_sldOpacity, _lblOpacity, _opacity, "F2");
+	}
+
+	private void SyncSlider(HSlider? slider, Label? label, float value, string format)
+	{
+		if (slider != null) slider.Value = value;
+		if (label != null) label.Text = value.ToString(format);
+	}
+
+	private void SyncMaterialControls()
+	{
+		SyncSlider(_sldAlbedoMix, _lblAlbedoMix, _albedoMix, "F2");
+		
+		SyncSlider(_sldNormalStrength, _lblNormalStrength, _normalStrength, "F2");
+		if (_lblNormalStrength != null) _lblNormalStrength.Text += "x"; // Append x for normal strength
+		
+		SyncSlider(_sldRoughness, _lblRoughness, _roughness, "F2");
+		SyncSlider(_sldMetallic, _lblMetallic, _metallic, "F2");
+
+		SyncBlendModeControl();
+	}
+
+	private void SyncBlendModeControl()
+	{
+		if (_optBlendMode == null) return;
+		
+		_optBlendMode.Selected = _blendMode switch
+		{
+			"Additive" => 1,
+			"Multiply" => 2,
+			"Screen" => 3,
+			_ => 0
+		};
+	}
+
+	private void SyncAnimationControls()
+	{
+		SyncOpacityAnimationControls();
+		SyncEmissionAnimationControls();
+		SyncScaleAnimationControls();
+	}
+
+	private void SyncOpacityAnimationControls()
+	{
+		if (_chkAnimateOpacity != null) _chkAnimateOpacity.ButtonPressed = _animateOpacity;
+		
+		SyncSlider(_sldOpacitySpeed, _lblOpacitySpeed, _opacityPulseSpeed, "F1");
+		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text += "x"; // Append x for speed
+		
+		SyncSlider(_sldMinOpacity, _lblMinOpacity, _minOpacity, "F2");
+		SyncSlider(_sldMaxOpacity, _lblMaxOpacity, _maxOpacity, "F2");
+	}
+
+	private void SyncEmissionAnimationControls()
+	{
+		if (_chkAnimateEmission != null) _chkAnimateEmission.ButtonPressed = _animateEmission;
+		
+		SyncSlider(_sldEmissionSpeed, _lblEmissionSpeed, _emissionPulseSpeed, "F1");
+		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text += "x"; // Append x for speed
+		
+		SyncSlider(_sldMinEmission, _lblMinEmission, _minEmission, "F1");
+		SyncSlider(_sldMaxEmission, _lblMaxEmission, _maxEmission, "F1");
+	}
+
+	private void SyncScaleAnimationControls()
+	{
+		if (_chkAnimateScale != null) _chkAnimateScale.ButtonPressed = _animateScale;
+		
+		SyncSlider(_sldScaleSpeed, _lblScaleSpeed, _scalePulseSpeed, "F1");
+		if (_lblScaleSpeed != null) _lblScaleSpeed.Text += "x"; // Append x for speed
+		
+		SyncSlider(_sldMinScale, _lblMinScale, _minScaleRatio, "F2");
+		if (_lblMinScale != null) _lblMinScale.Text += "x"; // Append x for scale ratio
+		
+		SyncSlider(_sldMaxScale, _lblMaxScale, _maxScaleRatio, "F2");
+		if (_lblMaxScale != null) _lblMaxScale.Text += "x"; // Append x for scale ratio
+	}
+
+	private void SyncFadeControls()
+	{
+		if (_sldUpperFade != null)
+		{
+			_sldUpperFade.Value = _upperFade;
+			_lblUpperFade.Text = $"{_upperFade:F2}";
+		}
+		if (_sldLowerFade != null)
+		{
+			_sldLowerFade.Value = _lowerFade;
+			_lblLowerFade.Text = $"{_lowerFade:F2}";
 		}
 	}
 
@@ -1082,59 +1251,98 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private void UpdateLivePreviewAndWorld()
 	{
-		_lblBrightness.Text = $"{_brightness:F2}x";
-		_lblContrast.Text = $"{_contrast:F2}x";
-		_lblSaturation.Text = $"{_saturation:F2}x";
-		_lblOpacity.Text = $"{_opacity:F2}";
-		_lblAlbedoMix.Text = $"{_albedoMix:F2}";
-		_lblNormalStrength.Text = $"{_normalStrength:F2}x";
-		_lblRoughness.Text = $"{_roughness:F2}";
-		_lblMetallic.Text = $"{_metallic:F2}";
+		UpdateLabels();
+		UpdatePreviewRectMaterial();
+		UpdateGameHostDecals();
+	}
 
-		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text = $"{_opacityPulseSpeed:F1}x";
-		if (_lblMinOpacity != null) _lblMinOpacity.Text = $"{_minOpacity:F2}";
-		if (_lblMaxOpacity != null) _lblMaxOpacity.Text = $"{_maxOpacity:F2}";
-		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text = $"{_emissionPulseSpeed:F1}x";
-		if (_lblMinEmission != null) _lblMinEmission.Text = $"{_minEmission:F1}";
-		if (_lblMaxEmission != null) _lblMaxEmission.Text = $"{_maxEmission:F1}";
-		if (_lblScaleSpeed != null) _lblScaleSpeed.Text = $"{_scalePulseSpeed:F1}x";
-		if (_lblMinScale != null) _lblMinScale.Text = $"{_minScaleRatio:F2}x";
-		if (_lblMaxScale != null) _lblMaxScale.Text = $"{_maxScaleRatio:F2}x";
-		if (_lblUpperFade != null) _lblUpperFade.Text = $"{_upperFade:F2}";
-		if (_lblLowerFade != null) _lblLowerFade.Text = $"{_lowerFade:F2}";
+	private void UpdateLabels()
+	{
+		UpdateLabelText(_lblBrightness, _brightness, "F2");
+		if (_lblBrightness != null) _lblBrightness.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblContrast, _contrast, "F2");
+		if (_lblContrast != null) _lblContrast.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblSaturation, _saturation, "F2");
+		if (_lblSaturation != null) _lblSaturation.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblOpacity, _opacity, "F2");
+		UpdateLabelText(_lblAlbedoMix, _albedoMix, "F2");
+		
+		UpdateLabelText(_lblNormalStrength, _normalStrength, "F2");
+		if (_lblNormalStrength != null) _lblNormalStrength.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblRoughness, _roughness, "F2");
+		UpdateLabelText(_lblMetallic, _metallic, "F2");
 
-		if (_previewRect != null)
+		UpdateLabelText(_lblOpacitySpeed, _opacityPulseSpeed, "F1");
+		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblMinOpacity, _minOpacity, "F2");
+		UpdateLabelText(_lblMaxOpacity, _maxOpacity, "F2");
+		
+		UpdateLabelText(_lblEmissionSpeed, _emissionPulseSpeed, "F1");
+		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblMinEmission, _minEmission, "F1");
+		UpdateLabelText(_lblMaxEmission, _maxEmission, "F1");
+		
+		UpdateLabelText(_lblScaleSpeed, _scalePulseSpeed, "F1");
+		if (_lblScaleSpeed != null) _lblScaleSpeed.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblMinScale, _minScaleRatio, "F2");
+		if (_lblMinScale != null) _lblMinScale.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblMaxScale, _maxScaleRatio, "F2");
+		if (_lblMaxScale != null) _lblMaxScale.Text += "x"; // Append x
+		
+		UpdateLabelText(_lblUpperFade, _upperFade, "F2");
+		UpdateLabelText(_lblLowerFade, _lowerFade, "F2");
+	}
+
+	private void UpdateLabelText(Label? lbl, float value, string format)
+	{
+		if (lbl != null) lbl.Text = value.ToString(format);
+	}
+
+	private void UpdatePreviewRectMaterial()
+	{
+		if (_previewRect == null) return;
+
+		float r = _tint.R * _brightness;
+		float g = _tint.G * _brightness;
+		float b = _tint.B * _brightness;
+
+		float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+		r = lum + (r - lum) * _saturation;
+		g = lum + (g - lum) * _saturation;
+		b = lum + (b - lum) * _saturation;
+
+		r = (r - 0.5f) * _contrast + 0.5f;
+		g = (g - 0.5f) * _contrast + 0.5f;
+		b = (b - 0.5f) * _contrast + 0.5f;
+
+		_previewRect.Modulate = new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(_opacity, 0f, 1f));
+		_previewRect.Texture = _baseTexture;
+
+		if (_previewRect.Material is not CanvasItemMaterial mat)
 		{
-			float r = _tint.R * _brightness;
-			float g = _tint.G * _brightness;
-			float b = _tint.B * _brightness;
-
-			float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-			r = lum + (r - lum) * _saturation;
-			g = lum + (g - lum) * _saturation;
-			b = lum + (b - lum) * _saturation;
-
-			r = (r - 0.5f) * _contrast + 0.5f;
-			g = (g - 0.5f) * _contrast + 0.5f;
-			b = (b - 0.5f) * _contrast + 0.5f;
-
-			_previewRect.Modulate = new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(_opacity, 0f, 1f));
-			_previewRect.Texture = _baseTexture;
-
-			if (_previewRect.Material is not CanvasItemMaterial mat)
-			{
-				mat = new CanvasItemMaterial();
-				_previewRect.Material = mat;
-			}
-			mat.BlendMode = _blendMode switch
-			{
-				"Additive" => CanvasItemMaterial.BlendModeEnum.Add,
-				"Multiply" => CanvasItemMaterial.BlendModeEnum.Mul,
-				"Screen" => CanvasItemMaterial.BlendModeEnum.Add,
-				_ => CanvasItemMaterial.BlendModeEnum.Mix
-			};
+			mat = new CanvasItemMaterial();
+			_previewRect.Material = mat;
 		}
+		
+		mat.BlendMode = _blendMode switch
+		{
+			"Additive" => CanvasItemMaterial.BlendModeEnum.Add,
+			"Multiply" => CanvasItemMaterial.BlendModeEnum.Mul,
+			"Screen" => CanvasItemMaterial.BlendModeEnum.Add,
+			_ => CanvasItemMaterial.BlendModeEnum.Mix
+		};
+	}
 
+	private void UpdateGameHostDecals()
+	{
 		GameHost.Instance?.RefreshDecalsLive(
 			_decalKey,
 			_brightness,
@@ -1243,65 +1451,80 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
-		if (_originalDecalStates.Count > 0 && GameHost.Instance?.AllDecals != null)
+		if (!TryRestoreOriginalStates())
 		{
-			foreach (var d in GameHost.Instance.AllDecals)
+			RestoreInitialSnapshot();
+		}
+
+		base.OnCancel();
+	}
+
+	private bool TryRestoreOriginalStates()
+	{
+		if (_originalDecalStates.Count == 0 || GameHost.Instance?.AllDecals == null) return false;
+
+		foreach (var d in GameHost.Instance.AllDecals)
+		{
+			if (d == null || !GodotObject.IsInstanceValid(d) || !_originalDecalStates.TryGetValue(d.GetInstanceId(), out var orig)) continue;
+
+			d.Modulate = orig.Modulate;
+			d.AlbedoMix = orig.AlbedoMix;
+			d.TextureNormal = orig.TextureNormal;
+			d.TextureOrm = orig.TextureOrm;
+			d.TextureEmission = orig.TextureEmission;
+			d.EmissionEnergy = orig.EmissionEnergy;
+			d.Size = orig.Size;
+			d.UpperFade = orig.UpperFade;
+			d.LowerFade = orig.LowerFade;
+			
+			if (d is Decal3D d3d)
 			{
-				if (d != null && GodotObject.IsInstanceValid(d) && _originalDecalStates.TryGetValue(d.GetInstanceId(), out var orig))
-				{
-					d.Modulate = orig.Modulate;
-					d.AlbedoMix = orig.AlbedoMix;
-					d.TextureNormal = orig.TextureNormal;
-					d.TextureOrm = orig.TextureOrm;
-					d.TextureEmission = orig.TextureEmission;
-					d.EmissionEnergy = orig.EmissionEnergy;
-					d.Size = orig.Size;
-					d.UpperFade = orig.UpperFade;
-					d.LowerFade = orig.LowerFade;
-					if (d is Decal3D d3d)
-					{
-						d3d.SetBaseProperties(orig.Modulate, orig.EmissionEnergy, orig.Size);
-						d3d.UpdateProcessState();
-					}
-				}
+				d3d.SetBaseProperties(orig.Modulate, orig.EmissionEnergy, orig.Size);
+				d3d.UpdateProcessState();
 			}
 		}
-		else if (_initialSnapshot != null)
-		{
-			_decalKey = _initialSnapshot.DecalId;
-			var (_, initSlug) = TemplateIDHelper.ParseTemplateID(_decalKey);
-			_slug = !string.IsNullOrWhiteSpace(initSlug) ? TemplateIDHelper.ToSnakeCase(initSlug) : TemplateIDHelper.ToSnakeCase(_decalKey);
-			if (_txtSlug != null) _txtSlug.Text = _slug;
-			if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
-			_texturePath = _initialSnapshot.TexturePath;
-			_brightness = _initialSnapshot.Brightness;
-			_tint = _initialSnapshot.Tint;
-			_contrast = _initialSnapshot.Contrast;
-			_saturation = _initialSnapshot.Saturation;
-			_opacity = _initialSnapshot.Opacity;
-			_albedoMix = _initialSnapshot.AlbedoMix;
-			_normalStrength = _initialSnapshot.NormalStrength;
-			_roughness = _initialSnapshot.Roughness;
-			_metallic = _initialSnapshot.Metallic;
-			_blendMode = _initialSnapshot.BlendMode;
-			_animateOpacity = _initialSnapshot.AnimateOpacity;
-			_opacityPulseSpeed = _initialSnapshot.OpacityPulseSpeed;
-			_minOpacity = _initialSnapshot.MinOpacity;
-			_maxOpacity = _initialSnapshot.MaxOpacity;
-			_animateEmission = _initialSnapshot.AnimateEmission;
-			_emissionPulseSpeed = _initialSnapshot.EmissionPulseSpeed;
-			_minEmission = _initialSnapshot.MinEmission;
-			_maxEmission = _initialSnapshot.MaxEmission;
-			_animateScale = _initialSnapshot.AnimateScale;
-			_scalePulseSpeed = _initialSnapshot.ScalePulseSpeed;
-			_minScaleRatio = _initialSnapshot.MinScaleRatio;
-			_maxScaleRatio = _initialSnapshot.MaxScaleRatio;
-			_upperFade = _initialSnapshot.UpperFade;
-			_lowerFade = _initialSnapshot.LowerFade;
 
-			ReloadBaseTexture();
-			UpdateLivePreviewAndWorld();
-		}
-		base.OnCancel();
+		return true;
+	}
+
+	private void RestoreInitialSnapshot()
+	{
+		if (_initialSnapshot == null) return;
+
+		_decalKey = _initialSnapshot.DecalId;
+		var (_, initSlug) = TemplateIDHelper.ParseTemplateID(_decalKey);
+		_slug = !string.IsNullOrWhiteSpace(initSlug) ? TemplateIDHelper.ToSnakeCase(initSlug) : TemplateIDHelper.ToSnakeCase(_decalKey);
+		
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
+		
+		_texturePath = _initialSnapshot.TexturePath;
+		_brightness = _initialSnapshot.Brightness;
+		_tint = _initialSnapshot.Tint;
+		_contrast = _initialSnapshot.Contrast;
+		_saturation = _initialSnapshot.Saturation;
+		_opacity = _initialSnapshot.Opacity;
+		_albedoMix = _initialSnapshot.AlbedoMix;
+		_normalStrength = _initialSnapshot.NormalStrength;
+		_roughness = _initialSnapshot.Roughness;
+		_metallic = _initialSnapshot.Metallic;
+		_blendMode = _initialSnapshot.BlendMode;
+		_animateOpacity = _initialSnapshot.AnimateOpacity;
+		_opacityPulseSpeed = _initialSnapshot.OpacityPulseSpeed;
+		_minOpacity = _initialSnapshot.MinOpacity;
+		_maxOpacity = _initialSnapshot.MaxOpacity;
+		_animateEmission = _initialSnapshot.AnimateEmission;
+		_emissionPulseSpeed = _initialSnapshot.EmissionPulseSpeed;
+		_minEmission = _initialSnapshot.MinEmission;
+		_maxEmission = _initialSnapshot.MaxEmission;
+		_animateScale = _initialSnapshot.AnimateScale;
+		_scalePulseSpeed = _initialSnapshot.ScalePulseSpeed;
+		_minScaleRatio = _initialSnapshot.MinScaleRatio;
+		_maxScaleRatio = _initialSnapshot.MaxScaleRatio;
+		_upperFade = _initialSnapshot.UpperFade;
+		_lowerFade = _initialSnapshot.LowerFade;
+
+		ReloadBaseTexture();
+		UpdateLivePreviewAndWorld();
 	}
 }

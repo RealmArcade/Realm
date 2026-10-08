@@ -18,65 +18,52 @@ public class NatTypeTester
         try
         {
             var stunAddresses = await Dns.GetHostAddressesAsync("stun.l.google.com");
-            if (stunAddresses.Length == 0)
-            {
-                return NatType.Open;
-            }
+            if (stunAddresses.Length == 0) return NatType.Open;
 
             var serverIp1 = stunAddresses[0];
             var serverIp2 = stunAddresses.Length > 1 ? stunAddresses[1] : IPAddress.Parse("74.125.200.127"); // google stun alternate
 
-            var test1 = await QueryStunAsync(serverIp1, 19302, testLocalPort);
-            if (!test1.Success)
-            {
-                return NatType.RestrictedCone;
-            }
-
-            int boundPort = test1.LocalEndPoint != null ? test1.LocalEndPoint.Port : testLocalPort;
-
-            if (test1.MappedEndPoint.Address.Equals(test1.LocalEndPoint.Address) && 
-                test1.MappedEndPoint.Port == test1.LocalEndPoint.Port)
-            {
-                var test2Open = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: true, changePort: true);
-                if (test2Open.Success)
-                {
-                    return NatType.Open;
-                }
-                else
-                {
-                    return NatType.Symmetric; // Symmetric UDP Firewall
-                }
-            }
-
-            var test2 = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: true, changePort: true);
-            if (test2.Success)
-            {
-                return NatType.FullCone;
-            }
-
-            var test1Alt = await QueryStunAsync(serverIp2, 19302, boundPort);
-            if (test1Alt.Success)
-            {
-                if (!test1.MappedEndPoint.Address.Equals(test1Alt.MappedEndPoint.Address) || 
-                    test1.MappedEndPoint.Port != test1Alt.MappedEndPoint.Port)
-                {
-                    return NatType.Symmetric;
-                }
-            }
-
-            var test3 = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: false, changePort: true);
-            if (test3.Success)
-            {
-                return NatType.RestrictedCone;
-            }
-            
-            return NatType.PortRestrictedCone;
+            return await EvaluateNatTypeAsync(serverIp1, serverIp2, testLocalPort);
         }
         catch (Exception ex)
         {
             Godot.GD.PrintErr($"[NatTypeTester] Error checking NAT: {ex.Message}");
             return NatType.PortRestrictedCone; // Safe default
         }
+    }
+
+    private static async Task<NatType> EvaluateNatTypeAsync(IPAddress serverIp1, IPAddress serverIp2, int testLocalPort)
+    {
+        var test1 = await QueryStunAsync(serverIp1, 19302, testLocalPort);
+        if (!test1.Success) return NatType.RestrictedCone;
+
+        int boundPort = test1.LocalEndPoint != null ? test1.LocalEndPoint.Port : testLocalPort;
+
+        if (IsSameEndPoint(test1.MappedEndPoint, test1.LocalEndPoint))
+        {
+            var test2Open = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: true, changePort: true);
+            return test2Open.Success ? NatType.Open : NatType.Symmetric; // Symmetric UDP Firewall
+        }
+
+        var test2 = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: true, changePort: true);
+        if (test2.Success) return NatType.FullCone;
+
+        var test1Alt = await QueryStunAsync(serverIp2, 19302, boundPort);
+        if (test1Alt.Success && !IsSameEndPoint(test1.MappedEndPoint, test1Alt.MappedEndPoint))
+        {
+            return NatType.Symmetric;
+        }
+
+        var test3 = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: false, changePort: true);
+        if (test3.Success) return NatType.RestrictedCone;
+        
+        return NatType.PortRestrictedCone;
+    }
+
+    private static bool IsSameEndPoint(IPEndPoint ep1, IPEndPoint ep2)
+    {
+        if (ep1 == null || ep2 == null) return false;
+        return ep1.Address.Equals(ep2.Address) && ep1.Port == ep2.Port;
     }
 
     private static async Task<StunResult> QueryStunAsync(IPAddress serverIp, int serverPort, int localPort)

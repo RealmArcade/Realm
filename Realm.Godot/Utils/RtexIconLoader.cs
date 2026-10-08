@@ -36,68 +36,80 @@ public static class RtexIconLoader
 		string? resolvedPath = ResolvePath(iconPath);
 		if (string.IsNullOrEmpty(resolvedPath))
 		{
-			if (iconPath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) && ResourceLoader.Exists(iconPath))
-			{
-				try
-				{
-					return GD.Load<Texture2D>(iconPath);
-				}
-				catch
-				{
-					return null;
-				}
-			}
-			return null;
+			return LoadGodotResource(iconPath);
 		}
 
 		if (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 		{
-			try
-			{
-				byte[] rtexBytes = File.ReadAllBytes(resolvedPath);
-				byte[]? layerData = RtexFile.GetLayer(rtexBytes, 0);
-				if (layerData != null && layerData.Length > 0)
-				{
-					var image = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
-					if (image.LoadWebpFromBuffer(layerData) != Error.Ok)
-					{
-						image.LoadPngFromBuffer(layerData);
-					}
-					if (!image.HasMipmaps())
-					{
-						image.GenerateMipmaps();
-					}
-					return ImageTexture.CreateFromImage(image);
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[RtexIconLoader] Failed to decode .rtex from '{resolvedPath}': {ex.Message}");
-				return null;
-			}
-		}
-		else
-		{
-			try
-			{
-				var image = Image.LoadFromFile(resolvedPath);
-				if (image != null)
-				{
-					if (!image.HasMipmaps())
-					{
-						image.GenerateMipmaps();
-					}
-					return ImageTexture.CreateFromImage(image);
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[RtexIconLoader] Failed to load image from '{resolvedPath}': {ex.Message}");
-				return null;
-			}
+			return LoadRtexFile(resolvedPath);
 		}
 
-		return null;
+		return LoadStandardImage(resolvedPath);
+	}
+
+	private static Texture2D? LoadGodotResource(string iconPath)
+	{
+		if (!iconPath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || !ResourceLoader.Exists(iconPath))
+			return null;
+
+		try
+		{
+			return GD.Load<Texture2D>(iconPath);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	private static Texture2D? LoadRtexFile(string resolvedPath)
+	{
+		try
+		{
+			byte[] rtexBytes = File.ReadAllBytes(resolvedPath);
+			byte[]? layerData = RtexFile.GetLayer(rtexBytes, 0);
+			if (layerData == null || layerData.Length == 0)
+				return null;
+
+			var image = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+			if (image.LoadWebpFromBuffer(layerData) != Error.Ok)
+			{
+				image.LoadPngFromBuffer(layerData);
+			}
+			
+			return CreateTextureFromImage(image);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[RtexIconLoader] Failed to decode .rtex from '{resolvedPath}': {ex.Message}");
+			return null;
+		}
+	}
+
+	private static Texture2D? LoadStandardImage(string resolvedPath)
+	{
+		try
+		{
+			var image = Image.LoadFromFile(resolvedPath);
+			if (image == null)
+				return null;
+
+			return CreateTextureFromImage(image);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[RtexIconLoader] Failed to load image from '{resolvedPath}': {ex.Message}");
+			return null;
+		}
+	}
+
+	private static Texture2D? CreateTextureFromImage(Image image)
+	{
+		if (!image.HasMipmaps())
+		{
+			image.GenerateMipmaps();
+		}
+		return ImageTexture.CreateFromImage(image);
 	}
 
 	private static string? ResolvePath(string iconPath)

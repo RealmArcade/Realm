@@ -32,24 +32,30 @@ public class ProceduralVfxMeshGenerator
 		}
 	}
 
+	private static readonly Dictionary<VfxPrimitiveType, Func<ArrayMesh>> PrimitiveBuilders = new()
+	{
+		{ VfxPrimitiveType.VortexDisc, BuildVortexDiscMesh },
+		{ VfxPrimitiveType.FunnelCone, BuildFunnelConeMesh },
+		{ VfxPrimitiveType.RibbonRing, BuildRibbonRingMesh },
+		{ VfxPrimitiveType.HemisphereDome, BuildHemisphereDomeMesh },
+		{ VfxPrimitiveType.GroundPlane, BuildGroundPlaneMesh },
+		{ VfxPrimitiveType.WeaponFin, BuildWeaponFinMesh },
+		{ VfxPrimitiveType.CrossQuad, BuildCrossQuadMesh },
+		{ VfxPrimitiveType.SlashArc, BuildSlashArcMesh },
+		{ VfxPrimitiveType.LightShaft, BuildLightShaftMesh },
+		{ VfxPrimitiveType.AuraCapsule, BuildAuraCapsuleMesh },
+		{ VfxPrimitiveType.AuraSphere, BuildAuraSphereMesh },
+		{ VfxPrimitiveType.ProjectedVolumeCube, BuildProjectedVolumeCubeMesh }
+	};
+
 	public static ArrayMesh GeneratePrimitiveMesh(VfxPrimitiveType primitiveType)
 	{
-		return primitiveType switch
+		if (PrimitiveBuilders.TryGetValue(primitiveType, out var builder))
 		{
-			VfxPrimitiveType.VortexDisc => BuildVortexDiscMesh(),
-			VfxPrimitiveType.FunnelCone => BuildFunnelConeMesh(),
-			VfxPrimitiveType.RibbonRing => BuildRibbonRingMesh(),
-			VfxPrimitiveType.HemisphereDome => BuildHemisphereDomeMesh(),
-			VfxPrimitiveType.GroundPlane => BuildGroundPlaneMesh(),
-			VfxPrimitiveType.WeaponFin => BuildWeaponFinMesh(),
-			VfxPrimitiveType.CrossQuad => BuildCrossQuadMesh(),
-			VfxPrimitiveType.SlashArc => BuildSlashArcMesh(),
-			VfxPrimitiveType.LightShaft => BuildLightShaftMesh(),
-			VfxPrimitiveType.AuraCapsule => BuildAuraCapsuleMesh(),
-			VfxPrimitiveType.AuraSphere => BuildAuraSphereMesh(),
-			VfxPrimitiveType.ProjectedVolumeCube => BuildProjectedVolumeCubeMesh(),
-			_ => BuildVortexDiscMesh()
-		};
+			return builder();
+		}
+
+		return BuildVortexDiscMesh();
 	}
 
 	private static ArrayMesh BuildProjectedVolumeCubeMesh()
