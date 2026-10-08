@@ -45,6 +45,38 @@ public static class UIStyle
 		return CreateBgTexture("res://Assets/UI/menu_background_with_frame.jpg");
 	}
 
+	public static StyleBox CreateLobbyRoomBg()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_background.jpg");
+		if (tex == null)
+		{
+			tex = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_background.png");
+		}
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			return style;
+		}
+		return CreateBgGradient();
+	}
+
+	public static StyleBox CreateGameStartingPanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.png");
+		if (tex == null)
+		{
+			tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.jpg");
+		}
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
 	public static StyleBox CreateCustomMatchBg()
 	{
 		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_match_bg.jpg");
@@ -67,6 +99,44 @@ public static class UIStyle
 			return style;
 		}
 		return CreateBgGradient();
+	}
+
+	public static StyleBox CreateGameOverBg()
+	{
+		var tex = GD.Load<Texture2D>("res://Assets/UI/GameOver_Background.jpg");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			return style;
+		}
+		return CreateBgGradient();
+	}
+
+	public static StyleBox CreateGameOverMainPanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/GameOver_main_panel.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+
+			style.TextureMarginLeft = 220;
+			style.TextureMarginRight = 210;
+			style.TextureMarginTop = 200;
+			style.TextureMarginBottom = 120;
+
+			style.ContentMarginLeft = 55;
+			style.ContentMarginRight = 55;
+			style.ContentMarginTop = 75;
+			style.ContentMarginBottom = 45;
+
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+
+			return style;
+		}
+		return CreateStonePanel();
 	}
 
 	public static StyleBox CreateCreatorDiscoveryPanelStyle()
@@ -460,6 +530,7 @@ public static class UIStyle
 				var img = Image.LoadFromFile(globalPath);
 				if (img != null)
 				{
+					img.GenerateMipmaps();
 					tex = ImageTexture.CreateFromImage(img);
 				}
 			}
@@ -544,6 +615,87 @@ public static class UIStyle
 			return style;
 		}
 		return CreateStonePanel(false);
+	}
+
+	public static StyleBox CreateLobbyRoomMainPanel()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_MainPanel.png");
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+
+			// Zero 9-patch slice margins: renders the 2338x1744 custom artwork as a single unified 3D frame
+			// Eliminates 100% of pillar distortion, rune slicing, and header squishing
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+
+			// Side content margins (100px)
+			style.ContentMarginLeft = 100;
+			style.ContentMarginRight = 100;
+			style.ContentMarginTop = 18;
+			style.ContentMarginBottom = 45;
+
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateLobbyRoomSecondPanel()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_SecondPanel.png");
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+
+			style.ContentMarginLeft = 95;
+			style.ContentMarginRight = 95;
+			style.ContentMarginTop = 18;
+			style.ContentMarginBottom = 20;
+
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateLobbyRoomChatPanel()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_ChatPanel.png");
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+
+			style.ContentMarginLeft = 35;
+			style.ContentMarginRight = 35;
+			style.ContentMarginTop = 24;
+			style.ContentMarginBottom = 10;
+
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+
+			return style;
+		}
+		return CreateStonePanel(true);
 	}
 
 	public static StyleBox CreateCustomMatchCardPanel()

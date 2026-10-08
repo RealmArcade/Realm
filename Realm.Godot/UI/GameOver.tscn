@@ -79,9 +79,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -680.0
-offset_top = -410.0
+offset_top = -420.0
 offset_right = 680.0
-offset_bottom = 300.0
+offset_bottom = 314.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -158,7 +158,7 @@ size_flags_vertical = 3
 theme_override_constants/separation = 16
 
 [node name="GraphFrame" type="PanelContainer" parent="MainPanel/VBox"]
-custom_minimumSize = Vector2(0, 240)
+custom_minimumSize = Vector2(0, 190)
 layout_mode = 2
 
 [node name="TimelineGraph" type="Control" parent="MainPanel/VBox/GraphFrame"]
@@ -173,9 +173,9 @@ anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
 offset_left = -470.0
-offset_top = -90.0
+offset_top = -120.0
 offset_right = 470.0
-offset_bottom = -30.0
+offset_bottom = -60.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_constants/separation = 20

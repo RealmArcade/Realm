@@ -105,9 +105,9 @@ grow_horizontal = 2
 
 [node name="PlayersPanel" type="PanelContainer" parent="."]
 layout_mode = 0
-offset_left = 130.0
+offset_left = 60.0
 offset_top = 120.0
-offset_right = 1090.0
+offset_right = 1160.0
 offset_bottom = 780.0
 
 [node name="VBoxContainer" type="VBoxContainer" parent="PlayersPanel"]
@@ -119,32 +119,37 @@ layout_mode = 2
 text = "TEAMS & PLAYERS"
 horizontal_alignment = 1
 
+[node name="TitleSpacer" type="Control" parent="PlayersPanel/VBoxContainer"]
+custom_minimumSize = Vector2(0, 16)
+layout_mode = 2
+
 [node name="TableHeader" type="HBoxContainer" parent="PlayersPanel/VBoxContainer"]
 custom_minimumSize = Vector2(0, 30)
 layout_mode = 2
+theme_override_constants/separation = 16
 
 [node name="ReadyCol" type="Label" parent="PlayersPanel/VBoxContainer/TableHeader"]
-custom_minimumSize = Vector2(95, 0)
+custom_minimumSize = Vector2(80, 0)
 layout_mode = 2
 text = "READY"
 
 [node name="TeamCol" type="Label" parent="PlayersPanel/VBoxContainer/TableHeader"]
-custom_minimumSize = Vector2(100, 0)
+custom_minimumSize = Vector2(95, 0)
 layout_mode = 2
 text = "TEAM"
 
 [node name="ColorCol" type="Label" parent="PlayersPanel/VBoxContainer/TableHeader"]
-custom_minimumSize = Vector2(60, 0)
+custom_minimumSize = Vector2(24, 0)
 layout_mode = 2
 text = "COLOR"
 
 [node name="NameCol" type="Label" parent="PlayersPanel/VBoxContainer/TableHeader"]
+custom_minimumSize = Vector2(110, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 text = "PLAYER / AI NAME"
 
 [node name="FactionCol" type="Label" parent="PlayersPanel/VBoxContainer/TableHeader"]
-custom_minimumSize = Vector2(160, 0)
+custom_minimumSize = Vector2(110, 0)
 layout_mode = 2
 text = "FACTION"
 
@@ -160,22 +165,26 @@ theme_override_constants/separation = 4
 
 [node name="BriefingPanel" type="PanelContainer" parent="."]
 layout_mode = 0
-offset_left = 1110.0
+offset_left = 1205.0
 offset_top = 120.0
-offset_right = 1790.0
+offset_right = 1825.0
 offset_bottom = 780.0
 
 [node name="VBoxContainer" type="VBoxContainer" parent="BriefingPanel"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
 [node name="PanelTitle" type="Label" parent="BriefingPanel/VBoxContainer"]
 layout_mode = 2
 text = "MATCH INFO & BRIEFING"
 horizontal_alignment = 1
 
+[node name="TitleSpacer" type="Control" parent="BriefingPanel/VBoxContainer"]
+custom_minimumSize = Vector2(0, 45)
+layout_mode = 2
+
 [node name="MapFrame" type="Panel" parent="BriefingPanel/VBoxContainer"]
-custom_minimumSize = Vector2(0, 300)
+custom_minimumSize = Vector2(0, 200)
 layout_mode = 2
 
 [node name="BriefingLabel" type="RichTextLabel" parent="BriefingPanel/VBoxContainer"]

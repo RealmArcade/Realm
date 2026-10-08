@@ -100,10 +100,11 @@ public partial class GameOver : Control
 
 	private void ApplyThemeStyles()
 	{
-		_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateGameOverBg());
 		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
-		_mainPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel());
+		_mainPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateGameOverMainPanel());
+		_mainPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		_tableFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 		_graphFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 

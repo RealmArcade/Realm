@@ -53,12 +53,11 @@ public partial class TimelineGraph : Control
 		Vector2 size = Size;
 		float paddingLeft = 50f;
 		float paddingRight = 30f;
-		float paddingTop = 20f;
-		float paddingBottom = 40f;
+		float paddingTop = 15f;
+		float paddingBottom = 30f;
 
 		Vector2 graphOrigin = new Vector2(paddingLeft, size.Y - paddingBottom);
 		Vector2 graphSize = new Vector2(size.X - paddingLeft - paddingRight, size.Y - paddingTop - paddingBottom);
-
 
 		Color gridColor = new Color(0.2f, 0.2f, 0.25f, 0.3f);
 		int gridLinesY = 4;
@@ -66,13 +65,11 @@ public partial class TimelineGraph : Control
 		{
 			float yRatio = (float)i / gridLinesY;
 			float yPos = graphOrigin.Y - (yRatio * graphSize.Y);
-			
 
 			DrawLine(new Vector2(graphOrigin.X, yPos), new Vector2(graphOrigin.X + graphSize.X, yPos), gridColor, 1.0f);
-			
 
 			string labelVal = GetYLabel(yRatio);
-			DrawString(ThemeDB.FallbackFont, new Vector2(10, yPos + 5), labelVal, HorizontalAlignment.Left, -1, 16, new Color(0.8f, 0.8f, 0.8f));
+			DrawString(ThemeDB.FallbackFont, new Vector2(10, yPos + 5), labelVal, HorizontalAlignment.Left, -1, 14, new Color(0.8f, 0.8f, 0.8f));
 		}
 
 		int gridLinesX = 5;
@@ -81,12 +78,10 @@ public partial class TimelineGraph : Control
 			float xRatio = (float)i / gridLinesX;
 			float xPos = graphOrigin.X + (xRatio * graphSize.X);
 
-
 			DrawLine(new Vector2(xPos, graphOrigin.Y), new Vector2(xPos, graphOrigin.Y - graphSize.Y), gridColor, 1.0f);
 
-
 			string xLabel = $"{(int)(xRatio * 35)}";
-			DrawString(ThemeDB.FallbackFont, new Vector2(xPos - 10, size.Y - 15), xLabel, HorizontalAlignment.Left, -1, 16, new Color(0.8f, 0.8f, 0.8f));
+			DrawString(ThemeDB.FallbackFont, new Vector2(xPos - 10, graphOrigin.Y + 20), xLabel, HorizontalAlignment.Left, -1, 14, new Color(0.8f, 0.8f, 0.8f));
 		}
 
 

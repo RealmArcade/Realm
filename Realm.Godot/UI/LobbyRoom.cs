@@ -181,6 +181,7 @@ public partial class LobbyRoom : Control
 		_authorshipWarningLabel.Text = "⚠️ " + Tr("Unable to verify map authorship");
 		_authorshipWarningLabel.AddThemeColorOverride("font_color", new Color(1, 0.4f, 0.4f));
 		_authorshipWarningLabel.AddThemeFontSizeOverride("font_size", 12);
+		_authorshipWarningLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_authorshipWarningLabel.Visible = false;
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_authorshipWarningLabel);
 		
@@ -188,11 +189,16 @@ public partial class LobbyRoom : Control
 		_primaryAuthorLabel.Text = Tr("Author: Unknown");
 		_primaryAuthorLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_primaryAuthorLabel.AddThemeFontSizeOverride("font_size", 12);
+		_primaryAuthorLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_primaryAuthorLabel);
 		
+		var authorsSpacer = new Control { CustomMinimumSize = new Vector2(0, 24) };
+		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(authorsSpacer);
+
 		_otherAuthorsButton = new Button();
 		_otherAuthorsButton.Text = Tr("Other Authors");
-		_otherAuthorsButton.CustomMinimumSize = new Vector2(100, 24);
+		_otherAuthorsButton.CustomMinimumSize = new Vector2(160, 32);
+		_otherAuthorsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		_otherAuthorsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_otherAuthorsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_otherAuthorsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -210,17 +216,27 @@ public partial class LobbyRoom : Control
 
 	private void ApplyThemeStyles()
 	{
-		_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyRoomBg());
 		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
-		_playersPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		_briefingPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		_chatPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		_playersPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_playersPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyRoomMainPanel());
+		_briefingPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_briefingPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyRoomSecondPanel());
+		_chatPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_chatPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyRoomChatPanel());
 
 
 		UIStyle.ApplyTitle(_lobbyTitle, "PRE-MATCH SETUP", 36);
 		UIStyle.ApplyTitle(_playersTitle, "TEAMS & PLAYERS", 20);
 		UIStyle.ApplyTitle(_briefingTitle, "MATCH INFO & BRIEFING", 20);
+
+		var playersVBox = GetNodeOrNull<VBoxContainer>("PlayersPanel/VBoxContainer");
+		if (playersVBox != null)
+		{
+			playersVBox.AddThemeConstantOverride("separation", 16);
+		}
 
 		_briefingLabel.AddThemeColorOverride("default_color", new Color(0.85f, 0.85f, 0.9f));
 
@@ -270,10 +286,20 @@ public partial class LobbyRoom : Control
 		logStyle.BgColor = new Color(0.08f, 0.08f, 0.1f, 0.7f);
 		logStyle.BorderColor = new Color(0.2f, 0.2f, 0.25f, 0.3f);
 		logStyle.SetBorderWidthAll(1);
+		logStyle.ContentMarginLeft = 50;
+		logStyle.ContentMarginRight = 50;
+		logStyle.ContentMarginTop = 8;
+		logStyle.ContentMarginBottom = 8;
 		_chatLog.AddThemeStyleboxOverride("normal", logStyle);
 
-		_chatInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		_chatInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		var inputNormal = UIStyle.CreateTextInput(false);
+		inputNormal.ContentMarginLeft = 14;
+		inputNormal.ContentMarginRight = 14;
+		var inputFocus = UIStyle.CreateTextInput(true);
+		inputFocus.ContentMarginLeft = 14;
+		inputFocus.ContentMarginRight = 14;
+		_chatInput.AddThemeStyleboxOverride("normal", inputNormal);
+		_chatInput.AddThemeStyleboxOverride("focus", inputFocus);
 		_chatInput.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
 
 
@@ -874,39 +900,46 @@ private void UpdateSelectedMapUI()
 
 		_countdownPopup = new Panel();
 		_countdownPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		_countdownPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		_countdownPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyRoomBg());
 		AddChild(_countdownPopup);
 
 		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(450, 260);
+		cardPanel.CustomMinimumSize = new Vector2(420, 560);
+		cardPanel.Size = new Vector2(420, 560);
+		cardPanel.GrowHorizontal = Control.GrowDirection.Both;
+		cardPanel.GrowVertical = Control.GrowDirection.Both;
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateGameStartingPanel());
 		_countdownPopup.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(400, 220);
+		vbox.CustomMinimumSize = new Vector2(420, 560);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
 		cardPanel.AddChild(vbox);
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 22) });
 
 		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, "GAME STARTING", 22);
+		UIStyle.ApplyTitle(titleLabel, "GAME STARTING", 26);
 		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		vbox.AddChild(titleLabel);
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+		var circleContainer = new CenterContainer();
+		circleContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
+		circleContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 		_countdownTextLabel = new Label();
 		_countdownTextLabel.Text = seconds.ToString();
 		_countdownTextLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_countdownTextLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		_countdownTextLabel.AddThemeFontSizeOverride("font_size", 48);
-		vbox.AddChild(_countdownTextLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
+		_countdownTextLabel.VerticalAlignment = VerticalAlignment.Center;
+		_countdownTextLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		_countdownTextLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
+		_countdownTextLabel.AddThemeConstantOverride("outline_size", 10);
+		_countdownTextLabel.AddThemeFontSizeOverride("font_size", 72);
+		circleContainer.AddChild(_countdownTextLabel);
+		vbox.AddChild(circleContainer);
 
 		var cancelBtn = new Button();
 		cancelBtn.Flat = false;
@@ -917,7 +950,7 @@ private void UpdateSelectedMapUI()
 		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		UIStyle.ApplyButtonText(cancelBtn, "CANCEL", 16);
 
-		cancelBtn.CustomMinimumSize = new Vector2(160, 48);
+		cancelBtn.CustomMinimumSize = new Vector2(180, 48);
 		cancelBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		cancelBtn.Pressed += () =>
 		{
@@ -925,6 +958,8 @@ private void UpdateSelectedMapUI()
 			LobbyManager.Instance.RequestCancelCountdown();
 		};
 		vbox.AddChild(cancelBtn);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
 	}
 
 	private void OnCountdownTick(int seconds)
@@ -1036,26 +1071,27 @@ private void UpdateSelectedMapUI()
 		                     (p.PeerId == Multiplayer.GetUniqueId());
 
 		var panel = new PanelContainer();
-		panel.CustomMinimumSize = new Vector2(0, 52);
+		panel.CustomMinimumSize = new Vector2(0, 46);
 
 		var style = new StyleBoxFlat();
 		style.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.3f);
 		style.BorderColor = new Color(0.2f, 0.2f, 0.25f, 0.2f);
 		style.SetBorderWidthAll(1);
-		style.ContentMarginLeft = 12;
-		style.ContentMarginRight = 24;
+		style.ContentMarginLeft = 8;
+		style.ContentMarginRight = 8;
 		style.ContentMarginTop = 0;
 		style.ContentMarginBottom = 0;
 		panel.AddThemeStyleboxOverride("panel", style);
 
 		var hBox = new HBoxContainer();
+		hBox.AddThemeConstantOverride("separation", 16);
 		panel.AddChild(hBox);
 
 		if (p.PeerId >= 1 || isLocalPlayer)
 		{
 			var readyCheck = new CheckBox();
 			readyCheck.Name = "ReadyCheck";
-			readyCheck.Text = Tr("READY  ");
+			readyCheck.Text = Tr("READY");
 			readyCheck.ButtonPressed = p.IsReady;
 			readyCheck.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 			readyCheck.AddThemeConstantOverride("icon_max_width", 20);
@@ -1082,15 +1118,11 @@ private void UpdateSelectedMapUI()
 				readyCheck.AddThemeColorOverride("font_disabled_color", new Color(0.6f, 0.6f, 0.6f));
 			}
 			hBox.AddChild(readyCheck);
-
-			var readySep = new Control();
-			readySep.CustomMinimumSize = new Vector2(10, 0);
-			hBox.AddChild(readySep);
 		}
 
 		var optTeam = new OptionButton();
 		optTeam.Name = "OptTeam";
-		optTeam.CustomMinimumSize = new Vector2(100, 32);
+		optTeam.CustomMinimumSize = new Vector2(95, 30);
 		optTeam.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		optTeam.Flat = false;
 
@@ -1138,7 +1170,7 @@ private void UpdateSelectedMapUI()
 
 		var colorBtn = new Button();
 		colorBtn.Name = "ColorBtn";
-		colorBtn.CustomMinimumSize = new Vector2(26, 26);
+		colorBtn.CustomMinimumSize = new Vector2(24, 24);
 		colorBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		
 		var colorStyle = new StyleBoxFlat();
@@ -1172,24 +1204,20 @@ private void UpdateSelectedMapUI()
 			colorBtn.Disabled = true;
 		}
 		hBox.AddChild(colorBtn);
-		
-		var sep = new Control();
-		sep.CustomMinimumSize = new Vector2(15, 0);
-		hBox.AddChild(sep);
 
 		if (isLocalPlayer)
 		{
 			var nameEdit = new LineEdit();
 			nameEdit.Name = "NameEdit";
 			nameEdit.Text = p.Name;
-			nameEdit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			nameEdit.CustomMinimumSize = new Vector2(160, 32);
+			nameEdit.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			nameEdit.CustomMinimumSize = new Vector2(110, 30);
 			nameEdit.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 			
 			nameEdit.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
 			nameEdit.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
 			nameEdit.AddThemeColorOverride("font_color", new Color(1, 1, 1));
-			nameEdit.AddThemeFontSizeOverride("font_size", 15);
+			nameEdit.AddThemeFontSizeOverride("font_size", 14);
 			
 			nameEdit.TextSubmitted += (text) =>
 			{
@@ -1203,17 +1231,17 @@ private void UpdateSelectedMapUI()
 			var lblName = new Label();
 			lblName.Name = "LblName";
 			lblName.Text = p.Name;
-			lblName.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			lblName.CustomMinimumSize = new Vector2(160, 0);
+			lblName.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			lblName.CustomMinimumSize = new Vector2(110, 0);
 			lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
-			lblName.AddThemeFontSizeOverride("font_size", 15);
+			lblName.AddThemeFontSizeOverride("font_size", 14);
 			lblName.VerticalAlignment = VerticalAlignment.Center;
 			hBox.AddChild(lblName);
 		}
 
 		var optFaction = new OptionButton();
 		optFaction.Name = "OptFaction";
-		optFaction.CustomMinimumSize = new Vector2(120, 32);
+		optFaction.CustomMinimumSize = new Vector2(110, 30);
 		optFaction.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		optFaction.Flat = false;
 		
@@ -1266,7 +1294,8 @@ private void UpdateSelectedMapUI()
 		diagLabel.Name = "DiagLabel";
 		diagLabel.BbcodeEnabled = true;
 		diagLabel.ScrollActive = false;
-		diagLabel.CustomMinimumSize = new Vector2(300, 24);
+		diagLabel.AutowrapMode = TextServer.AutowrapMode.Off;
+		diagLabel.CustomMinimumSize = new Vector2(220, 24);
 		diagLabel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		diagLabel.AddThemeFontSizeOverride("normal_font_size", 13);
 		if (p.IsHost)
