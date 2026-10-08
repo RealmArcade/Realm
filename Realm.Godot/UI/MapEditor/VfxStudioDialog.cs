@@ -28,6 +28,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private Control _rowParticleMesh;
 	private VBoxContainer _uberShaderContainer;
 	private VBoxContainer _particleContainer;
+	private static readonly VfxPrimitiveType[] _primitiveTypes = Enum.GetValues<VfxPrimitiveType>().Where(p => p != VfxPrimitiveType.ParticleSystem).ToArray();
 
 	private OptionButton _optParticleShape;
 	private OptionButton _optParticleRenderMode;
@@ -236,11 +237,8 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			{
 				if (_currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem)
 				{
-					_currentConfig.PrimitiveType = _optPrimitive != null ? (VfxPrimitiveType)_optPrimitive.Selected : VfxPrimitiveType.VortexDisc;
-					if (_currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem)
-					{
-						_currentConfig.PrimitiveType = VfxPrimitiveType.VortexDisc;
-					}
+					int primIdx = _optPrimitive != null ? Math.Clamp(_optPrimitive.Selected, 0, _primitiveTypes.Length - 1) : 0;
+					_currentConfig.PrimitiveType = _primitiveTypes[primIdx];
 				}
 			}
 			UpdateSectionVisibilities();
@@ -376,12 +374,12 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		_setParticleMeshVal = particleMeshTuple.SetValue;
 		_rowParticleMesh = particleMeshTuple.Input.GetParent() as Control;
 
-		string[] primitiveNames = Enum.GetNames<VfxPrimitiveType>().Where(p => p != nameof(VfxPrimitiveType.ParticleSystem)).ToArray();
-		int primitiveInitialIdx = Math.Clamp((int)_currentConfig.PrimitiveType, 0, primitiveNames.Length - 1);
+		string[] primitiveNames = _primitiveTypes.Select(p => p.ToString()).ToArray();
+		int primitiveInitialIdx = Math.Max(0, Array.IndexOf(_primitiveTypes, _currentConfig.PrimitiveType));
 		_optPrimitive = AddOptionDropdown(scrollBody, TranslationServer.Translate("Primitive Shape"), primitiveNames, primitiveInitialIdx, (idx) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.PrimitiveType = (VfxPrimitiveType)idx;
+			_currentConfig.PrimitiveType = _primitiveTypes[idx];
 			UpdateSectionVisibilities();
 			RestartPreviewVfx();
 		}, 140f);
@@ -941,7 +939,11 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			if (_txtVfxName != null) _txtVfxName.Text = _currentConfig.Name;
 			bool isParticle = _currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem;
 			if (_optMode != null) _optMode.Selected = isParticle ? 1 : 0;
-			if (!isParticle && _optPrimitive != null) _optPrimitive.Selected = Math.Clamp((int)_currentConfig.PrimitiveType, 0, _optPrimitive.ItemCount - 1);
+			if (!isParticle && _optPrimitive != null)
+			{
+				int primIdx = Array.IndexOf(_primitiveTypes, _currentConfig.PrimitiveType);
+				_optPrimitive.Selected = primIdx >= 0 ? primIdx : 0;
+			}
 			if (_optBlendMode != null) _optBlendMode.Selected = (int)_currentConfig.BlendMode;
 			if (_optPlacementMode != null) _optPlacementMode.Selected = (int)_currentConfig.PlacementMode;
 
@@ -1113,9 +1115,9 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			{
 				_currentConfig.PrimitiveType = VfxPrimitiveType.ParticleSystem;
 			}
-			else if (_optPrimitive != null)
+			else if (_optPrimitive != null && _optPrimitive.Selected >= 0 && _optPrimitive.Selected < _primitiveTypes.Length)
 			{
-				_currentConfig.PrimitiveType = (VfxPrimitiveType)_optPrimitive.Selected;
+				_currentConfig.PrimitiveType = _primitiveTypes[_optPrimitive.Selected];
 			}
 		}
 		if (_optBlendMode != null) _currentConfig.BlendMode = (VfxBlendMode)_optBlendMode.Selected;

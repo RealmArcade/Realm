@@ -637,7 +637,7 @@ public partial class CameraControl : Camera3D
 						}
 					}
 					var hoveredControl = GetViewport()?.GuiGetHoveredControl();
-					if (hoveredControl != null && hoveredControl is not SubViewport && hoveredControl is not Window && hoveredControl.GetType().Name != "GameHost")
+					if (hoveredControl != null && hoveredControl.GetType().Name != "GameHost")
 					{
 						if (MapEditorHUD.Instance == null || hoveredControl != MapEditorHUD.Instance)
 						{
