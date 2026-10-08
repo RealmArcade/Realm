@@ -218,35 +218,63 @@ public class HumanoidBoneMapper
 	public static string CleanBoneName(string rawName)
 	{
 		if (string.IsNullOrEmpty(rawName)) return string.Empty;
-		string clean = rawName;
-		int colonIdx = clean.LastIndexOf(':');
+
+		string clean = StripNamespaces(rawName);
+		clean = StripAssimpSuffix(clean);
+		clean = StripRigPrefixes(clean);
+
+		return clean;
+	}
+
+	private static string StripNamespaces(string name)
+	{
+		int colonIdx = name.LastIndexOf(':');
 		if (colonIdx >= 0)
 		{
-			clean = clean.Substring(colonIdx + 1);
+			name = name.Substring(colonIdx + 1);
 		}
-		int slashIdx = clean.LastIndexOf('/');
+
+		int slashIdx = name.LastIndexOf('/');
 		if (slashIdx >= 0)
 		{
-			clean = clean.Substring(slashIdx + 1);
+			name = name.Substring(slashIdx + 1);
 		}
-		int assimpFbxIdx = clean.IndexOf("_$AssimpFbx$_", StringComparison.OrdinalIgnoreCase);
+
+		return name;
+	}
+
+	private static string StripAssimpSuffix(string name)
+	{
+		int assimpFbxIdx = name.IndexOf("_$AssimpFbx$_", StringComparison.OrdinalIgnoreCase);
 		if (assimpFbxIdx >= 0)
 		{
-			clean = clean.Substring(0, assimpFbxIdx);
+			return name.Substring(0, assimpFbxIdx);
 		}
-		if (clean.StartsWith("mixamorig_", StringComparison.OrdinalIgnoreCase))
+
+		return name;
+	}
+
+	private static string StripRigPrefixes(string name)
+	{
+		if (name.StartsWith("mixamorig_", StringComparison.OrdinalIgnoreCase))
 		{
-			clean = clean.Substring("mixamorig_".Length);
+			name = name.Substring("mixamorig_".Length);
 		}
-		if (clean.StartsWith("mixamorig", StringComparison.OrdinalIgnoreCase) && clean.Length > "mixamorig".Length && (clean["mixamorig".Length] == ':' || clean["mixamorig".Length] == '_' || clean["mixamorig".Length] == '.'))
+
+		if (name.StartsWith("mixamorig", StringComparison.OrdinalIgnoreCase) && 
+			name.Length > "mixamorig".Length && 
+			name["mixamorig".Length] is ':' or '_' or '.')
 		{
-			clean = clean.Substring("mixamorig".Length + 1);
+			name = name.Substring("mixamorig".Length + 1);
 		}
-		if (clean.StartsWith("bip01_", StringComparison.OrdinalIgnoreCase) || clean.StartsWith("bip01 ", StringComparison.OrdinalIgnoreCase))
+
+		if (name.StartsWith("bip01_", StringComparison.OrdinalIgnoreCase) || 
+			name.StartsWith("bip01 ", StringComparison.OrdinalIgnoreCase))
 		{
-			clean = clean.Substring(6);
+			name = name.Substring(6);
 		}
-		return clean;
+
+		return name;
 	}
 
 	public static bool TryMapToCanonical(string rawName, out HumanoidBone canonicalBone)

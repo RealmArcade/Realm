@@ -463,6 +463,19 @@ public partial class CreatorDiscovery : Control
 		if (idx < 0 || idx >= _creatorsList.Count) return;
 		var creator = _creatorsList[idx];
 
+		UpdateCreatorLabels(creator);
+		ClearPortfolioGrid();
+
+		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		bool loaded = await TryLoadAndDisplayPortfolioAssets(seedServerUrl, creator);
+		if (!loaded)
+		{
+			DisplayEmptyPortfolioMessage();
+		}
+	}
+
+	private void UpdateCreatorLabels(CreatorInfo creator)
+	{
 		if (_selectedCreatorNameLabel != null)
 		{
 			_selectedCreatorNameLabel.Text = creator.Username;
@@ -473,39 +486,44 @@ public partial class CreatorDiscovery : Control
 		if (!string.IsNullOrEmpty(creator.ContactInfo)) contactText += $"{TranslationServer.Translate("Contact Info")}: [color=cyan]{creator.ContactInfo}[/color]";
 		if (string.IsNullOrEmpty(contactText)) contactText = TranslationServer.Translate("No contact/donation links provided.");
 		_contactInfo.Text = contactText;
+	}
 
+	private void ClearPortfolioGrid()
+	{
 		foreach (Node n in _portfolioGrid.GetChildren())
 		{
 			n.QueueFree();
 		}
+	}
 
-		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+	private async System.Threading.Tasks.Task<bool> TryLoadAndDisplayPortfolioAssets(string seedServerUrl, CreatorInfo creator)
+	{
 		try
 		{
-			using (var httpClient = new System.Net.Http.HttpClient())
+			using var httpClient = new System.Net.Http.HttpClient();
+			var res = await httpClient.GetAsync(seedServerUrl + $"/api/creators/{Uri.EscapeDataString(creator.PublicKey)}/portfolio");
+			if (!res.IsSuccessStatusCode) return false;
+
+			string json = await res.Content.ReadAsStringAsync();
+			var assets = JsonSerializer.Deserialize<PortfolioAsset[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+			if (assets == null || assets.Length == 0) return false;
+
+			foreach (var asset in assets)
 			{
-				var res = await httpClient.GetAsync(seedServerUrl + $"/api/creators/{Uri.EscapeDataString(creator.PublicKey)}/portfolio");
-				if (res.IsSuccessStatusCode)
-				{
-					string json = await res.Content.ReadAsStringAsync();
-					var assets = JsonSerializer.Deserialize<PortfolioAsset[]>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-					if (assets != null && assets.Length > 0)
-					{
-						foreach (var asset in assets)
-						{
-							var card = CreateAssetCard(TranslationServer.Translate("Greenlit Asset Pack"), asset.Hash);
-							_portfolioGrid.AddChild(card);
-						}
-						return;
-					}
-				}
+				var card = CreateAssetCard(TranslationServer.Translate("Greenlit Asset Pack"), asset.Hash);
+				_portfolioGrid.AddChild(card);
 			}
+			return true;
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[CreatorDiscovery] Failed to load portfolio: {ex.Message}");
+			return false;
 		}
+	}
 
+	private void DisplayEmptyPortfolioMessage()
+	{
 		var emptyPanel = CreateCardStyle(new Color(0.1f, 0.11f, 0.14f, 0.7f), new Color(0.3f, 0.3f, 0.35f));
 		var emptyBox = new PanelContainer();
 		emptyBox.AddThemeStyleboxOverride("panel", emptyPanel);

@@ -142,133 +142,199 @@ internal static class AttributeStatCalculator
 
 	public static DerivedCombatStats RecalculateEntityStats(World world, Entity entity, float additionalAttackSpeedModifiers = 0f)
 	{
-		if (!world.IsAlive(entity)) return default;
-
-		var attributes = world.Has<UnitAttributes>(entity)
-			? world.Get<UnitAttributes>(entity)
-			: new UnitAttributes();
-
-		UnitBaseStats baseStats;
-		if (world.Has<UnitBaseStats>(entity))
+		if (!world.IsAlive(entity))
 		{
-			baseStats = world.Get<UnitBaseStats>(entity);
-		}
-		else
-		{
-			float bHp = world.Has<Health>(entity) ? world.Get<Health>(entity).Max : 100f;
-			float bHpReg = world.Has<Health>(entity) ? world.Get<Health>(entity).HpRegen : 0f;
-			float bMana = world.Has<Mana>(entity) ? world.Get<Mana>(entity).Max : 0f;
-			float bManaReg = world.Has<Mana>(entity) ? world.Get<Mana>(entity).ManaRegen : 0f;
-			float bArmor = world.Has<Armor>(entity) ? world.Get<Armor>(entity).FlatArmor : 0f;
-			float bDmg = world.Has<Attack>(entity) ? world.Get<Attack>(entity).Damage : 10f;
-			float bAtkCooldown = world.Has<Attack>(entity) ? world.Get<Attack>(entity).Cooldown : 1.5f;
-			float bSpeed = world.Has<MovementStats>(entity) ? world.Get<MovementStats>(entity).Speed : 5f;
-			float bCritChance = world.Has<Attack>(entity) ? world.Get<Attack>(entity).CritChance : 0f;
-			float bCritMult = world.Has<Attack>(entity) ? world.Get<Attack>(entity).CritMultiplier : 1.5f;
-			float bFlatPen = world.Has<Attack>(entity) ? world.Get<Attack>(entity).FlatArmorPenetration : 0f;
-
-			baseStats = new UnitBaseStats(
-				BaseMaxHp: bHp,
-				BaseHpRegen: bHpReg,
-				BaseMaxMana: bMana,
-				BaseManaRegen: bManaReg,
-				BaseArmor: bArmor,
-				BaseDamage: bDmg,
-				BaseAttackInterval: bAtkCooldown,
-				BaseSpeed: bSpeed,
-				BaseCastPoint: 0.3f,
-				BaseCritChance: bCritChance,
-				BaseCritMultiplier: bCritMult,
-				BaseFlatArmorPenetration: bFlatPen
-			);
-			world.Add(entity, baseStats);
+			return default;
 		}
 
+		var attributes = world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity) : new UnitAttributes();
+		var baseStats = GetOrCreateUnitBaseStats(world, entity);
 		var derived = CalculateDerivedStats(in attributes, in baseStats, additionalAttackSpeedModifiers);
+		
 		world.SetOrAdd(entity, derived);
 
-		if (world.Has<Health>(entity))
-		{
-			ref var health = ref world.Get<Health>(entity);
-			float oldMax = health.Max;
-			float oldCurrent = health.Current;
-			float newMax = derived.MaxHp;
-			float newCurrent = oldMax > 0f ? MathF.Min(newMax, oldCurrent * (newMax / oldMax)) : newMax;
-			world.Set(entity, new Health(newCurrent, newMax, derived.HpRegen, health.HpRegenCombatDelay, health.TimeSinceLastDamage));
-		}
-
-		if (derived.MaxMana > 0f || world.Has<Mana>(entity))
-		{
-			if (world.Has<Mana>(entity))
-			{
-				ref var mana = ref world.Get<Mana>(entity);
-				float newCurrent = MathF.Min(derived.MaxMana, mana.Current);
-				world.Set(entity, new Mana(newCurrent, derived.MaxMana, derived.ManaRegen));
-			}
-			else if (derived.MaxMana > 0f)
-			{
-				world.Add(entity, new Mana(derived.MaxMana, derived.MaxMana, derived.ManaRegen));
-			}
-		}
-
-		if (world.Has<Armor>(entity))
-		{
-			ref var armor = ref world.Get<Armor>(entity);
-			world.Set(entity, new Armor(derived.TotalArmor, armor.RatedArmor, armor.ArmorType));
-		}
-
-		if (world.Has<Attack>(entity))
-		{
-			ref var attack = ref world.Get<Attack>(entity);
-			world.Set(entity, new Attack(
-				Damage: derived.TotalAttackDamage,
-				Range: attack.Range,
-				Cooldown: derived.AttackDelay,
-				CurrentCooldown: attack.CurrentCooldown,
-				DamageVariance: attack.DamageVariance,
-				DamageType: attack.DamageType,
-				FlatArmorPenetration: derived.FlatArmorPenetration,
-				PercentArmorPenetration: attack.PercentArmorPenetration,
-				CritChance: derived.CritChance,
-				CritMultiplier: derived.CritMultiplier,
-				SplashType: attack.SplashType,
-				SplashInnerRadius: attack.SplashInnerRadius,
-				SplashMediumRadius: attack.SplashMediumRadius,
-				SplashOuterRadius: attack.SplashOuterRadius,
-				SplashInnerRatio: attack.SplashInnerRatio,
-				SplashMediumRatio: attack.SplashMediumRatio,
-				SplashOuterRatio: attack.SplashOuterRatio,
-				FriendlyFire: attack.FriendlyFire
-			));
-		}
-
-		if (world.Has<MovementStats>(entity))
-		{
-			ref var move = ref world.Get<MovementStats>(entity);
-			world.Set(entity, new MovementStats(derived.MovementSpeed, move.Acceleration, move.TurnRate, move.PushPriority, move.MovementType));
-		}
-
-		if (world.Has<Stats>(entity))
-		{
-			var statsDict = world.Get<Stats>(entity).Value;
-			statsDict[new StatId("Armor")] = derived.TotalArmor;
-			statsDict[new StatId("Attack")] = derived.TotalAttackDamage;
-			statsDict[new StatId("MovementSpeed")] = derived.MovementSpeed;
-			statsDict[new StatId("MaxHp")] = derived.MaxHp;
-			statsDict[new StatId("HpRegen")] = derived.HpRegen;
-			statsDict[new StatId("MaxMana")] = derived.MaxMana;
-			statsDict[new StatId("ManaRegen")] = derived.ManaRegen;
-			statsDict[new StatId("SpellPower")] = derived.SpellPower;
-			statsDict[new StatId("Tenacity")] = derived.Tenacity;
-			statsDict[new StatId("SpellWard")] = derived.SpellWard;
-			statsDict[new StatId("CooldownReduction")] = derived.CooldownReduction;
-			statsDict[new StatId("LifeSteal")] = derived.LifeSteal;
-			statsDict[new StatId("MagicPenetration")] = derived.MagicPenetration;
-			statsDict[new StatId("Evasion")] = derived.Evasion;
-			statsDict[new StatId("ProcRateMultiplier")] = derived.ProcRateMultiplier;
-			statsDict[new StatId("BountyMultiplier")] = derived.BountyMultiplier;
-		}
+		UpdateHealth(world, entity, in derived);
+		UpdateMana(world, entity, in derived);
+		UpdateArmor(world, entity, in derived);
+		UpdateAttack(world, entity, in derived);
+		UpdateMovementStats(world, entity, in derived);
+		UpdateStatsDictionary(world, entity, in derived);
 
 		return derived;
+	}
+
+	private static UnitBaseStats GetOrCreateUnitBaseStats(World world, Entity entity)
+	{
+		if (world.Has<UnitBaseStats>(entity))
+		{
+			return world.Get<UnitBaseStats>(entity);
+		}
+
+		float bHp = 100f;
+		float bHpReg = 0f;
+		if (world.Has<Health>(entity))
+		{
+			var health = world.Get<Health>(entity);
+			bHp = health.Max;
+			bHpReg = health.HpRegen;
+		}
+
+		float bMana = 0f;
+		float bManaReg = 0f;
+		if (world.Has<Mana>(entity))
+		{
+			var mana = world.Get<Mana>(entity);
+			bMana = mana.Max;
+			bManaReg = mana.ManaRegen;
+		}
+
+		float bArmor = world.Has<Armor>(entity) ? world.Get<Armor>(entity).FlatArmor : 0f;
+		
+		float bDmg = 10f;
+		float bAtkCooldown = 1.5f;
+		float bCritChance = 0f;
+		float bCritMult = 1.5f;
+		float bFlatPen = 0f;
+		if (world.Has<Attack>(entity))
+		{
+			var attack = world.Get<Attack>(entity);
+			bDmg = attack.Damage;
+			bAtkCooldown = attack.Cooldown;
+			bCritChance = attack.CritChance;
+			bCritMult = attack.CritMultiplier;
+			bFlatPen = attack.FlatArmorPenetration;
+		}
+
+		float bSpeed = world.Has<MovementStats>(entity) ? world.Get<MovementStats>(entity).Speed : 5f;
+
+		var baseStats = new UnitBaseStats(
+			BaseMaxHp: bHp,
+			BaseHpRegen: bHpReg,
+			BaseMaxMana: bMana,
+			BaseManaRegen: bManaReg,
+			BaseArmor: bArmor,
+			BaseDamage: bDmg,
+			BaseAttackInterval: bAtkCooldown,
+			BaseSpeed: bSpeed,
+			BaseCastPoint: 0.3f,
+			BaseCritChance: bCritChance,
+			BaseCritMultiplier: bCritMult,
+			BaseFlatArmorPenetration: bFlatPen
+		);
+		world.Add(entity, baseStats);
+		
+		return baseStats;
+	}
+
+	private static void UpdateHealth(World world, Entity entity, in DerivedCombatStats derived)
+	{
+		if (!world.Has<Health>(entity))
+		{
+			return;
+		}
+
+		ref var health = ref world.Get<Health>(entity);
+		float oldMax = health.Max;
+		float oldCurrent = health.Current;
+		float newMax = derived.MaxHp;
+		float newCurrent = oldMax > 0f ? MathF.Min(newMax, oldCurrent * (newMax / oldMax)) : newMax;
+		
+		world.Set(entity, new Health(newCurrent, newMax, derived.HpRegen, health.HpRegenCombatDelay, health.TimeSinceLastDamage));
+	}
+
+	private static void UpdateMana(World world, Entity entity, in DerivedCombatStats derived)
+	{
+		if (derived.MaxMana <= 0f && !world.Has<Mana>(entity))
+		{
+			return;
+		}
+
+		if (world.Has<Mana>(entity))
+		{
+			ref var mana = ref world.Get<Mana>(entity);
+			float newCurrent = MathF.Min(derived.MaxMana, mana.Current);
+			world.Set(entity, new Mana(newCurrent, derived.MaxMana, derived.ManaRegen));
+			return;
+		}
+
+		world.Add(entity, new Mana(derived.MaxMana, derived.MaxMana, derived.ManaRegen));
+	}
+
+	private static void UpdateArmor(World world, Entity entity, in DerivedCombatStats derived)
+	{
+		if (!world.Has<Armor>(entity))
+		{
+			return;
+		}
+
+		ref var armor = ref world.Get<Armor>(entity);
+		world.Set(entity, new Armor(derived.TotalArmor, armor.RatedArmor, armor.ArmorType));
+	}
+
+	private static void UpdateAttack(World world, Entity entity, in DerivedCombatStats derived)
+	{
+		if (!world.Has<Attack>(entity))
+		{
+			return;
+		}
+
+		ref var attack = ref world.Get<Attack>(entity);
+		world.Set(entity, new Attack(
+			Damage: derived.TotalAttackDamage,
+			Range: attack.Range,
+			Cooldown: derived.AttackDelay,
+			CurrentCooldown: attack.CurrentCooldown,
+			DamageVariance: attack.DamageVariance,
+			DamageType: attack.DamageType,
+			FlatArmorPenetration: derived.FlatArmorPenetration,
+			PercentArmorPenetration: attack.PercentArmorPenetration,
+			CritChance: derived.CritChance,
+			CritMultiplier: derived.CritMultiplier,
+			SplashType: attack.SplashType,
+			SplashInnerRadius: attack.SplashInnerRadius,
+			SplashMediumRadius: attack.SplashMediumRadius,
+			SplashOuterRadius: attack.SplashOuterRadius,
+			SplashInnerRatio: attack.SplashInnerRatio,
+			SplashMediumRatio: attack.SplashMediumRatio,
+			SplashOuterRatio: attack.SplashOuterRatio,
+			FriendlyFire: attack.FriendlyFire
+		));
+	}
+
+	private static void UpdateMovementStats(World world, Entity entity, in DerivedCombatStats derived)
+	{
+		if (!world.Has<MovementStats>(entity))
+		{
+			return;
+		}
+
+		ref var move = ref world.Get<MovementStats>(entity);
+		world.Set(entity, new MovementStats(derived.MovementSpeed, move.Acceleration, move.TurnRate, move.PushPriority, move.MovementType));
+	}
+
+	private static void UpdateStatsDictionary(World world, Entity entity, in DerivedCombatStats derived)
+	{
+		if (!world.Has<Stats>(entity))
+		{
+			return;
+		}
+
+		var statsDict = world.Get<Stats>(entity).Value;
+		statsDict[new StatId("Armor")] = derived.TotalArmor;
+		statsDict[new StatId("Attack")] = derived.TotalAttackDamage;
+		statsDict[new StatId("MovementSpeed")] = derived.MovementSpeed;
+		statsDict[new StatId("MaxHp")] = derived.MaxHp;
+		statsDict[new StatId("HpRegen")] = derived.HpRegen;
+		statsDict[new StatId("MaxMana")] = derived.MaxMana;
+		statsDict[new StatId("ManaRegen")] = derived.ManaRegen;
+		statsDict[new StatId("SpellPower")] = derived.SpellPower;
+		statsDict[new StatId("Tenacity")] = derived.Tenacity;
+		statsDict[new StatId("SpellWard")] = derived.SpellWard;
+		statsDict[new StatId("CooldownReduction")] = derived.CooldownReduction;
+		statsDict[new StatId("LifeSteal")] = derived.LifeSteal;
+		statsDict[new StatId("MagicPenetration")] = derived.MagicPenetration;
+		statsDict[new StatId("Evasion")] = derived.Evasion;
+		statsDict[new StatId("ProcRateMultiplier")] = derived.ProcRateMultiplier;
+		statsDict[new StatId("BountyMultiplier")] = derived.BountyMultiplier;
 	}
 }

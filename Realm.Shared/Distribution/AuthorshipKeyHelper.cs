@@ -40,64 +40,100 @@ public static class AuthorshipKeyHelper
 		string keyPath = Path.Combine(dir, DefaultKeyFileName);
 		string legacyPath = Path.Combine(dir, LegacyKeyFileName);
 
-		if (File.Exists(keyPath))
+		if (TryLoadKey(keyPath, out Key? key, out AuthorshipKeyData? data))
 		{
-			try
-			{
-				byte[] fileBytes = File.ReadAllBytes(keyPath);
-				var keyData = RkeyFile.ParseKeyData(fileBytes);
-				if (keyData != null && !string.IsNullOrWhiteSpace(keyData.PrivateKey))
-				{
-					byte[] privBytes = Convert.FromBase64String(keyData.PrivateKey);
-					var key = Key.Import(
-						SignatureAlgorithm.Ed25519,
-						privBytes,
-						KeyBlobFormat.RawPrivateKey,
-						new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport }
-					);
-
-					if (string.IsNullOrWhiteSpace(keyData.PublicKey))
-					{
-						byte[] pubBytes = key.PublicKey.Export(KeyBlobFormat.RawPublicKey);
-						keyData.PublicKey = Convert.ToBase64String(pubBytes);
-					}
-
-					return (key, keyData, keyPath, false);
-				}
-			}
-			catch
-			{
-			}
+			return (key!, data!, keyPath, false);
 		}
 
-		if (File.Exists(legacyPath))
+		if (TryLoadLegacyKey(legacyPath, keyPath, defaultUserName, out key, out data))
 		{
-			try
+			return (key!, data!, keyPath, false);
+		}
+
+		return GenerateNewKey(keyPath, defaultUserName);
+	}
+
+	private static bool TryLoadKey(string keyPath, out Key? key, out AuthorshipKeyData? data)
+	{
+		key = null;
+		data = null;
+
+		if (!File.Exists(keyPath))
+		{
+			return false;
+		}
+
+		try
+		{
+			byte[] fileBytes = File.ReadAllBytes(keyPath);
+			var keyData = RkeyFile.ParseKeyData(fileBytes);
+			if (keyData == null || string.IsNullOrWhiteSpace(keyData.PrivateKey))
 			{
-				byte[] legacyBytes = File.ReadAllBytes(legacyPath);
-				var key = Key.Import(
-					SignatureAlgorithm.Ed25519,
-					legacyBytes,
-					KeyBlobFormat.RawPrivateKey,
-					new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport }
-				);
-				byte[] privBytes = key.Export(KeyBlobFormat.RawPrivateKey);
+				return false;
+			}
+
+			byte[] privBytes = Convert.FromBase64String(keyData.PrivateKey);
+			key = Key.Import(
+				SignatureAlgorithm.Ed25519,
+				privBytes,
+				KeyBlobFormat.RawPrivateKey,
+				new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport }
+			);
+
+			if (string.IsNullOrWhiteSpace(keyData.PublicKey))
+			{
 				byte[] pubBytes = key.PublicKey.Export(KeyBlobFormat.RawPublicKey);
-				var data = new AuthorshipKeyData
-				{
-					UserName = defaultUserName,
-					PublicKey = Convert.ToBase64String(pubBytes),
-					PrivateKey = Convert.ToBase64String(privBytes)
-				};
-				byte[] rkeyBytes = RkeyFile.Build(data.UserName, data.PublicKey, data.PrivateKey);
-				File.WriteAllBytes(keyPath, rkeyBytes);
-				return (key, data, keyPath, false);
+				keyData.PublicKey = Convert.ToBase64String(pubBytes);
 			}
-			catch
-			{
-			}
+
+			data = keyData;
+			return true;
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	private static bool TryLoadLegacyKey(string legacyPath, string keyPath, string defaultUserName, out Key? key, out AuthorshipKeyData? data)
+	{
+		key = null;
+		data = null;
+
+		if (!File.Exists(legacyPath))
+		{
+			return false;
 		}
 
+		try
+		{
+			byte[] legacyBytes = File.ReadAllBytes(legacyPath);
+			key = Key.Import(
+				SignatureAlgorithm.Ed25519,
+				legacyBytes,
+				KeyBlobFormat.RawPrivateKey,
+				new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport }
+			);
+			byte[] privBytes = key.Export(KeyBlobFormat.RawPrivateKey);
+			byte[] pubBytes = key.PublicKey.Export(KeyBlobFormat.RawPublicKey);
+			data = new AuthorshipKeyData
+			{
+				UserName = defaultUserName,
+				PublicKey = Convert.ToBase64String(pubBytes),
+				PrivateKey = Convert.ToBase64String(privBytes)
+			};
+			byte[] rkeyBytes = RkeyFile.Build(data.UserName, data.PublicKey, data.PrivateKey);
+			File.WriteAllBytes(keyPath, rkeyBytes);
+			return true;
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	private static (Key Key, AuthorshipKeyData Data, string Path, bool CreatedNew) GenerateNewKey(string keyPath, string defaultUserName)
+	{
 		var newKey = Key.Create(
 			SignatureAlgorithm.Ed25519,
 			new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport }
@@ -127,22 +163,27 @@ public static class AuthorshipKeyHelper
 	{
 		string dir = string.IsNullOrWhiteSpace(keyDirectory) ? GetDefaultKeysDirectory() : keyDirectory;
 		string keyPath = Path.Combine(dir, DefaultKeyFileName);
-		if (File.Exists(keyPath))
+		
+		if (!File.Exists(keyPath))
 		{
-			try
+			return;
+		}
+
+		try
+		{
+			byte[] fileBytes = File.ReadAllBytes(keyPath);
+			var keyData = RkeyFile.ParseKeyData(fileBytes);
+			if (keyData == null)
 			{
-				byte[] fileBytes = File.ReadAllBytes(keyPath);
-				var keyData = RkeyFile.ParseKeyData(fileBytes);
-				if (keyData != null)
-				{
-					keyData.UserName = newUserName;
-					byte[] updatedBytes = RkeyFile.Build(keyData.UserName, keyData.PublicKey, keyData.PrivateKey);
-					File.WriteAllBytes(keyPath, updatedBytes);
-				}
+				return;
 			}
-			catch
-			{
-			}
+			
+			keyData.UserName = newUserName;
+			byte[] updatedBytes = RkeyFile.Build(keyData.UserName, keyData.PublicKey, keyData.PrivateKey);
+			File.WriteAllBytes(keyPath, updatedBytes);
+		}
+		catch
+		{
 		}
 	}
 }

@@ -97,6 +97,26 @@ public static class NameNormalizationHelper
         return Levenshtein.Distance(source, target);
     }
 
+    private static bool CheckSimilarity(string normalizedCandidate, string normalizedExisting, int minDistanceThreshold)
+    {
+        if (string.Equals(normalizedCandidate, normalizedExisting, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (normalizedCandidate.Length < 3 || normalizedExisting.Length < 3)
+        {
+            return false;
+        }
+
+        var distance = ComputeLevenshteinDistance(normalizedCandidate, normalizedExisting);
+        var effectiveThreshold = normalizedCandidate.Length <= 4 || normalizedExisting.Length <= 4
+            ? 1
+            : Math.Min(minDistanceThreshold, 2);
+
+        return distance <= effectiveThreshold;
+    }
+
     public static bool IsMapNameTooSimilar(string candidateMapName, IEnumerable<string> existingMapNames, int minDistanceThreshold, out string? conflictingMapName)
     {
         conflictingMapName = null;
@@ -120,24 +140,10 @@ public static class NameNormalizationHelper
                 continue;
             }
 
-            if (string.Equals(normalizedCandidate, normalizedExisting, StringComparison.OrdinalIgnoreCase))
+            if (CheckSimilarity(normalizedCandidate, normalizedExisting, minDistanceThreshold))
             {
                 conflictingMapName = existingName;
                 return true;
-            }
-
-            if (normalizedCandidate.Length >= 3 && normalizedExisting.Length >= 3)
-            {
-                var distance = ComputeLevenshteinDistance(normalizedCandidate, normalizedExisting);
-                var effectiveThreshold = normalizedCandidate.Length <= 4 || normalizedExisting.Length <= 4
-                    ? 1
-                    : Math.Min(minDistanceThreshold, 2);
-
-                if (distance <= effectiveThreshold)
-                {
-                    conflictingMapName = existingName;
-                    return true;
-                }
             }
         }
 

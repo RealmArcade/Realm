@@ -12,90 +12,83 @@ public static class MapInfoHelper
 		var maps = new List<MapBriefingDetails>();
 		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+		bool IsValidDirName(string name) => 
+			!name.StartsWith(".") &&
+			!string.Equals(name, "assets", StringComparison.OrdinalIgnoreCase) &&
+			!string.Equals(name, "temp_pck", StringComparison.OrdinalIgnoreCase) &&
+			!string.Equals(name, "bin", StringComparison.OrdinalIgnoreCase) &&
+			!string.Equals(name, "obj", StringComparison.OrdinalIgnoreCase);
+
+		bool IsValidJsonName(string name) =>
+			!name.StartsWith(".") &&
+			name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
+			!string.Equals(name, "pck_cache.json", StringComparison.OrdinalIgnoreCase) &&
+			!string.Equals(name, "servers.json", StringComparison.OrdinalIgnoreCase);
+
+		void ProcessMapDetails(MapBriefingDetails details)
+		{
+			if (seen.Add(details.PathName))
+			{
+				maps.Add(details);
+			}
+		}
+
+		void ScanGodotDir(string basePath, DirAccess dir)
+		{
+			dir.ListDirBegin();
+			string itemName = dir.GetNext();
+			while (itemName != "")
+			{
+				if (dir.CurrentIsDir() && IsValidDirName(itemName))
+				{
+					if (TryLoadMapFromFolder(itemName, basePath, out var mapDetails))
+					{
+						ProcessMapDetails(mapDetails);
+					}
+				}
+				else if (!dir.CurrentIsDir() && IsValidJsonName(itemName))
+				{
+					if (TryLoadMapFromManifestFile($"{basePath}/{itemName}", itemName, out var mapDetails))
+					{
+						ProcessMapDetails(mapDetails);
+					}
+				}
+				itemName = dir.GetNext();
+			}
+			dir.ListDirEnd();
+		}
+
+		void ScanSystemDir(string basePath)
+		{
+			string globalPath = basePath;
+			try { globalPath = ProjectSettings.GlobalizePath(basePath); } catch { }
+
+			if (!System.IO.Directory.Exists(globalPath)) return;
+
+			foreach (var dirPath in System.IO.Directory.GetDirectories(globalPath))
+			{
+				string dirName = System.IO.Path.GetFileName(dirPath);
+				if (IsValidDirName(dirName) && TryLoadMapFromFolder(dirName, basePath, out var mapDetails))
+				{
+					ProcessMapDetails(mapDetails);
+				}
+			}
+
+			foreach (var filePath in System.IO.Directory.GetFiles(globalPath, "*.json"))
+			{
+				string fileName = System.IO.Path.GetFileName(filePath);
+				if (IsValidJsonName(fileName) && TryLoadMapFromManifestFile(filePath, fileName, out var mapDetails))
+				{
+					ProcessMapDetails(mapDetails);
+				}
+			}
+		}
+
 		void ScanDir(string basePath)
 		{
 			using var dir = DirAccess.Open(basePath);
-			if (dir != null)
-			{
-				dir.ListDirBegin();
-				string itemName = dir.GetNext();
-				while (itemName != "")
-				{
-					if (!itemName.StartsWith("."))
-					{
-						if (dir.CurrentIsDir())
-						{
-							if (!string.Equals(itemName, "assets", StringComparison.OrdinalIgnoreCase) &&
-							    !string.Equals(itemName, "temp_pck", StringComparison.OrdinalIgnoreCase) &&
-							    !string.Equals(itemName, "bin", StringComparison.OrdinalIgnoreCase) &&
-							    !string.Equals(itemName, "obj", StringComparison.OrdinalIgnoreCase))
-							{
-								if (TryLoadMapFromFolder(itemName, basePath, out var mapDetails) && seen.Add(mapDetails.PathName))
-								{
-									maps.Add(mapDetails);
-								}
-							}
-						}
-						else if (itemName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-						{
-							if (!string.Equals(itemName, "pck_cache.json", StringComparison.OrdinalIgnoreCase) &&
-							    !string.Equals(itemName, "servers.json", StringComparison.OrdinalIgnoreCase))
-							{
-								if (TryLoadMapFromManifestFile($"{basePath}/{itemName}", itemName, out var mapDetails) && seen.Add(mapDetails.PathName))
-								{
-									maps.Add(mapDetails);
-								}
-							}
-						}
-					}
-					itemName = dir.GetNext();
-				}
-				dir.ListDirEnd();
-			}
-			else
-			{
-				string globalPath = basePath;
-				try
-				{
-					globalPath = ProjectSettings.GlobalizePath(basePath);
-				}
-				catch
-				{
-				}
-
-				if (System.IO.Directory.Exists(globalPath))
-				{
-					foreach (var dirPath in System.IO.Directory.GetDirectories(globalPath))
-					{
-						string dirName = System.IO.Path.GetFileName(dirPath);
-						if (!dirName.StartsWith(".") &&
-						    !string.Equals(dirName, "assets", StringComparison.OrdinalIgnoreCase) &&
-						    !string.Equals(dirName, "temp_pck", StringComparison.OrdinalIgnoreCase) &&
-						    !string.Equals(dirName, "bin", StringComparison.OrdinalIgnoreCase) &&
-						    !string.Equals(dirName, "obj", StringComparison.OrdinalIgnoreCase))
-						{
-							if (TryLoadMapFromFolder(dirName, basePath, out var mapDetails) && seen.Add(mapDetails.PathName))
-							{
-								maps.Add(mapDetails);
-							}
-						}
-					}
-
-					foreach (var filePath in System.IO.Directory.GetFiles(globalPath, "*.json"))
-					{
-						string fileName = System.IO.Path.GetFileName(filePath);
-						if (!fileName.StartsWith(".") &&
-						    !string.Equals(fileName, "pck_cache.json", StringComparison.OrdinalIgnoreCase) &&
-						    !string.Equals(fileName, "servers.json", StringComparison.OrdinalIgnoreCase))
-						{
-							if (TryLoadMapFromManifestFile(filePath, fileName, out var mapDetails) && seen.Add(mapDetails.PathName))
-							{
-								maps.Add(mapDetails);
-							}
-						}
-					}
-				}
-			}
+			if (dir != null) ScanGodotDir(basePath, dir);
+			else ScanSystemDir(basePath);
 		}
 
 		ScanDir("res://Maps");
@@ -127,9 +120,14 @@ public static class MapInfoHelper
 	private static bool TryLoadMapFromManifestFile(string filePath, string fileName, out MapBriefingDetails details)
 	{
 		details = default;
-		if (!System.IO.File.Exists(filePath) && !FileAccess.FileExists(filePath))
+		if (!System.IO.File.Exists(filePath) && !FileAccess.FileExists(filePath)) return false;
+
+		string ExtractMapNameFromFileName(string name)
 		{
-			return false;
+			if (name.EndsWith("_manifest.json", StringComparison.OrdinalIgnoreCase)) return name.Substring(0, name.Length - "_manifest.json".Length);
+			if (name.EndsWith(".manifest.json", StringComparison.OrdinalIgnoreCase)) return name.Substring(0, name.Length - ".manifest.json".Length);
+			if (name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return name.Substring(0, name.Length - ".json".Length);
+			return string.Empty;
 		}
 
 		try
@@ -138,49 +136,16 @@ public static class MapInfoHelper
 			MapMetadata metadata = MapFileService.LoadMetadata(filePath);
 
 			string mapName = manifest.MapName;
-			if (string.IsNullOrWhiteSpace(mapName))
-			{
-				mapName = metadata.MapProperties?.MapName ?? string.Empty;
-			}
-
-			if (string.IsNullOrWhiteSpace(mapName))
-			{
-				if (fileName.EndsWith("_manifest.json", StringComparison.OrdinalIgnoreCase))
-				{
-					mapName = fileName.Substring(0, fileName.Length - "_manifest.json".Length);
-				}
-				else if (fileName.EndsWith(".manifest.json", StringComparison.OrdinalIgnoreCase))
-				{
-					mapName = fileName.Substring(0, fileName.Length - ".manifest.json".Length);
-				}
-				else if (fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-				{
-					mapName = fileName.Substring(0, fileName.Length - ".json".Length);
-				}
-			}
-
-			if (string.IsNullOrWhiteSpace(mapName))
-			{
-				return false;
-			}
+			if (string.IsNullOrWhiteSpace(mapName)) mapName = metadata.MapProperties?.MapName ?? string.Empty;
+			if (string.IsNullOrWhiteSpace(mapName)) mapName = ExtractMapNameFromFileName(fileName);
+			if (string.IsNullOrWhiteSpace(mapName)) return false;
 
 			string displayName = FormatMapDisplayName(mapName);
-			if (!string.IsNullOrWhiteSpace(metadata.MapProperties?.MapName))
-			{
-				displayName = metadata.MapProperties.MapName;
-			}
+			if (!string.IsNullOrWhiteSpace(metadata.MapProperties?.MapName)) displayName = metadata.MapProperties.MapName;
 
-			string description = !string.IsNullOrEmpty(manifest.Description)
-				? manifest.Description
-				: metadata.MapProperties?.MapDescription ?? string.Empty;
-
-			string gameBuildNumber = !string.IsNullOrEmpty(metadata.GameBuildNumber)
-				? metadata.GameBuildNumber.Trim()
-				: Realm.Shared.RealmVersion.GameBuildNumber;
-
-			string version = !string.IsNullOrEmpty(manifest.Version)
-				? manifest.Version.Trim()
-				: (metadata.MapProperties?.Version ?? "1.0.0");
+			string description = !string.IsNullOrEmpty(manifest.Description) ? manifest.Description : (metadata.MapProperties?.MapDescription ?? string.Empty);
+			string gameBuildNumber = !string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber.Trim() : Realm.Shared.RealmVersion.GameBuildNumber;
+			string version = !string.IsNullOrEmpty(manifest.Version) ? manifest.Version.Trim() : (metadata.MapProperties?.Version ?? "1.0.0");
 
 			string manifestHash = "";
 			try
@@ -229,115 +194,103 @@ public static class MapInfoHelper
 		};
 
 		string mapFolderPath = $"{basePath}/{mapFolder}";
-		using (var subDir = DirAccess.Open(mapFolderPath))
+		
+		void ScanGodotSubdirs()
 		{
-			if (subDir != null)
+			using var subDir = DirAccess.Open(mapFolderPath);
+			if (subDir == null) return;
+			
+			subDir.ListDirBegin();
+			string subItem = subDir.GetNext();
+			while (subItem != "")
 			{
-				subDir.ListDirBegin();
-				string subItem = subDir.GetNext();
-				while (subItem != "")
+				if (subDir.CurrentIsDir() && !subItem.StartsWith("."))
 				{
-					if (subDir.CurrentIsDir() && !subItem.StartsWith("."))
-					{
-						candidatePaths.Add($"{mapFolderPath}/{subItem}/manifest.json");
-						candidatePaths.Add($"{mapFolderPath}/{subItem}/metadata.json");
-					}
-					subItem = subDir.GetNext();
+					candidatePaths.Add($"{mapFolderPath}/{subItem}/manifest.json");
+					candidatePaths.Add($"{mapFolderPath}/{subItem}/metadata.json");
 				}
-				subDir.ListDirEnd();
+				subItem = subDir.GetNext();
 			}
+			subDir.ListDirEnd();
 		}
+		ScanGodotSubdirs();
 
-		string globalFolderPath = mapFolderPath;
-		try
+		void ScanSystemSubdirs()
 		{
-			globalFolderPath = ProjectSettings.GlobalizePath(mapFolderPath);
-		}
-		catch { }
+			string globalFolderPath = mapFolderPath;
+			try { globalFolderPath = ProjectSettings.GlobalizePath(mapFolderPath); } catch { }
 
-		if (System.IO.Directory.Exists(globalFolderPath))
-		{
+			if (!System.IO.Directory.Exists(globalFolderPath)) return;
+
 			foreach (var subDirPath in System.IO.Directory.GetDirectories(globalFolderPath))
 			{
 				string subDirName = System.IO.Path.GetFileName(subDirPath);
-				if (!subDirName.StartsWith("."))
-				{
-					candidatePaths.Add(System.IO.Path.Combine(subDirPath, "manifest.json"));
-					candidatePaths.Add(System.IO.Path.Combine(subDirPath, "metadata.json"));
+				if (subDirName.StartsWith(".")) continue;
 
-					foreach (var grandChild in System.IO.Directory.GetDirectories(subDirPath))
-					{
-						candidatePaths.Add(System.IO.Path.Combine(grandChild, "manifest.json"));
-					}
+				candidatePaths.Add(System.IO.Path.Combine(subDirPath, "manifest.json"));
+				candidatePaths.Add(System.IO.Path.Combine(subDirPath, "metadata.json"));
+
+				foreach (var grandChild in System.IO.Directory.GetDirectories(subDirPath))
+				{
+					candidatePaths.Add(System.IO.Path.Combine(grandChild, "manifest.json"));
 				}
+			}
+		}
+		ScanSystemSubdirs();
+
+		bool TryParseMapJson(string path, string globalPath, out MapBriefingDetails result)
+		{
+			result = default;
+			try
+			{
+				MapManifest manifest = MapFileService.LoadManifest(globalPath);
+				MapMetadata metadata = MapFileService.LoadMetadata(globalPath);
+
+				string displayName = FormatMapDisplayName(mapFolder);
+				if (!string.IsNullOrWhiteSpace(manifest.MapName)) displayName = FormatMapDisplayName(manifest.MapName);
+				if (!string.IsNullOrWhiteSpace(metadata.MapProperties?.MapName)) displayName = metadata.MapProperties.MapName;
+
+				string description = !string.IsNullOrEmpty(manifest.Description) ? manifest.Description : (metadata.MapProperties?.MapDescription ?? string.Empty);
+				string gameBuildNumber = path.EndsWith("manifest.json", StringComparison.OrdinalIgnoreCase)
+					? Realm.Shared.RealmVersion.GameBuildNumber
+					: (!string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber : "v0.0.0");
+				string version = !string.IsNullOrEmpty(manifest.Version) ? manifest.Version : (metadata.MapProperties?.Version ?? "1.0.0");
+
+				string manifestHash = "";
+				try { if (System.IO.File.Exists(globalPath)) manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(globalPath), ".json"); } catch { }
+
+				string thumbPath = System.IO.File.Exists(System.IO.Path.Combine(mapFolderPath, "thumbnail.png"))
+					? System.IO.Path.Combine(mapFolderPath, "thumbnail.png")
+					: FindThumbnailForMap(mapFolder, version);
+
+				result = new MapBriefingDetails
+				{
+					PathName = mapFolder,
+					DisplayName = displayName,
+					Description = description,
+					GameBuildNumber = gameBuildNumber,
+					Version = version,
+					ManifestHash = manifestHash,
+					ThumbnailPath = thumbPath
+				};
+				return true;
+			}
+			catch
+			{
+				return false;
 			}
 		}
 
 		foreach (var path in candidatePaths)
 		{
 			string globalPath = path;
-			try
+			try { globalPath = ProjectSettings.GlobalizePath(path); } catch { }
+
+			if (!System.IO.File.Exists(globalPath) && !FileAccess.FileExists(path)) continue;
+
+			if (TryParseMapJson(path, globalPath, out details))
 			{
-				globalPath = ProjectSettings.GlobalizePath(path);
-			}
-			catch { }
-
-			if (System.IO.File.Exists(globalPath) || FileAccess.FileExists(path))
-			{
-				try
-				{
-					MapManifest manifest = MapFileService.LoadManifest(globalPath);
-					MapMetadata metadata = MapFileService.LoadMetadata(globalPath);
-
-					string displayName = FormatMapDisplayName(mapFolder);
-					if (!string.IsNullOrWhiteSpace(manifest.MapName)) displayName = FormatMapDisplayName(manifest.MapName);
-					if (!string.IsNullOrWhiteSpace(metadata.MapProperties?.MapName)) displayName = metadata.MapProperties.MapName;
-
-					string description = !string.IsNullOrEmpty(manifest.Description)
-						? manifest.Description
-						: (metadata.MapProperties?.MapDescription ?? string.Empty);
-
-					string gameBuildNumber = path.EndsWith("manifest.json", StringComparison.OrdinalIgnoreCase)
-						? Realm.Shared.RealmVersion.GameBuildNumber
-						: (!string.IsNullOrEmpty(metadata.GameBuildNumber) ? metadata.GameBuildNumber : "v0.0.0");
-
-					string version = !string.IsNullOrEmpty(manifest.Version) ? manifest.Version : (metadata.MapProperties?.Version ?? "1.0.0");
-
-					string manifestHash = "";
-					try
-					{
-						if (System.IO.File.Exists(globalPath))
-						{
-							manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(globalPath), ".json");
-						}
-					}
-					catch { }
-
-					string thumbPath = "";
-					if (System.IO.File.Exists(System.IO.Path.Combine(mapFolderPath, "thumbnail.png")))
-					{
-						thumbPath = System.IO.Path.Combine(mapFolderPath, "thumbnail.png");
-					}
-					else
-					{
-						thumbPath = FindThumbnailForMap(mapFolder, version);
-					}
-
-					details = new MapBriefingDetails
-					{
-						PathName = mapFolder,
-						DisplayName = displayName,
-						Description = description,
-						GameBuildNumber = gameBuildNumber,
-						Version = version,
-						ManifestHash = manifestHash,
-						ThumbnailPath = thumbPath
-					};
-					return true;
-				}
-				catch
-				{
-				}
+				return true;
 			}
 		}
 
@@ -388,8 +341,8 @@ public static class MapInfoHelper
 	{
 		var versions = new List<string>();
 		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
 		var variations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
 		void AddVariation(string? name)
 		{
 			if (string.IsNullOrWhiteSpace(name)) return;
@@ -406,9 +359,41 @@ public static class MapInfoHelper
 		{
 			if (string.IsNullOrWhiteSpace(ver)) return;
 			string label = FormatVersionDisplay(ver, manifestHash);
-			if (seen.Add(label))
+			if (seen.Add(label)) versions.Add(label);
+		}
+
+		void ProcessSubDir(string subDirPath, string subDirName)
+		{
+			string manifestPath = System.IO.Path.Combine(subDirPath, "manifest.json");
+			string metadataPath = System.IO.Path.Combine(subDirPath, "metadata.json");
+
+			string? targetJson = System.IO.File.Exists(manifestPath) ? manifestPath : (System.IO.File.Exists(metadataPath) ? metadataPath : null);
+
+			if (targetJson != null)
 			{
-				versions.Add(label);
+				string ver = ExtractVersionFromJson(targetJson);
+				string manifestHash = "";
+				if (targetJson == manifestPath)
+				{
+					try { manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(manifestPath), ".json"); } catch { }
+				}
+
+				if (!string.IsNullOrWhiteSpace(ver)) TryAddVersion(ver, manifestHash);
+				else if (char.IsDigit(subDirName[0]) || subDirName.StartsWith("v", StringComparison.OrdinalIgnoreCase)) TryAddVersion(subDirName, manifestHash);
+			}
+
+			foreach (var hashChildDir in System.IO.Directory.GetDirectories(subDirPath))
+			{
+				string hashChildManifest = System.IO.Path.Combine(hashChildDir, "manifest.json");
+				if (!System.IO.File.Exists(hashChildManifest)) continue;
+
+				string ver = ExtractVersionFromJson(hashChildManifest);
+				string childHash = System.IO.Path.GetFileName(hashChildDir);
+				if (string.IsNullOrWhiteSpace(childHash) || childHash.Length < 4)
+				{
+					try { childHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(hashChildManifest), ".json"); } catch { }
+				}
+				TryAddVersion(!string.IsNullOrWhiteSpace(ver) ? ver : subDirName, childHash);
 			}
 		}
 
@@ -417,65 +402,19 @@ public static class MapInfoHelper
 			if (string.IsNullOrWhiteSpace(dirPath)) return;
 
 			string globalPath = dirPath;
-			try
-			{
-				globalPath = ProjectSettings.GlobalizePath(dirPath);
-			}
-			catch { }
+			try { globalPath = ProjectSettings.GlobalizePath(dirPath); } catch { }
 
 			if (!System.IO.Directory.Exists(globalPath)) return;
 
 			foreach (var subDirPath in System.IO.Directory.GetDirectories(globalPath))
 			{
 				string subDirName = System.IO.Path.GetFileName(subDirPath);
-				if (subDirName.StartsWith(".")) continue;
-
-				string manifestPath = System.IO.Path.Combine(subDirPath, "manifest.json");
-				string metadataPath = System.IO.Path.Combine(subDirPath, "metadata.json");
-
-				string? targetJson = System.IO.File.Exists(manifestPath) ? manifestPath
-					: System.IO.File.Exists(metadataPath) ? metadataPath
-					: null;
-
-				if (targetJson != null)
-				{
-					string ver = ExtractVersionFromJson(targetJson);
-					string manifestHash = "";
-					if (targetJson == manifestPath)
-					{
-						try { manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(manifestPath), ".json"); } catch { }
-					}
-					if (!string.IsNullOrWhiteSpace(ver))
-					{
-						TryAddVersion(ver, manifestHash);
-					}
-					else if (char.IsDigit(subDirName[0]) || subDirName.StartsWith("v", StringComparison.OrdinalIgnoreCase))
-					{
-						TryAddVersion(subDirName, manifestHash);
-					}
-				}
-
-				foreach (var hashChildDir in System.IO.Directory.GetDirectories(subDirPath))
-				{
-					string hashChildManifest = System.IO.Path.Combine(hashChildDir, "manifest.json");
-					if (System.IO.File.Exists(hashChildManifest))
-					{
-						string ver = ExtractVersionFromJson(hashChildManifest);
-						string childHash = System.IO.Path.GetFileName(hashChildDir);
-						if (string.IsNullOrWhiteSpace(childHash) || childHash.Length < 4)
-						{
-							try { childHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(hashChildManifest), ".json"); } catch { }
-						}
-						TryAddVersion(!string.IsNullOrWhiteSpace(ver) ? ver : subDirName, childHash);
-					}
-				}
+				if (!subDirName.StartsWith(".")) ProcessSubDir(subDirPath, subDirName);
 			}
 
 			string rootManifest = System.IO.Path.Combine(globalPath, "manifest.json");
 			string rootMetadata = System.IO.Path.Combine(globalPath, "metadata.json");
-			string? rootJson = System.IO.File.Exists(rootManifest) ? rootManifest
-				: System.IO.File.Exists(rootMetadata) ? rootMetadata
-				: null;
+			string? rootJson = System.IO.File.Exists(rootManifest) ? rootManifest : (System.IO.File.Exists(rootMetadata) ? rootMetadata : null);
 
 			if (rootJson != null)
 			{
@@ -485,82 +424,77 @@ public static class MapInfoHelper
 				{
 					try { manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(rootManifest), ".json"); } catch { }
 				}
-				if (!string.IsNullOrWhiteSpace(ver))
+				if (!string.IsNullOrWhiteSpace(ver)) TryAddVersion(ver, manifestHash);
+			}
+		}
+
+		void ProcessVariationFolder(string folder, string folderName, string variation)
+		{
+			if (folderName.Equals(variation, StringComparison.OrdinalIgnoreCase))
+			{
+				ScanFolderForVersions(folder);
+			}
+			else if (folderName.StartsWith(variation + "_", StringComparison.OrdinalIgnoreCase))
+			{
+				string suffix = folderName.Substring(variation.Length + 1);
+				string manifestPath = System.IO.Path.Combine(folder, "manifest.json");
+				if (System.IO.File.Exists(manifestPath))
 				{
-					TryAddVersion(ver, manifestHash);
+					string ver = ExtractVersionFromJson(manifestPath);
+					string manifestHash = "";
+					try { manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(manifestPath), ".json"); } catch { }
+					TryAddVersion(!string.IsNullOrWhiteSpace(ver) ? ver : suffix, manifestHash);
+				}
+				else
+				{
+					TryAddVersion(suffix, null);
 				}
 			}
 		}
 
-		string[] searchRoots = new[]
+		void SearchRoots()
 		{
-			"res://Maps",
-			"user://maps",
-			"user://p2p_cache"
-		};
+			string[] searchRoots = new[] { "res://Maps", "user://maps", "user://p2p_cache" };
 
-		foreach (var root in searchRoots)
-		{
-			string globalRoot = root;
-			try { globalRoot = ProjectSettings.GlobalizePath(root); } catch { }
-
-			if (!System.IO.Directory.Exists(globalRoot)) continue;
-
-			foreach (var variation in variations)
+			foreach (var root in searchRoots)
 			{
-				string directFolder = System.IO.Path.Combine(globalRoot, variation);
-				ScanFolderForVersions(directFolder);
-			}
+				string globalRoot = root;
+				try { globalRoot = ProjectSettings.GlobalizePath(root); } catch { }
 
-			foreach (var folder in System.IO.Directory.GetDirectories(globalRoot))
-			{
-				string folderName = System.IO.Path.GetFileName(folder);
+				if (!System.IO.Directory.Exists(globalRoot)) continue;
+
 				foreach (var variation in variations)
 				{
-					if (folderName.Equals(variation, StringComparison.OrdinalIgnoreCase))
-					{
-						ScanFolderForVersions(folder);
-					}
-					else if (folderName.StartsWith(variation + "_", StringComparison.OrdinalIgnoreCase))
-					{
-						string suffix = folderName.Substring(variation.Length + 1);
-						string manifestPath = System.IO.Path.Combine(folder, "manifest.json");
-						if (System.IO.File.Exists(manifestPath))
-						{
-							string ver = ExtractVersionFromJson(manifestPath);
-							string manifestHash = "";
-							try { manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(manifestPath), ".json"); } catch { }
-							TryAddVersion(!string.IsNullOrWhiteSpace(ver) ? ver : suffix, manifestHash);
-						}
-						else
-						{
-							TryAddVersion(suffix, null);
-						}
-					}
+					ScanFolderForVersions(System.IO.Path.Combine(globalRoot, variation));
 				}
-			}
 
-			foreach (var file in System.IO.Directory.GetFiles(globalRoot, "*.json"))
-			{
-				string fileName = System.IO.Path.GetFileName(file);
-				foreach (var variation in variations)
+				foreach (var folder in System.IO.Directory.GetDirectories(globalRoot))
 				{
-					if (fileName.StartsWith(variation + "_", StringComparison.OrdinalIgnoreCase))
+					string folderName = System.IO.Path.GetFileName(folder);
+					foreach (var variation in variations)
 					{
-						string ver = ExtractVersionFromJson(file);
-						if (!string.IsNullOrWhiteSpace(ver))
+						ProcessVariationFolder(folder, folderName, variation);
+					}
+				}
+
+				foreach (var file in System.IO.Directory.GetFiles(globalRoot, "*.json"))
+				{
+					string fileName = System.IO.Path.GetFileName(file);
+					foreach (var variation in variations)
+					{
+						if (fileName.StartsWith(variation + "_", StringComparison.OrdinalIgnoreCase))
 						{
-							TryAddVersion(ver, null);
+							string ver = ExtractVersionFromJson(file);
+							if (!string.IsNullOrWhiteSpace(ver)) TryAddVersion(ver, null);
 						}
 					}
 				}
 			}
 		}
 
-		if (versions.Count == 0)
-		{
-			versions.Add(FormatVersionDisplay("1.0.0", null));
-		}
+		SearchRoots();
+
+		if (versions.Count == 0) versions.Add(FormatVersionDisplay("1.0.0", null));
 
 		versions.Sort((a, b) => ParseVersion(b).CompareTo(ParseVersion(a)));
 		return versions;
@@ -612,43 +546,53 @@ public static class MapInfoHelper
 	{
 		if (string.IsNullOrWhiteSpace(mapFolderOrName)) return string.Empty;
 
+		string SearchSubdirsForThumb(string basePath)
+		{
+			string thumb = System.IO.Path.Combine(basePath, "thumbnail.png");
+			if (System.IO.File.Exists(thumb)) return thumb;
+
+			foreach (var sub in System.IO.Directory.GetDirectories(basePath))
+			{
+				string subThumb = System.IO.Path.Combine(sub, "thumbnail.png");
+				if (System.IO.File.Exists(subThumb)) return subThumb;
+			}
+			return string.Empty;
+		}
+
+		string TryArchiveVersionSearch(string globalArchive)
+		{
+			if (string.IsNullOrEmpty(version)) return string.Empty;
+			
+			string candidateVersionDir = System.IO.Path.Combine(globalArchive, mapFolderOrName, version);
+			if (!System.IO.Directory.Exists(candidateVersionDir)) return string.Empty;
+			
+			return SearchSubdirsForThumb(candidateVersionDir);
+		}
+
+		string TryArchiveMapDirSearch(string globalArchive)
+		{
+			string candidateMapDir = System.IO.Path.Combine(globalArchive, mapFolderOrName);
+			if (!System.IO.Directory.Exists(candidateMapDir)) return string.Empty;
+			
+			string thumb = System.IO.Path.Combine(candidateMapDir, "thumbnail.png");
+			if (System.IO.File.Exists(thumb)) return thumb;
+
+			foreach (var verDir in System.IO.Directory.GetDirectories(candidateMapDir))
+			{
+				string found = SearchSubdirsForThumb(verDir);
+				if (!string.IsNullOrEmpty(found)) return found;
+			}
+			return string.Empty;
+		}
+
 		string globalArchive = MapAssetManager.GlobalArchiveDirectory;
 		if (System.IO.Directory.Exists(globalArchive))
 		{
-			if (!string.IsNullOrEmpty(version))
-			{
-				string candidateVersionDir = System.IO.Path.Combine(globalArchive, mapFolderOrName, version);
-				if (System.IO.Directory.Exists(candidateVersionDir))
-				{
-					string thumb = System.IO.Path.Combine(candidateVersionDir, "thumbnail.png");
-					if (System.IO.File.Exists(thumb)) return thumb;
+			string archiveVersionFound = TryArchiveVersionSearch(globalArchive);
+			if (!string.IsNullOrEmpty(archiveVersionFound)) return archiveVersionFound;
 
-					foreach (var sub in System.IO.Directory.GetDirectories(candidateVersionDir))
-					{
-						string subThumb = System.IO.Path.Combine(sub, "thumbnail.png");
-						if (System.IO.File.Exists(subThumb)) return subThumb;
-					}
-				}
-			}
-
-			string candidateMapDir = System.IO.Path.Combine(globalArchive, mapFolderOrName);
-			if (System.IO.Directory.Exists(candidateMapDir))
-			{
-				string thumb = System.IO.Path.Combine(candidateMapDir, "thumbnail.png");
-				if (System.IO.File.Exists(thumb)) return thumb;
-
-				foreach (var verDir in System.IO.Directory.GetDirectories(candidateMapDir))
-				{
-					string verThumb = System.IO.Path.Combine(verDir, "thumbnail.png");
-					if (System.IO.File.Exists(verThumb)) return verThumb;
-
-					foreach (var sub in System.IO.Directory.GetDirectories(verDir))
-					{
-						string subThumb = System.IO.Path.Combine(sub, "thumbnail.png");
-						if (System.IO.File.Exists(subThumb)) return subThumb;
-					}
-				}
-			}
+			string archiveMapDirFound = TryArchiveMapDirSearch(globalArchive);
+			if (!string.IsNullOrEmpty(archiveMapDirFound)) return archiveMapDirFound;
 		}
 
 		try

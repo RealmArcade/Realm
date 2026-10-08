@@ -111,61 +111,7 @@ public static class GameAPIExtensions
 
         try
         {
-            using var doc = JsonDocument.Parse(rawContent);
-            var root = doc.RootElement;
-
-            if (!root.TryGetProperty("Payload", out var payloadElement) &&
-                !root.TryGetProperty("payload", out payloadElement))
-            {
-                result = JsonSerializer.Deserialize<T>(rawContent, s_jsonOptions);
-                return result != null;
-            }
-
-            int fileVersion = 1;
-            if (root.TryGetProperty("DataVersion", out var versionElement) ||
-                root.TryGetProperty("dataVersion", out versionElement))
-            {
-                fileVersion = versionElement.GetInt32();
-            }
-
-            string filePlayer = "";
-            if (root.TryGetProperty("PlayerName", out var playerElement) ||
-                root.TryGetProperty("playerName", out playerElement))
-            {
-                filePlayer = playerElement.GetString() ?? "";
-            }
-
-            string fileMap = "";
-            if (root.TryGetProperty("MapName", out var mapElement) ||
-                root.TryGetProperty("mapName", out mapElement))
-            {
-                fileMap = mapElement.GetString() ?? "";
-            }
-
-            string fileSignature = "";
-            if (root.TryGetProperty("Signature", out var sigElement) ||
-                root.TryGetProperty("signature", out sigElement))
-            {
-                fileSignature = sigElement.GetString() ?? "";
-            }
-
-            string payloadJson = payloadElement.GetRawText();
-
-            string checkMap = !string.IsNullOrEmpty(mapName) ? mapName : fileMap;
-            string checkPlayer = !string.IsNullOrEmpty(playerName) ? playerName : filePlayer;
-
-            if (!string.IsNullOrEmpty(fileSignature) &&
-                !SaveSignatureHelper.VerifySignature(checkMap, checkPlayer, fileVersion, payloadJson, fileSignature))
-            {
-                return false;
-            }
-
-            if (fileVersion < targetVersion && migrations != null)
-            {
-                payloadJson = migrations.ApplyMigrations(payloadJson, fileVersion, targetVersion);
-            }
-
-            result = JsonSerializer.Deserialize<T>(payloadJson, s_jsonOptions);
+            result = TryDeserializeData<T>(rawContent, targetVersion, migrations, mapName, playerName);
             return result != null;
         }
         catch
@@ -173,6 +119,66 @@ public static class GameAPIExtensions
             result = default;
             return false;
         }
+    }
+
+    private static T? TryDeserializeData<T>(
+        string rawContent,
+        int targetVersion,
+        SaveMigrationRegistry? migrations,
+        string mapName,
+        string? playerName)
+    {
+        using var doc = JsonDocument.Parse(rawContent);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("Payload", out var payloadElement) &&
+            !root.TryGetProperty("payload", out payloadElement))
+        {
+            return JsonSerializer.Deserialize<T>(rawContent, s_jsonOptions);
+        }
+
+        int fileVersion = GetIntProperty(root, "DataVersion", "dataVersion", 1);
+        string filePlayer = GetStringProperty(root, "PlayerName", "playerName");
+        string fileMap = GetStringProperty(root, "MapName", "mapName");
+        string fileSignature = GetStringProperty(root, "Signature", "signature");
+
+        string payloadJson = payloadElement.GetRawText();
+
+        string checkMap = !string.IsNullOrEmpty(mapName) ? mapName : fileMap;
+        string checkPlayer = !string.IsNullOrEmpty(playerName) ? playerName : filePlayer;
+
+        if (!string.IsNullOrEmpty(fileSignature) &&
+            !SaveSignatureHelper.VerifySignature(checkMap, checkPlayer, fileVersion, payloadJson, fileSignature))
+        {
+            return default;
+        }
+
+        if (fileVersion < targetVersion && migrations != null)
+        {
+            payloadJson = migrations.ApplyMigrations(payloadJson, fileVersion, targetVersion);
+        }
+
+        return JsonSerializer.Deserialize<T>(payloadJson, s_jsonOptions);
+    }
+
+    private static int GetIntProperty(JsonElement root, string key1, string key2, int defaultValue)
+    {
+        if (root.TryGetProperty(key1, out var element) ||
+            root.TryGetProperty(key2, out element))
+        {
+            return element.GetInt32();
+        }
+        return defaultValue;
+    }
+
+    private static string GetStringProperty(JsonElement root, string key1, string key2)
+    {
+        if (root.TryGetProperty(key1, out var element) ||
+            root.TryGetProperty(key2, out element))
+        {
+            return element.GetString() ?? "";
+        }
+        return "";
     }
 
     /// <summary>
@@ -296,67 +302,56 @@ public static class GameAPIExtensions
     /// <param name="heroData">The saved hero progression data to apply.</param>
     public static void RestoreHero(this IUnit unit, HeroSaveData heroData)
     {
-        if (heroData == null)
-        {
-            return;
-        }
+        if (heroData == null) return;
 
+        RestoreHeroCoreStats(unit, heroData);
+        RestoreHeroCombatStats(unit, heroData);
+        RestoreHeroCustomData(unit, heroData);
+    }
+
+    private static void RestoreHeroCoreStats(IUnit unit, HeroSaveData heroData)
+    {
         if (!string.IsNullOrWhiteSpace(heroData.Name))
-        {
             unit.Name = heroData.Name;
-        }
 
         if (heroData.Level > 0)
-        {
             unit.Level = heroData.Level;
-        }
 
         if (heroData.Experience > 0)
-        {
             unit.Experience = heroData.Experience;
-        }
 
         if (heroData.MaxHealth > 0)
-        {
             unit.MaxHealth = heroData.MaxHealth;
-        }
 
         if (heroData.Health > 0)
-        {
             unit.Health = heroData.Health;
-        }
+    }
 
+    private static void RestoreHeroCombatStats(IUnit unit, HeroSaveData heroData)
+    {
         if (heroData.MaxMana > 0)
-        {
             unit.MaxMana = heroData.MaxMana;
-        }
 
         if (heroData.Mana > 0)
-        {
             unit.Mana = heroData.Mana;
-        }
 
         if (heroData.Damage > 0)
-        {
             unit.Damage = heroData.Damage;
-        }
 
         if (heroData.Armor > 0)
-        {
             unit.Armor = heroData.Armor;
-        }
 
         if (heroData.Speed > 0)
-        {
             unit.Speed = heroData.Speed;
-        }
+    }
 
-        if (heroData.CustomData != null)
+    private static void RestoreHeroCustomData(IUnit unit, HeroSaveData heroData)
+    {
+        if (heroData.CustomData == null) return;
+
+        foreach (var kvp in heroData.CustomData)
         {
-            foreach (var kvp in heroData.CustomData)
-            {
-                unit.SetCustomData(kvp.Key, kvp.Value);
-            }
+            unit.SetCustomData(kvp.Key, kvp.Value);
         }
     }
 

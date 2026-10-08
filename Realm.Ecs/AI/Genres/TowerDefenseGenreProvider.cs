@@ -92,34 +92,45 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 	{
 		if (parameters == null) return;
 
-		if (parameters.TryGetValue("BuildSpotsJson", out var spotsJson) && !string.IsNullOrWhiteSpace(spotsJson))
-		{
-			try
-			{
-				var spots = JsonSerializer.Deserialize<List<Vector3>>(spotsJson);
-				if (spots != null)
-				{
-					BuildSpots.Clear();
-					BuildSpots.AddRange(spots);
-				}
-			}
-			catch { }
-		}
+		TryLoadBuildSpots(parameters);
+		TryLoadTowers(parameters);
+		TryLoadAllowSell(parameters);
+	}
 
-		if (parameters.TryGetValue("TowersJson", out var towersJson) && !string.IsNullOrWhiteSpace(towersJson))
-		{
-			try
-			{
-				var towers = JsonSerializer.Deserialize<List<TowerTypeDefinition>>(towersJson);
-				if (towers != null)
-				{
-					AvailableTowers.Clear();
-					AvailableTowers.AddRange(towers);
-				}
-			}
-			catch { }
-		}
+	private void TryLoadBuildSpots(IReadOnlyDictionary<string, string> parameters)
+	{
+		if (!parameters.TryGetValue("BuildSpotsJson", out var spotsJson) || string.IsNullOrWhiteSpace(spotsJson))
+			return;
 
+		try
+		{
+			var spots = JsonSerializer.Deserialize<List<Vector3>>(spotsJson);
+			if (spots == null) return;
+
+			BuildSpots.Clear();
+			BuildSpots.AddRange(spots);
+		}
+		catch { }
+	}
+
+	private void TryLoadTowers(IReadOnlyDictionary<string, string> parameters)
+	{
+		if (!parameters.TryGetValue("TowersJson", out var towersJson) || string.IsNullOrWhiteSpace(towersJson))
+			return;
+
+		try
+		{
+			var towers = JsonSerializer.Deserialize<List<TowerTypeDefinition>>(towersJson);
+			if (towers == null) return;
+
+			AvailableTowers.Clear();
+			AvailableTowers.AddRange(towers);
+		}
+		catch { }
+	}
+
+	private void TryLoadAllowSell(IReadOnlyDictionary<string, string> parameters)
+	{
 		if (parameters.TryGetValue("AllowSell", out var allowSellStr) && bool.TryParse(allowSellStr, out bool sellVal))
 		{
 			AllowSell = sellVal;
@@ -132,198 +143,201 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		_existingTowers.Clear();
 		_activeCreeps.Clear();
 
-		Vector3 creepCenter = Vector3.Zero;
-		float minCreepDistToExit = float.MaxValue;
-		Vector3 leakThreatPos = Vector3.Zero;
-
-		world.Query(in _enemyCreepQuery, (Entity e, ref Position p, ref Health hp) =>
-		{
-			int ownerIndex = -1;
-			if (world.Has<UnitOwnerPlayer>(e))
-			{
-				ownerIndex = world.Get<UnitOwnerPlayer>(e).PlayerIndex;
-			}
-			else if (world.Has<Owner>(e))
-			{
-				var pEnt = world.Get<Owner>(e).PlayerEntity.Value;
-				if (world.IsAlive(pEnt) && world.Has<UnitOwnerPlayer>(pEnt))
-				{
-					ownerIndex = world.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
-				}
-			}
-
-			if (ownerIndex != playerIndex)
-			{
-				_activeCreeps.Add(e);
-				creepCenter += p.Value;
-
-				float distToExit = p.Value.Length();
-				if (distToExit < minCreepDistToExit)
-				{
-					minCreepDistToExit = distToExit;
-					leakThreatPos = p.Value;
-				}
-			}
-			else
-			{
-				_existingTowers.Add(e);
-			}
-		});
+		AnalyzeEntities(world, playerIndex, out Vector3 creepCenter, out float minCreepDistToExit);
 
 		int creepCount = _activeCreeps.Count;
-		if (creepCount > 0)
-		{
-			creepCenter /= creepCount;
-		}
+		if (creepCount > 0) creepCenter /= creepCount;
 
-		Entity playerEntity = Entity.Null;
-		world.Query(in _playerResourcesQuery, (Entity pe) =>
-		{
-			if (world.Has<UnitOwnerPlayer>(pe) && world.Get<UnitOwnerPlayer>(pe).PlayerIndex == playerIndex)
-			{
-				playerEntity = pe;
-			}
-			else if (playerEntity == Entity.Null)
-			{
-				playerEntity = pe;
-			}
-		});
-
-		int playerGold = 500;
-		if (world.IsAlive(playerEntity) && world.Has<PlayerResources>(playerEntity))
-		{
-			var res = world.Get<PlayerResources>(playerEntity).Value;
-			if (res.Count > 0)
-			{
-				playerGold = res.Values.FirstOrDefault();
-			}
-		}
+		int playerGold = GetPlayerGold(world, playerIndex);
 
 		float waveThreat = Math.Clamp(creepCount / 20.0f, 0f, 1f);
 		float leakUrgency = creepCount > 0 ? Math.Clamp((50.0f - minCreepDistToExit) / 50.0f, 0f, 1f) : 0f;
 		float interestThreshold = Math.Clamp(playerGold / 1000.0f, 0f, 1f);
 
+		var occupiedPositions = GetOccupiedPositions(world);
+
+		EvaluateBuildSpots(destinationList, playerGold, creepCenter, creepCount, waveThreat, leakUrgency, interestThreshold, occupiedPositions);
+		EvaluateExistingTowers(world, destinationList, playerGold, creepCenter, creepCount, waveThreat, leakUrgency, interestThreshold);
+	}
+
+	private void AnalyzeEntities(World world, int playerIndex, out Vector3 creepCenter, out float minCreepDistToExit)
+	{
+		Vector3 center = Vector3.Zero;
+		float minDist = float.MaxValue;
+
+		world.Query(in _enemyCreepQuery, (Entity e, ref Position p, ref Health hp) =>
+		{
+			int ownerIndex = GetOwnerIndex(world, e);
+
+			if (ownerIndex == playerIndex)
+			{
+				_existingTowers.Add(e);
+				return;
+			}
+
+			_activeCreeps.Add(e);
+			center += p.Value;
+
+			float distToExit = p.Value.Length();
+			if (distToExit < minDist) minDist = distToExit;
+		});
+
+		creepCenter = center;
+		minCreepDistToExit = minDist;
+	}
+
+	private int GetOwnerIndex(World world, Entity e)
+	{
+		if (world.Has<UnitOwnerPlayer>(e))
+			return world.Get<UnitOwnerPlayer>(e).PlayerIndex;
+
+		if (world.Has<Owner>(e))
+		{
+			var pEnt = world.Get<Owner>(e).PlayerEntity.Value;
+			if (world.IsAlive(pEnt) && world.Has<UnitOwnerPlayer>(pEnt))
+				return world.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
+		}
+
+		return -1;
+	}
+
+	private int GetPlayerGold(World world, int playerIndex)
+	{
+		Entity playerEntity = Entity.Null;
+		world.Query(in _playerResourcesQuery, (Entity pe) =>
+		{
+			if (world.Has<UnitOwnerPlayer>(pe) && world.Get<UnitOwnerPlayer>(pe).PlayerIndex == playerIndex)
+				playerEntity = pe;
+			else if (playerEntity == Entity.Null)
+				playerEntity = pe;
+		});
+
+		if (world.IsAlive(playerEntity) && world.Has<PlayerResources>(playerEntity))
+		{
+			var res = world.Get<PlayerResources>(playerEntity).Value;
+			if (res.Count > 0) return res.Values.FirstOrDefault();
+		}
+
+		return 500;
+	}
+
+	private List<Vector3> GetOccupiedPositions(World world)
+	{
 		var occupiedPositions = new List<Vector3>(_existingTowers.Count);
 		for (int i = 0; i < _existingTowers.Count; i++)
 		{
 			var tower = _existingTowers[i];
 			if (world.IsAlive(tower) && world.Has<Position>(tower))
-			{
 				occupiedPositions.Add(world.Get<Position>(tower).Value);
-			}
 		}
+		return occupiedPositions;
+	}
 
+	private void EvaluateBuildSpots(List<GenericAffordance> destinationList, int playerGold, Vector3 creepCenter, int creepCount, float waveThreat, float leakUrgency, float interestThreshold, List<Vector3> occupiedPositions)
+	{
 		for (int sIdx = 0; sIdx < BuildSpots.Count; sIdx++)
 		{
 			var spot = BuildSpots[sIdx];
-			bool isOccupied = false;
-			for (int oIdx = 0; oIdx < occupiedPositions.Count; oIdx++)
-			{
-				if (Vector3.DistanceSquared(spot, occupiedPositions[oIdx]) < 4.0f)
-				{
-					isOccupied = true;
-					break;
-				}
-			}
-
-			if (isOccupied) continue;
+			if (IsSpotOccupied(spot, occupiedPositions)) continue;
 
 			float distToCreepCenter = creepCount > 0 ? Vector3.Distance(spot, creepCenter) : 50.0f;
 			float strategicValue = Math.Clamp((60.0f - distToCreepCenter) / 60.0f, 0.1f, 1.0f);
 
-			for (int tIdx = 0; tIdx < AvailableTowers.Count; tIdx++)
-			{
-				var towerDef = AvailableTowers[tIdx];
-				if (playerGold >= towerDef.Cost)
-				{
-					float costRatio = Math.Clamp((float)towerDef.Cost / Math.Max(1, playerGold), 0f, 1f);
-					float dps = towerDef.Damage * towerDef.AttackSpeed;
-					float dpsPerGold = Math.Clamp((dps / towerDef.Cost) * 4.0f, 0f, 1f);
-					float affinity = string.Equals(towerDef.DamageType, "Magic", StringComparison.OrdinalIgnoreCase) ? 0.8f : 0.6f;
-					float slowFactor = towerDef.HasSlow ? 1.0f : 0.0f;
-
-					float[] fVec = new float[TdFeatureCount]
-					{
-						costRatio,
-						waveThreat,
-						strategicValue,
-						dpsPerGold,
-						affinity,
-						slowFactor,
-						leakUrgency,
-						interestThreshold
-					};
-
-					destinationList.Add(new GenericAffordance(
-						Entity.Null,
-						CommandIntent.Build,
-						Entity.Null,
-						spot,
-						$"build_tower:{towerDef.Id}",
-						fVec
-					));
-				}
-			}
+			EvaluateTowerDef(destinationList, spot, playerGold, strategicValue, waveThreat, leakUrgency, interestThreshold);
 		}
+	}
 
+	private bool IsSpotOccupied(Vector3 spot, List<Vector3> occupiedPositions)
+	{
+		for (int oIdx = 0; oIdx < occupiedPositions.Count; oIdx++)
+		{
+			if (Vector3.DistanceSquared(spot, occupiedPositions[oIdx]) < 4.0f) return true;
+		}
+		return false;
+	}
+
+	private void EvaluateTowerDef(List<GenericAffordance> destinationList, Vector3 spot, int playerGold, float strategicValue, float waveThreat, float leakUrgency, float interestThreshold)
+	{
+		for (int tIdx = 0; tIdx < AvailableTowers.Count; tIdx++)
+		{
+			var towerDef = AvailableTowers[tIdx];
+			if (playerGold < towerDef.Cost) continue;
+
+			float costRatio = Math.Clamp((float)towerDef.Cost / Math.Max(1, playerGold), 0f, 1f);
+			float dps = towerDef.Damage * towerDef.AttackSpeed;
+			float dpsPerGold = Math.Clamp((dps / towerDef.Cost) * 4.0f, 0f, 1f);
+			float affinity = string.Equals(towerDef.DamageType, "Magic", StringComparison.OrdinalIgnoreCase) ? 0.8f : 0.6f;
+			float slowFactor = towerDef.HasSlow ? 1.0f : 0.0f;
+
+			float[] fVec = new float[TdFeatureCount]
+			{
+				costRatio,
+				waveThreat,
+				strategicValue,
+				dpsPerGold,
+				affinity,
+				slowFactor,
+				leakUrgency,
+				interestThreshold
+			};
+
+			destinationList.Add(new GenericAffordance(Entity.Null, CommandIntent.Build, Entity.Null, spot, $"build_tower:{towerDef.Id}", fVec));
+		}
+	}
+
+	private void EvaluateExistingTowers(World world, List<GenericAffordance> destinationList, int playerGold, Vector3 creepCenter, int creepCount, float waveThreat, float leakUrgency, float interestThreshold)
+	{
 		for (int i = 0; i < _existingTowers.Count; i++)
 		{
 			var tower = _existingTowers[i];
 			if (!world.IsAlive(tower)) continue;
 
 			var towerPos = world.Has<Position>(tower) ? world.Get<Position>(tower).Value : Vector3.Zero;
-			var towerDef = AvailableTowers.FirstOrDefault();
-			if (towerDef != null && !string.IsNullOrEmpty(towerDef.NextUpgradeId) && playerGold >= towerDef.UpgradeCost)
-			{
-				float costRatio = Math.Clamp((float)towerDef.UpgradeCost / Math.Max(1, playerGold), 0f, 1f);
-				float strategicValue = creepCount > 0 ? Math.Clamp((60.0f - Vector3.Distance(towerPos, creepCenter)) / 60.0f, 0.1f, 1f) : 0.5f;
-
-				float[] fVec = new float[TdFeatureCount]
-				{
-					costRatio,
-					waveThreat,
-					strategicValue,
-					0.9f,
-					0.7f,
-					towerDef.HasSlow ? 1.0f : 0.2f,
-					leakUrgency,
-					interestThreshold
-				};
-
-				destinationList.Add(new GenericAffordance(
-					tower,
-					CommandIntent.Interact,
-					Entity.Null,
-					towerPos,
-					$"upgrade_tower:{towerDef.NextUpgradeId}",
-					fVec
-				));
-			}
-
-			if (AllowSell && playerGold < 100 && leakUrgency > 0.7f)
-			{
-				float[] fVec = new float[TdFeatureCount]
-				{
-					0.0f,
-					waveThreat,
-					0.1f,
-					0.2f,
-					0.0f,
-					0.0f,
-					leakUrgency,
-					0.1f
-				};
-
-				destinationList.Add(new GenericAffordance(
-					tower,
-					CommandIntent.Transact,
-					Entity.Null,
-					towerPos,
-					"sell_tower",
-					fVec
-				));
-			}
+			EvaluateTowerUpgrade(destinationList, tower, towerPos, playerGold, creepCenter, creepCount, waveThreat, leakUrgency, interestThreshold);
+			EvaluateTowerSell(destinationList, tower, towerPos, playerGold, waveThreat, leakUrgency);
 		}
+	}
+
+	private void EvaluateTowerUpgrade(List<GenericAffordance> destinationList, Entity tower, Vector3 towerPos, int playerGold, Vector3 creepCenter, int creepCount, float waveThreat, float leakUrgency, float interestThreshold)
+	{
+		var towerDef = AvailableTowers.FirstOrDefault();
+		if (towerDef == null || string.IsNullOrEmpty(towerDef.NextUpgradeId) || playerGold < towerDef.UpgradeCost) return;
+
+		float costRatio = Math.Clamp((float)towerDef.UpgradeCost / Math.Max(1, playerGold), 0f, 1f);
+		float strategicValue = creepCount > 0 ? Math.Clamp((60.0f - Vector3.Distance(towerPos, creepCenter)) / 60.0f, 0.1f, 1f) : 0.5f;
+
+		float[] fVec = new float[TdFeatureCount]
+		{
+			costRatio,
+			waveThreat,
+			strategicValue,
+			0.9f,
+			0.7f,
+			towerDef.HasSlow ? 1.0f : 0.2f,
+			leakUrgency,
+			interestThreshold
+		};
+
+		destinationList.Add(new GenericAffordance(tower, CommandIntent.Interact, Entity.Null, towerPos, $"upgrade_tower:{towerDef.NextUpgradeId}", fVec));
+	}
+
+	private void EvaluateTowerSell(List<GenericAffordance> destinationList, Entity tower, Vector3 towerPos, int playerGold, float waveThreat, float leakUrgency)
+	{
+		if (!AllowSell || playerGold >= 100 || leakUrgency <= 0.7f) return;
+
+		float[] fVec = new float[TdFeatureCount]
+		{
+			0.0f,
+			waveThreat,
+			0.1f,
+			0.2f,
+			0.0f,
+			0.0f,
+			leakUrgency,
+			0.1f
+		};
+
+		destinationList.Add(new GenericAffordance(tower, CommandIntent.Transact, Entity.Null, towerPos, "sell_tower", fVec));
 	}
 
 	public void ExecuteAction(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)

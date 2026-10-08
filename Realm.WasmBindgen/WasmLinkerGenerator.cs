@@ -73,58 +73,64 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             return;
 
         var entityInterfaces = DiscoverEntityInterfaces(gameApiSymbol);
-
         string staticWit = input.Right.FirstOrDefault() ?? "";
-        string manualFunctions = "";
-        if (!string.IsNullOrEmpty(staticWit))
+        string manualFunctions = ExtractManualFunctions(staticWit);
+
+        string witContent = GenerateWitContent(gameApiSymbol, entityInterfaces, manualFunctions);
+        string mapApiWitPath = FindMapApiWitPath(compilation);
+        WriteWitContent(mapApiWitPath, witContent);
+
+        GenerateOutputSources(context, compilation.AssemblyName ?? "", gameApiSymbol, entityInterfaces, manualFunctions);
+    }
+
+    private static string ExtractManualFunctions(string staticWit)
+    {
+        if (string.IsNullOrEmpty(staticWit))
+            return "";
+
+        var match = GameApiInterfaceRegex().Match(staticWit);
+        return match.Success ? match.Groups[1].Value.Trim() : "";
+    }
+
+    private static string FindMapApiWitPath(Compilation compilation)
+    {
+        var syntaxTree = compilation.SyntaxTrees.FirstOrDefault(t => !string.IsNullOrEmpty(t.FilePath));
+        if (syntaxTree == null)
+            throw new Exception(@"[WasmLinkerGenerator] Error: unable to determine path for Realm.MapAPI\wit\game.g.wit");
+
+        string? dir = System.IO.Path.GetDirectoryName(syntaxTree.FilePath);
+        while (dir != null)
         {
-            var match = GameApiInterfaceRegex().Match(staticWit);
-            if (match.Success)
+            string candidate = System.IO.Path.Combine(dir, "Realm.MapAPI", "wit", "game.g.wit");
+            if (System.IO.File.Exists(candidate) || System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(candidate)))
+                return candidate;
+
+            if (System.IO.Path.GetFileName(dir) == "Realm.MapAPI")
             {
-                manualFunctions = match.Groups[1].Value.Trim();
+                string candidateInProject = System.IO.Path.Combine(dir, "wit", "game.g.wit");
+                if (System.IO.File.Exists(candidateInProject) || System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(candidateInProject)))
+                    return candidateInProject;
             }
+            dir = System.IO.Path.GetDirectoryName(dir);
         }
 
-        // Always write the game.g.wit to the MapAPI folder during compilation
-        string witContent = GenerateWitContent(gameApiSymbol, entityInterfaces, manualFunctions);
-        string? mapApiWitPath = null;
-        var syntaxTree = compilation.SyntaxTrees.FirstOrDefault(t => !string.IsNullOrEmpty(t.FilePath));
-        if (syntaxTree != null)
-        {
-            string? dir = System.IO.Path.GetDirectoryName(syntaxTree.FilePath);
-            while (dir != null)
-            {
-                string candidate = System.IO.Path.Combine(dir, "Realm.MapAPI", "wit", "game.g.wit");
-                if (System.IO.File.Exists(candidate) || System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(candidate)))
-                {
-                    mapApiWitPath = candidate;
-                    break;
-                }
-                if (System.IO.Path.GetFileName(dir) == "Realm.MapAPI")
-                {
-                    string candidateInProject = System.IO.Path.Combine(dir, "wit", "game.g.wit");
-                    if (System.IO.File.Exists(candidateInProject) || System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(candidateInProject)))
-                    {
-                        mapApiWitPath = candidateInProject;
-                        break;
-                    }
-                }
-                dir = System.IO.Path.GetDirectoryName(dir);
-            }
-        }
-        if (string.IsNullOrEmpty(mapApiWitPath))
-        {
-            throw new Exception(@"[WasmLinkerGenerator] Error: unable to determine path for Realm.MapAPI\wit\game.g.wit");
-        }
-        if (System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(mapApiWitPath)))
+        throw new Exception(@"[WasmLinkerGenerator] Error: unable to determine path for Realm.MapAPI\wit\game.g.wit");
+    }
+
+    private static void WriteWitContent(string mapApiWitPath, string witContent)
+    {
+        string? dir = System.IO.Path.GetDirectoryName(mapApiWitPath);
+        if (dir != null && System.IO.Directory.Exists(dir))
         {
             if (!System.IO.File.Exists(mapApiWitPath) || System.IO.File.ReadAllText(mapApiWitPath, Encoding.UTF8) != witContent)
             {
                 System.IO.File.WriteAllText(mapApiWitPath, witContent, Encoding.UTF8);
             }
         }
+    }
 
-        string assemblyName = compilation.AssemblyName ?? "";
+    private static void GenerateOutputSources(SourceProductionContext context, string assemblyName, INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces, string manualFunctions)
+    {
         if (assemblyName == "Realm.Godot")
         {
             context.AddSource("WasmRuntime.g.cs",
@@ -314,6 +320,21 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
     private static string GenerateHostBindings(INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces)
     {
         var sb = new StringBuilder();
+        AppendHostBindingsHeader(sb);
+
+        var definedFunctions = new HashSet<string>();
+        bool lastWasMultiLine = false;
+
+        GenerateGameApiBindings(sb, gameApiSymbol, definedFunctions, ref lastWasMultiLine);
+        GenerateEntityInterfaceBindings(sb, entityInterfaces, gameApiSymbol, definedFunctions, ref lastWasMultiLine);
+
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    private static void AppendHostBindingsHeader(StringBuilder sb)
+    {
         sb.AppendLine("// <auto-generated/>");
         sb.AppendLine("#nullable enable");
         sb.AppendLine("using System;");
@@ -329,33 +350,33 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         sb.AppendLine("    {");
         sb.AppendLine("        const string mod = \"custom:game/game-api\";");
         sb.AppendLine();
+    }
 
+    private static void GenerateGameApiBindings(StringBuilder sb, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, ref bool lastWasMultiLine)
+    {
         var propertyAccessorMethods = CollectPropertyAccessorNames(gameApiSymbol);
-        var definedFunctions = new HashSet<string>();
-        bool lastWasMultiLine = false;
-
-        // Auto-generate IGameAPI bindings
+        
         foreach (var member in gameApiSymbol.GetMembers())
         {
-            if (member is IEventSymbol)
-                continue;
-
-            if (!member.IsAbstract)
+            if (member is IEventSymbol || !member.IsAbstract)
                 continue;
 
             if (member is IPropertySymbol property)
-                EmitPropertyBindings(sb, property, ref lastWasMultiLine, "(_cachedApi ?? (IGameAPI?)GameHost.Instance)", definedFunctions);
-            else if (member is IMethodSymbol method)
             {
-                if (method.MethodKind != MethodKind.Ordinary)
-                    continue;
-                if (propertyAccessorMethods.Contains(method.Name))
-                    continue;
-                EmitMethodBinding(sb, method, ref lastWasMultiLine, "(_cachedApi ?? (IGameAPI?)GameHost.Instance)", gameApiSymbol, definedFunctions);
+                EmitPropertyBindings(sb, property, ref lastWasMultiLine, "(_cachedApi ?? (IGameAPI?)GameHost.Instance)", definedFunctions);
+            }
+            else if (member is IMethodSymbol method && method.MethodKind == MethodKind.Ordinary)
+            {
+                if (!propertyAccessorMethods.Contains(method.Name))
+                {
+                    EmitMethodBinding(sb, method, ref lastWasMultiLine, "(_cachedApi ?? (IGameAPI?)GameHost.Instance)", gameApiSymbol, definedFunctions);
+                }
             }
         }
+    }
 
-        // Auto-generate discovered entity interface bindings
+    private static void GenerateEntityInterfaceBindings(StringBuilder sb, HashSet<INamedTypeSymbol> entityInterfaces, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions, ref bool lastWasMultiLine)
+    {
         foreach (var entityIface in entityInterfaces)
         {
             string tKebab = ToKebabCase(CleanInterfaceName(entityIface));
@@ -376,23 +397,19 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
                 if (!member.IsAbstract)
                     continue;
 
-                if (member is IPropertySymbol property)
+                if (member is IPropertySymbol property && property.Name != "UniqueId")
                 {
-                    if (property.Name == "UniqueId") continue;
                     EmitEntityPropertyBindings(sb, property, tKebab, entityIface, gameApiSymbol, ref lastWasMultiLine, definedFunctions);
                 }
-                else if (member is IMethodSymbol method)
+                else if (member is IMethodSymbol method && method.MethodKind == MethodKind.Ordinary)
                 {
-                    if (method.MethodKind != MethodKind.Ordinary) continue;
-                    if (accessorMethods.Contains(method.Name)) continue;
-                    EmitEntityMethodBinding(sb, method, tKebab, entityIface, gameApiSymbol, ref lastWasMultiLine, definedFunctions);
+                    if (!accessorMethods.Contains(method.Name))
+                    {
+                        EmitEntityMethodBinding(sb, method, tKebab, entityIface, gameApiSymbol, ref lastWasMultiLine, definedFunctions);
+                    }
                 }
             }
         }
-
-        sb.AppendLine("    }");
-        sb.AppendLine("}");
-        return sb.ToString();
     }
 
     private static void EmitEntityPropertyBindings(StringBuilder sb, IPropertySymbol property, string tKebab, INamedTypeSymbol entitySymbol, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine, HashSet<string> definedFunctions)
@@ -402,29 +419,41 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
         if (property.Type.ToDisplayString() == "System.Numerics.Vector3")
         {
-            if (definedFunctions.Add($"{witBase}-x"))
-                sb.AppendLine($"        _linker.DefineFunction(mod, \"{witBase}-x\", (int id) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.X : 0f; }});");
-            if (definedFunctions.Add($"{witBase}-y"))
-                sb.AppendLine($"        _linker.DefineFunction(mod, \"{witBase}-y\", (int id) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.Y : 0f; }});");
-            if (definedFunctions.Add($"{witBase}-z"))
-                sb.AppendLine($"        _linker.DefineFunction(mod, \"{witBase}-z\", (int id) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.Z : 0f; }});");
-
-            if (property.SetMethod != null)
-            {
-                string setWitBase = "set-" + witBase;
-                if (definedFunctions.Add(setWitBase))
-                {
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, float valX, float valY, float valZ) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = new System.Numerics.Vector3(valX, valY, valZ); }});");
-                }
-            }
+            EmitEntityVector3Property(sb, property, witBase, resolver, definedFunctions);
             return;
         }
 
         var retKind = ClassifyReturn(property.Type);
         if (retKind == RetKind.Unsupported) return;
 
+        EmitEntityStandardProperty(sb, property, witBase, resolver, gameApiSymbol, retKind, ref lastWasMultiLine, definedFunctions);
+        EmitEntityPropertySetter(sb, property, witBase, resolver, gameApiSymbol, definedFunctions);
+    }
+
+    private static void EmitEntityVector3Property(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, HashSet<string> definedFunctions)
+    {
+        if (definedFunctions.Add($"{witBase}-x"))
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{witBase}-x\", (int id) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.X : 0f; }});");
+        if (definedFunctions.Add($"{witBase}-y"))
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{witBase}-y\", (int id) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.Y : 0f; }});");
+        if (definedFunctions.Add($"{witBase}-z"))
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{witBase}-z\", (int id) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.Z : 0f; }});");
+
+        if (property.SetMethod != null)
+        {
+            string setWitBase = "set-" + witBase;
+            if (definedFunctions.Add(setWitBase))
+            {
+                sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, float valX, float valY, float valZ) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = new System.Numerics.Vector3(valX, valY, valZ); }});");
+            }
+        }
+    }
+
+    private static void EmitEntityStandardProperty(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, INamedTypeSymbol gameApiSymbol, RetKind retKind, ref bool lastWasMultiLine, HashSet<string> definedFunctions)
+    {
         string expr = $"(_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id)?.{property.Name}";
         string mapped;
+
         if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
         {
             IsEntityInterface(property.Type, out var unwrapped);
@@ -464,26 +493,27 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             }
             lastWasMultiLine = false;
         }
+    }
 
-        if (property.SetMethod != null)
+    private static void EmitEntityPropertySetter(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions)
+    {
+        if (property.SetMethod == null) return;
+
+        string setWitBase = "set-" + witBase;
+        if (!definedFunctions.Add(setWitBase)) return;
+
+        if (property.Type.SpecialType == SpecialType.System_Boolean)
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val != 0; }});");
+        else if (property.Type.SpecialType == SpecialType.System_Single)
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, float val) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val; }});");
+        else if (property.Type.SpecialType == SpecialType.System_Int32)
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val; }});");
+        else if (property.Type.SpecialType == SpecialType.System_String)
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (Caller caller, int id, int valPtr, int valLen) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = ReadGuestString(caller, valPtr, valLen); }});");
+        else if (IsEntityInterface(property.Type, out var unwrapped))
         {
-            string setWitBase = "set-" + witBase;
-            if (definedFunctions.Add(setWitBase))
-            {
-                if (property.Type.SpecialType == SpecialType.System_Boolean)
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val != 0; }});");
-                else if (property.Type.SpecialType == SpecialType.System_Single)
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, float val) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val; }});");
-                else if (property.Type.SpecialType == SpecialType.System_Int32)
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val; }});");
-                else if (property.Type.SpecialType == SpecialType.System_String)
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (Caller caller, int id, int valPtr, int valLen) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = ReadGuestString(caller, valPtr, valLen); }});");
-                else if (IsEntityInterface(property.Type, out var unwrapped))
-                {
-                    string resolverR = FindResolverMember(gameApiSymbol, unwrapped);
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolverR}(val); }});");
-                }
-            }
+            string resolverR = FindResolverMember(gameApiSymbol, unwrapped);
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ var u = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolverR}(val); }});");
         }
     }
 
@@ -499,19 +529,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
         if (retKind == RetKind.StringListReturn)
         {
-            sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-count\", (int id) =>");
-            sb.AppendLine("        {");
-            sb.AppendLine($"            var target = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id);");
-            sb.AppendLine($"            return target?.{method.Name}().Count() ?? 0;");
-            sb.AppendLine("        });");
-
-            sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-get\", (Caller caller, int id, int index, int retArea) =>");
-            sb.AppendLine("        {");
-            sb.AppendLine($"            var target = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id);");
-            sb.AppendLine($"            string s = target?.{method.Name}().ElementAtOrDefault(index) ?? \"\";");
-            sb.AppendLine("            WriteGuestString(caller, retArea, s);");
-            sb.AppendLine("        });");
-            lastWasMultiLine = true;
+            EmitEntityStringListMethod(sb, witName, resolver, method, ref lastWasMultiLine);
             return;
         }
 
@@ -525,29 +543,13 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
         bool hasStringParam = method.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
         bool hasStringListParam = method.Parameters.Any(p => ClassifyParam(p.Type) == PrmKind.StringListParam);
-        bool hasVector3Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector3");
-        bool hasVector3NullableParam = method.Parameters.Any(p => IsNullableVector3(p.Type));
-        bool hasUnitParam = method.Parameters.Any(p => IsEntityInterface(p.Type, out _));
         bool needsRetArea = retKind == RetKind.StringReturn;
         bool needsCaller = hasStringParam || hasStringListParam || needsRetArea;
 
         var lambdaParams = new List<string>();
         if (needsCaller) lambdaParams.Add("Caller caller");
         lambdaParams.Add("int id");
-        foreach (var p in paramInfos)
-        {
-            switch (p.Kind)
-            {
-                case PrmKind.StringParam: lambdaParams.Add($"int {p.Name}Ptr"); lambdaParams.Add($"int {p.Name}Len"); break;
-                case PrmKind.StringListParam: lambdaParams.Add($"int {p.Name}Ptr"); lambdaParams.Add($"int {p.Name}Len"); break;
-                case PrmKind.DirectFloat: lambdaParams.Add($"float {p.Name}"); break;
-                case PrmKind.DirectInt:
-                case PrmKind.BoolParam: lambdaParams.Add($"int {p.Name}"); break;
-                case PrmKind.EntityParam: lambdaParams.Add($"int {p.Name}Id"); break;
-                case PrmKind.Vector3Param: lambdaParams.Add($"float {p.Name}X"); lambdaParams.Add($"float {p.Name}Y"); lambdaParams.Add($"float {p.Name}Z"); break;
-                case PrmKind.Vector3NullableParam: lambdaParams.Add($"float {p.Name}R"); lambdaParams.Add($"float {p.Name}G"); lambdaParams.Add($"float {p.Name}B"); lambdaParams.Add($"int {p.Name}HasColor"); break;
-            }
-        }
+        lambdaParams.AddRange(paramInfos.Select(GetLambdaParamDefinition).Where(s => !string.IsNullOrEmpty(s)));
         if (needsRetArea) lambdaParams.Add("int retArea");
 
         if (lastWasMultiLine) sb.AppendLine();
@@ -557,24 +559,71 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         sb.AppendLine("            if (hostTarget != null)");
         sb.AppendLine("            {");
 
+        EmitEntityMethodParameters(sb, paramInfos, gameApiSymbol);
+        EmitEntityMethodCall(sb, method, retKind, gameApiSymbol, needsRetArea);
+
+        sb.AppendLine("            }");
+        if (method.ReturnType.SpecialType != SpecialType.System_Void && !needsRetArea)
+        {
+            sb.AppendLine($"            return { (retKind == RetKind.DirectFloat ? "0f" : "0") };");
+        }
+        sb.AppendLine("        });");
+        lastWasMultiLine = true;
+    }
+
+    private static void EmitEntityStringListMethod(StringBuilder sb, string witName, string resolver, IMethodSymbol method, ref bool lastWasMultiLine)
+    {
+        sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-count\", (int id) =>");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            var target = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id);");
+        sb.AppendLine($"            return target?.{method.Name}().Count() ?? 0;");
+        sb.AppendLine("        });");
+
+        sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-get\", (Caller caller, int id, int index, int retArea) =>");
+        sb.AppendLine("        {");
+        sb.AppendLine($"            var target = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{resolver}(id);");
+        sb.AppendLine($"            string s = target?.{method.Name}().ElementAtOrDefault(index) ?? \"\";");
+        sb.AppendLine("            WriteGuestString(caller, retArea, s);");
+        sb.AppendLine("        });");
+        lastWasMultiLine = true;
+    }
+
+    private static string GetLambdaParamDefinition(ParamInfo p)
+    {
+        return p.Kind switch
+        {
+            PrmKind.StringParam => $"int {p.Name}Ptr, int {p.Name}Len",
+            PrmKind.StringListParam => $"int {p.Name}Ptr, int {p.Name}Len",
+            PrmKind.DirectFloat => $"float {p.Name}",
+            PrmKind.DirectInt or PrmKind.BoolParam => $"int {p.Name}",
+            PrmKind.EntityParam => $"int {p.Name}Id",
+            PrmKind.Vector3Param => $"float {p.Name}X, float {p.Name}Y, float {p.Name}Z",
+            PrmKind.Vector3NullableParam => $"float {p.Name}R, float {p.Name}G, float {p.Name}B, int {p.Name}HasColor",
+            _ => ""
+        };
+    }
+
+    private static void EmitEntityMethodParameters(StringBuilder sb, List<ParamInfo> paramInfos, INamedTypeSymbol gameApiSymbol)
+    {
         foreach (var p in paramInfos)
+        {
             if (p.Kind == PrmKind.StringParam)
                 sb.AppendLine($"                string {p.Name} = ReadGuestString(caller, {p.Name}Ptr, {p.Name}Len);");
             else if (p.Kind == PrmKind.StringListParam)
                 sb.AppendLine($"                string[] {p.Name} = ReadGuestStringList(caller, {p.Name}Ptr, {p.Name}Len);");
-        foreach (var p in paramInfos)
-            if (p.Kind == PrmKind.Vector3Param)
-            {
+            else if (p.Kind == PrmKind.Vector3Param)
                 sb.AppendLine($"                var {p.Name} = new System.Numerics.Vector3({p.Name}X, {p.Name}Y, {p.Name}Z);");
-            }
-        foreach (var p in paramInfos)
-            if (p.Kind == PrmKind.EntityParam)
+            else if (p.Kind == PrmKind.EntityParam)
             {
                 IsEntityInterface(p.Type, out var unwrapped);
                 string res = FindResolverMember(gameApiSymbol, unwrapped);
                 sb.AppendLine($"                var {p.Name} = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{res}({p.Name}Id);");
             }
+        }
+    }
 
+    private static void EmitEntityMethodCall(StringBuilder sb, IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, bool needsRetArea)
+    {
         var callArgs = new List<string>();
         foreach (var p in method.Parameters)
         {
@@ -605,7 +654,9 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
                 IsEntityInterface(method.ReturnType, out var unwrapped);
                 bool targetHasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol p && p.Name == "UniqueId");
                 if (targetHasId)
+                {
                     exprMapped = $"({callExpr})?.UniqueId ?? 0";
+                }
                 else
                 {
                     string colName = FindCollectionMember(gameApiSymbol, unwrapped);
@@ -622,61 +673,56 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             }
             sb.AppendLine($"                return {exprMapped};");
         }
-
-        sb.AppendLine("            }");
-        if (method.ReturnType.SpecialType != SpecialType.System_Void && !needsRetArea)
-        {
-            sb.AppendLine($"            return { (retKind == RetKind.DirectFloat ? "0f" : "0") };");
-        }
-        sb.AppendLine("        });");
-        lastWasMultiLine = true;
     }
 
     private static void EmitPropertyBindings(StringBuilder sb, IPropertySymbol property, ref bool lastWasMultiLine, string targetInstance, HashSet<string> definedFunctions)
     {
         var retKind = ClassifyReturn(property.Type);
-        if (retKind == RetKind.Unsupported)
+        if (retKind == RetKind.Unsupported || RetKindToWit(retKind) == null)
             return;
 
         string witBase = ToKebabCase(property.Name);
-        string? witType = RetKindToWit(retKind);
-        if (witType == null)
-            return;
 
-        if (property.GetMethod != null)
-        {
-            string getWitBase = $"get-{witBase}";
-            if (definedFunctions.Add(getWitBase))
-            {
-                if (lastWasMultiLine) sb.AppendLine();
-                string expr = BuildPropertyGetterExpression(property.Name, retKind, targetInstance);
-                if (retKind == RetKind.StringReturn)
-                {
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"get-{witBase}\", (Caller caller, int retArea) => {{ string s = {expr}; WriteGuestString(caller, retArea, s); }});");
-                }
-                else
-                {
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"get-{witBase}\", () => {expr});");
-                }
-                lastWasMultiLine = false;
-            }
-        }
+        EmitPropertyGetter(sb, property, witBase, retKind, targetInstance, ref lastWasMultiLine, definedFunctions);
+        EmitPropertySetter(sb, property, witBase, targetInstance, definedFunctions);
+    }
 
-        if (property.SetMethod != null)
+    private static void EmitPropertyGetter(StringBuilder sb, IPropertySymbol property, string witBase, RetKind retKind, string targetInstance, ref bool lastWasMultiLine, HashSet<string> definedFunctions)
+    {
+        if (property.GetMethod == null) return;
+
+        string getWitBase = $"get-{witBase}";
+        if (!definedFunctions.Add(getWitBase)) return;
+
+        if (lastWasMultiLine) sb.AppendLine();
+        string expr = BuildPropertyGetterExpression(property.Name, retKind, targetInstance);
+
+        if (retKind == RetKind.StringReturn)
         {
-            string setWitBase = $"set-{witBase}";
-            if (definedFunctions.Add(setWitBase))
-            {
-                if (property.Type.SpecialType == SpecialType.System_Boolean)
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int val) => {{ if ({targetInstance} != null) {targetInstance}.{property.Name} = val != 0; }});");
-                else if (property.Type.SpecialType == SpecialType.System_Single)
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (float val) => {{ if ({targetInstance} != null) {targetInstance}.{property.Name} = val; }});");
-                else if (property.Type.SpecialType == SpecialType.System_Int32)
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int val) => {{ if ({targetInstance} != null) {targetInstance}.{property.Name} = val; }});");
-                else if (property.Type.SpecialType == SpecialType.System_String)
-                    sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (Caller caller, int valPtr, int valLen) => {{ if ({targetInstance} != null) {targetInstance}.{property.Name} = ReadGuestString(caller, valPtr, valLen); }});");
-            }
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"get-{witBase}\", (Caller caller, int retArea) => {{ string s = {expr}; WriteGuestString(caller, retArea, s); }});");
         }
+        else
+        {
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"get-{witBase}\", () => {expr});");
+        }
+        lastWasMultiLine = false;
+    }
+
+    private static void EmitPropertySetter(StringBuilder sb, IPropertySymbol property, string witBase, string targetInstance, HashSet<string> definedFunctions)
+    {
+        if (property.SetMethod == null) return;
+
+        string setWitBase = $"set-{witBase}";
+        if (!definedFunctions.Add(setWitBase)) return;
+
+        if (property.Type.SpecialType == SpecialType.System_Boolean)
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int val) => {{ if ({targetInstance} != null) {targetInstance}.{property.Name} = val != 0; }});");
+        else if (property.Type.SpecialType == SpecialType.System_Single)
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (float val) => {{ if ({targetInstance} != null) {targetInstance}.{property.Name} = val; }});");
+        else if (property.Type.SpecialType == SpecialType.System_Int32)
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int val) => {{ if ({targetInstance} != null) {targetInstance}.{property.Name} = val; }});");
+        else if (property.Type.SpecialType == SpecialType.System_String)
+            sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (Caller caller, int valPtr, int valLen) => {{ if ({targetInstance} != null) {targetInstance}.{property.Name} = ReadGuestString(caller, valPtr, valLen); }});");
     }
 
     private static string BuildPropertyGetterExpression(string propertyName, RetKind retKind, string targetInstance)
@@ -693,81 +739,59 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
     private static void EmitMethodBinding(StringBuilder sb, IMethodSymbol method, ref bool lastWasMultiLine, string targetInstance, INamedTypeSymbol gameApiSymbol, HashSet<string> definedFunctions)
     {
-        foreach (var param in method.Parameters)
-        {
-            if (param.RefKind != RefKind.None)
-                return;
-        }
+        if (method.Parameters.Any(p => p.RefKind != RefKind.None)) return;
 
         var paramInfos = new List<ParamInfo>();
         foreach (var param in method.Parameters)
         {
             var kind = ClassifyParam(param.Type);
-            if (kind == PrmKind.Unsupported)
-                return;
+            if (kind == PrmKind.Unsupported) return;
             paramInfos.Add(new ParamInfo(param.Name, kind, param.Type));
         }
 
         var retKind = ClassifyReturn(method.ReturnType);
         bool isVector3Ret = method.ReturnType.ToDisplayString() == "System.Numerics.Vector3";
-        if (retKind == RetKind.Unsupported && !isVector3Ret)
-            return;
+        if (retKind == RetKind.Unsupported && !isVector3Ret) return;
 
         var witName = ToKebabCase(method.Name);
         if (!definedFunctions.Add(witName)) return;
 
         if (retKind == RetKind.StringListReturn)
         {
-            var lambdaParamsCount = BuildLambdaParams(paramInfos, paramInfos.Exists(p => p.Kind == PrmKind.StringParam), false);
-            sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-count\", ({lambdaParamsCount}) =>");
-            sb.AppendLine("        {");
-            foreach (var p in paramInfos)
-                if (p.Kind == PrmKind.StringParam)
-                    sb.AppendLine($"            string {p.Name} = ReadGuestString(caller, {p.Name}Ptr, {p.Name}Len);");
-            foreach (var p in paramInfos)
-                if (p.Kind == PrmKind.Vector3Param)
-                    sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector3({p.Name}X, {p.Name}Y, {p.Name}Z);");
-            foreach (var p in paramInfos)
-                if (p.Kind == PrmKind.EntityParam)
-                {
-                    IsEntityInterface(p.Type, out var unwrapped);
-                    string res = FindResolverMember(gameApiSymbol, unwrapped);
-                    sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{res}({p.Name}Id);");
-                }
-            
-            string callExprCount = BuildCallExpressionFull(method, paramInfos, targetInstance);
-            sb.AppendLine($"            return {callExprCount}?.Count() ?? 0;");
-            sb.AppendLine("        });");
-
-            var paramInfosGet = new List<ParamInfo>(paramInfos);
-            paramInfosGet.Add(new ParamInfo("index", PrmKind.DirectInt, gameApiSymbol));
-            var lambdaParamsGet = BuildLambdaParams(paramInfosGet, needsCaller: true, needsRetArea: true);
-            
-            sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-get\", ({lambdaParamsGet}) =>");
-            sb.AppendLine("        {");
-            foreach (var p in paramInfos)
-                if (p.Kind == PrmKind.StringParam)
-                    sb.AppendLine($"            string {p.Name} = ReadGuestString(caller, {p.Name}Ptr, {p.Name}Len);");
-            foreach (var p in paramInfos)
-                if (p.Kind == PrmKind.Vector3Param)
-                    sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector3({p.Name}X, {p.Name}Y, {p.Name}Z);");
-            foreach (var p in paramInfos)
-                if (p.Kind == PrmKind.EntityParam)
-                {
-                    IsEntityInterface(p.Type, out var unwrapped);
-                    string res = FindResolverMember(gameApiSymbol, unwrapped);
-                    sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{res}({p.Name}Id);");
-                }
-            
-            string callExprGet = BuildCallExpressionFull(method, paramInfos, targetInstance);
-            sb.AppendLine($"            string s = {callExprGet}?.ElementAtOrDefault(index) ?? \"\";");
-            sb.AppendLine("            WriteGuestString(caller, retArea, s);");
-            sb.AppendLine("        });");
-            
-            lastWasMultiLine = true;
+            EmitStringListMethodBinding(sb, method, witName, paramInfos, targetInstance, gameApiSymbol, ref lastWasMultiLine);
             return;
         }
 
+        EmitStandardMethodBinding(sb, method, witName, paramInfos, retKind, isVector3Ret, targetInstance, gameApiSymbol, ref lastWasMultiLine);
+    }
+
+    private static void EmitStringListMethodBinding(StringBuilder sb, IMethodSymbol method, string witName, List<ParamInfo> paramInfos, string targetInstance, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine)
+    {
+        var lambdaParamsCount = BuildLambdaParams(paramInfos, paramInfos.Exists(p => p.Kind == PrmKind.StringParam), false);
+        sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-count\", ({lambdaParamsCount}) =>");
+        sb.AppendLine("        {");
+        EmitEntityMethodParameters(sb, paramInfos, gameApiSymbol);
+        string callExprCount = BuildCallExpressionFull(method, paramInfos, targetInstance);
+        sb.AppendLine($"            return {callExprCount}?.Count() ?? 0;");
+        sb.AppendLine("        });");
+
+        var paramInfosGet = new List<ParamInfo>(paramInfos);
+        paramInfosGet.Add(new ParamInfo("index", PrmKind.DirectInt, gameApiSymbol));
+        var lambdaParamsGet = BuildLambdaParams(paramInfosGet, needsCaller: true, needsRetArea: true);
+        
+        sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-get\", ({lambdaParamsGet}) =>");
+        sb.AppendLine("        {");
+        EmitEntityMethodParameters(sb, paramInfos, gameApiSymbol);
+        string callExprGet = BuildCallExpressionFull(method, paramInfos, targetInstance);
+        sb.AppendLine($"            string s = {callExprGet}?.ElementAtOrDefault(index) ?? \"\";");
+        sb.AppendLine("            WriteGuestString(caller, retArea, s);");
+        sb.AppendLine("        });");
+        
+        lastWasMultiLine = true;
+    }
+
+    private static void EmitStandardMethodBinding(StringBuilder sb, IMethodSymbol method, string witName, List<ParamInfo> paramInfos, RetKind retKind, bool isVector3Ret, string targetInstance, INamedTypeSymbol gameApiSymbol, ref bool lastWasMultiLine)
+    {
         bool hasStringParam = method.Parameters.Any(p => p.Type.SpecialType == SpecialType.System_String);
         bool hasStringListParam = method.Parameters.Any(p => ClassifyParam(p.Type) == PrmKind.StringListParam);
         bool hasVector3Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector3");
@@ -849,26 +873,9 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
     {
         var parts = new List<string>();
 
-        if (needsCaller)
-            parts.Add("Caller caller");
-
-        foreach (var p in paramInfos)
-        {
-            switch (p.Kind)
-            {
-                case PrmKind.DirectInt: parts.Add($"int {p.Name}"); break;
-                case PrmKind.DirectFloat: parts.Add($"float {p.Name}"); break;
-                case PrmKind.BoolParam: parts.Add($"int {p.Name}"); break;
-                case PrmKind.StringParam: parts.Add($"int {p.Name}Ptr, int {p.Name}Len"); break;
-                case PrmKind.StringListParam: parts.Add($"int {p.Name}Ptr, int {p.Name}Len"); break;
-                case PrmKind.Vector3Param: parts.Add($"float {p.Name}X, float {p.Name}Y, float {p.Name}Z"); break;
-                case PrmKind.EntityParam: parts.Add($"int {p.Name}Id"); break;
-                case PrmKind.Vector3NullableParam: parts.Add($"float {p.Name}R, float {p.Name}G, float {p.Name}B, int {p.Name}HasColor"); break;
-            }
-        }
-
-        if (needsRetArea)
-            parts.Add("int retArea");
+        if (needsCaller) parts.Add("Caller caller");
+        parts.AddRange(paramInfos.Select(GetLambdaParamDefinition).Where(s => !string.IsNullOrEmpty(s)));
+        if (needsRetArea) parts.Add("int retArea");
 
         return string.Join(", ", parts);
     }
@@ -909,52 +916,68 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
     private static void EmitBlockBody(StringBuilder sb, IMethodSymbol method, List<ParamInfo> paramInfos, RetKind retKind, string targetInstance, INamedTypeSymbol gameApiSymbol)
     {
+        ReadStringParameters(sb, paramInfos);
+        ReadVector3Parameters(sb, paramInfos);
+        ReadEntityParameters(sb, paramInfos, gameApiSymbol);
+
+        var entityParams = paramInfos.FindAll(p => p.Kind == PrmKind.EntityParam);
+        string callExpr = BuildCallExpressionFull(method, paramInfos, targetInstance);
+
+        EmitMethodCallAndReturn(sb, method, retKind, gameApiSymbol, entityParams, callExpr);
+    }
+
+    private static void ReadStringParameters(StringBuilder sb, List<ParamInfo> paramInfos)
+    {
         foreach (var p in paramInfos)
+        {
             if (p.Kind == PrmKind.StringParam)
                 sb.AppendLine($"            string {p.Name} = ReadGuestString(caller, {p.Name}Ptr, {p.Name}Len);");
             else if (p.Kind == PrmKind.StringListParam)
                 sb.AppendLine($"            string[] {p.Name} = ReadGuestStringList(caller, {p.Name}Ptr, {p.Name}Len);");
+        }
+    }
 
+    private static void ReadVector3Parameters(StringBuilder sb, List<ParamInfo> paramInfos)
+    {
         var processedVec3 = new HashSet<string>();
         foreach (var p in paramInfos)
+        {
             if (p.Kind == PrmKind.Vector3Param && p.Name.EndsWith("X"))
             {
                 string baseName = p.Name.Substring(0, p.Name.Length - 1);
                 if (processedVec3.Add(baseName))
                     sb.AppendLine($"            var {baseName} = new System.Numerics.Vector3({baseName}X, {baseName}Y, {baseName}Z);");
             }
-
-        foreach (var p in paramInfos)
-            if (p.Kind == PrmKind.Vector3Param)
+            else if (p.Kind == PrmKind.Vector3Param)
                 sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector3({p.Name}X, {p.Name}Y, {p.Name}Z);");
-
-        foreach (var p in paramInfos)
-            if (p.Kind == PrmKind.Vector3NullableParam)
+            else if (p.Kind == PrmKind.Vector3NullableParam)
                 sb.AppendLine($"            System.Numerics.Vector3? {p.Name} = {p.Name}HasColor != 0 ? new System.Numerics.Vector3({p.Name}R, {p.Name}G, {p.Name}B) : null;");
+        }
+    }
 
+    private static void ReadEntityParameters(StringBuilder sb, List<ParamInfo> paramInfos, INamedTypeSymbol gameApiSymbol)
+    {
         foreach (var p in paramInfos)
+        {
             if (p.Kind == PrmKind.EntityParam)
             {
                 IsEntityInterface(p.Type, out var unwrapped);
                 string res = FindResolverMember(gameApiSymbol, unwrapped);
                 sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{res}({p.Name}Id);");
             }
+        }
+    }
 
-        var entityParams = paramInfos.FindAll(p => p.Kind == PrmKind.EntityParam);
-        string callExpr = BuildCallExpressionFull(method, paramInfos, targetInstance);
+    private static void EmitMethodCallAndReturn(StringBuilder sb, IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, List<ParamInfo> entityParams, string callExpr)
+    {
+        string condition = entityParams.Count > 0 ? string.Join(" && ", entityParams.Select(u => $"{u.Name} != null")) : "";
 
         if (retKind == RetKind.Void)
         {
             if (entityParams.Count == 0)
                 sb.AppendLine($"            {callExpr};");
-            else if (entityParams.Count == 1)
-                sb.AppendLine($"            if ({entityParams[0].Name} != null) {callExpr};");
             else
-            {
-                var checks = new List<string>();
-                foreach (var u in entityParams) checks.Add($"{u.Name} != null");
-                sb.AppendLine($"            if ({string.Join(" && ", checks)}) {callExpr};");
-            }
+                sb.AppendLine($"            if ({condition}) {callExpr};");
         }
         else if (retKind == RetKind.StringReturn)
         {
@@ -984,31 +1007,14 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             if (entityParams.Count == 0)
             {
                 sb.AppendLine($"            var result = {callExpr};");
-                if (hasUniqueId)
-                {
-                    sb.AppendLine($"            return result?.UniqueId ?? 0;");
-                }
-                else
-                {
-                    string colName = FindCollectionMember(gameApiSymbol, unwrapped);
-                    sb.AppendLine($"            return (result != null) ? ((_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{colName}.ToList().IndexOf(result) ?? -1) : -1;");
-                }
+                EmitEntityReturnMapping(sb, gameApiSymbol, unwrapped, hasUniqueId, "result");
             }
             else
             {
-                string condition = string.Join(" && ", entityParams.Select(u => $"{u.Name} != null"));
                 sb.AppendLine($"            if ({condition})");
                 sb.AppendLine("            {");
                 sb.AppendLine($"                var result = {callExpr};");
-                if (hasUniqueId)
-                {
-                    sb.AppendLine($"                return result?.UniqueId ?? 0;");
-                }
-                else
-                {
-                    string colName = FindCollectionMember(gameApiSymbol, unwrapped);
-                    sb.AppendLine($"                return (result != null) ? ((_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{colName}.ToList().IndexOf(result) ?? -1) : -1;");
-                }
+                EmitEntityReturnMapping(sb, gameApiSymbol, unwrapped, hasUniqueId, "result");
                 sb.AppendLine("            }");
                 sb.AppendLine($"            return {(hasUniqueId ? "0" : "-1")};");
             }
@@ -1016,27 +1022,30 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         else if (retKind == RetKind.BoolReturn)
         {
             if (entityParams.Count == 0)
-            {
                 sb.AppendLine($"            return ({callExpr} ?? false) ? 1 : 0;");
-            }
             else
-            {
-                string condition = string.Join(" && ", entityParams.Select(u => $"{u.Name} != null"));
                 sb.AppendLine($"            return ({condition}) ? (({callExpr} ?? false) ? 1 : 0) : 0;");
-            }
         }
         else
         {
             string defaultVal = retKind == RetKind.DirectFloat ? "0f" : "0";
             if (entityParams.Count == 0)
-            {
                 sb.AppendLine($"            return {callExpr} ?? {defaultVal};");
-            }
             else
-            {
-                string condition = string.Join(" && ", entityParams.Select(u => $"{u.Name} != null"));
                 sb.AppendLine($"            return ({condition}) ? ({callExpr} ?? {defaultVal}) : {defaultVal};");
-            }
+        }
+    }
+
+    private static void EmitEntityReturnMapping(StringBuilder sb, INamedTypeSymbol gameApiSymbol, ITypeSymbol unwrapped, bool hasUniqueId, string resultVar)
+    {
+        if (hasUniqueId)
+        {
+            sb.AppendLine($"                return {resultVar}?.UniqueId ?? 0;");
+        }
+        else
+        {
+            string colName = FindCollectionMember(gameApiSymbol, unwrapped);
+            sb.AppendLine($"                return ({resultVar} != null) ? ((_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{colName}.ToList().IndexOf({resultVar}) ?? -1) : -1;");
         }
     }
 
@@ -1098,16 +1107,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
         if (IsEntityInterface(type, out _))
         {
-            if (type.NullableAnnotation == NullableAnnotation.Annotated || type.ToDisplayString().EndsWith("?"))
-                return RetKind.EntityNullableReturn;
-            return RetKind.EntityReturn;
+            bool isNullable = type.NullableAnnotation == NullableAnnotation.Annotated || type.ToDisplayString().EndsWith("?");
+            return isNullable ? RetKind.EntityNullableReturn : RetKind.EntityReturn;
         }
 
-        if (IsCollection(type, out var elemType))
-        {
-            if (elemType.SpecialType == SpecialType.System_String) return RetKind.StringListReturn;
-            if (IsEntityInterface(elemType, out _)) return RetKind.EntityListReturn;
-        }
+        if (IsCollection(type, out var elemType) && elemType.SpecialType == SpecialType.System_String) return RetKind.StringListReturn;
+        if (IsCollection(type, out elemType) && IsEntityInterface(elemType, out _)) return RetKind.EntityListReturn;
 
         return RetKind.Unsupported;
     }
@@ -1131,34 +1136,9 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
     private static string GenerateWitContent(INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces, string manualFunctions)
     {
         var functions = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        var propertyAccessorMethods = CollectPropertyAccessorNames(gameApiSymbol);
 
-        // Auto-generate IGameAPI members
-        foreach (var member in gameApiSymbol.GetMembers().OrderBy(m => m.Name, StringComparer.Ordinal))
-        {
-            if (member is IEventSymbol)
-                continue;
-
-            if (!member.IsAbstract)
-                continue;
-
-            if (member is IPropertySymbol property)
-                AppendWitProperty(functions, property);
-            else if (member is IMethodSymbol method)
-            {
-                if (method.MethodKind != MethodKind.Ordinary)
-                    continue;
-                if (propertyAccessorMethods.Contains(method.Name))
-                    continue;
-                AppendWitMethod(functions, method);
-            }
-        }
-
-        // Auto-generate discovered entity interface members
-        foreach (var entityIface in entityInterfaces.OrderBy(e => e.Name, StringComparer.Ordinal))
-        {
-            AppendWitEntityInterface(functions, entityIface);
-        }
+        AppendWitGameApiMembers(functions, gameApiSymbol);
+        AppendWitEntityInterfaces(functions, entityInterfaces);
 
         var witBody = new StringBuilder();
         foreach (var kvp in functions)
@@ -1185,6 +1165,36 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         wit.AppendLine("}");
 
         return wit.ToString();
+    }
+
+    private static void AppendWitGameApiMembers(SortedDictionary<string, string> functions, INamedTypeSymbol gameApiSymbol)
+    {
+        var propertyAccessorMethods = CollectPropertyAccessorNames(gameApiSymbol);
+
+        foreach (var member in gameApiSymbol.GetMembers().OrderBy(m => m.Name, StringComparer.Ordinal))
+        {
+            if (member is IEventSymbol || !member.IsAbstract) continue;
+
+            if (member is IPropertySymbol property)
+            {
+                AppendWitProperty(functions, property);
+            }
+            else if (member is IMethodSymbol method && method.MethodKind == MethodKind.Ordinary)
+            {
+                if (!propertyAccessorMethods.Contains(method.Name))
+                {
+                    AppendWitMethod(functions, method);
+                }
+            }
+        }
+    }
+
+    private static void AppendWitEntityInterfaces(SortedDictionary<string, string> functions, HashSet<INamedTypeSymbol> entityInterfaces)
+    {
+        foreach (var entityIface in entityInterfaces.OrderBy(e => e.Name, StringComparer.Ordinal))
+        {
+            AppendWitEntityInterface(functions, entityIface);
+        }
     }
 
     private static string GenerateWitConstant(INamedTypeSymbol gameApiSymbol, HashSet<INamedTypeSymbol> entityInterfaces, string manualFunctions)
@@ -1221,80 +1231,71 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         var propertyAccessors = CollectPropertyAccessorNames(entitySymbol);
         foreach (var member in entitySymbol.GetMembers().OrderBy(m => m.Name, StringComparer.Ordinal))
         {
-            if (!member.IsAbstract)
-                continue;
+            if (!member.IsAbstract) continue;
 
-            if (member is IPropertySymbol property)
+            if (member is IPropertySymbol property && property.Name != "UniqueId")
             {
-                if (property.Name == "UniqueId") continue;
-
-                string witBase = $"{tKebab}-{ToKebabCase(property.Name)}";
-
-                if (property.Type.ToDisplayString() == "System.Numerics.Vector3")
-                {
-                    AppendFunction(functions, $"{witBase}-x", "func(id: s32) -> f32");
-                    AppendFunction(functions, $"{witBase}-y", "func(id: s32) -> f32");
-                    AppendFunction(functions, $"{witBase}-z", "func(id: s32) -> f32");
-                    
-                    if (property.SetMethod != null)
-                    {
-                        AppendFunction(functions, $"set-{witBase}", "func(id: s32, val-x: f32, val-y: f32, val-z: f32)");
-                    }
-                    continue;
-                }
-
-                var retKind = ClassifyReturn(property.Type);
-                if (retKind == RetKind.Unsupported) continue;
-                else
-                {
-                    string? witType = RetKindToWit(retKind);
-                    if (witType != null)
-                    {
-                        AppendFunction(functions, witBase, $"func(id: s32) -> {witType}");
-                        if (property.SetMethod != null)
-                        {
-                            string? paramType = RetKindToWitParam(retKind);
-                            if (paramType != null)
-                                AppendFunction(functions, $"set-{witBase}", $"func(id: s32, val: {paramType})");
-                        }
-                    }
-                }
+                AppendWitEntityProperties(functions, property, tKebab);
             }
             else if (member is IMethodSymbol method && method.MethodKind == MethodKind.Ordinary)
             {
-                if (propertyAccessors.Contains(method.Name)) continue;
-                AppendWitEntityMethod(functions, method, tKebab);
+                if (!propertyAccessors.Contains(method.Name))
+                {
+                    AppendWitEntityMethod(functions, method, tKebab);
+                }
+            }
+        }
+    }
+
+    private static void AppendWitEntityProperties(SortedDictionary<string, string> functions, IPropertySymbol property, string tKebab)
+    {
+        string witBase = $"{tKebab}-{ToKebabCase(property.Name)}";
+
+        if (property.Type.ToDisplayString() == "System.Numerics.Vector3")
+        {
+            AppendFunction(functions, $"{witBase}-x", "func(id: s32) -> f32");
+            AppendFunction(functions, $"{witBase}-y", "func(id: s32) -> f32");
+            AppendFunction(functions, $"{witBase}-z", "func(id: s32) -> f32");
+            
+            if (property.SetMethod != null)
+            {
+                AppendFunction(functions, $"set-{witBase}", "func(id: s32, val-x: f32, val-y: f32, val-z: f32)");
+            }
+            return;
+        }
+
+        var retKind = ClassifyReturn(property.Type);
+        if (retKind == RetKind.Unsupported) return;
+
+        string? witType = RetKindToWit(retKind);
+        if (witType != null)
+        {
+            AppendFunction(functions, witBase, $"func(id: s32) -> {witType}");
+            if (property.SetMethod != null)
+            {
+                string? paramType = RetKindToWitParam(retKind);
+                if (paramType != null)
+                    AppendFunction(functions, $"set-{witBase}", $"func(id: s32, val: {paramType})");
             }
         }
     }
 
     private static void AppendWitEntityMethod(SortedDictionary<string, string> functions, IMethodSymbol method, string tKebab)
     {
-        var retKind = ClassifyReturn(method.ReturnType);
-        if (retKind == RetKind.Unsupported && method.ReturnType.ToDisplayString() != "System.Numerics.Vector3" && method.ReturnType.SpecialType != SpecialType.System_Void)
-            return;
-        if (retKind == RetKind.EntityListReturn)
-            return;
+        if (method.Parameters.Any(p => p.RefKind != RefKind.None)) return;
 
-        foreach (var param in method.Parameters)
-        {
-            if (param.RefKind != RefKind.None)
-                return;
-        }
+        var retKind = ClassifyReturn(method.ReturnType);
+        bool isVector3Ret = method.ReturnType.ToDisplayString() == "System.Numerics.Vector3";
+
+        if (retKind == RetKind.Unsupported && !isVector3Ret && method.ReturnType.SpecialType != SpecialType.System_Void) return;
+        if (retKind == RetKind.EntityListReturn) return;
+
+        string paramsStr = BuildWitEntityMethodParams(method);
+        if (paramsStr == null) return;
 
         string witName = tKebab + "-" + ToKebabCase(method.Name);
-        var witParams = new List<string> { "id: s32" };
 
-        foreach (var param in method.Parameters)
-        {
-            string? paramWit = ParamToWit(param.Type, param.Name);
-            if (paramWit == null)
-                return;
-            witParams.Add(paramWit);
-        }
-
-        string paramsStr = string.Join(", ", witParams);
-        if (method.ReturnType.ToDisplayString() == "System.Numerics.Vector3")
+        if (isVector3Ret)
         {
             AppendFunction(functions, $"{witName}-x", $"func({paramsStr}) -> f32");
             AppendFunction(functions, $"{witName}-y", $"func({paramsStr}) -> f32");
@@ -1307,12 +1308,21 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         }
         else
         {
-            string retStr = (retKind == RetKind.Void || method.ReturnType.SpecialType == SpecialType.System_Void)
-                ? ""
-                : $" -> {RetKindToWit(retKind)}";
-
+            string retStr = (retKind == RetKind.Void || method.ReturnType.SpecialType == SpecialType.System_Void) ? "" : $" -> {RetKindToWit(retKind)}";
             AppendFunction(functions, witName, $"func({paramsStr}){retStr}");
         }
+    }
+
+    private static string? BuildWitEntityMethodParams(IMethodSymbol method)
+    {
+        var witParams = new List<string> { "id: s32" };
+        foreach (var param in method.Parameters)
+        {
+            string? paramWit = ParamToWit(param.Type, param.Name);
+            if (paramWit == null) return null;
+            witParams.Add(paramWit);
+        }
+        return string.Join(", ", witParams);
     }
 
     private static void AppendWitProperty(SortedDictionary<string, string> functions, IPropertySymbol property)
@@ -1339,58 +1349,47 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
     private static void AppendWitMethod(SortedDictionary<string, string> functions, IMethodSymbol method)
     {
+        if (method.Parameters.Any(p => p.RefKind != RefKind.None)) return;
+
         var retKind = ClassifyReturn(method.ReturnType);
         bool isVector3Ret = method.ReturnType.ToDisplayString() == "System.Numerics.Vector3";
-        if (retKind == RetKind.Unsupported && !isVector3Ret)
-            return;
+        if (retKind == RetKind.Unsupported && !isVector3Ret) return;
 
-        foreach (var param in method.Parameters)
-        {
-            if (param.RefKind != RefKind.None)
-                return;
-        }
+        string paramsStr = BuildWitMethodParams(method);
+        if (paramsStr == null && method.Parameters.Length > 0) return;
+        paramsStr ??= "";
 
         string witName = ToKebabCase(method.Name);
 
         if (retKind == RetKind.StringListReturn)
         {
-            var witParams = new List<string>();
-            foreach (var param in method.Parameters)
-            {
-                var paramWit = ParamToWit(param.Type, param.Name);
-                if (paramWit != null) witParams.Add(paramWit);
-            }
-            string paramsStr = string.Join(", ", witParams);
             AppendFunction(functions, $"{witName}-count", $"func({paramsStr}) -> s32");
             AppendFunction(functions, $"{witName}-get", $"func({paramsStr}, index: s32) -> string");
-            return;
         }
-
-        var witParamsList = new List<string>();
-        foreach (var param in method.Parameters)
+        else if (isVector3Ret)
         {
-            string? paramWit = ParamToWit(param.Type, param.Name);
-            if (paramWit == null)
-                return;
-            witParamsList.Add(paramWit);
-        }
-
-        string paramsStrCombined = string.Join(", ", witParamsList);
-
-        if (isVector3Ret)
-        {
-            AppendFunction(functions, $"{witName}-x", $"func({paramsStrCombined}) -> f32");
-            AppendFunction(functions, $"{witName}-y", $"func({paramsStrCombined}) -> f32");
-            AppendFunction(functions, $"{witName}-z", $"func({paramsStrCombined}) -> f32");
+            AppendFunction(functions, $"{witName}-x", $"func({paramsStr}) -> f32");
+            AppendFunction(functions, $"{witName}-y", $"func({paramsStr}) -> f32");
+            AppendFunction(functions, $"{witName}-z", $"func({paramsStr}) -> f32");
         }
         else
         {
-            string retStr = (retKind == RetKind.Void || method.ReturnType.SpecialType == SpecialType.System_Void)
-                ? ""
-                : $" -> {RetKindToWit(retKind)}";
-
-            AppendFunction(functions, witName, $"func({paramsStrCombined}){retStr}");
+            string retStr = (retKind == RetKind.Void || method.ReturnType.SpecialType == SpecialType.System_Void) ? "" : $" -> {RetKindToWit(retKind)}";
+            AppendFunction(functions, witName, $"func({paramsStr}){retStr}");
         }
+    }
+
+    private static string? BuildWitMethodParams(IMethodSymbol method)
+    {
+        if (method.Parameters.Length == 0) return "";
+        var witParams = new List<string>();
+        foreach (var param in method.Parameters)
+        {
+            string? paramWit = ParamToWit(param.Type, param.Name);
+            if (paramWit == null) return null;
+            witParams.Add(paramWit);
+        }
+        return string.Join(", ", witParams);
     }
 
     private static string? ParamToWit(ITypeSymbol type, string name)
@@ -1468,6 +1467,18 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
         var events = gameApiSymbol.GetMembers().OfType<IEventSymbol>().ToList();
 
+        AppendAutoEventsFields(sb, events);
+        AppendInitializeAutoEvents(sb, events);
+        AppendSubscribeAutoEvents(sb, events);
+        AppendUnsubscribeAutoEvents(sb, events);
+        AppendAutoEventHandlers(sb, events, gameApiSymbol);
+
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    private static void AppendAutoEventsFields(StringBuilder sb, List<IEventSymbol> events)
+    {
         foreach (var ev in events)
         {
             var delegateMethod = ((INamedTypeSymbol)ev.Type).DelegateInvokeMethod;
@@ -1478,7 +1489,10 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             sb.AppendLine($"    private {fieldType}? {GetWasmField(ev.Name)};");
         }
         sb.AppendLine();
+    }
 
+    private static void AppendInitializeAutoEvents(StringBuilder sb, List<IEventSymbol> events)
+    {
         sb.AppendLine("    private partial void InitializeAutoEvents()");
         sb.AppendLine("    {");
         foreach (var ev in events)
@@ -1502,7 +1516,10 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         }
         sb.AppendLine("    }");
         sb.AppendLine();
+    }
 
+    private static void AppendSubscribeAutoEvents(StringBuilder sb, List<IEventSymbol> events)
+    {
         sb.AppendLine("    private partial void SubscribeAutoEvents(IGameAPI api)");
         sb.AppendLine("    {");
         foreach (var ev in events)
@@ -1511,7 +1528,10 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         }
         sb.AppendLine("    }");
         sb.AppendLine();
+    }
 
+    private static void AppendUnsubscribeAutoEvents(StringBuilder sb, List<IEventSymbol> events)
+    {
         sb.AppendLine("    private partial void UnsubscribeAutoEvents()");
         sb.AppendLine("    {");
         sb.AppendLine("        if (_cachedApi != null)");
@@ -1523,7 +1543,10 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine();
+    }
 
+    private static void AppendAutoEventHandlers(StringBuilder sb, List<IEventSymbol> events, INamedTypeSymbol gameApiSymbol)
+    {
         foreach (var ev in events)
         {
             var delegateMethod = ((INamedTypeSymbol)ev.Type).DelegateInvokeMethod;
@@ -1544,84 +1567,91 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
             if (hasString)
             {
-                sb.AppendLine($"        if ({fieldName} != null)");
-                sb.AppendLine("        {");
-                sb.AppendLine("            var memory = _instance.GetMemory(\"memory\");");
-                sb.AppendLine("            if (memory != null)");
-                sb.AppendLine("            {");
-
-                var invokeArgs = new List<string>();
-                foreach (var p in delegateMethod.Parameters)
-                {
-                    if (p.Type.SpecialType == SpecialType.System_String)
-                    {
-                        sb.AppendLine($"                byte[] bytes_{p.Name} = System.Text.Encoding.UTF8.GetBytes({p.Name});");
-                        sb.AppendLine($"                int ptr_{p.Name} = AllocateInGuest(bytes_{p.Name}.Length);");
-                        sb.AppendLine($"                bytes_{p.Name}.CopyTo(memory.GetSpan(ptr_{p.Name}, bytes_{p.Name}.Length));");
-                        invokeArgs.Add($"ptr_{p.Name}");
-                        invokeArgs.Add($"bytes_{p.Name}.Length");
-                    }
-                    else if (p.Type.ToDisplayString() == "System.Numerics.Vector3" || p.Type.ToDisplayString() == "System.Numerics.Vector3?")
-                    {
-                        invokeArgs.Add($"{p.Name}.X");
-                        invokeArgs.Add($"{p.Name}.Y");
-                        invokeArgs.Add($"{p.Name}.Z");
-                    }
-                    else if (IsEntityInterface(p.Type, out var unwrapped))
-                    {
-                        bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
-                        if (hasId)
-                        {
-                            invokeArgs.Add($"{p.Name}?.UniqueId ?? 0");
-                        }
-                        else
-                        {
-                            string col = FindCollectionMember(gameApiSymbol, unwrapped);
-                            invokeArgs.Add($"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1");
-                        }
-                    }
-                    else
-                    {
-                        invokeArgs.Add(p.Name);
-                    }
-                }
-
-                sb.AppendLine($"                {fieldName}.Invoke({string.Join(", ", invokeArgs)});");
-                sb.AppendLine("            }");
-                sb.AppendLine("        }");
+                EmitStringAutoEventHandlerBody(sb, delegateMethod, fieldName, gameApiSymbol);
             }
             else
             {
-                var invokeArgs = new List<string>();
-                foreach (var p in delegateMethod.Parameters)
-                {
-                    if (IsEntityInterface(p.Type, out var unwrapped))
-                    {
-                        bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
-                        if (hasId)
-                        {
-                            invokeArgs.Add($"{p.Name}?.UniqueId ?? 0");
-                        }
-                        else
-                        {
-                            string col = FindCollectionMember(gameApiSymbol, unwrapped);
-                            invokeArgs.Add($"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1");
-                        }
-                    }
-                    else
-                    {
-                        invokeArgs.Add(p.Name);
-                    }
-                }
-                sb.AppendLine($"        {fieldName}?.Invoke({string.Join(", ", invokeArgs)});");
+                EmitStandardAutoEventHandlerBody(sb, delegateMethod, fieldName, gameApiSymbol);
             }
 
             sb.AppendLine("    }");
             sb.AppendLine();
         }
+    }
 
-        sb.AppendLine("}");
-        return sb.ToString();
+    private static void EmitStringAutoEventHandlerBody(StringBuilder sb, IMethodSymbol delegateMethod, string fieldName, INamedTypeSymbol gameApiSymbol)
+    {
+        sb.AppendLine($"        if ({fieldName} != null)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            var memory = _instance.GetMemory(\"memory\");");
+        sb.AppendLine("            if (memory != null)");
+        sb.AppendLine("            {");
+
+        var invokeArgs = new List<string>();
+        foreach (var p in delegateMethod.Parameters)
+        {
+            if (p.Type.SpecialType == SpecialType.System_String)
+            {
+                sb.AppendLine($"                byte[] bytes_{p.Name} = System.Text.Encoding.UTF8.GetBytes({p.Name});");
+                sb.AppendLine($"                int ptr_{p.Name} = AllocateInGuest(bytes_{p.Name}.Length);");
+                sb.AppendLine($"                bytes_{p.Name}.CopyTo(memory.GetSpan(ptr_{p.Name}, bytes_{p.Name}.Length));");
+                invokeArgs.Add($"ptr_{p.Name}");
+                invokeArgs.Add($"bytes_{p.Name}.Length");
+            }
+            else if (p.Type.ToDisplayString() == "System.Numerics.Vector3" || p.Type.ToDisplayString() == "System.Numerics.Vector3?")
+            {
+                invokeArgs.Add($"{p.Name}.X");
+                invokeArgs.Add($"{p.Name}.Y");
+                invokeArgs.Add($"{p.Name}.Z");
+            }
+            else if (IsEntityInterface(p.Type, out var unwrapped))
+            {
+                bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
+                if (hasId)
+                {
+                    invokeArgs.Add($"{p.Name}?.UniqueId ?? 0");
+                }
+                else
+                {
+                    string col = FindCollectionMember(gameApiSymbol, unwrapped);
+                    invokeArgs.Add($"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1");
+                }
+            }
+            else
+            {
+                invokeArgs.Add(p.Name);
+            }
+        }
+
+        sb.AppendLine($"                {fieldName}.Invoke({string.Join(", ", invokeArgs)});");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+    }
+
+    private static void EmitStandardAutoEventHandlerBody(StringBuilder sb, IMethodSymbol delegateMethod, string fieldName, INamedTypeSymbol gameApiSymbol)
+    {
+        var invokeArgs = new List<string>();
+        foreach (var p in delegateMethod.Parameters)
+        {
+            if (IsEntityInterface(p.Type, out var unwrapped))
+            {
+                bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
+                if (hasId)
+                {
+                    invokeArgs.Add($"{p.Name}?.UniqueId ?? 0");
+                }
+                else
+                {
+                    string col = FindCollectionMember(gameApiSymbol, unwrapped);
+                    invokeArgs.Add($"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)GameHost.Instance)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1");
+                }
+            }
+            else
+            {
+                invokeArgs.Add(p.Name);
+            }
+        }
+        sb.AppendLine($"        {fieldName}?.Invoke({string.Join(", ", invokeArgs)});");
     }
 
     private static string GetWasmField(string eventName)
@@ -1676,7 +1706,14 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         sb.AppendLine("}");
         sb.AppendLine();
 
-        // 1. Generate Entity proxies dynamically
+        GenerateEntityProxies(sb, entityInterfaces);
+        GenerateGameApiProxy(sb, gameApiSymbol);
+
+        return sb.ToString();
+    }
+
+    private static void GenerateEntityProxies(StringBuilder sb, HashSet<INamedTypeSymbol> entityInterfaces)
+    {
         foreach (var entityIface in entityInterfaces)
         {
             string cleanName = CleanInterfaceName(entityIface);
@@ -1703,26 +1740,27 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             var accessorMethods = CollectPropertyAccessorNames(entityIface);
             foreach (var member in entityIface.GetMembers())
             {
-                if (!member.IsAbstract)
-                    continue;
+                if (!member.IsAbstract) continue;
 
-                if (member is IPropertySymbol property)
+                if (member is IPropertySymbol property && property.Name != "UniqueId")
                 {
-                    if (property.Name == "UniqueId") continue;
                     EmitGuestProperty(sb, property, cleanName, key);
                 }
-                else if (member is IMethodSymbol method)
+                else if (member is IMethodSymbol method && method.MethodKind == MethodKind.Ordinary)
                 {
-                    if (method.MethodKind != MethodKind.Ordinary) continue;
-                    if (accessorMethods.Contains(method.Name)) continue;
-                    EmitGuestMethod(sb, method, cleanName, key);
+                    if (!accessorMethods.Contains(method.Name))
+                    {
+                        EmitGuestMethod(sb, method, cleanName, key);
+                    }
                 }
             }
             sb.AppendLine("}");
             sb.AppendLine();
         }
+    }
 
-        // 2. Generate GameAPI_WasmModule
+    private static void GenerateGameApiProxy(StringBuilder sb, INamedTypeSymbol gameApiSymbol)
+    {
         sb.AppendLine("public class GameAPI_WasmModule : IGameAPI");
         sb.AppendLine("{");
         sb.AppendLine("    private readonly Dictionary<int, Action> _timers = new();");
@@ -1731,22 +1769,28 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         var propertyAccessorMethods = CollectPropertyAccessorNames(gameApiSymbol);
         foreach (var member in gameApiSymbol.GetMembers())
         {
-            if (member is IEventSymbol) continue;
-            if (!member.IsAbstract) continue;
+            if (member is IEventSymbol || !member.IsAbstract) continue;
 
             if (member is IPropertySymbol property)
             {
                 EmitGuestProperty(sb, property, "", "");
             }
-            else if (member is IMethodSymbol method)
+            else if (member is IMethodSymbol method && method.MethodKind == MethodKind.Ordinary)
             {
-                if (method.MethodKind != MethodKind.Ordinary) continue;
-                if (propertyAccessorMethods.Contains(method.Name)) continue;
-                EmitGuestMethod(sb, method, "", "");
+                if (!propertyAccessorMethods.Contains(method.Name))
+                {
+                    EmitGuestMethod(sb, method, "", "");
+                }
             }
         }
 
-        // Auto-generate events triggering in WasmGameAPI
+        GenerateProxyEvents(sb, gameApiSymbol);
+
+        sb.AppendLine("}");
+    }
+
+    private static void GenerateProxyEvents(StringBuilder sb, INamedTypeSymbol gameApiSymbol)
+    {
         var events = gameApiSymbol.GetMembers().OfType<IEventSymbol>().ToList();
         foreach (var ev in events)
         {
@@ -1793,9 +1837,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             sb.AppendLine($"    public void TriggerOn{ev.Name.Substring(2)}({string.Join(", ", triggerParams)})");
             sb.AppendLine($"        => {ev.Name}?.Invoke({string.Join(", ", invokeArgs)});");
         }
-
-        sb.AppendLine("}");
-        return sb.ToString();
     }
 
     private static void EmitGuestProperty(StringBuilder sb, IPropertySymbol property, string prefix, string key)
@@ -1805,27 +1846,38 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
         if (property.Type.ToDisplayString() == "System.Numerics.Vector3")
         {
-            sb.AppendLine($"    public {typeStr} {property.Name}");
-            sb.AppendLine("    {");
-            sb.AppendLine($"        get => new Vector3(");
-            sb.AppendLine($"            IGameApiImports.{prefix}{property.Name}X({keyArg}),");
-            sb.AppendLine($"            IGameApiImports.{prefix}{property.Name}Y({keyArg}),");
-            sb.AppendLine($"            IGameApiImports.{prefix}{property.Name}Z({keyArg}));");
-            if (property.SetMethod != null)
-            {
-                sb.AppendLine("        set");
-                sb.AppendLine("        {");
-                sb.AppendLine($"            IGameApiImports.Set{prefix}{property.Name}({keyArg}, value.X, value.Y, value.Z);");
-                sb.AppendLine("        }");
-            }
-            sb.AppendLine("    }");
+            EmitGuestVector3Property(sb, property, typeStr, prefix, keyArg);
             return;
         }
 
         var retKind = ClassifyReturn(property.Type);
         if (retKind == RetKind.Unsupported) return;
 
-        string witBase = string.IsNullOrEmpty(prefix) ? ToKebabCase(property.Name) : $"{ToKebabCase(prefix)}-{ToKebabCase(property.Name)}";
+        EmitGuestStandardProperty(sb, property, typeStr, prefix, keyArg, retKind);
+    }
+
+    private static void EmitGuestVector3Property(StringBuilder sb, IPropertySymbol property, string typeStr, string prefix, string keyArg)
+    {
+        sb.AppendLine($"    public {typeStr} {property.Name}");
+        sb.AppendLine("    {");
+        sb.AppendLine($"        get => new Vector3(");
+        sb.AppendLine($"            IGameApiImports.{prefix}{property.Name}X({keyArg}),");
+        sb.AppendLine($"            IGameApiImports.{prefix}{property.Name}Y({keyArg}),");
+        sb.AppendLine($"            IGameApiImports.{prefix}{property.Name}Z({keyArg}));");
+        
+        if (property.SetMethod != null)
+        {
+            string commaKeyArg = string.IsNullOrEmpty(keyArg) ? "" : $"{keyArg}, ";
+            sb.AppendLine("        set");
+            sb.AppendLine("        {");
+            sb.AppendLine($"            IGameApiImports.Set{prefix}{property.Name}({commaKeyArg}value.X, value.Y, value.Z);");
+            sb.AppendLine("        }");
+        }
+        sb.AppendLine("    }");
+    }
+
+    private static void EmitGuestStandardProperty(StringBuilder sb, IPropertySymbol property, string typeStr, string prefix, string keyArg, RetKind retKind)
+    {
         sb.AppendLine($"    public {typeStr} {property.Name}");
         sb.AppendLine("    {");
 
@@ -1854,14 +1906,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             string setVal = "value";
             if (IsEntityInterface(property.Type, out _))
             {
-                if (property.Type.NullableAnnotation == NullableAnnotation.Annotated || property.Type.ToDisplayString().Contains("?"))
-                {
-                    setVal = "(value != null) ? ((IWasmWrapper)value).WasmId : 0";
-                }
-                else
-                {
-                    setVal = "((IWasmWrapper)value).WasmId";
-                }
+                bool isNullable = property.Type.NullableAnnotation == NullableAnnotation.Annotated || property.Type.ToDisplayString().Contains("?");
+                setVal = isNullable ? "(value != null) ? ((IWasmWrapper)value).WasmId : 0" : "((IWasmWrapper)value).WasmId";
             }
             string setArgs = string.IsNullOrEmpty(keyArg) ? setVal : $"{keyArg}, {setVal}";
             sb.AppendLine($"        set => IGameApiImports.Set{prefix}{property.Name}({setArgs});");
@@ -1874,6 +1920,44 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         var retKind = ClassifyReturn(method.ReturnType);
         string typeStr = method.ReturnType.ToDisplayString();
 
+        var paramsDecl = BuildGuestMethodParameters(method);
+        var callArgs = BuildGuestMethodCallArgs(method, prefix, key);
+
+        string importName = string.IsNullOrEmpty(prefix) ? method.Name : $"{prefix}{method.Name}";
+        string importCall = $"IGameApiImports.{importName}({string.Join(", ", callArgs)})";
+
+        sb.AppendLine($"    public {typeStr} {method.Name}({string.Join(", ", paramsDecl)})");
+        sb.AppendLine("    {");
+
+        if (typeStr == "System.Numerics.Vector3")
+        {
+            EmitGuestMethodVector3Return(sb, importName, callArgs);
+        }
+        else if (retKind == RetKind.StringListReturn)
+        {
+            EmitGuestMethodStringListReturn(sb, importName, callArgs);
+        }
+        else if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
+        {
+            EmitGuestMethodEntityReturn(sb, method, importCall, retKind);
+        }
+        else if (retKind == RetKind.EntityListReturn)
+        {
+            EmitGuestMethodEntityListReturn(sb, method, importCall);
+        }
+        else if (retKind == RetKind.Void || method.ReturnType.SpecialType == SpecialType.System_Void)
+        {
+            sb.AppendLine($"        {importCall};");
+        }
+        else
+        {
+            sb.AppendLine($"        return {importCall};");
+        }
+        sb.AppendLine("    }");
+    }
+
+    private static List<string> BuildGuestMethodParameters(IMethodSymbol method)
+    {
         var paramsDecl = new List<string>();
         foreach (var p in method.Parameters)
         {
@@ -1894,24 +1978,23 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
                 paramsDecl.Add($"{pType} {pName}");
             }
         }
+        return paramsDecl;
+    }
 
+    private static List<string> BuildGuestMethodCallArgs(IMethodSymbol method, string prefix, string key)
+    {
         var callArgs = new List<string>();
-        if (!string.IsNullOrEmpty(prefix))
-            callArgs.Add(key);
+        if (!string.IsNullOrEmpty(prefix)) callArgs.Add(key);
 
         foreach (var p in method.Parameters)
         {
             if (IsEntityInterface(p.Type, out _))
             {
-                if (p.Type.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?"))
-                    callArgs.Add($"({p.Name} != null) ? ((IWasmWrapper){p.Name}).WasmId : 0");
-                else
-                    callArgs.Add($"((IWasmWrapper){p.Name}).WasmId");
+                bool isNullable = p.Type.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?");
+                callArgs.Add(isNullable ? $"({p.Name} != null) ? ((IWasmWrapper){p.Name}).WasmId : 0" : $"((IWasmWrapper){p.Name}).WasmId");
             }
             else if (p.Type.ToDisplayString() == "object")
-            {
                 callArgs.Add($"{p.Name}?.ToString() ?? \"\"");
-            }
             else if (p.Type.ToDisplayString() == "System.Numerics.Vector3")
             {
                 callArgs.Add($"{p.Name}.X");
@@ -1927,98 +2010,58 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
             }
             else if (p.Type.SpecialType == SpecialType.System_String)
             {
-                if (p.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?"))
-                    callArgs.Add($"{p.Name} ?? \"\"");
-                else
-                    callArgs.Add(p.Name);
+                bool isNullable = p.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?");
+                callArgs.Add(isNullable ? $"{p.Name} ?? \"\"" : p.Name);
             }
             else if (ClassifyParam(p.Type) == PrmKind.StringListParam)
-            {
                 callArgs.Add($"{p.Name}?.ToList() ?? new List<string>()");
-            }
             else
-            {
                 callArgs.Add(p.Name);
-            }
         }
+        return callArgs;
+    }
 
-        string importName = string.IsNullOrEmpty(prefix) ? method.Name : $"{prefix}{method.Name}";
-        string importCall = $"IGameApiImports.{importName}({string.Join(", ", callArgs)})";
+    private static void EmitGuestMethodVector3Return(StringBuilder sb, string importName, List<string> callArgs)
+    {
+        sb.AppendLine($"        return new Vector3(");
+        sb.AppendLine($"            IGameApiImports.{importName}X({string.Join(", ", callArgs)}),");
+        sb.AppendLine($"            IGameApiImports.{importName}Y({string.Join(", ", callArgs)}),");
+        sb.AppendLine($"            IGameApiImports.{importName}Z({string.Join(", ", callArgs)}));");
+    }
 
-        if (typeStr == "System.Numerics.Vector3")
+    private static void EmitGuestMethodStringListReturn(StringBuilder sb, string importName, List<string> callArgs)
+    {
+        var callArgsCount = new List<string>(callArgs);
+        var callArgsGet = new List<string>(callArgs);
+        callArgsGet.Add("i");
+        
+        sb.AppendLine($"        int count = IGameApiImports.{importName}Count({string.Join(", ", callArgsCount)});");
+        sb.AppendLine($"        var list = new List<string>(count);");
+        sb.AppendLine($"        for (int i = 0; i < count; i++)");
+        sb.AppendLine($"            list.Add(IGameApiImports.{importName}Get({string.Join(", ", callArgsGet)}));");
+        sb.AppendLine("        return list;");
+    }
+
+    private static void EmitGuestMethodEntityReturn(StringBuilder sb, IMethodSymbol method, string importCall, RetKind retKind)
+    {
+        IsEntityInterface(method.ReturnType, out var unwrapped);
+        string cleanElem = CleanInterfaceName(unwrapped);
+        if (retKind == RetKind.EntityNullableReturn)
         {
-            sb.AppendLine($"    public {typeStr} {method.Name}({string.Join(", ", paramsDecl)})");
-            sb.AppendLine("    {");
-            sb.AppendLine($"        return new Vector3(");
-            sb.AppendLine($"            IGameApiImports.{importName}X({string.Join(", ", callArgs)}),");
-            sb.AppendLine($"            IGameApiImports.{importName}Y({string.Join(", ", callArgs)}),");
-            sb.AppendLine($"            IGameApiImports.{importName}Z({string.Join(", ", callArgs)}));");
-            sb.AppendLine("    }");
-            return;
-        }
-
-        if (retKind == RetKind.StringListReturn)
-        {
-            var callArgsCount = new List<string>(callArgs);
-            var callArgsGet = new List<string>(callArgs);
-            callArgsGet.Add("i");
-            
-            sb.AppendLine($"    public {typeStr} {method.Name}({string.Join(", ", paramsDecl)})");
-            sb.AppendLine("    {");
-            sb.AppendLine($"        int count = IGameApiImports.{importName}Count({string.Join(", ", callArgsCount)});");
-            sb.AppendLine($"        var list = new List<string>(count);");
-            sb.AppendLine($"        for (int i = 0; i < count; i++)");
-            sb.AppendLine($"            list.Add(IGameApiImports.{importName}Get({string.Join(", ", callArgsGet)}));");
-            sb.AppendLine("        return list;");
-            sb.AppendLine("    }");
-            return;
-        }
-
-        if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
-        {
-            IsEntityInterface(method.ReturnType, out var unwrapped);
-            string cleanElem = CleanInterfaceName(unwrapped);
-            if (retKind == RetKind.EntityNullableReturn)
-            {
-                sb.AppendLine($"    public {typeStr} {method.Name}({string.Join(", ", paramsDecl)})");
-                sb.AppendLine("    {");
-                sb.AppendLine($"        int id = {importCall};");
-                sb.AppendLine($"        return id > 0 ? new {cleanElem}_WasmModule(id) : null;");
-                sb.AppendLine("    }");
-            }
-            else
-            {
-                sb.AppendLine($"    public {typeStr} {method.Name}({string.Join(", ", paramsDecl)})");
-                sb.AppendLine("    {");
-                sb.AppendLine($"        return new {cleanElem}_WasmModule({importCall});");
-                sb.AppendLine("    }");
-            }
-            return;
-        }
-
-        if (retKind == RetKind.EntityListReturn)
-        {
-            IsCollection(method.ReturnType, out var elemType);
-            string cleanElem = CleanInterfaceName(elemType);
-            sb.AppendLine($"    public {typeStr} {method.Name}({string.Join(", ", paramsDecl)})");
-            sb.AppendLine("    {");
-            sb.AppendLine($"        return {importCall}.Select(id => ({elemType.ToDisplayString()})new {cleanElem}_WasmModule(id));");
-            sb.AppendLine("    }");
-            return;
-        }
-
-        sb.AppendLine($"    public {typeStr} {method.Name}({string.Join(", ", paramsDecl)})");
-        sb.AppendLine("    {");
-
-        if (retKind == RetKind.Void || method.ReturnType.SpecialType == SpecialType.System_Void)
-        {
-            sb.AppendLine($"        {importCall};");
+            sb.AppendLine($"        int id = {importCall};");
+            sb.AppendLine($"        return id > 0 ? new {cleanElem}_WasmModule(id) : null;");
         }
         else
         {
-            sb.AppendLine($"        return {importCall};");
+            sb.AppendLine($"        return new {cleanElem}_WasmModule({importCall});");
         }
-        sb.AppendLine("    }");
+    }
+
+    private static void EmitGuestMethodEntityListReturn(StringBuilder sb, IMethodSymbol method, string importCall)
+    {
+        IsCollection(method.ReturnType, out var elemType);
+        string cleanElem = CleanInterfaceName(elemType);
+        sb.AppendLine($"        return {importCall}.Select(id => ({elemType.ToDisplayString()})new {cleanElem}_WasmModule(id));");
     }
 
     private static string ToKebabCase(string value)

@@ -577,64 +577,10 @@ public partial class GameOver : Control
 
 	private async System.Threading.Tasks.Task ReportMetricsAsync(string mapName, double playtimeMinutes, int stars, bool isComplete)
 	{
-		string mapTitle = mapName;
-		if (mapTitle.StartsWith("[Beta-Testing] "))
-		{
-			mapTitle = mapTitle.Substring("[Beta-Testing] ".Length);
-		}
-		int dashIdx = mapTitle.LastIndexOf(" - ");
-		if (dashIdx != -1)
-		{
-			mapTitle = mapTitle.Substring(0, dashIdx);
-		}
-		mapTitle = mapTitle.Trim();
-
+		string mapTitle = CleanMapName(mapName);
 		string mapVersion = LobbyManager.Instance?.ActiveMapVersion ?? "1.0.0";
-		string authorPubKey = "";
-
-		try
-		{
-			string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion)
-				?? MapAssetManager.FindManifestPath(mapTitle, mapVersion);
-
-			if (!string.IsNullOrEmpty(manifestPath) && System.IO.File.Exists(manifestPath))
-			{
-				string json = System.IO.File.ReadAllText(manifestPath);
-				using var mapDoc = JsonDocument.Parse(json);
-				var root = mapDoc.RootElement;
-				if (root.TryGetProperty("author_key", out var keyProp))
-				{
-					authorPubKey = keyProp.GetString() ?? "";
-				}
-				if (root.TryGetProperty("Version", out var vProp) && vProp.ValueKind == JsonValueKind.String)
-				{
-					mapVersion = vProp.GetString() ?? mapVersion;
-				}
-			}
-			else
-			{
-				string[] possiblePaths = {
-					ProjectSettings.GlobalizePath($"user://maps/{mapTitle}/metadata.json"),
-					ProjectSettings.GlobalizePath($"res://Maps/{mapTitle}/metadata.json"),
-					ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
-				};
-				foreach (var p in possiblePaths)
-				{
-					if (System.IO.File.Exists(p))
-					{
-						string json = System.IO.File.ReadAllText(p);
-						using var mapDoc = JsonDocument.Parse(json);
-						var root = mapDoc.RootElement;
-						if (root.TryGetProperty("author_key", out var keyProp))
-						{
-							authorPubKey = keyProp.GetString() ?? "";
-						}
-						break;
-					}
-				}
-			}
-		}
-		catch {}
+		
+		ExtractManifestInfo(mapName, mapTitle, ref mapVersion, out string authorPubKey);
 		
 		var payload = new
 		{
@@ -652,11 +598,9 @@ public partial class GameOver : Control
 		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 		try
 		{
-			using (var httpClient = new System.Net.Http.HttpClient())
-			{
-				var content = new System.Net.Http.StringContent(System.Text.Json.JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
-				await httpClient.PostAsync(seedServerUrl + "/api/maps/report_metrics", content);
-			}
+			using var httpClient = new System.Net.Http.HttpClient();
+			var content = new System.Net.Http.StringContent(System.Text.Json.JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
+			await httpClient.PostAsync(seedServerUrl + "/api/maps/report_metrics", content);
 		}
 		catch (Exception ex)
 		{
@@ -668,69 +612,122 @@ public partial class GameOver : Control
 	{
 		try
 		{
-			var contributors = new List<string>();
-			string rawName = mapName;
-			if (rawName.StartsWith("[Beta-Testing] "))
-			{
-				rawName = rawName.Substring("[Beta-Testing] ".Length);
-			}
-			int dashIdx = rawName.LastIndexOf(" - ");
-			if (dashIdx != -1)
-			{
-				rawName = rawName.Substring(0, dashIdx);
-			}
-			rawName = rawName.Trim();
-
-			string[] paths = {
-				ProjectSettings.GlobalizePath($"res://Maps/{rawName}/metadata.json"),
-				ProjectSettings.GlobalizePath($"user://maps/{rawName}/metadata.json"),
-				ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
-			};
-
-			foreach (var path in paths)
-			{
-				if (System.IO.File.Exists(path))
-				{
-					string json = System.IO.File.ReadAllText(path);
-					using var doc = JsonDocument.Parse(json);
-					if (doc.RootElement.TryGetProperty("Contributors", out var conts) && conts.ValueKind == JsonValueKind.Array)
-					{
-						foreach (var el in conts.EnumerateArray())
-						{
-							var s = el.GetString();
-							if (!string.IsNullOrEmpty(s)) contributors.Add(s);
-						}
-					}
-					break;
-				}
-			}
+			string rawName = CleanMapName(mapName);
+			var contributors = GetContributorsFromMetadata(rawName);
 
 			if (contributors.Count == 0)
 			{
 				contributors.Add("Realm Builder"); // fallback
 			}
 
-			string statsPath = ProjectSettings.GlobalizePath("user://appdata/playtime_stats.json");
-			var stats = new Dictionary<string, int>();
-			if (System.IO.File.Exists(statsPath))
-			{
-				string statsJson = System.IO.File.ReadAllText(statsPath);
-				stats = JsonSerializer.Deserialize<Dictionary<string, int>>(statsJson) ?? stats;
-			}
-
-			foreach (var contributor in contributors)
-			{
-				if (!stats.ContainsKey(contributor)) stats[contributor] = 0;
-				stats[contributor] += (int)playtimeMinutes;
-			}
-
-			System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(statsPath));
-			System.IO.File.WriteAllText(statsPath, JsonSerializer.Serialize(stats));
+			UpdatePlaytimeStats(contributors, playtimeMinutes);
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[GameOver] Failed to update local playtime stats: {ex.Message}");
 		}
 	}
-}
 
+	private static string CleanMapName(string mapName)
+	{
+		string mapTitle = mapName;
+		if (mapTitle.StartsWith("[Beta-Testing] "))
+		{
+			mapTitle = mapTitle.Substring("[Beta-Testing] ".Length);
+		}
+		int dashIdx = mapTitle.LastIndexOf(" - ");
+		if (dashIdx != -1)
+		{
+			mapTitle = mapTitle.Substring(0, dashIdx);
+		}
+		return mapTitle.Trim();
+	}
+
+	private static void ExtractManifestInfo(string mapName, string mapTitle, ref string mapVersion, out string authorPubKey)
+	{
+		authorPubKey = "";
+		try
+		{
+			string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion)
+				?? MapAssetManager.FindManifestPath(mapTitle, mapVersion);
+
+			if (!string.IsNullOrEmpty(manifestPath) && System.IO.File.Exists(manifestPath))
+			{
+				string json = System.IO.File.ReadAllText(manifestPath);
+				using var mapDoc = JsonDocument.Parse(json);
+				var root = mapDoc.RootElement;
+				if (root.TryGetProperty("author_key", out var keyProp))
+					authorPubKey = keyProp.GetString() ?? "";
+				
+				if (root.TryGetProperty("Version", out var vProp) && vProp.ValueKind == JsonValueKind.String)
+					mapVersion = vProp.GetString() ?? mapVersion;
+				return;
+			}
+			
+			string[] possiblePaths = {
+				ProjectSettings.GlobalizePath($"user://maps/{mapTitle}/metadata.json"),
+				ProjectSettings.GlobalizePath($"res://Maps/{mapTitle}/metadata.json"),
+				ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
+			};
+			foreach (var p in possiblePaths)
+			{
+				if (!System.IO.File.Exists(p)) continue;
+				
+				string json = System.IO.File.ReadAllText(p);
+				using var mapDoc = JsonDocument.Parse(json);
+				var root = mapDoc.RootElement;
+				if (root.TryGetProperty("author_key", out var keyProp))
+					authorPubKey = keyProp.GetString() ?? "";
+				break;
+			}
+		}
+		catch {}
+	}
+
+	private static List<string> GetContributorsFromMetadata(string rawName)
+	{
+		var contributors = new List<string>();
+		string[] paths = {
+			ProjectSettings.GlobalizePath($"res://Maps/{rawName}/metadata.json"),
+			ProjectSettings.GlobalizePath($"user://maps/{rawName}/metadata.json"),
+			ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
+		};
+
+		foreach (var path in paths)
+		{
+			if (!System.IO.File.Exists(path)) continue;
+			
+			string json = System.IO.File.ReadAllText(path);
+			using var doc = JsonDocument.Parse(json);
+			if (!doc.RootElement.TryGetProperty("Contributors", out var conts) || conts.ValueKind != JsonValueKind.Array) break;
+			
+			foreach (var el in conts.EnumerateArray())
+			{
+				var s = el.GetString();
+				if (!string.IsNullOrEmpty(s)) contributors.Add(s);
+			}
+			break;
+		}
+		return contributors;
+	}
+
+	private static void UpdatePlaytimeStats(List<string> contributors, double playtimeMinutes)
+	{
+		string statsPath = ProjectSettings.GlobalizePath("user://appdata/playtime_stats.json");
+		var stats = new Dictionary<string, int>();
+		if (System.IO.File.Exists(statsPath))
+		{
+			string statsJson = System.IO.File.ReadAllText(statsPath);
+			stats = JsonSerializer.Deserialize<Dictionary<string, int>>(statsJson) ?? stats;
+		}
+
+		foreach (var contributor in contributors)
+		{
+			if (!stats.ContainsKey(contributor)) stats[contributor] = 0;
+			stats[contributor] += (int)playtimeMinutes;
+		}
+
+		System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(statsPath)!);
+		System.IO.File.WriteAllText(statsPath, JsonSerializer.Serialize(stats));
+	}
+}

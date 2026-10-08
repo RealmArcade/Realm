@@ -50,6 +50,110 @@ public static class ModelConverter
 		};
 	}
 
+
+
+	private static JsonObject ParseExistingMetadata(string? existingMetaJson)
+	{
+		if (string.IsNullOrWhiteSpace(existingMetaJson)) return new JsonObject();
+		try
+		{
+			return JsonNode.Parse(existingMetaJson)?.AsObject() ?? new JsonObject();
+		}
+		catch
+		{
+			return new JsonObject();
+		}
+	}
+
+	private static string? DetermineEffectiveAssetType(string? assetType, JsonObject metaObj)
+	{
+		if (!string.IsNullOrEmpty(assetType))
+		{
+			if (RealmMetadataHelper.IsValidAssetTypeForExtension(".rmesh", assetType, out string canonicalInput, out _))
+			{
+				return canonicalInput;
+			}
+			return assetType;
+		}
+
+		string? existingType = metaObj["asset_type"]?.ToString() ?? metaObj["default_asset_type"]?.ToString() ?? metaObj["type"]?.ToString();
+		if (!string.IsNullOrEmpty(existingType))
+		{
+			if (RealmMetadataHelper.IsValidAssetTypeForExtension(".rmesh", existingType, out string canonicalMeta, out _))
+			{
+				return canonicalMeta;
+			}
+			return existingType;
+		}
+
+		return null;
+	}
+
+	private static (bool Success, byte[]? OutputGlb, string? ErrorMessage) ProcessGlbOptimization(byte[] rawGlbBytes, string? effectiveAssetType, bool force, OptimizationOptions? options)
+	{
+		bool shouldForce = force || (options.HasValue && options.Value.ForceReDecimate);
+		bool isAlreadyOptimized = GlbManifestUtils.HasOptimizationFlag(rawGlbBytes);
+
+		if (!shouldForce && isAlreadyOptimized)
+		{
+			return (true, rawGlbBytes, null);
+		}
+
+		byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(rawGlbBytes).UnoptimizedBytes;
+		var opt = options ?? GetAutomaticOptimizationOptions(effectiveAssetType, shouldForce);
+		opt.ForceReDecimate = shouldForce;
+		var optimizer = new GlbOptimizer();
+		var optResult = optimizer.Optimize(unoptimized, opt);
+		if (!optResult.Success || optResult.OutputGlbBytes == null)
+		{
+			return (false, null, optResult.ErrorMessage ?? "Optimization failed.");
+		}
+		
+		return (true, optResult.OutputGlbBytes, null);
+	}
+
+	private static string DetermineChromaKey(string? chromaKey, JsonObject metaObj, byte[] finalGlbBytes)
+	{
+		if (string.Equals(chromaKey, "auto", StringComparison.OrdinalIgnoreCase))
+		{
+			return GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
+		}
+		
+		if (string.IsNullOrEmpty(chromaKey))
+		{
+			string? existingKey = metaObj["chroma_key"]?.ToString() ?? metaObj["chromaKey"]?.ToString();
+			if (string.Equals(existingKey, "auto", StringComparison.OrdinalIgnoreCase))
+			{
+				return GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
+			}
+			return existingKey ?? string.Empty;
+		}
+		
+		return chromaKey;
+	}
+
+	private static byte[] ReadInputBytes(string fullInput)
+	{
+		string ext = Path.GetExtension(fullInput).ToLowerInvariant();
+		if (ext is not ".obj" and not ".fbx" and not ".dae")
+		{
+			return File.ReadAllBytes(fullInput);
+		}
+
+		using var importer = new Assimp.AssimpContext();
+		var scene = importer.ImportFile(fullInput, Assimp.PostProcessSteps.Triangulate | Assimp.PostProcessSteps.GenerateNormals | Assimp.PostProcessSteps.MakeLeftHanded | Assimp.PostProcessSteps.FlipUVs);
+		string tempGlb = Path.Combine(Path.GetTempPath(), $"realm_import_{Guid.NewGuid():N}.glb");
+		try
+		{
+			importer.ExportFile(scene, tempGlb, "glb2");
+			return File.ReadAllBytes(tempGlb);
+		}
+		finally
+		{
+			if (File.Exists(tempGlb)) try { File.Delete(tempGlb); } catch { }
+		}
+	}
+
 	public static ModelConversionResult ConvertToRmesh(
 		string inputPath,
 		string? outputPath = null,
@@ -77,27 +181,7 @@ public static class ModelConverter
 
 		try
 		{
-			byte[] inputBytes;
-			string ext = Path.GetExtension(fullInput).ToLowerInvariant();
-			if (ext is ".obj" or ".fbx" or ".dae")
-			{
-				using var importer = new Assimp.AssimpContext();
-				var scene = importer.ImportFile(fullInput, Assimp.PostProcessSteps.Triangulate | Assimp.PostProcessSteps.GenerateNormals | Assimp.PostProcessSteps.MakeLeftHanded | Assimp.PostProcessSteps.FlipUVs);
-				string tempGlb = Path.Combine(Path.GetTempPath(), $"realm_import_{Guid.NewGuid():N}.glb");
-				try
-				{
-					importer.ExportFile(scene, tempGlb, "glb2");
-					inputBytes = File.ReadAllBytes(tempGlb);
-				}
-				finally
-				{
-					if (File.Exists(tempGlb)) try { File.Delete(tempGlb); } catch { }
-				}
-			}
-			else
-			{
-				inputBytes = File.ReadAllBytes(fullInput);
-			}
+			byte[] inputBytes = ReadInputBytes(fullInput);
 
 			result.OriginalSize = inputBytes.Length;
 
@@ -111,10 +195,7 @@ public static class ModelConverter
 			}
 
 			string? targetDir = Path.GetDirectoryName(targetRmesh);
-			if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
-			{
-				Directory.CreateDirectory(targetDir);
-			}
+			if (!string.IsNullOrEmpty(targetDir)) Directory.CreateDirectory(targetDir);
 
 			File.WriteAllBytes(targetRmesh, convRes.OutputBytes);
 
@@ -159,7 +240,7 @@ public static class ModelConverter
 
 		try
 		{
-			byte[] rawGlbBytes;
+			byte[] rawGlbBytes = inputBytes.ToArray();
 			string? existingMetaJson = existingMetadataJson;
 
 			if (RmeshFile.IsRmeshBytes(inputBytes))
@@ -168,49 +249,9 @@ public static class ModelConverter
 				existingMetaJson ??= parsedMeta;
 				rawGlbBytes = parsedGlb;
 			}
-			else
-			{
-				rawGlbBytes = inputBytes.ToArray();
-			}
 
-			JsonObject metaObj;
-			if (!string.IsNullOrWhiteSpace(existingMetaJson))
-			{
-				try
-				{
-					metaObj = JsonNode.Parse(existingMetaJson)?.AsObject() ?? new JsonObject();
-				}
-				catch
-				{
-					metaObj = new JsonObject();
-				}
-			}
-			else
-			{
-				metaObj = new JsonObject();
-			}
-
-			string? effectiveAssetType = null;
-			if (!string.IsNullOrEmpty(assetType) && RealmMetadataHelper.IsValidAssetTypeForExtension(".rmesh", assetType, out string canonicalInput, out _))
-			{
-				effectiveAssetType = canonicalInput;
-			}
-			else if (!string.IsNullOrEmpty(assetType))
-			{
-				effectiveAssetType = assetType;
-			}
-			else
-			{
-				string? existingType = metaObj["asset_type"]?.ToString() ?? metaObj["default_asset_type"]?.ToString() ?? metaObj["type"]?.ToString();
-				if (!string.IsNullOrEmpty(existingType) && RealmMetadataHelper.IsValidAssetTypeForExtension(".rmesh", existingType, out string canonicalMeta, out _))
-				{
-					effectiveAssetType = canonicalMeta;
-				}
-				else if (!string.IsNullOrEmpty(existingType))
-				{
-					effectiveAssetType = existingType;
-				}
-			}
+			JsonObject metaObj = ParseExistingMetadata(existingMetaJson);
+			string? effectiveAssetType = DetermineEffectiveAssetType(assetType, metaObj);
 
 			if (string.IsNullOrWhiteSpace(effectiveAssetType))
 			{
@@ -219,29 +260,14 @@ public static class ModelConverter
 				return result;
 			}
 
-			bool shouldForce = force || (options.HasValue && options.Value.ForceReDecimate);
-			bool isAlreadyOptimized = GlbManifestUtils.HasOptimizationFlag(rawGlbBytes);
-
-			byte[] finalGlbBytes;
-			if (!shouldForce && isAlreadyOptimized)
+			var optRes = ProcessGlbOptimization(rawGlbBytes, effectiveAssetType, force, options);
+			if (!optRes.Success || optRes.OutputGlb == null)
 			{
-				finalGlbBytes = rawGlbBytes;
+				result.Success = false;
+				result.ErrorMessage = optRes.ErrorMessage ?? "Optimization failed.";
+				return result;
 			}
-			else
-			{
-				byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(rawGlbBytes).UnoptimizedBytes;
-				var opt = options ?? GetAutomaticOptimizationOptions(effectiveAssetType, shouldForce);
-				opt.ForceReDecimate = shouldForce;
-				var optimizer = new GlbOptimizer();
-				var optResult = optimizer.Optimize(unoptimized, opt);
-				if (!optResult.Success || optResult.OutputGlbBytes == null)
-				{
-					result.Success = false;
-					result.ErrorMessage = optResult.ErrorMessage ?? "Optimization failed.";
-					return result;
-				}
-				finalGlbBytes = optResult.OutputGlbBytes;
-			}
+			byte[] finalGlbBytes = optRes.OutputGlb;
 
 			bool supportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(finalGlbBytes);
 
@@ -268,22 +294,10 @@ public static class ModelConverter
 				metaObj["author"] = author;
 			}
 
-			if (string.Equals(chromaKey, "auto", StringComparison.OrdinalIgnoreCase))
+			string finalChromaKey = DetermineChromaKey(chromaKey, metaObj, finalGlbBytes);
+			if (!string.IsNullOrEmpty(finalChromaKey))
 			{
-				chromaKey = GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
-			}
-			else if (string.IsNullOrEmpty(chromaKey))
-			{
-				string? existingKey = metaObj["chroma_key"]?.ToString() ?? metaObj["chromaKey"]?.ToString();
-				if (string.Equals(existingKey, "auto", StringComparison.OrdinalIgnoreCase))
-				{
-					chromaKey = GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
-				}
-			}
-
-			if (!string.IsNullOrEmpty(chromaKey))
-			{
-				metaObj["chroma_key"] = chromaKey;
+				metaObj["chroma_key"] = finalChromaKey;
 			}
 
 			metaObj["is_compressed"] = true;
@@ -362,6 +376,52 @@ public static class ModelConverter
 		}
 	}
 
+
+	private static ModelConversionResult ProcessGlbToGlb(string fullInput, string target, string? assetType, bool force, OptimizationOptions? options, string? author)
+	{
+		var result = new ModelConversionResult { InputPath = fullInput, OutputPath = target };
+		try
+		{
+			byte[] inputGlbBytes = File.ReadAllBytes(fullInput);
+			result.OriginalSize = inputGlbBytes.Length;
+
+			bool shouldForce = force || (options.HasValue && options.Value.ForceReDecimate);
+			bool isAlreadyOptimized = GlbManifestUtils.HasOptimizationFlag(inputGlbBytes);
+
+			byte[] outputGlbBytes;
+			if (!shouldForce && isAlreadyOptimized)
+			{
+				outputGlbBytes = inputGlbBytes;
+			}
+			else
+			{
+				byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
+				var optRes = ProcessGlbOptimization(inputGlbBytes, assetType, force, options);
+				outputGlbBytes = optRes.Success && optRes.OutputGlb != null ? optRes.OutputGlb : unoptimized;
+			}
+
+			string? targetDir = Path.GetDirectoryName(target);
+			if (!string.IsNullOrEmpty(targetDir)) Directory.CreateDirectory(targetDir);
+
+			File.WriteAllBytes(target, outputGlbBytes);
+			RealmMetadataHelper.SyncBlake3Metadata(target);
+
+			result.Success = true;
+			result.OutputBytes = outputGlbBytes;
+			result.OptimizedSize = outputGlbBytes.Length;
+			result.SupportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(outputGlbBytes);
+			result.AssetType = assetType;
+			result.Author = author;
+			return result;
+		}
+		catch (Exception ex)
+		{
+			result.Success = false;
+			result.ErrorMessage = ex.Message;
+			return result;
+		}
+	}
+
 	public static ModelConversionResult ConvertModelFile(
 		string inputPath,
 		string? outputPath = null,
@@ -386,50 +446,7 @@ public static class ModelConverter
 
 		if (ext == ".glb" && Path.GetExtension(target).Equals(".glb", StringComparison.OrdinalIgnoreCase))
 		{
-			var result = new ModelConversionResult { InputPath = fullInput, OutputPath = target };
-			try
-			{
-				byte[] inputGlbBytes = File.ReadAllBytes(fullInput);
-				result.OriginalSize = inputGlbBytes.Length;
-
-				bool shouldForce = force || (options.HasValue && options.Value.ForceReDecimate);
-				bool isAlreadyOptimized = GlbManifestUtils.HasOptimizationFlag(inputGlbBytes);
-
-				byte[] outputGlbBytes;
-				if (!shouldForce && isAlreadyOptimized)
-				{
-					outputGlbBytes = inputGlbBytes;
-				}
-				else
-				{
-					byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
-					var opt = options ?? GetAutomaticOptimizationOptions(assetType, shouldForce);
-					opt.ForceReDecimate = shouldForce;
-					var optimizer = new GlbOptimizer();
-					var optResult = optimizer.Optimize(unoptimized, opt);
-					outputGlbBytes = optResult.Success && optResult.OutputGlbBytes != null ? optResult.OutputGlbBytes : unoptimized;
-				}
-
-				string? targetDir = Path.GetDirectoryName(target);
-				if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
-
-				File.WriteAllBytes(target, outputGlbBytes);
-				RealmMetadataHelper.SyncBlake3Metadata(target);
-
-				result.Success = true;
-				result.OutputBytes = outputGlbBytes;
-				result.OptimizedSize = outputGlbBytes.Length;
-				result.SupportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(outputGlbBytes);
-				result.AssetType = assetType;
-				result.Author = author;
-				return result;
-			}
-			catch (Exception ex)
-			{
-				result.Success = false;
-				result.ErrorMessage = ex.Message;
-				return result;
-			}
+			return ProcessGlbToGlb(fullInput, target, assetType, force, options, author);
 		}
 
 		return ConvertToRmesh(fullInput, target, assetType, force, options, author, chromaKey);

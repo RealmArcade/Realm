@@ -184,30 +184,36 @@ public static class MakeItAnimatableSetup
 
         foreach (var patchPath in patches)
         {
-            string patchName = Path.GetFileName(patchPath);
-
-            var psi = new ProcessStartInfo { FileName = "git", WorkingDirectory = RepoDir, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
-            psi.ArgumentList.Add("apply");
-            psi.ArgumentList.Add(patchPath);
-
-            var (exitCode, _, stderr) = RunProcessCapture(psi);
-
-            if (exitCode == 0)
-            {
-                log($"[MIA]   {patchName}... applied.");
-            }
-            else if (stderr.Contains("already exists", StringComparison.OrdinalIgnoreCase) ||
-                     stderr.Contains("patch does not apply", StringComparison.OrdinalIgnoreCase) ||
-                     stderr.Contains("already applied", StringComparison.OrdinalIgnoreCase))
-            {
-                log($"[MIA]   {patchName}... already applied, skipped.");
-            }
-            else
-            {
-                throw new InvalidOperationException(
-                    $"Failed to apply patch '{patchName}' (exit {exitCode}):\n{stderr}");
-            }
+            ApplySinglePatch(patchPath, log);
         }
+    }
+
+    private static void ApplySinglePatch(string patchPath, Action<string> log)
+    {
+        string patchName = Path.GetFileName(patchPath);
+
+        var psi = new ProcessStartInfo { FileName = "git", WorkingDirectory = RepoDir, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        psi.ArgumentList.Add("apply");
+        psi.ArgumentList.Add(patchPath);
+
+        var (exitCode, _, stderr) = RunProcessCapture(psi);
+
+        if (exitCode == 0)
+        {
+            log($"[MIA]   {patchName}... applied.");
+            return;
+        }
+
+        if (stderr.Contains("already exists", StringComparison.OrdinalIgnoreCase) ||
+            stderr.Contains("patch does not apply", StringComparison.OrdinalIgnoreCase) ||
+            stderr.Contains("already applied", StringComparison.OrdinalIgnoreCase))
+        {
+            log($"[MIA]   {patchName}... already applied, skipped.");
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Failed to apply patch '{patchName}' (exit {exitCode}):\n{stderr}");
     }
 
     private static void EnsureVenv(Action<string> log)

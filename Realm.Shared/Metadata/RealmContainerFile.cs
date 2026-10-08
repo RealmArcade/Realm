@@ -166,22 +166,7 @@ public abstract class RealmContainerFile
 
 		string canonicalBlake3 = Hasher.Hash(payload).ToString();
 
-		JsonObject metaObj;
-		if (!string.IsNullOrWhiteSpace(metadataJson))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(metadataJson)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-		}
+		JsonObject metaObj = ParseMetadataSafe(metadataJson);
 
 		if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
 		{
@@ -223,30 +208,11 @@ public abstract class RealmContainerFile
 			isCompressed = oldCompressed;
 		}
 
-		JsonObject metaObj;
-		if (!string.IsNullOrWhiteSpace(newMetadataJson))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(newMetadataJson)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-		}
+		JsonObject metaObj = ParseMetadataSafe(newMetadataJson);
 
 		if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
 		{
-			string? oldCreatedUtc = null;
-			if (!string.IsNullOrWhiteSpace(oldMetadataJson))
-			{
-				try { oldCreatedUtc = JsonNode.Parse(oldMetadataJson)?["created_utc"]?.ToString(); } catch { }
-			}
+			string? oldCreatedUtc = ExtractCreatedUtcSafe(oldMetadataJson);
 			metaObj["created_utc"] = oldCreatedUtc ?? DateTime.UtcNow.ToString("O");
 		}
 
@@ -284,5 +250,31 @@ public abstract class RealmContainerFile
 	public static string? ExtractMetadataFromPath(string filePath, ReadOnlySpan<byte> expectedMagic)
 	{
 		return RealmContainerHeader.ExtractMetadataFromFile(filePath, expectedMagic);
+	}
+
+	private static JsonObject ParseMetadataSafe(string? metadataJson)
+	{
+		if (string.IsNullOrWhiteSpace(metadataJson)) return new JsonObject();
+		try
+		{
+			return JsonNode.Parse(metadataJson)?.AsObject() ?? new JsonObject();
+		}
+		catch
+		{
+			return new JsonObject();
+		}
+	}
+
+	private static string? ExtractCreatedUtcSafe(string? metadataJson)
+	{
+		if (string.IsNullOrWhiteSpace(metadataJson)) return null;
+		try
+		{
+			return JsonNode.Parse(metadataJson)?["created_utc"]?.ToString();
+		}
+		catch
+		{
+			return null;
+		}
 	}
 }

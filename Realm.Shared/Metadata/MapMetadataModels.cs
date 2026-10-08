@@ -1281,80 +1281,91 @@ public class UnitObjectAttachments
 	public List<Dictionary<string, HandAttachmentOrientation>>? overhead { get; set; }
 	public List<Dictionary<string, HandAttachmentOrientation>>? pivot { get; set; }
 
-	public bool HasAny() => (right_hand?.Count > 0) || (left_hand?.Count > 0) || (chest?.Count > 0) || (root?.Count > 0) || (head?.Count > 0) || (left_foot?.Count > 0) || (right_foot?.Count > 0) || (ground?.Count > 0) || (center?.Count > 0) || (overhead?.Count > 0) || (pivot?.Count > 0);
+	public bool HasAny() => HasAnyUpper() || HasAnyLower() || HasAnyMisc();
+
+	private bool HasAnyUpper() => (right_hand?.Count > 0) || (left_hand?.Count > 0) || (chest?.Count > 0) || (head?.Count > 0);
+	private bool HasAnyLower() => (root?.Count > 0) || (left_foot?.Count > 0) || (right_foot?.Count > 0) || (ground?.Count > 0);
+	private bool HasAnyMisc() => (center?.Count > 0) || (overhead?.Count > 0) || (pivot?.Count > 0);
 
 	public List<Dictionary<string, HandAttachmentOrientation>>? GetSocketList(string socket)
 	{
 		if (string.IsNullOrEmpty(socket)) return right_hand;
 		string s = socket.ToLowerInvariant().Replace("_", "").Replace(" ", "");
-		return s switch
-		{
-			"ground" or "footprint" or "base" => ground,
-			"center" or "centerofmass" => center,
-			"overhead" or "top" or "crown" or "roof" => overhead,
-			"pivot" or "origin" => pivot,
-			"root" or "hips" => root,
-			"chest" or "spine" => chest,
-			"head" => head,
-			"lefthand" => left_hand,
-			"righthand" => right_hand,
-			"leftfoot" => left_foot,
-			"rightfoot" => right_foot,
-			_ => right_hand
-		};
+		var upper = GetUpperSocketList(s);
+		if (upper != null) return upper;
+		var lower = GetLowerSocketList(s);
+		if (lower != null) return lower;
+		return GetMiscSocketList(s) ?? right_hand;
 	}
+
+	private List<Dictionary<string, HandAttachmentOrientation>>? GetUpperSocketList(string s) => s switch
+	{
+		"chest" or "spine" => chest,
+		"head" => head,
+		"lefthand" => left_hand,
+		"righthand" => right_hand,
+		_ => null
+	};
+
+	private List<Dictionary<string, HandAttachmentOrientation>>? GetLowerSocketList(string s) => s switch
+	{
+		"root" or "hips" => root,
+		"leftfoot" => left_foot,
+		"rightfoot" => right_foot,
+		"ground" or "footprint" or "base" => ground,
+		_ => null
+	};
+
+	private List<Dictionary<string, HandAttachmentOrientation>>? GetMiscSocketList(string s) => s switch
+	{
+		"center" or "centerofmass" => center,
+		"overhead" or "top" or "crown" or "roof" => overhead,
+		"pivot" or "origin" => pivot,
+		_ => null
+	};
 
 	public void SetSocketList(string socket, List<Dictionary<string, HandAttachmentOrientation>> list)
 	{
 		string s = (socket ?? "righthand").ToLowerInvariant().Replace("_", "").Replace(" ", "");
+		if (TrySetUpperSocketList(s, list)) return;
+		if (TrySetLowerSocketList(s, list)) return;
+		if (TrySetMiscSocketList(s, list)) return;
+		right_hand = list;
+	}
+
+	private bool TrySetUpperSocketList(string s, List<Dictionary<string, HandAttachmentOrientation>> list)
+	{
 		switch (s)
 		{
-			case "ground":
-			case "footprint":
-			case "base":
-				ground = list;
-				break;
-			case "center":
-			case "centerofmass":
-				center = list;
-				break;
-			case "overhead":
-			case "top":
-			case "crown":
-			case "roof":
-				overhead = list;
-				break;
-			case "pivot":
-			case "origin":
-				pivot = list;
-				break;
-			case "root":
-			case "hips":
-				root = list;
-				break;
-			case "chest":
-			case "spine":
-				chest = list;
-				break;
-			case "head":
-				head = list;
-				break;
-			case "lefthand":
-				left_hand = list;
-				break;
-			case "righthand":
-				right_hand = list;
-				break;
-			case "leftfoot":
-				left_foot = list;
-				break;
-			case "rightfoot":
-				right_foot = list;
-				break;
-			default:
-				right_hand = list;
-				break;
+			case "chest": case "spine": chest = list; return true;
+			case "head": head = list; return true;
+			case "lefthand": left_hand = list; return true;
+			case "righthand": right_hand = list; return true;
 		}
+		return false;
+	}
+
+	private bool TrySetLowerSocketList(string s, List<Dictionary<string, HandAttachmentOrientation>> list)
+	{
+		switch (s)
+		{
+			case "root": case "hips": root = list; return true;
+			case "leftfoot": left_foot = list; return true;
+			case "rightfoot": right_foot = list; return true;
+			case "ground": case "footprint": case "base": ground = list; return true;
+		}
+		return false;
+	}
+
+	private bool TrySetMiscSocketList(string s, List<Dictionary<string, HandAttachmentOrientation>> list)
+	{
+		switch (s)
+		{
+			case "center": case "centerofmass": center = list; return true;
+			case "overhead": case "top": case "crown": case "roof": overhead = list; return true;
+			case "pivot": case "origin": pivot = list; return true;
+		}
+		return false;
 	}
 
 	public List<Dictionary<string, HandAttachmentOrientation>>? GetBoneList(HumanoidBone bone)
@@ -1511,39 +1522,54 @@ public class UnitObjectAttachments
 		for (int i = list.Count - 1; i >= 0; i--)
 		{
 			var dict = list[i];
-			if (dict != null)
+			if (dict == null) continue;
+			if (ProcessSocketDictionaryRemoval(dict, attachmentId, cleanId, parentAttachmentId))
 			{
-				var keysToRemove = dict.Keys.Where(k =>
-				{
-					bool keyMatch = k.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
-						k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-						Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase);
-
-					if (!string.IsNullOrEmpty(parentAttachmentId))
-					{
-						return keyMatch && string.Equals(dict[k].ParentAttachmentId, parentAttachmentId, StringComparison.OrdinalIgnoreCase);
-					}
-
-					bool isChildOfThis = dict[k].ParentAttachmentId != null &&
-						(dict[k].ParentAttachmentId!.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
-						 dict[k].ParentAttachmentId!.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-						 Path.GetFileNameWithoutExtension(dict[k].ParentAttachmentId!).Equals(cleanId, StringComparison.OrdinalIgnoreCase));
-
-					return (keyMatch && string.IsNullOrEmpty(dict[k].ParentAttachmentId)) || isChildOfThis;
-				}).ToList();
-
-				foreach (var k in keysToRemove)
-				{
-					dict.Remove(k);
-					removed = true;
-				}
-				if (dict.Count == 0)
-				{
-					list.RemoveAt(i);
-				}
+				removed = true;
+			}
+			if (dict.Count == 0)
+			{
+				list.RemoveAt(i);
 			}
 		}
 		return removed;
+	}
+
+	private bool ProcessSocketDictionaryRemoval(Dictionary<string, HandAttachmentOrientation> dict, string attachmentId, string cleanId, string? parentAttachmentId)
+	{
+		var keysToRemove = dict.Keys.Where(k => ShouldRemoveKey(k, dict[k], attachmentId, cleanId, parentAttachmentId)).ToList();
+		bool removed = false;
+		foreach (var k in keysToRemove)
+		{
+			dict.Remove(k);
+			removed = true;
+		}
+		return removed;
+	}
+
+	private bool ShouldRemoveKey(string k, HandAttachmentOrientation orientation, string attachmentId, string cleanId, string? parentAttachmentId)
+	{
+		bool keyMatch = IsMatchingKey(k, attachmentId, cleanId);
+		if (!string.IsNullOrEmpty(parentAttachmentId))
+		{
+			return keyMatch && string.Equals(orientation.ParentAttachmentId, parentAttachmentId, StringComparison.OrdinalIgnoreCase);
+		}
+		return (keyMatch && string.IsNullOrEmpty(orientation.ParentAttachmentId)) || IsChildOfTarget(orientation.ParentAttachmentId, attachmentId, cleanId);
+	}
+
+	private bool IsMatchingKey(string k, string attachmentId, string cleanId)
+	{
+		return k.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
+			   k.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+			   Path.GetFileNameWithoutExtension(k).Equals(cleanId, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private bool IsChildOfTarget(string? orientationParentAttachmentId, string attachmentId, string cleanId)
+	{
+		if (orientationParentAttachmentId == null) return false;
+		return orientationParentAttachmentId.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
+			   orientationParentAttachmentId.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+			   Path.GetFileNameWithoutExtension(orientationParentAttachmentId).Equals(cleanId, StringComparison.OrdinalIgnoreCase);
 	}
 
 	public UnitObjectAttachments Clone()
@@ -1605,43 +1631,56 @@ public class UnitAnimationEntryJsonConverter : JsonConverter<UnitAnimationEntry>
 		if (reader.TokenType == JsonTokenType.StartObject)
 		{
 			using var doc = JsonDocument.ParseValue(ref reader);
-			var root = doc.RootElement;
-			string anim = string.Empty;
-			string? right = null;
-			string? left = null;
-
-			foreach (var prop in root.EnumerateObject())
-			{
-				if (prop.Name.Equals("Animation", StringComparison.OrdinalIgnoreCase) ||
-					prop.Name.Equals("Name", StringComparison.OrdinalIgnoreCase) ||
-					prop.Name.Equals("Path", StringComparison.OrdinalIgnoreCase))
-				{
-					anim = prop.Value.GetString() ?? string.Empty;
-				}
-				else if (prop.Name.Equals("RightHandAttachment", StringComparison.OrdinalIgnoreCase) ||
-						 prop.Name.Equals("RightHand", StringComparison.OrdinalIgnoreCase) ||
-						 prop.Name.Equals("AttachmentRight", StringComparison.OrdinalIgnoreCase))
-				{
-					right = prop.Value.ValueKind == JsonValueKind.Null ? null : prop.Value.GetString();
-				}
-				else if (prop.Name.Equals("LeftHandAttachment", StringComparison.OrdinalIgnoreCase) ||
-						 prop.Name.Equals("LeftHand", StringComparison.OrdinalIgnoreCase) ||
-						 prop.Name.Equals("AttachmentLeft", StringComparison.OrdinalIgnoreCase))
-				{
-					left = prop.Value.ValueKind == JsonValueKind.Null ? null : prop.Value.GetString();
-				}
-			}
-
-			return new UnitAnimationEntry
-			{
-				Animation = anim,
-				RightHandAttachment = right,
-				LeftHandAttachment = left
-			};
+			return ParseAnimationObject(doc.RootElement);
 		}
 
 		return default;
 	}
+
+	private UnitAnimationEntry ParseAnimationObject(JsonElement root)
+	{
+		string anim = string.Empty;
+		string? right = null;
+		string? left = null;
+
+		foreach (var prop in root.EnumerateObject())
+		{
+			if (IsAnimationProperty(prop.Name))
+			{
+				anim = prop.Value.GetString() ?? string.Empty;
+			}
+			else if (IsRightHandProperty(prop.Name))
+			{
+				right = prop.Value.ValueKind == JsonValueKind.Null ? null : prop.Value.GetString();
+			}
+			else if (IsLeftHandProperty(prop.Name))
+			{
+				left = prop.Value.ValueKind == JsonValueKind.Null ? null : prop.Value.GetString();
+			}
+		}
+
+		return new UnitAnimationEntry
+		{
+			Animation = anim,
+			RightHandAttachment = right,
+			LeftHandAttachment = left
+		};
+	}
+
+	private bool IsAnimationProperty(string name) => 
+		name.Equals("Animation", StringComparison.OrdinalIgnoreCase) ||
+		name.Equals("Name", StringComparison.OrdinalIgnoreCase) ||
+		name.Equals("Path", StringComparison.OrdinalIgnoreCase);
+
+	private bool IsRightHandProperty(string name) =>
+		name.Equals("RightHandAttachment", StringComparison.OrdinalIgnoreCase) ||
+		name.Equals("RightHand", StringComparison.OrdinalIgnoreCase) ||
+		name.Equals("AttachmentRight", StringComparison.OrdinalIgnoreCase);
+
+	private bool IsLeftHandProperty(string name) =>
+		name.Equals("LeftHandAttachment", StringComparison.OrdinalIgnoreCase) ||
+		name.Equals("LeftHand", StringComparison.OrdinalIgnoreCase) ||
+		name.Equals("AttachmentLeft", StringComparison.OrdinalIgnoreCase);
 
 	public override void Write(Utf8JsonWriter writer, UnitAnimationEntry value, JsonSerializerOptions options)
 	{

@@ -21,22 +21,34 @@ public class LinearUtilityPolicy
 
 		if (temperature <= 0.0001f)
 		{
-			int bestIdx = 0;
-			float highestScore = ComputeUtility(affordances[0].FeatureVector, weights, aggressionMultiplier);
-
-			for (int i = 1; i < count; i++)
-			{
-				float score = ComputeUtility(affordances[i].FeatureVector, weights, aggressionMultiplier);
-				if (score > highestScore)
-				{
-					highestScore = score;
-					bestIdx = i;
-				}
-			}
-
-			return affordances[bestIdx];
+			return SelectGreedyAction(affordances, weights, aggressionMultiplier);
 		}
 
+		return SelectSoftmaxAction(affordances, weights, temperature, aggressionMultiplier);
+	}
+
+	private GenericAffordance SelectGreedyAction(IReadOnlyList<GenericAffordance> affordances, float[] weights, float aggressionMultiplier)
+	{
+		int count = affordances.Count;
+		int bestIdx = 0;
+		float highestScore = ComputeUtility(affordances[0].FeatureVector, weights, aggressionMultiplier);
+
+		for (int i = 1; i < count; i++)
+		{
+			float score = ComputeUtility(affordances[i].FeatureVector, weights, aggressionMultiplier);
+			if (score > highestScore)
+			{
+				highestScore = score;
+				bestIdx = i;
+			}
+		}
+
+		return affordances[bestIdx];
+	}
+
+	private GenericAffordance SelectSoftmaxAction(IReadOnlyList<GenericAffordance> affordances, float[] weights, float temperature, float aggressionMultiplier)
+	{
+		int count = affordances.Count;
 		Span<float> scores = count <= 128 ? stackalloc float[count] : new float[count];
 		float maxScore = float.MinValue;
 

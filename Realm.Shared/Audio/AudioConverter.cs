@@ -56,107 +56,22 @@ public static class AudioConverter
 
 		try
 		{
-			byte[] oggBytes;
-			string? existingMeta = null;
-
-			if (ext == ".raud")
+			byte[]? oggBytes = GetOggBytes(fullInput, ext, out string? existingMeta, out string errorMessage);
+			if (oggBytes == null)
 			{
-				byte[] raudBytes = File.ReadAllBytes(fullInput);
-				var (parsedMeta, tracks, _) = RaudFile.Parse(raudBytes);
-				existingMeta = parsedMeta;
-				if (tracks.Count == 0 || tracks[0].Length == 0)
-				{
-					result.Success = false;
-					result.ErrorMessage = "Input RAUD file contains no audio tracks.";
-					return result;
-				}
-				oggBytes = tracks[0];
-			}
-			else if (ext == ".ogg")
-			{
-				oggBytes = File.ReadAllBytes(fullInput);
-			}
-			else
-			{
-				string tempOgg = Path.Combine(Path.GetTempPath(), $"realm_aud_{Guid.NewGuid():N}.ogg");
-				try
-				{
-					var oggRes = ConvertToOgg(fullInput, tempOgg);
-					if (!oggRes.Success || !File.Exists(tempOgg))
-					{
-						result.Success = false;
-						result.ErrorMessage = oggRes.ErrorMessage;
-						return result;
-					}
-					oggBytes = File.ReadAllBytes(tempOgg);
-				}
-				finally
-				{
-					if (File.Exists(tempOgg))
-					{
-						try { File.Delete(tempOgg); } catch { }
-					}
-				}
+				result.Success = false;
+				result.ErrorMessage = errorMessage;
+				return result;
 			}
 
-			JsonObject metaObj;
-			if (!string.IsNullOrWhiteSpace(existingMeta))
-			{
-				try
-				{
-					metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-				}
-				catch
-				{
-					metaObj = new JsonObject();
-				}
-			}
-			else
-			{
-				metaObj = new JsonObject();
-			}
+			JsonObject metaObj = ParseMetadataObj(existingMeta);
+			string effectiveAssetType = GetEffectiveAssetType(assetType, fullInput, metaObj);
 
-			string? effectiveAssetType = assetType;
-			if (string.IsNullOrEmpty(effectiveAssetType))
-			{
-				string? existingType = metaObj["asset_type"]?.ToString() ?? metaObj["default_asset_type"]?.ToString() ?? metaObj["type"]?.ToString();
-				if (!string.IsNullOrEmpty(existingType) && RealmMetadataHelper.IsValidAssetTypeForExtension(".raud", existingType, out string canonical, out _))
-				{
-					effectiveAssetType = canonical;
-				}
-				else
-				{
-					string lower = fullInput.ToLowerInvariant().Replace('\\', '/');
-					effectiveAssetType = lower.Contains("/music/") || lower.Contains("/theme/") || lower.Contains("/bgm/")
-						? "Music"
-						: "SoundEffect";
-				}
-			}
-
-			if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
-			{
-				metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			}
-
-			metaObj["format"] = "raud";
-			metaObj["asset_type"] = effectiveAssetType;
-			metaObj["preferred_file_name"] = Path.GetFileName(fullInput);
-
-			if (!string.IsNullOrEmpty(author) && (!metaObj.ContainsKey("author") || string.IsNullOrWhiteSpace(metaObj["author"]?.ToString())))
-			{
-				metaObj["author"] = author;
-			}
-
-			string blake3Hash = RealmMetadataHelper.ComputeBlake3(oggBytes, ".ogg");
-			metaObj["blake3"] = blake3Hash;
+			PopulateRaudMetadata(metaObj, effectiveAssetType, fullInput, author, oggBytes);
 
 			byte[] finalRaudBytes = RaudFile.Build(metaObj.ToJsonString(), [oggBytes]);
 
-			string? targetDir = Path.GetDirectoryName(targetRaud);
-			if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
-			{
-				Directory.CreateDirectory(targetDir);
-			}
+			EnsureDirectoryExists(targetRaud);
 
 			File.WriteAllBytes(targetRaud, finalRaudBytes);
 
@@ -173,6 +88,117 @@ public static class AudioConverter
 			result.ErrorMessage = ex.Message;
 			return result;
 		}
+	}
+
+	private static void PopulateRaudMetadata(JsonObject metaObj, string effectiveAssetType, string fullInput, string? author, byte[] oggBytes)
+	{
+		if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
+		{
+			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
+		}
+
+		metaObj["format"] = "raud";
+		metaObj["asset_type"] = effectiveAssetType;
+		metaObj["preferred_file_name"] = Path.GetFileName(fullInput);
+
+		if (!string.IsNullOrEmpty(author) && (!metaObj.ContainsKey("author") || string.IsNullOrWhiteSpace(metaObj["author"]?.ToString())))
+		{
+			metaObj["author"] = author;
+		}
+
+		string blake3Hash = RealmMetadataHelper.ComputeBlake3(oggBytes, ".ogg");
+		metaObj["blake3"] = blake3Hash;
+	}
+
+	private static byte[]? GetOggBytes(string fullInput, string ext, out string? existingMeta, out string errorMessage)
+	{
+		existingMeta = null;
+		errorMessage = string.Empty;
+
+		if (ext == ".raud")
+		{
+			byte[] raudBytes = File.ReadAllBytes(fullInput);
+			var (parsedMeta, tracks, _) = RaudFile.Parse(raudBytes);
+			existingMeta = parsedMeta;
+			if (tracks.Count == 0 || tracks[0].Length == 0)
+			{
+				errorMessage = "Input RAUD file contains no audio tracks.";
+				return null;
+			}
+			return tracks[0];
+		}
+		
+		if (ext == ".ogg")
+		{
+			return File.ReadAllBytes(fullInput);
+		}
+
+		string tempOgg = Path.Combine(Path.GetTempPath(), $"realm_aud_{Guid.NewGuid():N}.ogg");
+		try
+		{
+			var oggRes = ConvertToOgg(fullInput, tempOgg);
+			if (!oggRes.Success || !File.Exists(tempOgg))
+			{
+				errorMessage = oggRes.ErrorMessage;
+				return null;
+			}
+			return File.ReadAllBytes(tempOgg);
+		}
+		finally
+		{
+			SafeDeleteTempFile(tempOgg);
+		}
+	}
+
+	private static void SafeDeleteTempFile(string filePath)
+	{
+		if (!File.Exists(filePath)) return;
+		try { File.Delete(filePath); } catch { }
+	}
+
+	private static JsonObject ParseMetadataObj(string? existingMeta)
+	{
+		if (string.IsNullOrWhiteSpace(existingMeta)) return new JsonObject();
+		try { return JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject(); }
+		catch { return new JsonObject(); }
+	}
+
+	private static string GetEffectiveAssetType(string? assetType, string fullInput, JsonObject metaObj)
+	{
+		if (!string.IsNullOrEmpty(assetType)) return assetType;
+
+		string? existingType = ExtractExistingAssetType(metaObj);
+		if (IsValidExistingAssetType(existingType, out string canonical))
+			return canonical;
+
+		return GuessAssetTypeFromPath(fullInput);
+	}
+
+	private static string? ExtractExistingAssetType(JsonObject metaObj)
+	{
+		return metaObj["asset_type"]?.ToString()
+			?? metaObj["default_asset_type"]?.ToString()
+			?? metaObj["type"]?.ToString();
+	}
+
+	private static bool IsValidExistingAssetType(string? existingType, out string canonical)
+	{
+		canonical = string.Empty;
+		return !string.IsNullOrEmpty(existingType)
+			&& RealmMetadataHelper.IsValidAssetTypeForExtension(".raud", existingType, out canonical, out _);
+	}
+
+	private static string GuessAssetTypeFromPath(string fullInput)
+	{
+		string lower = fullInput.ToLowerInvariant().Replace('\\', '/');
+		bool isMusic = lower.Contains("/music/") || lower.Contains("/theme/") || lower.Contains("/bgm/");
+		return isMusic ? "Music" : "SoundEffect";
+	}
+
+	private static void EnsureDirectoryExists(string filePath)
+	{
+		string? targetDir = Path.GetDirectoryName(filePath);
+		if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
 	}
 
 	public static byte[]? ExtractOggFromRaud(ReadOnlySpan<byte> raudBytes, int trackIndex = 0)
@@ -208,11 +234,7 @@ public static class AudioConverter
 				return result;
 			}
 
-			string? targetDir = Path.GetDirectoryName(targetOgg);
-			if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
-			{
-				Directory.CreateDirectory(targetDir);
-			}
+			EnsureDirectoryExists(targetOgg);
 
 			File.WriteAllBytes(targetOgg, oggBytes);
 
@@ -274,11 +296,7 @@ public static class AudioConverter
 			: Path.ChangeExtension(fullInput, ".ogg");
 		result.OutputPath = targetOgg;
 
-		string? targetDir = Path.GetDirectoryName(targetOgg);
-		if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
-		{
-			Directory.CreateDirectory(targetDir);
-		}
+		EnsureDirectoryExists(targetOgg);
 
 		string ext = Path.GetExtension(fullInput).ToLowerInvariant();
 

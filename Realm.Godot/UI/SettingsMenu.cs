@@ -135,44 +135,54 @@ public partial class SettingsMenu : Control
 
 	private void ApplyThemeStyles()
 	{
-		if (_bgPanel != null)
+		ApplyBackgroundStyle();
+		ApplyContainerStyles();
+		ApplyTitleStyles();
+		ApplyLabelStyles();
+		ApplySeparatorStyles();
+		ApplyCheckboxStyles();
+	}
+
+	private void ApplyBackgroundStyle()
+	{
+		if (_bgPanel == null) return;
+		
+		_bgPanel.Visible = true;
+		Texture2D bgTexture = null;
+		string[] bgPaths = new string[]
 		{
-			_bgPanel.Visible = true;
-			Texture2D bgTexture = null;
-			string[] bgPaths = new string[]
-			{
-				"res://Assets/UI/options_bg.png",
-				"res://Assets/UI/options_bg.jpg",
-				"res://Assets/UI/menu_background_with_frame.jpg"
-			};
+			"res://Assets/UI/options_bg.png",
+			"res://Assets/UI/options_bg.jpg",
+			"res://Assets/UI/menu_background_with_frame.jpg"
+		};
 
-			foreach (var path in bgPaths)
-			{
-				if (ResourceLoader.Exists(path))
-				{
-					bgTexture = GD.Load<Texture2D>(path);
-					if (bgTexture != null) break;
-				}
-			}
-
-			if (bgTexture != null)
-			{
-				var style = new StyleBoxTexture();
-				style.Texture = bgTexture;
-				_bgPanel.AddThemeStyleboxOverride("panel", style);
-				_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-			}
-			else
-			{
-				_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-			}
-
-			if (GetNodeOrNull<ColorRect>("OverlayBg") is ColorRect rect)
-			{
-				rect.Visible = false;
-			}
+		foreach (var path in bgPaths)
+		{
+			if (!ResourceLoader.Exists(path)) continue;
+			bgTexture = GD.Load<Texture2D>(path);
+			if (bgTexture != null) break;
 		}
 
+		if (bgTexture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = bgTexture;
+			_bgPanel.AddThemeStyleboxOverride("panel", style);
+			_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		}
+		else
+		{
+			_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		}
+
+		if (GetNodeOrNull<ColorRect>("OverlayBg") is ColorRect rect)
+		{
+			rect.Visible = false;
+		}
+	}
+
+	private void ApplyContainerStyles()
+	{
 		if (GetNodeOrNull<Panel>("CenterContainer/ShadowPanel") is Panel shadowPanel)
 		{
 			var shadowStyle = new StyleBoxFlat();
@@ -224,7 +234,10 @@ public partial class SettingsMenu : Control
 
 			titleInnerPanel.AddThemeStyleboxOverride("panel", innerStyle);
 		}
+	}
 
+	private void ApplyTitleStyles()
+	{
 		_settingsTitle.Text = TranslationServer.Translate("GAME SETTINGS");
 		_settingsTitle.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
 		_settingsTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -277,7 +290,10 @@ public partial class SettingsMenu : Control
 		_gameplayTitle.AddThemeFontSizeOverride("font_size", 18);
 		_gameplayTitle.HorizontalAlignment = HorizontalAlignment.Left;
 		_gameplayTitle.VerticalAlignment = VerticalAlignment.Center;
+	}
 
+	private void ApplyLabelStyles()
+	{
 		string[] labelPaths = {
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ResRow/ResLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/QualRow/QualLabel",
@@ -333,7 +349,10 @@ public partial class SettingsMenu : Control
 			lbl.VerticalAlignment = VerticalAlignment.Center;
 			lbl.CustomMinimumSize = new Vector2(40, 24);
 		}
+	}
 
+	private void ApplySeparatorStyles()
+	{
 		var sepStyle = new StyleBoxFlat();
 		sepStyle.BgColor = new Color(0.42f, 0.38f, 0.33f, 0.6f);
 		sepStyle.ContentMarginTop = 1;
@@ -348,7 +367,10 @@ public partial class SettingsMenu : Control
 		{
 			sep.AddThemeStyleboxOverride("separator", sepStyle);
 		}
+	}
 
+	private void ApplyCheckboxStyles()
+	{
 		UIStyle.ApplyCheckboxStyle(_disableShadowsChk);
 		_disableShadowsChk.Text = TranslationServer.Translate(_disableShadowsChk.Text);
 		UIStyle.ApplyCheckboxStyle(_disableDayNightLightingChk);
@@ -410,22 +432,7 @@ public partial class SettingsMenu : Control
 		_languageOpt.AddItem("हिन्दी", 9);
 
 		var dropdowns = new[] { _resolutionOpt, _qualityOpt, _windowModeOpt, _vsyncOpt, _healthBarsOpt, _languageOpt };
-		foreach (var opt in dropdowns)
-		{
-			opt.Flat = false;
-			opt.AddThemeStyleboxOverride("normal", UIStyle.CreateLightDropdownNormal());
-			opt.AddThemeStyleboxOverride("hover", UIStyle.CreateLightDropdownHover());
-			opt.AddThemeStyleboxOverride("pressed", UIStyle.CreateLightDropdownPressed());
-			opt.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-			opt.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.75f));
-			opt.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.95f, 0.8f));
-			opt.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-			opt.AddThemeFontSizeOverride("font_size", 14);
-
-			opt.ItemSelected += (idx) => UIManager.Instance.PlayClickSound();
-			opt.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-		}
+		ApplyDropdownStyles(dropdowns);
 		_windowModeOpt.ItemSelected += (idx) =>
 		{
 			var mode = (WindowMode)idx;
@@ -478,6 +485,43 @@ public partial class SettingsMenu : Control
 				}
 			};
 		}
+	}
+
+	private void ApplyDropdownStyles(OptionButton[] dropdowns)
+	{
+		foreach (var opt in dropdowns)
+		{
+			opt.Flat = false;
+			opt.AddThemeStyleboxOverride("normal", UIStyle.CreateLightDropdownNormal());
+			opt.AddThemeStyleboxOverride("hover", UIStyle.CreateLightDropdownHover());
+			opt.AddThemeStyleboxOverride("pressed", UIStyle.CreateLightDropdownPressed());
+			opt.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+
+			opt.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.75f));
+			opt.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.95f, 0.8f));
+			opt.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+			opt.AddThemeFontSizeOverride("font_size", 14);
+
+			opt.ItemSelected += (idx) => UIManager.Instance.PlayClickSound();
+			opt.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		}
+	}
+
+	private void OnWindowModeSelected(long idx)
+	{
+		var mode = (WindowMode)idx;
+		bool isWindowed = mode == WindowMode.Windowed;
+		_resolutionOpt.Disabled = !isWindowed;
+
+		if (GameSettings.Resolutions == null || GameSettings.Resolutions.Count == 0) return;
+
+		if (!isWindowed)
+		{
+			_resolutionOpt.Select(0);
+			return;
+		}
+
+		_resolutionOpt.Select(Math.Clamp(GameSettings.ResolutionIdx, 0, GameSettings.Resolutions.Count - 1));
 	}
 
 	private void SetupSliders()
@@ -680,54 +724,12 @@ public partial class SettingsMenu : Control
 
 		try
 		{
-			int modeIdx = _windowModeOpt.Selected;
-			var windowMode = (WindowMode)modeIdx;
-			int resSel = _resolutionOpt.Selected;
-
-			if (windowMode == WindowMode.Windowed)
-			{
-				if (resSel >= 0 && GameSettings.Resolutions != null && resSel < GameSettings.Resolutions.Count)
-				{
-					GameSettings.ResolutionIdx = resSel;
-					GameSettings.WindowedResolutionWidth = GameSettings.Resolutions[resSel].X;
-					GameSettings.WindowedResolutionHeight = GameSettings.Resolutions[resSel].Y;
-				}
-			}
-			GameSettings.WindowModeIdx = windowMode;
-
-			if (UIManager.Instance != null)
-			{
-				await UIManager.Instance.ApplyWindowSettings(windowMode, GameSettings.ResolutionIdx);
-			}
-
+			var windowMode = (WindowMode)_windowModeOpt.Selected;
+			await SaveResolutionSettings(windowMode, _resolutionOpt.Selected);
+			
 			bool vsyncEnabled = _vsyncOpt.Selected == 0;
-			if (vsyncEnabled)
-			{
-				DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Enabled);
-			}
-			else
-			{
-				DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
-			}
-
-			GameSettings.QualityIdx = (GraphicsQuality)_qualityOpt.Selected;
-			GameSettings.Vsync = vsyncEnabled;
-			GameSettings.DisableShadows = _disableShadowsChk.ButtonPressed;
-			GameSettings.DisableDayNightLighting = _disableDayNightLightingChk.ButtonPressed;
-			GameSettings.FloatingCombatText = _floatingCombatTextChk.ButtonPressed;
-
-			GameSettings.MasterVolume = (float)_masterSlider.Value;
-			GameSettings.MusicVolume = (float)_musicSlider.Value;
-			GameSettings.SfxVolume = (float)_sfxSlider.Value;
-			GameSettings.VoiceVolume = (float)_voiceSlider.Value;
-
-			GameSettings.ScrollSpeed = (float)_scrollSpeedSlider.Value;
-			GameSettings.MouseSens = (float)_mouseSensSlider.Value;
-			GameSettings.HudScale = (float)_hudScaleSlider.Value;
-			GameSettings.DisplayFps = _displayFpsChk.ButtonPressed;
-			GameSettings.RecordReplays = _recordReplaysChk.ButtonPressed;
-			GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
-			GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
+			SaveGraphicsSettings(vsyncEnabled);
+			SaveGameplaySettings();
 
 			var newLang = (GameLanguage)_languageOpt.Selected;
 			GameSettings.Language = newLang;
@@ -756,6 +758,57 @@ public partial class SettingsMenu : Control
 				_applyBtn.Disabled = false;
 			}
 		}
+	}
+
+	private async System.Threading.Tasks.Task SaveResolutionSettings(WindowMode windowMode, int resSel)
+	{
+		if (windowMode == WindowMode.Windowed && resSel >= 0 && GameSettings.Resolutions != null && resSel < GameSettings.Resolutions.Count)
+		{
+			GameSettings.ResolutionIdx = resSel;
+			GameSettings.WindowedResolutionWidth = GameSettings.Resolutions[resSel].X;
+			GameSettings.WindowedResolutionHeight = GameSettings.Resolutions[resSel].Y;
+		}
+		
+		GameSettings.WindowModeIdx = windowMode;
+
+		if (UIManager.Instance != null)
+		{
+			await UIManager.Instance.ApplyWindowSettings(windowMode, GameSettings.ResolutionIdx);
+		}
+	}
+
+	private void SaveGraphicsSettings(bool vsyncEnabled)
+	{
+		if (vsyncEnabled)
+		{
+			DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Enabled);
+		}
+		else
+		{
+			DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
+		}
+
+		GameSettings.QualityIdx = (GraphicsQuality)_qualityOpt.Selected;
+		GameSettings.Vsync = vsyncEnabled;
+		GameSettings.DisableShadows = _disableShadowsChk.ButtonPressed;
+		GameSettings.DisableDayNightLighting = _disableDayNightLightingChk.ButtonPressed;
+		GameSettings.FloatingCombatText = _floatingCombatTextChk.ButtonPressed;
+	}
+
+	private void SaveGameplaySettings()
+	{
+		GameSettings.MasterVolume = (float)_masterSlider.Value;
+		GameSettings.MusicVolume = (float)_musicSlider.Value;
+		GameSettings.SfxVolume = (float)_sfxSlider.Value;
+		GameSettings.VoiceVolume = (float)_voiceSlider.Value;
+
+		GameSettings.ScrollSpeed = (float)_scrollSpeedSlider.Value;
+		GameSettings.MouseSens = (float)_mouseSensSlider.Value;
+		GameSettings.HudScale = (float)_hudScaleSlider.Value;
+		GameSettings.DisplayFps = _displayFpsChk.ButtonPressed;
+		GameSettings.RecordReplays = _recordReplaysChk.ButtonPressed;
+		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
+		GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
 	}
 
 	private void CancelSettings()

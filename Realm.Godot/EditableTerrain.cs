@@ -106,48 +106,11 @@ public partial class EditableTerrain : RuntimeTerrain
 		int offsetX = (newWidth - oldWidth) / 2;
 		int offsetZ = (newDepth - oldDepth) / 2;
 
-		for (int z = 0; z <= newDepth; z++)
+		PopulateResizedCellsAndPathing(newWidth, newDepth, oldWidth, oldDepth, offsetX, offsetZ, oldCells, oldPathing, newCells, newPathing);
+		PopulateResizedSplatMap(newWidth, newDepth, offsetX, offsetZ, oldSplatMap, newSplatMap, 0);
+		if (newCliffSplatMap != null && oldCliffSplatMap != null)
 		{
-			for (int x = 0; x <= newWidth; x++)
-			{
-				int oldX = x - offsetX;
-				int oldZ = z - offsetZ;
-				if (x < newWidth && z < newDepth)
-				{
-					if (oldCells != null && oldX >= 0 && oldX < oldWidth && oldZ >= 0 && oldZ < oldDepth)
-					{
-						newCells[x, z] = oldCells[oldX, oldZ];
-					}
-					if (oldPathing != null && oldX >= 0 && oldX < oldWidth && oldZ >= 0 && oldZ < oldDepth)
-					{
-						newPathing[x, z] = oldPathing[oldX, oldZ];
-					}
-					else
-					{
-						newPathing[x, z] = GetDefaultPathingCode(newCells[x, z]);
-					}
-				}
-				if (oldSplatMap != null && oldX >= 0 && oldX < oldSplatMap.GetLength(0) && oldZ >= 0 && oldZ < oldSplatMap.GetLength(1))
-				{
-					newSplatMap[x, z] = oldSplatMap[oldX, oldZ];
-				}
-				else
-				{
-					newSplatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
-				}
-
-				if (newCliffSplatMap != null && oldCliffSplatMap != null)
-				{
-					if (oldX >= 0 && oldX < oldCliffSplatMap.GetLength(0) && oldZ >= 0 && oldZ < oldCliffSplatMap.GetLength(1))
-					{
-						newCliffSplatMap[x, z] = oldCliffSplatMap[oldX, oldZ];
-					}
-					else
-					{
-						newCliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
-					}
-				}
-			}
+			PopulateResizedSplatMap(newWidth, newDepth, offsetX, offsetZ, oldCliffSplatMap, newCliffSplatMap, 1);
 		}
 
 		GameHost.Instance.EcsWorld.Set(GameHost.Instance.WorldEntity, new TerrainState(
@@ -174,74 +137,167 @@ public partial class EditableTerrain : RuntimeTerrain
 	{
 		if (remap == null || remap.Count == 0) return;
 
-		bool splatChanged = false;
-		if (SplatMap != null)
-		{
-			int sw = SplatMap.GetLength(0);
-			int sd = SplatMap.GetLength(1);
-			for (int z = 0; z < sd; z++)
-			{
-				for (int x = 0; x < sw; x++)
-				{
-					var s = SplatMap[x, z];
-					int i0 = remap.TryGetValue(s.Index0, out int r0) ? r0 : s.Index0;
-					int i1 = remap.TryGetValue(s.Index1, out int r1) ? r1 : s.Index1;
-					int i2 = remap.TryGetValue(s.Index2, out int r2) ? r2 : s.Index2;
-					int i3 = remap.TryGetValue(s.Index3, out int r3) ? r3 : s.Index3;
-					if (i0 != s.Index0 || i1 != s.Index1 || i2 != s.Index2 || i3 != s.Index3)
-					{
-						SplatMap[x, z] = new TerrainSplatWeights
-						{
-							Index0 = i0,
-							Index1 = i1,
-							Index2 = i2,
-							Index3 = i3,
-							Weight0 = s.Weight0,
-							Weight1 = s.Weight1,
-							Weight2 = s.Weight2,
-							Weight3 = s.Weight3
-						};
-						splatChanged = true;
-					}
-				}
-			}
-		}
-
-		if (CliffSplatMap != null)
-		{
-			int cw = CliffSplatMap.GetLength(0);
-			int cd = CliffSplatMap.GetLength(1);
-			for (int z = 0; z < cd; z++)
-			{
-				for (int x = 0; x < cw; x++)
-				{
-					var c = CliffSplatMap[x, z];
-					int i0 = remap.TryGetValue(c.Index0, out int r0) ? r0 : c.Index0;
-					int i1 = remap.TryGetValue(c.Index1, out int r1) ? r1 : c.Index1;
-					int i2 = remap.TryGetValue(c.Index2, out int r2) ? r2 : c.Index2;
-					int i3 = remap.TryGetValue(c.Index3, out int r3) ? r3 : c.Index3;
-					if (i0 != c.Index0 || i1 != c.Index1 || i2 != c.Index2 || i3 != c.Index3)
-					{
-						CliffSplatMap[x, z] = new TerrainSplatWeights
-						{
-							Index0 = i0,
-							Index1 = i1,
-							Index2 = i2,
-							Index3 = i3,
-							Weight0 = c.Weight0,
-							Weight1 = c.Weight1,
-							Weight2 = c.Weight2,
-							Weight3 = c.Weight3
-						};
-						splatChanged = true;
-					}
-				}
-			}
-		}
+		bool splatChanged = RemapSplatArray(SplatMap, remap) | RemapSplatArray(CliffSplatMap, remap);
 
 		if (splatChanged)
 		{
 			UpdateMeshAndPhysics(false, false);
+		}
+	}
+
+	private bool RemapSplatArray(TerrainSplatWeights[,] splatArray, IReadOnlyDictionary<int, int> remap)
+	{
+		if (splatArray == null) return false;
+
+		bool splatChanged = false;
+		int width = splatArray.GetLength(0);
+		int depth = splatArray.GetLength(1);
+
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				splatChanged |= RemapSingleSplat(splatArray, x, z, remap);
+			}
+		}
+
+		return splatChanged;
+	}
+
+	private bool RemapSingleSplat(TerrainSplatWeights[,] splatArray, int x, int z, IReadOnlyDictionary<int, int> remap)
+	{
+		var s = splatArray[x, z];
+		int i0 = remap.TryGetValue(s.Index0, out int r0) ? r0 : s.Index0;
+		int i1 = remap.TryGetValue(s.Index1, out int r1) ? r1 : s.Index1;
+		int i2 = remap.TryGetValue(s.Index2, out int r2) ? r2 : s.Index2;
+		int i3 = remap.TryGetValue(s.Index3, out int r3) ? r3 : s.Index3;
+
+		if (i0 == s.Index0 && i1 == s.Index1 && i2 == s.Index2 && i3 == s.Index3)
+		{
+			return false;
+		}
+
+		splatArray[x, z] = new TerrainSplatWeights
+		{
+			Index0 = i0,
+			Index1 = i1,
+			Index2 = i2,
+			Index3 = i3,
+			Weight0 = s.Weight0,
+			Weight1 = s.Weight1,
+			Weight2 = s.Weight2,
+			Weight3 = s.Weight3
+		};
+
+		return true;
+	}
+
+	private float[,] CalculateScaledGridHeights(int newWidth, int newDepth, int oldWidth, int oldDepth, TerrainCell[,] oldCells)
+	{
+		float[,] newGridHeights = new float[newWidth + 1, newDepth + 1];
+		for (int vz = 0; vz <= newDepth; vz++)
+		{
+			for (int vx = 0; vx <= newWidth; vx++)
+			{
+				int oldVx = Math.Clamp((int)Math.Round(vx * (float)oldWidth / newWidth), 0, oldWidth);
+				int oldVz = Math.Clamp((int)Math.Round(vz * (float)oldDepth / newDepth), 0, oldDepth);
+				newGridHeights[vx, vz] = GetGridNodeHeight(oldVx, oldVz, oldCells, oldWidth, oldDepth);
+			}
+		}
+		return newGridHeights;
+	}
+
+	private void PopulateScaledCellsAndPathing(int newWidth, int newDepth, int oldWidth, int oldDepth, float[,] newGridHeights, int[,] oldPathing, TerrainCell[,] newCells, int[,] newPathing)
+	{
+		for (int z = 0; z < newDepth; z++)
+		{
+			for (int x = 0; x < newWidth; x++)
+			{
+				float nw = newGridHeights[x, z];
+				float ne = newGridHeights[x + 1, z];
+				float sw = newGridHeights[x, z + 1];
+				float se = newGridHeights[x + 1, z + 1];
+
+				newCells[x, z] = new TerrainCell(nw, ne, se, sw);
+
+				int cellX0 = Math.Clamp((int)Math.Floor(x * (float)oldWidth / newWidth), 0, oldWidth - 1);
+				int cellZ0 = Math.Clamp((int)Math.Floor(z * (float)oldDepth / newDepth), 0, oldDepth - 1);
+
+				if (oldPathing != null)
+				{
+					newPathing[x, z] = oldPathing[cellX0, cellZ0];
+				}
+				else
+				{
+					newPathing[x, z] = GetDefaultPathingCode(newCells[x, z]);
+				}
+			}
+		}
+	}
+
+	private void PopulateScaledSplatMaps(int newWidth, int newDepth, TerrainSplatWeights[,] oldSplatMap, TerrainSplatWeights[,] newSplatMap, int defaultIndex)
+	{
+		for (int z = 0; z <= newDepth; z++)
+		{
+			for (int x = 0; x <= newWidth; x++)
+			{
+				if (oldSplatMap != null)
+				{
+					int x0 = Math.Clamp((int)Math.Floor(x * (float)(oldSplatMap.GetLength(0) - 1) / newWidth), 0, oldSplatMap.GetLength(0) - 1);
+					int z0 = Math.Clamp((int)Math.Floor(z * (float)(oldSplatMap.GetLength(1) - 1) / newDepth), 0, oldSplatMap.GetLength(1) - 1);
+					newSplatMap[x, z] = oldSplatMap[x0, z0];
+				}
+				else
+				{
+					newSplatMap[x, z] = TerrainSplatWeights.CreateSolid(defaultIndex);
+				}
+			}
+		}
+	}
+
+	private void PopulateResizedCellsAndPathing(int newWidth, int newDepth, int oldWidth, int oldDepth, int offsetX, int offsetZ, TerrainCell[,] oldCells, int[,] oldPathing, TerrainCell[,] newCells, int[,] newPathing)
+	{
+		for (int z = 0; z < newDepth; z++)
+		{
+			for (int x = 0; x < newWidth; x++)
+			{
+				int oldX = x - offsetX;
+				int oldZ = z - offsetZ;
+
+				if (oldCells != null && oldX >= 0 && oldX < oldWidth && oldZ >= 0 && oldZ < oldDepth)
+				{
+					newCells[x, z] = oldCells[oldX, oldZ];
+				}
+				if (oldPathing != null && oldX >= 0 && oldX < oldWidth && oldZ >= 0 && oldZ < oldDepth)
+				{
+					newPathing[x, z] = oldPathing[oldX, oldZ];
+				}
+				else
+				{
+					newPathing[x, z] = GetDefaultPathingCode(newCells[x, z]);
+				}
+			}
+		}
+	}
+
+	private void PopulateResizedSplatMap(int newWidth, int newDepth, int offsetX, int offsetZ, TerrainSplatWeights[,] oldSplatMap, TerrainSplatWeights[,] newSplatMap, int defaultSolidIndex)
+	{
+		for (int z = 0; z <= newDepth; z++)
+		{
+			for (int x = 0; x <= newWidth; x++)
+			{
+				int oldX = x - offsetX;
+				int oldZ = z - offsetZ;
+
+				if (oldSplatMap != null && oldX >= 0 && oldX < oldSplatMap.GetLength(0) && oldZ >= 0 && oldZ < oldSplatMap.GetLength(1))
+				{
+					newSplatMap[x, z] = oldSplatMap[oldX, oldZ];
+				}
+				else
+				{
+					newSplatMap[x, z] = TerrainSplatWeights.CreateSolid(defaultSolidIndex);
+				}
+			}
 		}
 	}
 
@@ -267,60 +323,15 @@ public partial class EditableTerrain : RuntimeTerrain
 		TerrainSplatWeights[,] newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
 		TerrainSplatWeights[,] newCliffSplatMap = oldCliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
 
-		float[,] newGridHeights = new float[newWidth + 1, newDepth + 1];
-		for (int vz = 0; vz <= newDepth; vz++)
-		{
-			for (int vx = 0; vx <= newWidth; vx++)
-			{
-				int oldVx = Math.Clamp((int)Math.Round(vx * (float)oldWidth / newWidth), 0, oldWidth);
-				int oldVz = Math.Clamp((int)Math.Round(vz * (float)oldDepth / newDepth), 0, oldDepth);
-				newGridHeights[vx, vz] = GetGridNodeHeight(oldVx, oldVz, oldCells, oldWidth, oldDepth);
-			}
-		}
-
-		for (int z = 0; z < newDepth; z++)
-		{
-			for (int x = 0; x < newWidth; x++)
-			{
-				float nw = newGridHeights[x, z];
-				float ne = newGridHeights[x + 1, z];
-				float sw = newGridHeights[x, z + 1];
-				float se = newGridHeights[x + 1, z + 1];
-
-				newCells[x, z] = new TerrainCell(nw, ne, se, sw);
-
-				int cellX0 = Math.Clamp((int)Math.Floor(x * (float)oldWidth / newWidth), 0, oldWidth - 1);
-				int cellZ0 = Math.Clamp((int)Math.Floor(z * (float)oldDepth / newDepth), 0, oldDepth - 1);
-
-				if (oldPathing != null)
-				{
-					newPathing[x, z] = oldPathing[cellX0, cellZ0];
-				}
-				else
-				{
-					newPathing[x, z] = GetDefaultPathingCode(newCells[x, z]);
-				}
-			}
-		}
+		float[,] newGridHeights = CalculateScaledGridHeights(newWidth, newDepth, oldWidth, oldDepth, oldCells);
+		PopulateScaledCellsAndPathing(newWidth, newDepth, oldWidth, oldDepth, newGridHeights, oldPathing, newCells, newPathing);
 
 		ReconcileScaledWater(oldCells, oldWidth, oldDepth, newCells, newPathing, newWidth, newDepth);
 
-		for (int z = 0; z <= newDepth; z++)
+		PopulateScaledSplatMaps(newWidth, newDepth, oldSplatMap, newSplatMap, 0);
+		if (newCliffSplatMap != null && oldCliffSplatMap != null)
 		{
-			for (int x = 0; x <= newWidth; x++)
-			{
-				int x0 = oldSplatMap != null ? Math.Clamp((int)Math.Floor(x * (float)(oldSplatMap.GetLength(0) - 1) / newWidth), 0, oldSplatMap.GetLength(0) - 1) : 0;
-				int z0 = oldSplatMap != null ? Math.Clamp((int)Math.Floor(z * (float)(oldSplatMap.GetLength(1) - 1) / newDepth), 0, oldSplatMap.GetLength(1) - 1) : 0;
-
-				newSplatMap[x, z] = oldSplatMap != null ? oldSplatMap[x0, z0] : TerrainSplatWeights.CreateSolid(0);
-
-				if (newCliffSplatMap != null && oldCliffSplatMap != null)
-				{
-					int cx0 = Math.Clamp((int)Math.Floor(x * (float)(oldCliffSplatMap.GetLength(0) - 1) / newWidth), 0, oldCliffSplatMap.GetLength(0) - 1);
-					int cz0 = Math.Clamp((int)Math.Floor(z * (float)(oldCliffSplatMap.GetLength(1) - 1) / newDepth), 0, oldCliffSplatMap.GetLength(1) - 1);
-					newCliffSplatMap[x, z] = oldCliffSplatMap[cx0, cz0];
-				}
-			}
+			PopulateScaledSplatMaps(newWidth, newDepth, oldCliffSplatMap, newCliffSplatMap, 1);
 		}
 
 		GameHost.Instance.EcsWorld.Set(GameHost.Instance.WorldEntity, new TerrainState(

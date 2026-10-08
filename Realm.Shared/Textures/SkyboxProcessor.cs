@@ -16,25 +16,48 @@ public static class SkyboxProcessor
 		string trimmed = colorString.Trim();
 		if (trimmed.StartsWith('#'))
 		{
-			string hex = trimmed.TrimStart('#');
-			if (hex.Length >= 6 &&
-				byte.TryParse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber, null, out byte r) &&
-				byte.TryParse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out byte g) &&
-				byte.TryParse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out byte b))
-			{
-				return new SKColor(r, g, b, 255);
-			}
+			return TryParseHexColor(trimmed);
 		}
-		else if (trimmed.Contains(','))
+
+		if (trimmed.Contains(','))
 		{
-			string[] parts = trimmed.Split(',');
-			if (parts.Length >= 3 &&
-				byte.TryParse(parts[0].Trim(), out byte r) &&
-				byte.TryParse(parts[1].Trim(), out byte g) &&
-				byte.TryParse(parts[2].Trim(), out byte b))
-			{
-				return new SKColor(r, g, b, 255);
-			}
+			return TryParseRgbColor(trimmed);
+		}
+
+		return null;
+	}
+
+	private static SKColor? TryParseHexColor(string trimmedHex)
+	{
+		string hex = trimmedHex.TrimStart('#');
+		if (hex.Length < 6)
+		{
+			return null;
+		}
+
+		if (byte.TryParse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber, null, out byte r) &&
+			byte.TryParse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out byte g) &&
+			byte.TryParse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out byte b))
+		{
+			return new SKColor(r, g, b, 255);
+		}
+
+		return null;
+	}
+
+	private static SKColor? TryParseRgbColor(string trimmedRgb)
+	{
+		string[] parts = trimmedRgb.Split(',');
+		if (parts.Length < 3)
+		{
+			return null;
+		}
+
+		if (byte.TryParse(parts[0].Trim(), out byte r) &&
+			byte.TryParse(parts[1].Trim(), out byte g) &&
+			byte.TryParse(parts[2].Trim(), out byte b))
+		{
+			return new SKColor(r, g, b, 255);
 		}
 
 		return null;
@@ -61,34 +84,52 @@ public static class SkyboxProcessor
 		SKBitmap workingImage = sourceImage.Copy();
 
 		int horizonY = Math.Clamp((int)(height * horizonBlendStart), 0, height);
-		float horizonColorR;
-		float horizonColorG;
-		float horizonColorB;
+		var hColorTuple = DetermineHorizonColor(workingImage, horizonColor, horizonY, width, height);
+		BlendHorizon(workingImage, hColorTuple.r, hColorTuple.g, hColorTuple.b, horizonY, width, height);
 
-		if (horizonColor == null)
+		int zenithYEnd = Math.Clamp((int)(height * zenithBlendEnd), 0, height);
+		var zColorTuple = DetermineZenithColor(workingImage, zenithColor, width);
+		BlendZenith(workingImage, zColorTuple.r, zColorTuple.g, zColorTuple.b, zenithYEnd, width);
+
+		int blendWidth = (int)(width * wrapBlendWidth);
+		if (blendWidth <= 0 || blendWidth >= width)
 		{
-			int sampleY = Math.Clamp(horizonY - (int)(height * 0.05f), 0, height - 1);
-			float sumR = 0f;
-			float sumG = 0f;
-			float sumB = 0f;
-			for (int x = 0; x < width; x++)
-			{
-				SKColor pixel = workingImage.GetPixel(x, sampleY);
-				sumR += pixel.Red;
-				sumG += pixel.Green;
-				sumB += pixel.Blue;
-			}
-			horizonColorR = sumR / width;
-			horizonColorG = sumG / width;
-			horizonColorB = sumB / width;
-		}
-		else
-		{
-			horizonColorR = horizonColor.Value.Red;
-			horizonColorG = horizonColor.Value.Green;
-			horizonColorB = horizonColor.Value.Blue;
+			return workingImage;
 		}
 
+		SKBitmap blendedImage = ApplyWrapBlend(workingImage, blendWidth, width, height);
+
+		workingImage.Dispose();
+
+		var resizedImage = blendedImage.Resize(new SKImageInfo(width, height), new SKSamplingOptions(SKCubicResampler.Mitchell));
+		blendedImage.Dispose();
+
+		return resizedImage ?? blendedImage;
+	}
+
+	private static (float r, float g, float b) DetermineHorizonColor(SKBitmap workingImage, SKColor? horizonColor, int horizonY, int width, int height)
+	{
+		if (horizonColor != null)
+		{
+			return (horizonColor.Value.Red, horizonColor.Value.Green, horizonColor.Value.Blue);
+		}
+
+		int sampleY = Math.Clamp(horizonY - (int)(height * 0.05f), 0, height - 1);
+		float sumR = 0f;
+		float sumG = 0f;
+		float sumB = 0f;
+		for (int x = 0; x < width; x++)
+		{
+			SKColor pixel = workingImage.GetPixel(x, sampleY);
+			sumR += pixel.Red;
+			sumG += pixel.Green;
+			sumB += pixel.Blue;
+		}
+		return (sumR / width, sumG / width, sumB / width);
+	}
+
+	private static void BlendHorizon(SKBitmap workingImage, float horizonColorR, float horizonColorG, float horizonColorB, int horizonY, int width, int height)
+	{
 		int horizonSpan = height - 1 - horizonY;
 		for (int y = horizonY; y < height; y++)
 		{
@@ -105,35 +146,30 @@ public static class SkyboxProcessor
 				workingImage.SetPixel(x, y, new SKColor(r, g, b, 255));
 			}
 		}
+	}
 
-		int zenithYEnd = Math.Clamp((int)(height * zenithBlendEnd), 0, height);
-		float zenithColorR;
-		float zenithColorG;
-		float zenithColorB;
-
-		if (zenithColor == null)
+	private static (float r, float g, float b) DetermineZenithColor(SKBitmap workingImage, SKColor? zenithColor, int width)
+	{
+		if (zenithColor != null)
 		{
-			float sumR = 0f;
-			float sumG = 0f;
-			float sumB = 0f;
-			for (int x = 0; x < width; x++)
-			{
-				SKColor pixel = workingImage.GetPixel(x, 0);
-				sumR += pixel.Red;
-				sumG += pixel.Green;
-				sumB += pixel.Blue;
-			}
-			zenithColorR = sumR / width;
-			zenithColorG = sumG / width;
-			zenithColorB = sumB / width;
-		}
-		else
-		{
-			zenithColorR = zenithColor.Value.Red;
-			zenithColorG = zenithColor.Value.Green;
-			zenithColorB = zenithColor.Value.Blue;
+			return (zenithColor.Value.Red, zenithColor.Value.Green, zenithColor.Value.Blue);
 		}
 
+		float sumR = 0f;
+		float sumG = 0f;
+		float sumB = 0f;
+		for (int x = 0; x < width; x++)
+		{
+			SKColor pixel = workingImage.GetPixel(x, 0);
+			sumR += pixel.Red;
+			sumG += pixel.Green;
+			sumB += pixel.Blue;
+		}
+		return (sumR / width, sumG / width, sumB / width);
+	}
+
+	private static void BlendZenith(SKBitmap workingImage, float zenithColorR, float zenithColorG, float zenithColorB, int zenithYEnd, int width)
+	{
 		for (int y = 0; y < zenithYEnd; y++)
 		{
 			float t = zenithYEnd > 0 ? y / (float)zenithYEnd : 0.0f;
@@ -149,13 +185,10 @@ public static class SkyboxProcessor
 				workingImage.SetPixel(x, y, new SKColor(r, g, b, 255));
 			}
 		}
+	}
 
-		int blendWidth = (int)(width * wrapBlendWidth);
-		if (blendWidth <= 0 || blendWidth >= width)
-		{
-			return workingImage;
-		}
-
+	private static SKBitmap ApplyWrapBlend(SKBitmap workingImage, int blendWidth, int width, int height)
+	{
 		int newWidth = width - blendWidth;
 		SKBitmap blendedImage = new SKBitmap(newWidth, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
@@ -182,12 +215,7 @@ public static class SkyboxProcessor
 			}
 		}
 
-		workingImage.Dispose();
-
-		var resizedImage = blendedImage.Resize(new SKImageInfo(width, height), new SKSamplingOptions(SKCubicResampler.Mitchell));
-		blendedImage.Dispose();
-
-		return resizedImage ?? blendedImage;
+		return blendedImage;
 	}
 
 	public static TextureConversionResult ProcessSkyboxFile(

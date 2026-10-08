@@ -61,18 +61,22 @@ public static class PathUtils
 			return _cachedProjectRoot;
 		}
 
+		_cachedProjectRoot = ResolveProjectRoot();
+		return _cachedProjectRoot;
+	}
+
+	private static string ResolveProjectRoot()
+	{
 		string resPath = ProjectSettings.GlobalizePath("res://");
 		if (!string.IsNullOrWhiteSpace(resPath) && resPath != "." && resPath != "./" && Directory.Exists(resPath))
 		{
-			_cachedProjectRoot = resPath.Replace("\\", "/").TrimEnd('/');
-			return _cachedProjectRoot;
+			return resPath.Replace("\\", "/").TrimEnd('/');
 		}
 
 		string baseDir = AppDomain.CurrentDomain.BaseDirectory.Replace("\\", "/").TrimEnd('/');
 		if (!string.IsNullOrWhiteSpace(baseDir) && Directory.Exists(baseDir))
 		{
-			_cachedProjectRoot = baseDir;
-			return _cachedProjectRoot;
+			return baseDir;
 		}
 
 		string exeDir = OS.GetExecutablePath().GetBaseDir().Replace("\\", "/").TrimEnd('/');
@@ -81,16 +85,13 @@ public static class PathUtils
 			string[] dataDirs = GetDataDirs(exeDir);
 			if (dataDirs.Length > 0)
 			{
-				_cachedProjectRoot = dataDirs[0].Replace("\\", "/").TrimEnd('/');
-				return _cachedProjectRoot;
+				return dataDirs[0].Replace("\\", "/").TrimEnd('/');
 			}
 
-			_cachedProjectRoot = exeDir;
-			return _cachedProjectRoot;
+			return exeDir;
 		}
 
-		_cachedProjectRoot = ".";
-		return _cachedProjectRoot;
+		return ".";
 	}
 
 	public static string FindPath(string relativePath)
@@ -106,10 +107,16 @@ public static class PathUtils
 			return cached;
 		}
 
+		string resolvedPath = ResolvePath(normalizedRelative);
+		_cachedPaths[normalizedRelative] = resolvedPath;
+		return resolvedPath;
+	}
+
+	private static string ResolvePath(string normalizedRelative)
+	{
 		string primaryPath = Path.Combine(GetProjectRoot(), normalizedRelative).Replace("\\", "/");
 		if (File.Exists(primaryPath) || Directory.Exists(primaryPath))
 		{
-			_cachedPaths[normalizedRelative] = primaryPath;
 			return primaryPath;
 		}
 
@@ -119,7 +126,6 @@ public static class PathUtils
 			string directPath = Path.Combine(baseDir, normalizedRelative).Replace("\\", "/");
 			if (File.Exists(directPath) || Directory.Exists(directPath))
 			{
-				_cachedPaths[normalizedRelative] = directPath;
 				return directPath;
 			}
 		}
@@ -130,39 +136,44 @@ public static class PathUtils
 			string exeDirectPath = Path.Combine(exeDir, normalizedRelative).Replace("\\", "/");
 			if (File.Exists(exeDirectPath) || Directory.Exists(exeDirectPath))
 			{
-				_cachedPaths[normalizedRelative] = exeDirectPath;
 				return exeDirectPath;
 			}
 
-			string[] dataDirs = GetDataDirs(exeDir);
-			foreach (var dataDir in dataDirs)
+			string dataDirPath = FindInDataDirs(exeDir, normalizedRelative);
+			if (dataDirPath != null)
 			{
-				string normalizedDataDir = dataDir.Replace("\\", "/").TrimEnd('/');
-				string dataDirPath = Path.Combine(normalizedDataDir, normalizedRelative).Replace("\\", "/");
-				if (File.Exists(dataDirPath) || Directory.Exists(dataDirPath))
-				{
-					_cachedPaths[normalizedRelative] = dataDirPath;
-					return dataDirPath;
-				}
+				return dataDirPath;
 			}
 		}
 
 		string globalizedRes = ProjectSettings.GlobalizePath("res://" + normalizedRelative).Replace("\\", "/");
 		if (!string.IsNullOrWhiteSpace(globalizedRes) && (File.Exists(globalizedRes) || Directory.Exists(globalizedRes)))
 		{
-			_cachedPaths[normalizedRelative] = globalizedRes;
 			return globalizedRes;
 		}
 
 		string parentRootPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), "..", normalizedRelative)).Replace("\\", "/");
 		if (File.Exists(parentRootPath) || Directory.Exists(parentRootPath))
 		{
-			_cachedPaths[normalizedRelative] = parentRootPath;
 			return parentRootPath;
 		}
 
-		_cachedPaths[normalizedRelative] = primaryPath;
 		return primaryPath;
+	}
+
+	private static string FindInDataDirs(string exeDir, string normalizedRelative)
+	{
+		string[] dataDirs = GetDataDirs(exeDir);
+		foreach (var dataDir in dataDirs)
+		{
+			string normalizedDataDir = dataDir.Replace("\\", "/").TrimEnd('/');
+			string dataDirPath = Path.Combine(normalizedDataDir, normalizedRelative).Replace("\\", "/");
+			if (File.Exists(dataDirPath) || Directory.Exists(dataDirPath))
+			{
+				return dataDirPath;
+			}
+		}
+		return null;
 	}
 
 	public static string GlobalizePath(string path)
@@ -214,33 +225,40 @@ public static class PathUtils
 	[DllImport("libc", EntryPoint = "link", SetLastError = true)]
 	private static extern int PosixLink(string oldpath, string newpath);
 
+	private static readonly System.Collections.Generic.HashSet<string> _mutableMapFiles = new(StringComparer.OrdinalIgnoreCase)
+	{
+		"terrain.json",
+		"metadata.json",
+		"manifest.json",
+		"license.json"
+	};
+
+	private static readonly System.Collections.Generic.HashSet<string> _mutableMapExtensions = new(StringComparer.OrdinalIgnoreCase)
+	{
+		".json",
+		".cs",
+		".csproj",
+		".sln",
+		".slnx",
+		".wit",
+		".gdshader",
+		".shader",
+		".txt",
+		".md"
+	};
+
 	public static bool IsMutableMapFileType(string path)
 	{
 		if (string.IsNullOrEmpty(path)) return false;
+		
 		string fileName = Path.GetFileName(path);
-		if (string.Equals(fileName, "terrain.json", StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(fileName, "metadata.json", StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(fileName, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(fileName, "license.json", StringComparison.OrdinalIgnoreCase))
+		if (_mutableMapFiles.Contains(fileName))
 		{
 			return true;
 		}
 
-		string ext = Path.GetExtension(path).ToLowerInvariant();
-		return ext switch
-		{
-			".json" => true,
-			".cs" => true,
-			".csproj" => true,
-			".sln" => true,
-			".slnx" => true,
-			".wit" => true,
-			".gdshader" => true,
-			".shader" => true,
-			".txt" => true,
-			".md" => true,
-			_ => false
-		};
+		string ext = Path.GetExtension(path);
+		return _mutableMapExtensions.Contains(ext);
 	}
 
 	public static bool TryCreateHardLink(string sourceFile, string targetFile)
@@ -258,21 +276,8 @@ public static class PathUtils
 				return true;
 			}
 
-			string targetDir = Path.GetDirectoryName(fullTarget);
-			if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
-			{
-				Directory.CreateDirectory(targetDir);
-			}
-
-			if (File.Exists(fullTarget))
-			{
-				var attrs = File.GetAttributes(fullTarget);
-				if ((attrs & FileAttributes.ReadOnly) != 0)
-				{
-					File.SetAttributes(fullTarget, attrs & ~FileAttributes.ReadOnly);
-				}
-				File.Delete(fullTarget);
-			}
+			PrepareTargetDirectory(fullTarget);
+			ClearTargetFileIfExists(fullTarget);
 
 			if (OperatingSystem.IsWindows())
 			{
@@ -318,20 +323,8 @@ public static class PathUtils
 			return;
 		}
 
-		string targetDir = Path.GetDirectoryName(fullTarget);
-		if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
-		{
-			Directory.CreateDirectory(targetDir);
-		}
-
-		if (File.Exists(fullTarget))
-		{
-			var attrs = File.GetAttributes(fullTarget);
-			if ((attrs & FileAttributes.ReadOnly) != 0)
-			{
-				File.SetAttributes(fullTarget, attrs & ~FileAttributes.ReadOnly);
-			}
-		}
+		PrepareTargetDirectory(fullTarget);
+		RemoveReadOnlyAttributeIfExists(fullTarget);
 
 		const int maxAttempts = 10;
 		for (int attempt = 0; ; attempt++)
@@ -344,6 +337,36 @@ public static class PathUtils
 			catch (IOException) when (attempt < maxAttempts - 1)
 			{
 				System.Threading.Thread.Sleep(250);
+			}
+		}
+	}
+
+	private static void PrepareTargetDirectory(string fullTarget)
+	{
+		string targetDir = Path.GetDirectoryName(fullTarget);
+		if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+		{
+			Directory.CreateDirectory(targetDir);
+		}
+	}
+
+	private static void ClearTargetFileIfExists(string fullTarget)
+	{
+		if (File.Exists(fullTarget))
+		{
+			RemoveReadOnlyAttributeIfExists(fullTarget);
+			File.Delete(fullTarget);
+		}
+	}
+
+	private static void RemoveReadOnlyAttributeIfExists(string fullTarget)
+	{
+		if (File.Exists(fullTarget))
+		{
+			var attrs = File.GetAttributes(fullTarget);
+			if ((attrs & FileAttributes.ReadOnly) != 0)
+			{
+				File.SetAttributes(fullTarget, attrs & ~FileAttributes.ReadOnly);
 			}
 		}
 	}
@@ -367,23 +390,38 @@ public static class PathUtils
 
 		if (OperatingSystem.IsWindows())
 		{
-			try
+			bool? winResult = CheckSameFileWindows(full1, full2);
+			if (winResult.HasValue)
 			{
-				using var fs1 = new FileStream(full1, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
-				using var fs2 = new FileStream(full2, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
-				if (GetFileInformationByHandle(fs1.SafeFileHandle.DangerousGetHandle(), out var info1) &&
-					GetFileInformationByHandle(fs2.SafeFileHandle.DangerousGetHandle(), out var info2))
-				{
-					return info1.VolumeSerialNumber == info2.VolumeSerialNumber &&
-						   info1.FileIndexHigh == info2.FileIndexHigh &&
-						   info1.FileIndexLow == info2.FileIndexLow;
-				}
-			}
-			catch
-			{
+				return winResult.Value;
 			}
 		}
 
+		return CheckSameFileFallback(full1, full2);
+	}
+
+	private static bool? CheckSameFileWindows(string full1, string full2)
+	{
+		try
+		{
+			using var fs1 = new FileStream(full1, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+			using var fs2 = new FileStream(full2, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+			if (GetFileInformationByHandle(fs1.SafeFileHandle.DangerousGetHandle(), out var info1) &&
+				GetFileInformationByHandle(fs2.SafeFileHandle.DangerousGetHandle(), out var info2))
+			{
+				return info1.VolumeSerialNumber == info2.VolumeSerialNumber &&
+					   info1.FileIndexHigh == info2.FileIndexHigh &&
+					   info1.FileIndexLow == info2.FileIndexLow;
+			}
+		}
+		catch
+		{
+		}
+		return null;
+	}
+
+	private static bool CheckSameFileFallback(string full1, string full2)
+	{
 		try
 		{
 			var fi1 = new FileInfo(full1);

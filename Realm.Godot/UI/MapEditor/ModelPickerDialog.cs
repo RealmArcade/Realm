@@ -89,21 +89,19 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		if (!string.IsNullOrWhiteSpace(_selectedModelPath))
 		{
 			LoadAndPreviewModel(_selectedModelPath);
+			return;
 		}
-		else
+
+		var available = ScanAvailableAssets("models", false, _domain);
+		if (available.Count == 0)
 		{
-			var available = ScanAvailableAssets("models", false, _domain);
-			if (available.Count > 0)
-			{
-				_selectedModelPath = available[0];
-				_setModelPathValue?.Invoke(_selectedModelPath);
-				LoadAndPreviewModel(_selectedModelPath);
-			}
-			else
-			{
-				if (_lblStatus != null) _lblStatus.Text = TranslationServer.Translate("No model currently selected.");
-			}
+			if (_lblStatus != null) _lblStatus.Text = TranslationServer.Translate("No model currently selected.");
+			return;
 		}
+
+		_selectedModelPath = available[0];
+		_setModelPathValue?.Invoke(_selectedModelPath);
+		LoadAndPreviewModel(_selectedModelPath);
 	}
 
 	private void ClearPreviewModel()
@@ -112,6 +110,81 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		{
 			_previewModelRoot.QueueFree();
 			_previewModelRoot = null;
+		}
+	}
+
+	private static bool IsDecalFormat(string path)
+	{
+		if (string.IsNullOrEmpty(path)) return false;
+		return path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || 
+			   path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || 
+			   path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private void LoadDecalPreview(string modelPath, string resolvedPath)
+	{
+		var root = new Node3D { Name = "PreviewDecalRoot" };
+
+		var floorMesh = new MeshInstance3D
+		{
+			Name = "PreviewFloor",
+			Mesh = new PlaneMesh { Size = new Vector2(10f, 10f) }
+		};
+		root.AddChild(floorMesh);
+
+		var decalNode = new Decal3D
+		{
+			Name = "PreviewDecal",
+			DecalId = !string.IsNullOrEmpty(resolvedPath) ? resolvedPath : modelPath,
+			CullMask = 1u,
+			Size = new Vector3(6.0f, 20.0f, 6.0f)
+		};
+		root.AddChild(decalNode);
+
+		GameHost.Instance?.ApplyDecalPropertiesFromMetadata(decalNode, !string.IsNullOrEmpty(resolvedPath) ? resolvedPath : modelPath);
+
+		PreviewSubViewport.AddChild(root);
+		_previewModelRoot = root;
+		FrameCameraOnNode(root);
+
+		if (_lblStatus != null)
+		{
+			_lblStatus.Text = $"{TranslationServer.Translate("Loaded Decal:")} {modelPath}";
+			_lblStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		}
+	}
+
+	private void Load3DModelPreview(Node3D node3D, string modelPath, string resolvedPath)
+	{
+		var cloned = (Node3D)node3D.Duplicate((int)Node.DuplicateFlags.UseInstantiation);
+		cloned.Position = Vector3.Zero;
+		cloned.Rotation = Vector3.Zero;
+		cloned.Scale = Vector3.One;
+
+		PreviewSubViewport.AddChild(cloned);
+		_previewModelRoot = cloned;
+		Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(cloned, modelPath);
+		
+		if (_previewModelRoot.IsInsideTree())
+		{
+			_previewModelRoot.PropagateNotification((int)Node3D.NotificationTransformChanged);
+		}
+
+		FrameCameraOnNode(_previewModelRoot);
+
+		string details = "";
+		if (!string.IsNullOrEmpty(resolvedPath) && System.IO.File.Exists(resolvedPath))
+		{
+			bool teamCol = Realm.Shared.Metadata.RealmMetadataHelper.ExtractSupportsTeamColor(resolvedPath) == true;
+			string? author = Realm.Shared.Metadata.RealmMetadataHelper.ExtractAuthor(resolvedPath);
+			if (teamCol) details += " • TeamColor: Yes";
+			if (!string.IsNullOrEmpty(author)) details += $" • Author: {author}";
+		}
+		
+		if (_lblStatus != null)
+		{
+			_lblStatus.Text = $"{TranslationServer.Translate("Loaded:")} {modelPath}{details}";
+			_lblStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		}
 	}
 
@@ -126,77 +199,24 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		}
 
 		string resolvedPath = ModelCache.ResolveModelPath(modelPath);
-		if (modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) || (resolvedPath != null && (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || resolvedPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || resolvedPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))))
+		
+		if (IsDecalFormat(modelPath) || IsDecalFormat(resolvedPath))
 		{
-			var root = new Node3D();
-			root.Name = "PreviewDecalRoot";
-
-			var floorMesh = new MeshInstance3D();
-			floorMesh.Name = "PreviewFloor";
-			var plane = new PlaneMesh { Size = new Vector2(10f, 10f) };
-			floorMesh.Mesh = plane;
-			root.AddChild(floorMesh);
-
-			var decalNode = new Decal3D();
-			decalNode.Name = "PreviewDecal";
-			decalNode.DecalId = !string.IsNullOrEmpty(resolvedPath) ? resolvedPath : modelPath;
-			decalNode.CullMask = 1u;
-			decalNode.Size = new Vector3(6.0f, 20.0f, 6.0f);
-			root.AddChild(decalNode);
-
-			GameHost.Instance?.ApplyDecalPropertiesFromMetadata(decalNode, !string.IsNullOrEmpty(resolvedPath) ? resolvedPath : modelPath);
-
-			PreviewSubViewport.AddChild(root);
-			_previewModelRoot = root;
-			FrameCameraOnNode(root);
-
-			if (_lblStatus != null)
-			{
-				_lblStatus.Text = $"{TranslationServer.Translate("Loaded Decal:")} {modelPath}";
-				_lblStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-			}
+			LoadDecalPreview(modelPath, resolvedPath);
 			return;
 		}
 
 		Node loaded = ModelCache.GetModel(modelPath);
 		if (loaded is Node3D node3D)
 		{
-			var cloned = (Node3D)node3D.Duplicate((int)Node.DuplicateFlags.UseInstantiation);
-			cloned.Position = Vector3.Zero;
-			cloned.Rotation = Vector3.Zero;
-			cloned.Scale = Vector3.One;
-
-			PreviewSubViewport.AddChild(cloned);
-			_previewModelRoot = cloned;
-			Realm.Godot.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(cloned, modelPath);
-			if (_previewModelRoot.IsInsideTree())
-			{
-				_previewModelRoot.PropagateNotification((int)Node3D.NotificationTransformChanged);
-			}
-
-			FrameCameraOnNode(_previewModelRoot);
-
-			string details = "";
-			if (!string.IsNullOrEmpty(resolvedPath) && System.IO.File.Exists(resolvedPath))
-			{
-				bool teamCol = Realm.Shared.Metadata.RealmMetadataHelper.ExtractSupportsTeamColor(resolvedPath) == true;
-				string? author = Realm.Shared.Metadata.RealmMetadataHelper.ExtractAuthor(resolvedPath);
-				if (teamCol) details += " • TeamColor: Yes";
-				if (!string.IsNullOrEmpty(author)) details += $" • Author: {author}";
-			}
-			if (_lblStatus != null)
-			{
-				_lblStatus.Text = $"{TranslationServer.Translate("Loaded:")} {modelPath}{details}";
-				_lblStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-			}
+			Load3DModelPreview(node3D, modelPath, resolvedPath);
+			return;
 		}
-		else
+
+		if (_lblStatus != null)
 		{
-			if (_lblStatus != null)
-			{
-				_lblStatus.Text = $"{TranslationServer.Translate("Failed to load model:")} {modelPath}";
-				_lblStatus.AddThemeColorOverride("font_color", new Color(1.0f, 0.4f, 0.4f));
-			}
+			_lblStatus.Text = $"{TranslationServer.Translate("Failed to load model:")} {modelPath}";
+			_lblStatus.AddThemeColorOverride("font_color", new Color(1.0f, 0.4f, 0.4f));
 		}
 	}
 

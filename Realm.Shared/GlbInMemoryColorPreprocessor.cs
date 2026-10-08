@@ -164,19 +164,7 @@ public static class GlbInMemoryColorPreprocessor
 			return glbBytes ?? Array.Empty<byte>();
 		}
 
-		string effectiveChromaKey = chromaKeyHex ?? string.Empty;
-		if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
-		{
-			effectiveChromaKey = "#FF00FF";
-		}
-		else
-		{
-			effectiveChromaKey = effectiveChromaKey.Trim();
-			if (!effectiveChromaKey.StartsWith('#'))
-			{
-				effectiveChromaKey = "#" + effectiveChromaKey;
-			}
-		}
+		string effectiveChromaKey = NormalizeChromaKey(chromaKeyHex);
 
 		ulong cacheKey = ComputeFnv1a64(glbBytes, effectiveChromaKey);
 		if (DespilledGlbCache.TryGetValue(cacheKey, out var cachedBytes))
@@ -186,74 +174,75 @@ public static class GlbInMemoryColorPreprocessor
 
 		try
 		{
-			var (jsonNode, binChunk, glbVersion) = GlbManifestUtils.ParseGlb(glbBytes);
-			if (jsonNode is not JsonObject root || binChunk == null)
-			{
-				return glbBytes;
-			}
-
-			var textures = root["textures"] as JsonArray;
-			var materials = root["materials"] as JsonArray;
-			var images = root["images"] as JsonArray;
-			var bufferViews = root["bufferViews"] as JsonArray;
-
-			if (textures == null || materials == null || images == null || bufferViews == null)
-			{
-				return glbBytes;
-			}
-
-			int albedoImageIndex = GlbPlayerColorProcessor.FindAlbedoImageIndex(textures, materials);
-			if (albedoImageIndex < 0)
-			{
-				return glbBytes;
-			}
-
-			int ormImageIndex = GlbPlayerColorProcessor.FindOrmImageIndex(textures, materials);
-			if (ormImageIndex < 0)
-			{
-				return glbBytes;
-			}
-
-			byte[] albedoRaw = GlbPlayerColorProcessor.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
-			if (albedoRaw.Length == 0)
-			{
-				return glbBytes;
-			}
-
-			byte[] ormRaw = GlbPlayerColorProcessor.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
-			if (ormRaw.Length == 0)
-			{
-				return glbBytes;
-			}
-
-			using var ormImg = SKBitmap.Decode(ormRaw);
-			if (ormImg == null) return glbBytes;
-
-			if (!HasMaskInOrm(ormImg))
-			{
-				StoreInCache(cacheKey, glbBytes);
-				return glbBytes;
-			}
-
-			using var albedoImg = SKBitmap.Decode(albedoRaw);
-			if (albedoImg == null)
-			{
-				StoreInCache(cacheKey, glbBytes);
-				return glbBytes;
-			}
-
-			ApplyAnalyticalChromaDespill(albedoImg, ormImg, effectiveChromaKey);
-
-			byte[] newAlbedoBytes = TextureConverter.EncodeWebp(albedoImg, lossless: false, quality: 90, method: 1, sharpYuv: false);
-			byte[] resultGlb = RebuildGlbWithUpdatedAlbedoTexture(root, binChunk, albedoImageIndex, newAlbedoBytes, glbVersion);
-			StoreInCache(cacheKey, resultGlb);
-			return resultGlb;
+			return TryProcessGlbCore(glbBytes, effectiveChromaKey, cacheKey);
 		}
 		catch
 		{
 			StoreInCache(cacheKey, glbBytes);
 			return glbBytes;
 		}
+	}
+
+	private static string NormalizeChromaKey(string? chromaKeyHex)
+	{
+		string key = chromaKeyHex ?? string.Empty;
+		if (string.IsNullOrWhiteSpace(key) || string.Equals(key, "auto", StringComparison.OrdinalIgnoreCase))
+			return "#FF00FF";
+
+		key = key.Trim();
+		return key.StartsWith('#') ? key : "#" + key;
+	}
+
+	private static byte[] TryProcessGlbCore(byte[] glbBytes, string effectiveChromaKey, ulong cacheKey)
+	{
+		var (jsonNode, binChunk, glbVersion) = GlbManifestUtils.ParseGlb(glbBytes);
+		if (jsonNode is not JsonObject root || binChunk == null) return glbBytes;
+
+		if (!TryGetGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
+			return glbBytes;
+
+		int albedoImageIndex = GlbPlayerColorProcessor.FindAlbedoImageIndex(textures, materials);
+		int ormImageIndex = GlbPlayerColorProcessor.FindOrmImageIndex(textures, materials);
+		if (albedoImageIndex < 0 || ormImageIndex < 0) return glbBytes;
+
+		byte[] albedoRaw = GlbPlayerColorProcessor.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
+		byte[] ormRaw = GlbPlayerColorProcessor.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
+		if (albedoRaw.Length == 0 || ormRaw.Length == 0) return glbBytes;
+
+		using var ormImg = SKBitmap.Decode(ormRaw);
+		if (ormImg == null || !HasMaskInOrm(ormImg))
+		{
+			StoreInCache(cacheKey, glbBytes);
+			return glbBytes;
+		}
+
+		using var albedoImg = SKBitmap.Decode(albedoRaw);
+		if (albedoImg == null)
+		{
+			StoreInCache(cacheKey, glbBytes);
+			return glbBytes;
+		}
+
+		return ProcessDecodedImages(albedoImg, ormImg, effectiveChromaKey, root, binChunk, albedoImageIndex, glbVersion, cacheKey);
+	}
+
+	private static bool TryGetGlbArrays(JsonObject root, out JsonArray textures, out JsonArray materials, out JsonArray images, out JsonArray bufferViews)
+	{
+		textures = (root["textures"] as JsonArray)!;
+		materials = (root["materials"] as JsonArray)!;
+		images = (root["images"] as JsonArray)!;
+		bufferViews = (root["bufferViews"] as JsonArray)!;
+
+		return textures != null && materials != null && images != null && bufferViews != null;
+	}
+
+	private static byte[] ProcessDecodedImages(SKBitmap albedoImg, SKBitmap ormImg, string chromaKey, JsonObject root, byte[] binChunk, int albedoImageIndex, uint glbVersion, ulong cacheKey)
+	{
+		ApplyAnalyticalChromaDespill(albedoImg, ormImg, chromaKey);
+		byte[] newAlbedoBytes = TextureConverter.EncodeWebp(albedoImg, lossless: false, quality: 90, method: 1, sharpYuv: false);
+		byte[] resultGlb = RebuildGlbWithUpdatedAlbedoTexture(root, binChunk, albedoImageIndex, newAlbedoBytes, glbVersion);
+		StoreInCache(cacheKey, resultGlb);
+		return resultGlb;
 	}
 
 	private static bool HasMaskInOrm(SKBitmap ormImg)
@@ -272,42 +261,10 @@ public static class GlbInMemoryColorPreprocessor
 			IntPtr pixelsPtr = workBitmap.GetPixels();
 			if (pixelsPtr != IntPtr.Zero)
 			{
-				unsafe
-				{
-					byte* basePtr = (byte*)pixelsPtr;
-					int rowBytes = workBitmap.RowBytes;
-					int rOffset = workBitmap.ColorType == SKColorType.Bgra8888 ? 2 : 0;
-					int width = workBitmap.Width;
-					int height = workBitmap.Height;
-
-					for (int y = 0; y < height; y++)
-					{
-						byte* row = basePtr + (y * rowBytes);
-						for (int x = 0; x < width; x++)
-						{
-							if (row[x * 4 + rOffset] > 0)
-							{
-								return true;
-							}
-						}
-					}
-					return false;
-				}
+				return HasMaskUnsafe(workBitmap, pixelsPtr);
 			}
 
-			int h = workBitmap.Height;
-			int w = workBitmap.Width;
-			for (int y = 0; y < h; y++)
-			{
-				for (int x = 0; x < w; x++)
-				{
-					if (workBitmap.GetPixel(x, y).Red > 0)
-					{
-						return true;
-					}
-				}
-			}
-			return false;
+			return HasMaskSafe(workBitmap);
 		}
 		finally
 		{
@@ -315,11 +272,92 @@ public static class GlbInMemoryColorPreprocessor
 		}
 	}
 
+	private static unsafe bool HasMaskUnsafe(SKBitmap workBitmap, IntPtr pixelsPtr)
+	{
+		byte* basePtr = (byte*)pixelsPtr;
+		int rowBytes = workBitmap.RowBytes;
+		int rOffset = workBitmap.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+		int width = workBitmap.Width;
+		int height = workBitmap.Height;
+
+		for (int y = 0; y < height; y++)
+		{
+			byte* row = basePtr + (y * rowBytes);
+			if (HasMaskInRowUnsafe(row, width, rOffset))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static unsafe bool HasMaskInRowUnsafe(byte* row, int width, int rOffset)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			if (row[x * 4 + rOffset] > 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static bool HasMaskSafe(SKBitmap workBitmap)
+	{
+		int h = workBitmap.Height;
+		int w = workBitmap.Width;
+		for (int y = 0; y < h; y++)
+		{
+			if (HasMaskInRowSafe(workBitmap, y, w))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool HasMaskInRowSafe(SKBitmap workBitmap, int y, int w)
+	{
+		for (int x = 0; x < w; x++)
+		{
+			if (workBitmap.GetPixel(x, y).Red > 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public static void ApplyAnalyticalChromaDespill(
 		SKBitmap albedoImg,
 		SKBitmap ormImg,
 		string chromaKeyHex)
 	{
+		if (!TryCalculateKeyUnitVector(chromaKeyHex, out Vector2 keyUnitVector))
+			return;
+
+		bool sameDimensions = (albedoImg.Width == ormImg.Width && albedoImg.Height == ormImg.Height);
+
+		var (workAlbedo, disposeWorkAlbedo) = PrepareBitmap(albedoImg);
+		var (workOrm, disposeWorkOrm) = PrepareBitmap(ormImg);
+
+		try
+		{
+			ExecuteDespill(albedoImg, workAlbedo, workOrm, keyUnitVector, sameDimensions, disposeWorkAlbedo);
+		}
+		finally
+		{
+			if (disposeWorkAlbedo) workAlbedo.Dispose();
+			if (disposeWorkOrm) workOrm.Dispose();
+		}
+	}
+
+	private static bool TryCalculateKeyUnitVector(string chromaKeyHex, out Vector2 keyUnitVector)
+	{
+		keyUnitVector = default;
 		(float targetR, float targetG, float targetB) = GlbPlayerColorProcessor.HexToRgb(chromaKeyHex);
 		Vector3 targetLinear = new(
 			SrgbToLinearTable[(byte)Math.Clamp((int)(targetR * 255.0f + 0.5f), 0, 255)],
@@ -329,136 +367,154 @@ public static class GlbInMemoryColorPreprocessor
 		Vector3 targetOklab = ConvertLinearRgbToOklab(targetLinear);
 		Vector2 keyVector = new(targetOklab.Y, targetOklab.Z);
 		float keyChroma = keyVector.Length();
-		if (keyChroma < 1e-5f)
-		{
-			return;
-		}
-		Vector2 keyUnitVector = keyVector / keyChroma;
+		if (keyChroma < 1e-5f) return false;
 
-		int width = albedoImg.Width;
-		int height = albedoImg.Height;
-		int ormWidth = ormImg.Width;
-		int ormHeight = ormImg.Height;
-		bool sameDimensions = (width == ormWidth && height == ormHeight);
+		keyUnitVector = keyVector / keyChroma;
+		return true;
+	}
 
-		SKBitmap workAlbedo = albedoImg;
-		bool disposeWorkAlbedo = false;
-		if (albedoImg.ColorType != SKColorType.Rgba8888 && albedoImg.ColorType != SKColorType.Bgra8888)
+	private static (SKBitmap workBitmap, bool disposeWork) PrepareBitmap(SKBitmap original)
+	{
+		if (original.ColorType == SKColorType.Rgba8888 || original.ColorType == SKColorType.Bgra8888)
 		{
-			workAlbedo = albedoImg.Copy(SKColorType.Rgba8888);
-			disposeWorkAlbedo = workAlbedo != null && workAlbedo != albedoImg;
-			if (workAlbedo == null) workAlbedo = albedoImg;
+			return (original, false);
 		}
 
-		SKBitmap workOrm = ormImg;
-		bool disposeWorkOrm = false;
-		if (ormImg.ColorType != SKColorType.Rgba8888 && ormImg.ColorType != SKColorType.Bgra8888)
+		SKBitmap workBitmap = original.Copy(SKColorType.Rgba8888) ?? original;
+		bool disposeWork = workBitmap != original;
+		return (workBitmap, disposeWork);
+	}
+
+	private static void ExecuteDespill(SKBitmap originalAlbedo, SKBitmap workAlbedo, SKBitmap workOrm, Vector2 keyUnitVector, bool sameDimensions, bool copyBack)
+	{
+		IntPtr albedoPtr = workAlbedo.GetPixels();
+		IntPtr ormPtr = workOrm.GetPixels();
+
+		if (albedoPtr != IntPtr.Zero && ormPtr != IntPtr.Zero)
 		{
-			workOrm = ormImg.Copy(SKColorType.Rgba8888);
-			disposeWorkOrm = workOrm != null && workOrm != ormImg;
-			if (workOrm == null) workOrm = ormImg;
+			ApplyAnalyticalChromaDespillUnsafe(workAlbedo, workOrm, keyUnitVector, sameDimensions);
+		}
+		else
+		{
+			ApplyAnalyticalChromaDespillSafe(workAlbedo, workOrm, keyUnitVector, sameDimensions);
 		}
 
-		try
+		if (copyBack)
 		{
-			IntPtr albedoPtr = workAlbedo.GetPixels();
-			IntPtr ormPtr = workOrm.GetPixels();
+			using var skImg = SKImage.FromBitmap(workAlbedo);
+			using var canvas = new SKCanvas(originalAlbedo);
+			canvas.Clear();
+			canvas.DrawImage(skImg, 0, 0);
+		}
+	}
 
-			if (albedoPtr != IntPtr.Zero && ormPtr != IntPtr.Zero)
+	private static unsafe void ApplyAnalyticalChromaDespillUnsafe(SKBitmap workAlbedo, SKBitmap workOrm, Vector2 keyUnitVector, bool sameDimensions)
+	{
+		byte* albBase = (byte*)workAlbedo.GetPixels();
+		byte* ormBase = (byte*)workOrm.GetPixels();
+		int albRowBytes = workAlbedo.RowBytes;
+		int ormRowBytes = workOrm.RowBytes;
+
+		int albROff = workAlbedo.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+		int albGOff = 1;
+		int albBOff = workAlbedo.ColorType == SKColorType.Bgra8888 ? 0 : 2;
+
+		int ormROff = workOrm.ColorType == SKColorType.Bgra8888 ? 2 : 0;
+
+		int width = workAlbedo.Width;
+		int height = workAlbedo.Height;
+		int ormWidth = workOrm.Width;
+		int ormHeight = workOrm.Height;
+
+		Parallel.For(0, height, y =>
+		{
+			int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
+			byte* albRow = albBase + y * albRowBytes;
+			byte* ormRow = ormBase + ormY * ormRowBytes;
+
+			ProcessDespillRowUnsafe(albRow, ormRow, width, ormWidth, albROff, albGOff, albBOff, ormROff, sameDimensions, keyUnitVector);
+		});
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static unsafe void ProcessDespillRowUnsafe(
+		byte* albRow, byte* ormRow,
+		int width, int ormWidth,
+		int albROff, int albGOff, int albBOff, int ormROff,
+		bool sameDimensions, Vector2 keyUnitVector)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
+			float mask = ormRow[ormX * 4 + ormROff] / 255.0f;
+			if (mask >= 0.999f) continue;
+
+			int albIdx = x * 4;
+			byte r = albRow[albIdx + albROff];
+			byte g = albRow[albIdx + albGOff];
+			byte b = albRow[albIdx + albBOff];
+
+			if (TryDespillPixel(r, g, b, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
 			{
-				unsafe
-				{
-					byte* albBase = (byte*)albedoPtr;
-					byte* ormBase = (byte*)ormPtr;
-					int albRowBytes = workAlbedo.RowBytes;
-					int ormRowBytes = workOrm.RowBytes;
-
-					int albROff = workAlbedo.ColorType == SKColorType.Bgra8888 ? 2 : 0;
-					int albGOff = 1;
-					int albBOff = workAlbedo.ColorType == SKColorType.Bgra8888 ? 0 : 2;
-
-					int ormROff = workOrm.ColorType == SKColorType.Bgra8888 ? 2 : 0;
-
-					Parallel.For(0, height, y =>
-					{
-						int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
-						byte* albRow = albBase + y * albRowBytes;
-						byte* ormRow = ormBase + ormY * ormRowBytes;
-
-						for (int x = 0; x < width; x++)
-						{
-							int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
-							float mask = ormRow[ormX * 4 + ormROff] / 255.0f;
-							if (mask >= 0.999f) continue;
-
-							int albIdx = x * 4;
-							byte r = albRow[albIdx + albROff];
-							byte g = albRow[albIdx + albGOff];
-							byte b = albRow[albIdx + albBOff];
-
-							if (TryDespillPixel(r, g, b, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
-							{
-								albRow[albIdx + albROff] = newR;
-								albRow[albIdx + albGOff] = newG;
-								albRow[albIdx + albBOff] = newB;
-							}
-						}
-					});
-				}
-
-				if (disposeWorkAlbedo)
-				{
-					using var skImg = SKImage.FromBitmap(workAlbedo);
-					using var canvas = new SKCanvas(albedoImg);
-					canvas.Clear();
-					canvas.DrawImage(skImg, 0, 0);
-				}
-			}
-			else
-			{
-				float[] maskValues = new float[width * height];
-				for (int y = 0; y < height; y++)
-				{
-					int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
-					int rowOffset = y * width;
-
-					for (int x = 0; x < width; x++)
-					{
-						int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
-						maskValues[rowOffset + x] = workOrm.GetPixel(ormX, ormY).Red / 255.0f;
-					}
-				}
-
-				for (int y = 0; y < height; y++)
-				{
-					int rowOffset = y * width;
-
-					for (int x = 0; x < width; x++)
-					{
-						float mask = maskValues[rowOffset + x];
-						if (mask >= 0.999f) continue;
-
-						var pixel = workAlbedo.GetPixel(x, y);
-						if (TryDespillPixel(pixel.Red, pixel.Green, pixel.Blue, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
-						{
-							workAlbedo.SetPixel(x, y, new SKColor(newR, newG, newB, pixel.Alpha));
-						}
-					}
-				}
-
-				if (disposeWorkAlbedo)
-				{
-					using var skImg = SKImage.FromBitmap(workAlbedo);
-					using var canvas = new SKCanvas(albedoImg);
-					canvas.Clear();
-					canvas.DrawImage(skImg, 0, 0);
-				}
+				albRow[albIdx + albROff] = newR;
+				albRow[albIdx + albGOff] = newG;
+				albRow[albIdx + albBOff] = newB;
 			}
 		}
-		finally
+	}
+
+	private static void ApplyAnalyticalChromaDespillSafe(SKBitmap workAlbedo, SKBitmap workOrm, Vector2 keyUnitVector, bool sameDimensions)
+	{
+		int width = workAlbedo.Width;
+		int height = workAlbedo.Height;
+		int ormWidth = workOrm.Width;
+		int ormHeight = workOrm.Height;
+
+		float[] maskValues = new float[width * height];
+		for (int y = 0; y < height; y++)
 		{
-			if (disposeWorkAlbedo) workAlbedo.Dispose();
-			if (disposeWorkOrm) workOrm.Dispose();
+			PopulateMaskRowSafe(workOrm, maskValues, y, width, height, ormWidth, ormHeight, sameDimensions);
+		}
+
+		for (int y = 0; y < height; y++)
+		{
+			ProcessDespillRowSafe(workAlbedo, maskValues, y, width, keyUnitVector);
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static void PopulateMaskRowSafe(
+		SKBitmap workOrm, float[] maskValues,
+		int y, int width, int height, int ormWidth, int ormHeight,
+		bool sameDimensions)
+	{
+		int ormY = sameDimensions ? y : Math.Clamp((int)(((y + 0.5f) / height) * ormHeight), 0, ormHeight - 1);
+		int rowOffset = y * width;
+
+		for (int x = 0; x < width; x++)
+		{
+			int ormX = sameDimensions ? x : Math.Clamp((int)(((x + 0.5f) / width) * ormWidth), 0, ormWidth - 1);
+			maskValues[rowOffset + x] = workOrm.GetPixel(ormX, ormY).Red / 255.0f;
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static void ProcessDespillRowSafe(
+		SKBitmap workAlbedo, float[] maskValues,
+		int y, int width, Vector2 keyUnitVector)
+	{
+		int rowOffset = y * width;
+
+		for (int x = 0; x < width; x++)
+		{
+			float mask = maskValues[rowOffset + x];
+			if (mask >= 0.999f) continue;
+
+			var pixel = workAlbedo.GetPixel(x, y);
+			if (TryDespillPixel(pixel.Red, pixel.Green, pixel.Blue, mask, keyUnitVector, out byte newR, out byte newG, out byte newB))
+			{
+				workAlbedo.SetPixel(x, y, new SKColor(newR, newG, newB, pixel.Alpha));
+			}
 		}
 	}
 
@@ -527,35 +583,7 @@ public static class GlbInMemoryColorPreprocessor
 		var images = root["images"] as JsonArray ?? new JsonArray();
 		var textures = root["textures"] as JsonArray ?? new JsonArray();
 
-		var retainedBvIndices = new System.Collections.Generic.HashSet<int>();
-		foreach (var acc in accessors)
-		{
-			if (acc is JsonObject accObj && accObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
-			{
-				int bvIdx = bvVal.GetValue<int>();
-				if (bvIdx >= 0 && bvIdx < bufferViews.Count)
-				{
-					retainedBvIndices.Add(bvIdx);
-				}
-			}
-		}
-
-		for (int i = 0; i < images.Count; i++)
-		{
-			if (i == albedoImageIndex)
-			{
-				continue;
-			}
-
-			if (images[i] is JsonObject imgObj)
-			{
-				int imgBv = GlbPlayerColorProcessor.GetImageBufferViewIndex(imgObj);
-				if (imgBv >= 0 && imgBv < bufferViews.Count)
-				{
-					retainedBvIndices.Add(imgBv);
-				}
-			}
-		}
+		var retainedBvIndices = CollectRetainedBufferViews(accessors, images, bufferViews.Count, albedoImageIndex);
 
 		using var newBinStream = new MemoryStream();
 		var oldBvToNewBv = new System.Collections.Generic.Dictionary<int, int>();
@@ -563,40 +591,119 @@ public static class GlbInMemoryColorPreprocessor
 
 		for (int oldBvIdx = 0; oldBvIdx < bufferViews.Count; oldBvIdx++)
 		{
-			if (!retainedBvIndices.Contains(oldBvIdx))
-			{
-				continue;
-			}
-
-			if (bufferViews[oldBvIdx] is not JsonObject oldBv)
-			{
-				continue;
-			}
-
-			int origOffset = oldBv["byteOffset"]?.GetValue<int>() ?? 0;
-			int origLength = oldBv["byteLength"]?.GetValue<int>() ?? 0;
-
-			while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
-			int newOffset = (int)newBinStream.Position;
-
-			if (origOffset + origLength <= binChunk.Length && origLength > 0)
-			{
-				newBinStream.Write(binChunk, origOffset, origLength);
-				while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
-			}
-
-			var clonedBv = (JsonObject)oldBv.DeepClone();
-			clonedBv["byteOffset"] = newOffset;
-			clonedBv["buffer"] = 0;
-
-			newBufferViewsList.Add(clonedBv);
-			oldBvToNewBv[oldBvIdx] = newBufferViewsList.Count - 1;
+			ProcessRetainedBufferView(oldBvIdx, bufferViews, retainedBvIndices, binChunk, newBinStream, newBufferViewsList, oldBvToNewBv);
 		}
 
-		while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
+		int newAlbedoBvIdx = AppendNewAlbedoBufferView(newBinStream, newAlbedoBytes, newBufferViewsList);
+
+		UpdateAccessorBufferViews(accessors, oldBvToNewBv);
+		UpdateImageBufferViews(images, albedoImageIndex, oldBvToNewBv);
+		SetAlbedoImageProperties(images, albedoImageIndex, newAlbedoBvIdx);
+		EnsureTexturesUseWebp(textures, images.Count);
+		EnsureExtensionsUsedContainsWebp(root);
+
+		root["bufferViews"] = newBufferViewsList;
+
+		if (root["buffers"] is JsonArray buffers && buffers.Count > 0 && buffers[0] is JsonObject buf0)
+		{
+			buf0["byteLength"] = (int)newBinStream.Position;
+		}
+
+		byte[] newBin = newBinStream.ToArray();
+		return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
+	}
+
+	private static System.Collections.Generic.HashSet<int> CollectRetainedBufferViews(JsonArray accessors, JsonArray images, int bufferViewsCount, int albedoImageIndex)
+	{
+		var retained = new System.Collections.Generic.HashSet<int>();
+		CollectAccessorBufferViews(accessors, bufferViewsCount, retained);
+		CollectImageBufferViews(images, bufferViewsCount, albedoImageIndex, retained);
+		return retained;
+	}
+
+	private static void CollectAccessorBufferViews(JsonArray accessors, int bufferViewsCount, System.Collections.Generic.HashSet<int> retained)
+	{
+		foreach (var acc in accessors)
+		{
+			if (acc is JsonObject accObj && accObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
+			{
+				int bvIdx = bvVal.GetValue<int>();
+				if (bvIdx >= 0 && bvIdx < bufferViewsCount)
+				{
+					retained.Add(bvIdx);
+				}
+			}
+		}
+	}
+
+	private static void CollectImageBufferViews(JsonArray images, int bufferViewsCount, int albedoImageIndex, System.Collections.Generic.HashSet<int> retained)
+	{
+		for (int i = 0; i < images.Count; i++)
+		{
+			if (i == albedoImageIndex) continue;
+			if (images[i] is JsonObject imgObj)
+			{
+				int imgBv = GlbPlayerColorProcessor.GetImageBufferViewIndex(imgObj);
+				if (imgBv >= 0 && imgBv < bufferViewsCount)
+				{
+					retained.Add(imgBv);
+				}
+			}
+		}
+	}
+
+	private static void ProcessRetainedBufferView(
+		int oldBvIdx, JsonArray bufferViews, System.Collections.Generic.HashSet<int> retainedBvIndices,
+		byte[] binChunk, MemoryStream newBinStream, JsonArray newBufferViewsList,
+		System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	{
+		if (!retainedBvIndices.Contains(oldBvIdx) || bufferViews[oldBvIdx] is not JsonObject oldBv)
+			return;
+
+		int origOffset = GetIntValueOrDefault(oldBv, "byteOffset");
+		int origLength = GetIntValueOrDefault(oldBv, "byteLength");
+
+		AlignStreamTo4Bytes(newBinStream);
+		int newOffset = (int)newBinStream.Position;
+
+		CopyBufferViewData(binChunk, origOffset, origLength, newBinStream);
+
+		var clonedBv = (JsonObject)oldBv.DeepClone();
+		clonedBv["byteOffset"] = newOffset;
+		clonedBv["buffer"] = 0;
+
+		newBufferViewsList.Add(clonedBv);
+		oldBvToNewBv[oldBvIdx] = newBufferViewsList.Count - 1;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static int GetIntValueOrDefault(JsonObject obj, string propertyName)
+	{
+		return obj[propertyName]?.GetValue<int>() ?? 0;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static void AlignStreamTo4Bytes(MemoryStream stream)
+	{
+		while ((stream.Position % 4) != 0) stream.WriteByte(0);
+	}
+
+	private static void CopyBufferViewData(byte[] binChunk, int origOffset, int origLength, MemoryStream newBinStream)
+	{
+		if (origOffset + origLength <= binChunk.Length && origLength > 0)
+		{
+			newBinStream.Write(binChunk, origOffset, origLength);
+			AlignStreamTo4Bytes(newBinStream);
+		}
+	}
+
+	private static int AppendNewAlbedoBufferView(MemoryStream newBinStream, byte[] newAlbedoBytes, JsonArray newBufferViewsList)
+	{
+		AlignStreamTo4Bytes(newBinStream);
 		int albedoOffset = (int)newBinStream.Position;
+		
 		newBinStream.Write(newAlbedoBytes, 0, newAlbedoBytes.Length);
-		while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
+		AlignStreamTo4Bytes(newBinStream);
 
 		newBufferViewsList.Add(new JsonObject
 		{
@@ -604,8 +711,11 @@ public static class GlbInMemoryColorPreprocessor
 			["byteLength"] = newAlbedoBytes.Length,
 			["buffer"] = 0
 		});
-		int newAlbedoBvIdx = newBufferViewsList.Count - 1;
+		return newBufferViewsList.Count - 1;
+	}
 
+	private static void UpdateAccessorBufferViews(JsonArray accessors, System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	{
 		foreach (var acc in accessors)
 		{
 			if (acc is JsonObject accObj && accObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
@@ -617,34 +727,49 @@ public static class GlbInMemoryColorPreprocessor
 				}
 			}
 		}
+	}
 
+	private static void UpdateImageBufferViews(JsonArray images, int albedoImageIndex, System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	{
 		for (int i = 0; i < images.Count; i++)
 		{
 			if (i == albedoImageIndex) continue;
 			if (images[i] is JsonObject imgObj)
 			{
-				if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
+				UpdateSingleImageBufferView(imgObj, oldBvToNewBv);
+				UpdateImageWebpExtensionBufferView(imgObj, oldBvToNewBv);
+			}
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static void UpdateSingleImageBufferView(JsonObject imgObj, System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	{
+		if (!imgObj.TryGetPropertyValue("bufferView", out var bvVal) || bvVal == null) return;
+		int oldBv = bvVal.GetValue<int>();
+		if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
+		{
+			imgObj["bufferView"] = newBv;
+		}
+	}
+
+	private static void UpdateImageWebpExtensionBufferView(JsonObject imgObj, System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	{
+		if (imgObj["extensions"] is JsonObject imgExt && imgExt["EXT_texture_webp"] is JsonObject webp)
+		{
+			if (webp.TryGetPropertyValue("bufferView", out var wbVal) && wbVal != null)
+			{
+				int oldBv = wbVal.GetValue<int>();
+				if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
 				{
-					int oldBv = bvVal.GetValue<int>();
-					if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
-					{
-						imgObj["bufferView"] = newBv;
-					}
-				}
-				if (imgObj["extensions"] is JsonObject imgExt)
-				{
-					if (imgExt["EXT_texture_webp"] is JsonObject webp && webp.TryGetPropertyValue("bufferView", out var wbVal) && wbVal != null)
-					{
-						int oldBv = wbVal.GetValue<int>();
-						if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
-						{
-							webp["bufferView"] = newBv;
-						}
-					}
+					webp["bufferView"] = newBv;
 				}
 			}
 		}
+	}
 
+	private static void SetAlbedoImageProperties(JsonArray images, int albedoImageIndex, int newAlbedoBvIdx)
+	{
 		if (albedoImageIndex >= 0 && albedoImageIndex < images.Count && images[albedoImageIndex] is JsonObject albedoImgObj)
 		{
 			albedoImgObj["bufferView"] = newAlbedoBvIdx;
@@ -652,41 +777,52 @@ public static class GlbInMemoryColorPreprocessor
 			if (albedoImgObj.ContainsKey("uri")) albedoImgObj.Remove("uri");
 			if (albedoImgObj.ContainsKey("extensions")) albedoImgObj.Remove("extensions");
 		}
+	}
 
+	private static void EnsureTexturesUseWebp(JsonArray textures, int imagesCount)
+	{
 		for (int i = 0; i < textures.Count; i++)
 		{
 			if (textures[i] is not JsonObject texObj) continue;
 			int src = texObj["source"]?.GetValue<int>() ?? -1;
 			if (src < 0)
 			{
-				src = GlbPlayerColorProcessor.ResolveTextureToImage(i, textures);
-				if (src >= 0 && src < images.Count)
-				{
-					texObj["source"] = src;
-				}
-				else if (images.Count > 0)
-				{
-					texObj["source"] = 0;
-					src = 0;
-				}
+				src = ResolveMissingTextureSource(i, textures, imagesCount);
+				texObj["source"] = src;
 			}
 			if (src >= 0)
 			{
-				if (texObj["extensions"] is JsonObject texExt)
-				{
-					if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
-					texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
-				}
-				else
-				{
-					texObj["extensions"] = new JsonObject
-					{
-						["EXT_texture_webp"] = new JsonObject { ["source"] = src }
-					};
-				}
+				UpdateTextureWebpExtension(texObj, src);
 			}
 		}
+	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static int ResolveMissingTextureSource(int textureIndex, JsonArray textures, int imagesCount)
+	{
+		int src = GlbPlayerColorProcessor.ResolveTextureToImage(textureIndex, textures);
+		if (src >= 0 && src < imagesCount) return src;
+		return imagesCount > 0 ? 0 : -1;
+	}
+
+	private static void UpdateTextureWebpExtension(JsonObject texObj, int src)
+	{
+		if (texObj["extensions"] is JsonObject texExt)
+		{
+			if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
+			texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
+		}
+		else
+		{
+			texObj["extensions"] = new JsonObject
+			{
+				["EXT_texture_webp"] = new JsonObject { ["source"] = src }
+			};
+		}
+	}
+
+	private static void EnsureExtensionsUsedContainsWebp(JsonObject root)
+	{
 		if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
 		{
 			bool exists = false;
@@ -704,15 +840,5 @@ public static class GlbInMemoryColorPreprocessor
 		{
 			root["extensionsUsed"] = new JsonArray("EXT_texture_webp");
 		}
-
-		root["bufferViews"] = newBufferViewsList;
-
-		if (root["buffers"] is JsonArray buffers && buffers.Count > 0 && buffers[0] is JsonObject buf0)
-		{
-			buf0["byteLength"] = (int)newBinStream.Position;
-		}
-
-		byte[] newBin = newBinStream.ToArray();
-		return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
 	}
 }

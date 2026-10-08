@@ -15,95 +15,77 @@ public static class LocalizationManager
 		{
 			var mergedDict = new Dictionary<string, string>();
 
-			string basePath = $"res://locale/{locale}.json";
-			if (FileAccess.FileExists(basePath))
-			{
-				using var file = FileAccess.Open(basePath, FileAccess.ModeFlags.Read);
-				if (file != null)
-				{
-					string content = file.GetAsText();
-					try
-					{
-						var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
-						if (dict != null)
-						{
-							foreach (var kvp in dict)
-								mergedDict[kvp.Key] = kvp.Value;
-						}
-					}
-					catch (System.Exception e)
-					{
-						GD.PrintErr($"Failed to load base translation for {locale}: {e.Message}");
-					}
-				}
-			}
+			LoadBaseTranslations(locale, mergedDict);
+			LoadMapTranslations(locale, mergedDict);
 
-			if (!string.IsNullOrEmpty(CurrentMapName))
-			{
-				string? resolvedDir = GameHost.ResolveMapDirectory(CurrentMapName);
-				if (!string.IsNullOrEmpty(resolvedDir))
-				{
-					string localePath = System.IO.Path.Combine(resolvedDir, "locale", $"{locale}.json");
-					if (System.IO.File.Exists(localePath))
-					{
-						try
-						{
-							string content = System.IO.File.ReadAllText(localePath);
-							var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
-							if (dict != null)
-							{
-								foreach (var kvp in dict)
-									mergedDict[kvp.Key] = kvp.Value;
-							}
-						}
-						catch (System.Exception e)
-						{
-							GD.PrintErr($"Failed to load map translation for {locale} in {CurrentMapName}: {e.Message}");
-						}
-					}
-				}
-				else
-				{
-					string mapPath = (CurrentMapName.StartsWith("user://") || CurrentMapName.StartsWith("res://"))
-						? $"{CurrentMapName.TrimEnd('/')}/locale/{locale}.json"
-						: $"res://Maps/{CurrentMapName}/locale/{locale}.json";
-					if (FileAccess.FileExists(mapPath))
-					{
-						using var file = FileAccess.Open(mapPath, FileAccess.ModeFlags.Read);
-						if (file != null)
-						{
-							string content = file.GetAsText();
-							try
-							{
-								var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
-								if (dict != null)
-								{
-									foreach (var kvp in dict)
-										mergedDict[kvp.Key] = kvp.Value;
-								}
-							}
-							catch (System.Exception e)
-							{
-								GD.PrintErr($"Failed to load map translation for {locale} in {CurrentMapName}: {e.Message}");
-							}
-						}
-					}
-				}
-			}
+			if (mergedDict.Count == 0) continue;
 
-			if (mergedDict.Count > 0)
+			var translation = new Translation();
+			translation.Locale = locale;
+			foreach (var kvp in mergedDict)
 			{
-				var translation = new Translation();
-				translation.Locale = locale;
-				foreach (var kvp in mergedDict)
-				{
-					translation.AddMessage(kvp.Key, kvp.Value);
-				}
-				TranslationServer.AddTranslation(translation);
+				translation.AddMessage(kvp.Key, kvp.Value);
 			}
+			TranslationServer.AddTranslation(translation);
 		}
 
 		UpdateLocale(GameSettings.Language);
+	}
+
+	private static void LoadMapTranslations(string locale, Dictionary<string, string> mergedDict)
+	{
+		if (string.IsNullOrEmpty(CurrentMapName)) return;
+
+		string? resolvedDir = GameHost.ResolveMapDirectory(CurrentMapName);
+		if (!string.IsNullOrEmpty(resolvedDir))
+		{
+			string localePath = System.IO.Path.Combine(resolvedDir, "locale", $"{locale}.json");
+			if (!System.IO.File.Exists(localePath)) return;
+
+			string content = System.IO.File.ReadAllText(localePath);
+			LoadJsonIntoDictionary(content, mergedDict, $"Failed to load map translation for {locale} in {CurrentMapName}");
+			return;
+		}
+
+		string mapPath = (CurrentMapName.StartsWith("user://") || CurrentMapName.StartsWith("res://"))
+			? $"{CurrentMapName.TrimEnd('/')}/locale/{locale}.json"
+			: $"res://Maps/{CurrentMapName}/locale/{locale}.json";
+		
+		if (!FileAccess.FileExists(mapPath)) return;
+
+		using var file = FileAccess.Open(mapPath, FileAccess.ModeFlags.Read);
+		if (file == null) return;
+
+		LoadJsonIntoDictionary(file.GetAsText(), mergedDict, $"Failed to load map translation for {locale} in {CurrentMapName}");
+	}
+
+	private static void LoadBaseTranslations(string locale, Dictionary<string, string> mergedDict)
+	{
+		string basePath = $"res://locale/{locale}.json";
+		if (!FileAccess.FileExists(basePath)) return;
+
+		using var file = FileAccess.Open(basePath, FileAccess.ModeFlags.Read);
+		if (file == null) return;
+
+		LoadJsonIntoDictionary(file.GetAsText(), mergedDict, $"Failed to load base translation for {locale}");
+	}
+
+	private static void LoadJsonIntoDictionary(string content, Dictionary<string, string> mergedDict, string errorContext)
+	{
+		try
+		{
+			var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
+			if (dict == null) return;
+
+			foreach (var kvp in dict)
+			{
+				mergedDict[kvp.Key] = kvp.Value;
+			}
+		}
+		catch (System.Exception e)
+		{
+			GD.PrintErr($"{errorContext}: {e.Message}");
+		}
 	}
 
 	public static event Action<GameLanguage> LanguageChanged;

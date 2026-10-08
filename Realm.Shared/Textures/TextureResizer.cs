@@ -83,31 +83,36 @@ public static class TextureResizer
 			for (int x = 0; x < width; x++)
 			{
 				SKColor pixel = image.GetPixel(x, y);
-				float nx = (pixel.Red / 255.0f) * 2.0f - 1.0f;
-				float ny = (pixel.Green / 255.0f) * 2.0f - 1.0f;
-				float nz = (pixel.Blue / 255.0f) * 2.0f - 1.0f;
-
-				float len = MathF.Sqrt(nx * nx + ny * ny + nz * nz);
-				if (len > 1e-5f)
-				{
-					float invLen = 1.0f / len;
-					nx *= invLen;
-					ny *= invLen;
-					nz *= invLen;
-				}
-				else
-				{
-					nx = 0.0f;
-					ny = 0.0f;
-					nz = 1.0f;
-				}
-
-				byte r = (byte)Math.Clamp((int)Math.Round((nx * 0.5f + 0.5f) * 255.0f), 0, 255);
-				byte g = (byte)Math.Clamp((int)Math.Round((ny * 0.5f + 0.5f) * 255.0f), 0, 255);
-				byte b = (byte)Math.Clamp((int)Math.Round((nz * 0.5f + 0.5f) * 255.0f), 0, 255);
-
-				image.SetPixel(x, y, new SKColor(r, g, b, pixel.Alpha));
+				image.SetPixel(x, y, RenormalizePixel(pixel));
 			}
 		}
+	}
+
+	private static SKColor RenormalizePixel(SKColor pixel)
+	{
+		float nx = (pixel.Red / 255.0f) * 2.0f - 1.0f;
+		float ny = (pixel.Green / 255.0f) * 2.0f - 1.0f;
+		float nz = (pixel.Blue / 255.0f) * 2.0f - 1.0f;
+
+		float len = MathF.Sqrt(nx * nx + ny * ny + nz * nz);
+		if (len > 1e-5f)
+		{
+			float invLen = 1.0f / len;
+			nx *= invLen;
+			ny *= invLen;
+			nz *= invLen;
+		}
+		else
+		{
+			nx = 0.0f;
+			ny = 0.0f;
+			nz = 1.0f;
+		}
+
+		byte r = (byte)Math.Clamp((int)Math.Round((nx * 0.5f + 0.5f) * 255.0f), 0, 255);
+		byte g = (byte)Math.Clamp((int)Math.Round((ny * 0.5f + 0.5f) * 255.0f), 0, 255);
+		byte b = (byte)Math.Clamp((int)Math.Round((nz * 0.5f + 0.5f) * 255.0f), 0, 255);
+
+		return new SKColor(r, g, b, pixel.Alpha);
 	}
 }

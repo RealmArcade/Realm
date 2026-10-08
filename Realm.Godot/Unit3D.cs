@@ -1314,44 +1314,30 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	private StringName ResolveAnimationName(string animName)
+	private StringName? ResolveRandomAnimationVariant(string animName, string[] animations)
 	{
-		if (_animationPlayer == null) return null;
-
-		var animations = _animationPlayer.GetAnimationList();
-
-		if (!animName.Contains('_'))
-		{
-			var variants = new List<StringName>();
-			string prefix = $"{animName}_";
-			foreach (var name in animations)
-			{
-				string nameStr = name.ToString();
-				if (nameStr.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-				{
-					variants.Add(name);
-				}
-			}
-
-			if (variants.Count > 0)
-			{
-				int randIdx = Random.Shared.Next(variants.Count);
-				return variants[randIdx];
-			}
-		}
-
-		StringName direct = new StringName(animName);
-		if (_animationPlayer.HasAnimation(direct))
-		{
-			return direct;
-		}
-
+		var variants = new List<StringName>();
+		string prefix = $"{animName}_";
 		foreach (var name in animations)
 		{
-			if (name.ToString().Equals(animName, System.StringComparison.OrdinalIgnoreCase))
-				return name;
+			string nameStr = name.ToString();
+			if (nameStr.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+			{
+				variants.Add(name);
+			}
 		}
 
+		if (variants.Count > 0)
+		{
+			int randIdx = Random.Shared.Next(variants.Count);
+			return variants[randIdx];
+		}
+		
+		return null;
+	}
+
+	private StringName? TryRetargetAnimation(string animName, StringName direct)
+	{
 		string resolvedPath = Realm.Godot.Animation.AnimationRetargetingService.ResolveAnimationFilePath(animName, UnitId);
 		if (!string.IsNullOrEmpty(resolvedPath))
 		{
@@ -1384,6 +1370,36 @@ public partial class Unit3D : Prop3D
 				return direct;
 			}
 		}
+
+		return null;
+	}
+
+	private StringName ResolveAnimationName(string animName)
+	{
+		if (_animationPlayer == null) return null;
+
+		var animations = _animationPlayer.GetAnimationList();
+
+		if (!animName.Contains('_'))
+		{
+			var randomVariant = ResolveRandomAnimationVariant(animName, animations);
+			if (randomVariant != null) return randomVariant;
+		}
+
+		StringName direct = new StringName(animName);
+		if (_animationPlayer.HasAnimation(direct))
+		{
+			return direct;
+		}
+
+		foreach (var name in animations)
+		{
+			if (name.ToString().Equals(animName, System.StringComparison.OrdinalIgnoreCase))
+				return name;
+		}
+
+		var retargeted = TryRetargetAnimation(animName, direct);
+		if (retargeted != null) return retargeted;
 
 		if (animations.Length > 0)
 		{
@@ -1539,6 +1555,66 @@ public partial class Unit3D : Prop3D
 		return _rallyLinesPool[index];
 	}
 
+	private void UpdateRallyMarkers(System.Collections.Generic.List<Vector3> points, int markerCountNeeded)
+	{
+		for (int i = 0; i < markerCountNeeded; i++)
+		{
+			var marker = GetOrCreateRallyMarker(i);
+			marker.Visible = true;
+			Vector3 pos = points[i + 1];
+			if (GameHost.Instance.GroundTerrain != null)
+			{
+				GameHost.Instance.GroundTerrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
+				pos.Y = h + 0.1f;
+			}
+			marker.GlobalPosition = pos;
+		}
+		for (int i = Mathf.Max(0, markerCountNeeded); i < _rallyMarkersPool.Count; i++)
+		{
+			_rallyMarkersPool[i].Visible = false;
+		}
+	}
+
+	private void UpdateRallyLines(System.Collections.Generic.List<Vector3> points, int lineCountNeeded)
+	{
+		for (int i = 0; i < lineCountNeeded; i++)
+		{
+			var line = GetOrCreateRallyLine(i);
+			line.Visible = true;
+
+			Vector3 start = points[i];
+			Vector3 end = points[i + 1];
+
+			if (GameHost.Instance.GroundTerrain != null)
+			{
+				GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
+				start.Y = hStart + 0.1f;
+
+				GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
+				end.Y = hEnd + 0.1f;
+			}
+
+			Vector3 diff = end - start;
+			float length = diff.Length();
+
+			if (length > 0.05f)
+			{
+				Vector3 direction = diff.Normalized();
+				Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
+				var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
+				line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
+			}
+			else
+			{
+				line.Visible = false;
+			}
+		}
+		for (int i = lineCountNeeded; i < _rallyLinesPool.Count; i++)
+		{
+			_rallyLinesPool[i].Visible = false;
+		}
+	}
+
 	public void UpdateRallyVisuals()
 	{
 		if (!IsBuilding || IsEnemy) return;
@@ -1591,61 +1667,8 @@ public partial class Unit3D : Prop3D
 		}
 		_rallyMarker.GlobalPosition = finalPos;
 
-		int markerCountNeeded = points.Count - 2;
-		for (int i = 0; i < markerCountNeeded; i++)
-		{
-			var marker = GetOrCreateRallyMarker(i);
-			marker.Visible = true;
-			Vector3 pos = points[i + 1];
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
-				pos.Y = h + 0.1f;
-			}
-			marker.GlobalPosition = pos;
-		}
-		for (int i = Mathf.Max(0, markerCountNeeded); i < _rallyMarkersPool.Count; i++)
-		{
-			_rallyMarkersPool[i].Visible = false;
-		}
-
-		int lineCountNeeded = points.Count - 1;
-		for (int i = 0; i < lineCountNeeded; i++)
-		{
-			var line = GetOrCreateRallyLine(i);
-			line.Visible = true;
-
-			Vector3 start = points[i];
-			Vector3 end = points[i + 1];
-
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
-				start.Y = hStart + 0.1f;
-
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
-				end.Y = hEnd + 0.1f;
-			}
-
-			Vector3 diff = end - start;
-			float length = diff.Length();
-
-			if (length > 0.05f)
-			{
-				Vector3 direction = diff.Normalized();
-				Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
-				line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
-			}
-			else
-			{
-				line.Visible = false;
-			}
-		}
-		for (int i = lineCountNeeded; i < _rallyLinesPool.Count; i++)
-		{
-			_rallyLinesPool[i].Visible = false;
-		}
+		UpdateRallyMarkers(points, points.Count - 2);
+		UpdateRallyLines(points, points.Count - 1);
 	}
 
 	public override void _Process(double delta)

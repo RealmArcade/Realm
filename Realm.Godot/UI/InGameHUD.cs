@@ -275,6 +275,42 @@ public partial class InGameHUD : Control
 	{
 		Instance = this;
 
+		InitializeReferences();
+		SetupResourcePanel();
+		SetupSelectionFrame();
+		SetupCommandAndInventoryGrids();
+		SetupWarningLabel();
+		SetupMinimapControls();
+		string currentWeather = GetCurrentWeather();
+		SetupChatPanel();
+		SetupCustomUIPanel();
+
+		CreateStatsContainer();
+		ApplyThemeStyles();
+		SetupCommandCard();
+		SetupDevPanel();
+		SetupPortrait();
+		ApplyWeatherEffects(currentWeather);
+
+		_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
+		Input.MouseMode = Input.MouseModeEnum.Visible;
+		MouseFilter = MouseFilterEnum.Ignore;
+
+		ApplyModeSpecificUI();
+
+		Resized += OnHUDResized;
+		ApplyHUDScale();
+		UpdateFPSVisibility();
+		BuildHotkeyReferencePanel();
+
+		SetupControllers();
+		GenerateDynamicMinimap();
+
+		ApplySpectatorAndReplayOverrides();
+	}
+
+	private void InitializeReferences()
+	{
 		_resourceContainer = GetNode<PanelContainer>("ResourceContainer");
 		_bottomConsole = GetNode<PanelContainer>("BottomConsole");
 		_minimapFrame = GetNode<PanelContainer>("BottomConsole/HBox/MinimapFrame");
@@ -287,6 +323,16 @@ public partial class InGameHUD : Control
 		_woodLabel = GetNode<Label>("ResourceContainer/HBox/WoodBox/WoodLabel");
 		_stoneLabel = GetNode<Label>("ResourceContainer/HBox/StoneBox/StoneLabel");
 
+		_btnVictory = GetNode<Button>("DevPanel/BtnVictory");
+		_btnDefeat = GetNode<Button>("DevPanel/BtnDefeat");
+		_feedbackLabel = GetNode<Label>("FeedbackLabel");
+		
+		_minimapArea = GetNode<Control>("BottomConsole/HBox/MinimapFrame/MinimapArea");
+		_cameraIndicator = GetNode<MinimapCameraIndicator>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
+	}
+
+	private void SetupResourcePanel()
+	{
 		var resHBox = GetNode<HBoxContainer>("ResourceContainer/HBox");
 		var popBox = new VBoxContainer();
 		popBox.AddThemeConstantOverride("separation", 2);
@@ -339,7 +385,10 @@ public partial class InGameHUD : Control
 			UIManager.Instance?.OpenSettingsOverlay();
 		};
 		resHBox.AddChild(_btnSettings);
+	}
 
+	private void SetupSelectionFrame()
+	{
 		_unitsContainer = GetNode<HBoxContainer>("BottomConsole/HBox/SelectionFrame/UnitsContainer");
 
 		foreach (Node child in _unitsContainer.GetChildren())
@@ -382,7 +431,10 @@ public partial class InGameHUD : Control
 			_unitsContainer.AddChild(btn);
 			_unitButtons.Add(btn);
 		}
+	}
 
+	private void SetupCommandAndInventoryGrids()
+	{
 		_commandGrid = GetNode<GridContainer>("BottomConsole/HBox/CommandFrame/GridContainer");
 		_commandGrid.Columns = 4;
 
@@ -407,11 +459,10 @@ public partial class InGameHUD : Control
 		_btnPatrol.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_btnPatrol.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_btnPatrol.FocusMode = FocusModeEnum.None;
+	}
 
-		_btnVictory = GetNode<Button>("DevPanel/BtnVictory");
-		_btnDefeat = GetNode<Button>("DevPanel/BtnDefeat");
-		_feedbackLabel = GetNode<Label>("FeedbackLabel");
-
+	private void SetupWarningLabel()
+	{
 		_connectionWarningLabel = new Label();
 		_connectionWarningLabel.Name = "ConnectionWarningLabel";
 		_connectionWarningLabel.Text = TranslationServer.Translate("Connection to host lost ... Reconnecting");
@@ -437,10 +488,10 @@ public partial class InGameHUD : Control
 		_connectionWarningLabel.OffsetLeft = -250;
 		_connectionWarningLabel.OffsetRight = 250;
 		_connectionWarningLabel.Visible = false;
+	}
 
-		_minimapArea = GetNode<Control>("BottomConsole/HBox/MinimapFrame/MinimapArea");
-		_cameraIndicator = GetNode<MinimapCameraIndicator>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
-
+	private void SetupMinimapControls()
+	{
 		_minimapControls = new VBoxContainer();
 		_minimapControls.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
 		_minimapControls.SizeFlagsVertical = SizeFlags.ShrinkCenter;
@@ -484,18 +535,22 @@ public partial class InGameHUD : Control
 		var btnHotkeys = new Button();
 		SetupMinimapButton(btnHotkeys, "res://Assets/UI/game_menu.png", "Hotkey Reference", () => ToggleHotkeyPanel());
 		_minimapControls.AddChild(btnHotkeys);
+	}
 
-		string currentWeather = "clear";
-		if (GameHost.Instance != null)
-		{
-			string mapDir = !string.IsNullOrEmpty(GameHost.Instance.CurrentMapDirectory)
-				? GameHost.Instance.CurrentMapDirectory
-				: MapWorkspaceService.GetActiveWorkspacePath();
-			string metaPath = System.IO.Path.Combine(mapDir, "metadata.json").Replace("\\", "/");
-			GameHost.Instance.LoadMapProperties(metaPath);
-			currentWeather = GameHost.Instance?.EnvironmentService?.GetCurrentWeather() ?? "clear";
-		}
+	private string GetCurrentWeather()
+	{
+		if (GameHost.Instance == null) return "clear";
+		
+		string mapDir = !string.IsNullOrEmpty(GameHost.Instance.CurrentMapDirectory)
+			? GameHost.Instance.CurrentMapDirectory
+			: MapWorkspaceService.GetActiveWorkspacePath();
+		string metaPath = System.IO.Path.Combine(mapDir, "metadata.json").Replace("\\", "/");
+		GameHost.Instance.LoadMapProperties(metaPath);
+		return GameHost.Instance?.EnvironmentService?.GetCurrentWeather() ?? "clear";
+	}
 
+	private void SetupChatPanel()
+	{
 		_chatPanel = GetNode<PanelContainer>("ChatPanel");
 		_chatInput = GetNode<LineEdit>("ChatPanel/ChatContainer/ChatInput");
 		_chatLog = GetNode<RichTextLabel>("ChatPanel/ChatContainer/ChatLog");
@@ -522,7 +577,10 @@ public partial class InGameHUD : Control
 		{
 			LobbyManager.Instance.ChatReceived += OnLobbyChatReceived;
 		}
+	}
 
+	private void SetupCustomUIPanel()
+	{
 		_controlGroupsContainer = new HBoxContainer();
 		_controlGroupsContainer.Name = "ControlGroupsContainer";
 		_controlGroupsContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
@@ -542,6 +600,13 @@ public partial class InGameHUD : Control
 		_customUIPanel.AddThemeConstantOverride("separation", 10);
 		AddChild(_customUIPanel);
 
+		SetupCountdownPanel();
+		SetupLeaderboardPanel();
+		SetupSummaryPanel();
+	}
+
+	private void SetupCountdownPanel()
+	{
 		_countdownPanel = new PanelContainer();
 		_countdownPanel.Name = "CountdownPanel";
 		_countdownPanel.Visible = false;
@@ -568,7 +633,10 @@ public partial class InGameHUD : Control
 		_countdownLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_countdownPanel.AddChild(_countdownLabel);
 		_customUIPanel.AddChild(_countdownPanel);
+	}
 
+	private void SetupLeaderboardPanel()
+	{
 		_leaderboardPanel = new PanelContainer();
 		_leaderboardPanel.Name = "LeaderboardPanel";
 		_leaderboardPanel.Visible = false;
@@ -601,7 +669,10 @@ public partial class InGameHUD : Control
 		_leaderboardContent.Name = "LeaderboardContent";
 		lbVBox.AddChild(_leaderboardContent);
 		_customUIPanel.AddChild(_leaderboardPanel);
+	}
 
+	private void SetupSummaryPanel()
+	{
 		_summaryPanel = new PanelContainer();
 		_summaryPanel.Name = "SummaryTablePanel";
 		_summaryPanel.Visible = false;
@@ -634,18 +705,10 @@ public partial class InGameHUD : Control
 		_summaryContent.Name = "SummaryContent";
 		summaryVBox.AddChild(_summaryContent);
 		_customUIPanel.AddChild(_summaryPanel);
+	}
 
-		CreateStatsContainer();
-		ApplyThemeStyles();
-		SetupCommandCard();
-		SetupDevPanel();
-		SetupPortrait();
-		ApplyWeatherEffects(currentWeather);
-
-		_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
-		Input.MouseMode = Input.MouseModeEnum.Visible;
-		MouseFilter = MouseFilterEnum.Ignore;
-
+	private void ApplyModeSpecificUI()
+	{
 		if (MapEditorHUD.IsTestMode)
 		{
 			var btnBackToEditor = new Button();
@@ -674,12 +737,10 @@ public partial class InGameHUD : Control
 			};
 			AddChild(btnBackToEditor);
 		}
+	}
 
-		Resized += OnHUDResized;
-		ApplyHUDScale();
-		UpdateFPSVisibility();
-		BuildHotkeyReferencePanel();
-
+	private void SetupControllers()
+	{
 		_resourcePanelController = new ResourcePanel(_resourceContainer);
 		_resourcePanelController.InitializeSupplyAndClock(_populationLabel, _clockLabel);
 
@@ -703,8 +764,10 @@ public partial class InGameHUD : Control
 		_commandPanelController = new CommandPanel(_commandGrid);
 
 		_controlGroupsUIController = new ControlGroupsUIController(_controlGroupsContainer);
-		GenerateDynamicMinimap();
+	}
 
+	private void ApplySpectatorAndReplayOverrides()
+	{
 		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
 		{
 			_bottomConsole.Visible = false;
@@ -988,17 +1051,9 @@ public partial class InGameHUD : Control
 	{
 		if (selectedUnits != null)
 		{
-			bool hasPlayerSelection = false;
-			foreach (var u in selectedUnits)
-			{
-				if (!u.IsEnemy)
-				{
-					hasPlayerSelection = true;
-					break;
-				}
-			}
-			bool isSpectator = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator";
-			_commandFrame.Visible = isSpectator ? false : hasPlayerSelection;
+			bool hasPlayerSelection = System.Linq.Enumerable.Any(selectedUnits, u => !u.IsEnemy);
+			bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+			_commandFrame.Visible = !isSpectator && hasPlayerSelection;
 		}
 
 		_viewModel.SelectedProp = GameHost.Instance?.SelectedProp;
@@ -1079,30 +1134,8 @@ public partial class InGameHUD : Control
 	{
 		_viewModel.Update(delta);
 
-		if (GameHost.Instance != null)
-		{
-			var selected = GameHost.Instance.SelectedUnits;
-			if (selected != null)
-			{
-				_viewModel.UpdateSelectedUnits(selected);
-				
-				// Handle specific visual updates that are not data-bound yet.
-				foreach (var u in selected)
-				{
-					if (u.IsBuilding && !u.IsEnemy && u.UnitId == "castle")
-					{
-						u.UpdateRallyVisuals();
-					}
-				}
-			}
-		}
-
-		_fogUpdateTimer += (float)delta;
-		if (_fogUpdateTimer >= 0.1f)
-		{
-			_fogUpdateTimer = 0f;
-			QueueMinimapRedraw();
-		}
+		UpdateSelectedUnitVisuals();
+		UpdateFogTimer(delta);
 
 		_portraitPanelController?.Update(_viewModel);
 		_commandPanelController?.Update(_viewModel);
@@ -1115,34 +1148,65 @@ public partial class InGameHUD : Control
 			_connectionWarningLabel.Visible = _viewModel.IsConnectionLost;
 		}
 
-		if (_btnSelectIdle != null)
-		{
-			if (_lastIdleCount != _viewModel.IdleCount)
-			{
-				_btnSelectIdle.TooltipText = $"{TranslationServer.Translate("Select All Idle Units [F1]")} ({_viewModel.IdleCount} {TranslationServer.Translate("Idle")})";
-			}
-
-			if (_viewModel.IdleCount > 0)
-			{
-				_idlePulseTimer += (float)delta;
-				if (_lastIdleCount == 0)
-				{
-					ShowFeedbackText(string.Format(TranslationServer.Translate("{0} unit(s) are idle! [F1] to select"), _viewModel.IdleCount), new Color(0.9f, 0.7f, 0.2f));
-				}
-				float pulse = Mathf.Sin(_idlePulseTimer * 4f) * 0.5f + 0.5f;
-				_btnSelectIdle.Modulate = new Color(1f, 0.8f + pulse * 0.2f, 0.2f + pulse * 0.8f, 1f);
-			}
-			else
-			{
-				_idlePulseTimer = 0f;
-				_btnSelectIdle.Modulate = Colors.White;
-			}
-			_lastIdleCount = _viewModel.IdleCount;
-		}
+		UpdateIdleUnitButton(delta);
 
 		_minimapPanelController?.UpdateMinimapIndicator();
 
 		_controlGroupsUIController?.Update();
+	}
+
+	private void UpdateSelectedUnitVisuals()
+	{
+		if (GameHost.Instance?.SelectedUnits == null) return;
+		
+		var selected = GameHost.Instance.SelectedUnits;
+		_viewModel.UpdateSelectedUnits(selected);
+		
+		// Handle specific visual updates that are not data-bound yet.
+		foreach (var u in selected)
+		{
+			if (u.IsBuilding && !u.IsEnemy && u.UnitId == "castle")
+			{
+				u.UpdateRallyVisuals();
+			}
+		}
+	}
+
+	private void UpdateFogTimer(double delta)
+	{
+		_fogUpdateTimer += (float)delta;
+		if (_fogUpdateTimer >= 0.1f)
+		{
+			_fogUpdateTimer = 0f;
+			QueueMinimapRedraw();
+		}
+	}
+
+	private void UpdateIdleUnitButton(double delta)
+	{
+		if (_btnSelectIdle == null) return;
+
+		if (_lastIdleCount != _viewModel.IdleCount)
+		{
+			_btnSelectIdle.TooltipText = $"{TranslationServer.Translate("Select All Idle Units [F1]")} ({_viewModel.IdleCount} {TranslationServer.Translate("Idle")})";
+		}
+
+		if (_viewModel.IdleCount > 0)
+		{
+			_idlePulseTimer += (float)delta;
+			if (_lastIdleCount == 0)
+			{
+				ShowFeedbackText(string.Format(TranslationServer.Translate("{0} unit(s) are idle! [F1] to select"), _viewModel.IdleCount), new Color(0.9f, 0.7f, 0.2f));
+			}
+			float pulse = Mathf.Sin(_idlePulseTimer * 4f) * 0.5f + 0.5f;
+			_btnSelectIdle.Modulate = new Color(1f, 0.8f + pulse * 0.2f, 0.2f + pulse * 0.8f, 1f);
+		}
+		else
+		{
+			_idlePulseTimer = 0f;
+			_btnSelectIdle.Modulate = Colors.White;
+		}
+		_lastIdleCount = _viewModel.IdleCount;
 	}
 
 	public void QueueMinimapRedraw()
@@ -1302,22 +1366,8 @@ public partial class InGameHUD : Control
 			return true;
 		}
 
-		if (_bottomConsole != null && _bottomConsole.Visible && _bottomConsole.GetGlobalRect().HasPoint(mousePos))
-		{
-			return true;
-		}
-
-		if (_resourceContainer != null && _resourceContainer.Visible && _resourceContainer.GetGlobalRect().HasPoint(mousePos))
-		{
-			return true;
-		}
-
-		if (_devPanel != null && _devPanel.Visible && _devPanel.GetGlobalRect().HasPoint(mousePos))
-		{
-			return true;
-		}
-
-		return false;
+		Control[] controls = { _bottomConsole, _resourceContainer, _devPanel };
+		return System.Linq.Enumerable.Any(controls, c => c != null && c.Visible && c.GetGlobalRect().HasPoint(mousePos));
 	}
 
 	public void UpdateDragBox(Vector2 start, Vector2 end, bool isVisible)
@@ -1378,51 +1428,65 @@ public partial class InGameHUD : Control
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
-		if (@event.IsActionPressed("ui_focus_next"))
+		if (HandleFocusNext(@event)) return;
+
+		if (@event is InputEventKey keyEvent && keyEvent.Pressed)
 		{
-			if (GameHost.Instance != null && GameHost.Instance.SelectedUnits.Count > 1)
-			{
-				bool reverse = Input.IsKeyPressed(Key.Shift);
-				GameHost.Instance.CycleSelectionFocus(reverse);
-				RefreshUI(GameHost.Instance.SelectedUnits);
-				GetViewport().SetInputAsHandled();
-			}
+			if (HandleSpaceKey(keyEvent)) return;
+			if (HandleEnterKey(keyEvent)) return;
+			if (HandlePauseKey(keyEvent)) return;
+			if (HandleTildeKey(keyEvent)) return;
 		}
-		else if (@event is InputEventKey keyEvent && keyEvent.Pressed && keyEvent.Keycode == Key.Space)
-		{
-			if (!IsChatActive)
-			{
-				CenterCameraOnSelectedUnit();
-				GetViewport().SetInputAsHandled();
-			}
-		}
-		else if (@event is InputEventKey keyEntEvent && keyEntEvent.Pressed && keyEntEvent.Keycode == Key.Enter)
-		{
-			if (!IsChatActive)
-			{
-				_chatPanelController?.ShowChatInput(keyEntEvent.ShiftPressed);
-				GetViewport().SetInputAsHandled();
-			}
-		}
-		else if (@event is InputEventKey pauseKeyEvent && pauseKeyEvent.Pressed && (pauseKeyEvent.Keycode == Key.P || pauseKeyEvent.Keycode == Key.Pause))
-		{
-			if (!IsChatActive)
-			{
-				if (GameHost.Instance != null)
-				{
-					GameHost.Instance.TogglePauseRequest();
-					GetViewport().SetInputAsHandled();
-				}
-			}
-		}
-		else if (@event is InputEventKey tildeEvent && tildeEvent.Pressed && !tildeEvent.Echo && tildeEvent.Keycode == Key.Quoteleft)
-		{
-			if (!IsChatActive && Realm.Godot.UI.WasmConsoleWindow.IsSinglePlayerOrTestMode())
-			{
-				Realm.Godot.UI.WasmConsoleWindow.Instance.ToggleVisibility();
-				GetViewport().SetInputAsHandled();
-			}
-		}
+	}
+
+	private bool HandleFocusNext(InputEvent @event)
+	{
+		if (!@event.IsActionPressed("ui_focus_next")) return false;
+		if (GameHost.Instance == null || GameHost.Instance.SelectedUnits.Count <= 1) return false;
+
+		bool reverse = Input.IsKeyPressed(Key.Shift);
+		GameHost.Instance.CycleSelectionFocus(reverse);
+		RefreshUI(GameHost.Instance.SelectedUnits);
+		GetViewport().SetInputAsHandled();
+		return true;
+	}
+
+	private bool HandleSpaceKey(InputEventKey keyEvent)
+	{
+		if (keyEvent.Keycode != Key.Space || IsChatActive) return false;
+		
+		CenterCameraOnSelectedUnit();
+		GetViewport().SetInputAsHandled();
+		return true;
+	}
+
+	private bool HandleEnterKey(InputEventKey keyEvent)
+	{
+		if (keyEvent.Keycode != Key.Enter || IsChatActive) return false;
+
+		_chatPanelController?.ShowChatInput(keyEvent.ShiftPressed);
+		GetViewport().SetInputAsHandled();
+		return true;
+	}
+
+	private bool HandlePauseKey(InputEventKey keyEvent)
+	{
+		if (keyEvent.Keycode != Key.P && keyEvent.Keycode != Key.Pause) return false;
+		if (IsChatActive || GameHost.Instance == null) return false;
+
+		GameHost.Instance.TogglePauseRequest();
+		GetViewport().SetInputAsHandled();
+		return true;
+	}
+
+	private bool HandleTildeKey(InputEventKey keyEvent)
+	{
+		if (keyEvent.Keycode != Key.Quoteleft || keyEvent.Echo) return false;
+		if (IsChatActive || !Realm.Godot.UI.WasmConsoleWindow.IsSinglePlayerOrTestMode()) return false;
+
+		Realm.Godot.UI.WasmConsoleWindow.Instance.ToggleVisibility();
+		GetViewport().SetInputAsHandled();
+		return true;
 	}
 
 	private void OnChatInputSubmitted(string text)
@@ -1675,59 +1739,39 @@ public partial class InGameHUD : Control
 
 	public bool TryTriggerCheat(string text)
 	{
-		if (GameHost.Instance == null || GameHost.Instance.CheatService == null)
-		{
-			return false;
-		}
+		if (GameHost.Instance?.CheatService == null) return false;
 
-		var selectedEntities = new List<Entity>();
-		if (GameHost.Instance.SelectedUnits != null)
-		{
-			foreach (var u in GameHost.Instance.SelectedUnits)
-			{
-				selectedEntities.Add(u.Entity);
-			}
-		}
+		var selectedEntities = GameHost.Instance.SelectedUnits != null
+			? System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(GameHost.Instance.SelectedUnits, u => u.Entity))
+			: new List<Entity>();
 
-		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer;
-		if (Multiplayer.MultiplayerPeer == null || Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer)
-		{
-			isMultiplayer = false;
-		}
+		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer
+			&& Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 
-		var (result, affectedCount) = GameHost.Instance.CheatService.TryTriggerCheat(
-			text,
-			isMultiplayer,
-			GameHost.Instance.PlayerEntity,
-			GameHost.Instance.DefinitionManager,
-			selectedEntities
-		);
+		var (result, _) = GameHost.Instance.CheatService.TryTriggerCheat(
+			text, isMultiplayer, GameHost.Instance.PlayerEntity, GameHost.Instance.DefinitionManager, selectedEntities);
 
-		if (result == CheatService.CheatResult.None)
-		{
-			return false;
-		}
+		if (result == CheatService.CheatResult.None) return false;
 
 		ShowFeedbackText("Cheat Activated!", new Color(0.1f, 0.9f, 0.2f));
+		HandleCheatResult(result);
 
+		return true;
+	}
+
+	private void HandleCheatResult(CheatService.CheatResult result)
+	{
 		switch (result)
 		{
-			case CheatService.CheatResult.Stonks:
-				break;
 			case CheatService.CheatResult.Gigachad:
 				RefreshUI(GameHost.Instance.SelectedUnits);
 				break;
 			case CheatService.CheatResult.AbsoluteUnit:
 				foreach (var unit in GameHost.Instance.SelectedUnits)
 				{
-					if (GodotObject.IsInstanceValid(unit))
-					{
-						unit.Scale = new Vector3(3f, 3f, 3f);
-					}
+					if (GodotObject.IsInstanceValid(unit)) unit.Scale = new Vector3(3f, 3f, 3f);
 				}
 				RefreshUI(GameHost.Instance.SelectedUnits);
-				break;
-			case CheatService.CheatResult.ThanosSnap:
 				break;
 			case CheatService.CheatResult.EzClap:
 				UIManager.Instance?.PlayClickSound();
@@ -1737,16 +1781,7 @@ public partial class InGameHUD : Control
 				RegenerateMinimapBackground();
 				QueueMinimapRedraw();
 				break;
-			case CheatService.CheatResult.UnlimitedPower:
-				{
-				}
-				break;
-			case CheatService.CheatResult.WarpSpeed:
-			{
-				break;
-			}
 		}
-		return true;
 	}
 
 	public bool HandleCommandCardHotkey(Key keycode)
@@ -1836,70 +1871,64 @@ public partial class InGameHUD : Control
 	public void UpdatePauseUI()
 	{
 		if (GameHost.Instance == null) return;
+		if (_pausePanel == null) BuildPausePanel();
 
-		if (_pausePanel == null)
+		_pausePanel.Visible = GameHost.Instance.IsPaused;
+		if (!GameHost.Instance.IsPaused) return;
+
+		UpdatePauseTitle();
+
+		foreach (var child in _pausePlayerListContainer.GetChildren()) child.QueueFree();
+
+		bool isLocalHost = LobbyManager.Instance?.LocalPlayer?.IsHost ?? false;
+		int localPeerId = LobbyManager.Instance?.LocalPlayer?.PeerId ?? 1;
+
+		UpdatePausePlayerList(isLocalHost);
+		UpdatePauseControls(localPeerId, isLocalHost);
+	}
+
+	private void UpdatePauseTitle()
+	{
+		_pauseTitleLabel.Text = GameHost.Instance.ResumeCountdownSeconds >= 0
+			? $"Resuming in {GameHost.Instance.ResumeCountdownSeconds}s..."
+			: "Game Paused";
+	}
+
+	private void UpdatePausePlayerList(bool isLocalHost)
+	{
+		if (LobbyManager.Instance == null) return;
+
+		foreach (var player in LobbyManager.Instance.PlayerList)
 		{
-			BuildPausePanel();
-		}
+			if (player.Team == "Spectator") continue;
 
-		bool isPaused = GameHost.Instance.IsPaused;
-		_pausePanel.Visible = isPaused;
+			var row = new HBoxContainer();
+			row.AddThemeConstantOverride("separation", 15);
 
-		if (!isPaused) return;
+			var nameLabel = new Label { Text = player.Name, CustomMinimumSize = new Vector2(150, 0) };
+			row.AddChild(nameLabel);
 
-		if (GameHost.Instance.ResumeCountdownSeconds >= 0)
-		{
-			_pauseTitleLabel.Text = $"Resuming in {GameHost.Instance.ResumeCountdownSeconds}s...";
-		}
-		else
-		{
-			_pauseTitleLabel.Text = "Game Paused";
-		}
-
-		foreach (var child in _pausePlayerListContainer.GetChildren())
-		{
-			child.QueueFree();
-		}
-
-		bool isLocalHost = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.IsHost;
-		int localPeerId = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null ? LobbyManager.Instance.LocalPlayer.PeerId : 1;
-
-		if (LobbyManager.Instance != null)
-		{
-			foreach (var player in LobbyManager.Instance.PlayerList)
+			GameHost.Instance.GetPlayerReadyState(player.PeerId, out bool ready);
+			var readyLabel = new Label
 			{
-				if (player.Team == "Spectator") continue;
+				Text = ready ? "READY" : "NOT READY",
+				CustomMinimumSize = new Vector2(100, 0)
+			};
+			readyLabel.AddThemeColorOverride("font_color", ready ? new Color(0.2f, 0.9f, 0.3f) : new Color(0.9f, 0.3f, 0.2f));
+			row.AddChild(readyLabel);
 
-				var row = new HBoxContainer();
-				row.AddThemeConstantOverride("separation", 15);
+			var disallowCheck = new CheckBox { Text = "Disallow Pause", Disabled = !isLocalHost || player.PeerId == 1 };
+			GameHost.Instance.GetPlayerDisallowPause(player.PeerId, out bool disallowed);
+			disallowCheck.ButtonPressed = disallowed;
+			disallowCheck.Toggled += (buttonPressed) => GameHost.Instance.RequestSetDisallowPause(player.PeerId, buttonPressed);
+			row.AddChild(disallowCheck);
 
-				var nameLabel = new Label();
-				nameLabel.Text = player.Name;
-				nameLabel.CustomMinimumSize = new Vector2(150, 0);
-				row.AddChild(nameLabel);
-
-				GameHost.Instance.GetPlayerReadyState(player.PeerId, out bool ready);
-				var readyLabel = new Label();
-				readyLabel.Text = ready ? "READY" : "NOT READY";
-				readyLabel.AddThemeColorOverride("font_color", ready ? new Color(0.2f, 0.9f, 0.3f) : new Color(0.9f, 0.3f, 0.2f));
-				readyLabel.CustomMinimumSize = new Vector2(100, 0);
-				row.AddChild(readyLabel);
-
-				var disallowCheck = new CheckBox();
-				disallowCheck.Text = "Disallow Pause";
-				GameHost.Instance.GetPlayerDisallowPause(player.PeerId, out bool disallowed);
-				disallowCheck.ButtonPressed = disallowed;
-				disallowCheck.Disabled = !isLocalHost || player.PeerId == 1;
-				disallowCheck.Toggled += (buttonPressed) =>
-				{
-					GameHost.Instance.RequestSetDisallowPause(player.PeerId, buttonPressed);
-				};
-				row.AddChild(disallowCheck);
-
-				_pausePlayerListContainer.AddChild(row);
-			}
+			_pausePlayerListContainer.AddChild(row);
 		}
+	}
 
+	private void UpdatePauseControls(int localPeerId, bool isLocalHost)
+	{
 		GameHost.Instance.GetPlayerReadyState(localPeerId, out bool localReady);
 		_pauseReadyCheck.ButtonPressed = localReady;
 		_pauseReadyCheck.Disabled = GameHost.Instance.ResumeCountdownSeconds >= 0;

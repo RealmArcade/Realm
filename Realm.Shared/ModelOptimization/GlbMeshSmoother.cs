@@ -164,10 +164,7 @@ public static unsafe class GlbMeshSmoother
 	private static byte[] SmoothGlbBytes(byte[] glbBytes, float creaseAngleDegrees)
 	{
 		var (jsonNode, binChunk, glbVersion) = GlbManifestUtils.ParseGlb(glbBytes);
-		if (jsonNode is not JsonObject root || binChunk == null)
-		{
-			return glbBytes;
-		}
+		if (jsonNode is not JsonObject root || binChunk == null) return glbBytes;
 
 		if (root["meshes"] is not JsonArray meshes || meshes.Count == 0 ||
 		    root["accessors"] is not JsonArray accessors ||
@@ -177,108 +174,12 @@ public static unsafe class GlbMeshSmoother
 			return glbBytes;
 		}
 
-		if (root["extensionsUsed"] is JsonArray extUsedSmoother)
-		{
-			for (int i = extUsedSmoother.Count - 1; i >= 0; i--)
-			{
-				if (extUsedSmoother[i]?.GetValue<string>() == "MSFT_lod")
-				{
-					extUsedSmoother.RemoveAt(i);
-				}
-			}
-		}
-		if (root["extensionsRequired"] is JsonArray extReqSmoother)
-		{
-			for (int i = extReqSmoother.Count - 1; i >= 0; i--)
-			{
-				if (extReqSmoother[i]?.GetValue<string>() == "MSFT_lod")
-				{
-					extReqSmoother.RemoveAt(i);
-				}
-			}
-		}
-		if (root["nodes"] is JsonArray existingNodesSmoother)
-		{
-			for (int i = existingNodesSmoother.Count - 1; i >= 0; i--)
-			{
-				if (existingNodesSmoother[i] is JsonObject nodeObj)
-				{
-					string nodeName = nodeObj["name"]?.GetValue<string>() ?? string.Empty;
-					if (nodeName.EndsWith("_LOD1", StringComparison.OrdinalIgnoreCase) ||
-						nodeName.EndsWith("_LOD2", StringComparison.OrdinalIgnoreCase) ||
-						nodeName.EndsWith("_LOD3", StringComparison.OrdinalIgnoreCase))
-					{
-						existingNodesSmoother.RemoveAt(i);
-						continue;
-					}
-					if (nodeName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase))
-					{
-						nodeObj["name"] = nodeName.Substring(0, nodeName.Length - 5);
-					}
-					if (nodeObj.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject nodeExts)
-					{
-						nodeExts.Remove("MSFT_lod");
-					}
-				}
-			}
-		}
+		RemoveMsftLodExtension(root, "extensionsUsed");
+		RemoveMsftLodExtension(root, "extensionsRequired");
+		CleanNodes(root);
 
 		float cosThreshold = MathF.Cos(creaseAngleDegrees * (MathF.PI / 180.0f));
-
-		var retainedBufferViews = new HashSet<int>();
-		if (root["images"] is JsonArray images)
-		{
-			foreach (var img in images)
-			{
-				if (img is JsonObject imgObj && imgObj.TryGetPropertyValue("bufferView", out var bvVal))
-				{
-					int bvIdx = bvVal?.GetValue<int>() ?? -1;
-					if (bvIdx >= 0 && bvIdx < bufferViews.Count) retainedBufferViews.Add(bvIdx);
-				}
-			}
-		}
-
-		if (root["animations"] is JsonArray animations)
-		{
-			foreach (var anim in animations)
-			{
-				if (anim is not JsonObject animObj || animObj["samplers"] is not JsonArray samplers) continue;
-				foreach (var s in samplers)
-				{
-					if (s is not JsonObject sampObj) continue;
-					void KeepAcc(string prop)
-					{
-						if (sampObj.TryGetPropertyValue(prop, out var aVal))
-						{
-							int aIdx = aVal?.GetValue<int>() ?? -1;
-							if (aIdx >= 0 && aIdx < accessors.Count && accessors[aIdx] is JsonObject aObj)
-							{
-								int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
-								if (bv >= 0 && bv < bufferViews.Count) retainedBufferViews.Add(bv);
-							}
-						}
-					}
-					KeepAcc("input");
-					KeepAcc("output");
-				}
-			}
-		}
-
-		if (root["skins"] is JsonArray skins)
-		{
-			foreach (var skin in skins)
-			{
-				if (skin is JsonObject skinObj && skinObj.TryGetPropertyValue("inverseBindMatrices", out var ibmVal))
-				{
-					int aIdx = ibmVal?.GetValue<int>() ?? -1;
-					if (aIdx >= 0 && aIdx < accessors.Count && accessors[aIdx] is JsonObject aObj)
-					{
-						int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
-						if (bv >= 0 && bv < bufferViews.Count) retainedBufferViews.Add(bv);
-					}
-				}
-			}
-		}
+		var retainedBufferViews = GetRetainedBufferViews(root, bufferViews.Count, accessors);
 
 		using var newBinStream = new MemoryStream();
 		var oldBvToNewBvOffset = new Dictionary<int, int>();
@@ -306,268 +207,7 @@ public static unsafe class GlbMeshSmoother
 
 		for (int m = 0; m < meshes.Count; m++)
 		{
-			if (meshes[m] is not JsonObject meshObj) continue;
-			string mName = meshObj["name"]?.GetValue<string>() ?? string.Empty;
-			if (mName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase))
-			{
-				meshObj["name"] = mName.Substring(0, mName.Length - 5);
-			}
-			else if (mName.EndsWith("LOD0", StringComparison.OrdinalIgnoreCase))
-			{
-				meshObj["name"] = mName.Substring(0, mName.Length - 4);
-			}
-			if (meshObj["primitives"] is not JsonArray primitives || primitives.Count == 0) continue;
-
-			for (int p = 0; p < primitives.Count; p++)
-			{
-				if (primitives[p] is not JsonObject primObj) continue;
-
-				if (primObj.TryGetPropertyValue("mode", out var modeVal) && modeVal != null && modeVal.GetValue<int>() != 4)
-				{
-					continue;
-				}
-
-				if (primObj.ContainsKey("extensions") && primObj["extensions"] != null)
-				{
-					continue;
-				}
-
-				if (primObj.ContainsKey("targets") && primObj["targets"] != null)
-				{
-					continue;
-				}
-
-				if (primObj["attributes"] is not JsonObject attributes) continue;
-				if (!attributes.ContainsKey("POSITION")) continue;
-
-				int posAccIdx = attributes["POSITION"]!.GetValue<int>();
-				var positions = ExtractVector3Array(posAccIdx, accessors, bufferViews, binChunk);
-				if (positions == null || positions.Length < 3) continue;
-
-				var indices = ExtractIndices(primObj, accessors, bufferViews, binChunk, positions.Length);
-				if (indices == null || indices.Length < 3 || indices.Length % 3 != 0) continue;
-
-				bool hasUv0 = attributes.ContainsKey("TEXCOORD_0");
-				var uvs0 = hasUv0 ? ExtractVector2Array(attributes["TEXCOORD_0"]!.GetValue<int>(), accessors, bufferViews, binChunk) : null;
-				hasUv0 = uvs0 != null && uvs0.Length == positions.Length;
-
-				bool hasUv1 = attributes.ContainsKey("TEXCOORD_1");
-				var uvs1 = hasUv1 ? ExtractVector2Array(attributes["TEXCOORD_1"]!.GetValue<int>(), accessors, bufferViews, binChunk) : null;
-				hasUv1 = uvs1 != null && uvs1.Length == positions.Length;
-
-				bool hasJoints0 = attributes.ContainsKey("JOINTS_0");
-				var joints0 = hasJoints0 ? ExtractVector4Array(attributes["JOINTS_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, false) : null;
-				hasJoints0 = joints0 != null && joints0.Length == positions.Length;
-
-				bool hasWeights0 = attributes.ContainsKey("WEIGHTS_0");
-				var weights0 = hasWeights0 ? ExtractVector4Array(attributes["WEIGHTS_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, true) : null;
-				hasWeights0 = weights0 != null && weights0.Length == positions.Length;
-
-				bool hasColor0 = attributes.ContainsKey("COLOR_0");
-				var colors0 = hasColor0 ? ExtractVector4Array(attributes["COLOR_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, true) : null;
-				hasColor0 = colors0 != null && colors0.Length == positions.Length;
-
-				bool hasTangents = attributes.ContainsKey("TANGENT");
-
-				int triangleCount = indices.Length / 3;
-				var faceNormals = new Vector3[triangleCount];
-				var cornerWeights = new float[triangleCount, 3];
-
-				for (int t = 0; t < triangleCount; t++)
-				{
-					uint i0 = indices[t * 3];
-					uint i1 = indices[t * 3 + 1];
-					uint i2 = indices[t * 3 + 2];
-
-					if (i0 >= positions.Length || i1 >= positions.Length || i2 >= positions.Length)
-					{
-						faceNormals[t] = Vector3.UnitY;
-						cornerWeights[t, 0] = 1.0f;
-						cornerWeights[t, 1] = 1.0f;
-						cornerWeights[t, 2] = 1.0f;
-						continue;
-					}
-
-					Vector3 p0 = positions[i0];
-					Vector3 p1 = positions[i1];
-					Vector3 p2 = positions[i2];
-
-					Vector3 e01 = p1 - p0;
-					Vector3 e02 = p2 - p0;
-					Vector3 e12 = p2 - p1;
-
-					Vector3 cross = Vector3.Cross(e01, e02);
-					float crossLen = cross.Length();
-					faceNormals[t] = crossLen > 1e-7f ? (cross / crossLen) : Vector3.UnitY;
-
-					float l01 = e01.Length();
-					float l02 = e02.Length();
-					float l12 = e12.Length();
-
-					float w0 = 1.0f;
-					float w1 = 1.0f;
-					float w2 = 1.0f;
-
-					if (l01 > 1e-6f && l02 > 1e-6f)
-					{
-						float dot = Math.Clamp(Vector3.Dot(e01, e02) / (l01 * l02), -1.0f, 1.0f);
-						float a = MathF.Acos(dot);
-						if (!float.IsNaN(a) && a > 1e-4f) w0 = a;
-					}
-
-					if (l01 > 1e-6f && l12 > 1e-6f)
-					{
-						float dot = Math.Clamp(Vector3.Dot(-e01, e12) / (l01 * l12), -1.0f, 1.0f);
-						float a = MathF.Acos(dot);
-						if (!float.IsNaN(a) && a > 1e-4f) w1 = a;
-					}
-
-					if (l02 > 1e-6f && l12 > 1e-6f)
-					{
-						float dot = Math.Clamp(Vector3.Dot(-e02, -e12) / (l02 * l12), -1.0f, 1.0f);
-						float a = MathF.Acos(dot);
-						if (!float.IsNaN(a) && a > 1e-4f) w2 = a;
-					}
-
-					cornerWeights[t, 0] = w0;
-					cornerWeights[t, 1] = w1;
-					cornerWeights[t, 2] = w2;
-				}
-
-				var spatialPosMap = new Dictionary<SpatialPositionKey, List<(int TriIdx, int CornerIdx)>>(positions.Length);
-				for (int t = 0; t < triangleCount; t++)
-				{
-					for (int c = 0; c < 3; c++)
-					{
-						uint origIdx = indices[t * 3 + c];
-						if (origIdx >= positions.Length) continue;
-
-						Vector3 pos = positions[origIdx];
-						var key = new SpatialPositionKey(pos);
-						if (!spatialPosMap.TryGetValue(key, out var list))
-						{
-							list = new List<(int TriIdx, int CornerIdx)>(4);
-							spatialPosMap[key] = list;
-						}
-						list.Add((t, c));
-					}
-				}
-
-				var cornerNormals = new Vector3[triangleCount, 3];
-				foreach (var kvp in spatialPosMap)
-				{
-					var corners = kvp.Value;
-					int cornerCount = corners.Count;
-
-					if (cornerCount == 1)
-					{
-						cornerNormals[corners[0].TriIdx, corners[0].CornerIdx] = faceNormals[corners[0].TriIdx];
-						continue;
-					}
-
-					for (int i = 0; i < cornerCount; i++)
-					{
-						var (triA, cornerA) = corners[i];
-						Vector3 normA = faceNormals[triA];
-
-						Vector3 accum = Vector3.Zero;
-						for (int j = 0; j < cornerCount; j++)
-						{
-							var (triB, cornerB) = corners[j];
-							Vector3 normB = faceNormals[triB];
-
-							float dot = Vector3.Dot(normA, normB);
-							if (dot >= cosThreshold)
-							{
-								float weight = cornerWeights[triB, cornerB];
-								accum += normB * weight;
-							}
-						}
-
-						float len = accum.Length();
-						cornerNormals[triA, cornerA] = len > 1e-6f ? (accum / len) : normA;
-					}
-				}
-
-				var uniqueVertexMap = new Dictionary<VertexWeldKey, uint>(positions.Length);
-				var weldedVertices = new List<SmoothedVertexData>(positions.Length);
-				var weldedIndices = new List<uint>(indices.Length);
-
-				for (int t = 0; t < triangleCount; t++)
-				{
-					uint orig0 = indices[t * 3];
-					uint orig1 = indices[t * 3 + 1];
-					uint orig2 = indices[t * 3 + 2];
-
-					if (orig0 >= positions.Length || orig1 >= positions.Length || orig2 >= positions.Length) continue;
-
-					uint c0 = ProcessWeldCorner(
-						positions[orig0],
-						cornerNormals[t, 0],
-						hasUv0 ? uvs0![orig0] : Vector2.Zero,
-						hasUv1 ? uvs1![orig1] : Vector2.Zero,
-						hasJoints0 ? joints0![orig0] : Vector4.Zero,
-						hasWeights0 ? weights0![orig0] : Vector4.Zero,
-						hasColor0 ? colors0![orig0] : Vector4.One,
-						uniqueVertexMap,
-						weldedVertices);
-
-					uint c1 = ProcessWeldCorner(
-						positions[orig1],
-						cornerNormals[t, 1],
-						hasUv0 ? uvs0![orig1] : Vector2.Zero,
-						hasUv1 ? uvs1![orig1] : Vector2.Zero,
-						hasJoints0 ? joints0![orig1] : Vector4.Zero,
-						hasWeights0 ? weights0![orig1] : Vector4.Zero,
-						hasColor0 ? colors0![orig1] : Vector4.One,
-						uniqueVertexMap,
-						weldedVertices);
-
-					uint c2 = ProcessWeldCorner(
-						positions[orig2],
-						cornerNormals[t, 2],
-						hasUv0 ? uvs0![orig2] : Vector2.Zero,
-						hasUv1 ? uvs1![orig2] : Vector2.Zero,
-						hasJoints0 ? joints0![orig2] : Vector4.Zero,
-						hasWeights0 ? weights0![orig2] : Vector4.Zero,
-						hasColor0 ? colors0![orig2] : Vector4.One,
-						uniqueVertexMap,
-						weldedVertices);
-
-					if (c0 != c1 && c1 != c2 && c0 != c2)
-					{
-						weldedIndices.Add(c0);
-						weldedIndices.Add(c1);
-						weldedIndices.Add(c2);
-					}
-				}
-
-				if (weldedVertices.Count == 0 || weldedIndices.Count < 3)
-				{
-					continue;
-				}
-
-				if (hasTangents && hasUv0)
-				{
-					ComputeWeldedTangents(weldedVertices, weldedIndices);
-				}
-
-				OptimizeMeshLayout(weldedVertices, weldedIndices);
-
-				WritePrimitiveToBin(
-					primObj,
-					weldedVertices,
-					weldedIndices,
-					hasUv0,
-					hasUv1,
-					hasJoints0,
-					hasWeights0,
-					hasColor0,
-					hasTangents,
-					newBinStream,
-					bufferViews,
-					accessors);
-			}
+			ProcessMesh(meshes[m], accessors, bufferViews, binChunk, cosThreshold, newBinStream);
 		}
 
 		while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
@@ -579,6 +219,393 @@ public static unsafe class GlbMeshSmoother
 
 		byte[] newBin = newBinStream.ToArray();
 		return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
+	}
+
+	private static void RemoveMsftLodExtension(JsonObject root, string arrayName)
+	{
+		if (root[arrayName] is not JsonArray extArray) return;
+		for (int i = extArray.Count - 1; i >= 0; i--)
+		{
+			if (extArray[i]?.GetValue<string>() == "MSFT_lod")
+			{
+				extArray.RemoveAt(i);
+			}
+		}
+	}
+
+	private static void CleanNodes(JsonObject root)
+	{
+		if (root["nodes"] is not JsonArray nodes) return;
+		for (int i = nodes.Count - 1; i >= 0; i--)
+		{
+			if (nodes[i] is not JsonObject nodeObj) continue;
+			string nodeName = nodeObj["name"]?.GetValue<string>() ?? string.Empty;
+			
+			if (nodeName.EndsWith("_LOD1", StringComparison.OrdinalIgnoreCase) ||
+				nodeName.EndsWith("_LOD2", StringComparison.OrdinalIgnoreCase) ||
+				nodeName.EndsWith("_LOD3", StringComparison.OrdinalIgnoreCase))
+			{
+				nodes.RemoveAt(i);
+				continue;
+			}
+			
+			if (nodeName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase))
+			{
+				nodeObj["name"] = nodeName.Substring(0, nodeName.Length - 5);
+			}
+			
+			if (nodeObj.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject nodeExts)
+			{
+				nodeExts.Remove("MSFT_lod");
+			}
+		}
+	}
+
+	private static HashSet<int> GetRetainedBufferViews(JsonObject root, int bufferViewCount, JsonArray accessors)
+	{
+		var retained = new HashSet<int>();
+
+		if (root["images"] is JsonArray images)
+		{
+			foreach (var img in images)
+			{
+				if (img is JsonObject imgObj && imgObj.TryGetPropertyValue("bufferView", out var bvVal))
+				{
+					int bvIdx = bvVal?.GetValue<int>() ?? -1;
+					if (bvIdx >= 0 && bvIdx < bufferViewCount) retained.Add(bvIdx);
+				}
+			}
+		}
+
+		if (root["animations"] is JsonArray animations)
+		{
+			foreach (var anim in animations)
+			{
+				if (anim is not JsonObject animObj || animObj["samplers"] is not JsonArray samplers) continue;
+				foreach (var s in samplers)
+				{
+					if (s is not JsonObject sampObj) continue;
+					AddRetainedAccessor(sampObj, "input", accessors, retained, bufferViewCount);
+					AddRetainedAccessor(sampObj, "output", accessors, retained, bufferViewCount);
+				}
+			}
+		}
+
+		if (root["skins"] is JsonArray skins)
+		{
+			foreach (var skin in skins)
+			{
+				if (skin is JsonObject skinObj && skinObj.TryGetPropertyValue("inverseBindMatrices", out var ibmVal))
+				{
+					int aIdx = ibmVal?.GetValue<int>() ?? -1;
+					if (aIdx >= 0 && aIdx < accessors.Count && accessors[aIdx] is JsonObject aObj)
+					{
+						int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
+						if (bv >= 0 && bv < bufferViewCount) retained.Add(bv);
+					}
+				}
+			}
+		}
+
+		if (root["meshes"] is JsonArray meshes)
+		{
+			foreach (var m in meshes)
+			{
+				if (m is not JsonObject meshObj || meshObj["primitives"] is not JsonArray primitives) continue;
+				foreach (var p in primitives)
+				{
+					if (p is not JsonObject primObj) continue;
+					
+					if (primObj["attributes"] is JsonObject attrs)
+					{
+						foreach (var kvp in attrs)
+						{
+							if (kvp.Value != null)
+							{
+								int aIdx = kvp.Value.GetValue<int>();
+								if (aIdx >= 0 && aIdx < accessors.Count && accessors[aIdx] is JsonObject aObj)
+								{
+									int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
+									if (bv >= 0 && bv < bufferViewCount) retained.Add(bv);
+								}
+							}
+						}
+					}
+
+					if (primObj.TryGetPropertyValue("indices", out var indVal) && indVal != null)
+					{
+						int aIdx = indVal.GetValue<int>();
+						if (aIdx >= 0 && aIdx < accessors.Count && accessors[aIdx] is JsonObject aObj)
+						{
+							int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
+							if (bv >= 0 && bv < bufferViewCount) retained.Add(bv);
+						}
+					}
+				}
+			}
+		}
+
+		return retained;
+	}
+
+	private static void AddRetainedAccessor(JsonObject obj, string prop, JsonArray accessors, HashSet<int> retained, int bufferViewCount)
+	{
+		if (!obj.TryGetPropertyValue(prop, out var aVal)) return;
+		int aIdx = aVal?.GetValue<int>() ?? -1;
+		if (aIdx < 0 || aIdx >= accessors.Count || accessors[aIdx] is not JsonObject aObj) return;
+		
+		int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
+		if (bv >= 0 && bv < bufferViewCount) retained.Add(bv);
+	}
+
+	private static void ProcessMesh(JsonNode? meshNode, JsonArray accessors, JsonArray bufferViews, byte[] binChunk, float cosThreshold, MemoryStream newBinStream)
+	{
+		if (meshNode is not JsonObject meshObj) return;
+		
+		string mName = meshObj["name"]?.GetValue<string>() ?? string.Empty;
+		if (mName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase))
+		{
+			meshObj["name"] = mName.Substring(0, mName.Length - 5);
+		}
+		else if (mName.EndsWith("LOD0", StringComparison.OrdinalIgnoreCase))
+		{
+			meshObj["name"] = mName.Substring(0, mName.Length - 4);
+		}
+		
+		if (meshObj["primitives"] is not JsonArray primitives || primitives.Count == 0) return;
+
+		for (int p = 0; p < primitives.Count; p++)
+		{
+			ProcessPrimitive(primitives[p], accessors, bufferViews, binChunk, cosThreshold, newBinStream);
+		}
+	}
+
+	private static void ProcessPrimitive(JsonNode? primNode, JsonArray accessors, JsonArray bufferViews, byte[] binChunk, float cosThreshold, MemoryStream newBinStream)
+	{
+		if (primNode is not JsonObject primObj) return;
+
+		if (primObj.TryGetPropertyValue("mode", out var modeVal) && modeVal != null && modeVal.GetValue<int>() != 4) return;
+		if (primObj.ContainsKey("extensions") && primObj["extensions"] != null) return;
+		if (primObj.ContainsKey("targets") && primObj["targets"] != null) return;
+
+		if (primObj["attributes"] is not JsonObject attributes) return;
+		if (!attributes.ContainsKey("POSITION")) return;
+
+		int posAccIdx = attributes["POSITION"]!.GetValue<int>();
+		var positions = ExtractVector3Array(posAccIdx, accessors, bufferViews, binChunk);
+		if (positions == null || positions.Length < 3) return;
+
+		var indices = ExtractIndices(primObj, accessors, bufferViews, binChunk, positions.Length);
+		if (indices == null || indices.Length < 3 || indices.Length % 3 != 0) return;
+
+		bool hasUv0 = attributes.ContainsKey("TEXCOORD_0");
+		var uvs0 = hasUv0 ? ExtractVector2Array(attributes["TEXCOORD_0"]!.GetValue<int>(), accessors, bufferViews, binChunk) : null;
+		hasUv0 = uvs0 != null && uvs0.Length == positions.Length;
+
+		bool hasUv1 = attributes.ContainsKey("TEXCOORD_1");
+		var uvs1 = hasUv1 ? ExtractVector2Array(attributes["TEXCOORD_1"]!.GetValue<int>(), accessors, bufferViews, binChunk) : null;
+		hasUv1 = uvs1 != null && uvs1.Length == positions.Length;
+
+		bool hasJoints0 = attributes.ContainsKey("JOINTS_0");
+		var joints0 = hasJoints0 ? ExtractVector4Array(attributes["JOINTS_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, false) : null;
+		hasJoints0 = joints0 != null && joints0.Length == positions.Length;
+
+		bool hasWeights0 = attributes.ContainsKey("WEIGHTS_0");
+		var weights0 = hasWeights0 ? ExtractVector4Array(attributes["WEIGHTS_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, true) : null;
+		hasWeights0 = weights0 != null && weights0.Length == positions.Length;
+
+		bool hasColor0 = attributes.ContainsKey("COLOR_0");
+		var colors0 = hasColor0 ? ExtractVector4Array(attributes["COLOR_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, true) : null;
+		hasColor0 = colors0 != null && colors0.Length == positions.Length;
+
+		bool hasTangents = attributes.ContainsKey("TANGENT");
+
+		int triangleCount = indices.Length / 3;
+		var faceNormals = new Vector3[triangleCount];
+		var cornerWeights = new float[triangleCount, 3];
+
+		ComputeFaceNormalsAndWeights(triangleCount, indices, positions, faceNormals, cornerWeights);
+
+		var spatialPosMap = BuildSpatialPosMap(triangleCount, indices, positions);
+
+		var cornerNormals = ComputeCornerNormals(triangleCount, spatialPosMap, faceNormals, cornerWeights, cosThreshold);
+
+		var uniqueVertexMap = new Dictionary<VertexWeldKey, uint>(positions.Length);
+		var weldedVertices = new List<SmoothedVertexData>(positions.Length);
+		var weldedIndices = new List<uint>(indices.Length);
+
+		for (int t = 0; t < triangleCount; t++)
+		{
+			uint orig0 = indices[t * 3];
+			uint orig1 = indices[t * 3 + 1];
+			uint orig2 = indices[t * 3 + 2];
+
+			if (orig0 >= positions.Length || orig1 >= positions.Length || orig2 >= positions.Length) continue;
+
+			uint c0 = ProcessWeldCorner(
+				positions[orig0], cornerNormals[t, 0],
+				hasUv0 ? uvs0![orig0] : Vector2.Zero, hasUv1 ? uvs1![orig1] : Vector2.Zero,
+				hasJoints0 ? joints0![orig0] : Vector4.Zero, hasWeights0 ? weights0![orig0] : Vector4.Zero,
+				hasColor0 ? colors0![orig0] : Vector4.One,
+				uniqueVertexMap, weldedVertices);
+
+			uint c1 = ProcessWeldCorner(
+				positions[orig1], cornerNormals[t, 1],
+				hasUv0 ? uvs0![orig1] : Vector2.Zero, hasUv1 ? uvs1![orig1] : Vector2.Zero,
+				hasJoints0 ? joints0![orig1] : Vector4.Zero, hasWeights0 ? weights0![orig1] : Vector4.Zero,
+				hasColor0 ? colors0![orig1] : Vector4.One,
+				uniqueVertexMap, weldedVertices);
+
+			uint c2 = ProcessWeldCorner(
+				positions[orig2], cornerNormals[t, 2],
+				hasUv0 ? uvs0![orig2] : Vector2.Zero, hasUv1 ? uvs1![orig2] : Vector2.Zero,
+				hasJoints0 ? joints0![orig2] : Vector4.Zero, hasWeights0 ? weights0![orig2] : Vector4.Zero,
+				hasColor0 ? colors0![orig2] : Vector4.One,
+				uniqueVertexMap, weldedVertices);
+
+			if (c0 != c1 && c1 != c2 && c0 != c2)
+			{
+				weldedIndices.Add(c0);
+				weldedIndices.Add(c1);
+				weldedIndices.Add(c2);
+			}
+		}
+
+		if (weldedVertices.Count == 0 || weldedIndices.Count < 3) return;
+
+		if (hasTangents && hasUv0)
+		{
+			ComputeWeldedTangents(weldedVertices, weldedIndices);
+		}
+
+		OptimizeMeshLayout(weldedVertices, weldedIndices);
+
+		WritePrimitiveToBin(primObj, weldedVertices, weldedIndices, hasUv0, hasUv1, hasJoints0, hasWeights0, hasColor0, hasTangents, newBinStream, bufferViews, accessors);
+	}
+
+	private static void ComputeFaceNormalsAndWeights(int triangleCount, uint[] indices, Vector3[] positions, Vector3[] faceNormals, float[,] cornerWeights)
+	{
+		for (int t = 0; t < triangleCount; t++)
+		{
+			uint i0 = indices[t * 3];
+			uint i1 = indices[t * 3 + 1];
+			uint i2 = indices[t * 3 + 2];
+
+			if (i0 >= positions.Length || i1 >= positions.Length || i2 >= positions.Length)
+			{
+				faceNormals[t] = Vector3.UnitY;
+				cornerWeights[t, 0] = 1.0f;
+				cornerWeights[t, 1] = 1.0f;
+				cornerWeights[t, 2] = 1.0f;
+				continue;
+			}
+
+			Vector3 p0 = positions[i0];
+			Vector3 p1 = positions[i1];
+			Vector3 p2 = positions[i2];
+
+			Vector3 e01 = p1 - p0;
+			Vector3 e02 = p2 - p0;
+			Vector3 e12 = p2 - p1;
+
+			Vector3 cross = Vector3.Cross(e01, e02);
+			float crossLen = cross.Length();
+			faceNormals[t] = crossLen > 1e-7f ? (cross / crossLen) : Vector3.UnitY;
+
+			float l01 = e01.Length();
+			float l02 = e02.Length();
+			float l12 = e12.Length();
+
+			float w0 = 1.0f, w1 = 1.0f, w2 = 1.0f;
+
+			if (l01 > 1e-6f && l02 > 1e-6f)
+			{
+				float dot = Math.Clamp(Vector3.Dot(e01, e02) / (l01 * l02), -1.0f, 1.0f);
+				float a = MathF.Acos(dot);
+				if (!float.IsNaN(a) && a > 1e-4f) w0 = a;
+			}
+
+			if (l01 > 1e-6f && l12 > 1e-6f)
+			{
+				float dot = Math.Clamp(Vector3.Dot(-e01, e12) / (l01 * l12), -1.0f, 1.0f);
+				float a = MathF.Acos(dot);
+				if (!float.IsNaN(a) && a > 1e-4f) w1 = a;
+			}
+
+			if (l02 > 1e-6f && l12 > 1e-6f)
+			{
+				float dot = Math.Clamp(Vector3.Dot(-e02, -e12) / (l02 * l12), -1.0f, 1.0f);
+				float a = MathF.Acos(dot);
+				if (!float.IsNaN(a) && a > 1e-4f) w2 = a;
+			}
+
+			cornerWeights[t, 0] = w0;
+			cornerWeights[t, 1] = w1;
+			cornerWeights[t, 2] = w2;
+		}
+	}
+
+	private static Dictionary<SpatialPositionKey, List<(int TriIdx, int CornerIdx)>> BuildSpatialPosMap(int triangleCount, uint[] indices, Vector3[] positions)
+	{
+		var spatialPosMap = new Dictionary<SpatialPositionKey, List<(int TriIdx, int CornerIdx)>>(positions.Length);
+		for (int t = 0; t < triangleCount; t++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				uint origIdx = indices[t * 3 + c];
+				if (origIdx >= positions.Length) continue;
+
+				Vector3 pos = positions[origIdx];
+				var key = new SpatialPositionKey(pos);
+				if (!spatialPosMap.TryGetValue(key, out var list))
+				{
+					list = new List<(int TriIdx, int CornerIdx)>(4);
+					spatialPosMap[key] = list;
+				}
+				list.Add((t, c));
+			}
+		}
+		return spatialPosMap;
+	}
+
+	private static Vector3[,] ComputeCornerNormals(int triangleCount, Dictionary<SpatialPositionKey, List<(int TriIdx, int CornerIdx)>> spatialPosMap, Vector3[] faceNormals, float[,] cornerWeights, float cosThreshold)
+	{
+		var cornerNormals = new Vector3[triangleCount, 3];
+		foreach (var kvp in spatialPosMap)
+		{
+			var corners = kvp.Value;
+			int cornerCount = corners.Count;
+
+			if (cornerCount == 1)
+			{
+				cornerNormals[corners[0].TriIdx, corners[0].CornerIdx] = faceNormals[corners[0].TriIdx];
+				continue;
+			}
+
+			for (int i = 0; i < cornerCount; i++)
+			{
+				var (triA, cornerA) = corners[i];
+				Vector3 normA = faceNormals[triA];
+
+				Vector3 accum = Vector3.Zero;
+				for (int j = 0; j < cornerCount; j++)
+				{
+					var (triB, cornerB) = corners[j];
+					Vector3 normB = faceNormals[triB];
+
+					float dot = Vector3.Dot(normA, normB);
+					if (dot >= cosThreshold)
+					{
+						float weight = cornerWeights[triB, cornerB];
+						accum += normB * weight;
+					}
+				}
+
+				float len = accum.Length();
+				cornerNormals[triA, cornerA] = len > 1e-6f ? (accum / len) : normA;
+			}
+		}
+		return cornerNormals;
 	}
 
 	private static uint ProcessWeldCorner(
@@ -1037,26 +1064,26 @@ public static unsafe class GlbMeshSmoother
 		for (int i = 0; i < count; i++)
 		{
 			int offset = byteOffset + (i * stride);
-			if (compType == 5126)
-			{
-				result[i] = new Vector2(
-					BitConverter.ToSingle(binChunk, offset),
-					BitConverter.ToSingle(binChunk, offset + 4));
-			}
-			else if (compType == 5123)
-			{
-				result[i] = new Vector2(
-					BitConverter.ToUInt16(binChunk, offset) / 65535.0f,
-					BitConverter.ToUInt16(binChunk, offset + 2) / 65535.0f);
-			}
-			else if (compType == 5121)
-			{
-				result[i] = new Vector2(
-					binChunk[offset] / 255.0f,
-					binChunk[offset + 1] / 255.0f);
-			}
+			result[i] = ParseVector2(binChunk, offset, compType);
 		}
 		return result;
+	}
+
+	private static Vector2 ParseVector2(byte[] binChunk, int offset, int compType)
+	{
+		return compType switch
+		{
+			5126 => new Vector2(
+				BitConverter.ToSingle(binChunk, offset),
+				BitConverter.ToSingle(binChunk, offset + 4)),
+			5123 => new Vector2(
+				BitConverter.ToUInt16(binChunk, offset) / 65535.0f,
+				BitConverter.ToUInt16(binChunk, offset + 2) / 65535.0f),
+			5121 => new Vector2(
+				binChunk[offset] / 255.0f,
+				binChunk[offset + 1] / 255.0f),
+			_ => Vector2.Zero
+		};
 	}
 
 	private static Vector4[]? ExtractVector4Array(int accessorIndex, JsonArray accessors, JsonArray bufferViews, byte[] binChunk, bool isNormalized)
@@ -1098,29 +1125,31 @@ public static unsafe class GlbMeshSmoother
 		for (int i = 0; i < count; i++)
 		{
 			int offset = byteOffset + (i * stride);
-			float c0 = 0f, c1 = 0f, c2 = 0f, c3 = 1f;
-
-			for (int c = 0; c < numComponents; c++)
-			{
-				int cOff = offset + (c * bytesPerComp);
-				float val = compType switch
-				{
-					5126 => BitConverter.ToSingle(binChunk, cOff),
-					5125 => BitConverter.ToUInt32(binChunk, cOff),
-					5123 => isNormalized ? (BitConverter.ToUInt16(binChunk, cOff) / 65535.0f) : BitConverter.ToUInt16(binChunk, cOff),
-					5121 => isNormalized ? (binChunk[cOff] / 255.0f) : binChunk[cOff],
-					_ => 0f
-				};
-
-				if (c == 0) c0 = val;
-				else if (c == 1) c1 = val;
-				else if (c == 2) c2 = val;
-				else if (c == 3) c3 = val;
-			}
-
-			result[i] = new Vector4(c0, c1, c2, c3);
+			result[i] = ParseVector4(binChunk, offset, numComponents, bytesPerComp, compType, isNormalized);
 		}
 		return result;
+	}
+
+	private static Vector4 ParseVector4(byte[] binChunk, int offset, int numComponents, int bytesPerComp, int compType, bool isNormalized)
+	{
+		float c0 = ParseComponent(binChunk, offset, compType, isNormalized);
+		float c1 = numComponents > 1 ? ParseComponent(binChunk, offset + bytesPerComp, compType, isNormalized) : 0f;
+		float c2 = numComponents > 2 ? ParseComponent(binChunk, offset + (2 * bytesPerComp), compType, isNormalized) : 0f;
+		float c3 = numComponents > 3 ? ParseComponent(binChunk, offset + (3 * bytesPerComp), compType, isNormalized) : 1f;
+
+		return new Vector4(c0, c1, c2, c3);
+	}
+
+	private static float ParseComponent(byte[] binChunk, int cOff, int compType, bool isNormalized)
+	{
+		return compType switch
+		{
+			5126 => BitConverter.ToSingle(binChunk, cOff),
+			5125 => BitConverter.ToUInt32(binChunk, cOff),
+			5123 => isNormalized ? (BitConverter.ToUInt16(binChunk, cOff) / 65535.0f) : BitConverter.ToUInt16(binChunk, cOff),
+			5121 => isNormalized ? (binChunk[cOff] / 255.0f) : binChunk[cOff],
+			_ => 0f
+		};
 	}
 
 	private static uint[]? ExtractIndices(JsonObject primObj, JsonArray accessors, JsonArray bufferViews, byte[] binChunk, int vertexCount)

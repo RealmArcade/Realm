@@ -584,19 +584,28 @@ public static class RanimRenderer
 		{
 			for (int x = -radiusX; x <= radiusX; x++)
 			{
-				float normX = (float)x / radiusX;
-				float normY = (float)y / radiusY;
-				if (normX * normX + normY * normY <= 1.0f)
-				{
-					int px = centerX + x;
-					int py = groundY + y;
-					if (px >= 0 && px < width && py >= 0 && py < height)
-					{
-						img.SetPixel(px, py, AlphaBlend(img.GetPixel(px, py), shadowColor));
-					}
-				}
+				DrawFloorShadowPixel(img, centerX, groundY, x, y, radiusX, radiusY, shadowColor, width, height);
 			}
 		}
+	}
+
+	private static void DrawFloorShadowPixel(SKBitmap img, int centerX, int groundY, int x, int y, int radiusX, int radiusY, SKColor shadowColor, int width, int height)
+	{
+		float normX = (float)x / radiusX;
+		float normY = (float)y / radiusY;
+		if (normX * normX + normY * normY > 1.0f)
+		{
+			return;
+		}
+
+		int px = centerX + x;
+		int py = groundY + y;
+		if (px < 0 || px >= width || py < 0 || py >= height)
+		{
+			return;
+		}
+
+		img.SetPixel(px, py, AlphaBlend(img.GetPixel(px, py), shadowColor));
 	}
 
 	private static SKColor AlphaBlend(SKColor background, SKColor foreground)
@@ -634,18 +643,7 @@ public static class RanimRenderer
 
 		while (true)
 		{
-			for (int ty = -halfThickness; ty <= halfThickness; ty++)
-			{
-				for (int tx = -halfThickness; tx <= halfThickness; tx++)
-				{
-					int px = x0 + tx;
-					int py = y0 + ty;
-					if (px >= 0 && px < width && py >= 0 && py < height)
-					{
-						img.SetPixel(px, py, color);
-					}
-				}
-			}
+			DrawThickLinePixels(img, x0, y0, halfThickness, color, width, height);
 
 			if (x0 == x1 && y0 == y1)
 			{
@@ -666,6 +664,28 @@ public static class RanimRenderer
 		}
 	}
 
+	private static void DrawThickLinePixels(SKBitmap img, int x0, int y0, int halfThickness, SKColor color, int width, int height)
+	{
+		for (int ty = -halfThickness; ty <= halfThickness; ty++)
+		{
+			for (int tx = -halfThickness; tx <= halfThickness; tx++)
+			{
+				DrawThickLinePixel(img, x0, y0, tx, ty, color, width, height);
+			}
+		}
+	}
+
+	private static void DrawThickLinePixel(SKBitmap img, int x0, int y0, int tx, int ty, SKColor color, int width, int height)
+	{
+		int px = x0 + tx;
+		int py = y0 + ty;
+		if (px < 0 || px >= width || py < 0 || py >= height)
+		{
+			return;
+		}
+		img.SetPixel(px, py, color);
+	}
+
 	private static void DrawFilledCircle(SKBitmap img, int cx, int cy, int radius, SKColor color)
 	{
 		int r2 = radius * radius;
@@ -676,17 +696,26 @@ public static class RanimRenderer
 		{
 			for (int x = -radius; x <= radius; x++)
 			{
-				if (x * x + y * y <= r2)
-				{
-					int px = cx + x;
-					int py = cy + y;
-					if (px >= 0 && px < width && py >= 0 && py < height)
-					{
-						img.SetPixel(px, py, color);
-					}
-				}
+				DrawFilledCirclePixel(img, cx, cy, x, y, r2, color, width, height);
 			}
 		}
+	}
+
+	private static void DrawFilledCirclePixel(SKBitmap img, int cx, int cy, int x, int y, int r2, SKColor color, int width, int height)
+	{
+		if (x * x + y * y > r2)
+		{
+			return;
+		}
+
+		int px = cx + x;
+		int py = cy + y;
+		if (px < 0 || px >= width || py < 0 || py >= height)
+		{
+			return;
+		}
+
+		img.SetPixel(px, py, color);
 	}
 
 	private static Vector3 SamplePosition(RealmKeyframeVector3[] keys, float time)
