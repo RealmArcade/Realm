@@ -223,29 +223,6 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		};
 		pickerRow.AddChild(_optAttachmentPicker);
 
-		AddButton(pickerRow, "✨ " + TranslationServer.Translate("VFX Studio"), () =>
-		{
-			Hud?.OpenVfxManagerDialog((cfg) =>
-			{
-				RefreshAttachmentList();
-				_currentAttachmentId = cfg.VfxId;
-				for (int i = 0; i < _availableAttachments.Count; i++)
-				{
-					if (_availableAttachments[i].Equals(cfg.VfxId, StringComparison.OrdinalIgnoreCase) ||
-						_availableAttachments[i].Equals($"vfx:{cfg.VfxId}", StringComparison.OrdinalIgnoreCase))
-					{
-						_isUpdatingUI = true;
-						_optAttachmentPicker.Selected = i;
-						_currentAttachmentId = _availableAttachments[i];
-						_isUpdatingUI = false;
-						break;
-					}
-				}
-				UpdateParentDropdown();
-				PreviewCurrentAttachment();
-			}, _currentAttachmentId?.Replace("vfx:", ""));
-		}, "Open Procedural VFX Studio", 10, new Vector2(100, 24));
-
 		topControlsVBox.AddChild(pickerRow);
 
 		AddSectionHeader(BodyContainer, "🗡️ " + TranslationServer.Translate("TRANSFORM & NORMAL OFFSET"));

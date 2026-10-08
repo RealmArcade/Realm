@@ -10612,17 +10612,6 @@ public partial class MapEditorHUD : Control
 		_vfxStudioDialog.OpenForConfig(initialConfig, onApplied);
 	}
 
-	private VfxManagerDialog _vfxManagerDialog;
-
-	public void OpenVfxManagerDialog(Action<VfxAttachmentConfig> onSelected = null, string initialVfxId = null)
-	{
-		if (_vfxManagerDialog == null)
-		{
-			_vfxManagerDialog = new VfxManagerDialog(this);
-		}
-		_vfxManagerDialog.Open(onSelected, initialVfxId);
-	}
-
 	private ObjectAttachmentDialog _objectAttachmentDialog;
 
 	public void OpenObjectAttachmentDialog(
