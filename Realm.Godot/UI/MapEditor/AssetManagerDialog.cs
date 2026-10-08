@@ -1410,9 +1410,21 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						meta.Textures ??= new(StringComparer.OrdinalIgnoreCase);
 						if (!meta.Textures.ContainsKey(terrainTemplateId))
 						{
+							var occupiedSlots = new bool[TextureSwatchSlots.MaxSlots];
+							foreach (var existingTex in meta.Textures.Values)
+							{
+								if (existingTex != null && existingTex.SwatchIndex >= 0 && existingTex.SwatchIndex < TextureSwatchSlots.MaxSlots)
+								{
+									occupiedSlots[existingTex.SwatchIndex] = true;
+								}
+							}
+							int nextFreeSlot = TextureSwatchSlots.FirstFreeSlot(occupiedSlots);
+							if (nextFreeSlot < 0) nextFreeSlot = 0;
+
 							meta.Textures[terrainTemplateId] = new TextureMetadata
 							{
 								TexturePath = fileName,
+								SwatchIndex = nextFreeSlot,
 								ScaleFactor = 1.0f,
 								Brightness = 1.0f,
 								Contrast = 1.0f,
@@ -1512,6 +1524,16 @@ public partial class AssetManagerDialog : FloatingDialogBase
 						break;
 				}
 			});
+
+			if (normalizedCategory.Equals("terrain", StringComparison.OrdinalIgnoreCase) || normalizedCategory.Equals("textures", StringComparison.OrdinalIgnoreCase))
+			{
+				MapEditorHUD.Instance?.SetupTextureSwatches(false);
+				if (GameHost.Instance?.GroundTerrain != null)
+				{
+					GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
+					GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				}
+			}
 		}
 		catch (Exception ex)
 		{
