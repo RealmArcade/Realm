@@ -177,13 +177,44 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		CreatePreviewEnvironment();
 
-		AddCameraPresetToolbar(BodyContainer, includeBack: false, includeGridToggle: true, onToggleGrid: () =>
+		var topToolbar = new HBoxContainer();
+		topToolbar.AddThemeConstantOverride("separation", 4);
+
+		AddButton(topToolbar, "📋 " + TranslationServer.Translate("Copy Code"), () =>
+		{
+			string code;
+			if (_currentConfig.PrimitiveType == VfxPrimitiveType.VortexDisc)
+			{
+				code = $"api.SpawnExpandingGroundRing(targetPos, 8.0f, 12.0f, 1.0f);";
+			}
+			else if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraSphere)
+			{
+				code = $"api.SpawnExpandingBurstSphere(targetPos, 6.0f, 15.0f, 0.8f);";
+			}
+			else if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraCapsule || _currentConfig.PrimitiveType == VfxPrimitiveType.HemisphereDome)
+			{
+				code = $"api.AttachPersistentAura(unit, \"{_vfxId}\", 1.0f);";
+			}
+			else
+			{
+				code = $"api.SpawnVisualEffect(\"{_vfxId}\", targetPos, 1.0f);";
+			}
+			DisplayServer.ClipboardSet(code);
+			Hud?.ShowFeedback(TranslationServer.Translate("Copied script code to clipboard"));
+		}, "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
+
+		var separator = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		topToolbar.AddChild(separator);
+
+		AddCameraPresetToolbar(topToolbar, includeBack: false, includeGridToggle: true, onToggleGrid: () =>
 		{
 			if (_previewGroundGrid != null && GodotObject.IsInstanceValid(_previewGroundGrid))
 			{
 				_previewGroundGrid.Visible = !_previewGroundGrid.Visible;
 			}
 		});
+
+		BodyContainer.AddChild(topToolbar);
 
 		var scrollBody = CreateScrollBody(440);
 

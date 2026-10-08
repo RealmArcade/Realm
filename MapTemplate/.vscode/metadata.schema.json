@@ -1266,6 +1266,21 @@
                   "null"
                 ]
               },
+              "TrajectoryType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "BoomerangReturnDelay": {
+                "type": "number"
+              },
+              "OrbitRadius": {
+                "type": "number"
+              },
+              "OrbitSpeed": {
+                "type": "number"
+              },
               "ArcHeight": {
                 "type": "number"
               },
@@ -2054,6 +2069,9 @@
               "CoreColor": {
                 "type": "string"
               },
+              "ColorMixRatio": {
+                "type": "number"
+              },
               "EmissionBoost": {
                 "type": "number"
               },
@@ -2486,6 +2504,9 @@
                     },
                     "CoreColor": {
                       "type": "string"
+                    },
+                    "ColorMixRatio": {
+                      "type": "number"
                     },
                     "EmissionBoost": {
                       "type": "number"

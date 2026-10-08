@@ -148,6 +148,16 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		_lblUnitValue.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		infoRow.AddChild(_lblUnitValue);
 
+		var infoSpacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		infoRow.AddChild(infoSpacer);
+
+		AddButton(infoRow, "📋 " + TranslationServer.Translate("Copy Code"), () =>
+		{
+			string code = $"api.SetUnitHandAttachment(unit, \"{_currentSocketId}\", \"{_currentAttachmentId}\");";
+			DisplayServer.ClipboardSet(code);
+			Hud?.ShowFeedback(TranslationServer.Translate("Copied script code to clipboard"));
+		}, "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 20));
+
 		topControlsVBox.AddChild(infoRow);
 
 		var socketRow = new HBoxContainer();

@@ -631,41 +631,79 @@ public partial class VisualProjectile3D : Node3D
 		float currentSpeed = CalculateSpeed(_speed, _elapsedTime, _totalFlightDuration, _weapon.SpeedCurve, _weapon.Acceleration);
 		_elapsedTime += dt;
 		float rawT = Mathf.Clamp(_elapsedTime / _totalFlightDuration, 0.0f, 1.0f);
-		float easedT = ApplyEaseCurve(rawT, _weapon.EaseCurve);
 
-		if (_weapon.TurnRateLimit > 0.0f && _weapon.HomingWeight > 0.0f)
+		string trajType = _weapon.TrajectoryType ?? "Parabolic";
+		bool isLinearVector = string.Equals(trajType, "LinearVector", StringComparison.OrdinalIgnoreCase) || string.Equals(trajType, "Linear", StringComparison.OrdinalIgnoreCase) || string.Equals(trajType, "Piercing", StringComparison.OrdinalIgnoreCase);
+		bool isBoomerang = string.Equals(trajType, "Boomerang", StringComparison.OrdinalIgnoreCase);
+
+		if (isLinearVector)
 		{
-			Vector3 toCurrentTarget = currentTarget - _currentFlightPosition;
-			float distToTarget = toCurrentTarget.Length();
-			if (distToTarget > 0.001f)
-			{
-				Vector3 desiredDir = toCurrentTarget / distToTarget;
-				float maxTurnRadians = Mathf.DegToRad(_weapon.TurnRateLimit) * dt * _weapon.HomingWeight;
-				float angleBetween = _currentFlightDirection.AngleTo(desiredDir);
-				if (angleBetween > 0.0001f)
-				{
-					float step = Mathf.Min(1.0f, maxTurnRadians / angleBetween);
-					_currentFlightDirection = _currentFlightDirection.Slerp(desiredDir, step).Normalized();
-				}
-			}
-
 			_currentFlightPosition += _currentFlightDirection * (currentSpeed * dt);
+		}
+		else if (isBoomerang)
+		{
+			float delay = _weapon.BoomerangReturnDelay >= 0.0f ? _weapon.BoomerangReturnDelay : 0.2f;
+			float outboundDuration = _totalFlightDuration;
+			float returnDuration = _totalFlightDuration;
 
-			if (distToTarget <= Mathf.Max(0.5f, currentSpeed * dt * 1.5f) || rawT >= 1.0f)
+			if (_elapsedTime <= outboundDuration)
 			{
-				HandleImpact(_currentFlightPosition);
+				float bOutT = Mathf.Clamp(_elapsedTime / outboundDuration, 0.0f, 1.0f);
+				_currentFlightPosition = _startPosition.Lerp(currentTarget, ApplyEaseCurve(bOutT, _weapon.EaseCurve));
+			}
+			else if (_elapsedTime <= outboundDuration + delay)
+			{
+				_currentFlightPosition = currentTarget;
+			}
+			else if (_elapsedTime <= outboundDuration + delay + returnDuration)
+			{
+				float bRetT = Mathf.Clamp((_elapsedTime - outboundDuration - delay) / returnDuration, 0.0f, 1.0f);
+				_currentFlightPosition = currentTarget.Lerp(_startPosition, ApplyEaseCurve(bRetT, _weapon.EaseCurve));
+			}
+			else
+			{
+				HandleImpact(_startPosition);
 				return;
 			}
 		}
 		else
 		{
-			Vector3 effectiveTarget = _initialTargetPosition.Lerp(currentTarget, Mathf.Clamp(_weapon.HomingWeight * easedT, 0.0f, 1.0f));
-			_currentFlightPosition = _startPosition.Lerp(effectiveTarget, easedT);
+			float easedT = ApplyEaseCurve(rawT, _weapon.EaseCurve);
 
-			if (rawT >= 1.0f)
+			if (_weapon.TurnRateLimit > 0.0f && _weapon.HomingWeight > 0.0f)
 			{
-				HandleImpact(_currentFlightPosition);
-				return;
+				Vector3 toCurrentTarget = currentTarget - _currentFlightPosition;
+				float distToTarget = toCurrentTarget.Length();
+				if (distToTarget > 0.001f)
+				{
+					Vector3 desiredDir = toCurrentTarget / distToTarget;
+					float maxTurnRadians = Mathf.DegToRad(_weapon.TurnRateLimit) * dt * _weapon.HomingWeight;
+					float angleBetween = _currentFlightDirection.AngleTo(desiredDir);
+					if (angleBetween > 0.0001f)
+					{
+						float step = Mathf.Min(1.0f, maxTurnRadians / angleBetween);
+						_currentFlightDirection = _currentFlightDirection.Slerp(desiredDir, step).Normalized();
+					}
+				}
+
+				_currentFlightPosition += _currentFlightDirection * (currentSpeed * dt);
+
+				if (distToTarget <= Mathf.Max(0.5f, currentSpeed * dt * 1.5f) || rawT >= 1.0f)
+				{
+					HandleImpact(_currentFlightPosition);
+					return;
+				}
+			}
+			else
+			{
+				Vector3 effectiveTarget = _initialTargetPosition.Lerp(currentTarget, Mathf.Clamp(_weapon.HomingWeight * easedT, 0.0f, 1.0f));
+				_currentFlightPosition = _startPosition.Lerp(effectiveTarget, easedT);
+
+				if (rawT >= 1.0f)
+				{
+					HandleImpact(_currentFlightPosition);
+					return;
+				}
 			}
 		}
 
@@ -702,7 +740,16 @@ public partial class VisualProjectile3D : Node3D
 			zigzagOffset = right * (Mathf.Sin(phi) * _weapon.ZigzagAmplitude);
 		}
 
-		Vector3 nextPos = _currentFlightPosition + new Vector3(0, arcY, 0) + spiralOffset + zigzagOffset;
+		Vector3 orbitOffset = Vector3.Zero;
+		if (string.Equals(trajType, "SwarmOrbit", StringComparison.OrdinalIgnoreCase) || string.Equals(trajType, "Swarm", StringComparison.OrdinalIgnoreCase))
+		{
+			float radius = _weapon.OrbitRadius > 0.0f ? _weapon.OrbitRadius : 1.0f;
+			float speed = _weapon.OrbitSpeed > 0.0f ? _weapon.OrbitSpeed : 10.0f;
+			float angle = _elapsedTime * speed;
+			orbitOffset = (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)) * radius;
+		}
+
+		Vector3 nextPos = _currentFlightPosition + new Vector3(0, arcY, 0) + spiralOffset + zigzagOffset + orbitOffset;
 
 		if (_weapon.OrientToTrajectory)
 		{

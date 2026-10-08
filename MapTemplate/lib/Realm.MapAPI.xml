@@ -681,6 +681,67 @@
             <param name="position">The coordinates in 3D world space.</param>
             <param name="scale">The visual scale multiplier.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnBarrageVolley(System.String,System.Numerics.Vector3,System.Single,System.Int32,System.Single)">
+            <summary>
+            Spawns an overhead or area barrage volley of impact visual effects over time within a target area.
+            </summary>
+            <param name="effectTypeId">The type identifier of the impact visual effect.</param>
+            <param name="targetAreaCenter">The center point of the barrage target area in 3D world space.</param>
+            <param name="radius">The radius of the barrage volley impact area.</param>
+            <param name="count">The total number of projectile/effect impacts to spawn.</param>
+            <param name="intervalSeconds">The time interval in seconds between individual barrage impacts.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnChainBeam(System.String,System.Numerics.Vector3[],System.Single,System.Int32,System.Single,System.Single,System.Nullable{System.Numerics.Vector3})">
+            <summary>
+            Spawns a multi-segment ribbon beam that chains sequentially between target positions.
+            </summary>
+            <param name="effectTypeId">The type identifier or texture asset name of the beam effect.</param>
+            <param name="points">An array of 3D positions through which the beam chains.</param>
+            <param name="jumpDelay">Delay in seconds between beam segments extending to the next point.</param>
+            <param name="forkCount">The number of extra fork/branch lines emitting from each node.</param>
+            <param name="fadeLifetime">Duration in seconds before the beam fully fades out after reaching final point.</param>
+            <param name="width">The width/thickness of the beam ribbon.</param>
+            <param name="color">Optional RGB tint for the beam emission color.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnGroundShockwave(System.Numerics.Vector3,System.Numerics.Vector3,System.Single,System.Single,System.Single,System.Nullable{System.Numerics.Vector3})">
+            <summary>
+            Spawns a moving planar ground shockwave along a directional vector.
+            </summary>
+            <param name="position">The starting center position in 3D world space.</param>
+            <param name="direction">The direction vector along which the shockwave advances.</param>
+            <param name="maxRadius">The maximum forward travel distance / radius.</param>
+            <param name="speed">The speed of propagation in units per second.</param>
+            <param name="duration">Total lifespan in seconds before fading out.</param>
+            <param name="color">Optional RGB color tint for the shockwave.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnExpandingGroundRing(System.Numerics.Vector3,System.Single,System.Single,System.Single,System.Nullable{System.Numerics.Vector3})">
+            <summary>
+            Spawns an expanding ground ring / crack visual effect that conforms to terrain contours.
+            </summary>
+            <param name="position">The center position in 3D world space.</param>
+            <param name="maxRadius">The maximum expansion radius in world units.</param>
+            <param name="speed">The expansion speed in units per second.</param>
+            <param name="duration">Total lifespan in seconds before fading out.</param>
+            <param name="color">Optional RGB color tint for the ground ring.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnExpandingBurstSphere(System.Numerics.Vector3,System.Single,System.Single,System.Single,System.Nullable{System.Numerics.Vector3})">
+            <summary>
+            Spawns an expanding 3D spherical / dome burst shockwave effect.
+            </summary>
+            <param name="position">The center position in 3D world space.</param>
+            <param name="maxRadius">The maximum burst radius in world units.</param>
+            <param name="speed">The burst expansion speed in units per second.</param>
+            <param name="duration">Total lifespan in seconds before fading out.</param>
+            <param name="color">Optional RGB color tint for the burst sphere.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AttachPersistentAura(Realm.MapAPI.IUnit,System.String,System.Single)">
+            <summary>
+            Attaches a persistent volume shield or aura visual effect to a unit.
+            </summary>
+            <param name="unit">The target unit wrapper to attach the aura to.</param>
+            <param name="auraVfxId">The identifier of the visual effect or attachment configuration.</param>
+            <param name="scale">The visual scale multiplier.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.AddBuff(Realm.MapAPI.IUnit,System.String,System.Single)">
             <summary>
             Adds a buff to a unit.

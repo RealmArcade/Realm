@@ -218,6 +218,67 @@ public interface IGameAPI
     void SpawnVisualEffect(string effectTypeId, Vector3 position, float scale = 1.0f);
 
     /// <summary>
+    /// Spawns an overhead or area barrage volley of impact visual effects over time within a target area.
+    /// </summary>
+    /// <param name="effectTypeId">The type identifier of the impact visual effect.</param>
+    /// <param name="targetAreaCenter">The center point of the barrage target area in 3D world space.</param>
+    /// <param name="radius">The radius of the barrage volley impact area.</param>
+    /// <param name="count">The total number of projectile/effect impacts to spawn.</param>
+    /// <param name="intervalSeconds">The time interval in seconds between individual barrage impacts.</param>
+    void SpawnBarrageVolley(string effectTypeId, Vector3 targetAreaCenter, float radius, int count, float intervalSeconds) { }
+
+    /// <summary>
+    /// Spawns a multi-segment ribbon beam that chains sequentially between target positions.
+    /// </summary>
+    /// <param name="effectTypeId">The type identifier or texture asset name of the beam effect.</param>
+    /// <param name="points">An array of 3D positions through which the beam chains.</param>
+    /// <param name="jumpDelay">Delay in seconds between beam segments extending to the next point.</param>
+    /// <param name="forkCount">The number of extra fork/branch lines emitting from each node.</param>
+    /// <param name="fadeLifetime">Duration in seconds before the beam fully fades out after reaching final point.</param>
+    /// <param name="width">The width/thickness of the beam ribbon.</param>
+    /// <param name="color">Optional RGB tint for the beam emission color.</param>
+    void SpawnChainBeam(string effectTypeId, Vector3[] points, float jumpDelay = 0.05f, int forkCount = 0, float fadeLifetime = 0.4f, float width = 0.35f, Vector3? color = null) { }
+
+    /// <summary>
+    /// Spawns a moving planar ground shockwave along a directional vector.
+    /// </summary>
+    /// <param name="position">The starting center position in 3D world space.</param>
+    /// <param name="direction">The direction vector along which the shockwave advances.</param>
+    /// <param name="maxRadius">The maximum forward travel distance / radius.</param>
+    /// <param name="speed">The speed of propagation in units per second.</param>
+    /// <param name="duration">Total lifespan in seconds before fading out.</param>
+    /// <param name="color">Optional RGB color tint for the shockwave.</param>
+    void SpawnGroundShockwave(Vector3 position, Vector3 direction, float maxRadius = 8.0f, float speed = 12.0f, float duration = 1.0f, Vector3? color = null) { }
+
+    /// <summary>
+    /// Spawns an expanding ground ring / crack visual effect that conforms to terrain contours.
+    /// </summary>
+    /// <param name="position">The center position in 3D world space.</param>
+    /// <param name="maxRadius">The maximum expansion radius in world units.</param>
+    /// <param name="speed">The expansion speed in units per second.</param>
+    /// <param name="duration">Total lifespan in seconds before fading out.</param>
+    /// <param name="color">Optional RGB color tint for the ground ring.</param>
+    void SpawnExpandingGroundRing(Vector3 position, float maxRadius = 8.0f, float speed = 12.0f, float duration = 1.0f, Vector3? color = null) { }
+
+    /// <summary>
+    /// Spawns an expanding 3D spherical / dome burst shockwave effect.
+    /// </summary>
+    /// <param name="position">The center position in 3D world space.</param>
+    /// <param name="maxRadius">The maximum burst radius in world units.</param>
+    /// <param name="speed">The burst expansion speed in units per second.</param>
+    /// <param name="duration">Total lifespan in seconds before fading out.</param>
+    /// <param name="color">Optional RGB color tint for the burst sphere.</param>
+    void SpawnExpandingBurstSphere(Vector3 position, float maxRadius = 6.0f, float speed = 15.0f, float duration = 0.8f, Vector3? color = null) { }
+
+    /// <summary>
+    /// Attaches a persistent volume shield or aura visual effect to a unit.
+    /// </summary>
+    /// <param name="unit">The target unit wrapper to attach the aura to.</param>
+    /// <param name="auraVfxId">The identifier of the visual effect or attachment configuration.</param>
+    /// <param name="scale">The visual scale multiplier.</param>
+    void AttachPersistentAura(IUnit unit, string auraVfxId, float scale = 1.0f) { }
+
+    /// <summary>
     /// Adds a buff to a unit.
     /// </summary>
     /// <param name="unit">The target unit.</param>

@@ -1551,6 +1551,89 @@ public class {mapName} : IMapScript
 		}).CallDeferred();
 	}
 
+	void IGameAPI.SpawnBarrageVolley(string effectTypeId, System.Numerics.Vector3 targetAreaCenter, float radius, int count, float intervalSeconds)
+	{
+		Callable.From(() =>
+		{
+			var center = new Vector3(targetAreaCenter.X, targetAreaCenter.Y, targetAreaCenter.Z);
+			var rng = new Random();
+			for (int i = 0; i < count; i++)
+			{
+				float delay = i * Math.Max(0.01f, intervalSeconds);
+				var timer = GetTree().CreateTimer(delay);
+				timer.Timeout += () =>
+				{
+					if (!GodotObject.IsInstanceValid(this)) return;
+					float angle = (float)(rng.NextDouble() * Math.PI * 2.0);
+					float dist = (float)(rng.NextDouble() * radius);
+					var impactPos = center + new Vector3(Mathf.Cos(angle) * dist, 0f, Mathf.Sin(angle) * dist);
+					((IGameAPI)this).SpawnVisualEffect(effectTypeId, new System.Numerics.Vector3(impactPos.X, impactPos.Y, impactPos.Z), 1.0f);
+				};
+			}
+		}).CallDeferred();
+	}
+
+	void IGameAPI.SpawnChainBeam(string effectTypeId, System.Numerics.Vector3[] points, float jumpDelay, int forkCount, float fadeLifetime, float width, System.Numerics.Vector3? color)
+	{
+		Callable.From(() =>
+		{
+			if (points == null || points.Length < 2) return;
+			var godotPoints = new Vector3[points.Length];
+			for (int i = 0; i < points.Length; i++)
+			{
+				godotPoints[i] = new Vector3(points[i].X, points[i].Y, points[i].Z);
+			}
+			Color? beamCol = color.HasValue ? new Color(color.Value.X, color.Value.Y, color.Value.Z) : null;
+			Realm.Godot.VFX.ChainBeam3D.Create(this, godotPoints, jumpDelay, forkCount, fadeLifetime, width, beamCol);
+		}).CallDeferred();
+	}
+
+	void IGameAPI.SpawnGroundShockwave(System.Numerics.Vector3 position, System.Numerics.Vector3 direction, float maxRadius, float speed, float duration, System.Numerics.Vector3? color)
+	{
+		Callable.From(() =>
+		{
+			var pos = new Vector3(position.X, position.Y, position.Z);
+			var dir = new Vector3(direction.X, direction.Y, direction.Z);
+			Color? waveCol = color.HasValue ? new Color(color.Value.X, color.Value.Y, color.Value.Z) : null;
+			var shock = Realm.Godot.VFX.GroundShockwave3D.Create(this, pos, Realm.Godot.VFX.ShockwaveType.PlanarWave, maxRadius, speed, duration, waveCol);
+			shock.Direction = dir;
+		}).CallDeferred();
+	}
+
+	void IGameAPI.SpawnExpandingGroundRing(System.Numerics.Vector3 position, float maxRadius, float speed, float duration, System.Numerics.Vector3? color)
+	{
+		Callable.From(() =>
+		{
+			var pos = new Vector3(position.X, position.Y, position.Z);
+			Color? ringCol = color.HasValue ? new Color(color.Value.X, color.Value.Y, color.Value.Z) : null;
+			Realm.Godot.VFX.GroundShockwave3D.Create(this, pos, Realm.Godot.VFX.ShockwaveType.ExpandingGroundRing, maxRadius, speed, duration, ringCol);
+		}).CallDeferred();
+	}
+
+	void IGameAPI.SpawnExpandingBurstSphere(System.Numerics.Vector3 position, float maxRadius, float speed, float duration, System.Numerics.Vector3? color)
+	{
+		Callable.From(() =>
+		{
+			var pos = new Vector3(position.X, position.Y, position.Z);
+			Color? sphereCol = color.HasValue ? new Color(color.Value.X, color.Value.Y, color.Value.Z) : null;
+			Realm.Godot.VFX.GroundShockwave3D.Create(this, pos, Realm.Godot.VFX.ShockwaveType.ExpandingBurstSphere, maxRadius, speed, duration, sphereCol);
+		}).CallDeferred();
+	}
+
+	void IGameAPI.AttachPersistentAura(IUnit unit, string auraVfxId, float scale)
+	{
+		Callable.From(() =>
+		{
+			if (unit is IEcsEntityWrapper wrapper && EcsWorld.IsAlive(wrapper.Entity))
+			{
+				if (GameHost.TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					unit3D.SetSocketAttachment(Realm.Shared.Animation.HumanoidBone.Chest, auraVfxId, null, null, scale, null, null, false);
+				}
+			}
+		}).CallDeferred();
+	}
+
 	void IGameAPI.CreateFloatingText(string text, System.Numerics.Vector3 position, System.Numerics.Vector3 color, float duration)
 	{
 		var godotPos = new Vector3(position.X, position.Y, position.Z);

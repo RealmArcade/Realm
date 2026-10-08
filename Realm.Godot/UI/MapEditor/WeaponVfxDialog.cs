@@ -50,6 +50,12 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
 		AddButton(topToolbar, "▶ " + TranslationServer.Translate("Fire Test"), () => RestartPreviewProjectile(), "Restart preview projectile", 10, new Vector2(0, 22));
+		AddButton(topToolbar, "📋 " + TranslationServer.Translate("Copy Code"), () =>
+		{
+			string code = $"api.SpawnProjectile(\"{_weaponId}\", startPos, targetPos, {(_currentWeapon.ProjectileSpeed > 0 ? _currentWeapon.ProjectileSpeed : 25f):0.0}f);";
+			DisplayServer.ClipboardSet(code);
+			Hud?.ShowFeedback(TranslationServer.Translate("Copied script code to clipboard"));
+		}, "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
 
 		var separator = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		topToolbar.AddChild(separator);
@@ -213,6 +219,33 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			140f,
 			true
 		);
+
+		string[] trajectories = new[] { "Parabolic", "Homing", "LinearVector", "Boomerang", "SwarmOrbit" };
+		int trajIdx = Math.Max(0, Array.IndexOf(trajectories, _currentWeapon.TrajectoryType ?? "Parabolic"));
+		AddOptionDropdown(scrollBody, TranslationServer.Translate("Trajectory Type"), trajectories, trajIdx, (idx) =>
+		{
+			if (_isUpdatingUI) return;
+			_currentWeapon.TrajectoryType = trajectories[idx];
+			RestartPreviewProjectile();
+		}, 140f);
+
+		AddSlider(scrollBody, TranslationServer.Translate("Boomerang Return Delay"), 0f, 2f, 0.05f, _currentWeapon.BoomerangReturnDelay, (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_currentWeapon.BoomerangReturnDelay = val;
+		}, "0.00", 140f);
+
+		AddSlider(scrollBody, TranslationServer.Translate("Orbit Radius"), 0.1f, 5f, 0.1f, _currentWeapon.OrbitRadius, (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_currentWeapon.OrbitRadius = val;
+		}, "0.0", 140f);
+
+		AddSlider(scrollBody, TranslationServer.Translate("Orbit Speed"), 1f, 30f, 0.5f, _currentWeapon.OrbitSpeed, (val) =>
+		{
+			if (_isUpdatingUI) return;
+			_currentWeapon.OrbitSpeed = val;
+		}, "0.0", 140f);
 
 		AddSlider(scrollBody, TranslationServer.Translate("Speed (Units/s)"), 0f, 100f, 1f, _currentWeapon.ProjectileSpeed > 0 ? _currentWeapon.ProjectileSpeed : 25f, (val) =>
 		{

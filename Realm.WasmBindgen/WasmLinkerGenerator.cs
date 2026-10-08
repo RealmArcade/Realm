@@ -1917,6 +1917,15 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
     private static void EmitGuestMethod(StringBuilder sb, IMethodSymbol method, string prefix, string key)
     {
+        if (string.IsNullOrEmpty(prefix))
+        {
+            if (BuildWitMethodParams(method) == null) return;
+        }
+        else
+        {
+            if (BuildWitEntityMethodParams(method) == null) return;
+        }
+
         var retKind = ClassifyReturn(method.ReturnType);
         string typeStr = method.ReturnType.ToDisplayString();
 

@@ -982,6 +982,11 @@ public class WeaponMetadata
 	public string? ImpactVisualEffect { get; set; }
 	public string? ImpactSound { get; set; }
 
+	public string? TrajectoryType { get; set; } = "Parabolic";
+	public float BoomerangReturnDelay { get; set; } = 0.2f;
+	public float OrbitRadius { get; set; } = 1.0f;
+	public float OrbitSpeed { get; set; } = 10.0f;
+
 	public float ArcHeight { get; set; }
 	public float HomingWeight { get; set; }
 	public float TurnRateLimit { get; set; }
