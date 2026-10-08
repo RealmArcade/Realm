@@ -62,5 +62,5 @@
 - Always compile code after making changes to ensure there are no errors.
 
 ## Test CLI example
-dotnet test Realm.Godot/Realm.Godot.csproj -e GODOT_BIN="C:\Program Files\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe" --filter "FullyQualifiedName~Realm.Godot.Tests.MapEditorUxTests.TestCustomWeaponProjectileLayersAndVisualRendering"
+dotnet test Realm.Godot.Tests/Realm.Godot.Tests.csproj -e GODOT_BIN="C:\Program Files\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe" --filter "FullyQualifiedName~Realm.Godot.Tests.MapEditorUxTests.TestCustomWeaponProjectileLayersAndVisualRendering"
 - Don't run tests unless explicitly told to do so

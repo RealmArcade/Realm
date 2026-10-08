@@ -341,7 +341,7 @@ public partial class GameHost
 				SpawnDeathShaderManager.ClearShaderOverride(buildingNode);
 			}
 
-			var buildingUnit = AllUnits.Find(u => u.Entity == buildingEntity);
+			var buildingUnit = (EcsWorld.IsAlive(buildingEntity)) ? GetUnitWrapper(buildingEntity) : null;
 			if (buildingUnit != null) { OnConstructionFinished?.Invoke(buildingUnit); }
 			InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Godot.Color(0.3f, 0.9f, 0.4f));
 			InGameHUD.Instance?.RefreshUI(SelectedUnits);

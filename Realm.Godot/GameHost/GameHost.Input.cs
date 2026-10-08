@@ -3173,14 +3173,13 @@ public partial class GameHost
 			if (GameHost.TryGetUnit3D(castleEntity, out var castle3D))
 			{
 				var selectedEntity = SelectedUnits.Count > 0 ? SelectedUnits[0].Entity : Entity.Null;
-
 				if (_inputService.BuyItem(itemId, _playerEntity, new System.Numerics.Vector3(castle3D.GlobalPosition.X, castle3D.GlobalPosition.Y, castle3D.GlobalPosition.Z), selectedEntity, out Entity targetUnitEntity))
 				{
-					var targetUnit = AllUnits.Find(u => u.Entity == targetUnitEntity);
+					var targetUnit = (EcsWorld.IsAlive(targetUnitEntity)) ? GetUnitWrapper(targetUnitEntity) : null;
 					InGameHUD.Instance.Gold -= costGold;
 
 					if (targetUnit != null) { OnItemSold?.Invoke(targetUnit, itemId); }
-					InGameHUD.Instance.ShowFeedbackText($"Bought {itemName} for {targetUnit.UnitId.ToUpper()}!", new Color(0.3f, 0.9f, 0.4f));
+					InGameHUD.Instance.ShowFeedbackText($"Bought {itemName} for {targetUnit?.TemplateID.ToUpper()}!", new Color(0.3f, 0.9f, 0.4f));
 					UIManager.Instance?.PlayClickSound();
 					InGameHUD.Instance.RefreshUI(SelectedUnits);
 				}

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using GdUnit4;
 using Realm.Godot.Animation;
+using Realm.Shared.Animation;
 
 [TestSuite]
 [RequireGodotRuntime]

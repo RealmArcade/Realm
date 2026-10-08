@@ -1037,7 +1037,7 @@ public partial class CommandPanel
 	private CommandCardItem? CreateAbilityItem(string abilityId, Entity casterEntity)
 	{
 		var host = GameHost.Instance;
-		var unitWrapper = host?.AllUnits.Find(u => u.Entity == casterEntity);
+		var unitWrapper = (host != null && host.EcsWorld.IsAlive(casterEntity)) ? host.GetUnitWrapper(casterEntity) : null;
 		if (host != null && host.IsAbilityHiddenForUnit(unitWrapper, abilityId))
 		{
 			return null;
