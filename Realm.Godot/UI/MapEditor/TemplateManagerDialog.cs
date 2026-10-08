@@ -22,6 +22,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private Node3D _currentModelRoot;
 	private AnimatedSprite3D _vfxSprite;
 	private ProceduralVfxInstance3D? _previewVfxInstance;
+	private VisualProjectile3D? _previewProjectile;
 
 	private PanelContainer _preview2DContainer;
 	private VBoxContainer _tooltipPreviewContainer;
@@ -340,7 +341,29 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			PopulatePreviewMeshList();
 		}
 
+		if (_currentCategory == "weapons")
+		{
+			DefaultDistance = 5.5f;
+			DefaultYaw = Mathf.DegToRad(30.0f);
+			DefaultPitch = Mathf.DegToRad(15.0f);
+			DefaultTargetPosition = new Vector3(0, 0.5f, 0);
+		}
+		else
+		{
+			DefaultDistance = 5.0f;
+			DefaultYaw = Mathf.DegToRad(45.0f);
+			DefaultPitch = Mathf.DegToRad(25.0f);
+			DefaultTargetPosition = Vector3.Zero;
+		}
+		ResetCameraDefault();
+
 		RefreshObjectList();
+	}
+
+	public override void CloseDialog()
+	{
+		ClearPreviewProjectile();
+		base.CloseDialog();
 	}
 
 	public override void _Process(double delta)
@@ -1569,6 +1592,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		_currentPreviewTemplateID = item.TemplateID;
 		_currentShaderConfig = null;
+		ClearPreviewProjectile();
 
 		// Clear previous 3D model
 		if (_currentModelRoot != null && GodotObject.IsInstanceValid(_currentModelRoot))
@@ -1784,6 +1808,28 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 				CenterAndFrameNode(loadedNode3D);
 			}
 		}
+		else if (cat == "weapons")
+		{
+			_preview2DContainer.Visible = false;
+			_previewAudioContainer.Visible = false;
+			PreviewSubViewport.GetParent<Control>().Visible = true;
+
+			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+			WeaponMetadata? weaponMeta = null;
+			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
+			{
+				weaponMeta = meta.Templates.Weapons.FirstOrDefault(w => string.Equals(w.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
+			}
+
+			weaponMeta ??= new WeaponMetadata
+			{
+				TemplateID = item.TemplateID,
+				Name = item.Name,
+				ProjectileModelPath = item.ModelPath
+			};
+
+			RestartPreviewWeaponProjectile(weaponMeta);
+		}
 		else if (cat == "vfx")
 		{
 			_preview2DContainer.Visible = false;
@@ -1835,6 +1881,35 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			_preview2DContainer.Visible = false;
 			_previewAudioContainer.Visible = false;
 			PreviewSubViewport.GetParent<Control>().Visible = true;
+		}
+	}
+
+	private void RestartPreviewWeaponProjectile(WeaponMetadata weapon)
+	{
+		ClearPreviewProjectile();
+		if (PreviewSubViewport == null) return;
+
+		_previewProjectile = new VisualProjectile3D();
+		PreviewSubViewport.AddChild(_previewProjectile);
+
+		Vector3 startPos = new Vector3(-2.8f, 0.5f, 0f);
+		Vector3 targetPos = new Vector3(2.8f, 0.5f, 0f);
+
+		_previewProjectile.Initialize(weapon, startPos, targetPos, default, (proj) =>
+		{
+			if (Visible && PreviewSubViewport != null && _currentCategory == "weapons" && string.Equals(_currentPreviewTemplateID, weapon.TemplateID, StringComparison.OrdinalIgnoreCase))
+			{
+				Callable.From(() => RestartPreviewWeaponProjectile(weapon)).CallDeferred();
+			}
+		});
+	}
+
+	private void ClearPreviewProjectile()
+	{
+		if (_previewProjectile != null && GodotObject.IsInstanceValid(_previewProjectile))
+		{
+			_previewProjectile.QueueFree();
+			_previewProjectile = null;
 		}
 	}
 
