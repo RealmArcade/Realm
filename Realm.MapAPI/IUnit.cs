@@ -187,6 +187,11 @@ public interface IUnit
     bool Invulnerable { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the overhead health and mana bars are hidden for this unit.
+    /// </summary>
+    bool HideHealthAndManaBars { get => false; set { } }
+
+    /// <summary>
     /// Orders the unit to stop its current action immediately.
     /// </summary>
     void Stop();
@@ -214,6 +219,28 @@ public interface IUnit
     /// <param name="itemId">The identifier of the item to add.</param>
     /// <returns>True if the item was added successfully, false otherwise.</returns>
     bool AddItem(string itemId);
+
+    /// <summary>
+    /// Adds an item to the unit's inventory with the specified number of charges.
+    /// </summary>
+    /// <param name="itemId">The identifier of the item to add.</param>
+    /// <param name="charges">The initial charge count for the item.</param>
+    /// <returns>True if the item was added successfully, false otherwise.</returns>
+    bool AddItem(string itemId, int charges) => AddItem(itemId);
+
+    /// <summary>
+    /// Gets the number of charges for the specified item in the unit's inventory.
+    /// </summary>
+    /// <param name="itemId">The identifier of the item.</param>
+    /// <returns>The charge count, or 1 if the item is present without specific charges, or 0 if not present.</returns>
+    int GetItemCharges(string itemId) => HasItem(itemId) ? 1 : 0;
+
+    /// <summary>
+    /// Sets the number of charges for the specified item in the unit's inventory.
+    /// </summary>
+    /// <param name="itemId">The identifier of the item.</param>
+    /// <param name="charges">The new charge count.</param>
+    void SetItemCharges(string itemId, int charges) { }
 
     /// <summary>
     /// Removes an item from the unit's inventory.

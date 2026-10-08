@@ -2923,6 +2923,10 @@ public class {mapName} : IMapScript
 				if (!string.IsNullOrEmpty(meta.TemplateID))
 				{
 					newItems[(StringName)meta.TemplateID] = meta;
+					if (meta.TemplateID.StartsWith("item/", StringComparison.OrdinalIgnoreCase))
+					{
+						newItems[(StringName)meta.TemplateID.Substring(5)] = meta;
+					}
 				}
 			}
 
@@ -2933,6 +2937,10 @@ public class {mapName} : IMapScript
 					var copy = meta;
 					if (copy.Scale <= 0f) copy.Scale = 1.0f;
 					newUnits[(StringName)copy.TemplateID] = copy;
+					if (copy.TemplateID.StartsWith("unit/", StringComparison.OrdinalIgnoreCase))
+					{
+						newUnits[(StringName)copy.TemplateID.Substring(5)] = copy;
+					}
 				}
 			}
 
@@ -2943,6 +2951,10 @@ public class {mapName} : IMapScript
 					var copy = meta;
 					if (copy.Scale <= 0f) copy.Scale = 1.5f;
 					newBuildings[(StringName)copy.TemplateID] = copy;
+					if (copy.TemplateID.StartsWith("building/", StringComparison.OrdinalIgnoreCase))
+					{
+						newBuildings[(StringName)copy.TemplateID.Substring(9)] = copy;
+					}
 				}
 			}
 

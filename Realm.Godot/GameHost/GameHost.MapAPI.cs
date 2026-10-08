@@ -42,7 +42,7 @@ public partial class GameHost
 		foreach (var meta in customAbilities)
 		{
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
-			_abilityDefinitions[meta.TemplateID] = new AbilityDefinition
+			var def = new AbilityDefinition
 			{
 				Id = meta.TemplateID,
 				DisplayName = meta.Name ?? "",
@@ -58,6 +58,11 @@ public partial class GameHost
 				VisualEffect = meta.VisualEffect,
 				CastSound = meta.CastSound
 			};
+			_abilityDefinitions[meta.TemplateID] = def;
+			if (meta.TemplateID.StartsWith("ability/", StringComparison.OrdinalIgnoreCase))
+			{
+				_abilityDefinitions[meta.TemplateID.Substring(8)] = def;
+			}
 		}
 	}
 

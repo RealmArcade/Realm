@@ -1097,6 +1097,20 @@
             <param name="unit">The unit to tint.</param>
             <param name="color">RGB color values in the range [0, 1].</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFacing(Realm.MapAPI.IUnit,System.Single)">
+            <summary>
+            Sets the rotation angle or facing direction of the unit in radians or towards a target direction.
+            </summary>
+            <param name="unit">The unit whose facing direction is being set.</param>
+            <param name="facingRadians">The target facing angle in radians around the vertical axis.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFacing(Realm.MapAPI.IUnit,System.Numerics.Vector3)">
+            <summary>
+            Sets the facing direction of the unit to look at the specified target position.
+            </summary>
+            <param name="unit">The unit to rotate.</param>
+            <param name="targetPosition">The 3D coordinates in world space to face towards.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitsInRadius(System.Numerics.Vector3,System.Single,System.Func{Realm.MapAPI.IUnit,System.Boolean})">
             <summary>
             Retrieves all alive units within the specified radius of a 3D position
@@ -1516,6 +1530,13 @@
             Configures the grid position (X, Y) of an ability in the command card interface.
             </summary>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityHotkey(System.String,System.String)">
+            <summary>
+            Configures the hotkey binding string (e.g., "W", "E", "R") for an ability on the command card.
+            </summary>
+            <param name="abilityId">Unique identifier of the ability.</param>
+            <param name="hotkey">The key string to trigger the ability.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetAbilityState(Realm.MapAPI.IUnit,System.String,System.Boolean,System.Boolean)">
             <summary>
             Sets whether an ability on a unit is disabled or hidden in the UI.
@@ -1780,6 +1801,20 @@
             <param name="count">The total number of slots on the ring.</param>
             <returns>The position of the slot on the X/Z plane, preserving the center's Y.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerColorHex(System.Int32)">
+            <summary>
+            Returns the standard hex color code string (RRGGBB) corresponding to the specified player slot.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <returns>A 6-character hex color string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.FormatColoredPlayerName(System.Int32)">
+            <summary>
+            Returns the player name formatted with rich text / BBCode markup matching their assigned player slot color.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <returns>The color-formatted player name string.</returns>
+        </member>
         <member name="T:Realm.MapAPI.IMapScript">
             <summary>
             Defines the base lifecycle methods for map scripts.
@@ -2025,6 +2060,11 @@
             Gets or sets a value indicating whether the unit is invulnerable to damage.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.IUnit.HideHealthAndManaBars">
+            <summary>
+            Gets or sets a value indicating whether the overhead health and mana bars are hidden for this unit.
+            </summary>
+        </member>
         <member name="M:Realm.MapAPI.IUnit.Stop">
             <summary>
             Orders the unit to stop its current action immediately.
@@ -2053,6 +2093,28 @@
             </summary>
             <param name="itemId">The identifier of the item to add.</param>
             <returns>True if the item was added successfully, false otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.AddItem(System.String,System.Int32)">
+            <summary>
+            Adds an item to the unit's inventory with the specified number of charges.
+            </summary>
+            <param name="itemId">The identifier of the item to add.</param>
+            <param name="charges">The initial charge count for the item.</param>
+            <returns>True if the item was added successfully, false otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.GetItemCharges(System.String)">
+            <summary>
+            Gets the number of charges for the specified item in the unit's inventory.
+            </summary>
+            <param name="itemId">The identifier of the item.</param>
+            <returns>The charge count, or 1 if the item is present without specific charges, or 0 if not present.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.SetItemCharges(System.String,System.Int32)">
+            <summary>
+            Sets the number of charges for the specified item in the unit's inventory.
+            </summary>
+            <param name="itemId">The identifier of the item.</param>
+            <param name="charges">The new charge count.</param>
         </member>
         <member name="M:Realm.MapAPI.IUnit.RemoveItem(System.String)">
             <summary>

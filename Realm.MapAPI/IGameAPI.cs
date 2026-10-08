@@ -658,6 +658,25 @@ public interface IGameAPI
     /// <param name="color">RGB color values in the range [0, 1].</param>
     void SetUnitColor(IUnit unit, Vector3 color);
 
+    /// <summary>
+    /// Sets the rotation angle or facing direction of the unit in radians or towards a target direction.
+    /// </summary>
+    /// <param name="unit">The unit whose facing direction is being set.</param>
+    /// <param name="facingRadians">The target facing angle in radians around the vertical axis.</param>
+    void SetUnitFacing(IUnit unit, float facingRadians) { }
+
+    /// <summary>
+    /// Sets the facing direction of the unit to look at the specified target position.
+    /// </summary>
+    /// <param name="unit">The unit to rotate.</param>
+    /// <param name="targetPosition">The 3D coordinates in world space to face towards.</param>
+    void SetUnitFacing(IUnit unit, Vector3 targetPosition)
+    {
+        Vector3 delta = targetPosition - unit.Position;
+        float angle = MathF.Atan2(delta.X, delta.Z);
+        SetUnitFacing(unit, angle);
+    }
+
 
 
     /// <summary>
@@ -1155,6 +1174,13 @@ public interface IGameAPI
     void SetAbilityGridPosition(string abilityId, int x, int y);
 
     /// <summary>
+    /// Configures the hotkey binding string (e.g., "W", "E", "R") for an ability on the command card.
+    /// </summary>
+    /// <param name="abilityId">Unique identifier of the ability.</param>
+    /// <param name="hotkey">The key string to trigger the ability.</param>
+    void SetAbilityHotkey(string abilityId, string hotkey) { }
+
+    /// <summary>
     /// Sets whether an ability on a unit is disabled or hidden in the UI.
     /// </summary>
     void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden) { }
@@ -1485,4 +1511,36 @@ public interface IGameAPI
         float angle = MathF.Tau * index / Math.Max(1, count);
         return new Vector3(center.X + MathF.Cos(angle) * radius, center.Y, center.Z + MathF.Sin(angle) * radius);
     }
+
+    /// <summary>
+    /// Returns the standard hex color code string (RRGGBB) corresponding to the specified player slot.
+    /// </summary>
+    /// <param name="playerIndex">Zero-based player slot index.</param>
+    /// <returns>A 6-character hex color string.</returns>
+    string GetPlayerColorHex(int playerIndex)
+    {
+        ReadOnlySpan<string> colors =
+        [
+            "FF0402", "0042FF", "1BE6BA", "550081",
+            "FFFC00", "FF8A0D", "20BF00", "E35BAF",
+            "949697", "7EBFF1", "106247", "4F2B05",
+            "9C0000", "0000C2", "00EBFF", "BD00FF",
+            "ECCC86", "F7A48B", "BFFF80", "DBB8EC",
+            "4F4F55", "ECF0FF", "A46F34"
+        ];
+        return (playerIndex >= 0 && playerIndex < colors.Length) ? colors[playerIndex] : "FFFFFF";
+    }
+
+    /// <summary>
+    /// Returns the player name formatted with rich text / BBCode markup matching their assigned player slot color.
+    /// </summary>
+    /// <param name="playerIndex">Zero-based player slot index.</param>
+    /// <returns>The color-formatted player name string.</returns>
+    string FormatColoredPlayerName(int playerIndex)
+    {
+        string name = GetPlayerName(playerIndex);
+        string color = GetPlayerColorHex(playerIndex);
+        return $"[color=#{color}]{name}[/color]";
+    }
 }
+
