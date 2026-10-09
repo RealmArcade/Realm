@@ -106,7 +106,12 @@ public partial class LobbyCreate : Control
 		contentContainer.MoveChild(_versionContainer, mapSelectHBox.GetIndex() + 1);
 
 		var textPanelWrapper = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper");
-		textPanelWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
+		var textPanelStyle = UIStyle.CreateBackdropPanel();
+		textPanelStyle.ContentMarginLeft = 24;
+		textPanelStyle.ContentMarginRight = 24;
+		textPanelStyle.ContentMarginTop = 20;
+		textPanelStyle.ContentMarginBottom = 20;
+		textPanelWrapper.AddThemeStyleboxOverride("panel", textPanelStyle);
 
 		var spacer = new Control { CustomMinimumSize = new Vector2(0, 16) };
 		_createButton.GetParent().AddChild(spacer);
@@ -116,31 +121,70 @@ public partial class LobbyCreate : Control
 
 		var briefingHBox = new HBoxContainer();
 		briefingHBox.Name = "BriefingHBox";
-		briefingHBox.AddThemeConstantOverride("separation", 16);
+		briefingHBox.AddThemeConstantOverride("separation", 24);
 		briefingHBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		briefingHBox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 
 		_briefingPanel.RemoveChild(_mapThumbnail);
 		_briefingPanel.RemoveChild(textPanelWrapper);
 
-		var thumbFrame = new PanelContainer();
+		var thumbFrame = new Control();
 		thumbFrame.Name = "ThumbnailFrame";
-		thumbFrame.CustomMinimumSize = new Vector2(256, 256);
+		thumbFrame.CustomMinimumSize = new Vector2(260, 260);
 		thumbFrame.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		thumbFrame.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
-		thumbFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 
-		_mapThumbnail.CustomMinimumSize = new Vector2(240, 240);
+		var mapThumbnailBg = new Panel();
+		mapThumbnailBg.Name = "MapThumbnailBg";
+		mapThumbnailBg.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		mapThumbnailBg.AnchorLeft = 0.13f;
+		mapThumbnailBg.AnchorTop = 0.12f;
+		mapThumbnailBg.AnchorRight = 0.87f;
+		mapThumbnailBg.AnchorBottom = 0.88f;
+		mapThumbnailBg.OffsetLeft = 0;
+		mapThumbnailBg.OffsetTop = 0;
+		mapThumbnailBg.OffsetRight = 0;
+		mapThumbnailBg.OffsetBottom = 0;
+		mapThumbnailBg.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
+		thumbFrame.AddChild(mapThumbnailBg);
+
+		_mapThumbnail.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		_mapThumbnail.AnchorLeft = 0.13f;
+		_mapThumbnail.AnchorTop = 0.12f;
+		_mapThumbnail.AnchorRight = 0.87f;
+		_mapThumbnail.AnchorBottom = 0.88f;
+		_mapThumbnail.OffsetLeft = 0;
+		_mapThumbnail.OffsetTop = 0;
+		_mapThumbnail.OffsetRight = 0;
+		_mapThumbnail.OffsetBottom = 0;
 		_mapThumbnail.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_mapThumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		_mapThumbnail.Modulate = Colors.White;
 		_mapThumbnail.Texture = UIStyle.EmptyBlackTexture;
-
 		thumbFrame.AddChild(_mapThumbnail);
+
+		var frameOverlay = new TextureRect();
+		frameOverlay.Name = "FrameOverlay";
+		frameOverlay.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		frameOverlay.Texture = GD.Load<Texture2D>("res://Assets/UI/custom_match_map.png");
+		frameOverlay.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		frameOverlay.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+		frameOverlay.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		frameOverlay.MouseFilter = Control.MouseFilterEnum.Ignore;
+		thumbFrame.AddChild(frameOverlay);
+
 		briefingHBox.AddChild(thumbFrame);
 
+		textPanelWrapper.CustomMinimumSize = new Vector2(530, 260);
 		textPanelWrapper.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		textPanelWrapper.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+
+		_briefingText.CustomMinimumSize = new Vector2(470, 220);
+		_briefingText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_briefingText.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		_briefingText.FitContent = false;
+		_briefingText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+
 		briefingHBox.AddChild(textPanelWrapper);
 
 		_briefingPanel.AddChild(briefingHBox);
@@ -162,7 +206,7 @@ public partial class LobbyCreate : Control
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
 		_centralPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCustomMatchCardPanel());
 		_centralPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		_briefingPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(false));
+		_briefingPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
 		UIStyle.ApplyTitle(_titleLabel, LobbyManager.Instance.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
 		UIStyle.ApplyTitle(_mapSelectLabel, "SELECT MAP", 20);
@@ -192,8 +236,8 @@ public partial class LobbyCreate : Control
 		_versionSelectButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 		_versionSelectButton.AddThemeFontSizeOverride("font_size", 15);
 
-		_briefingText.AddThemeColorOverride("default_color", new Color(0.85f, 0.85f, 0.9f));
-		_briefingText.AddThemeFontSizeOverride("normal_font_size", 14);
+		_briefingText.AddThemeColorOverride("default_color", new Color(0.92f, 0.94f, 0.98f));
+		_briefingText.AddThemeFontSizeOverride("normal_font_size", 15);
 
 		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));

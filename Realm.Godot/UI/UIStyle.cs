@@ -121,15 +121,17 @@ public static class UIStyle
 			var style = new StyleBoxTexture();
 			style.Texture = tex;
 
-			style.TextureMarginLeft = 220;
-			style.TextureMarginRight = 210;
-			style.TextureMarginTop = 200;
-			style.TextureMarginBottom = 120;
+			// Set TextureMargin to 0 so the entire artwork image renders unified without 9-slice slicing distortion
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
 
-			style.ContentMarginLeft = 55;
-			style.ContentMarginRight = 55;
-			style.ContentMarginTop = 75;
-			style.ContentMarginBottom = 45;
+			// Content margins: increased padding to make the inner information block compact in width and height
+			style.ContentMarginLeft = 175;
+			style.ContentMarginRight = 170;
+			style.ContentMarginTop = 85;
+			style.ContentMarginBottom = 70;
 
 			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
 			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
@@ -515,40 +517,47 @@ public static class UIStyle
 
 	public static Texture2D LoadTextureWithFallback(string path)
 	{
-		Texture2D tex = null;
-		try
-		{
-			tex = GD.Load<Texture2D>(path);
-		}
-		catch { }
-
-		if (tex == null && !string.IsNullOrEmpty(path))
+		if (!string.IsNullOrEmpty(path))
 		{
 			string globalPath = ProjectSettings.GlobalizePath(path);
 			if (System.IO.File.Exists(globalPath))
 			{
-				var img = Image.LoadFromFile(globalPath);
-				if (img != null)
+				try
 				{
-					img.GenerateMipmaps();
-					tex = ImageTexture.CreateFromImage(img);
+					var img = Image.LoadFromFile(globalPath);
+					if (img != null)
+					{
+						img.GenerateMipmaps();
+						return ImageTexture.CreateFromImage(img);
+					}
 				}
+				catch { }
 			}
 		}
-		return tex;
+
+		try
+		{
+			return GD.Load<Texture2D>(path);
+		}
+		catch
+		{
+			return null;
+		}
 	}
 	public static StyleBox CreateBackdropPanel()
 	{
 		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.05f, 0.05f, 0.05f, 0.6f);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.82f);
+		style.BorderColor = new Color(0.75f, 0.62f, 0.35f, 0.35f);
+		style.SetBorderWidthAll(1);
+		style.CornerRadiusTopLeft = 6;
+		style.CornerRadiusTopRight = 6;
+		style.CornerRadiusBottomLeft = 6;
+		style.CornerRadiusBottomRight = 6;
 		style.ContentMarginLeft = 16;
 		style.ContentMarginRight = 16;
-		style.ContentMarginTop = 16;
-		style.ContentMarginBottom = 16;
+		style.ContentMarginTop = 12;
+		style.ContentMarginBottom = 12;
 		return style;
 	}
 

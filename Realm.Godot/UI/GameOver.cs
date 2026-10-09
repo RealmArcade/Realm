@@ -101,13 +101,25 @@ public partial class GameOver : Control
 	private void ApplyThemeStyles()
 	{
 		_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateGameOverBg());
+		_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
+		_leftPillar.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
+		_rightPillar.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		_mainPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateGameOverMainPanel());
 		_mainPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		_tableFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
+		_tableFrame.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		_graphFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
+		_graphFrame.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 
+		var graphHeader = GetNodeOrNull<Label>("MainPanel/VBox/GraphFrame/VBox/GraphHeaderLabel");
+		if (graphHeader != null)
+		{
+			graphHeader.Text = Tr("TIMELINE PROGRESSION");
+			graphHeader.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			graphHeader.AddThemeFontSizeOverride("font_size", 14);
+		}
 
 		SetStatus(_isVictory);
 

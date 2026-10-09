@@ -57,20 +57,6 @@ grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
 
-[node name="TitleLabel" type="Label" parent="."]
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -500.0
-offset_top = 25.0
-offset_right = 500.0
-offset_bottom = 105.0
-grow_horizontal = 2
-theme_override_font_sizes/font_size = 48
-horizontal_alignment = 1
-vertical_alignment = 1
-
 [node name="MainPanel" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 8
@@ -78,10 +64,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -680.0
-offset_top = -420.0
-offset_right = 680.0
-offset_bottom = 314.0
+offset_left = -760.0
+offset_top = -423.0
+offset_right = 760.0
+offset_bottom = 423.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -93,19 +79,20 @@ theme_override_constants/separation = 12
 custom_minimumSize = Vector2(0, 45)
 layout_mode = 2
 theme_override_constants/separation = 12
+alignment = 1
 
 [node name="BtnOverview" type="Button" parent="MainPanel/VBox/TabContainer"]
-custom_minimumSize = Vector2(180, 45)
+custom_minimumSize = Vector2(150, 40)
 layout_mode = 2
 focus_mode = 0
 
 [node name="BtnEconomy" type="Button" parent="MainPanel/VBox/TabContainer"]
-custom_minimumSize = Vector2(180, 45)
+custom_minimumSize = Vector2(150, 40)
 layout_mode = 2
 focus_mode = 0
 
 [node name="BtnMilitary" type="Button" parent="MainPanel/VBox/TabContainer"]
-custom_minimumSize = Vector2(180, 45)
+custom_minimumSize = Vector2(150, 40)
 layout_mode = 2
 focus_mode = 0
 
@@ -118,7 +105,7 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="TableHeader" type="HBoxContainer" parent="MainPanel/VBox/TableFrame/VBox"]
-custom_minimumSize = Vector2(0, 35)
+custom_minimumSize = Vector2(0, 32)
 layout_mode = 2
 
 [node name="PlayerCol" type="Label" parent="MainPanel/VBox/TableFrame/VBox/TableHeader"]
@@ -155,15 +142,42 @@ vertical_alignment = 2
 [node name="TableRowsContainer" type="VBoxContainer" parent="MainPanel/VBox/TableFrame/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
 [node name="GraphFrame" type="PanelContainer" parent="MainPanel/VBox"]
-custom_minimumSize = Vector2(0, 190)
+custom_minimumSize = Vector2(0, 260)
 layout_mode = 2
+size_flags_vertical = 3
 
-[node name="TimelineGraph" type="Control" parent="MainPanel/VBox/GraphFrame"]
+[node name="VBox" type="VBoxContainer" parent="MainPanel/VBox/GraphFrame"]
 layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="GraphHeaderLabel" type="Label" parent="MainPanel/VBox/GraphFrame/VBox"]
+layout_mode = 2
+text = "TIMELINE PROGRESSION"
+
+[node name="TimelineGraph" type="Control" parent="MainPanel/VBox/GraphFrame/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
 script = ExtResource("3_graph")
+
+[node name="TitleLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -500.0
+offset_top = -525.0
+offset_right = 500.0
+offset_bottom = -445.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 56
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="BottomButtons" type="HBoxContainer" parent="."]
 layout_mode = 1
