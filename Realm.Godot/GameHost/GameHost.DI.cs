@@ -39,6 +39,7 @@ public partial class GameHost
 		services.AddSingleton<FXService>();
 		services.AddSingleton<SaveLoadService>();
 		services.AddSingleton<EditorService>();
+		services.AddSingleton<Realm.MapAPI.IEditorAPI>(sp => sp.GetRequiredService<EditorService>());
 		services.AddSingleton<ReplayService>();
 		services.AddSingleton<NetworkService>();
 		services.AddSingleton<TechTreeService>();

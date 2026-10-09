@@ -13,7 +13,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-public class EditorService
+public class EditorService : Realm.MapAPI.IEditorAPI
 {
 	private readonly WorldAccessor EcsWorldAccessor;
 	private World EcsWorld => EcsWorldAccessor.Current;
@@ -3975,5 +3975,22 @@ public class EditorService
 		{
 			GD.PrintErr($"[EditorService] HandleExternalTerrainChange error: {ex.Message}");
 		}
+	}
+
+	public bool CommitCoordinate(string name, int minCellX, int minCellZ, int maxCellX, int maxCellZ)
+	{
+		return GameHost.Instance?.CommitCoordinateExternal(name, minCellX, minCellZ, maxCellX, maxCellZ) ?? false;
+	}
+
+	public bool DeleteCoordinate(string name)
+	{
+		if (GameHost.Instance == null) return false;
+		GameHost.Instance.DeleteCoordinateExternal(name);
+		return true;
+	}
+
+	public void SelectCoordinate(string name)
+	{
+		GameHost.Instance?.SelectCoordinateExternal(name);
 	}
 }

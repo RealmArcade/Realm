@@ -23,6 +23,7 @@
     <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
     <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
     <ProjectReference Include="..\Realm.MapAPI\Realm.MapAPI.csproj" />
+    <ProjectReference Include="..\Realm.EditorAPI\Realm.EditorAPI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

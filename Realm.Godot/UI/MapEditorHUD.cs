@@ -436,6 +436,8 @@ public partial class MapEditorHUD : Control
 	private string _tempWorkspacePath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
 	public string TempWorkspacePath => _tempWorkspacePath;
 	private EditorService _editorService;
+	private Realm.MapAPI.IEditorAPI _editorApi;
+	public Realm.MapAPI.IEditorAPI EditorApi => _editorApi ??= ServiceLocator.Get<Realm.MapAPI.IEditorAPI>();
 	private MapUpgradeService _mapUpgradeService;
 	private long _lastTerrainSyncTime = 0;
 	private long _lastMetadataSyncTime = 0;
@@ -1355,7 +1357,7 @@ public partial class MapEditorHUD : Control
 				ShowFeedback("Enter a coordinate name before creating.");
 				return;
 			}
-			bool ok = GameHost.Instance?.CommitCoordinateExternal(name, _pendingCoordinateMinX, _pendingCoordinateMinZ, _pendingCoordinateMaxX, _pendingCoordinateMaxZ) ?? false;
+			bool ok = EditorApi?.CommitCoordinate(name, _pendingCoordinateMinX, _pendingCoordinateMinZ, _pendingCoordinateMaxX, _pendingCoordinateMaxZ) ?? false;
 			if (ok)
 			{
 				RefreshCoordinateListExternal();
@@ -2658,7 +2660,7 @@ public partial class MapEditorHUD : Control
 			string coordinateName = coord.Name;
 			btnSelect.Pressed += () =>
 			{
-				GameHost.Instance?.SelectCoordinateExternal(coordinateName);
+				EditorApi?.SelectCoordinate(coordinateName);
 			};
 			row.AddChild(btnSelect);
 
@@ -2666,7 +2668,7 @@ public partial class MapEditorHUD : Control
 			btnDel.Set("icon_max_width", 0);
 			SetupButton(btnDel, "✕", () =>
 			{
-				GameHost.Instance?.DeleteCoordinateExternal(coordinateName);
+				EditorApi?.DeleteCoordinate(coordinateName);
 				RefreshCoordinateListExternal();
 			}, 10, $"Delete coordinate '{coordinateName}'");
 			btnDel.CustomMinimumSize = new Vector2(28, 24);

@@ -796,7 +796,187 @@ public partial class VSCodeManager
 
 			var responseObj = new System.Text.Json.Nodes.JsonObject();
 
-			if (action == "openVfxDialog")
+			if (action == "invokeEditorApi" || (action != null && action.StartsWith("editorApi.")))
+			{
+				string apiMethod = action == "invokeEditorApi" ? (node?["method"]?.ToString() ?? "") : action.Substring(10);
+				string reqId = node?["requestId"]?.ToString() ?? "";
+				bool apiSuccess = false;
+				string apiError = "";
+				object? invocationResult = null;
+
+				try
+				{
+					var editorApi = ServiceLocator.Get<Realm.MapAPI.IEditorAPI>();
+					if (editorApi != null)
+					{
+						var methodInfo = typeof(Realm.MapAPI.IEditorAPI).GetMethods()
+							.FirstOrDefault(m => string.Equals(m.Name, apiMethod, StringComparison.OrdinalIgnoreCase));
+
+						if (methodInfo != null)
+						{
+							var parameters = methodInfo.GetParameters();
+							var args = new object?[parameters.Length];
+							var argsNode = node?["args"] as JsonObject ?? node as JsonObject;
+
+							for (int i = 0; i < parameters.Length; i++)
+							{
+								var param = parameters[i];
+								Type paramType = param.ParameterType;
+								JsonNode? paramNode = null;
+
+								if (argsNode != null)
+								{
+									if (argsNode.TryGetPropertyValue(param.Name!, out var matchedNode))
+									{
+										paramNode = matchedNode;
+									}
+									else
+									{
+										foreach (var kvp in argsNode)
+										{
+											if (string.Equals(kvp.Key, param.Name, StringComparison.OrdinalIgnoreCase))
+											{
+												paramNode = kvp.Value;
+												break;
+											}
+										}
+									}
+								}
+
+								if (paramNode == null)
+								{
+									if (paramType == typeof(System.Numerics.Vector3))
+									{
+										float vx = 0f, vy = 0f, vz = 0f;
+										if (argsNode != null)
+										{
+											foreach (var kvp in argsNode)
+											{
+												if (string.Equals(kvp.Key, "x", StringComparison.OrdinalIgnoreCase) && kvp.Value != null)
+													vx = kvp.Value.GetValue<float>();
+												else if (string.Equals(kvp.Key, "y", StringComparison.OrdinalIgnoreCase) && kvp.Value != null)
+													vy = kvp.Value.GetValue<float>();
+												else if (string.Equals(kvp.Key, "z", StringComparison.OrdinalIgnoreCase) && kvp.Value != null)
+													vz = kvp.Value.GetValue<float>();
+											}
+										}
+										args[i] = new System.Numerics.Vector3(vx, vy, vz);
+										continue;
+									}
+
+									if (param.HasDefaultValue)
+									{
+										args[i] = param.DefaultValue;
+									}
+									else if (paramType.IsValueType)
+									{
+										args[i] = Activator.CreateInstance(paramType);
+									}
+									else
+									{
+										args[i] = null;
+									}
+									continue;
+								}
+
+								if (paramType == typeof(System.Numerics.Vector3))
+								{
+									if (paramNode is JsonObject vObj)
+									{
+										float vx = 0f, vy = 0f, vz = 0f;
+										foreach (var kvp in vObj)
+										{
+											if (string.Equals(kvp.Key, "x", StringComparison.OrdinalIgnoreCase) && kvp.Value != null)
+												vx = kvp.Value.GetValue<float>();
+											else if (string.Equals(kvp.Key, "y", StringComparison.OrdinalIgnoreCase) && kvp.Value != null)
+												vy = kvp.Value.GetValue<float>();
+											else if (string.Equals(kvp.Key, "z", StringComparison.OrdinalIgnoreCase) && kvp.Value != null)
+												vz = kvp.Value.GetValue<float>();
+										}
+										args[i] = new System.Numerics.Vector3(vx, vy, vz);
+									}
+									else if (paramNode is JsonArray vArr && vArr.Count >= 3)
+									{
+										args[i] = new System.Numerics.Vector3(
+											vArr[0]?.GetValue<float>() ?? 0f,
+											vArr[1]?.GetValue<float>() ?? 0f,
+											vArr[2]?.GetValue<float>() ?? 0f
+										);
+									}
+									else
+									{
+										args[i] = new System.Numerics.Vector3(0f, 0f, 0f);
+									}
+								}
+								else
+								{
+									args[i] = System.Text.Json.JsonSerializer.Deserialize(paramNode.ToJsonString(), paramType, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+								}
+							}
+
+							var tcs = new System.Threading.Tasks.TaskCompletionSource<object?>(System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
+							Callable.From(() =>
+							{
+								try
+								{
+									var result = methodInfo.Invoke(editorApi, args);
+									tcs.TrySetResult(result);
+								}
+								catch (System.Reflection.TargetInvocationException tie)
+								{
+									tcs.TrySetException(tie.InnerException ?? tie);
+								}
+								catch (Exception exMethod)
+								{
+									tcs.TrySetException(exMethod);
+								}
+							}).CallDeferred();
+
+							try
+							{
+								invocationResult = await tcs.Task;
+								apiSuccess = true;
+							}
+							catch (Exception exAsync)
+							{
+								apiError = exAsync.Message;
+								GD.PrintErr($"[VSCodeManager] EditorAPI call {apiMethod} failed: {exAsync.Message}");
+							}
+						}
+						else
+						{
+							apiError = $"Method '{apiMethod}' not found on IEditorAPI.";
+						}
+					}
+					else
+					{
+						apiError = "IEditorAPI service not registered or editor inactive.";
+					}
+				}
+				catch (Exception ex)
+				{
+					apiError = ex.Message;
+				}
+
+				responseObj["action"] = "invokeEditorApiResult";
+				responseObj["method"] = apiMethod;
+				responseObj["requestId"] = reqId;
+				responseObj["success"] = apiSuccess;
+				if (invocationResult != null)
+				{
+					responseObj["result"] = System.Text.Json.JsonSerializer.SerializeToNode(invocationResult);
+					if (invocationResult is string strVal)
+					{
+						responseObj["instanceId"] = strVal;
+					}
+					else if (invocationResult is bool bVal)
+					{
+						responseObj["deleted"] = bVal;
+					}
+				}
+				if (!string.IsNullOrEmpty(apiError)) responseObj["error"] = apiError;
+			}
+			else if (action == "openVfxDialog")
 			{
 				string weaponId = node["weaponId"]?.ToString() ?? "";
 				var weaponDataNode = node["weaponData"];

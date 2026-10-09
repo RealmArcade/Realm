@@ -41,8 +41,9 @@
 - Services should never be instantiated directly, they should always be retrieved via the global ServiceLocator during godot scene _Ready() and stored in private readonly fields.
 
 ### Realm.MapAPI:
-- Only expose safe APIs to map authors to prevent the direct manipulation of Godot nodes or internal C# ECS structures.
-- All map scripting operations should strictly proxy through interfaces (like `IGameAPI` and `IUnit`). Implementations (e.g. `UnitWrapper`) must hide the underlying `Arch.Core.Entity` and raw Godot `Node` references.
+- Only expose safe APIs to map authors and external tools to prevent direct manipulation of raw Godot nodes or internal C# ECS structures.
+- All map scripting operations proxy through `IGameAPI`, while map editing operations proxy through `IEditorAPI`.
+- Everything in `Realm.MapAPI` (including `IGameAPI` and `IEditorAPI`) must have full, comprehensive XML-doc comments for public consumption.
 
 ### Map Workspaces & WASM Compilation (Portability):
 - The map temp workspace is compiled to WASM via `dotnet publish`. Workspaces and saved map folders MUST be machine-portable: never write absolute paths into generated/saved `.csproj` files.

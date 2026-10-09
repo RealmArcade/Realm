@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Realm.EditorAPI</name>
+    </assembly>
+    <members>
+        <member name="T:Realm.MapAPI.IEditorAPI">
+            <summary>
+            Provides domain service capabilities for map editing operations.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IEditorAPI.CommitCoordinate(System.String,System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Creates or updates a named map coordinate trigger region with grid extents.
+            </summary>
+            <param name="name">Unique name identifier of the coordinate.</param>
+            <param name="minCellX">West grid cell coordinate boundary.</param>
+            <param name="minCellZ">South grid cell coordinate boundary.</param>
+            <param name="maxCellX">East grid cell coordinate boundary.</param>
+            <param name="maxCellZ">North grid cell coordinate boundary.</param>
+            <returns>True if coordinate was successfully created or updated; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IEditorAPI.DeleteCoordinate(System.String)">
+            <summary>
+            Deletes a named map coordinate trigger region by name.
+            </summary>
+            <param name="name">Unique name identifier of the coordinate to delete.</param>
+            <returns>True if the coordinate existed and was deleted; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IEditorAPI.SelectCoordinate(System.String)">
+            <summary>
+            Selects a named map coordinate trigger region and highlights its outline on the terrain.
+            </summary>
+            <param name="name">Unique name identifier of the coordinate to select, or empty string to clear selection.</param>
+        </member>
+    </members>
+</doc>

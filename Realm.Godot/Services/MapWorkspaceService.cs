@@ -553,9 +553,18 @@ public static partial class MapWorkspaceService
 
 		string sourceDll = candidates.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).First();
 		string dllName = Path.GetFileName(sourceDll);
-		foreach (var fileName in new[] { dllName, Path.ChangeExtension(dllName, ".pdb"), Path.ChangeExtension(dllName, ".xml") })
+		foreach (var fileName in new[] { dllName, Path.ChangeExtension(dllName, ".pdb"), Path.ChangeExtension(dllName, ".xml"), "Realm.EditorAPI.xml" })
 		{
 			string source = Path.Combine(Path.GetDirectoryName(sourceDll), fileName);
+			if (!File.Exists(source))
+			{
+				string templateAlt = GetTemplatePath("lib/" + fileName);
+				if (templateAlt != null && File.Exists(templateAlt))
+				{
+					source = templateAlt;
+				}
+			}
+
 			if (File.Exists(source))
 			{
 				try

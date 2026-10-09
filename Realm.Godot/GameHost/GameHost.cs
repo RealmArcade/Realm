@@ -1412,7 +1412,10 @@ public class {mapName} : IMapScript
 
 				CopyIfDifferent(dllPath, System.IO.Path.Combine(libDir, "Realm.MapAPI.dll"));
 				if (System.IO.File.Exists(xmlPath))
+				{
 					CopyIfDifferent(xmlPath, System.IO.Path.Combine(libDir, "Realm.MapAPI.xml"));
+					CopyIfDifferent(xmlPath, System.IO.Path.Combine(libDir, "Realm.EditorAPI.xml"));
+				}
 				string pdbPath = System.IO.Path.ChangeExtension(dllPath, ".pdb");
 				if (System.IO.File.Exists(pdbPath))
 					CopyIfDifferent(pdbPath, System.IO.Path.Combine(libDir, "Realm.MapAPI.pdb"));
