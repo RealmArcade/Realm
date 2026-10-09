@@ -430,64 +430,90 @@ public static class MapGenerator
 		return tiers;
 	}
 
-	private static (TerrainCell[,], int[,]) ApplyTiersToTerrain(GameHost host, sbyte[,] tiers, int width, int depth)
-	{
-		var cells = new TerrainCell[width, depth];
-		for (int z = 0; z < depth; z++)
+		private static (TerrainCell[,], int[,]) ApplyTiersToTerrain(GameHost host, sbyte[,] tiers, int width, int depth)
 		{
-			for (int x = 0; x < width; x++)
+			var cells = CreateTerrainCells(tiers, width, depth);
+			host.GroundTerrain.Cells = cells;
+
+			EnsureTerrainMapsExist(host, width, depth);
+
+			var pathingCodes = EnsurePathingCodesExist(host, width, depth);
+			PopulateTerrainMaps(host, tiers, cells, pathingCodes, width, depth);
+
+			host.GroundTerrain.PathingCodes = pathingCodes;
+			
+			return (cells, pathingCodes);
+		}
+
+		private static TerrainCell[,] CreateTerrainCells(sbyte[,] tiers, int width, int depth)
+		{
+			var cells = new TerrainCell[width, depth];
+			for (int z = 0; z < depth; z++)
 			{
-				sbyte tier = tiers[x, z];
-				float height = tier * EditableTerrain.TIER_HEIGHT;
-				cells[x, z] = new TerrainCell(height);
+				for (int x = 0; x < width; x++)
+				{
+					sbyte tier = tiers[x, z];
+					float height = tier * EditableTerrain.TIER_HEIGHT;
+					cells[x, z] = new TerrainCell(height);
+				}
+			}
+			return cells;
+		}
+
+		private static void EnsureTerrainMapsExist(GameHost host, int width, int depth)
+		{
+			if (host.GroundTerrain.SplatMap == null || host.GroundTerrain.SplatMap.GetLength(0) < width + 1 || host.GroundTerrain.SplatMap.GetLength(1) < depth + 1)
+			{
+				host.GroundTerrain.SplatMap = new TerrainSplatWeights[width + 1, depth + 1];
+			}
+
+			if (host.GroundTerrain.CliffSplatMap == null || host.GroundTerrain.CliffSplatMap.GetLength(0) < width + 1 || host.GroundTerrain.CliffSplatMap.GetLength(1) < depth + 1)
+			{
+				host.GroundTerrain.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 			}
 		}
-		host.GroundTerrain.Cells = cells;
 
-		if (host.GroundTerrain.SplatMap == null || host.GroundTerrain.SplatMap.GetLength(0) < width + 1 || host.GroundTerrain.SplatMap.GetLength(1) < depth + 1)
+		private static int[,] EnsurePathingCodesExist(GameHost host, int width, int depth)
 		{
-			host.GroundTerrain.SplatMap = new TerrainSplatWeights[width + 1, depth + 1];
-		}
-
-		if (host.GroundTerrain.CliffSplatMap == null || host.GroundTerrain.CliffSplatMap.GetLength(0) < width + 1 || host.GroundTerrain.CliffSplatMap.GetLength(1) < depth + 1)
-		{
-			host.GroundTerrain.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
-		}
-
-		var pathingCodes = host.GroundTerrain.PathingCodes;
-		if (pathingCodes == null || pathingCodes.GetLength(0) != width || pathingCodes.GetLength(1) != depth)
-		{
-			pathingCodes = new int[width, depth];
-		}
-
-		for (int z = 0; z <= depth; z++)
-		{
-			for (int x = 0; x <= width; x++)
+			var pathingCodes = host.GroundTerrain.PathingCodes;
+			if (pathingCodes == null || pathingCodes.GetLength(0) != width || pathingCodes.GetLength(1) != depth)
 			{
-				int cellX = Math.Clamp(x, 0, width - 1);
-				int cellZ = Math.Clamp(z, 0, depth - 1);
-				sbyte tier = tiers[cellX, cellZ];
+				return new int[width, depth];
+			}
+			return pathingCodes;
+		}
 
-				host.GroundTerrain.SplatMap[x, z] = tier switch
+		private static void PopulateTerrainMaps(GameHost host, sbyte[,] tiers, TerrainCell[,] cells, int[,] pathingCodes, int width, int depth)
+		{
+			for (int z = 0; z <= depth; z++)
+			{
+				for (int x = 0; x <= width; x++)
 				{
-					< 0 => TerrainSplatWeights.CreateSolid(4),
-					0 => TerrainSplatWeights.CreateSolid(3),
-					1 or 2 => TerrainSplatWeights.CreateSolid(2),
-					_ => TerrainSplatWeights.CreateSolid(0)
-				};
+					int cellX = Math.Clamp(x, 0, width - 1);
+					int cellZ = Math.Clamp(z, 0, depth - 1);
+					sbyte tier = tiers[cellX, cellZ];
 
-				host.GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
+					host.GroundTerrain.SplatMap[x, z] = GetTerrainSplatWeight(tier);
+					host.GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
 
-				if (x < width && z < depth)
-				{
-					pathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
+					if (x < width && z < depth)
+					{
+						pathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
+					}
 				}
 			}
 		}
-		host.GroundTerrain.PathingCodes = pathingCodes;
-		
-		return (cells, pathingCodes);
-	}
+
+		private static TerrainSplatWeights GetTerrainSplatWeight(sbyte tier)
+		{
+			return tier switch
+			{
+				< 0 => TerrainSplatWeights.CreateSolid(4),
+				0 => TerrainSplatWeights.CreateSolid(3),
+				1 or 2 => TerrainSplatWeights.CreateSolid(2),
+				_ => TerrainSplatWeights.CreateSolid(0)
+			};
+		}
 
 	private static void SpawnUnitsAndProps(GameHost host, Vector2I[] sites, int width, int depth, float quadSize, Random random)
 	{
@@ -741,42 +767,59 @@ public static class MapGenerator
 		return true;
 	}
 
-	private static List<Vector2> PoissonDiscSample(
-		Random random,
-		float width,
-		float height,
-		float radius,
-		int maxCandidates = 30
-	)
-	{
-		float cellSize = radius / (float)Math.Sqrt(2);
-		int gridWidth = (int)Math.Ceiling(width / cellSize);
-		int gridHeight = (int)Math.Ceiling(height / cellSize);
-		Vector2?[,] grid = new Vector2?[gridWidth, gridHeight];
-
-		List<Vector2> points = new List<Vector2>();
-		List<Vector2> activeList = new List<Vector2>();
-
-		Vector2 firstPoint = new Vector2(
-			(float)(random.NextDouble() * width),
-			(float)(random.NextDouble() * height)
-		);
-		points.Add(firstPoint);
-		activeList.Add(firstPoint);
-
-		int gX = (int)(firstPoint.X / cellSize);
-		int gY = (int)(firstPoint.Y / cellSize);
-		if (gX >= 0 && gX < gridWidth && gY >= 0 && gY < gridHeight)
+		private static List<Vector2> PoissonDiscSample(
+			Random random,
+			float width,
+			float height,
+			float radius,
+			int maxCandidates = 30
+		)
 		{
-			grid[gX, gY] = firstPoint;
+			float cellSize = radius / (float)Math.Sqrt(2);
+			int gridWidth = (int)Math.Ceiling(width / cellSize);
+			int gridHeight = (int)Math.Ceiling(height / cellSize);
+			Vector2?[,] grid = new Vector2?[gridWidth, gridHeight];
+
+			List<Vector2> points = new List<Vector2>();
+			List<Vector2> activeList = new List<Vector2>();
+
+			Vector2 firstPoint = new Vector2(
+				(float)(random.NextDouble() * width),
+				(float)(random.NextDouble() * height)
+			);
+			
+			AddPointToGrid(firstPoint, points, activeList, grid, cellSize, gridWidth, gridHeight);
+
+			while (activeList.Count > 0)
+			{
+				int index = random.Next(activeList.Count);
+				Vector2 point = activeList[index];
+
+				if (!TryAddNextCandidate(random, point, maxCandidates, radius, width, height, cellSize, gridWidth, gridHeight, grid, points, activeList))
+				{
+					activeList.RemoveAt(index);
+				}
+			}
+
+			return points;
 		}
 
-		while (activeList.Count > 0)
+		private static void AddPointToGrid(Vector2 point, List<Vector2> points, List<Vector2> activeList, Vector2?[,] grid, float cellSize, int gridWidth, int gridHeight)
 		{
-			int index = random.Next(activeList.Count);
-			Vector2 point = activeList[index];
-			bool found = false;
+			points.Add(point);
+			activeList.Add(point);
 
+			int gX = (int)(point.X / cellSize);
+			int gY = (int)(point.Y / cellSize);
+			
+			if (gX >= 0 && gX < gridWidth && gY >= 0 && gY < gridHeight)
+			{
+				grid[gX, gY] = point;
+			}
+		}
+
+		private static bool TryAddNextCandidate(Random random, Vector2 point, int maxCandidates, float radius, float width, float height, float cellSize, int gridWidth, int gridHeight, Vector2?[,] grid, List<Vector2> points, List<Vector2> activeList)
+		{
 			for (int k = 0; k < maxCandidates; k++)
 			{
 				double angle = random.NextDouble() * 2 * Math.PI;
@@ -786,27 +829,22 @@ public static class MapGenerator
 					point.Y + (float)(r * Math.Sin(angle))
 				);
 
-				if (candidate.X < 0 || candidate.X >= width || candidate.Y < 0 || candidate.Y >= height) continue;
+				if (!IsCandidateInBounds(candidate, width, height)) continue;
 
 				int cX = (int)(candidate.X / cellSize);
 				int cY = (int)(candidate.Y / cellSize);
 
 				if (IsFarEnough(candidate, grid, radius, cX, cY, gridWidth, gridHeight))
 				{
-					points.Add(candidate);
-					activeList.Add(candidate);
-					grid[cX, cY] = candidate;
-					found = true;
-					break;
+					AddPointToGrid(candidate, points, activeList, grid, cellSize, gridWidth, gridHeight);
+					return true;
 				}
 			}
-
-			if (!found)
-			{
-				activeList.RemoveAt(index);
-			}
+			return false;
 		}
 
-		return points;
-	}
+		private static bool IsCandidateInBounds(Vector2 candidate, float width, float height)
+		{
+			return candidate.X >= 0 && candidate.X < width && candidate.Y >= 0 && candidate.Y < height;
+		}
 }

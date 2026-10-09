@@ -448,84 +448,15 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		{
 			_vfxInstance.Stop();
 		}
-	}
-
-	private void PlaySoundFile(string soundPath)
+	}	private void PlaySoundFile(string soundPath)
 	{
 		if (string.IsNullOrWhiteSpace(soundPath) || _sfxPlayer == null) return;
 
 		try
 		{
-			if (soundPath.StartsWith("res://"))
-			{
-				if (ResourceLoader.Exists(soundPath))
-				{
-					_sfxPlayer.Stream = GD.Load<AudioStream>(soundPath);
-					_sfxPlayer.Play();
-					return;
-				}
-			}
+			if (TryPlayResPath(soundPath)) return;
 
-			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
-			string fileName = System.IO.Path.GetFileName(cleanPath);
-
-			var candidatePaths = new List<string>
-			{
-				soundPath,
-				System.IO.Path.Combine(wsPath, cleanPath),
-				System.IO.Path.Combine(wsPath, "Assets", cleanPath),
-				System.IO.Path.Combine(wsPath, "Assets", "audio", "sfx", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "audio", "music", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "audio", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "sounds", fileName),
-			};
-
-			AudioStream stream = null;
-			foreach (var candidate in candidatePaths)
-			{
-				if (!string.IsNullOrWhiteSpace(candidate) && System.IO.File.Exists(candidate))
-				{
-					if (candidate.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
-					{
-						byte[] raudBytes = System.IO.File.ReadAllBytes(candidate);
-						byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
-						if (oggBytes != null && oggBytes.Length > 0)
-						{
-							stream = AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
-						}
-					}
-					else if (candidate.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
-					{
-						stream = AudioStreamOggVorbis.LoadFromFile(candidate);
-					}
-					else
-					{
-						stream = GD.Load<AudioStream>(candidate);
-					}
-					if (stream != null) break;
-				}
-			}
-
-			if (stream == null)
-			{
-				var resCandidates = new[]
-				{
-					$"res://Assets/audio/sfx/{fileName}",
-					$"res://Assets/audio/music/{fileName}",
-					$"res://Assets/audio/{fileName}",
-					$"res://Assets/sounds/{fileName}",
-					$"res://{cleanPath}"
-				};
-				foreach (var resPath in resCandidates)
-				{
-					if (ResourceLoader.Exists(resPath))
-					{
-						stream = GD.Load<AudioStream>(resPath);
-						if (stream != null) break;
-					}
-				}
-			}
+			AudioStream stream = TryLoadSoundFromWorkspace(soundPath) ?? TryLoadSoundFromResCandidates(soundPath);
 
 			if (stream != null)
 			{
@@ -539,90 +470,101 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private Texture2D ResolveTexture(string path)
+	private bool TryPlayResPath(string soundPath)
+	{
+		if (!soundPath.StartsWith("res://") || !ResourceLoader.Exists(soundPath)) return false;
+		
+		_sfxPlayer.Stream = GD.Load<AudioStream>(soundPath);
+		_sfxPlayer.Play();
+		return true;
+	}
+
+	private AudioStream TryLoadSoundFromWorkspace(string soundPath)
+	{
+		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
+		string fileName = System.IO.Path.GetFileName(cleanPath);
+
+		var candidatePaths = new[]
+		{
+			soundPath,
+			System.IO.Path.Combine(wsPath, cleanPath),
+			System.IO.Path.Combine(wsPath, "Assets", cleanPath),
+			System.IO.Path.Combine(wsPath, "Assets", "audio", "sfx", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "audio", "music", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "audio", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "sounds", fileName),
+		};
+
+		foreach (var candidate in candidatePaths)
+		{
+			if (string.IsNullOrWhiteSpace(candidate) || !System.IO.File.Exists(candidate)) continue;
+			
+			AudioStream stream = LoadAudioStreamFromFile(candidate);
+			if (stream != null) return stream;
+		}
+
+		return null;
+	}
+
+	private AudioStream LoadAudioStreamFromFile(string candidate)
+	{
+		if (candidate.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
+		{
+			byte[] raudBytes = System.IO.File.ReadAllBytes(candidate);
+			byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
+			if (oggBytes != null && oggBytes.Length > 0)
+			{
+				return AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
+			}
+			return null;
+		}
+		
+		if (candidate.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
+		{
+			return AudioStreamOggVorbis.LoadFromFile(candidate);
+		}
+		
+		return GD.Load<AudioStream>(candidate);
+	}
+
+	private AudioStream TryLoadSoundFromResCandidates(string soundPath)
+	{
+		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
+		string fileName = System.IO.Path.GetFileName(cleanPath);
+
+		var resCandidates = new[]
+		{
+			$"res://Assets/audio/sfx/{fileName}",
+			$"res://Assets/audio/music/{fileName}",
+			$"res://Assets/audio/{fileName}",
+			$"res://Assets/sounds/{fileName}",
+			$"res://{cleanPath}"
+		};
+		
+		foreach (var resPath in resCandidates)
+		{
+			if (ResourceLoader.Exists(resPath))
+			{
+				var stream = GD.Load<AudioStream>(resPath);
+				if (stream != null) return stream;
+			}
+		}
+		
+		return null;
+	}	private Texture2D ResolveTexture(string path)
 	{
 		if (string.IsNullOrWhiteSpace(path)) return null;
 
 		try
 		{
-			if (path.StartsWith("res://"))
+			if (path.StartsWith("res://") && ResourceLoader.Exists(path))
 			{
-				if (ResourceLoader.Exists(path))
-				{
-					return GD.Load<Texture2D>(path);
-				}
+				return GD.Load<Texture2D>(path);
 			}
 
-			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
-			string fileName = System.IO.Path.GetFileName(cleanPath);
-
-			var candidatePaths = new List<string>
-			{
-				path,
-				System.IO.Path.Combine(wsPath, cleanPath),
-				System.IO.Path.Combine(wsPath, "Assets", cleanPath),
-				System.IO.Path.Combine(wsPath, "Assets", "vfx", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "icons", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "decals", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "textures", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "ribbons", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "noise", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "skyboxes", fileName),
-				System.IO.Path.Combine(wsPath, "Assets", "UI", fileName),
-			};
-
-			foreach (var candidate in candidatePaths)
-			{
-				if (!string.IsNullOrWhiteSpace(candidate) && System.IO.File.Exists(candidate))
-				{
-					Image? img = null;
-					if (candidate.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-					{
-						byte[] rtexBytes = System.IO.File.ReadAllBytes(candidate);
-						byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
-						if (webpBytes != null && webpBytes.Length > 0)
-						{
-							img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
-							if (img.LoadWebpFromBuffer(webpBytes) != Error.Ok)
-							{
-								img.LoadPngFromBuffer(webpBytes);
-							}
-						}
-					}
-					else
-					{
-						img = Image.LoadFromFile(candidate);
-					}
-
-					if (img != null)
-					{
-						if (!img.HasMipmaps())
-						{
-							img.GenerateMipmaps();
-						}
-						return ImageTexture.CreateFromImage(img);
-					}
-				}
-			}
-
-			var resCandidates = new[]
-			{
-				$"res://Assets/vfx/{fileName}",
-				$"res://Assets/icons/{fileName}",
-				$"res://Assets/decals/{fileName}",
-				$"res://Assets/textures/{fileName}",
-				$"res://Assets/UI/{fileName}",
-				$"res://{cleanPath}"
-			};
-
-			foreach (var resPath in resCandidates)
-			{
-				if (ResourceLoader.Exists(resPath))
-				{
-					return GD.Load<Texture2D>(resPath);
-				}
-			}
+			Texture2D tex = TryLoadTextureFromWorkspace(path) ?? TryLoadTextureFromResCandidates(path);
+			return tex;
 		}
 		catch (Exception ex)
 		{
@@ -632,48 +574,109 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
+	private Texture2D TryLoadTextureFromWorkspace(string path)
 	{
-		string effectiveId = abilityData?.TryGetPropertyValue("TemplateID", out var tidNode) == true && !string.IsNullOrWhiteSpace(tidNode?.ToString())
-			? tidNode.ToString()
-			: (abilityData?.TryGetPropertyValue("AbilityId", out var aidNode) == true && !string.IsNullOrWhiteSpace(aidNode?.ToString())
-				? aidNode.ToString()
-				: abilityId);
+		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
+		string fileName = System.IO.Path.GetFileName(cleanPath);
+
+		var candidatePaths = new[]
+		{
+			path,
+			System.IO.Path.Combine(wsPath, cleanPath),
+			System.IO.Path.Combine(wsPath, "Assets", cleanPath),
+			System.IO.Path.Combine(wsPath, "Assets", "vfx", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "icons", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "decals", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "textures", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "ribbons", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "noise", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "skyboxes", fileName),
+			System.IO.Path.Combine(wsPath, "Assets", "UI", fileName),
+		};
+
+		foreach (var candidate in candidatePaths)
+		{
+			if (string.IsNullOrWhiteSpace(candidate) || !System.IO.File.Exists(candidate)) continue;
+			
+			Texture2D tex = LoadTextureFromFile(candidate);
+			if (tex != null) return tex;
+		}
+
+		return null;
+	}
+
+	private Texture2D LoadTextureFromFile(string candidate)
+	{
+		Image img = null;
+		if (candidate.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			byte[] rtexBytes = System.IO.File.ReadAllBytes(candidate);
+			byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
+			if (webpBytes != null && webpBytes.Length > 0)
+			{
+				img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+				if (img.LoadWebpFromBuffer(webpBytes) != Error.Ok)
+				{
+					img.LoadPngFromBuffer(webpBytes);
+				}
+			}
+		}
+		else
+		{
+			img = Image.LoadFromFile(candidate);
+		}
+
+		if (img != null)
+		{
+			if (!img.HasMipmaps())
+			{
+				img.GenerateMipmaps();
+			}
+			return ImageTexture.CreateFromImage(img);
+		}
+		
+		return null;
+	}
+
+	private Texture2D TryLoadTextureFromResCandidates(string path)
+	{
+		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
+		string fileName = System.IO.Path.GetFileName(cleanPath);
+
+		var resCandidates = new[]
+		{
+			$"res://Assets/vfx/{fileName}",
+			$"res://Assets/icons/{fileName}",
+			$"res://Assets/decals/{fileName}",
+			$"res://Assets/textures/{fileName}",
+			$"res://Assets/UI/{fileName}",
+			$"res://{cleanPath}"
+		};
+
+		foreach (var resPath in resCandidates)
+		{
+			if (ResourceLoader.Exists(resPath))
+			{
+				return GD.Load<Texture2D>(resPath);
+			}
+		}
+		
+		return null;
+	}	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
+	{
+		string effectiveId = GetEffectiveAbilityId(abilityId, abilityData);
 
 		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(effectiveId);
 		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(effectiveId);
 		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
-		_abilityName = abilityData?["Name"]?.ToString() ?? _abilityId;
+		
+		ParseAbilityData(abilityData);
 		_onApplied = onApplied;
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Ability VFX Studio")} - {_abilityName}";
 
-		_currentVisualEffect = abilityData?["VisualEffect"]?.ToString() ?? string.Empty;
-		_currentCastSound = abilityData?["CastSound"]?.ToString() ?? string.Empty;
-		string rawIcon = abilityData?["IconPath"]?.ToString() ?? string.Empty;
-		if (!string.IsNullOrEmpty(rawIcon) && rawIcon.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			_currentIconPath = Path.GetFileName(rawIcon);
-		}
-		else
-		{
-			_currentIconPath = string.Empty;
-		}
-		_currentAoeRadius = abilityData?["AreaOfEffectRadius"] != null ? (float)abilityData["AreaOfEffectRadius"] : 4.0f;
-
-		_initialVisualEffect = _currentVisualEffect;
-		_initialCastSound = _currentCastSound;
-		_initialIconPath = _currentIconPath;
-		_initialAoeRadius = _currentAoeRadius;
-
-		_isUpdatingUI = true;
-		if (_txtSlug != null) _txtSlug.Text = _slug;
-		if (_txtName != null) _txtName.Text = _abilityName;
-		_setVisualEffectValue?.Invoke(_currentVisualEffect);
-		_setCastSoundValue?.Invoke(_currentCastSound);
-		_setIconPathValue?.Invoke(_currentIconPath);
-		if (_sldAoeRadius != null) _sldAoeRadius.Value = _currentAoeRadius;
-		_isUpdatingUI = false;
+		UpdateUIState();
 
 		UpdateIconPreview(_currentIconPath);
 		UpdateAoEIndicator(_currentAoeRadius);
@@ -682,6 +685,53 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		OpenDialog();
 		ResetCameraDefault();
 	}
+
+	private string GetEffectiveAbilityId(string fallbackId, JsonObject abilityData)
+	{
+		if (abilityData != null && abilityData.TryGetPropertyValue("TemplateID", out var tidNode) && !string.IsNullOrWhiteSpace(tidNode?.ToString()))
+		{
+			return tidNode.ToString();
+		}
+		
+		if (abilityData != null && abilityData.TryGetPropertyValue("AbilityId", out var aidNode) && !string.IsNullOrWhiteSpace(aidNode?.ToString()))
+		{
+			return aidNode.ToString();
+		}
+		
+		return fallbackId;
+	}
+
+	private void ParseAbilityData(JsonObject abilityData)
+	{
+		_abilityName = abilityData?["Name"]?.ToString() ?? _abilityId;
+		_currentVisualEffect = abilityData?["VisualEffect"]?.ToString() ?? string.Empty;
+		_currentCastSound = abilityData?["CastSound"]?.ToString() ?? string.Empty;
+		
+		string rawIcon = abilityData?["IconPath"]?.ToString() ?? string.Empty;
+		_currentIconPath = !string.IsNullOrEmpty(rawIcon) && rawIcon.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) 
+			? Path.GetFileName(rawIcon) 
+			: string.Empty;
+			
+		_currentAoeRadius = abilityData?["AreaOfEffectRadius"] != null ? (float)abilityData["AreaOfEffectRadius"] : 4.0f;
+
+		_initialVisualEffect = _currentVisualEffect;
+		_initialCastSound = _currentCastSound;
+		_initialIconPath = _currentIconPath;
+		_initialAoeRadius = _currentAoeRadius;
+	}
+
+	private void UpdateUIState()
+	{
+		_isUpdatingUI = true;
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		if (_txtName != null) _txtName.Text = _abilityName;
+		_setVisualEffectValue?.Invoke(_currentVisualEffect);
+		_setCastSoundValue?.Invoke(_currentCastSound);
+		_setIconPathValue?.Invoke(_currentIconPath);
+		if (_sldAoeRadius != null) _sldAoeRadius.Value = _currentAoeRadius;
+		_isUpdatingUI = false;
+	}
+
 
 	protected override void OnApply()
 	{

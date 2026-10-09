@@ -286,28 +286,24 @@ public partial class MapDetails : Control
 
 		string version = !string.IsNullOrWhiteSpace(map.Version) ? map.Version.Trim() : "1.0.0";
 
-		if (FileAccess.FileExists($"res://Maps/{map.Title}/{version}/manifest.json") ||
-		    FileAccess.FileExists($"res://Maps/{map.MapId}/manifest.json"))
-		{
-			return true;
-		}
-
-		if (FileAccess.FileExists($"res://Maps/{map.Title}/manifest.json") && CheckManifestByTitle(map.Title, version))
-		{
-			return true;
-		}
-
-		if (!string.IsNullOrWhiteSpace(map.MapId) && MapAssetManager.IsMapDownloaded(map.MapId))
-		{
-			return true;
-		}
-
-		if (!string.IsNullOrWhiteSpace(map.Title) && MapAssetManager.IsMapDownloaded(map.Title, version))
-		{
-			return true;
-		}
+		if (HasLocalManifestFile(map, version)) return true;
+		if (IsDownloadedViaAssetManager(map, version)) return true;
 
 		return false;
+	}
+
+	private bool HasLocalManifestFile(MapData map, string version)
+	{
+		if (FileAccess.FileExists($"res://Maps/{map.Title}/{version}/manifest.json")) return true;
+		if (FileAccess.FileExists($"res://Maps/{map.MapId}/manifest.json")) return true;
+		
+		return FileAccess.FileExists($"res://Maps/{map.Title}/manifest.json") && CheckManifestByTitle(map.Title, version);
+	}
+
+	private bool IsDownloadedViaAssetManager(MapData map, string version)
+	{
+		if (!string.IsNullOrWhiteSpace(map.MapId) && MapAssetManager.IsMapDownloaded(map.MapId)) return true;
+		return !string.IsNullOrWhiteSpace(map.Title) && MapAssetManager.IsMapDownloaded(map.Title, version);
 	}
 
 	private bool CheckManifestByTitle(string title, string version)
@@ -729,23 +725,48 @@ public partial class MapDetails : Control
 
 	private void UpdateCarousel()
 	{
-		if (_mapData?.Screenshots == null || _mapData.Screenshots.Length == 0) return;
+		if (!HasValidScreenshots()) return;
 
-		int len = _mapData.Screenshots.Length;
-		int leftIndex = (_carouselIndex - 1 + len) % len;
-		int rightIndex = (_carouselIndex + 1) % len;
+		UpdateCenterTexture();
 
+		bool hasMapFrame = CheckForMapFrame();
+		UpdatePeekVisibilities(!hasMapFrame);
+
+		if (hasMapFrame) return;
+
+		UpdatePeekTextures();
+	}
+
+	private bool HasValidScreenshots()
+	{
+		return _mapData?.Screenshots != null && _mapData.Screenshots.Length > 0;
+	}
+
+	private void UpdateCenterTexture()
+	{
 		Texture2D centerTex = LoadTextureSafe(_mapData.Screenshots[_carouselIndex]);
 		if (centerTex != null)
 		{
 			_texCenter.Texture = centerTex;
 		}
+	}
 
-		bool hasMapFrame = LoadTextureSafe("res://Assets/UI/map_details_map.png") != null || LoadTextureSafe("res://Assets/UI/map_details_map.jpg") != null;
-		if (_texLeftPeek != null) _texLeftPeek.Visible = !hasMapFrame;
-		if (_texRightPeek != null) _texRightPeek.Visible = !hasMapFrame;
+	private bool CheckForMapFrame()
+	{
+		return LoadTextureSafe("res://Assets/UI/map_details_map.png") != null || LoadTextureSafe("res://Assets/UI/map_details_map.jpg") != null;
+	}
 
-		if (hasMapFrame) return;
+	private void UpdatePeekVisibilities(bool isVisible)
+	{
+		if (_texLeftPeek != null) _texLeftPeek.Visible = isVisible;
+		if (_texRightPeek != null) _texRightPeek.Visible = isVisible;
+	}
+
+	private void UpdatePeekTextures()
+	{
+		int len = _mapData.Screenshots.Length;
+		int leftIndex = (_carouselIndex - 1 + len) % len;
+		int rightIndex = (_carouselIndex + 1) % len;
 
 		if (_texLeftPeek != null) _texLeftPeek.Texture = LoadTextureSafe(_mapData.Screenshots[leftIndex]);
 		if (_texRightPeek != null) _texRightPeek.Texture = LoadTextureSafe(_mapData.Screenshots[rightIndex]);

@@ -356,22 +356,27 @@ public class VfxShaderManager
 
 			if (vmeta == null) return null;
 
-			int cols = vmeta.Columns > 0 ? vmeta.Columns : 1;
-			int rows = vmeta.Rows > 0 ? vmeta.Rows : 1;
-			float fps = vmeta.Fps > 0.001f ? vmeta.Fps : 20.0f;
-			bool subframeBlend = vmeta.SubframeBlend;
-
-			bool isSpritesheet = cols > 1 || rows > 1 || !string.IsNullOrEmpty(vmeta.TexturePath);
-			if (!isSpritesheet) return null;
-
-			var result = (cols, rows, fps, subframeBlend);
-			SpritesheetMetaCache[path] = result;
-			return result;
+			return ProcessVfxMetadata(path, vmeta);
 		}
 		catch 
 		{ 
 			return null; 
 		}
+	}
+
+	private static (int Columns, int Rows, float Fps, bool SubframeBlend)? ProcessVfxMetadata(string path, VfxMetadata vmeta)
+	{
+		int cols = Math.Max(1, vmeta.Columns);
+		int rows = Math.Max(1, vmeta.Rows);
+		
+		bool isSpritesheet = cols > 1 || rows > 1 || !string.IsNullOrEmpty(vmeta.TexturePath);
+		if (!isSpritesheet) return null;
+
+		float fps = vmeta.Fps > 0.001f ? vmeta.Fps : 20.0f;
+		var result = (cols, rows, fps, vmeta.SubframeBlend);
+		
+		SpritesheetMetaCache[path] = result;
+		return result;
 	}
 
 	private static VfxMetadata GetVfxMetadata(MapMetadata metadata, string path, string fileName, string cleanBase)

@@ -2074,31 +2074,44 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
         sb.AppendLine($"    public {typeStr} {method.Name}({string.Join(", ", paramsDecl)})");
         sb.AppendLine("    {");
 
-        if (typeStr == "System.Numerics.Vector3")
+        EmitGuestMethodBody(sb, method, typeStr, retKind, importName, importCall, callArgs);
+
+        sb.AppendLine("    }");
+    }
+
+    private static void EmitGuestMethodBody(StringBuilder sb, IMethodSymbol method, string typeStr, RetKind retKind, string importName, string importCall, List<string> callArgs)
+    {
+        switch (typeStr)
         {
-            EmitGuestMethodVector3Return(sb, importName, callArgs);
+            case "System.Numerics.Vector3":
+                EmitGuestMethodVector3Return(sb, importName, callArgs);
+                return;
         }
-        else if (retKind == RetKind.StringListReturn)
+
+        switch (retKind)
         {
-            EmitGuestMethodStringListReturn(sb, importName, callArgs);
+            case RetKind.StringListReturn:
+                EmitGuestMethodStringListReturn(sb, importName, callArgs);
+                return;
+            case RetKind.EntityReturn:
+            case RetKind.EntityNullableReturn:
+                EmitGuestMethodEntityReturn(sb, method, importCall, retKind);
+                return;
+            case RetKind.EntityListReturn:
+                EmitGuestMethodEntityListReturn(sb, method, importCall);
+                return;
+            case RetKind.Void:
+                sb.AppendLine($"        {importCall};");
+                return;
         }
-        else if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
-        {
-            EmitGuestMethodEntityReturn(sb, method, importCall, retKind);
-        }
-        else if (retKind == RetKind.EntityListReturn)
-        {
-            EmitGuestMethodEntityListReturn(sb, method, importCall);
-        }
-        else if (retKind == RetKind.Void || method.ReturnType.SpecialType == SpecialType.System_Void)
+
+        if (method.ReturnType.SpecialType == SpecialType.System_Void)
         {
             sb.AppendLine($"        {importCall};");
+            return;
         }
-        else
-        {
-            sb.AppendLine($"        return {importCall};");
-        }
-        sb.AppendLine("    }");
+
+        sb.AppendLine($"        return {importCall};");
     }
 
     private static List<string> BuildGuestMethodParameters(IMethodSymbol method)

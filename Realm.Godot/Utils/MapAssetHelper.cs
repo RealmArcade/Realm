@@ -167,13 +167,24 @@ public static class MapAssetHelper
 
 	private static void ValidateDictionaryAssets(string workspacePath, MapMetadata metadata, List<string> missingFiles)
 	{
-		CheckDictionaryAssets(workspacePath, metadata.Textures?.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "textures", missingFiles);
-		CheckDictionaryAssets(workspacePath, metadata.Decals?.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "decals", missingFiles);
-		CheckDictionaryAssets(workspacePath, metadata.VfxSpritesheets?.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "vfx_spritesheets", missingFiles);
-		CheckDictionaryAssets(workspacePath, metadata.NoiseTextures?.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "noise", missingFiles);
-		CheckDictionaryAssets(workspacePath, metadata.Icons?.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "icons", missingFiles);
-		CheckDictionaryAssets(workspacePath, metadata.Skyboxes?.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "skyboxes", missingFiles);
-		CheckDictionaryAssets(workspacePath, metadata.Ribbons?.Select(k => !string.IsNullOrEmpty(k.Value?.TexturePath) ? k.Value.TexturePath : k.Key), "ribbons", missingFiles);
+		ValidateAssetDict(workspacePath, metadata.Textures, v => v.TexturePath, "textures", missingFiles);
+		ValidateAssetDict(workspacePath, metadata.Decals, v => v.TexturePath, "decals", missingFiles);
+		ValidateAssetDict(workspacePath, metadata.VfxSpritesheets, v => v.TexturePath, "vfx_spritesheets", missingFiles);
+		ValidateAssetDict(workspacePath, metadata.NoiseTextures, v => v.TexturePath, "noise", missingFiles);
+		ValidateAssetDict(workspacePath, metadata.Icons, v => v.TexturePath, "icons", missingFiles);
+		ValidateAssetDict(workspacePath, metadata.Skyboxes, v => v.TexturePath, "skyboxes", missingFiles);
+		ValidateAssetDict(workspacePath, metadata.Ribbons, v => v.TexturePath, "ribbons", missingFiles);
+	}
+
+	private static void ValidateAssetDict<T>(string workspacePath, Dictionary<string, T>? dict, Func<T, string?> pathSelector, string subFolder, List<string> missingFiles)
+	{
+		if (dict == null) return;
+		var keys = dict.Select(k => 
+		{
+			string? path = k.Value != null ? pathSelector(k.Value) : null;
+			return !string.IsNullOrEmpty(path) ? path : k.Key;
+		});
+		CheckDictionaryAssets(workspacePath, keys, subFolder, missingFiles);
 	}
 
 	private static void CheckDictionaryAssets(string workspacePath, IEnumerable<string>? keys, string subFolder, List<string> missingFiles)
@@ -393,29 +404,37 @@ public static class MapAssetHelper
 		}
 	}
 
+	private static readonly Dictionary<string, string> CategoryToSubFolder = new(StringComparer.OrdinalIgnoreCase)
+	{
+		{ "Character", "models/units" },
+		{ "Building", "models/buildings" },
+		{ "Prop", "models/props" },
+		{ "Item", "models/items" },
+		{ "Spritesheet", "vfx_spritesheets" },
+		{ "vfx_spritesheets", "vfx_spritesheets" },
+		{ "vfxspritesheets", "vfx_spritesheets" },
+		{ "vfx", "vfx_spritesheets" },
+		{ "vfx_radial", "vfx_radial" },
+		{ "vfx_vertical", "vfx_vertical" },
+		{ "Animation", "animations" },
+		{ "SoundEffect", "audio/sfx" },
+		{ "Music", "audio/music" },
+		{ "Icon", "icons" },
+		{ "Decal", "decals" },
+		{ "Ribbon", "ribbons" },
+		{ "Noise", "noise" },
+		{ "Skybox", "skyboxes" },
+		{ "Terrain", "textures" },
+		{ "Shader", "shaders" }
+	};
+
 	private static string GetSubFolderForCategory(string category)
 	{
-		return category switch
+		if (CategoryToSubFolder.TryGetValue(category, out string? subFolder))
 		{
-			"Character" => "models/units",
-			"Building" => "models/buildings",
-			"Prop" => "models/props",
-			"Item" => "models/items",
-			"Spritesheet" or "vfx_spritesheets" or "vfxspritesheets" or "vfx" => "vfx_spritesheets",
-			"vfx_radial" => "vfx_radial",
-			"vfx_vertical" => "vfx_vertical",
-			"Animation" => "animations",
-			"SoundEffect" => "audio/sfx",
-			"Music" => "audio/music",
-			"Icon" => "icons",
-			"Decal" => "decals",
-			"Ribbon" => "ribbons",
-			"Noise" => "noise",
-			"Skybox" => "skyboxes",
-			"Terrain" => "textures",
-			"Shader" => "shaders",
-			_ => category.ToLowerInvariant()
-		};
+			return subFolder;
+		}
+		return category.ToLowerInvariant();
 	}
 
 	private static bool IsModelCategory(string category)
@@ -462,19 +481,37 @@ public static class MapAssetHelper
 
 		var candidateFiles = GetCandidateModelFiles(fileName);
 
-		if (!string.IsNullOrEmpty(preferredSubCategory))
-		{
-			string prefSub = NormalizeGlbSubCategory(preferredSubCategory);
-			string? prefPath = TryFindModelInSubDir(modelsDir, prefSub, candidateFiles);
-			if (prefPath != null)
-			{
-				resolvedSubCategory = prefSub;
-				return prefPath;
-			}
-		}
+		string? foundPath = CheckPreferredCategory(modelsDir, preferredSubCategory, candidateFiles, ref resolvedSubCategory);
+		if (foundPath != null) return foundPath;
 
-		string[] subCategories = { "units", "buildings", "resources", "props", "projectiles", "attachments", "weapons", "environment" };
-		foreach (var sub in subCategories)
+		foundPath = CheckKnownSubCategories(modelsDir, candidateFiles, ref resolvedSubCategory);
+		if (foundPath != null) return foundPath;
+
+		foundPath = CheckUnknownSubCategories(modelsDir, candidateFiles, ref resolvedSubCategory);
+		if (foundPath != null) return foundPath;
+
+		return CheckDirectPath(modelsDir, candidateFiles);
+	}
+
+	private static readonly string[] KnownModelSubCategories = { "units", "buildings", "resources", "props", "projectiles", "attachments", "weapons", "environment" };
+
+	private static string? CheckPreferredCategory(string modelsDir, string? preferredSubCategory, string[] candidateFiles, ref string resolvedSubCategory)
+	{
+		if (string.IsNullOrEmpty(preferredSubCategory)) return null;
+
+		string prefSub = NormalizeGlbSubCategory(preferredSubCategory);
+		string? prefPath = TryFindModelInSubDir(modelsDir, prefSub, candidateFiles);
+		if (prefPath != null)
+		{
+			resolvedSubCategory = prefSub;
+			return prefPath;
+		}
+		return null;
+	}
+
+	private static string? CheckKnownSubCategories(string modelsDir, string[] candidateFiles, ref string resolvedSubCategory)
+	{
+		foreach (var sub in KnownModelSubCategories)
 		{
 			string? candPath = TryFindModelInSubDir(modelsDir, sub, candidateFiles);
 			if (candPath != null)
@@ -483,11 +520,15 @@ public static class MapAssetHelper
 				return candPath;
 			}
 		}
+		return null;
+	}
 
+	private static string? CheckUnknownSubCategories(string modelsDir, string[] candidateFiles, ref string resolvedSubCategory)
+	{
 		foreach (var dir in Directory.GetDirectories(modelsDir))
 		{
 			string sub = Path.GetFileName(dir).ToLowerInvariant();
-			if (subCategories.Contains(sub)) continue;
+			if (KnownModelSubCategories.Contains(sub)) continue;
 			
 			string? candPath = TryFindModelInSubDir(modelsDir, sub, candidateFiles);
 			if (candPath != null)
@@ -496,13 +537,16 @@ public static class MapAssetHelper
 				return candPath;
 			}
 		}
+		return null;
+	}
 
+	private static string? CheckDirectPath(string modelsDir, string[] candidateFiles)
+	{
 		foreach (var cand in candidateFiles)
 		{
 			string directPath = Path.Combine(modelsDir, cand);
 			if (File.Exists(directPath)) return directPath;
 		}
-
 		return null;
 	}
 

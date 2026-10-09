@@ -37,18 +37,18 @@ public class MapData
 
 	public static MapData FromDto(Realm.Shared.Distribution.DiscoveryMapDto dto, string? serverBaseUrl = null)
 	{
-		float rating = dto.RatingStars > 0 ? dto.RatingStars : (dto.AverageRating > 0 ? (float)dto.AverageRating : 5.0f);
+		float rating = GetCalculatedRating(dto);
 		var (v5, v3, v1) = CalculateVotes(dto.TotalReviews, rating);
-		string version = !string.IsNullOrWhiteSpace(dto.Version) ? dto.Version.Trim() : "1.0.0";
+		string version = GetSafeVersion(dto);
 
 		var mapData = new MapData
 		{
-			MapId = !string.IsNullOrEmpty(dto.MapId) ? dto.MapId : $"{dto.Title}_{version}",
+			MapId = GetMapId(dto, version),
 			Title = dto.Title,
 			Version = version,
 			Creator = dto.Creator,
 			ThumbnailPath = GetThumbnailPath(dto),
-			Description = !string.IsNullOrEmpty(dto.Description) ? dto.Description : "A custom map package published to the Realm network.",
+			Description = GetDescription(dto),
 			Screenshots = GetScreenshots(dto),
 			Features = GetFeatures(dto),
 			RatingStars = rating,
@@ -57,21 +57,79 @@ public class MapData
 			Votes1Star = $"{v1:N0} Votes",
 			AvgRating = $"{rating:F1} / 5.0",
 			AvgPlaytime = GetAvgPlaytime(dto),
-			PlayerCount = dto.GamesPlayed > 0 ? $"{dto.GamesPlayed:N0} Played" : "New Release",
-			CompletionRate = dto.GamesPlayed > 0 ? "100%" : "N/A",
+			PlayerCount = GetPlayerCount(dto),
+			CompletionRate = GetCompletionRate(dto),
 			FileSize = GetFileSize(dto),
-			EngineVersion = !string.IsNullOrWhiteSpace(dto.EngineVersion) ? dto.EngineVersion : "Godot Realm Engine v1.0",
-			MaxPlayers = !string.IsNullOrWhiteSpace(dto.MaxPlayers) ? dto.MaxPlayers : "8 Players",
+			EngineVersion = GetEngineVersion(dto),
+			MaxPlayers = GetMaxPlayersSafe(dto),
 			Genre = GetGenre(dto),
-			Awards = dto.Awards != null && dto.Awards.Count > 0 ? dto.Awards.ToArray() : new string[]
-			{
-				"res://Assets/UI/gold_coin.png",
-				"res://Assets/UI/battle_shield.png"
-			}
+			Awards = GetAwardsFallback(dto)
 		};
 
 		mapData.AvailableVersions = new List<MapData> { mapData };
 		return mapData;
+	}
+
+	private static float GetCalculatedRating(Realm.Shared.Distribution.DiscoveryMapDto dto)
+	{
+		if (dto.RatingStars > 0) return dto.RatingStars;
+		if (dto.AverageRating > 0) return (float)dto.AverageRating;
+		return 5.0f;
+	}
+
+	private static string GetSafeVersion(Realm.Shared.Distribution.DiscoveryMapDto dto)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.Version)) return dto.Version.Trim();
+		return "1.0.0";
+	}
+
+	private static string GetMapId(Realm.Shared.Distribution.DiscoveryMapDto dto, string version)
+	{
+		if (!string.IsNullOrEmpty(dto.MapId)) return dto.MapId;
+		return $"{dto.Title}_{version}";
+	}
+
+	private static string GetDescription(Realm.Shared.Distribution.DiscoveryMapDto dto)
+	{
+		if (!string.IsNullOrEmpty(dto.Description)) return dto.Description;
+		return "A custom map package published to the Realm network.";
+	}
+
+	private static string GetPlayerCount(Realm.Shared.Distribution.DiscoveryMapDto dto)
+	{
+		if (dto.GamesPlayed > 0) return $"{dto.GamesPlayed:N0} Played";
+		return "New Release";
+	}
+
+	private static string GetCompletionRate(Realm.Shared.Distribution.DiscoveryMapDto dto)
+	{
+		if (dto.GamesPlayed > 0) return "100%";
+		return "N/A";
+	}
+
+	private static string GetEngineVersion(Realm.Shared.Distribution.DiscoveryMapDto dto)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.EngineVersion)) return dto.EngineVersion;
+		return "Godot Realm Engine v1.0";
+	}
+
+	private static string GetMaxPlayersSafe(Realm.Shared.Distribution.DiscoveryMapDto dto)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.MaxPlayers)) return dto.MaxPlayers;
+		return "8 Players";
+	}
+
+	private static string[] GetAwardsFallback(Realm.Shared.Distribution.DiscoveryMapDto dto)
+	{
+		if (dto.Awards != null)
+		{
+			if (dto.Awards.Count > 0) return dto.Awards.ToArray();
+		}
+		return new string[]
+		{
+			"res://Assets/UI/gold_coin.png",
+			"res://Assets/UI/battle_shield.png"
+		};
 	}
 
 	private static string GetThumbnailPath(Realm.Shared.Distribution.DiscoveryMapDto dto)

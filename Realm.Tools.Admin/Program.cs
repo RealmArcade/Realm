@@ -742,20 +742,62 @@ public static class Program
 
     private static string ExtractAdminPublicKey(JsonNode? node)
     {
-        if (node?["adminPublicKey"] != null) return node["adminPublicKey"]!.ToString();
+        if (node is not JsonObject jsonObj) return "N/A";
 
-        if (node?["adminPublicKeys"] is JsonArray keyArr && keyArr.Count > 0)
+        if (jsonObj.TryGetPropertyValue("adminPublicKey", out JsonNode? adminPublicKey) && adminPublicKey != null)
         {
-            if (keyArr[0] != null) return keyArr[0]!.ToString();
+            return adminPublicKey.ToString();
         }
 
-        if (node?["admins"] is JsonArray adminArr2 && adminArr2.Count > 0)
+        if (TryExtractFromAdminPublicKeys(jsonObj, out string key))
         {
-            if (adminArr2[0]?["publicKey"] != null) return adminArr2[0]!["publicKey"]!.ToString();
-            if (adminArr2[0]?["PublicKey"] != null) return adminArr2[0]!["PublicKey"]!.ToString();
+            return key;
+        }
+
+        if (TryExtractFromAdminsArray(jsonObj, out key))
+        {
+            return key;
         }
 
         return "N/A";
+    }
+
+    private static bool TryExtractFromAdminPublicKeys(JsonObject node, out string key)
+    {
+        key = string.Empty;
+        if (!node.TryGetPropertyValue("adminPublicKeys", out JsonNode? arrNode)) return false;
+        if (arrNode is not JsonArray keyArr) return false;
+        if (keyArr.Count == 0) return false;
+
+        JsonNode? firstKey = keyArr[0];
+        if (firstKey == null) return false;
+
+        key = firstKey.ToString();
+        return true;
+    }
+
+    private static bool TryExtractFromAdminsArray(JsonObject node, out string key)
+    {
+        key = string.Empty;
+        if (!node.TryGetPropertyValue("admins", out JsonNode? arrNode)) return false;
+        if (arrNode is not JsonArray adminArr) return false;
+        if (adminArr.Count == 0) return false;
+
+        if (adminArr[0] is not JsonObject firstAdminObj) return false;
+
+        if (firstAdminObj.TryGetPropertyValue("publicKey", out JsonNode? pubKey) && pubKey != null)
+        {
+            key = pubKey.ToString();
+            return true;
+        }
+
+        if (firstAdminObj.TryGetPropertyValue("PublicKey", out JsonNode? pubKey2) && pubKey2 != null)
+        {
+            key = pubKey2.ToString();
+            return true;
+        }
+
+        return false;
     }
 
     private static string ExtractCasDiskSpaceText(JsonNode? node)

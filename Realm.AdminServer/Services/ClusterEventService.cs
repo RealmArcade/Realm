@@ -887,19 +887,44 @@ public class ClusterEventService
 
     private bool TryGetMapPublishedContext(ClusterEventDto evt, DataStoreService db, out string manifestJson, out string mapTitle, out string mapVersion, out string publicKey, out string compositeKey)
     {
+        PopulateMapPublishedValues(evt, out manifestJson, out mapTitle, out mapVersion, out publicKey, out var signature);
+
+        if (!ValidateMapPublishedRequiredFields(manifestJson, publicKey, signature, ref mapTitle, ref mapVersion))
+        {
+            compositeKey = "";
+            return false;
+        }
+
+        if (!ValidateMapPublishedAuthorization(db, mapTitle, publicKey))
+        {
+            compositeKey = "";
+            return false;
+        }
+
+        compositeKey = $"{mapTitle}_{mapVersion}";
+        return ValidateMapPublishedGreenlight(db, mapTitle, mapVersion, publicKey);
+    }
+
+    private void PopulateMapPublishedValues(ClusterEventDto evt, out string manifestJson, out string mapTitle, out string mapVersion, out string publicKey, out string signature)
+    {
         manifestJson = "";
+        publicKey = evt.PublicKey;
+        signature = evt.Signature;
         mapTitle = "";
         mapVersion = "1.0";
-        publicKey = "";
-        compositeKey = "";
 
         var payload = ParseMapPublishedPayload(evt);
-        manifestJson = payload?.ManifestJson ?? "";
-        publicKey = payload?.PublicKey ?? evt.PublicKey;
-        string signature = payload?.Signature ?? evt.Signature;
-        mapTitle = payload?.MapTitle ?? "";
-        mapVersion = payload?.MapVersion ?? "1.0";
+        if (payload == null) return;
 
+        if (payload.ManifestJson != null) manifestJson = payload.ManifestJson;
+        if (payload.PublicKey != null) publicKey = payload.PublicKey;
+        if (payload.Signature != null) signature = payload.Signature;
+        if (payload.MapTitle != null) mapTitle = payload.MapTitle;
+        if (payload.MapVersion != null) mapVersion = payload.MapVersion;
+    }
+
+    private bool ValidateMapPublishedRequiredFields(string manifestJson, string publicKey, string signature, ref string mapTitle, ref string mapVersion)
+    {
         if (string.IsNullOrWhiteSpace(manifestJson) || string.IsNullOrWhiteSpace(publicKey) || string.IsNullOrWhiteSpace(signature))
             return false;
 
@@ -909,20 +934,27 @@ public class ClusterEventService
         if (string.IsNullOrWhiteSpace(mapTitle) || !VerifyMapPublishedSignature(manifestJson, publicKey, signature))
             return false;
 
+        return true;
+    }
+
+    private bool ValidateMapPublishedAuthorization(DataStoreService db, string mapTitle, string publicKey)
+    {
         if (!MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, publicKey))
         {
             Console.WriteLine($"[ClusterEventService] Rejected map_published event: Map '{mapTitle}' is owned by another key");
             return false;
         }
+        return true;
+    }
 
-        compositeKey = $"{mapTitle}_{mapVersion}";
+    private bool ValidateMapPublishedGreenlight(DataStoreService db, string mapTitle, string mapVersion, string publicKey)
+    {
         var stats = MapStatsHelper.GetStats(db, mapTitle, mapVersion, publicKey);
         if (stats == null || !stats.IsGreenlit)
         {
             Console.WriteLine($"[ClusterEventService] Rejected map_published event: Map '{mapTitle}' is not greenlit");
             return false;
         }
-
         return true;
     }
 
@@ -1004,20 +1036,45 @@ public class ClusterEventService
 
     private bool TryGetMaintainersContext(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys, out string action, out string mapTitle, out string maintainerPublicKey)
     {
+        PopulateMaintainersValues(evt, out action, out mapTitle, out maintainerPublicKey, out var requesterPublicKey, out var signature);
+
+        if (!ValidateMaintainersRequiredFields(mapTitle, maintainerPublicKey, requesterPublicKey, signature))
+            return false;
+
+        if (!ValidateMaintainersAuthorization(db, adminPublicKeys, mapTitle, requesterPublicKey))
+            return false;
+
+        return VerifyMapMaintainersUpdatedSignature(action, mapTitle, maintainerPublicKey, requesterPublicKey, signature, evt.PayloadJson);
+    }
+
+    private void PopulateMaintainersValues(ClusterEventDto evt, out string action, out string mapTitle, out string maintainerPublicKey, out string requesterPublicKey, out string signature)
+    {
         action = "add";
         mapTitle = "";
         maintainerPublicKey = "";
+        requesterPublicKey = evt.PublicKey;
+        signature = evt.Signature;
 
         var payload = ParseMapMaintainersUpdatedPayload(evt);
-        mapTitle = payload?.MapTitle ?? "";
-        action = (payload?.Action ?? "add").ToLowerInvariant();
-        maintainerPublicKey = payload?.MaintainerPublicKey ?? "";
-        string requesterPublicKey = payload?.RequesterPublicKey ?? evt.PublicKey;
-        string signature = payload?.Signature ?? evt.Signature;
+        if (payload == null) return;
 
-        if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(maintainerPublicKey) || string.IsNullOrWhiteSpace(requesterPublicKey) || string.IsNullOrWhiteSpace(signature))
-            return false;
+        if (payload.Action != null) action = payload.Action.ToLowerInvariant();
+        if (payload.MapTitle != null) mapTitle = payload.MapTitle;
+        if (payload.MaintainerPublicKey != null) maintainerPublicKey = payload.MaintainerPublicKey;
+        if (payload.RequesterPublicKey != null) requesterPublicKey = payload.RequesterPublicKey;
+        if (payload.Signature != null) signature = payload.Signature;
+    }
 
+    private bool ValidateMaintainersRequiredFields(string mapTitle, string maintainerPublicKey, string requesterPublicKey, string signature)
+    {
+        return !string.IsNullOrWhiteSpace(mapTitle) 
+            && !string.IsNullOrWhiteSpace(maintainerPublicKey) 
+            && !string.IsNullOrWhiteSpace(requesterPublicKey) 
+            && !string.IsNullOrWhiteSpace(signature);
+    }
+
+    private bool ValidateMaintainersAuthorization(DataStoreService db, HashSet<string> adminPublicKeys, string mapTitle, string requesterPublicKey)
+    {
         bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(requesterPublicKey.Trim());
         bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, mapTitle, requesterPublicKey);
 
@@ -1026,10 +1083,6 @@ public class ClusterEventService
             Console.WriteLine($"[ClusterEventService] Rejected map_maintainers_updated: Key {requesterPublicKey} is neither admin nor authorized maintainer of '{mapTitle}'");
             return false;
         }
-
-        if (!VerifyMapMaintainersUpdatedSignature(action, mapTitle, maintainerPublicKey, requesterPublicKey, signature, evt.PayloadJson))
-            return false;
-
         return true;
     }
 
@@ -1074,16 +1127,11 @@ public class ClusterEventService
 
     private bool TryGetCreatorContext(ClusterEventDto evt, DataStoreService db, HashSet<string> adminPublicKeys, out string username, out string publicKey, out CreatorRegisteredEventPayload? payload, out string slug)
     {
-        username = "";
-        publicKey = "";
+        PopulateCreatorValues(evt, out username, out publicKey, out payload, out var signature);
+        
         slug = "";
         
-        payload = ParseCreatorRegisteredPayload(evt);
-        username = payload?.Username ?? "";
-        publicKey = payload?.PublicKey ?? evt.PublicKey;
-        string signature = payload?.Signature ?? evt.Signature;
-
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(publicKey) || string.IsNullOrWhiteSpace(signature))
+        if (!ValidateCreatorRequiredFields(username, publicKey, signature))
             return false;
 
         if (!VerifyCreatorRegisteredSignature(username, publicKey, signature))
@@ -1091,10 +1139,22 @@ public class ClusterEventService
 
         slug = GetUsernameSlug(username);
 
-        if (!ValidateNameLock(db, slug, username, publicKey, payload?.AdminBypassToken, adminPublicKeys))
-            return false;
+        return ValidateNameLock(db, slug, username, publicKey, payload?.AdminBypassToken, adminPublicKeys);
+    }
 
-        return true;
+    private void PopulateCreatorValues(ClusterEventDto evt, out string username, out string publicKey, out CreatorRegisteredEventPayload? payload, out string signature)
+    {
+        payload = ParseCreatorRegisteredPayload(evt);
+        username = payload?.Username ?? "";
+        publicKey = payload?.PublicKey ?? evt.PublicKey;
+        signature = payload?.Signature ?? evt.Signature;
+    }
+
+    private bool ValidateCreatorRequiredFields(string username, string publicKey, string signature)
+    {
+        return !string.IsNullOrWhiteSpace(username) 
+            && !string.IsNullOrWhiteSpace(publicKey) 
+            && !string.IsNullOrWhiteSpace(signature);
     }
 
 
@@ -1192,27 +1252,40 @@ public class ClusterEventService
 
     private bool TryGetAdminGreenlightContext(ClusterEventDto evt, HashSet<string> adminPublicKeys, out string mapTitle, out string? mapVersion)
     {
-        mapTitle = "";
-        mapVersion = null;
+        PopulateAdminGreenlightValues(evt, out mapTitle, out mapVersion, out var adminPublicKey, out var signature);
 
+        if (!ValidateAdminGreenlightRequiredFields(mapTitle, adminPublicKey, signature))
+            return false;
+
+        if (!ValidateAdminGreenlightAuthorization(adminPublicKeys, adminPublicKey))
+            return false;
+
+        return VerifyAdminGreenlightSignature(mapTitle, mapVersion, adminPublicKey, signature);
+    }
+
+    private void PopulateAdminGreenlightValues(ClusterEventDto evt, out string mapTitle, out string? mapVersion, out string adminPublicKey, out string signature)
+    {
         var payload = ParseAdminGreenlightPayload(evt);
         mapTitle = payload?.MapTitle ?? "";
         mapVersion = payload?.MapVersion;
-        string adminPublicKey = payload?.AdminPublicKey ?? evt.PublicKey;
-        string signature = payload?.Signature ?? evt.Signature;
+        adminPublicKey = payload?.AdminPublicKey ?? evt.PublicKey;
+        signature = payload?.Signature ?? evt.Signature;
+    }
 
-        if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(adminPublicKey) || string.IsNullOrWhiteSpace(signature))
-            return false;
+    private bool ValidateAdminGreenlightRequiredFields(string mapTitle, string adminPublicKey, string signature)
+    {
+        return !string.IsNullOrWhiteSpace(mapTitle) 
+            && !string.IsNullOrWhiteSpace(adminPublicKey) 
+            && !string.IsNullOrWhiteSpace(signature);
+    }
 
+    private bool ValidateAdminGreenlightAuthorization(HashSet<string> adminPublicKeys, string adminPublicKey)
+    {
         if (adminPublicKeys.Count == 0 || !adminPublicKeys.Contains(adminPublicKey.Trim()))
         {
             Console.WriteLine($"[ClusterEventService] Rejected admin_greenlight event: Unauthorized admin key {adminPublicKey}");
             return false;
         }
-
-        if (!VerifyAdminGreenlightSignature(mapTitle, mapVersion, adminPublicKey, signature))
-            return false;
-
         return true;
     }
 
@@ -1419,30 +1492,47 @@ public class ClusterEventService
         var publishedKeysToDelete = new List<string>();
         foreach (var pair in db.GetAllWithKeys<JsonDocument>("published_maps"))
         {
-            bool match = string.Equals(pair.Key, targetMap, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(pair.Key.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase)
-                || pair.Key.StartsWith($"{targetMap}_", StringComparison.OrdinalIgnoreCase)
-                || pair.Key.StartsWith($"{targetMap.Replace(' ', '_')}_", StringComparison.OrdinalIgnoreCase);
-
-            if (!match)
+            if (IsPublishedMapRecordMatch(pair, targetMap))
             {
-                try
-                {
-                    var root = pair.Value.RootElement;
-                    string name = root.TryGetProperty("MapName", out var mn) ? mn.GetString() ?? "" : "";
-                    if (string.Equals(name, targetMap, StringComparison.OrdinalIgnoreCase) || string.Equals(name.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase))
-                        match = true;
-                }
-                catch { }
+                publishedKeysToDelete.Add(pair.Key);
             }
-
-            if (match) publishedKeysToDelete.Add(pair.Key);
         }
 
         if (publishedKeysToDelete.Count > 0)
         {
             db.DeleteMany("published_maps", publishedKeysToDelete);
             dbRecordsRemoved += publishedKeysToDelete.Count;
+        }
+    }
+
+    private bool IsPublishedMapRecordMatch(KeyValuePair<string, JsonDocument> pair, string targetMap)
+    {
+        if (IsKeyMatch(pair.Key, targetMap))
+            return true;
+
+        return IsDocumentNameMatch(pair.Value, targetMap);
+    }
+
+    private bool IsKeyMatch(string key, string targetMap)
+    {
+        return string.Equals(key, targetMap, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith($"{targetMap}_", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith($"{targetMap.Replace(' ', '_')}_", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsDocumentNameMatch(JsonDocument document, string targetMap)
+    {
+        try
+        {
+            var root = document.RootElement;
+            string name = root.TryGetProperty("MapName", out var mn) ? mn.GetString() ?? "" : "";
+            return string.Equals(name, targetMap, StringComparison.OrdinalIgnoreCase) 
+                || string.Equals(name.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase);
+        }
+        catch 
+        { 
+            return false;
         }
     }
 
@@ -1493,29 +1583,50 @@ public class ClusterEventService
         var publishedKeysToDelete = new List<string>();
         foreach (var pair in db.GetAllWithKeys<JsonDocument>("published_maps"))
         {
-            if (string.Equals(pair.Key, compositeKey, StringComparison.OrdinalIgnoreCase) || string.Equals(pair.Key.Replace(' ', '_'), compositeKey.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase))
+            if (IsSpecificPublishedRecordMatch(pair, targetMap, targetVersion, compositeKey))
             {
                 publishedKeysToDelete.Add(pair.Key);
-                continue;
             }
-
-            try
-            {
-                var root = pair.Value.RootElement;
-                string name = root.TryGetProperty("MapName", out var mn) ? mn.GetString() ?? "" : "";
-                string ver = root.TryGetProperty("Version", out var vr) ? vr.GetString() ?? "" : "";
-                if ((string.Equals(name, targetMap, StringComparison.OrdinalIgnoreCase) || string.Equals(name.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase)) && string.Equals(ver, targetVersion, StringComparison.OrdinalIgnoreCase))
-                {
-                    publishedKeysToDelete.Add(pair.Key);
-                }
-            }
-            catch { }
         }
 
         if (publishedKeysToDelete.Count > 0)
         {
             db.DeleteMany("published_maps", publishedKeysToDelete);
             dbRecordsRemoved += publishedKeysToDelete.Count;
+        }
+    }
+
+    private bool IsSpecificPublishedRecordMatch(KeyValuePair<string, JsonDocument> pair, string targetMap, string targetVersion, string compositeKey)
+    {
+        if (IsSpecificKeyMatch(pair.Key, compositeKey))
+            return true;
+
+        return IsSpecificDocumentMatch(pair.Value, targetMap, targetVersion);
+    }
+
+    private bool IsSpecificKeyMatch(string key, string compositeKey)
+    {
+        return string.Equals(key, compositeKey, StringComparison.OrdinalIgnoreCase) 
+            || string.Equals(key.Replace(' ', '_'), compositeKey.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsSpecificDocumentMatch(JsonDocument document, string targetMap, string targetVersion)
+    {
+        try
+        {
+            var root = document.RootElement;
+            string name = root.TryGetProperty("MapName", out var mn) ? mn.GetString() ?? "" : "";
+            string ver = root.TryGetProperty("Version", out var vr) ? vr.GetString() ?? "" : "";
+            
+            bool nameMatch = string.Equals(name, targetMap, StringComparison.OrdinalIgnoreCase) 
+                          || string.Equals(name.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase);
+            bool versionMatch = string.Equals(ver, targetVersion, StringComparison.OrdinalIgnoreCase);
+            
+            return nameMatch && versionMatch;
+        }
+        catch 
+        { 
+            return false;
         }
     }
 
@@ -1531,46 +1642,77 @@ public class ClusterEventService
 
     private void CollectRemainingVersions(DataStoreService db, string manifestDir, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
     {
-        if (Directory.Exists(manifestDir))
+        CollectRemainingVersionsFromDirectory(manifestDir, targetMap, targetVersion, remainingVersions);
+        CollectRemainingVersionsFromDatabase(db, targetMap, targetVersion, remainingVersions);
+    }
+
+    private void CollectRemainingVersionsFromDirectory(string manifestDir, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+    {
+        if (!Directory.Exists(manifestDir)) return;
+
+        foreach (var filePath in Directory.EnumerateFiles(manifestDir, "*.json"))
         {
-            foreach (var filePath in Directory.EnumerateFiles(manifestDir, "*.json"))
-            {
-                try
-                {
-                    var mf = MapManifest.LoadFromFile(filePath);
-                    if (mf == null || (!string.Equals(mf.MapName, targetMap, StringComparison.OrdinalIgnoreCase) && !string.Equals(mf.MapName?.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase)))
-                        continue;
-                        
-                    if (string.Equals(mf.Version, targetVersion, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    var doc = JsonDocument.Parse(File.ReadAllText(filePath));
-                    remainingVersions.Add((mf.Version ?? "1.0", doc, filePath));
-                }
-                catch { }
-            }
+            TryAddVersionFromManifestFile(filePath, targetMap, targetVersion, remainingVersions);
         }
+    }
 
+    private void TryAddVersionFromManifestFile(string filePath, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+    {
+        try
+        {
+            var mf = MapManifest.LoadFromFile(filePath);
+            
+            bool isMapMatch = string.Equals(mf?.MapName, targetMap, StringComparison.OrdinalIgnoreCase) 
+                           || string.Equals(mf?.MapName?.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase);
+                           
+            if (!isMapMatch || string.Equals(mf?.Version, targetVersion, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var doc = JsonDocument.Parse(File.ReadAllText(filePath));
+            remainingVersions.Add((mf!.Version ?? "1.0", doc, filePath));
+        }
+        catch { }
+    }
+
+    private void CollectRemainingVersionsFromDatabase(DataStoreService db, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+    {
         foreach (var pair in db.GetAllWithKeys<JsonDocument>("published_maps"))
         {
-            if (string.Equals(pair.Key, targetMap, StringComparison.OrdinalIgnoreCase) || string.Equals(pair.Key.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase)) continue;
-            try
-            {
-                var root = pair.Value.RootElement;
-                string name = root.TryGetProperty("MapName", out var mn) ? mn.GetString() ?? "" : "";
-                string ver = root.TryGetProperty("Version", out var vr) ? vr.GetString() ?? "" : "";
-                
-                if (!string.Equals(name, targetMap, StringComparison.OrdinalIgnoreCase) && !string.Equals(name.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase))
-                    continue;
-                    
-                if (string.Equals(ver, targetVersion, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (!remainingVersions.Any(r => string.Equals(r.version, ver, StringComparison.OrdinalIgnoreCase)))
-                    remainingVersions.Add((ver, pair.Value, null));
-            }
-            catch { }
+            if (IsDbKeyMatchingTargetMapExact(pair.Key, targetMap)) continue;
+            
+            TryAddVersionFromDatabaseRecord(pair.Value, targetMap, targetVersion, remainingVersions);
         }
+    }
+
+    private bool IsDbKeyMatchingTargetMapExact(string dbKey, string targetMap)
+    {
+        return string.Equals(dbKey, targetMap, StringComparison.OrdinalIgnoreCase) 
+            || string.Equals(dbKey.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void TryAddVersionFromDatabaseRecord(JsonDocument doc, string targetMap, string targetVersion, List<(string version, JsonDocument doc, string? filePath)> remainingVersions)
+    {
+        try
+        {
+            var root = doc.RootElement;
+            string name = root.TryGetProperty("MapName", out var mn) ? mn.GetString() ?? "" : "";
+            string ver = root.TryGetProperty("Version", out var vr) ? vr.GetString() ?? "" : "";
+            
+            bool isNameMatch = string.Equals(name, targetMap, StringComparison.OrdinalIgnoreCase) 
+                            || string.Equals(name.Replace(' ', '_'), targetMap.Replace(' ', '_'), StringComparison.OrdinalIgnoreCase);
+
+            if (!isNameMatch || string.Equals(ver, targetVersion, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (!HasVersionAlready(remainingVersions, ver))
+                remainingVersions.Add((ver, doc, null));
+        }
+        catch { }
+    }
+
+    private bool HasVersionAlready(List<(string version, JsonDocument doc, string? filePath)> remainingVersions, string version)
+    {
+        return remainingVersions.Any(r => string.Equals(r.version, version, StringComparison.OrdinalIgnoreCase));
     }
 
     private void ApplyFallbackOperations(ContentAddressableStorage cas, DataStoreService db, string manifestDir, string targetMap, List<(string version, JsonDocument doc, string? filePath)> remainingVersions, ref int manifestsDeleted, List<string> deletedFiles)

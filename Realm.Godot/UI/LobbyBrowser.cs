@@ -464,37 +464,54 @@ public partial class LobbyBrowser : Control
 		});
 	}
 
+	private static string GetStringProp(JsonElement item, string key, string fallback = "")
+	{
+		if (item.TryGetProperty(key, out var prop))
+		{
+			return prop.GetString() ?? fallback;
+		}
+		return fallback;
+	}
+
+	private static int GetIntProp(JsonElement item, string key, int fallback = 0)
+	{
+		if (item.TryGetProperty(key, out var prop) && prop.ValueKind == JsonValueKind.Number)
+		{
+			return prop.GetInt32();
+		}
+		return fallback;
+	}
+
 	private static LobbyData ParseLobbyData(JsonElement item, int clientBaseline)
 	{
-		string hostIp = "";
-		if (item.TryGetProperty("hostIP", out var hostIpProp))
+		string hostIp = GetStringProp(item, "hostIP");
+		if (string.IsNullOrEmpty(hostIp))
 		{
-			hostIp = hostIpProp.GetString() ?? "";
-		}
-		else if (item.TryGetProperty("hostIp", out hostIpProp))
-		{
-			hostIp = hostIpProp.GetString() ?? "";
+			hostIp = GetStringProp(item, "hostIp");
 		}
 
 		int calculatedPing = CalculatePing(item, hostIp, clientBaseline);
 		long mapSizeBytes = GetMapSizeBytes(item);
 		
-		string mapName = item.TryGetProperty("map", out var mapProp) ? mapProp.GetString() ?? "" : "";
-		string mapVersion = item.TryGetProperty("mapVersion", out var mvProp) ? mvProp.GetString() ?? "" : "";
+		string mapName = GetStringProp(item, "map");
+		string mapVersion = GetStringProp(item, "mapVersion");
 
 		if (mapSizeBytes <= 0)
 		{
 			mapSizeBytes = MapAssetManager.GetMapTotalSizeBytes(mapName, mapVersion);
 		}
 
+		int slotsUsed = GetIntProp(item, "slotsUsed", 0);
+		int maxPlayers = GetIntProp(item, "maxPlayers", 8);
+
 		return new LobbyData
 		{
-			LobbyId = item.TryGetProperty("lobbyId", out var idProp) ? idProp.GetString() ?? "" : "",
+			LobbyId = GetStringProp(item, "lobbyId"),
 			Map = mapName,
 			Mode = "Melee", // Default mode
-			Players = $"{(item.TryGetProperty("slotsUsed", out var slotsProp) ? slotsProp.GetInt32() : 0)}/{(item.TryGetProperty("maxPlayers", out var maxProp) ? maxProp.GetInt32() : 8)}",
+			Players = $"{slotsUsed}/{maxPlayers}",
 			Ping = calculatedPing,
-			GameVersion = item.TryGetProperty("gameVersion", out var gvProp) ? gvProp.GetString() ?? "" : "",
+			GameVersion = GetStringProp(item, "gameVersion"),
 			MapSizeBytes = mapSizeBytes,
 			MapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes)
 		};

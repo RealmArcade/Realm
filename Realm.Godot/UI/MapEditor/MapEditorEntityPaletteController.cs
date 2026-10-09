@@ -19,24 +19,121 @@ public class MapEditorEntityPaletteController
 
 	private string GetDisplayNameForId(string file)
 	{
-		if (_idToDisplayName.TryGetValue(file, out var name) && !string.IsNullOrEmpty(name))
-			return name;
+		if (_idToDisplayName.TryGetValue(file, out var name))
+		{
+			if (!string.IsNullOrEmpty(name))
+			{
+				return name;
+			}
+		}
+		
 		if (file.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
 		{
 			string sub = file.Substring(4);
-			if (GameHost.VfxRegistry != null && GameHost.VfxRegistry.TryGetValue(sub, out var vReg) && !string.IsNullOrEmpty(vReg.Name))
-				return "✨ " + vReg.Name;
+			if (TryGetVfxName(sub, out string subName))
+			{
+				return "✨ " + subName;
+			}
 			return "✨ " + sub;
 		}
-		if (GameHost.VfxRegistry != null && GameHost.VfxRegistry.TryGetValue(file, out var vMeta) && !string.IsNullOrEmpty(vMeta.Name))
-			return "✨ " + vMeta.Name;
-		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.TryGetValue(file, out var uMeta) && !string.IsNullOrEmpty(uMeta.Name))
-			return uMeta.Name;
-		if (GameHost.PropRegistry != null && GameHost.PropRegistry.TryGetValue(file, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
-			return pMeta.Name;
-		if (GameHost.ResourceRegistry != null && GameHost.ResourceRegistry.TryGetValue(file, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
-			return rMeta.Name;
+		
+		if (TryGetVfxName(file, out string vfxName))
+		{
+			return "✨ " + vfxName;
+		}
+		
+		if (TryGetUnitName(file, out string unitName))
+		{
+			return unitName;
+		}
+		
+		if (TryGetPropName(file, out string propName))
+		{
+			return propName;
+		}
+		
+		if (TryGetResourceName(file, out string resourceName))
+		{
+			return resourceName;
+		}
+		
 		return System.IO.Path.GetFileNameWithoutExtension(file).Replace("_", " ");
+	}
+
+	private bool TryGetVfxName(string key, out string name)
+	{
+		name = null;
+		if (GameHost.VfxRegistry == null)
+		{
+			return false;
+		}
+
+		if (GameHost.VfxRegistry.TryGetValue(key, out var meta))
+		{
+			if (!string.IsNullOrEmpty(meta.Name))
+			{
+				name = meta.Name;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool TryGetUnitName(string key, out string name)
+	{
+		name = null;
+		if (GameHost.UnitRegistry == null)
+		{
+			return false;
+		}
+
+		if (GameHost.UnitRegistry.TryGetValue(key, out var meta))
+		{
+			if (!string.IsNullOrEmpty(meta.Name))
+			{
+				name = meta.Name;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool TryGetPropName(string key, out string name)
+	{
+		name = null;
+		if (GameHost.PropRegistry == null)
+		{
+			return false;
+		}
+
+		if (GameHost.PropRegistry.TryGetValue(key, out var meta))
+		{
+			if (!string.IsNullOrEmpty(meta.Name))
+			{
+				name = meta.Name;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private bool TryGetResourceName(string key, out string name)
+	{
+		name = null;
+		if (GameHost.ResourceRegistry == null)
+		{
+			return false;
+		}
+
+		if (GameHost.ResourceRegistry.TryGetValue(key, out var meta))
+		{
+			if (!string.IsNullOrEmpty(meta.Name))
+			{
+				name = meta.Name;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private Button _btnChars;
@@ -134,7 +231,34 @@ public class MapEditorEntityPaletteController
 	public void SelectCategory(string category, bool triggerAddObject = true)
 	{
 		_currentCategory = category;
+		UpdateCategoryButtonsStyle(category);
 
+		string previousSelectedId = GetPreviousSelectedId();
+
+		_categoryFiles.Clear();
+		_idToDisplayName.Clear();
+		_optCategoryItems.Clear();
+
+		LoadCategoryMetadata(category);
+
+		_categoryFiles.Sort((a, b) => string.Compare(GetDisplayNameForId(a), GetDisplayNameForId(b), StringComparison.OrdinalIgnoreCase));
+
+		foreach (var file in _categoryFiles)
+		{
+			string displayName = GetDisplayNameForId(file);
+			_optCategoryItems.AddItem(TranslationServer.Translate(displayName));
+		}
+
+		RestorePreviousSelection(previousSelectedId);
+
+		if (triggerAddObject)
+		{
+			TriggerAddObjectMode();
+		}
+	}
+
+	private void UpdateCategoryButtonsStyle(string category)
+	{
 		var activeStyle = new StyleBoxFlat();
 		activeStyle.BgColor = new Color(0.15f, 0.45f, 0.7f, 0.8f);
 		activeStyle.BorderColor = UIStyle.ColorCyanGlow;
@@ -168,243 +292,215 @@ public class MapEditorEntityPaletteController
 
 		if (category == "VFX") _btnVfx.AddThemeStyleboxOverride("normal", activeStyle);
 		else _btnVfx.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+	}
 
-		string previousSelectedId = null;
+	private string GetPreviousSelectedId()
+	{
 		if (_optCategoryItems != null && _optCategoryItems.Selected >= 0 && _optCategoryItems.Selected < _categoryFiles.Count)
 		{
-			previousSelectedId = _categoryFiles[_optCategoryItems.Selected];
+			return _categoryFiles[_optCategoryItems.Selected];
+		}
+		return null;
+	}
+
+	private void RestorePreviousSelection(string previousSelectedId)
+	{
+		if (_optCategoryItems.ItemCount == 0) return;
+
+		int targetIndex = 0;
+		if (!string.IsNullOrEmpty(previousSelectedId))
+		{
+			int found = _categoryFiles.FindIndex(f => f.Equals(previousSelectedId, StringComparison.OrdinalIgnoreCase));
+			if (found >= 0) targetIndex = found;
 		}
 
-		_categoryFiles.Clear();
-		_idToDisplayName.Clear();
-		_optCategoryItems.Clear();
+		_optCategoryItems.Selected = targetIndex;
+		SelectCategoryItem(targetIndex);
+	}
 
+	private void LoadCategoryMetadata(string category)
+	{
 		try
 		{
-			string wsPath = MapEditorHUD.TempWorkspaceGodotPath;
-			string globalWs = Godot.ProjectSettings.GlobalizePath(wsPath);
-
-			if (MetadataService.Instance.TryLoadMetadata(globalWs, out var metadata))
-			{
-				if (category == "VFX")
-				{
-					if (GameHost.VfxRegistry != null)
-					{
-						foreach (var kvp in GameHost.VfxRegistry)
-						{
-							string vfxKey = kvp.Key;
-							if (!_categoryFiles.Contains(vfxKey))
-							{
-								_categoryFiles.Add(vfxKey);
-								_idToDisplayName[vfxKey] = "✨ " + (!string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : kvp.Key);
-							}
-						}
-					}
-
-					if (metadata.Templates?.Vfx != null)
-					{
-						foreach (var vObj in metadata.Templates.Vfx)
-						{
-							string vId = vObj.VfxId ?? "";
-							string name = vObj.Name ?? "";
-							if (!string.IsNullOrEmpty(vId) && !_categoryFiles.Contains(vId))
-							{
-								_categoryFiles.Add(vId);
-								if (!string.IsNullOrEmpty(name))
-								{
-									_idToDisplayName[vId] = "✨ " + name;
-								}
-							}
-						}
-					}
-				}
-				else if (category == "Decals")
-				{
-					if (metadata.Decals != null)
-					{
-						foreach (var kvp in metadata.Decals)
-						{
-							string decalKey = kvp.Key;
-							if (!_categoryFiles.Contains(decalKey))
-							{
-								_categoryFiles.Add(decalKey);
-								_idToDisplayName[decalKey] = TemplateIDHelper.ParseTemplateID(decalKey).Slug.Replace("_", " ");
-							}
-						}
-					}
-
-					var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(globalWs);
-					var decalsDict = unionedAssets.GetCategory("Decal");
-					if (decalsDict != null)
-					{
-						foreach (var kvp in decalsDict)
-						{
-							string decalFile = kvp.Key;
-							string relDecalPath = System.IO.Path.Combine("Assets", "decals", decalFile);
-							if (!_categoryFiles.Contains(relDecalPath) && !_categoryFiles.Contains(decalFile))
-							{
-								if (System.IO.File.Exists(System.IO.Path.Combine(globalWs, relDecalPath)))
-								{
-									_categoryFiles.Add(relDecalPath);
-								}
-								else if (System.IO.File.Exists(System.IO.Path.Combine(globalWs, decalFile)))
-								{
-									_categoryFiles.Add(decalFile);
-								}
-								else
-								{
-									_categoryFiles.Add(relDecalPath);
-								}
-							}
-						}
-					}
-				}
-				else
-				{
-					if (category == "Buildings")
-					{
-						if (metadata.Templates?.Buildings != null)
-						{
-							foreach (var b in metadata.Templates.Buildings)
-							{
-								if (!string.IsNullOrEmpty(b.TemplateID) && !_categoryFiles.Contains(b.TemplateID))
-								{
-									_categoryFiles.Add(b.TemplateID);
-									if (!string.IsNullOrEmpty(b.Name)) _idToDisplayName[b.TemplateID] = b.Name;
-								}
-							}
-						}
-						if (GameHost.BuildingRegistry != null)
-						{
-							foreach (var kvp in GameHost.BuildingRegistry)
-							{
-								if (!string.IsNullOrEmpty(kvp.Key) && !_categoryFiles.Contains(kvp.Key))
-								{
-									_categoryFiles.Add(kvp.Key);
-									if (!string.IsNullOrEmpty(kvp.Value.Name)) _idToDisplayName[kvp.Key] = kvp.Value.Name;
-								}
-							}
-						}
-					}
-					else if (category == "Units" || category == "Characters")
-					{
-						if (metadata.Templates?.Units != null)
-						{
-							foreach (var u in metadata.Templates.Units)
-							{
-								if (!string.IsNullOrEmpty(u.TemplateID) && !_categoryFiles.Contains(u.TemplateID))
-								{
-									_categoryFiles.Add(u.TemplateID);
-									if (!string.IsNullOrEmpty(u.Name)) _idToDisplayName[u.TemplateID] = u.Name;
-								}
-							}
-						}
-						if (GameHost.UnitRegistry != null)
-						{
-							foreach (var kvp in GameHost.UnitRegistry)
-							{
-								if (!string.IsNullOrEmpty(kvp.Key) && !_categoryFiles.Contains(kvp.Key))
-								{
-									_categoryFiles.Add(kvp.Key);
-									if (!string.IsNullOrEmpty(kvp.Value.Name)) _idToDisplayName[kvp.Key] = kvp.Value.Name;
-								}
-							}
-						}
-					}
-					else if (category == "Resources" || category == "Environment")
-					{
-						if (metadata.Templates?.Resources != null)
-						{
-							foreach (var r in metadata.Templates.Resources)
-							{
-								if (!string.IsNullOrEmpty(r.TemplateID) && !_categoryFiles.Contains(r.TemplateID))
-								{
-									_categoryFiles.Add(r.TemplateID);
-									if (!string.IsNullOrEmpty(r.Name)) _idToDisplayName[r.TemplateID] = r.Name;
-								}
-							}
-						}
-						if (GameHost.ResourceRegistry != null)
-						{
-							foreach (var kvp in GameHost.ResourceRegistry)
-							{
-								if (!string.IsNullOrEmpty(kvp.Key) && !_categoryFiles.Contains(kvp.Key))
-								{
-									_categoryFiles.Add(kvp.Key);
-									if (!string.IsNullOrEmpty(kvp.Value.Name)) _idToDisplayName[kvp.Key] = kvp.Value.Name;
-								}
-							}
-						}
-					}
-					else if (category == "Props")
-					{
-						if (metadata.Templates?.Props != null)
-						{
-							foreach (var p in metadata.Templates.Props)
-							{
-								if (!string.IsNullOrEmpty(p.TemplateID) && !_categoryFiles.Contains(p.TemplateID))
-								{
-									_categoryFiles.Add(p.TemplateID);
-									if (!string.IsNullOrEmpty(p.Name)) _idToDisplayName[p.TemplateID] = p.Name;
-								}
-							}
-						}
-						if (GameHost.PropRegistry != null)
-						{
-							foreach (var kvp in GameHost.PropRegistry)
-							{
-								if (!string.IsNullOrEmpty(kvp.Key) && !_categoryFiles.Contains(kvp.Key))
-								{
-									_categoryFiles.Add(kvp.Key);
-									if (!string.IsNullOrEmpty(kvp.Value.Name)) _idToDisplayName[kvp.Key] = kvp.Value.Name;
-								}
-							}
-						}
-					}
-				}
-			}
+			LoadMetadataForCategory(category);
 		}
 		catch { }
 
 		if (category == "VFX" && _categoryFiles.Count == 0)
 		{
-			if (GameHost.VfxRegistry != null)
+			LoadVfxRegistry();
+		}
+	}
+
+	private void LoadMetadataForCategory(string category)
+	{
+		string wsPath = MapEditorHUD.TempWorkspaceGodotPath;
+		string globalWs = Godot.ProjectSettings.GlobalizePath(wsPath);
+
+		if (!MetadataService.Instance.TryLoadMetadata(globalWs, out var metadata)) return;
+
+		switch (category)
+		{
+			case "VFX": LoadVfxMetadata(metadata); break;
+			case "Decals": LoadDecalsMetadata(metadata, globalWs); break;
+			case "Buildings": LoadBuildingsMetadata(metadata); break;
+			case "Units": 
+			case "Characters": LoadUnitsMetadata(metadata); break;
+			case "Resources": 
+			case "Environment": LoadResourcesMetadata(metadata); break;
+			case "Props": LoadPropsMetadata(metadata); break;
+		}
+	}
+
+	private void AddCategoryItem(string id, string displayName)
+	{
+		if (string.IsNullOrEmpty(id) || _categoryFiles.Contains(id)) return;
+		
+		_categoryFiles.Add(id);
+		if (!string.IsNullOrEmpty(displayName))
+		{
+			_idToDisplayName[id] = displayName;
+		}
+	}
+
+	private void LoadVfxMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	{
+		LoadVfxRegistry();
+
+		if (metadata.Templates?.Vfx == null) return;
+
+		foreach (var vObj in metadata.Templates.Vfx)
+		{
+			if (string.IsNullOrEmpty(vObj.VfxId)) continue;
+			
+			string name = string.IsNullOrEmpty(vObj.Name) ? null : "✨ " + vObj.Name;
+			AddCategoryItem(vObj.VfxId, name);
+		}
+	}
+
+	private void LoadVfxRegistry()
+	{
+		if (GameHost.VfxRegistry == null) return;
+
+		foreach (var kvp in GameHost.VfxRegistry)
+		{
+			string vfxKey = kvp.Key;
+			string displayName = "✨ " + (!string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : kvp.Key);
+			AddCategoryItem(vfxKey, displayName);
+		}
+	}
+
+	private void LoadDecalsMetadata(Realm.Shared.Metadata.MapMetadata metadata, string globalWs)
+	{
+		if (metadata.Decals != null)
+		{
+			foreach (var kvp in metadata.Decals)
 			{
-				foreach (var kvp in GameHost.VfxRegistry)
-				{
-					string vfxKey = kvp.Key;
-					if (!_categoryFiles.Contains(vfxKey))
-					{
-						_categoryFiles.Add(vfxKey);
-						_idToDisplayName[vfxKey] = "✨ " + (!string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : kvp.Key);
-					}
-				}
+				string decalKey = kvp.Key;
+				string name = TemplateIDHelper.ParseTemplateID(decalKey).Slug.Replace("_", " ");
+				AddCategoryItem(decalKey, name);
 			}
 		}
 
-		_categoryFiles.Sort((a, b) => string.Compare(GetDisplayNameForId(a), GetDisplayNameForId(b), StringComparison.OrdinalIgnoreCase));
+		var unionedAssets = Realm.Godot.Utils.MapAssetHelper.LoadAssets(globalWs);
+		var decalsDict = unionedAssets.GetCategory("Decal");
+		if (decalsDict == null) return;
 
-		foreach (var file in _categoryFiles)
+		foreach (var kvp in decalsDict)
 		{
-			string displayName = GetDisplayNameForId(file);
-			_optCategoryItems.AddItem(TranslationServer.Translate(displayName));
-		}
+			string decalFile = kvp.Key;
+			string relDecalPath = System.IO.Path.Combine("Assets", "decals", decalFile);
+			
+			if (_categoryFiles.Contains(relDecalPath) || _categoryFiles.Contains(decalFile)) continue;
 
-		if (_optCategoryItems.ItemCount > 0)
-		{
-			int targetIndex = 0;
-			if (!string.IsNullOrEmpty(previousSelectedId))
+			if (System.IO.File.Exists(System.IO.Path.Combine(globalWs, relDecalPath)))
 			{
-				int found = _categoryFiles.FindIndex(f => f.Equals(previousSelectedId, StringComparison.OrdinalIgnoreCase));
-				if (found >= 0) targetIndex = found;
+				_categoryFiles.Add(relDecalPath);
 			}
-			_optCategoryItems.Selected = targetIndex;
-			SelectCategoryItem(targetIndex);
+			else if (System.IO.File.Exists(System.IO.Path.Combine(globalWs, decalFile)))
+			{
+				_categoryFiles.Add(decalFile);
+			}
+			else
+			{
+				_categoryFiles.Add(relDecalPath);
+			}
+		}
+	}
+
+	private void LoadBuildingsMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	{
+		if (metadata.Templates?.Buildings != null)
+		{
+			foreach (var b in metadata.Templates.Buildings)
+			{
+				AddCategoryItem(b.TemplateID, b.Name);
+			}
 		}
 
-		if (triggerAddObject)
+		if (GameHost.BuildingRegistry != null)
 		{
-			TriggerAddObjectMode();
+			foreach (var kvp in GameHost.BuildingRegistry)
+			{
+				AddCategoryItem(kvp.Key, kvp.Value.Name);
+			}
+		}
+	}
+
+	private void LoadUnitsMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	{
+		if (metadata.Templates?.Units != null)
+		{
+			foreach (var u in metadata.Templates.Units)
+			{
+				AddCategoryItem(u.TemplateID, u.Name);
+			}
+		}
+
+		if (GameHost.UnitRegistry != null)
+		{
+			foreach (var kvp in GameHost.UnitRegistry)
+			{
+				AddCategoryItem(kvp.Key, kvp.Value.Name);
+			}
+		}
+	}
+
+	private void LoadResourcesMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	{
+		if (metadata.Templates?.Resources != null)
+		{
+			foreach (var r in metadata.Templates.Resources)
+			{
+				AddCategoryItem(r.TemplateID, r.Name);
+			}
+		}
+
+		if (GameHost.ResourceRegistry != null)
+		{
+			foreach (var kvp in GameHost.ResourceRegistry)
+			{
+				AddCategoryItem(kvp.Key, kvp.Value.Name);
+			}
+		}
+	}
+
+	private void LoadPropsMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	{
+		if (metadata.Templates?.Props != null)
+		{
+			foreach (var p in metadata.Templates.Props)
+			{
+				AddCategoryItem(p.TemplateID, p.Name);
+			}
+		}
+
+		if (GameHost.PropRegistry != null)
+		{
+			foreach (var kvp in GameHost.PropRegistry)
+			{
+				AddCategoryItem(kvp.Key, kvp.Value.Name);
+			}
 		}
 	}
 
@@ -422,35 +518,55 @@ public class MapEditorEntityPaletteController
 
 	public void TriggerAddObjectMode()
 	{
-		if (GameHost.Instance == null) return;
-
-		GameHost.EditorTool targetTool = GameHost.EditorTool.PlaceProp;
-		if (_currentCategory == "Units" || _currentCategory == "Characters" || _currentCategory == "Buildings")
+		if (GameHost.Instance == null)
 		{
-			targetTool = GameHost.EditorTool.PlaceUnit;
-		}
-		else if (_currentCategory == "Decals")
-		{
-			targetTool = GameHost.EditorTool.PlaceDecal;
-		}
-		else if (_currentCategory == "VFX")
-		{
-			targetTool = GameHost.EditorTool.PlaceVfx;
+			return;
 		}
 
-		string placeId = "";
-		int selectedIndex = _optCategoryItems != null ? _optCategoryItems.Selected : -1;
-		if (selectedIndex >= 0 && selectedIndex < _categoryFiles.Count)
-		{
-			placeId = _categoryFiles[selectedIndex];
-		}
-
-		if (string.IsNullOrEmpty(placeId) && _categoryFiles.Count > 0)
-		{
-			placeId = _categoryFiles[0];
-		}
-
+		GameHost.EditorTool targetTool = GetEditorToolForCategory(_currentCategory);
+		string placeId = GetSelectedCategoryPlaceId();
+		
 		_hud.TriggerToolSelection(targetTool, _btnAddObject, placeId);
+	}
+
+	private GameHost.EditorTool GetEditorToolForCategory(string category)
+	{
+		if (category == "Units" || category == "Characters" || category == "Buildings")
+		{
+			return GameHost.EditorTool.PlaceUnit;
+		}
+		
+		if (category == "Decals")
+		{
+			return GameHost.EditorTool.PlaceDecal;
+		}
+		
+		if (category == "VFX")
+		{
+			return GameHost.EditorTool.PlaceVfx;
+		}
+		
+		return GameHost.EditorTool.PlaceProp;
+	}
+
+	private string GetSelectedCategoryPlaceId()
+	{
+		if (_categoryFiles.Count == 0)
+		{
+			return "";
+		}
+
+		int selectedIndex = _optCategoryItems != null ? _optCategoryItems.Selected : -1;
+		
+		if (selectedIndex >= 0)
+		{
+			if (selectedIndex < _categoryFiles.Count)
+			{
+				return _categoryFiles[selectedIndex];
+			}
+		}
+
+		return _categoryFiles[0];
 	}
 
 	public void SelectCategoryItemExternal(string category, string filename)

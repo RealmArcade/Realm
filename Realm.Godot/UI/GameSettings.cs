@@ -421,25 +421,48 @@ public static class GameSettings
 
 	private static void ApplyGameHostSettings(Window root)
 	{
-		var gameHost = (root != null ? FindNodeInTree<GameHost>(root) : null) ?? GameHost.Instance;
-		if (gameHost == null || !GodotObject.IsInstanceValid(gameHost)) return;
+		GameHost gameHost = GetValidGameHost(root);
+		if (gameHost == null) return;
+		
+		var envService = gameHost.EnvironmentService;
+		if (envService == null) return;
 
 		if (DisableDayNightLighting)
 		{
-			gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, 0f);
+			envService.UpdateDayNightVisuals(gameHost, 0f);
 			return;
 		}
 
-		if (gameHost.EcsWorld != null && gameHost.EcsWorld.IsAlive(gameHost.WorldEntity) && gameHost.EcsWorld.Has<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity))
+		float progress = GetTimeOfDayProgress(gameHost);
+		envService.UpdateDayNightVisuals(gameHost, progress);
+	}
+
+	private static GameHost GetValidGameHost(Window root)
+	{
+		GameHost host = null;
+		if (root != null)
 		{
-			var state = gameHost.EcsWorld.Get<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity);
-			float progress = state.TimeOfDayTimer / GameHost.TimeOfDayCycleDuration;
-			gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, progress);
+			host = FindNodeInTree<GameHost>(root);
 		}
-		else
+		
+		if (host == null)
 		{
-			gameHost.EnvironmentService?.UpdateDayNightVisuals(gameHost, 0f);
+			host = GameHost.Instance;
 		}
+
+		if (host == null) return null;
+		if (!GodotObject.IsInstanceValid(host)) return null;
+		return host;
+	}
+
+	private static float GetTimeOfDayProgress(GameHost gameHost)
+	{
+		if (gameHost.EcsWorld == null) return 0f;
+		if (!gameHost.EcsWorld.IsAlive(gameHost.WorldEntity)) return 0f;
+		if (!gameHost.EcsWorld.Has<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity)) return 0f;
+		
+		var state = gameHost.EcsWorld.Get<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity);
+		return state.TimeOfDayTimer / GameHost.TimeOfDayCycleDuration;
 	}
 
 	public static void ApplyEnvironmentQuality(Godot.Environment env, GraphicsQuality quality = GraphicsQuality.High)
@@ -456,23 +479,52 @@ public static class GameSettings
 		env.GlowEnabled = quality > GraphicsQuality.Low;
 	}
 
+	private static readonly Dictionary<GraphicsQuality, DirectionalLight3D.ShadowMode> _shadowModeMap = new()
+	{
+		{ GraphicsQuality.Low, DirectionalLight3D.ShadowMode.Orthogonal },
+		{ GraphicsQuality.Medium, DirectionalLight3D.ShadowMode.Orthogonal },
+		{ GraphicsQuality.High, DirectionalLight3D.ShadowMode.Parallel2Splits },
+		{ GraphicsQuality.Ultra, DirectionalLight3D.ShadowMode.Parallel4Splits }
+	};
+
+	private static DirectionalLight3D.ShadowMode GetShadowMode(GraphicsQuality quality)
+	{
+		return _shadowModeMap.GetValueOrDefault(quality, DirectionalLight3D.ShadowMode.Parallel4Splits);
+	}
+
 	public static void ApplyDirectionalLightQuality(DirectionalLight3D light, GraphicsQuality quality = GraphicsQuality.High)
 	{
-		if (light == null || !GodotObject.IsInstanceValid(light)) return;
+		if (!IsValidLight(light)) return;
 
-		bool editorDisabled = GameHost.Instance != null && GameHost.Instance.IsMapEditorMode && GameHost.Instance.EditorDisableShadows;
-		light.ShadowEnabled = !GameSettings.DisableShadows && !editorDisabled && light.LightEnergy > 0.05f;
+		light.ShadowEnabled = ShouldEnableShadows(light);
 		if (!light.ShadowEnabled) return;
 
 		light.DirectionalShadowMaxDistance = 200.0f;
-		light.DirectionalShadowMode = quality switch
-		{
-			GraphicsQuality.Low => DirectionalLight3D.ShadowMode.Orthogonal,
-			GraphicsQuality.Medium => DirectionalLight3D.ShadowMode.Orthogonal,
-			GraphicsQuality.High => DirectionalLight3D.ShadowMode.Parallel2Splits,
-			GraphicsQuality.Ultra => DirectionalLight3D.ShadowMode.Parallel4Splits,
-			_ => DirectionalLight3D.ShadowMode.Parallel4Splits
-		};
+		light.DirectionalShadowMode = GetShadowMode(quality);
+	}
+
+	private static bool IsValidLight(DirectionalLight3D light)
+	{
+		if (light == null) return false;
+		if (!GodotObject.IsInstanceValid(light)) return false;
+		return true;
+	}
+
+	private static bool ShouldEnableShadows(DirectionalLight3D light)
+	{
+		if (GameSettings.DisableShadows) return false;
+		if (light.LightEnergy <= 0.05f) return false;
+		if (IsEditorShadowsDisabled()) return false;
+		return true;
+	}
+
+	private static bool IsEditorShadowsDisabled()
+	{
+		GameHost host = GameHost.Instance;
+		if (host == null) return false;
+		if (!host.IsMapEditorMode) return false;
+		if (!host.EditorDisableShadows) return false;
+		return true;
 	}
 
 	private static T FindNodeInTree<T>(Node parent) where T : Node

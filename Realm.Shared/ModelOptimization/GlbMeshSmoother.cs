@@ -211,23 +211,33 @@ public static unsafe class GlbMeshSmoother
 	{
 		for (int bvIdx = 0; bvIdx < bufferViews.Count; bvIdx++)
 		{
-			if (!retainedBufferViews.Contains(bvIdx)) continue;
-			if (bufferViews[bvIdx] is not JsonObject bv) continue;
-
-			int origOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-			int origLength = bv["byteLength"]?.GetValue<int>() ?? 0;
-
-			while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
-			int newOffset = (int)newBinStream.Position;
-
-			if (origOffset + origLength <= binChunk.Length)
-			{
-				newBinStream.Write(binChunk, origOffset, origLength);
-				while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
-			}
-
-			bv["byteOffset"] = newOffset;
+			CopyBufferView(bvIdx, bufferViews, retainedBufferViews, binChunk, newBinStream);
 		}
+	}
+
+	private static void CopyBufferView(int bvIdx, JsonArray bufferViews, HashSet<int> retainedBufferViews, byte[] binChunk, MemoryStream newBinStream)
+	{
+		if (!retainedBufferViews.Contains(bvIdx)) return;
+		if (bufferViews[bvIdx] is not JsonObject bv) return;
+
+		int origOffset = 0;
+		if (bv.TryGetPropertyValue("byteOffset", out var offsetNode) && offsetNode != null)
+			origOffset = offsetNode.GetValue<int>();
+
+		int origLength = 0;
+		if (bv.TryGetPropertyValue("byteLength", out var lengthNode) && lengthNode != null)
+			origLength = lengthNode.GetValue<int>();
+
+		while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
+		int newOffset = (int)newBinStream.Position;
+
+		if (origOffset + origLength <= binChunk.Length)
+		{
+			newBinStream.Write(binChunk, origOffset, origLength);
+			while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
+		}
+
+		bv["byteOffset"] = newOffset;
 	}
 
 	private static void RemoveMsftLodExtension(JsonObject root, string arrayName)
@@ -338,16 +348,17 @@ public static unsafe class GlbMeshSmoother
 
 		foreach (var skin in skins)
 		{
-			if (skin is JsonObject skinObj && skinObj.TryGetPropertyValue("inverseBindMatrices", out var ibmVal))
-			{
-				int aIdx = ibmVal?.GetValue<int>() ?? -1;
-				if (aIdx >= 0 && aIdx < accessors.Count && accessors[aIdx] is JsonObject aObj)
-				{
-					int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
-					if (bv >= 0 && bv < bufferViewCount) retained.Add(bv);
-				}
-			}
+			CollectSkinBufferView(skin, bufferViewCount, accessors, retained);
 		}
+	}
+
+	private static void CollectSkinBufferView(JsonNode? skin, int bufferViewCount, JsonArray accessors, HashSet<int> retained)
+	{
+		if (!TryGetIntProperty(skin as JsonObject, "inverseBindMatrices", out int aIdx)) return;
+		if (aIdx < 0 || aIdx >= accessors.Count) return;
+
+		if (!TryGetIntProperty(accessors[aIdx] as JsonObject, "bufferView", out int bv)) return;
+		if (bv >= 0 && bv < bufferViewCount) retained.Add(bv);
 	}
 
 	private static void CollectMeshBufferViews(JsonObject root, int bufferViewCount, JsonArray accessors, HashSet<int> retained)
@@ -373,15 +384,22 @@ public static unsafe class GlbMeshSmoother
 
 		foreach (var kvp in attrs)
 		{
-			if (kvp.Value == null) continue;
-			
-			int aIdx = kvp.Value.GetValue<int>();
-			if (aIdx >= 0 && aIdx < accessors.Count && accessors[aIdx] is JsonObject aObj)
-			{
-				int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
-				if (bv >= 0 && bv < bufferViewCount) retained.Add(bv);
-			}
+			CollectPrimitiveAttribute(kvp.Value, bufferViewCount, accessors, retained);
 		}
+	}
+
+	private static void CollectPrimitiveAttribute(JsonNode? attrValue, int bufferViewCount, JsonArray accessors, HashSet<int> retained)
+	{
+		if (attrValue == null) return;
+		
+		int aIdx = attrValue.GetValue<int>();
+		if (aIdx < 0 || aIdx >= accessors.Count) return;
+		if (accessors[aIdx] is not JsonObject aObj) return;
+
+		if (!aObj.TryGetPropertyValue("bufferView", out var bvVal) || bvVal == null) return;
+		int bv = bvVal.GetValue<int>();
+		
+		if (bv >= 0 && bv < bufferViewCount) retained.Add(bv);
 	}
 
 	private static void CollectPrimitiveIndices(JsonObject primObj, int bufferViewCount, JsonArray accessors, HashSet<int> retained)
@@ -399,14 +417,16 @@ public static unsafe class GlbMeshSmoother
 
 	private static void AddRetainedAccessor(JsonObject obj, string prop, JsonArray accessors, HashSet<int> retained, int bufferViewCount)
 	{
-		if (!obj.TryGetPropertyValue(prop, out var aVal)) return;
+		if (!obj.TryGetPropertyValue(prop, out var aVal) || aVal == null) return;
 		
-		int aIdx = aVal?.GetValue<int>() ?? -1;
+		int aIdx = aVal.GetValue<int>();
 		if (aIdx < 0 || aIdx >= accessors.Count) return;
 		
 		if (accessors[aIdx] is not JsonObject aObj) return;
 		
-		int bv = aObj["bufferView"]?.GetValue<int>() ?? -1;
+		if (!aObj.TryGetPropertyValue("bufferView", out var bvVal) || bvVal == null) return;
+		
+		int bv = bvVal.GetValue<int>();
 		if (bv >= 0 && bv < bufferViewCount)
 		{
 			retained.Add(bv);
@@ -490,27 +510,27 @@ public static unsafe class GlbMeshSmoother
 		out bool hasColor0, out Vector4[]? colors0,
 		out bool hasTangents)
 	{
-		hasUv0 = attributes.ContainsKey("TEXCOORD_0");
-		uvs0 = hasUv0 ? ExtractVector2Array(attributes["TEXCOORD_0"]!.GetValue<int>(), accessors, bufferViews, binChunk) : null;
-		hasUv0 = uvs0 != null && uvs0.Length == positionsLength;
-
-		hasUv1 = attributes.ContainsKey("TEXCOORD_1");
-		uvs1 = hasUv1 ? ExtractVector2Array(attributes["TEXCOORD_1"]!.GetValue<int>(), accessors, bufferViews, binChunk) : null;
-		hasUv1 = uvs1 != null && uvs1.Length == positionsLength;
-
-		hasJoints0 = attributes.ContainsKey("JOINTS_0");
-		joints0 = hasJoints0 ? ExtractVector4Array(attributes["JOINTS_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, false) : null;
-		hasJoints0 = joints0 != null && joints0.Length == positionsLength;
-
-		hasWeights0 = attributes.ContainsKey("WEIGHTS_0");
-		weights0 = hasWeights0 ? ExtractVector4Array(attributes["WEIGHTS_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, true) : null;
-		hasWeights0 = weights0 != null && weights0.Length == positionsLength;
-
-		hasColor0 = attributes.ContainsKey("COLOR_0");
-		colors0 = hasColor0 ? ExtractVector4Array(attributes["COLOR_0"]!.GetValue<int>(), accessors, bufferViews, binChunk, true) : null;
-		hasColor0 = colors0 != null && colors0.Length == positionsLength;
+		TryExtractVector2Attribute("TEXCOORD_0", attributes, accessors, bufferViews, binChunk, positionsLength, out hasUv0, out uvs0);
+		TryExtractVector2Attribute("TEXCOORD_1", attributes, accessors, bufferViews, binChunk, positionsLength, out hasUv1, out uvs1);
+		TryExtractVector4Attribute("JOINTS_0", attributes, accessors, bufferViews, binChunk, positionsLength, false, out hasJoints0, out joints0);
+		TryExtractVector4Attribute("WEIGHTS_0", attributes, accessors, bufferViews, binChunk, positionsLength, true, out hasWeights0, out weights0);
+		TryExtractVector4Attribute("COLOR_0", attributes, accessors, bufferViews, binChunk, positionsLength, true, out hasColor0, out colors0);
 
 		hasTangents = attributes.ContainsKey("TANGENT");
+	}
+
+	private static void TryExtractVector2Attribute(string key, JsonObject attributes, JsonArray accessors, JsonArray bufferViews, byte[] binChunk, int positionsLength, out bool hasAttr, out Vector2[]? attrArray)
+	{
+		hasAttr = attributes.ContainsKey(key);
+		attrArray = hasAttr ? ExtractVector2Array(attributes[key]!.GetValue<int>(), accessors, bufferViews, binChunk) : null;
+		hasAttr = attrArray != null && attrArray.Length == positionsLength;
+	}
+
+	private static void TryExtractVector4Attribute(string key, JsonObject attributes, JsonArray accessors, JsonArray bufferViews, byte[] binChunk, int positionsLength, bool isNormalized, out bool hasAttr, out Vector4[]? attrArray)
+	{
+		hasAttr = attributes.ContainsKey(key);
+		attrArray = hasAttr ? ExtractVector4Array(attributes[key]!.GetValue<int>(), accessors, bufferViews, binChunk, isNormalized) : null;
+		hasAttr = attrArray != null && attrArray.Length == positionsLength;
 	}
 
 	private static Vector3[,] CalculateNormalsAndWeights(int triangleCount, uint[] indices, Vector3[] positions, float cosThreshold)
@@ -535,40 +555,44 @@ public static unsafe class GlbMeshSmoother
 
 		for (int t = 0; t < triangleCount; t++)
 		{
-			uint orig0 = indices[t * 3];
-			uint orig1 = indices[t * 3 + 1];
-			uint orig2 = indices[t * 3 + 2];
-
-			if (orig0 >= positions.Length || orig1 >= positions.Length || orig2 >= positions.Length) continue;
-
-			uint c0 = ProcessWeldCorner(
-				positions[orig0], cornerNormals[t, 0],
-				hasUv0 ? uvs0![orig0] : Vector2.Zero, hasUv1 ? uvs1![orig1] : Vector2.Zero,
-				hasJoints0 ? joints0![orig0] : Vector4.Zero, hasWeights0 ? weights0![orig0] : Vector4.Zero,
-				hasColor0 ? colors0![orig0] : Vector4.One,
-				uniqueVertexMap, weldedVertices);
-
-			uint c1 = ProcessWeldCorner(
-				positions[orig1], cornerNormals[t, 1],
-				hasUv0 ? uvs0![orig1] : Vector2.Zero, hasUv1 ? uvs1![orig1] : Vector2.Zero,
-				hasJoints0 ? joints0![orig1] : Vector4.Zero, hasWeights0 ? weights0![orig1] : Vector4.Zero,
-				hasColor0 ? colors0![orig1] : Vector4.One,
-				uniqueVertexMap, weldedVertices);
-
-			uint c2 = ProcessWeldCorner(
-				positions[orig2], cornerNormals[t, 2],
-				hasUv0 ? uvs0![orig2] : Vector2.Zero, hasUv1 ? uvs1![orig2] : Vector2.Zero,
-				hasJoints0 ? joints0![orig2] : Vector4.Zero, hasWeights0 ? weights0![orig2] : Vector4.Zero,
-				hasColor0 ? colors0![orig2] : Vector4.One,
-				uniqueVertexMap, weldedVertices);
-
-			if (c0 != c1 && c1 != c2 && c0 != c2)
-			{
-				weldedIndices.Add(c0);
-				weldedIndices.Add(c1);
-				weldedIndices.Add(c2);
-			}
+			ProcessWeldTriangle(t, indices, positions, cornerNormals, 
+				hasUv0, uvs0, hasUv1, uvs1, hasJoints0, joints0, hasWeights0, weights0, hasColor0, colors0, 
+				uniqueVertexMap, weldedVertices, weldedIndices);
 		}
+	}
+
+	private static void ProcessWeldTriangle(int t, uint[] indices, Vector3[] positions, Vector3[,] cornerNormals,
+		bool hasUv0, Vector2[]? uvs0, bool hasUv1, Vector2[]? uvs1, bool hasJoints0, Vector4[]? joints0, bool hasWeights0, Vector4[]? weights0, bool hasColor0, Vector4[]? colors0,
+		Dictionary<VertexWeldKey, uint> uniqueVertexMap, List<SmoothedVertexData> weldedVertices, List<uint> weldedIndices)
+	{
+		uint orig0 = indices[t * 3];
+		uint orig1 = indices[t * 3 + 1];
+		uint orig2 = indices[t * 3 + 2];
+
+		if (orig0 >= positions.Length || orig1 >= positions.Length || orig2 >= positions.Length) return;
+
+		uint c0 = ProcessSingleWeldCorner(orig0, t, 0, positions, cornerNormals, hasUv0, uvs0, hasUv1, uvs1, hasJoints0, joints0, hasWeights0, weights0, hasColor0, colors0, uniqueVertexMap, weldedVertices);
+		uint c1 = ProcessSingleWeldCorner(orig1, t, 1, positions, cornerNormals, hasUv0, uvs0, hasUv1, uvs1, hasJoints0, joints0, hasWeights0, weights0, hasColor0, colors0, uniqueVertexMap, weldedVertices);
+		uint c2 = ProcessSingleWeldCorner(orig2, t, 2, positions, cornerNormals, hasUv0, uvs0, hasUv1, uvs1, hasJoints0, joints0, hasWeights0, weights0, hasColor0, colors0, uniqueVertexMap, weldedVertices);
+
+		if (c0 != c1 && c1 != c2 && c0 != c2)
+		{
+			weldedIndices.Add(c0);
+			weldedIndices.Add(c1);
+			weldedIndices.Add(c2);
+		}
+	}
+
+	private static uint ProcessSingleWeldCorner(uint origIdx, int t, int cornerOffset, Vector3[] positions, Vector3[,] cornerNormals,
+		bool hasUv0, Vector2[]? uvs0, bool hasUv1, Vector2[]? uvs1, bool hasJoints0, Vector4[]? joints0, bool hasWeights0, Vector4[]? weights0, bool hasColor0, Vector4[]? colors0,
+		Dictionary<VertexWeldKey, uint> uniqueVertexMap, List<SmoothedVertexData> weldedVertices)
+	{
+		return ProcessWeldCorner(
+			positions[origIdx], cornerNormals[t, cornerOffset],
+			hasUv0 ? uvs0![origIdx] : Vector2.Zero, hasUv1 ? uvs1![origIdx] : Vector2.Zero,
+			hasJoints0 ? joints0![origIdx] : Vector4.Zero, hasWeights0 ? weights0![origIdx] : Vector4.Zero,
+			hasColor0 ? colors0![origIdx] : Vector4.One,
+			uniqueVertexMap, weldedVertices);
 	}
 
 	private static void FinalizePrimitive(List<SmoothedVertexData> weldedVertices, List<uint> weldedIndices, bool hasTangents, bool hasUv0, JsonObject primObj, bool hasUv1, bool hasJoints0, bool hasWeights0, bool hasColor0, MemoryStream newBinStream, JsonArray bufferViews, JsonArray accessors)
@@ -631,30 +655,21 @@ public static unsafe class GlbMeshSmoother
 		float l02 = e02.Length();
 		float l12 = e12.Length();
 
-		w0 = 1.0f;
-		w1 = 1.0f;
-		w2 = 1.0f;
+		w0 = CalculateCornerAngle(e01, e02, l01, l02);
+		w1 = CalculateCornerAngle(-e01, e12, l01, l12);
+		w2 = CalculateCornerAngle(-e02, -e12, l02, l12);
+	}
 
-		if (l01 > 1e-6f && l02 > 1e-6f)
-		{
-			float dot = Math.Clamp(Vector3.Dot(e01, e02) / (l01 * l02), -1.0f, 1.0f);
-			float a = MathF.Acos(dot);
-			if (!float.IsNaN(a) && a > 1e-4f) w0 = a;
-		}
-
-		if (l01 > 1e-6f && l12 > 1e-6f)
-		{
-			float dot = Math.Clamp(Vector3.Dot(-e01, e12) / (l01 * l12), -1.0f, 1.0f);
-			float a = MathF.Acos(dot);
-			if (!float.IsNaN(a) && a > 1e-4f) w1 = a;
-		}
-
-		if (l02 > 1e-6f && l12 > 1e-6f)
-		{
-			float dot = Math.Clamp(Vector3.Dot(-e02, -e12) / (l02 * l12), -1.0f, 1.0f);
-			float a = MathF.Acos(dot);
-			if (!float.IsNaN(a) && a > 1e-4f) w2 = a;
-		}
+	private static float CalculateCornerAngle(Vector3 edgeA, Vector3 edgeB, float lenA, float lenB)
+	{
+		if (lenA <= 1e-6f || lenB <= 1e-6f) return 1.0f;
+		
+		float dot = Math.Clamp(Vector3.Dot(edgeA, edgeB) / (lenA * lenB), -1.0f, 1.0f);
+		float a = MathF.Acos(dot);
+		
+		if (!float.IsNaN(a) && a > 1e-4f) return a;
+		
+		return 1.0f;
 	}
 
 	private static Dictionary<SpatialPositionKey, List<(int TriIdx, int CornerIdx)>> BuildSpatialPosMap(int triangleCount, uint[] indices, Vector3[] positions)
@@ -1147,16 +1162,24 @@ public static unsafe class GlbMeshSmoother
 	{
 		if (!TryGetAccessorData(accessorIndex, accessors, bufferViews, out int count, out int compType, out int byteOffset, out int stride, out _)) return null;
 
-		string type = accessors[accessorIndex]!["type"]?.GetValue<string>() ?? string.Empty;
+		string type = string.Empty;
+		if (accessors[accessorIndex] is JsonObject aObj && aObj.TryGetPropertyValue("type", out var typeVal) && typeVal != null)
+			type = typeVal.GetValue<string>();
+			
 		if (type != "VEC2") return null;
 
-		int elemSize = compType switch { 5126 => 8, 5123 => 4, 5121 => 2, _ => 0 };
+		int elemSize = GetVector2ElementSize(compType);
 		if (elemSize == 0) return null;
 
 		if (stride < elemSize) stride = elemSize;
 		if ((long)byteOffset + ((long)count * stride) - (stride - elemSize) > binChunk.Length) return null;
 
 		return ParseVector2Array(count, stride, byteOffset, compType, binChunk);
+	}
+
+	private static int GetVector2ElementSize(int compType)
+	{
+		return compType switch { 5126 => 8, 5123 => 4, 5121 => 2, _ => 0 };
 	}
 
 	private static Vector2[] ParseVector2Array(int count, int stride, int byteOffset, int compType, byte[] binChunk)
@@ -1191,18 +1214,36 @@ public static unsafe class GlbMeshSmoother
 	{
 		if (!TryGetAccessorData(accessorIndex, accessors, bufferViews, out int count, out int compType, out int byteOffset, out int stride, out _)) return null;
 
-		string type = accessors[accessorIndex]!["type"]?.GetValue<string>() ?? string.Empty;
+		if (!TryGetAccessorType(accessors[accessorIndex] as JsonObject, out string type)) return null;
 		if (type != "VEC4" && type != "VEC3") return null;
 
 		int numComponents = type == "VEC4" ? 4 : 3;
-		int bytesPerComp = compType switch { 5126 => 4, 5125 => 4, 5123 => 2, 5121 => 1, _ => 0 };
+		int bytesPerComp = GetBytesPerComponent(compType);
 		if (bytesPerComp == 0) return null;
 
 		int elemSize = numComponents * bytesPerComp;
-		if (stride < elemSize) stride = elemSize;
-		if ((long)byteOffset + ((long)count * stride) - (stride - elemSize) > binChunk.Length) return null;
+		stride = Math.Max(stride, elemSize);
+		
+		long endOffset = (long)byteOffset + ((long)count * stride) - (stride - elemSize);
+		if (endOffset > binChunk.Length) return null;
 
 		return ParseVector4Array(count, stride, byteOffset, numComponents, bytesPerComp, compType, isNormalized, binChunk);
+	}
+
+	private static bool TryGetAccessorType(JsonObject? aObj, out string type)
+	{
+		type = string.Empty;
+		if (aObj != null && aObj.TryGetPropertyValue("type", out var typeVal) && typeVal != null)
+		{
+			type = typeVal.GetValue<string>();
+			return true;
+		}
+		return false;
+	}
+
+	private static int GetBytesPerComponent(int compType)
+	{
+		return compType switch { 5126 => 4, 5125 => 4, 5123 => 2, 5121 => 1, _ => 0 };
 	}
 
 	private static Vector4[] ParseVector4Array(int count, int stride, int byteOffset, int numComponents, int bytesPerComp, int compType, bool isNormalized, byte[] binChunk)
@@ -1242,10 +1283,7 @@ public static unsafe class GlbMeshSmoother
 	{
 		if (!primObj.ContainsKey("indices") || primObj["indices"] == null)
 		{
-			if (vertexCount < 3 || vertexCount % 3 != 0) return null;
-			var sequentialIndices = new uint[vertexCount];
-			for (uint i = 0; i < vertexCount; i++) sequentialIndices[i] = i;
-			return sequentialIndices;
+			return InitializeSequentialIndices(vertexCount);
 		}
 
 		int accIdx = primObj["indices"]!.GetValue<int>();
@@ -1253,7 +1291,7 @@ public static unsafe class GlbMeshSmoother
 		
 		if (count < 3 || count % 3 != 0) return null;
 
-		int elemSize = compType switch { 5121 => 1, 5123 => 2, 5125 => 4, _ => 0 };
+		int elemSize = GetIndexElementSize(compType);
 		if (elemSize == 0 || (long)byteOffset + ((long)count * elemSize) > binChunk.Length) return null;
 
 		var indices = new uint[count];
@@ -1262,6 +1300,19 @@ public static unsafe class GlbMeshSmoother
 			indices[i] = ParseIndex(binChunk, byteOffset, i, compType);
 		}
 		return indices;
+	}
+
+	private static uint[]? InitializeSequentialIndices(int vertexCount)
+	{
+		if (vertexCount < 3 || vertexCount % 3 != 0) return null;
+		var sequentialIndices = new uint[vertexCount];
+		for (uint i = 0; i < vertexCount; i++) sequentialIndices[i] = i;
+		return sequentialIndices;
+	}
+
+	private static int GetIndexElementSize(int compType)
+	{
+		return compType switch { 5121 => 1, 5123 => 2, 5125 => 4, _ => 0 };
 	}
 
 	private static uint ParseIndex(byte[] binChunk, int byteOffset, int i, int compType)
@@ -1283,22 +1334,43 @@ public static unsafe class GlbMeshSmoother
 		if (accessors[accessorIndex] is not JsonObject acc) return false;
 		if (acc.ContainsKey("sparse")) return false;
 
-		compType = acc["componentType"]?.GetValue<int>() ?? 0;
-		count = acc["count"]?.GetValue<int>() ?? 0;
+		TryGetIntProperty(acc, "componentType", out compType);
+		TryGetIntProperty(acc, "count", out count);
 		if (count <= 0) return false;
 
-		int bvIdx = acc["bufferView"]?.GetValue<int>() ?? -1;
+		if (!TryGetBufferView(acc, bufferViews, out bv)) return false;
+		
+		TryGetIntProperty(acc, "byteOffset", out int accOffset);
+		TryGetIntProperty(bv, "byteOffset", out int bvOffset);
+		byteOffset = accOffset + bvOffset;
+		
+		TryGetIntProperty(bv, "byteStride", out stride);
+
+		return true;
+	}
+
+	private static bool TryGetIntProperty(JsonObject? obj, string propertyName, out int value)
+	{
+		value = 0;
+		if (obj != null && obj.TryGetPropertyValue(propertyName, out var valNode) && valNode != null)
+		{
+			value = valNode.GetValue<int>();
+			return true;
+		}
+		return false;
+	}
+
+	private static bool TryGetBufferView(JsonObject acc, JsonArray bufferViews, out JsonObject bv)
+	{
+		bv = null!;
+		
+		if (!acc.TryGetPropertyValue("bufferView", out var bvIdxNode) || bvIdxNode == null) return false;
+		int bvIdx = bvIdxNode.GetValue<int>();
+		
 		if (bvIdx < 0 || bvIdx >= bufferViews.Count) return false;
 		if (bufferViews[bvIdx] is not JsonObject bvObj) return false;
 
 		bv = bvObj;
-		
-		int accOffset = acc["byteOffset"]?.GetValue<int>() ?? 0;
-		int bvOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-		byteOffset = accOffset + bvOffset;
-		
-		stride = bv["byteStride"]?.GetValue<int>() ?? 0;
-
 		return true;
 	}
 

@@ -171,12 +171,8 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		BuildControls();
 	}
 
-	private void BuildControls()
+private void BuildTopToolbar(Control parent)
 	{
-		Add3DPreviewViewport(BodyContainer, new Vector2(530, 220));
-
-		CreatePreviewEnvironment();
-
 		var topToolbar = new HBoxContainer();
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
@@ -186,8 +182,6 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		AddButton(topToolbar, $"{UnicodeIcons.SUN} " + TranslationServer.Translate("Burst"), () => TriggerPreviewBurst(), "Test expanding 3D burst sphere", 10, new Vector2(0, 22));
 		AddButton(topToolbar, $"{UnicodeIcons.EXPAND_ARROWS} " + TranslationServer.Translate("Chain"), () => TriggerPreviewChain(), "Test multi-segment ribbon chain beam", 10, new Vector2(0, 22));
 		AddButton(topToolbar, $"{UnicodeIcons.CLOUD_SHOWERS} " + TranslationServer.Translate("Barrage"), () => TriggerPreviewBarrage(), "Test randomized area barrage volley", 10, new Vector2(0, 22));
-
-		AddButton(topToolbar, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () => CopyScriptCode(), "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
 
 		var separator = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		topToolbar.AddChild(separator);
@@ -199,11 +193,25 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				_previewGroundGrid.Visible = !_previewGroundGrid.Visible;
 			}
 		});
+		
+		parent.AddChild(topToolbar);
+	}
 
-		BodyContainer.AddChild(topToolbar);
+	private void BuildSubToolbar(Control parent)
+	{
+		var rowRandomize = new HBoxContainer();
+		var btnRandomize = AddButton(rowRandomize, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize All"), () =>
+		{
+			RandomizeAllParameters();
+		}, "Randomize all noise masks, shapes, uv scrolling, and color parameters completely");
+		btnRandomize.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		
+		AddButton(rowRandomize, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () => CopyScriptCode(), "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
+		parent.AddChild(rowRandomize);
+	}
 
-		var scrollBody = CreateScrollBody(440);
-
+	private void BuildBasicSettings(VBoxContainer parent)
+	{
 		var rowId = new HBoxContainer();
 		rowId.AddThemeConstantOverride("separation", 6);
 		var lblId = new Label();
@@ -234,9 +242,9 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			}
 		};
 		rowId.AddChild(_txtSlug);
-		scrollBody.AddChild(rowId);
+		parent.AddChild(rowId);
 
-		_txtVfxName = AddTextInput(scrollBody, TranslationServer.Translate("Display Name:"), _currentConfig.Name, (val) =>
+		_txtVfxName = AddTextInput(parent, TranslationServer.Translate("Display Name:"), _currentConfig.Name, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.Name = val;
@@ -244,7 +252,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		string[] modeNames = new[] { "Primitive", "Particle" };
 		int initialModeIdx = _currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem ? 1 : 0;
-		_optMode = AddOptionDropdown(scrollBody, TranslationServer.Translate("Mode"), modeNames, initialModeIdx, (idx) =>
+		_optMode = AddOptionDropdown(parent, TranslationServer.Translate("Mode"), modeNames, initialModeIdx, (idx) =>
 		{
 			if (_isUpdatingUI) return;
 			if (idx == 1)
@@ -263,11 +271,14 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			UpdateSectionVisibilities();
 			RestartPreviewVfx();
 		}, 140f);
+	}
 
-		AddSectionHeader(scrollBody, "⚙️ " + TranslationServer.Translate("Settings"));
+	private void BuildSettings(VBoxContainer parent)
+	{
+		AddSectionHeader(parent, "⚙️ " + TranslationServer.Translate("Settings"));
 
 		string[] blendModes = Enum.GetNames<VfxBlendMode>();
-		_optBlendMode = AddOptionDropdown(scrollBody, TranslationServer.Translate("Blend Mode"), blendModes, (int)_currentConfig.BlendMode, (idx) =>
+		_optBlendMode = AddOptionDropdown(parent, TranslationServer.Translate("Blend Mode"), blendModes, (int)_currentConfig.BlendMode, (idx) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.BlendMode = (VfxBlendMode)idx;
@@ -279,14 +290,14 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}, 140f);
 
 		string[] placementModes = Enum.GetNames<VfxPlacementMode>();
-		_optPlacementMode = AddOptionDropdown(scrollBody, TranslationServer.Translate("Placement Mode"), placementModes, (int)_currentConfig.PlacementMode, (idx) =>
+		_optPlacementMode = AddOptionDropdown(parent, TranslationServer.Translate("Placement Mode"), placementModes, (int)_currentConfig.PlacementMode, (idx) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.PlacementMode = (VfxPlacementMode)idx;
 		}, 140f);
 
 		string[] renderModes = Enum.GetNames<SpellParticleRenderMode>();
-		_optParticleRenderMode = AddOptionDropdown(scrollBody, TranslationServer.Translate("Render Mode"), renderModes, _currentConfig.ParticleConfig != null ? (int)_currentConfig.ParticleConfig.RenderMode : 0, (idx) =>
+		_optParticleRenderMode = AddOptionDropdown(parent, TranslationServer.Translate("Render Mode"), renderModes, _currentConfig.ParticleConfig != null ? (int)_currentConfig.ParticleConfig.RenderMode : 0, (idx) =>
 		{
 			if (_isUpdatingUI) return;
 			EnsureParticleConfig();
@@ -295,9 +306,12 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			RestartPreviewVfx();
 		}, 140f);
 		_rowParticleRenderMode = _optParticleRenderMode.GetParent() as Control;
+	}
 
+	private void BuildTextureSettings(VBoxContainer parent)
+	{
 		var baseTexTuple = AddAssetFilterDropdown(
-			scrollBody,
+			parent,
 			TranslationServer.Translate("Base Texture (.rtex)"),
 			_currentConfig.BaseTexture,
 			(all) => ScanTextureAssets(true),
@@ -315,7 +329,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		_rowBaseTexture = baseTexTuple.Input.GetParent() as Control;
 
 		var particleTexTuple = AddAssetFilterDropdown(
-			scrollBody,
+			parent,
 			TranslationServer.Translate("Particle Texture"),
 			"",
 			(all) => ScanTextureAssets(true),
@@ -365,7 +379,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 
 		var particleMeshTuple = AddAssetFilterDropdown(
-			scrollBody,
+			parent,
 			TranslationServer.Translate("Projectile Mesh"),
 			"",
 			(all) => ScanProjectileMeshAssets(),
@@ -374,118 +388,79 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				if (_isUpdatingUI) return;
 				EnsureParticleConfig();
 				_currentConfig.ParticleConfig.MeshAssetPath = val;
-				if (!string.IsNullOrEmpty(val))
-				{
-					_currentConfig.ParticleConfig.RenderMode = SpellParticleRenderMode.Mesh;
-					if (_optParticleRenderMode != null)
-					{
-						_optParticleRenderMode.Selected = (int)SpellParticleRenderMode.Mesh;
-					}
-					UpdateSectionVisibilities();
-				}
 				RestartPreviewVfx();
 			},
-			TranslationServer.Translate("Select projectile/prop mesh (.rmesh)..."),
+			TranslationServer.Translate("Select .rmesh asset..."),
 			140f,
 			true
 		);
 		_txtParticleMesh = particleMeshTuple.Input;
 		_setParticleMeshVal = particleMeshTuple.SetValue;
 		_rowParticleMesh = particleMeshTuple.Input.GetParent() as Control;
+	}
 
-		string[] primitiveNames = _primitiveTypes.Select(p => p.ToString()).ToArray();
-		int primitiveInitialIdx = Math.Max(0, Array.IndexOf(_primitiveTypes, _currentConfig.PrimitiveType));
-		_optPrimitive = AddOptionDropdown(scrollBody, TranslationServer.Translate("Primitive Shape"), primitiveNames, primitiveInitialIdx, (idx) =>
-		{
-			if (_isUpdatingUI) return;
-			_currentConfig.PrimitiveType = _primitiveTypes[idx];
-			UpdateSectionVisibilities();
-			RestartPreviewVfx();
-		}, 140f);
-		_rowPrimitive = _optPrimitive.GetParent() as Control;
-
-		var rowRandomize = new HBoxContainer();
-		rowRandomize.AddThemeConstantOverride("separation", 6);
-		var btnRandomize = AddButton(
-			rowRandomize,
-			"🎲 " + TranslationServer.Translate("Randomize All"),
-			() => RandomizeAllParameters(),
-			"Pick random values for all visual configuration parameters below",
-			11,
-			new Vector2(0, 26)
-		);
-		btnRandomize.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		scrollBody.AddChild(rowRandomize);
-
+	private void BuildShaderSettings(VBoxContainer parent)
+	{
 		_uberShaderContainer = new VBoxContainer();
-		_uberShaderContainer.AddThemeConstantOverride("separation", 8);
-		scrollBody.AddChild(_uberShaderContainer);
+		parent.AddChild(_uberShaderContainer);
 
-		_particleContainer = new VBoxContainer();
-		_particleContainer.AddThemeConstantOverride("separation", 8);
-		scrollBody.AddChild(_particleContainer);
+		AddSectionHeader(_uberShaderContainer, "🔳 " + TranslationServer.Translate("Mask & Distortion"));
 
-		BuildParticleControls(_particleContainer);
-
-		AddSectionHeader(_uberShaderContainer, "🖼️ " + TranslationServer.Translate("SLOT 1: BASE SHAPE MASK (SILHOUETTE)"), new Color(0.85f, 0.6f, 0.35f));
-
-		_chkLuminanceToAlpha = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Luminance to Alpha"), _currentConfig.LuminanceToAlpha, (pressed) =>
+		_chkLuminanceToAlpha = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Luminance To Alpha"), _currentConfig.LuminanceToAlpha, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.LuminanceToAlpha = pressed;
+			_currentConfig.LuminanceToAlpha = val;
 			RestartPreviewVfx();
-		}, "Derive transparency from texture brightness to strip black/dark backgrounds automatically");
+		}, "Converts grayscale intensity into transparency");
 
-		(_sliderLuminanceThreshold, _lblLuminanceThreshold) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Luminance Threshold"), 0.0f, 1.0f, 0.01f, _currentConfig.LuminanceThreshold, (val) =>
+		(_sliderLuminanceThreshold, _lblLuminanceThreshold) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Luma Threshold"), 0.0f, 1.0f, 0.05f, 0.1f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.LuminanceThreshold = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		(_sliderLuminanceSmoothness, _lblLuminanceSmoothness) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Threshold Smoothness"), 0.001f, 0.5f, 0.01f, _currentConfig.LuminanceSmoothness, (val) =>
+		(_sliderLuminanceSmoothness, _lblLuminanceSmoothness) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Luma Smoothness"), 0.0f, 1.0f, 0.05f, 0.1f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.LuminanceSmoothness = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		_chkUseGrayscale = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Convert to Grayscale"), _currentConfig.UseGrayscale, (pressed) =>
+		_chkUseGrayscale = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Use Grayscale Base"), _currentConfig.UseGrayscale, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.UseGrayscale = pressed;
+			_currentConfig.UseGrayscale = val;
 			RestartPreviewVfx();
-		});
+		}, "Discard color and use texture purely as a mask");
 
-		_chkInvertMask = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Invert Mask Colors"), _currentConfig.InvertMask, (pressed) =>
+		_chkInvertMask = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Invert Base Alpha"), _currentConfig.InvertMask, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.InvertMask = pressed;
+			_currentConfig.InvertMask = val;
 			RestartPreviewVfx();
-		});
+		}, "Inverts the calculated alpha mask");
 
-		(_sliderHighPassCutoff, _lblHighPassCutoff) = AddSlider(_uberShaderContainer, TranslationServer.Translate("High-Pass Cutoff"), 0.0f, 1.0f, 0.02f, _currentConfig.HighPassCutoff, (val) =>
+		(_sliderHighPassCutoff, _lblHighPassCutoff) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Alpha Cutoff"), 0.0f, 1.0f, 0.05f, 0.0f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.HighPassCutoff = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		(_txtBaseUvScrollX, _txtBaseUvScrollY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Base UV Scroll (X, Y)"), _currentConfig.BaseUvScroll, (val) =>
+		(_txtBaseUvScrollX, _txtBaseUvScrollY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Base UV Scroll"), Vector2.Zero, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.BaseUvScroll = val;
+			_currentConfig.BaseUvScroll = val.ToVector2Data();
 			RestartPreviewVfx();
 		}, 140f);
 
-		(_txtBaseUvScaleX, _txtBaseUvScaleY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Base UV Scale (X, Y)"), _currentConfig.BaseUvScale, (val) =>
+		(_txtBaseUvScaleX, _txtBaseUvScaleY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Base UV Scale"), Vector2.One, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.BaseUvScale = val;
+			_currentConfig.BaseUvScale = val.ToVector2Data();
 			RestartPreviewVfx();
 		}, 140f);
-
-		AddSectionHeader(_uberShaderContainer, "🌪️ " + TranslationServer.Translate("SLOT 2: DISTORTION & NOISE MASK"), new Color(0.35f, 0.75f, 0.85f));
 
 		var noiseTexTuple = AddAssetFilterDropdown(
 			_uberShaderContainer,
@@ -498,8 +473,9 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				_currentConfig.NoiseTexture = val;
 				RestartPreviewVfx();
 			},
-			TranslationServer.Translate("Select noise texture..."),
-			140f
+			TranslationServer.Translate("Select noise asset..."),
+			140f,
+			true
 		);
 		_setNoiseTextureVal = noiseTexTuple.SetValue;
 
@@ -533,174 +509,196 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		(_txtNoiseUvScrollX, _txtNoiseUvScrollY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Noise UV Scroll (X, Y)"), _currentConfig.NoiseUvScroll, (val) =>
+		(_txtNoiseUvScrollX, _txtNoiseUvScrollY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Noise UV Scroll"), Vector2.Zero, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.NoiseUvScroll = val;
+			_currentConfig.NoiseUvScroll = val.ToVector2Data();
 			RestartPreviewVfx();
 		}, 140f);
 
-		(_txtNoiseUvScaleX, _txtNoiseUvScaleY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Noise UV Scale (X, Y)"), _currentConfig.NoiseUvScale, (val) =>
+		(_txtNoiseUvScaleX, _txtNoiseUvScaleY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Noise UV Scale"), Vector2.One, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.NoiseUvScale = val;
+			_currentConfig.NoiseUvScale = val.ToVector2Data();
 			RestartPreviewVfx();
 		}, 140f);
+	}
 
-		AddSectionHeader(_uberShaderContainer, "🔥 " + TranslationServer.Translate("COLOR & HEAT HIERARCHY"), new Color(0.95f, 0.45f, 0.25f));
+	private void BuildColorSettings(VBoxContainer parent)
+	{
+		AddSectionHeader(parent, "🎨 " + TranslationServer.Translate("Color Ramp"));
 
-		(_pickerBaseColor, _sliderBaseColorHue) = AddColorPicker(_uberShaderContainer, TranslationServer.Translate("Base Color"), VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange), (c) =>
+		(_pickerBaseColor, _sliderBaseColorHue) = AddColorPicker(parent, TranslationServer.Translate("Base Tint"), Colors.Orange, (c) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.BaseColor = "#" + c.ToHtml(false);
 			RestartPreviewVfx();
 		}, 140f);
 
-		(_pickerSecondaryColor, _sliderSecondaryColorHue) = AddColorPicker(_uberShaderContainer, TranslationServer.Translate("Secondary / Rim Color"), VfxShaderManager.ParseColorSafe(_currentConfig.SecondaryColor, Colors.DarkRed), (c) =>
+		(_pickerSecondaryColor, _sliderSecondaryColorHue) = AddColorPicker(parent, TranslationServer.Translate("Secondary Color"), Colors.DarkRed, (c) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.SecondaryColor = "#" + c.ToHtml(false);
 			RestartPreviewVfx();
 		}, 140f);
 
-		(_pickerCoreColor, _sliderCoreColorHue) = AddColorPicker(_uberShaderContainer, TranslationServer.Translate("Inner Core Color"), VfxShaderManager.ParseColorSafe(_currentConfig.CoreColor, Colors.White), (c) =>
+		(_pickerCoreColor, _sliderCoreColorHue) = AddColorPicker(parent, TranslationServer.Translate("Core Color"), Colors.White, (c) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.CoreColor = "#" + c.ToHtml(false);
 			RestartPreviewVfx();
 		}, 140f);
 
-		(_sliderColorMixRatio, _lblColorMixRatio) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Color Mix Ratio"), 0.0f, 1.0f, 0.02f, _currentConfig.ColorMixRatio, (val) =>
+		(_sliderColorMixRatio, _lblColorMixRatio) = AddSlider(parent, TranslationServer.Translate("Color Mix Ratio"), 0.0f, 1.0f, 0.05f, 0.5f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.ColorMixRatio = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		(_sliderEmissionBoost, _lblEmissionBoost) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Emission Boost"), 0.0f, 15.0f, 0.2f, _currentConfig.EmissionBoost, (val) =>
+		(_sliderEmissionBoost, _lblEmissionBoost) = AddSlider(parent, TranslationServer.Translate("Emission Energy"), 0.0f, 20.0f, 0.2f, 2.0f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.EmissionBoost = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 
-		(_sliderCoreThreshold, _lblCoreThreshold) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Core Threshold"), 0.0f, 1.0f, 0.02f, _currentConfig.CoreThreshold, (val) =>
+		(_sliderCoreThreshold, _lblCoreThreshold) = AddSlider(parent, TranslationServer.Translate("Core Threshold"), 0.0f, 1.0f, 0.05f, 0.8f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.CoreThreshold = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
+	}
 
-		AddSectionHeader(_uberShaderContainer, "🌊 " + TranslationServer.Translate("FADING & DISSOLVE SUITE"), new Color(0.5f, 0.85f, 0.65f));
+	private void BuildFalloffSettings(VBoxContainer parent)
+	{
+		AddSectionHeader(parent, "📉 " + TranslationServer.Translate("Fade & Falloff"));
 
-		_chkRadialFalloff = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Radial Falloff (Edge Fade)"), _currentConfig.EnableRadialFalloff, (pressed) =>
+		_chkRadialFalloff = AddCheckBox(parent, TranslationServer.Translate("Radial Edge Falloff"), _currentConfig.EnableRadialFalloff, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.EnableRadialFalloff = pressed;
+			_currentConfig.EnableRadialFalloff = val;
 			RestartPreviewVfx();
-		}, "Softens perimeter edges of discs and quads to prevent hard clipping");
+		}, "Softens the outer edges of the texture radially");
 
-		(_sliderRadialFalloffStart, _lblRadialFalloffStart) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Radial Falloff Start"), 0.0f, 1.0f, 0.02f, _currentConfig.RadialFalloffStart, (val) =>
+		(_sliderRadialFalloffStart, _lblRadialFalloffStart) = AddSlider(parent, TranslationServer.Translate("Falloff Start"), 0.0f, 1.0f, 0.05f, 0.3f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.RadialFalloffStart = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		(_sliderRadialFalloffEnd, _lblRadialFalloffEnd) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Radial Falloff End"), 0.0f, 1.0f, 0.02f, _currentConfig.RadialFalloffEnd, (val) =>
+		(_sliderRadialFalloffEnd, _lblRadialFalloffEnd) = AddSlider(parent, TranslationServer.Translate("Falloff End"), 0.0f, 1.0f, 0.05f, 0.5f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.RadialFalloffEnd = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		_chkLengthFade = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Length Fade (Erosion)"), _currentConfig.EnableLengthFade, (pressed) =>
+		_chkLengthFade = AddCheckBox(parent, TranslationServer.Translate("Vertical/Length Fade"), _currentConfig.EnableLengthFade, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.EnableLengthFade = pressed;
+			_currentConfig.EnableLengthFade = val;
 			RestartPreviewVfx();
-		}, "Gradient falloff along UV length to pinch off flame tongues and dissolve trails");
+		}, "Fades out along the V axis (useful for beams/shockwaves)");
 
-		(_sliderLengthFadeStart, _lblLengthFadeStart) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Length Fade Start"), 0.0f, 1.0f, 0.02f, _currentConfig.LengthFadeStart, (val) =>
+		(_sliderLengthFadeStart, _lblLengthFadeStart) = AddSlider(parent, TranslationServer.Translate("Fade Start (V)"), 0.0f, 1.0f, 0.05f, 0.0f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.LengthFadeStart = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		(_sliderLengthFadeEnd, _lblLengthFadeEnd) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Length Fade End"), 0.0f, 1.0f, 0.02f, _currentConfig.LengthFadeEnd, (val) =>
+		(_sliderLengthFadeEnd, _lblLengthFadeEnd) = AddSlider(parent, TranslationServer.Translate("Fade End (V)"), 0.0f, 1.0f, 0.05f, 1.0f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.LengthFadeEnd = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		(_sliderErosionProgress, _lblErosionProgress) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Erosion Progress"), 0.0f, 1.0f, 0.02f, _currentConfig.ErosionProgress, (val) =>
+		(_sliderErosionProgress, _lblErosionProgress) = AddSlider(parent, TranslationServer.Translate("Erosion Progress"), 0.0f, 1.0f, 0.05f, 0.0f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.ErosionProgress = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
 
-		_chkFresnel = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Fresnel / Rim Glow"), _currentConfig.EnableFresnel, (pressed) =>
+		_chkFresnel = AddCheckBox(parent, TranslationServer.Translate("Fresnel Glow"), _currentConfig.EnableFresnel, (val) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.EnableFresnel = pressed;
+			_currentConfig.EnableFresnel = val;
 			RestartPreviewVfx();
-		}, "View-angle falloff for luminous shields, force fields, and domes");
+		}, "Highlights grazing angles (only visible on 3D meshes)");
 
-		(_sliderFresnelPower, _lblFresnelPower) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Fresnel Power"), 0.1f, 10.0f, 0.1f, _currentConfig.FresnelPower, (val) =>
+		(_sliderFresnelPower, _lblFresnelPower) = AddSlider(parent, TranslationServer.Translate("Fresnel Power"), 0.0f, 10.0f, 0.2f, 3.0f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.FresnelPower = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 
-		(_sliderFresnelIntensity, _lblFresnelIntensity) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Fresnel Intensity"), 0.0f, 10.0f, 0.2f, _currentConfig.FresnelIntensity, (val) =>
+		(_sliderFresnelIntensity, _lblFresnelIntensity) = AddSlider(parent, TranslationServer.Translate("Fresnel Intensity"), 0.0f, 10.0f, 0.2f, 1.0f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.FresnelIntensity = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
 
-		_chkDepthFade = AddCheckBox(_uberShaderContainer, TranslationServer.Translate("Depth Fade (Soft Intersect)"), _currentConfig.EnableDepthFade, (pressed) =>
+		_chkDepthFade = AddCheckBox(parent, TranslationServer.Translate("Depth Fade (Soft Intersect)"), _currentConfig.EnableDepthFade, (pressed) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.EnableDepthFade = pressed;
 			RestartPreviewVfx();
 		}, "Eliminates hard seams where VFX intersects terrain or geometry");
 
-		(_sliderDepthFadeDistance, _lblDepthFadeDistance) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Depth Fade Distance"), 0.0f, 5.0f, 0.05f, _currentConfig.DepthFadeDistance, (val) =>
+		(_sliderDepthFadeDistance, _lblDepthFadeDistance) = AddSlider(parent, TranslationServer.Translate("Depth Fade Distance"), 0.0f, 5.0f, 0.05f, _currentConfig.DepthFadeDistance, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.DepthFadeDistance = val;
 			RestartPreviewVfx();
 		}, "0.00", 140f);
+	}
 
-		AddSectionHeader(scrollBody, "📐 " + TranslationServer.Translate("TRANSFORM & SURFACE OFFSET"), new Color(0.75f, 0.65f, 0.95f));
+	private void BuildTransformSettings(VBoxContainer parent)
+	{
+		AddSectionHeader(parent, "📐 " + TranslationServer.Translate("TRANSFORM & SURFACE OFFSET"), new Color(0.75f, 0.65f, 0.95f));
 
-		(_sliderSurfaceNormalOffset, _lblSurfaceNormalOffset) = AddSlider(scrollBody, TranslationServer.Translate("Surface Normal Offset"), -0.2f, 0.5f, 0.005f, _currentConfig.SurfaceNormalOffset, (val) =>
+		string[] primitiveNames = _primitiveTypes.Select(p => p.ToString()).ToArray();
+		int primitiveInitialIdx = Math.Max(0, Array.IndexOf(_primitiveTypes, _currentConfig.PrimitiveType));
+		_optPrimitive = AddOptionDropdown(parent, TranslationServer.Translate("Primitive Shape"), primitiveNames, primitiveInitialIdx, (idx) =>
+		{
+			if (_isUpdatingUI) return;
+			if (idx >= 0 && idx < _primitiveTypes.Length)
+			{
+				_currentConfig.PrimitiveType = _primitiveTypes[idx];
+				RestartPreviewVfx();
+			}
+		}, 140f);
+		_rowPrimitive = _optPrimitive.GetParent() as Control;
+
+		(_sliderSurfaceNormalOffset, _lblSurfaceNormalOffset) = AddSlider(parent, TranslationServer.Translate("Surface Normal Offset"), -0.2f, 0.5f, 0.005f, _currentConfig.SurfaceNormalOffset, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.SurfaceNormalOffset = val;
 			RestartPreviewVfx();
 		}, "0.000", 140f);
 
-		(_txtPosOffsetX, _txtPosOffsetY, _txtPosOffsetZ) = AddVector3Input(scrollBody, TranslationServer.Translate("Position Offset"), _currentConfig.PositionOffset, (val) =>
+		(_txtPosOffsetX, _txtPosOffsetY, _txtPosOffsetZ) = AddVector3Input(parent, TranslationServer.Translate("Position Offset"), _currentConfig.PositionOffset, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.PositionOffset = val;
 			RestartPreviewVfx();
 		}, 140f);
 
-		(_txtRotOffsetX, _txtRotOffsetY, _txtRotOffsetZ) = AddVector3Input(scrollBody, TranslationServer.Translate("Rotation (Pitch, Yaw, Roll)"), _currentConfig.RotationOffset, (val) =>
+		(_txtRotOffsetX, _txtRotOffsetY, _txtRotOffsetZ) = AddVector3Input(parent, TranslationServer.Translate("Rotation (Pitch, Yaw, Roll)"), _currentConfig.RotationOffset, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.RotationOffset = val;
 			RestartPreviewVfx();
 		}, 140f);
 
-		(_txtScaleOffsetX, _txtScaleOffsetY, _txtScaleOffsetZ) = AddVector3Input(scrollBody, TranslationServer.Translate("Non-Uniform Scale"), _currentConfig.ScaleOffset, (val) =>
+		(_txtScaleOffsetX, _txtScaleOffsetY, _txtScaleOffsetZ) = AddVector3Input(parent, TranslationServer.Translate("Non-Uniform Scale"), _currentConfig.ScaleOffset, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentConfig.ScaleOffset = val;
@@ -709,6 +707,31 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		CancelButton.Text = TranslationServer.Translate("CANCEL");
 		ApplyButton.Text = TranslationServer.Translate("SAVE & APPLY");
+	}
+
+	private void BuildControls()
+	{
+		Add3DPreviewViewport(BodyContainer, new Vector2(530, 220));
+		CreatePreviewEnvironment();
+
+		BuildTopToolbar(BodyContainer);
+		BuildSubToolbar(BodyContainer);
+
+		var scrollBody = CreateScrollBody(440);
+
+		BuildBasicSettings(scrollBody);
+		BuildSettings(scrollBody);
+		BuildTextureSettings(scrollBody);
+
+		BuildShaderSettings(scrollBody);
+		BuildColorSettings(_uberShaderContainer);
+		BuildFalloffSettings(_uberShaderContainer);
+
+		_particleContainer = new VBoxContainer();
+		scrollBody.AddChild(_particleContainer);
+		BuildParticleControls(_particleContainer);
+
+		BuildTransformSettings(scrollBody);
 	}
 
 	private void CreatePreviewEnvironment()
@@ -753,22 +776,27 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		RestartPreviewVfx();
 	}
 
+	private void SetVisibleSafe(Control c, bool visible)
+	{
+		if (c != null) c.Visible = visible;
+	}
+
 	private void UpdateSectionVisibilities()
 	{
 		bool isParticle = _currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem;
-		if (_uberShaderContainer != null) _uberShaderContainer.Visible = !isParticle;
-		if (_particleContainer != null) _particleContainer.Visible = isParticle;
+		SetVisibleSafe(_uberShaderContainer, !isParticle);
+		SetVisibleSafe(_particleContainer, isParticle);
 
-		if (_rowPrimitive != null) _rowPrimitive.Visible = !isParticle;
-		if (_rowBaseTexture != null) _rowBaseTexture.Visible = !isParticle;
+		SetVisibleSafe(_rowPrimitive, !isParticle);
+		SetVisibleSafe(_rowBaseTexture, !isParticle);
 
 		bool isMeshMode = _currentConfig.ParticleConfig?.RenderMode == SpellParticleRenderMode.Mesh;
-		if (_rowParticleRenderMode != null) _rowParticleRenderMode.Visible = isParticle;
-		if (_rowParticleTexture != null) _rowParticleTexture.Visible = isParticle && !isMeshMode;
-		if (_rowParticleMesh != null) _rowParticleMesh.Visible = isParticle && isMeshMode;
+		SetVisibleSafe(_rowParticleRenderMode, isParticle);
+		SetVisibleSafe(_rowParticleTexture, isParticle && !isMeshMode);
+		SetVisibleSafe(_rowParticleMesh, isParticle && isMeshMode);
 	}
 
-	private void BuildParticleControls(VBoxContainer parent)
+private void BuildParticleEmissionControls(VBoxContainer parent)
 	{
 		AddSectionHeader(parent, "✨ " + TranslationServer.Translate("PARTICLE EMISSION & DYNAMICS"), new Color(0.95f, 0.75f, 0.35f));
 
@@ -812,7 +840,10 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.ParticleConfig.LocalCoords = val;
 			RestartPreviewVfx();
 		}, "Particles move with parent rather than drifting in world space");
+	}
 
+	private void BuildParticleVelocityControls(VBoxContainer parent)
+	{
 		AddSectionHeader(parent, "💨 " + TranslationServer.Translate("VELOCITY, SPREAD & FORCES"), new Color(0.45f, 0.85f, 0.95f));
 
 		(_txtParticleDirX, _txtParticleDirY, _txtParticleDirZ) = AddVector3Input(parent, TranslationServer.Translate("Emitter Direction"), Vector3.Up, (val) =>
@@ -878,7 +909,10 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_currentConfig.ParticleConfig.TangentialAccel = val;
 			RestartPreviewVfx();
 		}, "0.0", 140f);
+	}
 
+	private void BuildParticleAppearanceControls(VBoxContainer parent)
+	{
 		AddSectionHeader(parent, "🎨 " + TranslationServer.Translate("PARTICLE APPEARANCE & RAMP"), new Color(0.95f, 0.55f, 0.45f));
 
 		(_sliderParticleScaleMin, _lblParticleScaleMin) = AddSlider(parent, TranslationServer.Translate("Initial Scale Min"), 0.01f, 5.0f, 0.05f, 0.2f, (val) =>
@@ -938,6 +972,13 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}, "0.0", 140f);
 	}
 
+	private void BuildParticleControls(VBoxContainer parent)
+	{
+		BuildParticleEmissionControls(parent);
+		BuildParticleVelocityControls(parent);
+		BuildParticleAppearanceControls(parent);
+	}
+
 	private void EnsureParticleConfig()
 	{
 		if (_currentConfig.ParticleConfig == null)
@@ -950,172 +991,198 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 	}
 
+private void UpdateUIBasicSettings()
+	{
+		var (prefix, slug) = TemplateIDHelper.ParseTemplateID(_currentConfig.VfxId);
+		_slug = slug;
+		_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
+		_currentConfig.VfxId = _vfxId;
+
+		if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = "vfx/";
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		if (_txtVfxName != null) _txtVfxName.Text = _currentConfig.Name;
+		
+		bool isParticle = _currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem;
+		if (_optMode != null) _optMode.Selected = isParticle ? 1 : 0;
+		if (!isParticle && _optPrimitive != null)
+		{
+			int primIdx = Array.IndexOf(_primitiveTypes, _currentConfig.PrimitiveType);
+			_optPrimitive.Selected = primIdx >= 0 ? primIdx : 0;
+		}
+		if (_optBlendMode != null) _optBlendMode.Selected = (int)_currentConfig.BlendMode;
+		if (_optPlacementMode != null) _optPlacementMode.Selected = (int)_currentConfig.PlacementMode;
+
+		if (_setBaseTextureVal != null) _setBaseTextureVal(_currentConfig.BaseTexture ?? string.Empty);
+		if (_setNoiseTextureVal != null) _setNoiseTextureVal(_currentConfig.NoiseTexture ?? string.Empty);
+	}
+
+	private void UpdateUIMaskSettings()
+	{
+		if (_chkLuminanceToAlpha != null) _chkLuminanceToAlpha.ButtonPressed = _currentConfig.LuminanceToAlpha;
+		if (_sliderLuminanceThreshold != null) _sliderLuminanceThreshold.SetValueNoSignal(_currentConfig.LuminanceThreshold);
+		if (_lblLuminanceThreshold != null) _lblLuminanceThreshold.Text = _currentConfig.LuminanceThreshold.ToString("0.00");
+		if (_sliderLuminanceSmoothness != null) _sliderLuminanceSmoothness.SetValueNoSignal(_currentConfig.LuminanceSmoothness);
+		if (_lblLuminanceSmoothness != null) _lblLuminanceSmoothness.Text = _currentConfig.LuminanceSmoothness.ToString("0.00");
+		if (_chkUseGrayscale != null) _chkUseGrayscale.ButtonPressed = _currentConfig.UseGrayscale;
+		if (_chkInvertMask != null) _chkInvertMask.ButtonPressed = _currentConfig.InvertMask;
+		if (_sliderHighPassCutoff != null) _sliderHighPassCutoff.SetValueNoSignal(_currentConfig.HighPassCutoff);
+		if (_lblHighPassCutoff != null) _lblHighPassCutoff.Text = _currentConfig.HighPassCutoff.ToString("0.00");
+
+		if (_txtBaseUvScrollX != null) _txtBaseUvScrollX.Text = _currentConfig.BaseUvScroll.X.ToString("0.##");
+		if (_txtBaseUvScrollY != null) _txtBaseUvScrollY.Text = _currentConfig.BaseUvScroll.Y.ToString("0.##");
+		if (_txtBaseUvScaleX != null) _txtBaseUvScaleX.Text = _currentConfig.BaseUvScale.X.ToString("0.##");
+		if (_txtBaseUvScaleY != null) _txtBaseUvScaleY.Text = _currentConfig.BaseUvScale.Y.ToString("0.##");
+
+		if (_sliderDistortionStrength != null) _sliderDistortionStrength.SetValueNoSignal(_currentConfig.DistortionStrength);
+		if (_lblDistortionStrength != null) _lblDistortionStrength.Text = _currentConfig.DistortionStrength.ToString("0.00");
+		if (_txtNoiseUvScrollX != null) _txtNoiseUvScrollX.Text = _currentConfig.NoiseUvScroll.X.ToString("0.##");
+		if (_txtNoiseUvScrollY != null) _txtNoiseUvScrollY.Text = _currentConfig.NoiseUvScroll.Y.ToString("0.##");
+		if (_txtNoiseUvScaleX != null) _txtNoiseUvScaleX.Text = _currentConfig.NoiseUvScale.X.ToString("0.##");
+		if (_txtNoiseUvScaleY != null) _txtNoiseUvScaleY.Text = _currentConfig.NoiseUvScale.Y.ToString("0.##");
+	}
+
+	private void UpdateUIColorSettings()
+	{
+		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
+		if (_sliderBaseColorHue != null) _sliderBaseColorHue.SetValueNoSignal(baseCol.H);
+		if (_pickerBaseColor != null) _pickerBaseColor.Color = baseCol;
+
+		Color secCol = VfxShaderManager.ParseColorSafe(_currentConfig.SecondaryColor, Colors.DarkRed);
+		if (_sliderSecondaryColorHue != null) _sliderSecondaryColorHue.SetValueNoSignal(secCol.H);
+		if (_pickerSecondaryColor != null) _pickerSecondaryColor.Color = secCol;
+
+		Color coreCol = VfxShaderManager.ParseColorSafe(_currentConfig.CoreColor, Colors.White);
+		if (_sliderCoreColorHue != null) _sliderCoreColorHue.SetValueNoSignal(coreCol.H);
+		if (_pickerCoreColor != null) _pickerCoreColor.Color = coreCol;
+
+		if (_sliderColorMixRatio != null) _sliderColorMixRatio.SetValueNoSignal(_currentConfig.ColorMixRatio);
+		if (_lblColorMixRatio != null) _lblColorMixRatio.Text = _currentConfig.ColorMixRatio.ToString("0.00");
+
+		if (_sliderEmissionBoost != null) _sliderEmissionBoost.SetValueNoSignal(_currentConfig.EmissionBoost);
+		if (_lblEmissionBoost != null) _lblEmissionBoost.Text = _currentConfig.EmissionBoost.ToString("0.0");
+		if (_sliderCoreThreshold != null) _sliderCoreThreshold.SetValueNoSignal(_currentConfig.CoreThreshold);
+		if (_lblCoreThreshold != null) _lblCoreThreshold.Text = _currentConfig.CoreThreshold.ToString("0.00");
+	}
+
+	private void UpdateUIFalloffSettings()
+	{
+		if (_chkRadialFalloff != null) _chkRadialFalloff.ButtonPressed = _currentConfig.EnableRadialFalloff;
+		if (_sliderRadialFalloffStart != null) _sliderRadialFalloffStart.SetValueNoSignal(_currentConfig.RadialFalloffStart);
+		if (_lblRadialFalloffStart != null) _lblRadialFalloffStart.Text = _currentConfig.RadialFalloffStart.ToString("0.00");
+		if (_sliderRadialFalloffEnd != null) _sliderRadialFalloffEnd.SetValueNoSignal(_currentConfig.RadialFalloffEnd);
+		if (_lblRadialFalloffEnd != null) _lblRadialFalloffEnd.Text = _currentConfig.RadialFalloffEnd.ToString("0.00");
+
+		if (_chkLengthFade != null) _chkLengthFade.ButtonPressed = _currentConfig.EnableLengthFade;
+		if (_sliderLengthFadeStart != null) _sliderLengthFadeStart.SetValueNoSignal(_currentConfig.LengthFadeStart);
+		if (_lblLengthFadeStart != null) _lblLengthFadeStart.Text = _currentConfig.LengthFadeStart.ToString("0.00");
+		if (_sliderLengthFadeEnd != null) _sliderLengthFadeEnd.SetValueNoSignal(_currentConfig.LengthFadeEnd);
+		if (_lblLengthFadeEnd != null) _lblLengthFadeEnd.Text = _currentConfig.LengthFadeEnd.ToString("0.00");
+		if (_sliderErosionProgress != null) _sliderErosionProgress.SetValueNoSignal(_currentConfig.ErosionProgress);
+		if (_lblErosionProgress != null) _lblErosionProgress.Text = _currentConfig.ErosionProgress.ToString("0.00");
+
+		if (_chkFresnel != null) _chkFresnel.ButtonPressed = _currentConfig.EnableFresnel;
+		if (_sliderFresnelPower != null) _sliderFresnelPower.SetValueNoSignal(_currentConfig.FresnelPower);
+		if (_lblFresnelPower != null) _lblFresnelPower.Text = _currentConfig.FresnelPower.ToString("0.0");
+		if (_sliderFresnelIntensity != null) _sliderFresnelIntensity.SetValueNoSignal(_currentConfig.FresnelIntensity);
+		if (_lblFresnelIntensity != null) _lblFresnelIntensity.Text = _currentConfig.FresnelIntensity.ToString("0.0");
+
+		if (_chkDepthFade != null) _chkDepthFade.ButtonPressed = _currentConfig.EnableDepthFade;
+		if (_sliderDepthFadeDistance != null) _sliderDepthFadeDistance.SetValueNoSignal(_currentConfig.DepthFadeDistance);
+		if (_lblDepthFadeDistance != null) _lblDepthFadeDistance.Text = _currentConfig.DepthFadeDistance.ToString("0.00");
+		
+		if (_sliderSurfaceNormalOffset != null) _sliderSurfaceNormalOffset.SetValueNoSignal(_currentConfig.SurfaceNormalOffset);
+		if (_lblSurfaceNormalOffset != null) _lblSurfaceNormalOffset.Text = _currentConfig.SurfaceNormalOffset.ToString("0.000");
+	}
+
+	private void UpdateUIParticleSettings()
+	{
+		if (_currentConfig.ParticleConfig != null)
+		{
+			if (_optParticleShape != null) _optParticleShape.Selected = (int)_currentConfig.ParticleConfig.EmitterShape;
+			if (_optParticleRenderMode != null) _optParticleRenderMode.Selected = (int)_currentConfig.ParticleConfig.RenderMode;
+			if (_setParticleTextureVal != null) _setParticleTextureVal(_currentConfig.ParticleConfig.ParticleTexture ?? string.Empty);
+			if (_setParticleMeshVal != null) _setParticleMeshVal(_currentConfig.ParticleConfig.MeshAssetPath ?? string.Empty);
+
+			if (_sliderParticleAmount != null) _sliderParticleAmount.SetValueNoSignal(_currentConfig.ParticleConfig.Amount);
+			if (_lblParticleAmount != null) _lblParticleAmount.Text = _currentConfig.ParticleConfig.Amount.ToString();
+			if (_sliderParticleLifetime != null) _sliderParticleLifetime.SetValueNoSignal(_currentConfig.ParticleConfig.Lifetime);
+			if (_lblParticleLifetime != null) _lblParticleLifetime.Text = _currentConfig.ParticleConfig.Lifetime.ToString("0.0");
+			if (_sliderParticleExplosiveness != null) _sliderParticleExplosiveness.SetValueNoSignal(_currentConfig.ParticleConfig.Explosiveness);
+			if (_lblParticleExplosiveness != null) _lblParticleExplosiveness.Text = _currentConfig.ParticleConfig.Explosiveness.ToString("0.00");
+			if (_chkParticleLocalCoords != null) _chkParticleLocalCoords.ButtonPressed = _currentConfig.ParticleConfig.LocalCoords;
+
+			if (_txtParticleDirX != null) _txtParticleDirX.Text = _currentConfig.ParticleConfig.Direction.X.ToString("0.##");
+			if (_txtParticleDirY != null) _txtParticleDirY.Text = _currentConfig.ParticleConfig.Direction.Y.ToString("0.##");
+			if (_txtParticleDirZ != null) _txtParticleDirZ.Text = _currentConfig.ParticleConfig.Direction.Z.ToString("0.##");
+
+			if (_sliderParticleSpread != null) _sliderParticleSpread.SetValueNoSignal(_currentConfig.ParticleConfig.SpreadDegrees);
+			if (_lblParticleSpread != null) _lblParticleSpread.Text = _currentConfig.ParticleConfig.SpreadDegrees.ToString("0");
+			if (_sliderParticleVelMin != null) _sliderParticleVelMin.SetValueNoSignal(_currentConfig.ParticleConfig.InitialVelocityMin);
+			if (_lblParticleVelMin != null) _lblParticleVelMin.Text = _currentConfig.ParticleConfig.InitialVelocityMin.ToString("0.0");
+			if (_sliderParticleVelMax != null) _sliderParticleVelMax.SetValueNoSignal(_currentConfig.ParticleConfig.InitialVelocityMax);
+			if (_lblParticleVelMax != null) _lblParticleVelMax.Text = _currentConfig.ParticleConfig.InitialVelocityMax.ToString("0.0");
+
+			if (_txtParticleGravX != null) _txtParticleGravX.Text = _currentConfig.ParticleConfig.Gravity.X.ToString("0.##");
+			if (_txtParticleGravY != null) _txtParticleGravY.Text = _currentConfig.ParticleConfig.Gravity.Y.ToString("0.##");
+			if (_txtParticleGravZ != null) _txtParticleGravZ.Text = _currentConfig.ParticleConfig.Gravity.Z.ToString("0.##");
+
+			if (_sliderParticleDamping != null) _sliderParticleDamping.SetValueNoSignal(_currentConfig.ParticleConfig.Damping);
+			if (_lblParticleDamping != null) _lblParticleDamping.Text = _currentConfig.ParticleConfig.Damping.ToString("0.0");
+			if (_sliderParticleRadialAccel != null) _sliderParticleRadialAccel.SetValueNoSignal(_currentConfig.ParticleConfig.RadialAccel);
+			if (_lblParticleRadialAccel != null) _lblParticleRadialAccel.Text = _currentConfig.ParticleConfig.RadialAccel.ToString("0.0");
+			if (_sliderParticleTangentialAccel != null) _sliderParticleTangentialAccel.SetValueNoSignal(_currentConfig.ParticleConfig.TangentialAccel);
+			if (_lblParticleTangentialAccel != null) _lblParticleTangentialAccel.Text = _currentConfig.ParticleConfig.TangentialAccel.ToString("0.0");
+
+			if (_sliderParticleScaleMin != null) _sliderParticleScaleMin.SetValueNoSignal(_currentConfig.ParticleConfig.InitialScaleMin);
+			if (_lblParticleScaleMin != null) _lblParticleScaleMin.Text = _currentConfig.ParticleConfig.InitialScaleMin.ToString("0.00");
+			if (_sliderParticleScaleMax != null) _sliderParticleScaleMax.SetValueNoSignal(_currentConfig.ParticleConfig.InitialScaleMax);
+			if (_lblParticleScaleMax != null) _lblParticleScaleMax.Text = _currentConfig.ParticleConfig.InitialScaleMax.ToString("0.00");
+			if (_sliderParticleEndScaleRatio != null) _sliderParticleEndScaleRatio.SetValueNoSignal(_currentConfig.ParticleConfig.EndScaleRatio);
+			if (_lblParticleEndScaleRatio != null) _lblParticleEndScaleRatio.Text = _currentConfig.ParticleConfig.EndScaleRatio.ToString("0.00");
+
+			Color pStart = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorStart, Colors.Gold);
+			if (_sliderParticleColorStartHue != null) _sliderParticleColorStartHue.SetValueNoSignal(pStart.H);
+			if (_pickerParticleColorStart != null) _pickerParticleColorStart.Color = pStart;
+
+			Color pMid = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorMid, Colors.DarkOrange);
+			if (_sliderParticleColorMidHue != null) _sliderParticleColorMidHue.SetValueNoSignal(pMid.H);
+			if (_pickerParticleColorMid != null) _pickerParticleColorMid.Color = pMid;
+
+			Color pEnd = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorEnd, Colors.Maroon);
+			if (_sliderParticleColorEndHue != null) _sliderParticleColorEndHue.SetValueNoSignal(pEnd.H);
+			if (_pickerParticleColorEnd != null) _pickerParticleColorEnd.Color = pEnd;
+
+			if (_sliderParticleEmissionEnergy != null) _sliderParticleEmissionEnergy.SetValueNoSignal(_currentConfig.ParticleConfig.EmissionEnergy);
+			if (_lblParticleEmissionEnergy != null) _lblParticleEmissionEnergy.Text = _currentConfig.ParticleConfig.EmissionEnergy.ToString("0.0");
+		}
+	}
+
+	private void UpdateUIOffsetSettings()
+	{
+		if (_txtPosOffsetX != null) _txtPosOffsetX.Text = _currentConfig.PositionOffset.X.ToString("0.##");
+		if (_txtPosOffsetY != null) _txtPosOffsetY.Text = _currentConfig.PositionOffset.Y.ToString("0.##");
+		if (_txtPosOffsetZ != null) _txtPosOffsetZ.Text = _currentConfig.PositionOffset.Z.ToString("0.##");
+
+		if (_txtRotOffsetX != null) _txtRotOffsetX.Text = _currentConfig.RotationOffset.X.ToString("0.##");
+		if (_txtRotOffsetY != null) _txtRotOffsetY.Text = _currentConfig.RotationOffset.Y.ToString("0.##");
+		if (_txtRotOffsetZ != null) _txtRotOffsetZ.Text = _currentConfig.RotationOffset.Z.ToString("0.##");
+
+		if (_txtScaleOffsetX != null) _txtScaleOffsetX.Text = _currentConfig.ScaleOffset.X.ToString("0.##");
+		if (_txtScaleOffsetY != null) _txtScaleOffsetY.Text = _currentConfig.ScaleOffset.Y.ToString("0.##");
+		if (_txtScaleOffsetZ != null) _txtScaleOffsetZ.Text = _currentConfig.ScaleOffset.Z.ToString("0.##");
+	}
+
 	private void UpdateUIFromCurrentConfig()
 	{
 		_isUpdatingUI = true;
 		try
 		{
-			var (prefix, slug) = TemplateIDHelper.ParseTemplateID(_currentConfig.VfxId);
-			_slug = slug;
-			_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
-			_currentConfig.VfxId = _vfxId;
-
-			if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = "vfx/";
-			if (_txtSlug != null) _txtSlug.Text = _slug;
-			if (_txtVfxName != null) _txtVfxName.Text = _currentConfig.Name;
-			bool isParticle = _currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem;
-			if (_optMode != null) _optMode.Selected = isParticle ? 1 : 0;
-			if (!isParticle && _optPrimitive != null)
-			{
-				int primIdx = Array.IndexOf(_primitiveTypes, _currentConfig.PrimitiveType);
-				_optPrimitive.Selected = primIdx >= 0 ? primIdx : 0;
-			}
-			if (_optBlendMode != null) _optBlendMode.Selected = (int)_currentConfig.BlendMode;
-			if (_optPlacementMode != null) _optPlacementMode.Selected = (int)_currentConfig.PlacementMode;
-
-			if (_setBaseTextureVal != null) _setBaseTextureVal(_currentConfig.BaseTexture ?? string.Empty);
-			if (_setNoiseTextureVal != null) _setNoiseTextureVal(_currentConfig.NoiseTexture ?? string.Empty);
-
-			if (_chkLuminanceToAlpha != null) _chkLuminanceToAlpha.ButtonPressed = _currentConfig.LuminanceToAlpha;
-			if (_sliderLuminanceThreshold != null) _sliderLuminanceThreshold.SetValueNoSignal(_currentConfig.LuminanceThreshold);
-			if (_lblLuminanceThreshold != null) _lblLuminanceThreshold.Text = _currentConfig.LuminanceThreshold.ToString("0.00");
-			if (_sliderLuminanceSmoothness != null) _sliderLuminanceSmoothness.SetValueNoSignal(_currentConfig.LuminanceSmoothness);
-			if (_lblLuminanceSmoothness != null) _lblLuminanceSmoothness.Text = _currentConfig.LuminanceSmoothness.ToString("0.00");
-			if (_chkUseGrayscale != null) _chkUseGrayscale.ButtonPressed = _currentConfig.UseGrayscale;
-			if (_chkInvertMask != null) _chkInvertMask.ButtonPressed = _currentConfig.InvertMask;
-			if (_sliderHighPassCutoff != null) _sliderHighPassCutoff.SetValueNoSignal(_currentConfig.HighPassCutoff);
-			if (_lblHighPassCutoff != null) _lblHighPassCutoff.Text = _currentConfig.HighPassCutoff.ToString("0.00");
-
-			if (_txtBaseUvScrollX != null) _txtBaseUvScrollX.Text = _currentConfig.BaseUvScroll.X.ToString("0.##");
-			if (_txtBaseUvScrollY != null) _txtBaseUvScrollY.Text = _currentConfig.BaseUvScroll.Y.ToString("0.##");
-			if (_txtBaseUvScaleX != null) _txtBaseUvScaleX.Text = _currentConfig.BaseUvScale.X.ToString("0.##");
-			if (_txtBaseUvScaleY != null) _txtBaseUvScaleY.Text = _currentConfig.BaseUvScale.Y.ToString("0.##");
-
-			if (_sliderDistortionStrength != null) _sliderDistortionStrength.SetValueNoSignal(_currentConfig.DistortionStrength);
-			if (_lblDistortionStrength != null) _lblDistortionStrength.Text = _currentConfig.DistortionStrength.ToString("0.00");
-			if (_txtNoiseUvScrollX != null) _txtNoiseUvScrollX.Text = _currentConfig.NoiseUvScroll.X.ToString("0.##");
-			if (_txtNoiseUvScrollY != null) _txtNoiseUvScrollY.Text = _currentConfig.NoiseUvScroll.Y.ToString("0.##");
-			if (_txtNoiseUvScaleX != null) _txtNoiseUvScaleX.Text = _currentConfig.NoiseUvScale.X.ToString("0.##");
-			if (_txtNoiseUvScaleY != null) _txtNoiseUvScaleY.Text = _currentConfig.NoiseUvScale.Y.ToString("0.##");
-
-			Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
-			if (_sliderBaseColorHue != null) _sliderBaseColorHue.SetValueNoSignal(baseCol.H);
-			if (_pickerBaseColor != null) _pickerBaseColor.Color = baseCol;
-
-			Color secCol = VfxShaderManager.ParseColorSafe(_currentConfig.SecondaryColor, Colors.DarkRed);
-			if (_sliderSecondaryColorHue != null) _sliderSecondaryColorHue.SetValueNoSignal(secCol.H);
-			if (_pickerSecondaryColor != null) _pickerSecondaryColor.Color = secCol;
-
-			Color coreCol = VfxShaderManager.ParseColorSafe(_currentConfig.CoreColor, Colors.White);
-			if (_sliderCoreColorHue != null) _sliderCoreColorHue.SetValueNoSignal(coreCol.H);
-			if (_pickerCoreColor != null) _pickerCoreColor.Color = coreCol;
-
-			if (_sliderColorMixRatio != null) _sliderColorMixRatio.SetValueNoSignal(_currentConfig.ColorMixRatio);
-			if (_lblColorMixRatio != null) _lblColorMixRatio.Text = _currentConfig.ColorMixRatio.ToString("0.00");
-
-			if (_sliderEmissionBoost != null) _sliderEmissionBoost.SetValueNoSignal(_currentConfig.EmissionBoost);
-			if (_lblEmissionBoost != null) _lblEmissionBoost.Text = _currentConfig.EmissionBoost.ToString("0.0");
-			if (_sliderCoreThreshold != null) _sliderCoreThreshold.SetValueNoSignal(_currentConfig.CoreThreshold);
-			if (_lblCoreThreshold != null) _lblCoreThreshold.Text = _currentConfig.CoreThreshold.ToString("0.00");
-
-			if (_chkRadialFalloff != null) _chkRadialFalloff.ButtonPressed = _currentConfig.EnableRadialFalloff;
-			if (_sliderRadialFalloffStart != null) _sliderRadialFalloffStart.SetValueNoSignal(_currentConfig.RadialFalloffStart);
-			if (_lblRadialFalloffStart != null) _lblRadialFalloffStart.Text = _currentConfig.RadialFalloffStart.ToString("0.00");
-			if (_sliderRadialFalloffEnd != null) _sliderRadialFalloffEnd.SetValueNoSignal(_currentConfig.RadialFalloffEnd);
-			if (_lblRadialFalloffEnd != null) _lblRadialFalloffEnd.Text = _currentConfig.RadialFalloffEnd.ToString("0.00");
-
-			if (_chkLengthFade != null) _chkLengthFade.ButtonPressed = _currentConfig.EnableLengthFade;
-			if (_sliderLengthFadeStart != null) _sliderLengthFadeStart.SetValueNoSignal(_currentConfig.LengthFadeStart);
-			if (_lblLengthFadeStart != null) _lblLengthFadeStart.Text = _currentConfig.LengthFadeStart.ToString("0.00");
-			if (_sliderLengthFadeEnd != null) _sliderLengthFadeEnd.SetValueNoSignal(_currentConfig.LengthFadeEnd);
-			if (_lblLengthFadeEnd != null) _lblLengthFadeEnd.Text = _currentConfig.LengthFadeEnd.ToString("0.00");
-			if (_sliderErosionProgress != null) _sliderErosionProgress.SetValueNoSignal(_currentConfig.ErosionProgress);
-			if (_lblErosionProgress != null) _lblErosionProgress.Text = _currentConfig.ErosionProgress.ToString("0.00");
-
-			if (_chkFresnel != null) _chkFresnel.ButtonPressed = _currentConfig.EnableFresnel;
-			if (_sliderFresnelPower != null) _sliderFresnelPower.SetValueNoSignal(_currentConfig.FresnelPower);
-			if (_lblFresnelPower != null) _lblFresnelPower.Text = _currentConfig.FresnelPower.ToString("0.0");
-			if (_sliderFresnelIntensity != null) _sliderFresnelIntensity.SetValueNoSignal(_currentConfig.FresnelIntensity);
-			if (_lblFresnelIntensity != null) _lblFresnelIntensity.Text = _currentConfig.FresnelIntensity.ToString("0.0");
-
-			if (_chkDepthFade != null) _chkDepthFade.ButtonPressed = _currentConfig.EnableDepthFade;
-			if (_sliderDepthFadeDistance != null) _sliderDepthFadeDistance.SetValueNoSignal(_currentConfig.DepthFadeDistance);
-			if (_lblDepthFadeDistance != null) _lblDepthFadeDistance.Text = _currentConfig.DepthFadeDistance.ToString("0.00");
-
-			if (_currentConfig.ParticleConfig != null)
-			{
-				if (_optParticleShape != null) _optParticleShape.Selected = (int)_currentConfig.ParticleConfig.EmitterShape;
-				if (_optParticleRenderMode != null) _optParticleRenderMode.Selected = (int)_currentConfig.ParticleConfig.RenderMode;
-				if (_setParticleTextureVal != null) _setParticleTextureVal(_currentConfig.ParticleConfig.ParticleTexture ?? string.Empty);
-				if (_setParticleMeshVal != null) _setParticleMeshVal(_currentConfig.ParticleConfig.MeshAssetPath ?? string.Empty);
-
-				if (_sliderParticleAmount != null) _sliderParticleAmount.SetValueNoSignal(_currentConfig.ParticleConfig.Amount);
-				if (_lblParticleAmount != null) _lblParticleAmount.Text = _currentConfig.ParticleConfig.Amount.ToString();
-				if (_sliderParticleLifetime != null) _sliderParticleLifetime.SetValueNoSignal(_currentConfig.ParticleConfig.Lifetime);
-				if (_lblParticleLifetime != null) _lblParticleLifetime.Text = _currentConfig.ParticleConfig.Lifetime.ToString("0.0");
-				if (_sliderParticleExplosiveness != null) _sliderParticleExplosiveness.SetValueNoSignal(_currentConfig.ParticleConfig.Explosiveness);
-				if (_lblParticleExplosiveness != null) _lblParticleExplosiveness.Text = _currentConfig.ParticleConfig.Explosiveness.ToString("0.00");
-				if (_chkParticleLocalCoords != null) _chkParticleLocalCoords.ButtonPressed = _currentConfig.ParticleConfig.LocalCoords;
-
-				if (_txtParticleDirX != null) _txtParticleDirX.Text = _currentConfig.ParticleConfig.Direction.X.ToString("0.##");
-				if (_txtParticleDirY != null) _txtParticleDirY.Text = _currentConfig.ParticleConfig.Direction.Y.ToString("0.##");
-				if (_txtParticleDirZ != null) _txtParticleDirZ.Text = _currentConfig.ParticleConfig.Direction.Z.ToString("0.##");
-
-				if (_sliderParticleSpread != null) _sliderParticleSpread.SetValueNoSignal(_currentConfig.ParticleConfig.SpreadDegrees);
-				if (_lblParticleSpread != null) _lblParticleSpread.Text = _currentConfig.ParticleConfig.SpreadDegrees.ToString("0");
-				if (_sliderParticleVelMin != null) _sliderParticleVelMin.SetValueNoSignal(_currentConfig.ParticleConfig.InitialVelocityMin);
-				if (_lblParticleVelMin != null) _lblParticleVelMin.Text = _currentConfig.ParticleConfig.InitialVelocityMin.ToString("0.0");
-				if (_sliderParticleVelMax != null) _sliderParticleVelMax.SetValueNoSignal(_currentConfig.ParticleConfig.InitialVelocityMax);
-				if (_lblParticleVelMax != null) _lblParticleVelMax.Text = _currentConfig.ParticleConfig.InitialVelocityMax.ToString("0.0");
-
-				if (_txtParticleGravX != null) _txtParticleGravX.Text = _currentConfig.ParticleConfig.Gravity.X.ToString("0.##");
-				if (_txtParticleGravY != null) _txtParticleGravY.Text = _currentConfig.ParticleConfig.Gravity.Y.ToString("0.##");
-				if (_txtParticleGravZ != null) _txtParticleGravZ.Text = _currentConfig.ParticleConfig.Gravity.Z.ToString("0.##");
-
-				if (_sliderParticleDamping != null) _sliderParticleDamping.SetValueNoSignal(_currentConfig.ParticleConfig.Damping);
-				if (_lblParticleDamping != null) _lblParticleDamping.Text = _currentConfig.ParticleConfig.Damping.ToString("0.0");
-				if (_sliderParticleRadialAccel != null) _sliderParticleRadialAccel.SetValueNoSignal(_currentConfig.ParticleConfig.RadialAccel);
-				if (_lblParticleRadialAccel != null) _lblParticleRadialAccel.Text = _currentConfig.ParticleConfig.RadialAccel.ToString("0.0");
-				if (_sliderParticleTangentialAccel != null) _sliderParticleTangentialAccel.SetValueNoSignal(_currentConfig.ParticleConfig.TangentialAccel);
-				if (_lblParticleTangentialAccel != null) _lblParticleTangentialAccel.Text = _currentConfig.ParticleConfig.TangentialAccel.ToString("0.0");
-
-				if (_sliderParticleScaleMin != null) _sliderParticleScaleMin.SetValueNoSignal(_currentConfig.ParticleConfig.InitialScaleMin);
-				if (_lblParticleScaleMin != null) _lblParticleScaleMin.Text = _currentConfig.ParticleConfig.InitialScaleMin.ToString("0.00");
-				if (_sliderParticleScaleMax != null) _sliderParticleScaleMax.SetValueNoSignal(_currentConfig.ParticleConfig.InitialScaleMax);
-				if (_lblParticleScaleMax != null) _lblParticleScaleMax.Text = _currentConfig.ParticleConfig.InitialScaleMax.ToString("0.00");
-				if (_sliderParticleEndScaleRatio != null) _sliderParticleEndScaleRatio.SetValueNoSignal(_currentConfig.ParticleConfig.EndScaleRatio);
-				if (_lblParticleEndScaleRatio != null) _lblParticleEndScaleRatio.Text = _currentConfig.ParticleConfig.EndScaleRatio.ToString("0.00");
-
-				Color pStart = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorStart, Colors.Gold);
-				if (_sliderParticleColorStartHue != null) _sliderParticleColorStartHue.SetValueNoSignal(pStart.H);
-				if (_pickerParticleColorStart != null) _pickerParticleColorStart.Color = pStart;
-
-				Color pMid = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorMid, Colors.DarkOrange);
-				if (_sliderParticleColorMidHue != null) _sliderParticleColorMidHue.SetValueNoSignal(pMid.H);
-				if (_pickerParticleColorMid != null) _pickerParticleColorMid.Color = pMid;
-
-				Color pEnd = VfxShaderManager.ParseColorSafe(_currentConfig.ParticleConfig.ColorEnd, Colors.Maroon);
-				if (_sliderParticleColorEndHue != null) _sliderParticleColorEndHue.SetValueNoSignal(pEnd.H);
-				if (_pickerParticleColorEnd != null) _pickerParticleColorEnd.Color = pEnd;
-
-				if (_sliderParticleEmissionEnergy != null) _sliderParticleEmissionEnergy.SetValueNoSignal(_currentConfig.ParticleConfig.EmissionEnergy);
-				if (_lblParticleEmissionEnergy != null) _lblParticleEmissionEnergy.Text = _currentConfig.ParticleConfig.EmissionEnergy.ToString("0.0");
-			}
-
-			if (_sliderSurfaceNormalOffset != null) _sliderSurfaceNormalOffset.SetValueNoSignal(_currentConfig.SurfaceNormalOffset);
-			if (_lblSurfaceNormalOffset != null) _lblSurfaceNormalOffset.Text = _currentConfig.SurfaceNormalOffset.ToString("0.000");
-
-			if (_txtPosOffsetX != null) _txtPosOffsetX.Text = _currentConfig.PositionOffset.X.ToString("0.##");
-			if (_txtPosOffsetY != null) _txtPosOffsetY.Text = _currentConfig.PositionOffset.Y.ToString("0.##");
-			if (_txtPosOffsetZ != null) _txtPosOffsetZ.Text = _currentConfig.PositionOffset.Z.ToString("0.##");
-
-			if (_txtRotOffsetX != null) _txtRotOffsetX.Text = _currentConfig.RotationOffset.X.ToString("0.##");
-			if (_txtRotOffsetY != null) _txtRotOffsetY.Text = _currentConfig.RotationOffset.Y.ToString("0.##");
-			if (_txtRotOffsetZ != null) _txtRotOffsetZ.Text = _currentConfig.RotationOffset.Z.ToString("0.##");
-
-			if (_txtScaleOffsetX != null) _txtScaleOffsetX.Text = _currentConfig.ScaleOffset.X.ToString("0.##");
-			if (_txtScaleOffsetY != null) _txtScaleOffsetY.Text = _currentConfig.ScaleOffset.Y.ToString("0.##");
-			if (_txtScaleOffsetZ != null) _txtScaleOffsetZ.Text = _currentConfig.ScaleOffset.Z.ToString("0.##");
+			UpdateUIBasicSettings();
+			UpdateUIMaskSettings();
+			UpdateUIColorSettings();
+			UpdateUIFalloffSettings();
+			UpdateUIParticleSettings();
+			UpdateUIOffsetSettings();
 
 			UpdateSectionVisibilities();
 		}
@@ -1125,7 +1192,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void SyncConfigFromControls()
+private void SyncBasicSettings()
 	{
 		if (_txtSlug != null)
 		{
@@ -1151,7 +1218,10 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 		if (_optBlendMode != null) _currentConfig.BlendMode = (VfxBlendMode)_optBlendMode.Selected;
 		if (_optPlacementMode != null) _currentConfig.PlacementMode = (VfxPlacementMode)_optPlacementMode.Selected;
+	}
 
+	private void SyncParticleSettings()
+	{
 		if (_currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem || _currentConfig.ParticleConfig != null)
 		{
 			EnsureParticleConfig();
@@ -1175,21 +1245,30 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			if (_sliderParticleScaleMax != null) _currentConfig.ParticleConfig.InitialScaleMax = (float)_sliderParticleScaleMax.Value;
 			if (_sliderParticleEndScaleRatio != null) _currentConfig.ParticleConfig.EndScaleRatio = (float)_sliderParticleEndScaleRatio.Value;
 		}
+	}
 
+	private void SyncMaskSettings()
+	{
 		if (_chkLuminanceToAlpha != null) _currentConfig.LuminanceToAlpha = _chkLuminanceToAlpha.ButtonPressed;
 		if (_sliderLuminanceThreshold != null) _currentConfig.LuminanceThreshold = (float)_sliderLuminanceThreshold.Value;
 		if (_sliderLuminanceSmoothness != null) _currentConfig.LuminanceSmoothness = (float)_sliderLuminanceSmoothness.Value;
 		if (_chkUseGrayscale != null) _currentConfig.UseGrayscale = _chkUseGrayscale.ButtonPressed;
 		if (_chkInvertMask != null) _currentConfig.InvertMask = _chkInvertMask.ButtonPressed;
 		if (_sliderHighPassCutoff != null) _currentConfig.HighPassCutoff = (float)_sliderHighPassCutoff.Value;
+	}
 
+	private void SyncColorSettings()
+	{
 		if (_pickerBaseColor != null) _currentConfig.BaseColor = "#" + _pickerBaseColor.Color.ToHtml(false);
 		if (_pickerSecondaryColor != null) _currentConfig.SecondaryColor = "#" + _pickerSecondaryColor.Color.ToHtml(false);
 		if (_pickerCoreColor != null) _currentConfig.CoreColor = "#" + _pickerCoreColor.Color.ToHtml(false);
 		if (_sliderColorMixRatio != null) _currentConfig.ColorMixRatio = (float)_sliderColorMixRatio.Value;
 		if (_sliderEmissionBoost != null) _currentConfig.EmissionBoost = (float)_sliderEmissionBoost.Value;
 		if (_sliderCoreThreshold != null) _currentConfig.CoreThreshold = (float)_sliderCoreThreshold.Value;
+	}
 
+	private void SyncFalloffSettings()
+	{
 		if (_chkRadialFalloff != null) _currentConfig.EnableRadialFalloff = _chkRadialFalloff.ButtonPressed;
 		if (_sliderRadialFalloffStart != null) _currentConfig.RadialFalloffStart = (float)_sliderRadialFalloffStart.Value;
 		if (_sliderRadialFalloffEnd != null) _currentConfig.RadialFalloffEnd = (float)_sliderRadialFalloffEnd.Value;
@@ -1207,6 +1286,15 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		if (_sliderDepthFadeDistance != null) _currentConfig.DepthFadeDistance = (float)_sliderDepthFadeDistance.Value;
 
 		if (_sliderSurfaceNormalOffset != null) _currentConfig.SurfaceNormalOffset = (float)_sliderSurfaceNormalOffset.Value;
+	}
+
+	private void SyncConfigFromControls()
+	{
+		SyncBasicSettings();
+		SyncParticleSettings();
+		SyncMaskSettings();
+		SyncColorSettings();
+		SyncFalloffSettings();
 	}
 
 	public void RestartPreviewVfx()

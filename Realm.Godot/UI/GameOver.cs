@@ -648,40 +648,61 @@ public partial class GameOver : Control
 		authorPubKey = "";
 		try
 		{
-			string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion)
-				?? MapAssetManager.FindManifestPath(mapTitle, mapVersion);
-
-			if (!string.IsNullOrEmpty(manifestPath) && System.IO.File.Exists(manifestPath))
+			if (TryExtractFromManifest(mapName, mapTitle, ref mapVersion, out string pubKey))
 			{
-				string json = System.IO.File.ReadAllText(manifestPath);
-				using var mapDoc = JsonDocument.Parse(json);
-				var root = mapDoc.RootElement;
-				if (root.TryGetProperty("author_key", out var keyProp))
-					authorPubKey = keyProp.GetString() ?? "";
-				
-				if (root.TryGetProperty("Version", out var vProp) && vProp.ValueKind == JsonValueKind.String)
-					mapVersion = vProp.GetString() ?? mapVersion;
+				authorPubKey = pubKey;
 				return;
 			}
-			
-			string[] possiblePaths = {
-				ProjectSettings.GlobalizePath($"user://maps/{mapTitle}/metadata.json"),
-				ProjectSettings.GlobalizePath($"res://Maps/{mapTitle}/metadata.json"),
-				ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
-			};
-			foreach (var p in possiblePaths)
-			{
-				if (!System.IO.File.Exists(p)) continue;
-				
-				string json = System.IO.File.ReadAllText(p);
-				using var mapDoc = JsonDocument.Parse(json);
-				var root = mapDoc.RootElement;
-				if (root.TryGetProperty("author_key", out var keyProp))
-					authorPubKey = keyProp.GetString() ?? "";
-				break;
-			}
+
+			authorPubKey = ExtractAuthorPubKeyFromMetadata(mapTitle);
 		}
-		catch {}
+		catch { }
+	}
+
+	private static bool TryExtractFromManifest(string mapName, string mapTitle, ref string mapVersion, out string authorPubKey)
+	{
+		authorPubKey = "";
+		string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion)
+			?? MapAssetManager.FindManifestPath(mapTitle, mapVersion);
+
+		if (string.IsNullOrEmpty(manifestPath) || !System.IO.File.Exists(manifestPath))
+			return false;
+
+		string json = System.IO.File.ReadAllText(manifestPath);
+		using var mapDoc = JsonDocument.Parse(json);
+		var root = mapDoc.RootElement;
+
+		if (root.TryGetProperty("author_key", out var keyProp))
+			authorPubKey = keyProp.GetString() ?? "";
+
+		if (root.TryGetProperty("Version", out var vProp) && vProp.ValueKind == JsonValueKind.String)
+			mapVersion = vProp.GetString() ?? mapVersion;
+
+		return true;
+	}
+
+	private static string ExtractAuthorPubKeyFromMetadata(string mapTitle)
+	{
+		string[] possiblePaths = {
+			ProjectSettings.GlobalizePath($"user://maps/{mapTitle}/metadata.json"),
+			ProjectSettings.GlobalizePath($"res://Maps/{mapTitle}/metadata.json"),
+			ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
+		};
+
+		foreach (var p in possiblePaths)
+		{
+			if (!System.IO.File.Exists(p))
+				continue;
+
+			string json = System.IO.File.ReadAllText(p);
+			using var mapDoc = JsonDocument.Parse(json);
+			var root = mapDoc.RootElement;
+			if (root.TryGetProperty("author_key", out var keyProp))
+				return keyProp.GetString() ?? "";
+			break;
+		}
+
+		return "";
 	}
 
 	private static List<string> GetContributorsFromMetadata(string rawName)

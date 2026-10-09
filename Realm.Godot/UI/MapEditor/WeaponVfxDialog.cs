@@ -123,7 +123,19 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_sfxPlayer = new AudioStreamPlayer();
 		PreviewSubViewport.AddChild(_sfxPlayer);
 
-		// ROW 1: FIRE TEST & CAMERA PRESETS
+		BuildTopToolbars();
+
+		var scrollBody = (VBoxContainer)CreateScrollBody(360);
+
+		BuildIdentitySection(scrollBody);
+		BuildAudioAndImpactSection(scrollBody);
+		BuildProjectileMovementSection(scrollBody);
+		BuildProceduralShaderSection(scrollBody);
+		BuildRibbonTrailSection(scrollBody);
+	}
+
+	private void BuildTopToolbars()
+	{
 		var topToolbar = new HBoxContainer();
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
@@ -183,10 +195,11 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		};
 
 		BodyContainer.AddChild(playbackToolbar);
+	}
 
-		var scrollBody = CreateScrollBody(360);
-
-		// SECTION 0: IDENTITY
+	private void BuildIdentitySection(VBoxContainer scrollBody)
+	{
+// SECTION 0: IDENTITY
 		AddSectionHeader(scrollBody, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = new HBoxContainer();
@@ -229,8 +242,11 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			TranslationServer.Translate("Weapon display name..."),
 			140f
 		);
+	}
 
-		// SECTION 1: AUDIO & IMPACT EFFECTS
+	private void BuildAudioAndImpactSection(VBoxContainer scrollBody)
+	{
+// SECTION 1: AUDIO & IMPACT EFFECTS
 		AddSectionHeader(scrollBody, "🔊 " + TranslationServer.Translate("AUDIO & IMPACT EFFECTS"), new Color(0.3f, 0.8f, 0.7f));
 		
 		(_, _setAttackSoundValue) = AddAssetFilterDropdown(
@@ -278,8 +294,11 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			TranslationServer.Translate("Select imported VFX..."),
 			140f
 		);
+	}
 
-		// SECTION 2: PROGRAMMATIC PROJECTILE MOVEMENT
+	private void BuildProjectileMovementSection(VBoxContainer scrollBody)
+	{
+// SECTION 2: PROGRAMMATIC PROJECTILE MOVEMENT
 		AddSectionHeader(scrollBody, "🚀 " + TranslationServer.Translate("PROJECTILE MOVEMENT"), new Color(0.35f, 0.6f, 0.85f));
 
 		(_, _setProjectileModelValue) = AddAssetFilterDropdown(
@@ -505,8 +524,11 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			_currentWeapon.MeshScaleOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
+	}
 
-		// SECTION 3: PROCEDURAL SURFACE UBER-SHADER
+	private void BuildProceduralShaderSection(VBoxContainer scrollBody)
+	{
+// SECTION 3: PROCEDURAL SURFACE UBER-SHADER
 		AddSectionHeader(scrollBody, "🎨 " + TranslationServer.Translate("PROCEDURAL SURFACE UBER-SHADER"), new Color(0.8f, 0.55f, 0.45f));
 
 		var presetFxRow = new HBoxContainer();
@@ -632,8 +654,11 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			_currentWeapon.PointLightRange = val;
 			RestartPreviewProjectile();
 		}, "0.0", 140f);
+	}
 
-		// SECTION 4: RIBBON TRAIL EMITTER
+	private void BuildRibbonTrailSection(VBoxContainer scrollBody)
+	{
+// SECTION 4: RIBBON TRAIL EMITTER
 		AddSectionHeader(scrollBody, "🎗️ " + TranslationServer.Translate("RIBBON TRAIL EMITTER"), new Color(0.85f, 0.85f, 0.6f));
 
 		_cpRibbonColor = AddColorPicker(scrollBody, TranslationServer.Translate("Ribbon Color"), ParseColorSafe(_currentWeapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f)), (c) =>
@@ -684,171 +709,192 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_isUpdatingUI = true;
 		try
 		{
-			if (_txtSlug != null) _txtSlug.Text = _slug;
-			if (_txtName != null) _txtName.Text = _currentWeapon.Name ?? "";
-
-			_setAttackSoundValue?.Invoke(_currentWeapon.AttackSound ?? "");
-			_setImpactSoundValue?.Invoke(_currentWeapon.ImpactSound ?? "");
-			_setImpactVisualEffectValue?.Invoke(_currentWeapon.ImpactVisualEffect ?? "");
-			_setProjectileModelValue?.Invoke(_currentWeapon.ProjectileModelPath ?? "");
-			_setRibbonTextureValue?.Invoke(_currentWeapon.RibbonTexture ?? "");
-			_setNoiseTextureValue?.Invoke(_currentWeapon.NoiseTexture ?? "");
-
-			string[] trajectories = new[] { "Parabolic", "Homing", "LinearVector", "Boomerang", "SwarmOrbit" };
-			int trajIdx = Math.Max(0, Array.IndexOf(trajectories, _currentWeapon.TrajectoryType ?? "Parabolic"));
-			if (_optTrajectoryType != null) _optTrajectoryType.Selected = trajIdx;
-
-			if (_sldBoomerangReturnDelay != null) { _sldBoomerangReturnDelay.Value = _currentWeapon.BoomerangReturnDelay; _lblBoomerangReturnDelay.Text = _currentWeapon.BoomerangReturnDelay.ToString("0.00"); }
-			if (_sldOrbitRadius != null) { _sldOrbitRadius.Value = _currentWeapon.OrbitRadius; _lblOrbitRadius.Text = _currentWeapon.OrbitRadius.ToString("0.0"); }
-			if (_sldOrbitSpeed != null) { _sldOrbitSpeed.Value = _currentWeapon.OrbitSpeed; _lblOrbitSpeed.Text = _currentWeapon.OrbitSpeed.ToString("0.0"); }
-			float speedVal = _currentWeapon.ProjectileSpeed > 0 ? _currentWeapon.ProjectileSpeed : 25f;
-			if (_sldProjectileSpeed != null) { _sldProjectileSpeed.Value = speedVal; _lblProjectileSpeed.Text = speedVal.ToString("0"); }
-			if (_sldAcceleration != null) { _sldAcceleration.Value = _currentWeapon.Acceleration; _lblAcceleration.Text = _currentWeapon.Acceleration.ToString("0.0"); }
-
-			string[] speedCurves = new[] { "constant", "ease_in", "ease_out", "ease_in_out", "rocket_boost", "burst" };
-			int speedCurveIdx = Math.Max(0, Array.IndexOf(speedCurves, _currentWeapon.SpeedCurve?.ToLowerInvariant() ?? "constant"));
-			if (_optSpeedCurve != null) _optSpeedCurve.Selected = speedCurveIdx;
-
-			string[] easeCurves = new[] { "linear", "ease_in", "ease_out", "ease_in_out" };
-			int easeCurveIdx = Math.Max(0, Array.IndexOf(easeCurves, _currentWeapon.EaseCurve?.ToLowerInvariant() ?? "linear"));
-			if (_optEaseCurve != null) _optEaseCurve.Selected = easeCurveIdx;
-
-			if (_sldArcHeight != null) { _sldArcHeight.Value = _currentWeapon.ArcHeight; _lblArcHeight.Text = _currentWeapon.ArcHeight.ToString("0.0"); }
-			if (_sldHomingWeight != null) { _sldHomingWeight.Value = _currentWeapon.HomingWeight; _lblHomingWeight.Text = _currentWeapon.HomingWeight.ToString("0.00"); }
-			if (_sldTurnRateLimit != null) { _sldTurnRateLimit.Value = _currentWeapon.TurnRateLimit; _lblTurnRateLimit.Text = _currentWeapon.TurnRateLimit.ToString("0"); }
-			if (_sldMaxLifetime != null) { _sldMaxLifetime.Value = _currentWeapon.MaxLifetime; _lblMaxLifetime.Text = _currentWeapon.MaxLifetime.ToString("0.0"); }
-			if (_sldFailsafeRange != null) { _sldFailsafeRange.Value = _currentWeapon.FailsafeRange; _lblFailsafeRange.Text = _currentWeapon.FailsafeRange.ToString("0"); }
-
-			string[] scaleCurves = new[] { "constant", "grow", "shrink", "grow_shrink", "squash_stretch", "impact_shrink" };
-			int scaleCurveIdx = Math.Max(0, Array.IndexOf(scaleCurves, _currentWeapon.ScaleCurve?.ToLowerInvariant() ?? "constant"));
-			if (_optScaleCurve != null) _optScaleCurve.Selected = scaleCurveIdx;
-
-			if (_chkOrientToTrajectory != null) _chkOrientToTrajectory.ButtonPressed = _currentWeapon.OrientToTrajectory;
-			if (_sldMaxBounces != null) { _sldMaxBounces.Value = _currentWeapon.MaxBounces; _lblMaxBounces.Text = _currentWeapon.MaxBounces.ToString("0"); }
-			if (_sldPierceCount != null) { _sldPierceCount.Value = _currentWeapon.PierceCount; _lblPierceCount.Text = _currentWeapon.PierceCount.ToString("0"); }
-
-			if (_txtTumbleAngularVelocity.X != null)
-			{
-				var tumble = _currentWeapon.TumbleAngularVelocity.ToGodotVector3();
-				_txtTumbleAngularVelocity.X.Text = tumble.X.ToString("0.##");
-				_txtTumbleAngularVelocity.Y.Text = tumble.Y.ToString("0.##");
-				_txtTumbleAngularVelocity.Z.Text = tumble.Z.ToString("0.##");
-			}
-
-			if (_txtSpiral.X != null)
-			{
-				_txtSpiral.X.Text = _currentWeapon.SpiralRadius.ToString("0.##");
-				_txtSpiral.Y.Text = _currentWeapon.SpiralFrequency.ToString("0.##");
-			}
-
-			if (_txtZigzag.X != null)
-			{
-				_txtZigzag.X.Text = _currentWeapon.ZigzagAmplitude.ToString("0.##");
-				_txtZigzag.Y.Text = _currentWeapon.ZigzagFrequency.ToString("0.##");
-			}
-
-			string[] forwardAxes = new[] { "-Z", "+Z", "+X", "-X", "+Y", "-Y" };
-			int forwardAxisIdx = Math.Max(0, Array.IndexOf(forwardAxes, _currentWeapon.ForwardAxisPreset?.Trim().ToUpperInvariant() ?? "-Z"));
-			if (_optForwardAxisPreset != null) _optForwardAxisPreset.Selected = forwardAxisIdx;
-
-			if (_txtMeshTranslationOffset.X != null)
-			{
-				var trans = _currentWeapon.MeshTranslationOffset.ToGodotVector3();
-				_txtMeshTranslationOffset.X.Text = trans.X.ToString("0.##");
-				_txtMeshTranslationOffset.Y.Text = trans.Y.ToString("0.##");
-				_txtMeshTranslationOffset.Z.Text = trans.Z.ToString("0.##");
-			}
-
-			if (_txtMeshRotationOffset.X != null)
-			{
-				var rot = _currentWeapon.MeshRotationOffset.ToGodotVector3();
-				_txtMeshRotationOffset.X.Text = rot.X.ToString("0.##");
-				_txtMeshRotationOffset.Y.Text = rot.Y.ToString("0.##");
-				_txtMeshRotationOffset.Z.Text = rot.Z.ToString("0.##");
-			}
-
-			if (_txtMeshScaleOffset.X != null)
-			{
-				var scale = _currentWeapon.MeshScaleOffset.ToGodotVector3();
-				if (scale == Vector3.Zero) scale = Vector3.One;
-				_txtMeshScaleOffset.X.Text = scale.X.ToString("0.##");
-				_txtMeshScaleOffset.Y.Text = scale.Y.ToString("0.##");
-				_txtMeshScaleOffset.Z.Text = scale.Z.ToString("0.##");
-			}
-
-			string[] emissionMasks = new[] { "noise", "vertex_color", "fresnel", "texture_alpha" };
-			int maskIdx = Math.Max(0, Array.IndexOf(emissionMasks, _currentWeapon.EmissionMaskSource?.ToLowerInvariant() ?? "noise"));
-			if (_optEmissionMaskSource != null) _optEmissionMaskSource.Selected = maskIdx;
-
-			Color baseCol = ParseColorSafe(_currentWeapon.BaseColor, new Color(0.15f, 0.12f, 0.1f));
-			if (_cpBaseColor.Picker != null) { _cpBaseColor.Picker.Color = baseCol; _cpBaseColor.HueSlider.SetValueNoSignal(baseCol.H); }
-
-			Color emissionCol = ParseColorSafe(_currentWeapon.EmissionColor, new Color(1.0f, 0.4f, 0.0f));
-			if (_cpEmissionColor.Picker != null) { _cpEmissionColor.Picker.Color = emissionCol; _cpEmissionColor.HueSlider.SetValueNoSignal(emissionCol.H); }
-
-			if (_sldEmissionEnergy != null) { _sldEmissionEnergy.Value = _currentWeapon.EmissionEnergy; _lblEmissionEnergy.Text = _currentWeapon.EmissionEnergy.ToString("0.0"); }
-
-			Color fresnelCol = ParseColorSafe(_currentWeapon.FresnelColor, new Color(1.0f, 0.6f, 0.2f));
-			if (_cpFresnelColor.Picker != null) { _cpFresnelColor.Picker.Color = fresnelCol; _cpFresnelColor.HueSlider.SetValueNoSignal(fresnelCol.H); }
-
-			float fresnelPow = _currentWeapon.FresnelPower > 0 ? _currentWeapon.FresnelPower : 3.0f;
-			if (_sldFresnelPower != null) { _sldFresnelPower.Value = fresnelPow; _lblFresnelPower.Text = fresnelPow.ToString("0.0"); }
-
-			if (_sldFresnelFactor != null) { _sldFresnelFactor.Value = _currentWeapon.FresnelFactor; _lblFresnelFactor.Text = _currentWeapon.FresnelFactor.ToString("0.0"); }
-
-			float noiseSc = _currentWeapon.NoiseScale > 0 ? _currentWeapon.NoiseScale : 3.0f;
-			if (_sldNoiseScale != null) { _sldNoiseScale.Value = noiseSc; _lblNoiseScale.Text = noiseSc.ToString("0.0"); }
-
-			if (_txtUvScrollSpeed1.X != null)
-			{
-				var uv1 = _currentWeapon.UvScrollSpeed1.ToGodotVector2();
-				_txtUvScrollSpeed1.X.Text = uv1.X.ToString("0.##");
-				_txtUvScrollSpeed1.Y.Text = uv1.Y.ToString("0.##");
-			}
-
-			if (_txtUvScrollSpeed2.X != null)
-			{
-				var uv2 = _currentWeapon.UvScrollSpeed2.ToGodotVector2();
-				_txtUvScrollSpeed2.X.Text = uv2.X.ToString("0.##");
-				_txtUvScrollSpeed2.Y.Text = uv2.Y.ToString("0.##");
-			}
-
-			if (_sldThresholdCutoff != null) { _sldThresholdCutoff.Value = _currentWeapon.ThresholdCutoff; _lblThresholdCutoff.Text = _currentWeapon.ThresholdCutoff.ToString("0.00"); }
-			float threshSmooth = _currentWeapon.ThresholdSmoothness > 0 ? _currentWeapon.ThresholdSmoothness : 0.1f;
-			if (_sldThresholdSmoothness != null) { _sldThresholdSmoothness.Value = threshSmooth; _lblThresholdSmoothness.Text = threshSmooth.ToString("0.00"); }
-
-			if (_chkPointLightEnabled != null) _chkPointLightEnabled.ButtonPressed = _currentWeapon.PointLightEnabled;
-
-			Color lightCol = ParseColorSafe(_currentWeapon.PointLightColor, new Color(1.0f, 0.65f, 0.2f));
-			if (_cpPointLightColor.Picker != null) { _cpPointLightColor.Picker.Color = lightCol; _cpPointLightColor.HueSlider.SetValueNoSignal(lightCol.H); }
-
-			if (_sldPointLightIntensity != null) { _sldPointLightIntensity.Value = _currentWeapon.PointLightIntensity; _lblPointLightIntensity.Text = _currentWeapon.PointLightIntensity.ToString("0.0"); }
-			float lightRng = _currentWeapon.PointLightRange > 0 ? _currentWeapon.PointLightRange : 6.0f;
-			if (_sldPointLightRange != null) { _sldPointLightRange.Value = lightRng; _lblPointLightRange.Text = lightRng.ToString("0.0"); }
-
-			Color ribbonCol = ParseColorSafe(_currentWeapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
-			if (_cpRibbonColor.Picker != null) { _cpRibbonColor.Picker.Color = ribbonCol; _cpRibbonColor.HueSlider.SetValueNoSignal(ribbonCol.H); }
-
-			float ribWidth = _currentWeapon.RibbonWidth > 0 ? _currentWeapon.RibbonWidth : 0.4f;
-			if (_sldRibbonWidth != null) { _sldRibbonWidth.Value = ribWidth; _lblRibbonWidth.Text = ribWidth.ToString("0.00"); }
-
-			float ribLife = _currentWeapon.RibbonLifetime > 0 ? _currentWeapon.RibbonLifetime : 0.5f;
-			if (_sldRibbonLifetime != null) { _sldRibbonLifetime.Value = ribLife; _lblRibbonLifetime.Text = ribLife.ToString("0.00"); }
-
-			if (_chkRibbonTaper != null) _chkRibbonTaper.ButtonPressed = _currentWeapon.RibbonTaper;
-			if (_chkRibbonAdditive != null) _chkRibbonAdditive.ButtonPressed = _currentWeapon.RibbonAdditive;
-
-			if (_txtTrailOffset.X != null)
-			{
-				var trail = _currentWeapon.TrailOffset.ToGodotVector3();
-				_txtTrailOffset.X.Text = trail.X.ToString("0.##");
-				_txtTrailOffset.Y.Text = trail.Y.ToString("0.##");
-				_txtTrailOffset.Z.Text = trail.Z.ToString("0.##");
-			}
+			SyncIdentityAndEffects();
+			SyncProjectileMovement();
+			SyncAdvancedVectors();
+			SyncVisualMaterials();
+			SyncRibbonTrail();
 		}
 		finally
 		{
 			_isUpdatingUI = false;
+		}
+	}
+
+	private void SyncIdentityAndEffects()
+	{
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		if (_txtName != null) _txtName.Text = _currentWeapon.Name ?? "";
+
+		_setAttackSoundValue?.Invoke(_currentWeapon.AttackSound ?? "");
+		_setImpactSoundValue?.Invoke(_currentWeapon.ImpactSound ?? "");
+		_setImpactVisualEffectValue?.Invoke(_currentWeapon.ImpactVisualEffect ?? "");
+		_setProjectileModelValue?.Invoke(_currentWeapon.ProjectileModelPath ?? "");
+		_setRibbonTextureValue?.Invoke(_currentWeapon.RibbonTexture ?? "");
+		_setNoiseTextureValue?.Invoke(_currentWeapon.NoiseTexture ?? "");
+	}
+
+	private void SyncProjectileMovement()
+	{
+		string[] trajectories = new[] { "Parabolic", "Homing", "LinearVector", "Boomerang", "SwarmOrbit" };
+		int trajIdx = Math.Max(0, Array.IndexOf(trajectories, _currentWeapon.TrajectoryType ?? "Parabolic"));
+		if (_optTrajectoryType != null) _optTrajectoryType.Selected = trajIdx;
+
+		if (_sldBoomerangReturnDelay != null) { _sldBoomerangReturnDelay.Value = _currentWeapon.BoomerangReturnDelay; _lblBoomerangReturnDelay.Text = _currentWeapon.BoomerangReturnDelay.ToString("0.00"); }
+		if (_sldOrbitRadius != null) { _sldOrbitRadius.Value = _currentWeapon.OrbitRadius; _lblOrbitRadius.Text = _currentWeapon.OrbitRadius.ToString("0.0"); }
+		if (_sldOrbitSpeed != null) { _sldOrbitSpeed.Value = _currentWeapon.OrbitSpeed; _lblOrbitSpeed.Text = _currentWeapon.OrbitSpeed.ToString("0.0"); }
+		float speedVal = _currentWeapon.ProjectileSpeed > 0 ? _currentWeapon.ProjectileSpeed : 25f;
+		if (_sldProjectileSpeed != null) { _sldProjectileSpeed.Value = speedVal; _lblProjectileSpeed.Text = speedVal.ToString("0"); }
+		if (_sldAcceleration != null) { _sldAcceleration.Value = _currentWeapon.Acceleration; _lblAcceleration.Text = _currentWeapon.Acceleration.ToString("0.0"); }
+
+		string[] speedCurves = new[] { "constant", "ease_in", "ease_out", "ease_in_out", "rocket_boost", "burst" };
+		int speedCurveIdx = Math.Max(0, Array.IndexOf(speedCurves, _currentWeapon.SpeedCurve?.ToLowerInvariant() ?? "constant"));
+		if (_optSpeedCurve != null) _optSpeedCurve.Selected = speedCurveIdx;
+
+		string[] easeCurves = new[] { "linear", "ease_in", "ease_out", "ease_in_out" };
+		int easeCurveIdx = Math.Max(0, Array.IndexOf(easeCurves, _currentWeapon.EaseCurve?.ToLowerInvariant() ?? "linear"));
+		if (_optEaseCurve != null) _optEaseCurve.Selected = easeCurveIdx;
+
+		if (_sldArcHeight != null) { _sldArcHeight.Value = _currentWeapon.ArcHeight; _lblArcHeight.Text = _currentWeapon.ArcHeight.ToString("0.0"); }
+		if (_sldHomingWeight != null) { _sldHomingWeight.Value = _currentWeapon.HomingWeight; _lblHomingWeight.Text = _currentWeapon.HomingWeight.ToString("0.00"); }
+		if (_sldTurnRateLimit != null) { _sldTurnRateLimit.Value = _currentWeapon.TurnRateLimit; _lblTurnRateLimit.Text = _currentWeapon.TurnRateLimit.ToString("0"); }
+		if (_sldMaxLifetime != null) { _sldMaxLifetime.Value = _currentWeapon.MaxLifetime; _lblMaxLifetime.Text = _currentWeapon.MaxLifetime.ToString("0.0"); }
+		if (_sldFailsafeRange != null) { _sldFailsafeRange.Value = _currentWeapon.FailsafeRange; _lblFailsafeRange.Text = _currentWeapon.FailsafeRange.ToString("0"); }
+
+		string[] scaleCurves = new[] { "constant", "grow", "shrink", "grow_shrink", "squash_stretch", "impact_shrink" };
+		int scaleCurveIdx = Math.Max(0, Array.IndexOf(scaleCurves, _currentWeapon.ScaleCurve?.ToLowerInvariant() ?? "constant"));
+		if (_optScaleCurve != null) _optScaleCurve.Selected = scaleCurveIdx;
+
+		if (_chkOrientToTrajectory != null) _chkOrientToTrajectory.ButtonPressed = _currentWeapon.OrientToTrajectory;
+		if (_sldMaxBounces != null) { _sldMaxBounces.Value = _currentWeapon.MaxBounces; _lblMaxBounces.Text = _currentWeapon.MaxBounces.ToString("0"); }
+		if (_sldPierceCount != null) { _sldPierceCount.Value = _currentWeapon.PierceCount; _lblPierceCount.Text = _currentWeapon.PierceCount.ToString("0"); }
+	}
+
+	private void SyncAdvancedVectors()
+	{
+		if (_txtTumbleAngularVelocity.X != null)
+		{
+			var tumble = _currentWeapon.TumbleAngularVelocity.ToGodotVector3();
+			_txtTumbleAngularVelocity.X.Text = tumble.X.ToString("0.##");
+			_txtTumbleAngularVelocity.Y.Text = tumble.Y.ToString("0.##");
+			_txtTumbleAngularVelocity.Z.Text = tumble.Z.ToString("0.##");
+		}
+
+		if (_txtSpiral.X != null)
+		{
+			_txtSpiral.X.Text = _currentWeapon.SpiralRadius.ToString("0.##");
+			_txtSpiral.Y.Text = _currentWeapon.SpiralFrequency.ToString("0.##");
+		}
+
+		if (_txtZigzag.X != null)
+		{
+			_txtZigzag.X.Text = _currentWeapon.ZigzagAmplitude.ToString("0.##");
+			_txtZigzag.Y.Text = _currentWeapon.ZigzagFrequency.ToString("0.##");
+		}
+
+		string[] forwardAxes = new[] { "-Z", "+Z", "+X", "-X", "+Y", "-Y" };
+		int forwardAxisIdx = Math.Max(0, Array.IndexOf(forwardAxes, _currentWeapon.ForwardAxisPreset?.Trim().ToUpperInvariant() ?? "-Z"));
+		if (_optForwardAxisPreset != null) _optForwardAxisPreset.Selected = forwardAxisIdx;
+
+		if (_txtMeshTranslationOffset.X != null)
+		{
+			var trans = _currentWeapon.MeshTranslationOffset.ToGodotVector3();
+			_txtMeshTranslationOffset.X.Text = trans.X.ToString("0.##");
+			_txtMeshTranslationOffset.Y.Text = trans.Y.ToString("0.##");
+			_txtMeshTranslationOffset.Z.Text = trans.Z.ToString("0.##");
+		}
+
+		if (_txtMeshRotationOffset.X != null)
+		{
+			var rot = _currentWeapon.MeshRotationOffset.ToGodotVector3();
+			_txtMeshRotationOffset.X.Text = rot.X.ToString("0.##");
+			_txtMeshRotationOffset.Y.Text = rot.Y.ToString("0.##");
+			_txtMeshRotationOffset.Z.Text = rot.Z.ToString("0.##");
+		}
+
+		if (_txtMeshScaleOffset.X != null)
+		{
+			var scale = _currentWeapon.MeshScaleOffset.ToGodotVector3();
+			if (scale == Vector3.Zero) scale = Vector3.One;
+			_txtMeshScaleOffset.X.Text = scale.X.ToString("0.##");
+			_txtMeshScaleOffset.Y.Text = scale.Y.ToString("0.##");
+			_txtMeshScaleOffset.Z.Text = scale.Z.ToString("0.##");
+		}
+	}
+
+	private void SyncVisualMaterials()
+	{
+		string[] emissionMasks = new[] { "noise", "vertex_color", "fresnel", "texture_alpha" };
+		int maskIdx = Math.Max(0, Array.IndexOf(emissionMasks, _currentWeapon.EmissionMaskSource?.ToLowerInvariant() ?? "noise"));
+		if (_optEmissionMaskSource != null) _optEmissionMaskSource.Selected = maskIdx;
+
+		Color baseCol = ParseColorSafe(_currentWeapon.BaseColor, new Color(0.15f, 0.12f, 0.1f));
+		if (_cpBaseColor.Picker != null) { _cpBaseColor.Picker.Color = baseCol; _cpBaseColor.HueSlider.SetValueNoSignal(baseCol.H); }
+
+		Color emissionCol = ParseColorSafe(_currentWeapon.EmissionColor, new Color(1.0f, 0.4f, 0.0f));
+		if (_cpEmissionColor.Picker != null) { _cpEmissionColor.Picker.Color = emissionCol; _cpEmissionColor.HueSlider.SetValueNoSignal(emissionCol.H); }
+
+		if (_sldEmissionEnergy != null) { _sldEmissionEnergy.Value = _currentWeapon.EmissionEnergy; _lblEmissionEnergy.Text = _currentWeapon.EmissionEnergy.ToString("0.0"); }
+
+		Color fresnelCol = ParseColorSafe(_currentWeapon.FresnelColor, new Color(1.0f, 0.6f, 0.2f));
+		if (_cpFresnelColor.Picker != null) { _cpFresnelColor.Picker.Color = fresnelCol; _cpFresnelColor.HueSlider.SetValueNoSignal(fresnelCol.H); }
+
+		float fresnelPow = _currentWeapon.FresnelPower > 0 ? _currentWeapon.FresnelPower : 3.0f;
+		if (_sldFresnelPower != null) { _sldFresnelPower.Value = fresnelPow; _lblFresnelPower.Text = fresnelPow.ToString("0.0"); }
+
+		if (_sldFresnelFactor != null) { _sldFresnelFactor.Value = _currentWeapon.FresnelFactor; _lblFresnelFactor.Text = _currentWeapon.FresnelFactor.ToString("0.0"); }
+
+		float noiseSc = _currentWeapon.NoiseScale > 0 ? _currentWeapon.NoiseScale : 3.0f;
+		if (_sldNoiseScale != null) { _sldNoiseScale.Value = noiseSc; _lblNoiseScale.Text = noiseSc.ToString("0.0"); }
+
+		if (_txtUvScrollSpeed1.X != null)
+		{
+			var uv1 = _currentWeapon.UvScrollSpeed1.ToGodotVector2();
+			_txtUvScrollSpeed1.X.Text = uv1.X.ToString("0.##");
+			_txtUvScrollSpeed1.Y.Text = uv1.Y.ToString("0.##");
+		}
+
+		if (_txtUvScrollSpeed2.X != null)
+		{
+			var uv2 = _currentWeapon.UvScrollSpeed2.ToGodotVector2();
+			_txtUvScrollSpeed2.X.Text = uv2.X.ToString("0.##");
+			_txtUvScrollSpeed2.Y.Text = uv2.Y.ToString("0.##");
+		}
+
+		if (_sldThresholdCutoff != null) { _sldThresholdCutoff.Value = _currentWeapon.ThresholdCutoff; _lblThresholdCutoff.Text = _currentWeapon.ThresholdCutoff.ToString("0.00"); }
+		float threshSmooth = _currentWeapon.ThresholdSmoothness > 0 ? _currentWeapon.ThresholdSmoothness : 0.1f;
+		if (_sldThresholdSmoothness != null) { _sldThresholdSmoothness.Value = threshSmooth; _lblThresholdSmoothness.Text = threshSmooth.ToString("0.00"); }
+
+		if (_chkPointLightEnabled != null) _chkPointLightEnabled.ButtonPressed = _currentWeapon.PointLightEnabled;
+
+		Color lightCol = ParseColorSafe(_currentWeapon.PointLightColor, new Color(1.0f, 0.65f, 0.2f));
+		if (_cpPointLightColor.Picker != null) { _cpPointLightColor.Picker.Color = lightCol; _cpPointLightColor.HueSlider.SetValueNoSignal(lightCol.H); }
+
+		if (_sldPointLightIntensity != null) { _sldPointLightIntensity.Value = _currentWeapon.PointLightIntensity; _lblPointLightIntensity.Text = _currentWeapon.PointLightIntensity.ToString("0.0"); }
+		float lightRng = _currentWeapon.PointLightRange > 0 ? _currentWeapon.PointLightRange : 6.0f;
+		if (_sldPointLightRange != null) { _sldPointLightRange.Value = lightRng; _lblPointLightRange.Text = lightRng.ToString("0.0"); }
+	}
+
+	private void SyncRibbonTrail()
+	{
+		Color ribbonCol = ParseColorSafe(_currentWeapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
+		if (_cpRibbonColor.Picker != null) { _cpRibbonColor.Picker.Color = ribbonCol; _cpRibbonColor.HueSlider.SetValueNoSignal(ribbonCol.H); }
+
+		float ribWidth = _currentWeapon.RibbonWidth > 0 ? _currentWeapon.RibbonWidth : 0.4f;
+		if (_sldRibbonWidth != null) { _sldRibbonWidth.Value = ribWidth; _lblRibbonWidth.Text = ribWidth.ToString("0.00"); }
+
+		float ribLife = _currentWeapon.RibbonLifetime > 0 ? _currentWeapon.RibbonLifetime : 0.5f;
+		if (_sldRibbonLifetime != null) { _sldRibbonLifetime.Value = ribLife; _lblRibbonLifetime.Text = ribLife.ToString("0.00"); }
+
+		if (_chkRibbonTaper != null) _chkRibbonTaper.ButtonPressed = _currentWeapon.RibbonTaper;
+		if (_chkRibbonAdditive != null) _chkRibbonAdditive.ButtonPressed = _currentWeapon.RibbonAdditive;
+
+		if (_txtTrailOffset.X != null)
+		{
+			var trail = _currentWeapon.TrailOffset.ToGodotVector3();
+			_txtTrailOffset.X.Text = trail.X.ToString("0.##");
+			_txtTrailOffset.Y.Text = trail.Y.ToString("0.##");
+			_txtTrailOffset.Z.Text = trail.Z.ToString("0.##");
 		}
 	}
 
@@ -861,22 +907,9 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_initialWeapon = weapon ?? new WeaponMetadata();
 		_currentWeapon = weapon ?? new WeaponMetadata();
 		_currentWeapon.TemplateID = _weaponId;
-		if (!string.IsNullOrEmpty(_currentWeapon.ProjectileModelPath) &&
-			!_currentWeapon.ProjectileModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) &&
-			!_currentWeapon.ProjectileModelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
-		{
-			_currentWeapon.ProjectileModelPath = "";
-		}
-		if (!string.IsNullOrEmpty(_currentWeapon.RibbonTexture) &&
-			!_currentWeapon.RibbonTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			_currentWeapon.RibbonTexture = "";
-		}
-		if (!string.IsNullOrEmpty(_currentWeapon.NoiseTexture) &&
-			!_currentWeapon.NoiseTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			_currentWeapon.NoiseTexture = "";
-		}
+
+		CleanWeaponMetadataPaths(_currentWeapon);
+
 		SyncControlsFromCurrentWeapon();
 		_onAppliedCallback = onApplied;
 		_isPlaybackPaused = false;
@@ -886,6 +919,26 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		OpenDialog();
 		ResetCameraDefault();
 		RestartPreviewProjectile();
+	}
+
+	private void CleanWeaponMetadataPaths(WeaponMetadata weapon)
+	{
+		if (!string.IsNullOrEmpty(weapon.ProjectileModelPath) &&
+			!weapon.ProjectileModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) &&
+			!weapon.ProjectileModelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
+		{
+			weapon.ProjectileModelPath = "";
+		}
+		if (!string.IsNullOrEmpty(weapon.RibbonTexture) &&
+			!weapon.RibbonTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			weapon.RibbonTexture = "";
+		}
+		if (!string.IsNullOrEmpty(weapon.NoiseTexture) &&
+			!weapon.NoiseTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+		{
+			weapon.NoiseTexture = "";
+		}
 	}
 
 	public void SetPlaybackPaused(bool paused)
@@ -1092,48 +1145,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		if (string.IsNullOrEmpty(soundPath)) return;
 		try
 		{
-			AudioStream stream = null;
-			if (soundPath.StartsWith("res://") || soundPath.StartsWith("user://"))
-			{
-				if (ResourceLoader.Exists(soundPath))
-				{
-					stream = GD.Load<AudioStream>(soundPath);
-				}
-			}
-			else
-			{
-				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-				string fullPath = System.IO.Path.Combine(wsPath, "Assets", "audio", soundPath);
-				if (!System.IO.File.Exists(fullPath))
-				{
-					fullPath = System.IO.Path.Combine(wsPath, soundPath);
-				}
-				if (!System.IO.File.Exists(fullPath))
-				{
-					fullPath = ProjectSettings.GlobalizePath($"res://Assets/Audio/UI/{soundPath}");
-				}
-
-				if (System.IO.File.Exists(fullPath))
-				{
-					if (fullPath.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
-					{
-						byte[] raudBytes = System.IO.File.ReadAllBytes(fullPath);
-						byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
-						if (oggBytes != null && oggBytes.Length > 0)
-						{
-							stream = AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
-						}
-					}
-					else if (fullPath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
-					{
-						stream = AudioStreamOggVorbis.LoadFromFile(fullPath);
-					}
-					else if (fullPath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
-					{
-						stream = GD.Load<AudioStream>(fullPath);
-					}
-				}
-			}
+			AudioStream stream = GetAudioStream(soundPath);
 
 			if (stream != null && _sfxPlayer != null)
 			{
@@ -1145,6 +1157,51 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		{
 			GD.PrintErr($"[WeaponVfxDialog] PlaySound error: {ex.Message}");
 		}
+	}
+
+	private AudioStream GetAudioStream(string soundPath)
+	{
+		if (soundPath.StartsWith("res://") || soundPath.StartsWith("user://"))
+		{
+			return ResourceLoader.Exists(soundPath) ? GD.Load<AudioStream>(soundPath) : null;
+		}
+
+		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string fullPath = System.IO.Path.Combine(wsPath, "Assets", "audio", soundPath);
+		if (!System.IO.File.Exists(fullPath))
+		{
+			fullPath = System.IO.Path.Combine(wsPath, soundPath);
+		}
+		if (!System.IO.File.Exists(fullPath))
+		{
+			fullPath = ProjectSettings.GlobalizePath($"res://Assets/Audio/UI/{soundPath}");
+		}
+
+		if (!System.IO.File.Exists(fullPath)) return null;
+
+		return LoadStreamFromFile(fullPath);
+	}
+
+	private AudioStream LoadStreamFromFile(string fullPath)
+	{
+		if (fullPath.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
+		{
+			byte[] raudBytes = System.IO.File.ReadAllBytes(fullPath);
+			byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
+			return (oggBytes != null && oggBytes.Length > 0) ? AudioStreamOggVorbis.LoadFromBuffer(oggBytes) : null;
+		}
+		
+		if (fullPath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
+		{
+			return AudioStreamOggVorbis.LoadFromFile(fullPath);
+		}
+		
+		if (fullPath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
+		{
+			return GD.Load<AudioStream>(fullPath);
+		}
+
+		return null;
 	}
 
 	private Color ParseColorSafe(string hex, Color fallback)

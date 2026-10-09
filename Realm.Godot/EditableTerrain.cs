@@ -264,11 +264,14 @@ public partial class EditableTerrain : RuntimeTerrain
 				int oldX = x - offsetX;
 				int oldZ = z - offsetZ;
 
-				if (oldCells != null && oldX >= 0 && oldX < oldWidth && oldZ >= 0 && oldZ < oldDepth)
+				bool withinBounds = IsWithinOldBounds(oldX, oldZ, oldWidth, oldDepth);
+
+				if (oldCells != null && withinBounds)
 				{
 					newCells[x, z] = oldCells[oldX, oldZ];
 				}
-				if (oldPathing != null && oldX >= 0 && oldX < oldWidth && oldZ >= 0 && oldZ < oldDepth)
+
+				if (oldPathing != null && withinBounds)
 				{
 					newPathing[x, z] = oldPathing[oldX, oldZ];
 				}
@@ -278,6 +281,11 @@ public partial class EditableTerrain : RuntimeTerrain
 				}
 			}
 		}
+	}
+
+	private static bool IsWithinOldBounds(int x, int z, int width, int depth)
+	{
+		return x >= 0 && x < width && z >= 0 && z < depth;
 	}
 
 	private void PopulateResizedSplatMap(int newWidth, int newDepth, int offsetX, int offsetZ, TerrainSplatWeights[,] oldSplatMap, TerrainSplatWeights[,] newSplatMap, int defaultSolidIndex)

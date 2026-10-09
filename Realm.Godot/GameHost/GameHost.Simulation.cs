@@ -149,43 +149,47 @@ public partial class GameHost
 
 	private void PlayDeathEffects(Unit3D unit, bool executeDespawnShader, bool playDeathAnimation, string unitId)
 	{
-		if (playDeathAnimation && GodotObject.IsInstanceValid(unit))
+		if (!GodotObject.IsInstanceValid(unit)) return;
+
+		if (playDeathAnimation)
 		{
 			unit.PlayAnimation("Death");
 		}
 
-		if (GodotObject.IsInstanceValid(unit))
-		{
-			unit.CollisionLayer = 0;
-			unit.CollisionMask = 0;
-		}
+		unit.CollisionLayer = 0;
+		unit.CollisionMask = 0;
 
-		string deathShader = executeDespawnShader ? GetModelDeathShader(unitId) : "";
-		if (executeDespawnShader && string.IsNullOrEmpty(deathShader))
+		if (executeDespawnShader && TryExecuteDeathShader(unit, unitId)) return;
+		if (playDeathAnimation && TryPlayDeathTween(unit)) return;
+
+		unit.QueueFree();
+	}
+
+	private bool TryExecuteDeathShader(Unit3D unit, string unitId)
+	{
+		string deathShader = GetModelDeathShader(unitId);
+		if (string.IsNullOrEmpty(deathShader))
 		{
 			deathShader = GetModelDeathShader(unit);
 		}
 
-		if (!string.IsNullOrEmpty(deathShader))
-		{
-			SpawnDeathShaderManager.AnimateTransition(unit, deathShader, false, null, () =>
-			{
-				if (GodotObject.IsInstanceValid(unit)) unit.QueueFree();
-			});
-			return;
-		}
+		if (string.IsNullOrEmpty(deathShader)) return false;
 
-		if (playDeathAnimation)
+		SpawnDeathShaderManager.AnimateTransition(unit, deathShader, false, null, () =>
 		{
-			var tween = CreateTween();
-			tween.SetParallel(true);
-			tween.TweenProperty(unit, "position:y", -3.0f, 1.0f);
-			tween.TweenProperty(unit, "scale", Vector3.Zero, 1.0f);
-			tween.Chain().TweenCallback(Callable.From(unit.QueueFree));
-			return;
-		}
+			if (GodotObject.IsInstanceValid(unit)) unit.QueueFree();
+		});
+		return true;
+	}
 
-		if (GodotObject.IsInstanceValid(unit)) unit.QueueFree();
+	private bool TryPlayDeathTween(Unit3D unit)
+	{
+		var tween = CreateTween();
+		tween.SetParallel(true);
+		tween.TweenProperty(unit, "position:y", -3.0f, 1.0f);
+		tween.TweenProperty(unit, "scale", Vector3.Zero, 1.0f);
+		tween.Chain().TweenCallback(Callable.From(unit.QueueFree));
+		return true;
 	}
 
 	private void CheckGameOver(string unitId, bool isEnemy)
@@ -392,44 +396,55 @@ public partial class GameHost
 	{
 		foreach (var buildingEntity in _completedBuildings)
 		{
-			if (!EcsWorld.IsAlive(buildingEntity)) continue;
-
-			if (EcsWorld.Has<UnderConstruction>(buildingEntity))
-			{
-				EcsWorld.Remove<UnderConstruction>(buildingEntity);
-			}
-
-			if (EcsWorld.Has<ConstructionState>(buildingEntity))
-			{
-				EcsWorld.Remove<ConstructionState>(buildingEntity);
-			}
-
-			if (TryGetUnit3D(buildingEntity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
-			{
-				buildingNode.Modulate = new Godot.Color(1f, 1f, 1f, 1f);
-				SpawnDeathShaderManager.ClearShaderOverride(buildingNode);
-			}
-
-			var buildingUnit = (EcsWorld.IsAlive(buildingEntity)) ? GetUnitWrapper(buildingEntity) : null;
-			if (buildingUnit != null) { OnConstructionFinished?.Invoke(buildingUnit); }
-			InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Godot.Color(0.3f, 0.9f, 0.4f));
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			ProcessCompletedBuilding(buildingEntity);
 		}
+	}
+
+	private void ProcessCompletedBuilding(Entity buildingEntity)
+	{
+		if (!EcsWorld.IsAlive(buildingEntity)) return;
+
+		RemoveConstructionComponents(buildingEntity);
+		ResetBuildingVisuals(buildingEntity);
+		NotifyConstructionFinished(buildingEntity);
+	}
+
+	private void RemoveConstructionComponents(Entity buildingEntity)
+	{
+		if (EcsWorld.Has<UnderConstruction>(buildingEntity))
+		{
+			EcsWorld.Remove<UnderConstruction>(buildingEntity);
+		}
+
+		if (EcsWorld.Has<ConstructionState>(buildingEntity))
+		{
+			EcsWorld.Remove<ConstructionState>(buildingEntity);
+		}
+	}
+
+	private void ResetBuildingVisuals(Entity buildingEntity)
+	{
+		if (!TryGetUnit3D(buildingEntity, out var buildingNode) || !GodotObject.IsInstanceValid(buildingNode)) return;
+
+		buildingNode.Modulate = new Godot.Color(1f, 1f, 1f, 1f);
+		SpawnDeathShaderManager.ClearShaderOverride(buildingNode);
+	}
+
+	private void NotifyConstructionFinished(Entity buildingEntity)
+	{
+		var buildingUnit = EcsWorld.IsAlive(buildingEntity) ? GetUnitWrapper(buildingEntity) : null;
+		if (buildingUnit != null)
+		{
+			OnConstructionFinished?.Invoke(buildingUnit);
+		}
+
+		InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Godot.Color(0.3f, 0.9f, 0.4f));
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 	}
 
 	private void ProcessBuildQueueEntity(Entity entity)
 	{
-		bool hasMoveTo = EcsWorld.Has<MoveTo>(entity);
-		bool hasBuildTask = EcsWorld.Has<BuildTask>(entity);
-		bool hasAttackTarget = EcsWorld.Has<AttackTarget>(entity);
-		bool hasAttackMove = EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(entity);
-		bool hasFollow = EcsWorld.Has<Realm.Ecs.Components.Movement.Follow>(entity);
-		bool hasPatrol = EcsWorld.Has<Realm.Ecs.Components.Movement.Patrol>(entity);
-		bool hasGatherer = EcsWorld.Has<Gatherer>(entity);
-		bool hasHealingTarget = EcsWorld.Has<HealingTarget>(entity);
-
-		if (hasMoveTo || hasBuildTask || hasAttackTarget || hasAttackMove || hasFollow || hasPatrol || hasGatherer || hasHealingTarget)
-			return;
+		if (HasActiveTask(entity)) return;
 
 		ref var q = ref EcsWorld.Get<BuildQueue>(entity);
 		if (q.Count > 0)
@@ -445,41 +460,71 @@ public partial class GameHost
 		}
 	}
 
+	private bool HasActiveTask(Entity entity)
+	{
+		return EcsWorld.Has<MoveTo>(entity) ||
+			EcsWorld.Has<BuildTask>(entity) ||
+			EcsWorld.Has<AttackTarget>(entity) ||
+			EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(entity) ||
+			EcsWorld.Has<Realm.Ecs.Components.Movement.Follow>(entity) ||
+			EcsWorld.Has<Realm.Ecs.Components.Movement.Patrol>(entity) ||
+			EcsWorld.Has<Gatherer>(entity) ||
+			EcsWorld.Has<HealingTarget>(entity);
+	}
+
 	private void ProcessPendingQueuedCommands()
 	{
 		foreach (var cmd in _pendingQueuedCommands)
 		{
 			if (!EcsWorld.IsAlive(cmd.Entity)) continue;
 
-			if (cmd.Type == "clear_queue_component")
-			{
-				if (EcsWorld.Has<BuildQueue>(cmd.Entity))
-				{
-					EcsWorld.Remove<BuildQueue>(cmd.Entity);
-				}
-				continue;
-			}
-
-			bool success = ExecuteQueuedCommand(cmd.Entity, cmd.Type, cmd.Position, cmd.Target);
-			while (!success && EcsWorld.Has<BuildQueue>(cmd.Entity))
-			{
-				ref var q = ref EcsWorld.Get<BuildQueue>(cmd.Entity);
-				if (q.TryDequeue(out string? nextType, out var nextPos, out Arch.Core.Entity nextTarget))
-				{
-					success = ExecuteQueuedCommand(cmd.Entity, nextType, nextPos, nextTarget);
-				}
-				else
-				{
-					EcsWorld.Remove<BuildQueue>(cmd.Entity);
-					break;
-				}
-			}
-			if (!success && EcsWorld.Has<BuildQueue>(cmd.Entity) && EcsWorld.Get<BuildQueue>(cmd.Entity).Count == 0)
-			{
-				EcsWorld.Remove<BuildQueue>(cmd.Entity);
-			}
+			ProcessPendingCommand(cmd);
 		}
 	}
+
+	private void ProcessPendingCommand((Entity Entity, string? Type, System.Numerics.Vector3 Position, Entity Target) cmd)
+	{
+		if (cmd.Type == "clear_queue_component")
+		{
+			ClearQueueComponent(cmd.Entity);
+			return;
+		}
+
+		bool success = ExecuteQueuedCommand(cmd.Entity, cmd.Type, cmd.Position, cmd.Target);
+		ProcessRemainingQueue(cmd.Entity, success);
+	}
+
+
+	private void ClearQueueComponent(Entity entity)
+	{
+		if (EcsWorld.Has<BuildQueue>(entity))
+		{
+			EcsWorld.Remove<BuildQueue>(entity);
+		}
+	}
+
+	private void ProcessRemainingQueue(Entity entity, bool lastSuccess)
+	{
+		while (!lastSuccess && EcsWorld.Has<BuildQueue>(entity))
+		{
+			ref var q = ref EcsWorld.Get<BuildQueue>(entity);
+			if (q.TryDequeue(out string? nextType, out var nextPos, out Entity nextTarget))
+			{
+				lastSuccess = ExecuteQueuedCommand(entity, nextType ?? "", nextPos, nextTarget);
+			}
+			else
+			{
+				EcsWorld.Remove<BuildQueue>(entity);
+				break;
+			}
+		}
+
+		if (!lastSuccess && EcsWorld.Has<BuildQueue>(entity) && EcsWorld.Get<BuildQueue>(entity).Count == 0)
+		{
+			EcsWorld.Remove<BuildQueue>(entity);
+		}
+	}
+
 
 	private void UpdateBuildQueueGhosts()
 	{
@@ -828,39 +873,37 @@ public partial class GameHost
 
 	private string DetermineUnitAnimation(Entity entity)
 	{
-		if (Realm.Godot.ReplaySystem.ReplayPlaybackManager.Instance.IsPlayingReplay)
-		{
-			if (EcsWorld.Has<Realm.Ecs.Components.Meta.ReplayAnimationState>(entity))
-			{
-				return EcsWorld.Get<Realm.Ecs.Components.Meta.ReplayAnimationState>(entity).Animation;
-			}
-			return "Idle";
-		}
-
-		if (EcsWorld.Has<Dead>(entity))
-			return "Death";
-
-		bool isMoving = EcsWorld.Has<MoveTo>(entity) && EcsWorld.Has<Velocity>(entity)
-			&& EcsWorld.Get<Velocity>(entity).Value.LengthSquared() > 0.01f;
-
-		if (isMoving)
-			return "Walk";
-
-		if (EcsWorld.Has<AttackTarget>(entity))
-			return "Attack";
-
-		if (EcsWorld.Has<HealingTarget>(entity))
-			return "Spell_Cast";
-
-		if (EcsWorld.Has<Gatherer>(entity) && !EcsWorld.Get<Gatherer>(entity).ReturningToBase)
-			return "Labor";
-
-		if (EcsWorld.Has<BuildTask>(entity))
-		{
-			return DetermineBuildTaskAnimation(entity, EcsWorld.Get<BuildTask>(entity));
-		}
+		if (TryGetReplayAnimation(entity, out string replayAnim)) return replayAnim;
+		if (EcsWorld.Has<Dead>(entity)) return "Death";
+		if (IsEntityMoving(entity)) return "Walk";
+		if (EcsWorld.Has<AttackTarget>(entity)) return "Attack";
+		if (EcsWorld.Has<HealingTarget>(entity)) return "Spell_Cast";
+		if (IsEntityGathering(entity)) return "Labor";
+		if (EcsWorld.Has<BuildTask>(entity)) return DetermineBuildTaskAnimation(entity, EcsWorld.Get<BuildTask>(entity));
 
 		return "Idle";
+	}
+
+	private bool TryGetReplayAnimation(Entity entity, out string animation)
+	{
+		animation = string.Empty;
+		if (!Realm.Godot.ReplaySystem.ReplayPlaybackManager.Instance.IsPlayingReplay) return false;
+
+		animation = EcsWorld.Has<Realm.Ecs.Components.Meta.ReplayAnimationState>(entity)
+			? EcsWorld.Get<Realm.Ecs.Components.Meta.ReplayAnimationState>(entity).Animation
+			: "Idle";
+		return true;
+	}
+
+	private bool IsEntityMoving(Entity entity)
+	{
+		return EcsWorld.Has<MoveTo>(entity) && EcsWorld.Has<Velocity>(entity) &&
+			EcsWorld.Get<Velocity>(entity).Value.LengthSquared() > 0.01f;
+	}
+
+	private bool IsEntityGathering(Entity entity)
+	{
+		return EcsWorld.Has<Gatherer>(entity) && !EcsWorld.Get<Gatherer>(entity).ReturningToBase;
 	}
 
 	private string DetermineBuildTaskAnimation(Entity entity, BuildTask task)

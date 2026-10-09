@@ -342,17 +342,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			var loaded = JsonSerializer.Deserialize<EditorPreferencesData>(json);
 			if (loaded == null) return;
 			
-			var jNode = JsonNode.Parse(json)?.AsObject();
-			if (jNode != null && !jNode.ContainsKey(nameof(EditorPreferencesData.AutoBackupIntervalMinutes)) && jNode.ContainsKey("AutoSaveIntervalMinutes"))
-			{
-				int legacyVal = (int)(jNode["AutoSaveIntervalMinutes"] ?? 30);
-				loaded.AutoBackupIntervalMinutes = legacyVal switch
-				{
-					<= 15 => 15,
-					<= 30 => 30,
-					_ => 60
-				};
-			}
+			HandleLegacySettings(json, loaded);
 			
 			CurrentSettings = loaded;
 		}
@@ -360,6 +350,40 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		{
 			GD.PrintErr($"[EditorSettingsDialog] Load error: {ex.Message}");
 		}
+	}
+
+	private static void HandleLegacySettings(string json, EditorPreferencesData loaded)
+	{
+		JsonNode parsedNode = JsonNode.Parse(json);
+		if (parsedNode == null) return;
+		
+		JsonObject jNode = parsedNode.AsObject();
+		if (jNode == null) return;
+		
+		if (jNode.ContainsKey(nameof(EditorPreferencesData.AutoBackupIntervalMinutes))) return;
+		if (!jNode.ContainsKey("AutoSaveIntervalMinutes")) return;
+		
+		int legacyVal = GetLegacyIntervalValue(jNode);
+		loaded.AutoBackupIntervalMinutes = GetMigratedBackupInterval(legacyVal);
+	}
+
+	private static int GetLegacyIntervalValue(JsonObject jNode)
+	{
+		if (jNode.TryGetPropertyValue("AutoSaveIntervalMinutes", out JsonNode valueNode))
+		{
+			if (valueNode != null)
+			{
+				return (int)valueNode;
+			}
+		}
+		return 30;
+	}
+
+	private static int GetMigratedBackupInterval(int legacyVal)
+	{
+		if (legacyVal <= 15) return 15;
+		if (legacyVal <= 30) return 30;
+		return 60;
 	}
 
 	private static void SaveSettingsToFile()

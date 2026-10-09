@@ -465,20 +465,34 @@ public static class MapInfoHelper
 			if (!subDirName.StartsWith(".")) ProcessSubDir(subDirPath, subDirName, versions, seen);
 		}
 
+		ProcessRootJson(globalPath, versions, seen);
+	}
+
+	private static void ProcessRootJson(string globalPath, List<string> versions, HashSet<string> seen)
+	{
 		string rootManifest = System.IO.Path.Combine(globalPath, "manifest.json");
 		string rootMetadata = System.IO.Path.Combine(globalPath, "metadata.json");
-		string? rootJson = System.IO.File.Exists(rootManifest) ? rootManifest : (System.IO.File.Exists(rootMetadata) ? rootMetadata : null);
+		string? rootJson = GetTargetJsonFile(rootManifest, rootMetadata);
 
-		if (rootJson != null)
+		if (rootJson == null) return;
+
+		string ver = ExtractVersionFromJson(rootJson);
+		if (string.IsNullOrWhiteSpace(ver)) return;
+
+		string manifestHash = "";
+		if (rootJson == rootManifest)
 		{
-			string ver = ExtractVersionFromJson(rootJson);
-			string manifestHash = "";
-			if (rootJson == rootManifest)
-			{
-				try { manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(rootManifest), ".json"); } catch { }
-			}
-			if (!string.IsNullOrWhiteSpace(ver)) TryAddVersion(ver, manifestHash, versions, seen);
+			try { manifestHash = Realm.Shared.Metadata.RealmMetadataHelper.ComputeBlake3(System.IO.File.ReadAllBytes(rootManifest), ".json"); } catch { }
 		}
+		
+		TryAddVersion(ver, manifestHash, versions, seen);
+	}
+
+	private static string? GetTargetJsonFile(string manifestPath, string metadataPath)
+	{
+		if (System.IO.File.Exists(manifestPath)) return manifestPath;
+		if (System.IO.File.Exists(metadataPath)) return metadataPath;
+		return null;
 	}
 
 	private static void ProcessVariationFolder(string folder, string folderName, string variation, List<string> versions, HashSet<string> seen)

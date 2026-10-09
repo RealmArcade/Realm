@@ -388,6 +388,23 @@ public partial class SettingsMenu : Control
 
 	private void PopulateDropdowns()
 	{
+		PopulateResolutionDropdown();
+		PopulateQualityDropdown();
+		PopulateWindowModeDropdown();
+		PopulateVsyncDropdown();
+		PopulateHealthBarsDropdown();
+		PopulateLanguageDropdown();
+
+		var dropdowns = new[] { _resolutionOpt, _qualityOpt, _windowModeOpt, _vsyncOpt, _healthBarsOpt, _languageOpt };
+		ApplyDropdownStyles(dropdowns);
+
+		SetupWindowModeEvent();
+		SetupCheckboxEvents();
+		SetupNatTestEvent();
+	}
+
+	private void PopulateResolutionDropdown()
+	{
 		_resolutionOpt.Clear();
 		if (GameSettings.Resolutions == null || GameSettings.Resolutions.Count == 0)
 		{
@@ -398,27 +415,42 @@ public partial class SettingsMenu : Control
 			var res = GameSettings.Resolutions[i];
 			_resolutionOpt.AddItem($"{res.X} x {res.Y}", i);
 		}
+	}
 
+	private void PopulateQualityDropdown()
+	{
 		_qualityOpt.Clear();
 		_qualityOpt.AddItem(TranslationServer.Translate("Low"), 0);
 		_qualityOpt.AddItem(TranslationServer.Translate("Medium"), 1);
 		_qualityOpt.AddItem(TranslationServer.Translate("High"), 2);
 		_qualityOpt.AddItem(TranslationServer.Translate("Ultra"), 3);
+	}
 
+	private void PopulateWindowModeDropdown()
+	{
 		_windowModeOpt.Clear();
 		_windowModeOpt.AddItem(TranslationServer.Translate("Fullscreen"), 0);
 		_windowModeOpt.AddItem(TranslationServer.Translate("Windowed"), 1);
 		_windowModeOpt.AddItem(TranslationServer.Translate("Borderless"), 2);
+	}
 
+	private void PopulateVsyncDropdown()
+	{
 		_vsyncOpt.Clear();
 		_vsyncOpt.AddItem(TranslationServer.Translate("On"), 0);
 		_vsyncOpt.AddItem(TranslationServer.Translate("Off"), 1);
+	}
 
+	private void PopulateHealthBarsDropdown()
+	{
 		_healthBarsOpt.Clear();
 		_healthBarsOpt.AddItem(TranslationServer.Translate("Hidden"), 0);
 		_healthBarsOpt.AddItem(TranslationServer.Translate("Visible"), 1);
 		_healthBarsOpt.AddItem(TranslationServer.Translate("Damaged"), 2);
+	}
 
+	private void PopulateLanguageDropdown()
+	{
 		_languageOpt.Clear();
 		_languageOpt.AddItem("English", 0);
 		_languageOpt.AddItem("Español", 1);
@@ -430,30 +462,34 @@ public partial class SettingsMenu : Control
 		_languageOpt.AddItem("日本語", 7);
 		_languageOpt.AddItem("العربية", 8);
 		_languageOpt.AddItem("हिन्दी", 9);
+	}
 
-		var dropdowns = new[] { _resolutionOpt, _qualityOpt, _windowModeOpt, _vsyncOpt, _healthBarsOpt, _languageOpt };
-		ApplyDropdownStyles(dropdowns);
-		_windowModeOpt.ItemSelected += (idx) =>
+	private void SetupWindowModeEvent()
+	{
+		_windowModeOpt.ItemSelected += OnWindowModeItemSelected;
+	}
+
+	private void OnWindowModeItemSelected(long idx)
+	{
+		var mode = (WindowMode)idx;
+		bool isWindowed = mode == WindowMode.Windowed;
+		_resolutionOpt.Disabled = !isWindowed;
+
+		if (GameSettings.Resolutions == null || GameSettings.Resolutions.Count == 0)
+			return;
+
+		if (!isWindowed)
 		{
-			var mode = (WindowMode)idx;
-			bool isWindowed = mode == WindowMode.Windowed;
-			_resolutionOpt.Disabled = !isWindowed;
-			if (!isWindowed)
-			{
-				if (GameSettings.Resolutions != null && GameSettings.Resolutions.Count > 0)
-				{
-					_resolutionOpt.Select(0);
-				}
-			}
-			else
-			{
-				if (GameSettings.Resolutions != null && GameSettings.Resolutions.Count > 0)
-				{
-					_resolutionOpt.Select(Math.Clamp(GameSettings.ResolutionIdx, 0, GameSettings.Resolutions.Count - 1));
-				}
-			}
-		};
+			_resolutionOpt.Select(0);
+		}
+		else
+		{
+			_resolutionOpt.Select(Math.Clamp(GameSettings.ResolutionIdx, 0, GameSettings.Resolutions.Count - 1));
+		}
+	}
 
+	private void SetupCheckboxEvents()
+	{
 		_disableShadowsChk.Pressed += () => UIManager.Instance.PlayClickSound();
 		_disableShadowsChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 		_disableDayNightLightingChk.Pressed += () => UIManager.Instance.PlayClickSound();
@@ -466,24 +502,29 @@ public partial class SettingsMenu : Control
 		_recordReplaysChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 		_seedMapFilesChk.Pressed += () => UIManager.Instance.PlayClickSound();
 		_seedMapFilesChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+	}
 
-		if (LobbyManager.Instance != null)
+	private void SetupNatTestEvent()
+	{
+		if (LobbyManager.Instance == null)
+			return;
+
+		LobbyManager.Instance.NatTestCompleted += OnNatTestCompleted;
+	}
+
+	private void OnNatTestCompleted()
+	{
+		bool canHost = LobbyManager.Instance.LocalNatType != NatType.Symmetric;
+		if (!canHost)
 		{
-			LobbyManager.Instance.NatTestCompleted += () =>
-			{
-				bool canHost = LobbyManager.Instance.LocalNatType != NatType.Symmetric;
-				if (!canHost)
-				{
-					_seedMapFilesChk.Disabled = true;
-					_seedMapFilesChk.ButtonPressed = false;
-					_seedMapFilesChk.TooltipText = TranslationServer.Translate("Seeding disabled: Machine cannot host due to STUN test failure or Symmetric NAT.");
-				}
-				else
-				{
-					_seedMapFilesChk.Disabled = false;
-					_seedMapFilesChk.ButtonPressed = GameSettings.SeedMapFiles;
-				}
-			};
+			_seedMapFilesChk.Disabled = true;
+			_seedMapFilesChk.ButtonPressed = false;
+			_seedMapFilesChk.TooltipText = TranslationServer.Translate("Seeding disabled: Machine cannot host due to STUN test failure or Symmetric NAT.");
+		}
+		else
+		{
+			_seedMapFilesChk.Disabled = false;
+			_seedMapFilesChk.ButtonPressed = GameSettings.SeedMapFiles;
 		}
 	}
 

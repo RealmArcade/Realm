@@ -226,29 +226,34 @@ public static class LocalizationManager
 			_debounceTimer?.Dispose();
 			_debounceTimer = null;
 
-			try
-			{
-				string filePath = GetEnJsonDiskPath();
-				if (string.IsNullOrEmpty(filePath)) return;
+			string filePath = GetEnJsonDiskPath();
+			if (string.IsNullOrEmpty(filePath)) return;
 
-				string? dir = System.IO.Path.GetDirectoryName(filePath);
-				if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir))
-				{
-					System.IO.Directory.CreateDirectory(dir);
-				}
+			WriteCatalogToDisk(filePath);
+		}
+	}
 
-				var options = new JsonSerializerOptions
-				{
-					WriteIndented = true,
-					Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-				};
-				string json = JsonSerializer.Serialize(_enCatalog, options);
-				System.IO.File.WriteAllText(filePath, json);
-			}
-			catch (Exception ex)
+	private static void WriteCatalogToDisk(string filePath)
+	{
+		try
+		{
+			string? dir = System.IO.Path.GetDirectoryName(filePath);
+			if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir))
 			{
-				GD.PrintErr($"Failed to flush en.json: {ex.Message}");
+				System.IO.Directory.CreateDirectory(dir);
 			}
+
+			var options = new JsonSerializerOptions
+			{
+				WriteIndented = true,
+				Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+			};
+			string json = JsonSerializer.Serialize(_enCatalog, options);
+			System.IO.File.WriteAllText(filePath, json);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to flush en.json: {ex.Message}");
 		}
 	}
 

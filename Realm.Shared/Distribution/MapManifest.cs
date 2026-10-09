@@ -135,22 +135,23 @@ public class MapManifest
         };
     }
 
+    private static readonly Dictionary<string, string> _audioOrVisualSubFolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "Animation", "animations" },
+        { "SoundEffect", "audio/sfx" },
+        { "Music", "audio/music" },
+        { "Icon", "icons" },
+        { "Decal", "decals" },
+        { "Ribbon", "ribbons" },
+        { "Noise", "noise" },
+        { "Skybox", "skyboxes" },
+        { "Terrain", "textures" },
+        { "Shader", "shaders" }
+    };
+
     private static string? GetAudioOrVisualSubFolder(string category)
     {
-        return category switch
-        {
-            "Animation" => "animations",
-            "SoundEffect" => "audio/sfx",
-            "Music" => "audio/music",
-            "Icon" => "icons",
-            "Decal" => "decals",
-            "Ribbon" => "ribbons",
-            "Noise" => "noise",
-            "Skybox" => "skyboxes",
-            "Terrain" => "textures",
-            "Shader" => "shaders",
-            _ => null
-        };
+        return _audioOrVisualSubFolders.GetValueOrDefault(category);
     }
 
     private static string GetExtensionForCategory(string category)

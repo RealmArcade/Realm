@@ -76,6 +76,15 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		BodyContainer.AddChild(_objectTree);
 	}
 
+	private bool HasCountsChanged()
+	{
+		int curUnits = GameHost.Instance.AllUnits?.Count ?? 0;
+		int curProps = GameHost.Instance.AllProps?.Count ?? 0;
+		int curDecals = GameHost.Instance.AllDecals?.Count ?? 0;
+
+		return curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount;
+	}
+
 	public override void _Process(double delta)
 	{
 		base._Process(delta);
@@ -85,29 +94,22 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		if (_refreshCheckTimer < 0.15) return;
 		_refreshCheckTimer = 0.0;
 
-		int curUnits = GameHost.Instance.AllUnits?.Count ?? 0;
-		int curProps = GameHost.Instance.AllProps?.Count ?? 0;
-		int curDecals = GameHost.Instance.AllDecals?.Count ?? 0;
-
-		bool countsChanged = curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount;
-		bool anyNodeInvalid = false;
-
-		if (!countsChanged)
-		{
-			foreach (var node in _treeItemToObjectMap.Values)
-			{
-				if (!GodotObject.IsInstanceValid(node) || node.IsQueuedForDeletion() || !node.IsInsideTree())
-				{
-					anyNodeInvalid = true;
-					break;
-				}
-			}
-		}
-
-		if (countsChanged || anyNodeInvalid)
+		if (HasCountsChanged() || IsAnyTrackedNodeInvalid())
 		{
 			RefreshObjectTree();
 		}
+	}
+
+	private bool IsAnyTrackedNodeInvalid()
+	{
+		foreach (var node in _treeItemToObjectMap.Values)
+		{
+			if (!GodotObject.IsInstanceValid(node) || node.IsQueuedForDeletion() || !node.IsInsideTree())
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public void RefreshIfOpen()
@@ -129,20 +131,16 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		_objectTree.Clear();
 		_treeItemToObjectMap.Clear();
 
-		if (GameHost.Instance != null)
-		{
-			_lastUnitsCount = GameHost.Instance.AllUnits?.Count ?? 0;
-			_lastPropsCount = GameHost.Instance.AllProps?.Count ?? 0;
-			_lastDecalsCount = GameHost.Instance.AllDecals?.Count ?? 0;
-		}
-
-		TreeItem rootNode = _objectTree.CreateItem();
-
 		if (GameHost.Instance == null)
 		{
+			TreeItem emptyRoot = _objectTree.CreateItem();
 			_summaryLabel.Text = TranslationServer.Translate("No active map loaded.");
 			return;
 		}
+
+		UpdateLastCounts();
+
+		TreeItem rootNode = _objectTree.CreateItem();
 
 		var placedObjects = CollectAllPlacedObjects();
 		int totalObjectCount = placedObjects.Count;
@@ -150,56 +148,72 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		var groupedObjects = GroupPlacedObjectsByAssetType(placedObjects);
 
 		int matchedObjectCount = 0;
-
 		foreach (var categoryGroup in groupedObjects)
 		{
-			string categoryName = categoryGroup.Key;
-			var objectsInCategory = categoryGroup.Value;
-
-			TreeItem categoryNode = null;
-
-			foreach (var (displayTitle, node) in objectsInCategory)
-			{
-				if (!string.IsNullOrEmpty(_filterText) &&
-					displayTitle.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0 &&
-					categoryName.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0)
-				{
-					continue;
-				}
-
-				if (categoryNode == null)
-				{
-					categoryNode = _objectTree.CreateItem(rootNode);
-					categoryNode.SetText(0, $"{categoryName} ({objectsInCategory.Count})");
-					categoryNode.SetSelectable(0, false);
-					categoryNode.SetSelectable(1, false);
-					categoryNode.SetCustomColor(0, UIStyle.ColorGold);
-				}
-
-				TreeItem itemNode = _objectTree.CreateItem(categoryNode);
-				itemNode.SetText(0, displayTitle);
-				Vector3 pos = node.Position;
-				itemNode.SetText(1, $"({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
-
-				if (GameHost.Instance.SelectedEditorObject == node)
-				{
-					itemNode.Select(0);
-					categoryNode.Collapsed = false;
-				}
-
-				_treeItemToObjectMap[itemNode] = node;
-				matchedObjectCount++;
-			}
+			matchedObjectCount += ProcessCategoryGroup(rootNode, categoryGroup.Key, categoryGroup.Value);
 		}
 
+		UpdateSummaryLabel(totalObjectCount, matchedObjectCount);
+	}
+
+	private void UpdateLastCounts()
+	{
+		_lastUnitsCount = GameHost.Instance.AllUnits?.Count ?? 0;
+		_lastPropsCount = GameHost.Instance.AllProps?.Count ?? 0;
+		_lastDecalsCount = GameHost.Instance.AllDecals?.Count ?? 0;
+	}
+
+	private void UpdateSummaryLabel(int totalCount, int matchedCount)
+	{
 		if (string.IsNullOrEmpty(_filterText))
 		{
-			_summaryLabel.Text = string.Format(TranslationServer.Translate("Total placed objects: {0}"), totalObjectCount);
+			_summaryLabel.Text = string.Format(TranslationServer.Translate("Total placed objects: {0}"), totalCount);
 		}
 		else
 		{
-			_summaryLabel.Text = string.Format(TranslationServer.Translate("Matching objects: {0} of {1}"), matchedObjectCount, totalObjectCount);
+			_summaryLabel.Text = string.Format(TranslationServer.Translate("Matching objects: {0} of {1}"), matchedCount, totalCount);
 		}
+	}
+
+	private int ProcessCategoryGroup(TreeItem rootNode, string categoryName, List<(string DisplayTitle, Node3D Node)> objectsInCategory)
+	{
+		int matchedCount = 0;
+		TreeItem categoryNode = null;
+
+		foreach (var (displayTitle, node) in objectsInCategory)
+		{
+			if (!string.IsNullOrEmpty(_filterText) &&
+				displayTitle.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0 &&
+				categoryName.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0)
+			{
+				continue;
+			}
+
+			if (categoryNode == null)
+			{
+				categoryNode = _objectTree.CreateItem(rootNode);
+				categoryNode.SetText(0, $"{categoryName} ({objectsInCategory.Count})");
+				categoryNode.SetSelectable(0, false);
+				categoryNode.SetSelectable(1, false);
+				categoryNode.SetCustomColor(0, UIStyle.ColorGold);
+			}
+
+			TreeItem itemNode = _objectTree.CreateItem(categoryNode);
+			itemNode.SetText(0, displayTitle);
+			Vector3 pos = node.Position;
+			itemNode.SetText(1, $"({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
+
+			if (GameHost.Instance.SelectedEditorObject == node)
+			{
+				itemNode.Select(0);
+				categoryNode.Collapsed = false;
+			}
+
+			_treeItemToObjectMap[itemNode] = node;
+			matchedCount++;
+		}
+		
+		return matchedCount;
 	}
 
 	private List<(string DisplayTitle, string AssetType, Node3D Node)> CollectAllPlacedObjects()
@@ -207,94 +221,93 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		var result = new List<(string DisplayTitle, string AssetType, Node3D Node)>();
 		if (GameHost.Instance == null) return result;
 
-		if (GameHost.Instance.AllUnits != null)
-		{
-			foreach (var unit in GameHost.Instance.AllUnits)
-			{
-				if (!GodotObject.IsInstanceValid(unit)) continue;
-
-				string assetType;
-				string resolvedName;
-
-				if (unit.IsBuilding)
-				{
-					assetType = "Buildings";
-					if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(unit.UnitId, out var bMeta) && !string.IsNullOrEmpty(bMeta.Name))
-					{
-						resolvedName = bMeta.Name;
-					}
-					else
-					{
-						resolvedName = System.IO.Path.GetFileNameWithoutExtension(unit.UnitId);
-					}
-				}
-				else if (unit.IsResource)
-				{
-					assetType = "Resources";
-					if (GameHost.ResourceRegistry != null && GameHost.ResourceRegistry.TryGetValue(unit.UnitId, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
-					{
-						resolvedName = rMeta.Name;
-					}
-					else
-					{
-						resolvedName = System.IO.Path.GetFileNameWithoutExtension(unit.UnitId);
-					}
-				}
-				else
-				{
-					assetType = "Units";
-					if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.TryGetValue(unit.UnitId, out var uMeta) && !string.IsNullOrEmpty(uMeta.Name))
-					{
-						resolvedName = uMeta.Name;
-					}
-					else
-					{
-						resolvedName = System.IO.Path.GetFileNameWithoutExtension(unit.UnitId);
-					}
-				}
-
-				string displayTitle = $"{resolvedName} [Player {unit.Player}]";
-				result.Add((displayTitle, assetType, unit));
-			}
-		}
-
-		if (GameHost.Instance.AllProps != null)
-		{
-			foreach (var prop in GameHost.Instance.AllProps)
-			{
-				if (!GodotObject.IsInstanceValid(prop)) continue;
-
-				string assetType = "Props";
-				string resolvedName;
-
-				if (GameHost.PropRegistry != null && GameHost.PropRegistry.TryGetValue(prop.PropId, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
-				{
-					resolvedName = pMeta.Name;
-				}
-				else
-				{
-					resolvedName = System.IO.Path.GetFileNameWithoutExtension(prop.PropId);
-				}
-
-				result.Add((resolvedName, assetType, prop));
-			}
-		}
-
-		if (GameHost.Instance.AllDecals != null)
-		{
-			foreach (var decal in GameHost.Instance.AllDecals)
-			{
-				if (!GodotObject.IsInstanceValid(decal)) continue;
-
-				string assetType = "Decals";
-				string resolvedName = decal is Decal3D d3d ? d3d.DecalId : System.IO.Path.GetFileNameWithoutExtension(decal.Name);
-				result.Add((resolvedName, assetType, decal));
-			}
-		}
-
+		CollectUnits(result);
+		CollectProps(result);
+		CollectDecals(result);
 		CollectVfxObjectsRecursive(GameHost.Instance, result);
 
 		return result;
+	}
+
+	private void CollectUnits(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
+	{
+		if (GameHost.Instance.AllUnits == null) return;
+
+		foreach (var unit in GameHost.Instance.AllUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+
+			string assetType = "Units";
+			string resolvedName = GetUnitRegistryName(unit.UnitId);
+
+			if (unit.IsBuilding)
+			{
+				assetType = "Buildings";
+				resolvedName = GetBuildingRegistryName(unit.UnitId);
+			}
+			else if (unit.IsResource)
+			{
+				assetType = "Resources";
+				resolvedName = GetResourceRegistryName(unit.UnitId);
+			}
+
+			string displayTitle = $"{resolvedName} [Player {unit.Player}]";
+			result.Add((displayTitle, assetType, unit));
+		}
+	}
+
+	private string GetBuildingRegistryName(string id)
+	{
+		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(id, out var bMeta) && !string.IsNullOrEmpty(bMeta.Name))
+			return bMeta.Name;
+		return System.IO.Path.GetFileNameWithoutExtension(id);
+	}
+
+	private string GetResourceRegistryName(string id)
+	{
+		if (GameHost.ResourceRegistry != null && GameHost.ResourceRegistry.TryGetValue(id, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
+			return rMeta.Name;
+		return System.IO.Path.GetFileNameWithoutExtension(id);
+	}
+
+	private string GetUnitRegistryName(string id)
+	{
+		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.TryGetValue(id, out var uMeta) && !string.IsNullOrEmpty(uMeta.Name))
+			return uMeta.Name;
+		return System.IO.Path.GetFileNameWithoutExtension(id);
+	}
+
+	private void CollectProps(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
+	{
+		if (GameHost.Instance.AllProps == null) return;
+
+		foreach (var prop in GameHost.Instance.AllProps)
+		{
+			if (!GodotObject.IsInstanceValid(prop)) continue;
+
+			string resolvedName = GetPropRegistryName(prop.PropId);
+			result.Add((resolvedName, "Props", prop));
+		}
+	}
+
+	private string GetPropRegistryName(string id)
+	{
+		if (GameHost.PropRegistry != null && GameHost.PropRegistry.TryGetValue(id, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
+			return pMeta.Name;
+		return System.IO.Path.GetFileNameWithoutExtension(id);
+	}
+
+	private void CollectDecals(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
+	{
+		if (GameHost.Instance.AllDecals == null) return;
+
+		foreach (var decal in GameHost.Instance.AllDecals)
+		{
+			if (!GodotObject.IsInstanceValid(decal)) continue;
+
+			string resolvedName = decal is Decal3D d3d ? d3d.DecalId : System.IO.Path.GetFileNameWithoutExtension(decal.Name);
+			result.Add((resolvedName, "Decals", decal));
+		}
 	}
 
 	private void CollectVfxObjectsRecursive(Node parentNode, List<(string DisplayTitle, string AssetType, Node3D Node)> resultList)

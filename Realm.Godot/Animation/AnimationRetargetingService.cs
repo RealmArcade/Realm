@@ -116,35 +116,46 @@ public static class AnimationRetargetingService
 
 	private static string TryResolveInActiveMap(List<string> candidateNames)
 	{
-		string activeMap = GameHost.Instance?.ActiveMapName ?? LobbyManager.Instance?.ActiveMapName;
-		if (string.IsNullOrEmpty(activeMap)) return null;
-
-		if (Directory.Exists(activeMap))
+		string activeMap = null;
+		if (GameHost.Instance != null)
 		{
-			foreach (var candName in candidateNames)
-			{
-				string p = Path.Combine(activeMap, "Assets", "animations", candName);
-				if (File.Exists(p)) return p;
-			}
-		}
-
-		string currentMapDir = GameHost.Instance?.CurrentMapDirectory;
-		if (!string.IsNullOrEmpty(currentMapDir) && Directory.Exists(currentMapDir))
-		{
-			foreach (var candName in candidateNames)
-			{
-				string p = Path.Combine(currentMapDir, "Assets", "animations", candName);
-				if (File.Exists(p)) return p;
-			}
-		}
-
-		string mapDir = ProjectSettings.GlobalizePath($"user://maps/{activeMap}");
-		foreach (var candName in candidateNames)
-		{
-			string p = Path.Combine(mapDir, "Assets", "animations", candName);
-			if (File.Exists(p)) return p;
+			activeMap = GameHost.Instance.ActiveMapName;
 		}
 		
+		if (string.IsNullOrEmpty(activeMap) && LobbyManager.Instance != null)
+		{
+			activeMap = LobbyManager.Instance.ActiveMapName;
+		}
+
+		if (string.IsNullOrEmpty(activeMap)) return null;
+
+		string result = TryResolveInDirectory(activeMap, candidateNames);
+		if (result != null) return result;
+
+		string currentMapDir = null;
+		if (GameHost.Instance != null)
+		{
+			currentMapDir = GameHost.Instance.CurrentMapDirectory;
+		}
+
+		result = TryResolveInDirectory(currentMapDir, candidateNames);
+		if (result != null) return result;
+
+		string mapDir = ProjectSettings.GlobalizePath($"user://maps/{activeMap}");
+		return TryResolveInDirectory(mapDir, candidateNames);
+	}
+
+	private static string TryResolveInDirectory(string directory, List<string> candidateNames)
+	{
+		if (string.IsNullOrEmpty(directory)) return null;
+		if (!Directory.Exists(directory)) return null;
+
+		foreach (var candName in candidateNames)
+		{
+			string p = Path.Combine(directory, "Assets", "animations", candName);
+			if (File.Exists(p)) return p;
+		}
+
 		return null;
 	}
 
@@ -186,6 +197,22 @@ public static class AnimationRetargetingService
 	{
 		if (animData == null || targetSkeleton == null) return null;
 
+		var godotAnim = CreateBaseAnimation(animData);
+		var boneMap = targetSkeleton.BuildSkeletonBoneMap();
+		string skelPathStr = GetSkeletonPathString(targetSkeleton, skeletonRelativePath);
+		float hipHeightRatio = CalculateHipHeightRatio(targetSkeleton, boneMap);
+		bool isDeath = !string.IsNullOrEmpty(animationName) && animationName.StartsWith("Death", StringComparison.OrdinalIgnoreCase);
+
+		foreach (var track in animData.Tracks)
+		{
+			ProcessTrack(godotAnim, track, targetSkeleton, boneMap, skelPathStr, isDeath, animData, hipHeightRatio);
+		}
+
+		return godotAnim;
+	}
+
+	private static GAnimation CreateBaseAnimation(RealmAnimationData animData)
+	{
 		var godotAnim = new GAnimation();
 		godotAnim.Length = animData.Duration > 0f ? animData.Duration : 1.0f;
 		godotAnim.LoopMode = animData.LoopMode switch
@@ -195,49 +222,61 @@ public static class AnimationRetargetingService
 			_ => GAnimation.LoopModeEnum.None
 		};
 		godotAnim.Step = animData.FrameRate > 0f ? 1.0f / animData.FrameRate : 1.0f / 30.0f;
+		return godotAnim;
+	}
 
-		var boneMap = targetSkeleton.BuildSkeletonBoneMap();
+	private static string GetSkeletonPathString(Skeleton3D targetSkeleton, NodePath skeletonRelativePath)
+	{
 		string skelPathStr = skeletonRelativePath.ToString();
 		if (string.IsNullOrEmpty(skelPathStr) || skelPathStr == ".")
 		{
 			skelPathStr = targetSkeleton.Name;
 		}
+		return skelPathStr;
+	}
 
-		float hipHeightRatio = 1.0f;
-		if (boneMap.TryGetValue(HumanoidBone.Hips, out int hipBoneIdx))
+	private static float CalculateHipHeightRatio(Skeleton3D targetSkeleton, Dictionary<HumanoidBone, int> boneMap)
+	{
+		if (!boneMap.TryGetValue(HumanoidBone.Hips, out int hipBoneIdx)) return 1.0f;
+
+		Transform3D hipRest = targetSkeleton.GetBoneRest(hipBoneIdx);
+		float targetHipHeight = MathF.Abs(hipRest.Origin.Y);
+		
+		if (targetHipHeight > 0.01f)
 		{
-			Transform3D hipRest = targetSkeleton.GetBoneRest(hipBoneIdx);
-			float targetHipHeight = MathF.Abs(hipRest.Origin.Y);
-			if (targetHipHeight > 0.01f)
-			{
-				hipHeightRatio = targetHipHeight / 1.0f;
-			}
+			return targetHipHeight / 1.0f;
+		}
+		
+		return 1.0f;
+	}
+
+	private static void ProcessTrack(
+		GAnimation godotAnim, 
+		RealmAnimationBoneTrack track, 
+		Skeleton3D targetSkeleton, 
+		Dictionary<HumanoidBone, int> boneMap, 
+		string skelPathStr, 
+		bool isDeath, 
+		RealmAnimationData animData, 
+		float hipHeightRatio)
+	{
+		if (track == null || string.IsNullOrEmpty(track.BoneName)) return;
+
+		if (!DetermineTargetBone(track, targetSkeleton, boneMap, out var canonicalBone, out string targetBoneName))
+		{
+			return;
 		}
 
-		bool isDeath = !string.IsNullOrEmpty(animationName) && animationName.StartsWith("Death", StringComparison.OrdinalIgnoreCase);
+		NodePath boneTrackPath = new NodePath($"{skelPathStr}:{targetBoneName}");
+		bool isHips = canonicalBone == HumanoidBone.Hips;
 
-		foreach (var track in animData.Tracks)
+		if (isHips)
 		{
-			if (track == null || string.IsNullOrEmpty(track.BoneName)) continue;
-
-			if (!DetermineTargetBone(track, targetSkeleton, boneMap, out var canonicalBone, out string targetBoneName))
-			{
-				continue;
-			}
-
-			NodePath boneTrackPath = new NodePath($"{skelPathStr}:{targetBoneName}");
-			bool isHips = canonicalBone == HumanoidBone.Hips;
-
-			if (isHips)
-			{
-				ProcessPositionTrack(godotAnim, track, boneTrackPath, isDeath, animData, hipHeightRatio);
-			}
-
-			ProcessRotationTrack(godotAnim, track, boneTrackPath);
-			ProcessScaleTrack(godotAnim, track, boneTrackPath);
+			ProcessPositionTrack(godotAnim, track, boneTrackPath, isDeath, animData, hipHeightRatio);
 		}
 
-		return godotAnim;
+		ProcessRotationTrack(godotAnim, track, boneTrackPath);
+		ProcessScaleTrack(godotAnim, track, boneTrackPath);
 	}
 
 	private static bool DetermineTargetBone(RealmAnimationBoneTrack track, Skeleton3D targetSkeleton, Dictionary<HumanoidBone, int> boneMap, out HumanoidBone canonicalBone, out string targetBoneName)
@@ -277,6 +316,7 @@ public static class AnimationRetargetingService
 
 		var firstKey = track.PositionKeys[0];
 		var lastKey = track.PositionKeys[^1];
+		
 		float driftX = (!isDeath && track.PositionKeys.Length > 1) ? (lastKey.X - firstKey.X) : 0f;
 		float driftZ = (!isDeath && track.PositionKeys.Length > 1) ? (lastKey.Z - firstKey.Z) : 0f;
 
@@ -286,16 +326,32 @@ public static class AnimationRetargetingService
 			totalDuration = animData.Duration;
 		}
 
+		InsertPositionKeys(godotAnim, track, posTrackIdx, totalDuration, firstKey, driftX, driftZ, hipHeightRatio);
+	}
+
+	private static void InsertPositionKeys(
+		GAnimation godotAnim, 
+		RealmAnimationBoneTrack track, 
+		int posTrackIdx, 
+		float totalDuration, 
+		Realm.Shared.Animation.RealmKeyframeVector3 firstKey, 
+		float driftX, 
+		float driftZ, 
+		float hipHeightRatio)
+	{
 		var basePos = track.PositionKeys[0];
-		float posScale = hipHeightRatio;
+		
 		foreach (var key in track.PositionKeys)
 		{
 			float progress = totalDuration > 0.0001f ? Math.Clamp((key.Time - firstKey.Time) / totalDuration, 0f, 1f) : 0f;
+			
 			float localX = (key.X - basePos.X) - driftX * progress;
 			float localZ = (key.Z - basePos.Z) - driftZ * progress;
-			float dx = localX * posScale;
-			float dy = (key.Y - basePos.Y) * posScale;
-			float dz = localZ * posScale;
+			
+			float dx = localX * hipHeightRatio;
+			float dy = (key.Y - basePos.Y) * hipHeightRatio;
+			float dz = localZ * hipHeightRatio;
+			
 			godotAnim.PositionTrackInsertKey(posTrackIdx, key.Time, new Vector3(dx, dy, dz));
 		}
 	}

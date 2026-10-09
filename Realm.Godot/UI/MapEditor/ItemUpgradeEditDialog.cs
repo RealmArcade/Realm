@@ -10,333 +10,377 @@ using Realm.Shared.Metadata;
 
 public partial class ItemUpgradeEditDialog : FloatingDialogBase
 {
-	private string _category = "items";
-	private string _objectType = "item";
-	private string _slug = "";
-	private string _originalTemplateID = "";
-	private string _name = "";
-	private string _iconPath = "";
-	private string _tooltip = "";
+    private string _category = "items";
+    private string _objectType = "item";
+    private string _slug = "";
+    private string _originalTemplateID = "";
+    private string _name = "";
+    private string _iconPath = "";
+    private string _tooltip = "";
 
-	private Action<string, string> _onAppliedCallback;
+    private Action<string, string> _onAppliedCallback;
 
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private Label _lblSlugValidation;
-	private LineEdit _txtName;
-	private LineEdit _txtIconPath;
-	private Action<string> _setIconPathValue;
-	private LineEdit _txtTooltip;
-	private VBoxContainer _previewContainer;
+    private Label _lblObjectTypePrefix;
+    private LineEdit _txtSlug;
+    private Label _lblSlugValidation;
+    private LineEdit _txtName;
+    private LineEdit _txtIconPath;
+    private Action<string> _setIconPathValue;
+    private LineEdit _txtTooltip;
+    private VBoxContainer _previewContainer;
 
-	public ItemUpgradeEditDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Edit Item / Upgrade"), new Vector2(480, 480))
-	{
-		BuildControls();
-	}
+    public ItemUpgradeEditDialog(MapEditorHUD hud)
+        : base(hud, TranslationServer.Translate("Edit Item / Upgrade"), new Vector2(480, 480))
+    {
+        BuildControls();
+    }
 
-	private void BuildControls()
-	{
-		AddDescription(BodyContainer, TranslationServer.Translate("Modify metadata, icon asset, and rich formatted tooltip for this item or upgrade template."));
+    private void BuildControls()
+    {
+        AddDescription(BodyContainer, TranslationServer.Translate("Modify metadata, icon asset, and rich formatted tooltip for this item or upgrade template."));
 
-		var scrollBody = CreateScrollBody(400);
-		var contentVBox = new VBoxContainer();
-		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		scrollBody.AddChild(contentVBox);
+        var scrollBody = CreateScrollBody(400);
+        var contentVBox = new VBoxContainer();
+        contentVBox.AddThemeConstantOverride("separation", 10);
+        contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        scrollBody.AddChild(contentVBox);
 
-		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ICON"), new Color(0.95f, 0.8f, 0.4f));
+        AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ICON"), new Color(0.95f, 0.8f, 0.4f));
 
-		var idRow = new HBoxContainer();
-		idRow.AddThemeConstantOverride("separation", 6);
+        var idRow = new HBoxContainer();
+        idRow.AddThemeConstantOverride("separation", 6);
 
-		var lblId = new Label();
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(120, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		idRow.AddChild(lblId);
+        var lblId = new Label();
+        lblId.Text = TranslationServer.Translate("TemplateID:");
+        lblId.CustomMinimumSize = new Vector2(120, 0);
+        lblId.AddThemeFontSizeOverride("font_size", 11);
+        idRow.AddChild(lblId);
 
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Text = "item/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		idRow.AddChild(_lblObjectTypePrefix);
+        _lblObjectTypePrefix = new Label();
+        _lblObjectTypePrefix.Text = "item/";
+        _lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
+        _lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+        idRow.AddChild(_lblObjectTypePrefix);
 
-		_txtSlug = new LineEdit();
-		_txtSlug.PlaceholderText = TranslationServer.Translate("snake_case_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
-		_txtSlug.TextChanged += (val) =>
-		{
-			_slug = TemplateIDHelper.ToSnakeCase(val);
-			ValidateSlug();
-		};
-		idRow.AddChild(_txtSlug);
-		contentVBox.AddChild(idRow);
+        _txtSlug = new LineEdit();
+        _txtSlug.PlaceholderText = TranslationServer.Translate("snake_case_slug");
+        _txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _txtSlug.AddThemeFontSizeOverride("font_size", 11);
+        _txtSlug.TextChanged += (val) =>
+        {
+            _slug = TemplateIDHelper.ToSnakeCase(val);
+            ValidateSlug();
+        };
+        idRow.AddChild(_txtSlug);
+        contentVBox.AddChild(idRow);
 
-		_lblSlugValidation = new Label();
-		_lblSlugValidation.AddThemeFontSizeOverride("font_size", 10);
-		_lblSlugValidation.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.4f));
-		_lblSlugValidation.Visible = false;
-		contentVBox.AddChild(_lblSlugValidation);
+        _lblSlugValidation = new Label();
+        _lblSlugValidation.AddThemeFontSizeOverride("font_size", 10);
+        _lblSlugValidation.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.4f));
+        _lblSlugValidation.Visible = false;
+        contentVBox.AddChild(_lblSlugValidation);
 
-		_txtName = AddTextInput(
-			contentVBox,
-			TranslationServer.Translate("Display Name:"),
-			_name,
-			(val) => _name = val ?? string.Empty,
-			TranslationServer.Translate("Display name..."),
-			120f
-		);
+        _txtName = AddTextInput(
+            contentVBox,
+            TranslationServer.Translate("Display Name:"),
+            _name,
+            (val) => _name = val ?? string.Empty,
+            TranslationServer.Translate("Display name..."),
+            120f
+        );
 
-		(_txtIconPath, _setIconPathValue) = AddAssetFilterDropdown(
-			contentVBox,
-			TranslationServer.Translate("Icon (.rtex):"),
-			_iconPath,
-			(all) => ScanIconRtexAssets(all),
-			(val) =>
-			{
-				_iconPath = val ?? string.Empty;
-				UpdateTooltipPreview();
-			},
-			TranslationServer.Translate("Select icon .rtex..."),
-			120f
-		);
+        (_txtIconPath, _setIconPathValue) = AddAssetFilterDropdown(
+            contentVBox,
+            TranslationServer.Translate("Icon (.rtex):"),
+            _iconPath,
+            (all) => ScanIconRtexAssets(all),
+            (val) =>
+            {
+                _iconPath = val ?? string.Empty;
+                UpdateTooltipPreview();
+            },
+            TranslationServer.Translate("Select icon .rtex..."),
+            120f
+        );
 
-		AddSectionHeader(contentVBox, "💬 " + TranslationServer.Translate("TOOLTIP & DESCRIPTION"), new Color(0.4f, 0.85f, 0.5f));
+        AddSectionHeader(contentVBox, "💬 " + TranslationServer.Translate("TOOLTIP & DESCRIPTION"), new Color(0.4f, 0.85f, 0.5f));
 
-		_txtTooltip = AddTextInput(
-			contentVBox,
-			TranslationServer.Translate("Tooltip Text:"),
-			_tooltip,
-			(val) =>
-			{
-				_tooltip = val ?? string.Empty;
-				UpdateTooltipPreview();
-			},
-			TranslationServer.Translate("Tooltip text, e.g. <b>Bold</b> or <color=#FFD700>Gold</color>"),
-			120f
-		);
+        _txtTooltip = AddTextInput(
+            contentVBox,
+            TranslationServer.Translate("Tooltip Text:"),
+            _tooltip,
+            (val) =>
+            {
+                _tooltip = val ?? string.Empty;
+                UpdateTooltipPreview();
+            },
+            TranslationServer.Translate("Tooltip text, e.g. <b>Bold</b> or <color=#FFD700>Gold</color>"),
+            120f
+        );
 
-		AddSectionHeader(contentVBox, "👁️ " + TranslationServer.Translate("TOOLTIP PREVIEW"), new Color(0.35f, 0.75f, 0.9f));
-		AddDescription(contentVBox, TranslationServer.Translate("Custom syntax supported: <b>Bold</b>, <i>Italics</i>, <color=#RRGGBB>Colors</color>, and standard BBCode tags."));
+        AddSectionHeader(contentVBox, "👁️ " + TranslationServer.Translate("TOOLTIP PREVIEW"), new Color(0.35f, 0.75f, 0.9f));
+        AddDescription(contentVBox, TranslationServer.Translate("Custom syntax supported: <b>Bold</b>, <i>Italics</i>, <color=#RRGGBB>Colors</color>, and standard BBCode tags."));
 
-		var previewPanel = new PanelContainer();
-		previewPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		previewPanel.CustomMinimumSize = new Vector2(0, 80);
+        var previewPanel = new PanelContainer();
+        previewPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
+        previewPanel.CustomMinimumSize = new Vector2(0, 80);
 
-		var previewMargin = new MarginContainer();
-		previewMargin.AddThemeConstantOverride("margin_left", 8);
-		previewMargin.AddThemeConstantOverride("margin_right", 8);
-		previewMargin.AddThemeConstantOverride("margin_top", 8);
-		previewMargin.AddThemeConstantOverride("margin_bottom", 8);
+        var previewMargin = new MarginContainer();
+        previewMargin.AddThemeConstantOverride("margin_left", 8);
+        previewMargin.AddThemeConstantOverride("margin_right", 8);
+        previewMargin.AddThemeConstantOverride("margin_top", 8);
+        previewMargin.AddThemeConstantOverride("margin_bottom", 8);
 
-		_previewContainer = new VBoxContainer();
-		_previewContainer.AddThemeConstantOverride("separation", 6);
-		previewMargin.AddChild(_previewContainer);
-		previewPanel.AddChild(previewMargin);
+        _previewContainer = new VBoxContainer();
+        _previewContainer.AddThemeConstantOverride("separation", 6);
+        previewMargin.AddChild(_previewContainer);
+        previewPanel.AddChild(previewMargin);
 
-		contentVBox.AddChild(previewPanel);
-	}
+        contentVBox.AddChild(previewPanel);
+    }
 
-	private List<string> ScanIconRtexAssets(bool includeAllFolders)
-	{
-		var list = ScanAvailableAssets("icons", includeAllFolders);
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		var results = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
+    private List<string> ScanIconRtexAssets(bool includeAllFolders)
+    {
+        var list = ScanAvailableAssets("icons", includeAllFolders);
+        string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+        var results = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
 
-		string searchDir = Path.Combine(wsPath, "Assets", "icons");
-		if (Directory.Exists(searchDir))
-		{
-			foreach (var file in Directory.GetFiles(searchDir, "*.rtex", SearchOption.AllDirectories))
-			{
-				results.Add(Path.GetFileName(file));
-			}
-		}
+        string searchDir = Path.Combine(wsPath, "Assets", "icons");
+        if (Directory.Exists(searchDir))
+        {
+            foreach (var file in Directory.GetFiles(searchDir, "*.rtex", SearchOption.AllDirectories))
+            {
+                results.Add(Path.GetFileName(file));
+            }
+        }
 
-		return results.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
-	}
+        return results.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
 
-	private void UpdateTooltipPreview()
-	{
-		if (_previewContainer == null) return;
+    private void UpdateTooltipPreview()
+    {
+        if (_previewContainer == null) return;
 
-		foreach (Node child in _previewContainer.GetChildren())
-		{
-			child.QueueFree();
-		}
+        foreach (Node child in _previewContainer.GetChildren())
+        {
+            child.QueueFree();
+        }
 
-		Control tooltipWidget = RichTooltip.Create(_tooltip);
-		_previewContainer.AddChild(tooltipWidget);
-	}
+        Control tooltipWidget = RichTooltip.Create(_tooltip);
+        _previewContainer.AddChild(tooltipWidget);
+    }
 
-	private void ValidateSlug()
-	{
-		string fullId = $"{_objectType}/{_slug}";
-		if (string.IsNullOrWhiteSpace(_slug))
-		{
-			_lblSlugValidation.Text = TranslationServer.Translate("Slug cannot be empty.");
-			_lblSlugValidation.Visible = true;
-			return;
-		}
+    private void ValidateSlug()
+    {
+        string fullId = $"{_objectType}/{_slug}";
+        if (string.IsNullOrWhiteSpace(_slug))
+        {
+            SetSlugValidationMessage("Slug cannot be empty.");
+            return;
+        }
 
-		if (!fullId.Equals(_originalTemplateID, StringComparison.OrdinalIgnoreCase))
-		{
-			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
-			{
-				bool exists = _category switch
-				{
-					"items" => meta.Templates?.Items?.Any(i => string.Equals(i.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					"upgrades" => meta.Templates?.Upgrades?.Any(u => string.Equals(u.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
-					_ => false
-				};
+        if (fullId.Equals(_originalTemplateID, StringComparison.OrdinalIgnoreCase))
+        {
+            _lblSlugValidation.Visible = false;
+            return;
+        }
 
-				if (exists)
-				{
-					_lblSlugValidation.Text = TranslationServer.Translate("Slug already exists in this category.");
-					_lblSlugValidation.Visible = true;
-					return;
-				}
-			}
-		}
+        if (CheckSlugExists(fullId))
+        {
+            SetSlugValidationMessage("Slug already exists in this category.");
+            return;
+        }
 
-		_lblSlugValidation.Visible = false;
-	}
+        _lblSlugValidation.Visible = false;
+    }
 
-	public void OpenForObject(string category, string templateId, Action<string, string> onApplied = null)
-	{
-		_category = (category ?? "items").ToLowerInvariant();
-		_objectType = _category == "upgrades" ? "upgrade" : "item";
-		_originalTemplateID = templateId ?? string.Empty;
-		_onAppliedCallback = onApplied;
+    private void SetSlugValidationMessage(string message)
+    {
+        _lblSlugValidation.Text = TranslationServer.Translate(message);
+        _lblSlugValidation.Visible = true;
+    }
 
-		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_originalTemplateID);
-		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_originalTemplateID);
-		_name = _slug;
-		_iconPath = "";
-		_tooltip = "";
+    private bool CheckSlugExists(string fullId)
+    {
+        string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+        if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta == null)
+            return false;
 
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
-		{
-			if (_category == "upgrades")
-			{
-				var u = meta.GetUpgrade(_originalTemplateID) ?? meta.GetUpgrade(_slug);
-				if (u != null)
-				{
-					_name = !string.IsNullOrEmpty(u.Name) ? u.Name : _slug;
-					_iconPath = !string.IsNullOrEmpty(u.IconPath) ? (u.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(u.IconPath) : $"{Path.GetFileName(u.IconPath)}.rtex") : "";
-					_tooltip = u.Description ?? "";
-				}
-			}
-			else
-			{
-				var i = meta.GetItem(_originalTemplateID) ?? meta.GetItem(_slug);
-				if (i != null)
-				{
-					_name = !string.IsNullOrEmpty(i.Name) ? i.Name : _slug;
-					_iconPath = !string.IsNullOrEmpty(i.IconPath) ? (i.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(i.IconPath) : $"{Path.GetFileName(i.IconPath)}.rtex") : "";
-					_tooltip = i.Description ?? "";
-				}
-			}
-		}
+        return _category switch
+        {
+            "items" => meta.Templates?.Items?.Any(i => string.Equals(i.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+            "upgrades" => meta.Templates?.Upgrades?.Any(u => string.Equals(u.TemplateID, fullId, StringComparison.OrdinalIgnoreCase)) ?? false,
+            _ => false
+        };
+    }
 
-		if (string.IsNullOrEmpty(_iconPath))
-		{
-			var candidates = ScanIconRtexAssets(true);
-			string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
-				?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
-			if (!string.IsNullOrEmpty(candidateMatch))
-			{
-				_iconPath = candidateMatch;
-			}
-		}
+    public void OpenForObject(string category, string templateId, Action<string, string> onApplied = null)
+    {
+        InitializeState(category, templateId, onApplied);
+        LoadMetadataProperties();
+        EnsureIconPath();
+        UpdateUI();
 
-		TitleLabel.Text = $"{TranslationServer.Translate("Edit Properties")} - {_originalTemplateID}";
+        ValidateSlug();
+        UpdateTooltipPreview();
+        OpenDialog();
+    }
 
-		if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = $"{_objectType}/";
-		if (_txtSlug != null) _txtSlug.Text = _slug;
-		if (_txtName != null) _txtName.Text = _name;
-		_setIconPathValue?.Invoke(_iconPath);
-		if (_txtTooltip != null) _txtTooltip.Text = _tooltip;
+    private void InitializeState(string category, string templateId, Action<string, string> onApplied)
+    {
+        _category = (category ?? "items").ToLowerInvariant();
+        _objectType = _category == "upgrades" ? "upgrade" : "item";
+        _originalTemplateID = templateId ?? string.Empty;
+        _onAppliedCallback = onApplied;
 
-		ValidateSlug();
-		UpdateTooltipPreview();
-		OpenDialog();
-	}
+        var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(_originalTemplateID);
+        _slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.ToSnakeCase(_originalTemplateID);
+        _name = _slug;
+        _iconPath = "";
+        _tooltip = "";
+    }
 
-	protected override void OnApply()
-	{
-		if (string.IsNullOrWhiteSpace(_slug))
-		{
-			Hud?.ShowFeedback(TranslationServer.Translate("Cannot save: Slug is required."));
-			return;
-		}
+    private void LoadMetadataProperties()
+    {
+        string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+        if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta == null)
+            return;
 
-		string newTemplateID = $"{_objectType}/{_slug}";
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+        if (_category == "upgrades")
+        {
+            var u = meta.GetUpgrade(_originalTemplateID) ?? meta.GetUpgrade(_slug);
+            if (u != null)
+            {
+                _name = !string.IsNullOrEmpty(u.Name) ? u.Name : _slug;
+                _iconPath = FormatIconPath(u.IconPath);
+                _tooltip = u.Description ?? "";
+            }
+        }
+        else
+        {
+            var i = meta.GetItem(_originalTemplateID) ?? meta.GetItem(_slug);
+            if (i != null)
+            {
+                _name = !string.IsNullOrEmpty(i.Name) ? i.Name : _slug;
+                _iconPath = FormatIconPath(i.IconPath);
+                _tooltip = i.Description ?? "";
+            }
+        }
+    }
 
-		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
-		{
-			if (_category == "upgrades")
-			{
-				bool updated = meta.UpdateUpgrade(_originalTemplateID, u =>
-				{
-					u.TemplateID = newTemplateID;
-					u.Name = _name;
-					u.Description = _tooltip;
-					u.IconPath = _iconPath;
-					return u;
-				});
+    private string FormatIconPath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return "";
+        return path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(path) : $"{Path.GetFileName(path)}.rtex";
+    }
 
-				if (!updated)
-				{
-					meta.AddOrUpdateUpgrade(new UpgradeMetadata
-					{
-						TemplateID = newTemplateID,
-						Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
-						Description = _tooltip,
-						IconPath = _iconPath
-					});
-				}
+    private void EnsureIconPath()
+    {
+        if (!string.IsNullOrEmpty(_iconPath))
+            return;
 
-				if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
-				{
-					meta.RemoveUpgrade(_originalTemplateID);
-				}
-			}
-			else
-			{
-				bool updated = meta.UpdateItem(_originalTemplateID, i =>
-				{
-					i.TemplateID = newTemplateID;
-					i.Name = _name;
-					i.Description = _tooltip;
-					i.IconPath = _iconPath;
-					return i;
-				});
+        var candidates = ScanIconRtexAssets(true);
+        string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
+            ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
 
-				if (!updated)
-				{
-					meta.AddOrUpdateItem(new ItemMetadata
-					{
-						TemplateID = newTemplateID,
-						Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
-						Description = _tooltip,
-						IconPath = _iconPath,
-						ItemClass = "consumable"
-					});
-				}
+        if (!string.IsNullOrEmpty(candidateMatch))
+        {
+            _iconPath = candidateMatch;
+        }
+    }
 
-				if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
-				{
-					meta.RemoveItem(_originalTemplateID);
-				}
-			}
-		});
+    private void UpdateUI()
+    {
+        TitleLabel.Text = $"{TranslationServer.Translate("Edit Properties")} - {_originalTemplateID}";
 
-		_onAppliedCallback?.Invoke(_originalTemplateID, newTemplateID);
-		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved properties for '{0}'"), newTemplateID));
-	}
+        if (_lblObjectTypePrefix != null) _lblObjectTypePrefix.Text = $"{_objectType}/";
+        if (_txtSlug != null) _txtSlug.Text = _slug;
+        if (_txtName != null) _txtName.Text = _name;
+        _setIconPathValue?.Invoke(_iconPath);
+        if (_txtTooltip != null) _txtTooltip.Text = _tooltip;
+    }
+
+    protected override void OnApply()
+    {
+        if (string.IsNullOrWhiteSpace(_slug))
+        {
+            Hud?.ShowFeedback(TranslationServer.Translate("Cannot save: Slug is required."));
+            return;
+        }
+
+        string newTemplateID = $"{_objectType}/{_slug}";
+        string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+        MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+        {
+            if (_category == "upgrades")
+            {
+                ApplyUpgradeMetadata(meta, newTemplateID);
+            }
+            else
+            {
+                ApplyItemMetadata(meta, newTemplateID);
+            }
+        });
+
+        _onAppliedCallback?.Invoke(_originalTemplateID, newTemplateID);
+        Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved properties for '{0}'"), newTemplateID));
+    }
+
+    private void ApplyUpgradeMetadata(MapMetadata meta, string newTemplateID)
+    {
+        bool updated = meta.UpdateUpgrade(_originalTemplateID, u =>
+        {
+            u.TemplateID = newTemplateID;
+            u.Name = _name;
+            u.Description = _tooltip;
+            u.IconPath = _iconPath;
+            return u;
+        });
+
+        if (!updated)
+        {
+            meta.AddOrUpdateUpgrade(new UpgradeMetadata
+            {
+                TemplateID = newTemplateID,
+                Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
+                Description = _tooltip,
+                IconPath = _iconPath
+            });
+        }
+
+        if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
+        {
+            meta.RemoveUpgrade(_originalTemplateID);
+        }
+    }
+
+    private void ApplyItemMetadata(MapMetadata meta, string newTemplateID)
+    {
+        bool updated = meta.UpdateItem(_originalTemplateID, i =>
+        {
+            i.TemplateID = newTemplateID;
+            i.Name = _name;
+            i.Description = _tooltip;
+            i.IconPath = _iconPath;
+            return i;
+        });
+
+        if (!updated)
+        {
+            meta.AddOrUpdateItem(new ItemMetadata
+            {
+                TemplateID = newTemplateID,
+                Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
+                Description = _tooltip,
+                IconPath = _iconPath,
+                ItemClass = "consumable"
+            });
+        }
+
+        if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
+        {
+            meta.RemoveItem(_originalTemplateID);
+        }
+    }
 }
