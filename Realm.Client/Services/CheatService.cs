@@ -23,6 +23,9 @@ public class CheatService
 		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
+	public bool UnlimitedPowerEnabled { get; set; } = false;
+	public bool GigachadEnabled { get; set; } = false;
+
 	public enum CheatResult
 	{
 		None,
@@ -95,7 +98,7 @@ public class CheatService
 	{
 		if (Realm.Client.Core.GameHost.Instance != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GigachadEnabled = true;
+			service.GigachadEnabled = true;
 		}
 
 		int affected = 0;
@@ -216,9 +219,9 @@ public class CheatService
 	{
 		if (Realm.Client.Core.GameHost.Instance == null) return (CheatResult.UnlimitedPower, 0);
 		
-		Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled = !Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled;
+		service.UnlimitedPowerEnabled = !service.UnlimitedPowerEnabled;
 		
-		if (Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled && playerEntity != Entity.Null && service.EcsWorld.IsAlive(playerEntity) && service.EcsWorld.Has<SpellCooldowns>(playerEntity))
+		if (service.UnlimitedPowerEnabled && playerEntity != Entity.Null && service.EcsWorld.IsAlive(playerEntity) && service.EcsWorld.Has<SpellCooldowns>(playerEntity))
 		{
 			service.EcsWorld.Get<SpellCooldowns>(playerEntity).Value?.Clear();
 		}

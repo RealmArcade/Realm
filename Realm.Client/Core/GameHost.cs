@@ -58,7 +58,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private Realm.Client.Services.MetadataService _metadataService;
 	private Realm.Client.Services.MapUpgradeService _mapUpgradeService;
 	private Realm.Client.Services.MapStorageService _mapStorageService;
-	private Realm.Client.Services.MapSaveDataService _mapSaveDataService;
+	private Realm.Client.Services.MapSaveDataService _mapSaveDataService => ServiceLocator.Get<Realm.Client.Services.MapSaveDataService>();
 
 	public CheatService CheatService => _cheatService;
 	public EnvironmentService EnvironmentService => _environmentService;
@@ -70,10 +70,10 @@ public partial class GameHost : Node3D, IGameAPI
 	public Realm.Client.Services.MapStorageService MapStorageService => _mapStorageService;
 	public Realm.Client.Services.MapSaveDataService MapSaveDataService => _mapSaveDataService;
 
-	public bool UnlimitedPowerEnabled = false;
-	public bool GigachadEnabled = false;
+	public bool UnlimitedPowerEnabled { get => ServiceLocator.Get<Realm.Client.Services.CheatService>().UnlimitedPowerEnabled; set => ServiceLocator.Get<Realm.Client.Services.CheatService>().UnlimitedPowerEnabled = value; }
+	public bool GigachadEnabled { get => ServiceLocator.Get<Realm.Client.Services.CheatService>().GigachadEnabled; set => ServiceLocator.Get<Realm.Client.Services.CheatService>().GigachadEnabled = value; }
 
-	private float _fDelta;
+	private float _fDelta { get; set; }
 	internal DefinitionManager DefinitionManager => ServiceLocator.Get<DefinitionManager>();
 	
 	public Entity PlayerEntity => _playerEntity;
@@ -147,9 +147,9 @@ public partial class GameHost : Node3D, IGameAPI
 	public List<Realm.Client.Prop3D> AllProps { get; set; } = new List<Realm.Client.Prop3D>();
 	public List<Decal> AllDecals { get; set; } = new List<Decal>();
 	public List<ProceduralVfxInstance3D> AllVfx { get; set; } = new List<ProceduralVfxInstance3D>();
-	private readonly List<Realm.Client.Unit3D> _castlesList = new();
+	private List<Realm.Client.Unit3D> _castlesList { get; set; } = new();
 
-	public static readonly Dictionary<Entity, Realm.Client.Unit3D> EntityToUnit3D = new();
+	public static Dictionary<Entity, Realm.Client.Unit3D> EntityToUnit3D { get; set; } = new();
 	public static Dictionary<Entity, Realm.Client.Prop3D> EntityToProp3D { get; set; } = new();
 	public static Dictionary<Entity, ProceduralVfxInstance3D> EntityToVfx3D { get; set; } = new();
 	public static Dictionary<string, VfxAttachmentConfig> VfxRegistry
@@ -450,14 +450,14 @@ public partial class GameHost : Node3D, IGameAPI
 	public static float MIN_PLACEMENT_SCALE => Realm.Client.Services.EditorService.MIN_PLACEMENT_SCALE;
 	public static float MAX_PLACEMENT_SCALE => Realm.Client.Services.EditorService.MAX_PLACEMENT_SCALE;
 	public static float MIN_CLUMP_COUNT => Realm.Client.Services.EditorService.MIN_CLUMP_COUNT;
-	public const float MAX_CLUMP_COUNT = Realm.Client.Services.EditorService.MAX_CLUMP_COUNT;
-	public const float MIN_CLUMP_SCALE = 0.0f;
-	public const float MAX_CLUMP_SCALE = 1.0f;
+	public static float MAX_CLUMP_COUNT => Realm.Client.Services.EditorService.MAX_CLUMP_COUNT;
+	public static float MIN_CLUMP_SCALE => Realm.Client.Services.EditorService.MIN_CLUMP_SCALE;
+	public static float MAX_CLUMP_SCALE => Realm.Client.Services.EditorService.MAX_CLUMP_SCALE;
 
 	public static float MIN_CLUMP_DENSITY => MIN_CLUMP_COUNT;
-	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
-	public const float MIN_CLUMP_SCALE_VAR = MIN_CLUMP_SCALE;
-	public const float MAX_CLUMP_SCALE_VAR = MAX_CLUMP_SCALE;
+	public static float MAX_CLUMP_DENSITY => Realm.Client.Services.EditorService.MAX_CLUMP_DENSITY;
+	public static float MIN_CLUMP_SCALE_VAR => MIN_CLUMP_SCALE;
+	public static float MAX_CLUMP_SCALE_VAR => MAX_CLUMP_SCALE;
 
 	public bool PlaceUnitIsEnemy = false;
 	private float _editorBrushRadius = 2.0f;

@@ -130,6 +130,9 @@ public class EditorService : IEditorAPI
 
 	public const float MIN_CLUMP_COUNT = 1.0f;
 	public const float MAX_CLUMP_COUNT = 20.0f;
+	public const float MIN_CLUMP_SCALE = 0.0f;
+	public const float MAX_CLUMP_SCALE = 1.0f;
+	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
 
 
 	private TerrainSplatWeights[,] _terrainSplatMap;

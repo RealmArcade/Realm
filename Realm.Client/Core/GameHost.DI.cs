@@ -31,7 +31,6 @@ public partial class GameHost
 		_metadataService = ServiceLocator.Get<Realm.Client.Services.MetadataService>();
 		_mapUpgradeService = ServiceLocator.Get<Realm.Client.Services.MapUpgradeService>();
 		_mapStorageService = ServiceLocator.Get<Realm.Client.Services.MapStorageService>();
-		_mapSaveDataService = ServiceLocator.Get<Realm.Client.Services.MapSaveDataService>();
 
 	}
 }

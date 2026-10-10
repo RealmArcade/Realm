@@ -119,7 +119,7 @@ public class SimulationService
 		_pathfinder = pathfinder;
 
 		_movementService = new MovementAndPathfindingService(ecsWorldAccessor, worldEntity, pathfinder);
-		_combatService = new CombatAndDamageService(ecsWorldAccessor, () => Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled, pathfinder);
+		_combatService = new CombatAndDamageService(ecsWorldAccessor, () => Realm.Client.Core.GameHost.Instance != null && ServiceLocator.Get<Realm.Client.Services.CheatService>().UnlimitedPowerEnabled, pathfinder);
 		_economyService = new ResourceEconomyService(ecsWorldAccessor);
 
 		_combatService.OnArrowProjectileRequested = (p1, p2) => EnqueueVFXRequest("arrow", p1, p2, 1.0f, 40f);
@@ -734,7 +734,7 @@ public class SimulationService
 	private void CooldownsQueryAction(Entity entity, ref Realm.Ecs.Components.Core.Cooldowns cooldowns)
 	{
 		var dict = cooldowns.Value;
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled)
+		if (Realm.Client.Core.GameHost.Instance != null && ServiceLocator.Get<Realm.Client.Services.CheatService>().UnlimitedPowerEnabled)
 		{
 			dict.Clear();
 			return;
@@ -810,7 +810,7 @@ public class SimulationService
 
 	private void AttackCooldownQueryAction(Entity entity, ref Attack atk)
 	{
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled)
+		if (Realm.Client.Core.GameHost.Instance != null && ServiceLocator.Get<Realm.Client.Services.CheatService>().UnlimitedPowerEnabled)
 		{
 			atk.CurrentCooldown = 0f;
 			return;
@@ -852,7 +852,7 @@ public class SimulationService
 		var dict = spellCooldowns.Value;
 		if (dict == null) return;
 
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled)
+		if (Realm.Client.Core.GameHost.Instance != null && ServiceLocator.Get<Realm.Client.Services.CheatService>().UnlimitedPowerEnabled)
 		{
 			dict.Clear();
 			return;

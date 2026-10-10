@@ -561,7 +561,7 @@ public class {mapName} : IMapScript
 	void IGameAPI.WriteSavedData(string fileName, string content)
 	{
 		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(ActiveMapName);
-		(_mapSaveDataService ??= ServiceLocator.TryGet<Realm.Client.Services.MapSaveDataService>() ?? new Realm.Client.Services.MapSaveDataService())
+		_mapSaveDataService
 			.WriteSavedData(mapNameOnly, fileName, content);
 	}
 
@@ -569,7 +569,7 @@ public class {mapName} : IMapScript
 	{
 		string targetMap = !string.IsNullOrWhiteSpace(sourceMapName) ? sourceMapName : ActiveMapName;
 		string mapNameOnly = System.IO.Path.GetFileNameWithoutExtension(targetMap);
-		return (_mapSaveDataService ??= ServiceLocator.TryGet<Realm.Client.Services.MapSaveDataService>() ?? new Realm.Client.Services.MapSaveDataService())
+		return _mapSaveDataService
 			.ReadSavedData(mapNameOnly, fileName);
 	}
 	event Action<IUnit>? IGameAPI.OnUnitCreated
