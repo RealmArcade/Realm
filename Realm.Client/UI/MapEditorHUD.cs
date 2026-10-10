@@ -27,17 +27,17 @@ public partial class MapEditorHUD : Control
     public static MapEditorHUD Instance;
     public static string CurrentDirectoryBlake3 = string.Empty;
     public static bool IsDraggingSlider = false;
-    public static bool IsTestMode = false;
-    public static bool ReturningFromTest = false;
+    public static bool IsTestMode { get => ServiceLocator.Get<EditorService>().IsTestMode; set => ServiceLocator.Get<EditorService>().IsTestMode = value; }
+    public static bool ReturningFromTest { get => ServiceLocator.Get<EditorService>().ReturningFromTest; set => ServiceLocator.Get<EditorService>().ReturningFromTest = value; }
 
-    public static Vector3 SavedCameraPosition;
-    public static float SavedTargetHeight;
-    public static float SavedCurrentHeight;
-    public static float SavedTargetYaw;
-    public static float SavedCurrentYaw;
-    public static float SavedTargetPitch;
-    public static float SavedCurrentPitch;
-    public static bool SavedIsTopDown;
+    public static Vector3 SavedCameraPosition { get => ServiceLocator.Get<EditorService>().SavedCameraPosition; set => ServiceLocator.Get<EditorService>().SavedCameraPosition = value; }
+    public static float SavedTargetHeight { get => ServiceLocator.Get<EditorService>().SavedTargetHeight; set => ServiceLocator.Get<EditorService>().SavedTargetHeight = value; }
+    public static float SavedCurrentHeight { get => ServiceLocator.Get<EditorService>().SavedCurrentHeight; set => ServiceLocator.Get<EditorService>().SavedCurrentHeight = value; }
+    public static float SavedTargetYaw { get => ServiceLocator.Get<EditorService>().SavedTargetYaw; set => ServiceLocator.Get<EditorService>().SavedTargetYaw = value; }
+    public static float SavedCurrentYaw { get => ServiceLocator.Get<EditorService>().SavedCurrentYaw; set => ServiceLocator.Get<EditorService>().SavedCurrentYaw = value; }
+    public static float SavedTargetPitch { get => ServiceLocator.Get<EditorService>().SavedTargetPitch; set => ServiceLocator.Get<EditorService>().SavedTargetPitch = value; }
+    public static float SavedCurrentPitch { get => ServiceLocator.Get<EditorService>().SavedCurrentPitch; set => ServiceLocator.Get<EditorService>().SavedCurrentPitch = value; }
+    public static bool SavedIsTopDown { get => ServiceLocator.Get<EditorService>().SavedIsTopDown; set => ServiceLocator.Get<EditorService>().SavedIsTopDown = value; }
     public static float SavedYawSwing;
     public static float SavedPitchSwing;
 

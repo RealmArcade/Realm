@@ -18,6 +18,18 @@ public class EditorService : IEditorAPI
 {
 	public static readonly float[] PolarRingSpacingOptions = new[] { 4.0f, 8.0f, 16.0f, 32.0f };
 	public bool IsSyncing { get; set; } = false;
+
+    public bool IsTestMode { get; set; } = false;
+    public bool ReturningFromTest { get; set; } = false;
+    public Vector3 SavedCameraPosition { get; set; }
+    public float SavedTargetHeight { get; set; }
+    public float SavedCurrentHeight { get; set; }
+    public float SavedTargetYaw { get; set; }
+    public float SavedCurrentYaw { get; set; }
+    public float SavedTargetPitch { get; set; }
+    public float SavedCurrentPitch { get; set; }
+    public bool SavedIsTopDown { get; set; }
+
 	public double AutoBackupElapsedSeconds { get; set; } = 0;
 	public string TempWorkspaceGodotPath { get; set; } = Realm.Client.Services.MapWorkspaceService.DefaultWorkspaceGodotPath;
 	public string _tempWorkspacePath { get; set; } = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
