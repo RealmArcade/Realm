@@ -390,12 +390,19 @@ public partial class MapEditorHUD : Control
     private Button _activeToolButton = null;
     private StyleBoxFlat _highlightStyle;
 
-    private Control _cardRaise, _cardLower, _cardHeight, _cardSmooth, _cardRamp, _cardNoise, _cardWater;
+    private Control _cardRaise, _cardLower, _cardHeight, _cardSmooth, _cardRamp, _cardNoise;
+    private Control _cardWater { get; set; }
     private Control _cardPlateau { get; set; }
-    private Control _cardTextureBrush, _cardFloodFill;
-    private Control _cardPathingBrush, _cardFloodFillPathing;
-    private Control _cardAddObject, _cardSelectMove, _cardDeleteObject;
-    private Control _cardSelectArea, _cardCut, _cardCopy, _cardPaste, _cardEraseArea;
+    private Control _cardTextureBrush { get; set; }
+    private Control _cardFloodFill { get; set; }
+    private Control _cardPathingBrush { get; set; }
+    private Control _cardFloodFillPathing { get; set; }
+    private Control _cardAddObject { get; set; }
+    private Control _cardSelectMove { get; set; }
+    private Control _cardDeleteObject { get; set; }
+    private Control _cardSelectArea { get; set; }
+    private Control _cardCut { get; set; }
+    private Control _cardCopy, _cardPaste, _cardEraseArea;
     private Label _lblInfoText;
     private Label _lblTerrainTexture;
     private Label _lblCliffTexture;
