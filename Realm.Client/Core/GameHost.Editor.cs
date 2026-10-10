@@ -915,11 +915,11 @@ public partial class GameHost
         }
     }
 
-    private const float MaxSafeModelYOffset = ModelOverrideService.MaxSafeModelYOffset;
-    private const float MinSafeModelCollisionRatio = ModelOverrideService.MinSafeModelCollisionRatio;
-    private const float MaxSafeModelCollisionRatio = ModelOverrideService.MaxSafeModelCollisionRatio;
-    private const float MinSafeModelScale = 0.01f;
-    private const float MaxSafeModelScale = 20f;
+    private float MaxSafeModelYOffset { get; set; } = ModelOverrideService.MaxSafeModelYOffset;
+    private float MinSafeModelCollisionRatio { get; set; } = ModelOverrideService.MinSafeModelCollisionRatio;
+    private float MaxSafeModelCollisionRatio { get; set; } = ModelOverrideService.MaxSafeModelCollisionRatio;
+    private float MinSafeModelScale { get; set; } = 0.01f;
+    private float MaxSafeModelScale { get; set; } = 20f;
 
     private bool IsValidModelYOffset(string assetKey, float val)
     {

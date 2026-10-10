@@ -12,6 +12,7 @@ namespace Realm.Ecs.Services;
 
 public class TerrainNavMeshService
 {
+	public System.Collections.Generic.Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
 	// Recast/Detour bake tuning. Smaller cell sizes improve path fidelity but increase bake cost.
 	private const float NavMeshCellHeight = 0.1f;
 	private const float AgentRadius = 0.1f;

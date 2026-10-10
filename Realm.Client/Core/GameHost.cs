@@ -779,15 +779,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private string _editorPreviewType = "";
 	private string _editorPreviewId = "";
 	private bool _editorPreviewIsEnemy;
-
-
-	public struct MinimapPing
-	{
-		public Vector3 WorldPos;
-		public float LifeTime;
-		public float MaxLifeTime;
-	}
-	public List<MinimapPing> ActivePings = new List<MinimapPing>();
+	public List<Realm.Client.Services.FXService.MinimapPing> ActivePings => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.FXService>().ActivePings;
 	public bool ActivePingMode
 	{
 		get => _inputService?.ActivePingMode ?? false;
@@ -870,8 +862,7 @@ public partial class GameHost : Node3D, IGameAPI
 		set => EcsWorld?.Mutate<WorldState>(_worldEntity, (ref WorldState s) =>
 			EcsWorld.Set(_worldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
 	}
-
-	public const float TimeOfDayCycleDuration = 90f;
+	public static float TimeOfDayCycleDuration => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EnvironmentService>().TimeOfDayCycleDuration;
 
 	public float GetPlayerSpellCooldown(string abilityId)
 	{
@@ -893,10 +884,7 @@ public partial class GameHost : Node3D, IGameAPI
 			if (scd != null) scd[abilityId] = cooldown;
 		}
 	}
-
-
-
-	public const float ResourceCap = ResourceConstants.ResourceCap;
+	public static float ResourceCap => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>().ResourceCap;
 
 
 
@@ -1698,7 +1686,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 	private bool _isDragging { get; set; }
 	private Vector2 _dragStart { get; set; }
 	private Vector2 _dragEnd { get; set; }
-	private const float DragThreshold = 8f;
+	private float DragThreshold { get; set; } = 8f;
 
 	public override void _Ready()
 	{
@@ -2747,8 +2735,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 			_terrainNavMeshService?.UncarveObstacle(ref state, pos, radius);
 		}
 	}
-
-	private static readonly Dictionary<string, float> ObstacleRadiusCache = new();
+	private static System.Collections.Generic.Dictionary<string, float> ObstacleRadiusCache => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.TerrainNavMeshService>().ObstacleRadiusCache;
 
 	public float GetOrCalculateObstacleRadius(string id, Node3D node, bool isBuilding = false)
 	{

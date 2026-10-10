@@ -9,6 +9,13 @@ namespace Realm.Client.Services;
 
 public class FXService
 {
+	public struct MinimapPing
+	{
+		public Godot.Vector3 WorldPos;
+		public float LifeTime;
+		public float MaxLifeTime;
+	}
+	public System.Collections.Generic.List<MinimapPing> ActivePings { get; set; } = new();
 	public FXService(WorldAccessor ecsWorldAccessor)
 	{
 	}
@@ -336,9 +343,9 @@ public class FXService
 		tween.Chain().TweenCallback(Callable.From(meshInstance.QueueFree));
 	}
 
-	public void AddMinimapPing(Node3D parent, List<Realm.Client.Core.GameHost.MinimapPing> activePings, Vector3 position)
+	public void AddMinimapPing(Node3D parent, System.Collections.Generic.List<MinimapPing> activePings, Vector3 position)
 	{
-		activePings.Add(new Realm.Client.Core.GameHost.MinimapPing
+		activePings.Add(new MinimapPing
 		{
 			WorldPos = position,
 			LifeTime = 0f,

@@ -7,6 +7,7 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class WorldAccessor
 {
+	public float ResourceCap { get; set; } = Realm.Ecs.Common.ResourceConstants.ResourceCap;
 	public string? _cachedMapName { get; set; }
 	public string? _cachedMapVersion { get; set; }
 	public string CurrentDirectoryBlake3 { get; set; } = string.Empty;

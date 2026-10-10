@@ -14,6 +14,7 @@ namespace Realm.Client.Services;
 
 public class EnvironmentService
 {
+	public float TimeOfDayCycleDuration { get; set; } = 90f;
 	private struct LiveEnvironmentState
 	{
 		public float SunPitch;
