@@ -2048,19 +2048,39 @@ public partial class GameHost
 
     private readonly List<MeshInstance3D> _symmetryHighlightMeshes = new();
 
-    private int _lastSelectionMinX = -1;
-    private int _lastSelectionMinZ = -1;
-    private int _lastSelectionMaxX = -1;
-    private int _lastSelectionMaxZ = -1;
+    private int _lastSelectionMinX
+    {
+        get => _editorService.LastSelectionMinX;
+        set => _editorService.LastSelectionMinX = value;
+    }
+    private int _lastSelectionMinZ
+    {
+        get => _editorService.LastSelectionMinZ;
+        set => _editorService.LastSelectionMinZ = value;
+    }
+    private int _lastSelectionMaxX
+    {
+        get => _editorService.LastSelectionMaxX;
+        set => _editorService.LastSelectionMaxX = value;
+    }
+    private int _lastSelectionMaxZ
+    {
+        get => _editorService.LastSelectionMaxZ;
+        set => _editorService.LastSelectionMaxZ = value;
+    }
 
-    private bool _lastSelectionBrushIsSquare = true;
+    private bool _lastSelectionBrushIsSquare
+    {
+        get => _editorService.LastSelectionBrushIsSquare;
+        set => _editorService.LastSelectionBrushIsSquare = value;
+    }
 
-    private bool _wasSelectionHighlightVisible;
-    private readonly List<bool> _wasSymmetryHighlightsVisible = new();
-    private bool _wasCameraBoundsVisible;
-    private bool _wasMeasureMeshVisible;
-    private bool _wasSymmetryPivotVisible;
-    private bool _wasCoordinatePreviewVisible;
+    private bool _wasSelectionHighlightVisible { get; set; }
+    private List<bool> _wasSymmetryHighlightsVisible { get; set; } = new();
+    private bool _wasCameraBoundsVisible { get; set; }
+    private bool _wasMeasureMeshVisible { get; set; }
+    private bool _wasSymmetryPivotVisible { get; set; }
+    private bool _wasCoordinatePreviewVisible { get; set; }
     private bool _wasCoordinateOutlineVisible;
     private bool _wasScaleSilhouetteVisible;
     private bool _wasCoverageOverlayVisible;

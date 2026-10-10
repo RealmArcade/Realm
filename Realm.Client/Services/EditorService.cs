@@ -22,6 +22,12 @@ public class EditorService : IEditorAPI
 	public string TempWorkspaceGodotPath { get; set; } = Realm.Client.Services.MapWorkspaceService.DefaultWorkspaceGodotPath;
 	public string _tempWorkspacePath { get; set; } = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
 	
+	public int LastSelectionMinX { get; set; } = -1;
+	public int LastSelectionMinZ { get; set; } = -1;
+	public int LastSelectionMaxX { get; set; } = -1;
+	public int LastSelectionMaxZ { get; set; } = -1;
+	public bool LastSelectionBrushIsSquare { get; set; } = true;
+
 	private readonly WorldAccessor EcsWorldAccessor;
 	private World EcsWorld => EcsWorldAccessor.Current;
 	public Rect2I? TerrainFlushRegion { get; set; }

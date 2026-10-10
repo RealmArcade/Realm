@@ -897,28 +897,34 @@ namespace Realm.Client.Core
 
         public void BeginMinimapCapture()
         {
-            HideAndCacheNodeVisibility(_selectionHighlightMesh, out _wasSelectionHighlightVisible);
+            _wasSelectionHighlightVisible = HideAndCacheNodeVisibility(_selectionHighlightMesh);
             HideAndCacheSymmetryHighlights();
-            HideAndCacheNodeVisibility(_cameraBoundsOverlayMesh, out _wasCameraBoundsVisible);
-            HideAndCacheNodeVisibility(_measureMeshInstance, out _wasMeasureMeshVisible);
-            HideAndCacheNodeVisibility(_symmetryPivotMarkerMesh, out _wasSymmetryPivotVisible);
-            HideAndCacheNodeVisibility(_coordinatePreviewMesh, out _wasCoordinatePreviewVisible);
+            _wasCameraBoundsVisible = HideAndCacheNodeVisibility(_cameraBoundsOverlayMesh);
+            _wasMeasureMeshVisible = HideAndCacheNodeVisibility(_measureMeshInstance);
+            _wasSymmetryPivotVisible = HideAndCacheNodeVisibility(_symmetryPivotMarkerMesh);
+            _wasCoordinatePreviewVisible = HideAndCacheNodeVisibility(_coordinatePreviewMesh);
             HideAndCacheNodeVisibility(_coordinateSelectionOutlineMesh, out _wasCoordinateOutlineVisible);
             HideAndCacheNodeVisibility(_scaleMapSilhouetteMesh, out _wasScaleSilhouetteVisible);
             HideAndCacheNodeVisibility(_editorCoverageOverlayRoot, out _wasCoverageOverlayVisible);
             HideVfxEditorBaseRings();
         }
 
-        private void HideAndCacheNodeVisibility(Node3D node, out bool wasVisible)
+        private bool HideAndCacheNodeVisibility(Node3D node)
         {
-            wasVisible = false;
-            if (node == null || !GodotObject.IsInstanceValid(node)) return;
+            bool wasVisible = false;
+            if (node == null || !GodotObject.IsInstanceValid(node)) return wasVisible;
             
             wasVisible = node.Visible;
             if (wasVisible)
             {
                 node.Visible = false;
             }
+            return wasVisible;
+        }
+
+        private void HideAndCacheNodeVisibility(Node3D node, out bool wasVisible)
+        {
+            wasVisible = HideAndCacheNodeVisibility(node);
         }
 
         private void HideAndCacheSymmetryHighlights()
