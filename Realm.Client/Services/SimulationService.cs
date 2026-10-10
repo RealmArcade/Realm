@@ -3,6 +3,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using System;
@@ -720,6 +721,14 @@ public class SimulationService
 	}
 
 	private readonly List<string> _tickExpiredCooldowns = new();
+	public readonly Dictionary<int, Unit_WasmRuntime> UnitWrapperCache = new();
+	public readonly HashSet<Entity> WarnedNonFinitePositions = new();
+	public const int WarnedNonFinitePositionsLimit = 512;
+	public bool FastBuildEnabled = false;
+	public const float BaseConstructionWorkRatePerSecond = 1f / 20f;
+	public const float LookTargetProximityDistance = 5.0f;
+	public readonly List<(Entity Worker, BuildTask UpdatedTask)> PendingBuildTaskUpdates = new();
+
 	private readonly List<string> _tickCooldownKeys = new();
 
 	private void CooldownsQueryAction(Entity entity, ref Realm.Ecs.Components.Core.Cooldowns cooldowns)

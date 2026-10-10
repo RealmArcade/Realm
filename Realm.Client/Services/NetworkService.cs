@@ -39,8 +39,15 @@ public class NetworkService
 		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
+	public bool CountdownForcedByHost { get; set; } = false;
+	public readonly Dictionary<int, bool> PlayerReadyStates = new();
+	public readonly Dictionary<int, bool> DisallowedPausePeers = new();
+
 	public void Clear()
 	{
+		CountdownForcedByHost = false;
+		PlayerReadyStates.Clear();
+		DisallowedPausePeers.Clear();
 		_unacknowledgedCommands.Clear();
 		_queuedDeltas.Clear();
 		_clientCameraPositions.Clear();

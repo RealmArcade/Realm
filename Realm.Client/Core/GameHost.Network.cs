@@ -20,9 +20,9 @@ public partial class GameHost
 	public bool IsPaused = false;
 	public int ResumeCountdownSeconds = -1;
 	private float _resumeCountdownTimer = 0f;
-	private bool _countdownForcedByHost = false;
-	private readonly System.Collections.Generic.Dictionary<int, bool> _playerReadyStates = new();
-	private readonly System.Collections.Generic.Dictionary<int, bool> _disallowedPausePeers = new();
+	private bool _countdownForcedByHost { get => _networkService.CountdownForcedByHost; set => _networkService.CountdownForcedByHost = value; }
+	private System.Collections.Generic.Dictionary<int, bool> _playerReadyStates => _networkService.PlayerReadyStates;
+	private System.Collections.Generic.Dictionary<int, bool> _disallowedPausePeers => _networkService.DisallowedPausePeers;
 
 	public int GetOwnerPeerId(Entity unitEntity) => _networkService.GetOwnerPeerId(unitEntity);
 

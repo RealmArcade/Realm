@@ -20,12 +20,12 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	private readonly Dictionary<int, Unit_WasmRuntime> _unitWrapperCache = new();
-	private readonly HashSet<Entity> _warnedNonFinitePositions = new();
+	private Dictionary<int, Unit_WasmRuntime> _unitWrapperCache => _simulationService.UnitWrapperCache;
+	private HashSet<Entity> _warnedNonFinitePositions => _simulationService.WarnedNonFinitePositions;
 
 	// Upper bound for _warnedNonFinitePositions. Once it grows past this, stale warnings for
 	// already-destroyed entities are swept so recycled entity ids get a fresh warning later.
-	private const int WarnedNonFinitePositionsLimit = 512;
+	private int WarnedNonFinitePositionsLimit => SimulationService.WarnedNonFinitePositionsLimit;
 
 	public Unit_WasmRuntime GetUnitWrapper(Entity entity)
 	{
@@ -245,16 +245,16 @@ public partial class GameHost
 		}
 	}
 
-	public bool FastBuildEnabled = false;
+	public bool FastBuildEnabled { get => _simulationService.FastBuildEnabled; set => _simulationService.FastBuildEnabled = value; }
 
-	private const float BaseConstructionWorkRatePerSecond = 1f / 20f;
+	private float BaseConstructionWorkRatePerSecond => SimulationService.BaseConstructionWorkRatePerSecond;
 	private float ConstructionWorkRatePerSecond => FastBuildEnabled ? BaseConstructionWorkRatePerSecond * 10f : BaseConstructionWorkRatePerSecond;
 
 	// Units face their attack/heal/build target once they are within this distance,
 	// even while still moving toward it.
-	private const float LookTargetProximityDistance = 5.0f;
+	private float LookTargetProximityDistance => SimulationService.LookTargetProximityDistance;
 
-	private readonly List<(Entity Worker, BuildTask UpdatedTask)> _pendingBuildTaskUpdates = new();
+	private List<(Entity Worker, BuildTask UpdatedTask)> _pendingBuildTaskUpdates => _simulationService.PendingBuildTaskUpdates;
 	private readonly List<Entity> _completedBuildings = new();
 	private readonly List<(Entity Entity, string? Type, System.Numerics.Vector3 Position, Entity Target)> _pendingQueuedCommands = new();
 
