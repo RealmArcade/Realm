@@ -130,19 +130,19 @@ public partial class MapEditorHUD : Control
 
     private VBoxContainer _accordionFile;
     private Button _btnHeaderFile;
-    private Control _contentFile;
+    private Control _contentFile { get; set; }
 
-    private Realm.Client.UI.MapEditor.MapSettingsDialog? _mapSettingsDialog;
+    private Realm.Client.UI.MapEditor.MapSettingsDialog? _mapSettingsDialog { get; set; }
 
-    private VBoxContainer _accordionInspector;
-    private Button _btnHeaderInspector;
-    private VBoxContainer _contentInspector;
+    private VBoxContainer _accordionInspector { get; set; }
+    private Button _btnHeaderInspector { get; set; }
+    private VBoxContainer _contentInspector { get; set; }
 
-    private VBoxContainer _containerTextureSettings;
-    private VBoxContainer _containerPathingSettings;
-    private VBoxContainer _containerPlacementSettings;
-    private VBoxContainer _containerEyedropperSettings;
-    private VBoxContainer _containerPasteSettings;
+    private VBoxContainer _containerTextureSettings { get; set; }
+    private VBoxContainer _containerPathingSettings { get; set; }
+    private VBoxContainer _containerPlacementSettings { get; set; }
+    private VBoxContainer _containerEyedropperSettings { get; set; }
+    private VBoxContainer _containerPasteSettings { get; set; }
     private VBoxContainer _containerCategorySelector;
 
     private VBoxContainer _panelObjects;
