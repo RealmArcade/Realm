@@ -31,6 +31,7 @@ public class EditorService : IEditorAPI
 
 	public bool SavedDisableShadows { get; set; } = false;
 	public string SavedEntityCategory { get; set; } = "";
+	public bool IsWaterRemoveAction { get; set; } = false;
 	public float SavedBrushRadius { get; set; } = 2f;
 	public float SavedBrushStrength { get; set; } = 0.5f;
 	public Realm.Client.Core.GameHost.EditorTool SavedActiveTool { get; set; } = Realm.Client.Core.GameHost.EditorTool.Raise;

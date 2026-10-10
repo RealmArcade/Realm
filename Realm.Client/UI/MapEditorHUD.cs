@@ -92,18 +92,18 @@ public partial class MapEditorHUD : Control
 
     private VBoxContainer _accordionWater;
     private Button _btnHeaderWater;
-    private VBoxContainer _contentWater;
-    private Button _btnWaterActionAdd;
-    private Button _btnWaterActionRemove;
-    private bool _isWaterRemoveAction = false;
+    private VBoxContainer _contentWater { get; set; }
+    private Button _btnWaterActionAdd { get; set; }
+    private Button _btnWaterActionRemove { get; set; }
+    private bool _isWaterRemoveAction { get => ServiceLocator.Get<EditorService>().IsWaterRemoveAction; set => ServiceLocator.Get<EditorService>().IsWaterRemoveAction = value; }
 
-    private VBoxContainer _accordionTool;
-    private Button _btnHeaderTool;
-    private VBoxContainer _contentTool;
+    private VBoxContainer _accordionTool { get; set; }
+    private Button _btnHeaderTool { get; set; }
+    private VBoxContainer _contentTool { get; set; }
 
-    private VBoxContainer _accordionToolSettings;
-    private Button _btnHeaderToolSettings;
-    private VBoxContainer _contentToolSettings;
+    private VBoxContainer _accordionToolSettings { get; set; }
+    private Button _btnHeaderToolSettings { get; set; }
+    private VBoxContainer _contentToolSettings { get; set; }
 
     private VBoxContainer _accordionPlacement;
     private Button _btnHeaderPlacement;
