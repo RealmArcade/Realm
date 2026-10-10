@@ -1,3 +1,4 @@
+using Realm.Ecs.Services;
 using Arch.Core;
 using Godot;
 using MemoryPack;
@@ -318,9 +319,9 @@ public partial class GameHost
 			
 			if (EcsWorld.IsAlive(kvp.Value) && EcsWorld.TryGet<PlayerResources>(kvp.Value, out var res))
 			{
-				float gold = res.Value.TryGetValue(_goldResourceId, out var g) ? g : 0;
-				float wood = res.Value.TryGetValue(_woodResourceId, out var w) ? w : 0;
-				float stone = res.Value.TryGetValue(_stoneResourceId, out var s) ? s : 0;
+				float gold = res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().GoldResourceId, out var g) ? g : 0;
+				float wood = res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().WoodResourceId, out var w) ? w : 0;
+				float stone = res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().StoneResourceId, out var s) ? s : 0;
 				RpcId(peerId, nameof(SyncPlayerResources), gold, wood, stone);
 			}
 		}
@@ -677,9 +678,9 @@ public partial class GameHost
 	{
 		if (playerEntity == Entity.Null || EcsWorld == null || !EcsWorld.IsAlive(playerEntity) || !EcsWorld.TryGet<PlayerResources>(playerEntity, out var res)) return;
 		
-		float gold = res.Value.TryGetValue(_goldResourceId, out var g) ? g : 0;
-		float wood = res.Value.TryGetValue(_woodResourceId, out var w) ? w : 0;
-		float stone = res.Value.TryGetValue(_stoneResourceId, out var s) ? s : 0;
+		float gold = res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().GoldResourceId, out var g) ? g : 0;
+		float wood = res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().WoodResourceId, out var w) ? w : 0;
+		float stone = res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().StoneResourceId, out var s) ? s : 0;
 		RpcId(newPeerId, nameof(SyncPlayerResources), gold, wood, stone);
 	}
 

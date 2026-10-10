@@ -74,14 +74,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public bool GigachadEnabled = false;
 
 	private float _fDelta;
-
-	
-	internal DefinitionManager DefinitionManager => _definitionManager;
-	private DefinitionManager _definitionManager = null!;
-	
-	private ResourceId _goldResourceId;
-	private ResourceId _woodResourceId;
-	private ResourceId _stoneResourceId;
+	internal DefinitionManager DefinitionManager => ServiceLocator.Get<DefinitionManager>();
 	
 	public Entity PlayerEntity => _playerEntity;
 	public Entity EnemyEntity => _enemyPlayerEntity;
@@ -147,17 +140,13 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private System.Collections.Generic.Dictionary<int, int> _clientToServerEntityMap
 		=> EcsWorld?.GetFieldOrDefault<NetworkMappingState, System.Collections.Generic.Dictionary<int, int>>(_worldEntity, s => s.ClientToServerEntityMap);
-
-
-
-
-	public World EcsWorld;
+	public World EcsWorld => ServiceLocator.Get<WorldAccessor>().Current;
 	public Entity WorldEntity => _worldEntity;
-	public List<Realm.Client.Unit3D> SelectedUnits = new List<Realm.Client.Unit3D>();
-	public List<Realm.Client.Unit3D> AllUnits = new List<Realm.Client.Unit3D>();
-	public List<Realm.Client.Prop3D> AllProps = new List<Realm.Client.Prop3D>();
-	public List<Decal> AllDecals = new List<Decal>();
-	public List<ProceduralVfxInstance3D> AllVfx = new List<ProceduralVfxInstance3D>();
+	public List<Realm.Client.Unit3D> SelectedUnits { get; set; } = new List<Realm.Client.Unit3D>();
+	public List<Realm.Client.Unit3D> AllUnits { get; set; } = new List<Realm.Client.Unit3D>();
+	public List<Realm.Client.Prop3D> AllProps { get; set; } = new List<Realm.Client.Prop3D>();
+	public List<Decal> AllDecals { get; set; } = new List<Decal>();
+	public List<ProceduralVfxInstance3D> AllVfx { get; set; } = new List<ProceduralVfxInstance3D>();
 	private readonly List<Realm.Client.Unit3D> _castlesList = new();
 
 	public static readonly Dictionary<Entity, Realm.Client.Unit3D> EntityToUnit3D = new();
@@ -993,9 +982,9 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		var resourcesDict = new Dictionary<ResourceId, int>
 		{
-			{ _goldResourceId, 500 },
-			{ _woodResourceId, 400 },
-			{ _stoneResourceId, 200 }
+			{ ServiceLocator.Get<PlayerResourceService>().GoldResourceId, 500 },
+			{ ServiceLocator.Get<PlayerResourceService>().WoodResourceId, 400 },
+			{ ServiceLocator.Get<PlayerResourceService>().StoneResourceId, 200 }
 		};
 		EcsWorld.Add(playerEntity, new PlayerResources(resourcesDict));
 	}
@@ -1232,7 +1221,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 			{
 				if (EcsWorld.TryGet<PlayerResources>(pe, out var res))
 				{
-					res.Value[_goldResourceId] = (int)Math.Max(0f, goldAmount);
+					res.Value[ServiceLocator.Get<PlayerResourceService>().GoldResourceId] = (int)Math.Max(0f, goldAmount);
 				}
 			}
 		}
@@ -1760,14 +1749,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void InitializeResourceIds()
 	{
-		_goldResourceId = "gold".AsResourceId(_definitionManager);
-		_woodResourceId = "wood".AsResourceId(_definitionManager);
-		_stoneResourceId = "stone".AsResourceId(_definitionManager);
+		ServiceLocator.Get<PlayerResourceService>().GoldResourceId = "gold".AsResourceId(DefinitionManager);
+		ServiceLocator.Get<PlayerResourceService>().WoodResourceId = "wood".AsResourceId(DefinitionManager);
+		ServiceLocator.Get<PlayerResourceService>().StoneResourceId = "stone".AsResourceId(DefinitionManager);
 	}
 
 	private void InitializeSimulationService()
 	{
-		_simulationService.SetRuntimeReferences(AllUnits, AllProps, _castlesList, _definitionManager, _goldResourceId, _woodResourceId, _stoneResourceId, GroundTerrain);
+		_simulationService.SetRuntimeReferences(AllUnits, AllProps, _castlesList, DefinitionManager, ServiceLocator.Get<PlayerResourceService>().GoldResourceId, ServiceLocator.Get<PlayerResourceService>().WoodResourceId, ServiceLocator.Get<PlayerResourceService>().StoneResourceId, GroundTerrain);
 		_simulationService.Initialize();
 		_simulationService.EditorHeightProvider = p => _editorService.GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 

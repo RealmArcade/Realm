@@ -1,3 +1,4 @@
+using Realm.Ecs.Services;
 using Arch.Core;
 using Godot;
 using Realm.Ecs.Common;
@@ -120,8 +121,8 @@ public partial class GameHost
 
 		EcsWorld.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
 		{
-			if (r.Value.TryGetValue(_goldResourceId, out var currentGold))
-				r.Value[_goldResourceId] = (int)Math.Min(ResourceCap, currentGold + bountyMeta.GoldBounty);
+			if (r.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().GoldResourceId, out var currentGold))
+				r.Value[ServiceLocator.Get<PlayerResourceService>().GoldResourceId] = (int)Math.Min(ResourceCap, currentGold + bountyMeta.GoldBounty);
 		});
 		Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
 	}

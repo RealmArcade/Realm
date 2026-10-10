@@ -1,5 +1,6 @@
 using Arch.Core;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Common;
 namespace Realm.Ecs.Services;
 
 /// <summary>
@@ -7,6 +8,11 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class PlayerResourceService
 {
+	public ResourceId GoldResourceId { get; set; }
+	public ResourceId WoodResourceId { get; set; }
+	public ResourceId StoneResourceId { get; set; }
+
+
 	private readonly ArchetypeManager _archetypeManager;
 	private readonly WorldAccessor _ecsWorldAccessor;
 

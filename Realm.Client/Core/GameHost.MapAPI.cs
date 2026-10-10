@@ -1,3 +1,4 @@
+using Realm.Ecs.Services;
 using Arch.Core;
 using Godot;
 using Realm.Client.Core;
@@ -281,7 +282,7 @@ public partial class GameHost
 		{
 			if (EcsWorld != null && _playerEntity != Entity.Null && EcsWorld.IsAlive(_playerEntity) &&
 				EcsWorld.TryGet<PlayerResources>(_playerEntity, out var res) &&
-				res.Value.TryGetValue(_goldResourceId, out var val))
+				res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().GoldResourceId, out var val))
 				return val;
 			return _goldBackup;
 		}
@@ -290,8 +291,8 @@ public partial class GameHost
 			if (EcsWorld != null && _playerEntity != Entity.Null && EcsWorld.IsAlive(_playerEntity))
 				EcsWorld.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
 				{
-					if (r.Value.ContainsKey(_goldResourceId))
-						r.Value[_goldResourceId] = (int)value;
+					if (r.Value.ContainsKey(ServiceLocator.Get<PlayerResourceService>().GoldResourceId))
+						r.Value[ServiceLocator.Get<PlayerResourceService>().GoldResourceId] = (int)value;
 				});
 			else
 				_goldBackup = value;
@@ -305,7 +306,7 @@ public partial class GameHost
 		{
 			if (EcsWorld != null && _playerEntity != Entity.Null && EcsWorld.IsAlive(_playerEntity) &&
 				EcsWorld.TryGet<PlayerResources>(_playerEntity, out var res) &&
-				res.Value.TryGetValue(_woodResourceId, out var val))
+				res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().WoodResourceId, out var val))
 				return val;
 			return _woodBackup;
 		}
@@ -314,8 +315,8 @@ public partial class GameHost
 			if (EcsWorld != null && _playerEntity != Entity.Null && EcsWorld.IsAlive(_playerEntity))
 				EcsWorld.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
 				{
-					if (r.Value.ContainsKey(_woodResourceId))
-						r.Value[_woodResourceId] = (int)value;
+					if (r.Value.ContainsKey(ServiceLocator.Get<PlayerResourceService>().WoodResourceId))
+						r.Value[ServiceLocator.Get<PlayerResourceService>().WoodResourceId] = (int)value;
 				});
 			else
 				_woodBackup = value;
@@ -329,7 +330,7 @@ public partial class GameHost
 		{
 			if (EcsWorld != null && _playerEntity != Entity.Null && EcsWorld.IsAlive(_playerEntity) &&
 				EcsWorld.TryGet<PlayerResources>(_playerEntity, out var res) &&
-				res.Value.TryGetValue(_stoneResourceId, out var val))
+				res.Value.TryGetValue(ServiceLocator.Get<PlayerResourceService>().StoneResourceId, out var val))
 				return val;
 			return _stoneBackup;
 		}
@@ -338,8 +339,8 @@ public partial class GameHost
 			if (EcsWorld != null && _playerEntity != Entity.Null && EcsWorld.IsAlive(_playerEntity))
 				EcsWorld.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
 				{
-					if (r.Value.ContainsKey(_stoneResourceId))
-						r.Value[_stoneResourceId] = (int)value;
+					if (r.Value.ContainsKey(ServiceLocator.Get<PlayerResourceService>().StoneResourceId))
+						r.Value[ServiceLocator.Get<PlayerResourceService>().StoneResourceId] = (int)value;
 				});
 			else
 				_stoneBackup = value;
