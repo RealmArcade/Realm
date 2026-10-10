@@ -4,7 +4,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Represents the current leaderboard display state.
 	/// </summary>
-	internal struct LeaderboardState
+	public struct LeaderboardState
 	{
 		public bool Visible;
 		public string Title;

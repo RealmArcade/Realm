@@ -7,23 +7,9 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using System;
-using System.Collections.Generic;
 using System.Numerics;
 
 namespace Realm.Ecs.AI.Simulation;
-
-public delegate int? WinConditionEvaluator(World world, float matchDurationSeconds);
-public delegate void MapSimulationInitializer(World world);
-
-public class SimulationMatchResult
-{
-	public int WinnerPlayerIndex { get; set; } = -1;
-	public int TotalTicksExecuted { get; set; }
-	public float MatchDurationSeconds { get; set; }
-	public int Player0UnitsBuilt { get; set; }
-	public int Player1UnitsBuilt { get; set; }
-}
 
 public class HeadlessSimulationRunner
 {

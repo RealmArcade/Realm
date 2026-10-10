@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Realm.Shared.Textures;
 using SkiaSharp;
+using System.Text;
+using System.Text.Json.Nodes;
 
 namespace Realm.Shared;
 

@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Combat;
 /// <summary>
 ///     Defines an entity's primary attack capabilities.
 /// </summary>
-internal record struct Attack(
+public record struct Attack(
 	float Damage,
 	float Range,
 	float Cooldown,

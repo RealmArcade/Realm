@@ -8,7 +8,7 @@ namespace Realm.Ecs.Services;
 /// <summary>
 ///     Demonstrates how Movement components are used, particularly "intent" components.
 /// </summary>
-internal class MovementService
+public class MovementService
 {
 	private readonly WorldAccessor _ecsWorldAccessor;
 

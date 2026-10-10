@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Resources;
 /// <summary>
 ///     Tracks the construction progress of a building entity, from placement to completion.
 /// </summary>
-internal struct ConstructionState
+public struct ConstructionState
 {
     public float TotalBuildTime;
     public float Progress;

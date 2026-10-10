@@ -1,27 +1,12 @@
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
-using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
-using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
-using Realm.Ecs.Components.Tags;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 
 namespace Realm.Ecs.AI.Genres;
-
-public class AutoBattlerUnitDef
-{
-	public string Id { get; set; } = "warrior_tier1";
-	public int Cost { get; set; } = 1;
-	public string PrimaryTrait { get; set; } = "Warrior";
-	public string OriginTrait { get; set; } = "Human";
-	public bool IsFrontline { get; set; } = true;
-}
 
 public class AutoBattlerGenreProvider : IAiGenreProvider
 {

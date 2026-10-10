@@ -1,25 +1,7 @@
-using System;
 using System.Diagnostics;
-using System.IO;
 using System.Text.Json.Nodes;
-using System.Threading;
 
 namespace Realm.Shared.Animation;
-
-public class GlbAutoRiggerOptions
-{
-    public bool NoFingers { get; set; } = true;
-    public bool UseNormals { get; set; } = true;
-    public bool WeightPostprocess { get; set; } = true;
-    public Action<string>? LogCallback { get; set; }
-}
-
-public class GlbAutoRiggerResult
-{
-    public bool Success { get; set; }
-    public string? ErrorMessage { get; set; }
-    public string? OutputPath { get; set; }
-}
 
 public static class GlbAutoRigger
 {

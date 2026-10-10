@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Tags;
 ///     Tag indicating the entity is invulnerable to damage.
 /// </summary>
 [TagDefinition("Invulnerable", "Invulnerable", "Marks the entity as invulnerable to damage.")]
-internal readonly record struct Invulnerable;
+public readonly record struct Invulnerable;

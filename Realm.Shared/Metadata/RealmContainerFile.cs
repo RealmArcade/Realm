@@ -1,8 +1,6 @@
-using System;
-using System.Buffers.Binary;
-using System.IO;
-using System.Text.Json.Nodes;
 using Blake3;
+using System.Buffers.Binary;
+using System.Text.Json.Nodes;
 
 namespace Realm.Shared.Metadata;
 

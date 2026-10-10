@@ -3,7 +3,7 @@ namespace Realm.Ecs.Common;
 /// <summary>
 ///     A type-safe wrapper for a Resource ID.
 /// </summary>
-internal readonly record struct ResourceId
+public readonly record struct ResourceId
 {
 	public ResourceId(string value)
 	{

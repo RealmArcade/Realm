@@ -3,7 +3,7 @@ using Arch.Core;
 namespace Realm.Ecs.Components.Movement;
 
 /// <summary>Follow component: unit follows a target entity.</summary>
-internal struct Follow
+public struct Follow
 {
 	public Entity Target;
 

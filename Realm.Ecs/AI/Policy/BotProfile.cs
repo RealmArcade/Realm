@@ -1,6 +1,4 @@
 using Realm.Ecs.AI.Genres;
-using System;
-using System.Collections.Generic;
 using System.Text.Json;
 
 namespace Realm.Ecs.AI.Policy;

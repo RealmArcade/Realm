@@ -5,7 +5,7 @@ namespace Realm.Ecs.Common;
 /// <summary>
 ///     Provides extension methods for type-safe ID construction from the DefinitionManager.
 /// </summary>
-internal static class IdExtensions
+public static class IdExtensions
 {
 	public static TagId AsTagId(this string id, DefinitionManager manager)
 	{

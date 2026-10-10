@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Terrain
 	/// <summary>
 	///     Holds the terrain color data in HTML format.
 	/// </summary>
-	internal struct TerrainColorsState
+	public struct TerrainColorsState
 	{
 		public string[] Colors;
 

@@ -1,7 +1,5 @@
 using NUnit.Framework;
 using Realm.MapAPI;
-using System;
-using System.Collections.Generic;
 
 namespace Realm.Ecs.Tests;
 

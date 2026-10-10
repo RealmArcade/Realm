@@ -5,7 +5,7 @@ namespace Realm.Ecs.Services;
 /// <summary>
 ///     Loads and manages all game archetypes from definition files.
 /// </summary>
-internal class ArchetypeManager
+public class ArchetypeManager
 {
 	private readonly WorldAccessor _ecsWorldAccessor;
 	private readonly Dictionary<string, UnitArchetype> _unitArchetypes = new();

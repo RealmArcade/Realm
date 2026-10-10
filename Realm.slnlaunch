@@ -13,7 +13,7 @@
     "Name": "Run Simulation Tests",
     "Projects": [
       {
-        "Name": "Realm.Godot\\Realm.Godot.csproj",
+        "Name": "Realm.Client\\Realm.Client.csproj",
         "Action": "Start",
         "DebugTarget": "Run Simulation Tests"
       }
@@ -23,7 +23,7 @@
     "Name": "Run All Tests",
     "Projects": [
       {
-        "Name": "Realm.Godot\\Realm.Godot.csproj",
+        "Name": "Realm.Client\\Realm.Client.csproj",
         "Action": "Start",
         "DebugTarget": "Run All Tests"
       }
@@ -38,7 +38,7 @@
         "DebugTarget": "Realm.AdminServer"
       },
       {
-        "Name": "Realm.Godot\\Realm.Godot.csproj",
+        "Name": "Realm.Client\\Realm.Client.csproj",
         "Action": "Start",
         "DebugTarget": "Run Simulation Tests"
       }

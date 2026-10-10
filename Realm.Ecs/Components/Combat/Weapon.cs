@@ -1,28 +1,9 @@
 namespace Realm.Ecs.Components.Combat;
 
 /// <summary>
-///     Defines delivery style options for weapons.
-/// </summary>
-public enum DeliveryStyle
-{
-	Instant,
-	HomingProjectile
-}
-
-/// <summary>
-///     Defines splash area falloff options for weapons.
-/// </summary>
-public enum SplashType
-{
-	None,
-	RadialStep,
-	RadialLinear
-}
-
-/// <summary>
 ///     Defines a weapon's attributes including damage, cadence, penetration, delivery, and splash options.
 /// </summary>
-internal record struct Weapon(
+public record struct Weapon(
 	float BaseDamage,
 	float DamageVariance = 0f,
 	string DamageType = "normal",

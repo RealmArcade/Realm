@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text.Json.Nodes;
 using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
+using System.Text.Json.Nodes;
 
 namespace Realm.Shared;
 

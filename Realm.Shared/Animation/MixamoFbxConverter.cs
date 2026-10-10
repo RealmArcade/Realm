@@ -1,19 +1,7 @@
 using Assimp;
-using System;
-using System.Collections.Generic;
-using System.IO;
 using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Animation;
-
-public class MixamoFbxConversionResult
-{
-	public bool Success { get; set; }
-	public string InputPath { get; set; } = string.Empty;
-	public string OutputPath { get; set; } = string.Empty;
-	public List<string> ConvertedAnimationNames { get; set; } = new();
-	public string ErrorMessage { get; set; } = string.Empty;
-}
 
 public static class MixamoFbxConverter
 {

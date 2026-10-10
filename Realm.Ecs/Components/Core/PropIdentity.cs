@@ -4,4 +4,4 @@ namespace Realm.Ecs.Components.Core;
 ///     Identifies the type category of a prop entity (e.g. "tree", "rock", "goldmine", "pillar", "flag"),
 ///     decoupling the prop's logical identity from its Godot scene node.
 /// </summary>
-internal record struct PropIdentity(string PropId);
+public record struct PropIdentity(string PropId);

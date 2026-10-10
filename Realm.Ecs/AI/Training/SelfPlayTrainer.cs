@@ -1,10 +1,6 @@
-using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Simulation;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Realm.Ecs.AI.Training;
 

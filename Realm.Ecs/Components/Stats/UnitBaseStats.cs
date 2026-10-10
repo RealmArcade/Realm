@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Stats;
 /// <summary>
 /// Represents the baseline un-modified combat stats for an entity before RPG attribute contributions.
 /// </summary>
-internal record struct UnitBaseStats(
+public record struct UnitBaseStats(
 	float BaseMaxHp = 100f,
 	float BaseHpRegen = 0f,
 	float BaseMaxMana = 0f,

@@ -7,12 +7,10 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Terrain;
-using System;
-using System.Collections.Generic;
 
 namespace Realm.Ecs.Services;
 
-internal class TerrainNavMeshService
+public class TerrainNavMeshService
 {
 	// Recast/Detour bake tuning. Smaller cell sizes improve path fidelity but increase bake cost.
 	private const float NavMeshCellHeight = 0.1f;

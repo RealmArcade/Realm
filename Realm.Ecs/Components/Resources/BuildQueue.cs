@@ -5,7 +5,7 @@ namespace Realm.Ecs.Components.Resources;
 /// <summary>
 ///     Holds a queue of pending construction tasks for a worker unit, to be executed sequentially after the current task completes.
 /// </summary>
-internal struct BuildQueue
+public struct BuildQueue
 {
     private const int MaxCapacity = 8;
 

@@ -7,4 +7,4 @@ namespace Realm.Ecs.Components.Tags;
 ///     Tag indicating the entity represents a player.
 /// </summary>
 [TagDefinition("Player", "Player", "Marks the entity as a player in the game.")]
-internal readonly record struct Player;
+public readonly record struct Player;

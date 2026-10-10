@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Tags;
 ///     Tag indicating the entity can cast spells or abilities.
 /// </summary>
 [TagDefinition("Caster", "Caster", "Indicates the entity can cast spells or abilities.")]
-internal readonly record struct Caster;
+public readonly record struct Caster;

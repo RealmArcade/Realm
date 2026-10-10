@@ -1,14 +1,6 @@
-using System;
 using SkiaSharp;
 
 namespace Realm.Shared.Textures;
-
-public enum TextureDataType
-{
-	Albedo,
-	NormalMap,
-	Data
-}
 
 public static class TextureResizer
 {

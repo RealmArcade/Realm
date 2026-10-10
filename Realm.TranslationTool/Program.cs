@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -339,10 +335,10 @@ namespace Realm.TranslationTool
 
 		private static string GetGodotLocaleDir(string workingDir)
 		{
-			string godotLocaleDir = Path.GetFullPath(Path.Combine(workingDir, "Realm.Godot", "locale"));
+			string godotLocaleDir = Path.GetFullPath(Path.Combine(workingDir, "Realm.Client", "locale"));
 			if (!Directory.Exists(godotLocaleDir))
 			{
-				godotLocaleDir = Path.GetFullPath(Path.Combine(workingDir, "..", "Realm.Godot", "locale"));
+				godotLocaleDir = Path.GetFullPath(Path.Combine(workingDir, "..", "Realm.Client", "locale"));
 			}
 			return godotLocaleDir;
 		}

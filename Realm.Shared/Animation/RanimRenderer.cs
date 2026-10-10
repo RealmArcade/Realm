@@ -1,61 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
+using SkiaSharp;
 using System.Numerics;
 using Realm.Shared.BlenderSetup;
-using SkiaSharp;
 using Realm.Shared.Textures;
 
 namespace Realm.Shared.Animation;
-
-public enum RanimOutputFormat
-{
-	Webp,
-	Spritesheet,
-	Gif
-}
-
-public class RanimRenderOptions
-{
-	public int Width { get; set; } = 128;
-	public int Height { get; set; } = 128;
-	public float Fps { get; set; } = 12.0f;
-	public int? MaxFrameCount { get; set; }
-	public RanimOutputFormat Format { get; set; } = RanimOutputFormat.Webp;
-	public float Scale { get; set; } = 1.0f;
-	public bool DrawBorder { get; set; } = true;
-	public bool DrawShadow { get; set; } = true;
-	public string? ModelPath { get; set; }
-	public byte[]? ModelBytes { get; set; }
-	public int Quality { get; set; } = 95;
-	public bool Lossless { get; set; }
-}
-
-public class RanimRenderFrame
-{
-	public int Width { get; set; }
-	public int Height { get; set; }
-	public float Time { get; set; }
-	public byte[] RgbaBytes { get; set; } = Array.Empty<byte>();
-}
-
-public class RanimRenderResult
-{
-	public List<RanimRenderFrame> Frames { get; set; } = new();
-	public float Duration { get; set; }
-	public float EffectiveFps { get; set; }
-	public int TotalSourceFrames { get; set; }
-	public int ModulusStep { get; set; } = 1;
-}
-
-public class RanimExportResult
-{
-	public bool Success { get; set; }
-	public string InputPath { get; set; } = string.Empty;
-	public string OutputPath { get; set; } = string.Empty;
-	public int FrameCount { get; set; }
-	public string ErrorMessage { get; set; } = string.Empty;
-}
 
 public static class RanimRenderer
 {

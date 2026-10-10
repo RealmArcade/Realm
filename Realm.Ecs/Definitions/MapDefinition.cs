@@ -6,7 +6,7 @@ namespace Realm.Ecs.Definitions;
 ///     Represents the complete structure of a game map definition, primarily containing
 ///     unit archetypes for a specific map.
 /// </summary>
-internal class MapDefinition
+public class MapDefinition
 {
 	public List<UnitArchetype> Units { get; set; } = new();
 	public MapProperties MapProperties { get; set; } = new();

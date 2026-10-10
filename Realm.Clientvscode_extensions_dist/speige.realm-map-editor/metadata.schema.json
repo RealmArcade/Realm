@@ -1,0 +1,3155 @@
+{
+  "type": [
+    "object",
+    "null"
+  ],
+  "properties": {
+    "license": {
+      "type": "string"
+    },
+    "GameBuildNumber": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "MapProperties": {
+      "type": "object",
+      "properties": {
+        "MapName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "MapDescription": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "SuggestedPlayers": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "MinimapImage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ShroudType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "WeatherType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "TerrainBaseHeight": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ShadowIntensity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MapWidth": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "MapHeight": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "PlayableWidth": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "PlayableHeight": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "CameraBoundsLeft": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "CameraBoundsRight": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "CameraBoundsTop": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "CameraBoundsBottom": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "LoadingImage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "LoadingMusic": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "LoadingTitle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "LoadingSubtitle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "LoadingBodyText": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "HowToPlayInstructions": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "HowToPlayObjective": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Changelog": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "Version": {
+                "type": "string"
+              },
+              "Date": {
+                "type": "string"
+              },
+              "Details": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "PlayerSlots": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "SlotId": {
+                "type": "integer"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "Color": {
+                "type": "string"
+              },
+              "Faction": {
+                "type": "string"
+              },
+              "Controller": {
+                "type": "string"
+              },
+              "AiType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "StartLocation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "CustomDecal": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "Teams": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TeamName": {
+                "type": "string"
+              },
+              "Slots": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "Tags": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "MapType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Dependencies": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Id": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "Version": {
+            "type": "string"
+          },
+          "Hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "IsOptional": {
+            "type": "boolean"
+          },
+          "Url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "Templates": {
+      "type": "object",
+      "properties": {
+        "Units": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "Description": {
+                "type": "string"
+              },
+              "MaxHp": {
+                "type": "number"
+              },
+              "Damage": {
+                "type": "number"
+              },
+              "Range": {
+                "type": "number"
+              },
+              "Armor": {
+                "type": "number"
+              },
+              "Speed": {
+                "type": "number"
+              },
+              "AttackCooldown": {
+                "type": "number"
+              },
+              "ScanRadius": {
+                "type": "number"
+              },
+              "CostGold": {
+                "type": "number"
+              },
+              "CostWood": {
+                "type": "number"
+              },
+              "CostStone": {
+                "type": "number"
+              },
+              "PopCost": {
+                "type": "integer"
+              },
+              "ProductionTime": {
+                "type": "number"
+              },
+              "AttackType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ArmorType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Strength": {
+                "type": "number"
+              },
+              "Agility": {
+                "type": "number"
+              },
+              "Vitality": {
+                "type": "number"
+              },
+              "Intelligence": {
+                "type": "number"
+              },
+              "Wisdom": {
+                "type": "number"
+              },
+              "Fortune": {
+                "type": "number"
+              },
+              "HpRegen": {
+                "type": "number"
+              },
+              "HpRegenCombatDelay": {
+                "type": "number"
+              },
+              "MaxMana": {
+                "type": "number"
+              },
+              "ManaRegen": {
+                "type": "number"
+              },
+              "RatedArmor": {
+                "type": "number"
+              },
+              "FlatArmorPenetration": {
+                "type": "number"
+              },
+              "PercentArmorPenetration": {
+                "type": "number"
+              },
+              "DamageVariance": {
+                "type": "number"
+              },
+              "DamageType": {
+                "type": "string"
+              },
+              "CritChance": {
+                "type": "number"
+              },
+              "CritMultiplier": {
+                "type": "number"
+              },
+              "SplashType": {
+                "type": "string"
+              },
+              "SplashInnerRadius": {
+                "type": "number"
+              },
+              "SplashMediumRadius": {
+                "type": "number"
+              },
+              "SplashOuterRadius": {
+                "type": "number"
+              },
+              "SplashInnerRatio": {
+                "type": "number"
+              },
+              "SplashMediumRatio": {
+                "type": "number"
+              },
+              "SplashOuterRatio": {
+                "type": "number"
+              },
+              "FriendlyFire": {
+                "type": "boolean"
+              },
+              "PushPriority": {
+                "type": "integer"
+              },
+              "MovementType": {
+                "type": "string"
+              },
+              "SightRange": {
+                "type": "number"
+              },
+              "AcquisitionRange": {
+                "type": "number"
+              },
+              "GoldBounty": {
+                "type": "number"
+              },
+              "ModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "PortraitModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "VisualMode": {
+                "type": "string"
+              },
+              "Scale": {
+                "type": "number"
+              },
+              "YOffset": {
+                "type": "number"
+              },
+              "CollisionCircle": {
+                "type": "number"
+              },
+              "Brightness": {
+                "type": "number"
+              },
+              "Tint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "NormalizeLuminance": {
+                "type": "boolean"
+              },
+              "IgnorePlayerColor": {
+                "type": "boolean"
+              },
+              "DespillPlayerColor": {
+                "type": "boolean"
+              },
+              "BuildOptions": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "IsHero": {
+                "type": "boolean"
+              },
+              "Abilities": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "XpBounty": {
+                "type": "number"
+              },
+              "PathingCapabilities": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "PathingType": {
+                "type": "integer"
+              },
+              "ObstacleRadius": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "Targets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "Weapons": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "ProjectileModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Animations": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": {
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              },
+              "ObjectAttachments": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "right_hand": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "PositionX": {
+                            "type": "number"
+                          },
+                          "PositionY": {
+                            "type": "number"
+                          },
+                          "PositionZ": {
+                            "type": "number"
+                          },
+                          "PitchX": {
+                            "type": "number"
+                          },
+                          "YawY": {
+                            "type": "number"
+                          },
+                          "RollZ": {
+                            "type": "number"
+                          },
+                          "Scale": {
+                            "type": "number"
+                          },
+                          "ScaleX": {
+                            "type": "number"
+                          },
+                          "ScaleY": {
+                            "type": "number"
+                          },
+                          "ScaleZ": {
+                            "type": "number"
+                          },
+                          "NormalOffset": {
+                            "type": "number"
+                          },
+                          "ParentAttachmentId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "left_hand": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "chest": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "root": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "head": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "left_foot": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "right_foot": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "ground": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "center": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "overhead": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  },
+                  "pivot": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                    }
+                  }
+                }
+              },
+              "Sounds": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "OnSelect": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "OnMoveOrder": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "OnAttackOrder": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "OnWounded": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "OnDeath": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "OnReady": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "OnSpellCast": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "StartingItems": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "Upgrades": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "StatusEffects": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "SoundEvents": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "SpawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "DeathShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "DespawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "Buildings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/Templates/properties/Units/items"
+          }
+        },
+        "Resources": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "Description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "PortraitModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "VisualMode": {
+                "type": "string"
+              },
+              "MaxCapacity": {
+                "type": "number"
+              },
+              "HarvestRate": {
+                "type": "number"
+              },
+              "GrowthRate": {
+                "type": "number"
+              },
+              "MaxWorkers": {
+                "type": "integer"
+              },
+              "Scale": {
+                "type": "number"
+              },
+              "YOffset": {
+                "type": "number"
+              },
+              "CollisionCircle": {
+                "type": "number"
+              },
+              "Brightness": {
+                "type": "number"
+              },
+              "Tint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "NormalizeLuminance": {
+                "type": "boolean"
+              },
+              "IgnorePlayerColor": {
+                "type": "boolean"
+              },
+              "DespillPlayerColor": {
+                "type": "boolean"
+              },
+              "PathingType": {
+                "type": "integer"
+              },
+              "SpawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "DeathShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "DespawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "Props": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "Description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "PortraitModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "VisualMode": {
+                "type": "string"
+              },
+              "Scale": {
+                "type": "number"
+              },
+              "YOffset": {
+                "type": "number"
+              },
+              "CollisionCircle": {
+                "type": "number"
+              },
+              "Brightness": {
+                "type": "number"
+              },
+              "Tint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "NormalizeLuminance": {
+                "type": "boolean"
+              },
+              "IgnorePlayerColor": {
+                "type": "boolean"
+              },
+              "DespillPlayerColor": {
+                "type": "boolean"
+              },
+              "PathingType": {
+                "type": "integer"
+              },
+              "SpawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "DeathShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "DespawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "Abilities": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "Description": {
+                "type": "string"
+              },
+              "AbilityType": {
+                "type": "string"
+              },
+              "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ManaCost": {
+                "type": "number"
+              },
+              "Cooldown": {
+                "type": "number"
+              },
+              "TargetRange": {
+                "type": "number"
+              },
+              "VisualEffect": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "CastSound": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "AppliedStatusEffects": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "AreaOfEffectRadius": {
+                "type": "number"
+              },
+              "Damage": {
+                "type": "number"
+              },
+              "Healing": {
+                "type": "number"
+              },
+              "SummonedUnitId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "SummonCount": {
+                "type": "integer"
+              },
+              "SummonDuration": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "Weapons": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "Damage": {
+                "type": "number"
+              },
+              "Range": {
+                "type": "number"
+              },
+              "AttackCooldown": {
+                "type": "number"
+              },
+              "AttackType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ProjectileSpeed": {
+                "type": "number"
+              },
+              "VisualEffect": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "AttackSound": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ProjectileModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ImpactVisualEffect": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ImpactSound": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "TrajectoryType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "BoomerangReturnDelay": {
+                "type": "number"
+              },
+              "OrbitRadius": {
+                "type": "number"
+              },
+              "OrbitSpeed": {
+                "type": "number"
+              },
+              "ArcHeight": {
+                "type": "number"
+              },
+              "HomingWeight": {
+                "type": "number"
+              },
+              "TurnRateLimit": {
+                "type": "number"
+              },
+              "EaseCurve": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "SpeedCurve": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Acceleration": {
+                "type": "number"
+              },
+              "MaxLifetime": {
+                "type": "number"
+              },
+              "FailsafeRange": {
+                "type": "number"
+              },
+              "ScaleCurve": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "TumbleAngularVelocity": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "OrientToTrajectory": {
+                "type": "boolean"
+              },
+              "ForwardAxisPreset": {
+                "type": "string"
+              },
+              "MeshRotationOffset": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "MeshTranslationOffset": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "MeshScaleOffset": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "SpiralRadius": {
+                "type": "number"
+              },
+              "SpiralFrequency": {
+                "type": "number"
+              },
+              "ZigzagAmplitude": {
+                "type": "number"
+              },
+              "ZigzagFrequency": {
+                "type": "number"
+              },
+              "MaxBounces": {
+                "type": "integer"
+              },
+              "PierceCount": {
+                "type": "integer"
+              },
+              "ShaderEffectType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EmissionMaskSource": {
+                "type": "string"
+              },
+              "BaseColor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EmissionColor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EmissionEnergy": {
+                "type": "number"
+              },
+              "FresnelPower": {
+                "type": "number"
+              },
+              "FresnelColor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "FresnelFactor": {
+                "type": "number"
+              },
+              "NoiseScale": {
+                "type": "number"
+              },
+              "NoiseTexture": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "UvScrollSpeed1": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "UvScrollSpeed2": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "ThresholdCutoff": {
+                "type": "number"
+              },
+              "ThresholdSmoothness": {
+                "type": "number"
+              },
+              "PointLightEnabled": {
+                "type": "boolean"
+              },
+              "PointLightColor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "PointLightIntensity": {
+                "type": "number"
+              },
+              "PointLightRange": {
+                "type": "number"
+              },
+              "RibbonTexture": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "RibbonColor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "RibbonWidth": {
+                "type": "number"
+              },
+              "RibbonLifetime": {
+                "type": "number"
+              },
+              "RibbonTaper": {
+                "type": "boolean"
+              },
+              "RibbonAdditive": {
+                "type": "boolean"
+              },
+              "RibbonScrollSpeed": {
+                "type": "number"
+              },
+              "TrailOffset": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "Upgrades": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "Description": {
+                "type": "string"
+              },
+              "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "CostGold": {
+                "type": "number"
+              },
+              "CostWood": {
+                "type": "number"
+              },
+              "CostStone": {
+                "type": "number"
+              },
+              "ResearchTime": {
+                "type": "number"
+              },
+              "Requirement": {
+                "type": "string"
+              },
+              "MaxLevel": {
+                "type": "integer"
+              },
+              "AffectedUnitIds": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "MaxHpBonus": {
+                "type": "number"
+              },
+              "DamageBonus": {
+                "type": "number"
+              },
+              "ArmorBonus": {
+                "type": "number"
+              },
+              "SpeedBonus": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "Items": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "Description": {
+                "type": "string"
+              },
+              "ItemClass": {
+                "type": "string"
+              },
+              "CostGold": {
+                "type": "number"
+              },
+              "UseAbility": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ChargeCount": {
+                "type": "integer"
+              },
+              "CooldownLink": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "CanDrop": {
+                "type": "boolean"
+              },
+              "ItemLevel": {
+                "type": "integer"
+              },
+              "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "PassiveStatusEffects": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "GrantedWeapons": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "IsContainer": {
+                "type": "boolean"
+              },
+              "ContainerSize": {
+                "type": "integer"
+              },
+              "Requirements": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "Attachments": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "AttachmentId": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "ModelPath": {
+                "type": "string"
+              },
+              "Scale": {
+                "type": "number"
+              },
+              "PositionOffset": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "RotationOffset": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "DefaultHand": {
+                "type": "string"
+              },
+              "ChildVfxId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ChildVfxPosition": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "ChildVfxRotation": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "ChildVfxScale": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "Vfx": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "VfxId": {
+                "type": "string"
+              },
+              "Name": {
+                "type": "string"
+              },
+              "PrimitiveType": {
+                "type": "integer"
+              },
+              "ParticleConfig": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "ParticleId": {
+                    "type": "string"
+                  },
+                  "Name": {
+                    "type": "string"
+                  },
+                  "Amount": {
+                    "type": "integer"
+                  },
+                  "Lifetime": {
+                    "type": "number"
+                  },
+                  "Explosiveness": {
+                    "type": "number"
+                  },
+                  "Randomness": {
+                    "type": "number"
+                  },
+                  "LocalCoords": {
+                    "type": "boolean"
+                  },
+                  "EmitterShape": {
+                    "type": "integer"
+                  },
+                  "SphereRadius": {
+                    "type": "number"
+                  },
+                  "BoxExtents": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "RingRadius": {
+                    "type": "number"
+                  },
+                  "RingInnerRadius": {
+                    "type": "number"
+                  },
+                  "RingHeight": {
+                    "type": "number"
+                  },
+                  "Direction": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "SpreadDegrees": {
+                    "type": "number"
+                  },
+                  "InitialVelocityMin": {
+                    "type": "number"
+                  },
+                  "InitialVelocityMax": {
+                    "type": "number"
+                  },
+                  "Gravity": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "LinearAccel": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "RadialAccel": {
+                    "type": "number"
+                  },
+                  "TangentialAccel": {
+                    "type": "number"
+                  },
+                  "Damping": {
+                    "type": "number"
+                  },
+                  "InitialScaleMin": {
+                    "type": "number"
+                  },
+                  "InitialScaleMax": {
+                    "type": "number"
+                  },
+                  "EndScaleRatio": {
+                    "type": "number"
+                  },
+                  "ColorStart": {
+                    "type": "string"
+                  },
+                  "ColorMid": {
+                    "type": "string"
+                  },
+                  "ColorEnd": {
+                    "type": "string"
+                  },
+                  "AlphaStart": {
+                    "type": "number"
+                  },
+                  "AlphaMid": {
+                    "type": "number"
+                  },
+                  "AlphaEnd": {
+                    "type": "number"
+                  },
+                  "EmissionEnergy": {
+                    "type": "number"
+                  },
+                  "RenderMode": {
+                    "type": "integer"
+                  },
+                  "BlendMode": {
+                    "type": "integer"
+                  },
+                  "ParticleTexture": {
+                    "type": "string"
+                  },
+                  "MeshAssetPath": {
+                    "type": "string"
+                  }
+                }
+              },
+              "BlendMode": {
+                "type": "integer"
+              },
+              "PlacementMode": {
+                "type": "integer"
+              },
+              "TargetSocket": {
+                "type": "string"
+              },
+              "BaseTexture": {
+                "type": "string"
+              },
+              "NoiseTexture": {
+                "type": "string"
+              },
+              "BaseUvScroll": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "BaseUvScale": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "UseFlipbook": {
+                "type": "boolean"
+              },
+              "FlipbookColumns": {
+                "type": "integer"
+              },
+              "FlipbookRows": {
+                "type": "integer"
+              },
+              "FlipbookFps": {
+                "type": "number"
+              },
+              "FlipbookSubframeBlend": {
+                "type": "boolean"
+              },
+              "NoiseUvScroll": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "NoiseUvScale": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  }
+                }
+              },
+              "DistortionStrength": {
+                "type": "number"
+              },
+              "BaseColor": {
+                "type": "string"
+              },
+              "SecondaryColor": {
+                "type": "string"
+              },
+              "CoreColor": {
+                "type": "string"
+              },
+              "ColorMixRatio": {
+                "type": "number"
+              },
+              "EmissionBoost": {
+                "type": "number"
+              },
+              "CoreThreshold": {
+                "type": "number"
+              },
+              "LuminanceToAlpha": {
+                "type": "boolean"
+              },
+              "LuminanceThreshold": {
+                "type": "number"
+              },
+              "LuminanceSmoothness": {
+                "type": "number"
+              },
+              "UseGrayscale": {
+                "type": "boolean"
+              },
+              "InvertMask": {
+                "type": "boolean"
+              },
+              "HighPassCutoff": {
+                "type": "number"
+              },
+              "EnableRadialFalloff": {
+                "type": "boolean"
+              },
+              "RadialFalloffStart": {
+                "type": "number"
+              },
+              "RadialFalloffEnd": {
+                "type": "number"
+              },
+              "EnableLengthFade": {
+                "type": "boolean"
+              },
+              "LengthFadeStart": {
+                "type": "number"
+              },
+              "LengthFadeEnd": {
+                "type": "number"
+              },
+              "ErosionProgress": {
+                "type": "number"
+              },
+              "EnableFresnel": {
+                "type": "boolean"
+              },
+              "FresnelPower": {
+                "type": "number"
+              },
+              "FresnelIntensity": {
+                "type": "number"
+              },
+              "EnableDepthFade": {
+                "type": "boolean"
+              },
+              "DepthFadeDistance": {
+                "type": "number"
+              },
+              "SurfaceNormalOffset": {
+                "type": "number"
+              },
+              "PositionOffset": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "RotationOffset": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              },
+              "ScaleOffset": {
+                "type": "object",
+                "properties": {
+                  "X": {
+                    "type": "number"
+                  },
+                  "Y": {
+                    "type": "number"
+                  },
+                  "Z": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CustomProceduralAnimations": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Id": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "MotionType": {
+            "type": "integer"
+          },
+          "MaskMode": {
+            "type": "integer"
+          },
+          "MaskMin": {
+            "type": "number"
+          },
+          "MaskMax": {
+            "type": "number"
+          },
+          "MaskPower": {
+            "type": "number"
+          },
+          "MaskInvert": {
+            "type": "boolean"
+          },
+          "SwayFrequency": {
+            "type": "number"
+          },
+          "SwayAmplitude": {
+            "type": "number"
+          },
+          "FlutterFrequency": {
+            "type": "number"
+          },
+          "FlutterAmplitude": {
+            "type": "number"
+          },
+          "WindInfluence": {
+            "type": "number"
+          },
+          "VelocityDragInfluence": {
+            "type": "number"
+          },
+          "WaveTurbulence": {
+            "type": "number"
+          },
+          "ImpulseDecay": {
+            "type": "number"
+          },
+          "ImpulseFrequency": {
+            "type": "number"
+          },
+          "ImpulseAmplitude": {
+            "type": "number"
+          },
+          "ImpulseDuration": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "CustomWaterProfiles": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Id": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "ProfileIndex": {
+            "type": "integer"
+          },
+          "ShallowColorHex": {
+            "type": "string"
+          },
+          "DeepColorHex": {
+            "type": "string"
+          },
+          "FoamColorHex": {
+            "type": "string"
+          },
+          "MaxDepth": {
+            "type": "number"
+          },
+          "FoamDepth": {
+            "type": "number"
+          },
+          "WaveSpeed": {
+            "type": "number"
+          },
+          "WaveStrength": {
+            "type": "number"
+          },
+          "UseNormalTexture": {
+            "type": "boolean"
+          },
+          "NormalTexturePath": {
+            "type": "string"
+          },
+          "NormalScale": {
+            "type": "number"
+          },
+          "FlowDirectionX": {
+            "type": "number"
+          },
+          "FlowDirectionY": {
+            "type": "number"
+          },
+          "FlowSpeed": {
+            "type": "number"
+          },
+          "UseFlowMap": {
+            "type": "boolean"
+          },
+          "FlowMapPath": {
+            "type": "string"
+          },
+          "RefractionStrength": {
+            "type": "number"
+          },
+          "CausticStrength": {
+            "type": "number"
+          },
+          "CausticScale": {
+            "type": "number"
+          },
+          "CausticSpeed": {
+            "type": "number"
+          },
+          "EmissionColorHex": {
+            "type": "string"
+          },
+          "EmissionBoost": {
+            "type": "number"
+          },
+          "CoreColorHex": {
+            "type": "string"
+          },
+          "CoreThreshold": {
+            "type": "number"
+          },
+          "SubsurfaceColorHex": {
+            "type": "string"
+          },
+          "SubsurfaceStrength": {
+            "type": "number"
+          },
+          "UseDetailTexture": {
+            "type": "boolean"
+          },
+          "DetailTexturePath": {
+            "type": "string"
+          },
+          "DetailTileMode": {
+            "type": "string"
+          },
+          "DetailUvScaleX": {
+            "type": "number"
+          },
+          "DetailUvScaleY": {
+            "type": "number"
+          },
+          "DetailUvScrollX": {
+            "type": "number"
+          },
+          "DetailUvScrollY": {
+            "type": "number"
+          },
+          "DetailStochasticTileSize": {
+            "type": "number"
+          },
+          "DetailCrossFade": {
+            "type": "number"
+          },
+          "DetailAlpha": {
+            "type": "number"
+          },
+          "DetailBlendMode": {
+            "type": "integer"
+          },
+          "DefaultPathingCode": {
+            "type": "integer"
+          },
+          "DecalBombingRules": {
+            "type": "array",
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "DecalId": {
+                  "type": "string"
+                },
+                "Density": {
+                  "type": "number"
+                },
+                "MinScale": {
+                  "type": "number"
+                },
+                "MaxScale": {
+                  "type": "number"
+                },
+                "MinRotationDeg": {
+                  "type": "number"
+                },
+                "MaxRotationDeg": {
+                  "type": "number"
+                },
+                "TintHex": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "VfxBombingRules": {
+            "type": "array",
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "VfxId": {
+                  "type": "string"
+                },
+                "Density": {
+                  "type": "number"
+                },
+                "MinScale": {
+                  "type": "number"
+                },
+                "MaxScale": {
+                  "type": "number"
+                },
+                "NormalOffset": {
+                  "type": "number"
+                },
+                "Config": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "VfxId": {
+                      "type": "string"
+                    },
+                    "Name": {
+                      "type": "string"
+                    },
+                    "PrimitiveType": {
+                      "type": "integer"
+                    },
+                    "ParticleConfig": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig"
+                    },
+                    "BlendMode": {
+                      "type": "integer"
+                    },
+                    "PlacementMode": {
+                      "type": "integer"
+                    },
+                    "TargetSocket": {
+                      "type": "string"
+                    },
+                    "BaseTexture": {
+                      "type": "string"
+                    },
+                    "NoiseTexture": {
+                      "type": "string"
+                    },
+                    "BaseUvScroll": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/BaseUvScroll"
+                    },
+                    "BaseUvScale": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/BaseUvScale"
+                    },
+                    "UseFlipbook": {
+                      "type": "boolean"
+                    },
+                    "FlipbookColumns": {
+                      "type": "integer"
+                    },
+                    "FlipbookRows": {
+                      "type": "integer"
+                    },
+                    "FlipbookFps": {
+                      "type": "number"
+                    },
+                    "FlipbookSubframeBlend": {
+                      "type": "boolean"
+                    },
+                    "NoiseUvScroll": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/NoiseUvScroll"
+                    },
+                    "NoiseUvScale": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/NoiseUvScale"
+                    },
+                    "DistortionStrength": {
+                      "type": "number"
+                    },
+                    "BaseColor": {
+                      "type": "string"
+                    },
+                    "SecondaryColor": {
+                      "type": "string"
+                    },
+                    "CoreColor": {
+                      "type": "string"
+                    },
+                    "ColorMixRatio": {
+                      "type": "number"
+                    },
+                    "EmissionBoost": {
+                      "type": "number"
+                    },
+                    "CoreThreshold": {
+                      "type": "number"
+                    },
+                    "LuminanceToAlpha": {
+                      "type": "boolean"
+                    },
+                    "LuminanceThreshold": {
+                      "type": "number"
+                    },
+                    "LuminanceSmoothness": {
+                      "type": "number"
+                    },
+                    "UseGrayscale": {
+                      "type": "boolean"
+                    },
+                    "InvertMask": {
+                      "type": "boolean"
+                    },
+                    "HighPassCutoff": {
+                      "type": "number"
+                    },
+                    "EnableRadialFalloff": {
+                      "type": "boolean"
+                    },
+                    "RadialFalloffStart": {
+                      "type": "number"
+                    },
+                    "RadialFalloffEnd": {
+                      "type": "number"
+                    },
+                    "EnableLengthFade": {
+                      "type": "boolean"
+                    },
+                    "LengthFadeStart": {
+                      "type": "number"
+                    },
+                    "LengthFadeEnd": {
+                      "type": "number"
+                    },
+                    "ErosionProgress": {
+                      "type": "number"
+                    },
+                    "EnableFresnel": {
+                      "type": "boolean"
+                    },
+                    "FresnelPower": {
+                      "type": "number"
+                    },
+                    "FresnelIntensity": {
+                      "type": "number"
+                    },
+                    "EnableDepthFade": {
+                      "type": "boolean"
+                    },
+                    "DepthFadeDistance": {
+                      "type": "number"
+                    },
+                    "SurfaceNormalOffset": {
+                      "type": "number"
+                    },
+                    "PositionOffset": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/PositionOffset"
+                    },
+                    "RotationOffset": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/RotationOffset"
+                    },
+                    "ScaleOffset": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/ScaleOffset"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CustomEnvironmentPresets": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Id": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "IsDefault": {
+            "type": "boolean"
+          },
+          "SunPitch": {
+            "type": "number"
+          },
+          "SunYaw": {
+            "type": "number"
+          },
+          "SunEnergy": {
+            "type": "number"
+          },
+          "SunColorHex": {
+            "type": "string"
+          },
+          "ShadowBias": {
+            "type": "number"
+          },
+          "ShadowNormalBias": {
+            "type": "number"
+          },
+          "AmbientEnergy": {
+            "type": "number"
+          },
+          "AmbientColorHex": {
+            "type": "string"
+          },
+          "FogEnabled": {
+            "type": "boolean"
+          },
+          "FogDensity": {
+            "type": "number"
+          },
+          "FogColorHex": {
+            "type": "string"
+          },
+          "SsaoEnabled": {
+            "type": "boolean"
+          },
+          "SsaoRadius": {
+            "type": "number"
+          },
+          "SsaoIntensity": {
+            "type": "number"
+          },
+          "SsaoDetail": {
+            "type": "number"
+          },
+          "TonemapExposure": {
+            "type": "number"
+          },
+          "AdjustmentContrast": {
+            "type": "number"
+          },
+          "AdjustmentSaturation": {
+            "type": "number"
+          },
+          "GlowIntensity": {
+            "type": "number"
+          },
+          "GlowBloom": {
+            "type": "number"
+          },
+          "GlowStrength": {
+            "type": "number"
+          },
+          "CharacterFillEnergy": {
+            "type": "number"
+          },
+          "WeatherType": {
+            "type": "string"
+          },
+          "RainParticleDensity": {
+            "type": "integer"
+          },
+          "BaseFogDensity": {
+            "type": "number"
+          },
+          "WeatherAnnouncement": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "DefaultEnvironmentPreset": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "Models": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Brightness": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "CollisionCircleRatios": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "ColorTint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "DespillPlayerColor": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "IgnorePlayerColor": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "NormalizeLuminance": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "ObstacleRadii": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "Offsets": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "Scales": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "SpawnShaders": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "DeathShaders": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ProceduralAnimation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "EnableProceduralAnimation": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "textures": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "SwatchIndex": {
+            "type": "integer"
+          },
+          "ScaleFactor": {
+            "type": "number"
+          },
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "TextureSize": {
+            "type": "integer"
+          },
+          "NoiseConfig": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Brightness": {
+            "type": "number"
+          },
+          "Tint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "RoughnessScale": {
+            "type": "number"
+          },
+          "NormalScale": {
+            "type": "number"
+          },
+          "HeightScale": {
+            "type": "number"
+          },
+          "HeightOffset": {
+            "type": "number"
+          },
+          "CrevicePower": {
+            "type": "number"
+          },
+          "TileMode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "UvScale": {
+            "type": "number"
+          },
+          "StochasticTileSize": {
+            "type": "number"
+          },
+          "CrossFade": {
+            "type": "number"
+          },
+          "Contrast": {
+            "type": "number"
+          },
+          "Saturation": {
+            "type": "number"
+          },
+          "Specular": {
+            "type": "number"
+          },
+          "Roughness": {
+            "type": "number"
+          },
+          "Metallic": {
+            "type": "number"
+          },
+          "DefaultPathingCode": {
+            "type": "integer"
+          },
+          "DecalBombingRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/CustomWaterProfiles/items/properties/DecalBombingRules/items"
+            }
+          },
+          "VfxBombingRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/CustomWaterProfiles/items/properties/VfxBombingRules/items"
+            }
+          }
+        }
+      }
+    },
+    "decals": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Tint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Brightness": {
+            "type": "number"
+          },
+          "Contrast": {
+            "type": "number"
+          },
+          "Saturation": {
+            "type": "number"
+          },
+          "Opacity": {
+            "type": "number"
+          },
+          "AlbedoMix": {
+            "type": "number"
+          },
+          "NormalStrength": {
+            "type": "number"
+          },
+          "Roughness": {
+            "type": "number"
+          },
+          "Metallic": {
+            "type": "number"
+          },
+          "BlendMode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "TextureNormal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "TextureOrm": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "TextureEmission": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "EmissionEnergy": {
+            "type": "number"
+          },
+          "AnimateOpacity": {
+            "type": "boolean"
+          },
+          "OpacityPulseSpeed": {
+            "type": "number"
+          },
+          "MinOpacity": {
+            "type": "number"
+          },
+          "MaxOpacity": {
+            "type": "number"
+          },
+          "AnimateEmission": {
+            "type": "boolean"
+          },
+          "EmissionPulseSpeed": {
+            "type": "number"
+          },
+          "MinEmission": {
+            "type": "number"
+          },
+          "MaxEmission": {
+            "type": "number"
+          },
+          "AnimateScale": {
+            "type": "boolean"
+          },
+          "ScalePulseSpeed": {
+            "type": "number"
+          },
+          "MinScaleRatio": {
+            "type": "number"
+          },
+          "MaxScaleRatio": {
+            "type": "number"
+          },
+          "UpperFade": {
+            "type": "number"
+          },
+          "LowerFade": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "vfx_spritesheets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Columns": {
+            "type": "integer"
+          },
+          "Rows": {
+            "type": "integer"
+          },
+          "Fps": {
+            "type": "number"
+          },
+          "SubframeBlend": {
+            "type": "boolean"
+          },
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "noise_textures": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/properties/textures/additionalProperties"
+      }
+    },
+    "icons": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "skyboxes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "ribbons": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "SpawnShader": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Name": {
+            "type": "string"
+          },
+          "TransitionMode": {
+            "type": "integer"
+          },
+          "Direction": {
+            "type": "integer"
+          },
+          "EdgeColor": {
+            "type": "string"
+          },
+          "EdgeWidth": {
+            "type": "number"
+          },
+          "EdgeEmission": {
+            "type": "number"
+          },
+          "NoiseScale": {
+            "type": "number"
+          },
+          "NoiseRoughness": {
+            "type": "number"
+          },
+          "FresnelPower": {
+            "type": "number"
+          },
+          "VertexDisplacement": {
+            "type": "number"
+          },
+          "AlphaFade": {
+            "type": "number"
+          },
+          "Duration": {
+            "type": "number"
+          },
+          "AssetType": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "gdshader": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "ConfigJson": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

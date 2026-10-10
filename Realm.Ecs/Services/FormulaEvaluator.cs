@@ -4,64 +4,15 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Stats;
-using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Realm.Ecs.Services;
 
 /// <summary>
-/// Evaluation context for dynamic formula resolution against units, spell metadata, and dynamic properties.
-/// </summary>
-internal struct FormulaContext
-{
-	public World? World;
-	public Entity Caster;
-	public Entity Target;
-	public Dictionary<string, float>? SpellData;
-	public Dictionary<string, float>? DynamicData;
-
-	public FormulaContext(World? world, Entity caster = default, Entity target = default, Dictionary<string, float>? spellData = null, Dictionary<string, float>? dynamicData = null)
-	{
-		World = world;
-		Caster = caster;
-		Target = target;
-		SpellData = spellData;
-		DynamicData = dynamicData;
-	}
-}
-
-/// <summary>
-/// Represents an evaluable expression node in a formula AST.
-/// </summary>
-internal interface IFormulaNode
-{
-	float Evaluate(in FormulaContext context);
-}
-
-/// <summary>
-/// Executable compiled representation of a mathematical formula.
-/// </summary>
-internal class CompiledFormula
-{
-	private readonly IFormulaNode _root;
-
-	public CompiledFormula(IFormulaNode root)
-	{
-		_root = root;
-	}
-
-	public float Evaluate(in FormulaContext context)
-	{
-		return _root.Evaluate(in context);
-	}
-}
-
-/// <summary>
 /// Compiles and evaluates dynamic mathematical expressions against entity stats and runtime contexts.
 /// </summary>
-internal static partial class FormulaEvaluator
+public static partial class FormulaEvaluator
 {
 	private static readonly Dictionary<string, CompiledFormula> Cache = new(StringComparer.OrdinalIgnoreCase);
 

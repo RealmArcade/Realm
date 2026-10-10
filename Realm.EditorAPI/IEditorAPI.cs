@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-
-namespace Realm.MapAPI;
+namespace Realm.EditorAPI;
 
 /// <summary>
 /// Provides domain service capabilities for map editing operations.

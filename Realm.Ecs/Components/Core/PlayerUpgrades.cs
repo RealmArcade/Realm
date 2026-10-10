@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	/// Represents the active upgrades purchased by a player entity.
 	/// </summary>
-	internal struct PlayerUpgrades
+	public struct PlayerUpgrades
 	{
 		public bool WeaponsUpgrade;
 		public bool ShieldsUpgrade;

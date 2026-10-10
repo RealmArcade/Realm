@@ -5,7 +5,7 @@ namespace Realm.Ecs.Services;
 /// <summary>
 ///     Demonstrates how player-specific resource data is used with archetype definition data.
 /// </summary>
-internal class PlayerResourceService
+public class PlayerResourceService
 {
 	private readonly ArchetypeManager _archetypeManager;
 	private readonly WorldAccessor _ecsWorldAccessor;

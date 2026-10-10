@@ -1,17 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
 
 namespace Realm.Shared.Distribution;
-
-public class ServersConfig
-{
-    public List<string> AdminPublicKeys { get; set; } = new();
-    public List<string> AdminPublicKey { get => AdminPublicKeys; set => AdminPublicKeys = value; }
-    public List<string> Servers { get; set; } = new();
-}
 
 public static class ServersConfigHelper
 {
@@ -68,14 +57,14 @@ public static class ServersConfigHelper
             foreach (var dir in baseDirs)
             {
                 yield return Path.Combine(dir, fileName);
-                yield return Path.Combine(dir, "Realm.Godot", fileName);
-                yield return Path.Combine(dir, "..", "Realm.Godot", fileName);
+                yield return Path.Combine(dir, "Realm.Client", fileName);
+                yield return Path.Combine(dir, "..", "Realm.Client", fileName);
                 yield return Path.Combine(dir, "..", fileName);
                 yield return Path.Combine(dir, "..", "..", fileName);
                 yield return Path.Combine(dir, "..", "..", "..", fileName);
                 yield return Path.Combine(dir, "..", "..", "..", "..", fileName);
-                yield return Path.Combine(dir, "..", "..", "..", "Realm.Godot", fileName);
-                yield return Path.Combine(dir, "..", "..", "..", "..", "Realm.Godot", fileName);
+                yield return Path.Combine(dir, "..", "..", "..", "Realm.Client", fileName);
+                yield return Path.Combine(dir, "..", "..", "..", "..", "Realm.Client", fileName);
             }
         }
     }

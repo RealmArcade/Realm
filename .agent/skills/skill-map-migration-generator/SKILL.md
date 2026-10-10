@@ -15,10 +15,10 @@ Run git diff commands to inspect changes across map file formats, templates, and
 
 ```bash
 git diff <prior_tag>..<target_tag> -- \
-    Realm.Godot/Services/MetadataService.cs \
-    Realm.Godot/Services/SaveLoadService.cs \
-    Realm.Godot/Services/MapWorkspaceService.cs \
-    Realm.Godot/Utils/MapAssetHelper.cs \
+    Realm.Client/Services/MetadataService.cs \
+    Realm.Client/Services/SaveLoadService.cs \
+    Realm.Client/Services/MapWorkspaceService.cs \
+    Realm.Client/Utils/MapAssetHelper.cs \
     MapTemplate/ \
     Realm.MapEditorExtension/metadata.schema.json
 ```
@@ -30,7 +30,7 @@ Identify any structural changes between the versions:
 - Changes to terrain data formats, navmesh definitions, or map script bindings.
 
 ### 3. Generate `IMapMigration` Class
-Add a new migration class inside `Realm.Godot/Services/MapUpgradeService.cs` following the standard naming convention `Migration_<Major>_<Minor>_<Patch>_<Summary>`:
+Add a new migration class inside `Realm.Client/Services/MapUpgradeService.cs` following the standard naming convention `Migration_<Major>_<Minor>_<Patch>_<Summary>`:
 
 ```csharp
 public class Migration_0_0_2_SampleChange : IMapMigration

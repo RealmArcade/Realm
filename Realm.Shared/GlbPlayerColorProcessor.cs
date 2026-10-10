@@ -1,36 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
+using SkiaSharp;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Textures;
-using SkiaSharp;
 
 namespace Realm.Shared;
-
-public class GlbPlayerColorResult
-{
-    public bool Success { get; set; }
-    public string? ErrorMessage { get; set; }
-    public string? OutputFilePath { get; set; }
-    public int MaskedFaceCount { get; set; }
-    public int TotalFaceCount { get; set; }
-    public string? DetectedChromaKey { get; set; }
-}
-
-public class GlbPlayerColorOptions
-{
-    public string ChromaKey { get; set; } = "#FF00FF";
-    public string TargetHex { get => ChromaKey; set => ChromaKey = value; }
-    public bool AutoCorrectChromaKey { get; set; } = true;
-    public float CoreThreshold { get; set; } = 0.88f;
-    public float FringeThreshold { get; set; } = 0.80f;
-    public int MinClusterFaces { get; set; } = 10;
-    public int DilationRadius { get; set; } = 3;
-    public float CreaseAngleDegrees { get; set; } = GlbMeshSmoother.DefaultCreaseAngleDegrees;
-}
 
 public static class GlbPlayerColorProcessor
 {
@@ -1428,7 +1403,7 @@ public static class GlbPlayerColorProcessor
         }
     }
 
-    internal static int FindAlbedoImageIndex(JsonArray textures, JsonArray materials)
+    public static int FindAlbedoImageIndex(JsonArray textures, JsonArray materials)
     {
         foreach (var mat in materials)
         {
@@ -1443,7 +1418,7 @@ public static class GlbPlayerColorProcessor
         return -1;
     }
 
-    internal static int FindOrmImageIndex(JsonArray textures, JsonArray materials)
+    public static int FindOrmImageIndex(JsonArray textures, JsonArray materials)
     {
         foreach (var mat in materials)
         {
@@ -1466,7 +1441,7 @@ public static class GlbPlayerColorProcessor
         return -1;
     }
 
-    internal static int GetTextureRefIndex(JsonObject container, string propertyName)
+    public static int GetTextureRefIndex(JsonObject container, string propertyName)
     {
         if (!container.TryGetPropertyValue(propertyName, out var texVal)) return -1;
         if (texVal is not JsonObject texObj) return -1;
@@ -1483,7 +1458,7 @@ public static class GlbPlayerColorProcessor
         return -1;
     }
 
-    internal static int ResolveTextureToImage(int textureIndex, JsonArray textures)
+    public static int ResolveTextureToImage(int textureIndex, JsonArray textures)
     {
         if (textureIndex < 0 || textureIndex >= textures.Count) return -1;
         if (textures[textureIndex] is not JsonObject texObj) return -1;
@@ -1500,7 +1475,7 @@ public static class GlbPlayerColorProcessor
         return texObj["source"]?.GetValue<int>() ?? -1;
     }
 
-    internal static int GetImageBufferViewIndex(JsonObject imgObj)
+    public static int GetImageBufferViewIndex(JsonObject imgObj)
     {
         if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
         {
@@ -1520,7 +1495,7 @@ public static class GlbPlayerColorProcessor
         return -1;
     }
 
-    internal static byte[] ExtractImageBytes(int imageIndex, JsonArray images, JsonArray bufferViews, byte[] bin)
+    public static byte[] ExtractImageBytes(int imageIndex, JsonArray images, JsonArray bufferViews, byte[] bin)
     {
         if (imageIndex < 0 || imageIndex >= images.Count) return Array.Empty<byte>();
         if (images[imageIndex] is not JsonObject imgObj) return Array.Empty<byte>();

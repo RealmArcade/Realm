@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	/// Holds the current input selection index and targeting/placement mode states.
 	/// </summary>
-	internal struct InputState
+	public struct InputState
 	{
 		public int CycleSelectionIndex;
 		public string? ActiveSpellTargeting;

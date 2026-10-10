@@ -1,23 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
-using System.Text.Json;
-using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Distribution;
-
-public class RmapHeaderInfo
-{
-    public string MapName { get; set; } = string.Empty;
-    public string Version { get; set; } = "1.0.0";
-    public string GameBuildNumber { get; set; } = string.Empty;
-    public string Author { get; set; } = "Unknown";
-    public string Description { get; set; } = string.Empty;
-    public List<string> Tags { get; set; } = new();
-}
 
 public static class MapArchiveHelper
 {

@@ -1,23 +1,9 @@
-using System;
-using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text.Json.Nodes;
+using Imazen.WebP;
 using Realm.Shared.Metadata;
 using SkiaSharp;
-using Imazen.WebP;
+using System.Text.Json.Nodes;
 
 namespace Realm.Shared.Textures;
-
-public class TextureConversionResult
-{
-	public bool Success { get; set; }
-	public string InputPath { get; set; } = string.Empty;
-	public string OutputPath { get; set; } = string.Empty;
-	public string ErrorMessage { get; set; } = string.Empty;
-	public float ScaleFactor { get; set; } = 1.0f;
-}
 
 public static class TextureConverter
 {

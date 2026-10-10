@@ -1,4 +1,3 @@
-using System;
 using ZstdSharp;
 
 namespace Realm.Shared.Metadata;

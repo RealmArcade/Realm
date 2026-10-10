@@ -1,31 +1,13 @@
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
-using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
-using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 
 namespace Realm.Ecs.AI.Genres;
-
-public class TowerTypeDefinition
-{
-	public string Id { get; set; } = "arrow_tower";
-	public int Cost { get; set; } = 100;
-	public float Damage { get; set; } = 25f;
-	public float Range { get; set; } = 15f;
-	public float AttackSpeed { get; set; } = 1.0f;
-	public string DamageType { get; set; } = "Physical";
-	public bool HasSlow { get; set; } = false;
-	public string? NextUpgradeId { get; set; }
-	public int UpgradeCost { get; set; } = 150;
-}
 
 public class TowerDefenseGenreProvider : IAiGenreProvider
 {

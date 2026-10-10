@@ -5,7 +5,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	/// Represents a request to spawn a unit with specified parameters.
 	/// </summary>
-	internal struct UnitSpawnRequest
+	public struct UnitSpawnRequest
 	{
 		public string UnitId;
 		public Vector3 Position;

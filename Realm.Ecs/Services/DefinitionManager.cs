@@ -7,7 +7,7 @@ namespace Realm.Ecs.Services;
 ///     Manages the definitions of all game elements (tags, resources, stats) by discovering them
 ///     from attributes on structs in specified assemblies.
 /// </summary>
-internal class DefinitionManager
+public class DefinitionManager
 {
 	private readonly WorldAccessor _ecsWorldAccessor;
 	private readonly Dictionary<string, (ResourceDefinition Definition, Type ComponentType)> _resources = new();

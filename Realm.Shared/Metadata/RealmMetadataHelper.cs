@@ -3,16 +3,9 @@ using Realm.Shared.Animation;
 using Realm.Shared.Audio;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Textures;
-using System;
-using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Realm.Shared.Metadata;
 

@@ -4,15 +4,13 @@ using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Stats;
-using System;
-using System.Collections.Generic;
 
 namespace Realm.Ecs.Services;
 
 /// <summary>
 /// Converts 6 core RPG attributes and base stats into derived combat stats and updates entity components.
 /// </summary>
-internal static class AttributeStatCalculator
+public static class AttributeStatCalculator
 {
 	public const float STR_ATTACK_DAMAGE_SCALE = 1.5f;
 	public const float STR_ARMOR_SCALE = 0.15f;
