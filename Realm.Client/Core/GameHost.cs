@@ -629,19 +629,30 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 	public bool PasteOptionTextures = true;
 	public bool PasteOptionHeights = true;
-	public bool PasteOptionEntities = true;
-	private bool _pasteOptionPathing = true;
+	public bool PasteOptionEntities
+	{
+		get => _editorService.PasteOptionEntities;
+		set => _editorService.PasteOptionEntities = value;
+	}
 	public bool PasteOptionPathing
 	{
-		get => _pasteOptionPathing;
+		get => _editorService.PasteOptionPathing;
 		set
 		{
-			_pasteOptionPathing = value;
+			_editorService.PasteOptionPathing = value;
 			UpdatePathingOverlay();
 		}
 	}
-	public float EditorPasteRotation = 0.0f;
-	public PasteReflection EditorPasteReflection = PasteReflection.None;
+	public float EditorPasteRotation
+	{
+		get => _editorService.EditorPasteRotation;
+		set => _editorService.EditorPasteRotation = value;
+	}
+	public PasteReflection EditorPasteReflection
+	{
+		get => _editorService.EditorPasteReflection;
+		set => _editorService.EditorPasteReflection = value;
+	}
 
 	public Node SelectedEditorObject
 	{
@@ -709,12 +720,12 @@ public partial class GameHost : Node3D, IGameAPI
 			UpdateEditorCoverageOverlay();
 		}
 	}
-	private Node? _selectedEditorObject;
-	private bool _isDraggingObject;
-	private Vector3 _dragObjectStartPos;
-	private Vector3 _dragObjectStartRot;
-	private Vector3 _dragObjectStartScale;
-	private bool _dragObjectStartIsEnemy;
+	private Node? _selectedEditorObject { get; set; }
+	private bool _isDraggingObject { get; set; }
+	private Vector3 _dragObjectStartPos { get; set; }
+	private Vector3 _dragObjectStartRot { get; set; }
+	private Vector3 _dragObjectStartScale { get; set; }
+	private bool _dragObjectStartIsEnemy { get; set; }
 	private Vector3 _dragObjectStartHitPos;
 	private Vector2 _dragStartMousePos;
 	private Vector3 _dragStartGroundPos;

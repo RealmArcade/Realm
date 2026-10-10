@@ -4039,6 +4039,11 @@ public class EditorService : IEditorAPI
 	private long _lastProcessedMetadataWriteTime;
 	private long _lastProcessedTerrainWriteTime;
 	public static DateTime LastInternalSaveTimeUtc { get; set; } = DateTime.MinValue;
+	public bool PasteOptionEntities { get; set; } = true;
+	public bool PasteOptionPathing { get; set; } = true;
+	public float EditorPasteRotation { get; set; } = 0.0f;
+	public PasteReflection EditorPasteReflection { get; set; } = PasteReflection.None;
+
 	private bool _isPaused;
 	public bool IsPaused
 	{
