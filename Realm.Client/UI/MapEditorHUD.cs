@@ -224,8 +224,8 @@ public partial class MapEditorHUD : Control
     private Label _feedbackLabel { get; set; }
 
     private Button _btnZoomIn { get; set; }
-    private Button _btnZoomOut;
-    private Button _btnCenter;
+    private Button _btnZoomOut { get; set; }
+    private Button _btnCenter { get; set; }
     private Button _btnRotate { get; set; }
     private Button _btnCameraAngle { get; set; }
 
@@ -251,14 +251,14 @@ public partial class MapEditorHUD : Control
     private Slider _sldHeight { get; set; }
     private Label _lblHeightValue { get; set; }
 
-    private Control _waterHeightBox;
-    private Slider _sldWaterHeight;
-    private Label _lblWaterHeightValue;
-    private Control _waterModeBox;
-    private OptionButton _optWaterMode;
-    private Button _btnWaterProfiles;
-    private Realm.Client.UI.MapEditor.WaterProfileDialog _waterProfileDialog;
-    private Realm.Client.UI.MapEditor.EnvironmentConfigDialog _environmentConfigDialog;
+    private Control _waterHeightBox { get; set; }
+    private Slider _sldWaterHeight { get; set; }
+    private Label _lblWaterHeightValue { get; set; }
+    private Control _waterModeBox { get; set; }
+    private OptionButton _optWaterMode { get; set; }
+    private Button _btnWaterProfiles { get; set; }
+    private Realm.Client.UI.MapEditor.WaterProfileDialog _waterProfileDialog { get; set; }
+    private Realm.Client.UI.MapEditor.EnvironmentConfigDialog _environmentConfigDialog { get; set; }
     private Realm.Client.UI.MapEditor.EntityVisualEditDialog _entityVisualEditDialog;
     private Realm.Client.UI.MapEditor.AnimationPreviewDialog _animationPreviewDialog;
     private Realm.Client.UI.MapEditor.WeaponVfxDialog _weaponVfxDialog;
