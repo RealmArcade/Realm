@@ -23,6 +23,7 @@ public class EditorService : IEditorAPI
 	private World EcsWorld => EcsWorldAccessor.Current;
 	public Rect2I? TerrainFlushRegion { get; set; }
 	public List<Realm.Client.Core.GameHost.EditorCoordinate> EditorCoordinates { get; set; } = new();
+	public int PendingCoordinateMinX { get; set; }
 	public int PendingCoordinateMinZ { get; set; }
 	public int PendingCoordinateMaxX { get; set; }
 	public int PendingCoordinateMaxZ { get; set; }

@@ -375,14 +375,14 @@ public partial class MapEditorHUD : Control
     private CheckBox _chkGround;
     private CheckBox _chkBuildable;
 
-    private OptionButton _optPathingMode;
+    private OptionButton _optPathingMode { get; set; }
 
 
-    private Button _btnDrawCoordinate;
-    private LineEdit _txtCoordinateName;
-    private Button _btnCommitCoordinate;
-    private VBoxContainer _coordinateListVBox;
-    private int _pendingCoordinateMinX;
+    private Button _btnDrawCoordinate { get; set; }
+    private LineEdit _txtCoordinateName { get; set; }
+    private Button _btnCommitCoordinate { get; set; }
+    private VBoxContainer _coordinateListVBox { get; set; }
+    private int _pendingCoordinateMinX { get => ServiceLocator.Get<EditorService>().PendingCoordinateMinX; set => ServiceLocator.Get<EditorService>().PendingCoordinateMinX = value; }
     private int _pendingCoordinateMinZ { get => ServiceLocator.Get<EditorService>().PendingCoordinateMinZ; set => ServiceLocator.Get<EditorService>().PendingCoordinateMinZ = value; }
     private int _pendingCoordinateMaxX { get => ServiceLocator.Get<EditorService>().PendingCoordinateMaxX; set => ServiceLocator.Get<EditorService>().PendingCoordinateMaxX = value; }
     private int _pendingCoordinateMaxZ { get => ServiceLocator.Get<EditorService>().PendingCoordinateMaxZ; set => ServiceLocator.Get<EditorService>().PendingCoordinateMaxZ = value; }
@@ -407,8 +407,10 @@ public partial class MapEditorHUD : Control
     private Control _cardDeleteObject { get; set; }
     private Control _cardSelectArea { get; set; }
     private Control _cardCut { get; set; }
-    private Control _cardCopy, _cardPaste, _cardEraseArea;
-    private Label _lblInfoText;
+    private Control _cardCopy { get; set; }
+    private Control _cardPaste { get; set; }
+    private Control _cardEraseArea { get; set; }
+    private Label _lblInfoText { get; set; }
     private Label _lblTerrainTexture;
     private Label _lblCliffTexture;
 
