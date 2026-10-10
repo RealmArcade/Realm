@@ -28,6 +28,7 @@ public class EditorService : IEditorAPI
     public float SavedTargetYaw { get; set; }
     public float SavedCurrentYaw { get; set; }
     public float SavedTargetPitch { get; set; }
+    public int ScaleDialogTargetWidth { get; set; }
     public float SavedCurrentPitch { get; set; }
     public bool SavedIsTopDown { get; set; }
     public float SavedYawSwing { get; set; }

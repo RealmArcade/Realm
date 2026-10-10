@@ -357,9 +357,9 @@ public partial class MapEditorHUD : Control
     private Button _btnInspectorDelete;
     private Button _btnShowCoverage;
     private HBoxContainer _playerOwnerContainer;
-    private OptionButton _optPlayerOwner;
-    private PanelContainer _rigStatusContainer;
-    private Label _lblRigStatus;
+    private OptionButton _optPlayerOwner { get; set; }
+    private PanelContainer _rigStatusContainer { get; set; }
+    private Label _lblRigStatus { get; set; }
 
     private Button _btnPathingBrush { get; set; }
     private Button _btnFloodFillPathing { get; set; }
@@ -409,9 +409,9 @@ public partial class MapEditorHUD : Control
     private Label _lblCliffTexture { get; set; }
 
     private PanelContainer _scaleMapDialog { get; set; }
-    private Label _lblScalePreviewWidth;
-    private Label _lblScalePreviewHeight;
-    private int _scaleDialogTargetWidth;
+    private Label _lblScalePreviewWidth { get; set; }
+    private Label _lblScalePreviewHeight { get; set; }
+    private int _scaleDialogTargetWidth { get => ServiceLocator.Get<EditorService>().ScaleDialogTargetWidth; set => ServiceLocator.Get<EditorService>().ScaleDialogTargetWidth = value; }
     private int _scaleDialogTargetDepth { get; set; }
 
     private Camera3D _camera3D { get; set; }
@@ -424,10 +424,10 @@ public partial class MapEditorHUD : Control
 
     private MapEditorTopBar _topBarController { get; set; }
     private MapEditorBrushSettings _brushSettingsController { get; set; }
-    private MapEditorPlacementSettings _placementSettingsController;
-    private MapEditorInspector _inspectorController;
-    private MapEditorPathingPanel _pathingPanelController;
-    private MapEditorMinimap _minimapController;
+    private MapEditorPlacementSettings _placementSettingsController { get; set; }
+    private MapEditorInspector _inspectorController { get; set; }
+    private MapEditorPathingPanel _pathingPanelController { get; set; }
+    private MapEditorMinimap _minimapController { get; set; }
     private MapEditorEntityPaletteController _entityPaletteController { get; set; }
     private MapEditorGenerationDialog _generationDialog { get; set; }
 
