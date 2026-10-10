@@ -270,16 +270,16 @@ public partial class MapEditorHUD : Control
     private Realm.Client.UI.MapEditor.NoiseTextureDialog _noiseTextureDialog;
     private Realm.Client.UI.MapEditor.ConvertGlbDialog _convertGlbDialog;
     private Realm.Client.UI.MapEditor.EditorSettingsDialog _editorSettingsDialog;
-    private Realm.Client.UI.MapEditor.ShaderEditorDialog _shaderEditorDialog;
-    private Realm.Client.UI.MapEditor.VfxStudioDialog _vfxStudioDialog;
-    private Realm.Client.UI.MapEditor.ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog;
-    private Realm.Client.UI.MapEditor.AuthorSignatureDialog _authorSignatureDialog;
-    private Realm.Client.UI.MapEditor.ReplaceTextureDialog _replaceTextureDialog;
-    private Button _btnEditorSettings;
-    private PanelContainer _mapNameHeaderPanel;
-    private Label _lblMapNameHeader;
-    private double _mapNameUpdateTimer = 0.0;
-    private Button _btnOpenGlobalOverrides;
+    private Realm.Client.UI.MapEditor.ShaderEditorDialog _shaderEditorDialog { get; set; }
+    private Realm.Client.UI.MapEditor.VfxStudioDialog _vfxStudioDialog { get; set; }
+    private Realm.Client.UI.MapEditor.ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog { get; set; }
+    private Realm.Client.UI.MapEditor.AuthorSignatureDialog _authorSignatureDialog { get; set; }
+    private Realm.Client.UI.MapEditor.ReplaceTextureDialog _replaceTextureDialog { get; set; }
+    private Button _btnEditorSettings { get; set; }
+    private PanelContainer _mapNameHeaderPanel { get; set; }
+    private Label _lblMapNameHeader { get; set; }
+    private double _mapNameUpdateTimer { get; set; } = 0.0;
+    private Button _btnOpenGlobalOverrides { get; set; }
     private Button _btnOpenAnimationPreview;
     private Button BtnEditVfx { get; set; }
     private Button BtnEditAttachments { get; set; }
