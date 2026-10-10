@@ -350,8 +350,8 @@ public partial class GameHost : Node3D, IGameAPI
 	private MeshInstance3D? _cameraBoundsOverlayMesh { get; set; }
 	private List<Vector3> _pathingVerticesCache { get; set; } = new();
 	private List<Color> _pathingColorsCache { get; set; } = new();
-	private readonly List<int> _pathingIndicesCache = new();
-	private bool _pathingOverlayVisible = true;
+	private List<int> _pathingIndicesCache { get; set; } = new();
+	private bool _pathingOverlayVisible { get; set; } = true;
 	public bool PathingOverlayVisible
 	{
 		get => _pathingOverlayVisible;
@@ -389,7 +389,7 @@ public partial class GameHost : Node3D, IGameAPI
 		Water,
 		Measure
 	}
-	private EditorTool _activeEditorTool = EditorTool.None;
+	private EditorTool _activeEditorTool { get => _editorService.ActiveEditorTool; set => _editorService.ActiveEditorTool = value; }
 	public EditorTool ActiveEditorTool
 	{
 		get => _activeEditorTool;
@@ -443,18 +443,18 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 		return _terrainImportService.ImportTerrain(_worldEntity, selectedPath, out smoothedHeights, out splatMap, out treePositions);
 	}
-	public const float MIN_BRUSH_RADIUS = Realm.Client.Services.EditorService.MIN_BRUSH_RADIUS;
-	public const float MAX_BRUSH_RADIUS = Realm.Client.Services.EditorService.MAX_BRUSH_RADIUS;
-	public const float MIN_BRUSH_STRENGTH = Realm.Client.Services.EditorService.MIN_BRUSH_STRENGTH;
-	public const float MAX_BRUSH_STRENGTH = Realm.Client.Services.EditorService.MAX_BRUSH_STRENGTH;
-	public const float MIN_PLACEMENT_SCALE = Realm.Client.Services.EditorService.MIN_PLACEMENT_SCALE;
-	public const float MAX_PLACEMENT_SCALE = Realm.Client.Services.EditorService.MAX_PLACEMENT_SCALE;
-	public const float MIN_CLUMP_COUNT = Realm.Client.Services.EditorService.MIN_CLUMP_COUNT;
+	public static float MIN_BRUSH_RADIUS => Realm.Client.Services.EditorService.MIN_BRUSH_RADIUS;
+	public static float MAX_BRUSH_RADIUS => Realm.Client.Services.EditorService.MAX_BRUSH_RADIUS;
+	public static float MIN_BRUSH_STRENGTH => Realm.Client.Services.EditorService.MIN_BRUSH_STRENGTH;
+	public static float MAX_BRUSH_STRENGTH => Realm.Client.Services.EditorService.MAX_BRUSH_STRENGTH;
+	public static float MIN_PLACEMENT_SCALE => Realm.Client.Services.EditorService.MIN_PLACEMENT_SCALE;
+	public static float MAX_PLACEMENT_SCALE => Realm.Client.Services.EditorService.MAX_PLACEMENT_SCALE;
+	public static float MIN_CLUMP_COUNT => Realm.Client.Services.EditorService.MIN_CLUMP_COUNT;
 	public const float MAX_CLUMP_COUNT = Realm.Client.Services.EditorService.MAX_CLUMP_COUNT;
 	public const float MIN_CLUMP_SCALE = 0.0f;
 	public const float MAX_CLUMP_SCALE = 1.0f;
 
-	public const float MIN_CLUMP_DENSITY = MIN_CLUMP_COUNT;
+	public static float MIN_CLUMP_DENSITY => MIN_CLUMP_COUNT;
 	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
 	public const float MIN_CLUMP_SCALE_VAR = MIN_CLUMP_SCALE;
 	public const float MAX_CLUMP_SCALE_VAR = MAX_CLUMP_SCALE;
