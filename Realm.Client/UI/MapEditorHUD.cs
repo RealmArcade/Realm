@@ -368,13 +368,13 @@ public partial class MapEditorHUD : Control
     private PanelContainer _rigStatusContainer;
     private Label _lblRigStatus;
 
-    private Button _btnPathingBrush;
-    private Button _btnFloodFillPathing;
-    private CheckBox _chkShallowWater;
-    private CheckBox _chkDeepWater;
-    private CheckBox _chkFlying;
-    private CheckBox _chkGround;
-    private CheckBox _chkBuildable;
+    private Button _btnPathingBrush { get; set; }
+    private Button _btnFloodFillPathing { get; set; }
+    private CheckBox _chkShallowWater { get; set; }
+    private CheckBox _chkDeepWater { get; set; }
+    private CheckBox _chkFlying { get; set; }
+    private CheckBox _chkGround { get; set; }
+    private CheckBox _chkBuildable { get; set; }
 
     private OptionButton _optPathingMode { get; set; }
 
@@ -412,10 +412,10 @@ public partial class MapEditorHUD : Control
     private Control _cardPaste { get; set; }
     private Control _cardEraseArea { get; set; }
     private Label _lblInfoText { get; set; }
-    private Label _lblTerrainTexture;
-    private Label _lblCliffTexture;
+    private Label _lblTerrainTexture { get; set; }
+    private Label _lblCliffTexture { get; set; }
 
-    private PanelContainer _scaleMapDialog;
+    private PanelContainer _scaleMapDialog { get; set; }
     private Label _lblScalePreviewWidth;
     private Label _lblScalePreviewHeight;
     private int _scaleDialogTargetWidth;
