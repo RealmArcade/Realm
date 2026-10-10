@@ -225,17 +225,17 @@ public partial class MapEditorHUD : Control
     private Button _btnZoomIn;
     private Button _btnZoomOut;
     private Button _btnCenter;
-    private Button _btnRotate;
-    private Button _btnCameraAngle;
+    private Button _btnRotate { get; set; }
+    private Button _btnCameraAngle { get; set; }
 
-    private Slider _sldBrushSize;
-    private Label _lblBrushSizeValue;
-    private Slider _sldBrushStrength;
-    private Label _lblBrushStrengthValue;
+    private Slider _sldBrushSize { get; set; }
+    private Label _lblBrushSizeValue { get; set; }
+    private Slider _sldBrushStrength { get; set; }
+    private Label _lblBrushStrengthValue { get; set; }
 
 
 
-    private CheckBox _chkRandomRotation;
+    private CheckBox _chkRandomRotation { get; set; }
     private CheckBox _chkRandomScale { get; set; }
     private Button _btnAddObject { get; set; }
     private CheckBox _chkClumpMode { get; set; }
@@ -246,9 +246,9 @@ public partial class MapEditorHUD : Control
     private CheckBox _chkBlockMode { get; set; }
     private Slider _sldBlockStep { get; set; }
     private Label _lblBlockStepValue { get; set; }
-    private Control _heightBox;
-    private Slider _sldHeight;
-    private Label _lblHeightValue;
+    private Control _heightBox { get; set; }
+    private Slider _sldHeight { get; set; }
+    private Label _lblHeightValue { get; set; }
 
     private Control _waterHeightBox;
     private Slider _sldWaterHeight;
