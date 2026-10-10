@@ -15,6 +15,7 @@ public class RegistryService
 	public readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
 	public readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
 	public Dictionary<string, Realm.Shared.Metadata.VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	public System.Collections.Generic.Dictionary<string, Realm.Client.Core.AbilityDefinition> AbilityDefinitions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     
     public void ClearAll()
     {
@@ -26,5 +27,6 @@ public class RegistryService
         AttachmentRegistry.Clear();
         ItemRegistry.Clear();
         VfxRegistry.Clear();
+        AbilityDefinitions.Clear();
     }
 }

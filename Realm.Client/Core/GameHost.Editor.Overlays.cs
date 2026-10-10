@@ -905,7 +905,7 @@ namespace Realm.Client.Core
             _wasCoordinatePreviewVisible = HideAndCacheNodeVisibility(_coordinatePreviewMesh);
             HideAndCacheNodeVisibility(_coordinateSelectionOutlineMesh, out _wasCoordinateOutlineVisible);
             HideAndCacheNodeVisibility(_scaleMapSilhouetteMesh, out _wasScaleSilhouetteVisible);
-            HideAndCacheNodeVisibility(_editorCoverageOverlayRoot, out _wasCoverageOverlayVisible);
+            _wasCoverageOverlayVisible = HideAndCacheNodeVisibility(_editorCoverageOverlayRoot);
             HideVfxEditorBaseRings();
         }
 

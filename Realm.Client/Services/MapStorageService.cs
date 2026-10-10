@@ -15,6 +15,8 @@ namespace Realm.Client.Services;
 
 public class MapStorageService
 {
+    public string CurrentMapDirectory { get; set; } = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+
     private readonly WorldAccessor _ecsWorldAccessor;
 
     public MapStorageService(WorldAccessor ecsWorldAccessor)

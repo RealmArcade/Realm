@@ -14,7 +14,7 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	public string CurrentMapDirectory = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+	public string CurrentMapDirectory { get => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.MapStorageService>().CurrentMapDirectory; set => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.MapStorageService>().CurrentMapDirectory = value; }
 
 	public void SaveMapToFile(string customPath = "", bool performReload = true)
 	{
@@ -748,11 +748,7 @@ public partial class GameHost
 		Realm.Client.UI.MapEditorHUD.Instance?.RefreshCoordinateListExternal();
 	}
 
-	private static readonly System.Collections.Generic.HashSet<string> ValidAssetPrefixes = new(System.StringComparer.OrdinalIgnoreCase)
-	{
-		"unit", "building", "prop", "resource", "item", "ability", 
-		"weapon", "upgrade", "terrain", "spritesheet", "decal", "SpawnShader"
-	};
+	private static System.Collections.Generic.HashSet<string> ValidAssetPrefixes => Realm.Client.Services.AssetIndexService.ValidAssetPrefixes;
 
 	private string ApplyModelAssetExtension(string filename)
 	{

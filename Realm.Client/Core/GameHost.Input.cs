@@ -20,12 +20,12 @@ public partial class GameHost
 {
 
 
-	private InputService _inputService;
-	private PhysicsRayQueryParameters3D? _cachedRaycastQuery;
-	private bool _leftClickInitiatedOverUI = false;
-	private bool _is3DLeftClickDown = false;
-	private Vector2 _leftClick3DStartPos = Vector2.Zero;
-	private bool _is3DDragOperationActive = false;
+	private InputService _inputService => Realm.Client.Services.ServiceLocator.Get<InputService>();
+	private PhysicsRayQueryParameters3D? _cachedRaycastQuery { get; set; }
+	private bool _leftClickInitiatedOverUI { get; set; } = false;
+	private bool _is3DLeftClickDown { get; set; } = false;
+	private Vector2 _leftClick3DStartPos { get; set; } = Vector2.Zero;
+	private bool _is3DDragOperationActive { get; set; } = false;
 
 	public override void _UnhandledInput(InputEvent @event)
 	{

@@ -2083,5 +2083,5 @@ public partial class GameHost
     private bool _wasCoordinatePreviewVisible { get; set; }
     private bool _wasCoordinateOutlineVisible;
     private bool _wasScaleSilhouetteVisible;
-    private bool _wasCoverageOverlayVisible;
+    private bool _wasCoverageOverlayVisible { get; set; }
 }

@@ -25,7 +25,6 @@ public partial class GameHost
 		_editorService = ServiceLocator.Get<EditorService>();
 		_replayService = ServiceLocator.Get<ReplayService>();
 		_networkService = ServiceLocator.Get<NetworkService>();
-		_inputService = ServiceLocator.Get<InputService>();
 
 		_terrainNavMeshService = ServiceLocator.Get<TerrainNavMeshService>();
 		_metadataService = ServiceLocator.Get<Realm.Client.Services.MetadataService>();

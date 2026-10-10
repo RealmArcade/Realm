@@ -14,6 +14,12 @@ namespace Realm.Client.Services;
 
 public class AssetIndexService : IDisposable
 {
+	public static readonly System.Collections.Generic.HashSet<string> ValidAssetPrefixes = new(System.StringComparer.OrdinalIgnoreCase)
+	{
+		"unit", "building", "prop", "resource", "item", "ability", 
+		"weapon", "upgrade", "terrain", "spritesheet", "decal", "SpawnShader"
+	};
+
 	private static AssetIndexService? _instance;
 	public static AssetIndexService Instance => _instance ??= ServiceLocator.TryGet<AssetIndexService>() ?? new AssetIndexService();
 
