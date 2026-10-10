@@ -14,6 +14,7 @@ public class RegistryService
 	public readonly Dictionary<StringName, WeaponMetadata> WeaponRegistry = new();
 	public readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
 	public readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
+	public Dictionary<string, Realm.Shared.Metadata.VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     
     public void ClearAll()
     {
@@ -24,5 +25,6 @@ public class RegistryService
         WeaponRegistry.Clear();
         AttachmentRegistry.Clear();
         ItemRegistry.Clear();
+        VfxRegistry.Clear();
     }
 }

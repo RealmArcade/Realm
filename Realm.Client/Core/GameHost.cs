@@ -161,9 +161,13 @@ public partial class GameHost : Node3D, IGameAPI
 	private readonly List<Realm.Client.Unit3D> _castlesList = new();
 
 	public static readonly Dictionary<Entity, Realm.Client.Unit3D> EntityToUnit3D = new();
-	public static readonly Dictionary<Entity, Realm.Client.Prop3D> EntityToProp3D = new();
-	public static readonly Dictionary<Entity, ProceduralVfxInstance3D> EntityToVfx3D = new();
-	public static readonly Dictionary<string, VfxAttachmentConfig> VfxRegistry = new(StringComparer.OrdinalIgnoreCase);
+	public static Dictionary<Entity, Realm.Client.Prop3D> EntityToProp3D { get; set; } = new();
+	public static Dictionary<Entity, ProceduralVfxInstance3D> EntityToVfx3D { get; set; } = new();
+	public static Dictionary<string, VfxAttachmentConfig> VfxRegistry
+	{
+		get => ServiceLocator.Get<RegistryService>().VfxRegistry;
+		set => ServiceLocator.Get<RegistryService>().VfxRegistry = value;
+	}
 
 	public static bool TryGetUnit3D(Entity entity, out Realm.Client.Unit3D unit)
 	{
@@ -229,19 +233,47 @@ public partial class GameHost : Node3D, IGameAPI
 		return NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
 	}
 
-	private Entity _worldEntity;
+	private Entity _worldEntity
+	{
+		get => ServiceLocator.Get<WorldAccessor>().WorldEntity;
+		set => ServiceLocator.Get<WorldAccessor>().WorldEntity = value;
+	}
 
 	private int _replayTickCounter
 	{
 		get => EcsWorld?.GetFieldOrDefault<ReplayState, int>(_worldEntity, s => s.ReplayTickCounter) ?? 0;
 		set => EcsWorld?.Mutate<ReplayState>(_worldEntity, (ref ReplayState s) => s.ReplayTickCounter = value);
 	}
-	private System.Diagnostics.Stopwatch _trackerTickStopwatch = new System.Diagnostics.Stopwatch();
-	private System.Diagnostics.Stopwatch _trackerIntervalStopwatch = new System.Diagnostics.Stopwatch();
-	private List<float> _trackerTickDurations;
-	private List<float> _trackerApiDurations;
-	private float _trackerLastTickDelay;
-	private bool _isResettingForReplay;
+	private System.Diagnostics.Stopwatch _trackerTickStopwatch
+	{
+		get => ServiceLocator.Get<PerformanceTrackingService>().TrackerTickStopwatch;
+		set => ServiceLocator.Get<PerformanceTrackingService>().TrackerTickStopwatch = value;
+	}
+	private System.Diagnostics.Stopwatch _trackerIntervalStopwatch
+	{
+		get => ServiceLocator.Get<PerformanceTrackingService>().TrackerIntervalStopwatch;
+		set => ServiceLocator.Get<PerformanceTrackingService>().TrackerIntervalStopwatch = value;
+	}
+	private List<float> _trackerTickDurations
+	{
+		get => ServiceLocator.Get<PerformanceTrackingService>().TrackerTickDurations;
+		set => ServiceLocator.Get<PerformanceTrackingService>().TrackerTickDurations = value;
+	}
+	private List<float> _trackerApiDurations
+	{
+		get => ServiceLocator.Get<PerformanceTrackingService>().TrackerApiDurations;
+		set => ServiceLocator.Get<PerformanceTrackingService>().TrackerApiDurations = value;
+	}
+	private float _trackerLastTickDelay
+	{
+		get => ServiceLocator.Get<PerformanceTrackingService>().TrackerLastTickDelay;
+		set => ServiceLocator.Get<PerformanceTrackingService>().TrackerLastTickDelay = value;
+	}
+	private bool _isResettingForReplay
+	{
+		get => ServiceLocator.Get<ReplayService>().IsResettingForReplay;
+		set => ServiceLocator.Get<ReplayService>().IsResettingForReplay = value;
+	}
 	public string? ActiveSpellTargeting
 	{
 		get => _inputService?.ActiveSpellTargeting;

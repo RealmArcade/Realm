@@ -25,6 +25,7 @@ public class ReplayService
 		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
+	public bool IsResettingForReplay { get; set; } = false;
 	public bool IsRecording => _replayRecorder != null;
 
 	public void StartRecording(string path, string mapName, List<Network.LobbyManager.PlayerInfo> players)

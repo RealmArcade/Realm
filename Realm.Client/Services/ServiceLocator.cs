@@ -84,6 +84,7 @@ namespace Realm.Client.Services
 
 			services.AddSingleton<TimerService>();
 			services.AddSingleton<RandomService>();
+			services.AddSingleton<PerformanceTrackingService>();
 
 			_provider = services.BuildServiceProvider();
 		}
