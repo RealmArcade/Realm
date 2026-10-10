@@ -72,6 +72,15 @@ public class EditorService : IEditorAPI
 	public readonly Dictionary<string, string> NormalizedAssetKeyCache = new(StringComparer.OrdinalIgnoreCase);
 
 
+	public float EditorClumpCount { get; set; } = 5.0f;
+	public float EditorClumpScale { get; set; } = 0.3f;
+	public bool EditorClumpMode { get; set; } = false;
+	public bool EditorRandomRotation { get; set; } = false;
+	public bool EditorRandomScale { get; set; } = false;
+	public float EditorExactHeight { get; set; } = 0.0f;
+	public float EditorWaterHeight { get; set; } = 0.9f;
+	public string EditorPreviewType { get; set; } = "";
+
 	public float EditorPlacementRotation { get; set; } = 0.0f;
 	public float EditorPlacementScale { get; set; } = 1.0f;
 	public Realm.Client.Core.GameHost.GridOverlayMode EditorGridMode { get; set; } = Realm.Client.Core.GameHost.GridOverlayMode.Off;

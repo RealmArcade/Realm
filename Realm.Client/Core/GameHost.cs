@@ -565,7 +565,11 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public bool EditorBrushIsSquare = true;
 
-	private float _editorClumpCount = 5.0f;
+	private float _editorClumpCount
+	{
+		get => _editorService.EditorClumpCount;
+		set => _editorService.EditorClumpCount = value;
+	}
 	public float EditorClumpCount
 	{
 		get => _editorClumpCount;
@@ -578,7 +582,11 @@ public partial class GameHost : Node3D, IGameAPI
 		set => EditorClumpCount = value;
 	}
 
-	private float _editorClumpScale = 0.3f;
+	private float _editorClumpScale
+	{
+		get => _editorService.EditorClumpScale;
+		set => _editorService.EditorClumpScale = value;
+	}
 	public float EditorClumpScale
 	{
 		get => _editorClumpScale;
@@ -590,7 +598,11 @@ public partial class GameHost : Node3D, IGameAPI
 		get => EditorClumpScale;
 		set => EditorClumpScale = value;
 	}
-	private bool _editorClumpMode = false;
+	private bool _editorClumpMode
+	{
+		get => _editorService.EditorClumpMode;
+		set => _editorService.EditorClumpMode = value;
+	}
 	public bool EditorClumpMode
 	{
 		get => _editorClumpMode;
@@ -601,8 +613,16 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	public bool EditorRandomRotation = false;
-	public bool EditorRandomScale = false;
+	public bool EditorRandomRotation
+	{
+		get => _editorService.EditorRandomRotation;
+		set => _editorService.EditorRandomRotation = value;
+	}
+	public bool EditorRandomScale
+	{
+		get => _editorService.EditorRandomScale;
+		set => _editorService.EditorRandomScale = value;
+	}
 	public string EditorSkyboxPath
 	{
 		get => _editorService.GetSkyboxPath(_worldEntity);
@@ -627,7 +647,11 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorService.SetBlockLevelHeight(_worldEntity, value);
 	}
 
-	private float _editorExactHeight = 0.0f;
+	private float _editorExactHeight
+	{
+		get => _editorService.EditorExactHeight;
+		set => _editorService.EditorExactHeight = value;
+	}
 	public float EditorExactHeight
 	{
 		get => _editorExactHeight;
@@ -646,10 +670,14 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorService.SetWaterProfileIndex(_worldEntity, value);
 	}
 
-	public float EditorWaterHeight = 0.9f;
+	public float EditorWaterHeight
+	{
+		get => _editorService.EditorWaterHeight;
+		set => _editorService.EditorWaterHeight = value;
+	}
 
-	private Node? _hoveredEditorObject;
-	private MeshInstance3D? _selectionHighlightMesh;
+	private Node? _hoveredEditorObject { get; set; }
+	private MeshInstance3D? _selectionHighlightMesh { get; set; }
 	private MeshInstance3D? _coordinatePreviewMesh { get; set; }
 	private MeshInstance3D? _coordinateSelectionOutlineMesh { get; set; }
 	private List<MeshInstance3D> _coordinatePersistentMeshes { get; set; } = new();
@@ -788,7 +816,11 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorService.DragObjectHasMoved = value;
 	}
 	private Node3D _editorPreviewNode { get; set; }
-	private string _editorPreviewType = "";
+	private string _editorPreviewType
+	{
+		get => _editorService.EditorPreviewType;
+		set => _editorService.EditorPreviewType = value;
+	}
 	private string _editorPreviewId = "";
 	private bool _editorPreviewIsEnemy;
 	public List<Realm.Client.Services.FXService.MinimapPing> ActivePings => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.FXService>().ActivePings;
