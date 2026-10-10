@@ -419,18 +419,18 @@ public partial class MapEditorHUD : Control
     private Label _lblScalePreviewWidth;
     private Label _lblScalePreviewHeight;
     private int _scaleDialogTargetWidth;
-    private int _scaleDialogTargetDepth;
+    private int _scaleDialogTargetDepth { get; set; }
 
-    private Camera3D _camera3D;
-    private Button _btnEditors;
-    private Button _btnVSCode;
-    private PopupPanel _popupEditors;
-    private bool _isDraggingSlider = false;
-    private Panel _swatchHighlightPanel;
-    private Panel _swatchCliffHighlightPanel;
+    private Camera3D _camera3D { get; set; }
+    private Button _btnEditors { get; set; }
+    private Button _btnVSCode { get; set; }
+    private PopupPanel _popupEditors { get; set; }
+    private bool _isDraggingSlider { get; set; } = false;
+    private Panel _swatchHighlightPanel { get; set; }
+    private Panel _swatchCliffHighlightPanel { get; set; }
 
-    private MapEditorTopBar _topBarController;
-    private MapEditorBrushSettings _brushSettingsController;
+    private MapEditorTopBar _topBarController { get; set; }
+    private MapEditorBrushSettings _brushSettingsController { get; set; }
     private MapEditorPlacementSettings _placementSettingsController;
     private MapEditorInspector _inspectorController;
     private MapEditorPathingPanel _pathingPanelController;
