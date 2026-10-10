@@ -1366,7 +1366,11 @@ public partial class GameHost
 
 
     private long _lastTerrainMeshRebuildMs = long.MinValue;
-    private Rect2I? _terrainFlushRegion;
+    private Rect2I? _terrainFlushRegion
+    {
+        get => _editorService?.TerrainFlushRegion;
+        set { if (_editorService != null) _editorService.TerrainFlushRegion = value; }
+    }
     private bool _terrainGeometryDirty;
     private bool _terrainHeightsDirty;
     private bool _terrainPathingDirty;

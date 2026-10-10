@@ -18,6 +18,8 @@ public class EditorService : IEditorAPI
 {
 	private readonly WorldAccessor EcsWorldAccessor;
 	private World EcsWorld => EcsWorldAccessor.Current;
+	public Rect2I? TerrainFlushRegion { get; set; }
+
 	private TerrainSplatWeights[,] _terrainSplatMap;
 	private TerrainSplatWeights[,] _terrainCliffSplatMap;
 
