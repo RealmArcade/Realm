@@ -48,6 +48,41 @@ public class EditorService : IEditorAPI
 	public const float MAX_BRUSH_STRENGTH = 10.0f;
 	public const float MIN_PLACEMENT_SCALE = 0.25f;
 	public const float MAX_PLACEMENT_SCALE = 5.0f;
+
+	public bool _lastBrushShapeIsSquare { get; set; }
+	public bool _hasLastBrushShape { get; set; }
+	public float _lastRotationExternal { get; set; } = float.NaN;
+	public float _lastPasteRotationExternal { get; set; } = float.NaN;
+	public PasteReflection _lastPasteReflectionExternal { get; set; } = (PasteReflection)(-1);
+	public float _lastScaleExternal { get; set; } = float.NaN;
+	public float _lastBrushSizeExternal { get; set; } = float.NaN;
+
+	public static readonly System.Collections.Generic.Dictionary<Realm.Client.Core.GameHost.EditorTool, string> ToolInfoTexts = new()
+	{
+		{ Realm.Client.Core.GameHost.EditorTool.Raise, "TOOL: Raise Heights\n\nDrag left click on the map ground to elevate terrain. Adjust size and strength in settings." },
+		{ Realm.Client.Core.GameHost.EditorTool.Ramp, "TOOL: Ramping\n\nLeft-click once on the terrain to set the Ramp Start Point. Left-click again to set the Ramp End Point. The tool will smoothly interpolate heights between the two points. Press Right-click or Escape to cancel." },
+		{ Realm.Client.Core.GameHost.EditorTool.Lower, "TOOL: Lower Heights\n\nDrag left click on the map ground to depress terrain. Adjust size and strength in settings." },
+		{ Realm.Client.Core.GameHost.EditorTool.Height, "TOOL: Exact Height\n\nDrag left click on the map ground to set terrain to exact block height. Adjust height in settings." },
+		{ Realm.Client.Core.GameHost.EditorTool.Plateau, "TOOL: Plateau\n\nDrag left click to flatten terrain to the elevation of your initial click point." },
+		{ Realm.Client.Core.GameHost.EditorTool.Smooth, "TOOL: Smooth Terrain\n\nDrag left click to average neighbor vertex heights and smooth out rugged elevations." },
+		{ Realm.Client.Core.GameHost.EditorTool.PaintTexture, "TOOL: Texture Painting\n\nDrag left click to paint texture layers onto the vertices of the terrain mesh." },
+		{ Realm.Client.Core.GameHost.EditorTool.FloodFill, "TOOL: Flood Fill\n\nClick once on the terrain map to flood-fill an area sharing the same texture color until hitting a boundary (cliff or different texture). Uses selected texture swatch." },
+		{ Realm.Client.Core.GameHost.EditorTool.SelectArea, "TOOL: Area Select\n\nDrag left click to select a rectangular area of the map. Press Ctrl+C to copy the area." },
+		{ Realm.Client.Core.GameHost.EditorTool.PasteArea, "TOOL: Area Paste\n\nClick on the terrain to paste the copied area. Use the Affected Layers checkboxes to filter what is pasted (Textures, HeightMap, Units / Props, Pathing)." },
+		{ Realm.Client.Core.GameHost.EditorTool.PlaceDecal, "TOOL: Place Decal\n\nLeft-click on the ground to project a decorative decal. Snapping, scaling, and rotation apply." },
+		{ Realm.Client.Core.GameHost.EditorTool.DeleteObject, "TOOL: Object Eraser\n\nLeft-click directly on any unit or prop in 3D scene to erase and remove it from the map." },
+		{ Realm.Client.Core.GameHost.EditorTool.SelectMove, "TOOL: Select / Move\n\nLeft-click directly on any unit, prop, or decal to select it. Hold and drag left click to move it. Use Alt + MouseWheel to scale, or Delete to delete." },
+		{ Realm.Client.Core.GameHost.EditorTool.Eyedropper, "TOOL: Eyedropper / Picker\n\nLeft-click directly on any unit, prop, or decal to copy and select it as the active placement tool. Click on terrain to copy its texture color, or hold Shift to copy its height." },
+		{ Realm.Client.Core.GameHost.EditorTool.Noise, "TOOL: Roughen Terrain\n\nDrag left-click to apply random height variations/noise to ruggedize the terrain surface. Adjust size and strength in settings." },
+		{ Realm.Client.Core.GameHost.EditorTool.Water, "TOOL: Water Flood Fill\n\nClick on terrain to flood-fill water bounded by cliff walls. Uses selected Water Profile or toggles water." },
+		{ Realm.Client.Core.GameHost.EditorTool.PaintPathing, "TOOL: Pathing Layer Painting\n\nDrag left click to paint pathing properties (ground, flying, water, etc.) onto the map. Use checkboxes to select layers, and Mode to Add/Remove." },
+		{ Realm.Client.Core.GameHost.EditorTool.FloodFillPathing, "TOOL: Flood Fill Pathing\n\nClick once on the terrain map to flood-fill pathing properties (ground, flying, water, etc.) across an area sharing the same texture color until hitting a boundary. Use checkboxes to select layers, and Mode to Add/Remove." },
+		{ Realm.Client.Core.GameHost.EditorTool.Measure, "TOOL: Tape Measure\n\nClick on the terrain to set measurement origin. Move the cursor or click again to lock the endpoint. Displays live Euclidean distance, Manhattan distance, grid delta, and slope." },
+		{ Realm.Client.Core.GameHost.EditorTool.None, "Select a tool from the panels to begin terrain modification." }
+	};
+
+	public static readonly int[] SpokeCountOptions = new[] { 2, 3, 4, 5, 6, 8, 12, 16 };
+
 	public const float MIN_CLUMP_COUNT = 1.0f;
 	public const float MAX_CLUMP_COUNT = 20.0f;
 
