@@ -153,17 +153,17 @@ public partial class MapEditorHUD : Control
     private VBoxContainer _panelCoordinatesVBox;
     private Button _btnCut;
     private Button _btnEraseArea;
-    private Button _btnPasteReflection;
-    private Button _btnClipboardBrushShape;
-    private OptionButton _optClipboardMirrorMode;
-    private HSlider _sldPasteRotation;
-    private Label _lblPasteRotation;
+    private Button _btnPasteReflection { get; set; }
+    private Button _btnClipboardBrushShape { get; set; }
+    private OptionButton _optClipboardMirrorMode { get; set; }
+    private HSlider _sldPasteRotation { get; set; }
+    private Label _lblPasteRotation { get; set; }
 
-    private OptionButton _optPolarRingSpacing;
-    private OptionButton _optPolarRadialStep;
-    private Button _btnTapeMeasure;
-    private Button _btnResetPivotToCenter;
-    private HBoxContainer _rowPolarConfig;
+    private OptionButton _optPolarRingSpacing { get; set; }
+    private OptionButton _optPolarRadialStep { get; set; }
+    private Button _btnTapeMeasure { get; set; }
+    private Button _btnResetPivotToCenter { get; set; }
+    private HBoxContainer _rowPolarConfig { get; set; }
 
     private PanelContainer _panelMeasurementHUD;
     private Label _lblMeasureTelemetry;
