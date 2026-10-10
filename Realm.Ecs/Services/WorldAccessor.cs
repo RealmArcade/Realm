@@ -8,6 +8,8 @@ namespace Realm.Ecs.Services;
 public class WorldAccessor
 {
 	public World Current { get; set; }
+	public long _lastTerrainSyncTime { get; set; } = 0;
+	public long _lastMetadataSyncTime { get; set; } = 0;
 
 	public WorldAccessor(World initialWorld)
 	{

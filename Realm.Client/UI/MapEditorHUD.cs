@@ -421,21 +421,21 @@ public partial class MapEditorHUD : Control
     private MapEditorPathingPanel _pathingPanelController;
     private MapEditorMinimap _minimapController;
     private MapEditorEntityPaletteController _entityPaletteController;
-    private MapEditorGenerationDialog _generationDialog;
+    private MapEditorGenerationDialog _generationDialog { get; set; }
 
-    private bool _wasmHasErrors = false;
-    private string _wasmCompileLogPath = "";
+    private bool _wasmHasErrors { get; set; } = false;
+    private string _wasmCompileLogPath { get; set; } = "";
 
-    public const string TempWorkspaceGodotPath = Realm.Client.Services.MapWorkspaceService.DefaultWorkspaceGodotPath;
+    public static string TempWorkspaceGodotPath => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EditorService>().TempWorkspaceGodotPath;
 
-    private string _tempWorkspacePath = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+    private string _tempWorkspacePath { get => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EditorService>()._tempWorkspacePath; set => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EditorService>()._tempWorkspacePath = value; }
     public string TempWorkspacePath => _tempWorkspacePath;
-    private EditorService _editorService;
-    private IEditorAPI _editorApi;
-    public IEditorAPI EditorApi => _editorApi ??= ServiceLocator.Get<IEditorAPI>();
-    private MapUpgradeService _mapUpgradeService;
-    private long _lastTerrainSyncTime = 0;
-    private long _lastMetadataSyncTime = 0;
+    private EditorService _editorService => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EditorService>();
+    private IEditorAPI _editorApi => Realm.Client.Services.ServiceLocator.Get<Realm.EditorAPI.IEditorAPI>();
+    public IEditorAPI EditorApi => _editorApi;
+    private MapUpgradeService _mapUpgradeService => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.MapUpgradeService>();
+    private long _lastTerrainSyncTime { get => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._lastTerrainSyncTime; set => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._lastTerrainSyncTime = value; }
+    private long _lastMetadataSyncTime { get => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._lastMetadataSyncTime; set => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._lastMetadataSyncTime = value; }
     private bool _isSyncing = false;
     public bool IsSyncing => _isSyncing;
 

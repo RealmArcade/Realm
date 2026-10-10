@@ -16,6 +16,9 @@ namespace Realm.Client.Services;
 
 public class EditorService : IEditorAPI
 {
+	public string TempWorkspaceGodotPath { get; set; } = Realm.Client.Services.MapWorkspaceService.DefaultWorkspaceGodotPath;
+	public string _tempWorkspacePath { get; set; } = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+	
 	private readonly WorldAccessor EcsWorldAccessor;
 	private World EcsWorld => EcsWorldAccessor.Current;
 	public Rect2I? TerrainFlushRegion { get; set; }

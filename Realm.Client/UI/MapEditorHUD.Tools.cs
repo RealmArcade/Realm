@@ -29,10 +29,7 @@ namespace Realm.Client.UI
         {
             Instance = this;
             MetadataService.Instance.MetadataSaved += OnMetadataSaved;
-            _editorService = ServiceLocator.TryGet<EditorService>();
-            _mapUpgradeService = ServiceLocator.TryGet<MapUpgradeService>();
             UpdateFPSVisibility();
-            _tempWorkspacePath = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
 
             _camera3D = (Realm.Client.Core.GameHost.Instance?.MainCamera);
 

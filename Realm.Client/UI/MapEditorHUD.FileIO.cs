@@ -73,7 +73,7 @@ namespace Realm.Client.UI
 
         private void InitializeTempWorkspace()
         {
-            _tempWorkspacePath = ProjectSettings.GlobalizePath(TempWorkspaceGodotPath);
+            // _tempWorkspacePath = ProjectSettings.GlobalizePath(TempWorkspaceGodotPath);
             if (!ReturningFromTest)
             {
                 try
