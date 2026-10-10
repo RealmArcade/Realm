@@ -390,7 +390,8 @@ public partial class MapEditorHUD : Control
     private Button _activeToolButton = null;
     private StyleBoxFlat _highlightStyle;
 
-    private Control _cardRaise, _cardLower, _cardHeight, _cardSmooth, _cardPlateau, _cardRamp, _cardNoise, _cardWater;
+    private Control _cardRaise, _cardLower, _cardHeight, _cardSmooth, _cardRamp, _cardNoise, _cardWater;
+    private Control _cardPlateau { get; set; }
     private Control _cardTextureBrush, _cardFloodFill;
     private Control _cardPathingBrush, _cardFloodFillPathing;
     private Control _cardAddObject, _cardSelectMove, _cardDeleteObject;
