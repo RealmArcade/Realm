@@ -317,19 +317,19 @@ public partial class MapEditorHUD : Control
     private Button _btnNoise;
     private Button _btnWater;
     private PanelContainer _minimapFrame;
-    private Control _minimapArea;
-    private Realm.Client.UI.MapEditor.MapEditorCameraIndicator _cameraIndicator;
-    private Vector3 _lastRaycastPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+    private Control _minimapArea { get; set; }
+    private Realm.Client.UI.MapEditor.MapEditorCameraIndicator _cameraIndicator { get; set; }
+    private Vector3 _lastRaycastPos { get => ServiceLocator.Get<EditorService>().LastRaycastPos; set => ServiceLocator.Get<EditorService>().LastRaycastPos = value; }
 
-    private Button _btnToggleCamera;
-    private PopupPanel _popupCamera;
-    private CheckBox _chkFreeCamera;
+    private Button _btnToggleCamera { get; set; }
+    private PopupPanel _popupCamera { get; set; }
+    private CheckBox _chkFreeCamera { get; set; }
 
 
 
-    private Button _btnRaise;
-    private Button _btnLower;
-    private Button _btnHeight;
+    private Button _btnRaise { get; set; }
+    private Button _btnLower { get; set; }
+    private Button _btnHeight { get; set; }
     private Button _btnSmooth { get; set; }
     private Button _btnPlateau { get; set; }
     private Button _btnRamp { get; set; }
@@ -352,7 +352,7 @@ public partial class MapEditorHUD : Control
     private Button _btnInspectorRotLeft { get; set; }
     private Button _btnInspectorRotRight { get; set; }
     private Button _btnInspectorScaleDown { get; set; }
-    private Button _btnInspectorScaleUp;
+    private Button _btnInspectorScaleUp { get; set; }
     private Button _btnInspectorScaleReset;
     private Button _btnInspectorDelete;
     private Button _btnShowCoverage;

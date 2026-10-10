@@ -16,6 +16,7 @@ namespace Realm.Client.Services;
 
 public class EditorService : IEditorAPI
 {
+    public Vector3 LastRaycastPos { get; set; } = new Vector3(float.MinValue, float.MinValue, float.MinValue);
 	public static readonly float[] PolarRingSpacingOptions = new[] { 4.0f, 8.0f, 16.0f, 32.0f };
 	public bool IsSyncing { get; set; } = false;
 	public bool IsMapEditorMode { get; set; }
