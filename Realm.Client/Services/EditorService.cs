@@ -28,6 +28,16 @@ public class EditorService : IEditorAPI
 	public int PendingCoordinateMaxX { get; set; }
 	public int PendingCoordinateMaxZ { get; set; }
 
+	public float EditorPlacementRotation { get; set; } = 0.0f;
+	public float EditorPlacementScale { get; set; } = 1.0f;
+	public Realm.Client.Core.GameHost.GridOverlayMode EditorGridMode { get; set; } = Realm.Client.Core.GameHost.GridOverlayMode.Off;
+	public bool EditorCameraBoundsVisible { get; set; } = false;
+	public bool EditorDisableShadows { get; set; } = false;
+	public int EditorPolarSpokeFolds { get; set; } = 4;
+	public bool EditorPolarOverlayVisible { get; set; } = false;
+	public float EditorPolarRingSpacing { get; set; } = 8.0f;
+	public float EditorPolarRadialStep { get; set; } = 90.0f;
+	public Godot.Vector3? EditorTapeMeasureStart { get; set; }
 
 	public bool SavedDisableShadows { get; set; } = false;
 	public string SavedEntityCategory { get; set; } = "";

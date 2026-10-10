@@ -463,18 +463,18 @@ public partial class GameHost : Node3D, IGameAPI
 	public int EditorPaintTextureIndex = 3;
 	public int EditorCliffPaintTextureIndex = 1;
 	public bool EditorSnapToGrid = false;
-	public float EditorPlacementRotation = 0.0f;
-	private float _editorPlacementScale = 1.0f;
+	public float EditorPlacementRotation { get => _editorService.EditorPlacementRotation; set => _editorService.EditorPlacementRotation = value; }
+	private float _editorPlacementScale { get => _editorService.EditorPlacementScale; set => _editorService.EditorPlacementScale = value; }
 	public float EditorPlacementScale
 	{
 		get => _editorPlacementScale;
 		set => _editorPlacementScale = Mathf.Clamp(value, MIN_PLACEMENT_SCALE, MAX_PLACEMENT_SCALE);
 	}
 	public enum GridOverlayMode { Off, Grid, Polar, Both }
-	public GridOverlayMode EditorGridMode = GridOverlayMode.Off;
+	public GridOverlayMode EditorGridMode { get => _editorService.EditorGridMode; set => _editorService.EditorGridMode = value; }
 	public bool EditorGridVisible => EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both;
-	public bool EditorCameraBoundsVisible = false;
-	public bool EditorDisableShadows = false;
+	public bool EditorCameraBoundsVisible { get => _editorService.EditorCameraBoundsVisible; set => _editorService.EditorCameraBoundsVisible = value; }
+	public bool EditorDisableShadows { get => _editorService.EditorDisableShadows; set => _editorService.EditorDisableShadows = value; }
 	public float EditorCameraBoundsLeft
 	{
 		get => _editorService.GetCameraBoundsLeft(_worldEntity);
@@ -542,12 +542,12 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	public int EditorPolarSpokeFolds = 4;
-	public bool EditorPolarOverlayVisible = false;
-	public float EditorPolarRingSpacing = 8.0f;
-	public float EditorPolarRadialStep = 90.0f;
+	public int EditorPolarSpokeFolds { get => _editorService.EditorPolarSpokeFolds; set => _editorService.EditorPolarSpokeFolds = value; }
+	public bool EditorPolarOverlayVisible { get => _editorService.EditorPolarOverlayVisible; set => _editorService.EditorPolarOverlayVisible = value; }
+	public float EditorPolarRingSpacing { get => _editorService.EditorPolarRingSpacing; set => _editorService.EditorPolarRingSpacing = value; }
+	public float EditorPolarRadialStep { get => _editorService.EditorPolarRadialStep; set => _editorService.EditorPolarRadialStep = value; }
 
-	public Vector3? EditorTapeMeasureStart;
+	public Vector3? EditorTapeMeasureStart { get => _editorService.EditorTapeMeasureStart; set => _editorService.EditorTapeMeasureStart = value; }
 	public Vector3? EditorTapeMeasureEnd;
 	public bool EditorTapeMeasureActive = false;
 
