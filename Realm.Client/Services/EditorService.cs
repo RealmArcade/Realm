@@ -189,6 +189,13 @@ public class EditorService : IEditorAPI
 		public List<Node3D> NodesToDelete;
 	}
 
+	public bool PasteOptionTextures { get; set; } = true;
+	public bool PasteOptionHeights { get; set; } = true;
+	public Vector3 DragObjectStartHitPos { get; set; }
+	public Vector2 DragStartMousePos { get; set; }
+	public Vector3 DragStartGroundPos { get; set; }
+	public bool DragObjectHasMoved { get; set; }
+
 	public EditorService(WorldAccessor ecsWorldAccessor)
 	{
 		EcsWorldAccessor = ecsWorldAccessor;

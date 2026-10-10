@@ -638,9 +638,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private Node? _hoveredEditorObject;
 	private MeshInstance3D? _selectionHighlightMesh;
-	private MeshInstance3D? _coordinatePreviewMesh;
-	private MeshInstance3D? _coordinateSelectionOutlineMesh;
-	private readonly List<MeshInstance3D> _coordinatePersistentMeshes = new();
+	private MeshInstance3D? _coordinatePreviewMesh { get; set; }
+	private MeshInstance3D? _coordinateSelectionOutlineMesh { get; set; }
+	private List<MeshInstance3D> _coordinatePersistentMeshes { get; set; } = new();
 
 
 
@@ -648,8 +648,16 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		_editorService.GenerateNewRandomPlacementRotationAndScale();
 	}
-	public bool PasteOptionTextures = true;
-	public bool PasteOptionHeights = true;
+	public bool PasteOptionTextures 
+	{
+		get => _editorService.PasteOptionTextures;
+		set => _editorService.PasteOptionTextures = value;
+	}
+	public bool PasteOptionHeights
+	{
+		get => _editorService.PasteOptionHeights;
+		set => _editorService.PasteOptionHeights = value;
+	}
 	public bool PasteOptionEntities
 	{
 		get => _editorService.PasteOptionEntities;
@@ -747,11 +755,27 @@ public partial class GameHost : Node3D, IGameAPI
 	private Vector3 _dragObjectStartRot { get; set; }
 	private Vector3 _dragObjectStartScale { get; set; }
 	private bool _dragObjectStartIsEnemy { get; set; }
-	private Vector3 _dragObjectStartHitPos;
-	private Vector2 _dragStartMousePos;
-	private Vector3 _dragStartGroundPos;
-	private bool _dragObjectHasMoved;
-	private Node3D _editorPreviewNode;
+	private Vector3 _dragObjectStartHitPos
+	{
+		get => _editorService.DragObjectStartHitPos;
+		set => _editorService.DragObjectStartHitPos = value;
+	}
+	private Vector2 _dragStartMousePos
+	{
+		get => _editorService.DragStartMousePos;
+		set => _editorService.DragStartMousePos = value;
+	}
+	private Vector3 _dragStartGroundPos
+	{
+		get => _editorService.DragStartGroundPos;
+		set => _editorService.DragStartGroundPos = value;
+	}
+	private bool _dragObjectHasMoved
+	{
+		get => _editorService.DragObjectHasMoved;
+		set => _editorService.DragObjectHasMoved = value;
+	}
+	private Node3D _editorPreviewNode { get; set; }
 	private string _editorPreviewType = "";
 	private string _editorPreviewId = "";
 	private bool _editorPreviewIsEnemy;
