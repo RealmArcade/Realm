@@ -259,11 +259,11 @@ public partial class MapEditorHUD : Control
     private Realm.Client.UI.MapEditor.AbilityVfxDialog _abilityVfxDialog;
     private Realm.Client.UI.MapEditor.AssetManagerDialog _assetManagerDialog;
     private Realm.Client.UI.MapEditor.TemplateManagerDialog _templateManagerDialog;
-    private Realm.Client.UI.MapEditor.InstanceManagerDialog _instanceManagerDialog;
-    private Realm.Client.UI.MapEditor.AssetBrowserDialog _assetBrowserDialog;
-    private Realm.Client.UI.MapEditor.NoiseTextureDialog _noiseTextureDialog;
-    private Realm.Client.UI.MapEditor.ConvertGlbDialog _convertGlbDialog;
-    private Realm.Client.UI.MapEditor.EditorSettingsDialog _editorSettingsDialog;
+    private Realm.Client.UI.MapEditor.InstanceManagerDialog _instanceManagerDialog { get; set; }
+    private Realm.Client.UI.MapEditor.AssetBrowserDialog _assetBrowserDialog { get; set; }
+    private Realm.Client.UI.MapEditor.NoiseTextureDialog _noiseTextureDialog { get; set; }
+    private Realm.Client.UI.MapEditor.ConvertGlbDialog _convertGlbDialog { get; set; }
+    private Realm.Client.UI.MapEditor.EditorSettingsDialog _editorSettingsDialog { get; set; }
     private Realm.Client.UI.MapEditor.ShaderEditorDialog _shaderEditorDialog { get; set; }
     private Realm.Client.UI.MapEditor.VfxStudioDialog _vfxStudioDialog { get; set; }
     private Realm.Client.UI.MapEditor.ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog { get; set; }
@@ -274,7 +274,7 @@ public partial class MapEditorHUD : Control
     private Label _lblMapNameHeader { get; set; }
     private double _mapNameUpdateTimer { get; set; } = 0.0;
     private Button _btnOpenGlobalOverrides { get; set; }
-    private Button _btnOpenAnimationPreview;
+    private Button _btnOpenAnimationPreview { get; set; }
     private Button BtnEditVfx { get; set; }
     private Button BtnEditAttachments { get; set; }
     private Button BtnAssetsManager { get; set; }
@@ -287,10 +287,10 @@ public partial class MapEditorHUD : Control
     private HBoxContainer RowGroundTexture { get; set; }
     private HBoxContainer RowCliffTexture { get; set; }
 
-    private Slider _sldPlacementRotate;
-    private Label _lblPlacementRotateValue;
-    private Slider _sldPlacementScale;
-    private Label _lblPlacementScaleValue;
+    private Slider _sldPlacementRotate { get; set; }
+    private Label _lblPlacementRotateValue { get; set; }
+    private Slider _sldPlacementScale { get; set; }
+    private Label _lblPlacementScaleValue { get; set; }
     private VBoxContainer _placementRotateBox;
     private VBoxContainer _placementScaleBox;
     private Button _btnCopy { get; set; }
