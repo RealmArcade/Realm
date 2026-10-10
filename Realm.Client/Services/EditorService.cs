@@ -23,6 +23,17 @@ public class EditorService : IEditorAPI
 	private World EcsWorld => EcsWorldAccessor.Current;
 	public Rect2I? TerrainFlushRegion { get; set; }
 	public List<Realm.Client.Core.GameHost.EditorCoordinate> EditorCoordinates { get; set; } = new();
+
+	public bool SavedDisableShadows { get; set; } = false;
+	public string SavedEntityCategory { get; set; } = "";
+	public float SavedBrushRadius { get; set; } = 2f;
+	public float SavedBrushStrength { get; set; } = 0.5f;
+	public float SavedTextureIntensity { get; set; } = 10f;
+	public string? LastUsedFolder { get; set; } = null;
+	public string? CurrentSourceFolder { get; set; } = null;
+	public string? PendingCasSourceDirectory { get; set; } = null;
+	public string? PendingDefaultSaveFolder { get; set; } = null;
+
 	public const float MIN_BRUSH_RADIUS = 1.0f;
 	public const float MAX_BRUSH_RADIUS = 20.0f;
 	public const float MIN_BRUSH_STRENGTH = 0.0f;

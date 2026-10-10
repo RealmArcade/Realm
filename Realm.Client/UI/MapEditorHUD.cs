@@ -45,20 +45,20 @@ public partial class MapEditorHUD : Control
     public static Realm.Client.Core.GameHost.EditorTool SavedActiveTool = Realm.Client.Core.GameHost.EditorTool.Raise;
     public static string SavedActivePlaceId = "";
     public static bool SavedCameraBoundsVisible = false;
-    public static bool SavedDisableShadows = false;
-    public static string SavedEntityCategory = "";
+    public static bool SavedDisableShadows { get => ServiceLocator.Get<EditorService>().SavedDisableShadows; set => ServiceLocator.Get<EditorService>().SavedDisableShadows = value; }
+    public static string SavedEntityCategory { get => ServiceLocator.Get<EditorService>().SavedEntityCategory; set => ServiceLocator.Get<EditorService>().SavedEntityCategory = value; }
 
-    public static float SavedBrushRadius = 2f;
-    public static float SavedBrushStrength = 0.5f;
-    public static float SavedTextureIntensity = 10f;
+    public static float SavedBrushRadius { get => ServiceLocator.Get<EditorService>().SavedBrushRadius; set => ServiceLocator.Get<EditorService>().SavedBrushRadius = value; }
+    public static float SavedBrushStrength { get => ServiceLocator.Get<EditorService>().SavedBrushStrength; set => ServiceLocator.Get<EditorService>().SavedBrushStrength = value; }
+    public static float SavedTextureIntensity { get => ServiceLocator.Get<EditorService>().SavedTextureIntensity; set => ServiceLocator.Get<EditorService>().SavedTextureIntensity = value; }
 
-    private static string? _lastUsedFolder = null;
-    private static string? _currentSourceFolder = null;
+    private static string? _lastUsedFolder { get => ServiceLocator.Get<EditorService>().LastUsedFolder; set => ServiceLocator.Get<EditorService>().LastUsedFolder = value; }
+    private static string? _currentSourceFolder { get => ServiceLocator.Get<EditorService>().CurrentSourceFolder; set => ServiceLocator.Get<EditorService>().CurrentSourceFolder = value; }
 
-    private static string? _pendingCasSourceDirectory = null;
-    private static string? _pendingDefaultSaveFolder = null;
+    private static string? _pendingCasSourceDirectory { get => ServiceLocator.Get<EditorService>().PendingCasSourceDirectory; set => ServiceLocator.Get<EditorService>().PendingCasSourceDirectory = value; }
+    private static string? _pendingDefaultSaveFolder { get => ServiceLocator.Get<EditorService>().PendingDefaultSaveFolder; set => ServiceLocator.Get<EditorService>().PendingDefaultSaveFolder = value; }
 
-    private static bool _agreementShownThisSession = false;
+    private static bool _agreementShownThisSession { get; set; } = false;
 
     public enum EditorModule
     {
