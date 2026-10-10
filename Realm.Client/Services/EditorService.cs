@@ -44,6 +44,16 @@ public class EditorService : IEditorAPI
 	public int LastSelectionMaxZ { get; set; } = -1;
 	public bool LastSelectionBrushIsSquare { get; set; } = true;
 
+	public int CurrentPasteAnchorIndex { get; set; } = 0;
+	public static readonly string[] PasteAnchorNames = new string[]
+	{
+		"CENTER",
+		"TOP-LEFT",
+		"TOP-RIGHT",
+		"BOTTOM-RIGHT",
+		"BOTTOM-LEFT"
+	};
+
 	private readonly WorldAccessor EcsWorldAccessor;
 	private World EcsWorld => EcsWorldAccessor.Current;
 	public Rect2I? TerrainFlushRegion { get; set; }

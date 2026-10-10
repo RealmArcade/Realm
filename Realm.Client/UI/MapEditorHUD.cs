@@ -150,10 +150,10 @@ public partial class MapEditorHUD : Control
     private VBoxContainer _panelClipboard;
     private VBoxContainer _panelTerrainVBox;
     private VBoxContainer _panelDecoVBox;
-    private VBoxContainer _panelPathingVBox;
-    private VBoxContainer _panelCoordinatesVBox;
-    private Button _btnCut;
-    private Button _btnEraseArea;
+    private VBoxContainer _panelPathingVBox { get; set; }
+    private VBoxContainer _panelCoordinatesVBox { get; set; }
+    private Button _btnCut { get; set; }
+    private Button _btnEraseArea { get; set; }
     private Button _btnPasteReflection { get; set; }
     private Button _btnClipboardBrushShape { get; set; }
     private OptionButton _optClipboardMirrorMode { get; set; }
@@ -166,21 +166,14 @@ public partial class MapEditorHUD : Control
     private Button _btnResetPivotToCenter { get; set; }
     private HBoxContainer _rowPolarConfig { get; set; }
 
-    private PanelContainer _panelMeasurementHUD;
-    private Label _lblMeasureTelemetry;
+    private PanelContainer _panelMeasurementHUD { get; set; }
+    private Label _lblMeasureTelemetry { get; set; }
 
-    private Button _btnPasteAnchor;
-    private Label _lblPasteTelemetry;
+    private Button _btnPasteAnchor { get; set; }
+    private Label _lblPasteTelemetry { get; set; }
 
-    private int _currentPasteAnchorIndex = 0;
-    private static readonly string[] _pasteAnchorNames = new string[]
-    {
-        "CENTER",
-        "TOP-LEFT",
-        "TOP-RIGHT",
-        "BOTTOM-RIGHT",
-        "BOTTOM-LEFT"
-    };
+    private int _currentPasteAnchorIndex { get => ServiceLocator.Get<EditorService>().CurrentPasteAnchorIndex; set => ServiceLocator.Get<EditorService>().CurrentPasteAnchorIndex = value; }
+    private static readonly string[] _pasteAnchorNames = EditorService.PasteAnchorNames;
 
     private List<Button> _swatchButtons = new List<Button>();
     private List<string> _swatchPaths = new List<string>();
