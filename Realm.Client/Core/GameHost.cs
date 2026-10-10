@@ -844,13 +844,13 @@ public partial class GameHost : Node3D, IGameAPI
 
 
 
-	public static readonly Dictionary<StringName, UnitMetadata> UnitRegistry = new();
-	public static readonly Dictionary<StringName, UnitMetadata> BuildingRegistry = new();
-	public static readonly Dictionary<StringName, PropMetadata> PropRegistry = new();
-	public static readonly Dictionary<StringName, ResourceMetadata> ResourceRegistry = new();
-	public static readonly Dictionary<StringName, WeaponMetadata> WeaponRegistry = new();
-	public static readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
-	public static readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
+	public static Dictionary<StringName, UnitMetadata> UnitRegistry => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.RegistryService>()?.UnitRegistry ?? new();
+	public static Dictionary<StringName, UnitMetadata> BuildingRegistry => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.RegistryService>()?.BuildingRegistry ?? new();
+	public static Dictionary<StringName, PropMetadata> PropRegistry => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.RegistryService>()?.PropRegistry ?? new();
+	public static Dictionary<StringName, ResourceMetadata> ResourceRegistry => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.RegistryService>()?.ResourceRegistry ?? new();
+	public static Dictionary<StringName, WeaponMetadata> WeaponRegistry => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.RegistryService>()?.WeaponRegistry ?? new();
+	public static Dictionary<StringName, AttachmentMetadata> AttachmentRegistry => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.RegistryService>()?.AttachmentRegistry ?? new();
+	public static Dictionary<StringName, ItemMetadata> ItemRegistry => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.RegistryService>()?.ItemRegistry ?? new();
 
 	public static bool TryGetUnitOrBuildingMetadata(StringName objectId, out UnitMetadata meta)
 	{
@@ -891,9 +891,9 @@ public partial class GameHost : Node3D, IGameAPI
 		set => EcsWorld?.Mutate<ReplayState>(_worldEntity, (ref ReplayState s) => s.StoneBackup = value);
 	}
 
-	private IMapScript _activeMapScript;
-	public static string? PendingMapScriptPath;
-	private System.Runtime.Loader.AssemblyLoadContext? _mapScriptLoadContext;
+	private IMapScript? _activeMapScript { get => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.MapScriptService>()?.ActiveMapScript; set { var s = Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.MapScriptService>(); if (s != null) s.ActiveMapScript = value; } }
+	public static string? PendingMapScriptPath { get => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.MapScriptService>()?.PendingMapScriptPath; set { var s = Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.MapScriptService>(); if (s != null) s.PendingMapScriptPath = value; } }
+	private System.Runtime.Loader.AssemblyLoadContext? _mapScriptLoadContext { get => Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.MapScriptService>()?.MapScriptLoadContext; set { var s = Realm.Client.Services.ServiceLocator.TryGet<Realm.Client.Services.MapScriptService>(); if (s != null) s.MapScriptLoadContext = value; } }
 
 	private class MapScriptLoadContext : System.Runtime.Loader.AssemblyLoadContext
 	{

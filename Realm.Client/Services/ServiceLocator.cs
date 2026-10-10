@@ -75,6 +75,8 @@ namespace Realm.Client.Services
 			services.AddSingleton<Realm.Client.Services.MapUpgradeService>();
 			services.AddSingleton<Realm.Client.Services.MapStorageService>();
 			services.AddSingleton<Realm.Client.Services.MapSaveDataService>();
+			services.AddSingleton<RegistryService>();
+			services.AddSingleton<MapScriptService>();
 			services.AddSingleton<SimulationService>(sp =>
 			{
 				return new SimulationService(sp.GetRequiredService<WorldAccessor>(), Entity.Null, pathfinder);
@@ -90,6 +92,8 @@ namespace Realm.Client.Services
 			Get<EnvironmentService>()?.Cleanup();
 			Get<EditorService>()?.ResetAllState();
 			Get<ModelOverrideService>()?.ClearAll();
+			Get<RegistryService>()?.ClearAll();
+			Get<MapScriptService>()?.ClearAll();
 			Get<World>()?.Dispose();
 
 			_provider = null;
