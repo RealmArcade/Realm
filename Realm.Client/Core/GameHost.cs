@@ -373,7 +373,7 @@ public partial class GameHost : Node3D, IGameAPI
 			UpdatePathingOverlay();
 		}
 	}
-	public string ActivePlaceId = ""; // "soldier", "tree", etc.
+	public string ActivePlaceId { get; set; } = ""; // "soldier", "tree", etc.
 
 	public struct EditorCoordinate
 	{
@@ -384,7 +384,7 @@ public partial class GameHost : Node3D, IGameAPI
 		public float MaxZ;
 	}
 
-	public List<EditorCoordinate> EditorCoordinates = new();
+	public List<EditorCoordinate> EditorCoordinates { get => _editorService.EditorCoordinates; set => _editorService.EditorCoordinates = value; }
 	public string GetTerrainStatusString(Vector3 hitPos)
 	{
 		return _editorService.GetTerrainStatusString(hitPos, ActiveEditorTool.ToString(), ActivePlaceId);
@@ -410,14 +410,14 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 		return _terrainImportService.ImportTerrain(_worldEntity, selectedPath, out smoothedHeights, out splatMap, out treePositions);
 	}
-	public const float MIN_BRUSH_RADIUS = 1.0f;
-	public const float MAX_BRUSH_RADIUS = 20.0f;
-	public const float MIN_BRUSH_STRENGTH = 0.0f;
-	public const float MAX_BRUSH_STRENGTH = 10.0f;
-	public const float MIN_PLACEMENT_SCALE = 0.25f;
-	public const float MAX_PLACEMENT_SCALE = 5.0f;
-	public const float MIN_CLUMP_COUNT = 1.0f;
-	public const float MAX_CLUMP_COUNT = 20.0f;
+	public const float MIN_BRUSH_RADIUS = Realm.Client.Services.EditorService.MIN_BRUSH_RADIUS;
+	public const float MAX_BRUSH_RADIUS = Realm.Client.Services.EditorService.MAX_BRUSH_RADIUS;
+	public const float MIN_BRUSH_STRENGTH = Realm.Client.Services.EditorService.MIN_BRUSH_STRENGTH;
+	public const float MAX_BRUSH_STRENGTH = Realm.Client.Services.EditorService.MAX_BRUSH_STRENGTH;
+	public const float MIN_PLACEMENT_SCALE = Realm.Client.Services.EditorService.MIN_PLACEMENT_SCALE;
+	public const float MAX_PLACEMENT_SCALE = Realm.Client.Services.EditorService.MAX_PLACEMENT_SCALE;
+	public const float MIN_CLUMP_COUNT = Realm.Client.Services.EditorService.MIN_CLUMP_COUNT;
+	public const float MAX_CLUMP_COUNT = Realm.Client.Services.EditorService.MAX_CLUMP_COUNT;
 	public const float MIN_CLUMP_SCALE = 0.0f;
 	public const float MAX_CLUMP_SCALE = 1.0f;
 

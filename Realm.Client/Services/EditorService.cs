@@ -19,6 +19,16 @@ public class EditorService : IEditorAPI
 	private readonly WorldAccessor EcsWorldAccessor;
 	private World EcsWorld => EcsWorldAccessor.Current;
 	public Rect2I? TerrainFlushRegion { get; set; }
+	public List<Realm.Client.Core.GameHost.EditorCoordinate> EditorCoordinates { get; set; } = new();
+	public const float MIN_BRUSH_RADIUS = 1.0f;
+	public const float MAX_BRUSH_RADIUS = 20.0f;
+	public const float MIN_BRUSH_STRENGTH = 0.0f;
+	public const float MAX_BRUSH_STRENGTH = 10.0f;
+	public const float MIN_PLACEMENT_SCALE = 0.25f;
+	public const float MAX_PLACEMENT_SCALE = 5.0f;
+	public const float MIN_CLUMP_COUNT = 1.0f;
+	public const float MAX_CLUMP_COUNT = 20.0f;
+
 
 	private TerrainSplatWeights[,] _terrainSplatMap;
 	private TerrainSplatWeights[,] _terrainCliffSplatMap;
