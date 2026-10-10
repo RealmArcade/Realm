@@ -434,7 +434,7 @@ public partial class MapEditorHUD : Control
     private MapEditorInspector _inspectorController;
     private MapEditorPathingPanel _pathingPanelController;
     private MapEditorMinimap _minimapController;
-    private MapEditorEntityPaletteController _entityPaletteController;
+    private MapEditorEntityPaletteController _entityPaletteController { get; set; }
     private MapEditorGenerationDialog _generationDialog { get; set; }
 
     private bool _wasmHasErrors { get; set; } = false;
@@ -450,10 +450,10 @@ public partial class MapEditorHUD : Control
     private MapUpgradeService _mapUpgradeService => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.MapUpgradeService>();
     private long _lastTerrainSyncTime { get => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._lastTerrainSyncTime; set => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._lastTerrainSyncTime = value; }
     private long _lastMetadataSyncTime { get => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._lastMetadataSyncTime; set => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._lastMetadataSyncTime = value; }
-    private bool _isSyncing = false;
+    private bool _isSyncing { get => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EditorService>().IsSyncing; set => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EditorService>().IsSyncing = value; }
     public bool IsSyncing => _isSyncing;
 
-    private double _autoBackupElapsedSeconds = 0;
+    private double _autoBackupElapsedSeconds { get => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EditorService>().AutoBackupElapsedSeconds; set => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.EditorService>().AutoBackupElapsedSeconds = value; }
 
 
 
@@ -880,7 +880,7 @@ public partial class MapEditorHUD : Control
 
     private static int[] SpokeCountOptions => EditorService.SpokeCountOptions;
 
-    private static readonly float[] PolarRingSpacingOptions = new[] { 4.0f, 8.0f, 16.0f, 32.0f };
+    private static float[] PolarRingSpacingOptions => Realm.Client.Services.EditorService.PolarRingSpacingOptions;
 
 
     private void UpdatePanelVisibilityForModule(EditorModule module)
@@ -973,7 +973,7 @@ public partial class MapEditorHUD : Control
         UpdateCardScrollState(_contentInspector, 300f);
     }
 
-    private FontVariation _faFontVariation;
+    private FontVariation _faFontVariation { get; set; }
 
     private void StyleGridButton(Button btn)
     {
@@ -1025,7 +1025,7 @@ public partial class MapEditorHUD : Control
         btn.Alignment = HorizontalAlignment.Center;
     }
 
-    private readonly HashSet<ulong> _hookedSliderInstanceIds = new();
+    private HashSet<ulong> _hookedSliderInstanceIds { get; set; } = new();
 
 
     public bool IsMouseOverUI(Vector2 mousePos)
@@ -1174,7 +1174,7 @@ public partial class MapEditorHUD : Control
 
     public Realm.Client.UI.MapEditor.WeaponVfxDialog WeaponVfxDialog => _weaponVfxDialog;
 
-    private Realm.Client.UI.MapEditor.ObjectAttachmentDialog _objectAttachmentDialog;
+    private Realm.Client.UI.MapEditor.ObjectAttachmentDialog _objectAttachmentDialog { get; set; }
 
 
     public async System.Threading.Tasks.Task ProceedToTestMap()
@@ -1335,10 +1335,10 @@ public partial class MapEditorHUD : Control
     }
 
 
-    private readonly Dictionary<int, Texture2D> _swatchTextureCache = new();
+    private Dictionary<int, Texture2D> _swatchTextureCache { get; set; } = new();
 
-    private string? _cachedMapName;
-    private string? _cachedMapVersion;
+    private string? _cachedMapName { get => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._cachedMapName; set => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._cachedMapName = value; }
+    private string? _cachedMapVersion { get => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._cachedMapVersion; set => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._cachedMapVersion = value; }
     private long _lastMapNameCacheTicks;
 
     public void InvalidateMetadataCache()

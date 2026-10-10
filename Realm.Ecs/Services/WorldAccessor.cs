@@ -7,6 +7,8 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class WorldAccessor
 {
+	public string? _cachedMapName { get; set; }
+	public string? _cachedMapVersion { get; set; }
 	public World Current { get; set; }
 	public long _lastTerrainSyncTime { get; set; } = 0;
 	public long _lastMetadataSyncTime { get; set; } = 0;

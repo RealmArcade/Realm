@@ -16,6 +16,9 @@ namespace Realm.Client.Services;
 
 public class EditorService : IEditorAPI
 {
+	public static readonly float[] PolarRingSpacingOptions = new[] { 4.0f, 8.0f, 16.0f, 32.0f };
+	public bool IsSyncing { get; set; } = false;
+	public double AutoBackupElapsedSeconds { get; set; } = 0;
 	public string TempWorkspaceGodotPath { get; set; } = Realm.Client.Services.MapWorkspaceService.DefaultWorkspaceGodotPath;
 	public string _tempWorkspacePath { get; set; } = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
 	
