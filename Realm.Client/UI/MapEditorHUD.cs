@@ -383,14 +383,19 @@ public partial class MapEditorHUD : Control
     private Button _btnCommitCoordinate;
     private VBoxContainer _coordinateListVBox;
     private int _pendingCoordinateMinX;
-    private int _pendingCoordinateMinZ;
-    private int _pendingCoordinateMaxX;
-    private int _pendingCoordinateMaxZ;
+    private int _pendingCoordinateMinZ { get => ServiceLocator.Get<EditorService>().PendingCoordinateMinZ; set => ServiceLocator.Get<EditorService>().PendingCoordinateMinZ = value; }
+    private int _pendingCoordinateMaxX { get => ServiceLocator.Get<EditorService>().PendingCoordinateMaxX; set => ServiceLocator.Get<EditorService>().PendingCoordinateMaxX = value; }
+    private int _pendingCoordinateMaxZ { get => ServiceLocator.Get<EditorService>().PendingCoordinateMaxZ; set => ServiceLocator.Get<EditorService>().PendingCoordinateMaxZ = value; }
 
-    private Button _activeToolButton = null;
-    private StyleBoxFlat _highlightStyle;
+    private Button _activeToolButton { get; set; } = null;
+    private StyleBoxFlat _highlightStyle { get; set; }
 
-    private Control _cardRaise, _cardLower, _cardHeight, _cardSmooth, _cardRamp, _cardNoise;
+    private Control _cardRaise { get; set; }
+    private Control _cardLower { get; set; }
+    private Control _cardHeight { get; set; }
+    private Control _cardSmooth { get; set; }
+    private Control _cardRamp { get; set; }
+    private Control _cardNoise { get; set; }
     private Control _cardWater { get; set; }
     private Control _cardPlateau { get; set; }
     private Control _cardTextureBrush { get; set; }
