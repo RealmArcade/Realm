@@ -236,16 +236,16 @@ public partial class MapEditorHUD : Control
 
 
     private CheckBox _chkRandomRotation;
-    private CheckBox _chkRandomScale;
-    private Button _btnAddObject;
-    private CheckBox _chkClumpMode;
-    private Control _spacingBox;
-    private Control _densityBox;
-    private Control _scaleVarBox;
-    private Control _camBoundsBox;
-    private CheckBox _chkBlockMode;
-    private Slider _sldBlockStep;
-    private Label _lblBlockStepValue;
+    private CheckBox _chkRandomScale { get; set; }
+    private Button _btnAddObject { get; set; }
+    private CheckBox _chkClumpMode { get; set; }
+    private Control _spacingBox { get; set; }
+    private Control _densityBox { get; set; }
+    private Control _scaleVarBox { get; set; }
+    private Control _camBoundsBox { get; set; }
+    private CheckBox _chkBlockMode { get; set; }
+    private Slider _sldBlockStep { get; set; }
+    private Label _lblBlockStepValue { get; set; }
     private Control _heightBox;
     private Slider _sldHeight;
     private Label _lblHeightValue;
