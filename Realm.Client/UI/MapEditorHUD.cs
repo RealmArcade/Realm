@@ -342,18 +342,18 @@ public partial class MapEditorHUD : Control
     private OptionButton _optMirrorMode;
     private OptionButton _optPlacementMirrorMode;
     private Button _btnClumpBrush;
-    private HSlider _sldClumpDensity;
-    private Label _lblClumpDensityValue;
-    private HSlider _sldClumpScaleVar;
-    private Label _lblClumpScaleVarValue;
+    private HSlider _sldClumpDensity { get; set; }
+    private Label _lblClumpDensityValue { get; set; }
+    private HSlider _sldClumpScaleVar { get; set; }
+    private Label _lblClumpScaleVarValue { get; set; }
 
-    private Button _btnTextureBrush;
+    private Button _btnTextureBrush { get; set; }
 
-    private Button _btnFloodFill;
-    private Button _btnSelectArea;
-    private Button _btnSelectMove;
-    private PanelContainer _inspectorPanel;
-    private Label _lblInspectorTitle;
+    private Button _btnFloodFill { get; set; }
+    private Button _btnSelectArea { get; set; }
+    private Button _btnSelectMove { get; set; }
+    private PanelContainer _inspectorPanel { get; set; }
+    private Label _lblInspectorTitle { get; set; }
     private Label _lblInspectorPos;
     private Button _btnInspectorRotLeft;
     private Button _btnInspectorRotRight;
