@@ -26,20 +26,12 @@ public partial class GameHost
 		_replayService = ServiceLocator.Get<ReplayService>();
 		_networkService = ServiceLocator.Get<NetworkService>();
 		_inputService = ServiceLocator.Get<InputService>();
-		_shroudService = ServiceLocator.Get<ShroudService>();
-		_unitSpawnService = ServiceLocator.Get<UnitSpawnService>();
-		_worldInitService = ServiceLocator.Get<WorldInitService>();
-		_mapPropertiesLoader = ServiceLocator.Get<MapPropertiesLoader>();
-		_terrainImportService = ServiceLocator.Get<MapEditorTerrainImportService>();
-		_cheatService = ServiceLocator.Get<CheatService>();
-		_environmentService = ServiceLocator.Get<EnvironmentService>();
-		_spectatorService = ServiceLocator.Get<SpectatorService>();
-		_modelOptimizerService = ServiceLocator.Get<Realm.Client.Services.ModelOptimization.ModelOptimizerService>();
+
 		_terrainNavMeshService = ServiceLocator.Get<TerrainNavMeshService>();
 		_metadataService = ServiceLocator.Get<Realm.Client.Services.MetadataService>();
 		_mapUpgradeService = ServiceLocator.Get<Realm.Client.Services.MapUpgradeService>();
 		_mapStorageService = ServiceLocator.Get<Realm.Client.Services.MapStorageService>();
 		_mapSaveDataService = ServiceLocator.Get<Realm.Client.Services.MapSaveDataService>();
-		_simulationService = ServiceLocator.Get<SimulationService>();
+
 	}
 }
