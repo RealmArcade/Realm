@@ -5,6 +5,8 @@
 __pycache__
 MapTemplate/lib/Realm.MapAPI.dll
 MapTemplate/lib/Realm.MapAPI.pdb
+MapTemplate/lib/Realm.EditorAPI.dll
+MapTemplate/lib/Realm.EditorAPI.pdb
 obj/
 bin/
 *.user
@@ -20,5 +22,5 @@ Realm.AdminServer/.data
 *.admin_key
 admin_private.key
 servers.json
-Realm.Godot/servers.json
+Realm.Clientservers.json
 Realm.AdminServer/appsettings.json

@@ -1,9 +1,9 @@
-﻿namespace Realm.Ecs.Components.Terrain
+namespace Realm.Ecs.Components.Terrain
 {
 	/// <summary>
 	/// Represents the domain data for atmospheric weather conditions and environmental fog.
 	/// </summary>
-	internal struct WeatherState
+	public struct WeatherState
 	{
 		public string CurrentWeather;
 		public float BaseFogDensity;

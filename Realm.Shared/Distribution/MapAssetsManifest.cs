@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -64,6 +62,14 @@ public class MapAssetsManifest
 
 	public Dictionary<string, string> GetCategory(string category)
 	{
+		if (GetCategoryPart1(category) is { } part1) return part1;
+		if (GetCategoryPart2(category) is { } part2) return part2;
+
+		return GetOrAddExtensionCategory(category);
+	}
+
+	private Dictionary<string, string>? GetCategoryPart1(string category)
+	{
 		return category switch
 		{
 			"Animation" => Animation,
@@ -75,6 +81,14 @@ public class MapAssetsManifest
 			"Music" => Music,
 			"Noise" => Noise,
 			"Prop" => Prop,
+			_ => null
+		};
+	}
+
+	private Dictionary<string, string>? GetCategoryPart2(string category)
+	{
+		return category switch
+		{
 			"Ribbon" => Ribbon,
 			"Shader" => Shader,
 			"Skybox" => Skybox,
@@ -83,7 +97,7 @@ public class MapAssetsManifest
 			"Terrain" => Terrain,
 			"vfx_radial" => VfxRadial,
 			"vfx_vertical" => VfxVertical,
-			_ => GetOrAddExtensionCategory(category)
+			_ => null
 		};
 	}
 

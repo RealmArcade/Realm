@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using CommandLine;
 using Realm.Shared;
 using Realm.Shared.Animation;
@@ -13,280 +7,10 @@ using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Terrain;
 using Realm.Shared.Textures;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Realm.Tools.Cli;
-
-[Verb("mesh_convert", HelpText = "Convert and optimize 3D models (GLB, RMESH, OBJ, FBX) into Realm .rmesh format (or export .rmesh to .glb).")]
-public class MeshConvertOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to 3D model file (.glb, .rmesh, .obj, .fbx) or directory containing assets.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
-	public string? Output { get; set; }
-
-	[Option("in-place", Required = false, Default = false, HelpText = "Modify files in-place.")]
-	public bool InPlace { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-
-	[Option('f', "force", Required = false, Default = false, HelpText = "Force re-optimization even if already optimized.")]
-	public bool Force { get; set; }
-
-	[Option('t', "type", Required = false, HelpText = "Asset type for model: Character, Building, Prop, Item.")]
-	public string? AssetType { get; set; }
-
-	[Option("chroma_key", Required = false, HelpText = "Chroma key color in hex (e.g. #FF00FF) or 'auto' to automatically detect the dominant vibrant chroma key.")]
-	public string? ChromaKey { get; set; }
-}
-
-[Verb("texture_convert", HelpText = "Convert textures between standard image formats and .rtex format.")]
-public class TextureConvertOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to input image / .rtex file or directory.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
-	public string? Output { get; set; }
-
-	[Option('t', "type", Required = false, HelpText = "Asset type for textures: Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical. If omitted, attempts to read type from image metadata.")]
-	public string? AssetType { get; set; }
-
-	[Option("columns", Required = false, HelpText = "Number of grid columns for spritesheets or animated decals (default 4 for spritesheets, 1 for decals).")]
-	public int? Columns { get; set; }
-
-	[Option("rows", Required = false, HelpText = "Number of grid rows for spritesheets or animated decals (default 4 for spritesheets, 1 for decals).")]
-	public int? Rows { get; set; }
-
-	[Option("in-place", Required = false, Default = false, HelpText = "Write output alongside input file.")]
-	public bool InPlace { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-}
-
-[Verb("audio_convert", HelpText = "Convert audio files (mp3, wav, flac, aac, ogg) to .raud format (or extract .raud to .ogg).")]
-public class AudioConvertOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to input audio file or directory containing audio files.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
-	public string? Output { get; set; }
-
-	[Option('t', "type", Required = false, HelpText = "Asset type for audio: Music, SoundEffect.")]
-	public string? AssetType { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-}
-
-[Verb("fbx_to_ranim", HelpText = "Convert Mixamo FBX skeletal animation files to .ranim format.")]
-public class FbxToRanimOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to input .fbx file or directory containing .fbx files.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination .ranim file or directory.")]
-	public string? Output { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-}
-
-[Verb("ranim_render", HelpText = "Render .ranim skeletal animation files to animated WebP or PNG spritesheet.")]
-public class RanimRenderOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to input .ranim file or directory.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
-	public string? Output { get; set; }
-
-	[Option("format", Required = false, Default = "auto", HelpText = "Output format: auto (default), webp, spritesheet.")]
-	public string Format { get; set; } = "auto";
-
-	[Option("fps", Required = false, Default = 12.0f, HelpText = "Target frames per second (default 12).")]
-	public float Fps { get; set; } = 12.0f;
-
-	[Option("max-frames", Required = false, HelpText = "Maximum frame count (uses modulus to skip intermediate frames).")]
-	public int? MaxFrames { get; set; }
-
-	[Option("size", Required = false, Default = 128, HelpText = "Frame width and height in pixels (default 128).")]
-	public int Size { get; set; } = 128;
-
-	[Option("scale", Required = false, Default = 1.0f, HelpText = "Model scale factor (default 1.0).")]
-	public float Scale { get; set; } = 1.0f;
-
-	[Option('m', "model", Required = false, HelpText = "Optional path to rigged humanoid .rmesh or .glb model to render instead of skeleton.")]
-	public string? Model { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-
-	[Option("no-border", Required = false, Default = false, HelpText = "Disable frame border.")]
-	public bool NoBorder { get; set; }
-
-	[Option("no-shadow", Required = false, Default = false, HelpText = "Disable floor shadow.")]
-	public bool NoShadow { get; set; }
-
-	[Option('q', "quality", Required = false, Default = 95, HelpText = "Encoding quality for WebP output (1-100, default 95).")]
-	public int Quality { get; set; } = 95;
-
-	[Option("lossless", Required = false, Default = false, HelpText = "Use lossless compression for WebP spritesheet output.")]
-	public bool Lossless { get; set; }
-}
-
-[Verb("metadata", HelpText = "Manage embedded Realm metadata (read, add, remove) in .rmesh, .raud, .rtex, .ranim, .glb, or .ogg files.")]
-public class MetadataOptions
-{
-	[Option('m', "mode", Required = false, Default = "read", HelpText = "Operation mode: read (default), add, update, remove.")]
-	public string Mode { get; set; } = "read";
-
-	[Option('i', "input", Required = true, HelpText = "Path to asset file or directory containing asset files.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('d', "data", Required = false, HelpText = "JSON string or path to JSON file containing metadata to embed (for add/update mode).")]
-	public string? Data { get; set; }
-
-	[Option('t', "type", Required = false, HelpText = "Asset type to embed: Character, Building, Prop, Item, Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical, Animation, Music, SoundEffect.")]
-	public string? AssetType { get; set; }
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file to write extracted JSON (for read mode).")]
-	public string? Output { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-}
-
-[Verb("blake3", HelpText = "Calculate canonical BLAKE3 hash of an asset file or directory (with Realm metadata stripped ephemerally in RAM).")]
-public class Blake3Options
-{
-	[Option('i', "input", Required = true, HelpText = "Path to asset file or directory containing asset files.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-
-	[Option("raw", Required = false, Default = false, HelpText = "Calculate raw BLAKE3 hash without stripping metadata.")]
-	public bool Raw { get; set; }
-}
-
-[Verb("mesh_player_color", HelpText = "Extract chroma key color from a 3D model, isolate player-color area via face topology, pack mask into Red channel of ORM texture, and re-optimize into .rmesh.")]
-public class MeshPlayerColorCliOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to .rmesh or .glb file or directory containing model files.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
-	public string? Output { get; set; }
-
-	[Option("in-place", Required = false, Default = false, HelpText = "Overwrite the source file directly.")]
-	public bool InPlace { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-
-	[Option('t', "type", Required = false, HelpText = "Asset type for model: Character, Building, Prop, Item.")]
-	public string? AssetType { get; set; }
-
-	[Option("chroma_key", Required = false, Default = "#FF00FF", HelpText = "Chroma key color in hex (e.g. #FF00FF) or 'auto' to automatically detect the dominant vibrant chroma key.")]
-	public string ChromaKey { get; set; } = "#FF00FF";
-
-	[Option("auto_correct_chroma_key", Required = false, Default = true, HelpText = "Auto-correct input chroma key to the closest matching color in the texture (true/false).")]
-	public bool AutoCorrectChromaKey { get; set; } = true;
-
-	[Option("core-threshold", Required = false, Default = 0.88f, HelpText = "Chromaticity dot-product threshold for high-confidence core texels (default: 0.88).")]
-	public float CoreThreshold { get; set; } = 0.88f;
-
-	[Option("fringe-threshold", Required = false, Default = 0.80f, HelpText = "Chromaticity dot-product threshold for fringe/edge expansion (default: 0.80).")]
-	public float FringeThreshold { get; set; } = 0.80f;
-
-	[Option("min-cluster-faces", Required = false, Default = 10, HelpText = "Minimum connected 3D face count to keep a cluster (default: 10).")]
-	public int MinClusterFaces { get; set; } = 10;
-
-	[Option("dilation-radius", Required = false, Default = 3, HelpText = "UV gutter dilation radius in pixels (default: 3).")]
-	public int DilationRadius { get; set; } = 3;
-
-	[Option("crease-angle", Required = false, Default = GlbMeshSmoother.DefaultCreaseAngleDegrees, HelpText = "Crease angle threshold in degrees for smooth vs flat surface partitioning (default: 60.0).")]
-	public float CreaseAngleDegrees { get; set; } = GlbMeshSmoother.DefaultCreaseAngleDegrees;
-}
-
-[Verb("rig_humanoid", HelpText = "Auto-rig a humanoid 3D model with a Mixamo skeleton using the Make-It-Animatable pipeline and optimize into .rmesh.")]
-public class RigHumanoidOptions
-{
-	[Option('i', "input", Required = true, HelpText = "Path to input .rmesh or .glb file or directory containing model files.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
-	public string? Output { get; set; }
-
-	[Option("in-place", Required = false, Default = false, HelpText = "Overwrite the source file directly.")]
-	public bool InPlace { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-
-	[Option('t', "type", Required = false, HelpText = "Asset type for model: Character, Building, Prop, Item.")]
-	public string? AssetType { get; set; }
-
-	[Option("no-fingers", Required = false, Default = true, HelpText = "Model does not have ten separate fingers (default: true).")]
-	public bool NoFingers { get; set; } = true;
-
-	[Option("use-normals", Required = false, Default = false, HelpText = "Use normals to improve skinning when limbs are close together (default: false).")]
-	public bool UseNormals { get; set; } = false;
-
-	[Option("weight-postprocess", Required = false, Default = true, HelpText = "Apply empirical post-processing to blend weights (default: true).")]
-	public bool WeightPostprocess { get; set; } = true;
-
-	[Option("mia-dir", Required = false, HelpText = "Path to the ComfyUI_Make-It-Animatable directory. Falls back to MIA_DIR env var, then searches common relative paths.")]
-	public string? MiaDir { get; set; }
-}
-
-[Verb("keygen", HelpText = "Generate a cryptographic Ed25519 author key pair for map attribution, asset signing, and admin verification.")]
-public class KeygenOptions
-{
-	[Option('u', "username", Required = false, HelpText = "Display name / username to associate with this key pair.")]
-	public string? Username { get; set; }
-
-	[Option('o', "output", Required = false, HelpText = "Output path to write .rkey file. If omitted, saves to default %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\authorship_key_DO-NOT-SHARE.rkey")]
-	public string? Output { get; set; }
-
-	[Option('s', "server", Required = false, HelpText = "Registry server URL to register unique username.")]
-	public string? Server { get; set; }
-
-	[Option("register", Required = false, Default = false, HelpText = "Register the generated key pair and username with the official registry server.")]
-	public bool Register { get; set; }
-}
-
-[Verb("generate_manifest_schema", HelpText = "Generate the JSON Schema for MapManifest assets.")]
-public class GenerateManifestSchemaOptions
-{
-	[Option('o', "output", Required = false, HelpText = "Output path to write manifest.schema.json.")]
-	public string? Output { get; set; }
-}
-
-[Verb("generate_metadata_schema", HelpText = "Generate the JSON Schema for MapMetadata (metadata.json).")]
-public class GenerateMetadataSchemaOptions
-{
-	[Option('o', "output", Required = false, HelpText = "Output path to write metadata.schema.json.")]
-	public string? Output { get; set; }
-}
-
-[Verb("generate_terrain_schema", HelpText = "Generate the JSON Schema for MapTerrain (terrain.json).")]
-public class GenerateTerrainSchemaOptions
-{
-	[Option('o', "output", Required = false, HelpText = "Output path to write terrain.schema.json.")]
-	public string? Output { get; set; }
-}
-
-[Verb("generate_schemas", HelpText = "Generate all map JSON schemas (manifest, metadata, terrain).")]
-public class GenerateSchemasOptions
-{
-	[Option('o', "output", Required = false, HelpText = "Target directory to write all generated schema files.")]
-	public string? Output { get; set; }
-}
 
 public static class Program
 {
@@ -413,42 +137,57 @@ public static class Program
 				: currentFile;
 		}
 
-		bool isDirectoryInput = Directory.Exists(inputRoot);
-
-		if (isDirectoryInput)
+		if (Directory.Exists(inputRoot))
 		{
-			string relativePath = Path.GetRelativePath(inputRoot, currentFile);
-			if (!string.IsNullOrEmpty(outputDestination))
-			{
-				string relativeTarget = Path.ChangeExtension(relativePath, targetExtension);
-				return Path.Combine(outputDestination, relativeTarget);
-			}
-
-			return Path.ChangeExtension(currentFile, targetExtension);
+			return ResolveDirectoryTarget(inputRoot, currentFile, outputDestination, targetExtension);
 		}
 
 		if (!string.IsNullOrEmpty(outputDestination))
 		{
-			if (Directory.Exists(outputDestination) ||
-			    outputDestination.EndsWith(Path.DirectorySeparatorChar) ||
-			    outputDestination.EndsWith(Path.AltDirectorySeparatorChar))
-			{
-				string fileName = Path.ChangeExtension(Path.GetFileName(currentFile), targetExtension);
-				return Path.Combine(outputDestination, fileName);
-			}
-
-			string explicitExt = Path.GetExtension(outputDestination);
-			if (!string.IsNullOrEmpty(explicitExt))
-			{
-				return outputDestination;
-			}
-
-			return extensionResolver != null
-				? Path.ChangeExtension(outputDestination, targetExtension)
-				: outputDestination;
+			return ResolveOutputDestination(currentFile, outputDestination, targetExtension, extensionResolver != null);
 		}
 
 		return Path.ChangeExtension(currentFile, targetExtension);
+	}
+
+	private static string ResolveDirectoryTarget(
+		string inputRoot,
+		string currentFile,
+		string? outputDestination,
+		string targetExtension)
+	{
+		string relativePath = Path.GetRelativePath(inputRoot, currentFile);
+		if (!string.IsNullOrEmpty(outputDestination))
+		{
+			string relativeTarget = Path.ChangeExtension(relativePath, targetExtension);
+			return Path.Combine(outputDestination, relativeTarget);
+		}
+		return Path.ChangeExtension(currentFile, targetExtension);
+	}
+
+	private static string ResolveOutputDestination(
+		string currentFile,
+		string outputDestination,
+		string targetExtension,
+		bool hasExtensionResolver)
+	{
+		if (Directory.Exists(outputDestination) ||
+			outputDestination.EndsWith(Path.DirectorySeparatorChar) ||
+			outputDestination.EndsWith(Path.AltDirectorySeparatorChar))
+		{
+			string fileName = Path.ChangeExtension(Path.GetFileName(currentFile), targetExtension);
+			return Path.Combine(outputDestination, fileName);
+		}
+
+		string explicitExt = Path.GetExtension(outputDestination);
+		if (!string.IsNullOrEmpty(explicitExt))
+		{
+			return outputDestination;
+		}
+
+		return hasExtensionResolver
+			? Path.ChangeExtension(outputDestination, targetExtension)
+			: outputDestination;
 	}
 
 	private static int ProcessTraversedFiles(
@@ -480,8 +219,7 @@ public static class Program
 				? customPathResolver(inputPath, inputPath)
 				: ResolveTargetOutputPath(inputPath, inputPath, outputPath, inPlace, extensionResolver);
 
-			string? outDir = Path.GetDirectoryName(targetPath);
-			if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+			EnsureTargetDirectoryExists(targetPath);
 
 			return processFile(inputPath, targetPath);
 		}
@@ -495,6 +233,31 @@ public static class Program
 			return 0;
 		}
 
+		var (successCount, failCount) = ProcessMultipleFiles(matchingFiles, fullInputDir, outputPath, inPlace, extensionResolver, processFile, customPathResolver);
+
+		if (!string.IsNullOrEmpty(summaryActionName))
+		{
+			Console.WriteLine($"Finished {summaryActionName}. {successCount} succeeded, {failCount} failed.");
+		}
+
+		return failCount > 0 ? 1 : 0;
+	}
+
+	private static void EnsureTargetDirectoryExists(string targetPath)
+	{
+		string? outDir = Path.GetDirectoryName(targetPath);
+		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+	}
+
+	private static (int successCount, int failCount) ProcessMultipleFiles(
+		string[] matchingFiles,
+		string fullInputDir,
+		string? outputPath,
+		bool inPlace,
+		Func<string, string>? extensionResolver,
+		Func<string, string, int> processFile,
+		Func<string, string, string>? customPathResolver)
+	{
 		int successCount = 0;
 		int failCount = 0;
 
@@ -504,8 +267,7 @@ public static class Program
 				? customPathResolver(fullInputDir, file)
 				: ResolveTargetOutputPath(fullInputDir, file, outputPath, inPlace, extensionResolver);
 
-			string? outDir = Path.GetDirectoryName(targetPath);
-			if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+			EnsureTargetDirectoryExists(targetPath);
 
 			int exitCode = processFile(file, targetPath);
 			if (exitCode == 0)
@@ -518,12 +280,7 @@ public static class Program
 			}
 		}
 
-		if (!string.IsNullOrEmpty(summaryActionName))
-		{
-			Console.WriteLine($"Finished {summaryActionName}. {successCount} succeeded, {failCount} failed.");
-		}
-
-		return failCount > 0 ? 1 : 0;
+		return (successCount, failCount);
 	}
 
 	private static int ExecuteRanimRender(RanimRenderOptions options)
@@ -598,36 +355,30 @@ public static class Program
 		}
 	}
 
+	private static readonly string[] MetadataAddModes = new[] { "add", "update", "set", "write", "embed" };
+	private static readonly string[] MetadataRemoveModes = new[] { "remove", "delete", "clear", "strip" };
+	private static readonly string[] MetadataHashModes = new[] { "blake3", "hash" };
+
 	private static int ExecuteMetadata(MetadataOptions options)
 	{
 		string mode = options.Mode?.ToLowerInvariant() ?? "read";
 
-		switch (mode)
+		if (MetadataAddModes.Contains(mode))
 		{
-			case "add":
-			case "update":
-			case "set":
-			case "write":
-			case "embed":
-				return ExecuteMetadataAdd(options);
-
-			case "remove":
-			case "delete":
-			case "clear":
-			case "strip":
-				return ExecuteMetadataRemove(options);
-
-			case "blake3":
-			case "hash":
-				return ExecuteBlake3(new Blake3Options { Input = options.Input, Recursive = options.Recursive });
-
-			case "read":
-			case "get":
-			case "extract":
-			case "show":
-			default:
-				return ExecuteMetadataRead(options);
+			return ExecuteMetadataAdd(options);
 		}
+
+		if (MetadataRemoveModes.Contains(mode))
+		{
+			return ExecuteMetadataRemove(options);
+		}
+
+		if (MetadataHashModes.Contains(mode))
+		{
+			return ExecuteBlake3(new Blake3Options { Input = options.Input, Recursive = options.Recursive });
+		}
+
+		return ExecuteMetadataRead(options);
 	}
 
 	private static string FormatFileMetadata(string filePath)
@@ -705,83 +456,26 @@ public static class Program
 		string ext = Path.GetExtension(targetPath).ToLowerInvariant();
 		try
 		{
-			var parsedNode = JsonNode.Parse(inputJsonContent);
-			if (parsedNode is not JsonObject inputObj)
+			if (!TryParseMetadataJson(inputJsonContent, out var inputObj, out error))
 			{
-				error = "Metadata must be a valid JSON object.";
 				return false;
 			}
 
-			string? rawAssetType = !string.IsNullOrWhiteSpace(explicitAssetType)
-				? explicitAssetType
-				: inputObj["asset_type"]?.ToString()
-					?? inputObj["AssetType"]?.ToString()
-					?? inputObj["default_asset_type"]?.ToString()
-					?? inputObj["type"]?.ToString();
-
-			if (!string.IsNullOrEmpty(rawAssetType))
+			if (!ResolveAssetType(explicitAssetType, ext, inputObj, out error))
 			{
-				if (!RealmMetadataHelper.IsValidAssetTypeForExtension(ext, rawAssetType, out string canonical, out var validTypes))
-				{
-					error = $"Invalid asset_type '{rawAssetType}' for format '{ext}'. Valid asset_type values for {ext} are: {string.Join(", ", validTypes)}.";
-					return false;
-				}
-
-				inputObj["asset_type"] = canonical;
+				return false;
 			}
 
 			string? existingMeta = RealmMetadataHelper.ExtractMetadata(targetPath);
 			JsonObject finalObj;
+			
 			if (isUpdate)
 			{
-				if (!string.IsNullOrEmpty(existingMeta))
-				{
-					try
-					{
-						finalObj = JsonNode.Parse(existingMeta) as JsonObject ?? new JsonObject();
-					}
-					catch
-					{
-						finalObj = new JsonObject();
-					}
-				}
-				else
-				{
-					finalObj = new JsonObject();
-				}
-
-				foreach (var property in inputObj)
-				{
-					finalObj[property.Key] = property.Value?.DeepClone();
-				}
+				finalObj = MergeMetadataUpdate(existingMeta, inputObj);
 			}
 			else
 			{
-				finalObj = inputObj;
-
-				if (!string.IsNullOrEmpty(existingMeta))
-				{
-					try
-					{
-						var existingObj = JsonNode.Parse(existingMeta) as JsonObject;
-						if (existingObj != null)
-						{
-							if (!finalObj.ContainsKey("format") && existingObj.ContainsKey("format"))
-							{
-								finalObj["format"] = existingObj["format"]?.DeepClone();
-							}
-							if (!finalObj.ContainsKey("is_compressed") && existingObj.ContainsKey("is_compressed"))
-							{
-								finalObj["is_compressed"] = existingObj["is_compressed"]?.DeepClone();
-							}
-							if (!finalObj.ContainsKey("created_utc") && existingObj.ContainsKey("created_utc"))
-							{
-								finalObj["created_utc"] = existingObj["created_utc"]?.DeepClone();
-							}
-						}
-					}
-					catch { }
-				}
+				finalObj = MergeMetadataCreate(existingMeta, inputObj);
 			}
 
 			if (!finalObj.ContainsKey("format"))
@@ -807,30 +501,127 @@ public static class Program
 		}
 	}
 
+	private static bool TryParseMetadataJson(string inputJsonContent, out JsonObject inputObj, out string error)
+	{
+		var parsedNode = JsonNode.Parse(inputJsonContent);
+		if (parsedNode is not JsonObject obj)
+		{
+			inputObj = new JsonObject();
+			error = "Metadata must be a valid JSON object.";
+			return false;
+		}
+		inputObj = obj;
+		error = string.Empty;
+		return true;
+	}
+
+	private static string? GetStringPropertyOrNull(JsonObject inputObj, string propertyName)
+	{
+		if (inputObj.TryGetPropertyValue(propertyName, out var val))
+		{
+			return val?.ToString();
+		}
+		return null;
+	}
+
+	private static string? GetRawAssetType(string? explicitAssetType, JsonObject inputObj)
+	{
+		if (!string.IsNullOrWhiteSpace(explicitAssetType))
+		{
+			return explicitAssetType;
+		}
+
+		string? type = GetStringPropertyOrNull(inputObj, "asset_type");
+		if (type != null) return type;
+
+		type = GetStringPropertyOrNull(inputObj, "AssetType");
+		if (type != null) return type;
+
+		type = GetStringPropertyOrNull(inputObj, "default_asset_type");
+		if (type != null) return type;
+
+		return GetStringPropertyOrNull(inputObj, "type");
+	}
+
+	private static bool ResolveAssetType(string? explicitAssetType, string ext, JsonObject inputObj, out string error)
+	{
+		error = string.Empty;
+		string? rawAssetType = GetRawAssetType(explicitAssetType, inputObj);
+
+		if (string.IsNullOrEmpty(rawAssetType)) return true;
+
+		if (!RealmMetadataHelper.IsValidAssetTypeForExtension(ext, rawAssetType, out string canonical, out var validTypes))
+		{
+			error = $"Invalid asset_type '{rawAssetType}' for format '{ext}'. Valid asset_type values for {ext} are: {string.Join(", ", validTypes)}.";
+			return false;
+		}
+
+		inputObj["asset_type"] = canonical;
+		return true;
+	}
+
+	private static JsonObject MergeMetadataUpdate(string? existingMeta, JsonObject inputObj)
+	{
+		JsonObject finalObj;
+		if (!string.IsNullOrEmpty(existingMeta))
+		{
+			try
+			{
+				finalObj = JsonNode.Parse(existingMeta) as JsonObject ?? new JsonObject();
+			}
+			catch
+			{
+				finalObj = new JsonObject();
+			}
+		}
+		else
+		{
+			finalObj = new JsonObject();
+		}
+
+		foreach (var property in inputObj)
+		{
+			finalObj[property.Key] = property.Value?.DeepClone();
+		}
+		
+		return finalObj;
+	}
+
+	private static JsonObject MergeMetadataCreate(string? existingMeta, JsonObject inputObj)
+	{
+		if (string.IsNullOrEmpty(existingMeta)) return inputObj;
+
+		try
+		{
+			if (JsonNode.Parse(existingMeta) is not JsonObject existingObj) return inputObj;
+
+			CopyPropertyIfNotExists("format", existingObj, inputObj);
+			CopyPropertyIfNotExists("is_compressed", existingObj, inputObj);
+			CopyPropertyIfNotExists("created_utc", existingObj, inputObj);
+		}
+		catch { }
+		
+		return inputObj;
+	}
+
+	private static void CopyPropertyIfNotExists(string key, JsonObject source, JsonObject target)
+	{
+		if (!target.ContainsKey(key) && source.ContainsKey(key))
+		{
+			target[key] = source[key]?.DeepClone();
+		}
+	}
+
 	private static int ExecuteMetadataAdd(MetadataOptions options)
 	{
 		if (!EnsurePathExists(options.Input)) return 1;
 
-		if (string.IsNullOrEmpty(options.Data))
+		if (!PrepareMetadataAddData(options))
 		{
-			var jsonNode = new JsonObject();
-			if (!string.IsNullOrWhiteSpace(options.AssetType))
-			{
-				jsonNode["asset_type"] = options.AssetType;
-			}
-
-			if (jsonNode.Count > 0)
-			{
-				options.Data = jsonNode.ToJsonString();
-			}
-			else
-			{
-				Console.Error.WriteLine("Error: --data (-d) or --type (-t) option is required for add mode.");
-				return 1;
-			}
+			return 1;
 		}
 
-		string jsonContent = options.Data;
+		string jsonContent = options.Data ?? "";
 		if (File.Exists(options.Data))
 		{
 			jsonContent = File.ReadAllText(options.Data);
@@ -841,26 +632,54 @@ public static class Program
 
 		if (File.Exists(options.Input))
 		{
-			string processedJson = jsonContent;
-			if (!PrepareMetadataJsonForFile(options.Input, ref processedJson, isUpdate, options.AssetType, out string error))
-			{
-				Console.Error.WriteLine($"Error: {error}");
-				return 1;
-			}
-
-			bool success = RealmMetadataHelper.AddMetadata(options.Input, processedJson);
-			if (success)
-			{
-				Console.WriteLine($"Successfully added metadata to: {options.Input}");
-				return 0;
-			}
-			else
-			{
-				Console.Error.WriteLine($"Failed to add metadata to: {options.Input}");
-				return 1;
-			}
+			return ProcessSingleMetadataAdd(options.Input, jsonContent, isUpdate, options.AssetType);
 		}
 
+		return ProcessDirectoryMetadataAdd(options, jsonContent, isUpdate);
+	}
+
+	private static bool PrepareMetadataAddData(MetadataOptions options)
+	{
+		if (!string.IsNullOrEmpty(options.Data)) return true;
+
+		var jsonNode = new JsonObject();
+		if (!string.IsNullOrWhiteSpace(options.AssetType))
+		{
+			jsonNode["asset_type"] = options.AssetType;
+		}
+
+		if (jsonNode.Count > 0)
+		{
+			options.Data = jsonNode.ToJsonString();
+			return true;
+		}
+
+		Console.Error.WriteLine("Error: --data (-d) or --type (-t) option is required for add mode.");
+		return false;
+	}
+
+	private static int ProcessSingleMetadataAdd(string inputPath, string jsonContent, bool isUpdate, string? assetType)
+	{
+		string processedJson = jsonContent;
+		if (!PrepareMetadataJsonForFile(inputPath, ref processedJson, isUpdate, assetType, out string error))
+		{
+			Console.Error.WriteLine($"Error: {error}");
+			return 1;
+		}
+
+		bool success = RealmMetadataHelper.AddMetadata(inputPath, processedJson);
+		if (success)
+		{
+			Console.WriteLine($"Successfully added metadata to: {inputPath}");
+			return 0;
+		}
+		
+		Console.Error.WriteLine($"Failed to add metadata to: {inputPath}");
+		return 1;
+	}
+
+	private static int ProcessDirectoryMetadataAdd(MetadataOptions options, string jsonContent, bool isUpdate)
+	{
 		var files = TraverseFiles(options.Input, options.Recursive, file => RealmMetadataHelper.SupportsMetadata(Path.GetExtension(file).ToLowerInvariant())).ToArray();
 		int successCount = 0;
 		int failCount = 0;
@@ -1136,71 +955,81 @@ public static class Program
 
 		if (targetExt.Equals(".glb", StringComparison.OrdinalIgnoreCase) && fileExt == ".rmesh")
 		{
-			var res = ModelConverter.ExtractGlbFromRmesh(inputFile, targetFile);
-			if (res.Success)
+			return ExtractGlbFromRmesh(inputFile, targetFile);
+		}
+		
+		if (targetExt.Equals(".glb", StringComparison.OrdinalIgnoreCase) && fileExt == ".glb")
+		{
+			return OptimizeGlb(inputFile, targetFile, options);
+		}
+
+		return ExecuteModelToRmeshConversion(inputFile, targetFile, options);
+	}
+
+	private static int ExtractGlbFromRmesh(string inputFile, string targetFile)
+	{
+		var res = ModelConverter.ExtractGlbFromRmesh(inputFile, targetFile);
+		if (res.Success)
+		{
+			Console.WriteLine($"Successfully extracted GLB: {inputFile} -> {targetFile}");
+			return 0;
+		}
+		
+		Console.Error.WriteLine($"Failed to extract GLB from {inputFile}: {res.ErrorMessage}");
+		return 1;
+	}
+
+	private static int OptimizeGlb(string inputFile, string targetFile, MeshConvertOptions options)
+	{
+		try
+		{
+			byte[] inputGlbBytes = File.ReadAllBytes(inputFile);
+			byte[] outputGlbBytes;
+			if (!options.Force && GlbManifestUtils.HasOptimizationFlag(inputGlbBytes))
 			{
-				Console.WriteLine($"Successfully extracted GLB: {inputFile} -> {targetFile}");
-				return 0;
+				outputGlbBytes = inputGlbBytes;
 			}
 			else
 			{
-				Console.Error.WriteLine($"Failed to extract GLB from {inputFile}: {res.ErrorMessage}");
-				return 1;
+				byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
+				var opt = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force);
+				var optimizer = new GlbOptimizer();
+				var optResult = optimizer.Optimize(unoptimized, opt);
+				outputGlbBytes = optResult.Success && optResult.OutputGlbBytes != null ? optResult.OutputGlbBytes : unoptimized;
 			}
+
+			string? outDir = Path.GetDirectoryName(targetFile);
+			if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+
+			File.WriteAllBytes(targetFile, outputGlbBytes);
+			RealmMetadataHelper.SyncBlake3Metadata(targetFile);
+			Console.WriteLine($"Successfully converted model: {inputFile} -> {targetFile} (Size: {outputGlbBytes.Length} bytes)");
+			return 0;
 		}
-		else if (targetExt.Equals(".glb", StringComparison.OrdinalIgnoreCase) && fileExt == ".glb")
+		catch (Exception ex)
 		{
-			try
-			{
-				byte[] inputGlbBytes = File.ReadAllBytes(inputFile);
-				byte[] outputGlbBytes;
-				if (!options.Force && GlbManifestUtils.HasOptimizationFlag(inputGlbBytes))
-				{
-					outputGlbBytes = inputGlbBytes;
-				}
-				else
-				{
-					byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
-					var opt = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force);
-					var optimizer = new GlbOptimizer();
-					var optResult = optimizer.Optimize(unoptimized, opt);
-					outputGlbBytes = optResult.Success && optResult.OutputGlbBytes != null ? optResult.OutputGlbBytes : unoptimized;
-				}
-
-				string? outDir = Path.GetDirectoryName(targetFile);
-				if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
-
-				File.WriteAllBytes(targetFile, outputGlbBytes);
-				RealmMetadataHelper.SyncBlake3Metadata(targetFile);
-				Console.WriteLine($"Successfully converted model: {inputFile} -> {targetFile} (Size: {outputGlbBytes.Length} bytes)");
-				return 0;
-			}
-			catch (Exception ex)
-			{
-				Console.Error.WriteLine($"Failed to convert {inputFile}: {ex.Message}");
-				return 1;
-			}
+			Console.Error.WriteLine($"Failed to convert {inputFile}: {ex.Message}");
+			return 1;
 		}
-		else
+	}
+
+	private static int ExecuteModelToRmeshConversion(string inputFile, string targetFile, MeshConvertOptions options)
+	{
+		var res = ModelConverter.ConvertToRmesh(
+			inputFile,
+			targetFile,
+			options.AssetType,
+			options.Force,
+			chromaKey: options.ChromaKey);
+
+		if (res.Success)
 		{
-			var res = ModelConverter.ConvertToRmesh(
-				inputFile,
-				targetFile,
-				options.AssetType,
-				options.Force,
-				chromaKey: options.ChromaKey);
-
-			if (res.Success)
-			{
-				Console.WriteLine($"Successfully converted model: {inputFile} -> {targetFile} (Size: {res.OptimizedSize} bytes, TeamColor: {res.SupportsTeamColor})");
-				return 0;
-			}
-			else
-			{
-				Console.Error.WriteLine($"Failed to convert {inputFile}: {res.ErrorMessage}");
-				return 1;
-			}
+			Console.WriteLine($"Successfully converted model: {inputFile} -> {targetFile} (Size: {res.OptimizedSize} bytes, TeamColor: {res.SupportsTeamColor})");
+			return 0;
 		}
+		
+		Console.Error.WriteLine($"Failed to convert {inputFile}: {res.ErrorMessage}");
+		return 1;
 	}
 
 	private static int ExecuteBlake3(Blake3Options options)
@@ -1307,25 +1136,9 @@ public static class Program
 
 		Console.WriteLine($"Processing: {inputPath} -> {outputPath}");
 
-		string inputExt = Path.GetExtension(inputPath).ToLowerInvariant();
-		bool isRmeshInput = inputExt == ".rmesh";
-
-		string? existingMeta = null;
-
 		try
 		{
-			byte[] sourceGlbBytes;
-			if (isRmeshInput)
-			{
-				byte[] rmeshBytes = File.ReadAllBytes(inputPath);
-				var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
-				existingMeta = meta;
-				sourceGlbBytes = glbBytes;
-			}
-			else
-			{
-				sourceGlbBytes = File.ReadAllBytes(inputPath);
-			}
+			var (sourceGlbBytes, existingMeta) = ExtractInputBytesAndMetadata(inputPath);
 
 			var (success, processedGlbBytes, errorMessage, maskedFaces, totalFaces, detectedKey) =
 				Realm.Shared.GlbPlayerColorProcessor.ProcessBytes(sourceGlbBytes, processorOptions);
@@ -1339,54 +1152,107 @@ public static class Program
 			string resolvedChromaKey = detectedKey ?? processorOptions.ChromaKey;
 			Console.WriteLine($"  Player-color mask applied (masked faces: {maskedFaces}/{totalFaces}, chroma key: {resolvedChromaKey})");
 
-			string? outDir = Path.GetDirectoryName(outputPath);
-			if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+			EnsureDirectoryForFile(outputPath);
 
-			string? targetAssetType = !string.IsNullOrWhiteSpace(assetType)
-				? assetType
-				: null;
-			string? targetAuthor = null;
-			if (!string.IsNullOrEmpty(existingMeta))
-			{
-				try
-				{
-					var node = JsonNode.Parse(existingMeta);
-					targetAssetType ??= node?["asset_type"]?.ToString() ?? node?["default_asset_type"]?.ToString();
-					targetAuthor = node?["author"]?.ToString();
-				}
-				catch { }
-			}
+			var (targetAssetType, targetAuthor) = ExtractAssetTypeAndAuthor(existingMeta, assetType);
 
-			var convResult = ModelConverter.ConvertToRmesh(
-				processedGlbBytes,
-				inputPath,
-				targetAssetType,
-				force: false,
-				author: targetAuthor,
-				chromaKey: resolvedChromaKey,
-				existingMetadataJson: existingMeta);
-
-			if (!convResult.Success || convResult.OutputBytes == null)
-			{
-				Console.Error.WriteLine($"  Failed to repack into RMESH: {convResult.ErrorMessage}");
-				return 1;
-			}
-
-			File.WriteAllBytes(outputPath, convResult.OutputBytes);
-			Console.WriteLine($"  Successfully saved RMESH: {outputPath} ({convResult.OptimizedSize} bytes)");
-
-			if (inPlace && !string.Equals(inputPath, outputPath, StringComparison.OrdinalIgnoreCase) && File.Exists(inputPath))
-			{
-				try { File.Delete(inputPath); } catch { }
-			}
-
-			return 0;
+			return RepackAndSaveRmesh(inputPath, outputPath, processedGlbBytes, targetAssetType, targetAuthor, resolvedChromaKey, existingMeta, inPlace);
 		}
 		catch (Exception ex)
 		{
 			Console.Error.WriteLine($"  Failed to process {inputPath}: {ex.Message}");
 			return 1;
 		}
+	}
+
+	private static int RepackAndSaveRmesh(string inputPath, string outputPath, byte[] processedGlbBytes, string? targetAssetType, string? targetAuthor, string resolvedChromaKey, string? existingMeta, bool inPlace)
+	{
+		var convResult = ModelConverter.ConvertToRmesh(
+			processedGlbBytes,
+			inputPath,
+			targetAssetType,
+			force: false,
+			author: targetAuthor,
+			chromaKey: resolvedChromaKey,
+			existingMetadataJson: existingMeta);
+
+		if (!convResult.Success || convResult.OutputBytes == null)
+		{
+			Console.Error.WriteLine($"  Failed to repack into RMESH: {convResult.ErrorMessage}");
+			return 1;
+		}
+
+		File.WriteAllBytes(outputPath, convResult.OutputBytes);
+		Console.WriteLine($"  Successfully saved RMESH: {outputPath} ({convResult.OptimizedSize} bytes)");
+
+		TryDeleteInPlaceOriginal(inPlace, inputPath, outputPath);
+
+		return 0;
+	}
+
+	private static void EnsureDirectoryForFile(string filePath)
+	{
+		string? outDir = Path.GetDirectoryName(filePath);
+		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
+	}
+
+	private static void TryDeleteInPlaceOriginal(bool inPlace, string inputPath, string outputPath)
+	{
+		if (inPlace && !string.Equals(inputPath, outputPath, StringComparison.OrdinalIgnoreCase) && File.Exists(inputPath))
+		{
+			try { File.Delete(inputPath); } catch { }
+		}
+	}
+
+	private static (byte[] glbBytes, string? metadata) ExtractInputBytesAndMetadata(string inputPath)
+	{
+		string inputExt = Path.GetExtension(inputPath).ToLowerInvariant();
+		bool isRmeshInput = inputExt == ".rmesh";
+
+		if (isRmeshInput)
+		{
+			byte[] rmeshBytes = File.ReadAllBytes(inputPath);
+			var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
+			return (glbBytes, meta);
+		}
+
+		return (File.ReadAllBytes(inputPath), null);
+	}
+
+	private static JsonNode? TryParseMeta(string? existingMeta)
+	{
+		if (string.IsNullOrEmpty(existingMeta)) return null;
+
+		try
+		{
+			return JsonNode.Parse(existingMeta);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	private static void UpdateAssetTypeAndAuthor(JsonNode node, ref string? targetAssetType, ref string? targetAuthor)
+	{
+		if (node is not JsonObject) return;
+		targetAssetType ??= node["asset_type"]?.ToString();
+		targetAssetType ??= node["default_asset_type"]?.ToString();
+		targetAuthor ??= node["author"]?.ToString();
+	}
+
+	private static (string? assetType, string? author) ExtractAssetTypeAndAuthor(string? existingMeta, string? explicitAssetType)
+	{
+		string? targetAssetType = string.IsNullOrWhiteSpace(explicitAssetType) ? null : explicitAssetType;
+		string? targetAuthor = null;
+		
+		JsonNode? node = TryParseMeta(existingMeta);
+		if (node != null)
+		{
+			UpdateAssetTypeAndAuthor(node, ref targetAssetType, ref targetAuthor);
+		}
+
+		return (targetAssetType, targetAuthor);
 	}
 
 	private static string ResolveMeshPlayerColorOutputPath(string inputPath, string? explicitOutput, bool inPlace)
@@ -1440,39 +1306,27 @@ public static class Program
 	{
 		Console.WriteLine($"Processing humanoid rig: {inputPath} -> {targetOutput}");
 
-		string inputExt = Path.GetExtension(inputPath).ToLowerInvariant();
-		string outputExt = Path.GetExtension(targetOutput).ToLowerInvariant();
-		bool isRmeshInput = inputExt == ".rmesh";
-		bool isRmeshOutput = outputExt == ".rmesh";
-
-		string tempGlbInput = inputPath;
+		string tempGlbOutput = Path.Combine(Path.GetTempPath(), $"realm_rig_out_{Guid.NewGuid():N}.glb");
 		string? tempExtractedGlb = null;
-		string? tempGlbOutput = null;
-		string? existingMeta = null;
-
+		
 		try
 		{
+			bool isRmeshInput = Path.GetExtension(inputPath).Equals(".rmesh", StringComparison.OrdinalIgnoreCase);
+			string tempGlbInput = inputPath;
+			string? existingMeta = null;
+			
 			if (isRmeshInput)
 			{
-				byte[] rmeshBytes = File.ReadAllBytes(inputPath);
-				var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
-				existingMeta = meta;
-				tempExtractedGlb = Path.Combine(Path.GetTempPath(), $"realm_rig_in_{Guid.NewGuid():N}.glb");
-				File.WriteAllBytes(tempExtractedGlb, glbBytes);
+				(tempExtractedGlb, existingMeta) = ExtractRigInputBytes(inputPath);
 				tempGlbInput = tempExtractedGlb;
 			}
 
-			tempGlbOutput = Path.Combine(Path.GetTempPath(), $"realm_rig_out_{Guid.NewGuid():N}.glb");
-
-			var result = GlbAutoRigger.RigHumanoid(
-				tempGlbInput,
-				tempGlbOutput,
-				new GlbAutoRiggerOptions
-				{
-					NoFingers = options.NoFingers,
-					UseNormals = options.UseNormals,
-					WeightPostprocess = options.WeightPostprocess
-				});
+			var result = GlbAutoRigger.RigHumanoid(tempGlbInput, tempGlbOutput, new GlbAutoRiggerOptions
+			{
+				NoFingers = options.NoFingers,
+				UseNormals = options.UseNormals,
+				WeightPostprocess = options.WeightPostprocess
+			});
 
 			if (!result.Success || !File.Exists(tempGlbOutput))
 			{
@@ -1480,76 +1334,85 @@ public static class Program
 				return 1;
 			}
 
-			byte[] riggedGlb = File.ReadAllBytes(tempGlbOutput);
-			string? outDir = Path.GetDirectoryName(targetOutput);
-			if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
-
-			if (isRmeshOutput)
-			{
-				string? targetAssetType = !string.IsNullOrWhiteSpace(options.AssetType)
-					? options.AssetType
-					: null;
-				string? targetAuthor = null;
-				if (!string.IsNullOrEmpty(existingMeta))
-				{
-					try
-					{
-						var node = JsonNode.Parse(existingMeta);
-						targetAssetType ??= node?["asset_type"]?.ToString() ?? node?["default_asset_type"]?.ToString();
-						targetAuthor = node?["author"]?.ToString();
-					}
-					catch { }
-				}
-				targetAssetType ??= "Character";
-
-				var convRes = ModelConverter.ConvertToRmesh(
-					riggedGlb,
-					inputPath,
-					targetAssetType,
-					force: true,
-					author: targetAuthor,
-					existingMetadataJson: existingMeta);
-
-				if (!convRes.Success || convRes.OutputBytes == null)
-				{
-					Console.Error.WriteLine($"Failed to pack rigged model to RMESH: {convRes.ErrorMessage}");
-					return 1;
-				}
-
-				File.WriteAllBytes(targetOutput, convRes.OutputBytes);
-				Console.WriteLine($"Successfully rigged and saved RMESH: {targetOutput}");
-			}
-			else
-			{
-				File.WriteAllBytes(targetOutput, riggedGlb);
-				RealmMetadataHelper.SyncBlake3Metadata(targetOutput);
-				Console.WriteLine($"Successfully rigged and saved GLB: {targetOutput}");
-			}
-
-			if (options.InPlace && !string.Equals(inputPath, targetOutput, StringComparison.OrdinalIgnoreCase) && File.Exists(inputPath))
-			{
-				try { File.Delete(inputPath); } catch { }
-			}
-
-			return 0;
+			return ProcessRiggedOutput(inputPath, targetOutput, tempGlbOutput, existingMeta, options);
 		}
 		finally
 		{
-			if (tempExtractedGlb != null && File.Exists(tempExtractedGlb)) try { File.Delete(tempExtractedGlb); } catch { }
-			if (tempGlbOutput != null && File.Exists(tempGlbOutput)) try { File.Delete(tempGlbOutput); } catch { }
+			TryDeleteFile(tempExtractedGlb);
+			TryDeleteFile(tempGlbOutput);
 		}
+	}
+
+	private static int ProcessRiggedOutput(string inputPath, string targetOutput, string tempGlbOutput, string? existingMeta, RigHumanoidOptions options)
+	{
+		byte[] riggedGlb = File.ReadAllBytes(tempGlbOutput);
+		EnsureDirectoryForFile(targetOutput);
+
+		bool isRmeshOutput = Path.GetExtension(targetOutput).Equals(".rmesh", StringComparison.OrdinalIgnoreCase);
+
+		if (isRmeshOutput)
+		{
+			int rmeshResult = SaveRiggedRmesh(riggedGlb, inputPath, targetOutput, options, existingMeta);
+			if (rmeshResult != 0) return rmeshResult;
+		}
+		else
+		{
+			File.WriteAllBytes(targetOutput, riggedGlb);
+			RealmMetadataHelper.SyncBlake3Metadata(targetOutput);
+			Console.WriteLine($"Successfully rigged and saved GLB: {targetOutput}");
+		}
+
+		TryDeleteInPlaceOriginal(options.InPlace, inputPath, targetOutput);
+		return 0;
+	}
+
+	private static void TryDeleteFile(string? filePath)
+	{
+		if (filePath != null && File.Exists(filePath))
+		{
+			try { File.Delete(filePath); } catch { }
+		}
+	}
+
+	private static (string tempExtractedGlb, string? existingMeta) ExtractRigInputBytes(string inputPath)
+	{
+		byte[] rmeshBytes = File.ReadAllBytes(inputPath);
+		var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
+		string tempExtractedGlb = Path.Combine(Path.GetTempPath(), $"realm_rig_in_{Guid.NewGuid():N}.glb");
+		File.WriteAllBytes(tempExtractedGlb, glbBytes);
+		
+		return (tempExtractedGlb, meta);
+	}
+
+	private static int SaveRiggedRmesh(byte[] riggedGlb, string inputPath, string targetOutput, RigHumanoidOptions options, string? existingMeta)
+	{
+		var (extractedType, targetAuthor) = ExtractAssetTypeAndAuthor(existingMeta, options.AssetType);
+		string targetAssetType = extractedType ?? "Character";
+
+		var convRes = ModelConverter.ConvertToRmesh(
+			riggedGlb,
+			inputPath,
+			targetAssetType,
+			force: true,
+			author: targetAuthor,
+			existingMetadataJson: existingMeta);
+
+		if (!convRes.Success || convRes.OutputBytes == null)
+		{
+			Console.Error.WriteLine($"Failed to pack rigged model to RMESH: {convRes.ErrorMessage}");
+			return 1;
+		}
+
+		File.WriteAllBytes(targetOutput, convRes.OutputBytes);
+		Console.WriteLine($"Successfully rigged and saved RMESH: {targetOutput}");
+		return 0;
 	}
 
 	private static int ExecuteKeygen(KeygenOptions options)
 	{
 		var (privateKeyBase64, publicKeyBase64) = AuthorSignatureHelper.GenerateKeyPair();
 
-		Console.WriteLine("=================================================");
-		Console.WriteLine("Realm Cryptographic Ed25519 Key Pair Generated");
-		Console.WriteLine("=================================================");
-		Console.WriteLine($"Public Key (Base64):  {publicKeyBase64}");
-		Console.WriteLine($"Private Key (Base64): {privateKeyBase64}");
-		Console.WriteLine();
+		PrintKeygenHeader(publicKeyBase64, privateKeyBase64);
 
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output)
 			? options.Output.Trim()
@@ -1560,6 +1423,7 @@ public static class Program
 		{
 			Directory.CreateDirectory(outDir);
 		}
+		
 		string keyUsername = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : string.Empty;
 		byte[] rkeyBytes = RkeyFile.Build(keyUsername, publicKeyBase64, privateKeyBase64);
 		File.WriteAllBytes(outputPath, rkeyBytes);
@@ -1567,38 +1431,7 @@ public static class Program
 
 		if (options.Register || !string.IsNullOrWhiteSpace(options.Username))
 		{
-			string serverUrl = !string.IsNullOrWhiteSpace(options.Server) ? options.Server : ServersConfigHelper.GetDefaultServerUrl();
-			string username = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : "Creator_" + Guid.NewGuid().ToString("N")[..6];
-			string payload = $"{username}:{publicKeyBase64}";
-			string signature = AuthorSignatureHelper.SignMessage(privateKeyBase64, payload);
-
-			Console.WriteLine($"Registering username '{username}' with {serverUrl}...");
-			try
-			{
-				using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-				var regPayload = new
-				{
-					Username = username,
-					PublicKey = publicKeyBase64,
-					Signature = signature
-				};
-				var content = new System.Net.Http.StringContent(JsonSerializer.Serialize(regPayload), System.Text.Encoding.UTF8, "application/json");
-				var response = httpClient.PostAsync($"{serverUrl.TrimEnd('/')}/api/creators/register", content).GetAwaiter().GetResult();
-				string responseText = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-
-				if (response.IsSuccessStatusCode)
-				{
-					Console.WriteLine($"[Success] Username '{username}' locked to public key on registry server.");
-				}
-				else
-				{
-					Console.Error.WriteLine($"[Failed] Registration returned HTTP {(int)response.StatusCode}: {responseText}");
-				}
-			}
-			catch (Exception ex)
-			{
-				Console.Error.WriteLine($"[Error] Could not connect to server to register username: {ex.Message}");
-			}
+			RegisterKeygenUser(options, publicKeyBase64, privateKeyBase64);
 		}
 
 		Console.WriteLine();
@@ -1608,6 +1441,52 @@ public static class Program
 		Console.WriteLine($"   \"AdminPublicKeys\": [\n     \"{publicKeyBase64}\"\n   ]");
 		Console.WriteLine("=================================================");
 		return 0;
+	}
+
+	private static void PrintKeygenHeader(string publicKeyBase64, string privateKeyBase64)
+	{
+		Console.WriteLine("=================================================");
+		Console.WriteLine("Realm Cryptographic Ed25519 Key Pair Generated");
+		Console.WriteLine("=================================================");
+		Console.WriteLine($"Public Key (Base64):  {publicKeyBase64}");
+		Console.WriteLine($"Private Key (Base64): {privateKeyBase64}");
+		Console.WriteLine();
+	}
+
+	private static void RegisterKeygenUser(KeygenOptions options, string publicKeyBase64, string privateKeyBase64)
+	{
+		string serverUrl = !string.IsNullOrWhiteSpace(options.Server) ? options.Server : ServersConfigHelper.GetDefaultServerUrl();
+		string username = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : "Creator_" + Guid.NewGuid().ToString("N")[..6];
+		string payload = $"{username}:{publicKeyBase64}";
+		string signature = AuthorSignatureHelper.SignMessage(privateKeyBase64, payload);
+
+		Console.WriteLine($"Registering username '{username}' with {serverUrl}...");
+		try
+		{
+			using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+			var regPayload = new
+			{
+				Username = username,
+				PublicKey = publicKeyBase64,
+				Signature = signature
+			};
+			var content = new System.Net.Http.StringContent(JsonSerializer.Serialize(regPayload), System.Text.Encoding.UTF8, "application/json");
+			var response = httpClient.PostAsync($"{serverUrl.TrimEnd('/')}/api/creators/register", content).GetAwaiter().GetResult();
+			string responseText = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+			if (response.IsSuccessStatusCode)
+			{
+				Console.WriteLine($"[Success] Username '{username}' locked to public key on registry server.");
+			}
+			else
+			{
+				Console.Error.WriteLine($"[Failed] Registration returned HTTP {(int)response.StatusCode}: {responseText}");
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.Error.WriteLine($"[Error] Could not connect to server to register username: {ex.Message}");
+		}
 	}
 
 	private static int ExecuteGenerateManifestSchema(GenerateManifestSchemaOptions options)

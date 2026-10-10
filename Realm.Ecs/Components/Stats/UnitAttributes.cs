@@ -5,7 +5,7 @@ using Realm.Ecs.Common;
 /// <summary>
 /// Represents the 6 core RPG attributes for an entity.
 /// </summary>
-internal record struct UnitAttributes(
+public record struct UnitAttributes(
 	[property: Tooltip("Attack damage, Tenacity (Crowd-control resistance), Armor (physical damage reduction).")]
 	float Strength = 0f,
 	[property: Tooltip("Attack Speed, Movement Speed, Cooldown reduction.")]

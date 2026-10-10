@@ -5,7 +5,7 @@ namespace Realm.Ecs.Components.Terrain
 	/// <summary>
 	/// Represents the simulation state and configuration of the map terrain, heightfield, pathing flags, and navigation mesh.
 	/// </summary>
-	internal struct TerrainState
+	public struct TerrainState
 	{
 		public const float DefaultQuadSize = 2.0f;
 		public const float DefaultCellSize = 0.5f;

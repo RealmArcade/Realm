@@ -1,7 +1,6 @@
-using System;
+using Blake3;
 using System.Buffers.Binary;
 using System.Text;
-using Blake3;
 
 namespace Realm.Shared.Distribution;
 

@@ -1,42 +1,49 @@
-using NUnit.Framework;
-using System.Numerics;
 using Arch.Core;
 using Microsoft.Extensions.DependencyInjection;
+using NUnit.Framework;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
-using Realm.Ecs.Common;
 using Realm.Ecs.Services;
+using Realm.Client.Services;
+using System.Numerics;
 
 namespace Realm.Ecs.Tests
 {
     [TestFixture]
     public class CombatTests
     {
-        private World _world = null!;
-        private WorldAccessor _worldAccessor = null!;
-        private CombatAndDamageService _combatService = null!;
+	    private World _world
+	    {
+		    get
+		    {
+			    return ServiceLocator.Get<World>();
+		    }
+	    }
+
+	    private WorldAccessor _worldAccessor
+	    {
+		    get
+		    {
+			    return ServiceLocator.Get<WorldAccessor>();
+		    }
+		}
+
+		private CombatAndDamageService _combatService = null!;
 
         [SetUp]
         public void Setup()
         {
-            _world = World.Create();
-            _worldAccessor = new WorldAccessor(_world);
-
-            var services = new ServiceCollection();
-            services.AddSingleton(_worldAccessor);
-            var provider = services.BuildServiceProvider();
-            ServiceLocator.Initialize(provider);
-
             _combatService = new CombatAndDamageService(_worldAccessor);
         }
 
         [TearDown]
         public void TearDown()
         {
-            _world.Dispose();
+            ServiceLocator.DisposeAndRecreateServices();
         }
 
         private Entity CreatePlayer(int index)

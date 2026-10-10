@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Tags;
 ///     Tag indicating the entity is immune to spell and magic-type attacks.
 /// </summary>
 [TagDefinition("SpellImmune", "SpellImmune", "Marks the entity as immune to spell and magic-type damage.")]
-internal readonly record struct SpellImmune;
+public readonly record struct SpellImmune;

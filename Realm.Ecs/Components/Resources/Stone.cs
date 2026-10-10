@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Resources;
 ///     Represents the Stone resource.
 /// </summary>
 [ResourceDefinition("Stone", "Stone", "A building material.", "res://icons/stone.png")]
-internal readonly record struct Stone;
+public readonly record struct Stone;

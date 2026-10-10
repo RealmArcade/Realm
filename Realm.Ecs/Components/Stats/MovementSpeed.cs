@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Stats;
 ///     Represents the Movement Speed stat.
 /// </summary>
 [StatDefinition("MovementSpeed", "Movement Speed", "The speed at which the entity moves.")]
-internal readonly record struct MovementSpeed;
+public readonly record struct MovementSpeed;

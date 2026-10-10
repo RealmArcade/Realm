@@ -1,8 +1,5 @@
-using System;
-using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.IO;
 using Realm.Shared.Metadata;
+using System.Buffers.Binary;
 
 namespace Realm.Shared.Textures;
 

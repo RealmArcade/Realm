@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using ZstdSharp;
 
@@ -22,7 +19,7 @@ public class ZstdAssetBundleHelper
 
         foreach (var item in assets)
         {
-            long estimatedAssetBytes = (item.Data?.Length ?? 0) + (item.AssetKey?.Length ?? 0) * 2 + (item.Metadata?.Length ?? 0) * 2 + 16;
+            long estimatedAssetBytes = EstimateAssetBytes(item);
             if (currentChunk.Count > 0 && currentChunkBytes + estimatedAssetBytes > maxChunkBytes)
             {
                 result.Add(currentChunk);
@@ -40,6 +37,15 @@ public class ZstdAssetBundleHelper
         }
 
         return result;
+    }
+
+    private static long EstimateAssetBytes((string AssetKey, byte[] Data, string? Metadata) item)
+    {
+        long dataLength = item.Data?.Length ?? 0;
+        long keyLength = (item.AssetKey?.Length ?? 0) * 2;
+        long metadataLength = (item.Metadata?.Length ?? 0) * 2;
+
+        return dataLength + keyLength + metadataLength + 16;
     }
 
     public static void CreateBundleToFile(

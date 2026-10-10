@@ -1,15 +1,8 @@
-using System;
+using Realm.Shared.Metadata;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Distribution;
 
@@ -124,43 +117,12 @@ public class DistributionClient
         byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         content.Add(byteContent, "file", $"{normalizedHash}{extension}");
 
-        if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
-        {
-            content.Add(new StringContent(metadataHeadersJson, Encoding.UTF8), "metadata");
-        }
-
-        if (!string.IsNullOrWhiteSpace(authorPublicKey))
-        {
-            content.Add(new StringContent(authorPublicKey, Encoding.UTF8), "authorPublicKey");
-        }
-
-        if (!string.IsNullOrWhiteSpace(authorSignature))
-        {
-            content.Add(new StringContent(authorSignature, Encoding.UTF8), "authorSignature");
-        }
+        AddUploadMultipartContent(content, metadataHeadersJson, authorPublicKey, authorSignature);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Content = content;
 
-        if (!string.IsNullOrEmpty(extension))
-        {
-            request.Headers.TryAddWithoutValidation("X-File-Extension", extension);
-        }
-
-        if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
-        {
-            request.Headers.TryAddWithoutValidation("X-Asset-Metadata", Convert.ToBase64String(Encoding.UTF8.GetBytes(metadataHeadersJson)));
-        }
-
-        if (!string.IsNullOrWhiteSpace(authorPublicKey))
-        {
-            request.Headers.TryAddWithoutValidation("X-Author-Public-Key", authorPublicKey);
-        }
-
-        if (!string.IsNullOrWhiteSpace(authorSignature))
-        {
-            request.Headers.TryAddWithoutValidation("X-Author-Signature", authorSignature);
-        }
+        AddUploadHeaders(request, extension, metadataHeadersJson, authorPublicKey, authorSignature);
 
         if (_throttle != null)
         {
@@ -188,6 +150,47 @@ public class DistributionClient
         catch
         {
             return new AssetUploadResponseDto { Success = true, Blake3Hash = normalizedHash };
+        }
+    }
+
+    private static void AddUploadMultipartContent(MultipartFormDataContent content, string? metadataHeadersJson, string? authorPublicKey, string? authorSignature)
+    {
+        if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
+        {
+            content.Add(new StringContent(metadataHeadersJson, Encoding.UTF8), "metadata");
+        }
+
+        if (!string.IsNullOrWhiteSpace(authorPublicKey))
+        {
+            content.Add(new StringContent(authorPublicKey, Encoding.UTF8), "authorPublicKey");
+        }
+
+        if (!string.IsNullOrWhiteSpace(authorSignature))
+        {
+            content.Add(new StringContent(authorSignature, Encoding.UTF8), "authorSignature");
+        }
+    }
+
+    private static void AddUploadHeaders(HttpRequestMessage request, string extension, string? metadataHeadersJson, string? authorPublicKey, string? authorSignature)
+    {
+        if (!string.IsNullOrEmpty(extension))
+        {
+            request.Headers.TryAddWithoutValidation("X-File-Extension", extension);
+        }
+
+        if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
+        {
+            request.Headers.TryAddWithoutValidation("X-Asset-Metadata", Convert.ToBase64String(Encoding.UTF8.GetBytes(metadataHeadersJson)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(authorPublicKey))
+        {
+            request.Headers.TryAddWithoutValidation("X-Author-Public-Key", authorPublicKey);
+        }
+
+        if (!string.IsNullOrWhiteSpace(authorSignature))
+        {
+            request.Headers.TryAddWithoutValidation("X-Author-Signature", authorSignature);
         }
     }
 
@@ -229,37 +232,7 @@ public class DistributionClient
 
             await ZstdAssetBundleHelper.ExtractBundleFromStreamAsync(
                 responseStream,
-                async (assetKey, metadata, data) =>
-                {
-                    string normalizedHash = ContentAddressableStorage.NormalizeBlake3Hash(assetKey);
-                    if (!hashToExtensionMap.TryGetValue(normalizedHash, out string? extension) || string.IsNullOrEmpty(extension))
-                    {
-                        extension = ".bin";
-                    }
-
-                    string computedBlake3 = RealmMetadataHelper.ComputeBlake3(data, extension);
-                    string computedNormalized = ContentAddressableStorage.NormalizeBlake3Hash(computedBlake3);
-
-                    if (!string.Equals(computedNormalized, normalizedHash, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return;
-                    }
-
-                    if (_throttle != null)
-                    {
-                        await _throttle.ConsumeAsync(data.Length, cancellationToken);
-                    }
-
-                    var storeResult = targetStorage.StoreAsset(data, extension, metadata, precomputedBlake3: computedBlake3);
-                    if (storeResult.Success)
-                    {
-                        lock (downloadedHashes)
-                        {
-                            downloadedHashes.Add(normalizedHash);
-                        }
-                        onAssetDownloaded?.Invoke(normalizedHash);
-                    }
-                },
+                async (assetKey, metadata, data) => await ProcessExtractedBundleAssetAsync(assetKey, metadata, data, hashToExtensionMap, targetStorage, downloadedHashes, onAssetDownloaded, cancellationToken),
                 cancellationToken);
 
             return (true, downloadedHashes);
@@ -268,6 +241,48 @@ public class DistributionClient
         {
             return (false, downloadedHashes);
         }
+    }
+
+    private async Task ProcessExtractedBundleAssetAsync(
+        string assetKey,
+        string? metadata,
+        byte[] data,
+        IReadOnlyDictionary<string, string> hashToExtensionMap,
+        ContentAddressableStorage targetStorage,
+        List<string> downloadedHashes,
+        Action<string>? onAssetDownloaded,
+        CancellationToken cancellationToken)
+    {
+        string normalizedHash = ContentAddressableStorage.NormalizeBlake3Hash(assetKey);
+        if (!hashToExtensionMap.TryGetValue(normalizedHash, out string? extension) || string.IsNullOrEmpty(extension))
+        {
+            extension = ".bin";
+        }
+
+        string computedBlake3 = RealmMetadataHelper.ComputeBlake3(data, extension);
+        string computedNormalized = ContentAddressableStorage.NormalizeBlake3Hash(computedBlake3);
+
+        if (!string.Equals(computedNormalized, normalizedHash, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (_throttle != null)
+        {
+            await _throttle.ConsumeAsync(data.Length, cancellationToken);
+        }
+
+        var storeResult = targetStorage.StoreAsset(data, extension, metadata, precomputedBlake3: computedBlake3);
+        if (!storeResult.Success)
+        {
+            return;
+        }
+
+        lock (downloadedHashes)
+        {
+            downloadedHashes.Add(normalizedHash);
+        }
+        onAssetDownloaded?.Invoke(normalizedHash);
     }
 
     public async Task<bool> DownloadMissingAssetsMultiThreadedAsync(
@@ -279,6 +294,65 @@ public class DistributionClient
         int maximumConcurrency = 4,
         CancellationToken cancellationToken = default,
         Action<string, string, string>? onAssetReady = null)
+    {
+        var (missingHashes, existingHashes) = CategorizeManifestAssets(manifest, targetStorage);
+
+        NotifyExistingAssetsReady(existingHashes, onAssetReady);
+
+        if (missingHashes.Count == 0)
+        {
+            progressCallback?.Invoke(1.0f);
+            return true;
+        }
+
+        var seeders = availableSeeders ?? await GetActiveSeedersAsync(cancellationToken);
+        int totalMissing = missingHashes.Count;
+        int[] completedCountWrapper = new int[1];
+
+        var (remainingMissingMap, hashToExtMap) = BuildMissingAssetMaps(missingHashes);
+
+        string firstHash = missingHashes.Count > 0 ? missingHashes[0].NormalizedHash : "";
+        var prioritizedUrls = GetPrioritizedServerUrls(firstHash, seeders, fallbackHostUrl);
+
+        await DownloadBatchedAssetsFromSeedersAsync(
+            prioritizedUrls,
+            remainingMissingMap,
+            hashToExtMap,
+            targetStorage,
+            totalMissing,
+            progressCallback,
+            onAssetReady,
+            completedCountWrapper,
+            cancellationToken);
+
+        if (!remainingMissingMap.IsEmpty && !cancellationToken.IsCancellationRequested)
+        {
+            await DownloadRemainingAssetsConcurrentlyAsync(
+                remainingMissingMap,
+                hashToExtMap,
+                targetStorage,
+                seeders,
+                fallbackHostUrl,
+                maximumConcurrency,
+                totalMissing,
+                progressCallback,
+                onAssetReady,
+                completedCountWrapper,
+                cancellationToken);
+        }
+
+        if (completedCountWrapper[0] >= totalMissing)
+        {
+            progressCallback?.Invoke(1.0f);
+            return true;
+        }
+
+        return remainingMissingMap.IsEmpty;
+    }
+
+    private static (List<(string VirtualPath, string AssetKey, string NormalizedHash)> Missing, List<(string VirtualPath, string AssetKey, string NormalizedHash)> Existing) CategorizeManifestAssets(
+        MapManifest manifest,
+        ContentAddressableStorage targetStorage)
     {
         var missingHashes = new List<(string VirtualPath, string AssetKey, string NormalizedHash)>();
         var existingHashes = new List<(string VirtualPath, string AssetKey, string NormalizedHash)>();
@@ -298,24 +372,27 @@ public class DistributionClient
             }
         }
 
-        if (existingHashes.Count > 0 && onAssetReady != null)
+        return (missingHashes, existingHashes);
+    }
+
+    private static void NotifyExistingAssetsReady(
+        List<(string VirtualPath, string AssetKey, string NormalizedHash)> existingHashes,
+        Action<string, string, string>? onAssetReady)
+    {
+        if (existingHashes.Count == 0 || onAssetReady == null)
         {
-            Parallel.ForEach(existingHashes, item =>
-            {
-                onAssetReady(item.VirtualPath, item.AssetKey, item.NormalizedHash);
-            });
+            return;
         }
 
-        if (missingHashes.Count == 0)
+        Parallel.ForEach(existingHashes, item =>
         {
-            progressCallback?.Invoke(1.0f);
-            return true;
-        }
+            onAssetReady(item.VirtualPath, item.AssetKey, item.NormalizedHash);
+        });
+    }
 
-        var seeders = availableSeeders ?? await GetActiveSeedersAsync(cancellationToken);
-        int totalMissing = missingHashes.Count;
-        int completedCount = 0;
-
+    private static (ConcurrentDictionary<string, List<(string VirtualPath, string AssetKey, string NormalizedHash)>> RemainingMap, Dictionary<string, string> ExtMap) BuildMissingAssetMaps(
+        List<(string VirtualPath, string AssetKey, string NormalizedHash)> missingHashes)
+    {
         var remainingMissingMap = new ConcurrentDictionary<string, List<(string VirtualPath, string AssetKey, string NormalizedHash)>>(StringComparer.OrdinalIgnoreCase);
         var hashToExtMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -336,9 +413,20 @@ public class DistributionClient
             list.Add(item);
         }
 
-        string firstHash = missingHashes.Count > 0 ? missingHashes[0].NormalizedHash : "";
-        var prioritizedUrls = GetPrioritizedServerUrls(firstHash, seeders, fallbackHostUrl);
+        return (remainingMissingMap, hashToExtMap);
+    }
 
+    private async Task DownloadBatchedAssetsFromSeedersAsync(
+        List<string> prioritizedUrls,
+        ConcurrentDictionary<string, List<(string VirtualPath, string AssetKey, string NormalizedHash)>> remainingMissingMap,
+        Dictionary<string, string> hashToExtMap,
+        ContentAddressableStorage targetStorage,
+        int totalMissing,
+        Action<float>? progressCallback,
+        Action<string, string, string>? onAssetReady,
+        int[] completedCountWrapper,
+        CancellationToken cancellationToken)
+    {
         foreach (string baseUrl in prioritizedUrls)
         {
             if (remainingMissingMap.IsEmpty || cancellationToken.IsCancellationRequested)
@@ -352,111 +440,163 @@ public class DistributionClient
                 continue;
             }
 
-            var currentMissingHashes = remainingMissingMap.Keys.ToList();
-            if (currentMissingHashes.Count == 0) break;
+            await ProcessUrlBatchesAsync(
+                baseUrl,
+                remainingMissingMap,
+                hashToExtMap,
+                targetStorage,
+                totalMissing,
+                progressCallback,
+                onAssetReady,
+                completedCountWrapper,
+                cancellationToken,
+                circuit);
+        }
+    }
 
-            const int maxBatchCount = 100;
-            for (int i = 0; i < currentMissingHashes.Count; i += maxBatchCount)
+    private async Task ProcessUrlBatchesAsync(
+        string baseUrl,
+        ConcurrentDictionary<string, List<(string VirtualPath, string AssetKey, string NormalizedHash)>> remainingMissingMap,
+        Dictionary<string, string> hashToExtMap,
+        ContentAddressableStorage targetStorage,
+        int totalMissing,
+        Action<float>? progressCallback,
+        Action<string, string, string>? onAssetReady,
+        int[] completedCountWrapper,
+        CancellationToken cancellationToken,
+        SeederCircuitState circuit)
+    {
+        var currentMissingHashes = remainingMissingMap.Keys.ToList();
+        if (currentMissingHashes.Count == 0) return;
+
+        const int maxBatchCount = 100;
+        for (int i = 0; i < currentMissingHashes.Count; i += maxBatchCount)
+        {
+            if (cancellationToken.IsCancellationRequested) break;
+
+            var batch = currentMissingHashes.Skip(i).Take(maxBatchCount).ToList();
+            var (bundleSuccess, downloadedHashes) = await DownloadAssetBundleStreamAsync(
+                baseUrl,
+                batch,
+                hashToExtMap,
+                targetStorage,
+                cancellationToken,
+                onAssetDownloaded: normHash => HandleAssetDownloaded(normHash, remainingMissingMap, onAssetReady, totalMissing, progressCallback, completedCountWrapper));
+
+            if (bundleSuccess)
             {
-                if (cancellationToken.IsCancellationRequested) break;
-
-                var batch = currentMissingHashes.Skip(i).Take(maxBatchCount).ToList();
-                var (bundleSuccess, downloadedHashes) = await DownloadAssetBundleStreamAsync(
-                    baseUrl,
-                    batch,
-                    hashToExtMap,
-                    targetStorage,
-                    cancellationToken,
-                    onAssetDownloaded: normHash =>
-                    {
-                        if (remainingMissingMap.TryRemove(normHash, out var readyItems))
-                        {
-                            foreach (var item in readyItems)
-                            {
-                                onAssetReady?.Invoke(item.VirtualPath, item.AssetKey, item.NormalizedHash);
-                            }
-                            int currentCompleted = Interlocked.Increment(ref completedCount);
-                            float progress = (float)currentCompleted / totalMissing;
-                            progressCallback?.Invoke(progress);
-                        }
-                    });
-
-                if (bundleSuccess)
-                {
-                    circuit.RecordSuccess();
-                }
-                else
-                {
-                    break;
-                }
+                circuit.RecordSuccess();
+            }
+            else
+            {
+                break;
             }
         }
+    }
 
-        if (!remainingMissingMap.IsEmpty && !cancellationToken.IsCancellationRequested)
+
+    private void HandleAssetDownloaded(
+        string normHash,
+        ConcurrentDictionary<string, List<(string VirtualPath, string AssetKey, string NormalizedHash)>> remainingMissingMap,
+        Action<string, string, string>? onAssetReady,
+        int totalMissing,
+        Action<float>? progressCallback,
+        int[] completedCountWrapper)
+    {
+        if (remainingMissingMap.TryRemove(normHash, out var readyItems))
         {
-            var remainingMissingItems = remainingMissingMap.Values.SelectMany(v => v).Distinct().ToList();
-
-            using var semaphore = new SemaphoreSlim(maximumConcurrency);
-            var downloadTasks = remainingMissingItems.Select(async item =>
+            foreach (var item in readyItems)
             {
-                await semaphore.WaitAsync(cancellationToken);
-                try
-                {
-                    if (targetStorage.HasAsset(item.NormalizedHash))
-                    {
-                        if (remainingMissingMap.TryRemove(item.NormalizedHash, out _))
-                        {
-                            onAssetReady?.Invoke(item.VirtualPath, item.AssetKey, item.NormalizedHash);
-                            int currentCompleted = Interlocked.Increment(ref completedCount);
-                            float progress = (float)currentCompleted / totalMissing;
-                            progressCallback?.Invoke(progress);
-                        }
-                        return true;
-                    }
-
-                    string effectiveAssetKey = item.AssetKey;
-                    if (string.IsNullOrEmpty(Path.GetExtension(effectiveAssetKey)) && hashToExtMap.TryGetValue(item.NormalizedHash, out var mappedExt) && !string.IsNullOrEmpty(mappedExt))
-                    {
-                        effectiveAssetKey = $"{item.AssetKey}{mappedExt}";
-                    }
-
-                    bool downloaded = await DownloadSingleAssetWithRetriesAsync(
-                        item.NormalizedHash,
-                        effectiveAssetKey,
-                        targetStorage,
-                        seeders,
-                        fallbackHostUrl,
-                        cancellationToken);
-
-                    if (downloaded)
-                    {
-                        if (remainingMissingMap.TryRemove(item.NormalizedHash, out _))
-                        {
-                            onAssetReady?.Invoke(item.VirtualPath, item.AssetKey, item.NormalizedHash);
-                            int currentCompleted = Interlocked.Increment(ref completedCount);
-                            float progress = (float)currentCompleted / totalMissing;
-                            progressCallback?.Invoke(progress);
-                        }
-                    }
-
-                    return downloaded;
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            }).ToList();
-
-            await Task.WhenAll(downloadTasks);
+                onAssetReady?.Invoke(item.VirtualPath, item.AssetKey, item.NormalizedHash);
+            }
+            int currentCompleted = Interlocked.Increment(ref completedCountWrapper[0]);
+            float progress = (float)currentCompleted / totalMissing;
+            progressCallback?.Invoke(progress);
         }
+    }
 
-        if (completedCount >= totalMissing)
+    private async Task DownloadRemainingAssetsConcurrentlyAsync(
+        ConcurrentDictionary<string, List<(string VirtualPath, string AssetKey, string NormalizedHash)>> remainingMissingMap,
+        Dictionary<string, string> hashToExtMap,
+        ContentAddressableStorage targetStorage,
+        List<SeederNodeDto> seeders,
+        string? fallbackHostUrl,
+        int maximumConcurrency,
+        int totalMissing,
+        Action<float>? progressCallback,
+        Action<string, string, string>? onAssetReady,
+        int[] completedCountWrapper,
+        CancellationToken cancellationToken)
+    {
+        var remainingMissingItems = remainingMissingMap.Values.SelectMany(v => v).Distinct().ToList();
+
+        using var semaphore = new SemaphoreSlim(maximumConcurrency);
+        var downloadTasks = remainingMissingItems.Select(async item =>
         {
-            progressCallback?.Invoke(1.0f);
+            await semaphore.WaitAsync(cancellationToken);
+            try
+            {
+                return await DownloadSingleRemainingAssetAsync(
+                    item,
+                    remainingMissingMap,
+                    hashToExtMap,
+                    targetStorage,
+                    seeders,
+                    fallbackHostUrl,
+                    totalMissing,
+                    progressCallback,
+                    onAssetReady,
+                    completedCountWrapper,
+                    cancellationToken);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }).ToList();
+
+        await Task.WhenAll(downloadTasks);
+    }
+
+    private async Task<bool> DownloadSingleRemainingAssetAsync(
+        (string VirtualPath, string AssetKey, string NormalizedHash) item,
+        ConcurrentDictionary<string, List<(string VirtualPath, string AssetKey, string NormalizedHash)>> remainingMissingMap,
+        Dictionary<string, string> hashToExtMap,
+        ContentAddressableStorage targetStorage,
+        List<SeederNodeDto> seeders,
+        string? fallbackHostUrl,
+        int totalMissing,
+        Action<float>? progressCallback,
+        Action<string, string, string>? onAssetReady,
+        int[] completedCountWrapper,
+        CancellationToken cancellationToken)
+    {
+        if (targetStorage.HasAsset(item.NormalizedHash))
+        {
+            HandleAssetDownloaded(item.NormalizedHash, remainingMissingMap, onAssetReady, totalMissing, progressCallback, completedCountWrapper);
             return true;
         }
 
-        return remainingMissingMap.IsEmpty;
+        string effectiveAssetKey = item.AssetKey;
+        if (string.IsNullOrEmpty(Path.GetExtension(effectiveAssetKey)) && hashToExtMap.TryGetValue(item.NormalizedHash, out var mappedExt) && !string.IsNullOrEmpty(mappedExt))
+        {
+            effectiveAssetKey = $"{item.AssetKey}{mappedExt}";
+        }
+
+        bool downloaded = await DownloadSingleAssetWithRetriesAsync(
+            item.NormalizedHash,
+            effectiveAssetKey,
+            targetStorage,
+            seeders,
+            fallbackHostUrl,
+            cancellationToken);
+
+        if (downloaded)
+        {
+            HandleAssetDownloaded(item.NormalizedHash, remainingMissingMap, onAssetReady, totalMissing, progressCallback, completedCountWrapper);
+        }
+
+        return downloaded;
     }
 
     private int _roundRobinCounter = 0;
@@ -532,101 +672,144 @@ public class DistributionClient
         const int maxCycles = 3;
         for (int cycle = 0; cycle < maxCycles; cycle++)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return false;
-            }
+            if (cancellationToken.IsCancellationRequested) return false;
 
             if (cycle > 0)
             {
-                int baseDelayMs = 150 * (int)Math.Pow(2, cycle - 1);
-                int jitterMs = Random.Shared.Next(15, 75);
-                await Task.Delay(baseDelayMs + jitterMs, cancellationToken);
+                await Task.Delay(150 * (int)Math.Pow(2, cycle - 1) + Random.Shared.Next(15, 75), cancellationToken);
             }
 
-            DateTime nowUtc = DateTime.UtcNow;
+            var availableUrls = GetAvailableUrls(prioritizedUrls);
 
-            var availableUrls = prioritizedUrls
-                .Where(url => !GetCircuitState(url).IsOpen(nowUtc))
-                .ToList();
-
-            if (availableUrls.Count == 0)
+            if (await ProcessAvailableUrlsAsync(availableUrls, normalizedHash, assetKey, targetStorage, cancellationToken))
             {
-                availableUrls = prioritizedUrls;
-            }
-
-            foreach (string baseUrl in availableUrls)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return false;
-                }
-
-                var circuit = GetCircuitState(baseUrl);
-                try
-                {
-                    string assetUrl = $"{baseUrl}/api/assets/{normalizedHash}";
-                    var response = await _httpClient.GetAsync(assetUrl, cancellationToken);
-                    if (response.IsSuccessStatusCode)
-                    {
-                        byte[] downloadedBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-                        if (_throttle != null)
-                        {
-                            await _throttle.ConsumeAsync(downloadedBytes.Length, cancellationToken);
-                        }
-
-                        string extension = Path.GetExtension(assetKey).ToLowerInvariant();
-                        string computedBlake3 = RealmMetadataHelper.ComputeBlake3(downloadedBytes, extension);
-                        string computedNormalized = ContentAddressableStorage.NormalizeBlake3Hash(computedBlake3);
-
-                        if (!string.Equals(computedNormalized, normalizedHash, StringComparison.OrdinalIgnoreCase))
-                        {
-                            circuit.RecordFailure(DateTime.UtcNow);
-                            continue;
-                        }
-
-                        string? metadataHeader = null;
-                        if (response.Headers.TryGetValues("X-Asset-Metadata", out var metaValues))
-                        {
-                            string? rawHeader = metaValues.FirstOrDefault();
-                            if (!string.IsNullOrWhiteSpace(rawHeader))
-                            {
-                                try
-                                {
-                                    byte[] metaBytes = Convert.FromBase64String(rawHeader);
-                                    metadataHeader = Encoding.UTF8.GetString(metaBytes);
-                                }
-                                catch
-                                {
-                                    metadataHeader = rawHeader;
-                                }
-                            }
-                        }
-
-                        var storeResult = targetStorage.StoreAsset(downloadedBytes, extension, metadataHeader, precomputedBlake3: computedBlake3);
-                        if (storeResult.Success)
-                        {
-                            circuit.RecordSuccess();
-                            return true;
-                        }
-                    }
-                    else if ((int)response.StatusCode >= 500 || response.StatusCode == System.Net.HttpStatusCode.RequestTimeout)
-                    {
-                        circuit.RecordFailure(DateTime.UtcNow);
-                    }
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    return false;
-                }
-                catch
-                {
-                    circuit.RecordFailure(DateTime.UtcNow);
-                }
+                return true;
             }
         }
 
         return false;
+    }
+
+    private async Task<bool> ProcessAvailableUrlsAsync(
+        List<string> availableUrls,
+        string normalizedHash,
+        string assetKey,
+        ContentAddressableStorage targetStorage,
+        CancellationToken cancellationToken)
+    {
+        foreach (string baseUrl in availableUrls)
+        {
+            if (cancellationToken.IsCancellationRequested) return false;
+            
+            if (await TryDownloadAssetFromUrlAsync(baseUrl, normalizedHash, assetKey, targetStorage, cancellationToken))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<string> GetAvailableUrls(List<string> prioritizedUrls)
+    {
+        DateTime nowUtc = DateTime.UtcNow;
+        var availableUrls = prioritizedUrls.Where(url => !GetCircuitState(url).IsOpen(nowUtc)).ToList();
+        return availableUrls.Count == 0 ? prioritizedUrls : availableUrls;
+    }
+
+    private async Task<bool> TryDownloadAssetFromUrlAsync(
+        string baseUrl,
+        string normalizedHash,
+        string assetKey,
+        ContentAddressableStorage targetStorage,
+        CancellationToken cancellationToken)
+    {
+        var circuit = GetCircuitState(baseUrl);
+        try
+        {
+            string assetUrl = $"{baseUrl}/api/assets/{normalizedHash}";
+            var response = await _httpClient.GetAsync(assetUrl, cancellationToken);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                return await ProcessSuccessfulDownloadAsync(response, baseUrl, normalizedHash, assetKey, targetStorage, circuit, cancellationToken);
+            }
+            
+            if ((int)response.StatusCode >= 500 || response.StatusCode == System.Net.HttpStatusCode.RequestTimeout)
+            {
+                circuit.RecordFailure(DateTime.UtcNow);
+            }
+            return false;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch
+        {
+            circuit.RecordFailure(DateTime.UtcNow);
+            return false;
+        }
+    }
+
+    private async Task<bool> ProcessSuccessfulDownloadAsync(
+        HttpResponseMessage response,
+        string baseUrl,
+        string normalizedHash,
+        string assetKey,
+        ContentAddressableStorage targetStorage,
+        SeederCircuitState circuit,
+        CancellationToken cancellationToken)
+    {
+        byte[] downloadedBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (_throttle != null)
+        {
+            await _throttle.ConsumeAsync(downloadedBytes.Length, cancellationToken);
+        }
+
+        string extension = Path.GetExtension(assetKey).ToLowerInvariant();
+        string computedBlake3 = RealmMetadataHelper.ComputeBlake3(downloadedBytes, extension);
+        string computedNormalized = ContentAddressableStorage.NormalizeBlake3Hash(computedBlake3);
+
+        if (!string.Equals(computedNormalized, normalizedHash, StringComparison.OrdinalIgnoreCase))
+        {
+            circuit.RecordFailure(DateTime.UtcNow);
+            return false;
+        }
+
+        string? metadataHeader = ExtractMetadataHeader(response);
+
+        var storeResult = targetStorage.StoreAsset(downloadedBytes, extension, metadataHeader, precomputedBlake3: computedBlake3);
+        if (storeResult.Success)
+        {
+            circuit.RecordSuccess();
+            return true;
+        }
+        
+        return false;
+    }
+
+    private string? ExtractMetadataHeader(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("X-Asset-Metadata", out var metaValues))
+        {
+            return null;
+        }
+
+        string? rawHeader = metaValues.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(rawHeader))
+        {
+            return null;
+        }
+
+        try
+        {
+            byte[] metaBytes = Convert.FromBase64String(rawHeader);
+            return Encoding.UTF8.GetString(metaBytes);
+        }
+        catch
+        {
+            return rawHeader;
+        }
     }
 
     public async Task<PublishMapInitiateResponse> InitiatePublishAsync(PublishMapInitiateRequest request, CancellationToken cancellationToken = default)
@@ -758,7 +941,7 @@ public class DistributionClient
         }
     }
 
-    public async Task<(bool Success, string? FailedAsset, string? ErrorMessage)> UploadMissingAssetsMultiThreadedAsync(
+        public async Task<(bool Success, string? FailedAsset, string? ErrorMessage)> UploadMissingAssetsMultiThreadedAsync(
         string workspace,
         IReadOnlyList<string> missingHashes,
         IReadOnlyDictionary<string, string> hashToRelativePath,
@@ -773,172 +956,270 @@ public class DistributionClient
         CancellationToken cancellationToken = default)
     {
         int totalMissing = missingHashes.Count;
-        int completedCount = 0;
-        string? firstErrorAsset = null;
-        string? firstErrorMessage = null;
+        int[] completedCountWrapper = new int[1];
+        string?[] errorWrapper = new string?[2]; // [0] = firstErrorAsset, [1] = firstErrorMessage
         var errorLock = new object();
 
         using var semaphore = new SemaphoreSlim(Math.Max(1, maximumConcurrency));
 
         var tasks = missingHashes.Select(async missingHash =>
         {
-            if (firstErrorAsset != null || cancellationToken.IsCancellationRequested) return;
-
-            if (!hashToRelativePath.TryGetValue(missingHash, out var relPath))
-            {
-                lock (errorLock)
-                {
-                    firstErrorAsset ??= missingHash;
-                    firstErrorMessage ??= $"Missing hash '{missingHash}' is not present in manifest file mapping.";
-                }
-                return;
-            }
-
-            string fullFilePath = Path.Combine(workspace, relPath);
-            if (!File.Exists(fullFilePath))
-            {
-                lock (errorLock)
-                {
-                    firstErrorAsset ??= relPath;
-                    firstErrorMessage ??= $"File '{relPath}' was not found on disk at '{fullFilePath}'.";
-                }
-                return;
-            }
-
-            await semaphore.WaitAsync(cancellationToken);
-            try
-            {
-                if (firstErrorAsset != null || cancellationToken.IsCancellationRequested) return;
-
-                byte[] fileBytes = await File.ReadAllBytesAsync(fullFilePath, cancellationToken);
-                if (fileBytes.Length == 0)
-                {
-                    lock (errorLock)
-                    {
-                        firstErrorAsset ??= relPath;
-                        firstErrorMessage ??= $"File '{relPath}' is empty (0 bytes) and cannot be published as an asset.";
-                    }
-                    return;
-                }
-
-                if (fileBytes.Length > ContentAddressableStorage.MaximumAssetSizeBytes)
-                {
-                    lock (errorLock)
-                    {
-                        double sizeMb = (double)fileBytes.Length / (1024 * 1024);
-                        double maxMb = (double)ContentAddressableStorage.MaximumAssetSizeBytes / (1024 * 1024);
-                        firstErrorAsset ??= relPath;
-                        firstErrorMessage ??= $"Asset '{relPath}' ({sizeMb:F2} MB) exceeds maximum allowed size of {maxMb:F0} MB per asset.";
-                    }
-                    return;
-                }
-
-                string ext = Path.GetExtension(fullFilePath);
-                string computedBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, ext);
-                string computedNorm = ContentAddressableStorage.NormalizeBlake3Hash(computedBlake3);
-                string expectedNorm = ContentAddressableStorage.NormalizeBlake3Hash(missingHash);
-                if (!string.Equals(computedNorm, expectedNorm, StringComparison.OrdinalIgnoreCase))
-                {
-                    lock (errorLock)
-                    {
-                        firstErrorAsset ??= relPath;
-                        firstErrorMessage ??= $"Asset file '{relPath}' hash mismatch: expected {expectedNorm}, but file on disk has hash {computedNorm}.";
-                    }
-                    return;
-                }
-
-                if (await CheckAssetExistsAsync(missingHash, cancellationToken))
-                {
-                    int done = Interlocked.Increment(ref completedCount);
-                    progressCallback?.Invoke(done, totalMissing, Path.GetFileName(fullFilePath));
-                    return;
-                }
-
-                byte[] hashBytes = Encoding.UTF8.GetBytes(missingHash);
-                byte[] signatureBytes = NSec.Cryptography.SignatureAlgorithm.Ed25519.Sign(authorshipKey, hashBytes);
-                string signatureStr = Convert.ToBase64String(signatureBytes);
-
-                bool success = false;
-                string? lastError = null;
-
-                for (int attempt = 0; attempt < 3 && !success && !cancellationToken.IsCancellationRequested; attempt++)
-                {
-                    if (attempt > 0)
-                    {
-                        await Task.Delay(200 * attempt, cancellationToken);
-                    }
-
-                    string url = $"{_registryServerUrl}/api/publish_map/upload_asset";
-                    using var form = new MultipartFormDataContent();
-                    form.Add(new StringContent(missingHash), "Hash");
-                    form.Add(new StringContent(signatureStr), "Signature");
-                    form.Add(new StringContent(currentUsername), "AuthorUsername");
-                    form.Add(new StringContent(authorPublicKey), "PublicKey");
-                    form.Add(new StringContent(mapTitle), "MapTitle");
-                    form.Add(new StringContent(mapVersion), "MapVersion");
-                    if (!string.IsNullOrEmpty(sessionId))
-                    {
-                        form.Add(new StringContent(sessionId), "SessionId");
-                    }
-
-                    var fileContent = new ByteArrayContent(fileBytes);
-                    form.Add(fileContent, "File", Path.GetFileName(fullFilePath));
-
-                    if (_throttle != null)
-                    {
-                        await _throttle.ConsumeAsync(fileBytes.Length, cancellationToken);
-                    }
-
-                    try
-                    {
-                        var response = await _httpClient.PostAsync(url, form, cancellationToken);
-                        if (response.IsSuccessStatusCode)
-                        {
-                            success = true;
-                        }
-                        else
-                        {
-                            string err = await response.Content.ReadAsStringAsync(cancellationToken);
-                            lastError = $"HTTP {(int)response.StatusCode}: {err}";
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        lastError = ex.Message;
-                    }
-                }
-
-                if (!success)
-                {
-                    lock (errorLock)
-                    {
-                        firstErrorAsset ??= relPath;
-                        firstErrorMessage ??= lastError ?? "Upload failed after retries.";
-                    }
-                }
-                else
-                {
-                    int done = Interlocked.Increment(ref completedCount);
-                    progressCallback?.Invoke(done, totalMissing, Path.GetFileName(fullFilePath));
-                }
-            }
-            finally
-            {
-                semaphore.Release();
-            }
+            await ProcessMissingAssetUploadAsync(
+                missingHash,
+                workspace,
+                hashToRelativePath,
+                currentUsername,
+                authorPublicKey,
+                authorshipKey,
+                mapTitle,
+                mapVersion,
+                sessionId,
+                progressCallback,
+                totalMissing,
+                completedCountWrapper,
+                errorLock,
+                errorWrapper,
+                semaphore,
+                cancellationToken);
         });
 
         await Task.WhenAll(tasks);
 
-        if (firstErrorAsset != null)
+        if (errorWrapper[0] != null)
         {
-            return (false, firstErrorAsset, firstErrorMessage);
+            return (false, errorWrapper[0], errorWrapper[1]);
         }
 
         return (true, null, null);
     }
 
-    public async Task<List<ClusterEventDto>> GetClusterEventsAsync(DateTime? sinceUtc = null, int limit = 100, CancellationToken cancellationToken = default)
+    private async Task ProcessMissingAssetUploadAsync(
+        string missingHash,
+        string workspace,
+        IReadOnlyDictionary<string, string> hashToRelativePath,
+        string currentUsername,
+        string authorPublicKey,
+        NSec.Cryptography.Key authorshipKey,
+        string mapTitle,
+        string mapVersion,
+        string? sessionId,
+        Action<int, int, string>? progressCallback,
+        int totalMissing,
+        int[] completedCountWrapper,
+        object errorLock,
+        string?[] errorWrapper,
+        SemaphoreSlim semaphore,
+        CancellationToken cancellationToken)
+    {
+        if (errorWrapper[0] != null || cancellationToken.IsCancellationRequested) return;
+
+        if (!hashToRelativePath.TryGetValue(missingHash, out var relPath))
+        {
+            SetUploadError(errorLock, errorWrapper, missingHash, $"Missing hash '{missingHash}' is not present in manifest file mapping.");
+            return;
+        }
+
+        string fullFilePath = Path.Combine(workspace, relPath);
+        if (!File.Exists(fullFilePath))
+        {
+            SetUploadError(errorLock, errorWrapper, relPath, $"File '{relPath}' was not found on disk at '{fullFilePath}'.");
+            return;
+        }
+
+        await semaphore.WaitAsync(cancellationToken);
+        try
+        {
+            if (errorWrapper[0] != null || cancellationToken.IsCancellationRequested) return;
+
+            byte[] fileBytes = await File.ReadAllBytesAsync(fullFilePath, cancellationToken);
+            if (!ValidateAssetBytes(fileBytes, relPath, missingHash, fullFilePath, errorLock, errorWrapper))
+            {
+                return;
+            }
+
+            if (await CheckAssetExistsAsync(missingHash, cancellationToken))
+            {
+                NotifyAssetUploaded(fullFilePath, progressCallback, totalMissing, completedCountWrapper);
+                return;
+            }
+
+            await PerformAssetUploadWithRetriesAsync(
+                missingHash,
+                fileBytes,
+                relPath,
+                fullFilePath,
+                currentUsername,
+                authorPublicKey,
+                authorshipKey,
+                mapTitle,
+                mapVersion,
+                sessionId,
+                progressCallback,
+                totalMissing,
+                completedCountWrapper,
+                errorLock,
+                errorWrapper,
+                cancellationToken);
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
+    private bool ValidateAssetBytes(
+        byte[] fileBytes,
+        string relPath,
+        string missingHash,
+        string fullFilePath,
+        object errorLock,
+        string?[] errorWrapper)
+    {
+        if (fileBytes.Length == 0)
+        {
+            SetUploadError(errorLock, errorWrapper, relPath, $"File '{relPath}' is empty (0 bytes) and cannot be published as an asset.");
+            return false;
+        }
+
+        if (fileBytes.Length > ContentAddressableStorage.MaximumAssetSizeBytes)
+        {
+            double sizeMb = (double)fileBytes.Length / (1024 * 1024);
+            double maxMb = (double)ContentAddressableStorage.MaximumAssetSizeBytes / (1024 * 1024);
+            SetUploadError(errorLock, errorWrapper, relPath, $"Asset '{relPath}' ({sizeMb:F2} MB) exceeds maximum allowed size of {maxMb:F0} MB per asset.");
+            return false;
+        }
+
+        string ext = Path.GetExtension(fullFilePath);
+        string computedBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, ext);
+        string computedNorm = ContentAddressableStorage.NormalizeBlake3Hash(computedBlake3);
+        string expectedNorm = ContentAddressableStorage.NormalizeBlake3Hash(missingHash);
+        
+        if (!string.Equals(computedNorm, expectedNorm, StringComparison.OrdinalIgnoreCase))
+        {
+            SetUploadError(errorLock, errorWrapper, relPath, $"Asset file '{relPath}' hash mismatch: expected {expectedNorm}, but file on disk has hash {computedNorm}.");
+            return false;
+        }
+        
+        return true;
+    }
+
+    private void SetUploadError(object errorLock, string?[] errorWrapper, string asset, string message)
+    {
+        lock (errorLock)
+        {
+            errorWrapper[0] ??= asset;
+            errorWrapper[1] ??= message;
+        }
+    }
+
+    private void NotifyAssetUploaded(string fullFilePath, Action<int, int, string>? progressCallback, int totalMissing, int[] completedCountWrapper)
+    {
+        int done = Interlocked.Increment(ref completedCountWrapper[0]);
+        progressCallback?.Invoke(done, totalMissing, Path.GetFileName(fullFilePath));
+    }
+
+    private async Task PerformAssetUploadWithRetriesAsync(
+        string missingHash,
+        byte[] fileBytes,
+        string relPath,
+        string fullFilePath,
+        string currentUsername,
+        string authorPublicKey,
+        NSec.Cryptography.Key authorshipKey,
+        string mapTitle,
+        string mapVersion,
+        string? sessionId,
+        Action<int, int, string>? progressCallback,
+        int totalMissing,
+        int[] completedCountWrapper,
+        object errorLock,
+        string?[] errorWrapper,
+        CancellationToken cancellationToken)
+    {
+        byte[] hashBytes = Encoding.UTF8.GetBytes(missingHash);
+        byte[] signatureBytes = NSec.Cryptography.SignatureAlgorithm.Ed25519.Sign(authorshipKey, hashBytes);
+        string signatureStr = Convert.ToBase64String(signatureBytes);
+
+        bool success = false;
+        string? lastError = null;
+
+        for (int attempt = 0; attempt < 3 && !success && !cancellationToken.IsCancellationRequested; attempt++)
+        {
+            if (attempt > 0)
+            {
+                await Task.Delay(200 * attempt, cancellationToken);
+            }
+
+            var (attemptSuccess, attemptError) = await AttemptSingleAssetUploadAsync(
+                missingHash, signatureStr, currentUsername, authorPublicKey, mapTitle, mapVersion, sessionId, fileBytes, fullFilePath, cancellationToken);
+            
+            success = attemptSuccess;
+            lastError = attemptError;
+        }
+
+        if (!success)
+        {
+            SetUploadError(errorLock, errorWrapper, relPath, lastError ?? "Upload failed after retries.");
+        }
+        else
+        {
+            NotifyAssetUploaded(fullFilePath, progressCallback, totalMissing, completedCountWrapper);
+        }
+    }
+
+    private async Task<(bool Success, string? Error)> AttemptSingleAssetUploadAsync(
+        string missingHash,
+        string signatureStr,
+        string currentUsername,
+        string authorPublicKey,
+        string mapTitle,
+        string mapVersion,
+        string? sessionId,
+        byte[] fileBytes,
+        string fullFilePath,
+        CancellationToken cancellationToken)
+    {
+        string url = $"{_registryServerUrl}/api/publish_map/upload_asset";
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent(missingHash), "Hash");
+        form.Add(new StringContent(signatureStr), "Signature");
+        form.Add(new StringContent(currentUsername), "AuthorUsername");
+        form.Add(new StringContent(authorPublicKey), "PublicKey");
+        form.Add(new StringContent(mapTitle), "MapTitle");
+        form.Add(new StringContent(mapVersion), "MapVersion");
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            form.Add(new StringContent(sessionId), "SessionId");
+        }
+
+        var fileContent = new ByteArrayContent(fileBytes);
+        form.Add(fileContent, "File", Path.GetFileName(fullFilePath));
+
+        if (_throttle != null)
+        {
+            await _throttle.ConsumeAsync(fileBytes.Length, cancellationToken);
+        }
+
+        try
+        {
+            var response = await _httpClient.PostAsync(url, form, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return (true, null);
+            }
+            else
+            {
+                string err = await response.Content.ReadAsStringAsync(cancellationToken);
+                return (false, $"HTTP {(int)response.StatusCode}: {err}");
+            }
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+public async Task<List<ClusterEventDto>> GetClusterEventsAsync(DateTime? sinceUtc = null, int limit = 100, CancellationToken cancellationToken = default)
     {
         string url = $"{_registryServerUrl}/api/cluster/events?limit={limit}";
         if (sinceUtc.HasValue)
@@ -1277,3 +1558,4 @@ public class DistributionClient
         }
     }
 }
+

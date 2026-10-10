@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Tags;
 ///     Tag indicating the entity is a static building.
 /// </summary>
 [TagDefinition("Building", "Building", "Marks the entity as a static structure.")]
-internal readonly record struct Building;
+public readonly record struct Building;

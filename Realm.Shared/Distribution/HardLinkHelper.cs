@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using System.Runtime.InteropServices;
 
 namespace Realm.Shared.Distribution;
@@ -27,56 +25,96 @@ public static class HardLinkHelper
             return false;
         }
 
+        EnsureDirectoryExists(destinationPath);
+
+        if (TryCreateHardLink(destinationPath, sourcePath, overwrite))
+        {
+            return true;
+        }
+
+        return TryCopyFile(destinationPath, sourcePath, overwrite);
+    }
+
+    private static void EnsureDirectoryExists(string destinationPath)
+    {
         string? destDir = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
         {
             Directory.CreateDirectory(destDir);
         }
+    }
 
+    private static bool TryCreateHardLink(string destinationPath, string sourcePath, bool overwrite)
+    {
         try
         {
             if (OperatingSystem.IsWindows())
             {
-                if (CreateHardLinkW(destinationPath, sourcePath, IntPtr.Zero))
-                {
-                    return true;
-                }
-
-                if (!overwrite && Marshal.GetLastWin32Error() == 183) // ERROR_ALREADY_EXISTS
-                {
-                    return true;
-                }
-
-                if (overwrite)
-                {
-                    try { File.Delete(destinationPath); } catch { }
-                    if (CreateHardLinkW(destinationPath, sourcePath, IntPtr.Zero))
-                    {
-                        return true;
-                    }
-                }
+                return TryCreateHardLinkWindows(destinationPath, sourcePath, overwrite);
             }
-            else if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            
+            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
             {
-                if (link(sourcePath, destinationPath) == 0)
-                {
-                    return true;
-                }
-
-                if (overwrite)
-                {
-                    try { File.Delete(destinationPath); } catch { }
-                    if (link(sourcePath, destinationPath) == 0)
-                    {
-                        return true;
-                    }
-                }
+                return TryCreateHardLinkUnix(destinationPath, sourcePath, overwrite);
             }
         }
         catch
         {
         }
 
+        return false;
+    }
+
+    private static bool TryCreateHardLinkWindows(string destinationPath, string sourcePath, bool overwrite)
+    {
+        if (CreateHardLinkW(destinationPath, sourcePath, IntPtr.Zero))
+        {
+            return true;
+        }
+
+        if (!overwrite && Marshal.GetLastWin32Error() == 183) // ERROR_ALREADY_EXISTS
+        {
+            return true;
+        }
+
+        if (!overwrite)
+        {
+            return false;
+        }
+
+        TryDeleteFile(destinationPath);
+        return CreateHardLinkW(destinationPath, sourcePath, IntPtr.Zero);
+    }
+
+    private static bool TryCreateHardLinkUnix(string destinationPath, string sourcePath, bool overwrite)
+    {
+        if (link(sourcePath, destinationPath) == 0)
+        {
+            return true;
+        }
+
+        if (!overwrite)
+        {
+            return false;
+        }
+
+        TryDeleteFile(destinationPath);
+        return link(sourcePath, destinationPath) == 0;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool TryCopyFile(string destinationPath, string sourcePath, bool overwrite)
+    {
         try
         {
             File.Copy(sourcePath, destinationPath, overwrite);

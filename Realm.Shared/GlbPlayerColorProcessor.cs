@@ -1,36 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
+using SkiaSharp;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Textures;
-using SkiaSharp;
 
 namespace Realm.Shared;
-
-public class GlbPlayerColorResult
-{
-    public bool Success { get; set; }
-    public string? ErrorMessage { get; set; }
-    public string? OutputFilePath { get; set; }
-    public int MaskedFaceCount { get; set; }
-    public int TotalFaceCount { get; set; }
-    public string? DetectedChromaKey { get; set; }
-}
-
-public class GlbPlayerColorOptions
-{
-    public string ChromaKey { get; set; } = "#FF00FF";
-    public string TargetHex { get => ChromaKey; set => ChromaKey = value; }
-    public bool AutoCorrectChromaKey { get; set; } = true;
-    public float CoreThreshold { get; set; } = 0.88f;
-    public float FringeThreshold { get; set; } = 0.80f;
-    public int MinClusterFaces { get; set; } = 10;
-    public int DilationRadius { get; set; } = 3;
-    public float CreaseAngleDegrees { get; set; } = GlbMeshSmoother.DefaultCreaseAngleDegrees;
-}
 
 public static class GlbPlayerColorProcessor
 {
@@ -48,62 +23,92 @@ public static class GlbPlayerColorProcessor
         }
     }
 
+    private static byte[]? GetGlbBytesFromSpan(ReadOnlySpan<byte> bytes)
+    {
+        if (!RmeshFile.IsRmeshBytes(bytes)) return bytes.ToArray();
+        
+        byte[]? extractedGlb = RmeshFile.GetGlbBytes(bytes);
+        return (extractedGlb == null || extractedGlb.Length == 0) ? null : extractedGlb;
+    }
+
+    private static bool CheckOrmTeamColorMask(SKBitmap ormImg)
+    {
+        int maskCount = 0;
+        int unmaskCount = 0;
+        for (int y = 0; y < ormImg.Height; y += 2)
+        {
+            CountMaskPixelsInRow(ormImg, y, ref maskCount, ref unmaskCount);
+        }
+        return maskCount > 5 && unmaskCount > 5;
+    }
+
+    private static void CountMaskPixelsInRow(SKBitmap ormImg, int y, ref int maskCount, ref int unmaskCount)
+    {
+        for (int x = 0; x < ormImg.Width; x += 2)
+        {
+            if (ormImg.GetPixel(x, y).Red > 32)
+            {
+                maskCount++;
+            }
+            else
+            {
+                unmaskCount++;
+            }
+        }
+    }
+
     public static bool DetectSupportsTeamColor(ReadOnlySpan<byte> glbOrRmeshBytes)
     {
         if (glbOrRmeshBytes.Length == 0) return false;
         try
         {
-            byte[] glbBytes;
-            if (RmeshFile.IsRmeshBytes(glbOrRmeshBytes))
-            {
-                byte[]? extractedGlb = RmeshFile.GetGlbBytes(glbOrRmeshBytes);
-                if (extractedGlb == null || extractedGlb.Length == 0) return false;
-                glbBytes = extractedGlb;
-            }
-            else
-            {
-                glbBytes = glbOrRmeshBytes.ToArray();
-            }
+            byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
+            if (glbBytes == null) return false;
 
-            var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
-            if (jsonNode is not JsonObject root || binChunk == null) return false;
-
-            var textures = root["textures"] as JsonArray;
-            var materials = root["materials"] as JsonArray;
-            var images = root["images"] as JsonArray;
-            var bufferViews = root["bufferViews"] as JsonArray;
-
-            if (textures == null || materials == null || images == null || bufferViews == null) return false;
-
-            int ormImageIndex = FindOrmImageIndex(textures, materials);
-            if (ormImageIndex < 0) return false;
-
-            byte[] ormRaw = ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
-            if (ormRaw.Length == 0) return false;
-
-            using var ormImg = SKBitmap.Decode(ormRaw);
-            int maskCount = 0;
-            int unmaskCount = 0;
-            for (int y = 0; y < ormImg.Height; y += 2)
-            {
-                for (int x = 0; x < ormImg.Width; x += 2)
-                {
-                    if (ormImg.GetPixel(x, y).Red > 32)
-                    {
-                        maskCount++;
-                    }
-                    else
-                    {
-                        unmaskCount++;
-                    }
-                }
-            }
-
-            return maskCount > 5 && unmaskCount > 5;
+            return DetectSupportsTeamColorFromGlb(glbBytes);
         }
         catch
         {
             return false;
+        }
+    }
+
+    private static bool DetectSupportsTeamColorFromGlb(byte[] glbBytes)
+    {
+        var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
+        if (jsonNode is not JsonObject root || binChunk == null) return false;
+
+        var textures = root["textures"] as JsonArray;
+        var materials = root["materials"] as JsonArray;
+        var images = root["images"] as JsonArray;
+        var bufferViews = root["bufferViews"] as JsonArray;
+
+        if (textures == null || materials == null || images == null || bufferViews == null) return false;
+
+        int ormImageIndex = FindOrmImageIndex(textures, materials);
+        if (ormImageIndex < 0) return false;
+
+        byte[] ormRaw = ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
+        if (ormRaw.Length == 0) return false;
+
+        using var ormImg = SKBitmap.Decode(ormRaw);
+        return CheckOrmTeamColorMask(ormImg);
+    }
+
+    private static string? AutoDetectChromaKeyFromModel(string filePath)
+    {
+        using var importer = new Assimp.AssimpContext();
+        var scene = importer.ImportFile(filePath, Assimp.PostProcessSteps.Triangulate | Assimp.PostProcessSteps.GenerateNormals | Assimp.PostProcessSteps.MakeLeftHanded | Assimp.PostProcessSteps.FlipUVs);
+        string tempGlb = Path.Combine(Path.GetTempPath(), $"realm_detect_{Guid.NewGuid():N}.glb");
+        try
+        {
+            importer.ExportFile(scene, tempGlb, "glb2");
+            byte[] bytes = File.ReadAllBytes(tempGlb);
+            return AutoDetectChromaKey(bytes);
+        }
+        finally
+        {
+            if (File.Exists(tempGlb)) try { File.Delete(tempGlb); } catch { }
         }
     }
 
@@ -115,22 +120,9 @@ public static class GlbPlayerColorProcessor
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
             if (ext is ".obj" or ".fbx" or ".dae")
             {
-                using var importer = new Assimp.AssimpContext();
-                var scene = importer.ImportFile(filePath, Assimp.PostProcessSteps.Triangulate | Assimp.PostProcessSteps.GenerateNormals | Assimp.PostProcessSteps.MakeLeftHanded | Assimp.PostProcessSteps.FlipUVs);
-                string tempGlb = Path.Combine(Path.GetTempPath(), $"realm_detect_{Guid.NewGuid():N}.glb");
-                try
-                {
-                    importer.ExportFile(scene, tempGlb, "glb2");
-                    byte[] bytes = File.ReadAllBytes(tempGlb);
-                    return AutoDetectChromaKey(bytes);
-                }
-                finally
-                {
-                    if (File.Exists(tempGlb)) try { File.Delete(tempGlb); } catch { }
-                }
+                return AutoDetectChromaKeyFromModel(filePath);
             }
-            byte[] glbBytes = File.ReadAllBytes(filePath);
-            return AutoDetectChromaKey(glbBytes);
+            return AutoDetectChromaKey(File.ReadAllBytes(filePath));
         }
         catch
         {
@@ -143,41 +135,37 @@ public static class GlbPlayerColorProcessor
         if (glbOrRmeshBytes.Length == 0) return null;
         try
         {
-            byte[] glbBytes;
-            if (RmeshFile.IsRmeshBytes(glbOrRmeshBytes))
-            {
-                byte[]? extractedGlb = RmeshFile.GetGlbBytes(glbOrRmeshBytes);
-                if (extractedGlb == null || extractedGlb.Length == 0) return null;
-                glbBytes = extractedGlb;
-            }
-            else
-            {
-                glbBytes = glbOrRmeshBytes.ToArray();
-            }
+            byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
+            if (glbBytes == null) return null;
 
-            var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
-            if (jsonNode is not JsonObject root || binChunk == null) return null;
-
-            var textures = root["textures"] as JsonArray;
-            var materials = root["materials"] as JsonArray;
-            var images = root["images"] as JsonArray;
-            var bufferViews = root["bufferViews"] as JsonArray;
-
-            if (textures == null || materials == null || images == null || bufferViews == null) return null;
-
-            int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
-            if (albedoImageIndex < 0) return null;
-
-            byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
-            if (albedoRaw.Length == 0) return null;
-
-            using var albedoImg = SKBitmap.Decode(albedoRaw);
-            return AutoDetectChromaKey(albedoImg);
+            return ExtractAlbedoAndDetectChroma(glbBytes);
         }
         catch
         {
             return null;
         }
+    }
+
+    private static string? ExtractAlbedoAndDetectChroma(byte[] glbBytes)
+    {
+        var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
+        if (jsonNode is not JsonObject root || binChunk == null) return null;
+
+        var textures = root["textures"] as JsonArray;
+        var materials = root["materials"] as JsonArray;
+        var images = root["images"] as JsonArray;
+        var bufferViews = root["bufferViews"] as JsonArray;
+
+        if (textures == null || materials == null || images == null || bufferViews == null) return null;
+
+        int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
+        if (albedoImageIndex < 0) return null;
+
+        byte[] albedoRaw = ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
+        if (albedoRaw.Length == 0) return null;
+
+        using var albedoImg = SKBitmap.Decode(albedoRaw);
+        return AutoDetectChromaKey(albedoImg);
     }
 
     public static string AutoDetectChromaKey(SKBitmap albedoImg)
@@ -191,13 +179,44 @@ public static class GlbPlayerColorProcessor
         return "#FF00FF";
     }
 
+    private static int ProcessCandidatePixelsForChromaKey(SKBitmap albedoImg, float targetHueUnitX, float targetHueUnitY, Dictionary<int, int> candidateColorCounts)
+    {
+        int totalCandidatePixels = 0;
+        for (int y = 0; y < albedoImg.Height; y++)
+        {
+            for (int x = 0; x < albedoImg.Width; x++)
+            {
+                var pixel = albedoImg.GetPixel(x, y);
+                if (pixel.Alpha < 128) continue;
+
+                float r = pixel.Red / 255f;
+                float g = pixel.Green / 255f;
+                float b = pixel.Blue / 255f;
+
+                var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+                float pChromaSquared = pA * pA + pB * pB;
+
+                if (pChromaSquared < 0.0036f || pL < 0.08f || pL > 0.98f) continue;
+
+                float pChroma = MathF.Sqrt(pChromaSquared);
+                float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
+
+                if (hueDot < 0.75f) continue;
+
+                int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
+                candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
+                totalCandidatePixels++;
+            }
+        }
+        return totalCandidatePixels;
+    }
+
     public static string? FindClosestMatchingChromaKey(string filePath, string inputChromaKey)
     {
         if (!File.Exists(filePath)) return null;
         try
         {
-            byte[] glbBytes = File.ReadAllBytes(filePath);
-            return FindClosestMatchingChromaKey(glbBytes, inputChromaKey);
+            return FindClosestMatchingChromaKey(File.ReadAllBytes(filePath), inputChromaKey);
         }
         catch
         {
@@ -210,27 +229,16 @@ public static class GlbPlayerColorProcessor
         if (glbOrRmeshBytes.Length == 0) return null;
         try
         {
-            byte[] glbBytes;
-            if (RmeshFile.IsRmeshBytes(glbOrRmeshBytes))
-            {
-                byte[]? extractedGlb = RmeshFile.GetGlbBytes(glbOrRmeshBytes);
-                if (extractedGlb == null || extractedGlb.Length == 0) return null;
-                glbBytes = extractedGlb;
-            }
-            else
-            {
-                glbBytes = glbOrRmeshBytes.ToArray();
-            }
+            byte[]? glbBytes = GetGlbBytesFromSpan(glbOrRmeshBytes);
+            if (glbBytes == null) return null;
 
             var (jsonNode, binChunk, _) = GlbManifestUtils.ParseGlb(glbBytes);
             if (jsonNode is not JsonObject root || binChunk == null) return null;
 
-            var textures = root["textures"] as JsonArray;
-            var materials = root["materials"] as JsonArray;
-            var images = root["images"] as JsonArray;
-            var bufferViews = root["bufferViews"] as JsonArray;
-
-            if (textures == null || materials == null || images == null || bufferViews == null) return null;
+            if (!TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
+            {
+                return null;
+            }
 
             int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
             if (albedoImageIndex < 0) return null;
@@ -273,35 +281,7 @@ public static class GlbPlayerColorProcessor
         float targetHueUnitY = targetBComponent / targetChroma;
 
         var candidateColorCounts = new Dictionary<int, int>();
-        int totalCandidatePixels = 0;
-
-        for (int y = 0; y < albedoImg.Height; y++)
-        {
-            for (int x = 0; x < albedoImg.Width; x++)
-            {
-                var pixel = albedoImg.GetPixel(x, y);
-                if (pixel.Alpha < 128) continue;
-
-                float r = pixel.Red / 255f;
-                float g = pixel.Green / 255f;
-                float b = pixel.Blue / 255f;
-
-                var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-                float pChromaSquared = pA * pA + pB * pB;
-
-                if (pChromaSquared < 0.0036f) continue;
-                if (pL < 0.08f || pL > 0.98f) continue;
-
-                float pChroma = MathF.Sqrt(pChromaSquared);
-                float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-                if (hueDot < 0.75f) continue;
-
-                int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
-                candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
-                totalCandidatePixels++;
-            }
-        }
+        int totalCandidatePixels = ProcessCandidatePixelsForChromaKey(albedoImg, targetHueUnitX, targetHueUnitY, candidateColorCounts);
 
         if (candidateColorCounts.Count == 0)
         {
@@ -320,52 +300,14 @@ public static class GlbPlayerColorProcessor
                 continue;
             }
 
-            byte rByte = (byte)((rgbKey >> 16) & 0xFF);
-            byte gByte = (byte)((rgbKey >> 8) & 0xFF);
-            byte bByte = (byte)(rgbKey & 0xFF);
-
-            float r = rByte / 255f;
-            float g = gByte / 255f;
-            float b = bByte / 255f;
-
-            var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-            float pChroma = MathF.Sqrt(pA * pA + pB * pB);
-            float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-            float hueFactor = MathF.Pow(MathF.Max(0f, hueDot), 2f);
-            float score = (pL * pL) * pChroma * hueFactor * MathF.Log2(1 + count);
-
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestRgbKey = rgbKey;
-            }
+            CalculateAndCheckScore(rgbKey, count, targetHueUnitX, targetHueUnitY, ref bestScore, ref bestRgbKey);
         }
 
         if (bestRgbKey < 0)
         {
             foreach (var (rgbKey, count) in candidateColorCounts)
             {
-                byte rByte = (byte)((rgbKey >> 16) & 0xFF);
-                byte gByte = (byte)((rgbKey >> 8) & 0xFF);
-                byte bByte = (byte)(rgbKey & 0xFF);
-
-                float r = rByte / 255f;
-                float g = gByte / 255f;
-                float b = bByte / 255f;
-
-                var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-                float pChroma = MathF.Sqrt(pA * pA + pB * pB);
-                float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-                float hueFactor = MathF.Pow(MathF.Max(0f, hueDot), 2f);
-                float score = (pL * pL) * pChroma * hueFactor * MathF.Log2(1 + count);
-
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    bestRgbKey = rgbKey;
-                }
+                CalculateAndCheckScore(rgbKey, count, targetHueUnitX, targetHueUnitY, ref bestScore, ref bestRgbKey);
             }
         }
 
@@ -381,22 +323,13 @@ public static class GlbPlayerColorProcessor
         return $"#{bestR:X2}{bestG:X2}{bestB:X2}";
     }
 
-    private static string? DetectDominantChromaKeyWithThreshold(SKBitmap albedoImg, float minChroma)
+    private static void PopulateChromaBins(
+        SKBitmap albedoImg, float minChroma,
+        float[] binTotalWeight, float[] binSumLightness,
+        float[] binSumA, float[] binSumB, int[] binPixelCount,
+        float minGridCoord, float cellSize, int gridDimension)
     {
-        const int gridDimension = 32;
-        const float minGridCoord = -0.40f;
-        const float maxGridCoord = +0.40f;
-        const float gridRange = maxGridCoord - minGridCoord;
-        const float cellSize = gridRange / gridDimension;
-
-        float[] binTotalWeight = new float[gridDimension * gridDimension];
-        float[] binSumLightness = new float[gridDimension * gridDimension];
-        float[] binSumA = new float[gridDimension * gridDimension];
-        float[] binSumB = new float[gridDimension * gridDimension];
-        int[] binPixelCount = new int[gridDimension * gridDimension];
-
         float minChromaSquared = minChroma * minChroma;
-
         for (int y = 0; y < albedoImg.Height; y++)
         {
             for (int x = 0; x < albedoImg.Width; x++)
@@ -427,7 +360,10 @@ public static class GlbPlayerColorProcessor
                 binPixelCount[binIndex]++;
             }
         }
+    }
 
+    private static (int bestGridX, int bestGridY) FindBestChromaCluster(float[] binTotalWeight, int gridDimension)
+    {
         float maximumClusterScore = 0f;
         int bestGridX = -1;
         int bestGridY = -1;
@@ -436,20 +372,7 @@ public static class GlbPlayerColorProcessor
         {
             for (int gx = 0; gx < gridDimension; gx++)
             {
-                float clusterScore = 0f;
-                for (int dy = -1; dy <= 1; dy++)
-                {
-                    int ny = gy + dy;
-                    if (ny < 0 || ny >= gridDimension) continue;
-
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        int nx = gx + dx;
-                        if (nx < 0 || nx >= gridDimension) continue;
-
-                        clusterScore += binTotalWeight[ny * gridDimension + nx];
-                    }
-                }
+                float clusterScore = CalculateClusterScore(gx, gy, binTotalWeight, gridDimension);
 
                 if (clusterScore > maximumClusterScore)
                 {
@@ -459,48 +382,102 @@ public static class GlbPlayerColorProcessor
                 }
             }
         }
+        
+        return (bestGridX, bestGridY);
+    }
 
-        if (maximumClusterScore > 0f && bestGridX >= 0 && bestGridY >= 0)
+    private static float CalculateClusterScore(int gx, int gy, float[] binTotalWeight, int gridDimension)
+    {
+        float clusterScore = 0f;
+        for (int dy = -1; dy <= 1; dy++)
         {
-            float totalWindowWeight = 0f;
-            float totalWindowLightness = 0f;
-            float totalWindowA = 0f;
-            float totalWindowB = 0f;
-            int totalWindowPixels = 0;
+            int ny = gy + dy;
+            if (ny < 0 || ny >= gridDimension) continue;
 
-            for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
             {
-                int ny = bestGridY + dy;
-                if (ny < 0 || ny >= gridDimension) continue;
+                int nx = gx + dx;
+                if (nx < 0 || nx >= gridDimension) continue;
 
-                for (int dx = -1; dx <= 1; dx++)
-                {
-                    int nx = bestGridX + dx;
-                    if (nx < 0 || nx >= gridDimension) continue;
-
-                    int binIndex = ny * gridDimension + nx;
-                    float weight = binTotalWeight[binIndex];
-                    totalWindowWeight += weight;
-                    totalWindowLightness += binSumLightness[binIndex];
-                    totalWindowA += binSumA[binIndex];
-                    totalWindowB += binSumB[binIndex];
-                    totalWindowPixels += binPixelCount[binIndex];
-                }
+                clusterScore += binTotalWeight[ny * gridDimension + nx];
             }
+        }
+        return clusterScore;
+    }
 
-            if (totalWindowPixels >= 8 && totalWindowWeight > 0f)
+    private static string? ComputeClusterAverageHex(
+        int bestGridX, int bestGridY, int gridDimension,
+        float[] binTotalWeight, float[] binSumLightness,
+        float[] binSumA, float[] binSumB, int[] binPixelCount)
+    {
+        float totalWindowWeight = 0f;
+        float totalWindowLightness = 0f;
+        float totalWindowA = 0f;
+        float totalWindowB = 0f;
+        int totalWindowPixels = 0;
+
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            int ny = bestGridY + dy;
+            if (ny < 0 || ny >= gridDimension) continue;
+
+            for (int dx = -1; dx <= 1; dx++)
             {
-                float averageLightness = totalWindowLightness / totalWindowWeight;
-                float averageA = totalWindowA / totalWindowWeight;
-                float averageB = totalWindowB / totalWindowWeight;
+                int nx = bestGridX + dx;
+                if (nx < 0 || nx >= gridDimension) continue;
 
-                var (r, g, b) = ConvertOklabToRgb(averageLightness, averageA, averageB);
-                byte byteR = (byte)Math.Clamp((int)(r * 255f + 0.5f), 0, 255);
-                byte byteG = (byte)Math.Clamp((int)(g * 255f + 0.5f), 0, 255);
-                byte byteB = (byte)Math.Clamp((int)(b * 255f + 0.5f), 0, 255);
-
-                return $"#{byteR:X2}{byteG:X2}{byteB:X2}";
+                int binIndex = ny * gridDimension + nx;
+                float weight = binTotalWeight[binIndex];
+                totalWindowWeight += weight;
+                totalWindowLightness += binSumLightness[binIndex];
+                totalWindowA += binSumA[binIndex];
+                totalWindowB += binSumB[binIndex];
+                totalWindowPixels += binPixelCount[binIndex];
             }
+        }
+
+        if (totalWindowPixels >= 8 && totalWindowWeight > 0f)
+        {
+            float averageLightness = totalWindowLightness / totalWindowWeight;
+            float averageA = totalWindowA / totalWindowWeight;
+            float averageB = totalWindowB / totalWindowWeight;
+
+            var (r, g, b) = ConvertOklabToRgb(averageLightness, averageA, averageB);
+            byte byteR = (byte)Math.Clamp((int)(r * 255f + 0.5f), 0, 255);
+            byte byteG = (byte)Math.Clamp((int)(g * 255f + 0.5f), 0, 255);
+            byte byteB = (byte)Math.Clamp((int)(b * 255f + 0.5f), 0, 255);
+
+            return $"#{byteR:X2}{byteG:X2}{byteB:X2}";
+        }
+
+        return null;
+    }
+
+    private static string? DetectDominantChromaKeyWithThreshold(SKBitmap albedoImg, float minChroma)
+    {
+        const int gridDimension = 32;
+        const float minGridCoord = -0.40f;
+        const float maxGridCoord = +0.40f;
+        const float gridRange = maxGridCoord - minGridCoord;
+        const float cellSize = gridRange / gridDimension;
+
+        float[] binTotalWeight = new float[gridDimension * gridDimension];
+        float[] binSumLightness = new float[gridDimension * gridDimension];
+        float[] binSumA = new float[gridDimension * gridDimension];
+        float[] binSumB = new float[gridDimension * gridDimension];
+        int[] binPixelCount = new int[gridDimension * gridDimension];
+
+        PopulateChromaBins(
+            albedoImg, minChroma, binTotalWeight, binSumLightness, binSumA, binSumB, binPixelCount,
+            minGridCoord, cellSize, gridDimension);
+
+        var (bestGridX, bestGridY) = FindBestChromaCluster(binTotalWeight, gridDimension);
+
+        if (bestGridX >= 0 && bestGridY >= 0)
+        {
+            return ComputeClusterAverageHex(
+                bestGridX, bestGridY, gridDimension,
+                binTotalWeight, binSumLightness, binSumA, binSumB, binPixelCount);
         }
 
         return null;
@@ -554,32 +531,132 @@ public static class GlbPlayerColorProcessor
         }
     }
 
+    private static string ResolveChromaKey(GlbPlayerColorOptions options, SKBitmap albedoImg)
+    {
+        string effectiveChromaKey = options.ChromaKey;
+        if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            string detectedKey = AutoDetectChromaKey(albedoImg) ?? "#FF00FF";
+            effectiveChromaKey = options.AutoCorrectChromaKey ? FindClosestMatchingChromaKey(albedoImg, detectedKey) ?? detectedKey : detectedKey;
+            options.ChromaKey = effectiveChromaKey;
+        }
+        else if (options.AutoCorrectChromaKey)
+        {
+            effectiveChromaKey = FindClosestMatchingChromaKey(albedoImg, effectiveChromaKey) ?? effectiveChromaKey;
+            options.ChromaKey = effectiveChromaKey;
+        }
+        return effectiveChromaKey;
+    }
+
+    private static void ProcessRasterizedPixel(
+        int px, int py, int texW, int texH,
+        Vector2 uv0, Vector2 uv1, Vector2 uv2,
+        bool isConfirmed, bool[] floodFillMask, bool[] seedMask,
+        bool[] isConfirmedPolygonTexel, float[] globalMask, bool[] isNonPlayerFaceTexel)
+    {
+        var p = new Vector2(px / (float)texW, py / (float)texH);
+        if (!PointInTriangle(p, uv0, uv1, uv2)) return;
+
+        int idx = py * texW + px;
+        if (isConfirmed)
+        {
+            isConfirmedPolygonTexel[idx] = true;
+            if (floodFillMask[idx] || seedMask[idx])
+            {
+                globalMask[idx] = 1.0f;
+            }
+        }
+        else
+        {
+            isNonPlayerFaceTexel[idx] = true;
+        }
+    }
+
+    private static void RasterizeFace(
+        int faceIdx, Vector2 uv0, Vector2 uv1, Vector2 uv2,
+        int texW, int texH, bool isConfirmed,
+        bool[] floodFillMask, bool[] seedMask,
+        bool[] isConfirmedPolygonTexel, float[] globalMask, bool[] isNonPlayerFaceTexel)
+    {
+        int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
+        int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
+        int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
+        int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
+
+        for (int py = minY; py <= maxY; py++)
+        {
+            for (int px = minX; px <= maxX; px++)
+            {
+                ProcessRasterizedPixel(px, py, texW, texH, uv0, uv1, uv2, isConfirmed, floodFillMask, seedMask, isConfirmedPolygonTexel, globalMask, isNonPlayerFaceTexel);
+            }
+        }
+    }
+
+    private static void ProcessPrimitive(
+        JsonObject primObj, JsonArray accessors, JsonArray bufferViews, byte[] binChunk,
+        bool[] seedMask, bool[] floodFillMask, int texW, int texH, float cosCreaseThreshold,
+        GlbPlayerColorOptions options, ref int totalFaces, ref int maskedFaces,
+        bool[] isConfirmedPolygonTexel, float[] globalMask, bool[] isNonPlayerFaceTexel)
+    {
+        var faceUvCoords = ExtractFaceUvData(primObj, accessors, bufferViews, binChunk);
+        if (faceUvCoords.Count == 0) return;
+
+        var facePositions = ExtractFacePositionData(primObj, accessors, bufferViews, binChunk);
+        if (facePositions.Count == 0) return;
+
+        totalFaces += faceUvCoords.Count;
+
+        var confirmedFaces = ProcessFacesSurfaceAware(
+            facePositions, faceUvCoords, seedMask, floodFillMask, texW, texH, cosCreaseThreshold, options.MinClusterFaces);
+
+        maskedFaces += confirmedFaces.Count;
+
+        for (int faceIdx = 0; faceIdx < faceUvCoords.Count; faceIdx++)
+        {
+            var (uv0, uv1, uv2) = faceUvCoords[faceIdx];
+            bool isConfirmed = confirmedFaces.Contains(faceIdx);
+            RasterizeFace(faceIdx, uv0, uv1, uv2, texW, texH, isConfirmed, floodFillMask, seedMask, isConfirmedPolygonTexel, globalMask, isNonPlayerFaceTexel);
+        }
+    }
+
+    private static void ProcessMeshes(
+        JsonArray meshes, JsonArray accessors, JsonArray bufferViews, byte[] binChunk,
+        bool[] seedMask, bool[] floodFillMask, int texW, int texH, float cosCreaseThreshold,
+        GlbPlayerColorOptions options, ref int totalFaces, ref int maskedFaces,
+        bool[] isConfirmedPolygonTexel, float[] globalMask, bool[] isNonPlayerFaceTexel)
+    {
+        foreach (var mesh in meshes)
+        {
+            if (mesh is not JsonObject meshObj) continue;
+            if (meshObj["primitives"] is not JsonArray primitives) continue;
+
+            foreach (var prim in primitives)
+            {
+                if (prim is not JsonObject primObj) continue;
+
+                ProcessPrimitive(
+                    primObj, accessors, bufferViews, binChunk, seedMask, floodFillMask, texW, texH,
+                    cosCreaseThreshold, options, ref totalFaces, ref maskedFaces,
+                    isConfirmedPolygonTexel, globalMask, isNonPlayerFaceTexel);
+            }
+        }
+    }
+
     public static (bool Success, byte[]? OutputBytes, string? ErrorMessage, int MaskedFaces, int TotalFaces, string? DetectedChromaKey) ProcessBytes(
         byte[] glbBytes,
         GlbPlayerColorOptions options)
     {
         var (jsonNode, binChunk, glbVersion) = GlbManifestUtils.ParseGlb(glbBytes);
-
-        if (jsonNode is not JsonObject root || binChunk == null)
+        var root = jsonNode as JsonObject;
+        
+        if (root == null || binChunk == null || !TryGetBaseGlbArrays(root, out var textures, out var materials, out var images, out var bufferViews))
         {
-            return (false, null, "Failed to parse GLB: missing JSON or BIN chunk.", 0, 0, null);
+            return (false, null, "Failed to parse GLB or missing basic arrays.", 0, 0, null);
         }
 
-        var meshes = root["meshes"] as JsonArray;
-        var accessors = root["accessors"] as JsonArray;
-        var bufferViews = root["bufferViews"] as JsonArray;
-        var materials = root["materials"] as JsonArray;
-        var images = root["images"] as JsonArray;
-        var textures = root["textures"] as JsonArray;
-
-        if (meshes == null || accessors == null || bufferViews == null)
+        if (!TryGetMeshArrays(root, out var meshes, out var accessors))
         {
-            return (false, null, "GLB lacks required mesh/accessor/bufferView data.", 0, 0, null);
-        }
-
-        if (images == null || textures == null || materials == null)
-        {
-            return (false, null, "GLB lacks required image/texture/material data.", 0, 0, null);
+            return (false, null, "GLB lacks required mesh/accessor data.", 0, 0, null);
         }
 
         int albedoImageIndex = FindAlbedoImageIndex(textures, materials);
@@ -604,25 +681,7 @@ public static class GlbPlayerColorProcessor
         int texW = albedoImg.Width;
         int texH = albedoImg.Height;
 
-        string effectiveChromaKey = options.ChromaKey;
-        if (string.IsNullOrWhiteSpace(effectiveChromaKey) || string.Equals(effectiveChromaKey, "auto", StringComparison.OrdinalIgnoreCase))
-        {
-            string detectedKey = AutoDetectChromaKey(albedoImg);
-            if (options.AutoCorrectChromaKey)
-            {
-                effectiveChromaKey = FindClosestMatchingChromaKey(albedoImg, detectedKey);
-            }
-            else
-            {
-                effectiveChromaKey = detectedKey;
-            }
-            options.ChromaKey = effectiveChromaKey;
-        }
-        else if (options.AutoCorrectChromaKey)
-        {
-            effectiveChromaKey = FindClosestMatchingChromaKey(albedoImg, effectiveChromaKey);
-            options.ChromaKey = effectiveChromaKey;
-        }
+        string effectiveChromaKey = ResolveChromaKey(options, albedoImg);
 
         (float targetR, float targetG, float targetB) = HexToRgb(effectiveChromaKey);
         var (targetLightness, targetA, targetOklabB) = ConvertRgbToOklab(targetR, targetG, targetB);
@@ -648,70 +707,9 @@ public static class GlbPlayerColorProcessor
         var isConfirmedPolygonTexel = new bool[texW * texH];
         var isNonPlayerFaceTexel = new bool[texW * texH];
 
-        foreach (var mesh in meshes)
-        {
-            if (mesh is not JsonObject meshObj) continue;
-            if (meshObj["primitives"] is not JsonArray primitives) continue;
-
-            foreach (var prim in primitives)
-            {
-                if (prim is not JsonObject primObj) continue;
-
-                var faceUvCoords = ExtractFaceUvData(primObj, accessors, bufferViews, binChunk);
-                if (faceUvCoords.Count == 0) continue;
-
-                var facePositions = ExtractFacePositionData(primObj, accessors, bufferViews, binChunk);
-                if (facePositions.Count == 0) continue;
-
-                totalFaces += faceUvCoords.Count;
-
-                var confirmedFaces = ProcessFacesSurfaceAware(
-                    facePositions,
-                    faceUvCoords,
-                    seedMask,
-                    floodFillMask,
-                    texW,
-                    texH,
-                    cosCreaseThreshold,
-                    options.MinClusterFaces);
-
-                maskedFaces += confirmedFaces.Count;
-
-                for (int faceIdx = 0; faceIdx < faceUvCoords.Count; faceIdx++)
-                {
-                    var (uv0, uv1, uv2) = faceUvCoords[faceIdx];
-                    int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
-                    int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
-                    int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
-                    int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
-
-                    bool isConfirmed = confirmedFaces.Contains(faceIdx);
-
-                    for (int py = minY; py <= maxY; py++)
-                    {
-                        for (int px = minX; px <= maxX; px++)
-                        {
-                            var p = new Vector2(px / (float)texW, py / (float)texH);
-                            if (!PointInTriangle(p, uv0, uv1, uv2)) continue;
-
-                            int idx = py * texW + px;
-                            if (isConfirmed)
-                            {
-                                isConfirmedPolygonTexel[idx] = true;
-                                if (floodFillMask[idx] || seedMask[idx])
-                                {
-                                    globalMask[idx] = 1.0f;
-                                }
-                            }
-                            else
-                            {
-                                isNonPlayerFaceTexel[idx] = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        ProcessMeshes(
+            meshes, accessors, bufferViews, binChunk, seedMask, floodFillMask, texW, texH, cosCreaseThreshold,
+            options, ref totalFaces, ref maskedFaces, isConfirmedPolygonTexel, globalMask, isNonPlayerFaceTexel);
 
         globalMask = FeatherInteriorMaskEdges(globalMask, isConfirmedPolygonTexel, texW, texH);
 
@@ -734,72 +732,66 @@ public static class GlbPlayerColorProcessor
         return (true, outputBytes, null, maskedFaces, totalFaces, effectiveChromaKey);
     }
 
+    private static void ScoreSingleTexel(
+        SKColor pixel, int idx,
+        float targetLightness, float targetA, float targetOklabB,
+        bool[] seedMask, bool[] floodFillMask)
+    {
+        const float seedLightnessDeltaThreshold = 0.18f;
+        const float seedChromaticityDistanceSquaredThreshold = 0.01f;
+        const float floodLightnessDeltaThreshold = 0.25f;
+        const float floodChromaticityDistanceSquaredThreshold = 0.0324f;
+        const float minCandidateChromaSquared = 0.01f;
+
+        float r = pixel.Red / 255f;
+        float g = pixel.Green / 255f;
+        float bVal = pixel.Blue / 255f;
+
+        var (pL, pA, pB) = ConvertRgbToOklab(r, g, bVal);
+        float deltaLightness = MathF.Abs(pL - targetLightness);
+        float deltaA = pA - targetA;
+        float deltaB = pB - targetOklabB;
+        float chromaticityDistanceSquared = deltaA * deltaA + deltaB * deltaB;
+        float pixelChromaSquared = pA * pA + pB * pB;
+
+        bool isSeed = (deltaLightness <= seedLightnessDeltaThreshold) &&
+                     (chromaticityDistanceSquared <= seedChromaticityDistanceSquaredThreshold);
+
+        bool isFloodCandidate = (deltaLightness <= floodLightnessDeltaThreshold) &&
+                               (chromaticityDistanceSquared <= floodChromaticityDistanceSquaredThreshold) &&
+                               (pixelChromaSquared >= minCandidateChromaSquared);
+
+        if (isSeed)
+        {
+            seedMask[idx] = true;
+            floodFillMask[idx] = true;
+        }
+        else if (isFloodCandidate)
+        {
+            floodFillMask[idx] = true;
+        }
+    }
+
     private static void ScoreTexels(
         SKBitmap albedoImg,
         float targetLightness, float targetA, float targetOklabB,
         bool[] seedMask, bool[] floodFillMask)
     {
-        const float seedLightnessDeltaThreshold = 0.18f;
-        const float seedChromaticityDistanceThreshold = 0.10f;
-        const float seedChromaticityDistanceSquaredThreshold = seedChromaticityDistanceThreshold * seedChromaticityDistanceThreshold;
-
-        const float floodLightnessDeltaThreshold = 0.25f;
-        const float floodChromaticityDistanceThreshold = 0.18f;
-        const float floodChromaticityDistanceSquaredThreshold = floodChromaticityDistanceThreshold * floodChromaticityDistanceThreshold;
-        const float minCandidateChroma = 0.10f;
-        const float minCandidateChromaSquared = minCandidateChroma * minCandidateChroma;
-
         for (int y = 0; y < albedoImg.Height; y++)
         {
             for (int x = 0; x < albedoImg.Width; x++)
             {
-                var pixel = albedoImg.GetPixel(x, y);
-                float r = pixel.Red / 255f;
-                float g = pixel.Green / 255f;
-                float bVal = pixel.Blue / 255f;
-
-                var (pL, pA, pB) = ConvertRgbToOklab(r, g, bVal);
-                float deltaLightness = MathF.Abs(pL - targetLightness);
-                float deltaA = pA - targetA;
-                float deltaB = pB - targetOklabB;
-                float chromaticityDistanceSquared = deltaA * deltaA + deltaB * deltaB;
-                float pixelChromaSquared = pA * pA + pB * pB;
-
                 int idx = y * albedoImg.Width + x;
-
-                bool isSeed = (deltaLightness <= seedLightnessDeltaThreshold) &&
-                             (chromaticityDistanceSquared <= seedChromaticityDistanceSquaredThreshold);
-
-                bool isFloodCandidate = (deltaLightness <= floodLightnessDeltaThreshold) &&
-                                       (chromaticityDistanceSquared <= floodChromaticityDistanceSquaredThreshold) &&
-                                       (pixelChromaSquared >= minCandidateChromaSquared);
-
-                if (isSeed)
-                {
-                    seedMask[idx] = true;
-                    floodFillMask[idx] = true;
-                }
-                else if (isFloodCandidate)
-                {
-                    floodFillMask[idx] = true;
-                }
+                ScoreSingleTexel(albedoImg.GetPixel(x, y), idx, targetLightness, targetA, targetOklabB, seedMask, floodFillMask);
             }
         }
     }
 
-    private static HashSet<int> ProcessFacesSurfaceAware(
+    private static void BuildSmoothAdjacency(
         List<(Vector3 Pos0, Vector3 Pos1, Vector3 Pos2)> facePositions,
-        List<(Vector2 UV0, Vector2 UV1, Vector2 UV2)> faceUvCoords,
-        bool[] seedMask,
-        bool[] floodFillMask,
-        int texW,
-        int texH,
-        float cosCreaseThreshold,
-        int minClusterFaces)
+        int faceCount, float cosCreaseThreshold,
+        out Dictionary<int, HashSet<int>> smoothAdjacency)
     {
-        int faceCount = facePositions.Count;
-        if (faceCount == 0) return new HashSet<int>();
-
         var faceNormals = new Vector3[faceCount];
         for (int i = 0; i < faceCount; i++)
         {
@@ -824,7 +816,7 @@ public static class GlbPlayerColorProcessor
             AddEdge(edgeToFaces, k2, k0, faceIdx);
         }
 
-        var smoothAdjacency = new Dictionary<int, HashSet<int>>();
+        smoothAdjacency = new Dictionary<int, HashSet<int>>();
         for (int i = 0; i < faceCount; i++)
         {
             smoothAdjacency[i] = new HashSet<int>();
@@ -849,59 +841,98 @@ public static class GlbPlayerColorProcessor
                 }
             }
         }
+    }
 
-        var isSeedFace = new bool[faceCount];
-        var isFloodCandidateFace = new bool[faceCount];
+    private static (int SeedHits, int FloodHits, int TotalSampled) SampleTriangleMasks(Vector2 uv0, Vector2 uv1, Vector2 uv2, bool[] seedMask, bool[] floodFillMask, int texW, int texH)
+    {
+        int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
+        int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
+        int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
+        int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
 
-        for (int faceIdx = 0; faceIdx < faceCount; faceIdx++)
+        int seedHits = 0;
+        int floodHits = 0;
+        int totalSampled = 0;
+
+        for (int py = minY; py <= maxY; py++)
         {
-            var (uv0, uv1, uv2) = faceUvCoords[faceIdx];
-            int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
-            int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
-            int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
-            int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
-
-            int seedHits = 0;
-            int floodHits = 0;
-            int totalSampled = 0;
-
-            for (int py = minY; py <= maxY; py++)
+            for (int px = minX; px <= maxX; px++)
             {
-                for (int px = minX; px <= maxX; px++)
-                {
-                    var p = new Vector2(px / (float)texW, py / (float)texH);
-                    if (!PointInTriangle(p, uv0, uv1, uv2)) continue;
+                var p = new Vector2(px / (float)texW, py / (float)texH);
+                if (!PointInTriangle(p, uv0, uv1, uv2)) continue;
 
-                    totalSampled++;
-                    int idx = py * texW + px;
-                    if (seedMask[idx]) seedHits++;
-                    if (floodFillMask[idx]) floodHits++;
-                }
+                totalSampled++;
+                int idx = py * texW + px;
+                if (seedMask[idx]) seedHits++;
+                if (floodFillMask[idx]) floodHits++;
             }
+        }
+        return (seedHits, floodHits, totalSampled);
+    }
 
-            if (totalSampled > 0)
+    private static void EvaluateFaceSeedStatus(
+        int faceIdx, Vector2 uv0, Vector2 uv1, Vector2 uv2,
+        bool[] seedMask, bool[] floodFillMask, int texW, int texH,
+        bool[] isSeedFace, bool[] isFloodCandidateFace)
+    {
+        var (seedHits, floodHits, totalSampled) = SampleTriangleMasks(uv0, uv1, uv2, seedMask, floodFillMask, texW, texH);
+
+        if (totalSampled > 0)
+        {
+            float seedRatio = (float)seedHits / totalSampled;
+            float floodRatio = (float)floodHits / totalSampled;
+
+            isSeedFace[faceIdx] = (seedHits >= 3 && seedRatio >= 0.25f) ||
+                                 (seedHits >= 2 && totalSampled <= 4 && seedRatio >= 0.40f);
+
+            isFloodCandidateFace[faceIdx] = (floodHits >= 2 && floodRatio >= 0.20f) ||
+                                           (floodHits >= 1 && totalSampled <= 4 && floodRatio >= 0.30f);
+        }
+        else
+        {
+            Vector2 centroid = (uv0 + uv1 + uv2) / 3f;
+            int cx = Math.Clamp((int)(centroid.X * texW), 0, texW - 1);
+            int cy = Math.Clamp((int)(centroid.Y * texH), 0, texH - 1);
+            int idx = cy * texW + cx;
+
+            isSeedFace[faceIdx] = seedMask[idx];
+            isFloodCandidateFace[faceIdx] = floodFillMask[idx];
+        }
+    }
+
+    private static void TraverseSeedCluster(int i, bool[] isSeedFace, bool[] seedClusterVisited, Dictionary<int, HashSet<int>> smoothAdjacency, HashSet<int> validatedSeedFaces)
+    {
+        var cluster = new List<int>();
+        var queue = new Queue<int>();
+        queue.Enqueue(i);
+        seedClusterVisited[i] = true;
+
+        while (queue.Count > 0)
+        {
+            int curr = queue.Dequeue();
+            cluster.Add(curr);
+
+            foreach (int neighbor in smoothAdjacency[curr])
             {
-                float seedRatio = (float)seedHits / totalSampled;
-                float floodRatio = (float)floodHits / totalSampled;
+                if (!isSeedFace[neighbor] || seedClusterVisited[neighbor]) continue;
 
-                isSeedFace[faceIdx] = (seedHits >= 3 && seedRatio >= 0.25f) ||
-                                     (seedHits >= 2 && totalSampled <= 4 && seedRatio >= 0.40f);
-
-                isFloodCandidateFace[faceIdx] = (floodHits >= 2 && floodRatio >= 0.20f) ||
-                                               (floodHits >= 1 && totalSampled <= 4 && floodRatio >= 0.30f);
-            }
-            else
-            {
-                Vector2 centroid = (uv0 + uv1 + uv2) / 3f;
-                int cx = Math.Clamp((int)(centroid.X * texW), 0, texW - 1);
-                int cy = Math.Clamp((int)(centroid.Y * texH), 0, texH - 1);
-                int idx = cy * texW + cx;
-
-                isSeedFace[faceIdx] = seedMask[idx];
-                isFloodCandidateFace[faceIdx] = floodFillMask[idx];
+                seedClusterVisited[neighbor] = true;
+                queue.Enqueue(neighbor);
             }
         }
 
+        if (cluster.Count >= 3)
+        {
+            foreach (int f in cluster)
+            {
+                validatedSeedFaces.Add(f);
+            }
+        }
+    }
+
+    private static HashSet<int> FindSeedClusters(
+        int faceCount, bool[] isSeedFace, Dictionary<int, HashSet<int>> smoothAdjacency)
+    {
         var seedClusterVisited = new bool[faceCount];
         var validatedSeedFaces = new HashSet<int>();
 
@@ -909,35 +940,15 @@ public static class GlbPlayerColorProcessor
         {
             if (!isSeedFace[i] || seedClusterVisited[i]) continue;
 
-            var cluster = new List<int>();
-            var queue = new Queue<int>();
-            queue.Enqueue(i);
-            seedClusterVisited[i] = true;
-
-            while (queue.Count > 0)
-            {
-                int curr = queue.Dequeue();
-                cluster.Add(curr);
-
-                foreach (int neighbor in smoothAdjacency[curr])
-                {
-                    if (isSeedFace[neighbor] && !seedClusterVisited[neighbor])
-                    {
-                        seedClusterVisited[neighbor] = true;
-                        queue.Enqueue(neighbor);
-                    }
-                }
-            }
-
-            if (cluster.Count >= 3)
-            {
-                foreach (int f in cluster)
-                {
-                    validatedSeedFaces.Add(f);
-                }
-            }
+            TraverseSeedCluster(i, isSeedFace, seedClusterVisited, smoothAdjacency, validatedSeedFaces);
         }
+        return validatedSeedFaces;
+    }
 
+    private static bool[] RunFloodFill(
+        int faceCount, HashSet<int> validatedSeedFaces,
+        bool[] isFloodCandidateFace, Dictionary<int, HashSet<int>> smoothAdjacency)
+    {
         var visited = new bool[faceCount];
         var floodQueue = new Queue<int>();
 
@@ -962,7 +973,42 @@ public static class GlbPlayerColorProcessor
                 }
             }
         }
+        return visited;
+    }
 
+    private static void TraverseFloodComponent(int i, bool[] visited, bool[] componentVisited, Dictionary<int, HashSet<int>> smoothAdjacency, HashSet<int> confirmedFaces, int minClusterFaces)
+    {
+        var component = new List<int>();
+        var queue = new Queue<int>();
+        queue.Enqueue(i);
+        componentVisited[i] = true;
+
+        while (queue.Count > 0)
+        {
+            int curr = queue.Dequeue();
+            component.Add(curr);
+
+            foreach (int neighbor in smoothAdjacency[curr])
+            {
+                if (!visited[neighbor] || componentVisited[neighbor]) continue;
+
+                componentVisited[neighbor] = true;
+                queue.Enqueue(neighbor);
+            }
+        }
+
+        if (component.Count >= minClusterFaces)
+        {
+            foreach (int f in component)
+            {
+                confirmedFaces.Add(f);
+            }
+        }
+    }
+
+    private static HashSet<int> ExtractFloodComponents(
+        int faceCount, bool[] visited, Dictionary<int, HashSet<int>> smoothAdjacency, int minClusterFaces)
+    {
         var confirmedFaces = new HashSet<int>();
         var componentVisited = new bool[faceCount];
 
@@ -970,36 +1016,91 @@ public static class GlbPlayerColorProcessor
         {
             if (!visited[i] || componentVisited[i]) continue;
 
-            var component = new List<int>();
-            var queue = new Queue<int>();
-            queue.Enqueue(i);
-            componentVisited[i] = true;
+            TraverseFloodComponent(i, visited, componentVisited, smoothAdjacency, confirmedFaces, minClusterFaces);
+        }
+        return confirmedFaces;
+    }
 
-            while (queue.Count > 0)
+    private static HashSet<int> ProcessFacesSurfaceAware(
+        List<(Vector3 Pos0, Vector3 Pos1, Vector3 Pos2)> facePositions,
+        List<(Vector2 UV0, Vector2 UV1, Vector2 UV2)> faceUvCoords,
+        bool[] seedMask,
+        bool[] floodFillMask,
+        int texW,
+        int texH,
+        float cosCreaseThreshold,
+        int minClusterFaces)
+    {
+        int faceCount = facePositions.Count;
+        if (faceCount == 0) return new HashSet<int>();
+
+        BuildSmoothAdjacency(facePositions, faceCount, cosCreaseThreshold, out var smoothAdjacency);
+
+        var isSeedFace = new bool[faceCount];
+        var isFloodCandidateFace = new bool[faceCount];
+
+        for (int faceIdx = 0; faceIdx < faceCount; faceIdx++)
+        {
+            var (uv0, uv1, uv2) = faceUvCoords[faceIdx];
+            EvaluateFaceSeedStatus(faceIdx, uv0, uv1, uv2, seedMask, floodFillMask, texW, texH, isSeedFace, isFloodCandidateFace);
+        }
+
+        var validatedSeedFaces = FindSeedClusters(faceCount, isSeedFace, smoothAdjacency);
+        var visited = RunFloodFill(faceCount, validatedSeedFaces, isFloodCandidateFace, smoothAdjacency);
+        return ExtractFloodComponents(faceCount, visited, smoothAdjacency, minClusterFaces);
+    }
+
+    private static void ProcessFeatherNeighbor(
+        int dx, int dy, int x, int y, int texW, int texH,
+        float[] mask, bool[] isConfirmedPolygonTexel,
+        ref int totalNeighborsInside, ref float sumMaskInside,
+        ref bool hasInteriorUnmaskedNeighbor, ref bool hasInteriorMaskedNeighbor)
+    {
+        if (dx == 0 && dy == 0) return;
+        int nx = x + dx;
+        int ny = y + dy;
+        if (nx < 0 || nx >= texW || ny < 0 || ny >= texH) return;
+
+        int nIdx = ny * texW + nx;
+        if (isConfirmedPolygonTexel[nIdx])
+        {
+            totalNeighborsInside++;
+            sumMaskInside += mask[nIdx];
+            if (mask[nIdx] < 0.5f) hasInteriorUnmaskedNeighbor = true;
+            if (mask[nIdx] >= 0.5f) hasInteriorMaskedNeighbor = true;
+        }
+    }
+
+    private static void CalculateFeatheredValue(
+        int x, int y, int idx, float[] mask, float[] feathered,
+        bool[] isConfirmedPolygonTexel, int texW, int texH)
+    {
+        int totalNeighborsInside = 0;
+        float sumMaskInside = 0f;
+        bool hasInteriorUnmaskedNeighbor = false;
+        bool hasInteriorMaskedNeighbor = false;
+
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
             {
-                int curr = queue.Dequeue();
-                component.Add(curr);
-
-                foreach (int neighbor in smoothAdjacency[curr])
-                {
-                    if (visited[neighbor] && !componentVisited[neighbor])
-                    {
-                        componentVisited[neighbor] = true;
-                        queue.Enqueue(neighbor);
-                    }
-                }
-            }
-
-            if (component.Count >= minClusterFaces)
-            {
-                foreach (int f in component)
-                {
-                    confirmedFaces.Add(f);
-                }
+                ProcessFeatherNeighbor(dx, dy, x, y, texW, texH, mask, isConfirmedPolygonTexel, ref totalNeighborsInside, ref sumMaskInside, ref hasInteriorUnmaskedNeighbor, ref hasInteriorMaskedNeighbor);
             }
         }
 
-        return confirmedFaces;
+        if (mask[idx] >= 0.5f && hasInteriorUnmaskedNeighbor && totalNeighborsInside > 0)
+        {
+            float ratio = (sumMaskInside + 1.0f) / (totalNeighborsInside + 1.0f);
+            feathered[idx] = Math.Clamp(0.5f + ratio * 0.5f, 0.4f, 1.0f);
+        }
+        else if (mask[idx] < 0.5f && hasInteriorMaskedNeighbor && totalNeighborsInside > 0)
+        {
+            float ratio = sumMaskInside / (float)totalNeighborsInside;
+            if (ratio > 0.15f)
+            {
+                feathered[idx] = Math.Clamp(ratio * 0.5f, 0.0f, 0.45f);
+            }
+        }
     }
 
     private static float[] FeatherInteriorMaskEdges(float[] mask, bool[] isConfirmedPolygonTexel, int texW, int texH)
@@ -1014,48 +1115,33 @@ public static class GlbPlayerColorProcessor
                 int idx = y * texW + x;
                 if (!isConfirmedPolygonTexel[idx]) continue;
 
-                int totalNeighborsInside = 0;
-                float sumMaskInside = 0f;
-                bool hasInteriorUnmaskedNeighbor = false;
-                bool hasInteriorMaskedNeighbor = false;
-
-                for (int dy = -1; dy <= 1; dy++)
-                {
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        if (dx == 0 && dy == 0) continue;
-                        int nx = x + dx;
-                        int ny = y + dy;
-                        if (nx < 0 || nx >= texW || ny < 0 || ny >= texH) continue;
-
-                        int nIdx = ny * texW + nx;
-                        if (isConfirmedPolygonTexel[nIdx])
-                        {
-                            totalNeighborsInside++;
-                            sumMaskInside += mask[nIdx];
-                            if (mask[nIdx] < 0.5f) hasInteriorUnmaskedNeighbor = true;
-                            if (mask[nIdx] >= 0.5f) hasInteriorMaskedNeighbor = true;
-                        }
-                    }
-                }
-
-                if (mask[idx] >= 0.5f && hasInteriorUnmaskedNeighbor && totalNeighborsInside > 0)
-                {
-                    float ratio = (sumMaskInside + 1.0f) / (totalNeighborsInside + 1.0f);
-                    feathered[idx] = Math.Clamp(0.5f + ratio * 0.5f, 0.4f, 1.0f);
-                }
-                else if (mask[idx] < 0.5f && hasInteriorMaskedNeighbor && totalNeighborsInside > 0)
-                {
-                    float ratio = sumMaskInside / (float)totalNeighborsInside;
-                    if (ratio > 0.15f)
-                    {
-                        feathered[idx] = Math.Clamp(ratio * 0.5f, 0.0f, 0.45f);
-                    }
-                }
+                CalculateFeatheredValue(x, y, idx, mask, feathered, isConfirmedPolygonTexel, texW, texH);
             }
         }
 
         return feathered;
+    }
+
+    private static void ApplyDilationKernel(
+        int x, int y, float sourceValue, float[] dilated, bool[] isNonPlayerFaceTexel,
+        int texW, int texH, int radius)
+    {
+        for (int dy = -radius; dy <= radius; dy++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                if (dx * dx + dy * dy > radius * radius) continue;
+
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx < 0 || nx >= texW || ny < 0 || ny >= texH) continue;
+
+                int nIdx = ny * texW + nx;
+                if (isNonPlayerFaceTexel[nIdx]) continue;
+
+                dilated[nIdx] = Math.Max(dilated[nIdx], sourceValue);
+            }
+        }
     }
 
     private static float[] DilateFloat(float[] mask, bool[] isNonPlayerFaceTexel, int texW, int texH, int radius)
@@ -1072,22 +1158,7 @@ public static class GlbPlayerColorProcessor
                 float sourceValue = mask[y * texW + x];
                 if (sourceValue <= 0f) continue;
 
-                for (int dy = -radius; dy <= radius; dy++)
-                {
-                    for (int dx = -radius; dx <= radius; dx++)
-                    {
-                        if (dx * dx + dy * dy > radius * radius) continue;
-
-                        int nx = x + dx;
-                        int ny = y + dy;
-                        if (nx < 0 || nx >= texW || ny < 0 || ny >= texH) continue;
-
-                        int nIdx = ny * texW + nx;
-                        if (isNonPlayerFaceTexel[nIdx]) continue;
-
-                        dilated[nIdx] = Math.Max(dilated[nIdx], sourceValue);
-                    }
-                }
+                ApplyDilationKernel(x, y, sourceValue, dilated, isNonPlayerFaceTexel, texW, texH, radius);
             }
         }
 
@@ -1208,6 +1279,26 @@ public static class GlbPlayerColorProcessor
         return (cb, cr);
     }
 
+    private static void AppendIndexedVec2Faces(List<(Vector2, Vector2, Vector2)> result, List<Vector2> data, List<int> indices)
+    {
+        for (int i = 0; i + 2 < indices.Count; i += 3)
+        {
+            int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+            if (i0 < data.Count && i1 < data.Count && i2 < data.Count)
+            {
+                result.Add((data[i0], data[i1], data[i2]));
+            }
+        }
+    }
+
+    private static void AppendSequentialVec2Faces(List<(Vector2, Vector2, Vector2)> result, List<Vector2> data)
+    {
+        for (int i = 0; i + 2 < data.Count; i += 3)
+        {
+            result.Add((data[i], data[i + 1], data[i + 2]));
+        }
+    }
+
     private static List<(Vector2 UV0, Vector2 UV1, Vector2 UV2)> ExtractFaceUvData(
         JsonObject primObj,
         JsonArray accessors,
@@ -1227,24 +1318,34 @@ public static class GlbPlayerColorProcessor
         if (indexAccessorIndex >= 0 && indexAccessorIndex < accessors.Count)
         {
             var indices = ReadAccessorIndices(accessors, bufferViews, bin, indexAccessorIndex);
-            for (int i = 0; i + 2 < indices.Count; i += 3)
-            {
-                int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
-                if (i0 < uvData.Count && i1 < uvData.Count && i2 < uvData.Count)
-                {
-                    result.Add((uvData[i0], uvData[i1], uvData[i2]));
-                }
-            }
+            AppendIndexedVec2Faces(result, uvData, indices);
         }
         else
         {
-            for (int i = 0; i + 2 < uvData.Count; i += 3)
-            {
-                result.Add((uvData[i], uvData[i + 1], uvData[i + 2]));
-            }
+            AppendSequentialVec2Faces(result, uvData);
         }
 
         return result;
+    }
+
+    private static void AppendIndexedVec3Faces(List<(Vector3, Vector3, Vector3)> result, List<Vector3> data, List<int> indices)
+    {
+        for (int i = 0; i + 2 < indices.Count; i += 3)
+        {
+            int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+            if (i0 < data.Count && i1 < data.Count && i2 < data.Count)
+            {
+                result.Add((data[i0], data[i1], data[i2]));
+            }
+        }
+    }
+
+    private static void AppendSequentialVec3Faces(List<(Vector3, Vector3, Vector3)> result, List<Vector3> data)
+    {
+        for (int i = 0; i + 2 < data.Count; i += 3)
+        {
+            result.Add((data[i], data[i + 1], data[i + 2]));
+        }
     }
 
     private static List<(Vector3 Pos0, Vector3 Pos1, Vector3 Pos2)> ExtractFacePositionData(
@@ -1266,21 +1367,11 @@ public static class GlbPlayerColorProcessor
         if (indexAccessorIndex >= 0 && indexAccessorIndex < accessors.Count)
         {
             var indices = ReadAccessorIndices(accessors, bufferViews, bin, indexAccessorIndex);
-            for (int i = 0; i + 2 < indices.Count; i += 3)
-            {
-                int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
-                if (i0 < posData.Count && i1 < posData.Count && i2 < posData.Count)
-                {
-                    result.Add((posData[i0], posData[i1], posData[i2]));
-                }
-            }
+            AppendIndexedVec3Faces(result, posData, indices);
         }
         else
         {
-            for (int i = 0; i + 2 < posData.Count; i += 3)
-            {
-                result.Add((posData[i], posData[i + 1], posData[i + 2]));
-            }
+            AppendSequentialVec3Faces(result, posData);
         }
 
         return result;
@@ -1312,7 +1403,7 @@ public static class GlbPlayerColorProcessor
         }
     }
 
-    internal static int FindAlbedoImageIndex(JsonArray textures, JsonArray materials)
+    public static int FindAlbedoImageIndex(JsonArray textures, JsonArray materials)
     {
         foreach (var mat in materials)
         {
@@ -1327,7 +1418,7 @@ public static class GlbPlayerColorProcessor
         return -1;
     }
 
-    internal static int FindOrmImageIndex(JsonArray textures, JsonArray materials)
+    public static int FindOrmImageIndex(JsonArray textures, JsonArray materials)
     {
         foreach (var mat in materials)
         {
@@ -1350,36 +1441,41 @@ public static class GlbPlayerColorProcessor
         return -1;
     }
 
-    internal static int GetTextureRefIndex(JsonObject container, string propertyName)
+    public static int GetTextureRefIndex(JsonObject container, string propertyName)
     {
         if (!container.TryGetPropertyValue(propertyName, out var texVal)) return -1;
         if (texVal is not JsonObject texObj) return -1;
         return texObj["index"]?.GetValue<int>() ?? -1;
     }
 
-    internal static int ResolveTextureToImage(int textureIndex, JsonArray textures)
+    private static int GetImageSourceFromExtension(JsonObject texExt, string extensionName)
+    {
+        if (texExt[extensionName] is JsonObject extObj)
+        {
+            int src = extObj["source"]?.GetValue<int>() ?? -1;
+            if (src >= 0) return src;
+        }
+        return -1;
+    }
+
+    public static int ResolveTextureToImage(int textureIndex, JsonArray textures)
     {
         if (textureIndex < 0 || textureIndex >= textures.Count) return -1;
         if (textures[textureIndex] is not JsonObject texObj) return -1;
 
         if (texObj["extensions"] is JsonObject texExt)
         {
-            if (texExt["EXT_texture_webp"] is JsonObject webpObj)
-            {
-                int src = webpObj["source"]?.GetValue<int>() ?? -1;
-                if (src >= 0) return src;
-            }
-            if (texExt["KHR_texture_basisu"] is JsonObject basisObj)
-            {
-                int src = basisObj["source"]?.GetValue<int>() ?? -1;
-                if (src >= 0) return src;
-            }
+            int src = GetImageSourceFromExtension(texExt, "EXT_texture_webp");
+            if (src >= 0) return src;
+
+            src = GetImageSourceFromExtension(texExt, "KHR_texture_basisu");
+            if (src >= 0) return src;
         }
 
         return texObj["source"]?.GetValue<int>() ?? -1;
     }
 
-    internal static int GetImageBufferViewIndex(JsonObject imgObj)
+    public static int GetImageBufferViewIndex(JsonObject imgObj)
     {
         if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
         {
@@ -1399,7 +1495,7 @@ public static class GlbPlayerColorProcessor
         return -1;
     }
 
-    internal static byte[] ExtractImageBytes(int imageIndex, JsonArray images, JsonArray bufferViews, byte[] bin)
+    public static byte[] ExtractImageBytes(int imageIndex, JsonArray images, JsonArray bufferViews, byte[] bin)
     {
         if (imageIndex < 0 || imageIndex >= images.Count) return Array.Empty<byte>();
         if (images[imageIndex] is not JsonObject imgObj) return Array.Empty<byte>();
@@ -1408,8 +1504,9 @@ public static class GlbPlayerColorProcessor
         if (bvIdx < 0 || bvIdx >= bufferViews.Count) return Array.Empty<byte>();
         if (bufferViews[bvIdx] is not JsonObject bv) return Array.Empty<byte>();
 
-        int byteOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-        int byteLength = bv["byteLength"]?.GetValue<int>() ?? 0;
+        int byteOffset = GetJsonNodeIntValue(bv, "byteOffset", 0);
+        int byteLength = GetJsonNodeIntValue(bv, "byteLength", 0);
+
         if (byteOffset + byteLength > bin.Length) return Array.Empty<byte>();
 
         byte[] result = new byte[byteLength];
@@ -1424,67 +1521,17 @@ public static class GlbPlayerColorProcessor
         return img;
     }
 
-    private static byte[] RebuildGlbWithUpdatedOrmTexture(
-        JsonObject root,
-        byte[] binChunk,
-        int ormImageIndex,
-        byte[] newOrmBytes,
-        uint glbVersion)
+    private static void RebuildBufferViews(
+        JsonArray bufferViews, byte[] binChunk, HashSet<int> retainedBvIndices,
+        MemoryStream newBinStream, JsonArray newBufferViewsList, Dictionary<int, int> oldBvToNewBv)
     {
-        var accessors = root["accessors"] as JsonArray ?? new JsonArray();
-        var bufferViews = root["bufferViews"] as JsonArray ?? new JsonArray();
-        var images = root["images"] as JsonArray ?? new JsonArray();
-        var textures = root["textures"] as JsonArray ?? new JsonArray();
-        var materials = root["materials"] as JsonArray ?? new JsonArray();
-
-        var retainedBvIndices = new HashSet<int>();
-        foreach (var acc in accessors)
-        {
-            if (acc is JsonObject accObj && accObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
-            {
-                int bvIdx = bvVal.GetValue<int>();
-                if (bvIdx >= 0 && bvIdx < bufferViews.Count)
-                {
-                    retainedBvIndices.Add(bvIdx);
-                }
-            }
-        }
-
-        for (int i = 0; i < images.Count; i++)
-        {
-            if (i == ormImageIndex)
-            {
-                continue;
-            }
-
-            if (images[i] is JsonObject imgObj)
-            {
-                int imgBv = GetImageBufferViewIndex(imgObj);
-                if (imgBv >= 0 && imgBv < bufferViews.Count)
-                {
-                    retainedBvIndices.Add(imgBv);
-                }
-            }
-        }
-
-        using var newBinStream = new MemoryStream();
-        var oldBvToNewBv = new Dictionary<int, int>();
-        var newBufferViewsList = new JsonArray();
-
         for (int oldBvIdx = 0; oldBvIdx < bufferViews.Count; oldBvIdx++)
         {
-            if (!retainedBvIndices.Contains(oldBvIdx))
-            {
-                continue;
-            }
+            if (!retainedBvIndices.Contains(oldBvIdx)) continue;
+            if (bufferViews[oldBvIdx] is not JsonObject oldBv) continue;
 
-            if (bufferViews[oldBvIdx] is not JsonObject oldBv)
-            {
-                continue;
-            }
-
-            int origOffset = oldBv["byteOffset"]?.GetValue<int>() ?? 0;
-            int origLength = oldBv["byteLength"]?.GetValue<int>() ?? 0;
+            int origOffset = GetJsonNodeIntValue(oldBv, "byteOffset", 0);
+            int origLength = GetJsonNodeIntValue(oldBv, "byteLength", 0);
 
             while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
             int newOffset = (int)newBinStream.Position;
@@ -1502,20 +1549,10 @@ public static class GlbPlayerColorProcessor
             newBufferViewsList.Add(clonedBv);
             oldBvToNewBv[oldBvIdx] = newBufferViewsList.Count - 1;
         }
+    }
 
-        while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
-        int ormOffset = (int)newBinStream.Position;
-        newBinStream.Write(newOrmBytes, 0, newOrmBytes.Length);
-        while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
-
-        newBufferViewsList.Add(new JsonObject
-        {
-            ["byteOffset"] = ormOffset,
-            ["byteLength"] = newOrmBytes.Length,
-            ["buffer"] = 0
-        });
-        int newOrmBvIdx = newBufferViewsList.Count - 1;
-
+    private static void UpdateAccessors(JsonArray accessors, Dictionary<int, int> oldBvToNewBv)
+    {
         foreach (var acc in accessors)
         {
             if (acc is JsonObject accObj && accObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
@@ -1527,33 +1564,57 @@ public static class GlbPlayerColorProcessor
                 }
             }
         }
+    }
 
+    private static void UpdateImageBufferViews(JsonArray images, Dictionary<int, int> oldBvToNewBv, int ormImageIndex)
+    {
         for (int i = 0; i < images.Count; i++)
         {
             if (i == ormImageIndex) continue;
-            if (images[i] is JsonObject imgObj)
+            if (images[i] is not JsonObject imgObj) continue;
+
+            if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
             {
-                if (imgObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
-                {
-                    int oldBv = bvVal.GetValue<int>();
-                    if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
-                    {
-                        imgObj["bufferView"] = newBv;
-                    }
-                }
-                if (imgObj["extensions"] is JsonObject imgExt)
-                {
-                    if (imgExt["EXT_texture_webp"] is JsonObject webp && webp.TryGetPropertyValue("bufferView", out var wbVal) && wbVal != null)
-                    {
-                        int oldBv = wbVal.GetValue<int>();
-                        if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
-                        {
-                            webp["bufferView"] = newBv;
-                        }
-                    }
-                }
+                int oldBv = bvVal.GetValue<int>();
+                if (oldBvToNewBv.TryGetValue(oldBv, out int newBv)) imgObj["bufferView"] = newBv;
+            }
+
+            UpdateWebpExtensionBufferView(imgObj, oldBvToNewBv);
+        }
+    }
+
+    private static void CreateMissingOrmTexture(JsonArray images, JsonArray textures, JsonArray materials, int newOrmBvIdx)
+    {
+        int newOrmImageIdx = images.Count;
+        images.Add(new JsonObject { ["mimeType"] = "image/webp", ["bufferView"] = newOrmBvIdx });
+
+        int newOrmTextureIdx = textures.Count;
+        textures.Add(new JsonObject
+        {
+            ["source"] = newOrmImageIdx,
+            ["extensions"] = new JsonObject { ["EXT_texture_webp"] = new JsonObject { ["source"] = newOrmImageIdx } }
+        });
+
+        if (materials.Count > 0 && materials[0] is JsonObject firstMat)
+        {
+            if (firstMat["pbrMetallicRoughness"] is not JsonObject pbr)
+            {
+                pbr = new JsonObject();
+                firstMat["pbrMetallicRoughness"] = pbr;
+            }
+
+            if (!pbr.ContainsKey("metallicRoughnessTexture"))
+            {
+                pbr["metallicRoughnessTexture"] = new JsonObject { ["index"] = newOrmTextureIdx };
             }
         }
+    }
+
+    private static void UpdateImagesAndMaterials(
+        JsonArray images, JsonArray textures, JsonArray materials, Dictionary<int, int> oldBvToNewBv,
+        int ormImageIndex, int newOrmBvIdx)
+    {
+        UpdateImageBufferViews(images, oldBvToNewBv, ormImageIndex);
 
         if (ormImageIndex >= 0 && ormImageIndex < images.Count && images[ormImageIndex] is JsonObject ormImgObj)
         {
@@ -1564,72 +1625,67 @@ public static class GlbPlayerColorProcessor
         }
         else
         {
-            int newOrmImageIdx = images.Count;
-            images.Add(new JsonObject
-            {
-                ["mimeType"] = "image/webp",
-                ["bufferView"] = newOrmBvIdx
-            });
+            CreateMissingOrmTexture(images, textures, materials, newOrmBvIdx);
+        }
+    }
 
-            int newOrmTextureIdx = textures.Count;
-            textures.Add(new JsonObject
+    private static int EnsureTextureSource(JsonObject texObj, int textureIndex, JsonArray textures, JsonArray images)
+    {
+        int src = texObj["source"]?.GetValue<int>() ?? -1;
+        if (src < 0)
+        {
+            src = ResolveTextureToImage(textureIndex, textures);
+            if (src >= 0 && src < images.Count)
             {
-                ["source"] = newOrmImageIdx,
-                ["extensions"] = new JsonObject
-                {
-                    ["EXT_texture_webp"] = new JsonObject { ["source"] = newOrmImageIdx }
-                }
-            });
-
-            if (materials.Count > 0 && materials[0] is JsonObject firstMat)
+                texObj["source"] = src;
+            }
+            else if (images.Count > 0)
             {
-                if (firstMat["pbrMetallicRoughness"] is not JsonObject pbr)
-                {
-                    pbr = new JsonObject();
-                    firstMat["pbrMetallicRoughness"] = pbr;
-                }
-
-                if (!pbr.ContainsKey("metallicRoughnessTexture"))
-                {
-                    pbr["metallicRoughnessTexture"] = new JsonObject { ["index"] = newOrmTextureIdx };
-                }
+                texObj["source"] = 0;
+                src = 0;
             }
         }
+        return src;
+    }
 
+    private static void UpdateTextureExtensions(JsonObject texObj, int src)
+    {
+        if (src < 0) return;
+
+        if (texObj["extensions"] is JsonObject texExt)
+        {
+            if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
+            texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
+        }
+        else
+        {
+            texObj["extensions"] = new JsonObject { ["EXT_texture_webp"] = new JsonObject { ["source"] = src } };
+        }
+    }
+
+    private static void UpdateTextures(JsonArray textures, JsonArray images)
+    {
         for (int i = 0; i < textures.Count; i++)
         {
             if (textures[i] is not JsonObject texObj) continue;
-            int src = texObj["source"]?.GetValue<int>() ?? -1;
-            if (src < 0)
-            {
-                src = ResolveTextureToImage(i, textures);
-                if (src >= 0 && src < images.Count)
-                {
-                    texObj["source"] = src;
-                }
-                else if (images.Count > 0)
-                {
-                    texObj["source"] = 0;
-                    src = 0;
-                }
-            }
-            if (src >= 0)
-            {
-                if (texObj["extensions"] is JsonObject texExt)
-                {
-                    if (texExt.ContainsKey("KHR_texture_basisu")) texExt.Remove("KHR_texture_basisu");
-                    texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
-                }
-                else
-                {
-                    texObj["extensions"] = new JsonObject
-                    {
-                        ["EXT_texture_webp"] = new JsonObject { ["source"] = src }
-                    };
-                }
-            }
+            
+            int src = EnsureTextureSource(texObj, i, textures, images);
+            UpdateTextureExtensions(texObj, src);
         }
+    }
 
+    private static HashSet<int> GetRetainedBufferViews(JsonArray accessors, JsonArray bufferViews, JsonArray images, int excludeImageIndex)
+    {
+        var retainedBvIndices = new HashSet<int>();
+        
+        AddAccessorBufferViews(accessors, bufferViews, retainedBvIndices);
+        AddImageBufferViews(images, bufferViews, retainedBvIndices, excludeImageIndex);
+
+        return retainedBvIndices;
+    }
+
+    private static void EnsureWebPExtension(JsonObject root)
+    {
         if (root.TryGetPropertyValue("extensionsUsed", out var extNode) && extNode is JsonArray extArray)
         {
             bool exists = false;
@@ -1647,6 +1703,47 @@ public static class GlbPlayerColorProcessor
         {
             root["extensionsUsed"] = new JsonArray("EXT_texture_webp");
         }
+    }
+
+    private static byte[] RebuildGlbWithUpdatedOrmTexture(
+        JsonObject root,
+        byte[] binChunk,
+        int ormImageIndex,
+        byte[] newOrmBytes,
+        uint glbVersion)
+    {
+        var accessors = GetJsonArrayOrDefault(root, "accessors");
+        var bufferViews = GetJsonArrayOrDefault(root, "bufferViews");
+        var images = GetJsonArrayOrDefault(root, "images");
+        var textures = GetJsonArrayOrDefault(root, "textures");
+        var materials = GetJsonArrayOrDefault(root, "materials");
+
+        var retainedBvIndices = GetRetainedBufferViews(accessors, bufferViews, images, ormImageIndex);
+
+        using var newBinStream = new MemoryStream();
+        var oldBvToNewBv = new Dictionary<int, int>();
+        var newBufferViewsList = new JsonArray();
+
+        RebuildBufferViews(bufferViews, binChunk, retainedBvIndices, newBinStream, newBufferViewsList, oldBvToNewBv);
+
+        while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
+        int ormOffset = (int)newBinStream.Position;
+        newBinStream.Write(newOrmBytes, 0, newOrmBytes.Length);
+        while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
+
+        newBufferViewsList.Add(new JsonObject
+        {
+            ["byteOffset"] = ormOffset,
+            ["byteLength"] = newOrmBytes.Length,
+            ["buffer"] = 0
+        });
+        int newOrmBvIdx = newBufferViewsList.Count - 1;
+
+        UpdateAccessors(accessors, oldBvToNewBv);
+        UpdateImagesAndMaterials(images, textures, materials, oldBvToNewBv, ormImageIndex, newOrmBvIdx);
+        UpdateTextures(textures, images);
+
+        EnsureWebPExtension(root);
 
         root["bufferViews"] = newBufferViewsList;
 
@@ -1655,30 +1752,39 @@ public static class GlbPlayerColorProcessor
             buf0["byteLength"] = (int)newBinStream.Position;
         }
 
-        byte[] newBin = newBinStream.ToArray();
-        return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
+        return GlbManifestUtils.BuildGlb(root, newBinStream.ToArray(), glbVersion);
+    }
+
+    private static (bool Valid, int Count, int BaseOffset, int Stride, int ComponentType) GetAccessorBufferInfo(JsonArray accessors, JsonArray bufferViews, int accessorIndex, int defaultElementSize)
+    {
+        if (accessorIndex < 0 || accessorIndex >= accessors.Count) return (false, 0, 0, 0, 0);
+        if (accessors[accessorIndex] is not JsonObject acc) return (false, 0, 0, 0, 0);
+
+        int bvIdx = GetJsonNodeIntValue(acc, "bufferView", -1);
+        int count = GetJsonNodeIntValue(acc, "count", 0);
+        int accessorByteOffset = GetJsonNodeIntValue(acc, "byteOffset", 0);
+        int componentType = GetJsonNodeIntValue(acc, "componentType", 5126);
+
+        if (bvIdx < 0 || bvIdx >= bufferViews.Count) return (false, 0, 0, 0, 0);
+        if (bufferViews[bvIdx] is not JsonObject bv) return (false, 0, 0, 0, 0);
+
+        int bvByteOffset = GetJsonNodeIntValue(bv, "byteOffset", 0);
+        int bvStride = GetJsonNodeIntValue(bv, "byteStride", 0);
+
+        int stride = bvStride > 0 ? bvStride : defaultElementSize;
+        int baseOffset = bvByteOffset + accessorByteOffset;
+
+        return (true, count, baseOffset, stride, componentType);
     }
 
     private static List<Vector2> ReadAccessorVec2(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
     {
         var result = new List<Vector2>();
-        if (accessorIndex < 0 || accessorIndex >= accessors.Count) return result;
-        if (accessors[accessorIndex] is not JsonObject acc) return result;
-
-        int bvIdx = acc["bufferView"]?.GetValue<int>() ?? -1;
-        int count = acc["count"]?.GetValue<int>() ?? 0;
-        int accessorByteOffset = acc["byteOffset"]?.GetValue<int>() ?? 0;
-        int componentType = acc["componentType"]?.GetValue<int>() ?? 5126;
-
-        if (bvIdx < 0 || bvIdx >= bufferViews.Count) return result;
-        if (bufferViews[bvIdx] is not JsonObject bv) return result;
-
-        int bvByteOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-        int bvStride = bv["byteStride"]?.GetValue<int>() ?? 0;
+        var (valid, count, baseOffset, stride, componentType) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 8);
+        if (!valid) return result;
 
         int elementSize = componentType == 5126 ? 8 : 4;
-        int stride = bvStride > 0 ? bvStride : elementSize;
-        int baseOffset = bvByteOffset + accessorByteOffset;
+        stride = stride == 8 && elementSize == 4 ? 4 : stride; // adjust default if needed
 
         for (int i = 0; i < count; i++)
         {
@@ -1706,20 +1812,8 @@ public static class GlbPlayerColorProcessor
     private static List<Vector3> ReadAccessorVec3(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
     {
         var result = new List<Vector3>();
-        if (accessorIndex < 0 || accessorIndex >= accessors.Count) return result;
-        if (accessors[accessorIndex] is not JsonObject acc) return result;
-
-        int bvIdx = acc["bufferView"]?.GetValue<int>() ?? -1;
-        int count = acc["count"]?.GetValue<int>() ?? 0;
-        int accessorByteOffset = acc["byteOffset"]?.GetValue<int>() ?? 0;
-
-        if (bvIdx < 0 || bvIdx >= bufferViews.Count) return result;
-        if (bufferViews[bvIdx] is not JsonObject bv) return result;
-
-        int bvByteOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-        int bvStride = bv["byteStride"]?.GetValue<int>() ?? 0;
-        int stride = bvStride > 0 ? bvStride : 12;
-        int baseOffset = bvByteOffset + accessorByteOffset;
+        var (valid, count, baseOffset, stride, _) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 12);
+        if (!valid) return result;
 
         for (int i = 0; i < count; i++)
         {
@@ -1738,19 +1832,8 @@ public static class GlbPlayerColorProcessor
     private static List<int> ReadAccessorIndices(JsonArray accessors, JsonArray bufferViews, byte[] bin, int accessorIndex)
     {
         var result = new List<int>();
-        if (accessorIndex < 0 || accessorIndex >= accessors.Count) return result;
-        if (accessors[accessorIndex] is not JsonObject acc) return result;
-
-        int bvIdx = acc["bufferView"]?.GetValue<int>() ?? -1;
-        int count = acc["count"]?.GetValue<int>() ?? 0;
-        int accessorByteOffset = acc["byteOffset"]?.GetValue<int>() ?? 0;
-        int componentType = acc["componentType"]?.GetValue<int>() ?? 5125;
-
-        if (bvIdx < 0 || bvIdx >= bufferViews.Count) return result;
-        if (bufferViews[bvIdx] is not JsonObject bv) return result;
-
-        int bvByteOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
-        int baseOffset = bvByteOffset + accessorByteOffset;
+        var (valid, count, baseOffset, _, componentType) = GetAccessorBufferInfo(accessors, bufferViews, accessorIndex, 4);
+        if (!valid) return result;
 
         int elementSize = componentType switch
         {
@@ -1776,4 +1859,103 @@ public static class GlbPlayerColorProcessor
 
         return result;
     }
+
+    private static bool TryGetBaseGlbArrays(JsonObject root, out JsonArray textures, out JsonArray materials, out JsonArray images, out JsonArray bufferViews)
+    {
+        textures = root["textures"] as JsonArray ?? new JsonArray();
+        materials = root["materials"] as JsonArray ?? new JsonArray();
+        images = root["images"] as JsonArray ?? new JsonArray();
+        bufferViews = root["bufferViews"] as JsonArray ?? new JsonArray();
+
+        return root.ContainsKey("textures") && root.ContainsKey("materials") && root.ContainsKey("images") && root.ContainsKey("bufferViews");
+    }
+
+    private static bool TryGetMeshArrays(JsonObject root, out JsonArray meshes, out JsonArray accessors)
+    {
+        meshes = root["meshes"] as JsonArray ?? new JsonArray();
+        accessors = root["accessors"] as JsonArray ?? new JsonArray();
+        return root.ContainsKey("meshes") && root.ContainsKey("accessors");
+    }
+
+    private static void CalculateAndCheckScore(int rgbKey, int count, float targetHueUnitX, float targetHueUnitY, ref float bestScore, ref int bestRgbKey)
+    {
+        byte rByte = (byte)((rgbKey >> 16) & 0xFF);
+        byte gByte = (byte)((rgbKey >> 8) & 0xFF);
+        byte bByte = (byte)(rgbKey & 0xFF);
+
+        float r = rByte / 255f;
+        float g = gByte / 255f;
+        float b = bByte / 255f;
+
+        var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+        float pChroma = MathF.Sqrt(pA * pA + pB * pB);
+        float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
+
+        float hueFactor = MathF.Pow(MathF.Max(0f, hueDot), 2f);
+        float score = (pL * pL) * pChroma * hueFactor * MathF.Log2(1 + count);
+
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestRgbKey = rgbKey;
+        }
+    }
+
+    private static int GetJsonNodeIntValue(JsonObject obj, string propertyName, int defaultValue)
+    {
+        if (obj.TryGetPropertyValue(propertyName, out var propVal) && propVal != null)
+        {
+            return propVal.GetValue<int>();
+        }
+        return defaultValue;
+    }
+
+    private static void UpdateWebpExtensionBufferView(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
+    {
+        if (imgObj.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject imgExt &&
+            imgExt.TryGetPropertyValue("EXT_texture_webp", out var webpNode) && webpNode is JsonObject webp &&
+            webp.TryGetPropertyValue("bufferView", out var wbVal) && wbVal != null)
+        {
+            int oldBv = wbVal.GetValue<int>();
+            if (oldBvToNewBv.TryGetValue(oldBv, out int newBv))
+            {
+                webp["bufferView"] = newBv;
+            }
+        }
+    }
+
+    private static void AddAccessorBufferViews(JsonArray accessors, JsonArray bufferViews, HashSet<int> retainedBvIndices)
+    {
+        foreach (var acc in accessors)
+        {
+            if (acc is JsonObject accObj && accObj.TryGetPropertyValue("bufferView", out var bvVal) && bvVal != null)
+            {
+                int bvIdx = bvVal.GetValue<int>();
+                if (bvIdx >= 0 && bvIdx < bufferViews.Count) retainedBvIndices.Add(bvIdx);
+            }
+        }
+    }
+
+    private static void AddImageBufferViews(JsonArray images, JsonArray bufferViews, HashSet<int> retainedBvIndices, int excludeImageIndex)
+    {
+        for (int i = 0; i < images.Count; i++)
+        {
+            if (i == excludeImageIndex) continue;
+            if (images[i] is JsonObject imgObj)
+            {
+                int imgBv = GetImageBufferViewIndex(imgObj);
+                if (imgBv >= 0 && imgBv < bufferViews.Count) retainedBvIndices.Add(imgBv);
+            }
+        }
+    }
+
+    private static JsonArray GetJsonArrayOrDefault(JsonObject root, string propertyName)
+    {
+        if (root.TryGetPropertyValue(propertyName, out var arrayNode) && arrayNode is JsonArray array)
+        {
+            return array;
+        }
+        return new JsonArray();
+    }
+
 }

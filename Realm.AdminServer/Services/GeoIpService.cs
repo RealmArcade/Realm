@@ -30,31 +30,46 @@ public class GeoIpService
 
     public (double lat, double lon) GetCoordinates(string ipAddress)
     {
-        if (_reader != null && IPAddress.TryParse(ipAddress, out var ip) && !IPAddress.IsLoopback(ip))
-        {
-            try
-            {
-                var city = _reader.City(ip);
-                if (city.Location.Latitude.HasValue && city.Location.Longitude.HasValue)
-                {
-                    return (city.Location.Latitude.Value, city.Location.Longitude.Value);
-                }
-            }
-            catch (AddressNotFoundException) { /* Fallback */ }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GeoIP] Lookup error: {ex.Message}");
-            }
-        }
+        var dbCoords = TryGetFromDatabase(ipAddress);
+        if (dbCoords.HasValue)
+            return dbCoords.Value;
 
-
-        if (ipAddress == "127.0.0.1" || ipAddress == "localhost")
-        {
-
+        if (IsLocalhost(ipAddress))
             return (38.9072, -77.0369);
+
+        return GetSimulatedCoordinates(ipAddress);
+    }
+
+    private (double lat, double lon)? TryGetFromDatabase(string ipAddress)
+    {
+        if (_reader == null) return null;
+        if (!IPAddress.TryParse(ipAddress, out var ip)) return null;
+        if (IPAddress.IsLoopback(ip)) return null;
+
+        try
+        {
+            var city = _reader.City(ip);
+            if (city.Location.Latitude.HasValue && city.Location.Longitude.HasValue)
+            {
+                return (city.Location.Latitude.Value, city.Location.Longitude.Value);
+            }
+        }
+        catch (AddressNotFoundException) { /* Fallback */ }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GeoIP] Lookup error: {ex.Message}");
         }
 
+        return null;
+    }
 
+    private static bool IsLocalhost(string ipAddress)
+    {
+        return ipAddress == "127.0.0.1" || ipAddress == "localhost";
+    }
+
+    private static (double lat, double lon) GetSimulatedCoordinates(string ipAddress)
+    {
         string[] parts = ipAddress.Split('.');
         if (parts.Length > 0 && int.TryParse(parts[0], out int firstOctet))
         {

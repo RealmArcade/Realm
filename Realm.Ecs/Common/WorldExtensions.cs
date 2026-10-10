@@ -2,13 +2,13 @@ using Arch.Core;
 
 namespace Realm.Ecs.Common;
 
-internal static class WorldExtensions
+public static class WorldExtensions
 {
     /// <summary>
     ///     Returns the component value for <paramref name="entity"/> when the entity is alive
     ///     and the component exists; otherwise returns <paramref name="fallback"/>.
     /// </summary>
-    internal static TComponent GetOrDefault<TComponent>(
+    public static TComponent GetOrDefault<TComponent>(
         this World world,
         Entity entity,
         TComponent fallback = default)
@@ -23,7 +23,7 @@ internal static class WorldExtensions
     ///     Selects a single field from the component for <paramref name="entity"/> when the entity
     ///     is alive and the component exists; otherwise returns <paramref name="fallback"/>.
     /// </summary>
-    internal static TField GetFieldOrDefault<TComponent, TField>(
+    public static TField GetFieldOrDefault<TComponent, TField>(
         this World world,
         Entity entity,
         Func<TComponent, TField> selector,
@@ -40,7 +40,7 @@ internal static class WorldExtensions
     ///     when the entity is alive and carries the component; otherwise returns
     ///     <see langword="false"/> and leaves <paramref name="value"/> at <see langword="default"/>.
     /// </summary>
-    internal static bool TryGet<TComponent>(
+    public static bool TryGet<TComponent>(
         this World world,
         Entity entity,
         out TComponent value)
@@ -60,7 +60,7 @@ internal static class WorldExtensions
     ///     the entity is alive and the component exists. The mutation receives a
     ///     <see langword="ref"/> to the live component so no copy is required.
     /// </summary>
-    internal static void Mutate<TComponent>(
+    public static void Mutate<TComponent>(
         this World world,
         Entity entity,
         ComponentMutator<TComponent> mutator)
@@ -74,7 +74,7 @@ internal static class WorldExtensions
     ///     Replaces the component on <paramref name="entity"/> with <paramref name="newValue"/>
     ///     when the entity is alive and the component exists. Has no effect otherwise.
     /// </summary>
-    internal static void SetIfAlive<TComponent>(
+    public static void SetIfAlive<TComponent>(
         this World world,
         Entity entity,
         TComponent newValue)
@@ -103,10 +103,3 @@ internal static class WorldExtensions
             world.Add(entity, component);
     }
 }
-
-/// <summary>
-///     A delegate used by <see cref="WorldExtensions.Mutate{TComponent}"/> to perform
-///     in-place mutations on a component without boxing or copying.
-/// </summary>
-internal delegate void ComponentMutator<TComponent>(ref TComponent component)
-    where TComponent : struct;

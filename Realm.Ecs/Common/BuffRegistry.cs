@@ -1,9 +1,8 @@
-using System.Collections.Generic;
 using Realm.Ecs.Components.Stats;
 
 namespace Realm.Ecs.Common;
 
-internal static class BuffRegistry
+public static class BuffRegistry
 {
 	public static readonly Dictionary<string, List<StatModifier>> BuffModifiers = new()
 	{

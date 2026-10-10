@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Holds network synchronization, snapshot sequences, command sequencing, and latency tracking state.
 	/// </summary>
-	internal struct NetworkState
+	public struct NetworkState
 	{
 		public int NextCommandId;
 		public float CommandSendTimer;

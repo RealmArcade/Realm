@@ -3,9 +3,9 @@ using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
-using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Services;
 
 namespace Realm.Ecs.Common;

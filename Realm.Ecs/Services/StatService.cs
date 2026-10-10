@@ -7,7 +7,7 @@ namespace Realm.Ecs.Services;
 /// <summary>
 ///     Demonstrates how Stat and StatModifier components are used together.
 /// </summary>
-internal class StatService
+public class StatService
 {
 	private readonly WorldAccessor _ecsWorldAccessor;
 

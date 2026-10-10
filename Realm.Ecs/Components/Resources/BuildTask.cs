@@ -5,7 +5,7 @@ namespace Realm.Ecs.Components.Resources;
 /// <summary>
 ///     Tracks the active construction task assigned to a worker unit, referencing the building entity being constructed.
 /// </summary>
-internal struct BuildTask
+public struct BuildTask
 {
     public Entity BuildingEntity;
     public float TotalBuildTime;

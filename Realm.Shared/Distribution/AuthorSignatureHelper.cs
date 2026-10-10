@@ -1,11 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json.Nodes;
 using NSec.Cryptography;
 using Realm.Shared.Metadata;
 using Realm.Shared.Services;
+using System.Text;
+using System.Text.Json.Nodes;
 
 namespace Realm.Shared.Distribution;
 
@@ -91,34 +88,51 @@ public static class AuthorSignatureHelper
             var existing = MapFileService.LoadMetadataFromJson(existingMetadataJson);
             var incoming = MapFileService.LoadMetadataFromJson(incomingMetadataJson);
 
-            if (incoming.MapProperties != null)
+            MergeMapProperties(existing, incoming);
+
+            if (!string.IsNullOrEmpty(incoming.GameBuildNumber))
             {
-                existing.MapProperties ??= new MapInfoMetadata();
-                if (!string.IsNullOrEmpty(incoming.MapProperties.MapName)) existing.MapProperties.MapName = incoming.MapProperties.MapName;
-                if (!string.IsNullOrEmpty(incoming.MapProperties.MapDescription)) existing.MapProperties.MapDescription = incoming.MapProperties.MapDescription;
-                if (!string.IsNullOrEmpty(incoming.MapProperties.Author)) existing.MapProperties.Author = incoming.MapProperties.Author;
-                if (!string.IsNullOrEmpty(incoming.MapProperties.Version)) existing.MapProperties.Version = incoming.MapProperties.Version;
+                existing.GameBuildNumber = incoming.GameBuildNumber;
             }
 
-            if (!string.IsNullOrEmpty(incoming.GameBuildNumber)) existing.GameBuildNumber = incoming.GameBuildNumber;
-
-            if (incoming.Dependencies != null)
-            {
-                existing.Dependencies ??= new List<MapDependencyMetadata>();
-                foreach (var dep in incoming.Dependencies)
-                {
-                    if (!existing.Dependencies.Any(d => string.Equals(d.Id, dep.Id, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        existing.Dependencies.Add(dep);
-                    }
-                }
-            }
+            MergeDependencies(existing, incoming);
 
             return MapFileService.SaveMetadataToJson(existing);
         }
         catch
         {
             return MapFileService.SaveMetadataToJson(MapFileService.LoadMetadataFromJson(existingMetadataJson));
+        }
+    }
+
+    private static void MergeMapProperties(MapMetadata existing, MapMetadata incoming)
+    {
+        if (incoming.MapProperties == null)
+        {
+            return;
+        }
+
+        existing.MapProperties ??= new MapInfoMetadata();
+        if (!string.IsNullOrEmpty(incoming.MapProperties.MapName)) existing.MapProperties.MapName = incoming.MapProperties.MapName;
+        if (!string.IsNullOrEmpty(incoming.MapProperties.MapDescription)) existing.MapProperties.MapDescription = incoming.MapProperties.MapDescription;
+        if (!string.IsNullOrEmpty(incoming.MapProperties.Author)) existing.MapProperties.Author = incoming.MapProperties.Author;
+        if (!string.IsNullOrEmpty(incoming.MapProperties.Version)) existing.MapProperties.Version = incoming.MapProperties.Version;
+    }
+
+    private static void MergeDependencies(MapMetadata existing, MapMetadata incoming)
+    {
+        if (incoming.Dependencies == null)
+        {
+            return;
+        }
+
+        existing.Dependencies ??= new List<MapDependencyMetadata>();
+        foreach (var dep in incoming.Dependencies)
+        {
+            if (!existing.Dependencies.Any(d => string.Equals(d.Id, dep.Id, StringComparison.OrdinalIgnoreCase)))
+            {
+                existing.Dependencies.Add(dep);
+            }
         }
     }
 
@@ -148,42 +162,52 @@ public static class AuthorSignatureHelper
 
     private static JsonNode SortJsonNode(JsonNode node)
     {
-        if (node is JsonObject obj)
+        return node switch
         {
-            var sortedObj = new JsonObject();
-            foreach (var kvp in obj.OrderBy(k => k.Key, StringComparer.Ordinal))
-            {
-                sortedObj[kvp.Key] = kvp.Value != null ? SortJsonNode(kvp.Value.DeepClone()) : null;
-            }
-            return sortedObj;
-        }
-        else if (node is JsonArray arr)
-        {
-            bool allPrimitives = arr.All(item => item is JsonValue);
-            if (allPrimitives)
-            {
-                var sortedItems = arr
-                    .Select(item => item?.DeepClone())
-                    .OrderBy(item => item?.ToJsonString(), StringComparer.Ordinal)
-                    .ToList();
-                var sortedArr = new JsonArray();
-                foreach (var item in sortedItems)
-                {
-                    sortedArr.Add(item);
-                }
-                return sortedArr;
-            }
-            else
-            {
-                var sortedArr = new JsonArray();
-                foreach (var item in arr)
-                {
-                    sortedArr.Add(item != null ? SortJsonNode(item.DeepClone()) : null);
-                }
-                return sortedArr;
-            }
-        }
+            JsonObject obj => SortJsonObject(obj),
+            JsonArray arr => SortJsonArray(arr),
+            _ => node.DeepClone()
+        };
+    }
 
-        return node.DeepClone();
+    private static JsonObject SortJsonObject(JsonObject obj)
+    {
+        var sortedObj = new JsonObject();
+        foreach (var kvp in obj.OrderBy(k => k.Key, StringComparer.Ordinal))
+        {
+            sortedObj[kvp.Key] = kvp.Value != null ? SortJsonNode(kvp.Value.DeepClone()) : null;
+        }
+        return sortedObj;
+    }
+
+    private static JsonArray SortJsonArray(JsonArray arr)
+    {
+        bool allPrimitives = arr.All(item => item is JsonValue);
+        return allPrimitives ? SortPrimitiveArray(arr) : SortComplexArray(arr);
+    }
+
+    private static JsonArray SortPrimitiveArray(JsonArray arr)
+    {
+        var sortedItems = arr
+            .Select(item => item?.DeepClone())
+            .OrderBy(item => item?.ToJsonString(), StringComparer.Ordinal)
+            .ToList();
+            
+        var sortedArr = new JsonArray();
+        foreach (var item in sortedItems)
+        {
+            sortedArr.Add(item);
+        }
+        return sortedArr;
+    }
+
+    private static JsonArray SortComplexArray(JsonArray arr)
+    {
+        var sortedArr = new JsonArray();
+        foreach (var item in arr)
+        {
+            sortedArr.Add(item != null ? SortJsonNode(item.DeepClone()) : null);
+        }
+        return sortedArr;
     }
 }

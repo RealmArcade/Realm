@@ -14,7 +14,7 @@ $extVersion = if ($versionData.extensionVersion) { $versionData.extensionVersion
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 $sourceExtensionDir = Join-Path $rootDir "Realm.MapEditorExtension"
-$fallbackSourceExtensionDir = Join-Path $rootDir "Realm.Godot\vscode_extensions_dist\speige.realm-map-editor"
+$fallbackSourceExtensionDir = Join-Path $rootDir "Realm.Client\vscode_extensions_dist\speige.realm-map-editor"
 
 $candidateExtensionDirs = [System.Collections.Generic.List[string]]::new()
 

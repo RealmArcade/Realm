@@ -3,7 +3,7 @@ namespace Realm.Ecs.Definitions;
 /// <summary>
 ///     Represents the camera boundary properties of a map.
 /// </summary>
-internal class MapProperties
+public class MapProperties
 {
 	public string? Name { get; set; }
 	public string? MapName { get; set; }

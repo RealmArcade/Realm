@@ -11,7 +11,7 @@ namespace Realm.Ecs.Services;
 ///     A generic factory for creating entities from archetypes using reflection.
 ///     This has been optimized to cache reflection results for performance.
 /// </summary>
-internal class EntityFactory
+public class EntityFactory
 {
 	private static readonly MethodInfo SetComponentMethodInfo = typeof(World).GetMethod(nameof(World.Set)) ?? throw new InvalidOperationException("World.Set method not found");
 	private static readonly MethodInfo AddMethodInfo = typeof(World).GetMethod(nameof(World.Add)) ?? throw new InvalidOperationException("World.Add method not found");

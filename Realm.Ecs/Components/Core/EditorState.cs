@@ -2,26 +2,10 @@ using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Ecs.Components.Core
 {
-	public enum MirrorMode
-	{
-		None,
-		Horizontal,
-		Vertical,
-		Both,
-		Rotational
-	}
-
-	public enum PasteReflection
-	{
-		None,
-		Horizontal,
-		Vertical
-	}
-
 	/// <summary>
 	///     Holds the state and configuration of the map editor, including block modes, camera boundary limits, and file status.
 	/// </summary>
-	internal struct EditorState
+	public struct EditorState
 	{
 		public bool BlockMode;
 		public float BlockLevelHeight;

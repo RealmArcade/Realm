@@ -1,12 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
+using Realm.Shared.Metadata;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Distribution;
 
@@ -58,39 +52,47 @@ public class SeederPropagationEngine
                 break;
             }
 
-            if (string.Equals(peerSeeder.SeederId, _seederId, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var peerHashes = await FetchPeerCatalogAsync(peerSeeder.IP, peerSeeder.Port, cancellationToken);
-            if (peerHashes.Count == 0)
-            {
-                continue;
-            }
-
-            var wantedHashes = peerHashes
-                .Where(hash => DistributionSharding.SeederAcceptsHash(_seederId, _capacityPercentage, hash))
-                .Where(hash => !_storage.HasAsset(hash))
-                .ToList();
-
-            foreach (string hash in wantedHashes)
-            {
-                if (cancellationToken.IsCancellationRequested || !_storage.CheckFreeDiskSpaceAcceptingUploads())
-                {
-                    break;
-                }
-
-                bool downloaded = await DownloadAssetFromPeerAsync(peerSeeder.IP, peerSeeder.Port, hash, cancellationToken);
-                if (downloaded)
-                {
-                    propagatedCount++;
-                }
-            }
+            propagatedCount += await ProcessPeerSeederAsync(peerSeeder, cancellationToken);
         }
 
         int syncedHeaders = await RunBloomFilterHeaderSyncWithSeedersAsync(seeders, cancellationToken);
         return propagatedCount + syncedHeaders;
+    }
+
+    private async Task<int> ProcessPeerSeederAsync(SeederNodeDto peerSeeder, CancellationToken cancellationToken)
+    {
+        if (string.Equals(peerSeeder.SeederId, _seederId, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var peerHashes = await FetchPeerCatalogAsync(peerSeeder.IP, peerSeeder.Port, cancellationToken);
+        if (peerHashes.Count == 0)
+        {
+            return 0;
+        }
+
+        var wantedHashes = peerHashes
+            .Where(hash => DistributionSharding.SeederAcceptsHash(_seederId, _capacityPercentage, hash))
+            .Where(hash => !_storage.HasAsset(hash))
+            .ToList();
+
+        int propagatedCount = 0;
+        foreach (string hash in wantedHashes)
+        {
+            if (cancellationToken.IsCancellationRequested || !_storage.CheckFreeDiskSpaceAcceptingUploads())
+            {
+                break;
+            }
+
+            bool downloaded = await DownloadAssetFromPeerAsync(peerSeeder.IP, peerSeeder.Port, hash, cancellationToken);
+            if (downloaded)
+            {
+                propagatedCount++;
+            }
+        }
+
+        return propagatedCount;
     }
 
     public void StartBackgroundWorker(TimeSpan interval, CancellationToken cancellationToken = default)
@@ -98,24 +100,26 @@ public class SeederPropagationEngine
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var token = _cancellationTokenSource.Token;
 
-        Task.Run(async () =>
+        Task.Run(() => BackgroundWorkerLoopAsync(interval, token), token);
+    }
+
+    private async Task BackgroundWorkerLoopAsync(TimeSpan interval, CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
         {
-            while (!token.IsCancellationRequested)
+            try
             {
-                try
-                {
-                    await Task.Delay(interval, token);
-                    await RunPropagationCycleAsync(token);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch
-                {
-                }
+                await Task.Delay(interval, token);
+                await RunPropagationCycleAsync(token);
             }
-        }, token);
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch
+            {
+            }
+        }
     }
 
     public void Stop()
@@ -249,24 +253,34 @@ public class SeederPropagationEngine
                 continue;
             }
 
-            foreach (string hash in localHashes)
+            syncedHeadersCount += await SyncLocalHashesWithPeerAsync(peerSeeder, peerFilter, localHashes, cancellationToken);
+        }
+
+        return syncedHeadersCount;
+    }
+
+    private async Task<int> SyncLocalHashesWithPeerAsync(SeederNodeDto peerSeeder, BloomFilter peerFilter, List<string> localHashes, CancellationToken cancellationToken)
+    {
+        int syncedHeadersCount = 0;
+        foreach (string hash in localHashes)
+        {
+            if (cancellationToken.IsCancellationRequested)
             {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    break;
-                }
+                break;
+            }
 
-                string? localMetadataJson = _storage.GetAssetMetadata(hash);
-                string headerKey = BloomFilter.CreateHeaderKey(hash, localMetadataJson);
+            string? localMetadataJson = _storage.GetAssetMetadata(hash);
+            string headerKey = BloomFilter.CreateHeaderKey(hash, localMetadataJson);
 
-                if (!peerFilter.Contains(headerKey))
-                {
-                    bool synced = await SyncHeaderWithPeerAsync(peerSeeder.IP, peerSeeder.Port, hash, localMetadataJson, cancellationToken);
-                    if (synced)
-                    {
-                        syncedHeadersCount++;
-                    }
-                }
+            if (peerFilter.Contains(headerKey))
+            {
+                continue;
+            }
+
+            bool synced = await SyncHeaderWithPeerAsync(peerSeeder.IP, peerSeeder.Port, hash, localMetadataJson, cancellationToken);
+            if (synced)
+            {
+                syncedHeadersCount++;
             }
         }
 

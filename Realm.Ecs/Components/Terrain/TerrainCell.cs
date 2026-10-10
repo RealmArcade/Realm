@@ -1,15 +1,7 @@
-using System;
 using System.Runtime.CompilerServices;
 
 namespace Realm.Ecs.Components.Terrain
 {
-	public enum WaterType : byte
-	{
-		None = 0,
-		Shallow = 1,
-		Deep = 2
-	}
-
 	/// <summary>
 	/// Represents cell quad terrain data including tier, absolute corner heights, and per-cell discrete water state.
 	/// </summary>

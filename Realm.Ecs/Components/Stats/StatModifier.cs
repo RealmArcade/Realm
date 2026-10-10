@@ -5,4 +5,4 @@ namespace Realm.Ecs.Components.Stats;
 /// <summary>
 ///     A component that modifies a stat on an entity.
 /// </summary>
-internal record struct StatModifier(StatId StatTypeId, ModifierType Type, float Value, float Duration = -1);
+public record struct StatModifier(StatId StatTypeId, ModifierType Type, float Value, float Duration = -1);

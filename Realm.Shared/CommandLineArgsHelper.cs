@@ -1,343 +1,395 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 
 namespace Realm.Shared;
 
 public static class CommandLineArgsHelper
 {
-	private class BooleanOptionMetadata
-	{
-		public string CanonicalLongName { get; set; } = string.Empty;
-		public bool IsInverted { get; set; }
-		public PropertyInfo Property { get; set; } = null!;
-	}
+    private class BooleanOptionMetadata
+    {
+        public string CanonicalLongName { get; set; } = string.Empty;
+        public bool IsInverted { get; set; }
+        public PropertyInfo Property { get; set; } = null!;
+    }
 
-	public static string[] SanitizeArgs(string[] args, params Type[] verbTypes)
-	{
-		return SanitizeArgs(args, (IEnumerable<Type>)verbTypes);
-	}
+    public static string[] SanitizeArgs(string[] args, params Type[] verbTypes)
+    {
+        return SanitizeArgs(args, (IEnumerable<Type>)verbTypes);
+    }
 
-	public static string[] SanitizeArgs(string[] args, IEnumerable<Type> verbTypes)
-	{
-		if (args == null || args.Length == 0)
-		{
-			return Array.Empty<string>();
-		}
+    public static string[] SanitizeArgs(string[] args, IEnumerable<Type> verbTypes)
+    {
+        if (args == null || args.Length == 0)
+        {
+            return Array.Empty<string>();
+        }
 
-		var verbList = verbTypes.ToList();
-		var selectedVerbTypes = verbList;
+        var selectedVerbTypes = GetSelectedVerbTypes(args, verbTypes);
+        var lookup = BuildOptionLookup(selectedVerbTypes);
+        var sanitized = new List<string>(args.Length);
 
-		if (args.Length > 0 && !args[0].StartsWith('-'))
-		{
-			string verbName = args[0];
-			var matchingVerb = verbList.FirstOrDefault(type =>
-			{
-				var verbAttribute = type.GetCustomAttributes().FirstOrDefault(attribute => attribute.GetType().Name is "VerbAttribute" or "Verb");
-				if (verbAttribute != null)
-				{
-					string? name = verbAttribute.GetType().GetProperty("Name")?.GetValue(verbAttribute)?.ToString();
-					return string.Equals(name, verbName, StringComparison.OrdinalIgnoreCase);
-				}
-				return false;
-			});
+        for (int index = 0; index < args.Length; index++)
+        {
+            string currentArg = args[index];
 
-			if (matchingVerb != null)
-			{
-				selectedVerbTypes = [matchingVerb];
-			}
-		}
+            if (!currentArg.StartsWith('-') || currentArg == "-" || currentArg == "--")
+            {
+                sanitized.Add(currentArg);
+                continue;
+            }
 
-		var lookup = BuildOptionLookup(selectedVerbTypes);
-		var sanitized = new List<string>(args.Length);
+            int separatorIndex = currentArg.IndexOfAny(['=', ':']);
+            if (separatorIndex >= 0)
+            {
+                ProcessArgWithSeparatorForSanitize(currentArg, separatorIndex, lookup, sanitized);
+                continue;
+            }
 
-		for (int index = 0; index < args.Length; index++)
-		{
-			string currentArg = args[index];
+            ProcessArgWithoutSeparatorForSanitize(args, ref index, currentArg, lookup, sanitized);
+        }
 
-			if (!currentArg.StartsWith('-') || currentArg == "-" || currentArg == "--")
-			{
-				sanitized.Add(currentArg);
-				continue;
-			}
+        return sanitized.ToArray();
+    }
 
-			int separatorIndex = currentArg.IndexOfAny(['=', ':']);
-			if (separatorIndex >= 0)
-			{
-				string flagPart = currentArg[..separatorIndex];
-				string valuePart = currentArg[(separatorIndex + 1)..];
-				string cleanFlag = flagPart.TrimStart('-');
+    private static IEnumerable<Type> GetSelectedVerbTypes(string[] args, IEnumerable<Type> verbTypes)
+    {
+        var verbList = verbTypes.ToList();
 
-				if (TryMatchOption(lookup, cleanFlag, out var matchedMetadata, out bool isNegatedPrefix))
-				{
-					if (TryParseBoolean(valuePart, out bool parsedBooleanValue))
-					{
-						bool finalValue = isNegatedPrefix
-							? !parsedBooleanValue
-							: (matchedMetadata.IsInverted ? !parsedBooleanValue : parsedBooleanValue);
+        if (args.Length == 0 || args[0].StartsWith('-'))
+        {
+            return verbList;
+        }
 
-						if (finalValue)
-						{
-							sanitized.Add($"--{matchedMetadata.CanonicalLongName}");
-						}
-						continue;
-					}
-				}
+        string verbName = args[0];
+        var matchingVerb = verbList.FirstOrDefault(type =>
+        {
+            var verbAttribute = type.GetCustomAttributes().FirstOrDefault(attribute => attribute.GetType().Name is "VerbAttribute" or "Verb");
+            if (verbAttribute == null)
+            {
+                return false;
+            }
 
-				sanitized.Add(currentArg);
-				continue;
-			}
+            string? name = verbAttribute.GetType().GetProperty("Name")?.GetValue(verbAttribute)?.ToString();
+            return string.Equals(name, verbName, StringComparison.OrdinalIgnoreCase);
+        });
 
-			string flagName = currentArg.TrimStart('-');
-			if (TryMatchOption(lookup, flagName, out var metadata, out bool isNegated))
-			{
-				if (index + 1 < args.Length && TryParseBoolean(args[index + 1], out bool nextBooleanValue))
-				{
-					index++;
-					bool finalValue = isNegated
-						? !nextBooleanValue
-						: (metadata.IsInverted ? !nextBooleanValue : nextBooleanValue);
+        return matchingVerb != null ? [matchingVerb] : verbList;
+    }
 
-					if (finalValue)
-					{
-						sanitized.Add($"--{metadata.CanonicalLongName}");
-					}
-					continue;
-				}
+    private static void ProcessArgWithSeparatorForSanitize(string currentArg, int separatorIndex, Dictionary<string, BooleanOptionMetadata> lookup, List<string> sanitized)
+    {
+        string flagPart = currentArg[..separatorIndex];
+        string valuePart = currentArg[(separatorIndex + 1)..];
+        string cleanFlag = flagPart.TrimStart('-');
 
-				bool switchValue = isNegated
-					? false
-					: (metadata.IsInverted ? false : true);
+        if (!TryMatchOption(lookup, cleanFlag, out var matchedMetadata, out bool isNegatedPrefix) ||
+            !TryParseBoolean(valuePart, out bool parsedBooleanValue))
+        {
+            sanitized.Add(currentArg);
+            return;
+        }
 
-				if (switchValue)
-				{
-					sanitized.Add($"--{metadata.CanonicalLongName}");
-				}
-				continue;
-			}
+        bool finalValue = isNegatedPrefix
+            ? !parsedBooleanValue
+            : (matchedMetadata.IsInverted ? !parsedBooleanValue : parsedBooleanValue);
 
-			sanitized.Add(currentArg);
-		}
+        if (finalValue)
+        {
+            sanitized.Add($"--{matchedMetadata.CanonicalLongName}");
+        }
+    }
 
-		return sanitized.ToArray();
-	}
+    private static void ProcessArgWithoutSeparatorForSanitize(string[] args, ref int index, string currentArg, Dictionary<string, BooleanOptionMetadata> lookup, List<string> sanitized)
+    {
+        string flagName = currentArg.TrimStart('-');
+        if (!TryMatchOption(lookup, flagName, out var metadata, out bool isNegated))
+        {
+            sanitized.Add(currentArg);
+            return;
+        }
 
-	public static void ApplyBooleanOverrides(object? options, string[]? args)
-	{
-		if (options == null || args == null || args.Length == 0)
-		{
-			return;
-		}
+        if (index + 1 < args.Length && TryParseBoolean(args[index + 1], out bool nextBooleanValue))
+        {
+            index++;
+            bool finalValue = isNegated
+                ? !nextBooleanValue
+                : (metadata.IsInverted ? !nextBooleanValue : nextBooleanValue);
 
-		var lookup = BuildOptionLookup([options.GetType()]);
+            if (finalValue)
+            {
+                sanitized.Add($"--{metadata.CanonicalLongName}");
+            }
+            return;
+        }
 
-		for (int index = 0; index < args.Length; index++)
-		{
-			string currentArg = args[index];
+        bool switchValue = !isNegated && !metadata.IsInverted;
 
-			if (!currentArg.StartsWith('-') || currentArg == "-" || currentArg == "--")
-			{
-				continue;
-			}
+        if (switchValue)
+        {
+            sanitized.Add($"--{metadata.CanonicalLongName}");
+        }
+    }
 
-			int separatorIndex = currentArg.IndexOfAny(['=', ':']);
-			if (separatorIndex >= 0)
-			{
-				string flagPart = currentArg[..separatorIndex];
-				string valuePart = currentArg[(separatorIndex + 1)..];
-				string cleanFlag = flagPart.TrimStart('-');
+    public static void ApplyBooleanOverrides(object? options, string[]? args)
+    {
+        if (options == null || args == null || args.Length == 0)
+        {
+            return;
+        }
 
-				if (TryMatchOption(lookup, cleanFlag, out var matchedMetadata, out bool isNegatedPrefix))
-				{
-					if (TryParseBoolean(valuePart, out bool parsedBooleanValue))
-					{
-						bool finalValue = isNegatedPrefix
-							? !parsedBooleanValue
-							: (matchedMetadata.IsInverted ? !parsedBooleanValue : parsedBooleanValue);
+        var lookup = BuildOptionLookup([options.GetType()]);
 
-						matchedMetadata.Property.SetValue(options, finalValue);
-					}
-				}
-				continue;
-			}
+        for (int index = 0; index < args.Length; index++)
+        {
+            string currentArg = args[index];
 
-			string flagName = currentArg.TrimStart('-');
-			if (TryMatchOption(lookup, flagName, out var metadata, out bool isNegated))
-			{
-				if (index + 1 < args.Length && TryParseBoolean(args[index + 1], out bool nextBooleanValue))
-				{
-					index++;
-					bool finalValue = isNegated
-						? !nextBooleanValue
-						: (metadata.IsInverted ? !nextBooleanValue : nextBooleanValue);
+            if (!currentArg.StartsWith('-') || currentArg == "-" || currentArg == "--")
+            {
+                continue;
+            }
 
-					metadata.Property.SetValue(options, finalValue);
-					continue;
-				}
+            int separatorIndex = currentArg.IndexOfAny(['=', ':']);
+            if (separatorIndex >= 0)
+            {
+                ProcessArgWithSeparatorForOverride(currentArg, separatorIndex, lookup, options);
+                continue;
+            }
 
-				bool switchValue = isNegated
-					? false
-					: (metadata.IsInverted ? false : true);
+            ProcessArgWithoutSeparatorForOverride(args, ref index, currentArg, lookup, options);
+        }
+    }
 
-				metadata.Property.SetValue(options, switchValue);
-			}
-		}
-	}
+    private static void ProcessArgWithSeparatorForOverride(string currentArg, int separatorIndex, Dictionary<string, BooleanOptionMetadata> lookup, object options)
+    {
+        string flagPart = currentArg[..separatorIndex];
+        string valuePart = currentArg[(separatorIndex + 1)..];
+        string cleanFlag = flagPart.TrimStart('-');
 
-	public static bool TryParseBoolean(string? text, out bool result)
-	{
-		if (string.IsNullOrWhiteSpace(text))
-		{
-			result = false;
-			return false;
-		}
+        if (!TryMatchOption(lookup, cleanFlag, out var matchedMetadata, out bool isNegatedPrefix) ||
+            !TryParseBoolean(valuePart, out bool parsedBooleanValue))
+        {
+            return;
+        }
 
-		string trimmed = text.Trim();
+        bool finalValue = isNegatedPrefix
+            ? !parsedBooleanValue
+            : (matchedMetadata.IsInverted ? !parsedBooleanValue : parsedBooleanValue);
 
-		if (bool.TryParse(trimmed, out result))
-		{
-			return true;
-		}
+        matchedMetadata.Property.SetValue(options, finalValue);
+    }
 
-		string lower = trimmed.ToLowerInvariant();
-		if (lower is "1" or "yes" or "y" or "on" or "enable" or "enabled" or "t")
-		{
-			result = true;
-			return true;
-		}
+    private static void ProcessArgWithoutSeparatorForOverride(string[] args, ref int index, string currentArg, Dictionary<string, BooleanOptionMetadata> lookup, object options)
+    {
+        string flagName = currentArg.TrimStart('-');
+        if (!TryMatchOption(lookup, flagName, out var metadata, out bool isNegated))
+        {
+            return;
+        }
 
-		if (lower is "0" or "no" or "n" or "off" or "disable" or "disabled" or "f")
-		{
-			result = false;
-			return true;
-		}
+        if (index + 1 < args.Length && TryParseBoolean(args[index + 1], out bool nextBooleanValue))
+        {
+            index++;
+            bool finalValue = isNegated
+                ? !nextBooleanValue
+                : (metadata.IsInverted ? !nextBooleanValue : nextBooleanValue);
 
-		result = false;
-		return false;
-	}
+            metadata.Property.SetValue(options, finalValue);
+            return;
+        }
 
-	private static Dictionary<string, BooleanOptionMetadata> BuildOptionLookup(IEnumerable<Type> verbTypes)
-	{
-		var lookup = new Dictionary<string, BooleanOptionMetadata>(StringComparer.OrdinalIgnoreCase);
+        bool switchValue = !isNegated && !metadata.IsInverted;
 
-		foreach (var type in verbTypes)
-		{
-			var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-			foreach (var property in properties)
-			{
-				if (property.PropertyType != typeof(bool) && property.PropertyType != typeof(bool?))
-				{
-					continue;
-				}
+        metadata.Property.SetValue(options, switchValue);
+    }
 
-				var optionAttribute = property.GetCustomAttributes()
-					.FirstOrDefault(attribute => attribute.GetType().Name is "OptionAttribute" or "Option");
+    public static bool TryParseBoolean(string? text, out bool result)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            result = false;
+            return false;
+        }
 
-				if (optionAttribute == null)
-				{
-					continue;
-				}
+        string trimmed = text.Trim();
 
-				var attributeType = optionAttribute.GetType();
-				string? longName = attributeType.GetProperty("LongName")?.GetValue(optionAttribute)?.ToString();
-				string? shortName = attributeType.GetProperty("ShortName")?.GetValue(optionAttribute)?.ToString();
+        if (bool.TryParse(trimmed, out result))
+        {
+            return true;
+        }
 
-				string canonical = !string.IsNullOrWhiteSpace(longName)
-					? longName
-					: (!string.IsNullOrWhiteSpace(shortName) ? shortName : property.Name.ToLowerInvariant());
+        string lower = trimmed.ToLowerInvariant();
+        if (lower is "1" or "yes" or "y" or "on" or "enable" or "enabled" or "t")
+        {
+            result = true;
+            return true;
+        }
 
-				var metadata = new BooleanOptionMetadata
-				{
-					CanonicalLongName = canonical,
-					IsInverted = false,
-					Property = property
-				};
+        if (lower is "0" or "no" or "n" or "off" or "disable" or "disabled" or "f")
+        {
+            result = false;
+            return true;
+        }
 
-				if (!string.IsNullOrWhiteSpace(longName))
-				{
-					RegisterNames(lookup, longName, metadata);
-				}
+        result = false;
+        return false;
+    }
 
-				if (!string.IsNullOrWhiteSpace(shortName))
-				{
-					RegisterNames(lookup, shortName, metadata);
-				}
+    private static Dictionary<string, BooleanOptionMetadata> BuildOptionLookup(IEnumerable<Type> verbTypes)
+    {
+        var lookup = new Dictionary<string, BooleanOptionMetadata>(StringComparer.OrdinalIgnoreCase);
 
-				RegisterNames(lookup, property.Name, metadata);
-			}
-		}
+        foreach (var type in verbTypes)
+        {
+            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            foreach (var property in properties)
+            {
+                ProcessProperty(property, lookup);
+            }
+        }
 
-		return lookup;
-	}
+        return lookup;
+    }
 
-	private static void RegisterNames(Dictionary<string, BooleanOptionMetadata> lookup, string rawName, BooleanOptionMetadata metadata)
-	{
-		lookup[rawName] = metadata;
+    private static void ProcessProperty(PropertyInfo property, Dictionary<string, BooleanOptionMetadata> lookup)
+    {
+        if (!IsBooleanProperty(property))
+        {
+            return;
+        }
 
-		string normalized = NormalizeName(rawName);
-		lookup[normalized] = metadata;
+        var optionAttribute = GetOptionAttribute(property);
+        if (optionAttribute == null)
+        {
+            return;
+        }
 
-		string withHyphens = rawName.Replace('_', '-');
-		lookup[withHyphens] = metadata;
+        string? longName = GetAttributePropertyValue(optionAttribute, "LongName");
+        string? shortName = GetAttributePropertyValue(optionAttribute, "ShortName");
 
-		string withUnderscores = rawName.Replace('-', '_');
-		lookup[withUnderscores] = metadata;
+        string canonical = GetCanonicalName(longName, shortName, property.Name);
 
-		if (rawName.StartsWith("no-", StringComparison.OrdinalIgnoreCase) || rawName.StartsWith("no_", StringComparison.OrdinalIgnoreCase))
-		{
-			string positiveForm = rawName[3..];
-			var invertedMetadata = new BooleanOptionMetadata
-			{
-				CanonicalLongName = metadata.CanonicalLongName,
-				IsInverted = true,
-				Property = metadata.Property
-			};
+        var metadata = new BooleanOptionMetadata
+        {
+            CanonicalLongName = canonical,
+            IsInverted = false,
+            Property = property
+        };
 
-			lookup[positiveForm] = invertedMetadata;
-			lookup[NormalizeName(positiveForm)] = invertedMetadata;
-			lookup[positiveForm.Replace('_', '-')] = invertedMetadata;
-			lookup[positiveForm.Replace('-', '_')] = invertedMetadata;
-		}
-	}
+        RegisterPropertyNames(lookup, property.Name, longName, shortName, metadata);
+    }
 
-	private static string NormalizeName(string name)
-	{
-		return name.Replace("-", "").Replace("_", "").ToLowerInvariant();
-	}
+    private static bool IsBooleanProperty(PropertyInfo property)
+    {
+        return property.PropertyType == typeof(bool) || property.PropertyType == typeof(bool?);
+    }
 
-	private static bool TryMatchOption(
-		Dictionary<string, BooleanOptionMetadata> lookup,
-		string flagName,
-		out BooleanOptionMetadata metadata,
-		out bool isNegatedPrefix)
-	{
-		isNegatedPrefix = false;
+    private static object? GetOptionAttribute(PropertyInfo property)
+    {
+        return property.GetCustomAttributes()
+            .FirstOrDefault(attribute => attribute.GetType().Name is "OptionAttribute" or "Option");
+    }
 
-		if (lookup.TryGetValue(flagName, out metadata!))
-		{
-			return true;
-		}
+    private static string? GetAttributePropertyValue(object attribute, string propertyName)
+    {
+        return attribute.GetType().GetProperty(propertyName)?.GetValue(attribute)?.ToString();
+    }
 
-		string normalized = NormalizeName(flagName);
-		if (lookup.TryGetValue(normalized, out metadata!))
-		{
-			return true;
-		}
+    private static string GetCanonicalName(string? longName, string? shortName, string propertyName)
+    {
+        if (!string.IsNullOrWhiteSpace(longName))
+        {
+            return longName;
+        }
 
-		if (flagName.StartsWith("no-", StringComparison.OrdinalIgnoreCase) ||
-			flagName.StartsWith("no_", StringComparison.OrdinalIgnoreCase))
-		{
-			string stripped = flagName[3..];
-			if (lookup.TryGetValue(stripped, out metadata!) ||
-				lookup.TryGetValue(NormalizeName(stripped), out metadata!))
-			{
-				isNegatedPrefix = true;
-				return true;
-			}
-		}
+        if (!string.IsNullOrWhiteSpace(shortName))
+        {
+            return shortName;
+        }
+        
+        return propertyName.ToLowerInvariant();
+    }
 
-		metadata = null!;
-		return false;
-	}
+    private static void RegisterPropertyNames(Dictionary<string, BooleanOptionMetadata> lookup, string propertyName, string? longName, string? shortName, BooleanOptionMetadata metadata)
+    {
+        if (!string.IsNullOrWhiteSpace(longName))
+        {
+            RegisterNames(lookup, longName, metadata);
+        }
+
+        if (!string.IsNullOrWhiteSpace(shortName))
+        {
+            RegisterNames(lookup, shortName, metadata);
+        }
+
+        RegisterNames(lookup, propertyName, metadata);
+    }
+
+    private static void RegisterNames(Dictionary<string, BooleanOptionMetadata> lookup, string rawName, BooleanOptionMetadata metadata)
+    {
+        lookup[rawName] = metadata;
+
+        string normalized = NormalizeName(rawName);
+        lookup[normalized] = metadata;
+
+        string withHyphens = rawName.Replace('_', '-');
+        lookup[withHyphens] = metadata;
+
+        string withUnderscores = rawName.Replace('-', '_');
+        lookup[withUnderscores] = metadata;
+
+        if (rawName.StartsWith("no-", StringComparison.OrdinalIgnoreCase) || rawName.StartsWith("no_", StringComparison.OrdinalIgnoreCase))
+        {
+            string positiveForm = rawName[3..];
+            var invertedMetadata = new BooleanOptionMetadata
+            {
+                CanonicalLongName = metadata.CanonicalLongName,
+                IsInverted = true,
+                Property = metadata.Property
+            };
+
+            lookup[positiveForm] = invertedMetadata;
+            lookup[NormalizeName(positiveForm)] = invertedMetadata;
+            lookup[positiveForm.Replace('_', '-')] = invertedMetadata;
+            lookup[positiveForm.Replace('-', '_')] = invertedMetadata;
+        }
+    }
+
+    private static string NormalizeName(string name)
+    {
+        return name.Replace("-", "").Replace("_", "").ToLowerInvariant();
+    }
+
+    private static bool TryMatchOption(
+        Dictionary<string, BooleanOptionMetadata> lookup,
+        string flagName,
+        out BooleanOptionMetadata metadata,
+        out bool isNegatedPrefix)
+    {
+        isNegatedPrefix = false;
+
+        if (lookup.TryGetValue(flagName, out metadata!))
+        {
+            return true;
+        }
+
+        string normalized = NormalizeName(flagName);
+        if (lookup.TryGetValue(normalized, out metadata!))
+        {
+            return true;
+        }
+
+        if (flagName.StartsWith("no-", StringComparison.OrdinalIgnoreCase) ||
+            flagName.StartsWith("no_", StringComparison.OrdinalIgnoreCase))
+        {
+            string stripped = flagName[3..];
+            if (lookup.TryGetValue(stripped, out metadata!) ||
+                lookup.TryGetValue(NormalizeName(stripped), out metadata!))
+            {
+                isNegatedPrefix = true;
+                return true;
+            }
+        }
+
+        metadata = null!;
+        return false;
+    }
 }

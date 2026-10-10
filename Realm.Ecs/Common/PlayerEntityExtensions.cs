@@ -3,7 +3,7 @@ using Realm.Ecs.Components.Tags;
 
 namespace Realm.Ecs.Common;
 
-internal static class PlayerEntityExtensions
+public static class PlayerEntityExtensions
 {
 	/// <summary>
 	///     Creates a type-safe PlayerEntity wrapper from a raw Entity.

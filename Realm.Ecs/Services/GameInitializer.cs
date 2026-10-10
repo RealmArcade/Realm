@@ -11,7 +11,7 @@ namespace Realm.Ecs.Services;
 ///     A conceptual service that initializes the game state, including players and their starting units.
 ///     This demonstrates how PlayerEntity and Owner components would be used in practice.
 /// </summary>
-internal class GameInitializer
+public class GameInitializer
 {
 	private readonly DefinitionManager _definitionManager;
 	private readonly EntityFactory _entityFactory;

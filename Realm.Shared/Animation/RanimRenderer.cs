@@ -1,61 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
+using SkiaSharp;
 using System.Numerics;
 using Realm.Shared.BlenderSetup;
-using SkiaSharp;
 using Realm.Shared.Textures;
 
 namespace Realm.Shared.Animation;
-
-public enum RanimOutputFormat
-{
-	Webp,
-	Spritesheet,
-	Gif
-}
-
-public class RanimRenderOptions
-{
-	public int Width { get; set; } = 128;
-	public int Height { get; set; } = 128;
-	public float Fps { get; set; } = 12.0f;
-	public int? MaxFrameCount { get; set; }
-	public RanimOutputFormat Format { get; set; } = RanimOutputFormat.Webp;
-	public float Scale { get; set; } = 1.0f;
-	public bool DrawBorder { get; set; } = true;
-	public bool DrawShadow { get; set; } = true;
-	public string? ModelPath { get; set; }
-	public byte[]? ModelBytes { get; set; }
-	public int Quality { get; set; } = 95;
-	public bool Lossless { get; set; }
-}
-
-public class RanimRenderFrame
-{
-	public int Width { get; set; }
-	public int Height { get; set; }
-	public float Time { get; set; }
-	public byte[] RgbaBytes { get; set; } = Array.Empty<byte>();
-}
-
-public class RanimRenderResult
-{
-	public List<RanimRenderFrame> Frames { get; set; } = new();
-	public float Duration { get; set; }
-	public float EffectiveFps { get; set; }
-	public int TotalSourceFrames { get; set; }
-	public int ModulusStep { get; set; } = 1;
-}
-
-public class RanimExportResult
-{
-	public bool Success { get; set; }
-	public string InputPath { get; set; } = string.Empty;
-	public string OutputPath { get; set; } = string.Empty;
-	public int FrameCount { get; set; }
-	public string ErrorMessage { get; set; } = string.Empty;
-}
 
 public static class RanimRenderer
 {
@@ -113,38 +61,9 @@ public static class RanimRenderer
 		float duration = animData.Duration > 0f ? animData.Duration : 1.0f;
 		float sampleFps = options.Fps > 0f ? options.Fps : 12.0f;
 
-		int totalSourceFrames = (int)MathF.Ceiling(duration * sampleFps);
-		if (totalSourceFrames < 1)
-		{
-			totalSourceFrames = 1;
-		}
-
-		int modulusStep = 1;
-		if (options.MaxFrameCount.HasValue && options.MaxFrameCount.Value > 0 && totalSourceFrames > options.MaxFrameCount.Value)
-		{
-			modulusStep = (int)MathF.Ceiling((float)totalSourceFrames / options.MaxFrameCount.Value);
-			if (modulusStep < 1)
-			{
-				modulusStep = 1;
-			}
-		}
-
-		var selectedTimes = new List<float>();
-		for (int frameIndex = 0; frameIndex < totalSourceFrames; frameIndex++)
-		{
-			if ((frameIndex % modulusStep) != 0)
-			{
-				continue;
-			}
-
-			float time = (frameIndex / (float)totalSourceFrames) * duration;
-			selectedTimes.Add(time);
-		}
-
-		if (selectedTimes.Count == 0)
-		{
-			selectedTimes.Add(0f);
-		}
+		int totalSourceFrames = Math.Max(1, (int)MathF.Ceiling(duration * sampleFps));
+		int modulusStep = CalculateModulusStep(totalSourceFrames, options.MaxFrameCount);
+		var selectedTimes = GetSelectedTimes(totalSourceFrames, modulusStep, duration);
 
 		var result = new RanimRenderResult
 		{
@@ -157,20 +76,7 @@ public static class RanimRenderer
 		foreach (float time in selectedTimes)
 		{
 			using var image = RenderSkeletonFrame(trackMap, time, options);
-
-			byte[] pixelBytes = new byte[options.Width * options.Height * 4];
-			for (int y = 0; y < options.Height; y++)
-			{
-				for (int x = 0; x < options.Width; x++)
-				{
-					SKColor c = image.GetPixel(x, y);
-					int idx = (y * options.Width + x) * 4;
-					pixelBytes[idx] = c.Red;
-					pixelBytes[idx + 1] = c.Green;
-					pixelBytes[idx + 2] = c.Blue;
-					pixelBytes[idx + 3] = c.Alpha;
-				}
-			}
+			byte[] pixelBytes = ExtractFrameBytes(image, options.Width, options.Height);
 
 			result.Frames.Add(new RanimRenderFrame
 			{
@@ -182,6 +88,50 @@ public static class RanimRenderer
 		}
 
 		return result;
+	}
+
+	private static int CalculateModulusStep(int totalSourceFrames, int? maxFrameCount)
+	{
+		if (maxFrameCount.HasValue && maxFrameCount.Value > 0 && totalSourceFrames > maxFrameCount.Value)
+		{
+			return Math.Max(1, (int)MathF.Ceiling((float)totalSourceFrames / maxFrameCount.Value));
+		}
+		return 1;
+	}
+
+	private static List<float> GetSelectedTimes(int totalSourceFrames, int modulusStep, float duration)
+	{
+		var selectedTimes = new List<float>();
+		for (int frameIndex = 0; frameIndex < totalSourceFrames; frameIndex += modulusStep)
+		{
+			float time = (frameIndex / (float)totalSourceFrames) * duration;
+			selectedTimes.Add(time);
+		}
+
+		if (selectedTimes.Count == 0)
+		{
+			selectedTimes.Add(0f);
+		}
+
+		return selectedTimes;
+	}
+
+	private static byte[] ExtractFrameBytes(SKBitmap image, int width, int height)
+	{
+		byte[] pixelBytes = new byte[width * height * 4];
+		for (int y = 0; y < height; y++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				SKColor c = image.GetPixel(x, y);
+				int idx = (y * width + x) * 4;
+				pixelBytes[idx] = c.Red;
+				pixelBytes[idx + 1] = c.Green;
+				pixelBytes[idx + 2] = c.Blue;
+				pixelBytes[idx + 3] = c.Alpha;
+			}
+		}
+		return pixelBytes;
 	}
 
 	public static RanimExportResult ExportFile(string inputPath, string? outputPath = null, RanimRenderOptions? options = null)
@@ -230,14 +180,23 @@ public static class RanimRenderer
 		}
 	}
 
+	private static bool ShouldUseBlenderRenderer(RanimRenderOptions renderOptions)
+	{
+		return (renderOptions.ModelBytes != null && renderOptions.ModelBytes.Length > 0) || !string.IsNullOrEmpty(renderOptions.ModelPath);
+	}
+
+	private static void DisposeImages(List<SKBitmap> images)
+	{
+		foreach (var image in images)
+		{
+			image.Dispose();
+		}
+	}
+
 	public static RanimExportResult ExportToFile(RealmAnimationData animData, string outputPath, RanimRenderOptions? options = null, string inputPath = "")
 	{
 		var renderOptions = options ?? new RanimRenderOptions();
-		var exportResult = new RanimExportResult
-		{
-			InputPath = inputPath,
-			OutputPath = outputPath
-		};
+		var exportResult = new RanimExportResult { InputPath = inputPath, OutputPath = outputPath };
 
 		if (animData == null)
 		{
@@ -246,7 +205,7 @@ public static class RanimRenderer
 			return exportResult;
 		}
 
-		if ((renderOptions.ModelBytes != null && renderOptions.ModelBytes.Length > 0) || !string.IsNullOrEmpty(renderOptions.ModelPath))
+		if (ShouldUseBlenderRenderer(renderOptions))
 		{
 			return BlenderRanimRenderer.ExportToFile(animData, outputPath, renderOptions, inputPath);
 		}
@@ -255,38 +214,9 @@ public static class RanimRenderer
 		float duration = animData.Duration > 0f ? animData.Duration : 1.0f;
 		float sampleFps = renderOptions.Fps > 0f ? renderOptions.Fps : 12.0f;
 
-		int totalSourceFrames = (int)MathF.Ceiling(duration * sampleFps);
-		if (totalSourceFrames < 1)
-		{
-			totalSourceFrames = 1;
-		}
-
-		int modulusStep = 1;
-		if (renderOptions.MaxFrameCount.HasValue && renderOptions.MaxFrameCount.Value > 0 && totalSourceFrames > renderOptions.MaxFrameCount.Value)
-		{
-			modulusStep = (int)MathF.Ceiling((float)totalSourceFrames / renderOptions.MaxFrameCount.Value);
-			if (modulusStep < 1)
-			{
-				modulusStep = 1;
-			}
-		}
-
-		var selectedTimes = new List<float>();
-		for (int frameIndex = 0; frameIndex < totalSourceFrames; frameIndex++)
-		{
-			if ((frameIndex % modulusStep) != 0)
-			{
-				continue;
-			}
-
-			float time = (frameIndex / (float)totalSourceFrames) * duration;
-			selectedTimes.Add(time);
-		}
-
-		if (selectedTimes.Count == 0)
-		{
-			selectedTimes.Add(0f);
-		}
+		int totalSourceFrames = Math.Max(1, (int)MathF.Ceiling(duration * sampleFps));
+		int modulusStep = CalculateModulusStep(totalSourceFrames, renderOptions.MaxFrameCount);
+		var selectedTimes = GetSelectedTimes(totalSourceFrames, modulusStep, duration);
 
 		exportResult.FrameCount = selectedTimes.Count;
 
@@ -295,25 +225,10 @@ public static class RanimRenderer
 		{
 			foreach (float time in selectedTimes)
 			{
-				var img = RenderSkeletonFrame(trackMap, time, renderOptions);
-				frameImages.Add(img);
+				frameImages.Add(RenderSkeletonFrame(trackMap, time, renderOptions));
 			}
 
-			string? directory = Path.GetDirectoryName(outputPath);
-			if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-			{
-				Directory.CreateDirectory(directory);
-			}
-
-			if (renderOptions.Format == RanimOutputFormat.Spritesheet || (outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && !outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)))
-			{
-				SaveAsSpritesheet(frameImages, outputPath, renderOptions);
-			}
-			else
-			{
-				SaveAsAnimatedWebp(frameImages, outputPath, duration, renderOptions);
-			}
-
+			SaveRenderedFrames(frameImages, outputPath, duration, renderOptions);
 			exportResult.Success = true;
 			return exportResult;
 		}
@@ -325,10 +240,25 @@ public static class RanimRenderer
 		}
 		finally
 		{
-			foreach (var image in frameImages)
-			{
-				image.Dispose();
-			}
+			DisposeImages(frameImages);
+		}
+	}
+
+	private static void SaveRenderedFrames(List<SKBitmap> frameImages, string outputPath, float duration, RanimRenderOptions renderOptions)
+	{
+		string? directory = Path.GetDirectoryName(outputPath);
+		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+		{
+			Directory.CreateDirectory(directory);
+		}
+
+		if (renderOptions.Format == RanimOutputFormat.Spritesheet || (outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && !outputPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)))
+		{
+			SaveAsSpritesheet(frameImages, outputPath, renderOptions);
+		}
+		else
+		{
+			SaveAsAnimatedWebp(frameImages, outputPath, duration, renderOptions);
 		}
 	}
 
@@ -436,22 +366,43 @@ public static class RanimRenderer
 
 	private static SKBitmap RenderSkeletonFrame(Dictionary<HumanoidBone, RealmAnimationBoneTrack> trackMap, float time, RanimRenderOptions options)
 	{
+		var worldPositions = CalculateWorldTransforms(trackMap, time);
+		var projectedPoints = ProjectSkeletonPoints(worldPositions, options.Width, options.Height, options.Scale);
+		
+		var img = InitializeBackground(options, projectedPoints);
+		DrawSkeleton(img, projectedPoints, options.Width);
+
+		return img;
+	}
+
+	private static Vector3 CalculateRootTranslation(Dictionary<HumanoidBone, RealmAnimationBoneTrack> trackMap, float time)
+	{
+		if (trackMap.TryGetValue(HumanoidBone.Hips, out var hipsTrack) && hipsTrack.PositionKeys != null && hipsTrack.PositionKeys.Length > 0)
+		{
+			return SamplePosition(hipsTrack.PositionKeys, time) - SamplePosition(hipsTrack.PositionKeys, 0f);
+		}
+		return Vector3.Zero;
+	}
+
+	private static Quaternion CalculateLocalRotation(Dictionary<HumanoidBone, RealmAnimationBoneTrack> trackMap, HumanoidBone bone, float time)
+	{
+		if (trackMap.TryGetValue(bone, out var track) && track.RotationKeys != null && track.RotationKeys.Length > 0)
+		{
+			return SampleRotation(track.RotationKeys, time);
+		}
+		return Quaternion.Identity;
+	}
+
+	private static Dictionary<HumanoidBone, Vector3> CalculateWorldTransforms(Dictionary<HumanoidBone, RealmAnimationBoneTrack> trackMap, float time)
+	{
 		var worldPositions = new Dictionary<HumanoidBone, Vector3>();
 		var worldRotations = new Dictionary<HumanoidBone, Quaternion>();
 
-		Vector3 rootTranslation = Vector3.Zero;
-		if (trackMap.TryGetValue(HumanoidBone.Hips, out var hipsTrack) && hipsTrack.PositionKeys != null && hipsTrack.PositionKeys.Length > 0)
-		{
-			rootTranslation = SamplePosition(hipsTrack.PositionKeys, time) - SamplePosition(hipsTrack.PositionKeys, 0f);
-		}
+		Vector3 rootTranslation = CalculateRootTranslation(trackMap, time);
 
 		foreach (var joint in Hierarchy)
 		{
-			Quaternion localRot = Quaternion.Identity;
-			if (trackMap.TryGetValue(joint.Bone, out var track) && track.RotationKeys != null && track.RotationKeys.Length > 0)
-			{
-				localRot = SampleRotation(track.RotationKeys, time);
-			}
+			Quaternion localRot = CalculateLocalRotation(trackMap, joint.Bone, time);
 
 			if (joint.Bone == HumanoidBone.Hips)
 			{
@@ -469,15 +420,23 @@ public static class RanimRenderer
 			}
 		}
 
+		return worldPositions;
+	}
+
+	private static Dictionary<HumanoidBone, (int X, int Y)> ProjectSkeletonPoints(Dictionary<HumanoidBone, Vector3> worldPositions, int width, int height, float scale)
+	{
 		var projectedPoints = new Dictionary<HumanoidBone, (int X, int Y)>();
 		foreach (var pair in worldPositions)
 		{
-			projectedPoints[pair.Key] = Project3DTo2D(pair.Value, options.Width, options.Height, options.Scale);
+			projectedPoints[pair.Key] = Project3DTo2D(pair.Value, width, height, scale);
 		}
+		return projectedPoints;
+	}
 
+	private static SKBitmap InitializeBackground(RanimRenderOptions options, Dictionary<HumanoidBone, (int X, int Y)> projectedPoints)
+	{
 		var img = new SKBitmap(options.Width, options.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
-		var backgroundColor = new SKColor(20, 23, 31, 255);
-		img.Erase(backgroundColor);
+		img.Erase(new SKColor(20, 23, 31, 255));
 
 		if (options.DrawBorder)
 		{
@@ -490,12 +449,17 @@ public static class RanimRenderer
 			DrawFloorShadow(img, shadowCenterX);
 		}
 
+		return img;
+	}
+
+	private static void DrawSkeleton(SKBitmap img, Dictionary<HumanoidBone, (int X, int Y)> projectedPoints, int width)
+	{
 		var colorSpine = new SKColor(89, 230, 242, 255);
 		var colorLeftLimb = new SKColor(64, 179, 255, 255);
 		var colorRightLimb = new SKColor(250, 191, 51, 255);
 		var colorJoint = new SKColor(255, 255, 255, 255);
 
-		int lineThickness = Math.Max(1, (int)MathF.Round(2.0f * (options.Width / 128.0f)));
+		int lineThickness = Math.Max(1, (int)MathF.Round(2.0f * (width / 128.0f)));
 
 		DrawBoneChain(img, projectedPoints, new[] { HumanoidBone.Hips, HumanoidBone.Spine, HumanoidBone.Chest, HumanoidBone.UpperChest, HumanoidBone.Neck, HumanoidBone.Head }, colorSpine, lineThickness);
 		DrawBoneChain(img, projectedPoints, new[] { HumanoidBone.UpperChest, HumanoidBone.LeftShoulder, HumanoidBone.LeftUpperArm, HumanoidBone.LeftLowerArm, HumanoidBone.LeftHand }, colorLeftLimb, lineThickness);
@@ -503,17 +467,15 @@ public static class RanimRenderer
 		DrawBoneChain(img, projectedPoints, new[] { HumanoidBone.Hips, HumanoidBone.LeftUpperLeg, HumanoidBone.LeftLowerLeg, HumanoidBone.LeftFoot, HumanoidBone.LeftToes }, colorLeftLimb, lineThickness);
 		DrawBoneChain(img, projectedPoints, new[] { HumanoidBone.Hips, HumanoidBone.RightUpperLeg, HumanoidBone.RightLowerLeg, HumanoidBone.RightFoot, HumanoidBone.RightToes }, colorRightLimb, lineThickness);
 
-		int headRadius = Math.Max(2, (int)MathF.Round(5.0f * (options.Width / 128.0f)));
-		int torsoRadius = Math.Max(1, (int)MathF.Round(3.0f * (options.Width / 128.0f)));
-		int limbRadius = Math.Max(1, (int)MathF.Round(2.0f * (options.Width / 128.0f)));
+		int headRadius = Math.Max(2, (int)MathF.Round(5.0f * (width / 128.0f)));
+		int torsoRadius = Math.Max(1, (int)MathF.Round(3.0f * (width / 128.0f)));
+		int limbRadius = Math.Max(1, (int)MathF.Round(2.0f * (width / 128.0f)));
 
 		foreach (var pair in projectedPoints)
 		{
 			int radius = (pair.Key == HumanoidBone.Head) ? headRadius : ((pair.Key == HumanoidBone.Hips || pair.Key == HumanoidBone.Chest) ? torsoRadius : limbRadius);
 			DrawFilledCircle(img, pair.Value.X, pair.Value.Y, radius, colorJoint);
 		}
-
-		return img;
 	}
 
 	private static (int X, int Y) Project3DTo2D(Vector3 worldPos, int width, int height, float scale)
@@ -584,19 +546,28 @@ public static class RanimRenderer
 		{
 			for (int x = -radiusX; x <= radiusX; x++)
 			{
-				float normX = (float)x / radiusX;
-				float normY = (float)y / radiusY;
-				if (normX * normX + normY * normY <= 1.0f)
-				{
-					int px = centerX + x;
-					int py = groundY + y;
-					if (px >= 0 && px < width && py >= 0 && py < height)
-					{
-						img.SetPixel(px, py, AlphaBlend(img.GetPixel(px, py), shadowColor));
-					}
-				}
+				DrawFloorShadowPixel(img, centerX, groundY, x, y, radiusX, radiusY, shadowColor, width, height);
 			}
 		}
+	}
+
+	private static void DrawFloorShadowPixel(SKBitmap img, int centerX, int groundY, int x, int y, int radiusX, int radiusY, SKColor shadowColor, int width, int height)
+	{
+		float normX = (float)x / radiusX;
+		float normY = (float)y / radiusY;
+		if (normX * normX + normY * normY > 1.0f)
+		{
+			return;
+		}
+
+		int px = centerX + x;
+		int py = groundY + y;
+		if (px < 0 || px >= width || py < 0 || py >= height)
+		{
+			return;
+		}
+
+		img.SetPixel(px, py, AlphaBlend(img.GetPixel(px, py), shadowColor));
 	}
 
 	private static SKColor AlphaBlend(SKColor background, SKColor foreground)
@@ -634,18 +605,7 @@ public static class RanimRenderer
 
 		while (true)
 		{
-			for (int ty = -halfThickness; ty <= halfThickness; ty++)
-			{
-				for (int tx = -halfThickness; tx <= halfThickness; tx++)
-				{
-					int px = x0 + tx;
-					int py = y0 + ty;
-					if (px >= 0 && px < width && py >= 0 && py < height)
-					{
-						img.SetPixel(px, py, color);
-					}
-				}
-			}
+			DrawThickLinePixels(img, x0, y0, halfThickness, color, width, height);
 
 			if (x0 == x1 && y0 == y1)
 			{
@@ -666,6 +626,28 @@ public static class RanimRenderer
 		}
 	}
 
+	private static void DrawThickLinePixels(SKBitmap img, int x0, int y0, int halfThickness, SKColor color, int width, int height)
+	{
+		for (int ty = -halfThickness; ty <= halfThickness; ty++)
+		{
+			for (int tx = -halfThickness; tx <= halfThickness; tx++)
+			{
+				DrawThickLinePixel(img, x0, y0, tx, ty, color, width, height);
+			}
+		}
+	}
+
+	private static void DrawThickLinePixel(SKBitmap img, int x0, int y0, int tx, int ty, SKColor color, int width, int height)
+	{
+		int px = x0 + tx;
+		int py = y0 + ty;
+		if (px < 0 || px >= width || py < 0 || py >= height)
+		{
+			return;
+		}
+		img.SetPixel(px, py, color);
+	}
+
 	private static void DrawFilledCircle(SKBitmap img, int cx, int cy, int radius, SKColor color)
 	{
 		int r2 = radius * radius;
@@ -676,17 +658,26 @@ public static class RanimRenderer
 		{
 			for (int x = -radius; x <= radius; x++)
 			{
-				if (x * x + y * y <= r2)
-				{
-					int px = cx + x;
-					int py = cy + y;
-					if (px >= 0 && px < width && py >= 0 && py < height)
-					{
-						img.SetPixel(px, py, color);
-					}
-				}
+				DrawFilledCirclePixel(img, cx, cy, x, y, r2, color, width, height);
 			}
 		}
+	}
+
+	private static void DrawFilledCirclePixel(SKBitmap img, int cx, int cy, int x, int y, int r2, SKColor color, int width, int height)
+	{
+		if (x * x + y * y > r2)
+		{
+			return;
+		}
+
+		int px = cx + x;
+		int py = cy + y;
+		if (px < 0 || px >= width || py < 0 || py >= height)
+		{
+			return;
+		}
+
+		img.SetPixel(px, py, color);
 	}
 
 	private static Vector3 SamplePosition(RealmKeyframeVector3[] keys, float time)
@@ -704,6 +695,11 @@ public static class RanimRenderer
 			return new Vector3(keys[^1].X, keys[^1].Y, keys[^1].Z);
 		}
 
+		return InterpolatePositionKeys(keys, time);
+	}
+
+	private static Vector3 InterpolatePositionKeys(RealmKeyframeVector3[] keys, float time)
+	{
 		for (int i = 0; i < keys.Length - 1; i++)
 		{
 			if (time >= keys[i].Time && time <= keys[i + 1].Time)
@@ -735,6 +731,11 @@ public static class RanimRenderer
 			return q.LengthSquared() > 0.0001f ? Quaternion.Normalize(q) : Quaternion.Identity;
 		}
 
+		return InterpolateRotationKeys(keys, time);
+	}
+
+	private static Quaternion InterpolateRotationKeys(RealmKeyframeQuaternion[] keys, float time)
+	{
 		for (int i = 0; i < keys.Length - 1; i++)
 		{
 			if (time >= keys[i].Time && time <= keys[i + 1].Time)

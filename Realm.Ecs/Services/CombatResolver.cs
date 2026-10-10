@@ -3,19 +3,6 @@ using Realm.Ecs.Components.Combat;
 namespace Realm.Ecs.Services;
 
 /// <summary>
-///     Encapsulates the result of a 3-stage combat resolution calculation.
-/// </summary>
-public struct DamageResult
-{
-	public float RawDamage;
-	public float EffectiveFlatArmor;
-	public float EffectiveRatedArmor;
-	public float MitigatedDamage;
-	public float FinalDamage;
-	public bool IsCritical;
-}
-
-/// <summary>
 ///     Provides deterministic 3-stage combat resolution and splash damage evaluation.
 /// </summary>
 public static class CombatResolver
@@ -94,26 +81,35 @@ public static class CombatResolver
 			return 0f;
 		}
 
-		if (splashType == SplashType.RadialStep)
+		return splashType switch
 		{
-			if (distance <= innerRadius) return innerRatio;
-			if (distance <= mediumRadius) return mediumRatio;
-			if (distance <= outerRadius) return outerRatio;
-			return 0f;
-		}
+			SplashType.RadialStep => CalculateRadialStepRatio(distance, innerRadius, mediumRadius, outerRadius, innerRatio, mediumRatio, outerRatio),
+			SplashType.RadialLinear => CalculateRadialLinearRatio(distance, innerRadius, outerRadius, innerRatio, outerRatio),
+			_ => 0f
+		};
+	}
 
-		if (splashType == SplashType.RadialLinear)
-		{
-			if (distance <= innerRadius) return innerRatio;
-			if (distance > outerRadius) return 0f;
-
-			float span = outerRadius - innerRadius;
-			if (span <= 0.0001f) return innerRatio;
-
-			float t = (distance - innerRadius) / span;
-			return innerRatio + t * (outerRatio - innerRatio);
-		}
-
+	private static float CalculateRadialStepRatio(
+		float distance, float innerRadius, float mediumRadius, float outerRadius,
+		float innerRatio, float mediumRatio, float outerRatio)
+	{
+		if (distance <= innerRadius) return innerRatio;
+		if (distance <= mediumRadius) return mediumRatio;
+		if (distance <= outerRadius) return outerRatio;
 		return 0f;
+	}
+
+	private static float CalculateRadialLinearRatio(
+		float distance, float innerRadius, float outerRadius,
+		float innerRatio, float outerRatio)
+	{
+		if (distance <= innerRadius) return innerRatio;
+		if (distance > outerRadius) return 0f;
+
+		float span = outerRadius - innerRadius;
+		if (span <= 0.0001f) return innerRatio;
+
+		float t = (distance - innerRadius) / span;
+		return innerRatio + t * (outerRatio - innerRatio);
 	}
 }

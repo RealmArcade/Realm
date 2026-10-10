@@ -1,5 +1,3 @@
-using System;
-
 namespace Realm.Shared.Distribution;
 
 public static class AdminBypassAuth

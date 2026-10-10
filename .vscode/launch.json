@@ -21,7 +21,7 @@
       "program": "dotnet",
       "args": [
         "test",
-        "${workspaceFolder}/Realm.Godot/Realm.Godot.csproj",
+        "${workspaceFolder}/Realm.ClientRealm.Client.csproj",
         "--filter",
         "FullyQualifiedName~SimulationTests"
       ],
@@ -38,7 +38,7 @@
       "program": "dotnet",
       "args": [
         "test",
-        "${workspaceFolder}/Realm.Godot/Realm.Godot.csproj"
+        "${workspaceFolder}/Realm.ClientRealm.Client.csproj"
       ],
       "cwd": "${workspaceFolder}",
       "env": {

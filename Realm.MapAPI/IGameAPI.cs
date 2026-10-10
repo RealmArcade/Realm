@@ -218,6 +218,67 @@ public interface IGameAPI
     void SpawnVisualEffect(string effectTypeId, Vector3 position, float scale = 1.0f);
 
     /// <summary>
+    /// Spawns an overhead or area barrage volley of impact visual effects over time within a target area.
+    /// </summary>
+    /// <param name="effectTypeId">The type identifier of the impact visual effect.</param>
+    /// <param name="targetAreaCenter">The center point of the barrage target area in 3D world space.</param>
+    /// <param name="radius">The radius of the barrage volley impact area.</param>
+    /// <param name="count">The total number of projectile/effect impacts to spawn.</param>
+    /// <param name="intervalSeconds">The time interval in seconds between individual barrage impacts.</param>
+    void SpawnBarrageVolley(string effectTypeId, Vector3 targetAreaCenter, float radius, int count, float intervalSeconds) { }
+
+    /// <summary>
+    /// Spawns a multi-segment ribbon beam that chains sequentially between target positions.
+    /// </summary>
+    /// <param name="effectTypeId">The type identifier or texture asset name of the beam effect.</param>
+    /// <param name="points">An array of 3D positions through which the beam chains.</param>
+    /// <param name="jumpDelay">Delay in seconds between beam segments extending to the next point.</param>
+    /// <param name="forkCount">The number of extra fork/branch lines emitting from each node.</param>
+    /// <param name="fadeLifetime">Duration in seconds before the beam fully fades out after reaching final point.</param>
+    /// <param name="width">The width/thickness of the beam ribbon.</param>
+    /// <param name="color">Optional RGB tint for the beam emission color.</param>
+    void SpawnChainBeam(string effectTypeId, Vector3[] points, float jumpDelay = 0.05f, int forkCount = 0, float fadeLifetime = 0.4f, float width = 0.35f, Vector3? color = null) { }
+
+    /// <summary>
+    /// Spawns a moving planar ground shockwave along a directional vector.
+    /// </summary>
+    /// <param name="position">The starting center position in 3D world space.</param>
+    /// <param name="direction">The direction vector along which the shockwave advances.</param>
+    /// <param name="maxRadius">The maximum forward travel distance / radius.</param>
+    /// <param name="speed">The speed of propagation in units per second.</param>
+    /// <param name="duration">Total lifespan in seconds before fading out.</param>
+    /// <param name="color">Optional RGB color tint for the shockwave.</param>
+    void SpawnGroundShockwave(Vector3 position, Vector3 direction, float maxRadius = 8.0f, float speed = 12.0f, float duration = 1.0f, Vector3? color = null) { }
+
+    /// <summary>
+    /// Spawns an expanding ground ring / crack visual effect that conforms to terrain contours.
+    /// </summary>
+    /// <param name="position">The center position in 3D world space.</param>
+    /// <param name="maxRadius">The maximum expansion radius in world units.</param>
+    /// <param name="speed">The expansion speed in units per second.</param>
+    /// <param name="duration">Total lifespan in seconds before fading out.</param>
+    /// <param name="color">Optional RGB color tint for the ground ring.</param>
+    void SpawnExpandingGroundRing(Vector3 position, float maxRadius = 8.0f, float speed = 12.0f, float duration = 1.0f, Vector3? color = null) { }
+
+    /// <summary>
+    /// Spawns an expanding 3D spherical / dome burst shockwave effect.
+    /// </summary>
+    /// <param name="position">The center position in 3D world space.</param>
+    /// <param name="maxRadius">The maximum burst radius in world units.</param>
+    /// <param name="speed">The burst expansion speed in units per second.</param>
+    /// <param name="duration">Total lifespan in seconds before fading out.</param>
+    /// <param name="color">Optional RGB color tint for the burst sphere.</param>
+    void SpawnExpandingBurstSphere(Vector3 position, float maxRadius = 6.0f, float speed = 15.0f, float duration = 0.8f, Vector3? color = null) { }
+
+    /// <summary>
+    /// Attaches a persistent volume shield or aura visual effect to a unit.
+    /// </summary>
+    /// <param name="unit">The target unit wrapper to attach the aura to.</param>
+    /// <param name="auraVfxId">The identifier of the visual effect or attachment configuration.</param>
+    /// <param name="scale">The visual scale multiplier.</param>
+    void AttachPersistentAura(IUnit unit, string auraVfxId, float scale = 1.0f) { }
+
+    /// <summary>
     /// Adds a buff to a unit.
     /// </summary>
     /// <param name="unit">The target unit.</param>
@@ -596,6 +657,25 @@ public interface IGameAPI
     /// <param name="unit">The unit to tint.</param>
     /// <param name="color">RGB color values in the range [0, 1].</param>
     void SetUnitColor(IUnit unit, Vector3 color);
+
+    /// <summary>
+    /// Sets the rotation angle or facing direction of the unit in radians or towards a target direction.
+    /// </summary>
+    /// <param name="unit">The unit whose facing direction is being set.</param>
+    /// <param name="facingRadians">The target facing angle in radians around the vertical axis.</param>
+    void SetUnitFacing(IUnit unit, float facingRadians) { }
+
+    /// <summary>
+    /// Sets the facing direction of the unit to look at the specified target position.
+    /// </summary>
+    /// <param name="unit">The unit to rotate.</param>
+    /// <param name="targetPosition">The 3D coordinates in world space to face towards.</param>
+    void SetUnitFacing(IUnit unit, Vector3 targetPosition)
+    {
+        Vector3 delta = targetPosition - unit.Position;
+        float angle = MathF.Atan2(delta.X, delta.Z);
+        SetUnitFacing(unit, angle);
+    }
 
 
 
@@ -1094,6 +1174,13 @@ public interface IGameAPI
     void SetAbilityGridPosition(string abilityId, int x, int y);
 
     /// <summary>
+    /// Configures the hotkey binding string (e.g., "W", "E", "R") for an ability on the command card.
+    /// </summary>
+    /// <param name="abilityId">Unique identifier of the ability.</param>
+    /// <param name="hotkey">The key string to trigger the ability.</param>
+    void SetAbilityHotkey(string abilityId, string hotkey) { }
+
+    /// <summary>
     /// Sets whether an ability on a unit is disabled or hidden in the UI.
     /// </summary>
     void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden) { }
@@ -1424,4 +1511,36 @@ public interface IGameAPI
         float angle = MathF.Tau * index / Math.Max(1, count);
         return new Vector3(center.X + MathF.Cos(angle) * radius, center.Y, center.Z + MathF.Sin(angle) * radius);
     }
+
+    /// <summary>
+    /// Returns the standard hex color code string (RRGGBB) corresponding to the specified player slot.
+    /// </summary>
+    /// <param name="playerIndex">Zero-based player slot index.</param>
+    /// <returns>A 6-character hex color string.</returns>
+    string GetPlayerColorHex(int playerIndex)
+    {
+        ReadOnlySpan<string> colors =
+        [
+            "FF0402", "0042FF", "1BE6BA", "550081",
+            "FFFC00", "FF8A0D", "20BF00", "E35BAF",
+            "949697", "7EBFF1", "106247", "4F2B05",
+            "9C0000", "0000C2", "00EBFF", "BD00FF",
+            "ECCC86", "F7A48B", "BFFF80", "DBB8EC",
+            "4F4F55", "ECF0FF", "A46F34"
+        ];
+        return (playerIndex >= 0 && playerIndex < colors.Length) ? colors[playerIndex] : "FFFFFF";
+    }
+
+    /// <summary>
+    /// Returns the player name formatted with rich text / BBCode markup matching their assigned player slot color.
+    /// </summary>
+    /// <param name="playerIndex">Zero-based player slot index.</param>
+    /// <returns>The color-formatted player name string.</returns>
+    string FormatColoredPlayerName(int playerIndex)
+    {
+        string name = GetPlayerName(playerIndex);
+        string color = GetPlayerColorHex(playerIndex);
+        return $"[color=#{color}]{name}[/color]";
+    }
 }
+

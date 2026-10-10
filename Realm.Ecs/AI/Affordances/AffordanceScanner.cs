@@ -1,6 +1,5 @@
 using Arch.Core;
 using Realm.Ecs.AI.Genres;
-using System.Collections.Generic;
 
 namespace Realm.Ecs.AI.Affordances;
 

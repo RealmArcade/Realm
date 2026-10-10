@@ -1,9 +1,9 @@
+using Realm.AdminServer;
 using Realm.AdminServer.Models;
 using Realm.AdminServer.Services;
 using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
-
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
@@ -3582,59 +3582,3 @@ _ = Task.Run(async () =>
 });
 
 app.Run();
-
-
-public class MapMetricsReport
-{
-    public string MapTitle { get; set; } = "";
-    public string MapVersion { get; set; } = "";
-    public double PlaytimeMinutes { get; set; }
-    public int Stars { get; set; }
-    public bool IsCompleteGame { get; set; }
-    public string? PlayerId { get; set; }
-    public string? AuthToken { get; set; }
-    public string? AuthProvider { get; set; }
-    public string? AuthorPublicKey { get; set; }
-}
-
-public class PlayerMapEngagement
-{
-    public string PlayerId { get; set; } = "";
-    public double TotalPlaytimeMinutes { get; set; }
-    public int GamesPlayed { get; set; }
-    public int? SubmittedRating { get; set; }
-    public bool IsVerifiedAccount { get; set; }
-    public bool IsEligibleReviewer => IsVerifiedAccount && TotalPlaytimeMinutes >= 30.0 && GamesPlayed >= 3;
-    public bool IsVerifiedGoodReview => IsEligibleReviewer && SubmittedRating.HasValue && SubmittedRating.Value >= 3;
-}
-
-public class MapStats
-{
-    public double TotalPlaytimeMinutes { get; set; }
-    public int TotalGamesPlayed { get; set; }
-    public int ReviewsCount { get; set; }
-    public int TotalStars { get; set; }
-    public int VerifiedGoodReviewsCount { get; set; }
-    public bool AdminOverrideGreenlit { get; set; }
-
-    public double AverageRating => ReviewsCount > 0 ? (double)TotalStars / ReviewsCount : 0.0;
-
-    public bool IsGreenlit => AdminOverrideGreenlit || VerifiedGoodReviewsCount >= 100;
-}
-
-public class AdminGreenlightRequest
-{
-    public string MapTitle { get; set; } = "";
-    public string? MapVersion { get; set; }
-    public string AdminPublicKey { get; set; } = "";
-    public string Signature { get; set; } = "";
-}
-
-public class RegisterCreatorRequest
-{
-    public string Username { get; set; } = "";
-    public string PublicKey { get; set; } = "";
-    public string Signature { get; set; } = "";
-    public string? DonationLink { get; set; }
-    public string? ContactInfo { get; set; }
-}

@@ -5,8 +5,6 @@ using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Simulation;
 using Realm.Ecs.AI.Training;
-using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 
 namespace Realm.Ecs.Tests;

@@ -21,10 +21,17 @@ namespace Realm.TranslationTool
 				Task = task ?? prev?.Task,
 				Step = step ?? prev?.Step,
 				AssetCategory = assetCategory ?? prev?.AssetCategory,
-				PromptName = promptName ?? (task == null && step == null && assetCategory == null ? prev?.PromptName : null)
+				PromptName = GetNextPromptName(task, step, assetCategory, promptName, prev)
 			};
 			_current.Value = next;
 			return new DisposableAction(() => _current.Value = prev);
+		}
+
+		private static string? GetNextPromptName(string? task, string? step, string? assetCategory, string? promptName, CacheContext? prev)
+		{
+			if (promptName != null) return promptName;
+			if (task == null && step == null && assetCategory == null) return prev?.PromptName;
+			return null;
 		}
 
 		public static IDisposable PushTask(string task) => Push(task: task);
@@ -63,23 +70,33 @@ namespace Realm.TranslationTool
 		public static string ResolveCacheDirectory(string rootCacheDir, string? task = null, string? step = null, string? assetCategory = null, string? promptName = null)
 		{
 			var current = Current;
-			string? effectivePrompt = !string.IsNullOrWhiteSpace(promptName) ? promptName : current?.PromptName;
+			string? effectivePrompt = GetEffective(promptName, current?.PromptName);
 
 			if (!string.IsNullOrWhiteSpace(effectivePrompt))
 			{
 				return Path.Combine(rootCacheDir, SanitizeFolderName(effectivePrompt));
 			}
 
-			string? effectiveTask = !string.IsNullOrWhiteSpace(task) ? task : current?.Task;
-			string? effectiveStep = !string.IsNullOrWhiteSpace(step) ? step : current?.Step;
-			string? effectiveCategory = !string.IsNullOrWhiteSpace(assetCategory) ? assetCategory : current?.AssetCategory;
-
 			var parts = new List<string> { rootCacheDir };
-			if (!string.IsNullOrWhiteSpace(effectiveTask)) parts.Add(SanitizeFolderName(effectiveTask));
-			if (!string.IsNullOrWhiteSpace(effectiveStep)) parts.Add(SanitizeFolderName(effectiveStep));
-			if (!string.IsNullOrWhiteSpace(effectiveCategory)) parts.Add(SanitizeFolderName(effectiveCategory));
+			AddPartIfValid(parts, GetEffective(task, current?.Task));
+			AddPartIfValid(parts, GetEffective(step, current?.Step));
+			AddPartIfValid(parts, GetEffective(assetCategory, current?.AssetCategory));
 
 			return Path.Combine(parts.ToArray());
+		}
+
+		private static string? GetEffective(string? primary, string? fallback)
+		{
+			if (!string.IsNullOrWhiteSpace(primary)) return primary;
+			return fallback;
+		}
+
+		private static void AddPartIfValid(List<string> parts, string? value)
+		{
+			if (!string.IsNullOrWhiteSpace(value))
+			{
+				parts.Add(SanitizeFolderName(value));
+			}
 		}
 
 		public static string GetCacheFilePath(string rootCacheDir, string cacheKeyWithExt, string? task = null, string? step = null, string? assetCategory = null, string? promptName = null)

@@ -14,7 +14,7 @@ This guide describes how to host a community **Lobby & Discovery Server** (also 
 ---
 
 ## 🧠 What is a Seed Node?
-When a player hosts a game, the client contacts a registry server configured in [servers.json](file:///C:/temp/Realm/Realm.Godot/servers.json). The registry server:
+When a player hosts a game, the client contacts a registry server configured in [servers.json](file:///C:/temp/Realm/Realm.Clientservers.json). The registry server:
 1. Records the host's public IP, port, and NAT type.
 2. Relays connection requests and coordinates UDP hole punching via WebSockets to enable direct peer-to-peer gameplay.
 

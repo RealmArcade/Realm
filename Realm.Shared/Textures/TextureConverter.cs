@@ -1,23 +1,9 @@
-using System;
-using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text.Json.Nodes;
+using Imazen.WebP;
 using Realm.Shared.Metadata;
 using SkiaSharp;
-using Imazen.WebP;
+using System.Text.Json.Nodes;
 
 namespace Realm.Shared.Textures;
-
-public class TextureConversionResult
-{
-	public bool Success { get; set; }
-	public string InputPath { get; set; } = string.Empty;
-	public string OutputPath { get; set; } = string.Empty;
-	public string ErrorMessage { get; set; } = string.Empty;
-	public float ScaleFactor { get; set; } = 1.0f;
-}
 
 public static class TextureConverter
 {
@@ -42,11 +28,27 @@ public static class TextureConverter
 		return (byte)Math.Clamp((int)Math.Round(srgb * 255.0f), 0, 255);
 	}
 
-	public static float CalculateLuminanceScaleFactor(
-		SKBitmap sourceImage,
-		float targetLinearLuminance = 0.1133f,
-		float minScaleFactor = 0.2f,
-		float maxScaleFactor = 4.0f)
+	private static void AccumulatePixelLuminance(SKColor pixel, bool ignoreBlack, ref double totalLuminance, ref long validPixelCount)
+	{
+		if (pixel.Alpha < 13 || (ignoreBlack && pixel.Red == 0 && pixel.Green == 0 && pixel.Blue == 0))
+		{
+			return;
+		}
+
+		float rLinear = SrgbToLinearLut[pixel.Red];
+		float gLinear = SrgbToLinearLut[pixel.Green];
+		float bLinear = SrgbToLinearLut[pixel.Blue];
+
+		float rPow = rLinear * rLinear;
+		float gPow = gLinear * gLinear;
+		float bPow = bLinear * bLinear;
+
+		float lum = (0.2126f * rPow) + (0.7152f * gPow) + (0.0722f * bPow);
+		totalLuminance += lum;
+		validPixelCount++;
+	}
+
+	private static (double TotalLuminance, long PixelCount) AccumulateLuminance(SKBitmap sourceImage, bool ignoreBlack)
 	{
 		int width = sourceImage.Width;
 		int height = sourceImage.Height;
@@ -57,61 +59,39 @@ public static class TextureConverter
 		{
 			for (int x = 0; x < width; x++)
 			{
-				SKColor pixel = sourceImage.GetPixel(x, y);
-				if (pixel.Alpha < 13 || (pixel.Red == 0 && pixel.Green == 0 && pixel.Blue == 0))
-				{
-					continue;
-				}
-
-				float rLinear = SrgbToLinearLut[pixel.Red];
-				float gLinear = SrgbToLinearLut[pixel.Green];
-				float bLinear = SrgbToLinearLut[pixel.Blue];
-
-				float rPow = rLinear * rLinear;
-				float gPow = gLinear * gLinear;
-				float bPow = bLinear * bLinear;
-
-				float lum = (0.2126f * rPow) + (0.7152f * gPow) + (0.0722f * bPow);
-				totalReshapedLuminance += lum;
-				validPixelCount++;
+				AccumulatePixelLuminance(sourceImage.GetPixel(x, y), ignoreBlack, ref totalReshapedLuminance, ref validPixelCount);
 			}
+		}
+
+		return (totalReshapedLuminance, validPixelCount);
+	}
+
+	public static float CalculateLuminanceScaleFactor(
+		SKBitmap sourceImage,
+		float targetLinearLuminance = 0.1133f,
+		float minScaleFactor = 0.2f,
+		float maxScaleFactor = 4.0f)
+	{
+		var (totalLuminance, validPixelCount) = AccumulateLuminance(sourceImage, ignoreBlack: true);
+
+		if (validPixelCount == 0)
+		{
+			(totalLuminance, validPixelCount) = AccumulateLuminance(sourceImage, ignoreBlack: false);
 		}
 
 		if (validPixelCount == 0)
 		{
-			for (int y = 0; y < height; y++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					SKColor pixel = sourceImage.GetPixel(x, y);
-					if (pixel.Alpha < 13) continue;
-
-					float rLinear = SrgbToLinearLut[pixel.Red];
-					float gLinear = SrgbToLinearLut[pixel.Green];
-					float bLinear = SrgbToLinearLut[pixel.Blue];
-
-					float rPow = rLinear * rLinear;
-					float gPow = gLinear * gLinear;
-					float bPow = bLinear * bLinear;
-
-					float lum = (0.2126f * rPow) + (0.7152f * gPow) + (0.0722f * bPow);
-					totalReshapedLuminance += lum;
-					validPixelCount++;
-				}
-			}
+			return 1.0f;
 		}
 
-		if (validPixelCount > 0)
+		float avgLuminance = (float)(totalLuminance / validPixelCount);
+		if (avgLuminance <= 0.0001f)
 		{
-			float avgLuminance = (float)(totalReshapedLuminance / validPixelCount);
-			if (avgLuminance > 0.0001f)
-			{
-				float rawScaleFactor = targetLinearLuminance / avgLuminance;
-				return Math.Clamp(rawScaleFactor, minScaleFactor, maxScaleFactor);
-			}
+			return 1.0f;
 		}
 
-		return 1.0f;
+		float rawScaleFactor = targetLinearLuminance / avgLuminance;
+		return Math.Clamp(rawScaleFactor, minScaleFactor, maxScaleFactor);
 	}
 
 	public static float CalculateLuminanceScaleFactor(
@@ -187,6 +167,21 @@ public static class TextureConverter
 		int width = sourceImage.Width;
 		int height = sourceImage.Height;
 
+		float[,] luminance = ComputeLuminance(sourceImage, width, height);
+
+		float[,] fineMean = ComputeSeparableBoxBlur(luminance, width, height, 3, isDecal);
+		float[,] coarseMean = ComputeSeparableBoxBlur(luminance, width, height, 14, isDecal);
+
+		float[] flatHeights = new float[width * height];
+		float[,] rawHeight = ComputeRawHeight(luminance, fineMean, coarseMean, width, height, isDecal, flatHeights);
+
+		float[,] normalizedHeight = NormalizeHeight(rawHeight, flatHeights, width, height);
+
+		GenerateTerrainLayers(sourceImage, luminance, fineMean, normalizedHeight, isDecal, width, height, out layer0, out layer1);
+	}
+
+	private static float[,] ComputeLuminance(SKBitmap sourceImage, int width, int height)
+	{
 		float[,] luminance = new float[width, height];
 		for (int y = 0; y < height; y++)
 		{
@@ -196,25 +191,40 @@ public static class TextureConverter
 				luminance[x, y] = (0.299f * p.Red + 0.587f * p.Green + 0.114f * p.Blue) / 255.0f;
 			}
 		}
+		return luminance;
+	}
 
-		float[,] fineMean = ComputeSeparableBoxBlur(luminance, width, height, 3, isDecal);
-		float[,] coarseMean = ComputeSeparableBoxBlur(luminance, width, height, 14, isDecal);
+	private static int GetPrevCoord(int coord, bool isDecal, int maxVal)
+	{
+		if (coord > 0)
+		{
+			return coord - 1;
+		}
+		return isDecal ? coord : maxVal - 1;
+	}
 
+	private static int GetNextCoord(int coord, bool isDecal, int maxVal)
+	{
+		if (coord < maxVal - 1)
+		{
+			return coord + 1;
+		}
+		return isDecal ? coord : 0;
+	}
+
+	private static float[,] ComputeRawHeight(float[,] luminance, float[,] fineMean, float[,] coarseMean, int width, int height, bool isDecal, float[] flatHeights)
+	{
 		float[,] rawHeight = new float[width, height];
-		float[] flatHeights = new float[width * height];
 		int idx = 0;
-
-		float normalStrength = isDecal ? 2.5f : 2.5f;
-
 		for (int y = 0; y < height; y++)
 		{
-			int py = isDecal ? (y > 0 ? y - 1 : y) : (y > 0 ? y - 1 : height - 1);
-			int ny = isDecal ? (y < height - 1 ? y + 1 : y) : (y < height - 1 ? y + 1 : 0);
+			int py = GetPrevCoord(y, isDecal, height);
+			int ny = GetNextCoord(y, isDecal, height);
 
 			for (int x = 0; x < width; x++)
 			{
-				int px = isDecal ? (x > 0 ? x - 1 : x) : (x > 0 ? x - 1 : width - 1);
-				int nx = isDecal ? (x < width - 1 ? x + 1 : x) : (x < width - 1 ? x + 1 : 0);
+				int px = GetPrevCoord(x, isDecal, width);
+				int nx = GetNextCoord(x, isDecal, width);
 
 				float lum = luminance[x, y];
 				float highFreq = lum - fineMean[x, y];
@@ -239,7 +249,11 @@ public static class TextureConverter
 				flatHeights[idx++] = structuralValue;
 			}
 		}
+		return rawHeight;
+	}
 
+	private static float[,] NormalizeHeight(float[,] rawHeight, float[] flatHeights, int width, int height)
+	{
 		Array.Sort(flatHeights);
 		int totalPixels = flatHeights.Length;
 		int p1Index = Math.Clamp((int)(totalPixels * 0.01f), 0, totalPixels - 1);
@@ -259,19 +273,25 @@ public static class TextureConverter
 				normalizedHeight[x, y] = Math.Clamp(normH, 0.0f, 1.0f);
 			}
 		}
+		return normalizedHeight;
+	}
 
+	private static void GenerateTerrainLayers(SKBitmap sourceImage, float[,] luminance, float[,] fineMean, float[,] normalizedHeight, bool isDecal, int width, int height, out SKBitmap layer0, out SKBitmap layer1)
+	{
 		layer0 = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 		layer1 = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
+		float normalStrength = 2.5f;
+
 		for (int y = 0; y < height; y++)
 		{
-			int py = isDecal ? (y > 0 ? y - 1 : y) : (y > 0 ? y - 1 : height - 1);
-			int ny = isDecal ? (y < height - 1 ? y + 1 : y) : (y < height - 1 ? y + 1 : 0);
+			int py = GetPrevCoord(y, isDecal, height);
+			int ny = GetNextCoord(y, isDecal, height);
 
 			for (int x = 0; x < width; x++)
 			{
-				int px = isDecal ? (x > 0 ? x - 1 : x) : (x > 0 ? x - 1 : width - 1);
-				int nx = isDecal ? (x < width - 1 ? x + 1 : x) : (x < width - 1 ? x + 1 : 0);
+				int px = GetPrevCoord(x, isDecal, width);
+				int nx = GetNextCoord(x, isDecal, width);
 
 				SKColor albedoCol = sourceImage.GetPixel(x, y);
 				float heightVal = normalizedHeight[x, y];
@@ -315,6 +335,87 @@ public static class TextureConverter
 		}
 	}
 
+	private static unsafe void CopyPixelsRgba(byte* srcBase, byte* dstPtr, int width, int height, int rowBytes)
+	{
+		if (rowBytes == width * 4)
+		{
+			Buffer.MemoryCopy(srcBase, dstPtr, width * height * 4, width * height * 4);
+		}
+		else
+		{
+			for (int y = 0; y < height; y++)
+			{
+				Buffer.MemoryCopy(srcBase + y * rowBytes, dstPtr + y * width * 4, width * 4, width * 4);
+			}
+		}
+	}
+
+	private static unsafe void CopyPixelsBgra(byte* srcBase, byte* dstPtr, int width, int height, int rowBytes)
+	{
+		for (int y = 0; y < height; y++)
+		{
+			byte* srcRow = srcBase + y * rowBytes;
+			byte* dstRow = dstPtr + y * width * 4;
+			for (int x = 0; x < width; x++)
+			{
+				int idx = x * 4;
+				dstRow[idx] = srcRow[idx + 2];     // Red
+				dstRow[idx + 1] = srcRow[idx + 1]; // Green
+				dstRow[idx + 2] = srcRow[idx];     // Blue
+				dstRow[idx + 3] = srcRow[idx + 3]; // Alpha
+			}
+		}
+	}
+
+	private static void CopyPixelsFallback(SKBitmap bitmap, byte[] dstBytes)
+	{
+		int width = bitmap.Width;
+		int height = bitmap.Height;
+		for (int y = 0; y < height; y++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				SKColor color = bitmap.GetPixel(x, y);
+				int idx = (y * width + x) * 4;
+				dstBytes[idx] = color.Red;
+				dstBytes[idx + 1] = color.Green;
+				dstBytes[idx + 2] = color.Blue;
+				dstBytes[idx + 3] = color.Alpha;
+			}
+		}
+	}
+
+	private static unsafe void ExtractPixelBytes(SKBitmap workBitmap, byte[] pixelBytes)
+	{
+		IntPtr pixelsPtr = workBitmap.GetPixels();
+		if (pixelsPtr == IntPtr.Zero)
+		{
+			CopyPixelsFallback(workBitmap, pixelBytes);
+			return;
+		}
+
+		byte* srcBase = (byte*)pixelsPtr;
+		int rowBytes = workBitmap.RowBytes;
+		bool isRgba = workBitmap.ColorType == SKColorType.Rgba8888;
+		bool isBgra = workBitmap.ColorType == SKColorType.Bgra8888;
+
+		fixed (byte* dstPtr = pixelBytes)
+		{
+			if (isRgba)
+			{
+				CopyPixelsRgba(srcBase, dstPtr, workBitmap.Width, workBitmap.Height, rowBytes);
+			}
+			else if (isBgra)
+			{
+				CopyPixelsBgra(srcBase, dstPtr, workBitmap.Width, workBitmap.Height, rowBytes);
+			}
+			else
+			{
+				CopyPixelsFallback(workBitmap, pixelBytes);
+			}
+		}
+	}
+
 	public static byte[] EncodeWebp(SKBitmap image, bool lossless = false, int quality = 90, int method = 6, bool sharpYuv = true)
 	{
 		int width = image.Width;
@@ -333,78 +434,7 @@ public static class TextureConverter
 
 		try
 		{
-			IntPtr pixelsPtr = workBitmap.GetPixels();
-			if (pixelsPtr != IntPtr.Zero)
-			{
-				unsafe
-				{
-					byte* srcBase = (byte*)pixelsPtr;
-					int rowBytes = workBitmap.RowBytes;
-					bool isRgba = workBitmap.ColorType == SKColorType.Rgba8888;
-					bool isBgra = workBitmap.ColorType == SKColorType.Bgra8888;
-
-					fixed (byte* dstPtr = pixelBytes)
-					{
-						if (isRgba && rowBytes == width * 4)
-						{
-							Buffer.MemoryCopy(srcBase, dstPtr, pixelBytes.Length, pixelBytes.Length);
-						}
-						else if (isRgba)
-						{
-							for (int y = 0; y < height; y++)
-							{
-								Buffer.MemoryCopy(srcBase + y * rowBytes, dstPtr + y * width * 4, width * 4, width * 4);
-							}
-						}
-						else if (isBgra)
-						{
-							for (int y = 0; y < height; y++)
-							{
-								byte* srcRow = srcBase + y * rowBytes;
-								byte* dstRow = dstPtr + y * width * 4;
-								for (int x = 0; x < width; x++)
-								{
-									int idx = x * 4;
-									dstRow[idx] = srcRow[idx + 2];     // Red
-									dstRow[idx + 1] = srcRow[idx + 1]; // Green
-									dstRow[idx + 2] = srcRow[idx];     // Blue
-									dstRow[idx + 3] = srcRow[idx + 3]; // Alpha
-								}
-							}
-						}
-						else
-						{
-							for (int y = 0; y < height; y++)
-							{
-								for (int x = 0; x < width; x++)
-								{
-									SKColor color = workBitmap.GetPixel(x, y);
-									int idx = (y * width + x) * 4;
-									pixelBytes[idx] = color.Red;
-									pixelBytes[idx + 1] = color.Green;
-									pixelBytes[idx + 2] = color.Blue;
-									pixelBytes[idx + 3] = color.Alpha;
-								}
-							}
-						}
-					}
-				}
-			}
-			else
-			{
-				for (int y = 0; y < height; y++)
-				{
-					for (int x = 0; x < width; x++)
-					{
-						SKColor color = workBitmap.GetPixel(x, y);
-						int idx = (y * width + x) * 4;
-						pixelBytes[idx] = color.Red;
-						pixelBytes[idx + 1] = color.Green;
-						pixelBytes[idx + 2] = color.Blue;
-						pixelBytes[idx + 3] = color.Alpha;
-					}
-				}
-			}
+			ExtractPixelBytes(workBitmap, pixelBytes);
 		}
 		finally
 		{
@@ -532,24 +562,23 @@ public static class TextureConverter
 
 			ProcessTerrainPbr(sourceImage, isDecal: false, out var layer0, out var layer1);
 
-			using (layer0)
-			using (layer1)
-			{
-				string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"terrain_texture\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)},\"layers\":2}}";
-				bool encodeOk = EncodeTwoLayerPbrRtex(
-					layer0,
-					layer1,
-					result.OutputPath,
-					metadataJson,
-					out string errorMsg,
-					compressAlbedo: true);
+			using var l0 = layer0;
+			using var l1 = layer1;
 
-				if (!encodeOk)
-				{
-					result.Success = false;
-					result.ErrorMessage = errorMsg;
-					return result;
-				}
+			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"terrain_texture\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)},\"layers\":2}}";
+			bool encodeOk = EncodeTwoLayerPbrRtex(
+				layer0,
+				layer1,
+				result.OutputPath,
+				metadataJson,
+				out string errorMsg,
+				compressAlbedo: true);
+
+			if (!encodeOk)
+			{
+				result.Success = false;
+				result.ErrorMessage = errorMsg;
+				return result;
 			}
 
 			result.Success = true;
@@ -604,24 +633,23 @@ public static class TextureConverter
 
 			ProcessTerrainPbr(sourceImage, isDecal: true, out var layer0, out var layer1);
 
-			using (layer0)
-			using (layer1)
-			{
-				string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"decal\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)},\"columns\":{safeCols},\"rows\":{safeRows},\"layers\":2}}";
-				bool encodeOk = EncodeTwoLayerPbrRtex(
-					layer0,
-					layer1,
-					result.OutputPath,
-					metadataJson,
-					out string errorMsg,
-					compressAlbedo: true);
+			using var l0 = layer0;
+			using var l1 = layer1;
 
-				if (!encodeOk)
-				{
-					result.Success = false;
-					result.ErrorMessage = errorMsg;
-					return result;
-				}
+			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"decal\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)},\"columns\":{safeCols},\"rows\":{safeRows},\"layers\":2}}";
+			bool encodeOk = EncodeTwoLayerPbrRtex(
+				layer0,
+				layer1,
+				result.OutputPath,
+				metadataJson,
+				out string errorMsg,
+				compressAlbedo: true);
+
+			if (!encodeOk)
+			{
+				result.Success = false;
+				result.ErrorMessage = errorMsg;
+				return result;
 			}
 
 			result.Success = true;
@@ -803,6 +831,30 @@ public static class TextureConverter
 		return ProcessAndSaveSingleLayerTexture(rawImagePath, outputRtexPath, "vfx_vertical", enableRdo);
 	}
 
+	private static string BuildSingleLayerMetadata(string assetType, string originalBlake3, string? customMetadataJson)
+	{
+		string fallbackJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"{assetType}\",\"canonical_blake3\":\"{originalBlake3}\",\"layers\":1}}";
+
+		if (string.IsNullOrWhiteSpace(customMetadataJson))
+		{
+			return fallbackJson;
+		}
+
+		try
+		{
+			var metaObj = JsonNode.Parse(customMetadataJson)?.AsObject() ?? new JsonObject();
+			metaObj["created_utc"] = $"{DateTime.UtcNow:O}";
+			metaObj["type"] = assetType;
+			metaObj["canonical_blake3"] = originalBlake3;
+			metaObj["layers"] = 1;
+			return metaObj.ToJsonString();
+		}
+		catch
+		{
+			return fallbackJson;
+		}
+	}
+
 	public static TextureConversionResult ProcessAndSaveSingleLayerTexture(
 		string rawImagePath,
 		string outputRtexPath,
@@ -835,27 +887,8 @@ public static class TextureConverter
 				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
 				return result;
 			}
-			string metadataJson;
-			if (!string.IsNullOrWhiteSpace(customMetadataJson))
-			{
-				try
-				{
-					var metaObj = System.Text.Json.Nodes.JsonNode.Parse(customMetadataJson)?.AsObject() ?? new System.Text.Json.Nodes.JsonObject();
-					metaObj["created_utc"] = $"{DateTime.UtcNow:O}";
-					metaObj["type"] = assetType;
-					metaObj["canonical_blake3"] = originalBlake3;
-					metaObj["layers"] = 1;
-					metadataJson = metaObj.ToJsonString();
-				}
-				catch
-				{
-					metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"{assetType}\",\"canonical_blake3\":\"{originalBlake3}\",\"layers\":1}}";
-				}
-			}
-			else
-			{
-				metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"{assetType}\",\"canonical_blake3\":\"{originalBlake3}\",\"layers\":1}}";
-			}
+
+			string metadataJson = BuildSingleLayerMetadata(assetType, originalBlake3, customMetadataJson);
 
 			bool encodeOk = EncodeSingleLayerRtex(
 				sourceImage,
@@ -1001,6 +1034,53 @@ public static class TextureConverter
 		}
 	}
 
+	private static void ExtractMetadataInfo(string fullInput, ref string normType, ref int? columns, ref int? rows, ref float? fps)
+	{
+		string? meta = RealmMetadataHelper.ExtractMetadata(fullInput);
+		if (string.IsNullOrEmpty(meta)) return;
+
+		try
+		{
+			var node = JsonNode.Parse(meta);
+			if (node == null) return;
+
+			string? metaType = node["type"]?.GetValue<string>()
+				?? node["asset_type"]?.GetValue<string>()
+				?? node["AssetType"]?.GetValue<string>();
+
+			if (!string.IsNullOrEmpty(metaType))
+			{
+				normType = metaType.Trim().ToLowerInvariant();
+			}
+
+			columns ??= ExtractIntMetadata(node, "columns");
+			rows ??= ExtractIntMetadata(node, "rows");
+			fps ??= ExtractFloatMetadata(node, "fps");
+		}
+		catch
+		{
+			// Ignore JSON parsing errors
+		}
+	}
+
+	private static int? ExtractIntMetadata(JsonNode node, string key)
+	{
+		if (node[key] != null && int.TryParse(node[key]?.ToString(), out int val) && val > 0)
+		{
+			return val;
+		}
+		return null;
+	}
+
+	private static float? ExtractFloatMetadata(JsonNode node, string key)
+	{
+		if (node[key] != null && float.TryParse(node[key]?.ToString(), out float val) && val > 0.001f)
+		{
+			return val;
+		}
+		return null;
+	}
+
 	public static TextureConversionResult ConvertTextureFile(
 		string inputPath,
 		string? outputPath,
@@ -1014,109 +1094,145 @@ public static class TextureConverter
 
 		if (ext == ".rtex")
 		{
-			string targetWebp = string.IsNullOrEmpty(outputPath)
-				? Path.ChangeExtension(fullInput, ".webp")
-				: Path.GetFullPath(outputPath);
-			return targetWebp.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-				? ExtractPngFromRtex(fullInput, targetWebp)
-				: ExtractWebpFromRtex(fullInput, targetWebp);
+			return HandleRtexConversion(fullInput, outputPath);
 		}
 
+		string normType = ResolveAssetType(fullInput, assetType, ref columns, ref rows, ref fps);
+		string targetRtex = GetTargetRtexPath(fullInput, outputPath);
+
+		return ProcessByAssetType(normType, fullInput, targetRtex, columns, rows, fps);
+	}
+
+	private static TextureConversionResult HandleRtexConversion(string fullInput, string? outputPath)
+	{
+		string targetWebp = string.IsNullOrEmpty(outputPath)
+			? Path.ChangeExtension(fullInput, ".webp")
+			: Path.GetFullPath(outputPath);
+
+		if (targetWebp.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+		{
+			return ExtractPngFromRtex(fullInput, targetWebp);
+		}
+		
+		return ExtractWebpFromRtex(fullInput, targetWebp);
+	}
+
+	private static string ResolveAssetType(string fullInput, string? assetType, ref int? columns, ref int? rows, ref float? fps)
+	{
 		string normType = (assetType ?? string.Empty).Trim().ToLowerInvariant();
 
 		if (string.IsNullOrEmpty(normType))
 		{
-			string? meta = RealmMetadataHelper.ExtractMetadata(fullInput);
-			if (!string.IsNullOrEmpty(meta))
-			{
-				try
-				{
-					var node = JsonNode.Parse(meta);
-					string? metaType = node?["type"]?.GetValue<string>()
-						?? node?["asset_type"]?.GetValue<string>()
-						?? node?["AssetType"]?.GetValue<string>();
-					if (!string.IsNullOrEmpty(metaType))
-					{
-						normType = metaType.Trim().ToLowerInvariant();
-					}
-					if (node?["columns"] != null && int.TryParse(node["columns"]?.ToString(), out int c) && c > 0)
-					{
-						columns ??= c;
-					}
-					if (node?["rows"] != null && int.TryParse(node["rows"]?.ToString(), out int r) && r > 0)
-					{
-						rows ??= r;
-					}
-					if (node?["fps"] != null && float.TryParse(node["fps"]?.ToString(), out float f) && f > 0.001f)
-					{
-						fps ??= f;
-					}
-				}
-				catch { }
-			}
+			ExtractMetadataInfo(fullInput, ref normType, ref columns, ref rows, ref fps);
 		}
 
 		if (string.IsNullOrEmpty(normType))
 		{
-			throw new InvalidOperationException($"Asset type was not specified and could not be detected from image metadata in '{inputPath}'. Please specify -t / --type (Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical).");
+			throw new InvalidOperationException($"Asset type was not specified and could not be detected from image metadata in '{fullInput}'. Please specify -t / --type (Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical).");
 		}
 
-		string targetRtex = string.IsNullOrEmpty(outputPath)
-			? Path.ChangeExtension(fullInput, ".rtex")
-			: Path.GetFullPath(outputPath);
+		return normType;
+	}
 
-		if (normType is "terrain")
+	private static string GetTargetRtexPath(string fullInput, string? outputPath)
+	{
+		if (string.IsNullOrEmpty(outputPath))
 		{
-			return ProcessAndSaveTerrainTexture(fullInput, targetRtex);
+			return Path.ChangeExtension(fullInput, ".rtex");
+		}
+		return Path.GetFullPath(outputPath);
+	}
+
+	private static TextureConversionResult ProcessByAssetType(string normType, string fullInput, string targetRtex, int? columns, int? rows, float? fps)
+	{
+		return normType switch
+		{
+			"terrain" => ProcessAndSaveTerrainTexture(fullInput, targetRtex),
+			"decal" => ProcessDecalAsset(fullInput, targetRtex, columns, rows),
+			"spritesheet" => ProcessSpritesheetAsset(fullInput, targetRtex, columns, rows, fps),
+			"skybox" => ProcessSkybox(fullInput, targetRtex),
+			"ribbon" => ProcessAndSaveRibbonTexture(fullInput, targetRtex),
+			"noise" => ProcessAndSaveSingleLayerTexture(fullInput, targetRtex, "noise_texture"),
+			"icon" => ProcessAndSaveIconTexture(fullInput, targetRtex),
+			_ => ProcessVfxOrThrow(normType, fullInput, targetRtex)
+		};
+	}
+
+	private static TextureConversionResult ProcessDecalAsset(string fullInput, string targetRtex, int? columns, int? rows)
+	{
+		return ProcessAndSaveDecalTexture(fullInput, targetRtex, columns: columns ?? 1, rows: rows ?? 1);
+	}
+
+	private static TextureConversionResult ProcessSpritesheetAsset(string fullInput, string targetRtex, int? columns, int? rows, float? fps)
+	{
+		return ProcessAndSaveSpritesheet(fullInput, targetRtex, columns ?? 4, rows ?? 4, fps: fps ?? 20.0f);
+	}
+
+	private static TextureConversionResult ProcessVfxOrThrow(string normType, string fullInput, string targetRtex)
+	{
+		return normType switch
+		{
+			"vfx_radial" => ProcessAndSaveVfxRadialTexture(fullInput, targetRtex),
+			"vfx_vertical" => ProcessAndSaveVfxVerticalTexture(fullInput, targetRtex),
+			_ => throw new InvalidOperationException($"Unsupported asset type '{normType}'. Supported types: Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical.")
+		};
+	}
+
+	private static TextureConversionResult ProcessSkybox(string fullInput, string targetRtex)
+	{
+		if (Path.GetExtension(targetRtex).ToLowerInvariant() is not ".rtex")
+		{
+			return SkyboxProcessor.ProcessSkyboxFile(fullInput, targetRtex);
+		}
+		return ProcessAndSaveSkybox(fullInput, targetRtex);
+	}
+
+	private static void ProcessSingleDirectoryFile(
+		string file,
+		string fullInputDir,
+		string? fullOutputDir,
+		string? assetType,
+		int? columns,
+		int? rows,
+		float? fps,
+		ref int successCount,
+		ref int failCount)
+	{
+		if (!ImageFormatConverter.IsImageFile(file)) return;
+
+		string fileExt = Path.GetExtension(file).ToLowerInvariant();
+		string targetExt = fileExt == ".rtex" ? ".webp" : ".rtex";
+
+		string target;
+		if (string.IsNullOrEmpty(fullOutputDir))
+		{
+			target = Path.ChangeExtension(file, targetExt);
+		}
+		else
+		{
+			string rel = Path.GetRelativePath(fullInputDir, file);
+			target = Path.Combine(fullOutputDir, Path.ChangeExtension(rel, targetExt));
 		}
 
-		if (normType is "decal")
+		try
 		{
-			return ProcessAndSaveDecalTexture(fullInput, targetRtex, columns: columns ?? 1, rows: rows ?? 1);
-		}
-
-		if (normType is "spritesheet")
-		{
-			return ProcessAndSaveSpritesheet(fullInput, targetRtex, columns ?? 4, rows ?? 4, fps: fps ?? 20.0f);
-		}
-
-		if (normType is "skybox")
-		{
-			string outExt = Path.GetExtension(targetRtex).ToLowerInvariant();
-			if (outExt is not ".rtex")
+			var res = ConvertTextureFile(file, target, assetType, columns, rows, fps);
+			if (res.Success)
 			{
-				return SkyboxProcessor.ProcessSkyboxFile(fullInput, targetRtex);
+				Console.WriteLine($"Converted: {file} -> {target}");
+				successCount++;
 			}
-
-			return ProcessAndSaveSkybox(fullInput, targetRtex);
+			else
+			{
+				Console.Error.WriteLine($"Failed to convert {file}: {res.ErrorMessage}");
+				failCount++;
+			}
 		}
-
-		if (normType is "ribbon")
+		catch (Exception ex)
 		{
-			return ProcessAndSaveRibbonTexture(fullInput, targetRtex);
+			Console.Error.WriteLine($"Failed to convert {file}: {ex.Message}");
+			failCount++;
 		}
-
-		if (normType is "noise")
-		{
-			return ProcessAndSaveSingleLayerTexture(fullInput, targetRtex, "noise_texture");
-		}
-
-		if (normType is "icon")
-		{
-			return ProcessAndSaveIconTexture(fullInput, targetRtex);
-		}
-
-		if (normType is "vfx_radial")
-		{
-			return ProcessAndSaveVfxRadialTexture(fullInput, targetRtex);
-		}
-
-		if (normType is "vfx_vertical")
-		{
-			return ProcessAndSaveVfxVerticalTexture(fullInput, targetRtex);
-		}
-
-		throw new InvalidOperationException($"Unsupported asset type '{normType}'. Supported types: Decal, Icon, Noise, Ribbon, Skybox, Spritesheet, Terrain, vfx_radial, vfx_vertical.");
 	}
 
 	public static int ConvertTextureDirectory(
@@ -1138,41 +1254,7 @@ public static class TextureConverter
 
 		foreach (var file in files)
 		{
-			if (!ImageFormatConverter.IsImageFile(file)) continue;
-
-			string fileExt = Path.GetExtension(file).ToLowerInvariant();
-			string targetExt = fileExt == ".rtex" ? ".webp" : ".rtex";
-
-			string target;
-			if (string.IsNullOrEmpty(fullOutputDir))
-			{
-				target = Path.ChangeExtension(file, targetExt);
-			}
-			else
-			{
-				string rel = Path.GetRelativePath(fullInputDir, file);
-				target = Path.Combine(fullOutputDir, Path.ChangeExtension(rel, targetExt));
-			}
-
-			try
-			{
-				var res = ConvertTextureFile(file, target, assetType, columns, rows, fps);
-				if (res.Success)
-				{
-					Console.WriteLine($"Converted: {file} -> {target}");
-					successCount++;
-				}
-				else
-				{
-					Console.Error.WriteLine($"Failed to convert {file}: {res.ErrorMessage}");
-					failCount++;
-				}
-			}
-			catch (Exception ex)
-			{
-				Console.Error.WriteLine($"Failed to convert {file}: {ex.Message}");
-				failCount++;
-			}
+			ProcessSingleDirectoryFile(file, fullInputDir, fullOutputDir, assetType, columns, rows, fps, ref successCount, ref failCount);
 		}
 
 		Console.WriteLine($"Finished texture conversion. {successCount} succeeded, {failCount} failed.");
@@ -1186,6 +1268,14 @@ public static class TextureConverter
 		int windowSize = 2 * radius + 1;
 		float invWindow = 1.0f / windowSize;
 
+		ComputeHorizontalBoxBlur(input, temp, w, h, radius, invWindow, isDecal);
+		ComputeVerticalBoxBlur(temp, result, w, h, radius, invWindow, isDecal);
+
+		return result;
+	}
+
+	private static void ComputeHorizontalBoxBlur(float[,] input, float[,] temp, int w, int h, int radius, float invWindow, bool isDecal)
+	{
 		for (int y = 0; y < h; y++)
 		{
 			float sum = 0.0f;
@@ -1204,7 +1294,10 @@ public static class TextureConverter
 				temp[x, y] = sum * invWindow;
 			}
 		}
+	}
 
+	private static void ComputeVerticalBoxBlur(float[,] temp, float[,] result, int w, int h, int radius, float invWindow, bool isDecal)
+	{
 		for (int x = 0; x < w; x++)
 		{
 			float sum = 0.0f;
@@ -1223,7 +1316,5 @@ public static class TextureConverter
 				result[x, y] = sum * invWindow;
 			}
 		}
-
-		return result;
 	}
 }

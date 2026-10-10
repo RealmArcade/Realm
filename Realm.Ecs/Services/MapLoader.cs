@@ -7,7 +7,7 @@ namespace Realm.Ecs.Services;
 ///     Responsible for loading the game's map definition (metadata.json) and
 ///     orchestrating the initialization of all data managers.
 /// </summary>
-internal class MapLoader
+public class MapLoader
 {
 	private static readonly JsonSerializerOptions Options = new()
 	{

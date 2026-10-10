@@ -1,11 +1,8 @@
-using System;
+using Realm.Shared.Metadata;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Distribution;
 
@@ -228,154 +225,110 @@ public class ContentAddressableStorage
 
         if (!string.IsNullOrEmpty(normalizedHash))
         {
-            object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
-            lock (fileLock)
-            {
-                string? existingFilePath = FindAssetFilePath(normalizedHash);
-                if (existingFilePath != null)
-                {
-                    bool merged = false;
-                    if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
-                    {
-                        merged = UpdateExistingAssetHeaders(existingFilePath, normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
-                    }
-
-                    _assetPathCache[normalizedHash] = existingFilePath;
-                    return (true, "Asset already exists (deduplicated).", true, merged, normalizedHash);
-                }
-            }
-        }
-
-        if (!CheckFreeDiskSpaceAcceptingDownloads())
-        {
-            return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
-        }
-
-        string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
-
-        if (!string.IsNullOrEmpty(normalizedHash))
-        {
-            object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
-            lock (fileLock)
-            {
-                string shard = normalizedHash.Substring(0, 2);
-                string shardDirectory = Path.Combine(_assetsDirectory, shard);
-                if (!_ensuredDirectories.ContainsKey(shardDirectory))
-                {
-                    if (!Directory.Exists(shardDirectory))
-                    {
-                        Directory.CreateDirectory(shardDirectory);
-                    }
-                    _ensuredDirectories[shardDirectory] = true;
-                }
-
-                string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
-
-                using (var outStream = new FileStream(finalFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920))
-                {
-                    assetStream.CopyTo(outStream, 81920);
-                }
-
-                _assetPathCache[normalizedHash] = finalFilePath;
-
-                string? metadataToEmbed = metadataHeadersJson;
-                if (!string.IsNullOrWhiteSpace(authorPublicKey) && !string.IsNullOrWhiteSpace(authorSignature))
-                {
-                    metadataToEmbed = InjectAuthorKeysIntoMetadata(metadataToEmbed, authorPublicKey, authorSignature);
-                }
-
-                string? finalMetadata = metadataToEmbed;
-                if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
-                {
-                    finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
-                }
-                if (!string.IsNullOrWhiteSpace(finalMetadata))
-                {
-                    UpdateSidecarCache(normalizedHash, finalMetadata);
-                }
-                else
-                {
-                    _sidecarMemoryCache[normalizedHash] = string.Empty;
-                }
-
-                return (true, "Asset stored successfully.", false, false, normalizedHash);
-            }
+            return StoreAssetWithPrecomputedHash(assetStream, extension, normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
         }
         else
         {
-            string tempFilePath = Path.Combine(_rootDirectory, $"temp_{Guid.NewGuid():N}.tmp");
-            try
+            return StoreAssetWithUnknownHash(assetStream, extension, metadataHeadersJson, authorPublicKey, authorSignature);
+        }
+    }
+
+    private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAssetWithPrecomputedHash(
+        Stream assetStream,
+        string extension,
+        string normalizedHash,
+        string? metadataHeadersJson,
+        string? authorPublicKey,
+        string? authorSignature)
+    {
+        object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
+        lock (fileLock)
+        {
+            var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
+            if (existingResult.HasValue) return existingResult.Value;
+
+            if (!CheckFreeDiskSpaceAcceptingDownloads())
             {
-                using (var outStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920))
-                {
-                    assetStream.CopyTo(outStream, 81920);
-                }
-
-                string computedBlake3 = RealmMetadataHelper.ComputeBlake3(tempFilePath);
-                normalizedHash = NormalizeBlake3Hash(computedBlake3);
-
-                object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
-                lock (fileLock)
-                {
-                    string? existingFilePath = FindAssetFilePath(normalizedHash);
-                    if (existingFilePath != null)
-                    {
-                        try { File.Delete(tempFilePath); } catch { }
-                        bool merged = false;
-                        if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
-                        {
-                            merged = UpdateExistingAssetHeaders(existingFilePath, normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
-                        }
-
-                        _assetPathCache[normalizedHash] = existingFilePath;
-                        return (true, "Asset already exists (deduplicated).", true, merged, normalizedHash);
-                    }
-
-                    string shard = normalizedHash.Substring(0, 2);
-                    string shardDirectory = Path.Combine(_assetsDirectory, shard);
-                    if (!_ensuredDirectories.ContainsKey(shardDirectory))
-                    {
-                        if (!Directory.Exists(shardDirectory))
-                        {
-                            Directory.CreateDirectory(shardDirectory);
-                        }
-                        _ensuredDirectories[shardDirectory] = true;
-                    }
-
-                    string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
-                    File.Move(tempFilePath, finalFilePath, overwrite: true);
-                    _assetPathCache[normalizedHash] = finalFilePath;
-
-                    string? metadataToEmbed = metadataHeadersJson;
-                    if (!string.IsNullOrWhiteSpace(authorPublicKey) && !string.IsNullOrWhiteSpace(authorSignature))
-                    {
-                        metadataToEmbed = InjectAuthorKeysIntoMetadata(metadataToEmbed, authorPublicKey, authorSignature);
-                    }
-
-                    string? finalMetadata = metadataToEmbed;
-                    if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
-                    {
-                        finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
-                    }
-                    if (!string.IsNullOrWhiteSpace(finalMetadata))
-                    {
-                        UpdateSidecarCache(normalizedHash, finalMetadata);
-                    }
-                    else
-                    {
-                        _sidecarMemoryCache[normalizedHash] = string.Empty;
-                    }
-
-                    return (true, "Asset stored successfully.", false, false, normalizedHash);
-                }
+                return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
             }
-            finally
+
+            string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
+            string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
+            string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
+
+            using (var outStream = new FileStream(finalFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920))
             {
-                if (File.Exists(tempFilePath))
-                {
-                    try { File.Delete(tempFilePath); } catch { }
-                }
+                assetStream.CopyTo(outStream, 81920);
             }
+
+            _assetPathCache[normalizedHash] = finalFilePath;
+
+            FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
+
+            return (true, "Asset stored successfully.", false, false, normalizedHash);
+        }
+    }
+
+    private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAssetWithUnknownHash(
+        Stream assetStream,
+        string extension,
+        string? metadataHeadersJson,
+        string? authorPublicKey,
+        string? authorSignature)
+    {
+        if (!CheckFreeDiskSpaceAcceptingDownloads())
+        {
+            return (false, "Write rejected: available disk space is less than 1%.", false, false, string.Empty);
+        }
+
+        string tempFilePath = Path.Combine(_rootDirectory, $"temp_{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var outStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920))
+            {
+                assetStream.CopyTo(outStream, 81920);
+            }
+
+            return MoveTempAssetToStorage(tempFilePath, extension, metadataHeadersJson, authorPublicKey, authorSignature);
+        }
+        finally
+        {
+            if (File.Exists(tempFilePath))
+            {
+                try { File.Delete(tempFilePath); } catch { }
+            }
+        }
+    }
+
+    private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) MoveTempAssetToStorage(
+        string tempFilePath,
+        string extension,
+        string? metadataHeadersJson,
+        string? authorPublicKey,
+        string? authorSignature)
+    {
+        string computedBlake3 = RealmMetadataHelper.ComputeBlake3(tempFilePath);
+        string normalizedHash = NormalizeBlake3Hash(computedBlake3);
+
+        object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
+        lock (fileLock)
+        {
+            var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
+            if (existingResult.HasValue)
+            {
+                return existingResult.Value;
+            }
+
+            string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
+            string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
+            string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
+
+            File.Move(tempFilePath, finalFilePath, overwrite: true);
+            _assetPathCache[normalizedHash] = finalFilePath;
+
+            FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
+
+            return (true, "Asset stored successfully.", false, false, normalizedHash);
         }
     }
 
@@ -402,18 +355,8 @@ public class ContentAddressableStorage
         object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
         lock (fileLock)
         {
-            string? existingFilePath = FindAssetFilePath(normalizedHash);
-            if (existingFilePath != null)
-            {
-                bool merged = false;
-                if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
-                {
-                    merged = UpdateExistingAssetHeaders(existingFilePath, normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
-                }
-
-                _assetPathCache[normalizedHash] = existingFilePath;
-                return (true, "Asset already exists (deduplicated).", true, merged, normalizedHash);
-            }
+            var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
+            if (existingResult.HasValue) return existingResult.Value;
 
             if (!CheckFreeDiskSpaceAcceptingDownloads())
             {
@@ -421,41 +364,13 @@ public class ContentAddressableStorage
             }
 
             string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
-            string shard = normalizedHash.Substring(0, 2);
-            string shardDirectory = Path.Combine(_assetsDirectory, shard);
-            if (!_ensuredDirectories.ContainsKey(shardDirectory))
-            {
-                if (!Directory.Exists(shardDirectory))
-                {
-                    Directory.CreateDirectory(shardDirectory);
-                }
-                _ensuredDirectories[shardDirectory] = true;
-            }
-
+            string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
             string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
 
             HardLinkHelper.CreateHardLinkOrCopy(finalFilePath, sourceFilePath, overwrite: true);
             _assetPathCache[normalizedHash] = finalFilePath;
 
-            string? metadataToEmbed = metadataHeadersJson;
-            if (!string.IsNullOrWhiteSpace(authorPublicKey) && !string.IsNullOrWhiteSpace(authorSignature))
-            {
-                metadataToEmbed = InjectAuthorKeysIntoMetadata(metadataToEmbed, authorPublicKey, authorSignature);
-            }
-
-            string? finalMetadata = metadataToEmbed;
-            if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
-            {
-                finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
-            }
-            if (!string.IsNullOrWhiteSpace(finalMetadata))
-            {
-                UpdateSidecarCache(normalizedHash, finalMetadata);
-            }
-            else
-            {
-                _sidecarMemoryCache[normalizedHash] = string.Empty;
-            }
+            FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
 
             return (true, "Asset stored successfully.", false, false, normalizedHash);
         }
@@ -489,63 +404,22 @@ public class ContentAddressableStorage
 
         lock (fileLock)
         {
-            string? existingFilePath = FindAssetFilePath(normalizedHash);
-
-            if (existingFilePath != null)
-            {
-                bool merged = false;
-                if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
-                {
-                    merged = UpdateExistingAssetHeaders(existingFilePath, normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
-                }
-
-                _assetPathCache[normalizedHash] = existingFilePath;
-                return (true, "Asset already exists (deduplicated).", true, merged, normalizedHash);
-            }
+            var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
+            if (existingResult.HasValue) return existingResult.Value;
 
             if (!CheckFreeDiskSpaceAcceptingDownloads())
             {
                 return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
             }
 
-            string shard = normalizedHash.Substring(0, 2);
-            string shardDirectory = Path.Combine(_assetsDirectory, shard);
-            if (!_ensuredDirectories.ContainsKey(shardDirectory))
-            {
-                if (!Directory.Exists(shardDirectory))
-                {
-                    Directory.CreateDirectory(shardDirectory);
-                }
-                _ensuredDirectories[shardDirectory] = true;
-            }
-
             string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
+            string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
             string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
 
-            byte[] bytesToWrite = assetBytes;
-            string? metadataToEmbed = metadataHeadersJson;
-
-            if (!string.IsNullOrWhiteSpace(authorPublicKey) && !string.IsNullOrWhiteSpace(authorSignature))
-            {
-                metadataToEmbed = InjectAuthorKeysIntoMetadata(metadataToEmbed, authorPublicKey, authorSignature);
-            }
-
-            File.WriteAllBytes(finalFilePath, bytesToWrite);
+            File.WriteAllBytes(finalFilePath, assetBytes);
             _assetPathCache[normalizedHash] = finalFilePath;
 
-            string? finalMetadata = metadataToEmbed;
-            if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
-            {
-                finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
-            }
-            if (!string.IsNullOrWhiteSpace(finalMetadata))
-            {
-                UpdateSidecarCache(normalizedHash, finalMetadata);
-            }
-            else
-            {
-                _sidecarMemoryCache[normalizedHash] = string.Empty;
-            }
+            FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
 
             return (true, "Asset stored successfully.", false, false, normalizedHash);
         }
@@ -561,20 +435,7 @@ public class ContentAddressableStorage
         try
         {
             string? existingMetadata = GetAssetMetadata(normalizedHash);
-            bool isAuthorized = false;
-
-            if (!string.IsNullOrWhiteSpace(authorPublicKey) && !string.IsNullOrWhiteSpace(authorSignature))
-            {
-                bool signatureValid = AuthorSignatureHelper.VerifySignature(authorPublicKey, normalizedHash, authorSignature);
-                if (signatureValid)
-                {
-                    string? existingAuthorKey = ExtractAuthorPublicKey(existingMetadata);
-                    if (string.IsNullOrEmpty(existingAuthorKey) || string.Equals(existingAuthorKey, authorPublicKey, StringComparison.OrdinalIgnoreCase))
-                    {
-                        isAuthorized = true;
-                    }
-                }
-            }
+            bool isAuthorized = IsAuthorizedToUpdateHeaders(existingMetadata, normalizedHash, authorPublicKey, authorSignature);
 
             string incomingWithKeys = InjectAuthorKeysIntoMetadata(incomingMetadataJson, authorPublicKey, authorSignature);
             string mergedMetadata = AuthorSignatureHelper.MergeMetadataHeaders(existingMetadata, incomingWithKeys, isAuthorized);
@@ -586,6 +447,23 @@ public class ContentAddressableStorage
         {
             return false;
         }
+    }
+
+    private bool IsAuthorizedToUpdateHeaders(string? existingMetadata, string normalizedHash, string? authorPublicKey, string? authorSignature)
+    {
+        if (string.IsNullOrWhiteSpace(authorPublicKey) || string.IsNullOrWhiteSpace(authorSignature))
+        {
+            return false;
+        }
+
+        bool signatureValid = AuthorSignatureHelper.VerifySignature(authorPublicKey, normalizedHash, authorSignature);
+        if (!signatureValid)
+        {
+            return false;
+        }
+
+        string? existingAuthorKey = ExtractAuthorPublicKey(existingMetadata);
+        return string.IsNullOrEmpty(existingAuthorKey) || string.Equals(existingAuthorKey, authorPublicKey, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ExtractAuthorPublicKey(string? metadataJson)
@@ -768,13 +646,7 @@ public class ContentAddressableStorage
             var directoryInfo = new DirectoryInfo(_rootDirectory);
             foreach (var file in directoryInfo.EnumerateFiles("*", SearchOption.AllDirectories))
             {
-                try
-                {
-                    totalBytes += file.Length;
-                }
-                catch
-                {
-                }
+                totalBytes += GetFileLengthSafe(file);
             }
         }
         catch
@@ -784,11 +656,90 @@ public class ContentAddressableStorage
         return totalBytes;
     }
 
+    private long GetFileLengthSafe(FileInfo fileInfo)
+    {
+        try
+        {
+            return fileInfo.Length;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     public static string FormatByteSize(long bytes)
     {
         if (bytes < 1024) return $"{bytes} B";
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    private string GetAndEnsureShardDirectory(string normalizedHash)
+    {
+        string shard = normalizedHash.Substring(0, 2);
+        string shardDirectory = Path.Combine(_assetsDirectory, shard);
+        if (!_ensuredDirectories.ContainsKey(shardDirectory))
+        {
+            if (!Directory.Exists(shardDirectory))
+            {
+                Directory.CreateDirectory(shardDirectory);
+            }
+            _ensuredDirectories[shardDirectory] = true;
+        }
+        return shardDirectory;
+    }
+
+    private void FinalizeAssetMetadata(
+        string finalFilePath, 
+        string normalizedHash, 
+        string extension, 
+        string? metadataHeadersJson, 
+        string? authorPublicKey, 
+        string? authorSignature)
+    {
+        string? metadataToEmbed = metadataHeadersJson;
+        if (!string.IsNullOrWhiteSpace(authorPublicKey) && !string.IsNullOrWhiteSpace(authorSignature))
+        {
+            metadataToEmbed = InjectAuthorKeysIntoMetadata(metadataToEmbed, authorPublicKey, authorSignature);
+        }
+
+        string? finalMetadata = metadataToEmbed;
+        if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
+        {
+            finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
+        }
+        
+        if (!string.IsNullOrWhiteSpace(finalMetadata))
+        {
+            UpdateSidecarCache(normalizedHash, finalMetadata);
+        }
+        else
+        {
+            _sidecarMemoryCache[normalizedHash] = string.Empty;
+        }
+    }
+
+    private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash)? TryHandleExistingAsset(
+        string normalizedHash, 
+        string? metadataHeadersJson, 
+        string? authorPublicKey, 
+        string? authorSignature)
+    {
+        string? existingFilePath = FindAssetFilePath(normalizedHash);
+        if (existingFilePath == null)
+        {
+            return null;
+        }
+
+        bool merged = false;
+        if (!string.IsNullOrWhiteSpace(metadataHeadersJson))
+        {
+            merged = UpdateExistingAssetHeaders(existingFilePath, normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
+        }
+
+        _assetPathCache[normalizedHash] = existingFilePath;
+        return (true, "Asset already exists (deduplicated).", true, merged, normalizedHash);
     }
 }

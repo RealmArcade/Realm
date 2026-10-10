@@ -1,17 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
 
 namespace Realm.Shared.Distribution;
-
-public class ServersConfig
-{
-    public List<string> AdminPublicKeys { get; set; } = new();
-    public List<string> AdminPublicKey { get => AdminPublicKeys; set => AdminPublicKeys = value; }
-    public List<string> Servers { get; set; } = new();
-}
 
 public static class ServersConfigHelper
 {
@@ -21,77 +10,91 @@ public static class ServersConfigHelper
 
     public static ServersConfig Load(string? explicitPath = null)
     {
-        var candidates = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(explicitPath))
-        {
-            candidates.Add(explicitPath);
-        }
-
-        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        string currentDir = Directory.GetCurrentDirectory();
-        string? processDir = !string.IsNullOrEmpty(Environment.ProcessPath) ? Path.GetDirectoryName(Environment.ProcessPath) : null;
-        string appContextDir = AppContext.BaseDirectory;
-
-        var baseDirectories = new List<string> { currentDir, baseDir, appContextDir };
-        if (!string.IsNullOrEmpty(processDir) && !baseDirectories.Contains(processDir))
-        {
-            baseDirectories.Add(processDir);
-        }
-
-        foreach (var dir in baseDirectories)
-        {
-            candidates.Add(Path.Combine(dir, "servers.json"));
-            candidates.Add(Path.Combine(dir, "Realm.Godot", "servers.json"));
-            candidates.Add(Path.Combine(dir, "..", "Realm.Godot", "servers.json"));
-            candidates.Add(Path.Combine(dir, "..", "servers.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "servers.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "..", "servers.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "..", "..", "servers.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "..", "Realm.Godot", "servers.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "..", "..", "Realm.Godot", "servers.json"));
-        }
-
-        foreach (var dir in baseDirectories)
-        {
-            candidates.Add(Path.Combine(dir, "servers.template.json"));
-            candidates.Add(Path.Combine(dir, "Realm.Godot", "servers.template.json"));
-            candidates.Add(Path.Combine(dir, "..", "Realm.Godot", "servers.template.json"));
-            candidates.Add(Path.Combine(dir, "..", "servers.template.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "servers.template.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "..", "servers.template.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "..", "..", "servers.template.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "..", "Realm.Godot", "servers.template.json"));
-            candidates.Add(Path.Combine(dir, "..", "..", "..", "..", "Realm.Godot", "servers.template.json"));
-        }
-
         var triedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var path in candidates)
+        foreach (var path in GetCandidatePaths(explicitPath))
         {
             if (string.IsNullOrWhiteSpace(path) || !triedPaths.Add(path))
             {
                 continue;
             }
 
-            try
+            var config = TryLoadConfig(path);
+            if (config != null)
             {
-                if (File.Exists(path))
-                {
-                    string json = File.ReadAllText(path);
-                    var config = JsonSerializer.Deserialize<ServersConfig>(json, Options);
-                    if (config != null)
-                    {
-                        NormalizeConfig(config);
-                        return config;
-                    }
-                }
-            }
-            catch
-            {
+                return config;
             }
         }
 
+        return CreateFallbackConfig();
+    }
+
+    private static IEnumerable<string> GetBaseDirectories()
+    {
+        yield return Directory.GetCurrentDirectory();
+        yield return AppDomain.CurrentDomain.BaseDirectory;
+        yield return AppContext.BaseDirectory;
+
+        string? processDir = !string.IsNullOrEmpty(Environment.ProcessPath) ? Path.GetDirectoryName(Environment.ProcessPath) : null;
+        if (!string.IsNullOrEmpty(processDir))
+        {
+            yield return processDir;
+        }
+    }
+
+    private static IEnumerable<string> GetCandidatePaths(string? explicitPath)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            yield return explicitPath;
+        }
+
+        var baseDirs = GetBaseDirectories().Distinct().ToList();
+        string[] fileNames = { "servers.json", "servers.template.json" };
+
+        foreach (var fileName in fileNames)
+        {
+            foreach (var dir in baseDirs)
+            {
+                yield return Path.Combine(dir, fileName);
+                yield return Path.Combine(dir, "Realm.Client", fileName);
+                yield return Path.Combine(dir, "..", "Realm.Client", fileName);
+                yield return Path.Combine(dir, "..", fileName);
+                yield return Path.Combine(dir, "..", "..", fileName);
+                yield return Path.Combine(dir, "..", "..", "..", fileName);
+                yield return Path.Combine(dir, "..", "..", "..", "..", fileName);
+                yield return Path.Combine(dir, "..", "..", "..", "Realm.Client", fileName);
+                yield return Path.Combine(dir, "..", "..", "..", "..", "Realm.Client", fileName);
+            }
+        }
+    }
+
+    private static ServersConfig? TryLoadConfig(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            string json = File.ReadAllText(path);
+            var config = JsonSerializer.Deserialize<ServersConfig>(json, Options);
+            if (config != null)
+            {
+                NormalizeConfig(config);
+                return config;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private static ServersConfig CreateFallbackConfig()
+    {
         var fallback = new ServersConfig();
         fallback.Servers.Add(DefaultServerUrl);
         if (!string.IsNullOrWhiteSpace(DefaultAdminPublicKey))

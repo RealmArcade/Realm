@@ -1,14 +1,16 @@
-using NUnit.Framework;
-using System.Numerics;
 using Arch.Core;
 using Microsoft.Extensions.DependencyInjection;
+using NUnit.Framework;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
-using Realm.Ecs.Common;
 using Realm.Ecs.Services;
+using Realm.Client;
+using Realm.Client.Services;
+using System.Numerics;
 
 namespace Realm.Ecs.Tests
 {
@@ -21,10 +23,38 @@ namespace Realm.Ecs.Tests
     [TestFixture]
     public class MeleeChaseIntegrationTests
     {
-        private World _world = null!;
-        private WorldAccessor _worldAccessor = null!;
-        private TerrainNavMeshService _terrainNavMeshService = null!;
-        private NavMeshPathfinder _pathfinder = null!;
+	    private World _world
+	    {
+		    get
+		    {
+			    return ServiceLocator.Get<World>();
+		    }
+	    }
+
+	    private WorldAccessor _worldAccessor
+	    {
+		    get
+		    {
+			    return ServiceLocator.Get<WorldAccessor>();
+		    }
+	    }
+
+	    private TerrainNavMeshService _terrainNavMeshService
+		{
+		    get
+		    {
+			    return ServiceLocator.Get<TerrainNavMeshService>();
+		    }
+	    }
+
+	    private NavMeshPathfinder _pathfinder
+		{
+		    get
+		    {
+			    return ServiceLocator.Get<NavMeshPathfinder>();
+		    }
+	    }
+
         private MovementAndPathfindingService _movementService = null!;
         private CombatAndDamageService _combatService = null!;
         private Entity _worldEntity;
@@ -34,19 +64,6 @@ namespace Realm.Ecs.Tests
         [SetUp]
         public void Setup()
         {
-            _world = World.Create();
-            _worldAccessor = new WorldAccessor(_world);
-
-            _terrainNavMeshService = new TerrainNavMeshService(_worldAccessor);
-            _pathfinder = new NavMeshPathfinder();
-
-            var services = new ServiceCollection();
-            services.AddSingleton(_worldAccessor);
-            services.AddSingleton(_terrainNavMeshService);
-            services.AddSingleton(_pathfinder);
-            var provider = services.BuildServiceProvider();
-            ServiceLocator.Initialize(provider);
-
             _combatService = new CombatAndDamageService(_worldAccessor);
         }
 

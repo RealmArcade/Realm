@@ -1,23 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
-using System.Text.Json;
-using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Distribution;
-
-public class RmapHeaderInfo
-{
-    public string MapName { get; set; } = string.Empty;
-    public string Version { get; set; } = "1.0.0";
-    public string GameBuildNumber { get; set; } = string.Empty;
-    public string Author { get; set; } = "Unknown";
-    public string Description { get; set; } = string.Empty;
-    public List<string> Tags { get; set; } = new();
-}
 
 public static class MapArchiveHelper
 {
@@ -28,9 +12,19 @@ public static class MapArchiveHelper
         string sourceDirectory,
         string destinationRmapPath,
         Action<float, string>? progressCallback = null,
-        int compressionLevel = 1,
+        int compressionLevel = 1, // Note: Not currently used for files in code below, uses NoCompression, keeping for signature match.
         bool fullExport = false,
         IReadOnlyCollection<string>? excludedRelativePaths = null)
+    {
+        PrepareArchiveDestination(sourceDirectory, destinationRmapPath);
+
+        var filesToArchive = GetFilesToArchive(sourceDirectory, fullExport, excludedRelativePaths);
+        SortFilesForArchive(filesToArchive, sourceDirectory);
+
+        WriteFilesToZipArchive(filesToArchive, sourceDirectory, destinationRmapPath, progressCallback);
+    }
+
+    private static void PrepareArchiveDestination(string sourceDirectory, string destinationRmapPath)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory))
         {
@@ -47,56 +41,67 @@ public static class MapArchiveHelper
         {
             File.Delete(destinationRmapPath);
         }
+    }
 
+    private static bool IsIgnoredPath(string relPath)
+    {
+        string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/"];
+        string[] suffixes = [".tmp", ".rmap", ".zip", ".tar", ".gz", ".bak", ".backup", ".rkey"];
+        
+        if (prefixes.Any(p => relPath.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
+        if (suffixes.Any(s => relPath.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
+        if (relPath.Contains("/obj/", StringComparison.OrdinalIgnoreCase)) return true;
+        
+        return string.Equals(Path.GetFileName(relPath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAllowedExcludedFile(string fn)
+    {
+        string[] allowedExact = ["manifest.json", "metadata.json", "terrain.json"];
+        string[] allowedSuffixes = [".cs", ".wasm", ".csproj"];
+        
+        if (allowedExact.Any(a => fn.Equals(a, StringComparison.OrdinalIgnoreCase))) return true;
+        if (allowedSuffixes.Any(s => fn.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
+        
+        return false;
+    }
+
+    private static List<string> GetFilesToArchive(string sourceDirectory, bool fullExport, IReadOnlyCollection<string>? excludedRelativePaths)
+    {
         var allFiles = Directory.GetFiles(sourceDirectory, "*.*", SearchOption.AllDirectories);
         var filesToArchive = new List<string>(allFiles.Length);
+
         foreach (var file in allFiles)
         {
-            string relativePath = Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/');
-            if (relativePath.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".backups/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.Contains("/obj/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".sidecarcache/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".tar", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".backup", StringComparison.OrdinalIgnoreCase) ||
-                relativePath.EndsWith(".rkey", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase))
+            if (ShouldIncludeFile(file, sourceDirectory, fullExport, excludedRelativePaths))
             {
-                continue;
+                filesToArchive.Add(file);
             }
-
-            if (!fullExport && excludedRelativePaths != null && excludedRelativePaths.Contains(relativePath))
-            {
-                string fn = Path.GetFileName(relativePath);
-                if (!fn.Equals("manifest.json", StringComparison.OrdinalIgnoreCase) &&
-                    !fn.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) &&
-                    !fn.Equals("terrain.json", StringComparison.OrdinalIgnoreCase) &&
-                    !fn.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) &&
-                    !fn.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase) &&
-                    !fn.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-            }
-
-            var fileInfo = new FileInfo(file);
-            if (!fileInfo.Exists || fileInfo.Length == 0)
-            {
-                continue;
-            }
-
-            filesToArchive.Add(file);
         }
 
+        return filesToArchive;
+    }
+
+    private static bool ShouldIncludeFile(string file, string sourceDirectory, bool fullExport, IReadOnlyCollection<string>? excludedRelativePaths)
+    {
+        string relativePath = Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/');
+        
+        if (IsIgnoredPath(relativePath)) return false;
+
+        if (!fullExport && excludedRelativePaths != null && excludedRelativePaths.Contains(relativePath))
+        {
+            string fn = Path.GetFileName(relativePath);
+            if (!IsAllowedExcludedFile(fn)) return false;
+        }
+
+        var fileInfo = new FileInfo(file);
+        if (!fileInfo.Exists || fileInfo.Length == 0) return false;
+
+        return true;
+    }
+
+    private static void SortFilesForArchive(List<string> filesToArchive, string sourceDirectory)
+    {
         filesToArchive.Sort((a, b) =>
         {
             string relA = Path.GetRelativePath(sourceDirectory, a).Replace('\\', '/');
@@ -106,7 +111,10 @@ public static class MapArchiveHelper
             if (priorityA != priorityB) return priorityA.CompareTo(priorityB);
             return string.Compare(relA, relB, StringComparison.OrdinalIgnoreCase);
         });
+    }
 
+    private static void WriteFilesToZipArchive(List<string> filesToArchive, string sourceDirectory, string destinationRmapPath, Action<float, string>? progressCallback)
+    {
         using var fileStream = new FileStream(destinationRmapPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
         using var zipArchive = new ZipArchive(fileStream, ZipArchiveMode.Create, leaveOpen: false);
 
@@ -135,15 +143,7 @@ public static class MapArchiveHelper
         {
             var manifest = MapManifest.LoadFromJson(manifestJson);
             if (manifest == null) return null;
-
-            return new RmapHeaderInfo
-            {
-                MapName = manifest.MapName ?? string.Empty,
-                Version = manifest.Version ?? "1.0.0",
-                Author = manifest.Author ?? "Unknown",
-                Description = manifest.Description ?? string.Empty,
-                Tags = manifest.Tags ?? new List<string>()
-            };
+            return ReadHeaderFromManifest(manifest);
         }
         catch
         {
@@ -215,69 +215,31 @@ public static class MapArchiveHelper
             Directory.CreateDirectory(targetDirectory);
         }
 
-        var casFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (manifest.Files != null)
-        {
-            foreach (var kvp in manifest.Files)
-            {
-                string relKey = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? kvp.Key.Substring(6) : kvp.Key;
-                relKey = relKey.TrimStart('/', '\\').Replace('\\', '/');
-                string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
-                casFileMap[relKey] = normHash;
-            }
-        }
+        var casFileMap = BuildCasFileMap(manifest);
 
         var nonDirectoryEntries = zipArchive.Entries
             .Where(e => !(string.IsNullOrWhiteSpace(e.Name) && e.FullName.EndsWith("/")))
             .ToList();
 
-        int totalEntries = Math.Max(1, nonDirectoryEntries.Count);
+        ProcessEntriesWithProgress(nonDirectoryEntries, rootPrefix, targetDirectory, cas, casFileMap, progressCallback);
+        ProcessManifestLinks(manifest, targetDirectory, cas);
+    }
+
+    private static void ProcessEntriesWithProgress(
+        List<ZipArchiveEntry> entries,
+        string rootPrefix,
+        string targetDirectory,
+        ContentAddressableStorage cas,
+        Dictionary<string, string> casFileMap,
+        Action<float>? progressCallback)
+    {
+        int totalEntries = Math.Max(1, entries.Count);
         int processed = 0;
         long lastProgressReportTicks = 0;
 
-        foreach (var entry in nonDirectoryEntries)
+        foreach (var entry in entries)
         {
-            string norm = entry.FullName.Replace('\\', '/');
-            if (!string.IsNullOrEmpty(rootPrefix) && norm.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                norm = norm.Substring(rootPrefix.Length);
-            }
-            norm = norm.TrimStart('/');
-            if (string.IsNullOrEmpty(norm))
-            {
-                processed++;
-                continue;
-            }
-
-            string destFilePath = Path.Combine(targetDirectory, norm.Replace('/', Path.DirectorySeparatorChar));
-
-            if (casFileMap.TryGetValue(norm, out string? normHash) && !string.IsNullOrEmpty(normHash))
-            {
-                if (!cas.HasAsset(normHash))
-                {
-                    using var entryStream = entry.Open();
-                    string ext = Path.GetExtension(norm).ToLowerInvariant();
-                    cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
-                }
-
-                string? casFilePath = cas.FindAssetFilePath(normHash);
-                if (casFilePath != null)
-                {
-                    HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: false);
-                }
-            }
-            else
-            {
-                string? destDir = Path.GetDirectoryName(destFilePath);
-                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
-                {
-                    Directory.CreateDirectory(destDir);
-                }
-
-                using var outStream = new FileStream(destFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
-                using var inStream = entry.Open();
-                inStream.CopyTo(outStream, 81920);
-            }
+            ProcessArchiveEntry(entry, rootPrefix, targetDirectory, cas, casFileMap);
 
             processed++;
             long now = System.Environment.TickCount64;
@@ -287,25 +249,95 @@ public static class MapArchiveHelper
                 progressCallback?.Invoke((float)processed / totalEntries);
             }
         }
+    }
 
-        if (manifest.Files != null)
+    private static void ProcessManifestLinks(MapManifest manifest, string targetDirectory, ContentAddressableStorage cas)
+    {
+        if (manifest.Files == null) return;
+
+        foreach (var kvp in manifest.Files)
         {
-            foreach (var kvp in manifest.Files)
-            {
-                string rel = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? kvp.Key.Substring(6) : kvp.Key;
-                rel = rel.TrimStart('/', '\\').Replace('\\', '/');
-                string destFilePath = Path.Combine(targetDirectory, rel.Replace('/', Path.DirectorySeparatorChar));
-                if (!File.Exists(destFilePath))
-                {
-                    string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
-                    string? casFilePath = cas.FindAssetFilePath(normHash);
-                    if (casFilePath != null)
-                    {
-                        HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: false);
-                    }
-                }
-            }
+            ProcessManifestFileLink(kvp, targetDirectory, cas);
         }
+    }
+
+    private static Dictionary<string, string> BuildCasFileMap(MapManifest manifest)
+    {
+        var casFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (manifest.Files == null) return casFileMap;
+
+        foreach (var kvp in manifest.Files)
+        {
+            string relKey = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? kvp.Key.Substring(6) : kvp.Key;
+            relKey = relKey.TrimStart('/', '\\').Replace('\\', '/');
+            string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
+            casFileMap[relKey] = normHash;
+        }
+
+        return casFileMap;
+    }
+
+    private static void ProcessManifestFileLink(KeyValuePair<string, string> kvp, string targetDirectory, ContentAddressableStorage cas)
+    {
+        string rel = kvp.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? kvp.Key.Substring(6) : kvp.Key;
+        rel = rel.TrimStart('/', '\\').Replace('\\', '/');
+        string destFilePath = Path.Combine(targetDirectory, rel.Replace('/', Path.DirectorySeparatorChar));
+
+        if (File.Exists(destFilePath)) return;
+
+        string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
+        string? casFilePath = cas.FindAssetFilePath(normHash);
+
+        if (casFilePath != null)
+        {
+            HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: false);
+        }
+    }
+
+    private static void ProcessArchiveEntry(
+        ZipArchiveEntry entry,
+        string rootPrefix,
+        string targetDirectory,
+        ContentAddressableStorage cas,
+        Dictionary<string, string> casFileMap)
+    {
+        string norm = entry.FullName.Replace('\\', '/');
+        if (!string.IsNullOrEmpty(rootPrefix) && norm.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            norm = norm.Substring(rootPrefix.Length);
+        }
+
+        norm = norm.TrimStart('/');
+        if (string.IsNullOrEmpty(norm)) return;
+
+        string destFilePath = Path.Combine(targetDirectory, norm.Replace('/', Path.DirectorySeparatorChar));
+
+        if (casFileMap.TryGetValue(norm, out string? normHash) && !string.IsNullOrEmpty(normHash))
+        {
+            if (!cas.HasAsset(normHash))
+            {
+                using var entryStream = entry.Open();
+                string ext = Path.GetExtension(norm).ToLowerInvariant();
+                cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
+            }
+
+            string? casFilePath = cas.FindAssetFilePath(normHash);
+            if (casFilePath != null)
+            {
+                HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: false);
+            }
+            return;
+        }
+
+        string? destDir = Path.GetDirectoryName(destFilePath);
+        if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+        {
+            Directory.CreateDirectory(destDir);
+        }
+
+        using var outStream = new FileStream(destFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
+        using var inStream = entry.Open();
+        inStream.CopyTo(outStream, 81920);
     }
 
     public static void ExtractArchiveIntoCas(string archiveFilePath, ContentAddressableStorage cas, Action<float>? progressCallback = null)
@@ -334,6 +366,12 @@ public static class MapArchiveHelper
 
         using var zipArchive = ZipFile.OpenRead(archiveFilePath);
 
+        var entriesByKey = BuildEntriesMap(zipArchive, rootPrefix);
+        ProcessManifestFilesIntoCas(manifest, entriesByKey, cas, progressCallback);
+    }
+
+    private static Dictionary<string, ZipArchiveEntry> BuildEntriesMap(ZipArchive zipArchive, string rootPrefix)
+    {
         var entriesByKey = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in zipArchive.Entries)
         {
@@ -345,8 +383,16 @@ public static class MapArchiveHelper
             norm = norm.TrimStart('/');
             entriesByKey[norm] = entry;
         }
+        return entriesByKey;
+    }
 
-        int total = manifest.Files.Count;
+    private static void ProcessManifestFilesIntoCas(
+        MapManifest manifest, 
+        Dictionary<string, ZipArchiveEntry> entriesByKey, 
+        ContentAddressableStorage cas, 
+        Action<float>? progressCallback)
+    {
+        int total = manifest.Files!.Count;
         int processed = 0;
 
         foreach (var kvp in manifest.Files)
@@ -359,14 +405,11 @@ public static class MapArchiveHelper
             string hashOrKey = kvp.Value;
             string normHash = ContentAddressableStorage.NormalizeBlake3Hash(hashOrKey);
 
-            if (!cas.HasAsset(normHash))
+            if (!cas.HasAsset(normHash) && entriesByKey.TryGetValue(relPath, out var zipEntry))
             {
-                if (entriesByKey.TryGetValue(relPath, out var zipEntry))
-                {
-                    using var entryStream = zipEntry.Open();
-                    string ext = Path.GetExtension(relPath).ToLowerInvariant();
-                    cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
-                }
+                using var entryStream = zipEntry.Open();
+                string ext = Path.GetExtension(relPath).ToLowerInvariant();
+                cas.StoreAsset(entryStream, ext, precomputedBlake3: normHash);
             }
 
             processed++;
@@ -426,38 +469,8 @@ public static class MapArchiveHelper
         string description = string.Empty;
         var tags = new List<string>();
 
-        string manifestPath = Path.Combine(sourceDirectory, "manifest.json");
-        if (File.Exists(manifestPath))
-        {
-            try
-            {
-                var manifest = Services.MapFileService.LoadManifest(manifestPath);
-                if (!string.IsNullOrWhiteSpace(manifest.MapName)) mapName = manifest.MapName.Trim();
-                if (!string.IsNullOrWhiteSpace(manifest.Version)) version = manifest.Version.Trim();
-                if (!string.IsNullOrWhiteSpace(manifest.Author)) author = manifest.Author.Trim();
-                if (!string.IsNullOrWhiteSpace(manifest.Description)) description = manifest.Description;
-                if (manifest.Tags != null) tags.AddRange(manifest.Tags);
-            }
-            catch
-            {
-            }
-        }
-
-        string metadataPath = Path.Combine(sourceDirectory, "metadata.json");
-        if (File.Exists(metadataPath))
-        {
-            try
-            {
-                var metadata = Services.MapFileService.LoadMetadata(metadataPath);
-                if (!string.IsNullOrWhiteSpace(metadata.GameBuildNumber))
-                {
-                    gameBuildNumber = metadata.GameBuildNumber.Trim();
-                }
-            }
-            catch
-            {
-            }
-        }
+        ApplyManifestToHeaderInfo(sourceDirectory, ref mapName, ref version, ref author, ref description, tags);
+        ApplyMetadataToHeaderInfo(sourceDirectory, ref gameBuildNumber);
 
         return new RmapHeaderInfo
         {
@@ -468,6 +481,49 @@ public static class MapArchiveHelper
             Description = description,
             Tags = tags
         };
+    }
+
+    private static void ApplyManifestToHeaderInfo(
+        string sourceDirectory,
+        ref string mapName,
+        ref string version,
+        ref string author,
+        ref string description,
+        List<string> tags)
+    {
+        string manifestPath = Path.Combine(sourceDirectory, "manifest.json");
+        if (!File.Exists(manifestPath)) return;
+
+        try
+        {
+            var manifest = Services.MapFileService.LoadManifest(manifestPath);
+            if (!string.IsNullOrWhiteSpace(manifest.MapName)) mapName = manifest.MapName.Trim();
+            if (!string.IsNullOrWhiteSpace(manifest.Version)) version = manifest.Version.Trim();
+            if (!string.IsNullOrWhiteSpace(manifest.Author)) author = manifest.Author.Trim();
+            if (!string.IsNullOrWhiteSpace(manifest.Description)) description = manifest.Description;
+            if (manifest.Tags != null) tags.AddRange(manifest.Tags);
+        }
+        catch
+        {
+        }
+    }
+
+    private static void ApplyMetadataToHeaderInfo(string sourceDirectory, ref string gameBuildNumber)
+    {
+        string metadataPath = Path.Combine(sourceDirectory, "metadata.json");
+        if (!File.Exists(metadataPath)) return;
+
+        try
+        {
+            var metadata = Services.MapFileService.LoadMetadata(metadataPath);
+            if (!string.IsNullOrWhiteSpace(metadata.GameBuildNumber))
+            {
+                gameBuildNumber = metadata.GameBuildNumber.Trim();
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static int GetFilePriority(string relPath)

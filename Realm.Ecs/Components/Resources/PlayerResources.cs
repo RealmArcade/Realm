@@ -5,4 +5,4 @@ namespace Realm.Ecs.Components.Resources;
 /// <summary>
 ///     A component holding all resource amounts for a player entity.
 /// </summary>
-internal record struct PlayerResources(Dictionary<ResourceId, int> Value);
+public record struct PlayerResources(Dictionary<ResourceId, int> Value);

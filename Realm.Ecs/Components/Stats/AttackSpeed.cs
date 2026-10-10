@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Stats;
 ///     Represents the Attack Speed stat.
 /// </summary>
 [StatDefinition("AttackSpeed", "Attack Speed", "The speed at which attacks are performed.")]
-internal readonly record struct AttackSpeed;
+public readonly record struct AttackSpeed;

@@ -62,12 +62,12 @@ jobs:
           SERVERS_JSON: ${{ vars.SERVERS_JSON }}
         run: |
           if ($env:SERVERS_JSON -and $env:SERVERS_JSON.Trim() -ne "") {
-            Set-Content -Path "Realm.Godot\servers.json" -Value $env:SERVERS_JSON -Encoding utf8
-            Write-Host "Successfully injected SERVERS_JSON variable into Realm.Godot\servers.json"
+            Set-Content -Path "Realm.Client\servers.json" -Value $env:SERVERS_JSON -Encoding utf8
+            Write-Host "Successfully injected SERVERS_JSON variable into Realm.Client\servers.json"
           } else {
-            Write-Host "SERVERS_JSON variable not set; falling back to Realm.Godot\servers.template.json."
-            if (Test-Path "Realm.Godot\servers.template.json") {
-              Copy-Item -Path "Realm.Godot\servers.template.json" -Destination "Realm.Godot\servers.json" -Force
+            Write-Host "SERVERS_JSON variable not set; falling back to Realm.Client\servers.template.json."
+            if (Test-Path "Realm.Client\servers.template.json") {
+              Copy-Item -Path "Realm.Client\servers.template.json" -Destination "Realm.Client\servers.json" -Force
             }
           }
 
@@ -76,14 +76,14 @@ jobs:
         run: |
           $consoleExe = (Get-ChildItem -Path "C:\Users\runneradmin\godot" -Filter "*console.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName)
           if (-not $consoleExe) { $consoleExe = "godot" }
-          & $consoleExe --headless --path Realm.Godot --editor --quit
+          & $consoleExe --headless --path Realm.Client --editor --quit
 
       - name: Export Godot Release
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         run: |
           $consoleExe = (Get-ChildItem -Path "C:\Users\runneradmin\godot" -Filter "*console.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName)
           if (-not $consoleExe) { $consoleExe = "godot" }
-          & $consoleExe --headless --path Realm.Godot --export-release "Windows Desktop" "$PWD\publish\Realm.exe"
+          & $consoleExe --headless --path Realm.Client --export-release "Windows Desktop" "$PWD\publish\Realm.exe"
 
       - name: Copy Realm.Tools.Cli to Publish Directory
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
@@ -107,10 +107,10 @@ jobs:
       - name: Copy servers.json to Publish Directory
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         run: |
-          if (Test-Path "Realm.Godot\servers.json") {
-            Copy-Item -Path "Realm.Godot\servers.json" -Destination "$PWD\publish\servers.json" -Force
-          } elseif (Test-Path "Realm.Godot\servers.template.json") {
-            Copy-Item -Path "Realm.Godot\servers.template.json" -Destination "$PWD\publish\servers.json" -Force
+          if (Test-Path "Realm.Client\servers.json") {
+            Copy-Item -Path "Realm.Client\servers.json" -Destination "$PWD\publish\servers.json" -Force
+          } elseif (Test-Path "Realm.Client\servers.template.json") {
+            Copy-Item -Path "Realm.Client\servers.template.json" -Destination "$PWD\publish\servers.json" -Force
           }
 
       - name: Create 7z Ultra Archive

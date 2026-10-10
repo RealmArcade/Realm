@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -17,15 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Realm.Client\Realm.Client.csproj" />
     <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
-    <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
     <ProjectReference Include="..\Realm.MapAPI\Realm.MapAPI.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\Realm.Godot\NavMeshPathfinder.cs" Link="Linked\NavMeshPathfinder.cs" />
-    <Compile Include="..\Realm.Godot\Services\MovementAndPathfindingService.cs" Link="Linked\MovementAndPathfindingService.cs" />
-    <Compile Include="..\Realm.Godot\Services\CombatAndDamageService.cs" Link="Linked\CombatAndDamageService.cs" />
-    <Compile Include="..\Realm.Godot\Services\ServiceLocator.cs" Link="Linked\ServiceLocator.cs" />
   </ItemGroup>
 </Project>

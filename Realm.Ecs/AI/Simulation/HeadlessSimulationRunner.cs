@@ -7,23 +7,9 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using System;
-using System.Collections.Generic;
 using System.Numerics;
 
 namespace Realm.Ecs.AI.Simulation;
-
-public delegate int? WinConditionEvaluator(World world, float matchDurationSeconds);
-public delegate void MapSimulationInitializer(World world);
-
-public class SimulationMatchResult
-{
-	public int WinnerPlayerIndex { get; set; } = -1;
-	public int TotalTicksExecuted { get; set; }
-	public float MatchDurationSeconds { get; set; }
-	public int Player0UnitsBuilt { get; set; }
-	public int Player1UnitsBuilt { get; set; }
-}
 
 public class HeadlessSimulationRunner
 {
@@ -216,6 +202,31 @@ public class HeadlessSimulationRunner
 		});
 	}
 
+	private int? CheckEarlyWinCondition(WinConditionEvaluator? winConditionEvaluator, float currentDuration)
+	{
+		if (winConditionEvaluator != null)
+		{
+			return winConditionEvaluator(_world, currentDuration);
+		}
+
+		int p0Alive = CountAliveUnits(0);
+		int p1Alive = CountAliveUnits(1);
+
+		if (p0Alive == 0 || p1Alive == 0)
+		{
+			return p0Alive > 0 ? 0 : (p1Alive > 0 ? 1 : -1);
+		}
+
+		return null;
+	}
+
+	private int EvaluateFinalWinner()
+	{
+		int finalP0Count = CountAliveUnits(0);
+		int finalP1Count = CountAliveUnits(1);
+		return finalP0Count > finalP1Count ? 0 : (finalP1Count > finalP0Count ? 1 : -1);
+	}
+
 	public SimulationMatchResult RunMatch(
 		float[] p0Weights,
 		float[] p1Weights,
@@ -239,48 +250,24 @@ public class HeadlessSimulationRunner
 			Tick(fixedDelta, p0Weights, p1Weights, p0Temperature, p1Temperature);
 
 			float currentDuration = (tick + 1) * fixedDelta;
-			if (winConditionEvaluator != null)
+			int? winner = CheckEarlyWinCondition(winConditionEvaluator, currentDuration);
+			
+			if (winner.HasValue)
 			{
-				int? customWinner = winConditionEvaluator(_world, currentDuration);
-				if (customWinner.HasValue)
+				return new SimulationMatchResult
 				{
-					return new SimulationMatchResult
-					{
-						WinnerPlayerIndex = customWinner.Value,
-						TotalTicksExecuted = tick + 1,
-						MatchDurationSeconds = currentDuration,
-						Player0UnitsBuilt = 0,
-						Player1UnitsBuilt = 0
-					};
-				}
-			}
-			else
-			{
-				int p0Alive = CountAliveUnits(0);
-				int p1Alive = CountAliveUnits(1);
-
-				if (p0Alive == 0 || p1Alive == 0)
-				{
-					int winner = p0Alive > 0 ? 0 : (p1Alive > 0 ? 1 : -1);
-					return new SimulationMatchResult
-					{
-						WinnerPlayerIndex = winner,
-						TotalTicksExecuted = tick + 1,
-						MatchDurationSeconds = currentDuration,
-						Player0UnitsBuilt = 0,
-						Player1UnitsBuilt = 0
-					};
-				}
+					WinnerPlayerIndex = winner.Value,
+					TotalTicksExecuted = tick + 1,
+					MatchDurationSeconds = currentDuration,
+					Player0UnitsBuilt = 0,
+					Player1UnitsBuilt = 0
+				};
 			}
 		}
 
-		int finalP0Count = CountAliveUnits(0);
-		int finalP1Count = CountAliveUnits(1);
-		int finalWinner = finalP0Count > finalP1Count ? 0 : (finalP1Count > finalP0Count ? 1 : -1);
-
 		return new SimulationMatchResult
 		{
-			WinnerPlayerIndex = finalWinner,
+			WinnerPlayerIndex = EvaluateFinalWinner(),
 			TotalTicksExecuted = maxTicks,
 			MatchDurationSeconds = maxTicks * fixedDelta,
 			Player0UnitsBuilt = 0,

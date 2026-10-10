@@ -5,4 +5,4 @@ namespace Realm.Ecs.Components.Movement;
 ///     Uses the same bit layout as <see cref="Realm.Ecs.Components.Terrain.TerrainPathingFlags"/>
 ///     (bit 1 = shallow water, bit 2 = deep water, bit 4 = flying/air, bit 8 = ground).
 /// </summary>
-internal record struct PathingFlags(int Value);
+public record struct PathingFlags(int Value);

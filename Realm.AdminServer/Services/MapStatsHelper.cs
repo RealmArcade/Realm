@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 namespace Realm.AdminServer.Services;
 
 public static class MapStatsHelper
@@ -17,33 +15,81 @@ public static class MapStatsHelper
         string authorCompositeKey = !string.IsNullOrEmpty(authorPublicKey) ? $"{trimmedTitle}_{trimmedVersion}_{authorPublicKey.Trim()}" : compositeKey;
         string authorKey = !string.IsNullOrEmpty(authorPublicKey) ? $"{trimmedTitle}_{authorPublicKey.Trim()}" : trimmedTitle;
 
-        var stats = (!string.IsNullOrEmpty(authorPublicKey) ? dataStore.Get<MapStats>("map_stats", authorCompositeKey) : null)
-            ?? (!string.IsNullOrEmpty(authorPublicKey) ? dataStore.Get<MapStats>("map_stats", authorKey) : null)
-            ?? dataStore.Get<MapStats>("map_stats", compositeKey)
-            ?? dataStore.Get<MapStats>("map_stats", trimmedTitle)
-            ?? (!string.IsNullOrEmpty(authorPublicKey) ? dataStore.Get<MapStats>("map_stats", authorCompositeKey.ToLowerInvariant()) : null)
-            ?? (!string.IsNullOrEmpty(authorPublicKey) ? dataStore.Get<MapStats>("map_stats", authorKey.ToLowerInvariant()) : null)
-            ?? dataStore.Get<MapStats>("map_stats", compositeKey.ToLowerInvariant())
-            ?? dataStore.Get<MapStats>("map_stats", trimmedTitle.ToLowerInvariant());
+        var keys = BuildKeys(authorCompositeKey, authorKey, compositeKey, trimmedTitle, authorPublicKey);
 
-        if (stats != null)
+        var exactStats = FindExactMatch(dataStore, keys);
+        if (exactStats != null)
         {
-            return stats;
+            return exactStats;
         }
 
+        var lowerStats = FindLowerMatch(dataStore, keys);
+        if (lowerStats != null)
+        {
+            return lowerStats;
+        }
+
+        return FindCaseInsensitiveMatch(dataStore, keys);
+    }
+
+    private static string[] BuildKeys(string authorCompositeKey, string authorKey, string compositeKey, string trimmedTitle, string? authorPublicKey)
+    {
+        if (!string.IsNullOrEmpty(authorPublicKey))
+        {
+            return new[] { authorCompositeKey, authorKey, compositeKey, trimmedTitle };
+        }
+        return new[] { compositeKey, trimmedTitle };
+    }
+
+    private static MapStats? FindExactMatch(DataStoreService dataStore, string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var stats = dataStore.Get<MapStats>("map_stats", key);
+            if (stats != null)
+            {
+                return stats;
+            }
+        }
+        return null;
+    }
+
+    private static MapStats? FindLowerMatch(DataStoreService dataStore, string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var stats = dataStore.Get<MapStats>("map_stats", key.ToLowerInvariant());
+            if (stats != null)
+            {
+                return stats;
+            }
+        }
+        return null;
+    }
+
+    private static MapStats? FindCaseInsensitiveMatch(DataStoreService dataStore, string[] keys)
+    {
         var allStats = dataStore.GetAllWithKeys<MapStats>("map_stats");
         foreach (var pair in allStats)
         {
-            if (string.Equals(pair.Key, authorCompositeKey, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(pair.Key, authorKey, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(pair.Key, compositeKey, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(pair.Key, trimmedTitle, StringComparison.OrdinalIgnoreCase))
+            if (IsKeyMatch(pair.Key, keys))
             {
                 return pair.Value;
             }
         }
-
         return null;
+    }
+
+    private static bool IsKeyMatch(string pairKey, string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (string.Equals(pairKey, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static bool IsMapGreenlit(DataStoreService dataStore, string mapTitle, string? mapVersion = null, string? authorPublicKey = null)
