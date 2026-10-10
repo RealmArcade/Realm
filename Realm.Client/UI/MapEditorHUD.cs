@@ -303,16 +303,16 @@ public partial class MapEditorHUD : Control
     private Button _btnPaste;
     private Control _stepBox;
     private Button _btnToggleSnap;
-    private Button _btnToggleGrid;
-    private PopupMenu _popupOverlayMode;
-    private Button _btnToggleEnvironment;
-    private PopupPanel _popupEnvironment;
-    private OptionButton _optEnvLighting;
-    private OptionButton _optEnvWeather;
-    private CheckBox _chkEnvShadows;
-    private Button _btnBrushShape;
-    private Button _btnResetMap;
-    private Button _btnGenerateMap;
+    private Button _btnToggleGrid { get; set; }
+    private PopupMenu _popupOverlayMode { get; set; }
+    private Button _btnToggleEnvironment { get; set; }
+    private PopupPanel _popupEnvironment { get; set; }
+    private OptionButton _optEnvLighting { get; set; }
+    private OptionButton _optEnvWeather { get; set; }
+    private CheckBox _chkEnvShadows { get; set; }
+    private Button _btnBrushShape { get; set; }
+    private Button _btnResetMap { get; set; }
+    private Button _btnGenerateMap { get; set; }
     private Button _btnRandomGen;
     private PopupPanel _popupRandomGen;
     private Button _btnSaveMore;
