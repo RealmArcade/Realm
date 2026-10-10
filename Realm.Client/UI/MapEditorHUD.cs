@@ -1,3 +1,4 @@
+using Realm.Ecs.Services;
 using Godot;
 using NSec.Cryptography;
 using Realm.EditorAPI;
@@ -24,9 +25,9 @@ namespace Realm.Client.UI;
 
 public partial class MapEditorHUD : Control
 {
-    public static MapEditorHUD Instance;
-    public static string CurrentDirectoryBlake3 = string.Empty;
-    public static bool IsDraggingSlider = false;
+    public static MapEditorHUD Instance { get; set; }
+    public static string CurrentDirectoryBlake3 { get => ServiceLocator.Get<WorldAccessor>().CurrentDirectoryBlake3; set => ServiceLocator.Get<WorldAccessor>().CurrentDirectoryBlake3 = value; }
+    public static bool IsDraggingSlider { get; set; } = false;
     public static bool IsTestMode { get => ServiceLocator.Get<EditorService>().IsTestMode; set => ServiceLocator.Get<EditorService>().IsTestMode = value; }
     public static bool ReturningFromTest { get => ServiceLocator.Get<EditorService>().ReturningFromTest; set => ServiceLocator.Get<EditorService>().ReturningFromTest = value; }
 
@@ -38,10 +39,10 @@ public partial class MapEditorHUD : Control
     public static float SavedTargetPitch { get => ServiceLocator.Get<EditorService>().SavedTargetPitch; set => ServiceLocator.Get<EditorService>().SavedTargetPitch = value; }
     public static float SavedCurrentPitch { get => ServiceLocator.Get<EditorService>().SavedCurrentPitch; set => ServiceLocator.Get<EditorService>().SavedCurrentPitch = value; }
     public static bool SavedIsTopDown { get => ServiceLocator.Get<EditorService>().SavedIsTopDown; set => ServiceLocator.Get<EditorService>().SavedIsTopDown = value; }
-    public static float SavedYawSwing;
-    public static float SavedPitchSwing;
+    public static float SavedYawSwing { get => ServiceLocator.Get<EditorService>().SavedYawSwing; set => ServiceLocator.Get<EditorService>().SavedYawSwing = value; }
+    public static float SavedPitchSwing { get => ServiceLocator.Get<EditorService>().SavedPitchSwing; set => ServiceLocator.Get<EditorService>().SavedPitchSwing = value; }
 
-    public static Realm.Client.Core.GameHost.GridOverlayMode SavedGridMode = Realm.Client.Core.GameHost.GridOverlayMode.Off;
+    public static Realm.Client.Core.GameHost.GridOverlayMode SavedGridMode { get => ServiceLocator.Get<EditorService>().SavedGridMode; set => ServiceLocator.Get<EditorService>().SavedGridMode = value; }
     public static Realm.Client.Core.GameHost.EditorTool SavedActiveTool { get => ServiceLocator.Get<EditorService>().SavedActiveTool; set => ServiceLocator.Get<EditorService>().SavedActiveTool = value; }
     public static string SavedActivePlaceId { get => ServiceLocator.Get<EditorService>().SavedActivePlaceId; set => ServiceLocator.Get<EditorService>().SavedActivePlaceId = value; }
     public static bool SavedCameraBoundsVisible { get => ServiceLocator.Get<EditorService>().SavedCameraBoundsVisible; set => ServiceLocator.Get<EditorService>().SavedCameraBoundsVisible = value; }
@@ -80,11 +81,11 @@ public partial class MapEditorHUD : Control
     private VBoxContainer _accordionContainer { get; set; }
 
     private bool _leftPanelExpanded { get; set; } = false;
-    private bool _rightPanelExpanded = true;
+    private bool _rightPanelExpanded { get; set; } = true;
 
-    private OptionButton _optModule;
-    private Button _btnGameSettings;
-    private EditorModule _activeModule = EditorModule.Terrain;
+    private OptionButton _optModule { get; set; }
+    private Button _btnGameSettings { get; set; }
+    private EditorModule _activeModule { get; set; } = EditorModule.Terrain;
 
     private VBoxContainer _accordionBrush;
     private Button _btnHeaderBrush;

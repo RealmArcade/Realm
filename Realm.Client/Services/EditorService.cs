@@ -29,6 +29,9 @@ public class EditorService : IEditorAPI
     public float SavedTargetPitch { get; set; }
     public float SavedCurrentPitch { get; set; }
     public bool SavedIsTopDown { get; set; }
+    public float SavedYawSwing { get; set; }
+    public float SavedPitchSwing { get; set; }
+    public Realm.Client.Core.GameHost.GridOverlayMode SavedGridMode { get; set; } = Realm.Client.Core.GameHost.GridOverlayMode.Off;
 
 	public double AutoBackupElapsedSeconds { get; set; } = 0;
 	public string TempWorkspaceGodotPath { get; set; } = Realm.Client.Services.MapWorkspaceService.DefaultWorkspaceGodotPath;
