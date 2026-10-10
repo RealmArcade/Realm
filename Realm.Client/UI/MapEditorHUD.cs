@@ -196,15 +196,15 @@ public partial class MapEditorHUD : Control
     public bool Is3DInteractionActive => _is3DInteractionActive;
     private readonly Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters = new();
 
-    private PanelContainer _panelTextures;
-    private PanelContainer _panelEntityPalette;
-    private PanelContainer _panelTerrain;
-    private PanelContainer _panelDeco;
-    private PanelContainer _panelEnv;
+    private PanelContainer _panelTextures { get; set; }
+    private PanelContainer _panelEntityPalette { get; set; }
+    private PanelContainer _panelTerrain { get; set; }
+    private PanelContainer _panelDeco { get; set; }
+    private PanelContainer _panelEnv { get; set; }
 
-    private Button _btnBackToHub;
-    private Button _btnPublish;
-    private Button _btnSave;
+    private Button _btnBackToHub { get; set; }
+    private Button _btnPublish { get; set; }
+    private Button _btnSave { get; set; }
     private Button _btnSaveAs { get; set; }
     private Button _btnTestMap { get; set; }
     private Button _btnExportMap { get; set; }
@@ -252,8 +252,8 @@ public partial class MapEditorHUD : Control
     private Button _btnWaterProfiles { get; set; }
     private Realm.Client.UI.MapEditor.WaterProfileDialog _waterProfileDialog { get; set; }
     private Realm.Client.UI.MapEditor.EnvironmentConfigDialog _environmentConfigDialog { get; set; }
-    private Realm.Client.UI.MapEditor.EntityVisualEditDialog _entityVisualEditDialog;
-    private Realm.Client.UI.MapEditor.AnimationPreviewDialog _animationPreviewDialog;
+    private Realm.Client.UI.MapEditor.EntityVisualEditDialog _entityVisualEditDialog { get; set; }
+    private Realm.Client.UI.MapEditor.AnimationPreviewDialog _animationPreviewDialog { get; set; }
     private Realm.Client.UI.MapEditor.WeaponVfxDialog _weaponVfxDialog;
     private Realm.Client.UI.MapEditor.ModelPickerDialog _modelPickerDialog;
     private Realm.Client.UI.MapEditor.AbilityVfxDialog _abilityVfxDialog;
