@@ -18,6 +18,7 @@ public class EditorService : IEditorAPI
 {
 	public static readonly float[] PolarRingSpacingOptions = new[] { 4.0f, 8.0f, 16.0f, 32.0f };
 	public bool IsSyncing { get; set; } = false;
+	public bool IsMapEditorMode { get; set; }
 
     public bool IsTestMode { get; set; } = false;
     public bool ReturningFromTest { get; set; } = false;

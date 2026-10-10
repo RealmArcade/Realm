@@ -21,6 +21,8 @@ public class SaveLoadService
 
 	private List<CoordinateSaveData> _lastLoadedCoordinates = new();
 
+	public bool IsLoadingMap { get; set; }
+
 	public SaveLoadService(WorldAccessor ecsWorldAccessor)
 	{
 		_ecsWorldAccessor = ecsWorldAccessor;

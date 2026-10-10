@@ -275,7 +275,7 @@ public partial class GameHost : Node3D, IGameAPI
 		set { if (_inputService != null) _inputService.ActiveCommandTargeting = value; }
 	}
 
-	public Realm.Client.Prop3D? SelectedProp;
+	public Realm.Client.Prop3D? SelectedProp { get; set; }
 
 	public string? ActiveBuildingPlacementType
 	{
@@ -308,13 +308,25 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 
-	private MeshInstance3D? _buildingPreviewMesh;
+	private MeshInstance3D? _buildingPreviewMesh { get; set; }
 
 
-	public bool IsMapEditorMode;
-	public bool IsLoadingMap;
-	public bool IsGameOver;
-	private Realm.Client.RuntimeTerrain _groundTerrain;
+	public bool IsMapEditorMode
+	{
+		get => _editorService.IsMapEditorMode;
+		set => _editorService.IsMapEditorMode = value;
+	}
+	public bool IsLoadingMap
+	{
+		get => _saveLoadService.IsLoadingMap;
+		set => _saveLoadService.IsLoadingMap = value;
+	}
+	public bool IsGameOver
+	{
+		get => ServiceLocator.Get<WorldAccessor>().IsGameOver;
+		set => ServiceLocator.Get<WorldAccessor>().IsGameOver = value;
+	}
+	private Realm.Client.RuntimeTerrain _groundTerrain { get; set; }
 	public Realm.Client.RuntimeTerrain GroundTerrain
 	{
 		get
@@ -334,10 +346,10 @@ public partial class GameHost : Node3D, IGameAPI
 			}
 		}
 	}
-	private MeshInstance3D? _brushIndicatorMesh;
-	private MeshInstance3D? _cameraBoundsOverlayMesh;
-	private readonly List<Vector3> _pathingVerticesCache = new();
-	private readonly List<Color> _pathingColorsCache = new();
+	private MeshInstance3D? _brushIndicatorMesh { get; set; }
+	private MeshInstance3D? _cameraBoundsOverlayMesh { get; set; }
+	private List<Vector3> _pathingVerticesCache { get; set; } = new();
+	private List<Color> _pathingColorsCache { get; set; } = new();
 	private readonly List<int> _pathingIndicesCache = new();
 	private bool _pathingOverlayVisible = true;
 	public bool PathingOverlayVisible
