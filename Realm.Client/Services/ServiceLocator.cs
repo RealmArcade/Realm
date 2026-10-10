@@ -82,6 +82,9 @@ namespace Realm.Client.Services
 				return new SimulationService(sp.GetRequiredService<WorldAccessor>(), Entity.Null, pathfinder);
 			});
 
+			services.AddSingleton<TimerService>();
+			services.AddSingleton<RandomService>();
+
 			_provider = services.BuildServiceProvider();
 		}
 

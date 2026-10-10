@@ -1152,8 +1152,8 @@ public static void EnsureMapProjectFiles(string mapDir)
 		}).CallDeferred();
 	}
 
-	private readonly Dictionary<int, Label3D> _staticTextLabels = new();
-	private int _nextStaticTextHandle = 1;
+	private Dictionary<int, Label3D> _staticTextLabels { get; set; } = new();
+	private int _nextStaticTextHandle { get; set; } = 1;
 
 	public void PanCameraInternal(Vector3 position, float duration)
 	{
@@ -1175,10 +1175,10 @@ public static void EnsureMapProjectFiles(string mapDir)
 		}).CallDeferred();
 	}
 
-	private int _nextTimerHandle;
-	private readonly Dictionary<int, (float Interval, float Remaining, bool Repeating, Action Callback)> _scheduledTimers = new();
+	private int _nextTimerHandle { get => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.TimerService>().NextTimerHandle; set => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.TimerService>().NextTimerHandle = value; }
+	private Dictionary<int, (float Interval, float Remaining, bool Repeating, Action Callback)> _scheduledTimers => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.TimerService>().ScheduledTimers;
 
-	private static readonly Random Rng = new();
+	private static Random Rng => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.RandomService>().Rng;
 
 	private void SyncPlayerResourceEcs(int playerIndex, float goldAmount)
 	{
@@ -1634,14 +1634,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 		return true;
 	}
 
-	private List<Realm.Client.Unit3D>[] _controlGroups = new List<Realm.Client.Unit3D>[10];
+	private List<Realm.Client.Unit3D>[] _controlGroups { get; set; } = new List<Realm.Client.Unit3D>[10];
 	public List<Realm.Client.Unit3D>[] ControlGroups => _controlGroups;
-	private double[] _lastGroupPressTime = new double[10];
+	private double[] _lastGroupPressTime { get; set; } = new double[10];
 
 
-	private bool _isDragging;
-	private Vector2 _dragStart;
-	private Vector2 _dragEnd;
+	private bool _isDragging { get; set; }
+	private Vector2 _dragStart { get; set; }
+	private Vector2 _dragEnd { get; set; }
 	private const float DragThreshold = 8f;
 
 	public override void _Ready()
