@@ -2728,8 +2728,8 @@ namespace Realm.Client.UI
                 if (mouseEvent.ButtonIndex == MouseButton.Left)
                 {
                     bool isShift = Input.IsKeyPressed(global::Godot.Key.Shift);
-                    bool cliffChecked = _chkApplyCliffTexture != null && _chkApplyCliffTexture.ButtonPressed;
-                    bool groundUnchecked = _chkApplyGroundTexture == null || !_chkApplyGroundTexture.ButtonPressed;
+                    bool cliffChecked = ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed;
+                    bool groundUnchecked = ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed;
                     
                     if (isShift || (cliffChecked && groundUnchecked))
                     {

@@ -216,23 +216,23 @@ namespace Realm.Client.UI
                     editorsVBox.AddChild(_btnVSCode);
                 }
 
-                _btnAssetsManager = new Button();
-                _btnAssetsManager.Name = "BtnAssetsManager";
-                SetupOptionButton(_btnAssetsManager, $"{UnicodeIcons.CUBE} ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
-                _btnAssetsManager.Pressed += () => _popupEditors.Hide();
-                editorsVBox.AddChild(_btnAssetsManager);
+                BtnAssetsManager = new Button();
+                BtnAssetsManager.Name = "BtnAssetsManager";
+                SetupOptionButton(BtnAssetsManager, $"{UnicodeIcons.CUBE} ASSETS", () => _assetManagerDialog?.OpenDialog(), 13, "Open Map Assets Manager & Importer");
+                BtnAssetsManager.Pressed += () => _popupEditors.Hide();
+                editorsVBox.AddChild(BtnAssetsManager);
 
-                _btnTemplateManager = new Button();
-                _btnTemplateManager.Name = "BtnTemplateManager";
-                SetupOptionButton(_btnTemplateManager, $"{UnicodeIcons.CUBES} TEMPLATES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
-                _btnTemplateManager.Pressed += () => _popupEditors.Hide();
-                editorsVBox.AddChild(_btnTemplateManager);
+                BtnTemplateManager = new Button();
+                BtnTemplateManager.Name = "BtnTemplateManager";
+                SetupOptionButton(BtnTemplateManager, $"{UnicodeIcons.CUBES} TEMPLATES", () => OpenTemplateManagerDialog(), 13, "Open dialog to manage object template types and visual properties");
+                BtnTemplateManager.Pressed += () => _popupEditors.Hide();
+                editorsVBox.AddChild(BtnTemplateManager);
 
-                _btnInstanceManager = new Button();
-                _btnInstanceManager.Name = "BtnInstanceManager";
-                SetupOptionButton(_btnInstanceManager, $"{UnicodeIcons.LIST} INSTANCES", () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
-                _btnInstanceManager.Pressed += () => _popupEditors.Hide();
-                editorsVBox.AddChild(_btnInstanceManager);
+                BtnInstanceManager = new Button();
+                BtnInstanceManager.Name = "BtnInstanceManager";
+                SetupOptionButton(BtnInstanceManager, $"{UnicodeIcons.LIST} INSTANCES", () => OpenInstanceManagerDialog(), 13, "Open dialog to list and locate all placed instances");
+                BtnInstanceManager.Pressed += () => _popupEditors.Hide();
+                editorsVBox.AddChild(BtnInstanceManager);
 
                 _btnEditors = GetNodeOrNull<Button>("TopLeftBox/BtnEditors") ?? GetNodeOrNull<Button>("TopLeftBox/BtnVSCode");
                 if (_btnEditors == null)
@@ -1132,65 +1132,65 @@ namespace Realm.Client.UI
                 _lblTerrainTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblTerrainTexture");
                 _lblCliffTexture = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/LblCliffTexture");
 
-                _chkApplyGroundTexture = new CheckBox();
-                _chkApplyGroundTexture.Name = "ChkApplyGroundTexture";
-                _chkApplyGroundTexture.Text = TranslationServer.Translate("Ground");
-                _chkApplyGroundTexture.ButtonPressed = true;
-                _chkApplyGroundTexture.FocusMode = Control.FocusModeEnum.None;
-                _chkApplyGroundTexture.AddThemeFontSizeOverride("font_size", 10);
-                UIStyle.ApplyCheckboxStyle(_chkApplyGroundTexture);
+                ChkApplyGroundTexture = new CheckBox();
+                ChkApplyGroundTexture.Name = "ChkApplyGroundTexture";
+                ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground");
+                ChkApplyGroundTexture.ButtonPressed = true;
+                ChkApplyGroundTexture.FocusMode = Control.FocusModeEnum.None;
+                ChkApplyGroundTexture.AddThemeFontSizeOverride("font_size", 10);
+                UIStyle.ApplyCheckboxStyle(ChkApplyGroundTexture);
 
-                _chkApplyCliffTexture = new CheckBox();
-                _chkApplyCliffTexture.Name = "ChkApplyCliffTexture";
-                _chkApplyCliffTexture.Text = TranslationServer.Translate("Cliff");
-                _chkApplyCliffTexture.ButtonPressed = true;
-                _chkApplyCliffTexture.FocusMode = Control.FocusModeEnum.None;
-                _chkApplyCliffTexture.AddThemeFontSizeOverride("font_size", 10);
-                UIStyle.ApplyCheckboxStyle(_chkApplyCliffTexture);
+                ChkApplyCliffTexture = new CheckBox();
+                ChkApplyCliffTexture.Name = "ChkApplyCliffTexture";
+                ChkApplyCliffTexture.Text = TranslationServer.Translate("Cliff");
+                ChkApplyCliffTexture.ButtonPressed = true;
+                ChkApplyCliffTexture.FocusMode = Control.FocusModeEnum.None;
+                ChkApplyCliffTexture.AddThemeFontSizeOverride("font_size", 10);
+                UIStyle.ApplyCheckboxStyle(ChkApplyCliffTexture);
 
-                _chkApplyGroundTexture.Toggled += (toggled) =>
+                ChkApplyGroundTexture.Toggled += (toggled) =>
                 {
-                    if (!toggled && (_chkApplyCliffTexture == null || !_chkApplyCliffTexture.ButtonPressed))
+                    if (!toggled && (ChkApplyCliffTexture == null || !ChkApplyCliffTexture.ButtonPressed))
                     {
-                        _chkApplyCliffTexture.SetPressedNoSignal(true);
+                        ChkApplyCliffTexture.SetPressedNoSignal(true);
                     }
                     UpdateTextureLabels();
                 };
 
-                _chkApplyCliffTexture.Toggled += (toggled) =>
+                ChkApplyCliffTexture.Toggled += (toggled) =>
                 {
-                    if (!toggled && (_chkApplyGroundTexture == null || !_chkApplyGroundTexture.ButtonPressed))
+                    if (!toggled && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
                     {
-                        _chkApplyGroundTexture.SetPressedNoSignal(true);
+                        ChkApplyGroundTexture.SetPressedNoSignal(true);
                     }
                     UpdateTextureLabels();
                 };
 
                 if (_containerTextureSettings != null && _lblTerrainTexture != null && _lblCliffTexture != null)
                 {
-                    _rowGroundTexture = new HBoxContainer();
-                    _rowGroundTexture.Name = "RowGroundTexture";
-                    _rowGroundTexture.AddThemeConstantOverride("separation", 6);
+                    RowGroundTexture = new HBoxContainer();
+                    RowGroundTexture.Name = "RowGroundTexture";
+                    RowGroundTexture.AddThemeConstantOverride("separation", 6);
 
                     int idxTerrain = _lblTerrainTexture.GetIndex();
                     _containerTextureSettings.RemoveChild(_lblTerrainTexture);
-                    _rowGroundTexture.AddChild(_lblTerrainTexture);
+                    RowGroundTexture.AddChild(_lblTerrainTexture);
                     _lblTerrainTexture.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-                    _rowGroundTexture.AddChild(_chkApplyGroundTexture);
-                    _containerTextureSettings.AddChild(_rowGroundTexture);
-                    _containerTextureSettings.MoveChild(_rowGroundTexture, idxTerrain);
+                    RowGroundTexture.AddChild(ChkApplyGroundTexture);
+                    _containerTextureSettings.AddChild(RowGroundTexture);
+                    _containerTextureSettings.MoveChild(RowGroundTexture, idxTerrain);
 
-                    _rowCliffTexture = new HBoxContainer();
-                    _rowCliffTexture.Name = "RowCliffTexture";
-                    _rowCliffTexture.AddThemeConstantOverride("separation", 6);
+                    RowCliffTexture = new HBoxContainer();
+                    RowCliffTexture.Name = "RowCliffTexture";
+                    RowCliffTexture.AddThemeConstantOverride("separation", 6);
 
                     int idxCliff = _lblCliffTexture.GetIndex();
                     _containerTextureSettings.RemoveChild(_lblCliffTexture);
-                    _rowCliffTexture.AddChild(_lblCliffTexture);
+                    RowCliffTexture.AddChild(_lblCliffTexture);
                     _lblCliffTexture.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-                    _rowCliffTexture.AddChild(_chkApplyCliffTexture);
-                    _containerTextureSettings.AddChild(_rowCliffTexture);
-                    _containerTextureSettings.MoveChild(_rowCliffTexture, idxCliff);
+                    RowCliffTexture.AddChild(ChkApplyCliffTexture);
+                    _containerTextureSettings.AddChild(RowCliffTexture);
+                    _containerTextureSettings.MoveChild(RowCliffTexture, idxCliff);
                 }
 
                 var btnTextureSwap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/BtnTextureSwap");
@@ -1596,8 +1596,8 @@ namespace Realm.Client.UI
             if (_playerOwnerContainer != null) _playerOwnerContainer.Visible = false;
             if (_btnOpenGlobalOverrides != null) _btnOpenGlobalOverrides.Visible = false;
             if (_btnOpenAnimationPreview != null) _btnOpenAnimationPreview.Visible = false;
-            if (_btnEditVfx != null) _btnEditVfx.Visible = false;
-            if (_btnEditAttachments != null) _btnEditAttachments.Visible = false;
+            if (BtnEditVfx != null) BtnEditVfx.Visible = false;
+            if (BtnEditAttachments != null) BtnEditAttachments.Visible = false;
             if (_rigStatusContainer != null) _rigStatusContainer.Visible = false;
             if (_btnShowCoverage != null) _btnShowCoverage.Visible = false;
             if (_lblInfoText != null) _lblInfoText.Visible = true;
@@ -1692,9 +1692,9 @@ namespace Realm.Client.UI
             if (selected is Realm.Client.Unit3D unitOwner && _playerOwnerContainer != null && _optPlayerOwner != null)
             {
                 _playerOwnerContainer.Visible = true;
-                _isUpdatingInspectorUI = true;
+                IsUpdatingInspectorUI = true;
                 _optPlayerOwner.Selected = Mathf.Clamp(unitOwner.Player, 0, PlayerColorConfig.Palette.Length - 1);
-                _isUpdatingInspectorUI = false;
+                IsUpdatingInspectorUI = false;
             }
             else if (_playerOwnerContainer != null) _playerOwnerContainer.Visible = false;
 
@@ -1767,18 +1767,18 @@ namespace Realm.Client.UI
             }
             else if (_btnOpenGlobalOverrides != null) _btnOpenGlobalOverrides.Visible = false;
 
-            if (selected is ProceduralVfxInstance3D && _btnEditVfx != null)
+            if (selected is ProceduralVfxInstance3D && BtnEditVfx != null)
             {
-                _btnEditVfx.Visible = true;
-                _btnEditVfx.TooltipText = TranslationServer.Translate("Open Procedural VFX Studio to edit this effect");
+                BtnEditVfx.Visible = true;
+                BtnEditVfx.TooltipText = TranslationServer.Translate("Open Procedural VFX Studio to edit this effect");
             }
-            else if (_btnEditVfx != null) _btnEditVfx.Visible = false;
+            else if (BtnEditVfx != null) BtnEditVfx.Visible = false;
 
-            if (_btnEditAttachments != null)
+            if (BtnEditAttachments != null)
             {
                 bool canAttach = selected is Realm.Client.Unit3D;
-                _btnEditAttachments.Visible = canAttach;
-                if (canAttach) _btnEditAttachments.TooltipText = TranslationServer.Translate("Open Socket & VFX Attachment Studio for this unit or building");
+                BtnEditAttachments.Visible = canAttach;
+                if (canAttach) BtnEditAttachments.TooltipText = TranslationServer.Translate("Open Socket & VFX Attachment Studio for this unit or building");
             }
         }
 
@@ -1970,9 +1970,9 @@ namespace Realm.Client.UI
             {
                 var tool = Realm.Client.Core.GameHost.Instance.ActiveEditorTool;
                 bool isPaintTool = tool == Realm.Client.Core.GameHost.EditorTool.PaintTexture;
-                if (isPaintTool && _chkApplyGroundTexture != null && _chkApplyGroundTexture.Visible)
+                if (isPaintTool && ChkApplyGroundTexture != null && ChkApplyGroundTexture.Visible)
                 {
-                    return _chkApplyGroundTexture.ButtonPressed;
+                    return ChkApplyGroundTexture.ButtonPressed;
                 }
             }
             return true;
@@ -1984,9 +1984,9 @@ namespace Realm.Client.UI
             {
                 var tool = Realm.Client.Core.GameHost.Instance.ActiveEditorTool;
                 bool isPaintTool = tool == Realm.Client.Core.GameHost.EditorTool.PaintTexture;
-                if (isPaintTool && _chkApplyCliffTexture != null && _chkApplyCliffTexture.Visible)
+                if (isPaintTool && ChkApplyCliffTexture != null && ChkApplyCliffTexture.Visible)
                 {
-                    return _chkApplyCliffTexture.ButtonPressed;
+                    return ChkApplyCliffTexture.ButtonPressed;
                 }
             }
             return true;
@@ -3709,7 +3709,7 @@ namespace Realm.Client.UI
             {
                 StyleSubContainer(_containerTextureSettings, "Texture Palette & Settings");
 
-                if (_rowGroundTexture != null)
+                if (RowGroundTexture != null)
                 {
                     var groundStyle = new StyleBoxFlat();
                     groundStyle.BgColor = new Color(0.12f, 0.16f, 0.20f, 0.85f);
@@ -3724,7 +3724,7 @@ namespace Realm.Client.UI
                     groundStyle.ContentMarginTop = 4;
                     groundStyle.ContentMarginBottom = 4;
 
-                    var panelGround = _rowGroundTexture.GetNodeOrNull<Panel>("RowBG");
+                    var panelGround = RowGroundTexture.GetNodeOrNull<Panel>("RowBG");
                     if (panelGround == null)
                     {
                         panelGround = new Panel();
@@ -3732,13 +3732,13 @@ namespace Realm.Client.UI
                         panelGround.ShowBehindParent = true;
                         panelGround.MouseFilter = Control.MouseFilterEnum.Ignore;
                         panelGround.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-                        _rowGroundTexture.AddChild(panelGround);
-                        _rowGroundTexture.MoveChild(panelGround, 0);
+                        RowGroundTexture.AddChild(panelGround);
+                        RowGroundTexture.MoveChild(panelGround, 0);
                     }
                     panelGround.AddThemeStyleboxOverride("panel", groundStyle);
                 }
 
-                if (_rowCliffTexture != null)
+                if (RowCliffTexture != null)
                 {
                     var cliffStyle = new StyleBoxFlat();
                     cliffStyle.BgColor = new Color(0.18f, 0.14f, 0.10f, 0.85f);
@@ -3753,7 +3753,7 @@ namespace Realm.Client.UI
                     cliffStyle.ContentMarginTop = 4;
                     cliffStyle.ContentMarginBottom = 4;
 
-                    var panelCliff = _rowCliffTexture.GetNodeOrNull<Panel>("RowBG");
+                    var panelCliff = RowCliffTexture.GetNodeOrNull<Panel>("RowBG");
                     if (panelCliff == null)
                     {
                         panelCliff = new Panel();
@@ -3761,8 +3761,8 @@ namespace Realm.Client.UI
                         panelCliff.ShowBehindParent = true;
                         panelCliff.MouseFilter = Control.MouseFilterEnum.Ignore;
                         panelCliff.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-                        _rowCliffTexture.AddChild(panelCliff);
-                        _rowCliffTexture.MoveChild(panelCliff, 0);
+                        RowCliffTexture.AddChild(panelCliff);
+                        RowCliffTexture.MoveChild(panelCliff, 0);
                     }
                     panelCliff.AddThemeStyleboxOverride("panel", cliffStyle);
                 }
@@ -3900,8 +3900,8 @@ namespace Realm.Client.UI
 
             bool isTexturePaintToolOnly = tool == Realm.Client.Core.GameHost.EditorTool.PaintTexture;
 
-            if (_chkApplyGroundTexture != null) _chkApplyGroundTexture.Visible = texSettingsVisible && isTexturePaintToolOnly;
-            if (_chkApplyCliffTexture != null) _chkApplyCliffTexture.Visible = texSettingsVisible && isTexturePaintToolOnly;
+            if (ChkApplyGroundTexture != null) ChkApplyGroundTexture.Visible = texSettingsVisible && isTexturePaintToolOnly;
+            if (ChkApplyCliffTexture != null) ChkApplyCliffTexture.Visible = texSettingsVisible && isTexturePaintToolOnly;
 
             bool pathingSettingsVisible = _containerPathingSettings != null && (tool == Realm.Client.Core.GameHost.EditorTool.PaintPathing || tool == Realm.Client.Core.GameHost.EditorTool.FloodFillPathing);
             if (_containerPathingSettings != null) _containerPathingSettings.Visible = pathingSettingsVisible;
@@ -4475,7 +4475,7 @@ namespace Realm.Client.UI
 
             _optPlayerOwner.ItemSelected += (long index) =>
             {
-                if (_isUpdatingInspectorUI) return;
+                if (IsUpdatingInspectorUI) return;
                 if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.SelectedEditorObject is Realm.Client.Unit3D unit && GodotObject.IsInstanceValid(unit))
                 {
                     int playerIndex = (int)index;
@@ -4559,15 +4559,15 @@ namespace Realm.Client.UI
             };
             inspectorVBox.AddChild(_btnOpenGlobalOverrides);
 
-            _btnEditVfx = new Button();
-            _btnEditVfx.Name = "BtnEditVfx";
-            _btnEditVfx.Set("icon_max_width", 0);
-            _btnEditVfx.Text = "✨ " + TranslationServer.Translate("Edit VFX");
-            _btnEditVfx.AddThemeFontSizeOverride("font_size", 11);
-            _btnEditVfx.FocusMode = Control.FocusModeEnum.None;
-            _btnEditVfx.CustomMinimumSize = new Vector2(0, 28);
-            _btnEditVfx.Visible = false;
-            _btnEditVfx.Pressed += () =>
+            BtnEditVfx = new Button();
+            BtnEditVfx.Name = "BtnEditVfx";
+            BtnEditVfx.Set("icon_max_width", 0);
+            BtnEditVfx.Text = "✨ " + TranslationServer.Translate("Edit VFX");
+            BtnEditVfx.AddThemeFontSizeOverride("font_size", 11);
+            BtnEditVfx.FocusMode = Control.FocusModeEnum.None;
+            BtnEditVfx.CustomMinimumSize = new Vector2(0, 28);
+            BtnEditVfx.Visible = false;
+            BtnEditVfx.Pressed += () =>
             {
                 if (Realm.Client.Core.GameHost.Instance != null && GodotObject.IsInstanceValid(Realm.Client.Core.GameHost.Instance.SelectedEditorObject) && Realm.Client.Core.GameHost.Instance.SelectedEditorObject is ProceduralVfxInstance3D vfx)
                 {
@@ -4577,17 +4577,17 @@ namespace Realm.Client.UI
                     });
                 }
             };
-            inspectorVBox.AddChild(_btnEditVfx);
+            inspectorVBox.AddChild(BtnEditVfx);
 
-            _btnEditAttachments = new Button();
-            _btnEditAttachments.Name = "BtnEditAttachments";
-            _btnEditAttachments.Set("icon_max_width", 0);
-            _btnEditAttachments.Text = "📎 " + TranslationServer.Translate("Sockets & VFX");
-            _btnEditAttachments.AddThemeFontSizeOverride("font_size", 11);
-            _btnEditAttachments.FocusMode = Control.FocusModeEnum.None;
-            _btnEditAttachments.CustomMinimumSize = new Vector2(0, 28);
-            _btnEditAttachments.Visible = false;
-            _btnEditAttachments.Pressed += () =>
+            BtnEditAttachments = new Button();
+            BtnEditAttachments.Name = "BtnEditAttachments";
+            BtnEditAttachments.Set("icon_max_width", 0);
+            BtnEditAttachments.Text = "📎 " + TranslationServer.Translate("Sockets & VFX");
+            BtnEditAttachments.AddThemeFontSizeOverride("font_size", 11);
+            BtnEditAttachments.FocusMode = Control.FocusModeEnum.None;
+            BtnEditAttachments.CustomMinimumSize = new Vector2(0, 28);
+            BtnEditAttachments.Visible = false;
+            BtnEditAttachments.Pressed += () =>
             {
                 if (Realm.Client.Core.GameHost.Instance != null && GodotObject.IsInstanceValid(Realm.Client.Core.GameHost.Instance.SelectedEditorObject))
                 {
@@ -4603,7 +4603,7 @@ namespace Realm.Client.UI
                     }
                 }
             };
-            inspectorVBox.AddChild(_btnEditAttachments);
+            inspectorVBox.AddChild(BtnEditAttachments);
         }
 
         public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata> onApplied = null)

@@ -281,17 +281,17 @@ public partial class MapEditorHUD : Control
     private double _mapNameUpdateTimer = 0.0;
     private Button _btnOpenGlobalOverrides;
     private Button _btnOpenAnimationPreview;
-    private Button _btnEditVfx;
-    private Button _btnEditAttachments;
-    private Button _btnAssetsManager;
-    private Button _btnTemplateManager;
-    private Button _btnInstanceManager;
-    private bool _isUpdatingInspectorUI;
+    private Button BtnEditVfx { get; set; }
+    private Button BtnEditAttachments { get; set; }
+    private Button BtnAssetsManager { get; set; }
+    private Button BtnTemplateManager { get; set; }
+    private Button BtnInstanceManager { get; set; }
+    private bool IsUpdatingInspectorUI { get; set; }
 
-    private CheckBox _chkApplyGroundTexture;
-    private CheckBox _chkApplyCliffTexture;
-    private HBoxContainer _rowGroundTexture;
-    private HBoxContainer _rowCliffTexture;
+    private CheckBox ChkApplyGroundTexture { get; set; }
+    private CheckBox ChkApplyCliffTexture { get; set; }
+    private HBoxContainer RowGroundTexture { get; set; }
+    private HBoxContainer RowCliffTexture { get; set; }
 
     private Slider _sldPlacementRotate;
     private Label _lblPlacementRotateValue;

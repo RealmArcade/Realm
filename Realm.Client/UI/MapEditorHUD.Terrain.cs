@@ -53,7 +53,7 @@ namespace Realm.Client.UI
         {
             if (index >= 0 && index < _swatchButtons.Count)
             {
-                if (_chkApplyCliffTexture != null && _chkApplyCliffTexture.ButtonPressed && (_chkApplyGroundTexture == null || !_chkApplyGroundTexture.ButtonPressed))
+                if (ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
                 {
                     SelectCliffTexture(index);
                 }
@@ -296,7 +296,7 @@ namespace Realm.Client.UI
         {
             if (Realm.Client.Core.GameHost.Instance != null)
             {
-                if (_chkApplyCliffTexture != null && _chkApplyCliffTexture.ButtonPressed && (_chkApplyGroundTexture == null || !_chkApplyGroundTexture.ButtonPressed))
+                if (ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
                 {
                     SelectCliffTexture(index);
                     return;
