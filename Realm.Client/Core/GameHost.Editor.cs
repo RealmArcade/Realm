@@ -21,7 +21,7 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-    public readonly Dictionary<string, float> ModelYOffsets = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, float> ModelYOffsets => ServiceLocator.Get<ModelOverrideService>().ModelYOffsets;
     public Dictionary<string, float> ModelScales => ServiceLocator.Get<ModelOverrideService>().ModelScales;
     public Dictionary<string, float> ModelCollisionCircleRatios => ServiceLocator.Get<ModelOverrideService>().ModelCollisionCircleRatios;
     public Dictionary<string, float> ModelObstacleRadii => ServiceLocator.Get<ModelOverrideService>().ModelObstacleRadii;
@@ -32,12 +32,12 @@ public partial class GameHost
     public Dictionary<string, bool> ModelNormalizeLuminance => ServiceLocator.Get<ModelOverrideService>().ModelNormalizeLuminance;
     public Dictionary<string, string> ModelSpawnShaders => ServiceLocator.Get<ModelOverrideService>().ModelSpawnShaders;
     public Dictionary<string, string> ModelDeathShaders => ServiceLocator.Get<ModelOverrideService>().ModelDeathShaders;
-    public readonly Dictionary<string, string> ModelProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, bool> ModelEnableProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
-    private bool _modelYOffsetSavePending = false;
-    private bool _modelCollisionCircleSavePending = false;
+    public Dictionary<string, string> ModelProceduralAnimations => ServiceLocator.Get<ModelOverrideService>().ModelProceduralAnimations;
+    public Dictionary<string, bool> ModelEnableProceduralAnimations => ServiceLocator.Get<ModelOverrideService>().ModelEnableProceduralAnimations;
+    private bool _modelYOffsetSavePending { get => ServiceLocator.Get<EditorService>().ModelYOffsetSavePending; set => ServiceLocator.Get<EditorService>().ModelYOffsetSavePending = value; }
+    private bool _modelCollisionCircleSavePending { get => ServiceLocator.Get<EditorService>().ModelCollisionCircleSavePending; set => ServiceLocator.Get<EditorService>().ModelCollisionCircleSavePending = value; }
 
-    private readonly Dictionary<string, string> _normalizedAssetKeyCache = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _normalizedAssetKeyCache => ServiceLocator.Get<EditorService>().NormalizedAssetKeyCache;
 
     private bool MatchesUnit3DKey(Realm.Client.Unit3D unit, string normTarget)
     {
@@ -915,9 +915,9 @@ public partial class GameHost
         }
     }
 
-    private const float MaxSafeModelYOffset = 50f;
-    private const float MinSafeModelCollisionRatio = 0.1f;
-    private const float MaxSafeModelCollisionRatio = 10f;
+    private const float MaxSafeModelYOffset = ModelOverrideService.MaxSafeModelYOffset;
+    private const float MinSafeModelCollisionRatio = ModelOverrideService.MinSafeModelCollisionRatio;
+    private const float MaxSafeModelCollisionRatio = ModelOverrideService.MaxSafeModelCollisionRatio;
     private const float MinSafeModelScale = 0.01f;
     private const float MaxSafeModelScale = 20f;
 

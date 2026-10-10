@@ -17,6 +17,15 @@ public class ModelOverrideService
     public readonly Dictionary<string, string> ModelSpawnShaders = new(StringComparer.OrdinalIgnoreCase);
     public readonly Dictionary<string, string> ModelDeathShaders = new(StringComparer.OrdinalIgnoreCase);
 
+    public readonly Dictionary<string, float> ModelYOffsets = new(StringComparer.OrdinalIgnoreCase);
+    public readonly Dictionary<string, string> ModelProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
+    public readonly Dictionary<string, bool> ModelEnableProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
+
+    public const float MaxSafeModelYOffset = 50f;
+    public const float MinSafeModelCollisionRatio = 0.1f;
+    public const float MaxSafeModelCollisionRatio = 10f;
+
+
     public void ClearAll()
     {
         ModelScales.Clear();
@@ -29,5 +38,8 @@ public class ModelOverrideService
         ModelNormalizeLuminance.Clear();
         ModelSpawnShaders.Clear();
         ModelDeathShaders.Clear();
+        ModelYOffsets.Clear();
+        ModelProceduralAnimations.Clear();
+        ModelEnableProceduralAnimations.Clear();
     }
 }

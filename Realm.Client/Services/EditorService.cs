@@ -30,6 +30,10 @@ public class EditorService : IEditorAPI
 	public int PendingCoordinateMinZ { get; set; }
 	public int PendingCoordinateMaxX { get; set; }
 	public int PendingCoordinateMaxZ { get; set; }
+	public bool ModelYOffsetSavePending { get; set; } = false;
+	public bool ModelCollisionCircleSavePending { get; set; } = false;
+	public readonly Dictionary<string, string> NormalizedAssetKeyCache = new(StringComparer.OrdinalIgnoreCase);
+
 
 	public float EditorPlacementRotation { get; set; } = 0.0f;
 	public float EditorPlacementScale { get; set; } = 1.0f;

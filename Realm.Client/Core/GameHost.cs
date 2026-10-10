@@ -2863,7 +2863,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		return ((TerrainPathingFlags)flags & capability) != 0;
 	}
 
-	private static ImageTexture _sharedShadowGradient;
+	private static ImageTexture SharedShadowGradient { get; set; }
 
 	/// <summary>
 	///     Shared radial gradient used by flying-unit drop-shadow decals. One texture is
@@ -2871,9 +2871,9 @@ public static void EnsureMapProjectFiles(string mapDir)
 	/// </summary>
 	public Texture2D GetSharedShadowGradient()
 	{
-		if (_sharedShadowGradient != null && GodotObject.IsInstanceValid(_sharedShadowGradient))
+		if (SharedShadowGradient != null && GodotObject.IsInstanceValid(SharedShadowGradient))
 		{
-			return _sharedShadowGradient;
+			return SharedShadowGradient;
 		}
 
 		const int size = 256;
@@ -2894,8 +2894,8 @@ public static void EnsureMapProjectFiles(string mapDir)
 		{
 			img.GenerateMipmaps();
 		}
-		_sharedShadowGradient = ImageTexture.CreateFromImage(img);
-		return _sharedShadowGradient;
+		SharedShadowGradient = ImageTexture.CreateFromImage(img);
+		return SharedShadowGradient;
 	}
 
 	private List<T> FindChildrenOfType<T>(Node parent) where T : Node
