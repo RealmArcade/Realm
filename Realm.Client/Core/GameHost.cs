@@ -26,11 +26,11 @@ namespace Realm.Client.Core;
 
 public partial class GameHost : Node3D, IGameAPI
 {
-	public Camera3D MainCamera { get; private set; }
-	public Node MainNode { get; private set; }
+	public Camera3D MainCamera;
+	public Node MainNode;
 
-	public static GameHost Instance { get; private set; }
-	public string ActiveMapName { get; private set; } = "";
+	public static GameHost Instance;
+	public string ActiveMapName = "";
 
 	private static readonly JsonSerializerOptions Options = new()
 	{
@@ -70,8 +70,8 @@ public partial class GameHost : Node3D, IGameAPI
 	public Realm.Client.Services.MapStorageService MapStorageService => _mapStorageService;
 	public Realm.Client.Services.MapSaveDataService MapSaveDataService => _mapSaveDataService;
 
-	public bool UnlimitedPowerEnabled { get; set; } = false;
-	public bool GigachadEnabled { get; set; } = false;
+	public bool UnlimitedPowerEnabled = false;
+	public bool GigachadEnabled = false;
 
 	private float _fDelta;
 
@@ -151,13 +151,13 @@ public partial class GameHost : Node3D, IGameAPI
 
 
 
-	public World EcsWorld { get; private set; }
+	public World EcsWorld;
 	public Entity WorldEntity => _worldEntity;
-	public List<Realm.Client.Unit3D> SelectedUnits { get; } = new List<Realm.Client.Unit3D>();
-	public List<Realm.Client.Unit3D> AllUnits { get; } = new List<Realm.Client.Unit3D>();
-	public List<Realm.Client.Prop3D> AllProps { get; } = new List<Realm.Client.Prop3D>();
-	public List<Decal> AllDecals { get; } = new List<Decal>();
-	public List<ProceduralVfxInstance3D> AllVfx { get; } = new List<ProceduralVfxInstance3D>();
+	public List<Realm.Client.Unit3D> SelectedUnits = new List<Realm.Client.Unit3D>();
+	public List<Realm.Client.Unit3D> AllUnits = new List<Realm.Client.Unit3D>();
+	public List<Realm.Client.Prop3D> AllProps = new List<Realm.Client.Prop3D>();
+	public List<Decal> AllDecals = new List<Decal>();
+	public List<ProceduralVfxInstance3D> AllVfx = new List<ProceduralVfxInstance3D>();
 	private readonly List<Realm.Client.Unit3D> _castlesList = new();
 
 	public static readonly Dictionary<Entity, Realm.Client.Unit3D> EntityToUnit3D = new();
@@ -254,7 +254,7 @@ public partial class GameHost : Node3D, IGameAPI
 		set { if (_inputService != null) _inputService.ActiveCommandTargeting = value; }
 	}
 
-	public Realm.Client.Prop3D? SelectedProp { get; private set; }
+	public Realm.Client.Prop3D? SelectedProp;
 
 	public string? ActiveBuildingPlacementType
 	{
@@ -290,9 +290,9 @@ public partial class GameHost : Node3D, IGameAPI
 	private MeshInstance3D? _buildingPreviewMesh;
 
 
-	public bool IsMapEditorMode { get; set; }
-	public bool IsLoadingMap { get; set; }
-	public bool IsGameOver { get; private set; }
+	public bool IsMapEditorMode;
+	public bool IsLoadingMap;
+	public bool IsGameOver;
 	private Realm.Client.RuntimeTerrain _groundTerrain;
 	public Realm.Client.RuntimeTerrain GroundTerrain
 	{
@@ -373,7 +373,7 @@ public partial class GameHost : Node3D, IGameAPI
 			UpdatePathingOverlay();
 		}
 	}
-	public string ActivePlaceId { get; set; } = ""; // "soldier", "tree", etc.
+	public string ActivePlaceId = ""; // "soldier", "tree", etc.
 
 	public struct EditorCoordinate
 	{
@@ -384,7 +384,7 @@ public partial class GameHost : Node3D, IGameAPI
 		public float MaxZ;
 	}
 
-	public List<EditorCoordinate> EditorCoordinates { get; } = new();
+	public List<EditorCoordinate> EditorCoordinates = new();
 	public string GetTerrainStatusString(Vector3 hitPos)
 	{
 		return _editorService.GetTerrainStatusString(hitPos, ActiveEditorTool.ToString(), ActivePlaceId);
@@ -426,7 +426,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public const float MIN_CLUMP_SCALE_VAR = MIN_CLUMP_SCALE;
 	public const float MAX_CLUMP_SCALE_VAR = MAX_CLUMP_SCALE;
 
-	public bool PlaceUnitIsEnemy { get; set; } = false;
+	public bool PlaceUnitIsEnemy = false;
 	private float _editorBrushRadius = 2.0f;
 	public float EditorBrushRadius
 	{
@@ -439,10 +439,10 @@ public partial class GameHost : Node3D, IGameAPI
 		get => _editorBrushStrength;
 		set => _editorBrushStrength = Mathf.Clamp(value, MIN_BRUSH_STRENGTH, MAX_BRUSH_STRENGTH);
 	}
-	public int EditorPaintTextureIndex { get; set; } = 3;
-	public int EditorCliffPaintTextureIndex { get; set; } = 1;
-	public bool EditorSnapToGrid { get; set; } = false;
-	public float EditorPlacementRotation { get; set; } = 0.0f;
+	public int EditorPaintTextureIndex = 3;
+	public int EditorCliffPaintTextureIndex = 1;
+	public bool EditorSnapToGrid = false;
+	public float EditorPlacementRotation = 0.0f;
 	private float _editorPlacementScale = 1.0f;
 	public float EditorPlacementScale
 	{
@@ -450,10 +450,10 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorPlacementScale = Mathf.Clamp(value, MIN_PLACEMENT_SCALE, MAX_PLACEMENT_SCALE);
 	}
 	public enum GridOverlayMode { Off, Grid, Polar, Both }
-	public GridOverlayMode EditorGridMode { get; set; } = GridOverlayMode.Off;
+	public GridOverlayMode EditorGridMode = GridOverlayMode.Off;
 	public bool EditorGridVisible => EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both;
-	public bool EditorCameraBoundsVisible { get; set; } = false;
-	public bool EditorDisableShadows { get; set; } = false;
+	public bool EditorCameraBoundsVisible = false;
+	public bool EditorDisableShadows = false;
 	public float EditorCameraBoundsLeft
 	{
 		get => _editorService.GetCameraBoundsLeft(_worldEntity);
@@ -521,16 +521,16 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	public int EditorPolarSpokeFolds { get; set; } = 4;
-	public bool EditorPolarOverlayVisible { get; set; } = false;
-	public float EditorPolarRingSpacing { get; set; } = 8.0f;
-	public float EditorPolarRadialStep { get; set; } = 90.0f;
+	public int EditorPolarSpokeFolds = 4;
+	public bool EditorPolarOverlayVisible = false;
+	public float EditorPolarRingSpacing = 8.0f;
+	public float EditorPolarRadialStep = 90.0f;
 
-	public Vector3? EditorTapeMeasureStart { get; set; }
-	public Vector3? EditorTapeMeasureEnd { get; set; }
-	public bool EditorTapeMeasureActive { get; set; } = false;
+	public Vector3? EditorTapeMeasureStart;
+	public Vector3? EditorTapeMeasureEnd;
+	public bool EditorTapeMeasureActive = false;
 
-	public bool EditorBrushIsSquare { get; set; } = true;
+	public bool EditorBrushIsSquare = true;
 
 	private float _editorClumpCount = 5.0f;
 	public float EditorClumpCount
@@ -568,8 +568,8 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	public bool EditorRandomRotation { get; set; } = false;
-	public bool EditorRandomScale { get; set; } = false;
+	public bool EditorRandomRotation = false;
+	public bool EditorRandomScale = false;
 	public string EditorSkyboxPath
 	{
 		get => _editorService.GetSkyboxPath(_worldEntity);
@@ -613,7 +613,7 @@ public partial class GameHost : Node3D, IGameAPI
 		set => _editorService.SetWaterProfileIndex(_worldEntity, value);
 	}
 
-	public float EditorWaterHeight { get; set; } = 0.9f;
+	public float EditorWaterHeight = 0.9f;
 
 	private Node? _hoveredEditorObject;
 	private MeshInstance3D? _selectionHighlightMesh;
@@ -627,9 +627,9 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		_editorService.GenerateNewRandomPlacementRotationAndScale();
 	}
-	public bool PasteOptionTextures { get; set; } = true;
-	public bool PasteOptionHeights { get; set; } = true;
-	public bool PasteOptionEntities { get; set; } = true;
+	public bool PasteOptionTextures = true;
+	public bool PasteOptionHeights = true;
+	public bool PasteOptionEntities = true;
 	private bool _pasteOptionPathing = true;
 	public bool PasteOptionPathing
 	{
@@ -640,8 +640,8 @@ public partial class GameHost : Node3D, IGameAPI
 			UpdatePathingOverlay();
 		}
 	}
-	public float EditorPasteRotation { get; set; } = 0.0f;
-	public PasteReflection EditorPasteReflection { get; set; } = PasteReflection.None;
+	public float EditorPasteRotation = 0.0f;
+	public PasteReflection EditorPasteReflection = PasteReflection.None;
 
 	public Node SelectedEditorObject
 	{
@@ -731,7 +731,7 @@ public partial class GameHost : Node3D, IGameAPI
 		public float LifeTime;
 		public float MaxLifeTime;
 	}
-	public List<MinimapPing> ActivePings { get; } = new List<MinimapPing>();
+	public List<MinimapPing> ActivePings = new List<MinimapPing>();
 	public bool ActivePingMode
 	{
 		get => _inputService?.ActivePingMode ?? false;
@@ -892,7 +892,7 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 	private IMapScript _activeMapScript;
-	public static string? PendingMapScriptPath { get; set; }
+	public static string? PendingMapScriptPath;
 	private System.Runtime.Loader.AssemblyLoadContext? _mapScriptLoadContext;
 
 	private class MapScriptLoadContext : System.Runtime.Loader.AssemblyLoadContext

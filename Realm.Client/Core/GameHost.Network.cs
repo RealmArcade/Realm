@@ -17,8 +17,8 @@ namespace Realm.Client.Core;
 public partial class GameHost
 {
 	private NetworkService _networkService;
-	public bool IsPaused { get; private set; } = false;
-	public int ResumeCountdownSeconds { get; private set; } = -1;
+	public bool IsPaused = false;
+	public int ResumeCountdownSeconds = -1;
 	private float _resumeCountdownTimer = 0f;
 	private bool _countdownForcedByHost = false;
 	private readonly System.Collections.Generic.Dictionary<int, bool> _playerReadyStates = new();

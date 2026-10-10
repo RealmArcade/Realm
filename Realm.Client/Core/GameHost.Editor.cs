@@ -1,4 +1,4 @@
-﻿using Arch.Core;
+using Arch.Core;
 using Godot;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -1374,16 +1374,16 @@ public partial class GameHost
 
     public class DecalAssetData
     {
-        public string DecalId { get; set; } = "";
-        public string TexturePath { get; set; } = "";
-        public Texture2D PrimaryTexture { get; set; }
-        public Texture2D? PrimaryNormal { get; set; }
-        public Texture2D[]? AlbedoFrames { get; set; }
-        public Texture2D[]? NormalFrames { get; set; }
-        public int Columns { get; set; } = 1;
-        public int Rows { get; set; } = 1;
-        public float Fps { get; set; } = 12.0f;
-        public bool SubframeBlend { get; set; } = true;
+        public string DecalId = "";
+        public string TexturePath = "";
+        public Texture2D PrimaryTexture;
+        public Texture2D? PrimaryNormal;
+        public Texture2D[]? AlbedoFrames;
+        public Texture2D[]? NormalFrames;
+        public int Columns = 1;
+        public int Rows = 1;
+        public float Fps = 12.0f;
+        public bool SubframeBlend = true;
         public bool IsAnimated => Columns > 1 || Rows > 1;
     }
 
@@ -1753,7 +1753,7 @@ public partial class GameHost
     ///     When enabled, the editor draws vision/attack range rings around the selected unit.
     ///     Off by default so the overlay only appears on demand.
     /// </summary>
-    public bool EditorCoverageOverlayEnabled { get; set; } = false;
+    public bool EditorCoverageOverlayEnabled = false;
 
     private void ClearAllUnits()
     {

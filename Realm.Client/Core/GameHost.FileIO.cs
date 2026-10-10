@@ -14,7 +14,7 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	public string CurrentMapDirectory { get; set; } = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+	public string CurrentMapDirectory = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
 
 	public void SaveMapToFile(string customPath = "", bool performReload = true)
 	{

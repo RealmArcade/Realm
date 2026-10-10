@@ -245,7 +245,7 @@ public partial class GameHost
 		}
 	}
 
-	public bool FastBuildEnabled { get; set; } = false;
+	public bool FastBuildEnabled = false;
 
 	private const float BaseConstructionWorkRatePerSecond = 1f / 20f;
 	private float ConstructionWorkRatePerSecond => FastBuildEnabled ? BaseConstructionWorkRatePerSecond * 10f : BaseConstructionWorkRatePerSecond;

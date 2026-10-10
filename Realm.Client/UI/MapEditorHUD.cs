@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 using NSec.Cryptography;
 using Realm.EditorAPI;
 using Realm.Client.Services;
@@ -24,11 +24,11 @@ namespace Realm.Client.UI;
 
 public partial class MapEditorHUD : Control
 {
-    public static MapEditorHUD Instance { get; private set; }
-    public static string CurrentDirectoryBlake3 { get; set; } = string.Empty;
-    public static bool IsDraggingSlider { get; set; } = false;
-    public static bool IsTestMode { get; set; } = false;
-    public static bool ReturningFromTest { get; set; } = false;
+    public static MapEditorHUD Instance;
+    public static string CurrentDirectoryBlake3 = string.Empty;
+    public static bool IsDraggingSlider = false;
+    public static bool IsTestMode = false;
+    public static bool ReturningFromTest = false;
 
     public static Vector3 SavedCameraPosition;
     public static float SavedTargetHeight;
