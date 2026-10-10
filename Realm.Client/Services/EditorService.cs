@@ -28,6 +28,9 @@ public class EditorService : IEditorAPI
 	public string SavedEntityCategory { get; set; } = "";
 	public float SavedBrushRadius { get; set; } = 2f;
 	public float SavedBrushStrength { get; set; } = 0.5f;
+	public Realm.Client.Core.GameHost.EditorTool SavedActiveTool { get; set; } = Realm.Client.Core.GameHost.EditorTool.Raise;
+	public string SavedActivePlaceId { get; set; } = "";
+	public bool SavedCameraBoundsVisible { get; set; } = false;
 	public float SavedTextureIntensity { get; set; } = 10f;
 	public string? LastUsedFolder { get; set; } = null;
 	public string? CurrentSourceFolder { get; set; } = null;

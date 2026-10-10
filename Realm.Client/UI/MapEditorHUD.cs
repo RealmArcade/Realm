@@ -42,9 +42,9 @@ public partial class MapEditorHUD : Control
     public static float SavedPitchSwing;
 
     public static Realm.Client.Core.GameHost.GridOverlayMode SavedGridMode = Realm.Client.Core.GameHost.GridOverlayMode.Off;
-    public static Realm.Client.Core.GameHost.EditorTool SavedActiveTool = Realm.Client.Core.GameHost.EditorTool.Raise;
-    public static string SavedActivePlaceId = "";
-    public static bool SavedCameraBoundsVisible = false;
+    public static Realm.Client.Core.GameHost.EditorTool SavedActiveTool { get => ServiceLocator.Get<EditorService>().SavedActiveTool; set => ServiceLocator.Get<EditorService>().SavedActiveTool = value; }
+    public static string SavedActivePlaceId { get => ServiceLocator.Get<EditorService>().SavedActivePlaceId; set => ServiceLocator.Get<EditorService>().SavedActivePlaceId = value; }
+    public static bool SavedCameraBoundsVisible { get => ServiceLocator.Get<EditorService>().SavedCameraBoundsVisible; set => ServiceLocator.Get<EditorService>().SavedCameraBoundsVisible = value; }
     public static bool SavedDisableShadows { get => ServiceLocator.Get<EditorService>().SavedDisableShadows; set => ServiceLocator.Get<EditorService>().SavedDisableShadows = value; }
     public static string SavedEntityCategory { get => ServiceLocator.Get<EditorService>().SavedEntityCategory; set => ServiceLocator.Get<EditorService>().SavedEntityCategory = value; }
 
@@ -70,16 +70,16 @@ public partial class MapEditorHUD : Control
         Clipboard
     }
 
-    private MapEditorHUDViewModel _viewModel = new();
+    private MapEditorHUDViewModel _viewModel { get; set; } = new();
     public MapEditorHUDViewModel ViewModel => _viewModel;
 
-    private Panel _panelLeft;
-    private Button _btnLeftTab;
-    private Panel _panelRight;
-    private Button _btnRightTab;
-    private VBoxContainer _accordionContainer;
+    private Panel _panelLeft { get; set; }
+    private Button _btnLeftTab { get; set; }
+    private Panel _panelRight { get; set; }
+    private Button _btnRightTab { get; set; }
+    private VBoxContainer _accordionContainer { get; set; }
 
-    private bool _leftPanelExpanded = false;
+    private bool _leftPanelExpanded { get; set; } = false;
     private bool _rightPanelExpanded = true;
 
     private OptionButton _optModule;
