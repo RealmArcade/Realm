@@ -300,10 +300,10 @@ public partial class MapEditorHUD : Control
     private Label _lblPlacementScaleValue;
     private VBoxContainer _placementRotateBox;
     private VBoxContainer _placementScaleBox;
-    private Button _btnCopy;
-    private Button _btnPaste;
-    private Control _stepBox;
-    private Button _btnToggleSnap;
+    private Button _btnCopy { get; set; }
+    private Button _btnPaste { get; set; }
+    private Control _stepBox { get; set; }
+    private Button _btnToggleSnap { get; set; }
     private Button _btnToggleGrid { get; set; }
     private PopupMenu _popupOverlayMode { get; set; }
     private Button _btnToggleEnvironment { get; set; }
@@ -314,12 +314,12 @@ public partial class MapEditorHUD : Control
     private Button _btnBrushShape { get; set; }
     private Button _btnResetMap { get; set; }
     private Button _btnGenerateMap { get; set; }
-    private Button _btnRandomGen;
-    private PopupPanel _popupRandomGen;
-    private Button _btnSaveMore;
-    private PopupPanel _popupSaveMore;
-    private Button _btnImportMinimap;
-    private Button _btnEyedropper;
+    private Button _btnRandomGen { get; set; }
+    private PopupPanel _popupRandomGen { get; set; }
+    private Button _btnSaveMore { get; set; }
+    private PopupPanel _popupSaveMore { get; set; }
+    private Button _btnImportMinimap { get; set; }
+    private Button _btnEyedropper { get; set; }
     private OptionButton _optEyedropperMode;
     private Button _btnNoise;
     private Button _btnWater;
