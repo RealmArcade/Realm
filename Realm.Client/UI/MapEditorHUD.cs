@@ -330,12 +330,12 @@ public partial class MapEditorHUD : Control
     private Button _btnRaise;
     private Button _btnLower;
     private Button _btnHeight;
-    private Button _btnSmooth;
-    private Button _btnPlateau;
-    private Button _btnRamp;
-    private OptionButton _optMirrorMode;
-    private OptionButton _optPlacementMirrorMode;
-    private Button _btnClumpBrush;
+    private Button _btnSmooth { get; set; }
+    private Button _btnPlateau { get; set; }
+    private Button _btnRamp { get; set; }
+    private OptionButton _optMirrorMode { get; set; }
+    private OptionButton _optPlacementMirrorMode { get; set; }
+    private Button _btnClumpBrush { get; set; }
     private HSlider _sldClumpDensity { get; set; }
     private Label _lblClumpDensityValue { get; set; }
     private HSlider _sldClumpScaleVar { get; set; }
@@ -348,10 +348,10 @@ public partial class MapEditorHUD : Control
     private Button _btnSelectMove { get; set; }
     private PanelContainer _inspectorPanel { get; set; }
     private Label _lblInspectorTitle { get; set; }
-    private Label _lblInspectorPos;
-    private Button _btnInspectorRotLeft;
-    private Button _btnInspectorRotRight;
-    private Button _btnInspectorScaleDown;
+    private Label _lblInspectorPos { get; set; }
+    private Button _btnInspectorRotLeft { get; set; }
+    private Button _btnInspectorRotRight { get; set; }
+    private Button _btnInspectorScaleDown { get; set; }
     private Button _btnInspectorScaleUp;
     private Button _btnInspectorScaleReset;
     private Button _btnInspectorDelete;
