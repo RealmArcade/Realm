@@ -212,18 +212,18 @@ public partial class MapEditorHUD : Control
     private Button _btnBackToHub;
     private Button _btnPublish;
     private Button _btnSave;
-    private Button _btnSaveAs;
-    private Button _btnTestMap;
-    private Button _btnExportMap;
-    private Button _btnLoad;
-    private Button _btnDeleteObject;
-    private Button _btnUndo;
-    private Button _btnRedo;
+    private Button _btnSaveAs { get; set; }
+    private Button _btnTestMap { get; set; }
+    private Button _btnExportMap { get; set; }
+    private Button _btnLoad { get; set; }
+    private Button _btnDeleteObject { get; set; }
+    private Button _btnUndo { get; set; }
+    private Button _btnRedo { get; set; }
 
-    private Label _statusLabel;
-    private Label _feedbackLabel;
+    private Label _statusLabel { get; set; }
+    private Label _feedbackLabel { get; set; }
 
-    private Button _btnZoomIn;
+    private Button _btnZoomIn { get; set; }
     private Button _btnZoomOut;
     private Button _btnCenter;
     private Button _btnRotate { get; set; }
