@@ -828,16 +828,7 @@ public partial class GameHost
 			var metadata = metaService.LoadMetadata(mapDir);
 
 			ModelYOffsets.Clear();
-			ModelScales.Clear();
-			ModelCollisionCircleRatios.Clear();
-			ModelObstacleRadii.Clear();
-			ModelBrightness.Clear();
-			ModelColorTint.Clear();
-			ModelDespillPlayerColor.Clear();
-			ModelIgnorePlayerColor.Clear();
-			ModelNormalizeLuminance.Clear();
-			ModelSpawnShaders.Clear();
-			ModelDeathShaders.Clear();
+			ServiceLocator.Get<ModelOverrideService>().ClearAll();
 
 			if (metadata.Templates != null)
 			{

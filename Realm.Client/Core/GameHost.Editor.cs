@@ -22,16 +22,16 @@ namespace Realm.Client.Core;
 public partial class GameHost
 {
     public readonly Dictionary<string, float> ModelYOffsets = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, float> ModelScales = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, float> ModelCollisionCircleRatios = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, float> ModelObstacleRadii = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, float> ModelBrightness = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, Color> ModelColorTint = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, bool> ModelIgnorePlayerColor = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, bool> ModelDespillPlayerColor = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, bool> ModelNormalizeLuminance = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, string> ModelSpawnShaders = new(StringComparer.OrdinalIgnoreCase);
-    public readonly Dictionary<string, string> ModelDeathShaders = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, float> ModelScales => ServiceLocator.Get<ModelOverrideService>().ModelScales;
+    public Dictionary<string, float> ModelCollisionCircleRatios => ServiceLocator.Get<ModelOverrideService>().ModelCollisionCircleRatios;
+    public Dictionary<string, float> ModelObstacleRadii => ServiceLocator.Get<ModelOverrideService>().ModelObstacleRadii;
+    public Dictionary<string, float> ModelBrightness => ServiceLocator.Get<ModelOverrideService>().ModelBrightness;
+    public Dictionary<string, Color> ModelColorTint => ServiceLocator.Get<ModelOverrideService>().ModelColorTint;
+    public Dictionary<string, bool> ModelIgnorePlayerColor => ServiceLocator.Get<ModelOverrideService>().ModelIgnorePlayerColor;
+    public Dictionary<string, bool> ModelDespillPlayerColor => ServiceLocator.Get<ModelOverrideService>().ModelDespillPlayerColor;
+    public Dictionary<string, bool> ModelNormalizeLuminance => ServiceLocator.Get<ModelOverrideService>().ModelNormalizeLuminance;
+    public Dictionary<string, string> ModelSpawnShaders => ServiceLocator.Get<ModelOverrideService>().ModelSpawnShaders;
+    public Dictionary<string, string> ModelDeathShaders => ServiceLocator.Get<ModelOverrideService>().ModelDeathShaders;
     public readonly Dictionary<string, string> ModelProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
     public readonly Dictionary<string, bool> ModelEnableProceduralAnimations = new(StringComparer.OrdinalIgnoreCase);
     private bool _modelYOffsetSavePending = false;

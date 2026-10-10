@@ -55,6 +55,7 @@ namespace Realm.Client.Services
 			services.AddSingleton<FXService>();
 			services.AddSingleton<SaveLoadService>();
 			services.AddSingleton<EditorService>();
+			services.AddSingleton<ModelOverrideService>();
 			services.AddSingleton<IEditorAPI>(sp => sp.GetRequiredService<EditorService>());
 			services.AddSingleton<ReplayService>();
 			services.AddSingleton<NetworkService>();
@@ -88,6 +89,7 @@ namespace Realm.Client.Services
 			Get<ShroudService>()?.CleanUp();
 			Get<EnvironmentService>()?.Cleanup();
 			Get<EditorService>()?.ResetAllState();
+			Get<ModelOverrideService>()?.ClearAll();
 			Get<World>()?.Dispose();
 
 			_provider = null;

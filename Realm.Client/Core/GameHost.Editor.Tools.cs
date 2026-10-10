@@ -678,16 +678,7 @@ namespace Realm.Client.Core
         public void ClearMapEditorState()
         {
             ModelYOffsets.Clear();
-            ModelScales.Clear();
-            ModelCollisionCircleRatios.Clear();
-            ModelObstacleRadii.Clear();
-            ModelBrightness.Clear();
-            ModelColorTint.Clear();
-            ModelDespillPlayerColor.Clear();
-            ModelNormalizeLuminance.Clear();
-            ModelIgnorePlayerColor.Clear();
-            ModelSpawnShaders.Clear();
-            ModelDeathShaders.Clear();
+            ServiceLocator.Get<ModelOverrideService>().ClearAll();
             ModelProceduralAnimations.Clear();
             ModelEnableProceduralAnimations.Clear();
         }
