@@ -43,6 +43,10 @@ public class EditorService : IEditorAPI
 	private readonly WorldAccessor EcsWorldAccessor;
 	private World EcsWorld => EcsWorldAccessor.Current;
 	public Rect2I? TerrainFlushRegion { get; set; }
+	public float TerrainMeshRebuildPeriodMs { get; set; } = 33.3f;
+	public System.Collections.Generic.Dictionary<string, Realm.Client.Core.GameHost.DecalAssetData> DecalAssetCache { get; set; } = new();
+	public System.Collections.Generic.Dictionary<(int, int), Godot.ImageTexture> DecalOrmCache { get; set; } = new();
+	public System.Collections.Generic.Dictionary<string, Godot.ImageTexture> DecalNormalCache { get; set; } = new();
 	public List<Realm.Client.Core.GameHost.EditorCoordinate> EditorCoordinates { get; set; } = new();
 	public int PendingCoordinateMinX { get; set; }
 	public int PendingCoordinateMinZ { get; set; }

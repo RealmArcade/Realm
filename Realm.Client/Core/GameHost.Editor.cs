@@ -1374,7 +1374,7 @@ public partial class GameHost
     private bool _terrainGeometryDirty;
     private bool _terrainHeightsDirty;
     private bool _terrainPathingDirty;
-    private const float TerrainMeshRebuildPeriodMs = 33.3f;
+    private float TerrainMeshRebuildPeriodMs => _editorService.TerrainMeshRebuildPeriodMs;
 
     public class DecalAssetData
     {
@@ -1391,7 +1391,7 @@ public partial class GameHost
         public bool IsAnimated => Columns > 1 || Rows > 1;
     }
 
-    private readonly System.Collections.Generic.Dictionary<string, DecalAssetData> _decalAssetCache = new();
+    private System.Collections.Generic.Dictionary<string, DecalAssetData> _decalAssetCache => _editorService.DecalAssetCache;
 
     private void DeleteObjectAt(Node collider, Vector3 hitPos)
     {
@@ -1710,8 +1710,8 @@ public partial class GameHost
         return new Basis(right, up, forward);
     }
 
-    private readonly System.Collections.Generic.Dictionary<(int, int), ImageTexture> _decalOrmCache = new();
-    private readonly System.Collections.Generic.Dictionary<string, ImageTexture> _decalNormalCache = new();
+    private System.Collections.Generic.Dictionary<(int, int), ImageTexture> _decalOrmCache => _editorService.DecalOrmCache;
+    private System.Collections.Generic.Dictionary<string, ImageTexture> _decalNormalCache => _editorService.DecalNormalCache;
 
     public void SetUnitPlayerExternal(Realm.Client.Unit3D unit, int playerIndex)
     {
@@ -1751,13 +1751,13 @@ public partial class GameHost
         SetUnitPlayerExternal(unit, targetPlayer);
     }
 
-    private Node3D? _editorCoverageOverlayRoot;
+    private Node3D? _editorCoverageOverlayRoot { get; set; }
 
     /// <summary>
     ///     When enabled, the editor draws vision/attack range rings around the selected unit.
     ///     Off by default so the overlay only appears on demand.
     /// </summary>
-    public bool EditorCoverageOverlayEnabled = false;
+    public bool EditorCoverageOverlayEnabled { get; set; } = false;
 
     private void ClearAllUnits()
     {
@@ -1810,10 +1810,10 @@ public partial class GameHost
         SetupPlayerEntityComponents(_enemyPlayerEntity);
     }
 
-    private MeshInstance3D _measureMeshInstance;
-    private ImmediateMesh _measureImmediateMesh;
+    private MeshInstance3D _measureMeshInstance { get; set; }
+    private ImmediateMesh _measureImmediateMesh { get; set; }
 
-    private MeshInstance3D _symmetryPivotMarkerMesh;
+    private MeshInstance3D _symmetryPivotMarkerMesh { get; set; }
 
     public MeshInstance3D BrushIndicatorMesh => _brushIndicatorMesh;
     public MeshInstance3D? GridOverlayMesh => null;
@@ -2044,7 +2044,7 @@ public partial class GameHost
     }
 
 
-    private MeshInstance3D _scaleMapSilhouetteMesh;
+    private MeshInstance3D _scaleMapSilhouetteMesh { get; set; }
 
     private readonly List<MeshInstance3D> _symmetryHighlightMeshes = new();
 
