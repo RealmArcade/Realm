@@ -48,6 +48,8 @@ public class EditorService : IEditorAPI
 	public bool LastSelectionBrushIsSquare { get; set; } = true;
 
 	public int CurrentPasteAnchorIndex { get; set; } = 0;
+
+	public List<string> SwatchPaths { get; set; } = new List<string>();
 	public static readonly string[] PasteAnchorNames = new string[]
 	{
 		"CENTER",

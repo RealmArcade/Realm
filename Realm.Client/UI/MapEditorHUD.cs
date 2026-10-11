@@ -129,8 +129,8 @@ public partial class MapEditorHUD : Control
     private readonly Dictionary<Control, CardDragData> _cardDragMap = new();
     private Button _btnResetLayout;
 
-    private VBoxContainer _accordionFile;
-    private Button _btnHeaderFile;
+    private VBoxContainer _accordionFile { get; set; }
+    private Button _btnHeaderFile { get; set; }
     private Control _contentFile { get; set; }
 
     private Realm.Client.UI.MapEditor.MapSettingsDialog? _mapSettingsDialog { get; set; }
@@ -144,12 +144,12 @@ public partial class MapEditorHUD : Control
     private VBoxContainer _containerPlacementSettings { get; set; }
     private VBoxContainer _containerEyedropperSettings { get; set; }
     private VBoxContainer _containerPasteSettings { get; set; }
-    private VBoxContainer _containerCategorySelector;
+    private VBoxContainer _containerCategorySelector { get; set; }
 
-    private VBoxContainer _panelObjects;
-    private VBoxContainer _panelClipboard;
-    private VBoxContainer _panelTerrainVBox;
-    private VBoxContainer _panelDecoVBox;
+    private VBoxContainer _panelObjects { get; set; }
+    private VBoxContainer _panelClipboard { get; set; }
+    private VBoxContainer _panelTerrainVBox { get; set; }
+    private VBoxContainer _panelDecoVBox { get; set; }
     private VBoxContainer _panelPathingVBox { get; set; }
     private VBoxContainer _panelCoordinatesVBox { get; set; }
     private Button _btnCut { get; set; }
@@ -173,10 +173,10 @@ public partial class MapEditorHUD : Control
     private Label _lblPasteTelemetry { get; set; }
 
     private int _currentPasteAnchorIndex { get => ServiceLocator.Get<EditorService>().CurrentPasteAnchorIndex; set => ServiceLocator.Get<EditorService>().CurrentPasteAnchorIndex = value; }
-    private static readonly string[] _pasteAnchorNames = EditorService.PasteAnchorNames;
+    private static string[] _pasteAnchorNames => EditorService.PasteAnchorNames;
 
-    private List<Button> _swatchButtons = new List<Button>();
-    private List<string> _swatchPaths = new List<string>();
+    private List<Button> _swatchButtons { get; set; } = new List<Button>();
+    private List<string> _swatchPaths { get => ServiceLocator.Get<EditorService>().SwatchPaths; set => ServiceLocator.Get<EditorService>().SwatchPaths = value; }
     private List<string> _swatchDisplayNames = new List<string>();
     public IReadOnlyList<string> SwatchDisplayNames => _swatchDisplayNames;
     private List<Color> _swatchColors = new List<Color>();
