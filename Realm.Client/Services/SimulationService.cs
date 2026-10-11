@@ -728,6 +728,8 @@ public class SimulationService
 	public const float BaseConstructionWorkRatePerSecond = 1f / 20f;
 	public const float LookTargetProximityDistance = 5.0f;
 	public readonly List<(Entity Worker, BuildTask UpdatedTask)> PendingBuildTaskUpdates = new();
+	public readonly List<Entity> CompletedBuildings = new();
+	public readonly List<(Entity Entity, string? Type, System.Numerics.Vector3 Position, Entity Target)> PendingQueuedCommands = new();
 
 	private readonly List<string> _tickCooldownKeys = new();
 

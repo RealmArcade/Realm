@@ -256,10 +256,10 @@ public partial class GameHost
 	private float LookTargetProximityDistance => SimulationService.LookTargetProximityDistance;
 
 	private List<(Entity Worker, BuildTask UpdatedTask)> _pendingBuildTaskUpdates => _simulationService.PendingBuildTaskUpdates;
-	private readonly List<Entity> _completedBuildings = new();
-	private readonly List<(Entity Entity, string? Type, System.Numerics.Vector3 Position, Entity Target)> _pendingQueuedCommands = new();
+	private List<Entity> _completedBuildings => _simulationService.CompletedBuildings;
+	private List<(Entity Entity, string? Type, System.Numerics.Vector3 Position, Entity Target)> _pendingQueuedCommands => _simulationService.PendingQueuedCommands;
 
-	private readonly Dictionary<int, List<MeshInstance3D>> _buildQueueGhosts = new();
+	private Dictionary<int, List<MeshInstance3D>> _buildQueueGhosts { get; set; } = new();
 
 	internal void TickConstructionSystem(float fDelta)
 	{
