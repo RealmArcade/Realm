@@ -290,14 +290,11 @@ public class MapEditorUxTests
 		int deepMossIndex = 1;
 		int lavaVeinIndex = 3;
 
-		var displayNamesField = typeof(MapEditorHUD).GetField("_swatchDisplayNames", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (displayNamesField?.GetValue(hud) is System.Collections.Generic.List<string> displayNames)
+		var displayNames = System.Linq.Enumerable.ToList(hud.SwatchDisplayNames);
+		for (int i = 0; i < displayNames.Count; i++)
 		{
-			for (int i = 0; i < displayNames.Count; i++)
-			{
-				if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
-				if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
-			}
+			if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
+			if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
 		}
 
 		gameHost.EditorPaintTextureIndex = deepMossIndex;
@@ -392,14 +389,11 @@ public class MapEditorUxTests
 		int lavaVeinIndex = 3;
 		int deepMossIndex = 1;
 
-		var displayNamesField = typeof(MapEditorHUD).GetField("_swatchDisplayNames", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (displayNamesField?.GetValue(hud) is System.Collections.Generic.List<string> displayNames)
+		var displayNames = System.Linq.Enumerable.ToList(hud.SwatchDisplayNames);
+		for (int i = 0; i < displayNames.Count; i++)
 		{
-			for (int i = 0; i < displayNames.Count; i++)
-			{
-				if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
-				if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
-			}
+			if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
+			if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
 		}
 
 		gameHost.EditorPaintTextureIndex = lavaVeinIndex;
@@ -868,14 +862,11 @@ public class MapEditorUxTests
 		int lavaVeinIndex = 3;
 		int deepMossIndex = 1;
 
-		var displayNamesField = typeof(MapEditorHUD).GetField("_swatchDisplayNames", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (displayNamesField?.GetValue(hud) is System.Collections.Generic.List<string> displayNames)
+		var displayNames = System.Linq.Enumerable.ToList(hud.SwatchDisplayNames);
+		for (int i = 0; i < displayNames.Count; i++)
 		{
-			for (int i = 0; i < displayNames.Count; i++)
-			{
-				if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
-				if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
-			}
+			if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
+			if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
 		}
 
 		gameHost.EditorPaintTextureIndex = lavaVeinIndex;

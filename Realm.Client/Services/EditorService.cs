@@ -50,6 +50,8 @@ public class EditorService : IEditorAPI
 	public int CurrentPasteAnchorIndex { get; set; } = 0;
 
 	public List<string> SwatchPaths { get; set; } = new List<string>();
+	public List<string> SwatchDisplayNames { get; set; } = new List<string>();
+	public List<Color> SwatchColors { get; set; } = new List<Color>();
 	public static readonly string[] PasteAnchorNames = new string[]
 	{
 		"CENTER",

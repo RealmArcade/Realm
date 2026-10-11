@@ -87,9 +87,9 @@ public partial class MapEditorHUD : Control
     private Button _btnGameSettings { get; set; }
     private EditorModule _activeModule { get; set; } = EditorModule.Terrain;
 
-    private VBoxContainer _accordionBrush;
-    private Button _btnHeaderBrush;
-    private VBoxContainer _contentBrush;
+    private VBoxContainer _accordionBrush { get; set; }
+    private Button _btnHeaderBrush { get; set; }
+    private VBoxContainer _contentBrush { get; set; }
 
     private VBoxContainer _accordionWater { get; set; }
     private Button _btnHeaderWater { get; set; }
@@ -177,10 +177,10 @@ public partial class MapEditorHUD : Control
 
     private List<Button> _swatchButtons { get; set; } = new List<Button>();
     private List<string> _swatchPaths { get => ServiceLocator.Get<EditorService>().SwatchPaths; set => ServiceLocator.Get<EditorService>().SwatchPaths = value; }
-    private List<string> _swatchDisplayNames = new List<string>();
+    private List<string> _swatchDisplayNames { get => ServiceLocator.Get<EditorService>().SwatchDisplayNames; set => ServiceLocator.Get<EditorService>().SwatchDisplayNames = value; }
     public IReadOnlyList<string> SwatchDisplayNames => _swatchDisplayNames;
-    private List<Color> _swatchColors = new List<Color>();
-    private ScrollContainer _scrollSwatches;
+    private List<Color> _swatchColors { get => ServiceLocator.Get<EditorService>().SwatchColors; set => ServiceLocator.Get<EditorService>().SwatchColors = value; }
+    private ScrollContainer _scrollSwatches { get; set; }
     private Control _gridSwatches { get; set; }
     private Button _btnReplaceTexture { get; set; }
 
@@ -192,9 +192,9 @@ public partial class MapEditorHUD : Control
     private HBoxContainer _topLeftBox { get; set; }
     private TextureRect _screenFrameRect { get; set; }
     private Tween _hudFadeTween { get; set; }
-    private bool _is3DInteractionActive = false;
+    private bool _is3DInteractionActive { get; set; } = false;
     public bool Is3DInteractionActive => _is3DInteractionActive;
-    private readonly Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters = new();
+    private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
 
     private PanelContainer _panelTextures { get; set; }
     private PanelContainer _panelEntityPalette { get; set; }
@@ -254,8 +254,8 @@ public partial class MapEditorHUD : Control
     private Realm.Client.UI.MapEditor.EnvironmentConfigDialog _environmentConfigDialog { get; set; }
     private Realm.Client.UI.MapEditor.EntityVisualEditDialog _entityVisualEditDialog { get; set; }
     private Realm.Client.UI.MapEditor.AnimationPreviewDialog _animationPreviewDialog { get; set; }
-    private Realm.Client.UI.MapEditor.WeaponVfxDialog _weaponVfxDialog;
-    private Realm.Client.UI.MapEditor.ModelPickerDialog _modelPickerDialog;
+    private Realm.Client.UI.MapEditor.WeaponVfxDialog _weaponVfxDialog { get; set; }
+    private Realm.Client.UI.MapEditor.ModelPickerDialog _modelPickerDialog { get; set; }
     private Realm.Client.UI.MapEditor.AbilityVfxDialog _abilityVfxDialog;
     private Realm.Client.UI.MapEditor.AssetManagerDialog _assetManagerDialog;
     private Realm.Client.UI.MapEditor.TemplateManagerDialog _templateManagerDialog;
