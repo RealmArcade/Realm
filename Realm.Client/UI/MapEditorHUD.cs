@@ -181,17 +181,17 @@ public partial class MapEditorHUD : Control
     public IReadOnlyList<string> SwatchDisplayNames => _swatchDisplayNames;
     private List<Color> _swatchColors = new List<Color>();
     private ScrollContainer _scrollSwatches;
-    private Control _gridSwatches;
-    private Button _btnReplaceTexture;
+    private Control _gridSwatches { get; set; }
+    private Button _btnReplaceTexture { get; set; }
 
-    private Panel _leftPillar;
-    private Panel _rightPillar;
-    private PanelContainer _topBar;
-    private HBoxContainer _topToolbar;
-    private VBoxContainer _middleRightBox;
-    private HBoxContainer _topLeftBox;
-    private TextureRect _screenFrameRect;
-    private Tween _hudFadeTween;
+    private Panel _leftPillar { get; set; }
+    private Panel _rightPillar { get; set; }
+    private PanelContainer _topBar { get; set; }
+    private HBoxContainer _topToolbar { get; set; }
+    private VBoxContainer _middleRightBox { get; set; }
+    private HBoxContainer _topLeftBox { get; set; }
+    private TextureRect _screenFrameRect { get; set; }
+    private Tween _hudFadeTween { get; set; }
     private bool _is3DInteractionActive = false;
     public bool Is3DInteractionActive => _is3DInteractionActive;
     private readonly Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters = new();
