@@ -23,6 +23,7 @@ public class EditorService : IEditorAPI
 
     public bool IsTestMode { get; set; } = false;
     public bool ReturningFromTest { get; set; } = false;
+    public long LastMapNameCacheTicks { get; set; } = 0;
     public Vector3 SavedCameraPosition { get; set; }
     public float SavedTargetHeight { get; set; }
     public float SavedCurrentHeight { get; set; }

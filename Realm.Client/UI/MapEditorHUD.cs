@@ -316,7 +316,7 @@ public partial class MapEditorHUD : Control
     private OptionButton _optEyedropperMode;
     private Button _btnNoise;
     private Button _btnWater;
-    private PanelContainer _minimapFrame;
+    private PanelContainer _minimapFrame { get; set; }
     private Control _minimapArea { get; set; }
     private Realm.Client.UI.MapEditor.MapEditorCameraIndicator _cameraIndicator { get; set; }
     private Vector3 _lastRaycastPos { get => ServiceLocator.Get<EditorService>().LastRaycastPos; set => ServiceLocator.Get<EditorService>().LastRaycastPos = value; }
@@ -353,10 +353,10 @@ public partial class MapEditorHUD : Control
     private Button _btnInspectorRotRight { get; set; }
     private Button _btnInspectorScaleDown { get; set; }
     private Button _btnInspectorScaleUp { get; set; }
-    private Button _btnInspectorScaleReset;
-    private Button _btnInspectorDelete;
-    private Button _btnShowCoverage;
-    private HBoxContainer _playerOwnerContainer;
+    private Button _btnInspectorScaleReset { get; set; }
+    private Button _btnInspectorDelete { get; set; }
+    private Button _btnShowCoverage { get; set; }
+    private HBoxContainer _playerOwnerContainer { get; set; }
     private OptionButton _optPlayerOwner { get; set; }
     private PanelContainer _rigStatusContainer { get; set; }
     private Label _lblRigStatus { get; set; }
@@ -1333,7 +1333,7 @@ public partial class MapEditorHUD : Control
 
     private string? _cachedMapName { get => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._cachedMapName; set => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._cachedMapName = value; }
     private string? _cachedMapVersion { get => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._cachedMapVersion; set => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>()._cachedMapVersion = value; }
-    private long _lastMapNameCacheTicks;
+    private long _lastMapNameCacheTicks { get => ServiceLocator.Get<EditorService>().LastMapNameCacheTicks; set => ServiceLocator.Get<EditorService>().LastMapNameCacheTicks = value; }
 
     public void InvalidateMetadataCache()
     {
@@ -1342,10 +1342,12 @@ public partial class MapEditorHUD : Control
         _lastMapNameCacheTicks = 0;
     }
 
-    private Button _btnHeaderLightingTuning;
-    private VBoxContainer _contentLightingTuning;
+    private Button _btnHeaderLightingTuning { get; set; }
+    private VBoxContainer _contentLightingTuning { get; set; }
 
-    private HSlider _sldCliffJitterStrength, _sldCliffJitterScale, _sldCliffRimNoiseStrength;
+    private HSlider _sldCliffJitterStrength { get; set; }
+    private HSlider _sldCliffJitterScale { get; set; }
+    private HSlider _sldCliffRimNoiseStrength { get; set; }
     private HSlider _sldHeightBlendSoftness, _sldBlendNoiseStrength, _sldBlendNoiseScale;
     private float _tuneCliffJitterStrength = 1.0f;
     private float _tuneCliffJitterScale = 0.20f;
