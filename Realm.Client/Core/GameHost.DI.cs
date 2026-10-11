@@ -23,13 +23,7 @@ public partial class GameHost
 		_fxService = ServiceLocator.Get<FXService>();
 		_saveLoadService = ServiceLocator.Get<SaveLoadService>();
 		_editorService = ServiceLocator.Get<EditorService>();
-		_replayService = ServiceLocator.Get<ReplayService>();
 		_networkService = ServiceLocator.Get<NetworkService>();
-
-		_terrainNavMeshService = ServiceLocator.Get<TerrainNavMeshService>();
-		_metadataService = ServiceLocator.Get<Realm.Client.Services.MetadataService>();
-		_mapUpgradeService = ServiceLocator.Get<Realm.Client.Services.MapUpgradeService>();
-		_mapStorageService = ServiceLocator.Get<Realm.Client.Services.MapStorageService>();
 
 	}
 }

@@ -43,7 +43,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private FXService _fxService;
 	private SaveLoadService _saveLoadService;
 	private EditorService _editorService;
-	private ReplayService _replayService;
+	private ReplayService _replayService => Realm.Client.Services.ServiceLocator.Get<ReplayService>();
 	private SimulationService _simulationService => Realm.Client.Services.ServiceLocator.Get<SimulationService>();
 	private ShroudService _shroudService => Realm.Client.Services.ServiceLocator.Get<ShroudService>();
 	private UnitSpawnService _unitSpawnService => Realm.Client.Services.ServiceLocator.Get<UnitSpawnService>();
@@ -54,10 +54,10 @@ public partial class GameHost : Node3D, IGameAPI
 	private EnvironmentService _environmentService => Realm.Client.Services.ServiceLocator.Get<EnvironmentService>();
 	private SpectatorService _spectatorService => Realm.Client.Services.ServiceLocator.Get<SpectatorService>();
 	private Realm.Client.Services.ModelOptimization.ModelOptimizerService _modelOptimizerService => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.ModelOptimization.ModelOptimizerService>();
-	private TerrainNavMeshService _terrainNavMeshService;
-	private Realm.Client.Services.MetadataService _metadataService;
-	private Realm.Client.Services.MapUpgradeService _mapUpgradeService;
-	private Realm.Client.Services.MapStorageService _mapStorageService;
+	private TerrainNavMeshService _terrainNavMeshService => Realm.Client.Services.ServiceLocator.Get<TerrainNavMeshService>();
+	private Realm.Client.Services.MetadataService _metadataService => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.MetadataService>();
+	private Realm.Client.Services.MapUpgradeService _mapUpgradeService => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.MapUpgradeService>();
+	private Realm.Client.Services.MapStorageService _mapStorageService => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.MapStorageService>();
 	private Realm.Client.Services.MapSaveDataService _mapSaveDataService => ServiceLocator.Get<Realm.Client.Services.MapSaveDataService>();
 
 	public CheatService CheatService => _cheatService;
@@ -459,21 +459,21 @@ public partial class GameHost : Node3D, IGameAPI
 	public static float MIN_CLUMP_SCALE_VAR => MIN_CLUMP_SCALE;
 	public static float MAX_CLUMP_SCALE_VAR => MAX_CLUMP_SCALE;
 
-	public bool PlaceUnitIsEnemy = false;
-	private float _editorBrushRadius = 2.0f;
+	public bool PlaceUnitIsEnemy { get => _editorService.PlaceUnitIsEnemy; set => _editorService.PlaceUnitIsEnemy = value; }
+	private float _editorBrushRadius { get => _editorService.EditorBrushRadius; set => _editorService.EditorBrushRadius = value; }
 	public float EditorBrushRadius
 	{
 		get => _editorBrushRadius;
 		set => _editorBrushRadius = Mathf.Clamp(value, MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS);
 	}
-	private float _editorBrushStrength = 3.0f;
+	private float _editorBrushStrength { get => _editorService.EditorBrushStrength; set => _editorService.EditorBrushStrength = value; }
 	public float EditorBrushStrength
 	{
 		get => _editorBrushStrength;
 		set => _editorBrushStrength = Mathf.Clamp(value, MIN_BRUSH_STRENGTH, MAX_BRUSH_STRENGTH);
 	}
-	public int EditorPaintTextureIndex = 3;
-	public int EditorCliffPaintTextureIndex = 1;
+	public int EditorPaintTextureIndex { get => _editorService.EditorPaintTextureIndex; set => _editorService.EditorPaintTextureIndex = value; }
+	public int EditorCliffPaintTextureIndex { get => _editorService.EditorCliffPaintTextureIndex; set => _editorService.EditorCliffPaintTextureIndex = value; }
 	public bool EditorSnapToGrid = false;
 	public float EditorPlacementRotation { get => _editorService.EditorPlacementRotation; set => _editorService.EditorPlacementRotation = value; }
 	private float _editorPlacementScale { get => _editorService.EditorPlacementScale; set => _editorService.EditorPlacementScale = value; }

@@ -99,6 +99,11 @@ public class EditorService : IEditorAPI
 	public bool IsWaterRemoveAction { get; set; } = false;
 	public float SavedBrushRadius { get; set; } = 2f;
 	public float SavedBrushStrength { get; set; } = 0.5f;
+	public bool PlaceUnitIsEnemy { get; set; } = false;
+	public float EditorBrushRadius { get; set; } = 2.0f;
+	public float EditorBrushStrength { get; set; } = 3.0f;
+	public int EditorPaintTextureIndex { get; set; } = 3;
+	public int EditorCliffPaintTextureIndex { get; set; } = 1;
 	public Realm.Client.Core.GameHost.EditorTool SavedActiveTool { get; set; } = Realm.Client.Core.GameHost.EditorTool.Raise;
 	public Realm.Client.Core.GameHost.EditorTool ActiveEditorTool { get; set; } = Realm.Client.Core.GameHost.EditorTool.None;
 	public string SavedActivePlaceId { get; set; } = "";
