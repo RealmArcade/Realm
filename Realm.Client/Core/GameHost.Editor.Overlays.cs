@@ -903,8 +903,8 @@ namespace Realm.Client.Core
             _wasMeasureMeshVisible = HideAndCacheNodeVisibility(_measureMeshInstance);
             _wasSymmetryPivotVisible = HideAndCacheNodeVisibility(_symmetryPivotMarkerMesh);
             _wasCoordinatePreviewVisible = HideAndCacheNodeVisibility(_coordinatePreviewMesh);
-            HideAndCacheNodeVisibility(_coordinateSelectionOutlineMesh, out _wasCoordinateOutlineVisible);
-            HideAndCacheNodeVisibility(_scaleMapSilhouetteMesh, out _wasScaleSilhouetteVisible);
+            _wasCoordinateOutlineVisible = HideAndCacheNodeVisibility(_coordinateSelectionOutlineMesh);
+            _wasScaleSilhouetteVisible = HideAndCacheNodeVisibility(_scaleMapSilhouetteMesh);
             _wasCoverageOverlayVisible = HideAndCacheNodeVisibility(_editorCoverageOverlayRoot);
             HideVfxEditorBaseRings();
         }

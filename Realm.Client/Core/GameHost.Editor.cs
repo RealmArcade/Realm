@@ -1365,15 +1365,15 @@ public partial class GameHost
     }
 
 
-    private long _lastTerrainMeshRebuildMs = long.MinValue;
+    private long _lastTerrainMeshRebuildMs { get; set; } = long.MinValue;
     private Rect2I? _terrainFlushRegion
     {
         get => _editorService?.TerrainFlushRegion;
         set { if (_editorService != null) _editorService.TerrainFlushRegion = value; }
     }
-    private bool _terrainGeometryDirty;
-    private bool _terrainHeightsDirty;
-    private bool _terrainPathingDirty;
+    private bool _terrainGeometryDirty { get; set; }
+    private bool _terrainHeightsDirty { get; set; }
+    private bool _terrainPathingDirty { get; set; }
     private float TerrainMeshRebuildPeriodMs => _editorService.TerrainMeshRebuildPeriodMs;
 
     public class DecalAssetData
@@ -2046,7 +2046,7 @@ public partial class GameHost
 
     private MeshInstance3D _scaleMapSilhouetteMesh { get; set; }
 
-    private readonly List<MeshInstance3D> _symmetryHighlightMeshes = new();
+    private List<MeshInstance3D> _symmetryHighlightMeshes { get; set; } = new();
 
     private int _lastSelectionMinX
     {
@@ -2081,7 +2081,7 @@ public partial class GameHost
     private bool _wasMeasureMeshVisible { get; set; }
     private bool _wasSymmetryPivotVisible { get; set; }
     private bool _wasCoordinatePreviewVisible { get; set; }
-    private bool _wasCoordinateOutlineVisible;
-    private bool _wasScaleSilhouetteVisible;
+    private bool _wasCoordinateOutlineVisible { get; set; }
+    private bool _wasScaleSilhouetteVisible { get; set; }
     private bool _wasCoverageOverlayVisible { get; set; }
 }

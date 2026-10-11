@@ -16,6 +16,9 @@ public class RegistryService
 	public readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
 	public Dictionary<string, Realm.Shared.Metadata.VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public System.Collections.Generic.Dictionary<string, Realm.Client.Core.AbilityDefinition> AbilityDefinitions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	public Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> UnitAbilityStates { get; set; } = new();
+	public Dictionary<(int UnitUniqueId, string AbilityId), float> UnitAbilityManaCosts { get; set; } = new();
+	public Dictionary<string, string> ItemTooltips { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     
     public void ClearAll()
     {
@@ -28,5 +31,8 @@ public class RegistryService
         ItemRegistry.Clear();
         VfxRegistry.Clear();
         AbilityDefinitions.Clear();
+        UnitAbilityStates.Clear();
+        UnitAbilityManaCosts.Clear();
+        ItemTooltips.Clear();
     }
 }

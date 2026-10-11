@@ -20,9 +20,9 @@ namespace Realm.Client.Core;
 public partial class GameHost
 {
 	private System.Collections.Generic.Dictionary<string, AbilityDefinition> _abilityDefinitions => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.RegistryService>().AbilityDefinitions;
-	private readonly Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> _unitAbilityStates = new();
-	private readonly Dictionary<(int UnitUniqueId, string AbilityId), float> _unitAbilityManaCosts = new();
-	private readonly Dictionary<string, string> _itemTooltips = new(StringComparer.OrdinalIgnoreCase);
+	private Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> _unitAbilityStates => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.RegistryService>().UnitAbilityStates;
+	private Dictionary<(int UnitUniqueId, string AbilityId), float> _unitAbilityManaCosts => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.RegistryService>().UnitAbilityManaCosts;
+	private Dictionary<string, string> _itemTooltips => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.RegistryService>().ItemTooltips;
 	private readonly Dictionary<(int PlayerIndex, string TechId), int> _playerTechLevels = new();
 
 	public void ResetAbilityCatalog()
