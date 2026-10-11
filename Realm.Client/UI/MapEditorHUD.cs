@@ -91,8 +91,8 @@ public partial class MapEditorHUD : Control
     private Button _btnHeaderBrush;
     private VBoxContainer _contentBrush;
 
-    private VBoxContainer _accordionWater;
-    private Button _btnHeaderWater;
+    private VBoxContainer _accordionWater { get; set; }
+    private Button _btnHeaderWater { get; set; }
     private VBoxContainer _contentWater { get; set; }
     private Button _btnWaterActionAdd { get; set; }
     private Button _btnWaterActionRemove { get; set; }
@@ -106,13 +106,13 @@ public partial class MapEditorHUD : Control
     private Button _btnHeaderToolSettings { get; set; }
     private VBoxContainer _contentToolSettings { get; set; }
 
-    private VBoxContainer _accordionPlacement;
-    private Button _btnHeaderPlacement;
-    private VBoxContainer _contentPlacement;
+    private VBoxContainer _accordionPlacement { get; set; }
+    private Button _btnHeaderPlacement { get; set; }
+    private VBoxContainer _contentPlacement { get; set; }
 
-    private VBoxContainer _accordionViewport;
-    private Button _btnHeaderViewport;
-    private VBoxContainer _contentViewport;
+    private VBoxContainer _accordionViewport { get; set; }
+    private Button _btnHeaderViewport { get; set; }
+    private VBoxContainer _contentViewport { get; set; }
 
     private class CardDragData
     {
@@ -126,8 +126,8 @@ public partial class MapEditorHUD : Control
         public Vector2 CardStartPos;
     }
 
-    private readonly Dictionary<Control, CardDragData> _cardDragMap = new();
-    private Button _btnResetLayout;
+    private Dictionary<Control, CardDragData> _cardDragMap { get; set; } = new();
+    private Button _btnResetLayout { get; set; }
 
     private VBoxContainer _accordionFile { get; set; }
     private Button _btnHeaderFile { get; set; }
