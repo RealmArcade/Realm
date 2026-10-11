@@ -41,8 +41,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private AudioService _audioService;
 	private FXService _fxService;
-	private SaveLoadService _saveLoadService;
-	private EditorService _editorService;
+	private SaveLoadService _saveLoadService => Realm.Client.Services.ServiceLocator.Get<SaveLoadService>();
+	private EditorService _editorService => Realm.Client.Services.ServiceLocator.Get<EditorService>();
 	private ReplayService _replayService => Realm.Client.Services.ServiceLocator.Get<ReplayService>();
 	private SimulationService _simulationService => Realm.Client.Services.ServiceLocator.Get<SimulationService>();
 	private ShroudService _shroudService => Realm.Client.Services.ServiceLocator.Get<ShroudService>();
@@ -474,7 +474,7 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 	public int EditorPaintTextureIndex { get => _editorService.EditorPaintTextureIndex; set => _editorService.EditorPaintTextureIndex = value; }
 	public int EditorCliffPaintTextureIndex { get => _editorService.EditorCliffPaintTextureIndex; set => _editorService.EditorCliffPaintTextureIndex = value; }
-	public bool EditorSnapToGrid = false;
+	public bool EditorSnapToGrid { get; set; } = false;
 	public float EditorPlacementRotation { get => _editorService.EditorPlacementRotation; set => _editorService.EditorPlacementRotation = value; }
 	private float _editorPlacementScale { get => _editorService.EditorPlacementScale; set => _editorService.EditorPlacementScale = value; }
 	public float EditorPlacementScale
@@ -560,10 +560,10 @@ public partial class GameHost : Node3D, IGameAPI
 	public float EditorPolarRadialStep { get => _editorService.EditorPolarRadialStep; set => _editorService.EditorPolarRadialStep = value; }
 
 	public Vector3? EditorTapeMeasureStart { get => _editorService.EditorTapeMeasureStart; set => _editorService.EditorTapeMeasureStart = value; }
-	public Vector3? EditorTapeMeasureEnd;
-	public bool EditorTapeMeasureActive = false;
+	public Vector3? EditorTapeMeasureEnd { get; set; }
+	public bool EditorTapeMeasureActive { get; set; } = false;
 
-	public bool EditorBrushIsSquare = true;
+	public bool EditorBrushIsSquare { get; set; } = true;
 
 	private float _editorClumpCount
 	{
@@ -821,8 +821,8 @@ public partial class GameHost : Node3D, IGameAPI
 		get => _editorService.EditorPreviewType;
 		set => _editorService.EditorPreviewType = value;
 	}
-	private string _editorPreviewId = "";
-	private bool _editorPreviewIsEnemy;
+	private string _editorPreviewId { get; set; } = "";
+	private bool _editorPreviewIsEnemy { get; set; }
 	public List<Realm.Client.Services.FXService.MinimapPing> ActivePings => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.FXService>().ActivePings;
 	public bool ActivePingMode
 	{

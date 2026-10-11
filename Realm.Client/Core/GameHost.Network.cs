@@ -17,7 +17,7 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	private NetworkService _networkService;
+	private NetworkService _networkService => Realm.Client.Services.ServiceLocator.Get<NetworkService>();
 	public bool IsPaused = false;
 	public int ResumeCountdownSeconds = -1;
 	private float _resumeCountdownTimer = 0f;

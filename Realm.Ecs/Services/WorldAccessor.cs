@@ -16,6 +16,7 @@ public class WorldAccessor
 	public long _lastMetadataSyncTime { get; set; } = 0;
 	public bool IsGameOver { get; set; }
 	public Arch.Core.Entity WorldEntity { get; set; } = Arch.Core.Entity.Null;
+	public System.Collections.Generic.Dictionary<(int PlayerIndex, string TechId), int> PlayerTechLevels { get; set; } = new();
 
 	public WorldAccessor(World initialWorld)
 	{

@@ -23,7 +23,7 @@ public partial class GameHost
 	private Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> _unitAbilityStates => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.RegistryService>().UnitAbilityStates;
 	private Dictionary<(int UnitUniqueId, string AbilityId), float> _unitAbilityManaCosts => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.RegistryService>().UnitAbilityManaCosts;
 	private Dictionary<string, string> _itemTooltips => Realm.Client.Services.ServiceLocator.Get<Realm.Client.Services.RegistryService>().ItemTooltips;
-	private readonly Dictionary<(int PlayerIndex, string TechId), int> _playerTechLevels = new();
+	private Dictionary<(int PlayerIndex, string TechId), int> _playerTechLevels => Realm.Client.Services.ServiceLocator.Get<Realm.Ecs.Services.WorldAccessor>().PlayerTechLevels;
 
 	public void ResetAbilityCatalog()
 	{

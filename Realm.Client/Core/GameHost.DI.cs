@@ -21,9 +21,6 @@ public partial class GameHost
 
 		_audioService = ServiceLocator.Get<AudioService>();
 		_fxService = ServiceLocator.Get<FXService>();
-		_saveLoadService = ServiceLocator.Get<SaveLoadService>();
-		_editorService = ServiceLocator.Get<EditorService>();
-		_networkService = ServiceLocator.Get<NetworkService>();
 
 	}
 }
