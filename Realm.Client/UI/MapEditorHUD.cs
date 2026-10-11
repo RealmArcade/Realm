@@ -291,8 +291,8 @@ public partial class MapEditorHUD : Control
     private Label _lblPlacementRotateValue { get; set; }
     private Slider _sldPlacementScale { get; set; }
     private Label _lblPlacementScaleValue { get; set; }
-    private VBoxContainer _placementRotateBox;
-    private VBoxContainer _placementScaleBox;
+    private VBoxContainer _placementRotateBox { get; set; }
+    private VBoxContainer _placementScaleBox { get; set; }
     private Button _btnCopy { get; set; }
     private Button _btnPaste { get; set; }
     private Control _stepBox { get; set; }
@@ -313,9 +313,9 @@ public partial class MapEditorHUD : Control
     private PopupPanel _popupSaveMore { get; set; }
     private Button _btnImportMinimap { get; set; }
     private Button _btnEyedropper { get; set; }
-    private OptionButton _optEyedropperMode;
-    private Button _btnNoise;
-    private Button _btnWater;
+    private OptionButton _optEyedropperMode { get; set; }
+    private Button _btnNoise { get; set; }
+    private Button _btnWater { get; set; }
     private PanelContainer _minimapFrame { get; set; }
     private Control _minimapArea { get; set; }
     private Realm.Client.UI.MapEditor.MapEditorCameraIndicator _cameraIndicator { get; set; }
@@ -1348,9 +1348,11 @@ public partial class MapEditorHUD : Control
     private HSlider _sldCliffJitterStrength { get; set; }
     private HSlider _sldCliffJitterScale { get; set; }
     private HSlider _sldCliffRimNoiseStrength { get; set; }
-    private HSlider _sldHeightBlendSoftness, _sldBlendNoiseStrength, _sldBlendNoiseScale;
-    private float _tuneCliffJitterStrength = 1.0f;
-    private float _tuneCliffJitterScale = 0.20f;
+    private HSlider _sldHeightBlendSoftness { get; set; }
+    private HSlider _sldBlendNoiseStrength { get; set; }
+    private HSlider _sldBlendNoiseScale { get; set; }
+    private float _tuneCliffJitterStrength { get => ServiceLocator.Get<EnvironmentService>().TuneCliffJitterStrength; set => ServiceLocator.Get<EnvironmentService>().TuneCliffJitterStrength = value; }
+    private float _tuneCliffJitterScale { get => ServiceLocator.Get<EnvironmentService>().TuneCliffJitterScale; set => ServiceLocator.Get<EnvironmentService>().TuneCliffJitterScale = value; }
     private float _tuneCliffRimNoiseStrength = 0.30f;
     private float _tuneHeightBlendSoftness = 0.04f;
     private float _tuneBlendNoiseStrength = 0.22f;

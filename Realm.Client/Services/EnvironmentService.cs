@@ -15,6 +15,8 @@ namespace Realm.Client.Services;
 public class EnvironmentService
 {
 	public float TimeOfDayCycleDuration { get; set; } = 90f;
+	public float TuneCliffJitterStrength { get; set; } = 1.0f;
+	public float TuneCliffJitterScale { get; set; } = 0.20f;
 	private struct LiveEnvironmentState
 	{
 		public float SunPitch;
