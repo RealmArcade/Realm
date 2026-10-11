@@ -26,21 +26,16 @@ namespace Realm.Client.Core;
 
 public partial class GameHost : Node3D, IGameAPI
 {
-	public Camera3D MainCamera;
-	public Node MainNode;
+	public Camera3D MainCamera { get; set; }
+	public Node MainNode { get; set; }
 
-	public static GameHost Instance;
-	public string ActiveMapName = "";
+	public static GameHost Instance { get; set; }
+	public string ActiveMapName { get => Realm.Client.Services.ServiceLocator.Get<WorldAccessor>().ActiveMapName; set => Realm.Client.Services.ServiceLocator.Get<WorldAccessor>().ActiveMapName = value; }
 
-	private static readonly JsonSerializerOptions Options = new()
-	{
-		PropertyNameCaseInsensitive = true,
-		IncludeFields = true,
-		Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
-	};
+private JsonSerializerOptions Options => Realm.Client.Services.ServiceLocator.Get<SaveLoadService>().Options;
 
-	private AudioService _audioService;
-	private FXService _fxService;
+	private AudioService _audioService => Realm.Client.Services.ServiceLocator.Get<AudioService>();
+	private FXService _fxService => Realm.Client.Services.ServiceLocator.Get<FXService>();
 	private SaveLoadService _saveLoadService => Realm.Client.Services.ServiceLocator.Get<SaveLoadService>();
 	private EditorService _editorService => Realm.Client.Services.ServiceLocator.Get<EditorService>();
 	private ReplayService _replayService => Realm.Client.Services.ServiceLocator.Get<ReplayService>();

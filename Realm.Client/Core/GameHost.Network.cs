@@ -18,9 +18,9 @@ namespace Realm.Client.Core;
 public partial class GameHost
 {
 	private NetworkService _networkService => Realm.Client.Services.ServiceLocator.Get<NetworkService>();
-	public bool IsPaused = false;
-	public int ResumeCountdownSeconds = -1;
-	private float _resumeCountdownTimer = 0f;
+	public bool IsPaused { get => _networkService.IsPaused; set => _networkService.IsPaused = value; }
+	public int ResumeCountdownSeconds { get => _networkService.ResumeCountdownSeconds; set => _networkService.ResumeCountdownSeconds = value; }
+	private float _resumeCountdownTimer { get => _networkService.ResumeCountdownTimer; set => _networkService.ResumeCountdownTimer = value; }
 	private bool _countdownForcedByHost { get => _networkService.CountdownForcedByHost; set => _networkService.CountdownForcedByHost = value; }
 	private System.Collections.Generic.Dictionary<int, bool> _playerReadyStates => _networkService.PlayerReadyStates;
 	private System.Collections.Generic.Dictionary<int, bool> _disallowedPausePeers => _networkService.DisallowedPausePeers;

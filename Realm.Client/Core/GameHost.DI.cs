@@ -19,8 +19,6 @@ public partial class GameHost
 	{
 		ServiceLocator.EnsureServices();
 
-		_audioService = ServiceLocator.Get<AudioService>();
-		_fxService = ServiceLocator.Get<FXService>();
 
 	}
 }

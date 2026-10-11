@@ -34,6 +34,10 @@ public class NetworkService
 		public double SendTime;
 	}
 
+		public bool IsPaused { get; set; } = false;
+	public int ResumeCountdownSeconds { get; set; } = -1;
+	public float ResumeCountdownTimer { get; set; } = 0f;
+
 	public NetworkService(WorldAccessor ecsWorldAccessor)
 	{
 		_ecsWorldAccessor = ecsWorldAccessor;

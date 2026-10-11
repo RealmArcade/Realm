@@ -11,6 +11,7 @@ public class WorldAccessor
 	public string? _cachedMapName { get; set; }
 	public string? _cachedMapVersion { get; set; }
 	public string CurrentDirectoryBlake3 { get; set; } = string.Empty;
+	public string ActiveMapName { get; set; } = "";
 	public World Current { get; set; }
 	public long _lastTerrainSyncTime { get; set; } = 0;
 	public long _lastMetadataSyncTime { get; set; } = 0;

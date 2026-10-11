@@ -23,6 +23,13 @@ public class SaveLoadService
 
 	public bool IsLoadingMap { get; set; }
 
+		public System.Text.Json.JsonSerializerOptions Options { get; } = new()
+	{
+		PropertyNameCaseInsensitive = true,
+		IncludeFields = true,
+		Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+	};
+
 	public SaveLoadService(WorldAccessor ecsWorldAccessor)
 	{
 		_ecsWorldAccessor = ecsWorldAccessor;
