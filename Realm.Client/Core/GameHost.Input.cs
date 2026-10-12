@@ -2667,6 +2667,7 @@ public partial class GameHost
 
 	private void QueueMultiplayerMoveCommand(List<int> targetIds, Vector3 targetPos, bool isQueued)
 	{
+		if (IsLocalPlayerDefeated) return;
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
 			QueueClientCommand(isQueued ? "move_queued" : "move", targetIds, targetPos, 0, "");
@@ -2675,7 +2676,7 @@ public partial class GameHost
 
 	public void IssueAttackCommand(Realm.Client.Unit3D target, bool isQueued = false)
 	{
-		if (SelectedUnits.Count == 0) return;
+		if (IsLocalPlayerDefeated || SelectedUnits.Count == 0) return;
 
 		SpawnTargetIndicator(target.GlobalPosition, new Color(0.9f, 0.1f, 0.1f));
 
@@ -3148,6 +3149,7 @@ public partial class GameHost
 
 	private void ExecuteSpellCast(string spellId, Vector3 position)
 	{
+		if (IsLocalPlayerDefeated) return;
 		var def = GetAbilityDefinition(spellId);
 
 		if (_multiplayerActive && !Multiplayer.IsServer())

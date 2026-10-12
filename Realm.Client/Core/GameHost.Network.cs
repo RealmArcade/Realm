@@ -23,6 +23,10 @@ public partial class GameHost
 	private bool _countdownForcedByHost = false;
 	private readonly System.Collections.Generic.Dictionary<int, bool> _playerReadyStates = new();
 	private readonly System.Collections.Generic.Dictionary<int, bool> _disallowedPausePeers = new();
+	private readonly System.Collections.Generic.HashSet<int> _readyPeers = new();
+	private bool _initialBaselineReceived = false;
+	private float _readyNotifyRetryTimer = 0f;
+	private int _readyNotifyRetryCount = 0;
 
 	public int GetOwnerPeerId(Entity unitEntity) => _networkService.GetOwnerPeerId(unitEntity);
 
@@ -106,6 +110,17 @@ public partial class GameHost
 			_commandSendTimer = 0f;
 			SendUnacknowledgedCommands();
 			UpdateClientCameraPosition();
+		}
+
+		if (!_initialBaselineReceived && _multiplayerActive && !IsServerActive() && _readyNotifyRetryCount < 5)
+		{
+			_readyNotifyRetryTimer += fDelta;
+			if (_readyNotifyRetryTimer >= 1.0f)
+			{
+				_readyNotifyRetryTimer = 0f;
+				_readyNotifyRetryCount++;
+				RpcId(1, nameof(ServerNotifyClientReady));
+			}
 		}
 		
 		EcsWorld?.Mutate<Realm.Ecs.Components.Core.NetworkState>(_worldEntity, (ref Realm.Ecs.Components.Core.NetworkState netState) =>
@@ -247,6 +262,7 @@ public partial class GameHost
 	public void ReceiveSnapshot(byte[] payload)
 	{
 		if (Multiplayer.IsServer()) return;
+		_initialBaselineReceived = true;
 		_networkService.RecordSnapshotReceived(payload);
 
 		foreach (var snap in _networkService.FlushPendingUnitSpawns())
@@ -360,7 +376,22 @@ public partial class GameHost
 	{
 		var entity = _networkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out bool isEnemy);
 		if (entity == Entity.Null) return;
-		SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, isEnemy);
+
+		int ownerSlot = -1;
+		if (snap.OwnerPlayerEntityId > 0 && Realm.Client.Network.LobbyManager.Instance != null)
+		{
+			foreach (var kvp in _peerIdToPlayerEntityMap)
+			{
+				if (kvp.Value.Id == snap.OwnerPlayerEntityId)
+				{
+					var match = Realm.Client.Network.LobbyManager.Instance.PlayerList.Find(x => x.PeerId == kvp.Key);
+					if (match != null) ownerSlot = match.Slot;
+					break;
+				}
+			}
+		}
+
+		SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, isEnemy, false, ownerSlot);
 	}
 
 	private void QueueOrSendPacket(int peerId, string funcName, params object[] args)
@@ -723,6 +754,12 @@ public partial class GameHost
 		RpcId(newPeerId, nameof(BroadcastReadyStates), serializedReady);
 	}
 
+	public void HandlePeerDisconnected(int peerId)
+	{
+		_readyPeers.Remove(peerId);
+		GD.Print($"[GameHost] Cleaned up state for disconnected peer {peerId}");
+	}
+
 	public void HandlePeerReconnected(int oldPeerId, int newPeerId, int slot)
 	{
 		if (!Multiplayer.IsServer()) return;
@@ -802,6 +839,74 @@ public partial class GameHost
 	{
 		IsGameOver = true;
 		Realm.Client.UI.UIManager.Instance?.CallDeferred(nameof(Realm.Client.UI.UIManager.TransitionTo), (int)GameScreen.GameOver, isVictory);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPlayerDefeated(string reason)
+	{
+		IsLocalPlayerDefeated = true;
+		ClearSelection();
+		Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		Realm.Client.UI.InGameHUD.Instance?.ShowFeedbackText($"You have been defeated ({reason})", new Color(1f, 0.2f, 0.2f));
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientSelectUnit(int serverEntityId)
+	{
+		Callable.From(() =>
+		{
+			if (TryGetLocalEntity(serverEntityId, out var localEnt) && EcsWorld != null && EcsWorld.IsAlive(localEnt))
+			{
+				if (TryGetUnit3D(localEnt, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					ClearSelection();
+					SelectUnit(unit3D);
+					Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				}
+			}
+			else
+			{
+				GetTree().CreateTimer(0.2f).Timeout += () =>
+				{
+					if (TryGetLocalEntity(serverEntityId, out var deferredEnt) && EcsWorld != null && EcsWorld.IsAlive(deferredEnt))
+					{
+						if (TryGetUnit3D(deferredEnt, out var deferredUnit3D) && GodotObject.IsInstanceValid(deferredUnit3D))
+						{
+							ClearSelection();
+							SelectUnit(deferredUnit3D);
+							Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
+						}
+					}
+				};
+			}
+		}).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ServerNotifyClientReady()
+	{
+		if (!Multiplayer.IsServer()) return;
+		int senderId = Multiplayer.GetRemoteSenderId();
+
+		if (_readyPeers.Contains(senderId)) return;
+		_readyPeers.Add(senderId);
+
+		GD.Print($"[GameHost] ServerNotifyClientReady from peer {senderId}. Sending baseline snapshot and abilities.");
+
+		var baselinePayload = _networkService.BuildExplicitBaselineSnapshot(senderId, AllUnits);
+		if (baselinePayload != null && baselinePayload.Length > 0)
+		{
+			RpcId(senderId, nameof(ReceiveSnapshot), baselinePayload);
+		}
+
+		foreach (var kvp in _abilityDefinitions)
+		{
+			RpcId(senderId, nameof(ClientRegisterAbility), kvp.Key, kvp.Value.DisplayName, kvp.Value.Tooltip, kvp.Value.IconPath ?? "", kvp.Value.IsInstant);
+		}
+
+		SyncReconnectedWorldState(senderId);
+		SyncReconnectedCountdown(senderId);
+		SyncReconnectedPauseState(senderId);
 	}
 
 	private void AssignReconnectedPlayerEntity(int slot)

@@ -1317,6 +1317,27 @@ public class {mapName} : IMapScript
 		{
 			((IGameAPI)this).TriggerDefeat();
 		}
+		else if (_multiplayerActive && IsServerActive())
+		{
+			if (Realm.Client.Network.LobbyManager.Instance != null)
+			{
+				foreach (var p in Realm.Client.Network.LobbyManager.Instance.PlayerList)
+				{
+					if (p.Slot == playerIndex)
+					{
+						if (p.PeerId == 1)
+						{
+							ClientPlayerDefeated(reason);
+						}
+						else
+						{
+							RpcId(p.PeerId, nameof(ClientPlayerDefeated), reason);
+						}
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	void IGameAPI.TriggerPlayerVictory(int playerIndex)
@@ -1681,6 +1702,21 @@ public class {mapName} : IMapScript
 						ClearSelection();
 						SelectUnit(unit3D);
 						Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
+					}
+				}
+
+				if (_multiplayerActive && IsServerActive())
+				{
+					int serverEntityId = wrapper.Entity.Id;
+					if (Realm.Client.Network.LobbyManager.Instance != null)
+					{
+						foreach (var p in Realm.Client.Network.LobbyManager.Instance.PlayerList)
+						{
+							if (p.Slot == unit.Player && p.PeerId != _localPeerId)
+							{
+								RpcId(p.PeerId, nameof(ClientSelectUnit), serverEntityId);
+							}
+						}
 					}
 				}
 			}

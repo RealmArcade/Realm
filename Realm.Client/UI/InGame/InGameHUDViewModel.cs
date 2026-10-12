@@ -502,6 +502,7 @@ public class InGameHUDViewModel
 		public float Speed { get; set; }
 		public float Dps { get; set; }
 		public bool IsEnemy { get; set; }
+		public int PlayerIndex { get; set; }
 		public bool IsBuilding { get; set; }
 		public bool IsUnderConstruction { get; set; }
 		public string StateText { get; set; }
@@ -667,6 +668,7 @@ public class InGameHUDViewModel
 		info.Entity = u.Entity;
 		info.UnitId = u.UnitId;
 		info.IsEnemy = u.IsEnemy;
+		info.PlayerIndex = u.Player;
 		info.IsBuilding = u.IsBuilding;
 		info.Name = u.UnitId;
 		info.IsUnderConstruction = false;
