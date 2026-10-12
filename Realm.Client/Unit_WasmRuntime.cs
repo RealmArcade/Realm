@@ -95,14 +95,17 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitOwnerPlayer(value));
 
-			bool isEnemy = value != 0;
+			bool isEnemy = Realm.Client.Core.GameHost.Instance != null
+				? Realm.Client.Core.GameHost.Instance.IsPlayerEnemy(value)
+				: value != 0;
 			_world.SetOrAdd(_entity, new UnitFaction(isEnemy));
 
 			if (_world.Has<Owner>(_entity) && Realm.Client.Core.GameHost.Instance != null)
 			{
-				var playerOwner = isEnemy
-					? Realm.Client.Core.GameHost.Instance.EnemyEntity.AsPlayerEntity(_world)
-					: Realm.Client.Core.GameHost.Instance.PlayerEntity.AsPlayerEntity(_world);
+				var resolvedPlayer = Realm.Client.Core.GameHost.Instance.GetPlayerEntityForPlayerIndex(value);
+				var playerOwner = resolvedPlayer != Entity.Null && _world.IsAlive(resolvedPlayer)
+					? resolvedPlayer.AsPlayerEntity(_world)
+					: (isEnemy ? Realm.Client.Core.GameHost.Instance.EnemyEntity.AsPlayerEntity(_world) : Realm.Client.Core.GameHost.Instance.PlayerEntity.AsPlayerEntity(_world));
 				_world.Set(_entity, new Owner(playerOwner));
 			}
 
@@ -126,7 +129,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		{
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitFaction(value));
-			if (_world.Has<Owner>(_entity))
+			if (_world.Has<Owner>(_entity) && Realm.Client.Core.GameHost.Instance != null)
 			{
 				var playerOwner = value
 					? Realm.Client.Core.GameHost.Instance.EnemyEntity.AsPlayerEntity(_world)

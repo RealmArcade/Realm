@@ -305,7 +305,8 @@ public partial class CommandPanel
 	{
 		if (_commandGrid == null) return;
 
-		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy)
+		int localPlayer = Realm.Client.Core.GameHost.Instance?.LocalPlayerIndex ?? 0;
+		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || focusedUnit.PlayerIndex != localPlayer || Realm.Client.Core.GameHost.Instance?.IsLocalPlayerDefeated == true)
 		{
 			ClearCommandPanelState();
 			return;

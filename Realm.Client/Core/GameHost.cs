@@ -205,6 +205,8 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
+	public bool IsLocalPlayerDefeated { get; set; }
+
 	public Entity GetPlayerEntityForPlayerIndex(int playerIndex)
 	{
 		var pe = TryGetMultiplayerEntity(playerIndex);
@@ -1656,6 +1658,12 @@ public static void EnsureMapProjectFiles(string mapDir)
 		{
 			Realm.Client.Network.LobbyManager.Instance.ServerChatCommandReceived += HandleServerChatCommand;
 		}
+
+		IsLocalPlayerDefeated = false;
+		_readyPeers.Clear();
+		_initialBaselineReceived = false;
+		_readyNotifyRetryTimer = 0f;
+		_readyNotifyRetryCount = 0;
 
 		ReinitializeEcsAndServices();
 	}

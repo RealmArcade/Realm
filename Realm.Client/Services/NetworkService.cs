@@ -510,6 +510,23 @@ public class NetworkService
 		int buildPeerOwner = needsBuildUnit ? peerId : -1;
 
 		bool needsSpellEffect = cmd.CommandType == "spell";
+		if (needsSpellEffect)
+		{
+			if (cmd.UnitEntityIds.Count == 0)
+			{
+				GD.PrintErr($"[SECURITY] Rejected spell command without caster from peer {peerId}");
+				needsSpellEffect = false;
+			}
+			else
+			{
+				var casterEntity = FindServerEntity(cmd.UnitEntityIds[0], allUnits);
+				if (casterEntity == Entity.Null || !IsClientAuthorized(peerId, casterEntity) || EcsWorld.Has<Dead>(casterEntity))
+				{
+					GD.PrintErr($"[SECURITY] Unauthorized or dead caster for spell from peer {peerId}");
+					needsSpellEffect = false;
+				}
+			}
+		}
 		string spellId = needsSpellEffect ? cmd.ArgString : null;
 		Vector3 spellPosition = needsSpellEffect ? cmd.TargetPosition.ToGodot() : Vector3.Zero;
 

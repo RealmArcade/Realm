@@ -1179,6 +1179,7 @@ public partial class LobbyManager : Node
 					GD.Print($"[LobbyManager] In-game peer {id} ({player.Name}) marked as disconnected for reconnect. Slot {player.Slot} preserved.");
 					SendChatMessage("System", string.Format(Tr("{0} disconnected. Waiting for reconnect..."), player.Name));
 				}
+				Realm.Client.Core.GameHost.Instance?.HandlePeerDisconnected(id);
 				return;
 			}
 
