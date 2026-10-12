@@ -7,11 +7,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace Realm.Client.UI.MapEditor;
 
 public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingPreview3DDialogBase
 {
+	[GeneratedRegex(@"^(.*)_(\d+)$")]
+	private static partial Regex TrailingIndexRegex();
+
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 	private AnimatedSprite3D _vfxSprite;
@@ -917,6 +921,15 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		btnEdit.Pressed += () => OpenEditDialogForObject(item);
 		actionsHBox.AddChild(btnEdit);
 
+		var btnCopy = new Button();
+		btnCopy.Text = UnicodeIcons.COPY;
+		btnCopy.Set("icon_max_width", 0);
+		if (faFont != null) btnCopy.AddThemeFontOverride("font", faFont);
+		btnCopy.TooltipText = TranslationServer.Translate("Duplicate Object");
+		btnCopy.CustomMinimumSize = new Vector2(28, 28);
+		btnCopy.Pressed += () => DuplicateObject(item);
+		actionsHBox.AddChild(btnCopy);
+
 		var btnDelete = new Button();
 		btnDelete.Text = UnicodeIcons.TRASH_ALT;
 		btnDelete.Set("icon_max_width", 0);
@@ -1478,6 +1491,305 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 			Name = parsedSlug,
 			Description = ""
 		});
+	}
+
+	private void DuplicateObject(ObjectItemInfo item)
+	{
+		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta == null) return;
+
+		string objectType = GetObjectTypeFromCategory(item.Category);
+		var existingIDs = GetExistingObjectIDs(wsPath, item.Category);
+
+		var (parsedType, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+		if (string.IsNullOrWhiteSpace(oldSlug)) oldSlug = item.TemplateID;
+
+		var (newTemplateID, newSlug) = GenerateDuplicateSlug(objectType, oldSlug, existingIDs);
+
+		MetadataService.Instance.UpdateMetadata(wsPath, m =>
+		{
+			DuplicateMetadataForCategory(m, item, newTemplateID, newSlug);
+		});
+
+		HandlePostDuplicateObject(item.Category, newTemplateID, newSlug);
+	}
+
+	private (string TemplateID, string Slug) GenerateDuplicateSlug(string objectType, string originalSlug, HashSet<string> existingIDs)
+	{
+		string baseSlug;
+		int nextIndex = 1;
+
+		var match = TrailingIndexRegex().Match(originalSlug);
+		if (match.Success && int.TryParse(match.Groups[2].Value, out int currentNum))
+		{
+			baseSlug = match.Groups[1].Value;
+			nextIndex = currentNum + 1;
+		}
+		else
+		{
+			baseSlug = originalSlug;
+			nextIndex = 1;
+		}
+
+		while (true)
+		{
+			string candidateSlug = $"{baseSlug}_{nextIndex}";
+			string candidateID = $"{objectType}/{candidateSlug}";
+			if (!existingIDs.Contains(candidateID) && !existingIDs.Contains(candidateSlug))
+			{
+				return (candidateID, candidateSlug);
+			}
+			nextIndex++;
+		}
+	}
+
+	private void DuplicateMetadataForCategory(MapMetadata m, ObjectItemInfo item, string newTemplateID, string newSlug)
+	{
+		switch (item.Category.ToLowerInvariant())
+		{
+			case "units":
+				var srcUnit = m.GetUnit(item.TemplateID);
+				if (srcUnit != null)
+				{
+					var dupUnit = CloneUnitMetadata(srcUnit, newTemplateID, newSlug);
+					m.AddOrUpdateUnit(dupUnit);
+				}
+				break;
+			case "buildings":
+				var srcBld = m.GetBuilding(item.TemplateID);
+				if (srcBld != null)
+				{
+					var dupBld = CloneUnitMetadata(srcBld, newTemplateID, newSlug);
+					m.AddOrUpdateBuilding(dupBld);
+				}
+				break;
+			case "resources":
+				var srcRes = m.GetResource(item.TemplateID);
+				if (srcRes != null)
+				{
+					var dupRes = CloneResourceMetadata(srcRes, newTemplateID, newSlug);
+					m.AddOrUpdateResource(dupRes);
+				}
+				break;
+			case "props":
+				var srcProp = m.GetProp(item.TemplateID);
+				if (srcProp != null)
+				{
+					var dupProp = ClonePropMetadata(srcProp, newTemplateID, newSlug);
+					m.AddOrUpdateProp(dupProp);
+				}
+				break;
+			case "weapons":
+				var srcWep = m.GetWeapon(item.TemplateID);
+				if (srcWep != null)
+				{
+					var dupWep = CloneWeaponMetadata(srcWep, newTemplateID, newSlug);
+					m.AddOrUpdateWeapon(dupWep);
+				}
+				break;
+			case "abilities":
+				var srcAbi = m.GetAbility(item.TemplateID);
+				if (srcAbi != null)
+				{
+					var dupAbi = CloneAbilityMetadata(srcAbi, newTemplateID, newSlug);
+					m.AddOrUpdateAbility(dupAbi);
+				}
+				break;
+			case "upgrades":
+				var srcUpg = m.GetUpgrade(item.TemplateID);
+				if (srcUpg != null)
+				{
+					var dupUpg = CloneUpgradeMetadata(srcUpg, newTemplateID, newSlug);
+					m.AddOrUpdateUpgrade(dupUpg);
+				}
+				break;
+			case "items":
+				var srcItm = m.GetItem(item.TemplateID);
+				if (srcItm != null)
+				{
+					var dupItm = CloneItemMetadata(srcItm, newTemplateID, newSlug);
+					m.AddOrUpdateItem(dupItm);
+				}
+				break;
+			case "terrain":
+				var srcTex = m.GetTerrainTexture(item.TemplateID);
+				m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+				if (srcTex != null)
+				{
+					var dupTex = CloneTextureMetadata(srcTex, m);
+					m.Textures[newTemplateID] = dupTex;
+				}
+				else
+				{
+					AddTerrainMetadata(m, newTemplateID, newSlug);
+				}
+				break;
+			case "spritesheets":
+				var srcSheet = FindSpritesheetMetadata(m, item);
+				m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+				if (srcSheet != null)
+				{
+					var dupSheet = CloneVfxMetadata(srcSheet);
+					m.VfxSpritesheets[newTemplateID] = dupSheet;
+				}
+				else
+				{
+					AddSpritesheetMetadata(m, newTemplateID, newSlug);
+				}
+				break;
+			case "decals":
+				m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+				m.Decals.TryGetValue(item.TemplateID, out var srcDec);
+				if (srcDec == null)
+				{
+					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if (!string.IsNullOrEmpty(oldSlug)) m.Decals.TryGetValue(oldSlug, out srcDec);
+				}
+				if (srcDec != null)
+				{
+					var dupDec = CloneDecalMetadata(srcDec);
+					m.Decals[newTemplateID] = dupDec;
+				}
+				else
+				{
+					AddDecalMetadata(m, newTemplateID, newSlug);
+				}
+				break;
+			case "shaders" or "shader" or "spawnshader" or "spawnshaders":
+				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+				m.SpawnShaders.TryGetValue(item.TemplateID, out var srcSha);
+				if (srcSha == null)
+				{
+					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out srcSha);
+				}
+				if (srcSha != null)
+				{
+					var dupSha = CloneSpawnShaderMetadata(srcSha, newSlug);
+					m.SpawnShaders[newTemplateID] = dupSha;
+				}
+				else
+				{
+					AddShaderMetadata(m, newTemplateID, newSlug);
+				}
+				break;
+			case "vfx":
+				var srcVfx = m.GetVfx(item.TemplateID);
+				if (srcVfx != null)
+				{
+					var dupVfx = srcVfx.Clone();
+					dupVfx.VfxId = newTemplateID;
+					dupVfx.Name = newSlug;
+					m.AddOrUpdateVfx(dupVfx);
+				}
+				break;
+		}
+	}
+
+	private void HandlePostDuplicateObject(string category, string newTemplateID, string newSlug)
+	{
+		if (category == "terrain")
+		{
+			Hud?.SetupTextureSwatches(false);
+			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+			{
+				Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+			}
+		}
+
+		_currentPreviewTemplateID = newTemplateID;
+		RefreshObjectList();
+	}
+
+	private UnitMetadata CloneUnitMetadata(UnitMetadata src, string newId, string newSlug)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<UnitMetadata>(json) ?? new UnitMetadata();
+		dup.TemplateID = newId;
+		dup.Name = newSlug;
+		return dup;
+	}
+
+	private ResourceMetadata CloneResourceMetadata(ResourceMetadata src, string newId, string newSlug)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<ResourceMetadata>(json) ?? new ResourceMetadata();
+		dup.TemplateID = newId;
+		dup.Name = newSlug;
+		return dup;
+	}
+
+	private PropMetadata ClonePropMetadata(PropMetadata src, string newId, string newSlug)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<PropMetadata>(json) ?? new PropMetadata();
+		dup.TemplateID = newId;
+		dup.Name = newSlug;
+		return dup;
+	}
+
+	private WeaponMetadata CloneWeaponMetadata(WeaponMetadata src, string newId, string newSlug)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<WeaponMetadata>(json) ?? new WeaponMetadata();
+		dup.TemplateID = newId;
+		dup.Name = newSlug;
+		return dup;
+	}
+
+	private AbilityMetadata CloneAbilityMetadata(AbilityMetadata src, string newId, string newSlug)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<AbilityMetadata>(json) ?? new AbilityMetadata();
+		dup.TemplateID = newId;
+		dup.Name = newSlug;
+		return dup;
+	}
+
+	private UpgradeMetadata CloneUpgradeMetadata(UpgradeMetadata src, string newId, string newSlug)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<UpgradeMetadata>(json) ?? new UpgradeMetadata();
+		dup.TemplateID = newId;
+		dup.Name = newSlug;
+		return dup;
+	}
+
+	private ItemMetadata CloneItemMetadata(ItemMetadata src, string newId, string newSlug)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<ItemMetadata>(json) ?? new ItemMetadata();
+		dup.TemplateID = newId;
+		dup.Name = newSlug;
+		return dup;
+	}
+
+	private TextureMetadata CloneTextureMetadata(TextureMetadata src, MapMetadata m)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(json) ?? new TextureMetadata();
+		dup.SwatchIndex = GetNextTerrainSwatchSlot(m);
+		return dup;
+	}
+
+	private VfxMetadata CloneVfxMetadata(VfxMetadata src)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		return System.Text.Json.JsonSerializer.Deserialize<VfxMetadata>(json) ?? new VfxMetadata();
+	}
+
+	private DecalMetadata CloneDecalMetadata(DecalMetadata src)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		return System.Text.Json.JsonSerializer.Deserialize<DecalMetadata>(json) ?? new DecalMetadata();
+	}
+
+	private SpawnShaderMetadata CloneSpawnShaderMetadata(SpawnShaderMetadata src, string newSlug)
+	{
+		var json = System.Text.Json.JsonSerializer.Serialize(src);
+		var dup = System.Text.Json.JsonSerializer.Deserialize<SpawnShaderMetadata>(json) ?? new SpawnShaderMetadata();
+		dup.Name = newSlug;
+		return dup;
 	}
 
 

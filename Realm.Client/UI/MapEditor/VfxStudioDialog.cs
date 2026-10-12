@@ -200,15 +200,11 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 	private void BuildSubToolbar(Control parent)
 	{
-		var rowRandomize = new HBoxContainer();
-		var btnRandomize = AddButton(rowRandomize, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize All"), () =>
-		{
-			RandomizeAllParameters();
-		}, "Randomize all noise masks, shapes, uv scrolling, and color parameters completely");
-		btnRandomize.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		
-		AddButton(rowRandomize, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () => CopyScriptCode(), "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
-		parent.AddChild(rowRandomize);
+		var rowSubToolbar = new HBoxContainer();
+		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		rowSubToolbar.AddChild(spacer);
+		AddButton(rowSubToolbar, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () => CopyScriptCode(), "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
+		parent.AddChild(rowSubToolbar);
 	}
 
 	private void BuildBasicSettings(VBoxContainer parent)
@@ -398,6 +394,14 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		_txtParticleMesh = particleMeshTuple.Input;
 		_setParticleMeshVal = particleMeshTuple.SetValue;
 		_rowParticleMesh = particleMeshTuple.Input.GetParent() as Control;
+
+		var rowRandomize = new HBoxContainer();
+		var btnRandomize = AddButton(rowRandomize, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize All"), () =>
+		{
+			RandomizeAllParameters();
+		}, "Randomize all noise masks, shapes, uv scrolling, and color parameters completely");
+		btnRandomize.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		parent.AddChild(rowRandomize);
 	}
 
 	private void BuildShaderSettings(VBoxContainer parent)
