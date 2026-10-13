@@ -1,6 +1,8 @@
+using System;
 using Arch.Core;
 using Godot;
-using System;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.VFX;
 
@@ -42,10 +44,12 @@ public partial class ProceduralVfxInstance3D : Node3D
 				if (_hoverRing != null) _hoverRing.Visible = false;
 				return;
 			}
+
 			if (_hoverRing == null && _isHovered)
 			{
 				CreateHoverRing();
 			}
+
 			if (_hoverRing != null)
 			{
 				_hoverRing.Visible = _isHovered && !_isSelected;
@@ -64,14 +68,17 @@ public partial class ProceduralVfxInstance3D : Node3D
 				if (_selectionRing != null) _selectionRing.Visible = false;
 				return;
 			}
+
 			if (_selectionRing == null && _isSelected)
 			{
 				CreateSelectionRing();
 			}
+
 			if (_selectionRing != null)
 			{
 				_selectionRing.Visible = _isSelected;
 			}
+
 			if (_hoverRing != null)
 			{
 				_hoverRing.Visible = _isHovered && !_isSelected;
@@ -105,8 +112,8 @@ public partial class ProceduralVfxInstance3D : Node3D
 	private bool IsBaseEnvironmentValid()
 	{
 		if (IsPreview) return false;
-		if (Realm.Client.Core.GameHost.Instance == null) return false;
-		if (!Realm.Client.Core.GameHost.Instance.IsMapEditorMode) return false;
+		if (GameHost.Instance == null) return false;
+		if (!GameContext.EditorService.IsMapEditorMode) return false;
 		if (RuntimeTerrain.IsMinimapRendering) return false;
 		if (GetViewport() is SubViewport) return false;
 		return true;
@@ -120,6 +127,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 			if (IsInvalidParent(parent)) return true;
 			parent = parent.GetParent();
 		}
+
 		return false;
 	}
 
@@ -129,11 +137,11 @@ public partial class ProceduralVfxInstance3D : Node3D
 		if (parent is Unit3D) return true;
 		if (parent is Prop3D) return true;
 		if (parent is VisualProjectile3D) return true;
-		
+
 		string parentName = parent.Name.ToString();
 		if (parentName.Contains("Preview", StringComparison.OrdinalIgnoreCase)) return true;
 		if (parentName.Contains("Dialog", StringComparison.OrdinalIgnoreCase)) return true;
-		
+
 		return false;
 	}
 
@@ -188,6 +196,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 			_contentRoot.Name = "VfxContentRoot";
 			AddChild(_contentRoot);
 		}
+
 		_contentRoot.Position = _config.PositionOffset.ToGodotVector3();
 		_contentRoot.RotationDegrees = _config.RotationOffset.ToGodotVector3();
 		Vector3 scale = _config.ScaleOffset.ToGodotVector3();
@@ -210,6 +219,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 				_particleInstance.Name = "VfxParticleInstance";
 				_contentRoot.AddChild(_particleInstance);
 			}
+
 			_particleInstance.Visible = true;
 			var pConfig = _config.ParticleConfig ?? SpellParticleConfig.CreatePreset(_config.VfxId);
 			_particleInstance.UpdateConfig(pConfig);
@@ -228,6 +238,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 			_meshInstance.LodBias = 100.0f;
 			_contentRoot.AddChild(_meshInstance);
 		}
+
 		_meshInstance.Visible = true;
 
 		if (_material == null)
@@ -265,6 +276,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		{
 			VfxShaderManager.ApplyConfigToMaterial(_material, _config);
 		}
+
 		UpdateMesh();
 		UpdateSelectionRingRadius();
 	}
@@ -300,6 +312,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 			_particleInstance.UpdateConfig(pConfig);
 			UpdateCollisionShapeBounds();
 		}
+
 		UpdateSelectionRingRadius();
 	}
 
@@ -309,6 +322,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		{
 			_particleInstance.Restart();
 		}
+
 		if (_meshInstance != null && GodotObject.IsInstanceValid(_meshInstance))
 		{
 			_meshInstance.Visible = true;
@@ -321,6 +335,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		{
 			_particleInstance.Restart();
 		}
+
 		if (_meshInstance != null && GodotObject.IsInstanceValid(_meshInstance))
 		{
 			_meshInstance.Visible = true;
@@ -333,6 +348,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		{
 			_particleInstance.Stop();
 		}
+
 		if (_meshInstance != null && GodotObject.IsInstanceValid(_meshInstance))
 		{
 			_meshInstance.Visible = false;
@@ -417,16 +433,19 @@ public partial class ProceduralVfxInstance3D : Node3D
 				{
 					return Mathf.Max(1.0f, pConfig.SphereRadius * 1.2f);
 				}
+
 				if (pConfig.EmitterShape == SpellParticleShape.Ring)
 				{
 					return Mathf.Max(1.0f, pConfig.RingRadius * 1.1f);
 				}
+
 				if (pConfig.EmitterShape == SpellParticleShape.Box)
 				{
 					float maxHorizontal = Mathf.Max(pConfig.BoxExtents.X, pConfig.BoxExtents.Z);
 					return Mathf.Max(1.0f, maxHorizontal * 1.2f);
 				}
 			}
+
 			return 1.5f;
 		}
 
@@ -455,6 +474,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 			};
 		}
+
 		return _sharedEditorBaseMaterial;
 	}
 
@@ -471,6 +491,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 			};
 		}
+
 		return _sharedSelectionMaterial;
 	}
 
@@ -487,6 +508,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 			};
 		}
+
 		return _sharedHoverMaterial;
 	}
 
@@ -543,10 +565,12 @@ public partial class ProceduralVfxInstance3D : Node3D
 		{
 			_selectionRing.Mesh = CreateTorusMesh(radius);
 		}
+
 		if (_hoverRing != null)
 		{
 			_hoverRing.Mesh = CreateTorusMesh(radius);
 		}
+
 		if (_editorBaseRing != null)
 		{
 			bool isEditor = ShouldShowEditorBaseRing();

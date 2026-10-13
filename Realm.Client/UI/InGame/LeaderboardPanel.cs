@@ -1,5 +1,5 @@
-using Godot;
 using System;
+using Godot;
 
 namespace Realm.Client.UI.InGame;
 
@@ -12,7 +12,7 @@ public class LeaderboardPanel
 	private Label _leaderboardTitleLabel;
 	private VBoxContainer _leaderboardContent;
 
-	public LeaderboardPanel(VBoxContainer customUIPanel, PanelContainer countdownPanel, Label countdownLabel, 
+	public LeaderboardPanel(VBoxContainer customUIPanel, PanelContainer countdownPanel, Label countdownLabel,
 		PanelContainer leaderboardPanel, Label leaderboardTitleLabel, VBoxContainer leaderboardContent)
 	{
 		_customUIPanel = customUIPanel;
@@ -39,7 +39,7 @@ public class LeaderboardPanel
 		if (viewModel.LeaderboardVisible)
 		{
 			_leaderboardTitleLabel.Text = viewModel.LeaderboardTitle;
-			
+
 			foreach (Node child in _leaderboardContent.GetChildren())
 			{
 				_leaderboardContent.RemoveChild(child);

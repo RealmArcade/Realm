@@ -1,4 +1,6 @@
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -35,30 +37,31 @@ public class MapEditorBrushSettings
 		_sldBrushSize.ValueChanged += (val) =>
 		{
 			_lblBrushSizeValue.Text = val.ToString("F0");
-			if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorBrushRadius = (float)val;
+			if (GameHost.Instance != null) GameHost.Instance.EditorBrushRadius = (float)val;
 		};
 
 		_sldBrushStrength.ValueChanged += (val) =>
 		{
 			float fVal = (float)val;
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.ActiveEditorTool == Realm.Client.Core.GameHost.EditorTool.PaintTexture)
+			if (GameHost.Instance != null && GameHost.Instance.ActiveEditorTool == EditorTool.PaintTexture)
 			{
-				MapEditorHUD.SavedTextureIntensity = fVal;
+				GameContext.EditorService.SavedTextureIntensity = fVal;
 				_lblBrushStrengthValue.Text = fVal.ToString("F0");
 			}
 			else
 			{
-				MapEditorHUD.SavedBrushStrength = fVal;
+				GameContext.EditorService.SavedBrushStrength = fVal;
 				_lblBrushStrengthValue.Text = fVal.ToString("F1");
 			}
-			if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorBrushStrength = fVal;
+
+			if (GameHost.Instance != null) GameHost.Instance.EditorBrushStrength = fVal;
 		};
 
 		if (_chkBlockMode != null)
 		{
 			_chkBlockMode.Toggled += (buttonPressed) =>
 			{
-				if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorBlockMode = buttonPressed;
+				if (GameHost.Instance != null) GameHost.Instance.EditorBlockMode = buttonPressed;
 			};
 		}
 
@@ -68,7 +71,7 @@ public class MapEditorBrushSettings
 			{
 				float fVal = (float)val;
 				if (_lblHeightValue != null) _lblHeightValue.Text = fVal.ToString("F1") + "m";
-				if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorExactHeight = fVal;
+				if (GameHost.Instance != null) GameHost.Instance.EditorExactHeight = fVal;
 			};
 		}
 
@@ -78,7 +81,7 @@ public class MapEditorBrushSettings
 			{
 				float fVal = (float)val;
 				_lblBlockStepValue.Text = fVal.ToString("F1") + "m";
-				if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorBlockLevelHeight = fVal;
+				if (GameHost.Instance != null) GameHost.Instance.EditorBlockLevelHeight = fVal;
 			};
 		}
 	}
@@ -112,9 +115,9 @@ public class MapEditorBrushSettings
 
 	private void UpdateBlockMode()
 	{
-		if (_chkBlockMode == null || Realm.Client.Core.GameHost.Instance == null) return;
+		if (_chkBlockMode == null || GameHost.Instance == null) return;
 
-		bool isBlock = Realm.Client.Core.GameHost.Instance.EditorBlockMode;
+		bool isBlock = GameHost.Instance.EditorBlockMode;
 		if (_chkBlockMode.ButtonPressed != isBlock)
 		{
 			_chkBlockMode.ButtonPressed = isBlock;

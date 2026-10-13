@@ -1,10 +1,11 @@
-using Godot;
-using Realm.Client.Services;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -37,7 +38,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		var scrollBody = CreateScrollBody(460);
 		var contentVBox = new VBoxContainer();
 		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
 		BuildInterfaceSection(contentVBox);
@@ -194,8 +195,9 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			}
 			else
 			{
-				await Task.Run(() => AssetIndexService.Instance.RebuildIndexFromCas());
+				await Task.Run(() => GameContext.AssetIndexService.RebuildIndexFromCas());
 			}
+
 			btnRepairAssetIndex.Disabled = false;
 		};
 		btnRepairRow.AddChild(btnRepairAssetIndex);
@@ -216,8 +218,9 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			btnReinstallVSCode.Text = "⏳ " + TranslationServer.Translate("Reinstalling...");
 			if (OperatingSystem.IsWindows())
 			{
-				Realm.Client.VSCodeManager.Instance.ForceReinstall();
+				VSCodeManager.Instance.ForceReinstall();
 			}
+
 			Hud?.ShowFeedback(TranslationServer.Translate("Reinstalling VS Code dependencies in background..."));
 		};
 		btnReinstallRow.AddChild(btnReinstallVSCode);
@@ -237,7 +240,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		{
 			try
 			{
-				System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+				Process.Start(new ProcessStartInfo
 				{
 					FileName = "explorer.exe",
 					Arguments = $"\"{fullPath}\"",
@@ -270,6 +273,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			_sldPanelOpacity.Value = CurrentSettings.PanelOpacity;
 			_lblPanelOpacity.Text = $"{CurrentSettings.PanelOpacity:F2}";
 		}
+
 		if (_optAutoBackup != null)
 		{
 			_optAutoBackup.Selected = CurrentSettings.AutoBackupIntervalMinutes switch
@@ -280,6 +284,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 				_ => 1
 			};
 		}
+
 		if (_sldMaxBackups != null)
 		{
 			_sldMaxBackups.Value = CurrentSettings.MaxBackupSnapshots;
@@ -309,6 +314,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 			CurrentSettings = _snapshot.Clone();
 			ApplyLiveSettings();
 		}
+
 		base.OnCancel();
 	}
 
@@ -318,13 +324,13 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		{
 			string fullPath = ProjectSettings.GlobalizePath(SettingsFilePath);
 			if (!File.Exists(fullPath)) return;
-			
+
 			string json = File.ReadAllText(fullPath);
 			var loaded = JsonSerializer.Deserialize<EditorPreferencesData>(json);
 			if (loaded == null) return;
-			
+
 			HandleLegacySettings(json, loaded);
-			
+
 			CurrentSettings = loaded;
 		}
 		catch (Exception ex)
@@ -337,13 +343,13 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	{
 		JsonNode parsedNode = JsonNode.Parse(json);
 		if (parsedNode == null) return;
-		
+
 		JsonObject jNode = parsedNode.AsObject();
 		if (jNode == null) return;
-		
+
 		if (jNode.ContainsKey(nameof(EditorPreferencesData.AutoBackupIntervalMinutes))) return;
 		if (!jNode.ContainsKey("AutoSaveIntervalMinutes")) return;
-		
+
 		int legacyVal = GetLegacyIntervalValue(jNode);
 		loaded.AutoBackupIntervalMinutes = GetMigratedBackupInterval(legacyVal);
 	}
@@ -357,6 +363,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 				return (int)valueNode;
 			}
 		}
+
 		return 30;
 	}
 

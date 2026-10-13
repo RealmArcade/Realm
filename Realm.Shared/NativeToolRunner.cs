@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json.Nodes;
 
 namespace Realm.Shared;
 
@@ -36,7 +38,7 @@ public static class NativeToolRunner
 	{
 		var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
 		var pathSeparator = isWindows ? ';' : ':';
-		
+
 		foreach (var dir in pathEnv.Split(pathSeparator, StringSplitOptions.RemoveEmptyEntries))
 		{
 			var candidate = Path.Combine(dir.Trim(), exeName);
@@ -55,7 +57,7 @@ public static class NativeToolRunner
 		{
 			string tempDir = Path.Combine(Path.GetTempPath(), "realm_tools_bin");
 			string tempExe = Path.Combine(tempDir, exeName);
-			
+
 			if (File.Exists(tempExe) && new FileInfo(tempExe).Length > 0)
 			{
 				return tempExe;
@@ -67,7 +69,7 @@ public static class NativeToolRunner
 			Directory.CreateDirectory(tempDir);
 			using var fileStream = File.Create(tempExe);
 			stream.CopyTo(fileStream);
-			
+
 			return tempExe;
 		}
 		catch
@@ -86,9 +88,9 @@ public static class NativeToolRunner
 		bool isWindows = Environment.OSVersion.Platform == PlatformID.Win32NT;
 		string exeName = isWindows ? "gltfpack.exe" : "gltfpack";
 
-		_cachedGltfPackPath = SearchCandidatePaths(exeName) 
-			?? SearchPathEnvironment(exeName, isWindows) 
-			?? ExtractGltfPackToTemp(exeName);
+		_cachedGltfPackPath = SearchCandidatePaths(exeName)
+		                      ?? SearchPathEnvironment(exeName, isWindows)
+		                      ?? ExtractGltfPackToTemp(exeName);
 
 		return _cachedGltfPackPath;
 	}
@@ -104,10 +106,11 @@ public static class NativeToolRunner
 			stream = GetGltfPackStreamFromAssembly(a);
 			if (stream != null) return stream;
 		}
+
 		return null;
 	}
 
-	private static Stream? GetGltfPackStreamFromAssembly(System.Reflection.Assembly assembly)
+	private static Stream? GetGltfPackStreamFromAssembly(Assembly assembly)
 	{
 		Stream? stream = assembly.GetManifestResourceStream("Realm.Tools.Cli.ThirdPartyBinaries.gltfpack.exe");
 		if (stream != null) return stream;
@@ -120,6 +123,7 @@ public static class NativeToolRunner
 				return assembly.GetManifestResourceStream(name);
 			}
 		}
+
 		return null;
 	}
 
@@ -191,6 +195,7 @@ public static class NativeToolRunner
 					break;
 				}
 			}
+
 			if (stream != null) break;
 		}
 
@@ -235,9 +240,9 @@ public static class NativeToolRunner
 		return (proc.ExitCode, stdout, stderr);
 	}
 
-	private static bool HasBasisuExtension(System.Text.Json.Nodes.JsonObject root, string propertyName)
+	private static bool HasBasisuExtension(JsonObject root, string propertyName)
 	{
-		if (!root.TryGetPropertyValue(propertyName, out var extProp) || extProp is not System.Text.Json.Nodes.JsonArray array)
+		if (!root.TryGetPropertyValue(propertyName, out var extProp) || extProp is not JsonArray array)
 		{
 			return false;
 		}
@@ -302,7 +307,7 @@ public static class NativeToolRunner
 		if (glbBytes == null || glbBytes.Length == 0) return (true, glbBytes ?? Array.Empty<byte>(), string.Empty);
 
 		var (json, _, _) = GlbManifestUtils.ParseGlb(glbBytes);
-		if (json is not System.Text.Json.Nodes.JsonObject root) return (true, glbBytes, string.Empty);
+		if (json is not JsonObject root) return (true, glbBytes, string.Empty);
 
 		bool hasBasisu = HasBasisuExtension(root, "extensionsUsed") || HasBasisuExtension(root, "extensionsRequired");
 

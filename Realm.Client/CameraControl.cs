@@ -1,135 +1,142 @@
 using Godot;
-using Realm.Ecs.Components.Core;
+using Realm.Client.Core;
+using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
 public partial class CameraControl : Camera3D
 {
-	private bool HasCameraState => Realm.Client.Core.GameHost.Instance?.EcsWorld != null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+	public CameraControl()
+	{
+	}
 
-	[Export]
+	private bool HasCameraState
+	{
+		get
+		{
+			GameHost tempQualifier = GameHost.Instance;
+			return (tempQualifier != null ? GameContext.World : null) != null &&
+				   GameContext.World.IsAlive(ECSContext.WorldEntity) &&
+				   GameContext.World.Has<CameraState>(ECSContext.WorldEntity);
+		}
+	}
+
 	public float MoveSpeed
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).MoveSpeed : 35.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).MoveSpeed : 35.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.MoveSpeed = value;
 			}
 		}
 	}
 
-	[Export]
 	public float ZoomSpeed
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).ZoomSpeed : 10.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).ZoomSpeed : 10.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.ZoomSpeed = value;
 			}
 		}
 	}
 
-	[Export]
 	public float MinZoom
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).MinZoom : 10.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).MinZoom : 10.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.MinZoom = value;
 			}
 		}
 	}
 
-	[Export]
 	public float MaxZoom
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).MaxZoom : 60.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).MaxZoom : 60.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.MaxZoom = value;
 			}
 		}
 	}
 
-	[Export]
 	public float ZoomStep
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).ZoomStep : 4.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).ZoomStep : 4.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.ZoomStep = value;
 			}
 		}
 	}
 
-	[Export]
 	public float EdgePanMargin
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).EdgePanMargin : 20.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).EdgePanMargin : 20.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.EdgePanMargin = value;
 			}
 		}
 	}
 
-	[Export]
 	public bool EnableEdgePanning
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).EnableEdgePanning : true;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).EnableEdgePanning : true;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.EnableEdgePanning = value;
 			}
 		}
 	}
 
-	[Export]
 	public bool IsLocked
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).IsLocked : false;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).IsLocked : false;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.IsLocked = value;
 			}
 		}
 	}
 
-	[Export]
 	public bool IsFreeCamera
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).IsFreeCamera : _isFreeCamera;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).IsFreeCamera : _isFreeCamera;
 		set
 		{
 			_isFreeCamera = value;
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.IsFreeCamera = value;
 			}
 		}
@@ -141,12 +148,12 @@ public partial class CameraControl : Camera3D
 
 	public float? LimitLeft
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).LimitLeft : null;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).LimitLeft : null;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.LimitLeft = value;
 			}
 		}
@@ -154,12 +161,12 @@ public partial class CameraControl : Camera3D
 
 	public float? LimitRight
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).LimitRight : null;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).LimitRight : null;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.LimitRight = value;
 			}
 		}
@@ -167,12 +174,12 @@ public partial class CameraControl : Camera3D
 
 	public float? LimitTop
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).LimitTop : null;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).LimitTop : null;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.LimitTop = value;
 			}
 		}
@@ -180,12 +187,12 @@ public partial class CameraControl : Camera3D
 
 	public float? LimitBottom
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).LimitBottom : null;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).LimitBottom : null;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.LimitBottom = value;
 			}
 		}
@@ -193,12 +200,12 @@ public partial class CameraControl : Camera3D
 
 	public float TargetHeight
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).TargetHeight : 35.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).TargetHeight : 35.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.TargetHeight = value;
 			}
 		}
@@ -206,12 +213,12 @@ public partial class CameraControl : Camera3D
 
 	public float CurrentHeight
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).CurrentHeight : 35.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).CurrentHeight : 35.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.CurrentHeight = value;
 			}
 		}
@@ -219,12 +226,12 @@ public partial class CameraControl : Camera3D
 
 	private bool _isDraggingMouse
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).IsDraggingMouse : false;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).IsDraggingMouse : false;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.IsDraggingMouse = value;
 			}
 		}
@@ -236,16 +243,17 @@ public partial class CameraControl : Camera3D
 		{
 			if (HasCameraState)
 			{
-				var pos = Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).LastMousePosition;
+				var pos = GameContext.World.Get<CameraState>(ECSContext.WorldEntity).LastMousePosition;
 				return new Vector2(pos.X, pos.Y);
 			}
+
 			return Vector2.Zero;
 		}
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.LastMousePosition = new System.Numerics.Vector2(value.X, value.Y);
 			}
 		}
@@ -253,12 +261,12 @@ public partial class CameraControl : Camera3D
 
 	private float _targetYaw
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).TargetYaw : 0.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).TargetYaw : 0.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.TargetYaw = value;
 			}
 		}
@@ -266,12 +274,12 @@ public partial class CameraControl : Camera3D
 
 	private float _currentYaw
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).CurrentYaw : 0.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).CurrentYaw : 0.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.CurrentYaw = value;
 			}
 		}
@@ -279,12 +287,12 @@ public partial class CameraControl : Camera3D
 
 	private float _targetPitch
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).TargetPitch : -55.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).TargetPitch : -55.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.TargetPitch = value;
 			}
 		}
@@ -292,12 +300,12 @@ public partial class CameraControl : Camera3D
 
 	private float _currentPitch
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).CurrentPitch : -55.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).CurrentPitch : -55.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.CurrentPitch = value;
 			}
 		}
@@ -305,12 +313,12 @@ public partial class CameraControl : Camera3D
 
 	private bool _isTopDown
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).IsTopDown : false;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).IsTopDown : false;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.IsTopDown = value;
 			}
 		}
@@ -318,12 +326,12 @@ public partial class CameraControl : Camera3D
 
 	private float _yawSwing
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).YawSwing : 0.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).YawSwing : 0.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.YawSwing = value;
 			}
 		}
@@ -331,12 +339,12 @@ public partial class CameraControl : Camera3D
 
 	private float _pitchSwing
 	{
-		get => HasCameraState ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity).PitchSwing : 0.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).PitchSwing : 0.0f;
 		set
 		{
 			if (HasCameraState)
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 				state.PitchSwing = value;
 			}
 		}
@@ -373,7 +381,7 @@ public partial class CameraControl : Camera3D
 			ClampToValidGameCamera();
 		}
 
-		UI.MapEditorHUD.Instance?.UpdateFreeCameraExternal(enabled);
+		MapEditorHUD.Instance?.UpdateFreeCameraExternal(enabled);
 	}
 
 	public void ClampToValidGameCamera()
@@ -382,12 +390,13 @@ public partial class CameraControl : Camera3D
 		{
 			Input.MouseMode = Input.MouseModeEnum.Visible;
 		}
+
 		_isAltRightDragging = false;
 		_isDraggingMouse = false;
 
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 		{
-			UI.MapEditorHUD.Instance?.Set3DInteractionActive(false);
+			MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
 		}
 
 		_targetPitch = _isTopDown ? -90.0f : -55.0f;
@@ -399,9 +408,9 @@ public partial class CameraControl : Camera3D
 		RotationDegrees = new Vector3(_currentPitch, _currentYaw, 0.0f);
 
 		float terrainHeight = 0.0f;
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+		if (GameHost.Instance?.GroundTerrain != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.GetHeightAndNormal(Position.X, Position.Z, out terrainHeight, out _);
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(Position.X, Position.Z, out terrainHeight, out _);
 		}
 
 		float minAllowedHeight = terrainHeight + MinZoom;
@@ -413,9 +422,9 @@ public partial class CameraControl : Camera3D
 		Vector3 clampedPos = Position;
 		clampedPos.Y = CurrentHeight;
 
-		bool isEditor = Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode;
+		bool isEditor = GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode;
 		ApplyCameraBounds(ref clampedPos, isEditor);
-		
+
 		Position = clampedPos;
 	}
 
@@ -465,10 +474,12 @@ public partial class CameraControl : Camera3D
 		{
 			return 2000.0f;
 		}
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+
+		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 		{
 			return MaxZoom * 5.0f;
 		}
+
 		return MaxZoom;
 	}
 
@@ -478,6 +489,7 @@ public partial class CameraControl : Camera3D
 		{
 			return 0.1f;
 		}
+
 		return MinZoom;
 	}
 
@@ -499,6 +511,7 @@ public partial class CameraControl : Camera3D
 			CurrentHeight = Position.Y;
 			return;
 		}
+
 		TargetHeight = Mathf.Clamp(TargetHeight - ZoomStep, GetMinZoom(), GetMaxZoom());
 	}
 
@@ -520,6 +533,7 @@ public partial class CameraControl : Camera3D
 			CurrentHeight = Position.Y;
 			return;
 		}
+
 		TargetHeight = Mathf.Clamp(TargetHeight + ZoomStep, GetMinZoom(), GetMaxZoom());
 	}
 
@@ -540,7 +554,7 @@ public partial class CameraControl : Camera3D
 
 	public override void _Notification(int what)
 	{
-		if (what == NotificationApplicationFocusOut)
+		if (what == unchecked((int)Node.NotificationApplicationFocusOut))
 		{
 			_isDraggingMouse = false;
 			_isAltRightDragging = false;
@@ -548,9 +562,10 @@ public partial class CameraControl : Camera3D
 			{
 				Input.MouseMode = Input.MouseModeEnum.Visible;
 			}
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+
+			if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 			{
-				UI.MapEditorHUD.Instance?.Set3DInteractionActive(false);
+				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
 			}
 		}
 	}
@@ -577,7 +592,7 @@ public partial class CameraControl : Camera3D
 
 	private bool IsInputBlocked()
 	{
-		return IsLocked || (UI.InGameHUD.Instance != null && UI.InGameHUD.Instance.IsChatActive) || UI.SettingsMenu.IsOpen;
+		return IsLocked || (InGameHUD.Instance != null && InGameHUD.Instance.IsChatActive) || SettingsMenu.IsOpen;
 	}
 
 	private void HandleCameraResetKey(InputEventKey keyEvent)
@@ -595,21 +610,21 @@ public partial class CameraControl : Camera3D
 
 		if (!HasCameraState) return;
 
-		ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<CameraState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+		ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
 		state.MoveSpeed = 10.0f + (GameSettings.ScrollSpeed / 100.0f) * 50.0f;
 
 		float terrainHeight = 0.0f;
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+		if (GameHost.Instance?.GroundTerrain != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.GetHeightAndNormal(Position.X, Position.Z, out terrainHeight, out _);
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(Position.X, Position.Z, out terrainHeight, out _);
 		}
 
 		UpdateCameraHeight(ref state, fDelta, terrainHeight);
 
-		bool isEditor = Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode;
+		bool isEditor = GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode;
 		UpdateCameraRotation(ref state, fDelta, isEditor);
 
-		if (state.IsLocked || (UI.InGameHUD.Instance != null && UI.InGameHUD.Instance.IsChatActive)) return;
+		if (state.IsLocked || (InGameHUD.Instance != null && InGameHUD.Instance.IsChatActive)) return;
 
 		Vector3 velocity = CalculateCameraVelocity(ref state, isEditor);
 
@@ -623,14 +638,15 @@ public partial class CameraControl : Camera3D
 	{
 		if (!Input.IsMouseButtonPressed(MouseButton.Left))
 		{
-			if (UI.MapEditorHUD.IsDraggingSlider)
+			if (MapEditorHUD.IsDraggingSlider)
 			{
-				UI.MapEditorHUD.IsDraggingSlider = false;
+				MapEditorHUD.IsDraggingSlider = false;
 			}
+
 			return false;
 		}
 
-		if (UI.MapEditorHUD.IsDraggingSlider) return true;
+		if (MapEditorHUD.IsDraggingSlider) return true;
 
 		Viewport viewport = GetViewport();
 		if (viewport != null)
@@ -638,25 +654,26 @@ public partial class CameraControl : Camera3D
 			if (viewport.GuiGetFocusOwner() is Slider) return true;
 			if (viewport.GuiGetHoveredControl() is Slider)
 			{
-				UI.MapEditorHUD.IsDraggingSlider = true;
+				MapEditorHUD.IsDraggingSlider = true;
 				return true;
 			}
 		}
 
 		return false;
 	}
+
 	private void ApplyCameraBounds(ref Vector3 pos, bool isEditor)
 	{
 		float minX, maxX, minZ, maxZ;
 
 		if (isEditor)
 		{
-			if (Realm.Client.Core.GameHost.Instance == null) return;
-			
-			float leftBound = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft;
-			float rightBound = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight;
-			float topBound = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop;
-			float bottomBound = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsBottom;
+			if (GameHost.Instance == null) return;
+
+			float leftBound = GameHost.Instance.EditorCameraBoundsLeft;
+			float rightBound = GameHost.Instance.EditorCameraBoundsRight;
+			float topBound = GameHost.Instance.EditorCameraBoundsTop;
+			float bottomBound = GameHost.Instance.EditorCameraBoundsBottom;
 
 			float boundMinX = Mathf.Min(leftBound, rightBound);
 			float boundMaxX = Mathf.Max(leftBound, rightBound);
@@ -673,8 +690,8 @@ public partial class CameraControl : Camera3D
 		}
 		else
 		{
-			float defaultLimit = (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
-				? (Realm.Client.Core.GameHost.Instance.GroundTerrain.Width * Realm.Client.Core.GameHost.Instance.GroundTerrain.QuadSize * 0.5f) - 10.0f
+			float defaultLimit = (GameHost.Instance?.GroundTerrain != null)
+				? (GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize * 0.5f) - 10.0f
 				: MapLimit;
 
 			float rawMinX = LimitLeft ?? -defaultLimit;
@@ -698,7 +715,7 @@ public partial class CameraControl : Camera3D
 		{
 			return HandleMouseButtonPressed(mouseBtn);
 		}
-		
+
 		HandleMouseButtonReleased(mouseBtn);
 		return false;
 	}
@@ -722,9 +739,9 @@ public partial class CameraControl : Camera3D
 	{
 		if (mouseBtn.AltPressed) return true;
 
-		bool isEditor = Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode;
+		bool isEditor = GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode;
 		bool shiftOrCtrl = Input.IsKeyPressed(Key.Shift) || Input.IsKeyPressed(Key.Ctrl);
-		
+
 		if (isEditor && shiftOrCtrl) return true;
 
 		if (IsMouseOverHUD(mouseBtn.Position, isEditor)) return true;
@@ -734,13 +751,13 @@ public partial class CameraControl : Camera3D
 
 	private bool IsMouseOverHUD(Vector2 position, bool isEditor)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return false;
+		if (GameHost.Instance == null) return false;
 
-		if (isEditor && UI.MapEditorHUD.Instance != null)
-			return UI.MapEditorHUD.Instance.IsMouseOverUI(position);
-			
-		if (!isEditor && UI.InGameHUD.Instance != null)
-			return UI.InGameHUD.Instance.IsMouseOverUI(position);
+		if (isEditor && MapEditorHUD.Instance != null)
+			return MapEditorHUD.Instance.IsMouseOverUI(position);
+
+		if (!isEditor && InGameHUD.Instance != null)
+			return InGameHUD.Instance.IsMouseOverUI(position);
 
 		return false;
 	}
@@ -750,7 +767,7 @@ public partial class CameraControl : Camera3D
 		var hoveredControl = GetViewport()?.GuiGetHoveredControl();
 		if (hoveredControl == null || hoveredControl.GetType().Name == "GameHost") return false;
 
-		return UI.MapEditorHUD.Instance == null || hoveredControl != UI.MapEditorHUD.Instance;
+		return MapEditorHUD.Instance == null || hoveredControl != MapEditorHUD.Instance;
 	}
 
 	private bool ProcessMouseButtonAction(InputEventMouseButton mouseBtn)
@@ -759,7 +776,7 @@ public partial class CameraControl : Camera3D
 		else if (mouseBtn.ButtonIndex == MouseButton.WheelDown) ZoomOut();
 		else if (mouseBtn.ButtonIndex == MouseButton.Middle) HandleMiddleMousePress(mouseBtn);
 		else if (mouseBtn.ButtonIndex == MouseButton.Right) HandleRightMousePress(mouseBtn);
-		
+
 		return false;
 	}
 
@@ -767,10 +784,10 @@ public partial class CameraControl : Camera3D
 	{
 		_isDraggingMouse = true;
 		_lastMousePosition = mouseBtn.Position;
-		
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+
+		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 		{
-			UI.MapEditorHUD.Instance?.Set3DInteractionActive(true);
+			MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(true);
 		}
 	}
 
@@ -780,7 +797,7 @@ public partial class CameraControl : Camera3D
 
 		_isAltRightDragging = true;
 		_lastMousePosition = mouseBtn.Position;
-		
+
 		if (IsFreeCamera) Input.MouseMode = Input.MouseModeEnum.Captured;
 		GetViewport().SetInputAsHandled();
 	}
@@ -790,9 +807,9 @@ public partial class CameraControl : Camera3D
 		if (mouseBtn.ButtonIndex == MouseButton.Middle)
 		{
 			_isDraggingMouse = false;
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+			if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 			{
-				UI.MapEditorHUD.Instance?.Set3DInteractionActive(false);
+				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
 			}
 		}
 		else if (mouseBtn.ButtonIndex == MouseButton.Right && _isAltRightDragging)
@@ -802,6 +819,7 @@ public partial class CameraControl : Camera3D
 			{
 				Input.MouseMode = Input.MouseModeEnum.Visible;
 			}
+
 			GetViewport().SetInputAsHandled();
 		}
 	}
@@ -840,11 +858,12 @@ public partial class CameraControl : Camera3D
 
 	private bool HandleEditorShiftMouseMotion(Vector2 deltaMouse)
 	{
-		if (Input.IsKeyPressed(Key.Shift) && Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+		if (Input.IsKeyPressed(Key.Shift) && GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 		{
 			_targetYaw = (_targetYaw + deltaMouse.X * 0.25f + 360.0f) % 360.0f;
 			return true;
 		}
+
 		return false;
 	}
 
@@ -856,16 +875,17 @@ public partial class CameraControl : Camera3D
 
 		float yawRad = Mathf.DegToRad(_currentYaw);
 		Vector3 forwardXZ = new Vector3(-Mathf.Sin(yawRad), 0f, -Mathf.Cos(yawRad));
-		Vector3 rightXZ   = new Vector3( Mathf.Cos(yawRad), 0f, -Mathf.Sin(yawRad));
+		Vector3 rightXZ = new Vector3(Mathf.Cos(yawRad), 0f, -Mathf.Sin(yawRad));
 
 		Vector3 velocity = (rightXZ * moveX) + (forwardXZ * moveZ);
 
 		Vector3 newPos = Position + velocity;
 		if (!IsFreeCamera)
 		{
-			bool isEditor = Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode;
+			bool isEditor = GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode;
 			ApplyCameraBounds(ref newPos, isEditor);
 		}
+
 		Position = newPos;
 	}
 
@@ -878,13 +898,14 @@ public partial class CameraControl : Camera3D
 			{
 				state.TargetHeight = minAllowedTargetHeight;
 			}
-			
+
 			float zoomRate = state.ZoomSpeed > 0.01f ? (state.ZoomSpeed * 0.55f) : 5.5f;
 			float smoothY = Mathf.Lerp(Position.Y, state.TargetHeight, zoomRate * fDelta);
 			if (Mathf.Abs(smoothY - state.TargetHeight) < 0.015f)
 			{
 				smoothY = state.TargetHeight;
 			}
+
 			state.CurrentHeight = smoothY;
 
 			if (FollowTarget != null && GodotObject.IsInstanceValid(FollowTarget))
@@ -902,6 +923,7 @@ public partial class CameraControl : Camera3D
 			{
 				state.TargetHeight = 0.1f;
 			}
+
 			state.CurrentHeight = Position.Y;
 			state.TargetHeight = Position.Y;
 		}
@@ -931,7 +953,7 @@ public partial class CameraControl : Camera3D
 
 	private void HandleGameCameraRotation(ref CameraState state, float fDelta)
 	{
-		bool isInputBlocked = state.IsLocked || (UI.InGameHUD.Instance != null && UI.InGameHUD.Instance.IsChatActive);
+		bool isInputBlocked = state.IsLocked || (InGameHUD.Instance != null && InGameHUD.Instance.IsChatActive);
 		if (isInputBlocked)
 		{
 			state.YawSwing = Mathf.MoveToward(state.YawSwing, 0.0f, 45.0f * fDelta);
@@ -967,7 +989,7 @@ public partial class CameraControl : Camera3D
 		float pitchRad = Mathf.DegToRad(state.CurrentPitch);
 
 		Vector3 forwardXZ = new Vector3(-Mathf.Sin(yawRad), 0f, -Mathf.Cos(yawRad));
-		Vector3 rightXZ   = new Vector3( Mathf.Cos(yawRad), 0f, -Mathf.Sin(yawRad));
+		Vector3 rightXZ = new Vector3(Mathf.Cos(yawRad), 0f, -Mathf.Sin(yawRad));
 		Vector3 forward3D = new Vector3(
 			-Mathf.Sin(yawRad) * Mathf.Cos(pitchRad),
 			Mathf.Sin(pitchRad),
@@ -984,7 +1006,7 @@ public partial class CameraControl : Camera3D
 		{
 			velocity += GetEdgePanVelocity(ref state, forwardXZ, rightXZ);
 		}
-		
+
 		return velocity;
 	}
 

@@ -1,5 +1,6 @@
-using Godot;
 using System;
+using Godot;
+using Realm.Client.Core;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -71,10 +72,7 @@ public class MapEditorGenerationDialog
 		txtSeed.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
 		txtSeed.AddThemeFontSizeOverride("font_size", 12);
 		txtSeed.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		txtSeed.TextChanged += (newText) =>
-		{
-			_genSeed = newText;
-		};
+		txtSeed.TextChanged += (newText) => { _genSeed = newText; };
 		seedHBox.AddChild(txtSeed);
 
 		var btnRoll = new Button();
@@ -127,11 +125,11 @@ public class MapEditorGenerationDialog
 		SetupButton(btnGen, TranslationServer.Translate("GENERATE"), () =>
 		{
 			overlay.QueueFree();
-			if (Realm.Client.Core.GameHost.Instance != null)
+			if (GameHost.Instance != null)
 			{
-				Realm.Client.Core.GameHost.Instance.ClearMapEntirely();
+				GameHost.Instance.ClearMapEntirely();
 				MapGenerator.GenerateMap(
-					Realm.Client.Core.GameHost.Instance,
+					GameHost.Instance,
 					_genHillsDensity,
 					_genTerrainRoughness,
 					_genMountainHeight,
@@ -150,10 +148,7 @@ public class MapEditorGenerationDialog
 
 		var btnCancel = new Button();
 		btnCancel.Set("icon_max_width", 0);
-		SetupButton(btnCancel, TranslationServer.Translate("CLOSE"), () =>
-		{
-			overlay.QueueFree();
-		}, 13, "Close dialog without generating");
+		SetupButton(btnCancel, TranslationServer.Translate("CLOSE"), () => { overlay.QueueFree(); }, 13, "Close dialog without generating");
 		btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 		btnHBox.AddChild(btnCancel);
 	}
@@ -207,9 +202,10 @@ public class MapEditorGenerationDialog
 		{
 			btn.TooltipText = TranslationServer.Translate(tooltip);
 		}
+
 		btn.Pressed += () =>
 		{
-			Realm.Client.UI.UIManager.Instance?.PlayClickSound();
+			UIManager.Instance?.PlayClickSound();
 			onClick?.Invoke();
 		};
 	}

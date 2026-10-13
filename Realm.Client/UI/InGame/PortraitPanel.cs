@@ -1,7 +1,12 @@
-using Arch.Core;
-using Godot;
 using System;
 using System.Collections.Generic;
+using Arch.Core;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Services;
 
 namespace Realm.Client.UI.InGame;
 
@@ -27,7 +32,7 @@ public class PortraitPanel
 
 	public event Action<int> UnitSelectionButtonClicked;
 
-	public PortraitPanel(PanelContainer portraitFrame, PanelContainer selectionFrame, 
+	public PortraitPanel(PanelContainer portraitFrame, PanelContainer selectionFrame,
 		HBoxContainer unitsContainer, List<Button> unitButtons, HBoxContainer statsContainer,
 		Label statsLabel, VBoxContainer itemsBox,
 		VBoxContainer productionBox, Label productionTitle, ProgressBar productionProgress,
@@ -76,13 +81,13 @@ public class PortraitPanel
 
 	private bool HasSelectedUnits()
 	{
-		return Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.SelectedUnits != null && Realm.Client.Core.GameHost.Instance.SelectedUnits.Count > 0;
+		return GameHost.Instance != null && GameHost.Instance.SelectedUnits != null && GameHost.Instance.SelectedUnits.Count > 0;
 	}
 
 	private void InvokeSelection()
 	{
-		int idx = Realm.Client.Core.GameHost.Instance.CycleSelectionIndex;
-		bool isValidIdx = idx >= 0 && idx < Realm.Client.Core.GameHost.Instance.SelectedUnits.Count;
+		int idx = GameHost.Instance.CycleSelectionIndex;
+		bool isValidIdx = idx >= 0 && idx < GameHost.Instance.SelectedUnits.Count;
 		UnitSelectionButtonClicked?.Invoke(isValidIdx ? idx : 0);
 	}
 
@@ -110,8 +115,8 @@ public class PortraitPanel
 	private void UpdateNoSelection(InGameHUDViewModel viewModel)
 	{
 		_unitsContainer.Visible = false;
-			
-		if (viewModel.SelectedProp != null && GodotObject.IsInstanceValid(viewModel.SelectedProp) && Realm.Client.Core.GameHost.Instance != null)
+
+		if (viewModel.SelectedProp != null && GodotObject.IsInstanceValid(viewModel.SelectedProp) && GameHost.Instance != null)
 		{
 			UpdatePropSelection(viewModel);
 		}
@@ -125,7 +130,7 @@ public class PortraitPanel
 	{
 		_statsContainer.Visible = true;
 		_armyCompositionLabel?.Hide();
-        
+
 		string propDisplayName = GetPropDisplayName(viewModel.SelectedProp.PropId);
 		_unitNameLabel.Text = TranslationServer.Translate(propDisplayName);
 
@@ -145,9 +150,9 @@ public class PortraitPanel
 	private string GetPropDisplayName(string propId)
 	{
 		string propDisplayName = propId.ToUpper();
-		if (Realm.Client.Core.GameHost.ResourceRegistry.TryGetValue(propId, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
+		if (GameHost.ResourceRegistry.TryGetValue(propId, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
 			propDisplayName = rMeta.Name.ToUpper();
-		else if (Realm.Client.Core.GameHost.PropRegistry.TryGetValue(propId, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
+		else if (GameHost.PropRegistry.TryGetValue(propId, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
 			propDisplayName = pMeta.Name.ToUpper();
 		return propDisplayName;
 	}
@@ -166,15 +171,16 @@ public class PortraitPanel
 		return iconPath;
 	}
 
-	private float GetPropRemainingAmount(Realm.Client.Prop3D selectedProp)
+	private float GetPropRemainingAmount(Prop3D selectedProp)
 	{
 		float remainingAmount = 0f;
-		var ecsWorld = Realm.Client.Core.GameHost.Instance.EcsWorld;
+		var ecsWorld = GameContext.World;
 		var propEntity = selectedProp.Entity;
-		if (ecsWorld.IsAlive(propEntity) && ecsWorld.Has<Realm.Ecs.Components.Resources.ResourceNode>(propEntity))
+		if (ecsWorld.IsAlive(propEntity) && ecsWorld.Has<ResourceNode>(propEntity))
 		{
-			remainingAmount = ecsWorld.Get<Realm.Ecs.Components.Resources.ResourceNode>(propEntity).Amount;
+			remainingAmount = ecsWorld.Get<ResourceNode>(propEntity).Amount;
 		}
+
 		return remainingAmount;
 	}
 
@@ -182,7 +188,7 @@ public class PortraitPanel
 	{
 		_statsContainer.Visible = false;
 		_armyCompositionLabel?.Hide();
-        
+
 		_unitNameLabel.Text = TranslationServer.Translate("No Selection");
 		if (_portraitTexture != null)
 		{
@@ -225,7 +231,7 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateSingleSelectionStatsLabel(InGameHUDViewModel.SelectedUnitInfo info)
+	private void UpdateSingleSelectionStatsLabel(SelectedUnitInfo info)
 	{
 		string statsText = $"{TranslationServer.Translate("HP")}: {info.Health:F0} / {info.MaxHealth:F0}";
 		if (info.Damage > 0)
@@ -237,9 +243,10 @@ public class PortraitPanel
 				statsText += $"   {TranslationServer.Translate("DPS")}: {info.Dps:F1}";
 			}
 		}
+
 		statsText += $"\n{TranslationServer.Translate("Armor")}: {info.Armor:F0}";
 		if (info.Speed > 0) statsText += $"   {TranslationServer.Translate("Speed")}: {info.Speed:F0}";
-		
+
 		statsText += $"\n{info.StateText}";
 		if (!string.IsNullOrEmpty(info.Description))
 		{
@@ -248,10 +255,11 @@ public class PortraitPanel
 				: info.Description;
 			statsText += $"\n\n{description}";
 		}
+
 		_statsLabel.Text = statsText;
 	}
 
-	private void UpdateProductionBox(InGameHUDViewModel.SelectedUnitInfo info)
+	private void UpdateProductionBox(SelectedUnitInfo info)
 	{
 		if (info.UnitId != "castle")
 		{
@@ -263,13 +271,13 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateNonCastleProductionBox(InGameHUDViewModel.SelectedUnitInfo info)
+	private void UpdateNonCastleProductionBox(SelectedUnitInfo info)
 	{
 		_productionTitle.Text = info.ProductionTitle;
 		_productionProgress.Visible = true;
 		_productionProgress.Value = info.ProductionProgress;
 		_productionProgress.MaxValue = info.ProductionMaxProgress;
-		_productionQueueLabel.Text = $"{(int)(info.ProductionProgress / System.Math.Max(info.ProductionMaxProgress, 0.001f) * 100f)}%";
+		_productionQueueLabel.Text = $"{(int)(info.ProductionProgress / Math.Max(info.ProductionMaxProgress, 0.001f) * 100f)}%";
 		if (_lastProductionQueue.Count > 0)
 		{
 			_lastProductionQueue.Clear();
@@ -277,14 +285,14 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateCastleProductionBox(InGameHUDViewModel.SelectedUnitInfo info)
+	private void UpdateCastleProductionBox(SelectedUnitInfo info)
 	{
 		_productionTitle.Text = info.ProductionTitle;
 		_productionProgress.Visible = true;
 		_productionProgress.Value = info.ProductionProgress;
 		_productionProgress.MaxValue = info.ProductionMaxProgress;
 		_productionQueueLabel.Text = string.Format(TranslationServer.Translate("Queue: {0}"), info.ProductionQueue.Count);
-        
+
 		bool queueChanged = HasProductionQueueChanged(info.ProductionQueue);
 		if (queueChanged)
 		{
@@ -308,6 +316,7 @@ public class PortraitPanel
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -335,7 +344,7 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateArmyCompositionLabel(List<InGameHUDViewModel.SelectedUnitInfo> selectedUnits)
+	private void UpdateArmyCompositionLabel(List<SelectedUnitInfo> selectedUnits)
 	{
 		if (_armyCompositionLabel == null) return;
 
@@ -346,10 +355,11 @@ public class PortraitPanel
 			if (!unitTypeCounts.ContainsKey(tid)) unitTypeCounts[tid] = 0;
 			unitTypeCounts[tid]++;
 		}
+
 		var compParts = new List<string>();
 		foreach (var kv in unitTypeCounts)
 			compParts.Add($"{kv.Value}× {kv.Key}");
-        
+
 		_armyCompositionLabel.Text = string.Join(", ", compParts);
 		_armyCompositionLabel.Show();
 	}
@@ -398,11 +408,11 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateUnitButtonHealthBar(ProgressBar hpBar, InGameHUDViewModel.SelectedUnitInfo uInfo)
+	private void UpdateUnitButtonHealthBar(ProgressBar hpBar, SelectedUnitInfo uInfo)
 	{
 		if (hpBar == null) return;
 
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(uInfo.Entity))
+		if (GameHost.Instance != null && GameContext.World.IsAlive(uInfo.Entity))
 		{
 			hpBar.Visible = true;
 			hpBar.MaxValue = uInfo.MaxHealth;
@@ -411,7 +421,7 @@ public class PortraitPanel
 			float hpPct = uInfo.MaxHealth > 0 ? uInfo.Health / uInfo.MaxHealth : 1f;
 			var fillStyle = new StyleBoxFlat();
 			fillStyle.BgColor = hpPct < 0.35f ? new Color(0.9f, 0.2f, 0.1f)
-				: hpPct < 0.7f  ? new Color(0.9f, 0.7f, 0.1f)
+				: hpPct < 0.7f ? new Color(0.9f, 0.7f, 0.1f)
 				: new Color(0.1f, 0.85f, 0.2f);
 			hpBar.AddThemeStyleboxOverride("fill", fillStyle);
 		}
@@ -427,9 +437,9 @@ public class PortraitPanel
 		{
 			var btn = _unitButtons[i];
 			var statusLbl = btn.GetNodeOrNull<Label>("StatusIcon");
-			
+
 			if (statusLbl == null) continue;
-            
+
 			if (i >= viewModel.SelectedUnits.Count)
 			{
 				statusLbl.Visible = false;
@@ -437,12 +447,12 @@ public class PortraitPanel
 			}
 
 			var uInfo = viewModel.SelectedUnits[i];
-			if (!Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(uInfo.Entity))
+			if (!GameContext.World.IsAlive(uInfo.Entity))
 			{
 				statusLbl.Visible = false;
 				continue;
 			}
-			
+
 			string status = GetUnitStatus(uInfo.Entity);
 			statusLbl.Text = status;
 			statusLbl.Visible = !string.IsNullOrEmpty(status);
@@ -451,12 +461,12 @@ public class PortraitPanel
 
 	private string GetUnitStatus(Entity entity)
 	{
-		var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-		if (world.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity))       return "H";
-		if (world.Has<Realm.Ecs.Components.Movement.Patrol>(entity))         return "P";
-		if (world.Has<Realm.Ecs.Components.Movement.AttackMove>(entity))     return "A";
-		if (world.Has<Realm.Ecs.Components.Movement.Follow>(entity))         return "F";
-		if (world.Has<Realm.Ecs.Components.Movement.MoveTo>(entity))         return "M";
+		var world = GameContext.World;
+		if (world.Has<HoldPosition>(entity)) return "H";
+		if (world.Has<Patrol>(entity)) return "P";
+		if (world.Has<AttackMove>(entity)) return "A";
+		if (world.Has<Follow>(entity)) return "F";
+		if (world.Has<MoveTo>(entity)) return "M";
 		return "";
 	}
 
@@ -468,7 +478,7 @@ public class PortraitPanel
 	private void PopulateQueueSlots(Entity castleEntity, List<string> unitIds)
 	{
 		if (_queueSlotsContainer == null) return;
-        
+
 		ClearQueueSlots();
 
 		for (int i = 0; i < unitIds.Count; i++)
@@ -495,10 +505,11 @@ public class PortraitPanel
 	private string GetQueueSlotDisplayName(string unitId)
 	{
 		string unitDisplayName = unitId.ToUpper();
-		if (Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(unitId, out var uMeta) && !string.IsNullOrEmpty(uMeta.Name))
+		if (GameHost.UnitRegistry.TryGetValue(unitId, out var uMeta) && !string.IsNullOrEmpty(uMeta.Name))
 		{
 			unitDisplayName = uMeta.Name;
 		}
+
 		return TranslationServer.Translate(unitDisplayName);
 	}
 
@@ -554,9 +565,9 @@ public class PortraitPanel
 	{
 		if (e is not InputEventMouseButton mouseEvent || !mouseEvent.Pressed) return;
 		if (mouseEvent.ButtonIndex != MouseButton.Left && mouseEvent.ButtonIndex != MouseButton.Right) return;
-		if (Realm.Client.Core.GameHost.Instance == null || !Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(castleEntity)) return;
-        
-		Realm.Client.Core.GameHost.Instance.CancelQueuedUnitAt(castleEntity, index);
+		if (GameHost.Instance == null || !GameContext.World.IsAlive(castleEntity)) return;
+
+		GameHost.Instance.CancelQueuedUnitAt(castleEntity, index);
 	}
 
 	private void ClearQueueSlots()

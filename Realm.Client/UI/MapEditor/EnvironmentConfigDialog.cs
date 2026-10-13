@@ -1,8 +1,9 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -74,7 +75,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		topRow.AddChild(lblPreset);
 
 		_optPresetSelect = new OptionButton();
-		_optPresetSelect.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optPresetSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optPresetSelect.ItemSelected += (idx) => SelectPreset((int)idx);
 		topRow.AddChild(_optPresetSelect);
 
@@ -115,7 +116,10 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		_chkLivePreview = new CheckBox();
 		_chkLivePreview.Text = TranslationServer.Translate("Live Viewport Preview");
 		_chkLivePreview.ButtonPressed = true;
-		_chkLivePreview.Toggled += (val) => { if (val) ApplyLivePreview(); };
+		_chkLivePreview.Toggled += (val) =>
+		{
+			if (val) ApplyLivePreview();
+		};
 		previewRow.AddChild(_chkLivePreview);
 
 		_lblDefaultBadge = new Label();
@@ -144,42 +148,80 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		tabSun.Name = TranslationServer.Translate("Sun & Directional Light");
 		var vSun = new VBoxContainer();
 		vSun.AddThemeConstantOverride("separation", 6);
-		vSun.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vSun.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabSun.AddChild(vSun);
 		tabContainer.AddChild(tabSun);
 
 		AddSectionHeader(vSun, TranslationServer.Translate("Preset Identity"));
 		var nameRow = new HBoxContainer();
 		nameRow.AddChild(new Label { Text = TranslationServer.Translate("Display Name:"), CustomMinimumSize = new Vector2(130, 0) });
-		_txtName = new LineEdit { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_txtName.TextChanged += (text) => { if (_activePreset != null) { _activePreset.Name = text; UpdatePresetListUI(); } };
+		_txtName = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		_txtName.TextChanged += (text) =>
+		{
+			if (_activePreset != null)
+			{
+				_activePreset.Name = text;
+				UpdatePresetListUI();
+			}
+		};
 		nameRow.AddChild(_txtName);
 		vSun.AddChild(nameRow);
 
 		var idRow = new HBoxContainer();
 		idRow.AddChild(new Label { Text = TranslationServer.Translate("Preset ID:"), CustomMinimumSize = new Vector2(130, 0) });
-		_txtId = new LineEdit { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_txtId.TextChanged += (text) => { if (_activePreset != null) { _activePreset.Id = text.Trim(); UpdatePresetListUI(); } };
+		_txtId = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		_txtId.TextChanged += (text) =>
+		{
+			if (_activePreset != null)
+			{
+				_activePreset.Id = text.Trim();
+				UpdatePresetListUI();
+			}
+		};
 		idRow.AddChild(_txtId);
 		vSun.AddChild(idRow);
 
 		AddSectionHeader(vSun, TranslationServer.Translate("Directional Light (Sun / Moon)"));
-		var sldPitchRes = AddSlider(vSun, TranslationServer.Translate("Sun Pitch (Deg):"), -90.0f, 90.0f, 1.0f, -58.0f, (v) => { if (_activePreset != null) _activePreset.SunPitch = v; ApplyLivePreview(); }, "0.0");
+		var sldPitchRes = AddSlider(vSun, TranslationServer.Translate("Sun Pitch (Deg):"), -90.0f, 90.0f, 1.0f, -58.0f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.SunPitch = v;
+			ApplyLivePreview();
+		}, "0.0");
 		_sldSunPitch = sldPitchRes.Slider;
 
-		var sldYawRes = AddSlider(vSun, TranslationServer.Translate("Sun Yaw (Deg):"), -180.0f, 180.0f, 1.0f, 29.0f, (v) => { if (_activePreset != null) _activePreset.SunYaw = v; ApplyLivePreview(); }, "0.0");
+		var sldYawRes = AddSlider(vSun, TranslationServer.Translate("Sun Yaw (Deg):"), -180.0f, 180.0f, 1.0f, 29.0f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.SunYaw = v;
+			ApplyLivePreview();
+		}, "0.0");
 		_sldSunYaw = sldYawRes.Slider;
 
-		var sldSunEnergyRes = AddSlider(vSun, TranslationServer.Translate("Sun Energy:"), 0.0f, 10.0f, 0.05f, 2.50f, (v) => { if (_activePreset != null) _activePreset.SunEnergy = v; ApplyLivePreview(); });
+		var sldSunEnergyRes = AddSlider(vSun, TranslationServer.Translate("Sun Energy:"), 0.0f, 10.0f, 0.05f, 2.50f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.SunEnergy = v;
+			ApplyLivePreview();
+		});
 		_sldSunEnergy = sldSunEnergyRes.Slider;
 
-		var cpSunRes = AddColorPicker(vSun, TranslationServer.Translate("Sun Light Color:"), Colors.White, (c) => { if (_activePreset != null) _activePreset.SunColorHex = "#" + c.ToHtml(false); ApplyLivePreview(); });
+		var cpSunRes = AddColorPicker(vSun, TranslationServer.Translate("Sun Light Color:"), Colors.White, (c) =>
+		{
+			if (_activePreset != null) _activePreset.SunColorHex = "#" + c.ToHtml(false);
+			ApplyLivePreview();
+		});
 		_cpSunColor = cpSunRes.Picker;
 
-		var sldBiasRes = AddSlider(vSun, TranslationServer.Translate("Shadow Bias:"), 0.0f, 0.2f, 0.005f, 0.03f, (v) => { if (_activePreset != null) _activePreset.ShadowBias = v; ApplyLivePreview(); }, "0.000");
+		var sldBiasRes = AddSlider(vSun, TranslationServer.Translate("Shadow Bias:"), 0.0f, 0.2f, 0.005f, 0.03f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.ShadowBias = v;
+			ApplyLivePreview();
+		}, "0.000");
 		_sldShadowBias = sldBiasRes.Slider;
 
-		var sldNormBiasRes = AddSlider(vSun, TranslationServer.Translate("Shadow Normal Bias:"), 0.0f, 5.0f, 0.05f, 1.2f, (v) => { if (_activePreset != null) _activePreset.ShadowNormalBias = v; ApplyLivePreview(); });
+		var sldNormBiasRes = AddSlider(vSun, TranslationServer.Translate("Shadow Normal Bias:"), 0.0f, 5.0f, 0.05f, 1.2f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.ShadowNormalBias = v;
+			ApplyLivePreview();
+		});
 		_sldShadowNormalBias = sldNormBiasRes.Slider;
 	}
 
@@ -189,19 +231,31 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		tabAmbient.Name = TranslationServer.Translate("Ambient & Fill");
 		var vAmbient = new VBoxContainer();
 		vAmbient.AddThemeConstantOverride("separation", 6);
-		vAmbient.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vAmbient.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabAmbient.AddChild(vAmbient);
 		tabContainer.AddChild(tabAmbient);
 
 		AddSectionHeader(vAmbient, TranslationServer.Translate("Ambient Sky Lighting"));
-		var sldAmbEnergyRes = AddSlider(vAmbient, TranslationServer.Translate("Ambient Energy:"), 0.0f, 5.0f, 0.05f, 0.80f, (v) => { if (_activePreset != null) _activePreset.AmbientEnergy = v; ApplyLivePreview(); });
+		var sldAmbEnergyRes = AddSlider(vAmbient, TranslationServer.Translate("Ambient Energy:"), 0.0f, 5.0f, 0.05f, 0.80f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.AmbientEnergy = v;
+			ApplyLivePreview();
+		});
 		_sldAmbientEnergy = sldAmbEnergyRes.Slider;
 
-		var cpAmbRes = AddColorPicker(vAmbient, TranslationServer.Translate("Ambient Color:"), Colors.Gray, (c) => { if (_activePreset != null) _activePreset.AmbientColorHex = "#" + c.ToHtml(false); ApplyLivePreview(); });
+		var cpAmbRes = AddColorPicker(vAmbient, TranslationServer.Translate("Ambient Color:"), Colors.Gray, (c) =>
+		{
+			if (_activePreset != null) _activePreset.AmbientColorHex = "#" + c.ToHtml(false);
+			ApplyLivePreview();
+		});
 		_cpAmbientColor = cpAmbRes.Picker;
 
 		AddSectionHeader(vAmbient, TranslationServer.Translate("Character Readability Fill Light"));
-		var sldCharFillRes = AddSlider(vAmbient, TranslationServer.Translate("Fill Light Energy:"), 0.0f, 2.0f, 0.02f, 0.15f, (v) => { if (_activePreset != null) _activePreset.CharacterFillEnergy = v; ApplyLivePreview(); });
+		var sldCharFillRes = AddSlider(vAmbient, TranslationServer.Translate("Fill Light Energy:"), 0.0f, 2.0f, 0.02f, 0.15f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.CharacterFillEnergy = v;
+			ApplyLivePreview();
+		});
 		_sldCharacterFill = sldCharFillRes.Slider;
 	}
 
@@ -211,20 +265,36 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		tabFog.Name = TranslationServer.Translate("Atmospheric Fog");
 		var vFog = new VBoxContainer();
 		vFog.AddThemeConstantOverride("separation", 6);
-		vFog.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vFog.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabFog.AddChild(vFog);
 		tabContainer.AddChild(tabFog);
 
 		AddSectionHeader(vFog, TranslationServer.Translate("Volumetric Fog & Distance"));
-		_chkFogEnabled = AddCheckBox(vFog, TranslationServer.Translate("Enable Atmospheric Fog"), true, (val) => { if (_activePreset != null) _activePreset.FogEnabled = val; ApplyLivePreview(); });
+		_chkFogEnabled = AddCheckBox(vFog, TranslationServer.Translate("Enable Atmospheric Fog"), true, (val) =>
+		{
+			if (_activePreset != null) _activePreset.FogEnabled = val;
+			ApplyLivePreview();
+		});
 
-		var sldFogDensRes = AddSlider(vFog, TranslationServer.Translate("Fog Density:"), 0.0f, 0.1f, 0.0005f, 0.0080f, (v) => { if (_activePreset != null) _activePreset.FogDensity = v; ApplyLivePreview(); }, "0.0000");
+		var sldFogDensRes = AddSlider(vFog, TranslationServer.Translate("Fog Density:"), 0.0f, 0.1f, 0.0005f, 0.0080f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.FogDensity = v;
+			ApplyLivePreview();
+		}, "0.0000");
 		_sldFogDensity = sldFogDensRes.Slider;
 
-		var cpFogRes = AddColorPicker(vFog, TranslationServer.Translate("Fog Light Color:"), Colors.LightGray, (c) => { if (_activePreset != null) _activePreset.FogColorHex = "#" + c.ToHtml(false); ApplyLivePreview(); });
+		var cpFogRes = AddColorPicker(vFog, TranslationServer.Translate("Fog Light Color:"), Colors.LightGray, (c) =>
+		{
+			if (_activePreset != null) _activePreset.FogColorHex = "#" + c.ToHtml(false);
+			ApplyLivePreview();
+		});
 		_cpFogColor = cpFogRes.Picker;
 
-		var sldBaseFogRes = AddSlider(vFog, TranslationServer.Translate("Base Fog Density:"), 0.0f, 0.1f, 0.001f, 0.0f, (v) => { if (_activePreset != null) _activePreset.BaseFogDensity = v; ApplyLivePreview(); }, "0.000");
+		var sldBaseFogRes = AddSlider(vFog, TranslationServer.Translate("Base Fog Density:"), 0.0f, 0.1f, 0.001f, 0.0f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.BaseFogDensity = v;
+			ApplyLivePreview();
+		}, "0.000");
 		_sldBaseFogDensity = sldBaseFogRes.Slider;
 	}
 
@@ -234,7 +304,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		tabPost.Name = TranslationServer.Translate("Post-Processing & SSAO");
 		var vPost = new VBoxContainer();
 		vPost.AddThemeConstantOverride("separation", 6);
-		vPost.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vPost.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabPost.AddChild(vPost);
 		tabContainer.AddChild(tabPost);
 
@@ -245,37 +315,77 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 	private void BuildSsaoSection(VBoxContainer vPost)
 	{
 		AddSectionHeader(vPost, TranslationServer.Translate("Screen Space Ambient Occlusion (SSAO)"));
-		_chkSsaoEnabled = AddCheckBox(vPost, TranslationServer.Translate("Enable SSAO"), true, (val) => { if (_activePreset != null) _activePreset.SsaoEnabled = val; ApplyLivePreview(); });
+		_chkSsaoEnabled = AddCheckBox(vPost, TranslationServer.Translate("Enable SSAO"), true, (val) =>
+		{
+			if (_activePreset != null) _activePreset.SsaoEnabled = val;
+			ApplyLivePreview();
+		});
 
-		var sldSsaoRadRes = AddSlider(vPost, TranslationServer.Translate("SSAO Radius:"), 0.1f, 5.0f, 0.05f, 1.20f, (v) => { if (_activePreset != null) _activePreset.SsaoRadius = v; ApplyLivePreview(); });
+		var sldSsaoRadRes = AddSlider(vPost, TranslationServer.Translate("SSAO Radius:"), 0.1f, 5.0f, 0.05f, 1.20f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.SsaoRadius = v;
+			ApplyLivePreview();
+		});
 		_sldSsaoRadius = sldSsaoRadRes.Slider;
 
-		var sldSsaoIntRes = AddSlider(vPost, TranslationServer.Translate("SSAO Intensity:"), 0.0f, 5.0f, 0.05f, 0.40f, (v) => { if (_activePreset != null) _activePreset.SsaoIntensity = v; ApplyLivePreview(); });
+		var sldSsaoIntRes = AddSlider(vPost, TranslationServer.Translate("SSAO Intensity:"), 0.0f, 5.0f, 0.05f, 0.40f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.SsaoIntensity = v;
+			ApplyLivePreview();
+		});
 		_sldSsaoIntensity = sldSsaoIntRes.Slider;
 
-		var sldSsaoDetRes = AddSlider(vPost, TranslationServer.Translate("SSAO Detail:"), 0.0f, 1.0f, 0.05f, 0.50f, (v) => { if (_activePreset != null) _activePreset.SsaoDetail = v; ApplyLivePreview(); });
+		var sldSsaoDetRes = AddSlider(vPost, TranslationServer.Translate("SSAO Detail:"), 0.0f, 1.0f, 0.05f, 0.50f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.SsaoDetail = v;
+			ApplyLivePreview();
+		});
 		_sldSsaoDetail = sldSsaoDetRes.Slider;
 	}
 
 	private void BuildColorGradingSection(VBoxContainer vPost)
 	{
 		AddSectionHeader(vPost, TranslationServer.Translate("Color Grading & Bloom"));
-		var sldExpRes = AddSlider(vPost, TranslationServer.Translate("Tonemap Exposure:"), 0.1f, 3.0f, 0.02f, 1.18f, (v) => { if (_activePreset != null) _activePreset.TonemapExposure = v; ApplyLivePreview(); });
+		var sldExpRes = AddSlider(vPost, TranslationServer.Translate("Tonemap Exposure:"), 0.1f, 3.0f, 0.02f, 1.18f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.TonemapExposure = v;
+			ApplyLivePreview();
+		});
 		_sldExposure = sldExpRes.Slider;
 
-		var sldContRes = AddSlider(vPost, TranslationServer.Translate("Contrast:"), 0.5f, 2.0f, 0.02f, 1.02f, (v) => { if (_activePreset != null) _activePreset.AdjustmentContrast = v; ApplyLivePreview(); });
+		var sldContRes = AddSlider(vPost, TranslationServer.Translate("Contrast:"), 0.5f, 2.0f, 0.02f, 1.02f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.AdjustmentContrast = v;
+			ApplyLivePreview();
+		});
 		_sldContrast = sldContRes.Slider;
 
-		var sldSatRes = AddSlider(vPost, TranslationServer.Translate("Saturation:"), 0.0f, 2.0f, 0.02f, 1.06f, (v) => { if (_activePreset != null) _activePreset.AdjustmentSaturation = v; ApplyLivePreview(); });
+		var sldSatRes = AddSlider(vPost, TranslationServer.Translate("Saturation:"), 0.0f, 2.0f, 0.02f, 1.06f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.AdjustmentSaturation = v;
+			ApplyLivePreview();
+		});
 		_sldSaturation = sldSatRes.Slider;
 
-		var sldGlowIntRes = AddSlider(vPost, TranslationServer.Translate("Glow Intensity:"), 0.0f, 2.0f, 0.05f, 0.15f, (v) => { if (_activePreset != null) _activePreset.GlowIntensity = v; ApplyLivePreview(); });
+		var sldGlowIntRes = AddSlider(vPost, TranslationServer.Translate("Glow Intensity:"), 0.0f, 2.0f, 0.05f, 0.15f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.GlowIntensity = v;
+			ApplyLivePreview();
+		});
 		_sldGlowIntensity = sldGlowIntRes.Slider;
 
-		var sldGlowBloomRes = AddSlider(vPost, TranslationServer.Translate("Glow Bloom:"), 0.0f, 1.0f, 0.02f, 0.14f, (v) => { if (_activePreset != null) _activePreset.GlowBloom = v; ApplyLivePreview(); });
+		var sldGlowBloomRes = AddSlider(vPost, TranslationServer.Translate("Glow Bloom:"), 0.0f, 1.0f, 0.02f, 0.14f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.GlowBloom = v;
+			ApplyLivePreview();
+		});
 		_sldGlowBloom = sldGlowBloomRes.Slider;
 
-		var sldGlowStrRes = AddSlider(vPost, TranslationServer.Translate("Glow Strength:"), 0.0f, 2.0f, 0.05f, 0.90f, (v) => { if (_activePreset != null) _activePreset.GlowStrength = v; ApplyLivePreview(); });
+		var sldGlowStrRes = AddSlider(vPost, TranslationServer.Translate("Glow Strength:"), 0.0f, 2.0f, 0.05f, 0.90f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.GlowStrength = v;
+			ApplyLivePreview();
+		});
 		_sldGlowStrength = sldGlowStrRes.Slider;
 	}
 
@@ -285,7 +395,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		tabWeather.Name = TranslationServer.Translate("Weather & Precipitation");
 		var vWeather = new VBoxContainer();
 		vWeather.AddThemeConstantOverride("separation", 6);
-		vWeather.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vWeather.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabWeather.AddChild(vWeather);
 		tabContainer.AddChild(tabWeather);
 
@@ -301,14 +411,21 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		weatherRow.AddChild(_optWeatherType);
 		vWeather.AddChild(weatherRow);
 
-		var sldRainRes = AddSlider(vWeather, TranslationServer.Translate("Particle Density:"), 0.0f, 3000.0f, 50.0f, 0.0f, (v) => { if (_activePreset != null) _activePreset.RainParticleDensity = (int)v; ApplyLivePreview(); }, "0");
+		var sldRainRes = AddSlider(vWeather, TranslationServer.Translate("Particle Density:"), 0.0f, 3000.0f, 50.0f, 0.0f, (v) =>
+		{
+			if (_activePreset != null) _activePreset.RainParticleDensity = (int)v;
+			ApplyLivePreview();
+		}, "0");
 		_sldRainDensity = sldRainRes.Slider;
 
 		AddSectionHeader(vWeather, TranslationServer.Translate("In-Game Notification Banner"));
 		var bannerRow = new HBoxContainer();
 		bannerRow.AddChild(new Label { Text = TranslationServer.Translate("Forecast Text:"), CustomMinimumSize = new Vector2(130, 0) });
-		_txtAnnouncement = new LineEdit { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_txtAnnouncement.TextChanged += (t) => { if (_activePreset != null) _activePreset.WeatherAnnouncement = t; };
+		_txtAnnouncement = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		_txtAnnouncement.TextChanged += (t) =>
+		{
+			if (_activePreset != null) _activePreset.WeatherAnnouncement = t;
+		};
 		bannerRow.AddChild(_txtAnnouncement);
 		vWeather.AddChild(bannerRow);
 	}
@@ -392,6 +509,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 			string prefix = string.Equals(_presets[i].Id, _defaultPresetId, StringComparison.OrdinalIgnoreCase) ? "★ " : "";
 			_optPresetSelect.AddItem($"{prefix}{_presets[i].Name} ({_presets[i].Id})", i);
 		}
+
 		if (_selectedPresetIdx >= 0 && _selectedPresetIdx < _presets.Count)
 		{
 			_optPresetSelect.Selected = _selectedPresetIdx;
@@ -512,37 +630,38 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 	private void ApplyLivePreview()
 	{
 		if (_activePreset == null || _chkLivePreview == null || !_chkLivePreview.ButtonPressed) return;
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EnvironmentService != null)
+		if (GameHost.Instance != null && GameContext.EnvironmentService != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EnvironmentService.ApplyPreset(Realm.Client.Core.GameHost.Instance, _activePreset);
+			GameContext.EnvironmentService.ApplyPreset(GameHost.Instance, _activePreset);
 		}
 	}
 
 	protected override void OnApply()
 	{
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EnvironmentService != null)
+		if (GameHost.Instance != null && GameContext.EnvironmentService != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EnvironmentService.LoadPresets(_presets);
+			GameContext.EnvironmentService.LoadPresets(_presets);
 			if (!string.IsNullOrWhiteSpace(_defaultPresetId))
 			{
-				Realm.Client.Core.GameHost.Instance.EnvironmentService.ApplyPresetById(Realm.Client.Core.GameHost.Instance, _defaultPresetId);
+				GameContext.EnvironmentService.ApplyPresetById(GameHost.Instance, _defaultPresetId);
 			}
 			else if (_activePreset != null)
 			{
-				Realm.Client.Core.GameHost.Instance.EnvironmentService.ApplyPreset(Realm.Client.Core.GameHost.Instance, _activePreset);
+				GameContext.EnvironmentService.ApplyPreset(GameHost.Instance, _activePreset);
 			}
-			Realm.Client.Core.GameHost.Instance.EditorHasUnsavedChanges = true;
+
+			GameHost.Instance.EditorHasUnsavedChanges = true;
 		}
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string metaPath = Path.Combine(wsPath, "metadata.json");
 		if (File.Exists(metaPath))
 		{
-			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot != null)
+			if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot != null)
 			{
 				metadataRoot.CustomEnvironmentPresets = _presets;
 				metadataRoot.DefaultEnvironmentPreset = _defaultPresetId;
-				MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+				GameContext.MetadataService.SaveMetadata(metaPath, metadataRoot);
 				Hud?.UpdateLastMetadataSyncTime(metaPath);
 			}
 		}
@@ -550,13 +669,13 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EnvironmentService != null)
+		if (GameHost.Instance != null && GameContext.EnvironmentService != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EnvironmentService.LoadPresets(_initialSnapshots);
+			GameContext.EnvironmentService.LoadPresets(_initialSnapshots);
 			var initial = _initialSnapshots.Count > 0 ? _initialSnapshots[0] : null;
 			if (initial != null)
 			{
-				Realm.Client.Core.GameHost.Instance.EnvironmentService.ApplyPreset(Realm.Client.Core.GameHost.Instance, initial);
+				GameContext.EnvironmentService.ApplyPreset(GameHost.Instance, initial);
 			}
 		}
 	}

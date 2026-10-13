@@ -56,8 +56,10 @@ public class SelfPlayTrainer
 			{
 				weights[f] = (float)(Random.NextDouble() * 2.0 - 1.0);
 			}
+
 			population.Add(weights);
 		}
+
 		return population;
 	}
 
@@ -102,6 +104,7 @@ public class SelfPlayTrainer
 			totalScore += RunMatchAndGetScore(
 				candidate, opponent, genreName, maxTicks, winConditionEvaluator, customInitializer);
 		}
+
 		return totalScore / matchesPerEvaluation;
 	}
 
@@ -207,6 +210,7 @@ public class SelfPlayTrainer
 			float mutation = (float)(Random.NextDouble() * 0.4 - 0.2);
 			child[i] = Math.Clamp(parent[i] + mutation, -2.0f, 2.0f);
 		}
+
 		return child;
 	}
 }

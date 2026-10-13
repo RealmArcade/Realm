@@ -1,11 +1,19 @@
-using Godot;
-using Microsoft.Web.WebView2.Core;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
+using Godot;
+using Microsoft.Web.WebView2.Core;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.Services;
+using Color = Godot.Color;
+using Environment = System.Environment;
+using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client.UI;
 
@@ -24,6 +32,7 @@ public class WasmConsoleWindow
 
 	private string _logFilePath = "";
 	private bool _hasErrors = false;
+
 	public bool HasErrors
 	{
 		get => _hasErrors;
@@ -36,60 +45,25 @@ public class WasmConsoleWindow
 	private string _bufferedStatusColor = "#00e5ff";
 	private readonly object _logLock = new object();
 
-	private const uint WM_USER = 0x0400;
-	private const uint WM_WAKEUP = WM_USER + 1;
-	private const uint WM_CLOSE = 0x0010;
-	private const uint WM_SIZE = 0x0005;
-	private const int SW_HIDE = 0;
-	private const int SW_SHOW = 5;
-	private const int SW_RESTORE = 9;
+	public const uint WM_USER = 0x0400;
+	public const uint WM_WAKEUP = WM_USER + 1;
+	public const uint WM_CLOSE = 0x0010;
+	public const uint WM_SIZE = 0x0005;
+	public const int SW_HIDE = 0;
+	public const int SW_SHOW = 5;
+	public const int SW_RESTORE = 9;
 
-	private const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
-	private const uint SWP_NOSIZE = 0x0001;
-	private const uint SWP_NOMOVE = 0x0002;
-	private const uint SWP_NOZORDER = 0x0004;
-	private const uint SWP_NOACTIVATE = 0x0010;
-	private const uint SWP_SHOWWINDOW = 0x0040;
-	private const uint SWP_HIDEWINDOW = 0x0080;
+	public const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
+	public const uint SWP_NOSIZE = 0x0001;
+	public const uint SWP_NOMOVE = 0x0002;
+	public const uint SWP_NOZORDER = 0x0004;
+	public const uint SWP_NOACTIVATE = 0x0010;
+	public const uint SWP_SHOWWINDOW = 0x0040;
+	public const uint SWP_HIDEWINDOW = 0x0080;
 
-	private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
 	private WndProcDelegate? _customWndProcDelegate;
 
-	[StructLayout(LayoutKind.Sequential)]
-	public struct MSG
-	{
-		public IntPtr hwnd;
-		public uint message;
-		public IntPtr wParam;
-		public IntPtr lParam;
-		public uint time;
-		public Point pt;
-		public uint lPrivate;
-	}
-
-	[StructLayout(LayoutKind.Sequential)]
-	public struct Point
-	{
-		public int x;
-		public int y;
-	}
-
-	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-	public struct WNDCLASSEX
-	{
-		public int cbSize;
-		public int style;
-		public IntPtr lpfnWndProc;
-		public int cbClsExtra;
-		public int cbWndExtra;
-		public IntPtr hInstance;
-		public IntPtr hIcon;
-		public IntPtr hCursor;
-		public IntPtr hbrBackground;
-		public string lpszMenuName;
-		public string lpszClassName;
-		public IntPtr hIconSm;
-	}
 
 	[DllImport("user32.dll")]
 	public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
@@ -147,9 +121,9 @@ public class WasmConsoleWindow
 
 	public static bool IsSinglePlayerOrTestMode()
 	{
-		if (MapEditorHUD.IsTestMode) return true;
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode) return true;
-		if (GodotObject.IsInstanceValid(Network.LobbyManager.Instance) && Network.LobbyManager.Instance.IsSinglePlayer) return true;
+		if (GameContext.EditorService.IsTestMode) return true;
+		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode) return true;
+		if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.IsSinglePlayer) return true;
 		return false;
 	}
 
@@ -158,8 +132,8 @@ public class WasmConsoleWindow
 		if (!OperatingSystem.IsWindows()) return;
 		try
 		{
-			string userDir = global::Godot.ProjectSettings.GlobalizePath("user://");
-			_logFilePath = System.IO.Path.Combine(userDir, "wasm_compile.log");
+			string userDir = ProjectSettings.GlobalizePath("user://");
+			_logFilePath = Path.Combine(userDir, "wasm_compile.log");
 		}
 		catch
 		{
@@ -167,7 +141,7 @@ public class WasmConsoleWindow
 		}
 
 		// Global listener for WASM runtime output
-		Core.WasmRuntime.OnWasmLog += line => AppendLog(line);
+		WasmRuntime.OnWasmLog += line => AppendLog(line);
 
 		EnsureInitialized();
 	}
@@ -188,51 +162,6 @@ public class WasmConsoleWindow
 			_staThread.SetApartmentState(ApartmentState.STA);
 			_staThread.IsBackground = true;
 			_staThread.Start();
-		}
-	}
-
-	private class STASynchronizationContext : SynchronizationContext
-	{
-		private readonly ConcurrentQueue<Action> _queue;
-		private readonly IntPtr _hwnd;
-		private readonly int _threadId;
-
-		public STASynchronizationContext(ConcurrentQueue<Action> queue, IntPtr hwnd, int threadId)
-		{
-			_queue = queue;
-			_hwnd = hwnd;
-			_threadId = threadId;
-		}
-
-		public override void Post(SendOrPostCallback d, object? state)
-		{
-			_queue.Enqueue(() => d(state));
-			if (_hwnd != IntPtr.Zero)
-			{
-				PostMessage(_hwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-			}
-		}
-
-		public override void Send(SendOrPostCallback d, object? state)
-		{
-			if (System.Environment.CurrentManagedThreadId == _threadId)
-			{
-				d(state);
-			}
-			else
-			{
-				using var evt = new ManualResetEventSlim(false);
-				_queue.Enqueue(() =>
-				{
-					try { d(state); }
-					finally { evt.Set(); }
-				});
-				if (_hwnd != IntPtr.Zero)
-				{
-					PostMessage(_hwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-				}
-				evt.Wait();
-			}
 		}
 	}
 
@@ -276,7 +205,7 @@ public class WasmConsoleWindow
 		}
 
 		SynchronizationContext.SetSynchronizationContext(
-			new STASynchronizationContext(_actionQueue, _childHwnd, System.Environment.CurrentManagedThreadId));
+			new STASynchronizationContext(_actionQueue, _childHwnd, Environment.CurrentManagedThreadId));
 
 		PositionOnScreen();
 		InitializeWebView();
@@ -307,12 +236,12 @@ public class WasmConsoleWindow
 		{
 			return HandleWmSize(hWnd, msg, wParam, lParam);
 		}
-		
+
 		if (msg == WM_CLOSE)
 		{
 			return HandleWmClose(hWnd);
 		}
-		
+
 		return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
 
@@ -338,7 +267,7 @@ public class WasmConsoleWindow
 
 		if (_controller != null)
 		{
-			_controller.Bounds = new System.Drawing.Rectangle(0, 0, w, h);
+			_controller.Bounds = new Rectangle(0, 0, w, h);
 		}
 
 		return DefWindowProc(hWnd, msg, wParam, lParam);
@@ -360,12 +289,12 @@ public class WasmConsoleWindow
 	{
 		try
 		{
-			string userDir = global::Godot.ProjectSettings.GlobalizePath("user://");
+			string userDir = ProjectSettings.GlobalizePath("user://");
 			string cachePath = Path.Combine(userDir, "wasm_console_webview_cache");
 
 			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath);
 			_controller = await env.CreateCoreWebView2ControllerAsync(_childHwnd);
-			_controller.Bounds = new System.Drawing.Rectangle(0, 0, 760, 520);
+			_controller.Bounds = new Rectangle(0, 0, 760, 520);
 			_controller.IsVisible = false;
 
 			_controller.AcceleratorKeyPressed += HandleAcceleratorKey;
@@ -406,7 +335,7 @@ public class WasmConsoleWindow
 		try
 		{
 			string rawJson = args.WebMessageAsJson;
-			using var doc = System.Text.Json.JsonDocument.Parse(rawJson);
+			using var doc = JsonDocument.Parse(rawJson);
 			var root = doc.RootElement;
 			if (!root.TryGetProperty("action", out var actionProp))
 			{
@@ -422,14 +351,14 @@ public class WasmConsoleWindow
 		}
 	}
 
-	private void HandleWebViewAction(string action, System.Text.Json.JsonElement root)
+	private void HandleWebViewAction(string action, JsonElement root)
 	{
 		if (action == "sendCommand" && root.TryGetProperty("text", out var textProp))
 		{
 			SendCommand(textProp.GetString() ?? "");
 			return;
 		}
-		
+
 		if (action == "copyLogs" && root.TryGetProperty("text", out var copyTextProp))
 		{
 			string textToCopy = copyTextProp.GetString() ?? "";
@@ -437,7 +366,7 @@ public class WasmConsoleWindow
 			SetStatus("✓ Console output copied to clipboard!", new Color(0, 0.9f, 1.0f));
 			return;
 		}
-		
+
 		if (action == "hideConsole")
 		{
 			SetVisible(false);
@@ -450,7 +379,7 @@ public class WasmConsoleWindow
 	{
 		_isWebViewReady = true;
 		FlushBufferedLogs();
-		
+
 		if (!_isVisible)
 		{
 			ShowWindow(_childHwnd, SW_HIDE);
@@ -473,14 +402,15 @@ public class WasmConsoleWindow
 		{
 			if (_controller == null || _controller.CoreWebView2 == null) return;
 
-			string jsStatus = $"setStatus({System.Text.Json.JsonSerializer.Serialize(_bufferedStatus)}, {System.Text.Json.JsonSerializer.Serialize(_bufferedStatusColor)});";
+			string jsStatus = $"setStatus({JsonSerializer.Serialize(_bufferedStatus)}, {JsonSerializer.Serialize(_bufferedStatusColor)});";
 			_controller.CoreWebView2.ExecuteScriptAsync(jsStatus);
 
 			foreach (var line in _bufferedLogs)
 			{
-				string jsLine = $"appendLog({System.Text.Json.JsonSerializer.Serialize(line)});";
+				string jsLine = $"appendLog({JsonSerializer.Serialize(line)});";
 				_controller.CoreWebView2.ExecuteScriptAsync(jsLine);
 			}
+
 			_bufferedLogs.Clear();
 		}
 	}
@@ -503,9 +433,12 @@ public class WasmConsoleWindow
 			{
 				windowFlags |= SWP_SHOWWINDOW;
 			}
+
 			SetWindowPos(_childHwnd, IntPtr.Zero, x, y, width, height, windowFlags);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	public void ToggleVisibility()
@@ -573,7 +506,9 @@ public class WasmConsoleWindow
 				SetForegroundWindow(new IntPtr(godotHandle));
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void SendCommand(string text)
@@ -587,13 +522,13 @@ public class WasmConsoleWindow
 		{
 			try
 			{
-				if (Realm.Client.Core.GameHost.Instance != null)
+				if (GameHost.Instance != null)
 				{
-					Realm.Client.Core.GameHost.Instance.TriggerPlayerChatMessage(cmd);
+					GameHost.Instance.TriggerPlayerChatMessage(cmd);
 				}
-				else if (GodotObject.IsInstanceValid(Network.LobbyManager.Instance))
+				else if (GodotObject.IsInstanceValid(LobbyManager.Instance))
 				{
-					Network.LobbyManager.Instance.SendChatMessage(Network.LobbyManager.Instance.LocalPlayer?.Name ?? "Player", cmd);
+					LobbyManager.Instance.SendChatMessage(LobbyManager.Instance.LocalPlayer?.Name ?? "Player", cmd);
 				}
 			}
 			catch (Exception ex)
@@ -631,9 +566,11 @@ public class WasmConsoleWindow
 		try
 		{
 			if (!string.IsNullOrEmpty(_logFilePath))
-				System.IO.File.WriteAllText(_logFilePath, $"=== WASM COMPILATION & RUNTIME LOG [{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ===\n");
+				File.WriteAllText(_logFilePath, $"=== WASM COMPILATION & RUNTIME LOG [{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ===\n");
 		}
-		catch { }
+		catch
+		{
+		}
 
 		if (!OperatingSystem.IsWindows()) return;
 		EnsureInitialized();
@@ -656,7 +593,13 @@ public class WasmConsoleWindow
 
 		if (!string.IsNullOrEmpty(_logFilePath))
 		{
-			try { System.IO.File.AppendAllText(_logFilePath, line + "\n"); } catch { }
+			try
+			{
+				File.AppendAllText(_logFilePath, line + "\n");
+			}
+			catch
+			{
+			}
 		}
 
 		if (!OperatingSystem.IsWindows()) return;
@@ -675,7 +618,7 @@ public class WasmConsoleWindow
 		{
 			if (_controller != null && _controller.CoreWebView2 != null)
 			{
-				string js = $"appendLog({System.Text.Json.JsonSerializer.Serialize(line)});";
+				string js = $"appendLog({JsonSerializer.Serialize(line)});";
 				_controller.CoreWebView2.ExecuteScriptAsync(js);
 			}
 		});
@@ -706,7 +649,7 @@ public class WasmConsoleWindow
 		{
 			if (_controller != null && _controller.CoreWebView2 != null)
 			{
-				string js = $"setStatus({System.Text.Json.JsonSerializer.Serialize(statusText)}, {System.Text.Json.JsonSerializer.Serialize(hexColor)});";
+				string js = $"setStatus({JsonSerializer.Serialize(statusText)}, {JsonSerializer.Serialize(hexColor)});";
 				_controller.CoreWebView2.ExecuteScriptAsync(js);
 			}
 		});
@@ -729,17 +672,20 @@ public class WasmConsoleWindow
 					_controller.Close();
 					_controller = null;
 				}
+
 				if (_childHwnd != IntPtr.Zero)
 				{
 					DestroyWindow(_childHwnd);
 					_childHwnd = IntPtr.Zero;
 				}
+
 				PostQuitMessage(0);
 			});
 			if (hwnd != IntPtr.Zero)
 			{
 				PostMessage(hwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 			}
+
 			_isWebViewReady = false;
 		}
 	}
@@ -747,9 +693,9 @@ public class WasmConsoleWindow
 	private static string GetConsoleHtml()
 	{
 		const string templatePath = "res://Templates/wasm_console.html";
-		if (global::Godot.FileAccess.FileExists(templatePath))
+		if (FileAccess.FileExists(templatePath))
 		{
-			using var file = global::Godot.FileAccess.Open(templatePath, global::Godot.FileAccess.ModeFlags.Read);
+			using var file = FileAccess.Open(templatePath, FileAccess.ModeFlags.Read);
 			if (file != null)
 			{
 				return file.GetAsText();

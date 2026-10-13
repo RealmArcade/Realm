@@ -1,5 +1,3 @@
-using Godot;
-using Realm.Client.UI;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +7,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Client.UI;
+using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
@@ -95,9 +96,12 @@ public partial class PeerSeederManager : Node
 			{
 				_enetPeer?.Close();
 			}
+
 			_enetPeer = null;
 		}
-		catch { }
+		catch
+		{
+		}
 
 		SendUnregisterRequest();
 		GD.Print("[PeerSeeder] Stopped seeding.");
@@ -121,6 +125,7 @@ public partial class PeerSeederManager : Node
 		{
 			GD.PrintErr($"[PeerSeeder] Error scanning local maps: {ex.Message}");
 		}
+
 		return availableMaps.Distinct().ToList();
 	}
 
@@ -146,12 +151,14 @@ public partial class PeerSeederManager : Node
 				availableMaps.Add($"{manifest.MapName}_{manifest.Version}");
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private async Task MaintainRegistrationAsync(CancellationToken token)
 	{
-		using var httpClient = new System.Net.Http.HttpClient();
+		using var httpClient = new HttpClient();
 		while (!token.IsCancellationRequested && _isSeeding)
 		{
 			try
@@ -182,7 +189,10 @@ public partial class PeerSeederManager : Node
 
 				await Task.Delay(10000, token);
 			}
-			catch (OperationCanceledException) { break; }
+			catch (OperationCanceledException)
+			{
+				break;
+			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[PeerSeeder] Seeder registration loop exception: {ex.Message}");
@@ -197,13 +207,15 @@ public partial class PeerSeederManager : Node
 		{
 			try
 			{
-				using var client = new System.Net.Http.HttpClient();
+				using var client = new HttpClient();
 				var payload = new { SeederId = _seederId };
 				var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 				await client.PostAsync($"{LobbyManager.Instance.RegistryServerUrl}/seeders/unregister", jsonContent);
 				GD.Print("[PeerSeeder] Sent unregister request to orchestrator.");
 			}
-			catch { }
+			catch
+			{
+			}
 		});
 	}
 

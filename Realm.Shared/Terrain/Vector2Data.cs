@@ -5,11 +5,9 @@ namespace Realm.Shared.Terrain;
 
 public struct Vector2Data
 {
-	[JsonPropertyName("X")]
-	public float X { get; set; }
+	[JsonPropertyName("X")] public float X { get; set; }
 
-	[JsonPropertyName("Y")]
-	public float Y { get; set; }
+	[JsonPropertyName("Y")] public float Y { get; set; }
 
 	public Vector2Data(float x, float y)
 	{

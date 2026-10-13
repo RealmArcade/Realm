@@ -54,7 +54,7 @@ public class UnitAnimationEntryJsonConverter : JsonConverter<UnitAnimationEntry>
 		};
 	}
 
-	private bool IsAnimationProperty(string name) => 
+	private bool IsAnimationProperty(string name) =>
 		name.Equals("Animation", StringComparison.OrdinalIgnoreCase) ||
 		name.Equals("Name", StringComparison.OrdinalIgnoreCase) ||
 		name.Equals("Path", StringComparison.OrdinalIgnoreCase);
@@ -87,6 +87,7 @@ public class UnitAnimationEntryJsonConverter : JsonConverter<UnitAnimationEntry>
 			{
 				writer.WriteNull("RightHandAttachment");
 			}
+
 			if (value.LeftHandAttachment != null)
 			{
 				writer.WriteString("LeftHandAttachment", value.LeftHandAttachment);
@@ -95,6 +96,7 @@ public class UnitAnimationEntryJsonConverter : JsonConverter<UnitAnimationEntry>
 			{
 				writer.WriteNull("LeftHandAttachment");
 			}
+
 			writer.WriteEndObject();
 		}
 	}

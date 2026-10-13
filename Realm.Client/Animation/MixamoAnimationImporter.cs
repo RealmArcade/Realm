@@ -1,10 +1,12 @@
-using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json.Nodes;
-using GAnimation = global::Godot.Animation;
+using Godot;
+using Realm.Client.Services;
+using FileAccess = System.IO.FileAccess;
+using GAnimation = Godot.Animation;
 
 namespace Realm.Client.Animation;
 
@@ -28,8 +30,8 @@ public static class MixamoAnimationImporter
 		try
 		{
 			var players = FindAllAnimationPlayers(rootNode);
-			string fileBaseName = !string.IsNullOrEmpty(originalFileName) 
-				? Path.GetFileNameWithoutExtension(originalFileName) 
+			string fileBaseName = !string.IsNullOrEmpty(originalFileName)
+				? Path.GetFileNameWithoutExtension(originalFileName)
 				: Path.GetFileNameWithoutExtension(filePath);
 
 			ExtractAnimationsFromPlayers(players, fileBaseName, result);
@@ -50,7 +52,7 @@ public static class MixamoAnimationImporter
 			var state = new FbxState();
 			var err = doc.AppendFromFile(filePath, state);
 			if (err == Error.Ok) return doc.GenerateScene(state);
-			
+
 			GD.PrintErr($"[MixamoAnimationImporter] Failed to parse FBX: {filePath}, error: {err}");
 			return null;
 		}
@@ -60,7 +62,7 @@ public static class MixamoAnimationImporter
 			var state = new GltfState();
 			var err = doc.AppendFromFile(filePath, state);
 			if (err == Error.Ok) return doc.GenerateScene(state);
-			
+
 			GD.PrintErr($"[MixamoAnimationImporter] Failed to parse GLB/GLTF: {filePath}, error: {err}");
 			return null;
 		}
@@ -174,8 +176,8 @@ public static class MixamoAnimationImporter
 	{
 		var trackType = godotAnim.TrackGetType(t);
 		if (trackType != GAnimation.TrackType.Position3D &&
-			trackType != GAnimation.TrackType.Rotation3D &&
-			trackType != GAnimation.TrackType.Scale3D)
+		    trackType != GAnimation.TrackType.Rotation3D &&
+		    trackType != GAnimation.TrackType.Scale3D)
 		{
 			return;
 		}
@@ -225,6 +227,7 @@ public static class MixamoAnimationImporter
 			Vector3 val = godotAnim.PositionTrackInterpolate(trackIndex, time);
 			posKeys[k] = new RealmKeyframeVector3(time, val.X, val.Y, val.Z);
 		}
+
 		return posKeys;
 	}
 
@@ -237,6 +240,7 @@ public static class MixamoAnimationImporter
 			Quaternion val = godotAnim.RotationTrackInterpolate(trackIndex, time);
 			rotKeys[k] = new RealmKeyframeQuaternion(time, val.X, val.Y, val.Z, val.W);
 		}
+
 		return rotKeys;
 	}
 
@@ -249,6 +253,7 @@ public static class MixamoAnimationImporter
 			Vector3 val = godotAnim.ScaleTrackInterpolate(trackIndex, time);
 			scaleKeys[k] = new RealmKeyframeVector3(time, val.X, val.Y, val.Z);
 		}
+
 		return scaleKeys;
 	}
 
@@ -297,7 +302,7 @@ public static class MixamoAnimationImporter
 
 		version = BitConverter.ToUInt32(glbBytes, 4);
 		jsonChunkLength = BitConverter.ToUInt32(glbBytes, 12);
-		
+
 		uint jsonChunkType = BitConverter.ToUInt32(glbBytes, 16);
 		return jsonChunkType == 0x4E4F534A;
 	}
@@ -348,10 +353,11 @@ public static class MixamoAnimationImporter
 			{
 				File.SetAttributes(destGlbPath, attrs & ~FileAttributes.ReadOnly);
 			}
+
 			File.Delete(destGlbPath);
 		}
 
-		using var fs = new FileStream(destGlbPath, FileMode.Create, System.IO.FileAccess.Write);
+		using var fs = new FileStream(destGlbPath, FileMode.Create, FileAccess.Write);
 		using var writer = new BinaryWriter(fs);
 
 		writer.Write(magic);
@@ -384,7 +390,7 @@ public static class MixamoAnimationImporter
 			}
 
 			string ws = string.IsNullOrEmpty(workspacePath)
-				? ProjectSettings.GlobalizePath(UI.MapEditorHUD.TempWorkspaceGodotPath)
+				? ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath)
 				: workspacePath;
 
 			string fileName = Path.GetFileName(sourceGlbPath);
@@ -442,10 +448,10 @@ public static class MixamoAnimationImporter
 	private static bool IsGenericAnimationName(string cleanCheck)
 	{
 		return cleanCheck.StartsWith("mixamo", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.Equals("Layer0", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.Equals("default", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.StartsWith("Take", StringComparison.OrdinalIgnoreCase) ||
-			cleanCheck.Equals("Animation", StringComparison.OrdinalIgnoreCase);
+		       cleanCheck.Equals("Layer0", StringComparison.OrdinalIgnoreCase) ||
+		       cleanCheck.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+		       cleanCheck.StartsWith("Take", StringComparison.OrdinalIgnoreCase) ||
+		       cleanCheck.Equals("Animation", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static string ExtractBoneNameFromTrackPath(string trackPath)
@@ -456,11 +462,13 @@ public static class MixamoAnimationImporter
 		{
 			return trackPath.Substring(colonIdx + 1);
 		}
+
 		int slashIdx = trackPath.LastIndexOf('/');
 		if (slashIdx >= 0)
 		{
 			return trackPath.Substring(slashIdx + 1);
 		}
+
 		return trackPath;
 	}
 
@@ -478,6 +486,7 @@ public static class MixamoAnimationImporter
 		{
 			list.Add(player);
 		}
+
 		int count = node.GetChildCount();
 		for (int i = 0; i < count; i++)
 		{

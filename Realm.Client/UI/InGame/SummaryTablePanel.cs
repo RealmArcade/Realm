@@ -28,7 +28,7 @@ public class SummaryTablePanel
 		ClearRows();
 
 		string[] headers = GetHeaders(viewModel);
-		
+
 		CreateHeaderRow(headers);
 		CreateSeparator();
 
@@ -58,6 +58,7 @@ public class SummaryTablePanel
 				TranslationServer.Translate("SCORE").ToString()
 			};
 		}
+
 		return headers;
 	}
 

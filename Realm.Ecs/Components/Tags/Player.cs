@@ -2,7 +2,6 @@ using Realm.Ecs.Common;
 
 namespace Realm.Ecs.Components.Tags;
 
-
 /// <summary>
 ///     Tag indicating the entity represents a player.
 /// </summary>

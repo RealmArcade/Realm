@@ -1,6 +1,6 @@
+using System.Numerics;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
-using System.Numerics;
 
 namespace Realm.Ecs.AI.Genres;
 

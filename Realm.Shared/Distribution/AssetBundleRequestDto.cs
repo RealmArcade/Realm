@@ -5,8 +5,8 @@ namespace Realm.Shared.Distribution;
 /// </summary>
 public class AssetBundleRequestDto
 {
-    /// <summary>
-    /// Gets or sets the list of normalized Blake3 asset hashes requested in the bundle.
-    /// </summary>
-    public List<string> Hashes { get; set; } = new();
+	/// <summary>
+	/// Gets or sets the list of normalized Blake3 asset hashes requested in the bundle.
+	/// </summary>
+	public List<string> Hashes { get; set; } = new();
 }

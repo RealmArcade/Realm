@@ -1,6 +1,11 @@
+using Arch.Core;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.UI;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Services;
 using Vector3 = Godot.Vector3;
 
 namespace Realm.Client;
@@ -20,7 +25,7 @@ public class ObjectTransformAction : IEditorAction
 	private readonly int _afterPlayer;
 
 	public ObjectTransformAction(Node3D targetNode, Vector3 beforePos, Vector3 afterPos, Vector3 beforeRot, Vector3 afterRot, Vector3 beforeScale, Vector3 afterScale, bool beforeIsEnemy, bool afterIsEnemy)
-		: this(targetNode, beforePos, afterPos, beforeRot, afterRot, beforeScale, afterScale, beforeIsEnemy, afterIsEnemy, (targetNode as Realm.Client.Unit3D)?.Player ?? (beforeIsEnemy ? 1 : 0), (targetNode as Realm.Client.Unit3D)?.Player ?? (afterIsEnemy ? 1 : 0))
+		: this(targetNode, beforePos, afterPos, beforeRot, afterRot, beforeScale, afterScale, beforeIsEnemy, afterIsEnemy, (targetNode as Unit3D)?.Player ?? (beforeIsEnemy ? 1 : 0), (targetNode as Unit3D)?.Player ?? (afterIsEnemy ? 1 : 0))
 	{
 	}
 
@@ -58,9 +63,9 @@ public class ObjectTransformAction : IEditorAction
 		_targetNode.RotationDegrees = rot;
 		_targetNode.Scale = scale;
 
-		if (_targetNode is Realm.Client.Unit3D unit)
+		if (_targetNode is Unit3D unit)
 		{
-			Realm.Client.Core.GameHost.Instance?.SetUnitPlayerExternal(unit, player);
+			GameHost.Instance?.SetUnitPlayerExternal(unit, player);
 			UpdateEcsEntity(unit.Entity, pos, rot, scale);
 		}
 		else if (_targetNode is Prop3D prop)
@@ -73,13 +78,14 @@ public class ObjectTransformAction : IEditorAction
 			UpdateEcsEntity(decal3D.Entity, pos, rot, scale);
 		}
 
-		UI.MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
 	}
 
-	private static void UpdateEcsEntity(Arch.Core.Entity entity, Vector3 pos, Vector3 rot, Vector3 scale)
+	private static void UpdateEcsEntity(Entity entity, Vector3 pos, Vector3 rot, Vector3 scale)
 	{
-		var ecsWorld = Realm.Client.Core.GameHost.Instance?.EcsWorld;
-		if (ecsWorld == null || entity == Arch.Core.Entity.Null || !ecsWorld.IsAlive(entity))
+		GameHost tempQualifier = GameHost.Instance;
+		var ecsWorld = (tempQualifier != null ? GameContext.World : null);
+		if (ecsWorld == null || entity == Entity.Null || !ecsWorld.IsAlive(entity))
 			return;
 
 		ecsWorld.Set(entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));

@@ -1,5 +1,6 @@
-using Godot;
 using System;
+using Godot;
+using Realm.Client.Core;
 
 namespace Realm.Client.UI.InGame;
 
@@ -54,7 +55,7 @@ public class InventoryPanel
 		}
 	}
 
-	private int PopulateInventoryItems(InGameHUDViewModel.SelectedUnitInfo focusedUnit, int focusIdx)
+	private int PopulateInventoryItems(SelectedUnitInfo focusedUnit, int focusIdx)
 	{
 		if (focusedUnit.InventoryItems == null) return 0;
 
@@ -71,7 +72,7 @@ public class InventoryPanel
 			_inventoryGrid.AddChild(btn);
 			totalItems++;
 		}
-		
+
 		return totalItems;
 	}
 
@@ -81,7 +82,7 @@ public class InventoryPanel
 		string desc = "Item";
 		string iconPath = "res://Assets/UI/alliance_flag.png";
 
-		if (Realm.Client.Core.GameHost.ItemRegistry.TryGetValue(itemId, out var itemMeta))
+		if (GameHost.ItemRegistry.TryGetValue(itemId, out var itemMeta))
 		{
 			if (!string.IsNullOrEmpty(itemMeta.Name)) name = itemMeta.Name;
 			if (!string.IsNullOrEmpty(itemMeta.Description)) desc = itemMeta.Description;
@@ -93,11 +94,12 @@ public class InventoryPanel
 			iconPath,
 			$"{name} (Have: {count})\n{desc}",
 			$" {count} ",
-			() => {
-				var selected = Realm.Client.Core.GameHost.Instance?.SelectedUnits;
+			() =>
+			{
+				var selected = GameHost.Instance?.SelectedUnits;
 				if (selected != null && selected.Count > focusIdx && !selected[focusIdx].IsEnemy)
 				{
-					Realm.Client.Core.GameHost.Instance.UseItem(selected[focusIdx], capturedItemId);
+					GameHost.Instance.UseItem(selected[focusIdx], capturedItemId);
 				}
 			}
 		);
@@ -120,10 +122,10 @@ public class InventoryPanel
 		btn.Text = text;
 		btn.ExpandIcon = true;
 		btn.Icon = !string.IsNullOrEmpty(iconPath) ? RtexIconLoader.Load(iconPath) : null;
-		
+
 		string transTooltip = TranslationServer.Translate(tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(transTooltip) ? tooltip : transTooltip;
-		
+
 		btn.CustomMinimumSize = new Vector2(44, 44);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
@@ -139,9 +141,7 @@ public class InventoryPanel
 		btn.Disabled = false;
 		btn.Modulate = Colors.White;
 
-		btn.Pressed += () => {
-			callback?.Invoke();
-		};
+		btn.Pressed += () => { callback?.Invoke(); };
 
 		return btn;
 	}

@@ -72,11 +72,21 @@ public class UnitObjectAttachments
 	{
 		switch (s)
 		{
-			case "chest": case "spine": chest = list; return true;
-			case "head": head = list; return true;
-			case "lefthand": left_hand = list; return true;
-			case "righthand": right_hand = list; return true;
+			case "chest":
+			case "spine":
+				chest = list;
+				return true;
+			case "head":
+				head = list;
+				return true;
+			case "lefthand":
+				left_hand = list;
+				return true;
+			case "righthand":
+				right_hand = list;
+				return true;
 		}
+
 		return false;
 	}
 
@@ -84,11 +94,23 @@ public class UnitObjectAttachments
 	{
 		switch (s)
 		{
-			case "root": case "hips": root = list; return true;
-			case "leftfoot": left_foot = list; return true;
-			case "rightfoot": right_foot = list; return true;
-			case "ground": case "footprint": case "base": ground = list; return true;
+			case "root":
+			case "hips":
+				root = list;
+				return true;
+			case "leftfoot":
+				left_foot = list;
+				return true;
+			case "rightfoot":
+				right_foot = list;
+				return true;
+			case "ground":
+			case "footprint":
+			case "base":
+				ground = list;
+				return true;
 		}
+
 		return false;
 	}
 
@@ -96,10 +118,22 @@ public class UnitObjectAttachments
 	{
 		switch (s)
 		{
-			case "center": case "centerofmass": center = list; return true;
-			case "overhead": case "top": case "crown": case "roof": overhead = list; return true;
-			case "pivot": case "origin": pivot = list; return true;
+			case "center":
+			case "centerofmass":
+				center = list;
+				return true;
+			case "overhead":
+			case "top":
+			case "crown":
+			case "roof":
+				overhead = list;
+				return true;
+			case "pivot":
+			case "origin":
+				pivot = list;
+				return true;
 		}
+
 		return false;
 	}
 
@@ -159,6 +193,7 @@ public class UnitObjectAttachments
 				}
 			}
 		}
+
 		orientation = default;
 		return false;
 	}
@@ -174,6 +209,7 @@ public class UnitObjectAttachments
 			list = new List<Dictionary<string, HandAttachmentOrientation>>();
 			SetBoneList(hand, list);
 		}
+
 		UpdateList(list, cleanId, orientation);
 	}
 
@@ -202,6 +238,7 @@ public class UnitObjectAttachments
 				}
 			}
 		}
+
 		orientation = default;
 		return false;
 	}
@@ -217,6 +254,7 @@ public class UnitObjectAttachments
 			list = new List<Dictionary<string, HandAttachmentOrientation>>();
 			SetSocketList(socket, list);
 		}
+
 		UpdateList(list, cleanId, orientation);
 	}
 
@@ -240,6 +278,7 @@ public class UnitObjectAttachments
 				}
 			}
 		}
+
 		list.Add(new Dictionary<string, HandAttachmentOrientation>(StringComparer.OrdinalIgnoreCase)
 		{
 			[attachmentId] = orientation
@@ -262,11 +301,13 @@ public class UnitObjectAttachments
 			{
 				removed = true;
 			}
+
 			if (dict.Count == 0)
 			{
 				list.RemoveAt(i);
 			}
 		}
+
 		return removed;
 	}
 
@@ -279,6 +320,7 @@ public class UnitObjectAttachments
 			dict.Remove(k);
 			removed = true;
 		}
+
 		return removed;
 	}
 
@@ -289,6 +331,7 @@ public class UnitObjectAttachments
 		{
 			return keyMatch && string.Equals(orientation.ParentAttachmentId, parentAttachmentId, StringComparison.OrdinalIgnoreCase);
 		}
+
 		return (keyMatch && string.IsNullOrEmpty(orientation.ParentAttachmentId)) || IsChildOfTarget(orientation.ParentAttachmentId, attachmentId, cleanId);
 	}
 
@@ -321,8 +364,10 @@ public class UnitObjectAttachments
 				{
 					d[kvp.Key] = kvp.Value.Clone();
 				}
+
 				res.Add(d);
 			}
+
 			return res;
 		}
 

@@ -11,8 +11,8 @@ public struct Patrol
 
 	public Patrol(Vector3 a, Vector3 b)
 	{
-		PointA  = a;
-		PointB  = b;
+		PointA = a;
+		PointB = b;
 		GoingToB = true;
 	}
 }

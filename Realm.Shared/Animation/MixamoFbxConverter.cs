@@ -1,5 +1,6 @@
 using Assimp;
 using Realm.Shared.Metadata;
+using Quaternion = System.Numerics.Quaternion;
 
 namespace Realm.Shared.Animation;
 
@@ -17,8 +18,8 @@ public static class MixamoFbxConverter
 			return result;
 		}
 
-		var preRotationMap = new Dictionary<string, System.Numerics.Quaternion>(StringComparer.OrdinalIgnoreCase);
-		var postRotationMap = new Dictionary<string, System.Numerics.Quaternion>(StringComparer.OrdinalIgnoreCase);
+		var preRotationMap = new Dictionary<string, Quaternion>(StringComparer.OrdinalIgnoreCase);
+		var postRotationMap = new Dictionary<string, Quaternion>(StringComparer.OrdinalIgnoreCase);
 
 		if (scene.RootNode != null)
 		{
@@ -33,7 +34,7 @@ public static class MixamoFbxConverter
 		{
 			var assimpAnim = scene.Animations[i];
 			var (animName, realmAnim) = ProcessAssimpAnimation(assimpAnim, fileBaseName, scene.AnimationCount, preRotationMap, postRotationMap);
-			
+
 			if (realmAnim.Tracks.Length > 0)
 			{
 				result.Add((animName, realmAnim));
@@ -43,7 +44,7 @@ public static class MixamoFbxConverter
 		return result;
 	}
 
-	private static void IndexNodeTransforms(Node node, Dictionary<string, System.Numerics.Quaternion> preRotationMap, Dictionary<string, System.Numerics.Quaternion> postRotationMap)
+	private static void IndexNodeTransforms(Node node, Dictionary<string, Quaternion> preRotationMap, Dictionary<string, Quaternion> postRotationMap)
 	{
 		ProcessNodeTransform(node, preRotationMap, postRotationMap);
 		foreach (var child in node.Children)
@@ -52,7 +53,7 @@ public static class MixamoFbxConverter
 		}
 	}
 
-	private static void ProcessNodeTransform(Node node, Dictionary<string, System.Numerics.Quaternion> preRotationMap, Dictionary<string, System.Numerics.Quaternion> postRotationMap)
+	private static void ProcessNodeTransform(Node node, Dictionary<string, Quaternion> preRotationMap, Dictionary<string, Quaternion> postRotationMap)
 	{
 		int assimpIndex = node.Name.IndexOf("_$AssimpFbx$_", StringComparison.OrdinalIgnoreCase);
 		if (assimpIndex < 0) return;
@@ -63,31 +64,32 @@ public static class MixamoFbxConverter
 		if (suffix.Equals("PreRotation", StringComparison.OrdinalIgnoreCase))
 		{
 			node.Transform.Decompose(out _, out var rotation, out _);
-			var quat = new System.Numerics.Quaternion(rotation.X, rotation.Y, rotation.Z, rotation.W);
+			var quat = new Quaternion(rotation.X, rotation.Y, rotation.Z, rotation.W);
 			if (quat.LengthSquared() > 0.0001f)
 			{
-				preRotationMap[baseName] = System.Numerics.Quaternion.Normalize(quat);
+				preRotationMap[baseName] = Quaternion.Normalize(quat);
 			}
+
 			return;
 		}
 
 		if (suffix.Equals("PostRotation", StringComparison.OrdinalIgnoreCase))
 		{
 			node.Transform.Decompose(out _, out var rotation, out _);
-			var quat = new System.Numerics.Quaternion(rotation.X, rotation.Y, rotation.Z, rotation.W);
+			var quat = new Quaternion(rotation.X, rotation.Y, rotation.Z, rotation.W);
 			if (quat.LengthSquared() > 0.0001f)
 			{
-				postRotationMap[baseName] = System.Numerics.Quaternion.Normalize(quat);
+				postRotationMap[baseName] = Quaternion.Normalize(quat);
 			}
 		}
 	}
 
 	private static (string AnimationName, RealmAnimationData Data) ProcessAssimpAnimation(
-		Assimp.Animation assimpAnim, 
-		string fileBaseName, 
+		Assimp.Animation assimpAnim,
+		string fileBaseName,
 		int totalAnims,
-		Dictionary<string, System.Numerics.Quaternion> preRotationMap,
-		Dictionary<string, System.Numerics.Quaternion> postRotationMap)
+		Dictionary<string, Quaternion> preRotationMap,
+		Dictionary<string, Quaternion> postRotationMap)
 	{
 		string animName = SanitizeAnimationName(assimpAnim.Name, fileBaseName, totalAnims);
 		double ticksPerSecond = assimpAnim.TicksPerSecond > 0 ? assimpAnim.TicksPerSecond : 30.0;
@@ -119,8 +121,8 @@ public static class MixamoFbxConverter
 		double ticksPerSecond,
 		List<RealmAnimationBoneTrack> trackList,
 		Dictionary<string, RealmAnimationBoneTrack> boneTrackDict,
-		Dictionary<string, System.Numerics.Quaternion> preRotationMap,
-		Dictionary<string, System.Numerics.Quaternion> postRotationMap)
+		Dictionary<string, Quaternion> preRotationMap,
+		Dictionary<string, Quaternion> postRotationMap)
 	{
 		string rawBoneName = HumanoidBoneMapper.CleanBoneName(channel.NodeName);
 		if (string.IsNullOrEmpty(rawBoneName)) return;
@@ -145,9 +147,9 @@ public static class MixamoFbxConverter
 		int assimpIndex = rawNodeBase.IndexOf("_$AssimpFbx$_", StringComparison.OrdinalIgnoreCase);
 		string baseNodeName = assimpIndex >= 0 ? rawNodeBase.Substring(0, assimpIndex) : rawNodeBase;
 
-		var preRotation = preRotationMap.TryGetValue(baseNodeName, out var pr) ? pr : System.Numerics.Quaternion.Identity;
-		var postRotation = postRotationMap.TryGetValue(baseNodeName, out var po) ? po : System.Numerics.Quaternion.Identity;
-		bool hasPreOrPostRotation = preRotation != System.Numerics.Quaternion.Identity || postRotation != System.Numerics.Quaternion.Identity;
+		var preRotation = preRotationMap.TryGetValue(baseNodeName, out var pr) ? pr : Quaternion.Identity;
+		var postRotation = postRotationMap.TryGetValue(baseNodeName, out var po) ? po : Quaternion.Identity;
+		bool hasPreOrPostRotation = preRotation != Quaternion.Identity || postRotation != Quaternion.Identity;
 
 		ExtractPositionKeys(channel, boneTrack, ticksPerSecond, canonicalName, rawBoneName);
 		ExtractRotationKeys(channel, boneTrack, ticksPerSecond, preRotation, postRotation, hasPreOrPostRotation);
@@ -168,10 +170,11 @@ public static class MixamoFbxConverter
 			float time = (float)(key.Time / ticksPerSecond);
 			posKeys[k] = new RealmKeyframeVector3(time, key.Value.X * 0.01f, key.Value.Y * 0.01f, key.Value.Z * 0.01f);
 		}
+
 		boneTrack.PositionKeys = posKeys;
 	}
 
-	private static void ExtractRotationKeys(NodeAnimationChannel channel, RealmAnimationBoneTrack boneTrack, double ticksPerSecond, System.Numerics.Quaternion preRotation, System.Numerics.Quaternion postRotation, bool hasPreOrPostRotation)
+	private static void ExtractRotationKeys(NodeAnimationChannel channel, RealmAnimationBoneTrack boneTrack, double ticksPerSecond, Quaternion preRotation, Quaternion postRotation, bool hasPreOrPostRotation)
 	{
 		if (!channel.HasRotationKeys || channel.RotationKeyCount <= 0) return;
 		if (boneTrack.RotationKeys != null && channel.RotationKeyCount <= boneTrack.RotationKeys.Length) return;
@@ -181,18 +184,20 @@ public static class MixamoFbxConverter
 		{
 			var key = channel.RotationKeys[k];
 			float time = (float)(key.Time / ticksPerSecond);
-			var quat = new System.Numerics.Quaternion(key.Value.X, key.Value.Y, key.Value.Z, key.Value.W);
-			
+			var quat = new Quaternion(key.Value.X, key.Value.Y, key.Value.Z, key.Value.W);
+
 			if (hasPreOrPostRotation)
 			{
-				quat = System.Numerics.Quaternion.Normalize(preRotation * quat * postRotation);
+				quat = Quaternion.Normalize(preRotation * quat * postRotation);
 			}
 			else if (quat.LengthSquared() > 0.0001f)
 			{
-				quat = System.Numerics.Quaternion.Normalize(quat);
+				quat = Quaternion.Normalize(quat);
 			}
+
 			rotKeys[k] = new RealmKeyframeQuaternion(time, quat.X, quat.Y, quat.Z, quat.W);
 		}
+
 		boneTrack.RotationKeys = rotKeys;
 	}
 
@@ -208,6 +213,7 @@ public static class MixamoFbxConverter
 			float time = (float)(key.Time / ticksPerSecond);
 			scaleKeys[k] = new RealmKeyframeVector3(time, key.Value.X, key.Value.Y, key.Value.Z);
 		}
+
 		boneTrack.ScaleKeys = scaleKeys;
 	}
 
@@ -262,9 +268,10 @@ public static class MixamoFbxConverter
 				string fullOut = Path.Combine(targetBase, outName);
 				SaveSingleAnimation(anims[i], fullOut, result);
 			}
+
 			return;
 		}
-		
+
 		if (anims.Count == 1)
 		{
 			SaveSingleAnimation(anims[0], targetBase, result);

@@ -1,48 +1,35 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Arch.Core;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.Client.UI;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using Realm.Client.Core;
+using Environment = Godot.Environment;
 
 namespace Realm.Client.Services;
 
 public class EnvironmentService
 {
-	private struct LiveEnvironmentState
+	public void SetActiveWaterProfileIndex(byte index)
 	{
-		public float SunPitch;
-		public float SunYaw;
-		public float SunEnergy;
-		public Color SunColor;
-		public float ShadowBias;
-		public float ShadowNormalBias;
-		public float AmbientEnergy;
-		public Color AmbientColor;
-		public bool FogEnabled;
-		public float FogDensity;
-		public Color FogColor;
-		public bool SsaoEnabled;
-		public float SsaoRadius;
-		public float SsaoIntensity;
-		public float SsaoDetail;
-		public float TonemapExposure;
-		public float AdjustmentContrast;
-		public float AdjustmentSaturation;
-		public float GlowIntensity;
-		public float GlowBloom;
-		public float GlowStrength;
-		public float CharacterFillEnergy;
-		public string WeatherType;
+		if (GameHost.Instance != null)
+		{
+			GameHost.Instance.ActiveWaterProfileIndex = index;
+		}
 	}
 
-	private readonly WorldAccessor _ecsWorldAccessor;
-	private World EcsWorld => _ecsWorldAccessor.Current;
+	public float TimeOfDayCycleDuration { get; set; } = 90f;
+	public float TuneCliffJitterStrength { get; set; } = 1.0f;
+	public float TuneCliffJitterScale { get; set; } = 0.20f;
+	public float TuneCliffRimNoiseStrength { get; set; } = 0.30f;
+	public float TuneHeightBlendSoftness { get; set; } = 0.04f;
+	public float TuneBlendNoiseStrength { get; set; } = 0.22f;
+	public float TuneBlendNoiseScale { get; set; } = 0.22f;
 
 	private readonly List<EnvironmentPresetConfig> _presets = new();
 	private string _currentPresetId = "day";
@@ -59,9 +46,8 @@ public class EnvironmentService
 	private string _activeWeatherVisualType = "clear";
 	private int _activeParticleDensity = 0;
 
-	public EnvironmentService(WorldAccessor ecsWorldAccessor)
+	public EnvironmentService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 		LoadPresets(null);
 		if (_presets.Count > 0)
 		{
@@ -241,7 +227,7 @@ public class EnvironmentService
 		if (worldEnv == null || worldEnv.Environment == null) return;
 
 		var env = worldEnv.Environment;
-		env.AmbientLightSource = global::Godot.Environment.AmbientSource.Color;
+		env.AmbientLightSource = Environment.AmbientSource.Color;
 		env.AmbientLightColor = state.AmbientColor;
 		env.AmbientLightEnergy = state.AmbientEnergy;
 
@@ -257,7 +243,7 @@ public class EnvironmentService
 			env.GlowIntensity = state.GlowIntensity;
 			env.GlowStrength = state.GlowStrength;
 			env.GlowBloom = state.GlowBloom;
-			env.GlowBlendMode = global::Godot.Environment.GlowBlendModeEnum.Additive;
+			env.GlowBlendMode = Environment.GlowBlendModeEnum.Additive;
 		}
 
 		env.TonemapExposure = state.TonemapExposure;
@@ -299,26 +285,27 @@ public class EnvironmentService
 	{
 		Entity worldEntity = Entity.Null;
 		var query = QueryCache.AllWeatherStateQuery;
-		EcsWorld.Query(in query, entity => worldEntity = entity);
+		GameContext.World.Query(in query, entity => worldEntity = entity);
 		return worldEntity;
 	}
 
 	public string GetCurrentWeather()
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && EcsWorld.IsAlive(worldEntity) && EcsWorld.Has<WeatherState>(worldEntity))
+		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
 		{
-			return EcsWorld.Get<WeatherState>(worldEntity).CurrentWeather;
+			return GameContext.World.Get<WeatherState>(worldEntity).CurrentWeather;
 		}
+
 		return "clear";
 	}
 
 	public void SetCurrentWeather(string weather)
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && EcsWorld.IsAlive(worldEntity) && EcsWorld.Has<WeatherState>(worldEntity))
+		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
 		{
-			ref var state = ref EcsWorld.Get<WeatherState>(worldEntity);
+			ref var state = ref GameContext.World.Get<WeatherState>(worldEntity);
 			state.CurrentWeather = weather;
 		}
 	}
@@ -326,19 +313,20 @@ public class EnvironmentService
 	public float GetBaseFogDensity()
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && EcsWorld.IsAlive(worldEntity) && EcsWorld.Has<WeatherState>(worldEntity))
+		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
 		{
-			return EcsWorld.Get<WeatherState>(worldEntity).BaseFogDensity;
+			return GameContext.World.Get<WeatherState>(worldEntity).BaseFogDensity;
 		}
+
 		return 0f;
 	}
 
 	public void SetBaseFogDensity(float density)
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && EcsWorld.IsAlive(worldEntity) && EcsWorld.Has<WeatherState>(worldEntity))
+		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
 		{
-			ref var state = ref EcsWorld.Get<WeatherState>(worldEntity);
+			ref var state = ref GameContext.World.Get<WeatherState>(worldEntity);
 			state.BaseFogDensity = density;
 		}
 	}
@@ -382,6 +370,7 @@ public class EnvironmentService
 		{
 			return _currentState.FogDensity + scaledDensity;
 		}
+
 		return scaledDensity;
 	}
 
@@ -415,7 +404,7 @@ public class EnvironmentService
 
 		Node3D parentNode = GetWeatherHost(host);
 		parentNode.AddChild(_weatherParticles);
-		UpdateWeatherParticlePosition(Realm.Client.Core.GameHost.Instance?.MainCamera);
+		UpdateWeatherParticlePosition(GameHost.Instance?.MainCamera);
 	}
 
 	private bool IsValidWeather(string weatherType)
@@ -431,10 +420,11 @@ public class EnvironmentService
 
 	private Node3D GetWeatherHost(Node3D host)
 	{
-		if (host is GameHost gh && gh.MainNode != null && gh.MainNode is Node3D node3D)
+		if (host is GameHost && GameHost.Instance?.MainNode is Node3D node3D)
 		{
 			return node3D;
 		}
+
 		return host;
 	}
 
@@ -445,7 +435,8 @@ public class EnvironmentService
 			_activeParticleDensity = newCount;
 			_weatherParticles.Amount = Mathf.Clamp(newCount, 10, 5000);
 		}
-		UpdateWeatherParticlePosition(Realm.Client.Core.GameHost.Instance?.MainCamera);
+
+		UpdateWeatherParticlePosition(GameHost.Instance?.MainCamera);
 	}
 
 	private CpuParticles3D InitializeWeatherParticles(int count)
@@ -522,6 +513,7 @@ public class EnvironmentService
 			_weatherParticles.QueueFree();
 			_weatherParticles = null;
 		}
+
 		_activeWeatherVisualType = "clear";
 		_activeParticleDensity = 0;
 	}
@@ -536,13 +528,13 @@ public class EnvironmentService
 
 		_currentState.WeatherType = weather;
 		_currentState.FogEnabled = weather != "clear";
-		
+
 		if (weather == "clear")
 		{
 			_currentState.FogDensity = 0f;
 		}
 
-		ApplyWeatherToTarget(host ?? Realm.Client.Core.GameHost.Instance, weather, settings.ParticleDensity);
+		ApplyWeatherToTarget(host ?? GameHost.Instance, weather, settings.ParticleDensity);
 
 		return weather;
 	}
@@ -574,7 +566,7 @@ public class EnvironmentService
 		if (targetHost == null) return;
 
 		ApplyWeatherVisuals(targetHost, weather, particleDensity);
-		
+
 		if (weather == "clear")
 		{
 			var worldEnv = targetHost.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
@@ -602,41 +594,91 @@ public class EnvironmentService
 
 	public bool OverrideDayNightVisuals { get; set; } = false;
 
-	public static readonly float[] SunPitches       = { -58.0f, -45.0f, -50.0f, -45.0f };
-	public static readonly float[] SunYaws          = {  29.0f,-115.0f, 155.0f,  95.0f };
-	public static readonly float[] SunEnergies      = {   1.65f,  1.35f,   0.45f,  1.70f };
-	public static readonly Color[] SunColors        = {
+	public static readonly float[] SunPitches = { -58.0f, -45.0f, -50.0f, -45.0f };
+	public static readonly float[] SunYaws = { 29.0f, -115.0f, 155.0f, 95.0f };
+	public static readonly float[] SunEnergies = { 1.65f, 1.35f, 0.45f, 1.70f };
+
+	public static readonly Color[] SunColors =
+	{
 		new Color(1.000f, 0.980f, 0.940f),
 		new Color(1.000f, 0.700f, 0.380f),
 		new Color(0.700f, 0.880f, 1.000f),
 		new Color(1.000f, 0.880f, 0.720f)
 	};
 
-	public static readonly float[] AmbientEnergies  = {   0.70f,  0.75f,   0.95f,  0.75f };
-	public static readonly Color[] AmbientColors    = {
+	public static readonly float[] AmbientEnergies = { 0.70f, 0.75f, 0.95f, 0.75f };
+
+	public static readonly Color[] AmbientColors =
+	{
 		new Color(0.480f, 0.580f, 0.740f),
 		new Color(0.420f, 0.460f, 0.720f),
 		new Color(0.280f, 0.420f, 0.850f),
 		new Color(0.580f, 0.540f, 0.840f)
 	};
 
-	public static readonly float[] FogDensities     = { 0.0080f, 0.0120f, 0.0150f, 0.0120f };
-	public static readonly Color[] FogColors        = {
+	public static readonly float[] FogDensities = { 0.0080f, 0.0120f, 0.0150f, 0.0120f };
+
+	public static readonly Color[] FogColors =
+	{
 		new Color(0.550f, 0.650f, 0.750f),
 		new Color(0.450f, 0.300f, 0.350f),
 		new Color(0.080f, 0.120f, 0.200f),
 		new Color(0.400f, 0.450f, 0.550f)
 	};
 
-	public static readonly float[] SsaoIntensities  = {   0.35f,  0.30f,   0.20f,  0.30f };
-	public static readonly float[] SsaoRadii        = {   1.20f,  1.20f,   1.00f,  1.10f };
+	public static readonly float[] SsaoIntensities = { 0.35f, 0.30f, 0.20f, 0.30f };
+	public static readonly float[] SsaoRadii = { 1.20f, 1.20f, 1.00f, 1.10f };
 
-	public static readonly float[] Exposures        = {   1.08f,  1.10f,   1.12f,  1.08f };
-	public static readonly float[] Contrasts        = {   1.04f,  1.04f,   1.02f,  1.04f };
-	public static readonly float[] Saturations      = {   1.06f,  1.00f,   1.08f,  1.06f };
+	public static readonly float[] Exposures = { 1.08f, 1.10f, 1.12f, 1.08f };
+	public static readonly float[] Contrasts = { 1.04f, 1.04f, 1.02f, 1.04f };
+	public static readonly float[] Saturations = { 1.06f, 1.00f, 1.08f, 1.06f };
 
-	public static readonly float[] GlowIntensities  = {   0.15f,  0.30f,   0.25f,  0.20f };
-	public static readonly float[] GlowBlooms       = {   0.14f,  0.14f,   0.08f,  0.10f };
+	public static readonly float[] GlowIntensities = { 0.15f, 0.30f, 0.25f, 0.20f };
+	public static readonly float[] GlowBlooms = { 0.14f, 0.14f, 0.08f, 0.10f };
+
+	public bool SyncWorldStateDomain(float gameElapsedTime, int timeOfDayIndex, float timeOfDayTimer, bool dayNightCycleEnabled)
+	{
+				var ecsWorld = GameContext.World;
+		if (ecsWorld != null && ECSContext.WorldEntity != Entity.Null && ecsWorld.IsAlive(ECSContext.WorldEntity))
+		{
+			ecsWorld.SetOrAdd(ECSContext.WorldEntity, new WorldState(gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled));
+			return true;
+		}
+		return false;
+	}
+
+	public (bool UpdateVisuals, float Progress) UpdateClientWorldStateDomain(float fDelta, bool isMapEditorMode)
+	{
+				if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
+			return (false, 0f);
+
+		var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+		float elapsed = state.GameElapsedTime + fDelta;
+		float timer = state.TimeOfDayTimer;
+		int index = state.TimeOfDayIndex;
+		bool updateVisuals = false;
+		float progress = 0f;
+
+		if (state.DayNightCycleEnabled)
+		{
+			timer += fDelta;
+			if (timer >= TimeOfDayCycleDuration)
+			{
+				timer -= TimeOfDayCycleDuration;
+			}
+
+			progress = timer / TimeOfDayCycleDuration;
+			index = (int)(progress * 4f) % 4;
+
+			if (!isMapEditorMode)
+			{
+				updateVisuals = true;
+			}
+		}
+
+		GameContext.World.Set(ECSContext.WorldEntity, new WorldState(elapsed, index, timer, state.DayNightCycleEnabled));
+		return (updateVisuals, progress);
+	}
 
 	public void UpdateDayNightVisuals(Node3D host, float progress)
 	{
@@ -679,7 +721,7 @@ public class EnvironmentService
 		_currentState.SunEnergy = Mathf.Lerp(SunEnergies[phaseIndex], SunEnergies[nextIndex], t);
 
 		float radSunPitch = Mathf.LerpAngle(Mathf.DegToRad(SunPitches[phaseIndex]), Mathf.DegToRad(SunPitches[nextIndex]), t);
-		float radSunYaw   = Mathf.LerpAngle(Mathf.DegToRad(SunYaws[phaseIndex]),   Mathf.DegToRad(SunYaws[nextIndex]),   t);
+		float radSunYaw = Mathf.LerpAngle(Mathf.DegToRad(SunYaws[phaseIndex]), Mathf.DegToRad(SunYaws[nextIndex]), t);
 
 		_currentState.SunPitch = Mathf.RadToDeg(radSunPitch);
 		_currentState.SunYaw = Mathf.RadToDeg(radSunYaw);
@@ -694,12 +736,12 @@ public class EnvironmentService
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(Node3D host, Entity worldEntity, int timeOfDayIndex, float cycleDuration)
 	{
-		if (!EcsWorld.IsAlive(worldEntity) || !EcsWorld.Has<WorldState>(worldEntity))
+		if (!GameContext.World.IsAlive(worldEntity) || !GameContext.World.Has<WorldState>(worldEntity))
 		{
 			return (0, 0f);
 		}
 
-		ref var state = ref EcsWorld.Get<WorldState>(worldEntity);
+		ref var state = ref GameContext.World.Get<WorldState>(worldEntity);
 		int targetIndex = Mathf.Clamp(timeOfDayIndex, 0, 3);
 
 		float progress = targetIndex * 0.25f;
@@ -707,21 +749,59 @@ public class EnvironmentService
 
 		UpdateDayNightVisuals(host, progress);
 
-		EcsWorld.Set(worldEntity, new WorldState(state.GameElapsedTime, targetIndex, nextTimer, state.DayNightCycleEnabled));
+		GameContext.World.Set(worldEntity, new WorldState(state.GameElapsedTime, targetIndex, nextTimer, state.DayNightCycleEnabled));
 
 		return (targetIndex, nextTimer);
 	}
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay(Node3D host, Entity worldEntity, float cycleDuration)
 	{
-		if (!EcsWorld.IsAlive(worldEntity) || !EcsWorld.Has<WorldState>(worldEntity))
+		if (!GameContext.World.IsAlive(worldEntity) || !GameContext.World.Has<WorldState>(worldEntity))
 		{
 			return (0, 0f);
 		}
 
-		ref var state = ref EcsWorld.Get<WorldState>(worldEntity);
+		ref var state = ref GameContext.World.Get<WorldState>(worldEntity);
 		int nextIndex = (state.TimeOfDayIndex + 1) % 4;
 		return SetTimeOfDay(host, worldEntity, nextIndex, cycleDuration);
+	}
+
+	public (string timeName, string icon) SetEnvironmentLightingDomain(int index)
+	{
+		if (GameHost.Instance == null)
+			return ("Day", "☀️");
+
+		var res = GameHost.Instance.SetTimeOfDay(index);
+		string timeName = GetTimeOfDayName(res.TimeOfDayIndex);
+		string icon = res.TimeOfDayIndex switch
+		{
+			0 => "☀️",
+			1 => "🌅",
+			2 => "🌙",
+			3 => "🌄",
+			_ => "☀️"
+		};
+		return (timeName, icon);
+	}
+
+	public (string applied, string icon) SetEnvironmentWeatherDomain(int index)
+	{
+		string weatherType = index switch
+		{
+			1 => "rain",
+			2 => "snow",
+			3 => "fog",
+			_ => "clear"
+		};
+		string applied = SetWeather(weatherType, GameHost.Instance);
+		string icon = applied switch
+		{
+			"rain" => "🌧️",
+			"snow" => "❄️",
+			"fog" => "🌫️",
+			_ => "☀️"
+		};
+		return (applied, icon);
 	}
 
 	public string GetTimeOfDayName(int timeOfDayIndex)
@@ -734,5 +814,55 @@ public class EnvironmentService
 			3 => "Dawn",
 			_ => "Unknown"
 		};
+	}
+
+	public void ApplyLiveLightingTuning(EditableTerrain terrain)
+	{
+		if (terrain?.Material != null)
+		{
+			terrain.CliffJitterStrength = TuneCliffJitterStrength;
+			terrain.CliffJitterScale = TuneCliffJitterScale;
+			terrain.CliffRimNoiseStrength = TuneCliffRimNoiseStrength;
+			terrain.BlendSoftness = TuneHeightBlendSoftness;
+			terrain.BlendNoiseStrength = TuneBlendNoiseStrength;
+			terrain.BlendNoiseScale = TuneBlendNoiseScale;
+
+			terrain.Material.SetShaderParameter("cliff_jitter_strength", TuneCliffJitterStrength);
+			terrain.Material.SetShaderParameter("cliff_jitter_scale", TuneCliffJitterScale);
+			terrain.Material.SetShaderParameter("blend_softness", TuneHeightBlendSoftness);
+			terrain.Material.SetShaderParameter("blend_noise_strength", TuneBlendNoiseStrength);
+			terrain.Material.SetShaderParameter("blend_noise_scale", TuneBlendNoiseScale);
+		}
+	}
+
+	public float ProcessTimeOfDay(float time)
+	{
+		float clampedTime = Mathf.Clamp(time, 0f, 24f);
+
+		int index;
+		if (clampedTime >= 5f && clampedTime < 6f) index = 3;
+		else if (clampedTime >= 6f && clampedTime < 18f) index = 0;
+		else if (clampedTime >= 18f && clampedTime < 20f) index = 1;
+		else index = 2;
+
+		float timer = (clampedTime / 24f) * TimeOfDayCycleDuration;
+
+				if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
+		{
+			GameContext.World.Mutate<WorldState>(ECSContext.WorldEntity, (ref WorldState state) =>
+				GameContext.World.Set(ECSContext.WorldEntity, new WorldState(state.GameElapsedTime, index, timer, state.DayNightCycleEnabled)));
+		}
+
+		return clampedTime / 24f;
+	}
+
+	public string GetCurrentEnvironmentPresetDomain()
+	{
+		return GetCurrentPresetId() ?? "day";
+	}
+
+	public string GetWeatherDomain()
+	{
+		return GetCurrentWeather() ?? "clear";
 	}
 }

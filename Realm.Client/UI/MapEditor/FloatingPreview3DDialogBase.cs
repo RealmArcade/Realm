@@ -1,5 +1,5 @@
-using Godot;
 using System;
+using Godot;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -70,6 +70,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		{
 			AddButton(CameraPresetToolbar, TranslationServer.Translate("Back"), () => SetCameraPreset(180f, 0f), "View back", 10, new Vector2(0, 22));
 		}
+
 		AddButton(CameraPresetToolbar, TranslationServer.Translate("Iso"), () => SetCameraPreset(45f, 25f), "Isometric view", 10, new Vector2(0, 22));
 		AddButton(CameraPresetToolbar, TranslationServer.Translate("Top"), () => SetCameraPreset(0f, 85f), "Top-down view", 10, new Vector2(0, 22));
 		AddButton(CameraPresetToolbar, TranslationServer.Translate("⟲ Reset"), () => ResetCameraDefault(), "Reset camera zoom and position", 10, new Vector2(0, 22));
@@ -81,7 +82,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 
 		if (includeGridToggle && onToggleGrid != null)
 		{
-			var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+			var spacer = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 			CameraPresetToolbar.AddChild(spacer);
 			AddButton(CameraPresetToolbar, TranslationServer.Translate("Toggle Grid"), onToggleGrid, "Toggle preview ground plane", 10, new Vector2(0, 22));
 		}
@@ -265,6 +266,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		{
 			IsOrbiting = mb.Pressed;
 		}
+
 		LastMousePosition = mb.Position;
 	}
 
@@ -290,6 +292,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 	}
 
 	private int _lightPresetIndex = 0;
+
 	public virtual void TogglePreviewLight()
 	{
 		if (PreviewLight == null || !GodotObject.IsInstanceValid(PreviewLight)) return;

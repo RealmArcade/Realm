@@ -1,10 +1,14 @@
-using Godot;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Godot;
 using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Services;
+using Environment = Godot.Environment;
 
 namespace Realm.Client.UI;
 
@@ -28,6 +32,7 @@ public static class GameSettings
 	public static GraphicsQuality QualityIdx { get; set; } = GraphicsQuality.High;
 	public static WindowMode WindowModeIdx { get; set; } = WindowMode.Fullscreen;
 	public static bool Vsync { get; set; } = true;
+
 	public static bool VsyncIdx
 	{
 		get => Vsync;
@@ -59,6 +64,7 @@ public static class GameSettings
 		{
 			return 0;
 		}
+
 		return screen;
 	}
 
@@ -75,6 +81,7 @@ public static class GameSettings
 			WindowedResolutionWidth = DefaultFallbackResolution.X;
 			WindowedResolutionHeight = DefaultFallbackResolution.Y;
 		}
+
 		QualityIdx = AutoDetectQuality();
 		WindowModeIdx = WindowMode.Fullscreen;
 		Vsync = true;
@@ -103,6 +110,7 @@ public static class GameSettings
 		{
 			screenSize = DefaultFallbackResolution;
 		}
+
 		var standardRes = new List<Vector2I>
 		{
 			new Vector2I(3840, 2160),
@@ -156,6 +164,7 @@ public static class GameSettings
 		{
 			InitializeResolutions();
 		}
+
 		if (!FileAccess.FileExists(SettingsPath))
 		{
 			SetDefaultLoadSettings();
@@ -174,7 +183,7 @@ public static class GameSettings
 				ApplySettingsData(data);
 			}
 		}
-		catch (System.Exception e)
+		catch (Exception e)
 		{
 			GD.PrintErr($"Failed to deserialize settings: {e.Message}");
 			ResetToDefaults();
@@ -189,6 +198,7 @@ public static class GameSettings
 			WindowedResolutionWidth = Resolutions[0].X;
 			WindowedResolutionHeight = Resolutions[0].Y;
 		}
+
 		Save();
 	}
 
@@ -332,9 +342,10 @@ public static class GameSettings
 			var env = worldEnv.Environment;
 			if (!env.IsLocalToScene())
 			{
-				env = (global::Godot.Environment)env.Duplicate();
+				env = (Environment)env.Duplicate();
 				worldEnv.Environment = env;
 			}
+
 			ApplyEnvironmentQuality(env, QualityIdx);
 		}
 
@@ -347,7 +358,7 @@ public static class GameSettings
 
 	private static void ApplyTerrainQuality(Window root)
 	{
-		var terrain = (root != null ? FindNodeInTree<Realm.Client.RuntimeTerrain>(root) : null) ?? Realm.Client.RuntimeTerrain.Instance;
+		var terrain = (root != null ? FindNodeInTree<RuntimeTerrain>(root) : null) ?? RuntimeTerrain.Instance;
 		if (terrain != null && GodotObject.IsInstanceValid(terrain))
 		{
 			terrain.ApplyQualitySettings((int)QualityIdx);
@@ -358,8 +369,8 @@ public static class GameSettings
 	{
 		GameHost gameHost = GetValidGameHost(root);
 		if (gameHost == null) return;
-		
-		var envService = gameHost.EnvironmentService;
+
+		var envService = GameContext.EnvironmentService;
 		if (envService == null) return;
 
 		if (DisableDayNightLighting)
@@ -377,34 +388,38 @@ public static class GameSettings
 		GameHost host = null;
 		if (root != null)
 		{
-			host = FindNodeInTree<GameHost>(root);
+			var foundHost = FindNodeInTree<GameHost>(root);
+			if (foundHost != null)
+			{
+				host = GameHost.Instance;
+			}
 		}
-		
+
 		if (host == null)
 		{
-			host = Realm.Client.Core.GameHost.Instance;
+			host = GameHost.Instance;
 		}
 
 		if (host == null) return null;
-		if (!GodotObject.IsInstanceValid(host)) return null;
+		if (!GodotObject.IsInstanceValid(GameHost.Instance)) return null;
 		return host;
 	}
 
 	private static float GetTimeOfDayProgress(GameHost gameHost)
 	{
-		if (gameHost.EcsWorld == null) return 0f;
-		if (!gameHost.EcsWorld.IsAlive(gameHost.WorldEntity)) return 0f;
-		if (!gameHost.EcsWorld.Has<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity)) return 0f;
-		
-		var state = gameHost.EcsWorld.Get<Realm.Ecs.Components.Core.WorldState>(gameHost.WorldEntity);
-		return state.TimeOfDayTimer / Realm.Client.Core.GameHost.TimeOfDayCycleDuration;
+		if (GameContext.World == null) return 0f;
+		if (!GameContext.World.IsAlive(ECSContext.WorldEntity)) return 0f;
+		if (!GameContext.World.Has<WorldState>(ECSContext.WorldEntity)) return 0f;
+
+		var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+		return state.TimeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
 	}
 
-	public static void ApplyEnvironmentQuality(global::Godot.Environment env, GraphicsQuality quality = GraphicsQuality.High)
+	public static void ApplyEnvironmentQuality(Environment env, GraphicsQuality quality = GraphicsQuality.High)
 	{
 		if (env == null || !GodotObject.IsInstanceValid(env)) return;
 
-		env.TonemapMode = global::Godot.Environment.ToneMapper.Agx;
+		env.TonemapMode = Environment.ToneMapper.Agx;
 		env.AdjustmentEnabled = true;
 		env.SsaoEnabled = quality > GraphicsQuality.Low;
 		env.SsilEnabled = quality >= GraphicsQuality.High;
@@ -447,7 +462,7 @@ public static class GameSettings
 
 	private static bool ShouldEnableShadows(DirectionalLight3D light)
 	{
-		if (GameSettings.DisableShadows) return false;
+		if (DisableShadows) return false;
 		if (light.LightEnergy <= 0.05f) return false;
 		if (IsEditorShadowsDisabled()) return false;
 		return true;
@@ -455,10 +470,10 @@ public static class GameSettings
 
 	private static bool IsEditorShadowsDisabled()
 	{
-		GameHost host = Realm.Client.Core.GameHost.Instance;
+		GameHost host = GameHost.Instance;
 		if (host == null) return false;
-		if (!host.IsMapEditorMode) return false;
-		if (!host.EditorDisableShadows) return false;
+		if (!GameContext.EditorService.IsMapEditorMode) return false;
+		if (!GameContext.EditorService.EditorDisableShadows) return false;
 		return true;
 	}
 
@@ -471,64 +486,24 @@ public static class GameSettings
 			var found = FindNodeInTree<T>(parent.GetChild(i));
 			if (found != null) return found;
 		}
+
 		return null;
 	}
 
-	private class SettingsData
-	{
-		public int ResolutionIdx { get; set; } = 0;
-		public int WindowedResolutionWidth { get; set; } = 0;
-		public int WindowedResolutionHeight { get; set; } = 0;
-		public GraphicsQuality QualityIdx { get; set; } = GraphicsQuality.High;
-		public WindowMode WindowModeIdx { get; set; } = WindowMode.Fullscreen;
-		public bool Vsync { get; set; } = true;
-		public float MasterVolume { get; set; } = 80f;
-		public float MusicVolume { get; set; } = 70f;
-		public float SfxVolume { get; set; } = 90f;
-		public float VoiceVolume { get; set; } = 60f;
-		public float ScrollSpeed { get; set; } = 50f;
-		public float MouseSens { get; set; } = 40f;
-		public float HudScale { get; set; } = 100f;
-		public HealthBarMode ShowHealthBars { get; set; } = HealthBarMode.Damaged;
-		public GameLanguage Language { get; set; } = GameLanguage.English;
-		public bool DisplayFps { get; set; } = false;
-		public bool RecordReplays { get; set; } = false;
-		public bool SeedMapFiles { get; set; } = false;
-		public bool DisableShadows { get; set; } = false;
-		public bool DisableDayNightLighting { get; set; } = false;
-		public bool FloatingCombatText { get; set; } = true;
-		public string? LastOpenedFolder { get; set; }
-	}
 
-	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-	private struct DXGI_ADAPTER_DESC1
-	{
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-		public string Description;
-		public uint VendorId;
-		public uint DeviceId;
-		public uint SubSysId;
-		public uint Revision;
-		public nuint DedicatedVideoMemory;
-		public nuint DedicatedSystemMemory;
-		public nuint SharedSystemMemory;
-		public long AdapterLuid;
-		public uint Flags;
-	}
-
-	private static readonly System.Guid IID_IDXGIFactory1 = new System.Guid("770aae78-f26f-4dba-a829-253c83d1b387");
+	private static readonly Guid IID_IDXGIFactory1 = new Guid("770aae78-f26f-4dba-a829-253c83d1b387");
 
 	[DllImport("dxgi.dll")]
-	private static extern int CreateDXGIFactory1([In] ref System.Guid riid, out System.IntPtr ppFactory);
+	private static extern int CreateDXGIFactory1([In] ref Guid riid, out IntPtr ppFactory);
 
 	public static float GetGpuVramGb()
 	{
-		if (!System.OperatingSystem.IsWindows()) return 8.0f;
+		if (!OperatingSystem.IsWindows()) return 8.0f;
 
 		try
 		{
 			var guid = IID_IDXGIFactory1;
-			if (CreateDXGIFactory1(ref guid, out System.IntPtr pFactory) != 0 || pFactory == System.IntPtr.Zero)
+			if (CreateDXGIFactory1(ref guid, out IntPtr pFactory) != 0 || pFactory == IntPtr.Zero)
 				return 8.0f;
 
 			ulong maxDedicatedVramBytes = GetMaxVramFromFactory(pFactory);
@@ -536,7 +511,7 @@ public static class GameSettings
 			if (maxDedicatedVramBytes > 0)
 				return (float)(maxDedicatedVramBytes / (1024.0 * 1024.0 * 1024.0));
 		}
-		catch (System.Exception ex)
+		catch (Exception ex)
 		{
 			GD.PrintErr($"Failed to query GPU VRAM via DXGI: {ex.Message}");
 		}
@@ -544,15 +519,15 @@ public static class GameSettings
 		return 8.0f;
 	}
 
-	private static unsafe ulong GetMaxVramFromFactory(System.IntPtr pFactory)
+	private static unsafe ulong GetMaxVramFromFactory(IntPtr pFactory)
 	{
 		ulong maxDedicatedVramBytes = 0;
 		uint adapterIndex = 0;
 		void** factoryVtbl = *(void***)pFactory;
-		var enumAdapters1 = (delegate* unmanaged[Stdcall]<System.IntPtr, uint, out System.IntPtr, int>)factoryVtbl[12];
-		var releaseFactory = (delegate* unmanaged[Stdcall]<System.IntPtr, uint>)factoryVtbl[2];
+		var enumAdapters1 = (delegate* unmanaged[Stdcall]<IntPtr, uint, out IntPtr, int>)factoryVtbl[12];
+		var releaseFactory = (delegate* unmanaged[Stdcall]<IntPtr, uint>)factoryVtbl[2];
 
-		while (enumAdapters1(pFactory, adapterIndex, out System.IntPtr pAdapter) == 0 && pAdapter != System.IntPtr.Zero)
+		while (enumAdapters1(pFactory, adapterIndex, out IntPtr pAdapter) == 0 && pAdapter != IntPtr.Zero)
 		{
 			ulong vram = GetVramFromAdapter(pAdapter);
 			if (vram > maxDedicatedVramBytes) maxDedicatedVramBytes = vram;
@@ -563,11 +538,11 @@ public static class GameSettings
 		return maxDedicatedVramBytes;
 	}
 
-	private static unsafe ulong GetVramFromAdapter(System.IntPtr pAdapter)
+	private static unsafe ulong GetVramFromAdapter(IntPtr pAdapter)
 	{
 		void** adapterVtbl = *(void***)pAdapter;
-		var getDesc1 = (delegate* unmanaged[Stdcall]<System.IntPtr, out DXGI_ADAPTER_DESC1, int>)adapterVtbl[10];
-		var releaseAdapter = (delegate* unmanaged[Stdcall]<System.IntPtr, uint>)adapterVtbl[2];
+		var getDesc1 = (delegate* unmanaged[Stdcall]<IntPtr, out DXGI_ADAPTER_DESC1, int>)adapterVtbl[10];
+		var releaseAdapter = (delegate* unmanaged[Stdcall]<IntPtr, uint>)adapterVtbl[2];
 
 		ulong vram = 0;
 		if (getDesc1(pAdapter, out DXGI_ADAPTER_DESC1 desc) == 0)
@@ -590,10 +565,12 @@ public static class GameSettings
 		{
 			return GraphicsQuality.Low;
 		}
+
 		if (vramGb <= 6.0f)
 		{
 			return GraphicsQuality.Medium;
 		}
+
 		return GraphicsQuality.High;
 	}
 }

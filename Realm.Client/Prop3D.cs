@@ -1,10 +1,17 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using Arch.Core;
 using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.Services.ModelOptimization;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
-using System;
-using System.Collections.Generic;
+using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
@@ -13,6 +20,7 @@ public partial class Prop3D : StaticBody3D
 	public Entity Entity { get; set; }
 
 	private Vector3 _velocity = Vector3.Zero;
+
 	public Vector3 Velocity
 	{
 		get => _velocity;
@@ -47,18 +55,18 @@ public partial class Prop3D : StaticBody3D
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Entity)
-			                              && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<PropIdentity>(Entity))
-				return Realm.Client.Core.GameHost.Instance.EcsWorld.Get<PropIdentity>(Entity).PropId;
+			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity)
+			                              && GameContext.World.Has<PropIdentity>(Entity))
+				return GameContext.World.Get<PropIdentity>(Entity).PropId;
 			return _objectId;
 		}
 		set
 		{
 			_objectId = value;
 			_cachedResolvedModelPath = null;
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Entity))
+			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity))
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				world.SetOrAdd(Entity, new PropIdentity(value));
 			}
 		}
@@ -71,6 +79,7 @@ public partial class Prop3D : StaticBody3D
 	}
 
 	private string _cachedResolvedModelPath;
+
 	public string ModelAssetPath
 	{
 		get
@@ -79,6 +88,7 @@ public partial class Prop3D : StaticBody3D
 			{
 				_cachedResolvedModelPath = ResolvePropModelPath(PropId);
 			}
+
 			return _cachedResolvedModelPath;
 		}
 	}
@@ -87,15 +97,15 @@ public partial class Prop3D : StaticBody3D
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance == null || !Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Entity)) return 0f;
-			if (Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ResourceNode>(Entity))
-				return Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ResourceNode>(Entity).Amount;
+			if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return 0f;
+			if (GameContext.World.Has<ResourceNode>(Entity))
+				return GameContext.World.Get<ResourceNode>(Entity).Amount;
 			return 0f;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance == null || !Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Entity)) return;
-			var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+			if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
+			var world = GameContext.World;
 			if (world.Has<ResourceNode>(Entity))
 			{
 				var existing = world.Get<ResourceNode>(Entity);
@@ -103,6 +113,7 @@ public partial class Prop3D : StaticBody3D
 				{
 					TriggerImpulse(0.35f, 0.45f);
 				}
+
 				world.Set(Entity, new ResourceNode(existing.ResourceTypeId, value));
 			}
 			else
@@ -113,27 +124,27 @@ public partial class Prop3D : StaticBody3D
 	}
 
 	private bool _isResource;
+
 	public virtual bool IsResource
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Entity != default && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Entity))
+			if (GameHost.Instance != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
 			{
-				if (Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ResourceNode>(Entity))
+				if (GameContext.World.Has<ResourceNode>(Entity))
 					return true;
 			}
-			if (Realm.Client.Core.GameHost.ResourceRegistry != null && !string.IsNullOrEmpty(PropId))
+
+			if (GameHost.ResourceRegistry != null && !string.IsNullOrEmpty(PropId))
 			{
-				if (Realm.Client.Core.GameHost.ResourceRegistry.ContainsKey(PropId)) return true;
-				string cleanId = System.IO.Path.GetFileNameWithoutExtension(PropId);
-				if (!string.IsNullOrEmpty(cleanId) && Realm.Client.Core.GameHost.ResourceRegistry.ContainsKey(cleanId)) return true;
+				if (GameHost.ResourceRegistry.ContainsKey(PropId)) return true;
+				string cleanId = Path.GetFileNameWithoutExtension(PropId);
+				if (!string.IsNullOrEmpty(cleanId) && GameHost.ResourceRegistry.ContainsKey(cleanId)) return true;
 			}
+
 			return _isResource;
 		}
-		set
-		{
-			_isResource = value;
-		}
+		set { _isResource = value; }
 	}
 
 	private MeshInstance3D _selectionRing;
@@ -148,17 +159,18 @@ public partial class Prop3D : StaticBody3D
 
 	public virtual float GetBaseObstacleRadius()
 	{
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			return Realm.Client.Core.GameHost.Instance.GetOrCalculateObstacleRadius(PropId, this);
+			return GameHost.Instance.GetOrCalculateObstacleRadius(PropId, this);
 		}
+
 		return 1.4f;
 	}
 
 	private static TorusMesh GetOrCreateTorusMesh(float radius)
 	{
 		float r = Mathf.Max(0.4f, (float)Math.Round(radius, 2));
-		string key = r.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+		string key = r.ToString("0.00", CultureInfo.InvariantCulture);
 		if (!_sharedTorusMeshes.TryGetValue(key, out var mesh) || !GodotObject.IsInstanceValid(mesh))
 		{
 			mesh = new TorusMesh
@@ -168,6 +180,7 @@ public partial class Prop3D : StaticBody3D
 			};
 			_sharedTorusMeshes[key] = mesh;
 		}
+
 		return mesh;
 	}
 
@@ -184,6 +197,7 @@ public partial class Prop3D : StaticBody3D
 				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 			};
 		}
+
 		return _sharedSelectionMaterial;
 	}
 
@@ -200,6 +214,7 @@ public partial class Prop3D : StaticBody3D
 				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
 			};
 		}
+
 		return _sharedHoverMaterial;
 	}
 
@@ -214,7 +229,7 @@ public partial class Prop3D : StaticBody3D
 		Vector3 ringScale = new Vector3(1.0f / sx, 1.0f / sy, 1.0f / sz);
 		Vector3 ringPos = new Vector3(0, 0.05f / sy, 0);
 
-		float ratio = Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.GetModelCollisionCircleRatio(Realm.Client.Core.GameHost.Instance.GetModelAssetKey(this)) : 1.0f;
+		float ratio = GameHost.Instance != null ? GameHost.Instance.GetModelCollisionCircleRatio(GameHost.Instance.GetModelAssetKey(this)) : 1.0f;
 		if (ratio <= 0.001f) ratio = 1.0f;
 
 		float baseRadius = GetBaseObstacleRadius();
@@ -227,6 +242,7 @@ public partial class Prop3D : StaticBody3D
 			_selectionRing.Scale = ringScale;
 			_selectionRing.Position = ringPos;
 		}
+
 		if (_hoverRing != null)
 		{
 			_hoverRing.Mesh = torusMesh;
@@ -245,12 +261,14 @@ public partial class Prop3D : StaticBody3D
 			{
 				CreateHoverRing();
 			}
+
 			if (_hoverRing != null)
 			{
 				if (_isHovered)
 				{
 					UpdateSelectionRingTransform();
 				}
+
 				_hoverRing.Visible = _isHovered && !IsSelected;
 			}
 		}
@@ -278,6 +296,7 @@ public partial class Prop3D : StaticBody3D
 		{
 			_selectionRing.Visible = _isSelected;
 		}
+
 		if (_hoverRing != null)
 		{
 			_hoverRing.Visible = _isHovered && !_isSelected;
@@ -294,14 +313,17 @@ public partial class Prop3D : StaticBody3D
 			{
 				CreateSelectionRing();
 			}
+
 			if (_selectionRing != null)
 			{
 				if (_isSelected)
 				{
 					UpdateSelectionRingTransform();
 				}
+
 				_selectionRing.Visible = _isSelected;
 			}
+
 			if (_hoverRing != null)
 			{
 				_hoverRing.Visible = _isHovered && !_isSelected;
@@ -315,12 +337,14 @@ public partial class Prop3D : StaticBody3D
 		{
 			CreateSelectionRing();
 		}
+
 		if (_selectionRing != null)
 		{
 			if (highlight || _isSelected)
 			{
 				UpdateSelectionRingTransform();
 			}
+
 			_selectionRing.Visible = highlight || _isSelected;
 		}
 	}
@@ -431,7 +455,7 @@ public partial class Prop3D : StaticBody3D
 			if (modelAabb.Size.LengthSquared() <= 0.01f)
 				return false;
 
-			var (analShape, analOffset) = Realm.Client.Services.ModelOptimization.ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, isBuilding: true);
+			var (analShape, analOffset) = ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, isBuilding: true);
 			if (analShape == null)
 				return false;
 
@@ -457,7 +481,7 @@ public partial class Prop3D : StaticBody3D
 
 		if (!string.IsNullOrEmpty(propIdKey))
 			_modelShapeCache[propIdKey] = shapeResult;
-			
+
 		if (!string.IsNullOrEmpty(modelPath))
 			_modelShapeCache[modelPath] = shapeResult;
 
@@ -469,7 +493,7 @@ public partial class Prop3D : StaticBody3D
 	public override void _Ready()
 	{
 		Name = $"Prop_{PropId}_{Guid.NewGuid().ToString().Substring(0, 4)}";
-		
+
 		SetNotifyTransform(true);
 
 		if (IsPreview)
@@ -482,7 +506,7 @@ public partial class Prop3D : StaticBody3D
 		var collisionShape = new CollisionShape3D();
 		collisionShape.Name = "CollisionShape";
 		AddChild(collisionShape);
-		
+
 		var (shape, offset) = GetOrCreateCollisionShape();
 		collisionShape.Shape = shape;
 		collisionShape.Position = offset;
@@ -538,6 +562,7 @@ public partial class Prop3D : StaticBody3D
 			RemoveChild(visual);
 			visual.QueueFree();
 		}
+
 		CreatePropVisual();
 	}
 
@@ -545,14 +570,16 @@ public partial class Prop3D : StaticBody3D
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.PropRegistry.TryGetValue(PropId, out var meta))
+			if (GameHost.PropRegistry.TryGetValue(PropId, out var meta))
 			{
 				return string.Equals(meta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
 			}
-			if (Realm.Client.Core.GameHost.ResourceRegistry.TryGetValue(PropId, out var rMeta))
+
+			if (GameHost.ResourceRegistry.TryGetValue(PropId, out var rMeta))
 			{
 				return string.Equals(rMeta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
 			}
+
 			return false;
 		}
 	}
@@ -560,9 +587,9 @@ public partial class Prop3D : StaticBody3D
 	public virtual void UpdateSlopeAlignment()
 	{
 		var visual = GetNodeOrNull<Node3D>("VisualModel");
-		if (IsSlopeAligned && Realm.Client.Core.GameHost.Instance?.GroundTerrain != null && visual != null && GodotObject.IsInstanceValid(visual))
+		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && visual != null && GodotObject.IsInstanceValid(visual))
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
 			if (normal.LengthSquared() > 0.01f)
 			{
 				normal = normal.Normalized();
@@ -578,7 +605,7 @@ public partial class Prop3D : StaticBody3D
 	{
 		string modelPath = ResolvePropModelPath(PropId);
 
-		if (IsPreview || Realm.Client.Core.GameHost.Instance?.IsMapEditorMode == true)
+		if (IsPreview || GameContext.EditorService.IsMapEditorMode == true)
 		{
 			EnsureVisualModelExists(modelPath);
 		}
@@ -597,9 +624,9 @@ public partial class Prop3D : StaticBody3D
 
 		visual = new Node3D();
 		visual.Name = "VisualModel";
-		string assetKey = Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.GetModelAssetKey(PropId) : "";
-		float yOffset = Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.GetModelYOffset(assetKey) : 0f;
-		float globalScale = Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.GetModelScale(this) : 1.0f;
+		string assetKey = GameHost.Instance != null ? GameHost.Instance.GetModelAssetKey(PropId) : "";
+		float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(assetKey) : 0f;
+		float globalScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
 		float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
 		visual.Position = new Vector3(0, yOffset, 0);
 		visual.Scale = new Vector3(safeScale, safeScale, safeScale);
@@ -623,11 +650,12 @@ public partial class Prop3D : StaticBody3D
 				return;
 
 			visual.AddChild(node);
-			Realm.Client.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(node, PropId);
+			AnimationRetargetingService.TryApplyRiggedIdlePose(node, PropId);
 			if (!IsPreview)
 			{
-				Realm.Client.Core.GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
+				GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
 			}
+
 			ModelShaderManager.SetHideInShroud(node, true);
 		}
 		catch (Exception ex)
@@ -651,7 +679,7 @@ public partial class Prop3D : StaticBody3D
 		if (visual != null && GodotObject.IsInstanceValid(visual))
 		{
 			float effectiveScale = Math.Max(0.01f, Scale.Y * visual.Scale.Y);
-			Realm.Client.Services.ModelOptimization.GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(visual, effectiveScale);
+			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(visual, effectiveScale);
 		}
 	}
 
@@ -689,14 +717,14 @@ public partial class Prop3D : StaticBody3D
 		if (string.IsNullOrEmpty(propId))
 			return string.Empty;
 
-		string cleanId = System.IO.Path.GetFileNameWithoutExtension(propId);
+		string cleanId = Path.GetFileNameWithoutExtension(propId);
 		string targetModel = TryGetModelPathFromRegistries(propId, cleanId) ?? propId;
 
 		if (string.IsNullOrEmpty(targetModel))
 			return string.Empty;
 
 		string resolvedPath = ModelCache.ResolveModelPath(targetModel);
-		if (!string.IsNullOrEmpty(resolvedPath) && (resolvedPath.StartsWith("res://") || System.IO.File.Exists(resolvedPath)))
+		if (!string.IsNullOrEmpty(resolvedPath) && (resolvedPath.StartsWith("res://") || File.Exists(resolvedPath)))
 		{
 			return resolvedPath;
 		}
@@ -706,13 +734,13 @@ public partial class Prop3D : StaticBody3D
 
 	private string TryGetModelPathFromRegistries(string propId, string cleanId)
 	{
-		return TryGetModelPath(Realm.Client.Core.GameHost.PropRegistry, propId, cleanId)
-		       ?? TryGetModelPath(Realm.Client.Core.GameHost.ResourceRegistry, propId, cleanId)
-		       ?? TryGetModelPath(Realm.Client.Core.GameHost.UnitRegistry, propId, cleanId)
-		       ?? TryGetModelPath(Realm.Client.Core.GameHost.BuildingRegistry, propId, cleanId);
+		return TryGetModelPath(GameHost.PropRegistry, propId, cleanId)
+		       ?? TryGetModelPath(GameHost.ResourceRegistry, propId, cleanId)
+		       ?? TryGetModelPath(GameHost.UnitRegistry, propId, cleanId)
+		       ?? TryGetModelPath(GameHost.BuildingRegistry, propId, cleanId);
 	}
 
-	private string TryGetModelPath(Dictionary<StringName, Realm.Shared.Metadata.PropMetadata> registry, string propId, string cleanId)
+	private string TryGetModelPath(Dictionary<StringName, PropMetadata> registry, string propId, string cleanId)
 	{
 		if (registry == null) return null;
 		if (registry.TryGetValue(propId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
@@ -720,7 +748,7 @@ public partial class Prop3D : StaticBody3D
 		return null;
 	}
 
-	private string TryGetModelPath(Dictionary<StringName, Realm.Shared.Metadata.ResourceMetadata> registry, string propId, string cleanId)
+	private string TryGetModelPath(Dictionary<StringName, ResourceMetadata> registry, string propId, string cleanId)
 	{
 		if (registry == null) return null;
 		if (registry.TryGetValue(propId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
@@ -728,7 +756,7 @@ public partial class Prop3D : StaticBody3D
 		return null;
 	}
 
-	private string TryGetModelPath(Dictionary<StringName, Realm.Shared.Metadata.UnitMetadata> registry, string propId, string cleanId)
+	private string TryGetModelPath(Dictionary<StringName, UnitMetadata> registry, string propId, string cleanId)
 	{
 		if (registry == null) return null;
 		if (registry.TryGetValue(propId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;

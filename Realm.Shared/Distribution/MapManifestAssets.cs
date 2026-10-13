@@ -1,68 +1,52 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Realm.Shared.Distribution;
 
 public class MapManifestAssets
 {
-	[JsonPropertyName("Animation")]
-	public Dictionary<string, string>? Animation { get; set; }
+	[JsonPropertyName("Animation")] public Dictionary<string, string>? Animation { get; set; }
 
-	[JsonPropertyName("Building")]
-	public Dictionary<string, string>? Building { get; set; }
+	[JsonPropertyName("Building")] public Dictionary<string, string>? Building { get; set; }
 
-	[JsonPropertyName("Character")]
-	public Dictionary<string, string>? Character { get; set; }
+	[JsonPropertyName("Character")] public Dictionary<string, string>? Character { get; set; }
 
-	[JsonPropertyName("Decal")]
-	public Dictionary<string, string>? Decal { get; set; }
+	[JsonPropertyName("Decal")] public Dictionary<string, string>? Decal { get; set; }
 
-	[JsonPropertyName("Icon")]
-	public Dictionary<string, string>? Icon { get; set; }
+	[JsonPropertyName("Icon")] public Dictionary<string, string>? Icon { get; set; }
 
-	[JsonPropertyName("Item")]
-	public Dictionary<string, string>? Item { get; set; }
+	[JsonPropertyName("Item")] public Dictionary<string, string>? Item { get; set; }
 
-	[JsonPropertyName("Music")]
-	public Dictionary<string, string>? Music { get; set; }
+	[JsonPropertyName("Music")] public Dictionary<string, string>? Music { get; set; }
 
-	[JsonPropertyName("Noise")]
-	public Dictionary<string, string>? Noise { get; set; }
+	[JsonPropertyName("Noise")] public Dictionary<string, string>? Noise { get; set; }
 
-	[JsonPropertyName("Prop")]
-	public Dictionary<string, string>? Prop { get; set; }
+	[JsonPropertyName("Prop")] public Dictionary<string, string>? Prop { get; set; }
 
-	[JsonPropertyName("Ribbon")]
-	public Dictionary<string, string>? Ribbon { get; set; }
+	[JsonPropertyName("Ribbon")] public Dictionary<string, string>? Ribbon { get; set; }
 
-	[JsonPropertyName("Shader")]
-	public Dictionary<string, string>? Shader { get; set; }
+	[JsonPropertyName("Shader")] public Dictionary<string, string>? Shader { get; set; }
 
-	[JsonPropertyName("Skybox")]
-	public Dictionary<string, string>? Skybox { get; set; }
+	[JsonPropertyName("Skybox")] public Dictionary<string, string>? Skybox { get; set; }
 
-	[JsonPropertyName("SoundEffect")]
-	public Dictionary<string, string>? SoundEffect { get; set; }
+	[JsonPropertyName("SoundEffect")] public Dictionary<string, string>? SoundEffect { get; set; }
 
-	[JsonPropertyName("Spritesheet")]
-	public Dictionary<string, string>? Spritesheet { get; set; }
+	[JsonPropertyName("Spritesheet")] public Dictionary<string, string>? Spritesheet { get; set; }
 
-	[JsonPropertyName("Terrain")]
-	public Dictionary<string, string>? Terrain { get; set; }
+	[JsonPropertyName("Terrain")] public Dictionary<string, string>? Terrain { get; set; }
 
-	[JsonPropertyName("vfx_radial")]
-	public Dictionary<string, string>? VfxRadial { get; set; }
+	[JsonPropertyName("vfx_radial")] public Dictionary<string, string>? VfxRadial { get; set; }
 
-	[JsonPropertyName("vfx_vertical")]
-	public Dictionary<string, string>? VfxVertical { get; set; }
+	[JsonPropertyName("vfx_vertical")] public Dictionary<string, string>? VfxVertical { get; set; }
 
 	[JsonPropertyName("Other")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public Dictionary<string, string>? Other { get; set; }
 
-	[JsonExtensionData]
-	public Dictionary<string, System.Text.Json.JsonElement>? AdditionalProperties { get; set; }
+	[JsonExtensionData] public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
 
-	[System.Runtime.CompilerServices.IndexerName("CategoryItems")]
+	[IndexerName("CategoryItems")]
 	public Dictionary<string, string>? this[string category]
 	{
 		get => GetCategory(category);
@@ -121,7 +105,8 @@ public class MapManifestAssets
 		{ "vfx_vertical", (a, d) => a.VfxVertical = d }
 	};
 
-	private static readonly string[] CategoryProperties = {
+	private static readonly string[] CategoryProperties =
+	{
 		"Animation", "Building", "Character", "Decal", "Icon", "Item", "Music", "Noise", "other",
 		"Prop", "Ribbon", "Shader", "Skybox", "SoundEffect", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical"
 	};
@@ -132,6 +117,7 @@ public class MapManifestAssets
 		{
 			return getter(this);
 		}
+
 		return GetFromAdditionalProperties(category);
 	}
 
@@ -142,9 +128,9 @@ public class MapManifestAssets
 			setter(this, dictionary);
 			return;
 		}
-        
-		AdditionalProperties ??= new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.OrdinalIgnoreCase);
-		AdditionalProperties[category] = System.Text.Json.JsonSerializer.SerializeToElement(dictionary);
+
+		AdditionalProperties ??= new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+		AdditionalProperties[category] = JsonSerializer.SerializeToElement(dictionary);
 	}
 
 	public IEnumerable<KeyValuePair<string, Dictionary<string, string>>> GetAllCategories()
@@ -167,15 +153,17 @@ public class MapManifestAssets
 
 	private Dictionary<string, string>? GetFromAdditionalProperties(string category)
 	{
-		if (AdditionalProperties != null && AdditionalProperties.TryGetValue(category, out var element) && element.ValueKind == System.Text.Json.JsonValueKind.Object)
+		if (AdditionalProperties != null && AdditionalProperties.TryGetValue(category, out var element) && element.ValueKind == JsonValueKind.Object)
 		{
 			var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 			foreach (var prop in element.EnumerateObject())
 			{
-				dict[prop.Name] = prop.Value.ValueKind == System.Text.Json.JsonValueKind.String ? prop.Value.GetString() ?? string.Empty : prop.Value.ToString();
+				dict[prop.Name] = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() ?? string.Empty : prop.Value.ToString();
 			}
+
 			return dict;
 		}
+
 		return null;
 	}
 }

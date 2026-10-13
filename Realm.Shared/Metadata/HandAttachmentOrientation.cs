@@ -18,10 +18,9 @@ public class HandAttachmentOrientation
 	public float NormalOffset { get; set; }
 	public string? ParentAttachmentId { get; set; }
 
-	[JsonIgnore]
-	public Vector3Data Position => new(PositionX, PositionY, PositionZ);
-	[JsonIgnore]
-	public Vector3Data RotationDegrees => new(PitchX, YawY, RollZ);
+	[JsonIgnore] public Vector3Data Position => new(PositionX, PositionY, PositionZ);
+	[JsonIgnore] public Vector3Data RotationDegrees => new(PitchX, YawY, RollZ);
+
 	[JsonIgnore]
 	public Vector3Data ScaleVector => new(
 		ScaleX > 0.0001f ? ScaleX : (Scale > 0f ? Scale : 1.0f),

@@ -1,8 +1,11 @@
-using Godot;
-using Realm.Client.VFX;
 using System;
 using System.IO;
 using System.Text.Json.Nodes;
+using Godot;
+using Realm.Client.Services;
+using Realm.Client.VFX;
+using Realm.Shared.Audio;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -74,7 +77,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: false);
 
-		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var spacer = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		presetRow.AddChild(spacer);
 
 		AddButton(presetRow, "🔥 " + TranslationServer.Translate("Cast Test"), () => TriggerCastTest(), "Simulate casting ability VFX & sound", 10, new Vector2(90, 22));
@@ -98,7 +101,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		sldSpeed.Step = 0.05;
 		sldSpeed.Value = 1.0;
 		sldSpeed.CustomMinimumSize = new Vector2(90, 0);
-		sldSpeed.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		sldSpeed.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		sldSpeed.ValueChanged += (val) =>
 		{
 			_playbackSpeed = (float)val;
@@ -114,7 +117,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		var scrollBody = CreateScrollBody(340);
 		var configVBox = new VBoxContainer();
 		configVBox.AddThemeConstantOverride("separation", 10);
-		configVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(configVBox);
 
 		// SECTION 0: IDENTITY
@@ -136,7 +139,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("ability_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) =>
 		{
@@ -177,7 +180,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		iconRow.AddChild(iconPanel);
 
 		var iconDropdownVBox = new VBoxContainer();
-		iconDropdownVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		iconDropdownVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 		(_txtIconPath, _setIconPathValue) = AddAssetFilterDropdown(
 			iconDropdownVBox,
@@ -213,7 +216,6 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		);
 
 
-
 		AddSectionHeader(configVBox, "🎯 " + TranslationServer.Translate("AREA OF EFFECT (AOE)"), new Color(0.4f, 0.85f, 0.5f));
 
 		(_sldAoeRadius, _lblAoeRadiusVal) = AddSlider(
@@ -239,10 +241,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 			TranslationServer.Translate("Cast Sound:"),
 			_currentCastSound,
 			(all) => ScanAvailableAssets("audio", all),
-			(val) =>
-			{
-				_currentCastSound = val ?? string.Empty;
-			},
+			(val) => { _currentCastSound = val ?? string.Empty; },
 			TranslationServer.Translate("Select or search audio event..."),
 			140f,
 			false,
@@ -340,7 +339,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 			vfxKey = vfxKey.Substring(4);
 		}
 
-		if (Realm.Client.Core.GameHost.VfxRegistry.TryGetValue(vfxKey, out var regCfg))
+		if (GameContext.RegistryService.VfxRegistry.TryGetValue(vfxKey, out var regCfg))
 		{
 			return regCfg.Clone();
 		}
@@ -358,7 +357,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 			var pConfig = new SpellParticleConfig
 			{
 				ParticleId = vfxKey,
-				Name = System.IO.Path.GetFileNameWithoutExtension(vfxKey),
+				Name = Path.GetFileNameWithoutExtension(vfxKey),
 				RenderMode = SpellParticleRenderMode.BillboardQuad,
 				ParticleTexture = vfxKey,
 				Amount = 24,
@@ -373,7 +372,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 			return new VfxAttachmentConfig
 			{
 				VfxId = vfxKey,
-				Name = System.IO.Path.GetFileNameWithoutExtension(vfxKey),
+				Name = Path.GetFileNameWithoutExtension(vfxKey),
 				PrimitiveType = VfxPrimitiveType.ParticleSystem,
 				ParticleConfig = pConfig
 			};
@@ -447,7 +446,9 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		{
 			_vfxInstance.Stop();
 		}
-	}	private void PlaySoundFile(string soundPath)
+	}
+
+	private void PlaySoundFile(string soundPath)
 	{
 		if (string.IsNullOrWhiteSpace(soundPath) || _sfxPlayer == null) return;
 
@@ -472,7 +473,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private bool TryPlayResPath(string soundPath)
 	{
 		if (!soundPath.StartsWith("res://") || !ResourceLoader.Exists(soundPath)) return false;
-		
+
 		_sfxPlayer.Stream = GD.Load<AudioStream>(soundPath);
 		_sfxPlayer.Play();
 		return true;
@@ -480,25 +481,25 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	private AudioStream TryLoadSoundFromWorkspace(string soundPath)
 	{
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
-		string fileName = System.IO.Path.GetFileName(cleanPath);
+		string fileName = Path.GetFileName(cleanPath);
 
 		var candidatePaths = new[]
 		{
 			soundPath,
-			System.IO.Path.Combine(wsPath, cleanPath),
-			System.IO.Path.Combine(wsPath, "Assets", cleanPath),
-			System.IO.Path.Combine(wsPath, "Assets", "audio", "sfx", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "audio", "music", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "audio", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "sounds", fileName),
+			Path.Combine(wsPath, cleanPath),
+			Path.Combine(wsPath, "Assets", cleanPath),
+			Path.Combine(wsPath, "Assets", "audio", "sfx", fileName),
+			Path.Combine(wsPath, "Assets", "audio", "music", fileName),
+			Path.Combine(wsPath, "Assets", "audio", fileName),
+			Path.Combine(wsPath, "Assets", "sounds", fileName),
 		};
 
 		foreach (var candidate in candidatePaths)
 		{
-			if (string.IsNullOrWhiteSpace(candidate) || !System.IO.File.Exists(candidate)) continue;
-			
+			if (string.IsNullOrWhiteSpace(candidate) || !File.Exists(candidate)) continue;
+
 			AudioStream stream = LoadAudioStreamFromFile(candidate);
 			if (stream != null) return stream;
 		}
@@ -510,27 +511,28 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	{
 		if (candidate.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
 		{
-			byte[] raudBytes = System.IO.File.ReadAllBytes(candidate);
-			byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
+			byte[] raudBytes = File.ReadAllBytes(candidate);
+			byte[]? oggBytes = RaudFile.GetTrack(raudBytes, 0);
 			if (oggBytes != null && oggBytes.Length > 0)
 			{
 				return AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
 			}
+
 			return null;
 		}
-		
+
 		if (candidate.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
 		{
 			return AudioStreamOggVorbis.LoadFromFile(candidate);
 		}
-		
+
 		return GD.Load<AudioStream>(candidate);
 	}
 
 	private AudioStream TryLoadSoundFromResCandidates(string soundPath)
 	{
 		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
-		string fileName = System.IO.Path.GetFileName(cleanPath);
+		string fileName = Path.GetFileName(cleanPath);
 
 		var resCandidates = new[]
 		{
@@ -540,7 +542,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 			$"res://Assets/sounds/{fileName}",
 			$"res://{cleanPath}"
 		};
-		
+
 		foreach (var resPath in resCandidates)
 		{
 			if (ResourceLoader.Exists(resPath))
@@ -549,9 +551,11 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 				if (stream != null) return stream;
 			}
 		}
-		
+
 		return null;
-	}	private Texture2D ResolveTexture(string path)
+	}
+
+	private Texture2D ResolveTexture(string path)
 	{
 		if (string.IsNullOrWhiteSpace(path)) return null;
 
@@ -575,29 +579,29 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	private Texture2D TryLoadTextureFromWorkspace(string path)
 	{
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
-		string fileName = System.IO.Path.GetFileName(cleanPath);
+		string fileName = Path.GetFileName(cleanPath);
 
 		var candidatePaths = new[]
 		{
 			path,
-			System.IO.Path.Combine(wsPath, cleanPath),
-			System.IO.Path.Combine(wsPath, "Assets", cleanPath),
-			System.IO.Path.Combine(wsPath, "Assets", "vfx", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "icons", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "decals", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "textures", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "ribbons", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "noise", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "skyboxes", fileName),
-			System.IO.Path.Combine(wsPath, "Assets", "UI", fileName),
+			Path.Combine(wsPath, cleanPath),
+			Path.Combine(wsPath, "Assets", cleanPath),
+			Path.Combine(wsPath, "Assets", "vfx", fileName),
+			Path.Combine(wsPath, "Assets", "icons", fileName),
+			Path.Combine(wsPath, "Assets", "decals", fileName),
+			Path.Combine(wsPath, "Assets", "textures", fileName),
+			Path.Combine(wsPath, "Assets", "ribbons", fileName),
+			Path.Combine(wsPath, "Assets", "noise", fileName),
+			Path.Combine(wsPath, "Assets", "skyboxes", fileName),
+			Path.Combine(wsPath, "Assets", "UI", fileName),
 		};
 
 		foreach (var candidate in candidatePaths)
 		{
-			if (string.IsNullOrWhiteSpace(candidate) || !System.IO.File.Exists(candidate)) continue;
-			
+			if (string.IsNullOrWhiteSpace(candidate) || !File.Exists(candidate)) continue;
+
 			Texture2D tex = LoadTextureFromFile(candidate);
 			if (tex != null) return tex;
 		}
@@ -610,8 +614,8 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		Image img = null;
 		if (candidate.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 		{
-			byte[] rtexBytes = System.IO.File.ReadAllBytes(candidate);
-			byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
+			byte[] rtexBytes = File.ReadAllBytes(candidate);
+			byte[]? webpBytes = RtexFile.GetLayer(rtexBytes, 0);
 			if (webpBytes != null && webpBytes.Length > 0)
 			{
 				img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
@@ -632,16 +636,17 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 			{
 				img.GenerateMipmaps();
 			}
+
 			return ImageTexture.CreateFromImage(img);
 		}
-		
+
 		return null;
 	}
 
 	private Texture2D TryLoadTextureFromResCandidates(string path)
 	{
 		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
-		string fileName = System.IO.Path.GetFileName(cleanPath);
+		string fileName = Path.GetFileName(cleanPath);
 
 		var resCandidates = new[]
 		{
@@ -660,16 +665,18 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 				return GD.Load<Texture2D>(resPath);
 			}
 		}
-		
+
 		return null;
-	}	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
+	}
+
+	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
 	{
 		string effectiveId = GetEffectiveAbilityId(abilityId, abilityData);
 
 		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(effectiveId);
 		_slug = !string.IsNullOrWhiteSpace(parsedSlug) ? TemplateIDHelper.ToSnakeCase(parsedSlug) : TemplateIDHelper.ToSnakeCase(effectiveId);
 		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
-		
+
 		ParseAbilityData(abilityData);
 		_onApplied = onApplied;
 
@@ -691,12 +698,12 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		{
 			return tidNode.ToString();
 		}
-		
+
 		if (abilityData != null && abilityData.TryGetPropertyValue("AbilityId", out var aidNode) && !string.IsNullOrWhiteSpace(aidNode?.ToString()))
 		{
 			return aidNode.ToString();
 		}
-		
+
 		return fallbackId;
 	}
 
@@ -732,7 +739,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		var node = data[key];
 		if (node == null)
 			return defaultValue;
-			
+
 		return node.ToString() ?? defaultValue;
 	}
 
@@ -741,20 +748,20 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		var node = data[key];
 		if (node == null)
 			return defaultValue;
-			
+
 		return (float)node;
 	}
 
 	private string ParseIconPath(JsonObject data)
 	{
 		string rawIcon = GetStringProperty(data, "IconPath", string.Empty);
-		
+
 		if (string.IsNullOrEmpty(rawIcon))
 			return string.Empty;
-			
+
 		if (!rawIcon.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			return string.Empty;
-			
+
 		return Path.GetFileName(rawIcon);
 	}
 

@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using Arch.Core;
+using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -8,35 +11,19 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using System;
-using System.Collections.Generic;
+using Realm.MapAPI;
 
 namespace Realm.Client.Services;
 
 public class CheatService
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
-	private World EcsWorld => _ecsWorldAccessor.Current;
-
-	public CheatService(WorldAccessor ecsWorldAccessor)
+	public CheatService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
-	public enum CheatResult
-	{
-		None,
-		Stonks,
-		Gigachad,
-		AbsoluteUnit,
-		ThanosSnap,
-		EzClap,
-		NoCap,
-		WarpSpeed,
-		UnlimitedPower
-	}
+	public bool UnlimitedPowerEnabled { get; set; } = false;
+	public bool GigachadEnabled { get; set; } = false;
 
-	private delegate (CheatResult Result, int AffectedCount) CheatHandler(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities);
 
 	private static readonly IReadOnlyDictionary<string, CheatHandler> _cheatHandlers = new Dictionary<string, CheatHandler>(StringComparer.OrdinalIgnoreCase)
 	{
@@ -73,12 +60,12 @@ public class CheatService
 
 	private static (CheatResult Result, int AffectedCount) ApplySecureTheBag(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (playerEntity == Entity.Null || !service.EcsWorld.IsAlive(playerEntity) || !service.EcsWorld.Has<PlayerResources>(playerEntity))
+		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity) || !GameContext.World.Has<PlayerResources>(playerEntity))
 		{
 			return (CheatResult.Stonks, 0);
 		}
 
-		ref var playerRes = ref service.EcsWorld.Get<PlayerResources>(playerEntity);
+		ref var playerRes = ref GameContext.World.Get<PlayerResources>(playerEntity);
 		var goldId = "gold".AsResourceId(definitionManager);
 		var woodId = "wood".AsResourceId(definitionManager);
 		var stoneId = "stone".AsResourceId(definitionManager);
@@ -87,21 +74,21 @@ public class CheatService
 		if (playerRes.Value.TryGetValue(goldId, out var currentGold)) playerRes.Value[goldId] = (int)Math.Min(resourceCap, currentGold + 10000);
 		if (playerRes.Value.TryGetValue(woodId, out var currentWood)) playerRes.Value[woodId] = (int)Math.Min(resourceCap, currentWood + 10000);
 		if (playerRes.Value.TryGetValue(stoneId, out var currentStone)) playerRes.Value[stoneId] = (int)Math.Min(resourceCap, currentStone + 10000);
-		
+
 		return (CheatResult.Stonks, 0);
 	}
 
 	private static (CheatResult Result, int AffectedCount) ApplyGigachad(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GigachadEnabled = true;
+			service.GigachadEnabled = true;
 		}
 
 		int affected = 0;
 		var query = QueryCache.AllHealthAndOwnerQuery;
-		var world = service.EcsWorld;
-		
+		var world = GameContext.World;
+
 		world.Query(in query, (Entity entity, ref Owner owner) =>
 		{
 			if (owner.PlayerEntity.Value != playerEntity || !world.IsAlive(entity)) return;
@@ -110,14 +97,16 @@ public class CheatService
 			{
 				world.Set(entity, new Health(9000f, 9000f));
 			}
+
 			if (world.Has<Attack>(entity))
 			{
 				var atk = world.Get<Attack>(entity);
 				world.Set(entity, new Attack(9001f, atk.Range, atk.Cooldown, atk.CurrentCooldown));
 			}
+
 			affected++;
 		});
-		
+
 		return (CheatResult.Gigachad, affected);
 	}
 
@@ -126,12 +115,13 @@ public class CheatService
 		int affected = 0;
 		foreach (var entity in selectedEntities)
 		{
-			if (!service.EcsWorld.IsAlive(entity) || !service.EcsWorld.Has<MovementStats>(entity)) continue;
+			if (!GameContext.World.IsAlive(entity) || !GameContext.World.Has<MovementStats>(entity)) continue;
 
-			var mv = service.EcsWorld.Get<MovementStats>(entity);
-			service.EcsWorld.Set(entity, new MovementStats(25f, mv.Acceleration, mv.TurnRate));
+			var mv = GameContext.World.Get<MovementStats>(entity);
+			GameContext.World.Set(entity, new MovementStats(25f, mv.Acceleration, mv.TurnRate));
 			affected++;
 		}
+
 		return (CheatResult.AbsoluteUnit, affected);
 	}
 
@@ -139,7 +129,7 @@ public class CheatService
 	{
 		var targets = new List<Entity>();
 		var query = QueryCache.AllHealthAndOwnerQuery;
-		var world = service.EcsWorld;
+		var world = GameContext.World;
 
 		world.Query(in query, (Entity entity, ref Owner owner) =>
 		{
@@ -159,27 +149,30 @@ public class CheatService
 
 			var hp = world.Get<Health>(entity);
 			world.Set(entity, new Health(0f, hp.Max));
-			
+
 			if (!world.Has<Dead>(entity))
 			{
 				world.Add<Dead>(entity);
 			}
-			
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.TryGetUnit3D(entity, out var unit3D))
+
+			if (GameHost.Instance != null && GameHost.TryGetUnit3D(entity, out var unit3D))
 			{
-				Realm.Client.Core.GameHost.Instance.TriggerKillUnit(unit3D);
+				GameHost.Instance.TriggerKillUnit(unit3D);
 			}
+
 			destroyed++;
 		}
+
 		return (CheatResult.ThanosSnap, destroyed);
 	}
 
 	private static (CheatResult Result, int AffectedCount) ApplyEzClap(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			((Realm.MapAPI.IGameAPI)Realm.Client.Core.GameHost.Instance).TriggerVictory();
+			((IGameAPI)GameHost.Instance).TriggerVictory();
 		}
+
 		return (CheatResult.EzClap, 0);
 	}
 
@@ -187,42 +180,43 @@ public class CheatService
 	{
 		Entity worldEntity = Entity.Null;
 		var query = QueryCache.AllShroudStateQuery;
-		service.EcsWorld.Query(in query, ent => worldEntity = ent);
+		GameContext.World.Query(in query, ent => worldEntity = ent);
 
-		if (worldEntity != Entity.Null && service.EcsWorld.IsAlive(worldEntity) && service.EcsWorld.Has<ShroudState>(worldEntity))
+		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
 		{
-			ref var state = ref service.EcsWorld.Get<ShroudState>(worldEntity);
+			ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
 			state.ShroudType = "visible";
 		}
-		
-		if (Realm.Client.Core.GameHost.Instance?.ShroudService != null)
+
+		if (GameContext.ShroudService != null)
 		{
-			Realm.Client.Core.GameHost.Instance.ShroudService.TriggerImmediateUpdate();
+			GameContext.ShroudService.TriggerImmediateUpdate();
 		}
-		
+
 		return (CheatResult.NoCap, 0);
 	}
 
 	private static (CheatResult Result, int AffectedCount) ApplySpeedrun(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			Realm.Client.Core.GameHost.Instance.FastBuildEnabled = !Realm.Client.Core.GameHost.Instance.FastBuildEnabled;
+			GameContext.SimulationService.FastBuildEnabled = !GameContext.SimulationService.FastBuildEnabled;
 		}
+
 		return (CheatResult.WarpSpeed, 0);
 	}
 
 	private static (CheatResult Result, int AffectedCount) ApplySkibidi(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return (CheatResult.UnlimitedPower, 0);
-		
-		Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled = !Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled;
-		
-		if (Realm.Client.Core.GameHost.Instance.UnlimitedPowerEnabled && playerEntity != Entity.Null && service.EcsWorld.IsAlive(playerEntity) && service.EcsWorld.Has<SpellCooldowns>(playerEntity))
+		if (GameHost.Instance == null) return (CheatResult.UnlimitedPower, 0);
+
+		service.UnlimitedPowerEnabled = !service.UnlimitedPowerEnabled;
+
+		if (service.UnlimitedPowerEnabled && playerEntity != Entity.Null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<SpellCooldowns>(playerEntity))
 		{
-			service.EcsWorld.Get<SpellCooldowns>(playerEntity).Value?.Clear();
+			GameContext.World.Get<SpellCooldowns>(playerEntity).Value?.Clear();
 		}
-		
+
 		return (CheatResult.UnlimitedPower, 0);
 	}
 }

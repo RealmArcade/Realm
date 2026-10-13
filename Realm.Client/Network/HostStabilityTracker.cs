@@ -1,6 +1,7 @@
-using Godot;
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using Godot;
 
 namespace Realm.Client.Network;
 
@@ -27,7 +28,7 @@ public static class HostStabilityTracker
 			var history = JsonSerializer.Deserialize<List<GameStabilitySummary>>(json);
 			return history ?? new List<GameStabilitySummary>();
 		}
-		catch (System.Exception ex)
+		catch (Exception ex)
 		{
 			GD.PrintErr($"[HostStabilityTracker] Failed to load history: {ex.Message}");
 			return new List<GameStabilitySummary>();
@@ -45,7 +46,7 @@ public static class HostStabilityTracker
 				file.StoreString(json);
 			}
 		}
-		catch (System.Exception ex)
+		catch (Exception ex)
 		{
 			GD.PrintErr($"[HostStabilityTracker] Failed to save history: {ex.Message}");
 		}
@@ -59,6 +60,7 @@ public static class HostStabilityTracker
 		{
 			history.RemoveAt(0);
 		}
+
 		SaveHistory(history);
 	}
 
@@ -90,10 +92,12 @@ public static class HostStabilityTracker
 		{
 			return "Poor";
 		}
+
 		if (poorCount == 1 || averageCount >= 3)
 		{
 			return "Average";
 		}
+
 		return "Excellent";
 	}
 
@@ -145,11 +149,13 @@ public static class HostStabilityTracker
 		{
 			return 0f;
 		}
+
 		float sum = 0f;
 		for (int i = 0; i < list.Count; i++)
 		{
 			sum += list[i];
 		}
+
 		return sum / list.Count;
 	}
 
@@ -159,6 +165,7 @@ public static class HostStabilityTracker
 		{
 			return 0f;
 		}
+
 		var sorted = new List<float>(list);
 		sorted.Sort();
 		int mid = sorted.Count / 2;
@@ -166,6 +173,7 @@ public static class HostStabilityTracker
 		{
 			return sorted[mid];
 		}
+
 		return (sorted[mid - 1] + sorted[mid]) / 2f;
 	}
 
@@ -175,6 +183,7 @@ public static class HostStabilityTracker
 		{
 			return 0f;
 		}
+
 		float max = float.MinValue;
 		for (int i = 0; i < list.Count; i++)
 		{
@@ -183,6 +192,7 @@ public static class HostStabilityTracker
 				max = list[i];
 			}
 		}
+
 		return max;
 	}
 }

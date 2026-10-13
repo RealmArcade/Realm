@@ -1,24 +1,44 @@
-using Godot;
-using Microsoft.Web.WebView2.Core;
-using Realm.EditorAPI;
-using Realm.Client.Services;
-using Realm.Client.UI;
-using Realm.MapAPI;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
+using Godot;
+using Microsoft.Web.WebView2.Core;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Client.UI.MapEditor;
+using Realm.Ecs.Services;
+using Realm.EditorAPI;
+using Realm.MapAPI;
+using Realm.Shared.Audio;
+using Realm.Shared.ModelOptimization;
+using Realm.Shared.Services;
+using Realm.Shared.Textures;
+using Environment = System.Environment;
+using FileAccess = Godot.FileAccess;
+using HttpClient = System.Net.Http.HttpClient;
+using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
 
-[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+[SupportedOSPlatform("windows")]
 public partial class VSCodeManager
 {
 	private static VSCodeManager _instance;
@@ -34,14 +54,15 @@ public partial class VSCodeManager
 
 	private bool _isInstalling = false;
 	private bool _installCompleted = false;
-	private System.Threading.Tasks.Task _installTask;
+	private Task _installTask;
 	private readonly object _installLock = new object();
 	private int _vscodePort = 8089;
-	private static readonly System.Net.Http.HttpClient _localProxyHttpClient = new System.Net.Http.HttpClient(new System.Net.Http.SocketsHttpHandler
+
+	private static readonly HttpClient _localProxyHttpClient = new HttpClient(new SocketsHttpHandler
 	{
 		AllowAutoRedirect = false,
 		UseCookies = false,
-		AutomaticDecompression = System.Net.DecompressionMethods.All
+		AutomaticDecompression = DecompressionMethods.All
 	});
 
 	private static readonly string[] RequiredExtensions = new[]
@@ -92,12 +113,11 @@ public partial class VSCodeManager
 		{
 		}
 
-		return Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "Godot", "app_userdata", "Realm", "vscode");
+		return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Godot", "app_userdata", "Realm", "vscode");
 	}
 
 	public static string GetRealmMapEditorVersion()
 	{
-
 		try
 		{
 			if (TryGetVersionFromPackage("vscode_extensions_dist", "speige.realm-map-editor", out string v1))
@@ -109,7 +129,7 @@ public partial class VSCodeManager
 			string versionJson = Path.GetFullPath(Path.Combine(PathUtils.GetProjectRoot(), "..", "version.json"));
 			if (File.Exists(versionJson))
 			{
-				var jsonNode = JsonNode.Parse(File.ReadAllText(versionJson, System.Text.Encoding.UTF8));
+				var jsonNode = JsonNode.Parse(File.ReadAllText(versionJson, Encoding.UTF8));
 				string version = jsonNode?["extensionVersion"]?.GetValue<string>();
 				if (!string.IsNullOrWhiteSpace(version))
 					return version;
@@ -118,6 +138,7 @@ public partial class VSCodeManager
 		catch
 		{
 		}
+
 		return "0.0.1";
 	}
 
@@ -128,14 +149,13 @@ public partial class VSCodeManager
 		if (!File.Exists(pkgPath))
 			return false;
 
-		var jsonNode = JsonNode.Parse(File.ReadAllText(pkgPath, System.Text.Encoding.UTF8));
+		var jsonNode = JsonNode.Parse(File.ReadAllText(pkgPath, Encoding.UTF8));
 		version = jsonNode?["version"]?.GetValue<string>();
 		return !string.IsNullOrWhiteSpace(version);
 	}
 
 	public bool IsInstalled()
 	{
-
 		string embedDir = GetVSCodeDirectory();
 		string exePath = Path.Combine(embedDir, "editor", "bin", "codium.exe");
 		string completedMarkerPath = Path.Combine(embedDir, "install_completed.marker");
@@ -172,6 +192,7 @@ public partial class VSCodeManager
 			if (!IsExtensionInstalled(extensionsDir, requiredExt))
 				return false;
 		}
+
 		return true;
 	}
 
@@ -182,7 +203,6 @@ public partial class VSCodeManager
 
 	public void StartInstallIfNeeded(bool force = false)
 	{
-
 		lock (_installLock)
 		{
 			if (_isInstalling || (!force && _installCompleted))
@@ -194,19 +214,18 @@ public partial class VSCodeManager
 			if (!force && IsInstalled())
 			{
 				_installCompleted = true;
-				System.Threading.Tasks.Task.Run(() => InstallMissingExtensions(exePath, embedDir));
+				Task.Run(() => InstallMissingExtensions(exePath, embedDir));
 				return;
 			}
 
 			_isInstalling = true;
 			_installCompleted = false;
-			_installTask = System.Threading.Tasks.Task.Run(() => RunInstallScript(force, exePath, embedDir));
+			_installTask = Task.Run(() => RunInstallScript(force, exePath, embedDir));
 		}
 	}
 
 	private void RunInstallScript(bool force, string exePath, string embedDir)
 	{
-
 		try
 		{
 			string scriptPath = PathUtils.FindPath("install_editor_dependencies.ps1");
@@ -222,8 +241,14 @@ public partial class VSCodeManager
 				installProcess.StartInfo.RedirectStandardOutput = true;
 				installProcess.StartInfo.RedirectStandardError = true;
 
-				installProcess.OutputDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) GD.Print("[installer] " + e.Data); };
-				installProcess.ErrorDataReceived += (sender, e) => { if (!string.IsNullOrEmpty(e.Data)) GD.PrintErr("[installer error] " + e.Data); };
+				installProcess.OutputDataReceived += (sender, e) =>
+				{
+					if (!string.IsNullOrEmpty(e.Data)) GD.Print("[installer] " + e.Data);
+				};
+				installProcess.ErrorDataReceived += (sender, e) =>
+				{
+					if (!string.IsNullOrEmpty(e.Data)) GD.PrintErr("[installer error] " + e.Data);
+				};
 
 				installProcess.Start();
 				installProcess.BeginOutputReadLine();
@@ -270,54 +295,19 @@ public partial class VSCodeManager
 
 	private readonly ConcurrentQueue<Action> _actionQueue = new ConcurrentQueue<Action>();
 
-	private const uint WM_USER = 0x0400;
-	private const uint WM_WAKEUP = WM_USER + 1;
-	private const uint WM_CLOSE = 0x0010;
-	private const int SW_HIDE = 0;
-	private const int SW_SHOW = 5;
-	private const int SW_SHOWMAXIMIZED = 3;
+	public const uint WM_USER = 0x0400;
+	public const uint WM_WAKEUP = WM_USER + 1;
+	public const uint WM_CLOSE = 0x0010;
+	public const int SW_HIDE = 0;
+	public const int SW_SHOW = 5;
+	public const int SW_SHOWMAXIMIZED = 3;
 
-	private const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
-	private const uint WS_VISIBLE = 0x10000000;
+	public const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
+	public const uint WS_VISIBLE = 0x10000000;
 
-	private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
 	private WndProcDelegate _customWndProcDelegate;
 
-	[StructLayout(LayoutKind.Sequential)]
-	public struct MSG
-	{
-		public IntPtr hwnd;
-		public uint message;
-		public IntPtr wParam;
-		public IntPtr lParam;
-		public uint time;
-		public Point pt;
-		public uint lPrivate;
-	}
-
-	[StructLayout(LayoutKind.Sequential)]
-	public struct Point
-	{
-		public int x;
-		public int y;
-	}
-
-	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-	public struct WNDCLASSEX
-	{
-		public int cbSize;
-		public int style;
-		public IntPtr lpfnWndProc;
-		public int cbClsExtra;
-		public int cbWndExtra;
-		public IntPtr hInstance;
-		public IntPtr hIcon;
-		public IntPtr hCursor;
-		public IntPtr hbrBackground;
-		public string lpszMenuName;
-		public string lpszClassName;
-		public IntPtr hIconSm;
-	}
 
 	[DllImport("user32.dll")]
 	public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
@@ -456,6 +446,7 @@ public partial class VSCodeManager
 				{
 					Marshal.FreeHGlobal(extendedInfoPtr);
 				}
+
 				AssignProcessToJobObject(_jobHandle, Process.GetCurrentProcess().Handle);
 			}
 		}
@@ -468,41 +459,6 @@ public partial class VSCodeManager
 	[DllImport("kernel32.dll", EntryPoint = "RtlZeroMemory")]
 	private static extern void ZeroMemory(IntPtr destination, int length);
 
-	[StructLayout(LayoutKind.Sequential)]
-	private struct JOBOBJECT_BASIC_LIMIT_INFORMATION_STRUCT
-	{
-		public long PerProcessUserTimeLimit;
-		public long PerJobUserTimeLimit;
-		public uint LimitFlags;
-		public UIntPtr MinimumWorkingSetSize;
-		public UIntPtr MaximumWorkingSetSize;
-		public uint ActiveProcessLimit;
-		public UIntPtr Affinity;
-		public uint PriorityClass;
-		public uint SchedulingClass;
-	}
-
-	[StructLayout(LayoutKind.Sequential)]
-	private struct IO_COUNTERS_STRUCT
-	{
-		public ulong ReadOperationCount;
-		public ulong WriteOperationCount;
-		public ulong OtherOperationCount;
-		public ulong ReadTransferCount;
-		public ulong WriteTransferCount;
-		public ulong OtherTransferCount;
-	}
-
-	[StructLayout(LayoutKind.Sequential)]
-	private struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT
-	{
-		public JOBOBJECT_BASIC_LIMIT_INFORMATION_STRUCT BasicLimitInformation;
-		public IO_COUNTERS_STRUCT IoInfo;
-		public UIntPtr ProcessMemoryLimit;
-		public UIntPtr JobMemoryLimit;
-		public UIntPtr PeakProcessMemoryUsed;
-		public UIntPtr PeakJobMemoryUsed;
-	}
 
 	private static void AddProcessToJob(Process proc)
 	{
@@ -530,16 +486,19 @@ public partial class VSCodeManager
 			{
 				Directory.CreateDirectory(dir);
 			}
+
 			string code = GameSettings.Language.ToLocaleCode();
 			File.WriteAllText(Path.Combine(dir, "realm-locale.txt"), code);
 
 			var activeDict = LocalizationManager.GetDictionary(code);
-			File.WriteAllText(Path.Combine(dir, "realm-locale-dict.json"), System.Text.Json.JsonSerializer.Serialize(activeDict));
+			File.WriteAllText(Path.Combine(dir, "realm-locale-dict.json"), JsonSerializer.Serialize(activeDict));
 
 			var enDict = LocalizationManager.GetDictionary("en");
-			File.WriteAllText(Path.Combine(dir, "realm-locale-en.json"), System.Text.Json.JsonSerializer.Serialize(enDict));
+			File.WriteAllText(Path.Combine(dir, "realm-locale-en.json"), JsonSerializer.Serialize(enDict));
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void OnLanguageChanged(GameLanguage newLanguage)
@@ -547,7 +506,7 @@ public partial class VSCodeManager
 		SaveCurrentLocaleToFile();
 		string code = newLanguage.ToLocaleCode();
 		var dict = LocalizationManager.GetDictionary(code);
-		string dictJson = System.Text.Json.JsonSerializer.Serialize(dict);
+		string dictJson = JsonSerializer.Serialize(dict);
 		_actionQueue.Enqueue(() =>
 		{
 			try
@@ -558,7 +517,9 @@ public partial class VSCodeManager
 					_controller.CoreWebView2.ExecuteScriptAsync(js);
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		});
 		if (_childHwnd != IntPtr.Zero)
 		{
@@ -619,9 +580,9 @@ public partial class VSCodeManager
 				_installTask?.Wait();
 			}
 
-			var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+			var l = new TcpListener(IPAddress.Loopback, 0);
 			l.Start();
-			_vscodePort = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
+			_vscodePort = ((IPEndPoint)l.LocalEndpoint).Port;
 			l.Stop();
 
 			_vscodeProcess = new Process();
@@ -655,7 +616,7 @@ public partial class VSCodeManager
 				if (!File.Exists(Path.Combine(libDir, "Realm.MapAPI.dll")))
 				{
 					GD.Print("Realm.MapAPI.dll missing in workspace. Running EnsureMapProjectFiles...");
-					Realm.Client.Core.GameHost.EnsureMapProjectFiles(mapFolderRaw);
+					GameHost.EnsureMapProjectFiles(mapFolderRaw);
 				}
 			}
 		}
@@ -671,7 +632,7 @@ public partial class VSCodeManager
 	{
 		try
 		{
-			var listener = new System.Net.HttpListener();
+			var listener = new HttpListener();
 			try
 			{
 				listener.Prefixes.Add($"http://127.0.0.1:{_ipcHttpPort}/api/");
@@ -680,19 +641,17 @@ public partial class VSCodeManager
 			catch
 			{
 				_ipcHttpPort = 8093;
-				listener = new System.Net.HttpListener();
+				listener = new HttpListener();
 				listener.Prefixes.Add($"http://127.0.0.1:{_ipcHttpPort}/api/");
 				listener.Start();
 			}
+
 			GD.Print($"[VSCodeManager] HTTP IPC bridge listening on http://127.0.0.1:{_ipcHttpPort}/api/");
 
 			while (true)
 			{
 				var ctx = await listener.GetContextAsync();
-				_ = System.Threading.Tasks.Task.Run(() =>
-				{
-					HandleIpcHttpRequest(ctx);
-				});
+				_ = Task.Run(() => { HandleIpcHttpRequest(ctx); });
 			}
 		}
 		catch (Exception ex)
@@ -703,7 +662,7 @@ public partial class VSCodeManager
 
 	private readonly ConcurrentQueue<string> _pendingExtensionCommands = new ConcurrentQueue<string>();
 
-	public async System.Threading.Tasks.Task SaveAllOpenFilesAsync()
+	public async Task SaveAllOpenFilesAsync()
 	{
 		_pendingExtensionCommands.Enqueue("saveAll");
 		_actionQueue.Enqueue(() =>
@@ -722,12 +681,14 @@ public partial class VSCodeManager
 ");
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		});
-		await System.Threading.Tasks.Task.Delay(500);
+		await Task.Delay(500);
 	}
 
-	private async void HandleIpcHttpRequest(System.Net.HttpListenerContext ctx)
+	private async void HandleIpcHttpRequest(HttpListenerContext ctx)
 	{
 		try
 		{
@@ -750,38 +711,45 @@ public partial class VSCodeManager
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[VSCodeManager] HandleIpcHttpRequest error: {ex.Message}");
-			try { ctx.Response.StatusCode = 500; ctx.Response.Close(); } catch { }
+			try
+			{
+				ctx.Response.StatusCode = 500;
+				ctx.Response.Close();
+			}
+			catch
+			{
+			}
 		}
 	}
 
-	private void SetCorsHeaders(System.Net.HttpListenerContext ctx)
+	private void SetCorsHeaders(HttpListenerContext ctx)
 	{
 		ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
 		ctx.Response.Headers.Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
 		ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
 	}
 
-	private async System.Threading.Tasks.Task ProcessIpcPostRequest(System.Net.HttpListenerContext ctx)
+	private async Task ProcessIpcPostRequest(HttpListenerContext ctx)
 	{
 		using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
 		string body = await reader.ReadToEndAsync();
-		var node = System.Text.Json.Nodes.JsonNode.Parse(body);
+		var node = JsonNode.Parse(body);
 		string action = GetActionFromNode(node);
-		
+
 		CheckFocusGodotWindow(action, node);
 
-		var responseObj = new System.Text.Json.Nodes.JsonObject();
+		var responseObj = new JsonObject();
 		await RouteIpcAction(action, node, responseObj);
 
 		await SendIpcResponse(ctx, responseObj);
 	}
 
-	private string GetActionFromNode(System.Text.Json.Nodes.JsonNode node)
+	private string GetActionFromNode(JsonNode node)
 	{
 		return node?["action"]?.ToString() ?? node?["type"]?.ToString();
 	}
 
-	private void CheckFocusGodotWindow(string action, System.Text.Json.Nodes.JsonNode node)
+	private void CheckFocusGodotWindow(string action, JsonNode node)
 	{
 		if (ShouldFocusGodot(action, node))
 		{
@@ -789,18 +757,18 @@ public partial class VSCodeManager
 		}
 	}
 
-	private bool ShouldFocusGodot(string action, System.Text.Json.Nodes.JsonNode node)
+	private bool ShouldFocusGodot(string action, JsonNode node)
 	{
-		return action == "openVfxDialog" || 
-			   action == "openModelPicker" || 
-			   action == "openAbilityVfxDialog" || 
-			   action == "openAnimationStudio" || 
-			   action == "openAnimationPreview" || 
-			   action == "openEditAnimations" || 
-			   (node?["focusGodot"]?.GetValue<bool>() ?? false);
+		return action == "openVfxDialog" ||
+		       action == "openModelPicker" ||
+		       action == "openAbilityVfxDialog" ||
+		       action == "openAnimationStudio" ||
+		       action == "openAnimationPreview" ||
+		       action == "openEditAnimations" ||
+		       (node?["focusGodot"]?.GetValue<bool>() ?? false);
 	}
 
-	private async System.Threading.Tasks.Task RouteIpcAction(string action, System.Text.Json.Nodes.JsonNode node, System.Text.Json.Nodes.JsonObject responseObj)
+	private async Task RouteIpcAction(string action, JsonNode node, JsonObject responseObj)
 	{
 		if (string.IsNullOrEmpty(action)) return;
 
@@ -815,7 +783,7 @@ public partial class VSCodeManager
 		if (TryRouteConversionAction(action, node, responseObj)) return;
 	}
 
-	private bool TryRouteDialogAction(string action, System.Text.Json.Nodes.JsonNode node, System.Text.Json.Nodes.JsonObject responseObj)
+	private bool TryRouteDialogAction(string action, JsonNode node, JsonObject responseObj)
 	{
 		switch (action)
 		{
@@ -834,10 +802,11 @@ public partial class VSCodeManager
 				HandleOpenAnimationStudio(node, responseObj);
 				return true;
 		}
+
 		return false;
 	}
 
-	private bool TryRouteFileAction(string action, System.Text.Json.Nodes.JsonNode node, System.Text.Json.Nodes.JsonObject responseObj)
+	private bool TryRouteFileAction(string action, JsonNode node, JsonObject responseObj)
 	{
 		switch (action)
 		{
@@ -852,10 +821,11 @@ public partial class VSCodeManager
 				HandleReloadMetadata(responseObj);
 				return true;
 		}
+
 		return false;
 	}
 
-	private bool TryRouteConversionAction(string action, System.Text.Json.Nodes.JsonNode node, System.Text.Json.Nodes.JsonObject responseObj)
+	private bool TryRouteConversionAction(string action, JsonNode node, JsonObject responseObj)
 	{
 		switch (action)
 		{
@@ -872,13 +842,14 @@ public partial class VSCodeManager
 				HandleConvertRaud(node, responseObj);
 				return true;
 		}
+
 		return false;
 	}
 
-	private async System.Threading.Tasks.Task SendIpcResponse(System.Net.HttpListenerContext ctx, System.Text.Json.Nodes.JsonObject responseObj)
+	private async Task SendIpcResponse(HttpListenerContext ctx, JsonObject responseObj)
 	{
 		string resJson = responseObj.ToJsonString();
-		byte[] resBytes = System.Text.Encoding.UTF8.GetBytes(resJson);
+		byte[] resBytes = Encoding.UTF8.GetBytes(resJson);
 		ctx.Response.ContentType = "application/json";
 		ctx.Response.ContentLength64 = resBytes.Length;
 		await ctx.Response.OutputStream.WriteAsync(resBytes, 0, resBytes.Length);
@@ -886,24 +857,23 @@ public partial class VSCodeManager
 	}
 
 
-
-	private void HandleIpcOptionsRequest(System.Net.HttpListenerContext ctx)
+	private void HandleIpcOptionsRequest(HttpListenerContext ctx)
 	{
 		ctx.Response.StatusCode = 200;
 		ctx.Response.Close();
 	}
 
-	private async System.Threading.Tasks.Task HandleIpcGetRequest(System.Net.HttpListenerContext ctx)
+	private async Task HandleIpcGetRequest(HttpListenerContext ctx)
 	{
 		if (ctx.Request.Url != null && ctx.Request.Url.AbsolutePath.EndsWith("/locale"))
 		{
 			string locCode = GameSettings.Language.ToLocaleCode();
 			var dict = LocalizationManager.GetDictionary(locCode);
-			var locObj = new System.Text.Json.Nodes.JsonObject();
+			var locObj = new JsonObject();
 			locObj["locale"] = locCode;
-			locObj["dictionary"] = System.Text.Json.JsonSerializer.SerializeToNode(dict);
+			locObj["dictionary"] = JsonSerializer.SerializeToNode(dict);
 			string locJson = locObj.ToJsonString();
-			byte[] locBytes = System.Text.Encoding.UTF8.GetBytes(locJson);
+			byte[] locBytes = Encoding.UTF8.GetBytes(locJson);
 			ctx.Response.ContentType = "application/json";
 			ctx.Response.ContentLength64 = locBytes.Length;
 			await ctx.Response.OutputStream.WriteAsync(locBytes, 0, locBytes.Length);
@@ -911,26 +881,27 @@ public partial class VSCodeManager
 			return;
 		}
 
-		var pollResponseObj = new System.Text.Json.Nodes.JsonObject();
-		var commandsArray = new System.Text.Json.Nodes.JsonArray();
+		var pollResponseObj = new JsonObject();
+		var commandsArray = new JsonArray();
 		while (_pendingExtensionCommands.TryDequeue(out var cmd))
 		{
 			commandsArray.Add(cmd);
 		}
+
 		pollResponseObj["commands"] = commandsArray;
 		string pollResJson = pollResponseObj.ToJsonString();
-		byte[] pollResBytes = System.Text.Encoding.UTF8.GetBytes(pollResJson);
+		byte[] pollResBytes = Encoding.UTF8.GetBytes(pollResJson);
 		ctx.Response.ContentType = "application/json";
 		ctx.Response.ContentLength64 = pollResBytes.Length;
 		await ctx.Response.OutputStream.WriteAsync(pollResBytes, 0, pollResBytes.Length);
 		ctx.Response.Close();
 	}
 
-	private async System.Threading.Tasks.Task HandleEditorApiRequest(JsonNode node, string action, JsonObject responseObj)
+	private async Task HandleEditorApiRequest(JsonNode node, string action, JsonObject responseObj)
 	{
 		string apiMethod = GetApiMethodName(node, action);
 		string reqId = node?["requestId"]?.ToString() ?? "";
-		
+
 		var (apiSuccess, invocationResult, apiError) = await ExecuteEditorApiMethod(apiMethod, node);
 
 		PopulateEditorApiResponse(responseObj, apiMethod, reqId, apiSuccess, invocationResult, apiError);
@@ -941,11 +912,11 @@ public partial class VSCodeManager
 		return action == "invokeEditorApi" ? (node?["method"]?.ToString() ?? "") : action.Substring(10);
 	}
 
-	private async System.Threading.Tasks.Task<(bool success, object? result, string error)> ExecuteEditorApiMethod(string apiMethod, JsonNode node)
+	private async Task<(bool success, object? result, string error)> ExecuteEditorApiMethod(string apiMethod, JsonNode node)
 	{
 		try
 		{
-			var editorApi = ServiceLocator.Get<IEditorAPI>();
+			var editorApi = GameContext.IEditorAPI;
 			if (editorApi == null)
 				return (false, null, "IEditorAPI service not registered or editor inactive.");
 
@@ -964,9 +935,9 @@ public partial class VSCodeManager
 		}
 	}
 
-	private async System.Threading.Tasks.Task<(bool success, object? result, string error)> InvokeMethodAsync(IEditorAPI editorApi, System.Reflection.MethodInfo methodInfo, object?[] args)
+	private async Task<(bool success, object? result, string error)> InvokeMethodAsync(IEditorAPI editorApi, MethodInfo methodInfo, object?[] args)
 	{
-		var tcs = new System.Threading.Tasks.TaskCompletionSource<object?>(System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
+		var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Callable.From(() =>
 		{
 			try
@@ -974,7 +945,7 @@ public partial class VSCodeManager
 				var result = methodInfo.Invoke(editorApi, args);
 				tcs.TrySetResult(result);
 			}
-			catch (System.Reflection.TargetInvocationException tie)
+			catch (TargetInvocationException tie)
 			{
 				tcs.TrySetException(tie.InnerException ?? tie);
 			}
@@ -1002,22 +973,22 @@ public partial class VSCodeManager
 		responseObj["method"] = apiMethod;
 		responseObj["requestId"] = reqId;
 		responseObj["success"] = apiSuccess;
-		
+
 		if (invocationResult != null)
 		{
-			responseObj["result"] = System.Text.Json.JsonSerializer.SerializeToNode(invocationResult);
+			responseObj["result"] = JsonSerializer.SerializeToNode(invocationResult);
 			if (invocationResult is string strVal)
 				responseObj["instanceId"] = strVal;
 			else if (invocationResult is bool bVal)
 				responseObj["deleted"] = bVal;
 		}
-		if (!string.IsNullOrEmpty(apiError)) 
+
+		if (!string.IsNullOrEmpty(apiError))
 			responseObj["error"] = apiError;
 	}
 
 
-
-	private object?[] ParseApiArguments(System.Reflection.MethodInfo methodInfo, JsonNode node)
+	private object?[] ParseApiArguments(MethodInfo methodInfo, JsonNode node)
 	{
 		var parameters = methodInfo.GetParameters();
 		var args = new object?[parameters.Length];
@@ -1027,10 +998,11 @@ public partial class VSCodeManager
 		{
 			args[i] = ParseSingleArgument(parameters[i], argsNode);
 		}
+
 		return args;
 	}
 
-	private object? ParseSingleArgument(System.Reflection.ParameterInfo param, JsonObject argsNode)
+	private object? ParseSingleArgument(ParameterInfo param, JsonObject argsNode)
 	{
 		Type paramType = param.ParameterType;
 		JsonNode? paramNode = GetParamNode(param.Name, argsNode);
@@ -1040,12 +1012,12 @@ public partial class VSCodeManager
 			return GetDefaultArgument(paramType, param, argsNode);
 		}
 
-		if (paramType == typeof(System.Numerics.Vector3))
+		if (paramType == typeof(Vector3))
 		{
 			return ParseVector3Node(paramNode);
 		}
 
-		return System.Text.Json.JsonSerializer.Deserialize(paramNode.ToJsonString(), paramType, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+		return JsonSerializer.Deserialize(paramNode.ToJsonString(), paramType, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 	}
 
 	private JsonNode? GetParamNode(string paramName, JsonObject argsNode)
@@ -1056,7 +1028,7 @@ public partial class VSCodeManager
 		{
 			return matchedNode;
 		}
-		
+
 		foreach (var kvp in argsNode)
 		{
 			if (string.Equals(kvp.Key, paramName, StringComparison.OrdinalIgnoreCase))
@@ -1064,12 +1036,13 @@ public partial class VSCodeManager
 				return kvp.Value;
 			}
 		}
+
 		return null;
 	}
 
-	private object? GetDefaultArgument(Type paramType, System.Reflection.ParameterInfo param, JsonObject argsNode)
+	private object? GetDefaultArgument(Type paramType, ParameterInfo param, JsonObject argsNode)
 	{
-		if (paramType == typeof(System.Numerics.Vector3))
+		if (paramType == typeof(Vector3))
 		{
 			return ExtractVector3FromArgsNode(argsNode);
 		}
@@ -1078,11 +1051,11 @@ public partial class VSCodeManager
 			return param.DefaultValue;
 		if (paramType.IsValueType)
 			return Activator.CreateInstance(paramType);
-			
+
 		return null;
 	}
 
-	private System.Numerics.Vector3 ExtractVector3FromArgsNode(JsonObject argsNode)
+	private Vector3 ExtractVector3FromArgsNode(JsonObject argsNode)
 	{
 		float vx = 0f, vy = 0f, vz = 0f;
 		if (argsNode != null)
@@ -1098,28 +1071,28 @@ public partial class VSCodeManager
 					vz = kvp.Value.GetValue<float>();
 			}
 		}
-		return new System.Numerics.Vector3(vx, vy, vz);
+
+		return new Vector3(vx, vy, vz);
 	}
 
-	private System.Numerics.Vector3 ParseVector3Node(JsonNode paramNode)
+	private Vector3 ParseVector3Node(JsonNode paramNode)
 	{
 		if (paramNode is JsonObject vObj)
 		{
 			return ExtractVector3FromArgsNode(vObj);
 		}
-		
+
 		if (paramNode is JsonArray vArr && vArr.Count >= 3)
 		{
-			return new System.Numerics.Vector3(
+			return new Vector3(
 				vArr[0]?.GetValue<float>() ?? 0f,
 				vArr[1]?.GetValue<float>() ?? 0f,
 				vArr[2]?.GetValue<float>() ?? 0f
 			);
 		}
-		
-		return new System.Numerics.Vector3(0f, 0f, 0f);
-	}
 
+		return new Vector3(0f, 0f, 0f);
+	}
 
 
 	private void HandleOpenVfxDialog(JsonNode node, JsonObject responseObj)
@@ -1130,7 +1103,7 @@ public partial class VSCodeManager
 		Callable.From(() =>
 		{
 			WeaponMetadata meta = null;
-			if (!string.IsNullOrEmpty(weaponId) && Realm.Client.Core.GameHost.WeaponRegistry.TryGetValue(weaponId, out var existing))
+			if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var existing))
 			{
 				meta = existing;
 			}
@@ -1138,9 +1111,9 @@ public partial class VSCodeManager
 			{
 				try
 				{
-					meta = System.Text.Json.JsonSerializer.Deserialize<WeaponMetadata>(
+					meta = JsonSerializer.Deserialize<WeaponMetadata>(
 						weaponDataNode.ToJsonString(),
-						new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+						new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
 					);
 				}
 				catch (Exception ex)
@@ -1149,12 +1122,9 @@ public partial class VSCodeManager
 				}
 			}
 
-			if (UI.MapEditorHUD.Instance != null)
+			if (MapEditorHUD.Instance != null)
 			{
-				UI.MapEditorHUD.Instance.OpenWeaponVfxDialog(weaponId, meta, (updatedMeta) =>
-				{
-					UI.MapEditorHUD.Instance.SaveCustomWeaponToMetadata(weaponId, updatedMeta);
-				});
+				MapEditorHUD.Instance.OpenWeaponVfxDialog(weaponId, meta, (updatedMeta) => { MapEditorHUD.Instance.SaveCustomWeaponToMetadata(weaponId, updatedMeta); });
 			}
 		}).CallDeferred();
 
@@ -1172,12 +1142,9 @@ public partial class VSCodeManager
 
 		Callable.From(() =>
 		{
-			if (UI.MapEditorHUD.Instance == null) return;
-			
-			UI.MapEditorHUD.Instance.OpenModelPickerDialog(entityId, fieldName, domain, currentPath, (updatedPath) =>
-			{
-				UI.MapEditorHUD.Instance.SaveEntityModelPathToMetadata(entityId, fieldName, domain, updatedPath);
-			});
+			if (MapEditorHUD.Instance == null) return;
+
+			MapEditorHUD.Instance.OpenModelPickerDialog(entityId, fieldName, domain, currentPath, (updatedPath) => { MapEditorHUD.Instance.SaveEntityModelPathToMetadata(entityId, fieldName, domain, updatedPath); });
 		}).CallDeferred();
 
 		responseObj["action"] = "openModelPickerResult";
@@ -1185,17 +1152,16 @@ public partial class VSCodeManager
 	}
 
 
-
 	private void HandleOpenAbilityVfxDialog(JsonNode node, JsonObject responseObj)
 	{
 		string abilityId = GetStringProperty(node, "abilityId", "");
-		var abilityDataNode = node["abilityData"] as System.Text.Json.Nodes.JsonObject;
+		var abilityDataNode = node["abilityData"] as JsonObject;
 
 		Callable.From(() =>
 		{
-			if (UI.MapEditorHUD.Instance == null) return;
+			if (MapEditorHUD.Instance == null) return;
 
-			UI.MapEditorHUD.Instance.OpenAbilityVfxDialog(abilityId, abilityDataNode, (updatedData) =>
+			MapEditorHUD.Instance.OpenAbilityVfxDialog(abilityId, abilityDataNode, (updatedData) =>
 			{
 				if (updatedData == null) return;
 
@@ -1203,15 +1169,14 @@ public partial class VSCodeManager
 				string sound = GetStringProperty(updatedData, "CastSound", "");
 				string icon = GetStringProperty(updatedData, "IconPath", "");
 				float aoe = GetFloatProperty(updatedData, "AreaOfEffectRadius", 0f);
-				
-				UI.MapEditorHUD.Instance.SaveCustomAbilityVfxToMetadata(abilityId, vfx, sound, icon, aoe);
+
+				MapEditorHUD.Instance.SaveCustomAbilityVfxToMetadata(abilityId, vfx, sound, icon, aoe);
 			});
 		}).CallDeferred();
 
 		responseObj["action"] = "openAbilityVfxDialogResult";
 		responseObj["success"] = true;
 	}
-
 
 
 	private void HandleOpenAnimationStudio(JsonNode node, JsonObject responseObj)
@@ -1221,9 +1186,9 @@ public partial class VSCodeManager
 
 		Callable.From(() =>
 		{
-			if (UI.MapEditorHUD.Instance != null)
+			if (MapEditorHUD.Instance != null)
 			{
-				UI.MapEditorHUD.Instance.OpenAnimationPreviewDialog(unitId, modelPath);
+				MapEditorHUD.Instance.OpenAnimationPreviewDialog(unitId, modelPath);
 			}
 		}).CallDeferred();
 
@@ -1238,7 +1203,7 @@ public partial class VSCodeManager
 		string requestId = node["requestId"]?.ToString() ?? "";
 
 		var (success, formattedContent, errorMsg) = TryFormatAndSaveJsonFile(filePath, content);
-		
+
 		if (success)
 		{
 			NotifyEditorOfFileUpdate(filePath);
@@ -1247,49 +1212,34 @@ public partial class VSCodeManager
 		PopulateFormatAndSaveJsonResponse(responseObj, requestId, success, filePath, formattedContent, errorMsg);
 	}
 
-	
-
-	
-
-	
-
-	
-
-	
-
-	
-
-	
-
-
 
 	private string GetSaveFilePath(JsonNode node, string action)
 	{
 		string filePath = node["filePath"]?.ToString() ?? "";
 		if (string.IsNullOrEmpty(filePath))
 		{
-			string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-			filePath = System.IO.Path.Combine(wsPath, action == "saveTerrain" ? "terrain.json" : "metadata.json");
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			filePath = Path.Combine(wsPath, action == "saveTerrain" ? "terrain.json" : "metadata.json");
 		}
-		else if (!System.IO.Path.IsPathRooted(filePath))
+		else if (!Path.IsPathRooted(filePath))
 		{
-			string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-			filePath = System.IO.Path.Combine(wsPath, filePath);
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			filePath = Path.Combine(wsPath, filePath);
 		}
+
 		return filePath;
 	}
-
 
 
 	private (bool success, string formattedContent, string errorMsg) TryFormatAndSaveJsonFile(string filePath, string content)
 	{
 		try
 		{
-			string fileName = System.IO.Path.GetFileName(filePath).ToLowerInvariant();
+			string fileName = Path.GetFileName(filePath).ToLowerInvariant();
 			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-			
+
 			string formattedContent = FormatSpecialJsonFile(fileName, filePath, content);
-			
+
 			return (true, formattedContent, "");
 		}
 		catch (Exception ex)
@@ -1306,9 +1256,9 @@ public partial class VSCodeManager
 		{
 			try
 			{
-				var metadata = Realm.Shared.Services.MapFileService.LoadMetadataFromJson(content);
-				Realm.Shared.Services.MapFileService.SaveMetadata(filePath, metadata);
-				formattedContent = Realm.Shared.Services.MapFileService.SaveMetadataToJson(metadata);
+				var metadata = MapFileService.LoadMetadataFromJson(content);
+				MapFileService.SaveMetadata(filePath, metadata);
+				formattedContent = MapFileService.SaveMetadataToJson(metadata);
 			}
 			catch
 			{
@@ -1320,9 +1270,9 @@ public partial class VSCodeManager
 		{
 			try
 			{
-				var manifest = Realm.Shared.Services.MapFileService.LoadManifestFromJson(content);
-				Realm.Shared.Services.MapFileService.SaveManifest(filePath, manifest);
-				formattedContent = Realm.Shared.Services.MapFileService.SaveManifestToJson(manifest);
+				var manifest = MapFileService.LoadManifestFromJson(content);
+				MapFileService.SaveManifest(filePath, manifest);
+				formattedContent = MapFileService.SaveManifestToJson(manifest);
 			}
 			catch
 			{
@@ -1334,9 +1284,9 @@ public partial class VSCodeManager
 		{
 			try
 			{
-				var terrain = Realm.Shared.Services.MapFileService.LoadTerrainFromJson(content);
-				Realm.Shared.Services.MapFileService.SaveTerrain(filePath, terrain);
-				formattedContent = Realm.Shared.Services.MapFileService.SaveTerrainToJson(terrain);
+				var terrain = MapFileService.LoadTerrainFromJson(content);
+				MapFileService.SaveTerrain(filePath, terrain);
+				formattedContent = MapFileService.SaveTerrainToJson(terrain);
 			}
 			catch
 			{
@@ -1349,18 +1299,16 @@ public partial class VSCodeManager
 			formattedContent = MapJsonFormatter.FormatJson(content);
 			MapJsonFormatter.SaveFormattedJson(filePath, formattedContent);
 		}
+
 		return formattedContent;
 	}
 
-
-
-	
 
 	private void NotifyEditorOfFileUpdate(string filePath)
 	{
 		Callable.From(() =>
 		{
-			string fileName = System.IO.Path.GetFileName(filePath).ToLowerInvariant();
+			string fileName = Path.GetFileName(filePath).ToLowerInvariant();
 			if (fileName == "metadata.json" || fileName == "manifest.json")
 			{
 				HandleMetadataUpdate(fileName);
@@ -1374,23 +1322,23 @@ public partial class VSCodeManager
 
 	private void HandleMetadataUpdate(string fileName)
 	{
-		string display = fileName == "manifest.json" ? "manifest.json" : (Services.MapWorkspaceService.GetActiveWorkspacePath() != null ? "Workspace Metadata" : "metadata.json");
+		string display = fileName == "manifest.json" ? "manifest.json" : (MapWorkspaceService.GetActiveWorkspacePath() != null ? "Workspace Metadata" : "metadata.json");
 		Action reloadAction = () =>
 		{
-			if (UI.MapEditorHUD.Instance != null)
+			if (MapEditorHUD.Instance != null)
 			{
-				UI.MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-				UI.MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
+				MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
+				MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
 			}
-			else if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.GroundTerrain != null)
+			else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
 			{
-				Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		};
 
-		if (UI.MapEditor.FloatingDialogBase.HasAnyDialogOpen && UI.MapEditorHUD.Instance != null)
+		if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
 		{
-			UI.MapEditorHUD.Instance.ShowConfirmationDialog(
+			MapEditorHUD.Instance.ShowConfirmationDialog(
 				$"External edits detected in {display}. Reload external changes or keep current dialog changes?",
 				onConfirm: reloadAction,
 				confirmText: "RELOAD",
@@ -1404,23 +1352,20 @@ public partial class VSCodeManager
 	}
 
 
-
-	
-
 	private void HandleTerrainUpdate(string filePath)
 	{
 		Action reloadAction = () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+			if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 			{
-				Realm.Client.Core.GameHost.Instance.LoadMapFromFile(filePath);
-				UI.MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+				GameHost.Instance.LoadMapFromFile(filePath);
+				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
 			}
 		};
 
-		if (UI.MapEditor.FloatingDialogBase.HasAnyDialogOpen && UI.MapEditorHUD.Instance != null)
+		if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
 		{
-			UI.MapEditorHUD.Instance.ShowConfirmationDialog(
+			MapEditorHUD.Instance.ShowConfirmationDialog(
 				"External edits detected in terrain.json. Reload external changes or keep current dialog changes?",
 				onConfirm: reloadAction,
 				confirmText: "RELOAD",
@@ -1445,27 +1390,26 @@ public partial class VSCodeManager
 	}
 
 
-
 	private void HandleReloadMetadata(JsonObject responseObj)
 	{
 		Callable.From(() =>
 		{
 			Action reloadAction = () =>
 			{
-				if (UI.MapEditorHUD.Instance != null)
+				if (MapEditorHUD.Instance != null)
 				{
-					UI.MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-					UI.MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
+					MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
+					MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
 				}
-				else if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.GroundTerrain != null)
+				else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
 				{
-					Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+					GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
 				}
 			};
 
-			if (UI.MapEditor.FloatingDialogBase.HasAnyDialogOpen && UI.MapEditorHUD.Instance != null)
+			if (FloatingDialogBase.HasAnyDialogOpen && MapEditorHUD.Instance != null)
 			{
-				UI.MapEditorHUD.Instance.ShowConfirmationDialog(
+				MapEditorHUD.Instance.ShowConfirmationDialog(
 					"External edits detected in metadata.json. Reload external changes or keep current dialog changes?",
 					onConfirm: reloadAction,
 					confirmText: "RELOAD",
@@ -1488,10 +1432,10 @@ public partial class VSCodeManager
 		string inputPath = node["inputPath"]?.ToString() ?? node["filePath"]?.ToString() ?? "";
 		string outputPath = node["outputPath"]?.ToString() ?? "";
 		int layer = node["layer"] != null ? (int)node["layer"] : 0;
-		
+
 		try
 		{
-			var res = Realm.Shared.Textures.TextureConverter.ExtractPngFromRtex(inputPath, outputPath, layer);
+			var res = TextureConverter.ExtractPngFromRtex(inputPath, outputPath, layer);
 			PopulateRtexConversionResponse(responseObj, res, inputPath);
 		}
 		catch (Exception ex)
@@ -1500,12 +1444,12 @@ public partial class VSCodeManager
 		}
 	}
 
-	private void PopulateRtexConversionResponse(JsonObject responseObj, Realm.Shared.Textures.TextureConversionResult res, string inputPath)
+	private void PopulateRtexConversionResponse(JsonObject responseObj, TextureConversionResult res, string inputPath)
 	{
 		responseObj["action"] = "convertRtexResult";
 		responseObj["type"] = "convertRtexResult";
 		responseObj["success"] = res.Success;
-		
+
 		if (!res.Success)
 		{
 			responseObj["error"] = res.ErrorMessage;
@@ -1523,14 +1467,16 @@ public partial class VSCodeManager
 			if (File.Exists(inputPath))
 			{
 				byte[] rtexBytes = File.ReadAllBytes(inputPath);
-				string? metaJson = Realm.Shared.Textures.RtexFile.ExtractMetadata(rtexBytes);
+				string? metaJson = RtexFile.ExtractMetadata(rtexBytes);
 				if (!string.IsNullOrEmpty(metaJson))
 				{
 					responseObj["metadata"] = JsonNode.Parse(metaJson);
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void PopulateErrorResponse(JsonObject responseObj, string actionName, string errorMessage)
@@ -1542,21 +1488,20 @@ public partial class VSCodeManager
 	}
 
 
-
 	private void HandleRenderRanim(JsonNode node, JsonObject responseObj)
 	{
 		string inputPath = node["inputPath"]?.ToString() ?? node["filePath"]?.ToString() ?? "";
 		string outputPath = node["outputPath"]?.ToString() ?? "";
 		try
 		{
-			var options = new Realm.Shared.Animation.RanimRenderOptions
+			var options = new RanimRenderOptions
 			{
-				Format = Realm.Shared.Animation.RanimOutputFormat.Webp,
+				Format = RanimOutputFormat.Webp,
 				Width = 128,
 				Height = 128,
 				Fps = 12.0f
 			};
-			var res = Realm.Shared.Animation.RanimRenderer.ExportFile(inputPath, outputPath, options);
+			var res = RanimRenderer.ExportFile(inputPath, outputPath, options);
 			responseObj["action"] = "renderRanimResult";
 			responseObj["type"] = "renderRanimResult";
 			responseObj["success"] = res.Success;
@@ -1582,7 +1527,7 @@ public partial class VSCodeManager
 	{
 		string inputPath = node["inputPath"]?.ToString() ?? node["filePath"]?.ToString() ?? "";
 		string outputPath = node["outputPath"]?.ToString() ?? "";
-		
+
 		try
 		{
 			if (!File.Exists(inputPath))
@@ -1592,8 +1537,8 @@ public partial class VSCodeManager
 			}
 
 			byte[] rmeshBytes = File.ReadAllBytes(inputPath);
-			var (metaJson, glbBytes, _) = Realm.Shared.ModelOptimization.RmeshFile.Parse(rmeshBytes);
-			
+			var (metaJson, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
+
 			if (glbBytes.Length == 0)
 			{
 				PopulateErrorResponse(responseObj, "convertRmeshResult", "No GLB payload found in RMESH file.");
@@ -1612,11 +1557,11 @@ public partial class VSCodeManager
 	private void SaveGlbBytes(string outputPath, byte[] glbBytes)
 	{
 		if (string.IsNullOrEmpty(outputPath)) return;
-		
+
 		string? dir = Path.GetDirectoryName(outputPath);
-		if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) 
+		if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
 			Directory.CreateDirectory(dir);
-			
+
 		File.WriteAllBytes(outputPath, glbBytes);
 	}
 
@@ -1626,7 +1571,7 @@ public partial class VSCodeManager
 		responseObj["type"] = "convertRmeshResult";
 		responseObj["success"] = true;
 		responseObj["outputPath"] = outputPath;
-		
+
 		if (!string.IsNullOrEmpty(metaJson))
 		{
 			responseObj["metadata"] = JsonNode.Parse(metaJson);
@@ -1634,8 +1579,7 @@ public partial class VSCodeManager
 	}
 
 
-
-	private string GetStringProperty(System.Text.Json.Nodes.JsonNode node, string key, string defaultValue = "")
+	private string GetStringProperty(JsonNode node, string key, string defaultValue = "")
 	{
 		if (node == null) return defaultValue;
 		var val = node[key];
@@ -1643,7 +1587,7 @@ public partial class VSCodeManager
 		return val.ToString() ?? defaultValue;
 	}
 
-	private int GetIntProperty(System.Text.Json.Nodes.JsonNode node, string key, int defaultValue = 0)
+	private int GetIntProperty(JsonNode node, string key, int defaultValue = 0)
 	{
 		if (node == null) return defaultValue;
 		var val = node[key];
@@ -1651,7 +1595,7 @@ public partial class VSCodeManager
 		return (int)val;
 	}
 
-	private float GetFloatProperty(System.Text.Json.Nodes.JsonNode node, string key, float defaultValue = 0f)
+	private float GetFloatProperty(JsonNode node, string key, float defaultValue = 0f)
 	{
 		if (node == null) return defaultValue;
 		var val = node[key];
@@ -1665,7 +1609,7 @@ public partial class VSCodeManager
 		if (string.IsNullOrEmpty(inputPath)) inputPath = GetStringProperty(node, "filePath", "");
 		string outputPath = GetStringProperty(node, "outputPath", "");
 		int trackIndex = GetIntProperty(node, "trackIndex", 0);
-		
+
 		try
 		{
 			if (!File.Exists(inputPath))
@@ -1675,13 +1619,14 @@ public partial class VSCodeManager
 			}
 
 			byte[] raudBytes = File.ReadAllBytes(inputPath);
-			var (metaJson, tracks, _) = Realm.Shared.Audio.RaudFile.Parse(raudBytes);
-			
+			var (metaJson, tracks, _) = RaudFile.Parse(raudBytes);
+
 			if (tracks.Count <= trackIndex)
 			{
 				PopulateErrorResponse(responseObj, "convertRaudResult", $"Audio track {trackIndex} not found in RAUD file.");
 				return;
 			}
+
 			if (tracks[trackIndex].Length == 0)
 			{
 				PopulateErrorResponse(responseObj, "convertRaudResult", $"Audio track {trackIndex} not found in RAUD file.");
@@ -1700,11 +1645,11 @@ public partial class VSCodeManager
 	private void SaveAudioTrack(string outputPath, byte[] trackData)
 	{
 		if (string.IsNullOrEmpty(outputPath)) return;
-		
+
 		string? dir = Path.GetDirectoryName(outputPath);
-		if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) 
+		if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
 			Directory.CreateDirectory(dir);
-			
+
 		File.WriteAllBytes(outputPath, trackData);
 	}
 
@@ -1715,13 +1660,12 @@ public partial class VSCodeManager
 		responseObj["success"] = true;
 		responseObj["outputPath"] = outputPath;
 		responseObj["trackCount"] = trackCount;
-		
+
 		if (!string.IsNullOrEmpty(metaJson))
 		{
 			responseObj["metadata"] = JsonNode.Parse(metaJson);
 		}
 	}
-
 
 
 	private void STAThreadLoop()
@@ -1800,7 +1744,7 @@ public partial class VSCodeManager
 			int h = (int)((lParam.ToInt64() >> 16) & 0xFFFF);
 			if (_controller != null)
 			{
-				_controller.Bounds = new System.Drawing.Rectangle(0, 0, w, h);
+				_controller.Bounds = new Rectangle(0, 0, w, h);
 			}
 		}
 		else if (msg == 0x0010) // WM_CLOSE
@@ -1813,12 +1757,14 @@ public partial class VSCodeManager
 					_controller.CoreWebView2.Navigate("about:blank");
 					_controller.IsVisible = false;
 				}
+
 				ShowWindow(hWnd, SW_HIDE);
 				_isVisible = false;
 			});
 			PostMessage(hWnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 			return IntPtr.Zero;
 		}
+
 		return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
 
@@ -1831,7 +1777,7 @@ public partial class VSCodeManager
 			PatchVSCodiumConfiguration(embedDir);
 			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
 			string cachePath = Path.Combine(serverDataDir, "webview-cache");
-			
+
 			ClearWebviewCache(cachePath);
 
 			var envOptions = new CoreWebView2EnvironmentOptions
@@ -1840,7 +1786,7 @@ public partial class VSCodeManager
 			};
 			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath, options: envOptions);
 			_controller = await env.CreateCoreWebView2ControllerAsync(_childHwnd);
-			_controller.Bounds = new System.Drawing.Rectangle(0, 0, 800, 600);
+			_controller.Bounds = new Rectangle(0, 0, 800, 600);
 			if (_controller.CoreWebView2?.Settings != null)
 			{
 				_controller.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
@@ -1855,7 +1801,7 @@ public partial class VSCodeManager
 
 			await ClearWebviewCacheAndStorage();
 			NavigateToMapFolder(projectRoot);
-			
+
 			_controller.IsVisible = _isVisible;
 			ShowWindow(_childHwnd, _isVisible ? SW_SHOW : SW_HIDE);
 		}
@@ -1865,15 +1811,8 @@ public partial class VSCodeManager
 		}
 	}
 
-	
 
-	
-
-	
-
-
-
-	private async System.Threading.Tasks.Task ClearWebviewCacheAndStorage()
+	private async Task ClearWebviewCacheAndStorage()
 	{
 		try
 		{
@@ -1886,7 +1825,9 @@ public partial class VSCodeManager
 				);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void NavigateToMapFolder(string projectRoot)
@@ -1902,7 +1843,7 @@ public partial class VSCodeManager
 	private async void HandleNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs args)
 	{
 		if (!args.IsSuccess || sender != _controller.CoreWebView2) return;
-		
+
 		try
 		{
 			await _controller.CoreWebView2.ExecuteScriptAsync(@"
@@ -1954,9 +1895,10 @@ public partial class VSCodeManager
 })();
 ");
 		}
-		catch { }
+		catch
+		{
+		}
 	}
-
 
 
 	private void ClearWebviewCache(string cachePath)
@@ -1970,7 +1912,9 @@ public partial class VSCodeManager
 			string cacheDir = Path.Combine(cachePath, "Default", "Cache");
 			if (Directory.Exists(cacheDir)) Directory.Delete(cacheDir, true);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void SetupWebviewFilters()
@@ -1984,19 +1928,6 @@ public partial class VSCodeManager
 
 		_controller.CoreWebView2.WebResourceRequested += HandleWebResourceRequested;
 	}
-
-	
-
-	
-
-	
-
-	
-
-	
-
-	
-
 
 
 	private async void HandleWebResourceRequested(object sender, CoreWebView2WebResourceRequestedEventArgs args)
@@ -2013,7 +1944,7 @@ public partial class VSCodeManager
 			{
 				var requestMsg = CreateProxyRequest(args.Request, uriObj.ToString());
 				var responseMsg = await _localProxyHttpClient.SendAsync(requestMsg, HttpCompletionOption.ResponseHeadersRead);
-				
+
 				var webResponse = await CreateProxyResponse(responseMsg, uriObj);
 				args.Response = webResponse;
 			}
@@ -2070,14 +2001,14 @@ public partial class VSCodeManager
 			requestMsg.Content = new StreamContent(ms);
 			if (request.Headers.Contains("Content-Type"))
 			{
-				requestMsg.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(request.Headers.GetHeader("Content-Type"));
+				requestMsg.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(request.Headers.GetHeader("Content-Type"));
 			}
 		}
-		
+
 		return requestMsg;
 	}
 
-	private async System.Threading.Tasks.Task<CoreWebView2WebResourceResponse> CreateProxyResponse(HttpResponseMessage responseMsg, Uri uriObj)
+	private async Task<CoreWebView2WebResourceResponse> CreateProxyResponse(HttpResponseMessage responseMsg, Uri uriObj)
 	{
 		byte[] responseBytes = await responseMsg.Content.ReadAsByteArrayAsync();
 
@@ -2103,7 +2034,7 @@ public partial class VSCodeManager
 
 		if (isSpecialVSCodeResource)
 		{
-			string originalContent = System.Text.Encoding.UTF8.GetString(responseBytes);
+			string originalContent = Encoding.UTF8.GetString(responseBytes);
 			string patchedContent = originalContent;
 			if (uriObj.AbsolutePath.EndsWith("index.html", StringComparison.OrdinalIgnoreCase))
 			{
@@ -2114,18 +2045,19 @@ public partial class VSCodeManager
 				patchedContent = PatchWorkbenchJsContent(originalContent);
 			}
 
-			if (!object.ReferenceEquals(originalContent, patchedContent))
+			if (!ReferenceEquals(originalContent, patchedContent))
 			{
-				return System.Text.Encoding.UTF8.GetBytes(patchedContent);
+				return Encoding.UTF8.GetBytes(patchedContent);
 			}
 		}
-		
+
 		return responseBytes;
 	}
 
 	private string BuildProxyResponseHeaders(HttpResponseMessage responseMsg)
 	{
-		var headersBuilder = new System.Text.StringBuilder();
+		var headersBuilder = new StringBuilder();
+
 		void AppendHeader(string key, IEnumerable<string> values)
 		{
 			if (key.Equals("X-Frame-Options", StringComparison.OrdinalIgnoreCase)) return;
@@ -2140,8 +2072,10 @@ public partial class VSCodeManager
 				{
 					headersBuilder.AppendLine($"Content-Security-Policy: {relaxed}");
 				}
+
 				return;
 			}
+
 			headersBuilder.AppendLine($"{key}: {string.Join(" ", values)}");
 		}
 
@@ -2157,23 +2091,15 @@ public partial class VSCodeManager
 		headersBuilder.AppendLine("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD");
 		headersBuilder.AppendLine("Access-Control-Allow-Headers: *");
 		headersBuilder.AppendLine("Access-Control-Allow-Private-Network: true");
-		
+
 		return headersBuilder.ToString();
 	}
-
 
 
 	private void SetupWebviewMessageHandling()
 	{
 		_controller.AcceleratorKeyPressed += HandleAcceleratorKeyPressed;
 	}
-
-	
-
-	
-
-	
-
 
 
 	private void HandleAcceleratorKeyPressed(object sender, CoreWebView2AcceleratorKeyPressedEventArgs args)
@@ -2210,21 +2136,17 @@ public partial class VSCodeManager
 	{
 		bool isControlPressed = (GetKeyState(0x11) & 0x8000) != 0;
 		bool isShiftPressed = (GetKeyState(0x10) & 0x8000) != 0;
-		
+
 		if (isControlPressed && isShiftPressed && (args.VirtualKey == 0x49 || args.VirtualKey == 0x4A)) // Ctrl+Shift+I or Ctrl+Shift+J
 		{
 			if (args.KeyEventKind == CoreWebView2KeyEventKind.KeyDown)
 			{
 				args.Handled = true;
-				_actionQueue.Enqueue(() =>
-				{
-					_controller?.CoreWebView2?.OpenDevToolsWindow();
-				});
+				_actionQueue.Enqueue(() => { _controller?.CoreWebView2?.OpenDevToolsWindow(); });
 				PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 			}
 		}
 	}
-
 
 
 	private void PositionOnScreen()
@@ -2256,7 +2178,6 @@ public partial class VSCodeManager
 
 	public void SetVisible(bool visible)
 	{
-
 		_isVisible = visible;
 		if (!_isInitialized)
 		{
@@ -2265,6 +2186,7 @@ public partial class VSCodeManager
 				_containerControl = null;
 				Initialize(_containerControl);
 			}
+
 			return;
 		}
 
@@ -2285,6 +2207,7 @@ public partial class VSCodeManager
 				{
 					_controller.IsVisible = false;
 				}
+
 				ShowWindow(_childHwnd, SW_HIDE);
 			}
 		});
@@ -2386,7 +2309,7 @@ public partial class VSCodeManager
 		{
 			if (_controller != null)
 			{
-				string payload = System.Text.Json.JsonSerializer.Serialize(new[] { new[] { "openFile", fullPath } });
+				string payload = JsonSerializer.Serialize(new[] { new[] { "openFile", fullPath } });
 				string targetUrl = $"http://127.0.0.1:{_vscodePort}/?folder={Uri.EscapeDataString(mapFolder)}&payload={Uri.EscapeDataString(payload)}&ipcPort={_ipcHttpPort}";
 				_controller.CoreWebView2.Navigate(targetUrl);
 			}
@@ -2401,6 +2324,7 @@ public partial class VSCodeManager
 		{
 			formatted = "/" + formatted;
 		}
+
 		return formatted;
 	}
 
@@ -2414,6 +2338,7 @@ public partial class VSCodeManager
 			{
 				Directory.CreateDirectory(directory);
 			}
+
 			File.WriteAllText(recentPathFile, dirPath);
 		}
 		catch
@@ -2423,7 +2348,6 @@ public partial class VSCodeManager
 
 	private string GetMapFolderToOpen(string projectRoot)
 	{
-
 		if (TryGetTempWorkspacePath(out string tempPath))
 			return tempPath;
 
@@ -2433,22 +2357,23 @@ public partial class VSCodeManager
 		if (TryGetBlankMapPath(out string blankPath))
 			return blankPath;
 
-		string fallbackMap = Realm.Client.Core.GameHost.Instance?.ActiveMapName ?? "melee";
+		string fallbackMap = ECSContext.ActiveMapName ?? "melee";
 		return Path.Combine(projectRoot, "Maps", fallbackMap).Replace("\\", "/");
 	}
 
 	private bool TryGetTempWorkspacePath(out string path)
 	{
 		path = string.Empty;
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 		{
-			string tempWorkspace = ProjectSettings.GlobalizePath(UI.MapEditorHUD.TempWorkspaceGodotPath);
+			string tempWorkspace = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			if (Directory.Exists(tempWorkspace))
 			{
 				path = tempWorkspace.Replace("\\", "/");
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -2468,7 +2393,10 @@ public partial class VSCodeManager
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return false;
 	}
 
@@ -2477,19 +2405,23 @@ public partial class VSCodeManager
 		path = string.Empty;
 		try
 		{
-			if (Realm.Client.Core.GameHost.Instance != null)
+			if (GameHost.Instance != null)
 			{
-				string docPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments);
+				string docPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 				string blankDir = Path.Combine(docPath, "blank_map");
 				if (!Directory.Exists(blankDir))
 				{
-					((IGameAPI)Realm.Client.Core.GameHost.Instance).GenerateMapDirectory("blank_map", docPath);
+					((IGameAPI)GameHost.Instance).GenerateMapDirectory("blank_map", docPath);
 				}
+
 				path = blankDir.Replace("\\", "/");
 				return true;
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return false;
 	}
 
@@ -2502,6 +2434,7 @@ public partial class VSCodeManager
 				_controller.Close();
 				_controller = null;
 			}
+
 			if (_childHwnd != IntPtr.Zero)
 			{
 				DestroyWindow(_childHwnd);
@@ -2519,6 +2452,7 @@ public partial class VSCodeManager
 			catch
 			{
 			}
+
 			_vscodeProcess = null;
 		}
 
@@ -2540,9 +2474,9 @@ public partial class VSCodeManager
 		tempProcess.Start();
 		AddProcessToJob(tempProcess);
 
-		System.Threading.Thread.Sleep(2000);
+		Thread.Sleep(2000);
 
-		var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
+		var tcs = new TaskCompletionSource<bool>();
 		var thread = new Thread(() =>
 		{
 			try
@@ -2593,7 +2527,7 @@ public partial class VSCodeManager
 		}
 	}
 
-	private void RunBypassSTA(System.Threading.Tasks.TaskCompletionSource<bool> tcs, string embedDir)
+	private void RunBypassSTA(TaskCompletionSource<bool> tcs, string embedDir)
 	{
 		var syncContext = new SingleThreadSynchronizationContext();
 		SynchronizationContext.SetSynchronizationContext(syncContext);
@@ -2647,6 +2581,7 @@ public partial class VSCodeManager
 				controller.Close();
 				controller = null;
 			}
+
 			running = false;
 			PostMessage(bypassHwnd, WM_USER + 1, IntPtr.Zero, IntPtr.Zero);
 		};
@@ -2668,6 +2603,7 @@ public partial class VSCodeManager
 				running = false;
 				break;
 			}
+
 			TranslateMessage(ref msg);
 			DispatchMessage(ref msg);
 			syncContext.RunPending();
@@ -2679,21 +2615,21 @@ public partial class VSCodeManager
 		return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
 
-	private async void InitializeBypassWebView(IntPtr hwnd, System.Threading.Tasks.TaskCompletionSource<bool> tcs, SingleThreadSynchronizationContext syncContext, Action<CoreWebView2Controller> setController, Action closeAction, string embedDir)
+	private async void InitializeBypassWebView(IntPtr hwnd, TaskCompletionSource<bool> tcs, SingleThreadSynchronizationContext syncContext, Action<CoreWebView2Controller> setController, Action closeAction, string embedDir)
 	{
 		try
 		{
 			string cachePath = Path.Combine(embedDir, "user-data-dir", "webview-cache");
 			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath);
 			var localController = await env.CreateCoreWebView2ControllerAsync(hwnd);
-			
+
 			setController(localController);
-			localController.Bounds = new System.Drawing.Rectangle(0, 0, 100, 100);
+			localController.Bounds = new Rectangle(0, 0, 100, 100);
 			localController.IsVisible = false;
 
 			int navigationCount = 0;
 			int retryCount = 0;
-			
+
 			localController.CoreWebView2.NavigationCompleted += async (sender, args) =>
 			{
 				await HandleBypassNavigationCompleted(args, localController, tcs, closeAction, navigationCount, retryCount);
@@ -2711,13 +2647,13 @@ public partial class VSCodeManager
 		}
 	}
 
-	private async System.Threading.Tasks.Task HandleBypassNavigationCompleted(CoreWebView2NavigationCompletedEventArgs args, CoreWebView2Controller localController, System.Threading.Tasks.TaskCompletionSource<bool> tcs, Action closeAction, int navigationCount, int retryCount)
+	private async Task HandleBypassNavigationCompleted(CoreWebView2NavigationCompletedEventArgs args, CoreWebView2Controller localController, TaskCompletionSource<bool> tcs, Action closeAction, int navigationCount, int retryCount)
 	{
 		if (!args.IsSuccess)
 		{
 			if (navigationCount == 0 && retryCount < 10)
 			{
-				await System.Threading.Tasks.Task.Delay(500);
+				await Task.Delay(500);
 				localController.CoreWebView2.Navigate($"http://127.0.0.1:{_vscodePort}/");
 			}
 			else
@@ -2726,6 +2662,7 @@ public partial class VSCodeManager
 				tcs.TrySetResult(false);
 				closeAction();
 			}
+
 			return;
 		}
 
@@ -2753,28 +2690,28 @@ public partial class VSCodeManager
 	private string GetBypassTrustScript()
 	{
 		const string templatePath = "res://Templates/vscode_bypass_trust.js";
-		if (global::Godot.FileAccess.FileExists(templatePath))
+		if (FileAccess.FileExists(templatePath))
 		{
-			using var file = global::Godot.FileAccess.Open(templatePath, global::Godot.FileAccess.ModeFlags.Read);
+			using var file = FileAccess.Open(templatePath, FileAccess.ModeFlags.Read);
 			if (file != null) return file.GetAsText();
 		}
-		
+
 		string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "vscode_bypass_trust.js");
 		if (File.Exists(diskPath)) return File.ReadAllText(diskPath);
-		
+
 		return string.Empty;
 	}
 
 	private void InstallMissingExtensions(string exePath, string embedDir)
 	{
 		string extensionFolder = Path.Combine(embedDir, "data", "extensions", $"speige.realm-map-editor-{GetRealmMapEditorVersion()}");
-		
+
 		if (!Directory.Exists(extensionFolder))
 		{
 			GD.Print("Installing Realm Map Editor VSCode extension...");
 			ExecuteVSCodeCommand(exePath, $"--install-extension speige.realm-map-editor");
 		}
-		
+
 		string csharpExtFolder = Path.Combine(embedDir, "data", "extensions", "ms-dotnettools.csharp");
 		if (!Directory.Exists(csharpExtFolder))
 		{
@@ -2787,7 +2724,7 @@ public partial class VSCodeManager
 	{
 		try
 		{
-			var startInfo = new System.Diagnostics.ProcessStartInfo
+			var startInfo = new ProcessStartInfo
 			{
 				FileName = vscodePath,
 				Arguments = arguments,
@@ -2796,9 +2733,9 @@ public partial class VSCodeManager
 				RedirectStandardOutput = true,
 				RedirectStandardError = true
 			};
-			var process = System.Diagnostics.Process.Start(startInfo);
+			var process = Process.Start(startInfo);
 			process.WaitForExit();
-			
+
 			if (process.ExitCode != 0)
 			{
 				string error = process.StandardError.ReadToEnd();
@@ -2828,13 +2765,14 @@ public partial class VSCodeManager
 		{
 			return FrameAncestorsRegex().Replace(csp, "frame-ancestors *;");
 		}
+
 		return csp.TrimEnd(';', ' ') + "; frame-ancestors *;";
 	}
 
 	private static IEnumerable<string> GetVSCodeTargetDirectories(string embedDir)
 	{
 		var targets = new List<string>();
-		
+
 		if (!string.IsNullOrEmpty(embedDir))
 		{
 			targets.Add(embedDir);
@@ -2842,10 +2780,10 @@ public partial class VSCodeManager
 
 		if (OS.GetName() == "Windows")
 		{
-			string localAppData = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
-			string programFiles = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ProgramFiles);
-			string programFilesX86 = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ProgramFilesX86);
-			
+			string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+			string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+			string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
 			targets.Add(Path.Combine(localAppData, "Programs", "Microsoft VS Code"));
 			targets.Add(Path.Combine(programFiles, "Microsoft VS Code"));
 			targets.Add(Path.Combine(programFilesX86, "Microsoft VS Code"));
@@ -2859,7 +2797,7 @@ public partial class VSCodeManager
 			targets.Add("/usr/share/code");
 			targets.Add("/opt/visual-studio-code");
 		}
-		
+
 		return targets;
 	}
 
@@ -2875,6 +2813,7 @@ public partial class VSCodeManager
 				{
 					PatchProductJson(productJsonPath);
 				}
+
 				string outDir = Path.Combine(root, "out");
 				if (Directory.Exists(outDir))
 				{
@@ -2894,20 +2833,20 @@ public partial class VSCodeManager
 
 		try
 		{
-			var jsonNode = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(productJsonPath, System.Text.Encoding.UTF8));
+			var jsonNode = JsonNode.Parse(File.ReadAllText(productJsonPath, Encoding.UTF8));
 			if (jsonNode == null) return;
-			
+
 			bool needsUpdate = false;
 			var extensionAllowedProposedApi = jsonNode["extensionAllowedProposedApi"]?.AsArray();
-			
+
 			if (extensionAllowedProposedApi != null)
 			{
 				needsUpdate = AddProposedApi(extensionAllowedProposedApi, "speige.realm-map-editor");
 			}
-			
+
 			if (needsUpdate)
 			{
-				File.WriteAllText(productJsonPath, jsonNode.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+				File.WriteAllText(productJsonPath, jsonNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
 				GD.Print("Successfully patched VSCode product.json for proposed APIs.");
 			}
 		}
@@ -2921,7 +2860,7 @@ public partial class VSCodeManager
 		}
 	}
 
-	private static bool AddProposedApi(System.Text.Json.Nodes.JsonArray apiArray, string extensionName)
+	private static bool AddProposedApi(JsonArray apiArray, string extensionName)
 	{
 		foreach (var item in apiArray)
 		{
@@ -2930,7 +2869,7 @@ public partial class VSCodeManager
 				return false;
 			}
 		}
-		
+
 		apiArray.Add(extensionName);
 		return true;
 	}
@@ -2996,15 +2935,17 @@ public partial class VSCodeManager
 			{
 				try
 				{
-					string content = File.ReadAllText(jsPath, System.Text.Encoding.UTF8);
+					string content = File.ReadAllText(jsPath, Encoding.UTF8);
 					string patched = PatchWorkbenchJsContent(content);
 					if (patched != content)
 					{
-						File.WriteAllText(jsPath, patched, new System.Text.UTF8Encoding(false));
+						File.WriteAllText(jsPath, patched, new UTF8Encoding(false));
 						GD.Print($"VS Code: Patched transferable stream support in {jsPath}");
 					}
 				}
-				catch { }
+				catch
+				{
+				}
 			}
 
 			string htmlPath = Path.Combine(outDir, "vs", "workbench", "contrib", "webview", "browser", "pre", "index.html");
@@ -3012,15 +2953,17 @@ public partial class VSCodeManager
 			{
 				try
 				{
-					string content = File.ReadAllText(htmlPath, System.Text.Encoding.UTF8);
+					string content = File.ReadAllText(htmlPath, Encoding.UTF8);
 					string patched = PatchIndexHtmlContent(content);
 					if (patched != content)
 					{
-						File.WriteAllText(htmlPath, patched, new System.Text.UTF8Encoding(false));
+						File.WriteAllText(htmlPath, patched, new UTF8Encoding(false));
 						GD.Print($"VS Code: Patched service worker postMessage error guard in {htmlPath}");
 					}
 				}
-				catch { }
+				catch
+				{
+				}
 			}
 		}
 		catch (Exception ex)
@@ -3054,6 +2997,7 @@ public partial class VSCodeManager
 		{
 			return false;
 		}
+
 		try
 		{
 			string[] directories = Directory.GetDirectories(extensionsDir);
@@ -3069,46 +3013,7 @@ public partial class VSCodeManager
 		catch
 		{
 		}
+
 		return false;
-	}
-
-	private class SingleThreadSynchronizationContext : SynchronizationContext
-	{
-		private readonly ConcurrentQueue<Action> _queue = new ConcurrentQueue<Action>();
-		private IntPtr _targetHwnd = IntPtr.Zero;
-
-		public void SetTargetHwnd(IntPtr hwnd)
-		{
-			_targetHwnd = hwnd;
-		}
-
-		public override void Post(SendOrPostCallback d, object? state)
-		{
-			_queue.Enqueue(() => d(state));
-			if (_targetHwnd != IntPtr.Zero)
-			{
-				PostMessage(_targetHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-			}
-		}
-
-		public override void Send(SendOrPostCallback d, object? state)
-		{
-			throw new NotSupportedException();
-		}
-
-		public void RunPending()
-		{
-			while (_queue.TryDequeue(out var action))
-			{
-				try
-				{
-					action();
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr("Error in SingleThreadSynchronizationContext: " + ex.Message);
-				}
-			}
-		}
 	}
 }

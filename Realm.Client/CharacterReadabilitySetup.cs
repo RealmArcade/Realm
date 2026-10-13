@@ -22,26 +22,30 @@ public partial class CharacterReadabilitySetup : Node3D
 	/// the model retains identity colour even in total darkness. Ally units
 	/// typically use a warm gold; enemy units a deep crimson.
 	/// </summary>
-	[Export] public Color AccentColor { get; set; } = new Color(0.95f, 0.82f, 0.55f);
+	[Export]
+	public Color AccentColor { get; set; } = new Color(0.95f, 0.82f, 0.55f);
 
 	/// <summary>
 	/// Roughness target for all model surfaces. Balanced at 0.65 so armour
 	/// does not mirror-reflect a dark skybox into total black, while still
 	/// allowing sharp specular glints from the high-energy directional sun.
 	/// </summary>
-	[Export] public float TargetRoughness { get; set; } = 0.65f;
+	[Export]
+	public float TargetRoughness { get; set; } = 0.65f;
 
 	/// <summary>
 	/// Specular intensity target. 0.25 allows hard glints on armor poly-edges
 	/// without blowing highlights out to flat white under Filmic tonemap.
 	/// </summary>
-	[Export] public float TargetSpecular { get; set; } = 0.25f;
+	[Export]
+	public float TargetSpecular { get; set; } = 0.25f;
 
 	/// <summary>
 	/// Emission energy. Low enough to be invisible in daylight, but prevents
 	/// models from reaching absolute-black under any lighting configuration.
 	/// </summary>
-	[Export] public float BaseEmissionEnergy { get; set; } = 0.07f;
+	[Export]
+	public float BaseEmissionEnergy { get; set; } = 0.07f;
 
 	public override void _Ready()
 	{

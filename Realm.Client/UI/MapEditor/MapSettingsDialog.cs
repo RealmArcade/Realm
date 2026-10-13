@@ -1,14 +1,15 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Shared.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class MapSettingsDialog : FloatingDialogBase
 {
 	private LineEdit _txtMapName;
 	private LineEdit _txtMapVersion;
@@ -65,7 +66,7 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		contentVBox.AddThemeConstantOverride("separation", 8);
 		scroll.AddChild(contentVBox);
-		
+
 		return contentVBox;
 	}
 
@@ -74,31 +75,31 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		var namePanel = CreateSectionBox(contentVBox, "🏷️ " + TranslationServer.Translate("Map Name"));
 		_txtMapName = new LineEdit();
 		_txtMapName.PlaceholderText = TranslationServer.Translate("Enter map name...");
-		
+
 		bool isSanitizingMapName = false;
 		_txtMapName.TextChanged += (txt) =>
 		{
 			if (isSanitizingMapName) return;
-			if (!txt.Contains(Services.MapWorkspaceService.DefaultWorkspaceFolder, StringComparison.OrdinalIgnoreCase))
+			if (!txt.Contains(MapWorkspaceService.DefaultWorkspaceFolder, StringComparison.OrdinalIgnoreCase))
 			{
 				SaveMapProperties();
 				Hud?.UpdateMapNameHeader();
 				return;
 			}
-			
+
 			isSanitizingMapName = true;
 			try
 			{
 				int previousCaretPosition = _txtMapName.CaretColumn;
-				string sanitizedText = txt.Replace(Services.MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase);
+				string sanitizedText = txt.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase);
 				_txtMapName.Text = sanitizedText;
-				_txtMapName.CaretColumn = Math.Clamp(previousCaretPosition - Services.MapWorkspaceService.DefaultWorkspaceFolder.Length, 0, sanitizedText.Length);
+				_txtMapName.CaretColumn = Math.Clamp(previousCaretPosition - MapWorkspaceService.DefaultWorkspaceFolder.Length, 0, sanitizedText.Length);
 			}
 			finally
 			{
 				isSanitizingMapName = false;
 			}
-			
+
 			SaveMapProperties();
 			Hud?.UpdateMapNameHeader();
 		};
@@ -110,10 +111,7 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		var versionPanel = CreateSectionBox(contentVBox, "🔢 " + TranslationServer.Translate("Map Version"));
 		_txtMapVersion = new LineEdit();
 		_txtMapVersion.PlaceholderText = "1.0.0";
-		_txtMapVersion.TextChanged += (_) =>
-		{
-			SaveMapProperties();
-		};
+		_txtMapVersion.TextChanged += (_) => { SaveMapProperties(); };
 		versionPanel.AddChild(_txtMapVersion);
 	}
 
@@ -152,12 +150,12 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		{
 			int idx = (int)index;
 			if (idx < 0 || idx >= _skyboxFiles.Count) return;
-			
+
 			string selectedFile = _skyboxFiles[idx];
 			string relPath = selectedFile.Contains("/") || selectedFile.Contains("\\")
 				? selectedFile
 				: $"Assets/skyboxes/{selectedFile}";
-			Realm.Client.Core.GameHost.Instance?.SetSkyboxTexture(relPath);
+			GameHost.Instance?.SetSkyboxTexture(relPath);
 		};
 		skyboxPanel.AddChild(_optSkybox);
 
@@ -188,22 +186,22 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		_lblCamLeftVal = CreateBadgeLabel();
 		var btnLeftDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Left boundary further left (West)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
 			Hud?.EnsureCameraBoundsVisible();
-			float minX = -Realm.Client.Core.GameHost.Instance.GroundTerrain.Width;
-			Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft = Mathf.Max(minX, Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft - 5.0f);
-			Realm.Client.Core.GameHost.Instance.RebuildCameraBoundsOverlay();
+			float minX = -GameHost.Instance.GroundTerrain.Width;
+			GameHost.Instance.EditorCameraBoundsLeft = Mathf.Max(minX, GameHost.Instance.EditorCameraBoundsLeft - 5.0f);
+			GameHost.Instance.RebuildCameraBoundsOverlay();
 			UpdateCameraBoundsUI();
 		});
 		var btnLeftInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Left boundary further right (East)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
 			Hud?.EnsureCameraBoundsVisible();
-			float maxX = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight;
-			Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft = Mathf.Min(maxX, Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft + 5.0f);
-			Realm.Client.Core.GameHost.Instance.RebuildCameraBoundsOverlay();
+			float maxX = GameHost.Instance.EditorCameraBoundsRight;
+			GameHost.Instance.EditorCameraBoundsLeft = Mathf.Min(maxX, GameHost.Instance.EditorCameraBoundsLeft + 5.0f);
+			GameHost.Instance.RebuildCameraBoundsOverlay();
 			UpdateCameraBoundsUI();
 		});
 		camGrid.AddChild(_lblCamLeftVal);
@@ -216,22 +214,22 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		_lblCamRightVal = CreateBadgeLabel();
 		var btnRightDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Right boundary further left (West)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
 			Hud?.EnsureCameraBoundsVisible();
-			float minX = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft;
-			Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight = Mathf.Max(minX, Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight - 5.0f);
-			Realm.Client.Core.GameHost.Instance.RebuildCameraBoundsOverlay();
+			float minX = GameHost.Instance.EditorCameraBoundsLeft;
+			GameHost.Instance.EditorCameraBoundsRight = Mathf.Max(minX, GameHost.Instance.EditorCameraBoundsRight - 5.0f);
+			GameHost.Instance.RebuildCameraBoundsOverlay();
 			UpdateCameraBoundsUI();
 		});
 		var btnRightInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Right boundary further right (East)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
 			Hud?.EnsureCameraBoundsVisible();
-			float maxX = (float)Realm.Client.Core.GameHost.Instance.GroundTerrain.Width;
-			Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight = Mathf.Min(maxX, Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight + 5.0f);
-			Realm.Client.Core.GameHost.Instance.RebuildCameraBoundsOverlay();
+			float maxX = (float)GameHost.Instance.GroundTerrain.Width;
+			GameHost.Instance.EditorCameraBoundsRight = Mathf.Min(maxX, GameHost.Instance.EditorCameraBoundsRight + 5.0f);
+			GameHost.Instance.RebuildCameraBoundsOverlay();
 			UpdateCameraBoundsUI();
 		});
 		camGrid.AddChild(_lblCamRightVal);
@@ -244,22 +242,22 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		_lblCamTopVal = CreateBadgeLabel();
 		var btnTopDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Top boundary further North (Up)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
 			Hud?.EnsureCameraBoundsVisible();
-			float minZ = -Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth;
-			Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop = Mathf.Max(minZ, Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop - 5.0f);
-			Realm.Client.Core.GameHost.Instance.RebuildCameraBoundsOverlay();
+			float minZ = -GameHost.Instance.GroundTerrain.Depth;
+			GameHost.Instance.EditorCameraBoundsTop = Mathf.Max(minZ, GameHost.Instance.EditorCameraBoundsTop - 5.0f);
+			GameHost.Instance.RebuildCameraBoundsOverlay();
 			UpdateCameraBoundsUI();
 		});
 		var btnTopInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Top boundary further South (Down)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
 			Hud?.EnsureCameraBoundsVisible();
-			float maxZ = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop;
-			Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop = Mathf.Min(maxZ, Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop + 5.0f);
-			Realm.Client.Core.GameHost.Instance.RebuildCameraBoundsOverlay();
+			float maxZ = GameHost.Instance.EditorCameraBoundsTop;
+			GameHost.Instance.EditorCameraBoundsTop = Mathf.Min(maxZ, GameHost.Instance.EditorCameraBoundsTop + 5.0f);
+			GameHost.Instance.RebuildCameraBoundsOverlay();
 			UpdateCameraBoundsUI();
 		});
 		camGrid.AddChild(_lblCamTopVal);
@@ -272,22 +270,22 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		_lblCamBottomVal = CreateBadgeLabel();
 		var btnBottomDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Bottom boundary further North (Up)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
 			Hud?.EnsureCameraBoundsVisible();
-			float minZ = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop;
-			Realm.Client.Core.GameHost.Instance.EditorCameraBoundsBottom = Mathf.Max(minZ, Realm.Client.Core.GameHost.Instance.EditorCameraBoundsBottom - 5.0f);
-			Realm.Client.Core.GameHost.Instance.RebuildCameraBoundsOverlay();
+			float minZ = GameHost.Instance.EditorCameraBoundsTop;
+			GameHost.Instance.EditorCameraBoundsBottom = Mathf.Max(minZ, GameHost.Instance.EditorCameraBoundsBottom - 5.0f);
+			GameHost.Instance.RebuildCameraBoundsOverlay();
 			UpdateCameraBoundsUI();
 		});
 		var btnBottomInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Bottom boundary further South (Down)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
 			Hud?.EnsureCameraBoundsVisible();
-			float maxZ = (float)Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth;
-			Realm.Client.Core.GameHost.Instance.EditorCameraBoundsBottom = Mathf.Min(maxZ, Realm.Client.Core.GameHost.Instance.EditorCameraBoundsBottom + 5.0f);
-			Realm.Client.Core.GameHost.Instance.RebuildCameraBoundsOverlay();
+			float maxZ = (float)GameHost.Instance.GroundTerrain.Depth;
+			GameHost.Instance.EditorCameraBoundsBottom = Mathf.Min(maxZ, GameHost.Instance.EditorCameraBoundsBottom + 5.0f);
+			GameHost.Instance.RebuildCameraBoundsOverlay();
 			UpdateCameraBoundsUI();
 		});
 		camGrid.AddChild(_lblCamBottomVal);
@@ -314,24 +312,24 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		_lblMapWidthVal = CreateBadgeLabel();
 		var btnWidthDec = CreateControlButton(UnicodeIcons.MINUS, "Decrease map tile columns (West)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
-			int w = Realm.Client.Core.GameHost.Instance.GroundTerrain.Width;
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
+			int w = GameHost.Instance.GroundTerrain.Width;
 			if (w <= 32) return;
-			
+
 			int targetW = Math.Max(32, (w % 32 == 0 ? w - 32 : (w / 32) * 32));
-			Realm.Client.Core.GameHost.Instance.ResizeMapExternal(targetW, Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth);
+			GameHost.Instance.ResizeMapExternal(targetW, GameHost.Instance.GroundTerrain.Depth);
 			UpdateCameraBoundsUI();
 		});
 		var btnWidthInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile columns (East)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
-			int w = Realm.Client.Core.GameHost.Instance.GroundTerrain.Width;
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
+			int w = GameHost.Instance.GroundTerrain.Width;
 			if (w >= 512) return;
-			
+
 			int targetW = Math.Min(512, (w / 32 + 1) * 32);
-			Realm.Client.Core.GameHost.Instance.ResizeMapExternal(targetW, Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth);
+			GameHost.Instance.ResizeMapExternal(targetW, GameHost.Instance.GroundTerrain.Depth);
 			UpdateCameraBoundsUI();
 		});
 		sizeGrid.AddChild(_lblMapWidthVal);
@@ -344,24 +342,24 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		_lblMapHeightVal = CreateBadgeLabel();
 		var btnHeightDec = CreateControlButton(UnicodeIcons.MINUS, "Decrease map tile rows (North)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
-			int d = Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth;
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
+			int d = GameHost.Instance.GroundTerrain.Depth;
 			if (d <= 32) return;
-			
+
 			int targetD = Math.Max(32, (d % 32 == 0 ? d - 32 : (d / 32) * 32));
-			Realm.Client.Core.GameHost.Instance.ResizeMapExternal(Realm.Client.Core.GameHost.Instance.GroundTerrain.Width, targetD);
+			GameHost.Instance.ResizeMapExternal(GameHost.Instance.GroundTerrain.Width, targetD);
 			UpdateCameraBoundsUI();
 		});
 		var btnHeightInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile rows (South)", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-			
-			int d = Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth;
+			if (GameHost.Instance?.GroundTerrain == null) return;
+
+			int d = GameHost.Instance.GroundTerrain.Depth;
 			if (d >= 512) return;
-			
+
 			int targetD = Math.Min(512, (d / 32 + 1) * 32);
-			Realm.Client.Core.GameHost.Instance.ResizeMapExternal(Realm.Client.Core.GameHost.Instance.GroundTerrain.Width, targetD);
+			GameHost.Instance.ResizeMapExternal(GameHost.Instance.GroundTerrain.Width, targetD);
 			UpdateCameraBoundsUI();
 		});
 		sizeGrid.AddChild(_lblMapHeightVal);
@@ -379,9 +377,9 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		_btnScaleMap.CustomMinimumSize = new Vector2(0, 26);
 		_btnScaleMap.Pressed += () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null || Hud == null) return;
-			
-			Hud.SetScaleDialogTargets(Realm.Client.Core.GameHost.Instance.GroundTerrain.Width, Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth);
+			if (GameHost.Instance?.GroundTerrain == null || Hud == null) return;
+
+			Hud.SetScaleDialogTargets(GameHost.Instance.GroundTerrain.Width, GameHost.Instance.GroundTerrain.Depth);
 			Hud.OpenScaleMapDialog();
 		};
 		mapSizePanel.AddChild(_btnScaleMap);
@@ -439,7 +437,7 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 
 	public void LoadMapProperties()
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var metadata = MapFileService.LoadMetadata(wsPath);
 		var manifest = MapFileService.LoadManifest(wsPath);
 
@@ -450,30 +448,30 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 	private void UpdateMapNameProperty(MapMetadata metadata, MapManifest manifest)
 	{
 		if (_txtMapName == null) return;
-		
+
 		string? name = !string.IsNullOrEmpty(metadata.MapProperties?.MapName)
 			? metadata.MapProperties.MapName
 			: manifest.MapName;
-			
+
 		if (string.IsNullOrEmpty(name)) return;
-		
-		_txtMapName.Text = name.Replace(Services.MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+
+		_txtMapName.Text = name.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
 	}
 
 	private void UpdateMapVersionProperty(MapMetadata metadata, MapManifest manifest)
 	{
 		if (_txtMapVersion == null) return;
-		
+
 		string? ver = !string.IsNullOrEmpty(manifest.Version)
 			? manifest.Version
 			: metadata.MapProperties?.Version;
-			
+
 		if (!string.IsNullOrEmpty(ver))
 		{
 			_txtMapVersion.Text = ver;
 			return;
 		}
-		
+
 		if (string.IsNullOrEmpty(_txtMapVersion.Text))
 		{
 			_txtMapVersion.Text = "1.0.0";
@@ -482,7 +480,7 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 
 	public void SaveMapProperties()
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string cleanMapName = GetCleanMapName();
 		string cleanVersion = GetCleanMapVersion();
 
@@ -493,7 +491,7 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 	private string GetCleanMapName()
 	{
 		string rawName = _txtMapName?.Text ?? string.Empty;
-		return rawName.Replace(Services.MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+		return rawName.Replace(MapWorkspaceService.DefaultWorkspaceFolder, string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
 	}
 
 	private string GetCleanMapVersion()
@@ -506,23 +504,25 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 	{
 		var manifest = MapFileService.LoadManifest(wsPath);
 		manifest.Version = cleanVersion;
-		if (!string.IsNullOrEmpty(cleanMapName)) 
+		if (!string.IsNullOrEmpty(cleanMapName))
 		{
 			manifest.MapName = cleanMapName;
 		}
+
 		MapFileService.SaveManifest(wsPath, manifest);
 	}
 
 	private void SaveMetadataProperties(string wsPath, string cleanMapName, string cleanVersion)
 	{
-		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 		{
-			if (!string.IsNullOrEmpty(cleanMapName)) 
+			if (!string.IsNullOrEmpty(cleanMapName))
 			{
 				meta.MapProperties.MapName = cleanMapName;
 			}
+
 			meta.MapProperties.Version = cleanVersion;
-			
+
 			UpdateMetadataTerrainProperties(meta);
 			UpdateMetadataCameraProperties(meta);
 		});
@@ -530,20 +530,20 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 
 	private void UpdateMetadataTerrainProperties(MapMetadata meta)
 	{
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain == null) return;
-		
-		meta.MapProperties.MapWidth = Realm.Client.Core.GameHost.Instance.GroundTerrain.Width;
-		meta.MapProperties.MapHeight = Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth;
+		if (GameHost.Instance?.GroundTerrain == null) return;
+
+		meta.MapProperties.MapWidth = GameHost.Instance.GroundTerrain.Width;
+		meta.MapProperties.MapHeight = GameHost.Instance.GroundTerrain.Depth;
 	}
 
 	private void UpdateMetadataCameraProperties(MapMetadata meta)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
-		
-		meta.MapProperties.CameraBoundsLeft = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft;
-		meta.MapProperties.CameraBoundsRight = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight;
-		meta.MapProperties.CameraBoundsTop = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop;
-		meta.MapProperties.CameraBoundsBottom = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsBottom;
+		if (GameHost.Instance == null) return;
+
+		meta.MapProperties.CameraBoundsLeft = GameHost.Instance.EditorCameraBoundsLeft;
+		meta.MapProperties.CameraBoundsRight = GameHost.Instance.EditorCameraBoundsRight;
+		meta.MapProperties.CameraBoundsTop = GameHost.Instance.EditorCameraBoundsTop;
+		meta.MapProperties.CameraBoundsBottom = GameHost.Instance.EditorCameraBoundsBottom;
 	}
 
 	public void RebuildTagsUI()
@@ -586,16 +586,16 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 
 	public void UpdateCameraBoundsUI()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
-		if (_lblCamLeftVal != null) _lblCamLeftVal.Text = $"L: {Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft:F0}m";
-		if (_lblCamRightVal != null) _lblCamRightVal.Text = $"R: {Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight:F0}m";
-		if (_lblCamTopVal != null) _lblCamTopVal.Text = $"T: {Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop:F0}m";
-		if (_lblCamBottomVal != null) _lblCamBottomVal.Text = $"B: {Realm.Client.Core.GameHost.Instance.EditorCameraBoundsBottom:F0}m";
+		if (GameHost.Instance == null) return;
+		if (_lblCamLeftVal != null) _lblCamLeftVal.Text = $"L: {GameHost.Instance.EditorCameraBoundsLeft:F0}m";
+		if (_lblCamRightVal != null) _lblCamRightVal.Text = $"R: {GameHost.Instance.EditorCameraBoundsRight:F0}m";
+		if (_lblCamTopVal != null) _lblCamTopVal.Text = $"T: {GameHost.Instance.EditorCameraBoundsTop:F0}m";
+		if (_lblCamBottomVal != null) _lblCamBottomVal.Text = $"B: {GameHost.Instance.EditorCameraBoundsBottom:F0}m";
 
-		if (Realm.Client.Core.GameHost.Instance.GroundTerrain != null)
+		if (GameHost.Instance.GroundTerrain != null)
 		{
-			if (_lblMapWidthVal != null) _lblMapWidthVal.Text = $"W: {Realm.Client.Core.GameHost.Instance.GroundTerrain.Width}";
-			if (_lblMapHeightVal != null) _lblMapHeightVal.Text = $"H: {Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth}";
+			if (_lblMapWidthVal != null) _lblMapWidthVal.Text = $"W: {GameHost.Instance.GroundTerrain.Width}";
+			if (_lblMapHeightVal != null) _lblMapHeightVal.Text = $"H: {GameHost.Instance.GroundTerrain.Depth}";
 		}
 	}
 
@@ -605,10 +605,10 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 		_skyboxFiles.Clear();
 		_optSkybox.Clear();
 
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		try
 		{
-			var unionedAssets = Realm.Client.Utils.MapAssetHelper.LoadAssets(wsPath);
+			var unionedAssets = MapAssetHelper.LoadAssets(wsPath);
 			if (unionedAssets?.Skybox != null)
 			{
 				foreach (var kvp in unionedAssets.Skybox)
@@ -646,6 +646,7 @@ public partial class MapSettingsDialog : Realm.Client.UI.MapEditor.FloatingDialo
 			RefreshSkyboxList();
 			index = _skyboxFiles.IndexOf(file);
 		}
+
 		if (index >= 0)
 		{
 			_optSkybox.Selected = index;

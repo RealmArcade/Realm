@@ -7,7 +7,7 @@ public partial class TacticalMap : Control
 	public override void _Draw()
 	{
 		Vector2 size = Size;
-		
+
 
 		Color riverColor = new Color(0.2f, 0.55f, 0.9f, 0.8f);
 		Vector2[] riverPoints = new[]
@@ -20,7 +20,7 @@ public partial class TacticalMap : Control
 		};
 		for (int i = 0; i < riverPoints.Length - 1; i++)
 		{
-			DrawLine(riverPoints[i], riverPoints[i+1], riverColor, 4f, true);
+			DrawLine(riverPoints[i], riverPoints[i + 1], riverColor, 4f, true);
 		}
 
 

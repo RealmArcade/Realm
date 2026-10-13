@@ -1,13 +1,13 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class ItemUpgradeEditDialog : FloatingDialogBase
 {
 	private string _category = "items";
 	private string _objectType = "item";
@@ -41,7 +41,7 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 		var scrollBody = CreateScrollBody(400);
 		var contentVBox = new VBoxContainer();
 		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ICON"), new Color(0.95f, 0.8f, 0.4f));
@@ -63,7 +63,7 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("snake_case_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) =>
 		{
@@ -141,7 +141,7 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 	private List<string> ScanIconRtexAssets(bool includeAllFolders)
 	{
 		var list = ScanAvailableAssets("icons", includeAllFolders);
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var results = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
 
 		string searchDir = Path.Combine(wsPath, "Assets", "icons");
@@ -201,8 +201,8 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 
 	private bool CheckSlugExists(string fullId)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta == null)
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) || meta == null)
 			return false;
 
 		if (_category == "items")
@@ -224,6 +224,7 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 			if (string.Equals(i.TemplateID, fullId, StringComparison.OrdinalIgnoreCase))
 				return true;
 		}
+
 		return false;
 	}
 
@@ -237,6 +238,7 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 			if (string.Equals(u.TemplateID, fullId, StringComparison.OrdinalIgnoreCase))
 				return true;
 		}
+
 		return false;
 	}
 
@@ -268,8 +270,8 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 
 	private void LoadMetadataProperties()
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta == null)
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) || meta == null)
 			return;
 
 		if (_category == "upgrades")
@@ -295,7 +297,7 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 			_name = _slug;
 
 		_iconPath = FormatIconPath(u.IconPath);
-        
+
 		_tooltip = u.Description;
 		if (_tooltip == null)
 			_tooltip = "";
@@ -315,7 +317,7 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 			_name = _slug;
 
 		_iconPath = FormatIconPath(i.IconPath);
-        
+
 		_tooltip = i.Description;
 		if (_tooltip == null)
 			_tooltip = "";
@@ -362,9 +364,9 @@ public partial class ItemUpgradeEditDialog : Realm.Client.UI.MapEditor.FloatingD
 		}
 
 		string newTemplateID = $"{_objectType}/{_slug}";
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
-		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 		{
 			if (_category == "upgrades")
 			{

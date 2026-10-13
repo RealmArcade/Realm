@@ -1,6 +1,7 @@
-using Godot;
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using Godot;
 
 namespace Realm.Client.Utils;
 
@@ -24,8 +25,10 @@ public static class ModelShaderManager
 				: 1.055f * MathF.Pow(linear, 1.0f / 2.4f) - 0.055f;
 			table[i] = (byte)Math.Clamp((int)(srgb * 255.0f + 0.5f), 0, 255);
 		}
+
 		return table;
 	}
+
 	private static readonly StringName _paramPlayerColor = new("player_color");
 	private static readonly StringName _paramModelBrightness = new("model_brightness");
 	private static readonly StringName _paramModelColorTint = new("model_color_tint");
@@ -213,7 +216,7 @@ public static class ModelShaderManager
 		return ApplyLuminanceScaleFactor(data, channels, scaleFactor, w, h, fmt);
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static byte LinearToSrgbByte(float lin)
 	{
 		int idx = (int)(lin * 65535.0f);
@@ -221,6 +224,7 @@ public static class ModelShaderManager
 		{
 			return lin <= 0.0f ? (byte)0 : (byte)255;
 		}
+
 		return LinearToSrgbLut[idx];
 	}
 
@@ -265,7 +269,7 @@ public static class ModelShaderManager
 
 		Image workingImg = GetMaskWorkingImage(img, out Image.Format fmt);
 		byte[] data = GetMaskDataFromImage(workingImg, fmt, out int stride);
-		
+
 		if (data == null) return UpdatePlayerMaskCache(ormId, false);
 
 		bool hasMask = EvaluateMaskPresence(data, stride);
@@ -284,6 +288,7 @@ public static class ModelShaderManager
 			workingImg.Convert(Image.Format.Rgba8);
 			fmt = Image.Format.Rgba8;
 		}
+
 		return workingImg;
 	}
 
@@ -324,6 +329,7 @@ public static class ModelShaderManager
 			var ormVar = sm.GetShaderParameter("texture_orm");
 			return ormVar.VariantType != Variant.Type.Nil ? ormVar.As<Texture2D>() : null;
 		}
+
 		return null;
 	}
 
@@ -351,6 +357,7 @@ public static class ModelShaderManager
 			Texture2D ormTexture = GetOrmTextureFromMaterial(srcMat);
 			if (ormTexture != null && CheckHasPlayerMask(ormTexture, srcMat)) return true;
 		}
+
 		return false;
 	}
 
@@ -383,37 +390,6 @@ public static class ModelShaderManager
 		return false;
 	}
 
-	private struct MaterialParameters
-	{
-		public Texture2D RawAlbedoTexture;
-		public Texture2D OrmTexture;
-		public Texture2D NormalTexture;
-		public Texture2D EmissionTexture;
-		public Color AlbedoColor;
-		public Color EmissionColor;
-		public float EmissionEnergy;
-		public float Roughness;
-		public float Metallic;
-		public float Specular;
-		public Vector3 Uv1Scale;
-		public Vector3 Uv1Offset;
-		public bool UseAlphaBlend;
-		public bool UseAlphaScissor;
-		public float AlphaScissorThreshold;
-
-		public static MaterialParameters Default => new MaterialParameters
-		{
-			AlbedoColor = new Color(1f, 1f, 1f, 1f),
-			EmissionColor = new Color(0f, 0f, 0f, 1f),
-			EmissionEnergy = 1f,
-			Roughness = 1f,
-			Metallic = 0f,
-			Specular = 0.5f,
-			Uv1Scale = Vector3.One,
-			Uv1Offset = Vector3.Zero,
-			AlphaScissorThreshold = 0.5f
-		};
-	}
 
 	private static MaterialParameters ExtractBaseMaterialParameters(BaseMaterial3D baseMat)
 	{
@@ -451,19 +427,19 @@ public static class ModelShaderManager
 		p.OrmTexture = GetShaderTexture(sm, "texture_orm");
 		p.NormalTexture = GetShaderTexture(sm, "texture_normal");
 		p.EmissionTexture = GetShaderTexture(sm, "texture_emission");
-		
+
 		p.AlbedoColor = GetShaderColor(sm, "albedo_color", p.AlbedoColor);
 		p.EmissionColor = GetShaderColor(sm, "emission_color", p.EmissionColor);
-		
+
 		p.EmissionEnergy = GetShaderFloat(sm, "emission_energy", p.EmissionEnergy);
 		p.Roughness = GetShaderFloat(sm, "roughness_value", p.Roughness);
 		p.Metallic = GetShaderFloat(sm, "metallic_value", p.Metallic);
 		p.Specular = GetShaderFloat(sm, "specular_value", p.Specular);
 		p.AlphaScissorThreshold = GetShaderFloat(sm, "alpha_scissor_threshold", p.AlphaScissorThreshold);
-		
+
 		p.Uv1Scale = GetShaderVector3(sm, "uv1_scale", p.Uv1Scale);
 		p.Uv1Offset = GetShaderVector3(sm, "uv1_offset", p.Uv1Offset);
-		
+
 		p.UseAlphaBlend = GetShaderBool(sm, "use_alpha_blend", p.UseAlphaBlend);
 		p.UseAlphaScissor = GetShaderBool(sm, "use_alpha_scissor", p.UseAlphaScissor);
 
@@ -510,6 +486,7 @@ public static class ModelShaderManager
 		{
 			return ExtractShaderMaterialParameters(sm);
 		}
+
 		return MaterialParameters.Default;
 	}
 
@@ -569,6 +546,7 @@ public static class ModelShaderManager
 		{
 			material.SetShaderParameter(_paramShroudTexture, _currentShroudTexture);
 		}
+
 		material.SetShaderParameter(_paramShroudWorldMin, _currentShroudWorldMin);
 		material.SetShaderParameter(_paramShroudWorldSize, _currentShroudWorldSize);
 		material.SetShaderParameter(_paramShroudEnabled, _currentShroudEnabled);
@@ -612,9 +590,9 @@ public static class ModelShaderManager
 		if (node.HasMeta("AttachmentId") || node.HasMeta("CleanAttachmentId")) return true;
 		string nodeName = node.Name.ToString();
 		return nodeName.StartsWith("Att_", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("AttVisual_", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("BoneAttachment_", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("SocketAttachment_", StringComparison.OrdinalIgnoreCase);
+		       || nodeName.StartsWith("AttVisual_", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("BoneAttachment_", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("SocketAttachment_", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool IsExcludedMesh(GeometryInstance3D geomInst)
@@ -622,13 +600,13 @@ public static class ModelShaderManager
 		if (geomInst == null) return true;
 		string nodeName = geomInst.Name.ToString();
 		return nodeName.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.Contains("HoverRing", StringComparison.OrdinalIgnoreCase);
+		       || nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.Contains("HoverRing", StringComparison.OrdinalIgnoreCase);
 	}
 
 	public static void ApplyPlayerColorShader(Node rootNode, Color playerColor, bool ignorePlayerColor = false, bool normalizeLuminance = true, bool isUnitOrBuilding = true)
@@ -865,7 +843,7 @@ public static class ModelShaderManager
 
 		for (int i = 0; i < data.Length; i += 4)
 		{
-			data[i]     = (byte)Math.Clamp((int)MathF.Round(data[i]     * multR), 0, 255);
+			data[i] = (byte)Math.Clamp((int)MathF.Round(data[i] * multR), 0, 255);
 			data[i + 1] = (byte)Math.Clamp((int)MathF.Round(data[i + 1] * multG), 0, 255);
 			data[i + 2] = (byte)Math.Clamp((int)MathF.Round(data[i + 2] * multB), 0, 255);
 		}
@@ -888,6 +866,7 @@ public static class ModelShaderManager
 				{
 					material.SetShaderParameter(_paramShroudTexture, texture);
 				}
+
 				material.SetShaderParameter(_paramShroudWorldMin, worldMin);
 				material.SetShaderParameter(_paramShroudWorldSize, worldSize);
 				material.SetShaderParameter(_paramShroudEnabled, enabled);
@@ -903,6 +882,7 @@ public static class ModelShaderManager
 		{
 			geom.SetInstanceShaderParameter(_paramHideInShroud, val);
 		}
+
 		int childCount = node.GetChildCount();
 		for (int i = 0; i < childCount; i++)
 		{

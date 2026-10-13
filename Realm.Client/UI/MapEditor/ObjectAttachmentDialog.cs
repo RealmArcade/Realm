@@ -1,13 +1,15 @@
-using Godot;
-using Realm.Client.Animation;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.FloatingPreview3DDialogBase
+public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 {
 	private Node3D _previewModel;
 
@@ -68,21 +70,6 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	private UnitObjectAttachments? _initialSnapshot;
 	private UnitObjectAttachments _workingAttachments;
 
-	public struct SocketDefinition
-	{
-		public string SocketId;
-		public string DisplayName;
-		public bool IsPseudoSocket;
-		public HumanoidBone? AssociatedBone;
-
-		public SocketDefinition(string socketId, string displayName, bool isPseudo, HumanoidBone? bone = null)
-		{
-			SocketId = socketId;
-			DisplayName = displayName;
-			IsPseudoSocket = isPseudo;
-			AssociatedBone = bone;
-		}
-	}
 
 	private static readonly SocketDefinition[] RiggedSockets = new[]
 	{
@@ -159,7 +146,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		_lblUnitValue.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		infoRow.AddChild(_lblUnitValue);
 
-		var infoSpacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var infoSpacer = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		infoRow.AddChild(infoSpacer);
 
 		AddButton(infoRow, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () =>
@@ -184,7 +171,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		_optSocket = new OptionButton();
 		_optSocket.AddThemeFontSizeOverride("font_size", 11);
-		_optSocket.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optSocket.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optSocket.CustomMinimumSize = new Vector2(160, 24);
 		_optSocket.ItemSelected += (idx) =>
 		{
@@ -206,7 +193,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		_optParent = new OptionButton();
 		_optParent.AddThemeFontSizeOverride("font_size", 11);
-		_optParent.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optParent.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optParent.CustomMinimumSize = new Vector2(160, 24);
 		_optParent.ItemSelected += (idx) =>
 		{
@@ -216,6 +203,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			{
 				parentId = _availableParents[(int)idx];
 			}
+
 			_currentParentAttachmentId = parentId;
 			PreviewCurrentAttachment();
 		};
@@ -237,7 +225,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		_optAttachmentPicker = new OptionButton();
 		_optAttachmentPicker.AddThemeFontSizeOverride("font_size", 11);
 		_optAttachmentPicker.CustomMinimumSize = new Vector2(220, 24);
-		_optAttachmentPicker.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optAttachmentPicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optAttachmentPicker.ItemSelected += (idx) =>
 		{
 			if (_isUpdatingUI) return;
@@ -260,40 +248,100 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		var transformCols = new HBoxContainer();
 		transformCols.AddThemeConstantOverride("separation", 12);
 
-		var leftCol = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var leftCol = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		leftCol.AddThemeConstantOverride("separation", 4);
-		var rightCol = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var rightCol = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		rightCol.AddThemeConstantOverride("separation", 4);
 
-		var posResultX = AddSlider(leftCol, TranslationServer.Translate("Position X:"), -1.5f, 1.5f, 0.005f, 0f, (v) => { _currentPosOffset.X = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0.000", 90f);
-		_sliderPosX = posResultX.Slider; _lblPosX = posResultX.ValueLabel;
+		var posResultX = AddSlider(leftCol, TranslationServer.Translate("Position X:"), -1.5f, 1.5f, 0.005f, 0f, (v) =>
+		{
+			_currentPosOffset.X = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0.000", 90f);
+		_sliderPosX = posResultX.Slider;
+		_lblPosX = posResultX.ValueLabel;
 
-		var posResultY = AddSlider(leftCol, TranslationServer.Translate("Position Y:"), -1.5f, 1.5f, 0.005f, 0f, (v) => { _currentPosOffset.Y = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0.000", 90f);
-		_sliderPosY = posResultY.Slider; _lblPosY = posResultY.ValueLabel;
+		var posResultY = AddSlider(leftCol, TranslationServer.Translate("Position Y:"), -1.5f, 1.5f, 0.005f, 0f, (v) =>
+		{
+			_currentPosOffset.Y = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0.000", 90f);
+		_sliderPosY = posResultY.Slider;
+		_lblPosY = posResultY.ValueLabel;
 
-		var posResultZ = AddSlider(leftCol, TranslationServer.Translate("Position Z:"), -1.5f, 1.5f, 0.005f, 0f, (v) => { _currentPosOffset.Z = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0.000", 90f);
-		_sliderPosZ = posResultZ.Slider; _lblPosZ = posResultZ.ValueLabel;
+		var posResultZ = AddSlider(leftCol, TranslationServer.Translate("Position Z:"), -1.5f, 1.5f, 0.005f, 0f, (v) =>
+		{
+			_currentPosOffset.Z = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0.000", 90f);
+		_sliderPosZ = posResultZ.Slider;
+		_lblPosZ = posResultZ.ValueLabel;
 
-		var scaleResultX = AddSlider(leftCol, TranslationServer.Translate("Scale X:"), 0.05f, 5.0f, 0.05f, 1.0f, (v) => { _currentScaleOffset.X = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0.00", 90f);
-		_sliderScaleX = scaleResultX.Slider; _lblScaleX = scaleResultX.ValueLabel;
+		var scaleResultX = AddSlider(leftCol, TranslationServer.Translate("Scale X:"), 0.05f, 5.0f, 0.05f, 1.0f, (v) =>
+		{
+			_currentScaleOffset.X = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0.00", 90f);
+		_sliderScaleX = scaleResultX.Slider;
+		_lblScaleX = scaleResultX.ValueLabel;
 
-		var scaleResultY = AddSlider(leftCol, TranslationServer.Translate("Scale Y:"), 0.05f, 5.0f, 0.05f, 1.0f, (v) => { _currentScaleOffset.Y = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0.00", 90f);
-		_sliderScaleY = scaleResultY.Slider; _lblScaleY = scaleResultY.ValueLabel;
+		var scaleResultY = AddSlider(leftCol, TranslationServer.Translate("Scale Y:"), 0.05f, 5.0f, 0.05f, 1.0f, (v) =>
+		{
+			_currentScaleOffset.Y = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0.00", 90f);
+		_sliderScaleY = scaleResultY.Slider;
+		_lblScaleY = scaleResultY.ValueLabel;
 
-		var scaleResultZ = AddSlider(leftCol, TranslationServer.Translate("Scale Z:"), 0.05f, 5.0f, 0.05f, 1.0f, (v) => { _currentScaleOffset.Z = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0.00", 90f);
-		_sliderScaleZ = scaleResultZ.Slider; _lblScaleZ = scaleResultZ.ValueLabel;
+		var scaleResultZ = AddSlider(leftCol, TranslationServer.Translate("Scale Z:"), 0.05f, 5.0f, 0.05f, 1.0f, (v) =>
+		{
+			_currentScaleOffset.Z = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0.00", 90f);
+		_sliderScaleZ = scaleResultZ.Slider;
+		_lblScaleZ = scaleResultZ.ValueLabel;
 
-		var rotResultX = AddSlider(rightCol, TranslationServer.Translate("Pitch X (deg):"), -180f, 180f, 1f, 0f, (v) => { _currentRotOffset.X = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0", 95f);
-		_sliderRotX = rotResultX.Slider; _lblRotX = rotResultX.ValueLabel;
+		var rotResultX = AddSlider(rightCol, TranslationServer.Translate("Pitch X (deg):"), -180f, 180f, 1f, 0f, (v) =>
+		{
+			_currentRotOffset.X = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0", 95f);
+		_sliderRotX = rotResultX.Slider;
+		_lblRotX = rotResultX.ValueLabel;
 
-		var rotResultY = AddSlider(rightCol, TranslationServer.Translate("Yaw Y (deg):"), -180f, 180f, 1f, 0f, (v) => { _currentRotOffset.Y = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0", 95f);
-		_sliderRotY = rotResultY.Slider; _lblRotY = rotResultY.ValueLabel;
+		var rotResultY = AddSlider(rightCol, TranslationServer.Translate("Yaw Y (deg):"), -180f, 180f, 1f, 0f, (v) =>
+		{
+			_currentRotOffset.Y = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0", 95f);
+		_sliderRotY = rotResultY.Slider;
+		_lblRotY = rotResultY.ValueLabel;
 
-		var rotResultZ = AddSlider(rightCol, TranslationServer.Translate("Roll Z (deg):"), -180f, 180f, 1f, 0f, (v) => { _currentRotOffset.Z = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0", 95f);
-		_sliderRotZ = rotResultZ.Slider; _lblRotZ = rotResultZ.ValueLabel;
+		var rotResultZ = AddSlider(rightCol, TranslationServer.Translate("Roll Z (deg):"), -180f, 180f, 1f, 0f, (v) =>
+		{
+			_currentRotOffset.Z = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0", 95f);
+		_sliderRotZ = rotResultZ.Slider;
+		_lblRotZ = rotResultZ.ValueLabel;
 
-		var normalResult = AddSlider(rightCol, TranslationServer.Translate("Normal Offset:"), -0.5f, 0.5f, 0.005f, 0.0f, (v) => { _currentNormalOffset = v; UpdateActiveAttachmentTransform(); SyncWorkingAttachmentIfConfigured(); }, "0.000", 95f);
-		_sliderNormalOffset = normalResult.Slider; _lblNormalOffset = normalResult.ValueLabel;
+		var normalResult = AddSlider(rightCol, TranslationServer.Translate("Normal Offset:"), -0.5f, 0.5f, 0.005f, 0.0f, (v) =>
+		{
+			_currentNormalOffset = v;
+			UpdateActiveAttachmentTransform();
+			SyncWorkingAttachmentIfConfigured();
+		}, "0.000", 95f);
+		_sliderNormalOffset = normalResult.Slider;
+		_lblNormalOffset = normalResult.ValueLabel;
 
 		var btnRow = new HBoxContainer();
 		btnRow.AddThemeConstantOverride("separation", 8);
@@ -329,7 +377,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		SetTargetObject(targetId);
 
-		if (Realm.Client.Core.GameHost.TryGetUnitOrBuildingMetadata(_targetObjectId, out var meta))
+		if (GameHost.TryGetUnitOrBuildingMetadata(_targetObjectId, out var meta))
 		{
 			_initialSnapshot = meta.ObjectAttachments?.Clone();
 		}
@@ -360,18 +408,18 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	{
 		if (string.IsNullOrEmpty(targetId))
 		{
-			if (Realm.Client.Core.GameHost.UnitRegistry != null && Realm.Client.Core.GameHost.UnitRegistry.Count > 0)
+			if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.Count > 0)
 			{
-				targetId = Realm.Client.Core.GameHost.UnitRegistry.Keys.First();
+				targetId = GameHost.UnitRegistry.Keys.First();
 			}
-			else if (Realm.Client.Core.GameHost.BuildingRegistry != null && Realm.Client.Core.GameHost.BuildingRegistry.Count > 0)
+			else if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.Count > 0)
 			{
-				targetId = Realm.Client.Core.GameHost.BuildingRegistry.Keys.First();
+				targetId = GameHost.BuildingRegistry.Keys.First();
 			}
 		}
 
 		_targetObjectId = targetId ?? string.Empty;
-		_isTargetBuilding = Realm.Client.Core.GameHost.BuildingRegistry != null && Realm.Client.Core.GameHost.BuildingRegistry.ContainsKey(_targetObjectId);
+		_isTargetBuilding = GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(_targetObjectId);
 	}
 
 	private void UpdateTitles()
@@ -397,7 +445,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	{
 		if (string.IsNullOrEmpty(socket)) return "RightHand";
 		string s = socket.ToLowerInvariant().Replace("_", "").Replace(" ", "");
-		
+
 		return TryMatchExactSocket(s) ?? TryMatchContainsSocket(s) ?? "RightHand";
 	}
 
@@ -432,6 +480,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				if (s.Contains(match)) return kvp.Key;
 			}
 		}
+
 		return null;
 	}
 
@@ -450,11 +499,13 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				selectedIdx = i;
 			}
 		}
+
 		_optSocket.Selected = selectedIdx;
 		if (_currentAvailableSockets.Count > 0)
 		{
 			_currentSocketId = _currentAvailableSockets[selectedIdx].SocketId;
 		}
+
 		_isUpdatingUI = false;
 		UpdateParentDropdown();
 	}
@@ -478,12 +529,12 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		{
 			if (!ShouldIncludeAsParent(entry, normSocket)) continue;
 
-			string cleanId = System.IO.Path.GetFileNameWithoutExtension(entry.AttachmentId);
+			string cleanId = Path.GetFileNameWithoutExtension(entry.AttachmentId);
 			if (_availableParents.Contains(cleanId) || _availableParents.Contains(entry.AttachmentId)) continue;
 
 			int itemIdx = _availableParents.Count;
 			_availableParents.Add(entry.AttachmentId);
-			
+
 			AddParentOption(entry, cleanId, itemIdx);
 
 			if (IsCurrentParent(entry.AttachmentId, cleanId))
@@ -496,6 +547,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		{
 			_currentParentAttachmentId = null;
 		}
+
 		_optParent.Selected = selectedIdx;
 		_isUpdatingUI = prevUpdating;
 	}
@@ -530,7 +582,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		_isUpdatingUI = true;
 		_optAttachmentPicker.Clear();
-		
+
 		int selectedIdx = 0;
 		string cleanCurrent = GetCleanAttachmentId(_currentAttachmentId);
 
@@ -550,6 +602,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			_optAttachmentPicker.Selected = selectedIdx;
 			_currentAttachmentId = _availableAttachments[selectedIdx];
 		}
+
 		_isUpdatingUI = false;
 	}
 
@@ -558,7 +611,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		if (string.IsNullOrEmpty(id)) return "";
 		return id.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
 			? id
-			: System.IO.Path.GetFileNameWithoutExtension(id);
+			: Path.GetFileNameWithoutExtension(id);
 	}
 
 	private void AddAttachmentOption(string item, int index)
@@ -584,7 +637,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		{
 			ApplyConfiguredOrientation(unitOrient);
 		}
-		else if (!string.IsNullOrEmpty(attachmentId) && Realm.Client.Core.GameHost.AttachmentRegistry.TryGetValue(attachmentId, out var attMeta))
+		else if (!string.IsNullOrEmpty(attachmentId) && GameHost.AttachmentRegistry.TryGetValue(attachmentId, out var attMeta))
 		{
 			ApplyRegistryOrientation(attMeta);
 		}
@@ -611,6 +664,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				return entry.Orientation;
 			}
 		}
+
 		return null;
 	}
 
@@ -620,7 +674,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		bool keyMatch = entry.AttachmentId.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
 		                entry.AttachmentId.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-		                System.IO.Path.GetFileNameWithoutExtension(entry.AttachmentId).Equals(cleanId, StringComparison.OrdinalIgnoreCase);
+		                Path.GetFileNameWithoutExtension(entry.AttachmentId).Equals(cleanId, StringComparison.OrdinalIgnoreCase);
 
 		if (!keyMatch) return false;
 
@@ -742,18 +796,19 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			PreviewCurrentAttachment();
 			targetNode = _currentActiveModelNode;
 		}
+
 		return (targetNode != null && GodotObject.IsInstanceValid(targetNode)) ? targetNode : null;
 	}
 
 	private void ApplyPseudoSocketOrientation()
 	{
-		bool isGround = _currentSocketId.Equals("Ground", StringComparison.OrdinalIgnoreCase) || 
+		bool isGround = _currentSocketId.Equals("Ground", StringComparison.OrdinalIgnoreCase) ||
 		                _currentSocketId.Equals("Base", StringComparison.OrdinalIgnoreCase);
-		
+
 		_currentPosOffset = isGround ? new Vector3(0f, 0.02f, 0f) : Vector3.Zero;
 		_currentRotOffset = Vector3.Zero;
 		_currentNormalOffset = 0.0f;
-		
+
 		UpdateSliderDisplayValues();
 		UpdateActiveAttachmentTransform();
 		SyncWorkingAttachmentIfConfigured();
@@ -793,6 +848,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				: localAabb.Position.X;
 			return new Vector3(gripX, localAabb.GetCenter().Y, localAabb.GetCenter().Z);
 		}
+
 		if (primaryAxis == 2)
 		{
 			float gripZ = localAabb.Position.Z < -0.05f && localAabb.End.Z > 0.05f
@@ -800,7 +856,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				: localAabb.Position.Z;
 			return new Vector3(localAabb.GetCenter().X, localAabb.GetCenter().Y, gripZ);
 		}
-		
+
 		float gripY = localAabb.Position.Y < -0.05f && localAabb.End.Y > 0.05f
 			? localAabb.Position.Y + size.Y * 0.15f
 			: localAabb.Position.Y;
@@ -817,7 +873,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		Vector3 desiredTopDir = (dirToCam * 0.7f + Vector3.Up * 0.5f + wristNormal * 0.3f).Normalized();
 		Vector3 desiredRight = desiredTopDir.Cross(Vector3.Up).Normalized();
-		
+
 		if (desiredRight.LengthSquared() < 0.001f)
 		{
 			Vector3 camRight = PreviewCamera != null ? PreviewCamera.GlobalTransform.Basis.X.Normalized() : Vector3.Right;
@@ -831,15 +887,15 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		Vector3 desiredNormal = desiredRight.Cross(desiredTopDir).Normalized();
 
-		Basis desiredWorldBasis = primaryAxis == 0 
+		Basis desiredWorldBasis = primaryAxis == 0
 			? new Basis(desiredTopDir, desiredNormal, desiredRight)
-			: primaryAxis == 2 
-				? new Basis(desiredRight, desiredNormal, desiredTopDir) 
+			: primaryAxis == 2
+				? new Basis(desiredRight, desiredNormal, desiredTopDir)
 				: new Basis(desiredRight, desiredTopDir, desiredNormal);
 
 		Basis handBasis = targetAnchor.GlobalTransform.Basis.Orthonormalized();
-		return Mathf.Abs(handBasis.Determinant()) < 0.0001f 
-			? desiredWorldBasis.Orthonormalized() 
+		return Mathf.Abs(handBasis.Determinant()) < 0.0001f
+			? desiredWorldBasis.Orthonormalized()
 			: (handBasis.Inverse() * desiredWorldBasis).Orthonormalized();
 	}
 
@@ -857,6 +913,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				wristNormal = (handPos - lowerArmPos).Normalized();
 			}
 		}
+
 		return wristNormal;
 	}
 
@@ -902,6 +959,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			{
 				ExpandAabbWithMesh(meshInst, root, ref combinedAabb, ref hasAabb);
 			}
+
 			foreach (Node child in current.GetChildren())
 			{
 				Collect(child);
@@ -913,6 +971,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		{
 			combinedAabb = new Aabb(new Vector3(-0.1f, -0.5f, -0.1f), new Vector3(0.2f, 1.0f, 0.2f));
 		}
+
 		return combinedAabb;
 	}
 
@@ -926,6 +985,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			{
 				relXform = n3d.Transform * relXform;
 			}
+
 			curr = curr.GetParent();
 		}
 
@@ -945,7 +1005,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			new Vector3(max.X, max.Y, min.Z),
 			new Vector3(max.X, max.Y, max.Z)
 		};
-		
+
 		for (int i = 0; i < 8; i++)
 		{
 			Vector3 pt = relXform * corners[i];
@@ -980,13 +1040,16 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 					_socketModelNodes.Remove(_currentSocketId);
 				}
 			}
+
 			if (_currentActiveModelNode == _uncommittedPreviewNode)
 			{
 				_currentActiveModelNode = null;
 			}
+
 			_uncommittedPreviewNode.GetParent()?.RemoveChild(_uncommittedPreviewNode);
 			_uncommittedPreviewNode.QueueFree();
 		}
+
 		_uncommittedPreviewNode = null;
 		_uncommittedPreviewKey = null;
 	}
@@ -999,6 +1062,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			_previewModel.QueueFree();
 			_previewModel = null;
 		}
+
 		_socketAnchorNodes.Clear();
 		_socketModelNodes.Clear();
 		_activeAttachmentVisuals.Clear();
@@ -1031,7 +1095,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	{
 		if (sourceModel != null && GodotObject.IsInstanceValid(sourceModel))
 		{
-			return (Node3D)sourceModel.Duplicate((int)Node.DuplicateFlags.UseInstantiation);
+			return (Node3D)sourceModel.Duplicate((int)DuplicateFlags.UseInstantiation);
 		}
 
 		if (string.IsNullOrEmpty(targetId)) return null;
@@ -1040,7 +1104,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		var cached = ModelCache.GetModel(modelPath);
 		if (cached is Node3D n3d)
 		{
-			return (Node3D)n3d.Duplicate((int)Node.DuplicateFlags.UseInstantiation);
+			return (Node3D)n3d.Duplicate((int)DuplicateFlags.UseInstantiation);
 		}
 
 		return null;
@@ -1048,13 +1112,13 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 	private string GetModelPath(string targetId)
 	{
-		if (Realm.Client.Core.GameHost.UnitRegistry != null && Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(targetId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath))
+		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.TryGetValue(targetId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath))
 			return meta.ModelPath;
-		
-		if (Realm.Client.Core.GameHost.BuildingRegistry != null && Realm.Client.Core.GameHost.BuildingRegistry.TryGetValue(targetId, out var bldMeta) && !string.IsNullOrEmpty(bldMeta.ModelPath))
+
+		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(targetId, out var bldMeta) && !string.IsNullOrEmpty(bldMeta.ModelPath))
 			return bldMeta.ModelPath;
 
-		if (Realm.Client.Core.GameHost.PropRegistry != null && (Realm.Client.Core.GameHost.PropRegistry.TryGetValue(targetId, out var pMeta) || Realm.Client.Core.GameHost.PropRegistry.TryGetValue(System.IO.Path.GetFileNameWithoutExtension(targetId), out pMeta)))
+		if (GameHost.PropRegistry != null && (GameHost.PropRegistry.TryGetValue(targetId, out var pMeta) || GameHost.PropRegistry.TryGetValue(Path.GetFileNameWithoutExtension(targetId), out pMeta)))
 			return pMeta.ModelPath;
 
 		return targetId;
@@ -1097,7 +1161,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	private void CopySkeletonPoses(Skeleton3D skeleton, Node3D sourceModel)
 	{
 		if (sourceModel == null || !GodotObject.IsInstanceValid(sourceModel)) return;
-		
+
 		var srcSkeleton = SkeletonValidator.FindSkeleton(sourceModel);
 		if (srcSkeleton == null) return;
 
@@ -1193,6 +1257,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	{
 		if (node == null) return;
 		var toRemove = new List<Node>();
+
 		void Collect(Node current)
 		{
 			if (current is BoneAttachment3D ||
@@ -1202,11 +1267,13 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				toRemove.Add(current);
 				return;
 			}
+
 			foreach (Node child in current.GetChildren())
 			{
 				Collect(child);
 			}
 		}
+
 		Collect(node);
 		foreach (var n in toRemove)
 		{
@@ -1215,21 +1282,14 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		}
 	}
 
-	public struct ConfiguredAttachmentEntry
-	{
-		public int Index;
-		public string SocketId;
-		public string AttachmentId;
-		public HandAttachmentOrientation Orientation;
-	}
 
 	public static string GetAttachmentKey(string socketId, string attachmentId, int index = -1, string? parentAttachmentId = null)
 	{
 		string cleanAtt = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
 			? attachmentId
-			: System.IO.Path.GetFileNameWithoutExtension(attachmentId);
+			: Path.GetFileNameWithoutExtension(attachmentId);
 		string normSocket = NormalizeSocketId(socketId);
-		string parentPart = string.IsNullOrEmpty(parentAttachmentId) ? "" : $"_p_{System.IO.Path.GetFileNameWithoutExtension(parentAttachmentId)}";
+		string parentPart = string.IsNullOrEmpty(parentAttachmentId) ? "" : $"_p_{Path.GetFileNameWithoutExtension(parentAttachmentId)}";
 		return index >= 0
 			? $"{normSocket}_{index}_{cleanAtt}{parentPart}"
 			: $"{normSocket}_{cleanAtt}{parentPart}";
@@ -1243,10 +1303,11 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 	public static List<ConfiguredAttachmentEntry> GetConfiguredAttachmentsForObject(string targetObjectId, bool isBuilding = false)
 	{
-		if (Realm.Client.Core.GameHost.TryGetUnitOrBuildingMetadata(targetObjectId, out var meta))
+		if (GameHost.TryGetUnitOrBuildingMetadata(targetObjectId, out var meta))
 		{
 			return GetConfiguredAttachmentsFromData(meta.ObjectAttachments, isBuilding);
 		}
+
 		return new List<ConfiguredAttachmentEntry>();
 	}
 
@@ -1331,7 +1392,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	{
 		if (string.IsNullOrEmpty(attachmentId)) return false;
 		string normSocket = NormalizeSocketId(socketId);
-		string cleanId = System.IO.Path.GetFileNameWithoutExtension(attachmentId);
+		string cleanId = Path.GetFileNameWithoutExtension(attachmentId);
 		var configured = GetConfiguredAttachments();
 		for (int i = 0; i < configured.Count; i++)
 		{
@@ -1342,13 +1403,14 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				{
 					if (entry.AttachmentId.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
 					    entry.AttachmentId.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-					    System.IO.Path.GetFileNameWithoutExtension(entry.AttachmentId).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
+					    Path.GetFileNameWithoutExtension(entry.AttachmentId).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
 					{
 						return true;
 					}
 				}
 			}
 		}
+
 		return false;
 	}
 
@@ -1384,6 +1446,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 					_socketModelNodes[normSocket] = loaded;
 				}
 			}
+
 			_uncommittedPreviewNode = null;
 			_uncommittedPreviewKey = null;
 		}
@@ -1413,6 +1476,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				kvp.Value.QueueFree();
 			}
 		}
+
 		_activeAttachmentVisuals.Clear();
 		var configured = GetConfiguredAttachments();
 		foreach (var entry in configured)
@@ -1422,6 +1486,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				AttachVisualToAnchor(entry.SocketId, entry.AttachmentId, entry.Orientation.Position.ToGodotVector3(), entry.Orientation.RotationDegrees.ToGodotVector3(), entry.Orientation.ScaleVector.ToGodotVector3(), entry.Orientation.NormalOffset, entry.Index, null);
 			}
 		}
+
 		foreach (var entry in configured)
 		{
 			if (!string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
@@ -1441,7 +1506,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		if (string.IsNullOrEmpty(attachmentId) || attachmentId.Equals("null", StringComparison.OrdinalIgnoreCase) || attachmentId.Equals("none", StringComparison.OrdinalIgnoreCase)) return null;
 
-		Node3D loaded = Realm.Client.Unit3D.ResolveAndInstantiateAttachment(attachmentId, out _, out _, out _);
+		Node3D loaded = Unit3D.ResolveAndInstantiateAttachment(attachmentId, out _, out _, out _);
 		if (loaded == null) return null;
 
 		ConfigureLoadedVisual(loaded, attachmentId, key, pos, rot, scale, normalOffset);
@@ -1466,7 +1531,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	{
 		string cleanAttId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
 			? attachmentId
-			: System.IO.Path.GetFileNameWithoutExtension(attachmentId);
+			: Path.GetFileNameWithoutExtension(attachmentId);
 		loaded.Name = $"AttVisual_{key}";
 		loaded.SetMeta("AttachmentId", attachmentId);
 		loaded.SetMeta("CleanAttachmentId", cleanAttId);
@@ -1479,9 +1544,9 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	{
 		if (string.IsNullOrEmpty(parentAttachmentId)) return targetAnchor;
 
-		var parentMesh = Realm.Client.Unit3D.FindAttachmentInNode(targetAnchor, parentAttachmentId)
-		                 ?? (_previewModel != null ? Realm.Client.Unit3D.FindAttachmentInNode(_previewModel, parentAttachmentId) : null);
-		
+		var parentMesh = Unit3D.FindAttachmentInNode(targetAnchor, parentAttachmentId)
+		                 ?? (_previewModel != null ? Unit3D.FindAttachmentInNode(_previewModel, parentAttachmentId) : null);
+
 		return parentMesh ?? targetAnchor;
 	}
 
@@ -1548,7 +1613,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			bool isChild = !string.IsNullOrEmpty(parentAttId);
 
 			string badgeText = isChild
-				? $"[{entry.SocketId} ➔ {System.IO.Path.GetFileNameWithoutExtension(parentAttId)}]"
+				? $"[{entry.SocketId} ➔ {Path.GetFileNameWithoutExtension(parentAttId)}]"
 				: $"[{entry.SocketId}]";
 
 			var badge = new Label
@@ -1568,7 +1633,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			var nameLbl = new Label
 			{
 				Text = displayName,
-				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+				SizeFlagsHorizontal = SizeFlags.ExpandFill,
 				ClipText = true
 			};
 			nameLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -1595,7 +1660,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			btnEdit.Text = "✏️ " + TranslationServer.Translate("Edit");
 			btnEdit.AddThemeFontSizeOverride("font_size", 11);
 			btnEdit.CustomMinimumSize = new Vector2(55, 22);
-			btnEdit.FocusMode = Control.FocusModeEnum.None;
+			btnEdit.FocusMode = FocusModeEnum.None;
 			btnEdit.TooltipText = TranslationServer.Translate("Select and tune transform in sliders");
 			btnEdit.Pressed += () => SelectConfiguredAttachment(capturedSocket, capturedAtt, capturedIndex);
 			row.AddChild(btnEdit);
@@ -1606,7 +1671,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			btnRemove.AddThemeFontSizeOverride("font_size", 11);
 			btnRemove.AddThemeColorOverride("font_color", new Color(1.0f, 0.45f, 0.45f));
 			btnRemove.CustomMinimumSize = new Vector2(65, 22);
-			btnRemove.FocusMode = Control.FocusModeEnum.None;
+			btnRemove.FocusMode = FocusModeEnum.None;
 			btnRemove.TooltipText = TranslationServer.Translate("Detach and remove this attachment");
 			btnRemove.Pressed += () => RemoveAttachment(capturedSocket, capturedAtt, capturedParent);
 			row.AddChild(btnRemove);
@@ -1670,7 +1735,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			string item = _availableAttachments[i];
 			if (item.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
 			    item.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-			    System.IO.Path.GetFileNameWithoutExtension(item).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
+			    Path.GetFileNameWithoutExtension(item).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
 			{
 				_optAttachmentPicker.Selected = i;
 				break;
@@ -1689,6 +1754,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 				return configured[i];
 			}
 		}
+
 		return null;
 	}
 
@@ -1768,6 +1834,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		{
 			Hud?.SaveAllUnitObjectAttachments(_targetObjectId, _workingAttachments);
 		}
+
 		ClearPreviewModel();
 		_onApplied?.Invoke(default);
 	}
@@ -1792,9 +1859,9 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 		AddVfxRegistryAttachments(seen, result);
 
-		string wsPath = !string.IsNullOrEmpty(Services.MapWorkspaceService.GetActiveWorkspacePath())
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
-			: ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
+			? MapWorkspaceService.GetActiveWorkspacePath()
+			: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 
 		AddUnionedAssets(wsPath, seen, result);
 		AddMetadataAssets(wsPath, seen, result);
@@ -1805,8 +1872,8 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 
 	private static void AddVfxRegistryAttachments(HashSet<string> seen, List<string> result)
 	{
-		if (Realm.Client.Core.GameHost.VfxRegistry == null) return;
-		foreach (var kvp in Realm.Client.Core.GameHost.VfxRegistry)
+		if (GameContext.RegistryService.VfxRegistry == null) return;
+		foreach (var kvp in GameContext.RegistryService.VfxRegistry)
 		{
 			string vfxKey = kvp.Key.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? kvp.Key : $"vfx:{kvp.Key}";
 			if (seen.Add(vfxKey)) result.Add(vfxKey);
@@ -1825,7 +1892,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 			{
 				foreach (var modelProp in itemsDict)
 				{
-					string id = System.IO.Path.GetFileNameWithoutExtension(modelProp.Key);
+					string id = Path.GetFileNameWithoutExtension(modelProp.Key);
 					if (seen.Add(id)) result.Add(id);
 				}
 			}
@@ -1850,7 +1917,7 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	{
 		try
 		{
-			var metadata = MetadataService.Instance.LoadMetadata(wsPath);
+			var metadata = GameContext.MetadataService.LoadMetadata(wsPath);
 			if (metadata.Templates == null) return;
 
 			ProcessTemplates(metadata.Templates, seen, result);
@@ -1861,19 +1928,23 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 		}
 	}
 
-	private static void ProcessTemplates(Realm.Shared.Metadata.TemplateContainer templates, HashSet<string> seen, List<string> result)
+	private static void ProcessTemplates(TemplateContainer templates, HashSet<string> seen, List<string> result)
 	{
 		if (templates.Items != null)
-			foreach (var it in templates.Items) TryAddTemplateId(it.TemplateID, seen, result);
-		
+			foreach (var it in templates.Items)
+				TryAddTemplateId(it.TemplateID, seen, result);
+
 		if (templates.Weapons != null)
-			foreach (var wpn in templates.Weapons) TryAddTemplateId(wpn.TemplateID, seen, result);
+			foreach (var wpn in templates.Weapons)
+				TryAddTemplateId(wpn.TemplateID, seen, result);
 
 		if (templates.Attachments != null)
-			foreach (var att in templates.Attachments) TryAddTemplateId(att.AttachmentId, seen, result);
+			foreach (var att in templates.Attachments)
+				TryAddTemplateId(att.AttachmentId, seen, result);
 
 		if (templates.Vfx != null)
-			foreach (var vfx in templates.Vfx) TryAddVfx(vfx.VfxId, seen, result);
+			foreach (var vfx in templates.Vfx)
+				TryAddVfx(vfx.VfxId, seen, result);
 	}
 
 	private static void TryAddVfx(string? vfxId, HashSet<string> seen, List<string> result)
@@ -1886,16 +1957,16 @@ public partial class ObjectAttachmentDialog : Realm.Client.UI.MapEditor.Floating
 	private static void TryAddTemplateId(string? templateId, HashSet<string> seen, List<string> result)
 	{
 		if (string.IsNullOrEmpty(templateId)) return;
-		string cleanId = System.IO.Path.GetFileNameWithoutExtension(templateId);
+		string cleanId = Path.GetFileNameWithoutExtension(templateId);
 		if (seen.Add(cleanId)) result.Add(cleanId);
 	}
 
 	private static void AddGameHostAttachments(HashSet<string> seen, List<string> result)
 	{
-		if (Realm.Client.Core.GameHost.AttachmentRegistry == null) return;
-		foreach (var kvp in Realm.Client.Core.GameHost.AttachmentRegistry)
+		if (GameHost.AttachmentRegistry == null) return;
+		foreach (var kvp in GameHost.AttachmentRegistry)
 		{
-			string id = System.IO.Path.GetFileNameWithoutExtension(kvp.Key);
+			string id = Path.GetFileNameWithoutExtension(kvp.Key);
 			if (seen.Add(id)) result.Add(id);
 		}
 	}

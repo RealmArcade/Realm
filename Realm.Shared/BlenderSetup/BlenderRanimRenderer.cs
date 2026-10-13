@@ -1,10 +1,10 @@
-using Realm.Shared.Animation;
-using Realm.Shared.ModelOptimization;
-using SkiaSharp;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Realm.Shared.Animation;
+using Realm.Shared.ModelOptimization;
+using SkiaSharp;
 
 namespace Realm.Shared.BlenderSetup;
 
@@ -67,7 +67,13 @@ public static class BlenderRanimRenderer
 	{
 		if (string.IsNullOrEmpty(filePath)) return;
 		if (!File.Exists(filePath)) return;
-		try { File.Delete(filePath); } catch { }
+		try
+		{
+			File.Delete(filePath);
+		}
+		catch
+		{
+		}
 	}
 
 	private static string ResolveModelPath(RanimRenderOptions renderOptions, out string? temporaryModelFile)

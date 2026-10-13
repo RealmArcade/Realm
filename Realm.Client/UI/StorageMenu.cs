@@ -1,17 +1,27 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared.Distribution;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
+using Environment = System.Environment;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class StorageMenu : Control
 {
-	private MapStorageService _mapStorageService;
+	public StorageMenu()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
 
 	private Button _backButton;
 	private Label _titleLabel;
@@ -42,7 +52,6 @@ public partial class StorageMenu : Control
 	public override void _Ready()
 	{
 		MouseFilter = MouseFilterEnum.Pass;
-		_mapStorageService = ServiceLocator.Get<MapStorageService>();
 
 		BuildLayout();
 		RefreshDownloadedMaps();
@@ -317,7 +326,7 @@ public partial class StorageMenu : Control
 
 	private void RefreshDownloadedMaps()
 	{
-		_allDownloadedMaps = _mapStorageService.GetDownloadedMaps().ToList();
+		_allDownloadedMaps = GameContext.MapStorageService.GetDownloadedMaps().ToList();
 		RenderMapList();
 
 		if (_selectedMap != null)
@@ -595,7 +604,7 @@ public partial class StorageMenu : Control
 				confirmMsg,
 				onConfirm: () =>
 				{
-					bool deleted = _mapStorageService.DeleteMapVersion(map.Title, version.Version, version.ManifestHash);
+					bool deleted = GameContext.MapStorageService.DeleteMapVersion(map.Title, version.Version, version.ManifestHash);
 					if (deleted)
 					{
 						RefreshDownloadedMaps();
@@ -627,7 +636,7 @@ public partial class StorageMenu : Control
 	private async void CheckForServerUpdatesAsync(DownloadedMapInfo map)
 	{
 		var localVersions = map.Versions.Select(v => v.Version).ToList();
-		var (hasNewer, newerVer, mapId) = await _mapStorageService.CheckForNewerVersionAsync(map.Title, localVersions);
+		var (hasNewer, newerVer, mapId) = await GameContext.MapStorageService.CheckForNewerVersionAsync(map.Title, localVersions);
 
 		if (hasNewer && !string.IsNullOrEmpty(newerVer) && _selectedMap != null && string.Equals(_selectedMap.Title, map.Title, StringComparison.OrdinalIgnoreCase))
 		{
@@ -651,12 +660,9 @@ public partial class StorageMenu : Control
 		UIStyle.ApplyButtonText(_downloadUpdateButton, TranslationServer.Translate("DOWNLOADING UPDATE..."), 14);
 
 		string mapId = _selectedMap.ServerMapId;
-		bool success = await _mapStorageService.DownloadUpdatedVersionAsync(
+		bool success = await GameContext.MapStorageService.DownloadUpdatedVersionAsync(
 			mapId,
-			progressCallback: p =>
-			{
-				UIStyle.ApplyButtonText(_downloadUpdateButton, $"{(int)(p * 100)}% {TranslationServer.Translate("DOWNLOADING UPDATE...")}", 14);
-			}
+			progressCallback: p => { UIStyle.ApplyButtonText(_downloadUpdateButton, $"{(int)(p * 100)}% {TranslationServer.Translate("DOWNLOADING UPDATE...")}", 14); }
 		);
 
 		_downloadUpdateButton.Disabled = false;
@@ -693,7 +699,7 @@ public partial class StorageMenu : Control
 				{
 					return;
 				}
-				
+
 				string destinationPath = selectedPaths[0];
 				if (!destinationPath.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase))
 				{
@@ -727,6 +733,7 @@ public partial class StorageMenu : Control
 		{
 			return "MapExport";
 		}
+
 		return cleanMapName;
 	}
 
@@ -737,6 +744,7 @@ public partial class StorageMenu : Control
 		{
 			return "1.0.0";
 		}
+
 		return cleanMapVersion;
 	}
 
@@ -747,7 +755,7 @@ public partial class StorageMenu : Control
 		{
 			manifestBlake3 = RealmMetadataHelper.ComputeBlake3(version.ManifestFilePath);
 		}
-		
+
 		if (string.IsNullOrEmpty(manifestBlake3) && !string.IsNullOrEmpty(version.DirectoryPath))
 		{
 			string manifestPath = Path.Combine(version.DirectoryPath, "manifest.json");
@@ -769,10 +777,10 @@ public partial class StorageMenu : Control
 
 		(Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) = ShowExportProgressUI(destinationPath);
 
-		Services.MapWorkspaceService.EnsureLicenseFile(version.DirectoryPath);
+		MapWorkspaceService.EnsureLicenseFile(version.DirectoryPath);
 
 		long lastProgressUpdateTicks = 0;
-		bool success = await _mapStorageService.ExportMapAsync(
+		bool success = await GameContext.MapStorageService.ExportMapAsync(
 			version.DirectoryPath,
 			destinationPath,
 			progressCallback: (pct, file) => UpdateExportProgress(pct, file, ref lastProgressUpdateTicks, popup, progressBar, statusLabel),
@@ -801,6 +809,7 @@ public partial class StorageMenu : Control
 		{
 			return;
 		}
+
 		exportBtn.Disabled = disabled;
 		UIStyle.ApplyButtonText(exportBtn, TranslationServer.Translate(text), 12);
 	}
@@ -889,11 +898,12 @@ public partial class StorageMenu : Control
 
 	private void UpdateExportProgress(float pct, string file, ref long lastProgressUpdateTicks, Panel popup, ProgressBar progressBar, Label statusLabel)
 	{
-		long now = System.Environment.TickCount64;
+		long now = Environment.TickCount64;
 		if (now - lastProgressUpdateTicks < 50 && pct < 1.0f)
 		{
 			return;
 		}
+
 		lastProgressUpdateTicks = now;
 
 		Callable.From(() =>
@@ -963,6 +973,7 @@ public partial class StorageMenu : Control
 		{
 			style.BorderWidthLeft = 4;
 		}
+
 		style.CornerRadiusTopLeft = 4;
 		style.CornerRadiusTopRight = 4;
 		style.CornerRadiusBottomLeft = 4;

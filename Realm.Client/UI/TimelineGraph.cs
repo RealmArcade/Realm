@@ -1,6 +1,6 @@
-using Godot;
 using System;
 using System.Collections.Generic;
+using Godot;
 
 namespace Realm.Client.UI;
 
@@ -40,7 +40,7 @@ public partial class TimelineGraph : Control
 			.SetTrans(Tween.TransitionType.Quad)
 			.SetEase(Tween.EaseType.Out);
 		tween.StepFinished += (step) => QueueRedraw();
-		
+
 
 		for (int i = 1; i <= 10; i++)
 		{
@@ -51,7 +51,6 @@ public partial class TimelineGraph : Control
 
 	public override void _Draw()
 	{
-
 		Vector2 size = Size;
 		float paddingLeft = 50f;
 		float paddingRight = 30f;
@@ -68,10 +67,10 @@ public partial class TimelineGraph : Control
 		{
 			float yRatio = (float)i / gridLinesY;
 			float yPos = graphOrigin.Y - (yRatio * graphSize.Y);
-			
+
 
 			DrawLine(new Vector2(graphOrigin.X, yPos), new Vector2(graphOrigin.X + graphSize.X, yPos), gridColor, 1.0f);
-			
+
 
 			string labelVal = GetYLabel(yRatio);
 			DrawString(ThemeDB.FallbackFont, new Vector2(10, yPos + 5), labelVal, HorizontalAlignment.Left, -1, 16, new Color(0.8f, 0.8f, 0.8f));
@@ -156,6 +155,7 @@ public partial class TimelineGraph : Control
 
 			DrawCircle(activePoints[i], 4f, lineColor);
 		}
+
 		DrawCircle(activePoints[activePoints.Length - 1], 4f, lineColor);
 	}
 
@@ -168,9 +168,9 @@ public partial class TimelineGraph : Control
 
 	private float GetMaxY()
 	{
-		if (_activeTab == 0) return 30f;    // Army value 0..30
-		if (_activeTab == 1) return 3000f;  // Gold 0..3000
-		return 50f;                         // Units 0..50
+		if (_activeTab == 0) return 30f; // Army value 0..30
+		if (_activeTab == 1) return 3000f; // Gold 0..3000
+		return 50f; // Units 0..50
 	}
 
 	private string GetYLabel(float ratio)

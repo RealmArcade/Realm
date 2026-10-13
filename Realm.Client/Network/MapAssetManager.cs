@@ -1,18 +1,22 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared.Distribution;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
+using Environment = System.Environment;
 
 namespace Realm.Client.Network;
 
 public static class MapAssetManager
 {
-	static MapAssetManager() {
+	static MapAssetManager()
+	{
 		EnsureUgcLicense();
 	}
 
@@ -24,7 +28,7 @@ public static class MapAssetManager
 	{
 		if (IsGodotEngineRunning)
 		{
-			global::Godot.GD.Print(message);
+			GD.Print(message);
 		}
 		else
 		{
@@ -36,7 +40,7 @@ public static class MapAssetManager
 	{
 		if (IsGodotEngineRunning)
 		{
-			global::Godot.GD.PrintErr(message);
+			GD.PrintErr(message);
 		}
 		else
 		{
@@ -44,7 +48,7 @@ public static class MapAssetManager
 		}
 	}
 
-	private static readonly System.Threading.AsyncLocal<string?> AsyncLocalArchiveDirectory = new();
+	private static readonly AsyncLocal<string?> AsyncLocalArchiveDirectory = new();
 
 	public static string? ThreadLocalArchiveDirectory
 	{
@@ -65,7 +69,7 @@ public static class MapAssetManager
 
 			try
 			{
-				string[] args = System.Environment.GetCommandLineArgs();
+				string[] args = Environment.GetCommandLineArgs();
 				for (int i = 0; i < args.Length; i++)
 				{
 					if (args[i].StartsWith("--storage-path=", StringComparison.OrdinalIgnoreCase))
@@ -73,6 +77,7 @@ public static class MapAssetManager
 						_configuredStoragePath = args[i].Substring("--storage-path=".Length).Trim('"');
 						return _configuredStoragePath;
 					}
+
 					if (string.Equals(args[i], "--storage-path", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
 					{
 						_configuredStoragePath = args[i + 1].Trim('"');
@@ -80,7 +85,9 @@ public static class MapAssetManager
 					}
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 
 			return null;
 		}
@@ -91,22 +98,18 @@ public static class MapAssetManager
 		}
 	}
 
-	private static Realm.Shared.Distribution.ContentAddressableStorage? _storage;
-	public static Realm.Shared.Distribution.ContentAddressableStorage Storage
+	private static ContentAddressableStorage? _storage;
+
+	public static ContentAddressableStorage Storage
 	{
-		get
-		{
-			return _storage ??= new Realm.Shared.Distribution.ContentAddressableStorage(GlobalArchiveDirectory);
-		}
+		get { return _storage ??= new ContentAddressableStorage(GlobalArchiveDirectory); }
 	}
 
-	private static Realm.Shared.Distribution.ContentAddressableStorage? _p2pStorage;
-	public static Realm.Shared.Distribution.ContentAddressableStorage P2PStorage
+	private static ContentAddressableStorage? _p2pStorage;
+
+	public static ContentAddressableStorage P2PStorage
 	{
-		get
-		{
-			return _p2pStorage ??= new Realm.Shared.Distribution.ContentAddressableStorage(P2PArchiveDirectory);
-		}
+		get { return _p2pStorage ??= new ContentAddressableStorage(P2PArchiveDirectory); }
 	}
 
 	public static string P2PArchiveDirectory
@@ -120,6 +123,7 @@ public static class MapAssetManager
 				{
 					Directory.CreateDirectory(path);
 				}
+
 				return path;
 			}
 			else
@@ -129,6 +133,7 @@ public static class MapAssetManager
 				{
 					Directory.CreateDirectory(path);
 				}
+
 				return path;
 			}
 		}
@@ -140,18 +145,19 @@ public static class MapAssetManager
 		{
 			try
 			{
-				AssetIndexService.Instance.ClearP2PIndex();
+				GameContext.AssetIndexService.ClearP2PIndex();
 				if (Directory.Exists(P2PArchiveDirectory))
 				{
 					Directory.Delete(P2PArchiveDirectory, true);
 					Directory.CreateDirectory(P2PArchiveDirectory);
 				}
+
 				_p2pStorage = null;
-				MapAssetManager.Log("[MapAssetManager] P2P cache cleared successfully.");
+				Log("[MapAssetManager] P2P cache cleared successfully.");
 			}
 			catch (Exception ex)
 			{
-				MapAssetManager.LogErr($"[MapAssetManager] Error clearing P2P cache: {ex.Message}");
+				LogErr($"[MapAssetManager] Error clearing P2P cache: {ex.Message}");
 			}
 		}
 	}
@@ -166,6 +172,7 @@ public static class MapAssetManager
 				{
 					Directory.CreateDirectory(ThreadLocalArchiveDirectory);
 				}
+
 				return ThreadLocalArchiveDirectory;
 			}
 
@@ -176,6 +183,7 @@ public static class MapAssetManager
 				{
 					Directory.CreateDirectory(configured);
 				}
+
 				return configured;
 			}
 
@@ -190,6 +198,7 @@ public static class MapAssetManager
 				{
 					Directory.CreateDirectory(path);
 				}
+
 				return path;
 			}
 		}
@@ -218,12 +227,13 @@ public static class MapAssetManager
 
 		foreach (var hash in hashes)
 		{
-			string norm = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(hash);
+			string norm = ContentAddressableStorage.NormalizeBlake3Hash(hash);
 			if (!Storage.HasAsset(norm) && !P2PStorage.HasAsset(norm))
 			{
 				missing.Add(hash);
 			}
 		}
+
 		return missing;
 	}
 
@@ -254,9 +264,10 @@ public static class MapAssetManager
 		string root = isP2P ? P2PArchiveDirectory : GlobalArchiveDirectory;
 		if (!string.IsNullOrWhiteSpace(manifestHash))
 		{
-			string normHash = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(manifestHash);
+			string normHash = ContentAddressableStorage.NormalizeBlake3Hash(manifestHash);
 			return Path.Combine(root, mapName, version, normHash);
 		}
+
 		return Path.Combine(root, mapName, version);
 	}
 
@@ -265,7 +276,7 @@ public static class MapAssetManager
 		return Path.Combine(GetMapDirectory(mapName, version, manifestHash, isP2P), "manifest.json");
 	}
 
-	private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _ensuredDirectories = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly ConcurrentDictionary<string, bool> _ensuredDirectories = new(StringComparer.OrdinalIgnoreCase);
 
 	public static bool ExtractSingleAsset(string virtualPath, string hash, string targetDirectory, bool isP2P = false)
 	{
@@ -273,7 +284,7 @@ public static class MapAssetManager
 			return false;
 
 		string relativePath = GetNormalizedVirtualPath(virtualPath);
-		string norm = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(hash);
+		string norm = ContentAddressableStorage.NormalizeBlake3Hash(hash);
 		string destinationFilePath = Path.Combine(targetDirectory, relativePath);
 
 		if (File.Exists(destinationFilePath))
@@ -284,7 +295,7 @@ public static class MapAssetManager
 		if (TryExtractFromCas(norm, destinationFilePath, isP2P))
 			return true;
 
-		MapAssetManager.LogErr($"[MapAssetManager] Could not extract {relativePath}: hash {hash} not found in CAS storage.");
+		LogErr($"[MapAssetManager] Could not extract {relativePath}: hash {hash} not found in CAS storage.");
 		return false;
 	}
 
@@ -342,10 +353,7 @@ public static class MapAssetManager
 
 		try
 		{
-			Parallel.ForEach(manifest.Files, kvp =>
-			{
-				ExtractSingleAsset(kvp.Key, kvp.Value, targetDirectory, isP2P);
-			});
+			Parallel.ForEach(manifest.Files, kvp => { ExtractSingleAsset(kvp.Key, kvp.Value, targetDirectory, isP2P); });
 
 			string manifestPath = Path.Combine(targetDirectory, "manifest.json");
 			if (!File.Exists(manifestPath))
@@ -355,7 +363,7 @@ public static class MapAssetManager
 		}
 		catch (Exception ex)
 		{
-			MapAssetManager.LogErr($"[MapAssetManager] Error extracting manifest files to {targetDirectory}: {ex.Message}");
+			LogErr($"[MapAssetManager] Error extracting manifest files to {targetDirectory}: {ex.Message}");
 		}
 	}
 
@@ -371,7 +379,7 @@ public static class MapAssetManager
 		string stripped = rawName.Trim();
 		stripped = StripPrefixes(stripped);
 		stripped = StripSuffixes(stripped);
-        
+
 		int dashIdx = stripped.LastIndexOf('-');
 		if (dashIdx > 0)
 		{
@@ -379,7 +387,7 @@ public static class MapAssetManager
 			if (!string.IsNullOrEmpty(candidateTitle))
 				AddMapVariation(candidateTitle, seen, variations);
 		}
-        
+
 		AddMapVariation(stripped, seen, variations);
 
 		return variations;
@@ -389,14 +397,14 @@ public static class MapAssetManager
 	{
 		name = name.Trim();
 		if (string.IsNullOrEmpty(name)) return;
-        
+
 		if (seen.Add(name))
 			variations.Add(name);
-            
+
 		string withUnderscores = name.Replace(' ', '_');
 		if (seen.Add(withUnderscores))
 			variations.Add(withUnderscores);
-            
+
 		string withSpaces = name.Replace('_', ' ');
 		if (seen.Add(withSpaces))
 			variations.Add(withSpaces);
@@ -406,10 +414,10 @@ public static class MapAssetManager
 	{
 		if (name.StartsWith("[Beta-Testing]", StringComparison.OrdinalIgnoreCase))
 			name = name.Substring("[Beta-Testing]".Length).Trim();
-            
+
 		if (name.StartsWith("Realm_", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Realm ", StringComparison.OrdinalIgnoreCase))
 			name = name.Substring(6).Trim();
-            
+
 		return name;
 	}
 
@@ -417,10 +425,10 @@ public static class MapAssetManager
 	{
 		if (name.EndsWith("_Demo", StringComparison.OrdinalIgnoreCase))
 			name = name.Substring(0, name.Length - 5).Trim();
-            
+
 		if (name.EndsWith(" Demo", StringComparison.OrdinalIgnoreCase))
 			name = name.Substring(0, name.Length - 5).Trim();
-            
+
 		return name;
 	}
 
@@ -443,13 +451,13 @@ public static class MapAssetManager
 
 			string? versionPath = FindManifestWithVersion(variations, targetVersion);
 			if (versionPath != null) return versionPath;
-            
+
 			return SearchArchivesForManifestWithVersion(variations, targetVersion);
 		}
 
 		string? noVersionPath = FindManifestWithoutVersion(variations);
 		if (noVersionPath != null) return noVersionPath;
-        
+
 		return SearchArchivesForManifestWithoutVersion(variations);
 	}
 
@@ -480,6 +488,7 @@ public static class MapAssetManager
 			string p2pPath = GetManifestPath(variation, version, manifestHash, true);
 			if (File.Exists(p2pPath)) return p2pPath;
 		}
+
 		return null;
 	}
 
@@ -497,7 +506,7 @@ public static class MapAssetManager
 				GetMapDirectory(variation, version, null, false),
 				GetMapDirectory(variation, version, null, true)
 			};
-            
+
 			foreach (var bDir in baseDirs)
 			{
 				if (!Directory.Exists(bDir)) continue;
@@ -508,6 +517,7 @@ public static class MapAssetManager
 				}
 			}
 		}
+
 		return null;
 	}
 
@@ -528,7 +538,7 @@ public static class MapAssetManager
 
 				string versionDir = Path.Combine(dir, version);
 				if (!Directory.Exists(versionDir)) continue;
-                
+
 				foreach (var hashSub in Directory.GetDirectories(versionDir))
 				{
 					string hashCandidate = Path.Combine(hashSub, "manifest.json");
@@ -537,6 +547,7 @@ public static class MapAssetManager
 				}
 			}
 		}
+
 		return null;
 	}
 
@@ -558,7 +569,10 @@ public static class MapAssetManager
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return false;
 	}
 
@@ -592,6 +606,7 @@ public static class MapAssetManager
 				}
 			}
 		}
+
 		return null;
 	}
 
@@ -605,6 +620,7 @@ public static class MapAssetManager
 			string? match = SearchArchiveRootForManifest(root, variations);
 			if (match != null) return match;
 		}
+
 		return null;
 	}
 
@@ -621,6 +637,7 @@ public static class MapAssetManager
 				if (CheckManifestMatchesVariations(mfPath, dirName, variations)) return mfPath;
 			}
 		}
+
 		return null;
 	}
 
@@ -630,7 +647,7 @@ public static class MapAssetManager
 		{
 			var mf = MapManifest.LoadFromFile(mfPath);
 			if (mf == null) return false;
-            
+
 			foreach (var variation in variations)
 			{
 				if (string.Equals(mf.MapName, variation, StringComparison.OrdinalIgnoreCase) ||
@@ -640,10 +657,13 @@ public static class MapAssetManager
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return false;
 	}
-    
+
 	private static List<string> GetManifestCandidatesFromDirectory(string dir)
 	{
 		var candidates = new List<string>();
@@ -661,6 +681,7 @@ public static class MapAssetManager
 				if (File.Exists(hsubMf)) candidates.Add(hsubMf);
 			}
 		}
+
 		return candidates;
 	}
 
@@ -694,7 +715,7 @@ public static class MapAssetManager
 		{
 			var manifest = ParseManifest(manifestPath);
 			if (manifest == null) return false;
-            
+
 			if (manifest.Files == null || manifest.Files.Count == 0)
 				return true;
 
@@ -708,7 +729,7 @@ public static class MapAssetManager
 				bool isP2P = manifestPath.Contains("p2p_cache", StringComparison.OrdinalIgnoreCase);
 				ExtractManifestFiles(manifest, mapDir, isP2P: isP2P);
 			}
-            
+
 			return true;
 		}
 		catch
@@ -732,6 +753,7 @@ public static class MapAssetManager
 			if (!File.Exists(Path.Combine(mapDir, rel)))
 				return true;
 		}
+
 		return false;
 	}
 
@@ -753,22 +775,22 @@ public static class MapAssetManager
 		{
 			try
 			{
-				MapAssetManager.Log("[MapAssetManager] Starting background pruning process...");
+				Log("[MapAssetManager] Starting background pruning process...");
 
 				if (!Directory.Exists(archiveDir)) return;
 
 				CleanLegacyArchiveFiles(archiveDir);
 
 				var referencedHashes = GetReferencedManifestHashes(archiveDir);
-				MapAssetManager.Log($"[MapAssetManager] Total referenced BLAKE3 hashes found in manifests: {referencedHashes.Count}");
+				Log($"[MapAssetManager] Total referenced BLAKE3 hashes found in manifests: {referencedHashes.Count}");
 
 				PruneUnreferencedCasFiles(referencedHashes);
 
-				MapAssetManager.Log("[MapAssetManager] Pruning complete.");
+				Log("[MapAssetManager] Pruning complete.");
 			}
 			catch (Exception ex)
 			{
-				MapAssetManager.LogErr($"[MapAssetManager] Pruning failed: {ex.Message}");
+				LogErr($"[MapAssetManager] Pruning failed: {ex.Message}");
 			}
 		}
 	}
@@ -778,24 +800,44 @@ public static class MapAssetManager
 		string legacyGlobal7z = Path.Combine(archiveDir, "global_assets.7z");
 		if (File.Exists(legacyGlobal7z))
 		{
-			try { File.Delete(legacyGlobal7z); } catch { }
+			try
+			{
+				File.Delete(legacyGlobal7z);
+			}
+			catch
+			{
+			}
 		}
-        
+
 		string legacyPckCache = Path.Combine(archiveDir, "pck_cache.json");
 		if (File.Exists(legacyPckCache))
 		{
-			try { File.Delete(legacyPckCache); } catch { }
+			try
+			{
+				File.Delete(legacyPckCache);
+			}
+			catch
+			{
+			}
 		}
-        
+
 		try
 		{
 			var legacyPcks = Directory.GetFiles(archiveDir, "*.pck", SearchOption.AllDirectories);
 			foreach (var pck in legacyPcks)
 			{
-				try { File.Delete(pck); } catch { }
+				try
+				{
+					File.Delete(pck);
+				}
+				catch
+				{
+				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private static HashSet<string> GetReferencedManifestHashes(string archiveDir)
@@ -810,32 +852,32 @@ public static class MapAssetManager
 				string content = File.ReadAllText(file);
 				var manifest = MapManifest.LoadFromJson(content);
 				if (manifest == null || manifest.Files == null) continue;
-                
+
 				foreach (var hash in manifest.Files.Values)
 				{
 					referencedHashes.Add(hash);
-					referencedHashes.Add(Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(hash));
+					referencedHashes.Add(ContentAddressableStorage.NormalizeBlake3Hash(hash));
 				}
 			}
 			catch (Exception ex)
 			{
-				MapAssetManager.LogErr($"[MapAssetManager] Error reading manifest {file}: {ex.Message}");
+				LogErr($"[MapAssetManager] Error reading manifest {file}: {ex.Message}");
 			}
 		}
-        
+
 		return referencedHashes;
 	}
 
 	private static void PruneUnreferencedCasFiles(HashSet<string> referencedHashes)
 	{
 		if (!Directory.Exists(Storage.AssetsDirectory)) return;
-        
+
 		var casFiles = Directory.GetFiles(Storage.AssetsDirectory, "*.*", SearchOption.AllDirectories);
 		foreach (var casFile in casFiles)
 		{
-			string fileHash = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(Path.GetFileName(casFile));
+			string fileHash = ContentAddressableStorage.NormalizeBlake3Hash(Path.GetFileName(casFile));
 			if (referencedHashes.Contains(fileHash)) continue;
-            
+
 			try
 			{
 				File.Delete(casFile);
@@ -845,9 +887,12 @@ public static class MapAssetManager
 				{
 					File.Delete(sidecarFile);
 				}
-				MapAssetManager.Log($"[MapAssetManager] Pruned CAS asset: {casFile}");
+
+				Log($"[MapAssetManager] Pruned CAS asset: {casFile}");
 			}
-			catch { }
+			catch
+			{
+			}
 		}
 	}
 
@@ -921,7 +966,7 @@ public static class MapAssetManager
 	private static string ResolveMapDirectory(string mapPath)
 	{
 		if (Directory.Exists(mapPath)) return mapPath;
-        
+
 		if (IsJsonFile(mapPath))
 			return GetDirectoryOrDefault(mapPath);
 
@@ -958,7 +1003,10 @@ public static class MapAssetManager
 			string globalPath = ProjectSettings.GlobalizePath(godotPath);
 			if (Directory.Exists(globalPath)) return globalPath;
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return null;
 	}
 
@@ -973,7 +1021,10 @@ public static class MapAssetManager
 			if (existing != null && existing.Files != null && existing.Files.Count > 0)
 				return existing;
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return null;
 	}
 
@@ -989,7 +1040,7 @@ public static class MapAssetManager
 			string ext = Path.GetExtension(file).ToLowerInvariant();
 			string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, ext);
 			string assetKey = string.IsNullOrEmpty(ext) ? blake3 : $"{blake3}{ext}";
-            
+
 			newFiles[assetKey] = bytes;
 			manifest.Files[relativePath] = assetKey;
 		}
@@ -999,8 +1050,8 @@ public static class MapAssetManager
 
 	private static bool ShouldIgnoreFileForIngestion(string relativePath)
 	{
-		return relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) || 
-		       relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) || 
+		return relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) ||
+		       relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase) ||
 		       relativePath.StartsWith(".git/", StringComparison.OrdinalIgnoreCase) ||
 		       relativePath.StartsWith(".vscode/", StringComparison.OrdinalIgnoreCase) ||
 		       relativePath.StartsWith(".godot/", StringComparison.OrdinalIgnoreCase) ||
@@ -1035,17 +1086,17 @@ public static class MapAssetManager
 			string manifestBlake3 = ComputeManifestBlake3(manifest);
 			string manifestDir = GetMapDirectory(manifest.MapName, version, manifestBlake3, false);
 			Directory.CreateDirectory(manifestDir);
-            
+
 			string manifestPath = Path.Combine(manifestDir, "manifest.json");
 			File.WriteAllText(manifestPath, manifest.ToJson());
 			ExtractManifestFiles(manifest, manifestDir, isP2P: false);
-            
-			MapAssetManager.Log($"[MapAssetManager] Saved host manifest and hardlinks to: {manifestPath}");
-			AssetIndexService.Instance.RegisterManifest(manifest, manifestPath, isP2P: false);
+
+			Log($"[MapAssetManager] Saved host manifest and hardlinks to: {manifestPath}");
+			GameContext.AssetIndexService.RegisterManifest(manifest, manifestPath, isP2P: false);
 		}
 		catch (Exception ex)
 		{
-			MapAssetManager.LogErr($"[MapAssetManager] Failed to write host manifest: {ex.Message}");
+			LogErr($"[MapAssetManager] Failed to write host manifest: {ex.Message}");
 		}
 	}
 
@@ -1066,7 +1117,9 @@ public static class MapAssetManager
 			long fallbackSize = GetSizeFromDirectoryFallbacks(mapName, version);
 			if (fallbackSize > 0) return fallbackSize;
 		}
-		catch { }
+		catch
+		{
+		}
 
 		return 0;
 	}
@@ -1078,7 +1131,7 @@ public static class MapAssetManager
 			long totalFromManifest = 0;
 			foreach (var size in manifest.FileSizes.Values)
 				totalFromManifest += size;
-                
+
 			if (totalFromManifest > 0)
 				return totalFromManifest;
 		}
@@ -1095,7 +1148,7 @@ public static class MapAssetManager
 				}
 			}
 		}
-        
+
 		return totalCas;
 	}
 
@@ -1158,6 +1211,7 @@ public static class MapAssetManager
 		{
 			return "0.0 MB";
 		}
+
 		double mb = bytes / (1024.0 * 1024.0);
 		return $"{mb:F1} MB";
 	}

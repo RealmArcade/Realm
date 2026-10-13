@@ -1,8 +1,9 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Realm.Ecs.Components.Movement;
 
-[System.Runtime.CompilerServices.InlineArray(16)]
+[InlineArray(16)]
 public struct WaypointBuffer
 {
 	public Vector3 Element0;

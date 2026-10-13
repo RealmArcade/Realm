@@ -46,6 +46,7 @@ public static class TextureResizer
 			{
 				RenormalizeNormalMap(image);
 			}
+
 			return image;
 		}
 

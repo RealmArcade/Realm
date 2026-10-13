@@ -1,23 +1,30 @@
-using Godot;
-using Microsoft.ML.OnnxRuntime;
-using Microsoft.ML.OnnxRuntime.Tensors;
-using Realm.Client.Services;
-using Realm.Client.UI;
-using Realm.Shared;
-using Realm.Shared.Distribution;
-using SharpToken;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Godot;
+using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime.Tensors;
+using Realm.Client.Core;
+using Realm.Client.ReplaySystem;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Shared;
+using Realm.Shared.Distribution;
+using SharpToken;
+using Environment = System.Environment;
+using FileAccess = System.IO.FileAccess;
+using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
@@ -32,13 +39,13 @@ public partial class LobbyManager : Node
 	public static string GetBaseGameDirectory()
 	{
 		string exePath = OS.GetExecutablePath();
-		string baseDir = System.IO.Path.GetDirectoryName(exePath) ?? "";
-        
-		int versionsIndex = baseDir.IndexOf($"{System.IO.Path.DirectorySeparatorChar}versions{System.IO.Path.DirectorySeparatorChar}");
+		string baseDir = Path.GetDirectoryName(exePath) ?? "";
+
+		int versionsIndex = baseDir.IndexOf($"{Path.DirectorySeparatorChar}versions{Path.DirectorySeparatorChar}");
 		if (versionsIndex == -1) versionsIndex = baseDir.IndexOf("/versions/");
-		if (versionsIndex == -1 && baseDir.EndsWith($"{System.IO.Path.DirectorySeparatorChar}versions")) versionsIndex = baseDir.Length - 9;
+		if (versionsIndex == -1 && baseDir.EndsWith($"{Path.DirectorySeparatorChar}versions")) versionsIndex = baseDir.Length - 9;
 		if (versionsIndex == -1 && baseDir.EndsWith("/versions")) versionsIndex = baseDir.Length - 9;
-        
+
 		if (versionsIndex != -1)
 		{
 			baseDir = baseDir.Substring(0, versionsIndex);
@@ -51,28 +58,9 @@ public partial class LobbyManager : Node
 	{
 		string baseDir = GetBaseGameDirectory();
 		string exePath = OS.GetExecutablePath();
-		string fileName = System.IO.Path.GetFileName(exePath);
+		string fileName = Path.GetFileName(exePath);
 
-		return System.IO.Path.Combine(baseDir, "versions", targetVersion, fileName);
-	}
-
-	public class PlayerInfo
-	{
-		public int PeerId { get; set; }
-		public int Slot { get; set; }
-		public string Name { get; set; } = "";
-		public string Faction { get; set; } = "HUMAN";
-		public string Team { get; set; } = "Team 1";
-		public Color Color { get; set; } = PlayerColorConfig.GetColor(1);
-		public bool IsHost { get; set; }
-		public string Latency { get; set; } = "--";
-		public string Jitter { get; set; } = "--";
-		public string PacketLoss { get; set; } = "--";
-		public bool IsReady { get; set; }
-		public string BinaryVersion { get; set; } = "";
-		public bool IsMapReady { get; set; } = true;
-		public string SessionToken { get; set; } = Guid.NewGuid().ToString();
-		public bool IsDisconnected { get; set; } = false;
+		return Path.Combine(baseDir, "versions", targetVersion, fileName);
 	}
 
 	public List<string> OfficialServers { get; private set; } = new();
@@ -81,7 +69,7 @@ public partial class LobbyManager : Node
 	public string RegistryServerUrl => OfficialServers.Count > 0 && _currentServerIndex < OfficialServers.Count && !string.IsNullOrWhiteSpace(OfficialServers[_currentServerIndex]) ? OfficialServers[_currentServerIndex] : ServersConfigHelper.GetDefaultServerUrl();
 	public int ENetPort { get; private set; } = 8999;
 	public int MaxPlayers { get; set; } = 8;
-    
+
 	public string AuthenticatedUsername { get; set; } = "Horaid_Topa";
 	public string? AuthToken { get; set; }
 	public string? AuthProvider { get; set; }
@@ -98,8 +86,10 @@ public partial class LobbyManager : Node
 		{
 			LocalPlayer.Name = AuthenticatedUsername;
 		}
+
 		return true;
 	}
+
 	private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
 	private bool _isReconnecting = false;
 	public bool IsReconnecting => _isReconnecting;
@@ -114,14 +104,14 @@ public partial class LobbyManager : Node
 	public bool SpectatorDelay { get; set; } = false;
 	public string? LobbyJoinError { get; set; }
 	public string HostStability { get; set; } = "Excellent";
-	public event System.Action<string> HostStabilityUpdated;
+	public event Action<string> HostStabilityUpdated;
 
 
 	public List<PlayerInfo> PlayerList { get; } = new();
 	public PlayerInfo LocalPlayer { get; private set; } = new();
 
 
-	private readonly System.Net.Http.HttpClient _httpClient = new();
+	private readonly HttpClient _httpClient = new();
 	private string? _connectedHostIp;
 	private int _connectedHostPort;
 	private bool _isConnectedToHost;
@@ -141,46 +131,7 @@ public partial class LobbyManager : Node
 	private static Dictionary<string, int>? _vocab;
 	private static readonly object _sessionLock = new();
 	private readonly SemaphoreSlim _mapDownloadLock = new(1, 1);
-	private struct HostAssetTransferItem
-	{
-		public string AssetKey;
-		public string SourceFilePath;
-		public string? Metadata;
-		public long Size;
-	}
 
-	private class HostTransferSession
-	{
-		public string TransferId { get; set; } = string.Empty;
-		public int PeerId { get; set; }
-		public string MapName { get; set; } = string.Empty;
-		public string MapVersion { get; set; } = string.Empty;
-		public List<List<HostAssetTransferItem>> ChunkItems { get; set; } = new();
-		public int CurrentChunkIndex { get; set; } = 0;
-		public int TotalChunks => ChunkItems.Count;
-		public long TotalRawBytes { get; set; }
-		public CancellationTokenSource Cts { get; set; } = new();
-	}
-
-	private class ClientTransferSession
-	{
-		public string TransferId { get; set; } = string.Empty;
-		public string MapName { get; set; } = string.Empty;
-		public string MapVersion { get; set; } = string.Empty;
-		public MapManifest Manifest { get; set; } = new();
-		public long ExpectedTotalBytes { get; set; }
-		public int ExpectedTotalChunks { get; set; }
-		public int CurrentChunkIndex { get; set; }
-		public MemoryStream CurrentChunkStream { get; set; } = new();
-		public int ReceivedPacketsInCurrentChunk { get; set; }
-		public long TotalReceivedBytes { get; set; }
-		public int TotalAssetsInManifest { get; set; }
-		public int AlreadyPresentAssets { get; set; }
-		public int SessionMissingAssets { get; set; }
-		public DateTime LastActivityTimeUtc { get; set; } = DateTime.UtcNow;
-		public float LastEmittedProgress { get; set; } = -1.0f;
-		public long LastProgressEmitTicks { get; set; } = 0;
-	}
 
 	private readonly ConcurrentDictionary<string, HostTransferSession> _hostTransfers = new();
 	private TaskCompletionSource<string>? _manifestTcs;
@@ -222,8 +173,10 @@ public partial class LobbyManager : Node
 			{
 				GD.PrintErr($"[LobbyManager] Failed to fetch lobbies from {RegistryServerUrl}: {ex.Message}");
 			}
+
 			SwitchToNextServer();
 		}
+
 		return null;
 	}
 
@@ -279,7 +232,10 @@ public partial class LobbyManager : Node
 					if (!GodotObject.IsInstanceValid(this) || IsQueuedForDeletion()) break;
 					CheckPeerSeederStatus();
 				}
-				catch { break; }
+				catch
+				{
+					break;
+				}
 			}
 		});
 	}
@@ -287,7 +243,7 @@ public partial class LobbyManager : Node
 	private void CheckPeerSeederStatus()
 	{
 		if (PeerSeederManager.Instance == null) return;
-        
+
 		Callable.From(() =>
 		{
 			if (GodotObject.IsInstanceValid(this) && !IsQueuedForDeletion() && PeerSeederManager.Instance != null)
@@ -325,7 +281,9 @@ public partial class LobbyManager : Node
 		{
 			PeerSeederManager.Instance.Stop();
 		}
-		catch { }
+		catch
+		{
+		}
 
 		if (IsHost && !string.IsNullOrEmpty(ActiveLobbyId) && !string.IsNullOrEmpty(_hostToken))
 		{
@@ -338,11 +296,8 @@ public partial class LobbyManager : Node
 				GD.Print($"[LobbyManager] Closing lobby {lobbyIdToClose} synchronously before exit...");
 				var payload = new { LobbyId = lobbyIdToClose, HostToken = tokenToClose };
 				var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                
-				var task = Task.Run(async () =>
-				{
-					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/close", jsonContent);
-				});
+
+				var task = Task.Run(async () => { await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/close", jsonContent); });
 				task.Wait(2000);
 			}
 			catch (Exception ex)
@@ -365,30 +320,31 @@ public partial class LobbyManager : Node
 		GD.Print("[LobbyManager] Starting STUN NAT Type Test...");
 		LocalNatType = await NatTypeTester.DetermineNatTypeAsync(0);
 		GD.Print($"[LobbyManager] NAT Type Classified: {LocalNatType}");
-        
+
 
 		try
 		{
 			var dnsAddresses = await Dns.GetHostAddressesAsync("stun.l.google.com");
 			if (dnsAddresses.Length > 0)
 			{
-				using var udp = new System.Net.Sockets.UdpClient();
+				using var udp = new UdpClient();
 				udp.ExclusiveAddressUse = false;
-				udp.Client.SetSocketOption(System.Net.Sockets.SocketOptionLevel.Socket, System.Net.Sockets.SocketOptionName.ReuseAddress, true);
-				udp.Client.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 0));
-                
-				var serverEp = new System.Net.IPEndPoint(dnsAddresses[0], 19302);
+				udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+				udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+
+				var serverEp = new IPEndPoint(dnsAddresses[0], 19302);
 				byte[] req = new byte[20];
-				req[0] = 0x00; req[1] = 0x01; // Binding Request
+				req[0] = 0x00;
+				req[1] = 0x01; // Binding Request
 				new Random().NextBytes(new Span<byte>(req, 4, 16));
-                
+
 				await udp.SendAsync(req, req.Length, serverEp);
 				var receiveTask = udp.ReceiveAsync();
 				var timeoutTask = Task.Delay(1000);
 				if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
 				{
 					var response = await receiveTask;
-					var result = new NatTypeTester.StunResult();
+					var result = new StunResult();
 					NatTypeTester.ParseStunResponse(response.Buffer, result);
 					if (result.Success && result.MappedEndPoint != null)
 					{
@@ -418,7 +374,6 @@ public partial class LobbyManager : Node
 	}
 
 
-
 	public void HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null)
 	{
 		IsSinglePlayer = true;
@@ -427,7 +382,7 @@ public partial class LobbyManager : Node
 		ActiveMapName = mapPathName;
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(mapVersion) ? mapVersion : "1.0.0";
 		PlayerList.Clear();
-        
+
 		LocalPlayer = new PlayerInfo
 		{
 			PeerId = 1,
@@ -444,7 +399,7 @@ public partial class LobbyManager : Node
 			SessionToken = _persistentSessionToken
 		};
 		PlayerList.Add(LocalPlayer);
-        
+
 		Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
 		CallDeferred(nameof(LoadMap), mapPathName);
 	}
@@ -506,7 +461,14 @@ public partial class LobbyManager : Node
 	{
 		if (Multiplayer.MultiplayerPeer != null)
 		{
-			try { Multiplayer.MultiplayerPeer.Close(); } catch { }
+			try
+			{
+				Multiplayer.MultiplayerPeer.Close();
+			}
+			catch
+			{
+			}
+
 			Multiplayer.MultiplayerPeer = null;
 		}
 
@@ -524,12 +486,13 @@ public partial class LobbyManager : Node
 				return false;
 			}
 		}
-        
+
 		Multiplayer.MultiplayerPeer = peer;
 		if (Multiplayer is SceneMultiplayer sceneMultiplayer)
 		{
 			sceneMultiplayer.ServerRelay = false;
 		}
+
 		GD.Print($"[LobbyManager] ENet Server initialized on port {ENetPort}");
 		return true;
 	}
@@ -629,17 +592,17 @@ public partial class LobbyManager : Node
 		string json = File.ReadAllText(manifestPath);
 		using var mapDoc = JsonDocument.Parse(json);
 		var root = mapDoc.RootElement;
-                
+
 		mapVersion = UpdateMapVersion(root, mapVersion);
-                
+
 		signature = GetStringProperty(root, "signature");
 		publicKey = GetStringProperty(root, "author_key");
-                
+
 		if (string.IsNullOrEmpty(signature) || string.IsNullOrEmpty(publicKey))
 		{
 			return;
 		}
-		
+
 		byte[] mapBytes = File.ReadAllBytes(manifestPath);
 		string mapBlake3 = RealmMetadataHelper.ComputeBlake3(mapBytes, ".json");
 		mapHash = $"{mapBlake3}.json";
@@ -652,13 +615,13 @@ public partial class LobbyManager : Node
 			string? ver = vProp.GetString();
 			if (ver != null) return ver;
 		}
-		
+
 		if (root.TryGetProperty("MapProperties", out var props) && props.TryGetProperty("MapVersion", out var mv))
 		{
 			string? mver = mv.GetString();
 			if (mver != null) return mver;
 		}
-		
+
 		return defaultVersion;
 	}
 
@@ -672,6 +635,7 @@ public partial class LobbyManager : Node
 				return val;
 			}
 		}
+
 		return "";
 	}
 
@@ -690,33 +654,35 @@ public partial class LobbyManager : Node
 			{
 				GD.PrintErr($"[LobbyManager] Register failed on {RegistryServerUrl}: {ex.Message}");
 			}
+
 			SwitchToNextServer();
 		}
+
 		return response;
 	}
 
 	private async Task<bool> HandleRegisterFailureAsync(HttpResponseMessage? response)
 	{
 		string errMsg = "Registry server registration failed.";
-		
+
 		if (response != null)
 		{
 			errMsg = await ExtractErrorMessageAsync(response, errMsg);
 		}
-        
+
 		LastHostError = errMsg;
 		GD.PrintErr($"[LobbyManager] {errMsg}");
-        
+
 		if (response != null)
 		{
-			if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+			if (response.StatusCode == HttpStatusCode.BadRequest)
 			{
 				Multiplayer.MultiplayerPeer = null;
 				IsHost = false;
 				return false;
 			}
 		}
-		
+
 		return true; // proceed locally if registry is offline
 	}
 
@@ -726,7 +692,7 @@ public partial class LobbyManager : Node
 		{
 			string body = await response.Content.ReadAsStringAsync();
 			using var errDoc = JsonDocument.Parse(body);
-			
+
 			string parsedError = TryGetErrorMessage(errDoc.RootElement);
 			if (!string.IsNullOrEmpty(parsedError))
 			{
@@ -742,14 +708,14 @@ public partial class LobbyManager : Node
 		{
 			// Ignore parse errors, fallback to default error
 		}
-		
+
 		return defaultError;
 	}
 
 	private string TryGetErrorMessage(JsonElement root)
 	{
 		string[] errorProperties = { "message", "Message", "title", "detail" };
-		
+
 		foreach (string propName in errorProperties)
 		{
 			if (root.TryGetProperty(propName, out var msgProp))
@@ -758,7 +724,7 @@ public partial class LobbyManager : Node
 				if (msg != null) return msg;
 			}
 		}
-		
+
 		return string.Empty;
 	}
 
@@ -767,12 +733,12 @@ public partial class LobbyManager : Node
 		var respText = await response.Content.ReadAsStringAsync();
 		using var doc = JsonDocument.Parse(respText);
 		ActiveLobbyId = doc.RootElement.GetProperty("lobbyId").GetString();
-        
+
 		if (doc.RootElement.TryGetProperty("hostToken", out var hostTokenProp))
 		{
 			_hostToken = hostTokenProp.GetString();
 		}
-        
+
 		GD.Print($"[LobbyManager] Lobby registered on server. LobbyId: {ActiveLobbyId}");
 
 		if (!string.IsNullOrEmpty(ActiveLobbyId))
@@ -859,8 +825,10 @@ public partial class LobbyManager : Node
 			{
 				GD.PrintErr($"[LobbyManager] Join failed on {RegistryServerUrl}: {ex.Message}");
 			}
+
 			SwitchToNextServer();
 		}
+
 		return response;
 	}
 
@@ -868,10 +836,10 @@ public partial class LobbyManager : Node
 	{
 		var respText = await response.Content.ReadAsStringAsync();
 		using var doc = JsonDocument.Parse(respText);
-        
+
 		string hostIp = doc.RootElement.GetProperty("hostIP").GetString() ?? "";
 		int hostPort = doc.RootElement.GetProperty("hostPort").GetInt32();
-        
+
 		string? localIp = null;
 		if (doc.RootElement.TryGetProperty("localIP", out var localIpProp))
 		{
@@ -886,7 +854,7 @@ public partial class LobbyManager : Node
 			connectIp = localIp;
 			connectPort = ENetPort;
 		}
-        
+
 		return (connectIp, connectPort);
 	}
 
@@ -912,13 +880,13 @@ public partial class LobbyManager : Node
 		{
 			packetPeer.SetTimeout(32, 5000, 15000);
 		}
-        
+
 		Multiplayer.MultiplayerPeer = peer;
 		if (Multiplayer is SceneMultiplayer sceneMultiplayer)
 		{
 			sceneMultiplayer.ServerRelay = false;
 		}
-        
+
 		GD.Print($"[LobbyManager] ENet Client initialized. Connecting to {connectIp}:{connectPort}...");
 		return true;
 	}
@@ -963,11 +931,11 @@ public partial class LobbyManager : Node
 		UnregisterActiveLobbyFromRegistry();
 
 
-
 		foreach (var kvp in _hostTransfers)
 		{
 			kvp.Value.Cts.Cancel();
 		}
+
 		_hostTransfers.Clear();
 		_activeEphemeralTransferPeerId = 0;
 
@@ -977,7 +945,10 @@ public partial class LobbyManager : Node
 			{
 				_currentClientTransfer.CurrentChunkStream.Dispose();
 			}
-			catch { }
+			catch
+			{
+			}
+
 			_currentClientTransfer = null;
 		}
 
@@ -993,7 +964,6 @@ public partial class LobbyManager : Node
 		PlayerList.Clear();
 		PlayerListUpdated?.Invoke();
 	}
-
 
 
 	private void StartHostWebSocketSignaling(string lobbyId)
@@ -1013,7 +983,9 @@ public partial class LobbyManager : Node
 				GD.Print("[LobbyManager] Host WebSocket signaling connected.");
 				await ProcessWebSocketMessagesAsync(token);
 			}
-			catch (Exception ex) when (ex is OperationCanceledException || ex is ObjectDisposedException) { }
+			catch (Exception ex) when (ex is OperationCanceledException || ex is ObjectDisposedException)
+			{
+			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[LobbyManager] Host WebSocket error: {ex.Message}");
@@ -1041,14 +1013,14 @@ public partial class LobbyManager : Node
 	{
 		using var doc = JsonDocument.Parse(json);
 		var root = doc.RootElement;
-        
+
 		if (root.GetProperty("Action").GetString() == "Punch")
 		{
 			string clientIp = root.GetProperty("ClientIP").GetString() ?? "";
 			int clientPort = root.GetProperty("ClientPort").GetInt32();
-            
+
 			GD.Print($"[LobbyManager] WebSocket signal: incoming client. Punching to {clientIp}:{clientPort}...");
-            
+
 			_ = Task.Run(async () =>
 			{
 				try
@@ -1076,12 +1048,15 @@ public partial class LobbyManager : Node
 					var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
 					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
 				}
-				catch { /* Ignore heartbeat errors */ }
+				catch
+				{
+					/* Ignore heartbeat errors */
+				}
+
 				await Task.Delay(1000, token); // every 1s
 			}
 		}, token);
 	}
-
 
 
 	private void OnPeerConnected(long peerId)
@@ -1106,7 +1081,7 @@ public partial class LobbyManager : Node
 			{
 				GD.Print($"[LobbyManager] Rejecting peer {id}: Lobby is full.");
 				RpcId(id, nameof(RejectConnection), "Lobby is full");
-                
+
 
 				var timer = GetTree().CreateTimer(0.1f);
 				timer.Timeout += () =>
@@ -1179,7 +1154,7 @@ public partial class LobbyManager : Node
 					GD.Print($"[LobbyManager] In-game peer {id} ({player.Name}) marked as disconnected for reconnect. Slot {player.Slot} preserved.");
 					SendChatMessage("System", string.Format(Tr("{0} disconnected. Waiting for reconnect..."), player.Name));
 				}
-				Realm.Client.Core.GameHost.Instance?.HandlePeerDisconnected(id);
+
 				return;
 			}
 
@@ -1194,6 +1169,7 @@ public partial class LobbyManager : Node
 				{
 					PlayerList[i].Slot = i;
 				}
+
 				UpdateAllPeerDiagnostics();
 				SendChatMessage("System", string.Format(Tr("{0} left the lobby."), name));
 			}
@@ -1285,6 +1261,7 @@ public partial class LobbyManager : Node
 			retryCount++;
 			await Task.Delay(1000);
 		}
+
 		return false;
 	}
 
@@ -1319,7 +1296,7 @@ public partial class LobbyManager : Node
 		{
 			MapAssetManager.ExtractManifestFiles(manifest, targetMapDir);
 			string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-			AssetIndexService.Instance.RegisterManifest(manifest, localManifestPath);
+			GameContext.AssetIndexService.RegisterManifest(manifest, localManifestPath);
 		});
 
 		CallDeferred(nameof(EmitDownloadProgress), 1.0f);
@@ -1352,7 +1329,14 @@ public partial class LobbyManager : Node
 
 		if (!transferSuccess && _currentClientTransfer != null)
 		{
-			try { _currentClientTransfer.CurrentChunkStream.Dispose(); } catch { }
+			try
+			{
+				_currentClientTransfer.CurrentChunkStream.Dispose();
+			}
+			catch
+			{
+			}
+
 			_currentClientTransfer = null;
 		}
 
@@ -1380,6 +1364,7 @@ public partial class LobbyManager : Node
 				return false;
 			}
 		}
+
 		return false;
 	}
 
@@ -1437,6 +1422,7 @@ public partial class LobbyManager : Node
 		{
 			PeerSeederManager.Instance!.Stop();
 		}
+
 		return wasSeeding;
 	}
 
@@ -1494,7 +1480,7 @@ public partial class LobbyManager : Node
 		Multiplayer.ConnectionFailed += OnFailed;
 
 		var connectTask = await Task.WhenAny(connectedTcs.Task, Task.Delay(8000, cancellationToken));
-        
+
 		Multiplayer.ConnectedToServer -= OnConnected;
 		Multiplayer.ConnectionFailed -= OnFailed;
 
@@ -1503,7 +1489,14 @@ public partial class LobbyManager : Node
 
 	private void CleanupEphemeralConnection(ENetMultiplayerPeer peer)
 	{
-		try { peer.Close(); } catch { }
+		try
+		{
+			peer.Close();
+		}
+		catch
+		{
+		}
+
 		Multiplayer.MultiplayerPeer = null;
 		_isConnectedToHost = false;
 	}
@@ -1517,9 +1510,17 @@ public partial class LobbyManager : Node
 
 		if (Multiplayer.MultiplayerPeer != null)
 		{
-			try { Multiplayer.MultiplayerPeer.Close(); } catch { }
+			try
+			{
+				Multiplayer.MultiplayerPeer.Close();
+			}
+			catch
+			{
+			}
+
 			Multiplayer.MultiplayerPeer = null;
 		}
+
 		_isConnectedToHost = false;
 
 		if (wasSeeding)
@@ -1564,6 +1565,7 @@ public partial class LobbyManager : Node
 				GD.Print($"[LobbyManager] Rejecting map transfer {transferId} from peer {senderId}: Seeder is currently serving peer {_activeEphemeralTransferPeerId}.");
 				return;
 			}
+
 			_activeEphemeralTransferPeerId = senderId;
 		}
 
@@ -1612,7 +1614,7 @@ public partial class LobbyManager : Node
 	{
 		var localFileMap = BuildLocalFileMap(mapName, mapVersion);
 		var itemsToPack = CollectTransferItems(missingHashes, localFileMap);
-        
+
 		session.ChunkItems = ChunkTransferItems(itemsToPack);
 		session.TotalRawBytes = itemsToPack.Sum(a => a.Size);
 	}
@@ -1622,7 +1624,7 @@ public partial class LobbyManager : Node
 		var localFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		var manifest = MapAssetManager.FindHostManifest(mapName, mapVersion);
 		string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion);
-        
+
 		if (manifest?.Files == null || string.IsNullOrEmpty(manifestPath) || !File.Exists(manifestPath))
 		{
 			return localFileMap;
@@ -1639,6 +1641,7 @@ public partial class LobbyManager : Node
 				localFileMap[normKvp] = localFilePath;
 			}
 		}
+
 		return localFileMap;
 	}
 
@@ -1675,6 +1678,7 @@ public partial class LobbyManager : Node
 				GD.PrintErr($"[LobbyManager] Host could not find asset payload for hash: {hash}");
 			}
 		}
+
 		return itemsToPack;
 	}
 
@@ -1693,6 +1697,7 @@ public partial class LobbyManager : Node
 				currentChunk = new List<HostAssetTransferItem>();
 				currentChunkBytes = 0;
 			}
+
 			currentChunk.Add(item);
 			currentChunkBytes += estimated;
 		}
@@ -1701,6 +1706,7 @@ public partial class LobbyManager : Node
 		{
 			chunkList.Add(currentChunk);
 		}
+
 		return chunkList;
 	}
 
@@ -1711,7 +1717,7 @@ public partial class LobbyManager : Node
 		try
 		{
 			byte[] compressedChunkBytes = await CreateCompressedChunkAsync(session, chunkIndex);
-            
+
 			int totalPacketsInChunk = (int)Math.Ceiling((double)compressedChunkBytes.Length / ZstdAssetBundleHelper.PacketChunkSize);
 			if (totalPacketsInChunk <= 0) totalPacketsInChunk = 1;
 
@@ -1738,6 +1744,7 @@ public partial class LobbyManager : Node
 					chunkAssets.Add((item.AssetKey, data, item.Metadata));
 				}
 			}
+
 			return ZstdAssetBundleHelper.CreateBundleBytes(chunkAssets, 1);
 		}, session.Cts.Token);
 	}
@@ -1810,7 +1817,7 @@ public partial class LobbyManager : Node
 				string targetMapDir = MapAssetManager.GetMapDirectory(mapName, mapVersion);
 				MapAssetManager.ExtractManifestFiles(_currentClientTransfer.Manifest, targetMapDir);
 				string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-				AssetIndexService.Instance.RegisterManifest(_currentClientTransfer.Manifest, localManifestPath);
+				GameContext.AssetIndexService.RegisterManifest(_currentClientTransfer.Manifest, localManifestPath);
 
 				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferId)).CallDeferred();
 				_transferCompleteTcs?.TrySetResult(true);
@@ -1829,7 +1836,7 @@ public partial class LobbyManager : Node
 
 			float overallProgress = CalculateTransferProgress(chunkIndex, totalChunks, packetIndex, totalPacketsInChunk);
 			bool isChunkEnd = packetIndex + 1 >= totalPacketsInChunk;
-            
+
 			EmitProgressIfNeeded(overallProgress, isChunkEnd);
 
 			if (isChunkEnd)
@@ -1868,12 +1875,13 @@ public partial class LobbyManager : Node
 			float downloadedAssetsInSession = sessionFraction * _currentClientTransfer.SessionMissingAssets;
 			return Math.Clamp((_currentClientTransfer.AlreadyPresentAssets + downloadedAssetsInSession) / _currentClientTransfer.TotalAssetsInManifest, 0.0f, 1.0f);
 		}
+
 		return sessionFraction;
 	}
 
 	private void EmitProgressIfNeeded(float overallProgress, bool isChunkEnd)
 	{
-		long nowTicks = System.Environment.TickCount64;
+		long nowTicks = Environment.TickCount64;
 		if (isChunkEnd || overallProgress >= 1.0f || Math.Abs(overallProgress - _currentClientTransfer!.LastEmittedProgress) >= 0.005f || (nowTicks - _currentClientTransfer.LastProgressEmitTicks) >= 100)
 		{
 			_currentClientTransfer!.LastEmittedProgress = overallProgress;
@@ -1923,7 +1931,7 @@ public partial class LobbyManager : Node
 				{
 					MapAssetManager.ExtractManifestFiles(transferSession.Manifest, targetMapDir);
 					string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-					AssetIndexService.Instance.RegisterManifest(transferSession.Manifest, localManifestPath);
+					GameContext.AssetIndexService.RegisterManifest(transferSession.Manifest, localManifestPath);
 				});
 
 				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferSession.TransferId)).CallDeferred();
@@ -1956,6 +1964,7 @@ public partial class LobbyManager : Node
 		{
 			ReportLocalMapReadyState(false);
 		}
+
 		MapDownloadProgressChanged?.Invoke(progress);
 	}
 
@@ -1987,6 +1996,7 @@ public partial class LobbyManager : Node
 			TriggerReconnect();
 			return;
 		}
+
 		KickReceived?.Invoke("Host closed the server.");
 		Disconnect();
 	}
@@ -1997,6 +2007,7 @@ public partial class LobbyManager : Node
 		{
 			return;
 		}
+
 		_ = AttemptReconnectLoopAsync();
 	}
 
@@ -2021,6 +2032,7 @@ public partial class LobbyManager : Node
 				GD.Print("[LobbyManager] Match reconnect handshake completed.");
 				return;
 			}
+
 			await Task.Delay(2000);
 		}
 
@@ -2039,7 +2051,14 @@ public partial class LobbyManager : Node
 		{
 			if (Multiplayer.MultiplayerPeer != null)
 			{
-				try { Multiplayer.MultiplayerPeer.Close(); } catch { }
+				try
+				{
+					Multiplayer.MultiplayerPeer.Close();
+				}
+				catch
+				{
+				}
+
 				Multiplayer.MultiplayerPeer = null;
 			}
 
@@ -2065,6 +2084,7 @@ public partial class LobbyManager : Node
 		{
 			GD.PrintErr($"[LobbyManager] Reconnect attempt failed: {ex.Message}");
 		}
+
 		return false;
 	}
 
@@ -2075,6 +2095,7 @@ public partial class LobbyManager : Node
 		{
 			await Task.Delay(100);
 		}
+
 		return peer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
 	}
 
@@ -2085,13 +2106,14 @@ public partial class LobbyManager : Node
 		{
 			await Task.Delay(150);
 		}
+
 		return !_isReconnecting;
 	}
 
 	private void OnReconnectFailed()
 	{
 		KickReceived?.Invoke(Tr("Connection to host lost permanently."));
-		Realm.Client.UI.UIManager.Instance?.TransitionTo(GameScreen.LobbyBrowser);
+		UIManager.Instance?.TransitionTo(GameScreen.LobbyBrowser);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2118,6 +2140,7 @@ public partial class LobbyManager : Node
 		{
 			targetPlayer = PlayerList.Find(p => p.SessionToken == sessionToken);
 		}
+
 		if (targetPlayer == null && !string.IsNullOrEmpty(playerName))
 		{
 			targetPlayer = PlayerList.Find(p => p.Name == playerName);
@@ -2139,7 +2162,7 @@ public partial class LobbyManager : Node
 		string serializedPlayers = JsonSerializer.Serialize(PlayerList);
 		RpcId(senderId, nameof(AcceptReconnect), targetPlayer.Slot, ActiveMapName, serializedPlayers);
 
-		Realm.Client.Core.GameHost.Instance?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
+		GameHost.Instance?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2179,16 +2202,15 @@ public partial class LobbyManager : Node
 
 		PlayerListUpdated?.Invoke();
 
-		if (Realm.Client.Core.GameHost.Instance != null && GodotObject.IsInstanceValid(Realm.Client.Core.GameHost.Instance))
+		if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance))
 		{
-			Realm.Client.Core.GameHost.Instance.OnClientReconnected(slot);
+			GameHost.Instance.OnClientReconnected(slot);
 		}
 		else
 		{
-			GetTree().ChangeSceneToFile("res://Main.tscn");
+			GetTree().ChangeSceneToFile("res://GameHostView.tscn");
 		}
 	}
-
 
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2202,7 +2224,7 @@ public partial class LobbyManager : Node
 			{
 				PlayerList.Clear();
 				PlayerList.AddRange(newList);
-                
+
 
 				int myId = Multiplayer.GetUniqueId();
 				var me = PlayerList.Find(p => p.PeerId == myId);
@@ -2225,7 +2247,7 @@ public partial class LobbyManager : Node
 	{
 		Disconnect();
 		LobbyJoinError = "Error joining lobby: Game version mismatch with host";
-		Realm.Client.UI.UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
+		UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2274,7 +2296,6 @@ public partial class LobbyManager : Node
 		}
 		else
 		{
-
 			RpcId(1, nameof(UpdatePlayerSlot), peerId, faction, team, color, name);
 		}
 	}
@@ -2298,6 +2319,7 @@ public partial class LobbyManager : Node
 			RpcId(1, nameof(UpdateDiagnostics), peerId, minRtt, maxRtt, avgRtt, jitter, lossRate, consecutiveLoss);
 		}
 	}
+
 	public void UpdateReadyState(int peerId, bool isReady)
 	{
 		if (IsHost)
@@ -2316,10 +2338,12 @@ public partial class LobbyManager : Node
 			{
 				p.IsReady = isReady;
 			}
+
 			if (LocalPlayer != null && LocalPlayer.PeerId == peerId)
 			{
 				LocalPlayer.IsReady = isReady;
 			}
+
 			RpcId(1, nameof(UpdateReadyStateOnHost), peerId, isReady);
 		}
 	}
@@ -2379,6 +2403,7 @@ public partial class LobbyManager : Node
 		{
 			if (player.Name == name) return player.Team;
 		}
+
 		return "Team 1";
 	}
 
@@ -2405,6 +2430,7 @@ public partial class LobbyManager : Node
 	}
 
 	private static bool _isDownloadingModels = false;
+
 	private static async Task InitializeToxicityModelAsync()
 	{
 		if (_onnxSession != null || _isDownloadingModels) return;
@@ -2441,7 +2467,7 @@ public partial class LobbyManager : Node
 		{
 			(Path.Combine(baseDir, "Assets", "MLModels", "toxic-xlm-roberta", "model_quantized.onnx"),
 				Path.Combine(baseDir, "Assets", "MLModels", "toxic-xlm-roberta", "vocab.bin")),
-             
+
 			(Path.Combine(curDir, "Realm.Client", "Assets", "MLModels", "toxic-xlm-roberta", "model_quantized.onnx"),
 				Path.Combine(curDir, "Realm.Client", "Assets", "MLModels", "toxic-xlm-roberta", "vocab.bin")),
 
@@ -2463,7 +2489,9 @@ public partial class LobbyManager : Node
 				return (globalized, globalizedVocab);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		return ("", "");
 	}
@@ -2481,8 +2509,8 @@ public partial class LobbyManager : Node
 			if (!File.Exists(modelPath) || !File.Exists(vocabPath))
 			{
 				GD.Print("[LobbyManager] Downloading toxicity models...");
-				using var httpClient = new System.Net.Http.HttpClient();
-                
+				using var httpClient = new HttpClient();
+
 				if (!File.Exists(modelPath))
 				{
 					var modelBytes = await httpClient.GetByteArrayAsync("https://huggingface.co/hoan/multilingual-toxic-xlm-roberta-dynamic-quantized/resolve/main/model_quantized.onnx");
@@ -2494,6 +2522,7 @@ public partial class LobbyManager : Node
 					var vocabBytes = await httpClient.GetByteArrayAsync("https://huggingface.co/hoan/multilingual-toxic-xlm-roberta-dynamic-quantized/resolve/main/vocab.bin");
 					File.WriteAllBytes(vocabPath, vocabBytes);
 				}
+
 				GD.Print("[LobbyManager] Successfully downloaded toxicity models.");
 			}
 		}
@@ -2511,9 +2540,9 @@ public partial class LobbyManager : Node
 		{
 			_onnxSession = new InferenceSession(modelPath);
 
-			using var fs = new System.IO.FileStream(vocabPath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read);
+			using var fs = new FileStream(vocabPath, FileMode.Open, FileAccess.Read, FileShare.Read);
 			using var reader = new BinaryReader(fs, Encoding.UTF8);
-            
+
 			int count = reader.ReadInt32();
 			_vocab = new Dictionary<string, int>(count);
 			for (int i = 0; i < count; i++)
@@ -2604,6 +2633,7 @@ public partial class LobbyManager : Node
 				longestMatchId = id;
 			}
 		}
+
 		return (longestMatchLength, longestMatchId);
 	}
 
@@ -2630,6 +2660,7 @@ public partial class LobbyManager : Node
 				return prob > 0.5;
 			}
 		}
+
 		return false;
 	}
 
@@ -2637,7 +2668,7 @@ public partial class LobbyManager : Node
 	{
 		bool isToxic = await IsMessageToxicAsync(message);
 		_chatHistory.Add((senderName, message, isToxic));
-        
+
 		if (!isToxic)
 		{
 			if (alliesOnly)
@@ -2712,13 +2743,13 @@ public partial class LobbyManager : Node
 	private void LoadMap(string mapName)
 	{
 		GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName}");
-		Realm.Client.ReplaySystem.ReplayPlaybackManager.Instance.StopReplay();
+		ReplayPlaybackManager.Instance.StopReplay();
 		ActiveMapName = mapName;
 
 		IsGameStarted = true;
 		GameSessionStartTime = DateTime.UtcNow;
-        
-		GetTree().ChangeSceneToFile("res://Main.tscn");
+
+		GetTree().ChangeSceneToFile("res://GameHostView.tscn");
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2751,7 +2782,6 @@ public partial class LobbyManager : Node
 	}
 
 
-
 	public void StartGame(string mapName)
 	{
 		if (IsHost)
@@ -2760,6 +2790,7 @@ public partial class LobbyManager : Node
 			{
 				return;
 			}
+
 			Rpc(nameof(BroadcastStartCountdown), mapName);
 		}
 	}
@@ -2771,6 +2802,7 @@ public partial class LobbyManager : Node
 		{
 			SendChatMessage("System", string.Format(Tr("Game starting in 5 seconds on map: {0}."), mapName));
 		}
+
 		_countdownMapName = mapName;
 		_countdownRemaining = 5;
 		CountdownStarted?.Invoke(mapName, _countdownRemaining);
@@ -2786,6 +2818,7 @@ public partial class LobbyManager : Node
 			{
 				Rpc(nameof(LoadMap), _countdownMapName);
 			}
+
 			return;
 		}
 
@@ -2818,10 +2851,12 @@ public partial class LobbyManager : Node
 			{
 				senderId = 1;
 			}
+
 			var player = PlayerList.Find(p => p.PeerId == senderId);
 			string name = player != null ? player.Name : "Someone";
 			SendChatMessage("System", string.Format(Tr("{0} cancelled the countdown."), name));
 		}
+
 		_countdownRemaining = 0;
 		_countdownMapName = null;
 		CountdownCancelled?.Invoke();
@@ -2836,6 +2871,7 @@ public partial class LobbyManager : Node
 			{
 				botId--;
 			}
+
 			var botPlayer = new PlayerInfo
 			{
 				PeerId = botId,
@@ -2870,10 +2906,13 @@ public partial class LobbyManager : Node
 					{
 						PlayerList[i].Slot = i;
 					}
+
 					BroadcastPlayerList();
 				}
+
 				return;
 			}
+
 			RpcId(peerId, nameof(RejectConnection), "Kicked by Host");
 			var timer = GetTree().CreateTimer(0.1f);
 			timer.Timeout += () =>
@@ -2884,7 +2923,9 @@ public partial class LobbyManager : Node
 					{
 						Multiplayer.MultiplayerPeer.DisconnectPeer(peerId);
 					}
-					catch { }
+					catch
+					{
+					}
 				}
 			};
 		}
@@ -2905,7 +2946,7 @@ public partial class LobbyManager : Node
 
 	public async Task<int> MeasurePingToRegistryAsync()
 	{
-		var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+		var stopwatch = Stopwatch.StartNew();
 		try
 		{
 			var response = await _httpClient.GetAsync($"{RegistryServerUrl}/lobbies");
@@ -2915,7 +2956,10 @@ public partial class LobbyManager : Node
 				return (int)stopwatch.ElapsedMilliseconds;
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return 100;
 	}
 
@@ -2986,7 +3030,7 @@ public partial class LobbyManager : Node
 		}
 
 		GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");
-        
+
 		string successHtml = GetLoginSuccessHtml();
 		SendAuthResponse(response, successHtml);
 
@@ -2998,10 +3042,10 @@ public partial class LobbyManager : Node
 	{
 		string successHtml = string.Empty;
 		const string templatePath = "res://Templates/login_success.html";
-        
-		if (global::Godot.FileAccess.FileExists(templatePath))
+
+		if (Godot.FileAccess.FileExists(templatePath))
 		{
-			using var file = global::Godot.FileAccess.Open(templatePath, global::Godot.FileAccess.ModeFlags.Read);
+			using var file = Godot.FileAccess.Open(templatePath, Godot.FileAccess.ModeFlags.Read);
 			if (file != null)
 			{
 				successHtml = file.GetAsText();
@@ -3015,6 +3059,7 @@ public partial class LobbyManager : Node
 				successHtml = File.ReadAllText(diskPath);
 			}
 		}
+
 		return successHtml;
 	}
 
@@ -3083,6 +3128,7 @@ public partial class LobbyManager : Node
 			{
 				changed = true;
 			}
+
 			clientCount++;
 		}
 
@@ -3124,7 +3170,10 @@ public partial class LobbyManager : Node
 				return true;
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return false;
 	}
 
@@ -3151,6 +3200,7 @@ public partial class LobbyManager : Node
 			hostInfo.PacketLoss = hostLoss;
 			return true;
 		}
+
 		return false;
 	}
 
@@ -3158,7 +3208,7 @@ public partial class LobbyManager : Node
 	{
 		try
 		{
-			using (var socket = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork, System.Net.Sockets.SocketType.Dgram, 0))
+			using (var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
 			{
 				socket.Connect("8.8.8.8", 65530);
 				var endPoint = socket.LocalEndPoint as IPEndPoint;
@@ -3175,14 +3225,17 @@ public partial class LobbyManager : Node
 				var host = Dns.GetHostEntry(Dns.GetHostName());
 				foreach (var ip in host.AddressList)
 				{
-					if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+					if (ip.AddressFamily == AddressFamily.InterNetwork)
 					{
 						return ip.ToString();
 					}
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		}
+
 		return "127.0.0.1";
 	}
 

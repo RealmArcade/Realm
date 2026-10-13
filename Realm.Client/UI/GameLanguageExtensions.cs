@@ -6,6 +6,7 @@ namespace Realm.Client.UI;
 public static class GameLanguageExtensions
 {
 	private static readonly string[] _localeCodes = { "en", "es", "fr", "de", "pt", "ru", "zh", "ja", "ar", "hi" };
+
 	private static readonly Dictionary<string, GameLanguage> _languageMap = new(StringComparer.OrdinalIgnoreCase)
 	{
 		{ "en", GameLanguage.English }, { "english", GameLanguage.English },

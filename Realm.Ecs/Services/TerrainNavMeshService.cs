@@ -1,3 +1,4 @@
+using System.Numerics;
 using Arch.Core;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
@@ -12,6 +13,8 @@ namespace Realm.Ecs.Services;
 
 public class TerrainNavMeshService
 {
+	public Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
+
 	// Recast/Detour bake tuning. Smaller cell sizes improve path fidelity but increase bake cost.
 	private const float NavMeshCellHeight = 0.1f;
 	private const float AgentRadius = 0.1f;
@@ -19,9 +22,8 @@ public class TerrainNavMeshService
 	private const float AgentMaxClimb = 0.9f;
 	private const float AgentMaxSlope = 55.0f;
 
-	private readonly WorldAccessor _ecsWorldAccessor;
 	private readonly ForEachWithEntity<Position, MoveTo, PathFollow> _invalidatePathsDelegate;
-	private System.Numerics.Vector3 _invalidateCenter;
+	private Vector3 _invalidateCenter;
 	private float _invalidateRadiusSq;
 
 	private readonly ForEachWithEntity<Position, CollisionRadius> _checkOtherObstaclesDelegate;
@@ -29,9 +31,8 @@ public class TerrainNavMeshService
 	private float _checkCellZ;
 	private bool _isCellBlockedByOtherObstacle;
 
-	public TerrainNavMeshService(WorldAccessor ecsWorldAccessor)
+	public TerrainNavMeshService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 		_invalidatePathsDelegate = InvalidatePathsQueryAction;
 		_checkOtherObstaclesDelegate = CheckOtherObstaclesQueryAction;
 	}
@@ -65,17 +66,17 @@ public class TerrainNavMeshService
 		}
 	}
 
-	public void InvalidateIntersectingPaths(System.Numerics.Vector3 center, float radius)
+	public void InvalidateIntersectingPaths(Vector3 center, float radius)
 	{
 		_invalidateCenter = center;
 		_invalidateRadiusSq = radius * radius;
-		_ecsWorldAccessor.Current.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
+		ECSContext.World.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
 	}
 
 	private void CheckOtherObstaclesQueryAction(Entity entity, ref Position pos, ref CollisionRadius colRad)
 	{
 		if (_isCellBlockedByOtherObstacle) return;
-		float scale = _ecsWorldAccessor.Current.Has<CollisionScale>(entity) ? _ecsWorldAccessor.Current.Get<CollisionScale>(entity).Value : 1.0f;
+		float scale = ECSContext.World.Has<CollisionScale>(entity) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
 		float radius = colRad.Value * scale;
 		float dx = _checkCellX - pos.Value.X;
 		float dz = _checkCellZ - pos.Value.Z;
@@ -90,11 +91,11 @@ public class TerrainNavMeshService
 		_checkCellX = px;
 		_checkCellZ = pz;
 		_isCellBlockedByOtherObstacle = false;
-		_ecsWorldAccessor.Current.Query(in QueryCache.AllPositionAndCollisionRadiusQuery, _checkOtherObstaclesDelegate);
+		ECSContext.World.Query(in QueryCache.AllPositionAndCollisionRadiusQuery, _checkOtherObstaclesDelegate);
 		return _isCellBlockedByOtherObstacle;
 	}
 
-	public void CarveObstacle(ref TerrainState state, System.Numerics.Vector3 pos, float radius)
+	public void CarveObstacle(ref TerrainState state, Vector3 pos, float radius)
 	{
 		if (state.NavMesh == null) return;
 		int width = state.Width;
@@ -114,7 +115,7 @@ public class TerrainNavMeshService
 		InvalidateIntersectingPaths(pos, radius + quadSize * 1.5f);
 	}
 
-	public void CarveObstacleBox(ref TerrainState state, System.Numerics.Vector3 pos, float halfWidth, float halfDepth)
+	public void CarveObstacleBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth)
 	{
 		if (state.NavMesh == null) return;
 		int width = state.Width;
@@ -135,7 +136,7 @@ public class TerrainNavMeshService
 		InvalidateIntersectingPaths(pos, maxDim + quadSize * 1.5f);
 	}
 
-	private void CarvePathingGrid(ref TerrainState state, System.Numerics.Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
+	private void CarvePathingGrid(ref TerrainState state, Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
 	{
 		if (state.PathingCodes == null) return;
 		for (int z = minZ; z <= maxZ; z++)
@@ -154,7 +155,7 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private void CarveNavMeshTiles(ref TerrainState state, System.Numerics.Vector3 pos, float radius, float quadSize)
+	private void CarveNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize)
 	{
 		int maxTiles = state.NavMesh.GetMaxTiles();
 		float effRadiusSq = (radius + quadSize * 0.5f) * (radius + quadSize * 0.5f);
@@ -175,6 +176,7 @@ public class TerrainNavMeshService
 					sumX += tile.data.verts[vIdx * 3];
 					sumZ += tile.data.verts[vIdx * 3 + 2];
 				}
+
 				float avgX = nv > 0 ? sumX / nv : 0f;
 				float avgZ = nv > 0 ? sumZ / nv : 0f;
 				float dx = avgX - pos.X;
@@ -189,7 +191,7 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private void CarvePathingGridBox(ref TerrainState state, System.Numerics.Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
+	private void CarvePathingGridBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
 	{
 		if (state.PathingCodes == null) return;
 		for (int z = minZ; z <= maxZ; z++)
@@ -206,22 +208,23 @@ public class TerrainNavMeshService
 		}
 	}
 
-		private void GetPolyCenter(DtMeshTile tile, DtPoly poly, out float avgX, out float avgZ)
+	private void GetPolyCenter(DtMeshTile tile, DtPoly poly, out float avgX, out float avgZ)
+	{
+		float sumX = 0f;
+		float sumZ = 0f;
+		int nv = poly.vertCount;
+		for (int j = 0; j < nv; j++)
 		{
-			float sumX = 0f;
-			float sumZ = 0f;
-			int nv = poly.vertCount;
-			for (int j = 0; j < nv; j++)
-			{
-				int vIdx = poly.verts[j];
-				sumX += tile.data.verts[vIdx * 3];
-				sumZ += tile.data.verts[vIdx * 3 + 2];
-			}
-			avgX = nv > 0 ? sumX / nv : 0f;
-			avgZ = nv > 0 ? sumZ / nv : 0f;
+			int vIdx = poly.verts[j];
+			sumX += tile.data.verts[vIdx * 3];
+			sumZ += tile.data.verts[vIdx * 3 + 2];
 		}
 
-	private void CarveNavMeshTilesBox(ref TerrainState state, System.Numerics.Vector3 pos, float halfWidth, float halfDepth, float quadSize)
+		avgX = nv > 0 ? sumX / nv : 0f;
+		avgZ = nv > 0 ? sumZ / nv : 0f;
+	}
+
+	private void CarveNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, float quadSize)
 	{
 		int maxTiles = state.NavMesh.GetMaxTiles();
 		for (int t = 0; t < maxTiles; t++)
@@ -232,19 +235,19 @@ public class TerrainNavMeshService
 			for (int p = 0; p < tile.data.header.polyCount; p++)
 			{
 				var poly = tile.data.polys[p];
-					GetPolyCenter(tile, poly, out float avgX, out float avgZ);
+				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
 
-					if (Math.Abs(avgX - pos.X) > halfWidth + quadSize * 0.5f || Math.Abs(avgZ - pos.Z) > halfDepth + quadSize * 0.5f)
-						continue;
+				if (Math.Abs(avgX - pos.X) > halfWidth + quadSize * 0.5f || Math.Abs(avgZ - pos.Z) > halfDepth + quadSize * 0.5f)
+					continue;
 
-					long polyRef = polyRefBase | (long)p;
-					state.NavMesh.SetPolyFlags(polyRef, 0);
-					state.NavMesh.SetPolyArea(polyRef, (char)0);
+				long polyRef = polyRefBase | (long)p;
+				state.NavMesh.SetPolyFlags(polyRef, 0);
+				state.NavMesh.SetPolyArea(polyRef, (char)0);
 			}
 		}
 	}
 
-	public void UncarveObstacle(ref TerrainState state, System.Numerics.Vector3 pos, float radius)
+	public void UncarveObstacle(ref TerrainState state, Vector3 pos, float radius)
 	{
 		if (state.NavMesh == null) return;
 		int width = state.Width;
@@ -264,7 +267,7 @@ public class TerrainNavMeshService
 		InvalidateIntersectingPaths(pos, radius + quadSize * 2f);
 	}
 
-	public void UncarveObstacleBox(ref TerrainState state, System.Numerics.Vector3 pos, float halfWidth, float halfDepth)
+	public void UncarveObstacleBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth)
 	{
 		if (state.NavMesh == null) return;
 		int width = state.Width;
@@ -285,7 +288,7 @@ public class TerrainNavMeshService
 		InvalidateIntersectingPaths(pos, maxDim + quadSize * 2f);
 	}
 
-	private void UncarvePathingGrid(ref TerrainState state, System.Numerics.Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
+	private void UncarvePathingGrid(ref TerrainState state, Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
 	{
 		if (state.PathingCodes == null) return;
 		for (int z = minZ; z <= maxZ; z++)
@@ -307,7 +310,7 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private void UncarveNavMeshTiles(ref TerrainState state, System.Numerics.Vector3 pos, float radius, int width, int depth, float quadSize)
+	private void UncarveNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, int width, int depth, float quadSize)
 	{
 		int maxTiles = state.NavMesh.GetMaxTiles();
 		float effRadiusSq = (radius + quadSize * 0.5f) * (radius + quadSize * 0.5f);
@@ -319,19 +322,19 @@ public class TerrainNavMeshService
 			for (int p = 0; p < tile.data.header.polyCount; p++)
 			{
 				var poly = tile.data.polys[p];
-					GetPolyCenter(tile, poly, out float avgX, out float avgZ);
+				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
 				float dx = avgX - pos.X;
 				float dz = avgZ - pos.Z;
 
-					if (dx * dx + dz * dz > effRadiusSq || IsPointCoveredByAnyObstacle(avgX, avgZ))
-						continue;
+				if (dx * dx + dz * dz > effRadiusSq || IsPointCoveredByAnyObstacle(avgX, avgZ))
+					continue;
 
-					RestoreNavMeshPoly(ref state, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
+				RestoreNavMeshPoly(ref state, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
 			}
 		}
 	}
 
-	private void UncarvePathingGridBox(ref TerrainState state, System.Numerics.Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
+	private void UncarvePathingGridBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
 	{
 		if (state.PathingCodes == null) return;
 		for (int z = minZ; z <= maxZ; z++)
@@ -351,7 +354,7 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private void UncarveNavMeshTilesBox(ref TerrainState state, System.Numerics.Vector3 pos, float halfWidth, float halfDepth, int width, int depth, float quadSize)
+	private void UncarveNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int width, int depth, float quadSize)
 	{
 		int maxTiles = state.NavMesh.GetMaxTiles();
 		for (int t = 0; t < maxTiles; t++)
@@ -362,14 +365,14 @@ public class TerrainNavMeshService
 			for (int p = 0; p < tile.data.header.polyCount; p++)
 			{
 				var poly = tile.data.polys[p];
-					GetPolyCenter(tile, poly, out float avgX, out float avgZ);
+				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
 
-					if (Math.Abs(avgX - pos.X) > halfWidth + quadSize * 0.5f || Math.Abs(avgZ - pos.Z) > halfDepth + quadSize * 0.5f)
-						continue;
+				if (Math.Abs(avgX - pos.X) > halfWidth + quadSize * 0.5f || Math.Abs(avgZ - pos.Z) > halfDepth + quadSize * 0.5f)
+					continue;
 
-					if (!IsPointCoveredByAnyObstacle(avgX, avgZ))
+				if (!IsPointCoveredByAnyObstacle(avgX, avgZ))
 				{
-						RestoreNavMeshPoly(ref state, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
+					RestoreNavMeshPoly(ref state, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
 				}
 			}
 		}
@@ -417,13 +420,13 @@ public class TerrainNavMeshService
 		BuildNavMesh(ref state, geom, width, depth, quadSize);
 	}
 
-	private List<(System.Numerics.Vector3 Pos, float Radius)> GetNavMeshObstacles()
+	private List<(Vector3 Pos, float Radius)> GetNavMeshObstacles()
 	{
-		var obstacles = new List<(System.Numerics.Vector3 Pos, float Radius)>();
+		var obstacles = new List<(Vector3 Pos, float Radius)>();
 		var obstacleQuery = QueryCache.AllPositionAndCollisionRadiusQuery;
-		_ecsWorldAccessor.Current.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad) =>
+		ECSContext.World.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad) =>
 		{
-			float scale = _ecsWorldAccessor.Current.Has<CollisionScale>(ent) ? _ecsWorldAccessor.Current.Get<CollisionScale>(ent).Value : 1.0f;
+			float scale = ECSContext.World.Has<CollisionScale>(ent) ? ECSContext.World.Get<CollisionScale>(ent).Value : 1.0f;
 			float radius = colRad.Value * scale;
 			obstacles.Add((pos.Value, radius));
 		});
@@ -440,10 +443,11 @@ public class TerrainNavMeshService
 				bakeHeights[x, z] = GetVertexHeight(in state, x, z);
 			}
 		}
+
 		return bakeHeights;
 	}
 
-	private void ApplyObstaclesToHeights(float[,] bakeHeights, List<(System.Numerics.Vector3 Pos, float Radius)> obstacles, int width, int depth, float quadSize, float halfW, float halfD)
+	private void ApplyObstaclesToHeights(float[,] bakeHeights, List<(Vector3 Pos, float Radius)> obstacles, int width, int depth, float quadSize, float halfW, float halfD)
 	{
 		foreach (var obs in obstacles)
 		{
@@ -546,7 +550,7 @@ public class TerrainNavMeshService
 
 	private void InitializeNavMeshPolys(DtNavMeshCreateParams pars, RcPolyMesh mesh, RcVec3f bmin, float quadSize, int width, int depth, in TerrainState state)
 	{
-		Span<System.Numerics.Vector2> polyVerts = stackalloc System.Numerics.Vector2[12];
+		Span<Vector2> polyVerts = stackalloc Vector2[12];
 		for (int i = 0; i < mesh.npolys; i++)
 		{
 			pars.polyAreas[i] = mesh.areas[i];
@@ -566,7 +570,7 @@ public class TerrainNavMeshService
 				sumZ += wz;
 
 				if (nv < polyVerts.Length)
-					polyVerts[nv++] = new System.Numerics.Vector2(wx, wz);
+					polyVerts[nv++] = new Vector2(wx, wz);
 			}
 
 			float avgX = nv > 0 ? sumX / nv : 0f;
@@ -659,7 +663,7 @@ public class TerrainNavMeshService
 		return cells[w - 1, d - 1].Y_SE;
 	}
 
-	public void GetHeightAndNormal(in TerrainState state, float worldX, float worldZ, out float height, out System.Numerics.Vector3 normal)
+	public void GetHeightAndNormal(in TerrainState state, float worldX, float worldZ, out float height, out Vector3 normal)
 	{
 		float halfW = state.Width / 2.0f * state.QuadSize;
 		float halfD = state.Depth / 2.0f * state.QuadSize;
@@ -676,17 +680,17 @@ public class TerrainNavMeshService
 		float h01 = GetVertexHeight(in state, x0, Math.Min(state.Depth, z0 + 1));
 		float h11 = GetVertexHeight(in state, Math.Min(state.Width, x0 + 1), Math.Min(state.Depth, z0 + 1));
 		height = (1 - tx) * (1 - tz) * h00 + tx * (1 - tz) * h10 + (1 - tx) * tz * h01 + tx * tz * h11;
-		System.Numerics.Vector3 n00 = GetVertexNormal(in state, x0, z0);
-		System.Numerics.Vector3 n10 = GetVertexNormal(in state, Math.Min(state.Width, x0 + 1), z0);
-		System.Numerics.Vector3 n01 = GetVertexNormal(in state, x0, Math.Min(state.Depth, z0 + 1));
-		System.Numerics.Vector3 n11 = GetVertexNormal(in state, Math.Min(state.Width, x0 + 1), Math.Min(state.Depth, z0 + 1));
-		normal = System.Numerics.Vector3.Normalize((1 - tx) * (1 - tz) * n00 + tx * (1 - tz) * n10 + (1 - tx) * tz * n01 + tx * tz * n11);
+		Vector3 n00 = GetVertexNormal(in state, x0, z0);
+		Vector3 n10 = GetVertexNormal(in state, Math.Min(state.Width, x0 + 1), z0);
+		Vector3 n01 = GetVertexNormal(in state, x0, Math.Min(state.Depth, z0 + 1));
+		Vector3 n11 = GetVertexNormal(in state, Math.Min(state.Width, x0 + 1), Math.Min(state.Depth, z0 + 1));
+		normal = Vector3.Normalize((1 - tx) * (1 - tz) * n00 + tx * (1 - tz) * n10 + (1 - tx) * tz * n01 + tx * tz * n11);
 	}
 
-	private System.Numerics.Vector3 GetVertexNormal(in TerrainState state, int x, int z)
+	private Vector3 GetVertexNormal(in TerrainState state, int x, int z)
 	{
 		var cells = state.Cells;
-		if (cells == null) return System.Numerics.Vector3.UnitY;
+		if (cells == null) return Vector3.UnitY;
 		float h = GetVertexHeight(in state, x, z);
 		float cliffThreshold = 0.95f * Math.Max(0.1f, state.QuadSize);
 
@@ -695,12 +699,12 @@ public class TerrainNavMeshService
 
 		if (Math.Abs(dx) < 0.001f && Math.Abs(dz) < 0.001f)
 		{
-			return System.Numerics.Vector3.UnitY;
+			return Vector3.UnitY;
 		}
 
-		System.Numerics.Vector3 tangentX = System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(state.QuadSize, dx, 0.0f));
-		System.Numerics.Vector3 tangentZ = System.Numerics.Vector3.Normalize(new System.Numerics.Vector3(0.0f, dz, state.QuadSize));
-		return System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(tangentZ, tangentX));
+		Vector3 tangentX = Vector3.Normalize(new Vector3(state.QuadSize, dx, 0.0f));
+		Vector3 tangentZ = Vector3.Normalize(new Vector3(0.0f, dz, state.QuadSize));
+		return Vector3.Normalize(Vector3.Cross(tangentZ, tangentX));
 	}
 
 	private static bool IsCliff(bool hasNeighbor, float delta, float cliffThreshold)
@@ -724,6 +728,7 @@ public class TerrainNavMeshService
 			{
 				return (heightPositive - heightNegative) * 0.5f;
 			}
+
 			return deltaPositive;
 		}
 
@@ -785,5 +790,4 @@ public class TerrainNavMeshService
 
 		return ResolveSlope(hasUp, hasDown, deltaUp, deltaDown, upIsCliff, downIsCliff, heightUp, heightDown);
 	}
-
 }

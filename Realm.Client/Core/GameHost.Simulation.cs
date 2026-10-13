@@ -1,5 +1,10 @@
+using System;
+using System.Collections.Generic;
 using Arch.Core;
 using Godot;
+using Realm.Client.ReplaySystem;
+using Realm.Client.Services;
+using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -8,49 +13,44 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
-using Realm.Client;
-using Realm.Client.Core;
-using Realm.Client.Services;
-using Realm.Client.UI;
+using Realm.Ecs.Services;
 using Realm.MapAPI;
-using System;
-using System.Collections.Generic;
+using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	private readonly Dictionary<int, Unit_WasmRuntime> _unitWrapperCache = new();
-	private readonly HashSet<Entity> _warnedNonFinitePositions = new();
-
 	// Upper bound for _warnedNonFinitePositions. Once it grows past this, stale warnings for
 	// already-destroyed entities are swept so recycled entity ids get a fresh warning later.
-	private const int WarnedNonFinitePositionsLimit = 512;
 
-	public Unit_WasmRuntime GetUnitWrapper(Entity entity)
-	{
-		if (!EcsWorld.IsAlive(entity))
-		{
-			throw new ArgumentException("Entity is not alive", nameof(entity));
-		}
-		if (_unitWrapperCache.TryGetValue(entity.Id, out var wrapper))
-		{
-			return wrapper;
-		}
-		wrapper = new Unit_WasmRuntime(entity, EcsWorld);
-		_unitWrapperCache[entity.Id] = wrapper;
-		return wrapper;
-	}
-
-	private void KillUnit(Realm.Client.Unit3D unit)
+	private void KillUnit(Unit3D unit)
 	{
 		KillUnit(unit, true, true);
 	}
 
-	private void KillUnit(Realm.Client.Unit3D unit, bool executeDespawnShader, bool playDeathAnimation)
+	private void KillUnit(Unit3D unit, bool executeDespawnShader, bool playDeathAnimation)
 	{
-		HandleUnitDeathEvent(unit);
-		_audioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Death, unit.GlobalPosition);
+		IUnit victimWrapper = null;
+		if (GameContext.World.IsAlive(unit.Entity))
+		{
+			victimWrapper = GameContext.SimulationService.GetUnitWrapper(unit.Entity);
+		}
+
+		Entity killerEntity = GameContext.SimulationService.GetKillerEntityDomain(unit.Entity);
+		
+		IUnit killerWrapper = null;
+		if (killerEntity != Entity.Null && GameContext.World.IsAlive(killerEntity))
+		{
+			killerWrapper = GameContext.SimulationService.GetUnitWrapper(killerEntity);
+		}
+
+		if (victimWrapper != null)
+		{
+			OnUnitDied?.Invoke(victimWrapper, killerWrapper);
+		}
+
+		GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Death, unit.GlobalPosition);
 		RemoveUnitFromCollections(unit);
 		HandleUnitDeathEconomy(unit);
 		HandleMultiplayerUnitDeath(unit);
@@ -58,10 +58,7 @@ public partial class GameHost
 		string unitId = unit.UnitId;
 		bool isEnemy = unit.IsEnemy;
 
-		if (EcsWorld.IsAlive(unit.Entity))
-		{
-			EcsWorld.Destroy(unit.Entity);
-		}
+		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 
 		PlayDeathEffects(unit, executeDespawnShader, playDeathAnimation, unitId);
 		CheckGameOver(unitId, isEnemy);
@@ -69,26 +66,7 @@ public partial class GameHost
 		GD.Print($"Unit {unit.Name} died.");
 	}
 
-	private void HandleUnitDeathEvent(Realm.Client.Unit3D unit)
-	{
-		IUnit killer = null;
-		if (!EcsWorld.IsAlive(unit.Entity)) return;
-
-		if (EcsWorld.Has<LastAttacker>(unit.Entity))
-		{
-			var killerEntity = EcsWorld.Get<LastAttacker>(unit.Entity).Value;
-			if (EcsWorld.IsAlive(killerEntity))
-			{
-				killer = GetUnitWrapper(killerEntity);
-			}
-		}
-		OnUnitDied?.Invoke(GetUnitWrapper(unit.Entity), killer);
-
-		int id = unit.Entity.Id;
-		_unitWrapperCache.Remove(id);
-	}
-
-	private void RemoveUnitFromCollections(Realm.Client.Unit3D unit)
+	private void RemoveUnitFromCollections(Unit3D unit)
 	{
 		SelectedUnits.Remove(unit);
 		AllUnits.Remove(unit);
@@ -96,62 +74,59 @@ public partial class GameHost
 		{
 			_castlesList.Remove(unit);
 		}
+
 		if (!unit.IsBuilding) return;
 
-		float radius = EcsWorld.Has<CollisionRadius>(unit.Entity) ? EcsWorld.Get<CollisionRadius>(unit.Entity).Value : 2.0f;
-		var unitPos = EcsWorld.Has<Position>(unit.Entity) ? EcsWorld.Get<Position>(unit.Entity).Value : new System.Numerics.Vector3(unit.Position.X, unit.Position.Y, unit.Position.Z);
-		UncarveObstacle(unitPos, radius);
+		var fallbackPos = new System.Numerics.Vector3(unit.Position.X, unit.Position.Y, unit.Position.Z);
+		var (radius, unitPos) = GameContext.SimulationService.GetObstacleUncarveData(unit.Entity, fallbackPos);
+		UncarveObstacle(new Vector3(unitPos.X, unitPos.Y, unitPos.Z), radius);
 	}
 
-	private void HandleUnitDeathEconomy(Realm.Client.Unit3D unit)
+	private void HandleUnitDeathEconomy(Unit3D unit)
 	{
 		if (unit.IsEnemy)
 		{
 			HandleEnemyDeathEconomy(unit);
 			return;
 		}
+
 		HandleFriendlyDeathEconomy(unit);
 	}
 
-	private void HandleEnemyDeathEconomy(Realm.Client.Unit3D unit)
+	private void HandleEnemyDeathEconomy(Unit3D unit)
 	{
-		if (!UnitRegistry.TryGetValue(unit.UnitId, out var bountyMeta) || bountyMeta.GoldBounty <= 0f) return;
-		if (!EcsWorld.IsAlive(_playerEntity) || !EcsWorld.Has<PlayerResources>(_playerEntity)) return;
-
-		EcsWorld.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
+		float resCap = ECSContext.PlayerResourceService.ResourceCap;
+		bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, _playerEntity, (int)resCap);
+		
+		if (shouldRefresh)
 		{
-			if (r.Value.TryGetValue(_goldResourceId, out var currentGold))
-				r.Value[_goldResourceId] = (int)Math.Min(ResourceCap, currentGold + bountyMeta.GoldBounty);
-		});
-		Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		}
 	}
 
-	private void HandleFriendlyDeathEconomy(Realm.Client.Unit3D unit)
+	private void HandleFriendlyDeathEconomy(Unit3D unit)
 	{
-		if (!UnitRegistry.TryGetValue(unit.UnitId, out var killMeta)) return;
+		var (popCost, isCastle) = GameContext.SimulationService.GetDeathPopulationModifiers(unit.Entity, unit.UnitId);
 
-		if (unit.UnitId == "castle")
+		if (isCastle)
 		{
 			MaxPopulation = Math.Max(0, MaxPopulation - 20);
 		}
-		if (!EcsWorld.Has<BypassPopulationTag>(unit.Entity))
+
+		if (popCost > 0)
 		{
-			CurrentPopulation = Math.Max(0, CurrentPopulation - killMeta.PopCost);
+			CurrentPopulation = Math.Max(0, CurrentPopulation - (int)popCost);
 		}
 	}
 
-	private void HandleMultiplayerUnitDeath(Realm.Client.Unit3D unit)
+	private void HandleMultiplayerUnitDeath(Unit3D unit)
 	{
 		if (!_multiplayerActive) return;
 
-		if (_clientToServerEntityMap.TryGetValue(unit.Entity.Id, out int serverId))
-		{
-			_serverToClientEntityMap.Remove(serverId);
-		}
-		_clientToServerEntityMap.Remove(unit.Entity.Id);
+		GameContext.NetworkService.RemoveClientToServerMapping(unit.Entity.Id);
 	}
 
-	private void PlayDeathEffects(Realm.Client.Unit3D unit, bool executeDespawnShader, bool playDeathAnimation, string unitId)
+	private void PlayDeathEffects(Unit3D unit, bool executeDespawnShader, bool playDeathAnimation, string unitId)
 	{
 		if (!GodotObject.IsInstanceValid(unit)) return;
 
@@ -169,7 +144,7 @@ public partial class GameHost
 		unit.QueueFree();
 	}
 
-	private bool TryExecuteDeathShader(Realm.Client.Unit3D unit, string unitId)
+	private bool TryExecuteDeathShader(Unit3D unit, string unitId)
 	{
 		string deathShader = GetModelDeathShader(unitId);
 		if (string.IsNullOrEmpty(deathShader))
@@ -186,48 +161,43 @@ public partial class GameHost
 		return true;
 	}
 
-	private bool TryPlayDeathTween(Realm.Client.Unit3D unit)
+	private bool TryPlayDeathTween(Unit3D unit)
 	{
 		var tween = CreateTween();
 		tween.SetParallel(true);
 		tween.TweenProperty(unit, "position:y", -3.0f, 1.0f);
-		tween.TweenProperty(unit, "scale", Vector3.Zero, 1.0f);
+		tween.TweenProperty(unit, "scale", Godot.Vector3.Zero, 1.0f);
 		tween.Chain().TweenCallback(Callable.From(unit.QueueFree));
 		return true;
 	}
 
 	private void CheckGameOver(string unitId, bool isEnemy)
 	{
-		if (unitId != "castle") return;
+		if (!GameContext.SimulationService.DomainCheckGameOver(unitId, isEnemy)) return;
 
 		if (isEnemy)
 		{
 			GD.Print("[GameHost] Enemy Castle destroyed! Player wins!");
-			IsGameOver = true;
-			Callable.From(() => Realm.Client.UI.UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
+			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
 		}
 		else
 		{
 			GD.Print("[GameHost] Player Castle destroyed! Player loses!");
-			IsGameOver = true;
-			Callable.From(() => Realm.Client.UI.UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
+			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
 		}
 	}
 
-	private void DepleteProp(Realm.Client.Prop3D prop)
+	private void DepleteProp(Prop3D prop)
 	{
 		if (GodotObject.IsInstanceValid(prop))
 		{
 			string propId = prop.PropId;
-			float radius = EcsWorld.Has<CollisionRadius>(prop.Entity) ? EcsWorld.Get<CollisionRadius>(prop.Entity).Value : 1.0f;
-			var propPos = EcsWorld.Has<Position>(prop.Entity) ? EcsWorld.Get<Position>(prop.Entity).Value : new System.Numerics.Vector3(prop.Position.X, prop.Position.Y, prop.Position.Z);
+			var fallbackPos = new Vector3(prop.Position.X, prop.Position.Y, prop.Position.Z);
 			AllProps.Remove(prop);
 			EntityToProp3D.Remove(prop.Entity);
-			if (EcsWorld.IsAlive(prop.Entity))
-			{
-				EcsWorld.Destroy(prop.Entity);
-			}
-			Realm.Client.PropMultiMeshManager.Instance?.MarkDirty(propId);
+			var (radius, propPos) = GameContext.SimulationService.DomainDepleteProp(prop.Entity, fallbackPos);
+
+			PropMultiMeshManager.Instance?.MarkDirty(propId);
 			UncarveObstacle(propPos, radius);
 
 			string deathShader = GetModelDeathShader(propId);
@@ -245,74 +215,63 @@ public partial class GameHost
 		}
 	}
 
-	public bool FastBuildEnabled { get; set; } = false;
-
-	private const float BaseConstructionWorkRatePerSecond = 1f / 20f;
-	private float ConstructionWorkRatePerSecond => FastBuildEnabled ? BaseConstructionWorkRatePerSecond * 10f : BaseConstructionWorkRatePerSecond;
+	private float ConstructionWorkRatePerSecond => GameContext.SimulationService.FastBuildEnabled ? SimulationService.BaseConstructionWorkRatePerSecond * 10f : SimulationService.BaseConstructionWorkRatePerSecond;
 
 	// Units face their attack/heal/build target once they are within this distance,
 	// even while still moving toward it.
-	private const float LookTargetProximityDistance = 5.0f;
 
-	private readonly List<(Entity Worker, BuildTask UpdatedTask)> _pendingBuildTaskUpdates = new();
-	private readonly List<Entity> _completedBuildings = new();
-	private readonly List<(Entity Entity, string? Type, System.Numerics.Vector3 Position, Entity Target)> _pendingQueuedCommands = new();
+	private List<(Entity Worker, BuildTask UpdatedTask)> _pendingBuildTaskUpdates => GameContext.SimulationService.PendingBuildTaskUpdates;
 
-	private readonly Dictionary<int, List<MeshInstance3D>> _buildQueueGhosts = new();
+	private Dictionary<int, List<MeshInstance3D>> _buildQueueGhosts { get; set; } = new();
 
 	internal void TickConstructionSystem(float fDelta)
 	{
 		_pendingBuildTaskUpdates.Clear();
-		_completedBuildings.Clear();
+		GameContext.SimulationService.CompletedBuildings.Clear();
 
 		var workerQuery = QueryCache.AllPositionAndBuildTaskNoneDeadQuery;
-		EcsWorld.Query(in workerQuery, (Entity workerEntity, ref Position workerPos, ref BuildTask buildTask) =>
-		{
-			ProcessWorkerConstruction(workerEntity, ref workerPos, ref buildTask, fDelta);
-		});
+		GameContext.World.Query(in workerQuery, (Entity workerEntity, ref Position workerPos, ref BuildTask buildTask) => { ProcessWorkerConstruction(workerEntity, ref workerPos, ref buildTask, fDelta); });
 
 		ProcessPendingBuildTasks();
 		ProcessCompletedBuildings();
 
 		if (_pendingBuildTaskUpdates.Count > 0)
 		{
-			Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			InGameHUD.Instance?.RefreshUI(SelectedUnits);
 		}
 
-		_pendingQueuedCommands.Clear();
+		GameContext.SimulationService.PendingQueuedCommands.Clear();
 		var queueQuery = QueryCache.AllBuildQueueNoneDeadQuery;
-		EcsWorld.Query(in queueQuery, (Entity entity) =>
-		{
-			ProcessBuildQueueEntity(entity);
-		});
+		GameContext.World.Query(in queueQuery, (Entity entity) => { GameContext.SimulationService.ProcessBuildQueueEntity(entity); });
 
-		ProcessPendingQueuedCommands();
+		GameContext.SimulationService.ProcessPendingQueuedCommands(ExecuteQueuedCommand);
 		UpdateBuildQueueGhosts();
 	}
 
 	private void ProcessWorkerConstruction(Entity workerEntity, ref Position workerPos, ref BuildTask buildTask, float fDelta)
 	{
-		if (!EcsWorld.IsAlive(buildTask.BuildingEntity)) return;
+		if (!GameContext.World.IsAlive(buildTask.BuildingEntity)) return;
 
-		var buildingPos = EcsWorld.Has<Position>(buildTask.BuildingEntity)
-			? EcsWorld.Get<Position>(buildTask.BuildingEntity).Value
+		var buildingPos = GameContext.World.Has<Position>(buildTask.BuildingEntity)
+			? GameContext.World.Get<Position>(buildTask.BuildingEntity).Value
 			: workerPos.Value;
 
-		float distSq = System.Numerics.Vector3.DistanceSquared(workerPos.Value, buildingPos);
+		float distSq = Vector3.DistanceSquared(workerPos.Value, buildingPos);
 		bool inRange = distSq <= 16f;
 
 		if (!inRange)
 		{
-			if (!EcsWorld.Has<MoveTo>(workerEntity))
+			if (!GameContext.World.Has<MoveTo>(workerEntity))
 			{
-				EcsWorld.Add(workerEntity, new MoveTo(buildingPos));
+				GameContext.World.Add(workerEntity, new MoveTo(buildingPos));
 			}
+
 			return;
 		}
 
-		if (EcsWorld.Has<MoveTo>(workerEntity))
+		if (GameContext.World.Has<MoveTo>(workerEntity))
 		{
-			EcsWorld.Remove<MoveTo>(workerEntity);
+			GameContext.World.Remove<MoveTo>(workerEntity);
 		}
 
 		EnsureBuildingModel(buildTask.BuildingEntity, buildingPos);
@@ -327,11 +286,11 @@ public partial class GameHost
 		UpdateBuildingConstructionState(buildTask.BuildingEntity, progressGain);
 	}
 
-	private void EnsureBuildingModel(Entity buildingEntity, System.Numerics.Vector3 buildingPos)
+	private void EnsureBuildingModel(Entity buildingEntity, Vector3 buildingPos)
 	{
-		if (!EcsWorld.Has<DefinitionId>(buildingEntity)) return;
+		if (!GameContext.World.Has<DefinitionId>(buildingEntity)) return;
 
-		string bType = EcsWorld.Get<DefinitionId>(buildingEntity).Value;
+		string bType = GameContext.World.Get<DefinitionId>(buildingEntity).Value;
 		if (!UnitRegistry.TryGetValue(bType, out var m) && !BuildingRegistry.TryGetValue(bType, out m)) return;
 		if (TryGetUnit3D(buildingEntity, out _)) return;
 
@@ -343,20 +302,20 @@ public partial class GameHost
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
 		{
-			bNode.Modulate = new Godot.Color(1f, 1f, 1f, 0.4f);
+			bNode.Modulate = new Color(1f, 1f, 1f, 0.4f);
 		}
 	}
 
 	private void UpdateBuildingConstructionState(Entity buildingEntity, float progressGain)
 	{
-		if (!EcsWorld.Has<ConstructionState>(buildingEntity)) return;
+		if (!GameContext.World.Has<ConstructionState>(buildingEntity)) return;
 
-		ref var constructionState = ref EcsWorld.Get<ConstructionState>(buildingEntity);
+		ref var constructionState = ref GameContext.World.Get<ConstructionState>(buildingEntity);
 		constructionState.Progress = Mathf.Min(constructionState.Progress + progressGain, constructionState.TotalBuildTime);
 
-		if (constructionState.Progress >= constructionState.TotalBuildTime && !_completedBuildings.Contains(buildingEntity))
+		if (constructionState.Progress >= constructionState.TotalBuildTime && !GameContext.SimulationService.CompletedBuildings.Contains(buildingEntity))
 		{
-			_completedBuildings.Add(buildingEntity);
+			GameContext.SimulationService.CompletedBuildings.Add(buildingEntity);
 		}
 	}
 
@@ -364,13 +323,13 @@ public partial class GameHost
 	{
 		foreach (var (workerEntity, updatedTask) in _pendingBuildTaskUpdates)
 		{
-			if (!EcsWorld.IsAlive(workerEntity)) continue;
+			if (!GameContext.World.IsAlive(workerEntity)) continue;
 
-			EcsWorld.Set(workerEntity, updatedTask);
+			GameContext.World.Set(workerEntity, updatedTask);
 
-			if (updatedTask.Progress >= updatedTask.TotalBuildTime && EcsWorld.Has<BuildTask>(workerEntity))
+			if (updatedTask.Progress >= updatedTask.TotalBuildTime && GameContext.World.Has<BuildTask>(workerEntity))
 			{
-				EcsWorld.Remove<BuildTask>(workerEntity);
+				GameContext.World.Remove<BuildTask>(workerEntity);
 				TryStartNextQueuedCommand(workerEntity);
 			}
 		}
@@ -378,11 +337,11 @@ public partial class GameHost
 
 	private void TryStartNextQueuedCommand(Entity workerEntity)
 	{
-		if (!EcsWorld.Has<BuildQueue>(workerEntity)) return;
+		if (!GameContext.World.Has<BuildQueue>(workerEntity)) return;
 
-		ref var buildQueue = ref EcsWorld.Get<BuildQueue>(workerEntity);
+		ref var buildQueue = ref GameContext.World.Get<BuildQueue>(workerEntity);
 		bool startedNext = false;
-		while (buildQueue.TryDequeue(out string? nextType, out var nextPos, out Arch.Core.Entity nextTarget))
+		while (buildQueue.TryDequeue(out string? nextType, out var nextPos, out Entity nextTarget))
 		{
 			if (ExecuteQueuedCommand(workerEntity, nextType, nextPos, nextTarget))
 			{
@@ -390,15 +349,16 @@ public partial class GameHost
 				break;
 			}
 		}
+
 		if (!startedNext && buildQueue.Count == 0)
 		{
-			EcsWorld.Remove<BuildQueue>(workerEntity);
+			GameContext.World.Remove<BuildQueue>(workerEntity);
 		}
 	}
 
 	private void ProcessCompletedBuildings()
 	{
-		foreach (var buildingEntity in _completedBuildings)
+		foreach (var buildingEntity in GameContext.SimulationService.CompletedBuildings)
 		{
 			ProcessCompletedBuilding(buildingEntity);
 		}
@@ -406,149 +366,50 @@ public partial class GameHost
 
 	private void ProcessCompletedBuilding(Entity buildingEntity)
 	{
-		if (!EcsWorld.IsAlive(buildingEntity)) return;
-
-		RemoveConstructionComponents(buildingEntity);
-		ResetBuildingVisuals(buildingEntity);
-		NotifyConstructionFinished(buildingEntity);
+		GameContext.SimulationService.DomainProcessCompletedBuilding(buildingEntity, ResetBuildingVisuals, NotifyConstructionFinished);
 	}
 
 	private void RemoveConstructionComponents(Entity buildingEntity)
 	{
-		if (EcsWorld.Has<UnderConstruction>(buildingEntity))
-		{
-			EcsWorld.Remove<UnderConstruction>(buildingEntity);
-		}
-
-		if (EcsWorld.Has<ConstructionState>(buildingEntity))
-		{
-			EcsWorld.Remove<ConstructionState>(buildingEntity);
-		}
+		GameContext.SimulationService.RemoveConstructionComponents(buildingEntity);
 	}
 
 	private void ResetBuildingVisuals(Entity buildingEntity)
 	{
 		if (!TryGetUnit3D(buildingEntity, out var buildingNode) || !GodotObject.IsInstanceValid(buildingNode)) return;
 
-		buildingNode.Modulate = new Godot.Color(1f, 1f, 1f, 1f);
+		buildingNode.Modulate = new Color(1f, 1f, 1f, 1f);
 		SpawnDeathShaderManager.ClearShaderOverride(buildingNode);
 	}
 
 	private void NotifyConstructionFinished(Entity buildingEntity)
 	{
-		var buildingUnit = EcsWorld.IsAlive(buildingEntity) ? GetUnitWrapper(buildingEntity) : null;
+		var buildingUnit = GameContext.World.IsAlive(buildingEntity) ? GameContext.SimulationService.GetUnitWrapper(buildingEntity) : null;
 		if (buildingUnit != null)
 		{
 			OnConstructionFinished?.Invoke(buildingUnit);
 		}
 
-		Realm.Client.UI.InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Godot.Color(0.3f, 0.9f, 0.4f));
-		Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 	}
-
-	private void ProcessBuildQueueEntity(Entity entity)
-	{
-		if (HasActiveTask(entity)) return;
-
-		ref var q = ref EcsWorld.Get<BuildQueue>(entity);
-		if (q.Count > 0)
-		{
-			if (q.TryDequeue(out string nextType, out var nextPos, out Arch.Core.Entity nextTarget))
-			{
-				_pendingQueuedCommands.Add((entity, nextType, nextPos, nextTarget));
-			}
-		}
-		else
-		{
-			_pendingQueuedCommands.Add((entity, "clear_queue_component", System.Numerics.Vector3.Zero, Entity.Null));
-		}
-	}
-
-	private bool HasActiveTask(Entity entity)
-	{
-		return EcsWorld.Has<MoveTo>(entity) ||
-			EcsWorld.Has<BuildTask>(entity) ||
-			EcsWorld.Has<AttackTarget>(entity) ||
-			EcsWorld.Has<Realm.Ecs.Components.Movement.AttackMove>(entity) ||
-			EcsWorld.Has<Realm.Ecs.Components.Movement.Follow>(entity) ||
-			EcsWorld.Has<Realm.Ecs.Components.Movement.Patrol>(entity) ||
-			EcsWorld.Has<Gatherer>(entity) ||
-			EcsWorld.Has<HealingTarget>(entity);
-	}
-
-	private void ProcessPendingQueuedCommands()
-	{
-		foreach (var cmd in _pendingQueuedCommands)
-		{
-			if (!EcsWorld.IsAlive(cmd.Entity)) continue;
-
-			ProcessPendingCommand(cmd);
-		}
-	}
-
-	private void ProcessPendingCommand((Entity Entity, string? Type, System.Numerics.Vector3 Position, Entity Target) cmd)
-	{
-		if (cmd.Type == "clear_queue_component")
-		{
-			ClearQueueComponent(cmd.Entity);
-			return;
-		}
-
-		bool success = ExecuteQueuedCommand(cmd.Entity, cmd.Type, cmd.Position, cmd.Target);
-		ProcessRemainingQueue(cmd.Entity, success);
-	}
-
-
-	private void ClearQueueComponent(Entity entity)
-	{
-		if (EcsWorld.Has<BuildQueue>(entity))
-		{
-			EcsWorld.Remove<BuildQueue>(entity);
-		}
-	}
-
-	private void ProcessRemainingQueue(Entity entity, bool lastSuccess)
-	{
-		while (!lastSuccess && EcsWorld.Has<BuildQueue>(entity))
-		{
-			ref var q = ref EcsWorld.Get<BuildQueue>(entity);
-			if (q.TryDequeue(out string? nextType, out var nextPos, out Entity nextTarget))
-			{
-				lastSuccess = ExecuteQueuedCommand(entity, nextType ?? "", nextPos, nextTarget);
-			}
-			else
-			{
-				EcsWorld.Remove<BuildQueue>(entity);
-				break;
-			}
-		}
-
-		if (!lastSuccess && EcsWorld.Has<BuildQueue>(entity) && EcsWorld.Get<BuildQueue>(entity).Count == 0)
-		{
-			EcsWorld.Remove<BuildQueue>(entity);
-		}
-	}
-
 
 	private void UpdateBuildQueueGhosts()
 	{
 		var workerQuery = QueryCache.AllPositionAndBuildTaskNoneDeadQuery;
-		var activeWorkerIds = new System.Collections.Generic.HashSet<int>();
+		var activeWorkerIds = new HashSet<int>();
 
-		EcsWorld.Query(in workerQuery, (Entity workerEntity, ref BuildTask _) =>
-		{
-			ProcessWorkerGhostQueue(workerEntity, activeWorkerIds);
-		});
+		GameContext.World.Query(in workerQuery, (Entity workerEntity, ref BuildTask _) => { ProcessWorkerGhostQueue(workerEntity, activeWorkerIds); });
 
 		CleanupInactiveGhosts(activeWorkerIds);
 	}
 
-	private void ProcessWorkerGhostQueue(Entity workerEntity, System.Collections.Generic.HashSet<int> activeWorkerIds)
+	private void ProcessWorkerGhostQueue(Entity workerEntity, HashSet<int> activeWorkerIds)
 	{
-		if (!EcsWorld.IsAlive(workerEntity)) return;
+		if (!GameContext.World.IsAlive(workerEntity)) return;
 		activeWorkerIds.Add(workerEntity.Id);
 
-		int queueCount = EcsWorld.Has<BuildQueue>(workerEntity) ? EcsWorld.Get<BuildQueue>(workerEntity).Count : 0;
+		int queueCount = GameContext.World.Has<BuildQueue>(workerEntity) ? GameContext.World.Get<BuildQueue>(workerEntity).Count : 0;
 
 		if (!_buildQueueGhosts.TryGetValue(workerEntity.Id, out var ghosts))
 		{
@@ -566,7 +427,7 @@ public partial class GameHost
 
 		if (queueCount == 0) return;
 
-		ref var queue = ref EcsWorld.Get<BuildQueue>(workerEntity);
+		ref var queue = ref GameContext.World.Get<BuildQueue>(workerEntity);
 		for (int slotIndex = 0; slotIndex < queueCount; slotIndex++)
 		{
 			UpdateGhostAtSlot(slotIndex, ref queue, ghosts);
@@ -592,7 +453,7 @@ public partial class GameHost
 		ghosts[slotIndex].GlobalPosition = worldPos;
 	}
 
-	private void CleanupInactiveGhosts(System.Collections.Generic.HashSet<int> activeWorkerIds)
+	private void CleanupInactiveGhosts(HashSet<int> activeWorkerIds)
 	{
 		var toRemove = new List<int>();
 		foreach (var kv in _buildQueueGhosts)
@@ -600,10 +461,12 @@ public partial class GameHost
 			if (!activeWorkerIds.Contains(kv.Key))
 			{
 				foreach (var ghost in kv.Value)
-					if (GodotObject.IsInstanceValid(ghost)) ghost.QueueFree();
+					if (GodotObject.IsInstanceValid(ghost))
+						ghost.QueueFree();
 				toRemove.Add(kv.Key);
 			}
 		}
+
 		foreach (var id in toRemove)
 			_buildQueueGhosts.Remove(id);
 	}
@@ -616,10 +479,10 @@ public partial class GameHost
 		mesh.Mesh = box;
 
 		var mat = new StandardMaterial3D();
-		mat.AlbedoColor = new Godot.Color(1.0f, 0.65f, 0.1f, 0.35f);
+		mat.AlbedoColor = new Color(1.0f, 0.65f, 0.1f, 0.35f);
 		mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
 		mat.EmissionEnabled = true;
-		mat.Emission = new Godot.Color(1.0f, 0.5f, 0.05f) * 0.25f;
+		mat.Emission = new Color(1.0f, 0.5f, 0.05f) * 0.25f;
 		mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
 		mesh.MaterialOverride = mat;
 
@@ -630,54 +493,53 @@ public partial class GameHost
 	internal void ClearAllBuildQueueGhosts()
 	{
 		foreach (var kv in _buildQueueGhosts)
-			foreach (var ghost in kv.Value)
-				if (GodotObject.IsInstanceValid(ghost)) ghost.QueueFree();
+		foreach (var ghost in kv.Value)
+			if (GodotObject.IsInstanceValid(ghost))
+				ghost.QueueFree();
 		_buildQueueGhosts.Clear();
 	}
 
-	internal void AssignBuildTaskToWorker(Entity workerEntity, string buildType, System.Numerics.Vector3 targetPos)
+	internal void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
 		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
 		string targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
 		float buildTime = meta.ProductionTime > 0f ? meta.ProductionTime : 30f;
 
-		var playerOwner = _playerEntity.AsPlayerEntity(EcsWorld);
+		var playerOwner = _playerEntity.AsPlayerEntity(GameContext.World);
 		string modelPath = GetFallbackModelPath(targetModel, true);
 
 		var bldEntity = CreateEcsUnit(buildType, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, 0f,
 			new Godot.Vector3(targetPos.X, targetPos.Y, targetPos.Z), playerOwner);
 
-		EcsWorld.Add(bldEntity, new ConstructionState(buildTime));
-		EcsWorld.Add(bldEntity, new UnderConstruction());
+		GameContext.World.Add(bldEntity, new ConstructionState(buildTime));
+		GameContext.World.Add(bldEntity, new UnderConstruction());
 
 		float bldRadius = GetOrCalculateObstacleRadius(buildType, null, true);
-		if (!EcsWorld.Has<Realm.Ecs.Components.Core.CollisionRadius>(bldEntity))
+		if (!GameContext.World.Has<CollisionRadius>(bldEntity))
 		{
-			EcsWorld.Add(bldEntity, new Realm.Ecs.Components.Core.CollisionRadius(bldRadius));
+			GameContext.World.Add(bldEntity, new CollisionRadius(bldRadius));
 		}
+
 		CarveObstacle(targetPos, bldRadius);
 
 		var buildTask = new BuildTask(bldEntity, buildTime);
-		EcsWorld.SetOrAdd(workerEntity, buildTask);
+		GameContext.World.SetOrAdd(workerEntity, buildTask);
 
-		var buildingPos = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
-		if (!EcsWorld.Has<MoveTo>(workerEntity))
-			EcsWorld.Add(workerEntity, new MoveTo(buildingPos));
+		var buildingPos = new Vector3(targetPos.X, targetPos.Y, targetPos.Z);
+		if (!GameContext.World.Has<MoveTo>(workerEntity))
+			GameContext.World.Add(workerEntity, new MoveTo(buildingPos));
 		else
-			EcsWorld.Set(workerEntity, new MoveTo(buildingPos));
+			GameContext.World.Set(workerEntity, new MoveTo(buildingPos));
 	}
 
 	private void UpdateVisualNodesFromEcs(float fDelta)
 	{
-		var query = Realm.Ecs.Common.QueryCache.AllPositionAndDefinitionIdQuery;
-		EcsWorld.Query(in query, (Entity entity, ref Position pos) =>
-		{
-			ProcessVisualNode(entity, ref pos, fDelta);
-		});
+		var query = QueryCache.AllPositionAndDefinitionIdQuery;
+		GameContext.World.Query(in query, (Entity entity, ref Position pos) => { ProcessVisualNode(entity, ref pos, fDelta); });
 
 		var buildingQuery = QueryCache.AllBuildingAndConstructionStateAndOwnerNoneDeadQuery;
-		EcsWorld.Query(in buildingQuery, (Entity entity, ref ConstructionState construction) =>
+		GameContext.World.Query(in buildingQuery, (Entity entity, ref ConstructionState construction) =>
 		{
 			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
 			{
@@ -694,7 +556,7 @@ public partial class GameHost
 		var posValue = pos.Value;
 		if (CheckNonFinitePositionWarning(entity, posValue, unit3D)) return;
 
-		Vector3 nextPos = new Vector3(posValue.X, posValue.Y, posValue.Z);
+		Godot.Vector3 nextPos = new Godot.Vector3(posValue.X, posValue.Y, posValue.Z);
 		unit3D.GlobalPosition = nextPos;
 
 		UpdateVisualVelocity(entity, unit3D);
@@ -704,47 +566,49 @@ public partial class GameHost
 		unit3D.PlayAnimation(DetermineUnitAnimation(entity));
 	}
 
-	private bool CheckNonFinitePositionWarning(Entity entity, System.Numerics.Vector3 posValue, Realm.Client.Unit3D unit3D)
+	private bool CheckNonFinitePositionWarning(Entity entity, Vector3 posValue, Unit3D unit3D)
 	{
 		if (float.IsFinite(posValue.X) && float.IsFinite(posValue.Y) && float.IsFinite(posValue.Z))
 			return false;
 
-		if (_warnedNonFinitePositions.Add(entity))
+		if (GameContext.SimulationService.WarnedNonFinitePositions.Add(entity))
 		{
-			if (_warnedNonFinitePositions.Count > WarnedNonFinitePositionsLimit)
+			if (GameContext.SimulationService.WarnedNonFinitePositions.Count > SimulationService.WarnedNonFinitePositionsLimit)
 			{
-				_warnedNonFinitePositions.RemoveWhere(warned => !EcsWorld.IsAlive(warned));
+				GameContext.SimulationService.WarnedNonFinitePositions.RemoveWhere(warned => !GameContext.World.IsAlive(warned));
 			}
+
 			GD.PushWarning($"[Simulation] Unit '{unit3D.Name}' (entity {entity.Id}) has a non-finite ECS position ({posValue.X}, {posValue.Y}, {posValue.Z}); skipping visual sync.");
 		}
+
 		return true;
 	}
 
-	private void UpdateVisualVelocity(Entity entity, Realm.Client.Unit3D unit3D)
+	private void UpdateVisualVelocity(Entity entity, Unit3D unit3D)
 	{
-		Vector3 velVec = Vector3.Zero;
-		if (EcsWorld.Has<Velocity>(entity))
+		Godot.Vector3 velVec = Godot.Vector3.Zero;
+		if (GameContext.World.Has<Velocity>(entity))
 		{
-			var vel = EcsWorld.Get<Velocity>(entity);
-			velVec = new Vector3(vel.Value.X, vel.Value.Y, vel.Value.Z);
+			var vel = GameContext.World.Get<Velocity>(entity);
+			velVec = new Godot.Vector3(vel.Value.X, vel.Value.Y, vel.Value.Z);
 		}
 
-		if (!EcsWorld.Has<MoveTo>(entity) && !EcsWorld.Has<Follow>(entity) && !EcsWorld.Has<InterpolationTarget>(entity))
+		if (!GameContext.World.Has<MoveTo>(entity) && !GameContext.World.Has<Follow>(entity) && !GameContext.World.Has<InterpolationTarget>(entity))
 		{
-			velVec = Vector3.Zero;
-			if (EcsWorld.Has<Velocity>(entity))
+			velVec = Godot.Vector3.Zero;
+			if (GameContext.World.Has<Velocity>(entity))
 			{
-				EcsWorld.Set(entity, new Velocity(System.Numerics.Vector3.Zero));
+				GameContext.World.Set(entity, new Velocity(Vector3.Zero));
 			}
 		}
 
 		unit3D.Velocity = velVec;
 	}
 
-	private void UpdateVisualRotation(Entity entity, Realm.Client.Unit3D unit3D, Vector3 nextPos, float fDelta)
+	private void UpdateVisualRotation(Entity entity, Unit3D unit3D, Godot.Vector3 nextPos, float fDelta)
 	{
-		bool hasLookTarget = TryGetLookTarget(entity, out Vector3 lookTargetPos);
-		Vector3 dir = unit3D.Velocity;
+		bool hasLookTarget = TryGetLookTarget(entity, out Godot.Vector3 lookTargetPos);
+		Godot.Vector3 dir = unit3D.Velocity;
 		bool hasDir = dir.LengthSquared() > 0.01f;
 
 		bool forceLookTarget = false;
@@ -754,7 +618,7 @@ public partial class GameHost
 			else
 			{
 				float distToLook = lookTargetPos.DistanceTo(nextPos);
-				if (distToLook < LookTargetProximityDistance || EcsWorld.Has<Follow>(entity)) forceLookTarget = true;
+				if (distToLook < SimulationService.LookTargetProximityDistance || GameContext.World.Has<Follow>(entity)) forceLookTarget = true;
 			}
 		}
 
@@ -770,84 +634,86 @@ public partial class GameHost
 		{
 			ApplyDirectionalRotation(entity, unit3D, nextPos, dir, fDelta);
 		}
-		else if (EcsWorld.Has<InterpolationTarget>(entity))
+		else if (GameContext.World.Has<InterpolationTarget>(entity))
 		{
-			var interp = EcsWorld.Get<InterpolationTarget>(entity);
+			var interp = GameContext.World.Get<InterpolationTarget>(entity);
 			var rot = unit3D.Rotation;
 			rot.Y = Mathf.LerpAngle(rot.Y, interp.RotationY, 10f * fDelta);
 			unit3D.Rotation = rot;
-			if (EcsWorld.Has<RotationY>(entity))
+			if (GameContext.World.Has<RotationY>(entity))
 			{
-				EcsWorld.Set(entity, new RotationY(rot.Y));
+				GameContext.World.Set(entity, new RotationY(rot.Y));
 			}
 		}
 	}
 
-	private bool TryGetLookTarget(Entity entity, out Vector3 lookTargetPos)
+	private bool TryGetLookTarget(Entity entity, out Godot.Vector3 lookTargetPos)
 	{
-		lookTargetPos = Vector3.Zero;
+		lookTargetPos = Godot.Vector3.Zero;
 
-		if (EcsWorld.Has<AttackTarget>(entity))
-			return TryGetTargetPosition(EcsWorld.Get<AttackTarget>(entity).Target, out lookTargetPos);
+		if (GameContext.World.Has<AttackTarget>(entity))
+			return TryGetTargetPosition(GameContext.World.Get<AttackTarget>(entity).Target, out lookTargetPos);
 
-		if (EcsWorld.Has<HealingTarget>(entity))
-			return TryGetTargetPosition(EcsWorld.Get<HealingTarget>(entity).Target, out lookTargetPos);
+		if (GameContext.World.Has<HealingTarget>(entity))
+			return TryGetTargetPosition(GameContext.World.Get<HealingTarget>(entity).Target, out lookTargetPos);
 
-		if (EcsWorld.Has<Follow>(entity))
-			return TryGetTargetPosition(EcsWorld.Get<Follow>(entity).Target, out lookTargetPos);
+		if (GameContext.World.Has<Follow>(entity))
+			return TryGetTargetPosition(GameContext.World.Get<Follow>(entity).Target, out lookTargetPos);
 
-		if (EcsWorld.Has<BuildTask>(entity))
-			return TryGetTargetPosition(EcsWorld.Get<BuildTask>(entity).BuildingEntity, out lookTargetPos);
+		if (GameContext.World.Has<BuildTask>(entity))
+			return TryGetTargetPosition(GameContext.World.Get<BuildTask>(entity).BuildingEntity, out lookTargetPos);
 
 		return false;
 	}
 
-	private bool TryGetTargetPosition(Entity targetEnt, out Vector3 position)
+	private bool TryGetTargetPosition(Entity targetEnt, out Godot.Vector3 position)
 	{
-		position = Vector3.Zero;
-		if (EcsWorld.IsAlive(targetEnt) && EcsWorld.Has<Position>(targetEnt))
+		position = Godot.Vector3.Zero;
+		if (GameContext.World.IsAlive(targetEnt) && GameContext.World.Has<Position>(targetEnt))
 		{
-			var tPosComp = EcsWorld.Get<Position>(targetEnt);
-			position = new Vector3(tPosComp.Value.X, tPosComp.Value.Y, tPosComp.Value.Z);
+			var tPosComp = GameContext.World.Get<Position>(targetEnt);
+			position = new Godot.Vector3(tPosComp.Value.X, tPosComp.Value.Y, tPosComp.Value.Z);
 			return true;
 		}
+
 		return false;
 	}
 
-	private void ApplyDirectionalRotation(Entity entity, Realm.Client.Unit3D unit3D, Vector3 nextPos, Vector3 dir, float fDelta)
+	private void ApplyDirectionalRotation(Entity entity, Unit3D unit3D, Godot.Vector3 nextPos, Godot.Vector3 dir, float fDelta)
 	{
 		dir = dir.Normalized();
 		float angle = Mathf.Atan2(-dir.X, -dir.Z) + Mathf.Pi;
 		var rot = unit3D.Rotation;
 
-		bool isFlying = EcsWorld.Has<PathingFlags>(entity)
-			&& ((TerrainPathingFlags)EcsWorld.Get<PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
+		bool isFlying = GameContext.World.Has<PathingFlags>(entity)
+		                && ((TerrainPathingFlags)GameContext.World.Get<PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
 		float turnRate = 10f;
-		if (EcsWorld.Has<MovementStats>(entity))
+		if (GameContext.World.Has<MovementStats>(entity))
 		{
-			var moveStats = EcsWorld.Get<MovementStats>(entity);
+			var moveStats = GameContext.World.Get<MovementStats>(entity);
 			if (moveStats.TurnRate > 0f) turnRate = moveStats.TurnRate;
 		}
+
 		rot.Y = Mathf.LerpAngle(rot.Y, angle, turnRate * fDelta);
 		unit3D.Rotation = rot;
-		if (EcsWorld.Has<RotationY>(entity))
+		if (GameContext.World.Has<RotationY>(entity))
 		{
-			EcsWorld.Set(entity, new RotationY(rot.Y));
+			GameContext.World.Set(entity, new RotationY(rot.Y));
 		}
 
-		Vector3 normal = Vector3.Up;
+		Godot.Vector3 normal = Godot.Vector3.Up;
 		if (!isFlying && GroundTerrain != null)
 		{
 			GroundTerrain.GetHeightAndNormal(nextPos.X, nextPos.Z, out _, out normal);
 		}
 
-		Vector3 forwardDir = new Vector3(-Mathf.Sin(unit3D.Rotation.Y), 0f, -Mathf.Cos(unit3D.Rotation.Y));
-		Vector3 up = normal.Normalized();
-		Vector3 right = forwardDir.Cross(up);
+		Godot.Vector3 forwardDir = new Godot.Vector3(-Mathf.Sin(unit3D.Rotation.Y), 0f, -Mathf.Cos(unit3D.Rotation.Y));
+		Godot.Vector3 up = normal.Normalized();
+		Godot.Vector3 right = forwardDir.Cross(up);
 		if (right.LengthSquared() > 0.00001f)
 		{
 			right = right.Normalized();
-			Vector3 forwardPerp = right.Cross(up).Normalized();
+			Godot.Vector3 forwardPerp = right.Cross(up).Normalized();
 			Basis targetBasis = new Basis(right, up, forwardPerp);
 			var qTarget = targetBasis.GetRotationQuaternion();
 			var qCurrent = unit3D.Basis.GetRotationQuaternion();
@@ -856,34 +722,34 @@ public partial class GameHost
 		}
 	}
 
-	private void UpdateVisualScale(Entity entity, Realm.Client.Unit3D unit3D)
+	private void UpdateVisualScale(Entity entity, Unit3D unit3D)
 	{
-		bool isLaborAnimating = (EcsWorld.Has<Gatherer>(entity) && !EcsWorld.Get<Gatherer>(entity).ReturningToBase)
-			|| (EcsWorld.Has<BuildTask>(entity) && !EcsWorld.Has<MoveTo>(entity));
+		bool isLaborAnimating = (GameContext.World.Has<Gatherer>(entity) && !GameContext.World.Get<Gatherer>(entity).ReturningToBase)
+		                        || (GameContext.World.Has<BuildTask>(entity) && !GameContext.World.Has<MoveTo>(entity));
 
 		if (isLaborAnimating)
 		{
-			var state = EcsWorld.Get<WorldState>(_worldEntity);
+			var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
 			float gameElapsed = state.GameElapsedTime;
 			float pulse = 1.0f + Mathf.Sin(gameElapsed * 10f) * 0.1f;
-			unit3D.Scale = new Vector3(pulse * 0.9f, (2.0f - pulse) * 0.9f, pulse * 0.9f);
+			unit3D.Scale = new Godot.Vector3(pulse * 0.9f, (2.0f - pulse) * 0.9f, pulse * 0.9f);
 		}
 		else
 		{
-			float scaleVal = EcsWorld.Has<CollisionScale>(entity) ? EcsWorld.Get<CollisionScale>(entity).Value : 1.0f;
-			unit3D.Scale = Vector3.One * Mathf.Max(0.01f, scaleVal);
+			float scaleVal = GameContext.World.Has<CollisionScale>(entity) ? GameContext.World.Get<CollisionScale>(entity).Value : 1.0f;
+			unit3D.Scale = Godot.Vector3.One * Mathf.Max(0.01f, scaleVal);
 		}
 	}
 
 	private string DetermineUnitAnimation(Entity entity)
 	{
 		if (TryGetReplayAnimation(entity, out string replayAnim)) return replayAnim;
-		if (EcsWorld.Has<Dead>(entity)) return "Death";
+		if (GameContext.World.Has<Dead>(entity)) return "Death";
 		if (IsEntityMoving(entity)) return "Walk";
-		if (EcsWorld.Has<AttackTarget>(entity)) return "Attack";
-		if (EcsWorld.Has<HealingTarget>(entity)) return "Spell_Cast";
+		if (GameContext.World.Has<AttackTarget>(entity)) return "Attack";
+		if (GameContext.World.Has<HealingTarget>(entity)) return "Spell_Cast";
 		if (IsEntityGathering(entity)) return "Labor";
-		if (EcsWorld.Has<BuildTask>(entity)) return DetermineBuildTaskAnimation(entity, EcsWorld.Get<BuildTask>(entity));
+		if (GameContext.World.Has<BuildTask>(entity)) return DetermineBuildTaskAnimation(entity, GameContext.World.Get<BuildTask>(entity));
 
 		return "Idle";
 	}
@@ -891,41 +757,42 @@ public partial class GameHost
 	private bool TryGetReplayAnimation(Entity entity, out string animation)
 	{
 		animation = string.Empty;
-		if (!Realm.Client.ReplaySystem.ReplayPlaybackManager.Instance.IsPlayingReplay) return false;
+		if (!ReplayPlaybackManager.Instance.IsPlayingReplay) return false;
 
-		animation = EcsWorld.Has<Realm.Ecs.Components.Meta.ReplayAnimationState>(entity)
-			? EcsWorld.Get<Realm.Ecs.Components.Meta.ReplayAnimationState>(entity).Animation
+		animation = GameContext.World.Has<ReplayAnimationState>(entity)
+			? GameContext.World.Get<ReplayAnimationState>(entity).Animation
 			: "Idle";
 		return true;
 	}
 
 	private bool IsEntityMoving(Entity entity)
 	{
-		return EcsWorld.Has<MoveTo>(entity) && EcsWorld.Has<Velocity>(entity) &&
-			EcsWorld.Get<Velocity>(entity).Value.LengthSquared() > 0.01f;
+		return GameContext.World.Has<MoveTo>(entity) && GameContext.World.Has<Velocity>(entity) &&
+		       GameContext.World.Get<Velocity>(entity).Value.LengthSquared() > 0.01f;
 	}
 
 	private bool IsEntityGathering(Entity entity)
 	{
-		return EcsWorld.Has<Gatherer>(entity) && !EcsWorld.Get<Gatherer>(entity).ReturningToBase;
+		return GameContext.World.Has<Gatherer>(entity) && !GameContext.World.Get<Gatherer>(entity).ReturningToBase;
 	}
 
 	private string DetermineBuildTaskAnimation(Entity entity, BuildTask task)
 	{
 		var target = task.BuildingEntity;
-		if (!EcsWorld.IsAlive(target) || !EcsWorld.Has<Position>(target))
+		if (!GameContext.World.IsAlive(target) || !GameContext.World.Has<Position>(target))
 			return "Labor";
 
-		var tPos = EcsWorld.Get<Position>(target).Value;
-		var wPos = EcsWorld.Has<Position>(entity) ? EcsWorld.Get<Position>(entity).Value : System.Numerics.Vector3.Zero;
-		if (System.Numerics.Vector3.Distance(wPos, tPos) < 4.0f)
+		var tPos = GameContext.World.Get<Position>(target).Value;
+		var wPos = GameContext.World.Has<Position>(entity) ? GameContext.World.Get<Position>(entity).Value : Vector3.Zero;
+		if (Vector3.Distance(wPos, tPos) < 4.0f)
 		{
 			return "Labor";
 		}
+
 		return "Walk";
 	}
 
-	internal bool ExecuteQueuedCommand(Entity entity, string? commandType, System.Numerics.Vector3 targetPos, Entity targetEntity)
+	internal bool ExecuteQueuedCommand(Entity entity, string? commandType, Vector3 targetPos, Entity targetEntity)
 	{
 		return commandType switch
 		{
@@ -939,108 +806,38 @@ public partial class GameHost
 		};
 	}
 
-	private bool ExecuteMoveCommand(Entity entity, System.Numerics.Vector3 targetPos)
+	private bool ExecuteMoveCommand(Entity entity, Vector3 targetPos)
 	{
-		var moveTo = new MoveTo(targetPos);
-		EcsWorld.SetOrAdd(entity, moveTo);
-		return true;
+		return GameContext.SimulationService.ExecuteMoveCommandDomain(entity, targetPos);
 	}
 
 	private bool ExecuteAttackCommand(Entity entity, Entity targetEntity)
 	{
-		if (targetEntity == Entity.Null || !EcsWorld.IsAlive(targetEntity)) return false;
-
-		var attackTarget = new AttackTarget(targetEntity);
-		EcsWorld.SetOrAdd(entity, attackTarget);
-		return true;
+		return GameContext.SimulationService.ExecuteAttackCommandDomain(entity, targetEntity);
 	}
 
-	private bool ExecuteAttackMoveCommand(Entity entity, System.Numerics.Vector3 targetPos)
+	private bool ExecuteAttackMoveCommand(Entity entity, Vector3 targetPos)
 	{
-		var attackMove = new AttackMove(targetPos);
-		EcsWorld.SetOrAdd(entity, attackMove);
-
-		var moveTo = new MoveTo(targetPos);
-		EcsWorld.SetOrAdd(entity, moveTo);
-		return true;
+		return GameContext.SimulationService.ExecuteAttackMoveCommandDomain(entity, targetPos);
 	}
 
 	private bool ExecuteFollowCommand(Entity entity, Entity targetEntity)
 	{
-		if (targetEntity == Entity.Null || !EcsWorld.IsAlive(targetEntity)) return false;
-
-		if (EcsWorld.Has<DefinitionId>(entity) && EcsWorld.Get<DefinitionId>(entity).Value == "priest")
-		{
-			var healTarget = new HealingTarget(targetEntity);
-			EcsWorld.SetOrAdd(entity, healTarget);
-		}
-		else
-		{
-			var follow = new Follow(targetEntity);
-			EcsWorld.SetOrAdd(entity, follow);
-		}
-		return true;
+		return GameContext.SimulationService.ExecuteFollowCommandDomain(entity, targetEntity);
 	}
 
-	private bool ExecutePatrolCommand(Entity entity, System.Numerics.Vector3 targetPos)
+	private bool ExecutePatrolCommand(Entity entity, Vector3 targetPos)
 	{
-		var unitPos = EcsWorld.Has<Position>(entity) ? EcsWorld.Get<Position>(entity).Value : System.Numerics.Vector3.Zero;
-		var patrol = new Patrol(unitPos, targetPos);
-		EcsWorld.SetOrAdd(entity, patrol);
-
-		var moveTo = new MoveTo(targetPos);
-		EcsWorld.SetOrAdd(entity, moveTo);
-		return true;
+		return GameContext.SimulationService.ExecutePatrolCommandDomain(entity, targetPos);
 	}
 
-	private bool ExecuteGatherCommand(Entity entity, System.Numerics.Vector3 targetPos, Entity targetEntity)
+	private bool ExecuteGatherCommand(Entity entity, Vector3 targetPos, Entity targetEntity)
 	{
-		if (targetEntity == Entity.Null || !EcsWorld.IsAlive(targetEntity)) return false;
-
-		string propId = EcsWorld.Has<PropIdentity>(targetEntity)
-			? EcsWorld.Get<PropIdentity>(targetEntity).PropId
-			: (EcsWorld.Has<DefinitionId>(targetEntity) ? EcsWorld.Get<DefinitionId>(targetEntity).Value : "");
-
-		string? resType = propId switch
-		{
-			"goldmine" => "gold",
-			"tree" => "wood",
-			"rock" => "stone",
-			_ => null
-		};
-
-		if (resType == null) return false;
-
-		var gatherer = new Gatherer(resType, targetEntity);
-		EcsWorld.SetOrAdd(entity, gatherer);
-
-		var moveTo = new MoveTo(targetPos);
-		EcsWorld.SetOrAdd(entity, moveTo);
-		return true;
+		return GameContext.SimulationService.ExecuteGatherCommandDomain(entity, targetPos, targetEntity);
 	}
 
-	private bool ExecuteFallbackCommand(Entity entity, string? commandType, System.Numerics.Vector3 targetPos, Entity targetEntity)
+	private bool ExecuteFallbackCommand(Entity entity, string? commandType, Vector3 targetPos, Entity targetEntity)
 	{
-		if (targetEntity != Entity.Null && EcsWorld.IsAlive(targetEntity) && EcsWorld.Has<ConstructionState>(targetEntity))
-		{
-			var cState = EcsWorld.Get<ConstructionState>(targetEntity);
-			var newTask = new BuildTask(targetEntity, cState.TotalBuildTime)
-			{
-				Progress = cState.Progress
-			};
-			EcsWorld.SetOrAdd(entity, newTask);
-
-			var moveTo = new MoveTo(new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
-			EcsWorld.SetOrAdd(entity, moveTo);
-			return true;
-		}
-		
-		if (!string.IsNullOrEmpty(commandType) && UnitRegistry.ContainsKey(commandType))
-		{
-			AssignBuildTaskToWorker(entity, commandType, targetPos);
-			return true;
-		}
-		
-		return false;
+		return GameContext.SimulationService.ExecuteFallbackCommandDomain(entity, commandType, targetPos, targetEntity, AssignBuildTaskToWorker);
 	}
 }

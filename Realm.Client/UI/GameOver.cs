@@ -1,14 +1,31 @@
-using Godot;
-using Realm.Client.Network;
-using Realm.Shared.Distribution;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net.Http;
+using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Network;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
+using HttpClient = System.Net.Http.HttpClient;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class GameOver : Control
 {
+	public GameOver()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
 	private Panel _bgPanel;
 	private Panel _leftPillar;
 	private Panel _rightPillar;
@@ -38,18 +55,9 @@ public partial class GameOver : Control
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 
-	private struct StatsRow
-	{
-		public string Player;
-		public string Faction;
-		public string Col3;
-		public string Col4;
-		public string Col5;
-	}
 
 	public override void _Ready()
 	{
-
 		_bgPanel = GetNode<Panel>("Background");
 		_leftPillar = GetNode<Panel>("LeftPillar");
 		_rightPillar = GetNode<Panel>("RightPillar");
@@ -86,9 +94,9 @@ public partial class GameOver : Control
 
 		string mapName = GetActiveMapName();
 		double playtimeMinutes = 0.0;
-		if (GodotObject.IsInstanceValid(Network.LobbyManager.Instance) && Network.LobbyManager.Instance.GameSessionStartTime != null)
+		if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.GameSessionStartTime != null)
 		{
-			playtimeMinutes = (DateTime.UtcNow - Network.LobbyManager.Instance.GameSessionStartTime.Value).TotalMinutes;
+			playtimeMinutes = (DateTime.UtcNow - LobbyManager.Instance.GameSessionStartTime.Value).TotalMinutes;
 		}
 
 		// Save local playtime statistics
@@ -176,7 +184,7 @@ public partial class GameOver : Control
 		btn.AddThemeStyleboxOverride("pressed", activeStyle);
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		btn.Pressed += () => 
+		btn.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
 			SetTab(index);
@@ -189,7 +197,7 @@ public partial class GameOver : Control
 		if (_activeTab == tabIndex) return;
 		_activeTab = tabIndex;
 		UpdateTabDisplay();
-		
+
 		if (_graphContainer is TimelineGraph graph)
 		{
 			graph.SetTab(tabIndex);
@@ -202,7 +210,7 @@ public partial class GameOver : Control
 		_btnClose.Icon = GD.Load<Texture2D>("res://Assets/UI/cancel_button_2.png");
 		_btnClose.ExpandIcon = true;
 
-		string closeText = MapEditorHUD.IsTestMode ? "Back to Editor" : "Close";
+		string closeText = GameContext.EditorService.IsTestMode ? "Back to Editor" : "Close";
 		UIStyle.ApplyButtonText(_btnClose, closeText, 18);
 
 		_btnClose.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -210,17 +218,18 @@ public partial class GameOver : Control
 		_btnClose.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_btnClose.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		_btnClose.Pressed += () => 
+		_btnClose.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
-			if (MapEditorHUD.IsTestMode)
+			if (GameContext.EditorService.IsTestMode)
 			{
-				MapEditorHUD.IsTestMode = false;
-				MapEditorHUD.ReturningFromTest = true;
-				if (Network.LobbyManager.Instance != null)
+				GameContext.EditorService.IsTestMode = false;
+				GameContext.EditorService.ReturningFromTest = true;
+				if (LobbyManager.Instance != null)
 				{
-					Network.LobbyManager.Instance.Disconnect();
+					LobbyManager.Instance.Disconnect();
 				}
+
 				UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
 			}
 			else
@@ -256,21 +265,16 @@ public partial class GameOver : Control
 		_btnReportCopyright.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}
 
-	private class ReviewEntry
-	{
-		public int Rating { get; set; }
-		public string Comments { get; set; }
-	}
-
 
 	private static readonly Dictionary<string, ReviewEntry> _loadedReviews = new();
 
 	private string GetActiveMapName()
 	{
-		if (Network.LobbyManager.Instance != null && !string.IsNullOrEmpty(Network.LobbyManager.Instance.ActiveMapName))
+		if (LobbyManager.Instance != null && !string.IsNullOrEmpty(LobbyManager.Instance.ActiveMapName))
 		{
-			return Network.LobbyManager.Instance.ActiveMapName;
+			return LobbyManager.Instance.ActiveMapName;
 		}
+
 		return "castle_td";
 	}
 
@@ -357,7 +361,6 @@ public partial class GameOver : Control
 
 		if (hasExisting && existingReview != null)
 		{
-
 			int idx = 5 - existingReview.Rating;
 			ratingOption.Select(idx);
 		}
@@ -365,6 +368,7 @@ public partial class GameOver : Control
 		{
 			ratingOption.Select(0); // 5 stars default
 		}
+
 		ratingHBox.AddChild(ratingOption);
 
 
@@ -386,6 +390,7 @@ public partial class GameOver : Control
 		{
 			commentsEdit.Text = existingReview.Comments;
 		}
+
 		vbox.AddChild(commentsEdit);
 
 
@@ -436,10 +441,11 @@ public partial class GameOver : Control
 			rootPopup.QueueFree();
 
 			double playtimeMin = 0.0;
-			if (GodotObject.IsInstanceValid(Network.LobbyManager.Instance) && Network.LobbyManager.Instance.GameSessionStartTime != null)
+			if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.GameSessionStartTime != null)
 			{
-				playtimeMin = (DateTime.UtcNow - Network.LobbyManager.Instance.GameSessionStartTime.Value).TotalMinutes;
+				playtimeMin = (DateTime.UtcNow - LobbyManager.Instance.GameSessionStartTime.Value).TotalMinutes;
 			}
+
 			await ReportMetricsAsync(mapName, playtimeMin, selectedRating, true);
 		};
 		btnSubmit.MouseEntered += () => UIManager.Instance.PlayHoverSound();
@@ -575,13 +581,13 @@ public partial class GameOver : Control
 		}
 	}
 
-	private async System.Threading.Tasks.Task ReportMetricsAsync(string mapName, double playtimeMinutes, int stars, bool isComplete)
+	private async Task ReportMetricsAsync(string mapName, double playtimeMinutes, int stars, bool isComplete)
 	{
 		string mapTitle = CleanMapName(mapName);
-		string mapVersion = Network.LobbyManager.Instance?.ActiveMapVersion ?? "1.0.0";
-		
+		string mapVersion = LobbyManager.Instance?.ActiveMapVersion ?? "1.0.0";
+
 		ExtractManifestInfo(mapName, mapTitle, ref mapVersion, out string authorPubKey);
-		
+
 		var payload = new
 		{
 			MapTitle = mapTitle,
@@ -590,16 +596,16 @@ public partial class GameOver : Control
 			PlaytimeMinutes = playtimeMinutes,
 			Stars = stars,
 			IsCompleteGame = isComplete,
-			PlayerId = Network.LobbyManager.Instance?.AuthenticatedUsername ?? "Anonymous",
-			AuthToken = Network.LobbyManager.Instance?.AuthToken,
-			AuthProvider = Network.LobbyManager.Instance?.AuthProvider
+			PlayerId = LobbyManager.Instance?.AuthenticatedUsername ?? "Anonymous",
+			AuthToken = LobbyManager.Instance?.AuthToken,
+			AuthProvider = LobbyManager.Instance?.AuthProvider
 		};
-		
-		string seedServerUrl = GodotObject.IsInstanceValid(Network.LobbyManager.Instance) ? Network.LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+
+		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 		try
 		{
-			using var httpClient = new System.Net.Http.HttpClient();
-			var content = new System.Net.Http.StringContent(System.Text.Json.JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
+			using var httpClient = new HttpClient();
+			var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 			await httpClient.PostAsync(seedServerUrl + "/api/maps/report_metrics", content);
 		}
 		catch (Exception ex)
@@ -635,11 +641,13 @@ public partial class GameOver : Control
 		{
 			mapTitle = mapTitle.Substring("[Beta-Testing] ".Length);
 		}
+
 		int dashIdx = mapTitle.LastIndexOf(" - ");
 		if (dashIdx != -1)
 		{
 			mapTitle = mapTitle.Substring(0, dashIdx);
 		}
+
 		return mapTitle.Trim();
 	}
 
@@ -656,7 +664,9 @@ public partial class GameOver : Control
 
 			authorPubKey = ExtractAuthorPubKeyFromMetadata(mapTitle);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private static bool TryExtractFromManifest(string mapName, string mapTitle, ref string mapVersion, out string authorPubKey)
@@ -665,10 +675,10 @@ public partial class GameOver : Control
 		string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion)
 		                       ?? MapAssetManager.FindManifestPath(mapTitle, mapVersion);
 
-		if (string.IsNullOrEmpty(manifestPath) || !System.IO.File.Exists(manifestPath))
+		if (string.IsNullOrEmpty(manifestPath) || !File.Exists(manifestPath))
 			return false;
 
-		string json = System.IO.File.ReadAllText(manifestPath);
+		string json = File.ReadAllText(manifestPath);
 		using var mapDoc = JsonDocument.Parse(json);
 		var root = mapDoc.RootElement;
 
@@ -683,18 +693,19 @@ public partial class GameOver : Control
 
 	private static string ExtractAuthorPubKeyFromMetadata(string mapTitle)
 	{
-		string[] possiblePaths = {
+		string[] possiblePaths =
+		{
 			ProjectSettings.GlobalizePath($"user://maps/{mapTitle}/metadata.json"),
 			ProjectSettings.GlobalizePath($"res://Maps/{mapTitle}/metadata.json"),
-			ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
+			ProjectSettings.GlobalizePath($"{GameContext.EditorService.TempWorkspaceGodotPath}/metadata.json")
 		};
 
 		foreach (var p in possiblePaths)
 		{
-			if (!System.IO.File.Exists(p))
+			if (!File.Exists(p))
 				continue;
 
-			string json = System.IO.File.ReadAllText(p);
+			string json = File.ReadAllText(p);
 			using var mapDoc = JsonDocument.Parse(json);
 			var root = mapDoc.RootElement;
 			if (root.TryGetProperty("author_key", out var keyProp))
@@ -708,27 +719,30 @@ public partial class GameOver : Control
 	private static List<string> GetContributorsFromMetadata(string rawName)
 	{
 		var contributors = new List<string>();
-		string[] paths = {
+		string[] paths =
+		{
 			ProjectSettings.GlobalizePath($"res://Maps/{rawName}/metadata.json"),
 			ProjectSettings.GlobalizePath($"user://maps/{rawName}/metadata.json"),
-			ProjectSettings.GlobalizePath($"{MapEditorHUD.TempWorkspaceGodotPath}/metadata.json")
+			ProjectSettings.GlobalizePath($"{GameContext.EditorService.TempWorkspaceGodotPath}/metadata.json")
 		};
 
 		foreach (var path in paths)
 		{
-			if (!System.IO.File.Exists(path)) continue;
-			
-			string json = System.IO.File.ReadAllText(path);
+			if (!File.Exists(path)) continue;
+
+			string json = File.ReadAllText(path);
 			using var doc = JsonDocument.Parse(json);
 			if (!doc.RootElement.TryGetProperty("Contributors", out var conts) || conts.ValueKind != JsonValueKind.Array) break;
-			
+
 			foreach (var el in conts.EnumerateArray())
 			{
 				var s = el.GetString();
 				if (!string.IsNullOrEmpty(s)) contributors.Add(s);
 			}
+
 			break;
 		}
+
 		return contributors;
 	}
 
@@ -736,9 +750,9 @@ public partial class GameOver : Control
 	{
 		string statsPath = ProjectSettings.GlobalizePath("user://appdata/playtime_stats.json");
 		var stats = new Dictionary<string, int>();
-		if (System.IO.File.Exists(statsPath))
+		if (File.Exists(statsPath))
 		{
-			string statsJson = System.IO.File.ReadAllText(statsPath);
+			string statsJson = File.ReadAllText(statsPath);
 			stats = JsonSerializer.Deserialize<Dictionary<string, int>>(statsJson) ?? stats;
 		}
 
@@ -748,7 +762,7 @@ public partial class GameOver : Control
 			stats[contributor] += (int)playtimeMinutes;
 		}
 
-		System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(statsPath)!);
-		System.IO.File.WriteAllText(statsPath, JsonSerializer.Serialize(stats));
+		Directory.CreateDirectory(Path.GetDirectoryName(statsPath)!);
+		File.WriteAllText(statsPath, JsonSerializer.Serialize(stats));
 	}
 }

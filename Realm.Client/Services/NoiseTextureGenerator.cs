@@ -1,8 +1,10 @@
-using Godot;
-using Realm.Shared.Textures;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text.Json.Nodes;
+using Godot;
+using Realm.Shared.Services;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.Services;
 
@@ -95,6 +97,7 @@ public static class NoiseTextureGenerator
 				flowImage.SetPixel(x, y, new Color(r, g, 1.0f, 1.0f));
 			}
 		}
+
 		return flowImage;
 	}
 
@@ -123,6 +126,7 @@ public static class NoiseTextureGenerator
 				coloredImage.SetPixel(x, y, blended);
 			}
 		}
+
 		return coloredImage;
 	}
 
@@ -135,7 +139,7 @@ public static class NoiseTextureGenerator
 
 	private static float GetFloatProperty(JsonObject config, string key, float defaultValue)
 	{
-		if (config.TryGetPropertyValue(key, out var node) && float.TryParse(node?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float value))
+		if (config.TryGetPropertyValue(key, out var node) && float.TryParse(node?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float value))
 			return value;
 		return defaultValue;
 	}
@@ -189,7 +193,13 @@ public static class NoiseTextureGenerator
 		{
 			if (File.Exists(tempPngPath))
 			{
-				try { File.Delete(tempPngPath); } catch { }
+				try
+				{
+					File.Delete(tempPngPath);
+				}
+				catch
+				{
+				}
 			}
 		}
 	}
@@ -200,7 +210,7 @@ public static class NoiseTextureGenerator
 
 		try
 		{
-			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(workspacePath);
+			var metadata = MapFileService.LoadMetadata(workspacePath);
 			if (metadata?.NoiseTextures == null) return;
 
 			string noiseDir = Path.Combine(workspacePath, "Assets", "noise");

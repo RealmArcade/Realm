@@ -1,9 +1,12 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Client.VFX;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Godot;
 using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Client.VFX;
 
 namespace Realm.Client;
 
@@ -30,7 +33,7 @@ public class MapResizeAction : IEditorAction
 
 	private void RestoreSnapshot(MapStateSnapshot snapshot)
 	{
-		var host = Realm.Client.Core.GameHost.Instance;
+		var host = GameHost.Instance;
 		if (host == null || host.GroundTerrain == null) return;
 
 		ClearCurrentState(host);
@@ -43,7 +46,7 @@ public class MapResizeAction : IEditorAction
 
 	private static void ClearCurrentState(GameHost host)
 	{
-		var unitsCopy = new List<Realm.Client.Unit3D>(host.AllUnits);
+		var unitsCopy = new List<Unit3D>(host.AllUnits);
 		foreach (var unit in unitsCopy)
 		{
 			if (GodotObject.IsInstanceValid(unit))
@@ -51,13 +54,14 @@ public class MapResizeAction : IEditorAction
 				host.DeleteNodeExternal(unit);
 			}
 		}
+
 		host.SelectedUnits.Clear();
 		host.AllUnits.Clear();
 
 		var children = host.GetChildren();
 		foreach (var child in children)
 		{
-			if (child is Realm.Client.Prop3D prop && GodotObject.IsInstanceValid(prop))
+			if (child is Prop3D prop && GodotObject.IsInstanceValid(prop))
 			{
 				host.DeleteNodeExternal(prop);
 			}
@@ -96,10 +100,12 @@ public class MapResizeAction : IEditorAction
 		{
 			host.SpawnUnitExternal(u.Id, u.Position, u.IsEnemy, u.RotationY, u.Scale);
 		}
+
 		foreach (var p in snapshot.Props)
 		{
 			host.SpawnPropExternalWithParams(p.Id, p.Position, p.RotationY, p.Scale);
 		}
+
 		foreach (var d in snapshot.Decals)
 		{
 			host.SpawnDecalExternalWithParams(d.Id, d.Position, d.RotationY, d.Scale);
@@ -122,28 +128,28 @@ public class MapResizeAction : IEditorAction
 	private static void RestoreCoordinates(GameHost host, MapStateSnapshot snapshot)
 	{
 		if (snapshot.Coordinates == null) return;
-		
-		host.EditorCoordinates.Clear();
-		host.EditorCoordinates.AddRange(snapshot.Coordinates.Select(r => new Realm.Client.Core.GameHost.EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
+
+		GameContext.EditorService.EditorCoordinates.Clear();
+		GameContext.EditorService.EditorCoordinates.AddRange(snapshot.Coordinates.Select(r => new EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
 		host.RebuildAllCoordinatePersistentMeshes();
-		UI.MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
 	}
 
 	private static void UpdateMetadata(MapStateSnapshot snapshot)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
-		if (!System.IO.File.Exists(metaPath)) return;
-		
+		if (!File.Exists(metaPath)) return;
+
 		try
 		{
-			MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+			GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 			{
 				meta.MapProperties.MapWidth = snapshot.Width;
 				meta.MapProperties.MapHeight = snapshot.Depth;
 			});
 		}
-		catch (System.Exception ex)
+		catch (Exception ex)
 		{
 			GD.PrintErr($"Failed to update metadata.json during snapshot restore: {ex.Message}");
 		}
@@ -152,8 +158,8 @@ public class MapResizeAction : IEditorAction
 	private static void RebuildUI(GameHost host)
 	{
 		host.RebuildCameraBoundsOverlay();
-		Realm.Client.PropMultiMeshManager.Instance?.RebuildAll();
-		UI.MapEditorHUD.Instance?.UpdateCameraBoundsUI();
-		UI.MapEditorHUD.Instance?.RegenerateMinimap();
+		PropMultiMeshManager.Instance?.RebuildAll();
+		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
+		MapEditorHUD.Instance?.RegenerateMinimap();
 	}
 }

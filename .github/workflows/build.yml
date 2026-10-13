@@ -41,6 +41,9 @@ jobs:
       - name: Build
         run: dotnet build Realm.slnx --configuration Release --no-restore
 
+      - name: Test
+        run: dotnet test Realm.Ecs.Tests/Realm.Ecs.Tests.csproj --configuration Release --no-restore --no-build
+
       - name: Setup Godot
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         uses: chickensoft-games/setup-godot@v2

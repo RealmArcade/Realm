@@ -1,5 +1,5 @@
-using Realm.Shared.Metadata;
 using System.Buffers.Binary;
+using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Textures;
 
@@ -86,6 +86,7 @@ public class RtexFile : RealmContainerFile
 				}
 			}
 		}
+
 		rawWriter.Flush();
 		return rawPayloadStream.ToArray();
 	}

@@ -1,77 +1,197 @@
-using Arch.Core;
-using Godot;
-using Realm.Ecs.Common;
-using Realm.Ecs.Components.Core;
-using Realm.Ecs.Components.Meta;
-using Realm.Ecs.Components.Terrain;
-using Realm.Ecs.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
+using Arch.Core;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.UI.MapEditor;
+using Realm.Client.VFX;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Terrain;
+using Realm.Shared.Distribution;
+using Realm.Shared.Services;
+using FileAccess = System.IO.FileAccess;
+using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Services;
 
 public class SaveLoadService
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
-	private World EcsWorld => _ecsWorldAccessor.Current;
-
 	private List<CoordinateSaveData> _lastLoadedCoordinates = new();
 
-	public SaveLoadService(WorldAccessor ecsWorldAccessor)
+	public bool IsLoadingMap { get; set; }
+
+	public JsonSerializerOptions Options { get; } = new()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
+		PropertyNameCaseInsensitive = true,
+		IncludeFields = true,
+		Converters = { new JsonStringEnumConverter() }
+	};
+
+	public SaveLoadService()
+	{
+	}
+
+	public TerrainSplatWeights[,] GenerateSplatMapFromImages(byte[] idxBytes, byte[] wgtBytes, int splatW, int splatD, int sW, int sD, int wgtW, int wgtD)
+	{
+		var splatMap = new TerrainSplatWeights[splatW, splatD];
+		ReadOnlySpan<float> idxData = MemoryMarshal.Cast<byte, float>(idxBytes);
+		ReadOnlySpan<float> wgtData = MemoryMarshal.Cast<byte, float>(wgtBytes);
+
+		for (int z = 0; z < splatD; z++)
+		{
+			for (int x = 0; x < splatW; x++)
+			{
+				int srcIdxX = sW == splatW ? x : Math.Clamp((int)Math.Floor(x * (float)(sW - 1) / Math.Max(1, splatW - 1)), 0, sW - 1);
+				int srcIdxZ = sD == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(sD - 1) / Math.Max(1, splatD - 1)), 0, sD - 1);
+				int idxOffset = (srcIdxZ * sW + srcIdxX) * 4;
+
+				int srcWgtX = wgtW == splatW ? x : Math.Clamp((int)Math.Floor(x * (float)(wgtW - 1) / Math.Max(1, splatW - 1)), 0, wgtW - 1);
+				int srcWgtZ = wgtD == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(wgtD - 1) / Math.Max(1, splatD - 1)), 0, wgtD - 1);
+				int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
+
+				splatMap[x, z] = new TerrainSplatWeights
+				{
+					Index0 = (int)Math.Round(idxData[idxOffset + 0]),
+					Index1 = (int)Math.Round(idxData[idxOffset + 1]),
+					Index2 = (int)Math.Round(idxData[idxOffset + 2]),
+					Index3 = (int)Math.Round(idxData[idxOffset + 3]),
+					Weight0 = wgtData[weightOffset + 0],
+					Weight1 = wgtData[weightOffset + 1],
+					Weight2 = wgtData[weightOffset + 2],
+					Weight3 = wgtData[weightOffset + 3]
+				};
+			}
+		}
+
+		return splatMap;
+	}
+
+	public TerrainSplatWeights[,] GenerateFallbackSplatMap(int splatW, int splatD, int width, int depth)
+	{
+		TerrainColorsState colorsState = default;
+		bool foundColors = false;
+		var worldQuery = QueryCache.AllTerrainStateAndEditorStateQuery;
+		GameContext.World.Query(in worldQuery, (Entity entity) =>
+		{
+			if (GameContext.World.Has<TerrainColorsState>(entity))
+			{
+				colorsState = GameContext.World.Get<TerrainColorsState>(entity);
+				foundColors = true;
+			}
+		});
+
+		var splatMap = new TerrainSplatWeights[splatW, splatD];
+		if (foundColors && colorsState.Colors != null)
+		{
+			int colorLen = colorsState.Colors.Length;
+			for (int z = 0; z < splatD; z++)
+			{
+				for (int x = 0; x < splatW; x++)
+				{
+					int idx;
+					if (colorLen == splatW * splatD)
+					{
+						idx = z * splatW + x;
+					}
+					else
+					{
+						int srcX = Math.Clamp(x, 0, width - 1);
+						int srcZ = Math.Clamp(z, 0, depth - 1);
+						idx = srcZ * width + srcX;
+					}
+
+					if (idx < colorLen)
+					{
+						string serialized = colorsState.Colors[idx];
+						splatMap[x, z] = TerrainSplatWeights.Deserialize(serialized);
+					}
+					else
+					{
+						splatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
+					}
+				}
+			}
+		}
+		else
+		{
+			for (int z = 0; z < splatD; z++)
+			{
+				for (int x = 0; x < splatW; x++)
+				{
+					splatMap[x, z] = TerrainSplatWeights.CreateSolid(0);
+				}
+			}
+		}
+
+		return splatMap;
+	}
+
+	public void CopyPathingCodes(int[,] source, int[,] dest, int width, int depth)
+	{
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				dest[x, z] = source[x, z];
+			}
+		}
 	}
 
 	public List<CoordinateSaveData> GetLastLoadedCoordinates() => _lastLoadedCoordinates;
 
-	private void UpdateEntityTransforms(Entity entity, System.Numerics.Vector3? position, float rotationY, float scale)
+	private void UpdateEntityTransforms(Entity entity, Vector3? position, float rotationY, float scale)
 	{
-		if (!EcsWorld.IsAlive(entity)) return;
+		if (!GameContext.World.IsAlive(entity)) return;
 
 		if (position.HasValue)
 		{
-			if (EcsWorld.Has<Position>(entity))
+			if (GameContext.World.Has<Position>(entity))
 			{
-				var existingPos = EcsWorld.Get<Position>(entity).Value;
+				var existingPos = GameContext.World.Get<Position>(entity).Value;
 				if ((position.Value - existingPos).Length() > 0.0001f)
 				{
-					EcsWorld.Set(entity, new Position(position.Value));
+					GameContext.World.Set(entity, new Position(position.Value));
 				}
 			}
 			else
 			{
-				EcsWorld.Add(entity, new Position(position.Value));
+				GameContext.World.Add(entity, new Position(position.Value));
 			}
 		}
 
-		if (EcsWorld.Has<RotationY>(entity))
+		if (GameContext.World.Has<RotationY>(entity))
 		{
-			float existing = EcsWorld.Get<RotationY>(entity).Value;
+			float existing = GameContext.World.Get<RotationY>(entity).Value;
 			if (MathF.Abs(existing - rotationY) > 0.001f && MathF.Abs(MathF.Abs(existing - rotationY) - 360f) > 0.001f)
 			{
-				EcsWorld.Set(entity, new RotationY(rotationY));
+				GameContext.World.Set(entity, new RotationY(rotationY));
 			}
 		}
 		else
 		{
-			EcsWorld.Add(entity, new RotationY(rotationY));
+			GameContext.World.Add(entity, new RotationY(rotationY));
 		}
 
-		if (EcsWorld.Has<ModelScale>(entity))
+		if (GameContext.World.Has<ModelScale>(entity))
 		{
-			float existing = EcsWorld.Get<ModelScale>(entity).Value;
+			float existing = GameContext.World.Get<ModelScale>(entity).Value;
 			if (MathF.Abs(existing - scale) > 0.0001f)
 			{
-				EcsWorld.Set(entity, new ModelScale(scale));
+				GameContext.World.Set(entity, new ModelScale(scale));
 			}
 		}
 		else
 		{
-			EcsWorld.Add(entity, new ModelScale(scale));
+			GameContext.World.Add(entity, new ModelScale(scale));
 		}
 	}
 
@@ -126,7 +246,7 @@ public class SaveLoadService
 		{
 			for (int x = 0; x < width; x++)
 			{
-				int code = terrain.PathingCodes != null ? terrain.PathingCodes[x, z] : Realm.Client.EditableTerrain.GetDefaultPathingCode(Realm.Ecs.Components.Terrain.WaterType.None);
+				int code = terrain.PathingCodes != null ? terrain.PathingCodes[x, z] : EditableTerrain.GetDefaultPathingCode(WaterType.None);
 				int baseIdx = (z * width + x) * 4;
 
 				pathingSpan[baseIdx + 0] = (byte)code;
@@ -194,19 +314,19 @@ public class SaveLoadService
 		string[] htmlColors,
 		(Entity Entity, float RotationY, float Scale)[] unitsData,
 		(Entity Entity, float RotationY, float Scale)[] propsData,
-		(Entity Entity, System.Numerics.Vector3 Position, float RotationY, float Scale)[] decalsData,
+		(Entity Entity, Vector3 Position, float RotationY, float Scale)[] decalsData,
 		List<CoordinateSaveData> coordinatesData = null,
 		string[] cliffHtmlColors = null)
 	{
 		try
 		{
 			Entity worldEntity = Entity.Null;
-			var worldQuery = Realm.Ecs.Common.QueryCache.AllTerrainStateQuery;
-			EcsWorld.Query(in worldQuery, (Entity entity) => worldEntity = entity);
+			var worldQuery = QueryCache.AllTerrainStateQuery;
+			GameContext.World.Query(in worldQuery, (Entity entity) => worldEntity = entity);
 
 			if (worldEntity != Entity.Null)
 			{
-				EcsWorld.SetOrAdd(worldEntity, new TerrainColorsState(htmlColors));
+				GameContext.World.SetOrAdd(worldEntity, new TerrainColorsState(htmlColors));
 			}
 
 			UpdateEntityTransforms(unitsData, propsData, decalsData);
@@ -219,8 +339,8 @@ public class SaveLoadService
 			EditorState editor = default;
 			bool foundWorld = false;
 
-			var worldQuery2 = Realm.Ecs.Common.QueryCache.AllTerrainStateAndEditorStateQuery;
-			EcsWorld.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) =>
+			var worldQuery2 = QueryCache.AllTerrainStateAndEditorStateQuery;
+			GameContext.World.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) =>
 			{
 				terrain = t;
 				editor = e;
@@ -239,9 +359,9 @@ public class SaveLoadService
 
 			SortMapSaveData(saveData);
 			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-			Realm.Shared.Services.MapFileService.SaveTerrain(absolutePath, saveData);
+			MapFileService.SaveTerrain(absolutePath, saveData);
 
-			Realm.Client.Core.GameHost.Instance?.SaveModelYOffsetsToMetadataJson(directory);
+			GameHost.Instance?.SaveModelYOffsetsToMetadataJson(directory);
 			SyncMetadataAssetsAndPrune(directory);
 			CleanMetadataFile(directory, terrain.Width, terrain.Depth);
 			MapWorkspaceService.EnsureLicenseFile(directory);
@@ -250,6 +370,7 @@ public class SaveLoadService
 			{
 				UpdateEditorState(editor, worldQuery2);
 			}
+
 			BackupWorkspaceIfNeeded(directory);
 
 			return true;
@@ -264,7 +385,7 @@ public class SaveLoadService
 	private void UpdateEntityTransforms(
 		(Entity Entity, float RotationY, float Scale)[] unitsData,
 		(Entity Entity, float RotationY, float Scale)[] propsData,
-		(Entity Entity, System.Numerics.Vector3 Position, float RotationY, float Scale)[] decalsData)
+		(Entity Entity, Vector3 Position, float RotationY, float Scale)[] decalsData)
 	{
 		foreach (var u in unitsData) UpdateEntityTransforms(u.Entity, null, u.RotationY, u.Scale);
 		foreach (var p in propsData) UpdateEntityTransforms(p.Entity, null, p.RotationY, p.Scale);
@@ -301,18 +422,18 @@ public class SaveLoadService
 	private List<UnitSaveData> GetUnitSaveData(string directory)
 	{
 		var units = new List<UnitSaveData>();
-		var unitQuery = Realm.Ecs.Common.QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
-		int localPlayerIndex = Realm.Client.Core.GameHost.Instance?.LocalPlayerIndex ?? 0;
+		var unitQuery = QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
+		int localPlayerIndex = GameHost.Instance?.LocalPlayerIndex ?? 0;
 
-		EcsWorld.Query(in unitQuery, (Entity entity, ref DefinitionId defId, ref Position pos, ref Owner owner) =>
+		GameContext.World.Query(in unitQuery, (Entity entity, ref DefinitionId defId, ref Position pos, ref Owner owner) =>
 		{
 			if (!IsValidUnitObjectId(defId.Value, directory)) return;
 
-			float rotY = EcsWorld.Has<RotationY>(entity) ? EcsWorld.Get<RotationY>(entity).Value : 0f;
-			float scale = EcsWorld.Has<ModelScale>(entity) ? EcsWorld.Get<ModelScale>(entity).Value : 1f;
-			int playerIndex = EcsWorld.Has<UnitOwnerPlayer>(entity) ? EcsWorld.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
-			
-			bool isEnemy = EcsWorld.Has<UnitFaction>(entity) ? EcsWorld.Get<UnitFaction>(entity).IsEnemy : NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
+			float rotY = GameContext.World.Has<RotationY>(entity) ? GameContext.World.Get<RotationY>(entity).Value : 0f;
+			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
+			int playerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
+
+			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) ? GameContext.World.Get<UnitFaction>(entity).IsEnemy : NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 
 			units.Add(new UnitSaveData
 			{
@@ -333,14 +454,14 @@ public class SaveLoadService
 	private List<PropSaveData> GetPropSaveData(string directory)
 	{
 		var props = new List<PropSaveData>();
-		var propQuery = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
+		var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
 
-		EcsWorld.Query(in propQuery, (Entity entity, ref PropIdentity propId, ref Position pos) =>
+		GameContext.World.Query(in propQuery, (Entity entity, ref PropIdentity propId, ref Position pos) =>
 		{
 			if (!IsValidPropObjectId(propId.PropId, directory)) return;
 
-			float rotY = EcsWorld.Has<RotationY>(entity) ? EcsWorld.Get<RotationY>(entity).Value : 0f;
-			float scale = EcsWorld.Has<ModelScale>(entity) ? EcsWorld.Get<ModelScale>(entity).Value : 1f;
+			float rotY = GameContext.World.Has<RotationY>(entity) ? GameContext.World.Get<RotationY>(entity).Value : 0f;
+			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
 
 			props.Add(new PropSaveData
 			{
@@ -359,11 +480,11 @@ public class SaveLoadService
 	private List<DecalSaveData> GetDecalSaveData(HashSet<Entity> validDecalEntities)
 	{
 		var decals = new List<DecalSaveData>();
-		var decalQuery = Realm.Ecs.Common.QueryCache.AllDecalIdentityAndPositionQuery;
+		var decalQuery = QueryCache.AllDecalIdentityAndPositionQuery;
 		var orphanedDecalEntities = new List<Entity>();
 		var savedDecalFingerprints = new HashSet<string>();
 
-		EcsWorld.Query(in decalQuery, (Entity entity, ref DecalIdentity decalId, ref Position pos) =>
+		GameContext.World.Query(in decalQuery, (Entity entity, ref DecalIdentity decalId, ref Position pos) =>
 		{
 			if (validDecalEntities != null && !validDecalEntities.Contains(entity))
 			{
@@ -372,17 +493,19 @@ public class SaveLoadService
 			}
 
 			float rotX = 0f, rotY = 0f, rotZ = 0f;
-			if (EcsWorld.Has<Realm.Ecs.Components.Meta.Rotation3D>(entity))
+			if (GameContext.World.Has<Rotation3D>(entity))
 			{
-				var r3d = EcsWorld.Get<Realm.Ecs.Components.Meta.Rotation3D>(entity).Value;
-				rotX = r3d.X; rotY = r3d.Y; rotZ = r3d.Z;
+				var r3d = GameContext.World.Get<Rotation3D>(entity).Value;
+				rotX = r3d.X;
+				rotY = r3d.Y;
+				rotZ = r3d.Z;
 			}
-			else if (EcsWorld.Has<RotationY>(entity))
+			else if (GameContext.World.Has<RotationY>(entity))
 			{
-				rotY = EcsWorld.Get<RotationY>(entity).Value;
+				rotY = GameContext.World.Get<RotationY>(entity).Value;
 			}
 
-			float scale = EcsWorld.Has<ModelScale>(entity) ? EcsWorld.Get<ModelScale>(entity).Value : 1f;
+			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
 
 			string fingerprint = $"{decalId.DecalId}_{pos.Value.X:F3}_{pos.Value.Y:F3}_{pos.Value.Z:F3}_{rotX:F2}_{rotY:F2}_{rotZ:F2}_{scale:F3}";
 			if (!savedDecalFingerprints.Add(fingerprint))
@@ -406,7 +529,7 @@ public class SaveLoadService
 
 		foreach (var orphan in orphanedDecalEntities)
 		{
-			if (EcsWorld.IsAlive(orphan)) EcsWorld.Destroy(orphan);
+			if (GameContext.World.IsAlive(orphan)) GameContext.World.Destroy(orphan);
 		}
 
 		return decals;
@@ -415,7 +538,7 @@ public class SaveLoadService
 	private List<VfxSaveData> GetVfxSaveData()
 	{
 		var vfxList = new List<VfxSaveData>();
-		var allVfx = Realm.Client.Core.GameHost.Instance?.AllVfx;
+		var allVfx = GameHost.Instance?.AllVfx;
 		if (allVfx == null) return vfxList;
 
 		foreach (var vfx in allVfx)
@@ -427,7 +550,7 @@ public class SaveLoadService
 		return vfxList;
 	}
 
-	private VfxSaveData CreateVfxSaveData(Realm.Client.VFX.ProceduralVfxInstance3D vfx)
+	private VfxSaveData CreateVfxSaveData(ProceduralVfxInstance3D vfx)
 	{
 		var config = vfx.Config;
 		return new VfxSaveData
@@ -454,11 +577,11 @@ public class SaveLoadService
 
 		try
 		{
-			MetadataService.Instance.UpdateMetadata(directory, meta =>
+			GameContext.MetadataService.UpdateMetadata(directory, meta =>
 			{
 				meta.MapProperties.MapWidth = width;
 				meta.MapProperties.MapHeight = depth;
-				MetadataService.Instance.CleanMetadata(meta);
+				GameContext.MetadataService.CleanMetadata(meta);
 			});
 		}
 		catch (Exception ex)
@@ -467,7 +590,7 @@ public class SaveLoadService
 		}
 	}
 
-	private void UpdateEditorState(EditorState editor, Arch.Core.QueryDescription worldQuery2)
+	private void UpdateEditorState(EditorState editor, QueryDescription worldQuery2)
 	{
 		var updatedEditor = new EditorState(
 			editor.BlockMode,
@@ -483,15 +606,12 @@ public class SaveLoadService
 			editor.WaterProfileIndex
 		);
 
-		EcsWorld.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) =>
-		{
-			EcsWorld.Set(entity, updatedEditor);
-		});
+		GameContext.World.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) => { GameContext.World.Set(entity, updatedEditor); });
 	}
 
 	private void BackupWorkspaceIfNeeded(string directory)
 	{
-		int maxBackups = Realm.Client.UI.MapEditor.EditorSettingsDialog.CurrentSettings?.MaxBackupSnapshots ?? 3;
+		int maxBackups = EditorSettingsDialog.CurrentSettings?.MaxBackupSnapshots ?? 3;
 		if (maxBackups > 0)
 		{
 			string backupSourceDir = directory;
@@ -501,43 +621,43 @@ public class SaveLoadService
 
 	private void CleanupOldMapEntities()
 	{
-		var unitQuery = Realm.Ecs.Common.QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
+		var unitQuery = QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
 		var unitsToDestroy = new List<Entity>();
-		EcsWorld.Query(in unitQuery, (Entity entity) => unitsToDestroy.Add(entity));
-		foreach (var ent in unitsToDestroy) EcsWorld.Destroy(ent);
+		GameContext.World.Query(in unitQuery, (Entity entity) => unitsToDestroy.Add(entity));
+		foreach (var ent in unitsToDestroy) GameContext.World.Destroy(ent);
 
-		var propQuery = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
+		var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
 		var propsToDestroy = new List<Entity>();
-		EcsWorld.Query(in propQuery, (Entity entity) => propsToDestroy.Add(entity));
-		foreach (var ent in propsToDestroy) EcsWorld.Destroy(ent);
+		GameContext.World.Query(in propQuery, (Entity entity) => propsToDestroy.Add(entity));
+		foreach (var ent in propsToDestroy) GameContext.World.Destroy(ent);
 
-		var decalQuery = Realm.Ecs.Common.QueryCache.AllDecalIdentityAndPositionQuery;
+		var decalQuery = QueryCache.AllDecalIdentityAndPositionQuery;
 		var decalsToDestroy = new List<Entity>();
-		EcsWorld.Query(in decalQuery, (Entity entity) => decalsToDestroy.Add(entity));
-		foreach (var ent in decalsToDestroy) EcsWorld.Destroy(ent);
+		GameContext.World.Query(in decalQuery, (Entity entity) => decalsToDestroy.Add(entity));
+		foreach (var ent in decalsToDestroy) GameContext.World.Destroy(ent);
 
-		var req1 = Realm.Ecs.Common.QueryCache.AllUnitSpawnRequestQuery;
+		var req1 = QueryCache.AllUnitSpawnRequestQuery;
 		var req1List = new List<Entity>();
-		EcsWorld.Query(in req1, (Entity entity) => req1List.Add(entity));
-		foreach (var ent in req1List) EcsWorld.Destroy(ent);
+		GameContext.World.Query(in req1, (Entity entity) => req1List.Add(entity));
+		foreach (var ent in req1List) GameContext.World.Destroy(ent);
 
-		var req2 = Realm.Ecs.Common.QueryCache.AllPropSpawnRequestQuery;
+		var req2 = QueryCache.AllPropSpawnRequestQuery;
 		var req2List = new List<Entity>();
-		EcsWorld.Query(in req2, (Entity entity) => req2List.Add(entity));
-		foreach (var ent in req2List) EcsWorld.Destroy(ent);
+		GameContext.World.Query(in req2, (Entity entity) => req2List.Add(entity));
+		foreach (var ent in req2List) GameContext.World.Destroy(ent);
 
-		var req3 = Realm.Ecs.Common.QueryCache.AllDecalSpawnRequestQuery;
+		var req3 = QueryCache.AllDecalSpawnRequestQuery;
 		var req3List = new List<Entity>();
-		EcsWorld.Query(in req3, (Entity entity) => req3List.Add(entity));
-		foreach (var ent in req3List) EcsWorld.Destroy(ent);
+		GameContext.World.Query(in req3, (Entity entity) => req3List.Add(entity));
+		foreach (var ent in req3List) GameContext.World.Destroy(ent);
 	}
 
 	private void DetermineMapDimensions(string mapDir, MapSaveData saveData, out int width, out int depth)
 	{
 		width = 0;
 		depth = 0;
-		
-		if (MetadataService.Instance.TryLoadMetadata(mapDir, out var loadedMeta) && loadedMeta.MapProperties != null)
+
+		if (GameContext.MetadataService.TryLoadMetadata(mapDir, out var loadedMeta) && loadedMeta.MapProperties != null)
 		{
 			width = loadedMeta.MapProperties.MapWidth ?? 0;
 			depth = loadedMeta.MapProperties.MapHeight ?? 0;
@@ -553,27 +673,28 @@ public class SaveLoadService
 	private Entity InitializeTerrainState(int width, int depth)
 	{
 		Entity foundEntity = Entity.Null;
-		var worldQuery = Realm.Ecs.Common.QueryCache.AllTerrainStateQuery;
-		EcsWorld.Query(in worldQuery, (Entity entity) => foundEntity = entity);
+		var worldQuery = QueryCache.AllTerrainStateQuery;
+		GameContext.World.Query(in worldQuery, (Entity entity) => foundEntity = entity);
 
 		if (foundEntity == Entity.Null)
 		{
-			foundEntity = EcsWorld.Create();
+			foundEntity = GameContext.World.Create();
 		}
 
-		if (!EcsWorld.Has<TerrainState>(foundEntity))
+		if (!GameContext.World.Has<TerrainState>(foundEntity))
 		{
-			EcsWorld.Add(foundEntity, new TerrainState(width, depth, TerrainState.DefaultQuadSize, TerrainState.DefaultCellSize, new TerrainCell[width, depth], new int[width, depth], null, null));
+			GameContext.World.Add(foundEntity, new TerrainState(width, depth, TerrainState.DefaultQuadSize, TerrainState.DefaultCellSize, new TerrainCell[width, depth], new int[width, depth], null, null));
 		}
 		else
 		{
-			ref var ts = ref EcsWorld.Get<TerrainState>(foundEntity);
+			ref var ts = ref GameContext.World.Get<TerrainState>(foundEntity);
 			ts.Width = width;
 			ts.Depth = depth;
 			ts.Cells = new TerrainCell[width, depth];
 			ts.PathingCodes = new int[width, depth];
-			EcsWorld.Set(foundEntity, ts);
+			GameContext.World.Set(foundEntity, ts);
 		}
+
 		return foundEntity;
 	}
 
@@ -583,11 +704,11 @@ public class SaveLoadService
 
 		try
 		{
-			var saveData = Realm.Shared.Services.MapFileService.LoadTerrain(absolutePath);
+			var saveData = MapFileService.LoadTerrain(absolutePath);
 			if (saveData == null) return false;
 
 			string mapDir = Path.GetDirectoryName(absolutePath);
-			Realm.Client.Core.GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(mapDir);
+			GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(mapDir);
 
 			_lastLoadedCoordinates = saveData.Coordinates ?? new List<CoordinateSaveData>();
 
@@ -599,7 +720,7 @@ public class SaveLoadService
 
 			Entity worldEntity = InitializeTerrainState(width, depth);
 
-			if (EcsWorld.Has<TerrainState>(worldEntity))
+			if (GameContext.World.Has<TerrainState>(worldEntity))
 			{
 				LoadTerrainStateData(worldEntity, width, depth, mapDir);
 			}
@@ -623,7 +744,7 @@ public class SaveLoadService
 
 	private void LoadTerrainStateData(Entity worldEntity, int width, int depth, string directory)
 	{
-		ref var ts = ref EcsWorld.Get<TerrainState>(worldEntity);
+		ref var ts = ref GameContext.World.Get<TerrainState>(worldEntity);
 
 		if (ts.Cells == null || ts.Cells.GetLength(0) != width || ts.Cells.GetLength(1) != depth)
 			ts.Cells = new TerrainCell[width, depth];
@@ -639,10 +760,10 @@ public class SaveLoadService
 
 		if (unscaledCells != null)
 		{
-			Realm.Client.RuntimeTerrain.ReconcileScaledWater(unscaledCells, unscaledW, unscaledH, ts.Cells, ts.PathingCodes, width, depth);
+			RuntimeTerrain.ReconcileScaledWater(unscaledCells, unscaledW, unscaledH, ts.Cells, ts.PathingCodes, width, depth);
 		}
 
-		EcsWorld.Set(worldEntity, ts);
+		GameContext.World.Set(worldEntity, ts);
 	}
 
 	private void LoadTerrainHeights(string directory, int width, int depth, ref TerrainState ts, ref TerrainCell[,] unscaledCells, ref int unscaledW, ref int unscaledH)
@@ -656,7 +777,7 @@ public class SaveLoadService
 		heightsImage.Convert(Image.Format.Rgbaf);
 		int imgW = heightsImage.GetWidth();
 		int imgH = heightsImage.GetHeight();
-		ReadOnlySpan<float> floatData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(heightsImage.GetData());
+		ReadOnlySpan<float> floatData = MemoryMarshal.Cast<byte, float>(heightsImage.GetData());
 
 		if (imgW == width && imgH == depth)
 		{
@@ -729,7 +850,7 @@ public class SaveLoadService
 		waterImage.Convert(Image.Format.Rgbaf);
 		int imgW = waterImage.GetWidth();
 		int imgH = waterImage.GetHeight();
-		ReadOnlySpan<float> waterFloatData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(waterImage.GetData());
+		ReadOnlySpan<float> waterFloatData = MemoryMarshal.Cast<byte, float>(waterImage.GetData());
 
 		if (imgW == width && imgH == depth && unscaledCells == null)
 		{
@@ -811,7 +932,7 @@ public class SaveLoadService
 
 	private void SetDefaultPathing(int width, int depth, ref TerrainState ts)
 	{
-		int defaultPathing = Realm.Client.EditableTerrain.GetDefaultPathingCode(Realm.Ecs.Components.Terrain.WaterType.None);
+		int defaultPathing = EditableTerrain.GetDefaultPathingCode(WaterType.None);
 		for (int z = 0; z < depth; z++)
 		{
 			for (int x = 0; x < width; x++)
@@ -825,7 +946,7 @@ public class SaveLoadService
 	{
 		string splatIndicesPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_splat_indices.exr");
 		string splatWeightsPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_splat_weights.exr");
-		
+
 		string[] loadedColors = null;
 
 		if (File.Exists(splatIndicesPath) && File.Exists(splatWeightsPath))
@@ -843,14 +964,14 @@ public class SaveLoadService
 			}
 		}
 
-		EcsWorld.SetOrAdd(worldEntity, new TerrainColorsState(loadedColors));
+		GameContext.World.SetOrAdd(worldEntity, new TerrainColorsState(loadedColors));
 	}
 
 	private string[] ReadSplatImages(string splatIndicesPath, string splatWeightsPath, int width, int depth)
 	{
 		Image splatIndicesImage = Image.LoadFromFile(splatIndicesPath);
 		Image splatWeightsImage = Image.LoadFromFile(splatWeightsPath);
-		
+
 		if (splatIndicesImage == null || splatWeightsImage == null) return null;
 
 		splatIndicesImage.Convert(Image.Format.Rgbaf);
@@ -860,8 +981,8 @@ public class SaveLoadService
 		int wgtW = splatWeightsImage.GetWidth();
 		int wgtH = splatWeightsImage.GetHeight();
 
-		ReadOnlySpan<float> idxData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(splatIndicesImage.GetData());
-		ReadOnlySpan<float> wgtData = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(splatWeightsImage.GetData());
+		ReadOnlySpan<float> idxData = MemoryMarshal.Cast<byte, float>(splatIndicesImage.GetData());
+		ReadOnlySpan<float> wgtData = MemoryMarshal.Cast<byte, float>(splatWeightsImage.GetData());
 
 		int splatW = width + 1;
 		int splatD = depth + 1;
@@ -905,14 +1026,14 @@ public class SaveLoadService
 		float top = saveData.CameraBoundsTop ?? -95.0f;
 		float bottom = saveData.CameraBoundsBottom ?? 125.0f;
 
-		WaterType currentWaterMode = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).WaterMode : WaterType.None;
-		byte currentWaterProf = EcsWorld.Has<EditorState>(worldEntity) ? EcsWorld.Get<EditorState>(worldEntity).WaterProfileIndex : (byte)0;
-		var newEditorState = new EditorState(true, Realm.Client.EditableTerrain.TIER_HEIGHT, left, right, top, bottom, saveData.SkyboxPath, false, MirrorMode.None, currentWaterMode, currentWaterProf);
-		EcsWorld.SetOrAdd(worldEntity, newEditorState);
+		WaterType currentWaterMode = GameContext.World.Has<EditorState>(worldEntity) ? GameContext.World.Get<EditorState>(worldEntity).WaterMode : WaterType.None;
+		byte currentWaterProf = GameContext.World.Has<EditorState>(worldEntity) ? GameContext.World.Get<EditorState>(worldEntity).WaterProfileIndex : (byte)0;
+		var newEditorState = new EditorState(true, EditableTerrain.TIER_HEIGHT, left, right, top, bottom, saveData.SkyboxPath, false, MirrorMode.None, currentWaterMode, currentWaterProf);
+		GameContext.World.SetOrAdd(worldEntity, newEditorState);
 
-		if (EcsWorld.Has<CameraState>(worldEntity))
+		if (GameContext.World.Has<CameraState>(worldEntity))
 		{
-			ref var camState = ref EcsWorld.Get<CameraState>(worldEntity);
+			ref var camState = ref GameContext.World.Get<CameraState>(worldEntity);
 			camState.LimitLeft = left;
 			camState.LimitRight = right;
 			camState.LimitTop = top;
@@ -938,7 +1059,8 @@ public class SaveLoadService
 				GD.PushWarning($"[SaveLoadService] Ignored invalid unit '{u.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
 				continue;
 			}
-			EcsWorld.Add(EcsWorld.Create(), new UnitSpawnRequest(u.TemplateId, new System.Numerics.Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.IsEnemy, u.Player));
+
+			GameContext.World.Add(GameContext.World.Create(), new UnitSpawnRequest(u.TemplateId, new Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.IsEnemy, u.Player));
 		}
 	}
 
@@ -952,7 +1074,8 @@ public class SaveLoadService
 				GD.PushWarning($"[SaveLoadService] Ignored invalid prop '{p.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
 				continue;
 			}
-			EcsWorld.Add(EcsWorld.Create(), new PropSpawnRequest(p.TemplateId, new System.Numerics.Vector3(p.PosX, p.PosY, p.PosZ), p.RotationY, p.Scale));
+
+			GameContext.World.Add(GameContext.World.Create(), new PropSpawnRequest(p.TemplateId, new Vector3(p.PosX, p.PosY, p.PosZ), p.RotationY, p.Scale));
 		}
 	}
 
@@ -963,18 +1086,18 @@ public class SaveLoadService
 		foreach (var d in decals)
 		{
 			if (!loadedDecalFingerprints.Add($"{d.TemplateId}_{d.PosX:F3}_{d.PosY:F3}_{d.PosZ:F3}_{d.RotationX:F2}_{d.RotationY:F2}_{d.RotationZ:F2}_{d.Scale:F3}")) continue;
-			EcsWorld.Add(EcsWorld.Create(), new DecalSpawnRequest(d.TemplateId, new System.Numerics.Vector3(d.PosX, d.PosY, d.PosZ), new System.Numerics.Vector3(d.RotationX, d.RotationY, d.RotationZ), d.Scale));
+			GameContext.World.Add(GameContext.World.Create(), new DecalSpawnRequest(d.TemplateId, new Vector3(d.PosX, d.PosY, d.PosZ), new Vector3(d.RotationX, d.RotationY, d.RotationZ), d.Scale));
 		}
 	}
 
 	private void SpawnVfx(List<VfxSaveData>? vfxList)
 	{
-		if (vfxList == null || Realm.Client.Core.GameHost.Instance == null) return;
+		if (vfxList == null || GameHost.Instance == null) return;
 		foreach (var v in vfxList)
 		{
-			Realm.Client.Core.GameHost.Instance.SpawnVfxExternalWithParams(
-				v.VfxId, new Vector3(v.PosX, v.PosY, v.PosZ), new Vector3(v.RotationX, v.RotationY, v.RotationZ),
-				new Vector3(v.ScaleX <= 0f ? 1f : v.ScaleX, v.ScaleY <= 0f ? 1f : v.ScaleY, v.ScaleZ <= 0f ? 1f : v.ScaleZ),
+			GameHost.Instance.SpawnVfxExternalWithParams(
+				v.VfxId, new Godot.Vector3(v.PosX, v.PosY, v.PosZ), new Godot.Vector3(v.RotationX, v.RotationY, v.RotationZ),
+				new Godot.Vector3(v.ScaleX <= 0f ? 1f : v.ScaleX, v.ScaleY <= 0f ? 1f : v.ScaleY, v.ScaleZ <= 0f ? 1f : v.ScaleZ),
 				v.NormalOffset, v.Config
 			);
 		}
@@ -1003,12 +1126,12 @@ public class SaveLoadService
 		{
 			var img = Image.LoadFromFile(file);
 			if (img == null) return;
-			
+
 			img.Convert(Image.Format.Rgbaf);
 			int w = img.GetWidth();
 			int h = img.GetHeight();
 			byte[] data = img.GetData();
-			Span<float> floats = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(data.AsSpan());
+			Span<float> floats = MemoryMarshal.Cast<byte, float>(data.AsSpan());
 			bool modified = false;
 			for (int i = 0; i < floats.Length; i++)
 			{
@@ -1019,6 +1142,7 @@ public class SaveLoadService
 					modified = true;
 				}
 			}
+
 			if (modified)
 			{
 				var updatedImg = Image.CreateFromData(w, h, false, Image.Format.Rgbaf, data);
@@ -1154,7 +1278,6 @@ public class SaveLoadService
 	}
 
 
-
 	public static void SortMapSaveData(MapSaveData saveData)
 	{
 		if (saveData == null) return;
@@ -1188,8 +1311,6 @@ public class SaveLoadService
 		{
 			saveData.Coordinates.Sort((a, b) => CompareCoordinates(a, b, topLeftX, topLeftZ));
 		}
-
-
 	}
 
 	private static bool IsValidWorkspaceForBackup(string fullWsPath, string globalBackupsRoot, string globalUpgradesRoot)
@@ -1212,7 +1333,7 @@ public class SaveLoadService
 		if (fullWsPath.StartsWith(globalBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) return true;
 		if (fullWsPath.Equals(globalUpgradesRoot, StringComparison.OrdinalIgnoreCase)) return true;
 		if (fullWsPath.StartsWith(globalUpgradesRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) return true;
-		
+
 		if (fullWsPath.Contains("map_backups", StringComparison.OrdinalIgnoreCase)) return true;
 		if (fullWsPath.Contains("map_upgrades", StringComparison.OrdinalIgnoreCase)) return true;
 		if (fullWsPath.Contains(".backups", StringComparison.OrdinalIgnoreCase)) return true;
@@ -1310,11 +1431,13 @@ public class SaveLoadService
 		{
 			try
 			{
-				using var srcStream = new FileStream(pair.SourcePath, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-				using var dstStream = new FileStream(pair.DestPath, FileMode.Create, System.IO.FileAccess.Write, FileShare.ReadWrite);
+				using var srcStream = new FileStream(pair.SourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+				using var dstStream = new FileStream(pair.DestPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
 				srcStream.CopyTo(dstStream);
 			}
-			catch { }
+			catch
+			{
+			}
 		});
 	}
 
@@ -1367,8 +1490,9 @@ public class SaveLoadService
 		{
 			var err = image.SaveExr(path);
 			if (err == Error.Ok) return true;
-			System.Threading.Thread.Sleep(25);
+			Thread.Sleep(25);
 		}
+
 		GD.PrintErr($"[SaveLoadService] Failed to save EXR file: {path}");
 		return false;
 	}
@@ -1379,8 +1503,9 @@ public class SaveLoadService
 		{
 			var err = image.SavePng(path);
 			if (err == Error.Ok) return true;
-			System.Threading.Thread.Sleep(25);
+			Thread.Sleep(25);
 		}
+
 		GD.PrintErr($"[SaveLoadService] Failed to save PNG file: {path}");
 		return false;
 	}
@@ -1431,11 +1556,18 @@ public class SaveLoadService
 					File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
 				}
 			}
+
 			Directory.Delete(targetDir, true);
 		}
 		catch
 		{
-			try { Directory.Delete(targetDir, true); } catch { }
+			try
+			{
+				Directory.Delete(targetDir, true);
+			}
+			catch
+			{
+			}
 		}
 	}
 
@@ -1443,7 +1575,7 @@ public class SaveLoadService
 	{
 		if (string.IsNullOrWhiteSpace(propId)) return false;
 
-		if (Realm.Client.Core.GameHost.PropRegistry?.ContainsKey(propId) == true || Realm.Client.Core.GameHost.ResourceRegistry?.ContainsKey(propId) == true) return true;
+		if (GameHost.PropRegistry?.ContainsKey(propId) == true || GameHost.ResourceRegistry?.ContainsKey(propId) == true) return true;
 
 		return HasPropMetadata(propId, mapDirectory);
 	}
@@ -1451,7 +1583,7 @@ public class SaveLoadService
 	private static bool HasPropMetadata(string propId, string mapDirectory)
 	{
 		string targetDir = !string.IsNullOrEmpty(mapDirectory) ? mapDirectory : MapWorkspaceService.GetActiveWorkspacePath();
-		if (!MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata) || metadata.Templates == null) return false;
+		if (!GameContext.MetadataService.TryLoadMetadata(targetDir, out var metadata) || metadata.Templates == null) return false;
 
 		bool hasProp = metadata.Templates.Props?.Any(p => string.Equals(propId, p.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
 		if (hasProp) return true;
@@ -1463,7 +1595,7 @@ public class SaveLoadService
 	{
 		if (string.IsNullOrWhiteSpace(unitId)) return false;
 
-		if (Realm.Client.Core.GameHost.UnitRegistry?.ContainsKey(unitId) == true || Realm.Client.Core.GameHost.BuildingRegistry?.ContainsKey(unitId) == true) return true;
+		if (GameHost.UnitRegistry?.ContainsKey(unitId) == true || GameHost.BuildingRegistry?.ContainsKey(unitId) == true) return true;
 
 		return HasUnitMetadata(unitId, mapDirectory);
 	}
@@ -1471,14 +1603,13 @@ public class SaveLoadService
 	private static bool HasUnitMetadata(string unitId, string mapDirectory)
 	{
 		string targetDir = !string.IsNullOrEmpty(mapDirectory) ? mapDirectory : MapWorkspaceService.GetActiveWorkspacePath();
-		if (!MetadataService.Instance.TryLoadMetadata(targetDir, out var metadata) || metadata.Templates == null) return false;
+		if (!GameContext.MetadataService.TryLoadMetadata(targetDir, out var metadata) || metadata.Templates == null) return false;
 
 		bool hasUnit = metadata.Templates.Units?.Any(u => string.Equals(unitId, u.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
 		if (hasUnit) return true;
 
 		return metadata.Templates.Buildings?.Any(b => string.Equals(unitId, b.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
 	}
-
 
 
 	private static readonly Dictionary<string, string> CategorySubFolderMap = new(StringComparer.OrdinalIgnoreCase)
@@ -1535,6 +1666,7 @@ public class SaveLoadService
 				}
 			}
 		}
+
 		return fullDiskPath;
 	}
 
@@ -1561,7 +1693,7 @@ public class SaveLoadService
 		}
 	}
 
-	private static List<(string RelativePath, string Category, string FileName)> CollectAssetsToSync(Realm.Shared.Distribution.MapManifestAssets assetsObj)
+	private static List<(string RelativePath, string Category, string FileName)> CollectAssetsToSync(MapManifestAssets assetsObj)
 	{
 		var assetsToSync = new List<(string RelativePath, string Category, string FileName)>();
 		foreach (var categoryKvp in assetsObj.GetAllCategories())
@@ -1575,6 +1707,7 @@ public class SaveLoadService
 				assetsToSync.Add((relPath, category, fileName));
 			}
 		}
+
 		return assetsToSync;
 	}
 
@@ -1588,14 +1721,20 @@ public class SaveLoadService
 			string sourceFile = importFile.Substring(0, importFile.Length - ".import".Length);
 			if (!File.Exists(sourceFile))
 			{
-				try { File.Delete(importFile); } catch { }
+				try
+				{
+					File.Delete(importFile);
+				}
+				catch
+				{
+				}
 			}
 		}
 
 		DeleteEmptyDirectoriesRecursive(assetsDir);
 	}
 
-	private static void SyncAssetHashes(string mapDirectory, string assetsDir, Realm.Shared.Distribution.MapManifestAssets assetsObj, List<(string RelativePath, string Category, string FileName)> assetsToSync)
+	private static void SyncAssetHashes(string mapDirectory, string assetsDir, MapManifestAssets assetsObj, List<(string RelativePath, string Category, string FileName)> assetsToSync)
 	{
 		Dictionary<string, string>? cachedAssetFiles = null;
 
@@ -1633,8 +1772,11 @@ public class SaveLoadService
 					cachedFiles.TryAdd(name, file);
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		}
+
 		return cachedFiles.TryGetValue(fileName, out var path) ? path : null;
 	}
 
@@ -1645,9 +1787,115 @@ public class SaveLoadService
 		{
 			DeleteEmptyDirectoriesRecursive(sub);
 		}
+
 		if (Directory.GetFiles(directory).Length == 0 && Directory.GetDirectories(directory).Length == 0)
 		{
-			try { Directory.Delete(directory, false); } catch { }
+			try
+			{
+				Directory.Delete(directory, false);
+			}
+			catch
+			{
+			}
 		}
+	}
+
+	public string[] GetSplatData(TerrainSplatWeights[,] splatMap)
+	{
+		if (splatMap == null) return new string[0];
+		int splatW = splatMap.GetLength(0);
+		int splatD = splatMap.GetLength(1);
+		string[] splatData = new string[splatW * splatD];
+		for (int z = 0; z < splatD; z++)
+		{
+			for (int x = 0; x < splatW; x++)
+			{
+				splatData[z * splatW + x] = splatMap[x, z].Serialize();
+			}
+		}
+
+		return splatData;
+	}
+
+	public float GetUnitPropRotationY(Entity entity, float defaultRotY, World ecsWorld)
+	{
+		float rotY = defaultRotY;
+		if (ecsWorld.Has<RotationY>(entity))
+		{
+			float existingRotY = ecsWorld.Get<RotationY>(entity).Value;
+			if (MathF.Abs(rotY - existingRotY) < 0.001f || MathF.Abs(MathF.Abs(rotY - existingRotY) - 360f) < 0.001f)
+			{
+				rotY = existingRotY;
+			}
+		}
+
+		return rotY;
+	}
+
+	public float GetUnitPropScale(Entity entity, float defaultScale, World ecsWorld)
+	{
+		float scale = defaultScale;
+		if (ecsWorld.Has<ModelScale>(entity))
+		{
+			float existingScale = ecsWorld.Get<ModelScale>(entity).Value;
+			if (MathF.Abs(scale - existingScale) < 0.0001f)
+			{
+				scale = existingScale;
+			}
+		}
+
+		return scale;
+	}
+
+	public float GetDecalScale(Entity entity, float visualScaleX, float decalSizeX)
+	{
+		float scale = visualScaleX != 1.0f
+			? visualScaleX
+			: (GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : (decalSizeX / 6.0f));
+		return GetUnitPropScale(entity, scale, GameContext.World);
+	}
+
+	public Vector3 GetDecalPosition(Entity entity, Vector3 rawPosition)
+	{
+		var pos = rawPosition;
+		if (GameContext.World.Has<Position>(entity))
+		{
+			var existingPos = GameContext.World.Get<Position>(entity).Value;
+			if ((pos - existingPos).Length() < 0.0001f)
+			{
+				pos = existingPos;
+			}
+		}
+
+		return pos;
+	}
+
+	public List<CoordinateSaveData> GetCoordinatesData()
+	{
+		return GameContext.EditorService.EditorCoordinates.Select(r => new CoordinateSaveData
+		{
+			Name = r.Name,
+			MinX = r.MinX,
+			MinZ = r.MinZ,
+			MaxX = r.MaxX,
+			MaxZ = r.MaxZ
+		}).ToList();
+	}
+
+	public string[] SerializeCliffSplatMap(TerrainSplatWeights[,] cliffSplatMap)
+	{
+		if (cliffSplatMap == null) return Array.Empty<string>();
+		int cliffW = cliffSplatMap.GetLength(0);
+		int cliffD = cliffSplatMap.GetLength(1);
+		string[] cliffSplatData = new string[cliffW * cliffD];
+		for (int z = 0; z < cliffD; z++)
+		{
+			for (int x = 0; x < cliffW; x++)
+			{
+				cliffSplatData[z * cliffW + x] = cliffSplatMap[x, z].Serialize();
+			}
+		}
+
+		return cliffSplatData;
 	}
 }

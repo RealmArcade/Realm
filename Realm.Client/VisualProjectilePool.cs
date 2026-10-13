@@ -1,5 +1,5 @@
-using Godot;
 using System.Collections.Generic;
+using Godot;
 
 namespace Realm.Client;
 
@@ -47,6 +47,7 @@ public class VisualProjectilePool
 			{
 				projectile.GetParent().RemoveChild(projectile);
 			}
+
 			parent.AddChild(projectile);
 		}
 
@@ -74,6 +75,7 @@ public class VisualProjectilePool
 				proj.QueueFree();
 			}
 		}
+
 		_all.Clear();
 		_available.Clear();
 	}

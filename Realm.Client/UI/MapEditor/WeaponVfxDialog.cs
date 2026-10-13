@@ -1,9 +1,13 @@
-using Godot;
 using System;
+using System.IO;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Shared.Audio;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview3DDialogBase
+public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 {
 	private static readonly string[] Trajectories = { "Parabolic", "Homing", "LinearVector", "Boomerang", "SwarmOrbit" };
 	private static readonly string[] SpeedCurves = { "constant", "ease_in", "ease_out", "ease_in_out", "rocket_boost", "burst" };
@@ -12,19 +16,78 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	private static readonly string[] ForwardAxes = { "-Z", "+Z", "+X", "-X", "+Y", "-Y" };
 	private static readonly string[] EmissionMasks = { "noise", "vertex_color", "fresnel", "texture_alpha" };
 
-	private void SafeInvoke(Action<string> action, string val) { action?.Invoke(val ?? ""); }
-	private void UpdateSliderAndLabel(HSlider slider, Label label, float val, string fmt) { if (slider != null) { slider.Value = val; label.Text = val.ToString(fmt); } }
-	private void UpdateColorPicker((ColorPickerButton Picker, HSlider HueSlider) cp, Color c) { if (cp.Picker != null) { cp.Picker.Color = c; cp.HueSlider.SetValueNoSignal(c.H); } }
-	private void UpdateVector3UI((LineEdit X, LineEdit Y, LineEdit Z) ui, Vector3 val) { if (ui.X != null) { ui.X.Text = val.X.ToString("0.##"); ui.Y.Text = val.Y.ToString("0.##"); ui.Z.Text = val.Z.ToString("0.##"); } }
-	private void UpdateVector2UI((LineEdit X, LineEdit Y) ui, Vector2 val) { if (ui.X != null) { ui.X.Text = val.X.ToString("0.##"); ui.Y.Text = val.Y.ToString("0.##"); } }
-	private void UpdateDropdown(OptionButton dropdown, string[] options, string value, string fallback) { if (dropdown != null) { string v = value; if (v == null) v = fallback; dropdown.Selected = Math.Max(0, Array.IndexOf(options, v)); } }
-	private void UpdateDropdownLower(OptionButton dropdown, string[] options, string value, string fallback) { if (dropdown != null) { string v = value; if (v != null) v = v.ToLowerInvariant(); if (v == null) v = fallback; dropdown.Selected = Math.Max(0, Array.IndexOf(options, v)); } }
-	private void UpdateCheckBox(CheckBox chk, bool val) { if (chk != null) chk.ButtonPressed = val; }
+	private void SafeInvoke(Action<string> action, string val)
+	{
+		action?.Invoke(val ?? "");
+	}
+
+	private void UpdateSliderAndLabel(HSlider slider, Label label, float val, string fmt)
+	{
+		if (slider != null)
+		{
+			slider.Value = val;
+			label.Text = val.ToString(fmt);
+		}
+	}
+
+	private void UpdateColorPicker((ColorPickerButton Picker, HSlider HueSlider) cp, Color c)
+	{
+		if (cp.Picker != null)
+		{
+			cp.Picker.Color = c;
+			cp.HueSlider.SetValueNoSignal(c.H);
+		}
+	}
+
+	private void UpdateVector3UI((LineEdit X, LineEdit Y, LineEdit Z) ui, Vector3 val)
+	{
+		if (ui.X != null)
+		{
+			ui.X.Text = val.X.ToString("0.##");
+			ui.Y.Text = val.Y.ToString("0.##");
+			ui.Z.Text = val.Z.ToString("0.##");
+		}
+	}
+
+	private void UpdateVector2UI((LineEdit X, LineEdit Y) ui, Vector2 val)
+	{
+		if (ui.X != null)
+		{
+			ui.X.Text = val.X.ToString("0.##");
+			ui.Y.Text = val.Y.ToString("0.##");
+		}
+	}
+
+	private void UpdateDropdown(OptionButton dropdown, string[] options, string value, string fallback)
+	{
+		if (dropdown != null)
+		{
+			string v = value;
+			if (v == null) v = fallback;
+			dropdown.Selected = Math.Max(0, Array.IndexOf(options, v));
+		}
+	}
+
+	private void UpdateDropdownLower(OptionButton dropdown, string[] options, string value, string fallback)
+	{
+		if (dropdown != null)
+		{
+			string v = value;
+			if (v != null) v = v.ToLowerInvariant();
+			if (v == null) v = fallback;
+			dropdown.Selected = Math.Max(0, Array.IndexOf(options, v));
+		}
+	}
+
+	private void UpdateCheckBox(CheckBox chk, bool val)
+	{
+		if (chk != null) chk.ButtonPressed = val;
+	}
 
 	private AudioStreamPlayer _sfxPlayer;
-	private Realm.Client.VisualProjectile3D _previewProjectile;
+	private VisualProjectile3D _previewProjectile;
 
-	public Realm.Client.VisualProjectile3D PreviewProjectile => _previewProjectile;
+	public VisualProjectile3D PreviewProjectile => _previewProjectile;
 
 	private WeaponMetadata _initialWeapon = new();
 	private WeaponMetadata _currentWeapon = new();
@@ -163,7 +226,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			Hud?.ShowFeedback(TranslationServer.Translate("Copied script code to clipboard"));
 		}, "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
 
-		var separator = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var separator = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		topToolbar.AddChild(separator);
 
 		AddCameraPresetToolbar(topToolbar, includeBack: false);
@@ -191,7 +254,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		speedSlider.Step = 0.05f;
 		speedSlider.Value = _previewSpeed;
 		speedSlider.CustomMinimumSize = new Vector2(80, 0);
-		speedSlider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		speedSlider.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		playbackToolbar.AddChild(speedSlider);
 
 		var speedValLbl = new Label();
@@ -215,7 +278,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 	private void BuildIdentitySection(VBoxContainer scrollBody)
 	{
-// SECTION 0: IDENTITY
+		// SECTION 0: IDENTITY
 		AddSectionHeader(scrollBody, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = new HBoxContainer();
@@ -234,7 +297,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("weapon_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) =>
 		{
@@ -262,9 +325,9 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 	private void BuildAudioAndImpactSection(VBoxContainer scrollBody)
 	{
-// SECTION 1: AUDIO & IMPACT EFFECTS
+		// SECTION 1: AUDIO & IMPACT EFFECTS
 		AddSectionHeader(scrollBody, "🔊 " + TranslationServer.Translate("AUDIO & IMPACT EFFECTS"), new Color(0.3f, 0.8f, 0.7f));
-		
+
 		(_, _setAttackSoundValue) = AddAssetFilterDropdown(
 			scrollBody,
 			TranslationServer.Translate("Attack Sound"),
@@ -324,7 +387,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 	private void BuildProjectileMovementSectionPart1(VBoxContainer scrollBody)
 	{
-// SECTION 2: PROGRAMMATIC PROJECTILE MOVEMENT
+		// SECTION 2: PROGRAMMATIC PROJECTILE MOVEMENT
 		AddSectionHeader(scrollBody, "🚀 " + TranslationServer.Translate("PROJECTILE MOVEMENT"), new Color(0.35f, 0.6f, 0.85f));
 		(_, _setProjectileModelValue) = AddAssetFilterDropdown(
 			scrollBody,
@@ -379,7 +442,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			11,
 			new Vector2(0, 26)
 		);
-		btnRandomize.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		btnRandomize.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(rowRandomize);
 	}
 
@@ -417,7 +480,8 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	}
 
 	private void BuildProjectileMovementSectionPart3(VBoxContainer scrollBody)
-	{		(_sldAcceleration, _lblAcceleration) = AddSlider(scrollBody, TranslationServer.Translate("Acceleration"), -50f, 100f, 1f, _currentWeapon.Acceleration, (val) =>
+	{
+		(_sldAcceleration, _lblAcceleration) = AddSlider(scrollBody, TranslationServer.Translate("Acceleration"), -50f, 100f, 1f, _currentWeapon.Acceleration, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentWeapon.Acceleration = val;
@@ -450,7 +514,8 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	}
 
 	private void BuildProjectileMovementSectionPart4(VBoxContainer scrollBody)
-	{		(_sldTurnRateLimit, _lblTurnRateLimit) = AddSlider(scrollBody, TranslationServer.Translate("Turn Rate (°/s)"), 0f, 720f, 15f, _currentWeapon.TurnRateLimit, (val) =>
+	{
+		(_sldTurnRateLimit, _lblTurnRateLimit) = AddSlider(scrollBody, TranslationServer.Translate("Turn Rate (°/s)"), 0f, 720f, 15f, _currentWeapon.TurnRateLimit, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentWeapon.TurnRateLimit = val;
@@ -540,7 +605,6 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			_currentWeapon.MeshScaleOffset = val.ToVector3Data();
 			RestartPreviewProjectile();
 		}, 140f);
-	
 	}
 
 
@@ -554,7 +618,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 	private void BuildProceduralShaderSectionPart1(VBoxContainer scrollBody)
 	{
-// SECTION 3: PROCEDURAL SURFACE UBER-SHADER
+		// SECTION 3: PROCEDURAL SURFACE UBER-SHADER
 		AddSectionHeader(scrollBody, "🎨 " + TranslationServer.Translate("PROCEDURAL SURFACE UBER-SHADER"), new Color(0.8f, 0.55f, 0.45f));
 		var presetFxRow = new HBoxContainer();
 		presetFxRow.AddThemeConstantOverride("separation", 4);
@@ -582,7 +646,8 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	}
 
 	private void BuildProceduralShaderSectionPart2(VBoxContainer scrollBody)
-	{		_cpEmissionColor = AddColorPicker(scrollBody, TranslationServer.Translate("Emission Color"), ParseColorSafe(_currentWeapon.EmissionColor, new Color(1.0f, 0.4f, 0.0f)), (c) =>
+	{
+		_cpEmissionColor = AddColorPicker(scrollBody, TranslationServer.Translate("Emission Color"), ParseColorSafe(_currentWeapon.EmissionColor, new Color(1.0f, 0.4f, 0.0f)), (c) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentWeapon.EmissionColor = "#" + c.ToHtml(false);
@@ -615,7 +680,8 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	}
 
 	private void BuildProceduralShaderSectionPart3(VBoxContainer scrollBody)
-	{		(_sldNoiseScale, _lblNoiseScale) = AddSlider(scrollBody, TranslationServer.Translate("Noise Scale"), 0.1f, 20f, 0.5f, _currentWeapon.NoiseScale > 0 ? _currentWeapon.NoiseScale : 3.0f, (val) =>
+	{
+		(_sldNoiseScale, _lblNoiseScale) = AddSlider(scrollBody, TranslationServer.Translate("Noise Scale"), 0.1f, 20f, 0.5f, _currentWeapon.NoiseScale > 0 ? _currentWeapon.NoiseScale : 3.0f, (val) =>
 		{
 			if (_isUpdatingUI) return;
 			_currentWeapon.NoiseScale = val;
@@ -673,13 +739,12 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			_currentWeapon.PointLightRange = val;
 			RestartPreviewProjectile();
 		}, "0.0", 140f);
-	
 	}
 
 
 	private void BuildRibbonTrailSection(VBoxContainer scrollBody)
 	{
-// SECTION 4: RIBBON TRAIL EMITTER
+		// SECTION 4: RIBBON TRAIL EMITTER
 		AddSectionHeader(scrollBody, "🎗️ " + TranslationServer.Translate("RIBBON TRAIL EMITTER"), new Color(0.85f, 0.85f, 0.6f));
 
 		_cpRibbonColor = AddColorPicker(scrollBody, TranslationServer.Translate("Ribbon Color"), ParseColorSafe(_currentWeapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f)), (c) =>
@@ -743,91 +808,103 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	}
 
 	private void SyncIdentityAndEffects()
-{
-	if (_txtSlug != null) _txtSlug.Text = _slug;
-	if (_txtName != null) _txtName.Text = _currentWeapon.Name ?? "";
-	SafeInvoke(_setAttackSoundValue, _currentWeapon.AttackSound);
-	SafeInvoke(_setImpactSoundValue, _currentWeapon.ImpactSound);
-	SafeInvoke(_setImpactVisualEffectValue, _currentWeapon.ImpactVisualEffect);
-	SafeInvoke(_setProjectileModelValue, _currentWeapon.ProjectileModelPath);
-	SafeInvoke(_setRibbonTextureValue, _currentWeapon.RibbonTexture);
-	SafeInvoke(_setNoiseTextureValue, _currentWeapon.NoiseTexture);
-}
+	{
+		if (_txtSlug != null) _txtSlug.Text = _slug;
+		if (_txtName != null) _txtName.Text = _currentWeapon.Name ?? "";
+		SafeInvoke(_setAttackSoundValue, _currentWeapon.AttackSound);
+		SafeInvoke(_setImpactSoundValue, _currentWeapon.ImpactSound);
+		SafeInvoke(_setImpactVisualEffectValue, _currentWeapon.ImpactVisualEffect);
+		SafeInvoke(_setProjectileModelValue, _currentWeapon.ProjectileModelPath);
+		SafeInvoke(_setRibbonTextureValue, _currentWeapon.RibbonTexture);
+		SafeInvoke(_setNoiseTextureValue, _currentWeapon.NoiseTexture);
+	}
 
 	private void SyncProjectileMovement()
-{
-	UpdateDropdown(_optTrajectoryType, Trajectories, _currentWeapon.TrajectoryType, "Parabolic");
-	UpdateSliderAndLabel(_sldBoomerangReturnDelay, _lblBoomerangReturnDelay, _currentWeapon.BoomerangReturnDelay, "0.00");
-	UpdateSliderAndLabel(_sldOrbitRadius, _lblOrbitRadius, _currentWeapon.OrbitRadius, "0.0");
-	UpdateSliderAndLabel(_sldOrbitSpeed, _lblOrbitSpeed, _currentWeapon.OrbitSpeed, "0.0");
+	{
+		UpdateDropdown(_optTrajectoryType, Trajectories, _currentWeapon.TrajectoryType, "Parabolic");
+		UpdateSliderAndLabel(_sldBoomerangReturnDelay, _lblBoomerangReturnDelay, _currentWeapon.BoomerangReturnDelay, "0.00");
+		UpdateSliderAndLabel(_sldOrbitRadius, _lblOrbitRadius, _currentWeapon.OrbitRadius, "0.0");
+		UpdateSliderAndLabel(_sldOrbitSpeed, _lblOrbitSpeed, _currentWeapon.OrbitSpeed, "0.0");
 
-	float speedVal = _currentWeapon.ProjectileSpeed;
-	if (speedVal <= 0) speedVal = 25f;
-	UpdateSliderAndLabel(_sldProjectileSpeed, _lblProjectileSpeed, speedVal, "0");
+		float speedVal = _currentWeapon.ProjectileSpeed;
+		if (speedVal <= 0) speedVal = 25f;
+		UpdateSliderAndLabel(_sldProjectileSpeed, _lblProjectileSpeed, speedVal, "0");
 
-	UpdateSliderAndLabel(_sldAcceleration, _lblAcceleration, _currentWeapon.Acceleration, "0.0");
-	UpdateDropdownLower(_optSpeedCurve, SpeedCurves, _currentWeapon.SpeedCurve, "constant");
-	UpdateDropdownLower(_optEaseCurve, EaseCurves, _currentWeapon.EaseCurve, "linear");
-	UpdateSliderAndLabel(_sldArcHeight, _lblArcHeight, _currentWeapon.ArcHeight, "0.0");
-	UpdateSliderAndLabel(_sldHomingWeight, _lblHomingWeight, _currentWeapon.HomingWeight, "0.00");
-	UpdateSliderAndLabel(_sldTurnRateLimit, _lblTurnRateLimit, _currentWeapon.TurnRateLimit, "0");
-	UpdateSliderAndLabel(_sldMaxLifetime, _lblMaxLifetime, _currentWeapon.MaxLifetime, "0.0");
-	UpdateSliderAndLabel(_sldFailsafeRange, _lblFailsafeRange, _currentWeapon.FailsafeRange, "0");
-	UpdateDropdownLower(_optScaleCurve, ScaleCurves, _currentWeapon.ScaleCurve, "constant");
-	UpdateCheckBox(_chkOrientToTrajectory, _currentWeapon.OrientToTrajectory);
-	UpdateSliderAndLabel(_sldMaxBounces, _lblMaxBounces, _currentWeapon.MaxBounces, "0");
-	UpdateSliderAndLabel(_sldPierceCount, _lblPierceCount, _currentWeapon.PierceCount, "0");
-}
+		UpdateSliderAndLabel(_sldAcceleration, _lblAcceleration, _currentWeapon.Acceleration, "0.0");
+		UpdateDropdownLower(_optSpeedCurve, SpeedCurves, _currentWeapon.SpeedCurve, "constant");
+		UpdateDropdownLower(_optEaseCurve, EaseCurves, _currentWeapon.EaseCurve, "linear");
+		UpdateSliderAndLabel(_sldArcHeight, _lblArcHeight, _currentWeapon.ArcHeight, "0.0");
+		UpdateSliderAndLabel(_sldHomingWeight, _lblHomingWeight, _currentWeapon.HomingWeight, "0.00");
+		UpdateSliderAndLabel(_sldTurnRateLimit, _lblTurnRateLimit, _currentWeapon.TurnRateLimit, "0");
+		UpdateSliderAndLabel(_sldMaxLifetime, _lblMaxLifetime, _currentWeapon.MaxLifetime, "0.0");
+		UpdateSliderAndLabel(_sldFailsafeRange, _lblFailsafeRange, _currentWeapon.FailsafeRange, "0");
+		UpdateDropdownLower(_optScaleCurve, ScaleCurves, _currentWeapon.ScaleCurve, "constant");
+		UpdateCheckBox(_chkOrientToTrajectory, _currentWeapon.OrientToTrajectory);
+		UpdateSliderAndLabel(_sldMaxBounces, _lblMaxBounces, _currentWeapon.MaxBounces, "0");
+		UpdateSliderAndLabel(_sldPierceCount, _lblPierceCount, _currentWeapon.PierceCount, "0");
+	}
 
 	private void SyncAdvancedVectors()
-{
-	UpdateVector3UI(_txtTumbleAngularVelocity, _currentWeapon.TumbleAngularVelocity.ToGodotVector3());
-	UpdateVector2UI(_txtSpiral, new Vector2(_currentWeapon.SpiralRadius, _currentWeapon.SpiralFrequency));
-	UpdateVector2UI(_txtZigzag, new Vector2(_currentWeapon.ZigzagAmplitude, _currentWeapon.ZigzagFrequency));
-	int forwardAxisIdx = Math.Max(0, Array.IndexOf(ForwardAxes, _currentWeapon.ForwardAxisPreset?.Trim().ToUpperInvariant() ?? "-Z"));
-	if (_optForwardAxisPreset != null) _optForwardAxisPreset.Selected = forwardAxisIdx;
-	UpdateVector3UI(_txtMeshTranslationOffset, _currentWeapon.MeshTranslationOffset.ToGodotVector3());
-	UpdateVector3UI(_txtMeshRotationOffset, _currentWeapon.MeshRotationOffset.ToGodotVector3());
-	Vector3 scale = _currentWeapon.MeshScaleOffset.ToGodotVector3();
-	if (scale == Vector3.Zero) scale = Vector3.One;
-	UpdateVector3UI(_txtMeshScaleOffset, scale);
-}
+	{
+		UpdateVector3UI(_txtTumbleAngularVelocity, _currentWeapon.TumbleAngularVelocity.ToGodotVector3());
+		UpdateVector2UI(_txtSpiral, new Vector2(_currentWeapon.SpiralRadius, _currentWeapon.SpiralFrequency));
+		UpdateVector2UI(_txtZigzag, new Vector2(_currentWeapon.ZigzagAmplitude, _currentWeapon.ZigzagFrequency));
+		int forwardAxisIdx = Math.Max(0, Array.IndexOf(ForwardAxes, _currentWeapon.ForwardAxisPreset?.Trim().ToUpperInvariant() ?? "-Z"));
+		if (_optForwardAxisPreset != null) _optForwardAxisPreset.Selected = forwardAxisIdx;
+		UpdateVector3UI(_txtMeshTranslationOffset, _currentWeapon.MeshTranslationOffset.ToGodotVector3());
+		UpdateVector3UI(_txtMeshRotationOffset, _currentWeapon.MeshRotationOffset.ToGodotVector3());
+		Vector3 scale = _currentWeapon.MeshScaleOffset.ToGodotVector3();
+		if (scale == Vector3.Zero) scale = Vector3.One;
+		UpdateVector3UI(_txtMeshScaleOffset, scale);
+	}
 
 	private void SyncVisualMaterials()
-{
-	int maskIdx = Math.Max(0, Array.IndexOf(EmissionMasks, _currentWeapon.EmissionMaskSource?.ToLowerInvariant() ?? "noise"));
-	if (_optEmissionMaskSource != null) _optEmissionMaskSource.Selected = maskIdx;
-	UpdateColorPicker(_cpBaseColor, ParseColorSafe(_currentWeapon.BaseColor, new Color(0.15f, 0.12f, 0.1f)));
-	UpdateColorPicker(_cpEmissionColor, ParseColorSafe(_currentWeapon.EmissionColor, new Color(1.0f, 0.4f, 0.0f)));
-	UpdateSliderAndLabel(_sldEmissionEnergy, _lblEmissionEnergy, _currentWeapon.EmissionEnergy, "0.0");
-	UpdateColorPicker(_cpFresnelColor, ParseColorSafe(_currentWeapon.FresnelColor, new Color(1.0f, 0.6f, 0.2f)));
-	float fresnelPow = _currentWeapon.FresnelPower > 0 ? _currentWeapon.FresnelPower : 3.0f;
-	UpdateSliderAndLabel(_sldFresnelPower, _lblFresnelPower, fresnelPow, "0.0");
-	UpdateSliderAndLabel(_sldFresnelFactor, _lblFresnelFactor, _currentWeapon.FresnelFactor, "0.0");
-	float noiseSc = _currentWeapon.NoiseScale > 0 ? _currentWeapon.NoiseScale : 3.0f;
-	UpdateSliderAndLabel(_sldNoiseScale, _lblNoiseScale, noiseSc, "0.0");
-	UpdateVector2UI(_txtUvScrollSpeed1, _currentWeapon.UvScrollSpeed1.ToGodotVector2());
-	UpdateVector2UI(_txtUvScrollSpeed2, _currentWeapon.UvScrollSpeed2.ToGodotVector2());
-	UpdateSliderAndLabel(_sldThresholdCutoff, _lblThresholdCutoff, _currentWeapon.ThresholdCutoff, "0.00");
-	float threshSmooth = _currentWeapon.ThresholdSmoothness > 0 ? _currentWeapon.ThresholdSmoothness : 0.1f;
-	UpdateSliderAndLabel(_sldThresholdSmoothness, _lblThresholdSmoothness, threshSmooth, "0.00");
-	if (_chkPointLightEnabled != null) _chkPointLightEnabled.ButtonPressed = _currentWeapon.PointLightEnabled;
-	UpdateColorPicker(_cpPointLightColor, ParseColorSafe(_currentWeapon.PointLightColor, new Color(1.0f, 0.65f, 0.2f)));
-	UpdateSliderAndLabel(_sldPointLightIntensity, _lblPointLightIntensity, _currentWeapon.PointLightIntensity, "0.0");
-	float lightRng = _currentWeapon.PointLightRange > 0 ? _currentWeapon.PointLightRange : 6.0f;
-	UpdateSliderAndLabel(_sldPointLightRange, _lblPointLightRange, lightRng, "0.0");
-}
+	{
+		int maskIdx = Math.Max(0, Array.IndexOf(EmissionMasks, _currentWeapon.EmissionMaskSource?.ToLowerInvariant() ?? "noise"));
+		if (_optEmissionMaskSource != null) _optEmissionMaskSource.Selected = maskIdx;
+		UpdateColorPicker(_cpBaseColor, ParseColorSafe(_currentWeapon.BaseColor, new Color(0.15f, 0.12f, 0.1f)));
+		UpdateColorPicker(_cpEmissionColor, ParseColorSafe(_currentWeapon.EmissionColor, new Color(1.0f, 0.4f, 0.0f)));
+		UpdateSliderAndLabel(_sldEmissionEnergy, _lblEmissionEnergy, _currentWeapon.EmissionEnergy, "0.0");
+		UpdateColorPicker(_cpFresnelColor, ParseColorSafe(_currentWeapon.FresnelColor, new Color(1.0f, 0.6f, 0.2f)));
+		float fresnelPow = _currentWeapon.FresnelPower > 0 ? _currentWeapon.FresnelPower : 3.0f;
+		UpdateSliderAndLabel(_sldFresnelPower, _lblFresnelPower, fresnelPow, "0.0");
+		UpdateSliderAndLabel(_sldFresnelFactor, _lblFresnelFactor, _currentWeapon.FresnelFactor, "0.0");
+		float noiseSc = _currentWeapon.NoiseScale > 0 ? _currentWeapon.NoiseScale : 3.0f;
+		UpdateSliderAndLabel(_sldNoiseScale, _lblNoiseScale, noiseSc, "0.0");
+		UpdateVector2UI(_txtUvScrollSpeed1, _currentWeapon.UvScrollSpeed1.ToGodotVector2());
+		UpdateVector2UI(_txtUvScrollSpeed2, _currentWeapon.UvScrollSpeed2.ToGodotVector2());
+		UpdateSliderAndLabel(_sldThresholdCutoff, _lblThresholdCutoff, _currentWeapon.ThresholdCutoff, "0.00");
+		float threshSmooth = _currentWeapon.ThresholdSmoothness > 0 ? _currentWeapon.ThresholdSmoothness : 0.1f;
+		UpdateSliderAndLabel(_sldThresholdSmoothness, _lblThresholdSmoothness, threshSmooth, "0.00");
+		if (_chkPointLightEnabled != null) _chkPointLightEnabled.ButtonPressed = _currentWeapon.PointLightEnabled;
+		UpdateColorPicker(_cpPointLightColor, ParseColorSafe(_currentWeapon.PointLightColor, new Color(1.0f, 0.65f, 0.2f)));
+		UpdateSliderAndLabel(_sldPointLightIntensity, _lblPointLightIntensity, _currentWeapon.PointLightIntensity, "0.0");
+		float lightRng = _currentWeapon.PointLightRange > 0 ? _currentWeapon.PointLightRange : 6.0f;
+		UpdateSliderAndLabel(_sldPointLightRange, _lblPointLightRange, lightRng, "0.0");
+	}
 
 	private void SyncRibbonTrail()
 	{
 		Color ribbonCol = ParseColorSafe(_currentWeapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
-		if (_cpRibbonColor.Picker != null) { _cpRibbonColor.Picker.Color = ribbonCol; _cpRibbonColor.HueSlider.SetValueNoSignal(ribbonCol.H); }
+		if (_cpRibbonColor.Picker != null)
+		{
+			_cpRibbonColor.Picker.Color = ribbonCol;
+			_cpRibbonColor.HueSlider.SetValueNoSignal(ribbonCol.H);
+		}
 
 		float ribWidth = _currentWeapon.RibbonWidth > 0 ? _currentWeapon.RibbonWidth : 0.4f;
-		if (_sldRibbonWidth != null) { _sldRibbonWidth.Value = ribWidth; _lblRibbonWidth.Text = ribWidth.ToString("0.00"); }
+		if (_sldRibbonWidth != null)
+		{
+			_sldRibbonWidth.Value = ribWidth;
+			_lblRibbonWidth.Text = ribWidth.ToString("0.00");
+		}
 
 		float ribLife = _currentWeapon.RibbonLifetime > 0 ? _currentWeapon.RibbonLifetime : 0.5f;
-		if (_sldRibbonLifetime != null) { _sldRibbonLifetime.Value = ribLife; _lblRibbonLifetime.Text = ribLife.ToString("0.00"); }
+		if (_sldRibbonLifetime != null)
+		{
+			_sldRibbonLifetime.Value = ribLife;
+			_lblRibbonLifetime.Text = ribLife.ToString("0.00");
+		}
 
 		if (_chkRibbonTaper != null) _chkRibbonTaper.ButtonPressed = _currentWeapon.RibbonTaper;
 		if (_chkRibbonAdditive != null) _chkRibbonAdditive.ButtonPressed = _currentWeapon.RibbonAdditive;
@@ -872,11 +949,13 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		{
 			weapon.ProjectileModelPath = "";
 		}
+
 		if (!string.IsNullOrEmpty(weapon.RibbonTexture) &&
 		    !weapon.RibbonTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 		{
 			weapon.RibbonTexture = "";
 		}
+
 		if (!string.IsNullOrEmpty(weapon.NoiseTexture) &&
 		    !weapon.NoiseTexture.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 		{
@@ -891,6 +970,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		{
 			_previewProjectile.IsPaused = paused;
 		}
+
 		if (!paused && (_previewProjectile == null || !GodotObject.IsInstanceValid(_previewProjectile)))
 		{
 			RestartPreviewProjectile();
@@ -904,6 +984,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		{
 			RestartPreviewProjectile();
 		}
+
 		_previewProjectile?.StepSimulation(deltaSeconds);
 	}
 
@@ -1051,6 +1132,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 				_currentWeapon.RibbonColor = "#ffdc00";
 				break;
 		}
+
 		SyncControlsFromCurrentWeapon();
 		RestartPreviewProjectile();
 	}
@@ -1065,7 +1147,7 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 		if (PreviewSubViewport == null) return;
 
-		_previewProjectile = new Realm.Client.VisualProjectile3D();
+		_previewProjectile = new VisualProjectile3D();
 		PreviewSubViewport.AddChild(_previewProjectile);
 
 		Vector3 startPos = new Vector3(-2.8f, 0.5f, 0f);
@@ -1109,18 +1191,19 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			return ResourceLoader.Exists(soundPath) ? GD.Load<AudioStream>(soundPath) : null;
 		}
 
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-		string fullPath = System.IO.Path.Combine(wsPath, "Assets", "audio", soundPath);
-		if (!System.IO.File.Exists(fullPath))
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string fullPath = Path.Combine(wsPath, "Assets", "audio", soundPath);
+		if (!File.Exists(fullPath))
 		{
-			fullPath = System.IO.Path.Combine(wsPath, soundPath);
+			fullPath = Path.Combine(wsPath, soundPath);
 		}
-		if (!System.IO.File.Exists(fullPath))
+
+		if (!File.Exists(fullPath))
 		{
 			fullPath = ProjectSettings.GlobalizePath($"res://Assets/Audio/UI/{soundPath}");
 		}
 
-		if (!System.IO.File.Exists(fullPath)) return null;
+		if (!File.Exists(fullPath)) return null;
 
 		return LoadStreamFromFile(fullPath);
 	}
@@ -1129,16 +1212,16 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	{
 		if (fullPath.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
 		{
-			byte[] raudBytes = System.IO.File.ReadAllBytes(fullPath);
-			byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
+			byte[] raudBytes = File.ReadAllBytes(fullPath);
+			byte[]? oggBytes = RaudFile.GetTrack(raudBytes, 0);
 			return (oggBytes != null && oggBytes.Length > 0) ? AudioStreamOggVorbis.LoadFromBuffer(oggBytes) : null;
 		}
-		
+
 		if (fullPath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
 		{
 			return AudioStreamOggVorbis.LoadFromFile(fullPath);
 		}
-		
+
 		if (fullPath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
 		{
 			return GD.Load<AudioStream>(fullPath);
@@ -1172,9 +1255,9 @@ public partial class WeaponVfxDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			_currentWeapon.Name = _txtName.Text;
 		}
 
-		if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_weaponId))
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(_weaponId))
 		{
-			Realm.Client.Core.GameHost.WeaponRegistry[_weaponId] = _currentWeapon;
+			GameHost.WeaponRegistry[_weaponId] = _currentWeapon;
 		}
 
 		_onAppliedCallback?.Invoke(_currentWeapon);

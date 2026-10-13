@@ -1,11 +1,15 @@
-using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
+using Realm.Shared.ModelOptimization;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPreview3DDialogBase
+public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 {
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
@@ -83,7 +87,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 		_optModelPicker = new OptionButton();
 		_optModelPicker.AddThemeFontSizeOverride("font_size", 11);
 		_optModelPicker.CustomMinimumSize = new Vector2(160, 24);
-		_optModelPicker.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optModelPicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optModelPicker.ItemSelected += (idx) =>
 		{
 			if (idx >= 0 && idx < _availableModels.Count)
@@ -121,7 +125,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 		_sldProgress.MaxValue = 1.0;
 		_sldProgress.Step = 0.01;
 		_sldProgress.Value = 0.5;
-		_sldProgress.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_sldProgress.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_sldProgress.ValueChanged += (val) =>
 		{
 			_isPlaying = false;
@@ -141,13 +145,13 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 
 		// 2. CONFIGURATION CONTROLS
 		var scroll = new ScrollContainer();
-		scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
 
 		var configVBox = new VBoxContainer();
 		configVBox.AddThemeConstantOverride("separation", 6);
-		configVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
@@ -168,7 +172,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("shader_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) =>
 		{
@@ -182,7 +186,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 		btnRandomizeAll.Set("icon_max_width", 0);
 		btnRandomizeAll.Text = "🎲 " + TranslationServer.Translate("Randomize All");
 		btnRandomizeAll.CustomMinimumSize = new Vector2(0, 28);
-		btnRandomizeAll.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+		btnRandomizeAll.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btnRandomizeAll.AddThemeFontSizeOverride("font_size", 11);
 		{
 			var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
@@ -288,10 +292,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 			UpdateShaderParameters();
 		}, "0.00", 140f);
 
-		(_sldDuration, _lblDuration) = AddSlider(configVBox, TranslationServer.Translate("Default Duration (s):"), 0.2f, 5.0f, 0.1f, _config.Duration, (val) =>
-		{
-			_config.Duration = val;
-		}, "0.0s", 140f);
+		(_sldDuration, _lblDuration) = AddSlider(configVBox, TranslationServer.Translate("Default Duration (s):"), 0.2f, 5.0f, 0.1f, _config.Duration, (val) => { _config.Duration = val; }, "0.0s", 140f);
 	}
 
 	public override void _Process(double delta)
@@ -310,6 +311,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 			{
 				_sldProgress.SetValueNoSignal(prog);
 			}
+
 			if (_lblProgress != null)
 			{
 				_lblProgress.Text = $"{prog:F2}";
@@ -355,6 +357,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 		{
 			_selectedModelKey = _availableModels[0];
 		}
+
 		LoadPreviewModel(_selectedModelKey);
 
 		PlayAnimation(true);
@@ -367,7 +370,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 		if (_optModelPicker == null) return;
 		_optModelPicker.Clear();
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
 		LoadModelsFromDirectory(wsPath);
 		LoadModelsFromAssets(wsPath);
@@ -494,7 +497,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 			return;
 		}
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string modelPath = FindModelPath(wsPath, key);
 
 		Node3D? loadedNode3D = LoadModelFromFile(modelPath, key);
@@ -502,7 +505,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 		if (loadedNode3D != null)
 		{
 			_currentModelRoot.AddChild(loadedNode3D);
-			Realm.Client.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, modelPath ?? key);
+			AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, modelPath ?? key);
 			CenterAndFrameNode(loadedNode3D);
 		}
 
@@ -542,6 +545,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 		_config = _snapshot.Clone();
 		CloseDialog();
 	}
+
 	private void UpdateAnimationTime(float speed, float dur)
 	{
 		if (_isPlayingForward)
@@ -593,10 +597,12 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 				ProcessAssetCategory(assets, categoryName);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
-	private void ProcessAssetCategory(Realm.Shared.Distribution.MapManifestAssets assets, string categoryName)
+	private void ProcessAssetCategory(MapManifestAssets assets, string categoryName)
 	{
 		var catDict = assets.GetCategory(categoryName);
 		if (catDict == null) return;
@@ -633,6 +639,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 			meshInst.Mesh = new BoxMesh { Size = new Vector3(2f, 2f, 2f) };
 			meshInst.Position = new Vector3(0, 1.0f, 0);
 		}
+
 		var mat = new StandardMaterial3D { AlbedoColor = new Color(0.8f, 0.7f, 0.5f) };
 		meshInst.MaterialOverride = mat;
 		_currentModelRoot.AddChild(meshInst);
@@ -671,7 +678,7 @@ public partial class ShaderEditorDialog : Realm.Client.UI.MapEditor.FloatingPrev
 		var gltfDoc = new GltfDocument();
 		var gltfState = new GltfState();
 		byte[] rmeshBytes = File.ReadAllBytes(modelPath);
-		byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+		byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
 		if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
 		{
 			var node = gltfDoc.GenerateScene(gltfState);

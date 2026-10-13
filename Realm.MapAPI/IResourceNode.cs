@@ -7,31 +7,31 @@ namespace Realm.MapAPI;
 /// </summary>
 public interface IResourceNode
 {
-    /// <summary>
-    /// Gets the type of resource provided by this node (e.g., "gold", "wood", "stone").
-    /// </summary>
-    string ResourceType { get; }
+	/// <summary>
+	/// Gets the type of resource provided by this node (e.g., "gold", "wood", "stone").
+	/// </summary>
+	string ResourceType { get; }
 
-    /// <summary>
-    /// Gets the position of the resource node in 3D world space.
-    /// </summary>
-    Vector3 Position { get; }
+	/// <summary>
+	/// Gets the position of the resource node in 3D world space.
+	/// </summary>
+	Vector3 Position { get; }
 
-    /// <summary>
-    /// Gets or sets the remaining amount of resource in this node.
-    /// </summary>
-    float ResourceAmount { get; set; }
+	/// <summary>
+	/// Gets or sets the remaining amount of resource in this node.
+	/// </summary>
+	float ResourceAmount { get; set; }
 
-    /// <summary>
-    /// Gets a value indicating whether the resource node has been depleted.
-    /// </summary>
-    bool IsDepleted { get; }
+	/// <summary>
+	/// Gets a value indicating whether the resource node has been depleted.
+	/// </summary>
+	bool IsDepleted { get; }
 
-    /// <summary>
-    /// Triggers a transient procedural mesh deformation or shake impulse on this resource node.
-    /// </summary>
-    /// <param name="strength">The peak strength of the impulse deformation.</param>
-    /// <param name="duration">The duration of the impulse oscillation in seconds.</param>
-    /// <param name="frequency">The oscillation frequency in Hz.</param>
-    void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
+	/// <summary>
+	/// Triggers a transient procedural mesh deformation or shake impulse on this resource node.
+	/// </summary>
+	/// <param name="strength">The peak strength of the impulse deformation.</param>
+	/// <param name="duration">The duration of the impulse oscillation in seconds.</param>
+	/// <param name="frequency">The oscillation frequency in Hz.</param>
+	void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
 }

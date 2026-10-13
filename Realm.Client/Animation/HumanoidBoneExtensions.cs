@@ -1,5 +1,5 @@
-using Godot;
 using System.Collections.Generic;
+using Godot;
 
 namespace Realm.Client.Animation;
 
@@ -17,6 +17,7 @@ public static class HumanoidBoneExtensions
 				return i;
 			}
 		}
+
 		return -1;
 	}
 
@@ -36,6 +37,7 @@ public static class HumanoidBoneExtensions
 				}
 			}
 		}
+
 		return result;
 	}
 }

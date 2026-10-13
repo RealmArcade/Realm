@@ -1,7 +1,8 @@
-using Godot;
-using Realm.Ecs.Components.Terrain;
-using Realm.Client.Services;
 using System;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client;
 
@@ -114,13 +115,13 @@ public class TerrainModifyAction : IEditorAction
 		int d = heights.GetLength(1);
 		int cellW = Math.Max(1, w - 1);
 		int cellD = Math.Max(1, d - 1);
-		var existingCells = Realm.Client.Core.GameHost.Instance?.GroundTerrain?.Cells;
+		var existingCells = GameHost.Instance?.GroundTerrain?.Cells;
 		return TerrainState.CalculateCells(cellW, cellD, heights, existingCells);
 	}
 
 	public void Undo()
 	{
-		var host = Realm.Client.Core.GameHost.Instance;
+		var host = GameHost.Instance;
 		if (host == null) return;
 		var terrain = host.GroundTerrain;
 		if (terrain == null) return;
@@ -139,19 +140,22 @@ public class TerrainModifyAction : IEditorAction
 		TerrainSplatWeights[,] cliffSplatMap,
 		int[,] pathingCodes)
 	{
-		var terrain = Realm.Client.Core.GameHost.Instance.GroundTerrain;
+		var terrain = GameHost.Instance.GroundTerrain;
 		if (cells != null && terrain.Cells != null)
 		{
 			ApplyArray(cells, terrain.Cells, Math.Min(_width, cells.GetLength(0)), Math.Min(_depth, cells.GetLength(1)));
 		}
+
 		if (splatMap != null && terrain.SplatMap != null)
 		{
 			ApplyArray(splatMap, terrain.SplatMap, splatMap.GetLength(0), splatMap.GetLength(1));
 		}
+
 		if (cliffSplatMap != null && terrain.CliffSplatMap != null)
 		{
 			ApplyArray(cliffSplatMap, terrain.CliffSplatMap, cliffSplatMap.GetLength(0), cliffSplatMap.GetLength(1));
 		}
+
 		if (pathingCodes != null && terrain.PathingCodes != null)
 		{
 			ApplyArray(pathingCodes, terrain.PathingCodes, _width, _depth);
@@ -179,10 +183,10 @@ public class TerrainModifyAction : IEditorAction
 
 	private void UpdateTerrainSystems(bool heightsChanged, bool pathingChanged, bool splatChanged)
 	{
-		var terrain = Realm.Client.Core.GameHost.Instance.GroundTerrain;
+		var terrain = GameHost.Instance.GroundTerrain;
 		if (splatChanged && terrain.SplatMap != null)
 		{
-			var editorService = ServiceLocator.Get<EditorService>();
+			var editorService = GameContext.EditorService;
 			if (editorService != null)
 			{
 				editorService.AlignSplatMapSlots(_minX - 2, _minZ - 2, _minX + _width + 2, _minZ + _depth + 2);
@@ -192,13 +196,14 @@ public class TerrainModifyAction : IEditorAction
 		Rect2I affected = new Rect2I(_minX - 2, _minZ - 2, _width + 4, _depth + 4);
 		if (heightsChanged)
 		{
-			Realm.Client.Core.GameHost.Instance.AlignAllEntitiesToTerrainExternal(affected);
-			Realm.Client.Core.GameHost.Instance.RebuildGridOverlayMeshExternal();
+			GameHost.Instance.AlignAllEntitiesToTerrainExternal(affected);
+			GameHost.Instance.RebuildGridOverlayMeshExternal();
 		}
+
 		terrain.UpdateMeshAndPhysics(heightsChanged, false, affected, heightsChanged);
 		if (pathingChanged)
 		{
-			Realm.Client.Core.GameHost.Instance.UpdatePathingOverlay();
+			GameHost.Instance.UpdatePathingOverlay();
 		}
 	}
 
@@ -209,7 +214,7 @@ public class TerrainModifyAction : IEditorAction
 
 	public void Redo()
 	{
-		var host = Realm.Client.Core.GameHost.Instance;
+		var host = GameHost.Instance;
 		if (host == null) return;
 		var terrain = host.GroundTerrain;
 		if (terrain == null) return;

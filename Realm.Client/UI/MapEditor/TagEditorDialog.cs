@@ -1,13 +1,13 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class TagEditorDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class TagEditorDialog : FloatingDialogBase
 {
 	private readonly IndexedAsset _asset;
 	private readonly Action<List<string>> _onSaveCallback;

@@ -1,13 +1,13 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class SpritesheetAssetEditDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 {
 	private string _sheetFileName = "";
 	private string _objectType = "spritesheet";
@@ -62,12 +62,9 @@ public partial class SpritesheetAssetEditDialog : Realm.Client.UI.MapEditor.Floa
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("spritesheet_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
-		_txtSlug.TextChanged += (val) =>
-		{
-			_slug = TemplateIDHelper.ToSnakeCase(val);
-		};
+		_txtSlug.TextChanged += (val) => { _slug = TemplateIDHelper.ToSnakeCase(val); };
 		rowId.AddChild(_txtSlug);
 		contentVBox.AddChild(rowId);
 
@@ -96,7 +93,7 @@ public partial class SpritesheetAssetEditDialog : Realm.Client.UI.MapEditor.Floa
 		_spinCols.MaxValue = 32;
 		_spinCols.Step = 1;
 		_spinCols.Value = 4;
-		_spinCols.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_spinCols.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_spinCols.ValueChanged += (val) => _columns = (int)val;
 		_spinCols.GetLineEdit().TextChanged += (text) =>
 		{
@@ -121,7 +118,7 @@ public partial class SpritesheetAssetEditDialog : Realm.Client.UI.MapEditor.Floa
 		_spinRows.MaxValue = 32;
 		_spinRows.Step = 1;
 		_spinRows.Value = 4;
-		_spinRows.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_spinRows.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_spinRows.ValueChanged += (val) => _rows = (int)val;
 		_spinRows.GetLineEdit().TextChanged += (text) =>
 		{
@@ -146,7 +143,7 @@ public partial class SpritesheetAssetEditDialog : Realm.Client.UI.MapEditor.Floa
 		_spinFps.MaxValue = 60;
 		_spinFps.Step = 1;
 		_spinFps.Value = 20;
-		_spinFps.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_spinFps.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_spinFps.ValueChanged += (val) => _fps = (float)val;
 		_spinFps.GetLineEdit().TextChanged += (text) =>
 		{
@@ -197,13 +194,13 @@ public partial class SpritesheetAssetEditDialog : Realm.Client.UI.MapEditor.Floa
 	{
 		if (texturePath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			return Path.GetFileName(texturePath);
-		
+
 		return $"{Path.GetFileName(texturePath)}.rtex";
 	}
 
 	private string GetRtexFromMetadata(string wsPath, string sheetFileName, string slug)
 	{
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta))
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta))
 			return string.Empty;
 
 		if (meta.VfxSpritesheets == null)
@@ -274,7 +271,7 @@ public partial class SpritesheetAssetEditDialog : Realm.Client.UI.MapEditor.Floa
 		_onAppliedWithTemplateIdAndRtex = onApplied;
 		_onApplied = null;
 
-		_rtexAsset = ResolveRtexAsset(rtexAsset, Services.MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, true);
+		_rtexAsset = ResolveRtexAsset(rtexAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, true);
 
 		UpdateUIAndOpen();
 	}
@@ -286,7 +283,7 @@ public partial class SpritesheetAssetEditDialog : Realm.Client.UI.MapEditor.Floa
 		_onAppliedWithTemplateIdAndRtex = null;
 
 		string providedAsset = !string.IsNullOrEmpty(fileName) && fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : string.Empty;
-		_rtexAsset = ResolveRtexAsset(providedAsset, Services.MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, false);
+		_rtexAsset = ResolveRtexAsset(providedAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, false);
 
 		UpdateUIAndOpen();
 	}

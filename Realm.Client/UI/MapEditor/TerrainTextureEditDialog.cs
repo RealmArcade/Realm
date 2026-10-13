@@ -1,14 +1,17 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class TerrainTextureEditDialog : FloatingDialogBase
 {
 	private string _textureFileName = "";
 	private string _objectType = "terrain";
@@ -27,7 +30,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	private float _uvScale = 1.0f;
 	private float _stochasticTileSize = 1.0f;
 	private float _crossFade = 0.0f;
-	private int _defaultPathingCode = Realm.Client.EditableTerrain.PATHING_GROUND | Realm.Client.EditableTerrain.PATHING_BUILDABLE | Realm.Client.EditableTerrain.PATHING_FLYING;
+	private int _defaultPathingCode = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING;
 	private List<ProceduralBombingDecalRule> _decalRules = new();
 	private List<ProceduralBombingVfxRule> _vfxRules = new();
 
@@ -95,7 +98,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		var scrollBody = CreateScrollBody(580);
 		var contentVBox = new VBoxContainer();
 		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
 		BuildIdentitySection(contentVBox);
@@ -130,12 +133,9 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("terrain_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
-		_txtSlug.TextChanged += (val) =>
-		{
-			_slug = TemplateIDHelper.ToSnakeCase(val);
-		};
+		_txtSlug.TextChanged += (val) => { _slug = TemplateIDHelper.ToSnakeCase(val); };
 		rowId.AddChild(_txtSlug);
 		contentVBox.AddChild(rowId);
 
@@ -350,11 +350,11 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	{
 		AddSectionHeader(contentVBox, "🚶 " + TranslationServer.Translate("DEFAULT PATHING CAPABILITIES"), new Color(0.85f, 0.65f, 0.35f));
 		AddDescription(contentVBox, TranslationServer.Translate("Automatically assigned to cells when painted with this terrain swatch:"));
-		_chkPathGround = AddCheckBox(contentVBox, TranslationServer.Translate("Ground"), (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_GROUND) != 0, (v) => UpdatePathingMask());
-		_chkPathBuildable = AddCheckBox(contentVBox, TranslationServer.Translate("Buildable"), (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_BUILDABLE) != 0, (v) => UpdatePathingMask());
-		_chkPathShallow = AddCheckBox(contentVBox, TranslationServer.Translate("Shallow Water"), (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_SHALLOW_WATER) != 0, (v) => UpdatePathingMask());
-		_chkPathDeep = AddCheckBox(contentVBox, TranslationServer.Translate("Deep Water"), (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_DEEP_WATER) != 0, (v) => UpdatePathingMask());
-		_chkPathFlying = AddCheckBox(contentVBox, TranslationServer.Translate("Flying"), (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_FLYING) != 0, (v) => UpdatePathingMask());
+		_chkPathGround = AddCheckBox(contentVBox, TranslationServer.Translate("Ground"), (_defaultPathingCode & EditableTerrain.PATHING_GROUND) != 0, (v) => UpdatePathingMask());
+		_chkPathBuildable = AddCheckBox(contentVBox, TranslationServer.Translate("Buildable"), (_defaultPathingCode & EditableTerrain.PATHING_BUILDABLE) != 0, (v) => UpdatePathingMask());
+		_chkPathShallow = AddCheckBox(contentVBox, TranslationServer.Translate("Shallow Water"), (_defaultPathingCode & EditableTerrain.PATHING_SHALLOW_WATER) != 0, (v) => UpdatePathingMask());
+		_chkPathDeep = AddCheckBox(contentVBox, TranslationServer.Translate("Deep Water"), (_defaultPathingCode & EditableTerrain.PATHING_DEEP_WATER) != 0, (v) => UpdatePathingMask());
+		_chkPathFlying = AddCheckBox(contentVBox, TranslationServer.Translate("Flying"), (_defaultPathingCode & EditableTerrain.PATHING_FLYING) != 0, (v) => UpdatePathingMask());
 	}
 
 	private void BuildDecalSection(VBoxContainer contentVBox)
@@ -362,11 +362,11 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		AddSectionHeader(contentVBox, "🎯 " + TranslationServer.Translate("PROCEDURAL DECAL BOMBING"), new Color(0.9f, 0.5f, 0.7f));
 		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered decals placed at terrain elevation during texture painting:"));
 		var decalListRow = new HBoxContainer();
-		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_lstDecals.ItemSelected += OnDecalItemSelected;
 		decalListRow.AddChild(_lstDecals);
 
-		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
 			decalBtnBox, string.Empty, string.Empty, (all) => ScanAvailableAssets("decals", all), (val) => { }, TranslationServer.Translate("decal_texture_id"), 0f);
 
@@ -424,11 +424,11 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		AddSectionHeader(contentVBox, "✨ " + TranslationServer.Translate("PROCEDURAL VFX BOMBING"), new Color(0.4f, 0.7f, 1.0f));
 		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered particle systems placed at terrain elevation during painting:"));
 		var vfxListRow = new HBoxContainer();
-		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_lstVfx.ItemSelected += OnVfxItemSelected;
 		vfxListRow.AddChild(_lstVfx);
 
-		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
 			vfxBtnBox, string.Empty, string.Empty, (all) => ScanAvailableAssets("vfx", all), (val) => { }, TranslationServer.Translate("vfx_template_id"), 0f);
 
@@ -486,7 +486,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		var list = ScanAvailableAssets("textures", includeAllFolders);
 		var rtexFiles = new HashSet<string>(list.Where(x => x.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string searchDir = Path.Combine(wsPath, "Assets", "textures");
 		ScanDirectoryForRtexFiles(searchDir, rtexFiles);
 
@@ -501,7 +501,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	private void ScanDirectoryForRtexFiles(string dirPath, HashSet<string> rtexFiles)
 	{
 		if (!Directory.Exists(dirPath)) return;
-		
+
 		foreach (var file in Directory.GetFiles(dirPath, "*.rtex", SearchOption.AllDirectories))
 		{
 			rtexFiles.Add(Path.GetFileName(file));
@@ -510,7 +510,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 
 	private void AddMetadataTextures(string wsPath, HashSet<string> rtexFiles)
 	{
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta?.Textures == null) return;
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) || meta?.Textures == null) return;
 
 		foreach (var kvp in meta.Textures)
 		{
@@ -518,6 +518,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 			{
 				rtexFiles.Add(Path.GetFileName(kvp.Value.TexturePath));
 			}
+
 			if (kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
 				rtexFiles.Add(Path.GetFileName(kvp.Key));
@@ -528,11 +529,11 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	private void UpdatePathingMask()
 	{
 		int mask = 0;
-		mask = ApplyPathingFlag(mask, _chkPathGround, Realm.Client.EditableTerrain.PATHING_GROUND);
-		mask = ApplyPathingFlag(mask, _chkPathBuildable, Realm.Client.EditableTerrain.PATHING_BUILDABLE);
-		mask = ApplyPathingFlag(mask, _chkPathShallow, Realm.Client.EditableTerrain.PATHING_SHALLOW_WATER);
-		mask = ApplyPathingFlag(mask, _chkPathDeep, Realm.Client.EditableTerrain.PATHING_DEEP_WATER);
-		mask = ApplyPathingFlag(mask, _chkPathFlying, Realm.Client.EditableTerrain.PATHING_FLYING);
+		mask = ApplyPathingFlag(mask, _chkPathGround, EditableTerrain.PATHING_GROUND);
+		mask = ApplyPathingFlag(mask, _chkPathBuildable, EditableTerrain.PATHING_BUILDABLE);
+		mask = ApplyPathingFlag(mask, _chkPathShallow, EditableTerrain.PATHING_SHALLOW_WATER);
+		mask = ApplyPathingFlag(mask, _chkPathDeep, EditableTerrain.PATHING_DEEP_WATER);
+		mask = ApplyPathingFlag(mask, _chkPathFlying, EditableTerrain.PATHING_FLYING);
 		_defaultPathingCode = mask;
 	}
 
@@ -542,6 +543,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		{
 			return currentMask | flag;
 		}
+
 		return currentMask;
 	}
 
@@ -628,7 +630,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		var helpIcon = new Label();
 		helpIcon.Text = "❓";
 		helpIcon.TooltipText = TranslationServer.Translate("NOTE: unavailable on your current graphics preset");
-		helpIcon.MouseFilter = Control.MouseFilterEnum.Stop;
+		helpIcon.MouseFilter = MouseFilterEnum.Stop;
 		helpIcon.AddThemeFontSizeOverride("font_size", 10);
 		helpIcon.Visible = false;
 
@@ -637,6 +639,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 			row.AddChild(helpIcon);
 			row.MoveChild(helpIcon, 0);
 		}
+
 		return helpIcon;
 	}
 
@@ -655,6 +658,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 			{
 				lbl.Modulate = isAvailable ? Colors.White : new Color(0.75f, 0.75f, 0.75f, 0.7f);
 			}
+
 			if (helpIcon != null)
 			{
 				helpIcon.Visible = !isAvailable;
@@ -674,6 +678,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		{
 			stochRow.Visible = isStochastic;
 		}
+
 		if (_sldCrossFade?.GetParent() is Control crossFadeRow)
 		{
 			crossFadeRow.Visible = !isStochastic;
@@ -685,9 +690,9 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		if (string.IsNullOrEmpty(_textureFileName)) return;
 
 		string tintHex = $"#{_tint.ToHtml(false)}";
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.GroundTerrain != null)
+		if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.UpdateTextureParamDirect(
+			GameHost.Instance.GroundTerrain.UpdateTextureParamDirect(
 				_textureFileName,
 				_tileMode,
 				_uvScale,
@@ -740,9 +745,9 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 
 	private bool TryFindRtexAssetFromMetadata()
 	{
-		string wsPathTex = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPathTex = MapWorkspaceService.GetActiveWorkspacePath();
 		if (string.IsNullOrEmpty(wsPathTex)) return false;
-		if (!MetadataService.Instance.TryLoadMetadata(wsPathTex, out var metaTex)) return false;
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPathTex, out var metaTex)) return false;
 		if (metaTex?.Textures == null) return false;
 
 		if (TryGetTexturePathFromMetadata(metaTex, _textureFileName)) return true;
@@ -751,13 +756,14 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		return false;
 	}
 
-	private bool TryGetTexturePathFromMetadata(Realm.Shared.Metadata.MapMetadata metaTex, string key)
+	private bool TryGetTexturePathFromMetadata(MapMetadata metaTex, string key)
 	{
 		if (metaTex.Textures.TryGetValue(key, out var tMeta) && !string.IsNullOrEmpty(tMeta?.TexturePath))
 		{
 			_rtexAsset = EnsureRtexExtension(Path.GetFileName(tMeta.TexturePath));
 			return true;
 		}
+
 		return false;
 	}
 
@@ -779,7 +785,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		var candidates = ScanTerrainRtexAssets(true);
 		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
 		                        ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
-		
+
 		if (!string.IsNullOrEmpty(candidateMatch))
 		{
 			_rtexAsset = candidateMatch;
@@ -799,7 +805,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		_uvScale = 1.0f;
 		_stochasticTileSize = 1.0f;
 		_crossFade = 0.0f;
-		_defaultPathingCode = Realm.Client.EditableTerrain.PATHING_GROUND | Realm.Client.EditableTerrain.PATHING_BUILDABLE | Realm.Client.EditableTerrain.PATHING_FLYING;
+		_defaultPathingCode = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING;
 		_decalRules.Clear();
 		_vfxRules.Clear();
 		_swatchIndex = -1;
@@ -807,9 +813,9 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 
 	private void LoadMetadataProperties()
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		if (string.IsNullOrEmpty(wsPath)) return;
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var metaRoot) || metaRoot == null) return;
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) || metaRoot == null) return;
 
 		var existingTex = metaRoot.GetTerrainTexture(_textureFileName) ?? metaRoot.GetTerrainTexture(_slug);
 		if (existingTex == null) return;
@@ -817,11 +823,11 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		ApplyMetadataBasicProps(existingTex);
 		ApplyMetadataScaleProps(existingTex);
 		ApplyMetadataMiscProps(existingTex);
-		
+
 		LoadMetadataBombingRules(existingTex);
 	}
 
-	private void ApplyMetadataBasicProps(Realm.Shared.Metadata.TextureMetadata existingTex)
+	private void ApplyMetadataBasicProps(TextureMetadata existingTex)
 	{
 		_swatchIndex = existingTex.SwatchIndex;
 		if (!string.IsNullOrEmpty(existingTex.TexturePath)) _rtexAsset = Path.GetFileName(existingTex.TexturePath);
@@ -829,7 +835,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		if (!string.IsNullOrEmpty(existingTex.Tint) && Color.HtmlIsValid(existingTex.Tint)) _tint = Color.FromHtml(existingTex.Tint);
 	}
 
-	private void ApplyMetadataScaleProps(Realm.Shared.Metadata.TextureMetadata existingTex)
+	private void ApplyMetadataScaleProps(TextureMetadata existingTex)
 	{
 		if (existingTex.RoughnessScale > 0.0001f) _roughnessScale = existingTex.RoughnessScale;
 		if (existingTex.NormalScale >= 0.0f) _normalScale = existingTex.NormalScale;
@@ -838,7 +844,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		if (existingTex.CrevicePower > 0.0001f) _crevicePower = existingTex.CrevicePower;
 	}
 
-	private void ApplyMetadataMiscProps(Realm.Shared.Metadata.TextureMetadata existingTex)
+	private void ApplyMetadataMiscProps(TextureMetadata existingTex)
 	{
 		if (!string.IsNullOrEmpty(existingTex.TileMode)) _tileMode = existingTex.TileMode;
 		if (existingTex.UvScale > 0.0001f) _uvScale = existingTex.UvScale;
@@ -847,12 +853,13 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		_defaultPathingCode = existingTex.DefaultPathingCode;
 	}
 
-	private void LoadMetadataBombingRules(Realm.Shared.Metadata.TextureMetadata existingTex)
+	private void LoadMetadataBombingRules(TextureMetadata existingTex)
 	{
 		if (existingTex.DecalBombingRules != null)
 		{
 			_decalRules = new List<ProceduralBombingDecalRule>(existingTex.DecalBombingRules.Select(r => r.Clone()));
 		}
+
 		if (existingTex.VfxBombingRules != null)
 		{
 			_vfxRules = new List<ProceduralBombingVfxRule>(existingTex.VfxBombingRules.Select(r => r.Clone()));
@@ -866,7 +873,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		LoadTextureDataBasics(textureData);
 		LoadTextureDataScales(textureData);
 		LoadTextureDataMisc(textureData);
-		
+
 		LoadTextureDataBombingRules(textureData);
 	}
 
@@ -898,7 +905,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	private void LoadTileMode(JsonObject textureData)
 	{
 		if (!TryParseString(textureData, "TileMode", out string tm) || string.IsNullOrEmpty(tm)) return;
-		
+
 		if (string.Equals(tm, "Grid", StringComparison.OrdinalIgnoreCase))
 		{
 			_tileMode = "Grid";
@@ -928,7 +935,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	private void LoadCrossFade(JsonObject textureData)
 	{
 		if (!TryParseFloat(textureData, "CrossFade", out float cf) || cf < 0.0f) return;
-		
+
 		if (cf <= 0.10f && cf > 0.0f)
 		{
 			_crossFade = cf * 100.0f;
@@ -951,12 +958,13 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	{
 		if (textureData.TryGetPropertyValue("DecalBombingRules", out var dbrNode) && dbrNode != null)
 		{
-			var list = System.Text.Json.JsonSerializer.Deserialize<List<ProceduralBombingDecalRule>>(dbrNode.ToJsonString());
+			var list = JsonSerializer.Deserialize<List<ProceduralBombingDecalRule>>(dbrNode.ToJsonString());
 			if (list != null && list.Count > 0) _decalRules = list;
 		}
+
 		if (textureData.TryGetPropertyValue("VfxBombingRules", out var vbrNode) && vbrNode != null)
 		{
-			var list = System.Text.Json.JsonSerializer.Deserialize<List<ProceduralBombingVfxRule>>(vbrNode.ToJsonString());
+			var list = JsonSerializer.Deserialize<List<ProceduralBombingVfxRule>>(vbrNode.ToJsonString());
 			if (list != null && list.Count > 0) _vfxRules = list;
 		}
 	}
@@ -970,7 +978,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	private bool TryParseFloat(JsonObject data, string key, out float result)
 	{
 		result = 0f;
-		return data.TryGetPropertyValue(key, out var node) && node != null && float.TryParse(node.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out result);
+		return data.TryGetPropertyValue(key, out var node) && node != null && float.TryParse(node.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out result);
 	}
 
 	private bool TryParseString(JsonObject data, string key, out string result)
@@ -981,6 +989,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 			result = node.ToString();
 			return true;
 		}
+
 		return false;
 	}
 
@@ -992,6 +1001,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 			result = Color.FromHtml(node.ToString());
 			return true;
 		}
+
 		return false;
 	}
 
@@ -1001,15 +1011,15 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 
 		var occupied = new bool[TextureSwatchSlots.MaxSlots];
 		PopulateOccupiedSwatches(occupied);
-		
+
 		_swatchIndex = TextureSwatchSlots.FirstFreeSlot(occupied);
 		if (_swatchIndex < 0) _swatchIndex = 0;
 	}
 
 	private void PopulateOccupiedSwatches(bool[] occupied)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-		if (string.IsNullOrEmpty(wsPath) || !MetadataService.Instance.TryLoadMetadata(wsPath, out var metaRoot) || metaRoot?.Textures == null) return;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (string.IsNullOrEmpty(wsPath) || !GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) || metaRoot?.Textures == null) return;
 
 		foreach (var t in metaRoot.Textures.Values)
 		{
@@ -1093,11 +1103,11 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 
 	private void ApplyPathingCheckboxes()
 	{
-		if (_chkPathGround != null) _chkPathGround.ButtonPressed = (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_GROUND) != 0;
-		if (_chkPathBuildable != null) _chkPathBuildable.ButtonPressed = (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_BUILDABLE) != 0;
-		if (_chkPathShallow != null) _chkPathShallow.ButtonPressed = (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_SHALLOW_WATER) != 0;
-		if (_chkPathDeep != null) _chkPathDeep.ButtonPressed = (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_DEEP_WATER) != 0;
-		if (_chkPathFlying != null) _chkPathFlying.ButtonPressed = (_defaultPathingCode & Realm.Client.EditableTerrain.PATHING_FLYING) != 0;
+		if (_chkPathGround != null) _chkPathGround.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_GROUND) != 0;
+		if (_chkPathBuildable != null) _chkPathBuildable.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_BUILDABLE) != 0;
+		if (_chkPathShallow != null) _chkPathShallow.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_SHALLOW_WATER) != 0;
+		if (_chkPathDeep != null) _chkPathDeep.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_DEEP_WATER) != 0;
+		if (_chkPathFlying != null) _chkPathFlying.ButtonPressed = (_defaultPathingCode & EditableTerrain.PATHING_FLYING) != 0;
 	}
 
 	public override void OpenDialog()
@@ -1124,10 +1134,10 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		SaveTextureToMetadata(newTemplateID);
 
 		MapEditorHUD.Instance?.SetupTextureSwatches(false);
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+		if (GameHost.Instance?.GroundTerrain != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+			GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
+			GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
 		}
 
 		_onApplied?.Invoke(result);
@@ -1137,7 +1147,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 	private void RecordUndoAction(string newTemplateID)
 	{
 		if (_initialSnapshot == null) return;
-		
+
 		var currentSnapshot = new TerrainTextureSnapshot
 		{
 			Brightness = _brightness,
@@ -1179,19 +1189,19 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 			["StochasticTileSize"] = _stochasticTileSize,
 			["CrossFade"] = _crossFade,
 			["DefaultPathingCode"] = _defaultPathingCode,
-			["DecalBombingRules"] = System.Text.Json.JsonSerializer.SerializeToNode(_decalRules),
-			["VfxBombingRules"] = System.Text.Json.JsonSerializer.SerializeToNode(_vfxRules)
+			["DecalBombingRules"] = JsonSerializer.SerializeToNode(_decalRules),
+			["VfxBombingRules"] = JsonSerializer.SerializeToNode(_vfxRules)
 		};
 	}
 
 	private void SaveTextureToMetadata(string newTemplateID)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string metaPath = Path.Combine(wsPath, "metadata.json");
-		
+
 		if (!File.Exists(metaPath)) return;
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) || metadataRoot == null) return;
-		
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metadataRoot) || metadataRoot == null) return;
+
 		if (!string.Equals(_textureFileName, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_textureFileName))
 		{
 			metadataRoot.Textures?.Remove(_textureFileName);
@@ -1202,7 +1212,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		}
 
 		metadataRoot.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-		var texMeta = new Realm.Shared.Metadata.TextureMetadata
+		var texMeta = new TextureMetadata
 		{
 			TexturePath = _rtexAsset,
 			SwatchIndex = _swatchIndex,
@@ -1223,7 +1233,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 		};
 		metadataRoot.Textures[newTemplateID] = texMeta;
 
-		MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+		GameContext.MetadataService.SaveMetadata(metaPath, metadataRoot);
 	}
 
 	protected override void OnCancel()
@@ -1248,6 +1258,7 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 			{
 				foreach (var r in _initialSnapshot.DecalBombingRules) _decalRules.Add(r.Clone());
 			}
+
 			if (_initialSnapshot.VfxBombingRules != null)
 			{
 				foreach (var r in _initialSnapshot.VfxBombingRules) _vfxRules.Add(r.Clone());
@@ -1256,10 +1267,10 @@ public partial class TerrainTextureEditDialog : Realm.Client.UI.MapEditor.Floati
 			if (_optTileMode != null) _optTileMode.Selected = _tileMode == "Stochastic" ? 1 : 0;
 			UpdateTileModeVisibility();
 			ApplyLiveTerrainUpdate();
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+			if (GameHost.Instance?.GroundTerrain != null)
 			{
-				Realm.Client.Core.GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides(_textureFileName);
-				Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides(_textureFileName);
+				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 	}

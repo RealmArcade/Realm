@@ -4,22 +4,22 @@ namespace Realm.Client.UI;
 
 public static class UIStyle
 {
-
-	public static readonly Color ColorBgDark = new Color(0.08f, 0.08f, 0.1f, 1.0f);       // Deep charcoal/midnight
-	public static readonly Color ColorPanelBg = new Color(0.13f, 0.14f, 0.17f, 0.95f);    // Granite slate
+	public static readonly Color ColorBgDark = new Color(0.08f, 0.08f, 0.1f, 1.0f); // Deep charcoal/midnight
+	public static readonly Color ColorPanelBg = new Color(0.13f, 0.14f, 0.17f, 0.95f); // Granite slate
 	public static readonly Color ColorPanelLight = new Color(0.18f, 0.19f, 0.23f, 0.95f); // Lighter granite
-	
-	public static readonly Color ColorBronze = new Color(0.6f, 0.5f, 0.35f, 1.0f);        // Bronze border
-	public static readonly Color ColorGold = new Color(0.95f, 0.82f, 0.55f, 1.0f);        // Bright gold text
-	public static readonly Color ColorGoldDull = new Color(0.75f, 0.67f, 0.5f, 1.0f);      // Dull gold
-	
-	public static readonly Color ColorCyanGlow = new Color(0.15f, 0.65f, 1.0f, 1.0f);     // Runic cyan glow
+
+	public static readonly Color ColorBronze = new Color(0.6f, 0.5f, 0.35f, 1.0f); // Bronze border
+	public static readonly Color ColorGold = new Color(0.95f, 0.82f, 0.55f, 1.0f); // Bright gold text
+	public static readonly Color ColorGoldDull = new Color(0.75f, 0.67f, 0.5f, 1.0f); // Dull gold
+
+	public static readonly Color ColorCyanGlow = new Color(0.15f, 0.65f, 1.0f, 1.0f); // Runic cyan glow
 	public static readonly Color ColorCyanGlowDim = new Color(0.15f, 0.65f, 1.0f, 0.4f);
 
 	public static readonly Font FontNorseBold = GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
 	public static readonly Font FontCinzelBold = GD.Load<Font>("res://Assets/UI/Cinzel-Bold.ttf");
 
 	private static Texture2D? _emptyBlackTexture;
+
 	public static Texture2D EmptyBlackTexture
 	{
 		get
@@ -30,6 +30,7 @@ public static class UIStyle
 				img.Fill(Colors.Black);
 				_emptyBlackTexture = ImageTexture.CreateFromImage(img);
 			}
+
 			return _emptyBlackTexture;
 		}
 	}
@@ -56,6 +57,7 @@ public static class UIStyle
 			style.Texture = tex;
 			return style;
 		}
+
 		return CreateBgGradient();
 	}
 
@@ -68,6 +70,7 @@ public static class UIStyle
 			style.Texture = tex;
 			return style;
 		}
+
 		return CreateBgGradient();
 	}
 
@@ -94,6 +97,7 @@ public static class UIStyle
 
 			return style;
 		}
+
 		return CreateBackdropPanel();
 	}
 
@@ -130,6 +134,7 @@ public static class UIStyle
 
 			return style;
 		}
+
 		return isPressed ? CreateButtonPressed() : (isHover ? CreateButtonHover() : CreateButtonNormal());
 	}
 
@@ -156,6 +161,7 @@ public static class UIStyle
 
 			return style;
 		}
+
 		return CreateStonePanel(true);
 	}
 
@@ -178,6 +184,7 @@ public static class UIStyle
 			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
 			return style;
 		}
+
 		return CreateStonePanel(true);
 	}
 
@@ -200,6 +207,7 @@ public static class UIStyle
 			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
 			return style;
 		}
+
 		return CreateStonePanel(true);
 	}
 
@@ -222,6 +230,7 @@ public static class UIStyle
 			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
 			return style;
 		}
+
 		return CreateStonePanel(true);
 	}
 
@@ -244,8 +253,10 @@ public static class UIStyle
 			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
 			return style;
 		}
+
 		return CreateStonePanel(true);
 	}
+
 	public static StyleBox CreateBackdropPanel()
 	{
 		var style = new StyleBoxFlat();
@@ -265,19 +276,19 @@ public static class UIStyle
 	{
 		var style = new StyleBoxTexture();
 		style.Texture = GD.Load<Texture2D>("res://Assets/UI/stone_slate_panel.jpg");
-		
+
 		if (isLight)
 		{
 			style.TextureMarginLeft = 32;
 			style.TextureMarginRight = 32;
 			style.TextureMarginTop = 32;
 			style.TextureMarginBottom = 32;
-			
+
 			style.ContentMarginLeft = 20;
 			style.ContentMarginRight = 20;
 			style.ContentMarginTop = 10;
 			style.ContentMarginBottom = 10;
-			
+
 			style.ModulateColor = new Color(0.9f, 0.9f, 0.93f, 0.95f); // Slightly lighter for sub-panels
 		}
 		else
@@ -286,14 +297,15 @@ public static class UIStyle
 			style.TextureMarginRight = 40;
 			style.TextureMarginTop = 40;
 			style.TextureMarginBottom = 40;
-			
+
 			style.ContentMarginLeft = 24;
 			style.ContentMarginRight = 24;
 			style.ContentMarginTop = 14;
 			style.ContentMarginBottom = 14;
-			
+
 			style.ModulateColor = new Color(0.72f, 0.72f, 0.75f, 0.98f); // Darker base frame
 		}
+
 		return style;
 	}
 
@@ -323,6 +335,7 @@ public static class UIStyle
 
 			return style;
 		}
+
 		return CreateStonePanel(false);
 	}
 
@@ -335,7 +348,6 @@ public static class UIStyle
 		style.ContentMarginBottom = 40;
 		return style;
 	}
-
 
 
 	public static StyleBox CreatePillarPanel(bool isLeft)
@@ -364,12 +376,12 @@ public static class UIStyle
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
 		style.TextureMarginBottom = 0;
-		
+
 		style.ContentMarginLeft = 20;
 		style.ContentMarginRight = 20;
 		style.ContentMarginTop = 10;
 		style.ContentMarginBottom = 10;
-		
+
 		style.ModulateColor = new Color(1.0f, 1.0f, 1.0f);
 		return style;
 	}
@@ -382,12 +394,12 @@ public static class UIStyle
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
 		style.TextureMarginBottom = 0;
-		
+
 		style.ContentMarginLeft = 20;
 		style.ContentMarginRight = 20;
 		style.ContentMarginTop = 10;
 		style.ContentMarginBottom = 10;
-		
+
 		style.ModulateColor = new Color(1.12f, 1.10f, 0.96f);
 		return style;
 	}
@@ -400,12 +412,12 @@ public static class UIStyle
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
 		style.TextureMarginBottom = 0;
-		
+
 		style.ContentMarginLeft = 20;
 		style.ContentMarginRight = 20;
 		style.ContentMarginTop = 10;
 		style.ContentMarginBottom = 10;
-		
+
 		style.ModulateColor = new Color(0.85f, 0.82f, 0.75f);
 		return style;
 	}
@@ -476,7 +488,7 @@ public static class UIStyle
 			style.ContentMarginRight = 20;
 			style.ContentMarginTop = 10;
 			style.ContentMarginBottom = 10;
-			
+
 			if (isPressed)
 			{
 				style.ModulateColor = new Color(0.85f, 0.85f, 0.9f);
@@ -489,8 +501,10 @@ public static class UIStyle
 			{
 				style.ModulateColor = Colors.White;
 			}
+
 			return style;
 		}
+
 		return isPressed ? CreateButtonPressed() : (isHover ? CreateButtonHover() : CreateButtonNormal());
 	}
 
@@ -509,7 +523,7 @@ public static class UIStyle
 			style.ContentMarginRight = 0;
 			style.ContentMarginTop = 0;
 			style.ContentMarginBottom = 0;
-			
+
 			if (isPressed)
 			{
 				style.ModulateColor = new Color(0.85f, 0.85f, 0.9f);
@@ -522,8 +536,10 @@ public static class UIStyle
 			{
 				style.ModulateColor = Colors.White;
 			}
+
 			return style;
 		}
+
 		return isPressed ? CreateButtonPressed() : (isHover ? CreateButtonHover() : CreateButtonNormal());
 	}
 
@@ -542,7 +558,7 @@ public static class UIStyle
 			style.ContentMarginRight = 0;
 			style.ContentMarginTop = 0;
 			style.ContentMarginBottom = 0;
-			
+
 			if (isPressed)
 			{
 				style.ModulateColor = new Color(0.85f, 0.85f, 0.9f);
@@ -555,8 +571,10 @@ public static class UIStyle
 			{
 				style.ModulateColor = Colors.White;
 			}
+
 			return style;
 		}
+
 		return isPressed ? CreateButtonPressed() : (isHover ? CreateButtonHover() : CreateButtonNormal());
 	}
 
@@ -593,8 +611,10 @@ public static class UIStyle
 			{
 				style.ModulateColor = new Color(1.15f, 1.15f, 1.25f);
 			}
+
 			return style;
 		}
+
 		return CreateTextInput(hasFocus);
 	}
 
@@ -615,6 +635,7 @@ public static class UIStyle
 		{
 			style.BorderColor = new Color(0.45f, 0.38f, 0.3f);
 		}
+
 		style.SetBorderWidthAll(1);
 		style.ContentMarginLeft = 14;
 		style.ContentMarginRight = 28;
@@ -643,6 +664,7 @@ public static class UIStyle
 		{
 			style.BorderColor = new Color(0.45f, 0.38f, 0.3f, 0.6f);
 		}
+
 		style.SetBorderWidthAll(1);
 		style.ContentMarginLeft = 6;
 		style.ContentMarginRight = 6;
@@ -661,12 +683,12 @@ public static class UIStyle
 		style.BgColor = isPressed ? new Color(0.12f, 0.14f, 0.16f, 0.9f) : (isHover ? new Color(0.18f, 0.2f, 0.24f, 0.8f) : new Color(0.08f, 0.09f, 0.1f, 0.75f));
 		style.BorderColor = isPressed ? ColorCyanGlow : (isHover ? ColorGold : new Color(0.35f, 0.3f, 0.25f, 0.8f));
 		style.SetBorderWidthAll(2);
-		
+
 		style.ContentMarginLeft = 6;
 		style.ContentMarginRight = 6;
 		style.ContentMarginTop = 6;
 		style.ContentMarginBottom = 6;
-		
+
 		style.CornerRadiusTopLeft = 4;
 		style.CornerRadiusTopRight = 4;
 		style.CornerRadiusBottomLeft = 4;
@@ -678,12 +700,12 @@ public static class UIStyle
 	{
 		var checkedTex = GD.Load<Texture2D>("res://Assets/UI/checked_box.jpg");
 		var uncheckedTex = GD.Load<Texture2D>("res://Assets/UI/unchecked_box.jpg");
-		
+
 		cb.AddThemeIconOverride("checked", checkedTex);
 		cb.AddThemeIconOverride("unchecked", uncheckedTex);
 		cb.AddThemeIconOverride("checked_disabled", checkedTex);
 		cb.AddThemeIconOverride("unchecked_disabled", uncheckedTex);
-		
+
 		cb.AddThemeColorOverride("font_color", ColorGold);
 		cb.AddThemeColorOverride("font_hover_color", ColorGold);
 		cb.AddThemeColorOverride("font_pressed_color", ColorGold);
@@ -729,6 +751,7 @@ public static class UIStyle
 		{
 			label.AddThemeFontOverride("font", font);
 		}
+
 		label.AddThemeColorOverride("font_color", ColorGold);
 		label.AddThemeColorOverride("font_outline_color", new Color(0.08f, 0.08f, 0.1f));
 		label.AddThemeConstantOverride("outline_size", 8);
@@ -745,6 +768,7 @@ public static class UIStyle
 		{
 			button.AddThemeFontOverride("font", font);
 		}
+
 		button.AddThemeColorOverride("font_color", ColorGoldDull);
 		button.AddThemeColorOverride("font_hover_color", ColorGold);
 		button.AddThemeColorOverride("font_pressed_color", ColorGold);
@@ -975,7 +999,7 @@ public static class UIStyle
 	{
 		int size = 20;
 		var img = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
-		
+
 		Color border = highlight ? new Color(0.95f, 0.85f, 0.55f) : new Color(0.65f, 0.55f, 0.38f);
 		Color topLight = highlight ? new Color(0.75f, 0.70f, 0.60f) : new Color(0.50f, 0.46f, 0.40f);
 		Color bottomDark = new Color(0.18f, 0.16f, 0.14f);
@@ -990,6 +1014,7 @@ public static class UIStyle
 				img.SetPixel(x, y, pixelColor);
 			}
 		}
+
 		return ImageTexture.CreateFromImage(img);
 	}
 

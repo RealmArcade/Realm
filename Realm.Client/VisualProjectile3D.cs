@@ -1,20 +1,19 @@
+using System;
+using System.IO;
 using Arch.Core;
 using Godot;
-using Realm.Ecs.Components.Core;
+using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.VFX;
-using System;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Services;
+using Realm.Shared.Textures;
+using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client;
 
 public partial class VisualProjectile3D : Node3D
 {
-	private struct TrailPoint
-	{
-		public Vector3 Position;
-		public float Age;
-	}
-
 	private const int MaxTrailPoints = 128;
 	private readonly TrailPoint[] _trailPoints = new TrailPoint[MaxTrailPoints];
 	private int _trailPointCount;
@@ -118,13 +117,13 @@ public partial class VisualProjectile3D : Node3D
 				using var fa = FileAccess.Open("res://Assets/shaders/projectile_fx.gdshader", FileAccess.ModeFlags.Read);
 				shaderCode = fa?.GetAsText() ?? "";
 			}
-			else if (System.IO.File.Exists("Assets/shaders/projectile_fx.gdshader"))
+			else if (File.Exists("Assets/shaders/projectile_fx.gdshader"))
 			{
-				shaderCode = System.IO.File.ReadAllText("Assets/shaders/projectile_fx.gdshader");
+				shaderCode = File.ReadAllText("Assets/shaders/projectile_fx.gdshader");
 			}
-			else if (System.IO.File.Exists("Realm.ClientAssets/shaders/projectile_fx.gdshader"))
+			else if (File.Exists("Realm.ClientAssets/shaders/projectile_fx.gdshader"))
 			{
-				shaderCode = System.IO.File.ReadAllText("Realm.ClientAssets/shaders/projectile_fx.gdshader");
+				shaderCode = File.ReadAllText("Realm.ClientAssets/shaders/projectile_fx.gdshader");
 			}
 
 			if (!string.IsNullOrEmpty(shaderCode))
@@ -184,7 +183,7 @@ public partial class VisualProjectile3D : Node3D
 	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
-		if (Realm.Client.Core.GameHost.WeaponRegistry.TryGetValue(weaponId ?? "arrow", out var meta))
+		if (GameHost.WeaponRegistry.TryGetValue(weaponId ?? "arrow", out var meta))
 		{
 			Initialize(start, target, meta, targetEntity);
 		}
@@ -325,7 +324,7 @@ public partial class VisualProjectile3D : Node3D
 	private Node3D LoadModelPath(string modelPath)
 	{
 		if (modelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ||
-		    (Realm.Client.Core.GameHost.VfxRegistry != null && Realm.Client.Core.GameHost.VfxRegistry.ContainsKey(modelPath)))
+		    (GameContext.RegistryService.VfxRegistry != null && GameContext.RegistryService.VfxRegistry.ContainsKey(modelPath)))
 		{
 			return Unit3D.ResolveAndInstantiateAttachment(modelPath, out _, out _, out _);
 		}
@@ -353,12 +352,13 @@ public partial class VisualProjectile3D : Node3D
 			{
 				ApplyUberMaterialRecursively(_customModelInstance);
 			}
+
 			return;
 		}
 
 		ClearCustomModelInstance();
 		_currentLoadedModelPath = modelPath;
-		
+
 		Node3D node3D = LoadModelPath(modelPath);
 		if (node3D == null)
 		{
@@ -443,6 +443,7 @@ public partial class VisualProjectile3D : Node3D
 				return baseMat.AlbedoTexture;
 			}
 		}
+
 		return null;
 	}
 
@@ -585,14 +586,16 @@ public partial class VisualProjectile3D : Node3D
 	private Vector3 GetCurrentTargetPosition()
 	{
 		Vector3 currentTarget = _initialTargetPosition;
-		if (_targetEntity != default && Realm.Client.Core.GameHost.Instance?.EcsWorld?.IsAlive(_targetEntity) == true)
+		GameHost tempQualifier = GameHost.Instance;
+		if (_targetEntity != default && (tempQualifier != null ? GameContext.World : null)?.IsAlive(_targetEntity) == true)
 		{
-			if (Realm.Client.Core.GameHost.Instance.EcsWorld.Has<Position>(_targetEntity))
+			if (GameContext.World.Has<Position>(_targetEntity))
 			{
-				var posComp = Realm.Client.Core.GameHost.Instance.EcsWorld.Get<Position>(_targetEntity);
+				var posComp = GameContext.World.Get<Position>(_targetEntity);
 				currentTarget = new Vector3(posComp.Value.X, posComp.Value.Y + 1.2f, posComp.Value.Z);
 			}
 		}
+
 		return currentTarget;
 	}
 
@@ -614,20 +617,20 @@ public partial class VisualProjectile3D : Node3D
 			_currentFlightPosition = _startPosition.Lerp(currentTarget, ApplyEaseCurve(bOutT, _weapon.EaseCurve));
 			return false;
 		}
-		
+
 		if (_elapsedTime <= outboundDuration + delay)
 		{
 			_currentFlightPosition = currentTarget;
 			return false;
 		}
-		
+
 		if (_elapsedTime <= outboundDuration + delay + returnDuration)
 		{
 			float bRetT = Mathf.Clamp((_elapsedTime - outboundDuration - delay) / returnDuration, 0.0f, 1.0f);
 			_currentFlightPosition = currentTarget.Lerp(_startPosition, ApplyEaseCurve(bRetT, _weapon.EaseCurve));
 			return false;
 		}
-		
+
 		return true;
 	}
 
@@ -654,7 +657,7 @@ public partial class VisualProjectile3D : Node3D
 			_currentFlightPosition += _currentFlightDirection * (currentSpeed * dt);
 			return distToTarget <= Mathf.Max(0.5f, currentSpeed * dt * 1.5f) || rawT >= 1.0f;
 		}
-		
+
 		Vector3 effectiveTarget = _initialTargetPosition.Lerp(currentTarget, Mathf.Clamp(_weapon.HomingWeight * easedT, 0.0f, 1.0f));
 		_currentFlightPosition = _startPosition.Lerp(effectiveTarget, easedT);
 		return rawT >= 1.0f;
@@ -662,8 +665,8 @@ public partial class VisualProjectile3D : Node3D
 
 	private bool UpdateFlightTrajectory(string trajType, Vector3 currentTarget, float currentSpeed, float dt, float rawT)
 	{
-		bool isLinearVector = string.Equals(trajType, "LinearVector", StringComparison.OrdinalIgnoreCase) || 
-		                      string.Equals(trajType, "Linear", StringComparison.OrdinalIgnoreCase) || 
+		bool isLinearVector = string.Equals(trajType, "LinearVector", StringComparison.OrdinalIgnoreCase) ||
+		                      string.Equals(trajType, "Linear", StringComparison.OrdinalIgnoreCase) ||
 		                      string.Equals(trajType, "Piercing", StringComparison.OrdinalIgnoreCase);
 		bool isBoomerang = string.Equals(trajType, "Boomerang", StringComparison.OrdinalIgnoreCase);
 
@@ -683,12 +686,12 @@ public partial class VisualProjectile3D : Node3D
 			float bounceHeight = _weapon.ArcHeight / (1.0f + currentBounce * 0.6f);
 			return 4.0f * bounceHeight * localU * (1.0f - localU);
 		}
-		
+
 		if (_weapon.ArcHeight > 0.0f)
 		{
 			return 4.0f * _weapon.ArcHeight * rawT * (1.0f - rawT);
 		}
-		
+
 		return 0.0f;
 	}
 
@@ -708,10 +711,10 @@ public partial class VisualProjectile3D : Node3D
 
 	private Vector3 CalculateOrbitOffset(string trajType, Vector3 right, Vector3 up)
 	{
-		bool isOrbit = string.Equals(trajType, "SwarmOrbit", StringComparison.OrdinalIgnoreCase) || 
+		bool isOrbit = string.Equals(trajType, "SwarmOrbit", StringComparison.OrdinalIgnoreCase) ||
 		               string.Equals(trajType, "Swarm", StringComparison.OrdinalIgnoreCase);
 		if (!isOrbit) return Vector3.Zero;
-		
+
 		float radius = _weapon.OrbitRadius > 0.0f ? _weapon.OrbitRadius : 1.0f;
 		float speed = _weapon.OrbitSpeed > 0.0f ? _weapon.OrbitSpeed : 10.0f;
 		float angle = _elapsedTime * speed;
@@ -773,7 +776,7 @@ public partial class VisualProjectile3D : Node3D
 		float rawT = Mathf.Clamp(_elapsedTime / _totalFlightDuration, 0.0f, 1.0f);
 
 		string trajType = _weapon.TrajectoryType ?? "Parabolic";
-		
+
 		bool impactOccurred = UpdateFlightTrajectory(trajType, currentTarget, currentSpeed, dt, rawT);
 		if (impactOccurred)
 		{
@@ -808,6 +811,7 @@ public partial class VisualProjectile3D : Node3D
 				validCount++;
 			}
 		}
+
 		_trailPointCount = validCount;
 
 		if (_isFlying)
@@ -831,6 +835,7 @@ public partial class VisualProjectile3D : Node3D
 				{
 					_trailPoints[i] = _trailPoints[i - 1];
 				}
+
 				_trailPoints[0] = new TrailPoint
 				{
 					Position = currentPos,
@@ -871,6 +876,7 @@ public partial class VisualProjectile3D : Node3D
 			side = forward.Cross(Vector3.Up).Normalized();
 			if (side.LengthSquared() < 0.001f) side = Vector3.Right;
 		}
+
 		return side;
 	}
 
@@ -910,10 +916,10 @@ public partial class VisualProjectile3D : Node3D
 		{
 			Vector3 p = _trailPoints[i].Position;
 			float t = Mathf.Clamp(_trailPoints[i].Age / lifetime, 0.0f, 1.0f);
-			
+
 			Vector3 forward = CalculateRibbonForward(i);
 			Vector3 side = CalculateRibbonSide(forward, p, camPos);
-			
+
 			AddRibbonVertex(p, t, side, baseWidth, baseCol);
 		}
 
@@ -931,15 +937,15 @@ public partial class VisualProjectile3D : Node3D
 		if (_ribbonMeshInstance != null) _ribbonMeshInstance.Visible = false;
 		_ribbonImmediateMesh?.ClearSurfaces();
 
-		if (!string.IsNullOrEmpty(_weapon.ImpactVisualEffect) && Realm.Client.Core.GameHost.Instance != null)
+		if (!string.IsNullOrEmpty(_weapon.ImpactVisualEffect) && GameHost.Instance != null)
 		{
-			var fxService = ServiceLocator.TryGet<FXService>();
+			var fxService = GameContext.FXService;
 			fxService?.SpawnSpritesheetEffect(GetParent() ?? this, _weapon.ImpactVisualEffect, impactPosition, 4, 4, 0.04f, 4.0f);
 		}
 
 		if (!string.IsNullOrEmpty(_weapon.ImpactSound))
 		{
-			var audioService = ServiceLocator.TryGet<AudioService>();
+			var audioService = GameContext.AudioService;
 			audioService?.PlaySound3D(_weapon.ImpactSound, impactPosition);
 		}
 	}
@@ -1030,7 +1036,7 @@ public partial class VisualProjectile3D : Node3D
 		}
 
 		string resolvedPath = ModelCache.ResolveModelPath(path);
-		if (!string.IsNullOrEmpty(resolvedPath) && System.IO.File.Exists(resolvedPath))
+		if (!string.IsNullOrEmpty(resolvedPath) && File.Exists(resolvedPath))
 		{
 			if (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 			{
@@ -1058,12 +1064,12 @@ public partial class VisualProjectile3D : Node3D
 	private static Image? LoadImageFromRtex(string rtexPath, int layer = 0)
 	{
 		string globalPath = ProjectSettings.GlobalizePath(rtexPath);
-		if (!System.IO.File.Exists(globalPath)) return null;
+		if (!File.Exists(globalPath)) return null;
 
 		try
 		{
-			byte[] bytes = System.IO.File.ReadAllBytes(globalPath);
-			byte[]? layerData = Realm.Shared.Textures.RtexFile.GetLayer(bytes, layer);
+			byte[] bytes = File.ReadAllBytes(globalPath);
+			byte[]? layerData = RtexFile.GetLayer(bytes, layer);
 			if (layerData == null || layerData.Length == 0) return null;
 
 			var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
@@ -1071,6 +1077,7 @@ public partial class VisualProjectile3D : Node3D
 			{
 				img.LoadPngFromBuffer(layerData);
 			}
+
 			return img;
 		}
 		catch

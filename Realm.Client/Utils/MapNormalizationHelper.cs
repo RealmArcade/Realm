@@ -1,29 +1,22 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared.Distribution;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
 
 namespace Realm.Client.Utils;
 
 public static class MapNormalizationHelper
 {
-	private class CandidateMapInfo
-	{
-		public string MapTitle { get; set; } = string.Empty;
-		public string MapVersion { get; set; } = "1.0.0";
-		public HashSet<string> AssetHashes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-	}
-
 	public static List<GreenlitReferenceSuggestion> FindGreenlitReferenceSuggestions(
 		string workspacePath,
 		int minMatchingAssets = 3,
 		long minMatchingBytes = 65536)
 	{
 		string targetDirectory = string.IsNullOrEmpty(workspacePath)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: workspacePath;
 
 		if (!Directory.Exists(targetDirectory))
@@ -98,6 +91,7 @@ public static class MapNormalizationHelper
 				{
 					allMatchedPaths.AddRange(hashEntry.RelativePaths);
 				}
+
 				uncoveredHashes.Remove(hash);
 			}
 
@@ -154,6 +148,7 @@ public static class MapNormalizationHelper
 				entry = (new List<string>(), size);
 				workspaceHashes[normalizedHash] = entry;
 			}
+
 			entry.RelativePaths.Add(relativePath);
 		}
 
@@ -223,7 +218,7 @@ public static class MapNormalizationHelper
 	{
 		var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		string targetDirectory = string.IsNullOrEmpty(workspacePath)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: workspacePath;
 
 		if (!Directory.Exists(targetDirectory))
@@ -304,7 +299,7 @@ public static class MapNormalizationHelper
 	public static void ApplyGreenlitReferences(string workspacePath, IEnumerable<string> selectedMapTitles)
 	{
 		string targetDirectory = string.IsNullOrEmpty(workspacePath)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: workspacePath;
 
 		if (!Directory.Exists(targetDirectory))
@@ -342,7 +337,7 @@ public static class MapNormalizationHelper
 	public static void RemoveGreenlitReference(string workspacePath, string mapTitle)
 	{
 		string targetDirectory = string.IsNullOrEmpty(workspacePath)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: workspacePath;
 
 		if (!Directory.Exists(targetDirectory))
@@ -371,7 +366,7 @@ public static class MapNormalizationHelper
 	public static List<string> GetCurrentGreenlitReferences(string workspacePath)
 	{
 		string targetDirectory = string.IsNullOrEmpty(workspacePath)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: workspacePath;
 
 		if (!Directory.Exists(targetDirectory))
@@ -407,7 +402,7 @@ public static class MapNormalizationHelper
 		try
 		{
 			string targetDirectory = string.IsNullOrEmpty(workspacePath)
-				? Services.MapWorkspaceService.GetActiveWorkspacePath()
+				? MapWorkspaceService.GetActiveWorkspacePath()
 				: workspacePath;
 
 			if (Directory.Exists(targetDirectory))
@@ -451,6 +446,7 @@ public static class MapNormalizationHelper
 		catch
 		{
 		}
+
 		return null;
 	}
 
@@ -471,7 +467,7 @@ public static class MapNormalizationHelper
 	{
 		try
 		{
-			var storageService = ServiceLocator.TryGet<MapStorageService>() ?? new MapStorageService(null!);
+			var storageService = GameContext.MapStorageService;
 			var downloadedMaps = storageService.GetDownloadedMaps();
 			foreach (var map in downloadedMaps)
 			{
@@ -504,7 +500,7 @@ public static class MapNormalizationHelper
 	{
 		try
 		{
-			var packages = AssetIndexService.Instance.GetDownloadedMapPackages();
+			var packages = GameContext.AssetIndexService.GetDownloadedMapPackages();
 			foreach (var package in packages)
 			{
 				if (string.Equals(package.MapName, currentMapName, StringComparison.OrdinalIgnoreCase))

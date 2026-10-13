@@ -1,20 +1,13 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Godot;
 
 namespace Realm.Client.Network;
 
 public class NatTypeTester
 {
-	public class StunResult
-	{
-		public bool Success { get; set; }
-		public IPEndPoint LocalEndPoint { get; set; }
-		public IPEndPoint MappedEndPoint { get; set; }
-		public IPEndPoint ChangedEndPoint { get; set; }
-	}
-
 	public static async Task<NatType> DetermineNatTypeAsync(int testLocalPort = 0)
 	{
 		try
@@ -29,7 +22,7 @@ public class NatTypeTester
 		}
 		catch (Exception ex)
 		{
-			global::Godot.GD.PrintErr($"[NatTypeTester] Error checking NAT: {ex.Message}");
+			GD.PrintErr($"[NatTypeTester] Error checking NAT: {ex.Message}");
 			return NatType.PortRestrictedCone; // Safe default
 		}
 	}
@@ -58,7 +51,7 @@ public class NatTypeTester
 
 		var test3 = await QueryStunWithChangeRequestAsync(serverIp1, 19302, boundPort, changeIP: false, changePort: true);
 		if (test3.Success) return NatType.RestrictedCone;
-        
+
 		return NatType.PortRestrictedCone;
 	}
 
@@ -74,28 +67,31 @@ public class NatTypeTester
 		using var udp = new UdpClient();
 		udp.ExclusiveAddressUse = false;
 		udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        
+
 		try
 		{
 			udp.Client.Bind(new IPEndPoint(IPAddress.Any, localPort));
 			result.LocalEndPoint = (IPEndPoint)udp.Client.LocalEndPoint!;
-            
+
 			byte[] request = CreateStunBindingRequest();
 			var serverEp = new IPEndPoint(serverIp, serverPort);
-            
+
 			await udp.SendAsync(request, request.Length, serverEp);
-            
+
 			var receiveTask = udp.ReceiveAsync();
 			var timeoutTask = Task.Delay(1000);
-            
+
 			if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
 			{
 				var response = await receiveTask;
 				return ParseStunResponse(response.Buffer, result);
 			}
 		}
-		catch { /* Ignore errors and return success=false */ }
-        
+		catch
+		{
+			/* Ignore errors and return success=false */
+		}
+
 		result.Success = false;
 		return result;
 	}
@@ -106,28 +102,31 @@ public class NatTypeTester
 		using var udp = new UdpClient();
 		udp.ExclusiveAddressUse = false;
 		udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        
+
 		try
 		{
 			udp.Client.Bind(new IPEndPoint(IPAddress.Any, localPort));
 			result.LocalEndPoint = (IPEndPoint)udp.Client.LocalEndPoint!;
-            
+
 			byte[] request = CreateStunChangeRequest(changeIP, changePort);
 			var serverEp = new IPEndPoint(serverIp, serverPort);
-            
+
 			await udp.SendAsync(request, request.Length, serverEp);
-            
+
 			var receiveTask = udp.ReceiveAsync();
 			var timeoutTask = Task.Delay(1000); // 1s timeout
-            
+
 			if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
 			{
 				var response = await receiveTask;
 				return ParseStunResponse(response.Buffer, result);
 			}
 		}
-		catch { /* Ignore */ }
-        
+		catch
+		{
+			/* Ignore */
+		}
+
 		result.Success = false;
 		return result;
 	}
@@ -136,14 +135,16 @@ public class NatTypeTester
 	{
 		byte[] packet = new byte[20];
 
-		packet[0] = 0x00; packet[1] = 0x01;
+		packet[0] = 0x00;
+		packet[1] = 0x01;
 
-		packet[2] = 0x00; packet[3] = 0x00;
-        
+		packet[2] = 0x00;
+		packet[3] = 0x00;
+
 
 		var rand = new Random();
 		rand.NextBytes(new Span<byte>(packet, 4, 16));
-        
+
 		return packet;
 	}
 
@@ -151,25 +152,29 @@ public class NatTypeTester
 	{
 		byte[] packet = new byte[28];
 
-		packet[0] = 0x00; packet[1] = 0x01;
+		packet[0] = 0x00;
+		packet[1] = 0x01;
 
-		packet[2] = 0x00; packet[3] = 0x08;
-        
+		packet[2] = 0x00;
+		packet[3] = 0x08;
+
 
 		var rand = new Random();
 		rand.NextBytes(new Span<byte>(packet, 4, 16));
-        
 
-		packet[20] = 0x00; packet[21] = 0x03;
-		packet[22] = 0x00; packet[23] = 0x04;
-        
+
+		packet[20] = 0x00;
+		packet[21] = 0x03;
+		packet[22] = 0x00;
+		packet[23] = 0x04;
+
 
 		int flags = 0;
 		if (changeIP) flags |= 0x02;
 		if (changePort) flags |= 0x04;
-        
+
 		packet[27] = (byte)flags;
-        
+
 		return packet;
 	}
 
@@ -221,23 +226,21 @@ public class NatTypeTester
 	private static IPEndPoint ParseAddress(byte[] response, int offset, int length, bool isXor)
 	{
 		if (length < 8) return null;
-        
+
 		byte family = response[offset + 1];
 		if (family != 0x01) return null; // IPv4 only for now
 
 		int port = (response[offset + 2] << 8) | response[offset + 3];
 		if (isXor)
 		{
-
 			port ^= 0x2112;
 		}
 
 		byte[] ipBytes = new byte[4];
 		Array.Copy(response, offset + 4, ipBytes, 0, 4);
-        
+
 		if (isXor)
 		{
-
 			ipBytes[0] ^= 0x21;
 			ipBytes[1] ^= 0x12;
 			ipBytes[2] ^= 0xA4;

@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Realm.Client.Core;
+using Realm.Client.UI;
 
 namespace Realm.Client;
 
@@ -11,7 +13,7 @@ public static class EditorHistoryManager
 	{
 		_undoStack.Push(action);
 		_redoStack.Clear();
-		UI.MapEditorHUD.Instance?.RegenerateMinimap();
+		MapEditorHUD.Instance?.RegenerateMinimap();
 	}
 
 	public static void Undo()
@@ -21,8 +23,8 @@ public static class EditorHistoryManager
 			var action = _undoStack.Pop();
 			action.Undo();
 			_redoStack.Push(action);
-			UI.MapEditorHUD.Instance?.RegenerateMinimap();
-			Realm.Client.Core.GameHost.Instance?.RefreshSelectionHighlight();
+			MapEditorHUD.Instance?.RegenerateMinimap();
+			GameHost.Instance?.RefreshSelectionHighlight();
 		}
 	}
 
@@ -33,8 +35,8 @@ public static class EditorHistoryManager
 			var action = _redoStack.Pop();
 			action.Redo();
 			_undoStack.Push(action);
-			UI.MapEditorHUD.Instance?.RegenerateMinimap();
-			Realm.Client.Core.GameHost.Instance?.RefreshSelectionHighlight();
+			MapEditorHUD.Instance?.RegenerateMinimap();
+			GameHost.Instance?.RefreshSelectionHighlight();
 		}
 	}
 

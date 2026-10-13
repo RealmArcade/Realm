@@ -1,7 +1,13 @@
-using Godot;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Threading;
+using Godot;
+using Realm.Client.Core;
+using FileAccess = Godot.FileAccess;
+using Timer = System.Threading.Timer;
 
 namespace Realm.Client.UI;
 
@@ -28,6 +34,7 @@ public static class LocalizationManager
 			{
 				translation.AddMessage(kvp.Key, kvp.Value);
 			}
+
 			TranslationServer.AddTranslation(translation);
 		}
 
@@ -38,13 +45,13 @@ public static class LocalizationManager
 	{
 		if (string.IsNullOrEmpty(CurrentMapName)) return;
 
-		string? resolvedDir = Realm.Client.Core.GameHost.ResolveMapDirectory(CurrentMapName);
+		string? resolvedDir = GameHost.ResolveMapDirectory(CurrentMapName);
 		if (!string.IsNullOrEmpty(resolvedDir))
 		{
-			string localePath = System.IO.Path.Combine(resolvedDir, "locale", $"{locale}.json");
-			if (!System.IO.File.Exists(localePath)) return;
+			string localePath = Path.Combine(resolvedDir, "locale", $"{locale}.json");
+			if (!File.Exists(localePath)) return;
 
-			string content = System.IO.File.ReadAllText(localePath);
+			string content = File.ReadAllText(localePath);
 			LoadJsonIntoDictionary(content, mergedDict, $"Failed to load map translation for {locale} in {CurrentMapName}");
 			return;
 		}
@@ -52,7 +59,7 @@ public static class LocalizationManager
 		string mapPath = (CurrentMapName.StartsWith("user://") || CurrentMapName.StartsWith("res://"))
 			? $"{CurrentMapName.TrimEnd('/')}/locale/{locale}.json"
 			: $"res://Maps/{CurrentMapName}/locale/{locale}.json";
-		
+
 		if (!FileAccess.FileExists(mapPath)) return;
 
 		using var file = FileAccess.Open(mapPath, FileAccess.ModeFlags.Read);
@@ -84,7 +91,7 @@ public static class LocalizationManager
 				mergedDict[kvp.Key] = kvp.Value;
 			}
 		}
-		catch (System.Exception e)
+		catch (Exception e)
 		{
 			GD.PrintErr($"{errorContext}: {e.Message}");
 		}
@@ -126,20 +133,24 @@ public static class LocalizationManager
 						foreach (var kvp in parsed) dict[kvp.Key] = kvp.Value;
 					}
 				}
-				catch { }
+				catch
+				{
+				}
 			}
 		}
+
 		if (dict.Count == 0 && locale != "en")
 		{
 			return GetDictionary("en");
 		}
+
 		return dict;
 	}
 
 	private static readonly object SyncLock = new object();
 	private static Dictionary<string, string>? _enCatalog;
 	private static bool _isDirty;
-	private static System.Threading.Timer? _debounceTimer;
+	private static Timer? _debounceTimer;
 	private static bool _initializedProcessExit;
 
 	public static bool IsLocaleRtl(string locale)
@@ -165,6 +176,7 @@ public static class LocalizationManager
 		{
 			return translated;
 		}
+
 		if (!OS.IsDebugBuild())
 		{
 			var enDict = GetDictionary("en");
@@ -172,6 +184,7 @@ public static class LocalizationManager
 				return enVal;
 			return !string.IsNullOrEmpty(fallback) ? fallback : key;
 		}
+
 		return TranslateKeyDebug(key, fallback);
 	}
 
@@ -213,7 +226,7 @@ public static class LocalizationManager
 		lock (SyncLock)
 		{
 			_debounceTimer?.Dispose();
-			_debounceTimer = new System.Threading.Timer(_ => FlushPendingWrites(), null, 1000, System.Threading.Timeout.Infinite);
+			_debounceTimer = new Timer(_ => FlushPendingWrites(), null, 1000, Timeout.Infinite);
 		}
 	}
 
@@ -239,19 +252,19 @@ public static class LocalizationManager
 	{
 		try
 		{
-			string? dir = System.IO.Path.GetDirectoryName(filePath);
-			if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir))
+			string? dir = Path.GetDirectoryName(filePath);
+			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
 			{
-				System.IO.Directory.CreateDirectory(dir);
+				Directory.CreateDirectory(dir);
 			}
 
 			var options = new JsonSerializerOptions
 			{
 				WriteIndented = true,
-				Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+				Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 			};
 			string json = JsonSerializer.Serialize(_enCatalog, options);
-			System.IO.File.WriteAllText(filePath, json);
+			File.WriteAllText(filePath, json);
 		}
 		catch (Exception ex)
 		{
@@ -274,11 +287,11 @@ public static class LocalizationManager
 		}
 
 		string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-		string localPath = System.IO.Path.Combine(baseDir, "locale", "en.json");
-		if (System.IO.File.Exists(localPath)) return localPath;
+		string localPath = Path.Combine(baseDir, "locale", "en.json");
+		if (File.Exists(localPath)) return localPath;
 
-		string repoPath = System.IO.Path.Combine(baseDir, "..", "..", "..", "..", "Realm.Client", "locale", "en.json");
-		if (System.IO.File.Exists(repoPath)) return System.IO.Path.GetFullPath(repoPath);
+		string repoPath = Path.Combine(baseDir, "..", "..", "..", "..", "Realm.Client", "locale", "en.json");
+		if (File.Exists(repoPath)) return Path.GetFullPath(repoPath);
 
 		return localPath;
 	}

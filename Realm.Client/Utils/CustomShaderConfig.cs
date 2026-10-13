@@ -1,6 +1,6 @@
-using Godot;
 using System;
 using System.Text.Json.Nodes;
+using Godot;
 
 namespace Realm.Client.Utils;
 
@@ -68,6 +68,7 @@ public class CustomShaderConfig
 		{
 			return val.ToString();
 		}
+
 		return defaultVal;
 	}
 
@@ -77,6 +78,7 @@ public class CustomShaderConfig
 		{
 			return Math.Clamp(parsed, min, max);
 		}
+
 		return defaultVal;
 	}
 
@@ -86,6 +88,7 @@ public class CustomShaderConfig
 		{
 			return parsed;
 		}
+
 		return defaultVal;
 	}
 
@@ -95,6 +98,7 @@ public class CustomShaderConfig
 		{
 			return Color.FromHtml(val.ToString());
 		}
+
 		return defaultVal;
 	}
 

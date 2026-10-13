@@ -1,8 +1,9 @@
-using Realm.Shared.Textures;
-using SkiaSharp;
+using System.Collections.Concurrent;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using Realm.Shared.Textures;
+using SkiaSharp;
 
 namespace Realm.Shared;
 
@@ -14,7 +15,7 @@ namespace Realm.Shared;
 // original albedos when 'ignore_player_color' is active.
 public static class GlbInMemoryColorPreprocessor
 {
-	private static readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, byte[]> DespilledGlbCache = new();
+	private static readonly ConcurrentDictionary<ulong, byte[]> DespilledGlbCache = new();
 	private static readonly float[] SrgbToLinearTable = PrecomputeSrgbToLinear();
 	private static readonly byte[] LinearToSrgbLut = PrecomputeLinearToSrgbLut();
 	private static readonly float[] CbrtLut = PrecomputeCbrtLut();
@@ -27,6 +28,7 @@ public static class GlbInMemoryColorPreprocessor
 			float c = i / 255.0f;
 			table[i] = c <= 0.04045f ? c / 12.92f : MathF.Pow((c + 0.055f) / 1.055f, 2.4f);
 		}
+
 		return table;
 	}
 
@@ -41,6 +43,7 @@ public static class GlbInMemoryColorPreprocessor
 				: 1.055f * MathF.Pow(linear, 1.0f / 2.4f) - 0.055f;
 			table[i] = (byte)Math.Clamp((int)(srgb * 255.0f + 0.5f), 0, 255);
 		}
+
 		return table;
 	}
 
@@ -51,6 +54,7 @@ public static class GlbInMemoryColorPreprocessor
 		{
 			table[i] = MathF.Cbrt(i / 65535.0f);
 		}
+
 		return table;
 	}
 
@@ -62,6 +66,7 @@ public static class GlbInMemoryColorPreprocessor
 		{
 			return val <= 0.0f ? 0.0f : MathF.Cbrt(val);
 		}
+
 		return CbrtLut[idx];
 	}
 
@@ -73,6 +78,7 @@ public static class GlbInMemoryColorPreprocessor
 		{
 			return idx < 0 ? (byte)0 : (byte)255;
 		}
+
 		return LinearToSrgbLut[idx];
 	}
 
@@ -117,6 +123,7 @@ public static class GlbInMemoryColorPreprocessor
 			hash ^= (byte)chromaKey[i];
 			hash *= 1099511628211UL;
 		}
+
 		return hash;
 	}
 
@@ -224,7 +231,7 @@ public static class GlbInMemoryColorPreprocessor
 	{
 		albedoImageIndex = GlbPlayerColorProcessor.FindAlbedoImageIndex(textures, materials);
 		int ormImageIndex = GlbPlayerColorProcessor.FindOrmImageIndex(textures, materials);
-		
+
 		if (albedoImageIndex < 0 || ormImageIndex < 0)
 		{
 			albedoRaw = [];
@@ -234,7 +241,7 @@ public static class GlbInMemoryColorPreprocessor
 
 		albedoRaw = GlbPlayerColorProcessor.ExtractImageBytes(albedoImageIndex, images, bufferViews, binChunk);
 		ormRaw = GlbPlayerColorProcessor.ExtractImageBytes(ormImageIndex, images, bufferViews, binChunk);
-		
+
 		return albedoRaw.Length > 0 && ormRaw.Length > 0;
 	}
 
@@ -300,6 +307,7 @@ public static class GlbInMemoryColorPreprocessor
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -313,6 +321,7 @@ public static class GlbInMemoryColorPreprocessor
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -327,6 +336,7 @@ public static class GlbInMemoryColorPreprocessor
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -340,6 +350,7 @@ public static class GlbInMemoryColorPreprocessor
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -598,7 +609,7 @@ public static class GlbInMemoryColorPreprocessor
 		var retainedBvIndices = CollectRetainedBufferViews(accessors, images, bufferViews.Count, albedoImageIndex);
 
 		using var newBinStream = new MemoryStream();
-		var oldBvToNewBv = new System.Collections.Generic.Dictionary<int, int>();
+		var oldBvToNewBv = new Dictionary<int, int>();
 		var newBufferViewsList = new JsonArray();
 
 		for (int oldBvIdx = 0; oldBvIdx < bufferViews.Count; oldBvIdx++)
@@ -625,15 +636,15 @@ public static class GlbInMemoryColorPreprocessor
 		return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
 	}
 
-	private static System.Collections.Generic.HashSet<int> CollectRetainedBufferViews(JsonArray accessors, JsonArray images, int bufferViewsCount, int albedoImageIndex)
+	private static HashSet<int> CollectRetainedBufferViews(JsonArray accessors, JsonArray images, int bufferViewsCount, int albedoImageIndex)
 	{
-		var retained = new System.Collections.Generic.HashSet<int>();
+		var retained = new HashSet<int>();
 		CollectAccessorBufferViews(accessors, bufferViewsCount, retained);
 		CollectImageBufferViews(images, bufferViewsCount, albedoImageIndex, retained);
 		return retained;
 	}
 
-	private static void CollectAccessorBufferViews(JsonArray accessors, int bufferViewsCount, System.Collections.Generic.HashSet<int> retained)
+	private static void CollectAccessorBufferViews(JsonArray accessors, int bufferViewsCount, HashSet<int> retained)
 	{
 		foreach (var acc in accessors)
 		{
@@ -648,7 +659,7 @@ public static class GlbInMemoryColorPreprocessor
 		}
 	}
 
-	private static void CollectImageBufferViews(JsonArray images, int bufferViewsCount, int albedoImageIndex, System.Collections.Generic.HashSet<int> retained)
+	private static void CollectImageBufferViews(JsonArray images, int bufferViewsCount, int albedoImageIndex, HashSet<int> retained)
 	{
 		for (int i = 0; i < images.Count; i++)
 		{
@@ -665,9 +676,9 @@ public static class GlbInMemoryColorPreprocessor
 	}
 
 	private static void ProcessRetainedBufferView(
-		int oldBvIdx, JsonArray bufferViews, System.Collections.Generic.HashSet<int> retainedBvIndices,
+		int oldBvIdx, JsonArray bufferViews, HashSet<int> retainedBvIndices,
 		byte[] binChunk, MemoryStream newBinStream, JsonArray newBufferViewsList,
-		System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+		Dictionary<int, int> oldBvToNewBv)
 	{
 		if (!retainedBvIndices.Contains(oldBvIdx) || bufferViews[oldBvIdx] is not JsonObject oldBv)
 			return;
@@ -713,7 +724,7 @@ public static class GlbInMemoryColorPreprocessor
 	{
 		AlignStreamTo4Bytes(newBinStream);
 		int albedoOffset = (int)newBinStream.Position;
-		
+
 		newBinStream.Write(newAlbedoBytes, 0, newAlbedoBytes.Length);
 		AlignStreamTo4Bytes(newBinStream);
 
@@ -726,7 +737,7 @@ public static class GlbInMemoryColorPreprocessor
 		return newBufferViewsList.Count - 1;
 	}
 
-	private static void UpdateAccessorBufferViews(JsonArray accessors, System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	private static void UpdateAccessorBufferViews(JsonArray accessors, Dictionary<int, int> oldBvToNewBv)
 	{
 		foreach (var acc in accessors)
 		{
@@ -741,7 +752,7 @@ public static class GlbInMemoryColorPreprocessor
 		}
 	}
 
-	private static void UpdateImageBufferViews(JsonArray images, int albedoImageIndex, System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	private static void UpdateImageBufferViews(JsonArray images, int albedoImageIndex, Dictionary<int, int> oldBvToNewBv)
 	{
 		for (int i = 0; i < images.Count; i++)
 		{
@@ -755,7 +766,7 @@ public static class GlbInMemoryColorPreprocessor
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static void UpdateSingleImageBufferView(JsonObject imgObj, System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	private static void UpdateSingleImageBufferView(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
 	{
 		if (!imgObj.TryGetPropertyValue("bufferView", out var bvVal) || bvVal == null) return;
 		int oldBv = bvVal.GetValue<int>();
@@ -765,7 +776,7 @@ public static class GlbInMemoryColorPreprocessor
 		}
 	}
 
-	private static void UpdateImageWebpExtensionBufferView(JsonObject imgObj, System.Collections.Generic.Dictionary<int, int> oldBvToNewBv)
+	private static void UpdateImageWebpExtensionBufferView(JsonObject imgObj, Dictionary<int, int> oldBvToNewBv)
 	{
 		if (imgObj["extensions"] is JsonObject imgExt && imgExt["EXT_texture_webp"] is JsonObject webp)
 		{
@@ -802,6 +813,7 @@ public static class GlbInMemoryColorPreprocessor
 				src = ResolveMissingTextureSource(i, textures, imagesCount);
 				texObj["source"] = src;
 			}
+
 			if (src >= 0)
 			{
 				UpdateTextureWebpExtension(texObj, src);
@@ -846,6 +858,7 @@ public static class GlbInMemoryColorPreprocessor
 					break;
 				}
 			}
+
 			if (!exists) extArray.Add("EXT_texture_webp");
 		}
 		else

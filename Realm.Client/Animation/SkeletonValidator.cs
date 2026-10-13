@@ -118,7 +118,7 @@ public static class SkeletonValidator
 		HumanoidBone childBone)
 	{
 		if (!result.BoneMapping.TryGetValue(parentBone, out int parentIdx) ||
-			!result.BoneMapping.TryGetValue(childBone, out int childIdx))
+		    !result.BoneMapping.TryGetValue(childBone, out int childIdx))
 		{
 			return;
 		}
@@ -138,6 +138,7 @@ public static class SkeletonValidator
 			if (current == ancestorIdx) return true;
 			current = skeleton.GetBoneParent(current);
 		}
+
 		return false;
 	}
 }

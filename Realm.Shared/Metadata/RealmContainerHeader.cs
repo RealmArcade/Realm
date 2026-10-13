@@ -167,4 +167,3 @@ public static class RealmContainerHeader
 		return memoryStream.ToArray();
 	}
 }
-

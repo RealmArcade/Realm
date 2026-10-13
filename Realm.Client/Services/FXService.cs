@@ -1,17 +1,27 @@
-using Godot;
-using Realm.Ecs.Services;
-using Realm.Client.Core;
-using Realm.Client.UI;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Arch.Core;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.UI;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.Services;
 
 public class FXService
 {
-	public FXService(WorldAccessor ecsWorldAccessor)
+	public List<MinimapPing> ActivePings { get; set; } = new();
+
+	public void ClearActivePings()
+	{
+		ActivePings.Clear();
+	}
+
+	public FXService()
 	{
 	}
+
 	public void SpawnAbilityEffect(Node3D parent, AbilityDefinition def, Vector3 position, float scale = 1.0f)
 	{
 		if (parent == null || !GodotObject.IsInstanceValid(parent) || def == null) return;
@@ -77,18 +87,18 @@ public class FXService
 
 	private static string ResolveTexturePath(string texturePath)
 	{
-		if (texturePath.StartsWith("res://") || System.IO.File.Exists(texturePath))
+		if (texturePath.StartsWith("res://") || File.Exists(texturePath))
 			return texturePath;
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string fullPath = System.IO.Path.Combine(wsPath, texturePath.Replace('/', System.IO.Path.DirectorySeparatorChar));
-		if (System.IO.File.Exists(fullPath)) return fullPath;
+		string fullPath = Path.Combine(wsPath, texturePath.Replace('/', Path.DirectorySeparatorChar));
+		if (File.Exists(fullPath)) return fullPath;
 
-		fullPath = System.IO.Path.Combine(wsPath, "Assets", "vfx", System.IO.Path.GetFileName(texturePath));
-		if (System.IO.File.Exists(fullPath)) return fullPath;
+		fullPath = Path.Combine(wsPath, "Assets", "vfx", Path.GetFileName(texturePath));
+		if (File.Exists(fullPath)) return fullPath;
 
-		string rtexCandidate = System.IO.Path.ChangeExtension(fullPath, ".rtex");
-		if (System.IO.File.Exists(rtexCandidate)) return rtexCandidate;
+		string rtexCandidate = Path.ChangeExtension(fullPath, ".rtex");
+		if (File.Exists(rtexCandidate)) return rtexCandidate;
 
 		return fullPath;
 	}
@@ -100,7 +110,7 @@ public class FXService
 			return GD.Load<Texture2D>(fullPath);
 		}
 
-		if (!System.IO.File.Exists(fullPath))
+		if (!File.Exists(fullPath))
 			return null;
 
 		Image? img = null;
@@ -119,13 +129,14 @@ public class FXService
 		{
 			img.GenerateMipmaps();
 		}
+
 		return ImageTexture.CreateFromImage(img);
 	}
 
 	private static Image? LoadRtexImage(string fullPath)
 	{
-		byte[] rtexBytes = System.IO.File.ReadAllBytes(fullPath);
-		byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
+		byte[] rtexBytes = File.ReadAllBytes(fullPath);
+		byte[]? webpBytes = RtexFile.GetLayer(rtexBytes, 0);
 		if (webpBytes == null || webpBytes.Length == 0) return null;
 
 		var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
@@ -133,10 +144,11 @@ public class FXService
 		{
 			img.LoadPngFromBuffer(webpBytes);
 		}
+
 		return img;
 	}
 
-	public void FlashDamageUnit(Realm.Client.Unit3D unit)
+	public void FlashDamageUnit(Unit3D unit)
 	{
 		var tween = unit.CreateTween();
 		unit.Scale = new Vector3(0.8f, 1.3f, 0.8f);
@@ -168,7 +180,7 @@ public class FXService
 		tween.Chain().TweenCallback(Callable.From(orb.QueueFree));
 	}
 
-	public void FlashHealUnit(Realm.Client.Unit3D unit)
+	public void FlashHealUnit(Unit3D unit)
 	{
 		var tween = unit.CreateTween();
 		unit.Scale = new Vector3(0.9f, 1.25f, 0.9f);
@@ -205,16 +217,16 @@ public class FXService
 		tween.Chain().TweenCallback(Callable.From(meshInstance.QueueFree));
 	}
 
-	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Arch.Core.Entity targetEntity = default)
+	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Entity targetEntity = default)
 	{
 		WeaponMetadata weaponMeta = null;
 		bool hasWeapon = false;
-		if (!string.IsNullOrEmpty(weaponId) && Realm.Client.Core.GameHost.WeaponRegistry.TryGetValue(weaponId, out var registeredWeapon))
+		if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var registeredWeapon))
 		{
 			weaponMeta = registeredWeapon;
 			hasWeapon = true;
 		}
-		else if (Realm.Client.Core.GameHost.WeaponRegistry.TryGetValue("arrow", out var defaultArrow))
+		else if (GameHost.WeaponRegistry.TryGetValue("arrow", out var defaultArrow))
 		{
 			weaponMeta = defaultArrow;
 			hasWeapon = true;
@@ -336,9 +348,9 @@ public class FXService
 		tween.Chain().TweenCallback(Callable.From(meshInstance.QueueFree));
 	}
 
-	public void AddMinimapPing(Node3D parent, List<Realm.Client.Core.GameHost.MinimapPing> activePings, Vector3 position)
+	public void AddMinimapPing(Node3D parent, List<MinimapPing> activePings, Vector3 position)
 	{
-		activePings.Add(new Realm.Client.Core.GameHost.MinimapPing
+		activePings.Add(new MinimapPing
 		{
 			WorldPos = position,
 			LifeTime = 0f,
@@ -347,10 +359,10 @@ public class FXService
 
 		SpawnPing3DEffect(parent, position);
 
-		if (Realm.Client.UI.InGameHUD.Instance != null)
+		if (InGameHUD.Instance != null)
 		{
-			Realm.Client.UI.InGameHUD.Instance.ShowFeedbackText($"[ALERT PING] Signal at: {position.X:F0}, {position.Z:F0}", new Color(1.0f, 0.1f, 0.2f));
-			Realm.Client.UI.UIManager.Instance?.PlayClickSound();
+			InGameHUD.Instance.ShowFeedbackText($"[ALERT PING] Signal at: {position.X:F0}, {position.Z:F0}", new Color(1.0f, 0.1f, 0.2f));
+			UIManager.Instance?.PlayClickSound();
 		}
 	}
 }

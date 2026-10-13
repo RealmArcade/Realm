@@ -31,11 +31,13 @@ public struct WaypointQueue
 		{
 			throw new InvalidOperationException("Queue is empty");
 		}
+
 		Vector3 first = Waypoints[0];
 		for (int i = 1; i < Count; i++)
 		{
 			Waypoints[i - 1] = Waypoints[i];
 		}
+
 		Count--;
 		return first;
 	}

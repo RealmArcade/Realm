@@ -1,9 +1,21 @@
-using Godot;
-using MemoryPack;
-using Realm.Ecs.Common;
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Text;
+using Arch.Core;
+using Godot;
+using MemoryPack;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Services;
+using Realm.MapAPI;
+using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.ReplaySystem
 {
@@ -29,7 +41,7 @@ namespace Realm.Client.ReplaySystem
 			{
 				if (!File.Exists(path)) return false;
 
-				using var fs = new FileStream(path, FileMode.Open, System.IO.FileAccess.Read, FileShare.Read);
+				using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
 				if (!ReadReplayHeaderInternal(fs)) return false;
 				if (TotalTicks <= 0) return false;
 
@@ -58,7 +70,7 @@ namespace Realm.Client.ReplaySystem
 		{
 			byte[] magicBytes = new byte[8];
 			fs.ReadExactly(magicBytes, 0, 8);
-			if (System.Text.Encoding.ASCII.GetString(magicBytes) != "REALMREP") return false;
+			if (Encoding.ASCII.GetString(magicBytes) != "REALMREP") return false;
 
 			byte[] lenBytes = new byte[4];
 			fs.ReadExactly(lenBytes, 0, 4);
@@ -98,6 +110,7 @@ namespace Realm.Client.ReplaySystem
 				_frames[i] = MemoryPackSerializer.Deserialize<ReplayFrame>(buffer.AsSpan(0, frameLen));
 				framesRead++;
 			}
+
 			return framesRead;
 		}
 
@@ -110,6 +123,7 @@ namespace Realm.Client.ReplaySystem
 				if (chunk <= 0) return false;
 				offset += chunk;
 			}
+
 			return true;
 		}
 
@@ -128,7 +142,7 @@ namespace Realm.Client.ReplaySystem
 		public void ApplyInitialFrame()
 		{
 			if (_frames == null || TotalTicks == 0) return;
-			Realm.Client.Core.GameHost.Instance?.ResetStateForReplayPlayback();
+			GameHost.Instance?.ResetStateForReplayPlayback();
 			ApplyFrame(_frames[0]);
 			CurrentTick = 0;
 			_timer = 0.0f;
@@ -171,7 +185,7 @@ namespace Realm.Client.ReplaySystem
 				}
 			}
 
-			Realm.Client.Core.GameHost.Instance?.ResetStateForReplayPlayback();
+			GameHost.Instance?.ResetStateForReplayPlayback();
 
 			ApplyFrame(_frames[keyframeTick]);
 
@@ -189,7 +203,7 @@ namespace Realm.Client.ReplaySystem
 
 		public void ApplyFrame(ReplayFrame frame)
 		{
-			if (Realm.Client.Core.GameHost.Instance == null || frame == null) return;
+			if (GameHost.Instance == null || frame == null) return;
 
 			ApplyResources(frame);
 			ApplyProjectiles(frame);
@@ -198,15 +212,15 @@ namespace Realm.Client.ReplaySystem
 
 		private void ApplyResources(ReplayFrame frame)
 		{
-			if (UI.InGameHUD.Instance != null)
+			if (InGameHUD.Instance != null)
 			{
-				UI.InGameHUD.Instance.Gold = frame.Resources.Gold;
-				UI.InGameHUD.Instance.Wood = frame.Resources.Wood;
-				UI.InGameHUD.Instance.Stone = frame.Resources.Stone;
+				InGameHUD.Instance.Gold = frame.Resources.Gold;
+				InGameHUD.Instance.Wood = frame.Resources.Wood;
+				InGameHUD.Instance.Stone = frame.Resources.Stone;
 			}
 			else
 			{
-				Realm.Client.Core.GameHost.Instance.SetBackupResources(frame.Resources.Gold, frame.Resources.Wood, frame.Resources.Stone);
+				GameHost.Instance.SetBackupResources(frame.Resources.Gold, frame.Resources.Wood, frame.Resources.Stone);
 			}
 		}
 
@@ -218,11 +232,11 @@ namespace Realm.Client.ReplaySystem
 			{
 				if (proj.ProjectileTypeId == "arrow")
 				{
-					Realm.Client.Core.GameHost.Instance.SpawnArrowProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics());
+					GameHost.Instance.SpawnArrowProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics());
 				}
 				else
 				{
-					((Realm.MapAPI.IGameAPI)Realm.Client.Core.GameHost.Instance).SpawnProjectile(proj.ProjectileTypeId, proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.Speed);
+					((IGameAPI)GameHost.Instance).SpawnProjectile(proj.ProjectileTypeId, proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.Speed);
 				}
 			}
 		}
@@ -239,9 +253,9 @@ namespace Realm.Client.ReplaySystem
 
 		private void ApplyUnitSnapshot(ReplayUnitSnapshot snap)
 		{
-			if (Realm.Client.Core.GameHost.Instance.TryGetLocalEntity(snap.EntityId, out var localEntity))
+			if (GameHost.Instance.TryGetLocalEntity(snap.EntityId, out var localEntity))
 			{
-				if (Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(localEntity))
+				if (GameContext.World.IsAlive(localEntity))
 				{
 					if (snap.IsDead)
 					{
@@ -255,43 +269,43 @@ namespace Realm.Client.ReplaySystem
 			}
 			else if (!snap.IsDead)
 			{
-				Realm.Client.Core.GameHost.Instance.SpawnUnitFromReplaySnapshot(snap);
+				GameHost.Instance.SpawnUnitFromReplaySnapshot(snap);
 			}
 		}
 
-		private void HandleDeadUnit(Arch.Core.Entity localEntity)
+		private void HandleDeadUnit(Entity localEntity)
 		{
-			if (!Realm.Client.Core.GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Tags.Dead>(localEntity))
+			if (!GameContext.World.Has<Dead>(localEntity))
 			{
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Add<Realm.Ecs.Components.Tags.Dead>(localEntity);
-				Realm.Client.Core.GameHost.TryGetUnit3D(localEntity, out var unit3D);
-				Realm.Client.Core.GameHost.Instance.KillUnitDeferredExternal(unit3D);
+				GameContext.World.Add<Dead>(localEntity);
+				GameHost.TryGetUnit3D(localEntity, out var unit3D);
+				GameHost.Instance.KillUnitDeferredExternal(unit3D);
 			}
 		}
 
-		private void UpdateUnitState(Arch.Core.Entity localEntity, ReplayUnitSnapshot snap)
+		private void UpdateUnitState(Entity localEntity, ReplayUnitSnapshot snap)
 		{
-			if (Realm.Client.Core.GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Core.Health>(localEntity))
+			if (GameContext.World.Has<Health>(localEntity))
 			{
-				var hp = Realm.Client.Core.GameHost.Instance.EcsWorld.Get<Realm.Ecs.Components.Core.Health>(localEntity);
+				var hp = GameContext.World.Get<Health>(localEntity);
 				hp.Current = snap.CurrentHp;
 				hp.Max = snap.MaxHp;
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Set(localEntity, hp);
+				GameContext.World.Set(localEntity, hp);
 			}
 
-			if (Realm.Client.Core.GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Core.Position>(localEntity))
+			if (GameContext.World.Has<Position>(localEntity))
 			{
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Core.Position(snap.Position.ToNumerics()));
+				GameContext.World.Set(localEntity, new Position(snap.Position.ToNumerics()));
 			}
 
-			if (Realm.Client.Core.GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Movement.Velocity>(localEntity))
+			if (GameContext.World.Has<Velocity>(localEntity))
 			{
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Movement.Velocity(snap.Velocity.ToNumerics()));
+				GameContext.World.Set(localEntity, new Velocity(snap.Velocity.ToNumerics()));
 			}
 
-			if (Realm.Client.Core.GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Movement.InterpolationTarget>(localEntity))
+			if (GameContext.World.Has<InterpolationTarget>(localEntity))
 			{
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Set(localEntity, new Realm.Ecs.Components.Movement.InterpolationTarget
+				GameContext.World.Set(localEntity, new InterpolationTarget
 				{
 					Position = snap.Position.ToNumerics(),
 					Velocity = snap.Velocity.ToNumerics(),
@@ -299,9 +313,9 @@ namespace Realm.Client.ReplaySystem
 				});
 			}
 
-			Realm.Client.Core.GameHost.Instance.EcsWorld.SetOrAdd(localEntity, new Realm.Ecs.Components.Meta.ReplayAnimationState(snap.Animation ?? "Idle"));
+			GameContext.World.SetOrAdd(localEntity, new ReplayAnimationState(snap.Animation ?? "Idle"));
 
-			Realm.Client.Core.GameHost.TryGetUnit3D(localEntity, out var unit3DNode);
+			GameHost.TryGetUnit3D(localEntity, out var unit3DNode);
 			if (GodotObject.IsInstanceValid(unit3DNode))
 			{
 				unit3DNode.GlobalPosition = snap.Position.ToGodot();
@@ -316,10 +330,10 @@ namespace Realm.Client.ReplaySystem
 			try
 			{
 				if (!File.Exists(path)) return null;
-				using var fs = new FileStream(path, FileMode.Open, System.IO.FileAccess.Read, FileShare.Read);
+				using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
 				byte[] magicBytes = new byte[8];
 				fs.ReadExactly(magicBytes, 0, 8);
-				if (System.Text.Encoding.ASCII.GetString(magicBytes) != "REALMREP") return null;
+				if (Encoding.ASCII.GetString(magicBytes) != "REALMREP") return null;
 
 				byte[] lenBytes = new byte[4];
 				fs.ReadExactly(lenBytes, 0, 4);

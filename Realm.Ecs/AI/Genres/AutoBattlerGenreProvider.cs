@@ -1,10 +1,10 @@
+using System.Numerics;
+using System.Text.Json;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
-using System.Numerics;
-using System.Text.Json;
 
 namespace Realm.Ecs.AI.Genres;
 
@@ -58,13 +58,13 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 		return new float[AbFeatureCount]
 		{
 			-0.35f, // CostToBank
-			 0.90f, // SynergyTraitScore
-			 0.85f, // UpgradeProximity
-			 0.70f, // BoardPositioningBalance
-			 0.60f, // EconomyInterestThreshold
-			 0.50f, // ShopRerollVsLevelUtility
-			 0.80f, // HpPreservationUrgency
-			 0.40f  // ItemEquipSynergy
+			0.90f, // SynergyTraitScore
+			0.85f, // UpgradeProximity
+			0.70f, // BoardPositioningBalance
+			0.60f, // EconomyInterestThreshold
+			0.50f, // ShopRerollVsLevelUtility
+			0.80f, // HpPreservationUrgency
+			0.40f // ItemEquipSynergy
 		};
 	}
 
@@ -111,7 +111,9 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 				targetList.AddRange(items);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
@@ -160,7 +162,7 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 			var res = world.Get<PlayerResources>(playerEntity).Value;
 			if (res.Count > 0) gold = res.Values.FirstOrDefault();
 		}
-		
+
 		if (world.Has<Health>(playerEntity))
 		{
 			health = (int)world.Get<Health>(playerEntity).Current;
@@ -175,7 +177,7 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 		{
 			string offeringId = CurrentShopOfferings[sIdx];
 			var unitDef = ShopPool.FirstOrDefault(u => string.Equals(u.Id, offeringId, StringComparison.OrdinalIgnoreCase))
-						  ?? new AutoBattlerUnitDef { Id = offeringId, Cost = 1 };
+			              ?? new AutoBattlerUnitDef { Id = offeringId, Cost = 1 };
 
 			if (playerGold < unitDef.Cost) continue;
 

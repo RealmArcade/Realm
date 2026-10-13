@@ -23,6 +23,7 @@ public partial class FPSCounter : Label
 		{
 			Visible = GameSettings.DisplayFps;
 		}
+
 		if (Visible)
 		{
 			_updateTimer += (float)delta;

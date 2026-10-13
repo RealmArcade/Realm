@@ -1,7 +1,9 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -25,7 +27,7 @@ public class MapEditorEntityPaletteController
 				return name;
 			}
 		}
-		
+
 		if (file.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
 		{
 			string sub = file.Substring(4);
@@ -33,41 +35,42 @@ public class MapEditorEntityPaletteController
 			{
 				return "✨ " + subName;
 			}
+
 			return "✨ " + sub;
 		}
-		
+
 		if (TryGetVfxName(file, out string vfxName))
 		{
 			return "✨ " + vfxName;
 		}
-		
+
 		if (TryGetUnitName(file, out string unitName))
 		{
 			return unitName;
 		}
-		
+
 		if (TryGetPropName(file, out string propName))
 		{
 			return propName;
 		}
-		
+
 		if (TryGetResourceName(file, out string resourceName))
 		{
 			return resourceName;
 		}
-		
-		return System.IO.Path.GetFileNameWithoutExtension(file).Replace("_", " ");
+
+		return Path.GetFileNameWithoutExtension(file).Replace("_", " ");
 	}
 
 	private bool TryGetVfxName(string key, out string name)
 	{
 		name = null;
-		if (Realm.Client.Core.GameHost.VfxRegistry == null)
+		if (GameContext.RegistryService.VfxRegistry == null)
 		{
 			return false;
 		}
 
-		if (Realm.Client.Core.GameHost.VfxRegistry.TryGetValue(key, out var meta))
+		if (GameContext.RegistryService.VfxRegistry.TryGetValue(key, out var meta))
 		{
 			if (!string.IsNullOrEmpty(meta.Name))
 			{
@@ -75,18 +78,19 @@ public class MapEditorEntityPaletteController
 				return true;
 			}
 		}
+
 		return false;
 	}
 
 	private bool TryGetUnitName(string key, out string name)
 	{
 		name = null;
-		if (Realm.Client.Core.GameHost.UnitRegistry == null)
+		if (GameHost.UnitRegistry == null)
 		{
 			return false;
 		}
 
-		if (Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(key, out var meta))
+		if (GameHost.UnitRegistry.TryGetValue(key, out var meta))
 		{
 			if (!string.IsNullOrEmpty(meta.Name))
 			{
@@ -94,18 +98,19 @@ public class MapEditorEntityPaletteController
 				return true;
 			}
 		}
+
 		return false;
 	}
 
 	private bool TryGetPropName(string key, out string name)
 	{
 		name = null;
-		if (Realm.Client.Core.GameHost.PropRegistry == null)
+		if (GameHost.PropRegistry == null)
 		{
 			return false;
 		}
 
-		if (Realm.Client.Core.GameHost.PropRegistry.TryGetValue(key, out var meta))
+		if (GameHost.PropRegistry.TryGetValue(key, out var meta))
 		{
 			if (!string.IsNullOrEmpty(meta.Name))
 			{
@@ -113,18 +118,19 @@ public class MapEditorEntityPaletteController
 				return true;
 			}
 		}
+
 		return false;
 	}
 
 	private bool TryGetResourceName(string key, out string name)
 	{
 		name = null;
-		if (Realm.Client.Core.GameHost.ResourceRegistry == null)
+		if (GameHost.ResourceRegistry == null)
 		{
 			return false;
 		}
 
-		if (Realm.Client.Core.GameHost.ResourceRegistry.TryGetValue(key, out var meta))
+		if (GameHost.ResourceRegistry.TryGetValue(key, out var meta))
 		{
 			if (!string.IsNullOrEmpty(meta.Name))
 			{
@@ -132,6 +138,7 @@ public class MapEditorEntityPaletteController
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -151,7 +158,6 @@ public class MapEditorEntityPaletteController
 		_hud = hud;
 		_palettesVBox = palettesVBox;
 		_btnAddObject = btnAddObject;
-
 
 
 		var categoryGrid = new GridContainer();
@@ -220,9 +226,10 @@ public class MapEditorEntityPaletteController
 		{
 			btn.TooltipText = TranslationServer.Translate(tooltip);
 		}
+
 		btn.Pressed += () =>
 		{
-			Realm.Client.UI.UIManager.Instance?.PlayClickSound();
+			UIManager.Instance?.PlayClickSound();
 			onClick?.Invoke();
 		};
 	}
@@ -299,6 +306,7 @@ public class MapEditorEntityPaletteController
 		{
 			return _categoryFiles[_optCategoryItems.Selected];
 		}
+
 		return null;
 	}
 
@@ -323,7 +331,9 @@ public class MapEditorEntityPaletteController
 		{
 			LoadMetadataForCategory(category);
 		}
-		catch { }
+		catch
+		{
+		}
 
 		if (category == "VFX" && _categoryFiles.Count == 0)
 		{
@@ -333,19 +343,19 @@ public class MapEditorEntityPaletteController
 
 	private void LoadMetadataForCategory(string category)
 	{
-		string wsPath = MapEditorHUD.TempWorkspaceGodotPath;
-		string globalWs = global::Godot.ProjectSettings.GlobalizePath(wsPath);
+		string wsPath = GameContext.EditorService.TempWorkspaceGodotPath;
+		string globalWs = ProjectSettings.GlobalizePath(wsPath);
 
-		if (!MetadataService.Instance.TryLoadMetadata(globalWs, out var metadata)) return;
+		if (!GameContext.MetadataService.TryLoadMetadata(globalWs, out var metadata)) return;
 
 		switch (category)
 		{
 			case "VFX": LoadVfxMetadata(metadata); break;
 			case "Decals": LoadDecalsMetadata(metadata, globalWs); break;
 			case "Buildings": LoadBuildingsMetadata(metadata); break;
-			case "Units": 
+			case "Units":
 			case "Characters": LoadUnitsMetadata(metadata); break;
-			case "Resources": 
+			case "Resources":
 			case "Environment": LoadResourcesMetadata(metadata); break;
 			case "Props": LoadPropsMetadata(metadata); break;
 		}
@@ -354,7 +364,7 @@ public class MapEditorEntityPaletteController
 	private void AddCategoryItem(string id, string displayName)
 	{
 		if (string.IsNullOrEmpty(id) || _categoryFiles.Contains(id)) return;
-		
+
 		_categoryFiles.Add(id);
 		if (!string.IsNullOrEmpty(displayName))
 		{
@@ -362,7 +372,7 @@ public class MapEditorEntityPaletteController
 		}
 	}
 
-	private void LoadVfxMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	private void LoadVfxMetadata(MapMetadata metadata)
 	{
 		LoadVfxRegistry();
 
@@ -371,7 +381,7 @@ public class MapEditorEntityPaletteController
 		foreach (var vObj in metadata.Templates.Vfx)
 		{
 			if (string.IsNullOrEmpty(vObj.VfxId)) continue;
-			
+
 			string name = string.IsNullOrEmpty(vObj.Name) ? null : "✨ " + vObj.Name;
 			AddCategoryItem(vObj.VfxId, name);
 		}
@@ -379,9 +389,9 @@ public class MapEditorEntityPaletteController
 
 	private void LoadVfxRegistry()
 	{
-		if (Realm.Client.Core.GameHost.VfxRegistry == null) return;
+		if (GameContext.RegistryService.VfxRegistry == null) return;
 
-		foreach (var kvp in Realm.Client.Core.GameHost.VfxRegistry)
+		foreach (var kvp in GameContext.RegistryService.VfxRegistry)
 		{
 			string vfxKey = kvp.Key;
 			string displayName = "✨ " + (!string.IsNullOrEmpty(kvp.Value.Name) ? kvp.Value.Name : kvp.Key);
@@ -389,7 +399,7 @@ public class MapEditorEntityPaletteController
 		}
 	}
 
-	private void LoadDecalsMetadata(Realm.Shared.Metadata.MapMetadata metadata, string globalWs)
+	private void LoadDecalsMetadata(MapMetadata metadata, string globalWs)
 	{
 		if (metadata.Decals != null)
 		{
@@ -401,22 +411,22 @@ public class MapEditorEntityPaletteController
 			}
 		}
 
-		var unionedAssets = Realm.Client.Utils.MapAssetHelper.LoadAssets(globalWs);
+		var unionedAssets = MapAssetHelper.LoadAssets(globalWs);
 		var decalsDict = unionedAssets.GetCategory("Decal");
 		if (decalsDict == null) return;
 
 		foreach (var kvp in decalsDict)
 		{
 			string decalFile = kvp.Key;
-			string relDecalPath = System.IO.Path.Combine("Assets", "decals", decalFile);
-			
+			string relDecalPath = Path.Combine("Assets", "decals", decalFile);
+
 			if (_categoryFiles.Contains(relDecalPath) || _categoryFiles.Contains(decalFile)) continue;
 
-			if (System.IO.File.Exists(System.IO.Path.Combine(globalWs, relDecalPath)))
+			if (File.Exists(Path.Combine(globalWs, relDecalPath)))
 			{
 				_categoryFiles.Add(relDecalPath);
 			}
-			else if (System.IO.File.Exists(System.IO.Path.Combine(globalWs, decalFile)))
+			else if (File.Exists(Path.Combine(globalWs, decalFile)))
 			{
 				_categoryFiles.Add(decalFile);
 			}
@@ -427,7 +437,7 @@ public class MapEditorEntityPaletteController
 		}
 	}
 
-	private void LoadBuildingsMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	private void LoadBuildingsMetadata(MapMetadata metadata)
 	{
 		if (metadata.Templates?.Buildings != null)
 		{
@@ -437,16 +447,16 @@ public class MapEditorEntityPaletteController
 			}
 		}
 
-		if (Realm.Client.Core.GameHost.BuildingRegistry != null)
+		if (GameHost.BuildingRegistry != null)
 		{
-			foreach (var kvp in Realm.Client.Core.GameHost.BuildingRegistry)
+			foreach (var kvp in GameHost.BuildingRegistry)
 			{
 				AddCategoryItem(kvp.Key, kvp.Value.Name);
 			}
 		}
 	}
 
-	private void LoadUnitsMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	private void LoadUnitsMetadata(MapMetadata metadata)
 	{
 		if (metadata.Templates?.Units != null)
 		{
@@ -456,16 +466,16 @@ public class MapEditorEntityPaletteController
 			}
 		}
 
-		if (Realm.Client.Core.GameHost.UnitRegistry != null)
+		if (GameHost.UnitRegistry != null)
 		{
-			foreach (var kvp in Realm.Client.Core.GameHost.UnitRegistry)
+			foreach (var kvp in GameHost.UnitRegistry)
 			{
 				AddCategoryItem(kvp.Key, kvp.Value.Name);
 			}
 		}
 	}
 
-	private void LoadResourcesMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	private void LoadResourcesMetadata(MapMetadata metadata)
 	{
 		if (metadata.Templates?.Resources != null)
 		{
@@ -475,16 +485,16 @@ public class MapEditorEntityPaletteController
 			}
 		}
 
-		if (Realm.Client.Core.GameHost.ResourceRegistry != null)
+		if (GameHost.ResourceRegistry != null)
 		{
-			foreach (var kvp in Realm.Client.Core.GameHost.ResourceRegistry)
+			foreach (var kvp in GameHost.ResourceRegistry)
 			{
 				AddCategoryItem(kvp.Key, kvp.Value.Name);
 			}
 		}
 	}
 
-	private void LoadPropsMetadata(Realm.Shared.Metadata.MapMetadata metadata)
+	private void LoadPropsMetadata(MapMetadata metadata)
 	{
 		if (metadata.Templates?.Props != null)
 		{
@@ -494,9 +504,9 @@ public class MapEditorEntityPaletteController
 			}
 		}
 
-		if (Realm.Client.Core.GameHost.PropRegistry != null)
+		if (GameHost.PropRegistry != null)
 		{
-			foreach (var kvp in Realm.Client.Core.GameHost.PropRegistry)
+			foreach (var kvp in GameHost.PropRegistry)
 			{
 				AddCategoryItem(kvp.Key, kvp.Value.Name);
 			}
@@ -508,44 +518,44 @@ public class MapEditorEntityPaletteController
 		if (index >= 0 && index < _categoryFiles.Count)
 		{
 			string selectedFile = _categoryFiles[index];
-			if (Realm.Client.Core.GameHost.Instance != null)
+			if (GameHost.Instance != null)
 			{
-				Realm.Client.Core.GameHost.Instance.ActivePlaceId = selectedFile;
+				GameHost.Instance.ActivePlaceId = selectedFile;
 			}
 		}
 	}
 
 	public void TriggerAddObjectMode()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null)
+		if (GameHost.Instance == null)
 		{
 			return;
 		}
 
-		Realm.Client.Core.GameHost.EditorTool targetTool = GetEditorToolForCategory(_currentCategory);
+		EditorTool targetTool = GetEditorToolForCategory(_currentCategory);
 		string placeId = GetSelectedCategoryPlaceId();
-		
+
 		_hud.TriggerToolSelection(targetTool, _btnAddObject, placeId);
 	}
 
-	private Realm.Client.Core.GameHost.EditorTool GetEditorToolForCategory(string category)
+	private EditorTool GetEditorToolForCategory(string category)
 	{
 		if (category == "Units" || category == "Characters" || category == "Buildings")
 		{
-			return Realm.Client.Core.GameHost.EditorTool.PlaceUnit;
+			return EditorTool.PlaceUnit;
 		}
-		
+
 		if (category == "Decals")
 		{
-			return Realm.Client.Core.GameHost.EditorTool.PlaceDecal;
+			return EditorTool.PlaceDecal;
 		}
-		
+
 		if (category == "VFX")
 		{
-			return Realm.Client.Core.GameHost.EditorTool.PlaceVfx;
+			return EditorTool.PlaceVfx;
 		}
-		
-		return Realm.Client.Core.GameHost.EditorTool.PlaceProp;
+
+		return EditorTool.PlaceProp;
 	}
 
 	private string GetSelectedCategoryPlaceId()
@@ -556,7 +566,7 @@ public class MapEditorEntityPaletteController
 		}
 
 		int selectedIndex = _optCategoryItems != null ? _optCategoryItems.Selected : -1;
-		
+
 		if (selectedIndex >= 0)
 		{
 			if (selectedIndex < _categoryFiles.Count)
@@ -578,10 +588,10 @@ public class MapEditorEntityPaletteController
 		string searchName = filename;
 		if (filename.StartsWith("res://") || filename.Contains('/') || filename.Contains('\\'))
 		{
-			searchName = System.IO.Path.GetFileName(filename);
+			searchName = Path.GetFileName(filename);
 		}
 
-		int idx = _categoryFiles.FindIndex(f => System.IO.Path.GetFileName(f).Equals(searchName, StringComparison.OrdinalIgnoreCase));
+		int idx = _categoryFiles.FindIndex(f => Path.GetFileName(f).Equals(searchName, StringComparison.OrdinalIgnoreCase));
 		if (idx >= 0)
 		{
 			_optCategoryItems.Selected = idx;
@@ -590,18 +600,18 @@ public class MapEditorEntityPaletteController
 		}
 		else
 		{
-			Realm.Client.Core.GameHost.EditorTool targetTool = Realm.Client.Core.GameHost.EditorTool.PlaceProp;
+			EditorTool targetTool = EditorTool.PlaceProp;
 			if (category == "Characters" || category == "Buildings")
 			{
-				targetTool = Realm.Client.Core.GameHost.EditorTool.PlaceUnit;
+				targetTool = EditorTool.PlaceUnit;
 			}
 			else if (category == "Decals")
 			{
-				targetTool = Realm.Client.Core.GameHost.EditorTool.PlaceDecal;
+				targetTool = EditorTool.PlaceDecal;
 			}
 			else if (category == "VFX")
 			{
-				targetTool = Realm.Client.Core.GameHost.EditorTool.PlaceVfx;
+				targetTool = EditorTool.PlaceVfx;
 			}
 
 			_hud.TriggerToolSelection(targetTool, _btnAddObject, filename);

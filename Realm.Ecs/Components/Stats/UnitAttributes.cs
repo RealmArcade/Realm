@@ -1,6 +1,6 @@
-namespace Realm.Ecs.Components.Stats;
-
 using Realm.Ecs.Common;
+
+namespace Realm.Ecs.Components.Stats;
 
 /// <summary>
 /// Represents the 6 core RPG attributes for an entity.

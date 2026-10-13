@@ -26,7 +26,7 @@ public static class AuthorshipKeyHelper
 		return Path.Combine(dir, DefaultKeyFileName);
 	}
 
-	public static (Key Key, AuthorshipKeyData Data, string Path, bool CreatedNew) GetOrGenerateKeyInfo(string? keyDirectory = null, string defaultUserName = "")
+	public static (NSec.Cryptography.Key Key, AuthorshipKeyData Data, string Path, bool CreatedNew) GetOrGenerateKeyInfo(string? keyDirectory = null, string defaultUserName = "")
 	{
 		string dir = string.IsNullOrWhiteSpace(keyDirectory) ? GetDefaultKeysDirectory() : keyDirectory;
 		if (!Directory.Exists(dir))
@@ -160,7 +160,7 @@ public static class AuthorshipKeyHelper
 	{
 		string dir = string.IsNullOrWhiteSpace(keyDirectory) ? GetDefaultKeysDirectory() : keyDirectory;
 		string keyPath = Path.Combine(dir, DefaultKeyFileName);
-		
+
 		if (!File.Exists(keyPath))
 		{
 			return;
@@ -174,7 +174,7 @@ public static class AuthorshipKeyHelper
 			{
 				return;
 			}
-			
+
 			keyData.UserName = newUserName;
 			byte[] updatedBytes = RkeyFile.Build(keyData.UserName, keyData.PublicKey, keyData.PrivateKey);
 			File.WriteAllBytes(keyPath, updatedBytes);

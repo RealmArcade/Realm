@@ -1,5 +1,5 @@
-using Realm.Ecs.Components.Movement;
 using System.Numerics;
+using Realm.Ecs.Components.Movement;
 
 namespace Realm.Ecs.Components.Core;
 

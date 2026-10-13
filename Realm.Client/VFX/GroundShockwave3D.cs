@@ -1,5 +1,5 @@
-using Godot;
 using System;
+using Godot;
 
 namespace Realm.Client.VFX;
 
@@ -216,13 +216,19 @@ public partial class GroundShockwave3D : Node3D
 
 				Color col = new Color(WaveColor.R, WaveColor.G, WaveColor.B, WaveColor.A * alpha);
 
-				_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceAddVertex(v1);
-				_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceAddVertex(v2);
-				_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceAddVertex(v3);
+				_immediateMesh.SurfaceSetColor(col);
+				_immediateMesh.SurfaceAddVertex(v1);
+				_immediateMesh.SurfaceSetColor(col);
+				_immediateMesh.SurfaceAddVertex(v2);
+				_immediateMesh.SurfaceSetColor(col);
+				_immediateMesh.SurfaceAddVertex(v3);
 
-				_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceAddVertex(v1);
-				_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceAddVertex(v3);
-				_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceAddVertex(v4);
+				_immediateMesh.SurfaceSetColor(col);
+				_immediateMesh.SurfaceAddVertex(v1);
+				_immediateMesh.SurfaceSetColor(col);
+				_immediateMesh.SurfaceAddVertex(v3);
+				_immediateMesh.SurfaceSetColor(col);
+				_immediateMesh.SurfaceAddVertex(v4);
 			}
 		}
 

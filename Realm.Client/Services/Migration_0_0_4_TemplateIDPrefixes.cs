@@ -1,10 +1,10 @@
-using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Godot;
 
 namespace Realm.Client.Services;
 
@@ -25,7 +25,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			const int totalSteps = 4;
 			progress?.Report(new MigrationProgressUpdate(Description, 1, totalSteps, "Normalizing entity template definitions into Templates container..."));
-			
+
 			var templatesObj = GetOrCreateObject(metadataRoot, "Templates");
 			MigrateEntityCategories(metadataRoot, templatesObj);
 			MigrateDecals(metadataRoot);
@@ -68,6 +68,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			parent[key] = new JsonObject();
 		}
+
 		return parent[key]!.AsObject();
 	}
 
@@ -88,7 +89,13 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			Directory.CreateDirectory(newVfxDir);
 			MoveDirectoryContents(legacyVfxDir, newVfxDir);
-			try { Directory.Delete(legacyVfxDir, true); } catch { }
+			try
+			{
+				Directory.Delete(legacyVfxDir, true);
+			}
+			catch
+			{
+			}
 		}
 	}
 
@@ -108,7 +115,13 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			{
 				string parentDir = Path.Combine(assetsDir, folder);
 				MoveDirectoryContents(nestedDir, parentDir);
-				try { Directory.Delete(nestedDir, true); } catch { }
+				try
+				{
+					Directory.Delete(nestedDir, true);
+				}
+				catch
+				{
+				}
 			}
 		}
 	}
@@ -121,7 +134,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			string target = Path.Combine(targetDir, rel);
 			string? targetFileDir = Path.GetDirectoryName(target);
 			if (!string.IsNullOrEmpty(targetFileDir)) Directory.CreateDirectory(targetFileDir);
-			
+
 			if (!File.Exists(target)) File.Move(file, target);
 			else File.Delete(file);
 		}
@@ -153,11 +166,13 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			{
 				templatesObj[canonicalKey] = new JsonArray();
 			}
+
 			var canonicalArray = templatesObj[canonicalKey]!.AsArray();
 			foreach (var item in legacyArray)
 			{
 				if (item != null) canonicalArray.Add(item.DeepClone());
 			}
+
 			metadataRoot.Remove(legacyKey);
 		}
 	}
@@ -187,9 +202,22 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 	{
 		string rawId = string.Empty;
 		if (entityObj.TryGetPropertyValue("TemplateID", out var tid) && tid != null) rawId = tid.ToString();
-		else if (entityObj.TryGetPropertyValue("ObjectID", out var oid) && oid != null) { rawId = oid.ToString(); entityObj.Remove("ObjectID"); }
-		else if (!string.IsNullOrEmpty(legacyIdKey) && entityObj.TryGetPropertyValue(legacyIdKey, out var lid) && lid != null) { rawId = lid.ToString(); entityObj.Remove(legacyIdKey); }
-		else if (entityObj.TryGetPropertyValue("UnitId", out var uid) && uid != null) { rawId = uid.ToString(); entityObj.Remove("UnitId"); }
+		else if (entityObj.TryGetPropertyValue("ObjectID", out var oid) && oid != null)
+		{
+			rawId = oid.ToString();
+			entityObj.Remove("ObjectID");
+		}
+		else if (!string.IsNullOrEmpty(legacyIdKey) && entityObj.TryGetPropertyValue(legacyIdKey, out var lid) && lid != null)
+		{
+			rawId = lid.ToString();
+			entityObj.Remove(legacyIdKey);
+		}
+		else if (entityObj.TryGetPropertyValue("UnitId", out var uid) && uid != null)
+		{
+			rawId = uid.ToString();
+			entityObj.Remove("UnitId");
+		}
+
 		return rawId;
 	}
 
@@ -204,22 +232,27 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			string slug = TemplateIDHelper.GenerateSlug(rawKey);
 			string normalizedId = TemplateIDHelper.NormalizeTemplateID("decal", slug);
 			var itemObj = kvp.Value as JsonObject ?? new JsonObject();
-			
+
 			CleanHashAndAssetType(itemObj);
 			if (string.IsNullOrWhiteSpace(itemObj["TexturePath"]?.ToString()))
 			{
 				itemObj["TexturePath"] = rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
 			}
+
 			EnsureDecalDefaults(itemObj);
 			MergeOrAddNormalizedItem(normalizedDecals, normalizedId, itemObj);
 		}
+
 		metadataRoot["decals"] = normalizedDecals;
 	}
 
 	private static void CleanHashAndAssetType(JsonObject itemObj)
 	{
-		itemObj.Remove("Hash"); itemObj.Remove("hash");
-		itemObj.Remove("AssetType"); itemObj.Remove("assetType"); itemObj.Remove("asset_type");
+		itemObj.Remove("Hash");
+		itemObj.Remove("hash");
+		itemObj.Remove("AssetType");
+		itemObj.Remove("assetType");
+		itemObj.Remove("asset_type");
 	}
 
 	private static void EnsureDecalDefaults(JsonObject itemObj)
@@ -258,7 +291,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			string normalizedId = TemplateIDHelper.NormalizeTemplateID("SpawnShader", TemplateIDHelper.GenerateSlug(kvp.Key));
 			var itemObj = kvp.Value as JsonObject ?? new JsonObject();
-			
+
 			MigrateShaderConfigJson(itemObj);
 			if (!normalizedShaders.ContainsKey(normalizedId))
 			{
@@ -269,8 +302,13 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		EnsureDefaultSpawnShaders(normalizedShaders);
 		foreach (var kvp in normalizedShaders)
 		{
-			if (kvp.Value is JsonObject sObj) { sObj.Remove("Hash"); sObj.Remove("hash"); }
+			if (kvp.Value is JsonObject sObj)
+			{
+				sObj.Remove("Hash");
+				sObj.Remove("hash");
+			}
 		}
+
 		metadataRoot["SpawnShader"] = normalizedShaders;
 	}
 
@@ -282,6 +320,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			{
 				if (!spawnShadersObj.ContainsKey(kvp.Key) && kvp.Value != null) spawnShadersObj[kvp.Key] = kvp.Value.DeepClone();
 			}
+
 			metadataRoot.Remove("shaders");
 		}
 	}
@@ -289,7 +328,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 	private static void MigrateShaderConfigJson(JsonObject itemObj)
 	{
 		if (!itemObj.TryGetPropertyValue("ConfigJson", out var configJsonNode) || configJsonNode == null) return;
-		
+
 		string configJsonStr = configJsonNode.ToString();
 		if (!string.IsNullOrWhiteSpace(configJsonStr))
 		{
@@ -305,8 +344,11 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 					}
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		}
+
 		itemObj.Remove("ConfigJson");
 	}
 
@@ -363,6 +405,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			CopyTerrainProfileProperties(profItem, targetTexObj);
 		}
+
 		metadataRoot.Remove("TerrainProfiles");
 	}
 
@@ -394,12 +437,14 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			NormalizeTexturePath(itemObj, kvp.Key, slug);
 			CleanHashAndAssetType(itemObj);
-			itemObj.Remove("rtex"); itemObj.Remove("texturePath");
+			itemObj.Remove("rtex");
+			itemObj.Remove("texturePath");
 
 			RenameTextureProperties(itemObj);
 			EnsureTextureDefaults(itemObj);
 			MergeOrAddNormalizedItem(normalizedTextures, normalizedId, itemObj);
 		}
+
 		metadataRoot["textures"] = normalizedTextures;
 	}
 
@@ -416,7 +461,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			if (itemObj[k]?.ToString() is string p && !string.IsNullOrEmpty(p)) return p;
 		}
-		
+
 		return rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex";
 	}
 
@@ -470,6 +515,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			itemObj["TexturePath"] = itemObj["TexturePath"]?.ToString() ?? (rawKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? rawKey : $"{slug}.rtex");
 			normalized[normalizedId] = itemObj;
 		}
+
 		metadataRoot[containerKey] = normalized;
 	}
 
@@ -483,10 +529,10 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			string slug = TemplateIDHelper.GenerateSlug(kvp.Key);
 			string normalizedId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 			var itemObj = kvp.Value as JsonObject ?? new JsonObject();
-			
+
 			itemObj["TexturePath"] = itemObj["TexturePath"]?.ToString() ?? itemObj["AssetType"]?.ToString() ?? (kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? kvp.Key : $"{slug}.rtex");
 			CleanHashAndAssetType(itemObj);
-			
+
 			RenameProperty(itemObj, "Columns", "columns");
 			RenameProperty(itemObj, "Rows", "rows");
 			RenameProperty(itemObj, "Fps", "fps");
@@ -494,6 +540,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 
 			MergeOrAddNormalizedItem(normalizedSpritesheets, normalizedId, itemObj);
 		}
+
 		metadataRoot["vfx_spritesheets"] = normalizedSpritesheets;
 	}
 
@@ -511,6 +558,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			CleanHashAndAssetType(itemObj);
 			MergeOrAddNormalizedItem(normalizedModels, targetKey, itemObj);
 		}
+
 		metadataRoot["Models"] = normalizedModels;
 	}
 
@@ -525,6 +573,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				ProcessTemplateArray(arr, modelToTemplateId);
 			}
 		}
+
 		return modelToTemplateId;
 	}
 
@@ -534,7 +583,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			string tId = item["TemplateID"]?.ToString() ?? "";
 			if (string.IsNullOrEmpty(tId)) continue;
-			
+
 			modelToTemplateId[TemplateIDHelper.GenerateSlug(tId)] = tId;
 			string mPath = item["ModelPath"]?.ToString() ?? "";
 			if (!string.IsNullOrEmpty(mPath))
@@ -604,6 +653,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				glbObj.Remove(oldKey);
 			}
 		}
+
 		if (glbObj.Count == 0) assetsObj.Remove("glb");
 	}
 
@@ -636,10 +686,10 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			string cleanKey = DetermineCleanAssetKey(assetPair.Key, categoryName);
 			if (string.Equals(assetPair.Key, cleanKey, StringComparison.OrdinalIgnoreCase) || assetPair.Value == null) continue;
-			
+
 			renamedKeys.Add((assetPair.Key, cleanKey, assetPair.Value.DeepClone()));
 		}
-		
+
 		foreach (var (oldK, newK, v) in renamedKeys)
 		{
 			categoryObj.Remove(oldK);
@@ -666,6 +716,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			};
 			cleanKey += defaultExt;
 		}
+
 		return cleanKey;
 	}
 
@@ -745,23 +796,49 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 	private static void RegisterInLookup(Dictionary<string, string> lookup, Dictionary<string, string> allLookup, string templateId, string? name, string? modelPath, string? rawLegacyId)
 	{
 		if (string.IsNullOrWhiteSpace(templateId)) return;
-		lookup[templateId] = templateId; allLookup[templateId] = templateId;
+		lookup[templateId] = templateId;
+		allLookup[templateId] = templateId;
 
 		var (_, pSlug) = TemplateIDHelper.ParseTemplateID(templateId);
-		if (!string.IsNullOrEmpty(pSlug)) { lookup[pSlug] = templateId; allLookup[pSlug] = templateId; }
-		if (!string.IsNullOrWhiteSpace(rawLegacyId)) { lookup[rawLegacyId] = templateId; allLookup[rawLegacyId] = templateId; string ls = TemplateIDHelper.GenerateSlug(rawLegacyId); lookup[ls] = templateId; allLookup[ls] = templateId; }
-		if (!string.IsNullOrWhiteSpace(name)) { lookup[name] = templateId; allLookup[name] = templateId; string ns = TemplateIDHelper.GenerateSlug(name); lookup[ns] = templateId; allLookup[ns] = templateId; }
+		if (!string.IsNullOrEmpty(pSlug))
+		{
+			lookup[pSlug] = templateId;
+			allLookup[pSlug] = templateId;
+		}
+
+		if (!string.IsNullOrWhiteSpace(rawLegacyId))
+		{
+			lookup[rawLegacyId] = templateId;
+			allLookup[rawLegacyId] = templateId;
+			string ls = TemplateIDHelper.GenerateSlug(rawLegacyId);
+			lookup[ls] = templateId;
+			allLookup[ls] = templateId;
+		}
+
+		if (!string.IsNullOrWhiteSpace(name))
+		{
+			lookup[name] = templateId;
+			allLookup[name] = templateId;
+			string ns = TemplateIDHelper.GenerateSlug(name);
+			lookup[ns] = templateId;
+			allLookup[ns] = templateId;
+		}
+
 		if (!string.IsNullOrWhiteSpace(modelPath))
 		{
 			string[] keys = { modelPath, Path.GetFileName(modelPath), Path.GetFileNameWithoutExtension(modelPath), TemplateIDHelper.GenerateSlug(modelPath) };
-			foreach(var k in keys) { lookup[k] = templateId; allLookup[k] = templateId; }
+			foreach (var k in keys)
+			{
+				lookup[k] = templateId;
+				allLookup[k] = templateId;
+			}
 		}
 	}
 
 	private static void MigrateTerrainCategory(JsonObject terrainRoot, string categoryKey, string objectType, Dictionary<string, string> primaryLookup, Dictionary<string, string>? secondaryLookup, Dictionary<string, string>? allLookup, params string[] oldKeys)
 	{
 		if (!terrainRoot.TryGetPropertyValue(categoryKey, out var arrNode) || arrNode is not JsonArray arr) return;
-		
+
 		foreach (var node in arr.OfType<JsonObject>())
 		{
 			string rawId = ExtractTerrainId(node, oldKeys);
@@ -773,14 +850,14 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 	private static string ExtractTerrainId(JsonObject node, string[] oldKeys)
 	{
 		string rawId = node["TemplateId"]?.ToString() ?? "";
-		
+
 		rawId = ExtractFromOldKeys(node, oldKeys, rawId);
-		
+
 		if (string.IsNullOrEmpty(rawId)) rawId = node["TemplateID"]?.ToString() ?? "";
 		node.Remove("TemplateID");
 		return rawId;
 	}
-	
+
 	private static string ExtractFromOldKeys(JsonObject node, string[] oldKeys, string rawId)
 	{
 		foreach (var k in oldKeys)
@@ -788,6 +865,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 			if (string.IsNullOrEmpty(rawId) && node.TryGetPropertyValue(k, out var val)) rawId = val?.ToString() ?? "";
 			node.Remove(k);
 		}
+
 		return rawId;
 	}
 
@@ -802,7 +880,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		string rawSlug = TemplateIDHelper.GenerateSlug(rawId);
 		string matchedSlug = CheckPrimaryOrAllDictionaries(rawSlug, primary, all);
 		if (!string.IsNullOrEmpty(matchedSlug)) return matchedSlug;
-		
+
 		return TemplateIDHelper.NormalizeTemplateID(objectType, rawId);
 	}
 
@@ -812,6 +890,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			if (d != null && d.TryGetValue(key, out var matched)) return matched;
 		}
+
 		return string.Empty;
 	}
 
@@ -821,6 +900,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		if (all != null && all.TryGetValue(key, out var matchedAll)) return matchedAll;
 		return string.Empty;
 	}
+
 	public Task<MigrationResult> UpAsync(string mapDirectory, IProgress<MigrationProgressUpdate>? progress = null)
 	{
 		return Task.Run(() => Up(mapDirectory, progress));
@@ -863,7 +943,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		return new[] { "Units", "Buildings", "Resources", "Props" }
 			.Where(cat => templatesObj.ContainsKey(cat) && templatesObj[cat] is JsonArray)
 			.SelectMany(cat => templatesObj[cat]!.AsArray().OfType<JsonObject>())
-			.Any(item => 
+			.Any(item =>
 				string.Equals(item["ModelPath"]?.ToString(), fileName, StringComparison.OrdinalIgnoreCase) ||
 				string.Equals(TemplateIDHelper.GenerateSlug(item["ModelPath"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase) ||
 				string.Equals(TemplateIDHelper.GenerateSlug(item["TemplateID"]?.ToString() ?? ""), slug, StringComparison.OrdinalIgnoreCase));
@@ -935,6 +1015,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			templatesObj[key] = new JsonArray();
 		}
+
 		return (JsonArray)templatesObj[key]!;
 	}
 
@@ -1041,6 +1122,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			parent[key] = new JsonObject();
 		}
+
 		return (JsonObject)parent[key]!;
 	}
 
@@ -1053,6 +1135,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -1083,6 +1166,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			metadataRoot["textures"] = new JsonObject();
 		}
+
 		var texturesObj = metadataRoot["textures"]!.AsObject();
 		bool exists = texturesObj.Any(kvp =>
 			string.Equals(kvp.Key, terrainTemplateId, StringComparison.OrdinalIgnoreCase) ||
@@ -1114,6 +1198,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			metadataRoot["vfx_spritesheets"] = new JsonObject();
 		}
+
 		var vfxObj = metadataRoot["vfx_spritesheets"]!.AsObject();
 		bool exists = vfxObj.Any(kvp =>
 			string.Equals(kvp.Key, spritesheetTemplateId, StringComparison.OrdinalIgnoreCase) ||
@@ -1140,6 +1225,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			metadataRoot["icons"] = new JsonObject();
 		}
+
 		var iconsObj = metadataRoot["icons"]!.AsObject();
 		bool exists = iconsObj.Any(kvp => string.Equals(kvp.Key, iconTemplateId, StringComparison.OrdinalIgnoreCase));
 		if (!exists)
@@ -1158,6 +1244,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			metadataRoot["gdshader"] = new JsonObject();
 		}
+
 		var shaderObj = metadataRoot["gdshader"]!.AsObject();
 		bool exists = shaderObj.Any(kvp => string.Equals(kvp.Key, shaderTemplateId, StringComparison.OrdinalIgnoreCase));
 		if (!exists)
@@ -1175,6 +1262,7 @@ public class Migration_0_0_4_TemplateIDPrefixes : IMapMigration
 		{
 			targetContainer[targetCategory] = new JsonObject();
 		}
+
 		var categoryTarget = targetContainer[targetCategory]!.AsObject();
 
 		foreach (var pair in sourceObject)

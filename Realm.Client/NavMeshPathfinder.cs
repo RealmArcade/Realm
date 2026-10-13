@@ -1,9 +1,10 @@
+using System;
+using System.Numerics;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using System;
-using System.Numerics;
+using WaypointBuffer = Realm.Ecs.Components.Movement.WaypointBuffer;
 
 namespace Realm.Client
 {
@@ -70,6 +71,7 @@ namespace Realm.Client
 				// so they can find a path back onto the walkable area instead of becoming paralyzed.
 				query.FindNearestPoly(startPos, new RcVec3f(10f, 10f, 10f), _filter, out startRef, out startPt, out _);
 			}
+
 			return startRef != 0;
 		}
 
@@ -98,7 +100,7 @@ namespace Realm.Client
 		{
 			finalEndPt = endPt;
 			query.FindPath(startRef, endRef, startPt, endPt, _filter, _pathCorridorBuffer, out int corridorCount, _pathCorridorBuffer.Length);
-		
+
 			// If pathing fails due to disconnected islands (e.g. clicking a mountain peak),
 			// try to path to the ground base directly underneath the target.
 			if (corridorCount == 0 && isGround)
@@ -118,12 +120,13 @@ namespace Realm.Client
 		private void PopulateWaypoints(DtNavMeshQuery query, RcVec3f startPt, RcVec3f endPt, int corridorCount, ref PathFollow pf)
 		{
 			query.FindStraightPath(startPt, endPt, _pathCorridorBuffer, corridorCount, _straightPathBuffer, out int straightPathCount, _straightPathBuffer.Length, 0);
-			pf.WaypointCount = Math.Min(straightPathCount, Realm.Ecs.Components.Movement.WaypointBuffer.Length);
+			pf.WaypointCount = Math.Min(straightPathCount, WaypointBuffer.Length);
 			pf.CurrentWaypointIndex = 0;
 			for (int i = 0; i < pf.WaypointCount; i++)
 			{
 				pf.Waypoints[i] = new Vector3(_straightPathBuffer[i].pos.X, _straightPathBuffer[i].pos.Y, _straightPathBuffer[i].pos.Z);
 			}
+
 			pf.HasValidCorridor = pf.WaypointCount > 0;
 		}
 	}

@@ -1,14 +1,26 @@
-using Godot;
-using Realm.Client.ReplaySystem;
-using Realm.Shared;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Client.Network;
+using Realm.Client.ReplaySystem;
+using Realm.Shared;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class ReplayListPanel : Control
 {
+	public ReplayListPanel()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
 	private VBoxContainer _listContainer;
 	private Button _backBtn;
 	private Button _deleteAllBtn;
@@ -61,7 +73,7 @@ public partial class ReplayListPanel : Control
 		_backBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_backBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_backBtn.AddThemeConstantOverride("icon_max_width", 0);
-		_backBtn.MouseFilter = Control.MouseFilterEnum.Stop;
+		_backBtn.MouseFilter = MouseFilterEnum.Stop;
 
 		UIStyle.ApplyButtonText(_deleteAllBtn, "DELETE ALL", 14);
 		_deleteAllBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -94,7 +106,7 @@ public partial class ReplayListPanel : Control
 			panelTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/replays_panel.png");
 			panelTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			panelTexture.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			panelTexture.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			panelTexture.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 
 		var listFrame = GetNodeOrNull<PanelContainer>("CenterContainer/MainFrame/ContentMargin/VBox/ListFrame")
@@ -199,6 +211,7 @@ public partial class ReplayListPanel : Control
 				addedCount++;
 			}
 		}
+
 		return addedCount;
 	}
 
@@ -271,6 +284,7 @@ public partial class ReplayListPanel : Control
 			foreach (var p in header.Players) names.Add(p.Name);
 			playersStr = string.Join(" vs ", names);
 		}
+
 		metaLabel.Text = $"{dt:yyyy-MM-dd HH:mm}  |  {durationStr}  |  {playersStr}";
 		metaLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
 		metaLabel.AddThemeFontSizeOverride("font_size", 12);
@@ -285,7 +299,7 @@ public partial class ReplayListPanel : Control
 		playBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		playBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		playBtn.AddThemeConstantOverride("icon_max_width", 0);
-		
+
 		playBtn.Pressed += () => OnPlayReplayPressed(path);
 		playBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
 		hBox.AddChild(playBtn);
@@ -338,11 +352,11 @@ public partial class ReplayListPanel : Control
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
-		bool versionExistsLocally = System.IO.File.Exists(Network.LobbyManager.GetVersionExecutablePath(replayVersion));
+		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(replayVersion));
 
 		var descLabel = new Label();
-		string promptText = versionExistsLocally 
-			? Tr("The running game version doesn't match the replay file. Re-launch game with correct version?") 
+		string promptText = versionExistsLocally
+			? Tr("The running game version doesn't match the replay file. Re-launch game with correct version?")
 			: Tr("The required game version is not installed. Download it?");
 		descLabel.Text = $"{string.Format(Tr("Replay Version: {0}"), replayVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -351,7 +365,7 @@ public partial class ReplayListPanel : Control
 		vbox.AddChild(descLabel);
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-		
+
 		var hBox = new HBoxContainer();
 		hBox.Alignment = BoxContainer.AlignmentMode.Center;
 		hBox.AddThemeConstantOverride("separation", 20);
@@ -386,11 +400,11 @@ public partial class ReplayListPanel : Control
 		{
 			UIManager.Instance?.PlayClickSound();
 			warningPopup.QueueFree();
-			
+
 			if (versionExistsLocally)
 			{
-				string targetExe = Network.LobbyManager.GetVersionExecutablePath(replayVersion);
-				OS.CreateProcess(targetExe, new string[] {});
+				string targetExe = LobbyManager.GetVersionExecutablePath(replayVersion);
+				OS.CreateProcess(targetExe, new string[] { });
 				GetTree().Quit();
 			}
 			else
@@ -416,15 +430,17 @@ public partial class ReplayListPanel : Control
 		bool ok = ReplayPlaybackManager.Instance.LoadReplay(path);
 		if (ok)
 		{
-			if (Network.LobbyManager.Instance != null)
+			if (LobbyManager.Instance != null)
 			{
 				if (ReplayPlaybackManager.Instance.Header != null)
 				{
-					Network.LobbyManager.Instance.ActiveMapName = ReplayPlaybackManager.Instance.Header.MapName ?? "melee";
+					LobbyManager.Instance.ActiveMapName = ReplayPlaybackManager.Instance.Header.MapName ?? "melee";
 				}
-				Network.LobbyManager.Instance.IsGameStarted = true;
+
+				LobbyManager.Instance.IsGameStarted = true;
 			}
-			GetTree().ChangeSceneToFile("res://Main.tscn");
+
+			GetTree().ChangeSceneToFile("res://GameHostView.tscn");
 		}
 		else
 		{
@@ -447,6 +463,7 @@ public partial class ReplayListPanel : Control
 			{
 				GD.PrintErr($"[ReplayListPanel] Failed to delete replay file '{path}': {ex}");
 			}
+
 			PopulateReplaysList();
 		});
 	}
@@ -474,6 +491,7 @@ public partial class ReplayListPanel : Control
 					}
 				}
 			}
+
 			PopulateReplaysList();
 		});
 	}

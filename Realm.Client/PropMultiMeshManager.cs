@@ -1,8 +1,15 @@
-using Godot;
-using Realm.Ecs.Components.Core;
-using Realm.Ecs.Components.Meta;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Arch.Core;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.Services.ModelOptimization;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
@@ -10,43 +17,6 @@ public partial class PropMultiMeshManager : Node3D
 {
 	public static PropMultiMeshManager Instance { get; private set; }
 
-	private struct PropData
-	{
-		public string PropId;
-		public Vector3 Position;
-		public float RotationY;
-		public float Scale;
-	}
-
-	private class MeshSubInfo
-	{
-		public Mesh Mesh;
-		public Transform3D RelativeTransform;
-		public Material[] SurfaceMaterials;
-		public Material MaterialOverride;
-		public GeometryInstance3D.ShadowCastingSetting CastShadow = GeometryInstance3D.ShadowCastingSetting.On;
-		public float VisibilityRangeBegin = 0f;
-		public float VisibilityRangeEnd = 0f;
-		public float VisibilityRangeBeginMargin = 2.0f;
-		public float VisibilityRangeEndMargin = 2.0f;
-		public GeometryInstance3D.VisibilityRangeFadeModeEnum VisibilityRangeFadeMode = GeometryInstance3D.VisibilityRangeFadeModeEnum.Disabled;
-	}
-
-	private class PropChunkGroup
-	{
-		public Vector2I ChunkIndex;
-		public Aabb Bounds;
-		public List<MultiMeshInstance3D> MultiMeshNodes = new();
-		public int LastInstanceCount = -1;
-		public ulong LastDataHash = 0;
-	}
-
-	private class PropModelGroup
-	{
-		public string AssetKey;
-		public List<MeshSubInfo> SubMeshes = new();
-		public Dictionary<Vector2I, PropChunkGroup> ChunkGroups = new();
-	}
 
 	private static readonly StringName _snModelBrightness = new("model_brightness");
 	private static readonly StringName _snModelColorTint = new("model_color_tint");
@@ -79,7 +49,7 @@ public partial class PropMultiMeshManager : Node3D
 	public void MarkDirty(string assetKeyOrPropId)
 	{
 		if (string.IsNullOrEmpty(assetKeyOrPropId)) return;
-		string normKey = Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.GetModelAssetKey(assetKeyOrPropId) : assetKeyOrPropId.ToLowerInvariant();
+		string normKey = GameHost.Instance != null ? GameHost.Instance.GetModelAssetKey(assetKeyOrPropId) : assetKeyOrPropId.ToLowerInvariant();
 		if (!string.IsNullOrEmpty(normKey))
 		{
 			_dirtyAssetKeys.Add(normKey);
@@ -108,6 +78,7 @@ public partial class PropMultiMeshManager : Node3D
 				}
 			}
 		}
+
 		_groups.Clear();
 	}
 
@@ -125,6 +96,7 @@ public partial class PropMultiMeshManager : Node3D
 			{
 				RebuildGroupInternal(key);
 			}
+
 			_dirtyAssetKeys.Clear();
 		}
 	}
@@ -153,7 +125,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void RebuildAllInternal()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
+		if (GameHost.Instance == null) return;
 		_reusableKeysToRebuild.Clear();
 
 		CollectReusableKeysFromEcs();
@@ -168,11 +140,11 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void CollectReusableKeysFromEcs()
 	{
-		if (Realm.Client.Core.GameHost.Instance.EcsWorld == null) return;
-		var query = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
-		Realm.Client.Core.GameHost.Instance.EcsWorld.Query(in query, (ref PropIdentity propIdComp) =>
+		if (GameContext.World == null) return;
+		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		GameContext.World.Query(in query, (ref PropIdentity propIdComp) =>
 		{
-			string key = Realm.Client.Core.GameHost.Instance.GetModelAssetKey(propIdComp.PropId);
+			string key = GameHost.Instance.GetModelAssetKey(propIdComp.PropId);
 			if (!string.IsNullOrEmpty(key))
 			{
 				_reusableKeysToRebuild.Add(key);
@@ -182,11 +154,11 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void CollectReusableKeysFromProps()
 	{
-		foreach (var prop in Realm.Client.Core.GameHost.Instance.AllProps)
+		foreach (var prop in GameHost.Instance.AllProps)
 		{
 			if (!GodotObject.IsInstanceValid(prop) || prop.IsPreview || prop.GetNodeOrNull<Node3D>("VisualModel") != null) continue;
-			
-			string key = Realm.Client.Core.GameHost.Instance.GetModelAssetKey(prop);
+
+			string key = GameHost.Instance.GetModelAssetKey(prop);
 			if (!string.IsNullOrEmpty(key))
 			{
 				_reusableKeysToRebuild.Add(key);
@@ -204,7 +176,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void RebuildGroupInternal(string normAssetKey)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || string.IsNullOrEmpty(normAssetKey)) return;
+		if (GameHost.Instance == null || string.IsNullOrEmpty(normAssetKey)) return;
 
 		_reusableMatchingPropsData.Clear();
 		CollectMatchingPropsFromEcs(normAssetKey);
@@ -226,18 +198,18 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void CollectMatchingPropsFromEcs(string normAssetKey)
 	{
-		if (Realm.Client.Core.GameHost.Instance.EcsWorld == null) return;
+		if (GameContext.World == null) return;
 
-		var query = Realm.Ecs.Common.QueryCache.AllPropIdentityAndPositionQuery;
-		Realm.Client.Core.GameHost.Instance.EcsWorld.Query(in query, (Arch.Core.Entity entity, ref PropIdentity propIdComp, ref Position posComp) =>
+		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		GameContext.World.Query(in query, (Entity entity, ref PropIdentity propIdComp, ref Position posComp) =>
 		{
-			if (Realm.Client.Core.GameHost.EntityToProp3D.ContainsKey(entity)) return;
+			if (GameHost.EntityToProp3D.ContainsKey(entity)) return;
 
-			string key = Realm.Client.Core.GameHost.Instance.GetModelAssetKey(propIdComp.PropId);
+			string key = GameHost.Instance.GetModelAssetKey(propIdComp.PropId);
 			if (key != normAssetKey) return;
 
-			float rotY = Realm.Client.Core.GameHost.Instance.EcsWorld.Has<RotationY>(entity) ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<RotationY>(entity).Value : 0f;
-			float scale = Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ModelScale>(entity) ? Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ModelScale>(entity).Value : 1f;
+			float rotY = GameContext.World.Has<RotationY>(entity) ? GameContext.World.Get<RotationY>(entity).Value : 0f;
+			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
 
 			_reusableMatchingPropsData.Add(new PropData
 			{
@@ -251,10 +223,10 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void CollectMatchingPropsFromNodes(string normAssetKey)
 	{
-		foreach (var prop in Realm.Client.Core.GameHost.Instance.AllProps)
+		foreach (var prop in GameHost.Instance.AllProps)
 		{
 			if (!GodotObject.IsInstanceValid(prop) || prop.IsPreview || !prop.Visible || prop.GetNodeOrNull<Node3D>("VisualModel") != null) continue;
-			if (Realm.Client.Core.GameHost.Instance.GetModelAssetKey(prop) != normAssetKey) continue;
+			if (GameHost.Instance.GetModelAssetKey(prop) != normAssetKey) continue;
 
 			_reusableMatchingPropsData.Add(new PropData
 			{
@@ -271,13 +243,14 @@ public partial class PropMultiMeshManager : Node3D
 		float quadSize = 1.0f;
 		float halfW = 64.0f;
 		float halfD = 64.0f;
-		var terrain = Realm.Client.Core.GameHost.Instance.GroundTerrain;
+		var terrain = GameHost.Instance.GroundTerrain;
 		if (terrain != null)
 		{
 			quadSize = terrain.QuadSize;
 			halfW = (terrain.Width / 2.0f) * quadSize;
 			halfD = (terrain.Depth / 2.0f) * quadSize;
 		}
+
 		float chunkSizeUnits = 16.0f * quadSize;
 
 		foreach (var bucket in _reusableChunkBucketsData.Values)
@@ -297,6 +270,7 @@ public partial class PropMultiMeshManager : Node3D
 				list = new List<PropData>();
 				_reusableChunkBucketsData[cKey] = list;
 			}
+
 			list.Add(prop);
 		}
 	}
@@ -316,6 +290,7 @@ public partial class PropMultiMeshManager : Node3D
 				{
 					mmNode.Multimesh.VisibleInstanceCount = 0;
 				}
+
 				mmNode.CustomAabb = new Aabb();
 			}
 		}
@@ -323,8 +298,8 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void RebuildActiveChunkGroups(PropModelGroup group, string normAssetKey)
 	{
-		float yOffset = Realm.Client.Core.GameHost.Instance.GetModelYOffset(normAssetKey);
-		float globalModelScale = Realm.Client.Core.GameHost.Instance.GetModelScale(normAssetKey);
+		float yOffset = GameHost.Instance.GetModelYOffset(normAssetKey);
+		float globalModelScale = GameHost.Instance.GetModelScale(normAssetKey);
 
 		foreach (var kvp in _reusableChunkBucketsData)
 		{
@@ -370,6 +345,7 @@ public partial class PropMultiMeshManager : Node3D
 			dataHash ^= (ulong)prop.Scale.GetHashCode();
 			dataHash *= 1099511628211UL;
 		}
+
 		dataHash ^= (ulong)yOffset.GetHashCode();
 		dataHash *= 1099511628211UL;
 		dataHash ^= (ulong)globalModelScale.GetHashCode();
@@ -388,6 +364,7 @@ public partial class PropMultiMeshManager : Node3D
 				return false;
 			}
 		}
+
 		return true;
 	}
 
@@ -444,6 +421,7 @@ public partial class PropMultiMeshManager : Node3D
 			Vector3 fallbackPos = chunkProps.Count > 0 ? chunkProps[0].Position : Vector3.Zero;
 			totalAabb = new Aabb(fallbackPos - new Vector3(4f, 4f, 4f), new Vector3(8f, 8f, 8f));
 		}
+
 		chunkGroup.Bounds = totalAabb.Grow(2.0f);
 	}
 
@@ -506,6 +484,7 @@ public partial class PropMultiMeshManager : Node3D
 				InstanceCount = Math.Max(instanceCount + 16, 16)
 			};
 		}
+
 		node.Multimesh.VisibleInstanceCount = instanceCount;
 	}
 
@@ -532,6 +511,7 @@ public partial class PropMultiMeshManager : Node3D
 			{
 				extraNode.Multimesh.VisibleInstanceCount = 0;
 			}
+
 			extraNode.CustomAabb = new Aabb();
 			extraNode.Visible = false;
 		}
@@ -541,12 +521,12 @@ public partial class PropMultiMeshManager : Node3D
 	{
 		string modelPath = ResolveModelPathForAssetKey(normAssetKey);
 		if (string.IsNullOrEmpty(modelPath)) return null;
-		Node prototype = Realm.Client.Utils.ModelCache.GetModel(modelPath);
+		Node prototype = ModelCache.GetModel(modelPath);
 		if (prototype == null) return null;
 
-		float globalModelScale = Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.GetModelScale(normAssetKey) : 1.0f;
+		float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(normAssetKey) : 1.0f;
 		float scaleMultiplier = Math.Max(0.01f, globalModelScale);
-		Realm.Client.Services.ModelOptimization.GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(prototype, scaleMultiplier);
+		GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(prototype, scaleMultiplier);
 
 		var meshNodes = new List<MeshInstance3D>();
 		FindMeshInstancesRecursive(prototype, meshNodes);
@@ -619,7 +599,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	public void UpdateAllMaterialOverrides()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || _groups.Count == 0) return;
+		if (GameHost.Instance == null || _groups.Count == 0) return;
 
 		foreach (var group in _groups.Values)
 		{
@@ -630,7 +610,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	public void UpdateMaterialOverridesForAsset(string normAssetKey)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
+		if (GameHost.Instance == null) return;
 
 		foreach (var group in _groups.Values)
 		{
@@ -644,17 +624,17 @@ public partial class PropMultiMeshManager : Node3D
 	private static bool IsGroupMatchingAssetKey(PropModelGroup group, string normAssetKey)
 	{
 		if (string.Equals(group.AssetKey, normAssetKey, StringComparison.OrdinalIgnoreCase)) return true;
-		if (string.Equals(Realm.Client.Core.GameHost.Instance.NormalizeModelAssetKey(group.AssetKey), Realm.Client.Core.GameHost.Instance.NormalizeModelAssetKey(normAssetKey), StringComparison.OrdinalIgnoreCase)) return true;
-		if (Realm.Client.Core.GameHost.Instance.MatchesEntityOrAssetKey(group.AssetKey, normAssetKey)) return true;
+		if (string.Equals(GameContext.EditorService.NormalizeModelAssetKey(group.AssetKey), GameContext.EditorService.NormalizeModelAssetKey(normAssetKey), StringComparison.OrdinalIgnoreCase)) return true;
+		if (GameHost.Instance.MatchesEntityOrAssetKey(group.AssetKey, normAssetKey)) return true;
 		return false;
 	}
 
 	private void UpdateGroupMaterialOverrides(PropModelGroup group)
 	{
-		float brightness = Realm.Client.Core.GameHost.Instance.GetModelBrightness(group.AssetKey);
-		Color tint = Realm.Client.Core.GameHost.Instance.GetModelColorTint(group.AssetKey);
-		bool ignorePlayerColor = Realm.Client.Core.GameHost.Instance.GetModelIgnorePlayerColor(group.AssetKey);
-		bool normalizeLuminance = Realm.Client.Core.GameHost.Instance.GetModelNormalizeLuminance(group.AssetKey);
+		float brightness = GameHost.Instance.GetModelBrightness(group.AssetKey);
+		Color tint = GameHost.Instance.GetModelColorTint(group.AssetKey);
+		bool ignorePlayerColor = GameHost.Instance.GetModelIgnorePlayerColor(group.AssetKey);
+		bool normalizeLuminance = GameHost.Instance.GetModelNormalizeLuminance(group.AssetKey);
 
 		foreach (var chunkGroup in group.ChunkGroups.Values)
 		{
@@ -689,7 +669,7 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void ApplyShaderMaterial(MultiMeshInstance3D mmNode, Material baseMatToUse, float brightness, Color tint, bool ignorePlayerColor, bool normalizeLuminance)
 	{
-		var shaderMat = Realm.Client.Utils.ModelShaderManager.GetOrCreateShaderMaterial(baseMatToUse, normalizeLuminance);
+		var shaderMat = ModelShaderManager.GetOrCreateShaderMaterial(baseMatToUse, normalizeLuminance);
 		mmNode.MaterialOverride = shaderMat;
 		mmNode.SetInstanceShaderParameter(_snModelBrightness, brightness);
 		mmNode.SetInstanceShaderParameter(_snModelColorTint, tint);
@@ -709,8 +689,10 @@ public partial class PropMultiMeshManager : Node3D
 			{
 				xform = n3d.Transform * xform;
 			}
+
 			curr = curr.GetParent();
 		}
+
 		return xform;
 	}
 
@@ -721,6 +703,7 @@ public partial class PropMultiMeshManager : Node3D
 		{
 			result.Add(mi);
 		}
+
 		int childCount = parent.GetChildCount();
 		for (int i = 0; i < childCount; i++)
 		{
@@ -733,14 +716,14 @@ public partial class PropMultiMeshManager : Node3D
 		if (string.IsNullOrEmpty(normAssetKey))
 			return string.Empty;
 
-		string cleanId = System.IO.Path.GetFileNameWithoutExtension(normAssetKey);
+		string cleanId = Path.GetFileNameWithoutExtension(normAssetKey);
 		string targetModel = GetModelPathFromRegistries(normAssetKey, cleanId);
 
 		if (string.IsNullOrEmpty(targetModel))
 			return string.Empty;
 
-		string resolvedPath = Realm.Client.Utils.ModelCache.ResolveModelPath(targetModel);
-		if (!string.IsNullOrEmpty(resolvedPath) && (resolvedPath.StartsWith("res://") || System.IO.File.Exists(resolvedPath)))
+		string resolvedPath = ModelCache.ResolveModelPath(targetModel);
+		if (!string.IsNullOrEmpty(resolvedPath) && (resolvedPath.StartsWith("res://") || File.Exists(resolvedPath)))
 		{
 			return resolvedPath;
 		}
@@ -750,18 +733,18 @@ public partial class PropMultiMeshManager : Node3D
 
 	private static string GetModelPathFromRegistries(string normAssetKey, string cleanId)
 	{
-		if (Realm.Client.Core.GameHost.PropRegistry != null && TryGetModelPath(Realm.Client.Core.GameHost.PropRegistry, normAssetKey, cleanId, out string propPath)) return propPath;
-		if (Realm.Client.Core.GameHost.ResourceRegistry != null && TryGetModelPath(Realm.Client.Core.GameHost.ResourceRegistry, normAssetKey, cleanId, out string resPath)) return resPath;
-		if (Realm.Client.Core.GameHost.UnitRegistry != null && TryGetModelPath(Realm.Client.Core.GameHost.UnitRegistry, normAssetKey, cleanId, out string unitPath)) return unitPath;
-		if (Realm.Client.Core.GameHost.BuildingRegistry != null && TryGetModelPath(Realm.Client.Core.GameHost.BuildingRegistry, normAssetKey, cleanId, out string bldPath)) return bldPath;
+		if (GameHost.PropRegistry != null && TryGetModelPath(GameHost.PropRegistry, normAssetKey, cleanId, out string propPath)) return propPath;
+		if (GameHost.ResourceRegistry != null && TryGetModelPath(GameHost.ResourceRegistry, normAssetKey, cleanId, out string resPath)) return resPath;
+		if (GameHost.UnitRegistry != null && TryGetModelPath(GameHost.UnitRegistry, normAssetKey, cleanId, out string unitPath)) return unitPath;
+		if (GameHost.BuildingRegistry != null && TryGetModelPath(GameHost.BuildingRegistry, normAssetKey, cleanId, out string bldPath)) return bldPath;
 
 		return normAssetKey;
 	}
 
-	private static bool TryGetModelPath<T>(System.Collections.Generic.Dictionary<global::Godot.StringName, T> registry, string normAssetKey, string cleanId, out string modelPath)
+	private static bool TryGetModelPath<T>(Dictionary<StringName, T> registry, string normAssetKey, string cleanId, out string modelPath)
 	{
 		modelPath = null;
-		
+
 		if (registry.TryGetValue(normAssetKey, out var meta) && TryGetModelPathFromMeta(meta, out modelPath))
 		{
 			return true;
@@ -778,21 +761,24 @@ public partial class PropMultiMeshManager : Node3D
 	private static bool TryGetModelPathFromMeta(object meta, out string modelPath)
 	{
 		modelPath = null;
-		if (meta is Realm.Shared.Metadata.PropMetadata propMeta && !string.IsNullOrEmpty(propMeta.ModelPath))
+		if (meta is PropMetadata propMeta && !string.IsNullOrEmpty(propMeta.ModelPath))
 		{
 			modelPath = propMeta.ModelPath;
 			return true;
 		}
-		if (meta is Realm.Shared.Metadata.ResourceMetadata resMeta && !string.IsNullOrEmpty(resMeta.ModelPath))
+
+		if (meta is ResourceMetadata resMeta && !string.IsNullOrEmpty(resMeta.ModelPath))
 		{
 			modelPath = resMeta.ModelPath;
 			return true;
 		}
-		if (meta is Realm.Shared.Metadata.UnitMetadata unitMeta && !string.IsNullOrEmpty(unitMeta.ModelPath))
+
+		if (meta is UnitMetadata unitMeta && !string.IsNullOrEmpty(unitMeta.ModelPath))
 		{
 			modelPath = unitMeta.ModelPath;
 			return true;
 		}
+
 		return false;
 	}
 }

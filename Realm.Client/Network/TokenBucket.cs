@@ -31,6 +31,7 @@ public class TokenBucket
 					_tokens -= amount;
 					return;
 				}
+
 				double needed = amount - _tokens;
 				double sleepSecs = needed / _fillRatePerSecond;
 				int sleepMs = Math.Max(1, (int)(sleepSecs * 1000));

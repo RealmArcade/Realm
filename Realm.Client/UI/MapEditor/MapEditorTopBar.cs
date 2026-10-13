@@ -56,7 +56,7 @@ public class MapEditorTopBar
 		if (_feedbackLabel == null) return;
 		_feedbackLabel.Text = TranslationServer.Translate(text);
 		_feedbackLabel.Modulate = new Color(1, 1, 1, 1);
-		
+
 		var tween = _feedbackLabel.CreateTween();
 		tween.TweenProperty(_feedbackLabel, "modulate:a", 0.0f, 2.0f).SetDelay(1.5f);
 	}

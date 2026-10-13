@@ -16,4 +16,3 @@ public enum TerrainPathingFlags
 	Buildable = 1 << 5,
 	All = 0xFF,
 }
-

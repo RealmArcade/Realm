@@ -80,6 +80,7 @@ public static class AttributeStatCalculator
 		{
 			rawSpeed = MS_SOFT_CAP_1 + (rawSpeed - MS_SOFT_CAP_1) * 0.8f;
 		}
+
 		float movementSpeed = MathF.Max(0f, rawSpeed);
 
 		float abilityHaste = agi * AGI_CDR_HASTE_SCALE;
@@ -148,7 +149,7 @@ public static class AttributeStatCalculator
 		var attributes = world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity) : new UnitAttributes();
 		var baseStats = GetOrCreateUnitBaseStats(world, entity);
 		var derived = CalculateDerivedStats(in attributes, in baseStats, additionalAttackSpeedModifiers);
-		
+
 		world.SetOrAdd(entity, derived);
 
 		UpdateHealth(world, entity, in derived);
@@ -187,7 +188,7 @@ public static class AttributeStatCalculator
 		}
 
 		float bArmor = world.Has<Armor>(entity) ? world.Get<Armor>(entity).FlatArmor : 0f;
-		
+
 		float bDmg = 10f;
 		float bAtkCooldown = 1.5f;
 		float bCritChance = 0f;
@@ -220,7 +221,7 @@ public static class AttributeStatCalculator
 			BaseFlatArmorPenetration: bFlatPen
 		);
 		world.Add(entity, baseStats);
-		
+
 		return baseStats;
 	}
 
@@ -236,7 +237,7 @@ public static class AttributeStatCalculator
 		float oldCurrent = health.Current;
 		float newMax = derived.MaxHp;
 		float newCurrent = oldMax > 0f ? MathF.Min(newMax, oldCurrent * (newMax / oldMax)) : newMax;
-		
+
 		world.Set(entity, new Health(newCurrent, newMax, derived.HpRegen, health.HpRegenCombatDelay, health.TimeSinceLastDamage));
 	}
 

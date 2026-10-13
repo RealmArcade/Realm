@@ -36,6 +36,5 @@ public class MapInfoMetadata
 	public List<string>? Tags { get; set; }
 	public string? MapType { get; set; }
 
-	[JsonExtensionData]
-	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

@@ -16,9 +16,9 @@ public static class RealmVersion
 			assembly ??= typeof(RealmVersion).Assembly;
 
 			string? version = GetInformationalVersion(assembly)
-				?? GetAssemblyVersion(assembly)
-				?? GetFileVersion(assembly)
-				?? GetProductVersion(assembly);
+			                  ?? GetAssemblyVersion(assembly)
+			                  ?? GetFileVersion(assembly)
+			                  ?? GetProductVersion(assembly);
 
 			if (version != null)
 			{

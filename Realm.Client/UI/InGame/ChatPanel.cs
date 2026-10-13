@@ -1,5 +1,7 @@
-using Godot;
 using System;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
 
 namespace Realm.Client.UI.InGame;
 
@@ -13,11 +15,6 @@ public class ChatPanel
 	private HBoxContainer _inputRow;
 	private ChatMode _currentMode = ChatMode.Allies;
 
-	private enum ChatMode
-	{
-		AllPlayers,
-		Allies
-	}
 
 	public bool IsChatActive => _isChatActive;
 
@@ -53,6 +50,7 @@ public class ChatPanel
 		{
 			_inputRow.Visible = false;
 		}
+
 		_chatInput.Visible = false;
 
 		_chatInput.GuiInput += (ev) =>
@@ -93,6 +91,7 @@ public class ChatPanel
 				styleBox.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.25f);
 				styleBox.BorderColor = new Color(0.25f, 0.25f, 0.25f, 0.15f);
 			}
+
 			_chatPanelNode.AddThemeStyleboxOverride("panel", styleBox);
 		}
 
@@ -119,6 +118,7 @@ public class ChatPanel
 		{
 			_inputRow.Visible = true;
 		}
+
 		_chatInput.Visible = true;
 		_chatInput.GrabFocus();
 	}
@@ -130,6 +130,7 @@ public class ChatPanel
 		{
 			_inputRow.Visible = false;
 		}
+
 		_chatInput.Visible = false;
 		_chatInput.ReleaseFocus();
 		_chatInput.Text = "";
@@ -174,11 +175,12 @@ public class ChatPanel
 
 	private bool IsMultiplayer()
 	{
-		if (Network.LobbyManager.Instance == null || Network.LobbyManager.Instance.IsSinglePlayer) return false;
+		if (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer) return false;
 		if (InGameHUD.Instance != null && (InGameHUD.Instance.Multiplayer.MultiplayerPeer == null || InGameHUD.Instance.Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer))
 		{
 			return false;
 		}
+
 		return true;
 	}
 
@@ -191,21 +193,22 @@ public class ChatPanel
 	private bool TryHandleCommand(string trimmedText)
 	{
 		if (!trimmedText.Equals("/pause", StringComparison.OrdinalIgnoreCase)) return false;
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			Realm.Client.Core.GameHost.Instance.TogglePauseRequest();
+			GameHost.Instance.TogglePauseRequest();
 		}
+
 		return true;
 	}
 
 	private void DispatchChatMessage(string trimmedText)
 	{
-		string sender = Network.LobbyManager.Instance?.LocalPlayer?.Name ?? "Player";
+		string sender = LobbyManager.Instance?.LocalPlayer?.Name ?? "Player";
 		bool alliesOnly = _currentMode == ChatMode.Allies;
 
-		if (Network.LobbyManager.Instance != null)
+		if (LobbyManager.Instance != null)
 		{
-			Network.LobbyManager.Instance.SendChatMessage(sender, trimmedText, alliesOnly);
+			LobbyManager.Instance.SendChatMessage(sender, trimmedText, alliesOnly);
 		}
 		else
 		{

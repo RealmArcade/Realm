@@ -1,5 +1,5 @@
-using Realm.Shared.Metadata;
 using System.Buffers.Binary;
+using Realm.Shared.Metadata;
 
 namespace Realm.Shared.ModelOptimization;
 
@@ -93,6 +93,7 @@ public class RmeshFile : RealmContainerFile
 				return glbBytes;
 			}
 		}
+
 		return payload;
 	}
 }

@@ -1,9 +1,9 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Utils;
 
@@ -156,7 +156,7 @@ public static class ProceduralAnimationManager
 			result[kvp.Key] = kvp.Value.Clone();
 		}
 
-		string wsPath = workspacePath ?? Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = workspacePath ?? MapWorkspaceService.GetActiveWorkspacePath();
 		try
 		{
 			var metadata = MapFileService.LoadMetadata(wsPath);
@@ -187,11 +187,13 @@ public static class ProceduralAnimationManager
 		{
 			return cfg;
 		}
+
 		string clean = Path.GetFileNameWithoutExtension(id);
 		if (all.TryGetValue(clean, out var cleanCfg))
 		{
 			return cleanCfg;
 		}
+
 		return null;
 	}
 
@@ -199,7 +201,7 @@ public static class ProceduralAnimationManager
 	{
 		if (config == null || string.IsNullOrWhiteSpace(config.Id)) return;
 
-		string wsPath = workspacePath ?? Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = workspacePath ?? MapWorkspaceService.GetActiveWorkspacePath();
 		try
 		{
 			var metadata = MapFileService.LoadMetadata(wsPath);
@@ -215,7 +217,7 @@ public static class ProceduralAnimationManager
 				metadata.CustomProceduralAnimations.Add(config);
 			}
 
-			MetadataService.Instance.SaveMetadata(wsPath, metadata);
+			GameContext.MetadataService.SaveMetadata(wsPath, metadata);
 		}
 		catch (Exception ex)
 		{
@@ -227,14 +229,14 @@ public static class ProceduralAnimationManager
 	{
 		if (string.IsNullOrWhiteSpace(id)) return;
 
-		string wsPath = workspacePath ?? Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = workspacePath ?? MapWorkspaceService.GetActiveWorkspacePath();
 		try
 		{
 			var metadata = MapFileService.LoadMetadata(wsPath);
 			if (metadata.CustomProceduralAnimations != null)
 			{
 				metadata.CustomProceduralAnimations.RemoveAll(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
-				MetadataService.Instance.SaveMetadata(wsPath, metadata);
+				GameContext.MetadataService.SaveMetadata(wsPath, metadata);
 			}
 		}
 		catch (Exception ex)

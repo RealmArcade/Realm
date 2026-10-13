@@ -1,7 +1,5 @@
 namespace Realm.Ecs.Common;
 
-using System;
-
 /// <summary>
 /// Specifies a tooltip description for a property, field, or parameter.
 /// </summary>

@@ -1,18 +1,19 @@
-using Arch.Core;
-using Godot;
-using Realm.Ecs.Common;
-using Realm.Ecs.Components.Terrain;
-using Realm.Ecs.Services;
-using Realm.Client.ReplaySystem;
 using System;
 using System.Collections.Generic;
+using Arch.Core;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.ReplaySystem;
+using Realm.Client.UI;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Combat;
+using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.Services;
 
 public class ShroudService
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
-	private World EcsWorld => _ecsWorldAccessor.Current;
 	private MeshInstance3D _shroudMeshInstance;
 	private ShaderMaterial _shroudMeshMaterial;
 	private float _shroudUpdateTimer;
@@ -20,23 +21,22 @@ public class ShroudService
 	private ImageTexture _shroudTexture;
 	private bool _isEditorShroudInitialized;
 
-	public ShroudService(WorldAccessor ecsWorldAccessor)
+	public ShroudService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
 	private Entity _cachedWorldEntity = Entity.Null;
 
 	private Entity FindWorldEntity()
 	{
-		if (_cachedWorldEntity != Entity.Null && EcsWorld.IsAlive(_cachedWorldEntity) && EcsWorld.Has<ShroudState>(_cachedWorldEntity))
+		if (_cachedWorldEntity != Entity.Null && GameContext.World.IsAlive(_cachedWorldEntity) && GameContext.World.Has<ShroudState>(_cachedWorldEntity))
 		{
 			return _cachedWorldEntity;
 		}
 
 		Entity worldEntity = Entity.Null;
 		var query = QueryCache.AllShroudStateQuery;
-		EcsWorld.Query(in query, (Entity entity) => worldEntity = entity);
+		GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
 		_cachedWorldEntity = worldEntity;
 		return _cachedWorldEntity;
 	}
@@ -46,16 +46,16 @@ public class ShroudService
 		get
 		{
 			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && EcsWorld.Has<ShroudState>(worldEntity))
-				return EcsWorld.Get<ShroudState>(worldEntity).ShroudGrid;
+			if (worldEntity != Entity.Null && GameContext.World.Has<ShroudState>(worldEntity))
+				return GameContext.World.Get<ShroudState>(worldEntity).ShroudGrid;
 			return new byte[32, 32];
 		}
 		set
 		{
 			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && EcsWorld.Has<ShroudState>(worldEntity))
+			if (worldEntity != Entity.Null && GameContext.World.Has<ShroudState>(worldEntity))
 			{
-				ref var state = ref EcsWorld.Get<ShroudState>(worldEntity);
+				ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
 				state.ShroudGrid = value;
 			}
 		}
@@ -66,8 +66,8 @@ public class ShroudService
 		get
 		{
 			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && EcsWorld.Has<ShroudState>(worldEntity))
-				return EcsWorld.Get<ShroudState>(worldEntity).ShroudType;
+			if (worldEntity != Entity.Null && GameContext.World.Has<ShroudState>(worldEntity))
+				return GameContext.World.Get<ShroudState>(worldEntity).ShroudType;
 			return "VisionShroud";
 		}
 	}
@@ -127,9 +127,9 @@ void fragment() {
 		_shroudMeshMaterial = shaderMaterial;
 	}
 
-	public void Tick(float delta, List<Realm.Client.Unit3D> allUnits, List<Realm.Client.Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
+	public void Tick(float delta, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
 		{
 			TickMapEditorMode(allUnits, allProps, allDecals);
 			return;
@@ -138,7 +138,7 @@ void fragment() {
 		TickGameplayMode(delta, allUnits, allProps, allDecals, spectatorPerspective, isPlayingReplay, isSpectator);
 	}
 
-	private void TickMapEditorMode(List<Realm.Client.Unit3D> allUnits, List<Realm.Client.Prop3D> allProps, List<Decal> allDecals)
+	private void TickMapEditorMode(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
 	{
 		if (GodotObject.IsInstanceValid(_shroudMeshInstance) && _shroudMeshInstance.Visible)
 		{
@@ -149,9 +149,9 @@ void fragment() {
 		SetVisible(allProps);
 		SetVisible(allDecals);
 
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+		if (GameHost.Instance?.GroundTerrain != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.SetShroudEnabled(false);
+			GameHost.Instance.GroundTerrain.SetShroudEnabled(false);
 			if (!_isEditorShroudInitialized)
 			{
 				InitializeEditorShroud();
@@ -177,6 +177,7 @@ void fragment() {
 		{
 			_shroudImage = Image.CreateEmpty(32, 32, false, Image.Format.Rf);
 		}
+
 		_shroudImage.Fill(new Color(0f, 0f, 0f, 1f));
 		if (_shroudTexture == null)
 		{
@@ -186,16 +187,17 @@ void fragment() {
 		{
 			_shroudTexture.Update(_shroudImage);
 		}
-		Realm.Client.Core.GameHost.Instance.GroundTerrain.SetShroudTexture(_shroudTexture);
-		Realm.Client.Utils.ModelShaderManager.SetShroudParameters(null, Vector2.Zero, Vector2.Zero, false);
+
+		GameHost.Instance.GroundTerrain.SetShroudTexture(_shroudTexture);
+		ModelShaderManager.SetShroudParameters(null, Vector2.Zero, Vector2.Zero, false);
 	}
 
-	private void TickGameplayMode(float delta, List<Realm.Client.Unit3D> allUnits, List<Realm.Client.Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
+	private void TickGameplayMode(float delta, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
 		_isEditorShroudInitialized = false;
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+		if (GameHost.Instance?.GroundTerrain != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.SetShroudEnabled(true);
+			GameHost.Instance.GroundTerrain.SetShroudEnabled(true);
 		}
 
 		if (GodotObject.IsInstanceValid(_shroudMeshInstance))
@@ -214,7 +216,7 @@ void fragment() {
 	private bool ShouldMeshBeVisible(int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
 		string shroudType = ShroudType;
-		bool shouldMeshBeVisible = !string.Equals(shroudType, "visible", StringComparison.OrdinalIgnoreCase) && !Realm.Client.EditableTerrain.IsMinimapRendering;
+		bool shouldMeshBeVisible = !string.Equals(shroudType, "visible", StringComparison.OrdinalIgnoreCase) && !EditableTerrain.IsMinimapRendering;
 
 		if (!shouldMeshBeVisible || !(isPlayingReplay || isSpectator))
 		{
@@ -232,11 +234,11 @@ void fragment() {
 
 	public void TriggerImmediateUpdate()
 	{
-		if (Realm.Client.Core.GameHost.Instance != null && !Realm.Client.Core.GameHost.Instance.IsMapEditorMode)
+		if (GameHost.Instance != null && !GameContext.EditorService.IsMapEditorMode)
 		{
-			int specPerspective = Realm.Client.Core.GameHost.Instance.SpectatorService?.GetSpectatorPerspective() ?? -1;
-			UpdateShroud(Realm.Client.Core.GameHost.Instance.AllUnits, Realm.Client.Core.GameHost.Instance.AllProps, Realm.Client.Core.GameHost.Instance.AllDecals, specPerspective, ReplayPlaybackManager.Instance.IsPlayingReplay, Network.LobbyManager.Instance != null && Network.LobbyManager.Instance.LocalPlayer != null && Network.LobbyManager.Instance.LocalPlayer.Team == "Spectator");
-			Realm.Client.UI.InGameHUD.Instance?.QueueMinimapRedraw();
+			int specPerspective = GameContext.SpectatorService?.GetSpectatorPerspective() ?? -1;
+			UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, specPerspective, ReplayPlaybackManager.Instance.IsPlayingReplay, LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator");
+			InGameHUD.Instance?.QueueMinimapRedraw();
 		}
 	}
 
@@ -248,17 +250,18 @@ void fragment() {
 			_shroudMeshInstance.QueueFree();
 			_shroudMeshInstance = null;
 		}
+
 		_shroudImage = null;
 		_shroudTexture = null;
 		_cachedWorldEntity = Entity.Null;
 	}
 
-	private void UpdateShroud(List<Realm.Client.Unit3D> allUnits, List<Realm.Client.Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
+	private void UpdateShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
+		if (GameHost.Instance == null) return;
 
-		float worldWidth = Realm.Client.Core.GameHost.Instance.GroundTerrain != null ? Realm.Client.Core.GameHost.Instance.GroundTerrain.Width * Realm.Client.Core.GameHost.Instance.GroundTerrain.QuadSize : 250f;
-		float worldDepth = Realm.Client.Core.GameHost.Instance.GroundTerrain != null ? Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth * Realm.Client.Core.GameHost.Instance.GroundTerrain.QuadSize : 250f;
+		float worldWidth = GameHost.Instance.GroundTerrain != null ? GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize : 250f;
+		float worldDepth = GameHost.Instance.GroundTerrain != null ? GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize : 250f;
 
 		if (isPlayingReplay || isSpectator)
 		{
@@ -277,7 +280,7 @@ void fragment() {
 		Update3DShroudMesh();
 	}
 
-	private void HandleReplayOrSpectatorShroud(List<Realm.Client.Unit3D> allUnits, List<Realm.Client.Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, float worldWidth, float worldDepth)
+	private void HandleReplayOrSpectatorShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, float worldWidth, float worldDepth)
 	{
 		int targetOwnerId = isPlayingReplay ? ReplayPlaybackManager.Instance.SpectatorPerspective : spectatorPerspective;
 		if (targetOwnerId == -1)
@@ -285,13 +288,13 @@ void fragment() {
 			SetAllVisible(allUnits, allProps, allDecals);
 			return;
 		}
-		
+
 		UpdateVisionGridForSpecificTeam(allUnits, targetOwnerId, worldWidth, worldDepth);
 		ApplyVisionGridToEntitiesForTargetTeam(allUnits, allProps, allDecals, targetOwnerId, worldWidth, worldDepth);
 		Update3DShroudMesh();
 	}
 
-	private void SetAllVisible(List<Realm.Client.Unit3D> allUnits, List<Realm.Client.Prop3D> allProps, List<Decal> allDecals)
+	private void SetAllVisible(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
 	{
 		ResetGridToState(ShroudState.Visible);
 		SetVisible(allUnits);
@@ -313,10 +316,11 @@ void fragment() {
 				}
 			}
 		}
+
 		ShroudGrid = shroudGrid;
 	}
 
-	private void UpdateVisionGridForTeam(List<Realm.Client.Unit3D> allUnits, float worldWidth, float worldDepth)
+	private void UpdateVisionGridForTeam(List<Unit3D> allUnits, float worldWidth, float worldDepth)
 	{
 		ResetGridToState(ShroudState.VisionShroud, ShroudState.Visible);
 		var shroudGrid = ShroudGrid;
@@ -330,7 +334,7 @@ void fragment() {
 		ShroudGrid = shroudGrid;
 	}
 
-	private void UpdateVisionGridForSpecificTeam(List<Realm.Client.Unit3D> allUnits, int targetOwnerId, float worldWidth, float worldDepth)
+	private void UpdateVisionGridForSpecificTeam(List<Unit3D> allUnits, int targetOwnerId, float worldWidth, float worldDepth)
 	{
 		ResetGridToState(ShroudState.VisionShroud, ShroudState.Visible);
 		var shroudGrid = ShroudGrid;
@@ -338,21 +342,21 @@ void fragment() {
 		foreach (var unit in allUnits)
 		{
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			if (Realm.Client.Core.GameHost.Instance.GetOwnerPeerId(unit.Entity) != targetOwnerId) continue;
+			if (GameHost.Instance.GetOwnerPeerId(unit.Entity) != targetOwnerId) continue;
 			RevealAreaInGrid(unit, shroudGrid, worldWidth, worldDepth);
 		}
 
 		ShroudGrid = shroudGrid;
 	}
 
-	private void RevealAreaInGrid(Realm.Client.Unit3D unit, byte[,] shroudGrid, float worldWidth, float worldDepth)
+	private void RevealAreaInGrid(Unit3D unit, byte[,] shroudGrid, float worldWidth, float worldDepth)
 	{
 		Vector3 pos = unit.GlobalPosition;
 		int gx = (int)Mathf.Clamp((pos.X / worldWidth + 0.5f) * 32, 0, 31);
 		int gz = (int)Mathf.Clamp((pos.Z / worldDepth + 0.5f) * 32, 0, 31);
 
-		float scanRadius = (EcsWorld.IsAlive(unit.Entity) && EcsWorld.Has<Realm.Ecs.Components.Combat.ScanRadius>(unit.Entity))
-			? EcsWorld.Get<Realm.Ecs.Components.Combat.ScanRadius>(unit.Entity).Value
+		float scanRadius = (GameContext.World.IsAlive(unit.Entity) && GameContext.World.Has<ScanRadius>(unit.Entity))
+			? GameContext.World.Get<ScanRadius>(unit.Entity).Value
 			: 15.0f;
 
 		int rGrid = (int)Math.Max(1, Math.Ceiling(scanRadius / (worldWidth / 32f)));
@@ -370,7 +374,7 @@ void fragment() {
 		}
 	}
 
-	private void ApplyVisionGridToEntities(List<Realm.Client.Unit3D> allUnits, List<Realm.Client.Prop3D> allProps, List<Decal> allDecals, float worldWidth, float worldDepth)
+	private void ApplyVisionGridToEntities(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, float worldWidth, float worldDepth)
 	{
 		var shroudGrid = ShroudGrid;
 
@@ -385,14 +389,14 @@ void fragment() {
 		ApplyGridVisibility(allDecals, shroudGrid, worldWidth, worldDepth, ShroudState.ExplorationShroud, true);
 	}
 
-	private void ApplyVisionGridToEntitiesForTargetTeam(List<Realm.Client.Unit3D> allUnits, List<Realm.Client.Prop3D> allProps, List<Decal> allDecals, int targetOwnerId, float worldWidth, float worldDepth)
+	private void ApplyVisionGridToEntitiesForTargetTeam(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int targetOwnerId, float worldWidth, float worldDepth)
 	{
 		var shroudGrid = ShroudGrid;
 
 		foreach (var unit in allUnits)
 		{
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			bool shouldBeVisible = Realm.Client.Core.GameHost.Instance.GetOwnerPeerId(unit.Entity) == targetOwnerId || IsVisibleOnGrid(unit.GlobalPosition, shroudGrid, worldWidth, worldDepth);
+			bool shouldBeVisible = GameHost.Instance.GetOwnerPeerId(unit.Entity) == targetOwnerId || IsVisibleOnGrid(unit.GlobalPosition, shroudGrid, worldWidth, worldDepth);
 			if (unit.Visible != shouldBeVisible) unit.Visible = shouldBeVisible;
 		}
 
@@ -415,7 +419,7 @@ void fragment() {
 			Vector3 pos = entity.GlobalPosition;
 			int gx = (int)Mathf.Clamp((pos.X / worldWidth + 0.5f) * 32, 0, 31);
 			int gz = (int)Mathf.Clamp((pos.Z / worldDepth + 0.5f) * 32, 0, 31);
-			
+
 			bool shouldBeVisible = notEqual ? shroudGrid[gx, gz] != targetState : shroudGrid[gx, gz] == targetState;
 			if (entity.Visible != shouldBeVisible)
 			{
@@ -433,14 +437,14 @@ void fragment() {
 
 	private void ResizeShroudMesh()
 	{
-		if (!GodotObject.IsInstanceValid(_shroudMeshInstance) || Realm.Client.Core.GameHost.Instance?.GroundTerrain == null)
+		if (!GodotObject.IsInstanceValid(_shroudMeshInstance) || GameHost.Instance?.GroundTerrain == null)
 		{
 			return;
 		}
 
 		Vector2 targetSize = new Vector2(
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.Width * Realm.Client.Core.GameHost.Instance.GroundTerrain.QuadSize,
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth * Realm.Client.Core.GameHost.Instance.GroundTerrain.QuadSize
+			GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize,
+			GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize
 		);
 
 		if (_shroudMeshInstance.Mesh is PlaneMesh planeMesh)
@@ -494,19 +498,19 @@ void fragment() {
 	{
 		float halfW = 125.0f;
 		float halfD = 125.0f;
-		bool shroudEnabled = Realm.Client.Core.GameHost.Instance == null || !Realm.Client.Core.GameHost.Instance.IsMapEditorMode;
-		
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+		bool shroudEnabled = GameHost.Instance == null || !GameContext.EditorService.IsMapEditorMode;
+
+		if (GameHost.Instance?.GroundTerrain != null)
 		{
-			halfW = (Realm.Client.Core.GameHost.Instance.GroundTerrain.Width * Realm.Client.Core.GameHost.Instance.GroundTerrain.QuadSize) * 0.5f;
-			halfD = (Realm.Client.Core.GameHost.Instance.GroundTerrain.Depth * Realm.Client.Core.GameHost.Instance.GroundTerrain.QuadSize) * 0.5f;
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.SetShroudTexture(_shroudTexture);
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.SetShroudEnabled(shroudEnabled);
+			halfW = (GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize) * 0.5f;
+			halfD = (GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize) * 0.5f;
+			GameHost.Instance.GroundTerrain.SetShroudTexture(_shroudTexture);
+			GameHost.Instance.GroundTerrain.SetShroudEnabled(shroudEnabled);
 		}
 
 		Vector2 worldMin = new Vector2(-halfW, -halfD);
 		Vector2 worldSize = new Vector2(halfW * 2f, halfD * 2f);
-		Realm.Client.Utils.ModelShaderManager.SetShroudParameters(_shroudTexture, worldMin, worldSize, shroudEnabled);
+		ModelShaderManager.SetShroudParameters(_shroudTexture, worldMin, worldSize, shroudEnabled);
 
 		_shroudMeshMaterial?.SetShaderParameter("shroud_texture", _shroudTexture);
 	}

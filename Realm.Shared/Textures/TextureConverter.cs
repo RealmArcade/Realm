@@ -1,7 +1,8 @@
+using System.Globalization;
+using System.Text.Json.Nodes;
 using Imazen.WebP;
 using Realm.Shared.Metadata;
 using SkiaSharp;
-using System.Text.Json.Nodes;
 
 namespace Realm.Shared.Textures;
 
@@ -17,6 +18,7 @@ public static class TextureConverter
 			float s = i / 255.0f;
 			lut[i] = s <= 0.04045f ? s / 12.92f : MathF.Pow((s + 0.055f) / 1.055f, 2.4f);
 		}
+
 		return lut;
 	}
 
@@ -191,6 +193,7 @@ public static class TextureConverter
 				luminance[x, y] = (0.299f * p.Red + 0.587f * p.Green + 0.114f * p.Blue) / 255.0f;
 			}
 		}
+
 		return luminance;
 	}
 
@@ -200,6 +203,7 @@ public static class TextureConverter
 		{
 			return coord - 1;
 		}
+
 		return isDecal ? coord : maxVal - 1;
 	}
 
@@ -209,6 +213,7 @@ public static class TextureConverter
 		{
 			return coord + 1;
 		}
+
 		return isDecal ? coord : 0;
 	}
 
@@ -249,6 +254,7 @@ public static class TextureConverter
 				flatHeights[idx++] = structuralValue;
 			}
 		}
+
 		return rawHeight;
 	}
 
@@ -273,6 +279,7 @@ public static class TextureConverter
 				normalizedHeight[x, y] = Math.Clamp(normH, 0.0f, 1.0f);
 			}
 		}
+
 		return normalizedHeight;
 	}
 
@@ -359,9 +366,9 @@ public static class TextureConverter
 			for (int x = 0; x < width; x++)
 			{
 				int idx = x * 4;
-				dstRow[idx] = srcRow[idx + 2];     // Red
+				dstRow[idx] = srcRow[idx + 2]; // Red
 				dstRow[idx + 1] = srcRow[idx + 1]; // Green
-				dstRow[idx + 2] = srcRow[idx];     // Blue
+				dstRow[idx + 2] = srcRow[idx]; // Blue
 				dstRow[idx + 3] = srcRow[idx + 3]; // Alpha
 			}
 		}
@@ -557,6 +564,7 @@ public static class TextureConverter
 				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
 				return result;
 			}
+
 			float scaleFactor = forcedScaleFactor ?? CalculateLuminanceScaleFactor(sourceImage);
 			result.ScaleFactor = scaleFactor;
 
@@ -565,7 +573,7 @@ public static class TextureConverter
 			using var l0 = layer0;
 			using var l1 = layer1;
 
-			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"terrain_texture\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)},\"layers\":2}}";
+			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"terrain_texture\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", CultureInfo.InvariantCulture)},\"layers\":2}}";
 			bool encodeOk = EncodeTwoLayerPbrRtex(
 				layer0,
 				layer1,
@@ -625,6 +633,7 @@ public static class TextureConverter
 				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
 				return result;
 			}
+
 			float scaleFactor = forcedScaleFactor ?? CalculateLuminanceScaleFactor(sourceImage);
 			result.ScaleFactor = scaleFactor;
 
@@ -636,7 +645,7 @@ public static class TextureConverter
 			using var l0 = layer0;
 			using var l1 = layer1;
 
-			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"decal\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)},\"columns\":{safeCols},\"rows\":{safeRows},\"layers\":2}}";
+			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"decal\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", CultureInfo.InvariantCulture)},\"columns\":{safeCols},\"rows\":{safeRows},\"layers\":2}}";
 			bool encodeOk = EncodeTwoLayerPbrRtex(
 				layer0,
 				layer1,
@@ -696,7 +705,8 @@ public static class TextureConverter
 				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
 				return result;
 			}
-			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"vfx_spritesheet\",\"canonical_blake3\":\"{originalBlake3}\",\"columns\":{columns},\"rows\":{rows},\"fps\":{fps.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},\"layers\":1}}";
+
+			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"vfx_spritesheet\",\"canonical_blake3\":\"{originalBlake3}\",\"columns\":{columns},\"rows\":{rows},\"fps\":{fps.ToString("F2", CultureInfo.InvariantCulture)},\"layers\":1}}";
 
 			bool encodeOk = EncodeSingleLayerRtex(
 				sourceImage,
@@ -1045,8 +1055,8 @@ public static class TextureConverter
 			if (node == null) return;
 
 			string? metaType = node["type"]?.GetValue<string>()
-				?? node["asset_type"]?.GetValue<string>()
-				?? node["AssetType"]?.GetValue<string>();
+			                   ?? node["asset_type"]?.GetValue<string>()
+			                   ?? node["AssetType"]?.GetValue<string>();
 
 			if (!string.IsNullOrEmpty(metaType))
 			{
@@ -1069,6 +1079,7 @@ public static class TextureConverter
 		{
 			return val;
 		}
+
 		return null;
 	}
 
@@ -1078,6 +1089,7 @@ public static class TextureConverter
 		{
 			return val;
 		}
+
 		return null;
 	}
 
@@ -1113,7 +1125,7 @@ public static class TextureConverter
 		{
 			return ExtractPngFromRtex(fullInput, targetWebp);
 		}
-		
+
 		return ExtractWebpFromRtex(fullInput, targetWebp);
 	}
 
@@ -1140,6 +1152,7 @@ public static class TextureConverter
 		{
 			return Path.ChangeExtension(fullInput, ".rtex");
 		}
+
 		return Path.GetFullPath(outputPath);
 	}
 
@@ -1184,6 +1197,7 @@ public static class TextureConverter
 		{
 			return SkyboxProcessor.ProcessSkyboxFile(fullInput, targetRtex);
 		}
+
 		return ProcessAndSaveSkybox(fullInput, targetRtex);
 	}
 
@@ -1284,6 +1298,7 @@ public static class TextureConverter
 				int px = isDecal ? Math.Clamp(k, 0, w - 1) : (k % w + w) % w;
 				sum += input[px, y];
 			}
+
 			temp[0, y] = sum * invWindow;
 
 			for (int x = 1; x < w; x++)
@@ -1306,6 +1321,7 @@ public static class TextureConverter
 				int py = isDecal ? Math.Clamp(k, 0, h - 1) : (k % h + h) % h;
 				sum += temp[x, py];
 			}
+
 			result[x, 0] = sum * invWindow;
 
 			for (int y = 1; y < h; y++)

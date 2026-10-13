@@ -1,4 +1,5 @@
 using Godot;
+using Realm.Client.Core;
 
 namespace Realm.Client.UI.InGame;
 
@@ -20,9 +21,9 @@ public class ControlGroupsUIController
 			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
 			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
-			
+
 			int groupIndex = i;
-			btn.Pressed += () => Realm.Client.Core.GameHost.Instance?.RecallControlGroup(groupIndex);
+			btn.Pressed += () => GameHost.Instance?.RecallControlGroup(groupIndex);
 			btn.Visible = false;
 			_container.AddChild(btn);
 			_buttons[i] = btn;
@@ -31,14 +32,14 @@ public class ControlGroupsUIController
 
 	public void Update()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null)
+		if (GameHost.Instance == null)
 		{
 			return;
 		}
 
 		for (int i = 0; i < 10; i++)
 		{
-			var groupUnits = Realm.Client.Core.GameHost.Instance.ControlGroups[i];
+			var groupUnits = GameHost.Instance._controlGroups[i];
 			bool hasUnits = groupUnits != null && groupUnits.Count > 0;
 			if (_buttons[i].Visible != hasUnits)
 			{
