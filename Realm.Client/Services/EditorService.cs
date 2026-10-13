@@ -37,7 +37,7 @@ using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Services;
 
-public class EditorService : IEditorAPI
+public partial class EditorService : IEditorAPI
 {
 	public (bool Success, string ErrorMessage, IReadOnlyList<string> ExtractedAnimationFiles, string FileName) ImportGlbAssetFromExtensionDomain(string sourceFilePath, string category, string wsPath, Action<string, string, string, string> updateMetadataAction)
 	{

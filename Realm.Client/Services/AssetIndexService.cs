@@ -50,7 +50,7 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
-	private static string GetCacheFilePath()
+	public static string GetCacheFilePath()
 	{
 		string userDirectory = GetUserDirectory();
 		if (!Directory.Exists(userDirectory))
