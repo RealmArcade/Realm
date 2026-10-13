@@ -868,10 +868,39 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		TrackOriginalDecalStates(decalKey);
 		TakeInitialSnapshot();
 
+		SetRandomizeAssetsAction(RandomizeAssets);
+
 		SyncControlsWithValues();
 		ReloadBaseTexture();
 		UpdateLivePreviewAndWorld();
 		OpenDialog();
+	}
+
+	public void RandomizeAssets()
+	{
+		string targetId = !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		var metadata = MapFileService.LoadMetadata(wsPath);
+		if (metadata?.Decals != null)
+		{
+			var (_, curSlug) = TemplateIDHelper.ParseTemplateID(targetId);
+			Realm.Shared.Metadata.DecalMetadata? foundMeta = null;
+			if (metadata.Decals.TryGetValue(targetId, out foundMeta) ||
+			    (!string.IsNullOrEmpty(curSlug) && metadata.Decals.TryGetValue(curSlug, out foundMeta)) ||
+			    (!string.IsNullOrEmpty(_texturePath) && metadata.Decals.TryGetValue(_texturePath, out foundMeta)))
+			{
+				if (foundMeta != null && !string.IsNullOrEmpty(foundMeta.TexturePath))
+				{
+					_texturePath = foundMeta.TexturePath;
+				}
+			}
+		}
+
+		SyncControlsWithValues();
+		ReloadBaseTexture();
+		UpdateLivePreviewAndWorld();
 	}
 
 	private string ResolveTexturePath(string decalKey, JsonObject resolvedData)
@@ -1457,6 +1486,40 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_maxScaleRatio = _initialSnapshot.MaxScaleRatio;
 		_upperFade = _initialSnapshot.UpperFade;
 		_lowerFade = _initialSnapshot.LowerFade;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
+		{
+			m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+			m.Decals[_decalKey] = new Realm.Shared.Metadata.DecalMetadata
+			{
+				TexturePath = _texturePath,
+				Brightness = _brightness,
+				Tint = $"#{_tint.ToHtml(false)}",
+				Contrast = _contrast,
+				Saturation = _saturation,
+				Opacity = _opacity,
+				AlbedoMix = _albedoMix,
+				NormalStrength = _normalStrength,
+				Roughness = _roughness,
+				Metallic = _metallic,
+				BlendMode = _blendMode,
+				AnimateOpacity = _animateOpacity,
+				OpacityPulseSpeed = _opacityPulseSpeed,
+				MinOpacity = _minOpacity,
+				MaxOpacity = _maxOpacity,
+				AnimateEmission = _animateEmission,
+				EmissionPulseSpeed = _emissionPulseSpeed,
+				MinEmission = _minEmission,
+				MaxEmission = _maxEmission,
+				AnimateScale = _animateScale,
+				ScalePulseSpeed = _scalePulseSpeed,
+				MinScaleRatio = _minScaleRatio,
+				MaxScaleRatio = _maxScaleRatio,
+				UpperFade = _upperFade,
+				LowerFade = _lowerFade
+			};
+		});
 
 		ReloadBaseTexture();
 		UpdateLivePreviewAndWorld();

@@ -988,12 +988,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			if (wIdx >= 0)
 			{
 				var w = meta.Templates.Weapons[wIdx];
-				_weaponVfxDialog.SetRandomizeAssetsAction(() =>
-				{
-					GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
-					RefreshObjectList();
-					OpenEditDialogForObject(item);
-				});
 				_weaponVfxDialog.OpenForWeapon(w.TemplateID, w, updatedWeapon =>
 				{
 					GameContext.MetadataService.UpdateMetadata(wsPath, m =>
@@ -1006,6 +1000,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 						m.AddOrUpdateWeapon(updatedWeapon);
 					});
 					_currentPreviewTemplateID = updatedWeapon.TemplateID;
+					RefreshObjectList();
+				});
+				_weaponVfxDialog.SetRandomizeAssetsAction(() =>
+				{
+					_weaponVfxDialog.RandomizeAssets();
 					RefreshObjectList();
 				});
 			}
@@ -1030,13 +1029,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			["AreaOfEffectRadius"] = a.AreaOfEffectRadius
 		};
 
+		_abilityVfxDialog.OpenForAbility(a.TemplateID, jsonObj, updatedObj => HandleAbilityUpdate(item.TemplateID, a, updatedObj, wsPath));
 		_abilityVfxDialog.SetRandomizeAssetsAction(() =>
 		{
-			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+			_abilityVfxDialog.RandomizeAssets();
 			RefreshObjectList();
-			OpenEditDialogForObject(item);
 		});
-		_abilityVfxDialog.OpenForAbility(a.TemplateID, jsonObj, updatedObj => HandleAbilityUpdate(item.TemplateID, a, updatedObj, wsPath));
 	}
 
 	private void HandleAbilityUpdate(string oldTemplateID, AbilityMetadata a, JsonObject updatedObj, string wsPath)
@@ -1100,16 +1098,15 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			}
 		}
 
-		_textureEditDialog.SetRandomizeAssetsAction(() =>
-		{
-			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
-			RefreshObjectList();
-			OpenEditDialogForObject(item);
-		});
 		_textureEditDialog.OpenForTexture(item.TemplateID, curTerData, updatedObj =>
 		{
 			string newId = updatedObj?["TemplateID"]?.ToString() ?? item.TemplateID;
 			_currentPreviewTemplateID = newId;
+			RefreshObjectList();
+		});
+		_textureEditDialog.SetRandomizeAssetsAction(() =>
+		{
+			_textureEditDialog.RandomizeAssets();
 			RefreshObjectList();
 		});
 	}
@@ -1150,16 +1147,15 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			}
 		}
 
-		_spritesheetEditDialog.SetRandomizeAssetsAction(() =>
-		{
-			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
-			RefreshObjectList();
-			OpenEditDialogForObject(item);
-		});
 		_spritesheetEditDialog.OpenForSheet(item.TemplateID, initRtex, initCols, initRows, initFps, initBlend, (newId, rtex, cols, rows, fps, blend) =>
 		{
 			UpdateSpritesheetMetadata(wsPath, item, newId, rtex, cols, rows, fps, blend);
 			_currentPreviewTemplateID = newId;
+			RefreshObjectList();
+		});
+		_spritesheetEditDialog.SetRandomizeAssetsAction(() =>
+		{
+			_spritesheetEditDialog.RandomizeAssets();
 			RefreshObjectList();
 		});
 	}
@@ -1260,12 +1256,6 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private void OpenDecalEditDialog(ObjectItemInfo item, string wsPath)
 	{
 		JsonObject curDecData = TryGetDecalData(wsPath, item.TemplateID);
-		_decalEditDialog.SetRandomizeAssetsAction(() =>
-		{
-			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
-			RefreshObjectList();
-			OpenEditDialogForObject(item);
-		});
 		_decalEditDialog.OpenForDecal(item.TemplateID, curDecData, updatedObj =>
 		{
 			string newDecalId = GetDecalIdFromUpdatedObj(updatedObj, item.TemplateID);
@@ -1293,13 +1283,18 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			_currentPreviewTemplateID = newDecalId;
 			RefreshObjectList();
 		});
+		_decalEditDialog.SetRandomizeAssetsAction(() =>
+		{
+			_decalEditDialog.RandomizeAssets();
+			RefreshObjectList();
+		});
 	}
 
 	private void OpenShaderEditDialog(ObjectItemInfo item, string wsPath)
 	{
 		_shaderEditDialog.SetRandomizeAssetsAction(() =>
 		{
-			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID, overwriteExisting: true);
 			RefreshObjectList();
 			OpenEditDialogForObject(item);
 		});
@@ -1349,7 +1344,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			{
 				_vfxStudioDialog.SetRandomizeAssetsAction(() =>
 				{
-					GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+					GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID, overwriteExisting: true);
 					RefreshObjectList();
 					OpenEditDialogForObject(item);
 				});
@@ -1375,15 +1370,14 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		if (item.Category == "upgrades" || item.Category == "items")
 		{
-			_itemUpgradeEditDialog.SetRandomizeAssetsAction(() =>
-			{
-				GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
-				RefreshObjectList();
-				OpenEditDialogForObject(item);
-			});
 			_itemUpgradeEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 			{
 				_currentPreviewTemplateID = newId;
+				RefreshObjectList();
+			});
+			_itemUpgradeEditDialog.SetRandomizeAssetsAction(() =>
+			{
+				_itemUpgradeEditDialog.RandomizeAssets();
 				RefreshObjectList();
 			});
 		}
@@ -1391,9 +1385,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		{
 			_entityVisualEditDialog.SetRandomizeAssetsAction(() =>
 			{
-				GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+				GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID, overwriteExisting: true);
+				_entityVisualEditDialog.RandomizeAssets();
 				RefreshObjectList();
-				OpenEditDialogForObject(item);
 			});
 			_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 			{

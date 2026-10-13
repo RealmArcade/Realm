@@ -126,29 +126,12 @@ public partial class EditorService
 
 		string jsonContent = File.ReadAllText(metaPath);
 		var rootNode = JsonNode.Parse(jsonContent);
-		if (rootNode is not JsonObject rootObj || !rootObj.TryGetPropertyValue("Templates", out var templatesNode) || templatesNode is not JsonObject templatesObj)
+		if (rootNode is not JsonObject rootObj)
 		{
 			return string.Empty;
 		}
 
-		JsonObject? foundTemplateObj = null;
-		foreach (var kvp in templatesObj)
-		{
-			if (kvp.Value is JsonArray arr)
-			{
-				foreach (var item in arr)
-				{
-					if (item is JsonObject obj && IsTemplateMatch(obj, templateSlug))
-					{
-						foundTemplateObj = obj;
-						break;
-					}
-				}
-			}
-
-			if (foundTemplateObj != null) break;
-		}
-
+		JsonObject? foundTemplateObj = FindTemplateOrEntryObject(rootObj, templateSlug);
 		if (foundTemplateObj == null)
 		{
 			return string.Empty;
@@ -264,29 +247,12 @@ public partial class EditorService
 
 		string jsonContent = File.ReadAllText(metaPath);
 		var rootNode = JsonNode.Parse(jsonContent);
-		if (rootNode is not JsonObject rootObj || !rootObj.TryGetPropertyValue("Templates", out var templatesNode) || templatesNode is not JsonObject templatesObj)
+		if (rootNode is not JsonObject rootObj)
 		{
 			return;
 		}
 
-		JsonObject? foundTemplateObj = null;
-		foreach (var kvp in templatesObj)
-		{
-			if (kvp.Value is JsonArray arr)
-			{
-				foreach (var item in arr)
-				{
-					if (item is JsonObject obj && IsTemplateMatch(obj, templateSlug))
-					{
-						foundTemplateObj = obj;
-						break;
-					}
-				}
-			}
-
-			if (foundTemplateObj != null) break;
-		}
-
+		JsonObject? foundTemplateObj = FindTemplateOrEntryObject(rootObj, templateSlug);
 		if (foundTemplateObj == null)
 		{
 			return;
@@ -516,6 +482,50 @@ public partial class EditorService
 		};
 	}
 
+	private JsonObject? FindTemplateOrEntryObject(JsonObject rootObj, string templateSlug)
+	{
+		if (rootObj.TryGetPropertyValue("Templates", out var templatesNode) && templatesNode is JsonObject templatesObj)
+		{
+			foreach (var kvp in templatesObj)
+			{
+				if (kvp.Value is JsonArray arr)
+				{
+					foreach (var item in arr)
+					{
+						if (item is JsonObject obj && IsTemplateMatch(obj, templateSlug))
+						{
+							return obj;
+						}
+					}
+				}
+			}
+		}
+
+		string[] dictionaryKeys = { "textures", "vfx_spritesheets", "decals", "SpawnShader" };
+		var (_, slug) = TemplateIDHelper.ParseTemplateID(templateSlug);
+
+		foreach (string dictKey in dictionaryKeys)
+		{
+			if (rootObj.TryGetPropertyValue(dictKey, out var dictNode) && dictNode is JsonObject dictObj)
+			{
+				foreach (var kvp in dictObj)
+				{
+					if (string.Equals(kvp.Key, templateSlug, StringComparison.OrdinalIgnoreCase) ||
+					    (!string.IsNullOrEmpty(slug) && string.Equals(kvp.Key, slug, StringComparison.OrdinalIgnoreCase)) ||
+					    (!string.IsNullOrEmpty(slug) && string.Equals(Path.GetFileNameWithoutExtension(kvp.Key), slug, StringComparison.OrdinalIgnoreCase)))
+					{
+						if (kvp.Value is JsonObject itemObj)
+						{
+							return itemObj;
+						}
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
 	private bool IsTemplateMatch(JsonObject obj, string templateSlug)
 	{
 		string? slug = GetTemplateSlugFromJsonObject(obj);
@@ -535,6 +545,24 @@ public partial class EditorService
 			}
 		}
 
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(templateSlug);
+		if (!string.IsNullOrEmpty(parsedSlug))
+		{
+			if (string.Equals(slug, parsedSlug, StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+
+			if (slug.Contains('/'))
+			{
+				var parts = slug.Split('/');
+				if (parts.Length > 1 && string.Equals(parts[1], parsedSlug, StringComparison.OrdinalIgnoreCase))
+				{
+					return true;
+				}
+			}
+		}
+
 		return false;
 	}
 
@@ -544,6 +572,10 @@ public partial class EditorService
 		{
 			return tidNode.ToString();
 		}
+		if (obj.TryGetPropertyValue("template_id", out var tidNodeLower) && tidNodeLower != null)
+		{
+			return tidNodeLower.ToString();
+		}
 		if (obj.TryGetPropertyValue("AttachmentId", out var aidNode) && aidNode != null)
 		{
 			return aidNode.ToString();
@@ -551,6 +583,14 @@ public partial class EditorService
 		if (obj.TryGetPropertyValue("VfxId", out var vidNode) && vidNode != null)
 		{
 			return vidNode.ToString();
+		}
+		if (obj.TryGetPropertyValue("DecalId", out var didNode) && didNode != null)
+		{
+			return didNode.ToString();
+		}
+		if (obj.TryGetPropertyValue("decal_id", out var didNodeLower) && didNodeLower != null)
+		{
+			return didNodeLower.ToString();
 		}
 
 		return null;
@@ -726,7 +766,7 @@ public partial class EditorService
 		}
 
 		string p = propertyName.ToLowerInvariant();
-		return p is "modelpath" or "portraitmodelpath" or "projectilemodelpath" or "iconpath" or "texturepath" or "basetexture" or "noisetexture" or "visualeffect" or "attacksound" or "castsound";
+		return p is "modelpath" or "portraitmodelpath" or "projectilemodelpath" or "iconpath" or "texturepath" or "basetexture" or "noisetexture" or "ribbontexture" or "visualeffect" or "attacksound" or "castsound" or "impactsound" or "impactvisualeffect" or "texture_path";
 	}
 
 	private AssetType[] GetAssetTypesForProperty(AssetPropertyTarget propTarget)
@@ -746,7 +786,7 @@ public partial class EditorService
 
 		if (curr.EndsWith(".raud") || p.Contains("sound") || p.Contains("audio") || p.Contains("music"))
 		{
-			return new[] { AssetType.SoundEffect, AssetType.Music };
+			return new[] { AssetType.SoundEffect };
 		}
 
 		if (curr.EndsWith(".gdshader") || p.Contains("shader"))
@@ -754,9 +794,9 @@ public partial class EditorService
 			return new[] { AssetType.Shader };
 		}
 
-		if (p.Contains("icon"))
+		if (p.Contains("ribbon"))
 		{
-			return new[] { AssetType.Icon };
+			return new[] { AssetType.Ribbon };
 		}
 
 		if (p.Contains("noise"))
@@ -764,9 +804,29 @@ public partial class EditorService
 			return new[] { AssetType.Noise };
 		}
 
+		if (p.Contains("icon"))
+		{
+			return new[] { AssetType.Icon };
+		}
+
 		if (p.Contains("effect") || p.Contains("vfx"))
 		{
 			return new[] { AssetType.Spritesheet, AssetType.VfxRadial, AssetType.VfxVertical };
+		}
+
+		if (p.Contains("decal"))
+		{
+			return new[] { AssetType.Decal };
+		}
+
+		if (propTarget.Parent.ContainsKey("SwatchIndex") || propTarget.Parent.ContainsKey("TileMode") || propTarget.Parent.ContainsKey("UvScale"))
+		{
+			return new[] { AssetType.Terrain };
+		}
+
+		if (propTarget.Parent.ContainsKey("Columns") || propTarget.Parent.ContainsKey("Rows") || propTarget.Parent.ContainsKey("Fps"))
+		{
+			return new[] { AssetType.Spritesheet };
 		}
 
 		return new[] { AssetType.Decal, AssetType.Terrain, AssetType.Icon, AssetType.Noise, AssetType.Ribbon, AssetType.Skybox, AssetType.Spritesheet };

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -934,10 +935,32 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_onAppliedCallback = onApplied;
 		_isPlaybackPaused = false;
 
+		SetRandomizeAssetsAction(RandomizeAssets);
+
 		TitleLabel.Text = $"{TranslationServer.Translate("Weapon VFX & Audio")} - {(!string.IsNullOrEmpty(weapon?.Name) ? weapon.Name : _weaponId)}";
 
 		OpenDialog();
 		ResetCameraDefault();
+		RestartPreviewProjectile();
+	}
+
+	public void RandomizeAssets()
+	{
+		string targetId = !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
+
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
+		{
+			var reloaded = meta.Templates.Weapons.FirstOrDefault(w => string.Equals(w.TemplateID, targetId, StringComparison.OrdinalIgnoreCase) || string.Equals(w.TemplateID, _weaponId, StringComparison.OrdinalIgnoreCase));
+			if (reloaded != null)
+			{
+				_currentWeapon = reloaded;
+				CleanWeaponMetadataPaths(_currentWeapon);
+			}
+		}
+
+		SyncControlsFromCurrentWeapon();
 		RestartPreviewProjectile();
 	}
 
@@ -1267,6 +1290,20 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnCancel()
 	{
+		if (_initialWeapon != null)
+		{
+			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			GameContext.MetadataService.UpdateMetadata(wsPath, m =>
+			{
+				m.AddOrUpdateWeapon(_initialWeapon);
+			});
+
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(_initialWeapon.TemplateID))
+			{
+				GameHost.WeaponRegistry[_initialWeapon.TemplateID] = _initialWeapon;
+			}
+		}
+
 		ClearPreviewProjectile();
 	}
 

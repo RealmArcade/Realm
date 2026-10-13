@@ -1309,8 +1309,43 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Visual Properties & Overrides")} - {_originalTemplateID}";
 
+		SetRandomizeAssetsAction(RandomizeAssets);
+
 		SyncControls();
 		OpenDialog();
+	}
+
+	public void RandomizeAssets()
+	{
+		var compatibleModels = ScanCompatibleModels(allFolders: false);
+		if (compatibleModels.Count == 0)
+		{
+			compatibleModels = ScanCompatibleModels(allFolders: true);
+		}
+
+		if (compatibleModels.Count > 0)
+		{
+			var rng = new Random();
+			string chosenModel = compatibleModels[rng.Next(compatibleModels.Count)];
+			_modelPath = chosenModel;
+			_setModelPathValue?.Invoke(_modelPath);
+
+			var portraitModels = ScanPortraitModels(allFolders: false);
+			if (portraitModels.Count == 0)
+			{
+				portraitModels = ScanPortraitModels(allFolders: true);
+			}
+
+			if (portraitModels.Count > 0)
+			{
+				string chosenPortrait = portraitModels[rng.Next(portraitModels.Count)];
+				_portraitModelPath = chosenPortrait;
+				_setPortraitModelPathValue?.Invoke(_portraitModelPath);
+			}
+
+			ApplyLiveModelAndVisualMode();
+			UpdateRiggedAnimationButtonVisibility();
+		}
 	}
 
 	private void InitializeDialogState(string category, string objectId, Node selectedObject, Action<string, string> onApplied)

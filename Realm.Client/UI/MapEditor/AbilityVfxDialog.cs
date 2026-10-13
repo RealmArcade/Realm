@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Godot;
 using Realm.Client.Services;
@@ -688,8 +689,32 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		UpdateAoEIndicator(_currentAoeRadius);
 		ReloadVfx();
 
+		SetRandomizeAssetsAction(RandomizeAssets);
+
 		OpenDialog();
 		ResetCameraDefault();
+	}
+
+	public void RandomizeAssets()
+	{
+		string targetId = !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
+
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Abilities != null)
+		{
+			var reloaded = meta.Templates.Abilities.FirstOrDefault(a => string.Equals(a.TemplateID, targetId, StringComparison.OrdinalIgnoreCase) || string.Equals(a.TemplateID, _abilityId, StringComparison.OrdinalIgnoreCase));
+			if (reloaded != null)
+			{
+				_currentVisualEffect = reloaded.VisualEffect ?? string.Empty;
+				_currentCastSound = reloaded.CastSound ?? string.Empty;
+				_currentIconPath = !string.IsNullOrEmpty(reloaded.IconPath) && reloaded.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(reloaded.IconPath) : (reloaded.IconPath ?? string.Empty);
+			}
+		}
+
+		UpdateUIState();
+		UpdateIconPreview(_currentIconPath);
+		ReloadVfx();
 	}
 
 	private string GetEffectiveAbilityId(string fallbackId, JsonObject abilityData)
@@ -828,6 +853,23 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnCancel()
 	{
+		string targetId = !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			Hud?.SaveCustomAbilityVfxToMetadata(
+				targetId,
+				_initialVisualEffect,
+				_initialCastSound,
+				_initialIconPath,
+				_initialAoeRadius
+			);
+		}
+
+		_currentVisualEffect = _initialVisualEffect;
+		_currentCastSound = _initialCastSound;
+		_currentIconPath = _initialIconPath;
+		_currentAoeRadius = _initialAoeRadius;
+
 		StopVfxAnimation();
 	}
 

@@ -17,6 +17,10 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 	private string _iconPath = "";
 	private string _tooltip = "";
 
+	private string _initialName = "";
+	private string _initialIconPath = "";
+	private string _initialTooltip = "";
+
 	private Action<string, string> _onAppliedCallback;
 
 	private Label _lblObjectTypePrefix;
@@ -251,7 +255,46 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 
 		ValidateSlug();
 		UpdateTooltipPreview();
+
+		_initialName = _name;
+		_initialIconPath = _iconPath;
+		_initialTooltip = _tooltip;
+
+		SetRandomizeAssetsAction(RandomizeAssets);
+
 		OpenDialog();
+	}
+
+	public void RandomizeAssets()
+	{
+		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
+
+		LoadMetadataProperties();
+		UpdateUI();
+		UpdateTooltipPreview();
+	}
+
+	protected override void OnCancel()
+	{
+		_name = _initialName;
+		_iconPath = _initialIconPath;
+		_tooltip = _initialTooltip;
+
+		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
+		{
+			if (_category == "upgrades")
+			{
+				ApplyUpgradeMetadata(meta, targetId);
+			}
+			else
+			{
+				ApplyItemMetadata(meta, targetId);
+			}
+		});
 	}
 
 	private void InitializeState(string category, string templateId, Action<string, string> onApplied)
