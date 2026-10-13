@@ -1131,7 +1131,26 @@ public class MapStorageService
 			string destFilePath = Path.Combine(targetDirectory, rel);
 			if (!File.Exists(destFilePath))
 			{
-				missingFiles.Add(rel);
+				string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
+				string? casFilePath = MapAssetManager.Storage.FindAssetFilePath(normHash);
+				if (casFilePath != null && File.Exists(casFilePath))
+				{
+					HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: false);
+				}
+				else if (rel.StartsWith("Assets/models/", StringComparison.OrdinalIgnoreCase))
+				{
+					string fileName = Path.GetFileName(rel);
+					string? diskPath = MapAssetHelper.FindModelOnDisk(targetDirectory, null, fileName);
+					if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
+					{
+						HardLinkHelper.CreateHardLinkOrCopy(destFilePath, diskPath, overwrite: false);
+					}
+				}
+
+				if (!File.Exists(destFilePath))
+				{
+					missingFiles.Add(rel);
+				}
 			}
 		}
 
