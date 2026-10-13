@@ -23,9 +23,50 @@ public partial class EditorService
 
 	public List<Asset> SearchAssets(AssetType[] assetTypes, string query, int limit = 5)
 	{
-		if (string.IsNullOrWhiteSpace(query))
+		string cacheFilePath = AssetIndexService.GetCacheFilePath();
+		if (!File.Exists(cacheFilePath))
 		{
 			return new List<Asset>();
+		}
+
+		var connectionString = new ConnectionString
+		{
+			Filename = cacheFilePath,
+			Connection = ConnectionType.Shared
+		};
+
+		var allowedTypes = assetTypes != null && assetTypes.Length > 0
+			? new HashSet<AssetType>(assetTypes)
+			: null;
+
+		if (string.IsNullOrWhiteSpace(query))
+		{
+			var allAssets = new List<IndexedAsset>();
+
+			using (var db = new LiteDatabase(connectionString))
+			{
+				var col = db.GetCollection<IndexedAsset>("assets");
+				foreach (var candidate in col.FindAll())
+				{
+					if (candidate == null) continue;
+
+					var mappedType = MapStringToAssetType(candidate.AssetType, candidate.Extension);
+					if (allowedTypes != null && !allowedTypes.Contains(mappedType))
+					{
+						continue;
+					}
+
+					allAssets.Add(candidate);
+				}
+			}
+
+			var rng = new Random();
+			rng.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(allAssets));
+
+			return allAssets
+				.Take(limit)
+				.Select(ToEditorAsset)
+				.ToList();
 		}
 
 		string[] terms = NonAlphaRegex().Split(query)
@@ -38,18 +79,6 @@ public partial class EditorService
 		{
 			return new List<Asset>();
 		}
-
-		string cacheFilePath = AssetIndexService.GetCacheFilePath();
-		if (!File.Exists(cacheFilePath))
-		{
-			return new List<Asset>();
-		}
-
-		var connectionString = new ConnectionString
-		{
-			Filename = cacheFilePath,
-			Connection = ConnectionType.Shared
-		};
 
 		var indexedAssetMap = new Dictionary<string, IndexedAsset>(StringComparer.OrdinalIgnoreCase);
 
@@ -79,9 +108,6 @@ public partial class EditorService
 		}
 
 		var filteredAssets = new List<IndexedAsset>();
-		var allowedTypes = assetTypes != null && assetTypes.Length > 0
-			? new HashSet<AssetType>(assetTypes)
-			: null;
 
 		foreach (var candidate in indexedAssetMap.Values)
 		{
@@ -819,14 +845,73 @@ public partial class EditorService
 			return new[] { AssetType.Decal };
 		}
 
-		if (propTarget.Parent.ContainsKey("SwatchIndex") || propTarget.Parent.ContainsKey("TileMode") || propTarget.Parent.ContainsKey("UvScale"))
+		if (propTarget.Parent != null)
 		{
-			return new[] { AssetType.Terrain };
-		}
+			string? rawAssetType = propTarget.Parent["asset_type"]?.ToString() ?? propTarget.Parent["AssetType"]?.ToString();
+			if (!string.IsNullOrWhiteSpace(rawAssetType))
+			{
+				string normalizedType = RealmMetadataHelper.NormalizeAssetType(rawAssetType);
+				switch (normalizedType)
+				{
+					case "decal": return new[] { AssetType.Decal };
+					case "terrain": return new[] { AssetType.Terrain };
+					case "icon": return new[] { AssetType.Icon };
+					case "noise": return new[] { AssetType.Noise };
+					case "ribbon": return new[] { AssetType.Ribbon };
+					case "skybox": return new[] { AssetType.Skybox };
+					case "spritesheet": return new[] { AssetType.Spritesheet };
+					case "vfxradial": return new[] { AssetType.VfxRadial };
+					case "vfxvertical": return new[] { AssetType.VfxVertical };
+				}
+			}
 
-		if (propTarget.Parent.ContainsKey("Columns") || propTarget.Parent.ContainsKey("Rows") || propTarget.Parent.ContainsKey("Fps"))
-		{
-			return new[] { AssetType.Spritesheet };
+			string? slug = GetTemplateSlugFromJsonObject(propTarget.Parent)?.ToLowerInvariant();
+			if (!string.IsNullOrEmpty(slug))
+			{
+				if (slug.StartsWith("decal/") || slug.Contains("decal"))
+				{
+					return new[] { AssetType.Decal };
+				}
+				if (slug.StartsWith("terrain/") || slug.StartsWith("texture/") || slug.Contains("terrain"))
+				{
+					return new[] { AssetType.Terrain };
+				}
+				if (slug.StartsWith("icon/") || slug.Contains("icon"))
+				{
+					return new[] { AssetType.Icon };
+				}
+				if (slug.StartsWith("noise/") || slug.Contains("noise"))
+				{
+					return new[] { AssetType.Noise };
+				}
+				if (slug.StartsWith("ribbon/") || slug.Contains("ribbon"))
+				{
+					return new[] { AssetType.Ribbon };
+				}
+				if (slug.StartsWith("skybox/") || slug.Contains("skybox"))
+				{
+					return new[] { AssetType.Skybox };
+				}
+				if (slug.StartsWith("vfx/") || slug.Contains("spritesheet"))
+				{
+					return new[] { AssetType.Spritesheet, AssetType.VfxRadial, AssetType.VfxVertical };
+				}
+			}
+
+			if (propTarget.Parent.ContainsKey("DecalId") || propTarget.Parent.ContainsKey("decal_id"))
+			{
+				return new[] { AssetType.Decal };
+			}
+
+			if (propTarget.Parent.ContainsKey("SwatchIndex") || propTarget.Parent.ContainsKey("TileMode") || propTarget.Parent.ContainsKey("UvScale"))
+			{
+				return new[] { AssetType.Terrain };
+			}
+
+			if (propTarget.Parent.ContainsKey("Columns") || propTarget.Parent.ContainsKey("Rows") || propTarget.Parent.ContainsKey("Fps"))
+			{
+				return new[] { AssetType.Spritesheet };
+			}
 		}
 
 		return new[] { AssetType.Decal, AssetType.Terrain, AssetType.Icon, AssetType.Noise, AssetType.Ribbon, AssetType.Skybox, AssetType.Spritesheet };

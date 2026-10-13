@@ -170,7 +170,7 @@ public partial class FloatingDialogBase : PanelContainer
 		FooterHBox.AddChild(btnClose);
 	}
 
-	public void SetRandomizeAssetsAction(Action onRandomize)
+	public virtual void SetRandomizeAssetsAction(Action onRandomize)
 	{
 		if (onRandomize == null)
 		{

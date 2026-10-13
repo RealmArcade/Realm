@@ -928,6 +928,15 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		btnEdit.Pressed += () => OpenEditDialogForObject(item);
 		actionsHBox.AddChild(btnEdit);
 
+		var btnCopy = new Button();
+		btnCopy.Text = UnicodeIcons.COPY;
+		btnCopy.Set("icon_max_width", 0);
+		if (faFont != null) btnCopy.AddThemeFontOverride("font", faFont);
+		btnCopy.TooltipText = TranslationServer.Translate("Duplicate Object");
+		btnCopy.CustomMinimumSize = new Vector2(28, 28);
+		btnCopy.Pressed += () => DuplicateObject(item);
+		actionsHBox.AddChild(btnCopy);
+
 		var btnDelete = new Button();
 		btnDelete.Text = UnicodeIcons.TRASH_ALT;
 		btnDelete.Set("icon_max_width", 0);
@@ -1397,6 +1406,252 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		}
 	}
 
+
+	private static readonly Dictionary<string, Action<TemplateManagerDialog, MapMetadata, ObjectItemInfo, string, string>> DuplicateMetadataHandlers = new(StringComparer.OrdinalIgnoreCase)
+	{
+		{
+			"units", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetUnit(item.TemplateID) ?? m.GetUnit(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<UnitMetadata>(JsonSerializer.Serialize(orig))!;
+				copy.TemplateID = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateUnit(copy);
+			}
+		},
+		{
+			"buildings", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetBuilding(item.TemplateID) ?? m.GetBuilding(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<UnitMetadata>(JsonSerializer.Serialize(orig))!;
+				copy.TemplateID = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateBuilding(copy);
+			}
+		},
+		{
+			"resources", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetResource(item.TemplateID) ?? m.GetResource(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<ResourceMetadata>(JsonSerializer.Serialize(orig))!;
+				copy.TemplateID = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateResource(copy);
+			}
+		},
+		{
+			"props", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetProp(item.TemplateID) ?? m.GetProp(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<PropMetadata>(JsonSerializer.Serialize(orig))!;
+				copy.TemplateID = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateProp(copy);
+			}
+		},
+		{
+			"weapons", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetWeapon(item.TemplateID) ?? m.GetWeapon(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<WeaponMetadata>(JsonSerializer.Serialize(orig))!;
+				copy.TemplateID = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateWeapon(copy);
+			}
+		},
+		{
+			"abilities", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetAbility(item.TemplateID) ?? m.GetAbility(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<AbilityMetadata>(JsonSerializer.Serialize(orig))!;
+				copy.TemplateID = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateAbility(copy);
+			}
+		},
+		{
+			"upgrades", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetUpgrade(item.TemplateID) ?? m.GetUpgrade(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<UpgradeMetadata>(JsonSerializer.Serialize(orig))!;
+				copy.TemplateID = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateUpgrade(copy);
+			}
+		},
+		{
+			"items", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetItem(item.TemplateID) ?? m.GetItem(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<ItemMetadata>(JsonSerializer.Serialize(orig))!;
+				copy.TemplateID = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateItem(copy);
+			}
+		},
+		{
+			"terrain", (dialog, m, item, newId, newSlug) =>
+			{
+				m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
+				var orig = dialog.FindTextureMetadata(m, item);
+				TextureMetadata copy = orig != null
+					? JsonSerializer.Deserialize<TextureMetadata>(JsonSerializer.Serialize(orig))!
+					: new TextureMetadata();
+				copy.SwatchIndex = dialog.GetNextTerrainSwatchSlot(m);
+				m.Textures[newId] = copy;
+			}
+		},
+		{
+			"spritesheets", (dialog, m, item, newId, newSlug) =>
+			{
+				m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+				var orig = dialog.FindSpritesheetMetadata(m, item);
+				VfxMetadata copy = orig != null
+					? JsonSerializer.Deserialize<VfxMetadata>(JsonSerializer.Serialize(orig))!
+					: new VfxMetadata();
+				m.VfxSpritesheets[newId] = copy;
+			}
+		},
+		{
+			"decals", (dialog, m, item, newId, newSlug) =>
+			{
+				m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+				m.Decals.TryGetValue(item.TemplateID, out var orig);
+				if (orig == null)
+				{
+					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if (!string.IsNullOrEmpty(oldSlug)) m.Decals.TryGetValue(oldSlug, out orig);
+				}
+				DecalMetadata copy = orig != null
+					? JsonSerializer.Deserialize<DecalMetadata>(JsonSerializer.Serialize(orig))!
+					: new DecalMetadata();
+				m.Decals[newId] = copy;
+			}
+		},
+		{
+			"shaders", (dialog, m, item, newId, newSlug) =>
+			{
+				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
+				if (orig == null)
+				{
+					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
+				}
+				SpawnShaderMetadata copy = orig != null
+					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
+					: new SpawnShaderMetadata();
+				copy.Name = newSlug;
+				m.SpawnShaders[newId] = copy;
+			}
+		},
+		{
+			"shader", (dialog, m, item, newId, newSlug) =>
+			{
+				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
+				if (orig == null)
+				{
+					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
+				}
+				SpawnShaderMetadata copy = orig != null
+					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
+					: new SpawnShaderMetadata();
+				copy.Name = newSlug;
+				m.SpawnShaders[newId] = copy;
+			}
+		},
+		{
+			"spawnshader", (dialog, m, item, newId, newSlug) =>
+			{
+				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
+				if (orig == null)
+				{
+					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
+				}
+				SpawnShaderMetadata copy = orig != null
+					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
+					: new SpawnShaderMetadata();
+				copy.Name = newSlug;
+				m.SpawnShaders[newId] = copy;
+			}
+		},
+		{
+			"spawnshaders", (dialog, m, item, newId, newSlug) =>
+			{
+				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
+				if (orig == null)
+				{
+					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
+				}
+				SpawnShaderMetadata copy = orig != null
+					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
+					: new SpawnShaderMetadata();
+				copy.Name = newSlug;
+				m.SpawnShaders[newId] = copy;
+			}
+		},
+		{
+			"vfx", (dialog, m, item, newId, newSlug) =>
+			{
+				var orig = m.GetVfx(item.TemplateID) ?? m.GetVfx(item.Name);
+				if (orig == null) return;
+				var copy = JsonSerializer.Deserialize<VfxAttachmentConfig>(JsonSerializer.Serialize(orig))!;
+				copy.VfxId = newId;
+				copy.Name = newSlug;
+				m.AddOrUpdateVfx(copy);
+			}
+		}
+	};
+
+	private void DuplicateObject(ObjectItemInfo item)
+	{
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string objectType = GetObjectTypeFromCategory(item.Category);
+		var existingIDs = GetExistingObjectIDs(wsPath, item.Category);
+
+		var (_, sourceSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+		if (string.IsNullOrEmpty(sourceSlug))
+		{
+			sourceSlug = item.TemplateID;
+		}
+
+		string newTemplateID = TemplateIDHelper.GenerateDuplicateTemplateID(objectType, sourceSlug, existingIDs);
+		var (_, parsedSlug) = TemplateIDHelper.ParseTemplateID(newTemplateID);
+
+		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
+		{
+			if (DuplicateMetadataHandlers.TryGetValue(item.Category, out var handler))
+			{
+				handler(this, m, item, newTemplateID, parsedSlug);
+			}
+		});
+
+		if (item.Category == "terrain")
+		{
+			Hud?.SetupTextureSwatches(false);
+			if (GameHost.Instance?.GroundTerrain != null)
+			{
+				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+			}
+		}
+
+		_currentPreviewTemplateID = newTemplateID;
+		RefreshObjectList();
+	}
 
 	private void AddNewObjectForCategory(string category)
 	{

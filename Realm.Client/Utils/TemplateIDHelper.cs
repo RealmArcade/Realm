@@ -20,6 +20,9 @@ public static partial class TemplateIDHelper
 	[GeneratedRegex(@"_+")]
 	private static partial Regex MultipleUnderscoreRegex();
 
+	[GeneratedRegex(@"^(.*?)(?:_(\d+))?$")]
+	private static partial Regex NumberedSuffixRegex();
+
 	public static string ToSnakeCase(string input)
 	{
 		if (string.IsNullOrWhiteSpace(input)) return "object";
@@ -69,6 +72,57 @@ public static partial class TemplateIDHelper
 		}
 
 		return $"{objectType}/{baseSlug}_{index}";
+	}
+
+	public static string GenerateDuplicateSlug(string currentSlug, HashSet<string>? existingSlugs = null)
+	{
+		string cleanSlug = ToSnakeCase(currentSlug);
+		var match = NumberedSuffixRegex().Match(cleanSlug);
+		string baseName = match.Groups[1].Value;
+		int nextNum = 2;
+		if (match.Groups[2].Success && int.TryParse(match.Groups[2].Value, out int currentNum))
+		{
+			nextNum = currentNum + 1;
+		}
+
+		if (string.IsNullOrEmpty(baseName))
+		{
+			baseName = "object";
+		}
+
+		while (existingSlugs != null && existingSlugs.Contains($"{baseName}_{nextNum}"))
+		{
+			nextNum++;
+		}
+
+		return $"{baseName}_{nextNum}";
+	}
+
+	public static string GenerateDuplicateTemplateID(string objectType, string currentTemplateIdOrSlug, HashSet<string> existingTemplateIDs)
+	{
+		var (parsedType, parsedSlug) = ParseTemplateID(currentTemplateIdOrSlug);
+		string effectiveType = !string.IsNullOrEmpty(parsedType) ? parsedType : objectType;
+		string cleanSlug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : currentTemplateIdOrSlug;
+
+		var match = NumberedSuffixRegex().Match(ToSnakeCase(cleanSlug));
+		string baseName = match.Groups[1].Value;
+		int nextNum = 2;
+		if (match.Groups[2].Success && int.TryParse(match.Groups[2].Value, out int currentNum))
+		{
+			nextNum = currentNum + 1;
+		}
+
+		if (string.IsNullOrEmpty(baseName))
+		{
+			baseName = "object";
+		}
+
+		while (existingTemplateIDs.Contains($"{effectiveType}/{baseName}_{nextNum}"))
+		{
+			nextNum++;
+		}
+
+		return $"{effectiveType}/{baseName}_{nextNum}";
 	}
 
 	public static string GenerateTemplateID(string objectType, string assetFileNameOrName, IEnumerable<StringName> existingTemplateIDs)
