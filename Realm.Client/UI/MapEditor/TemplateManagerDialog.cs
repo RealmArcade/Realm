@@ -988,6 +988,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			if (wIdx >= 0)
 			{
 				var w = meta.Templates.Weapons[wIdx];
+				_weaponVfxDialog.SetRandomizeAssetsAction(() =>
+				{
+					GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+					RefreshObjectList();
+					OpenEditDialogForObject(item);
+				});
 				_weaponVfxDialog.OpenForWeapon(w.TemplateID, w, updatedWeapon =>
 				{
 					GameContext.MetadataService.UpdateMetadata(wsPath, m =>
@@ -1024,6 +1030,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			["AreaOfEffectRadius"] = a.AreaOfEffectRadius
 		};
 
+		_abilityVfxDialog.SetRandomizeAssetsAction(() =>
+		{
+			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+			RefreshObjectList();
+			OpenEditDialogForObject(item);
+		});
 		_abilityVfxDialog.OpenForAbility(a.TemplateID, jsonObj, updatedObj => HandleAbilityUpdate(item.TemplateID, a, updatedObj, wsPath));
 	}
 
@@ -1088,6 +1100,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			}
 		}
 
+		_textureEditDialog.SetRandomizeAssetsAction(() =>
+		{
+			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+			RefreshObjectList();
+			OpenEditDialogForObject(item);
+		});
 		_textureEditDialog.OpenForTexture(item.TemplateID, curTerData, updatedObj =>
 		{
 			string newId = updatedObj?["TemplateID"]?.ToString() ?? item.TemplateID;
@@ -1132,6 +1150,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			}
 		}
 
+		_spritesheetEditDialog.SetRandomizeAssetsAction(() =>
+		{
+			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+			RefreshObjectList();
+			OpenEditDialogForObject(item);
+		});
 		_spritesheetEditDialog.OpenForSheet(item.TemplateID, initRtex, initCols, initRows, initFps, initBlend, (newId, rtex, cols, rows, fps, blend) =>
 		{
 			UpdateSpritesheetMetadata(wsPath, item, newId, rtex, cols, rows, fps, blend);
@@ -1236,6 +1260,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private void OpenDecalEditDialog(ObjectItemInfo item, string wsPath)
 	{
 		JsonObject curDecData = TryGetDecalData(wsPath, item.TemplateID);
+		_decalEditDialog.SetRandomizeAssetsAction(() =>
+		{
+			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+			RefreshObjectList();
+			OpenEditDialogForObject(item);
+		});
 		_decalEditDialog.OpenForDecal(item.TemplateID, curDecData, updatedObj =>
 		{
 			string newDecalId = GetDecalIdFromUpdatedObj(updatedObj, item.TemplateID);
@@ -1267,6 +1297,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 	private void OpenShaderEditDialog(ObjectItemInfo item, string wsPath)
 	{
+		_shaderEditDialog.SetRandomizeAssetsAction(() =>
+		{
+			GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+			RefreshObjectList();
+			OpenEditDialogForObject(item);
+		});
 		_shaderEditDialog.OpenForShader(item.TemplateID, updatedConfig =>
 		{
 			GameContext.MetadataService.UpdateMetadata(wsPath, m =>
@@ -1311,6 +1347,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			var vfxConfig = metaVfx.Templates.Vfx.FirstOrDefault(x => string.Equals(x.VfxId, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 			if (vfxConfig != null)
 			{
+				_vfxStudioDialog.SetRandomizeAssetsAction(() =>
+				{
+					GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+					RefreshObjectList();
+					OpenEditDialogForObject(item);
+				});
 				_vfxStudioDialog.OpenForConfig(vfxConfig, updatedCfg =>
 				{
 					GameContext.MetadataService.UpdateMetadata(wsPath, m =>
@@ -1333,6 +1375,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		if (item.Category == "upgrades" || item.Category == "items")
 		{
+			_itemUpgradeEditDialog.SetRandomizeAssetsAction(() =>
+			{
+				GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+				RefreshObjectList();
+				OpenEditDialogForObject(item);
+			});
 			_itemUpgradeEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 			{
 				_currentPreviewTemplateID = newId;
@@ -1341,6 +1389,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		}
 		else
 		{
+			_entityVisualEditDialog.SetRandomizeAssetsAction(() =>
+			{
+				GameContext.EditorService.AssignRandomAssetsToTemplate(item.TemplateID);
+				RefreshObjectList();
+				OpenEditDialogForObject(item);
+			});
 			_entityVisualEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
 			{
 				_currentPreviewTemplateID = newId;

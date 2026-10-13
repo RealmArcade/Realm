@@ -78,4 +78,5 @@ public static class UnicodeIcons
 	public static readonly string SMOG = char.ConvertFromUtf32(0xF75F);
 	public static readonly string WATER = char.ConvertFromUtf32(0xF773);
 	public static readonly string BORDER_ALL = char.ConvertFromUtf32(0xF84C);
+	public static readonly string WRENCH = char.ConvertFromUtf32(0xF0AD);
 }

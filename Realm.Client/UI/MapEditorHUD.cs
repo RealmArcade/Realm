@@ -216,6 +216,7 @@ public partial class MapEditorHUD : Control
 	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog { get; set; }
 	private AuthorSignatureDialog _authorSignatureDialog { get; set; }
 	private ReplaceTextureDialog _replaceTextureDialog { get; set; }
+	private UtilitiesDialog _utilitiesDialog { get; set; }
 	private Button _btnEditorSettings { get; set; }
 	private PanelContainer _mapNameHeaderPanel { get; set; }
 	private Label _lblMapNameHeader { get; set; }
@@ -227,6 +228,7 @@ public partial class MapEditorHUD : Control
 	private Button BtnAssetsManager { get; set; }
 	private Button BtnTemplateManager { get; set; }
 	private Button BtnInstanceManager { get; set; }
+	private Button BtnUtilities { get; set; }
 	private bool IsUpdatingInspectorUI { get; set; }
 
 	private CheckBox ChkApplyGroundTexture { get; set; }

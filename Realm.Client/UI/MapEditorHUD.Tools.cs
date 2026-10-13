@@ -244,6 +244,12 @@ namespace Realm.Client.UI
 				BtnInstanceManager.Pressed += () => _popupEditors.Hide();
 				editorsVBox.AddChild(BtnInstanceManager);
 
+				BtnUtilities = new Button();
+				BtnUtilities.Name = "BtnUtilities";
+				SetupOptionButton(BtnUtilities, $"{UnicodeIcons.WRENCH} UTILITIES", () => OpenUtilitiesDialog(), 13, "Open batch utilities and maintenance tools");
+				BtnUtilities.Pressed += () => _popupEditors.Hide();
+				editorsVBox.AddChild(BtnUtilities);
+
 				_btnEditors = GetNodeOrNull<Button>("TopLeftBox/BtnEditors") ?? GetNodeOrNull<Button>("TopLeftBox/BtnVSCode");
 				if (_btnEditors == null)
 				{
@@ -251,11 +257,11 @@ namespace Realm.Client.UI
 					_btnEditors.Name = "BtnEditors";
 				}
 
-				SetupButton(_btnEditors, $"EDITORS {UnicodeIcons.CHEVRON_DOWN}", () =>
+				SetupButton(_btnEditors, $"WINDOWS {UnicodeIcons.CHEVRON_DOWN}", () =>
 				{
 					var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
 					_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
-				}, 13, "Open Map Editors & Managers menu");
+				}, 13, "Open Modules");
 				StyleMapEditorTopButton(_btnEditors);
 
 				_btnUndo = GetNode<Button>("TopLeftBox/BtnUndo");
@@ -4457,6 +4463,7 @@ namespace Realm.Client.UI
 			_waterProfileDialog = new WaterProfileDialog(this);
 			_environmentConfigDialog = new EnvironmentConfigDialog(this);
 			_replaceTextureDialog = new ReplaceTextureDialog(this);
+			_utilitiesDialog = new UtilitiesDialog(this);
 			RefreshWaterSwatches();
 			ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
 
@@ -4740,6 +4747,23 @@ namespace Realm.Client.UI
 		public void OpenEditorSettingsDialog()
 		{
 			_editorSettingsDialog?.OpenDialog();
+		}
+
+		public void OpenUtilitiesDialog()
+		{
+			if (_utilitiesDialog == null)
+			{
+				_utilitiesDialog = new UtilitiesDialog(this);
+			}
+
+			_utilitiesDialog.OpenDialog();
+		}
+
+		public void RefreshAllInspectors()
+		{
+			_templateManagerDialog?.RefreshObjectList();
+			_templateManagerDialog?.ReloadCurrentPreview();
+			_assetManagerDialog?.RefreshAssetListAndSelect("");
 		}
 
 		private void RefreshSkyboxList()

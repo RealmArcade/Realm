@@ -330,7 +330,7 @@ public partial class EditorService
 		}
 	}
 
-	public void AssignRandomAssetsToTemplates(TemplateType[] templateTypes, bool overwriteExisting = false)
+	public void AssignRandomAssetsToTemplates(TemplateType[] templateTypes, bool overwriteExisting = false, Action<int, int, string>? progress = null)
 	{
 		if (templateTypes == null || templateTypes.Length == 0)
 		{
@@ -374,16 +374,30 @@ public partial class EditorService
 			}
 		}
 
-		foreach (string slug in slugsToProcess)
+		for (int i = 0; i < slugsToProcess.Count; i++)
 		{
+			string slug = slugsToProcess[i];
+			progress?.Invoke(i, slugsToProcess.Count, slug);
 			AssignRandomAssetsToTemplate(slug, overwriteExisting);
 		}
+
+		progress?.Invoke(slugsToProcess.Count, slugsToProcess.Count, string.Empty);
+	}
+
+	public void AssignRandomAssetsToTemplates(TemplateType[] templateTypes, bool overwriteExisting = false)
+	{
+		AssignRandomAssetsToTemplates(templateTypes, overwriteExisting, null);
 	}
 
 	public void AssignRandomAssetsToTemplates(bool overwriteExisting = false)
 	{
+		AssignRandomAssetsToTemplates(overwriteExisting, null);
+	}
+
+	public void AssignRandomAssetsToTemplates(bool overwriteExisting, Action<int, int, string>? progress)
+	{
 		var allTemplateTypes = (TemplateType[])Enum.GetValues(typeof(TemplateType));
-		AssignRandomAssetsToTemplates(allTemplateTypes, overwriteExisting);
+		AssignRandomAssetsToTemplates(allTemplateTypes, overwriteExisting, progress);
 	}
 
 	private int CountMatchingTerms(IndexedAsset asset, string[] terms)

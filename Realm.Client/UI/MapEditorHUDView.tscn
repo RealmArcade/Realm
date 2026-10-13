@@ -58,7 +58,7 @@ text = "❓ HELP / HOTKEYS"
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 focus_mode = 0
-text = "EDITORS"
+text = "WINDOWS"
 
 [node name="BtnUndo" type="Button" parent="TopLeftBox"]
 custom_minimum_size = Vector2(0, 40)
