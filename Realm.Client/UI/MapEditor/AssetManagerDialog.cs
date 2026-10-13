@@ -1,13 +1,14 @@
-using Godot;
-using Realm.Client.Animation;
-using Realm.Client.Services;
-using Realm.Shared.Audio;
-using Realm.Shared.Textures;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Shared.Audio;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -207,10 +208,11 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		{
 			btnWebAi.Text = "🌐";
 		}
+
 		btnWebAi.TooltipText = TranslationServer.Translate("Generate 3D Model with AI Online");
 		btnWebAi.CustomMinimumSize = new Vector2(24, 24);
-		btnWebAi.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-		btnWebAi.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		btnWebAi.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		btnWebAi.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		btnWebAi.FocusMode = FocusModeEnum.None;
 		btnWebAi.Pressed += () => OS.ShellOpen("https://3d.hunyuanglobal.com");
 		actionsRow.AddChild(btnWebAi);
@@ -375,11 +377,12 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 	private string GetWorkspacePath()
 	{
-		if (!string.IsNullOrEmpty(Hud?.TempWorkspacePath))
+		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
 		{
-			return Hud.TempWorkspacePath;
+			return GameContext.EditorService._tempWorkspacePath;
 		}
-		return Services.MapWorkspaceService.GetActiveWorkspacePath();
+
+		return MapWorkspaceService.GetActiveWorkspacePath();
 	}
 
 	private void OnThumbnailGenerated(string filePath, Texture2D texture)
@@ -524,7 +527,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	{
 		if (IsAnimation(groupKey, fileName)) return "Animation";
 		if (IsShader(groupKey, fileName)) return "Shader";
-		
+
 		string? extracted = ExtractAssetTypeFromJson(itemKvp.Value as JsonObject);
 		if (!string.IsNullOrEmpty(extracted)) return extracted;
 
@@ -613,7 +616,9 @@ public partial class AssetManagerDialog : FloatingDialogBase
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		return tags;
 	}
@@ -624,7 +629,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		bool matchName = fileName.IndexOf(_searchFilterText, StringComparison.OrdinalIgnoreCase) >= 0;
 		bool matchTag = tags.Any(t => t.IndexOf(_searchFilterText, StringComparison.OrdinalIgnoreCase) >= 0);
-		
+
 		return matchName || matchTag;
 	}
 
@@ -661,7 +666,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
 		int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
 		int totalRows = (_matchingAssets.Count + columns - 1) / columns;
-		
+
 		UpdateVirtualGridHeight(totalRows);
 
 		if (_matchingAssets.Count == 0)
@@ -910,8 +915,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			{
 				_audioPlayer.Stop();
 			}
+
 			_audioPlayer.Stream = null;
 		}
+
 		if (_btnAudioPlay != null)
 		{
 			_btnAudioPlay.Text = "▶ " + TranslationServer.Translate("Play");
@@ -994,6 +1001,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		{
 			return tObj;
 		}
+
 		return null;
 	}
 
@@ -1047,6 +1055,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -1065,10 +1074,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		try
 		{
 			MapAssetHelper.RemoveManifestAsset(wsPath, categoryKey, assetFileName);
-			
+
 			string subFolder = GetAssetSubFolder(categoryKey, categoryKey.ToLowerInvariant());
 			string fullPath = Path.Combine(wsPath, "Assets", subFolder, assetFileName);
-			
+
 			if (File.Exists(fullPath))
 			{
 				File.Delete(fullPath);
@@ -1118,7 +1127,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 			File.Copy(sourceFilePath, destPath, true);
 			RealmMetadataHelper.EnsureMetadata(destPath);
-			
+
 			byte[] finalBytes = File.ReadAllBytes(destPath);
 			string hash = RealmMetadataHelper.ComputeBlake3(finalBytes, ext);
 
@@ -1139,7 +1148,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	{
 		return !string.IsNullOrWhiteSpace(preferredFileName) && !AssetIndexService.IsHexHash(Path.GetFileNameWithoutExtension(preferredFileName))
 			? preferredFileName
-			: (AssetIndexService.Instance?.ResolvePrettyFileName(sourceFilePath, preferredFileName) ?? Path.GetFileName(sourceFilePath));
+			: (GameContext.AssetIndexService?.ResolvePrettyFileName(sourceFilePath, preferredFileName) ?? Path.GetFileName(sourceFilePath));
 	}
 
 	private string DetermineImportTargetCategory(string sourceFilePath, string ext)
@@ -1203,7 +1212,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 				ImportShaderFromJson(sourceFilePath, wsPath);
 				return;
 			}
-			
+
 			if (ext is ".gdshader" or ".shader")
 			{
 				ImportGdShader(sourceFilePath, wsPath);
@@ -1230,7 +1239,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			ImportMultipleShadersFromJson(shadersObj, wsPath);
 			return;
 		}
-		
+
 		if (rootObj.ContainsKey("transition_mode") || rootObj.ContainsKey("edge_color") || rootObj.ContainsKey("name") || rootObj.ContainsKey("TransitionMode"))
 		{
 			ImportSingleShaderFromJson(rootObj, sourceFilePath, wsPath);
@@ -1244,13 +1253,14 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		foreach (var kvp in shadersObj)
 		{
 			if (kvp.Value == null) continue;
-			
+
 			var config = CustomShaderConfig.FromJson(kvp.Key, kvp.Value);
 			SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
 			EnsureTemplateForAsset(wsPath, "SpawnShader", config.Key, string.Empty);
 			lastKey = config.Key;
 			count++;
 		}
+
 		RefreshAssetListAndSelect(lastKey);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported {0} shaders successfully."), count));
 	}
@@ -1261,7 +1271,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		string key = rootObj.TryGetPropertyValue("key", out var keyNode) && !string.IsNullOrWhiteSpace(keyNode?.ToString())
 			? keyNode.ToString()
 			: (rootObj.TryGetPropertyValue("Key", out var keyNodeCap) && !string.IsNullOrWhiteSpace(keyNodeCap?.ToString()) ? keyNodeCap.ToString() : defaultKey);
-		
+
 		var config = CustomShaderConfig.FromJson(key, rootObj);
 		SpawnDeathShaderManager.SaveCustomShader(config, wsPath);
 		EnsureTemplateForAsset(wsPath, "SpawnShader", config.Key, string.Empty);
@@ -1311,13 +1321,14 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return;
 
 		string wsPath = GetWorkspacePath();
-		string resolvedName = AssetIndexService.Instance?.ResolvePrettyFileName(sourceFilePath) ?? Path.GetFileName(sourceFilePath);
+		string resolvedName = GameContext.AssetIndexService?.ResolvePrettyFileName(sourceFilePath) ?? Path.GetFileName(sourceFilePath);
 		string cleanBase = Path.GetFileNameWithoutExtension(resolvedName).ToLowerInvariant().Replace(' ', '_');
 
 		try
 		{
 			string targetCategory = _selectedAssetType is "Decal" or "Icon" or "Noise" or "Ribbon" or "Skybox" or "Spritesheet" or "Terrain" or "vfx_radial" or "vfx_vertical"
-				? _selectedAssetType : "Terrain";
+				? _selectedAssetType
+				: "Terrain";
 
 			string destPath = SetupImageDestinationPath(wsPath, targetCategory, cleanBase);
 			TextureConversionResult convResult = ProcessImageConversion(sourceFilePath, destPath, targetCategory);
@@ -1386,7 +1397,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		EnsureTemplateForAsset(wsPath, targetCategory, $"{cleanBase}.rtex", hash);
 
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Converted and imported {0}.rtex"), cleanBase));
-		AssetIndexService.Instance?.RescanAllDirectories();
+		GameContext.AssetIndexService?.RescanAllDirectories();
 		RefreshAssetListAndSelect($"{cleanBase}.rtex");
 	}
 
@@ -1399,10 +1410,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			string slug = TemplateIDHelper.GenerateSlug(fileName);
 			string normalizedCategory = MapAssetHelper.NormalizeCategoryKey(category);
 
-			MetadataService.Instance.UpdateMetadata(wsPath, meta =>
-			{
-				CreateTemplateMetadataForCategory(meta, normalizedCategory, slug, fileName);
-			});
+			GameContext.MetadataService.UpdateMetadata(wsPath, meta => { CreateTemplateMetadataForCategory(meta, normalizedCategory, slug, fileName); });
 
 			UpdateTerrainAndTexturesUI(normalizedCategory);
 		}
@@ -1417,10 +1425,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		if (normalizedCategory.Equals("terrain", StringComparison.OrdinalIgnoreCase) || normalizedCategory.Equals("textures", StringComparison.OrdinalIgnoreCase))
 		{
 			MapEditorHUD.Instance?.SetupTextureSwatches(false);
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+			if (GameHost.Instance?.GroundTerrain != null)
 			{
-				Realm.Client.Core.GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
-				Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
+				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 	}
@@ -1584,7 +1592,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		if (!meta.Textures.ContainsKey(templateId))
 		{
 			int nextFreeSlot = FindFirstFreeTextureSlot(meta.Textures);
-			
+
 			meta.Textures[templateId] = new TextureMetadata
 			{
 				TexturePath = fileName,
@@ -1611,7 +1619,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 				occupiedSlots[existingTex.SwatchIndex] = true;
 			}
 		}
-		
+
 		int nextFreeSlot = TextureSwatchSlots.FirstFreeSlot(occupiedSlots);
 		return nextFreeSlot < 0 ? 0 : nextFreeSlot;
 	}
@@ -1753,7 +1761,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			UpdateAudioManifest(wsPath, targetCategory, destPath, $"{cleanBase}.ogg");
 
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Converted and imported audio {0}.ogg"), cleanBase));
-			AssetIndexService.Instance?.RescanAllDirectories();
+			GameContext.AssetIndexService?.RescanAllDirectories();
 			RefreshAssetListAndSelect($"{cleanBase}.ogg");
 		}
 		catch (Exception ex)
@@ -1765,7 +1773,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 	private static string GetCleanBaseAudioName(string sourceFilePath)
 	{
-		string resolvedName = AssetIndexService.Instance?.ResolvePrettyFileName(sourceFilePath) ?? Path.GetFileName(sourceFilePath);
+		string resolvedName = GameContext.AssetIndexService?.ResolvePrettyFileName(sourceFilePath) ?? Path.GetFileName(sourceFilePath);
 		return Path.GetFileNameWithoutExtension(resolvedName).ToLowerInvariant().Replace(' ', '_');
 	}
 
@@ -1847,7 +1855,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private void ProcessExtractedAnimations(string wsPath, string animsDir, List<(string AnimationName, Realm.Shared.Animation.RealmAnimationData Data)> extracted)
+	private void ProcessExtractedAnimations(string wsPath, string animsDir, List<(string AnimationName, RealmAnimationData Data)> extracted)
 	{
 		int importedCount = 0;
 		int skippedCount = 0;
@@ -1857,10 +1865,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		{
 			var (savedFileName, blake3, alreadyExisted) = MixamoAnimationImporter.SaveAnimationWithDeduplication(animsDir, animName, animData);
 			MapAssetHelper.UpdateManifestAsset(wsPath, "Animation", savedFileName, blake3);
-			
+
 			if (alreadyExisted) skippedCount++;
 			else importedCount++;
-			
+
 			firstSavedFileName ??= savedFileName;
 		}
 
@@ -1873,7 +1881,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			Hud?.ShowFeedback(TranslationServer.Translate("Animation(s) already existed in map workspace (identical BLAKE3 hash)."));
 		}
 
-		AssetIndexService.Instance?.RescanAllDirectories();
+		GameContext.AssetIndexService?.RescanAllDirectories();
 		RefreshAssetListAndSelect(firstSavedFileName ?? string.Empty);
 	}
 
@@ -1909,6 +1917,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			{
 				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("All shared greenlit assets are already normalized ({0} references active)."), currentRefs.Count));
 			}
+
 			return;
 		}
 
@@ -2042,7 +2051,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		btnApply.Pressed += () =>
 		{
-			Realm.Client.UI.UIManager.Instance?.PlayClickSound();
+			UIManager.Instance?.PlayClickSound();
 			var selectedTitles = checkboxes
 				.Where(c => c.CheckBox.ButtonPressed)
 				.Select(c => c.Suggestion.MapTitle)
@@ -2054,6 +2063,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 				long saved = checkboxes.Where(c => c.CheckBox.ButtonPressed).Sum(c => c.Suggestion.SavedBytes);
 				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Applied {0} greenlit reference(s). {1} saved in .rmap exports!"), selectedTitles.Count, MapStorageService.FormatBytes(saved)));
 			}
+
 			overlay.QueueFree();
 		};
 
@@ -2069,7 +2079,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		btnCancel.Pressed += () =>
 		{
-			Realm.Client.UI.UIManager.Instance?.PlayClickSound();
+			UIManager.Instance?.PlayClickSound();
 			overlay.QueueFree();
 		};
 	}

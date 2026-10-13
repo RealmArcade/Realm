@@ -1,5 +1,9 @@
-using Godot;
 using System;
+using System.IO;
+using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Core;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -44,9 +48,9 @@ public class MapEditorMinimap
 
 	private void TeleportCameraToMinimapPos(Vector2 clickPos)
 	{
-		if (_minimapArea == null || Realm.Client.Core.GameHost.Instance == null) return;
+		if (_minimapArea == null || GameHost.Instance == null) return;
 		var worldPos = MinimapHelper.MinimapToWorld(clickPos, _minimapArea.Size);
-		var camera = Realm.Client.Core.GameHost.Instance.GetViewport()?.GetCamera3D();
+		var camera = GameHost.Instance.GetViewport()?.GetCamera3D();
 		if (camera != null)
 		{
 			camera.GlobalPosition = new Vector3(worldPos.X, camera.GlobalPosition.Y, worldPos.Z);
@@ -59,8 +63,8 @@ public class MapEditorMinimap
 
 	private void UpdateMinimapIndicator()
 	{
-		if (_cameraIndicator == null || _minimapArea == null || Realm.Client.Core.GameHost.Instance == null) return;
-		var camera = Realm.Client.Core.GameHost.Instance.GetViewport()?.GetCamera3D();
+		if (_cameraIndicator == null || _minimapArea == null || GameHost.Instance == null) return;
+		var camera = GameHost.Instance.GetViewport()?.GetCamera3D();
 		if (camera == null) return;
 
 		Vector3 camPos = camera.GlobalPosition;
@@ -69,6 +73,7 @@ public class MapEditorMinimap
 		{
 			return;
 		}
+
 		_lastCameraPos = camPos;
 		_lastCameraRot = camRot;
 
@@ -86,6 +91,7 @@ public class MapEditorMinimap
 			_needsRegen = true;
 			return;
 		}
+
 		GenerateDynamicMinimap();
 	}
 
@@ -96,6 +102,7 @@ public class MapEditorMinimap
 			_needsRegen = true;
 			return;
 		}
+
 		_isGeneratingMinimap = true;
 
 		try
@@ -117,7 +124,7 @@ public class MapEditorMinimap
 		}
 	}
 
-	private async System.Threading.Tasks.Task<bool> TryGenerateSingleMinimapPassAsync()
+	private async Task<bool> TryGenerateSingleMinimapPassAsync()
 	{
 		if (_hudNode == null || !GodotObject.IsInstanceValid(_hudNode)) return false;
 		var tree = _hudNode.GetTree();
@@ -135,12 +142,13 @@ public class MapEditorMinimap
 		{
 			minimapBg.Texture = imgTexture;
 		}
+
 		return true;
 	}
 
-	public async System.Threading.Tasks.Task<bool> GenerateAndSaveMinimapThumbnailAsync(string workspacePath)
+	public async Task<bool> GenerateAndSaveMinimapThumbnailAsync(string workspacePath)
 	{
-		if (string.IsNullOrWhiteSpace(workspacePath) || !System.IO.Directory.Exists(workspacePath)) return false;
+		if (string.IsNullOrWhiteSpace(workspacePath) || !Directory.Exists(workspacePath)) return false;
 		if (_hudNode == null || !GodotObject.IsInstanceValid(_hudNode)) return false;
 
 		try
@@ -164,13 +172,14 @@ public class MapEditorMinimap
 		{
 			img.Convert(Image.Format.Rgba8);
 		}
+
 		if (img.GetWidth() != 512 || img.GetHeight() != 512)
 		{
 			img.Resize(512, 512, Image.Interpolation.Bilinear);
 		}
 
-		string destinationPngPath = System.IO.Path.Combine(workspacePath, "thumbnail.png");
-		Realm.Shared.Textures.IndexedPngHelper.SaveAs256ColorPng(
+		string destinationPngPath = Path.Combine(workspacePath, "thumbnail.png");
+		IndexedPngHelper.SaveAs256ColorPng(
 			img.GetData(),
 			img.GetWidth(),
 			img.GetHeight(),

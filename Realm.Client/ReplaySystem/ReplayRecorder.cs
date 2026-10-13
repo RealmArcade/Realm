@@ -1,12 +1,16 @@
-using Godot;
-using MemoryPack;
-using Realm.Shared;
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Text;
 using System.Threading;
+using Godot;
+using MemoryPack;
+using Realm.Client.Network;
+using Realm.Shared;
+using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.ReplaySystem
 {
@@ -21,7 +25,7 @@ namespace Realm.Client.ReplaySystem
 		private readonly List<ReplayPlayerInfo> _players = new();
 		private int _tickCount = 0;
 
-		public ReplayRecorder(string replayPath, string mapName, List<Network.LobbyManager.PlayerInfo> players)
+		public ReplayRecorder(string replayPath, string mapName, List<PlayerInfo> players)
 		{
 			_replayPath = replayPath;
 			_mapName = mapName;
@@ -114,9 +118,9 @@ namespace Realm.Client.ReplaySystem
 					Directory.CreateDirectory(dir);
 				}
 
-				using var fs = new FileStream(_replayPath, System.IO.FileMode.Create, System.IO.FileAccess.Write, System.IO.FileShare.None);
-				
-				byte[] magicBytes = System.Text.Encoding.ASCII.GetBytes("REALMREP");
+				using var fs = new FileStream(_replayPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+				byte[] magicBytes = Encoding.ASCII.GetBytes("REALMREP");
 				fs.Write(magicBytes, 0, 8);
 
 				var header = new ReplayHeader
@@ -137,7 +141,7 @@ namespace Realm.Client.ReplaySystem
 
 				using (var deflate = new DeflateStream(fs, CompressionMode.Compress, true))
 				{
-					var bufferWriter = new System.Buffers.ArrayBufferWriter<byte>(65536);
+					var bufferWriter = new ArrayBufferWriter<byte>(65536);
 					while (!_cts.Token.IsCancellationRequested || !_queue.IsEmpty)
 					{
 						if (_queue.IsEmpty && !_cts.Token.IsCancellationRequested)
@@ -149,7 +153,7 @@ namespace Realm.Client.ReplaySystem
 						{
 							bufferWriter.Clear();
 							MemoryPackSerializer.Serialize(in bufferWriter, frame);
-							
+
 							ReadOnlySpan<byte> writtenSpan = bufferWriter.WrittenSpan;
 							byte[] lenBytes = BitConverter.GetBytes(writtenSpan.Length);
 							deflate.Write(lenBytes, 0, 4);
@@ -158,6 +162,7 @@ namespace Realm.Client.ReplaySystem
 							ReplayObjectPool.ReturnFrame(frame);
 						}
 					}
+
 					deflate.Flush();
 				}
 

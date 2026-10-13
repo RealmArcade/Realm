@@ -1,8 +1,14 @@
-using Godot;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Shared.Services;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -76,20 +82,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private double _previewAnimTime = 0.0;
 
-	private struct DecalNodeState
-	{
-		public Color Modulate;
-		public float AlbedoMix;
-		public Texture2D TextureNormal;
-		public Texture2D TextureOrm;
-		public Texture2D TextureEmission;
-		public float EmissionEnergy;
-		public Vector3 Size;
-		public float UpperFade;
-		public float LowerFade;
-	}
 
-	private readonly System.Collections.Generic.Dictionary<ulong, DecalNodeState> _originalDecalStates = new();
+	private readonly Dictionary<ulong, DecalNodeState> _originalDecalStates = new();
 
 	private DecalSnapshot _initialSnapshot;
 	private Action<JsonObject> _onApplied;
@@ -128,7 +122,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		var scrollBody = CreateScrollBody(600);
 		var contentVBox = new VBoxContainer();
 		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
 		_lblDecalName = new Label();
@@ -157,8 +151,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_previewRect.CustomMinimumSize = new Vector2(100, 100);
 		_previewRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_previewRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		_previewRect.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-		_previewRect.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		_previewRect.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		_previewRect.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 
 		previewVBox.AddChild(_previewRect);
 		previewPanel.AddChild(previewVBox);
@@ -185,7 +179,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("decal_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) =>
 		{
@@ -556,25 +550,26 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			UpdateLivePreviewAndWorld();
 		}, "0.00x", 140f);
 	}
+
 	private void ReloadBaseTexture()
 	{
 		string texKey = !string.IsNullOrWhiteSpace(_texturePath)
 			? _texturePath
 			: (!string.IsNullOrWhiteSpace(_decalKey) && _decalKey.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? _decalKey : string.Empty);
-		
+
 		if (string.IsNullOrWhiteSpace(texKey))
 		{
 			_baseTexture = null;
 			return;
 		}
 
-		_baseTexture = Realm.Client.Core.GameHost.Instance?.LoadDecalTexture(texKey);
+		_baseTexture = GameHost.Instance?.LoadDecalTexture(texKey);
 		if (_baseTexture != null) return;
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string filename = Path.GetFileName(texKey);
 		string baseKey = Path.GetFileNameWithoutExtension(texKey);
-		
+
 		string[] candidates = new[]
 		{
 			Path.Combine(wsPath, "Assets", "decals", texKey),
@@ -595,7 +590,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		if (!File.Exists(path) || !path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) return false;
 
 		byte[] rtexBytes = File.ReadAllBytes(path);
-		byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(rtexBytes, 0);
+		byte[]? webpBytes = RtexFile.GetLayer(rtexBytes, 0);
 		if (webpBytes == null || webpBytes.Length == 0) return false;
 
 		var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
@@ -630,16 +625,16 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		try
 		{
-			string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(wsPath);
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			var metadata = MapFileService.LoadMetadata(wsPath);
 			if (metadata?.Decals == null) return;
 
 			string key = Path.GetFileName(decalKey);
 			string baseKey = Path.GetFileNameWithoutExtension(decalKey);
 
-			Realm.Shared.Metadata.DecalMetadata? foundMeta = null;
+			DecalMetadata? foundMeta = null;
 			string[] candidates = new[] { decalKey, key, baseKey, $"{baseKey}.rtex", $"{baseKey}.png", $"{baseKey}.webp" };
-			
+
 			foreach (var candidate in candidates)
 			{
 				if (metadata.Decals.TryGetValue(candidate, out var meta))
@@ -653,12 +648,14 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 			MergeMetadataJson(foundMeta, result);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
-	private static void MergeMetadataJson(Realm.Shared.Metadata.DecalMetadata foundMeta, JsonObject result)
+	private static void MergeMetadataJson(DecalMetadata foundMeta, JsonObject result)
 	{
-		var jsonMeta = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(foundMeta)) as JsonObject;
+		var jsonMeta = JsonNode.Parse(JsonSerializer.Serialize(foundMeta)) as JsonObject;
 		if (jsonMeta == null) return;
 
 		foreach (var kvp in jsonMeta)
@@ -677,11 +674,13 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		try
 		{
 			string targetTexture = GetTargetTexturePath(decalKey, result);
-			string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
 			ResolveRtexCandidates(wsPath, targetTexture, result);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private static string GetTargetTexturePath(string decalKey, JsonObject result)
@@ -690,7 +689,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		{
 			return tpNode.ToString()!;
 		}
-		
+
 		if (result.TryGetPropertyValue("TexturePath", out var tpNode2) && !string.IsNullOrWhiteSpace(tpNode2?.ToString()))
 		{
 			return tpNode2.ToString()!;
@@ -722,9 +721,9 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		if (!File.Exists(path) || !path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) return false;
 
 		byte[] bytes = File.ReadAllBytes(path);
-		if (!Realm.Shared.Textures.RtexFile.IsRtexBytes(bytes)) return false;
+		if (!RtexFile.IsRtexBytes(bytes)) return false;
 
-		var (customJson, _, _) = Realm.Shared.Textures.RtexFile.Parse(bytes);
+		var (customJson, _, _) = RtexFile.Parse(bytes);
 		if (string.IsNullOrEmpty(customJson)) return false;
 
 		var rtexMeta = JsonNode.Parse(customJson)?.AsObject();
@@ -745,11 +744,11 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		if (result.ContainsKey("brightness")) return;
 		if (result.ContainsKey("tint")) return;
-		if (Realm.Client.Core.GameHost.Instance == null) return;
-		if (Realm.Client.Core.GameHost.Instance.AllDecals == null) return;
+		if (GameHost.Instance == null) return;
+		if (GameHost.Instance.AllDecals == null) return;
 
 		string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-		foreach (var d in Realm.Client.Core.GameHost.Instance.AllDecals)
+		foreach (var d in GameHost.Instance.AllDecals)
 		{
 			if (TryMatchAndApplyDecal(d, decalKey, baseKey, result))
 			{
@@ -762,7 +761,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		if (d == null) return false;
 		if (!GodotObject.IsInstanceValid(d)) return false;
-		if (!(d is Realm.Client.Decal3D d3d)) return false;
+		if (!(d is Decal3D d3d)) return false;
 
 		string dId = d3d.DecalId;
 		string dBase = Path.GetFileNameWithoutExtension(dId);
@@ -772,7 +771,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			ApplyDecalStateToResult(d, result);
 			return true;
 		}
-		
+
 		if (dBase.Equals(baseKey, StringComparison.OrdinalIgnoreCase))
 		{
 			ApplyDecalStateToResult(d, result);
@@ -792,7 +791,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		result["metallic"] = 0.0f;
 		result["upper_fade"] = d.UpperFade;
 		result["lower_fade"] = d.LowerFade;
-		
+
 		if (d.TextureEmission != null)
 		{
 			result["blend_mode"] = d.AlbedoMix <= 0.01f ? "Additive" : "Screen";
@@ -802,7 +801,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			result["blend_mode"] = "Mix";
 		}
 
-		if (d is Realm.Client.Decal3D d3dAnim)
+		if (d is Decal3D d3dAnim)
 		{
 			result["animate_opacity"] = d3dAnim.AnimateOpacity;
 			result["opacity_pulse_speed"] = d3dAnim.OpacityPulseSpeed;
@@ -909,9 +908,9 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private string ResolveFallbackTexturePath()
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string candidate = $"{_slug}.rtex";
-		
+
 		if (File.Exists(Path.Combine(wsPath, "Assets", "decals", candidate)))
 		{
 			return candidate;
@@ -920,7 +919,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		var candidates = ScanAvailableAssets("decals", true);
 		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, candidate, StringComparison.OrdinalIgnoreCase))
 		                        ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
-			
+
 		return !string.IsNullOrEmpty(candidateMatch) ? candidateMatch : string.Empty;
 	}
 
@@ -942,14 +941,14 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void TrackOriginalDecalStates(string decalKey)
 	{
 		_originalDecalStates.Clear();
-		if (Realm.Client.Core.GameHost.Instance?.AllDecals == null) return;
+		if (GameHost.Instance?.AllDecals == null) return;
 
 		string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-		foreach (var d in Realm.Client.Core.GameHost.Instance.AllDecals)
+		foreach (var d in GameHost.Instance.AllDecals)
 		{
 			if (d == null || !GodotObject.IsInstanceValid(d)) continue;
 
-			string dId = d is Realm.Client.Decal3D d3d ? d3d.DecalId : "";
+			string dId = d is Decal3D d3d ? d3d.DecalId : "";
 			string dBase = Path.GetFileNameWithoutExtension(dId);
 			if (dId.Equals(decalKey, StringComparison.OrdinalIgnoreCase) || dBase.Equals(baseKey, StringComparison.OrdinalIgnoreCase))
 			{
@@ -1027,7 +1026,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		if (_lblBrightness != null) _lblBrightness.Text += "x"; // Append x for brightness
 
 		if (_btnTint != null) _btnTint.Color = _tint;
-		
+
 		SyncSlider(_sldContrast, _lblContrast, _contrast, "F2");
 		if (_lblContrast != null) _lblContrast.Text += "x"; // Append x for contrast
 
@@ -1046,10 +1045,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void SyncMaterialControls()
 	{
 		SyncSlider(_sldAlbedoMix, _lblAlbedoMix, _albedoMix, "F2");
-		
+
 		SyncSlider(_sldNormalStrength, _lblNormalStrength, _normalStrength, "F2");
 		if (_lblNormalStrength != null) _lblNormalStrength.Text += "x"; // Append x for normal strength
-		
+
 		SyncSlider(_sldRoughness, _lblRoughness, _roughness, "F2");
 		SyncSlider(_sldMetallic, _lblMetallic, _metallic, "F2");
 
@@ -1059,7 +1058,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void SyncBlendModeControl()
 	{
 		if (_optBlendMode == null) return;
-		
+
 		_optBlendMode.Selected = _blendMode switch
 		{
 			"Additive" => 1,
@@ -1079,10 +1078,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void SyncOpacityAnimationControls()
 	{
 		if (_chkAnimateOpacity != null) _chkAnimateOpacity.ButtonPressed = _animateOpacity;
-		
+
 		SyncSlider(_sldOpacitySpeed, _lblOpacitySpeed, _opacityPulseSpeed, "F1");
 		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text += "x"; // Append x for speed
-		
+
 		SyncSlider(_sldMinOpacity, _lblMinOpacity, _minOpacity, "F2");
 		SyncSlider(_sldMaxOpacity, _lblMaxOpacity, _maxOpacity, "F2");
 	}
@@ -1090,10 +1089,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void SyncEmissionAnimationControls()
 	{
 		if (_chkAnimateEmission != null) _chkAnimateEmission.ButtonPressed = _animateEmission;
-		
+
 		SyncSlider(_sldEmissionSpeed, _lblEmissionSpeed, _emissionPulseSpeed, "F1");
 		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text += "x"; // Append x for speed
-		
+
 		SyncSlider(_sldMinEmission, _lblMinEmission, _minEmission, "F1");
 		SyncSlider(_sldMaxEmission, _lblMaxEmission, _maxEmission, "F1");
 	}
@@ -1101,13 +1100,13 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void SyncScaleAnimationControls()
 	{
 		if (_chkAnimateScale != null) _chkAnimateScale.ButtonPressed = _animateScale;
-		
+
 		SyncSlider(_sldScaleSpeed, _lblScaleSpeed, _scalePulseSpeed, "F1");
 		if (_lblScaleSpeed != null) _lblScaleSpeed.Text += "x"; // Append x for speed
-		
+
 		SyncSlider(_sldMinScale, _lblMinScale, _minScaleRatio, "F2");
 		if (_lblMinScale != null) _lblMinScale.Text += "x"; // Append x for scale ratio
-		
+
 		SyncSlider(_sldMaxScale, _lblMaxScale, _maxScaleRatio, "F2");
 		if (_lblMaxScale != null) _lblMaxScale.Text += "x"; // Append x for scale ratio
 	}
@@ -1119,6 +1118,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			_sldUpperFade.Value = _upperFade;
 			_lblUpperFade.Text = $"{_upperFade:F2}";
 		}
+
 		if (_sldLowerFade != null)
 		{
 			_sldLowerFade.Value = _lowerFade;
@@ -1194,43 +1194,43 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		UpdateLabelText(_lblBrightness, _brightness, "F2");
 		if (_lblBrightness != null) _lblBrightness.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblContrast, _contrast, "F2");
 		if (_lblContrast != null) _lblContrast.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblSaturation, _saturation, "F2");
 		if (_lblSaturation != null) _lblSaturation.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblOpacity, _opacity, "F2");
 		UpdateLabelText(_lblAlbedoMix, _albedoMix, "F2");
-		
+
 		UpdateLabelText(_lblNormalStrength, _normalStrength, "F2");
 		if (_lblNormalStrength != null) _lblNormalStrength.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblRoughness, _roughness, "F2");
 		UpdateLabelText(_lblMetallic, _metallic, "F2");
 
 		UpdateLabelText(_lblOpacitySpeed, _opacityPulseSpeed, "F1");
 		if (_lblOpacitySpeed != null) _lblOpacitySpeed.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblMinOpacity, _minOpacity, "F2");
 		UpdateLabelText(_lblMaxOpacity, _maxOpacity, "F2");
-		
+
 		UpdateLabelText(_lblEmissionSpeed, _emissionPulseSpeed, "F1");
 		if (_lblEmissionSpeed != null) _lblEmissionSpeed.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblMinEmission, _minEmission, "F1");
 		UpdateLabelText(_lblMaxEmission, _maxEmission, "F1");
-		
+
 		UpdateLabelText(_lblScaleSpeed, _scalePulseSpeed, "F1");
 		if (_lblScaleSpeed != null) _lblScaleSpeed.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblMinScale, _minScaleRatio, "F2");
 		if (_lblMinScale != null) _lblMinScale.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblMaxScale, _maxScaleRatio, "F2");
 		if (_lblMaxScale != null) _lblMaxScale.Text += "x"; // Append x
-		
+
 		UpdateLabelText(_lblUpperFade, _upperFade, "F2");
 		UpdateLabelText(_lblLowerFade, _lowerFade, "F2");
 	}
@@ -1265,7 +1265,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			mat = new CanvasItemMaterial();
 			_previewRect.Material = mat;
 		}
-		
+
 		mat.BlendMode = _blendMode switch
 		{
 			"Additive" => CanvasItemMaterial.BlendModeEnum.Add,
@@ -1277,7 +1277,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private void UpdateGameHostDecals()
 	{
-		Realm.Client.Core.GameHost.Instance?.RefreshDecalsLive(
+		GameHost.Instance?.RefreshDecalsLive(
 			_decalKey,
 			_brightness,
 			_tint,
@@ -1316,7 +1316,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		string finalTexturePath = !string.IsNullOrWhiteSpace(_txtTexturePath?.Text) ? _txtTexturePath.Text.Trim() : _texturePath;
 		_texturePath = finalTexturePath;
 
-		Realm.Client.Core.GameHost.Instance?.InvalidateDecalCache(_decalKey);
+		GameHost.Instance?.InvalidateDecalCache(_decalKey);
 
 		var result = new JsonObject
 		{
@@ -1395,9 +1395,9 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private bool TryRestoreOriginalStates()
 	{
-		if (_originalDecalStates.Count == 0 || Realm.Client.Core.GameHost.Instance?.AllDecals == null) return false;
+		if (_originalDecalStates.Count == 0 || GameHost.Instance?.AllDecals == null) return false;
 
-		foreach (var d in Realm.Client.Core.GameHost.Instance.AllDecals)
+		foreach (var d in GameHost.Instance.AllDecals)
 		{
 			if (d == null || !GodotObject.IsInstanceValid(d) || !_originalDecalStates.TryGetValue(d.GetInstanceId(), out var orig)) continue;
 
@@ -1410,8 +1410,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			d.Size = orig.Size;
 			d.UpperFade = orig.UpperFade;
 			d.LowerFade = orig.LowerFade;
-			
-			if (d is Realm.Client.Decal3D d3d)
+
+			if (d is Decal3D d3d)
 			{
 				d3d.SetBaseProperties(orig.Modulate, orig.EmissionEnergy, orig.Size);
 				d3d.UpdateProcessState();
@@ -1428,10 +1428,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_decalKey = _initialSnapshot.DecalId;
 		var (_, initSlug) = TemplateIDHelper.ParseTemplateID(_decalKey);
 		_slug = !string.IsNullOrWhiteSpace(initSlug) ? TemplateIDHelper.ToSnakeCase(initSlug) : TemplateIDHelper.ToSnakeCase(_decalKey);
-		
+
 		if (_txtSlug != null) _txtSlug.Text = _slug;
 		if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
-		
+
 		_texturePath = _initialSnapshot.TexturePath;
 		_brightness = _initialSnapshot.Brightness;
 		_tint = _initialSnapshot.Tint;

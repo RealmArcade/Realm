@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Numerics;
+using System.Text.Json;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
@@ -6,8 +9,6 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using System.Numerics;
-using System.Text.Json;
 
 namespace Realm.Ecs.AI.Genres;
 
@@ -47,14 +48,14 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 	{
 		return new float[FeatureVectorLength]
 		{
-			 0.9f, // KillThreat
-			 0.95f, // SurvivalRisk
-			 0.8f, // ManaEfficiency
-			 0.85f, // LastHitPriority
-			 0.7f, // CrowdControlOpportunity
-			 0.6f, // ShopItemUrgency
-			 0.5f, // PowerupProximity
-			-0.3f  // FountainDistance
+			0.9f, // KillThreat
+			0.95f, // SurvivalRisk
+			0.8f, // ManaEfficiency
+			0.85f, // LastHitPriority
+			0.7f, // CrowdControlOpportunity
+			0.6f, // ShopItemUrgency
+			0.5f, // PowerupProximity
+			-0.3f // FountainDistance
 		};
 	}
 
@@ -87,12 +88,14 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		{
 			_fountainPosition = JsonSerializer.Deserialize<Vector3>(fountainJson);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void ConfigureFountainHealRadius(IReadOnlyDictionary<string, string> parameters)
 	{
-		if (!parameters.TryGetValue("FountainHealRadius", out var radiusStr) || !float.TryParse(radiusStr, System.Globalization.CultureInfo.InvariantCulture, out var radius))
+		if (!parameters.TryGetValue("FountainHealRadius", out var radiusStr) || !float.TryParse(radiusStr, CultureInfo.InvariantCulture, out var radius))
 			return;
 
 		_fountainHealRadius = Math.Max(1.0f, radius);
@@ -100,7 +103,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 
 	private void ConfigureRetreatHealthPercent(IReadOnlyDictionary<string, string> parameters)
 	{
-		if (!parameters.TryGetValue("RetreatHealthPercent", out var hpStr) || !float.TryParse(hpStr, System.Globalization.CultureInfo.InvariantCulture, out var hp))
+		if (!parameters.TryGetValue("RetreatHealthPercent", out var hpStr) || !float.TryParse(hpStr, CultureInfo.InvariantCulture, out var hp))
 			return;
 
 		_retreatHealthPercent = Math.Clamp(hp, 0.05f, 0.95f);
@@ -108,7 +111,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 
 	private void ConfigureRetreatManaPercent(IReadOnlyDictionary<string, string> parameters)
 	{
-		if (!parameters.TryGetValue("RetreatManaPercent", out var manaStr) || !float.TryParse(manaStr, System.Globalization.CultureInfo.InvariantCulture, out var mana))
+		if (!parameters.TryGetValue("RetreatManaPercent", out var manaStr) || !float.TryParse(manaStr, CultureInfo.InvariantCulture, out var mana))
 			return;
 
 		_retreatManaPercent = Math.Clamp(mana, 0.05f, 0.95f);
@@ -124,11 +127,13 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 			var runes = JsonSerializer.Deserialize<List<Vector3>>(runesJson);
 			if (runes == null)
 				return;
-				
+
 			_runePositions.Clear();
 			_runePositions.AddRange(runes);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void ConfigureShopBuildOrder(IReadOnlyDictionary<string, string> parameters)
@@ -141,11 +146,13 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 			var items = JsonSerializer.Deserialize<List<string>>(shopJson);
 			if (items == null)
 				return;
-				
+
 			_shopBuildOrder.Clear();
 			_shopBuildOrder.AddRange(items);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
@@ -190,7 +197,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		{
 			return world.Get<UnitOwnerPlayer>(entity).PlayerIndex;
 		}
-		
+
 		if (world.Has<Owner>(entity))
 		{
 			var pEnt = world.Get<Owner>(entity).PlayerEntity.Value;
@@ -400,6 +407,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 			ref var cooldowns = ref world.Get<SpellCooldowns>(aff.SourceEntity);
 			cooldowns.Value[aff.PayloadId] = 5.0f;
 		}
+
 		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Cast");
 	}
 

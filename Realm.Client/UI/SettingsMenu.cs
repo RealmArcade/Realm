@@ -1,13 +1,26 @@
+using System;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
-using System;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class SettingsMenu : Control
 {
-	public static SettingsMenu Instance { get; private set; }
+	public SettingsMenu()
+	{
+		Instance = this;
+	}
+
+	public static SettingsMenu Instance { get; set; }
 	public static bool IsOpen => Instance != null && GodotObject.IsInstanceValid(Instance) && Instance.IsInsideTree() && Instance.Visible;
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
 
 	[Export] public bool IsOverlay = false;
 
@@ -67,10 +80,12 @@ public partial class SettingsMenu : Control
 		{
 			_bgPanel.MouseFilter = MouseFilterEnum.Stop;
 		}
+
 		if (GetNodeOrNull<Control>("OverlayBg") is Control overlay)
 		{
 			overlay.MouseFilter = MouseFilterEnum.Stop;
 		}
+
 		if (GetNodeOrNull<Control>("CenterContainer") is Control center)
 		{
 			center.MouseFilter = MouseFilterEnum.Stop;
@@ -149,7 +164,7 @@ public partial class SettingsMenu : Control
 	private void ApplyBackgroundStyle()
 	{
 		if (_bgPanel == null) return;
-		
+
 		_bgPanel.Visible = true;
 		Texture2D bgTexture = null;
 		string[] bgPaths = new string[]
@@ -171,7 +186,7 @@ public partial class SettingsMenu : Control
 			var style = new StyleBoxTexture();
 			style.Texture = bgTexture;
 			_bgPanel.AddThemeStyleboxOverride("panel", style);
-			_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			_bgPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
@@ -297,7 +312,8 @@ public partial class SettingsMenu : Control
 
 	private void ApplyLabelStyles()
 	{
-		string[] labelPaths = {
+		string[] labelPaths =
+		{
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ResRow/ResLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/QualRow/QualLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ModeRow/ModeLabel",
@@ -320,7 +336,8 @@ public partial class SettingsMenu : Control
 			lbl.AddThemeFontSizeOverride("font_size", 14);
 		}
 
-		string[] valLabelPaths = {
+		string[] valLabelPaths =
+		{
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MasterRow/MasterValLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MusicRow/MusicValLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/SfxRow/SfxValLabel",
@@ -361,7 +378,8 @@ public partial class SettingsMenu : Control
 		sepStyle.ContentMarginTop = 1;
 		sepStyle.ContentMarginBottom = 1;
 
-		var separators = new[] {
+		var separators = new[]
+		{
 			GetNode<HSeparator>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/Separator"),
 			GetNode<HSeparator>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/Separator"),
 			GetNode<HSeparator>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/Separator")
@@ -413,6 +431,7 @@ public partial class SettingsMenu : Control
 		{
 			GameSettings.InitializeResolutions();
 		}
+
 		for (int i = 0; i < GameSettings.Resolutions.Count; i++)
 		{
 			var res = GameSettings.Resolutions[i];
@@ -509,15 +528,15 @@ public partial class SettingsMenu : Control
 
 	private void SetupNatTestEvent()
 	{
-		if (Network.LobbyManager.Instance == null)
+		if (LobbyManager.Instance == null)
 			return;
 
-		Network.LobbyManager.Instance.NatTestCompleted += OnNatTestCompleted;
+		LobbyManager.Instance.NatTestCompleted += OnNatTestCompleted;
 	}
 
 	private void OnNatTestCompleted()
 	{
-		bool canHost = Network.LobbyManager.Instance.LocalNatType != NatType.Symmetric;
+		bool canHost = LobbyManager.Instance.LocalNatType != NatType.Symmetric;
 		if (!canHost)
 		{
 			_seedMapFilesChk.Disabled = true;
@@ -583,7 +602,7 @@ public partial class SettingsMenu : Control
 		_hudScaleSlider.Step = 5;
 
 		var sliders = new[] { _masterSlider, _musicSlider, _sfxSlider, _voiceSlider, _scrollSpeedSlider, _mouseSensSlider, _hudScaleSlider };
-		
+
 		var trackStyle = UIStyle.CreateLightSliderTrack();
 		var fillStyle = UIStyle.CreateLightSliderFill();
 
@@ -680,20 +699,11 @@ public partial class SettingsMenu : Control
 			UIManager.Instance.PlayHoverSound();
 			textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		};
-		btn.MouseExited += () =>
-		{
-			textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		};
-		btn.ButtonDown += () =>
-		{
-			textLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-		};
-		btn.ButtonUp += () =>
-		{
-			textLbl.AddThemeColorOverride("font_color", btn.IsHovered() ? UIStyle.ColorGold : UIStyle.ColorGoldDull);
-		};
+		btn.MouseExited += () => { textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull); };
+		btn.ButtonDown += () => { textLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow); };
+		btn.ButtonUp += () => { textLbl.AddThemeColorOverride("font_color", btn.IsHovered() ? UIStyle.ColorGold : UIStyle.ColorGoldDull); };
 
-		btn.Pressed += () => 
+		btn.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
 			onClick?.Invoke();
@@ -745,7 +755,7 @@ public partial class SettingsMenu : Control
 		_displayFpsChk.ButtonPressed = GameSettings.DisplayFps;
 		_recordReplaysChk.ButtonPressed = GameSettings.RecordReplays;
 
-		bool canHost = Network.LobbyManager.Instance != null && Network.LobbyManager.Instance.LocalNatType != NatType.Symmetric;
+		bool canHost = LobbyManager.Instance != null && LobbyManager.Instance.LocalNatType != NatType.Symmetric;
 		if (!canHost)
 		{
 			_seedMapFilesChk.Disabled = true;
@@ -770,7 +780,7 @@ public partial class SettingsMenu : Control
 		{
 			var windowMode = (WindowMode)_windowModeOpt.Selected;
 			await SaveResolutionSettings(windowMode, _resolutionOpt.Selected);
-			
+
 			bool vsyncEnabled = _vsyncOpt.Selected == 0;
 			SaveGraphicsSettings(vsyncEnabled);
 			SaveGameplaySettings();
@@ -782,11 +792,12 @@ public partial class SettingsMenu : Control
 			GameSettings.Save();
 			GameSettings.ApplyGraphicsSettings(this);
 
-			if (Realm.Client.UI.InGameHUD.Instance != null)
+			if (InGameHUD.Instance != null)
 			{
-				Realm.Client.UI.InGameHUD.Instance.ApplyHUDScale();
-				Realm.Client.UI.InGameHUD.Instance.UpdateFPSVisibility();
+				InGameHUD.Instance.ApplyHUDScale();
+				InGameHUD.Instance.UpdateFPSVisibility();
 			}
+
 			if (MapEditorHUD.Instance != null)
 			{
 				MapEditorHUD.Instance.UpdateFPSVisibility();
@@ -804,7 +815,7 @@ public partial class SettingsMenu : Control
 		}
 	}
 
-	private async System.Threading.Tasks.Task SaveResolutionSettings(WindowMode windowMode, int resSel)
+	private async Task SaveResolutionSettings(WindowMode windowMode, int resSel)
 	{
 		if (windowMode == WindowMode.Windowed && resSel >= 0 && GameSettings.Resolutions != null && resSel < GameSettings.Resolutions.Count)
 		{
@@ -812,7 +823,7 @@ public partial class SettingsMenu : Control
 			GameSettings.WindowedResolutionWidth = GameSettings.Resolutions[resSel].X;
 			GameSettings.WindowedResolutionHeight = GameSettings.Resolutions[resSel].Y;
 		}
-		
+
 		GameSettings.WindowModeIdx = windowMode;
 
 		if (UIManager.Instance != null)
@@ -859,14 +870,16 @@ public partial class SettingsMenu : Control
 	{
 		GameSettings.Load();
 		UIManager.Instance.UpdateAudioVolumes();
-		if (Realm.Client.UI.InGameHUD.Instance != null)
+		if (InGameHUD.Instance != null)
 		{
-			Realm.Client.UI.InGameHUD.Instance.UpdateFPSVisibility();
+			InGameHUD.Instance.UpdateFPSVisibility();
 		}
+
 		if (MapEditorHUD.Instance != null)
 		{
 			MapEditorHUD.Instance.UpdateFPSVisibility();
 		}
+
 		CloseOrTransition();
 	}
 
@@ -886,14 +899,16 @@ public partial class SettingsMenu : Control
 	{
 		GameSettings.ResetToDefaults();
 		LoadCurrentSettings();
-		if (Realm.Client.UI.InGameHUD.Instance != null)
+		if (InGameHUD.Instance != null)
 		{
-			Realm.Client.UI.InGameHUD.Instance.UpdateFPSVisibility();
+			InGameHUD.Instance.UpdateFPSVisibility();
 		}
+
 		if (MapEditorHUD.Instance != null)
 		{
 			MapEditorHUD.Instance.UpdateFPSVisibility();
 		}
+
 		GD.Print("Settings reset to defaults.");
 	}
 

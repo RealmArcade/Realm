@@ -1,8 +1,12 @@
+using System.Collections.Generic;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class ReplaceTextureDialog : FloatingDialogBase
 {
 	private OptionButton _optSource;
 	private OptionButton _optTarget;
@@ -27,7 +31,7 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		lblInfo.Text = TranslationServer.Translate("Select a source texture and a target texture to replace all painted occurrences across the terrain map.");
 		lblInfo.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		lblInfo.CustomMinimumSize = new Vector2(380, 0);
-		lblInfo.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		lblInfo.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblInfo.AddThemeFontSizeOverride("font_size", 11);
 		lblInfo.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		contentVBox.AddChild(lblInfo);
@@ -43,10 +47,10 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		rowSource.AddChild(lblSource);
 
 		_optSource = new OptionButton();
-		_optSource.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optSource.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optSource.CustomMinimumSize = new Vector2(0, 26);
 		_optSource.AddThemeFontSizeOverride("font_size", 11);
-		_optSource.FocusMode = Control.FocusModeEnum.None;
+		_optSource.FocusMode = FocusModeEnum.None;
 		_optSource.ItemSelected += (_) => ApplyLivePreview();
 		rowSource.AddChild(_optSource);
 		contentVBox.AddChild(rowSource);
@@ -62,10 +66,10 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		rowTarget.AddChild(lblTarget);
 
 		_optTarget = new OptionButton();
-		_optTarget.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optTarget.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optTarget.CustomMinimumSize = new Vector2(0, 26);
 		_optTarget.AddThemeFontSizeOverride("font_size", 11);
-		_optTarget.FocusMode = Control.FocusModeEnum.None;
+		_optTarget.FocusMode = FocusModeEnum.None;
 		_optTarget.ItemSelected += (_) => ApplyLivePreview();
 		rowTarget.AddChild(_optTarget);
 		contentVBox.AddChild(rowTarget);
@@ -76,11 +80,11 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 
 	public override void OpenDialog()
 	{
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null && Realm.Client.Core.GameHost.Instance.GroundTerrain.SplatMap != null)
+		if (GameHost.Instance?.GroundTerrain != null && GameHost.Instance.GroundTerrain.SplatMap != null)
 		{
-			_snapshotSplatMap = (TerrainSplatWeights[,])Realm.Client.Core.GameHost.Instance.GroundTerrain.SplatMap.Clone();
-			_snapshotCliffSplatMap = Realm.Client.Core.GameHost.Instance.GroundTerrain.CliffSplatMap != null
-				? (TerrainSplatWeights[,])Realm.Client.Core.GameHost.Instance.GroundTerrain.CliffSplatMap.Clone()
+			_snapshotSplatMap = (TerrainSplatWeights[,])GameHost.Instance.GroundTerrain.SplatMap.Clone();
+			_snapshotCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap != null
+				? (TerrainSplatWeights[,])GameHost.Instance.GroundTerrain.CliffSplatMap.Clone()
 				: null;
 		}
 
@@ -96,16 +100,18 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		_optSource.Clear();
 		_optTarget.Clear();
 
-		var displayNames = Hud?.SwatchDisplayNames;
+		var displayNames = (Hud != null ? GameContext.EditorService.SwatchDisplayNames : (IReadOnlyList<string>)null);
 		int count = displayNames?.Count ?? 0;
 
-		int defaultSourceIndex = Realm.Client.Core.GameHost.Instance?.EditorPaintTextureIndex ?? 0;
-		int defaultTargetIndex = Realm.Client.Core.GameHost.Instance?.EditorCliffPaintTextureIndex ?? 0;
+		GameHost tempQualifier = GameHost.Instance;
+		int defaultSourceIndex = (tempQualifier != null ? GameContext.EditorService.EditorPaintTextureIndex : (int?)null) ?? 0;
+		GameHost tempQualifier1 = GameHost.Instance;
+		int defaultTargetIndex = (tempQualifier1 != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : (int?)null) ?? 0;
 
 		PopulateDropdownItems(displayNames, count, defaultSourceIndex, defaultTargetIndex);
 	}
 
-	private void PopulateDropdownItems(System.Collections.Generic.IReadOnlyList<string> displayNames, int count, int defaultSourceIndex, int defaultTargetIndex)
+	private void PopulateDropdownItems(IReadOnlyList<string> displayNames, int count, int defaultSourceIndex, int defaultTargetIndex)
 	{
 		int itemIndex = 0;
 		int selectedSourceItem = 0;
@@ -136,11 +142,11 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		if (_optTarget.ItemCount > 0) _optTarget.Selected = selectedTargetItem;
 	}
 
-	private bool TryGetValidState(out Realm.Client.RuntimeTerrain? groundTerrain, out int sourceSlot, out int targetSlot)
+	private bool TryGetValidState(out RuntimeTerrain? groundTerrain, out int sourceSlot, out int targetSlot)
 	{
 		sourceSlot = -1;
 		targetSlot = -1;
-		groundTerrain = Realm.Client.Core.GameHost.Instance?.GroundTerrain;
+		groundTerrain = GameHost.Instance?.GroundTerrain;
 
 		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return false;
 		if (_optSource.Selected < 0 || _optTarget.Selected < 0) return false;
@@ -171,7 +177,7 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		groundTerrain!.UpdateMeshAndPhysics(false, false, (Rect2I?)null, false);
 	}
 
-	private void RestoreSplatMap(Realm.Client.RuntimeTerrain groundTerrain)
+	private void RestoreSplatMap(RuntimeTerrain groundTerrain)
 	{
 		int width = _snapshotSplatMap.GetLength(0);
 		int depth = _snapshotSplatMap.GetLength(1);
@@ -196,7 +202,7 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		}
 	}
 
-	private void ReplaceSplatMap(Realm.Client.RuntimeTerrain groundTerrain, int sourceSlot, int targetSlot)
+	private void ReplaceSplatMap(RuntimeTerrain groundTerrain, int sourceSlot, int targetSlot)
 	{
 		int width = _snapshotSplatMap.GetLength(0);
 		int depth = _snapshotSplatMap.GetLength(1);
@@ -235,7 +241,7 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		ShowFeedback();
 	}
 
-	private void RecordTerrainAction(Realm.Client.RuntimeTerrain groundTerrain)
+	private void RecordTerrainAction(RuntimeTerrain groundTerrain)
 	{
 		var currentSplat = (TerrainSplatWeights[,])groundTerrain.SplatMap.Clone();
 		var currentCliffSplat = groundTerrain.CliffSplatMap != null
@@ -243,8 +249,8 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 			: null;
 
 		var action = new TerrainModifyAction(
-			(Realm.Ecs.Components.Terrain.TerrainCell[,])null,
-			(Realm.Ecs.Components.Terrain.TerrainCell[,])null,
+			(TerrainCell[,])null,
+			(TerrainCell[,])null,
 			_snapshotSplatMap,
 			currentSplat,
 			null,
@@ -254,9 +260,9 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 		);
 
 		EditorHistoryManager.RecordAction(action);
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EditorHasUnsavedChanges = true;
+			GameHost.Instance.EditorHasUnsavedChanges = true;
 		}
 	}
 
@@ -269,7 +275,7 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 
 	private void RevertToSnapshot()
 	{
-		var groundTerrain = Realm.Client.Core.GameHost.Instance?.GroundTerrain;
+		var groundTerrain = GameHost.Instance?.GroundTerrain;
 		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return;
 
 		RestoreSplatMap(groundTerrain);
@@ -280,7 +286,8 @@ public partial class ReplaceTextureDialog : Realm.Client.UI.MapEditor.FloatingDi
 	{
 		if (sourceIndex == targetIndex) return current;
 
-		int[] indices = {
+		int[] indices =
+		{
 			current.Index0 == sourceIndex ? targetIndex : current.Index0,
 			current.Index1 == sourceIndex ? targetIndex : current.Index1,
 			current.Index2 == sourceIndex ? targetIndex : current.Index2,

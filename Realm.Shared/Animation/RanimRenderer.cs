@@ -1,19 +1,12 @@
-using SkiaSharp;
-using System.Numerics;
+﻿using System.Numerics;
 using Realm.Shared.BlenderSetup;
 using Realm.Shared.Textures;
+using SkiaSharp;
 
 namespace Realm.Shared.Animation;
 
 public static class RanimRenderer
 {
-	private struct JointHierarchyDefinition
-	{
-		public HumanoidBone Bone;
-		public HumanoidBone Parent;
-		public Vector3 RestOffset;
-	}
-
 	private static readonly JointHierarchyDefinition[] Hierarchy = new JointHierarchyDefinition[]
 	{
 		new JointHierarchyDefinition { Bone = HumanoidBone.Hips, Parent = HumanoidBone.Hips, RestOffset = new Vector3(0, 0.94f, 0) },
@@ -96,6 +89,7 @@ public static class RanimRenderer
 		{
 			return Math.Max(1, (int)MathF.Ceiling((float)totalSourceFrames / maxFrameCount.Value));
 		}
+
 		return 1;
 	}
 
@@ -131,6 +125,7 @@ public static class RanimRenderer
 				pixelBytes[idx + 3] = c.Alpha;
 			}
 		}
+
 		return pixelBytes;
 	}
 
@@ -361,6 +356,7 @@ public static class RanimRenderer
 				}
 			}
 		}
+
 		return trackMap;
 	}
 
@@ -368,7 +364,7 @@ public static class RanimRenderer
 	{
 		var worldPositions = CalculateWorldTransforms(trackMap, time);
 		var projectedPoints = ProjectSkeletonPoints(worldPositions, options.Width, options.Height, options.Scale);
-		
+
 		var img = InitializeBackground(options, projectedPoints);
 		DrawSkeleton(img, projectedPoints, options.Width);
 
@@ -381,6 +377,7 @@ public static class RanimRenderer
 		{
 			return SamplePosition(hipsTrack.PositionKeys, time) - SamplePosition(hipsTrack.PositionKeys, 0f);
 		}
+
 		return Vector3.Zero;
 	}
 
@@ -390,6 +387,7 @@ public static class RanimRenderer
 		{
 			return SampleRotation(track.RotationKeys, time);
 		}
+
 		return Quaternion.Identity;
 	}
 
@@ -430,6 +428,7 @@ public static class RanimRenderer
 		{
 			projectedPoints[pair.Key] = Project3DTo2D(pair.Value, width, height, scale);
 		}
+
 		return projectedPoints;
 	}
 
@@ -526,6 +525,7 @@ public static class RanimRenderer
 			img.SetPixel(x, 0, borderColor);
 			img.SetPixel(x, height - 1, borderColor);
 		}
+
 		for (int y = 0; y < height; y++)
 		{
 			img.SetPixel(0, y, borderColor);
@@ -618,6 +618,7 @@ public static class RanimRenderer
 				err -= dy;
 				x0 += sx;
 			}
+
 			if (e2 < dx)
 			{
 				err += dx;
@@ -645,6 +646,7 @@ public static class RanimRenderer
 		{
 			return;
 		}
+
 		img.SetPixel(px, py, color);
 	}
 
@@ -686,10 +688,12 @@ public static class RanimRenderer
 		{
 			return Vector3.Zero;
 		}
+
 		if (keys.Length == 1 || time <= keys[0].Time)
 		{
 			return new Vector3(keys[0].X, keys[0].Y, keys[0].Z);
 		}
+
 		if (time >= keys[^1].Time)
 		{
 			return new Vector3(keys[^1].X, keys[^1].Y, keys[^1].Z);
@@ -711,6 +715,7 @@ public static class RanimRenderer
 				return Vector3.Lerp(p0, p1, t);
 			}
 		}
+
 		return new Vector3(keys[0].X, keys[0].Y, keys[0].Z);
 	}
 
@@ -720,11 +725,13 @@ public static class RanimRenderer
 		{
 			return Quaternion.Identity;
 		}
+
 		if (keys.Length == 1 || time <= keys[0].Time)
 		{
 			var q = new Quaternion(keys[0].X, keys[0].Y, keys[0].Z, keys[0].W);
 			return q.LengthSquared() > 0.0001f ? Quaternion.Normalize(q) : Quaternion.Identity;
 		}
+
 		if (time >= keys[^1].Time)
 		{
 			var q = new Quaternion(keys[^1].X, keys[^1].Y, keys[^1].Z, keys[^1].W);
@@ -747,6 +754,7 @@ public static class RanimRenderer
 				return Quaternion.Slerp(q0, q1, t);
 			}
 		}
+
 		return Quaternion.Identity;
 	}
 }

@@ -1,27 +1,34 @@
-using Godot;
-using Realm.Client.Network;
-using Realm.Shared;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Network;
+using Realm.Shared;
+using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class LobbyBrowser : Control
 {
-	public struct LobbyData
+	public LobbyBrowser()
 	{
-		public string LobbyId;
-		public string Map;
-		public string Mode;
-		public string Players;
-		public int Ping;
-		public string GameVersion;
-		public long MapSizeBytes;
-		public string MapSizeFormatted;
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
+	public new void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
 	}
 
 	private List<LobbyData> _allLobbies = new List<LobbyData>();
@@ -55,11 +62,10 @@ public partial class LobbyBrowser : Control
 	private Timer _refreshTimer;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
-	private readonly System.Net.Http.HttpClient _httpClient = new System.Net.Http.HttpClient();
+	private readonly HttpClient _httpClient = new HttpClient();
 
 	public override void _Ready()
 	{
-
 		_bgPanel = GetNode<Panel>("Background");
 		_leftPillar = GetNode<Panel>("LeftPillar");
 		_rightPillar = GetNode<Panel>("RightPillar");
@@ -91,7 +97,7 @@ public partial class LobbyBrowser : Control
 		CenterFpsCounter();
 
 
-		Network.LobbyManager.Instance.NatTestCompleted += UpdateHostButtonState;
+		LobbyManager.Instance.NatTestCompleted += UpdateHostButtonState;
 		UpdateHostButtonState();
 
 
@@ -104,10 +110,10 @@ public partial class LobbyBrowser : Control
 		AddChild(_refreshTimer);
 		_refreshTimer.Start();
 
-		if (!string.IsNullOrEmpty(Network.LobbyManager.Instance.LobbyJoinError))
+		if (!string.IsNullOrEmpty(LobbyManager.Instance.LobbyJoinError))
 		{
-			ShowLobbyJoinErrorPopup(Network.LobbyManager.Instance.LobbyJoinError);
-			Network.LobbyManager.Instance.LobbyJoinError = null;
+			ShowLobbyJoinErrorPopup(LobbyManager.Instance.LobbyJoinError);
+			LobbyManager.Instance.LobbyJoinError = null;
 		}
 	}
 
@@ -118,7 +124,7 @@ public partial class LobbyBrowser : Control
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
 		ApplyFilterPanelStyle();
 		ApplyMainPanelStyle();
-		
+
 		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
 		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
 
@@ -146,6 +152,7 @@ public partial class LobbyBrowser : Control
 			var tex = GD.Load<Texture2D>(path);
 			if (tex != null) return tex;
 		}
+
 		return null;
 	}
 
@@ -162,7 +169,7 @@ public partial class LobbyBrowser : Control
 		{
 			var style = new StyleBoxTexture { Texture = bgTexture };
 			_bgPanel.AddThemeStyleboxOverride("panel", style);
-			_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			_bgPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
@@ -194,7 +201,7 @@ public partial class LobbyBrowser : Control
 				ContentMarginBottom = 30
 			};
 			_filterPanel.AddThemeStyleboxOverride("panel", filterPanelStyle);
-			_filterPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			_filterPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
@@ -225,7 +232,7 @@ public partial class LobbyBrowser : Control
 				ContentMarginBottom = 45
 			};
 			_lobbyPanel.AddThemeStyleboxOverride("panel", mainPanelStyle);
-			_lobbyPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			_lobbyPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
@@ -257,7 +264,7 @@ public partial class LobbyBrowser : Control
 		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck };
 		foreach (var cb in checkBoxes)
 		{
-			cb.Pressed += () => 
+			cb.Pressed += () =>
 			{
 				UIManager.Instance.PlayClickSound();
 				ApplyFilters();
@@ -296,7 +303,7 @@ public partial class LobbyBrowser : Control
 		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		btn.Pressed += () => 
+		btn.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
 			onClick?.Invoke();
@@ -310,13 +317,13 @@ public partial class LobbyBrowser : Control
 		_hostButton.CustomMinimumSize = new Vector2(300, 86);
 		UIStyle.ApplyButtonText(_hostButton, "HOST A GAME", 24);
 		_hostButton.AddThemeFontOverride("font", UIStyle.FontNorseBold);
-		
+
 		_hostButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
 		_hostButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
 		_hostButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
 		_hostButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		_hostButton.Pressed += () => 
+		_hostButton.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyCreate);
@@ -436,22 +443,22 @@ public partial class LobbyBrowser : Control
 
 	private void FetchLobbiesFromRegistry()
 	{
-		Network.LobbyManager.Instance.RandomizeServerIndex();
+		LobbyManager.Instance.RandomizeServerIndex();
 		Task.Run(async () =>
 		{
 			try
 			{
-				var json = await Network.LobbyManager.Instance.FetchLobbiesRawAsync();
+				var json = await LobbyManager.Instance.FetchLobbiesRawAsync();
 				if (json == null)
 				{
 					Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
 					return;
 				}
 
-				int clientBaseline = await Network.LobbyManager.Instance.MeasurePingToRegistryAsync();
+				int clientBaseline = await LobbyManager.Instance.MeasurePingToRegistryAsync();
 				using var doc = JsonDocument.Parse(json);
 				var lobbyList = new List<LobbyData>();
-				
+
 				foreach (var item in doc.RootElement.EnumerateArray())
 				{
 					lobbyList.Add(ParseLobbyData(item, clientBaseline));
@@ -473,6 +480,7 @@ public partial class LobbyBrowser : Control
 		{
 			return prop.GetString() ?? fallback;
 		}
+
 		return fallback;
 	}
 
@@ -482,6 +490,7 @@ public partial class LobbyBrowser : Control
 		{
 			return prop.GetInt32();
 		}
+
 		return fallback;
 	}
 
@@ -495,7 +504,7 @@ public partial class LobbyBrowser : Control
 
 		int calculatedPing = CalculatePing(item, hostIp, clientBaseline);
 		long mapSizeBytes = GetMapSizeBytes(item);
-		
+
 		string mapName = GetStringProp(item, "map");
 		string mapVersion = GetStringProp(item, "mapVersion");
 
@@ -555,14 +564,17 @@ public partial class LobbyBrowser : Control
 		{
 			return sizeProp.GetInt64();
 		}
+
 		if (item.TryGetProperty("MapSizeBytes", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
 		{
 			return sizeProp.GetInt64();
 		}
+
 		if (item.TryGetProperty("mapSize", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
 		{
 			return sizeProp.GetInt64();
 		}
+
 		return 0;
 	}
 
@@ -574,6 +586,7 @@ public partial class LobbyBrowser : Control
 		{
 			_allLobbies.AddRange(list);
 		}
+
 		ApplyFilters();
 	}
 
@@ -663,7 +676,7 @@ public partial class LobbyBrowser : Control
 		rowStyle.ContentMarginRight = 24;
 		rowStyle.ContentMarginTop = 0;
 		rowStyle.ContentMarginBottom = 0;
-		
+
 		var hoverStyle = new StyleBoxFlat();
 		hoverStyle.BgColor = new Color(0.95f, 0.82f, 0.55f, 0.12f); // Gold hover fill
 		hoverStyle.BorderColor = UIStyle.ColorGold;
@@ -728,7 +741,7 @@ public partial class LobbyBrowser : Control
 		lblVersion.VerticalAlignment = VerticalAlignment.Center;
 		hBox.AddChild(lblVersion);
 
-		panel.MouseEntered += () => 
+		panel.MouseEntered += () =>
 		{
 			UIManager.Instance.PlayHoverSound();
 			panel.AddThemeStyleboxOverride("panel", hoverStyle);
@@ -740,7 +753,7 @@ public partial class LobbyBrowser : Control
 			if (@event is InputEventMouseButton mouseBtn && mouseBtn.Pressed && mouseBtn.ButtonIndex == MouseButton.Left)
 			{
 				UIManager.Instance.PlayClickSound();
-				
+
 				if (!string.IsNullOrEmpty(data.GameVersion) && data.GameVersion != RealmVersion.GameBinaryVersion)
 				{
 					ShowVersionMismatchPopup(data.GameVersion, RealmVersion.GameBinaryVersion);
@@ -748,8 +761,8 @@ public partial class LobbyBrowser : Control
 				}
 
 				panel.MouseFilter = MouseFilterEnum.Ignore;
-				Network.LobbyManager.Instance.ActiveMapName = data.Map;
-				bool success = await Network.LobbyManager.Instance.JoinLobbyAsync(data.LobbyId);
+				LobbyManager.Instance.ActiveMapName = data.Map;
+				bool success = await LobbyManager.Instance.JoinLobbyAsync(data.LobbyId);
 				if (success)
 				{
 					UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
@@ -794,11 +807,11 @@ public partial class LobbyBrowser : Control
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
-		bool versionExistsLocally = System.IO.File.Exists(Network.LobbyManager.GetVersionExecutablePath(lobbyVersion));
+		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(lobbyVersion));
 
 		var descLabel = new Label();
-		string promptText = versionExistsLocally 
-			? Tr("The running game version doesn't match the lobby. Re-launch game with correct version?") 
+		string promptText = versionExistsLocally
+			? Tr("The running game version doesn't match the lobby. Re-launch game with correct version?")
 			: Tr("The required game version is not installed. Download it?");
 		descLabel.Text = $"{string.Format(Tr("Host Version: {0}"), lobbyVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -807,7 +820,7 @@ public partial class LobbyBrowser : Control
 		vbox.AddChild(descLabel);
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-		
+
 		var hBox = new HBoxContainer();
 		hBox.Alignment = BoxContainer.AlignmentMode.Center;
 		hBox.AddThemeConstantOverride("separation", 20);
@@ -842,11 +855,11 @@ public partial class LobbyBrowser : Control
 		{
 			UIManager.Instance?.PlayClickSound();
 			warningPopup.QueueFree();
-			
+
 			if (versionExistsLocally)
 			{
-				string targetExe = Network.LobbyManager.GetVersionExecutablePath(lobbyVersion);
-				OS.CreateProcess(targetExe, new string[] {});
+				string targetExe = LobbyManager.GetVersionExecutablePath(lobbyVersion);
+				OS.CreateProcess(targetExe, new string[] { });
 				GetTree().Quit();
 			}
 			else
@@ -864,6 +877,7 @@ public partial class LobbyBrowser : Control
 			var tween = CreateTween();
 			tween.TweenProperty(_refreshButton, "rotation", _refreshButton.Rotation + Mathf.Pi * 2, 0.4f);
 		}
+
 		FetchLobbiesFromRegistry();
 	}
 
@@ -872,7 +886,7 @@ public partial class LobbyBrowser : Control
 		var fpsLabel = GetTree().Root.FindChild("FPS", recursive: true, owned: false) as Label;
 		if (fpsLabel != null)
 		{
-			fpsLabel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+			fpsLabel.SetAnchorsPreset(LayoutPreset.CenterTop);
 			fpsLabel.OffsetLeft = -60;
 			fpsLabel.OffsetRight = 60;
 			fpsLabel.OffsetTop = 10;
@@ -886,7 +900,7 @@ public partial class LobbyBrowser : Control
 		var fpsLabel = GetTree().Root.FindChild("FPS", recursive: true, owned: false) as Label;
 		if (fpsLabel != null)
 		{
-			fpsLabel.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+			fpsLabel.SetAnchorsPreset(LayoutPreset.TopRight);
 			fpsLabel.OffsetLeft = -160;
 			fpsLabel.OffsetRight = -10;
 			fpsLabel.OffsetTop = 10;
@@ -960,16 +974,16 @@ public partial class LobbyBrowser : Control
 		vbox.AddChild(okBtn);
 	}
 
-	protected override void Dispose(bool disposing)
+	protected virtual void Dispose(bool disposing)
 	{
 		if (disposing)
 		{
-			if (Network.LobbyManager.Instance != null)
+			if (LobbyManager.Instance != null)
 			{
-				Network.LobbyManager.Instance.NatTestCompleted -= UpdateHostButtonState;
+				LobbyManager.Instance.NatTestCompleted -= UpdateHostButtonState;
 			}
+
 			_httpClient.Dispose();
 		}
-		base.Dispose(disposing);
 	}
 }

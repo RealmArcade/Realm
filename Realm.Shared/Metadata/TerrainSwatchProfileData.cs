@@ -18,10 +18,12 @@ public class TerrainSwatchProfileData
 		{
 			foreach (var r in this.DecalBombingRules) clone.DecalBombingRules.Add(r.Clone());
 		}
+
 		if (this.VfxBombingRules != null)
 		{
 			foreach (var r in this.VfxBombingRules) clone.VfxBombingRules.Add(r.Clone());
 		}
+
 		return clone;
 	}
 }

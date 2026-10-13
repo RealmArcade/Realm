@@ -1,3 +1,7 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Blake3;
 using CommandLine;
 using Realm.Shared;
 using Realm.Shared.Animation;
@@ -7,8 +11,6 @@ using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Terrain;
 using Realm.Shared.Textures;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace Realm.Tools.Cli;
 
@@ -162,6 +164,7 @@ public static class Program
 			string relativeTarget = Path.ChangeExtension(relativePath, targetExtension);
 			return Path.Combine(outputDestination, relativeTarget);
 		}
+
 		return Path.ChangeExtension(currentFile, targetExtension);
 	}
 
@@ -172,8 +175,8 @@ public static class Program
 		bool hasExtensionResolver)
 	{
 		if (Directory.Exists(outputDestination) ||
-			outputDestination.EndsWith(Path.DirectorySeparatorChar) ||
-			outputDestination.EndsWith(Path.AltDirectorySeparatorChar))
+		    outputDestination.EndsWith(Path.DirectorySeparatorChar) ||
+		    outputDestination.EndsWith(Path.AltDirectorySeparatorChar))
 		{
 			string fileName = Path.ChangeExtension(Path.GetFileName(currentFile), targetExtension);
 			return Path.Combine(outputDestination, fileName);
@@ -308,7 +311,7 @@ public static class Program
 			}
 		}
 
-		var renderOptions = new Realm.Shared.Animation.RanimRenderOptions
+		var renderOptions = new Shared.Animation.RanimRenderOptions
 		{
 			Width = options.Size,
 			Height = options.Size,
@@ -340,7 +343,7 @@ public static class Program
 			summaryActionName: "rendering animations");
 	}
 
-	private static int ProcessSingleRanimRender(string inputFile, string targetFile, Realm.Shared.Animation.RanimRenderOptions renderOptions)
+	private static int ProcessSingleRanimRender(string inputFile, string targetFile, Shared.Animation.RanimRenderOptions renderOptions)
 	{
 		var result = RanimRenderer.ExportFile(inputFile, targetFile, renderOptions);
 		if (result.Success)
@@ -433,6 +436,7 @@ public static class Program
 				if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 				File.WriteAllText(options.Output, metaToDisplay);
 			}
+
 			return 0;
 		}
 
@@ -468,7 +472,7 @@ public static class Program
 
 			string? existingMeta = RealmMetadataHelper.ExtractMetadata(targetPath);
 			JsonObject finalObj;
-			
+
 			if (isUpdate)
 			{
 				finalObj = MergeMetadataUpdate(existingMeta, inputObj);
@@ -510,6 +514,7 @@ public static class Program
 			error = "Metadata must be a valid JSON object.";
 			return false;
 		}
+
 		inputObj = obj;
 		error = string.Empty;
 		return true;
@@ -521,6 +526,7 @@ public static class Program
 		{
 			return val?.ToString();
 		}
+
 		return null;
 	}
 
@@ -583,7 +589,7 @@ public static class Program
 		{
 			finalObj[property.Key] = property.Value?.DeepClone();
 		}
-		
+
 		return finalObj;
 	}
 
@@ -599,8 +605,10 @@ public static class Program
 			CopyPropertyIfNotExists("is_compressed", existingObj, inputObj);
 			CopyPropertyIfNotExists("created_utc", existingObj, inputObj);
 		}
-		catch { }
-		
+		catch
+		{
+		}
+
 		return inputObj;
 	}
 
@@ -673,7 +681,7 @@ public static class Program
 			Console.WriteLine($"Successfully added metadata to: {inputPath}");
 			return 0;
 		}
-		
+
 		Console.Error.WriteLine($"Failed to add metadata to: {inputPath}");
 		return 1;
 	}
@@ -786,6 +794,7 @@ public static class Program
 					Console.Error.WriteLine($"Error: Invalid asset_type '{options.AssetType}' for textures. Valid asset_type values for textures (.rtex/.png) are: {string.Join(", ", validTypes)}.");
 					return 1;
 				}
+
 				options.AssetType = canonical;
 			}
 
@@ -828,6 +837,7 @@ public static class Program
 			{
 				RealmMetadataHelper.SyncBlake3Metadata(targetFile);
 			}
+
 			Console.WriteLine($"Successfully converted: {inputFile} -> {targetFile}");
 			return 0;
 		}
@@ -871,6 +881,7 @@ public static class Program
 			{
 				RealmMetadataHelper.SyncBlake3Metadata(targetFile);
 			}
+
 			Console.WriteLine($"Successfully converted: {inputFile} -> {targetFile}");
 			return 0;
 		}
@@ -910,6 +921,7 @@ public static class Program
 					RealmMetadataHelper.SyncBlake3Metadata(ranimFile);
 				}
 			}
+
 			Console.WriteLine($"Successfully converted: {inputFile} -> {res.OutputPath} ({string.Join(", ", res.ConvertedAnimationNames)})");
 			return 0;
 		}
@@ -929,6 +941,7 @@ public static class Program
 				Console.Error.WriteLine($"Error: Invalid asset_type '{options.AssetType}' for 3D model. Valid asset_type values for .rmesh/.glb are: {string.Join(", ", validTypes)}.");
 				return 1;
 			}
+
 			options.AssetType = canonical;
 		}
 
@@ -957,7 +970,7 @@ public static class Program
 		{
 			return ExtractGlbFromRmesh(inputFile, targetFile);
 		}
-		
+
 		if (targetExt.Equals(".glb", StringComparison.OrdinalIgnoreCase) && fileExt == ".glb")
 		{
 			return OptimizeGlb(inputFile, targetFile, options);
@@ -974,7 +987,7 @@ public static class Program
 			Console.WriteLine($"Successfully extracted GLB: {inputFile} -> {targetFile}");
 			return 0;
 		}
-		
+
 		Console.Error.WriteLine($"Failed to extract GLB from {inputFile}: {res.ErrorMessage}");
 		return 1;
 	}
@@ -1027,7 +1040,7 @@ public static class Program
 			Console.WriteLine($"Successfully converted model: {inputFile} -> {targetFile} (Size: {res.OptimizedSize} bytes, TeamColor: {res.SupportsTeamColor})");
 			return 0;
 		}
-		
+
 		Console.Error.WriteLine($"Failed to convert {inputFile}: {res.ErrorMessage}");
 		return 1;
 	}
@@ -1047,10 +1060,11 @@ public static class Program
 		{
 			byte[] bytes = File.ReadAllBytes(file);
 			string hash = options.Raw
-				? Blake3.Hasher.Hash(bytes).ToString()
+				? Hasher.Hash(bytes).ToString()
 				: RealmMetadataHelper.ComputeBlake3(bytes, file);
 			Console.WriteLine($"{hash}  {file}");
 		}
+
 		return 0;
 	}
 
@@ -1060,6 +1074,7 @@ public static class Program
 		{
 			return Path.GetExtension(inputPath);
 		}
+
 		if (!string.IsNullOrEmpty(explicitOutput))
 		{
 			string outExt = Path.GetExtension(explicitOutput);
@@ -1068,6 +1083,7 @@ public static class Program
 				return outExt;
 			}
 		}
+
 		string inExt = Path.GetExtension(inputPath);
 		return string.Equals(inExt, ".glb", StringComparison.OrdinalIgnoreCase) ? ".glb" : ".rmesh";
 	}
@@ -1081,10 +1097,11 @@ public static class Program
 				Console.Error.WriteLine($"Error: Invalid asset_type '{options.AssetType}' for 3D model. Valid asset_type values for .rmesh/.glb are: {string.Join(", ", validTypes)}.");
 				return 1;
 			}
+
 			options.AssetType = canonical;
 		}
 
-		var processorOptions = new Realm.Shared.GlbPlayerColorOptions
+		var processorOptions = new GlbPlayerColorOptions
 		{
 			ChromaKey = options.ChromaKey,
 			AutoCorrectChromaKey = options.AutoCorrectChromaKey,
@@ -1125,7 +1142,7 @@ public static class Program
 	private static int ProcessSingleMeshPlayerColor(
 		string inputPath,
 		string outputPath,
-		Realm.Shared.GlbPlayerColorOptions processorOptions,
+		GlbPlayerColorOptions processorOptions,
 		string? assetType = null,
 		bool inPlace = false)
 	{
@@ -1141,7 +1158,7 @@ public static class Program
 			var (sourceGlbBytes, existingMeta) = ExtractInputBytesAndMetadata(inputPath);
 
 			var (success, processedGlbBytes, errorMessage, maskedFaces, totalFaces, detectedKey) =
-				Realm.Shared.GlbPlayerColorProcessor.ProcessBytes(sourceGlbBytes, processorOptions);
+				GlbPlayerColorProcessor.ProcessBytes(sourceGlbBytes, processorOptions);
 
 			if (!success || processedGlbBytes == null)
 			{
@@ -1200,7 +1217,13 @@ public static class Program
 	{
 		if (inPlace && !string.Equals(inputPath, outputPath, StringComparison.OrdinalIgnoreCase) && File.Exists(inputPath))
 		{
-			try { File.Delete(inputPath); } catch { }
+			try
+			{
+				File.Delete(inputPath);
+			}
+			catch
+			{
+			}
 		}
 	}
 
@@ -1245,7 +1268,7 @@ public static class Program
 	{
 		string? targetAssetType = string.IsNullOrWhiteSpace(explicitAssetType) ? null : explicitAssetType;
 		string? targetAuthor = null;
-		
+
 		JsonNode? node = TryParseMeta(existingMeta);
 		if (node != null)
 		{
@@ -1267,8 +1290,10 @@ public static class Program
 				string nameWithoutExt = Path.GetFileNameWithoutExtension(inputPath);
 				return Path.Combine(explicitOutput, $"{nameWithoutExt}_masked.rmesh");
 			}
+
 			return Path.ChangeExtension(explicitOutput, ".rmesh");
 		}
+
 		string dir = Path.GetDirectoryName(inputPath) ?? string.Empty;
 		string nameWithoutExtDefault = Path.GetFileNameWithoutExtension(inputPath);
 		return Path.Combine(dir, $"{nameWithoutExtDefault}_masked.rmesh");
@@ -1283,6 +1308,7 @@ public static class Program
 				Console.Error.WriteLine($"Error: Invalid asset_type '{options.AssetType}' for humanoid rig. Valid asset_type values for .rmesh/.glb are: {string.Join(", ", validTypes)}.");
 				return 1;
 			}
+
 			options.AssetType = canonical;
 		}
 
@@ -1308,13 +1334,13 @@ public static class Program
 
 		string tempGlbOutput = Path.Combine(Path.GetTempPath(), $"realm_rig_out_{Guid.NewGuid():N}.glb");
 		string? tempExtractedGlb = null;
-		
+
 		try
 		{
 			bool isRmeshInput = Path.GetExtension(inputPath).Equals(".rmesh", StringComparison.OrdinalIgnoreCase);
 			string tempGlbInput = inputPath;
 			string? existingMeta = null;
-			
+
 			if (isRmeshInput)
 			{
 				(tempExtractedGlb, existingMeta) = ExtractRigInputBytes(inputPath);
@@ -1370,7 +1396,13 @@ public static class Program
 	{
 		if (filePath != null && File.Exists(filePath))
 		{
-			try { File.Delete(filePath); } catch { }
+			try
+			{
+				File.Delete(filePath);
+			}
+			catch
+			{
+			}
 		}
 	}
 
@@ -1380,7 +1412,7 @@ public static class Program
 		var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
 		string tempExtractedGlb = Path.Combine(Path.GetTempPath(), $"realm_rig_in_{Guid.NewGuid():N}.glb");
 		File.WriteAllBytes(tempExtractedGlb, glbBytes);
-		
+
 		return (tempExtractedGlb, meta);
 	}
 
@@ -1423,7 +1455,7 @@ public static class Program
 		{
 			Directory.CreateDirectory(outDir);
 		}
-		
+
 		string keyUsername = !string.IsNullOrWhiteSpace(options.Username) ? options.Username.Trim() : string.Empty;
 		byte[] rkeyBytes = RkeyFile.Build(keyUsername, publicKeyBase64, privateKeyBase64);
 		File.WriteAllBytes(outputPath, rkeyBytes);
@@ -1463,14 +1495,14 @@ public static class Program
 		Console.WriteLine($"Registering username '{username}' with {serverUrl}...");
 		try
 		{
-			using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+			using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
 			var regPayload = new
 			{
 				Username = username,
 				PublicKey = publicKeyBase64,
 				Signature = signature
 			};
-			var content = new System.Net.Http.StringContent(JsonSerializer.Serialize(regPayload), System.Text.Encoding.UTF8, "application/json");
+			var content = new StringContent(JsonSerializer.Serialize(regPayload), Encoding.UTF8, "application/json");
 			var response = httpClient.PostAsync($"{serverUrl.TrimEnd('/')}/api/creators/register", content).GetAwaiter().GetResult();
 			string responseText = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
 
@@ -1498,7 +1530,8 @@ public static class Program
 		{
 			Directory.CreateDirectory(outDir);
 		}
-		File.WriteAllText(outputPath, schemaJson, new System.Text.UTF8Encoding(false));
+
+		File.WriteAllText(outputPath, schemaJson, new UTF8Encoding(false));
 		Console.WriteLine($"Generated schema: {outputPath}");
 		return 0;
 	}
@@ -1512,7 +1545,8 @@ public static class Program
 		{
 			Directory.CreateDirectory(outDir);
 		}
-		File.WriteAllText(outputPath, schemaJson, new System.Text.UTF8Encoding(false));
+
+		File.WriteAllText(outputPath, schemaJson, new UTF8Encoding(false));
 		Console.WriteLine($"Generated schema: {outputPath}");
 		return 0;
 	}
@@ -1526,7 +1560,8 @@ public static class Program
 		{
 			Directory.CreateDirectory(outDir);
 		}
-		File.WriteAllText(outputPath, schemaJson, new System.Text.UTF8Encoding(false));
+
+		File.WriteAllText(outputPath, schemaJson, new UTF8Encoding(false));
 		Console.WriteLine($"Generated schema: {outputPath}");
 		return 0;
 	}

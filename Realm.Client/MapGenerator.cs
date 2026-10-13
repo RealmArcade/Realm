@@ -1,8 +1,12 @@
-using Godot;
-using Realm.Ecs.Components.Terrain;
 using System;
 using System.Collections.Generic;
+using Arch.Core;
+using Godot;
 using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Ecs.Components.Terrain;
+using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
@@ -29,7 +33,7 @@ public static class MapGenerator
 			for (int x = -radius; x <= radius; x++)
 			{
 				if (x * x + z * z > radius * radius) continue;
-				
+
 				int cx = pos.X + x;
 				int cz = pos.Y + z;
 				if (cx >= 0 && cx < 126 && cz >= 0 && cz < 126)
@@ -40,31 +44,33 @@ public static class MapGenerator
 		}
 	}
 
-	private static void InitTerrainState(Arch.Core.World world, Arch.Core.Entity worldEntity, int width, int depth, float quadSize)
+	private static void InitTerrainState(World world, Entity worldEntity, int width, int depth, float quadSize)
 	{
-		if (!world.Has<Realm.Ecs.Components.Terrain.TerrainState>(worldEntity))
+		if (!world.Has<TerrainState>(worldEntity))
 		{
-			world.Add(worldEntity, new Realm.Ecs.Components.Terrain.TerrainState(
+			world.Add(worldEntity, new TerrainState(
 				width, depth, quadSize, 0.5f,
-				new Realm.Ecs.Components.Terrain.TerrainCell[width, depth],
+				new TerrainCell[width, depth],
 				new int[width, depth],
 				null, null
 			));
 		}
 		else
 		{
-			ref var ts = ref world.Get<Realm.Ecs.Components.Terrain.TerrainState>(worldEntity);
+			ref var ts = ref world.Get<TerrainState>(worldEntity);
 			bool modified = false;
 			if (ts.Cells == null || ts.Cells.GetLength(0) != width || ts.Cells.GetLength(1) != depth)
 			{
-				ts.Cells = new Realm.Ecs.Components.Terrain.TerrainCell[width, depth];
+				ts.Cells = new TerrainCell[width, depth];
 				modified = true;
 			}
+
 			if (ts.PathingCodes == null || ts.PathingCodes.GetLength(0) != width || ts.PathingCodes.GetLength(1) != depth)
 			{
 				ts.PathingCodes = new int[width, depth];
 				modified = true;
 			}
+
 			if (modified)
 			{
 				world.Set(worldEntity, ts);
@@ -91,6 +97,7 @@ public static class MapGenerator
 				}
 			}
 		}
+
 		return count;
 	}
 
@@ -116,8 +123,10 @@ public static class MapGenerator
 					nextGrid[x, z] = (count >= 5) ? 1 : 0;
 				}
 			}
+
 			baseGrid = nextGrid;
 		}
+
 		return baseGrid;
 	}
 
@@ -198,7 +207,7 @@ public static class MapGenerator
 			for (int x = -radius; x <= radius; x++)
 			{
 				if (x * x + z * z > radius * radius) continue;
-				
+
 				int cx = curr.X + x;
 				int cz = curr.Y + z;
 				if (cx >= 0 && cx < width && cz >= 0 && cz < depth)
@@ -219,6 +228,7 @@ public static class MapGenerator
 			MarkPathRadius(curr, radius, isPath, width, depth);
 			curr = cameFrom[curr];
 		}
+
 		CarvePathAt(start, baseGrid, chokeWidth);
 		isPath[start.X, start.Y] = true;
 	}
@@ -290,7 +300,7 @@ public static class MapGenerator
 				for (int x = -radius; x <= radius; x++)
 				{
 					if (x * x + z * z > radius * radius) continue;
-					
+
 					int cx = center.X + x;
 					int cz = center.Y + z;
 					if (cx >= 0 && cx < width && cz >= 0 && cz < depth)
@@ -330,6 +340,7 @@ public static class MapGenerator
 				if (baseGrid[cx, cz] == 1) count++;
 			}
 		}
+
 		return count / 25.0f;
 	}
 
@@ -343,6 +354,7 @@ public static class MapGenerator
 				densityMap[x, z] = CalculateCellDensity(x, z, baseGrid, width, depth);
 			}
 		}
+
 		return densityMap;
 	}
 
@@ -358,7 +370,7 @@ public static class MapGenerator
 			float rawTier = 1.0f + (dFactor * 0.5f + nVal * 0.35f + dtVal * 0.15f) * maxMountainTiers;
 			return (sbyte)Math.Clamp((int)(MathF.Round(rawTier / 2.0f) * 2.0f), 1, 127);
 		}
-		
+
 		float nVal2 = (noise.GetNoise2D(x, z) + 1.0f) * 0.5f;
 		float dtVal2 = (detailNoise.GetNoise2D(x * 2.5f, z * 2.5f) + 1.0f) * 0.5f;
 
@@ -367,11 +379,12 @@ public static class MapGenerator
 			float waterDepthRatio = (waterCutoff - nVal2) / waterCutoff;
 			return (sbyte)-Math.Clamp((int)MathF.Round(1.0f + waterDepthRatio * 2.0f), 1, 4);
 		}
-		
+
 		if (hillsDensity > 2 && nVal2 > 0.65f - (hillsDensity / 10.0f) * 0.20f)
 		{
 			return (sbyte)Math.Clamp((int)MathF.Round(1.0f + dtVal2 * (hillsDensity / 10.0f) * 2.0f), 1, 4);
 		}
+
 		return 0;
 	}
 
@@ -385,6 +398,7 @@ public static class MapGenerator
 				tiers[x, z] = CalculateCellTier(x, z, baseGrid, isPath, densityMap, noise, detailNoise, waterCutoff, maxMountainTiers, hillsDensity);
 			}
 		}
+
 		return tiers;
 	}
 
@@ -401,6 +415,7 @@ public static class MapGenerator
 				}
 			}
 		}
+
 		int count = 0;
 		for (int dz = -1; dz <= 1; dz++)
 		{
@@ -409,6 +424,7 @@ public static class MapGenerator
 				if (tiers[x + dx, z + dz] == maxNeighborTier) count++;
 			}
 		}
+
 		if (count >= 4) return maxNeighborTier;
 		return tiers[x, z];
 	}
@@ -428,8 +444,10 @@ public static class MapGenerator
 					}
 				}
 			}
+
 			tiers = smoothedTiers;
 		}
+
 		return tiers;
 	}
 
@@ -444,7 +462,7 @@ public static class MapGenerator
 		PopulateTerrainMaps(host, tiers, cells, pathingCodes, width, depth);
 
 		host.GroundTerrain.PathingCodes = pathingCodes;
-			
+
 		return (cells, pathingCodes);
 	}
 
@@ -460,6 +478,7 @@ public static class MapGenerator
 				cells[x, z] = new TerrainCell(height);
 			}
 		}
+
 		return cells;
 	}
 
@@ -483,6 +502,7 @@ public static class MapGenerator
 		{
 			return new int[width, depth];
 		}
+
 		return pathingCodes;
 	}
 
@@ -598,6 +618,7 @@ public static class MapGenerator
 				ProcessDistanceNeighbor(n, d, pathDist, queue, width, depth);
 			}
 		}
+
 		return pathDist;
 	}
 
@@ -667,6 +688,7 @@ public static class MapGenerator
 		{
 			seed = seedString.GetHashCode();
 		}
+
 		Random random = new Random(seed);
 
 		host.ClearMapEntirely();
@@ -675,8 +697,8 @@ public static class MapGenerator
 		int depth = host.GroundTerrain.Depth;
 		float quadSize = host.GroundTerrain.QuadSize;
 
-		var world = host.EcsWorld;
-		var worldEntity = host.WorldEntity;
+		var world = GameContext.World;
+		var worldEntity = ECSContext.WorldEntity;
 		if (world != null && world.IsAlive(worldEntity))
 		{
 			InitTerrainState(world, worldEntity, width, depth, quadSize);
@@ -722,7 +744,7 @@ public static class MapGenerator
 
 		if (world != null && world.IsAlive(worldEntity))
 		{
-			ref var state = ref world.Get<Realm.Ecs.Components.Terrain.TerrainState>(worldEntity);
+			ref var state = ref world.Get<TerrainState>(worldEntity);
 			var (cells, pathingCodes) = ApplyTiersToTerrain(host, tiers, width, depth);
 			state.Cells = cells;
 			state.PathingCodes = pathingCodes;
@@ -746,7 +768,7 @@ public static class MapGenerator
 		host.UpdateGridOverlayVisibility();
 		host.UpdateCameraBoundsOverlayVisibility();
 		host.UpdatePathingOverlay();
-		UI.MapEditorHUD.Instance?.ShowFeedbackExternal("Random map generation completed!");
+		MapEditorHUD.Instance?.ShowFeedbackExternal("Random map generation completed!");
 	}
 
 	private static bool IsFarEnough(Vector2 candidate, Vector2?[,] grid, float radius, int cX, int cY, int gridWidth, int gridHeight)
@@ -761,12 +783,12 @@ public static class MapGenerator
 			for (int gy = startY; gy <= endY; gy++)
 			{
 				if (!grid[gx, gy].HasValue) continue;
-				
+
 				float dist = (grid[gx, gy]!.Value - candidate).Length();
 				if (dist < radius) return false;
 			}
 		}
-		
+
 		return true;
 	}
 
@@ -790,7 +812,7 @@ public static class MapGenerator
 			(float)(random.NextDouble() * width),
 			(float)(random.NextDouble() * height)
 		);
-			
+
 		AddPointToGrid(firstPoint, points, activeList, grid, cellSize, gridWidth, gridHeight);
 
 		while (activeList.Count > 0)
@@ -814,7 +836,7 @@ public static class MapGenerator
 
 		int gX = (int)(point.X / cellSize);
 		int gY = (int)(point.Y / cellSize);
-			
+
 		if (gX >= 0 && gX < gridWidth && gY >= 0 && gY < gridHeight)
 		{
 			grid[gX, gY] = point;
@@ -843,6 +865,7 @@ public static class MapGenerator
 				return true;
 			}
 		}
+
 		return false;
 	}
 

@@ -1,4 +1,6 @@
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -35,24 +37,24 @@ public class MapEditorPlacementSettings
 		_sldPlacementRotate.ValueChanged += (val) =>
 		{
 			_lblPlacementRotateValue.Text = val.ToString("F0") + "°";
-			if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorPlacementRotation = (float)val;
+			if (GameHost.Instance != null) GameContext.EditorService.EditorPlacementRotation = (float)val;
 		};
 
 		_sldPlacementScale.ValueChanged += (val) =>
 		{
 			_lblPlacementScaleValue.Text = val.ToString("F1") + "x";
-			if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorPlacementScale = (float)val;
+			if (GameHost.Instance != null) GameHost.Instance.EditorPlacementScale = (float)val;
 		};
 
 		_chkRandomRotation.Toggled += (buttonPressed) =>
 		{
-			if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorRandomRotation = buttonPressed;
+			if (GameHost.Instance != null) GameContext.EditorService.EditorRandomRotation = buttonPressed;
 			UpdateVisibility();
 		};
 
 		_chkRandomScale.Toggled += (buttonPressed) =>
 		{
-			if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorRandomScale = buttonPressed;
+			if (GameHost.Instance != null) GameContext.EditorService.EditorRandomScale = buttonPressed;
 			UpdateVisibility();
 		};
 
@@ -61,9 +63,10 @@ public class MapEditorPlacementSettings
 			if (buttonPressed && !_chkRandomRotation.ButtonPressed)
 			{
 				_chkRandomRotation.ButtonPressed = true;
-				if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorRandomRotation = true;
+				if (GameHost.Instance != null) GameContext.EditorService.EditorRandomRotation = true;
 			}
-			if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorClumpMode = buttonPressed;
+
+			if (GameHost.Instance != null) GameHost.Instance.EditorClumpMode = buttonPressed;
 			UpdateVisibility();
 		};
 
@@ -72,7 +75,7 @@ public class MapEditorPlacementSettings
 			_sldClumpCount.ValueChanged += (val) =>
 			{
 				if (_lblClumpCountValue != null) _lblClumpCountValue.Text = val.ToString("F0");
-				if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorClumpCount = (float)val;
+				if (GameHost.Instance != null) GameHost.Instance.EditorClumpCount = (float)val;
 			};
 		}
 
@@ -81,7 +84,7 @@ public class MapEditorPlacementSettings
 			_sldClumpScale.ValueChanged += (val) =>
 			{
 				if (_lblClumpScaleValue != null) _lblClumpScaleValue.Text = val.ToString("F2");
-				if (Realm.Client.Core.GameHost.Instance != null) Realm.Client.Core.GameHost.Instance.EditorClumpScale = (float)val;
+				if (GameHost.Instance != null) GameHost.Instance.EditorClumpScale = (float)val;
 			};
 		}
 
@@ -104,7 +107,7 @@ public class MapEditorPlacementSettings
 		if (scaleContainer != null && scaleContainer.Visible != scaleVis) scaleContainer.Visible = scaleVis;
 
 		if (!_chkRandomRotation.Visible) _chkRandomRotation.Visible = true;
-		
+
 		bool chkScaleVis = !isClumpMode;
 		if (_chkRandomScale.Visible != chkScaleVis) _chkRandomScale.Visible = chkScaleVis;
 	}

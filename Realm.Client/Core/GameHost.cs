@@ -1,176 +1,140 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using Arch.Core;
+using DotRecast.Detour;
 using Godot;
+using Realm.Client.Network;
+using Realm.Client.ReplaySystem;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.Client;
-using Realm.Client.Core;
-using Realm.Client.Network;
-using Realm.Client.ReplaySystem;
-using Realm.Client.Services;
-using Realm.Client.UI;
-using Realm.Client.VFX;
 using Realm.MapAPI;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
+using Realm.Shared.Services;
+using Realm.Shared.Textures;
+using Environment = Godot.Environment;
+using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.Core;
 
 public partial class GameHost : Node3D, IGameAPI
 {
-	public Camera3D MainCamera { get; private set; }
-	public Node MainNode { get; private set; }
-
-	public static GameHost Instance { get; private set; }
-	public string ActiveMapName { get; private set; } = "";
-
-	private static readonly JsonSerializerOptions Options = new()
+	public GameHost()
 	{
-		PropertyNameCaseInsensitive = true,
-		IncludeFields = true,
-		Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
-	};
+		Instance = this;
+	}
 
-	private AudioService _audioService;
-	private FXService _fxService;
-	private SaveLoadService _saveLoadService;
-	private EditorService _editorService;
-	private ReplayService _replayService;
-	private SimulationService _simulationService;
-	private ShroudService _shroudService;
-	private UnitSpawnService _unitSpawnService;
-	private WorldInitService _worldInitService;
-	private MapPropertiesLoader _mapPropertiesLoader;
-	private MapEditorTerrainImportService _terrainImportService;
-	private CheatService _cheatService;
-	private EnvironmentService _environmentService;
-	private SpectatorService _spectatorService;
-	private Realm.Client.Services.ModelOptimization.ModelOptimizerService _modelOptimizerService;
-	private TerrainNavMeshService _terrainNavMeshService;
-	private Realm.Client.Services.MetadataService _metadataService;
-	private Realm.Client.Services.MapUpgradeService _mapUpgradeService;
-	private Realm.Client.Services.MapStorageService _mapStorageService;
-	private Realm.Client.Services.MapSaveDataService _mapSaveDataService;
+	public CameraControl MainCamera { get; set; }
+	public Node MainNode { get; set; }
 
-	public CheatService CheatService => _cheatService;
-	public EnvironmentService EnvironmentService => _environmentService;
-	public SpectatorService SpectatorService => _spectatorService;
-	public ShroudService ShroudService => _shroudService;
-	public Realm.Client.Services.ModelOptimization.ModelOptimizerService ModelOptimizerService => _modelOptimizerService;
-	public Realm.Client.Services.MetadataService MetadataService => _metadataService;
-	public Realm.Client.Services.MapUpgradeService MapUpgradeService => _mapUpgradeService;
-	public Realm.Client.Services.MapStorageService MapStorageService => _mapStorageService;
-	public Realm.Client.Services.MapSaveDataService MapSaveDataService => _mapSaveDataService;
+	public static GameHost Instance { get; set; }
 
-	public bool UnlimitedPowerEnabled { get; set; } = false;
-	public bool GigachadEnabled { get; set; } = false;
+	private float _fDelta { get; set; }
 
-	private float _fDelta;
-
-	
-	internal DefinitionManager DefinitionManager => _definitionManager;
-	private DefinitionManager _definitionManager = null!;
-	
-	private ResourceId _goldResourceId;
-	private ResourceId _woodResourceId;
-	private ResourceId _stoneResourceId;
-	
-	public Entity PlayerEntity => _playerEntity;
-	public Entity EnemyEntity => _enemyPlayerEntity;
-	
 
 	private bool _multiplayerActive => Multiplayer.MultiplayerPeer != null && Multiplayer.MultiplayerPeer is not OfflineMultiplayerPeer;
+
 	private int _localPeerId
 	{
-		get => _networkService?.LocalPeerId ?? 1;
-		set { if (_networkService != null) _networkService.LocalPeerId = value; }
+		get => GameContext.NetworkService?.LocalPeerId ?? 1;
+		set
+		{
+			if (GameContext.NetworkService != null) GameContext.NetworkService.LocalPeerId = value;
+		}
 	}
 
 	private int _nextCommandId
 	{
-		get => EcsWorld?.GetFieldOrDefault<NetworkState, int>(_worldEntity, s => s.NextCommandId, 1) ?? 1;
-		set => EcsWorld?.Mutate(_worldEntity, (ref NetworkState s) => s.NextCommandId = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(ECSContext.WorldEntity, s => s.NextCommandId, 1) ?? 1;
+		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.NextCommandId = value);
 	}
 
 	private float _commandSendTimer
 	{
-		get => _networkService?.CommandSendTimer ?? 0f;
-		set { if (_networkService != null) _networkService.CommandSendTimer = value; }
+		get => GameContext.NetworkService?.CommandSendTimer ?? 0f;
+		set
+		{
+			if (GameContext.NetworkService != null) GameContext.NetworkService.CommandSendTimer = value;
+		}
 	}
 
 	private int _snapshotSequence
 	{
-		get => EcsWorld?.GetFieldOrDefault<NetworkState, int>(_worldEntity, s => s.SnapshotSequence) ?? 0;
-		set => EcsWorld?.Mutate(_worldEntity, (ref NetworkState s) => s.SnapshotSequence = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(ECSContext.WorldEntity, s => s.SnapshotSequence) ?? 0;
+		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.SnapshotSequence = value);
 	}
 
 	private int _lastReceivedBaselineSeq
 	{
-		get => EcsWorld?.GetFieldOrDefault<NetworkState, int>(_worldEntity, s => s.LastReceivedBaselineSeq, -1) ?? -1;
-		set => EcsWorld?.Mutate(_worldEntity, (ref NetworkState s) => s.LastReceivedBaselineSeq = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(ECSContext.WorldEntity, s => s.LastReceivedBaselineSeq, -1) ?? -1;
+		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.LastReceivedBaselineSeq = value);
 	}
 
 	private bool _hasReceivedInitialBaseline
 	{
-		get => EcsWorld?.GetFieldOrDefault<NetworkState, bool>(_worldEntity, s => s.HasReceivedInitialBaseline) ?? false;
-		set => EcsWorld?.Mutate(_worldEntity, (ref NetworkState s) => s.HasReceivedInitialBaseline = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, bool>(ECSContext.WorldEntity, s => s.HasReceivedInitialBaseline) ?? false;
+		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.HasReceivedInitialBaseline = value);
 	}
 
 	private int _lastAppliedSnapshotSequence
 	{
-		get => EcsWorld?.GetFieldOrDefault<NetworkState, int>(_worldEntity, s => s.LastAppliedSnapshotSequence, -1) ?? -1;
-		set => EcsWorld?.Mutate(_worldEntity, (ref NetworkState s) => s.LastAppliedSnapshotSequence = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(ECSContext.WorldEntity, s => s.LastAppliedSnapshotSequence, -1) ?? -1;
+		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.LastAppliedSnapshotSequence = value);
 	}
 
 	private ulong _lastSnapshotReceivedTime
 	{
-		get => _networkService?.LastSnapshotReceivedTime ?? 0;
-		set { if (_networkService != null) _networkService.LastSnapshotReceivedTime = value; }
+		get => GameContext.NetworkService?.LastSnapshotReceivedTime ?? 0;
+		set
+		{
+			if (GameContext.NetworkService != null) GameContext.NetworkService.LastSnapshotReceivedTime = value;
+		}
 	}
 
-	private bool _wasClientInMultiplayer => _networkService?.WasClientInMultiplayer ?? false;
-	public bool IsConnectionLost => _networkService?.IsConnectionLost ?? false;
+	private bool _wasClientInMultiplayer => GameContext.NetworkService?.WasClientInMultiplayer ?? false;
+	public bool IsConnectionLost => GameContext.NetworkService?.IsConnectionLost ?? false;
 
-	private System.Collections.Generic.Dictionary<int, Entity> _peerIdToPlayerEntityMap
-		=> EcsWorld?.GetFieldOrDefault<NetworkMappingState, System.Collections.Generic.Dictionary<int, Entity>>(_worldEntity, s => s.PeerIdToPlayerEntityMap);
+	private Dictionary<int, Entity> _peerIdToPlayerEntityMap
+		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(ECSContext.WorldEntity, s => s.PeerIdToPlayerEntityMap);
 
-	private System.Collections.Generic.Dictionary<int, Entity> _serverToClientEntityMap
-		=> EcsWorld?.GetFieldOrDefault<NetworkMappingState, System.Collections.Generic.Dictionary<int, Entity>>(_worldEntity, s => s.ServerToClientEntityMap);
+	private Dictionary<int, Entity> _serverToClientEntityMap
+		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(ECSContext.WorldEntity, s => s.ServerToClientEntityMap);
 
-	private System.Collections.Generic.Dictionary<int, int> _clientToServerEntityMap
-		=> EcsWorld?.GetFieldOrDefault<NetworkMappingState, System.Collections.Generic.Dictionary<int, int>>(_worldEntity, s => s.ClientToServerEntityMap);
+	private Dictionary<int, int> _clientToServerEntityMap
+		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, int>>(ECSContext.WorldEntity, s => s.ClientToServerEntityMap);
 
+	public List<Unit3D> SelectedUnits { get; set; } = new List<Unit3D>();
+	public List<Unit3D> AllUnits { get; set; } = new List<Unit3D>();
+	public List<Prop3D> AllProps { get; set; } = new List<Prop3D>();
+	public List<Decal> AllDecals { get; set; } = new List<Decal>();
+	public List<ProceduralVfxInstance3D> AllVfx { get; set; } = new List<ProceduralVfxInstance3D>();
+	private List<Unit3D> _castlesList { get; set; } = new();
 
+	public static Dictionary<Entity, Unit3D> EntityToUnit3D { get; set; } = new();
+	public static Dictionary<Entity, Prop3D> EntityToProp3D { get; set; } = new();
+	public static Dictionary<Entity, ProceduralVfxInstance3D> EntityToVfx3D { get; set; } = new();
 
-
-	public World EcsWorld { get; private set; }
-	public Entity WorldEntity => _worldEntity;
-	public List<Realm.Client.Unit3D> SelectedUnits { get; } = new List<Realm.Client.Unit3D>();
-	public List<Realm.Client.Unit3D> AllUnits { get; } = new List<Realm.Client.Unit3D>();
-	public List<Realm.Client.Prop3D> AllProps { get; } = new List<Realm.Client.Prop3D>();
-	public List<Decal> AllDecals { get; } = new List<Decal>();
-	public List<ProceduralVfxInstance3D> AllVfx { get; } = new List<ProceduralVfxInstance3D>();
-	private readonly List<Realm.Client.Unit3D> _castlesList = new();
-
-	public static readonly Dictionary<Entity, Realm.Client.Unit3D> EntityToUnit3D = new();
-	public static readonly Dictionary<Entity, Realm.Client.Prop3D> EntityToProp3D = new();
-	public static readonly Dictionary<Entity, ProceduralVfxInstance3D> EntityToVfx3D = new();
-	public static readonly Dictionary<string, VfxAttachmentConfig> VfxRegistry = new(StringComparer.OrdinalIgnoreCase);
-
-	public static bool TryGetUnit3D(Entity entity, out Realm.Client.Unit3D unit)
+	public static bool TryGetUnit3D(Entity entity, out Unit3D unit)
 	{
 		return EntityToUnit3D.TryGetValue(entity, out unit);
 	}
 
-	public static bool TryGetProp3D(Entity entity, out Realm.Client.Prop3D prop)
+	public static bool TryGetProp3D(Entity entity, out Prop3D prop)
 	{
 		return EntityToProp3D.TryGetValue(entity, out prop);
 	}
@@ -180,32 +144,31 @@ public partial class GameHost : Node3D, IGameAPI
 		return EntityToVfx3D.TryGetValue(entity, out vfx);
 	}
 
-	private Entity _playerEntity
+	public Entity _playerEntity
 	{
-		get => EcsWorld?.GetFieldOrDefault<NetworkMappingState, Entity>(_worldEntity, s => s.PlayerEntity, Entity.Null) ?? Entity.Null;
-		set => EcsWorld?.Mutate<NetworkMappingState>(_worldEntity, (ref NetworkMappingState s) => s.PlayerEntity = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkMappingState, Entity>(ECSContext.WorldEntity, s => s.PlayerEntity, Entity.Null) ?? Entity.Null;
+		set => GameContext.World?.Mutate<NetworkMappingState>(ECSContext.WorldEntity, (ref NetworkMappingState s) => s.PlayerEntity = value);
 	}
 
-	private Entity _enemyPlayerEntity
+	public Entity _enemyPlayerEntity
 	{
-		get => EcsWorld?.GetFieldOrDefault<NetworkMappingState, Entity>(_worldEntity, s => s.EnemyPlayerEntity, Entity.Null) ?? Entity.Null;
-		set => EcsWorld?.Mutate<NetworkMappingState>(_worldEntity, (ref NetworkMappingState s) => s.EnemyPlayerEntity = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkMappingState, Entity>(ECSContext.WorldEntity, s => s.EnemyPlayerEntity, Entity.Null) ?? Entity.Null;
+		set => GameContext.World?.Mutate<NetworkMappingState>(ECSContext.WorldEntity, (ref NetworkMappingState s) => s.EnemyPlayerEntity = value);
 	}
 
 	public int LocalPlayerIndex
 	{
 		get
 		{
-			if (_multiplayerActive && Realm.Client.Network.LobbyManager.Instance != null && Realm.Client.Network.LobbyManager.Instance.PlayerList.Count > 0)
+			if (_multiplayerActive && LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
 			{
-				var p = Realm.Client.Network.LobbyManager.Instance.PlayerList.Find(x => x.PeerId == _localPeerId);
+				var p = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == _localPeerId);
 				if (p != null) return p.Slot;
 			}
+
 			return 0;
 		}
 	}
-
-	public bool IsLocalPlayerDefeated { get; set; }
 
 	public Entity GetPlayerEntityForPlayerIndex(int playerIndex)
 	{
@@ -213,16 +176,16 @@ public partial class GameHost : Node3D, IGameAPI
 		if (pe != Entity.Null) return pe;
 
 		if (playerIndex == 0) return _playerEntity;
-		if (_enemyPlayerEntity != Entity.Null && EcsWorld.IsAlive(_enemyPlayerEntity)) return _enemyPlayerEntity;
+		if (_enemyPlayerEntity != Entity.Null && GameContext.World.IsAlive(_enemyPlayerEntity)) return _enemyPlayerEntity;
 
 		return _playerEntity;
 	}
 
 	private Entity TryGetMultiplayerEntity(int playerIndex)
 	{
-		if (!_multiplayerActive || Realm.Client.Network.LobbyManager.Instance == null || Realm.Client.Network.LobbyManager.Instance.PlayerList.Count <= 0) return Entity.Null;
-		var p = Realm.Client.Network.LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-		if (p == null || _peerIdToPlayerEntityMap?.TryGetValue(p.PeerId, out var pe) != true || !EcsWorld.IsAlive(pe)) return Entity.Null;
+		if (!_multiplayerActive || LobbyManager.Instance == null || LobbyManager.Instance.PlayerList.Count <= 0) return Entity.Null;
+		var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+		if (p == null || _peerIdToPlayerEntityMap?.TryGetValue(p.PeerId, out var pe) != true || !GameContext.World.IsAlive(pe)) return Entity.Null;
 		return pe;
 	}
 
@@ -231,96 +194,101 @@ public partial class GameHost : Node3D, IGameAPI
 		return NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
 	}
 
-	private Entity _worldEntity;
 
 	private int _replayTickCounter
 	{
-		get => EcsWorld?.GetFieldOrDefault<ReplayState, int>(_worldEntity, s => s.ReplayTickCounter) ?? 0;
-		set => EcsWorld?.Mutate<ReplayState>(_worldEntity, (ref ReplayState s) => s.ReplayTickCounter = value);
+		get => GameContext.World?.GetFieldOrDefault<ReplayState, int>(ECSContext.WorldEntity, s => s.ReplayTickCounter) ?? 0;
+		set => GameContext.World?.Mutate<ReplayState>(ECSContext.WorldEntity, (ref ReplayState s) => s.ReplayTickCounter = value);
 	}
-	private System.Diagnostics.Stopwatch _trackerTickStopwatch = new System.Diagnostics.Stopwatch();
-	private System.Diagnostics.Stopwatch _trackerIntervalStopwatch = new System.Diagnostics.Stopwatch();
-	private List<float> _trackerTickDurations;
-	private List<float> _trackerApiDurations;
-	private float _trackerLastTickDelay;
-	private bool _isResettingForReplay;
+
+
 	public string? ActiveSpellTargeting
 	{
-		get => _inputService?.ActiveSpellTargeting;
-		set { if (_inputService != null) _inputService.ActiveSpellTargeting = value; }
+		get => GameContext.InputService?.ActiveSpellTargeting;
+		set
+		{
+			if (GameContext.InputService != null) GameContext.InputService.ActiveSpellTargeting = value;
+		}
 	}
 
 	public string? ActiveCommandTargeting
 	{
-		get => _inputService?.ActiveCommandTargeting;
-		set { if (_inputService != null) _inputService.ActiveCommandTargeting = value; }
+		get => GameContext.InputService?.ActiveCommandTargeting;
+		set
+		{
+			if (GameContext.InputService != null) GameContext.InputService.ActiveCommandTargeting = value;
+		}
 	}
 
-	public Realm.Client.Prop3D? SelectedProp { get; private set; }
+	public Prop3D? SelectedProp { get; set; }
 
 	public string? ActiveBuildingPlacementType
 	{
-		get => _inputService?.ActiveBuildingPlacementType;
-		set { if (_inputService != null) _inputService.ActiveBuildingPlacementType = value; }
+		get => GameContext.InputService?.ActiveBuildingPlacementType;
+		set
+		{
+			if (GameContext.InputService != null) GameContext.InputService.ActiveBuildingPlacementType = value;
+		}
 	}
 
 	public int CycleSelectionIndex
 	{
-		get => _inputService?.GetCycleSelectionIndex(SelectedUnits.Count) ?? 0;
-		set => _inputService?.SetCycleSelectionIndex(value, SelectedUnits.Count);
+		get => GameContext.InputService?.GetCycleSelectionIndex(SelectedUnits.Count) ?? 0;
+		set => GameContext.InputService?.SetCycleSelectionIndex(value, SelectedUnits.Count);
 	}
 
 	public bool HasWeaponsUpgrade
 	{
-		get => EcsWorld?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.WeaponsUpgrade) ?? false;
-		set => EcsWorld?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.WeaponsUpgrade = value);
+		get => GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.WeaponsUpgrade) ?? false;
+		set => GameContext.World?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.WeaponsUpgrade = value);
 	}
 
 	public bool HasShieldsUpgrade
 	{
-		get => EcsWorld?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.ShieldsUpgrade) ?? false;
-		set => EcsWorld?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.ShieldsUpgrade = value);
+		get => GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.ShieldsUpgrade) ?? false;
+		set => GameContext.World?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.ShieldsUpgrade = value);
 	}
 
 	public bool HasHarvestingUpgrade
 	{
-		get => EcsWorld?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.HarvestingUpgrade) ?? false;
-		set => EcsWorld?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.HarvestingUpgrade = value);
+		get => GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.HarvestingUpgrade) ?? false;
+		set => GameContext.World?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.HarvestingUpgrade = value);
 	}
 
 
-	private MeshInstance3D? _buildingPreviewMesh;
+	private MeshInstance3D? _buildingPreviewMesh { get; set; }
 
 
-	public bool IsMapEditorMode { get; set; }
-	public bool IsLoadingMap { get; set; }
-	public bool IsGameOver { get; private set; }
-	private Realm.Client.RuntimeTerrain _groundTerrain;
-	public Realm.Client.RuntimeTerrain GroundTerrain
+	private RuntimeTerrain _groundTerrain { get; set; }
+
+	public RuntimeTerrain GroundTerrain
 	{
 		get
 		{
-			if (_groundTerrain == null && (IsMapEditorMode || IsLoadingMap || (Realm.Client.Network.LobbyManager.Instance != null && Realm.Client.Network.LobbyManager.Instance.IsGameStarted)))
+			if (_groundTerrain == null && (GameContext.EditorService.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap || (LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted)))
 			{
 				CreateGround();
 			}
+
 			return _groundTerrain;
 		}
 		private set
 		{
 			_groundTerrain = value;
-			if (value != null && _editorService != null)
+			if (value != null && GameContext.EditorService != null)
 			{
-				_editorService.SetTerrainSplatMap(value.SplatMap, value.CliffSplatMap);
+				GameContext.EditorService.SetTerrainSplatMap(value.SplatMap, value.CliffSplatMap);
 			}
 		}
 	}
-	private MeshInstance3D? _brushIndicatorMesh;
-	private MeshInstance3D? _cameraBoundsOverlayMesh;
-	private readonly List<Vector3> _pathingVerticesCache = new();
-	private readonly List<Color> _pathingColorsCache = new();
-	private readonly List<int> _pathingIndicesCache = new();
-	private bool _pathingOverlayVisible = true;
+
+	public MeshInstance3D? _brushIndicatorMesh { get; set; }
+	private MeshInstance3D? _cameraBoundsOverlayMesh { get; set; }
+	private List<Vector3> _pathingVerticesCache { get; set; } = new();
+	private List<Color> _pathingColorsCache { get; set; } = new();
+	private List<int> _pathingIndicesCache { get; set; } = new();
+	private bool _pathingOverlayVisible { get; set; } = true;
+
 	public bool PathingOverlayVisible
 	{
 		get => _pathingOverlayVisible;
@@ -330,71 +298,35 @@ public partial class GameHost : Node3D, IGameAPI
 			UpdatePathingOverlay();
 		}
 	}
-	public enum EditorTool
-	{
-		None,
-		Raise,
-		Lower,
-		Height,
-		Smooth,
-		Plateau,
-		PaintTexture,
-		PlaceUnit,
-		PlaceProp,
-		PlaceDecal,
-		PlaceVfx,
-		DeleteObject,
-		SelectMove,
-		Eyedropper,
-		Noise,
-		Ramp,
-		PlacePropClump,
-		FloodFill,
-		SelectArea,
-		PasteArea,
-		PaintPathing,
-		FloodFillPathing,
-		DrawCoordinate,
-		Water,
-		Measure
-	}
-	private EditorTool _activeEditorTool = EditorTool.None;
+
 	public EditorTool ActiveEditorTool
 	{
-		get => _activeEditorTool;
+		get => GameContext.EditorService.ActiveEditorTool;
 		set
 		{
 			FlushTerrainMeshAndPhysics();
-			_activeEditorTool = value;
-			_editorService?.SetIsPastingObject(false);
+			GameContext.EditorService.ActiveEditorTool = value;
+			GameContext.EditorService?.SetIsPastingObject(false);
 			if (value != EditorTool.SelectArea && value != EditorTool.PasteArea)
 			{
 				HideSelectionHighlight();
 			}
+
 			RebuildAllCoordinatePersistentMeshes();
 			UpdatePathingOverlay();
 		}
 	}
+
 	public string ActivePlaceId { get; set; } = ""; // "soldier", "tree", etc.
 
-	public struct EditorCoordinate
-	{
-		public string Name;
-		public float MinX;
-		public float MinZ;
-		public float MaxX;
-		public float MaxZ;
-	}
-
-	public List<EditorCoordinate> EditorCoordinates { get; } = new();
 	public string GetTerrainStatusString(Vector3 hitPos)
 	{
-		return _editorService.GetTerrainStatusString(hitPos, ActiveEditorTool.ToString(), ActivePlaceId);
+		return GameContext.EditorService.GetTerrainStatusString(hitPos, ActiveEditorTool.ToString(), ActivePlaceId);
 	}
 
 	public void LoadMapProperties(string path)
 	{
-		_mapPropertiesLoader?.LoadMapProperties(_worldEntity, path);
+		GameContext.MapPropertiesLoader?.LoadMapProperties(ECSContext.WorldEntity, path);
 	}
 
 	public bool ImportTerrainFromMinimap(
@@ -406,244 +338,206 @@ public partial class GameHost : Node3D, IGameAPI
 		smoothedHeights = null;
 		splatMap = null;
 		treePositions = null;
-		if (_terrainImportService == null)
+		if (GameContext.MapEditorTerrainImportService == null)
 		{
 			return false;
 		}
-		return _terrainImportService.ImportTerrain(_worldEntity, selectedPath, out smoothedHeights, out splatMap, out treePositions);
+
+		return GameContext.MapEditorTerrainImportService.ImportTerrain(ECSContext.WorldEntity, selectedPath, out smoothedHeights, out splatMap, out treePositions);
 	}
-	public const float MIN_BRUSH_RADIUS = 1.0f;
-	public const float MAX_BRUSH_RADIUS = 20.0f;
-	public const float MIN_BRUSH_STRENGTH = 0.0f;
-	public const float MAX_BRUSH_STRENGTH = 10.0f;
-	public const float MIN_PLACEMENT_SCALE = 0.25f;
-	public const float MAX_PLACEMENT_SCALE = 5.0f;
-	public const float MIN_CLUMP_COUNT = 1.0f;
-	public const float MAX_CLUMP_COUNT = 20.0f;
-	public const float MIN_CLUMP_SCALE = 0.0f;
-	public const float MAX_CLUMP_SCALE = 1.0f;
 
-	public const float MIN_CLUMP_DENSITY = MIN_CLUMP_COUNT;
-	public const float MAX_CLUMP_DENSITY = MAX_CLUMP_COUNT;
-	public const float MIN_CLUMP_SCALE_VAR = MIN_CLUMP_SCALE;
-	public const float MAX_CLUMP_SCALE_VAR = MAX_CLUMP_SCALE;
 
-	public bool PlaceUnitIsEnemy { get; set; } = false;
-	private float _editorBrushRadius = 2.0f;
 	public float EditorBrushRadius
 	{
-		get => _editorBrushRadius;
-		set => _editorBrushRadius = Mathf.Clamp(value, MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS);
+		get => GameContext.EditorService.EditorBrushRadius;
+		set => GameContext.EditorService.EditorBrushRadius = Mathf.Clamp(value, EditorService.MIN_BRUSH_RADIUS, EditorService.MAX_BRUSH_RADIUS);
 	}
-	private float _editorBrushStrength = 3.0f;
+
 	public float EditorBrushStrength
 	{
-		get => _editorBrushStrength;
-		set => _editorBrushStrength = Mathf.Clamp(value, MIN_BRUSH_STRENGTH, MAX_BRUSH_STRENGTH);
+		get => GameContext.EditorService.EditorBrushStrength;
+		set => GameContext.EditorService.EditorBrushStrength = Mathf.Clamp(value, EditorService.MIN_BRUSH_STRENGTH, EditorService.MAX_BRUSH_STRENGTH);
 	}
-	public int EditorPaintTextureIndex { get; set; } = 3;
-	public int EditorCliffPaintTextureIndex { get; set; } = 1;
+
 	public bool EditorSnapToGrid { get; set; } = false;
-	public float EditorPlacementRotation { get; set; } = 0.0f;
-	private float _editorPlacementScale = 1.0f;
+
+
 	public float EditorPlacementScale
 	{
-		get => _editorPlacementScale;
-		set => _editorPlacementScale = Mathf.Clamp(value, MIN_PLACEMENT_SCALE, MAX_PLACEMENT_SCALE);
+		get => GameContext.EditorService.EditorPlacementScale;
+		set => GameContext.EditorService.EditorPlacementScale = Mathf.Clamp(value, EditorService.MIN_PLACEMENT_SCALE, EditorService.MAX_PLACEMENT_SCALE);
 	}
-	public enum GridOverlayMode { Off, Grid, Polar, Both }
-	public GridOverlayMode EditorGridMode { get; set; } = GridOverlayMode.Off;
-	public bool EditorGridVisible => EditorGridMode == GridOverlayMode.Grid || EditorGridMode == GridOverlayMode.Both;
-	public bool EditorCameraBoundsVisible { get; set; } = false;
-	public bool EditorDisableShadows { get; set; } = false;
+
+	public bool EditorGridVisible => GameContext.EditorService.EditorGridMode == GridOverlayMode.Grid || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both;
+
 	public float EditorCameraBoundsLeft
 	{
-		get => _editorService.GetCameraBoundsLeft(_worldEntity);
-		set => _editorService.SetCameraBoundsLeft(_worldEntity, value);
+		get => GameContext.EditorService.GetCameraBoundsLeft(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetCameraBoundsLeft(ECSContext.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsRight
 	{
-		get => _editorService.GetCameraBoundsRight(_worldEntity);
-		set => _editorService.SetCameraBoundsRight(_worldEntity, value);
+		get => GameContext.EditorService.GetCameraBoundsRight(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetCameraBoundsRight(ECSContext.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsTop
 	{
-		get => _editorService.GetCameraBoundsTop(_worldEntity);
-		set => _editorService.SetCameraBoundsTop(_worldEntity, value);
+		get => GameContext.EditorService.GetCameraBoundsTop(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetCameraBoundsTop(ECSContext.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsBottom
 	{
-		get => _editorService.GetCameraBoundsBottom(_worldEntity);
-		set => _editorService.SetCameraBoundsBottom(_worldEntity, value);
+		get => GameContext.EditorService.GetCameraBoundsBottom(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetCameraBoundsBottom(ECSContext.WorldEntity, value);
 	}
+
 	public MirrorMode EditorMirrorMode
 	{
-		get => EcsWorld?.GetFieldOrDefault<EditorState, MirrorMode>(_worldEntity, s => s.MirrorMode, MirrorMode.None) ?? MirrorMode.None;
+		get => GameContext.World?.GetFieldOrDefault<EditorState, MirrorMode>(ECSContext.WorldEntity, s => s.MirrorMode, MirrorMode.None) ?? MirrorMode.None;
 		set
 		{
-			EcsWorld?.Mutate<EditorState>(_worldEntity, (ref EditorState s) => s.MirrorMode = value);
+			GameContext.World?.Mutate<EditorState>(ECSContext.WorldEntity, (ref EditorState s) => s.MirrorMode = value);
 			if (value == MirrorMode.Rotational)
 			{
-				EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
-				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+				GameContext.EditorService.EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
+				GroundTerrain?.SetPolarRadialStep(GameContext.EditorService.EditorPolarRadialStep);
 			}
 			else
 			{
-				EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorPolarSpokeFolds);
-				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+				GameContext.EditorService.EditorPolarRadialStep = 360.0f / Mathf.Max(1, GameContext.EditorService.EditorPolarSpokeFolds);
+				GroundTerrain?.SetPolarRadialStep(GameContext.EditorService.EditorPolarRadialStep);
 			}
+
 			UpdateGridOverlayVisibility();
 		}
 	}
 
 	public Vector2 EditorSymmetryPivot
 	{
-		get => _editorService?.SymmetryPivot ?? Vector2.Zero;
+		get => GameContext.EditorService?.SymmetryPivot ?? Vector2.Zero;
 		set
 		{
-			if (_editorService != null) _editorService.SymmetryPivot = value;
+			if (GameContext.EditorService != null) GameContext.EditorService.SymmetryPivot = value;
 			UpdateSymmetryPivotVisuals();
 		}
 	}
 
 	public int EditorSymmetryFolds
 	{
-		get => _editorService?.SymmetryFolds ?? 4;
+		get => GameContext.EditorService?.SymmetryFolds ?? 4;
 		set
 		{
-			if (_editorService != null) _editorService.SymmetryFolds = value;
+			if (GameContext.EditorService != null) GameContext.EditorService.SymmetryFolds = value;
 			if (EditorMirrorMode == MirrorMode.Rotational)
 			{
-				EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
-				GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+				GameContext.EditorService.EditorPolarRadialStep = 360.0f / Mathf.Max(1, value);
+				GroundTerrain?.SetPolarRadialStep(GameContext.EditorService.EditorPolarRadialStep);
 			}
 		}
 	}
 
-	public int EditorPolarSpokeFolds { get; set; } = 4;
-	public bool EditorPolarOverlayVisible { get; set; } = false;
-	public float EditorPolarRingSpacing { get; set; } = 8.0f;
-	public float EditorPolarRadialStep { get; set; } = 90.0f;
 
-	public Vector3? EditorTapeMeasureStart { get; set; }
 	public Vector3? EditorTapeMeasureEnd { get; set; }
 	public bool EditorTapeMeasureActive { get; set; } = false;
 
 	public bool EditorBrushIsSquare { get; set; } = true;
 
-	private float _editorClumpCount = 5.0f;
+
 	public float EditorClumpCount
 	{
-		get => _editorClumpCount;
-		set => _editorClumpCount = Mathf.Clamp(value, MIN_CLUMP_COUNT, MAX_CLUMP_COUNT);
+		get => GameContext.EditorService.EditorClumpCount;
+		set => GameContext.EditorService.EditorClumpCount = Mathf.Clamp(value, EditorService.MIN_CLUMP_COUNT, EditorService.MAX_CLUMP_COUNT);
 	}
 
-	public float EditorClumpDensity
-	{
-		get => EditorClumpCount;
-		set => EditorClumpCount = value;
-	}
 
-	private float _editorClumpScale = 0.3f;
 	public float EditorClumpScale
 	{
-		get => _editorClumpScale;
-		set => _editorClumpScale = Mathf.Clamp(value, MIN_CLUMP_SCALE, MAX_CLUMP_SCALE);
+		get => GameContext.EditorService.EditorClumpScale;
+		set => GameContext.EditorService.EditorClumpScale = Mathf.Clamp(value, EditorService.MIN_CLUMP_SCALE, EditorService.MAX_CLUMP_SCALE);
 	}
 
-	public float EditorClumpScaleVar
-	{
-		get => EditorClumpScale;
-		set => EditorClumpScale = value;
-	}
-	private bool _editorClumpMode = false;
+
 	public bool EditorClumpMode
 	{
-		get => _editorClumpMode;
+		get => GameContext.EditorService.EditorClumpMode;
 		set
 		{
-			_editorClumpMode = value;
+			GameContext.EditorService.EditorClumpMode = value;
 			UpdateBrushMesh();
 		}
 	}
 
-	public bool EditorRandomRotation { get; set; } = false;
-	public bool EditorRandomScale { get; set; } = false;
+
 	public string EditorSkyboxPath
 	{
-		get => _editorService.GetSkyboxPath(_worldEntity);
-		set => _editorService.SetSkyboxPath(_worldEntity, value);
+		get => GameContext.EditorService.GetSkyboxPath(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetSkyboxPath(ECSContext.WorldEntity, value);
 	}
 
 	public bool EditorHasUnsavedChanges
 	{
-		get => _editorService.GetHasUnsavedChanges(_worldEntity);
-		set => _editorService.SetHasUnsavedChanges(_worldEntity, value);
+		get => GameContext.EditorService.GetHasUnsavedChanges(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetHasUnsavedChanges(ECSContext.WorldEntity, value);
 	}
 
 	public bool EditorBlockMode
 	{
-		get => _editorService.GetBlockMode(_worldEntity);
-		set => _editorService.SetBlockMode(_worldEntity, value);
+		get => GameContext.EditorService.GetBlockMode(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetBlockMode(ECSContext.WorldEntity, value);
 	}
 
 	public float EditorBlockLevelHeight
 	{
-		get => _editorService.GetBlockLevelHeight(_worldEntity);
-		set => _editorService.SetBlockLevelHeight(_worldEntity, value);
+		get => GameContext.EditorService.GetBlockLevelHeight(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetBlockLevelHeight(ECSContext.WorldEntity, value);
 	}
 
-	private float _editorExactHeight = 0.0f;
+
 	public float EditorExactHeight
 	{
-		get => _editorExactHeight;
-		set => _editorExactHeight = Math.Clamp(value, TerrainCell.MIN_Y, TerrainCell.MAX_Y);
+		get => GameContext.EditorService.EditorExactHeight;
+		set => GameContext.EditorService.EditorExactHeight = Math.Clamp(value, TerrainCell.MIN_Y, TerrainCell.MAX_Y);
 	}
 
 	public WaterType EditorWaterMode
 	{
-		get => _editorService.GetWaterMode(_worldEntity);
-		set => _editorService.SetWaterMode(_worldEntity, value);
+		get => GameContext.EditorService.GetWaterMode(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetWaterMode(ECSContext.WorldEntity, value);
 	}
 
 	public byte ActiveWaterProfileIndex
 	{
-		get => _editorService.GetWaterProfileIndex(_worldEntity);
-		set => _editorService.SetWaterProfileIndex(_worldEntity, value);
+		get => GameContext.EditorService.GetWaterProfileIndex(ECSContext.WorldEntity);
+		set => GameContext.EditorService.SetWaterProfileIndex(ECSContext.WorldEntity, value);
 	}
 
-	public float EditorWaterHeight { get; set; } = 0.9f;
 
-	private Node? _hoveredEditorObject;
-	private MeshInstance3D? _selectionHighlightMesh;
-	private MeshInstance3D? _coordinatePreviewMesh;
-	private MeshInstance3D? _coordinateSelectionOutlineMesh;
-	private readonly List<MeshInstance3D> _coordinatePersistentMeshes = new();
-
+	private Node? _hoveredEditorObject { get; set; }
+	private MeshInstance3D? _selectionHighlightMesh { get; set; }
+	private MeshInstance3D? _coordinatePreviewMesh { get; set; }
+	private MeshInstance3D? _coordinateSelectionOutlineMesh { get; set; }
+	private List<MeshInstance3D> _coordinatePersistentMeshes { get; set; } = new();
 
 
 	public void GenerateNewRandomPlacementRotationAndScale()
 	{
-		_editorService.GenerateNewRandomPlacementRotationAndScale();
+		GameContext.EditorService.GenerateNewRandomPlacementRotationAndScale();
 	}
-	public bool PasteOptionTextures { get; set; } = true;
-	public bool PasteOptionHeights { get; set; } = true;
-	public bool PasteOptionEntities { get; set; } = true;
-	private bool _pasteOptionPathing = true;
+
+
 	public bool PasteOptionPathing
 	{
-		get => _pasteOptionPathing;
+		get => GameContext.EditorService.PasteOptionPathing;
 		set
 		{
-			_pasteOptionPathing = value;
+			GameContext.EditorService.PasteOptionPathing = value;
 			UpdatePathingOverlay();
 		}
 	}
-	public float EditorPasteRotation { get; set; } = 0.0f;
-	public PasteReflection EditorPasteReflection { get; set; } = PasteReflection.None;
+
 
 	public Node SelectedEditorObject
 	{
@@ -653,11 +547,11 @@ public partial class GameHost : Node3D, IGameAPI
 			if (_selectedEditorObject == value) return;
 			if (GodotObject.IsInstanceValid(_selectedEditorObject))
 			{
-				if (_selectedEditorObject is Realm.Client.Unit3D oldUnit)
+				if (_selectedEditorObject is Unit3D oldUnit)
 				{
 					oldUnit.IsSelected = false;
 				}
-				else if (_selectedEditorObject is Realm.Client.Prop3D oldProp)
+				else if (_selectedEditorObject is Prop3D oldProp)
 				{
 					oldProp.IsSelected = false;
 				}
@@ -670,14 +564,15 @@ public partial class GameHost : Node3D, IGameAPI
 					oldVfx.IsSelected = false;
 				}
 			}
+
 			_selectedEditorObject = value;
 			if (GodotObject.IsInstanceValid(_selectedEditorObject))
 			{
-				if (_selectedEditorObject is Realm.Client.Unit3D newUnit)
+				if (_selectedEditorObject is Unit3D newUnit)
 				{
 					newUnit.IsSelected = true;
 				}
-				else if (_selectedEditorObject is Realm.Client.Prop3D newProp)
+				else if (_selectedEditorObject is Prop3D newProp)
 				{
 					newProp.IsSelected = true;
 				}
@@ -699,6 +594,7 @@ public partial class GameHost : Node3D, IGameAPI
 						UpdateDecalSelectionRing(decal, false);
 					}
 				}
+
 				foreach (var vfx in AllVfx)
 				{
 					if (GodotObject.IsInstanceValid(vfx))
@@ -707,152 +603,104 @@ public partial class GameHost : Node3D, IGameAPI
 					}
 				}
 			}
-			Realm.Client.UI.MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+
+			MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
 			UpdateEditorCoverageOverlay();
 		}
 	}
-	private Node? _selectedEditorObject;
-	private bool _isDraggingObject;
-	private Vector3 _dragObjectStartPos;
-	private Vector3 _dragObjectStartRot;
-	private Vector3 _dragObjectStartScale;
-	private bool _dragObjectStartIsEnemy;
-	private Vector3 _dragObjectStartHitPos;
-	private Vector2 _dragStartMousePos;
-	private Vector3 _dragStartGroundPos;
-	private bool _dragObjectHasMoved;
-	private Node3D _editorPreviewNode;
-	private string _editorPreviewType = "";
-	private string _editorPreviewId = "";
-	private bool _editorPreviewIsEnemy;
+
+	private Node? _selectedEditorObject { get; set; }
+	private bool _isDraggingObject { get; set; }
+	private Vector3 _dragObjectStartPos { get; set; }
+	private Vector3 _dragObjectStartRot { get; set; }
+	private Vector3 _dragObjectStartScale { get; set; }
+	private bool _dragObjectStartIsEnemy { get; set; }
 
 
-	public struct MinimapPing
-	{
-		public Vector3 WorldPos;
-		public float LifeTime;
-		public float MaxLifeTime;
-	}
-	public List<MinimapPing> ActivePings { get; } = new List<MinimapPing>();
+	private Node3D _editorPreviewNode { get; set; }
+
+	private string _editorPreviewId { get; set; } = "";
+	private bool _editorPreviewIsEnemy { get; set; }
+
 	public bool ActivePingMode
 	{
-		get => _inputService?.ActivePingMode ?? false;
-		set { if (_inputService != null) _inputService.ActivePingMode = value; }
+		get => GameContext.InputService?.ActivePingMode ?? false;
+		set
+		{
+			if (GameContext.InputService != null) GameContext.InputService.ActivePingMode = value;
+		}
 	}
 
-
-
-
-	public enum AssetCategory
-	{
-		Glb,
-		Animations,
-		Audio,
-		Sfx,
-		Music,
-		Textures,
-		NoiseTextures,
-		Noise,
-		Decals,
-		VfxSpritesheets,
-		Vfx,
-		Skyboxes,
-		Ribbons,
-		RibbonTextures,
-		Icons,
-		Ui,
-		Shaders
-	}
-
-	public enum GlbSubCategory
-	{
-		Units,
-		Buildings,
-		Resources,
-		Props,
-		Projectiles,
-		Character,
-		Characters,
-		Building,
-		Resource,
-		Environment,
-		Prop,
-		Projectile
-	}
 
 	public static int GetUnitPathingFlags(UnitMetadata meta)
 	{
-		return Instance?._unitSpawnService?.GetUnitPathingFlags(meta) ?? 8;
+		GameHost tempQualifier = Instance;
+		return (tempQualifier != null ? GameContext.UnitSpawnService : null)?.GetUnitPathingFlags(meta) ?? 8;
 	}
 
 
 	public int MaxPopulation
 	{
-		get => EcsWorld?.GetFieldOrDefault<PlayerPopulation, int>(_playerEntity, p => p.Max) ?? 0;
-		private set => EcsWorld?.Mutate<PlayerPopulation>(_playerEntity, (ref PlayerPopulation p) =>
-			EcsWorld.Set(_playerEntity, new PlayerPopulation(p.Current, value)));
+		get => GameContext.World?.GetFieldOrDefault<PlayerPopulation, int>(_playerEntity, p => p.Max) ?? 0;
+		private set => GameContext.World?.Mutate<PlayerPopulation>(_playerEntity, (ref PlayerPopulation p) =>
+			GameContext.World.Set(_playerEntity, new PlayerPopulation(p.Current, value)));
 	}
 
 	public int CurrentPopulation
 	{
-		get => EcsWorld?.GetFieldOrDefault<PlayerPopulation, int>(_playerEntity, p => p.Current) ?? 0;
-		set => EcsWorld?.Mutate<PlayerPopulation>(_playerEntity, (ref PlayerPopulation p) =>
-			EcsWorld.Set(_playerEntity, new PlayerPopulation(value, p.Max)));
+		get => GameContext.World?.GetFieldOrDefault<PlayerPopulation, int>(_playerEntity, p => p.Current) ?? 0;
+		set => GameContext.World?.Mutate<PlayerPopulation>(_playerEntity, (ref PlayerPopulation p) =>
+			GameContext.World.Set(_playerEntity, new PlayerPopulation(value, p.Max)));
 	}
 
 	public float GameElapsedTime
 	{
-		get => EcsWorld?.GetFieldOrDefault<WorldState, float>(_worldEntity, s => s.GameElapsedTime) ?? 0f;
-		private set => EcsWorld?.Mutate<WorldState>(_worldEntity, (ref WorldState s) =>
-			EcsWorld.Set(_worldEntity, new WorldState(value, s.TimeOfDayIndex, s.TimeOfDayTimer, s.DayNightCycleEnabled)));
+		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(ECSContext.WorldEntity, s => s.GameElapsedTime) ?? 0f;
+		private set => GameContext.World?.Mutate<WorldState>(ECSContext.WorldEntity, (ref WorldState s) =>
+			GameContext.World.Set(ECSContext.WorldEntity, new WorldState(value, s.TimeOfDayIndex, s.TimeOfDayTimer, s.DayNightCycleEnabled)));
 	}
 
 	public int TimeOfDayIndex
-		=> EcsWorld?.GetFieldOrDefault<WorldState, int>(_worldEntity, s => s.TimeOfDayIndex) ?? 0;
+		=> GameContext.World?.GetFieldOrDefault<WorldState, int>(ECSContext.WorldEntity, s => s.TimeOfDayIndex) ?? 0;
 
 	private float TimeOfDayTimer
 	{
-		get => EcsWorld?.GetFieldOrDefault<WorldState, float>(_worldEntity, s => s.TimeOfDayTimer) ?? 0f;
-		set => EcsWorld?.Mutate<WorldState>(_worldEntity, (ref WorldState s) =>
-			EcsWorld.Set(_worldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
+		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(ECSContext.WorldEntity, s => s.TimeOfDayTimer) ?? 0f;
+		set => GameContext.World?.Mutate<WorldState>(ECSContext.WorldEntity, (ref WorldState s) =>
+			GameContext.World.Set(ECSContext.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
 	}
 
-	public const float TimeOfDayCycleDuration = 90f;
 
 	public float GetPlayerSpellCooldown(string abilityId)
 	{
-		if (EcsWorld == null || _playerEntity == Entity.Null || !EcsWorld.IsAlive(_playerEntity)) return 0f;
-		if (EcsWorld.Has<SpellCooldowns>(_playerEntity))
+		if (GameContext.World == null || _playerEntity == Entity.Null || !GameContext.World.IsAlive(_playerEntity)) return 0f;
+		if (GameContext.World.Has<SpellCooldowns>(_playerEntity))
 		{
-			var scd = EcsWorld.Get<SpellCooldowns>(_playerEntity).Value;
+			var scd = GameContext.World.Get<SpellCooldowns>(_playerEntity).Value;
 			if (scd != null && scd.TryGetValue(abilityId, out float val)) return val;
 		}
+
 		return 0f;
 	}
 
 	public void SetPlayerSpellCooldown(string abilityId, float cooldown)
 	{
-		if (EcsWorld == null || _playerEntity == Entity.Null || !EcsWorld.IsAlive(_playerEntity)) return;
-		if (EcsWorld.Has<SpellCooldowns>(_playerEntity))
+		if (GameContext.World == null || _playerEntity == Entity.Null || !GameContext.World.IsAlive(_playerEntity)) return;
+		if (GameContext.World.Has<SpellCooldowns>(_playerEntity))
 		{
-			var scd = EcsWorld.Get<SpellCooldowns>(_playerEntity).Value;
+			var scd = GameContext.World.Get<SpellCooldowns>(_playerEntity).Value;
 			if (scd != null) scd[abilityId] = cooldown;
 		}
 	}
 
 
-
-	public const float ResourceCap = ResourceConstants.ResourceCap;
-
-
-
-	public static readonly Dictionary<StringName, UnitMetadata> UnitRegistry = new();
-	public static readonly Dictionary<StringName, UnitMetadata> BuildingRegistry = new();
-	public static readonly Dictionary<StringName, PropMetadata> PropRegistry = new();
-	public static readonly Dictionary<StringName, ResourceMetadata> ResourceRegistry = new();
-	public static readonly Dictionary<StringName, WeaponMetadata> WeaponRegistry = new();
-	public static readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
-	public static readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
+	public static Dictionary<StringName, UnitMetadata> UnitRegistry => GameContext.RegistryService?.UnitRegistry ?? new();
+	public static Dictionary<StringName, UnitMetadata> BuildingRegistry => GameContext.RegistryService?.BuildingRegistry ?? new();
+	public static Dictionary<StringName, PropMetadata> PropRegistry => GameContext.RegistryService?.PropRegistry ?? new();
+	public static Dictionary<StringName, ResourceMetadata> ResourceRegistry => GameContext.RegistryService?.ResourceRegistry ?? new();
+	public static Dictionary<StringName, WeaponMetadata> WeaponRegistry => GameContext.RegistryService?.WeaponRegistry ?? new();
+	public static Dictionary<StringName, AttachmentMetadata> AttachmentRegistry => GameContext.RegistryService?.AttachmentRegistry ?? new();
+	public static Dictionary<StringName, ItemMetadata> ItemRegistry => GameContext.RegistryService?.ItemRegistry ?? new();
 
 	public static bool TryGetUnitOrBuildingMetadata(StringName objectId, out UnitMetadata meta)
 	{
@@ -872,57 +720,60 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public string GetFallbackModelPath(string unitId, bool isBuilding)
 	{
-		return _unitSpawnService.GetFallbackModelPath(unitId, isBuilding);
+		return GameContext.UnitSpawnService.GetFallbackModelPath(unitId, isBuilding);
 	}
 
 	private float _goldBackup
 	{
-		get => EcsWorld?.GetFieldOrDefault<ReplayState, float>(_worldEntity, s => s.GoldBackup, 500f) ?? 500f;
-		set => EcsWorld?.Mutate<ReplayState>(_worldEntity, (ref ReplayState s) => s.GoldBackup = value);
+		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(ECSContext.WorldEntity, s => s.GoldBackup, 500f) ?? 500f;
+		set => GameContext.World?.Mutate<ReplayState>(ECSContext.WorldEntity, (ref ReplayState s) => s.GoldBackup = value);
 	}
 
 	private float _woodBackup
 	{
-		get => EcsWorld?.GetFieldOrDefault<ReplayState, float>(_worldEntity, s => s.WoodBackup, 400f) ?? 400f;
-		set => EcsWorld?.Mutate<ReplayState>(_worldEntity, (ref ReplayState s) => s.WoodBackup = value);
+		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(ECSContext.WorldEntity, s => s.WoodBackup, 400f) ?? 400f;
+		set => GameContext.World?.Mutate<ReplayState>(ECSContext.WorldEntity, (ref ReplayState s) => s.WoodBackup = value);
 	}
 
 	private float _stoneBackup
 	{
-		get => EcsWorld?.GetFieldOrDefault<ReplayState, float>(_worldEntity, s => s.StoneBackup, 200f) ?? 200f;
-		set => EcsWorld?.Mutate<ReplayState>(_worldEntity, (ref ReplayState s) => s.StoneBackup = value);
+		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(ECSContext.WorldEntity, s => s.StoneBackup, 200f) ?? 200f;
+		set => GameContext.World?.Mutate<ReplayState>(ECSContext.WorldEntity, (ref ReplayState s) => s.StoneBackup = value);
 	}
 
-	private IMapScript _activeMapScript;
-	public static string? PendingMapScriptPath { get; set; }
-	private System.Runtime.Loader.AssemblyLoadContext? _mapScriptLoadContext;
-
-	private class MapScriptLoadContext : System.Runtime.Loader.AssemblyLoadContext
+	private IMapScript? _activeMapScript
 	{
-		public MapScriptLoadContext() : base(isCollectible: true)
+		get => GameContext.MapScriptService?.ActiveMapScript;
+		set
 		{
-			Resolving += OnResolving;
-		}
-
-		private System.Reflection.Assembly? OnResolving(System.Runtime.Loader.AssemblyLoadContext context, System.Reflection.AssemblyName assemblyName)
-		{
-			if (assemblyName.Name == "Realm.MapAPI")
-			{
-				foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-				{
-					if (asm.GetName().Name == "Realm.MapAPI")
-						return asm;
-				}
-			}
-			return null;
+			GameContext.MapScriptService?.ActiveMapScript = value;
 		}
 	}
+
+	public static string? PendingMapScriptPath
+	{
+		get => GameContext.MapScriptService?.PendingMapScriptPath;
+		set
+		{
+			GameContext.MapScriptService?.PendingMapScriptPath = value;
+		}
+	}
+
+	private AssemblyLoadContext? _mapScriptLoadContext
+	{
+		get => GameContext.MapScriptService?.MapScriptLoadContext;
+		set
+		{
+			GameContext.MapScriptService?.MapScriptLoadContext = value;
+		}
+	}
+
 
 	private bool DayNightCycleEnabled
 	{
-		get => EcsWorld?.GetFieldOrDefault<WorldState, bool>(_worldEntity, s => s.DayNightCycleEnabled, true) ?? true;
-		set => EcsWorld?.Mutate<WorldState>(_worldEntity, (ref WorldState s) =>
-			EcsWorld.Set(_worldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, s.TimeOfDayTimer, value)));
+		get => GameContext.World?.GetFieldOrDefault<WorldState, bool>(ECSContext.WorldEntity, s => s.DayNightCycleEnabled, true) ?? true;
+		set => GameContext.World?.Mutate<WorldState>(ECSContext.WorldEntity, (ref WorldState s) =>
+			GameContext.World.Set(ECSContext.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, s.TimeOfDayTimer, value)));
 	}
 
 	public event Action<IUnit>? OnUnitCreated;
@@ -936,14 +787,15 @@ public partial class GameHost : Node3D, IGameAPI
 	public void TriggerPlayerChatMessage(string message)
 	{
 		IUnit? selected = null;
-		if (SelectedUnits.Count > 0 && EcsWorld.IsAlive(SelectedUnits[0].Entity))
+		if (SelectedUnits.Count > 0 && GameContext.World.IsAlive(SelectedUnits[0].Entity))
 		{
-			selected = GetUnitWrapper(SelectedUnits[0].Entity);
+			selected = GameContext.SimulationService.GetUnitWrapper(SelectedUnits[0].Entity);
 		}
+
 		OnPlayerChatMessage?.Invoke(message, selected);
 	}
 
-	public void TriggerKillUnit(Realm.Client.Unit3D unit, bool executeDespawnShader = true, bool playDeathAnimation = true)
+	public void TriggerKillUnit(Unit3D unit, bool executeDespawnShader = true, bool playDeathAnimation = true)
 	{
 		KillUnit(unit, executeDespawnShader, playDeathAnimation);
 	}
@@ -952,18 +804,18 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		var resourcesDict = new Dictionary<ResourceId, int>
 		{
-			{ _goldResourceId, 500 },
-			{ _woodResourceId, 400 },
-			{ _stoneResourceId, 200 }
+			{ ECSContext.PlayerResourceService.GoldResourceId, 500 },
+			{ ECSContext.PlayerResourceService.WoodResourceId, 400 },
+			{ ECSContext.PlayerResourceService.StoneResourceId, 200 }
 		};
-		EcsWorld.Add(playerEntity, new PlayerResources(resourcesDict));
+		GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 	}
 
 	private void SetupPlayerEntityComponents(Entity playerEntity)
 	{
-		EcsWorld.Add(playerEntity, new PlayerPopulation(0, 0));
-		EcsWorld.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
-		EcsWorld.Add(playerEntity, new PlayerUpgrades(false, false, false));
+		GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
+		GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
+		GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
 	}
 
 	private void SetupWorldEntityComponents()
@@ -974,10 +826,10 @@ public partial class GameHost : Node3D, IGameAPI
 		float cellSize = GroundTerrain != null ? GroundTerrain.CellSize : TerrainState.DefaultCellSize;
 		var cells = GroundTerrain != null ? GroundTerrain.Cells : null;
 		int[,] pathingCodes = GroundTerrain != null ? GroundTerrain.PathingCodes : null;
-		DotRecast.Detour.DtNavMesh navMesh = GroundTerrain != null ? GroundTerrain.NavMesh : null;
-		DotRecast.Detour.DtNavMeshQuery navMeshQuery = GroundTerrain != null ? GroundTerrain.NavMeshQuery : null;
+		DtNavMesh navMesh = GroundTerrain != null ? GroundTerrain.NavMesh : null;
+		DtNavMeshQuery navMeshQuery = GroundTerrain != null ? GroundTerrain.NavMeshQuery : null;
 
-		_worldEntity = _worldInitService.SetupWorldEntityComponents(
+		ECSContext.WorldEntity = GameContext.WorldInitService.SetupWorldEntityComponents(
 			width, depth, quadSize, cellSize,
 			cells, pathingCodes, navMesh, navMeshQuery
 		);
@@ -986,20 +838,22 @@ public partial class GameHost : Node3D, IGameAPI
 	private int GetOwnerPeerId(bool isEnemy)
 	{
 		if (!isEnemy) return _localPeerId;
-		
-		if (_worldEntity != Entity.Null && EcsWorld.Has<NetworkMappingState>(_worldEntity))
+
+		if (ECSContext.WorldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
 		{
-			foreach (var kvp in EcsWorld.Get<NetworkMappingState>(_worldEntity).PeerIdToPlayerEntityMap)
-				if (kvp.Key != _localPeerId) return kvp.Key;
+			foreach (var kvp in GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PeerIdToPlayerEntityMap)
+				if (kvp.Key != _localPeerId)
+					return kvp.Key;
 		}
+
 		return -1;
 	}
 
 	private Entity GetPlayerOwner(int ownerPeerId, bool actualIsEnemy)
 	{
-		if (_peerIdToPlayerEntityMap != null && _peerIdToPlayerEntityMap.TryGetValue(ownerPeerId, out var pe) && EcsWorld.IsAlive(pe))
+		if (_peerIdToPlayerEntityMap != null && _peerIdToPlayerEntityMap.TryGetValue(ownerPeerId, out var pe) && GameContext.World.IsAlive(pe))
 			return pe;
-		if (actualIsEnemy && _enemyPlayerEntity != Entity.Null && EcsWorld.IsAlive(_enemyPlayerEntity))
+		if (actualIsEnemy && _enemyPlayerEntity != Entity.Null && GameContext.World.IsAlive(_enemyPlayerEntity))
 			return _enemyPlayerEntity;
 		return _playerEntity;
 	}
@@ -1017,65 +871,66 @@ public partial class GameHost : Node3D, IGameAPI
 				}
 			}
 		}
+
 		return list;
 	}
 
-public static void EnsureMapProjectFiles(string mapDir)
+	public static void EnsureMapProjectFiles(string mapDir)
 	{
-		string csprojPath = System.IO.Path.Combine(mapDir, "MapScript.csproj");
-		string libDir = System.IO.Path.Combine(mapDir, "lib");
-		System.IO.Directory.CreateDirectory(libDir);
+		string csprojPath = Path.Combine(mapDir, "MapScript.csproj");
+		string libDir = Path.Combine(mapDir, "lib");
+		Directory.CreateDirectory(libDir);
 
-		string vscodeDir = System.IO.Path.Combine(mapDir, ".vscode");
-		System.IO.Directory.CreateDirectory(vscodeDir);
-		string vscodeSettingsPath = System.IO.Path.Combine(vscodeDir, "settings.json");
+		string vscodeDir = Path.Combine(mapDir, ".vscode");
+		Directory.CreateDirectory(vscodeDir);
+		string vscodeSettingsPath = Path.Combine(vscodeDir, "settings.json");
 
 		string projectRoot = PathUtils.GetProjectRoot();
 		string templateDir = PathUtils.FindPath("MapTemplate");
-		if (!System.IO.Directory.Exists(templateDir))
-			templateDir = System.IO.Path.Combine(projectRoot, "..", "MapTemplate");
+		if (!Directory.Exists(templateDir))
+			templateDir = Path.Combine(projectRoot, "..", "MapTemplate");
 
-		CopyTemplateFile(PathUtils.FindPath("MapTemplate/.vscode/settings.json"), System.IO.Path.Combine(templateDir, ".vscode", "settings.json"), vscodeSettingsPath);
-		
-		string repoRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(projectRoot, ".."));
+		CopyTemplateFile(PathUtils.FindPath("MapTemplate/.vscode/settings.json"), Path.Combine(templateDir, ".vscode", "settings.json"), vscodeSettingsPath);
+
+		string repoRoot = Path.GetFullPath(Path.Combine(projectRoot, ".."));
 		EnsureMapApiDllsCopied(repoRoot, templateDir, libDir);
 
-		CopyTemplateFile(PathUtils.FindPath("MapTemplate/MapScript.csproj"), System.IO.Path.Combine(templateDir, "MapScript.csproj"), csprojPath);
-		CopyTemplateFile(PathUtils.FindPath("MapTemplate/Directory.Build.targets"), System.IO.Path.Combine(templateDir, "Directory.Build.targets"), System.IO.Path.Combine(mapDir, "Directory.Build.targets"));
+		CopyTemplateFile(PathUtils.FindPath("MapTemplate/MapScript.csproj"), Path.Combine(templateDir, "MapScript.csproj"), csprojPath);
+		CopyTemplateFile(PathUtils.FindPath("MapTemplate/Directory.Build.targets"), Path.Combine(templateDir, "Directory.Build.targets"), Path.Combine(mapDir, "Directory.Build.targets"));
 
 		RestoreDotnetProject(csprojPath, mapDir);
 	}
 
 	private static void CopyTemplateFile(string primaryPath, string fallbackPath, string destPath)
 	{
-		string srcPath = System.IO.File.Exists(primaryPath) ? primaryPath : fallbackPath;
-		if (System.IO.File.Exists(srcPath))
+		string srcPath = File.Exists(primaryPath) ? primaryPath : fallbackPath;
+		if (File.Exists(srcPath))
 		{
-			System.IO.File.WriteAllText(destPath, System.IO.File.ReadAllText(srcPath));
+			File.WriteAllText(destPath, File.ReadAllText(srcPath));
 		}
 	}
 
 	private static void EnsureMapApiDllsCopied(string repoRoot, string templateDir, string libDir)
 	{
-		string sourceDll = System.IO.Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Release", "net10.0", "Realm.MapAPI.dll");
-		string sourceXml = System.IO.Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Release", "net10.0", "Realm.MapAPI.xml");
+		string sourceDll = Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Release", "net10.0", "Realm.MapAPI.dll");
+		string sourceXml = Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Release", "net10.0", "Realm.MapAPI.xml");
 
-		if (!System.IO.File.Exists(sourceDll))
+		if (!File.Exists(sourceDll))
 		{
-			sourceDll = System.IO.Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.dll");
-			sourceXml = System.IO.Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.xml");
+			sourceDll = Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.dll");
+			sourceXml = Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.xml");
 		}
 
 		if (TryCopyMapApiDll(sourceDll, sourceXml, libDir)) return;
 
-		string templateLib = System.IO.Path.Combine(templateDir, "lib");
-		if (TryCopyMapApiDll(System.IO.Path.Combine(templateLib, "Realm.MapAPI.dll"), System.IO.Path.Combine(templateLib, "Realm.MapAPI.xml"), libDir)) return;
+		string templateLib = Path.Combine(templateDir, "lib");
+		if (TryCopyMapApiDll(Path.Combine(templateLib, "Realm.MapAPI.dll"), Path.Combine(templateLib, "Realm.MapAPI.xml"), libDir)) return;
 
-		string mapApiCsproj = System.IO.Path.Combine(repoRoot, "Realm.MapAPI", "Realm.MapAPI.csproj");
-		if (!System.IO.File.Exists(mapApiCsproj)) return;
+		string mapApiCsproj = Path.Combine(repoRoot, "Realm.MapAPI", "Realm.MapAPI.csproj");
+		if (!File.Exists(mapApiCsproj)) return;
 
 		GD.Print("Realm.MapAPI.dll not found. Auto-building Realm.MapAPI...");
-		using var buildProcess = new System.Diagnostics.Process();
+		using var buildProcess = new Process();
 		buildProcess.StartInfo.FileName = "dotnet";
 		buildProcess.StartInfo.Arguments = $"build \"{mapApiCsproj}\" -c Debug";
 		buildProcess.StartInfo.CreateNoWindow = true;
@@ -1083,42 +938,44 @@ public static void EnsureMapProjectFiles(string mapDir)
 		buildProcess.Start();
 		buildProcess.WaitForExit();
 
-		TryCopyMapApiDll(System.IO.Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.dll"), System.IO.Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.xml"), libDir);
+		TryCopyMapApiDll(Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.dll"), Path.Combine(repoRoot, "Realm.MapAPI", "bin", "Debug", "net10.0", "Realm.MapAPI.xml"), libDir);
 	}
 
 	private static bool TryCopyMapApiDll(string dllPath, string xmlPath, string libDir)
 	{
-		if (!System.IO.File.Exists(dllPath)) return false;
+		if (!File.Exists(dllPath)) return false;
 
-		CopyIfDifferentBytes(dllPath, System.IO.Path.Combine(libDir, "Realm.MapAPI.dll"));
-		if (System.IO.File.Exists(xmlPath))
+		CopyIfDifferentBytes(dllPath, Path.Combine(libDir, "Realm.MapAPI.dll"));
+		if (File.Exists(xmlPath))
 		{
-			CopyIfDifferentBytes(xmlPath, System.IO.Path.Combine(libDir, "Realm.MapAPI.xml"));
-			CopyIfDifferentBytes(xmlPath, System.IO.Path.Combine(libDir, "Realm.EditorAPI.xml"));
+			CopyIfDifferentBytes(xmlPath, Path.Combine(libDir, "Realm.MapAPI.xml"));
+			CopyIfDifferentBytes(xmlPath, Path.Combine(libDir, "Realm.EditorAPI.xml"));
 		}
-		string pdbPath = System.IO.Path.ChangeExtension(dllPath, ".pdb");
-		if (System.IO.File.Exists(pdbPath))
-			CopyIfDifferentBytes(pdbPath, System.IO.Path.Combine(libDir, "Realm.MapAPI.pdb"));
+
+		string pdbPath = Path.ChangeExtension(dllPath, ".pdb");
+		if (File.Exists(pdbPath))
+			CopyIfDifferentBytes(pdbPath, Path.Combine(libDir, "Realm.MapAPI.pdb"));
 		return true;
 	}
 
 	private static void CopyIfDifferentBytes(string src, string dst)
 	{
-		if (System.IO.File.Exists(dst))
+		if (File.Exists(dst))
 		{
-			var sInfo = new System.IO.FileInfo(src);
-			var dInfo = new System.IO.FileInfo(dst);
-			if (sInfo.Length == dInfo.Length && System.IO.File.ReadAllBytes(src).AsSpan().SequenceEqual(System.IO.File.ReadAllBytes(dst)))
+			var sInfo = new FileInfo(src);
+			var dInfo = new FileInfo(dst);
+			if (sInfo.Length == dInfo.Length && File.ReadAllBytes(src).AsSpan().SequenceEqual(File.ReadAllBytes(dst)))
 				return;
 		}
-		System.IO.File.Copy(src, dst, true);
+
+		File.Copy(src, dst, true);
 	}
 
 	private static void RestoreDotnetProject(string csprojPath, string mapDir)
 	{
 		try
 		{
-			using var restoreProcess = new System.Diagnostics.Process();
+			using var restoreProcess = new Process();
 			restoreProcess.StartInfo.FileName = "dotnet";
 			restoreProcess.StartInfo.Arguments = $"restore \"{csprojPath}\"";
 			restoreProcess.StartInfo.WorkingDirectory = mapDir;
@@ -1127,7 +984,9 @@ public static void EnsureMapProjectFiles(string mapDir)
 			restoreProcess.Start();
 			restoreProcess.WaitForExit(10000);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	public void CreateFloatingTextInternal(string text, Vector3 position, Color color, float duration)
@@ -1154,14 +1013,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 		}).CallDeferred();
 	}
 
-	private readonly Dictionary<int, Label3D> _staticTextLabels = new();
-	private int _nextStaticTextHandle = 1;
+	private Dictionary<int, Label3D> _staticTextLabels { get; set; } = new();
+	private int _nextStaticTextHandle { get; set; } = 1;
 
 	public void PanCameraInternal(Vector3 position, float duration)
 	{
 		Callable.From(() =>
 		{
-			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<Camera3D>("Main/Camera3D");
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
 			if (camera == null) return;
 
 			var targetPos = new Vector3(position.X, camera.Position.Y, position.Z + 15.0f);
@@ -1177,21 +1036,17 @@ public static void EnsureMapProjectFiles(string mapDir)
 		}).CallDeferred();
 	}
 
-	private int _nextTimerHandle;
-	private readonly Dictionary<int, (float Interval, float Remaining, bool Repeating, Action Callback)> _scheduledTimers = new();
-
-	private static readonly Random Rng = new();
 
 	private void SyncPlayerResourceEcs(int playerIndex, float goldAmount)
 	{
-		if (Realm.Client.Network.LobbyManager.Instance != null && _peerIdToPlayerEntityMap != null)
+		if (LobbyManager.Instance != null && _peerIdToPlayerEntityMap != null)
 		{
-			var p = Realm.Client.Network.LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && _peerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var pe) && EcsWorld.IsAlive(pe))
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null && _peerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var pe) && GameContext.World.IsAlive(pe))
 			{
-				if (EcsWorld.TryGet<PlayerResources>(pe, out var res))
+				if (GameContext.World.TryGet<PlayerResources>(pe, out var res))
 				{
-					res.Value[_goldResourceId] = (int)Math.Max(0f, goldAmount);
+					res.Value[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
 				}
 			}
 		}
@@ -1202,16 +1057,16 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void TickZoneTriggers()
 	{
-		if (OnUnitEnterZone == null || EcsWorld == null || !EcsWorld.IsAlive(_worldEntity) || !EcsWorld.Has<ScriptZonesState>(_worldEntity)) return;
+		if (OnUnitEnterZone == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<ScriptZonesState>(ECSContext.WorldEntity)) return;
 
-		var zones = EcsWorld.Get<ScriptZonesState>(_worldEntity).Zones;
+		var zones = GameContext.World.Get<ScriptZonesState>(ECSContext.WorldEntity).Zones;
 		if (zones.Count == 0) return;
 
-		var positionQuery = Realm.Ecs.Common.QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
-		EcsWorld.Query(in positionQuery, (Entity entity, ref Position posComp) =>
+		var positionQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
+		GameContext.World.Query(in positionQuery, (Entity entity, ref Position posComp) =>
 		{
-			if (!EcsWorld.Has<OccupiedZones>(entity)) EcsWorld.Add(entity, new OccupiedZones(new HashSet<int>()));
-			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), EcsWorld.Get<OccupiedZones>(entity).ZoneIds, zones);
+			if (!GameContext.World.Has<OccupiedZones>(entity)) GameContext.World.Add(entity, new OccupiedZones(new HashSet<int>()));
+			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), GameContext.World.Get<OccupiedZones>(entity).ZoneIds, zones);
 		});
 	}
 
@@ -1219,11 +1074,11 @@ public static void EnsureMapProjectFiles(string mapDir)
 	{
 		for (int i = 0; i < zones.Count; i++)
 		{
-			ref ZoneBounds z = ref System.Runtime.InteropServices.CollectionsMarshal.AsSpan(zones)[i];
+			ref ZoneBounds z = ref CollectionsMarshal.AsSpan(zones)[i];
 			bool inside = pos.X >= z.MinX && pos.X <= z.MaxX && pos.Z >= z.MinZ && pos.Z <= z.MaxZ;
 
 			if (inside && occupiedZones.Add(i) && TryGetUnit3D(entity, out _))
-				OnUnitEnterZone?.Invoke(GetUnitWrapper(entity), i);
+				OnUnitEnterZone?.Invoke(GameContext.SimulationService.GetUnitWrapper(entity), i);
 			else if (!inside)
 				occupiedZones.Remove(i);
 		}
@@ -1237,12 +1092,12 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void TickScheduledTimers(float delta)
 	{
-		if (_scheduledTimers.Count == 0) return;
+		if (GameContext.TimerService.ScheduledTimers.Count == 0) return;
 
 
-		Span<int> keysBuffer = stackalloc int[Math.Min(_scheduledTimers.Count, 64)];
+		Span<int> keysBuffer = stackalloc int[Math.Min(GameContext.TimerService.ScheduledTimers.Count, 64)];
 		int keyCount = 0;
-		foreach (int k in _scheduledTimers.Keys)
+		foreach (int k in GameContext.TimerService.ScheduledTimers.Keys)
 		{
 			if (keyCount < keysBuffer.Length)
 				keysBuffer[keyCount++] = k;
@@ -1252,7 +1107,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		for (int i = 0; i < keyCount; i++)
 		{
 			int handle = keysBuffer[i];
-			if (!_scheduledTimers.TryGetValue(handle, out var entry)) continue;
+			if (!GameContext.TimerService.ScheduledTimers.TryGetValue(handle, out var entry)) continue;
 
 			float remaining = entry.Remaining - delta;
 			if (remaining <= 0f)
@@ -1261,7 +1116,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 				if (entry.Repeating)
 				{
-					_scheduledTimers[handle] = (entry.Interval, entry.Interval + remaining, true, entry.Callback);
+					GameContext.TimerService.ScheduledTimers[handle] = (entry.Interval, entry.Interval + remaining, true, entry.Callback);
 				}
 				else
 				{
@@ -1271,14 +1126,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 			}
 			else
 			{
-				_scheduledTimers[handle] = (entry.Interval, remaining, entry.Repeating, entry.Callback);
+				GameContext.TimerService.ScheduledTimers[handle] = (entry.Interval, remaining, entry.Repeating, entry.Callback);
 			}
 		}
 
 		if (toRemove != null)
 		{
 			foreach (int h in toRemove)
-				_scheduledTimers.Remove(h);
+				GameContext.TimerService.ScheduledTimers.Remove(h);
 		}
 	}
 
@@ -1289,19 +1144,23 @@ public static void EnsureMapProjectFiles(string mapDir)
 		{
 			try
 			{
-				return Godot.ProjectSettings.GlobalizePath(path);
+				return ProjectSettings.GlobalizePath(path);
 			}
-			catch { }
+			catch
+			{
+			}
 		}
 
 		if (path.StartsWith("user://"))
 		{
-			return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "user", path.Substring("user://".Length));
+			return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "user", path.Substring("user://".Length));
 		}
+
 		if (path.StartsWith("res://"))
 		{
-			return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path.Substring("res://".Length));
+			return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path.Substring("res://".Length));
 		}
+
 		return path;
 	}
 
@@ -1313,33 +1172,33 @@ public static void EnsureMapProjectFiles(string mapDir)
 		string? explicitPath = TryResolveExplicitPath(norm);
 		if (explicitPath != null) return explicitPath;
 
-		string? targetVersion = !string.IsNullOrWhiteSpace(version) ? version : Realm.Client.Network.LobbyManager.Instance?.ActiveMapVersion;
+		string? targetVersion = !string.IsNullOrWhiteSpace(version) ? version : LobbyManager.Instance?.ActiveMapVersion;
 		string? manifestPath = MapAssetManager.FindManifestPath(norm, targetVersion) ?? MapAssetManager.FindManifestPath(norm, null);
 
-		if (!string.IsNullOrEmpty(manifestPath) && System.IO.File.Exists(manifestPath))
-			return System.IO.Path.GetDirectoryName(manifestPath);
+		if (!string.IsNullOrEmpty(manifestPath) && File.Exists(manifestPath))
+			return Path.GetDirectoryName(manifestPath);
 
 		return CheckMapDir(norm) ?? CheckMapDir(norm.ToLowerInvariant());
 	}
 
 	private static string? TryResolveExplicitPath(string norm)
 	{
-		if (!norm.StartsWith("user://") && !norm.StartsWith("res://") && !System.IO.Path.IsPathRooted(norm)) return null;
-		
+		if (!norm.StartsWith("user://") && !norm.StartsWith("res://") && !Path.IsPathRooted(norm)) return null;
+
 		string global = norm.StartsWith("user://") || norm.StartsWith("res://") ? SafeGlobalizePath(norm) : norm;
-		if (System.IO.Directory.Exists(global)) return global;
-		if (System.IO.File.Exists(global)) return System.IO.Path.GetDirectoryName(global);
-		
+		if (Directory.Exists(global)) return global;
+		if (File.Exists(global)) return Path.GetDirectoryName(global);
+
 		return null;
 	}
 
 	private static string? CheckMapDir(string name)
 	{
 		string resDir = SafeGlobalizePath($"res://Maps/{name}");
-		if (System.IO.Directory.Exists(resDir)) return resDir;
+		if (Directory.Exists(resDir)) return resDir;
 
 		string userDir = SafeGlobalizePath($"user://maps/{name}");
-		if (System.IO.Directory.Exists(userDir)) return userDir;
+		if (Directory.Exists(userDir)) return userDir;
 
 		return null;
 	}
@@ -1347,16 +1206,16 @@ public static void EnsureMapProjectFiles(string mapDir)
 	public void LoadUnitMetadata(string mapName = null)
 	{
 		ResetAbilityCatalog();
-		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(ActiveMapName) ? ActiveMapName : Realm.Client.Services.MapWorkspaceService.DefaultWorkspaceFolder);
-		ActiveMapName = mapName;
+		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(ECSContext.ActiveMapName) ? ECSContext.ActiveMapName : MapWorkspaceService.DefaultWorkspaceFolder);
+		ECSContext.ActiveMapName = mapName;
 		LocalizationManager.CurrentMapName = mapName;
 		LocalizationManager.SetupTranslations();
 
 		string? resolvedDir = ResolveMapDirectory(mapName);
-		string path = resolvedDir != null ? System.IO.Path.Combine(resolvedDir, "metadata.json") : (mapName.StartsWith("user://") || mapName.StartsWith("res://") || System.IO.Path.IsPathRooted(mapName) ? System.IO.Path.Combine(mapName, "metadata.json") : $"res://Maps/{mapName}/metadata.json");
-		if (resolvedDir != null) CurrentMapDirectory = resolvedDir;
+		string path = resolvedDir != null ? Path.Combine(resolvedDir, "metadata.json") : (mapName.StartsWith("user://") || mapName.StartsWith("res://") || Path.IsPathRooted(mapName) ? Path.Combine(mapName, "metadata.json") : $"res://Maps/{mapName}/metadata.json");
+		if (resolvedDir != null) GameContext.MapStorageService.CurrentMapDirectory = resolvedDir;
 
-		var metadata = (_metadataService ?? Realm.Client.Services.MetadataService.Instance).LoadMetadata(path);
+		var metadata = (GameContext.MetadataService ?? GameContext.MetadataService).LoadMetadata(path);
 
 		UnitRegistry.Clear();
 		BuildingRegistry.Clear();
@@ -1365,11 +1224,11 @@ public static void EnsureMapProjectFiles(string mapDir)
 		WeaponRegistry.Clear();
 		AttachmentRegistry.Clear();
 		ItemRegistry.Clear();
-		VfxRegistry.Clear();
+		GameContext.RegistryService.VfxRegistry.Clear();
 
 		if (metadata.Templates != null) LoadMetadataTemplates(metadata.Templates);
 
-		Realm.Client.Prop3D.ClearModelPathCache();
+		Prop3D.ClearModelPathCache();
 	}
 
 	private void LoadMetadataTemplates(TemplateContainer templates)
@@ -1379,15 +1238,21 @@ public static void EnsureMapProjectFiles(string mapDir)
 		LoadUnitTemplates(templates);
 		LoadBuildingTemplates(templates);
 		LoadResourceAndPropTemplates(templates);
-		
+
 		if (templates.Abilities != null && templates.Abilities.Count > 0) RegisterCustomAbilities(templates.Abilities);
-		foreach (var cfg in templates.Vfx) if (!string.IsNullOrEmpty(cfg.VfxId)) VfxRegistry[cfg.VfxId] = cfg;
+		foreach (var cfg in templates.Vfx)
+			if (!string.IsNullOrEmpty(cfg.VfxId))
+				GameContext.RegistryService.VfxRegistry[cfg.VfxId] = cfg;
 	}
 
 	private void LoadWeaponAndAttachmentTemplates(TemplateContainer templates)
 	{
-		foreach (var meta in templates.Weapons) if (!string.IsNullOrEmpty(meta.TemplateID)) WeaponRegistry[(StringName)meta.TemplateID] = meta;
-		foreach (var meta in templates.Attachments) if (!string.IsNullOrEmpty(meta.AttachmentId)) AttachmentRegistry[(StringName)meta.AttachmentId] = meta;
+		foreach (var meta in templates.Weapons)
+			if (!string.IsNullOrEmpty(meta.TemplateID))
+				WeaponRegistry[(StringName)meta.TemplateID] = meta;
+		foreach (var meta in templates.Attachments)
+			if (!string.IsNullOrEmpty(meta.AttachmentId))
+				AttachmentRegistry[(StringName)meta.AttachmentId] = meta;
 	}
 
 	private void LoadItemTemplates(TemplateContainer templates)
@@ -1431,6 +1296,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 			if (meta.PathingType == 0) meta.PathingType = 255;
 			ResourceRegistry[(StringName)meta.TemplateID] = meta;
 		}
+
 		foreach (var meta in templates.Props)
 		{
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
@@ -1444,8 +1310,8 @@ public static void EnsureMapProjectFiles(string mapDir)
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(CurrentMapDirectory) ? CurrentMapDirectory : Godot.ProjectSettings.GlobalizePath(Realm.Client.UI.MapEditorHUD.TempWorkspaceGodotPath);
-			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(dir);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			var metadata = MapFileService.LoadMetadata(dir);
 			metadata.Templates ??= new TemplateContainer();
 			metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
 
@@ -1460,10 +1326,11 @@ public static void EnsureMapProjectFiles(string mapDir)
 				{
 					meta.AttachmentId = fileName;
 				}
+
 				metadata.Templates.Attachments.Add(meta);
 			}
 
-			Realm.Shared.Services.MapFileService.SaveMetadata(dir, metadata);
+			MapFileService.SaveMetadata(dir, metadata);
 			LoadUnitMetadata(dir);
 		}
 		catch (Exception ex)
@@ -1476,13 +1343,13 @@ public static void EnsureMapProjectFiles(string mapDir)
 	{
 		try
 		{
-			string dir = !string.IsNullOrEmpty(CurrentMapDirectory) ? CurrentMapDirectory : Godot.ProjectSettings.GlobalizePath(Realm.Client.UI.MapEditorHUD.TempWorkspaceGodotPath);
-			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(dir);
+			string dir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			var metadata = MapFileService.LoadMetadata(dir);
 			var unit = metadata.GetUnit(unitId);
 			if (unit != null)
 			{
 				unit.Animations = animations;
-				Realm.Shared.Services.MapFileService.SaveMetadata(dir, metadata);
+				MapFileService.SaveMetadata(dir, metadata);
 				LoadUnitMetadata(dir);
 			}
 		}
@@ -1495,7 +1362,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 	private void LoadMapScript(string mapName)
 	{
 		_activeMapScript = null;
-		IsGameOver = false;
+		ECSContext.IsGameOver = false;
 
 		if (string.IsNullOrEmpty(PendingMapScriptPath))
 		{
@@ -1519,11 +1386,11 @@ public static void EnsureMapProjectFiles(string mapDir)
 		string norm = mapName.Replace('\\', '/');
 		string? checkDir = ResolveMapDirectory(mapName) ?? ResolveExplicitWasmDir(norm);
 
-		if (string.IsNullOrEmpty(checkDir) || !System.IO.Directory.Exists(checkDir)) return null;
+		if (string.IsNullOrEmpty(checkDir) || !Directory.Exists(checkDir)) return null;
 
-		var allWasm = System.IO.Directory.GetFiles(checkDir, "*.wasm", System.IO.SearchOption.AllDirectories)
+		var allWasm = Directory.GetFiles(checkDir, "*.wasm", SearchOption.AllDirectories)
 			.Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
-		
+
 		if (allWasm.Count == 0) return null;
 
 		return FindBestWasmMatch(allWasm);
@@ -1531,17 +1398,17 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private string? ResolveExplicitWasmDir(string norm)
 	{
-		if (norm.StartsWith("user://") || norm.StartsWith("res://") || System.IO.Path.IsPathRooted(norm))
+		if (norm.StartsWith("user://") || norm.StartsWith("res://") || Path.IsPathRooted(norm))
 			return norm.StartsWith("user://") || norm.StartsWith("res://") ? ProjectSettings.GlobalizePath(norm) : norm;
 		return null;
 	}
 
-	private string? FindBestWasmMatch(System.Collections.Generic.List<string> allWasm)
+	private string? FindBestWasmMatch(List<string> allWasm)
 	{
-		return allWasm.FirstOrDefault(f => f.Contains("publish") && System.IO.Path.GetFileName(f).Equals("MapScript.wasm", StringComparison.OrdinalIgnoreCase))
-			?? allWasm.FirstOrDefault(f => f.Contains("publish"))
-			?? allWasm.FirstOrDefault(f => System.IO.Path.GetFileName(f).Equals("MapScript.wasm", StringComparison.OrdinalIgnoreCase))
-			?? allWasm.OrderByDescending(System.IO.File.GetLastWriteTimeUtc).FirstOrDefault();
+		return allWasm.FirstOrDefault(f => f.Contains("publish") && Path.GetFileName(f).Equals("MapScript.wasm", StringComparison.OrdinalIgnoreCase))
+			   ?? allWasm.FirstOrDefault(f => f.Contains("publish"))
+			   ?? allWasm.FirstOrDefault(f => Path.GetFileName(f).Equals("MapScript.wasm", StringComparison.OrdinalIgnoreCase))
+			   ?? allWasm.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
 	}
 
 	private void LoadPendingMapScript()
@@ -1562,7 +1429,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 			else
 			{
 				_mapScriptLoadContext = new MapScriptLoadContext();
-				using var fs = new System.IO.FileStream(PendingMapScriptPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
+				using var fs = new FileStream(PendingMapScriptPath, FileMode.Open, FileAccess.Read);
 				var asm = _mapScriptLoadContext.LoadFromStream(fs);
 				_activeMapScript = FindMapScriptInAssembly(asm);
 			}
@@ -1579,19 +1446,20 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private string ResolveWasmName(string path)
 	{
-		string name = System.IO.Path.GetFileNameWithoutExtension(path);
+		string name = Path.GetFileNameWithoutExtension(path);
 		if (!name.Equals("MapScript", StringComparison.OrdinalIgnoreCase)) return name;
 
-		string parentDir = System.IO.Path.GetDirectoryName(path);
+		string parentDir = Path.GetDirectoryName(path);
 		string[] ignore = { "bin", "Release", "net10.0", "wasi-wasm", "publish" };
-		
+
 		while (!string.IsNullOrEmpty(parentDir))
 		{
-			string folderName = System.IO.Path.GetFileName(parentDir);
+			string folderName = Path.GetFileName(parentDir);
 			if (!string.IsNullOrEmpty(folderName) && !ignore.Contains(folderName, StringComparer.OrdinalIgnoreCase))
 				return folderName;
-			parentDir = System.IO.Path.GetDirectoryName(parentDir);
+			parentDir = Path.GetDirectoryName(parentDir);
 		}
+
 		return name;
 	}
 
@@ -1607,7 +1475,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		}
 	}
 
-	private IMapScript? FindMapScriptInAssembly(System.Reflection.Assembly asm, string? searchName = null)
+	private IMapScript? FindMapScriptInAssembly(Assembly asm, string? searchName = null)
 	{
 		Type?[]? types = GetAssemblyTypesSafe(asm);
 		if (types == null) return null;
@@ -1615,18 +1483,33 @@ public static void EnsureMapProjectFiles(string mapDir)
 		foreach (var t in types)
 		{
 			if (!IsValidMapScriptType(t, searchName)) continue;
-			
-			try { return (IMapScript?)Activator.CreateInstance(t); }
-			catch { }
+
+			try
+			{
+				return (IMapScript?)Activator.CreateInstance(t);
+			}
+			catch
+			{
+			}
 		}
+
 		return null;
 	}
 
-	private Type?[]? GetAssemblyTypesSafe(System.Reflection.Assembly asm)
+	private Type?[]? GetAssemblyTypesSafe(Assembly asm)
 	{
-		try { return asm.GetTypes(); }
-		catch (System.Reflection.ReflectionTypeLoadException ex) { return ex.Types; }
-		catch { return null; }
+		try
+		{
+			return asm.GetTypes();
+		}
+		catch (ReflectionTypeLoadException ex)
+		{
+			return ex.Types;
+		}
+		catch
+		{
+			return null;
+		}
 	}
 
 	private bool IsValidMapScriptType(Type? t, string? searchName)
@@ -1636,34 +1519,27 @@ public static void EnsureMapProjectFiles(string mapDir)
 		return true;
 	}
 
-	private List<Realm.Client.Unit3D>[] _controlGroups = new List<Realm.Client.Unit3D>[10];
-	public List<Realm.Client.Unit3D>[] ControlGroups => _controlGroups;
-	private double[] _lastGroupPressTime = new double[10];
+	public List<Unit3D>[] _controlGroups { get; set; } = new List<Unit3D>[10];
+	private double[] _lastGroupPressTime { get; set; } = new double[10];
 
 
-	private bool _isDragging;
-	private Vector2 _dragStart;
-	private Vector2 _dragEnd;
-	private const float DragThreshold = 8f;
+	private bool _isDragging { get; set; }
+	private Vector2 _dragStart { get; set; }
+	private Vector2 _dragEnd { get; set; }
+	private float DragThreshold { get; set; } = 8f;
 
 	public override void _Ready()
 	{
 		MainNode = GetTree().Root.GetNodeOrNull("Main");
-		MainCamera = GetTree().Root.GetNodeOrNull<Camera3D>("Main/Camera3D");
+		MainCamera = GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
 
 		GD.Print($"[GAMEHOST_READY] GameHost _Ready starting");
 		Instance = this;
 		GameSettings.ApplyGraphicsSettings(this);
-		if (Realm.Client.Network.LobbyManager.Instance != null)
+		if (LobbyManager.Instance != null)
 		{
-			Realm.Client.Network.LobbyManager.Instance.ServerChatCommandReceived += HandleServerChatCommand;
+			LobbyManager.Instance.ServerChatCommandReceived += HandleServerChatCommand;
 		}
-
-		IsLocalPlayerDefeated = false;
-		_readyPeers.Clear();
-		_initialBaselineReceived = false;
-		_readyNotifyRetryTimer = 0f;
-		_readyNotifyRetryCount = 0;
 
 		ReinitializeEcsAndServices();
 	}
@@ -1672,7 +1548,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 	{
 		ResolveServices();
 
-		if (System.OperatingSystem.IsWindows()) Realm.Client.VSCodeManager.Instance.StartInstallIfNeeded();
+		if (OperatingSystem.IsWindows()) VSCodeManager.Instance.StartInstallIfNeeded();
 
 		InitializeTracking();
 
@@ -1680,7 +1556,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		EnsurePropMultiMeshManager();
 		SetupWorldEntityComponents();
 
-		if (GroundTerrain != null) _editorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+		if (GroundTerrain != null) GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
 		SetupSkybox();
 		UpdateDayNightVisuals(0.0f);
@@ -1691,151 +1567,163 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 		if (_multiplayerActive) InitializeMultiplayerPlayers();
 		else InitializeSingleplayerPlayers();
-		
+
 		EnsureFallbackPlayers();
 
-		string rawMapName = Realm.Client.Network.LobbyManager.Instance?.ActiveMapName ?? "";
+		string rawMapName = LobbyManager.Instance?.ActiveMapName ?? "";
 		if (!string.IsNullOrEmpty(rawMapName)) LoadUnitMetadata(rawMapName);
 
 		ProcessMapLoadingAndScript(rawMapName);
 
 		StartReplayRecordingIfNeeded(rawMapName);
 
-		if (!_isResettingForReplay) SchedulePostInitializationTasks();
+		if (!GameContext.ReplayService.IsResettingForReplay) SchedulePostInitializationTasks();
 
-		_shroudService.Initialize(MainNode);
+		GameContext.ShroudService.Initialize(MainNode);
 	}
 
 	private void InitializeTracking()
 	{
 		if (Multiplayer.MultiplayerPeer != null && !Multiplayer.IsServer()) return;
 
-		_trackerTickDurations = new List<float>(100000);
-		_trackerApiDurations = new List<float>(10000);
-		_trackerIntervalStopwatch.Start();
+		GameContext.PerformanceTrackingService.TrackerTickDurations = new List<float>(100000);
+		GameContext.PerformanceTrackingService.TrackerApiDurations = new List<float>(10000);
+		GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.Start();
 	}
 
 	private void EnsurePropMultiMeshManager()
 	{
-		if (GetNodeOrNull<Realm.Client.PropMultiMeshManager>("PropMultiMeshManager") != null) return;
-		
-		var propMultiMeshManager = new Realm.Client.PropMultiMeshManager();
+		if (GetNodeOrNull<PropMultiMeshManager>("PropMultiMeshManager") != null) return;
+
+		var propMultiMeshManager = new PropMultiMeshManager();
 		AddChild(propMultiMeshManager);
 	}
 
 	private void InitializeResourceIds()
 	{
-		_goldResourceId = "gold".AsResourceId(_definitionManager);
-		_woodResourceId = "wood".AsResourceId(_definitionManager);
-		_stoneResourceId = "stone".AsResourceId(_definitionManager);
+		ECSContext.PlayerResourceService.GoldResourceId = "gold".AsResourceId(ECSContext.DefinitionManager);
+		ECSContext.PlayerResourceService.WoodResourceId = "wood".AsResourceId(ECSContext.DefinitionManager);
+		ECSContext.PlayerResourceService.StoneResourceId = "stone".AsResourceId(ECSContext.DefinitionManager);
 	}
 
 	private void InitializeSimulationService()
 	{
-		_simulationService.SetRuntimeReferences(AllUnits, AllProps, _castlesList, _definitionManager, _goldResourceId, _woodResourceId, _stoneResourceId, GroundTerrain);
-		_simulationService.Initialize();
-		_simulationService.EditorHeightProvider = p => _editorService.GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
+		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, _castlesList, ECSContext.DefinitionManager, ECSContext.PlayerResourceService.GoldResourceId, ECSContext.PlayerResourceService.WoodResourceId, ECSContext.PlayerResourceService.StoneResourceId, GroundTerrain);
+		GameContext.SimulationService.Initialize();
+		GameContext.SimulationService.EditorHeightProvider = p => GameContext.EditorService.GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 
 		SetupSimulationServiceCallbacks();
 	}
 
 	private void SetupSimulationServiceCallbacks()
 	{
-		_simulationService.OnArrowProjectileRequested = (start, target) => SpawnArrowProjectile(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
-		_simulationService.OnWeaponProjectileRequested = (start, target, weaponId, targetEnt) => SpawnWeaponProjectile(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z), weaponId, targetEnt);
-		_simulationService.OnDamageFlashRequested = entity => { if (TryGetUnit3D(entity, out var unit3D)) CallDeferred(nameof(FlashDamageUnit), unit3D); };
-		_simulationService.OnHealEffectRequested = (start, target) => SpawnHealVisualEffect(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
-		_simulationService.OnHealFlashRequested = entity => { if (TryGetUnit3D(entity, out var unit3D)) CallDeferred(nameof(FlashHealUnit), unit3D); };
-		
-		_simulationService.OnKillUnitRequested = entity =>
+		GameContext.SimulationService.OnArrowProjectileRequested = (start, target) => SpawnArrowProjectile(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
+		GameContext.SimulationService.OnWeaponProjectileRequested = (start, target, weaponId, targetEnt) => SpawnWeaponProjectile(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z), weaponId, targetEnt);
+		GameContext.SimulationService.OnDamageFlashRequested = entity =>
 		{
-			_warnedNonFinitePositions.Remove(entity);
-			if (EcsWorld.IsAlive(entity) && TryGetUnit3D(entity, out var unit3D)) CallDeferred(nameof(KillUnit), unit3D);
+			if (TryGetUnit3D(entity, out var unit3D)) Callable.From(() => FlashDamageUnit(unit3D)).CallDeferred();
 		};
-		
-		_simulationService.OnPropDepleted = entity => { if (TryGetProp3D(entity, out var prop3D)) CallDeferred(nameof(DepleteProp), prop3D); };
-		_simulationService.OnResourceHarvested = entity => { if (TryGetProp3D(entity, out var prop3D)) prop3D.TriggerImpulse(0.35f, 0.45f); };
-		
+		GameContext.SimulationService.OnHealEffectRequested = (start, target) => SpawnHealVisualEffect(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
+		GameContext.SimulationService.OnHealFlashRequested = entity =>
+		{
+			if (TryGetUnit3D(entity, out var unit3D)) Callable.From(() => FlashHealUnit(unit3D)).CallDeferred();
+		};
+
+		GameContext.SimulationService.OnKillUnitRequested = entity =>
+		{
+			GameContext.SimulationService.WarnedNonFinitePositions.Remove(entity);
+			if (GameContext.World.IsAlive(entity) && TryGetUnit3D(entity, out var unit3D)) Callable.From(() => KillUnit(unit3D)).CallDeferred();
+		};
+
+		GameContext.SimulationService.OnPropDepleted = entity =>
+		{
+			if (TryGetProp3D(entity, out var prop3D)) Callable.From(() => DepleteProp(prop3D)).CallDeferred();
+		};
+		GameContext.SimulationService.OnResourceHarvested = entity =>
+		{
+			if (TryGetProp3D(entity, out var prop3D)) prop3D.TriggerImpulse(0.35f, 0.45f);
+		};
+
 		SetupSimulationCombatCallbacks();
 		SetupSimulationProductionCallbacks();
 	}
 
 	private void SetupSimulationCombatCallbacks()
 	{
-		_simulationService.OnUnitDamagedCallback = HandleUnitDamaged;
-		_simulationService.OnUnitHealedCallback = HandleUnitHealed;
-		_simulationService.OnUnitAttackedCallback = HandleUnitAttacked;
-		_simulationService.OnUnderAttackAlertRequested = HandleUnderAttackAlert;
+		GameContext.SimulationService.OnUnitDamagedCallback = HandleUnitDamaged;
+		GameContext.SimulationService.OnUnitHealedCallback = HandleUnitHealed;
+		GameContext.SimulationService.OnUnitAttackedCallback = HandleUnitAttacked;
+		GameContext.SimulationService.OnUnderAttackAlertRequested = HandleUnderAttackAlert;
 	}
 
 	private void HandleUnitDamaged(Entity targetEntity, Entity attackerEntity, float damage)
 	{
-		if (!EcsWorld.IsAlive(targetEntity)) return;
-		
-		IUnit attackerWrapper = EcsWorld.IsAlive(attackerEntity) ? GetUnitWrapper(attackerEntity) : null;
-		OnUnitDamaged?.Invoke(GetUnitWrapper(targetEntity), attackerWrapper, damage);
-		
+		if (!GameContext.World.IsAlive(targetEntity)) return;
+
+		IUnit attackerWrapper = GameContext.World.IsAlive(attackerEntity) ? GameContext.SimulationService.GetUnitWrapper(attackerEntity) : null;
+		OnUnitDamaged?.Invoke(GameContext.SimulationService.GetUnitWrapper(targetEntity), attackerWrapper, damage);
+
 		if (TryGetUnit3D(targetEntity, out var targetUnit3D))
 		{
-			_fxService.SpawnDamageNumber(this, targetUnit3D.GlobalPosition, damage);
-			_audioService?.PlayUnitSound(targetUnit3D.UnitId, UnitSoundEvent.Wounded, targetUnit3D.GlobalPosition);
+			GameContext.FXService.SpawnDamageNumber(this, targetUnit3D.GlobalPosition, damage);
+			GameContext.AudioService?.PlayUnitSound(targetUnit3D.UnitId, UnitSoundEvent.Wounded, targetUnit3D.GlobalPosition);
 			targetUnit3D.TriggerImpulse(0.5f, 0.35f);
 		}
 	}
 
 	private void HandleUnitHealed(Entity targetEntity, Entity healerEntity, float healAmount)
 	{
-		if (EcsWorld.IsAlive(targetEntity) && TryGetUnit3D(targetEntity, out var targetUnit3D))
-			_fxService.SpawnHealNumber(this, targetUnit3D.GlobalPosition, healAmount);
+		if (GameContext.World.IsAlive(targetEntity) && TryGetUnit3D(targetEntity, out var targetUnit3D))
+			GameContext.FXService.SpawnHealNumber(this, targetUnit3D.GlobalPosition, healAmount);
 	}
 
 	private void HandleUnitAttacked(Entity attackerEntity, Entity targetEntity)
 	{
-		if (!EcsWorld.IsAlive(attackerEntity) || !EcsWorld.IsAlive(targetEntity)) return;
-		
+		if (!GameContext.World.IsAlive(attackerEntity) || !GameContext.World.IsAlive(targetEntity)) return;
+
 		if (TryGetUnit3D(attackerEntity, out var attackerUnit3D)) attackerUnit3D.PlayAnimation("Attack");
-		OnUnitAttacked?.Invoke(GetUnitWrapper(attackerEntity), GetUnitWrapper(targetEntity));
+		OnUnitAttacked?.Invoke(GameContext.SimulationService.GetUnitWrapper(attackerEntity), GameContext.SimulationService.GetUnitWrapper(targetEntity));
 	}
 
 	private void HandleUnderAttackAlert(string unitId)
 	{
 		string alertMsg = unitId == "castle" ? "⚠️ YOUR CASTLE IS UNDER ATTACK!" : $"⚠️ {unitId.ToUpper()} is under attack!";
-		Realm.Client.UI.InGameHUD.Instance?.CallDeferred(nameof(Realm.Client.UI.InGameHUD.ShowFeedbackText), alertMsg, new Color(1.0f, 0.2f, 0.1f));
-		Realm.Client.UI.UIManager.Instance?.CallDeferred(nameof(Realm.Client.UI.UIManager.PlayWarningSound));
+		Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(alertMsg, new Color(1.0f, 0.2f, 0.1f))).CallDeferred();
+		Callable.From(() => UIManager.Instance?.PlayWarningSound()).CallDeferred();
 	}
 
 	private void SetupSimulationProductionCallbacks()
 	{
-		_simulationService.OnSpawnUnitFromProductionRequested = (unitId, position, isEnemy, buildingEntity, isFromQueue) =>
+		GameContext.SimulationService.OnSpawnUnitFromProductionRequested = (unitId, position, isEnemy, buildingEntity, isFromQueue) =>
 			SpawnUnitFromProduction(unitId, position, isEnemy, buildingEntity, isFromQueue);
-			
-		_simulationService.GetProductionBuildTime = unitId =>
+
+		GameContext.SimulationService.GetProductionBuildTime = unitId =>
 			UnitRegistry.TryGetValue(unitId, out var meta) ? meta.ProductionTime : 5f;
-			
-		_simulationService.OnClearUnitOrdersRequested = ClearUnitOrders;
-		_simulationService.OnStopGatheringMovementRequested = StopGatheringMovement;
-		_simulationService.OnUiRefreshRequested = () => Realm.Client.UI.InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		
-		_simulationService.OnResourceDepositedForPlayer = (resType, carry) =>
+
+		GameContext.SimulationService.OnClearUnitOrdersRequested = ClearUnitOrders;
+		GameContext.SimulationService.OnStopGatheringMovementRequested = StopGatheringMovement;
+		GameContext.SimulationService.OnUiRefreshRequested = () => InGameHUD.Instance?.RefreshUI(SelectedUnits);
+
+		GameContext.SimulationService.OnResourceDepositedForPlayer = (resType, carry) =>
 		{
 			string resTypeUpper = resType.ToUpper();
-			Realm.Client.UI.InGameHUD.Instance?.CallDeferred(nameof(Realm.Client.UI.InGameHUD.ShowFeedbackText), $"+{carry:F0} {resTypeUpper} deposited", new Color(0.2f, 0.9f, 0.4f));
+			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"+{carry:F0} {resTypeUpper} deposited", new Color(0.2f, 0.9f, 0.4f))).CallDeferred();
 		};
-		
-		_simulationService.OnProductionCompleted = unitToSpawn =>
+
+		GameContext.SimulationService.OnProductionCompleted = unitToSpawn =>
 		{
 			string displayName = UnitRegistry.TryGetValue(unitToSpawn, out var nm) ? nm.Name : unitToSpawn.ToUpper();
-			Realm.Client.UI.InGameHUD.Instance?.CallDeferred(nameof(Realm.Client.UI.InGameHUD.ShowFeedbackText), $"✓ {displayName} training complete!", new Color(0.3f, 0.9f, 0.4f));
+			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"✓ {displayName} training complete!", new Color(0.3f, 0.9f, 0.4f))).CallDeferred();
 		};
 	}
 
 	private void InitializeMultiplayerPlayers()
 	{
 		_localPeerId = Multiplayer.GetUniqueId();
-		if (!Multiplayer.IsServer()) _networkService.MarkClientEnteredMultiplayer();
+		if (!Multiplayer.IsServer()) GameContext.NetworkService.MarkClientEnteredMultiplayer();
 		if (Multiplayer is SceneMultiplayer sceneMultiplayer) sceneMultiplayer.ServerRelay = false;
 
-		if (Realm.Client.Network.LobbyManager.Instance != null && Realm.Client.Network.LobbyManager.Instance.PlayerList.Count > 0)
+		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
 			SetupLobbyPlayers();
 		else
 			SetupDefaultPlayers();
@@ -1844,14 +1732,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 	private void SetupLobbyPlayers()
 	{
 		int pIdx = 0;
-		foreach (var p in Realm.Client.Network.LobbyManager.Instance.PlayerList)
+		foreach (var p in LobbyManager.Instance.PlayerList)
 		{
 			var playerEntity = CreatePlayerEntity(p.Name);
 			_peerIdToPlayerEntityMap[p.PeerId] = playerEntity;
-			
+
 			if (p.PeerId == _localPeerId) _playerEntity = playerEntity;
 			else _enemyPlayerEntity = playerEntity;
-			
+
 			UpdateScriptPlayerState(pIdx, p.Name);
 			pIdx++;
 		}
@@ -1876,9 +1764,9 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private Entity CreatePlayerEntity(string name)
 	{
-		var playerEntity = EcsWorld.Create();
-		EcsWorld.Add(playerEntity, new Player());
-		EcsWorld.Add(playerEntity, new Name(name));
+		var playerEntity = GameContext.World.Create();
+		GameContext.World.Add(playerEntity, new Player());
+		GameContext.World.Add(playerEntity, new Name(name));
 		InitializePlayerResources(playerEntity);
 		SetupPlayerEntityComponents(playerEntity);
 		return playerEntity;
@@ -1886,9 +1774,9 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void UpdateScriptPlayerState(int pIdx, string name)
 	{
-		if (!EcsWorld.Has<ScriptPlayersState>(_worldEntity)) return;
-		
-		var players = EcsWorld.Get<ScriptPlayersState>(_worldEntity).Players;
+		if (!GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity)) return;
+
+		var players = GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity).Players;
 		if (pIdx < players.Length)
 		{
 			players[pIdx].Name = name;
@@ -1926,27 +1814,27 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private bool ShouldProcessMapLoading()
 	{
-		bool isGameStarted = Realm.Client.Network.LobbyManager.Instance?.IsGameStarted ?? false;
-		return isGameStarted || IsMapEditorMode;
+		bool isGameStarted = LobbyManager.Instance?.IsGameStarted ?? false;
+		return isGameStarted || GameContext.EditorService.IsMapEditorMode;
 	}
 
 	private bool ShouldLoadCustomTerrain()
 	{
-		return !IsMapEditorMode && !IsLoadingMap;
+		return !GameContext.EditorService.IsMapEditorMode && !GameContext.SaveLoadService.IsLoadingMap;
 	}
 
 	private bool ShouldLoadAndRunMapScript()
 	{
-		if (IsLoadingMap) return false;
-		
-		bool isGameStarted = Realm.Client.Network.LobbyManager.Instance?.IsGameStarted ?? false;
-		return !isGameStarted || IsServerActive() || IsMapEditorMode;
+		if (GameContext.SaveLoadService.IsLoadingMap) return false;
+
+		bool isGameStarted = LobbyManager.Instance?.IsGameStarted ?? false;
+		return !isGameStarted || IsServerActive() || GameContext.EditorService.IsMapEditorMode;
 	}
 
 	private void ExecuteMapScriptLoading(string rawMapName)
 	{
 		LoadMapScript(rawMapName);
-		if (_activeMapScript != null && !IsMapEditorMode) 
+		if (_activeMapScript != null && !GameContext.EditorService.IsMapEditorMode)
 			_activeMapScript.Initialize(this);
 		RebakeNavMesh();
 	}
@@ -1954,11 +1842,11 @@ public static void EnsureMapProjectFiles(string mapDir)
 	private void LoadCustomTerrain(string rawMapName)
 	{
 		string targetPath = ResolveCustomTerrainPath(rawMapName);
-		
+
 		if (!string.IsNullOrEmpty(targetPath) && (targetPath.StartsWith("user://") || targetPath.StartsWith("res://")))
 			targetPath = ProjectSettings.GlobalizePath(targetPath);
 
-		if (!string.IsNullOrEmpty(targetPath) && System.IO.File.Exists(targetPath))
+		if (!string.IsNullOrEmpty(targetPath) && File.Exists(targetPath))
 			LoadMapFromFile(targetPath, false, true);
 	}
 
@@ -1967,51 +1855,51 @@ public static void EnsureMapProjectFiles(string mapDir)
 		string? resolvedDir = ResolveMapDirectory(rawMapName);
 		if (!string.IsNullOrEmpty(resolvedDir))
 		{
-			CurrentMapDirectory = resolvedDir;
-			string checkTerrain = System.IO.Path.Combine(resolvedDir, "terrain.json");
-			if (System.IO.File.Exists(checkTerrain)) return checkTerrain;
+			GameContext.MapStorageService.CurrentMapDirectory = resolvedDir;
+			string checkTerrain = Path.Combine(resolvedDir, "terrain.json");
+			if (File.Exists(checkTerrain)) return checkTerrain;
 			return string.Empty;
 		}
-		
+
 		return TryResolveExplicitCustomTerrainPath(rawMapName) ?? TryResolveFallbackCustomTerrainPath(rawMapName);
 	}
 
 	private string? TryResolveExplicitCustomTerrainPath(string rawMapName)
 	{
 		string normalizedRawMapName = rawMapName.Replace('\\', '/');
-		if (!normalizedRawMapName.StartsWith("user://") && !normalizedRawMapName.StartsWith("res://") && !System.IO.Path.IsPathRooted(normalizedRawMapName))
+		if (!normalizedRawMapName.StartsWith("user://") && !normalizedRawMapName.StartsWith("res://") && !Path.IsPathRooted(normalizedRawMapName))
 			return null;
-			
+
 		string checkDir = normalizedRawMapName;
 		if (normalizedRawMapName.StartsWith("user://") || normalizedRawMapName.StartsWith("res://"))
 			checkDir = ProjectSettings.GlobalizePath(normalizedRawMapName);
-			
-		if (System.IO.Directory.Exists(checkDir))
-			return System.IO.Path.Combine(checkDir, "terrain.json");
-			
+
+		if (Directory.Exists(checkDir))
+			return Path.Combine(checkDir, "terrain.json");
+
 		return null;
 	}
-	
+
 	private string TryResolveFallbackCustomTerrainPath(string rawMapName)
 	{
 		string normalizedMapName = rawMapName.ToLower().Trim();
 		string mapDir = $"res://Maps/{normalizedMapName}";
-		if (System.IO.Directory.Exists(ProjectSettings.GlobalizePath(mapDir)))
+		if (Directory.Exists(ProjectSettings.GlobalizePath(mapDir)))
 			return $"res://Maps/{normalizedMapName}/terrain.json";
-			
+
 		return string.Empty;
 	}
 
 	private void StartReplayRecordingIfNeeded(string rawMapName)
 	{
-		bool isGameStarted = Realm.Client.Network.LobbyManager.Instance != null && Realm.Client.Network.LobbyManager.Instance.IsGameStarted;
-		if (!isGameStarted || IsMapEditorMode || ReplayPlaybackManager.Instance.IsPlayingReplay || !GameSettings.RecordReplays) return;
+		bool isGameStarted = LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted;
+		if (!isGameStarted || GameContext.EditorService.IsMapEditorMode || ReplayPlaybackManager.Instance.IsPlayingReplay || !GameSettings.RecordReplays) return;
 
 		string replayDir = ProjectSettings.GlobalizePath("user://replays");
 		string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-		string replayPath = System.IO.Path.Combine(replayDir, $"replay_{timestamp}.rep");
-		
-		_replayService.StartRecording(replayPath, rawMapName, Realm.Client.Network.LobbyManager.Instance?.PlayerList);
+		string replayPath = Path.Combine(replayDir, $"replay_{timestamp}.rep");
+
+		GameContext.ReplayService.StartRecording(replayPath, rawMapName, LobbyManager.Instance?.PlayerList);
 		GD.Print($"[ReplayRecorder] Started recording to {replayPath}");
 	}
 
@@ -2020,12 +1908,12 @@ public static void EnsureMapProjectFiles(string mapDir)
 		var timer = GetTree().CreateTimer(0.1f);
 		timer.Timeout += () =>
 		{
-			if (Realm.Client.UI.InGameHUD.Instance != null)
+			if (InGameHUD.Instance != null)
 			{
-				Realm.Client.UI.InGameHUD.Instance.Gold = _goldBackup;
-				Realm.Client.UI.InGameHUD.Instance.Wood = _woodBackup;
-				Realm.Client.UI.InGameHUD.Instance.Stone = _stoneBackup;
-				Realm.Client.UI.InGameHUD.Instance.RefreshUI(SelectedUnits);
+				InGameHUD.Instance.Gold = _goldBackup;
+				InGameHUD.Instance.Wood = _woodBackup;
+				InGameHUD.Instance.Stone = _stoneBackup;
+				InGameHUD.Instance.RefreshUI(SelectedUnits);
 			}
 
 			if (ReplayPlaybackManager.Instance.IsPlayingReplay)
@@ -2044,7 +1932,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		ClearNodeCollection(AllDecals);
 
 		_castlesList.Clear();
-		ActivePings.Clear();
+		GameContext.FXService.ActivePings.Clear();
 		ClearAllBuildQueueGhosts();
 
 		if (_controlGroups != null)
@@ -2068,6 +1956,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		{
 			if (GodotObject.IsInstanceValid(item)) item.QueueFree();
 		}
+
 		collection.Clear();
 	}
 
@@ -2077,16 +1966,22 @@ public static void EnsureMapProjectFiles(string mapDir)
 		EntityToProp3D.Clear();
 		_activeMapScript = null;
 
-		ServiceLocator.DisposeAndRecreateServices();
+		bool wasMapEditorMode = GameContext.EditorService.IsMapEditorMode;
+		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
+
+		GameContext.DisposeAndRecreateServices();
 		ResolveServices();
 
+		GameContext.EditorService.IsMapEditorMode = wasMapEditorMode;
+		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
+
 		// Do not trigger lazy GroundTerrain creation here: InitializeGameEcs()
-		// builds the ground exactly once (CreateGround at Realm.Client.Core.GameHost.cs:2751).
+		// builds the ground exactly once (CreateGround at Realm.Client.Core.cs:2751).
 		// Triggering the getter here previously built the whole 128x128 mesh/water/navmesh
 		// a second time on every _Ready, stalling the main thread at startup.
 		if (_groundTerrain != null)
 		{
-			_editorService.SetTerrainSplatMap(_groundTerrain.SplatMap, _groundTerrain.CliffSplatMap);
+			GameContext.EditorService.SetTerrainSplatMap(_groundTerrain.SplatMap, _groundTerrain.CliffSplatMap);
 		}
 
 		InitializeGameEcs();
@@ -2094,33 +1989,33 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	public void StopRecording()
 	{
-		_replayService?.StopRecording();
+		GameContext.ReplayService?.StopRecording();
 	}
 
 	public override void _ExitTree()
 	{
 		LogGameStabilitySummary();
 
-		if (Realm.Client.Network.LobbyManager.Instance != null)
-			Realm.Client.Network.LobbyManager.Instance.ServerChatCommandReceived -= HandleServerChatCommand;
+		if (LobbyManager.Instance != null)
+			LobbyManager.Instance.ServerChatCommandReceived -= HandleServerChatCommand;
 
 		StopRecording();
-		ServiceLocator.Dispose();
+		GameContext.Dispose();
 		Instance = null;
 	}
 
 	private void LogGameStabilitySummary()
 	{
-		if ((Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) && _trackerTickDurations != null && _trackerTickDurations.Count >= 30)
+		if ((Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) && GameContext.PerformanceTrackingService.TrackerTickDurations != null && GameContext.PerformanceTrackingService.TrackerTickDurations.Count >= 30)
 		{
 			HostStabilityTracker.AddGameSummary(new GameStabilitySummary
 			{
-				AvgTickMs = HostStabilityTracker.CalculateAverage(_trackerTickDurations),
-				MedianTickMs = HostStabilityTracker.CalculateMedian(_trackerTickDurations),
-				MaxTickMs = HostStabilityTracker.CalculateMax(_trackerTickDurations),
-				AvgApiMs = HostStabilityTracker.CalculateAverage(_trackerApiDurations),
-				MedianApiMs = HostStabilityTracker.CalculateMedian(_trackerApiDurations),
-				MaxApiMs = HostStabilityTracker.CalculateMax(_trackerApiDurations)
+				AvgTickMs = HostStabilityTracker.CalculateAverage(GameContext.PerformanceTrackingService.TrackerTickDurations),
+				MedianTickMs = HostStabilityTracker.CalculateMedian(GameContext.PerformanceTrackingService.TrackerTickDurations),
+				MaxTickMs = HostStabilityTracker.CalculateMax(GameContext.PerformanceTrackingService.TrackerTickDurations),
+				AvgApiMs = HostStabilityTracker.CalculateAverage(GameContext.PerformanceTrackingService.TrackerApiDurations),
+				MedianApiMs = HostStabilityTracker.CalculateMedian(GameContext.PerformanceTrackingService.TrackerApiDurations),
+				MaxApiMs = HostStabilityTracker.CalculateMax(GameContext.PerformanceTrackingService.TrackerApiDurations)
 			});
 		}
 	}
@@ -2132,9 +2027,9 @@ public static void EnsureMapProjectFiles(string mapDir)
 		IUnit? heroUnit = null;
 		foreach (var u in AllUnits)
 		{
-			if (GodotObject.IsInstanceValid(u) && u.Player == slot && EcsWorld != null && EcsWorld.IsAlive(u.Entity) && !EcsWorld.Has<Dead>(u.Entity))
+			if (GodotObject.IsInstanceValid(u) && u.Player == slot && GameContext.World != null && GameContext.World.IsAlive(u.Entity) && !GameContext.World.Has<Dead>(u.Entity))
 			{
-				heroUnit = GetUnitWrapper(u.Entity);
+				heroUnit = GameContext.SimulationService.GetUnitWrapper(u.Entity);
 				break;
 			}
 		}
@@ -2146,7 +2041,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 	{
 		ClearExistingGround();
 
-		if (IsMapEditorMode || IsLoadingMap)
+		if (GameContext.EditorService.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap)
 		{
 			CreateEditableGround();
 			return;
@@ -2154,11 +2049,11 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 		if (!ShouldCreateRuntimeGround()) return;
 
-		string? rawMapName = Realm.Client.Network.LobbyManager.Instance?.ActiveMapName;
+		string? rawMapName = LobbyManager.Instance?.ActiveMapName;
 		if (string.IsNullOrEmpty(rawMapName)) return;
 
 		string terrainPath = ResolveTerrainPath(rawMapName);
-		
+
 		CreateRuntimeGround(terrainPath);
 	}
 
@@ -2169,18 +2064,19 @@ public static void EnsureMapProjectFiles(string mapDir)
 		{
 			if (child.Name.ToString().StartsWith("Ground")) toRemove.Add(child);
 		}
-		
+
 		foreach (var child in toRemove)
 		{
 			RemoveChild(child);
 			child.QueueFree();
 		}
+
 		GroundTerrain = null;
 	}
 
 	private void CreateEditableGround()
 	{
-		var terrainNode = new Realm.Client.EditableTerrain();
+		var terrainNode = new EditableTerrain();
 		terrainNode.Name = "Ground";
 		AddChild(terrainNode);
 		GroundTerrain = terrainNode;
@@ -2188,14 +2084,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private bool ShouldCreateRuntimeGround()
 	{
-		return Realm.Client.Network.LobbyManager.Instance != null && Realm.Client.Network.LobbyManager.Instance.IsGameStarted;
+		return LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted;
 	}
 
 	private string ResolveTerrainPath(string rawMapName)
 	{
 		string? resolvedDir = ResolveMapDirectory(rawMapName);
 		if (!string.IsNullOrEmpty(resolvedDir))
-			return System.IO.Path.Combine(resolvedDir, "terrain.json");
+			return Path.Combine(resolvedDir, "terrain.json");
 
 		string normalizedRawMapName = rawMapName.Replace('\\', '/');
 		string explicitPath = TryGetExplicitTerrainPath(normalizedRawMapName);
@@ -2206,25 +2102,25 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private string TryGetExplicitTerrainPath(string normalizedRawMapName)
 	{
-		if (!normalizedRawMapName.StartsWith("user://") && !normalizedRawMapName.StartsWith("res://") && !System.IO.Path.IsPathRooted(normalizedRawMapName))
+		if (!normalizedRawMapName.StartsWith("user://") && !normalizedRawMapName.StartsWith("res://") && !Path.IsPathRooted(normalizedRawMapName))
 			return string.Empty;
 
 		string checkDir = normalizedRawMapName;
 		if (normalizedRawMapName.StartsWith("user://") || normalizedRawMapName.StartsWith("res://"))
 			checkDir = ProjectSettings.GlobalizePath(normalizedRawMapName);
 
-		return System.IO.Directory.Exists(checkDir) ? System.IO.Path.Combine(checkDir, "terrain.json") : string.Empty;
+		return Directory.Exists(checkDir) ? Path.Combine(checkDir, "terrain.json") : string.Empty;
 	}
 
 	private string FallbackTerrainPath(string rawMapName)
 	{
 		string normalizedMapName = rawMapName.ToLower().Trim();
 		string mapDir = $"res://Maps/{normalizedMapName}";
-		if (System.IO.Directory.Exists(ProjectSettings.GlobalizePath(mapDir)))
+		if (Directory.Exists(ProjectSettings.GlobalizePath(mapDir)))
 			return $"res://Maps/{normalizedMapName}/terrain.json";
 
 		string userDir = ProjectSettings.GlobalizePath($"user://maps/{normalizedMapName}");
-		if (System.IO.Directory.Exists(userDir))
+		if (Directory.Exists(userDir))
 			return $"user://maps/{normalizedMapName}/terrain.json";
 
 		return $"res://Maps/{normalizedMapName}/terrain.json";
@@ -2232,16 +2128,16 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void CreateRuntimeGround(string terrainPath)
 	{
-		var activeTerrainNode = new Realm.Client.RuntimeTerrain();
+		var activeTerrainNode = new RuntimeTerrain();
 		activeTerrainNode.Name = "Ground";
 		AddChild(activeTerrainNode);
 		GroundTerrain = activeTerrainNode;
 
-		string targetPath = terrainPath.StartsWith("user://") || terrainPath.StartsWith("res://") 
-			? ProjectSettings.GlobalizePath(terrainPath) 
+		string targetPath = terrainPath.StartsWith("user://") || terrainPath.StartsWith("res://")
+			? ProjectSettings.GlobalizePath(terrainPath)
 			: terrainPath;
 
-		if (System.IO.File.Exists(targetPath))
+		if (File.Exists(targetPath))
 			LoadMapFromFile(terrainPath, true, false);
 	}
 
@@ -2256,25 +2152,25 @@ public static void EnsureMapProjectFiles(string mapDir)
 		if (skyTexture != null)
 		{
 			worldEnv.Environment.Sky = new Sky { SkyMaterial = new PanoramaSkyMaterial { Panorama = skyTexture } };
-			worldEnv.Environment.BackgroundMode = Godot.Environment.BGMode.Sky;
+			worldEnv.Environment.BackgroundMode = Environment.BGMode.Sky;
 			EditorSkyboxPath = path;
 		}
 	}
 
 	private string GetSkyboxFullPath(string path)
 	{
-		if (path.StartsWith("res://") || System.IO.File.Exists(path)) return path;
+		if (path.StartsWith("res://") || File.Exists(path)) return path;
 
-		string wsPath = Realm.Client.Services.MapWorkspaceService.GetActiveWorkspacePath();
-		string fullPath = System.IO.Path.Combine(wsPath, path.Replace('/', System.IO.Path.DirectorySeparatorChar));
-		if (System.IO.File.Exists(fullPath)) return fullPath;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string fullPath = Path.Combine(wsPath, path.Replace('/', Path.DirectorySeparatorChar));
+		if (File.Exists(fullPath)) return fullPath;
 
-		fullPath = System.IO.Path.Combine(wsPath, "Assets", "skyboxes", System.IO.Path.GetFileName(path));
-		if (System.IO.File.Exists(fullPath)) return fullPath;
+		fullPath = Path.Combine(wsPath, "Assets", "skyboxes", Path.GetFileName(path));
+		if (File.Exists(fullPath)) return fullPath;
 
-		string rtexName = System.IO.Path.GetFileNameWithoutExtension(path) + ".rtex";
-		string rtexCandidate = System.IO.Path.Combine(wsPath, "Assets", "skyboxes", rtexName);
-		if (System.IO.File.Exists(rtexCandidate)) return rtexCandidate;
+		string rtexName = Path.GetFileNameWithoutExtension(path) + ".rtex";
+		string rtexCandidate = Path.Combine(wsPath, "Assets", "skyboxes", rtexName);
+		if (File.Exists(rtexCandidate)) return rtexCandidate;
 
 		return path;
 	}
@@ -2286,17 +2182,18 @@ public static void EnsureMapProjectFiles(string mapDir)
 			return ResourceLoader.Exists(fullPath) ? GD.Load<Texture2D>(fullPath) : null;
 		}
 
-		if (!System.IO.File.Exists(fullPath)) return null;
+		if (!File.Exists(fullPath)) return null;
 
 		if (fullPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 		{
-			byte[]? webpBytes = Realm.Shared.Textures.RtexFile.GetLayer(System.IO.File.ReadAllBytes(fullPath), 0);
+			byte[]? webpBytes = RtexFile.GetLayer(File.ReadAllBytes(fullPath), 0);
 			if (webpBytes != null && webpBytes.Length > 0)
 			{
 				var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
 				if (img.LoadWebpFromBuffer(webpBytes) != Error.Ok) img.LoadPngFromBuffer(webpBytes);
 				return ImageTexture.CreateFromImage(img);
 			}
+
 			return null;
 		}
 
@@ -2308,23 +2205,25 @@ public static void EnsureMapProjectFiles(string mapDir)
 	{
 		SetSkyboxTexture(EditorSkyboxPath);
 	}
-	
-	private Realm.Client.Prop3D FindProp3DInParentChain(Node node)
+
+	private Prop3D FindProp3DInParentChain(Node node)
 	{
 		while (node != null)
 		{
-			if (node is Realm.Client.Prop3D prop)
+			if (node is Prop3D prop)
 			{
 				return prop;
 			}
+
 			node = node.GetParent();
 		}
+
 		return null;
 	}
 
 	private void RemoveIfHas<T>(Entity entity) where T : struct
 	{
-		if (EcsWorld.Has<T>(entity)) EcsWorld.Remove<T>(entity);
+		if (GameContext.World.Has<T>(entity)) GameContext.World.Remove<T>(entity);
 	}
 
 	public void ClearUnitOrders(Entity entity)
@@ -2332,28 +2231,28 @@ public static void EnsureMapProjectFiles(string mapDir)
 		RemoveIfHas<MoveTo>(entity);
 		RemoveIfHas<PathFollow>(entity);
 		RemoveIfHas<AttackTarget>(entity);
-		RemoveIfHas<Realm.Ecs.Components.Movement.AttackMove>(entity);
-		RemoveIfHas<Realm.Ecs.Components.Movement.HoldPosition>(entity);
-		RemoveIfHas<Realm.Ecs.Components.Movement.Follow>(entity);
+		RemoveIfHas<AttackMove>(entity);
+		RemoveIfHas<HoldPosition>(entity);
+		RemoveIfHas<Follow>(entity);
 		RemoveIfHas<Patrol>(entity);
 		RemoveIfHas<HealingTarget>(entity);
 		RemoveIfHas<WaypointQueue>(entity);
 		RemoveIfHas<Gatherer>(entity);
-		RemoveIfHas<Realm.Ecs.Components.Resources.BuildTask>(entity);
-		RemoveIfHas<Realm.Ecs.Components.Resources.BuildQueue>(entity);
+		RemoveIfHas<BuildTask>(entity);
+		RemoveIfHas<BuildQueue>(entity);
 	}
 
 	private void StopGatheringMovement(Entity entity)
 	{
-		if (EcsWorld.IsAlive(entity))
+		if (GameContext.World.IsAlive(entity))
 		{
-			if (EcsWorld.Has<MoveTo>(entity)) EcsWorld.Remove<MoveTo>(entity);
+			if (GameContext.World.Has<MoveTo>(entity)) GameContext.World.Remove<MoveTo>(entity);
 		}
 	}
 
-	private Realm.Client.Prop3D FindNearbyResourceNode(Vector3 pos, string type, float radius)
+	private Prop3D FindNearbyResourceNode(Vector3 pos, string type, float radius)
 	{
-		Realm.Client.Prop3D closest = null;
+		Prop3D closest = null;
 		float closestDist = radius;
 		foreach (var prop in AllProps)
 		{
@@ -2366,7 +2265,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 					"rock" => "stone",
 					_ => null
 				};
-				
+
 				if (pType == type)
 				{
 					float d = pos.DistanceTo(prop.GlobalPosition);
@@ -2378,10 +2277,11 @@ public static void EnsureMapProjectFiles(string mapDir)
 				}
 			}
 		}
+
 		return closest;
 	}
 
-	public void IssueGatherCommand(Realm.Client.Prop3D prop, bool isQueued = false)
+	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
 	{
 		if (SelectedUnits.Count == 0 || prop == null || !GodotObject.IsInstanceValid(prop)) return;
 
@@ -2389,7 +2289,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		if (resType == null) return;
 
 		SpawnTargetIndicator(prop.GlobalPosition, new Color(0.9f, 0.8f, 0.1f));
-		Realm.Client.UI.InGameHUD.Instance?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {prop.PropId}", new Color(0.9f, 0.8f, 0.1f));
+		InGameHUD.Instance?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {prop.PropId}", new Color(0.9f, 0.8f, 0.1f));
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
@@ -2411,7 +2311,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		};
 	}
 
-	private void IssueMultiplayerGatherCommand(Realm.Client.Prop3D prop, bool isQueued)
+	private void IssueMultiplayerGatherCommand(Prop3D prop, bool isQueued)
 	{
 		var targetIds = new List<int>();
 		foreach (var unit in SelectedUnits)
@@ -2419,47 +2319,48 @@ public static void EnsureMapProjectFiles(string mapDir)
 			if (unit.IsBuilding || unit.IsEnemy || unit.UnitId != "worker") continue;
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
+
 		QueueClientCommand(isQueued ? "gather_queued" : "gather", targetIds, prop.GlobalPosition, GetServerEntityId(prop.Entity), "");
 	}
 
-	private void IssueLocalGatherCommand(Realm.Client.Prop3D prop, string resType, bool isQueued)
+	private void IssueLocalGatherCommand(Prop3D prop, string resType, bool isQueued)
 	{
 		foreach (var unit in SelectedUnits)
 		{
 			if (unit.IsBuilding || unit.IsEnemy || unit.UnitId != "worker") continue;
 
-			if (isQueued && _inputService != null && _inputService.IsUnitActive(unit.Entity))
+			if (isQueued && GameContext.InputService != null && GameContext.InputService.IsUnitActive(unit.Entity))
 			{
-				_inputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z), prop.Entity);
+				GameContext.InputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z), prop.Entity);
 			}
 			else
 			{
 				if (!isQueued) ClearUnitOrders(unit.Entity);
 
-				EcsWorld.SetOrAdd(unit.Entity, new Gatherer(resType, prop.Entity));
-				EcsWorld.SetOrAdd(unit.Entity, new MoveTo(new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z)));
+				GameContext.World.SetOrAdd(unit.Entity, new Gatherer(resType, prop.Entity));
+				GameContext.World.SetOrAdd(unit.Entity, new MoveTo(new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z)));
 			}
 		}
 	}
 
-	private Entity CreateEcsUnit(string id, string name, float hp, float damage, float range, float armor, float speed, Vector3 pos, Realm.Ecs.Common.PlayerEntity owner)
+	private Entity CreateEcsUnit(string id, string name, float hp, float damage, float range, float armor, float speed, Vector3 pos, PlayerEntity owner)
 	{
 		UnitMetadata regMeta = null;
 		if (!UnitRegistry.TryGetValue(id, out regMeta)) TryGetUnitOrBuildingMetadata(id, out regMeta);
 
-		var entity = regMeta != null 
+		var entity = regMeta != null
 			? CreateEcsUnitEntityWithMeta(id, name, hp, damage, range, armor, speed, pos, owner, regMeta)
-			: _unitSpawnService.CreateEcsUnitEntity(id, name, hp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, owner, _playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade, null, 0f, 0f, 0f, 0f, 0f, "unarmored", 0f, 0f, 0f, "normal", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
+			: GameContext.UnitSpawnService.CreateEcsUnitEntity(id, name, hp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, owner, _playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade, null, 0f, 0f, 0f, 0f, 0f, "unarmored", 0f, 0f, 0f, "normal", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
 
 		if (regMeta != null) ApplyUnitAttributes(entity, regMeta);
 
-		OnUnitCreated?.Invoke(GetUnitWrapper(entity));
+		OnUnitCreated?.Invoke(GameContext.SimulationService.GetUnitWrapper(entity));
 		return entity;
 	}
 
-	private Entity CreateEcsUnitEntityWithMeta(string id, string name, float hp, float damage, float range, float armor, float speed, Vector3 pos, Realm.Ecs.Common.PlayerEntity owner, UnitMetadata meta)
+	private Entity CreateEcsUnitEntityWithMeta(string id, string name, float hp, float damage, float range, float armor, float speed, Vector3 pos, PlayerEntity owner, UnitMetadata meta)
 	{
-		return _unitSpawnService.CreateEcsUnitEntity(
+		return GameContext.UnitSpawnService.CreateEcsUnitEntity(
 			id, name, hp, damage, range, armor, speed,
 			meta.ScanRadius > 0 ? meta.ScanRadius : 15.0f, meta.IsHero,
 			meta.AttackCooldown > 0 ? meta.AttackCooldown : 1.5f, GetUnitPathingFlags(meta), pos, owner,
@@ -2479,35 +2380,35 @@ public static void EnsureMapProjectFiles(string mapDir)
 	{
 		if (meta.Strength != 0f || meta.Agility != 0f || meta.Vitality != 0f || meta.Intelligence != 0f || meta.Wisdom != 0f || meta.Fortune != 0f)
 		{
-			EcsWorld.Set(entity, new Realm.Ecs.Components.Stats.UnitAttributes(meta.Strength, meta.Agility, meta.Vitality, meta.Intelligence, meta.Wisdom, meta.Fortune));
-			AttributeStatCalculator.RecalculateEntityStats(EcsWorld, entity);
+			GameContext.World.Set(entity, new UnitAttributes(meta.Strength, meta.Agility, meta.Vitality, meta.Intelligence, meta.Wisdom, meta.Fortune));
+			AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
 		}
 	}
 
 	private void ApplyGigachadBuffsIfNeeded(Entity entity, bool isEnemy)
 	{
-		if (!GigachadEnabled || isEnemy) return;
-		if (EcsWorld.Has<Health>(entity)) EcsWorld.Set(entity, new Health(9000f, 9000f));
-		if (EcsWorld.Has<Attack>(entity))
+		if (!GameContext.CheatService.GigachadEnabled || isEnemy) return;
+		if (GameContext.World.Has<Health>(entity)) GameContext.World.Set(entity, new Health(9000f, 9000f));
+		if (GameContext.World.Has<Attack>(entity))
 		{
-			var atk = EcsWorld.Get<Attack>(entity);
-			EcsWorld.Set(entity, new Attack(9001f, atk.Range, atk.Cooldown, atk.CurrentCooldown));
+			var atk = GameContext.World.Get<Attack>(entity);
+			GameContext.World.Set(entity, new Attack(9001f, atk.Range, atk.Cooldown, atk.CurrentCooldown));
 		}
 	}
 
-	private void HandleBuildingSpawn(Entity entity, Realm.Client.Unit3D unit3D, string id, Vector3 pos)
+	private void HandleBuildingSpawn(Entity entity, Unit3D unit3D, string id, Vector3 pos)
 	{
-		EcsWorld.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
+		GameContext.World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
 		float baseRadius = GetOrCalculateObstacleRadius(id, unit3D, true) * GetModelCollisionCircleRatio(GetModelAssetKey(unit3D));
-		EcsWorld.SetOrAdd(entity, new Realm.Ecs.Components.Core.CollisionRadius(baseRadius));
-		if (!IsMapEditorMode) CarveObstacle(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), baseRadius);
+		GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
+		if (!GameContext.EditorService.IsMapEditorMode) CarveObstacle(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), baseRadius);
 	}
 
-	private Realm.Client.Unit3D SpawnUnit3D(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, bool isEnemy, bool isFromQueue = false, int player = -1, bool executeSpawnShader = false)
+	private Unit3D SpawnUnit3D(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, bool isEnemy, bool isFromQueue = false, int player = -1, bool executeSpawnShader = false)
 	{
 		int playerIndex = player >= 0 ? player : 0;
 		bool actualIsEnemy = player >= 0 ? NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex) : isEnemy;
-		
+
 		SetupUnitEntityComponents(entity, id, playerIndex, actualIsEnemy);
 
 		var unit3D = CreateAndSetupUnit3DNode(entity, id, modelPath, pos, isBuilding, playerIndex, actualIsEnemy);
@@ -2532,17 +2433,17 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void SetupUnitEntityComponents(Entity entity, string id, int playerIndex, bool actualIsEnemy)
 	{
-		EcsWorld.SetOrAdd(entity, new UnitFaction(actualIsEnemy));
-		EcsWorld.SetOrAdd(entity, new UnitOwnerPlayer(playerIndex));
-		EcsWorld.SetOrAdd(entity, new DefinitionId(id));
+		GameContext.World.SetOrAdd(entity, new UnitFaction(actualIsEnemy));
+		GameContext.World.SetOrAdd(entity, new UnitOwnerPlayer(playerIndex));
+		GameContext.World.SetOrAdd(entity, new DefinitionId(id));
 		ApplyGigachadBuffsIfNeeded(entity, actualIsEnemy);
 	}
 
-	private Realm.Client.Unit3D CreateAndSetupUnit3DNode(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int playerIndex, bool actualIsEnemy)
+	private Unit3D CreateAndSetupUnit3DNode(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int playerIndex, bool actualIsEnemy)
 	{
-		var unit3D = new Realm.Client.Unit3D { Entity = entity, UnitId = id, IsBuilding = isBuilding, Name = $"{id}_{entity.Id}", Player = playerIndex, IsEnemy = actualIsEnemy };
+		var unit3D = new Unit3D { Entity = entity, UnitId = id, IsBuilding = isBuilding, Name = $"{id}_{entity.Id}", Player = playerIndex, IsEnemy = actualIsEnemy };
 
-		if (!isBuilding && !IsMapEditorMode)
+		if (!isBuilding && !GameContext.EditorService.IsMapEditorMode)
 		{
 			unit3D.CollisionLayer = 1;
 			unit3D.CollisionMask = 0;
@@ -2552,15 +2453,15 @@ public static void EnsureMapProjectFiles(string mapDir)
 		unit3D.Position = pos;
 		unit3D.LoadModel(modelPath);
 		unit3D.UpdatePlayerColorVisual();
-		
+
 		return unit3D;
 	}
 
-	private void ApplyMapEditorTransforms(Realm.Client.Unit3D unit3D)
+	private void ApplyMapEditorTransforms(Unit3D unit3D)
 	{
-		if (!IsMapEditorMode) return;
-		
-		unit3D.RotationDegrees = new Vector3(0.0f, EditorPlacementRotation, 0.0f);
+		if (!GameContext.EditorService.IsMapEditorMode) return;
+
+		unit3D.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.EditorPlacementRotation, 0.0f);
 		unit3D.Scale *= EditorPlacementScale;
 	}
 
@@ -2572,29 +2473,29 @@ public static void EnsureMapProjectFiles(string mapDir)
 		if (!isFromQueue) CurrentPopulation += popMeta.PopCost;
 	}
 
-	private void ExecuteSpawnShader(Realm.Client.Unit3D unit3D, string id)
+	private void ExecuteSpawnShader(Unit3D unit3D, string id)
 	{
 		string spawnShader = GetModelSpawnShader(unit3D);
 		if (string.IsNullOrEmpty(spawnShader)) spawnShader = GetModelSpawnShader(id);
-		
+
 		if (!string.IsNullOrEmpty(spawnShader)) SpawnDeathShaderManager.AnimateTransition(unit3D, spawnShader, true);
 	}
 
 
 	public override void _Process(double delta)
 	{
-		if (_shroudService != null)
+		if (GameContext.ShroudService != null)
 		{
 			float fDelta = (float)delta;
-			bool isReplay = Realm.Client.ReplaySystem.ReplayPlaybackManager.Instance.IsPlayingReplay;
-			bool isSpectator = Realm.Client.Network.LobbyManager.Instance != null && Realm.Client.Network.LobbyManager.Instance.LocalPlayer != null && Realm.Client.Network.LobbyManager.Instance.LocalPlayer.Team == "Spectator";
-			int spectatorPerspective = Realm.Client.UI.InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
-			_shroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, spectatorPerspective, isReplay, isSpectator);
+			bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
+			bool isSpectator = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator";
+			int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
+			GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, spectatorPerspective, isReplay, isSpectator);
 		}
 
 		var worldEnv = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
-		_environmentService?.UpdateEnvironmentalFog(MainCamera, worldEnv);
-		_environmentService?.UpdateWeatherParticlePosition(MainCamera);
+		GameContext.EnvironmentService?.UpdateEnvironmentalFog(MainCamera, worldEnv);
+		GameContext.EnvironmentService?.UpdateWeatherParticlePosition(MainCamera);
 	}
 
 	public override void _PhysicsProcess(double delta)
@@ -2611,14 +2512,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 		}
 
 		if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) UpdatePauseCountdown(fDelta);
-		if (IsPaused) return;
+		if (GameContext.NetworkService.IsPaused) return;
 
 		DispatchPhysicsTick(fDelta);
 	}
 
 	private bool ShouldProcessPhysicsTick()
 	{
-		return Realm.Client.Network.LobbyManager.Instance?.IsGameStarted == true || IsMapEditorMode;
+		return LobbyManager.Instance?.IsGameStarted == true || GameContext.EditorService.IsMapEditorMode;
 	}
 
 	private void ProcessReplayTick(float fDelta)
@@ -2630,32 +2531,32 @@ public static void EnsureMapProjectFiles(string mapDir)
 	private void DispatchPhysicsTick(float fDelta)
 	{
 		if (_multiplayerActive && !IsServerActive()) UpdateClientTick(fDelta);
-		else if (IsMapEditorMode) ProcessMapEditorTick(fDelta);
+		else if (GameContext.EditorService.IsMapEditorMode) ProcessMapEditorTick(fDelta);
 		else ProcessGameplayTick(fDelta);
 	}
 
 	private void UpdatePauseCountdown(float fDelta)
 	{
-		if (ResumeCountdownSeconds < 0) return;
+		if (GameContext.NetworkService.ResumeCountdownSeconds < 0) return;
 
-		_resumeCountdownTimer += fDelta;
-		if (_resumeCountdownTimer < 1.0f) return;
+		GameContext.NetworkService.ResumeCountdownTimer += fDelta;
+		if (GameContext.NetworkService.ResumeCountdownTimer < 1.0f) return;
 
-		_resumeCountdownTimer -= 1.0f;
-		ResumeCountdownSeconds--;
+		GameContext.NetworkService.ResumeCountdownTimer -= 1.0f;
+		GameContext.NetworkService.ResumeCountdownSeconds--;
 
 		bool isServer = Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer();
 
-		if (ResumeCountdownSeconds <= 0)
+		if (GameContext.NetworkService.ResumeCountdownSeconds <= 0)
 		{
-			ResumeCountdownSeconds = -1;
-			IsPaused = false;
+			GameContext.NetworkService.ResumeCountdownSeconds = -1;
+			GameContext.NetworkService.IsPaused = false;
 			if (isServer) Rpc(nameof(BroadcastPauseState), false, -1, true);
 			else UpdatePauseUI();
 		}
 		else
 		{
-			if (isServer) Rpc(nameof(BroadcastCountdownState), ResumeCountdownSeconds, _countdownForcedByHost);
+			if (isServer) Rpc(nameof(BroadcastCountdownState), GameContext.NetworkService.ResumeCountdownSeconds, GameContext.NetworkService.CountdownForcedByHost);
 			else UpdatePauseUI();
 		}
 	}
@@ -2684,27 +2585,26 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	public void CarveObstacle(System.Numerics.Vector3 pos, float radius)
 	{
-		if (EcsWorld != null && EcsWorld.IsAlive(WorldEntity) && EcsWorld.Has<TerrainState>(WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 		{
-			ref var state = ref EcsWorld.Get<TerrainState>(WorldEntity);
-			_terrainNavMeshService?.CarveObstacle(ref state, pos, radius);
+			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ECSContext.TerrainNavMeshService?.CarveObstacle(ref state, pos, radius);
 		}
 	}
 
 	public void UncarveObstacle(System.Numerics.Vector3 pos, float radius)
 	{
-		if (EcsWorld != null && EcsWorld.IsAlive(WorldEntity) && EcsWorld.Has<TerrainState>(WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 		{
-			ref var state = ref EcsWorld.Get<TerrainState>(WorldEntity);
-			_terrainNavMeshService?.UncarveObstacle(ref state, pos, radius);
+			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ECSContext.TerrainNavMeshService?.UncarveObstacle(ref state, pos, radius);
 		}
 	}
 
-	private static readonly Dictionary<string, float> ObstacleRadiusCache = new();
 
 	public float GetOrCalculateObstacleRadius(string id, Node3D node, bool isBuilding = false)
 	{
-		if (ObstacleRadiusCache.TryGetValue(id, out float cachedRadius))
+		if (ECSContext.TerrainNavMeshService.ObstacleRadiusCache.TryGetValue(id, out float cachedRadius))
 		{
 			return cachedRadius;
 		}
@@ -2712,14 +2612,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 		if (UnitRegistry.TryGetValue(id, out var meta) && meta.ObstacleRadius.HasValue)
 		{
 			float radius = meta.ObstacleRadius.Value;
-			ObstacleRadiusCache[id] = radius;
+			ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = radius;
 			return radius;
 		}
 
 		string modelKey = node != null ? GetModelAssetKey(node) : GetModelAssetKey(id);
-		if (!string.IsNullOrEmpty(modelKey) && ModelObstacleRadii.TryGetValue(modelKey, out float measuredRadius) && measuredRadius > 0f)
+		if (!string.IsNullOrEmpty(modelKey) && GameContext.ModelOverrideService.ModelObstacleRadii.TryGetValue(modelKey, out float measuredRadius) && measuredRadius > 0f)
 		{
-			ObstacleRadiusCache[id] = measuredRadius;
+			ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = measuredRadius;
 			return measuredRadius;
 		}
 
@@ -2729,7 +2629,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 			calculatedRadius = CalculateNodeRadius(node);
 		}
 
-		ObstacleRadiusCache[id] = calculatedRadius;
+		ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = calculatedRadius;
 		return calculatedRadius;
 	}
 
@@ -2795,6 +2695,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 				}
 			}
 		}
+
 		foreach (var child in node.GetChildren())
 		{
 			if (child is Node3D child3D)
@@ -2810,12 +2711,12 @@ public static void EnsureMapProjectFiles(string mapDir)
 	/// </summary>
 	internal bool IsPathingCapability(Entity entity, TerrainPathingFlags capability)
 	{
-		if (EcsWorld == null || !EcsWorld.IsAlive(entity) || !EcsWorld.Has<PathingFlags>(entity)) return false;
-		int flags = EcsWorld.Get<PathingFlags>(entity).Value;
+		if (GameContext.World == null || !GameContext.World.IsAlive(entity) || !GameContext.World.Has<PathingFlags>(entity)) return false;
+		int flags = GameContext.World.Get<PathingFlags>(entity).Value;
 		return ((TerrainPathingFlags)flags & capability) != 0;
 	}
 
-	private static ImageTexture _sharedShadowGradient;
+	private static ImageTexture SharedShadowGradient { get; set; }
 
 	/// <summary>
 	///     Shared radial gradient used by flying-unit drop-shadow decals. One texture is
@@ -2823,9 +2724,9 @@ public static void EnsureMapProjectFiles(string mapDir)
 	/// </summary>
 	public Texture2D GetSharedShadowGradient()
 	{
-		if (_sharedShadowGradient != null && GodotObject.IsInstanceValid(_sharedShadowGradient))
+		if (SharedShadowGradient != null && GodotObject.IsInstanceValid(SharedShadowGradient))
 		{
-			return _sharedShadowGradient;
+			return SharedShadowGradient;
 		}
 
 		const int size = 256;
@@ -2842,12 +2743,14 @@ public static void EnsureMapProjectFiles(string mapDir)
 				img.SetPixel(x, y, new Color(0f, 0f, 0f, alpha));
 			}
 		}
+
 		if (!img.HasMipmaps())
 		{
 			img.GenerateMipmaps();
 		}
-		_sharedShadowGradient = ImageTexture.CreateFromImage(img);
-		return _sharedShadowGradient;
+
+		SharedShadowGradient = ImageTexture.CreateFromImage(img);
+		return SharedShadowGradient;
 	}
 
 	private List<T> FindChildrenOfType<T>(Node parent) where T : Node
@@ -2863,6 +2766,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 		{
 			result.Add(typed);
 		}
+
 		foreach (var child in parent.GetChildren())
 		{
 			FindChildrenOfTypeRecursive(child, result);
@@ -2871,16 +2775,16 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void UpdateConnectionStatus()
 	{
-		_networkService.UpdateConnectionStatus(_multiplayerActive, IsServerActive());
-		if (_networkService.IsConnectionLost && !IsServerActive() && Realm.Client.Network.LobbyManager.Instance != null && !Realm.Client.Network.LobbyManager.Instance.IsReconnecting)
+		GameContext.NetworkService.UpdateConnectionStatus(_multiplayerActive, IsServerActive());
+		if (GameContext.NetworkService.IsConnectionLost && !IsServerActive() && LobbyManager.Instance != null && !LobbyManager.Instance.IsReconnecting)
 		{
-			Realm.Client.Network.LobbyManager.Instance.TriggerReconnect();
+			LobbyManager.Instance.TriggerReconnect();
 		}
 	}
 
 	private void ProcessGameplayTick(float fDelta)
 	{
-		if (IsGameOver) return;
+		if (ECSContext.IsGameOver) return;
 
 		float actualIntervalMs = BeginTickTracking();
 
@@ -2901,23 +2805,25 @@ public static void EnsureMapProjectFiles(string mapDir)
 		float actualIntervalMs = 0f;
 		if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer())
 		{
-			if (_trackerIntervalStopwatch.IsRunning)
+			if (GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.IsRunning)
 			{
-				actualIntervalMs = (float)_trackerIntervalStopwatch.Elapsed.TotalMilliseconds;
-				_trackerIntervalStopwatch.Restart();
+				actualIntervalMs = (float)GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.Elapsed.TotalMilliseconds;
+				GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.Restart();
 			}
 			else
 			{
-				_trackerIntervalStopwatch.Start();
+				GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.Start();
 			}
-			_trackerTickStopwatch.Restart();
+
+			GameContext.PerformanceTrackingService.TrackerTickStopwatch.Restart();
 		}
+
 		return actualIntervalMs;
 	}
 
 	private void ProcessCoreSimulation(float fDelta)
 	{
-		_simulationService.TickEcs(fDelta);
+		GameContext.SimulationService.TickEcs(fDelta);
 		PollVFXQueue();
 		TickConstructionSystem(fDelta);
 		UpdateVisualNodesFromEcs(fDelta);
@@ -2925,19 +2831,19 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void ProcessVisualAndEnvironment(float fDelta)
 	{
-		if (EcsWorld != null && EcsWorld.IsAlive(_worldEntity) && EcsWorld.Has<WorldState>(_worldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
 		{
-			var state = EcsWorld.Get<WorldState>(_worldEntity);
-			if (state.DayNightCycleEnabled && !IsMapEditorMode)
+			var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+			if (state.DayNightCycleEnabled && !GameContext.EditorService.IsMapEditorMode)
 			{
-				float progress = state.TimeOfDayTimer / TimeOfDayCycleDuration;
+				float progress = state.TimeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
 				UpdateDayNightVisuals(progress);
 			}
 		}
 
-		if (_environmentService != null && _environmentService.IsTransitioning)
-			_environmentService.UpdateTransition(this, fDelta);
-			
+		if (GameContext.EnvironmentService != null && GameContext.EnvironmentService.IsTransitioning)
+			GameContext.EnvironmentService.UpdateTransition(this, fDelta);
+
 		UpdateMinimapPings(fDelta);
 	}
 
@@ -2950,7 +2856,7 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 		UpdateBuildingPreview();
 
-		if (!ReplayPlaybackManager.Instance.IsPlayingReplay && GameSettings.RecordReplays && _replayService != null && _replayService.IsRecording)
+		if (!ReplayPlaybackManager.Instance.IsPlayingReplay && GameSettings.RecordReplays && GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
 			RecordGameplayTick();
 	}
 
@@ -2958,21 +2864,21 @@ public static void EnsureMapProjectFiles(string mapDir)
 	{
 		if (Multiplayer.MultiplayerPeer != null && !Multiplayer.IsServer()) return;
 
-		_trackerTickStopwatch.Stop();
-		float tickCpuMs = (float)_trackerTickStopwatch.Elapsed.TotalMilliseconds;
+		GameContext.PerformanceTrackingService.TrackerTickStopwatch.Stop();
+		float tickCpuMs = (float)GameContext.PerformanceTrackingService.TrackerTickStopwatch.Elapsed.TotalMilliseconds;
 		float tickDelay = actualIntervalMs > 33.33f ? actualIntervalMs - 33.33f : 0f;
-		
+
 		float adjustedTickMs = tickCpuMs + tickDelay;
-		if (_trackerTickDurations != null) _trackerTickDurations.Add(adjustedTickMs);
-		
-		_trackerLastTickDelay = tickDelay;
+		if (GameContext.PerformanceTrackingService.TrackerTickDurations != null) GameContext.PerformanceTrackingService.TrackerTickDurations.Add(adjustedTickMs);
+
+		GameContext.PerformanceTrackingService.TrackerLastTickDelay = tickDelay;
 	}
 
 	private void PollVFXQueue()
 	{
-		if (EcsWorld == null || !EcsWorld.IsAlive(_worldEntity) || !EcsWorld.Has<Realm.Ecs.Components.Core.VFXQueue>(_worldEntity)) return;
+		if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<VFXQueue>(ECSContext.WorldEntity)) return;
 
-		ref var queue = ref EcsWorld.Get<Realm.Ecs.Components.Core.VFXQueue>(_worldEntity);
+		ref var queue = ref GameContext.World.Get<VFXQueue>(ECSContext.WorldEntity);
 		if (queue.Requests.Count == 0) return;
 
 		for (int i = 0; i < queue.Requests.Count; i++)
@@ -2983,27 +2889,27 @@ public static void EnsureMapProjectFiles(string mapDir)
 		queue.Requests.Clear();
 	}
 
-	private void ProcessVFXRequest(Realm.Ecs.Components.Core.VFXRequest req)
+	private void ProcessVFXRequest(VFXRequest req)
 	{
 		var godotPos = new Vector3(req.Position.X, req.Position.Y, req.Position.Z);
 		var godotTarget = new Vector3(req.TargetPosition.X, req.TargetPosition.Y, req.TargetPosition.Z);
 
 		if (TryProcessAbilityVfx(req, godotPos)) return;
 		if (TryProcessProjectileVfx(req, godotPos, godotTarget)) return;
-		
+
 		ProcessMiscVfx(req, godotPos, godotTarget);
 	}
 
-	private bool TryProcessAbilityVfx(Realm.Ecs.Components.Core.VFXRequest req, Vector3 godotPos)
+	private bool TryProcessAbilityVfx(VFXRequest req, Vector3 godotPos)
 	{
 		var def = GetAbilityDefinition(req.EffectTypeId);
 		if (def == null) return false;
-		
-		_fxService.SpawnAbilityEffect(this, def, godotPos);
+
+		GameContext.FXService.SpawnAbilityEffect(this, def, godotPos);
 		return true;
 	}
 
-	private bool TryProcessProjectileVfx(Realm.Ecs.Components.Core.VFXRequest req, Vector3 godotPos, Vector3 godotTarget)
+	private bool TryProcessProjectileVfx(VFXRequest req, Vector3 godotPos, Vector3 godotTarget)
 	{
 		if (req.EffectTypeId != "arrow" && !WeaponRegistry.ContainsKey(req.EffectTypeId) && !req.EffectTypeId.StartsWith("proj:")) return false;
 
@@ -3012,21 +2918,21 @@ public static void EnsureMapProjectFiles(string mapDir)
 		return true;
 	}
 
-	private void ProcessMiscVfx(Realm.Ecs.Components.Core.VFXRequest req, Vector3 godotPos, Vector3 godotTarget)
+	private void ProcessMiscVfx(VFXRequest req, Vector3 godotPos, Vector3 godotTarget)
 	{
 		if (req.EffectTypeId == "heal") SpawnHealVisualEffect(godotPos, godotTarget);
 		else if (req.EffectTypeId == "target_indicator") SpawnTargetIndicator(godotPos, new Color(req.Scale, 0.3f, 0.1f));
 		else if (req.EffectTypeId == "damage_flash" || req.EffectTypeId == "heal_flash") TryProcessUnitFlash(req);
 	}
 
-	private void TryProcessUnitFlash(Realm.Ecs.Components.Core.VFXRequest req)
+	private void TryProcessUnitFlash(VFXRequest req)
 	{
 		if (req.EntityId == -1) return;
 		var unit = EntityToUnit3D.FirstOrDefault(kv => kv.Key.Id == req.EntityId).Value;
 		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
 
-		if (req.EffectTypeId == "damage_flash") _fxService.FlashDamageUnit(unit);
-		else _fxService.FlashHealUnit(unit);
+		if (req.EffectTypeId == "damage_flash") GameContext.FXService.FlashDamageUnit(unit);
+		else GameContext.FXService.FlashHealUnit(unit);
 	}
 
 	private Entity GetEntityById(int entityId)
@@ -3039,85 +2945,89 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void UpdateMinimapPings(float fDelta)
 	{
-		for (int i = ActivePings.Count - 1; i >= 0; i--)
+		for (int i = GameContext.FXService.ActivePings.Count - 1; i >= 0; i--)
 		{
-			var ping = ActivePings[i];
+			var ping = GameContext.FXService.ActivePings[i];
 			ping.LifeTime += fDelta;
 			if (ping.LifeTime >= ping.MaxLifeTime)
 			{
-				ActivePings.RemoveAt(i);
+				GameContext.FXService.ActivePings.RemoveAt(i);
 			}
 			else
 			{
-				ActivePings[i] = ping;
+				GameContext.FXService.ActivePings[i] = ping;
 			}
 		}
 	}
 
 	private void UpdateDayNightVisuals(float progress)
 	{
-		_environmentService?.UpdateDayNightVisuals(this, progress);
+		GameContext.EnvironmentService?.UpdateDayNightVisuals(this, progress);
 	}
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(int timeOfDayIndex)
 	{
-		return _environmentService?.SetTimeOfDay(this, _worldEntity, timeOfDayIndex, TimeOfDayCycleDuration) ?? (0, 0f);
+		return GameContext.EnvironmentService?.SetTimeOfDay(this, ECSContext.WorldEntity, timeOfDayIndex, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
 	}
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay()
 	{
-		return _environmentService?.CycleTimeOfDay(this, _worldEntity, TimeOfDayCycleDuration) ?? (0, 0f);
+		return GameContext.EnvironmentService?.CycleTimeOfDay(this, ECSContext.WorldEntity, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
 	}
 
 	public string GetTimeOfDayName()
 	{
-		return _environmentService?.GetTimeOfDayName(TimeOfDayIndex) ?? "Unknown";
+		return GameContext.EnvironmentService?.GetTimeOfDayName(TimeOfDayIndex) ?? "Unknown";
 	}
 
 	private void SpawnSpritesheetEffect(string texturePath, Vector3 worldPosition, int columns, int rows, float secondsPerFrame, float sizeInWorldUnits)
 	{
-		_fxService.SpawnSpritesheetEffect(this, texturePath, worldPosition, columns, rows, secondsPerFrame, sizeInWorldUnits);
+		GameContext.FXService.SpawnSpritesheetEffect(this, texturePath, worldPosition, columns, rows, secondsPerFrame, sizeInWorldUnits);
 	}
 
-	private void FlashDamageUnit(Realm.Client.Unit3D unit)
+	private void FlashDamageUnit(Unit3D unit)
 	{
-		_fxService.FlashDamageUnit(unit);
+		GameContext.FXService.FlashDamageUnit(unit);
 	}
 
 	private void SpawnHealVisualEffect(Vector3 start, Vector3 target)
 	{
-		_fxService.SpawnHealVisualEffect(this, start, target);
+		GameContext.FXService.SpawnHealVisualEffect(this, start, target);
 	}
 
-	private void FlashHealUnit(Realm.Client.Unit3D unit)
+	private void FlashHealUnit(Unit3D unit)
 	{
-		_fxService.FlashHealUnit(unit);
+		GameContext.FXService.FlashHealUnit(unit);
 	}
 
 	private void SpawnPing3DEffect(Vector3 position)
 	{
-		_fxService.SpawnPing3DEffect(this, position);
+		GameContext.FXService.SpawnPing3DEffect(this, position);
 	}
 
 	public void SpawnArrowProjectileForReplay(System.Numerics.Vector3 start, System.Numerics.Vector3 target)
 	{
-		_fxService.SpawnArrowProjectile(this, new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
+		GameContext.FXService.SpawnArrowProjectile(this, new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
 	}
+
 	public void SpawnWeaponProjectileForReplay(System.Numerics.Vector3 start, System.Numerics.Vector3 target, string? weaponId = null)
 	{
-		_fxService.SpawnWeaponProjectile(this, new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z), weaponId);
+		GameContext.FXService.SpawnWeaponProjectile(this, new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z), weaponId);
 	}
+
 	private void SpawnArrowProjectile(Vector3 start, Vector3 target)
 	{
 		SpawnWeaponProjectile(start, target, "arrow");
 	}
+
 	public void SpawnWeaponProjectile(Vector3 start, Vector3 target, string? weaponId = null, Entity targetEntity = default)
 	{
-		_fxService.SpawnWeaponProjectile(this, start, target, weaponId, targetEntity);
-		if (_replayService != null && _replayService.IsRecording)
+		GameContext.FXService.SpawnWeaponProjectile(this, start, target, weaponId, targetEntity);
+		if (GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
 		{
-			_replayService.RecordProjectile(weaponId ?? "arrow", new System.Numerics.Vector3(start.X, start.Y, start.Z), new System.Numerics.Vector3(target.X, target.Y, target.Z));
+			GameContext.ReplayService.RecordProjectile(weaponId ?? "arrow", new System.Numerics.Vector3(start.X, start.Y, start.Z), new System.Numerics.Vector3(target.X, target.Y, target.Z));
 		}
+
 		if (_multiplayerActive && IsServerActive())
 		{
 			Rpc(nameof(ClientSpawnArrowProjectile), start, target);
@@ -3126,17 +3036,11 @@ public static void EnsureMapProjectFiles(string mapDir)
 
 	private void SpawnTargetIndicator(Vector3 position, Color color)
 	{
-		_fxService.SpawnTargetIndicator(this, position, color);
+		GameContext.FXService.SpawnTargetIndicator(this, position, color);
 	}
 
 	public void AddMinimapPing(Vector3 position)
 	{
-		_fxService.AddMinimapPing(this, ActivePings, position);
-	}
-
-	private class EmptyMapScript : Realm.MapAPI.IMapScript
-	{
-		public void Initialize(Realm.MapAPI.IGameAPI api) {}
-		public void Update(Realm.MapAPI.IGameAPI api, float delta) {}
+		GameContext.FXService.AddMinimapPing(this, GameContext.FXService.ActivePings, position);
 	}
 }

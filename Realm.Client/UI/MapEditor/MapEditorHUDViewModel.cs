@@ -1,20 +1,12 @@
 using System.Collections.Generic;
+using Realm.Client.Core;
+using Realm.Client.Services;
 using PasteReflection = Realm.Ecs.Components.Core.PasteReflection;
 
 namespace Realm.Client.UI.MapEditor;
 
 public class MapEditorHUDViewModel
 {
-	public enum EditorModule
-	{
-		Terrain,
-		TextureDeco,
-		Pathing,
-		Objects,
-		Coordinates,
-		Clipboard
-	}
-
 	public bool LeftPanelExpanded { get; set; } = false;
 	public bool RightPanelExpanded { get; set; } = true;
 	public EditorModule ActiveModule { get; set; } = EditorModule.Terrain;
@@ -33,9 +25,20 @@ public class MapEditorHUDViewModel
 	public bool RandomScale { get; set; } = false;
 	public bool ClumpMode { get; set; } = false;
 	public float ClumpCount { get; set; } = 5f;
-	public float ClumpDensity { get => ClumpCount; set => ClumpCount = value; }
+
+	public float ClumpDensity
+	{
+		get => ClumpCount;
+		set => ClumpCount = value;
+	}
+
 	public float ClumpScale { get; set; } = 0.3f;
-	public float ClumpScaleVar { get => ClumpScale; set => ClumpScale = value; }
+
+	public float ClumpScaleVar
+	{
+		get => ClumpScale;
+		set => ClumpScale = value;
+	}
 
 	public string CurrentCategory { get; set; } = "Units";
 	public List<string> CategoryFiles { get; } = new();
@@ -65,30 +68,30 @@ public class MapEditorHUDViewModel
 
 	public void UpdateFromHost()
 	{
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			BrushSize = Realm.Client.Core.GameHost.Instance.EditorBrushRadius;
-			BrushStrength = Realm.Client.Core.GameHost.Instance.EditorBrushStrength;
-			BlockStep = Realm.Client.Core.GameHost.Instance.EditorBlockLevelHeight;
-			ExactHeight = Realm.Client.Core.GameHost.Instance.EditorExactHeight;
+			BrushSize = GameHost.Instance.EditorBrushRadius;
+			BrushStrength = GameHost.Instance.EditorBrushStrength;
+			BlockStep = GameHost.Instance.EditorBlockLevelHeight;
+			ExactHeight = GameHost.Instance.EditorExactHeight;
 
-			PlacementRotate = Realm.Client.Core.GameHost.Instance.EditorPlacementRotation;
-			PlacementScale = Realm.Client.Core.GameHost.Instance.EditorPlacementScale;
-			PasteRotation = Realm.Client.Core.GameHost.Instance.EditorPasteRotation;
-			PasteReflection = Realm.Client.Core.GameHost.Instance.EditorPasteReflection;
-			SpawnAsEnemy = Realm.Client.Core.GameHost.Instance.PlaceUnitIsEnemy;
-			RandomRotation = Realm.Client.Core.GameHost.Instance.EditorRandomRotation;
-			RandomScale = Realm.Client.Core.GameHost.Instance.EditorRandomScale;
-			ClumpMode = Realm.Client.Core.GameHost.Instance.EditorClumpMode;
-			ClumpCount = Realm.Client.Core.GameHost.Instance.EditorClumpCount;
-			ClumpScale = Realm.Client.Core.GameHost.Instance.EditorClumpScale;
+			PlacementRotate = GameContext.EditorService.EditorPlacementRotation;
+			PlacementScale = GameHost.Instance.EditorPlacementScale;
+			PasteRotation = GameContext.EditorService.EditorPasteRotation;
+			PasteReflection = GameContext.EditorService.EditorPasteReflection;
+			SpawnAsEnemy = GameContext.EditorService.PlaceUnitIsEnemy;
+			RandomRotation = GameContext.EditorService.EditorRandomRotation;
+			RandomScale = GameContext.EditorService.EditorRandomScale;
+			ClumpMode = GameHost.Instance.EditorClumpMode;
+			ClumpCount = GameHost.Instance.EditorClumpCount;
+			ClumpScale = GameHost.Instance.EditorClumpScale;
 
-			SnapToGrid = Realm.Client.Core.GameHost.Instance.EditorSnapToGrid;
-			GridOverlayVisible = Realm.Client.Core.GameHost.Instance.EditorGridVisible;
-			CameraBoundsOverlayVisible = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsVisible;
-			DisableShadows = Realm.Client.Core.GameHost.Instance.EditorDisableShadows;
-			PathingOverlayVisible = Realm.Client.Core.GameHost.Instance.PathingOverlayVisible;
-			BrushShapeSquare = Realm.Client.Core.GameHost.Instance.EditorBrushIsSquare;
+			SnapToGrid = GameHost.Instance.EditorSnapToGrid;
+			GridOverlayVisible = GameHost.Instance.EditorGridVisible;
+			CameraBoundsOverlayVisible = GameContext.EditorService.EditorCameraBoundsVisible;
+			DisableShadows = GameContext.EditorService.EditorDisableShadows;
+			PathingOverlayVisible = GameHost.Instance.PathingOverlayVisible;
+			BrushShapeSquare = GameHost.Instance.EditorBrushIsSquare;
 		}
 	}
 }

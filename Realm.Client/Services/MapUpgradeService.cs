@@ -1,7 +1,3 @@
-using Godot;
-using Realm.Ecs.Services;
-using Realm.Shared;
-using Realm.Shared.Distribution;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +5,10 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Shared;
+using Realm.Shared.Distribution;
+using Environment = System.Environment;
 
 namespace Realm.Client.Services;
 
@@ -39,14 +39,11 @@ public class MapUpgradeService
 			}
 		}
 	}
-	private readonly WorldAccessor _worldAccessor;
+
 	private readonly List<IMapMigration> _migrations = new();
 
-	public static MapUpgradeService Instance => ServiceLocator.Get<MapUpgradeService>();
-
-	public MapUpgradeService(WorldAccessor worldAccessor)
+	public MapUpgradeService()
 	{
-		_worldAccessor = worldAccessor;
 		RegisterMigrations();
 	}
 
@@ -143,6 +140,7 @@ public class MapUpgradeService
 		{
 			cleaned = cleaned.Substring(0, separatorIndex).Trim();
 		}
+
 		return cleaned;
 	}
 
@@ -163,7 +161,7 @@ public class MapUpgradeService
 		{
 			return new Version(parsed[0], parsed[1], parsed[2], parsed[3]);
 		}
-		
+
 		return new Version(0, 0, 0, 0);
 	}
 
@@ -180,6 +178,7 @@ public class MapUpgradeService
 			{
 				break;
 			}
+
 			pending.Add(nextMigration);
 			current = nextMigration.ToVersion;
 		}
@@ -277,7 +276,7 @@ public class MapUpgradeService
 			}
 			catch
 			{
-				string appData = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData);
+				string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 				userDataDir = Path.Combine(appData, "Godot", "app_userdata", "Realm");
 			}
 
@@ -337,22 +336,22 @@ public class MapUpgradeService
 	private static bool ShouldIgnoreDirectory(string subDirFull, string normalizedTarget, string? normalizedBackupsRoot)
 	{
 		if (subDirFull.IndexOf("map_backups", StringComparison.OrdinalIgnoreCase) >= 0 ||
-			subDirFull.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
-			subDirFull.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
+		    subDirFull.IndexOf("map_upgrades", StringComparison.OrdinalIgnoreCase) >= 0 ||
+		    subDirFull.IndexOf(".backups", StringComparison.OrdinalIgnoreCase) >= 0)
 		{
 			return true;
 		}
 
 		if (!string.IsNullOrEmpty(normalizedBackupsRoot) &&
-			(string.Equals(subDirFull, normalizedBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
-			 subDirFull.StartsWith(normalizedBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+		    (string.Equals(subDirFull, normalizedBackupsRoot, StringComparison.OrdinalIgnoreCase) ||
+		     subDirFull.StartsWith(normalizedBackupsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
 		{
 			return true;
 		}
 
 		if (string.Equals(subDirFull, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
-			subDirFull.StartsWith(normalizedTarget + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-			normalizedTarget.StartsWith(subDirFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+		    subDirFull.StartsWith(normalizedTarget + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+		    normalizedTarget.StartsWith(subDirFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}

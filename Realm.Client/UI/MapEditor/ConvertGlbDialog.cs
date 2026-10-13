@@ -1,9 +1,11 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Shared;
+using Realm.Shared.ModelOptimization;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -49,10 +51,11 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		{
 			btnWebAi.Text = "🌐";
 		}
+
 		btnWebAi.TooltipText = TranslationServer.Translate("Generate 3D Model with AI Online");
 		btnWebAi.CustomMinimumSize = new Vector2(24, 24);
-		btnWebAi.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-		btnWebAi.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		btnWebAi.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		btnWebAi.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		btnWebAi.FocusMode = FocusModeEnum.None;
 		btnWebAi.Pressed += () => OS.ShellOpen("https://3d.hunyuanglobal.com");
 		HeaderHBox.AddChild(btnWebAi);
@@ -246,11 +249,12 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			_chkTeamColorMask.ButtonPressed = true;
 			if (_colorPickerRow != null) _colorPickerRow.Visible = true;
 		}
-		
+
 		if (_colorPicker != null)
 		{
 			_colorPicker.Color = Color.FromHtml(detectedKey);
 		}
+
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Detected mask color: {0}"), detectedKey));
 	}
 
@@ -263,7 +267,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 
 		string hexColor = $"#{_colorPicker!.Color.ToHtml(false)}";
 		string? correctedKey = GlbPlayerColorProcessor.FindClosestMatchingChromaKey(sourcePath, hexColor);
-		
+
 		ApplyCorrectedChromaKey(correctedKey, hexColor);
 	}
 
@@ -293,7 +297,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 	{
 		if (string.IsNullOrWhiteSpace(path)) return;
 
-		string resolvedName = AssetIndexService.Instance?.ResolvePrettyFileName(path) ?? Path.GetFileName(path);
+		string resolvedName = GameContext.AssetIndexService?.ResolvePrettyFileName(path) ?? Path.GetFileName(path);
 		string fileNameWithoutExt = Path.GetFileNameWithoutExtension(resolvedName);
 		string cleanBase = fileNameWithoutExt.ToLowerInvariant().Replace(' ', '_');
 		_txtAssetName.Text = cleanBase;
@@ -369,7 +373,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 	private void ApplyTeamColorDefaults(bool teamColor)
 	{
 		if (_chkTeamColorMask == null) return;
-		
+
 		_chkTeamColorMask.ButtonPressed = teamColor;
 		if (_colorPickerRow != null) _colorPickerRow.Visible = teamColor;
 		if (_chkAutoCorrectChromaKey != null) _chkAutoCorrectChromaKey.Visible = teamColor;
@@ -398,6 +402,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 				? new Color(0.9f, 0.35f, 0.35f)
 				: new Color(0.6f, 0.9f, 0.6f));
 		}
+
 		if (_progressBar != null)
 		{
 			_progressBar.Value = progressPercent;
@@ -439,7 +444,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		string fileName = $"{cleanBase}.rmesh";
 
 		string subCategory = GetSubCategoryForApply();
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string destDir = Path.Combine(wsPath, "Assets", "models", subCategory);
 		Directory.CreateDirectory(destDir);
 		string destPath = Path.Combine(destDir, fileName);
@@ -467,9 +472,10 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		string assetName = _txtAssetName.Text?.Trim() ?? string.Empty;
 		if (string.IsNullOrEmpty(assetName))
 		{
-			string resolvedSource = AssetIndexService.Instance?.ResolvePrettyFileName(sourcePath) ?? Path.GetFileName(sourcePath);
+			string resolvedSource = GameContext.AssetIndexService?.ResolvePrettyFileName(sourcePath) ?? Path.GetFileName(sourcePath);
 			return Path.GetFileNameWithoutExtension(resolvedSource).ToLowerInvariant().Replace(' ', '_');
 		}
+
 		return assetName;
 	}
 
@@ -543,6 +549,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			errorMessage = string.Format(TranslationServer.Translate("Auto-rigging failed: {0}"), rigResult.ErrorMessage);
 			return false;
 		}
+
 		currentPath = riggedPath;
 		return true;
 	}
@@ -565,10 +572,12 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			errorMessage = string.Format(TranslationServer.Translate("Team color mask failed: {0}"), maskResult.ErrorMessage);
 			return false;
 		}
+
 		if (!string.IsNullOrEmpty(maskResult.DetectedChromaKey))
 		{
 			chromaKeyHex = maskResult.DetectedChromaKey;
 		}
+
 		currentPath = maskedPath;
 		return true;
 	}
@@ -581,12 +590,12 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		int maxRes = subCategory is "attachments" or "items" ? 512 : 1024;
 		string canonicalAssetType = GetCanonicalAssetType(subCategory);
 
-		var convRes = Realm.Shared.ModelOptimization.ModelConverter.ConvertToRmesh(
+		var convRes = ModelConverter.ConvertToRmesh(
 			currentPath,
 			destPath,
 			canonicalAssetType,
 			force: true,
-			options: new Realm.Shared.OptimizationOptions
+			options: new OptimizationOptions
 			{
 				SimplificationRatio = 0.5f,
 				MaxTextureResolution = maxRes,
@@ -599,7 +608,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			errorMessage = string.Format(TranslationServer.Translate("Conversion failed: {0}"), convRes.ErrorMessage);
 			return false;
 		}
-		
+
 		outputBytes = convRes.OutputBytes;
 		return true;
 	}
@@ -642,8 +651,11 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			if (Directory.Exists(tempWorkingDir))
 				Directory.Delete(tempWorkingDir, true);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
+
 	private void OnConversionFinished(string resultPath, string errorMessage)
 	{
 		SetConvertingState(false);
@@ -670,7 +682,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		}
 
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Converted and imported 3D model '{0}'!"), fileName));
-		AssetIndexService.Instance.RescanAllDirectories();
+		GameContext.AssetIndexService.RescanAllDirectories();
 		_onConvertedCallback?.Invoke(resultPath);
 		CloseDialog();
 	}
@@ -699,10 +711,10 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 	private void CalculateAndSaveMetadata(string resultPath, string fileName, string subCategory, float defaultScale)
 	{
 		var (minY, autoYOffset) = ModelCache.CalculateModelBounds(resultPath, defaultScale);
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string unitId = Path.GetFileNameWithoutExtension(fileName);
 
-		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 		{
 			meta.SetModelYOffset(fileName, autoYOffset);
 			meta.SetModelScale(fileName, defaultScale);
@@ -710,11 +722,11 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 			UpdateSpecificMetadata(meta, subCategory, unitId, fileName, defaultScale, autoYOffset);
 		});
 
-		MetadataService.Instance.CleanMetadata(wsPath);
-		Realm.Client.Core.GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
-		Realm.Client.Core.GameHost.Instance?.SetModelScale(fileName, defaultScale);
-		Realm.Client.Core.GameHost.Instance?.FlushModelYOffsetSave();
-		Realm.Client.Core.GameHost.Instance?.LoadUnitMetadata(wsPath);
+		GameContext.MetadataService.CleanMetadata(wsPath);
+		GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
+		GameHost.Instance?.SetModelScale(fileName, defaultScale);
+		GameHost.Instance?.FlushModelYOffsetSave();
+		GameHost.Instance?.LoadUnitMetadata(wsPath);
 	}
 
 	private void UpdateSpecificMetadata(MapMetadata meta, string subCategory, string unitId, string fileName, float defaultScale, float autoYOffset)

@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
@@ -9,5 +11,5 @@ public struct ZoneBounds
 	public float MinZ;
 	public float MaxX;
 	public float MaxZ;
-	public System.Numerics.Vector3 Center;
+	public Vector3 Center;
 }

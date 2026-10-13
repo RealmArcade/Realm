@@ -46,4 +46,3 @@ namespace Realm.Ecs.Components.Core
 		}
 	}
 }
-

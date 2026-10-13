@@ -1,10 +1,24 @@
+using System;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class ReplayViewerPanel : PanelContainer
 {
+	public ReplayViewerPanel()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
 	private Button _playPauseBtn;
 	private Button _speedBtn05;
 	private Button _speedBtn1;
@@ -69,7 +83,7 @@ public partial class ReplayViewerPanel : PanelContainer
 	{
 		_playPauseBtn.Pressed += OnPlayPausePressed;
 		_playPauseBtn.MouseEntered += PlayHoverSound;
-		
+
 		_speedBtn05.Pressed += () => SetSpeed(0.5f);
 		_speedBtn1.Pressed += () => SetSpeed(1.0f);
 		_speedBtn2.Pressed += () => SetSpeed(2.0f);
@@ -83,7 +97,7 @@ public partial class ReplayViewerPanel : PanelContainer
 		_speedBtn8.MouseEntered += PlayHoverSound;
 		_tetherBtn.MouseEntered += PlayHoverSound;
 		_quitBtn.MouseEntered += PlayHoverSound;
-		
+
 		_tetherBtn.Pressed += OnTetherPressed;
 		_quitBtn.Pressed += OnQuitPressed;
 	}
@@ -118,6 +132,7 @@ public partial class ReplayViewerPanel : PanelContainer
 		{
 			ReplayPlaybackManager.Instance.ScrubTo((int)_scrubber.Value);
 		}
+
 		ReplayPlaybackManager.Instance.IsPlaying = true;
 		_reachedEnd = false;
 	}
@@ -128,6 +143,7 @@ public partial class ReplayViewerPanel : PanelContainer
 		{
 			return;
 		}
+
 		ReplayPlaybackManager.Instance.ScrubTo((int)val);
 		_reachedEnd = false;
 	}
@@ -151,6 +167,7 @@ public partial class ReplayViewerPanel : PanelContainer
 			ReplayPlaybackManager.Instance.ScrubTo(0);
 			_reachedEnd = false;
 		}
+
 		ReplayPlaybackManager.Instance.IsPlaying = nowPlaying;
 		UpdatePlayPauseButtonText();
 	}
@@ -217,7 +234,7 @@ public partial class ReplayViewerPanel : PanelContainer
 	private void OnTetherPressed()
 	{
 		UIManager.Instance?.PlayClickSound();
-		var camera = GetTree().Root.GetNodeOrNull<Realm.Client.CameraControl>("Main/Camera3D");
+		var camera = GameHost.Instance?.MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
 		if (camera == null) return;
 
 		if (camera.FollowTarget != null)
@@ -227,10 +244,10 @@ public partial class ReplayViewerPanel : PanelContainer
 		}
 		else
 		{
-			Realm.Client.Unit3D targetUnit = null;
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.AllUnits.Count > 0)
+			Unit3D targetUnit = null;
+			if (GameHost.Instance != null && GameHost.Instance.AllUnits.Count > 0)
 			{
-				foreach (var unit in Realm.Client.Core.GameHost.Instance.AllUnits)
+				foreach (var unit in GameHost.Instance.AllUnits)
 				{
 					if (unit != null && GodotObject.IsInstanceValid(unit))
 					{
@@ -252,14 +269,15 @@ public partial class ReplayViewerPanel : PanelContainer
 	{
 		UIManager.Instance?.PlayClickSound();
 		ReplayPlaybackManager.Instance.StopReplay();
-		Realm.Client.Core.GameHost.Instance?.StopRecording();
-		Realm.Client.Core.GameHost.Instance?.ResetWorldAndState();
-		if (Network.LobbyManager.Instance != null)
+		GameHost.Instance?.StopRecording();
+		GameHost.Instance?.ResetWorldAndState();
+		if (LobbyManager.Instance != null)
 		{
-			Network.LobbyManager.Instance.IsGameStarted = false;
-			Network.LobbyManager.Instance.ActiveMapName = "";
+			LobbyManager.Instance.IsGameStarted = false;
+			LobbyManager.Instance.ActiveMapName = "";
 		}
-		GetTree().ChangeSceneToFile("res://Main.tscn");
+
+		GetTree().ChangeSceneToFile("res://GameHostView.tscn");
 	}
 
 	public override void _Process(double delta)

@@ -57,6 +57,5 @@ public class ModelMetadata
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public bool? EnableProceduralAnimation { get; set; }
 
-	[JsonExtensionData]
-	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

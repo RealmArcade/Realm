@@ -1,6 +1,6 @@
-using Realm.Ecs.Common;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using Realm.Ecs.Common;
 
 namespace Realm.Client.ReplaySystem
 {
@@ -25,6 +25,7 @@ namespace Realm.Client.ReplaySystem
 				{
 					frame.Units.Clear();
 				}
+
 				if (frame.Projectiles == null)
 				{
 					frame.Projectiles = new List<ReplayProjectileSnapshot>(projCap);
@@ -33,8 +34,10 @@ namespace Realm.Client.ReplaySystem
 				{
 					frame.Projectiles.Clear();
 				}
+
 				return frame;
 			}
+
 			return new ReplayFrame
 			{
 				Units = new List<ReplayUnitSnapshot>(unitsCap),
@@ -48,10 +51,12 @@ namespace Realm.Client.ReplaySystem
 			{
 				frame.Units.Clear();
 			}
+
 			if (frame.Projectiles != null)
 			{
 				frame.Projectiles.Clear();
 			}
+
 			_framePool.Add(frame);
 		}
 
@@ -62,6 +67,7 @@ namespace Realm.Client.ReplaySystem
 				list.Clear();
 				return list;
 			}
+
 			return new List<ReplayUnitSnapshot>(GameplayConstants.MaxUnitsLimit);
 		}
 
@@ -78,6 +84,7 @@ namespace Realm.Client.ReplaySystem
 				list.Clear();
 				return list;
 			}
+
 			return new List<ReplayProjectileSnapshot>(GameplayConstants.MaxProjectilesLimit);
 		}
 
@@ -94,6 +101,7 @@ namespace Realm.Client.ReplaySystem
 				list.Clear();
 				return list;
 			}
+
 			return new List<int>(GameplayConstants.MaxUnitsLimit);
 		}
 

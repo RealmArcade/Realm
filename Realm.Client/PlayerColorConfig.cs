@@ -1,5 +1,5 @@
+﻿using System.Collections.Generic;
 using Godot;
-using System.Collections.Generic;
 
 namespace Realm.Client;
 
@@ -7,19 +7,6 @@ public static class PlayerColorConfig
 {
 	public const int NEUTRAL_PLAYER_INDEX = 9;
 
-	public readonly struct PlayerColorEntry
-	{
-		public int Index { get; }
-		public string Name { get; }
-		public Color Color { get; }
-
-		public PlayerColorEntry(int index, string name, Color color)
-		{
-			Index = index;
-			Name = name;
-			Color = color;
-		}
-	}
 
 	public static readonly PlayerColorEntry[] Palette = new PlayerColorEntry[]
 	{
@@ -66,6 +53,7 @@ public static class PlayerColorConfig
 		{
 			return Palette[playerIndex].Color;
 		}
+
 		return Palette[NEUTRAL_PLAYER_INDEX].Color;
 	}
 
@@ -75,6 +63,7 @@ public static class PlayerColorConfig
 		{
 			return Palette[playerIndex].Name;
 		}
+
 		return Palette[NEUTRAL_PLAYER_INDEX].Name;
 	}
 
@@ -84,6 +73,7 @@ public static class PlayerColorConfig
 		{
 			if (Palette[i].Color.IsEqualApprox(color)) return i;
 		}
+
 		return 0;
 	}
 
@@ -93,6 +83,7 @@ public static class PlayerColorConfig
 		{
 			return Palette[NEUTRAL_PLAYER_INDEX].Color;
 		}
+
 		return Palette[playerIndex.Value].Color;
 	}
 }

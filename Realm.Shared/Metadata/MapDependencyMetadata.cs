@@ -12,6 +12,5 @@ public class MapDependencyMetadata
 	public bool IsOptional { get; set; }
 	public string? Url { get; set; }
 
-	[JsonExtensionData]
-	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

@@ -1,9 +1,9 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Utils;
 
@@ -29,7 +29,7 @@ public static class SpawnDeathShaderManager
 
 		string wsPath = !string.IsNullOrEmpty(workspacePath)
 			? workspacePath
-			: Services.MapWorkspaceService.GetActiveWorkspacePath();
+			: MapWorkspaceService.GetActiveWorkspacePath();
 
 		try
 		{
@@ -79,11 +79,13 @@ public static class SpawnDeathShaderManager
 		{
 			return cfg;
 		}
+
 		string normalizedKey = TemplateIDHelper.NormalizeTemplateID("SpawnShader", shaderKey);
 		if (all.TryGetValue(normalizedKey, out var normCfg))
 		{
 			return normCfg;
 		}
+
 		return null;
 	}
 
@@ -93,9 +95,9 @@ public static class SpawnDeathShaderManager
 
 		string wsPath = !string.IsNullOrEmpty(workspacePath)
 			? workspacePath
-			: Services.MapWorkspaceService.GetActiveWorkspacePath();
+			: MapWorkspaceService.GetActiveWorkspacePath();
 
-		MetadataService.Instance.UpdateMetadata(wsPath, m =>
+		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 		{
 			m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
 			m.SpawnShaders[config.Key] = new SpawnShaderMetadata
@@ -123,11 +125,11 @@ public static class SpawnDeathShaderManager
 
 		string wsPath = !string.IsNullOrEmpty(workspacePath)
 			? workspacePath
-			: Services.MapWorkspaceService.GetActiveWorkspacePath();
+			: MapWorkspaceService.GetActiveWorkspacePath();
 
 		try
 		{
-			Realm.Client.Utils.MapAssetHelper.RemoveManifestAsset(wsPath, "shaders", shaderKey);
+			MapAssetHelper.RemoveManifestAsset(wsPath, "shaders", shaderKey);
 		}
 		catch (Exception ex)
 		{
@@ -171,13 +173,13 @@ public static class SpawnDeathShaderManager
 		if (node == null) return true;
 		string nodeName = node.Name.ToString();
 		return nodeName.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)
-			|| nodeName.Contains("HoverRing", StringComparison.OrdinalIgnoreCase);
+		       || nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.Contains("HoverRing", StringComparison.OrdinalIgnoreCase);
 	}
 
 	public static Aabb CalculateNodeAabb(Node3D root)
@@ -201,6 +203,7 @@ public static class SpawnDeathShaderManager
 					combined = combined.Merge(aabb);
 				}
 			}
+
 			foreach (Node child in node.GetChildren())
 			{
 				Traverse(child);
@@ -212,6 +215,7 @@ public static class SpawnDeathShaderManager
 		{
 			combined.Size = new Vector3(combined.Size.X, 1.0f, combined.Size.Z);
 		}
+
 		return combined;
 	}
 
@@ -289,6 +293,7 @@ public static class SpawnDeathShaderManager
 			{
 				mesh.MaterialOverride = null;
 			}
+
 			foreach (Node child in node.GetChildren())
 			{
 				ClearMesh(child);
@@ -322,6 +327,7 @@ public static class SpawnDeathShaderManager
 			{
 				onComplete();
 			}
+
 			return;
 		}
 

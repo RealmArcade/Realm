@@ -71,6 +71,7 @@ public class StrategicAutoBalancer
 			float mutation = (float)(Random.NextDouble() * 0.2 - 0.1) * vec[i];
 			vec[i] += mutation;
 		}
+
 		child.FromVector(vec);
 		return child;
 	}

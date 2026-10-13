@@ -1,4 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
 using Arch.Core;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.ReplaySystem;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -7,27 +13,23 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
-using Realm.Client.ReplaySystem;
-using System.Collections.Generic;
 
 namespace Realm.Client.Services;
 
 public class ReplayService
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
-	private World EcsWorld => _ecsWorldAccessor.Current;
 	private ReplayRecorder _replayRecorder;
 	private readonly Dictionary<int, ReplayUnitSnapshot> _lastRecordedUnits = new();
 	private readonly List<ReplayProjectileSnapshot> _tickProjectiles = new();
 
-	public ReplayService(WorldAccessor ecsWorldAccessor)
+	public ReplayService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
+	public bool IsResettingForReplay { get; set; } = false;
 	public bool IsRecording => _replayRecorder != null;
 
-	public void StartRecording(string path, string mapName, List<Network.LobbyManager.PlayerInfo> players)
+	public void StartRecording(string path, string mapName, List<PlayerInfo> players)
 	{
 		_lastRecordedUnits.Clear();
 		_replayRecorder = new ReplayRecorder(path, mapName, players);
@@ -43,14 +45,14 @@ public class ReplayService
 		}
 	}
 
-	public void RecordProjectile(string typeId, System.Numerics.Vector3 start, System.Numerics.Vector3 target)
+	public void RecordProjectile(string typeId, Vector3 start, Vector3 target)
 	{
 		if (_replayRecorder == null) return;
 		_tickProjectiles.Add(new ReplayProjectileSnapshot
 		{
 			ProjectileTypeId = typeId,
-			Start = new Realm.Client.NetworkVector3(start.X, start.Y, start.Z),
-			Target = new Realm.Client.NetworkVector3(target.X, target.Y, target.Z),
+			Start = new NetworkVector3(start.X, start.Y, start.Z),
+			Target = new NetworkVector3(target.X, target.Y, target.Z),
 			Speed = 0f // We might need to handle speed later or remove it from snapshot
 		});
 	}
@@ -59,27 +61,27 @@ public class ReplayService
 	{
 		Entity worldEntity = Entity.Null;
 		var worldQuery = QueryCache.AllNetworkMappingStateQuery;
-		EcsWorld.Query(in worldQuery, (Entity entity) => worldEntity = entity);
+		GameContext.World.Query(in worldQuery, (Entity entity) => worldEntity = entity);
 
 		if (worldEntity == Entity.Null)
 		{
 			return;
 		}
 
-		ref var mapping = ref EcsWorld.Get<NetworkMappingState>(worldEntity);
+		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
 		mapping.ServerToClientEntityMap.Clear();
 		mapping.ClientToServerEntityMap.Clear();
 		mapping.PeerIdToPlayerEntityMap.Clear();
 
 		foreach (var p in players)
 		{
-			var playerEntity = EcsWorld.Create();
-			EcsWorld.Add(playerEntity, new Player());
-			EcsWorld.Add(playerEntity, new Name(p.Name));
-			
-			EcsWorld.Add(playerEntity, new PlayerPopulation(0, 0));
-			EcsWorld.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(System.StringComparer.OrdinalIgnoreCase)));
-			EcsWorld.Add(playerEntity, new PlayerUpgrades(false, false, false));
+			var playerEntity = GameContext.World.Create();
+			GameContext.World.Add(playerEntity, new Player());
+			GameContext.World.Add(playerEntity, new Name(p.Name));
+
+			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
+			GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
+			GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
 
 			var resourcesDict = new Dictionary<ResourceId, int>
 			{
@@ -87,7 +89,7 @@ public class ReplayService
 				{ new ResourceId("wood"), 0 },
 				{ new ResourceId("stone"), 0 }
 			};
-			EcsWorld.Add(playerEntity, new PlayerResources(resourcesDict));
+			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 
 			mapping.PeerIdToPlayerEntityMap[p.PeerId] = playerEntity;
 			if (p.PeerId == 1)
@@ -103,62 +105,83 @@ public class ReplayService
 
 	public (Entity Entity, string ModelPath, bool IsEnemy) SpawnUnitFromReplaySnapshot(ReplayUnitSnapshot snap)
 	{
-		if (!Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta))
+		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta))
 		{
 			return (Entity.Null, "", false);
 		}
 
 		Entity worldEntity = Entity.Null;
 		var worldQuery = QueryCache.AllNetworkMappingStateQuery;
-		EcsWorld.Query(in worldQuery, (Entity entity) => worldEntity = entity);
+		GameContext.World.Query(in worldQuery, (Entity entity) => worldEntity = entity);
 
 		if (worldEntity == Entity.Null)
 		{
 			return (Entity.Null, "", false);
 		}
 
-		ref var mapping = ref EcsWorld.Get<NetworkMappingState>(worldEntity);
+		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
 
 		Entity ownerPlayerEntity = mapping.PlayerEntity;
 		if (mapping.PeerIdToPlayerEntityMap.TryGetValue(snap.OwnerPlayerEntityId, out var pe))
 		{
 			ownerPlayerEntity = pe;
 		}
+
 		bool isEnemy = ownerPlayerEntity != mapping.PlayerEntity;
 
-		var entity = EcsWorld.Create();
-		EcsWorld.Add(entity, new DefinitionId(snap.UnitId));
-		EcsWorld.Add(entity, new Name(meta.Name));
-		EcsWorld.Add(entity, new Position(snap.Position.ToNumerics()));
-		EcsWorld.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(EcsWorld)));
-		EcsWorld.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
+		var entity = GameContext.World.Create();
+		GameContext.World.Add(entity, new DefinitionId(snap.UnitId));
+		GameContext.World.Add(entity, new Name(meta.Name));
+		GameContext.World.Add(entity, new Position(snap.Position.ToNumerics()));
+		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
+		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
 		if (meta.Damage > 0 || snap.UnitId == "priest")
 		{
-			EcsWorld.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
+			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
 		}
-		EcsWorld.Add(entity, new Armor(meta.Armor));
+
+		GameContext.World.Add(entity, new Armor(meta.Armor));
 		if (meta.Speed > 0)
 		{
-			EcsWorld.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
-			EcsWorld.Add(entity, new Realm.Ecs.Components.Tags.Movable());
-			EcsWorld.Add(entity, new Inventory());
+			GameContext.World.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
+			GameContext.World.Add(entity, new Movable());
+			GameContext.World.Add(entity, new Inventory());
 		}
 		else
 		{
-			EcsWorld.Add(entity, new Building());
+			GameContext.World.Add(entity, new Building());
 		}
+
 		var target = new InterpolationTarget
 		{
 			Position = snap.Position.ToNumerics(),
 			Velocity = snap.Velocity.ToNumerics(),
 			RotationY = snap.RotationY
 		};
-		EcsWorld.Add(entity, target);
+		GameContext.World.Add(entity, target);
 
 		mapping.ServerToClientEntityMap[snap.EntityId] = entity;
 		mapping.ClientToServerEntityMap[entity.Id] = snap.EntityId;
 
-		return (entity, meta.ModelPath ?? "", isEnemy);
+		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : snap.UnitId;
+		string fallbackPath = GameContext.UnitSpawnService.GetFallbackModelPath(targetModel, snap.IsBuilding);
+
+		return (entity, fallbackPath, isEnemy);
+	}
+
+	public void RecordGameplayTickDomain(List<(Entity Entity, System.Numerics.Vector3 Position, System.Numerics.Vector3 Velocity, float RotationY)> transforms)
+	{
+		foreach (var t in transforms)
+		{
+			if (GameContext.World.Has<Position>(t.Entity))
+			{
+				GameContext.World.Set(t.Entity, new Position(t.Position));
+			}
+			GameContext.World.SetOrAdd(t.Entity, new Velocity(t.Velocity));
+			GameContext.World.SetOrAdd(t.Entity, new RotationY(t.RotationY));
+		}
+		
+		RecordGameplayTick();
 	}
 
 	public void RecordGameplayTick()
@@ -166,10 +189,10 @@ public class ReplayService
 		if (_replayRecorder == null) return;
 
 		Entity worldEntity = Entity.Null;
-		EcsWorld.Query(in QueryCache.AllReplayStateAndNetworkMappingStateQuery, (Entity entity) => worldEntity = entity);
+		GameContext.World.Query(in QueryCache.AllReplayStateAndNetworkMappingStateQuery, (Entity entity) => worldEntity = entity);
 		if (worldEntity == Entity.Null) return;
 
-		ref var replayState = ref EcsWorld.Get<ReplayState>(worldEntity);
+		ref var replayState = ref GameContext.World.Get<ReplayState>(worldEntity);
 		int currentTick = replayState.ReplayTickCounter;
 		bool isKeyframe = (currentTick % 600 == 0);
 
@@ -179,16 +202,16 @@ public class ReplayService
 
 		if (isKeyframe) _lastRecordedUnits.Clear();
 
-		var mapping = EcsWorld.Get<NetworkMappingState>(worldEntity);
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
 
-		EcsWorld.Query(in QueryCache.AllDefinitionIdAndPositionAndOwnerQuery, (Entity entity, ref DefinitionId defId, ref Position posComp, ref Owner ownerComp) =>
+		GameContext.World.Query(in QueryCache.AllDefinitionIdAndPositionAndOwnerQuery, (Entity entity, ref DefinitionId defId, ref Position posComp, ref Owner ownerComp) =>
 		{
 			int entityId = entity.Id;
 			string unitId = defId.Value;
 			int ownerPlayerEntityId = GetOwnerPlayerEntityId(mapping, ownerComp.PlayerEntity);
 
-			System.Numerics.Vector3 pos = posComp.Value;
-			GetUnitState(entity, out float rotY, out float currentHp, out float maxHp, out bool isDead, out bool isBuilding, out System.Numerics.Vector3 vel);
+			Vector3 pos = posComp.Value;
+			GetUnitState(entity, out float rotY, out float currentHp, out float maxHp, out bool isDead, out bool isBuilding, out Vector3 vel);
 
 			string anim = DetermineAnimation(entity, pos, isDead, vel);
 			activeIds.Add(entityId);
@@ -218,14 +241,14 @@ public class ReplayService
 		replayState.ReplayTickCounter++;
 	}
 
-	private void GetUnitState(Entity entity, out float rotY, out float currentHp, out float maxHp, out bool isDead, out bool isBuilding, out System.Numerics.Vector3 vel)
+	private void GetUnitState(Entity entity, out float rotY, out float currentHp, out float maxHp, out bool isDead, out bool isBuilding, out Vector3 vel)
 	{
-		rotY = EcsWorld.Has<RotationY>(entity) ? EcsWorld.Get<RotationY>(entity).Value : 0f;
-		currentHp = EcsWorld.Has<Health>(entity) ? EcsWorld.Get<Health>(entity).Current : 0f;
-		maxHp = EcsWorld.Has<Health>(entity) ? EcsWorld.Get<Health>(entity).Max : 0f;
-		isDead = EcsWorld.Has<Dead>(entity);
-		isBuilding = EcsWorld.Has<Building>(entity);
-		vel = EcsWorld.Has<Velocity>(entity) ? EcsWorld.Get<Velocity>(entity).Value : System.Numerics.Vector3.Zero;
+		rotY = GameContext.World.Has<RotationY>(entity) ? GameContext.World.Get<RotationY>(entity).Value : 0f;
+		currentHp = GameContext.World.Has<Health>(entity) ? GameContext.World.Get<Health>(entity).Current : 0f;
+		maxHp = GameContext.World.Has<Health>(entity) ? GameContext.World.Get<Health>(entity).Max : 0f;
+		isDead = GameContext.World.Has<Dead>(entity);
+		isBuilding = GameContext.World.Has<Building>(entity);
+		vel = GameContext.World.Has<Velocity>(entity) ? GameContext.World.Get<Velocity>(entity).Value : Vector3.Zero;
 	}
 
 	private List<ReplayProjectileSnapshot> GetTickProjectiles()
@@ -237,7 +260,7 @@ public class ReplayService
 		return list;
 	}
 
-	private int GetOwnerPlayerEntityId(NetworkMappingState mapping, Realm.Ecs.Common.PlayerEntity owner)
+	private int GetOwnerPlayerEntityId(NetworkMappingState mapping, PlayerEntity owner)
 	{
 		foreach (var kvp in mapping.PeerIdToPlayerEntityMap)
 		{
@@ -246,60 +269,62 @@ public class ReplayService
 				return kvp.Key;
 			}
 		}
+
 		return -1;
 	}
 
-	private string DetermineAnimation(Entity entity, System.Numerics.Vector3 pos, bool isDead, System.Numerics.Vector3 vel)
+	private string DetermineAnimation(Entity entity, Vector3 pos, bool isDead, Vector3 vel)
 	{
 		if (isDead) return "Death";
-		if (EcsWorld.Has<MoveTo>(entity) && vel.LengthSquared() > 0.01f) return "Walk";
-		if (EcsWorld.Has<AttackTarget>(entity)) return "Attack";
-		if (EcsWorld.Has<HealingTarget>(entity)) return "Spell_Cast";
-		if (EcsWorld.Has<Gatherer>(entity) && !EcsWorld.Get<Gatherer>(entity).ReturningToBase) return "Labor";
-		
-		if (EcsWorld.Has<BuildTask>(entity))
+		if (GameContext.World.Has<MoveTo>(entity) && vel.LengthSquared() > 0.01f) return "Walk";
+		if (GameContext.World.Has<AttackTarget>(entity)) return "Attack";
+		if (GameContext.World.Has<HealingTarget>(entity)) return "Spell_Cast";
+		if (GameContext.World.Has<Gatherer>(entity) && !GameContext.World.Get<Gatherer>(entity).ReturningToBase) return "Labor";
+
+		if (GameContext.World.Has<BuildTask>(entity))
 		{
 			return DetermineBuildAnimation(entity, pos);
 		}
-		
+
 		return "Idle";
 	}
 
-	private string DetermineBuildAnimation(Entity entity, System.Numerics.Vector3 pos)
+	private string DetermineBuildAnimation(Entity entity, Vector3 pos)
 	{
-		var task = EcsWorld.Get<BuildTask>(entity);
+		var task = GameContext.World.Get<BuildTask>(entity);
 		var target = task.BuildingEntity;
-		if (EcsWorld.IsAlive(target) && EcsWorld.Has<Position>(target))
+		if (GameContext.World.IsAlive(target) && GameContext.World.Has<Position>(target))
 		{
-			var tPos = EcsWorld.Get<Position>(target).Value;
-			if (System.Numerics.Vector3.Distance(pos, tPos) < 4.0f) return "Labor";
+			var tPos = GameContext.World.Get<Position>(target).Value;
+			if (Vector3.Distance(pos, tPos) < 4.0f) return "Labor";
 			return "Walk";
 		}
+
 		return "Labor";
 	}
 
-	private ReplayUnitSnapshot CreateUnitSnapshot(int entityId, string unitId, int ownerPlayerEntityId, System.Numerics.Vector3 pos, float rotY, float currentHp, float maxHp, bool isDead, bool isBuilding, System.Numerics.Vector3 vel, string anim)
+	private ReplayUnitSnapshot CreateUnitSnapshot(int entityId, string unitId, int ownerPlayerEntityId, Vector3 pos, float rotY, float currentHp, float maxHp, bool isDead, bool isBuilding, Vector3 vel, string anim)
 	{
 		return new ReplayUnitSnapshot
 		{
 			EntityId = entityId,
 			UnitId = unitId,
 			OwnerPlayerEntityId = ownerPlayerEntityId,
-			Position = new Realm.Client.NetworkVector3(pos.X, pos.Y, pos.Z),
+			Position = new NetworkVector3(pos.X, pos.Y, pos.Z),
 			RotationY = rotY,
 			CurrentHp = currentHp,
 			MaxHp = maxHp,
 			IsDead = isDead,
 			IsBuilding = isBuilding,
-			Velocity = new Realm.Client.NetworkVector3(vel.X, vel.Y, vel.Z),
+			Velocity = new NetworkVector3(vel.X, vel.Y, vel.Z),
 			Animation = anim
 		};
 	}
 
-	private bool HasSnapshotChanged(ReplayUnitSnapshot last, string unitId, int ownerPlayerEntityId, System.Numerics.Vector3 pos, float rotY, float currentHp, float maxHp, bool isDead, bool isBuilding, System.Numerics.Vector3 vel, string anim)
+	private bool HasSnapshotChanged(ReplayUnitSnapshot last, string unitId, int ownerPlayerEntityId, Vector3 pos, float rotY, float currentHp, float maxHp, bool isDead, bool isBuilding, Vector3 vel, string anim)
 	{
-		return HasStateChanged(last, unitId, ownerPlayerEntityId, currentHp, maxHp, isDead, isBuilding, anim) || 
-		       HasPositionChanged(last, pos, rotY) || 
+		return HasStateChanged(last, unitId, ownerPlayerEntityId, currentHp, maxHp, isDead, isBuilding, anim) ||
+		       HasPositionChanged(last, pos, rotY) ||
 		       HasVelocityChanged(last, vel);
 	}
 
@@ -313,14 +338,14 @@ public class ReplayService
 		return false;
 	}
 
-	private bool HasPositionChanged(ReplayUnitSnapshot last, System.Numerics.Vector3 pos, float rotY)
+	private bool HasPositionChanged(ReplayUnitSnapshot last, Vector3 pos, float rotY)
 	{
 		if (last.Position.X != pos.X || last.Position.Y != pos.Y || last.Position.Z != pos.Z) return true;
 		if (last.RotationY != rotY) return true;
 		return false;
 	}
 
-	private bool HasVelocityChanged(ReplayUnitSnapshot last, System.Numerics.Vector3 vel)
+	private bool HasVelocityChanged(ReplayUnitSnapshot last, Vector3 vel)
 	{
 		if (last.Velocity.X != vel.X || last.Velocity.Y != vel.Y || last.Velocity.Z != vel.Z) return true;
 		return false;
@@ -357,18 +382,18 @@ public class ReplayService
 			unitsToRecord.Add(deadEventSnap);
 			_lastRecordedUnits.Remove(id);
 		}
+
 		ReplayObjectPool.ReturnIntList(destroyedIds);
 	}
 
 	private void GetPlayerResources(NetworkMappingState mapping, ref float gold, ref float wood, ref float stone)
 	{
 		Entity playerEnt = mapping.PlayerEntity;
-		if (!EcsWorld.IsAlive(playerEnt) || !EcsWorld.Has<PlayerResources>(playerEnt)) return;
+		if (!GameContext.World.IsAlive(playerEnt) || !GameContext.World.Has<PlayerResources>(playerEnt)) return;
 
-		var dict = EcsWorld.Get<PlayerResources>(playerEnt).Value;
+		var dict = GameContext.World.Get<PlayerResources>(playerEnt).Value;
 		if (dict.TryGetValue(new ResourceId("gold"), out var gVal)) gold = gVal;
 		if (dict.TryGetValue(new ResourceId("wood"), out var wVal)) wood = wVal;
 		if (dict.TryGetValue(new ResourceId("stone"), out var sVal)) stone = sVal;
 	}
-
 }

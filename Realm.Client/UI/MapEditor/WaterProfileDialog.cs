@@ -1,12 +1,13 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class WaterProfileDialog : FloatingDialogBase
 {
 	private List<WaterProfileSaveData> _profiles = new();
 	private int _selectedProfileIdx = 0;
@@ -114,7 +115,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		topRow.AddChild(lblProf);
 
 		_optProfileSelect = new OptionButton();
-		_optProfileSelect.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optProfileSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optProfileSelect.ItemSelected += (idx) => SelectProfile((int)idx);
 		topRow.AddChild(_optProfileSelect);
 
@@ -139,15 +140,22 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		tabGeneral.Name = TranslationServer.Translate("General & Colors");
 		var vGeneral = new VBoxContainer();
 		vGeneral.AddThemeConstantOverride("separation", 6);
-		vGeneral.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vGeneral.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabGeneral.AddChild(vGeneral);
 		tabContainer.AddChild(tabGeneral);
 
 		AddSectionHeader(vGeneral, TranslationServer.Translate("Profile Identity"));
 		var nameRow = new HBoxContainer();
 		nameRow.AddChild(new Label { Text = TranslationServer.Translate("Display Name:"), CustomMinimumSize = new Vector2(110, 0) });
-		_txtName = new LineEdit { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_txtName.TextChanged += (text) => { if (_activeProfile != null) { _activeProfile.Name = text; UpdateProfileListUI(); } };
+		_txtName = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		_txtName.TextChanged += (text) =>
+		{
+			if (_activeProfile != null)
+			{
+				_activeProfile.Name = text;
+				UpdateProfileListUI();
+			}
+		};
 		nameRow.AddChild(_txtName);
 		vGeneral.AddChild(nameRow);
 
@@ -155,20 +163,48 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		vGeneral.AddChild(btnRandomizeAll);
 
 		AddSectionHeader(vGeneral, TranslationServer.Translate("Colors & Transparency"));
-		var cpRes1 = AddColorPicker(vGeneral, TranslationServer.Translate("Shallow Tint:"), Colors.Teal, (c) => { if (_activeProfile != null) _activeProfile.ShallowColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
+		var cpRes1 = AddColorPicker(vGeneral, TranslationServer.Translate("Shallow Tint:"), Colors.Teal, (c) =>
+		{
+			if (_activeProfile != null) _activeProfile.ShallowColorHex = "#" + c.ToHtml(true);
+			ApplyLiveMaterialPreview();
+		});
 		_cpShallow = cpRes1.Picker;
-		var cpRes2 = AddColorPicker(vGeneral, TranslationServer.Translate("Deep Tint:"), Colors.NavyBlue, (c) => { if (_activeProfile != null) _activeProfile.DeepColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
+		var cpRes2 = AddColorPicker(vGeneral, TranslationServer.Translate("Deep Tint:"), Colors.NavyBlue, (c) =>
+		{
+			if (_activeProfile != null) _activeProfile.DeepColorHex = "#" + c.ToHtml(true);
+			ApplyLiveMaterialPreview();
+		});
 		_cpDeep = cpRes2.Picker;
-		var cpRes3 = AddColorPicker(vGeneral, TranslationServer.Translate("Foam Tint:"), Colors.White, (c) => { if (_activeProfile != null) _activeProfile.FoamColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
+		var cpRes3 = AddColorPicker(vGeneral, TranslationServer.Translate("Foam Tint:"), Colors.White, (c) =>
+		{
+			if (_activeProfile != null) _activeProfile.FoamColorHex = "#" + c.ToHtml(true);
+			ApplyLiveMaterialPreview();
+		});
 		_cpFoam = cpRes3.Picker;
 
-		var sldMaxDepthRes = AddSlider(vGeneral, TranslationServer.Translate("Max Depth:"), 0.1f, 10.0f, 0.1f, 2.0f, (v) => { if (_activeProfile != null) _activeProfile.MaxDepth = v; ApplyLiveMaterialPreview(); });
+		var sldMaxDepthRes = AddSlider(vGeneral, TranslationServer.Translate("Max Depth:"), 0.1f, 10.0f, 0.1f, 2.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.MaxDepth = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldMaxDepth = sldMaxDepthRes.Slider;
-		var sldFoamDepthRes = AddSlider(vGeneral, TranslationServer.Translate("Foam Distance:"), 0.05f, 3.0f, 0.05f, 0.6f, (v) => { if (_activeProfile != null) _activeProfile.FoamDepth = v; ApplyLiveMaterialPreview(); });
+		var sldFoamDepthRes = AddSlider(vGeneral, TranslationServer.Translate("Foam Distance:"), 0.05f, 3.0f, 0.05f, 0.6f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.FoamDepth = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldFoamDepth = sldFoamDepthRes.Slider;
-		var sldWaveSpdRes = AddSlider(vGeneral, TranslationServer.Translate("Wave Speed:"), 0.0f, 5.0f, 0.1f, 1.2f, (v) => { if (_activeProfile != null) _activeProfile.WaveSpeed = v; ApplyLiveMaterialPreview(); });
+		var sldWaveSpdRes = AddSlider(vGeneral, TranslationServer.Translate("Wave Speed:"), 0.0f, 5.0f, 0.1f, 1.2f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.WaveSpeed = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldWaveSpeed = sldWaveSpdRes.Slider;
-		var sldWaveStrRes = AddSlider(vGeneral, TranslationServer.Translate("Wave Amplitude:"), 0.0f, 0.5f, 0.01f, 0.06f, (v) => { if (_activeProfile != null) _activeProfile.WaveStrength = v; ApplyLiveMaterialPreview(); });
+		var sldWaveStrRes = AddSlider(vGeneral, TranslationServer.Translate("Wave Amplitude:"), 0.0f, 0.5f, 0.01f, 0.06f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.WaveStrength = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldWaveStrength = sldWaveStrRes.Slider;
 	}
 
@@ -178,7 +214,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		tabNormals.Name = TranslationServer.Translate("Flow & Optics");
 		var vNormals = new VBoxContainer();
 		vNormals.AddThemeConstantOverride("separation", 6);
-		vNormals.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vNormals.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabNormals.AddChild(vNormals);
 		tabContainer.AddChild(tabNormals);
 
@@ -189,13 +225,24 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	private void BuildTabNormals_NormalMapping(VBoxContainer vNormals)
 	{
 		AddSectionHeader(vNormals, TranslationServer.Translate("Normal Mapping & Flow"));
-		_chkUseNormal = AddCheckBox(vNormals, TranslationServer.Translate("Enable Custom Normal Texture"), false, (val) => { if (_activeProfile != null) _activeProfile.UseNormalTexture = val; ApplyLiveMaterialPreview(); });
+		_chkUseNormal = AddCheckBox(vNormals, TranslationServer.Translate("Enable Custom Normal Texture"), false, (val) =>
+		{
+			if (_activeProfile != null) _activeProfile.UseNormalTexture = val;
+			ApplyLiveMaterialPreview();
+		});
 		var (txtNorm, setNorm) = AddAssetFilterDropdown(
 			vNormals,
 			TranslationServer.Translate("Normal Map File:"),
 			"",
 			(all) => ScanRtexAssets(all),
-			(val) => { if (_activeProfile != null) { _activeProfile.NormalTexturePath = val; ApplyLiveMaterialPreview(); } },
+			(val) =>
+			{
+				if (_activeProfile != null)
+				{
+					_activeProfile.NormalTexturePath = val;
+					ApplyLiveMaterialPreview();
+				}
+			},
 			TranslationServer.Translate("Select .rtex normal map..."),
 			110f
 		);
@@ -205,22 +252,49 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		var btnRandomizeFlow = CreateRandomizeButton(() => RandomizeNormalAndFlowParameters());
 		vNormals.AddChild(btnRandomizeFlow);
 
-		var sldNormScaleRes = AddSlider(vNormals, TranslationServer.Translate("Normal Strength:"), 0.0f, 3.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.NormalScale = v; ApplyLiveMaterialPreview(); });
+		var sldNormScaleRes = AddSlider(vNormals, TranslationServer.Translate("Normal Strength:"), 0.0f, 3.0f, 0.1f, 1.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.NormalScale = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldNormalScale = sldNormScaleRes.Slider;
-		var sldFlowXRes = AddSlider(vNormals, TranslationServer.Translate("Flow Direction X:"), -1.0f, 1.0f, 0.05f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.FlowDirectionX = v; ApplyLiveMaterialPreview(); });
+		var sldFlowXRes = AddSlider(vNormals, TranslationServer.Translate("Flow Direction X:"), -1.0f, 1.0f, 0.05f, 1.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.FlowDirectionX = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldFlowDirX = sldFlowXRes.Slider;
-		var sldFlowYRes = AddSlider(vNormals, TranslationServer.Translate("Flow Direction Y:"), -1.0f, 1.0f, 0.05f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.FlowDirectionY = v; ApplyLiveMaterialPreview(); });
+		var sldFlowYRes = AddSlider(vNormals, TranslationServer.Translate("Flow Direction Y:"), -1.0f, 1.0f, 0.05f, 0.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.FlowDirectionY = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldFlowDirY = sldFlowYRes.Slider;
-		var sldFlowSpdRes = AddSlider(vNormals, TranslationServer.Translate("Flow Velocity:"), 0.0f, 5.0f, 0.1f, 0.5f, (v) => { if (_activeProfile != null) _activeProfile.FlowSpeed = v; ApplyLiveMaterialPreview(); });
+		var sldFlowSpdRes = AddSlider(vNormals, TranslationServer.Translate("Flow Velocity:"), 0.0f, 5.0f, 0.1f, 0.5f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.FlowSpeed = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldFlowSpeed = sldFlowSpdRes.Slider;
 
-		_chkUseFlowMap = AddCheckBox(vNormals, TranslationServer.Translate("Enable Directional Flow Map"), false, (val) => { if (_activeProfile != null) _activeProfile.UseFlowMap = val; ApplyLiveMaterialPreview(); });
+		_chkUseFlowMap = AddCheckBox(vNormals, TranslationServer.Translate("Enable Directional Flow Map"), false, (val) =>
+		{
+			if (_activeProfile != null) _activeProfile.UseFlowMap = val;
+			ApplyLiveMaterialPreview();
+		});
 		var (txtFlow, setFlow) = AddAssetFilterDropdown(
 			vNormals,
 			TranslationServer.Translate("Flow Map File:"),
 			"",
 			(all) => ScanRtexAssets(all),
-			(val) => { if (_activeProfile != null) { _activeProfile.FlowMapPath = val; ApplyLiveMaterialPreview(); } },
+			(val) =>
+			{
+				if (_activeProfile != null)
+				{
+					_activeProfile.FlowMapPath = val;
+					ApplyLiveMaterialPreview();
+				}
+			},
 			TranslationServer.Translate("Select .rtex flow map..."),
 			110f
 		);
@@ -234,13 +308,29 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		var btnRandomizeOptics = CreateRandomizeButton(() => RandomizeRefractionAndCausticsParameters());
 		vNormals.AddChild(btnRandomizeOptics);
 
-		var sldRefrRes = AddSlider(vNormals, TranslationServer.Translate("Refraction Index:"), 0.0f, 1.0f, 0.02f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.RefractionStrength = v; ApplyLiveMaterialPreview(); });
+		var sldRefrRes = AddSlider(vNormals, TranslationServer.Translate("Refraction Index:"), 0.0f, 1.0f, 0.02f, 0.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.RefractionStrength = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldRefraction = sldRefrRes.Slider;
-		var sldCaustStrRes = AddSlider(vNormals, TranslationServer.Translate("Caustics Intensity:"), 0.0f, 2.0f, 0.05f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.CausticStrength = v; ApplyLiveMaterialPreview(); });
+		var sldCaustStrRes = AddSlider(vNormals, TranslationServer.Translate("Caustics Intensity:"), 0.0f, 2.0f, 0.05f, 0.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.CausticStrength = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldCausticStrength = sldCaustStrRes.Slider;
-		var sldCaustScaleRes = AddSlider(vNormals, TranslationServer.Translate("Caustics Scale:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.CausticScale = v; ApplyLiveMaterialPreview(); });
+		var sldCaustScaleRes = AddSlider(vNormals, TranslationServer.Translate("Caustics Scale:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.CausticScale = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldCausticScale = sldCaustScaleRes.Slider;
-		var sldCaustSpdRes = AddSlider(vNormals, TranslationServer.Translate("Caustics Speed:"), 0.0f, 5.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.CausticSpeed = v; ApplyLiveMaterialPreview(); });
+		var sldCaustSpdRes = AddSlider(vNormals, TranslationServer.Translate("Caustics Speed:"), 0.0f, 5.0f, 0.1f, 1.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.CausticSpeed = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldCausticSpeed = sldCaustSpdRes.Slider;
 	}
 
@@ -250,7 +340,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		tabEmissive.Name = TranslationServer.Translate("Emission & Surface");
 		var vEmissive = new VBoxContainer();
 		vEmissive.AddThemeConstantOverride("separation", 6);
-		vEmissive.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vEmissive.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabEmissive.AddChild(vEmissive);
 		tabContainer.AddChild(tabEmissive);
 
@@ -264,30 +354,65 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		var btnRandomizeEmissive = CreateRandomizeButton(() => RandomizeEmissiveParameters());
 		vEmissive.AddChild(btnRandomizeEmissive);
 
-		var cpEmRes = AddColorPicker(vEmissive, TranslationServer.Translate("Emission Color:"), Colors.Black, (c) => { if (_activeProfile != null) _activeProfile.EmissionColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
+		var cpEmRes = AddColorPicker(vEmissive, TranslationServer.Translate("Emission Color:"), Colors.Black, (c) =>
+		{
+			if (_activeProfile != null) _activeProfile.EmissionColorHex = "#" + c.ToHtml(true);
+			ApplyLiveMaterialPreview();
+		});
 		_cpEmission = cpEmRes.Picker;
-		var sldEmBoostRes = AddSlider(vEmissive, TranslationServer.Translate("Emission Boost:"), 0.0f, 2.0f, 0.01f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.EmissionBoost = v; ApplyLiveMaterialPreview(); });
+		var sldEmBoostRes = AddSlider(vEmissive, TranslationServer.Translate("Emission Boost:"), 0.0f, 2.0f, 0.01f, 0.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.EmissionBoost = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldEmissionBoost = sldEmBoostRes.Slider;
-		var cpCoreRes = AddColorPicker(vEmissive, TranslationServer.Translate("Core Hotspot Color:"), Colors.White, (c) => { if (_activeProfile != null) _activeProfile.CoreColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
+		var cpCoreRes = AddColorPicker(vEmissive, TranslationServer.Translate("Core Hotspot Color:"), Colors.White, (c) =>
+		{
+			if (_activeProfile != null) _activeProfile.CoreColorHex = "#" + c.ToHtml(true);
+			ApplyLiveMaterialPreview();
+		});
 		_cpCore = cpCoreRes.Picker;
-		var sldCoreThreshRes = AddSlider(vEmissive, TranslationServer.Translate("Core Threshold:"), 0.0f, 1.0f, 0.05f, 0.8f, (v) => { if (_activeProfile != null) _activeProfile.CoreThreshold = v; ApplyLiveMaterialPreview(); });
+		var sldCoreThreshRes = AddSlider(vEmissive, TranslationServer.Translate("Core Threshold:"), 0.0f, 1.0f, 0.05f, 0.8f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.CoreThreshold = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldCoreThreshold = sldCoreThreshRes.Slider;
-		var cpSssRes = AddColorPicker(vEmissive, TranslationServer.Translate("Subsurface Color:"), Colors.Black, (c) => { if (_activeProfile != null) _activeProfile.SubsurfaceColorHex = "#" + c.ToHtml(true); ApplyLiveMaterialPreview(); });
+		var cpSssRes = AddColorPicker(vEmissive, TranslationServer.Translate("Subsurface Color:"), Colors.Black, (c) =>
+		{
+			if (_activeProfile != null) _activeProfile.SubsurfaceColorHex = "#" + c.ToHtml(true);
+			ApplyLiveMaterialPreview();
+		});
 		_cpSubsurface = cpSssRes.Picker;
-		var sldSssRes = AddSlider(vEmissive, TranslationServer.Translate("Subsurface Power:"), 0.0f, 5.0f, 0.1f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.SubsurfaceStrength = v; ApplyLiveMaterialPreview(); });
+		var sldSssRes = AddSlider(vEmissive, TranslationServer.Translate("Subsurface Power:"), 0.0f, 5.0f, 0.1f, 0.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.SubsurfaceStrength = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldSubsurfaceStrength = sldSssRes.Slider;
 	}
 
 	private void BuildTabEmissive_SurfaceDetail(VBoxContainer vEmissive)
 	{
 		AddSectionHeader(vEmissive, TranslationServer.Translate("Surface Detail Overlay (Algae / Foam / Crust)"));
-		_chkUseDetail = AddCheckBox(vEmissive, TranslationServer.Translate("Enable Surface Detail Overlay"), false, (val) => { if (_activeProfile != null) _activeProfile.UseDetailTexture = val; ApplyLiveMaterialPreview(); });
+		_chkUseDetail = AddCheckBox(vEmissive, TranslationServer.Translate("Enable Surface Detail Overlay"), false, (val) =>
+		{
+			if (_activeProfile != null) _activeProfile.UseDetailTexture = val;
+			ApplyLiveMaterialPreview();
+		});
 		var (txtDetail, setDetail) = AddAssetFilterDropdown(
 			vEmissive,
 			TranslationServer.Translate("Detail Texture File:"),
 			"",
 			(all) => ScanRtexAssets(all),
-			(val) => { if (_activeProfile != null) { _activeProfile.DetailTexturePath = val; ApplyLiveMaterialPreview(); } },
+			(val) =>
+			{
+				if (_activeProfile != null)
+				{
+					_activeProfile.DetailTexturePath = val;
+					ApplyLiveMaterialPreview();
+				}
+			},
 			TranslationServer.Translate("Select .rtex detail texture..."),
 			110f
 		);
@@ -325,13 +450,29 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 
 	private void BuildTabEmissive_Sliders(VBoxContainer vEmissive)
 	{
-		var sldDetUvXRes = AddSlider(vEmissive, TranslationServer.Translate("Detail UV Scale X:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.DetailUvScaleX = v; ApplyLiveMaterialPreview(); });
+		var sldDetUvXRes = AddSlider(vEmissive, TranslationServer.Translate("Detail UV Scale X:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.DetailUvScaleX = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldDetailUvScaleX = sldDetUvXRes.Slider;
-		var sldDetUvYRes = AddSlider(vEmissive, TranslationServer.Translate("Detail UV Scale Y:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) => { if (_activeProfile != null) _activeProfile.DetailUvScaleY = v; ApplyLiveMaterialPreview(); });
+		var sldDetUvYRes = AddSlider(vEmissive, TranslationServer.Translate("Detail UV Scale Y:"), 0.1f, 10.0f, 0.1f, 1.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.DetailUvScaleY = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldDetailUvScaleY = sldDetUvYRes.Slider;
-		var sldDetScrXRes = AddSlider(vEmissive, TranslationServer.Translate("Detail Scroll X:"), -2.0f, 2.0f, 0.05f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.DetailUvScrollX = v; ApplyLiveMaterialPreview(); });
+		var sldDetScrXRes = AddSlider(vEmissive, TranslationServer.Translate("Detail Scroll X:"), -2.0f, 2.0f, 0.05f, 0.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.DetailUvScrollX = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldDetailUvScrollX = sldDetScrXRes.Slider;
-		var sldDetScrYRes = AddSlider(vEmissive, TranslationServer.Translate("Detail Scroll Y:"), -2.0f, 2.0f, 0.05f, 0.0f, (v) => { if (_activeProfile != null) _activeProfile.DetailUvScrollY = v; ApplyLiveMaterialPreview(); });
+		var sldDetScrYRes = AddSlider(vEmissive, TranslationServer.Translate("Detail Scroll Y:"), -2.0f, 2.0f, 0.05f, 0.0f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.DetailUvScrollY = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldDetailUvScrollY = sldDetScrYRes.Slider;
 
 		var sldStochRes = AddSlider(vEmissive, TranslationServer.Translate("Stochastic Size:"), 0.5f, 3.0f, 0.05f, 1.0f, (v) =>
@@ -354,7 +495,11 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		});
 		_sldDetailCrossFade = sldCrossRes.Slider;
 
-		var sldDetAlphaRes = AddSlider(vEmissive, TranslationServer.Translate("Detail Opacity:"), 0.0f, 1.0f, 0.05f, 0.5f, (v) => { if (_activeProfile != null) _activeProfile.DetailAlpha = v; ApplyLiveMaterialPreview(); });
+		var sldDetAlphaRes = AddSlider(vEmissive, TranslationServer.Translate("Detail Opacity:"), 0.0f, 1.0f, 0.05f, 0.5f, (v) =>
+		{
+			if (_activeProfile != null) _activeProfile.DetailAlpha = v;
+			ApplyLiveMaterialPreview();
+		});
 		_sldDetailAlpha = sldDetAlphaRes.Slider;
 	}
 
@@ -366,7 +511,11 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		_optDetailBlend.AddItem(TranslationServer.Translate("Alpha Mix"), 0);
 		_optDetailBlend.AddItem(TranslationServer.Translate("Additive"), 1);
 		_optDetailBlend.AddItem(TranslationServer.Translate("Multiply"), 2);
-		_optDetailBlend.ItemSelected += (idx) => { if (_activeProfile != null) _activeProfile.DetailBlendMode = (int)idx; ApplyLiveMaterialPreview(); };
+		_optDetailBlend.ItemSelected += (idx) =>
+		{
+			if (_activeProfile != null) _activeProfile.DetailBlendMode = (int)idx;
+			ApplyLiveMaterialPreview();
+		};
 		blendRow.AddChild(_optDetailBlend);
 		vEmissive.AddChild(blendRow);
 	}
@@ -377,7 +526,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		tabPathingAndBombing.Name = TranslationServer.Translate("Pathing & Bombing");
 		var vBombing = new VBoxContainer();
 		vBombing.AddThemeConstantOverride("separation", 6);
-		vBombing.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vBombing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabPathingAndBombing.AddChild(vBombing);
 		tabContainer.AddChild(tabPathingAndBombing);
 
@@ -401,13 +550,13 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	{
 		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural Decal Texture Bombing"));
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered decals placed at liquid elevation during painting:"));
-		
+
 		var decalListRow = new HBoxContainer();
-		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_lstDecals.ItemSelected += OnDecalItemSelected;
 		decalListRow.AddChild(_lstDecals);
 
-		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
 			decalBtnBox, string.Empty, string.Empty,
 			(all) => ScanAvailableAssets("decals", all),
@@ -438,7 +587,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	private void OnDecalItemSelected(long idx)
 	{
 		if (_activeProfile == null || idx < 0 || idx >= _activeProfile.DecalBombingRules.Count) return;
-		
+
 		var r = _activeProfile.DecalBombingRules[(int)idx];
 		_setDecalIdValue?.Invoke(r.DecalId);
 		SetSliderValue(_sldDecalDensity, r.Density);
@@ -450,13 +599,13 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	{
 		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural VFX / Particle Bombing"));
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered particle systems & ribbons (bubbles, steam, foam, smoke) placed at liquid elevation:"));
-		
+
 		var vfxListRow = new HBoxContainer();
-		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_lstVfx.ItemSelected += OnVfxItemSelected;
 		vfxListRow.AddChild(_lstVfx);
 
-		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
 			vfxBtnBox, string.Empty, string.Empty,
 			(all) => ScanAvailableAssets("vfx", all),
@@ -487,7 +636,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	private void OnVfxItemSelected(long idx)
 	{
 		if (_activeProfile == null || idx < 0 || idx >= _activeProfile.VfxBombingRules.Count) return;
-		
+
 		var r = _activeProfile.VfxBombingRules[(int)idx];
 		_setVfxIdValue?.Invoke(r.VfxId);
 		SetSliderValue(_sldVfxDensity, r.Density);
@@ -523,7 +672,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		btn.Set("icon_max_width", 0);
 		btn.Text = "🎲 " + TranslationServer.Translate("Randomize All");
 		btn.CustomMinimumSize = new Vector2(0, 28);
-		btn.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+		btn.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btn.AddThemeFontSizeOverride("font_size", 11);
 		var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
 		if (mapEdBtnTex != null)
@@ -542,6 +691,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		}
+
 		btn.Pressed += onPressed;
 		return btn;
 	}
@@ -555,6 +705,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 			_profiles.Add(p.Clone());
 			_initialSnapshots.Add(p.Clone());
 		}
+
 		if (_profiles.Count == 0)
 		{
 			_profiles = WaterProfileSaveData.CreateDefaultProfiles();
@@ -575,6 +726,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		{
 			_optProfileSelect.AddItem($"[{_profiles[i].ProfileIndex}] {_profiles[i].Name} ({_profiles[i].Id})", i);
 		}
+
 		if (_selectedProfileIdx >= 0 && _selectedProfileIdx < _profiles.Count)
 		{
 			_optProfileSelect.Selected = _selectedProfileIdx;
@@ -590,6 +742,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		{
 			_optProfileSelect.Selected = idx;
 		}
+
 		PopulateFormFromActiveProfile();
 		ApplyLiveMaterialPreview();
 	}
@@ -645,10 +798,10 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 
 		_chkUseDetail.ButtonPressed = _activeProfile.UseDetailTexture;
 		_setDetailPath?.Invoke(_activeProfile.DetailTexturePath ?? "");
-		
+
 		UpdateDetailOverlayUI();
-		
-		if (_sldDetailStochasticTileSize != null) 
+
+		if (_sldDetailStochasticTileSize != null)
 		{
 			_sldDetailStochasticTileSize.Value = _activeProfile.DetailStochasticTileSize > 0.001f ? _activeProfile.DetailStochasticTileSize : 1.0f;
 		}
@@ -657,11 +810,11 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	private void PopulatePathingAndBombing()
 	{
 		int code = _activeProfile.DefaultPathingCode;
-		_chkPathShallow.ButtonPressed = (code & Realm.Client.EditableTerrain.PATHING_SHALLOW_WATER) != 0;
-		_chkPathDeep.ButtonPressed = (code & Realm.Client.EditableTerrain.PATHING_DEEP_WATER) != 0;
-		_chkPathGround.ButtonPressed = (code & Realm.Client.EditableTerrain.PATHING_GROUND) != 0;
-		_chkPathBuildable.ButtonPressed = (code & Realm.Client.EditableTerrain.PATHING_BUILDABLE) != 0;
-		_chkPathFlying.ButtonPressed = (code & Realm.Client.EditableTerrain.PATHING_FLYING) != 0;
+		_chkPathShallow.ButtonPressed = (code & EditableTerrain.PATHING_SHALLOW_WATER) != 0;
+		_chkPathDeep.ButtonPressed = (code & EditableTerrain.PATHING_DEEP_WATER) != 0;
+		_chkPathGround.ButtonPressed = (code & EditableTerrain.PATHING_GROUND) != 0;
+		_chkPathBuildable.ButtonPressed = (code & EditableTerrain.PATHING_BUILDABLE) != 0;
+		_chkPathFlying.ButtonPressed = (code & EditableTerrain.PATHING_FLYING) != 0;
 
 		_setDecalIdValue?.Invoke(string.Empty);
 		_setVfxIdValue?.Invoke(string.Empty);
@@ -681,6 +834,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		{
 			stochRow.Visible = isStochastic;
 		}
+
 		if (_sldDetailCrossFade?.GetParent() is Control crossFadeRow)
 		{
 			crossFadeRow.Visible = !isStochastic;
@@ -842,13 +996,13 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		_activeProfile.DetailTileMode = rng.NextDouble() > 0.35 ? "Stochastic" : "Grid";
 		_activeProfile.DetailUvScaleX = (float)Math.Round(0.5f + rng.NextDouble() * 3.5f, 2);
 		_activeProfile.DetailUvScaleY = (float)Math.Round(0.5f + rng.NextDouble() * 3.5f, 2);
-		
+
 		float scrollX = (float)Math.Round((rng.NextDouble() * 2.0 - 1.0) * 0.75f, 2);
 		_activeProfile.DetailUvScrollX = rng.NextDouble() > 0.4 ? scrollX : 0.0f;
-		
+
 		float scrollY = (float)Math.Round((rng.NextDouble() * 2.0 - 1.0) * 0.75f, 2);
 		_activeProfile.DetailUvScrollY = rng.NextDouble() > 0.4 ? scrollY : 0.0f;
-		
+
 		_activeProfile.DetailStochasticTileSize = (float)Math.Round(0.6f + rng.NextDouble() * 1.8f, 2);
 		_activeProfile.DetailCrossFade = (float)Math.Round(rng.NextDouble() * 4.0f, 1);
 		_activeProfile.DetailAlpha = (float)Math.Round(0.25f + rng.NextDouble() * 0.65f, 2);
@@ -863,7 +1017,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		UpdateDetailTileModeSelection();
 		UpdateDetailTileModeVisibility();
 		UpdateDetailSliders();
-		
+
 		if (_optDetailBlend != null) _optDetailBlend.Selected = _activeProfile.DetailBlendMode;
 	}
 
@@ -894,11 +1048,11 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	{
 		if (_activeProfile == null) return;
 		int mask = 0;
-		if (_chkPathShallow.ButtonPressed) mask |= Realm.Client.EditableTerrain.PATHING_SHALLOW_WATER;
-		if (_chkPathDeep.ButtonPressed) mask |= Realm.Client.EditableTerrain.PATHING_DEEP_WATER;
-		if (_chkPathGround.ButtonPressed) mask |= Realm.Client.EditableTerrain.PATHING_GROUND;
-		if (_chkPathBuildable.ButtonPressed) mask |= Realm.Client.EditableTerrain.PATHING_BUILDABLE;
-		if (_chkPathFlying.ButtonPressed) mask |= Realm.Client.EditableTerrain.PATHING_FLYING;
+		if (_chkPathShallow.ButtonPressed) mask |= EditableTerrain.PATHING_SHALLOW_WATER;
+		if (_chkPathDeep.ButtonPressed) mask |= EditableTerrain.PATHING_DEEP_WATER;
+		if (_chkPathGround.ButtonPressed) mask |= EditableTerrain.PATHING_GROUND;
+		if (_chkPathBuildable.ButtonPressed) mask |= EditableTerrain.PATHING_BUILDABLE;
+		if (_chkPathFlying.ButtonPressed) mask |= EditableTerrain.PATHING_FLYING;
 		_activeProfile.DefaultPathingCode = mask;
 	}
 
@@ -931,7 +1085,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	{
 		string id = _txtDecalId != null && !string.IsNullOrWhiteSpace(_txtDecalId.Text) ? _txtDecalId.Text.Trim() : string.Empty;
 		if (_activeProfile == null || string.IsNullOrEmpty(id)) return;
-		
+
 		var rule = new ProceduralBombingDecalRule
 		{
 			DecalId = id,
@@ -958,7 +1112,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 	{
 		string id = _txtVfxId != null && !string.IsNullOrWhiteSpace(_txtVfxId.Text) ? _txtVfxId.Text.Trim() : string.Empty;
 		if (_activeProfile == null || string.IsNullOrEmpty(id)) return;
-		
+
 		var rule = new ProceduralBombingVfxRule
 		{
 			VfxId = id,
@@ -988,6 +1142,7 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 		{
 			if (p.ProfileIndex >= nextIndex) nextIndex = (byte)(p.ProfileIndex + 1);
 		}
+
 		var newProf = new WaterProfileSaveData
 		{
 			Id = $"liquid_custom_{nextIndex}",
@@ -1010,34 +1165,34 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 
 	private void ApplyLiveMaterialPreview()
 	{
-		if (_activeProfile == null || Realm.Client.RuntimeTerrain.Instance == null) return;
-		var mat = Realm.Client.RuntimeTerrain.Instance.GetWaterMaterial(_activeProfile.ProfileIndex);
+		if (_activeProfile == null || RuntimeTerrain.Instance == null) return;
+		var mat = RuntimeTerrain.Instance.GetWaterMaterial(_activeProfile.ProfileIndex);
 		if (mat != null)
 		{
-			Realm.Client.RuntimeTerrain.Instance.ApplyWaterProfileToMaterial(mat, _activeProfile);
+			RuntimeTerrain.Instance.ApplyWaterProfileToMaterial(mat, _activeProfile);
 		}
 	}
 
 	protected override void OnApply()
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		if (!string.IsNullOrEmpty(wsPath))
 		{
-			var metadataRoot = MetadataService.Instance.LoadMetadata(wsPath);
+			var metadataRoot = GameContext.MetadataService.LoadMetadata(wsPath);
 			metadataRoot.CustomWaterProfiles = _profiles;
 			string metaPath = Path.Combine(wsPath, "metadata.json");
-			MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+			GameContext.MetadataService.SaveMetadata(metaPath, metadataRoot);
 			Hud?.UpdateLastMetadataSyncTime(metaPath);
 		}
 
-		if (Realm.Client.RuntimeTerrain.Instance != null)
+		if (RuntimeTerrain.Instance != null)
 		{
-			Realm.Client.RuntimeTerrain.Instance.SetWaterProfiles(_profiles);
+			RuntimeTerrain.Instance.SetWaterProfiles(_profiles);
 		}
 
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EditorHasUnsavedChanges = true;
+			GameHost.Instance.EditorHasUnsavedChanges = true;
 		}
 
 		Hud?.RefreshWaterSwatches();
@@ -1045,17 +1200,18 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 
 	protected override void OnCancel()
 	{
-		if (Realm.Client.RuntimeTerrain.Instance != null)
+		if (RuntimeTerrain.Instance != null)
 		{
-			Realm.Client.RuntimeTerrain.Instance.SetWaterProfiles(_initialSnapshots);
+			RuntimeTerrain.Instance.SetWaterProfiles(_initialSnapshots);
 		}
+
 		Hud?.RefreshWaterSwatches();
 	}
 
 	private List<string> ScanRtexAssets(bool includeAllFolders = true)
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 
 		if (!string.IsNullOrEmpty(wsPath))
 		{
@@ -1081,14 +1237,16 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 				results.Add(Path.GetFileName(file));
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void ScanRtexAssetsFromManifest(string wsPath, HashSet<string> results)
 	{
 		try
 		{
-			var assetsObj = Realm.Client.Utils.MapAssetHelper.LoadAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj == null) return;
 
 			string[] categories = { "Terrain", "Noise", "Decal", "Ribbon", "Spritesheet" };
@@ -1105,6 +1263,8 @@ public partial class WaterProfileDialog : Realm.Client.UI.MapEditor.FloatingDial
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 }

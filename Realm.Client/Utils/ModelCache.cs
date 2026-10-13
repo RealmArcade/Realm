@@ -1,17 +1,27 @@
-using Godot;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.Services;
+using Realm.Client.Services.ModelOptimization;
+using Realm.Ecs.Services;
+using Realm.Shared;
+using Realm.Shared.ModelOptimization;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.Utils
 {
 	public static class ModelCache
 	{
 		private static readonly Dictionary<string, PackedScene> _cachedScenes = new(StringComparer.OrdinalIgnoreCase);
-		private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _resolvedModelPaths = new(StringComparer.OrdinalIgnoreCase);
+		private static readonly ConcurrentDictionary<string, string> _resolvedModelPaths = new(StringComparer.OrdinalIgnoreCase);
 
 		static ModelCache()
 		{
-			Realm.Client.Services.ModelOptimization.GltfDocumentExtensionMsftLod.RegisterExtension();
+			GltfDocumentExtensionMsftLod.RegisterExtension();
 		}
 
 		public static string ResolveModelPath(string modelPath)
@@ -46,7 +56,7 @@ namespace Realm.Client.Utils
 		{
 			if (cleanPath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase) || cleanPath.EndsWith(".gltf", StringComparison.OrdinalIgnoreCase))
 			{
-				return System.IO.Path.ChangeExtension(cleanPath, ".rmesh");
+				return Path.ChangeExtension(cleanPath, ".rmesh");
 			}
 
 			if (!cleanPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && !cleanPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
@@ -79,22 +89,23 @@ namespace Realm.Client.Utils
 
 		private static string TryResolveDirectPath(string modelPath)
 		{
-			if ((modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) && System.IO.File.Exists(modelPath))
+			if ((modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) && File.Exists(modelPath))
 			{
 				return modelPath;
 			}
 
-			string candDirectRmesh = System.IO.Path.ChangeExtension(modelPath, ".rmesh");
-			if (candDirectRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candDirectRmesh))
+			string candDirectRmesh = Path.ChangeExtension(modelPath, ".rmesh");
+			if (candDirectRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candDirectRmesh))
 			{
 				return candDirectRmesh;
 			}
 
-			string candDirectRtex = System.IO.Path.ChangeExtension(modelPath, ".rtex");
-			if (candDirectRtex.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candDirectRtex))
+			string candDirectRtex = Path.ChangeExtension(modelPath, ".rtex");
+			if (candDirectRtex.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && File.Exists(candDirectRtex))
 			{
 				return candDirectRtex;
 			}
+
 			return null;
 		}
 
@@ -103,28 +114,30 @@ namespace Realm.Client.Utils
 			if (!modelPath.StartsWith("res://") && !modelPath.StartsWith("user://")) return null;
 
 			string globalized = ProjectSettings.GlobalizePath(modelPath);
-			if (globalized.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(globalized))
+			if (globalized.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(globalized))
 			{
 				return globalized;
 			}
-			string globalizedRmesh = System.IO.Path.ChangeExtension(globalized, ".rmesh");
-			if (globalizedRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(globalizedRmesh))
+
+			string globalizedRmesh = Path.ChangeExtension(globalized, ".rmesh");
+			if (globalizedRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(globalizedRmesh))
 			{
 				return globalizedRmesh;
 			}
+
 			return null;
 		}
 
 		private static string TryResolveTempWorkspace(string cleanPath, string withRmesh)
 		{
-			string tempWs = ProjectSettings.GlobalizePath(UI.MapEditorHUD.TempWorkspaceGodotPath);
+			string tempWs = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			if (string.IsNullOrEmpty(tempWs)) return null;
 
-			string candTemp = System.IO.Path.Combine(tempWs, cleanPath);
-			if (candTemp.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candTemp)) return candTemp;
+			string candTemp = Path.Combine(tempWs, cleanPath);
+			if (candTemp.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candTemp)) return candTemp;
 
-			string candTempRmesh = System.IO.Path.Combine(tempWs, withRmesh);
-			if (candTempRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candTempRmesh)) return candTempRmesh;
+			string candTempRmesh = Path.Combine(tempWs, withRmesh);
+			if (candTempRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candTempRmesh)) return candTempRmesh;
 			return null;
 		}
 
@@ -133,35 +146,35 @@ namespace Realm.Client.Utils
 			string activeMap = GetActiveMapName();
 			if (string.IsNullOrEmpty(activeMap)) return null;
 
-			if (System.IO.Directory.Exists(activeMap))
+			if (Directory.Exists(activeMap))
 			{
-				string candDirect = System.IO.Path.Combine(activeMap, cleanPath);
+				string candDirect = Path.Combine(activeMap, cleanPath);
 				if (CheckRmeshExists(candDirect)) return candDirect;
 
-				string candDirectRmesh2 = System.IO.Path.Combine(activeMap, withRmesh);
+				string candDirectRmesh2 = Path.Combine(activeMap, withRmesh);
 				if (CheckRmeshExists(candDirectRmesh2)) return candDirectRmesh2;
 			}
 
 			string mapDir = ProjectSettings.GlobalizePath($"user://maps/{activeMap}");
-			string candMap = System.IO.Path.Combine(mapDir, cleanPath);
+			string candMap = Path.Combine(mapDir, cleanPath);
 			if (CheckRmeshExists(candMap)) return candMap;
 
-			string candMapRmesh = System.IO.Path.Combine(mapDir, withRmesh);
+			string candMapRmesh = Path.Combine(mapDir, withRmesh);
 			if (CheckRmeshExists(candMapRmesh)) return candMapRmesh;
-			
+
 			return null;
 		}
 
 		private static string GetActiveMapName()
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(Realm.Client.Core.GameHost.Instance.ActiveMapName))
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(ECSContext.ActiveMapName))
 			{
-				return Realm.Client.Core.GameHost.Instance.ActiveMapName;
+				return ECSContext.ActiveMapName;
 			}
 
-			if (Network.LobbyManager.Instance != null && !string.IsNullOrEmpty(Network.LobbyManager.Instance.ActiveMapName))
+			if (LobbyManager.Instance != null && !string.IsNullOrEmpty(LobbyManager.Instance.ActiveMapName))
 			{
-				return Network.LobbyManager.Instance.ActiveMapName;
+				return LobbyManager.Instance.ActiveMapName;
 			}
 
 			return null;
@@ -169,44 +182,44 @@ namespace Realm.Client.Utils
 
 		private static bool CheckRmeshExists(string path)
 		{
-			return path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(path);
+			return path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(path);
 		}
 
 		private static string TryResolveCurrentMapPath(string cleanPath, string withRmesh)
 		{
-			string currentMapDir = Realm.Client.Core.GameHost.Instance?.CurrentMapDirectory;
-			if (string.IsNullOrEmpty(currentMapDir) || !System.IO.Directory.Exists(currentMapDir)) return null;
+			string currentMapDir = GameContext.MapStorageService.CurrentMapDirectory;
+			if (string.IsNullOrEmpty(currentMapDir) || !Directory.Exists(currentMapDir)) return null;
 
-			string candCur = System.IO.Path.Combine(currentMapDir, cleanPath);
-			if (candCur.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candCur)) return candCur;
+			string candCur = Path.Combine(currentMapDir, cleanPath);
+			if (candCur.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candCur)) return candCur;
 
-			string candCurRmesh = System.IO.Path.Combine(currentMapDir, withRmesh);
-			if (candCurRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candCurRmesh)) return candCurRmesh;
+			string candCurRmesh = Path.Combine(currentMapDir, withRmesh);
+			if (candCurRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candCurRmesh)) return candCurRmesh;
 			return null;
 		}
 
 		private static string TryResolveResUserRoot(string cleanPath, string withRmesh)
 		{
 			string resDir = ProjectSettings.GlobalizePath("res://");
-			string candRes = System.IO.Path.Combine(resDir, cleanPath);
-			if (candRes.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candRes)) return candRes;
+			string candRes = Path.Combine(resDir, cleanPath);
+			if (candRes.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candRes)) return candRes;
 
-			string candResRmesh = System.IO.Path.Combine(resDir, withRmesh);
-			if (candResRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candResRmesh)) return candResRmesh;
+			string candResRmesh = Path.Combine(resDir, withRmesh);
+			if (candResRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candResRmesh)) return candResRmesh;
 
 			string userDir = ProjectSettings.GlobalizePath("user://");
-			string candUser = System.IO.Path.Combine(userDir, cleanPath);
-			if (candUser.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candUser)) return candUser;
+			string candUser = Path.Combine(userDir, cleanPath);
+			if (candUser.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candUser)) return candUser;
 
-			string candUserRmesh = System.IO.Path.Combine(userDir, withRmesh);
-			if (candUserRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(candUserRmesh)) return candUserRmesh;
+			string candUserRmesh = Path.Combine(userDir, withRmesh);
+			if (candUserRmesh.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(candUserRmesh)) return candUserRmesh;
 			return null;
 		}
 
 		private static string TryResolveInBaseLocations(string cleanPath, string withRmesh)
 		{
 			string[] subDirs = new[] { "attachments", "items", "projectiles", "weapons", "props", "resources", "units", "buildings" };
-			string tempWs = ProjectSettings.GlobalizePath(UI.MapEditorHUD.TempWorkspaceGodotPath);
+			string tempWs = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			string activeMap = GetActiveMapName();
 			string currentMapDir = GetCurrentMapDirectory();
 			string resDir = ProjectSettings.GlobalizePath("res://");
@@ -218,25 +231,27 @@ namespace Realm.Client.Utils
 				string result = TryResolveInLocation(loc, cleanPath, withRmesh, subDirs);
 				if (result != null) return result;
 			}
+
 			return null;
 		}
 
 		private static string GetCurrentMapDirectory()
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(Realm.Client.Core.GameHost.Instance.CurrentMapDirectory))
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
 			{
-				return Realm.Client.Core.GameHost.Instance.CurrentMapDirectory;
+				return GameContext.MapStorageService.CurrentMapDirectory;
 			}
+
 			return null;
 		}
 
 		private static string TryResolveInLocation(string loc, string cleanPath, string withRmesh, string[] subDirs)
 		{
-			if (string.IsNullOrEmpty(loc) || !System.IO.Directory.Exists(loc)) return null;
+			if (string.IsNullOrEmpty(loc) || !Directory.Exists(loc)) return null;
 
 			foreach (var sub in subDirs)
 			{
-				string candRmesh = System.IO.Path.Combine(loc, "Assets", "models", sub, withRmesh);
+				string candRmesh = Path.Combine(loc, "Assets", "models", sub, withRmesh);
 				if (CheckRmeshExists(candRmesh)) return candRmesh;
 			}
 
@@ -245,24 +260,24 @@ namespace Realm.Client.Utils
 
 		private static string CheckLocationDecalsAndTextures(string loc, string cleanPath)
 		{
-			string candDecalDirect = System.IO.Path.Combine(loc, "Assets", "decals", cleanPath);
+			string candDecalDirect = Path.Combine(loc, "Assets", "decals", cleanPath);
 			if (CheckRtexExists(candDecalDirect)) return candDecalDirect;
-			
-			string candDecalRtex = System.IO.Path.Combine(loc, "Assets", "decals", $"{cleanPath}.rtex");
-			if (System.IO.File.Exists(candDecalRtex)) return candDecalRtex;
 
-			string candTexDirect = System.IO.Path.Combine(loc, "Assets", "textures", cleanPath);
+			string candDecalRtex = Path.Combine(loc, "Assets", "decals", $"{cleanPath}.rtex");
+			if (File.Exists(candDecalRtex)) return candDecalRtex;
+
+			string candTexDirect = Path.Combine(loc, "Assets", "textures", cleanPath);
 			if (CheckRtexExists(candTexDirect)) return candTexDirect;
-			
-			string candTexRtex = System.IO.Path.Combine(loc, "Assets", "textures", $"{cleanPath}.rtex");
-			if (System.IO.File.Exists(candTexRtex)) return candTexRtex;
+
+			string candTexRtex = Path.Combine(loc, "Assets", "textures", $"{cleanPath}.rtex");
+			if (File.Exists(candTexRtex)) return candTexRtex;
 
 			return null;
 		}
 
 		private static bool CheckRtexExists(string path)
 		{
-			return path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(path);
+			return path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && File.Exists(path);
 		}
 
 		private static string TryResolveViaPathUtils(string cleanPath, string withRmesh)
@@ -281,16 +296,17 @@ namespace Realm.Client.Utils
 			{
 				string tPathRmesh = PathUtils.FindPath($"MapTemplate/Assets/models/{sub}/{withRmesh}");
 				if (ValidateRmeshPath(tPathRmesh)) return tPathRmesh;
-				
+
 				string rPathRmesh = PathUtils.FindPath($"Assets/models/{sub}/{withRmesh}");
 				if (ValidateRmeshPath(rPathRmesh)) return rPathRmesh;
 			}
+
 			return null;
 		}
 
 		private static bool ValidateRmeshPath(string path)
 		{
-			return !string.IsNullOrEmpty(path) && path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(path);
+			return !string.IsNullOrEmpty(path) && path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && File.Exists(path);
 		}
 
 		public static Node GetModel(string modelPath)
@@ -341,7 +357,7 @@ namespace Realm.Client.Utils
 					return BuildPrimitiveMeshScene(targetPath);
 				}
 
-				if (!targetPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(targetPath))
+				if (!targetPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(targetPath))
 				{
 					return null;
 				}
@@ -352,6 +368,7 @@ namespace Realm.Client.Utils
 			{
 				GD.PrintErr($"ModelCache error loading '{modelPath}': {ex.Message}");
 			}
+
 			return null;
 		}
 
@@ -359,14 +376,14 @@ namespace Realm.Client.Utils
 		{
 			var doc = new GltfDocument();
 			var state = new GltfState();
-			byte[] rmeshBytes = System.IO.File.ReadAllBytes(targetPath);
+			byte[] rmeshBytes = File.ReadAllBytes(targetPath);
 			string? chromaKey = null;
 			byte[] glbBytes;
 
-			if (Realm.Shared.ModelOptimization.RmeshFile.IsRmeshBytes(rmeshBytes))
+			if (RmeshFile.IsRmeshBytes(rmeshBytes))
 			{
-				var (meta, glbPayload, _) = Realm.Shared.ModelOptimization.RmeshFile.Parse(rmeshBytes);
-				chromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(meta);
+				var (meta, glbPayload, _) = RmeshFile.Parse(rmeshBytes);
+				chromaKey = RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(meta);
 				glbBytes = glbPayload;
 			}
 			else
@@ -374,10 +391,10 @@ namespace Realm.Client.Utils
 				glbBytes = rmeshBytes;
 			}
 
-			bool despill = Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.GetModelDespillPlayerColor(modelPath);
+			bool despill = GameHost.Instance != null && GameHost.Instance.GetModelDespillPlayerColor(modelPath);
 			if (despill)
 			{
-				glbBytes = Realm.Shared.GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
+				glbBytes = GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
 			}
 
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
@@ -386,13 +403,13 @@ namespace Realm.Client.Utils
 			Node generatedNode = doc.GenerateScene(state);
 			if (generatedNode == null) return null;
 
-			Realm.Client.Services.ModelOptimization.GltfDocumentExtensionMsftLod.ProcessImportedScene(state, generatedNode);
+			GltfDocumentExtensionMsftLod.ProcessImportedScene(state, generatedNode);
 			SetOwnerRecursive(generatedNode, generatedNode);
-			
+
 			var packedScene = new PackedScene();
 			Error packErr = packedScene.Pack(generatedNode);
 			generatedNode.Free();
-			
+
 			return packErr == Error.Ok ? packedScene : null;
 		}
 
@@ -420,6 +437,7 @@ namespace Realm.Client.Utils
 			{
 				GD.PrintErr($"[ModelCache] Error building primitive mesh scene for '{texturePath}': {ex.Message}");
 			}
+
 			return null;
 		}
 
@@ -428,14 +446,14 @@ namespace Realm.Client.Utils
 			albedoTex = null;
 			normalTex = null;
 
-			byte[] rtexBytes = System.IO.File.ReadAllBytes(texturePath);
-			var (_, layers, _) = Realm.Shared.Textures.RtexFile.Parse(rtexBytes);
-			
+			byte[] rtexBytes = File.ReadAllBytes(texturePath);
+			var (_, layers, _) = RtexFile.Parse(rtexBytes);
+
 			if (layers.Count > 0 && layers[0] != null && layers[0].Length > 0)
 			{
 				albedoTex = CreateTextureFromLayer(layers[0]);
 			}
-			
+
 			if (layers.Count > 1 && layers[1] != null && layers[1].Length > 0)
 			{
 				normalTex = CreateTextureFromLayer(layers[1]);
@@ -450,6 +468,7 @@ namespace Realm.Client.Utils
 				if (!img.HasMipmaps()) img.GenerateMipmaps();
 				return ImageTexture.CreateFromImage(img);
 			}
+
 			return null;
 		}
 
@@ -550,16 +569,16 @@ namespace Realm.Client.Utils
 
 		private static Node TryGenerateNodeFromRmesh(string resolvedPath)
 		{
-			if (string.IsNullOrEmpty(resolvedPath) || !resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(resolvedPath))
+			if (string.IsNullOrEmpty(resolvedPath) || !resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(resolvedPath))
 			{
 				return null;
 			}
 
 			var doc = new GltfDocument();
 			var state = new GltfState();
-			byte[] rmeshBytes = System.IO.File.ReadAllBytes(resolvedPath);
-			byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-			
+			byte[] rmeshBytes = File.ReadAllBytes(resolvedPath);
+			byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
 			if (err == Error.Ok)
 			{

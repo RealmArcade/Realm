@@ -5,14 +5,11 @@ namespace Realm.Shared.Terrain;
 
 public struct Vector3Data
 {
-	[JsonPropertyName("X")]
-	public float X { get; set; }
+	[JsonPropertyName("X")] public float X { get; set; }
 
-	[JsonPropertyName("Y")]
-	public float Y { get; set; }
+	[JsonPropertyName("Y")] public float Y { get; set; }
 
-	[JsonPropertyName("Z")]
-	public float Z { get; set; }
+	[JsonPropertyName("Z")] public float Z { get; set; }
 
 	public Vector3Data(float x, float y, float z)
 	{

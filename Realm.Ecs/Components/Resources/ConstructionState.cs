@@ -5,14 +5,14 @@ namespace Realm.Ecs.Components.Resources;
 /// </summary>
 public struct ConstructionState
 {
-    public float TotalBuildTime;
-    public float Progress;
+	public float TotalBuildTime;
+	public float Progress;
 
-    public ConstructionState(float totalBuildTime)
-    {
-        TotalBuildTime = totalBuildTime;
-        Progress = 0f;
-    }
+	public ConstructionState(float totalBuildTime)
+	{
+		TotalBuildTime = totalBuildTime;
+		Progress = 0f;
+	}
 
-    public readonly bool IsComplete => Progress >= TotalBuildTime;
+	public readonly bool IsComplete => Progress >= TotalBuildTime;
 }

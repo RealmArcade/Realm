@@ -1,15 +1,15 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Client.VFX;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
+using Godot;
+using Realm.Client.Services;
+using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview3DDialogBase
+public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 {
 	private ProceduralVfxInstance3D _previewVfxInstance;
 	private MeshInstance3D _previewGroundGrid;
@@ -184,7 +184,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		AddButton(topToolbar, $"{UnicodeIcons.EXPAND_ARROWS} " + TranslationServer.Translate("Chain"), () => TriggerPreviewChain(), "Test multi-segment ribbon chain beam", 10, new Vector2(0, 22));
 		AddButton(topToolbar, $"{UnicodeIcons.CLOUD_SHOWERS} " + TranslationServer.Translate("Barrage"), () => TriggerPreviewBarrage(), "Test randomized area barrage volley", 10, new Vector2(0, 22));
 
-		var separator = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var separator = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		topToolbar.AddChild(separator);
 
 		AddCameraPresetToolbar(topToolbar, includeBack: false, includeGridToggle: true, onToggleGrid: () =>
@@ -194,17 +194,18 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 				_previewGroundGrid.Visible = !_previewGroundGrid.Visible;
 			}
 		});
-		
+
 		parent.AddChild(topToolbar);
 	}
 
 	private void BuildSubToolbar(Control parent)
 	{
-		var rowSubToolbar = new HBoxContainer();
-		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		rowSubToolbar.AddChild(spacer);
-		AddButton(rowSubToolbar, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () => CopyScriptCode(), "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
-		parent.AddChild(rowSubToolbar);
+		var rowRandomize = new HBoxContainer();
+		var btnRandomize = AddButton(rowRandomize, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize All"), () => { RandomizeAllParameters(); }, "Randomize all noise masks, shapes, uv scrolling, and color parameters completely");
+		btnRandomize.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+
+		AddButton(rowRandomize, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy Code"), () => CopyScriptCode(), "Copy C# MapScript code reference to clipboard", 10, new Vector2(0, 22));
+		parent.AddChild(rowRandomize);
 	}
 
 	private void BuildBasicSettings(VBoxContainer parent)
@@ -225,7 +226,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("vfx_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) =>
 		{
@@ -265,6 +266,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 					_currentConfig.PrimitiveType = _primitiveTypes[primIdx];
 				}
 			}
+
 			UpdateSectionVisibilities();
 			RestartPreviewVfx();
 		}, 140f);
@@ -283,6 +285,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			{
 				_currentConfig.ParticleConfig.BlendMode = (VfxBlendMode)idx;
 			}
+
 			RestartPreviewVfx();
 		}, 140f);
 
@@ -394,14 +397,6 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		_txtParticleMesh = particleMeshTuple.Input;
 		_setParticleMeshVal = particleMeshTuple.SetValue;
 		_rowParticleMesh = particleMeshTuple.Input.GetParent() as Control;
-
-		var rowRandomize = new HBoxContainer();
-		var btnRandomize = AddButton(rowRandomize, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize All"), () =>
-		{
-			RandomizeAllParameters();
-		}, "Randomize all noise masks, shapes, uv scrolling, and color parameters completely");
-		btnRandomize.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		parent.AddChild(rowRandomize);
 	}
 
 	private void BuildShaderSettings(VBoxContainer parent)
@@ -432,8 +427,8 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 	private void SetupUvControls()
 	{
-		(_txtBaseUvScrollX, _txtBaseUvScrollY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Base UV Scroll"), Vector2.Zero, (System.Action<Vector2>)OnBaseUvScrollChanged, 140f);
-		(_txtBaseUvScaleX, _txtBaseUvScaleY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Base UV Scale"), Vector2.One, (System.Action<Vector2>)OnBaseUvScaleChanged, 140f);
+		(_txtBaseUvScrollX, _txtBaseUvScrollY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Base UV Scroll"), Vector2.Zero, (Action<Vector2>)OnBaseUvScrollChanged, 140f);
+		(_txtBaseUvScaleX, _txtBaseUvScaleY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Base UV Scale"), Vector2.One, (Action<Vector2>)OnBaseUvScaleChanged, 140f);
 
 		var noiseTexTuple = AddAssetFilterDropdown(
 			_uberShaderContainer,
@@ -453,23 +448,130 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		}
 
 		(_sliderDistortionStrength, _lblDistortionStrength) = AddSlider(_uberShaderContainer, TranslationServer.Translate("Distortion Strength"), 0.0f, 2.0f, 0.02f, _currentConfig.DistortionStrength, OnDistortionStrengthChanged, "0.00", 140f);
-		(_txtNoiseUvScrollX, _txtNoiseUvScrollY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Noise UV Scroll"), Vector2.Zero, (System.Action<Vector2>)OnNoiseUvScrollChanged, 140f);
-		(_txtNoiseUvScaleX, _txtNoiseUvScaleY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Noise UV Scale"), Vector2.One, (System.Action<Vector2>)OnNoiseUvScaleChanged, 140f);
+		(_txtNoiseUvScrollX, _txtNoiseUvScrollY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Noise UV Scroll"), Vector2.Zero, (Action<Vector2>)OnNoiseUvScrollChanged, 140f);
+		(_txtNoiseUvScaleX, _txtNoiseUvScaleY) = AddVector2Input(_uberShaderContainer, TranslationServer.Translate("Noise UV Scale"), Vector2.One, (Action<Vector2>)OnNoiseUvScaleChanged, 140f);
 	}
 
-	private void OnLuminanceToAlphaChanged(bool val) { if (!_isUpdatingUI) { _currentConfig.LuminanceToAlpha = val; RestartPreviewVfx(); } }
-	private void OnLuminanceThresholdChanged(float val) { if (!_isUpdatingUI) { _currentConfig.LuminanceThreshold = val; RestartPreviewVfx(); } }
-	private void OnLuminanceSmoothnessChanged(float val) { if (!_isUpdatingUI) { _currentConfig.LuminanceSmoothness = val; RestartPreviewVfx(); } }
-	private void OnUseGrayscaleChanged(bool val) { if (!_isUpdatingUI) { _currentConfig.UseGrayscale = val; RestartPreviewVfx(); } }
-	private void OnInvertMaskChanged(bool val) { if (!_isUpdatingUI) { _currentConfig.InvertMask = val; RestartPreviewVfx(); } }
-	private void OnHighPassCutoffChanged(float val) { if (!_isUpdatingUI) { _currentConfig.HighPassCutoff = val; RestartPreviewVfx(); } }
-	private void OnBaseUvScrollChanged(Vector2 val) { if (!_isUpdatingUI) { _currentConfig.BaseUvScroll = val.ToVector2Data(); RestartPreviewVfx(); } }
-	private void OnBaseUvScaleChanged(Vector2 val) { if (!_isUpdatingUI) { _currentConfig.BaseUvScale = val.ToVector2Data(); RestartPreviewVfx(); } }
-	private void OnNoiseTextureChanged(string val) { if (!_isUpdatingUI) { _currentConfig.NoiseTexture = val; RestartPreviewVfx(); } }
-	private void OnCreateNoiseTexture() { Hud?.OpenNoiseTextureDialog((createdName) => { if (!string.IsNullOrEmpty(createdName)) { _currentConfig.NoiseTexture = createdName; _setNoiseTextureVal?.Invoke(createdName); RestartPreviewVfx(); } }); }
-	private void OnDistortionStrengthChanged(float val) { if (!_isUpdatingUI) { _currentConfig.DistortionStrength = val; RestartPreviewVfx(); } }
-	private void OnNoiseUvScrollChanged(Vector2 val) { if (!_isUpdatingUI) { _currentConfig.NoiseUvScroll = val.ToVector2Data(); RestartPreviewVfx(); } }
-	private void OnNoiseUvScaleChanged(Vector2 val) { if (!_isUpdatingUI) { _currentConfig.NoiseUvScale = val.ToVector2Data(); RestartPreviewVfx(); } }
+	private void OnLuminanceToAlphaChanged(bool val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.LuminanceToAlpha = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnLuminanceThresholdChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.LuminanceThreshold = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnLuminanceSmoothnessChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.LuminanceSmoothness = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnUseGrayscaleChanged(bool val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.UseGrayscale = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnInvertMaskChanged(bool val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.InvertMask = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnHighPassCutoffChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.HighPassCutoff = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnBaseUvScrollChanged(Vector2 val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.BaseUvScroll = val.ToVector2Data();
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnBaseUvScaleChanged(Vector2 val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.BaseUvScale = val.ToVector2Data();
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnNoiseTextureChanged(string val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.NoiseTexture = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnCreateNoiseTexture()
+	{
+		Hud?.OpenNoiseTextureDialog((createdName) =>
+		{
+			if (!string.IsNullOrEmpty(createdName))
+			{
+				_currentConfig.NoiseTexture = createdName;
+				_setNoiseTextureVal?.Invoke(createdName);
+				RestartPreviewVfx();
+			}
+		});
+	}
+
+	private void OnDistortionStrengthChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.DistortionStrength = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnNoiseUvScrollChanged(Vector2 val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.NoiseUvScroll = val.ToVector2Data();
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnNoiseUvScaleChanged(Vector2 val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.NoiseUvScale = val.ToVector2Data();
+			RestartPreviewVfx();
+		}
+	}
 
 
 	private void BuildColorSettings(VBoxContainer parent)
@@ -557,18 +659,113 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		(_sliderDepthFadeDistance, _lblDepthFadeDistance) = AddSlider(parent, TranslationServer.Translate("Depth Fade Distance"), 0.0f, 5.0f, 0.05f, _currentConfig.DepthFadeDistance, OnDepthFadeDistanceChanged, "0.00", 140f);
 	}
 
-	private void OnRadialFalloffChanged(bool val) { if (!_isUpdatingUI) { _currentConfig.EnableRadialFalloff = val; RestartPreviewVfx(); } }
-	private void OnRadialFalloffStartChanged(float val) { if (!_isUpdatingUI) { _currentConfig.RadialFalloffStart = val; RestartPreviewVfx(); } }
-	private void OnRadialFalloffEndChanged(float val) { if (!_isUpdatingUI) { _currentConfig.RadialFalloffEnd = val; RestartPreviewVfx(); } }
-	private void OnLengthFadeChanged(bool val) { if (!_isUpdatingUI) { _currentConfig.EnableLengthFade = val; RestartPreviewVfx(); } }
-	private void OnLengthFadeStartChanged(float val) { if (!_isUpdatingUI) { _currentConfig.LengthFadeStart = val; RestartPreviewVfx(); } }
-	private void OnLengthFadeEndChanged(float val) { if (!_isUpdatingUI) { _currentConfig.LengthFadeEnd = val; RestartPreviewVfx(); } }
-	private void OnErosionProgressChanged(float val) { if (!_isUpdatingUI) { _currentConfig.ErosionProgress = val; RestartPreviewVfx(); } }
-	private void OnFresnelChanged(bool val) { if (!_isUpdatingUI) { _currentConfig.EnableFresnel = val; RestartPreviewVfx(); } }
-	private void OnFresnelPowerChanged(float val) { if (!_isUpdatingUI) { _currentConfig.FresnelPower = val; RestartPreviewVfx(); } }
-	private void OnFresnelIntensityChanged(float val) { if (!_isUpdatingUI) { _currentConfig.FresnelIntensity = val; RestartPreviewVfx(); } }
-	private void OnDepthFadeChanged(bool val) { if (!_isUpdatingUI) { _currentConfig.EnableDepthFade = val; RestartPreviewVfx(); } }
-	private void OnDepthFadeDistanceChanged(float val) { if (!_isUpdatingUI) { _currentConfig.DepthFadeDistance = val; RestartPreviewVfx(); } }
+	private void OnRadialFalloffChanged(bool val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.EnableRadialFalloff = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnRadialFalloffStartChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.RadialFalloffStart = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnRadialFalloffEndChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.RadialFalloffEnd = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnLengthFadeChanged(bool val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.EnableLengthFade = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnLengthFadeStartChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.LengthFadeStart = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnLengthFadeEndChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.LengthFadeEnd = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnErosionProgressChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.ErosionProgress = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnFresnelChanged(bool val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.EnableFresnel = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnFresnelPowerChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.FresnelPower = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnFresnelIntensityChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.FresnelIntensity = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnDepthFadeChanged(bool val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.EnableDepthFade = val;
+			RestartPreviewVfx();
+		}
+	}
+
+	private void OnDepthFadeDistanceChanged(float val)
+	{
+		if (!_isUpdatingUI)
+		{
+			_currentConfig.DepthFadeDistance = val;
+			RestartPreviewVfx();
+		}
+	}
 
 
 	private void BuildTransformSettings(VBoxContainer parent)
@@ -927,13 +1124,13 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	{
 		bool isParticle = _currentConfig.PrimitiveType == VfxPrimitiveType.ParticleSystem;
 		if (_optMode != null) _optMode.Selected = isParticle ? 1 : 0;
-    
+
 		if (!isParticle && _optPrimitive != null)
 		{
 			int primIdx = Array.IndexOf(_primitiveTypes, _currentConfig.PrimitiveType);
 			_optPrimitive.Selected = Math.Max(0, primIdx);
 		}
-    
+
 		if (_optBlendMode != null) _optBlendMode.Selected = (int)_currentConfig.BlendMode;
 		if (_optPlacementMode != null) _optPlacementMode.Selected = (int)_currentConfig.PlacementMode;
 	}
@@ -1058,7 +1255,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		if (_chkDepthFade != null) _chkDepthFade.ButtonPressed = _currentConfig.EnableDepthFade;
 		if (_sliderDepthFadeDistance != null) _sliderDepthFadeDistance.SetValueNoSignal(_currentConfig.DepthFadeDistance);
 		if (_lblDepthFadeDistance != null) _lblDepthFadeDistance.Text = _currentConfig.DepthFadeDistance.ToString("0.00");
-    
+
 		if (_sliderSurfaceNormalOffset != null) _sliderSurfaceNormalOffset.SetValueNoSignal(_currentConfig.SurfaceNormalOffset);
 		if (_lblSurfaceNormalOffset != null) _lblSurfaceNormalOffset.Text = _currentConfig.SurfaceNormalOffset.ToString("0.000");
 	}
@@ -1210,7 +1407,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		SyncVfxId();
 		if (_txtVfxName != null) _currentConfig.Name = _txtVfxName.Text.Trim();
 		SyncPrimitiveMode();
-    
+
 		if (_optBlendMode != null) _currentConfig.BlendMode = (VfxBlendMode)_optBlendMode.Selected;
 		if (_optPlacementMode != null) _currentConfig.PlacementMode = (VfxPlacementMode)_optPlacementMode.Selected;
 	}
@@ -1218,11 +1415,11 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	private void SyncVfxId()
 	{
 		if (_txtSlug == null) return;
-    
+
 		_slug = TemplateIDHelper.ToSnakeCase(_txtSlug.Text);
 		_vfxId = TemplateIDHelper.NormalizeTemplateID("vfx", _slug);
 		_currentConfig.VfxId = _vfxId;
-    
+
 		if (_currentConfig.ParticleConfig != null)
 		{
 			_currentConfig.ParticleConfig.ParticleId = _vfxId;
@@ -1232,7 +1429,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	private void SyncPrimitiveMode()
 	{
 		if (_optMode == null) return;
-    
+
 		if (_optMode.Selected == 1)
 		{
 			_currentConfig.PrimitiveType = VfxPrimitiveType.ParticleSystem;
@@ -1317,7 +1514,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	{
 		SyncRadialFalloff();
 		SyncFades();
-    
+
 		if (_sliderSurfaceNormalOffset != null) _currentConfig.SurfaceNormalOffset = (float)_sliderSurfaceNormalOffset.Value;
 	}
 
@@ -1365,7 +1562,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 	private List<string> ScanTextureAssets(bool includeAll)
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 
 		ScanTextureFolders(wsPath, results);
 		ScanTextureAssetsObj(wsPath, results);
@@ -1415,14 +1612,16 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 
 	private List<string> ScanNoiseAssets()
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 
 		ScanNoiseFolder(wsPath, results);
 		ScanNoiseAssetsObj(wsPath, results);
@@ -1452,7 +1651,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		{
 			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			var noiseDict = assetsObj?.GetCategory("Noise");
-        
+
 			if (noiseDict == null) return;
 
 			foreach (var kvp in noiseDict)
@@ -1463,21 +1662,23 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 
 	private List<string> ScanProjectileMeshAssets()
 	{
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 
 		ScanProjectileAssetsObj(wsPath, results);
 
 		void ScanFolder(string folderPath)
 		{
 			if (!Directory.Exists(folderPath)) return;
-        
+
 			foreach (var file in Directory.GetFiles(folderPath, "*.rmesh"))
 			{
 				results.Add(Path.GetFileName(file));
@@ -1486,7 +1687,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 		ScanFolder(Path.Combine(wsPath, "Assets", "models", "projectiles"));
 		ScanFolder(Path.Combine(wsPath, "Assets", "models", "props"));
-    
+
 		string templateDir = PathUtils.FindPath("MapTemplate/Assets/models/projectiles");
 		if (!string.IsNullOrEmpty(templateDir)) ScanFolder(templateDir);
 
@@ -1516,7 +1717,9 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 
@@ -1642,7 +1845,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 	private string GenerateHeadlessRandomNoise()
 	{
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string noiseDir = Path.Combine(wsPath, "Assets", "noise");
 		Directory.CreateDirectory(noiseDir);
 
@@ -1651,8 +1854,15 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			string oldPath = Path.Combine(noiseDir, _tempGeneratedNoiseFileName);
 			if (File.Exists(oldPath))
 			{
-				try { File.Delete(oldPath); } catch { }
+				try
+				{
+					File.Delete(oldPath);
+				}
+				catch
+				{
+				}
 			}
+
 			_tempGeneratedNoiseFileName = null;
 			_tempGeneratedNoiseConfig = null;
 		}
@@ -1667,6 +1877,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			{
 				break;
 			}
+
 			dedupeIndex++;
 		}
 
@@ -1714,14 +1925,17 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		{
 			try
 			{
-				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+				string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 				string filePath = Path.Combine(wsPath, "Assets", "noise", _tempGeneratedNoiseFileName);
 				if (File.Exists(filePath))
 				{
 					File.Delete(filePath);
 				}
 			}
-			catch { }
+			catch
+			{
+			}
+
 			_tempGeneratedNoiseFileName = null;
 			_tempGeneratedNoiseConfig = null;
 		}
@@ -1737,16 +1951,16 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		{
 			try
 			{
-				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+				string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 				string outputRtex = Path.Combine(wsPath, "Assets", "noise", _tempGeneratedNoiseFileName);
 				string blake3Hash = NoiseTextureGenerator.GenerateAndSaveRtex(_tempGeneratedNoiseConfig, outputRtex);
 
 				MapAssetHelper.UpdateManifestAsset(wsPath, "Noise", _tempGeneratedNoiseFileName, blake3Hash);
 
-				MetadataService.Instance.UpdateMetadata(wsPath, m =>
+				GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 				{
 					m.NoiseTextures ??= new(StringComparer.OrdinalIgnoreCase);
-					m.NoiseTextures[_tempGeneratedNoiseFileName] = new Realm.Shared.Metadata.TextureMetadata
+					m.NoiseTextures[_tempGeneratedNoiseFileName] = new TextureMetadata
 					{
 						NoiseConfig = _tempGeneratedNoiseConfig.ToJsonString()
 					};
@@ -1757,6 +1971,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 			{
 				GD.PrintErr($"[VfxStudioDialog] Failed to save generated noise asset to manifest: {ex.Message}");
 			}
+
 			_tempGeneratedNoiseFileName = null;
 			_tempGeneratedNoiseConfig = null;
 		}
@@ -1778,17 +1993,17 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 
 	private void SaveSpritesheetGrid(string key, int columns, int rows, float fps = 20.0f, bool subframeBlend = true)
 	{
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 
 		try
 		{
 			string fileName = Path.GetFileName(key);
-			string slug = Realm.Client.Utils.TemplateIDHelper.GenerateSlug(fileName);
-			string spritesheetTemplateId = Realm.Client.Utils.TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
-			MetadataService.Instance.UpdateMetadata(wsPath, m =>
+			string slug = TemplateIDHelper.GenerateSlug(fileName);
+			string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
+			GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 			{
 				m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-				m.VfxSpritesheets[spritesheetTemplateId] = new Realm.Shared.Metadata.VfxMetadata
+				m.VfxSpritesheets[spritesheetTemplateId] = new VfxMetadata
 				{
 					TexturePath = fileName,
 					Columns = columns,
@@ -1823,6 +2038,7 @@ public partial class VfxStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview
 		{
 			code = $"api.SpawnVisualEffect(\"{_vfxId}\", targetPos, 1.0f);";
 		}
+
 		DisplayServer.ClipboardSet(code);
 		Hud?.ShowFeedback(TranslationServer.Translate("Copied script code to clipboard"));
 	}

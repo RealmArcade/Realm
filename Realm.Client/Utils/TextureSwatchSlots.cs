@@ -1,8 +1,8 @@
-using Godot;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Utils;
 
@@ -37,7 +37,10 @@ public static class TextureSwatchSlots
 		{
 			return MapFileService.LoadMetadata(mapDir);
 		}
-		catch { return null; }
+		catch
+		{
+			return null;
+		}
 	}
 
 	private static void AddDiskRibbons(HashSet<string> set, string? mapDir)
@@ -56,7 +59,9 @@ public static class TextureSwatchSlots
 				set.Add(Path.GetFileNameWithoutExtension(fname));
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	public static bool ValidateCategory(string fileName, object? node = null, HashSet<string>? knownRibbons = null)
@@ -78,17 +83,17 @@ public static class TextureSwatchSlots
 	private static bool IsInvalidCategory(string normalized)
 	{
 		return normalized.Contains("ribbons/") || normalized.Contains("ribbon_textures/") ||
-			normalized.Contains("decals/") || normalized.Contains("icons/") ||
-			normalized.Contains("skyboxes/") || normalized.Contains("noise/") ||
-			normalized.Contains("noise_textures/") || normalized.Contains("vfx/") ||
-			normalized.Contains("vfx_spritesheets/");
+		       normalized.Contains("decals/") || normalized.Contains("icons/") ||
+		       normalized.Contains("skyboxes/") || normalized.Contains("noise/") ||
+		       normalized.Contains("noise_textures/") || normalized.Contains("vfx/") ||
+		       normalized.Contains("vfx_spritesheets/");
 	}
 
 	private static bool HasInvalidSuffix(string baseName)
 	{
 		return baseName.EndsWith("_trail") || baseName.EndsWith("_flare") ||
-			baseName.EndsWith("_beam") || baseName.EndsWith("_pulse") ||
-			baseName.EndsWith("_streak") || baseName.EndsWith("_ether_trace");
+		       baseName.EndsWith("_beam") || baseName.EndsWith("_pulse") ||
+		       baseName.EndsWith("_streak") || baseName.EndsWith("_ether_trace");
 	}
 
 	private static bool IsKnownRibbon(string fileName, string baseName, HashSet<string>? knownRibbons)
@@ -103,6 +108,7 @@ public static class TextureSwatchSlots
 		{
 			if (!occupiedSlots[i]) return i;
 		}
+
 		return -1;
 	}
 
@@ -141,6 +147,7 @@ public static class TextureSwatchSlots
 				result[i] = new SwatchSlotInfo(i, null, null, true, null);
 			}
 		}
+
 		return result;
 	}
 
@@ -157,6 +164,7 @@ public static class TextureSwatchSlots
 
 			candidateItems.Add((baseName, fileName, requestedSlot, kvp.Value));
 		}
+
 		return candidateItems;
 	}
 
@@ -170,6 +178,7 @@ public static class TextureSwatchSlots
 		{
 			fileName += ".rtex";
 		}
+
 		return fileName;
 	}
 
@@ -191,6 +200,7 @@ public static class TextureSwatchSlots
 				pendingReassign.Add((item.BaseName, item.FileName, item.Node));
 			}
 		}
+
 		return pendingReassign;
 	}
 

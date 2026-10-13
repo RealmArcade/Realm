@@ -1,6 +1,7 @@
-using Godot;
 using System;
 using System.IO;
+using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.VFX;
 
@@ -249,12 +250,12 @@ public partial class SpellParticleInstance3D : Node3D
 	private void ApplyBillboardMaterialProperties()
 	{
 		_billboardMaterial.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-		_billboardMaterial.BlendMode = _config.BlendMode == VfxBlendMode.Additive 
-			? BaseMaterial3D.BlendModeEnum.Add 
+		_billboardMaterial.BlendMode = _config.BlendMode == VfxBlendMode.Additive
+			? BaseMaterial3D.BlendModeEnum.Add
 			: BaseMaterial3D.BlendModeEnum.Mix;
 
-		Texture2D particleTex = !string.IsNullOrEmpty(_config.ParticleTexture) 
-			? VfxShaderManager.LoadTextureSafe(_config.ParticleTexture) 
+		Texture2D particleTex = !string.IsNullOrEmpty(_config.ParticleTexture)
+			? VfxShaderManager.LoadTextureSafe(_config.ParticleTexture)
 			: null;
 		_billboardMaterial.AlbedoTexture = particleTex;
 
@@ -321,7 +322,7 @@ public partial class SpellParticleInstance3D : Node3D
 			string fullPath = assetPath;
 			if (!fullPath.StartsWith("res://") && !fullPath.StartsWith("user://") && !File.Exists(fullPath))
 			{
-				string wsPath = ProjectSettings.GlobalizePath(UI.MapEditorHUD.TempWorkspaceGodotPath);
+				string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 				string[] candidates = new[]
 				{
 					Path.Combine(wsPath, "Assets", "models", "projectiles", Path.GetFileName(assetPath)),
@@ -340,7 +341,7 @@ public partial class SpellParticleInstance3D : Node3D
 				}
 			}
 
-			Node node = Realm.Client.Utils.ModelCache.GetModel(fullPath);
+			Node node = ModelCache.GetModel(fullPath);
 			if (node != null)
 			{
 				Mesh foundMesh = FindFirstMesh(node);
@@ -348,7 +349,9 @@ public partial class SpellParticleInstance3D : Node3D
 				if (foundMesh != null) return foundMesh;
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		var fallbackBox = new BoxMesh();
 		fallbackBox.Size = Vector3.One * 0.2f;
@@ -371,13 +374,16 @@ public partial class SpellParticleInstance3D : Node3D
 					}
 				}
 			}
+
 			return mesh;
 		}
+
 		foreach (Node child in node.GetChildren())
 		{
 			var m = FindFirstMesh(child);
 			if (m != null) return m;
 		}
+
 		return null;
 	}
 }

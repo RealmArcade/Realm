@@ -1,9 +1,12 @@
-using Godot;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Nodes;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Services;
+using Realm.Shared.Textures;
+using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client.VFX;
 
@@ -42,6 +45,7 @@ public class VfxShaderManager
 					{
 						_shaderProjectorAdd = LoadShaderFromFile("res://Assets/shaders/vfx_projector_add.gdshader", "Assets/shaders/vfx_projector_add.gdshader");
 					}
+
 					return _shaderProjectorAdd;
 				}
 				else
@@ -50,6 +54,7 @@ public class VfxShaderManager
 					{
 						_shaderProjectorMix = LoadShaderFromFile("res://Assets/shaders/vfx_projector_mix.gdshader", "Assets/shaders/vfx_projector_mix.gdshader");
 					}
+
 					return _shaderProjectorMix;
 				}
 			}
@@ -60,6 +65,7 @@ public class VfxShaderManager
 				{
 					_shaderAdd = LoadShaderFromFile("res://Assets/shaders/vfx_uber_add.gdshader", "Assets/shaders/vfx_uber_add.gdshader");
 				}
+
 				return _shaderAdd;
 			}
 			else
@@ -68,6 +74,7 @@ public class VfxShaderManager
 				{
 					_shaderMix = LoadShaderFromFile("res://Assets/shaders/vfx_uber_mix.gdshader", "Assets/shaders/vfx_uber_mix.gdshader");
 				}
+
 				return _shaderMix;
 			}
 		}
@@ -76,9 +83,9 @@ public class VfxShaderManager
 	private static Shader LoadShaderFromFile(string resPath, string fallbackRelPath)
 	{
 		string shaderCode = "";
-		if (global::Godot.FileAccess.FileExists(resPath))
+		if (FileAccess.FileExists(resPath))
 		{
-			using var file = global::Godot.FileAccess.Open(resPath, global::Godot.FileAccess.ModeFlags.Read);
+			using var file = FileAccess.Open(resPath, FileAccess.ModeFlags.Read);
 			shaderCode = file?.GetAsText() ?? "";
 		}
 
@@ -208,7 +215,7 @@ public class VfxShaderManager
 		texture = null;
 		if (!TextureCache.TryGetValue(path, out var cached)) return false;
 		if (cached == null || !GodotObject.IsInstanceValid(cached)) return false;
-		
+
 		texture = cached;
 		return true;
 	}
@@ -217,7 +224,7 @@ public class VfxShaderManager
 	{
 		if (!path.StartsWith("res://") && !path.StartsWith("user://")) return null;
 		if (!ResourceLoader.Exists(path)) return null;
-		
+
 		var tex = GD.Load<Texture2D>(path);
 		if (tex == null) return null;
 
@@ -227,7 +234,7 @@ public class VfxShaderManager
 
 	private static Texture2D LoadTextureFromCandidates(string path)
 	{
-		string wsPath = ProjectSettings.GlobalizePath(UI.MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string[] candidates = GetTextureCandidates(path, wsPath);
 
 		foreach (var candidate in candidates)
@@ -290,8 +297,8 @@ public class VfxShaderManager
 	{
 		try
 		{
-			return fullPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) 
-				? LoadRtexImage(fullPath) 
+			return fullPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)
+				? LoadRtexImage(fullPath)
 				: LoadStandardImage(fullPath);
 		}
 		catch (Exception ex)
@@ -304,7 +311,7 @@ public class VfxShaderManager
 	private static Texture2D LoadRtexImage(string fullPath)
 	{
 		byte[] bytes = File.ReadAllBytes(fullPath);
-		byte[] layerData = Realm.Shared.Textures.RtexFile.GetLayer(bytes, 0);
+		byte[] layerData = RtexFile.GetLayer(bytes, 0);
 		if (layerData == null || layerData.Length == 0) return null;
 
 		var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
@@ -332,8 +339,8 @@ public class VfxShaderManager
 			if (SpritesheetMetaCache.TryGetValue(path, out var cachedMeta))
 				return cachedMeta;
 
-			string wsPath = ProjectSettings.GlobalizePath(UI.MapEditorHUD.TempWorkspaceGodotPath);
-			
+			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+
 			var wsMeta = TryLoadWorkspaceMetadata(path, wsPath);
 			if (wsMeta != null) return wsMeta;
 
@@ -356,9 +363,9 @@ public class VfxShaderManager
 
 			return ProcessVfxMetadata(path, vmeta);
 		}
-		catch 
-		{ 
-			return null; 
+		catch
+		{
+			return null;
 		}
 	}
 
@@ -366,13 +373,13 @@ public class VfxShaderManager
 	{
 		int cols = Math.Max(1, vmeta.Columns);
 		int rows = Math.Max(1, vmeta.Rows);
-		
+
 		bool isSpritesheet = cols > 1 || rows > 1 || !string.IsNullOrEmpty(vmeta.TexturePath);
 		if (!isSpritesheet) return null;
 
 		float fps = vmeta.Fps > 0.001f ? vmeta.Fps : 20.0f;
 		var result = (cols, rows, fps, vmeta.SubframeBlend);
-		
+
 		SpritesheetMetaCache[path] = result;
 		return result;
 	}
@@ -433,8 +440,8 @@ public class VfxShaderManager
 
 			return ParseJsonMetadata(path, obj);
 		}
-		catch 
-		{ 
+		catch
+		{
 			return null;
 		}
 	}
@@ -489,7 +496,7 @@ public class VfxShaderManager
 			assetType = atNode?.ToString();
 		else if (obj.TryGetPropertyValue("type", out var tNode))
 			assetType = tNode?.ToString();
-		
+
 		return string.Equals(assetType, "Spritesheet", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(assetType, "SpellSpritesheet", StringComparison.OrdinalIgnoreCase) ||
 		       cols > 1 || rows > 1;

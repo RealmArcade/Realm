@@ -1,13 +1,27 @@
-using Godot;
-using Realm.Shared.Distribution;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Network;
+using Realm.Shared.Distribution;
+
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class MapDiscovery : Control
 {
+	public MapDiscovery()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
 	private Panel _bgPanel;
 	private Panel _leftPillar;
 	private Panel _rightPillar;
@@ -53,7 +67,10 @@ public partial class MapDiscovery : Control
 				if (font != null) return font;
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return null;
 	}
 
@@ -66,10 +83,10 @@ public partial class MapDiscovery : Control
 		_rightPillar = GetNode<Panel>("RightPillar");
 		_filterPanel = GetNode<PanelContainer>("FilterPanel");
 		_mapListPanel = GetNode<PanelContainer>("MapListPanel");
-		
+
 		_backButton = GetNode<Button>("BackButton");
 		_discoveryTitle = GetNode<Label>("DiscoveryTitle");
-		
+
 		_searchBar = GetNode<LineEdit>("FilterPanel/VBoxContainer/SearchBar");
 		_mapGrid = GetNode<GridContainer>("MapListPanel/VBoxContainer/ScrollContainer/MapGrid");
 
@@ -90,13 +107,13 @@ public partial class MapDiscovery : Control
 
 	private async void LoadDiscoveryMapsAsync()
 	{
-		string seedServerUrl = GodotObject.IsInstanceValid(Network.LobbyManager.Instance)
-			? Network.LobbyManager.Instance.RegistryServerUrl
+		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance)
+			? LobbyManager.Instance.RegistryServerUrl
 			: ServersConfigHelper.GetDefaultServerUrl();
 
 		try
 		{
-			var distClient = new Realm.Shared.Distribution.DistributionClient(seedServerUrl);
+			var distClient = new DistributionClient(seedServerUrl);
 			var discoveryDtos = await distClient.GetDiscoveryMapsAsync();
 			if (discoveryDtos != null && discoveryDtos.Count > 0)
 			{
@@ -115,6 +132,7 @@ public partial class MapDiscovery : Control
 						{
 							v.AvailableVersions = versions;
 						}
+
 						return primary;
 					})
 					.ToArray();
@@ -173,13 +191,13 @@ public partial class MapDiscovery : Control
 			var style = new StyleBoxTexture();
 			style.Texture = bgTexture;
 			_bgPanel.AddThemeStyleboxOverride("panel", style);
-			_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			_bgPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
 			_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		}
-			
+
 		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
 	}
@@ -197,7 +215,7 @@ public partial class MapDiscovery : Control
 		filterPanelStyle.ContentMarginTop = 60;
 		filterPanelStyle.ContentMarginBottom = 24;
 		_filterPanel.AddThemeStyleboxOverride("panel", filterPanelStyle);
-		_filterPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_filterPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		var lobbyPanelStyle = new StyleBoxTexture();
 		lobbyPanelStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_main_panel.png");
@@ -210,7 +228,7 @@ public partial class MapDiscovery : Control
 		lobbyPanelStyle.ContentMarginTop = 130;
 		lobbyPanelStyle.ContentMarginBottom = 65;
 		_mapListPanel.AddThemeStyleboxOverride("panel", lobbyPanelStyle);
-		_mapListPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_mapListPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 	}
 
 	private void ApplyTitleStyle()
@@ -225,7 +243,7 @@ public partial class MapDiscovery : Control
 		_discoveryTitle.VerticalAlignment = VerticalAlignment.Center;
 		_discoveryTitle.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
 
-		_discoveryTitle.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+		_discoveryTitle.SetAnchorsPreset(LayoutPreset.TopLeft);
 		_discoveryTitle.CustomMinimumSize = new Vector2(300, 40);
 		_discoveryTitle.Size = new Vector2(300, 40);
 		float titleX = _mapListPanel.Position.X + 200.0f;
@@ -251,9 +269,9 @@ public partial class MapDiscovery : Control
 		_backButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_backButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_backButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_backButton.TextureFilter = CanvasItem.TextureFilterEnum.Linear;
+		_backButton.TextureFilter = TextureFilterEnum.Linear;
 
-		_backButton.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+		_backButton.SetAnchorsPreset(LayoutPreset.TopLeft);
 		_backButton.CustomMinimumSize = new Vector2(190, 52);
 		_backButton.Size = new Vector2(190, 52);
 		_backButton.Position = new Vector2(1590, 50);
@@ -315,8 +333,8 @@ public partial class MapDiscovery : Control
 		button.AddThemeConstantOverride("outline_size", 4);
 		button.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
 		button.CustomMinimumSize = new Vector2(0, 76);
-		button.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		
+		button.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+
 		button.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
@@ -339,8 +357,8 @@ public partial class MapDiscovery : Control
 	private void HighlightButton(Button button, bool highlight)
 	{
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		button.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		
+		button.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+
 		if (highlight)
 		{
 			button.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -349,7 +367,7 @@ public partial class MapDiscovery : Control
 			button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
 			button.AddThemeConstantOverride("outline_size", 5);
 			button.AddThemeColorOverride("font_outline_color", new Color(0.22f, 0.16f, 0.04f));
-			
+
 			var activeStyle = new StyleBoxTexture();
 			activeStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_btn_normal.png");
 			activeStyle.TextureMarginLeft = 0;
@@ -361,13 +379,13 @@ public partial class MapDiscovery : Control
 			activeStyle.ContentMarginTop = 18;
 			activeStyle.ContentMarginBottom = 14;
 			activeStyle.ModulateColor = new Color(1.30f, 1.20f, 0.88f);
-			
+
 			var activeHover = (StyleBoxTexture)activeStyle.Duplicate();
 			activeHover.ModulateColor = new Color(1.42f, 1.30f, 0.95f);
-			
+
 			var activePressed = (StyleBoxTexture)activeStyle.Duplicate();
 			activePressed.ModulateColor = new Color(1.08f, 1.00f, 0.75f);
-			
+
 			button.AddThemeStyleboxOverride("normal", activeStyle);
 			button.AddThemeStyleboxOverride("hover", activeHover);
 			button.AddThemeStyleboxOverride("pressed", activePressed);
@@ -380,7 +398,7 @@ public partial class MapDiscovery : Control
 			button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
 			button.AddThemeConstantOverride("outline_size", 4);
 			button.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
-			
+
 			var normalStyle = new StyleBoxTexture();
 			normalStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_btn_normal.png");
 			normalStyle.TextureMarginLeft = 0;
@@ -392,13 +410,13 @@ public partial class MapDiscovery : Control
 			normalStyle.ContentMarginTop = 18;
 			normalStyle.ContentMarginBottom = 14;
 			normalStyle.ModulateColor = new Color(0.85f, 0.85f, 0.88f);
-			
+
 			var hoverStyle = (StyleBoxTexture)normalStyle.Duplicate();
 			hoverStyle.ModulateColor = new Color(1.12f, 1.08f, 0.92f);
-			
+
 			var pressedStyle = (StyleBoxTexture)normalStyle.Duplicate();
 			pressedStyle.ModulateColor = new Color(0.75f, 0.75f, 0.78f);
-			
+
 			button.AddThemeStyleboxOverride("normal", normalStyle);
 			button.AddThemeStyleboxOverride("hover", hoverStyle);
 			button.AddThemeStyleboxOverride("pressed", pressedStyle);
@@ -460,7 +478,7 @@ public partial class MapDiscovery : Control
 	{
 		if (string.IsNullOrEmpty(_searchQuery)) return maps;
 
-		return maps.Where(m => m.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) || 
+		return maps.Where(m => m.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
 		                       m.Creator.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
 		                       m.Description.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
 	}
@@ -471,8 +489,8 @@ public partial class MapDiscovery : Control
 
 		var card = new PanelContainer();
 		card.CustomMinimumSize = new Vector2(560, 220);
-		card.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		
+		card.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+
 		var cardStyle = new StyleBoxTexture();
 		cardStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_card_bg.png");
 		cardStyle.TextureMarginLeft = 0;
@@ -491,27 +509,27 @@ public partial class MapDiscovery : Control
 
 		var imgContainer = new Control();
 		imgContainer.CustomMinimumSize = new Vector2(180, 144);
-		imgContainer.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
-		imgContainer.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		imgContainer.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		imgContainer.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		var thumbnail = new TextureRect();
-		thumbnail.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		thumbnail.SetAnchorsPreset(LayoutPreset.FullRect);
 		thumbnail.OffsetLeft = 12;
 		thumbnail.OffsetTop = 12;
 		thumbnail.OffsetRight = -12;
 		thumbnail.OffsetBottom = -12;
 		thumbnail.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		thumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
-		thumbnail.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		thumbnail.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		var loadedTex = LoadTextureSafe(map.ThumbnailPath);
 		thumbnail.Texture = loadedTex ?? UIStyle.EmptyBlackTexture;
 		imgContainer.AddChild(thumbnail);
 
 		var frameOverlay = new TextureRect();
-		frameOverlay.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		frameOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
 		frameOverlay.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		frameOverlay.StretchMode = TextureRect.StretchModeEnum.Scale;
-		frameOverlay.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		frameOverlay.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		frameOverlay.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_card_img.png");
 		imgContainer.AddChild(frameOverlay);
 
@@ -581,7 +599,7 @@ public partial class MapDiscovery : Control
 		btnDetails.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		btnDetails.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		btnDetails.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		btnDetails.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		btnDetails.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		btnDetails.Pressed += () =>
 		{
@@ -606,12 +624,14 @@ public partial class MapDiscovery : Control
 				if (tex != null) return tex;
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		try
 		{
 			string globalPath = ProjectSettings.GlobalizePath(resPath);
-			if (System.IO.File.Exists(globalPath))
+			if (File.Exists(globalPath))
 			{
 				var image = Image.LoadFromFile(globalPath);
 				if (image != null)
@@ -620,7 +640,9 @@ public partial class MapDiscovery : Control
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		return null;
 	}
@@ -633,15 +655,18 @@ public partial class MapDiscovery : Control
 		{
 			return v;
 		}
+
 		var parts = cleaned.Split('.');
 		if (parts.Length == 1 && int.TryParse(parts[0], out int major))
 		{
 			return new Version(major, 0, 0);
 		}
+
 		if (parts.Length == 2 && int.TryParse(parts[0], out int maj) && int.TryParse(parts[1], out int min))
 		{
 			return new Version(maj, min, 0);
 		}
+
 		return new Version(0, 0, 0);
 	}
 }

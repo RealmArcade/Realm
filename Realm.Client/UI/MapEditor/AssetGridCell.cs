@@ -1,7 +1,7 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -148,6 +148,7 @@ public partial class AssetGridCell : PanelContainer
 				{
 					_currentAnimatedThumbnail = AssetThumbnailProvider.GetAnimatedThumbnail(_currentAsset);
 				}
+
 				_thumbnailRect.Texture = texture;
 			}
 		}
@@ -223,10 +224,12 @@ public partial class AssetGridCell : PanelContainer
 		{
 			return $"{bytes} B";
 		}
+
 		if (bytes < 1024 * 1024)
 		{
 			return $"{bytes / 1024.0:F1} KB";
 		}
+
 		return $"{bytes / (1024.0 * 1024.0):F2} MB";
 	}
 }

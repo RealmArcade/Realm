@@ -1,7 +1,8 @@
-using Godot;
-using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using Godot;
 using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -9,7 +10,7 @@ public static class MinimapHelper
 {
 	public static (float physicalWidth, float physicalDepth, float quadSize) GetTerrainDimensions()
 	{
-		var terrain = Realm.Client.Core.GameHost.Instance?.GroundTerrain;
+		var terrain = GameHost.Instance?.GroundTerrain;
 		if (terrain == null) return (250.0f, 250.0f, 2.0f);
 
 		float quadSize = terrain.QuadSize;
@@ -42,21 +43,21 @@ public static class MinimapHelper
 		float worldX = (xRatio - 0.5f) * physicalWidth;
 		float worldZ = (yRatio - 0.5f) * physicalDepth;
 
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			float minX = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsLeft;
-			float maxX = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsRight;
-			float minZ = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsTop;
-			float maxZ = Realm.Client.Core.GameHost.Instance.EditorCameraBoundsBottom;
+			float minX = GameHost.Instance.EditorCameraBoundsLeft;
+			float maxX = GameHost.Instance.EditorCameraBoundsRight;
+			float minZ = GameHost.Instance.EditorCameraBoundsTop;
+			float maxZ = GameHost.Instance.EditorCameraBoundsBottom;
 
 			worldX = Mathf.Clamp(worldX, Mathf.Min(minX, maxX), Mathf.Max(minX, maxX));
 			worldZ = Mathf.Clamp(worldZ, Mathf.Min(minZ, maxZ), Mathf.Max(minZ, maxZ));
 		}
 
 		float height = 0.0f;
-		if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+		if (GameHost.Instance?.GroundTerrain != null)
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.GetHeightAndNormal(worldX, worldZ, out height, out _);
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(worldX, worldZ, out height, out _);
 		}
 
 		return new Vector3(worldX, height, worldZ);
@@ -129,19 +130,8 @@ public static class MinimapHelper
 		return minimapBg;
 	}
 
-	private static readonly System.Threading.SemaphoreSlim _captureLock = new(1, 1);
+	private static readonly SemaphoreSlim _captureLock = new(1, 1);
 
-	private class OverlayState
-	{
-		public MeshInstance3D ShroudMesh;
-		public bool WasShroudVisible;
-		public bool WasBrushVisible;
-		public Realm.Client.Core.GameHost.GridOverlayMode WasGridMode;
-		public bool WasPathingVisible;
-		public MeshInstance3D PathingMesh;
-		public bool WasPathingMeshVisible;
-		public List<(Realm.Client.Unit3D unit, bool visible)> UnitVisibility = new();
-	}
 
 	private static bool IsNodeValid(Node node)
 	{
@@ -161,23 +151,23 @@ public static class MinimapHelper
 
 	private static void HideBrushIndicator(OverlayState state, GameHost gameHost)
 	{
-		if (!IsNodeValid(gameHost?.BrushIndicatorMesh)) return;
+		if (!IsNodeValid((gameHost != null ? GameHost.Instance._brushIndicatorMesh : null))) return;
 
-		state.WasBrushVisible = gameHost.BrushIndicatorMesh.Visible;
-		gameHost.BrushIndicatorMesh.Visible = false;
+		state.WasBrushVisible = GameHost.Instance._brushIndicatorMesh.Visible;
+		GameHost.Instance._brushIndicatorMesh.Visible = false;
 	}
 
 	private static void HideGridAndPathing(OverlayState state, GameHost gameHost)
 	{
-		state.WasGridMode = Realm.Client.Core.GameHost.GridOverlayMode.Off;
+		state.WasGridMode = GridOverlayMode.Off;
 		if (gameHost == null) return;
 
-		state.WasGridMode = gameHost.EditorGridMode;
-		state.WasPathingVisible = gameHost.PathingOverlayVisible;
-		gameHost.EditorGridMode = Realm.Client.Core.GameHost.GridOverlayMode.Off;
-		gameHost.PathingOverlayVisible = false;
-		gameHost.UpdateGridOverlayVisibility();
-		gameHost.UpdatePathingOverlay();
+		state.WasGridMode = GameContext.EditorService.EditorGridMode;
+		state.WasPathingVisible = GameHost.Instance.PathingOverlayVisible;
+		GameContext.EditorService.EditorGridMode = GridOverlayMode.Off;
+		GameHost.Instance.PathingOverlayVisible = false;
+		GameHost.Instance.UpdateGridOverlayVisibility();
+		GameHost.Instance.UpdatePathingOverlay();
 	}
 
 	private static void HidePathingMesh(OverlayState state, GameHost gameHost)
@@ -207,7 +197,7 @@ public static class MinimapHelper
 	private static OverlayState HideOverlays()
 	{
 		var state = new OverlayState();
-		var gameHost = Realm.Client.Core.GameHost.Instance;
+		var gameHost = GameHost.Instance;
 
 		HideShroudMesh(state, gameHost);
 		HideBrushIndicator(state, gameHost);
@@ -230,25 +220,25 @@ public static class MinimapHelper
 			state.PathingMesh.Visible = state.WasPathingMeshVisible;
 		}
 
-		var gameHost = Realm.Client.Core.GameHost.Instance;
-		if (IsNodeValid(gameHost?.BrushIndicatorMesh))
+		var gameHost = GameHost.Instance;
+		if (IsNodeValid((gameHost != null ? GameHost.Instance._brushIndicatorMesh : null)))
 		{
-			gameHost.BrushIndicatorMesh.Visible = state.WasBrushVisible;
+			GameHost.Instance._brushIndicatorMesh.Visible = state.WasBrushVisible;
 		}
 
 		if (gameHost != null)
 		{
-			gameHost.EditorGridMode = state.WasGridMode;
-			gameHost.PathingOverlayVisible = state.WasPathingVisible;
-			gameHost.UpdateGridOverlayVisibility();
-			gameHost.UpdatePathingOverlay();
+			GameContext.EditorService.EditorGridMode = state.WasGridMode;
+			GameHost.Instance.PathingOverlayVisible = state.WasPathingVisible;
+			GameHost.Instance.UpdateGridOverlayVisibility();
+			GameHost.Instance.UpdatePathingOverlay();
 		}
 
 		foreach (var (u, vis) in state.UnitVisibility)
 		{
 			if (IsNodeValid(u))
 			{
-				u.Visible = vis || (gameHost?.IsMapEditorMode == true && gameHost.AllUnits.Contains(u));
+				u.Visible = vis || (GameContext.EditorService.IsMapEditorMode == true && GameHost.Instance.AllUnits.Contains(u));
 			}
 		}
 	}
@@ -304,10 +294,10 @@ public static class MinimapHelper
 
 	private static async Task<Image?> PerformCaptureWithViewportAsync(Node parentNode, SceneTree tree, SubViewport viewport)
 	{
-		Realm.Client.RuntimeTerrain.IsMinimapRendering = true;
-		Realm.Client.RuntimeTerrain.Instance?.BeginMinimapCapture();
-		Realm.Client.Core.GameHost.Instance?.BeginMinimapCapture();
-		Realm.Client.PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
+		RuntimeTerrain.IsMinimapRendering = true;
+		RuntimeTerrain.Instance?.BeginMinimapCapture();
+		GameHost.Instance?.BeginMinimapCapture();
+		PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
 
 		try
 		{
@@ -316,9 +306,9 @@ public static class MinimapHelper
 		}
 		finally
 		{
-			Realm.Client.RuntimeTerrain.IsMinimapRendering = false;
-			Realm.Client.Core.GameHost.Instance?.EndMinimapCapture();
-			Realm.Client.RuntimeTerrain.Instance?.EndMinimapCapture();
+			RuntimeTerrain.IsMinimapRendering = false;
+			GameHost.Instance?.EndMinimapCapture();
+			RuntimeTerrain.Instance?.EndMinimapCapture();
 		}
 	}
 
@@ -366,6 +356,7 @@ public static class MinimapHelper
 		{
 			return ImageTexture.CreateFromImage(img);
 		}
+
 		return null;
 	}
 }

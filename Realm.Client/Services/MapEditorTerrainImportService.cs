@@ -1,22 +1,19 @@
-using Arch.Core;
-using Godot;
-using Realm.Ecs.Components.Terrain;
-using Realm.Ecs.Services;
-using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Arch.Core;
+using Godot;
+using Realm.Client.Core;
+using Realm.Ecs.Components.Terrain;
+using Realm.Ecs.Services;
+using SkiaSharp;
 
 namespace Realm.Client.Services;
 
 public class MapEditorTerrainImportService
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
-	private World EcsWorld => _ecsWorldAccessor.Current;
-
-	public MapEditorTerrainImportService(WorldAccessor ecsWorldAccessor)
+	public MapEditorTerrainImportService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
 	public bool ImportTerrain(
@@ -30,7 +27,7 @@ public class MapEditorTerrainImportService
 		splatMap = null;
 		treePositions = new List<(float X, float Y, float Z, float Rot, float Scale)>();
 
-		if (!EcsWorld.TryGet<TerrainState>(worldEntity, out var terrain))
+		if (!GameContext.World.TryGet<TerrainState>(worldEntity, out var terrain))
 		{
 			return false;
 		}
@@ -59,12 +56,12 @@ public class MapEditorTerrainImportService
 	}
 
 	private void ProcessTerrainCells(
-		Image img, 
-		TerrainState terrain, 
-		float[,] heights, 
-		TerrainSplatWeights[,] splatMap, 
-		bool[,] isTreeColored, 
-		int width, 
+		Image img,
+		TerrainState terrain,
+		float[,] heights,
+		TerrainSplatWeights[,] splatMap,
+		bool[,] isTreeColored,
+		int width,
 		int depth)
 	{
 		for (int gz = 0; gz < depth; gz++)
@@ -77,21 +74,21 @@ public class MapEditorTerrainImportService
 	}
 
 	private void ProcessTerrainCell(
-		Image img, 
-		TerrainState terrain, 
-		float[,] heights, 
-		TerrainSplatWeights[,] splatMap, 
-		bool[,] isTreeColored, 
-		int width, 
-		int depth, 
-		int gx, 
+		Image img,
+		TerrainState terrain,
+		float[,] heights,
+		TerrainSplatWeights[,] splatMap,
+		bool[,] isTreeColored,
+		int width,
+		int depth,
+		int gx,
 		int gz)
 	{
 		var color = InterpolateColor(img, width, depth, gx, gz);
 		string type = DetermineTerrainType(color.R, color.G, color.B);
-		
+
 		(sbyte tier, int texIdx) = GetTierAndTextureIndex(type);
-		
+
 		if (type == "forest")
 		{
 			isTreeColored[gx, gz] = true;
@@ -99,10 +96,11 @@ public class MapEditorTerrainImportService
 
 		if (terrain.Cells != null)
 		{
-			float h = tier * Realm.Client.EditableTerrain.TIER_HEIGHT;
+			float h = tier * EditableTerrain.TIER_HEIGHT;
 			terrain.Cells[gx, gz] = new TerrainCell(h);
 		}
-		heights[gx, gz] = tier * Realm.Client.EditableTerrain.TIER_HEIGHT;
+
+		heights[gx, gz] = tier * EditableTerrain.TIER_HEIGHT;
 		splatMap[gx, gz] = TerrainSplatWeights.CreateSolid(texIdx);
 	}
 
@@ -127,7 +125,7 @@ public class MapEditorTerrainImportService
 		float r = (1f - tx) * (1f - tz) * p00.R + tx * (1f - tz) * p10.R + (1f - tx) * tz * p01.R + tx * tz * p11.R;
 		float g = (1f - tx) * (1f - tz) * p00.G + tx * (1f - tz) * p10.G + (1f - tx) * tz * p01.G + tx * tz * p11.G;
 		float b = (1f - tx) * (1f - tz) * p00.B + tx * (1f - tz) * p10.B + (1f - tx) * tz * p01.B + tx * tz * p11.B;
-		
+
 		return new Color(r, g, b);
 	}
 
@@ -137,7 +135,7 @@ public class MapEditorTerrainImportService
 		if (IsGrassOrForestColor(r, g, b, out string type)) return type;
 		if (IsCliffColor(r, g, b)) return "cliff";
 		if (IsStoneColor(r, g, b)) return "stone";
-		
+
 		return GetFallbackTerrainType(r, g, b);
 	}
 
@@ -150,7 +148,7 @@ public class MapEditorTerrainImportService
 	{
 		type = string.Empty;
 		if (g <= r + 0.04f || g <= b + 0.04f) return false;
-		
+
 		type = (r < 0.4f && g < 0.5f && b < 0.4f) ? "forest" : "grass";
 		return true;
 	}
@@ -210,7 +208,7 @@ public class MapEditorTerrainImportService
 			}
 		}
 	}
-	
+
 	private void ProcessTreeCell(
 		bool[,] isTreeColored,
 		float[,] smoothedHeights,
@@ -252,7 +250,7 @@ public class MapEditorTerrainImportService
 			blob.Add(curr);
 			EnqueueValidNeighbors(curr, isTreeColored, visited, queue, width, depth);
 		}
-		
+
 		return blob;
 	}
 
@@ -332,10 +330,183 @@ public class MapEditorTerrainImportService
 			{
 				return null;
 			}
+
 			using var converted = skBitmap.Copy(SKColorType.Rgba8888);
 			byte[] rgba = converted.Bytes;
 			return Image.CreateFromData(converted.Width, converted.Height, false, Image.Format.Rgba8, rgba);
 		}
+
 		return Image.LoadFromFile(path);
+	}
+
+	public bool NeedsTerrainCellArrayRecreation(TerrainCell[,] array, int width, int depth)
+	{
+		return array == null || array.GetLength(0) != width || array.GetLength(1) != depth;
+	}
+
+	public bool NeedsSplatMapArrayRecreation(TerrainSplatWeights[,] array, int width, int depth)
+	{
+		return array == null || array.GetLength(0) < width + 1 || array.GetLength(1) < depth + 1;
+	}
+
+	public bool NeedsPathingArrayRecreation(int[,] array, int width, int depth)
+	{
+		return array == null || array.GetLength(0) != width || array.GetLength(1) != depth;
+	}
+
+	public void PopulateTerrainCells(TerrainCell[,] cells, int[,] pathingCodes, int width, int depth)
+	{
+		int defaultPathing = EditableTerrain.GetDefaultPathingCode(WaterType.None);
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				cells[x, z] = new TerrainCell(0.0f);
+				pathingCodes[x, z] = defaultPathing;
+			}
+		}
+	}
+
+
+	public void EnsureTerrainArraysInitialized(RuntimeTerrain terrain, int width, int depth)
+	{
+		if (terrain.CliffSplatMap == null || terrain.CliffSplatMap.GetLength(0) != width + 1 || terrain.CliffSplatMap.GetLength(1) != depth + 1)
+		{
+			terrain.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
+		}
+
+		var pathingCodes = terrain.PathingCodes;
+		if (pathingCodes == null || pathingCodes.GetLength(0) != width || pathingCodes.GetLength(1) != depth)
+		{
+			terrain.PathingCodes = new int[width, depth];
+		}
+	}
+
+	public void ApplyTerrainData(RuntimeTerrain terrain, int width, int depth, float[,] smoothedHeights, TerrainSplatWeights[,] splatMap, TerrainCell[,] cells, int cliffPaintTextureIndex)
+	{
+		terrain.SetHeights(smoothedHeights);
+		var pathingCodes = terrain.PathingCodes;
+
+		for (int gz = 0; gz <= depth; gz++)
+		{
+			for (int gx = 0; gx <= width; gx++)
+			{
+				if (gx < splatMap.GetLength(0) && gz < splatMap.GetLength(1))
+				{
+					terrain.SplatMap[gx, gz] = splatMap[gx, gz];
+				}
+
+				terrain.CliffSplatMap[gx, gz] = TerrainSplatWeights.CreateSolid(cliffPaintTextureIndex);
+
+				if (gx < width && gz < depth)
+				{
+					pathingCodes[gx, gz] = cells != null ? EditableTerrain.GetDefaultPathingCode(cells[gx, gz]) : EditableTerrain.GetDefaultPathingCode(WaterType.None);
+				}
+			}
+		}
+	}
+
+	public List<string> GetTreeModels(string wsPath, Dictionary<StringName, ResourceMetadata> resourceRegistry)
+	{
+		var treeModels = new List<string>();
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var metadata))
+		{
+			try
+			{
+				var resources = metadata.Templates?.Resources;
+				if (resources != null && resources.Count > 0)
+				{
+					foreach (var rObj in resources)
+					{
+						if (IsTreeResource(rObj))
+						{
+							treeModels.Add(rObj.TemplateID);
+						}
+					}
+
+					if (treeModels.Count == 0)
+					{
+						foreach (var rObj in resources)
+						{
+							if (!string.IsNullOrEmpty(rObj.TemplateID))
+							{
+								treeModels.Add(rObj.TemplateID);
+							}
+						}
+					}
+				}
+
+				if (treeModels.Count == 0)
+				{
+					var assetsObj = MapAssetHelper.LoadAssets(wsPath);
+					var propsDict = assetsObj?.GetCategory("Prop");
+					if (propsDict != null)
+					{
+						foreach (var kvp in propsDict)
+						{
+							if (kvp.Key.Contains("tree", StringComparison.OrdinalIgnoreCase))
+							{
+								treeModels.Add(Path.GetFileNameWithoutExtension(kvp.Key));
+							}
+						}
+
+						if (treeModels.Count == 0)
+						{
+							foreach (var kvp in propsDict)
+							{
+								treeModels.Add(Path.GetFileNameWithoutExtension(kvp.Key));
+							}
+						}
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"Failed to read tree models from metadata.json: {ex.Message}");
+			}
+		}
+
+		if (treeModels.Count == 0 && resourceRegistry != null && resourceRegistry.Count > 0)
+		{
+			foreach (var kvp in resourceRegistry)
+			{
+				bool isTree = kvp.Key.ToString().Contains("tree", StringComparison.OrdinalIgnoreCase) ||
+				              (!string.IsNullOrEmpty(kvp.Value.Name) && kvp.Value.Name.Contains("tree", StringComparison.OrdinalIgnoreCase)) ||
+				              (!string.IsNullOrEmpty(kvp.Value.ModelPath) && kvp.Value.ModelPath.Contains("tree", StringComparison.OrdinalIgnoreCase));
+				if (isTree) treeModels.Add(kvp.Key.ToString());
+			}
+
+			if (treeModels.Count == 0)
+			{
+				foreach (var kvp in resourceRegistry)
+				{
+					treeModels.Add(kvp.Key.ToString());
+				}
+			}
+		}
+
+		return treeModels;
+	}
+
+	private bool IsTreeResource(ResourceMetadata rObj)
+	{
+		if (string.IsNullOrEmpty(rObj.TemplateID)) return false;
+
+		if (rObj.TemplateID.Contains("tree", StringComparison.OrdinalIgnoreCase)) return true;
+		if (rObj.Name != null && rObj.Name.Contains("tree", StringComparison.OrdinalIgnoreCase)) return true;
+		if (rObj.ModelPath != null && rObj.ModelPath.Contains("tree", StringComparison.OrdinalIgnoreCase)) return true;
+
+		return false;
+	}
+
+	public void SpawnTrees(List<string> treeModels, List<(float x, float y, float z, float rot, float scale)> treePositions, GameHost gameHost)
+	{
+		if (treeModels.Count == 0 || gameHost == null) return;
+		var random = new Random();
+		foreach (var (x, y, z, rot, scale) in treePositions)
+		{
+			string treePropId = treeModels[random.Next(treeModels.Count)];
+			gameHost.SpawnPropExternalWithParams(treePropId, new Vector3(x, y, z), rot, scale);
+		}
 	}
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace Realm.Client;
@@ -25,16 +26,19 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
 			maxW = Weight1;
 			idx = Index1;
 		}
+
 		if (Weight2 > maxW)
 		{
 			maxW = Weight2;
 			idx = Index2;
 		}
+
 		if (Weight3 > maxW)
 		{
 			maxW = Weight3;
 			idx = Index3;
 		}
+
 		return idx;
 	}
 
@@ -95,6 +99,7 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
 			{
 				return current;
 			}
+
 			ClearOtherWeights(weights, slotForTarget);
 		}
 
@@ -119,9 +124,23 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
 	{
 		int lowestSlot = 0;
 		float minW = current.Weight0;
-		if (current.Weight1 < minW) { minW = current.Weight1; lowestSlot = 1; }
-		if (current.Weight2 < minW) { minW = current.Weight2; lowestSlot = 2; }
-		if (current.Weight3 < minW) { lowestSlot = 3; }
+		if (current.Weight1 < minW)
+		{
+			minW = current.Weight1;
+			lowestSlot = 1;
+		}
+
+		if (current.Weight2 < minW)
+		{
+			minW = current.Weight2;
+			lowestSlot = 2;
+		}
+
+		if (current.Weight3 < minW)
+		{
+			lowestSlot = 3;
+		}
+
 		return lowestSlot;
 	}
 
@@ -129,11 +148,24 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
 	{
 		switch (slot)
 		{
-			case 0: current.Index0 = textureIndex; current.Weight0 = 0.0f; break;
-			case 1: current.Index1 = textureIndex; current.Weight1 = 0.0f; break;
-			case 2: current.Index2 = textureIndex; current.Weight2 = 0.0f; break;
-			case 3: current.Index3 = textureIndex; current.Weight3 = 0.0f; break;
+			case 0:
+				current.Index0 = textureIndex;
+				current.Weight0 = 0.0f;
+				break;
+			case 1:
+				current.Index1 = textureIndex;
+				current.Weight1 = 0.0f;
+				break;
+			case 2:
+				current.Index2 = textureIndex;
+				current.Weight2 = 0.0f;
+				break;
+			case 3:
+				current.Index3 = textureIndex;
+				current.Weight3 = 0.0f;
+				break;
 		}
+
 		return current;
 	}
 
@@ -144,6 +176,7 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
 		{
 			if (i != skipSlot) sum += weights[i];
 		}
+
 		return sum;
 	}
 
@@ -180,7 +213,7 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
 
 	public string Serialize()
 	{
-		return string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0},{1},{2},{3},{4:F4},{5:F4},{6:F4},{7:F4}", Index0, Index1, Index2, Index3, Weight0, Weight1, Weight2, Weight3);
+		return string.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3},{4:F4},{5:F4},{6:F4},{7:F4}", Index0, Index1, Index2, Index3, Weight0, Weight1, Weight2, Weight3);
 	}
 
 	public static TerrainSplatWeights Deserialize(ReadOnlySpan<char> span)
@@ -215,10 +248,10 @@ public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>
 			case 1: int.TryParse(field, out weights.Index1); break;
 			case 2: int.TryParse(field, out weights.Index2); break;
 			case 3: int.TryParse(field, out weights.Index3); break;
-			case 4: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out weights.Weight0); break;
-			case 5: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out weights.Weight1); break;
-			case 6: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out weights.Weight2); break;
-			case 7: float.TryParse(field, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out weights.Weight3); break;
+			case 4: float.TryParse(field, NumberStyles.Float, CultureInfo.InvariantCulture, out weights.Weight0); break;
+			case 5: float.TryParse(field, NumberStyles.Float, CultureInfo.InvariantCulture, out weights.Weight1); break;
+			case 6: float.TryParse(field, NumberStyles.Float, CultureInfo.InvariantCulture, out weights.Weight2); break;
+			case 7: float.TryParse(field, NumberStyles.Float, CultureInfo.InvariantCulture, out weights.Weight3); break;
 		}
 	}
 

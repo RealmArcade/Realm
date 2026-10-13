@@ -1,6 +1,7 @@
-using Blake3;
 using System.Buffers.Binary;
+using System.Text;
 using System.Text.Json.Nodes;
+using Blake3;
 
 namespace Realm.Shared.Metadata;
 
@@ -101,7 +102,8 @@ public abstract class RealmContainerFile
 				if (r <= 0) return (null, Array.Empty<byte>(), 0);
 				metaRead += r;
 			}
-			metadataJson = System.Text.Encoding.UTF8.GetString(metaBytes);
+
+			metadataJson = Encoding.UTF8.GetString(metaBytes);
 		}
 
 		using var payloadStream = new MemoryStream();
@@ -236,7 +238,7 @@ public abstract class RealmContainerFile
 	private static void UpdateCreatedUtc(JsonObject metaObj, string? oldMetadataJson)
 	{
 		if (metaObj.ContainsKey("created_utc") && metaObj["created_utc"] != null) return;
-		
+
 		string? oldCreatedUtc = ExtractCreatedUtcSafe(oldMetadataJson);
 		metaObj["created_utc"] = oldCreatedUtc ?? DateTime.UtcNow.ToString("O");
 	}
@@ -244,7 +246,7 @@ public abstract class RealmContainerFile
 	private static void UpdateBlake3(JsonObject metaObj, ReadOnlySpan<byte> payloadSpan)
 	{
 		if (metaObj.ContainsKey("blake3") && !string.IsNullOrWhiteSpace(metaObj["blake3"]?.ToString())) return;
-		
+
 		metaObj["blake3"] = Hasher.Hash(payloadSpan).ToString();
 	}
 

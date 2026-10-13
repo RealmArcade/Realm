@@ -1,11 +1,11 @@
+using System.Numerics;
+using System.Text.Json;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using System.Numerics;
-using System.Text.Json;
 
 namespace Realm.Ecs.AI.Genres;
 
@@ -49,13 +49,13 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		return new float[TdFeatureCount]
 		{
 			-0.45f, // CostToBank
-			 0.85f, // CreepWaveThreat
-			 0.65f, // PositionStrategicValue
-			 0.75f, // DamagePerGoldEfficiency
-			 0.50f, // DamageTypeAffinity
-			 0.70f, // SlowSynergy
-			 0.95f, // CriticalLeakUrgency
-			 0.40f  // EconomyInterestThreshold
+			0.85f, // CreepWaveThreat
+			0.65f, // PositionStrategicValue
+			0.75f, // DamagePerGoldEfficiency
+			0.50f, // DamageTypeAffinity
+			0.70f, // SlowSynergy
+			0.95f, // CriticalLeakUrgency
+			0.40f // EconomyInterestThreshold
 		};
 	}
 
@@ -92,7 +92,9 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 			BuildSpots.Clear();
 			BuildSpots.AddRange(spots);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void TryLoadTowers(IReadOnlyDictionary<string, string> parameters)
@@ -108,7 +110,9 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 			AvailableTowers.Clear();
 			AvailableTowers.AddRange(towers);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void TryLoadAllowSell(IReadOnlyDictionary<string, string> parameters)
@@ -212,6 +216,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 			if (world.IsAlive(tower) && world.Has<Position>(tower))
 				occupiedPositions.Add(world.Get<Position>(tower).Value);
 		}
+
 		return occupiedPositions;
 	}
 
@@ -235,6 +240,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		{
 			if (Vector3.DistanceSquared(spot, occupiedPositions[oIdx]) < 4.0f) return true;
 		}
+
 		return false;
 	}
 

@@ -1,8 +1,9 @@
-using Godot;
-using Realm.Shared.Textures;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.Utils;
 
@@ -75,7 +76,7 @@ public static class RtexIconLoader
 			{
 				image.LoadPngFromBuffer(layerData);
 			}
-			
+
 			return CreateTextureFromImage(image);
 		}
 		catch (Exception ex)
@@ -108,6 +109,7 @@ public static class RtexIconLoader
 		{
 			image.GenerateMipmaps();
 		}
+
 		return ImageTexture.CreateFromImage(image);
 	}
 
@@ -115,7 +117,7 @@ public static class RtexIconLoader
 	{
 		if (File.Exists(iconPath)) return iconPath;
 
-		string workspacePath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string workspacePath = MapWorkspaceService.GetActiveWorkspacePath();
 		string relativePath = iconPath;
 		if (relativePath.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
 		{

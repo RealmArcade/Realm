@@ -1,15 +1,19 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Threading.Tasks;
 using GdUnit4;
 using Godot;
+using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Shared;
-using System;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Threading.Tasks;
-using Realm.Client.Core;
 
 namespace Realm.Client.Tests;
 
@@ -37,33 +41,34 @@ public class MapEditorUxTests
 		if (hud != null)
 		{
 			var btnPaint = hud.GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/BtnTextureBrush");
-			hud.TriggerToolSelection(Realm.Client.Core.GameHost.EditorTool.PaintTexture, btnPaint);
+			hud.TriggerToolSelection(EditorTool.PaintTexture, btnPaint);
 			await runner.AwaitMillis(1000);
 		}
+
 		var sw = new StringWriter();
 		if (hud != null)
 		{
 			sw.WriteLine($"--- DIAGNOSTICS START ---");
 			sw.WriteLine($"hud: not null");
-			sw.WriteLine($"ActiveModule in ViewModel: {hud.ViewModel?.ActiveModule}");
-			sw.WriteLine($"ActiveEditorTool in GameHost: {Realm.Client.Core.GameHost.Instance?.ActiveEditorTool}");
-			
+			sw.WriteLine($"ActiveModule in ViewModel: {hud._viewModel?.ActiveModule}");
+			sw.WriteLine($"ActiveEditorTool in GameHost: {GameHost.Instance?.ActiveEditorTool}");
+
 			var panelTerrain = hud.GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox");
 			var panelDeco = hud.GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox");
 			var panelPathing = hud.GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox");
 			var panelClip = hud.GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard");
-			
+
 			sw.WriteLine($"panelTerrain visible: {panelTerrain?.Visible}, null: {panelTerrain == null}");
 			sw.WriteLine($"panelDeco visible: {panelDeco?.Visible}, null: {panelDeco == null}");
 			sw.WriteLine($"panelPathing visible: {panelPathing?.Visible}, null: {panelPathing == null}");
 			sw.WriteLine($"panelClip visible: {panelClip?.Visible}, null: {panelClip == null}");
-			
+
 			var minimap = hud.GetNodeOrNull<Control>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame");
 			sw.WriteLine($"minimap visible: {minimap?.Visible}, null: {minimap == null}, size: {minimap?.Size}");
-			
+
 			var containerPathing = hud.GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing");
 			sw.WriteLine($"containerPathing visible: {containerPathing?.Visible}, null: {containerPathing == null}");
-			
+
 			sw.WriteLine($"--- DIAGNOSTICS END ---");
 		}
 		else
@@ -73,7 +78,7 @@ public class MapEditorUxTests
 
 		File.WriteAllText(@"C:\temp\Realm\diagnostics.txt", sw.ToString());
 
-		global::Godot.Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
 		string artifactDir = @"C:\Users\Devin\.gemini\antigravity-cli\brain\3f6febad-2673-47d8-b400-9b856eaa33d0";
 		Directory.CreateDirectory(artifactDir);
 		string filePath = Path.Combine(artifactDir, "map_editor_ux.png");
@@ -88,11 +93,11 @@ public class MapEditorUxTests
 		foreach (var file in files)
 		{
 			string rtexPath = file.Replace(".png", ".rtex");
-			System.Console.WriteLine($"Converting {file} to {rtexPath}");
+			Console.WriteLine($"Converting {file} to {rtexPath}");
 			terrain.ProcessAndSaveRawTexture(file, rtexPath);
 			if (!File.Exists(rtexPath))
 			{
-				throw new System.Exception($"Failed to convert {file} to {rtexPath}.");
+				throw new Exception($"Failed to convert {file} to {rtexPath}.");
 			}
 		}
 	}
@@ -112,15 +117,15 @@ public class MapEditorUxTests
 		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var gameHost = Realm.Client.Core.GameHost.Instance;
-		var camera = gameHost.MainCamera;
+		var gameHost = GameHost.Instance;
+		var camera = GameHost.Instance.MainCamera;
 		if (camera != null)
 		{
 			camera.Position = new Vector3(0.0f, 35.0f, 25.0f);
 			camera.RotationDegrees = new Vector3(-55.0f, 0.0f, 0.0f);
 		}
 
-		var terrain = gameHost.GroundTerrain;
+		var terrain = GameHost.Instance.GroundTerrain;
 
 		int width = terrain.Width;
 		int depth = terrain.Depth;
@@ -141,13 +146,13 @@ public class MapEditorUxTests
 			}
 		}
 
-		var editorService = ServiceLocator.Get<EditorService>();
+		var editorService = GameContext.EditorService;
 		editorService.SetTerrainSplatMap(splatMap);
 
 		terrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
 
-		global::Godot.Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
 		string artifactDir = @"C:\Users\Devin\.gemini\antigravity-cli\brain\7943d49b-03f6-4917-bd98-2a87e32bae94";
 		Directory.CreateDirectory(artifactDir);
 		string filePath = Path.Combine(artifactDir, "terrain_transition_test.png");
@@ -174,7 +179,7 @@ public class MapEditorUxTests
 
 		var btnTestMap = hud!.GetNode<Button>("TopLeftBox/BtnTestMap");
 		Assertions.AssertThat(btnTestMap).IsNotNull();
-		
+
 		// Trigger TestMapAction on blank map
 		btnTestMap.EmitSignal("pressed");
 		await runner.AwaitMillis(500);
@@ -185,7 +190,7 @@ public class MapEditorUxTests
 		if (overlay != null)
 		{
 			var btnConfirm = overlay.FindChild("BtnConfirm", true, false) as Button
-				?? overlay.FindChild("*Confirm*", true, false) as Button;
+			                 ?? overlay.FindChild("*Confirm*", true, false) as Button;
 
 			if (btnConfirm != null)
 			{
@@ -203,7 +208,7 @@ public class MapEditorUxTests
 		}
 
 		await runner.AwaitMillis(2000);
-		Assertions.AssertThat(UI.WasmConsoleWindow.Instance).IsNotNull();
+		Assertions.AssertThat(WasmConsoleWindow.Instance).IsNotNull();
 	}
 
 	[TestCase]
@@ -222,7 +227,7 @@ public class MapEditorUxTests
 		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var gameHost = Realm.Client.Core.GameHost.Instance;
+		var gameHost = GameHost.Instance;
 		Assertions.AssertThat(gameHost).IsNotNull();
 
 		MapGenerator.GenerateMap(
@@ -240,7 +245,7 @@ public class MapEditorUxTests
 
 		await runner.AwaitMillis(2000);
 
-		var camera = gameHost.MainCamera;
+		var camera = GameHost.Instance.MainCamera;
 		if (camera != null)
 		{
 			camera.Position = new Vector3(0.0f, 95.0f, 75.0f);
@@ -249,7 +254,7 @@ public class MapEditorUxTests
 
 		await runner.AwaitMillis(1000);
 
-		global::Godot.Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
 		string tempDir = @"C:\temp\realm_screenshots";
 		Directory.CreateDirectory(tempDir);
 
@@ -280,7 +285,7 @@ public class MapEditorUxTests
 		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var gameHost = Realm.Client.Core.GameHost.Instance;
+		var gameHost = GameHost.Instance;
 		Assertions.AssertThat(gameHost).IsNotNull();
 		var hud = MapEditorHUD.Instance;
 		Assertions.AssertThat(hud).IsNotNull();
@@ -290,57 +295,54 @@ public class MapEditorUxTests
 		int deepMossIndex = 1;
 		int lavaVeinIndex = 3;
 
-		var displayNamesField = typeof(MapEditorHUD).GetField("_swatchDisplayNames", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (displayNamesField?.GetValue(hud) is System.Collections.Generic.List<string> displayNames)
+		var displayNames = Enumerable.ToList(GameContext.EditorService.SwatchDisplayNames);
+		for (int i = 0; i < displayNames.Count; i++)
 		{
-			for (int i = 0; i < displayNames.Count; i++)
-			{
-				if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
-				if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
-			}
+			if (displayNames[i].Equals("Deep Moss", StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
+			if (displayNames[i].Equals("Lava Vein", StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
 		}
 
-		gameHost.EditorPaintTextureIndex = deepMossIndex;
-		gameHost.EditorCliffPaintTextureIndex = lavaVeinIndex;
+		GameContext.EditorService.EditorPaintTextureIndex = deepMossIndex;
+		GameContext.EditorService.EditorCliffPaintTextureIndex = lavaVeinIndex;
 
 		// 2. Configure Raise tool in Block mode with 8.0f height step
-		gameHost.ActiveEditorTool = GameHost.EditorTool.Raise;
-		gameHost.EditorBlockMode = true;
-		gameHost.EditorBlockLevelHeight = 8.0f;
-		gameHost.EditorBrushRadius = 14.0f;
-		gameHost.EditorBrushIsSquare = true;
+		GameHost.Instance.ActiveEditorTool = EditorTool.Raise;
+		GameHost.Instance.EditorBlockMode = true;
+		GameHost.Instance.EditorBlockLevelHeight = 8.0f;
+		GameHost.Instance.EditorBrushRadius = 14.0f;
+		GameHost.Instance.EditorBrushIsSquare = true;
 
-		var editorService = ServiceLocator.Get<EditorService>();
-		editorService.SetTerrainSplatMap(gameHost.GroundTerrain.SplatMap);
+		var editorService = GameContext.EditorService;
+		editorService.SetTerrainSplatMap(GameHost.Instance.GroundTerrain.SplatMap);
 
 		// 3. Raise terrain step at Z = -10.0f to create a distinct cliff wall & top terrace
 		Vector3 raiseCenter = new Vector3(0.0f, 0.0f, -10.0f);
 
 		editorService.BeginTerrainDraw(
 			raiseCenter,
-			gameHost.ActiveEditorTool,
-			gameHost.EditorBlockMode,
-			gameHost.EditorBlockLevelHeight,
-			gameHost.GroundTerrain.Heights,
-			gameHost.GroundTerrain.SplatMap,
-			gameHost.GroundTerrain.PathingCodes);
+			GameHost.Instance.ActiveEditorTool,
+			GameHost.Instance.EditorBlockMode,
+			GameHost.Instance.EditorBlockLevelHeight,
+			GameHost.Instance.GroundTerrain.Heights,
+			GameHost.Instance.GroundTerrain.SplatMap,
+			GameHost.Instance.GroundTerrain.PathingCodes);
 
 		var res = editorService.ApplyContinuousTerrainEditing(
 			raiseCenter, 1.0f,
-			gameHost.ActiveEditorTool,
-			gameHost.EditorBrushRadius, gameHost.EditorBrushStrength,
-			gameHost.EditorBrushIsSquare,
-			gameHost.EditorBlockMode, gameHost.EditorBlockLevelHeight,
-			gameHost.EditorPaintTextureIndex, gameHost.EditorCliffPaintTextureIndex,
+			GameHost.Instance.ActiveEditorTool,
+			GameHost.Instance.EditorBrushRadius, GameHost.Instance.EditorBrushStrength,
+			GameHost.Instance.EditorBrushIsSquare,
+			GameHost.Instance.EditorBlockMode, GameHost.Instance.EditorBlockLevelHeight,
+			GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
 			0, true, true);
 
-		editorService.EndTerrainDraw(gameHost.GroundTerrain.Heights, gameHost.GroundTerrain.SplatMap, gameHost.GroundTerrain.PathingCodes);
+		editorService.EndTerrainDraw(GameHost.Instance.GroundTerrain.Heights, GameHost.Instance.GroundTerrain.SplatMap, GameHost.Instance.GroundTerrain.PathingCodes);
 
-		gameHost.GroundTerrain.UpdateMeshAndPhysics(true, true);
+		GameHost.Instance.GroundTerrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
 
 		// 4. Position camera up close to view the front cliff face and top terrace step
-		var camera = gameHost.MainCamera;
+		var camera = GameHost.Instance.MainCamera;
 		if (camera != null)
 		{
 			camera.Position = new Vector3(0.0f, 14.0f, 18.0f);
@@ -350,7 +352,7 @@ public class MapEditorUxTests
 		await runner.AwaitMillis(1000);
 
 		// 5. Capture screenshot
-		global::Godot.Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
 
 		string tempDir = @"C:\temp\realm_screenshots";
 		Directory.CreateDirectory(tempDir);
@@ -380,7 +382,7 @@ public class MapEditorUxTests
 		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var gameHost = Realm.Client.Core.GameHost.Instance;
+		var gameHost = GameHost.Instance;
 		Assertions.AssertThat(gameHost).IsNotNull();
 		var hud = MapEditorHUD.Instance;
 		Assertions.AssertThat(hud).IsNotNull();
@@ -392,87 +394,85 @@ public class MapEditorUxTests
 		int lavaVeinIndex = 3;
 		int deepMossIndex = 1;
 
-		var displayNamesField = typeof(MapEditorHUD).GetField("_swatchDisplayNames", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (displayNamesField?.GetValue(hud) is System.Collections.Generic.List<string> displayNames)
+		var displayNames = Enumerable.ToList(GameContext.EditorService.SwatchDisplayNames);
+		for (int i = 0; i < displayNames.Count; i++)
 		{
-			for (int i = 0; i < displayNames.Count; i++)
-			{
-				if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
-				if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
-			}
+			if (displayNames[i].Equals("Lava Vein", StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
+			if (displayNames[i].Equals("Deep Moss", StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
 		}
 
-		gameHost.EditorPaintTextureIndex = lavaVeinIndex;
-		gameHost.EditorCliffPaintTextureIndex = deepMossIndex;
+		GameContext.EditorService.EditorPaintTextureIndex = lavaVeinIndex;
+		GameContext.EditorService.EditorCliffPaintTextureIndex = deepMossIndex;
 
 		// Tool: Raise in Block Mode, Step Height 4.0m, Size 6, Square Brush
-		gameHost.ActiveEditorTool = GameHost.EditorTool.Raise;
-		gameHost.EditorBlockMode = true;
-		gameHost.EditorBlockLevelHeight = 4.0f;
-		gameHost.EditorBrushRadius = 6.0f;
-		gameHost.EditorBrushIsSquare = true;
+		GameHost.Instance.ActiveEditorTool = EditorTool.Raise;
+		GameHost.Instance.EditorBlockMode = true;
+		GameHost.Instance.EditorBlockLevelHeight = 4.0f;
+		GameHost.Instance.EditorBrushRadius = 6.0f;
+		GameHost.Instance.EditorBrushIsSquare = true;
 
-		var editorService = ServiceLocator.Get<EditorService>();
-		editorService.SetTerrainSplatMap(gameHost.GroundTerrain.SplatMap);
+		var editorService = GameContext.EditorService;
+		editorService.SetTerrainSplatMap(GameHost.Instance.GroundTerrain.SplatMap);
 
 		// Single click at center position (0, 0, 0)
 		Vector3 clickPos = new Vector3(0.0f, 0.0f, 0.0f);
 
 		editorService.BeginTerrainDraw(
 			clickPos,
-			gameHost.ActiveEditorTool,
-			gameHost.EditorBlockMode,
-			gameHost.EditorBlockLevelHeight,
-			gameHost.GroundTerrain.Heights,
-			gameHost.GroundTerrain.SplatMap,
-			gameHost.GroundTerrain.PathingCodes);
+			GameHost.Instance.ActiveEditorTool,
+			GameHost.Instance.EditorBlockMode,
+			GameHost.Instance.EditorBlockLevelHeight,
+			GameHost.Instance.GroundTerrain.Heights,
+			GameHost.Instance.GroundTerrain.SplatMap,
+			GameHost.Instance.GroundTerrain.PathingCodes);
 
 		var res = editorService.ApplyContinuousTerrainEditing(
 			clickPos, 1.0f,
-			gameHost.ActiveEditorTool,
-			gameHost.EditorBrushRadius, gameHost.EditorBrushStrength,
-			gameHost.EditorBrushIsSquare,
-			gameHost.EditorBlockMode, gameHost.EditorBlockLevelHeight,
-			gameHost.EditorPaintTextureIndex, gameHost.EditorCliffPaintTextureIndex,
+			GameHost.Instance.ActiveEditorTool,
+			GameHost.Instance.EditorBrushRadius, GameHost.Instance.EditorBrushStrength,
+			GameHost.Instance.EditorBrushIsSquare,
+			GameHost.Instance.EditorBlockMode, GameHost.Instance.EditorBlockLevelHeight,
+			GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
 			0, true, true);
 
-		editorService.EndTerrainDraw(gameHost.GroundTerrain.Heights, gameHost.GroundTerrain.SplatMap, gameHost.GroundTerrain.PathingCodes);
+		editorService.EndTerrainDraw(GameHost.Instance.GroundTerrain.Heights, GameHost.Instance.GroundTerrain.SplatMap, GameHost.Instance.GroundTerrain.PathingCodes);
 
-		gameHost.GroundTerrain.UpdateMeshAndPhysics(true, true);
+		GameHost.Instance.GroundTerrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
-		gameHost.GroundTerrain.SetWireframeMode(false);
+		GameHost.Instance.GroundTerrain.SetWireframeMode(false);
 		await runner.AwaitMillis(1000);
 
 		// Diagnostic logging of terrain heights, splat maps, and rendered GPU wall slope geometry
-		int w = gameHost.GroundTerrain.Width;
-		int d = gameHost.GroundTerrain.Depth;
+		int w = GameHost.Instance.GroundTerrain.Width;
+		int d = GameHost.Instance.GroundTerrain.Depth;
 		int centerGridX = (w - 1) / 2;
 		int centerGridZ = (d - 1) / 2;
 
-		var sw = new System.IO.StringWriter();
+		var sw = new StringWriter();
 		sw.WriteLine("=================== CPU DATA STRUCTURE DIAGNOSTICS ===================");
-		sw.WriteLine($"Terrain Width={w}, Depth={d}, QuadSize={gameHost.GroundTerrain.QuadSize:F1}");
+		sw.WriteLine($"Terrain Width={w}, Depth={d}, QuadSize={GameHost.Instance.GroundTerrain.QuadSize:F1}");
 		sw.WriteLine($"Center Grid: X={centerGridX}, Z={centerGridZ}");
 
-		float[,] heights = gameHost.GroundTerrain.Heights;
+		float[,] heights = GameHost.Instance.GroundTerrain.Heights;
 
 		sw.WriteLine("\n--- Heights[,] Array (-5 to +5 around center) ---");
 		for (int z = centerGridZ - 5; z <= centerGridZ + 5; z++)
 		{
-			var line = new System.Text.StringBuilder();
+			var line = new StringBuilder();
 			for (int x = centerGridX - 5; x <= centerGridX + 5; x++)
 			{
 				line.Append($"{heights[x, z],5:F1} ");
 			}
+
 			sw.WriteLine(line.ToString());
 		}
 
 		sw.WriteLine("\n=================== GPU RENDERED MESH DIAGNOSTICS ===================");
-		var allVertices = new System.Collections.Generic.List<Vector3>();
-		var allNormals = new System.Collections.Generic.List<Vector3>();
+		var allVertices = new List<Vector3>();
+		var allNormals = new List<Vector3>();
 
 		var terrainField = typeof(EditableTerrain).GetField("_chunks", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (terrainField?.GetValue(gameHost.GroundTerrain) is System.Collections.IEnumerable chunksEnum)
+		if (terrainField?.GetValue(GameHost.Instance.GroundTerrain) is IEnumerable chunksEnum)
 		{
 			int cCount = 0;
 			foreach (var chunkObj in chunksEnum)
@@ -492,15 +492,16 @@ public class MapEditorUxTests
 					}
 				}
 			}
+
 			sw.WriteLine($"Total Terrain Chunks Processed: {cCount}");
 		}
 
 		sw.WriteLine($"Total Rendered Mesh Vertices Across Chunks: {allVertices.Count}");
 
-		var groundVerts = new System.Collections.Generic.List<Vector3>();
-		var apexVerts = new System.Collections.Generic.List<Vector3>();
-		var wallVerts = new System.Collections.Generic.List<Vector3>();
-		var wallNormals = new System.Collections.Generic.List<Vector3>();
+		var groundVerts = new List<Vector3>();
+		var apexVerts = new List<Vector3>();
+		var wallVerts = new List<Vector3>();
+		var wallNormals = new List<Vector3>();
 
 		for (int i = 0; i < allVertices.Count; i++)
 		{
@@ -527,16 +528,17 @@ public class MapEditorUxTests
 		sw.WriteLine($"Count of Vertical Wall Vertices: {wallVerts.Count}");
 
 		sw.WriteLine("\n--- VERTICAL WALL COLUMN & SLOPE ANGLE ANALYSIS ---");
-		var wallColumns = new System.Collections.Generic.Dictionary<(int xKey, int zKey), System.Collections.Generic.List<Vector3>>();
+		var wallColumns = new Dictionary<(int xKey, int zKey), List<Vector3>>();
 		foreach (var wv in wallVerts)
 		{
-			int xKey = (int)System.Math.Round(wv.X * 100.0f);
-			int zKey = (int)System.Math.Round(wv.Z * 100.0f);
+			int xKey = (int)Math.Round(wv.X * 100.0f);
+			int zKey = (int)Math.Round(wv.Z * 100.0f);
 			var key = (xKey, zKey);
 			if (!wallColumns.ContainsKey(key))
 			{
-				wallColumns[key] = new System.Collections.Generic.List<Vector3>();
+				wallColumns[key] = new List<Vector3>();
 			}
+
 			wallColumns[key].Add(wv);
 		}
 
@@ -562,9 +564,12 @@ public class MapEditorUxTests
 			float minX = 999, maxX = -999, minZ = 999, maxZ = -999;
 			foreach (var v in apexVerts)
 			{
-				if (v.X < minX) minX = v.X; if (v.X > maxX) maxX = v.X;
-				if (v.Z < minZ) minZ = v.Z; if (v.Z > maxZ) maxZ = v.Z;
+				if (v.X < minX) minX = v.X;
+				if (v.X > maxX) maxX = v.X;
+				if (v.Z < minZ) minZ = v.Z;
+				if (v.Z > maxZ) maxZ = v.Z;
 			}
+
 			sw.WriteLine($"Apex Footprint: X=[{minX:F2} to {maxX:F2}] (Width={(maxX - minX):F2}), Z=[{minZ:F2} to {maxZ:F2}] (Depth={(maxZ - minZ):F2})");
 		}
 
@@ -573,9 +578,12 @@ public class MapEditorUxTests
 			float minX = 999, maxX = -999, minZ = 999, maxZ = -999;
 			foreach (var v in wallVerts)
 			{
-				if (v.X < minX) minX = v.X; if (v.X > maxX) maxX = v.X;
-				if (v.Z < minZ) minZ = v.Z; if (v.Z > maxZ) maxZ = v.Z;
+				if (v.X < minX) minX = v.X;
+				if (v.X > maxX) maxX = v.X;
+				if (v.Z < minZ) minZ = v.Z;
+				if (v.Z > maxZ) maxZ = v.Z;
 			}
+
 			sw.WriteLine($"Wall Rim/Base Outer Bounds: X=[{minX:F2} to {maxX:F2}], Z=[{minZ:F2} to {maxZ:F2}]");
 		}
 
@@ -606,11 +614,11 @@ public class MapEditorUxTests
 		sw.WriteLine($"Cliff Perimeter Fully Enclosed: {expectedWestWalls > 0 && expectedEastWalls > 0 && expectedNorthWalls > 0 && expectedSouthWalls > 0}");
 
 		string diagText = sw.ToString();
-		System.IO.File.WriteAllText(@"C:\temp\realm_screenshots\wall_slope_diagnostics.txt", diagText);
-		global::Godot.GD.Print(diagText);
+		File.WriteAllText(@"C:\temp\realm_screenshots\wall_slope_diagnostics.txt", diagText);
+		GD.Print(diagText);
 
 		// Position camera to match the angle from uploaded image
-		var camera = gameHost.MainCamera;
+		var camera = GameHost.Instance.MainCamera;
 		if (camera != null)
 		{
 			camera.Position = new Vector3(0.0f, 25.0f, 35.0f);
@@ -620,7 +628,7 @@ public class MapEditorUxTests
 		await runner.AwaitMillis(1000);
 
 		// Capture screenshot
-		global::Godot.Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
 
 		string tempDir = @"C:\temp\realm_screenshots";
 		Directory.CreateDirectory(tempDir);
@@ -650,74 +658,75 @@ public class MapEditorUxTests
 		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var gameHost = Realm.Client.Core.GameHost.Instance;
+		var gameHost = GameHost.Instance;
 		Assertions.AssertThat(gameHost).IsNotNull();
 
-		gameHost.ActiveEditorTool = GameHost.EditorTool.Lower;
-		gameHost.EditorBlockMode = true;
-		gameHost.EditorBlockLevelHeight = 4.0f;
-		gameHost.EditorBrushRadius = 6.0f;
-		gameHost.EditorBrushIsSquare = true;
+		GameHost.Instance.ActiveEditorTool = EditorTool.Lower;
+		GameHost.Instance.EditorBlockMode = true;
+		GameHost.Instance.EditorBlockLevelHeight = 4.0f;
+		GameHost.Instance.EditorBrushRadius = 6.0f;
+		GameHost.Instance.EditorBrushIsSquare = true;
 
-		var editorService = ServiceLocator.Get<EditorService>();
-		editorService.SetTerrainSplatMap(gameHost.GroundTerrain.SplatMap);
+		var editorService = GameContext.EditorService;
+		editorService.SetTerrainSplatMap(GameHost.Instance.GroundTerrain.SplatMap);
 
 		Vector3 clickPos = new Vector3(0.0f, 0.0f, 0.0f);
 
 		editorService.BeginTerrainDraw(
 			clickPos,
-			gameHost.ActiveEditorTool,
-			gameHost.EditorBlockMode,
-			gameHost.EditorBlockLevelHeight,
-			gameHost.GroundTerrain.Heights,
-			gameHost.GroundTerrain.SplatMap,
-			gameHost.GroundTerrain.PathingCodes);
+			GameHost.Instance.ActiveEditorTool,
+			GameHost.Instance.EditorBlockMode,
+			GameHost.Instance.EditorBlockLevelHeight,
+			GameHost.Instance.GroundTerrain.Heights,
+			GameHost.Instance.GroundTerrain.SplatMap,
+			GameHost.Instance.GroundTerrain.PathingCodes);
 
 		var res = editorService.ApplyContinuousTerrainEditing(
 			clickPos, 1.0f,
-			gameHost.ActiveEditorTool,
-			gameHost.EditorBrushRadius, gameHost.EditorBrushStrength,
-			gameHost.EditorBrushIsSquare,
-			gameHost.EditorBlockMode, gameHost.EditorBlockLevelHeight,
-			gameHost.EditorPaintTextureIndex, gameHost.EditorCliffPaintTextureIndex,
+			GameHost.Instance.ActiveEditorTool,
+			GameHost.Instance.EditorBrushRadius, GameHost.Instance.EditorBrushStrength,
+			GameHost.Instance.EditorBrushIsSquare,
+			GameHost.Instance.EditorBlockMode, GameHost.Instance.EditorBlockLevelHeight,
+			GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
 			0, true, true);
 
-		editorService.EndTerrainDraw(gameHost.GroundTerrain.Heights, gameHost.GroundTerrain.SplatMap, gameHost.GroundTerrain.PathingCodes);
+		editorService.EndTerrainDraw(GameHost.Instance.GroundTerrain.Heights, GameHost.Instance.GroundTerrain.SplatMap, GameHost.Instance.GroundTerrain.PathingCodes);
 
-		gameHost.GroundTerrain.UpdateMeshAndPhysics(true, true);
+		GameHost.Instance.GroundTerrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
-		// gameHost.Instance.GroundTerrain.SetWireframeMode(true);
+		// Instance.GroundTerrain.SetWireframeMode(true);
 		await runner.AwaitMillis(1000);
 
-		int w = gameHost.GroundTerrain.Width;
-		int d = gameHost.GroundTerrain.Depth;
+		int w = GameHost.Instance.GroundTerrain.Width;
+		int d = GameHost.Instance.GroundTerrain.Depth;
 		int centerGridX = (w - 1) / 2;
 		int centerGridZ = (d - 1) / 2;
 
-		var sw = new System.IO.StringWriter();
+		var sw = new StringWriter();
 		sw.WriteLine("=================== CPU DATA STRUCTURE DIAGNOSTICS (LOWER TOOL) ===================");
-		sw.WriteLine($"Terrain Width={w}, Depth={d}, QuadSize={gameHost.GroundTerrain.QuadSize:F1}");
+		sw.WriteLine($"Terrain Width={w}, Depth={d}, QuadSize={GameHost.Instance.GroundTerrain.QuadSize:F1}");
 		sw.WriteLine($"Center Grid: X={centerGridX}, Z={centerGridZ}");
 
-		float[,] heights = gameHost.GroundTerrain.Heights;
+		float[,] heights = GameHost.Instance.GroundTerrain.Heights;
 
 		sw.WriteLine("\n--- Heights[,] Array (-5 to +5 around center) ---");
 		for (int z = centerGridZ - 5; z <= centerGridZ + 5; z++)
 		{
-			var line = new System.Text.StringBuilder();
+			var line = new StringBuilder();
 			for (int x = centerGridX - 5; x <= centerGridX + 5; x++)
 			{
 				line.Append($"{heights[x, z],5:F1} ");
 			}
+
 			sw.WriteLine(line.ToString());
 		}
 
 		sw.WriteLine("\n=================== GPU RENDERED MESH DIAGNOSTICS (LOWER TOOL) ===================");
-		var allVertices = new System.Collections.Generic.List<Vector3>();
-		var allNormals = new System.Collections.Generic.List<Vector3>();
+		var allVertices = new List<Vector3>();
+		var allNormals = new List<Vector3>();
 
 		var terrainField = typeof(EditableTerrain).GetField("_chunks", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (terrainField?.GetValue(gameHost.GroundTerrain) is System.Collections.IEnumerable chunksEnum)
+		if (terrainField?.GetValue(GameHost.Instance.GroundTerrain) is IEnumerable chunksEnum)
 		{
 			int cCount = 0;
 			foreach (var chunkObj in chunksEnum)
@@ -737,15 +746,16 @@ public class MapEditorUxTests
 					}
 				}
 			}
+
 			sw.WriteLine($"Total Terrain Chunks Processed: {cCount}");
 		}
 
 		sw.WriteLine($"Total Rendered Mesh Vertices Across Chunks: {allVertices.Count}");
 
-		var groundVerts = new System.Collections.Generic.List<Vector3>();
-		var trenchVerts = new System.Collections.Generic.List<Vector3>();
-		var wallVerts = new System.Collections.Generic.List<Vector3>();
-		var wallNormals = new System.Collections.Generic.List<Vector3>();
+		var groundVerts = new List<Vector3>();
+		var trenchVerts = new List<Vector3>();
+		var wallVerts = new List<Vector3>();
+		var wallNormals = new List<Vector3>();
 
 		for (int i = 0; i < allVertices.Count; i++)
 		{
@@ -772,16 +782,17 @@ public class MapEditorUxTests
 		sw.WriteLine($"Count of Vertical Wall Vertices: {wallVerts.Count}");
 
 		sw.WriteLine("\n--- VERTICAL WALL COLUMN & SLOPE ANGLE ANALYSIS ---");
-		var wallColumns = new System.Collections.Generic.Dictionary<(int xKey, int zKey), System.Collections.Generic.List<Vector3>>();
+		var wallColumns = new Dictionary<(int xKey, int zKey), List<Vector3>>();
 		foreach (var wv in wallVerts)
 		{
-			int xKey = (int)System.Math.Round(wv.X * 100.0f);
-			int zKey = (int)System.Math.Round(wv.Z * 100.0f);
+			int xKey = (int)Math.Round(wv.X * 100.0f);
+			int zKey = (int)Math.Round(wv.Z * 100.0f);
 			var key = (xKey, zKey);
 			if (!wallColumns.ContainsKey(key))
 			{
-				wallColumns[key] = new System.Collections.Generic.List<Vector3>();
+				wallColumns[key] = new List<Vector3>();
 			}
+
 			wallColumns[key].Add(wv);
 		}
 
@@ -807,9 +818,12 @@ public class MapEditorUxTests
 			float minX = 999, maxX = -999, minZ = 999, maxZ = -999;
 			foreach (var v in trenchVerts)
 			{
-				if (v.X < minX) minX = v.X; if (v.X > maxX) maxX = v.X;
-				if (v.Z < minZ) minZ = v.Z; if (v.Z > maxZ) maxZ = v.Z;
+				if (v.X < minX) minX = v.X;
+				if (v.X > maxX) maxX = v.X;
+				if (v.Z < minZ) minZ = v.Z;
+				if (v.Z > maxZ) maxZ = v.Z;
 			}
+
 			sw.WriteLine($"Trench Floor Footprint: X=[{minX:F2} to {maxX:F2}] (Width={(maxX - minX):F2}), Z=[{minZ:F2} to {maxZ:F2}] (Depth={(maxZ - minZ):F2})");
 		}
 
@@ -818,17 +832,20 @@ public class MapEditorUxTests
 			float minX = 999, maxX = -999, minZ = 999, maxZ = -999;
 			foreach (var v in wallVerts)
 			{
-				if (v.X < minX) minX = v.X; if (v.X > maxX) maxX = v.X;
-				if (v.Z < minZ) minZ = v.Z; if (v.Z > maxZ) maxZ = v.Z;
+				if (v.X < minX) minX = v.X;
+				if (v.X > maxX) maxX = v.X;
+				if (v.Z < minZ) minZ = v.Z;
+				if (v.Z > maxZ) maxZ = v.Z;
 			}
+
 			sw.WriteLine($"Wall Rim/Base Outer Bounds: X=[{minX:F2} to {maxX:F2}], Z=[{minZ:F2} to {maxZ:F2}]");
 		}
 
 		string diagText = sw.ToString();
-		System.IO.File.WriteAllText(@"C:\temp\realm_screenshots\lower_wall_slope_diagnostics.txt", diagText);
-		global::Godot.GD.Print(diagText);
+		File.WriteAllText(@"C:\temp\realm_screenshots\lower_wall_slope_diagnostics.txt", diagText);
+		GD.Print(diagText);
 
-		var camera = gameHost.MainCamera;
+		var camera = GameHost.Instance.MainCamera;
 		if (camera != null)
 		{
 			camera.Position = new Vector3(0.0f, 25.0f, 35.0f);
@@ -837,7 +854,7 @@ public class MapEditorUxTests
 
 		await runner.AwaitMillis(1000);
 
-		global::Godot.Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
 		string tempDir = @"C:\temp\realm_screenshots";
 		Directory.CreateDirectory(tempDir);
 		string tempFilePath = Path.Combine(tempDir, "lower_exact_ui_click_reproduction_test.png");
@@ -859,7 +876,7 @@ public class MapEditorUxTests
 		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var gameHost = Realm.Client.Core.GameHost.Instance;
+		var gameHost = GameHost.Instance;
 		Assertions.AssertThat(gameHost).IsNotNull();
 		var hud = MapEditorHUD.Instance;
 		Assertions.AssertThat(hud).IsNotNull();
@@ -868,31 +885,28 @@ public class MapEditorUxTests
 		int lavaVeinIndex = 3;
 		int deepMossIndex = 1;
 
-		var displayNamesField = typeof(MapEditorHUD).GetField("_swatchDisplayNames", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (displayNamesField?.GetValue(hud) is System.Collections.Generic.List<string> displayNames)
+		var displayNames = Enumerable.ToList(GameContext.EditorService.SwatchDisplayNames);
+		for (int i = 0; i < displayNames.Count; i++)
 		{
-			for (int i = 0; i < displayNames.Count; i++)
-			{
-				if (displayNames[i].Equals("Lava Vein", System.StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
-				if (displayNames[i].Equals("Deep Moss", System.StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
-			}
+			if (displayNames[i].Equals("Lava Vein", StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
+			if (displayNames[i].Equals("Deep Moss", StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
 		}
 
-		gameHost.EditorPaintTextureIndex = lavaVeinIndex;
-		gameHost.EditorCliffPaintTextureIndex = deepMossIndex;
+		GameContext.EditorService.EditorPaintTextureIndex = lavaVeinIndex;
+		GameContext.EditorService.EditorCliffPaintTextureIndex = deepMossIndex;
 
 		// Tool: Raise in Block Mode, step height 24.0m, small cursor radius 1.0f
-		gameHost.ActiveEditorTool = GameHost.EditorTool.Raise;
-		gameHost.EditorBlockMode = true;
-		gameHost.EditorBlockLevelHeight = 24.0f;
-		gameHost.EditorBrushRadius = 1.0f;
-		gameHost.EditorBrushIsSquare = true;
+		GameHost.Instance.ActiveEditorTool = EditorTool.Raise;
+		GameHost.Instance.EditorBlockMode = true;
+		GameHost.Instance.EditorBlockLevelHeight = 24.0f;
+		GameHost.Instance.EditorBrushRadius = 1.0f;
+		GameHost.Instance.EditorBrushIsSquare = true;
 
-		var editorService = ServiceLocator.Get<EditorService>();
-		editorService.SetTerrainSplatMap(gameHost.GroundTerrain.SplatMap);
+		var editorService = GameContext.EditorService;
+		editorService.SetTerrainSplatMap(GameHost.Instance.GroundTerrain.SplatMap);
 
-		float halfW = (gameHost.GroundTerrain.Width - 1) / 2.0f * gameHost.GroundTerrain.QuadSize;
-		float halfD = (gameHost.GroundTerrain.Depth - 1) / 2.0f * gameHost.GroundTerrain.QuadSize;
+		float halfW = (GameHost.Instance.GroundTerrain.Width - 1) / 2.0f * GameHost.Instance.GroundTerrain.QuadSize;
+		float halfD = (GameHost.Instance.GroundTerrain.Depth - 1) / 2.0f * GameHost.Instance.GroundTerrain.QuadSize;
 
 		// Draw raised terrain along the edge of the map border
 		float startX = -halfW + 10.0f;
@@ -903,12 +917,12 @@ public class MapEditorUxTests
 
 		editorService.BeginTerrainDraw(
 			strokeStart,
-			gameHost.ActiveEditorTool,
-			gameHost.EditorBlockMode,
-			gameHost.EditorBlockLevelHeight,
-			gameHost.GroundTerrain.Heights,
-			gameHost.GroundTerrain.SplatMap,
-			gameHost.GroundTerrain.PathingCodes);
+			GameHost.Instance.ActiveEditorTool,
+			GameHost.Instance.EditorBlockMode,
+			GameHost.Instance.EditorBlockLevelHeight,
+			GameHost.Instance.GroundTerrain.Heights,
+			GameHost.Instance.GroundTerrain.SplatMap,
+			GameHost.Instance.GroundTerrain.PathingCodes);
 
 		int steps = 120;
 		for (int i = 0; i <= steps; i++)
@@ -919,21 +933,21 @@ public class MapEditorUxTests
 			Vector3 currPos = new Vector3(currX, 0.0f, currZ);
 			editorService.ApplyContinuousTerrainEditing(
 				currPos, 1.0f,
-				gameHost.ActiveEditorTool,
-				gameHost.EditorBrushRadius, gameHost.EditorBrushStrength,
-				gameHost.EditorBrushIsSquare,
-				gameHost.EditorBlockMode, gameHost.EditorBlockLevelHeight,
-				gameHost.EditorPaintTextureIndex, gameHost.EditorCliffPaintTextureIndex,
+				GameHost.Instance.ActiveEditorTool,
+				GameHost.Instance.EditorBrushRadius, GameHost.Instance.EditorBrushStrength,
+				GameHost.Instance.EditorBrushIsSquare,
+				GameHost.Instance.EditorBlockMode, GameHost.Instance.EditorBlockLevelHeight,
+				GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
 				0, true, true);
 		}
 
-		editorService.EndTerrainDraw(gameHost.GroundTerrain.Heights, gameHost.GroundTerrain.SplatMap, gameHost.GroundTerrain.PathingCodes);
+		editorService.EndTerrainDraw(GameHost.Instance.GroundTerrain.Heights, GameHost.Instance.GroundTerrain.SplatMap, GameHost.Instance.GroundTerrain.PathingCodes);
 
-		gameHost.GroundTerrain.UpdateMeshAndPhysics(true, true);
+		GameHost.Instance.GroundTerrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
 
 		// Pan camera to view the map border cliff face
-		var camera = gameHost.MainCamera;
+		var camera = GameHost.Instance.MainCamera;
 		if (camera != null)
 		{
 			camera.Position = new Vector3(0.0f, 35.0f, -90.0f);
@@ -942,7 +956,7 @@ public class MapEditorUxTests
 
 		await runner.AwaitMillis(1000);
 
-		global::Godot.Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
 
 		string tempDir = @"C:\temp\realm_screenshots";
 		Directory.CreateDirectory(tempDir);
@@ -971,8 +985,15 @@ public class MapEditorUxTests
 		string tempMapDir = Path.Combine(Path.GetTempPath(), "Realm_CustomProjectile_TestMap");
 		if (Directory.Exists(tempMapDir))
 		{
-			try { Directory.Delete(tempMapDir, true); } catch { }
+			try
+			{
+				Directory.Delete(tempMapDir, true);
+			}
+			catch
+			{
+			}
 		}
+
 		Directory.CreateDirectory(tempMapDir);
 
 		MapWorkspaceService.SetupWorkspace(tempMapDir, "CustomProjMap");
@@ -1097,7 +1118,7 @@ public class CustomProjMap : IWasmModule
 		File.WriteAllText(Path.Combine(tempMapDir, "MapScript.cs"), mapScript);
 
 		// 5. Compile to WASM using wasi-sdk
-		var compileProcess = new System.Diagnostics.Process();
+		var compileProcess = new Process();
 		string resolvedWasiSdk = WasiSdkResolver.ResolveWasiSdkPath();
 		compileProcess.StartInfo.FileName = "dotnet";
 		compileProcess.StartInfo.Arguments = $"publish \"CustomProjMap.csproj\" -c Release -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
@@ -1109,7 +1130,7 @@ public class CustomProjMap : IWasmModule
 		compileProcess.WaitForExit();
 		if (compileProcess.ExitCode != 0)
 		{
-			throw new System.Exception($"Wasm compilation failed (exit code {compileProcess.ExitCode})");
+			throw new Exception($"Wasm compilation failed (exit code {compileProcess.ExitCode})");
 		}
 
 		string wasmPath = Directory.GetFiles(Path.Combine(tempMapDir, "bin"), "*.wasm", SearchOption.AllDirectories).OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
@@ -1121,17 +1142,17 @@ public class CustomProjMap : IWasmModule
 		isHostProp?.SetValue(LobbyManager.Instance, true);
 		LobbyManager.Instance.IsGameStarted = true;
 		LobbyManager.Instance.ActiveMapName = tempMapDir;
-		Realm.Client.Core.GameHost.PendingMapScriptPath = wasmPath;
+		GameHost.PendingMapScriptPath = wasmPath;
 
 		LobbyManager.Instance.PlayerList.Clear();
-		LobbyManager.PlayerInfo playerInfo = new LobbyManager.PlayerInfo
+		PlayerInfo playerInfo = new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = 0,
 			Name = LobbyManager.Instance.AuthenticatedUsername,
 			Faction = "HUMAN",
 			Team = "Team 1",
-			Color = new global::Godot.Color(0.2f, 0.6f, 1.0f),
+			Color = new Color(0.2f, 0.6f, 1.0f),
 			IsHost = true,
 			BinaryVersion = RealmVersion.GameBinaryVersion
 		};
@@ -1143,20 +1164,20 @@ public class CustomProjMap : IWasmModule
 		ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
 		await runner.AwaitMillis(1500);
 
-		GameHost gameHost = Realm.Client.Core.GameHost.Instance;
+		GameHost gameHost = GameHost.Instance;
 		Assertions.AssertThat(gameHost).IsNotNull();
 
 		var sw = new StringWriter();
 		sw.WriteLine("=== CUSTOM WEAPON PROJECTILE DIAGNOSTICS ===");
-		sw.WriteLine($"UnitRegistry Count: {Realm.Client.Core.GameHost.UnitRegistry.Count}");
-		sw.WriteLine($"WeaponRegistry Count: {Realm.Client.Core.GameHost.WeaponRegistry.Count}");
-		sw.WriteLine($"Has fire_orb_mage in UnitRegistry: {Realm.Client.Core.GameHost.UnitRegistry.ContainsKey("fire_orb_mage")}");
-		sw.WriteLine($"Has spiked_fireball_weapon in WeaponRegistry: {Realm.Client.Core.GameHost.WeaponRegistry.ContainsKey("spiked_fireball_weapon")}");
+		sw.WriteLine($"UnitRegistry Count: {GameHost.UnitRegistry.Count}");
+		sw.WriteLine($"WeaponRegistry Count: {GameHost.WeaponRegistry.Count}");
+		sw.WriteLine($"Has fire_orb_mage in UnitRegistry: {GameHost.UnitRegistry.ContainsKey("fire_orb_mage")}");
+		sw.WriteLine($"Has spiked_fireball_weapon in WeaponRegistry: {GameHost.WeaponRegistry.ContainsKey("spiked_fireball_weapon")}");
 
-		Assertions.AssertThat(Realm.Client.Core.GameHost.UnitRegistry.ContainsKey("fire_orb_mage")).IsTrue();
-		Assertions.AssertThat(Realm.Client.Core.GameHost.WeaponRegistry.ContainsKey("spiked_fireball_weapon")).IsTrue();
+		Assertions.AssertThat(GameHost.UnitRegistry.ContainsKey("fire_orb_mage")).IsTrue();
+		Assertions.AssertThat(GameHost.WeaponRegistry.ContainsKey("spiked_fireball_weapon")).IsTrue();
 
-		var registeredWeapon = Realm.Client.Core.GameHost.WeaponRegistry["spiked_fireball_weapon"];
+		var registeredWeapon = GameHost.WeaponRegistry["spiked_fireball_weapon"];
 		sw.WriteLine($"Weapon Name: {registeredWeapon.Name}");
 		sw.WriteLine($"Weapon ProjectileModelPath: {registeredWeapon.ProjectileModelPath}");
 		sw.WriteLine($"Weapon ShaderEffectType: {registeredWeapon.ShaderEffectType}");
@@ -1200,6 +1221,7 @@ public class CustomProjMap : IWasmModule
 				sw.WriteLine($"CustomModelInstance Name: {activeProjectile.CustomModelInstance.Name}");
 				sw.WriteLine($"CustomModelInstance Child Count: {activeProjectile.CustomModelInstance.GetChildCount()}");
 			}
+
 			sw.WriteLine($"FallbackMeshInstance visible: {activeProjectile.FallbackMeshInstance?.Visible}");
 			sw.WriteLine($"Projectile Position: {activeProjectile.GlobalPosition}");
 			sw.WriteLine($"IsFlying: {activeProjectile.IsFlying}");
@@ -1243,7 +1265,7 @@ public class CustomProjMap : IWasmModule
 		string tempScreenshotsDir = Path.Combine(Path.GetTempPath(), "Realm_Projectile_Screenshots");
 		Directory.CreateDirectory(tempScreenshotsDir);
 		string screenshotPath = Path.Combine(tempScreenshotsDir, "custom_projectile_in_flight.png");
-		global::Godot.Image screenshot = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image screenshot = runner.Scene().GetViewport().GetTexture().GetImage();
 		screenshot.SavePng(screenshotPath);
 		sw.WriteLine($"Screenshot saved to: {screenshotPath}");
 
@@ -1280,8 +1302,8 @@ public class CustomProjMap : IWasmModule
 		var overlay = hud!.GetNodeOrNull<Control>("ConfirmationOverlay");
 		if (overlay != null)
 		{
-			var btnDiscard = overlay.FindChild("BtnCancel", true, false) as Button 
-				?? overlay.FindChild("*Discard*", true, false) as Button;
+			var btnDiscard = overlay.FindChild("BtnCancel", true, false) as Button
+			                 ?? overlay.FindChild("*Discard*", true, false) as Button;
 			if (btnDiscard != null)
 			{
 				btnDiscard.EmitSignal("pressed");
@@ -1290,6 +1312,7 @@ public class CustomProjMap : IWasmModule
 			{
 				overlay.QueueFree();
 			}
+
 			await runner.AwaitMillis(500);
 		}
 
@@ -1303,7 +1326,7 @@ public class CustomProjMap : IWasmModule
 		Assertions.AssertThat(loadOk).IsTrue();
 		await runner.AwaitMillis(1500);
 
-		var gameHost = Realm.Client.Core.GameHost.Instance;
+		var gameHost = GameHost.Instance;
 		Assertions.AssertThat(gameHost).IsNotNull();
 
 		var camera = gameHost!.MainCamera;
@@ -1312,9 +1335,10 @@ public class CustomProjMap : IWasmModule
 			camera.Position = new Vector3(0.0f, 30.0f, 35.0f);
 			camera.RotationDegrees = new Vector3(-45.0f, 0.0f, 0.0f);
 		}
+
 		await runner.AwaitMillis(1000);
 
-		var terrain = gameHost.GroundTerrain;
+		var terrain = GameHost.Instance.GroundTerrain;
 		Assertions.AssertThat(terrain).IsNotNull();
 
 		var sw = new StringWriter();
@@ -1338,6 +1362,7 @@ public class CustomProjMap : IWasmModule
 					sw.WriteLine($"  swatch_albedo[{i}]: {albArr[i]}");
 				}
 			}
+
 			var swatchHeight = terrain.Material.GetShaderParameter("swatch_height_params");
 			if (swatchHeight.Obj is Vector4[] hArr)
 			{
@@ -1346,6 +1371,7 @@ public class CustomProjMap : IWasmModule
 					sw.WriteLine($"  swatch_height[{i}]: {hArr[i]}");
 				}
 			}
+
 			var swatchP = terrain.Material.GetShaderParameter("swatch_params");
 			if (swatchP.Obj is Vector4[] pArr)
 			{
@@ -1371,6 +1397,7 @@ public class CustomProjMap : IWasmModule
 					}
 				}
 			}
+
 			sw.WriteLine($"Non-default cliff splats: {nonDefaultCount}");
 			sw.WriteLine($"Sample splats [0,0]: {terrain.CliffSplatMap[0, 0].Index0}:{terrain.CliffSplatMap[0, 0].Weight0}, [16,16]: {terrain.CliffSplatMap[16, 16].Index0}:{terrain.CliffSplatMap[16, 16].Weight0}");
 		}
@@ -1385,7 +1412,7 @@ public class CustomProjMap : IWasmModule
 		string artifactDir = @"C:\Users\devin\.gemini\antigravity-cli\brain\be6525ca-9349-44ef-a3e3-02dba87e5752";
 		Directory.CreateDirectory(artifactDir);
 		string screenshotPath = Path.Combine(artifactDir, "cliff_dark_test.png");
-		global::Godot.Image screenshot = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image screenshot = runner.Scene().GetViewport().GetTexture().GetImage();
 		screenshot.SavePng(screenshotPath);
 		sw.WriteLine($"Screenshot saved to: {screenshotPath}");
 
@@ -1407,6 +1434,7 @@ public class CustomProjMap : IWasmModule
 				}
 			}
 		}
+
 		float avgLum = totalSampled > 0 ? totalLuminance / totalSampled : 0f;
 		sw.WriteLine($"Sampled {totalSampled} pixels in center: Avg luminance = {avgLum:F3}, Dark pixels (<0.15) = {cliffDarkPixels} ({cliffDarkPixels * 100f / totalSampled:F1}%)");
 
@@ -1433,6 +1461,7 @@ public class CustomProjMap : IWasmModule
 		{
 			if (File.Exists(c)) return c;
 		}
+
 		return filename;
 	}
 

@@ -202,14 +202,14 @@ public class HumanoidBoneMapper
 			name = name.Substring("mixamorig_".Length);
 		}
 
-		if (name.StartsWith("mixamorig", StringComparison.OrdinalIgnoreCase) && 
-		    name.Length > "mixamorig".Length && 
+		if (name.StartsWith("mixamorig", StringComparison.OrdinalIgnoreCase) &&
+		    name.Length > "mixamorig".Length &&
 		    name["mixamorig".Length] is ':' or '_' or '.')
 		{
 			name = name.Substring("mixamorig".Length + 1);
 		}
 
-		if (name.StartsWith("bip01_", StringComparison.OrdinalIgnoreCase) || 
+		if (name.StartsWith("bip01_", StringComparison.OrdinalIgnoreCase) ||
 		    name.StartsWith("bip01 ", StringComparison.OrdinalIgnoreCase))
 		{
 			name = name.Substring(6);

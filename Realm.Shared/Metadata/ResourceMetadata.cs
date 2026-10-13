@@ -23,6 +23,7 @@ public class ResourceMetadata
 	public int PathingType { get; set; }
 	public string? SpawnShader { get; set; }
 	public string? DeathShader { get; set; }
+
 	public string? DespawnShader
 	{
 		get => DeathShader;

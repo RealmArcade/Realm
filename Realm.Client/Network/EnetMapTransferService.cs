@@ -1,7 +1,4 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared.Distribution;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +6,10 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
+using Environment = System.Environment;
 
 namespace Realm.Client.Network;
 
@@ -20,47 +21,6 @@ public partial class EnetMapTransferService : Node
 	public static event Action? DownloadCompleted;
 	public static event Action? DownloadFailed;
 
-	private struct HostAssetTransferItem
-	{
-		public string AssetKey;
-		public string SourceFilePath;
-		public string? Metadata;
-		public long Size;
-	}
-
-	private class HostTransferSession
-	{
-		public string TransferId { get; set; } = string.Empty;
-		public int PeerId { get; set; }
-		public string MapName { get; set; } = string.Empty;
-		public string MapVersion { get; set; } = string.Empty;
-		public List<List<HostAssetTransferItem>> ChunkItems { get; set; } = new();
-		public int CurrentChunkIndex { get; set; } = 0;
-		public int TotalChunks => ChunkItems.Count;
-		public long TotalRawBytes { get; set; }
-		public CancellationTokenSource Cts { get; set; } = new();
-	}
-
-	private class ClientTransferSession
-	{
-		public string TransferId { get; set; } = string.Empty;
-		public string MapName { get; set; } = string.Empty;
-		public string MapVersion { get; set; } = string.Empty;
-		public MapManifest Manifest { get; set; } = new();
-		public long ExpectedTotalBytes { get; set; }
-		public int ExpectedTotalChunks { get; set; }
-		public int CurrentChunkIndex { get; set; }
-		public MemoryStream CurrentChunkStream { get; set; } = new();
-		public int ReceivedPacketsInCurrentChunk { get; set; }
-		public long TotalReceivedBytes { get; set; }
-		public int TotalAssetsInManifest { get; set; }
-		public int AlreadyPresentAssets { get; set; }
-		public int SessionMissingAssets { get; set; }
-		public DateTime LastActivityTimeUtc { get; set; } = DateTime.UtcNow;
-		public float LastEmittedProgress { get; set; } = -1.0f;
-		public long LastProgressEmitTicks { get; set; } = 0;
-		public Action<float>? ProgressCallback { get; set; }
-	}
 
 	private readonly ConcurrentDictionary<string, HostTransferSession> _hostTransfers = new();
 	private TaskCompletionSource<string>? _manifestTcs;
@@ -230,6 +190,7 @@ public partial class EnetMapTransferService : Node
 				break;
 			}
 		}
+
 		return false;
 	}
 
@@ -239,7 +200,7 @@ public partial class EnetMapTransferService : Node
 		{
 			MapAssetManager.ExtractManifestFiles(manifest, targetMapDir);
 			string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-			AssetIndexService.Instance.RegisterManifest(manifest, localManifestPath);
+			GameContext.AssetIndexService.RegisterManifest(manifest, localManifestPath);
 		});
 	}
 
@@ -258,7 +219,10 @@ public partial class EnetMapTransferService : Node
 			{
 				_currentClientTransfer.CurrentChunkStream.Dispose();
 			}
-			catch { }
+			catch
+			{
+			}
+
 			_currentClientTransfer = null;
 		}
 	}
@@ -297,6 +261,7 @@ public partial class EnetMapTransferService : Node
 				GD.Print($"[EnetMapTransferService] Rejecting map transfer {transferId} from peer {senderId}: Seeder busy with peer {_activeEphemeralTransferPeerId}.");
 				return;
 			}
+
 			_activeEphemeralTransferPeerId = senderId;
 		}
 
@@ -359,7 +324,7 @@ public partial class EnetMapTransferService : Node
 	{
 		var localFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion);
-        
+
 		if (string.IsNullOrEmpty(manifestPath) || !File.Exists(manifestPath) || manifest == null || manifest.Files == null)
 		{
 			return localFileMap;
@@ -410,6 +375,7 @@ public partial class EnetMapTransferService : Node
 				});
 			}
 		}
+
 		return itemsToPack;
 	}
 
@@ -428,6 +394,7 @@ public partial class EnetMapTransferService : Node
 				currentChunk = new List<HostAssetTransferItem>();
 				currentChunkBytes = 0;
 			}
+
 			currentChunk.Add(item);
 			currentChunkBytes += estimated;
 		}
@@ -439,7 +406,6 @@ public partial class EnetMapTransferService : Node
 
 		return chunkList;
 	}
-
 
 
 	private async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
@@ -475,6 +441,7 @@ public partial class EnetMapTransferService : Node
 					chunkAssets.Add((item.AssetKey, data, item.Metadata));
 				}
 			}
+
 			return ZstdAssetBundleHelper.CreateBundleBytes(chunkAssets, 1);
 		}, session.Cts.Token);
 	}
@@ -551,7 +518,7 @@ public partial class EnetMapTransferService : Node
 				string targetMapDir = MapAssetManager.GetMapDirectory(mapName, mapVersion);
 				MapAssetManager.ExtractManifestFiles(_currentClientTransfer.Manifest, targetMapDir);
 				string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-				AssetIndexService.Instance.RegisterManifest(_currentClientTransfer.Manifest, localManifestPath);
+				GameContext.AssetIndexService.RegisterManifest(_currentClientTransfer.Manifest, localManifestPath);
 
 				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferId)).CallDeferred();
 				_transferCompleteTcs?.TrySetResult(true);
@@ -610,12 +577,13 @@ public partial class EnetMapTransferService : Node
 			float downloadedAssetsInSession = sessionFraction * _currentClientTransfer.SessionMissingAssets;
 			return Math.Clamp((_currentClientTransfer.AlreadyPresentAssets + downloadedAssetsInSession) / _currentClientTransfer.TotalAssetsInManifest, 0.0f, 1.0f);
 		}
+
 		return sessionFraction;
 	}
 
 	private void EmitTransferProgressIfRequired(float overallProgress, bool isChunkEnd)
 	{
-		long nowTicks = System.Environment.TickCount64;
+		long nowTicks = Environment.TickCount64;
 		if (isChunkEnd || overallProgress >= 1.0f || Math.Abs(overallProgress - _currentClientTransfer!.LastEmittedProgress) >= 0.005f || (nowTicks - _currentClientTransfer.LastProgressEmitTicks) >= 100)
 		{
 			_currentClientTransfer!.LastEmittedProgress = overallProgress;
@@ -665,7 +633,7 @@ public partial class EnetMapTransferService : Node
 				{
 					MapAssetManager.ExtractManifestFiles(transferSession.Manifest, targetMapDir);
 					string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-					AssetIndexService.Instance.RegisterManifest(transferSession.Manifest, localManifestPath);
+					GameContext.AssetIndexService.RegisterManifest(transferSession.Manifest, localManifestPath);
 				});
 
 				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferSession.TransferId)).CallDeferred();

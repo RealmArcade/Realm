@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.IO;
+using Realm.Client.Core;
 using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
@@ -36,9 +39,9 @@ public class TerrainTextureUndoAction : IEditorAction
 
 	private void UpdateGroundTerrain(TerrainTextureSnapshot snapshot, string tintHex)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || Realm.Client.Core.GameHost.Instance.GroundTerrain == null) return;
-		
-		Realm.Client.Core.GameHost.Instance.GroundTerrain.UpdateTextureParamDirect(
+		if (GameHost.Instance == null || GameHost.Instance.GroundTerrain == null) return;
+
+		GameHost.Instance.GroundTerrain.UpdateTextureParamDirect(
 			_textureFileName,
 			snapshot.TileMode,
 			snapshot.UvScale,
@@ -58,12 +61,12 @@ public class TerrainTextureUndoAction : IEditorAction
 	{
 		try
 		{
-			string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-			string metaPath = System.IO.Path.Combine(wsPath, "metadata.json");
-			
-			if (!System.IO.File.Exists(metaPath)) return;
-			if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) || metadataRoot == null) return;
-			
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			string metaPath = Path.Combine(wsPath, "metadata.json");
+
+			if (!File.Exists(metaPath)) return;
+			if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metadataRoot) || metadataRoot == null) return;
+
 			var existing = metadataRoot.GetTerrainTexture(_textureFileName);
 			if (existing != null)
 			{
@@ -79,12 +82,15 @@ public class TerrainTextureUndoAction : IEditorAction
 				existing.StochasticTileSize = snapshot.StochasticTileSize;
 				existing.CrossFade = snapshot.CrossFade;
 				existing.DefaultPathingCode = snapshot.DefaultPathingCode;
-				existing.DecalBombingRules = snapshot.DecalBombingRules != null ? new System.Collections.Generic.List<ProceduralBombingDecalRule>(snapshot.DecalBombingRules) : new();
-				existing.VfxBombingRules = snapshot.VfxBombingRules != null ? new System.Collections.Generic.List<ProceduralBombingVfxRule>(snapshot.VfxBombingRules) : new();
+				existing.DecalBombingRules = snapshot.DecalBombingRules != null ? new List<ProceduralBombingDecalRule>(snapshot.DecalBombingRules) : new();
+				existing.VfxBombingRules = snapshot.VfxBombingRules != null ? new List<ProceduralBombingVfxRule>(snapshot.VfxBombingRules) : new();
 			}
-			MetadataService.Instance.SaveMetadata(metaPath, metadataRoot);
+
+			GameContext.MetadataService.SaveMetadata(metaPath, metadataRoot);
 			MapEditorHUD.Instance?.UpdateLastMetadataSyncTime(metaPath);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 }

@@ -1,5 +1,5 @@
-using Realm.Ecs.Common;
 using System.Reflection;
+using Realm.Ecs.Common;
 
 namespace Realm.Ecs.Services;
 
@@ -9,14 +9,12 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class DefinitionManager
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
 	private readonly Dictionary<string, (ResourceDefinition Definition, Type ComponentType)> _resources = new();
 	private readonly Dictionary<string, (StatDefinition Definition, Type ComponentType)> _stats = new();
 	private readonly Dictionary<string, (TagDefinition Definition, Type ComponentType)> _tags = new();
 
-	public DefinitionManager(WorldAccessor ecsWorldAccessor)
+	public DefinitionManager()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 		var assembly = Assembly.GetExecutingAssembly();
 
 		LoadDefinitions<TagDefinitionAttribute, TagDefinition>(assembly, _tags);

@@ -1,15 +1,17 @@
 using System.Collections.Generic;
 using System.Linq;
 using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.UI;
 
 namespace Realm.Client;
 
 public class CoordinateAction : IEditorAction
 {
-	private readonly List<Realm.Client.Core.GameHost.EditorCoordinate> _oldCoordinates;
-	private readonly List<Realm.Client.Core.GameHost.EditorCoordinate> _newCoordinates;
+	private readonly List<EditorCoordinate> _oldCoordinates;
+	private readonly List<EditorCoordinate> _newCoordinates;
 
-	public CoordinateAction(IEnumerable<Realm.Client.Core.GameHost.EditorCoordinate> oldCoordinates, IEnumerable<Realm.Client.Core.GameHost.EditorCoordinate> newCoordinates)
+	public CoordinateAction(IEnumerable<EditorCoordinate> oldCoordinates, IEnumerable<EditorCoordinate> newCoordinates)
 	{
 		_oldCoordinates = oldCoordinates.ToList();
 		_newCoordinates = newCoordinates.ToList();
@@ -17,25 +19,25 @@ public class CoordinateAction : IEditorAction
 
 	public void Undo()
 	{
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EditorCoordinates.Clear();
-			Realm.Client.Core.GameHost.Instance.EditorCoordinates.AddRange(_oldCoordinates);
-			Realm.Client.Core.GameHost.Instance.RebuildAllCoordinatePersistentMeshes();
-			Realm.Client.Core.GameHost.Instance.HideCoordinateSelectionOutline();
-			UI.MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+			GameContext.EditorService.EditorCoordinates.Clear();
+			GameContext.EditorService.EditorCoordinates.AddRange(_oldCoordinates);
+			GameHost.Instance.RebuildAllCoordinatePersistentMeshes();
+			GameHost.Instance.HideCoordinateSelectionOutline();
+			MapEditorHUD.Instance?.RefreshCoordinateListExternal();
 		}
 	}
 
 	public void Redo()
 	{
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EditorCoordinates.Clear();
-			Realm.Client.Core.GameHost.Instance.EditorCoordinates.AddRange(_newCoordinates);
-			Realm.Client.Core.GameHost.Instance.RebuildAllCoordinatePersistentMeshes();
-			Realm.Client.Core.GameHost.Instance.HideCoordinateSelectionOutline();
-			UI.MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+			GameContext.EditorService.EditorCoordinates.Clear();
+			GameContext.EditorService.EditorCoordinates.AddRange(_newCoordinates);
+			GameHost.Instance.RebuildAllCoordinatePersistentMeshes();
+			GameHost.Instance.HideCoordinateSelectionOutline();
+			MapEditorHUD.Instance?.RefreshCoordinateListExternal();
 		}
 	}
 }

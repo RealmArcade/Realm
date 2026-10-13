@@ -1,10 +1,12 @@
-using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Godot;
+using Realm.Shared;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Services;
 
@@ -13,9 +15,6 @@ public class MetadataService
 	public const string UgcLicenseUrl = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
 
 	public event Action<string>? MetadataSaved;
-
-	private static MetadataService? _defaultFallbackInstance;
-	public static MetadataService Instance => ServiceLocator.TryGet<MetadataService>() ?? (_defaultFallbackInstance ??= new MetadataService());
 
 	private static readonly JsonSerializerOptions SerializerOptions = new()
 	{
@@ -40,6 +39,7 @@ public class MetadataService
 			{
 				return Path.Combine(globalized, "metadata.json");
 			}
+
 			return globalized;
 		}
 
@@ -54,7 +54,7 @@ public class MetadataService
 	public MapMetadata LoadMetadata(string pathOrDirectory)
 	{
 		string targetPath = ResolveMetadataPath(pathOrDirectory);
-		var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(targetPath);
+		var metadata = MapFileService.LoadMetadata(targetPath);
 		CleanMetadata(metadata);
 		return metadata;
 	}
@@ -82,7 +82,7 @@ public class MetadataService
 		try
 		{
 			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-			Realm.Shared.Services.MapFileService.SaveMetadata(targetPath, metadata);
+			MapFileService.SaveMetadata(targetPath, metadata);
 			MetadataSaved?.Invoke(targetPath);
 		}
 		catch (Exception ex)
@@ -220,7 +220,7 @@ public class MetadataService
 
 		if (string.IsNullOrEmpty(metadata.GameBuildNumber))
 		{
-			metadata.GameBuildNumber = Realm.Shared.RealmVersion.GameBuildNumber;
+			metadata.GameBuildNumber = RealmVersion.GameBuildNumber;
 		}
 
 		metadata.License = UgcLicenseUrl;
@@ -313,6 +313,7 @@ public class MetadataService
 			model = new ModelMetadata();
 			metadata.Models[modelKey] = model;
 		}
+
 		return model;
 	}
 

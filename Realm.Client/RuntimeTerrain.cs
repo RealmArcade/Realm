@@ -1,13 +1,21 @@
-using DotRecast.Detour;
-using Godot;
-using Realm.Ecs.Components.Terrain;
-using Realm.Client.Services;
-using Realm.Client.UI;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Nodes;
+using DotRecast.Detour;
+using Godot;
+using Godot.Collections;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Ecs.Components.Terrain;
+using Realm.Ecs.Services;
+using Realm.Shared.Services;
+using Realm.Shared.Textures;
+using Array = Godot.Collections.Array;
 
 namespace Realm.Client;
 
@@ -56,13 +64,14 @@ public partial class RuntimeTerrain : StaticBody3D
 
 	internal TerrainState GetTerrainStateSafe()
 	{
-		if (Realm.Client.Core.GameHost.Instance != null && 
-		    Realm.Client.Core.GameHost.Instance.EcsWorld != null && 
-		    Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && 
-		    Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+		if (GameHost.Instance != null &&
+		    GameContext.World != null &&
+		    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
+		    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 		{
-			return Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+			return GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 		}
+
 		return new TerrainState(128, 128, DefaultQuadSize, DefaultCellSize, (TerrainCell[,])null, null, null, null);
 	}
 
@@ -71,8 +80,8 @@ public partial class RuntimeTerrain : StaticBody3D
 		get => GetTerrainStateSafe().CellSize;
 		protected set
 		{
-			ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
-			Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 				state.Width, state.Depth, state.QuadSize, value,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -87,8 +96,8 @@ public partial class RuntimeTerrain : StaticBody3D
 		get => GetTerrainStateSafe().Width;
 		protected set
 		{
-			ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
-			Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 				value, state.Depth, state.QuadSize, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -100,8 +109,8 @@ public partial class RuntimeTerrain : StaticBody3D
 		get => GetTerrainStateSafe().Depth;
 		protected set
 		{
-			ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
-			Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 				state.Width, value, state.QuadSize, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -113,8 +122,8 @@ public partial class RuntimeTerrain : StaticBody3D
 		get => GetTerrainStateSafe().QuadSize;
 		protected set
 		{
-			ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
-			Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 				state.Width, state.Depth, value, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -151,6 +160,7 @@ public partial class RuntimeTerrain : StaticBody3D
 			var prof = Instance.GetWaterProfile(cell.WaterProfileIndex);
 			if (prof != null) return prof.DefaultPathingCode;
 		}
+
 		return GetDefaultPathingCode(cell.WaterMode);
 	}
 
@@ -227,18 +237,18 @@ public partial class RuntimeTerrain : StaticBody3D
 		}
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool IsInvalidOrVisitedWaterNeighbor(int nx, int nz, int oldWidth, int oldDepth, bool[,] oldVisited)
 	{
 		return nx < 0 || nx >= oldWidth || nz < 0 || nz >= oldDepth || oldVisited[nx, nz];
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool IsSameWaterBody(TerrainCell nCell, TerrainCell startCell)
 	{
-		return nCell.WaterMode == startCell.WaterMode && 
-		       nCell.WaterProfileIndex == startCell.WaterProfileIndex && 
-		       MathF.Abs(nCell.WaterHeight - startCell.WaterHeight) < 0.01f && 
+		return nCell.WaterMode == startCell.WaterMode &&
+		       nCell.WaterProfileIndex == startCell.WaterProfileIndex &&
+		       MathF.Abs(nCell.WaterHeight - startCell.WaterHeight) < 0.01f &&
 		       nCell.MacroTier == startCell.MacroTier;
 	}
 
@@ -356,7 +366,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		foreach (var seed in seedCells)
 		{
 			if (overallVisited[seed.x, seed.z]) continue;
-			
+
 			overallVisited[seed.x, seed.z] = true;
 			newQueue.Enqueue(seed);
 		}
@@ -422,36 +432,39 @@ public partial class RuntimeTerrain : StaticBody3D
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld != null && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+			if (GameHost.Instance != null &&
+			    GameContext.World != null &&
+			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 				if (state.Cells == null)
 				{
 					state.Cells = new TerrainCell[state.Width, state.Depth];
 				}
+
 				return state.Cells;
 			}
+
 			if (_localCells == null)
 			{
 				_localCells = new TerrainCell[Width, Depth];
 			}
+
 			return _localCells;
 		}
 		set
 		{
 			_localCells = value;
-			if (Realm.Client.Core.GameHost.Instance != null && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld != null && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+			if (GameHost.Instance != null &&
+			    GameContext.World != null &&
+			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 				int targetWidth = value != null ? value.GetLength(0) : state.Width;
 				int targetDepth = value != null ? value.GetLength(1) : state.Depth;
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 					targetWidth, targetDepth, state.QuadSize, state.CellSize,
 					value, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 				));
@@ -501,12 +514,12 @@ public partial class RuntimeTerrain : StaticBody3D
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld != null && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+			if (GameHost.Instance != null &&
+			    GameContext.World != null &&
+			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 				if (state.PathingCodes == null)
 				{
 					state.PathingCodes = new int[state.Width, state.Depth];
@@ -519,8 +532,10 @@ public partial class RuntimeTerrain : StaticBody3D
 						}
 					}
 				}
+
 				return state.PathingCodes;
 			}
+
 			if (_localPathingCodes == null)
 			{
 				_localPathingCodes = new int[Width, Depth];
@@ -533,20 +548,21 @@ public partial class RuntimeTerrain : StaticBody3D
 					}
 				}
 			}
+
 			return _localPathingCodes;
 		}
 		set
 		{
 			_localPathingCodes = value;
-			if (Realm.Client.Core.GameHost.Instance != null && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld != null && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && 
-			    Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+			if (GameHost.Instance != null &&
+			    GameContext.World != null &&
+			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 			{
-				ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 				int targetWidth = value != null ? value.GetLength(0) : state.Width;
 				int targetDepth = value != null ? value.GetLength(1) : state.Depth;
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 					targetWidth, targetDepth, state.QuadSize, state.CellSize,
 					state.Cells, value, state.NavMesh, state.NavMeshQuery
 				));
@@ -558,44 +574,18 @@ public partial class RuntimeTerrain : StaticBody3D
 	protected int _chunkedWidth = 0;
 	protected int _chunkedDepth = 0;
 
-	public class TerrainChunk
-	{
-		public MeshInstance3D MeshInstance;
-		public ArrayMesh ArrayMesh;
-		public CollisionShape3D CollisionShape;
-		public Dictionary<byte, (MeshInstance3D MeshInstance, ArrayMesh ArrayMesh)> ProfileWaterMeshes = new();
-		public int StartX;
-		public int StartZ;
-		public int EndX;
-		public int EndZ;
-		public Vector3[] VerticesCache;
-		public Color[] ColorsCache;
-		public float[] TexIndicesCache;
-		public float[] TexWeightsCache01;
-		public float[] CliffIndicesCache;
-		public float[] CliffWeightsCache;
-		public Vector3[] NormalsCache;
-		public Vector2[] UvsCache;
-		public int[] IndicesCache;
-		public float[] MapDataCache;
-		public Dictionary<TerrainVertexKey, int> WeldVertexMap;
-		public int[] WeldRemapTable;
-		public float MinY;
-		public float MaxY;
-		public Aabb WorldAabb;
-	}
-	
+
 	protected List<TerrainChunk> _chunks = new List<TerrainChunk>();
 	protected ShaderMaterial _material;
 	public ShaderMaterial Material => _material;
 	protected ShaderMaterial _shallowWaterMaterial;
 	protected ShaderMaterial _deepWaterMaterial;
-	protected Dictionary<byte, WaterProfileSaveData> _waterProfiles = new();
-	protected Dictionary<byte, ShaderMaterial> _waterMaterials = new();
+	protected System.Collections.Generic.Dictionary<byte, WaterProfileSaveData> _waterProfiles = new();
+	protected System.Collections.Generic.Dictionary<byte, ShaderMaterial> _waterMaterials = new();
 	protected Shader _waterUberShader;
 
-	public Dictionary<byte, WaterProfileSaveData> WaterProfiles => _waterProfiles;
-	public Dictionary<byte, ShaderMaterial> WaterMaterials => _waterMaterials;
+	public System.Collections.Generic.Dictionary<byte, WaterProfileSaveData> WaterProfiles => _waterProfiles;
+	public System.Collections.Generic.Dictionary<byte, ShaderMaterial> WaterMaterials => _waterMaterials;
 
 	public IReadOnlyDictionary<byte, WaterProfileSaveData> GetWaterProfiles()
 	{
@@ -603,6 +593,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		{
 			ReloadWaterProfiles();
 		}
+
 		return _waterProfiles;
 	}
 
@@ -612,6 +603,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		{
 			ReloadWaterProfiles();
 		}
+
 		if (_waterProfiles.TryGetValue(profileIndex, out var prof)) return prof;
 		var defaults = WaterProfileSaveData.CreateDefaultProfiles();
 		var def = defaults.Find(d => d.ProfileIndex == profileIndex);
@@ -620,6 +612,7 @@ public partial class RuntimeTerrain : StaticBody3D
 			_waterProfiles[profileIndex] = def;
 			return def;
 		}
+
 		return _waterProfiles.Values.FirstOrDefault() ?? new WaterProfileSaveData();
 	}
 
@@ -646,6 +639,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		{
 			ReloadWaterProfiles();
 		}
+
 		if (_waterMaterials.TryGetValue(profileIndex, out var mat) && mat != null) return mat;
 		var newMat = new ShaderMaterial { Shader = _waterUberShader };
 		var prof = GetWaterProfile(profileIndex);
@@ -662,10 +656,12 @@ public partial class RuntimeTerrain : StaticBody3D
 		{
 			_waterProfiles[def.ProfileIndex] = def;
 		}
+
 		foreach (var p in profiles)
 		{
 			_waterProfiles[p.ProfileIndex] = p;
 		}
+
 		foreach (var kvp in _waterProfiles)
 		{
 			byte idx = kvp.Key;
@@ -675,8 +671,10 @@ public partial class RuntimeTerrain : StaticBody3D
 				mat = new ShaderMaterial { Shader = _waterUberShader };
 				_waterMaterials[idx] = mat;
 			}
+
 			ApplyWaterProfileToMaterial(mat, prof);
 		}
+
 		_shallowWaterMaterial = GetWaterMaterial(0);
 		_deepWaterMaterial = GetWaterMaterial(1);
 		UpdateWaterTransform();
@@ -686,7 +684,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	public void ApplyWaterProfileToMaterial(ShaderMaterial mat, WaterProfileSaveData profile)
 	{
 		if (mat == null || profile == null) return;
-		
+
 		ApplyWaterColors(mat, profile);
 		ApplyWaterBaseParameters(mat, profile);
 		ApplyWaterTextures(mat, profile);
@@ -701,7 +699,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		Color shallow = Color.HtmlIsValid(profile.ShallowColorHex) ? Color.FromHtml(profile.ShallowColorHex) : new Color(0.05f, 0.30f, 0.38f, 0.55f);
 		Color deep = Color.HtmlIsValid(profile.DeepColorHex) ? Color.FromHtml(profile.DeepColorHex) : new Color(0.01f, 0.06f, 0.14f, 0.98f);
 		Color foam = Color.HtmlIsValid(profile.FoamColorHex) ? Color.FromHtml(profile.FoamColorHex) : new Color(0.85f, 0.95f, 1.0f, 0.85f);
-		
+
 		mat.SetShaderParameter("shallow_color", shallow);
 		mat.SetShaderParameter("deep_color", deep);
 		mat.SetShaderParameter("foam_color", foam);
@@ -723,6 +721,7 @@ public partial class RuntimeTerrain : StaticBody3D
 			var tex = LoadTextureFromActiveWorkspace(profile.NormalTexturePath, preferNormal: true);
 			if (tex != null) mat.SetShaderParameter("normal_texture", tex);
 		}
+
 		mat.SetShaderParameter("normal_scale", profile.NormalScale);
 	}
 
@@ -766,6 +765,7 @@ public partial class RuntimeTerrain : StaticBody3D
 			var dtex = LoadTextureFromActiveWorkspace(profile.DetailTexturePath, preferNormal: false);
 			if (dtex != null) mat.SetShaderParameter("detail_texture", dtex);
 		}
+
 		mat.SetShaderParameter("detail_tile_mode", string.Equals(profile.DetailTileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0 : 1);
 		mat.SetShaderParameter("detail_uv_scale", new Vector2(profile.DetailUvScaleX, profile.DetailUvScaleY));
 		mat.SetShaderParameter("detail_uv_scroll", new Vector2(profile.DetailUvScrollX, profile.DetailUvScrollY));
@@ -780,7 +780,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		if (_currentShroudTexture != null)
 		{
 			mat.SetShaderParameter("shroud_texture", _currentShroudTexture);
-			mat.SetShaderParameter("shroud_enabled", Realm.Client.Core.GameHost.Instance == null || !Realm.Client.Core.GameHost.Instance.IsMapEditorMode);
+			mat.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameContext.EditorService.IsMapEditorMode);
 			float halfW = (Width * QuadSize) * 0.5f;
 			float halfD = (Depth * QuadSize) * 0.5f;
 			mat.SetShaderParameter("shroud_world_min", new Vector2(-halfW, -halfD));
@@ -792,7 +792,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	{
 		if (string.IsNullOrWhiteSpace(texturePath)) return null;
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string? fullPath = FindTexturePath(wsPath, texturePath);
 
 		if (fullPath == null || !File.Exists(fullPath)) return null;
@@ -850,8 +850,8 @@ public partial class RuntimeTerrain : StaticBody3D
 			_waterProfiles[def.ProfileIndex] = def;
 		}
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-		if (!string.IsNullOrEmpty(wsPath) && MetadataService.Instance.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot?.CustomWaterProfiles != null)
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (!string.IsNullOrEmpty(wsPath) && GameContext.MetadataService.TryLoadMetadata(wsPath, out var metadataRoot) && metadataRoot?.CustomWaterProfiles != null)
 		{
 			foreach (var p in metadataRoot.CustomWaterProfiles)
 			{
@@ -868,6 +868,7 @@ public partial class RuntimeTerrain : StaticBody3D
 				mat = new ShaderMaterial { Shader = _waterUberShader };
 				_waterMaterials[idx] = mat;
 			}
+
 			ApplyWaterProfileToMaterial(mat, prof);
 		}
 
@@ -914,7 +915,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	private void EvaluateAdjacentWaterCell(int x, int z, int dx, int dz, TerrainCell cell, float maxCornerH, TerrainCell[,] cells, int w, int d, ref float bestWaterY, ref WaterType bestWaterMode, ref byte bestProfileIndex)
 	{
 		if (dx == 0 && dz == 0) return;
-		
+
 		int nx = x + dx;
 		int nz = z + dz;
 		if (nx < 0 || nx >= w || nz < 0 || nz >= d) return;
@@ -926,20 +927,20 @@ public partial class RuntimeTerrain : StaticBody3D
 		float sharedMinH = GetSharedMinHeight(cell, dx, dz);
 
 		if (ShouldSkipWaterEvaluation(sharedMinH, maxCornerH, nWaterY, bestWaterY)) return;
-		
+
 		bestWaterY = nWaterY;
 		bestWaterMode = nCell.WaterMode;
 		bestProfileIndex = nCell.WaterProfileIndex;
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static float CalculateNeighborWaterY(TerrainCell nCell)
 	{
 		float nDelta = nCell.WaterHeight > 0.001f ? nCell.WaterHeight : WATER_DELTA;
 		return (nCell.MacroTier * TerrainCell.TIER_HEIGHT) + nDelta;
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool ShouldSkipWaterEvaluation(float sharedMinH, float maxCornerH, float nWaterY, float bestWaterY)
 	{
 		return sharedMinH > nWaterY || maxCornerH <= nWaterY || nWaterY >= bestWaterY;
@@ -974,10 +975,10 @@ public partial class RuntimeTerrain : StaticBody3D
 		float halfWQuadSize = (w / 2.0f) * quadSize;
 		float halfDQuadSize = (d / 2.0f) * quadSize;
 
-		var profileVerts = new Dictionary<byte, List<Vector3>>();
-		var profileNorms = new Dictionary<byte, List<Vector3>>();
-		var profileUvs = new Dictionary<byte, List<Vector2>>();
-		var profileIndices = new Dictionary<byte, List<int>>();
+		var profileVerts = new System.Collections.Generic.Dictionary<byte, List<Vector3>>();
+		var profileNorms = new System.Collections.Generic.Dictionary<byte, List<Vector3>>();
+		var profileUvs = new System.Collections.Generic.Dictionary<byte, List<Vector2>>();
+		var profileIndices = new System.Collections.Generic.Dictionary<byte, List<int>>();
 
 		foreach (var chunk in _chunks)
 		{
@@ -992,9 +993,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	}
 
 	private void GenerateWaterGeometryForChunk(
-		TerrainChunk chunk, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize,
-		Dictionary<byte, List<Vector3>> profileVerts, Dictionary<byte, List<Vector3>> profileNorms,
-		Dictionary<byte, List<Vector2>> profileUvs, Dictionary<byte, List<int>> profileIndices)
+		TerrainChunk chunk, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		for (int z = chunk.StartZ; z < chunk.EndZ; z++)
 		{
@@ -1006,9 +1005,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	}
 
 	private void ProcessWaterCell(
-		int x, int z, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize,
-		Dictionary<byte, List<Vector3>> profileVerts, Dictionary<byte, List<Vector3>> profileNorms,
-		Dictionary<byte, List<Vector2>> profileUvs, Dictionary<byte, List<int>> profileIndices)
+		int x, int z, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		var (waterY1, activeWaterMode1, activeWaterProfile1) = GetCellWaterInfo(x, z, cells, w, d);
 		if (activeWaterMode1 == WaterType.None) return;
@@ -1027,9 +1024,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	}
 
 	private void AddWaterQuad(
-		int x, int z, float waterY1, byte activeWaterProfile1, float quadSize, float halfWQuadSize, float halfDQuadSize,
-		Dictionary<byte, List<Vector3>> profileVerts, Dictionary<byte, List<Vector3>> profileNorms,
-		Dictionary<byte, List<Vector2>> profileUvs, Dictionary<byte, List<int>> profileIndices)
+		int x, int z, float waterY1, byte activeWaterProfile1, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		Vector3 nw = new Vector3(x * quadSize - halfWQuadSize, waterY1, z * quadSize - halfDQuadSize);
 		Vector3 ne = new Vector3((x + 1) * quadSize - halfWQuadSize, waterY1, z * quadSize - halfDQuadSize);
@@ -1039,19 +1034,30 @@ public partial class RuntimeTerrain : StaticBody3D
 		var geom = GetGeomLists(activeWaterProfile1, profileVerts, profileNorms, profileUvs, profileIndices);
 		int baseIdx = geom.verts.Count;
 
-		geom.verts.Add(nw); geom.verts.Add(ne); geom.verts.Add(se); geom.verts.Add(sw);
+		geom.verts.Add(nw);
+		geom.verts.Add(ne);
+		geom.verts.Add(se);
+		geom.verts.Add(sw);
 		Vector3 normal = Vector3.Up;
-		geom.norms.Add(normal); geom.norms.Add(normal); geom.norms.Add(normal); geom.norms.Add(normal);
-		geom.uvs.Add(new Vector2(0, 0)); geom.uvs.Add(new Vector2(1, 0)); geom.uvs.Add(new Vector2(1, 1)); geom.uvs.Add(new Vector2(0, 1));
+		geom.norms.Add(normal);
+		geom.norms.Add(normal);
+		geom.norms.Add(normal);
+		geom.norms.Add(normal);
+		geom.uvs.Add(new Vector2(0, 0));
+		geom.uvs.Add(new Vector2(1, 0));
+		geom.uvs.Add(new Vector2(1, 1));
+		geom.uvs.Add(new Vector2(0, 1));
 
-		geom.indices.Add(baseIdx + 0); geom.indices.Add(baseIdx + 1); geom.indices.Add(baseIdx + 2);
-		geom.indices.Add(baseIdx + 0); geom.indices.Add(baseIdx + 2); geom.indices.Add(baseIdx + 3);
+		geom.indices.Add(baseIdx + 0);
+		geom.indices.Add(baseIdx + 1);
+		geom.indices.Add(baseIdx + 2);
+		geom.indices.Add(baseIdx + 0);
+		geom.indices.Add(baseIdx + 2);
+		geom.indices.Add(baseIdx + 3);
 	}
 
 	private void AddWaterWallX(
-		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize,
-		Dictionary<byte, List<Vector3>> profileVerts, Dictionary<byte, List<Vector3>> profileNorms,
-		Dictionary<byte, List<Vector2>> profileUvs, Dictionary<byte, List<int>> profileIndices)
+		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x + 1, z, cells, w, d);
 		if (activeWaterMode2 == WaterType.None || MathF.Abs(waterY1 - waterY2) <= 0.01f) return;
@@ -1072,19 +1078,31 @@ public partial class RuntimeTerrain : StaticBody3D
 		wGeom.verts.Add(new Vector3(wallX, yMax, z0));
 
 		Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Right : Vector3.Left;
-		wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm);
-		wGeom.uvs.Add(new Vector2(0, 0)); wGeom.uvs.Add(new Vector2(1, 0)); wGeom.uvs.Add(new Vector2(1, 1)); wGeom.uvs.Add(new Vector2(0, 1));
+		wGeom.norms.Add(wallNorm);
+		wGeom.norms.Add(wallNorm);
+		wGeom.norms.Add(wallNorm);
+		wGeom.norms.Add(wallNorm);
+		wGeom.uvs.Add(new Vector2(0, 0));
+		wGeom.uvs.Add(new Vector2(1, 0));
+		wGeom.uvs.Add(new Vector2(1, 1));
+		wGeom.uvs.Add(new Vector2(0, 1));
 
-		wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 1); wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 2); wGeom.indices.Add(wBase + 3);
-		wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 2); wGeom.indices.Add(wBase + 1);
-		wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 3); wGeom.indices.Add(wBase + 2);
+		wGeom.indices.Add(wBase + 0);
+		wGeom.indices.Add(wBase + 1);
+		wGeom.indices.Add(wBase + 2);
+		wGeom.indices.Add(wBase + 0);
+		wGeom.indices.Add(wBase + 2);
+		wGeom.indices.Add(wBase + 3);
+		wGeom.indices.Add(wBase + 0);
+		wGeom.indices.Add(wBase + 2);
+		wGeom.indices.Add(wBase + 1);
+		wGeom.indices.Add(wBase + 0);
+		wGeom.indices.Add(wBase + 3);
+		wGeom.indices.Add(wBase + 2);
 	}
 
 	private void AddWaterWallZ(
-		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize,
-		Dictionary<byte, List<Vector3>> profileVerts, Dictionary<byte, List<Vector3>> profileNorms,
-		Dictionary<byte, List<Vector2>> profileUvs, Dictionary<byte, List<int>> profileIndices)
+		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x, z + 1, cells, w, d);
 		if (activeWaterMode2 == WaterType.None || MathF.Abs(waterY1 - waterY2) <= 0.01f) return;
@@ -1105,18 +1123,31 @@ public partial class RuntimeTerrain : StaticBody3D
 		wGeom.verts.Add(new Vector3(x0, yMax, wallZ));
 
 		Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Back : Vector3.Forward;
-		wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm); wGeom.norms.Add(wallNorm);
-		wGeom.uvs.Add(new Vector2(0, 0)); wGeom.uvs.Add(new Vector2(1, 0)); wGeom.uvs.Add(new Vector2(1, 1)); wGeom.uvs.Add(new Vector2(0, 1));
+		wGeom.norms.Add(wallNorm);
+		wGeom.norms.Add(wallNorm);
+		wGeom.norms.Add(wallNorm);
+		wGeom.norms.Add(wallNorm);
+		wGeom.uvs.Add(new Vector2(0, 0));
+		wGeom.uvs.Add(new Vector2(1, 0));
+		wGeom.uvs.Add(new Vector2(1, 1));
+		wGeom.uvs.Add(new Vector2(0, 1));
 
-		wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 1); wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 2); wGeom.indices.Add(wBase + 3);
-		wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 2); wGeom.indices.Add(wBase + 1);
-		wGeom.indices.Add(wBase + 0); wGeom.indices.Add(wBase + 3); wGeom.indices.Add(wBase + 2);
+		wGeom.indices.Add(wBase + 0);
+		wGeom.indices.Add(wBase + 1);
+		wGeom.indices.Add(wBase + 2);
+		wGeom.indices.Add(wBase + 0);
+		wGeom.indices.Add(wBase + 2);
+		wGeom.indices.Add(wBase + 3);
+		wGeom.indices.Add(wBase + 0);
+		wGeom.indices.Add(wBase + 2);
+		wGeom.indices.Add(wBase + 1);
+		wGeom.indices.Add(wBase + 0);
+		wGeom.indices.Add(wBase + 3);
+		wGeom.indices.Add(wBase + 2);
 	}
 
 	private void UpdateWaterMeshesForChunk(
-		TerrainChunk chunk, Dictionary<byte, List<Vector3>> profileVerts, Dictionary<byte, List<Vector3>> profileNorms,
-		Dictionary<byte, List<Vector2>> profileUvs, Dictionary<byte, List<int>> profileIndices)
+		TerrainChunk chunk, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		foreach (var (pIdx, gVerts) in profileVerts)
 		{
@@ -1150,8 +1181,7 @@ public partial class RuntimeTerrain : StaticBody3D
 	}
 
 	private (List<Vector3> verts, List<Vector3> norms, List<Vector2> uvs, List<int> indices) GetGeomLists(
-		byte pIdx, Dictionary<byte, List<Vector3>> profileVerts, Dictionary<byte, List<Vector3>> profileNorms,
-		Dictionary<byte, List<Vector2>> profileUvs, Dictionary<byte, List<int>> profileIndices)
+		byte pIdx, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		if (!profileVerts.TryGetValue(pIdx, out var vList))
 		{
@@ -1161,6 +1191,7 @@ public partial class RuntimeTerrain : StaticBody3D
 			profileUvs[pIdx] = new List<Vector2>();
 			profileIndices[pIdx] = new List<int>();
 		}
+
 		return (vList, profileNorms[pIdx], profileUvs[pIdx], profileIndices[pIdx]);
 	}
 
@@ -1180,7 +1211,7 @@ public partial class RuntimeTerrain : StaticBody3D
 			return;
 		}
 
-		var surfaceArray = new global::Godot.Collections.Array();
+		var surfaceArray = new Array();
 		surfaceArray.Resize((int)Mesh.ArrayType.Max);
 		surfaceArray[(int)Mesh.ArrayType.Vertex] = verts.ToArray();
 		surfaceArray[(int)Mesh.ArrayType.Normal] = norms.ToArray();
@@ -1205,6 +1236,7 @@ public partial class RuntimeTerrain : StaticBody3D
 			_material.SetShaderParameter("terrain_size", shroudSize);
 			_material.SetShaderParameter("grid_spacing", QuadSize);
 		}
+
 		foreach (var wMat in _waterMaterials.Values)
 		{
 			if (wMat != null)
@@ -2095,7 +2127,7 @@ void fragment() {
 		var defaultShroudTexture = ImageTexture.CreateFromImage(defaultShroudImage);
 		_currentShroudTexture = defaultShroudTexture;
 		_material.SetShaderParameter("shroud_texture", defaultShroudTexture);
-		_material.SetShaderParameter("shroud_enabled", Realm.Client.Core.GameHost.Instance == null || !Realm.Client.Core.GameHost.Instance.IsMapEditorMode);
+		_material.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameContext.EditorService.IsMapEditorMode);
 
 		float halfW = (Width * QuadSize) * 0.5f;
 		float halfD = (Depth * QuadSize) * 0.5f;
@@ -2157,26 +2189,12 @@ void fragment() {
 	protected static string? _cachedMapDir;
 	protected List<string> _loadedTextureList = new List<string>();
 	public IReadOnlyList<string> LoadedTextureList => _loadedTextureList;
-	protected global::Godot.Vector4[] _swatchParamsCache = new global::Godot.Vector4[TextureSwatchSlots.MaxSlots];
-	protected global::Godot.Vector4[] _swatchHeightParamsCache = new global::Godot.Vector4[TextureSwatchSlots.MaxSlots];
-	protected global::Godot.Vector4[] _swatchAlbedoParamsCache = new global::Godot.Vector4[TextureSwatchSlots.MaxSlots];
+	protected Vector4[] _swatchParamsCache = new Vector4[TextureSwatchSlots.MaxSlots];
+	protected Vector4[] _swatchHeightParamsCache = new Vector4[TextureSwatchSlots.MaxSlots];
+	protected Vector4[] _swatchAlbedoParamsCache = new Vector4[TextureSwatchSlots.MaxSlots];
 
-	public class SwatchLiveConfig
-	{
-		public float? TileMode { get; set; }
-		public float? UvScale { get; set; }
-		public float? StochasticTileSize { get; set; }
-		public float? CrossFade { get; set; }
-		public float? Brightness { get; set; }
-		public Color? Tint { get; set; }
-		public float? HeightScale { get; set; }
-		public float? HeightOffset { get; set; }
-		public float? CrevicePower { get; set; }
-		public float? NormalScale { get; set; }
-		public float? RoughnessScale { get; set; }
-	}
 
-	protected static readonly Dictionary<string, SwatchLiveConfig> _liveSwatchOverrides = new(StringComparer.OrdinalIgnoreCase);
+	protected static readonly System.Collections.Generic.Dictionary<string, SwatchLiveConfig> _liveSwatchOverrides = new(StringComparer.OrdinalIgnoreCase);
 
 	public virtual void UpdateTextureParamDirect(
 		string swatchName,
@@ -2193,7 +2211,7 @@ void fragment() {
 		float roughnessScale = 1.0f)
 	{
 		if (_material == null) return;
-		string cleanName = System.IO.Path.GetFileNameWithoutExtension(swatchName);
+		string cleanName = Path.GetFileNameWithoutExtension(swatchName);
 
 		UpdateLiveSwatchOverrides(cleanName, tileMode, uvScale, stochasticTileSize, crossFade, brightness, tintStr, heightScale, heightOffset, crevicePower, normalScale, roughnessScale);
 
@@ -2245,6 +2263,7 @@ void fragment() {
 				return i;
 			}
 		}
+
 		return -1;
 	}
 
@@ -2254,14 +2273,14 @@ void fragment() {
 		float uv = Math.Clamp(uvScale, 0.1f, 4.0f);
 		float stoch = Math.Clamp(stochasticTileSize, 0.5f, 3.0f);
 		float cf = Math.Clamp(crossFade, 0.0f, 10.0f) * 0.01f;
-		
+
 		float hs = Math.Clamp(heightScale, 0.1f, 3.0f);
 		float ho = Math.Clamp(heightOffset, -1.0f, 1.0f);
 		float cp = Math.Clamp(crevicePower, 0.5f, 4.0f);
 		float ns = Math.Clamp(normalScale, 0.0f, 3.0f);
 
-		_swatchParamsCache[targetIndex] = new global::Godot.Vector4(tm, uv, stoch, cf);
-		_swatchHeightParamsCache[targetIndex] = new global::Godot.Vector4(hs, ho, cp, ns);
+		_swatchParamsCache[targetIndex] = new Vector4(tm, uv, stoch, cf);
+		_swatchHeightParamsCache[targetIndex] = new Vector4(hs, ho, cp, ns);
 
 		_material.SetShaderParameter("swatch_params", _swatchParamsCache);
 		_material.SetShaderParameter("swatch_height_params", _swatchHeightParamsCache);
@@ -2271,7 +2290,7 @@ void fragment() {
 	{
 		float rs = Math.Clamp(roughnessScale, 0.1f, 3.0f);
 		Color? parsedTint = (!string.IsNullOrEmpty(tintStr) && Color.HtmlIsValid(tintStr)) ? Color.FromHtml(tintStr) : null;
-		
+
 		float currentScaleFactor = GetScaleFactor(cleanName);
 		float currentBrightness = GetResolvedBrightness(cleanName, brightness);
 		Color currentTint = GetResolvedTint(cleanName, parsedTint);
@@ -2281,8 +2300,8 @@ void fragment() {
 
 		float effectiveMultiplier = currentScaleFactor * currentBrightness;
 		if (effectiveMultiplier <= 0.0001f) effectiveMultiplier = 1.0f;
-		
-		_swatchAlbedoParamsCache[targetIndex] = new global::Godot.Vector4(currentTint.R * effectiveMultiplier, currentTint.G * effectiveMultiplier, currentTint.B * effectiveMultiplier, rs);
+
+		_swatchAlbedoParamsCache[targetIndex] = new Vector4(currentTint.R * effectiveMultiplier, currentTint.G * effectiveMultiplier, currentTint.B * effectiveMultiplier, rs);
 		_material.SetShaderParameter("swatch_albedo_params", _swatchAlbedoParamsCache);
 	}
 
@@ -2302,33 +2321,35 @@ void fragment() {
 
 	private float GetScaleFactor(string cleanName)
 	{
-		string mapDir = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string mapDir = MapWorkspaceService.GetActiveWorkspacePath();
 		try
 		{
-			var metadata = Realm.Shared.Services.MapFileService.LoadMetadata(mapDir);
+			var metadata = MapFileService.LoadMetadata(mapDir);
 			if (metadata?.Textures != null && metadata.Textures.TryGetValue(cleanName + ".rtex", out var texMeta) && texMeta != null && texMeta.ScaleFactor > 0.0001f)
 			{
 				return Math.Clamp(texMeta.ScaleFactor, 0.10f, 4.0f);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		return ResolveRtexScaleFactor(cleanName, mapDir);
 	}
 
 	private float ResolveRtexScaleFactor(string cleanName, string mapDir)
 	{
-		string rtexPath = System.IO.Path.Combine(mapDir, "Assets", "textures", cleanName + ".rtex");
-		if (!System.IO.File.Exists(rtexPath)) rtexPath = System.IO.Path.Combine(mapDir, cleanName + ".rtex");
-		if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"Assets/textures/{cleanName}.rtex");
-		if (!System.IO.File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{cleanName}.rtex");
+		string rtexPath = Path.Combine(mapDir, "Assets", "textures", cleanName + ".rtex");
+		if (!File.Exists(rtexPath)) rtexPath = Path.Combine(mapDir, cleanName + ".rtex");
+		if (!File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"Assets/textures/{cleanName}.rtex");
+		if (!File.Exists(rtexPath)) rtexPath = PathUtils.FindPath($"MapTemplate/Assets/textures/{cleanName}.rtex");
 
 		float rtexSf = ExtractRtexScaleFactor(rtexPath);
 		if (rtexSf > 0.0001f && MathF.Abs(rtexSf - 1.0f) > 0.001f) return rtexSf;
-		
-		if (System.IO.File.Exists(rtexPath))
+
+		if (File.Exists(rtexPath))
 		{
-			float calc = Realm.Shared.Textures.TextureConverter.CalculateLuminanceScaleFactor(rtexPath);
+			float calc = TextureConverter.CalculateLuminanceScaleFactor(rtexPath);
 			return calc > 0.0001f ? Math.Clamp(calc, 0.10f, 4.0f) : 1.0f;
 		}
 
@@ -2337,14 +2358,15 @@ void fragment() {
 
 	private void UpdateEcsTerrainSwatchConfig(int targetIndex, float heightScale, float heightOffset, float crevicePower, float normalScale)
 	{
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Terrain.TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+		if (GameHost.Instance != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 		{
-			ref var ts = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<Realm.Ecs.Components.Terrain.TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 			if (ts.SwatchConfigs == null || ts.SwatchConfigs.Length != TextureSwatchSlots.MaxSlots)
 			{
-				ts.SwatchConfigs = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
+				ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
 			}
-			ts.SwatchConfigs[targetIndex] = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig(
+
+			ts.SwatchConfigs[targetIndex] = new TerrainSwatchConfig(
 				Math.Clamp(heightScale, 0.1f, 3.0f),
 				Math.Clamp(heightOffset, -1.0f, 1.0f),
 				Math.Clamp(crevicePower, 0.5f, 4.0f),
@@ -2353,24 +2375,10 @@ void fragment() {
 		}
 	}
 
-	public struct ActiveSwatchConfig
-	{
-		public string TileMode { get; set; }
-		public float UvScale { get; set; }
-		public float StochasticTileSize { get; set; }
-		public float CrossFade { get; set; }
-		public float HeightScale { get; set; }
-		public float HeightOffset { get; set; }
-		public float CrevicePower { get; set; }
-		public float NormalScale { get; set; }
-		public float RoughnessScale { get; set; }
-		public float Brightness { get; set; }
-		public Color Tint { get; set; }
-	}
 
 	public virtual ActiveSwatchConfig GetActiveSwatchConfig(string swatchName)
 	{
-		string cleanName = System.IO.Path.GetFileNameWithoutExtension(swatchName);
+		string cleanName = Path.GetFileNameWithoutExtension(swatchName);
 		int targetIndex = FindSwatchIndex(cleanName);
 
 		var config = CreateDefaultSwatchConfig();
@@ -2450,6 +2458,7 @@ void fragment() {
 			if (liveOver.TileMode.Value < 0.5f) config.TileMode = "Grid";
 			else config.TileMode = "Stochastic";
 		}
+
 		if (liveOver.UvScale.HasValue) config.UvScale = liveOver.UvScale.Value;
 		if (liveOver.StochasticTileSize.HasValue) config.StochasticTileSize = liveOver.StochasticTileSize.Value;
 		if (liveOver.CrossFade.HasValue) config.CrossFade = liveOver.CrossFade.Value * 100.0f;
@@ -2474,54 +2483,58 @@ void fragment() {
 		}
 		else
 		{
-			string cleanName = System.IO.Path.GetFileNameWithoutExtension(swatchName);
+			string cleanName = Path.GetFileNameWithoutExtension(swatchName);
 			_liveSwatchOverrides.Remove(cleanName);
 		}
 	}
 
 	private static float ExtractRtexScaleFactor(string rtexPath)
 	{
-		if (string.IsNullOrEmpty(rtexPath) || !System.IO.File.Exists(rtexPath)) return 1.0f;
-		
+		if (string.IsNullOrEmpty(rtexPath) || !File.Exists(rtexPath)) return 1.0f;
+
 		try
 		{
-			string? rtexMeta = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(rtexPath);
+			string? rtexMeta = RealmMetadataHelper.ExtractMetadata(rtexPath);
 			if (string.IsNullOrEmpty(rtexMeta)) return 1.0f;
 
-			var rNode = System.Text.Json.Nodes.JsonNode.Parse(rtexMeta);
-			if (rNode is System.Text.Json.Nodes.JsonObject rObj)
+			var rNode = JsonNode.Parse(rtexMeta);
+			if (rNode is JsonObject rObj)
 			{
 				return ParseScaleFactorFromJsonObject(rObj);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return 1.0f;
 	}
 
-	private static float ParseScaleFactorFromJsonObject(System.Text.Json.Nodes.JsonObject rObj)
+	private static float ParseScaleFactorFromJsonObject(JsonObject rObj)
 	{
 		if (rObj.TryGetPropertyValue("scale_factor", out var sfVal) ||
 		    rObj.TryGetPropertyValue("Scale_Factor", out sfVal) ||
 		    rObj.TryGetPropertyValue("scaleFactor", out sfVal) ||
 		    rObj.TryGetPropertyValue("ScaleFactor", out sfVal))
 		{
-			if (float.TryParse(sfVal?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsedScale))
+			if (float.TryParse(sfVal?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedScale))
 			{
 				return Math.Clamp(parsedScale, 0.10f, 4.0f);
 			}
 		}
+
 		return 1.0f;
 	}
 
 	private (Image? AlbedoHeight, Image? NormalRoughness) LoadRtexLayers(string rtexPath)
 	{
-		string globalRtexPath = global::Godot.ProjectSettings.GlobalizePath(rtexPath);
-		if (!System.IO.File.Exists(globalRtexPath)) return (null, null);
+		string globalRtexPath = ProjectSettings.GlobalizePath(rtexPath);
+		if (!File.Exists(globalRtexPath)) return (null, null);
 
 		try
 		{
-			byte[] bytes = System.IO.File.ReadAllBytes(globalRtexPath);
-			var (_, layers, _) = Realm.Shared.Textures.RtexFile.Parse(bytes);
+			byte[] bytes = File.ReadAllBytes(globalRtexPath);
+			var (_, layers, _) = RtexFile.Parse(bytes);
 			if (layers.Count == 0) return (null, null);
 
 			Image? img0 = null;
@@ -2564,15 +2577,15 @@ void fragment() {
 			_cachedMapDir = null;
 		}
 
-		string mapDir = Services.MapWorkspaceService.GetActiveWorkspacePath();
-		var swatchSlots = Realm.Client.Utils.TextureSwatchSlots.ResolveSlots(null, mapDir);
+		string mapDir = MapWorkspaceService.GetActiveWorkspacePath();
+		var swatchSlots = TextureSwatchSlots.ResolveSlots(null, mapDir);
 
-		var swatchParams = new global::Godot.Vector4[Realm.Client.Utils.TextureSwatchSlots.MaxSlots];
-		var swatchHeightParams = new global::Godot.Vector4[Realm.Client.Utils.TextureSwatchSlots.MaxSlots];
-		var swatchAlbedoParams = new global::Godot.Vector4[Realm.Client.Utils.TextureSwatchSlots.MaxSlots];
+		var swatchParams = new Vector4[TextureSwatchSlots.MaxSlots];
+		var swatchHeightParams = new Vector4[TextureSwatchSlots.MaxSlots];
+		var swatchAlbedoParams = new Vector4[TextureSwatchSlots.MaxSlots];
 		var textureList = new List<string>();
 
-		for (int i = 0; i < Realm.Client.Utils.TextureSwatchSlots.MaxSlots; i++)
+		for (int i = 0; i < TextureSwatchSlots.MaxSlots; i++)
 		{
 			ProcessSwatchSlot(i, swatchSlots[i], mapDir, textureList, swatchParams, swatchHeightParams, swatchAlbedoParams);
 		}
@@ -2588,7 +2601,7 @@ void fragment() {
 		RegenerateTextureArrays(swatchSlots, mapDir);
 	}
 
-	private void ProcessSwatchSlot(int index, Realm.Client.Utils.SwatchSlotInfo slot, string mapDir, List<string> textureList, global::Godot.Vector4[] swatchParams, global::Godot.Vector4[] swatchHeightParams, global::Godot.Vector4[] swatchAlbedoParams)
+	private void ProcessSwatchSlot(int index, SwatchSlotInfo slot, string mapDir, List<string> textureList, Vector4[] swatchParams, Vector4[] swatchHeightParams, Vector4[] swatchAlbedoParams)
 	{
 		textureList.Add(slot.BaseName ?? "");
 
@@ -2603,28 +2616,13 @@ void fragment() {
 
 		float effectiveMultiplier = Math.Max(config.ScaleFactor * config.Brightness, 0.0001f);
 
-		swatchParams[index] = new global::Godot.Vector4(config.TileMode, config.UvScale, config.StochasticTileSize, config.CrossFade);
-		swatchHeightParams[index] = new global::Godot.Vector4(config.HeightScale, config.HeightOffset, config.CrevicePower, config.NormalScale);
-		swatchAlbedoParams[index] = new global::Godot.Vector4(config.Tint.R * effectiveMultiplier, config.Tint.G * effectiveMultiplier, config.Tint.B * effectiveMultiplier, config.RoughnessScale);
+		swatchParams[index] = new Vector4(config.TileMode, config.UvScale, config.StochasticTileSize, config.CrossFade);
+		swatchHeightParams[index] = new Vector4(config.HeightScale, config.HeightOffset, config.CrevicePower, config.NormalScale);
+		swatchAlbedoParams[index] = new Vector4(config.Tint.R * effectiveMultiplier, config.Tint.G * effectiveMultiplier, config.Tint.B * effectiveMultiplier, config.RoughnessScale);
 	}
 
-	private class ParsedSwatchConfig
-	{
-		public float TileMode = 1.0f;
-		public float UvScale = 1.0f;
-		public float StochasticTileSize = 1.0f;
-		public float CrossFade = 0.0f;
-		public float HeightScale = 1.0f;
-		public float HeightOffset = 0.0f;
-		public float CrevicePower = 1.0f;
-		public float NormalScale = 1.0f;
-		public float RoughnessScale = 1.0f;
-		public float ScaleFactor = 1.0f;
-		public float Brightness = 1.0f;
-		public Color Tint = new Color(1.0f, 1.0f, 1.0f);
-	}
 
-	private ParsedSwatchConfig ExtractSwatchConfigFromSlot(Realm.Client.Utils.SwatchSlotInfo slot, string mapDir)
+	private ParsedSwatchConfig ExtractSwatchConfigFromSlot(SwatchSlotInfo slot, string mapDir)
 	{
 		var c = new ParsedSwatchConfig();
 		if (slot.MetadataNode != null)
@@ -2640,7 +2638,7 @@ void fragment() {
 		return c;
 	}
 
-	private void ApplyMetadataToSwatchConfig(ParsedSwatchConfig c, Realm.Shared.Metadata.TextureMetadata sObj)
+	private void ApplyMetadataToSwatchConfig(ParsedSwatchConfig c, TextureMetadata sObj)
 	{
 		ApplyMetadataTileMode(c, sObj);
 		ApplyMetadataScaleAndFade(c, sObj);
@@ -2648,20 +2646,20 @@ void fragment() {
 		ApplyMetadataHeight(c, sObj);
 	}
 
-	private void ApplyMetadataTileMode(ParsedSwatchConfig c, Realm.Shared.Metadata.TextureMetadata sObj)
+	private void ApplyMetadataTileMode(ParsedSwatchConfig c, TextureMetadata sObj)
 	{
 		if (!string.IsNullOrEmpty(sObj.TileMode)) c.TileMode = string.Equals(sObj.TileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0.0f : 1.0f;
 		if (sObj.UvScale > 0.0001f) c.UvScale = Math.Clamp(sObj.UvScale, 0.1f, 4.0f);
 		if (sObj.StochasticTileSize > 0.0001f) c.StochasticTileSize = Math.Clamp(sObj.StochasticTileSize, 0.5f, 3.0f);
 	}
 
-	private void ApplyMetadataScaleAndFade(ParsedSwatchConfig c, Realm.Shared.Metadata.TextureMetadata sObj)
+	private void ApplyMetadataScaleAndFade(ParsedSwatchConfig c, TextureMetadata sObj)
 	{
 		if (sObj.CrossFade >= 0.0f) c.CrossFade = Math.Clamp(sObj.CrossFade, 0.0f, 10.0f) * 0.01f;
 		if (sObj.ScaleFactor > 0.0001f) c.ScaleFactor = Math.Clamp(sObj.ScaleFactor, 0.10f, 4.0f);
 	}
 
-	private void ApplyMetadataVisuals(ParsedSwatchConfig c, Realm.Shared.Metadata.TextureMetadata sObj)
+	private void ApplyMetadataVisuals(ParsedSwatchConfig c, TextureMetadata sObj)
 	{
 		if (sObj.Brightness > 0f) c.Brightness = Math.Clamp(sObj.Brightness, 0.1f, 5.0f);
 		if (sObj.NormalScale >= 0f) c.NormalScale = Math.Clamp(sObj.NormalScale, 0.0f, 3.0f);
@@ -2669,7 +2667,7 @@ void fragment() {
 		if (!string.IsNullOrEmpty(sObj.Tint) && sObj.Tint.StartsWith("#")) c.Tint = Color.FromHtml(sObj.Tint);
 	}
 
-	private void ApplyMetadataHeight(ParsedSwatchConfig c, Realm.Shared.Metadata.TextureMetadata sObj)
+	private void ApplyMetadataHeight(ParsedSwatchConfig c, TextureMetadata sObj)
 	{
 		if (sObj.HeightScale > 0f) c.HeightScale = Math.Clamp(sObj.HeightScale, 0.1f, 3.0f);
 		if (sObj.HeightOffset != 0f) c.HeightOffset = Math.Clamp(sObj.HeightOffset, -1.0f, 1.0f);
@@ -2712,14 +2710,14 @@ void fragment() {
 		if (liveOver.CrevicePower.HasValue) c.CrevicePower = liveOver.CrevicePower.Value;
 	}
 
-	private void SetDefaultSwatchParams(int index, global::Godot.Vector4[] swatchParams, global::Godot.Vector4[] swatchHeightParams, global::Godot.Vector4[] swatchAlbedoParams)
+	private void SetDefaultSwatchParams(int index, Vector4[] swatchParams, Vector4[] swatchHeightParams, Vector4[] swatchAlbedoParams)
 	{
-		swatchParams[index] = new global::Godot.Vector4(1.0f, 1.0f, 1.0f, 0.05f);
-		swatchHeightParams[index] = new global::Godot.Vector4(1.0f, 0.0f, 1.0f, 0.0f);
-		swatchAlbedoParams[index] = new global::Godot.Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+		swatchParams[index] = new Vector4(1.0f, 1.0f, 1.0f, 0.05f);
+		swatchHeightParams[index] = new Vector4(1.0f, 0.0f, 1.0f, 0.0f);
+		swatchAlbedoParams[index] = new Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 
-	private void UpdateMaterialAndEcs(List<string> textureList, global::Godot.Vector4[] swatchParams, global::Godot.Vector4[] swatchHeightParams, global::Godot.Vector4[] swatchAlbedoParams)
+	private void UpdateMaterialAndEcs(List<string> textureList, Vector4[] swatchParams, Vector4[] swatchHeightParams, Vector4[] swatchAlbedoParams)
 	{
 		_loadedTextureList = textureList;
 		_swatchParamsCache = swatchParams;
@@ -2730,13 +2728,13 @@ void fragment() {
 		_material.SetShaderParameter("swatch_height_params", swatchHeightParams);
 		_material.SetShaderParameter("swatch_albedo_params", swatchAlbedoParams);
 
-		if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<Realm.Ecs.Components.Terrain.TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+		if (GameHost.Instance != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 		{
-			ref var ts = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<Realm.Ecs.Components.Terrain.TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
-			ts.SwatchConfigs = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig[Realm.Client.Utils.TextureSwatchSlots.MaxSlots];
-			for (int i = 0; i < Realm.Client.Utils.TextureSwatchSlots.MaxSlots; i++)
+			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
+			for (int i = 0; i < TextureSwatchSlots.MaxSlots; i++)
 			{
-				ts.SwatchConfigs[i] = new Realm.Ecs.Components.Terrain.TerrainSwatchConfig(swatchHeightParams[i].X, swatchHeightParams[i].Y, swatchHeightParams[i].Z, swatchHeightParams[i].W);
+				ts.SwatchConfigs[i] = new TerrainSwatchConfig(swatchHeightParams[i].X, swatchHeightParams[i].Y, swatchHeightParams[i].Z, swatchHeightParams[i].W);
 			}
 		}
 	}
@@ -2749,12 +2747,12 @@ void fragment() {
 		_material.SetShaderParameter("cliff_normals_pbr", _cachedNormalRoughnessTextureArray);
 	}
 
-	private void RegenerateTextureArrays(Realm.Client.Utils.SwatchSlotInfo[] swatchSlots, string mapDir)
+	private void RegenerateTextureArrays(SwatchSlotInfo[] swatchSlots, string mapDir)
 	{
-		var albedoHeightImages = new global::Godot.Collections.Array<Image>();
-		var normalRoughnessImages = new global::Godot.Collections.Array<Image>();
+		var albedoHeightImages = new Array<Image>();
+		var normalRoughnessImages = new Array<Image>();
 
-		for (int i = 0; i < Realm.Client.Utils.TextureSwatchSlots.MaxSlots; i++)
+		for (int i = 0; i < TextureSwatchSlots.MaxSlots; i++)
 		{
 			ProcessAndAddSwatchImages(swatchSlots[i], mapDir, albedoHeightImages, normalRoughnessImages);
 		}
@@ -2774,7 +2772,7 @@ void fragment() {
 		_material.SetShaderParameter("cliff_normals_pbr", normalTextureArray);
 	}
 
-	private void ProcessAndAddSwatchImages(Realm.Client.Utils.SwatchSlotInfo slot, string mapDir, global::Godot.Collections.Array<Image> albedoHeightImages, global::Godot.Collections.Array<Image> normalRoughnessImages)
+	private void ProcessAndAddSwatchImages(SwatchSlotInfo slot, string mapDir, Array<Image> albedoHeightImages, Array<Image> normalRoughnessImages)
 	{
 		Image? imgLayer0 = null;
 		Image? imgLayer1 = null;
@@ -2786,9 +2784,9 @@ void fragment() {
 
 		if (imgLayer0 == null || imgLayer1 == null)
 		{
-			imgLayer0 = global::Godot.Image.CreateEmpty(TargetTextureResolution, TargetTextureResolution, false, global::Godot.Image.Format.Rgba8);
+			imgLayer0 = Image.CreateEmpty(TargetTextureResolution, TargetTextureResolution, false, Image.Format.Rgba8);
 			imgLayer0.Fill(new Color(0.5f, 0.5f, 0.5f, 1.0f));
-			imgLayer1 = global::Godot.Image.CreateEmpty(TargetTextureResolution, TargetTextureResolution, false, global::Godot.Image.Format.Rgba8);
+			imgLayer1 = Image.CreateEmpty(TargetTextureResolution, TargetTextureResolution, false, Image.Format.Rgba8);
 			imgLayer1.Fill(new Color(0.5f, 0.5f, 1.0f, 0.8f));
 		}
 
@@ -2796,16 +2794,16 @@ void fragment() {
 		FormatAndAddImage(imgLayer1, normalRoughnessImages);
 	}
 
-	private void LoadImagesForSwatch(Realm.Client.Utils.SwatchSlotInfo slot, string mapDir, ref Image? imgLayer0, ref Image? imgLayer1)
+	private void LoadImagesForSwatch(SwatchSlotInfo slot, string mapDir, ref Image? imgLayer0, ref Image? imgLayer1)
 	{
 		string name = slot.BaseName;
 		string rtexFileName = slot.MetadataNode?.TexturePath ?? slot.FileName ?? (name + ".rtex");
 		if (!rtexFileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase)) rtexFileName += ".rtex";
-		rtexFileName = System.IO.Path.GetFileName(rtexFileName);
+		rtexFileName = Path.GetFileName(rtexFileName);
 
 		string rtexPath = ResolveRtexPath(rtexFileName, name, mapDir);
 
-		if (!System.IO.File.Exists(rtexPath)) return;
+		if (!File.Exists(rtexPath)) return;
 
 		try
 		{
@@ -2823,8 +2821,8 @@ void fragment() {
 	{
 		string[] pathsToTry = new string[]
 		{
-			System.IO.Path.Combine(mapDir, "Assets", "textures", rtexFileName),
-			System.IO.Path.Combine(mapDir, rtexFileName),
+			Path.Combine(mapDir, "Assets", "textures", rtexFileName),
+			Path.Combine(mapDir, rtexFileName),
 			PathUtils.FindPath($"Assets/textures/{rtexFileName}"),
 			PathUtils.FindPath($"MapTemplate/Assets/textures/{rtexFileName}"),
 			ProjectSettings.GlobalizePath($"res://Assets/2d/TileSheets/{rtexFileName}")
@@ -2832,12 +2830,12 @@ void fragment() {
 
 		foreach (var path in pathsToTry)
 		{
-			if (System.IO.File.Exists(path)) return path;
+			if (File.Exists(path)) return path;
 		}
 
 		string fallbackRtexPath = ProjectSettings.GlobalizePath($"res://Assets/2d/TileSheets/{rtexFileName}");
 		string pngPath = ProjectSettings.GlobalizePath($"res://Assets/2d/TileSheets/{baseName}.png");
-		if (System.IO.File.Exists(pngPath))
+		if (File.Exists(pngPath))
 		{
 			ProcessAndSaveRawTexture(pngPath, fallbackRtexPath);
 		}
@@ -2845,16 +2843,18 @@ void fragment() {
 		return fallbackRtexPath;
 	}
 
-	private void FormatAndAddImage(Image img, global::Godot.Collections.Array<Image> targetArray)
+	private void FormatAndAddImage(Image img, Array<Image> targetArray)
 	{
 		if (img.GetWidth() != TargetTextureResolution || img.GetHeight() != TargetTextureResolution)
 		{
-			img.Resize(TargetTextureResolution, TargetTextureResolution, global::Godot.Image.Interpolation.Bilinear);
+			img.Resize(TargetTextureResolution, TargetTextureResolution, Image.Interpolation.Bilinear);
 		}
-		if (img.GetFormat() != global::Godot.Image.Format.Rgba8)
+
+		if (img.GetFormat() != Image.Format.Rgba8)
 		{
-			img.Convert(global::Godot.Image.Format.Rgba8);
+			img.Convert(Image.Format.Rgba8);
 		}
+
 		img.GenerateMipmaps();
 		targetArray.Add(img);
 	}
@@ -2871,9 +2871,11 @@ void fragment() {
 				{
 					if (GodotObject.IsInstanceValid(pMesh)) pMesh.QueueFree();
 				}
+
 				chunk.ProfileWaterMeshes.Clear();
 			}
 		}
+
 		_chunks.Clear();
 
 		int w = Width;
@@ -2887,7 +2889,7 @@ void fragment() {
 			{
 				int ex = Math.Min(x + CHUNK_SIZE, w);
 				int ez = Math.Min(z + CHUNK_SIZE, d);
-				
+
 				var chunk = new TerrainChunk
 				{
 					StartX = x,
@@ -2906,13 +2908,13 @@ void fragment() {
 
 				chunk.CollisionShape = new CollisionShape3D();
 				chunk.CollisionShape.Name = $"TerrainCollision_{x}_{z}";
-				
+
 				float lx = (x + (ex - x) / 2.0f - w / 2.0f) * QuadSize;
 				float lz = (z + (ez - z) / 2.0f - d / 2.0f) * QuadSize;
 				chunk.CollisionShape.Position = new Vector3(lx, 0.0f, lz);
-				
+
 				AddChild(chunk.CollisionShape);
-				
+
 				_chunks.Add(chunk);
 			}
 		}
@@ -3029,7 +3031,8 @@ void fragment() {
 	ALBEDO = ov_rgb / ov_a;
 	ALPHA = ov_a;
 }
-";		_polarOverlayMaterial = new ShaderMaterial();
+";
+		_polarOverlayMaterial = new ShaderMaterial();
 		_polarOverlayMaterial.Shader = shader;
 		_polarOverlayMaterial.RenderPriority = 100;
 		_polarOverlayMaterial.SetShaderParameter("grid_spacing", QuadSize);
@@ -3068,6 +3071,7 @@ void fragment() {
 		_polarWanted = visible;
 		ApplyOverlayPass();
 	}
+
 	public virtual void SetPolarCenter(Vector2 center)
 	{
 		_polarCenterWanted = center;
@@ -3085,6 +3089,7 @@ void fragment() {
 		_polarRadialStepWanted = angleDegrees;
 		ApplyOverlayPass();
 	}
+
 	private bool _wasPathingVisibleBeforeMinimap;
 
 	public void SetShroudEnabled(bool enabled)
@@ -3093,6 +3098,7 @@ void fragment() {
 		{
 			_material.SetShaderParameter(ShroudEnabledParam, enabled);
 		}
+
 		foreach (var wMat in _waterMaterials.Values)
 		{
 			if (wMat != null)
@@ -3110,6 +3116,7 @@ void fragment() {
 			img.Fill(new Color(0f, 0f, 0f, 1f));
 			_clearShroudTexture = ImageTexture.CreateFromImage(img);
 		}
+
 		return _clearShroudTexture;
 	}
 
@@ -3130,6 +3137,7 @@ void fragment() {
 				_material.SetShaderParameter("pathing_visible", false);
 			}
 		}
+
 		foreach (var wMat in _waterMaterials.Values)
 		{
 			if (wMat != null)
@@ -3137,6 +3145,7 @@ void fragment() {
 				wMat.SetShaderParameter(ShroudTextureParam, clearTex);
 			}
 		}
+
 		SetAllChunksVisible(true);
 	}
 
@@ -3153,6 +3162,7 @@ void fragment() {
 				_material.SetShaderParameter("pathing_visible", true);
 			}
 		}
+
 		foreach (var wMat in _waterMaterials.Values)
 		{
 			if (wMat != null)
@@ -3172,6 +3182,7 @@ void fragment() {
 		{
 			_material.SetShaderParameter(ShroudTextureParam, shroudTexture);
 		}
+
 		foreach (var wMat in _waterMaterials.Values)
 		{
 			if (wMat != null)
@@ -3267,6 +3278,7 @@ void fragment() {
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -3296,25 +3308,25 @@ void fragment() {
 		ApplyCornerHeightNW(gx, gz, cells, w, d, h);
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void ApplyCornerHeightSE(int gx, int gz, TerrainCell[,] cells, int w, int d, float h)
 	{
 		if (gx > 0 && gx - 1 < w && gz > 0 && gz - 1 < d) cells[gx - 1, gz - 1].Y_SE = h;
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void ApplyCornerHeightSW(int gx, int gz, TerrainCell[,] cells, int w, int d, float h)
 	{
 		if (gx < w && gz > 0 && gz - 1 < d) cells[gx, gz - 1].Y_SW = h;
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void ApplyCornerHeightNE(int gx, int gz, TerrainCell[,] cells, int w, int d, float h)
 	{
 		if (gx > 0 && gx - 1 < w && gz < d) cells[gx - 1, gz].Y_NE = h;
 	}
 
-	[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void ApplyCornerHeightNW(int gx, int gz, TerrainCell[,] cells, int w, int d, float h)
 	{
 		if (gx < w && gz < d) cells[gx, gz].Y_NW = h;
@@ -3351,16 +3363,45 @@ void fragment() {
 		return heights[cellX, cellZ];
 	}
 
-	public virtual void SetPathingVisible(bool visible) { }
-	public virtual void SetWireframeMode(bool enabled) { }
-	public virtual void ToggleWireframeMode() { }
-	public virtual void UpdatePathingTexture() { }
-	public virtual void ResizeTerrain(int newWidth, int newDepth) { }
-	public virtual void ScaleTerrainData(int newWidth, int newDepth) { }
-	public virtual void RemapSplatIndices(IReadOnlyDictionary<int, int> remap) { }
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null) { }
-	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null) { }
-	public virtual void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath) { }
+	public virtual void SetPathingVisible(bool visible)
+	{
+	}
+
+	public virtual void SetWireframeMode(bool enabled)
+	{
+	}
+
+	public virtual void ToggleWireframeMode()
+	{
+	}
+
+	public virtual void UpdatePathingTexture()
+	{
+	}
+
+	public virtual void ResizeTerrain(int newWidth, int newDepth)
+	{
+	}
+
+	public virtual void ScaleTerrainData(int newWidth, int newDepth)
+	{
+	}
+
+	public virtual void RemapSplatIndices(IReadOnlyDictionary<int, int> remap)
+	{
+	}
+
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
+	{
+	}
+
+	public virtual void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
+	{
+	}
+
+	public virtual void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath)
+	{
+	}
 
 	public void UpdatePhysics(Rect2I? affectedRegion = null)
 	{
@@ -3375,6 +3416,7 @@ void fragment() {
 					continue;
 				}
 			}
+
 			UpdateChunkPhysics(chunk);
 		}
 	}
@@ -3406,6 +3448,7 @@ void fragment() {
 					chunk.MapDataCache[idx] = h;
 					mapDataChanged = true;
 				}
+
 				idx++;
 			}
 		}
@@ -3512,22 +3555,31 @@ void fragment() {
 
 		if (vertexIndex < chunk.VerticesCache.Length)
 		{
-			finalVertices = new Vector3[vertexIndex]; Array.Copy(chunk.VerticesCache, finalVertices, vertexIndex);
-			finalColors = new Color[vertexIndex]; Array.Copy(chunk.ColorsCache, finalColors, vertexIndex);
-			finalNormals = new Vector3[vertexIndex]; Array.Copy(chunk.NormalsCache, finalNormals, vertexIndex);
-			finalUvs = new Vector2[vertexIndex]; Array.Copy(chunk.UvsCache, finalUvs, vertexIndex);
-			finalTexIndices = new float[vertexIndex * 4]; Array.Copy(chunk.TexIndicesCache, finalTexIndices, vertexIndex * 4);
-			finalTexWeights = new float[vertexIndex * 4]; Array.Copy(chunk.TexWeightsCache01, finalTexWeights, vertexIndex * 4);
-			finalCliffIndices = new float[vertexIndex * 4]; Array.Copy(chunk.CliffIndicesCache, finalCliffIndices, vertexIndex * 4);
-			finalCliffWeights = new float[vertexIndex * 4]; Array.Copy(chunk.CliffWeightsCache, finalCliffWeights, vertexIndex * 4);
+			finalVertices = new Vector3[vertexIndex];
+			System.Array.Copy(chunk.VerticesCache, finalVertices, vertexIndex);
+			finalColors = new Color[vertexIndex];
+			System.Array.Copy(chunk.ColorsCache, finalColors, vertexIndex);
+			finalNormals = new Vector3[vertexIndex];
+			System.Array.Copy(chunk.NormalsCache, finalNormals, vertexIndex);
+			finalUvs = new Vector2[vertexIndex];
+			System.Array.Copy(chunk.UvsCache, finalUvs, vertexIndex);
+			finalTexIndices = new float[vertexIndex * 4];
+			System.Array.Copy(chunk.TexIndicesCache, finalTexIndices, vertexIndex * 4);
+			finalTexWeights = new float[vertexIndex * 4];
+			System.Array.Copy(chunk.TexWeightsCache01, finalTexWeights, vertexIndex * 4);
+			finalCliffIndices = new float[vertexIndex * 4];
+			System.Array.Copy(chunk.CliffIndicesCache, finalCliffIndices, vertexIndex * 4);
+			finalCliffWeights = new float[vertexIndex * 4];
+			System.Array.Copy(chunk.CliffWeightsCache, finalCliffWeights, vertexIndex * 4);
 		}
 
 		if (indexIndex < chunk.IndicesCache.Length)
 		{
-			finalIndices = new int[indexIndex]; Array.Copy(chunk.IndicesCache, finalIndices, indexIndex);
+			finalIndices = new int[indexIndex];
+			System.Array.Copy(chunk.IndicesCache, finalIndices, indexIndex);
 		}
 
-		var arrays = new global::Godot.Collections.Array();
+		var arrays = new Array();
 		arrays.Resize((int)Mesh.ArrayType.Max);
 		arrays[(int)Mesh.ArrayType.Vertex] = finalVertices;
 		arrays[(int)Mesh.ArrayType.Color] = finalColors;
@@ -3547,7 +3599,7 @@ void fragment() {
 			int custom2Format = (int)Mesh.ArrayCustomFormat.RgbaFloat << (int)Mesh.ArrayFormat.FormatCustom2Shift;
 			int custom3Format = (int)Mesh.ArrayCustomFormat.RgbaFloat << (int)Mesh.ArrayFormat.FormatCustom3Shift;
 			chunk.ArrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays,
-				new global::Godot.Collections.Array<global::Godot.Collections.Array>(),
+				new Array<Array>(),
 				null,
 				(Mesh.ArrayFormat)((int)(Mesh.ArrayFormat.FormatCustom0 | Mesh.ArrayFormat.FormatCustom1 | Mesh.ArrayFormat.FormatCustom2 | Mesh.ArrayFormat.FormatCustom3) | custom0Format | custom1Format | custom2Format | custom3Format));
 		}
@@ -3557,15 +3609,20 @@ void fragment() {
 	{
 		float minY = float.MaxValue;
 		float maxY = float.MinValue;
-		
+
 		for (int i = 0; i < vertexIndex; i++)
 		{
 			float y = chunk.VerticesCache[i].Y;
 			if (y < minY) minY = y;
 			if (y > maxY) maxY = y;
 		}
-		if (vertexIndex == 0) { minY = -2f; maxY = 2f; }
-		
+
+		if (vertexIndex == 0)
+		{
+			minY = -2f;
+			maxY = 2f;
+		}
+
 		chunk.MinY = minY;
 		chunk.MaxY = maxY;
 
@@ -3575,10 +3632,10 @@ void fragment() {
 		float maxX = chunk.EndX * quadSize - halfW;
 		float minZ = chunk.StartZ * quadSize - halfD;
 		float maxZ = chunk.EndZ * quadSize - halfD;
-		
+
 		chunk.WorldAabb = new Aabb(new Vector3(minX, minY - 2f, minZ), new Vector3(maxX - minX, Math.Max(0.5f, maxY - minY + 10f), maxZ - minZ));
 		chunk.MeshInstance.CustomAabb = chunk.WorldAabb;
-		
+
 		if (chunk.ProfileWaterMeshes != null)
 		{
 			foreach (var (pMesh, _) in chunk.ProfileWaterMeshes.Values)
@@ -3642,7 +3699,7 @@ void fragment() {
 		{
 			return;
 		}
-		
+
 		_lastFrustumCamPos = camPos;
 		_lastFrustumCamRot = camRot;
 
@@ -3673,7 +3730,7 @@ void fragment() {
 		{
 			chunk.MeshInstance.Visible = visible;
 		}
-		
+
 		if (chunk.ProfileWaterMeshes != null)
 		{
 			foreach (var (pMesh, _) in chunk.ProfileWaterMeshes.Values)
@@ -3722,10 +3779,11 @@ void fragment() {
 				return false;
 			}
 		}
+
 		return true;
 	}
 
-	public static bool IntersectsFrustum(global::Godot.Collections.Array<Plane> frustumPlanes, Aabb aabb)
+	public static bool IntersectsFrustum(Array<Plane> frustumPlanes, Aabb aabb)
 	{
 		if (frustumPlanes == null || frustumPlanes.Count == 0) return true;
 		Span<Plane> span = stackalloc Plane[Math.Min(frustumPlanes.Count, 32)];
@@ -3813,14 +3871,14 @@ void fragment() {
 				return count;
 			}
 		}
-		
+
 		if (count < 16)
 		{
 			indices[count] = idx;
 			weights[count] = w;
 			return count + 1;
 		}
-		
+
 		return count;
 	}
 
@@ -3878,7 +3936,7 @@ void fragment() {
 			float invSum = 1.0f / sumW;
 			return (w0 * invSum, w1 * invSum, w2 * invSum, w3 * invSum);
 		}
-		
+
 		return (1.0f, 0.0f, 0.0f, 0.0f);
 	}
 
@@ -3906,7 +3964,10 @@ void fragment() {
 		}
 		else
 		{
-			avg0 = 1.0f; avg1 = 0f; avg2 = 0f; avg3 = 0f;
+			avg0 = 1.0f;
+			avg1 = 0f;
+			avg2 = 0f;
+			avg3 = 0f;
 		}
 
 		return new TerrainSplatWeights
@@ -3945,7 +4006,10 @@ void fragment() {
 		}
 		else
 		{
-			avg0 = 1.0f; avg1 = 0f; avg2 = 0f; avg3 = 0f;
+			avg0 = 1.0f;
+			avg1 = 0f;
+			avg2 = 0f;
+			avg3 = 0f;
 		}
 
 		return new TerrainSplatWeights
@@ -4050,10 +4114,10 @@ void fragment() {
 		var heights = ExtractQuadHeights(cell);
 		var pos = CalculateQuadPositions(x, z, heights, halfWQuadSize, halfDQuadSize, quadSize);
 		var norms = CalculateQuadNormals(x, z, cells, w, d, quadSize);
-		
+
 		float quadCliffWeight = CalculateQuadCliffWeight(x, z, cell, cells, w, d, heights);
 		var cliffWeights = CalculateQuadVertexCliffWeights(x, z, cells, w, d, quadSize);
-		
+
 		var (floorS00, floorS10, floorS11, floorS01, floorSC) = GetSplatMapQuad(x, z, splatMap);
 		var (cliffS00, cliffS10, cliffS11, cliffS01, cliffSC) = GetSplatMapQuad(x, z, cliffSplatMap);
 
@@ -4091,7 +4155,7 @@ void fragment() {
 		Vector3 normSE = GetVertexNormal(x + 1, z + 1, cells, w, d, quadSize);
 		Vector3 normSW = GetVertexNormal(x, z + 1, cells, w, d, quadSize);
 		Vector3 normC = (normNW + normNE + normSE + normSW).Normalized();
-		
+
 		return (normNW, normNE, normSE, normSW, normC);
 	}
 
@@ -4111,7 +4175,7 @@ void fragment() {
 
 		float tierStepThreshold = TerrainCell.TIER_HEIGHT * 0.70f;
 		bool isCliffQuad = (bordersDifferentTier && totalQuadDelta >= tierStepThreshold * 0.5f) || totalQuadDelta >= tierStepThreshold;
-		
+
 		return isCliffQuad ? 1.0f : 0.0f;
 	}
 
@@ -4131,7 +4195,7 @@ void fragment() {
 		float cliffSE = GetVertexCliffWeight(x + 1, z + 1, cells, w, d, quadSize);
 		float cliffSW = GetVertexCliffWeight(x, z + 1, cells, w, d, quadSize);
 		float cliffC = (cliffNW + cliffNE + cliffSE + cliffSW) * 0.25f;
-		
+
 		return (cliffNW, cliffNE, cliffSE, cliffSW, cliffC);
 	}
 
@@ -4150,7 +4214,7 @@ void fragment() {
 		TerrainSplatWeights s11 = splatMap[Math.Clamp(x + 1, 0, mapW - 1), Math.Clamp(z + 1, 0, mapD - 1)];
 		TerrainSplatWeights s01 = splatMap[Math.Clamp(x, 0, mapW - 1), Math.Clamp(z + 1, 0, mapD - 1)];
 		TerrainSplatWeights sC = BlendSplatWeights(s00, s10, s11, s01);
-		
+
 		return (s00, s10, s11, s01, sC);
 	}
 
@@ -4249,7 +4313,7 @@ void fragment() {
 
 		if (chunk.WeldVertexMap == null)
 		{
-			chunk.WeldVertexMap = new Dictionary<TerrainVertexKey, int>(vertexIndex);
+			chunk.WeldVertexMap = new System.Collections.Generic.Dictionary<TerrainVertexKey, int>(vertexIndex);
 		}
 		else
 		{
@@ -4342,12 +4406,13 @@ void fragment() {
 
 	public void BakeNavMesh()
 	{
-		var world = Realm.Client.Core.GameHost.Instance?.EcsWorld;
-		var worldEntity = Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.WorldEntity : default;
+		GameHost tempQualifier = GameHost.Instance;
+		var world = (tempQualifier != null ? GameContext.World : null);
+		var worldEntity = GameHost.Instance != null ? ECSContext.WorldEntity : default;
 		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
 		{
 			ref var state = ref world.Get<TerrainState>(worldEntity);
-			var terrainNavMeshService = ServiceLocator.Get<Realm.Ecs.Services.TerrainNavMeshService>();
+			var terrainNavMeshService = ECSContext.TerrainNavMeshService;
 			terrainNavMeshService.BakeNavMesh(ref state);
 			world.Set(worldEntity, state);
 		}
@@ -4420,14 +4485,17 @@ void fragment() {
 		{
 			return (GetGridNodeHeight(x + 1, z, cells, w, d) - GetGridNodeHeight(x - 1, z, cells, w, d)) / (2.0f * quadSize);
 		}
+
 		if (x < w)
 		{
 			return (GetGridNodeHeight(x + 1, z, cells, w, d) - GetGridNodeHeight(x, z, cells, w, d)) / quadSize;
 		}
+
 		if (x > 0)
 		{
 			return (GetGridNodeHeight(x, z, cells, w, d) - GetGridNodeHeight(x - 1, z, cells, w, d)) / quadSize;
 		}
+
 		return 0.0f;
 	}
 
@@ -4437,173 +4505,22 @@ void fragment() {
 		{
 			return (GetGridNodeHeight(x, z + 1, cells, w, d) - GetGridNodeHeight(x, z - 1, cells, w, d)) / (2.0f * quadSize);
 		}
+
 		if (z < d)
 		{
 			return (GetGridNodeHeight(x, z + 1, cells, w, d) - GetGridNodeHeight(x, z, cells, w, d)) / quadSize;
 		}
+
 		if (z > 0)
 		{
 			return (GetGridNodeHeight(x, z, cells, w, d) - GetGridNodeHeight(x, z - 1, cells, w, d)) / quadSize;
 		}
+
 		return 0.0f;
 	}
 
 	public Vector3 GetVertexNormal(int x, int z)
 	{
 		return GetVertexNormal(x, z, Cells, Width, Depth, QuadSize);
-	}
-
-	public readonly struct TerrainVertexKey : IEquatable<TerrainVertexKey>
-	{
-		private readonly int _positionX;
-		private readonly int _positionY;
-		private readonly int _positionZ;
-		private readonly int _normalX;
-		private readonly int _normalY;
-		private readonly int _normalZ;
-		private readonly int _textureU;
-		private readonly int _textureV;
-		private readonly int _colorAlpha;
-		private readonly int _quadCliff;
-		private readonly int _gTex0;
-		private readonly int _gTex1;
-		private readonly int _gTex2;
-		private readonly int _gTex3;
-		private readonly int _gw0;
-		private readonly int _gw1;
-		private readonly int _gw2;
-		private readonly int _gw3;
-		private readonly int _cTex0;
-		private readonly int _cTex1;
-		private readonly int _cTex2;
-		private readonly int _cTex3;
-		private readonly int _cw0;
-		private readonly int _cw1;
-		private readonly int _cw2;
-		private readonly int _cw3;
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static int FastRound(float v, float scale) => (int)(v * scale + (v >= 0f ? 0.5f : -0.5f));
-
-		public TerrainVertexKey(
-			Vector3 position,
-			Vector3 normal,
-			Vector2 uv,
-			Color color,
-			float gTex0, float gTex1, float gTex2, float gTex3,
-			float gw0, float gw1, float gw2, float gw3,
-			float cTex0, float cTex1, float cTex2, float cTex3,
-			float cw0, float cw1, float cw2, float cw3)
-		{
-			_positionX = FastRound(position.X, 2000.0f);
-			_positionY = FastRound(position.Y, 2000.0f);
-			_positionZ = FastRound(position.Z, 2000.0f);
-			_normalX = FastRound(normal.X, 1000.0f);
-			_normalY = FastRound(normal.Y, 1000.0f);
-			_normalZ = FastRound(normal.Z, 1000.0f);
-			_textureU = FastRound(uv.X, 1000.0f);
-			_textureV = FastRound(uv.Y, 1000.0f);
-			_colorAlpha = FastRound(color.A, 1000.0f);
-			_quadCliff = (int)(color.R + (color.R >= 0f ? 0.5f : -0.5f));
-			_gTex0 = (int)(gTex0 + (gTex0 >= 0f ? 0.5f : -0.5f));
-			_gTex1 = (int)(gTex1 + (gTex1 >= 0f ? 0.5f : -0.5f));
-			_gTex2 = (int)(gTex2 + (gTex2 >= 0f ? 0.5f : -0.5f));
-			_gTex3 = (int)(gTex3 + (gTex3 >= 0f ? 0.5f : -0.5f));
-			_gw0 = FastRound(gw0, 1000.0f);
-			_gw1 = FastRound(gw1, 1000.0f);
-			_gw2 = FastRound(gw2, 1000.0f);
-			_gw3 = FastRound(gw3, 1000.0f);
-			_cTex0 = (int)(cTex0 + (cTex0 >= 0f ? 0.5f : -0.5f));
-			_cTex1 = (int)(cTex1 + (cTex1 >= 0f ? 0.5f : -0.5f));
-			_cTex2 = (int)(cTex2 + (cTex2 >= 0f ? 0.5f : -0.5f));
-			_cTex3 = (int)(cTex3 + (cTex3 >= 0f ? 0.5f : -0.5f));
-			_cw0 = FastRound(cw0, 1000.0f);
-			_cw1 = FastRound(cw1, 1000.0f);
-			_cw2 = FastRound(cw2, 1000.0f);
-			_cw3 = FastRound(cw3, 1000.0f);
-		}
-
-		public bool Equals(TerrainVertexKey other)
-		{
-			return EqualsPosition(other) &&
-			       EqualsNormal(other) &&
-			       EqualsTextureAndColor(other) &&
-			       EqualsGroundTextures(other) &&
-			       EqualsCliffTextures(other);
-		}
-
-		private bool EqualsPosition(TerrainVertexKey other)
-		{
-			return _positionX == other._positionX &&
-			       _positionY == other._positionY &&
-			       _positionZ == other._positionZ;
-		}
-
-		private bool EqualsNormal(TerrainVertexKey other)
-		{
-			return _normalX == other._normalX &&
-			       _normalY == other._normalY &&
-			       _normalZ == other._normalZ;
-		}
-
-		private bool EqualsTextureAndColor(TerrainVertexKey other)
-		{
-			return _textureU == other._textureU &&
-			       _textureV == other._textureV &&
-			       _colorAlpha == other._colorAlpha &&
-			       _quadCliff == other._quadCliff;
-		}
-
-		private bool EqualsGroundTextures(TerrainVertexKey other)
-		{
-			return _gTex0 == other._gTex0 &&
-			       _gTex1 == other._gTex1 &&
-			       _gTex2 == other._gTex2 &&
-			       _gTex3 == other._gTex3 &&
-			       _gw0 == other._gw0 &&
-			       _gw1 == other._gw1 &&
-			       _gw2 == other._gw2 &&
-			       _gw3 == other._gw3;
-		}
-
-		private bool EqualsCliffTextures(TerrainVertexKey other)
-		{
-			return _cTex0 == other._cTex0 &&
-			       _cTex1 == other._cTex1 &&
-			       _cTex2 == other._cTex2 &&
-			       _cTex3 == other._cTex3 &&
-			       _cw0 == other._cw0 &&
-			       _cw1 == other._cw1 &&
-			       _cw2 == other._cw2 &&
-			       _cw3 == other._cw3;
-		}
-
-		public override bool Equals(object? obj)
-		{
-			return obj is TerrainVertexKey other && Equals(other);
-		}
-
-		public override int GetHashCode()
-		{
-			unchecked
-			{
-				int hash = 17;
-				hash = hash * 31 + _positionX;
-				hash = hash * 31 + _positionY;
-				hash = hash * 31 + _positionZ;
-				hash = hash * 31 + _normalX;
-				hash = hash * 31 + _normalY;
-				hash = hash * 31 + _normalZ;
-				hash = hash * 31 + _textureU;
-				hash = hash * 31 + _textureV;
-				hash = hash * 31 + _colorAlpha;
-				hash = hash * 31 + _quadCliff;
-				hash = hash * 31 + _gTex0;
-				hash = hash * 31 + _gw0;
-				hash = hash * 31 + _cTex0;
-				hash = hash * 31 + _cw0;
-				return hash;
-			}
-		}
 	}
 }

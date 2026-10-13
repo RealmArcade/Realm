@@ -60,6 +60,7 @@ public static class ImageFormatConverter
 		{
 			return fullInput;
 		}
+
 		File.Copy(fullInput, targetWebp, true);
 		return targetWebp;
 	}
@@ -71,6 +72,7 @@ public static class ImageFormatConverter
 		{
 			return targetWebp;
 		}
+
 		throw new InvalidOperationException($"Failed to extract WebP from RTEX '{fullInput}': {extractResult.ErrorMessage}");
 	}
 
@@ -81,6 +83,7 @@ public static class ImageFormatConverter
 		{
 			throw new InvalidOperationException($"Failed to load image file '{fullInput}'.");
 		}
+
 		byte[] webpBytes = TextureConverter.EncodeWebp(image, lossless: false, quality: 90);
 		File.WriteAllBytes(targetWebp, webpBytes);
 		return targetWebp;

@@ -1,10 +1,11 @@
-using Realm.Client.Services;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Realm.Client.Services;
 
 namespace Realm.Client.Utils;
 
@@ -47,6 +48,7 @@ public static class MapJsonFormatter
 		{
 			newArr.Add(item != null ? SortKeysRecursively(item.DeepClone()) : null);
 		}
+
 		return newArr;
 	}
 
@@ -189,13 +191,14 @@ public static class MapJsonFormatter
 		return MathF.Sqrt(MathF.Pow(x - topLeftX, 2) + MathF.Pow(z - topLeftZ, 2));
 	}
 
-	private static JsonArray CreateSortedArray(System.Collections.Generic.List<JsonObject> sortedList)
+	private static JsonArray CreateSortedArray(List<JsonObject> sortedList)
 	{
 		var newArr = new JsonArray();
 		foreach (var item in sortedList)
 		{
 			newArr.Add(SortKeysRecursively(item.DeepClone()));
 		}
+
 		return newArr;
 	}
 
@@ -205,6 +208,7 @@ public static class MapJsonFormatter
 		{
 			return val;
 		}
+
 		return 0f;
 	}
 
@@ -214,6 +218,7 @@ public static class MapJsonFormatter
 		{
 			return prop.ToString();
 		}
+
 		return string.Empty;
 	}
 
@@ -223,6 +228,7 @@ public static class MapJsonFormatter
 		{
 			return val;
 		}
+
 		return false;
 	}
 
@@ -233,6 +239,7 @@ public static class MapJsonFormatter
 			if (existingContent.Contains("\r\n")) return "\r\n";
 			if (existingContent.Contains("\n")) return "\n";
 		}
+
 		if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
 		{
 			using var reader = new StreamReader(filePath);
@@ -244,9 +251,11 @@ public static class MapJsonFormatter
 				{
 					return prev == '\r' ? "\r\n" : "\n";
 				}
+
 				prev = curr;
 			}
 		}
+
 		return "\n";
 	}
 
@@ -270,6 +279,7 @@ public static class MapJsonFormatter
 		{
 			formatted = formatted.Replace("\r\n", "\n").Replace("\n", "\r\n");
 		}
+
 		return formatted;
 	}
 
@@ -293,15 +303,18 @@ public static class MapJsonFormatter
 		{
 			formatted = formatted.Replace("\r\n", "\n").Replace("\n", "\r\n");
 		}
+
 		string directory = Path.GetDirectoryName(filePath);
 		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
 		{
 			Directory.CreateDirectory(directory);
 		}
+
 		if (File.Exists(filePath) && File.ReadAllText(filePath) == formatted)
 		{
 			return;
 		}
+
 		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 		File.WriteAllText(filePath, formatted);
 	}
@@ -314,15 +327,18 @@ public static class MapJsonFormatter
 		{
 			formatted = formatted.Replace("\r\n", "\n").Replace("\n", "\r\n");
 		}
+
 		string directory = Path.GetDirectoryName(filePath);
 		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
 		{
 			Directory.CreateDirectory(directory);
 		}
+
 		if (File.Exists(filePath) && File.ReadAllText(filePath) == formatted)
 		{
 			return;
 		}
+
 		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 		File.WriteAllText(filePath, formatted);
 	}

@@ -1,8 +1,10 @@
-using Godot;
-using Realm.Client.Animation;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -74,7 +76,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 
-		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var spacer = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		presetRow.AddChild(spacer);
 
 		AddButton(presetRow, "▶ " + TranslationServer.Translate("Play"), () => PlayCurrentPreview(), "Play Animation", 10, new Vector2(0, 22));
@@ -110,7 +112,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		lblAttHeader.Text = "📎 " + TranslationServer.Translate("PREVIEW ATTACHMENTS & SOCKETS");
 		lblAttHeader.AddThemeColorOverride("font_color", new Color(0.85f, 0.75f, 0.4f));
 		lblAttHeader.AddThemeFontSizeOverride("font_size", 11);
-		lblAttHeader.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		lblAttHeader.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		attHeaderRow.AddChild(lblAttHeader);
 
 		AddButton(attHeaderRow, "📎 " + TranslationServer.Translate("Sockets & VFX Studio..."), () => OpenFullSocketStudio(), "Open full Socket & VFX studio to configure attachments, ground auras, overhead effects, and non-hand sockets", 10, new Vector2(0, 22));
@@ -118,7 +120,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		_configuredAttachmentsContainer = new VBoxContainer();
 		_configuredAttachmentsContainer.AddThemeConstantOverride("separation", 4);
-		_configuredAttachmentsContainer.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_configuredAttachmentsContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		animInputSection.AddChild(_configuredAttachmentsContainer);
 
 		var addActionRow = new HBoxContainer();
@@ -131,7 +133,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		addActionRow.AddChild(lblAssign);
 
 		_optTargetAction = new OptionButton();
-		_optTargetAction.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optTargetAction.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optTargetAction.AddThemeFontSizeOverride("font_size", 11);
 		for (int i = 0; i < StandardActionTypes.Length; i++)
 		{
@@ -139,6 +141,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			string icon = ActionIcons.TryGetValue(act, out var ic) ? ic : "⚡";
 			_optTargetAction.AddItem($"{icon} {act}", i);
 		}
+
 		addActionRow.AddChild(_optTargetAction);
 
 		AddButton(addActionRow, "+ " + TranslationServer.Translate("Add to Action"), () => AddCurrentPreviewToSelectedAction(), "Add previewed animation into action's random array list", 11, new Vector2(120, 26));
@@ -151,7 +154,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		var scrollBody = CreateScrollBody(250);
 		_actionListContainer = new VBoxContainer();
 		_actionListContainer.AddThemeConstantOverride("separation", 10);
-		_actionListContainer.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_actionListContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(_actionListContainer);
 	}
 
@@ -160,14 +163,14 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		if (selectedObject == null || !GodotObject.IsInstanceValid(selectedObject)) return;
 
 		_sourceSelectedObject = selectedObject;
-		_currentUnitId = (selectedObject is Realm.Client.Unit3D unit) ? unit.UnitId : "";
+		_currentUnitId = (selectedObject is Unit3D unit) ? unit.UnitId : "";
 
 		Node modelRoot = selectedObject;
-		if (selectedObject is Realm.Client.Unit3D u && u.ModelNode != null)
+		if (selectedObject is Unit3D u && u.ModelNode != null)
 		{
 			modelRoot = u.ModelNode;
 		}
-		else if (selectedObject is Realm.Client.Prop3D prop)
+		else if (selectedObject is Prop3D prop)
 		{
 			modelRoot = prop.GetNodeOrNull<Node3D>("VisualModel") ?? selectedObject;
 		}
@@ -198,20 +201,22 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		if (!string.IsNullOrEmpty(providedModelPath) || string.IsNullOrEmpty(unitId))
 			return providedModelPath;
 
-		if (Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(unitId, out var uMeta) && !string.IsNullOrEmpty(uMeta.ModelPath))
+		if (GameHost.UnitRegistry.TryGetValue(unitId, out var uMeta) && !string.IsNullOrEmpty(uMeta.ModelPath))
 			return uMeta.ModelPath;
 
 		try
 		{
-			string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-			var metadata = MetadataService.Instance.LoadMetadata(wsPath);
+			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			var metadata = GameContext.MetadataService.LoadMetadata(wsPath);
 			var unit = metadata.GetUnit(unitId);
 			if (unit != null && !string.IsNullOrEmpty(unit.ModelPath))
 			{
 				return unit.ModelPath;
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		return providedModelPath;
 	}
@@ -240,6 +245,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		{
 			SetupPreviewModel(loadedModel);
 		}
+
 		RebuildConfiguredAttachmentsUI();
 
 		SelectFirstAvailableOrAssignedAnimation();
@@ -266,7 +272,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		if (string.IsNullOrEmpty(_currentUnitId)) return;
 
-		if (Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(_currentUnitId, out var uMeta))
+		if (GameHost.UnitRegistry.TryGetValue(_currentUnitId, out var uMeta))
 		{
 			CopyAnimationsToWorking(uMeta.Animations);
 		}
@@ -275,19 +281,21 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		{
 			try
 			{
-				string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-				var metadata = MetadataService.Instance.LoadMetadata(wsPath);
+				string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+				var metadata = GameContext.MetadataService.LoadMetadata(wsPath);
 				var unit = metadata.GetUnit(_currentUnitId);
 				if (unit != null)
 				{
 					CopyAnimationsToWorking(unit.Animations);
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		}
 	}
 
-	private void BuildAttachmentCardUI(ObjectAttachmentDialog.ConfiguredAttachmentEntry entry, string key, bool isVisible)
+	private void BuildAttachmentCardUI(ConfiguredAttachmentEntry entry, string key, bool isVisible)
 	{
 		var card = new PanelContainer();
 		card.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
@@ -311,7 +319,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		btnEye.Text = isVisible ? "👁️" : "🚫";
 		btnEye.TooltipText = TranslationServer.Translate("Toggle attachment preview visibility");
 		btnEye.CustomMinimumSize = new Vector2(28, 22);
-		btnEye.FocusMode = Control.FocusModeEnum.None;
+		btnEye.FocusMode = FocusModeEnum.None;
 
 		string capturedKey = key;
 		btnEye.Pressed += () => ToggleAttachmentVisibility(capturedKey, btnEye);
@@ -331,12 +339,12 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private Label CreateSocketBadge(ObjectAttachmentDialog.ConfiguredAttachmentEntry entry)
+	private Label CreateSocketBadge(ConfiguredAttachmentEntry entry)
 	{
 		string parentAttId = entry.Orientation.ParentAttachmentId;
 		bool isChild = !string.IsNullOrEmpty(parentAttId);
 		string badgeText = isChild
-			? $"[{entry.SocketId} ➔ {System.IO.Path.GetFileNameWithoutExtension(parentAttId)}]"
+			? $"[{entry.SocketId} ➔ {Path.GetFileNameWithoutExtension(parentAttId)}]"
 			: $"[{entry.SocketId}]";
 
 		var badge = new Label
@@ -359,7 +367,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		var nameLbl = new Label
 		{
 			Text = displayName,
-			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			SizeFlagsHorizontal = SizeFlags.ExpandFill,
 			ClipText = true
 		};
 		nameLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -367,7 +375,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		return nameLbl;
 	}
 
-	private Button CreateEditButton(ObjectAttachmentDialog.ConfiguredAttachmentEntry entry)
+	private Button CreateEditButton(ConfiguredAttachmentEntry entry)
 	{
 		string capturedSocket = entry.SocketId;
 		string capturedAtt = entry.AttachmentId;
@@ -376,7 +384,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		btnEdit.Text = "✏️";
 		btnEdit.TooltipText = TranslationServer.Translate("Edit in Socket & VFX Studio");
 		btnEdit.CustomMinimumSize = new Vector2(28, 22);
-		btnEdit.FocusMode = Control.FocusModeEnum.None;
+		btnEdit.FocusMode = FocusModeEnum.None;
 		btnEdit.Pressed += () =>
 		{
 			Hud?.OpenObjectAttachmentDialog(
@@ -405,7 +413,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		}
 
 		var configured = string.IsNullOrEmpty(_currentUnitId)
-			? new List<ObjectAttachmentDialog.ConfiguredAttachmentEntry>()
+			? new List<ConfiguredAttachmentEntry>()
 			: ObjectAttachmentDialog.GetConfiguredAttachmentsForObject(_currentUnitId);
 
 		if (configured.Count == 0)
@@ -487,7 +495,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		var nameLbl = new Label();
 		nameLbl.Text = animFile;
-		nameLbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		nameLbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		nameLbl.AddThemeFontSizeOverride("font_size", 11);
 		nameLbl.ClipText = true;
 		itemRow.AddChild(nameLbl);
@@ -509,10 +517,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			PlayAnimationFile(entry.Animation);
 		}, "Preview this animation", 10, new Vector2(65, 22));
 
-		AddButton(itemRow, "✕ " + TranslationServer.Translate("Remove"), () =>
-		{
-			RemoveAnimationFromAction(actionType, index);
-		}, "Remove this animation from action array", 10, new Vector2(65, 22));
+		AddButton(itemRow, "✕ " + TranslationServer.Translate("Remove"), () => { RemoveAnimationFromAction(actionType, index); }, "Remove this animation from action array", 10, new Vector2(65, 22));
 
 		cardVBox.AddChild(itemRow);
 	}
@@ -534,7 +539,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		lblHeader.Text = $"{icon} {actionType}";
 		lblHeader.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		lblHeader.AddThemeFontSizeOverride("font_size", 12);
-		lblHeader.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		lblHeader.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		headerRow.AddChild(lblHeader);
 
 		_workingAnimations.TryGetValue(actionType, out var animList);
@@ -609,17 +614,18 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			Hud?.ShowFeedback(TranslationServer.Translate("Please select an animation in the preview field first."));
 			return null;
 		}
+
 		return animFile;
 	}
 
 	private string GetSelectedActionType()
 	{
 		if (_optTargetAction == null) return StandardActionTypes[0];
-			
+
 		int idx = _optTargetAction.Selected;
 		if (idx < 0) return StandardActionTypes[0];
 		if (idx >= StandardActionTypes.Length) return StandardActionTypes[0];
-			
+
 		return StandardActionTypes[idx];
 	}
 
@@ -635,6 +641,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			list = new List<UnitAnimationEntry>();
 			_workingAnimations[actionType] = list;
 		}
+
 		return list;
 	}
 
@@ -647,6 +654,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -660,6 +668,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			{
 				_workingAnimations.Remove(actionType);
 			}
+
 			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Removed {0} from {1}"), removed.Animation, actionType));
 			RebuildActionListUI();
 		}
@@ -675,6 +684,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			{
 				_animPlayer.Stop(true);
 			}
+
 			_previewModelRoot.QueueFree();
 			_previewModelRoot = null;
 			_animPlayer = null;
@@ -691,6 +701,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 				kvp.Value.QueueFree();
 			}
 		}
+
 		_attachmentVisualNodes.Clear();
 	}
 
@@ -698,7 +709,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	{
 		if (sourceModelRoot == null || PreviewSubViewport == null) return;
 
-		var clonedNode = (Node3D)sourceModelRoot.Duplicate((int)Node.DuplicateFlags.UseInstantiation);
+		var clonedNode = (Node3D)sourceModelRoot.Duplicate((int)DuplicateFlags.UseInstantiation);
 		if (clonedNode == null) return;
 
 		RemoveAllBoneAttachments(clonedNode);
@@ -811,20 +822,20 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		if (string.IsNullOrEmpty(parentAttachmentId))
 			return targetAnchor;
 
-		var parentMesh = Realm.Client.Unit3D.FindAttachmentInNode(targetAnchor, parentAttachmentId)
-		                 ?? (_previewModelRoot != null ? Realm.Client.Unit3D.FindAttachmentInNode(_previewModelRoot, parentAttachmentId) : null);
-		
+		var parentMesh = Unit3D.FindAttachmentInNode(targetAnchor, parentAttachmentId)
+		                 ?? (_previewModelRoot != null ? Unit3D.FindAttachmentInNode(_previewModelRoot, parentAttachmentId) : null);
+
 		return parentMesh ?? targetAnchor;
 	}
 
-	private void MountAttachmentVisual(ObjectAttachmentDialog.ConfiguredAttachmentEntry entry)
+	private void MountAttachmentVisual(ConfiguredAttachmentEntry entry)
 	{
 		string normSocket = ObjectAttachmentDialog.NormalizeSocketId(entry.SocketId);
 		if (IsInvalidSocketAnchor(normSocket, out var targetAnchor)) return;
 
 		if (IsInvalidAttachmentId(entry.AttachmentId)) return;
 
-		Node3D loaded = Realm.Client.Unit3D.ResolveAndInstantiateAttachment(entry.AttachmentId, out _, out _, out _);
+		Node3D loaded = Unit3D.ResolveAndInstantiateAttachment(entry.AttachmentId, out _, out _, out _);
 		if (loaded == null) return;
 
 		string key = ObjectAttachmentDialog.GetAttachmentKey(normSocket, entry.AttachmentId, entry.Index, entry.Orientation.ParentAttachmentId);
@@ -858,18 +869,18 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	{
 		string cleanAttId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
 			? attachmentId
-			: System.IO.Path.GetFileNameWithoutExtension(attachmentId);
+			: Path.GetFileNameWithoutExtension(attachmentId);
 
 		loaded.Name = $"AttVisual_{key}";
 		loaded.SetMeta("AttachmentId", attachmentId);
 		loaded.SetMeta("CleanAttachmentId", cleanAttId);
 	}
 
-	private void ApplyAttachmentTransform(Node3D loaded, Realm.Shared.Metadata.HandAttachmentOrientation orientation)
+	private void ApplyAttachmentTransform(Node3D loaded, HandAttachmentOrientation orientation)
 	{
 		loaded.Position = orientation.Position.ToGodotVector3() + (loaded.Transform.Basis.Y * orientation.NormalOffset);
 		loaded.RotationDegrees = orientation.RotationDegrees.ToGodotVector3();
-			
+
 		var scaleVec = orientation.ScaleVector.ToGodotVector3();
 		if (scaleVec == Vector3.Zero)
 		{
@@ -937,6 +948,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 				Transform3D relXform = root.GlobalTransform.AffineInverse() * meshInst.GlobalTransform;
 				UpdateAabbWithMeshCorners(ref combinedAabb, ref hasAabb, meshInst, relXform);
 			}
+
 			foreach (Node child in current.GetChildren())
 			{
 				if (child is not BoneAttachment3D && !child.Name.ToString().StartsWith("PreviewSocketAnchor_") && !child.Name.ToString().StartsWith("AttVisual_"))
@@ -951,6 +963,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		{
 			combinedAabb = new Aabb(new Vector3(-0.5f, 0f, -0.5f), new Vector3(1.0f, 1.8f, 1.0f));
 		}
+
 		return combinedAabb;
 	}
 
@@ -973,6 +986,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			list.Add(ba);
 			return;
 		}
+
 		foreach (Node child in node.GetChildren())
 		{
 			CollectBoneAttachmentsRecursive(child, list);
@@ -1008,7 +1022,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		if (_animPlayer == null || !_animPlayer.HasAnimation(animName)) return false;
 
 		var anim = _animPlayer.GetAnimation(animName);
-		if (anim != null) anim.LoopMode = global::Godot.Animation.LoopModeEnum.Linear;
+		if (anim != null) anim.LoopMode = Godot.Animation.LoopModeEnum.Linear;
 		_animPlayer.SpeedScale = _currentSpeed;
 		_animPlayer.Play(animName);
 		return true;
@@ -1043,7 +1057,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		_animPlayer = AnimationRetargetingService.FindOrCreateAnimationPlayer(_previewModelRoot);
 		if (_animPlayer == null) return;
 
-		string animName = System.IO.Path.GetFileNameWithoutExtension(animFileName);
+		string animName = Path.GetFileNameWithoutExtension(animFileName);
 
 		if (PlayExistingAnimation(animName)) return;
 

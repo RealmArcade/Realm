@@ -1,23 +1,16 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Shared.ModelOptimization;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor.FloatingPreview3DDialogBase
+public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBase
 {
-	public class TemplateItemInfo
-	{
-		public string Id { get; set; } = "";
-		public string DisplayName { get; set; } = "";
-		public string Category { get; set; } = "";
-		public string ModelPath { get; set; } = "";
-		public string VisualMode { get; set; } = "Mesh";
-		public string FormattedLabel { get; set; } = "";
-	}
-
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 
@@ -106,7 +99,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		_optTemplatePicker = new OptionButton();
 		_optTemplatePicker.AddThemeFontSizeOverride("font_size", 11);
 		_optTemplatePicker.CustomMinimumSize = new Vector2(160, 24);
-		_optTemplatePicker.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optTemplatePicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optTemplatePicker.ItemSelected += (idx) =>
 		{
 			if (idx >= 0 && idx < _availableTemplates.Count)
@@ -142,7 +135,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		_sldSimVelocity.MaxValue = 10.0;
 		_sldSimVelocity.Step = 0.2;
 		_sldSimVelocity.Value = 0.0;
-		_sldSimVelocity.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_sldSimVelocity.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_sldSimVelocity.ValueChanged += (val) =>
 		{
 			_simVelocityX = (float)val;
@@ -160,13 +153,13 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		BodyContainer.AddChild(playRow);
 
 		var scroll = new ScrollContainer();
-		scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
 
 		var configVBox = new VBoxContainer();
 		configVBox.AddThemeConstantOverride("separation", 6);
-		configVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
@@ -181,7 +174,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 
 		_optPreset = new OptionButton();
 		_optPreset.AddThemeFontSizeOverride("font_size", 11);
-		_optPreset.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optPreset.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		PopulatePresetList();
 		_optPreset.ItemSelected += (idx) =>
 		{
@@ -200,15 +193,9 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		presetRow.AddChild(_optPreset);
 		configVBox.AddChild(presetRow);
 
-		_txtAnimId = AddTextInput(configVBox, TranslationServer.Translate("Profile ID:"), _config.Id, (val) =>
-		{
-			_config.Id = val.Trim().ToLowerInvariant().Replace(" ", "_");
-		}, "", 150f);
+		_txtAnimId = AddTextInput(configVBox, TranslationServer.Translate("Profile ID:"), _config.Id, (val) => { _config.Id = val.Trim().ToLowerInvariant().Replace(" ", "_"); }, "", 150f);
 
-		_txtAnimName = AddTextInput(configVBox, TranslationServer.Translate("Display Name:"), _config.Name, (val) =>
-		{
-			_config.Name = val;
-		}, "", 150f);
+		_txtAnimName = AddTextInput(configVBox, TranslationServer.Translate("Display Name:"), _config.Name, (val) => { _config.Name = val; }, "", 150f);
 
 		AddButton(configVBox, "🎲 " + TranslationServer.Translate("Randomize Sway & Flutter"), () => RandomizeParameters(), "Randomize motion parameters", 11, new Vector2(0, 26));
 
@@ -329,10 +316,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 			UpdateShaderParameters();
 		}, "0.0", 150f);
 
-		(_sldImpulseDuration, _lblImpulseDuration) = AddSlider(configVBox, TranslationServer.Translate("Impulse Duration (s):"), 0.1f, 2.0f, 0.05f, _config.ImpulseDuration, (val) =>
-		{
-			_config.ImpulseDuration = val;
-		}, "0.00 s", 150f);
+		(_sldImpulseDuration, _lblImpulseDuration) = AddSlider(configVBox, TranslationServer.Translate("Impulse Duration (s):"), 0.1f, 2.0f, 0.05f, _config.ImpulseDuration, (val) => { _config.ImpulseDuration = val; }, "0.00 s", 150f);
 	}
 
 	public override void _Process(double delta)
@@ -348,6 +332,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 				_impulseStrength = 0.0f;
 				_impulseTime = 0.0f;
 			}
+
 			UpdateShaderParameters();
 		}
 	}
@@ -398,6 +383,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 			_config = existing != null ? existing.Clone() : config.Clone();
 			return;
 		}
+
 		_config = new ProceduralAnimationConfig
 		{
 			Id = "new_procedural_anim",
@@ -426,6 +412,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 			LoadPreviewTemplate(_availableTemplates[_optTemplatePicker.Selected]);
 			return;
 		}
+
 		if (_availableTemplates.Count > 0)
 		{
 			LoadPreviewTemplate(_availableTemplates[0]);
@@ -439,7 +426,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		_optTemplatePicker.Clear();
 
 		var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
 		LoadMetadataTemplates(wsPath, existingIds);
 		LoadGameHostRegistryTemplates(existingIds);
@@ -452,7 +439,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 	private void AddTemplateIfNotExists(string id, string name, string category, string modelPath, string visualMode, HashSet<string> existingIds)
 	{
 		if (string.IsNullOrEmpty(id) || !existingIds.Add(id)) return;
-		
+
 		string actualVisualMode = !string.IsNullOrEmpty(visualMode) ? visualMode : (modelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh");
 		_availableTemplates.Add(new TemplateItemInfo
 		{
@@ -466,8 +453,8 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 
 	private void LoadMetadataTemplates(string wsPath, HashSet<string> existingIds)
 	{
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta?.Templates == null) return;
-		
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) || meta?.Templates == null) return;
+
 		AddMetadataTemplates(meta.Templates.Units, "Unit", existingIds, u => u.TemplateID, u => u.Name, u => u.ModelPath, u => u.VisualMode);
 		AddMetadataTemplates(meta.Templates.Buildings, "Building", existingIds, b => b.TemplateID, b => b.Name, b => b.ModelPath, b => b.VisualMode);
 		AddMetadataTemplates(meta.Templates.Resources, "Resource", existingIds, r => r.TemplateID, r => r.Name, r => r.ModelPath, r => r.VisualMode);
@@ -477,27 +464,27 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 	private void AddMetadataTemplates<T>(IEnumerable<T> items, string category, HashSet<string> existingIds, Func<T, string> getId, Func<T, string> getName, Func<T, string> getModelPath, Func<T, string> getVisualMode)
 	{
 		if (items == null) return;
-		
+
 		foreach (var item in items)
 			AddTemplateIfNotExists(getId(item), getName(item), category, getModelPath(item), getVisualMode(item), existingIds);
 	}
 
 	private void LoadGameHostRegistryTemplates(HashSet<string> existingIds)
 	{
-		if (Realm.Client.Core.GameHost.UnitRegistry != null)
-			foreach (var kvp in Realm.Client.Core.GameHost.UnitRegistry)
+		if (GameHost.UnitRegistry != null)
+			foreach (var kvp in GameHost.UnitRegistry)
 				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Unit", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
 
-		if (Realm.Client.Core.GameHost.BuildingRegistry != null)
-			foreach (var kvp in Realm.Client.Core.GameHost.BuildingRegistry)
+		if (GameHost.BuildingRegistry != null)
+			foreach (var kvp in GameHost.BuildingRegistry)
 				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Building", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
 
-		if (Realm.Client.Core.GameHost.ResourceRegistry != null)
-			foreach (var kvp in Realm.Client.Core.GameHost.ResourceRegistry)
+		if (GameHost.ResourceRegistry != null)
+			foreach (var kvp in GameHost.ResourceRegistry)
 				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Resource", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
 
-		if (Realm.Client.Core.GameHost.PropRegistry != null)
-			foreach (var kvp in Realm.Client.Core.GameHost.PropRegistry)
+		if (GameHost.PropRegistry != null)
+			foreach (var kvp in GameHost.PropRegistry)
 				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Prop", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
 	}
 
@@ -507,13 +494,15 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		{
 			var assets = MapAssetHelper.LoadAssets(wsPath);
 			if (assets == null) return;
-			
+
 			foreach (var groupKvp in assets.GetAllCategories())
 			{
 				ProcessAssetGroup(groupKvp.Key, groupKvp.Value, existingIds);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void ProcessAssetGroup(string groupName, Dictionary<string, string> subDict, HashSet<string> existingIds)
@@ -531,7 +520,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		{
 			string fn = itemKvp.Key;
 			if (string.IsNullOrEmpty(fn) || (!fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && !fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))) continue;
-			
+
 			string id = Path.GetFileName(fn);
 			AddTemplateIfNotExists(id, id, category, fn, null, existingIds);
 		}
@@ -733,6 +722,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 			meshInst.Mesh = new CylinderMesh { TopRadius = 0.4f, BottomRadius = 0.6f, Height = 3.0f };
 			meshInst.Position = new Vector3(0, 1.5f, 0);
 		}
+
 		var mat = new StandardMaterial3D { AlbedoColor = new Color(0.35f, 0.65f, 0.45f) };
 		meshInst.MaterialOverride = mat;
 		_currentModelRoot.AddChild(meshInst);
@@ -756,6 +746,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		{
 			return Load2DTextureModel(assetPath, visualMode);
 		}
+
 		return Load3DModel(assetPath);
 	}
 
@@ -781,12 +772,13 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		{
 			loadedNode3D.RotationDegrees = new Vector3(45f, 0f, 0f);
 		}
+
 		return loadedNode3D;
 	}
 
 	private Node3D Load3DModel(string assetPath)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string resolvedDiskPath = ResolveDiskPath(wsPath, assetPath);
 
 		Node3D loadedNode3D = null;
@@ -805,8 +797,9 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 
 		if (loadedNode3D != null)
 		{
-			Realm.Client.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, resolvedDiskPath ?? assetPath);
+			AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, resolvedDiskPath ?? assetPath);
 		}
+
 		return loadedNode3D;
 	}
 
@@ -829,6 +822,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 				return files[0];
 			}
 		}
+
 		return null;
 	}
 
@@ -836,16 +830,17 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 	{
 		var loaded = ModelCache.GetModel(resolvedDiskPath) ?? ModelCache.GetModel(assetPath);
 		if (loaded is Node3D n) return n;
-		
+
 		var gltfDoc = new GltfDocument();
 		var gltfState = new GltfState();
 		byte[] rmeshBytes = File.ReadAllBytes(resolvedDiskPath);
-		byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+		byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
 		if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
 		{
 			var node = gltfDoc.GenerateScene(gltfState);
 			if (node is Node3D n3d) return n3d;
 		}
+
 		return null;
 	}
 
@@ -854,14 +849,15 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		_currentModelRoot.AddChild(loadedNode3D);
 		ModelShaderManager.RefreshShaderMaterialsForNode(loadedNode3D, false);
 
-		if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(template.Id))
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(template.Id))
 		{
-			float scale = Realm.Client.Core.GameHost.Instance.GetModelScale(template.Id);
+			float scale = GameHost.Instance.GetModelScale(template.Id);
 			if (scale > 0.01f)
 			{
 				loadedNode3D.Scale = new Vector3(scale, scale, scale);
 			}
-			float yOffset = Realm.Client.Core.GameHost.Instance.GetModelYOffset(template.Id);
+
+			float yOffset = GameHost.Instance.GetModelYOffset(template.Id);
 			loadedNode3D.Position = new Vector3(0, yOffset, 0);
 		}
 
@@ -884,6 +880,7 @@ public partial class ProceduralAnimationStudioDialog : Realm.Client.UI.MapEditor
 		{
 			_config.Id = "custom_procedural_anim";
 		}
+
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{
 			_config.Name = _config.Id;

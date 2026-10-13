@@ -1,7 +1,7 @@
+using System.Numerics;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
-using System.Numerics;
 
 namespace Realm.Ecs.AI.Genres;
 
@@ -27,6 +27,7 @@ public class CustomGenreProvider : IAiGenreProvider
 		{
 			weights[i] = 0.5f;
 		}
+
 		return weights;
 	}
 

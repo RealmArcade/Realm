@@ -1,16 +1,21 @@
+using System;
+using System.Collections.Generic;
 using Arch.Core;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
-using Realm.Client.Services;
+using Realm.Ecs.Services;
 using Realm.MapAPI;
-using System;
-using System.Collections.Generic;
+using AttackSpeed = Realm.Ecs.Components.Combat.AttackSpeed;
+using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
 
@@ -69,6 +74,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			{
 				return _world.Get<Name>(_entity).Value;
 			}
+
 			return string.Empty;
 		}
 		set
@@ -95,21 +101,18 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitOwnerPlayer(value));
 
-			bool isEnemy = Realm.Client.Core.GameHost.Instance != null
-				? Realm.Client.Core.GameHost.Instance.IsPlayerEnemy(value)
-				: value != 0;
+			bool isEnemy = value != 0;
 			_world.SetOrAdd(_entity, new UnitFaction(isEnemy));
 
-			if (_world.Has<Owner>(_entity) && Realm.Client.Core.GameHost.Instance != null)
+			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
 			{
-				var resolvedPlayer = Realm.Client.Core.GameHost.Instance.GetPlayerEntityForPlayerIndex(value);
-				var playerOwner = resolvedPlayer != Entity.Null && _world.IsAlive(resolvedPlayer)
-					? resolvedPlayer.AsPlayerEntity(_world)
-					: (isEnemy ? Realm.Client.Core.GameHost.Instance.EnemyEntity.AsPlayerEntity(_world) : Realm.Client.Core.GameHost.Instance.PlayerEntity.AsPlayerEntity(_world));
+				var playerOwner = isEnemy
+					? GameHost.Instance._enemyPlayerEntity.AsPlayerEntity(_world)
+					: GameHost.Instance._playerEntity.AsPlayerEntity(_world);
 				_world.Set(_entity, new Owner(playerOwner));
 			}
 
-			if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 			{
 				unit3D.Player = value;
 			}
@@ -129,14 +132,15 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		{
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitFaction(value));
-			if (_world.Has<Owner>(_entity) && Realm.Client.Core.GameHost.Instance != null)
+			if (_world.Has<Owner>(_entity))
 			{
 				var playerOwner = value
-					? Realm.Client.Core.GameHost.Instance.EnemyEntity.AsPlayerEntity(_world)
-					: Realm.Client.Core.GameHost.Instance.PlayerEntity.AsPlayerEntity(_world);
+					? GameHost.Instance._enemyPlayerEntity.AsPlayerEntity(_world)
+					: GameHost.Instance._playerEntity.AsPlayerEntity(_world);
 				_world.Set(_entity, new Owner(playerOwner));
 			}
-			if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+
+			if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 			{
 				unit3D.Player = value ? 1 : 0;
 			}
@@ -152,17 +156,18 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		}
 	}
 
-	public System.Numerics.Vector3 Position
+	public Vector3 Position
 	{
 		get
 		{
-			if (!_world.IsAlive(_entity)) return System.Numerics.Vector3.Zero;
+			if (!_world.IsAlive(_entity)) return Vector3.Zero;
 			if (_world.Has<Position>(_entity))
 			{
 				var pos = _world.Get<Position>(_entity).Value;
-				return new System.Numerics.Vector3(pos.X, pos.Y, pos.Z);
+				return new Vector3(pos.X, pos.Y, pos.Z);
 			}
-			return System.Numerics.Vector3.Zero;
+
+			return Vector3.Zero;
 		}
 	}
 
@@ -175,6 +180,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			{
 				return _world.Get<Health>(_entity).Current;
 			}
+
 			return 0f;
 		}
 		set
@@ -185,18 +191,19 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 				var hp = _world.Get<Health>(_entity);
 				float finalHp = Math.Max(0f, value);
 				_world.Set(_entity, new Health(finalHp, hp.Max));
-				if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var u3d))
+				if (GameHost.TryGetUnit3D(_entity, out var u3d))
 				{
 					u3d.SetDeferred("current_hp", finalHp);
 				}
+
 				if (finalHp <= 0f)
 				{
 					if (!_world.Has<Dead>(_entity))
 					{
 						_world.Add(_entity, new Dead());
-						if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var deadU3D))
+						if (GameHost.TryGetUnit3D(_entity, out var deadU3D))
 						{
-							Realm.Client.Core.GameHost.Instance.TriggerKillUnit(deadU3D);
+							GameHost.Instance.TriggerKillUnit(deadU3D);
 						}
 					}
 				}
@@ -213,6 +220,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			{
 				return _world.Get<Health>(_entity).Max;
 			}
+
 			return 0f;
 		}
 		set
@@ -224,7 +232,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 				float finalMax = Math.Max(1f, value);
 				float finalCur = Math.Min(hp.Current, finalMax);
 				_world.Set(_entity, new Health(finalCur, finalMax));
-				if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var u3d))
+				if (GameHost.TryGetUnit3D(_entity, out var u3d))
 				{
 					u3d.SetDeferred("max_hp", finalMax);
 					u3d.SetDeferred("current_hp", finalCur);
@@ -238,16 +246,18 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ServiceLocator.TryGet<Realm.Ecs.Services.StatService>();
+			var statService = ECSContext.StatService;
 			if (statService != null)
 			{
-				float actualDamage = statService.GetStatValue(_entity, new Realm.Ecs.Common.StatId("Attack"));
+				float actualDamage = statService.GetStatValue(_entity, new StatId("Attack"));
 				if (actualDamage > 0f) return actualDamage;
 			}
+
 			if (_world.Has<Attack>(_entity))
 			{
 				return _world.Get<Attack>(_entity).Damage;
 			}
+
 			return 0f;
 		}
 		set
@@ -258,10 +268,11 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 				var atk = _world.Get<Attack>(_entity);
 				_world.Set(_entity, new Attack(value, atk.Range, atk.Cooldown));
 			}
-			if (_world.Has<Realm.Ecs.Components.Stats.Stats>(_entity))
+
+			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Realm.Ecs.Components.Stats.Stats>(_entity);
-				stats.Value[new Realm.Ecs.Common.StatId("Attack")] = value;
+				var stats = _world.Get<Stats>(_entity);
+				stats.Value[new StatId("Attack")] = value;
 			}
 		}
 	}
@@ -275,6 +286,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			{
 				return _world.Get<Attack>(_entity).Range;
 			}
+
 			return 0f;
 		}
 		set
@@ -293,16 +305,18 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ServiceLocator.TryGet<Realm.Ecs.Services.StatService>();
+			var statService = ECSContext.StatService;
 			if (statService != null)
 			{
-				float actualArmor = statService.GetStatValue(_entity, new Realm.Ecs.Common.StatId("Armor"));
+				float actualArmor = statService.GetStatValue(_entity, new StatId("Armor"));
 				if (actualArmor > 0f) return actualArmor;
 			}
+
 			if (_world.Has<Armor>(_entity))
 			{
 				return _world.Get<Armor>(_entity).Value;
 			}
+
 			return 0f;
 		}
 		set
@@ -312,10 +326,11 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			{
 				_world.Set(_entity, new Armor(value));
 			}
-			if (_world.Has<Realm.Ecs.Components.Stats.Stats>(_entity))
+
+			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Realm.Ecs.Components.Stats.Stats>(_entity);
-				stats.Value[new Realm.Ecs.Common.StatId("Armor")] = value;
+				var stats = _world.Get<Stats>(_entity);
+				stats.Value[new StatId("Armor")] = value;
 			}
 		}
 	}
@@ -325,16 +340,18 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ServiceLocator.TryGet<Realm.Ecs.Services.StatService>();
+			var statService = ECSContext.StatService;
 			if (statService != null)
 			{
-				float actualSpeed = statService.GetStatValue(_entity, new Realm.Ecs.Common.StatId("MovementSpeed"));
+				float actualSpeed = statService.GetStatValue(_entity, new StatId("MovementSpeed"));
 				if (actualSpeed > 0f) return actualSpeed;
 			}
+
 			if (_world.Has<MovementStats>(_entity))
 			{
 				return _world.Get<MovementStats>(_entity).Speed;
 			}
+
 			return 0f;
 		}
 		set
@@ -345,10 +362,11 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 				var mv = _world.Get<MovementStats>(_entity);
 				_world.Set(_entity, new MovementStats(value, mv.Acceleration, mv.TurnRate));
 			}
-			if (_world.Has<Realm.Ecs.Components.Stats.Stats>(_entity))
+
+			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Realm.Ecs.Components.Stats.Stats>(_entity);
-				stats.Value[new Realm.Ecs.Common.StatId("MovementSpeed")] = value;
+				var stats = _world.Get<Stats>(_entity);
+				stats.Value[new StatId("MovementSpeed")] = value;
 			}
 		}
 	}
@@ -358,7 +376,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return false;
-			return _world.Has<Realm.Ecs.Components.Tags.Hero>(_entity);
+			return _world.Has<Hero>(_entity);
 		}
 	}
 
@@ -367,16 +385,17 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 1;
-			if (_world.Has<Realm.Ecs.Components.Meta.Level>(_entity))
+			if (_world.Has<Level>(_entity))
 			{
-				return _world.Get<Realm.Ecs.Components.Meta.Level>(_entity).Value;
+				return _world.Get<Level>(_entity).Value;
 			}
+
 			return 1;
 		}
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			var levelComp = new Realm.Ecs.Components.Meta.Level(value);
+			var levelComp = new Level(value);
 			_world.SetOrAdd(_entity, levelComp);
 		}
 	}
@@ -386,16 +405,17 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (_world.Has<Realm.Ecs.Components.Meta.Experience>(_entity))
+			if (_world.Has<Experience>(_entity))
 			{
-				return _world.Get<Realm.Ecs.Components.Meta.Experience>(_entity).Value;
+				return _world.Get<Experience>(_entity).Value;
 			}
+
 			return 0f;
 		}
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			var expComp = new Realm.Ecs.Components.Meta.Experience(value);
+			var expComp = new Experience(value);
 			_world.SetOrAdd(_entity, expComp);
 		}
 	}
@@ -405,10 +425,11 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
+			if (GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
 			{
 				return meta.XpBounty;
 			}
+
 			return 0f;
 		}
 	}
@@ -418,10 +439,11 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
+			if (GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
 			{
 				return meta.GoldBounty;
 			}
+
 			return 0f;
 		}
 	}
@@ -435,37 +457,42 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		}
 	}
 
-	public void MoveTo(System.Numerics.Vector3 destination)
+	public void MoveTo(Vector3 destination)
 	{
 		if (!_world.IsAlive(_entity) || IsDead) return;
-		if (_world.Has<Realm.Ecs.Components.Movement.HoldPosition>(_entity))
+		if (_world.Has<HoldPosition>(_entity))
 		{
-			_world.Remove<Realm.Ecs.Components.Movement.HoldPosition>(_entity);
+			_world.Remove<HoldPosition>(_entity);
 		}
-		if (_world.Has<Realm.Ecs.Components.Movement.AttackMove>(_entity))
+
+		if (_world.Has<AttackMove>(_entity))
 		{
-			_world.Remove<Realm.Ecs.Components.Movement.AttackMove>(_entity);
+			_world.Remove<AttackMove>(_entity);
 		}
-		if (_world.Has<Realm.Ecs.Components.Combat.AttackTarget>(_entity))
+
+		if (_world.Has<AttackTarget>(_entity))
 		{
-			_world.Remove<Realm.Ecs.Components.Combat.AttackTarget>(_entity);
+			_world.Remove<AttackTarget>(_entity);
 		}
+
 		var mv = new MoveTo(destination);
 		_world.SetOrAdd(_entity, mv);
 	}
 
-	public void AttackMove(System.Numerics.Vector3 destination)
+	public void AttackMove(Vector3 destination)
 	{
 		if (!_world.IsAlive(_entity) || IsDead) return;
-		if (_world.Has<Realm.Ecs.Components.Movement.HoldPosition>(_entity))
+		if (_world.Has<HoldPosition>(_entity))
 		{
-			_world.Remove<Realm.Ecs.Components.Movement.HoldPosition>(_entity);
+			_world.Remove<HoldPosition>(_entity);
 		}
-		if (_world.Has<Realm.Ecs.Components.Combat.AttackTarget>(_entity))
+
+		if (_world.Has<AttackTarget>(_entity))
 		{
-			_world.Remove<Realm.Ecs.Components.Combat.AttackTarget>(_entity);
+			_world.Remove<AttackTarget>(_entity);
 		}
-		var am = new Realm.Ecs.Components.Movement.AttackMove(destination);
+
+		var am = new AttackMove(destination);
 		_world.SetOrAdd(_entity, am);
 		var mv = new MoveTo(destination);
 		_world.SetOrAdd(_entity, mv);
@@ -495,18 +522,18 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		}
 	}
 
-	public void Teleport(System.Numerics.Vector3 position)
+	public void Teleport(Vector3 position)
 	{
 		if (!_world.IsAlive(_entity)) return;
 
 		var newPosComp = new Position(position);
 		_world.SetOrAdd(_entity, newPosComp);
 
-		if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var unit3D))
+		if (GameHost.TryGetUnit3D(_entity, out var unit3D))
 		{
 			if (GodotObject.IsInstanceValid(unit3D))
 			{
-				unit3D.GlobalPosition = new Vector3(position.X, position.Y, position.Z);
+				unit3D.GlobalPosition = new Godot.Vector3(position.X, position.Y, position.Z);
 			}
 		}
 	}
@@ -516,10 +543,11 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (_world.Has<Realm.Ecs.Components.Core.Mana>(_entity))
+			if (_world.Has<Mana>(_entity))
 			{
-				return _world.Get<Realm.Ecs.Components.Core.Mana>(_entity).Current;
+				return _world.Get<Mana>(_entity).Current;
 			}
+
 			return 0f;
 		}
 		set
@@ -527,7 +555,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return;
 			float max = MaxMana;
 			var val = Math.Max(0f, value);
-			_world.SetOrAdd(_entity, new Realm.Ecs.Components.Core.Mana(val, max));
+			_world.SetOrAdd(_entity, new Mana(val, max));
 		}
 	}
 
@@ -536,10 +564,11 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (_world.Has<Realm.Ecs.Components.Core.Mana>(_entity))
+			if (_world.Has<Mana>(_entity))
 			{
-				return _world.Get<Realm.Ecs.Components.Core.Mana>(_entity).Max;
+				return _world.Get<Mana>(_entity).Max;
 			}
+
 			return 0f;
 		}
 		set
@@ -547,7 +576,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return;
 			float current = Mana;
 			var val = Math.Max(0f, value);
-			_world.SetOrAdd(_entity, new Realm.Ecs.Components.Core.Mana(current, val));
+			_world.SetOrAdd(_entity, new Mana(current, val));
 		}
 	}
 
@@ -556,16 +585,17 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 1f;
-			if (_world.Has<Realm.Ecs.Components.Combat.AttackSpeed>(_entity))
+			if (_world.Has<AttackSpeed>(_entity))
 			{
-				return _world.Get<Realm.Ecs.Components.Combat.AttackSpeed>(_entity).Multiplier;
+				return _world.Get<AttackSpeed>(_entity).Multiplier;
 			}
+
 			return 1f;
 		}
 		set
 		{
 			if (!_world.IsAlive(_entity) || value <= 0f) return;
-			_world.SetOrAdd(_entity, new Realm.Ecs.Components.Combat.AttackSpeed(value));
+			_world.SetOrAdd(_entity, new AttackSpeed(value));
 		}
 	}
 
@@ -574,18 +604,20 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (_world.Has<Realm.Ecs.Components.Core.ManaRegen>(_entity))
+			if (_world.Has<ManaRegen>(_entity))
 			{
-				return _world.Get<Realm.Ecs.Components.Core.ManaRegen>(_entity).PerSecond;
+				return _world.Get<ManaRegen>(_entity).PerSecond;
 			}
+
 			return 0f;
 		}
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			_world.SetOrAdd(_entity, new Realm.Ecs.Components.Core.ManaRegen(Math.Max(0f, value)));
+			_world.SetOrAdd(_entity, new ManaRegen(Math.Max(0f, value)));
 		}
 	}
+
 	public float Scale
 	{
 		get
@@ -595,25 +627,27 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			{
 				return _world.Get<ModelScale>(_entity).Value;
 			}
-			if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var u3d))
+
+			if (GameHost.TryGetUnit3D(_entity, out var u3d))
 			{
 				if (GodotObject.IsInstanceValid(u3d))
 				{
 					return u3d.Scale.X;
 				}
 			}
+
 			return 1.0f;
 		}
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new ModelScale(value));
-			if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var u3d))
+			if (GameHost.TryGetUnit3D(_entity, out var u3d))
 			{
 				if (GodotObject.IsInstanceValid(u3d))
 				{
 					float safeScale = Mathf.Max(0.001f, value);
-					u3d.Scale = new Vector3(safeScale, safeScale, safeScale);
+					u3d.Scale = new Godot.Vector3(safeScale, safeScale, safeScale);
 				}
 			}
 		}
@@ -624,23 +658,23 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return false;
-			return _world.Has<Realm.Ecs.Components.Tags.Invulnerable>(_entity);
+			return _world.Has<Invulnerable>(_entity);
 		}
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
 			if (value)
 			{
-				if (!_world.Has<Realm.Ecs.Components.Tags.Invulnerable>(_entity))
+				if (!_world.Has<Invulnerable>(_entity))
 				{
-					_world.Add<Realm.Ecs.Components.Tags.Invulnerable>(_entity);
+					_world.Add<Invulnerable>(_entity);
 				}
 			}
 			else
 			{
-				if (_world.Has<Realm.Ecs.Components.Tags.Invulnerable>(_entity))
+				if (_world.Has<Invulnerable>(_entity))
 				{
-					_world.Remove<Realm.Ecs.Components.Tags.Invulnerable>(_entity);
+					_world.Remove<Invulnerable>(_entity);
 				}
 			}
 		}
@@ -649,12 +683,12 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	public void Stop()
 	{
 		if (!_world.IsAlive(_entity)) return;
-		Realm.Client.Core.GameHost.Instance.ClearUnitOrders(_entity);
-		if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var u3d))
+		GameHost.Instance.ClearUnitOrders(_entity);
+		if (GameHost.TryGetUnit3D(_entity, out var u3d))
 		{
 			if (GodotObject.IsInstanceValid(u3d))
 			{
-				u3d.Velocity = Vector3.Zero;
+				u3d.Velocity = Godot.Vector3.Zero;
 			}
 		}
 	}
@@ -663,9 +697,9 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	{
 		if (!_world.IsAlive(_entity)) return;
 		Stop();
-		if (!_world.Has<Realm.Ecs.Components.Movement.HoldPosition>(_entity))
+		if (!_world.Has<HoldPosition>(_entity))
 		{
-			_world.Add<Realm.Ecs.Components.Movement.HoldPosition>(_entity);
+			_world.Add<HoldPosition>(_entity);
 		}
 	}
 
@@ -684,15 +718,16 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	{
 		if (!_world.IsAlive(_entity)) return false;
 		List<string> items;
-		if (_world.Has<Realm.Ecs.Components.Core.UnitItems>(_entity))
+		if (_world.Has<UnitItems>(_entity))
 		{
-			items = _world.Get<Realm.Ecs.Components.Core.UnitItems>(_entity).Value;
+			items = _world.Get<UnitItems>(_entity).Value;
 		}
 		else
 		{
 			items = new List<string>();
-			_world.Add(_entity, new Realm.Ecs.Components.Core.UnitItems(items));
+			_world.Add(_entity, new UnitItems(items));
 		}
+
 		if (items.Count >= 6) return false;
 		items.Add(itemId);
 		return true;
@@ -705,6 +740,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		{
 			_itemCharges[itemId] = charges;
 		}
+
 		return added;
 	}
 
@@ -714,6 +750,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		{
 			return _itemCharges.TryGetValue(itemId, out int charges) ? charges : 1;
 		}
+
 		return 0;
 	}
 
@@ -728,33 +765,36 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	public bool RemoveItem(string itemId)
 	{
 		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<Realm.Ecs.Components.Core.UnitItems>(_entity))
+		if (_world.Has<UnitItems>(_entity))
 		{
-			var items = _world.Get<Realm.Ecs.Components.Core.UnitItems>(_entity).Value;
+			var items = _world.Get<UnitItems>(_entity).Value;
 			_itemCharges.Remove(itemId);
 			return items.Remove(itemId);
 		}
+
 		return false;
 	}
 
 	public bool HasItem(string itemId)
 	{
 		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<Realm.Ecs.Components.Core.UnitItems>(_entity))
+		if (_world.Has<UnitItems>(_entity))
 		{
-			var items = _world.Get<Realm.Ecs.Components.Core.UnitItems>(_entity).Value;
+			var items = _world.Get<UnitItems>(_entity).Value;
 			return items.Contains(itemId);
 		}
+
 		return false;
 	}
 
 	public IEnumerable<string> GetItems()
 	{
 		if (!_world.IsAlive(_entity)) return Array.Empty<string>();
-		if (_world.Has<Realm.Ecs.Components.Core.UnitItems>(_entity))
+		if (_world.Has<UnitItems>(_entity))
 		{
-			return _world.Get<Realm.Ecs.Components.Core.UnitItems>(_entity).Value;
+			return _world.Get<UnitItems>(_entity).Value;
 		}
+
 		return Array.Empty<string>();
 	}
 
@@ -762,41 +802,44 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	{
 		if (!_world.IsAlive(_entity)) return;
 		Dictionary<string, float> buffs;
-		if (_world.Has<Realm.Ecs.Components.Core.Buffs>(_entity))
+		if (_world.Has<Buffs>(_entity))
 		{
-			buffs = _world.Get<Realm.Ecs.Components.Core.Buffs>(_entity).Value;
+			buffs = _world.Get<Buffs>(_entity).Value;
 		}
 		else
 		{
 			buffs = new Dictionary<string, float>();
-			_world.Add(_entity, new Realm.Ecs.Components.Core.Buffs(buffs));
+			_world.Add(_entity, new Buffs(buffs));
 		}
+
 		buffs[buffId] = duration;
 
 		Dictionary<string, float> buffStateDict;
-		if (_world.Has<Realm.Ecs.Components.Core.BuffState>(_entity))
+		if (_world.Has<BuffState>(_entity))
 		{
-			buffStateDict = _world.Get<Realm.Ecs.Components.Core.BuffState>(_entity).Value;
+			buffStateDict = _world.Get<BuffState>(_entity).Value;
 		}
 		else
 		{
 			buffStateDict = new Dictionary<string, float>();
-			_world.Add(_entity, new Realm.Ecs.Components.Core.BuffState(buffStateDict));
+			_world.Add(_entity, new BuffState(buffStateDict));
 		}
+
 		buffStateDict[buffId] = duration;
 	}
 
 	public void RemoveBuff(string buffId)
 	{
 		if (!_world.IsAlive(_entity)) return;
-		if (_world.Has<Realm.Ecs.Components.Core.Buffs>(_entity))
+		if (_world.Has<Buffs>(_entity))
 		{
-			var buffs = _world.Get<Realm.Ecs.Components.Core.Buffs>(_entity).Value;
+			var buffs = _world.Get<Buffs>(_entity).Value;
 			buffs.Remove(buffId);
 		}
-		if (_world.Has<Realm.Ecs.Components.Core.BuffState>(_entity))
+
+		if (_world.Has<BuffState>(_entity))
 		{
-			var buffs = _world.Get<Realm.Ecs.Components.Core.BuffState>(_entity).Value;
+			var buffs = _world.Get<BuffState>(_entity).Value;
 			buffs.Remove(buffId);
 		}
 	}
@@ -804,16 +847,18 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	public bool HasBuff(string buffId)
 	{
 		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<Realm.Ecs.Components.Core.BuffState>(_entity))
+		if (_world.Has<BuffState>(_entity))
 		{
-			var buffs = _world.Get<Realm.Ecs.Components.Core.BuffState>(_entity).Value;
+			var buffs = _world.Get<BuffState>(_entity).Value;
 			return buffs.ContainsKey(buffId);
 		}
-		if (_world.Has<Realm.Ecs.Components.Core.Buffs>(_entity))
+
+		if (_world.Has<Buffs>(_entity))
 		{
-			var buffs = _world.Get<Realm.Ecs.Components.Core.Buffs>(_entity).Value;
+			var buffs = _world.Get<Buffs>(_entity).Value;
 			return buffs.ContainsKey(buffId);
 		}
+
 		return false;
 	}
 
@@ -821,20 +866,21 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	{
 		if (!_world.IsAlive(_entity)) return Array.Empty<string>();
 		var result = new List<string>();
-		if (_world.Has<Realm.Ecs.Components.Core.ModifierState>(_entity))
+		if (_world.Has<ModifierState>(_entity))
 		{
-			var modState = _world.Get<Realm.Ecs.Components.Core.ModifierState>(_entity);
+			var modState = _world.Get<ModifierState>(_entity);
 			foreach (var mod in modState.Value)
 			{
 				result.Add($"{mod.StatTypeId.Value}: {(mod.Value >= 0f ? "+" : "")}{mod.Value} ({mod.Type})");
 			}
 		}
-		if (_world.Has<Realm.Ecs.Components.Core.BuffState>(_entity))
+
+		if (_world.Has<BuffState>(_entity))
 		{
-			var buffState = _world.Get<Realm.Ecs.Components.Core.BuffState>(_entity);
+			var buffState = _world.Get<BuffState>(_entity);
 			foreach (var buffKey in buffState.Value.Keys)
 			{
-				if (Realm.Ecs.Common.BuffRegistry.BuffModifiers.TryGetValue(buffKey, out var mods))
+				if (BuffRegistry.BuffModifiers.TryGetValue(buffKey, out var mods))
 				{
 					foreach (var mod in mods)
 					{
@@ -843,6 +889,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 				}
 			}
 		}
+
 		return result;
 	}
 
@@ -852,15 +899,16 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	{
 		if (!_world.IsAlive(_entity)) return;
 		Dictionary<string, object> dict;
-		if (_world.Has<Realm.Ecs.Components.Core.CustomMetadata>(_entity))
+		if (_world.Has<CustomMetadata>(_entity))
 		{
-			dict = _world.Get<Realm.Ecs.Components.Core.CustomMetadata>(_entity).Value;
+			dict = _world.Get<CustomMetadata>(_entity).Value;
 		}
 		else
 		{
 			dict = new Dictionary<string, object>();
-			_world.Add(_entity, new Realm.Ecs.Components.Core.CustomMetadata(dict));
+			_world.Add(_entity, new CustomMetadata(dict));
 		}
+
 		dict[key] = value;
 	}
 
@@ -869,39 +917,42 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	public object? GetCustomData(string key)
 	{
 		if (!_world.IsAlive(_entity)) return null;
-		if (_world.Has<Realm.Ecs.Components.Core.CustomMetadata>(_entity))
+		if (_world.Has<CustomMetadata>(_entity))
 		{
-			var dict = _world.Get<Realm.Ecs.Components.Core.CustomMetadata>(_entity).Value;
+			var dict = _world.Get<CustomMetadata>(_entity).Value;
 			if (dict.TryGetValue(key, out var val)) return val;
 		}
+
 		return null;
 	}
 
 	public bool RemoveCustomData(string key)
 	{
 		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<Realm.Ecs.Components.Core.CustomMetadata>(_entity))
+		if (_world.Has<CustomMetadata>(_entity))
 		{
-			var dict = _world.Get<Realm.Ecs.Components.Core.CustomMetadata>(_entity).Value;
+			var dict = _world.Get<CustomMetadata>(_entity).Value;
 			return dict.Remove(key);
 		}
+
 		return false;
 	}
 
 	public bool HasCustomData(string key)
 	{
 		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<Realm.Ecs.Components.Core.CustomMetadata>(_entity))
+		if (_world.Has<CustomMetadata>(_entity))
 		{
-			var dict = _world.Get<Realm.Ecs.Components.Core.CustomMetadata>(_entity).Value;
+			var dict = _world.Get<CustomMetadata>(_entity).Value;
 			return dict.ContainsKey(key);
 		}
+
 		return false;
 	}
 
 	public void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
 	{
-		if (Realm.Client.Core.GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+		if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 		{
 			unit3D.TriggerImpulse(strength, duration, frequency);
 		}

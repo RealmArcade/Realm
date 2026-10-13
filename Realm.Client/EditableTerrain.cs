@@ -1,14 +1,17 @@
-using Godot;
-using Realm.Ecs.Components.Terrain;
-using Realm.Shared.Textures;
 using System;
 using System.Collections.Generic;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Ecs.Components.Terrain;
+using Realm.Ecs.Services;
+using Realm.Shared.Textures;
 
 namespace Realm.Client;
 
-public partial class EditableTerrain : Realm.Client.RuntimeTerrain
+public partial class EditableTerrain : RuntimeTerrain
 {
-	public new static EditableTerrain Instance => Realm.Client.RuntimeTerrain.Instance as EditableTerrain;
+	public new static EditableTerrain Instance => RuntimeTerrain.Instance as EditableTerrain;
 
 	public EditableTerrain() : base()
 	{
@@ -18,13 +21,13 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 
 	public override void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath)
 	{
-		string globalInput = global::Godot.ProjectSettings.GlobalizePath(rawPngPath);
-		string globalOutput = global::Godot.ProjectSettings.GlobalizePath(outputRtexPath);
+		string globalInput = ProjectSettings.GlobalizePath(rawPngPath);
+		string globalOutput = ProjectSettings.GlobalizePath(outputRtexPath);
 
 		var result = TextureConverter.ProcessAndSaveTerrainTexture(globalInput, globalOutput);
 		if (!result.Success)
 		{
-			global::Godot.GD.PrintErr($"Failed to process terrain texture '{rawPngPath}': {result.ErrorMessage}");
+			GD.PrintErr($"Failed to process terrain texture '{rawPngPath}': {result.ErrorMessage}");
 			throw new InvalidOperationException($"Failed to process terrain texture: {result.ErrorMessage}");
 		}
 	}
@@ -59,13 +62,13 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 	public override void UpdatePathingTexture()
 	{
 		if (_material == null || PathingCodes == null) return;
-		
+
 		int w = Width;
 		int d = Depth;
 		_material.SetShaderParameter("terrain_size", new Vector2(w * QuadSize, d * QuadSize));
 		_material.SetShaderParameter("grid_spacing", QuadSize);
 		var img = Image.CreateEmpty(w, d, false, Image.Format.Rgba8);
-		
+
 		for (int z = 0; z < d; z++)
 		{
 			for (int x = 0; x < w; x++)
@@ -74,21 +77,21 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 				img.SetPixel(x, z, new Color(code / 255.0f, 0f, 0f, 0f));
 			}
 		}
-		
+
 		var tex = ImageTexture.CreateFromImage(img);
 		_material.SetShaderParameter("pathing_texture", tex);
 	}
 
 	public override void ResizeTerrain(int newWidth, int newDepth)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || Realm.Client.Core.GameHost.Instance.EcsWorld == null || !Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity)) return;
-		if (!Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity)) return;
+		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
+		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
 
 		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 
-		ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
-		
+		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+
 		int oldWidth = state.Width;
 		int oldDepth = state.Depth;
 		var oldCells = Cells;
@@ -112,7 +115,7 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 			PopulateResizedSplatMap(newWidth, newDepth, offsetX, offsetZ, oldCliffSplatMap, newCliffSplatMap, 1);
 		}
 
-		Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+		GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 			newWidth, newDepth, state.QuadSize, state.CellSize,
 			newCells, newPathing, state.NavMesh, state.NavMeshQuery
 		));
@@ -121,7 +124,7 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 		_localPathingCodes = newPathing;
 		SplatMap = newSplatMap;
 		CliffSplatMap = newCliffSplatMap;
-		
+
 		if (_material != null)
 		{
 			_material.SetShaderParameter("terrain_size", new Vector2(newWidth * state.QuadSize, newDepth * state.QuadSize));
@@ -203,6 +206,7 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 				newGridHeights[vx, vz] = GetGridNodeHeight(oldVx, oldVz, oldCells, oldWidth, oldDepth);
 			}
 		}
+
 		return newGridHeights;
 	}
 
@@ -310,13 +314,13 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 
 	public override void ScaleTerrainData(int newWidth, int newDepth)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || Realm.Client.Core.GameHost.Instance.EcsWorld == null || !Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity)) return;
-		if (!Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity)) return;
+		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
+		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
 
 		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 
-		ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		int oldWidth = state.Width;
 		int oldDepth = state.Depth;
@@ -341,7 +345,7 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 			PopulateScaledSplatMaps(newWidth, newDepth, oldCliffSplatMap, newCliffSplatMap, 1);
 		}
 
-		Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+		GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 			newWidth, newDepth, state.QuadSize, state.CellSize,
 			newCells, newPathing, state.NavMesh, state.NavMeshQuery
 		));
@@ -350,7 +354,7 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 		_localPathingCodes = newPathing;
 		SplatMap = newSplatMap;
 		CliffSplatMap = newCliffSplatMap;
-		
+
 		if (_material != null)
 		{
 			_material.SetShaderParameter("terrain_size", new Vector2(newWidth * state.QuadSize, newDepth * state.QuadSize));
@@ -363,20 +367,20 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 
 	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || Realm.Client.Core.GameHost.Instance.EcsWorld == null || !Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity)) return;
-		if (!Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity)) return;
+		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
+		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
 
 		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 
-		ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		TerrainCell[,] clonedCells = cells != null ? (TerrainCell[,])cells.Clone() : new TerrainCell[newWidth, newDepth];
 		int[,] clonedPathing = pathingCodes != null ? (int[,])pathingCodes.Clone() : new int[newWidth, newDepth];
 		TerrainSplatWeights[,] clonedSplatMap = splatMap != null ? (TerrainSplatWeights[,])splatMap.Clone() : new TerrainSplatWeights[newWidth + 1, newDepth + 1];
 		TerrainSplatWeights[,] clonedCliffSplatMap = cliffSplatMap != null ? (TerrainSplatWeights[,])cliffSplatMap.Clone() : null;
 
-		Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+		GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 			newWidth, newDepth, quadSize, state.CellSize,
 			clonedCells, clonedPathing, state.NavMesh, state.NavMeshQuery
 		));
@@ -394,13 +398,13 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 
 	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || Realm.Client.Core.GameHost.Instance.EcsWorld == null || !Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity)) return;
-		if (!Realm.Client.Core.GameHost.Instance.EcsWorld.Has<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity)) return;
+		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
+		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
 
 		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 
-		ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<TerrainState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		float[,] clonedSource = (float[,])heights.Clone();
 		int[,] clonedPathing = pathingCodes != null ? (int[,])pathingCodes.Clone() : new int[newWidth, newDepth];
@@ -409,7 +413,7 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 
 		var calculatedCells = TerrainState.CalculateCells(newWidth, newDepth, clonedSource);
 
-		Realm.Client.Core.GameHost.Instance.EcsWorld.Set(Realm.Client.Core.GameHost.Instance.WorldEntity, new TerrainState(
+		GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 			newWidth, newDepth, quadSize, state.CellSize,
 			calculatedCells, clonedPathing, state.NavMesh, state.NavMeshQuery
 		));
@@ -420,7 +424,7 @@ public partial class EditableTerrain : Realm.Client.RuntimeTerrain
 		CliffSplatMap = clonedCliffSplatMap;
 
 		CreateChunks();
-		
+
 		UpdateWaterTransform();
 		UpdateWaterSize();
 		UpdateMeshAndPhysics();

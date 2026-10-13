@@ -6,20 +6,15 @@ namespace Realm.Shared.Metadata;
 
 public class MapMetadata
 {
-	[JsonPropertyName("license")]
-	public string License { get; set; } = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
+	[JsonPropertyName("license")] public string License { get; set; } = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
 
-	[JsonPropertyName("GameBuildNumber")]
-	public string? GameBuildNumber { get; set; }
+	[JsonPropertyName("GameBuildNumber")] public string? GameBuildNumber { get; set; }
 
-	[JsonPropertyName("MapProperties")]
-	public MapInfoMetadata MapProperties { get; set; } = new();
+	[JsonPropertyName("MapProperties")] public MapInfoMetadata MapProperties { get; set; } = new();
 
-	[JsonPropertyName("Dependencies")]
-	public List<MapDependencyMetadata> Dependencies { get; set; } = new();
+	[JsonPropertyName("Dependencies")] public List<MapDependencyMetadata> Dependencies { get; set; } = new();
 
-	[JsonPropertyName("Templates")]
-	public TemplateContainer Templates { get; set; } = new();
+	[JsonPropertyName("Templates")] public TemplateContainer Templates { get; set; } = new();
 
 	[JsonPropertyName("CustomProceduralAnimations")]
 	public List<ProceduralAnimationConfig> CustomProceduralAnimations { get; set; } = new();
@@ -33,38 +28,27 @@ public class MapMetadata
 	[JsonPropertyName("DefaultEnvironmentPreset")]
 	public string? DefaultEnvironmentPreset { get; set; }
 
-	[JsonPropertyName("Models")]
-	public Dictionary<string, ModelMetadata> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("Models")] public Dictionary<string, ModelMetadata> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("textures")]
-	public Dictionary<string, TextureMetadata> Textures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("textures")] public Dictionary<string, TextureMetadata> Textures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("decals")]
-	public Dictionary<string, DecalMetadata> Decals { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("decals")] public Dictionary<string, DecalMetadata> Decals { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("vfx_spritesheets")]
-	public Dictionary<string, VfxMetadata> VfxSpritesheets { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("vfx_spritesheets")] public Dictionary<string, VfxMetadata> VfxSpritesheets { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("noise_textures")]
-	public Dictionary<string, TextureMetadata> NoiseTextures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("noise_textures")] public Dictionary<string, TextureMetadata> NoiseTextures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("icons")]
-	public Dictionary<string, IconMetadata> Icons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("icons")] public Dictionary<string, IconMetadata> Icons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("skyboxes")]
-	public Dictionary<string, SkyboxMetadata> Skyboxes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("skyboxes")] public Dictionary<string, SkyboxMetadata> Skyboxes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("ribbons")]
-	public Dictionary<string, RibbonMetadata> Ribbons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("ribbons")] public Dictionary<string, RibbonMetadata> Ribbons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("SpawnShader")]
-	public Dictionary<string, SpawnShaderMetadata> SpawnShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("SpawnShader")] public Dictionary<string, SpawnShaderMetadata> SpawnShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("gdshader")]
-	public Dictionary<string, ShaderMetadata> GdShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("gdshader")] public Dictionary<string, ShaderMetadata> GdShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonExtensionData]
-	public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
 	public UnitMetadata? GetUnit(string objectId) => Templates?.Units?.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public UnitMetadata? FindUnit(string objectId) => GetUnit(objectId);
@@ -346,6 +330,7 @@ public class MapMetadata
 			};
 			Textures[normalized] = tex;
 		}
+
 		tex.DefaultPathingCode = profile.DefaultPathingCode;
 		tex.DecalBombingRules = profile.DecalBombingRules ?? new();
 		tex.VfxBombingRules = profile.VfxBombingRules ?? new();
@@ -371,6 +356,7 @@ public class MapMetadata
 			Templates.Units[idx] = update(Templates.Units[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -383,6 +369,7 @@ public class MapMetadata
 			Templates.Buildings[idx] = update(Templates.Buildings[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -395,6 +382,7 @@ public class MapMetadata
 			Templates.Props[idx] = update(Templates.Props[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -407,6 +395,7 @@ public class MapMetadata
 			Templates.Resources[idx] = update(Templates.Resources[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -419,6 +408,7 @@ public class MapMetadata
 			Templates.Abilities[idx] = update(Templates.Abilities[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -431,6 +421,7 @@ public class MapMetadata
 			Templates.Weapons[idx] = update(Templates.Weapons[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -443,6 +434,7 @@ public class MapMetadata
 			Templates.Attachments[idx] = update(Templates.Attachments[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -455,6 +447,7 @@ public class MapMetadata
 			Templates.Vfx[idx] = update(Templates.Vfx[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -467,6 +460,7 @@ public class MapMetadata
 			Templates.Items[idx] = update(Templates.Items[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -479,6 +473,7 @@ public class MapMetadata
 			Templates.Upgrades[idx] = update(Templates.Upgrades[idx]);
 			return true;
 		}
+
 		return false;
 	}
 
@@ -490,6 +485,7 @@ public class MapMetadata
 			model = new ModelMetadata();
 			Models[modelKey] = model;
 		}
+
 		return model;
 	}
 

@@ -1,9 +1,12 @@
-using Arch.Core;
-using Godot;
-using Realm.Client.Core;
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using Arch.Core;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Services;
 
 namespace Realm.Client.UI.InGame;
 
@@ -27,6 +30,7 @@ public partial class CommandPanel
 		{
 			arr[i] = i.ToString();
 		}
+
 		return arr;
 	}
 
@@ -36,6 +40,7 @@ public partial class CommandPanel
 		{
 			return s_integerStrings[value];
 		}
+
 		return value.ToString();
 	}
 
@@ -47,33 +52,13 @@ public partial class CommandPanel
 			img.Fill(Colors.White);
 			s_whiteTexture = ImageTexture.CreateFromImage(img);
 		}
+
 		return s_whiteTexture;
 	}
 
 	[GeneratedRegex(@"^\[.*?\] ")]
 	private static partial Regex HotkeyPrefixRegex();
 
-	public class CommandCardItem
-	{
-		public string Id { get; set; }
-		public string IconPath { get; set; }
-		public string Tooltip { get; set; }
-		public Action Callback { get; set; }
-		public Key Hotkey { get; set; }
-		public Func<bool> IsDisabled { get; set; }
-		public Func<string> GetButtonText { get; set; }
-		public string AbilityId { get; set; }
-		public Entity CasterEntity { get; set; } = Entity.Null;
-		public float ManaCost { get; set; } = 0f;
-	}
-
-	public partial class CommandCardButton : Button
-	{
-		public override Control _MakeCustomTooltip(string forText)
-		{
-			return RichTooltip.Create(forText);
-		}
-	}
 
 	private int _pageIndex = 0;
 	private List<CommandCardItem> _activeItems = new();
@@ -90,6 +75,7 @@ public partial class CommandPanel
 				btn.QueueFree();
 			}
 		}
+
 		_dynamicBuildButtons.Clear();
 
 		foreach (Node child in _commandGrid.GetChildren())
@@ -104,11 +90,13 @@ public partial class CommandPanel
 		{
 			return index < totalItems ? _activeItems[index] : null;
 		}
+
 		if (index < 11)
 		{
 			int itemIndex = pageOffset + index;
 			return itemIndex < totalItems ? _activeItems[itemIndex] : null;
 		}
+
 		return null;
 	}
 
@@ -122,7 +110,7 @@ public partial class CommandPanel
 		for (int i = 0; i < 12; i++)
 		{
 			if (i >= childCount) break;
-			
+
 			if (children[i] is not Button btn) continue;
 
 			var item = GetActiveItemForIndex(i, totalItems, pageOffset);
@@ -157,7 +145,7 @@ public partial class CommandPanel
 
 	private void UpdateAbilityButtonContent(Button btn, CommandCardItem item)
 	{
-		var def = Realm.Client.Core.GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
+		var def = GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
 		if (def == null) return;
 
 		string transTooltip = !string.IsNullOrEmpty(def.Tooltip) ? def.Tooltip : "";
@@ -180,23 +168,23 @@ public partial class CommandPanel
 	{
 		if (caster == Entity.Null || !world.IsAlive(caster)) return;
 
-		if (world.Has<Realm.Ecs.Components.Core.Mana>(caster))
+		if (world.Has<Mana>(caster))
 		{
-			currentMana = world.Get<Realm.Ecs.Components.Core.Mana>(caster).Current;
+			currentMana = world.Get<Mana>(caster).Current;
 		}
 
-		if (world.Has<Realm.Ecs.Components.Core.Cooldowns>(caster))
+		if (world.Has<Cooldowns>(caster))
 		{
-			var cds = world.Get<Realm.Ecs.Components.Core.Cooldowns>(caster).Value;
+			var cds = world.Get<Cooldowns>(caster).Value;
 			if (cds.TryGetValue(abilityId, out float val))
 			{
 				cdRemaining = val;
 			}
 		}
 
-		if (world.Has<Realm.Ecs.Components.Core.SpellCooldowns>(caster))
+		if (world.Has<SpellCooldowns>(caster))
 		{
-			var scd = world.Get<Realm.Ecs.Components.Core.SpellCooldowns>(caster).Value;
+			var scd = world.Get<SpellCooldowns>(caster).Value;
 			if (scd != null && scd.TryGetValue(abilityId, out float val))
 			{
 				cdRemaining = Math.Max(cdRemaining, val);
@@ -211,7 +199,7 @@ public partial class CommandPanel
 
 		UpdateAbilityStats(item, ref cdRemaining, ref currentMana);
 
-		var abilityDef = Realm.Client.Core.GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
+		var abilityDef = GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
 		float maxCd = GetMaxCooldown(abilityDef, cdRemaining);
 		float manaCost = GetEffectiveManaCost(item, abilityDef);
 
@@ -236,7 +224,7 @@ public partial class CommandPanel
 		bool notEnoughMana = currentMana < manaCost;
 		bool isItemDisabled = item.IsDisabled?.Invoke() ?? false;
 		bool disabled = cdRemaining > 0f || notEnoughMana || isItemDisabled;
-		
+
 		if (btn.Disabled != disabled) btn.Disabled = disabled;
 
 		Color targetModulate = notEnoughMana ? new Color(0.5f, 0.5f, 0.5f, 0.7f) : Colors.White;
@@ -245,15 +233,16 @@ public partial class CommandPanel
 
 	private void UpdateAbilityStats(CommandCardItem item, ref float cdRemaining, ref float currentMana)
 	{
-		var world = Realm.Client.Core.GameHost.Instance?.EcsWorld;
+		GameHost tempQualifier = GameHost.Instance;
+		var world = (tempQualifier != null ? GameContext.World : null);
 		if (world == null) return;
 
 		var caster = item.CasterEntity != Entity.Null && world.IsAlive(item.CasterEntity) ? item.CasterEntity : _lastFocusedEntity;
 		GetCasterState(caster, world, item.AbilityId, ref currentMana, ref cdRemaining);
 
-		if (cdRemaining <= 0f && Realm.Client.Core.GameHost.Instance != null)
+		if (cdRemaining <= 0f && GameHost.Instance != null)
 		{
-			cdRemaining = Realm.Client.Core.GameHost.Instance.GetPlayerSpellCooldown(item.AbilityId);
+			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(item.AbilityId);
 		}
 	}
 
@@ -277,7 +266,7 @@ public partial class CommandPanel
 		bool onCd = cdRemaining > 0f;
 		if (sweep.Visible != onCd) sweep.Visible = onCd;
 		if (!onCd) return;
-		
+
 		double sweepVal = Math.Clamp((cdRemaining / maxCd) * 100.0, 0.0, 100.0);
 		if (Math.Abs(sweep.Value - sweepVal) > 0.4) sweep.Value = sweepVal;
 	}
@@ -295,6 +284,7 @@ public partial class CommandPanel
 		{
 			ClearCommandGrid();
 		}
+
 		_lastFocusedEntity = Entity.Null;
 		_pageIndex = 0;
 		_activeItems.Clear();
@@ -305,8 +295,7 @@ public partial class CommandPanel
 	{
 		if (_commandGrid == null) return;
 
-		int localPlayer = Realm.Client.Core.GameHost.Instance?.LocalPlayerIndex ?? 0;
-		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || focusedUnit.PlayerIndex != localPlayer || Realm.Client.Core.GameHost.Instance?.IsLocalPlayerDefeated == true)
+		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy)
 		{
 			ClearCommandPanelState();
 			return;
@@ -315,7 +304,7 @@ public partial class CommandPanel
 		UpdateCommandPanelState(focusedUnit, viewModel.IsBuildSubMenuOpen);
 	}
 
-	private bool GetFocusedUnit(InGameHUDViewModel viewModel, out InGameHUDViewModel.SelectedUnitInfo focusedUnit)
+	private bool GetFocusedUnit(InGameHUDViewModel viewModel, out SelectedUnitInfo focusedUnit)
 	{
 		int focusIdx = viewModel.CycleSelectionIndex;
 		if (focusIdx < 0 || focusIdx >= viewModel.SelectedUnits.Count) focusIdx = 0;
@@ -323,7 +312,7 @@ public partial class CommandPanel
 		return false;
 	}
 
-	private void UpdateCommandPanelState(InGameHUDViewModel.SelectedUnitInfo focusedUnit, bool subMenuOpen)
+	private void UpdateCommandPanelState(SelectedUnitInfo focusedUnit, bool subMenuOpen)
 	{
 		bool focusedUnitChanged = focusedUnit.Entity != _lastFocusedEntity;
 		bool subMenuChanged = subMenuOpen != _lastIsBuildSubMenuOpen;
@@ -357,7 +346,8 @@ public partial class CommandPanel
 		int totalItems = _activeItems.Count;
 		int pageOffset = _pageIndex * 11;
 
-		Key[] gridHotkeys = {
+		Key[] gridHotkeys =
+		{
 			Key.Q, Key.W, Key.E, Key.R,
 			Key.A, Key.S, Key.D, Key.F,
 			Key.Z, Key.X, Key.C, Key.V
@@ -366,7 +356,7 @@ public partial class CommandPanel
 		for (int i = 0; i < totalItems; i++)
 		{
 			int localIdx = GetLocalGridIndex(i, totalItems, pageOffset);
-			
+
 			if (localIdx >= 0 && localIdx < 12)
 			{
 				_activeItems[i].Hotkey = gridHotkeys[localIdx];
@@ -400,7 +390,7 @@ public partial class CommandPanel
 		{
 			int numPages = (totalItems + 10) / 11;
 			if (_pageIndex >= numPages) _pageIndex = 0;
-			
+
 			PopulateGridPage(_pageIndex * 11, 11, totalItems, true);
 			_commandGrid.AddChild(CreateCycleButton(numPages));
 		}
@@ -440,6 +430,7 @@ public partial class CommandPanel
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -502,9 +493,9 @@ public partial class CommandPanel
 		btn.Pressed += () =>
 		{
 			_pageIndex = (_pageIndex + 1) % numPages;
-			if (Realm.Client.Core.GameHost.Instance != null)
+			if (GameHost.Instance != null)
 			{
-				InGameHUD.Instance?.RefreshUI(Realm.Client.Core.GameHost.Instance.SelectedUnits);
+				InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits);
 			}
 		};
 
@@ -520,6 +511,7 @@ public partial class CommandPanel
 			GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
 			tex = RtexIconLoader.Load("res://Assets/UI/alliance_flag.png");
 		}
+
 		return tex;
 	}
 
@@ -550,10 +542,10 @@ public partial class CommandPanel
 		btn.Text = item.GetButtonText?.Invoke() ?? "";
 		btn.ExpandIcon = true;
 		btn.Icon = !string.IsNullOrEmpty(item.IconPath) ? LoadCommandIcon(item.IconPath) : null;
-		
+
 		string transTooltip = TranslationServer.Translate(item.Tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(transTooltip) ? item.Tooltip : transTooltip;
-		
+
 		btn.CustomMinimumSize = new Vector2(44, 44);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
@@ -579,7 +571,7 @@ public partial class CommandPanel
 		hotkeyLabel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
 		hotkeyLabel.OffsetLeft = 4;
 		hotkeyLabel.OffsetTop = 3;
-		
+
 		btn.AddChild(hotkeyLabel);
 	}
 
@@ -651,7 +643,7 @@ public partial class CommandPanel
 		btn.Modulate = disabled ? new Color(0.5f, 0.5f, 0.5f, 0.7f) : Colors.White;
 	}
 
-	private List<CommandCardItem> GetCommandCardItems(InGameHUDViewModel.SelectedUnitInfo focusedUnit, bool isBuildSubMenuOpen)
+	private List<CommandCardItem> GetCommandCardItems(SelectedUnitInfo focusedUnit, bool isBuildSubMenuOpen)
 	{
 		var items = new List<CommandCardItem>();
 		if (focusedUnit == null) return items;
@@ -662,7 +654,7 @@ public partial class CommandPanel
 			return items;
 		}
 
-		bool hasMetadata = Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(focusedUnit.UnitId, out var meta);
+		bool hasMetadata = GameHost.UnitRegistry.TryGetValue(focusedUnit.UnitId, out var meta);
 
 		if (!focusedUnit.IsBuilding)
 		{
@@ -685,11 +677,11 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/cancel_button_2.png",
 			Tooltip = "[S] Cancel Construction",
 			Hotkey = Key.S,
-			Callback = () => { } 
+			Callback = () => { }
 		};
 	}
 
-	private void PopulateUnitItems(List<CommandCardItem> items, InGameHUDViewModel.SelectedUnitInfo focusedUnit, Realm.Shared.Metadata.UnitMetadata meta, bool hasMetadata, bool isBuildSubMenuOpen)
+	private void PopulateUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata meta, bool hasMetadata, bool isBuildSubMenuOpen)
 	{
 		if (isBuildSubMenuOpen)
 		{
@@ -701,7 +693,7 @@ public partial class CommandPanel
 		if (isStationary)
 		{
 			PopulateStationaryUnitItems(items, focusedUnit);
-			
+
 			if (hasMetadata && meta.BuildOptions?.Length > 0)
 			{
 				items.Add(new CommandCardItem
@@ -720,13 +712,14 @@ public partial class CommandPanel
 		}
 	}
 
-	private void PopulateBuildSubMenuItems(List<CommandCardItem> items, Realm.Shared.Metadata.UnitMetadata meta, bool hasMetadata)
+	private void PopulateBuildSubMenuItems(List<CommandCardItem> items, UnitMetadata meta, bool hasMetadata)
 	{
 		string[] options = hasMetadata && meta.BuildOptions != null ? meta.BuildOptions : Array.Empty<string>();
 		foreach (var opt in options)
 		{
 			items.Add(CreateBuildOptionItem(opt));
 		}
+
 		items.Add(new CommandCardItem
 		{
 			Id = "cancel_build",
@@ -737,11 +730,11 @@ public partial class CommandPanel
 		});
 	}
 
-	private void PopulateStationaryUnitItems(List<CommandCardItem> items, InGameHUDViewModel.SelectedUnitInfo focusedUnit)
+	private void PopulateStationaryUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit)
 	{
 		var perkAbilities = new List<string>();
 		var otherAbilities = new List<string>();
-		
+
 		foreach (var ab in focusedUnit.Abilities)
 		{
 			if (ab.StartsWith("perk_")) perkAbilities.Add(ab);
@@ -763,7 +756,7 @@ public partial class CommandPanel
 		}
 	}
 
-	private void PopulateMobileUnitItems(List<CommandCardItem> items, InGameHUDViewModel.SelectedUnitInfo focusedUnit, bool hasMetadata, Realm.Shared.Metadata.UnitMetadata meta)
+	private void PopulateMobileUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, bool hasMetadata, UnitMetadata meta)
 	{
 		items.Add(new CommandCardItem
 		{
@@ -771,28 +764,28 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/move_speed.png",
 			Tooltip = "[M] Move / Right-Click Ground",
 			Hotkey = Key.M,
-			Callback = () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("move")
+			Callback = () => GameHost.Instance?.EnterCommandTargeting("move")
 		});
-		
+
 		items.Add(CreateStopCommand());
 		items.Add(CreateHoldCommand());
-		
+
 		items.Add(new CommandCardItem
 		{
 			Id = "attack",
 			IconPath = "res://Assets/UI/battle_axe.png",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 			Hotkey = Key.A,
-			Callback = () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("attack")
+			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
 		});
-		
+
 		items.Add(new CommandCardItem
 		{
 			Id = "patrol",
 			IconPath = "res://Assets/UI/patrol.jpg",
 			Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
 			Hotkey = Key.P,
-			Callback = () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("patrol")
+			Callback = () => GameHost.Instance?.EnterCommandTargeting("patrol")
 		});
 
 		if (hasMetadata && meta.BuildOptions?.Length > 0)
@@ -821,9 +814,9 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/battle_axe.png",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 			Hotkey = Key.A,
-			Callback = () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("attack")
+			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
 		});
-		
+
 		items.Add(CreateStopCommand());
 	}
 
@@ -835,9 +828,10 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/cancel_button_2.png",
 			Tooltip = "[S] Stop Selected Units",
 			Hotkey = Key.S,
-			Callback = () => {
+			Callback = () =>
+			{
 				InGameHUD.Instance?.ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
-				Realm.Client.Core.GameHost.Instance?.StopSelectedUnits();
+				GameHost.Instance?.StopSelectedUnits();
 			}
 		};
 	}
@@ -850,14 +844,15 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/magic_upgrade_arrow.png",
 			Tooltip = "[H] Hold Position — Unit stays put and attacks in place",
 			Hotkey = Key.H,
-			Callback = () => {
+			Callback = () =>
+			{
 				InGameHUD.Instance?.ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
-				Realm.Client.Core.GameHost.Instance?.HoldSelectedUnits();
+				GameHost.Instance?.HoldSelectedUnits();
 			}
 		};
 	}
 
-	private void PopulateBuildingItems(List<CommandCardItem> items, InGameHUDViewModel.SelectedUnitInfo focusedUnit, Realm.Shared.Metadata.UnitMetadata meta, bool hasMetadata)
+	private void PopulateBuildingItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata meta, bool hasMetadata)
 	{
 		if (hasMetadata && meta.BuildOptions != null)
 		{
@@ -872,7 +867,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/alliance_flag.png",
 				Tooltip = "[Y] Set Rally Point — Set location where new units will walk",
 				Hotkey = Key.Y,
-				Callback = () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("rally")
+				Callback = () => GameHost.Instance?.EnterCommandTargeting("rally")
 			});
 
 			PopulateShopItems(items);
@@ -887,9 +882,9 @@ public partial class CommandPanel
 
 	private void PopulateShopItems(List<CommandCardItem> items)
 	{
-		if (Realm.Client.Core.GameHost.ItemRegistry.Count == 0) return;
+		if (GameHost.ItemRegistry.Count == 0) return;
 
-		foreach (var itemMeta in Realm.Client.Core.GameHost.ItemRegistry.Values)
+		foreach (var itemMeta in GameHost.ItemRegistry.Values)
 		{
 			string itemId = itemMeta.TemplateID;
 			string itemName = !string.IsNullOrEmpty(itemMeta.Name) ? itemMeta.Name : itemId;
@@ -901,9 +896,10 @@ public partial class CommandPanel
 				IconPath = !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.png",
 				Tooltip = $"[I] Buy {itemName} (Cost: {itemMeta.CostGold:F0} Gold) — {itemDesc}",
 				Hotkey = Key.None,
-				Callback = () => {
-					var selected = Realm.Client.Core.GameHost.Instance?.SelectedUnits;
-					if (selected?.Count == 1) Realm.Client.Core.GameHost.Instance.BuyItem(itemId, selected[0].Entity);
+				Callback = () =>
+				{
+					var selected = GameHost.Instance?.SelectedUnits;
+					if (selected?.Count == 1) GameHost.Instance.BuyItem(itemId, selected[0].Entity);
 				}
 			});
 		}
@@ -911,17 +907,17 @@ public partial class CommandPanel
 
 	private void PopulateGlobalUpgrades(List<CommandCardItem> items)
 	{
-		AddGlobalUpgradeItem(items, "upgrade_weapons", "res://Assets/UI/battle_axe.png", 
-			"[W] Upgrade Weapons (Cost: 150 Gold, 100 Wood)\nPermanently increases unit damage by +3", 
-			Key.W, () => Realm.Client.Core.GameHost.Instance?.BuyWeaponsUpgrade(), () => Realm.Client.Core.GameHost.Instance?.HasWeaponsUpgrade ?? false);
+		AddGlobalUpgradeItem(items, "upgrade_weapons", "res://Assets/UI/battle_axe.png",
+			"[W] Upgrade Weapons (Cost: 150 Gold, 100 Wood)\nPermanently increases unit damage by +3",
+			Key.W, () => GameHost.Instance?.BuyWeaponsUpgrade(), () => GameHost.Instance?.HasWeaponsUpgrade ?? false);
 
-		AddGlobalUpgradeItem(items, "upgrade_shields", "res://Assets/UI/battle_shield.png", 
-			"[G] Upgrade Armor (Cost: 150 Gold, 100 Stone)\nPermanently increases unit armor by +2", 
-			Key.G, () => Realm.Client.Core.GameHost.Instance?.BuyShieldsUpgrade(), () => Realm.Client.Core.GameHost.Instance?.HasShieldsUpgrade ?? false);
+		AddGlobalUpgradeItem(items, "upgrade_shields", "res://Assets/UI/battle_shield.png",
+			"[G] Upgrade Armor (Cost: 150 Gold, 100 Stone)\nPermanently increases unit armor by +2",
+			Key.G, () => GameHost.Instance?.BuyShieldsUpgrade(), () => GameHost.Instance?.HasShieldsUpgrade ?? false);
 
-		AddGlobalUpgradeItem(items, "upgrade_harvesting", "res://Assets/UI/gold_coin.png", 
-			"[T] Upgrade Harvesting (Cost: 150 Wood, 100 Stone)\nPermanently increases passive resource gathering rates by +50%", 
-			Key.T, () => Realm.Client.Core.GameHost.Instance?.BuyHarvestingUpgrade(), () => Realm.Client.Core.GameHost.Instance?.HasHarvestingUpgrade ?? false);
+		AddGlobalUpgradeItem(items, "upgrade_harvesting", "res://Assets/UI/gold_coin.png",
+			"[T] Upgrade Harvesting (Cost: 150 Wood, 100 Stone)\nPermanently increases passive resource gathering rates by +50%",
+			Key.T, () => GameHost.Instance?.BuyHarvestingUpgrade(), () => GameHost.Instance?.HasHarvestingUpgrade ?? false);
 	}
 
 	private void AddGlobalUpgradeItem(List<CommandCardItem> items, string id, string iconPath, string tooltip, Key hotkey, Action callback, Func<bool> hasUpgrade)
@@ -941,10 +937,10 @@ public partial class CommandPanel
 	private CommandCardItem CreateBuildOptionItem(string unitId)
 	{
 		var hotkey = Key.None;
-		
+
 		string name = unitId.ToUpper();
 		float gold = 0, wood = 0, stone = 0;
-		if (Realm.Client.Core.GameHost.TryGetUnitOrBuildingMetadata(unitId, out var structureMeta))
+		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var structureMeta))
 		{
 			name = structureMeta.Name;
 			gold = structureMeta.CostGold;
@@ -952,11 +948,11 @@ public partial class CommandPanel
 			stone = structureMeta.CostStone;
 		}
 
-		string tooltipFormat = hotkey != Key.None 
+		string tooltipFormat = hotkey != Key.None
 			? "[{0}] Build {1} (Cost: {2} Gold, {3} Wood, {4} Stone)"
 			: "Build {0} (Cost: {1} Gold, {2} Wood, {3} Stone)";
 
-		string finalTooltip = string.Format(TranslationServer.Translate(tooltipFormat), 
+		string finalTooltip = string.Format(TranslationServer.Translate(tooltipFormat),
 			hotkey.ToString(), name, gold, wood, stone);
 
 		return new CommandCardItem
@@ -965,7 +961,7 @@ public partial class CommandPanel
 			IconPath = GetUnitIcon(unitId),
 			Tooltip = finalTooltip,
 			Hotkey = hotkey,
-			Callback = () => Realm.Client.Core.GameHost.Instance?.EnterBuildingPlacement(unitId)
+			Callback = () => GameHost.Instance?.EnterBuildingPlacement(unitId)
 		};
 	}
 
@@ -977,7 +973,7 @@ public partial class CommandPanel
 		float gold = 0, wood = 0, stone = 0;
 		int pop = 0;
 		string desc = "";
-		if (Realm.Client.Core.GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
+		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
 		{
 			name = meta.Name;
 			gold = meta.CostGold;
@@ -996,7 +992,7 @@ public partial class CommandPanel
 			? "[{0}] Train {1} ({2}) — {3}"
 			: "Train {0} ({1}) — {2}";
 
-		string finalTooltip = string.Format(TranslationServer.Translate(tooltipFormat), 
+		string finalTooltip = string.Format(TranslationServer.Translate(tooltipFormat),
 			hotkey.ToString(), name, costStr, desc);
 
 		return new CommandCardItem
@@ -1005,7 +1001,7 @@ public partial class CommandPanel
 			IconPath = GetUnitIcon(unitId),
 			Tooltip = finalTooltip,
 			Hotkey = hotkey,
-			Callback = () => Realm.Client.Core.GameHost.Instance?.TrainUnitAtCastle(unitId)
+			Callback = () => GameHost.Instance?.TrainUnitAtCastle(unitId)
 		};
 	}
 
@@ -1021,14 +1017,14 @@ public partial class CommandPanel
 
 	private CommandCardItem? CreateAbilityItem(string abilityId, Entity casterEntity)
 	{
-		var host = Realm.Client.Core.GameHost.Instance;
+		var host = GameHost.Instance;
 		var unitWrapper = GetUnitWrapperIfAlive(host, casterEntity);
-		
+
 		if (IsAbilityHidden(host, unitWrapper, abilityId)) return null;
 
 		var abilityDef = host?.GetAbilityDefinition(abilityId);
 		float manaCost = GetAbilityManaCost(host, unitWrapper, abilityDef, abilityId);
-		
+
 		return new CommandCardItem
 		{
 			Id = abilityId,
@@ -1055,6 +1051,7 @@ public partial class CommandPanel
 		{
 			return abilityDef.IconPath;
 		}
+
 		return GetDefaultAbilityIcon(abilityId);
 	}
 
@@ -1064,13 +1061,14 @@ public partial class CommandPanel
 		{
 			return abilityDef.Tooltip;
 		}
+
 		return GetDefaultAbilityTooltip(abilityId);
 	}
 
 	private Unit_WasmRuntime GetUnitWrapperIfAlive(GameHost host, Entity casterEntity)
 	{
 		if (host == null || casterEntity == Entity.Null) return null;
-		return host.EcsWorld.IsAlive(casterEntity) ? host.GetUnitWrapper(casterEntity) : null;
+		return GameContext.World.IsAlive(casterEntity) ? GameContext.SimulationService.GetUnitWrapper(casterEntity) : null;
 	}
 
 	private float GetAbilityManaCost(GameHost host, Unit_WasmRuntime unitWrapper, AbilityDefinition abilityDef, string abilityId)
@@ -1084,22 +1082,23 @@ public partial class CommandPanel
 		{
 			return parsedKey;
 		}
+
 		return Key.None;
 	}
 
 	private Action GetAbilityCallback(string abilityId, bool isInstant)
 	{
-		if (isInstant) return () => Realm.Client.Core.GameHost.Instance?.CastInstantAbility(abilityId);
-		return () => Realm.Client.Core.GameHost.Instance?.EnterSpellTargeting(abilityId);
+		if (isInstant) return () => GameHost.Instance?.CastInstantAbility(abilityId);
+		return () => GameHost.Instance?.EnterSpellTargeting(abilityId);
 	}
 
 	private bool IsAbilityDisabled(GameHost host, Unit_WasmRuntime unitWrapper, Entity casterEntity, string abilityId, float manaCost)
 	{
 		if (host == null) return false;
-		if (host.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
+			if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
 		if (host.GetPlayerSpellCooldown(abilityId) > 0f) return true;
 
-		var world = host.EcsWorld;
+		var world = GameContext.World;
 		if (world == null || casterEntity == Entity.Null || !world.IsAlive(casterEntity)) return false;
 
 		return IsAbilityOnCooldownOrOOM(world, casterEntity, abilityId, manaCost);
@@ -1107,19 +1106,22 @@ public partial class CommandPanel
 
 	private bool IsAbilityOnCooldownOrOOM(World world, Entity casterEntity, string abilityId, float manaCost)
 	{
-		if (world.Has<Realm.Ecs.Components.Core.Mana>(casterEntity))
+		if (world.Has<Mana>(casterEntity))
 		{
-			if (world.Get<Realm.Ecs.Components.Core.Mana>(casterEntity).Current < manaCost) return true;
+			if (world.Get<Mana>(casterEntity).Current < manaCost) return true;
 		}
-		if (world.Has<Realm.Ecs.Components.Core.Cooldowns>(casterEntity))
+
+		if (world.Has<Cooldowns>(casterEntity))
 		{
-			if (world.Get<Realm.Ecs.Components.Core.Cooldowns>(casterEntity).Value.TryGetValue(abilityId, out float cd) && cd > 0f) return true;
+			if (world.Get<Cooldowns>(casterEntity).Value.TryGetValue(abilityId, out float cd) && cd > 0f) return true;
 		}
-		if (world.Has<Realm.Ecs.Components.Core.SpellCooldowns>(casterEntity))
+
+		if (world.Has<SpellCooldowns>(casterEntity))
 		{
-			var scd = world.Get<Realm.Ecs.Components.Core.SpellCooldowns>(casterEntity).Value;
+			var scd = world.Get<SpellCooldowns>(casterEntity).Value;
 			if (scd?.TryGetValue(abilityId, out float cd) == true && cd > 0f) return true;
 		}
+
 		return false;
 	}
 

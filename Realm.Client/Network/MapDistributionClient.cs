@@ -1,19 +1,22 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
+using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
 public class MapDistributionClient
 {
-	private readonly System.Net.Http.HttpClient _httpClient = new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+	private readonly HttpClient _httpClient = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
 
 	public event Action<float>? DownloadProgressChanged;
 
@@ -68,7 +71,6 @@ public class MapDistributionClient
 	}
 
 
-
 	public async Task<bool> DownloadMapPackageFromRegistryAsync(
 		string mapId,
 		string registryServerUrl,
@@ -99,7 +101,7 @@ public class MapDistributionClient
 		}
 
 		var candidateSeeders = await FetchCandidateSeedersAsync(mapId, registryServerUrl, cancellationToken);
-        
+
 		var rng = new Random();
 		candidateSeeders = candidateSeeders.OrderBy(_ => rng.Next()).ToList();
 
@@ -121,9 +123,9 @@ public class MapDistributionClient
 	}
 
 	private async Task<bool> TryDownloadFromServersAsync(
-		string mapId, 
-		List<string> serverUrls, 
-		Action<float>? progressCallback, 
+		string mapId,
+		List<string> serverUrls,
+		Action<float>? progressCallback,
 		CancellationToken effectiveToken)
 	{
 		foreach (var serverUrl in serverUrls)
@@ -135,6 +137,7 @@ public class MapDistributionClient
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -147,18 +150,18 @@ public class MapDistributionClient
 		try
 		{
 			string baseUrl = serverUrl.TrimEnd('/');
-			var distClient = new Realm.Shared.Distribution.DistributionClient(baseUrl, _httpClient);
+			var distClient = new DistributionClient(baseUrl, _httpClient);
 			var manifest = await distClient.GetManifestAsync(mapId, effectiveToken);
-            
+
 			if (manifest == null || manifest.Files == null || manifest.Files.Count == 0) return false;
 
 			string localMapDir = GetManifestLocalDirectory(mapId, manifest);
 			string localManifestPath = Path.Combine(localMapDir, "manifest.json");
-            
+
 			await File.WriteAllTextAsync(localManifestPath, manifest.ToJson(), effectiveToken);
 
 			var seeders = await distClient.GetActiveSeedersAsync(effectiveToken);
-            
+
 			void HandleProgress(float p)
 			{
 				progressCallback?.Invoke(p);
@@ -173,15 +176,12 @@ public class MapDistributionClient
 				progressCallback: HandleProgress,
 				maximumConcurrency: 12,
 				cancellationToken: effectiveToken,
-				onAssetReady: (virtualPath, assetKey, normalizedHash) =>
-				{
-					MapAssetManager.ExtractSingleAsset(virtualPath, normalizedHash, localMapDir, isP2P: false);
-				});
+				onAssetReady: (virtualPath, assetKey, normalizedHash) => { MapAssetManager.ExtractSingleAsset(virtualPath, normalizedHash, localMapDir, isP2P: false); });
 
 			if (!httpSuccess) return false;
 
 			MapAssetManager.ExtractManifestFiles(manifest, localMapDir, isP2P: false);
-			AssetIndexService.Instance.RegisterManifest(manifest, localManifestPath, isP2P: false);
+			GameContext.AssetIndexService.RegisterManifest(manifest, localManifestPath, isP2P: false);
 			HandleProgress(1.0f);
 			return true;
 		}
@@ -198,7 +198,7 @@ public class MapDistributionClient
 		string manifestMapName = !string.IsNullOrWhiteSpace(manifest.MapName) ? manifest.MapName.Trim() : mapId;
 		string manifestBlake3 = MapAssetManager.ComputeManifestBlake3(manifest);
 		string localMapDir = MapAssetManager.GetMapDirectory(manifestMapName, version, manifestBlake3, false);
-        
+
 		if (!Directory.Exists(localMapDir))
 		{
 			Directory.CreateDirectory(localMapDir);
@@ -218,14 +218,14 @@ public class MapDistributionClient
 			string baseUrl = registryServerUrl.TrimEnd('/');
 			using var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/seeders/download");
 			var payload = new { MapId = mapId };
-			requestMessage.Content = new StringContent(JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
+			requestMessage.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
 			var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
 			if (!response.IsSuccessStatusCode) return candidateSeeders;
 
 			string json = await response.Content.ReadAsStringAsync(cancellationToken);
 			using var doc = JsonDocument.Parse(json);
-            
+
 			if (doc.RootElement.TryGetProperty("seeders", out var seedersElem) && seedersElem.ValueKind == JsonValueKind.Array)
 			{
 				foreach (var seeder in seedersElem.EnumerateArray())
@@ -238,6 +238,7 @@ public class MapDistributionClient
 		{
 			GD.PrintErr($"[MapDistributionClient] Seeder query error: {ex.Message}");
 		}
+
 		return candidateSeeders;
 	}
 
@@ -268,6 +269,7 @@ public class MapDistributionClient
 				return true;
 			}
 		}
+
 		return false;
 	}
 

@@ -1,1369 +1,1320 @@
-﻿using Godot;
-using NSec.Cryptography;
-using Realm.EditorAPI;
-using Realm.Client.Services;
-using Realm.Client.UI.MapEditor;
-using Realm.Client.VFX;
-using Realm.Shared;
-using Realm.Shared.Distribution;
-using Realm.Shared.ModelOptimization;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Net.Http;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using MirrorMode = Realm.Ecs.Components.Core.MirrorMode;
-using PasteReflection = Realm.Ecs.Components.Core.PasteReflection;
-using TerrainCell = Realm.Ecs.Components.Terrain.TerrainCell;
-using WaterType = Realm.Ecs.Components.Terrain.WaterType;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.Services;
+using Realm.Client.UI.MapEditor;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Services;
+using Realm.Shared.Distribution;
+using static Godot.Control;
 
 namespace Realm.Client.UI;
 
 public partial class MapEditorHUD : Control
 {
-    public static MapEditorHUD Instance { get; private set; }
-    public static string CurrentDirectoryBlake3 { get; set; } = string.Empty;
-    public static bool IsDraggingSlider { get; set; } = false;
-    public static bool IsTestMode { get; set; } = false;
-    public static bool ReturningFromTest { get; set; } = false;
-
-    public static Vector3 SavedCameraPosition;
-    public static float SavedTargetHeight;
-    public static float SavedCurrentHeight;
-    public static float SavedTargetYaw;
-    public static float SavedCurrentYaw;
-    public static float SavedTargetPitch;
-    public static float SavedCurrentPitch;
-    public static bool SavedIsTopDown;
-    public static float SavedYawSwing;
-    public static float SavedPitchSwing;
-
-    public static Realm.Client.Core.GameHost.GridOverlayMode SavedGridMode = Realm.Client.Core.GameHost.GridOverlayMode.Off;
-    public static Realm.Client.Core.GameHost.EditorTool SavedActiveTool = Realm.Client.Core.GameHost.EditorTool.Raise;
-    public static string SavedActivePlaceId = "";
-    public static bool SavedCameraBoundsVisible = false;
-    public static bool SavedDisableShadows = false;
-    public static string SavedEntityCategory = "";
-
-    public static float SavedBrushRadius = 2f;
-    public static float SavedBrushStrength = 0.5f;
-    public static float SavedTextureIntensity = 10f;
-
-    private static string? _lastUsedFolder = null;
-    private static string? _currentSourceFolder = null;
-
-    private static string? _pendingCasSourceDirectory = null;
-    private static string? _pendingDefaultSaveFolder = null;
-
-    private static bool _agreementShownThisSession = false;
-
-    public enum EditorModule
-    {
-        Terrain,
-        TextureDeco,
-        Pathing,
-        Objects,
-        Coordinates,
-        Clipboard
-    }
-
-    private MapEditorHUDViewModel _viewModel = new();
-    public MapEditorHUDViewModel ViewModel => _viewModel;
-
-    private Panel _panelLeft;
-    private Button _btnLeftTab;
-    private Panel _panelRight;
-    private Button _btnRightTab;
-    private VBoxContainer _accordionContainer;
-
-    private bool _leftPanelExpanded = false;
-    private bool _rightPanelExpanded = true;
-
-    private OptionButton _optModule;
-    private Button _btnGameSettings;
-    private EditorModule _activeModule = EditorModule.Terrain;
-
-    private VBoxContainer _accordionBrush;
-    private Button _btnHeaderBrush;
-    private VBoxContainer _contentBrush;
-
-    private VBoxContainer _accordionWater;
-    private Button _btnHeaderWater;
-    private VBoxContainer _contentWater;
-    private Button _btnWaterActionAdd;
-    private Button _btnWaterActionRemove;
-    private bool _isWaterRemoveAction = false;
-
-    private VBoxContainer _accordionTool;
-    private Button _btnHeaderTool;
-    private VBoxContainer _contentTool;
-
-    private VBoxContainer _accordionToolSettings;
-    private Button _btnHeaderToolSettings;
-    private VBoxContainer _contentToolSettings;
-
-    private VBoxContainer _accordionPlacement;
-    private Button _btnHeaderPlacement;
-    private VBoxContainer _contentPlacement;
-
-    private VBoxContainer _accordionViewport;
-    private Button _btnHeaderViewport;
-    private VBoxContainer _contentViewport;
-
-    private class CardDragData
-    {
-        public Control CardNode;
-        public Button HeaderButton;
-        public Control ContentControl;
-        public string TitleText;
-        public bool IsDragging;
-        public bool HasMovedSincePress;
-        public Vector2 DragStartMousePos;
-        public Vector2 CardStartPos;
-    }
-
-    private readonly Dictionary<Control, CardDragData> _cardDragMap = new();
-    private Button _btnResetLayout;
-
-    private VBoxContainer _accordionFile;
-    private Button _btnHeaderFile;
-    private Control _contentFile;
-
-    private Realm.Client.UI.MapEditor.MapSettingsDialog? _mapSettingsDialog;
-
-    private VBoxContainer _accordionInspector;
-    private Button _btnHeaderInspector;
-    private VBoxContainer _contentInspector;
-
-    private VBoxContainer _containerTextureSettings;
-    private VBoxContainer _containerPathingSettings;
-    private VBoxContainer _containerPlacementSettings;
-    private VBoxContainer _containerEyedropperSettings;
-    private VBoxContainer _containerPasteSettings;
-    private VBoxContainer _containerCategorySelector;
-
-    private VBoxContainer _panelObjects;
-    private VBoxContainer _panelClipboard;
-    private VBoxContainer _panelTerrainVBox;
-    private VBoxContainer _panelDecoVBox;
-    private VBoxContainer _panelPathingVBox;
-    private VBoxContainer _panelCoordinatesVBox;
-    private Button _btnCut;
-    private Button _btnEraseArea;
-    private Button _btnPasteReflection;
-    private Button _btnClipboardBrushShape;
-    private OptionButton _optClipboardMirrorMode;
-    private HSlider _sldPasteRotation;
-    private Label _lblPasteRotation;
-
-    private OptionButton _optPolarRingSpacing;
-    private OptionButton _optPolarRadialStep;
-    private Button _btnTapeMeasure;
-    private Button _btnResetPivotToCenter;
-    private HBoxContainer _rowPolarConfig;
-
-    private PanelContainer _panelMeasurementHUD;
-    private Label _lblMeasureTelemetry;
-
-    private Button _btnPasteAnchor;
-    private Label _lblPasteTelemetry;
-
-    private int _currentPasteAnchorIndex = 0;
-    private static readonly string[] _pasteAnchorNames = new string[]
-    {
-        "CENTER",
-        "TOP-LEFT",
-        "TOP-RIGHT",
-        "BOTTOM-RIGHT",
-        "BOTTOM-LEFT"
-    };
-
-    private List<Button> _swatchButtons = new List<Button>();
-    private List<string> _swatchPaths = new List<string>();
-    private List<string> _swatchDisplayNames = new List<string>();
-    public IReadOnlyList<string> SwatchDisplayNames => _swatchDisplayNames;
-    private List<Color> _swatchColors = new List<Color>();
-    private ScrollContainer _scrollSwatches;
-    private Control _gridSwatches;
-    private Button _btnReplaceTexture;
-
-    private Panel _leftPillar;
-    private Panel _rightPillar;
-    private PanelContainer _topBar;
-    private HBoxContainer _topToolbar;
-    private VBoxContainer _middleRightBox;
-    private HBoxContainer _topLeftBox;
-    private TextureRect _screenFrameRect;
-    private Tween _hudFadeTween;
-    private bool _is3DInteractionActive = false;
-    public bool Is3DInteractionActive => _is3DInteractionActive;
-    private readonly Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters = new();
-
-    private PanelContainer _panelTextures;
-    private PanelContainer _panelEntityPalette;
-    private PanelContainer _panelTerrain;
-    private PanelContainer _panelDeco;
-    private PanelContainer _panelEnv;
-
-    private Button _btnBackToHub;
-    private Button _btnPublish;
-    private Button _btnSave;
-    private Button _btnSaveAs;
-    private Button _btnTestMap;
-    private Button _btnExportMap;
-    private Button _btnLoad;
-    private Button _btnDeleteObject;
-    private Button _btnUndo;
-    private Button _btnRedo;
-
-    private Label _statusLabel;
-    private Label _feedbackLabel;
-
-    private Button _btnZoomIn;
-    private Button _btnZoomOut;
-    private Button _btnCenter;
-    private Button _btnRotate;
-    private Button _btnCameraAngle;
-
-    private Slider _sldBrushSize;
-    private Label _lblBrushSizeValue;
-    private Slider _sldBrushStrength;
-    private Label _lblBrushStrengthValue;
-
-
-
-    private CheckBox _chkRandomRotation;
-    private CheckBox _chkRandomScale;
-    private Button _btnAddObject;
-    private CheckBox _chkClumpMode;
-    private Control _spacingBox;
-    private Control _densityBox;
-    private Control _scaleVarBox;
-    private Control _camBoundsBox;
-    private CheckBox _chkBlockMode;
-    private Slider _sldBlockStep;
-    private Label _lblBlockStepValue;
-    private Control _heightBox;
-    private Slider _sldHeight;
-    private Label _lblHeightValue;
-
-    private Control _waterHeightBox;
-    private Slider _sldWaterHeight;
-    private Label _lblWaterHeightValue;
-    private Control _waterModeBox;
-    private OptionButton _optWaterMode;
-    private Button _btnWaterProfiles;
-    private Realm.Client.UI.MapEditor.WaterProfileDialog _waterProfileDialog;
-    private Realm.Client.UI.MapEditor.EnvironmentConfigDialog _environmentConfigDialog;
-    private Realm.Client.UI.MapEditor.EntityVisualEditDialog _entityVisualEditDialog;
-    private Realm.Client.UI.MapEditor.AnimationPreviewDialog _animationPreviewDialog;
-    private Realm.Client.UI.MapEditor.WeaponVfxDialog _weaponVfxDialog;
-    private Realm.Client.UI.MapEditor.ModelPickerDialog _modelPickerDialog;
-    private Realm.Client.UI.MapEditor.AbilityVfxDialog _abilityVfxDialog;
-    private Realm.Client.UI.MapEditor.AssetManagerDialog _assetManagerDialog;
-    private Realm.Client.UI.MapEditor.TemplateManagerDialog _templateManagerDialog;
-    private Realm.Client.UI.MapEditor.InstanceManagerDialog _instanceManagerDialog;
-    private Realm.Client.UI.MapEditor.AssetBrowserDialog _assetBrowserDialog;
-    private Realm.Client.UI.MapEditor.NoiseTextureDialog _noiseTextureDialog;
-    private Realm.Client.UI.MapEditor.ConvertGlbDialog _convertGlbDialog;
-    private Realm.Client.UI.MapEditor.EditorSettingsDialog _editorSettingsDialog;
-    private Realm.Client.UI.MapEditor.ShaderEditorDialog _shaderEditorDialog;
-    private Realm.Client.UI.MapEditor.VfxStudioDialog _vfxStudioDialog;
-    private Realm.Client.UI.MapEditor.ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog;
-    private Realm.Client.UI.MapEditor.AuthorSignatureDialog _authorSignatureDialog;
-    private Realm.Client.UI.MapEditor.ReplaceTextureDialog _replaceTextureDialog;
-    private Button _btnEditorSettings;
-    private PanelContainer _mapNameHeaderPanel;
-    private Label _lblMapNameHeader;
-    private double _mapNameUpdateTimer = 0.0;
-    private Button _btnOpenGlobalOverrides;
-    private Button _btnOpenAnimationPreview;
-    private Button _btnEditVfx;
-    private Button _btnEditAttachments;
-    private Button _btnAssetsManager;
-    private Button _btnTemplateManager;
-    private Button _btnInstanceManager;
-    private bool _isUpdatingInspectorUI;
-
-    private CheckBox _chkApplyGroundTexture;
-    private CheckBox _chkApplyCliffTexture;
-    private HBoxContainer _rowGroundTexture;
-    private HBoxContainer _rowCliffTexture;
-
-    private Slider _sldPlacementRotate;
-    private Label _lblPlacementRotateValue;
-    private Slider _sldPlacementScale;
-    private Label _lblPlacementScaleValue;
-    private VBoxContainer _placementRotateBox;
-    private VBoxContainer _placementScaleBox;
-    private Button _btnCopy;
-    private Button _btnPaste;
-    private Control _stepBox;
-    private Button _btnToggleSnap;
-    private Button _btnToggleGrid;
-    private PopupMenu _popupOverlayMode;
-    private Button _btnToggleEnvironment;
-    private PopupPanel _popupEnvironment;
-    private OptionButton _optEnvLighting;
-    private OptionButton _optEnvWeather;
-    private CheckBox _chkEnvShadows;
-    private Button _btnBrushShape;
-    private Button _btnResetMap;
-    private Button _btnGenerateMap;
-    private Button _btnRandomGen;
-    private PopupPanel _popupRandomGen;
-    private Button _btnSaveMore;
-    private PopupPanel _popupSaveMore;
-    private Button _btnImportMinimap;
-    private Button _btnEyedropper;
-    private OptionButton _optEyedropperMode;
-    private Button _btnNoise;
-    private Button _btnWater;
-    private PanelContainer _minimapFrame;
-    private Control _minimapArea;
-    private Realm.Client.UI.MapEditor.MapEditorCameraIndicator _cameraIndicator;
-    private Vector3 _lastRaycastPos = new Vector3(float.MinValue, float.MinValue, float.MinValue);
-
-    private Button _btnToggleCamera;
-    private PopupPanel _popupCamera;
-    private CheckBox _chkFreeCamera;
-
-
-
-    private Button _btnRaise;
-    private Button _btnLower;
-    private Button _btnHeight;
-    private Button _btnSmooth;
-    private Button _btnPlateau;
-    private Button _btnRamp;
-    private OptionButton _optMirrorMode;
-    private OptionButton _optPlacementMirrorMode;
-    private Button _btnClumpBrush;
-    private HSlider _sldClumpDensity;
-    private Label _lblClumpDensityValue;
-    private HSlider _sldClumpScaleVar;
-    private Label _lblClumpScaleVarValue;
-
-    private Button _btnTextureBrush;
-
-    private Button _btnFloodFill;
-    private Button _btnSelectArea;
-    private Button _btnSelectMove;
-    private PanelContainer _inspectorPanel;
-    private Label _lblInspectorTitle;
-    private Label _lblInspectorPos;
-    private Button _btnInspectorRotLeft;
-    private Button _btnInspectorRotRight;
-    private Button _btnInspectorScaleDown;
-    private Button _btnInspectorScaleUp;
-    private Button _btnInspectorScaleReset;
-    private Button _btnInspectorDelete;
-    private Button _btnShowCoverage;
-    private HBoxContainer _playerOwnerContainer;
-    private OptionButton _optPlayerOwner;
-    private PanelContainer _rigStatusContainer;
-    private Label _lblRigStatus;
-
-    private Button _btnPathingBrush;
-    private Button _btnFloodFillPathing;
-    private CheckBox _chkShallowWater;
-    private CheckBox _chkDeepWater;
-    private CheckBox _chkFlying;
-    private CheckBox _chkGround;
-    private CheckBox _chkBuildable;
-
-    private OptionButton _optPathingMode;
-
-
-    private Button _btnDrawCoordinate;
-    private LineEdit _txtCoordinateName;
-    private Button _btnCommitCoordinate;
-    private VBoxContainer _coordinateListVBox;
-    private int _pendingCoordinateMinX;
-    private int _pendingCoordinateMinZ;
-    private int _pendingCoordinateMaxX;
-    private int _pendingCoordinateMaxZ;
-
-    private Button _activeToolButton = null;
-    private StyleBoxFlat _highlightStyle;
-
-    private Control _cardRaise, _cardLower, _cardHeight, _cardSmooth, _cardPlateau, _cardRamp, _cardNoise, _cardWater;
-    private Control _cardTextureBrush, _cardFloodFill;
-    private Control _cardPathingBrush, _cardFloodFillPathing;
-    private Control _cardAddObject, _cardSelectMove, _cardDeleteObject;
-    private Control _cardSelectArea, _cardCut, _cardCopy, _cardPaste, _cardEraseArea;
-    private Label _lblInfoText;
-    private Label _lblTerrainTexture;
-    private Label _lblCliffTexture;
-
-    private PanelContainer _scaleMapDialog;
-    private Label _lblScalePreviewWidth;
-    private Label _lblScalePreviewHeight;
-    private int _scaleDialogTargetWidth;
-    private int _scaleDialogTargetDepth;
-
-    private Camera3D _camera3D;
-    private Button _btnEditors;
-    private Button _btnVSCode;
-    private PopupPanel _popupEditors;
-    private bool _isDraggingSlider = false;
-    private Panel _swatchHighlightPanel;
-    private Panel _swatchCliffHighlightPanel;
-
-    private MapEditorTopBar _topBarController;
-    private MapEditorBrushSettings _brushSettingsController;
-    private MapEditorPlacementSettings _placementSettingsController;
-    private MapEditorInspector _inspectorController;
-    private MapEditorPathingPanel _pathingPanelController;
-    private MapEditorMinimap _minimapController;
-    private MapEditorEntityPaletteController _entityPaletteController;
-    private MapEditorGenerationDialog _generationDialog;
-
-    private bool _wasmHasErrors = false;
-    private string _wasmCompileLogPath = "";
-
-    public const string TempWorkspaceGodotPath = Realm.Client.Services.MapWorkspaceService.DefaultWorkspaceGodotPath;
-
-    private string _tempWorkspacePath = Realm.Client.Services.MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
-    public string TempWorkspacePath => _tempWorkspacePath;
-    private EditorService _editorService;
-    private IEditorAPI _editorApi;
-    public IEditorAPI EditorApi => _editorApi ??= ServiceLocator.Get<IEditorAPI>();
-    private MapUpgradeService _mapUpgradeService;
-    private long _lastTerrainSyncTime = 0;
-    private long _lastMetadataSyncTime = 0;
-    private bool _isSyncing = false;
-    public bool IsSyncing => _isSyncing;
-
-    private double _autoBackupElapsedSeconds = 0;
-
-
-
-    public void PublishMapActionExternal()
-    {
-        string wsPath = !string.IsNullOrEmpty(_tempWorkspacePath) ? _tempWorkspacePath : Realm.Client.Services.MapWorkspaceService.GetActiveWorkspacePath();
-        
-        if (!TryValidateMapPublishRequirements(wsPath)) return;
-
-        var overlay = new ColorRect { Name = "PublishInstructionsOverlay", Color = new Color(0, 0, 0, 0.7f) };
-        overlay.SetAnchorsPreset(LayoutPreset.FullRect);
-        AddChild(overlay);
-
-        var center = new CenterContainer();
-        center.SetAnchorsPreset(LayoutPreset.FullRect);
-        overlay.AddChild(center);
-
-        var panel = CreatePublishMapPanel();
-        center.AddChild(panel);
-
-        var vbox = BuildPublishMapUI(panel);
-
-        var title = new Label { Text = "Publish Map Instructions", HorizontalAlignment = HorizontalAlignment.Center };
-        title.AddThemeFontSizeOverride("font_size", 24);
-        vbox.AddChild(title);
-
-        var optType = new OptionButton();
-        optType.AddItem("Custom Arcade Map", 0);
-        optType.AddItem("Reusable Asset Pack", 1);
-        optType.Selected = _mapSettingsDialog?.SelectedMapTypeIndex ?? 0;
-        vbox.AddChild(optType);
-
-        var scroll = new ScrollContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill };
-        var instructionsText = new RichTextLabel { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, SizeFlagsVertical = Control.SizeFlags.ExpandFill, BbcodeEnabled = true };
-        scroll.AddChild(instructionsText);
-        vbox.AddChild(scroll);
-
-        BindPublishMapInstructions(optType, instructionsText);
-
-        CreatePublishMapOptimizationTip(wsPath, vbox);
-
-        var chkFullExport = new CheckBox { Text = TranslationServer.Translate("Full Export (Include all physical assets in package, bypassing greenlit deduplication)"), ButtonPressed = false };
-        chkFullExport.AddThemeConstantOverride("icon_max_width", 0);
-        UIStyle.ApplyCheckboxStyle(chkFullExport);
-        vbox.AddChild(chkFullExport);
-
-        CreatePublishMapIdentityPanel(vbox);
-
-        AddPublishMapActionButtons(vbox, overlay, chkFullExport);
-    }
-
-    private bool TryValidateMapPublishRequirements(string wsPath)
-    {
-        var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(wsPath);
-        if (!assetsValid)
-        {
-            ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Map is missing required asset files:\n{0}"), string.Join(", ", missingAssets.Take(4)) + (missingAssets.Count > 4 ? "..." : "")));
-            AppendWasmConsoleLog($"[ERROR] Publish failed. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
-            return false;
-        }
-
-        var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(wsPath);
-        if (!sizesValid)
-        {
-            string oversizedSummary = string.Join("\n", oversizedAssets.Take(4).Select(o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (oversizedAssets.Count > 4 ? "\n..." : "");
-            ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Assets exceed maximum 15 MB size limit:\n{0}"), oversizedSummary));
-            AppendWasmConsoleLog($"[ERROR] Publish failed. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", oversizedAssets.Select(o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
-            return false;
-        }
-        return true;
-    }
-
-    private PanelContainer CreatePublishMapPanel()
-    {
-        var panel = new PanelContainer { CustomMinimumSize = new Vector2(1200, 800) };
-        var style = new StyleBoxFlat
-        {
-            BgColor = new Color(0.1f, 0.1f, 0.15f, 0.95f),
-            BorderWidthTop = 2, BorderWidthBottom = 2, BorderWidthLeft = 2, BorderWidthRight = 2,
-            BorderColor = new Color(0.3f, 0.3f, 0.35f, 1f),
-            CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4
-        };
-        panel.AddThemeStyleboxOverride("panel", style);
-        return panel;
-    }
-
-    private VBoxContainer BuildPublishMapUI(PanelContainer panel)
-    {
-        var vbox = new VBoxContainer { CustomMinimumSize = new Vector2(1180, 780) };
-        vbox.AddThemeConstantOverride("separation", 12);
-        vbox.SetAnchorsPreset(LayoutPreset.FullRect);
-        
-        var margin = new MarginContainer();
-        margin.AddThemeConstantOverride("margin_top", 10);
-        margin.AddThemeConstantOverride("margin_bottom", 10);
-        margin.AddThemeConstantOverride("margin_left", 10);
-        margin.AddThemeConstantOverride("margin_right", 10);
-        margin.AddChild(vbox);
-        panel.AddChild(margin);
-        
-        return vbox;
-    }
-
-    private void BindPublishMapInstructions(OptionButton optType, RichTextLabel instructionsText)
-    {
-        string textArcade = TranslationServer.Translate("🚀 [b]Publishing Your Custom Map[/b]\nTo maintain a high-quality community arcade, all new maps start in a Beta-Testing Phase.\n\nOnce your map hits our community play-time metrics (gaining enough unique players, ratings, & community playtime), it will become available for official publishing to community maps screens.\n\nUntil then, it is up to you to share it with the community & market it until you hit that threshold.\nYour map is ready to play right now! Click the 'Export' button to share it. Host a lobby with your map & wait for players to join.\nMessage the community via discord channels, etc to explain your map & convince them to try it. If they enjoy it, they will probably re-host it, which will help you hit the graduation threshold more quickly.\n\nWhile in testing, your map name will include a prefix [Beta-Testing] so players know it's an active work-in-progress. However, you should still do as much personal testing as possible before public hosting to avoid a frustrating experience for your testers.\n\nAfter graduation, your map name will be permanently reserved to your creator profile so no one else can use that same name.");
-        string textAssetPack = TranslationServer.Translate("📦 [b]Publishing a Reusable Asset Pack[/b]\nWant to share your custom 3D models, audio, or code scripts with other map makers?\n\nIn Realm, Asset Packs are published as playable Showcase/Demo Maps.\n\n[b]Build a Playground:[/b] Turn your asset pack into a map where players can preview the functionality provided by your systems, view your models, etc.\n\n[b]Gather Community Metrics:[/b] Just like a regular map, your asset pack will start in a \"beta\" phase before being promoted on community discovery pages. Read the \"Custom Arcade Map\" section for more information.\n\n[b]Easy Importing:[/b] Once a player has a copy of your map, they can import assets from it into their maps via the map editor.\n\n[b]Automatic Credit:[/b] When creators import from you, the system tracks your files' signatures and automatically adds your info to their map credits.");
-
-        Action updateText = () => { instructionsText.Text = optType.Selected == 0 ? textArcade : textAssetPack; };
-        updateText();
-        optType.ItemSelected += (_) => updateText();
-    }
-
-    private void CreatePublishMapOptimizationTip(string wsPath, VBoxContainer vbox)
-    {
-        var (unprunedCount, unnormalizedPotentialCount, potentialSavedBytes) = MapNormalizationHelper.CheckOptimizationState(wsPath);
-        if (unprunedCount <= 0 && unnormalizedPotentialCount <= 0) return;
-
-        var tipPanel = new PanelContainer();
-        var tipStyle = new StyleBoxFlat
-        {
-            BgColor = new Color(0.2f, 0.17f, 0.1f, 0.95f),
-            BorderColor = UIStyle.ColorGoldDull,
-            BorderWidthBottom = 1, BorderWidthTop = 1, BorderWidthLeft = 1, BorderWidthRight = 1,
-            CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4
-        };
-        tipPanel.AddThemeStyleboxOverride("panel", tipStyle);
-        
-        var tipMargin = new MarginContainer();
-        tipMargin.AddThemeConstantOverride("margin_top", 6);
-        tipMargin.AddThemeConstantOverride("margin_bottom", 6);
-        tipMargin.AddThemeConstantOverride("margin_left", 10);
-        tipMargin.AddThemeConstantOverride("margin_right", 10);
-        tipPanel.AddChild(tipMargin);
-
-        var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend clicking 'Prune Unused' and 'Normalize References' in the Asset Manager before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart };
-        tipLabel.AddThemeFontSizeOverride("font_size", 12);
-        tipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-        tipMargin.AddChild(tipLabel);
-        vbox.AddChild(tipPanel);
-    }
-
-    private void CreatePublishMapIdentityPanel(VBoxContainer vbox)
-    {
-        string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-        string defaultUsername = Realm.Client.Network.LobbyManager.Instance?.AuthenticatedUsername ?? System.Environment.UserName;
-        var (_, keyData, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
-        string currentAuthorName = !string.IsNullOrWhiteSpace(keyData?.UserName) ? keyData.UserName : defaultUsername;
-        string authorPubKey = !string.IsNullOrWhiteSpace(keyData?.PublicKey) ? keyData.PublicKey : "";
-        string shortPubKey = authorPubKey.Length > 16 ? $"{authorPubKey[..8]}...{authorPubKey[^8..]}" : authorPubKey;
-
-        var identityPanel = new PanelContainer();
-        var identityStyle = new StyleBoxFlat
-        {
-            BgColor = new Color(0.12f, 0.15f, 0.22f, 0.95f),
-            BorderColor = new Color(0.3f, 0.5f, 0.8f, 0.9f),
-            BorderWidthBottom = 1, BorderWidthTop = 1, BorderWidthLeft = 1, BorderWidthRight = 1,
-            CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4
-        };
-        identityPanel.AddThemeStyleboxOverride("panel", identityStyle);
-        var idMargin = new MarginContainer();
-        idMargin.AddThemeConstantOverride("margin_top", 8);
-        idMargin.AddThemeConstantOverride("margin_bottom", 8);
-        idMargin.AddThemeConstantOverride("margin_left", 12);
-        idMargin.AddThemeConstantOverride("margin_right", 12);
-        identityPanel.AddChild(idMargin);
-
-        var idVBox = new VBoxContainer();
-        idVBox.AddThemeConstantOverride("separation", 6);
-        idMargin.AddChild(idVBox);
-
-        var idHeaderHBox = new HBoxContainer();
-        idHeaderHBox.AddThemeConstantOverride("separation", 8);
-        var idHeaderLabel = new Label { Text = "🔑 " + TranslationServer.Translate("AUTHOR IDENTITY & KEY VERIFICATION"), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        idHeaderLabel.AddThemeFontSizeOverride("font_size", 13);
-        idHeaderLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-        idHeaderHBox.AddChild(idHeaderLabel);
-
-        var btnEditKey = new Button { Text = TranslationServer.Translate("Manage Key / Identity"), CustomMinimumSize = new Vector2(160, 26) };
-        btnEditKey.AddThemeConstantOverride("icon_max_width", 0);
-        btnEditKey.AddThemeFontSizeOverride("font_size", 11);
-        btnEditKey.Pressed += () => { _authorSignatureDialog ??= new Realm.Client.UI.MapEditor.AuthorSignatureDialog(this); _authorSignatureDialog.OpenDialog(); };
-        idHeaderHBox.AddChild(btnEditKey);
-        idVBox.AddChild(idHeaderHBox);
-
-        var idDetailsLabel = new Label { Text = string.Format(TranslationServer.Translate("Author: {0} | Public Key: {1}\nKey File: {2}"), currentAuthorName, shortPubKey, keyPath), AutowrapMode = TextServer.AutowrapMode.WordSmart };
-        idDetailsLabel.AddThemeFontSizeOverride("font_size", 11);
-        idDetailsLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.9f, 1.0f));
-        idVBox.AddChild(idDetailsLabel);
-
-        var idBackupWarn = new Label { Text = "⚠️ " + TranslationServer.Translate("Important: Back up your key file! Your authorship key proves ownership of your map name and allows future updates. If you lose your key file, you will permanently lose ownership and the ability to update this map."), AutowrapMode = TextServer.AutowrapMode.WordSmart };
-        idBackupWarn.AddThemeFontSizeOverride("font_size", 11);
-        idBackupWarn.AddThemeColorOverride("font_color", new Color(1.0f, 0.75f, 0.35f));
-        idVBox.AddChild(idBackupWarn);
-
-        vbox.AddChild(identityPanel);
-    }
-
-    private void AddPublishMapActionButtons(VBoxContainer vbox, ColorRect overlay, CheckBox chkFullExport)
-    {
-        var hbox = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-        hbox.AddThemeConstantOverride("separation", 20);
-        vbox.AddChild(hbox);
-
-        var btnPublish = new Button { Text = TranslationServer.Translate("Publish Map"), CustomMinimumSize = new Vector2(140, 40) };
-        btnPublish.AddThemeConstantOverride("icon_max_width", 0);
-        btnPublish.Pressed += () => { bool isFullExport = chkFullExport.ButtonPressed; overlay.QueueFree(); PublishMapAction(isFullExport); };
-        hbox.AddChild(btnPublish);
-
-        var btnClose = new Button { Text = TranslationServer.Translate("Close"), CustomMinimumSize = new Vector2(120, 40) };
-        btnClose.AddThemeConstantOverride("icon_max_width", 0);
-        btnClose.Pressed += () => overlay.QueueFree();
-        hbox.AddChild(btnClose);
-    }
-
-
-    private bool _lastBrushShapeIsSquare;
-    private bool _hasLastBrushShape;
-
-    private float _lastRotationExternal = float.NaN;
-
-    private float _lastPasteRotationExternal = float.NaN;
-
-    private PasteReflection _lastPasteReflectionExternal = (PasteReflection)(-1);
-
-    private float _lastScaleExternal = float.NaN;
-
-    private float _lastBrushSizeExternal = float.NaN;
-
-
-    private static readonly System.Collections.Generic.Dictionary<Realm.Client.Core.GameHost.EditorTool, string> ToolInfoTexts = new()
-    {
-        { Realm.Client.Core.GameHost.EditorTool.Raise, "TOOL: Raise Heights\n\nDrag left click on the map ground to elevate terrain. Adjust size and strength in settings." },
-        { Realm.Client.Core.GameHost.EditorTool.Ramp, "TOOL: Ramping\n\nLeft-click once on the terrain to set the Ramp Start Point. Left-click again to set the Ramp End Point. The tool will smoothly interpolate heights between the two points. Press Right-click or Escape to cancel." },
-        { Realm.Client.Core.GameHost.EditorTool.Lower, "TOOL: Lower Heights\n\nDrag left click on the map ground to depress terrain. Adjust size and strength in settings." },
-        { Realm.Client.Core.GameHost.EditorTool.Height, "TOOL: Exact Height\n\nDrag left click on the map ground to set terrain to exact block height. Adjust height in settings." },
-        { Realm.Client.Core.GameHost.EditorTool.Plateau, "TOOL: Plateau\n\nDrag left click to flatten terrain to the elevation of your initial click point." },
-        { Realm.Client.Core.GameHost.EditorTool.Smooth, "TOOL: Smooth Terrain\n\nDrag left click to average neighbor vertex heights and smooth out rugged elevations." },
-        { Realm.Client.Core.GameHost.EditorTool.PaintTexture, "TOOL: Texture Painting\n\nDrag left click to paint texture layers onto the vertices of the terrain mesh." },
-        { Realm.Client.Core.GameHost.EditorTool.FloodFill, "TOOL: Flood Fill\n\nClick once on the terrain map to flood-fill an area sharing the same texture color until hitting a boundary (cliff or different texture). Uses selected texture swatch." },
-        { Realm.Client.Core.GameHost.EditorTool.SelectArea, "TOOL: Area Select\n\nDrag left click to select a rectangular area of the map. Press Ctrl+C to copy the area." },
-        { Realm.Client.Core.GameHost.EditorTool.PasteArea, "TOOL: Area Paste\n\nClick on the terrain to paste the copied area. Use the Affected Layers checkboxes to filter what is pasted (Textures, HeightMap, Units / Props, Pathing)." },
-        { Realm.Client.Core.GameHost.EditorTool.PlaceDecal, "TOOL: Place Decal\n\nLeft-click on the ground to project a decorative decal. Snapping, scaling, and rotation apply." },
-        { Realm.Client.Core.GameHost.EditorTool.DeleteObject, "TOOL: Object Eraser\n\nLeft-click directly on any unit or prop in 3D scene to erase and remove it from the map." },
-        { Realm.Client.Core.GameHost.EditorTool.SelectMove, "TOOL: Select / Move\n\nLeft-click directly on any unit, prop, or decal to select it. Hold and drag left click to move it. Use Alt + MouseWheel to scale, or Delete to delete." },
-        { Realm.Client.Core.GameHost.EditorTool.Eyedropper, "TOOL: Eyedropper / Picker\n\nLeft-click directly on any unit, prop, or decal to copy and select it as the active placement tool. Click on terrain to copy its texture color, or hold Shift to copy its height." },
-        { Realm.Client.Core.GameHost.EditorTool.Noise, "TOOL: Roughen Terrain\n\nDrag left-click to apply random height variations/noise to ruggedize the terrain surface. Adjust size and strength in settings." },
-        { Realm.Client.Core.GameHost.EditorTool.Water, "TOOL: Water Flood Fill\n\nClick on terrain to flood-fill water bounded by cliff walls. Uses selected Water Profile or toggles water." },
-        { Realm.Client.Core.GameHost.EditorTool.PaintPathing, "TOOL: Pathing Layer Painting\n\nDrag left click to paint pathing properties (ground, flying, water, etc.) onto the map. Use checkboxes to select layers, and Mode to Add/Remove." },
-        { Realm.Client.Core.GameHost.EditorTool.FloodFillPathing, "TOOL: Flood Fill Pathing\n\nClick once on the terrain map to flood-fill pathing properties (ground, flying, water, etc.) across an area sharing the same texture color until hitting a boundary. Use checkboxes to select layers, and Mode to Add/Remove." },
-        { Realm.Client.Core.GameHost.EditorTool.Measure, "TOOL: Tape Measure\n\nClick on the terrain to set measurement origin. Move the cursor or click again to lock the endpoint. Displays live Euclidean distance, Manhattan distance, grid delta, and slope." },
-        { Realm.Client.Core.GameHost.EditorTool.None, "Select a tool from the panels to begin terrain modification." }
-    };
-
-    public void TriggerToolSelection(Realm.Client.Core.GameHost.EditorTool tool, Button btn, string placeId = "")
-    {
-        if (Realm.Client.Core.GameHost.Instance == null) return;
-
-        HandleEditorToolStateClear(tool);
-        UpdateActiveToolButton(btn);
-
-        Realm.Client.Core.GameHost.Instance.ActiveEditorTool = tool;
-        Realm.Client.Core.GameHost.Instance.ActivePlaceId = placeId;
-
-        UpdateActiveEditorModuleForTool(tool);
-        UpdatePanelVisibilityForToolPathing(tool);
-        UpdateSidebarMorph(tool);
-        ApplyBrushStrengthForTool(tool);
-        UpdateToolStatusLabel(tool, placeId);
-        UpdateTextureLabels();
-    }
-
-    private void HandleEditorToolStateClear(Realm.Client.Core.GameHost.EditorTool tool)
-    {
-        if (tool != Realm.Client.Core.GameHost.EditorTool.SelectMove)
-        {
-            Realm.Client.Core.GameHost.Instance.SelectedEditorObject = null;
-        }
-        if (tool != Realm.Client.Core.GameHost.EditorTool.Ramp)
-        {
-            Realm.Client.Core.GameHost.Instance.ClearRampStartPosExternal();
-        }
-        if (tool != Realm.Client.Core.GameHost.EditorTool.Measure)
-        {
-            Realm.Client.Core.GameHost.Instance.ClearMeasureVisuals();
-            ClearMeasureTelemetry();
-        }
-    }
-
-    private void UpdateActiveToolButton(Button btn)
-    {
-        if (_activeToolButton != null)
-        {
-            _activeToolButton.RemoveThemeStyleboxOverride("normal");
-            if (_activeToolButton.GetParent() is Control oldParent)
-            {
-                Label cardLbl = oldParent.GetNodeOrNull<Label>("ToolCardLabel");
-                if (cardLbl != null) cardLbl.RemoveThemeColorOverride("font_color");
-            }
-        }
-
-        _activeToolButton = btn;
-        if (_activeToolButton != null)
-        {
-            if (_activeToolButton.Name.ToString().StartsWith("Swatch"))
-            {
-                HighlightSwatch(_activeToolButton);
-            }
-            else
-            {
-                _activeToolButton.AddThemeStyleboxOverride("normal", _highlightStyle);
-                if (_activeToolButton.GetParent() is Control newParent)
-                {
-                    Label cardLbl = newParent.GetNodeOrNull<Label>("ToolCardLabel");
-                    if (cardLbl != null) cardLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-                }
-                HighlightSwatch(null);
-            }
-        }
-        else
-        {
-            HighlightSwatch(null);
-        }
-    }
-
-    private void UpdateActiveEditorModuleForTool(Realm.Client.Core.GameHost.EditorTool tool)
-    {
-        EditorModule targetModule = DetermineModuleForTool(tool);
-
-        if (targetModule != _activeModule)
-        {
-            _activeModule = targetModule;
-            UpdateModuleSwitchButtons();
-            UpdatePanelVisibilityForModule(targetModule);
-        }
-    }
-
-    private EditorModule DetermineModuleForTool(Realm.Client.Core.GameHost.EditorTool tool)
-    {
-        return tool switch
-        {
-            Realm.Client.Core.GameHost.EditorTool.Raise or Realm.Client.Core.GameHost.EditorTool.Lower or Realm.Client.Core.GameHost.EditorTool.Smooth or Realm.Client.Core.GameHost.EditorTool.Plateau or Realm.Client.Core.GameHost.EditorTool.Ramp or Realm.Client.Core.GameHost.EditorTool.Noise or Realm.Client.Core.GameHost.EditorTool.Water => EditorModule.Terrain,
-            Realm.Client.Core.GameHost.EditorTool.PaintTexture or Realm.Client.Core.GameHost.EditorTool.FloodFill => EditorModule.TextureDeco,
-            Realm.Client.Core.GameHost.EditorTool.DrawCoordinate => EditorModule.Coordinates,
-            Realm.Client.Core.GameHost.EditorTool.PaintPathing or Realm.Client.Core.GameHost.EditorTool.FloodFillPathing => EditorModule.Pathing,
-            Realm.Client.Core.GameHost.EditorTool.PlaceUnit or Realm.Client.Core.GameHost.EditorTool.PlaceProp or Realm.Client.Core.GameHost.EditorTool.PlacePropClump or Realm.Client.Core.GameHost.EditorTool.PlaceDecal or Realm.Client.Core.GameHost.EditorTool.DeleteObject or Realm.Client.Core.GameHost.EditorTool.SelectMove => EditorModule.Objects,
-            Realm.Client.Core.GameHost.EditorTool.SelectArea or Realm.Client.Core.GameHost.EditorTool.PasteArea => EditorModule.Clipboard,
-            _ => _activeModule
-        };
-    }
-
-    private bool NeedsPathingOverlay(Realm.Client.Core.GameHost.EditorTool tool)
-    {
-        return tool is Realm.Client.Core.GameHost.EditorTool.PaintPathing or Realm.Client.Core.GameHost.EditorTool.FloodFillPathing or Realm.Client.Core.GameHost.EditorTool.DrawCoordinate or Realm.Client.Core.GameHost.EditorTool.SelectArea or Realm.Client.Core.GameHost.EditorTool.PasteArea;
-    }
-
-    private void UpdatePanelVisibilityForToolPathing(Realm.Client.Core.GameHost.EditorTool tool)
-    {
-        if (_panelTextures != null) _panelTextures.Visible = false;
-        if (_panelEntityPalette != null) _panelEntityPalette.Visible = false;
-        
-        if (tool == Realm.Client.Core.GameHost.EditorTool.DrawCoordinate && _btnCommitCoordinate != null)
-        {
-            _btnCommitCoordinate.Visible = false;
-        }
-
-        if (NeedsPathingOverlay(tool))
-        {
-            Realm.Client.Core.GameHost.Instance?.UpdatePathingOverlay();
-        }
-    }
-
-    private void ApplyBrushStrengthForTool(Realm.Client.Core.GameHost.EditorTool tool)
-    {
-        if (_sldBrushStrength == null || Realm.Client.Core.GameHost.Instance == null) return;
-
-        if (tool == Realm.Client.Core.GameHost.EditorTool.PaintTexture)
-        {
-            _sldBrushStrength.MinValue = 0.0;
-            _sldBrushStrength.MaxValue = 10.0;
-            _sldBrushStrength.Step = 1.0;
-            _sldBrushStrength.Value = SavedTextureIntensity;
-            if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = SavedTextureIntensity.ToString("F0");
-            Realm.Client.Core.GameHost.Instance.EditorBrushStrength = SavedTextureIntensity;
-        }
-        else
-        {
-            _sldBrushStrength.MinValue = 0.5;
-            _sldBrushStrength.MaxValue = 10.0;
-            _sldBrushStrength.Step = 0.5;
-            float restoredStrength = Math.Max(0.5f, SavedBrushStrength);
-            _sldBrushStrength.Value = restoredStrength;
-            if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = restoredStrength.ToString("F1");
-            Realm.Client.Core.GameHost.Instance.EditorBrushStrength = restoredStrength;
-        }
-    }
-
-    private void UpdateToolStatusLabel(Realm.Client.Core.GameHost.EditorTool tool, string placeId)
-    {
-        string shortPlaceName = !string.IsNullOrEmpty(placeId) ? System.IO.Path.GetFileName(placeId).ToUpper() : "";
-        UpdateActiveToolLabel(tool, shortPlaceName);
-
-        if (_lblInfoText == null) return;
-        UpdateToolInfoText(tool, shortPlaceName);
-    }
-
-    private void UpdateActiveToolLabel(Realm.Client.Core.GameHost.EditorTool tool, string shortPlaceName)
-    {
-        if (_statusLabel == null) return;
-        
-        string toolName = tool.ToString().ToUpper();
-        if (!string.IsNullOrEmpty(shortPlaceName)) toolName += $" ({shortPlaceName})";
-
-        _statusLabel.Text = $"ACTIVE TOOL: {toolName}";
-    }
-
-    private void UpdateToolInfoText(Realm.Client.Core.GameHost.EditorTool tool, string shortPlaceName)
-    {
-        if (tool == Realm.Client.Core.GameHost.EditorTool.PlaceUnit)
-        {
-            string alignment = (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.PlaceUnitIsEnemy) ? TranslationServer.Translate("Enemy (Orc)") : TranslationServer.Translate("Player (Alliance)");
-            _lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
-            return;
-        }
-        
-        if (tool == Realm.Client.Core.GameHost.EditorTool.PlaceProp)
-        {
-            _lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Prop\n\nLeft-click on the ground to spawn static decorative object: {0}."), shortPlaceName);
-            return;
-        }
-        
-        if (tool == Realm.Client.Core.GameHost.EditorTool.PlacePropClump)
-        {
-            _lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Clump Brush\n\nDrag left click on the ground to paint clumps of static props: {0} based on Density and Scale Variation settings. Uses texture brush shape (Circle/Square)."), shortPlaceName);
-            return;
-        }
-        
-        if (ToolInfoTexts.TryGetValue(tool, out string rawText))
-        {
-            _lblInfoText.Text = TranslationServer.Translate(rawText);
-        }
-    }
-
-
-    private ColorRect _helpOverlayPanel = null;
-
-    private static readonly int[] SpokeCountOptions = new[] { 2, 3, 4, 5, 6, 8, 12, 16 };
-
-    private static readonly float[] PolarRingSpacingOptions = new[] { 4.0f, 8.0f, 16.0f, 32.0f };
-
-
-    private void UpdatePanelVisibilityForModule(EditorModule module)
-    {
-        SetAccordionVisibilities(module);
-        SetModuleVBoxVisibilities(module);
-        SetSettingsVisibilities(module);
-        SetContentHeaders(module);
-
-        _accordionContainer?.QueueSort();
-        RefreshCardScrollStates();
-    }
-
-    private bool IsBrushAccordionVisible(EditorModule module) => module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing;
-    private bool IsToolSettingsAccordionVisible(EditorModule module) => module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing or EditorModule.Objects or EditorModule.Clipboard;
-    private bool IsPlacementAccordionVisible(EditorModule module) => module is EditorModule.Objects or EditorModule.Clipboard;
-
-    private bool IsInspectorAccordionVisible(EditorModule module)
-    {
-        if (module == EditorModule.Objects) return true;
-        var host = Realm.Client.Core.GameHost.Instance;
-        bool hasSelectedObject = host != null && GodotObject.IsInstanceValid(host.SelectedEditorObject);
-        return hasSelectedObject && host?.ActiveEditorTool == Realm.Client.Core.GameHost.EditorTool.SelectMove;
-    }
-
-    private void SetAccordionVisibilities(EditorModule module)
-    {
-        _accordionFile ??= GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion");
-        _accordionViewport ??= GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
-
-        if (_accordionFile != null) _accordionFile.Visible = true;
-        if (_accordionViewport != null) _accordionViewport.Visible = true;
-        if (_accordionTool != null) _accordionTool.Visible = true;
-
-        if (_accordionBrush != null) _accordionBrush.Visible = IsBrushAccordionVisible(module);
-        if (_accordionToolSettings != null) _accordionToolSettings.Visible = IsToolSettingsAccordionVisible(module);
-        if (_accordionPlacement != null) _accordionPlacement.Visible = IsPlacementAccordionVisible(module);
-        if (_accordionInspector != null) _accordionInspector.Visible = IsInspectorAccordionVisible(module);
-    }
-
-    private void SetModuleVBoxVisibilities(EditorModule module)
-    {
-        if (_panelTerrainVBox != null) _panelTerrainVBox.Visible = (module == EditorModule.Terrain);
-        if (_panelDecoVBox != null) _panelDecoVBox.Visible = (module == EditorModule.TextureDeco);
-        if (_panelPathingVBox != null) _panelPathingVBox.Visible = (module == EditorModule.Pathing);
-        if (_panelCoordinatesVBox != null) _panelCoordinatesVBox.Visible = (module == EditorModule.Coordinates);
-        if (_panelObjects != null) _panelObjects.Visible = (module == EditorModule.Objects);
-        if (_panelClipboard != null) _panelClipboard.Visible = (module == EditorModule.Clipboard);
-    }
-
-    private void SetSettingsVisibilities(EditorModule module)
-    {
-        if (_containerTextureSettings != null) _containerTextureSettings.Visible = (module == EditorModule.Terrain || module == EditorModule.TextureDeco);
-        if (_panelEnv != null) _panelEnv.Visible = (module == EditorModule.TextureDeco);
-        if (_containerPathingSettings != null) _containerPathingSettings.Visible = (module == EditorModule.Pathing);
-        if (_containerPasteSettings != null) _containerPasteSettings.Visible = (module == EditorModule.Clipboard);
-        if (_containerCategorySelector != null) _containerCategorySelector.Visible = (module == EditorModule.Objects);
-    }
-
-    private void SetContentHeaders(EditorModule module)
-    {
-        SetHeaderContent(_contentTool, _btnHeaderTool, true, "Tool");
-        
-        bool showBrush = module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing;
-        SetHeaderContent(_contentBrush, _btnHeaderBrush, showBrush, "Global Brush Properties");
-        
-        bool showToolSettings = module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing or EditorModule.Objects or EditorModule.Clipboard;
-        SetHeaderContent(_contentToolSettings, _btnHeaderToolSettings, showToolSettings, "Tool Settings");
-        
-        bool showPlacement = module is EditorModule.Objects or EditorModule.Clipboard;
-        SetHeaderContent(_contentPlacement, _btnHeaderPlacement, showPlacement, "Placement Config");
-    }
-
-    private void SetHeaderContent(Control content, Button btn, bool isVisible, string translationKey)
-    {
-        if (content == null || !isVisible) return;
-        content.Visible = true;
-        if (btn != null) btn.Text = TranslationServer.Translate(translationKey).ToString().ToUpperInvariant() + "  ▼";
-    }
-
-
-    private void RefreshCardScrollStates()
-    {
-        UpdateCardScrollState(_contentFile, 300f);
-        UpdateCardScrollState(_contentViewport, 0f, false);
-        UpdateCardScrollState(_contentTool, 320f);
-        UpdateCardScrollState(_contentBrush, 300f);
-        UpdateCardScrollState(_contentToolSettings, 320f);
-        UpdateCardScrollState(_contentPlacement, 320f);
-        UpdateCardScrollState(_contentInspector, 300f);
-    }
-
-    private FontVariation _faFontVariation;
-
-    private void StyleGridButton(Button btn)
-    {
-        if (btn == null) return;
-        btn.Flat = false;
-        btn.CustomMinimumSize = new Vector2(105, 30);
-        btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-
-        var font = GetFontAwesomeFont();
-        if (font != null)
-        {
-            btn.AddThemeFontOverride("font", font);
-        }
-
-        var btnNormal = new StyleBoxFlat();
-        btnNormal.BgColor = new Color(0.15f, 0.14f, 0.12f, 0.75f);
-        btnNormal.BorderColor = new Color(0.32f, 0.27f, 0.20f, 0.6f);
-        btnNormal.SetBorderWidthAll(1);
-        btnNormal.CornerRadiusTopLeft = 3;
-        btnNormal.CornerRadiusTopRight = 3;
-        btnNormal.CornerRadiusBottomLeft = 3;
-        btnNormal.CornerRadiusBottomRight = 3;
-        btnNormal.ContentMarginLeft = 4;
-        btnNormal.ContentMarginRight = 4;
-
-        var btnHover = new StyleBoxFlat();
-        btnHover.BgColor = new Color(0.26f, 0.23f, 0.18f, 0.95f);
-        btnHover.BorderColor = UIStyle.ColorGold;
-        btnHover.SetBorderWidthAll(1);
-        btnHover.CornerRadiusTopLeft = 3;
-        btnHover.CornerRadiusTopRight = 3;
-        btnHover.CornerRadiusBottomLeft = 3;
-        btnHover.CornerRadiusBottomRight = 3;
-        btnHover.ContentMarginLeft = 4;
-        btnHover.ContentMarginRight = 4;
-
-        var btnPressed = new StyleBoxFlat();
-        btnPressed.BgColor = new Color(0.32f, 0.28f, 0.21f, 0.98f);
-        btnPressed.BorderColor = UIStyle.ColorGold;
-        btnPressed.SetBorderWidthAll(1);
-
-        btn.AddThemeStyleboxOverride("normal", btnNormal);
-        btn.AddThemeStyleboxOverride("hover", btnHover);
-        btn.AddThemeStyleboxOverride("pressed", btnPressed);
-        btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-        btn.AddThemeFontSizeOverride("font_size", 11);
-        btn.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
-        btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-        btn.Alignment = HorizontalAlignment.Center;
-    }
-
-    private readonly HashSet<ulong> _hookedSliderInstanceIds = new();
-
-
-    public bool IsMouseOverUI(Vector2 mousePos)
-    {
-        if (IsMenuOrOverlayOpen(mousePos)) return true;
-        if (IsDraggingOrHoveringCoreUI()) return true;
-        if (IsPopupVisible()) return true;
-        if (IsMouseOverOptionCards(mousePos)) return true;
-        if (IsMouseOverOptionContents(mousePos)) return true;
-        if (IsMouseOverToolbarOrOverlays(mousePos)) return true;
-
-        return false;
-    }
-
-    private bool IsMenuOrOverlayOpen(Vector2 mousePos)
-    {
-        if (Realm.Client.UI.SettingsMenu.IsOpen) return true;
-        if (_helpOverlayPanel != null && _helpOverlayPanel.IsVisibleInTree()) return true;
-        if (GetNodeOrNull<Control>("ConfirmationOverlay") != null) return true;
-        if (GetNodeOrNull<Control>("GenerationOverlay") != null) return true;
-        if (GetNodeOrNull<Control>("AgreementOverlay") != null) return true;
-        if (_scaleMapDialog != null && _scaleMapDialog.IsVisibleInTree()) return true;
-        if (Realm.Client.UI.MapEditor.FloatingDialogBase.IsMouseOverAnyDialogOpen(mousePos)) return true;
-        return false;
-    }
-
-    private bool IsDraggingOrHoveringCoreUI()
-    {
-        if (_is3DInteractionActive) return false;
-        if (_minimapController?.IsDragging == true || _isDraggingSlider) return true;
-
-        var hoveredControl = GetViewport().GuiGetHoveredControl();
-        if (hoveredControl == null || hoveredControl == this) return false;
-        
-        if (hoveredControl == _panelLeft || hoveredControl == _panelRight) return false;
-
-        string[] ignoredNames = { "LeftScroll", "RightScroll", "LeftVBox", "AccordionContainer", "FeedbackLabel", "MapEditorScreenFrame" };
-        if (Array.IndexOf(ignoredNames, (string)hoveredControl.Name) >= 0) return false;
-
-        return true;
-    }
-
-    private bool IsPanelPopupVisible()
-    {
-        return (_popupOverlayMode?.Visible == true) ||
-               (_popupEnvironment?.Visible == true) ||
-               (_popupCamera?.Visible == true) ||
-               (_popupEditors?.Visible == true) ||
-               (_popupSaveMore?.Visible == true) ||
-               (_popupRandomGen?.Visible == true);
-    }
-
-    private bool IsPrimaryOptionPopupVisible()
-    {
-        return (_optModule?.GetPopup()?.Visible == true) ||
-               (_entityPaletteController?.OptCategoryItems?.GetPopup()?.Visible == true) ||
-               (_optEyedropperMode?.GetPopup()?.Visible == true) ||
-               (_optPathingMode?.GetPopup()?.Visible == true) ||
-               (_optMirrorMode?.GetPopup()?.Visible == true) ||
-               (_optClipboardMirrorMode?.GetPopup()?.Visible == true);
-    }
-
-    private bool IsSecondaryOptionPopupVisible()
-    {
-        return (_optPlacementMirrorMode?.GetPopup()?.Visible == true) ||
-               (_optPolarRingSpacing?.GetPopup()?.Visible == true) ||
-               (_optPolarRadialStep?.GetPopup()?.Visible == true) ||
-               (_optEnvLighting?.GetPopup()?.Visible == true) ||
-               (_optEnvWeather?.GetPopup()?.Visible == true);
-    }
-
-    private bool IsPopupVisible()
-    {
-        if (IsPanelPopupVisible()) return true;
-        if (IsPrimaryOptionPopupVisible()) return true;
-        if (IsSecondaryOptionPopupVisible()) return true;
-        
-        return false;
-    }
-
-    private bool IsMouseOverOptionCards(Vector2 mousePos)
-    {
-        foreach (var kvp in _cardDragMap)
-        {
-            var card = kvp.Key;
-            if (GodotObject.IsInstanceValid(card) && card.IsVisibleInTree())
-            {
-                if (card.GetGlobalRect().HasPoint(mousePos)) return true;
-            }
-        }
-        return false;
-    }
-
-    private bool IsMouseOverOptionContents(Vector2 mousePos)
-    {
-        Control[] optionContents = new Control[]
-        {
-            _contentFile, _contentViewport, _contentTool,
-            _contentBrush, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
-        };
-        foreach (var content in optionContents)
-        {
-            if (GodotObject.IsInstanceValid(content) && content.IsVisibleInTree())
-            {
-                if (content.GetGlobalRect().HasPoint(mousePos)) return true;
-            }
-        }
-        return false;
-    }
-
-    private bool IsMouseOverToolbarOrOverlays(Vector2 mousePos)
-    {
-        Control[] checkControls = {
-            _btnLeftTab, _btnRightTab,
-            GetNodeOrNull<Control>("TopLeftBox"),
-            GetNodeOrNull<Control>("TopBar"),
-            _topToolbar, _middleRightBox, _scaleMapDialog,
-            GetNodeOrNull<Control>("GenerationOverlay")
-        };
-        
-        foreach (var control in checkControls)
-        {
-            if (control?.Visible == true && control.GetGlobalRect().HasPoint(mousePos)) return true;
-        }
-
-        return false;
-    }
-
-
-    private void ApplyMouseFilterIgnoreRecursive(Node node)
-    {
-        if (node == null) return;
-        if (node is Control ctrl)
-        {
-            if (ctrl.MouseFilter != Control.MouseFilterEnum.Ignore)
-            {
-                _savedMouseFilters[ctrl] = ctrl.MouseFilter;
-                ctrl.MouseFilter = Control.MouseFilterEnum.Ignore;
-            }
-        }
-        foreach (Node child in node.GetChildren())
-        {
-            ApplyMouseFilterIgnoreRecursive(child);
-        }
-    }
-
-    public Realm.Client.UI.MapEditor.WeaponVfxDialog WeaponVfxDialog => _weaponVfxDialog;
-
-    private Realm.Client.UI.MapEditor.ObjectAttachmentDialog _objectAttachmentDialog;
-
-
-    public async System.Threading.Tasks.Task ProceedToTestMap()
-    {
-        if (Realm.Client.Core.GameHost.Instance == null) return;
-
-        _wasmHasErrors = false;
-        ShowWasmConsoleModal();
-        Action<string> logHandler = line => AppendWasmConsoleLog(line);
-        Core.WasmRuntime.OnWasmLog += logHandler;
-
-        try
-        {
-            SaveEditorStateBeforeTest();
-            await PrepareMapAndWorkspaceForTest();
-            
-            if (_wasmHasErrors) return;
-
-            if (!TryLocateCompiledWasm(out string wasmPath)) return;
-
-            Realm.Client.Core.GameHost.PendingMapScriptPath = wasmPath;
-            AppendWasmConsoleLog($"[WASM] Located compiled WASM binary: {System.IO.Path.GetFileName(wasmPath)}");
-
-            await LaunchTestModeEngine();
-        }
-        catch (Exception ex)
-        {
-            _wasmHasErrors = true;
-            SetWasmConsoleStatus("❌ Error launching test mode", new Color(1.0f, 0.3f, 0.3f));
-            AppendWasmConsoleLog($"[RUNTIME EXCEPTION] {ex}");
-        }
-        finally
-        {
-            Core.WasmRuntime.OnWasmLog -= logHandler;
-        }
-    }
-
-    private void SaveEditorStateBeforeTest()
-    {
-        SaveCameraState();
-        SaveGameHostStates();
-    }
-
-    private void SaveCameraState()
-    {
-        var camera = Realm.Client.Core.GameHost.Instance.MainCamera as Realm.Client.CameraControl;
-        if (camera == null) return;
-        
-        SavedCameraPosition = camera.Position;
-        
-        var host = Realm.Client.Core.GameHost.Instance;
-        if (host.EcsWorld != null && host.EcsWorld.IsAlive(host.WorldEntity) && host.EcsWorld.Has<Realm.Ecs.Components.Core.CameraState>(host.WorldEntity))
-        {
-            var state = host.EcsWorld.Get<Realm.Ecs.Components.Core.CameraState>(host.WorldEntity);
-            SavedTargetHeight = state.TargetHeight;
-            SavedCurrentHeight = state.CurrentHeight;
-            SavedTargetYaw = state.TargetYaw;
-            SavedCurrentYaw = state.CurrentYaw;
-            SavedTargetPitch = state.TargetPitch;
-            SavedCurrentPitch = state.CurrentPitch;
-            SavedIsTopDown = state.IsTopDown;
-            SavedYawSwing = state.YawSwing;
-            SavedPitchSwing = state.PitchSwing;
-        }
-    }
-
-    private void SaveGameHostStates()
-    {
-        var host = Realm.Client.Core.GameHost.Instance;
-        SavedGridMode = host.EditorGridMode;
-        SavedActiveTool = host.ActiveEditorTool;
-        SavedActivePlaceId = host.ActivePlaceId;
-        SavedCameraBoundsVisible = host.EditorCameraBoundsVisible;
-        SavedDisableShadows = host.EditorDisableShadows;
-        SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
-        SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
-        SavedBrushStrength = (float)(_sldBrushStrength?.Value ?? 1f);
-    }
-
-    private async System.Threading.Tasks.Task PrepareMapAndWorkspaceForTest()
-    {
-        string tempTerrainPath = System.IO.Path.Combine(_tempWorkspacePath, "terrain.json");
-        Realm.Client.Core.GameHost.Instance.SaveMapToFile(tempTerrainPath);
-        Realm.Client.Core.GameHost.Instance.EditorHasUnsavedChanges = false;
-        InvalidateMetadataCache();
-
-        if (OperatingSystem.IsWindows())
-        {
-            SetWasmConsoleStatus("Auto-saving modified files in VSCode...", UIStyle.ColorCyanGlow);
-            AppendWasmConsoleLog("[VSCode] Requesting auto-save of all open workspace files...");
-            await Realm.Client.VSCodeManager.Instance.SaveAllOpenFilesAsync();
-        }
-
-        SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
-        AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
-
-        await CompileAndSignMapAsync(_tempWorkspacePath, skipAttribution: true);
-
-        if (_wasmHasErrors)
-        {
-            SetWasmConsoleStatus("❌ WASM Compilation Failed", new Color(1.0f, 0.3f, 0.3f));
-            AppendWasmConsoleLog("[ERROR] Map script compilation failed. Test mode aborted.");
-        }
-    }
-
-    private bool TryLocateCompiledWasm(out string wasmPath)
-    {
-        string binDir = System.IO.Path.Combine(_tempWorkspacePath, "bin");
-        wasmPath = null;
-        if (System.IO.Directory.Exists(binDir))
-        {
-            var wasmFiles = System.IO.Directory.GetFiles(
-                binDir,
-                "*.wasm",
-                System.IO.SearchOption.AllDirectories
-            ).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
-
-            wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
-                       ?? wasmFiles.OrderByDescending(f => System.IO.File.GetLastWriteTimeUtc(f)).FirstOrDefault();
-        }
-
-        if (!System.IO.File.Exists(wasmPath))
-        {
-            _wasmHasErrors = true;
-            SetWasmConsoleStatus("❌ WASM Compilation Failed: Output binary missing", new Color(1.0f, 0.3f, 0.3f));
-            AppendWasmConsoleLog($"[ERROR] Could not find compiled WASM in {binDir}. Test mode aborted.");
-            return false;
-        }
-
-        return true;
-    }
-
-    private async System.Threading.Tasks.Task LaunchTestModeEngine()
-    {
-        SetWasmConsoleStatus("Launching test mode...", UIStyle.ColorCyanGlow);
-        AppendWasmConsoleLog("=== LAUNCHING GAME ENGINE ===");
-
-        if (Realm.Client.UI.UIManager.Instance != null)
-        {
-            await Realm.Client.UI.UIManager.Instance.ApplyWindowSettings(GameSettings.WindowModeIdx, GameSettings.ResolutionIdx);
-        }
-        
-        Realm.Client.Core.GameHost.Instance.ExitMapEditorMode();
-        IsTestMode = true;
-
-        if (Realm.Client.UI.UIManager.Instance != null)
-        {
-            Realm.Client.UI.UIManager.Instance.TransitionTo(GameScreen.InGameHUD);
-        }
-
-        if (Realm.Client.Network.LobbyManager.Instance != null)
-        {
-            Realm.Client.Network.LobbyManager.Instance.HostSinglePlayerGame(TempWorkspaceGodotPath, "Test Map");
-        }
-
-        await System.Threading.Tasks.Task.Delay(500);
-        CloseWasmConsoleModal();
-    }
-
-
-    private readonly Dictionary<int, Texture2D> _swatchTextureCache = new();
-
-    private string? _cachedMapName;
-    private string? _cachedMapVersion;
-    private long _lastMapNameCacheTicks;
-
-    public void InvalidateMetadataCache()
-    {
-        _cachedMapName = null;
-        _cachedMapVersion = null;
-        _lastMapNameCacheTicks = 0;
-    }
-
-    private Button _btnHeaderLightingTuning;
-    private VBoxContainer _contentLightingTuning;
-
-    private HSlider _sldCliffJitterStrength, _sldCliffJitterScale, _sldCliffRimNoiseStrength;
-    private HSlider _sldHeightBlendSoftness, _sldBlendNoiseStrength, _sldBlendNoiseScale;
-    private float _tuneCliffJitterStrength = 1.0f;
-    private float _tuneCliffJitterScale = 0.20f;
-    private float _tuneCliffRimNoiseStrength = 0.30f;
-    private float _tuneHeightBlendSoftness = 0.04f;
-    private float _tuneBlendNoiseStrength = 0.22f;
-    private float _tuneBlendNoiseScale = 0.22f;
+	public MapEditorHUD()
+	{
+		Instance = this;
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
+	public static MapEditorHUD Instance { get; set; }
+
+	public static bool IsDraggingSlider { get; set; } = false;
+
+
+	private static bool _agreementShownThisSession { get; set; } = false;
+
+
+	public MapEditorHUDViewModel _viewModel { get; set; } = new();
+
+	private Panel _panelLeft { get; set; }
+	private Button _btnLeftTab { get; set; }
+	private Panel _panelRight { get; set; }
+	private Button _btnRightTab { get; set; }
+	private VBoxContainer _accordionContainer { get; set; }
+
+	private bool _leftPanelExpanded { get; set; } = false;
+	private bool _rightPanelExpanded { get; set; } = true;
+
+	private OptionButton _optModule { get; set; }
+	private Button _btnGameSettings { get; set; }
+	private EditorModule _activeModule { get; set; } = EditorModule.Terrain;
+
+	private VBoxContainer _accordionBrush { get; set; }
+	private Button _btnHeaderBrush { get; set; }
+	private VBoxContainer _contentBrush { get; set; }
+
+	private VBoxContainer _accordionWater { get; set; }
+	private Button _btnHeaderWater { get; set; }
+	private VBoxContainer _contentWater { get; set; }
+	private Button _btnWaterActionAdd { get; set; }
+	private Button _btnWaterActionRemove { get; set; }
+
+
+	private VBoxContainer _accordionTool { get; set; }
+	private Button _btnHeaderTool { get; set; }
+	private VBoxContainer _contentTool { get; set; }
+
+	private VBoxContainer _accordionToolSettings { get; set; }
+	private Button _btnHeaderToolSettings { get; set; }
+	private VBoxContainer _contentToolSettings { get; set; }
+
+	private VBoxContainer _accordionPlacement { get; set; }
+	private Button _btnHeaderPlacement { get; set; }
+	private VBoxContainer _contentPlacement { get; set; }
+
+	private VBoxContainer _accordionViewport { get; set; }
+	private Button _btnHeaderViewport { get; set; }
+	private VBoxContainer _contentViewport { get; set; }
+
+
+	private Dictionary<Control, CardDragData> _cardDragMap { get; set; } = new();
+	private Button _btnResetLayout { get; set; }
+
+	private VBoxContainer _accordionFile { get; set; }
+	private Button _btnHeaderFile { get; set; }
+	private Control _contentFile { get; set; }
+
+	private MapSettingsDialog? _mapSettingsDialog { get; set; }
+
+	private VBoxContainer _accordionInspector { get; set; }
+	private Button _btnHeaderInspector { get; set; }
+	private VBoxContainer _contentInspector { get; set; }
+
+	private VBoxContainer _containerTextureSettings { get; set; }
+	private VBoxContainer _containerPathingSettings { get; set; }
+	private VBoxContainer _containerPlacementSettings { get; set; }
+	private VBoxContainer _containerEyedropperSettings { get; set; }
+	private VBoxContainer _containerPasteSettings { get; set; }
+	private VBoxContainer _containerCategorySelector { get; set; }
+
+	private VBoxContainer _panelObjects { get; set; }
+	private VBoxContainer _panelClipboard { get; set; }
+	private VBoxContainer _panelTerrainVBox { get; set; }
+	private VBoxContainer _panelDecoVBox { get; set; }
+	private VBoxContainer _panelPathingVBox { get; set; }
+	private VBoxContainer _panelCoordinatesVBox { get; set; }
+	private Button _btnCut { get; set; }
+	private Button _btnEraseArea { get; set; }
+	private Button _btnPasteReflection { get; set; }
+	private Button _btnClipboardBrushShape { get; set; }
+	private OptionButton _optClipboardMirrorMode { get; set; }
+	private HSlider _sldPasteRotation { get; set; }
+	private Label _lblPasteRotation { get; set; }
+
+	private OptionButton _optPolarRingSpacing { get; set; }
+	private OptionButton _optPolarRadialStep { get; set; }
+	private Button _btnTapeMeasure { get; set; }
+	private Button _btnResetPivotToCenter { get; set; }
+	private HBoxContainer _rowPolarConfig { get; set; }
+
+	private PanelContainer _panelMeasurementHUD { get; set; }
+	private Label _lblMeasureTelemetry { get; set; }
+
+	private Button _btnPasteAnchor { get; set; }
+	private Label _lblPasteTelemetry { get; set; }
+
+
+	private List<Button> _swatchButtons { get; set; } = new List<Button>();
+
+
+	private ScrollContainer _scrollSwatches { get; set; }
+	private Control _gridSwatches { get; set; }
+	private Button _btnReplaceTexture { get; set; }
+
+	private Panel _leftPillar { get; set; }
+	private Panel _rightPillar { get; set; }
+	private PanelContainer _topBar { get; set; }
+	private HBoxContainer _topToolbar { get; set; }
+	private VBoxContainer _middleRightBox { get; set; }
+	private HBoxContainer _topLeftBox { get; set; }
+	private TextureRect _screenFrameRect { get; set; }
+	private Tween _hudFadeTween { get; set; }
+	private bool _is3DInteractionActive { get; set; } = false;
+
+	private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
+
+	private PanelContainer _panelTextures { get; set; }
+	private PanelContainer _panelEntityPalette { get; set; }
+	private PanelContainer _panelTerrain { get; set; }
+	private PanelContainer _panelDeco { get; set; }
+	private PanelContainer _panelEnv { get; set; }
+
+	private Button _btnBackToHub { get; set; }
+	private Button _btnPublish { get; set; }
+	private Button _btnSave { get; set; }
+	private Button _btnSaveAs { get; set; }
+	private Button _btnTestMap { get; set; }
+	private Button _btnExportMap { get; set; }
+	private Button _btnLoad { get; set; }
+	private Button _btnDeleteObject { get; set; }
+	private Button _btnUndo { get; set; }
+	private Button _btnRedo { get; set; }
+
+	private Label _statusLabel { get; set; }
+	private Label _feedbackLabel { get; set; }
+
+	private Button _btnZoomIn { get; set; }
+	private Button _btnZoomOut { get; set; }
+	private Button _btnCenter { get; set; }
+	private Button _btnRotate { get; set; }
+	private Button _btnCameraAngle { get; set; }
+
+	private Slider _sldBrushSize { get; set; }
+	private Label _lblBrushSizeValue { get; set; }
+	private Slider _sldBrushStrength { get; set; }
+	private Label _lblBrushStrengthValue { get; set; }
+
+
+	private CheckBox _chkRandomRotation { get; set; }
+	private CheckBox _chkRandomScale { get; set; }
+	private Button _btnAddObject { get; set; }
+	private CheckBox _chkClumpMode { get; set; }
+	private Control _spacingBox { get; set; }
+	private Control _densityBox { get; set; }
+	private Control _scaleVarBox { get; set; }
+	private Control _camBoundsBox { get; set; }
+	private CheckBox _chkBlockMode { get; set; }
+	private Slider _sldBlockStep { get; set; }
+	private Label _lblBlockStepValue { get; set; }
+	private Control _heightBox { get; set; }
+	private Slider _sldHeight { get; set; }
+	private Label _lblHeightValue { get; set; }
+
+	private Control _waterHeightBox { get; set; }
+	private Slider _sldWaterHeight { get; set; }
+	private Label _lblWaterHeightValue { get; set; }
+	private Control _waterModeBox { get; set; }
+	private OptionButton _optWaterMode { get; set; }
+	private Button _btnWaterProfiles { get; set; }
+	private WaterProfileDialog _waterProfileDialog { get; set; }
+	private EnvironmentConfigDialog _environmentConfigDialog { get; set; }
+	private EntityVisualEditDialog _entityVisualEditDialog { get; set; }
+	private AnimationPreviewDialog _animationPreviewDialog { get; set; }
+	private WeaponVfxDialog _weaponVfxDialog { get; set; }
+	private ModelPickerDialog _modelPickerDialog { get; set; }
+	private AbilityVfxDialog _abilityVfxDialog { get; set; }
+	private AssetManagerDialog _assetManagerDialog { get; set; }
+	private TemplateManagerDialog _templateManagerDialog { get; set; }
+	private InstanceManagerDialog _instanceManagerDialog { get; set; }
+	private AssetBrowserDialog _assetBrowserDialog { get; set; }
+	private NoiseTextureDialog _noiseTextureDialog { get; set; }
+	private ConvertGlbDialog _convertGlbDialog { get; set; }
+	private EditorSettingsDialog _editorSettingsDialog { get; set; }
+	private ShaderEditorDialog _shaderEditorDialog { get; set; }
+	private VfxStudioDialog _vfxStudioDialog { get; set; }
+	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog { get; set; }
+	private AuthorSignatureDialog _authorSignatureDialog { get; set; }
+	private ReplaceTextureDialog _replaceTextureDialog { get; set; }
+	private Button _btnEditorSettings { get; set; }
+	private PanelContainer _mapNameHeaderPanel { get; set; }
+	private Label _lblMapNameHeader { get; set; }
+	private double _mapNameUpdateTimer { get; set; } = 0.0;
+	private Button _btnOpenGlobalOverrides { get; set; }
+	private Button _btnOpenAnimationPreview { get; set; }
+	private Button BtnEditVfx { get; set; }
+	private Button BtnEditAttachments { get; set; }
+	private Button BtnAssetsManager { get; set; }
+	private Button BtnTemplateManager { get; set; }
+	private Button BtnInstanceManager { get; set; }
+	private bool IsUpdatingInspectorUI { get; set; }
+
+	private CheckBox ChkApplyGroundTexture { get; set; }
+	private CheckBox ChkApplyCliffTexture { get; set; }
+	private HBoxContainer RowGroundTexture { get; set; }
+	private HBoxContainer RowCliffTexture { get; set; }
+
+	private Slider _sldPlacementRotate { get; set; }
+	private Label _lblPlacementRotateValue { get; set; }
+	private Slider _sldPlacementScale { get; set; }
+	private Label _lblPlacementScaleValue { get; set; }
+	private VBoxContainer _placementRotateBox { get; set; }
+	private VBoxContainer _placementScaleBox { get; set; }
+	private Button _btnCopy { get; set; }
+	private Button _btnPaste { get; set; }
+	private Control _stepBox { get; set; }
+	private Button _btnToggleSnap { get; set; }
+	private Button _btnToggleGrid { get; set; }
+	private PopupMenu _popupOverlayMode { get; set; }
+	private Button _btnToggleEnvironment { get; set; }
+	private PopupPanel _popupEnvironment { get; set; }
+	private OptionButton _optEnvLighting { get; set; }
+	private OptionButton _optEnvWeather { get; set; }
+	private CheckBox _chkEnvShadows { get; set; }
+	private Button _btnBrushShape { get; set; }
+	private Button _btnResetMap { get; set; }
+	private Button _btnGenerateMap { get; set; }
+	private Button _btnRandomGen { get; set; }
+	private PopupPanel _popupRandomGen { get; set; }
+	private Button _btnSaveMore { get; set; }
+	private PopupPanel _popupSaveMore { get; set; }
+	private Button _btnImportMinimap { get; set; }
+	private Button _btnEyedropper { get; set; }
+	private OptionButton _optEyedropperMode { get; set; }
+	private Button _btnNoise { get; set; }
+	private Button _btnWater { get; set; }
+	private PanelContainer _minimapFrame { get; set; }
+	private Control _minimapArea { get; set; }
+	private MapEditorCameraIndicator _cameraIndicator { get; set; }
+
+
+	private Button _btnToggleCamera { get; set; }
+	private PopupPanel _popupCamera { get; set; }
+	private CheckBox _chkFreeCamera { get; set; }
+
+
+	private Button _btnRaise { get; set; }
+	private Button _btnLower { get; set; }
+	private Button _btnHeight { get; set; }
+	private Button _btnSmooth { get; set; }
+	private Button _btnPlateau { get; set; }
+	private Button _btnRamp { get; set; }
+	private OptionButton _optMirrorMode { get; set; }
+	private OptionButton _optPlacementMirrorMode { get; set; }
+	private Button _btnClumpBrush { get; set; }
+	private HSlider _sldClumpDensity { get; set; }
+	private Label _lblClumpDensityValue { get; set; }
+	private HSlider _sldClumpScaleVar { get; set; }
+	private Label _lblClumpScaleVarValue { get; set; }
+
+	private Button _btnTextureBrush { get; set; }
+
+	private Button _btnFloodFill { get; set; }
+	private Button _btnSelectArea { get; set; }
+	private Button _btnSelectMove { get; set; }
+	private PanelContainer _inspectorPanel { get; set; }
+	private Label _lblInspectorTitle { get; set; }
+	private Label _lblInspectorPos { get; set; }
+	private Button _btnInspectorRotLeft { get; set; }
+	private Button _btnInspectorRotRight { get; set; }
+	private Button _btnInspectorScaleDown { get; set; }
+	private Button _btnInspectorScaleUp { get; set; }
+	private Button _btnInspectorScaleReset { get; set; }
+	private Button _btnInspectorDelete { get; set; }
+	private Button _btnShowCoverage { get; set; }
+	private HBoxContainer _playerOwnerContainer { get; set; }
+	private OptionButton _optPlayerOwner { get; set; }
+	private PanelContainer _rigStatusContainer { get; set; }
+	private Label _lblRigStatus { get; set; }
+
+	private Button _btnPathingBrush { get; set; }
+	private Button _btnFloodFillPathing { get; set; }
+	private CheckBox _chkShallowWater { get; set; }
+	private CheckBox _chkDeepWater { get; set; }
+	private CheckBox _chkFlying { get; set; }
+	private CheckBox _chkGround { get; set; }
+	private CheckBox _chkBuildable { get; set; }
+
+	private OptionButton _optPathingMode { get; set; }
+
+
+	private Button _btnDrawCoordinate { get; set; }
+	private LineEdit _txtCoordinateName { get; set; }
+	private Button _btnCommitCoordinate { get; set; }
+	private VBoxContainer _coordinateListVBox { get; set; }
+
+
+	private Button _activeToolButton { get; set; } = null;
+	private StyleBoxFlat _highlightStyle { get; set; }
+
+	private Control _cardRaise { get; set; }
+	private Control _cardLower { get; set; }
+	private Control _cardHeight { get; set; }
+	private Control _cardSmooth { get; set; }
+	private Control _cardRamp { get; set; }
+	private Control _cardNoise { get; set; }
+	private Control _cardWater { get; set; }
+	private Control _cardPlateau { get; set; }
+	private Control _cardTextureBrush { get; set; }
+	private Control _cardFloodFill { get; set; }
+	private Control _cardPathingBrush { get; set; }
+	private Control _cardFloodFillPathing { get; set; }
+	private Control _cardAddObject { get; set; }
+	private Control _cardSelectMove { get; set; }
+	private Control _cardDeleteObject { get; set; }
+	private Control _cardSelectArea { get; set; }
+	private Control _cardCut { get; set; }
+	private Control _cardCopy { get; set; }
+	private Control _cardPaste { get; set; }
+	private Control _cardEraseArea { get; set; }
+	private Label _lblInfoText { get; set; }
+	private Label _lblTerrainTexture { get; set; }
+	private Label _lblCliffTexture { get; set; }
+
+	private PanelContainer _scaleMapDialog { get; set; }
+	private Label _lblScalePreviewWidth { get; set; }
+	private Label _lblScalePreviewHeight { get; set; }
+
+	private int _scaleDialogTargetDepth { get; set; }
+
+	private Camera3D _camera3D { get; set; }
+	private Button _btnEditors { get; set; }
+	private Button _btnVSCode { get; set; }
+	private PopupPanel _popupEditors { get; set; }
+	private bool _isDraggingSlider { get; set; } = false;
+	private Panel _swatchHighlightPanel { get; set; }
+	private Panel _swatchCliffHighlightPanel { get; set; }
+
+	private MapEditorTopBar _topBarController { get; set; }
+	private MapEditorBrushSettings _brushSettingsController { get; set; }
+	private MapEditorPlacementSettings _placementSettingsController { get; set; }
+	private MapEditorInspector _inspectorController { get; set; }
+	private MapEditorPathingPanel _pathingPanelController { get; set; }
+	private MapEditorMinimap _minimapController { get; set; }
+	private MapEditorEntityPaletteController _entityPaletteController { get; set; }
+	private MapEditorGenerationDialog _generationDialog { get; set; }
+
+	private bool _wasmHasErrors { get; set; } = false;
+	private string _wasmCompileLogPath { get; set; } = "";
+
+
+	public void PublishMapActionExternal()
+	{
+		string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : MapWorkspaceService.GetActiveWorkspacePath();
+
+		if (!TryValidateMapPublishRequirements(wsPath)) return;
+
+		var overlay = new ColorRect { Name = "PublishInstructionsOverlay", Color = new Color(0, 0, 0, 0.7f) };
+		overlay.SetAnchorsPreset(LayoutPreset.FullRect);
+		AddChild(overlay);
+
+		var center = new CenterContainer();
+		center.SetAnchorsPreset(LayoutPreset.FullRect);
+		overlay.AddChild(center);
+
+		var panel = CreatePublishMapPanel();
+		center.AddChild(panel);
+
+		var vbox = BuildPublishMapUI(panel);
+
+		var title = new Label { Text = "Publish Map Instructions", HorizontalAlignment = HorizontalAlignment.Center };
+		title.AddThemeFontSizeOverride("font_size", 24);
+		vbox.AddChild(title);
+
+		var optType = new OptionButton();
+		optType.AddItem("Custom Arcade Map", 0);
+		optType.AddItem("Reusable Asset Pack", 1);
+		optType.Selected = _mapSettingsDialog?.SelectedMapTypeIndex ?? 0;
+		vbox.AddChild(optType);
+
+		var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
+		var instructionsText = new RichTextLabel { SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill, BbcodeEnabled = true };
+		scroll.AddChild(instructionsText);
+		vbox.AddChild(scroll);
+
+		BindPublishMapInstructions(optType, instructionsText);
+
+		CreatePublishMapOptimizationTip(wsPath, vbox);
+
+		var chkFullExport = new CheckBox { Text = TranslationServer.Translate("Full Export (Include all physical assets in package, bypassing greenlit deduplication)"), ButtonPressed = false };
+		chkFullExport.AddThemeConstantOverride("icon_max_width", 0);
+		UIStyle.ApplyCheckboxStyle(chkFullExport);
+		vbox.AddChild(chkFullExport);
+
+		CreatePublishMapIdentityPanel(vbox);
+
+		AddPublishMapActionButtons(vbox, overlay, chkFullExport);
+	}
+
+	private bool TryValidateMapPublishRequirements(string wsPath)
+	{
+		var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(wsPath);
+		if (!assetsValid)
+		{
+			ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Map is missing required asset files:\n{0}"), string.Join(", ", missingAssets.Take(4)) + (missingAssets.Count > 4 ? "..." : "")));
+			AppendWasmConsoleLog($"[ERROR] Publish failed. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
+			return false;
+		}
+
+		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(wsPath);
+		if (!sizesValid)
+		{
+			string oversizedSummary = string.Join("\n", oversizedAssets.Take(4).Select(o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (oversizedAssets.Count > 4 ? "\n..." : "");
+			ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Assets exceed maximum 15 MB size limit:\n{0}"), oversizedSummary));
+			AppendWasmConsoleLog($"[ERROR] Publish failed. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", oversizedAssets.Select(o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
+			return false;
+		}
+
+		return true;
+	}
+
+	private PanelContainer CreatePublishMapPanel()
+	{
+		var panel = new PanelContainer { CustomMinimumSize = new Vector2(1200, 800) };
+		var style = new StyleBoxFlat
+		{
+			BgColor = new Color(0.1f, 0.1f, 0.15f, 0.95f),
+			BorderWidthTop = 2,
+			BorderWidthBottom = 2,
+			BorderWidthLeft = 2,
+			BorderWidthRight = 2,
+			BorderColor = new Color(0.3f, 0.3f, 0.35f, 1f),
+			CornerRadiusTopLeft = 4,
+			CornerRadiusTopRight = 4,
+			CornerRadiusBottomLeft = 4,
+			CornerRadiusBottomRight = 4
+		};
+		panel.AddThemeStyleboxOverride("panel", style);
+		return panel;
+	}
+
+	private VBoxContainer BuildPublishMapUI(PanelContainer panel)
+	{
+		var vbox = new VBoxContainer { CustomMinimumSize = new Vector2(1180, 780) };
+		vbox.AddThemeConstantOverride("separation", 12);
+		vbox.SetAnchorsPreset(LayoutPreset.FullRect);
+
+		var margin = new MarginContainer();
+		margin.AddThemeConstantOverride("margin_top", 10);
+		margin.AddThemeConstantOverride("margin_bottom", 10);
+		margin.AddThemeConstantOverride("margin_left", 10);
+		margin.AddThemeConstantOverride("margin_right", 10);
+		margin.AddChild(vbox);
+		panel.AddChild(margin);
+
+		return vbox;
+	}
+
+	private void BindPublishMapInstructions(OptionButton optType, RichTextLabel instructionsText)
+	{
+		string textArcade = TranslationServer.Translate("🚀 [b]Publishing Your Custom Map[/b]\nTo maintain a high-quality community arcade, all new maps start in a Beta-Testing Phase.\n\nOnce your map hits our community play-time metrics (gaining enough unique players, ratings, & community playtime), it will become available for official publishing to community maps screens.\n\nUntil then, it is up to you to share it with the community & market it until you hit that threshold.\nYour map is ready to play right now! Click the 'Export' button to share it. Host a lobby with your map & wait for players to join.\nMessage the community via discord channels, etc to explain your map & convince them to try it. If they enjoy it, they will probably re-host it, which will help you hit the graduation threshold more quickly.\n\nWhile in testing, your map name will include a prefix [Beta-Testing] so players know it's an active work-in-progress. However, you should still do as much personal testing as possible before public hosting to avoid a frustrating experience for your testers.\n\nAfter graduation, your map name will be permanently reserved to your creator profile so no one else can use that same name.");
+		string textAssetPack = TranslationServer.Translate("📦 [b]Publishing a Reusable Asset Pack[/b]\nWant to share your custom 3D models, audio, or code scripts with other map makers?\n\nIn Realm, Asset Packs are published as playable Showcase/Demo Maps.\n\n[b]Build a Playground:[/b] Turn your asset pack into a map where players can preview the functionality provided by your systems, view your models, etc.\n\n[b]Gather Community Metrics:[/b] Just like a regular map, your asset pack will start in a \"beta\" phase before being promoted on community discovery pages. Read the \"Custom Arcade Map\" section for more information.\n\n[b]Easy Importing:[/b] Once a player has a copy of your map, they can import assets from it into their maps via the map editor.\n\n[b]Automatic Credit:[/b] When creators import from you, the system tracks your files' signatures and automatically adds your info to their map credits.");
+
+		Action updateText = () => { instructionsText.Text = optType.Selected == 0 ? textArcade : textAssetPack; };
+		updateText();
+		optType.ItemSelected += (_) => updateText();
+	}
+
+	private void CreatePublishMapOptimizationTip(string wsPath, VBoxContainer vbox)
+	{
+		var (unprunedCount, unnormalizedPotentialCount, potentialSavedBytes) = MapNormalizationHelper.CheckOptimizationState(wsPath);
+		if (unprunedCount <= 0 && unnormalizedPotentialCount <= 0) return;
+
+		var tipPanel = new PanelContainer();
+		var tipStyle = new StyleBoxFlat
+		{
+			BgColor = new Color(0.2f, 0.17f, 0.1f, 0.95f),
+			BorderColor = UIStyle.ColorGoldDull,
+			BorderWidthBottom = 1,
+			BorderWidthTop = 1,
+			BorderWidthLeft = 1,
+			BorderWidthRight = 1,
+			CornerRadiusTopLeft = 4,
+			CornerRadiusTopRight = 4,
+			CornerRadiusBottomLeft = 4,
+			CornerRadiusBottomRight = 4
+		};
+		tipPanel.AddThemeStyleboxOverride("panel", tipStyle);
+
+		var tipMargin = new MarginContainer();
+		tipMargin.AddThemeConstantOverride("margin_top", 6);
+		tipMargin.AddThemeConstantOverride("margin_bottom", 6);
+		tipMargin.AddThemeConstantOverride("margin_left", 10);
+		tipMargin.AddThemeConstantOverride("margin_right", 10);
+		tipPanel.AddChild(tipMargin);
+
+		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend clicking 'Prune Unused' and 'Normalize References' in the Asset Manager before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		tipLabel.AddThemeFontSizeOverride("font_size", 12);
+		tipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		tipMargin.AddChild(tipLabel);
+		vbox.AddChild(tipPanel);
+	}
+
+	private void CreatePublishMapIdentityPanel(VBoxContainer vbox)
+	{
+		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
+		string defaultUsername = LobbyManager.Instance?.AuthenticatedUsername ?? System.Environment.UserName;
+		var (_, keyData, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
+		string currentAuthorName = !string.IsNullOrWhiteSpace(keyData?.UserName) ? keyData.UserName : defaultUsername;
+		string authorPubKey = !string.IsNullOrWhiteSpace(keyData?.PublicKey) ? keyData.PublicKey : "";
+		string shortPubKey = authorPubKey.Length > 16 ? $"{authorPubKey[..8]}...{authorPubKey[^8..]}" : authorPubKey;
+
+		var identityPanel = new PanelContainer();
+		var identityStyle = new StyleBoxFlat
+		{
+			BgColor = new Color(0.12f, 0.15f, 0.22f, 0.95f),
+			BorderColor = new Color(0.3f, 0.5f, 0.8f, 0.9f),
+			BorderWidthBottom = 1,
+			BorderWidthTop = 1,
+			BorderWidthLeft = 1,
+			BorderWidthRight = 1,
+			CornerRadiusTopLeft = 4,
+			CornerRadiusTopRight = 4,
+			CornerRadiusBottomLeft = 4,
+			CornerRadiusBottomRight = 4
+		};
+		identityPanel.AddThemeStyleboxOverride("panel", identityStyle);
+		var idMargin = new MarginContainer();
+		idMargin.AddThemeConstantOverride("margin_top", 8);
+		idMargin.AddThemeConstantOverride("margin_bottom", 8);
+		idMargin.AddThemeConstantOverride("margin_left", 12);
+		idMargin.AddThemeConstantOverride("margin_right", 12);
+		identityPanel.AddChild(idMargin);
+
+		var idVBox = new VBoxContainer();
+		idVBox.AddThemeConstantOverride("separation", 6);
+		idMargin.AddChild(idVBox);
+
+		var idHeaderHBox = new HBoxContainer();
+		idHeaderHBox.AddThemeConstantOverride("separation", 8);
+		var idHeaderLabel = new Label { Text = "🔑 " + TranslationServer.Translate("AUTHOR IDENTITY & KEY VERIFICATION"), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		idHeaderLabel.AddThemeFontSizeOverride("font_size", 13);
+		idHeaderLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		idHeaderHBox.AddChild(idHeaderLabel);
+
+		var btnEditKey = new Button { Text = TranslationServer.Translate("Manage Key / Identity"), CustomMinimumSize = new Vector2(160, 26) };
+		btnEditKey.AddThemeConstantOverride("icon_max_width", 0);
+		btnEditKey.AddThemeFontSizeOverride("font_size", 11);
+		btnEditKey.Pressed += () =>
+		{
+			_authorSignatureDialog ??= new AuthorSignatureDialog(this);
+			_authorSignatureDialog.OpenDialog();
+		};
+		idHeaderHBox.AddChild(btnEditKey);
+		idVBox.AddChild(idHeaderHBox);
+
+		var idDetailsLabel = new Label { Text = string.Format(TranslationServer.Translate("Author: {0} | Public Key: {1}\nKey File: {2}"), currentAuthorName, shortPubKey, keyPath), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		idDetailsLabel.AddThemeFontSizeOverride("font_size", 11);
+		idDetailsLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.9f, 1.0f));
+		idVBox.AddChild(idDetailsLabel);
+
+		var idBackupWarn = new Label { Text = "⚠️ " + TranslationServer.Translate("Important: Back up your key file! Your authorship key proves ownership of your map name and allows future updates. If you lose your key file, you will permanently lose ownership and the ability to update this map."), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		idBackupWarn.AddThemeFontSizeOverride("font_size", 11);
+		idBackupWarn.AddThemeColorOverride("font_color", new Color(1.0f, 0.75f, 0.35f));
+		idVBox.AddChild(idBackupWarn);
+
+		vbox.AddChild(identityPanel);
+	}
+
+	private void AddPublishMapActionButtons(VBoxContainer vbox, ColorRect overlay, CheckBox chkFullExport)
+	{
+		var hbox = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+		hbox.AddThemeConstantOverride("separation", 20);
+		vbox.AddChild(hbox);
+
+		var btnPublish = new Button { Text = TranslationServer.Translate("Publish Map"), CustomMinimumSize = new Vector2(140, 40) };
+		btnPublish.AddThemeConstantOverride("icon_max_width", 0);
+		btnPublish.Pressed += () =>
+		{
+			bool isFullExport = chkFullExport.ButtonPressed;
+			overlay.QueueFree();
+			PublishMapActionView(isFullExport);
+		};
+		hbox.AddChild(btnPublish);
+
+		var btnClose = new Button { Text = TranslationServer.Translate("Close"), CustomMinimumSize = new Vector2(120, 40) };
+		btnClose.AddThemeConstantOverride("icon_max_width", 0);
+		btnClose.Pressed += () => overlay.QueueFree();
+		hbox.AddChild(btnClose);
+	}
+
+
+	public void TriggerToolSelection(EditorTool tool, Button btn, string placeId = "")
+	{
+		if (GameHost.Instance == null) return;
+
+		HandleEditorToolStateClear(tool);
+		UpdateActiveToolButton(btn);
+
+		GameHost.Instance.ActiveEditorTool = tool;
+		GameHost.Instance.ActivePlaceId = placeId;
+
+		UpdateActiveEditorModuleForTool(tool);
+		UpdatePanelVisibilityForToolPathing(tool);
+		UpdateSidebarMorph(tool);
+		ApplyBrushStrengthForTool(tool);
+		UpdateToolStatusLabel(tool, placeId);
+		UpdateTextureLabels();
+	}
+
+	private void HandleEditorToolStateClear(EditorTool tool)
+	{
+		if (tool != EditorTool.SelectMove)
+		{
+			GameHost.Instance.SelectedEditorObject = null;
+		}
+
+		if (tool != EditorTool.Ramp)
+		{
+			GameHost.Instance.ClearRampStartPosExternal();
+		}
+
+		if (tool != EditorTool.Measure)
+		{
+			GameHost.Instance.ClearMeasureVisuals();
+			ClearMeasureTelemetry();
+		}
+	}
+
+	private void UpdateActiveToolButton(Button btn)
+	{
+		if (_activeToolButton != null)
+		{
+			_activeToolButton.RemoveThemeStyleboxOverride("normal");
+			if (_activeToolButton.GetParent() is Control oldParent)
+			{
+				Label cardLbl = oldParent.GetNodeOrNull<Label>("ToolCardLabel");
+				if (cardLbl != null) cardLbl.RemoveThemeColorOverride("font_color");
+			}
+		}
+
+		_activeToolButton = btn;
+		if (_activeToolButton != null)
+		{
+			if (_activeToolButton.Name.ToString().StartsWith("Swatch"))
+			{
+				HighlightSwatch(_activeToolButton);
+			}
+			else
+			{
+				_activeToolButton.AddThemeStyleboxOverride("normal", _highlightStyle);
+				if (_activeToolButton.GetParent() is Control newParent)
+				{
+					Label cardLbl = newParent.GetNodeOrNull<Label>("ToolCardLabel");
+					if (cardLbl != null) cardLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+				}
+
+				HighlightSwatch(null);
+			}
+		}
+		else
+		{
+			HighlightSwatch(null);
+		}
+	}
+
+	private void UpdateActiveEditorModuleForTool(EditorTool tool)
+	{
+		EditorModule targetModule = DetermineModuleForTool(tool);
+
+		if (targetModule != _activeModule)
+		{
+			_activeModule = targetModule;
+			UpdateModuleSwitchButtons();
+			UpdatePanelVisibilityForModule(targetModule);
+		}
+	}
+
+	private EditorModule DetermineModuleForTool(EditorTool tool)
+	{
+		return tool switch
+		{
+			EditorTool.Raise or EditorTool.Lower or EditorTool.Smooth or EditorTool.Plateau or EditorTool.Ramp or EditorTool.Noise or EditorTool.Water => EditorModule.Terrain,
+			EditorTool.PaintTexture or EditorTool.FloodFill => EditorModule.TextureDeco,
+			EditorTool.DrawCoordinate => EditorModule.Coordinates,
+			EditorTool.PaintPathing or EditorTool.FloodFillPathing => EditorModule.Pathing,
+			EditorTool.PlaceUnit or EditorTool.PlaceProp or EditorTool.PlacePropClump or EditorTool.PlaceDecal or EditorTool.DeleteObject or EditorTool.SelectMove => EditorModule.Objects,
+			EditorTool.SelectArea or EditorTool.PasteArea => EditorModule.Clipboard,
+			_ => _activeModule
+		};
+	}
+
+	private bool NeedsPathingOverlay(EditorTool tool)
+	{
+		return tool is EditorTool.PaintPathing or EditorTool.FloodFillPathing or EditorTool.DrawCoordinate or EditorTool.SelectArea or EditorTool.PasteArea;
+	}
+
+	private void UpdatePanelVisibilityForToolPathing(EditorTool tool)
+	{
+		if (_panelTextures != null) _panelTextures.Visible = false;
+		if (_panelEntityPalette != null) _panelEntityPalette.Visible = false;
+
+		if (tool == EditorTool.DrawCoordinate && _btnCommitCoordinate != null)
+		{
+			_btnCommitCoordinate.Visible = false;
+		}
+
+		if (NeedsPathingOverlay(tool))
+		{
+			GameHost.Instance?.UpdatePathingOverlay();
+		}
+	}
+
+	private void ApplyBrushStrengthForTool(EditorTool tool)
+	{
+		if (_sldBrushStrength == null || GameHost.Instance == null) return;
+
+		if (tool == EditorTool.PaintTexture)
+		{
+			_sldBrushStrength.MinValue = 0.0;
+			_sldBrushStrength.MaxValue = 10.0;
+			_sldBrushStrength.Step = 1.0;
+			_sldBrushStrength.Value = GameContext.EditorService.SavedTextureIntensity;
+			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = GameContext.EditorService.SavedTextureIntensity.ToString("F0");
+			GameHost.Instance.EditorBrushStrength = GameContext.EditorService.SavedTextureIntensity;
+		}
+		else
+		{
+			_sldBrushStrength.MinValue = 0.5;
+			_sldBrushStrength.MaxValue = 10.0;
+			_sldBrushStrength.Step = 0.5;
+			float restoredStrength = Math.Max(0.5f, GameContext.EditorService.SavedBrushStrength);
+			_sldBrushStrength.Value = restoredStrength;
+			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = restoredStrength.ToString("F1");
+			GameHost.Instance.EditorBrushStrength = restoredStrength;
+		}
+	}
+
+	private void UpdateToolStatusLabel(EditorTool tool, string placeId)
+	{
+		string shortPlaceName = !string.IsNullOrEmpty(placeId) ? Path.GetFileName(placeId).ToUpper() : "";
+		UpdateActiveToolLabel(tool, shortPlaceName);
+
+		if (_lblInfoText == null) return;
+		UpdateToolInfoText(tool, shortPlaceName);
+	}
+
+	private void UpdateActiveToolLabel(EditorTool tool, string shortPlaceName)
+	{
+		if (_statusLabel == null) return;
+
+		string toolName = tool.ToString().ToUpper();
+		if (!string.IsNullOrEmpty(shortPlaceName)) toolName += $" ({shortPlaceName})";
+
+		_statusLabel.Text = $"ACTIVE TOOL: {toolName}";
+	}
+
+	private void UpdateToolInfoText(EditorTool tool, string shortPlaceName)
+	{
+		if (tool == EditorTool.PlaceUnit)
+		{
+			string alignment = (GameHost.Instance != null && GameContext.EditorService.PlaceUnitIsEnemy) ? TranslationServer.Translate("Enemy (Orc)") : TranslationServer.Translate("Player (Alliance)");
+			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
+			return;
+		}
+
+		if (tool == EditorTool.PlaceProp)
+		{
+			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Prop\n\nLeft-click on the ground to spawn static decorative object: {0}."), shortPlaceName);
+			return;
+		}
+
+		if (tool == EditorTool.PlacePropClump)
+		{
+			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Clump Brush\n\nDrag left click on the ground to paint clumps of static props: {0} based on Density and Scale Variation settings. Uses texture brush shape (Circle/Square)."), shortPlaceName);
+			return;
+		}
+
+		if (EditorService.ToolInfoTexts.TryGetValue(tool, out string rawText))
+		{
+			_lblInfoText.Text = TranslationServer.Translate(rawText);
+		}
+	}
+
+
+	private ColorRect _helpOverlayPanel { get; set; } = null;
+
+
+	private void UpdatePanelVisibilityForModule(EditorModule module)
+	{
+		SetAccordionVisibilities(module);
+		SetModuleVBoxVisibilities(module);
+		SetSettingsVisibilities(module);
+		SetContentHeaders(module);
+
+		_accordionContainer?.QueueSort();
+		RefreshCardScrollStates();
+	}
+
+	private bool IsBrushAccordionVisible(EditorModule module) => module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing;
+	private bool IsToolSettingsAccordionVisible(EditorModule module) => module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing or EditorModule.Objects or EditorModule.Clipboard;
+	private bool IsPlacementAccordionVisible(EditorModule module) => module is EditorModule.Objects or EditorModule.Clipboard;
+
+	private bool IsInspectorAccordionVisible(EditorModule module)
+	{
+		if (module == EditorModule.Objects) return true;
+		var host = GameHost.Instance;
+		bool hasSelectedObject = host != null && GodotObject.IsInstanceValid(host.SelectedEditorObject);
+		return hasSelectedObject && host?.ActiveEditorTool == EditorTool.SelectMove;
+	}
+
+	private void SetAccordionVisibilities(EditorModule module)
+	{
+		_accordionFile ??= GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion");
+		_accordionViewport ??= GetNodeOrNull<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
+
+		if (_accordionFile != null) _accordionFile.Visible = true;
+		if (_accordionViewport != null) _accordionViewport.Visible = true;
+		if (_accordionTool != null) _accordionTool.Visible = true;
+
+		if (_accordionBrush != null) _accordionBrush.Visible = IsBrushAccordionVisible(module);
+		if (_accordionToolSettings != null) _accordionToolSettings.Visible = IsToolSettingsAccordionVisible(module);
+		if (_accordionPlacement != null) _accordionPlacement.Visible = IsPlacementAccordionVisible(module);
+		if (_accordionInspector != null) _accordionInspector.Visible = IsInspectorAccordionVisible(module);
+	}
+
+	private void SetModuleVBoxVisibilities(EditorModule module)
+	{
+		if (_panelTerrainVBox != null) _panelTerrainVBox.Visible = (module == EditorModule.Terrain);
+		if (_panelDecoVBox != null) _panelDecoVBox.Visible = (module == EditorModule.TextureDeco);
+		if (_panelPathingVBox != null) _panelPathingVBox.Visible = (module == EditorModule.Pathing);
+		if (_panelCoordinatesVBox != null) _panelCoordinatesVBox.Visible = (module == EditorModule.Coordinates);
+		if (_panelObjects != null) _panelObjects.Visible = (module == EditorModule.Objects);
+		if (_panelClipboard != null) _panelClipboard.Visible = (module == EditorModule.Clipboard);
+	}
+
+	private void SetSettingsVisibilities(EditorModule module)
+	{
+		if (_containerTextureSettings != null) _containerTextureSettings.Visible = (module == EditorModule.Terrain || module == EditorModule.TextureDeco);
+		if (_panelEnv != null) _panelEnv.Visible = (module == EditorModule.TextureDeco);
+		if (_containerPathingSettings != null) _containerPathingSettings.Visible = (module == EditorModule.Pathing);
+		if (_containerPasteSettings != null) _containerPasteSettings.Visible = (module == EditorModule.Clipboard);
+		if (_containerCategorySelector != null) _containerCategorySelector.Visible = (module == EditorModule.Objects);
+	}
+
+	private void SetContentHeaders(EditorModule module)
+	{
+		SetHeaderContent(_contentTool, _btnHeaderTool, true, "Tool");
+
+		bool showBrush = module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing;
+		SetHeaderContent(_contentBrush, _btnHeaderBrush, showBrush, "Global Brush Properties");
+
+		bool showToolSettings = module is EditorModule.Terrain or EditorModule.TextureDeco or EditorModule.Pathing or EditorModule.Objects or EditorModule.Clipboard;
+		SetHeaderContent(_contentToolSettings, _btnHeaderToolSettings, showToolSettings, "Tool Settings");
+
+		bool showPlacement = module is EditorModule.Objects or EditorModule.Clipboard;
+		SetHeaderContent(_contentPlacement, _btnHeaderPlacement, showPlacement, "Placement Config");
+	}
+
+	private void SetHeaderContent(Control content, Button btn, bool isVisible, string translationKey)
+	{
+		if (content == null || !isVisible) return;
+		content.Visible = true;
+		if (btn != null) btn.Text = TranslationServer.Translate(translationKey).ToString().ToUpperInvariant() + "  ▼";
+	}
+
+
+	private void RefreshCardScrollStates()
+	{
+		UpdateCardScrollState(_contentFile, 300f);
+		UpdateCardScrollState(_contentViewport, 0f, false);
+		UpdateCardScrollState(_contentTool, 320f);
+		UpdateCardScrollState(_contentBrush, 300f);
+		UpdateCardScrollState(_contentToolSettings, 320f);
+		UpdateCardScrollState(_contentPlacement, 320f);
+		UpdateCardScrollState(_contentInspector, 300f);
+	}
+
+	private FontVariation _faFontVariation { get; set; }
+
+	private void StyleGridButton(Button btn)
+	{
+		if (btn == null) return;
+		btn.Flat = false;
+		btn.CustomMinimumSize = new Vector2(105, 30);
+		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+
+		var font = GetFontAwesomeFont();
+		if (font != null)
+		{
+			btn.AddThemeFontOverride("font", font);
+		}
+
+		var btnNormal = new StyleBoxFlat();
+		btnNormal.BgColor = new Color(0.15f, 0.14f, 0.12f, 0.75f);
+		btnNormal.BorderColor = new Color(0.32f, 0.27f, 0.20f, 0.6f);
+		btnNormal.SetBorderWidthAll(1);
+		btnNormal.CornerRadiusTopLeft = 3;
+		btnNormal.CornerRadiusTopRight = 3;
+		btnNormal.CornerRadiusBottomLeft = 3;
+		btnNormal.CornerRadiusBottomRight = 3;
+		btnNormal.ContentMarginLeft = 4;
+		btnNormal.ContentMarginRight = 4;
+
+		var btnHover = new StyleBoxFlat();
+		btnHover.BgColor = new Color(0.26f, 0.23f, 0.18f, 0.95f);
+		btnHover.BorderColor = UIStyle.ColorGold;
+		btnHover.SetBorderWidthAll(1);
+		btnHover.CornerRadiusTopLeft = 3;
+		btnHover.CornerRadiusTopRight = 3;
+		btnHover.CornerRadiusBottomLeft = 3;
+		btnHover.CornerRadiusBottomRight = 3;
+		btnHover.ContentMarginLeft = 4;
+		btnHover.ContentMarginRight = 4;
+
+		var btnPressed = new StyleBoxFlat();
+		btnPressed.BgColor = new Color(0.32f, 0.28f, 0.21f, 0.98f);
+		btnPressed.BorderColor = UIStyle.ColorGold;
+		btnPressed.SetBorderWidthAll(1);
+
+		btn.AddThemeStyleboxOverride("normal", btnNormal);
+		btn.AddThemeStyleboxOverride("hover", btnHover);
+		btn.AddThemeStyleboxOverride("pressed", btnPressed);
+		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		btn.AddThemeFontSizeOverride("font_size", 11);
+		btn.AddThemeColorOverride("font_color", new Color(0.92f, 0.88f, 0.82f));
+		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		btn.Alignment = HorizontalAlignment.Center;
+	}
+
+	private HashSet<ulong> _hookedSliderInstanceIds { get; set; } = new();
+
+
+	public bool IsMouseOverUI(Vector2 mousePos)
+	{
+		if (IsMenuOrOverlayOpen(mousePos)) return true;
+		if (IsDraggingOrHoveringCoreUI()) return true;
+		if (IsPopupVisible()) return true;
+		if (IsMouseOverOptionCards(mousePos)) return true;
+		if (IsMouseOverOptionContents(mousePos)) return true;
+		if (IsMouseOverToolbarOrOverlays(mousePos)) return true;
+
+		return false;
+	}
+
+	private bool IsMenuOrOverlayOpen(Vector2 mousePos)
+	{
+		if (SettingsMenu.IsOpen) return true;
+		if (_helpOverlayPanel != null && _helpOverlayPanel.IsVisibleInTree()) return true;
+		if (GetNodeOrNull<Control>("ConfirmationOverlay") != null) return true;
+		if (GetNodeOrNull<Control>("GenerationOverlay") != null) return true;
+		if (GetNodeOrNull<Control>("AgreementOverlay") != null) return true;
+		if (_scaleMapDialog != null && _scaleMapDialog.IsVisibleInTree()) return true;
+		if (FloatingDialogBase.IsMouseOverAnyDialogOpen(mousePos)) return true;
+		return false;
+	}
+
+	private bool IsDraggingOrHoveringCoreUI()
+	{
+		if (_is3DInteractionActive) return false;
+		if (_minimapController?.IsDragging == true || _isDraggingSlider) return true;
+
+		var hoveredControl = GetViewport().GuiGetHoveredControl();
+		if (hoveredControl == null || hoveredControl == this) return false;
+
+		if (hoveredControl == _panelLeft || hoveredControl == _panelRight) return false;
+
+		string[] ignoredNames = { "LeftScroll", "RightScroll", "LeftVBox", "AccordionContainer", "FeedbackLabel", "MapEditorScreenFrame" };
+		if (Array.IndexOf(ignoredNames, (string)hoveredControl.Name) >= 0) return false;
+
+		return true;
+	}
+
+
+	private bool AnyWindowVisible(params Window[] windows)
+	{
+		foreach (var w in windows)
+		{
+			if (w?.Visible == true) return true;
+		}
+
+		return false;
+	}
+
+	private bool AnyOptionButtonPopupVisible(params OptionButton[] buttons)
+	{
+		foreach (var b in buttons)
+		{
+			if (b?.GetPopup()?.Visible == true) return true;
+		}
+
+		return false;
+	}
+
+	private bool IsPanelPopupVisible()
+	{
+		return AnyWindowVisible(
+			_popupOverlayMode,
+			_popupEnvironment,
+			_popupCamera,
+			_popupEditors,
+			_popupSaveMore,
+			_popupRandomGen
+		);
+	}
+
+	private bool IsPrimaryOptionPopupVisible()
+	{
+		return AnyOptionButtonPopupVisible(
+			_optModule,
+			_entityPaletteController?.OptCategoryItems,
+			_optEyedropperMode,
+			_optPathingMode,
+			_optMirrorMode,
+			_optClipboardMirrorMode
+		);
+	}
+
+	private bool IsSecondaryOptionPopupVisible()
+	{
+		return AnyOptionButtonPopupVisible(
+			_optPlacementMirrorMode,
+			_optPolarRingSpacing,
+			_optPolarRadialStep,
+			_optEnvLighting,
+			_optEnvWeather
+		);
+	}
+
+	private bool IsPopupVisible()
+	{
+		if (IsPanelPopupVisible()) return true;
+		if (IsPrimaryOptionPopupVisible()) return true;
+		if (IsSecondaryOptionPopupVisible()) return true;
+
+		return false;
+	}
+
+	private bool IsMouseOverOptionCards(Vector2 mousePos)
+	{
+		foreach (var kvp in _cardDragMap)
+		{
+			var card = kvp.Key;
+			if (GodotObject.IsInstanceValid(card) && card.IsVisibleInTree())
+			{
+				if (card.GetGlobalRect().HasPoint(mousePos)) return true;
+			}
+		}
+
+		return false;
+	}
+
+	private bool IsMouseOverOptionContents(Vector2 mousePos)
+	{
+		Control[] optionContents = new Control[]
+		{
+			_contentFile, _contentViewport, _contentTool,
+			_contentBrush, _contentToolSettings, _contentPlacement, _contentInspector, _contentLightingTuning
+		};
+		foreach (var content in optionContents)
+		{
+			if (GodotObject.IsInstanceValid(content) && content.IsVisibleInTree())
+			{
+				if (content.GetGlobalRect().HasPoint(mousePos)) return true;
+			}
+		}
+
+		return false;
+	}
+
+	private bool IsMouseOverToolbarOrOverlays(Vector2 mousePos)
+	{
+		Control[] checkControls =
+		{
+			_btnLeftTab, _btnRightTab,
+			GetNodeOrNull<Control>("TopLeftBox"),
+			GetNodeOrNull<Control>("TopBar"),
+			_topToolbar, _middleRightBox, _scaleMapDialog,
+			GetNodeOrNull<Control>("GenerationOverlay")
+		};
+
+		foreach (var control in checkControls)
+		{
+			if (control?.Visible == true && control.GetGlobalRect().HasPoint(mousePos)) return true;
+		}
+
+		return false;
+	}
+
+
+	private void ApplyMouseFilterIgnoreRecursive(Node node)
+	{
+		if (node == null) return;
+		if (node is Control ctrl)
+		{
+			if (ctrl.MouseFilter != MouseFilterEnum.Ignore)
+			{
+				_savedMouseFilters[ctrl] = ctrl.MouseFilter;
+				ctrl.MouseFilter = MouseFilterEnum.Ignore;
+			}
+		}
+
+		foreach (Node child in node.GetChildren())
+		{
+			ApplyMouseFilterIgnoreRecursive(child);
+		}
+	}
+
+
+	private ObjectAttachmentDialog _objectAttachmentDialog { get; set; }
+
+
+	public async Task ProceedToTestMap()
+	{
+		if (GameHost.Instance == null) return;
+
+		_wasmHasErrors = false;
+		ShowWasmConsoleModal();
+		Action<string> logHandler = line => AppendWasmConsoleLog(line);
+		WasmRuntime.OnWasmLog += logHandler;
+
+		try
+		{
+			SaveEditorStateBeforeTest();
+			await PrepareMapAndWorkspaceForTest();
+
+			if (_wasmHasErrors) return;
+
+			if (!TryLocateCompiledWasm(out string wasmPath)) return;
+
+			GameHost.PendingMapScriptPath = wasmPath;
+			AppendWasmConsoleLog($"[WASM] Located compiled WASM binary: {Path.GetFileName(wasmPath)}");
+
+			await LaunchTestModeEngine();
+		}
+		catch (Exception ex)
+		{
+			_wasmHasErrors = true;
+			SetWasmConsoleStatus("❌ Error launching test mode", new Color(1.0f, 0.3f, 0.3f));
+			AppendWasmConsoleLog($"[RUNTIME EXCEPTION] {ex}");
+		}
+		finally
+		{
+			WasmRuntime.OnWasmLog -= logHandler;
+		}
+	}
+
+	private void SaveEditorStateBeforeTest()
+	{
+		SaveCameraState();
+		SaveGameHostStates();
+	}
+
+	private void SaveCameraState()
+	{
+		var camera = GameHost.Instance.MainCamera;
+		if (camera == null) return;
+
+		GameContext.EditorService.SavedCameraPosition = camera.Position;
+
+		var host = GameHost.Instance;
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+		{
+			var state = GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			GameContext.EditorService.SavedTargetHeight = state.TargetHeight;
+			GameContext.EditorService.SavedCurrentHeight = state.CurrentHeight;
+			GameContext.EditorService.SavedTargetYaw = state.TargetYaw;
+			GameContext.EditorService.SavedCurrentYaw = state.CurrentYaw;
+			GameContext.EditorService.SavedTargetPitch = state.TargetPitch;
+			GameContext.EditorService.SavedCurrentPitch = state.CurrentPitch;
+			GameContext.EditorService.SavedIsTopDown = state.IsTopDown;
+			GameContext.EditorService.SavedYawSwing = state.YawSwing;
+			GameContext.EditorService.SavedPitchSwing = state.PitchSwing;
+		}
+	}
+
+	private void SaveGameHostStates()
+	{
+		var host = GameHost.Instance;
+		GameContext.EditorService.SavedGridMode = GameContext.EditorService.EditorGridMode;
+		GameContext.EditorService.SavedActiveTool = host.ActiveEditorTool;
+		GameContext.EditorService.SavedActivePlaceId = host.ActivePlaceId;
+		GameContext.EditorService.SavedCameraBoundsVisible = GameContext.EditorService.EditorCameraBoundsVisible;
+		GameContext.EditorService.SavedDisableShadows = GameContext.EditorService.EditorDisableShadows;
+		GameContext.EditorService.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
+		GameContext.EditorService.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
+		float val = (float)(_sldBrushStrength?.Value ?? 1f);
+		GameContext.EditorService.SavedBrushStrength = val;
+	}
+
+	private async Task PrepareMapAndWorkspaceForTest()
+	{
+		string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
+		GameHost.Instance.SaveMapToFile(tempTerrainPath);
+		GameHost.Instance.EditorHasUnsavedChanges = false;
+		InvalidateMetadataCache();
+
+		if (OperatingSystem.IsWindows())
+		{
+			SetWasmConsoleStatus("Auto-saving modified files in VSCode...", UIStyle.ColorCyanGlow);
+			AppendWasmConsoleLog("[VSCode] Requesting auto-save of all open workspace files...");
+			await VSCodeManager.Instance.SaveAllOpenFilesAsync();
+		}
+
+		SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
+		AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
+
+		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true);
+
+		if (_wasmHasErrors)
+		{
+			SetWasmConsoleStatus("❌ WASM Compilation Failed", new Color(1.0f, 0.3f, 0.3f));
+			AppendWasmConsoleLog("[ERROR] Map script compilation failed. Test mode aborted.");
+		}
+	}
+
+	private bool TryLocateCompiledWasm(out string wasmPath)
+	{
+		string binDir = Path.Combine(GameContext.EditorService._tempWorkspacePath, "bin");
+		wasmPath = null;
+		if (Directory.Exists(binDir))
+		{
+			var wasmFiles = Directory.GetFiles(
+				binDir,
+				"*.wasm",
+				SearchOption.AllDirectories
+			).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
+
+			wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
+			           ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
+		}
+
+		if (!File.Exists(wasmPath))
+		{
+			_wasmHasErrors = true;
+			SetWasmConsoleStatus("❌ WASM Compilation Failed: Output binary missing", new Color(1.0f, 0.3f, 0.3f));
+			AppendWasmConsoleLog($"[ERROR] Could not find compiled WASM in {binDir}. Test mode aborted.");
+			return false;
+		}
+
+		return true;
+	}
+
+	private async Task LaunchTestModeEngine()
+	{
+		SetWasmConsoleStatus("Launching test mode...", UIStyle.ColorCyanGlow);
+		AppendWasmConsoleLog("=== LAUNCHING GAME ENGINE ===");
+
+		if (UIManager.Instance != null)
+		{
+			await UIManager.Instance.ApplyWindowSettings(GameSettings.WindowModeIdx, GameSettings.ResolutionIdx);
+		}
+
+		GameHost.Instance.ExitMapEditorMode();
+		GameContext.EditorService.IsTestMode = true;
+
+		if (UIManager.Instance != null)
+		{
+			UIManager.Instance.TransitionTo(GameScreen.InGameHUD);
+		}
+
+		if (LobbyManager.Instance != null)
+		{
+			LobbyManager.Instance.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map");
+		}
+
+		await Task.Delay(500);
+		CloseWasmConsoleModal();
+	}
+
+
+	private Dictionary<int, Texture2D> _swatchTextureCache { get; set; } = new();
+
+
+	public void InvalidateMetadataCache()
+	{
+		GameContext.EditorService.CachedMapName = null;
+		GameContext.EditorService.CachedMapVersion = null;
+		GameContext.EditorService.LastMapNameCacheTicks = 0;
+	}
+
+	private Button _btnHeaderLightingTuning { get; set; }
+	private VBoxContainer _contentLightingTuning { get; set; }
+
+	private HSlider _sldCliffJitterStrength { get; set; }
+	private HSlider _sldCliffJitterScale { get; set; }
+	private HSlider _sldCliffRimNoiseStrength { get; set; }
+	private HSlider _sldHeightBlendSoftness { get; set; }
+	private HSlider _sldBlendNoiseStrength { get; set; }
+	private HSlider _sldBlendNoiseScale { get; set; }
 }

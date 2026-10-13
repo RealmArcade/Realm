@@ -1,19 +1,32 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared.Distribution;
-using System;
-using System.Collections.Generic;
+using FileAccess = Godot.FileAccess;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class MapDetails : Control
 {
+	public MapDetails()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
 	private Panel _bgPanel;
 	private Panel _leftPillar;
 	private Panel _rightPillar;
-	
+
 	private Button _backButton;
-	
+
 
 	private PanelContainer _headerPanel;
 	private Label _titleLabel;
@@ -40,7 +53,7 @@ public partial class MapDetails : Control
 
 	private PanelContainer _statsPanel;
 	private Label _statsTitle;
-	
+
 	private Label _ratingTitle;
 	private HBoxContainer _starsRow1;
 	private Label _votesRow1;
@@ -79,11 +92,10 @@ public partial class MapDetails : Control
 
 	public override void _Ready()
 	{
-
 		_bgPanel = GetNode<Panel>("Background");
 		_leftPillar = GetNode<Panel>("LeftPillar");
 		_rightPillar = GetNode<Panel>("RightPillar");
-		
+
 		_backButton = GetNode<Button>("BackButton");
 
 
@@ -141,7 +153,7 @@ public partial class MapDetails : Control
 		_versionContainer.Alignment = BoxContainer.AlignmentMode.Center;
 		_versionContainer.AddThemeConstantOverride("separation", 10);
 		_versionContainer.CustomMinimumSize = new Vector2(300, 36);
-		_versionContainer.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_versionContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 
 		_versionLabel = new Label();
 		_versionLabel.Text = Tr("VERSION:");
@@ -153,7 +165,7 @@ public partial class MapDetails : Control
 		_versionDropdown = new OptionButton();
 		_versionDropdown.Name = "VersionDropdown";
 		_versionDropdown.CustomMinimumSize = new Vector2(160, 36);
-		_versionDropdown.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_versionDropdown.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		_versionDropdown.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_versionDropdown.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_versionDropdown.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -163,7 +175,7 @@ public partial class MapDetails : Control
 		_versionDropdown.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
 		_versionDropdown.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
 		_versionDropdown.AddThemeFontSizeOverride("font_size", 14);
-		_versionDropdown.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_versionDropdown.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_versionContainer.AddChild(_versionDropdown);
 
 		var downloadParent = _downloadButton.GetParent();
@@ -226,6 +238,7 @@ public partial class MapDetails : Control
 				selectedIndex = i;
 			}
 		}
+
 		_versionDropdown.Select(selectedIndex);
 
 		UpdateVersionDisplay();
@@ -298,7 +311,7 @@ public partial class MapDetails : Control
 	{
 		if (FileAccess.FileExists($"res://Maps/{map.Title}/{version}/manifest.json")) return true;
 		if (FileAccess.FileExists($"res://Maps/{map.MapId}/manifest.json")) return true;
-		
+
 		return FileAccess.FileExists($"res://Maps/{map.Title}/manifest.json") && CheckManifestByTitle(map.Title, version);
 	}
 
@@ -315,7 +328,7 @@ public partial class MapDetails : Control
 			var mf = MapManifest.LoadFromJson(FileAccess.GetFileAsString($"res://Maps/{title}/manifest.json"));
 			return mf != null && (string.Equals(mf.Version, version, StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(mf.Version));
 		}
-		catch 
+		catch
 		{
 			return false;
 		}
@@ -363,7 +376,7 @@ public partial class MapDetails : Control
 		{
 			var style = new StyleBoxTexture { Texture = bgTexture };
 			_bgPanel.AddThemeStyleboxOverride("panel", style);
-			_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			_bgPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
@@ -393,7 +406,7 @@ public partial class MapDetails : Control
 			style.ContentMarginTop = top;
 			style.ContentMarginBottom = bottom;
 			panel.AddThemeStyleboxOverride("panel", style);
-			panel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			panel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
@@ -412,6 +425,7 @@ public partial class MapDetails : Control
 		{
 			featuresVBox.AddThemeConstantOverride("separation", 16);
 		}
+
 		WrapInPanelContainer(featuresVBox, "res://Assets/UI/map_details_panel_features.png");
 
 		var statsVBox = _statsPanel.GetNode<VBoxContainer>("VBoxContainer");
@@ -430,6 +444,7 @@ public partial class MapDetails : Control
 		{
 			wrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 		}
+
 		content.GetParent().AddChild(wrapper);
 		content.GetParent().MoveChild(wrapper, content.GetIndex());
 		content.GetParent().RemoveChild(content);
@@ -506,7 +521,7 @@ public partial class MapDetails : Control
 
 		var frameStyle = new StyleBoxTexture { Texture = mapFrameTex, ContentMarginLeft = 36, ContentMarginRight = 36, ContentMarginTop = 32, ContentMarginBottom = 32 };
 		mapFrame.AddThemeStyleboxOverride("panel", frameStyle);
-		mapFrame.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		mapFrame.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		mapFrame.Position = new Vector2(170, 0);
 		mapFrame.Size = new Vector2(650, 380);
 
@@ -516,8 +531,8 @@ public partial class MapDetails : Control
 			mapFrame.AddChild(_texCenter);
 		}
 
-		_texCenter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_texCenter.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		_texCenter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_texCenter.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_texCenter.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_texCenter.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 
@@ -565,15 +580,16 @@ public partial class MapDetails : Control
 		var icon = button.GetNodeOrNull<TextureRect>("ArrowIcon");
 		if (icon == null)
 		{
-			icon = new TextureRect { Name = "ArrowIcon", MouseFilter = Control.MouseFilterEnum.Ignore };
+			icon = new TextureRect { Name = "ArrowIcon", MouseFilter = MouseFilterEnum.Ignore };
 			button.AddChild(icon);
 		}
+
 		icon.Texture = texture;
 		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		icon.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		icon.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		icon.FlipH = flipH;
-		icon.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		icon.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 	}
 
 	private void ApplyFlatCarouselButton(Button button, string text)
@@ -700,9 +716,9 @@ public partial class MapDetails : Control
 
 	private void RegisterHoverEvents()
 	{
-		_texCenter.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
-		_texLeftPeek.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
-		_texRightPeek.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
+		_texCenter.MouseDefaultCursorShape = CursorShape.PointingHand;
+		_texLeftPeek.MouseDefaultCursorShape = CursorShape.PointingHand;
+		_texRightPeek.MouseDefaultCursorShape = CursorShape.PointingHand;
 
 		AttachHoverAnimation(_texCenter, 1.03f);
 		AttachHoverAnimation(_texLeftPeek, 1.04f);
@@ -786,12 +802,14 @@ public partial class MapDetails : Control
 				if (tex != null) return tex;
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		try
 		{
 			string globalPath = ProjectSettings.GlobalizePath(resPath);
-			if (System.IO.File.Exists(globalPath))
+			if (File.Exists(globalPath))
 			{
 				var image = Image.LoadFromFile(globalPath);
 				if (image != null)
@@ -800,7 +818,9 @@ public partial class MapDetails : Control
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		return null;
 	}
@@ -862,7 +882,7 @@ public partial class MapDetails : Control
 		label.VerticalAlignment = VerticalAlignment.Center;
 		label.AddThemeColorOverride("font_color", isActive ? new Color(0.92f, 0.95f, 1.0f) : new Color(0.55f, 0.58f, 0.65f));
 		label.AddThemeFontSizeOverride("font_size", 13);
-		label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		label.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		hBox.AddChild(label);
 
 		AttachHoverAnimation(rowPanel, 1.03f,
@@ -874,7 +894,6 @@ public partial class MapDetails : Control
 
 	private void PopulateRatings()
 	{
-
 		FillStarsRow(_starsRow1, 5);
 		_votesRow1.Text = $"{_mapData.Votes5Star}   {_mapData.AvgRating} Stars";
 		_votesRow1.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
@@ -936,7 +955,7 @@ public partial class MapDetails : Control
 			rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 			rect.Texture = LoadTextureSafe(awardPath) ?? LoadTextureSafe("res://Assets/UI/gold_coin.png");
-			
+
 			badgePanel.AddChild(rect);
 			AttachHoverAnimation(badgePanel, 1.10f, UIStyle.ColorGold, UIStyle.ColorGoldDull);
 			_awardsContainer.AddChild(badgePanel);
@@ -1008,7 +1027,7 @@ public partial class MapDetails : Control
 			valueLabel.VerticalAlignment = VerticalAlignment.Center;
 			valueLabel.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f));
 			valueLabel.AddThemeFontSizeOverride("font_size", 13);
-			valueLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+			valueLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			hBox.AddChild(valueLabel);
 		}
 		else
@@ -1032,11 +1051,11 @@ public partial class MapDetails : Control
 
 		var card = new PanelContainer();
 		var cardStyle = new StyleBoxFlat();
-		cardStyle.BgColor = isAccentCard 
-			? new Color(0.06f, 0.07f, 0.10f, 0.8f) 
+		cardStyle.BgColor = isAccentCard
+			? new Color(0.06f, 0.07f, 0.10f, 0.8f)
 			: new Color(0.04f, 0.05f, 0.07f, 0.55f);
-		cardStyle.BorderColor = isAccentCard 
-			? UIStyle.ColorGold 
+		cardStyle.BorderColor = isAccentCard
+			? UIStyle.ColorGold
 			: new Color(0.55f, 0.45f, 0.32f, 0.4f);
 		cardStyle.SetBorderWidthAll(isAccentCard ? 2 : 1);
 		cardStyle.SetCornerRadiusAll(6);
@@ -1082,6 +1101,7 @@ public partial class MapDetails : Control
 					tween.TweenProperty(sb, "border_color", hoverBorderColor.Value, 0.12);
 				}
 			}
+
 			UIManager.Instance.PlayHoverSound();
 		};
 
@@ -1120,8 +1140,8 @@ public partial class MapDetails : Control
 		_downloadSubtitle.Text = $"0% ({_mapData.FileSize})";
 		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
-		string seedServerUrl = GodotObject.IsInstanceValid(Network.LobbyManager.Instance)
-			? Network.LobbyManager.Instance.RegistryServerUrl
+		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance)
+			? LobbyManager.Instance.RegistryServerUrl
 			: ServersConfigHelper.GetDefaultServerUrl();
 
 		var distClient = new MapDistributionClient();
@@ -1162,6 +1182,7 @@ public partial class MapDetails : Control
 			{
 				_downloadSubtitle.Text = Tr("Download failed. Click to retry.");
 			}
+
 			_downloadSubtitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 		}
 	}

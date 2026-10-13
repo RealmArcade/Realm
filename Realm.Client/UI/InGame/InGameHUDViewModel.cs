@@ -1,14 +1,19 @@
+using System;
+using System.Collections.Generic;
 using Arch.Core;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.ReplaySystem;
+using Realm.Client.Services;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
-using Realm.Client.ReplaySystem;
-using System;
-using System.Collections.Generic;
+using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Services;
 
 namespace Realm.Client.UI.InGame;
 
@@ -16,22 +21,23 @@ public class InGameHUDViewModel
 {
 	private Entity GetTargetPlayerEntity()
 	{
-		if (Realm.Client.Core.GameHost.Instance?.EcsWorld == null)
+		GameHost tempQualifier = GameHost.Instance;
+		if ((tempQualifier != null ? GameContext.World : null) == null)
 			return Entity.Null;
 
 		if (IsPlayingNormally())
-			return Realm.Client.Core.GameHost.Instance.PlayerEntity;
+			return GameHost.Instance._playerEntity;
 
 		int targetPeerId = GetTargetPeerId();
 		if (targetPeerId == -1)
-			return Realm.Client.Core.GameHost.Instance.PlayerEntity;
+			return GameHost.Instance._playerEntity;
 
 		return GetSpectatedPlayer(targetPeerId);
 	}
 
 	private bool IsPlayingNormally()
 	{
-		bool isSpectator = Network.LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+		bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
 		bool isPlayingReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
 		return !isSpectator && !isPlayingReplay;
 	}
@@ -40,22 +46,22 @@ public class InGameHUDViewModel
 	{
 		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
 			return ReplayPlaybackManager.Instance.SpectatorPerspective;
-		
+
 		return InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
 	}
 
 	private Entity GetSpectatedPlayer(int targetPeerId)
 	{
-		var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-		var worldEntity = Realm.Client.Core.GameHost.Instance.WorldEntity;
+		var world = GameContext.World;
+		var worldEntity = ECSContext.WorldEntity;
 
-		if (worldEntity == Entity.Null) return Realm.Client.Core.GameHost.Instance.PlayerEntity;
-		if (!world.IsAlive(worldEntity)) return Realm.Client.Core.GameHost.Instance.PlayerEntity;
-		if (!world.Has<NetworkMappingState>(worldEntity)) return Realm.Client.Core.GameHost.Instance.PlayerEntity;
+		if (worldEntity == Entity.Null) return GameHost.Instance._playerEntity;
+		if (!world.IsAlive(worldEntity)) return GameHost.Instance._playerEntity;
+		if (!world.Has<NetworkMappingState>(worldEntity)) return GameHost.Instance._playerEntity;
 
 		var mapping = world.Get<NetworkMappingState>(worldEntity);
-		if (mapping.PeerIdToPlayerEntityMap == null) return Realm.Client.Core.GameHost.Instance.PlayerEntity;
-		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var spectatedPlayer)) return Realm.Client.Core.GameHost.Instance.PlayerEntity;
+		if (mapping.PeerIdToPlayerEntityMap == null) return GameHost.Instance._playerEntity;
+		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var spectatedPlayer)) return GameHost.Instance._playerEntity;
 
 		return spectatedPlayer;
 	}
@@ -64,29 +70,30 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					var res = world.Get<PlayerResources>(player);
-					var goldId = "gold".AsResourceId(Realm.Client.Core.GameHost.Instance.DefinitionManager);
+					var goldId = "gold".AsResourceId(ECSContext.DefinitionManager);
 					if (res.Value.TryGetValue(goldId, out var val)) return val;
 				}
 			}
+
 			return 500f;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var goldId = "gold".AsResourceId(Realm.Client.Core.GameHost.Instance.DefinitionManager);
+					var goldId = "gold".AsResourceId(ECSContext.DefinitionManager);
 					res.Value[goldId] = (int)value;
 				}
 			}
@@ -97,29 +104,30 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					var res = world.Get<PlayerResources>(player);
-					var woodId = "wood".AsResourceId(Realm.Client.Core.GameHost.Instance.DefinitionManager);
+					var woodId = "wood".AsResourceId(ECSContext.DefinitionManager);
 					if (res.Value.TryGetValue(woodId, out var val)) return val;
 				}
 			}
+
 			return 400f;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var woodId = "wood".AsResourceId(Realm.Client.Core.GameHost.Instance.DefinitionManager);
+					var woodId = "wood".AsResourceId(ECSContext.DefinitionManager);
 					res.Value[woodId] = (int)value;
 				}
 			}
@@ -130,29 +138,30 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					var res = world.Get<PlayerResources>(player);
-					var stoneId = "stone".AsResourceId(Realm.Client.Core.GameHost.Instance.DefinitionManager);
+					var stoneId = "stone".AsResourceId(ECSContext.DefinitionManager);
 					if (res.Value.TryGetValue(stoneId, out var val)) return val;
 				}
 			}
+
 			return 200f;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var stoneId = "stone".AsResourceId(Realm.Client.Core.GameHost.Instance.DefinitionManager);
+					var stoneId = "stone".AsResourceId(ECSContext.DefinitionManager);
 					res.Value[stoneId] = (int)value;
 				}
 			}
@@ -163,22 +172,23 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerUpgrades>(player))
 				{
 					return world.Get<PlayerUpgrades>(player).HarvestingUpgrade ? 1.5f : 1.0f;
 				}
 			}
+
 			return 1.0f;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerUpgrades>(player))
 				{
@@ -203,24 +213,25 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
 				{
-					return world.Get<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Active;
+					return world.Get<CountdownState>(ECSContext.WorldEntity).Active;
 				}
 			}
+
 			return false;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
 				{
-					ref var countdown = ref world.Get<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var countdown = ref world.Get<CountdownState>(ECSContext.WorldEntity);
 					countdown.Active = value;
 				}
 			}
@@ -231,24 +242,25 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
 				{
-					return world.Get<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Duration;
+					return world.Get<CountdownState>(ECSContext.WorldEntity).Duration;
 				}
 			}
+
 			return 0f;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
 				{
-					ref var countdown = ref world.Get<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var countdown = ref world.Get<CountdownState>(ECSContext.WorldEntity);
 					countdown.Duration = value;
 				}
 			}
@@ -259,24 +271,25 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
 				{
-					return world.Get<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Text;
+					return world.Get<CountdownState>(ECSContext.WorldEntity).Text;
 				}
 			}
+
 			return "";
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<CountdownState>(ECSContext.WorldEntity))
 				{
-					ref var countdown = ref world.Get<CountdownState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var countdown = ref world.Get<CountdownState>(ECSContext.WorldEntity);
 					countdown.Text = value;
 				}
 			}
@@ -287,24 +300,25 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
 				{
-					return world.Get<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Visible;
+					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Visible;
 				}
 			}
+
 			return false;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
 				{
-					ref var lb = ref world.Get<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var lb = ref world.Get<LeaderboardState>(ECSContext.WorldEntity);
 					lb.Visible = value;
 				}
 			}
@@ -315,24 +329,25 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
 				{
-					return world.Get<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Title;
+					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Title;
 				}
 			}
+
 			return "";
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
 				{
-					ref var lb = ref world.Get<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var lb = ref world.Get<LeaderboardState>(ECSContext.WorldEntity);
 					lb.Title = value;
 				}
 			}
@@ -343,14 +358,15 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
 				{
-					return world.Get<LeaderboardState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Values;
+					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Values;
 				}
 			}
+
 			return new Dictionary<string, string>();
 		}
 	}
@@ -361,6 +377,7 @@ public class InGameHUDViewModel
 		{
 			world.Add(entity, new SummaryTableState(false, "Stats", Array.Empty<string>(), new Dictionary<string, string[]>()));
 		}
+
 		return ref world.Get<SummaryTableState>(entity);
 	}
 
@@ -368,24 +385,25 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<SummaryTableState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<SummaryTableState>(ECSContext.WorldEntity))
 				{
-					return world.Get<SummaryTableState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Visible;
+					return world.Get<SummaryTableState>(ECSContext.WorldEntity).Visible;
 				}
 			}
+
 			return false;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity))
 				{
-					ref var st = ref EnsureSummaryTableState(world, Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var st = ref EnsureSummaryTableState(world, ECSContext.WorldEntity);
 					st.Visible = value;
 				}
 			}
@@ -396,24 +414,25 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<SummaryTableState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<SummaryTableState>(ECSContext.WorldEntity))
 				{
-					return world.Get<SummaryTableState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Title;
+					return world.Get<SummaryTableState>(ECSContext.WorldEntity).Title;
 				}
 			}
+
 			return "Stats";
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity))
 				{
-					ref var st = ref EnsureSummaryTableState(world, Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var st = ref EnsureSummaryTableState(world, ECSContext.WorldEntity);
 					st.Title = value;
 				}
 			}
@@ -424,24 +443,25 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity) && world.Has<SummaryTableState>(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<SummaryTableState>(ECSContext.WorldEntity))
 				{
-					return world.Get<SummaryTableState>(Realm.Client.Core.GameHost.Instance.WorldEntity).Headers ?? Array.Empty<string>();
+					return world.Get<SummaryTableState>(ECSContext.WorldEntity).Headers ?? Array.Empty<string>();
 				}
 			}
+
 			return Array.Empty<string>();
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity))
 				{
-					ref var st = ref EnsureSummaryTableState(world, Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var st = ref EnsureSummaryTableState(world, ECSContext.WorldEntity);
 					st.Headers = value;
 				}
 			}
@@ -452,22 +472,24 @@ public class InGameHUDViewModel
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null && Realm.Client.Core.GameHost.Instance.WorldEntity != Entity.Null)
+			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
-				if (world.IsAlive(Realm.Client.Core.GameHost.Instance.WorldEntity))
+				var world = GameContext.World;
+				if (world.IsAlive(ECSContext.WorldEntity))
 				{
-					ref var st = ref EnsureSummaryTableState(world, Realm.Client.Core.GameHost.Instance.WorldEntity);
+					ref var st = ref EnsureSummaryTableState(world, ECSContext.WorldEntity);
 					return st.Rows;
 				}
 			}
+
 			return _cachedEmptySummaryRows;
 		}
 	}
+
 	private static readonly Dictionary<string, string[]> _cachedEmptySummaryRows = new();
 
 	public List<SelectedUnitInfo> SelectedUnits { get; } = new();
-	public Realm.Client.Prop3D SelectedProp { get; set; }
+	public Prop3D SelectedProp { get; set; }
 	public int CycleSelectionIndex { get; set; }
 
 	public bool IsChatActive { get; set; }
@@ -476,10 +498,15 @@ public class InGameHUDViewModel
 	public string CurrentWeather { get; set; } = "clear";
 	public string ShroudType { get; set; } = "VisionShroud";
 	public bool ShowMinimapTerrain { get; set; } = true;
-	
+
 	private static readonly byte[,] _emptyShroudGrid = new byte[32, 32];
 	public byte[,] ShroudGrid { get; set; } = _emptyShroudGrid;
-	public byte[,] FogGrid { get => ShroudGrid; set => ShroudGrid = value; }
+
+	public byte[,] FogGrid
+	{
+		get => ShroudGrid;
+		set => ShroudGrid = value;
+	}
 
 	public int IdleCount { get; set; }
 
@@ -489,34 +516,6 @@ public class InGameHUDViewModel
 	private int _lastClockSecs = -1;
 	private int _lastClockPhase = -1;
 
-	public class SelectedUnitInfo
-	{
-		public Entity Entity { get; set; }
-		public string UnitId { get; set; }
-		public string Name { get; set; }
-		public float Health { get; set; }
-		public float MaxHealth { get; set; }
-		public float Damage { get; set; }
-		public float Range { get; set; }
-		public float Armor { get; set; }
-		public float Speed { get; set; }
-		public float Dps { get; set; }
-		public bool IsEnemy { get; set; }
-		public int PlayerIndex { get; set; }
-		public bool IsBuilding { get; set; }
-		public bool IsUnderConstruction { get; set; }
-		public string StateText { get; set; }
-		public string Description { get; set; }
-		public List<string> Abilities { get; set; } = new();
-		public int Potions { get; set; }
-		public Dictionary<string, int> InventoryItems { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-		public bool HasProduction { get; set; }
-		public string ProductionTitle { get; set; }
-		public float ProductionProgress { get; set; }
-		public float ProductionMaxProgress { get; set; }
-		public List<string> ProductionQueue { get; set; } = new();
-	}
 
 	public void Update(double delta)
 	{
@@ -524,25 +523,25 @@ public class InGameHUDViewModel
 		WoodPerSec = 1.0f * ResourceGatherMultiplier;
 		StonePerSec = 0.8f * ResourceGatherMultiplier;
 
-		if (Realm.Client.Core.GameHost.Instance == null)
+		if (GameHost.Instance == null)
 			return;
 
 		UpdatePopulation();
 		UpdateClock();
 
-		IsConnectionLost = Realm.Client.Core.GameHost.Instance.IsConnectionLost;
-		CycleSelectionIndex = Realm.Client.Core.GameHost.Instance.CycleSelectionIndex;
+		IsConnectionLost = GameHost.Instance.IsConnectionLost;
+		CycleSelectionIndex = GameHost.Instance.CycleSelectionIndex;
 
 		UpdateIdleCount();
 	}
 
 	private void UpdatePopulation()
 	{
-		var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+		var world = GameContext.World;
 		if (world == null)
 		{
-			CurrentPopulation = Realm.Client.Core.GameHost.Instance.CurrentPopulation;
-			MaxPopulation = Realm.Client.Core.GameHost.Instance.MaxPopulation;
+			CurrentPopulation = GameHost.Instance.CurrentPopulation;
+			MaxPopulation = GameHost.Instance.MaxPopulation;
 			return;
 		}
 
@@ -555,17 +554,17 @@ public class InGameHUDViewModel
 			return;
 		}
 
-		CurrentPopulation = Realm.Client.Core.GameHost.Instance.CurrentPopulation;
-		MaxPopulation = Realm.Client.Core.GameHost.Instance.MaxPopulation;
+		CurrentPopulation = GameHost.Instance.CurrentPopulation;
+		MaxPopulation = GameHost.Instance.MaxPopulation;
 	}
 
 	private void UpdateClock()
 	{
-		float t = Realm.Client.Core.GameHost.Instance.GameElapsedTime;
+		float t = GameHost.Instance.GameElapsedTime;
 		int mins = (int)(t / 60);
 		int secs = (int)(t % 60);
-		int phaseIdx = Realm.Client.Core.GameHost.Instance.TimeOfDayIndex;
-		
+		int phaseIdx = GameHost.Instance.TimeOfDayIndex;
+
 		if (mins == _lastClockMins && secs == _lastClockSecs && phaseIdx == _lastClockPhase)
 			return;
 
@@ -585,7 +584,7 @@ public class InGameHUDViewModel
 
 	private void UpdateIdleCount()
 	{
-		var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+		var world = GameContext.World;
 		if (world == null)
 		{
 			IdleCount = 0;
@@ -600,15 +599,16 @@ public class InGameHUDViewModel
 		}
 
 		int idleCount = 0;
-		world.Query(in Realm.Ecs.Common.QueryCache.AllIdleMovableQuery, (Entity entity, ref Owner owner) => {
+		world.Query(in QueryCache.AllIdleMovableQuery, (Entity entity, ref Owner owner) =>
+		{
 			if (owner.PlayerEntity.Value == targetPlayer)
 				idleCount++;
 		});
-		
+
 		IdleCount = idleCount;
 	}
 
-	public void UpdateSelectedUnits(List<Realm.Client.Unit3D> selectedUnits)
+	public void UpdateSelectedUnits(List<Unit3D> selectedUnits)
 	{
 		if (selectedUnits == null)
 		{
@@ -630,22 +630,23 @@ public class InGameHUDViewModel
 		{
 			SelectedUnits.RemoveAt(SelectedUnits.Count - 1);
 		}
+
 		while (SelectedUnits.Count < targetCount)
 		{
 			SelectedUnits.Add(new SelectedUnitInfo());
 		}
 	}
 
-	private void UpdateSingleSelectedUnit(Realm.Client.Unit3D u, SelectedUnitInfo info)
+	private void UpdateSingleSelectedUnit(Unit3D u, SelectedUnitInfo info)
 	{
 		bool entityChanged = info.Entity != u.Entity;
 
 		InitializeUnitInfo(u, info, entityChanged);
 
-		if (Realm.Client.Core.GameHost.Instance == null || !Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(u.Entity))
+		if (GameHost.Instance == null || !GameContext.World.IsAlive(u.Entity))
 			return;
 
-		var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+		var world = GameContext.World;
 
 		UpdateUnitBasicStats(world, u, info);
 		UpdateUnitStateText(world, u, info);
@@ -663,12 +664,11 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private void InitializeUnitInfo(Realm.Client.Unit3D u, SelectedUnitInfo info, bool entityChanged)
+	private void InitializeUnitInfo(Unit3D u, SelectedUnitInfo info, bool entityChanged)
 	{
 		info.Entity = u.Entity;
 		info.UnitId = u.UnitId;
 		info.IsEnemy = u.IsEnemy;
-		info.PlayerIndex = u.Player;
 		info.IsBuilding = u.IsBuilding;
 		info.Name = u.UnitId;
 		info.IsUnderConstruction = false;
@@ -695,14 +695,14 @@ public class InGameHUDViewModel
 		info.Dps = 0f;
 	}
 
-	private void UpdateUnitBasicStats(World world, Realm.Client.Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitBasicStats(World world, Unit3D u, SelectedUnitInfo info)
 	{
 		if (world.Has<Name>(u.Entity))
 			info.Name = world.Get<Name>(u.Entity).Value;
 
-		if (u.IsBuilding && world.Has<Realm.Ecs.Components.Tags.UnderConstruction>(u.Entity))
+		if (u.IsBuilding && world.Has<UnderConstruction>(u.Entity))
 			info.IsUnderConstruction = true;
-		
+
 		if (world.Has<Health>(u.Entity))
 		{
 			var hp = world.Get<Health>(u.Entity);
@@ -726,7 +726,7 @@ public class InGameHUDViewModel
 			info.Speed = world.Get<MovementStats>(u.Entity).Speed;
 	}
 
-	private void UpdateUnitStateText(World world, Realm.Client.Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitStateText(World world, Unit3D u, SelectedUnitInfo info)
 	{
 		info.StateText = GetBaseStateText(world, u);
 
@@ -737,13 +737,13 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private string GetBaseStateText(World world, Realm.Client.Unit3D u)
+	private string GetBaseStateText(World world, Unit3D u)
 	{
 		if (world.Has<Gatherer>(u.Entity))
 			return GetGathererStateText(world.Get<Gatherer>(u.Entity));
 
-		if (world.Has<Realm.Ecs.Components.Resources.BuildTask>(u.Entity))
-			return GetBuildTaskStateText(world.Get<Realm.Ecs.Components.Resources.BuildTask>(u.Entity));
+		if (world.Has<BuildTask>(u.Entity))
+			return GetBuildTaskStateText(world.Get<BuildTask>(u.Entity));
 
 		return GetMovementOrAttackStateText(world, u.Entity);
 	}
@@ -756,7 +756,7 @@ public class InGameHUDViewModel
 		return $"{stateLabel} ({gather.CarriedAmount:F0} / {gather.MaxCapacity:F0} {TranslationServer.Translate(gather.ResourceType.ToUpper())})";
 	}
 
-	private string GetBuildTaskStateText(Realm.Ecs.Components.Resources.BuildTask bt)
+	private string GetBuildTaskStateText(BuildTask bt)
 	{
 		string cachedConstructing = TranslationServer.Translate("CONSTRUCTING");
 		int pct = (int)(bt.Progress / Mathf.Max(bt.TotalBuildTime, 0.001f) * 100f);
@@ -765,28 +765,28 @@ public class InGameHUDViewModel
 
 	private string GetMovementOrAttackStateText(World world, Entity entity)
 	{
-		if (world.Has<Realm.Ecs.Components.Movement.HoldPosition>(entity))
+		if (world.Has<HoldPosition>(entity))
 			return "● " + TranslationServer.Translate("HOLDING");
-		
-		if (world.Has<Realm.Ecs.Components.Movement.Patrol>(entity))
+
+		if (world.Has<Patrol>(entity))
 			return "● " + TranslationServer.Translate("PATROLLING");
-		
-		if (world.Has<Realm.Ecs.Components.Movement.AttackMove>(entity))
+
+		if (world.Has<AttackMove>(entity))
 			return "● " + TranslationServer.Translate("ATTACK-MOVE");
-		
-		if (world.Has<Realm.Ecs.Components.Movement.Follow>(entity))
+
+		if (world.Has<Follow>(entity))
 			return "● " + TranslationServer.Translate("FOLLOWING");
-		
-		if (world.Has<Realm.Ecs.Components.Movement.MoveTo>(entity))
+
+		if (world.Has<MoveTo>(entity))
 			return "● " + TranslationServer.Translate("MOVING");
-		
+
 		if (world.Has<AttackTarget>(entity))
 			return "● " + TranslationServer.Translate("ATTACKING");
-		
+
 		return "○ " + TranslationServer.Translate("IDLE");
 	}
 
-	private void UpdateUnitInventory(World world, Realm.Client.Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitInventory(World world, Unit3D u, SelectedUnitInfo info)
 	{
 		if (!world.Has<Inventory>(u.Entity))
 			return;
@@ -802,24 +802,24 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private void UpdateUnitProduction(World world, Realm.Client.Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitProduction(World world, Unit3D u, SelectedUnitInfo info)
 	{
 		if (!u.IsBuilding)
 			return;
 
-		if (!u.IsEnemy && world.Has<Realm.Ecs.Components.Resources.ConstructionState>(u.Entity))
+		if (!u.IsEnemy && world.Has<ConstructionState>(u.Entity))
 		{
-			var cs = world.Get<Realm.Ecs.Components.Resources.ConstructionState>(u.Entity);
+			var cs = world.Get<ConstructionState>(u.Entity);
 			info.HasProduction = true;
 			info.ProductionTitle = TranslationServer.Translate("UNDER CONSTRUCTION");
 			info.ProductionProgress = cs.Progress;
 			info.ProductionMaxProgress = cs.TotalBuildTime;
 		}
-		else if (u.UnitId == "castle" && world.Has<Realm.Ecs.Components.Core.ProductionQueue>(u.Entity))
+		else if (u.UnitId == "castle" && world.Has<ProductionQueue>(u.Entity))
 		{
-			var prod = world.Get<Realm.Ecs.Components.Core.ProductionQueue>(u.Entity);
+			var prod = world.Get<ProductionQueue>(u.Entity);
 			info.HasProduction = true;
-			
+
 			if (prod.UnitIds.Count > 0)
 			{
 				info.ProductionTitle = string.Format(TranslationServer.Translate("TRAINING: {0}"), prod.UnitIds[0].ToUpper());
@@ -839,7 +839,7 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private void UpdateUnitProductionQueue(SelectedUnitInfo info, Realm.Ecs.Components.Core.ProductionQueue prod)
+	private void UpdateUnitProductionQueue(SelectedUnitInfo info, ProductionQueue prod)
 	{
 		bool queueChanged = info.ProductionQueue.Count != prod.UnitIds.Count;
 		if (!queueChanged)
@@ -853,6 +853,7 @@ public class InGameHUDViewModel
 				}
 			}
 		}
+
 		if (queueChanged)
 		{
 			info.ProductionQueue.Clear();
@@ -860,13 +861,13 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private void UpdateUnitAbilities(World world, Realm.Client.Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitAbilities(World world, Unit3D u, SelectedUnitInfo info)
 	{
 		info.Abilities.Clear();
-		
-		if (world.Has<Realm.Ecs.Components.Core.AbilityState>(u.Entity))
+
+		if (world.Has<AbilityState>(u.Entity))
 		{
-			var state = world.Get<Realm.Ecs.Components.Core.AbilityState>(u.Entity);
+			var state = world.Get<AbilityState>(u.Entity);
 			if (state.Abilities != null && state.Abilities.Count > 0)
 			{
 				info.Abilities.AddRange(state.Abilities);
@@ -874,7 +875,7 @@ public class InGameHUDViewModel
 			}
 		}
 
-		if (Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(u.UnitId, out var regMeta))
+		if (GameHost.UnitRegistry.TryGetValue(u.UnitId, out var regMeta))
 		{
 			info.Description = regMeta.Description;
 			if (regMeta.Abilities != null && regMeta.Abilities.Length > 0)

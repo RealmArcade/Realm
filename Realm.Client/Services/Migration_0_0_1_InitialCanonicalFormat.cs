@@ -1,13 +1,13 @@
-using Realm.Shared.Audio;
-using Realm.Shared.Distribution;
-using Realm.Shared.ModelOptimization;
-using Realm.Shared.Textures;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Realm.Shared.Audio;
+using Realm.Shared.Distribution;
+using Realm.Shared.ModelOptimization;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.Services;
 
@@ -98,6 +98,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 			string nameVal = mapProperties["Name"]?.ToString() ?? mapProperties["Title"]?.ToString() ?? "";
 			if (!string.IsNullOrEmpty(nameVal)) mapProperties["MapName"] = nameVal;
 		}
+
 		mapProperties.Remove("Name");
 		mapProperties.Remove("Title");
 	}
@@ -109,6 +110,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 			string descVal = mapProperties["Description"]?.ToString() ?? "";
 			if (!string.IsNullOrEmpty(descVal)) mapProperties["MapDescription"] = descVal;
 		}
+
 		mapProperties.Remove("Description");
 	}
 
@@ -124,16 +126,18 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		foreach (var (legacyKey, canonicalKey) in legacyEntityArrays)
 		{
 			if (!metadataRoot.TryGetPropertyValue(legacyKey, out var legacyArrayNode) || legacyArrayNode is not JsonArray legacyArray) continue;
-			
+
 			if (!metadataRoot.ContainsKey(canonicalKey) || metadataRoot[canonicalKey] is not JsonArray)
 			{
 				metadataRoot[canonicalKey] = new JsonArray();
 			}
+
 			var canonicalArray = metadataRoot[canonicalKey]!.AsArray();
 			foreach (var item in legacyArray)
 			{
 				if (item != null) canonicalArray.Add(item.DeepClone());
 			}
+
 			metadataRoot.Remove(legacyKey);
 		}
 	}
@@ -145,11 +149,13 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 			MapUpgradeService.MergeCategoryInto(unionedAssets, "Spritesheet", vfxObj);
 			metadataRoot.Remove("vfx");
 		}
+
 		if (metadataRoot.TryGetPropertyValue("noise", out var noiseNode) && noiseNode is JsonObject noiseObj)
 		{
 			MapUpgradeService.MergeCategoryInto(unionedAssets, "Noise", noiseObj);
 			metadataRoot.Remove("noise");
 		}
+
 		if (metadataRoot.TryGetPropertyValue("ribbon_textures", out var ribbonNode) && ribbonNode is JsonObject ribbonObj)
 		{
 			MapUpgradeService.MergeCategoryInto(unionedAssets, "Ribbon", ribbonObj);
@@ -215,7 +221,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		string assetType = DetermineModelAssetType(normalized);
 		string targetRmesh = Path.ChangeExtension(modelFile, ".rmesh");
 		var result = ModelConverter.ConvertToRmesh(modelFile, targetRmesh, assetType, force: true);
-		
+
 		if (result.Success && File.Exists(targetRmesh))
 		{
 			DeleteOriginalFile(modelFile);
@@ -239,7 +245,9 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 			if ((attrs & FileAttributes.ReadOnly) != 0) File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
 			File.Delete(file);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private static void UpdateEntityModelPaths(JsonObject metadataRoot)
@@ -265,16 +273,19 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 			string mp = mpVal.ToString();
 			if (ModelExtensions.Contains(Path.GetExtension(mp))) itemObj["ModelPath"] = Path.ChangeExtension(mp, ".rmesh");
 		}
+
 		if (itemObj.TryGetPropertyValue("PortraitModelPath", out var pmpVal) && pmpVal != null)
 		{
 			string pmp = pmpVal.ToString();
 			if (ModelExtensions.Contains(Path.GetExtension(pmp))) itemObj["PortraitModelPath"] = Path.ChangeExtension(pmp, ".rmesh");
 		}
+
 		if (itemObj.ContainsKey("NormalMode"))
 		{
 			itemObj["DespillPlayerColor"] = false;
 			itemObj.Remove("NormalMode");
 		}
+
 		if (itemObj.ContainsKey("RecalculateNormals"))
 		{
 			itemObj["DespillPlayerColor"] = false;
@@ -294,7 +305,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		foreach (var dictName in modelDictNames)
 		{
 			if (!metadataRoot.TryGetPropertyValue(dictName, out var dictNode) || dictNode is not JsonObject dictObj) continue;
-			
+
 			var keysToMigrate = new List<(string OldKey, string NewKey, JsonNode? Value)>();
 			foreach (var prop in dictObj)
 			{
@@ -304,6 +315,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 					keysToMigrate.Add((prop.Key, Path.ChangeExtension(prop.Key, ".rmesh"), prop.Value?.DeepClone()));
 				}
 			}
+
 			foreach (var (oldKey, newKey, val) in keysToMigrate)
 			{
 				dictObj.Remove(oldKey);
@@ -320,11 +332,13 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		{
 			metadataRoot["ModelDespillPlayerColor"] = new JsonObject();
 		}
+
 		var despillObj = metadataRoot["ModelDespillPlayerColor"]!.AsObject();
 		foreach (var prop in nrmObj)
 		{
 			despillObj[Path.ChangeExtension(prop.Key, ".rmesh")] = true;
 		}
+
 		metadataRoot.Remove("ModelNormalModes");
 	}
 
@@ -343,6 +357,7 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 					keysToMigrate.Add((item.Key, Path.ChangeExtension(item.Key, targetExtension), item.Value));
 				}
 			}
+
 			foreach (var (oldKey, newKey, val) in keysToMigrate)
 			{
 				dict.Remove(oldKey);
@@ -439,12 +454,36 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		columns = 1;
 		rows = 1;
 
-		if (lowerNorm.Contains("/decals/")) { assetType = "decal"; return; }
-		if (lowerNorm.Contains("/icons/")) { assetType = "icon"; return; }
-		if (lowerNorm.Contains("/skyboxes/")) { assetType = "skybox"; return; }
-		if (lowerNorm.Contains("/ribbons/")) { assetType = "ribbon"; return; }
-		if (lowerNorm.Contains("/noise/")) { assetType = "noise"; return; }
-		
+		if (lowerNorm.Contains("/decals/"))
+		{
+			assetType = "decal";
+			return;
+		}
+
+		if (lowerNorm.Contains("/icons/"))
+		{
+			assetType = "icon";
+			return;
+		}
+
+		if (lowerNorm.Contains("/skyboxes/"))
+		{
+			assetType = "skybox";
+			return;
+		}
+
+		if (lowerNorm.Contains("/ribbons/"))
+		{
+			assetType = "ribbon";
+			return;
+		}
+
+		if (lowerNorm.Contains("/noise/"))
+		{
+			assetType = "noise";
+			return;
+		}
+
 		if (lowerNorm.Contains("/vfx/"))
 		{
 			assetType = "vfx";

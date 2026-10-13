@@ -1,13 +1,14 @@
+using System.Numerics;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using System.Numerics;
 
 namespace Realm.Ecs.AI.Simulation;
 
@@ -25,6 +26,7 @@ public class HeadlessSimulationRunner
 	private readonly List<Entity> _deadEntitiesBuffer = new(32);
 
 	public World World => _world;
+
 	public IAiGenreProvider GenreProvider
 	{
 		get => _genreProvider;
@@ -59,13 +61,13 @@ public class HeadlessSimulationRunner
 		var p0 = _world.Create(
 			new Player(),
 			new UnitOwnerPlayer(0),
-			new PlayerResources(new Dictionary<Common.ResourceId, int> { { new Common.ResourceId("Gold"), 1000 } })
+			new PlayerResources(new Dictionary<ResourceId, int> { { new ResourceId("Gold"), 1000 } })
 		);
 
 		var p1 = _world.Create(
 			new Player(),
 			new UnitOwnerPlayer(1),
-			new PlayerResources(new Dictionary<Common.ResourceId, int> { { new Common.ResourceId("Gold"), 1000 } })
+			new PlayerResources(new Dictionary<ResourceId, int> { { new ResourceId("Gold"), 1000 } })
 		);
 
 		SpawnStartingBase(0, new Vector3(-20, 0, 0));
@@ -251,7 +253,7 @@ public class HeadlessSimulationRunner
 
 			float currentDuration = (tick + 1) * fixedDelta;
 			int? winner = CheckEarlyWinCondition(winConditionEvaluator, currentDuration);
-			
+
 			if (winner.HasValue)
 			{
 				return new SimulationMatchResult

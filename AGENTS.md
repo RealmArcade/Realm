@@ -25,7 +25,7 @@
 
 ## Godot-Specific Coding Rules:
 - 2D button: always specify the `icon_max_width` property.
-- Godot UX should only include UX logic via MVP pattern calling services for domain logic
+- Godot nodes should only include UX logic, domain logic should be delegated to services
 - For any text labels that appear on screen, ensure they are translated via `LocalizationManager.cs`.
 - Labels in Containers: When setting autowrap_mode, always set custom_minimum_size.x (explicit width) and size_flags_horizontal = SIZE_EXPAND_FILL. Otherwise Godot calculates custom_minimum_size.y based on single-word wrapping, causing container to stretch excessively tall.
 - Unicode Icons: Never hardcode `\uXXXX` escape sequences inside string literals in UI or HUD scripts. Always reference named glyph constants defined in `UnicodeIcons` (e.g. `${UnicodeIcons.UPLOAD}`).
@@ -37,9 +37,8 @@
 
 ### Logic Services:
 - Classes inheriting from Godot should have minimal orchestration logic, deferring complex logic to domain-specific services.
-- Services should have the `WorldAccessor` dependency injected via their constructor and cached for their lifetime.
 - Decoupled Communication: Avoid using DTOs to communicate between orchestrators (`GameHost`) and services. Communication should be minimal and limited to simple ephemeral primitive parameters and return values. All persistent shared data must be stored directly in the ECS, allowing both services and `GameHost` to query and write to the ECS independently to coordinate.
-- Services should never be instantiated directly, they should always be retrieved via the global ServiceLocator during godot scene _Ready() and stored in private readonly fields.
+- Services should never be instantiated directly, they should always be accessed via the global GameContext
 
 ### Realm.MapAPI:
 - Only expose safe APIs to map authors and external tools to prevent direct manipulation of raw Godot nodes or C# ECS structures.

@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Numerics;
+using System.Text.Json;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
@@ -6,7 +9,6 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using System.Numerics;
 
 namespace Realm.Ecs.AI.Genres;
 
@@ -45,13 +47,13 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		return new float[StandardFeatureCount]
 		{
 			-0.5f, // Cost
-			 0.8f, // Target Threat
-			 0.2f, // Range
-			 0.5f, // Health Ratio
-			 0.7f, // Tempo
-			 0.9f, // Cooldown
-			 0.4f, // Retreat Urgency
-			 0.6f  // Synergy
+			0.8f, // Target Threat
+			0.2f, // Range
+			0.5f, // Health Ratio
+			0.7f, // Tempo
+			0.9f, // Cooldown
+			0.4f, // Retreat Urgency
+			0.6f // Synergy
 		};
 	}
 
@@ -78,7 +80,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 	private static void UpdateFloatParam(IReadOnlyDictionary<string, string> parameters, string key, ref float field, float min, float max)
 	{
 		if (!parameters.TryGetValue(key, out var strVal)) return;
-		if (!float.TryParse(strVal, System.Globalization.CultureInfo.InvariantCulture, out var floatVal)) return;
+		if (!float.TryParse(strVal, CultureInfo.InvariantCulture, out var floatVal)) return;
 
 		field = Math.Clamp(floatVal, min, max);
 	}
@@ -89,13 +91,15 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 
 		try
 		{
-			var parsedList = System.Text.Json.JsonSerializer.Deserialize<List<Vector3>>(jsonStr);
+			var parsedList = JsonSerializer.Deserialize<List<Vector3>>(jsonStr);
 			if (parsedList == null) return;
-			
+
 			list.Clear();
 			list.AddRange(parsedList);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private static int GetOwnerIndex(World world, Entity entity)
@@ -106,7 +110,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 
 		if (!world.Has<Owner>(entity)) return -1;
-		
+
 		var pEnt = world.Get<Owner>(entity).PlayerEntity.Value;
 		if (world.IsAlive(pEnt) && world.Has<UnitOwnerPlayer>(pEnt))
 		{
@@ -119,7 +123,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 	private static int GetPlayerGold(World world, Entity playerEntity)
 	{
 		if (!world.IsAlive(playerEntity) || !world.Has<PlayerResources>(playerEntity)) return 1000;
-		
+
 		var resources = world.Get<PlayerResources>(playerEntity).Value;
 		return resources.Count > 0 ? resources.Values.FirstOrDefault() : 1000;
 	}
@@ -127,7 +131,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 	private static float GetUnitHealthRatio(World world, Entity unit)
 	{
 		if (!world.Has<Health>(unit)) return 1.0f;
-		
+
 		var hp = world.Get<Health>(unit);
 		return Math.Clamp(hp.Current / Math.Max(1.0f, hp.Max), 0f, 1f);
 	}
@@ -167,7 +171,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 			{
 				playerEntity = pe;
 			}
-			
+
 			if (world.Has<UnitOwnerPlayer>(pe) && world.Get<UnitOwnerPlayer>(pe).PlayerIndex == playerIndex)
 			{
 				playerEntity = pe;
@@ -237,7 +241,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		{
 			var enemy = _enemyUnits[eIdx];
 			if (!world.IsAlive(enemy)) continue;
-			
+
 			var ePos = world.Get<Position>(enemy).Value;
 			float dist = Vector3.Distance(unitPos, ePos);
 			if (dist < minEnemyDist)
@@ -359,6 +363,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 			ref var cooldowns = ref world.Get<SpellCooldowns>(aff.SourceEntity);
 			cooldowns.Value[aff.PayloadId] = 5.0f;
 		}
+
 		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Cast");
 	}
 

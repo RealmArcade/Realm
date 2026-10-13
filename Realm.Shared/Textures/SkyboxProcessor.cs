@@ -1,3 +1,4 @@
+using System.Globalization;
 using SkiaSharp;
 
 namespace Realm.Shared.Textures;
@@ -33,9 +34,9 @@ public static class SkyboxProcessor
 			return null;
 		}
 
-		if (byte.TryParse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber, null, out byte r) &&
-			byte.TryParse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, null, out byte g) &&
-			byte.TryParse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, null, out byte b))
+		if (byte.TryParse(hex.Substring(0, 2), NumberStyles.HexNumber, null, out byte r) &&
+		    byte.TryParse(hex.Substring(2, 2), NumberStyles.HexNumber, null, out byte g) &&
+		    byte.TryParse(hex.Substring(4, 2), NumberStyles.HexNumber, null, out byte b))
 		{
 			return new SKColor(r, g, b, 255);
 		}
@@ -52,8 +53,8 @@ public static class SkyboxProcessor
 		}
 
 		if (byte.TryParse(parts[0].Trim(), out byte r) &&
-			byte.TryParse(parts[1].Trim(), out byte g) &&
-			byte.TryParse(parts[2].Trim(), out byte b))
+		    byte.TryParse(parts[1].Trim(), out byte g) &&
+		    byte.TryParse(parts[2].Trim(), out byte b))
 		{
 			return new SKColor(r, g, b, 255);
 		}
@@ -123,6 +124,7 @@ public static class SkyboxProcessor
 			sumG += pixel.Green;
 			sumB += pixel.Blue;
 		}
+
 		return (sumR / width, sumG / width, sumB / width);
 	}
 
@@ -163,6 +165,7 @@ public static class SkyboxProcessor
 			sumG += pixel.Green;
 			sumB += pixel.Blue;
 		}
+
 		return (sumR / width, sumG / width, sumB / width);
 	}
 

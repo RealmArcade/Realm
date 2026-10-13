@@ -1,16 +1,31 @@
-using Godot;
-using Realm.Shared;
 using System;
+using System.IO;
+using System.Text.Json;
+using Godot;
+using Realm.Client.Network;
+using Realm.Shared;
+using HttpClient = System.Net.Http.HttpClient;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class MainMenu : Control
 {
+	public MainMenu()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
 	private Panel _bgPanel;
 	private Panel _leftPillar;
 	private Panel _rightPillar;
 	private PanelContainer _centralPanel;
-	
+
 	private TextureRect _gameLogo;
 	private Button _playButton;
 	private Button _singlePlayerButton;
@@ -42,7 +57,7 @@ public partial class MainMenu : Control
 
 	public override void _Ready()
 	{
-		TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		BindNodes();
 		StylePanels();
@@ -64,7 +79,7 @@ public partial class MainMenu : Control
 		_centralPanel = GetNode<PanelContainer>("CentralPanel");
 		_gameLogo = GetNode<TextureRect>("GameLogo");
 		_gameLogo.Texture = LoadTrimmedTexture("res://Assets/UI/Logo.png");
-		_gameLogo.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_gameLogo.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		CreateVersionSelector();
 		_playButton = GetNode<Button>("CentralPanel/VBoxContainer/PlayButton");
@@ -104,28 +119,32 @@ public partial class MainMenu : Control
 		{
 			SetupMenuButton(_singlePlayerButton, "SINGLE PLAYER", () =>
 			{
-				if (Network.LobbyManager.Instance != null) Network.LobbyManager.Instance.IsSinglePlayer = true;
+				if (LobbyManager.Instance != null) LobbyManager.Instance.IsSinglePlayer = true;
 				UIManager.Instance.TransitionTo(GameScreen.LobbyCreate);
 			}, "res://Assets/UI/menu_single_player_button.png");
 			_singlePlayerButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
+
 		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.png");
 		if (_creatorDiscoveryButton != null)
 		{
 			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => UIManager.Instance.TransitionTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.png");
 			_creatorDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
+
 		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.png");
 		if (_replaysButton != null)
 		{
 			SetupMenuButton(_replaysButton, "REPLAYS", () => UIManager.Instance.TransitionTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.png");
 			_replaysButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
+
 		if (_storageButton != null)
 		{
 			SetupMenuButton(_storageButton, "STORAGE", () => UIManager.Instance.TransitionTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.jpg");
 			_storageButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
+
 		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.png", () => UIManager.Instance.OpenSettingsOverlay(), new Vector2(22, 22), true);
 		SetupAvatarButton(_profileButton, () => ShowProfilePopup());
 		SetupButton(_quitButton, "QUIT GAME", () => GetTree().Quit());
@@ -150,7 +169,7 @@ public partial class MainMenu : Control
 		var popoverBg = _socialPopover.GetNodeOrNull<TextureRect>("Background");
 		if (popoverBg == null) return;
 		popoverBg.Texture = LoadTrimmedTexture("res://Assets/UI/menu_popup.png");
-		popoverBg.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		popoverBg.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		popoverBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		popoverBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 	}
@@ -168,7 +187,11 @@ public partial class MainMenu : Control
 	private void SetupSocialLinkButton(Button button, string text, string url, string iconPath)
 	{
 		if (button == null) return;
-		SetupMenuButton(button, text, () => { OS.ShellOpen(url); HideSocialPopover(); }, "res://Assets/UI/options_menu_button.png", null, iconPath);
+		SetupMenuButton(button, text, () =>
+		{
+			OS.ShellOpen(url);
+			HideSocialPopover();
+		}, "res://Assets/UI/options_menu_button.png", null, iconPath);
 	}
 
 	private void OnSocialPopoverOverlayGuiInput(InputEvent @event)
@@ -245,7 +268,7 @@ public partial class MainMenu : Control
 				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 		};
 
-		button.Pressed += () => 
+		button.Pressed += () =>
 		{
 			PlayClickSound();
 			onClick?.Invoke();
@@ -404,18 +427,18 @@ public partial class MainMenu : Control
 	{
 		try
 		{
-			using var client = new System.Net.Http.HttpClient();
+			using var client = new HttpClient();
 			client.DefaultRequestHeaders.UserAgent.ParseAdd("Realm-Godot-Client");
 			var response = await client.GetAsync("https://api.github.com/repos/speige/Realm/releases/latest");
 			if (response.IsSuccessStatusCode)
 			{
 				string json = await response.Content.ReadAsStringAsync();
-				using var doc = System.Text.Json.JsonDocument.Parse(json);
+				using var doc = JsonDocument.Parse(json);
 				if (doc.RootElement.TryGetProperty("tag_name", out var tagProp))
 				{
 					string latestTag = tagProp.GetString() ?? "";
 					if (latestTag.StartsWith("v")) latestTag = latestTag.Substring(1);
-					
+
 					if (latestTag != RealmVersion.GameBinaryVersion)
 					{
 						_outdatedLabel.Visible = true;
@@ -437,14 +460,14 @@ public partial class MainMenu : Control
 
 		if (!OS.HasFeature("editor"))
 		{
-			string baseDir = Network.LobbyManager.GetBaseGameDirectory();
-			string versionsDir = System.IO.Path.Combine(baseDir, "versions");
-			if (System.IO.Directory.Exists(versionsDir))
+			string baseDir = LobbyManager.GetBaseGameDirectory();
+			string versionsDir = Path.Combine(baseDir, "versions");
+			if (Directory.Exists(versionsDir))
 			{
-				var dirs = System.IO.Directory.GetDirectories(versionsDir);
+				var dirs = Directory.GetDirectories(versionsDir);
 				foreach (var dir in dirs)
 				{
-					string ver = System.IO.Path.GetFileName(dir);
+					string ver = Path.GetFileName(dir);
 					if (ver != RealmVersion.GameBinaryVersion)
 					{
 						_versionDropdown.AddItem(ver);
@@ -462,11 +485,11 @@ public partial class MainMenu : Control
 		string meta = _versionDropdown.GetItemMetadata((int)index).AsString();
 		if (meta == "current" || string.IsNullOrEmpty(meta)) return;
 
-		string targetExe = Network.LobbyManager.GetVersionExecutablePath(meta);
-		
-		if (System.IO.File.Exists(targetExe))
+		string targetExe = LobbyManager.GetVersionExecutablePath(meta);
+
+		if (File.Exists(targetExe))
 		{
-			OS.CreateProcess(targetExe, new string[] {});
+			OS.CreateProcess(targetExe, new string[] { });
 			GetTree().Quit();
 		}
 	}
@@ -477,7 +500,7 @@ public partial class MainMenu : Control
 		button.Icon = null;
 		button.CustomMinimumSize = new Vector2(240, 56);
 		button.Text = TranslationServer.Translate("PLAY");
-		
+
 		button.AddThemeFontOverride("font", _norseBoldFont);
 		button.AddThemeFontSizeOverride("font_size", 20);
 
@@ -588,26 +611,26 @@ public partial class MainMenu : Control
 		backdrop.Texture = backdropNormal;
 		backdrop.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		backdrop.StretchMode = TextureRect.StretchModeEnum.Scale;
-		backdrop.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		backdrop.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		frame.Texture = frameNormal;
 		frame.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		frame.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		frame.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		frame.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		nameplate.Texture = nameplateNormal;
 		nameplate.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		nameplate.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		nameplate.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		nameplate.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		badge.Texture = badgeNormal;
 		badge.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		badge.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		badge.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		badge.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		avatar.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		avatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		avatar.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		avatar.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		// Set up dynamic player data
 		nameLabel.Text = "Horald_Topa";
@@ -682,7 +705,7 @@ public partial class MainMenu : Control
 		}
 
 		var container = CreateIconButtonContainer();
-		
+
 		var iconRect = CreateIconButtonIcon(iconPath, iconSize);
 		container.AddChild(iconRect);
 
@@ -703,7 +726,7 @@ public partial class MainMenu : Control
 		container.AnchorTop = 0.0f;
 		container.AnchorBottom = 1.0f;
 		container.Alignment = BoxContainer.AlignmentMode.Center;
-		container.MouseFilter = Control.MouseFilterEnum.Ignore;
+		container.MouseFilter = MouseFilterEnum.Ignore;
 		container.AddThemeConstantOverride("separation", 6);
 		return container;
 	}
@@ -712,14 +735,14 @@ public partial class MainMenu : Control
 	{
 		var iconRect = new TextureRect();
 		iconRect.Texture = LoadTrimmedTexture(iconPath);
-		iconRect.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		iconRect.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		Vector2 size = iconSize ?? new Vector2(22, 22);
 		iconRect.CustomMinimumSize = size;
 		iconRect.Size = size;
 		iconRect.PivotOffset = size / 2.0f;
-		iconRect.MouseFilter = Control.MouseFilterEnum.Ignore;
+		iconRect.MouseFilter = MouseFilterEnum.Ignore;
 		iconRect.Modulate = UIStyle.ColorGoldDull;
 		return iconRect;
 	}
@@ -734,7 +757,7 @@ public partial class MainMenu : Control
 		label.AddThemeColorOverride("font_shadow_color", Color.FromHtml("#8C8171"));
 		label.AddThemeConstantOverride("shadow_offset_x", 0);
 		label.AddThemeConstantOverride("shadow_offset_y", 2);
-		label.MouseFilter = Control.MouseFilterEnum.Ignore;
+		label.MouseFilter = MouseFilterEnum.Ignore;
 		return label;
 	}
 
@@ -812,9 +835,9 @@ public partial class MainMenu : Control
 	private static Texture2D LoadTrimmedTexture(string resourcePath)
 	{
 		string globalPath = ProjectSettings.GlobalizePath(resourcePath);
-		if (System.IO.File.Exists(globalPath))
+		if (File.Exists(globalPath))
 		{
-			var img = global::Godot.Image.LoadFromFile(globalPath);
+			var img = Image.LoadFromFile(globalPath);
 			if (img != null)
 			{
 				var usedRect = img.GetUsedRect();
@@ -822,13 +845,16 @@ public partial class MainMenu : Control
 				{
 					img = img.GetRegion(usedRect);
 				}
+
 				if (!img.HasMipmaps())
 				{
 					img.GenerateMipmaps();
 				}
+
 				return ImageTexture.CreateFromImage(img);
 			}
 		}
+
 		return GD.Load<Texture2D>(resourcePath);
 	}
 
@@ -866,7 +892,7 @@ public partial class MainMenu : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
 		vbox.AddChild(CreateProfileFactionFlag());
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
-		
+
 		CreateProfileDataRows(vbox);
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
@@ -884,8 +910,8 @@ public partial class MainMenu : Control
 		popup.OffsetRight = 0.0f;
 		popup.OffsetTop = 0.0f;
 		popup.OffsetBottom = 0.0f;
-		popup.GrowHorizontal = Control.GrowDirection.Both;
-		popup.GrowVertical = Control.GrowDirection.Both;
+		popup.GrowHorizontal = GrowDirection.Both;
+		popup.GrowVertical = GrowDirection.Both;
 
 		Texture2D profileBgTexture = null;
 		string profileBgPath = "res://Assets/UI/player_profile_bg.png";
@@ -899,7 +925,7 @@ public partial class MainMenu : Control
 			var bgStyle = new StyleBoxTexture();
 			bgStyle.Texture = profileBgTexture;
 			popup.AddThemeStyleboxOverride("panel", bgStyle);
-			popup.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			popup.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		}
 		else
 		{
@@ -912,10 +938,10 @@ public partial class MainMenu : Control
 	private Panel CreateProfileCardPanel()
 	{
 		Texture2D cardTexture = null;
-		string targetPath = global::Godot.ProjectSettings.GlobalizePath("res://Assets/UI/player_profile_card_bg.png");
-		if (System.IO.File.Exists(targetPath))
+		string targetPath = ProjectSettings.GlobalizePath("res://Assets/UI/player_profile_card_bg.png");
+		if (File.Exists(targetPath))
 		{
-			var img = global::Godot.Image.LoadFromFile(targetPath);
+			var img = Image.LoadFromFile(targetPath);
 			if (img != null)
 			{
 				cardTexture = ImageTexture.CreateFromImage(img);
@@ -930,7 +956,7 @@ public partial class MainMenu : Control
 			cardStyle.TextureMarginRight = 40;
 			cardStyle.TextureMarginTop = 40;
 			cardStyle.TextureMarginBottom = 40;
-			
+
 			cardStyle.ContentMarginLeft = 24;
 			cardStyle.ContentMarginRight = 24;
 			cardStyle.ContentMarginTop = 24;
@@ -955,8 +981,8 @@ public partial class MainMenu : Control
 		cardPanel.OffsetRight = 300.0f;
 		cardPanel.OffsetTop = -350.0f;
 		cardPanel.OffsetBottom = 350.0f;
-		cardPanel.GrowHorizontal = Control.GrowDirection.Both;
-		cardPanel.GrowVertical = Control.GrowDirection.Both;
+		cardPanel.GrowHorizontal = GrowDirection.Both;
+		cardPanel.GrowVertical = GrowDirection.Both;
 		cardPanel.ClipContents = true;
 		cardPanel.AddThemeStyleboxOverride("panel", cardStyle);
 		return cardPanel;
@@ -973,8 +999,8 @@ public partial class MainMenu : Control
 		marginContainer.OffsetRight = -30.0f;
 		marginContainer.OffsetTop = 30.0f;
 		marginContainer.OffsetBottom = -30.0f;
-		marginContainer.GrowHorizontal = Control.GrowDirection.Both;
-		marginContainer.GrowVertical = Control.GrowDirection.Both;
+		marginContainer.GrowHorizontal = GrowDirection.Both;
+		marginContainer.GrowVertical = GrowDirection.Both;
 		return marginContainer;
 	}
 
@@ -991,14 +1017,14 @@ public partial class MainMenu : Control
 	{
 		var title = new Label();
 		UIStyle.ApplyTitle(title, "PLAYER PROFILE", 26);
-		
+
 		var titleFont = new SystemFont();
 		titleFont.FontNames = new string[] { "Cinzel Bold", "Cinzel", "Palatino Linotype", "Garamond", "Georgia", "serif" };
 		titleFont.FontWeight = 700;
 		title.AddThemeFontOverride("font", titleFont);
 		title.AddThemeColorOverride("font_color", new Color(0.85f, 0.65f, 0.4f));
 		title.AddThemeFontSizeOverride("font_size", 28);
-		
+
 		return title;
 	}
 
@@ -1010,16 +1036,18 @@ public partial class MainMenu : Control
 		{
 			flagTexture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.png");
 		}
+
 		if (flagTexture == null)
 		{
 			flagTexture = GD.Load<Texture2D>("res://Assets/UI/profile_frame_normal.png");
 		}
+
 		factionFlag.Texture = flagTexture;
 		factionFlag.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		factionFlag.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		factionFlag.CustomMinimumSize = new Vector2(210, 210);
 		factionFlag.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		factionFlag.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		factionFlag.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		return factionFlag;
 	}
 
@@ -1077,11 +1105,11 @@ public partial class MainMenu : Control
 	private Button CreateProfileBackButton()
 	{
 		var backBtn = new Button();
-		
+
 		backBtn.Flat = false;
 		backBtn.Text = TranslationServer.Translate("BACK");
-		
-		backBtn.Pressed += () => 
+
+		backBtn.Pressed += () =>
 		{
 			PlayClickSound();
 			_profilePopup?.QueueFree();
@@ -1098,7 +1126,7 @@ public partial class MainMenu : Control
 
 		backBtn.CustomMinimumSize = new Vector2(210, 48);
 		backBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		backBtn.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		backBtn.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		if (profileBtnTex != null)
 		{
@@ -1131,7 +1159,7 @@ public partial class MainMenu : Control
 		backBtn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
 		backBtn.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
 		backBtn.AddThemeFontSizeOverride("font_size", 18);
-		
+
 		return backBtn;
 	}
 
@@ -1139,20 +1167,22 @@ public partial class MainMenu : Control
 
 	private void OnMapEditorPressed()
 	{
-		if (System.OperatingSystem.IsWindows())
+		if (OperatingSystem.IsWindows())
 		{
-			if (Realm.Client.VSCodeManager.Instance.IsInstalling)
+			if (VSCodeManager.Instance.IsInstalling)
 			{
 				ShowInstallWaitingPopup();
 				return;
 			}
-			if (!Realm.Client.VSCodeManager.Instance.IsInstalled())
+
+			if (!VSCodeManager.Instance.IsInstalled())
 			{
-				Realm.Client.VSCodeManager.Instance.StartInstallIfNeeded();
+				VSCodeManager.Instance.StartInstallIfNeeded();
 				ShowInstallWaitingPopup();
 				return;
 			}
 		}
+
 		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
 	}
 
@@ -1226,9 +1256,9 @@ public partial class MainMenu : Control
 			return;
 		}
 
-		if (System.OperatingSystem.IsWindows())
+		if (OperatingSystem.IsWindows())
 		{
-			if (Realm.Client.VSCodeManager.Instance.IsInstalled())
+			if (VSCodeManager.Instance.IsInstalled())
 			{
 				_installWaitingPopup.QueueFree();
 				_installWaitingPopup = null;
@@ -1236,7 +1266,7 @@ public partial class MainMenu : Control
 				return;
 			}
 
-			if (Realm.Client.VSCodeManager.Instance.IsInstalling)
+			if (VSCodeManager.Instance.IsInstalling)
 			{
 				StartInstallWaitingPolling();
 			}

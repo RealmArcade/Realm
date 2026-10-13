@@ -1,25 +1,62 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Arch.Core;
 using Godot;
-using Realm.Ecs.Components.Terrain;
+using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Client.UI.InGame;
-using System;
-using System.Collections.Generic;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Terrain;
+using Realm.Ecs.Services;
 using Vector3 = Godot.Vector3;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class InGameHUD : Control
 {
-	public static InGameHUD Instance { get; private set; }
+	public InGameHUD()
+	{
+		Instance = this;
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
+	public static InGameHUD Instance { get; set; }
 
 	private InGameHUDViewModel _viewModel = new();
 
-	public float Gold { get => _viewModel.Gold; set => _viewModel.Gold = value; }
-	public float Wood { get => _viewModel.Wood; set => _viewModel.Wood = value; }
-	public float Stone { get => _viewModel.Stone; set => _viewModel.Stone = value; }
-	public float ResourceGatherMultiplier { get => _viewModel.ResourceGatherMultiplier; set => _viewModel.ResourceGatherMultiplier = value; }
+	public float Gold
+	{
+		get => _viewModel.Gold;
+		set => _viewModel.Gold = value;
+	}
+
+	public float Wood
+	{
+		get => _viewModel.Wood;
+		set => _viewModel.Wood = value;
+	}
+
+	public float Stone
+	{
+		get => _viewModel.Stone;
+		set => _viewModel.Stone = value;
+	}
+
+	public float ResourceGatherMultiplier
+	{
+		get => _viewModel.ResourceGatherMultiplier;
+		set => _viewModel.ResourceGatherMultiplier = value;
+	}
 
 	private PanelContainer _resourceContainer;
 	private PanelContainer _bottomConsole;
@@ -36,18 +73,18 @@ public partial class InGameHUD : Control
 	public void EnterBuildSubMenu()
 	{
 		_viewModel.IsBuildSubMenuOpen = true;
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			RefreshUI(Realm.Client.Core.GameHost.Instance.SelectedUnits);
+			RefreshUI(GameHost.Instance.SelectedUnits);
 		}
 	}
 
 	public void ExitBuildSubMenu()
 	{
 		_viewModel.IsBuildSubMenuOpen = false;
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			RefreshUI(Realm.Client.Core.GameHost.Instance.SelectedUnits);
+			RefreshUI(GameHost.Instance.SelectedUnits);
 		}
 	}
 
@@ -71,97 +108,109 @@ public partial class InGameHUD : Control
 
 
 	private float _fogUpdateTimer = 0f;
-	
+
 	private static readonly byte[,] _emptyShroudGrid = new byte[32, 32];
 
 	public byte[,] ShroudGrid
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var worldEntity = Realm.Client.Core.GameHost.Instance.WorldEntity;
-				if (worldEntity != Entity.Null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(worldEntity) && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ShroudState>(worldEntity))
+				var worldEntity = ECSContext.WorldEntity;
+				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
 				{
-					return Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ShroudState>(worldEntity).ShroudGrid;
+					return GameContext.World.Get<ShroudState>(worldEntity).ShroudGrid;
 				}
 
 				Entity fallback = Entity.Null;
-				var query = Realm.Ecs.Common.QueryCache.AllShroudStateQuery;
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ShroudState>(fallback))
+				var query = QueryCache.AllShroudStateQuery;
+				GameContext.World.Query(in query, ent => fallback = ent);
+				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
 				{
-					return Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ShroudState>(fallback).ShroudGrid;
+					return GameContext.World.Get<ShroudState>(fallback).ShroudGrid;
 				}
 			}
+
 			return _emptyShroudGrid;
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var worldEntity = Realm.Client.Core.GameHost.Instance.WorldEntity;
-				if (worldEntity != Entity.Null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(worldEntity) && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ShroudState>(worldEntity))
+				var worldEntity = ECSContext.WorldEntity;
+				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
 				{
-					ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ShroudState>(worldEntity);
+					ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
 					state.ShroudGrid = value;
 					return;
 				}
 
 				Entity fallback = Entity.Null;
-				var query = Realm.Ecs.Common.QueryCache.AllShroudStateQuery;
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ShroudState>(fallback))
+				var query = QueryCache.AllShroudStateQuery;
+				GameContext.World.Query(in query, ent => fallback = ent);
+				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
 				{
-					ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ShroudState>(fallback);
+					ref var state = ref GameContext.World.Get<ShroudState>(fallback);
 					state.ShroudGrid = value;
 				}
 			}
 		}
 	}
-	public byte[,] FogGrid { get => ShroudGrid; set => ShroudGrid = value; }
-	private byte[,] _fogGrid { get => ShroudGrid; set => ShroudGrid = value; }
+
+	public byte[,] FogGrid
+	{
+		get => ShroudGrid;
+		set => ShroudGrid = value;
+	}
+
+	private byte[,] _fogGrid
+	{
+		get => ShroudGrid;
+		set => ShroudGrid = value;
+	}
 
 	public string ShroudType
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var worldEntity = Realm.Client.Core.GameHost.Instance.WorldEntity;
-				if (worldEntity != Entity.Null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(worldEntity) && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ShroudState>(worldEntity))
+				var worldEntity = ECSContext.WorldEntity;
+				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
 				{
-					return Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ShroudState>(worldEntity).ShroudType;
+					return GameContext.World.Get<ShroudState>(worldEntity).ShroudType;
 				}
 
 				Entity fallback = Entity.Null;
-				var query = Realm.Ecs.Common.QueryCache.AllShroudStateQuery;
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ShroudState>(fallback))
+				var query = QueryCache.AllShroudStateQuery;
+				GameContext.World.Query(in query, ent => fallback = ent);
+				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
 				{
-					return Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ShroudState>(fallback).ShroudType;
+					return GameContext.World.Get<ShroudState>(fallback).ShroudType;
 				}
 			}
+
 			return "VisionShroud";
 		}
 		set
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld != null)
+			if (GameHost.Instance != null && GameContext.World != null)
 			{
-				var worldEntity = Realm.Client.Core.GameHost.Instance.WorldEntity;
-				if (worldEntity != Entity.Null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(worldEntity) && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ShroudState>(worldEntity))
+				var worldEntity = ECSContext.WorldEntity;
+				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
 				{
-					ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ShroudState>(worldEntity);
+					ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
 					state.ShroudType = value;
 					return;
 				}
 
 				Entity fallback = Entity.Null;
-				var query = Realm.Ecs.Common.QueryCache.AllShroudStateQuery;
-				Realm.Client.Core.GameHost.Instance.EcsWorld.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<ShroudState>(fallback))
+				var query = QueryCache.AllShroudStateQuery;
+				GameContext.World.Query(in query, ent => fallback = ent);
+				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
 				{
-					ref var state = ref Realm.Client.Core.GameHost.Instance.EcsWorld.Get<ShroudState>(fallback);
+					ref var state = ref GameContext.World.Get<ShroudState>(fallback);
 					state.ShroudType = value;
 				}
 			}
@@ -170,14 +219,30 @@ public partial class InGameHUD : Control
 
 	private string _currentWeather
 	{
-		get => Realm.Client.Core.GameHost.Instance?.EnvironmentService?.GetCurrentWeather() ?? "clear";
-		set => Realm.Client.Core.GameHost.Instance?.EnvironmentService?.SetCurrentWeather(value);
+		get
+		{
+			GameHost tempQualifier = GameHost.Instance;
+			return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetCurrentWeather() ?? "clear";
+		}
+		set
+		{
+			GameHost tempQualifier = GameHost.Instance;
+			(tempQualifier != null ? GameContext.EnvironmentService : null)?.SetCurrentWeather(value);
+		}
 	}
 
 	private float _baseFogDensity
 	{
-		get => Realm.Client.Core.GameHost.Instance?.EnvironmentService?.GetBaseFogDensity() ?? 0f;
-		set => Realm.Client.Core.GameHost.Instance?.EnvironmentService?.SetBaseFogDensity(value);
+		get
+		{
+			GameHost tempQualifier = GameHost.Instance;
+			return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetBaseFogDensity() ?? 0f;
+		}
+		set
+		{
+			GameHost tempQualifier = GameHost.Instance;
+			(tempQualifier != null ? GameContext.EnvironmentService : null)?.SetBaseFogDensity(value);
+		}
 	}
 
 	private Label _goldLabel;
@@ -246,8 +311,16 @@ public partial class InGameHUD : Control
 
 	public int LiveSpectatorPerspective
 	{
-		get => Realm.Client.Core.GameHost.Instance?.SpectatorService?.GetSpectatorPerspective() ?? -1;
-		set => Realm.Client.Core.GameHost.Instance?.SpectatorService?.SetSpectatorPerspective(value);
+		get
+		{
+			GameHost tempQualifier = GameHost.Instance;
+			return (tempQualifier != null ? GameContext.SpectatorService : null)?.GetSpectatorPerspective() ?? -1;
+		}
+		set
+		{
+			GameHost tempQualifier = GameHost.Instance;
+			(tempQualifier != null ? GameContext.SpectatorService : null)?.SetSpectatorPerspective(value);
+		}
 	}
 
 	private ResourcePanel _resourcePanelController;
@@ -259,10 +332,10 @@ public partial class InGameHUD : Control
 	private VBoxContainer _summaryContent;
 	private SummaryTablePanel _summaryTablePanelController;
 	private PortraitPanel _portraitPanelController;
-	private Realm.Client.UI.InGame.CommandPanel _commandPanelController;
+	private CommandPanel _commandPanelController;
 	private InventoryPanel _inventoryPanelController;
 	private ControlGroupsUIController _controlGroupsUIController;
-	
+
 	private MinimapOverlay _minimapOverlay;
 
 	public override void _Ready()
@@ -320,7 +393,7 @@ public partial class InGameHUD : Control
 		_btnVictory = GetNode<Button>("DevPanel/BtnVictory");
 		_btnDefeat = GetNode<Button>("DevPanel/BtnDefeat");
 		_feedbackLabel = GetNode<Label>("FeedbackLabel");
-		
+
 		_minimapArea = GetNode<Control>("BottomConsole/HBox/MinimapFrame/MinimapArea");
 		_cameraIndicator = GetNode<MinimapCameraIndicator>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
 	}
@@ -398,9 +471,9 @@ public partial class InGameHUD : Control
 			btn.ExpandIcon = true;
 			btn.FocusMode = FocusModeEnum.None;
 			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover",   UIStyle.CreateButtonHover());
+			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			btn.AddThemeStyleboxOverride("focus",   new StyleBoxEmpty());
+			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 			var hpBar = new ProgressBar();
 			hpBar.Name = "HealthBar";
@@ -409,7 +482,7 @@ public partial class InGameHUD : Control
 			hpBar.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
 			hpBar.OffsetTop = -6;
 			hpBar.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
-			hpBar.AddThemeStyleboxOverride("fill",       UIStyle.CreateSliderFill());
+			hpBar.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
 			hpBar.Visible = false;
 			btn.AddChild(hpBar);
 
@@ -464,7 +537,7 @@ public partial class InGameHUD : Control
 		_connectionWarningLabel.VerticalAlignment = VerticalAlignment.Center;
 		_connectionWarningLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.2f, 0.2f));
 		_connectionWarningLabel.AddThemeFontSizeOverride("font_size", 22);
-		
+
 		var warningStyle = new StyleBoxFlat();
 		warningStyle.BgColor = new Color(0.12f, 0.05f, 0.05f, 0.7f);
 		warningStyle.BorderColor = new Color(0.8f, 0.2f, 0.2f, 0.5f);
@@ -474,7 +547,7 @@ public partial class InGameHUD : Control
 		warningStyle.ContentMarginTop = 8;
 		warningStyle.ContentMarginBottom = 8;
 		_connectionWarningLabel.AddThemeStyleboxOverride("normal", warningStyle);
-		
+
 		AddChild(_connectionWarningLabel);
 		_connectionWarningLabel.SetAnchorsPreset(LayoutPreset.CenterTop);
 		_connectionWarningLabel.GrowHorizontal = GrowDirection.Both;
@@ -496,7 +569,7 @@ public partial class InGameHUD : Control
 		minimapHBox.MoveChild(_minimapControls, 1);
 
 		_btnZoom = new Button();
-		SetupMinimapButton(_btnZoom, "res://Assets/UI/search_icon_clean.png", "Toggle Camera Zoom (Near / Mid / Far) [Z]", () => Realm.Client.Core.GameHost.Instance?.CycleCameraZoom());
+		SetupMinimapButton(_btnZoom, "res://Assets/UI/search_icon_clean.png", "Toggle Camera Zoom (Near / Mid / Far) [Z]", () => GameHost.Instance?.CycleCameraZoom());
 		_minimapControls.AddChild(_btnZoom);
 
 		_btnToggleTerrain = new Button();
@@ -504,26 +577,26 @@ public partial class InGameHUD : Control
 		_minimapControls.AddChild(_btnToggleTerrain);
 
 		_btnPing = new Button();
-		SetupMinimapButton(_btnPing, "res://Assets/UI/magic_upgrade_arrow.png", "Send Alert Ping on Map [Alt+G]", () => 
+		SetupMinimapButton(_btnPing, "res://Assets/UI/magic_upgrade_arrow.png", "Send Alert Ping on Map [Alt+G]", () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance != null)
+			if (GameHost.Instance != null)
 			{
-				Realm.Client.Core.GameHost.Instance.ActivePingMode = true;
+				GameHost.Instance.ActivePingMode = true;
 				ShowFeedbackText("Ping Mode: Click Minimap or Ground to ping", new Color(1.0f, 0.1f, 0.2f));
 			}
 		});
 		_minimapControls.AddChild(_btnPing);
 
 		_btnCenter = new Button();
-		SetupMinimapButton(_btnCenter, "res://Assets/UI/alliance_flag.png", "Center Camera on Castle [Space]", () => Realm.Client.Core.GameHost.Instance?.CenterCameraOnCastle());
+		SetupMinimapButton(_btnCenter, "res://Assets/UI/alliance_flag.png", "Center Camera on Castle [Space]", () => GameHost.Instance?.CenterCameraOnCastle());
 		_minimapControls.AddChild(_btnCenter);
 
 		_btnSelectIdle = new Button();
-		SetupMinimapButton(_btnSelectIdle, "res://Assets/UI/unit_placeholder.png", "Select All Idle Units [F1]", () => Realm.Client.Core.GameHost.Instance?.SelectAllIdleUnits());
+		SetupMinimapButton(_btnSelectIdle, "res://Assets/UI/unit_placeholder.png", "Select All Idle Units [F1]", () => GameHost.Instance?.SelectAllIdleUnits());
 		_minimapControls.AddChild(_btnSelectIdle);
 
 		_btnSelectArmy = new Button();
-		SetupMinimapButton(_btnSelectArmy, "res://Assets/UI/heavy_knight.png", "Select All Army Units [F2]", () => Realm.Client.Core.GameHost.Instance?.SelectAllMilitaryUnits());
+		SetupMinimapButton(_btnSelectArmy, "res://Assets/UI/heavy_knight.png", "Select All Army Units [F2]", () => GameHost.Instance?.SelectAllMilitaryUnits());
 		_minimapControls.AddChild(_btnSelectArmy);
 
 		var btnHotkeys = new Button();
@@ -533,14 +606,15 @@ public partial class InGameHUD : Control
 
 	private string GetCurrentWeather()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return "clear";
-		
-		string mapDir = !string.IsNullOrEmpty(Realm.Client.Core.GameHost.Instance.CurrentMapDirectory)
-			? Realm.Client.Core.GameHost.Instance.CurrentMapDirectory
-			: Services.MapWorkspaceService.GetActiveWorkspacePath();
-		string metaPath = System.IO.Path.Combine(mapDir, "metadata.json").Replace("\\", "/");
-		Realm.Client.Core.GameHost.Instance.LoadMapProperties(metaPath);
-		return Realm.Client.Core.GameHost.Instance?.EnvironmentService?.GetCurrentWeather() ?? "clear";
+		if (GameHost.Instance == null) return "clear";
+
+		string mapDir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory)
+			? GameContext.MapStorageService.CurrentMapDirectory
+			: MapWorkspaceService.GetActiveWorkspacePath();
+		string metaPath = Path.Combine(mapDir, "metadata.json").Replace("\\", "/");
+		GameHost.Instance.LoadMapProperties(metaPath);
+		GameHost tempQualifier = GameHost.Instance;
+		return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetCurrentWeather() ?? "clear";
 	}
 
 	private void SetupChatPanel()
@@ -567,9 +641,9 @@ public partial class InGameHUD : Control
 		_chatInput.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
 		_chatLog.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message/cheat.")}[/color]\n";
 
-		if (Network.LobbyManager.Instance != null)
+		if (LobbyManager.Instance != null)
 		{
-			Network.LobbyManager.Instance.ChatReceived += OnLobbyChatReceived;
+			LobbyManager.Instance.ChatReceived += OnLobbyChatReceived;
 		}
 	}
 
@@ -586,7 +660,7 @@ public partial class InGameHUD : Control
 		_customUIPanel = new VBoxContainer();
 		_customUIPanel.Name = "CustomUIPanel";
 		_customUIPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight);
-		_customUIPanel.GrowHorizontal = Control.GrowDirection.Begin;
+		_customUIPanel.GrowHorizontal = GrowDirection.Begin;
 		_customUIPanel.OffsetLeft = -440;
 		_customUIPanel.OffsetRight = -20;
 		_customUIPanel.OffsetTop = 20;
@@ -604,7 +678,7 @@ public partial class InGameHUD : Control
 		_countdownPanel = new PanelContainer();
 		_countdownPanel.Name = "CountdownPanel";
 		_countdownPanel.Visible = false;
-		_countdownPanel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+		_countdownPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
 		var countdownStyle = new StyleBoxFlat();
 		countdownStyle.BgColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
 		countdownStyle.SetBorderWidthAll(1);
@@ -634,7 +708,7 @@ public partial class InGameHUD : Control
 		_leaderboardPanel = new PanelContainer();
 		_leaderboardPanel.Name = "LeaderboardPanel";
 		_leaderboardPanel.Visible = false;
-		_leaderboardPanel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+		_leaderboardPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
 		var leaderboardStyle = new StyleBoxFlat();
 		leaderboardStyle.BgColor = new Color(0.12f, 0.12f, 0.12f, 0.85f);
 		leaderboardStyle.SetBorderWidthAll(1);
@@ -670,7 +744,7 @@ public partial class InGameHUD : Control
 		_summaryPanel = new PanelContainer();
 		_summaryPanel.Name = "SummaryTablePanel";
 		_summaryPanel.Visible = false;
-		_summaryPanel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+		_summaryPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
 		var summaryStyle = new StyleBoxFlat();
 		summaryStyle.BgColor = new Color(0.1f, 0.1f, 0.14f, 0.92f);
 		summaryStyle.SetBorderWidthAll(2);
@@ -703,7 +777,7 @@ public partial class InGameHUD : Control
 
 	private void ApplyModeSpecificUI()
 	{
-		if (MapEditorHUD.IsTestMode)
+		if (GameContext.EditorService.IsTestMode)
 		{
 			var btnBackToEditor = new Button();
 			btnBackToEditor.Name = "BtnBackToEditor";
@@ -721,12 +795,13 @@ public partial class InGameHUD : Control
 			btnBackToEditor.Pressed += () =>
 			{
 				UIManager.Instance?.PlayClickSound();
-				MapEditorHUD.IsTestMode = false;
-				MapEditorHUD.ReturningFromTest = true;
-				if (Network.LobbyManager.Instance != null)
+				GameContext.EditorService.IsTestMode = false;
+				GameContext.EditorService.ReturningFromTest = true;
+				if (LobbyManager.Instance != null)
 				{
-					Network.LobbyManager.Instance.Disconnect();
+					LobbyManager.Instance.Disconnect();
 				}
+
 				UIManager.Instance?.TransitionTo(GameScreen.MapEditorHUD);
 			};
 			AddChild(btnBackToEditor);
@@ -738,24 +813,24 @@ public partial class InGameHUD : Control
 		_resourcePanelController = new ResourcePanel(_resourceContainer);
 		_resourcePanelController.InitializeSupplyAndClock(_populationLabel, _clockLabel);
 
-		_camera3D = Realm.Client.Core.GameHost.Instance?.MainCamera;
+		_camera3D = GameHost.Instance?.MainCamera;
 		_minimapPanelController = new MinimapPanel(_minimapFrame, _minimapArea, _cameraIndicator, _camera3D);
 		_chatPanelController = new ChatPanel(_chatPanel, _chatInput, _chatLog);
 		_leaderboardPanelController = new LeaderboardPanel(_customUIPanel, _countdownPanel, _countdownLabel, _leaderboardPanel, _leaderboardTitleLabel, _leaderboardContent);
 		_summaryTablePanelController = new SummaryTablePanel(_summaryPanel, _summaryTitleLabel, _summaryContent);
-		
+
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
 			_statsLabel, _itemsBox,
 			_productionBox, _productionTitle, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
-			_armyCompositionLabel, GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName"), 
+			_armyCompositionLabel, GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName"),
 			GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") != null ? GetNode<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") : null
 		);
 		_portraitPanelController.UnitSelectionButtonClicked += OnUnitSelectionButtonClicked;
 
 		_inventoryPanelController = new InventoryPanel(_inventoryGrid);
 
-		_commandPanelController = new Realm.Client.UI.InGame.CommandPanel(_commandGrid);
+		_commandPanelController = new CommandPanel(_commandGrid);
 
 		_controlGroupsUIController = new ControlGroupsUIController(_controlGroupsContainer);
 	}
@@ -770,7 +845,7 @@ public partial class InGameHUD : Control
 			if (_chatPanel != null) _chatPanel.Visible = false;
 		}
 
-		bool isSpectator = Network.LobbyManager.Instance != null && Network.LobbyManager.Instance.LocalPlayer != null && Network.LobbyManager.Instance.LocalPlayer.Team == "Spectator";
+		bool isSpectator = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator";
 		if (isSpectator)
 		{
 			_resourceContainer.Visible = false;
@@ -832,7 +907,7 @@ public partial class InGameHUD : Control
 
 	public void UpdateFPSVisibility()
 	{
-		var fpsLabel = (Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.MainNode?.GetNodeOrNull<Label>("CanvasLayer/FPS") : null);
+		var fpsLabel = (GameHost.Instance != null ? GameHost.Instance.MainNode?.GetNodeOrNull<Label>("CanvasLayer/FPS") : null);
 		if (fpsLabel != null)
 		{
 			fpsLabel.Visible = GameSettings.DisplayFps;
@@ -843,9 +918,9 @@ public partial class InGameHUD : Control
 	public override void _ExitTree()
 	{
 		if (Instance == this) Instance = null;
-		if (Network.LobbyManager.Instance != null)
+		if (LobbyManager.Instance != null)
 		{
-			Network.LobbyManager.Instance.ChatReceived -= OnLobbyChatReceived;
+			LobbyManager.Instance.ChatReceived -= OnLobbyChatReceived;
 		}
 	}
 
@@ -859,6 +934,7 @@ public partial class InGameHUD : Control
 			_minimapNeedsRegen = true;
 			return;
 		}
+
 		_isGeneratingMinimap = true;
 
 		try
@@ -1025,9 +1101,9 @@ public partial class InGameHUD : Control
 
 		btn.Pressed += () =>
 		{
-			if (Realm.Client.Core.GameHost.Instance != null)
+			if (GameHost.Instance != null)
 			{
-				Realm.Client.Core.GameHost.Instance.EnterSpellTargeting(spellId);
+				GameHost.Instance.EnterSpellTargeting(spellId);
 			}
 		};
 	}
@@ -1041,16 +1117,16 @@ public partial class InGameHUD : Control
 		rect.TooltipText = tooltip;
 	}
 
-	public void RefreshUI(List<Realm.Client.Unit3D> selectedUnits)
+	public void RefreshUI(List<Unit3D> selectedUnits)
 	{
 		if (selectedUnits != null)
 		{
-			bool hasPlayerSelection = System.Linq.Enumerable.Any(selectedUnits, u => !u.IsEnemy);
-			bool isSpectator = Network.LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => !u.IsEnemy);
+			bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
 			_commandFrame.Visible = !isSpectator && hasPlayerSelection;
 		}
 
-		_viewModel.SelectedProp = Realm.Client.Core.GameHost.Instance?.SelectedProp;
+		_viewModel.SelectedProp = GameHost.Instance?.SelectedProp;
 		_viewModel.UpdateSelectedUnits(selectedUnits);
 		_portraitPanelController?.Update(_viewModel);
 		_commandPanelController?.Update(_viewModel);
@@ -1072,14 +1148,14 @@ public partial class InGameHUD : Control
 		_resourceContainer.AddThemeStyleboxOverride("panel", resourceBg);
 
 		var bottomConsoleStyle = UIStyle.CreateStonePanel();
-		bottomConsoleStyle.ContentMarginLeft = 40; 
-		bottomConsoleStyle.ContentMarginRight = 40; 
+		bottomConsoleStyle.ContentMarginLeft = 40;
+		bottomConsoleStyle.ContentMarginRight = 40;
 		_bottomConsole.AddThemeStyleboxOverride("panel", bottomConsoleStyle);
 		_minimapFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		_portraitFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		_selectionFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		_selectionFrame.ClipContents = true;
-		
+
 		var commandFrameStyle = (StyleBoxTexture)UIStyle.CreateStonePanel(true).Duplicate();
 		commandFrameStyle.ContentMarginLeft = 2;
 		commandFrameStyle.ContentMarginRight = 2;
@@ -1107,6 +1183,7 @@ public partial class InGameHUD : Control
 			lbl.AddThemeFontSizeOverride("font_size", 20);
 			lbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		}
+
 		_goldLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 
 		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -1151,11 +1228,11 @@ public partial class InGameHUD : Control
 
 	private void UpdateSelectedUnitVisuals()
 	{
-		if (Realm.Client.Core.GameHost.Instance?.SelectedUnits == null) return;
-		
-		var selected = Realm.Client.Core.GameHost.Instance.SelectedUnits;
+		if (GameHost.Instance?.SelectedUnits == null) return;
+
+		var selected = GameHost.Instance.SelectedUnits;
 		_viewModel.UpdateSelectedUnits(selected);
-		
+
 		// Handle specific visual updates that are not data-bound yet.
 		foreach (var u in selected)
 		{
@@ -1192,6 +1269,7 @@ public partial class InGameHUD : Control
 			{
 				ShowFeedbackText(string.Format(TranslationServer.Translate("{0} unit(s) are idle! [F1] to select"), _viewModel.IdleCount), new Color(0.9f, 0.7f, 0.2f));
 			}
+
 			float pulse = Mathf.Sin(_idlePulseTimer * 4f) * 0.5f + 0.5f;
 			_btnSelectIdle.Modulate = new Color(1f, 0.8f + pulse * 0.2f, 0.2f + pulse * 0.8f, 1f);
 		}
@@ -1200,6 +1278,7 @@ public partial class InGameHUD : Control
 			_idlePulseTimer = 0f;
 			_btnSelectIdle.Modulate = Colors.White;
 		}
+
 		_lastIdleCount = _viewModel.IdleCount;
 	}
 
@@ -1292,6 +1371,7 @@ public partial class InGameHUD : Control
 				UIManager.Instance?.TransitionTo(GameScreen.GameOver, true);
 			};
 		}
+
 		if (_btnDefeat != null)
 		{
 			_btnDefeat.Text = TranslationServer.Translate("Trigger Defeat");
@@ -1328,21 +1408,22 @@ public partial class InGameHUD : Control
 		{
 			pTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.png");
 		}
+
 		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").Text = TranslationServer.Translate("No Selection");
 	}
 
 	private void CenterCameraOnSelectedUnit()
 	{
-		var selected = Realm.Client.Core.GameHost.Instance?.SelectedUnits;
+		var selected = GameHost.Instance?.SelectedUnits;
 		if (selected != null && selected.Count > 0)
 		{
-			int idx = Realm.Client.Core.GameHost.Instance != null ? Realm.Client.Core.GameHost.Instance.CycleSelectionIndex : 0;
+			int idx = GameHost.Instance != null ? GameHost.Instance.CycleSelectionIndex : 0;
 			if (idx >= 0 && idx < selected.Count)
 				CenterCameraOnUnit(selected[idx]);
 		}
 	}
 
-	private void CenterCameraOnUnit(Realm.Client.Unit3D unit)
+	private void CenterCameraOnUnit(Unit3D unit)
 	{
 		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
 		if (_camera3D != null && GodotObject.IsInstanceValid(_camera3D))
@@ -1361,7 +1442,7 @@ public partial class InGameHUD : Control
 		}
 
 		Control[] controls = { _bottomConsole, _resourceContainer, _devPanel };
-		return System.Linq.Enumerable.Any(controls, c => c != null && c.Visible && c.GetGlobalRect().HasPoint(mousePos));
+		return Enumerable.Any(controls, c => c != null && c.Visible && c.GetGlobalRect().HasPoint(mousePos));
 	}
 
 	public void UpdateDragBox(Vector2 start, Vector2 end, bool isVisible)
@@ -1384,8 +1465,8 @@ public partial class InGameHUD : Control
 
 	private void OnUnitSelectionButtonClicked(int index)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
-		var selectedUnits = Realm.Client.Core.GameHost.Instance.SelectedUnits;
+		if (GameHost.Instance == null) return;
+		var selectedUnits = GameHost.Instance.SelectedUnits;
 		if (selectedUnits == null || index < 0 || index >= selectedUnits.Count) return;
 
 		var clickedUnit = selectedUnits[index];
@@ -1395,7 +1476,7 @@ public partial class InGameHUD : Control
 		if (ctrlPressed)
 		{
 			string targetId = clickedUnit.UnitId;
-			var toDeselect = new List<Realm.Client.Unit3D>();
+			var toDeselect = new List<Unit3D>();
 			foreach (var u in selectedUnits)
 			{
 				if (u.UnitId != targetId)
@@ -1403,21 +1484,23 @@ public partial class InGameHUD : Control
 					toDeselect.Add(u);
 				}
 			}
+
 			foreach (var u in toDeselect)
 			{
-				Realm.Client.Core.GameHost.Instance.DeselectUnit(u);
+				GameHost.Instance.DeselectUnit(u);
 			}
 		}
 		else if (shiftPressed)
 		{
-			Realm.Client.Core.GameHost.Instance.DeselectUnit(clickedUnit);
+			GameHost.Instance.DeselectUnit(clickedUnit);
 		}
 		else
 		{
-			Realm.Client.Core.GameHost.Instance.SelectOnlyUnit(clickedUnit);
+			GameHost.Instance.SelectOnlyUnit(clickedUnit);
 			CenterCameraOnUnit(clickedUnit);
 		}
-		RefreshUI(Realm.Client.Core.GameHost.Instance.SelectedUnits);
+
+		RefreshUI(GameHost.Instance.SelectedUnits);
 	}
 
 	public override void _UnhandledInput(InputEvent @event)
@@ -1436,11 +1519,11 @@ public partial class InGameHUD : Control
 	private bool HandleFocusNext(InputEvent @event)
 	{
 		if (!@event.IsActionPressed("ui_focus_next")) return false;
-		if (Realm.Client.Core.GameHost.Instance == null || Realm.Client.Core.GameHost.Instance.SelectedUnits.Count <= 1) return false;
+		if (GameHost.Instance == null || GameHost.Instance.SelectedUnits.Count <= 1) return false;
 
 		bool reverse = Input.IsKeyPressed(Key.Shift);
-		Realm.Client.Core.GameHost.Instance.CycleSelectionFocus(reverse);
-		RefreshUI(Realm.Client.Core.GameHost.Instance.SelectedUnits);
+		GameHost.Instance.CycleSelectionFocus(reverse);
+		RefreshUI(GameHost.Instance.SelectedUnits);
 		GetViewport().SetInputAsHandled();
 		return true;
 	}
@@ -1448,7 +1531,7 @@ public partial class InGameHUD : Control
 	private bool HandleSpaceKey(InputEventKey keyEvent)
 	{
 		if (keyEvent.Keycode != Key.Space || IsChatActive) return false;
-		
+
 		CenterCameraOnSelectedUnit();
 		GetViewport().SetInputAsHandled();
 		return true;
@@ -1466,9 +1549,9 @@ public partial class InGameHUD : Control
 	private bool HandlePauseKey(InputEventKey keyEvent)
 	{
 		if (keyEvent.Keycode != Key.P && keyEvent.Keycode != Key.Pause) return false;
-		if (IsChatActive || Realm.Client.Core.GameHost.Instance == null) return false;
+		if (IsChatActive || GameHost.Instance == null) return false;
 
-		Realm.Client.Core.GameHost.Instance.TogglePauseRequest();
+		GameHost.Instance.TogglePauseRequest();
 		GetViewport().SetInputAsHandled();
 		return true;
 	}
@@ -1476,9 +1559,9 @@ public partial class InGameHUD : Control
 	private bool HandleTildeKey(InputEventKey keyEvent)
 	{
 		if (keyEvent.Keycode != Key.Quoteleft || keyEvent.Echo) return false;
-		if (IsChatActive || !Realm.Client.UI.WasmConsoleWindow.IsSinglePlayerOrTestMode()) return false;
+		if (IsChatActive || !WasmConsoleWindow.IsSinglePlayerOrTestMode()) return false;
 
-		Realm.Client.UI.WasmConsoleWindow.Instance.ToggleVisibility();
+		WasmConsoleWindow.Instance.ToggleVisibility();
 		GetViewport().SetInputAsHandled();
 		return true;
 	}
@@ -1529,50 +1612,51 @@ public partial class InGameHUD : Control
 		var sep = new HSeparator();
 		vbox.AddChild(sep);
 
-		var hotkeys = new (string key, string desc)[] {
-			("Right-click",      "Smart command (move / attack / follow / rally)"),
-			("Shift+Right-click","Queue additional move waypoint"),
-			("Left-click",       "Select unit (drag to box-select)"),
-			("Double-click",     "Select all same-type on screen"),
-			("Shift+click",      "Add/remove unit from selection"),
+		var hotkeys = new (string key, string desc)[]
+		{
+			("Right-click", "Smart command (move / attack / follow / rally)"),
+			("Shift+Right-click", "Queue additional move waypoint"),
+			("Left-click", "Select unit (drag to box-select)"),
+			("Double-click", "Select all same-type on screen"),
+			("Shift+click", "Add/remove unit from selection"),
 			("", ""),
-			("M",   "Move command (then left-click ground)"),
-			("A",   "Attack / Attack-Move command"),
-			("P",   "Patrol command"),
-			("S",   "Stop all selected units"),
-			("H",   "Hold Position"),
-			("B",   "Open Build submenu"),
+			("M", "Move command (then left-click ground)"),
+			("A", "Attack / Attack-Move command"),
+			("P", "Patrol command"),
+			("S", "Stop all selected units"),
+			("H", "Hold Position"),
+			("B", "Open Build submenu"),
 			("", ""),
 			("Building selected:", ""),
-			("Y",   "Set Rally Point"),
+			("Y", "Set Rally Point"),
 			("", ""),
 			("", ""),
 			("Camera:", ""),
-			("WASD / Edge","Pan camera"),
+			("WASD / Edge", "Pan camera"),
 			("Shift+WASD", "Fast pan"),
-			("Space",      "Center on your Castle"),
-			("Z",          "Cycle camera zoom"),
-			("Ctrl+F5..F8","Save Camera Location 1..4"),
-			("F5..F8",     "Jump to Saved Camera Location 1..4"),
+			("Space", "Center on your Castle"),
+			("Z", "Cycle camera zoom"),
+			("Ctrl+F5..F8", "Save Camera Location 1..4"),
+			("F5..F8", "Jump to Saved Camera Location 1..4"),
 			("", ""),
 			("Selection:", ""),
-			("F1",         "Select all Idle units"),
-			("F2",         "Select all Army units"),
-			("F3",         "Select all Buildings"),
-			("Tab",        "Cycle focus through selected"),
-			("`",          "Cycle through your buildings"),
-			("Ctrl+0..9",  "Assign Control Group"),
-			("0..9",       "Recall Control Group (double: jump)"),
+			("F1", "Select all Idle units"),
+			("F2", "Select all Army units"),
+			("F3", "Select all Buildings"),
+			("Tab", "Cycle focus through selected"),
+			("`", "Cycle through your buildings"),
+			("Ctrl+0..9", "Assign Control Group"),
+			("0..9", "Recall Control Group (double: jump)"),
 			("", ""),
 			("Map:", ""),
-			("F4",         "Toggle Minimap terrain / radar"),
-			("Alt+G",      "Ping map alert"),
+			("F4", "Toggle Minimap terrain / radar"),
+			("Alt+G", "Ping map alert"),
 			("", ""),
 			("Chat / Cheats:", ""),
-			("Enter",      "Open chat"),
+			("Enter", "Open chat"),
 			("", ""),
-			("[Esc]",      "Cancel / clear selection / open settings"),
-			("[Del]",      "Remove selected units (dev)"),
+			("[Esc]", "Cancel / clear selection / open settings"),
+			("[Del]", "Remove selected units (dev)"),
 		};
 
 		foreach (var (key, desc) in hotkeys)
@@ -1585,6 +1669,7 @@ public partial class InGameHUD : Control
 				vbox.AddChild(spacer);
 				continue;
 			}
+
 			var row = new HBoxContainer();
 			row.AddThemeConstantOverride("separation", 8);
 			var keyLbl = new Label();
@@ -1665,15 +1750,14 @@ public partial class InGameHUD : Control
 	}
 
 
-
-
 	private void CycleWeather()
 	{
 		if (Multiplayer.MultiplayerPeer != null && !Multiplayer.IsServer()) return;
 
-		if (Realm.Client.Core.GameHost.Instance?.EnvironmentService != null)
+		GameHost tempQualifier = GameHost.Instance;
+		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
 		{
-			string next = Realm.Client.Core.GameHost.Instance.EnvironmentService.CycleWeather();
+			string next = GameContext.EnvironmentService.CycleWeather();
 			if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
 			{
 				Rpc(nameof(SyncWeather), next);
@@ -1686,11 +1770,12 @@ public partial class InGameHUD : Control
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true)]
-	private void SyncWeather(string weather)
+	public void SyncWeather(string weather)
 	{
-		if (Realm.Client.Core.GameHost.Instance?.EnvironmentService != null)
+		GameHost tempQualifier = GameHost.Instance;
+		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EnvironmentService.SetCurrentWeather(weather);
+			GameContext.EnvironmentService.SetCurrentWeather(weather);
 			float density = weather switch
 			{
 				"clear" => 0f,
@@ -1699,17 +1784,19 @@ public partial class InGameHUD : Control
 				"fog" => 0.045f,
 				_ => 0f
 			};
-			Realm.Client.Core.GameHost.Instance.EnvironmentService.SetBaseFogDensity(density);
-			Realm.Client.Core.GameHost.Instance.EnvironmentService.ApplyWeatherVisuals(Realm.Client.Core.GameHost.Instance, weather);
+			GameContext.EnvironmentService.SetBaseFogDensity(density);
+			GameContext.EnvironmentService.ApplyWeatherVisuals(GameHost.Instance, weather);
 		}
+
 		ApplyWeatherEffects(weather);
 	}
 
 	public void ApplyWeatherEffects(string weather)
 	{
-		if (Realm.Client.Core.GameHost.Instance?.EnvironmentService != null)
+		GameHost tempQualifier = GameHost.Instance;
+		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
 		{
-			Realm.Client.Core.GameHost.Instance.EnvironmentService.ApplyWeatherVisuals(Realm.Client.Core.GameHost.Instance, weather);
+			GameContext.EnvironmentService.ApplyWeatherVisuals(GameHost.Instance, weather);
 		}
 
 		if (weather == "clear")
@@ -1733,19 +1820,19 @@ public partial class InGameHUD : Control
 
 	public bool TryTriggerCheat(string text)
 	{
-		if (Realm.Client.Core.GameHost.Instance?.CheatService == null) return false;
+		if (GameContext.CheatService == null) return false;
 
-		var selectedEntities = Realm.Client.Core.GameHost.Instance.SelectedUnits != null
-			? System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(Realm.Client.Core.GameHost.Instance.SelectedUnits, u => u.Entity))
+		var selectedEntities = GameHost.Instance.SelectedUnits != null
+			? Enumerable.ToList(Enumerable.Select(GameHost.Instance.SelectedUnits, u => u.Entity))
 			: new List<Entity>();
 
-		bool isMultiplayer = Network.LobbyManager.Instance != null && !Network.LobbyManager.Instance.IsSinglePlayer
-		                                                           && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
+		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer
+		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 
-		var (result, _) = Realm.Client.Core.GameHost.Instance.CheatService.TryTriggerCheat(
-			text, isMultiplayer, Realm.Client.Core.GameHost.Instance.PlayerEntity, Realm.Client.Core.GameHost.Instance.DefinitionManager, selectedEntities);
+		var (result, _) = GameContext.CheatService.TryTriggerCheat(
+			text, isMultiplayer, GameHost.Instance._playerEntity, ECSContext.DefinitionManager, selectedEntities);
 
-		if (result == CheatService.CheatResult.None) return false;
+		if (result == CheatResult.None) return false;
 
 		ShowFeedbackText("Cheat Activated!", new Color(0.1f, 0.9f, 0.2f));
 		HandleCheatResult(result);
@@ -1753,25 +1840,26 @@ public partial class InGameHUD : Control
 		return true;
 	}
 
-	private void HandleCheatResult(CheatService.CheatResult result)
+	private void HandleCheatResult(CheatResult result)
 	{
 		switch (result)
 		{
-			case CheatService.CheatResult.Gigachad:
-				RefreshUI(Realm.Client.Core.GameHost.Instance.SelectedUnits);
+			case CheatResult.Gigachad:
+				RefreshUI(GameHost.Instance.SelectedUnits);
 				break;
-			case CheatService.CheatResult.AbsoluteUnit:
-				foreach (var unit in Realm.Client.Core.GameHost.Instance.SelectedUnits)
+			case CheatResult.AbsoluteUnit:
+				foreach (var unit in GameHost.Instance.SelectedUnits)
 				{
 					if (GodotObject.IsInstanceValid(unit)) unit.Scale = new Vector3(3f, 3f, 3f);
 				}
-				RefreshUI(Realm.Client.Core.GameHost.Instance.SelectedUnits);
+
+				RefreshUI(GameHost.Instance.SelectedUnits);
 				break;
-			case CheatService.CheatResult.EzClap:
+			case CheatResult.EzClap:
 				UIManager.Instance?.PlayClickSound();
 				UIManager.Instance?.TransitionTo(GameScreen.GameOver, true);
 				break;
-			case CheatService.CheatResult.NoCap:
+			case CheatResult.NoCap:
 				RegenerateMinimapBackground();
 				QueueMinimapRedraw();
 				break;
@@ -1783,29 +1871,29 @@ public partial class InGameHUD : Control
 		if (_commandPanelController == null) return false;
 		return _commandPanelController.HandleHotkey(keycode);
 	}
-	
+
 	private void SetupCommandCard()
 	{
-		SetupHUDButton(_btnMove, "res://Assets/UI/move_speed.png", TranslationServer.Translate("[M] Move / Right-Click Ground"), () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("move"));
-		SetupHUDButton(_btnStop, "res://Assets/UI/cancel_button_2.png", TranslationServer.Translate("[S] Stop Selected Units"), () => 
+		SetupHUDButton(_btnMove, "res://Assets/UI/move_speed.png", TranslationServer.Translate("[M] Move / Right-Click Ground"), () => GameHost.Instance?.EnterCommandTargeting("move"));
+		SetupHUDButton(_btnStop, "res://Assets/UI/cancel_button_2.png", TranslationServer.Translate("[S] Stop Selected Units"), () =>
 		{
 			ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
-			Realm.Client.Core.GameHost.Instance?.StopSelectedUnits();
+			GameHost.Instance?.StopSelectedUnits();
 		});
-		SetupHUDButton(_btnHold, "res://Assets/UI/magic_upgrade_arrow.png", TranslationServer.Translate("[H] Hold Position — Unit stays put and attacks in place"), () => 
+		SetupHUDButton(_btnHold, "res://Assets/UI/magic_upgrade_arrow.png", TranslationServer.Translate("[H] Hold Position — Unit stays put and attacks in place"), () =>
 		{
 			ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
-			Realm.Client.Core.GameHost.Instance?.HoldSelectedUnits();
+			GameHost.Instance?.HoldSelectedUnits();
 		});
-		SetupHUDButton(_btnAttack, "res://Assets/UI/battle_axe.png", TranslationServer.Translate("[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move"), () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("attack"));
-		SetupHUDButton(_btnPatrol, "res://Assets/UI/patrol.jpg", TranslationServer.Translate("[P] Patrol — Unit patrols between current position and target, engaging enemies"), () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("patrol"));
+		SetupHUDButton(_btnAttack, "res://Assets/UI/battle_axe.png", TranslationServer.Translate("[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move"), () => GameHost.Instance?.EnterCommandTargeting("attack"));
+		SetupHUDButton(_btnPatrol, "res://Assets/UI/patrol.jpg", TranslationServer.Translate("[P] Patrol — Unit patrols between current position and target, engaging enemies"), () => GameHost.Instance?.EnterCommandTargeting("patrol"));
 		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.png", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
 
 		_btnCancelBuild = new Button();
 		SetupHUDButton(_btnCancelBuild, "res://Assets/UI/cancel_button_2.png", TranslationServer.Translate("[Esc] Cancel"), () => ExitBuildSubMenu());
 
 		_btnSetRally = new Button();
-		SetupHUDButton(_btnSetRally, "res://Assets/UI/alliance_flag.png", TranslationServer.Translate("[Y] Set Rally Point — Set location where new units will walk"), () => Realm.Client.Core.GameHost.Instance?.EnterCommandTargeting("rally"));
+		SetupHUDButton(_btnSetRally, "res://Assets/UI/alliance_flag.png", TranslationServer.Translate("[Y] Set Rally Point — Set location where new units will walk"), () => GameHost.Instance?.EnterCommandTargeting("rally"));
 	}
 
 	private void CreateSpectatorPerspectiveUI()
@@ -1813,7 +1901,7 @@ public partial class InGameHUD : Control
 		var specPanel = new PanelContainer();
 		specPanel.Name = "SpectatorPanel";
 		specPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel());
-		
+
 		var specVBox = new VBoxContainer();
 		specPanel.AddChild(specVBox);
 
@@ -1864,11 +1952,11 @@ public partial class InGameHUD : Control
 
 	public void UpdatePauseUI()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
+		if (GameHost.Instance == null) return;
 		if (_pausePanel == null) BuildPausePanel();
 
-		_pausePanel.Visible = Realm.Client.Core.GameHost.Instance.IsPaused;
-		if (!Realm.Client.Core.GameHost.Instance.IsPaused) return;
+		_pausePanel.Visible = GameContext.NetworkService.IsPaused;
+		if (!GameContext.NetworkService.IsPaused) return;
 
 		UpdatePauseTitle();
 
@@ -1890,7 +1978,7 @@ public partial class InGameHUD : Control
 		isLocalHost = false;
 		localPeerId = 1;
 
-		var lobby = Network.LobbyManager.Instance;
+		var lobby = LobbyManager.Instance;
 		if (lobby == null) return;
 
 		var localPlayer = lobby.LocalPlayer;
@@ -1902,16 +1990,16 @@ public partial class InGameHUD : Control
 
 	private void UpdatePauseTitle()
 	{
-		_pauseTitleLabel.Text = Realm.Client.Core.GameHost.Instance.ResumeCountdownSeconds >= 0
-			? $"Resuming in {Realm.Client.Core.GameHost.Instance.ResumeCountdownSeconds}s..."
+		_pauseTitleLabel.Text = GameContext.NetworkService.ResumeCountdownSeconds >= 0
+			? $"Resuming in {GameContext.NetworkService.ResumeCountdownSeconds}s..."
 			: "Game Paused";
 	}
 
 	private void UpdatePausePlayerList(bool isLocalHost)
 	{
-		if (Network.LobbyManager.Instance == null) return;
+		if (LobbyManager.Instance == null) return;
 
-		foreach (var player in Network.LobbyManager.Instance.PlayerList)
+		foreach (var player in LobbyManager.Instance.PlayerList)
 		{
 			if (player.Team == "Spectator") continue;
 
@@ -1921,7 +2009,7 @@ public partial class InGameHUD : Control
 			var nameLabel = new Label { Text = player.Name, CustomMinimumSize = new Vector2(150, 0) };
 			row.AddChild(nameLabel);
 
-			Realm.Client.Core.GameHost.Instance.GetPlayerReadyState(player.PeerId, out bool ready);
+			GameHost.Instance.GetPlayerReadyState(player.PeerId, out bool ready);
 			var readyLabel = new Label
 			{
 				Text = ready ? "READY" : "NOT READY",
@@ -1931,9 +2019,9 @@ public partial class InGameHUD : Control
 			row.AddChild(readyLabel);
 
 			var disallowCheck = new CheckBox { Text = "Disallow Pause", Disabled = !isLocalHost || player.PeerId == 1 };
-			Realm.Client.Core.GameHost.Instance.GetPlayerDisallowPause(player.PeerId, out bool disallowed);
+			GameHost.Instance.GetPlayerDisallowPause(player.PeerId, out bool disallowed);
 			disallowCheck.ButtonPressed = disallowed;
-			disallowCheck.Toggled += (buttonPressed) => Realm.Client.Core.GameHost.Instance.RequestSetDisallowPause(player.PeerId, buttonPressed);
+			disallowCheck.Toggled += (buttonPressed) => GameHost.Instance.RequestSetDisallowPause(player.PeerId, buttonPressed);
 			row.AddChild(disallowCheck);
 
 			_pausePlayerListContainer.AddChild(row);
@@ -1942,12 +2030,12 @@ public partial class InGameHUD : Control
 
 	private void UpdatePauseControls(int localPeerId, bool isLocalHost)
 	{
-		Realm.Client.Core.GameHost.Instance.GetPlayerReadyState(localPeerId, out bool localReady);
+		GameHost.Instance.GetPlayerReadyState(localPeerId, out bool localReady);
 		_pauseReadyCheck.ButtonPressed = localReady;
-		_pauseReadyCheck.Disabled = Realm.Client.Core.GameHost.Instance.ResumeCountdownSeconds >= 0;
+		_pauseReadyCheck.Disabled = GameContext.NetworkService.ResumeCountdownSeconds >= 0;
 
 		_pauseForceResumeBtn.Visible = isLocalHost;
-		_pauseForceResumeBtn.Disabled = Realm.Client.Core.GameHost.Instance.ResumeCountdownSeconds >= 0;
+		_pauseForceResumeBtn.Disabled = GameContext.NetworkService.ResumeCountdownSeconds >= 0;
 	}
 
 	private void BuildPausePanel()
@@ -2000,8 +2088,8 @@ public partial class InGameHUD : Control
 		_pauseReadyCheck.Text = "Ready to Resume";
 		_pauseReadyCheck.Toggled += (buttonPressed) =>
 		{
-			int localPeerId = Network.LobbyManager.Instance != null && Network.LobbyManager.Instance.LocalPlayer != null ? Network.LobbyManager.Instance.LocalPlayer.PeerId : 1;
-			Realm.Client.Core.GameHost.Instance?.RequestToggleReady(localPeerId, buttonPressed);
+			int localPeerId = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null ? LobbyManager.Instance.LocalPlayer.PeerId : 1;
+			GameHost.Instance?.RequestToggleReady(localPeerId, buttonPressed);
 		};
 		actionHBox.AddChild(_pauseReadyCheck);
 
@@ -2015,14 +2103,14 @@ public partial class InGameHUD : Control
 
 	private void OnForceResumePressed()
 	{
-		Realm.Client.Core.GameHost.Instance?.RequestForceResume();
+		GameHost.Instance?.RequestForceResume();
 	}
 
 	private string GetBuildOptionTooltip(string unitId, string hotkey)
 	{
 		string name = unitId.ToUpper();
 		float gold = 0, wood = 0, stone = 0;
-		if (Realm.Client.Core.GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
+		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
 		{
 			name = meta.Name;
 			gold = meta.CostGold;
@@ -2047,7 +2135,7 @@ public partial class InGameHUD : Control
 		float gold = 0, wood = 0, stone = 0;
 		int pop = 0;
 		string desc = "";
-		if (Realm.Client.Core.GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
+		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
 		{
 			name = meta.Name;
 			gold = meta.CostGold;

@@ -1,5 +1,5 @@
-using Godot;
 using System.Collections.Generic;
+using Godot;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -16,7 +16,7 @@ public class TerrainTextureSnapshot
 	public float UvScale { get; set; } = 1.0f;
 	public float StochasticTileSize { get; set; } = 1.0f;
 	public float CrossFade { get; set; } = 0.0f;
-	public int DefaultPathingCode { get; set; } = Realm.Client.EditableTerrain.PATHING_GROUND | Realm.Client.EditableTerrain.PATHING_BUILDABLE | Realm.Client.EditableTerrain.PATHING_FLYING;
+	public int DefaultPathingCode { get; set; } = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING;
 	public List<ProceduralBombingDecalRule> DecalBombingRules { get; set; } = new();
 	public List<ProceduralBombingVfxRule> VfxBombingRules { get; set; } = new();
 
@@ -43,10 +43,12 @@ public class TerrainTextureSnapshot
 		{
 			foreach (var r in this.DecalBombingRules) clone.DecalBombingRules.Add(r.Clone());
 		}
+
 		if (this.VfxBombingRules != null)
 		{
 			foreach (var r in this.VfxBombingRules) clone.VfxBombingRules.Add(r.Clone());
 		}
+
 		return clone;
 	}
 }

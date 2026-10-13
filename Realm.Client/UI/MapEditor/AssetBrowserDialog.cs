@@ -1,9 +1,10 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Audio;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -67,16 +68,16 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 		BuildControls();
 		AssetThumbnailProvider.ThumbnailGenerated += OnThumbnailGenerated;
-		AssetIndexService.Instance.DirectoryIndexingStateChanged += OnDirectoryIndexingStateChanged;
-		AssetIndexService.Instance.DirectoryScanCompleted += OnDirectoryScanCompleted;
+		GameContext.AssetIndexService.DirectoryIndexingStateChanged += OnDirectoryIndexingStateChanged;
+		GameContext.AssetIndexService.DirectoryScanCompleted += OnDirectoryScanCompleted;
 	}
 
 	public override void _ExitTree()
 	{
 		StopAudio();
 		AssetThumbnailProvider.ThumbnailGenerated -= OnThumbnailGenerated;
-		AssetIndexService.Instance.DirectoryIndexingStateChanged -= OnDirectoryIndexingStateChanged;
-		AssetIndexService.Instance.DirectoryScanCompleted -= OnDirectoryScanCompleted;
+		GameContext.AssetIndexService.DirectoryIndexingStateChanged -= OnDirectoryIndexingStateChanged;
+		GameContext.AssetIndexService.DirectoryScanCompleted -= OnDirectoryScanCompleted;
 		base._ExitTree();
 	}
 
@@ -385,6 +386,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		{
 			_chkHasPlayerColorMask.ButtonPressed = false;
 		}
+
 		_requireRealmMetadata = requireRealmMetadata;
 		_selectedAssetTypeFilter = requiredAssetType;
 
@@ -401,6 +403,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		{
 			requireRealmMetadata = true;
 		}
+
 		_requireRealmMetadata = requireRealmMetadata;
 
 		if (_allowedExtensions.Count > 0)
@@ -413,10 +416,10 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_lblFilterExtensions.Visible = false;
 		}
 
-		if (!_hasAutoRescannedOnFirstOpen || AssetIndexService.Instance.GetAssetCount() == 0)
+		if (!_hasAutoRescannedOnFirstOpen || GameContext.AssetIndexService.GetAssetCount() == 0)
 		{
 			_hasAutoRescannedOnFirstOpen = true;
-			AssetIndexService.Instance.RescanAllDirectories();
+			GameContext.AssetIndexService.RescanAllDirectories();
 		}
 
 		OpenDialog();
@@ -443,6 +446,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		{
 			_chkHasPlayerColorMask.ButtonPressed = false;
 		}
+
 		_requireRealmMetadata = requireRealmMetadata;
 		_selectedAssetTypeFilter = requiredAssetType;
 
@@ -459,6 +463,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		{
 			requireRealmMetadata = true;
 		}
+
 		_requireRealmMetadata = requireRealmMetadata;
 
 		if (_allowedExtensions.Count > 0)
@@ -471,10 +476,10 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			_lblFilterExtensions.Visible = false;
 		}
 
-		if (!_hasAutoRescannedOnFirstOpen || AssetIndexService.Instance.GetAssetCount() == 0)
+		if (!_hasAutoRescannedOnFirstOpen || GameContext.AssetIndexService.GetAssetCount() == 0)
 		{
 			_hasAutoRescannedOnFirstOpen = true;
-			AssetIndexService.Instance.RescanAllDirectories();
+			GameContext.AssetIndexService.RescanAllDirectories();
 		}
 
 		OpenDialog();
@@ -520,7 +525,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 	private int PopulateMapGroupsFilter(ref int currentItemIndex, int selectedIndex)
 	{
-		var downloadedPackages = AssetIndexService.Instance.GetDownloadedMapPackages();
+		var downloadedPackages = GameContext.AssetIndexService.GetDownloadedMapPackages();
 		var mapGroups = downloadedPackages
 			.GroupBy(p => p.MapName, StringComparer.OrdinalIgnoreCase)
 			.OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
@@ -564,13 +569,13 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		if (string.IsNullOrEmpty(_selectedMapVersionFilter)) return true;
 		if (string.Equals(_selectedMapVersionFilter, "latest", StringComparison.OrdinalIgnoreCase) && isFirst) return true;
 		if (string.Equals(_selectedMapVersionFilter, ver, StringComparison.OrdinalIgnoreCase)) return true;
-		
+
 		return false;
 	}
 
 	private int PopulateIndexedDirsFilter(ref int currentItemIndex, int selectedIndex)
 	{
-		var indexedDirs = AssetIndexService.Instance.GetIndexedDirectories();
+		var indexedDirs = GameContext.AssetIndexService.GetIndexedDirectories();
 
 		for (int i = 0; i < indexedDirs.Count; i++)
 		{
@@ -596,7 +601,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			folderName = dirPath;
 		}
 
-		bool isIndexing = AssetIndexService.Instance.IsDirectoryIndexing(dirPath);
+		bool isIndexing = GameContext.AssetIndexService.IsDirectoryIndexing(dirPath);
 		string metaKey = $"dir:{dirPath}";
 		_optDirectoryFilter.AddItem(isIndexing ? $"⏳ {folderName} ({TranslationServer.Translate("Indexing...")})" : folderName, itemIdx);
 		_optDirectoryFilter.SetItemMetadata(itemIdx, metaKey);
@@ -617,7 +622,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			folderName = dirPath;
 		}
 
-		bool isIndexing = AssetIndexService.Instance.IsDirectoryIndexing(dirPath);
+		bool isIndexing = GameContext.AssetIndexService.IsDirectoryIndexing(dirPath);
 		var chip = new PanelContainer();
 		var chipStyle = new StyleBoxFlat();
 		chipStyle.BgColor = isIndexing ? new Color(0.18f, 0.16f, 0.12f, 0.9f) : new Color(0.15f, 0.16f, 0.19f, 0.9f);
@@ -655,7 +660,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		btnRemove.TooltipText = $"{TranslationServer.Translate("Remove folder from index")}: {dirPath}";
 		btnRemove.Pressed += () =>
 		{
-			AssetIndexService.Instance.RemoveDirectory(dirPath);
+			GameContext.AssetIndexService.RemoveDirectory(dirPath);
 			RefreshFolderChips();
 			RefreshSearchResults();
 		};
@@ -697,7 +702,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		var validTypes = new List<string>();
 		foreach (var ext in _allowedExtensions)
 		{
-			var types = Realm.Shared.Metadata.RealmMetadataHelper.GetValidAssetTypesForExtension(ext);
+			var types = RealmMetadataHelper.GetValidAssetTypesForExtension(ext);
 			foreach (var t in types)
 			{
 				if (!validTypes.Contains(t, StringComparer.OrdinalIgnoreCase))
@@ -706,6 +711,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 				}
 			}
 		}
+
 		return validTypes;
 	}
 
@@ -725,17 +731,18 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 				_selectedAssetTypeFilter = typeName;
 			}
 		}
+
 		return selectedIndex;
 	}
 
 	private bool IsAssetTypeSelected(string typeName)
 	{
 		if (string.IsNullOrEmpty(_selectedAssetTypeFilter)) return false;
-		
+
 		if (typeName.Equals(_selectedAssetTypeFilter, StringComparison.OrdinalIgnoreCase)) return true;
-		
-		string normType = Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(typeName);
-		string normSelected = Realm.Shared.Metadata.RealmMetadataHelper.NormalizeAssetType(_selectedAssetTypeFilter);
+
+		string normType = RealmMetadataHelper.NormalizeAssetType(typeName);
+		string normSelected = RealmMetadataHelper.NormalizeAssetType(_selectedAssetTypeFilter);
 		return normType.Equals(normSelected, StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -750,6 +757,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		{
 			_selectedAssetTypeFilter = _optAssetTypeFilter.GetItemMetadata(idx).AsString();
 		}
+
 		RefreshSearchResults();
 	}
 
@@ -798,13 +806,13 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			"",
 			false,
 			DisplayServer.FileDialogMode.OpenDir,
-			System.Array.Empty<string>(),
+			Array.Empty<string>(),
 			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
 			{
 				if (status && selectedPaths.Length > 0)
 				{
 					string folderPath = selectedPaths[0];
-					AssetIndexService.Instance.AddDirectory(folderPath);
+					GameContext.AssetIndexService.AddDirectory(folderPath);
 					RefreshFolderChips();
 					RefreshSearchResults();
 				}
@@ -819,7 +827,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 	private void OnRescanAllPressed()
 	{
-		AssetIndexService.Instance.RescanAllDirectories();
+		GameContext.AssetIndexService.RescanAllDirectories();
 		Hud?.ShowFeedback(TranslationServer.Translate("Rescanned all indexed directories."));
 		RefreshSearchResults();
 	}
@@ -831,7 +839,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			string searchTerm = _txtSearch.Text?.Trim() ?? string.Empty;
 			bool requirePlayerColorMask = _chkHasPlayerColorMask?.ButtonPressed ?? false;
 			_matchingAssets.Clear();
-			var searchResults = AssetIndexService.Instance.SearchAssets(
+			var searchResults = GameContext.AssetIndexService.SearchAssets(
 				searchTerm,
 				_allowedExtensions,
 				_selectedDirectoryFilter,
@@ -1012,10 +1020,10 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 	private void UpdateAssetTypeDisplay()
 	{
-		string embeddedAssetType = Realm.Shared.Metadata.RealmMetadataHelper.ExtractAssetType(_selectedAsset!.FilePath) ?? string.Empty;
+		string embeddedAssetType = RealmMetadataHelper.ExtractAssetType(_selectedAsset!.FilePath) ?? string.Empty;
 		_txtAssetTypeEdit.Text = !string.IsNullOrEmpty(embeddedAssetType) ? embeddedAssetType : TranslationServer.Translate("None");
 		_txtAssetTypeEdit.Editable = false;
-		var validTypes = Realm.Shared.Metadata.RealmMetadataHelper.GetValidAssetTypesForExtension(_selectedAsset.FilePath);
+		var validTypes = RealmMetadataHelper.GetValidAssetTypesForExtension(_selectedAsset.FilePath);
 		_btnEditAssetType.Disabled = (validTypes.Count == 0);
 	}
 
@@ -1043,7 +1051,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			if (ext == ".raud")
 			{
 				byte[] raudBytes = File.ReadAllBytes(_selectedAsset!.FilePath);
-				byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
+				byte[]? oggBytes = RaudFile.GetTrack(raudBytes, 0);
 				if (oggBytes != null && oggBytes.Length > 0)
 				{
 					var oggStream = AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
@@ -1109,8 +1117,10 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			{
 				_audioPlayer.Stop();
 			}
+
 			_audioPlayer.Stream = null;
 		}
+
 		if (_btnAudioPlayPause != null)
 		{
 			_btnAudioPlayPause.Text = "▶ " + TranslationServer.Translate("Play");
@@ -1137,7 +1147,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			return;
 		}
 
-		AssetIndexService.Instance.UpdateAssetTags(_selectedAsset.FilePath, updatedTags);
+		GameContext.AssetIndexService.UpdateAssetTags(_selectedAsset.FilePath, updatedTags);
 		_selectedAsset.Tags = updatedTags;
 		_txtTagsEdit.Text = string.Join(", ", updatedTags);
 
@@ -1156,7 +1166,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	private void OnAssetTypeSaved(string updatedAssetType)
 	{
 		if (_selectedAsset == null) return;
-		AssetIndexService.Instance.UpdateAssetType(_selectedAsset.FilePath, updatedAssetType);
+		GameContext.AssetIndexService.UpdateAssetType(_selectedAsset.FilePath, updatedAssetType);
 		_selectedAsset.AssetType = updatedAssetType;
 		_txtAssetTypeEdit.Text = updatedAssetType;
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Updated asset type for {0} to {1}"), _selectedAsset.FileName, updatedAssetType));
@@ -1168,7 +1178,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		StopAudio();
 		if (_selectedAsset != null && File.Exists(_selectedAsset.FilePath))
 		{
-			Realm.Shared.Metadata.RealmMetadataHelper.EnsureMetadata(_selectedAsset.FilePath);
+			RealmMetadataHelper.EnsureMetadata(_selectedAsset.FilePath);
 			_onAssetSelectedWithPreferredNameCallback?.Invoke(_selectedAsset.FilePath, _selectedAsset.FileName);
 			_onAssetSelectedCallback?.Invoke(_selectedAsset.FilePath);
 		}
@@ -1180,10 +1190,12 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		{
 			return $"{bytes} B";
 		}
+
 		if (bytes < 1024 * 1024)
 		{
 			return $"{bytes / 1024.0:F1} KB";
 		}
+
 		return $"{bytes / (1024.0 * 1024.0):F2} MB";
 	}
 }

@@ -1,14 +1,24 @@
-using Godot;
-using Realm.Shared.Distribution;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
+using Godot;
+using Realm.Client.Network;
+using Realm.Shared.Distribution;
+using HttpClient = System.Net.Http.HttpClient;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class CreatorDiscovery : Control
 {
+	public CreatorDiscovery()
+	{
+	}
+
 	private Button _backButton;
 	private TabContainer _tabContainer;
 	private GridContainer _forYouGrid;
@@ -19,24 +29,12 @@ public partial class CreatorDiscovery : Control
 	private Button _forYouTabBtn;
 	private Button _portfolioTabBtn;
 
-	private struct CreatorInfo
-	{
-		public string PublicKey { get; set; }
-		public string Username { get; set; }
-		public string DonationLink { get; set; }
-		public string ContactInfo { get; set; }
-	}
-
-	private struct PortfolioAsset
-	{
-		public string Hash { get; set; }
-		public string AuthorUsername { get; set; }
-	}
 
 	private List<CreatorInfo> _creatorsList = new();
 
 	public override void _EnterTree()
 	{
+		Realm.Client.Services.GameContext.EnsureServices();
 		SetFpsCenter(true);
 	}
 
@@ -58,6 +56,7 @@ public partial class CreatorDiscovery : Control
 				{
 					lbl.HorizontalAlignment = HorizontalAlignment.Center;
 				}
+
 				fpsNode.OffsetLeft = -75;
 				fpsNode.OffsetRight = 75;
 				fpsNode.OffsetTop = 10;
@@ -70,6 +69,7 @@ public partial class CreatorDiscovery : Control
 				{
 					lbl.HorizontalAlignment = HorizontalAlignment.Right;
 				}
+
 				fpsNode.OffsetLeft = -160;
 				fpsNode.OffsetRight = -10;
 				fpsNode.OffsetTop = 10;
@@ -194,6 +194,7 @@ public partial class CreatorDiscovery : Control
 		{
 			style.BorderWidthBottom = 3;
 		}
+
 		style.CornerRadiusTopLeft = 6;
 		style.CornerRadiusTopRight = 6;
 		style.CornerRadiusBottomLeft = 6;
@@ -343,19 +344,22 @@ public partial class CreatorDiscovery : Control
 	{
 		string statsPath = ProjectSettings.GlobalizePath("user://appdata/playtime_stats.json");
 		var localCreators = new Dictionary<string, int>();
-		if (System.IO.File.Exists(statsPath))
+		if (File.Exists(statsPath))
 		{
 			try
 			{
-				string statsJson = System.IO.File.ReadAllText(statsPath);
+				string statsJson = File.ReadAllText(statsPath);
 				localCreators = JsonSerializer.Deserialize<Dictionary<string, int>>(statsJson) ?? localCreators;
 			}
-			catch {}
+			catch
+			{
+			}
 		}
 
 		if (localCreators.Count == 0)
 		{
-			localCreators = new Dictionary<string, int> {
+			localCreators = new Dictionary<string, int>
+			{
 				{ "Realm Builder", 120 },
 				{ "Ice Mage", 45 },
 				{ "Pathfinder", 30 }
@@ -420,10 +424,10 @@ public partial class CreatorDiscovery : Control
 
 	private async void LoadPortfolioData()
 	{
-		string seedServerUrl = GodotObject.IsInstanceValid(Network.LobbyManager.Instance) ? Network.LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 		try
 		{
-			using (var httpClient = new System.Net.Http.HttpClient())
+			using (var httpClient = new HttpClient())
 			{
 				var res = await httpClient.GetAsync(seedServerUrl + "/api/creators");
 				if (res.IsSuccessStatusCode)
@@ -438,6 +442,7 @@ public partial class CreatorDiscovery : Control
 						{
 							_creatorDropdown.AddItem(_creatorsList[i].Username, i);
 						}
+
 						_creatorDropdown.ItemSelected += (idx) => UpdatePortfolioView(idx);
 						UpdatePortfolioView(0);
 						return;
@@ -466,7 +471,7 @@ public partial class CreatorDiscovery : Control
 		UpdateCreatorLabels(creator);
 		ClearPortfolioGrid();
 
-		string seedServerUrl = GodotObject.IsInstanceValid(Network.LobbyManager.Instance) ? Network.LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 		bool loaded = await TryLoadAndDisplayPortfolioAssets(seedServerUrl, creator);
 		if (!loaded)
 		{
@@ -496,11 +501,11 @@ public partial class CreatorDiscovery : Control
 		}
 	}
 
-	private async System.Threading.Tasks.Task<bool> TryLoadAndDisplayPortfolioAssets(string seedServerUrl, CreatorInfo creator)
+	private async Task<bool> TryLoadAndDisplayPortfolioAssets(string seedServerUrl, CreatorInfo creator)
 	{
 		try
 		{
-			using var httpClient = new System.Net.Http.HttpClient();
+			using var httpClient = new HttpClient();
 			var res = await httpClient.GetAsync(seedServerUrl + $"/api/creators/{Uri.EscapeDataString(creator.PublicKey)}/portfolio");
 			if (!res.IsSuccessStatusCode) return false;
 
@@ -513,6 +518,7 @@ public partial class CreatorDiscovery : Control
 				var card = CreateAssetCard(TranslationServer.Translate("Greenlit Asset Pack"), asset.Hash);
 				_portfolioGrid.AddChild(card);
 			}
+
 			return true;
 		}
 		catch (Exception ex)
@@ -543,16 +549,16 @@ public partial class CreatorDiscovery : Control
 		}
 
 		_contactInfo.Text = idx == 0 ? $"{TranslationServer.Translate("Support me on Patreon")}: [color=cyan]patreon.com/realmbuilder[/color]" : $"{TranslationServer.Translate("Donate to my Ko-fi")}: [color=cyan]ko-fi.com/icemage[/color]";
-		
+
 		foreach (Node n in _portfolioGrid.GetChildren())
 		{
 			n.QueueFree();
 		}
-		
+
 		var numAssets = idx == 0 ? 3 : 1;
 		for (int i = 0; i < numAssets; i++)
 		{
-			var card = CreateAssetCard($"{TranslationServer.Translate("Greenlit Asset Pack")} #{i+1}", $"hash_{i+1000}_fallback");
+			var card = CreateAssetCard($"{TranslationServer.Translate("Greenlit Asset Pack")} #{i + 1}", $"hash_{i + 1000}_fallback");
 			_portfolioGrid.AddChild(card);
 		}
 	}
@@ -573,6 +579,7 @@ public partial class CreatorDiscovery : Control
 				{
 					UpdatePortfolioViewFallback(i);
 				}
+
 				break;
 			}
 		}

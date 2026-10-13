@@ -1,8 +1,8 @@
-using Realm.Shared.Distribution;
 using System;
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Realm.Shared.Distribution;
 
 namespace Realm.Client.Services;
 

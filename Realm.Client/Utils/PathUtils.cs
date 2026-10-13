@@ -1,7 +1,11 @@
-using Godot;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
+using Godot;
+using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.Utils;
 
@@ -9,7 +13,7 @@ public static class PathUtils
 {
 	private static string _cachedProjectRoot;
 	private static string[] _cachedDataDirs;
-	private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _cachedPaths = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly ConcurrentDictionary<string, string> _cachedPaths = new(StringComparer.OrdinalIgnoreCase);
 
 	public static bool IsDevelopmentBuild
 	{
@@ -228,6 +232,7 @@ public static class PathUtils
 				return dataDirPath;
 			}
 		}
+
 		return null;
 	}
 
@@ -254,20 +259,6 @@ public static class PathUtils
 		_cachedPaths.Clear();
 	}
 
-	[StructLayout(LayoutKind.Sequential)]
-	private struct ByHandleFileInformation
-	{
-		public uint FileAttributes;
-		public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
-		public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
-		public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
-		public uint VolumeSerialNumber;
-		public uint FileSizeHigh;
-		public uint FileSizeLow;
-		public uint NumberOfLinks;
-		public uint FileIndexHigh;
-		public uint FileIndexLow;
-	}
 
 	[DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
 	[return: MarshalAs(UnmanagedType.Bool)]
@@ -280,7 +271,7 @@ public static class PathUtils
 	[DllImport("libc", EntryPoint = "link", SetLastError = true)]
 	private static extern int PosixLink(string oldpath, string newpath);
 
-	private static readonly System.Collections.Generic.HashSet<string> _mutableMapFiles = new(StringComparer.OrdinalIgnoreCase)
+	private static readonly HashSet<string> _mutableMapFiles = new(StringComparer.OrdinalIgnoreCase)
 	{
 		"terrain.json",
 		"metadata.json",
@@ -288,7 +279,7 @@ public static class PathUtils
 		"license.json"
 	};
 
-	private static readonly System.Collections.Generic.HashSet<string> _mutableMapExtensions = new(StringComparer.OrdinalIgnoreCase)
+	private static readonly HashSet<string> _mutableMapExtensions = new(StringComparer.OrdinalIgnoreCase)
 	{
 		".json",
 		".cs",
@@ -305,7 +296,7 @@ public static class PathUtils
 	public static bool IsMutableMapFileType(string path)
 	{
 		if (string.IsNullOrEmpty(path)) return false;
-		
+
 		string fileName = Path.GetFileName(path);
 		if (_mutableMapFiles.Contains(fileName))
 		{
@@ -382,7 +373,7 @@ public static class PathUtils
 		RemoveReadOnlyAttributeIfExists(fullTarget);
 
 		const int maxAttempts = 10;
-		for (int attempt = 0; ; attempt++)
+		for (int attempt = 0;; attempt++)
 		{
 			try
 			{
@@ -391,7 +382,7 @@ public static class PathUtils
 			}
 			catch (IOException) when (attempt < maxAttempts - 1)
 			{
-				System.Threading.Thread.Sleep(250);
+				Thread.Sleep(250);
 			}
 		}
 	}
@@ -459,8 +450,8 @@ public static class PathUtils
 	{
 		try
 		{
-			using var fs1 = new FileStream(full1, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
-			using var fs2 = new FileStream(full2, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+			using var fs1 = new FileStream(full1, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+			using var fs2 = new FileStream(full2, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 			if (GetFileInformationByHandle(fs1.SafeFileHandle.DangerousGetHandle(), out var info1) &&
 			    GetFileInformationByHandle(fs2.SafeFileHandle.DangerousGetHandle(), out var info2))
 			{
@@ -472,6 +463,7 @@ public static class PathUtils
 		catch
 		{
 		}
+
 		return null;
 	}
 

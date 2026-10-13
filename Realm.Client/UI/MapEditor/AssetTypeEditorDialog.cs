@@ -1,9 +1,9 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -52,7 +52,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 
 		_optAssetType = new OptionButton();
 		_optAssetType.AddThemeFontSizeOverride("font_size", 11);
-		_optAssetType.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_optAssetType.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 		if (_asset != null)
 		{
@@ -100,6 +100,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 				Hud?.ShowFeedback(TranslationServer.Translate("Failed to update embedded asset type."));
 			}
 		}
+
 		CloseDialog();
 	}
 }

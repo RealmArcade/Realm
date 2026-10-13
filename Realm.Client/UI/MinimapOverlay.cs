@@ -1,4 +1,8 @@
+using System;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.UI;
 
@@ -6,7 +10,7 @@ public partial class MinimapOverlay : Control
 {
 	public override void _Draw()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
+		if (GameHost.Instance == null) return;
 
 		var size = Size;
 		var (physicalWidth, physicalDepth, _) = MinimapHelper.GetTerrainDimensions();
@@ -19,7 +23,7 @@ public partial class MinimapOverlay : Control
 
 	private void DrawRadarBackground(Vector2 size)
 	{
-		if (Realm.Client.UI.InGameHUD.Instance == null || Realm.Client.UI.InGameHUD.Instance.ShowMinimapTerrain) return;
+		if (InGameHUD.Instance == null || InGameHUD.Instance.ShowMinimapTerrain) return;
 
 		DrawRect(new Rect2(Vector2.Zero, size), new Color(0.04f, 0.08f, 0.04f), true);
 		Color radarGridColor = new Color(0.1f, 0.4f, 0.15f, 0.3f);
@@ -36,22 +40,22 @@ public partial class MinimapOverlay : Control
 
 	private void DrawShroudGrid(Vector2 size)
 	{
-		if (Realm.Client.UI.InGameHUD.Instance == null || string.Equals(Realm.Client.UI.InGameHUD.Instance.ShroudType, "visible", System.StringComparison.OrdinalIgnoreCase)) return;
+		if (InGameHUD.Instance == null || string.Equals(InGameHUD.Instance.ShroudType, "visible", StringComparison.OrdinalIgnoreCase)) return;
 
 		float cellWidth = size.X / 32f;
 		float cellHeight = size.Y / 32f;
-		var grid = Realm.Client.UI.InGameHUD.Instance.ShroudGrid;
+		var grid = InGameHUD.Instance.ShroudGrid;
 		for (int x = 0; x < 32; x++)
 		{
 			for (int z = 0; z < 32; z++)
 			{
 				byte val = grid[x, z];
-				if (val == Realm.Ecs.Components.Terrain.ShroudState.ExplorationShroud)
+				if (val == ShroudState.ExplorationShroud)
 				{
 					var rect = new Rect2(new Vector2(x * cellWidth, z * cellHeight), new Vector2(cellWidth, cellHeight));
 					DrawRect(rect, new Color(0f, 0f, 0f, 1.0f), true);
 				}
-				else if (val == Realm.Ecs.Components.Terrain.ShroudState.VisionShroud)
+				else if (val == ShroudState.VisionShroud)
 				{
 					var rect = new Rect2(new Vector2(x * cellWidth, z * cellHeight), new Vector2(cellWidth, cellHeight));
 					DrawRect(rect, new Color(0f, 0f, 0f, 0.33f), true);
@@ -62,13 +66,13 @@ public partial class MinimapOverlay : Control
 
 	private void DrawAllUnits(Vector2 size, float physicalWidth, float physicalDepth)
 	{
-		foreach (var unit in Realm.Client.Core.GameHost.Instance.AllUnits)
+		foreach (var unit in GameHost.Instance.AllUnits)
 		{
 			DrawSingleUnit(unit, size, physicalWidth, physicalDepth);
 		}
 	}
 
-	private void DrawSingleUnit(Realm.Client.Unit3D unit, Vector2 size, float physicalWidth, float physicalDepth)
+	private void DrawSingleUnit(Unit3D unit, Vector2 size, float physicalWidth, float physicalDepth)
 	{
 		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
 		if (!IsUnitVisibleOnMinimap(unit, physicalWidth, physicalDepth)) return;
@@ -80,18 +84,18 @@ public partial class MinimapOverlay : Control
 		DrawSelectionRing(unit, drawPos, iconSize);
 	}
 
-	private bool IsUnitVisibleOnMinimap(Realm.Client.Unit3D unit, float physicalWidth, float physicalDepth)
+	private bool IsUnitVisibleOnMinimap(Unit3D unit, float physicalWidth, float physicalDepth)
 	{
 		if (!unit.IsEnemy) return true;
-		if (Realm.Client.UI.InGameHUD.Instance == null) return true;
-		if (string.Equals(Realm.Client.UI.InGameHUD.Instance.ShroudType, "visible", System.StringComparison.OrdinalIgnoreCase)) return true;
+		if (InGameHUD.Instance == null) return true;
+		if (string.Equals(InGameHUD.Instance.ShroudType, "visible", StringComparison.OrdinalIgnoreCase)) return true;
 
 		int gx = (int)Mathf.Clamp((unit.GlobalPosition.X / physicalWidth + 0.5f) * 32, 0, 31);
 		int gz = (int)Mathf.Clamp((unit.GlobalPosition.Z / physicalDepth + 0.5f) * 32, 0, 31);
-		return Realm.Client.UI.InGameHUD.Instance.ShroudGrid[gx, gz] == Realm.Ecs.Components.Terrain.ShroudState.Visible;
+		return InGameHUD.Instance.ShroudGrid[gx, gz] == ShroudState.Visible;
 	}
 
-	private void DrawUnitIcon(Realm.Client.Unit3D unit, Vector2 drawPos, float iconSize)
+	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, float iconSize)
 	{
 		Color color = unit.IsEnemy ? new Color(0.9f, 0.1f, 0.1f) : new Color(0.2f, 0.6f, 1.0f);
 
@@ -108,7 +112,7 @@ public partial class MinimapOverlay : Control
 		DrawCircle(drawPos, iconSize, new Color(0f, 0f, 0f, 0.6f), false, 1.0f);
 	}
 
-	private void DrawSelectionRing(Realm.Client.Unit3D unit, Vector2 drawPos, float iconSize)
+	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize)
 	{
 		if (!unit.IsSelected) return;
 
@@ -118,7 +122,7 @@ public partial class MinimapOverlay : Control
 
 	private void DrawActivePings(Vector2 size)
 	{
-		foreach (var ping in Realm.Client.Core.GameHost.Instance.ActivePings)
+		foreach (var ping in GameContext.FXService.ActivePings)
 		{
 			Vector2 drawPos = MinimapHelper.WorldToMinimap(ping.WorldPos, size);
 

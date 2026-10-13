@@ -1,6 +1,6 @@
+using System.Text.Json.Nodes;
 using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
-using System.Text.Json.Nodes;
 
 namespace Realm.Shared;
 
@@ -75,7 +75,7 @@ public class GlbOptimizer
 			result.ErrorMessage = $"LOD generation failed: {lodError}";
 			return;
 		}
-		
+
 		byte[] workingBytes = lodGlbBytes.Length > 0 ? lodGlbBytes : packedBaseMesh;
 
 		if (options.CompressTextures)

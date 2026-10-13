@@ -1,4 +1,5 @@
 using Godot;
+using Realm.Client.Core;
 using Realm.Client.Services;
 using Vector3 = Godot.Vector3;
 
@@ -29,8 +30,8 @@ public class ObjectDeleteAction : IEditorAction
 		_rotationDegrees = rotationDegrees;
 		_rotationY = rotationDegrees.Y;
 		_scale = scale;
-		_player = player >= 0 ? player : ((deletedNode as Realm.Client.Unit3D)?.Player ?? 0);
-		_isEnemy = NetworkService.ArePlayerIndicesEnemies(Realm.Client.Core.GameHost.Instance?.LocalPlayerIndex ?? 0, _player);
+		_player = player >= 0 ? player : ((deletedNode as Unit3D)?.Player ?? 0);
+		_isEnemy = NetworkService.ArePlayerIndicesEnemies(GameHost.Instance?.LocalPlayerIndex ?? 0, _player);
 		_spawnedNode = deletedNode;
 	}
 
@@ -38,19 +39,19 @@ public class ObjectDeleteAction : IEditorAction
 	{
 		if (_objectType == "unit")
 		{
-			_spawnedNode = Realm.Client.Core.GameHost.Instance?.SpawnUnitExternal(_objectId, _position, _isEnemy, _rotationY, _scale, _player);
+			_spawnedNode = GameHost.Instance?.SpawnUnitExternal(_objectId, _position, _isEnemy, _rotationY, _scale, _player);
 		}
 		else if (_objectType == "prop")
 		{
-			_spawnedNode = Realm.Client.Core.GameHost.Instance?.SpawnPropExternalWithParams(_objectId, _position, _rotationY, _scale);
+			_spawnedNode = GameHost.Instance?.SpawnPropExternalWithParams(_objectId, _position, _rotationY, _scale);
 		}
 		else if (_objectType == "decal")
 		{
-			_spawnedNode = Realm.Client.Core.GameHost.Instance?.SpawnDecalExternalWithParams(_objectId, _position, _rotationDegrees, _scale);
+			_spawnedNode = GameHost.Instance?.SpawnDecalExternalWithParams(_objectId, _position, _rotationDegrees, _scale);
 		}
 		else if (_objectType == "vfx")
 		{
-			_spawnedNode = Realm.Client.Core.GameHost.Instance?.SpawnVfxExternalWithParams(_objectId, _position, _rotationDegrees, global::Godot.Vector3.One * (_scale <= 0f ? 1.0f : _scale));
+			_spawnedNode = GameHost.Instance?.SpawnVfxExternalWithParams(_objectId, _position, _rotationDegrees, Vector3.One * (_scale <= 0f ? 1.0f : _scale));
 		}
 	}
 
@@ -58,11 +59,11 @@ public class ObjectDeleteAction : IEditorAction
 	{
 		if (GodotObject.IsInstanceValid(_spawnedNode))
 		{
-			Realm.Client.Core.GameHost.Instance?.DeleteNodeExternal(_spawnedNode);
+			GameHost.Instance?.DeleteNodeExternal(_spawnedNode);
 		}
 		else if (_objectType == "prop")
 		{
-			Realm.Client.Core.GameHost.Instance?.DeleteStaticPropAtPosition(_objectId, _position);
+			GameHost.Instance?.DeleteStaticPropAtPosition(_objectId, _position);
 		}
 	}
 }

@@ -62,7 +62,7 @@ public static unsafe class GlbLodGenerator
 
 		AlignStream(newBinStream);
 		byte[] finalBinBytes = newBinStream.ToArray();
-		
+
 		UpdateBuffersLength(root, finalBinBytes.Length);
 		EnsureMsftLodExtension(root);
 		UpdateSceneNodesWithLods(root, meshLodMap, visBegins, visEnds);
@@ -103,6 +103,7 @@ public static unsafe class GlbLodGenerator
 			if (nodes[i] is not JsonObject nodeObj) continue;
 			ProcessAndRemoveNodeIfEarly(nodes, i, nodeObj, removedIndices);
 		}
+
 		return removedIndices;
 	}
 
@@ -118,16 +119,16 @@ public static unsafe class GlbLodGenerator
 	{
 		string nodeName = nodeObj["name"]?.GetValue<string>() ?? string.Empty;
 		if (nodeName.EndsWith("_LOD1", StringComparison.OrdinalIgnoreCase) ||
-			nodeName.EndsWith("_LOD2", StringComparison.OrdinalIgnoreCase) ||
-			nodeName.EndsWith("_LOD3", StringComparison.OrdinalIgnoreCase))
+		    nodeName.EndsWith("_LOD2", StringComparison.OrdinalIgnoreCase) ||
+		    nodeName.EndsWith("_LOD3", StringComparison.OrdinalIgnoreCase))
 		{
 			removedIndices.Add(index);
 			return true; // remove this node
 		}
-		
+
 		if (nodeName.EndsWith("_LOD0", StringComparison.OrdinalIgnoreCase))
 			nodeObj["name"] = nodeName.Substring(0, nodeName.Length - 5);
-			
+
 		if (nodeObj.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject nodeExts)
 			nodeExts.Remove("MSFT_lod");
 
@@ -159,6 +160,7 @@ public static unsafe class GlbLodGenerator
 		{
 			TryAddCleanNode(item, cleanNodes, removedIndices, nodeCount, seen);
 		}
+
 		return cleanNodes;
 	}
 
@@ -189,6 +191,7 @@ public static unsafe class GlbLodGenerator
 			if (meshes[m] is not JsonObject meshObj) continue;
 			ProcessSingleMesh(meshObj, m, root, ratios, binBytes, newBinStream, meshes, meshLodMap);
 		}
+
 		return meshLodMap;
 	}
 
@@ -220,9 +223,9 @@ public static unsafe class GlbLodGenerator
 	private static bool IsExcludedMeshName(string meshName)
 	{
 		return meshName.Contains("_LOD", StringComparison.OrdinalIgnoreCase) ||
-			   meshName.Contains("LOD1", StringComparison.OrdinalIgnoreCase) ||
-			   meshName.Contains("LOD2", StringComparison.OrdinalIgnoreCase) ||
-			   meshName.Contains("LOD3", StringComparison.OrdinalIgnoreCase);
+		       meshName.Contains("LOD1", StringComparison.OrdinalIgnoreCase) ||
+		       meshName.Contains("LOD2", StringComparison.OrdinalIgnoreCase) ||
+		       meshName.Contains("LOD3", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static void ProcessLodTier(int t, float ratio, JsonObject meshObj, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, string meshName, JsonArray primitives, List<int> lodMeshIndices)
@@ -319,12 +322,12 @@ public static unsafe class GlbLodGenerator
 	{
 		int accIdx = GetAttributeIndex(primObj, attributeKey);
 		if (accIdx < 0 || accIdx >= accessors.Count) return null;
-		
+
 		if (accessors[accIdx] is not JsonObject acc) return null;
 		if (acc.ContainsKey("sparse")) return null;
-		
+
 		if (!IsValidAccessorFormat(acc, expectedType, expectedCompType)) return null;
-			
+
 		return acc;
 	}
 
@@ -371,7 +374,7 @@ public static unsafe class GlbLodGenerator
 		if (posStride < 12) return false;
 		if ((posStride % 4) != 0) return false;
 		if (posStride > 256) return false;
-		
+
 		long endOffset = (long)posByteOffset + ((long)posCount * posStride);
 		if (endOffset > binBytesLength) return false;
 
@@ -408,7 +411,7 @@ public static unsafe class GlbLodGenerator
 	{
 		int indAccIdx = primObj["indices"]!.GetValue<int>();
 		if (indAccIdx < 0 || indAccIdx >= accessors.Count) return null;
-		
+
 		if (accessors[indAccIdx] is not JsonObject indAcc || indAcc.ContainsKey("sparse")) return null;
 		if ((indAcc["type"]?.GetValue<string>() ?? string.Empty) != "SCALAR") return null;
 
@@ -434,7 +437,7 @@ public static unsafe class GlbLodGenerator
 
 		int elemSize = compType switch { 5121 => 1, 5123 => 2, 5125 => 4, _ => 0 };
 		if (elemSize == 0) return false;
-		
+
 		long endOffset = (long)indByteOffset + ((long)indCount * elemSize);
 		if (endOffset > binBytesLength) return false;
 
@@ -467,6 +470,7 @@ public static unsafe class GlbLodGenerator
 		{
 			if (indices[i] >= (uint)posCount) return true;
 		}
+
 		return false;
 	}
 
@@ -515,7 +519,8 @@ public static unsafe class GlbLodGenerator
 
 		uint maxIdx = 0;
 		for (int i = 0; i < simplifiedIndices.Length; i++)
-			if (simplifiedIndices[i] > maxIdx) maxIdx = simplifiedIndices[i];
+			if (simplifiedIndices[i] > maxIdx)
+				maxIdx = simplifiedIndices[i];
 
 		int newIndByteOffset = (int)newBinStream.Position;
 		bool useShort = maxIdx <= 65535;
@@ -589,12 +594,17 @@ public static unsafe class GlbLodGenerator
 			extUsed = new JsonArray();
 			root["extensionsUsed"] = extUsed;
 		}
-		
+
 		bool hasMsftLod = false;
 		foreach (var item in extUsed)
 		{
-			if (item?.ToString() == "MSFT_lod") { hasMsftLod = true; break; }
+			if (item?.ToString() == "MSFT_lod")
+			{
+				hasMsftLod = true;
+				break;
+			}
 		}
+
 		if (!hasMsftLod) extUsed.Add("MSFT_lod");
 	}
 
@@ -626,7 +636,7 @@ public static unsafe class GlbLodGenerator
 		{
 			int lodTier = t + 1;
 			var lodNode = CreateLodNode(nodeObj, nodeName, lodMeshesList[t], lodTier, visBegins, visEnds);
-			
+
 			int newLodNodeIdx = nodes.Count;
 			nodes.Add(lodNode);
 			lodNodeIndices.Add(newLodNodeIdx);
@@ -664,6 +674,7 @@ public static unsafe class GlbLodGenerator
 			nodeExts = new JsonObject();
 			nodeObj["extensions"] = nodeExts;
 		}
+
 		var msftLod = new JsonObject();
 		msftLod["ids"] = lodNodeIndices;
 		nodeExts["MSFT_lod"] = msftLod;
@@ -673,6 +684,7 @@ public static unsafe class GlbLodGenerator
 			nExtras = new JsonObject();
 			nodeObj["extras"] = nExtras;
 		}
+
 		nExtras["visibility_range_begin"] = visBegin;
 		nExtras["visibility_range_end"] = visEnd;
 	}
@@ -697,6 +709,7 @@ public static unsafe class GlbLodGenerator
 		{
 			TryAddDistinctNode(item, finalNodes, seen, distinctNodes);
 		}
+
 		scObj["nodes"] = distinctNodes;
 	}
 
@@ -714,6 +727,7 @@ public static unsafe class GlbLodGenerator
 			if (IsInvalidRatio(ratios[i])) return false;
 			if (i > 0 && ratios[i] >= ratios[i - 1]) return false;
 		}
+
 		return true;
 	}
 

@@ -39,6 +39,7 @@ public class MapEditorInspector
 			_lastInspectorTitle = viewModel.InspectorTitle;
 			_lblInspectorTitle.Text = TranslationServer.Translate(viewModel.InspectorTitle);
 		}
+
 		if (_lblInspectorPos != null && viewModel.InspectorPos != _lastInspectorPos)
 		{
 			_lastInspectorPos = viewModel.InspectorPos;

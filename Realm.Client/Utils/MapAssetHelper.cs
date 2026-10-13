@@ -1,11 +1,11 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Shared.Distribution;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Utils;
 
@@ -38,7 +38,7 @@ public static class MapAssetHelper
 	public static MapManifestAssets LoadAssets(string mapDirectory)
 	{
 		string targetDirectory = string.IsNullOrEmpty(mapDirectory)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: mapDirectory;
 
 		var manifest = MapFileService.LoadManifest(targetDirectory);
@@ -154,9 +154,9 @@ public static class MapAssetHelper
 		if (string.IsNullOrWhiteSpace(modelPath) || modelPath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || modelPath.StartsWith("user://", StringComparison.OrdinalIgnoreCase)) return;
 
 		string fileName = Path.GetFileName(modelPath);
-		string? diskPath = FindModelOnDisk(workspacePath, subCat, fileName) 
-			?? FindAssetOnDisk(workspacePath, "decals", fileName) 
-			?? FindAssetOnDisk(workspacePath, "textures", fileName);
+		string? diskPath = FindModelOnDisk(workspacePath, subCat, fileName)
+		                   ?? FindAssetOnDisk(workspacePath, "decals", fileName)
+		                   ?? FindAssetOnDisk(workspacePath, "textures", fileName);
 
 		if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath)) return;
 
@@ -165,6 +165,7 @@ public static class MapAssetHelper
 		{
 			expectedRel = Path.ChangeExtension(expectedRel, ".rmesh");
 		}
+
 		missingFiles.Add(expectedRel);
 	}
 
@@ -182,7 +183,7 @@ public static class MapAssetHelper
 	private static void ValidateAssetDict<T>(string workspacePath, Dictionary<string, T>? dict, Func<T, string?> pathSelector, string subFolder, List<string> missingFiles)
 	{
 		if (dict == null) return;
-		var keys = dict.Select(k => 
+		var keys = dict.Select(k =>
 		{
 			string? path = k.Value != null ? pathSelector(k.Value) : null;
 			return !string.IsNullOrEmpty(path) ? path : k.Key;
@@ -207,6 +208,7 @@ public static class MapAssetHelper
 					string defaultExt = GetDefaultExtensionForSubFolder(subFolder);
 					fileToReport += defaultExt;
 				}
+
 				string expectedRel = subFolder == "other" ? fileToReport : $"Assets/{subFolder}/{fileToReport}".Replace('\\', '/');
 				missingFiles.Add(expectedRel);
 			}
@@ -237,7 +239,7 @@ public static class MapAssetHelper
 		}
 
 		if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase))
+		    string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}
@@ -281,7 +283,7 @@ public static class MapAssetHelper
 		if (assets == null) return;
 
 		string targetDirectory = string.IsNullOrEmpty(mapDirectory)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: mapDirectory;
 
 		if (!Directory.Exists(targetDirectory))
@@ -304,7 +306,7 @@ public static class MapAssetHelper
 		string blake3Hash)
 	{
 		string targetDirectory = string.IsNullOrEmpty(mapDirectory)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: mapDirectory;
 
 		var manifest = MapFileService.LoadManifest(targetDirectory);
@@ -329,7 +331,7 @@ public static class MapAssetHelper
 		string fileName)
 	{
 		string targetDirectory = string.IsNullOrEmpty(mapDirectory)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: mapDirectory;
 
 		var manifest = MapFileService.LoadManifest(targetDirectory);
@@ -349,7 +351,7 @@ public static class MapAssetHelper
 	public static void PruneNonExistentAssetsFromManifest(string mapDirectory)
 	{
 		string targetDirectory = string.IsNullOrEmpty(mapDirectory)
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
+			? MapWorkspaceService.GetActiveWorkspacePath()
 			: mapDirectory;
 
 		if (!Directory.Exists(targetDirectory)) return;
@@ -437,6 +439,7 @@ public static class MapAssetHelper
 		{
 			return subFolder;
 		}
+
 		return category.ToLowerInvariant();
 	}
 
@@ -452,7 +455,7 @@ public static class MapAssetHelper
 		string manifestPath = Path.Combine(directory, "manifest.json");
 		if (!File.Exists(manifestPath) || new FileInfo(manifestPath).Length == 0)
 		{
-			string templateManifest = Services.MapWorkspaceService.GetTemplatePath("manifest.json");
+			string templateManifest = MapWorkspaceService.GetTemplatePath("manifest.json");
 			if (!string.IsNullOrEmpty(templateManifest) && File.Exists(templateManifest))
 			{
 				try
@@ -509,6 +512,7 @@ public static class MapAssetHelper
 			resolvedSubCategory = prefSub;
 			return prefPath;
 		}
+
 		return null;
 	}
 
@@ -523,6 +527,7 @@ public static class MapAssetHelper
 				return candPath;
 			}
 		}
+
 		return null;
 	}
 
@@ -532,7 +537,7 @@ public static class MapAssetHelper
 		{
 			string sub = Path.GetFileName(dir).ToLowerInvariant();
 			if (KnownModelSubCategories.Contains(sub)) continue;
-			
+
 			string? candPath = TryFindModelInSubDir(modelsDir, sub, candidateFiles);
 			if (candPath != null)
 			{
@@ -540,6 +545,7 @@ public static class MapAssetHelper
 				return candPath;
 			}
 		}
+
 		return null;
 	}
 
@@ -550,6 +556,7 @@ public static class MapAssetHelper
 			string directPath = Path.Combine(modelsDir, cand);
 			if (File.Exists(directPath)) return directPath;
 		}
+
 		return null;
 	}
 
@@ -562,7 +569,7 @@ public static class MapAssetHelper
 		{
 			return new[] { effectiveName, Path.GetFileName(fileName) };
 		}
-		
+
 		return new[]
 		{
 			$"{effectiveName}.rmesh",
@@ -578,6 +585,7 @@ public static class MapAssetHelper
 			string path = Path.Combine(modelsDir, subDir, cand);
 			if (File.Exists(path)) return path;
 		}
+
 		return null;
 	}
 
@@ -611,6 +619,7 @@ public static class MapAssetHelper
 		{
 			normKey = normKey.Substring(6).TrimStart('/');
 		}
+
 		if (normKey.StartsWith($"Assets/{subFolder}/", StringComparison.OrdinalIgnoreCase))
 		{
 			normKey = normKey.Substring($"Assets/{subFolder}/".Length);
@@ -630,6 +639,7 @@ public static class MapAssetHelper
 			candidates.Add($"{effectiveKey}{defaultExt}");
 			candidates.Add($"{baseName}{defaultExt}");
 		}
+
 		return candidates;
 	}
 
@@ -663,6 +673,7 @@ public static class MapAssetHelper
 				}
 			}
 		}
+
 		return null;
 	}
 
@@ -676,6 +687,7 @@ public static class MapAssetHelper
 			string pRoot = Path.Combine(workspacePath, cand);
 			if (File.Exists(pRoot)) return pRoot;
 		}
+
 		return null;
 	}
 
@@ -694,8 +706,11 @@ public static class MapAssetHelper
 					if (!string.IsNullOrEmpty(match) && File.Exists(match)) return match;
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		}
+
 		return null;
 	}
 
@@ -741,11 +756,12 @@ public static class MapAssetHelper
 	{
 		string trimmed = category.Trim();
 		string norm = trimmed.Replace("_", "").ToLowerInvariant();
-		
+
 		if (CategoryNormalizationMap.TryGetValue(norm, out string? mappedValue))
 		{
 			return mappedValue;
 		}
+
 		return trimmed;
 	}
 

@@ -1,13 +1,14 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class NoiseTextureDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class NoiseTextureDialog : FloatingDialogBase
 {
 	[GeneratedRegex(@"^(.*)_(\d+)$")]
 	private static partial Regex TrailingIndexRegex();
@@ -130,7 +131,7 @@ public partial class NoiseTextureDialog : Realm.Client.UI.MapEditor.FloatingDial
 		btnRandomizeAll.Set("icon_max_width", 0);
 		btnRandomizeAll.Text = "🎲 " + TranslationServer.Translate("Randomize All");
 		btnRandomizeAll.CustomMinimumSize = new Vector2(0, 28);
-		btnRandomizeAll.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+		btnRandomizeAll.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btnRandomizeAll.AddThemeFontSizeOverride("font_size", 11);
 		{
 			var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
@@ -250,7 +251,7 @@ public partial class NoiseTextureDialog : Realm.Client.UI.MapEditor.FloatingDial
 		_previewTextureRect.CustomMinimumSize = new Vector2(256, 256);
 		_previewTextureRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_previewTextureRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		_previewTextureRect.TextureFilter = CanvasItem.TextureFilterEnum.Linear;
+		_previewTextureRect.TextureFilter = TextureFilterEnum.Linear;
 		previewPanel.AddChild(_previewTextureRect);
 		rightVBox.AddChild(previewPanel);
 
@@ -425,7 +426,7 @@ public partial class NoiseTextureDialog : Realm.Client.UI.MapEditor.FloatingDial
 
 	private string GetUniqueDefaultAssetName(string baseName = "procedural_noise_1")
 	{
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 		var noiseObj = assetsObj.GetCategory("Noise");
 
@@ -464,7 +465,7 @@ public partial class NoiseTextureDialog : Realm.Client.UI.MapEditor.FloatingDial
 		}
 
 		string cleanBase = rawName.ToLowerInvariant().Replace(" ", "_").Replace(".rtex", "");
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 
 		var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 		var noiseObj = assetsObj.GetCategory("Noise");
@@ -477,10 +478,7 @@ public partial class NoiseTextureDialog : Realm.Client.UI.MapEditor.FloatingDial
 			string msg = string.Format(TranslationServer.Translate("An asset named '{0}' already exists.\nOverwriting will replace the existing file. Do you want to continue?"), fileName);
 			Hud?.ShowConfirmationDialog(
 				msg,
-				() =>
-				{
-					ExecuteSave(fileName, outputRtex, wsPath, assetsObj);
-				},
+				() => { ExecuteSave(fileName, outputRtex, wsPath, assetsObj); },
 				confirmText: "SAVE",
 				cancelText: "CANCEL"
 			);
@@ -490,7 +488,7 @@ public partial class NoiseTextureDialog : Realm.Client.UI.MapEditor.FloatingDial
 		ExecuteSave(fileName, outputRtex, wsPath, assetsObj);
 	}
 
-	private void ExecuteSave(string fileName, string outputRtex, string wsPath, Realm.Shared.Distribution.MapManifestAssets assetsObj)
+	private void ExecuteSave(string fileName, string outputRtex, string wsPath, MapManifestAssets assetsObj)
 	{
 		try
 		{
@@ -499,10 +497,10 @@ public partial class NoiseTextureDialog : Realm.Client.UI.MapEditor.FloatingDial
 
 			MapAssetHelper.UpdateManifestAsset(wsPath, "Noise", fileName, blake3Hash);
 
-			MetadataService.Instance.UpdateMetadata(wsPath, m =>
+			GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 			{
 				m.NoiseTextures ??= new(StringComparer.OrdinalIgnoreCase);
-				m.NoiseTextures[fileName] = new Realm.Shared.Metadata.TextureMetadata
+				m.NoiseTextures[fileName] = new TextureMetadata
 				{
 					NoiseConfig = config.ToJsonString()
 				};

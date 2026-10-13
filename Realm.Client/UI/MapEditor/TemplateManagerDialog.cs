@@ -1,26 +1,26 @@
-using Godot;
-using Realm.Client.Services;
-using Realm.Client.VFX;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.VFX;
+using Realm.Shared.ModelOptimization;
+using Realm.Shared.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingPreview3DDialogBase
+public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 {
-	[GeneratedRegex(@"^(.*)_(\d+)$")]
-	private static partial Regex TrailingIndexRegex();
-
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 	private AnimatedSprite3D _vfxSprite;
 	private ProceduralVfxInstance3D? _previewVfxInstance;
-	private Realm.Client.VisualProjectile3D? _previewProjectile;
+	private VisualProjectile3D? _previewProjectile;
 
 	private PanelContainer _preview2DContainer;
 	private VBoxContainer _tooltipPreviewContainer;
@@ -37,15 +37,15 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	private Button _btnAddObject;
 	private VBoxContainer _listVBox;
 
-	private Realm.Client.UI.MapEditor.EntityVisualEditDialog _entityVisualEditDialog;
+	private EntityVisualEditDialog _entityVisualEditDialog;
 	private WeaponVfxDialog _weaponVfxDialog;
-	private Realm.Client.UI.MapEditor.AbilityVfxDialog _abilityVfxDialog;
+	private AbilityVfxDialog _abilityVfxDialog;
 	private VfxStudioDialog _vfxStudioDialog;
-	private Realm.Client.UI.MapEditor.DecalSettingsDialog _decalEditDialog;
+	private DecalSettingsDialog _decalEditDialog;
 	private ShaderEditorDialog _shaderEditDialog;
 	private SpritesheetAssetEditDialog _spritesheetEditDialog;
 	private TerrainTextureEditDialog _textureEditDialog;
-	private Realm.Client.UI.MapEditor.ItemUpgradeEditDialog _itemUpgradeEditDialog;
+	private ItemUpgradeEditDialog _itemUpgradeEditDialog;
 
 	private string _currentCategory = "units";
 	private string _searchFilter = "";
@@ -65,15 +65,15 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 34, 40, 60, 60);
 
-		_entityVisualEditDialog = new Realm.Client.UI.MapEditor.EntityVisualEditDialog(hud);
+		_entityVisualEditDialog = new EntityVisualEditDialog(hud);
 		_weaponVfxDialog = new WeaponVfxDialog(hud);
-		_abilityVfxDialog = new Realm.Client.UI.MapEditor.AbilityVfxDialog(hud);
+		_abilityVfxDialog = new AbilityVfxDialog(hud);
 		_vfxStudioDialog = new VfxStudioDialog(hud);
-		_decalEditDialog = new Realm.Client.UI.MapEditor.DecalSettingsDialog(hud);
+		_decalEditDialog = new DecalSettingsDialog(hud);
 		_shaderEditDialog = new ShaderEditorDialog(hud);
 		_spritesheetEditDialog = new SpritesheetAssetEditDialog(hud);
 		_textureEditDialog = new TerrainTextureEditDialog(hud);
-		_itemUpgradeEditDialog = new Realm.Client.UI.MapEditor.ItemUpgradeEditDialog(hud);
+		_itemUpgradeEditDialog = new ItemUpgradeEditDialog(hud);
 
 		_entityVisualEditDialog.DialogClosed += ReloadCurrentPreview;
 		_weaponVfxDialog.DialogClosed += ReloadCurrentPreview;
@@ -109,7 +109,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		// 1. TOP LIVE PREVIEW SECTION (3D / 2D / Audio)
 		var previewStack = new PanelContainer();
 		previewStack.CustomMinimumSize = new Vector2(360, 180);
-		previewStack.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		previewStack.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		previewStack.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		BodyContainer.AddChild(previewStack);
 
@@ -127,7 +127,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 		_tooltipPreviewContainer = new VBoxContainer();
 		_tooltipPreviewContainer.Alignment = BoxContainer.AlignmentMode.Center;
-		_tooltipPreviewContainer.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_tooltipPreviewContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		_tooltipPreviewContainer.Visible = false;
 		preview2DVBox.AddChild(_tooltipPreviewContainer);
 
@@ -135,8 +135,8 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		_preview2DImage.CustomMinimumSize = new Vector2(140, 140);
 		_preview2DImage.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_preview2DImage.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		_preview2DImage.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-		_preview2DImage.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		_preview2DImage.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		_preview2DImage.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		preview2DVBox.AddChild(_preview2DImage);
 
 		_lblPreview2DInfo = new Label();
@@ -255,7 +255,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		_previewMeshRow.AddChild(_optPreviewMesh);
 		catRow.AddChild(_previewMeshRow);
 
-		var spacer = new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var spacer = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		catRow.AddChild(spacer);
 
 		_btnAddObject = AddButton(catRow, $"{UnicodeIcons.PLUS} " + TranslationServer.Translate("Add"), () => AddNewObjectForCategory(_currentCategory), "Add new object to metadata.json", 11, new Vector2(120, 26));
@@ -274,7 +274,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 		_txtSearchFilter = new LineEdit();
 		_txtSearchFilter.PlaceholderText = TranslationServer.Translate("Type to filter objects by name or ID...");
-		_txtSearchFilter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSearchFilter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSearchFilter.AddThemeFontSizeOverride("font_size", 11);
 		_txtSearchFilter.TextChanged += (text) =>
 		{
@@ -334,6 +334,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		{
 			_previewMeshRow.Visible = isShader;
 		}
+
 		if (isShader)
 		{
 			PopulatePreviewMeshList();
@@ -353,6 +354,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 			DefaultPitch = Mathf.DegToRad(25.0f);
 			DefaultTargetPosition = Vector3.Zero;
 		}
+
 		ResetCameraDefault();
 
 		RefreshObjectList();
@@ -404,7 +406,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		if (_optPreviewMesh == null) return;
 		_optPreviewMesh.Clear();
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
 		LoadPreviewMeshesFromManifest(wsPath);
 		LoadPreviewMeshesFromDirectory(wsPath);
@@ -429,13 +431,15 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void AddMeshKeyIfValid(string key)
 	{
 		if (string.IsNullOrEmpty(key) || !key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase)) return;
-		
+
 		string name = Path.GetFileName(key);
 		if (!_availablePreviewMeshes.Contains(name))
 		{
@@ -460,7 +464,9 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void EnsureDefaultMeshesAvailable()
@@ -550,18 +556,6 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		}
 	}
 
-	private struct ObjectItemInfo
-	{
-		public string Category;
-		public string TemplateID;
-		public string Name;
-		public string Description;
-		public string ModelPath;
-		public string VisualMode;
-		public string IconPath;
-		public float Scale;
-	}
-
 
 	private static readonly Dictionary<string, Func<TemplateManagerDialog, MapMetadata, List<ObjectItemInfo>>> CategoryHandlers = new(StringComparer.OrdinalIgnoreCase)
 	{
@@ -585,8 +579,8 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 	private List<ObjectItemInfo> GetObjectsForCategory(string category)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta == null)
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) || meta == null)
 		{
 			return new List<ObjectItemInfo>();
 		}
@@ -613,6 +607,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				Scale = u.Scale > 0 ? u.Scale : 1.0f
 			});
 		}
+
 		return list;
 	}
 
@@ -633,6 +628,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				Scale = b.Scale > 0 ? b.Scale : 1.0f
 			});
 		}
+
 		return list;
 	}
 
@@ -653,6 +649,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				Scale = r.Scale > 0 ? r.Scale : 1.0f
 			});
 		}
+
 		return list;
 	}
 
@@ -673,6 +670,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				Scale = p.Scale > 0 ? p.Scale : 1.0f
 			});
 		}
+
 		return list;
 	}
 
@@ -691,6 +689,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				ModelPath = w.ProjectileModelPath ?? ""
 			});
 		}
+
 		return list;
 	}
 
@@ -709,6 +708,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				IconPath = a.IconPath ?? ""
 			});
 		}
+
 		return list;
 	}
 
@@ -727,6 +727,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				IconPath = u.IconPath ?? ""
 			});
 		}
+
 		return list;
 	}
 
@@ -745,6 +746,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				IconPath = itm.IconPath ?? ""
 			});
 		}
+
 		return list;
 	}
 
@@ -766,6 +768,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				ModelPath = rtex
 			});
 		}
+
 		return list;
 	}
 
@@ -777,6 +780,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		{
 			list.Add(CreateSpritesheetInfo(kvp.Key, kvp.Value));
 		}
+
 		return list;
 	}
 
@@ -816,6 +820,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				ModelPath = rtex
 			});
 		}
+
 		return list;
 	}
 
@@ -835,6 +840,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				Description = "Custom visual shader config"
 			});
 		}
+
 		return list;
 	}
 
@@ -853,6 +859,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				ModelPath = v.BaseTexture
 			});
 		}
+
 		return list;
 	}
 
@@ -860,7 +867,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	{
 		var row = new PanelContainer();
 		row.CustomMinimumSize = new Vector2(0, 42);
-		row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		row.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
 		var hBox = new HBoxContainer();
@@ -870,8 +877,8 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		// Clickable selection for preview
 		var selectBtn = new Button();
 		selectBtn.Flat = true;
-		selectBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		selectBtn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		selectBtn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		selectBtn.SizeFlagsVertical = SizeFlags.ExpandFill;
 		selectBtn.Alignment = HorizontalAlignment.Left;
 		selectBtn.Pressed += () => LoadPreviewForObject(item);
 
@@ -921,15 +928,6 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		btnEdit.Pressed += () => OpenEditDialogForObject(item);
 		actionsHBox.AddChild(btnEdit);
 
-		var btnCopy = new Button();
-		btnCopy.Text = UnicodeIcons.COPY;
-		btnCopy.Set("icon_max_width", 0);
-		if (faFont != null) btnCopy.AddThemeFontOverride("font", faFont);
-		btnCopy.TooltipText = TranslationServer.Translate("Duplicate Object");
-		btnCopy.CustomMinimumSize = new Vector2(28, 28);
-		btnCopy.Pressed += () => DuplicateObject(item);
-		actionsHBox.AddChild(btnCopy);
-
 		var btnDelete = new Button();
 		btnDelete.Text = UnicodeIcons.TRASH_ALT;
 		btnDelete.Set("icon_max_width", 0);
@@ -947,7 +945,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	private void OpenEditDialogForObject(ObjectItemInfo item)
 	{
 		_currentPreviewTemplateID = item.TemplateID;
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
 		switch (item.Category)
 		{
@@ -984,7 +982,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 	private void OpenWeaponEditDialog(ObjectItemInfo item, string wsPath)
 	{
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
 		{
 			int wIdx = meta.Templates.Weapons.FindIndex(x => string.Equals(x.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 			if (wIdx >= 0)
@@ -992,12 +990,13 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				var w = meta.Templates.Weapons[wIdx];
 				_weaponVfxDialog.OpenForWeapon(w.TemplateID, w, updatedWeapon =>
 				{
-					MetadataService.Instance.UpdateMetadata(wsPath, m =>
+					GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 					{
 						if (!string.Equals(item.TemplateID, updatedWeapon.TemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
 						{
 							m.RemoveWeapon(item.TemplateID);
 						}
+
 						m.AddOrUpdateWeapon(updatedWeapon);
 					});
 					_currentPreviewTemplateID = updatedWeapon.TemplateID;
@@ -1009,7 +1008,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 	private void OpenAbilityEditDialog(ObjectItemInfo item, string wsPath)
 	{
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var metaAbi) || metaAbi?.Templates?.Abilities == null) return;
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaAbi) || metaAbi?.Templates?.Abilities == null) return;
 
 		var a = metaAbi.Templates.Abilities.FirstOrDefault(x => string.Equals(x.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 		if (a == null) return;
@@ -1034,13 +1033,13 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		bool idChanged = !string.Equals(oldTemplateID, newAbilityId, StringComparison.OrdinalIgnoreCase);
 		bool hasOldId = !string.IsNullOrEmpty(oldTemplateID);
 
-		MetadataService.Instance.UpdateMetadata(wsPath, m =>
+		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 		{
 			if (idChanged && hasOldId)
 			{
 				m.RemoveAbility(oldTemplateID);
 			}
-			
+
 			UpdateAbilityMetadata(a, updatedObj, newAbilityId);
 			m.AddOrUpdateAbility(a);
 		});
@@ -1054,21 +1053,23 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		{
 			if (tNode != null && !string.IsNullOrEmpty(tNode.ToString())) return tNode.ToString();
 		}
+
 		if (updatedObj.TryGetPropertyValue("AbilityId", out var aNode))
 		{
 			if (aNode != null && !string.IsNullOrEmpty(aNode.ToString())) return aNode.ToString();
 		}
+
 		return oldTemplateID;
 	}
 
 	private void UpdateAbilityMetadata(AbilityMetadata a, JsonObject updatedObj, string newAbilityId)
 	{
 		a.TemplateID = newAbilityId;
-		
+
 		if (updatedObj.TryGetPropertyValue("VisualEffect", out var vNode)) a.VisualEffect = vNode?.ToString();
 		if (updatedObj.TryGetPropertyValue("CastSound", out var cNode)) a.CastSound = cNode?.ToString();
 		if (updatedObj.TryGetPropertyValue("IconPath", out var iNode)) a.IconPath = iNode?.ToString();
-		
+
 		if (updatedObj.TryGetPropertyValue("AreaOfEffectRadius", out var rNode) && float.TryParse(rNode?.ToString(), out float radius))
 		{
 			a.AreaOfEffectRadius = radius;
@@ -1078,14 +1079,15 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	private void OpenTerrainEditDialog(ObjectItemInfo item, string wsPath)
 	{
 		JsonObject curTerData = new JsonObject();
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var metaTer) && metaTer?.Textures != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaTer) && metaTer?.Textures != null)
 		{
 			TextureMetadata? tNode = FindTextureMetadata(metaTer, item);
 			if (tNode != null)
 			{
-				curTerData = System.Text.Json.JsonSerializer.SerializeToNode(tNode) as JsonObject ?? new JsonObject();
+				curTerData = JsonSerializer.SerializeToNode(tNode) as JsonObject ?? new JsonObject();
 			}
 		}
+
 		_textureEditDialog.OpenForTexture(item.TemplateID, curTerData, updatedObj =>
 		{
 			string newId = updatedObj?["TemplateID"]?.ToString() ?? item.TemplateID;
@@ -1106,6 +1108,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 			var matchKvp = metaTer.Textures.FirstOrDefault(k => string.Equals(Path.GetFileNameWithoutExtension(k.Key), slug, StringComparison.OrdinalIgnoreCase));
 			return matchKvp.Value;
 		}
+
 		return null;
 	}
 
@@ -1116,7 +1119,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		bool initBlend = true;
 		string initRtex = "";
 
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var metaSpr) && metaSpr?.VfxSpritesheets != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaSpr) && metaSpr?.VfxSpritesheets != null)
 		{
 			VfxMetadata? sNode = FindSpritesheetMetadata(metaSpr, item);
 			if (sNode != null)
@@ -1149,18 +1152,20 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 			var matchKvp = metaSpr.VfxSpritesheets.FirstOrDefault(k => string.Equals(Path.GetFileNameWithoutExtension(k.Key), slug, StringComparison.OrdinalIgnoreCase));
 			return matchKvp.Value;
 		}
+
 		return null;
 	}
 
 	private void UpdateSpritesheetMetadata(string wsPath, ObjectItemInfo item, string newId, string rtex, int cols, int rows, float fps, bool blend)
 	{
-		MetadataService.Instance.UpdateMetadata(wsPath, m =>
+		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 		{
 			m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
 			if (!string.Equals(item.TemplateID, newId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
 			{
 				RemoveOldSpritesheetKeys(m, item);
 			}
+
 			m.VfxSpritesheets[newId] = new VfxMetadata
 			{
 				Columns = cols,
@@ -1187,7 +1192,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 	private JsonObject TryGetDecalData(string wsPath, string templateID)
 	{
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var metaDec) || metaDec?.Decals == null)
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaDec) || metaDec?.Decals == null)
 		{
 			return new JsonObject();
 		}
@@ -1196,19 +1201,19 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		{
 			return SerializeDecalNode(dNode);
 		}
-		
+
 		var (_, slug) = TemplateIDHelper.ParseTemplateID(templateID);
 		if (!string.IsNullOrEmpty(slug) && metaDec.Decals.TryGetValue(slug, out var sNode) && sNode != null)
 		{
 			return SerializeDecalNode(sNode);
 		}
-		
+
 		return new JsonObject();
 	}
 
 	private JsonObject SerializeDecalNode(object dNode)
 	{
-		var node = System.Text.Json.JsonSerializer.SerializeToNode(dNode);
+		var node = JsonSerializer.SerializeToNode(dNode);
 		if (node is JsonObject jObj) return jObj;
 		return new JsonObject();
 	}
@@ -1219,12 +1224,12 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		{
 			return idNode.ToString().Trim();
 		}
-		
+
 		if (updatedObj.TryGetPropertyValue("DecalId", out var idNode2) && !string.IsNullOrWhiteSpace(idNode2?.ToString()))
 		{
 			return idNode2.ToString().Trim();
 		}
-		
+
 		return fallbackId;
 	}
 
@@ -1235,14 +1240,14 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		{
 			string newDecalId = GetDecalIdFromUpdatedObj(updatedObj, item.TemplateID);
 
-			var serializerOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-			var deserializedDecal = System.Text.Json.JsonSerializer.Deserialize<DecalMetadata>(updatedObj.ToJsonString(), serializerOptions) ?? new DecalMetadata();
+			var serializerOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+			var deserializedDecal = JsonSerializer.Deserialize<DecalMetadata>(updatedObj.ToJsonString(), serializerOptions) ?? new DecalMetadata();
 
-			MetadataService.Instance.UpdateMetadata(wsPath, m =>
+			GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 			{
 				m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
 				bool idChanged = !string.Equals(item.TemplateID, newDecalId, StringComparison.OrdinalIgnoreCase);
-				
+
 				if (idChanged)
 				{
 					m.Decals.Remove(item.TemplateID);
@@ -1252,6 +1257,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 						m.Decals.Remove(oldSlug);
 					}
 				}
+
 				m.Decals[newDecalId] = deserializedDecal;
 			});
 			_currentPreviewTemplateID = newDecalId;
@@ -1263,7 +1269,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	{
 		_shaderEditDialog.OpenForShader(item.TemplateID, updatedConfig =>
 		{
-			MetadataService.Instance.UpdateMetadata(wsPath, m =>
+			GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 			{
 				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
 				if (!string.Equals(item.TemplateID, updatedConfig.Key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
@@ -1275,6 +1281,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 						m.SpawnShaders.Remove(oldSlug);
 					}
 				}
+
 				m.SpawnShaders[updatedConfig.Key] = new SpawnShaderMetadata
 				{
 					Name = updatedConfig.Name,
@@ -1299,19 +1306,20 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 	private void OpenVfxEditDialog(ObjectItemInfo item, string wsPath)
 	{
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var metaVfx) && metaVfx?.Templates?.Vfx != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaVfx) && metaVfx?.Templates?.Vfx != null)
 		{
 			var vfxConfig = metaVfx.Templates.Vfx.FirstOrDefault(x => string.Equals(x.VfxId, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 			if (vfxConfig != null)
 			{
 				_vfxStudioDialog.OpenForConfig(vfxConfig, updatedCfg =>
 				{
-					MetadataService.Instance.UpdateMetadata(wsPath, m =>
+					GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 					{
 						if (!string.Equals(item.TemplateID, updatedCfg.VfxId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(item.TemplateID))
 						{
 							m.RemoveVfx(item.TemplateID);
 						}
+
 						m.AddOrUpdateVfx(updatedCfg);
 					});
 					_currentPreviewTemplateID = updatedCfg.VfxId;
@@ -1344,17 +1352,14 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 	private void AddNewObjectForCategory(string category)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string objectType = GetObjectTypeFromCategory(category);
 		var existingIDs = GetExistingObjectIDs(wsPath, category);
 
 		string newTemplateID = TemplateIDHelper.GenerateTemplateID(objectType, $"new_{objectType}", existingIDs);
 		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(newTemplateID);
 
-		MetadataService.Instance.UpdateMetadata(wsPath, m =>
-		{
-			AddMetadataForCategory(m, category, newTemplateID, parsedSlug);
-		});
+		GameContext.MetadataService.UpdateMetadata(wsPath, m => { AddMetadataForCategory(m, category, newTemplateID, parsedSlug); });
 
 		HandlePostAddObject(category, newTemplateID, parsedSlug);
 	}
@@ -1387,11 +1392,12 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	private HashSet<string> GetExistingObjectIDs(string wsPath, string category)
 	{
 		var existingIDs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta != null)
 		{
 			var currentList = GetObjectsForCategory(category);
 			foreach (var obj in currentList) existingIDs.Add(obj.TemplateID);
 		}
+
 		return existingIDs;
 	}
 
@@ -1431,31 +1437,31 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	private void AddAbilityMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateAbility(new AbilityMetadata { TemplateID = id, Name = slug, Description = "A new ability.", AbilityType = "target_spell", Cooldown = 10, AreaOfEffectRadius = 4.0f });
 	private void AddUpgradeMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateUpgrade(new UpgradeMetadata { TemplateID = id, Name = slug, Description = "A new upgrade." });
 	private void AddItemMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateItem(new ItemMetadata { TemplateID = id, Name = slug, Description = "A new item.", ItemClass = "consumable" });
-	
+
 	private void AddTerrainMetadata(MapMetadata m, string id, string slug)
 	{
 		m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-		m.Textures[id] = new TextureMetadata { TileMode = "Stochastic", UvScale = 1.0f, Brightness = 1.0f, TexturePath = $"{slug}.rtex", SwatchIndex = GetNextTerrainSwatchSlot(m), DefaultPathingCode = Realm.Client.EditableTerrain.PATHING_GROUND | Realm.Client.EditableTerrain.PATHING_BUILDABLE | Realm.Client.EditableTerrain.PATHING_FLYING };
+		m.Textures[id] = new TextureMetadata { TileMode = "Stochastic", UvScale = 1.0f, Brightness = 1.0f, TexturePath = $"{slug}.rtex", SwatchIndex = GetNextTerrainSwatchSlot(m), DefaultPathingCode = EditableTerrain.PATHING_GROUND | EditableTerrain.PATHING_BUILDABLE | EditableTerrain.PATHING_FLYING };
 	}
-	
+
 	private void AddSpritesheetMetadata(MapMetadata m, string id, string slug)
 	{
 		m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
 		m.VfxSpritesheets[id] = new VfxMetadata { Columns = 4, Rows = 4, Fps = 20.0f, SubframeBlend = true };
 	}
-	
+
 	private void AddDecalMetadata(MapMetadata m, string id, string slug)
 	{
 		m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
 		m.Decals[id] = new DecalMetadata();
 	}
-	
+
 	private void AddShaderMetadata(MapMetadata m, string id, string slug)
 	{
 		m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
 		m.SpawnShaders[id] = new SpawnShaderMetadata { Name = slug, TransitionMode = 0, Direction = 0, EdgeColor = "#00e5ffff", EdgeWidth = 0.06f, EdgeEmission = 6.0f, NoiseScale = 12.0f, NoiseRoughness = 0.4f, FresnelPower = 3.0f, VertexDisplacement = 0.0f, AlphaFade = 0.9f, Duration = 1.2f, AssetType = "SpawnShader" };
 	}
-	
+
 	private void AddVfxMetadata(MapMetadata m, string id, string slug) => m.AddOrUpdateVfx(new VfxAttachmentConfig { VfxId = id, Name = slug });
 
 	private int GetNextTerrainSwatchSlot(MapMetadata m)
@@ -1468,6 +1474,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				occupiedSlots[existingTex.SwatchIndex] = true;
 			}
 		}
+
 		int nextFreeSlot = TextureSwatchSlots.FirstFreeSlot(occupiedSlots);
 		return nextFreeSlot < 0 ? 0 : nextFreeSlot;
 	}
@@ -1477,9 +1484,9 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		if (category == "terrain")
 		{
 			Hud?.SetupTextureSwatches(false);
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+			if (GameHost.Instance?.GroundTerrain != null)
 			{
-				Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 
@@ -1493,316 +1500,65 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		});
 	}
 
-	private void DuplicateObject(ObjectItemInfo item)
-	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) || meta == null) return;
-
-		string objectType = GetObjectTypeFromCategory(item.Category);
-		var existingIDs = GetExistingObjectIDs(wsPath, item.Category);
-
-		var (parsedType, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-		if (string.IsNullOrWhiteSpace(oldSlug)) oldSlug = item.TemplateID;
-
-		var (newTemplateID, newSlug) = GenerateDuplicateSlug(objectType, oldSlug, existingIDs);
-
-		MetadataService.Instance.UpdateMetadata(wsPath, m =>
-		{
-			DuplicateMetadataForCategory(m, item, newTemplateID, newSlug);
-		});
-
-		HandlePostDuplicateObject(item.Category, newTemplateID, newSlug);
-	}
-
-	private (string TemplateID, string Slug) GenerateDuplicateSlug(string objectType, string originalSlug, HashSet<string> existingIDs)
-	{
-		string baseSlug;
-		int nextIndex = 1;
-
-		var match = TrailingIndexRegex().Match(originalSlug);
-		if (match.Success && int.TryParse(match.Groups[2].Value, out int currentNum))
-		{
-			baseSlug = match.Groups[1].Value;
-			nextIndex = currentNum + 1;
-		}
-		else
-		{
-			baseSlug = originalSlug;
-			nextIndex = 1;
-		}
-
-		while (true)
-		{
-			string candidateSlug = $"{baseSlug}_{nextIndex}";
-			string candidateID = $"{objectType}/{candidateSlug}";
-			if (!existingIDs.Contains(candidateID) && !existingIDs.Contains(candidateSlug))
-			{
-				return (candidateID, candidateSlug);
-			}
-			nextIndex++;
-		}
-	}
-
-	private void DuplicateMetadataForCategory(MapMetadata m, ObjectItemInfo item, string newTemplateID, string newSlug)
-	{
-		switch (item.Category.ToLowerInvariant())
-		{
-			case "units":
-				var srcUnit = m.GetUnit(item.TemplateID);
-				if (srcUnit != null)
-				{
-					var dupUnit = CloneUnitMetadata(srcUnit, newTemplateID, newSlug);
-					m.AddOrUpdateUnit(dupUnit);
-				}
-				break;
-			case "buildings":
-				var srcBld = m.GetBuilding(item.TemplateID);
-				if (srcBld != null)
-				{
-					var dupBld = CloneUnitMetadata(srcBld, newTemplateID, newSlug);
-					m.AddOrUpdateBuilding(dupBld);
-				}
-				break;
-			case "resources":
-				var srcRes = m.GetResource(item.TemplateID);
-				if (srcRes != null)
-				{
-					var dupRes = CloneResourceMetadata(srcRes, newTemplateID, newSlug);
-					m.AddOrUpdateResource(dupRes);
-				}
-				break;
-			case "props":
-				var srcProp = m.GetProp(item.TemplateID);
-				if (srcProp != null)
-				{
-					var dupProp = ClonePropMetadata(srcProp, newTemplateID, newSlug);
-					m.AddOrUpdateProp(dupProp);
-				}
-				break;
-			case "weapons":
-				var srcWep = m.GetWeapon(item.TemplateID);
-				if (srcWep != null)
-				{
-					var dupWep = CloneWeaponMetadata(srcWep, newTemplateID, newSlug);
-					m.AddOrUpdateWeapon(dupWep);
-				}
-				break;
-			case "abilities":
-				var srcAbi = m.GetAbility(item.TemplateID);
-				if (srcAbi != null)
-				{
-					var dupAbi = CloneAbilityMetadata(srcAbi, newTemplateID, newSlug);
-					m.AddOrUpdateAbility(dupAbi);
-				}
-				break;
-			case "upgrades":
-				var srcUpg = m.GetUpgrade(item.TemplateID);
-				if (srcUpg != null)
-				{
-					var dupUpg = CloneUpgradeMetadata(srcUpg, newTemplateID, newSlug);
-					m.AddOrUpdateUpgrade(dupUpg);
-				}
-				break;
-			case "items":
-				var srcItm = m.GetItem(item.TemplateID);
-				if (srcItm != null)
-				{
-					var dupItm = CloneItemMetadata(srcItm, newTemplateID, newSlug);
-					m.AddOrUpdateItem(dupItm);
-				}
-				break;
-			case "terrain":
-				var srcTex = m.GetTerrainTexture(item.TemplateID);
-				m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
-				if (srcTex != null)
-				{
-					var dupTex = CloneTextureMetadata(srcTex, m);
-					m.Textures[newTemplateID] = dupTex;
-				}
-				else
-				{
-					AddTerrainMetadata(m, newTemplateID, newSlug);
-				}
-				break;
-			case "spritesheets":
-				var srcSheet = FindSpritesheetMetadata(m, item);
-				m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-				if (srcSheet != null)
-				{
-					var dupSheet = CloneVfxMetadata(srcSheet);
-					m.VfxSpritesheets[newTemplateID] = dupSheet;
-				}
-				else
-				{
-					AddSpritesheetMetadata(m, newTemplateID, newSlug);
-				}
-				break;
-			case "decals":
-				m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
-				m.Decals.TryGetValue(item.TemplateID, out var srcDec);
-				if (srcDec == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.Decals.TryGetValue(oldSlug, out srcDec);
-				}
-				if (srcDec != null)
-				{
-					var dupDec = CloneDecalMetadata(srcDec);
-					m.Decals[newTemplateID] = dupDec;
-				}
-				else
-				{
-					AddDecalMetadata(m, newTemplateID, newSlug);
-				}
-				break;
-			case "shaders" or "shader" or "spawnshader" or "spawnshaders":
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var srcSha);
-				if (srcSha == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out srcSha);
-				}
-				if (srcSha != null)
-				{
-					var dupSha = CloneSpawnShaderMetadata(srcSha, newSlug);
-					m.SpawnShaders[newTemplateID] = dupSha;
-				}
-				else
-				{
-					AddShaderMetadata(m, newTemplateID, newSlug);
-				}
-				break;
-			case "vfx":
-				var srcVfx = m.GetVfx(item.TemplateID);
-				if (srcVfx != null)
-				{
-					var dupVfx = srcVfx.Clone();
-					dupVfx.VfxId = newTemplateID;
-					dupVfx.Name = newSlug;
-					m.AddOrUpdateVfx(dupVfx);
-				}
-				break;
-		}
-	}
-
-	private void HandlePostDuplicateObject(string category, string newTemplateID, string newSlug)
-	{
-		if (category == "terrain")
-		{
-			Hud?.SetupTextureSwatches(false);
-			if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
-			{
-				Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
-			}
-		}
-
-		_currentPreviewTemplateID = newTemplateID;
-		RefreshObjectList();
-	}
-
-	private UnitMetadata CloneUnitMetadata(UnitMetadata src, string newId, string newSlug)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<UnitMetadata>(json) ?? new UnitMetadata();
-		dup.TemplateID = newId;
-		dup.Name = newSlug;
-		return dup;
-	}
-
-	private ResourceMetadata CloneResourceMetadata(ResourceMetadata src, string newId, string newSlug)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<ResourceMetadata>(json) ?? new ResourceMetadata();
-		dup.TemplateID = newId;
-		dup.Name = newSlug;
-		return dup;
-	}
-
-	private PropMetadata ClonePropMetadata(PropMetadata src, string newId, string newSlug)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<PropMetadata>(json) ?? new PropMetadata();
-		dup.TemplateID = newId;
-		dup.Name = newSlug;
-		return dup;
-	}
-
-	private WeaponMetadata CloneWeaponMetadata(WeaponMetadata src, string newId, string newSlug)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<WeaponMetadata>(json) ?? new WeaponMetadata();
-		dup.TemplateID = newId;
-		dup.Name = newSlug;
-		return dup;
-	}
-
-	private AbilityMetadata CloneAbilityMetadata(AbilityMetadata src, string newId, string newSlug)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<AbilityMetadata>(json) ?? new AbilityMetadata();
-		dup.TemplateID = newId;
-		dup.Name = newSlug;
-		return dup;
-	}
-
-	private UpgradeMetadata CloneUpgradeMetadata(UpgradeMetadata src, string newId, string newSlug)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<UpgradeMetadata>(json) ?? new UpgradeMetadata();
-		dup.TemplateID = newId;
-		dup.Name = newSlug;
-		return dup;
-	}
-
-	private ItemMetadata CloneItemMetadata(ItemMetadata src, string newId, string newSlug)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<ItemMetadata>(json) ?? new ItemMetadata();
-		dup.TemplateID = newId;
-		dup.Name = newSlug;
-		return dup;
-	}
-
-	private TextureMetadata CloneTextureMetadata(TextureMetadata src, MapMetadata m)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<TextureMetadata>(json) ?? new TextureMetadata();
-		dup.SwatchIndex = GetNextTerrainSwatchSlot(m);
-		return dup;
-	}
-
-	private VfxMetadata CloneVfxMetadata(VfxMetadata src)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		return System.Text.Json.JsonSerializer.Deserialize<VfxMetadata>(json) ?? new VfxMetadata();
-	}
-
-	private DecalMetadata CloneDecalMetadata(DecalMetadata src)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		return System.Text.Json.JsonSerializer.Deserialize<DecalMetadata>(json) ?? new DecalMetadata();
-	}
-
-	private SpawnShaderMetadata CloneSpawnShaderMetadata(SpawnShaderMetadata src, string newSlug)
-	{
-		var json = System.Text.Json.JsonSerializer.Serialize(src);
-		var dup = System.Text.Json.JsonSerializer.Deserialize<SpawnShaderMetadata>(json) ?? new SpawnShaderMetadata();
-		dup.Name = newSlug;
-		return dup;
-	}
-
 
 	private static readonly Dictionary<string, Action<TemplateManagerDialog, MapMetadata, ObjectItemInfo, string>> DeleteMetadataHandlers = new(StringComparer.OrdinalIgnoreCase)
 	{
-		{ "units", (dialog, meta, item, delSlug) => { meta.RemoveUnit(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveUnit(delSlug); } },
-		{ "buildings", (dialog, meta, item, delSlug) => { meta.RemoveBuilding(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveBuilding(delSlug); } },
-		{ "resources", (dialog, meta, item, delSlug) => { meta.RemoveResource(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveResource(delSlug); } },
-		{ "props", (dialog, meta, item, delSlug) => { meta.RemoveProp(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveProp(delSlug); } },
-		{ "weapons", (dialog, meta, item, delSlug) => { meta.RemoveWeapon(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveWeapon(delSlug); } },
-		{ "abilities", (dialog, meta, item, delSlug) => { meta.RemoveAbility(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveAbility(delSlug); } },
-		{ "upgrades", (dialog, meta, item, delSlug) => { meta.RemoveUpgrade(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveUpgrade(delSlug); } },
-		{ "items", (dialog, meta, item, delSlug) => { meta.RemoveItem(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveItem(delSlug); } },
+		{
+			"units", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveUnit(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveUnit(delSlug);
+			}
+		},
+		{
+			"buildings", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveBuilding(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveBuilding(delSlug);
+			}
+		},
+		{
+			"resources", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveResource(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveResource(delSlug);
+			}
+		},
+		{
+			"props", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveProp(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveProp(delSlug);
+			}
+		},
+		{
+			"weapons", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveWeapon(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveWeapon(delSlug);
+			}
+		},
+		{
+			"abilities", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveAbility(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveAbility(delSlug);
+			}
+		},
+		{
+			"upgrades", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveUpgrade(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveUpgrade(delSlug);
+			}
+		},
+		{
+			"items", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveItem(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveItem(delSlug);
+			}
+		},
 		{ "terrain", (dialog, meta, item, delSlug) => dialog.RemoveTerrainTexture(meta, item, delSlug) },
 		{ "spritesheets", (dialog, meta, item, delSlug) => dialog.RemoveSpritesheet(meta, item, delSlug) },
 		{ "decals", (dialog, meta, item, delSlug) => dialog.RemoveDecal(meta, item, delSlug) },
@@ -1810,12 +1566,18 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		{ "shader", (dialog, meta, item, delSlug) => dialog.RemoveSpawnShader(meta, item, delSlug) },
 		{ "spawnshader", (dialog, meta, item, delSlug) => dialog.RemoveSpawnShader(meta, item, delSlug) },
 		{ "spawnshaders", (dialog, meta, item, delSlug) => dialog.RemoveSpawnShader(meta, item, delSlug) },
-		{ "vfx", (dialog, meta, item, delSlug) => { meta.RemoveVfx(item.TemplateID); if (!string.IsNullOrEmpty(delSlug)) meta.RemoveVfx(delSlug); } }
+		{
+			"vfx", (dialog, meta, item, delSlug) =>
+			{
+				meta.RemoveVfx(item.TemplateID);
+				if (!string.IsNullOrEmpty(delSlug)) meta.RemoveVfx(delSlug);
+			}
+		}
 	};
 
 	private void DeleteObject(ObjectItemInfo item)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var references = CheckObjectReferences(wsPath, item);
 
 		string message = references.Count > 0
@@ -1824,7 +1586,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 
 		Hud?.ShowConfirmationDialog(message, () =>
 		{
-			MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+			GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 			{
 				var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
 				if (DeleteMetadataHandlers.TryGetValue(item.Category, out var handler))
@@ -1836,15 +1598,16 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 			if (item.Category == "terrain")
 			{
 				Hud?.SetupTextureSwatches(false);
-				if (Realm.Client.Core.GameHost.Instance?.GroundTerrain != null)
+				if (GameHost.Instance?.GroundTerrain != null)
 				{
-					Realm.Client.Core.GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+					GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
 				}
 			}
 
 			RefreshObjectList();
 		});
 	}
+
 	private List<string> CheckObjectReferences(string wsPath, ObjectItemInfo item)
 	{
 		var references = new List<string>();
@@ -1859,8 +1622,11 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 					references.Add($"Placed instances found on map terrain (terrain.json)");
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		}
+
 		return references;
 	}
 
@@ -2002,7 +1768,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		_preview2DContainer.Visible = true;
 
 		_preview2DImage.CustomMinimumSize = new Vector2(140, 140);
-		Texture2D? decalTex = Realm.Client.Core.GameHost.Instance?.LoadDecalTexture(item.TemplateID) ?? LoadTexture2D(item.ModelPath, "decals");
+		Texture2D? decalTex = GameHost.Instance?.LoadDecalTexture(item.TemplateID) ?? LoadTexture2D(item.ModelPath, "decals");
 		_preview2DImage.Texture = decalTex;
 		_lblPreview2DInfo.Text = item.Name;
 	}
@@ -2030,7 +1796,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 	private bool TryGetSpritesheetMeta(string wsPath, string templateID, out VfxMetadata? sheetMeta)
 	{
 		sheetMeta = null;
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.VfxSpritesheets != null)
 		{
 			if (meta.VfxSpritesheets.TryGetValue(templateID, out var sm) && sm != null)
 			{
@@ -2038,6 +1804,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -2072,12 +1839,12 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-		
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+
 		ResolveSpritesheetMeta(wsPath, item, out int columns, out int rows, out float fps, out string spritePath);
 
 		Texture2D? sheetTex = LoadTexture2D(spritePath, "vfx");
-		
+
 		if (sheetTex == null) return;
 		if (_vfxSprite == null) return;
 		if (!GodotObject.IsInstanceValid(_vfxSprite)) return;
@@ -2116,6 +1883,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		_vfxSprite.Visible = true;
 		_vfxSprite.Play("play");
 	}
+
 	private void LoadShaderPreview(ObjectItemInfo item)
 	{
 		_preview2DContainer.Visible = false;
@@ -2128,7 +1896,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		if (loadedNode3D != null)
 		{
 			_currentModelRoot.AddChild(loadedNode3D);
-			Realm.Client.Animation.AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, meshKey);
+			AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, meshKey);
 
 			_currentShaderConfig = SpawnDeathShaderManager.GetShaderConfig(item.TemplateID);
 			_shaderAnimTime = 0.0f;
@@ -2155,6 +1923,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 			meshInst.Mesh = new BoxMesh { Size = new Vector3(2f, 2f, 2f) };
 			meshInst.Position = new Vector3(0, 1.0f, 0);
 		}
+
 		meshInst.MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.8f, 0.7f, 0.5f) };
 		return meshInst;
 	}
@@ -2192,7 +1961,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		var gltfDoc = new GltfDocument();
 		var gltfState = new GltfState();
 		byte[] rmeshBytes = File.ReadAllBytes(modelPath);
-		byte[] glbBytes = Realm.Shared.ModelOptimization.RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+		byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
 		if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
 		{
 			var node = gltfDoc.GenerateScene(gltfState);
@@ -2207,20 +1976,21 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		if (meshKey.StartsWith("(")) return GetFallbackMesh(meshKey);
 		if (string.IsNullOrEmpty(meshKey)) return null;
 
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string? modelPath = TryFindModelPath(wsPath, meshKey);
 
 		return modelPath != null ? TryLoadRMeshOrGlb(modelPath, meshKey) : null;
 	}
+
 	private void LoadWeaponPreview(ObjectItemInfo item)
 	{
 		_preview2DContainer.Visible = false;
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		WeaponMetadata? weaponMeta = null;
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
 		{
 			weaponMeta = meta.Templates.Weapons.FirstOrDefault(w => string.Equals(w.TemplateID, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 		}
@@ -2241,8 +2011,8 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Vfx != null)
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Vfx != null)
 		{
 			var vfxConfig = meta.Templates.Vfx.FirstOrDefault(v => string.Equals(v.VfxId, item.TemplateID, StringComparison.OrdinalIgnoreCase));
 			if (vfxConfig != null)
@@ -2270,7 +2040,9 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 				_currentModelRoot.Scale = new Vector3(s, s, s);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void LoadIconPreview(ObjectItemInfo item)
@@ -2289,7 +2061,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		ClearPreviewProjectile();
 		if (PreviewSubViewport == null) return;
 
-		_previewProjectile = new Realm.Client.VisualProjectile3D();
+		_previewProjectile = new VisualProjectile3D();
 		PreviewSubViewport.AddChild(_previewProjectile);
 
 		Vector3 startPos = new Vector3(-2.8f, 0.5f, 0f);
@@ -2333,7 +2105,7 @@ public partial class TemplateManagerDialog : Realm.Client.UI.MapEditor.FloatingP
 		var loaded = RtexIconLoader.Load(assetPath);
 		if (loaded != null) return loaded;
 
-		string wsPath = ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 		string? diskPath = MapAssetHelper.FindAssetOnDisk(wsPath, defaultSubFolder, assetPath);
 
 		if (string.IsNullOrEmpty(diskPath))

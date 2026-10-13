@@ -1,11 +1,13 @@
-using Godot;
-using Realm.Client.VFX;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingDialogBase
+public partial class InstanceManagerDialog : FloatingDialogBase
 {
 	private Tree _objectTree;
 	private LineEdit _filterInput;
@@ -39,7 +41,7 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 
 		_filterInput = new LineEdit();
 		_filterInput.PlaceholderText = TranslationServer.Translate("Search by name, ID, or category...");
-		_filterInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_filterInput.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_filterInput.AddThemeFontSizeOverride("font_size", 11);
 		_filterInput.TextChanged += (text) =>
 		{
@@ -58,8 +60,8 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 		BodyContainer.AddChild(_summaryLabel);
 
 		_objectTree = new Tree();
-		_objectTree.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_objectTree.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		_objectTree.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_objectTree.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_objectTree.CustomMinimumSize = new Vector2(0, 420);
 		_objectTree.HideRoot = true;
 		_objectTree.Columns = 2;
@@ -79,9 +81,9 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 
 	private bool HasCountsChanged()
 	{
-		int curUnits = Realm.Client.Core.GameHost.Instance.AllUnits?.Count ?? 0;
-		int curProps = Realm.Client.Core.GameHost.Instance.AllProps?.Count ?? 0;
-		int curDecals = Realm.Client.Core.GameHost.Instance.AllDecals?.Count ?? 0;
+		int curUnits = GameHost.Instance.AllUnits?.Count ?? 0;
+		int curProps = GameHost.Instance.AllProps?.Count ?? 0;
+		int curDecals = GameHost.Instance.AllDecals?.Count ?? 0;
 
 		return curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount;
 	}
@@ -89,7 +91,7 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 	public override void _Process(double delta)
 	{
 		base._Process(delta);
-		if (!IsOpen || Realm.Client.Core.GameHost.Instance == null) return;
+		if (!IsOpen || GameHost.Instance == null) return;
 
 		_refreshCheckTimer += delta;
 		if (_refreshCheckTimer < 0.15) return;
@@ -110,6 +112,7 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -132,7 +135,7 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 		_objectTree.Clear();
 		_treeItemToObjectMap.Clear();
 
-		if (Realm.Client.Core.GameHost.Instance == null)
+		if (GameHost.Instance == null)
 		{
 			TreeItem emptyRoot = _objectTree.CreateItem();
 			_summaryLabel.Text = TranslationServer.Translate("No active map loaded.");
@@ -159,9 +162,9 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 
 	private void UpdateLastCounts()
 	{
-		_lastUnitsCount = Realm.Client.Core.GameHost.Instance.AllUnits?.Count ?? 0;
-		_lastPropsCount = Realm.Client.Core.GameHost.Instance.AllProps?.Count ?? 0;
-		_lastDecalsCount = Realm.Client.Core.GameHost.Instance.AllDecals?.Count ?? 0;
+		_lastUnitsCount = GameHost.Instance.AllUnits?.Count ?? 0;
+		_lastPropsCount = GameHost.Instance.AllProps?.Count ?? 0;
+		_lastDecalsCount = GameHost.Instance.AllDecals?.Count ?? 0;
 	}
 
 	private void UpdateSummaryLabel(int totalCount, int matchedCount)
@@ -204,7 +207,7 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 			Vector3 pos = node.Position;
 			itemNode.SetText(1, $"({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
 
-			if (Realm.Client.Core.GameHost.Instance.SelectedEditorObject == node)
+			if (GameHost.Instance.SelectedEditorObject == node)
 			{
 				itemNode.Select(0);
 				categoryNode.Collapsed = false;
@@ -213,28 +216,28 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 			_treeItemToObjectMap[itemNode] = node;
 			matchedCount++;
 		}
-		
+
 		return matchedCount;
 	}
 
 	private List<(string DisplayTitle, string AssetType, Node3D Node)> CollectAllPlacedObjects()
 	{
 		var result = new List<(string DisplayTitle, string AssetType, Node3D Node)>();
-		if (Realm.Client.Core.GameHost.Instance == null) return result;
+		if (GameHost.Instance == null) return result;
 
 		CollectUnits(result);
 		CollectProps(result);
 		CollectDecals(result);
-		CollectVfxObjectsRecursive(Realm.Client.Core.GameHost.Instance, result);
+		CollectVfxObjectsRecursive(GameHost.Instance, result);
 
 		return result;
 	}
 
 	private void CollectUnits(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
 	{
-		if (Realm.Client.Core.GameHost.Instance.AllUnits == null) return;
+		if (GameHost.Instance.AllUnits == null) return;
 
-		foreach (var unit in Realm.Client.Core.GameHost.Instance.AllUnits)
+		foreach (var unit in GameHost.Instance.AllUnits)
 		{
 			if (!GodotObject.IsInstanceValid(unit)) continue;
 
@@ -259,30 +262,30 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 
 	private string GetBuildingRegistryName(string id)
 	{
-		if (Realm.Client.Core.GameHost.BuildingRegistry != null && Realm.Client.Core.GameHost.BuildingRegistry.TryGetValue(id, out var bMeta) && !string.IsNullOrEmpty(bMeta.Name))
+		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.TryGetValue(id, out var bMeta) && !string.IsNullOrEmpty(bMeta.Name))
 			return bMeta.Name;
-		return System.IO.Path.GetFileNameWithoutExtension(id);
+		return Path.GetFileNameWithoutExtension(id);
 	}
 
 	private string GetResourceRegistryName(string id)
 	{
-		if (Realm.Client.Core.GameHost.ResourceRegistry != null && Realm.Client.Core.GameHost.ResourceRegistry.TryGetValue(id, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
+		if (GameHost.ResourceRegistry != null && GameHost.ResourceRegistry.TryGetValue(id, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
 			return rMeta.Name;
-		return System.IO.Path.GetFileNameWithoutExtension(id);
+		return Path.GetFileNameWithoutExtension(id);
 	}
 
 	private string GetUnitRegistryName(string id)
 	{
-		if (Realm.Client.Core.GameHost.UnitRegistry != null && Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(id, out var uMeta) && !string.IsNullOrEmpty(uMeta.Name))
+		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.TryGetValue(id, out var uMeta) && !string.IsNullOrEmpty(uMeta.Name))
 			return uMeta.Name;
-		return System.IO.Path.GetFileNameWithoutExtension(id);
+		return Path.GetFileNameWithoutExtension(id);
 	}
 
 	private void CollectProps(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
 	{
-		if (Realm.Client.Core.GameHost.Instance.AllProps == null) return;
+		if (GameHost.Instance.AllProps == null) return;
 
-		foreach (var prop in Realm.Client.Core.GameHost.Instance.AllProps)
+		foreach (var prop in GameHost.Instance.AllProps)
 		{
 			if (!GodotObject.IsInstanceValid(prop)) continue;
 
@@ -293,20 +296,20 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 
 	private string GetPropRegistryName(string id)
 	{
-		if (Realm.Client.Core.GameHost.PropRegistry != null && Realm.Client.Core.GameHost.PropRegistry.TryGetValue(id, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
+		if (GameHost.PropRegistry != null && GameHost.PropRegistry.TryGetValue(id, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
 			return pMeta.Name;
-		return System.IO.Path.GetFileNameWithoutExtension(id);
+		return Path.GetFileNameWithoutExtension(id);
 	}
 
 	private void CollectDecals(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
 	{
-		if (Realm.Client.Core.GameHost.Instance.AllDecals == null) return;
+		if (GameHost.Instance.AllDecals == null) return;
 
-		foreach (var decal in Realm.Client.Core.GameHost.Instance.AllDecals)
+		foreach (var decal in GameHost.Instance.AllDecals)
 		{
 			if (!GodotObject.IsInstanceValid(decal)) continue;
 
-			string resolvedName = decal is Realm.Client.Decal3D d3d ? d3d.DecalId : System.IO.Path.GetFileNameWithoutExtension(decal.Name);
+			string resolvedName = decal is Decal3D d3d ? d3d.DecalId : Path.GetFileNameWithoutExtension(decal.Name);
 			result.Add((resolvedName, "Decals", decal));
 		}
 	}
@@ -342,6 +345,7 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 				list = new List<(string DisplayTitle, Node3D Node)>();
 				grouped[item.AssetType] = list;
 			}
+
 			list.Add((item.DisplayTitle, item.Node));
 		}
 
@@ -372,17 +376,17 @@ public partial class InstanceManagerDialog : Realm.Client.UI.MapEditor.FloatingD
 
 	private void FocusOnObject(Node3D targetObject)
 	{
-		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || Realm.Client.Core.GameHost.Instance == null) return;
+		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || GameHost.Instance == null) return;
 
-		Hud?.SelectToolFromHotkey(Realm.Client.Core.GameHost.EditorTool.SelectMove);
-		Realm.Client.Core.GameHost.Instance.SelectedEditorObject = targetObject;
-		(Realm.Client.Core.GameHost.Instance.MainCamera as Realm.Client.CameraControl)?.FocusOnPosition(targetObject.Position);
+		Hud?.SelectToolFromHotkey(EditorTool.SelectMove);
+		GameHost.Instance.SelectedEditorObject = targetObject;
+		GameHost.Instance.MainCamera?.FocusOnPosition(targetObject.Position);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Selected and focused on {0}"), targetObject.Name));
 	}
 
 	private void DeleteObject(Node3D targetObject)
 	{
-		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || Realm.Client.Core.GameHost.Instance == null) return;
+		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || GameHost.Instance == null) return;
 
 		Hud?.DeleteSelectedObjectAction();
 		RefreshObjectTree();

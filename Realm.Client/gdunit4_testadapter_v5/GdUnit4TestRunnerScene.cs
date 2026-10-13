@@ -2,9 +2,10 @@
 // MIT License - See LICENSE file in the repository root for full license text
 
 // ReSharper disable once CheckNamespace
-namespace GdUnit4.TestRunner;
 
-using Core.Runners;
+using GdUnit4.Core.Runners;
+
+namespace GdUnit4.TestRunner;
 
 /// <summary>
 ///     The GdUnit4Net test runner scene.

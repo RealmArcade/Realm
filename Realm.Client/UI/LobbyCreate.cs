@@ -1,12 +1,33 @@
-using Godot;
-using Realm.Client.Network;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Godot;
+using Realm.Client.Network;
+using Realm.Shared;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class LobbyCreate : Control
 {
+	public LobbyCreate()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
+	public override void _ExitTree()
+	{
+	}
+
+	public override void _Process(double delta)
+	{
+	}
+
 	private Panel _bgPanel;
 	private Panel _leftPillar;
 	private Panel _rightPillar;
@@ -29,7 +50,7 @@ public partial class LobbyCreate : Control
 	private List<MapBriefingDetails> _availableMaps = new List<MapBriefingDetails>();
 	private List<string> _availableVersions = new List<string>();
 
-	public override void _Ready()
+	public void _Ready()
 	{
 		_bgPanel = GetNode<Panel>("Background");
 		_leftPillar = GetNode<Panel>("LeftPillar");
@@ -40,20 +61,20 @@ public partial class LobbyCreate : Control
 		cardBg.Texture = GD.Load<Texture2D>("res://Assets/UI/custom_match_card.png");
 		cardBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		cardBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		cardBg.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
-		
+		cardBg.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+
 		_backButton = GetNode<Button>("BackButton");
 		_createButton = GetNode<Button>("CentralPanel/ContentContainer/CreateButton");
 		_mapSelectButton = GetNode<OptionButton>("CentralPanel/ContentContainer/MapSelectButton");
 		_briefingPanel = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel");
 		_briefingText = GetNode<RichTextLabel>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper/BriefingText");
-		
+
 		var mapSelectHBox = new HBoxContainer();
 		mapSelectHBox.Name = "MapSelectHBox";
 		mapSelectHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		mapSelectHBox.AddThemeConstantOverride("separation", 10);
 		mapSelectHBox.CustomMinimumSize = new Vector2(620, 44);
-		mapSelectHBox.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		mapSelectHBox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 
 		var contentContainer = _mapSelectButton.GetParent();
 		int mapSelectIndex = _mapSelectButton.GetIndex();
@@ -62,7 +83,7 @@ public partial class LobbyCreate : Control
 		contentContainer.MoveChild(mapSelectHBox, mapSelectIndex);
 
 		_mapSelectButton.CustomMinimumSize = new Vector2(380, 44);
-		_mapSelectButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_mapSelectButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		mapSelectHBox.AddChild(_mapSelectButton);
 
 		_importMapButton = new Button();
@@ -79,10 +100,7 @@ public partial class LobbyCreate : Control
 		_importMapButton.Pressed += () =>
 		{
 			UIManager.Instance?.PlayClickSound();
-			UIManager.Instance?.PromptAndImportMapArchive((mapTitle, mapVersion) =>
-			{
-				RefreshAvailableMaps(mapTitle, mapVersion);
-			});
+			UIManager.Instance?.PromptAndImportMapArchive((mapTitle, mapVersion) => { RefreshAvailableMaps(mapTitle, mapVersion); });
 		};
 		mapSelectHBox.AddChild(_importMapButton);
 
@@ -91,7 +109,7 @@ public partial class LobbyCreate : Control
 		_versionContainer.Alignment = BoxContainer.AlignmentMode.Center;
 		_versionContainer.AddThemeConstantOverride("separation", 10);
 		_versionContainer.CustomMinimumSize = new Vector2(400, 44);
-		_versionContainer.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_versionContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 
 		_versionLabel = new Label();
 		_versionLabel.Text = Tr("VERSION:");
@@ -101,7 +119,7 @@ public partial class LobbyCreate : Control
 		_versionSelectButton = new OptionButton();
 		_versionSelectButton.Name = "VersionSelectButton";
 		_versionSelectButton.CustomMinimumSize = new Vector2(180, 44);
-		_versionSelectButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_versionSelectButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		_versionSelectButton.ItemSelected += (idx) => UIManager.Instance.PlayClickSound();
 		_versionContainer.AddChild(_versionSelectButton);
 
@@ -120,8 +138,8 @@ public partial class LobbyCreate : Control
 		var briefingHBox = new HBoxContainer();
 		briefingHBox.Name = "BriefingHBox";
 		briefingHBox.AddThemeConstantOverride("separation", 16);
-		briefingHBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		briefingHBox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		briefingHBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		briefingHBox.SizeFlagsVertical = SizeFlags.ExpandFill;
 
 		_briefingPanel.RemoveChild(_mapThumbnail);
 		_briefingPanel.RemoveChild(textPanelWrapper);
@@ -129,8 +147,8 @@ public partial class LobbyCreate : Control
 		var thumbFrame = new PanelContainer();
 		thumbFrame.Name = "ThumbnailFrame";
 		thumbFrame.CustomMinimumSize = new Vector2(256, 256);
-		thumbFrame.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-		thumbFrame.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		thumbFrame.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		thumbFrame.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		thumbFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 
 		_mapThumbnail.CustomMinimumSize = new Vector2(240, 240);
@@ -142,8 +160,8 @@ public partial class LobbyCreate : Control
 		thumbFrame.AddChild(_mapThumbnail);
 		briefingHBox.AddChild(thumbFrame);
 
-		textPanelWrapper.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		textPanelWrapper.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		textPanelWrapper.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		textPanelWrapper.SizeFlagsVertical = SizeFlags.ExpandFill;
 		briefingHBox.AddChild(textPanelWrapper);
 
 		_briefingPanel.AddChild(briefingHBox);
@@ -160,17 +178,17 @@ public partial class LobbyCreate : Control
 	private void ApplyThemeStyles()
 	{
 		_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCustomMatchBg());
-		_bgPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_bgPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_leftPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(true));
 		_rightPillar.AddThemeStyleboxOverride("panel", UIStyle.CreatePillarPanel(false));
 		_centralPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCustomMatchCardPanel());
-		_centralPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_centralPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_briefingPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(false));
 
-		UIStyle.ApplyTitle(_titleLabel, Network.LobbyManager.Instance.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
+		UIStyle.ApplyTitle(_titleLabel, LobbyManager.Instance.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
 		UIStyle.ApplyTitle(_mapSelectLabel, "SELECT MAP", 20);
 
-		SetupPillarButton(_backButton, "◀", () => UIManager.Instance.TransitionTo(Network.LobbyManager.Instance.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		SetupPillarButton(_backButton, "◀", () => UIManager.Instance.TransitionTo(LobbyManager.Instance.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_mapSelectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
@@ -229,8 +247,8 @@ public partial class LobbyCreate : Control
 	{
 		_createButton.Flat = false;
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(_createButton, Network.LobbyManager.Instance.IsSinglePlayer ? "START GAME" : "CREATE LOBBY", 18);
-		
+		UIStyle.ApplyButtonText(_createButton, LobbyManager.Instance.IsSinglePlayer ? "START GAME" : "CREATE LOBBY", 18);
+
 		_createButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
 		_createButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
 		_createButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
@@ -250,27 +268,27 @@ public partial class LobbyCreate : Control
 		if (IsMapBuildMismatch(mapInfo.BuildNumber))
 		{
 			UIManager.Instance.PlayWarningSound();
-			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, Realm.Shared.RealmVersion.GameBuildNumber);
+			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, RealmVersion.GameBuildNumber);
 			return;
 		}
 
-		if (Network.LobbyManager.Instance.IsSinglePlayer)
+		if (LobbyManager.Instance.IsSinglePlayer)
 		{
 			_createButton.Disabled = true;
-			Network.LobbyManager.Instance.HostSinglePlayerGame(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+			LobbyManager.Instance.HostSinglePlayerGame(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
 			_createButton.Disabled = false;
 			return;
 		}
 
-		if (Network.LobbyManager.Instance.LocalNatType == NatType.Symmetric)
+		if (LobbyManager.Instance.LocalNatType == NatType.Symmetric)
 		{
 			UIManager.Instance.PlayWarningSound();
 			ShowSTUNErrorModal();
 			return;
 		}
-			
+
 		_createButton.Disabled = true;
-		bool success = await Network.LobbyManager.Instance.HostLobbyAsync(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+		bool success = await LobbyManager.Instance.HostLobbyAsync(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
 		_createButton.Disabled = false;
 
 		if (success)
@@ -281,7 +299,7 @@ public partial class LobbyCreate : Control
 		{
 			UIManager.Instance.PlayWarningSound();
 			GD.PrintErr("[LobbyCreate] Failed to host lobby.");
-			string errorMsg = Network.LobbyManager.Instance.LastHostError ?? Tr("Failed to host lobby on the registry server.");
+			string errorMsg = LobbyManager.Instance.LastHostError ?? Tr("Failed to host lobby on the registry server.");
 			ShowHostErrorModal(errorMsg);
 		}
 	}
@@ -292,6 +310,7 @@ public partial class LobbyCreate : Control
 		{
 			return _availableVersions[_versionSelectButton.Selected];
 		}
+
 		return "1.0.0";
 	}
 
@@ -303,13 +322,14 @@ public partial class LobbyCreate : Control
 			var map = _availableMaps[selectedIndex];
 			return (map.PathName, map.DisplayName, map.GameBuildNumber);
 		}
-		return ("melee", "Melee Battlefield", Realm.Shared.RealmVersion.GameBuildNumber);
+
+		return ("melee", "Melee Battlefield", RealmVersion.GameBuildNumber);
 	}
 
 	private bool IsMapBuildMismatch(string mapBuildNumber)
 	{
-		return !string.IsNullOrEmpty(mapBuildNumber) && 
-		       !string.Equals(mapBuildNumber, Realm.Shared.RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
+		return !string.IsNullOrEmpty(mapBuildNumber) &&
+		       !string.Equals(mapBuildNumber, RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
@@ -341,7 +361,7 @@ public partial class LobbyCreate : Control
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
 
-		bool versionExistsLocally = System.IO.File.Exists(Network.LobbyManager.GetVersionExecutablePath(mapBuildNumber));
+		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(mapBuildNumber));
 
 		var descLabel = new Label();
 		string promptText = Tr("This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.");
@@ -391,7 +411,7 @@ public partial class LobbyCreate : Control
 			warningPopup.QueueFree();
 			if (versionExistsLocally)
 			{
-				string exePath = Network.LobbyManager.GetVersionExecutablePath(mapBuildNumber);
+				string exePath = LobbyManager.GetVersionExecutablePath(mapBuildNumber);
 				OS.CreateProcess(exePath, Array.Empty<string>());
 				GetTree().Quit();
 			}
@@ -563,7 +583,7 @@ public partial class LobbyCreate : Control
 	private void OnMapSelected(long index, string? targetVersion)
 	{
 		UIManager.Instance?.PlayClickSound();
-			
+
 		if (index < 0 || index >= _availableMaps.Count)
 		{
 			return;
@@ -579,16 +599,17 @@ public partial class LobbyCreate : Control
 
 	private string GetMapThumbnailPath(MapBriefingDetails selectedMap)
 	{
-		if (!string.IsNullOrEmpty(selectedMap.ThumbnailPath) && System.IO.File.Exists(selectedMap.ThumbnailPath))
+		if (!string.IsNullOrEmpty(selectedMap.ThumbnailPath) && File.Exists(selectedMap.ThumbnailPath))
 		{
 			return selectedMap.ThumbnailPath;
 		}
+
 		return MapInfoHelper.FindThumbnailForMap(selectedMap.PathName, selectedMap.Version);
 	}
 
 	private void LoadThumbnailTexture(string thumbPath)
 	{
-		if (string.IsNullOrEmpty(thumbPath) || !System.IO.File.Exists(thumbPath))
+		if (string.IsNullOrEmpty(thumbPath) || !File.Exists(thumbPath))
 		{
 			_mapThumbnail.Texture = UIStyle.EmptyBlackTexture;
 			return;

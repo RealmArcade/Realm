@@ -1,5 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
+using Godot;
+using Environment = System.Environment;
 
 namespace Realm.Client.Services;
 
@@ -59,7 +62,7 @@ public static class WasiSdkResolver
 		path = string.Empty;
 		try
 		{
-			string appDataDir = global::Godot.OS.GetUserDataDir();
+			string appDataDir = OS.GetUserDataDir();
 			if (string.IsNullOrWhiteSpace(appDataDir))
 			{
 				return false;
@@ -111,7 +114,7 @@ public static class WasiSdkResolver
 			return false;
 		}
 
-		foreach (string candidate in System.Linq.Enumerable.OrderByDescending(Directory.GetDirectories(parentDir, "wasi-sdk-*"), d => d))
+		foreach (string candidate in Enumerable.OrderByDescending(Directory.GetDirectories(parentDir, "wasi-sdk-*"), d => d))
 		{
 			if (IsValidWasiSdkDirectory(candidate))
 			{
@@ -221,12 +224,14 @@ public static class WasiSdkResolver
 				{
 					return "wasm32-unknown-wasip1";
 				}
+
 				if (Directory.Exists(Path.Combine(libDir, "wasm32-wasi")))
 				{
 					return "wasm32-unknown-wasi";
 				}
 			}
 		}
+
 		return "wasm32-unknown-wasip1";
 	}
 

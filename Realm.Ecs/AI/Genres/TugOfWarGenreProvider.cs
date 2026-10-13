@@ -1,11 +1,11 @@
+using System.Numerics;
+using System.Text.Json;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using System.Numerics;
-using System.Text.Json;
 
 namespace Realm.Ecs.AI.Genres;
 
@@ -45,13 +45,13 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		return new float[FeatureVectorLength]
 		{
 			-0.5f, // CostToBank
-			 0.8f, // LanePressureRatio
-			 0.9f, // CounterAdvantage
-			 0.7f, // IncomeEfficiency
-			 0.6f, // SpawnerCapacityRatio
-			 0.5f, // TechTierUrgency
-			 0.4f, // SpecialWaveReadiness
-			 0.9f  // EmergencyDefense
+			0.8f, // LanePressureRatio
+			0.9f, // CounterAdvantage
+			0.7f, // IncomeEfficiency
+			0.6f, // SpawnerCapacityRatio
+			0.5f, // TechTierUrgency
+			0.4f, // SpecialWaveReadiness
+			0.9f // EmergencyDefense
 		};
 	}
 
@@ -84,7 +84,9 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 			_buildSpots.Clear();
 			_buildSpots.AddRange(spots);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void ConfigureSpawnerTypes(IReadOnlyDictionary<string, string> parameters)
@@ -97,7 +99,9 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 			_spawnerTypes.Clear();
 			_spawnerTypes.AddRange(types);
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void ConfigureIncomeUpgradeCost(IReadOnlyDictionary<string, string> parameters)
@@ -120,7 +124,9 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 			var target = JsonSerializer.Deserialize<Vector3>(laneTargetJson);
 			_laneTarget = target;
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
@@ -178,7 +184,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		{
 			return world.Get<UnitOwnerPlayer>(entity).PlayerIndex;
 		}
-		
+
 		if (!world.Has<Owner>(entity)) return -1;
 
 		var pEnt = world.Get<Owner>(entity).PlayerEntity.Value;
@@ -222,6 +228,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -305,6 +312,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 					q.UnitIds.Add("spawner_upgrade");
 				}
 			}
+
 			customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Upgrade");
 		}
 	}

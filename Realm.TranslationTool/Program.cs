@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -8,6 +8,7 @@ namespace Realm.TranslationTool
 	class Program
 	{
 		private static readonly string BaseModel = "gemma4:12b-it-q4_K_M";
+
 		private static readonly Dictionary<string, string> LanguageLocaleMap = new()
 		{
 			{ "Español", "es" },
@@ -184,7 +185,7 @@ namespace Realm.TranslationTool
 		{
 			englishDict = new Dictionary<string, string>();
 			itemId = root.TryGetProperty("itemid", out var itemIdProp) ? itemIdProp.GetString() ?? "" : "";
-			
+
 			if (!root.TryGetProperty("languages", out languagesProp) || languagesProp.ValueKind != JsonValueKind.Object)
 			{
 				Console.ForegroundColor = ConsoleColor.Red;
@@ -340,6 +341,7 @@ namespace Realm.TranslationTool
 			{
 				godotLocaleDir = Path.GetFullPath(Path.Combine(workingDir, "..", "Realm.Client", "locale"));
 			}
+
 			return godotLocaleDir;
 		}
 
@@ -420,11 +422,11 @@ namespace Realm.TranslationTool
 			Console.ResetColor();
 
 			string prompt = $"Translate the following text from English to {targetLanguage}.\n" +
-							$"Maintain the correct style and formatting for a Steam store page for a real-time strategy (RTS) video game.\n" +
-							$"Preserve all BBCode tags intact exactly as formatted (for example: [p], [/p], [b], [/b], [h2], [/h2], [list], [*], [/*]). Do not remove or alter tags.\n" +
-							$"Output ONLY the translated text, do not include outer quotes, markdown code blocks, explanations, or any preamble.\n" +
-							$"Context: {context}\n" +
-							$"Text:\n{text}";
+			                $"Maintain the correct style and formatting for a Steam store page for a real-time strategy (RTS) video game.\n" +
+			                $"Preserve all BBCode tags intact exactly as formatted (for example: [p], [/p], [b], [/b], [h2], [/h2], [list], [*], [/*]). Do not remove or alter tags.\n" +
+			                $"Output ONLY the translated text, do not include outer quotes, markdown code blocks, explanations, or any preamble.\n" +
+			                $"Context: {context}\n" +
+			                $"Text:\n{text}";
 
 			string response = await _ollama.GenerateText(prompt);
 			string translatedText = response.Trim();
@@ -482,7 +484,9 @@ namespace Realm.TranslationTool
 				{
 					File.Delete(cacheFile);
 				}
-				catch { }
+				catch
+				{
+				}
 			}
 
 			return originalText;
@@ -506,10 +510,10 @@ namespace Realm.TranslationTool
 				Console.ResetColor();
 
 				string prompt = $"Translate the following text from English to {targetLanguage}.\n" +
-								$"Maintain the correct context for a real-time strategy (RTS) video game.\n" +
-								$"Output ONLY the translated text, do not include quotes, explanations, or any preamble.\n" +
-								$"Context: {context}\n" +
-								$"Text: \"{text}\"";
+				                $"Maintain the correct context for a real-time strategy (RTS) video game.\n" +
+				                $"Output ONLY the translated text, do not include quotes, explanations, or any preamble.\n" +
+				                $"Context: {context}\n" +
+				                $"Text: \"{text}\"";
 
 				string response = await _ollama.GenerateText(prompt);
 				string translatedText = response.Trim().Replace("\"", "");
@@ -550,7 +554,9 @@ namespace Realm.TranslationTool
 				{
 					File.Delete(cacheFile);
 				}
-				catch { }
+				catch
+				{
+				}
 			}
 
 			return text;
@@ -566,27 +572,9 @@ namespace Realm.TranslationTool
 				{
 					builder.Append(b.ToString("X2"));
 				}
+
 				return builder.ToString();
 			}
 		}
-
-		private class StorePageData
-		{
-			[System.Text.Json.Serialization.JsonPropertyName("itemid")]
-			public string ItemId { get; set; } = "";
-
-			[System.Text.Json.Serialization.JsonPropertyName("languages")]
-			public Dictionary<string, Dictionary<string, string>> Languages { get; set; } = new();
-		}
-
-		private class CacheEntry
-		{
-			public string Original { get; set; } = "";
-			public string TranslatedText { get; set; } = "";
-			public string Locale { get; set; } = "";
-			public string Context { get; set; } = "";
-			public string Timestamp { get; set; } = "";
-		}
 	}
 }
-

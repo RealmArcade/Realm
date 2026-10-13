@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
 
@@ -47,9 +48,9 @@ public class HeroArenaBotConfig
 		var dict = new Dictionary<string, string>
 		{
 			{ "FountainPositionJson", JsonSerializer.Serialize(FountainPosition) },
-			{ "FountainHealRadius", FountainHealRadius.ToString(System.Globalization.CultureInfo.InvariantCulture) },
-			{ "RetreatHealthPercent", RetreatHealthPercent.ToString(System.Globalization.CultureInfo.InvariantCulture) },
-			{ "RetreatManaPercent", RetreatManaPercent.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+			{ "FountainHealRadius", FountainHealRadius.ToString(CultureInfo.InvariantCulture) },
+			{ "RetreatHealthPercent", RetreatHealthPercent.ToString(CultureInfo.InvariantCulture) },
+			{ "RetreatManaPercent", RetreatManaPercent.ToString(CultureInfo.InvariantCulture) },
 			{ "RunePositionsJson", JsonSerializer.Serialize(RunePositions) },
 			{ "ShopBuildOrderJson", JsonSerializer.Serialize(ShopBuildOrder) }
 		};

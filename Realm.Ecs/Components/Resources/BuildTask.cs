@@ -7,14 +7,14 @@ namespace Realm.Ecs.Components.Resources;
 /// </summary>
 public struct BuildTask
 {
-    public Entity BuildingEntity;
-    public float TotalBuildTime;
-    public float Progress;
+	public Entity BuildingEntity;
+	public float TotalBuildTime;
+	public float Progress;
 
-    public BuildTask(Entity buildingEntity, float totalBuildTime)
-    {
-        BuildingEntity = buildingEntity;
-        TotalBuildTime = totalBuildTime;
-        Progress = 0f;
-    }
+	public BuildTask(Entity buildingEntity, float totalBuildTime)
+	{
+		BuildingEntity = buildingEntity;
+		TotalBuildTime = totalBuildTime;
+		Progress = 0f;
+	}
 }

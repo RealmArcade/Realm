@@ -9,7 +9,7 @@ namespace Realm.Ecs.AI.Affordances;
 /// </summary>
 public class AffordanceScanner : StandardRtsGenreProvider, IAffordanceScanner
 {
-	public new const int FeatureCount = StandardRtsGenreProvider.StandardFeatureCount;
+	public new const int FeatureCount = StandardFeatureCount;
 
 	public List<GenericAffordance> ScanAffordances(World world, int playerIndex)
 	{

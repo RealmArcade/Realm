@@ -1,33 +1,16 @@
-using Godot;
-using Realm.Client.Animation;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
 public partial class EntityVisualEditDialog : FloatingDialogBase
 {
-	public struct VisualOverridesSnapshot
-	{
-		public string ModelPath;
-		public string VisualMode;
-		public float Scale;
-		public float YOffset;
-		public float CollisionCircleRatio;
-		public float Brightness;
-		public Color ColorTint;
-		public bool NormalizeLuminance;
-		public bool IgnorePlayerColor;
-		public bool DespillPlayerColor;
-		public string SpawnShader;
-		public string DeathShader;
-		public bool EnableProceduralAnimation;
-		public string ProceduralAnimation;
-	}
-
 	private string _category = "units";
 	private string _objectType = "unit";
 	private string _slug = "";
@@ -109,7 +92,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		var scrollBody = CreateScrollBody(600);
 		var contentVBox = new VBoxContainer();
 		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
 		BuildIdentitySection(contentVBox);
@@ -147,7 +130,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		_txtSlug = new LineEdit();
 		_txtSlug.PlaceholderText = TranslationServer.Translate("snake_case_slug");
-		_txtSlug.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) =>
 		{
@@ -235,7 +218,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			contentVBox,
 			TranslationServer.Translate("Display Name:"),
 			_name,
-			(val) => { if (!_isSyncing) _name = val ?? string.Empty; },
+			(val) =>
+			{
+				if (!_isSyncing) _name = val ?? string.Empty;
+			},
 			TranslationServer.Translate("Entity display name..."),
 			140f
 		);
@@ -244,7 +230,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			contentVBox,
 			TranslationServer.Translate("Description:"),
 			_description,
-			(val) => { if (!_isSyncing) _description = val ?? string.Empty; },
+			(val) =>
+			{
+				if (!_isSyncing) _description = val ?? string.Empty;
+			},
 			TranslationServer.Translate("Entity description..."),
 			140f
 		);
@@ -283,10 +272,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			{
 				if (_isSyncing) return;
 				_yOffset = val;
-				if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+				if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 				{
-					Realm.Client.Core.GameHost.Instance.SetModelYOffset(_originalTemplateID, val);
-					Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+					GameHost.Instance.SetModelYOffset(_originalTemplateID, val);
+					GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 				}
 			},
 			"0.00",
@@ -304,10 +293,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			{
 				if (_isSyncing) return;
 				_collisionCircle = val;
-				if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+				if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 				{
-					Realm.Client.Core.GameHost.Instance.SetModelCollisionCircleRatio(_originalTemplateID, val);
-					Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+					GameHost.Instance.SetModelCollisionCircleRatio(_originalTemplateID, val);
+					GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 				}
 			},
 			"0.00",
@@ -336,16 +325,16 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			_yOffset = newYOffset;
 			_isSyncing = false;
 
-			if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				Realm.Client.Core.GameHost.Instance.SetModelYOffset(_originalTemplateID, newYOffset);
+				GameHost.Instance.SetModelYOffset(_originalTemplateID, newYOffset);
 			}
 		}
 
-		if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 		{
-			Realm.Client.Core.GameHost.Instance.SetModelScale(_originalTemplateID, newScale);
-			Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+			GameHost.Instance.SetModelScale(_originalTemplateID, newScale);
+			GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 		}
 	}
 
@@ -362,10 +351,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			{
 				if (_isSyncing) return;
 				_brightness = val;
-				if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+				if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 				{
-					Realm.Client.Core.GameHost.Instance.SetModelBrightness(_originalTemplateID, val);
-					Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+					GameHost.Instance.SetModelBrightness(_originalTemplateID, val);
+					GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 				}
 			},
 			"0.00x",
@@ -380,10 +369,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			{
 				if (_isSyncing) return;
 				_tint = color;
-				if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+				if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 				{
-					Realm.Client.Core.GameHost.Instance.SetModelColorTint(_originalTemplateID, color);
-					Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+					GameHost.Instance.SetModelColorTint(_originalTemplateID, color);
+					GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 				}
 			},
 			140f
@@ -396,10 +385,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		{
 			if (_isSyncing) return;
 			_normalizeLuminance = val;
-			if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				Realm.Client.Core.GameHost.Instance.SetModelNormalizeLuminance(_originalTemplateID, val);
-				Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameHost.Instance.SetModelNormalizeLuminance(_originalTemplateID, val);
+				GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 			}
 		});
 
@@ -407,10 +396,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		{
 			if (_isSyncing) return;
 			_ignorePlayerColor = val;
-			if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				Realm.Client.Core.GameHost.Instance.SetModelIgnorePlayerColor(_originalTemplateID, val);
-				Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameHost.Instance.SetModelIgnorePlayerColor(_originalTemplateID, val);
+				GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 			}
 		});
 
@@ -418,10 +407,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		{
 			if (_isSyncing) return;
 			_despillPlayerColor = val;
-				if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				Realm.Client.Core.GameHost.Instance.SetModelDespillPlayerColor(_originalTemplateID, val);
-				Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameHost.Instance.SetModelDespillPlayerColor(_originalTemplateID, val);
+				GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 			}
 		});
 	}
@@ -468,16 +457,16 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private void UpdateModelSpawnShader(string selectedKey)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
-		Realm.Client.Core.GameHost.Instance.SetModelSpawnShader(_originalTemplateID, selectedKey);
-		Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+		if (GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
+		GameHost.Instance.SetModelSpawnShader(_originalTemplateID, selectedKey);
+		GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 	}
 
 	private void UpdateModelDeathShader(string selectedKey)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
-		Realm.Client.Core.GameHost.Instance.SetModelDeathShader(_originalTemplateID, selectedKey);
-		Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+		if (GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
+		GameHost.Instance.SetModelDeathShader(_originalTemplateID, selectedKey);
+		GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 	}
 
 	private void BuildProceduralAnimationControls(VBoxContainer contentVBox)
@@ -486,10 +475,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		{
 			if (_isSyncing) return;
 			_enableProceduralAnimation = pressed;
-			if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				Realm.Client.Core.GameHost.Instance.SetModelEnableProceduralAnimation(_originalTemplateID, pressed);
-				Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameHost.Instance.SetModelEnableProceduralAnimation(_originalTemplateID, pressed);
+				GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 			}
 		});
 
@@ -506,10 +495,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			var currentConfigs = ProceduralAnimationManager.LoadAllConfigs();
 			string selectedKey = idx > 0 && idx - 1 < currentConfigs.Count ? currentConfigs.ElementAt(idx - 1).Key : "";
 			_proceduralAnimation = selectedKey;
-			if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+			if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				Realm.Client.Core.GameHost.Instance.SetModelProceduralAnimation(_originalTemplateID, selectedKey);
-				Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameHost.Instance.SetModelProceduralAnimation(_originalTemplateID, selectedKey);
+				GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 			}
 		}, 140f);
 	}
@@ -531,7 +520,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private void HandleOpenSocketsAndVfx()
 	{
 		string targetKey = GetTargetKey();
-		bool isBuilding = _objectType == "building" || (Realm.Client.Core.GameHost.BuildingRegistry?.ContainsKey(targetKey) == true);
+		bool isBuilding = _objectType == "building" || (GameHost.BuildingRegistry?.ContainsKey(targetKey) == true);
 		string defaultSocket = isBuilding ? "Center" : "RightHand";
 		Node3D sourceModel = _currentSelectedObject as Node3D;
 		Hud?.OpenObjectAttachmentDialog(targetKey, null, defaultSocket, sourceModel, orient => HandleAttachmentOrientation(targetKey));
@@ -546,20 +535,20 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private string GetSelectedMesh(string targetKey)
 	{
 		if (!string.IsNullOrEmpty(_modelPath)) return _modelPath;
-		return Realm.Client.Core.GameHost.Instance?.GetModelAssetKey(_currentSelectedObject ?? (object)targetKey) ?? targetKey;
+		return GameHost.Instance?.GetModelAssetKey(_currentSelectedObject ?? (object)targetKey) ?? targetKey;
 	}
 
 	private void HandleAttachmentOrientation(string targetKey)
 	{
-		if (_currentSelectedObject is Realm.Client.Unit3D u)
+		if (_currentSelectedObject is Unit3D u)
 		{
 			u.ApplyAllConfiguredAttachments();
 			return;
 		}
-		
-		if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(targetKey))
+
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(targetKey))
 		{
-			Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(targetKey);
+			GameHost.Instance.RefreshAllPlacedObjectModels(targetKey);
 		}
 	}
 
@@ -580,21 +569,21 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		{
 			return currentConfigs.ElementAt(_optProceduralAnim.Selected - 1).Key;
 		}
-		
+
 		if (!string.IsNullOrEmpty(_proceduralAnimation)) return _proceduralAnimation;
-		
-		if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 		{
-			return Realm.Client.Core.GameHost.Instance.GetModelProceduralAnimation(_originalTemplateID) ?? "";
+			return GameHost.Instance.GetModelProceduralAnimation(_originalTemplateID) ?? "";
 		}
-		
+
 		return "";
 	}
 
 	private void HandleProceduralAnimationStudioDialogSaved(ProceduralAnimationConfig savedCfg)
 	{
 		if (savedCfg == null) return;
-		
+
 		_proceduralAnimation = savedCfg.Id;
 		_enableProceduralAnimation = true;
 		if (_chkEnableProceduralAnim != null) _chkEnableProceduralAnim.ButtonPressed = true;
@@ -605,11 +594,11 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private void UpdateModelProceduralAnimation(string animId)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
-		
-		Realm.Client.Core.GameHost.Instance.SetModelProceduralAnimation(_originalTemplateID, animId);
-		Realm.Client.Core.GameHost.Instance.SetModelEnableProceduralAnimation(_originalTemplateID, true);
-		Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+		if (GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
+
+		GameHost.Instance.SetModelProceduralAnimation(_originalTemplateID, animId);
+		GameHost.Instance.SetModelEnableProceduralAnimation(_originalTemplateID, true);
+		GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 	}
 
 	private void UpdateRiggedAnimationButtonVisibility()
@@ -625,7 +614,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		if (!string.Equals(_visualMode, "Mesh", StringComparison.OrdinalIgnoreCase)) return false;
 
 		string meshPath = ResolveMeshPathForRigging();
-		
+
 		if (!string.IsNullOrEmpty(meshPath) && TryCheckModelCacheForRigging(meshPath, out bool isRigged))
 		{
 			return isRigged;
@@ -637,14 +626,16 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private string ResolveMeshPathForRigging()
 	{
 		string meshPath = !string.IsNullOrEmpty(_modelPath) ? _modelPath : "";
-		if (string.IsNullOrEmpty(meshPath) && _currentSelectedObject is Realm.Client.Prop3D prop)
+		if (string.IsNullOrEmpty(meshPath) && _currentSelectedObject is Prop3D prop)
 		{
 			meshPath = prop.ModelAssetPath;
 		}
-		if (string.IsNullOrEmpty(meshPath) && Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
+
+		if (string.IsNullOrEmpty(meshPath) && GameHost.Instance != null && !string.IsNullOrEmpty(_originalTemplateID))
 		{
-			meshPath = Realm.Client.Core.GameHost.Instance.GetModelAssetKey(_originalTemplateID) ?? "";
+			meshPath = GameHost.Instance.GetModelAssetKey(_originalTemplateID) ?? "";
 		}
+
 		return meshPath;
 	}
 
@@ -657,11 +648,13 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			string resolved = ModelCache.ResolveModelPath(meshPath);
 			if (!string.IsNullOrEmpty(resolved)) loadedNode = ModelCache.GetModel(resolved);
 		}
+
 		if (loadedNode != null)
 		{
 			isRigged = SkeletonValidator.FindSkeleton(loadedNode) != null;
 			return true;
 		}
+
 		return false;
 	}
 
@@ -670,11 +663,11 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		if (_currentSelectedObject == null || !GodotObject.IsInstanceValid(_currentSelectedObject)) return false;
 
 		Node modelRoot = _currentSelectedObject;
-		if (_currentSelectedObject is Realm.Client.Unit3D u && u.ModelNode != null)
+		if (_currentSelectedObject is Unit3D u && u.ModelNode != null)
 		{
 			modelRoot = u.ModelNode;
 		}
-		else if (_currentSelectedObject is Realm.Client.Prop3D p)
+		else if (_currentSelectedObject is Prop3D p)
 		{
 			modelRoot = p.GetNodeOrNull<Node3D>("VisualModel") ?? _currentSelectedObject;
 		}
@@ -693,13 +686,14 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				return;
 			}
 		}
+
 		_optVisualMode.Select(0);
 	}
 
 
 	private List<string> ScanCompatibleModels(bool allFolders)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		bool isMesh = string.Equals(_visualMode, "Mesh", StringComparison.OrdinalIgnoreCase);
@@ -743,12 +737,12 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		{
 			var assets = MapAssetHelper.LoadAssets(wsPath);
 			if (assets == null) return;
-			
+
 			foreach (var groupKvp in assets.GetAllCategories())
 			{
 				bool matches = allFolders || IsCategoryMatch(groupKvp.Key);
 				if (!matches) continue;
-				
+
 				foreach (var itemKvp in groupKvp.Value)
 				{
 					if (itemKvp.Key.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
@@ -758,13 +752,15 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private bool IsCategoryMatch(string groupName)
 	{
 		if (string.IsNullOrEmpty(groupName)) return false;
-		
+
 		return _category switch
 		{
 			"units" => IsUnitGroup(groupName),
@@ -777,32 +773,32 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private bool IsUnitGroup(string groupName)
 	{
-		return groupName.Equals("Character", StringComparison.OrdinalIgnoreCase) || 
-		       groupName.Equals("units", StringComparison.OrdinalIgnoreCase) || 
+		return groupName.Equals("Character", StringComparison.OrdinalIgnoreCase) ||
+		       groupName.Equals("units", StringComparison.OrdinalIgnoreCase) ||
 		       groupName.Equals("characters", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private bool IsBuildingGroup(string groupName)
 	{
-		return groupName.Equals("Building", StringComparison.OrdinalIgnoreCase) || 
+		return groupName.Equals("Building", StringComparison.OrdinalIgnoreCase) ||
 		       groupName.Equals("buildings", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private bool IsResourceGroup(string groupName)
 	{
-		return groupName.Equals("Resource", StringComparison.OrdinalIgnoreCase) || 
-		       groupName.Equals("resources", StringComparison.OrdinalIgnoreCase) || 
-		       groupName.Equals("Prop", StringComparison.OrdinalIgnoreCase) || 
+		return groupName.Equals("Resource", StringComparison.OrdinalIgnoreCase) ||
+		       groupName.Equals("resources", StringComparison.OrdinalIgnoreCase) ||
+		       groupName.Equals("Prop", StringComparison.OrdinalIgnoreCase) ||
 		       groupName.Equals("props", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private bool IsPropGroup(string groupName)
 	{
-		return groupName.Equals("Prop", StringComparison.OrdinalIgnoreCase) || 
-		       groupName.Equals("props", StringComparison.OrdinalIgnoreCase) || 
-		       groupName.Equals("Item", StringComparison.OrdinalIgnoreCase) || 
-		       groupName.Equals("items", StringComparison.OrdinalIgnoreCase) || 
-		       groupName.Equals("Resource", StringComparison.OrdinalIgnoreCase) || 
+		return groupName.Equals("Prop", StringComparison.OrdinalIgnoreCase) ||
+		       groupName.Equals("props", StringComparison.OrdinalIgnoreCase) ||
+		       groupName.Equals("Item", StringComparison.OrdinalIgnoreCase) ||
+		       groupName.Equals("items", StringComparison.OrdinalIgnoreCase) ||
+		       groupName.Equals("Resource", StringComparison.OrdinalIgnoreCase) ||
 		       groupName.Equals("resources", StringComparison.OrdinalIgnoreCase);
 	}
 
@@ -814,7 +810,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		foreach (var baseLoc in baseLocations)
 		{
 			if (!Directory.Exists(baseLoc)) continue;
-			
+
 			ScanSubDirectories(baseLoc, modelSubFolders, results);
 			ScanTopDirectory(baseLoc, results);
 		}
@@ -885,7 +881,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		string[] candidateFolders = new[]
 		{
@@ -914,7 +912,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private List<string> ScanPortraitModels(bool allFolders)
 	{
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 		LoadPortraitMetadata(wsPath, results);
@@ -967,7 +965,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 	}
 
 	private void ScanFallbackAssets(bool allFolders, HashSet<string> results)
@@ -994,8 +994,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		if (!fullId.Equals(_originalTemplateID, StringComparison.OrdinalIgnoreCase))
 		{
-			string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-			if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta != null)
 			{
 				bool exists = _category switch
 				{
@@ -1024,14 +1024,14 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		if (selectedObject == null || !GodotObject.IsInstanceValid(selectedObject))
 			return ("units", string.Empty);
 
-		string objectId = Realm.Client.Core.GameHost.Instance?.GetSelectedEntityOrAssetKey(selectedObject) ?? string.Empty;
+		string objectId = GameHost.Instance?.GetSelectedEntityOrAssetKey(selectedObject) ?? string.Empty;
 
-		if (selectedObject is Realm.Client.Unit3D unit)
+		if (selectedObject is Unit3D unit)
 		{
 			return ResolveUnitCategoryAndId(unit, objectId);
 		}
 
-		if (selectedObject is Realm.Client.Prop3D prop)
+		if (selectedObject is Prop3D prop)
 		{
 			return ResolvePropCategoryAndId(prop, objectId);
 		}
@@ -1039,18 +1039,18 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		return ResolvePrefixOrRegistryCategoryAndId(objectId);
 	}
 
-	private static (string Category, string ObjectId) ResolveUnitCategoryAndId(Realm.Client.Unit3D unit, string objectId)
+	private static (string Category, string ObjectId) ResolveUnitCategoryAndId(Unit3D unit, string objectId)
 	{
 		string cat = unit.IsBuilding ? "buildings" : "units";
 		string id = !string.IsNullOrEmpty(unit.UnitId) ? unit.UnitId : objectId;
 		return (cat, id);
 	}
 
-	private static (string Category, string ObjectId) ResolvePropCategoryAndId(Realm.Client.Prop3D prop, string objectId)
+	private static (string Category, string ObjectId) ResolvePropCategoryAndId(Prop3D prop, string objectId)
 	{
 		string id = !string.IsNullOrEmpty(prop.PropId) ? prop.PropId : objectId;
 		string cat = (id.StartsWith("resource/", StringComparison.OrdinalIgnoreCase) ||
-					  (Realm.Client.Core.GameHost.ResourceRegistry != null && Realm.Client.Core.GameHost.ResourceRegistry.ContainsKey(id)))
+		              (GameHost.ResourceRegistry != null && GameHost.ResourceRegistry.ContainsKey(id)))
 			? "resources"
 			: "props";
 		return (cat, id);
@@ -1069,20 +1069,60 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private static bool TryGetCategoryFromPrefix(string objectId, out string category)
 	{
-		if (objectId.StartsWith("unit/", StringComparison.OrdinalIgnoreCase)) { category = "units"; return true; }
-		if (objectId.StartsWith("building/", StringComparison.OrdinalIgnoreCase)) { category = "buildings"; return true; }
-		if (objectId.StartsWith("resource/", StringComparison.OrdinalIgnoreCase)) { category = "resources"; return true; }
-		if (objectId.StartsWith("prop/", StringComparison.OrdinalIgnoreCase)) { category = "props"; return true; }
+		if (objectId.StartsWith("unit/", StringComparison.OrdinalIgnoreCase))
+		{
+			category = "units";
+			return true;
+		}
+
+		if (objectId.StartsWith("building/", StringComparison.OrdinalIgnoreCase))
+		{
+			category = "buildings";
+			return true;
+		}
+
+		if (objectId.StartsWith("resource/", StringComparison.OrdinalIgnoreCase))
+		{
+			category = "resources";
+			return true;
+		}
+
+		if (objectId.StartsWith("prop/", StringComparison.OrdinalIgnoreCase))
+		{
+			category = "props";
+			return true;
+		}
+
 		category = null;
 		return false;
 	}
 
 	private static bool TryGetCategoryFromRegistry(string objectId, out string category)
 	{
-		if (Realm.Client.Core.GameHost.BuildingRegistry != null && Realm.Client.Core.GameHost.BuildingRegistry.ContainsKey(objectId)) { category = "buildings"; return true; }
-		if (Realm.Client.Core.GameHost.UnitRegistry != null && Realm.Client.Core.GameHost.UnitRegistry.ContainsKey(objectId)) { category = "units"; return true; }
-		if (Realm.Client.Core.GameHost.ResourceRegistry != null && Realm.Client.Core.GameHost.ResourceRegistry.ContainsKey(objectId)) { category = "resources"; return true; }
-		if (Realm.Client.Core.GameHost.PropRegistry != null && Realm.Client.Core.GameHost.PropRegistry.ContainsKey(objectId)) { category = "props"; return true; }
+		if (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(objectId))
+		{
+			category = "buildings";
+			return true;
+		}
+
+		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.ContainsKey(objectId))
+		{
+			category = "units";
+			return true;
+		}
+
+		if (GameHost.ResourceRegistry != null && GameHost.ResourceRegistry.ContainsKey(objectId))
+		{
+			category = "resources";
+			return true;
+		}
+
+		if (GameHost.PropRegistry != null && GameHost.PropRegistry.ContainsKey(objectId))
+		{
+			category = "props";
+			return true;
+		}
+
 		category = null;
 		return false;
 	}
@@ -1095,75 +1135,79 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		switch (category)
 		{
 			case "units":
-				if (Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(sn, out var u))
+				if (GameHost.UnitRegistry.TryGetValue(sn, out var u))
 				{
 					u.ModelPath = modelPath;
 					u.VisualMode = visualMode;
-					Realm.Client.Core.GameHost.UnitRegistry[sn] = u;
+					GameHost.UnitRegistry[sn] = u;
 				}
 				else
 				{
-					Realm.Client.Core.GameHost.UnitRegistry[sn] = new UnitMetadata
+					GameHost.UnitRegistry[sn] = new UnitMetadata
 					{
 						TemplateID = key,
 						ModelPath = modelPath,
 						VisualMode = visualMode
 					};
 				}
+
 				break;
 
 			case "buildings":
-				if (Realm.Client.Core.GameHost.BuildingRegistry.TryGetValue(sn, out var b))
+				if (GameHost.BuildingRegistry.TryGetValue(sn, out var b))
 				{
 					b.ModelPath = modelPath;
 					b.VisualMode = visualMode;
-					Realm.Client.Core.GameHost.BuildingRegistry[sn] = b;
+					GameHost.BuildingRegistry[sn] = b;
 				}
 				else
 				{
-					Realm.Client.Core.GameHost.BuildingRegistry[sn] = new UnitMetadata
+					GameHost.BuildingRegistry[sn] = new UnitMetadata
 					{
 						TemplateID = key,
 						ModelPath = modelPath,
 						VisualMode = visualMode
 					};
 				}
+
 				break;
 
 			case "resources":
-				if (Realm.Client.Core.GameHost.ResourceRegistry.TryGetValue(sn, out var r))
+				if (GameHost.ResourceRegistry.TryGetValue(sn, out var r))
 				{
 					r.ModelPath = modelPath;
 					r.VisualMode = visualMode;
-					Realm.Client.Core.GameHost.ResourceRegistry[sn] = r;
+					GameHost.ResourceRegistry[sn] = r;
 				}
 				else
 				{
-					Realm.Client.Core.GameHost.ResourceRegistry[sn] = new ResourceMetadata
+					GameHost.ResourceRegistry[sn] = new ResourceMetadata
 					{
 						TemplateID = key,
 						ModelPath = modelPath,
 						VisualMode = visualMode
 					};
 				}
+
 				break;
 
 			case "props":
-				if (Realm.Client.Core.GameHost.PropRegistry.TryGetValue(sn, out var p))
+				if (GameHost.PropRegistry.TryGetValue(sn, out var p))
 				{
 					p.ModelPath = modelPath;
 					p.VisualMode = visualMode;
-					Realm.Client.Core.GameHost.PropRegistry[sn] = p;
+					GameHost.PropRegistry[sn] = p;
 				}
 				else
 				{
-					Realm.Client.Core.GameHost.PropRegistry[sn] = new PropMetadata
+					GameHost.PropRegistry[sn] = new PropMetadata
 					{
 						TemplateID = key,
 						ModelPath = modelPath,
 						VisualMode = visualMode
 					};
 				}
+
 				break;
 		}
 	}
@@ -1171,36 +1215,37 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private void ApplyLiveModelAndVisualMode()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
+		if (GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
 
 		ApplyToMultipleRegistries();
 
-		Realm.Client.Prop3D.InvalidateModelPathCache(_originalTemplateID);
+		Prop3D.InvalidateModelPathCache(_originalTemplateID);
 		ModelCache.InvalidateModelPath(_originalTemplateID);
 		if (!string.IsNullOrEmpty(_modelPath))
 		{
-			Realm.Client.Prop3D.InvalidateModelPathCache(_modelPath);
+			Prop3D.InvalidateModelPathCache(_modelPath);
 			ModelCache.InvalidateModelPath(_modelPath);
 		}
 
-		Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+		GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 
 		if (!string.IsNullOrEmpty(_slug))
 		{
-			Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels($"{_objectType}/{_slug}");
+			GameHost.Instance.RefreshAllPlacedObjectModels($"{_objectType}/{_slug}");
 		}
 
 		if (_currentSelectedObject != null && GodotObject.IsInstanceValid(_currentSelectedObject))
 		{
-			if (_currentSelectedObject is Realm.Client.Unit3D u3d)
+			if (_currentSelectedObject is Unit3D u3d)
 			{
-				string fallbackModel = Realm.Client.Core.GameHost.Instance.GetFallbackModelPath(_modelPath, u3d.IsBuilding);
+				string fallbackModel = GameHost.Instance.GetFallbackModelPath(_modelPath, u3d.IsBuilding);
 				u3d.LoadModel(fallbackModel);
 			}
-			else if (_currentSelectedObject is Realm.Client.Prop3D p3d)
+			else if (_currentSelectedObject is Prop3D p3d)
 			{
 				p3d.RefreshPropVisual();
 			}
+
 			_modelLocalMinY = CalculateModelLocalMinY(_currentSelectedObject);
 		}
 
@@ -1223,19 +1268,19 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			UpdateStaticRegistryModelAndVisualMode(_category, _slug, _modelPath, _visualMode);
 		}
 
-		if (_currentSelectedObject is Realm.Client.Unit3D unit && !string.IsNullOrEmpty(unit.UnitId))
+		if (_currentSelectedObject is Unit3D unit && !string.IsNullOrEmpty(unit.UnitId))
 		{
 			UpdateStaticRegistryModelAndVisualMode(_category, unit.UnitId, _modelPath, _visualMode);
 		}
-		else if (_currentSelectedObject is Realm.Client.Prop3D prop && !string.IsNullOrEmpty(prop.PropId))
+		else if (_currentSelectedObject is Prop3D prop && !string.IsNullOrEmpty(prop.PropId))
 		{
 			UpdateStaticRegistryModelAndVisualMode(_category, prop.PropId, _modelPath, _visualMode);
 		}
 	}
 
-public void OpenForObject(Node selectedObject)
+	public void OpenForObject(Node selectedObject)
 	{
-		if (selectedObject == null || !GodotObject.IsInstanceValid(selectedObject) || Realm.Client.Core.GameHost.Instance == null) return;
+		if (selectedObject == null || !GodotObject.IsInstanceValid(selectedObject) || GameHost.Instance == null) return;
 		var (category, objectId) = ResolveObjectCategoryAndId(selectedObject);
 		if (string.IsNullOrEmpty(objectId)) return;
 		OpenForObject(category, objectId, null, selectedObject);
@@ -1254,8 +1299,8 @@ public void OpenForObject(Node selectedObject)
 
 		InitializeModelProperties(targetLookup, _slug);
 
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var meta) && meta != null)
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta != null)
 		{
 			LoadMetadataByCategory(meta, objectId);
 		}
@@ -1275,7 +1320,7 @@ public void OpenForObject(Node selectedObject)
 		_category = (category ?? "units").ToLowerInvariant();
 		_objectType = DetermineObjectType(_category);
 		_originalTemplateID = objectId ?? "";
-		
+
 		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(objectId);
 		_slug = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug : TemplateIDHelper.GenerateSlug(objectId);
 		_onAppliedCallback = onApplied;
@@ -1284,7 +1329,7 @@ public void OpenForObject(Node selectedObject)
 	private float CalculateInitialModelLocalMinY(Node selectedObject)
 	{
 		if (selectedObject != null) return CalculateModelLocalMinY(selectedObject);
-		var editorObj = Realm.Client.Core.GameHost.Instance?.SelectedEditorObject;
+		var editorObj = GameHost.Instance?.SelectedEditorObject;
 		return editorObj != null ? CalculateModelLocalMinY(editorObj) : 0f;
 	}
 
@@ -1349,7 +1394,7 @@ public void OpenForObject(Node selectedObject)
 
 	private void InitializeModelProperties(object targetLookup, string parsedSlug)
 	{
-		var host = Realm.Client.Core.GameHost.Instance;
+		var host = GameHost.Instance;
 		if (host != null)
 		{
 			LoadPropertiesFromHost(host, targetLookup);
@@ -1358,16 +1403,16 @@ public void OpenForObject(Node selectedObject)
 		{
 			SetDefaultModelProperties();
 		}
-		
+
 		ValidateModelPath();
-		
+
 		_portraitModelPath = "";
 		_visualMode = DetermineVisualMode();
 		_name = !string.IsNullOrEmpty(parsedSlug) ? parsedSlug.Replace("_", " ") : _originalTemplateID;
 		_description = "";
 	}
 
-	private void LoadPropertiesFromHost(Realm.Client.Core.GameHost host, object targetLookup)
+	private void LoadPropertiesFromHost(GameHost host, object targetLookup)
 	{
 		_scale = host.GetModelScale(targetLookup);
 		_yOffset = host.GetModelYOffset(targetLookup);
@@ -1403,10 +1448,10 @@ public void OpenForObject(Node selectedObject)
 
 	private void ValidateModelPath()
 	{
-		if (!string.IsNullOrEmpty(_modelPath) && 
-			!_modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && 
-			!_modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) && 
-			!_modelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
+		if (!string.IsNullOrEmpty(_modelPath) &&
+		    !_modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) &&
+		    !_modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) &&
+		    !_modelPath.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
 		{
 			_modelPath = "";
 		}
@@ -1414,14 +1459,14 @@ public void OpenForObject(Node selectedObject)
 
 	private string DetermineVisualMode()
 	{
-		return (_modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) || 
-				_modelPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || 
-				_modelPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)) 
-				? "GroundPlane" 
-				: "Mesh";
+		return (_modelPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ||
+		        _modelPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+		        _modelPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+			? "GroundPlane"
+			: "Mesh";
 	}
 
-private void LoadFromUnitMetadata(UnitMetadata u)
+	private void LoadFromUnitMetadata(UnitMetadata u)
 	{
 		ApplyBaseMetadataProperties(u.TemplateID, u.ModelPath, u.PortraitModelPath, u.VisualMode, u.Name, u.Description, u.Scale, u.YOffset, u.CollisionCircle, u.Brightness, u.Tint, u.NormalizeLuminance, u.IgnorePlayerColor, u.DespillPlayerColor, u.SpawnShader, u.DeathShader);
 	}
@@ -1451,6 +1496,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 		{
 			_modelPath = modelPath;
 		}
+
 		if (!string.IsNullOrEmpty(portraitModelPath) && portraitModelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
 		{
 			_portraitModelPath = portraitModelPath;
@@ -1486,11 +1532,11 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 	{
 		string normKey = NormalizeModelAssetKey(templateId);
 		string normModel = !string.IsNullOrEmpty(modelPath) ? NormalizeModelAssetKey(modelPath) : "";
-		if (Realm.Client.Core.GameHost.Instance != null && (!string.IsNullOrEmpty(normKey) || !string.IsNullOrEmpty(normModel)))
+		if (GameHost.Instance != null && (!string.IsNullOrEmpty(normKey) || !string.IsNullOrEmpty(normModel)))
 		{
-			string procAnim = Realm.Client.Core.GameHost.Instance.GetModelProceduralAnimation(templateId);
+			string procAnim = GameHost.Instance.GetModelProceduralAnimation(templateId);
 			if (!string.IsNullOrEmpty(procAnim)) _proceduralAnimation = procAnim;
-			_enableProceduralAnimation = Realm.Client.Core.GameHost.Instance.GetModelEnableProceduralAnimation(templateId);
+			_enableProceduralAnimation = GameHost.Instance.GetModelEnableProceduralAnimation(templateId);
 		}
 	}
 
@@ -1598,7 +1644,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 		RefreshProceduralAnimationDropdown(_proceduralAnimation);
 	}
 
-	private void PopulateShaderDropdowns(System.Collections.Generic.Dictionary<string, Realm.Client.Utils.CustomShaderConfig> allShaders)
+	private void PopulateShaderDropdowns(Dictionary<string, CustomShaderConfig> allShaders)
 	{
 		if (_optSpawnShader != null)
 		{
@@ -1621,19 +1667,19 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 		}
 	}
 
-	private void SelectActiveShaders(System.Collections.Generic.Dictionary<string, Realm.Client.Utils.CustomShaderConfig> allShaders)
+	private void SelectActiveShaders(Dictionary<string, CustomShaderConfig> allShaders)
 	{
 		int spawnIdx = 0;
 		int deathIdx = 0;
 		int sIdx = 1;
-		
+
 		foreach (var s in allShaders)
 		{
 			if (string.Equals(s.Key, _spawnShader, StringComparison.OrdinalIgnoreCase)) spawnIdx = sIdx;
 			if (string.Equals(s.Key, _deathShader, StringComparison.OrdinalIgnoreCase)) deathIdx = sIdx;
 			sIdx++;
 		}
-		
+
 		if (_optSpawnShader != null) _optSpawnShader.Selected = spawnIdx;
 		if (_optDeathShader != null) _optDeathShader.Selected = deathIdx;
 	}
@@ -1654,12 +1700,12 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 			{
 				selectedIdx = idx;
 			}
+
 			idx++;
 		}
 
 		_optProceduralAnim.Selected = selectedIdx;
 	}
-
 
 
 	protected override void OnApply()
@@ -1675,7 +1721,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 		string deathKey = GetSelectedDeathShaderKey();
 
 		string newTemplateID = $"{_objectType}/{_slug}";
-		string wsPath = Services.MapWorkspaceService.GetActiveWorkspacePath();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
 		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase))
 		{
@@ -1685,8 +1731,8 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 		var currentSnapshot = CreateVisualOverridesSnapshot(spawnKey, deathKey, animKey);
 
 		UpdateMetadata(wsPath, newTemplateID, spawnKey, deathKey);
-		
-		if (Realm.Client.Core.GameHost.Instance != null)
+
+		if (GameHost.Instance != null)
 		{
 			FlushAndRefreshGameHost(newTemplateID, spawnKey, deathKey, animKey, wsPath, currentSnapshot);
 		}
@@ -1706,6 +1752,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 				return animConfigs.ElementAt(_optProceduralAnim.Selected - 1).Key;
 			}
 		}
+
 		return "";
 	}
 
@@ -1719,6 +1766,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 				return currentShaders.ElementAt(_optSpawnShader.Selected - 1).Key;
 			}
 		}
+
 		return "";
 	}
 
@@ -1732,6 +1780,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 				return currentShaders.ElementAt(_optDeathShader.Selected - 1).Key;
 			}
 		}
+
 		return "";
 	}
 
@@ -1758,7 +1807,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 
 	private void UpdateMetadata(string wsPath, string newTemplateID, string spawnKey, string deathKey)
 	{
-		MetadataService.Instance.UpdateMetadata(wsPath, meta =>
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 		{
 			string tintHex = $"#{_tint.ToHtml(false)}";
 
@@ -1787,37 +1836,37 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
 		{
 			FlushModelPropertiesToGameHost(_originalTemplateID, spawnKey, deathKey, animKey);
-			Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+			GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 		}
 
-		Realm.Client.Core.GameHost.Instance.LoadUnitMetadata(wsPath);
+		GameHost.Instance.LoadUnitMetadata(wsPath);
 
 		InvalidateModelCaches(newTemplateID);
 
 		var action = new EntityVisualEditUndoAction(newTemplateID, _category, _initialSnapshot, currentSnapshot);
 		EditorHistoryManager.RecordAction(action);
 
-		Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(newTemplateID);
+		GameHost.Instance.RefreshAllPlacedObjectModels(newTemplateID);
 		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
 		{
-			Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+			GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 		}
 
 		RefreshCurrentSelectedObject();
 
-		Realm.Client.Core.GameHost.Instance.FlushModelYOffsetSave();
-		Realm.Client.Core.GameHost.Instance.FlushModelCollisionCircleSave();
+		GameHost.Instance.FlushModelYOffsetSave();
+		GameHost.Instance.FlushModelCollisionCircleSave();
 	}
 
 	private void InvalidateModelCaches(string newTemplateID)
 	{
-		Realm.Client.Prop3D.InvalidateModelPathCache(newTemplateID);
+		Prop3D.InvalidateModelPathCache(newTemplateID);
 		ModelCache.InvalidateModelPath(newTemplateID);
-		Realm.Client.Prop3D.InvalidateModelPathCache(_originalTemplateID);
+		Prop3D.InvalidateModelPathCache(_originalTemplateID);
 		ModelCache.InvalidateModelPath(_originalTemplateID);
 		if (!string.IsNullOrEmpty(_modelPath))
 		{
-			Realm.Client.Prop3D.InvalidateModelPathCache(_modelPath);
+			Prop3D.InvalidateModelPathCache(_modelPath);
 			ModelCache.InvalidateModelPath(_modelPath);
 		}
 	}
@@ -1826,12 +1875,12 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 	{
 		if (_currentSelectedObject != null && GodotObject.IsInstanceValid(_currentSelectedObject))
 		{
-			if (_currentSelectedObject is Realm.Client.Unit3D u3d)
+			if (_currentSelectedObject is Unit3D u3d)
 			{
-				string fallbackModel = Realm.Client.Core.GameHost.Instance.GetFallbackModelPath(_modelPath, u3d.IsBuilding);
+				string fallbackModel = GameHost.Instance.GetFallbackModelPath(_modelPath, u3d.IsBuilding);
 				u3d.LoadModel(fallbackModel);
 			}
-			else if (_currentSelectedObject is Realm.Client.Prop3D p3d)
+			else if (_currentSelectedObject is Prop3D p3d)
 			{
 				p3d.RefreshPropVisual();
 			}
@@ -1885,6 +1934,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 			});
 		}
 	}
+
 	private void ApplyBuildingMetadata(MapMetadata meta, string newTemplateID, string tintHex, string spawnKey, string deathKey)
 	{
 		bool updatedB = meta.UpdateBuilding(_originalTemplateID, b =>
@@ -2032,65 +2082,65 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 
 	private void FlushModelPropertiesToGameHost(string templateID, string spawnKey, string deathKey, string animKey)
 	{
-		Realm.Client.Core.GameHost.Instance.SetModelScale(templateID, _scale);
-		Realm.Client.Core.GameHost.Instance.SetModelYOffset(templateID, _yOffset);
-		Realm.Client.Core.GameHost.Instance.SetModelCollisionCircleRatio(templateID, _collisionCircle);
-		Realm.Client.Core.GameHost.Instance.SetModelBrightness(templateID, _brightness);
-		Realm.Client.Core.GameHost.Instance.SetModelColorTint(templateID, _tint);
-		Realm.Client.Core.GameHost.Instance.SetModelNormalizeLuminance(templateID, _normalizeLuminance);
-		Realm.Client.Core.GameHost.Instance.SetModelIgnorePlayerColor(templateID, _ignorePlayerColor);
-		Realm.Client.Core.GameHost.Instance.SetModelDespillPlayerColor(templateID, _despillPlayerColor);
-		Realm.Client.Core.GameHost.Instance.SetModelSpawnShader(templateID, spawnKey);
-		Realm.Client.Core.GameHost.Instance.SetModelDeathShader(templateID, deathKey);
-		Realm.Client.Core.GameHost.Instance.SetModelEnableProceduralAnimation(templateID, _enableProceduralAnimation);
-		Realm.Client.Core.GameHost.Instance.SetModelProceduralAnimation(templateID, animKey);
+		GameHost.Instance.SetModelScale(templateID, _scale);
+		GameHost.Instance.SetModelYOffset(templateID, _yOffset);
+		GameHost.Instance.SetModelCollisionCircleRatio(templateID, _collisionCircle);
+		GameHost.Instance.SetModelBrightness(templateID, _brightness);
+		GameHost.Instance.SetModelColorTint(templateID, _tint);
+		GameHost.Instance.SetModelNormalizeLuminance(templateID, _normalizeLuminance);
+		GameHost.Instance.SetModelIgnorePlayerColor(templateID, _ignorePlayerColor);
+		GameHost.Instance.SetModelDespillPlayerColor(templateID, _despillPlayerColor);
+		GameHost.Instance.SetModelSpawnShader(templateID, spawnKey);
+		GameHost.Instance.SetModelDeathShader(templateID, deathKey);
+		GameHost.Instance.SetModelEnableProceduralAnimation(templateID, _enableProceduralAnimation);
+		GameHost.Instance.SetModelProceduralAnimation(templateID, animKey);
 	}
 
 
 	protected override void OnCancel()
 	{
-		if (Realm.Client.Core.GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
+		if (GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
 
 		RestoreStaticRegistryMode();
 
-		Realm.Client.Core.GameHost.Instance.SetModelScale(_originalTemplateID, _initialSnapshot.Scale);
-		Realm.Client.Core.GameHost.Instance.SetModelYOffset(_originalTemplateID, _initialSnapshot.YOffset);
-		Realm.Client.Core.GameHost.Instance.SetModelCollisionCircleRatio(_originalTemplateID, _initialSnapshot.CollisionCircleRatio);
-		Realm.Client.Core.GameHost.Instance.SetModelBrightness(_originalTemplateID, _initialSnapshot.Brightness);
-		Realm.Client.Core.GameHost.Instance.SetModelColorTint(_originalTemplateID, _initialSnapshot.ColorTint);
-		Realm.Client.Core.GameHost.Instance.SetModelNormalizeLuminance(_originalTemplateID, _initialSnapshot.NormalizeLuminance);
-		Realm.Client.Core.GameHost.Instance.SetModelIgnorePlayerColor(_originalTemplateID, _initialSnapshot.IgnorePlayerColor);
-		Realm.Client.Core.GameHost.Instance.SetModelDespillPlayerColor(_originalTemplateID, _initialSnapshot.DespillPlayerColor);
-		Realm.Client.Core.GameHost.Instance.SetModelSpawnShader(_originalTemplateID, _initialSnapshot.SpawnShader);
-		Realm.Client.Core.GameHost.Instance.SetModelDeathShader(_originalTemplateID, _initialSnapshot.DeathShader);
-		Realm.Client.Core.GameHost.Instance.SetModelEnableProceduralAnimation(_originalTemplateID, _initialSnapshot.EnableProceduralAnimation);
-		Realm.Client.Core.GameHost.Instance.SetModelProceduralAnimation(_originalTemplateID, _initialSnapshot.ProceduralAnimation);
+		GameHost.Instance.SetModelScale(_originalTemplateID, _initialSnapshot.Scale);
+		GameHost.Instance.SetModelYOffset(_originalTemplateID, _initialSnapshot.YOffset);
+		GameHost.Instance.SetModelCollisionCircleRatio(_originalTemplateID, _initialSnapshot.CollisionCircleRatio);
+		GameHost.Instance.SetModelBrightness(_originalTemplateID, _initialSnapshot.Brightness);
+		GameHost.Instance.SetModelColorTint(_originalTemplateID, _initialSnapshot.ColorTint);
+		GameHost.Instance.SetModelNormalizeLuminance(_originalTemplateID, _initialSnapshot.NormalizeLuminance);
+		GameHost.Instance.SetModelIgnorePlayerColor(_originalTemplateID, _initialSnapshot.IgnorePlayerColor);
+		GameHost.Instance.SetModelDespillPlayerColor(_originalTemplateID, _initialSnapshot.DespillPlayerColor);
+		GameHost.Instance.SetModelSpawnShader(_originalTemplateID, _initialSnapshot.SpawnShader);
+		GameHost.Instance.SetModelDeathShader(_originalTemplateID, _initialSnapshot.DeathShader);
+		GameHost.Instance.SetModelEnableProceduralAnimation(_originalTemplateID, _initialSnapshot.EnableProceduralAnimation);
+		GameHost.Instance.SetModelProceduralAnimation(_originalTemplateID, _initialSnapshot.ProceduralAnimation);
 
-		Realm.Client.Prop3D.InvalidateModelPathCache(_originalTemplateID);
+		Prop3D.InvalidateModelPathCache(_originalTemplateID);
 		ModelCache.InvalidateModelPath(_originalTemplateID);
 		if (!string.IsNullOrEmpty(_initialSnapshot.ModelPath))
 		{
-			Realm.Client.Prop3D.InvalidateModelPathCache(_initialSnapshot.ModelPath);
+			Prop3D.InvalidateModelPathCache(_initialSnapshot.ModelPath);
 			ModelCache.InvalidateModelPath(_initialSnapshot.ModelPath);
 		}
 
-		Realm.Client.Core.GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
+		GameHost.Instance.RefreshAllPlacedObjectModels(_originalTemplateID);
 
 		if (_currentSelectedObject != null && GodotObject.IsInstanceValid(_currentSelectedObject))
 		{
-			if (_currentSelectedObject is Realm.Client.Unit3D u3d)
+			if (_currentSelectedObject is Unit3D u3d)
 			{
-				string fallback = Realm.Client.Core.GameHost.Instance.GetFallbackModelPath(_initialSnapshot.ModelPath, u3d.IsBuilding);
+				string fallback = GameHost.Instance.GetFallbackModelPath(_initialSnapshot.ModelPath, u3d.IsBuilding);
 				u3d.LoadModel(fallback);
 			}
-			else if (_currentSelectedObject is Realm.Client.Prop3D p3d)
+			else if (_currentSelectedObject is Prop3D p3d)
 			{
 				p3d.RefreshPropVisual();
 			}
 		}
 
-		Realm.Client.Core.GameHost.Instance.FlushModelYOffsetSave();
-		Realm.Client.Core.GameHost.Instance.FlushModelCollisionCircleSave();
+		GameHost.Instance.FlushModelYOffsetSave();
+		GameHost.Instance.FlushModelCollisionCircleSave();
 		UpdateRiggedAnimationButtonVisibility();
 	}
 
@@ -2110,11 +2160,11 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 			UpdateStaticRegistryModelAndVisualMode(_category, _slug, _initialSnapshot.ModelPath, _initialSnapshot.VisualMode);
 		}
 
-		if (_currentSelectedObject is Realm.Client.Unit3D unit && !string.IsNullOrEmpty(unit.UnitId))
+		if (_currentSelectedObject is Unit3D unit && !string.IsNullOrEmpty(unit.UnitId))
 		{
 			UpdateStaticRegistryModelAndVisualMode(_category, unit.UnitId, _initialSnapshot.ModelPath, _initialSnapshot.VisualMode);
 		}
-		else if (_currentSelectedObject is Realm.Client.Prop3D prop && !string.IsNullOrEmpty(prop.PropId))
+		else if (_currentSelectedObject is Prop3D prop && !string.IsNullOrEmpty(prop.PropId))
 		{
 			UpdateStaticRegistryModelAndVisualMode(_category, prop.PropId, _initialSnapshot.ModelPath, _initialSnapshot.VisualMode);
 		}
@@ -2127,7 +2177,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 			return 0f;
 
 		Node3D visualNode = null;
-		if (selectedObject is Realm.Client.Unit3D unit && unit.ModelNode != null && GodotObject.IsInstanceValid(unit.ModelNode))
+		if (selectedObject is Unit3D unit && unit.ModelNode != null && GodotObject.IsInstanceValid(unit.ModelNode))
 		{
 			visualNode = unit.ModelNode;
 		}
@@ -2153,7 +2203,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 		{
 			CheckMeshBounds(meshInst, visualNode, ref minY, ref foundMesh);
 		}
-		
+
 		foreach (Node child in current.GetChildren())
 		{
 			if (child is BoneAttachment3D) continue;
@@ -2162,7 +2212,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 			if (cName.StartsWith("SocketAttachment_", StringComparison.OrdinalIgnoreCase)) continue;
 			if (cName.StartsWith("Att_", StringComparison.OrdinalIgnoreCase)) continue;
 			if (cName.StartsWith("AttVisual_", StringComparison.OrdinalIgnoreCase)) continue;
-			
+
 			CollectModelMinY(child, visualNode, ref minY, ref foundMesh);
 		}
 	}
@@ -2177,6 +2227,7 @@ private void LoadFromUnitMetadata(UnitMetadata u)
 			{
 				relXform = n3d.Transform * relXform;
 			}
+
 			curr = curr.GetParent();
 		}
 

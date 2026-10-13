@@ -22,17 +22,41 @@ public class MapEditorPathingPanel
 		_optPathingMode = optPathingMode;
 
 		if (_chkShallowWater != null)
-			_chkShallowWater.Toggled += (val) => { if (MapEditorHUD.Instance?.ViewModel != null) MapEditorHUD.Instance.ViewModel.ShallowWater = val; };
+			_chkShallowWater.Toggled += (val) =>
+			{
+				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.ShallowWater = val;
+			};
 		if (_chkDeepWater != null)
-			_chkDeepWater.Toggled += (val) => { if (MapEditorHUD.Instance?.ViewModel != null) MapEditorHUD.Instance.ViewModel.DeepWater = val; };
+			_chkDeepWater.Toggled += (val) =>
+			{
+				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.DeepWater = val;
+			};
 		if (_chkFlying != null)
-			_chkFlying.Toggled += (val) => { if (MapEditorHUD.Instance?.ViewModel != null) MapEditorHUD.Instance.ViewModel.Flying = val; };
+			_chkFlying.Toggled += (val) =>
+			{
+				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.Flying = val;
+			};
 		if (_chkGround != null)
-			_chkGround.Toggled += (val) => { if (MapEditorHUD.Instance?.ViewModel != null) MapEditorHUD.Instance.ViewModel.Ground = val; };
+			_chkGround.Toggled += (val) =>
+			{
+				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.Ground = val;
+			};
 		if (_chkBuildable != null)
-			_chkBuildable.Toggled += (val) => { if (MapEditorHUD.Instance?.ViewModel != null) MapEditorHUD.Instance.ViewModel.Buildable = val; };
+			_chkBuildable.Toggled += (val) =>
+			{
+				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.Buildable = val;
+			};
 		if (_optPathingMode != null)
-			_optPathingMode.ItemSelected += (idx) => { if (MapEditorHUD.Instance?.ViewModel != null) MapEditorHUD.Instance.ViewModel.PathingModeIndex = (int)idx; };
+			_optPathingMode.ItemSelected += (idx) =>
+			{
+				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.PathingModeIndex = (int)idx;
+			};
 	}
 
 	public void Update(MapEditorHUDViewModel viewModel)

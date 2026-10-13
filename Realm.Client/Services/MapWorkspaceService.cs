@@ -1,33 +1,242 @@
-using Godot;
-using Realm.Client.Animation;
-using Realm.Shared.Distribution;
-using Realm.Shared.Services;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Blake3;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.UI;
+using Realm.Ecs.Services;
+using Realm.Shared;
+using Realm.Shared.Distribution;
+using Realm.Shared.Services;
+using Realm.Shared.Textures;
 
 namespace Realm.Client.Services;
 
 public static partial class MapWorkspaceService
 {
+	public static bool IsIgnoredPathDomain(string relativePath)
+	{
+		if (string.IsNullOrEmpty(relativePath)) return false;
+		string normalized = relativePath.Replace('\\', '/');
+		return IsPathIgnoredByRuleDomain(normalized);
+	}
+
+	public static bool IsPathIgnoredByRuleDomain(string normalized)
+	{
+		if (normalized.EndsWith(".rmap", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".log", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
+			Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+
+		return IsIgnoredDirectoryDomain(normalized);
+	}
+
+	public static bool IsIgnoredDirectoryDomain(string normalized)
+	{
+		string[] ignoredDirs = { ".git", ".vs", ".godot", ".idea", "bin", "obj", "map_backups", "map_upgrades", "backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache" };
+		foreach (var dir in ignoredDirs)
+		{
+			if (normalized.StartsWith(dir + "/", StringComparison.OrdinalIgnoreCase) ||
+				normalized.Contains("/" + dir + "/", StringComparison.OrdinalIgnoreCase) ||
+				normalized.Equals(dir, StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public static string? FindExistingWasmFileDomain(string workspace, string? currentSourceFolder)
+	{
+		string? existingWasm = SearchForWasmInDirectoryDomain(Path.Combine(workspace, "bin"));
+
+		if (string.IsNullOrEmpty(existingWasm) && !string.IsNullOrEmpty(currentSourceFolder) && Directory.Exists(currentSourceFolder))
+		{
+			existingWasm = SearchForWasmInDirectoryDomain(Path.Combine(currentSourceFolder, "bin"));
+		}
+
+		return existingWasm;
+	}
+
+	public static string? SearchForWasmInDirectoryDomain(string dir)
+	{
+		if (!Directory.Exists(dir)) return null;
+
+		var wasmFiles = Directory.GetFiles(
+			dir,
+			"*.wasm",
+			SearchOption.AllDirectories
+		).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
+
+		return wasmFiles.FirstOrDefault(f => f.Contains("publish"))
+			   ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
+	}
+
+	public static bool CheckAndCleanCleanExitFileDomain(string cleanExitFile, Action saveCurrentDirectoryBlake3)
+	{
+		if (File.Exists(cleanExitFile))
+		{
+			try
+			{
+				File.Delete(cleanExitFile);
+			}
+			catch
+			{
+			}
+
+			saveCurrentDirectoryBlake3?.Invoke();
+			return true;
+		}
+
+		return false;
+	}
+
+	public static (bool HasSavedFile, bool HasChanges, string SavedHash) CheckLastSaveFileDomain(string editorLastSaveFile, string tempWorkspacePath, Func<string, string> computeDirectoryBlake3)
+	{
+		if (!File.Exists(editorLastSaveFile))
+		{
+			return (false, false, string.Empty);
+		}
+
+		string savedHash = File.ReadAllText(editorLastSaveFile).Trim();
+		string currentHash = computeDirectoryBlake3(tempWorkspacePath);
+
+		bool hasChanges = !string.IsNullOrEmpty(savedHash) && !currentHash.Equals(savedHash, StringComparison.OrdinalIgnoreCase);
+		
+		return (true, hasChanges, savedHash);
+	}
+
+	public static void TryReloadGroundTerrainTexturesSafeDomain(Action resetMapAction)
+	{
+		if (GameHost.Instance?.GroundTerrain == null) return;
+		try
+		{
+			GameHost.Instance.GroundTerrain.ReloadTerrainTextures(false);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"ReloadTerrainTextures error during workspace init: {ex.Message}. Resetting to blank map.");
+			resetMapAction?.Invoke();
+		}
+	}
+
+	public static bool HasUnsavedChangesDomain(Func<string, bool> isIgnoredPathFunc, string tempPath)
+	{
+		if (string.IsNullOrEmpty(tempPath) || !Directory.Exists(tempPath))
+		{
+			return false;
+		}
+
+		if (string.IsNullOrEmpty(GameContext.EditorService.CurrentDirectoryBlake3))
+		{
+			return false;
+		}
+
+		string currentHash = ComputeDirectoryBlake3Domain(tempPath, isIgnoredPathFunc);
+		return !string.Equals(currentHash, GameContext.EditorService.CurrentDirectoryBlake3, StringComparison.OrdinalIgnoreCase);
+	}
+
+	public static string ComputeDirectoryBlake3Domain(string directoryPath, Func<string, bool> isIgnoredPathFunc)
+	{
+		if (string.IsNullOrEmpty(directoryPath) || !Directory.Exists(directoryPath)) return string.Empty;
+
+		try
+		{
+			var files = Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories)
+				.Where(f => !isIgnoredPathFunc(f.Substring(directoryPath.Length).TrimStart('/', '\\')))
+				.OrderBy(f => Path.GetRelativePath(directoryPath, f).Replace('\\', '/'), StringComparer.OrdinalIgnoreCase)
+				.ToList();
+
+			using var hasher = Hasher.New();
+			byte[] buffer = new byte[65536];
+
+			foreach (var file in files)
+			{
+				try
+				{
+					string relPath = Path.GetRelativePath(directoryPath, file).Replace('\\', '/');
+					byte[] pathBytes = Encoding.UTF8.GetBytes(relPath);
+					hasher.Update(pathBytes);
+
+					using var fs = File.OpenRead(file);
+					int read;
+					while ((read = fs.Read(buffer, 0, buffer.Length)) > 0)
+					{
+						hasher.Update(new ReadOnlySpan<byte>(buffer, 0, read));
+					}
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"[ComputeDirectoryBlake3] Error hashing {file}: {ex.Message}");
+				}
+			}
+
+			return hasher.Finalize().ToString();
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[ComputeDirectoryBlake3] Error scanning directory {directoryPath}: {ex.Message}");
+			return string.Empty;
+		}
+	}
+
+	public static void SaveCurrentDirectoryBlake3Domain(string saveFilePath, Func<string, bool> isIgnoredPathFunc)
+	{
+		string workspacePath = GameContext.EditorService._tempWorkspacePath;
+		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
+		try
+		{
+			string hash = ComputeDirectoryBlake3Domain(workspacePath, isIgnoredPathFunc);
+			GameContext.EditorService.CurrentDirectoryBlake3 = hash;
+			File.WriteAllText(saveFilePath, hash);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[SaveCurrentDirectoryBlake3] Error writing editor_last_save.txt: {ex.Message}");
+		}
+	}
+
+	public static void WriteCleanExitMarkerDomain(string cleanExitFilePath)
+	{
+		File.WriteAllText(cleanExitFilePath, GameContext.EditorService.CurrentDirectoryBlake3 ?? string.Empty);
+	}
+
+	public static void OpenFromCasDomain(string defaultSaveFolder, Func<string, bool> isRestrictedSaveDirectoryFunc, Action<string> saveSettingsAction)
+	{
+		GameContext.EditorService.LastUsedFolder = defaultSaveFolder;
+		GameContext.EditorService.CurrentSourceFolder = defaultSaveFolder;
+		if (!isRestrictedSaveDirectoryFunc(defaultSaveFolder))
+		{
+			saveSettingsAction?.Invoke(defaultSaveFolder);
+		}
+	}
+
 	public const string DefaultWorkspaceFolder = "temp_map_workspace";
 	public const string DefaultWorkspaceGodotPath = "user://temp_map_workspace";
 
 	public static string GetDefaultWorkspaceGlobalPath() =>
-		global::Godot.ProjectSettings.GlobalizePath(DefaultWorkspaceGodotPath);
+		ProjectSettings.GlobalizePath(DefaultWorkspaceGodotPath);
 
 	public static string GetActiveWorkspacePath()
 	{
-		if (!string.IsNullOrEmpty(UI.MapEditorHUD.Instance?.TempWorkspacePath))
-			return UI.MapEditorHUD.Instance.TempWorkspacePath;
-		if (Realm.Client.Core.GameHost.Instance != null && !string.IsNullOrEmpty(Realm.Client.Core.GameHost.Instance.CurrentMapDirectory))
-			return Realm.Client.Core.GameHost.Instance.CurrentMapDirectory;
+		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
+			return GameContext.EditorService._tempWorkspacePath;
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
+			return GameContext.MapStorageService.CurrentMapDirectory;
 		return GetDefaultWorkspaceGlobalPath();
 	}
 
@@ -47,8 +256,10 @@ public static partial class MapWorkspaceService
 				_cachedRepoRoot = current.FullName.Replace("\\", "/");
 				return _cachedRepoRoot;
 			}
+
 			current = current.Parent;
 		}
+
 		GD.PushWarning("[MapWorkspaceService] Could not locate the Realm repository (Realm.sln or Realm.MapAPI not found above res://). Template files and the MapAPI DLL will not be available.");
 		return null;
 	}
@@ -101,7 +312,7 @@ public static partial class MapWorkspaceService
 		EnsureWasmEntryPoint(directory);
 		EnsureMetadataJson(directory);
 		EnsureLicenseFile(directory);
-		Realm.Client.Utils.MapAssetHelper.EnsureManifestJson(directory);
+		MapAssetHelper.EnsureManifestJson(directory);
 		EnsureSolutionFile(directory, mapName);
 		NormalizeMetadataTextureEntries(directory);
 		EnsureGlbAssetsOptimized(directory);
@@ -111,7 +322,7 @@ public static partial class MapWorkspaceService
 
 	public static void EnsureNoiseTexturesGenerated(string directory)
 	{
-		Realm.Client.Services.NoiseTextureGenerator.EnsureAllNoiseTexturesGenerated(directory);
+		NoiseTextureGenerator.EnsureAllNoiseTexturesGenerated(directory);
 	}
 
 	public static void CleanWorkspaceDirectory(string targetDir)
@@ -126,6 +337,7 @@ public static partial class MapWorkspaceService
 				{
 					File.SetAttributes(file, fileAttributes & ~FileAttributes.ReadOnly);
 				}
+
 				File.Delete(file);
 			}
 
@@ -156,14 +368,14 @@ public static partial class MapWorkspaceService
 		foreach (var file in allFiles)
 		{
 			string relativePath = file.Substring(sourceFolder.Length + 1);
-			if (UI.MapEditorHUD.IsIgnoredPath(relativePath)) continue;
+			if (MapEditorHUD.IsIgnoredPath(relativePath)) continue;
 
 			string targetFile = Path.Combine(targetWorkspacePath, relativePath);
 			string? targetDir = Path.GetDirectoryName(targetFile);
-			
+
 			if (!string.IsNullOrEmpty(targetDir) && createdDirs.Add(targetDir))
 				Directory.CreateDirectory(targetDir);
-				
+
 			filesToProcess.Add((file, targetFile, PathUtils.IsMutableMapFileType(relativePath)));
 		}
 
@@ -199,6 +411,7 @@ public static partial class MapWorkspaceService
 							File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
 						}
 					}
+
 					Directory.Delete(targetDir, true);
 				}
 				catch (Exception ex)
@@ -280,6 +493,7 @@ public static partial class MapWorkspaceService
 				GD.PushWarning($"[MapWorkspaceService] Could not generate {Path.GetFileName(csprojPath)}: map script template not found at {templatePath ?? "n/a"}");
 				return;
 			}
+
 			string csprojContent = File.ReadAllText(templatePath);
 			csprojContent = NormalizeMapApiReference(csprojContent);
 			File.WriteAllText(csprojPath, csprojContent);
@@ -320,6 +534,7 @@ public static partial class MapWorkspaceService
 			PathUtils.CopyFileClearingReadOnly(templatePath, configPath);
 			return;
 		}
+
 		File.WriteAllText(configPath, CanonicalNugetConfigContent);
 	}
 
@@ -337,7 +552,7 @@ public static partial class MapWorkspaceService
 				content = content.Insert(closingSourcesIndex, entryToAdd);
 				return true;
 			}
-			
+
 			int closingConfigIndex = content.IndexOf("</configuration>", StringComparison.OrdinalIgnoreCase);
 			if (closingConfigIndex >= 0)
 			{
@@ -345,11 +560,11 @@ public static partial class MapWorkspaceService
 				content = content.Insert(closingConfigIndex, sectionToAdd);
 				return true;
 			}
-			
+
 			content = CanonicalNugetConfigContent;
 			return true;
 		}
-		
+
 		if (!content.Contains(experimentalUrl, StringComparison.OrdinalIgnoreCase))
 		{
 			content = Regex.Replace(content, @"<add\s+key\s*=\s*""dotnet-experimental""\s+value\s*=\s*""[^""]*""\s*/>",
@@ -376,7 +591,7 @@ public static partial class MapWorkspaceService
 			}
 
 			string content = File.ReadAllText(configPath);
-			
+
 			if (TryUpdateNugetContent(ref content))
 			{
 				var fileAttributes = File.GetAttributes(configPath);
@@ -384,6 +599,7 @@ public static partial class MapWorkspaceService
 				{
 					File.SetAttributes(configPath, fileAttributes & ~FileAttributes.ReadOnly);
 				}
+
 				File.WriteAllText(configPath, content);
 			}
 		}
@@ -550,10 +766,10 @@ public static partial class MapWorkspaceService
 
 	private static string? FindBestApiDllSource()
 	{
-		var candidates = new System.Collections.Generic.List<string>();
+		var candidates = new List<string>();
 		string builtDll = FindBuiltApiDll();
 		if (builtDll != null) candidates.Add(builtDll);
-		
+
 		string templateDll = GetTemplatePath("lib/Realm.MapAPI.dll");
 		if (templateDll != null && File.Exists(templateDll)) candidates.Add(templateDll);
 
@@ -565,7 +781,7 @@ public static partial class MapWorkspaceService
 	private static void ProcessApiLibFile(string sourceDll, string fileName, string libDir)
 	{
 		string source = Path.Combine(Path.GetDirectoryName(sourceDll), fileName);
-		
+
 		if (!File.Exists(source))
 		{
 			string templateAlt = GetTemplatePath("lib/" + fileName);
@@ -576,13 +792,15 @@ public static partial class MapWorkspaceService
 		if (!File.Exists(source)) return;
 
 		string dest = Path.Combine(libDir, fileName);
-		
+
 		try
 		{
 			if (ShouldCopyApiLibFile(source, dest))
 				File.Copy(source, dest, true);
 		}
-		catch (IOException) { }
+		catch (IOException)
+		{
+		}
 	}
 
 	private static bool ShouldCopyApiLibFile(string source, string dest)
@@ -591,12 +809,12 @@ public static partial class MapWorkspaceService
 
 		var srcInfo = new FileInfo(source);
 		var dstInfo = new FileInfo(dest);
-		
+
 		if (srcInfo.Length != dstInfo.Length) return true;
 
 		byte[] srcBytes = File.ReadAllBytes(source);
 		byte[] dstBytes = File.ReadAllBytes(dest);
-		
+
 		return !srcBytes.AsSpan().SequenceEqual(dstBytes);
 	}
 
@@ -646,7 +864,7 @@ public static partial class MapWorkspaceService
 			}
 			else
 			{
-				MetadataService.Instance.SaveMetadata(metadataPath, new MapMetadata());
+				GameContext.MetadataService.SaveMetadata(metadataPath, new MapMetadata());
 			}
 		}
 
@@ -654,7 +872,7 @@ public static partial class MapWorkspaceService
 		{
 			try
 			{
-				MetadataService.Instance.UpdateMetadata(directory, meta => MetadataService.Instance.CleanMetadata(meta));
+				GameContext.MetadataService.UpdateMetadata(directory, meta => GameContext.MetadataService.CleanMetadata(meta));
 			}
 			catch (Exception ex)
 			{
@@ -668,7 +886,7 @@ public static partial class MapWorkspaceService
 			string templateAssetsDir = Path.Combine(Path.GetDirectoryName(templateMetaPath), "Assets");
 			if (Directory.Exists(templateAssetsDir))
 			{
-				Realm.Client.Animation.RealmDefaultAnimations.EnsureDefaultTemplateAnimations(templateAssetsDir);
+				RealmDefaultAnimations.EnsureDefaultTemplateAnimations(templateAssetsDir);
 				string destAssetsDir = Path.Combine(directory, "Assets");
 				foreach (var assetFile in Directory.GetFiles(templateAssetsDir, "*", SearchOption.AllDirectories))
 				{
@@ -683,7 +901,7 @@ public static partial class MapWorkspaceService
 			}
 		}
 
-		Realm.Client.Animation.RealmDefaultAnimations.EnsureDefaultTemplateAnimations(Path.Combine(directory, "Assets"));
+		RealmDefaultAnimations.EnsureDefaultTemplateAnimations(Path.Combine(directory, "Assets"));
 		EnsureLicenseFile(directory);
 	}
 
@@ -743,8 +961,8 @@ please visit the URL above.
 		{
 			try
 			{
-				Realm.Shared.NativeToolRunner.RunTool("dotnet", $"new sln -n {DefaultWorkspaceFolder}", timeoutMs: 15000, workingDir: directory);
-				Realm.Shared.NativeToolRunner.RunTool("dotnet", $"sln add {mapName}.csproj", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool("dotnet", $"new sln -n {DefaultWorkspaceFolder}", timeoutMs: 15000, workingDir: directory);
+				NativeToolRunner.RunTool("dotnet", $"sln add {mapName}.csproj", timeoutMs: 15000, workingDir: directory);
 			}
 			catch
 			{
@@ -781,11 +999,15 @@ please visit the URL above.
 	private static bool ProcessGlbFiles(string[] glbFiles, string workspacePath)
 	{
 		bool anyReimported = false;
-		var optimizer = new Realm.Shared.GlbOptimizer();
-		var options = new Realm.Shared.OptimizationOptions
+		var optimizer = new GlbOptimizer();
+		var options = new OptimizationOptions
 		{
-			SimplificationRatio = 0.5f, AllowedPixelError = 1.5f, MaxTextureResolution = 1024,
-			ForceReDecimate = false, CompressTextures = true, GenerateLods = true
+			SimplificationRatio = 0.5f,
+			AllowedPixelError = 1.5f,
+			MaxTextureResolution = 1024,
+			ForceReDecimate = false,
+			CompressTextures = true,
+			GenerateLods = true
 		};
 
 		foreach (string glbPath in glbFiles)
@@ -799,14 +1021,15 @@ please visit the URL above.
 
 			anyReimported |= TryOptimizeGlb(glbPath, workspacePath, optimizer, options, lastWrite);
 		}
+
 		return anyReimported;
 	}
 
 	private static bool IsPathIgnored(string path)
 	{
 		string normalized = path.Replace("\\", "/");
-		return normalized.Contains("/bin/") || normalized.Contains("/obj/") || normalized.Contains("/.git/") || 
-		       normalized.Contains("/.godot/") || normalized.Contains("/vscode_embedded/") || normalized.Contains("/wasi_sdk_embedded/");
+		return normalized.Contains("/bin/") || normalized.Contains("/obj/") || normalized.Contains("/.git/") ||
+			   normalized.Contains("/.godot/") || normalized.Contains("/vscode_embedded/") || normalized.Contains("/wasi_sdk_embedded/");
 	}
 
 	private static bool TryGetFileWriteTime(string path, out DateTime lastWrite)
@@ -823,7 +1046,7 @@ please visit the URL above.
 		}
 	}
 
-	private static bool TryOptimizeGlb(string glbPath, string workspacePath, Realm.Shared.GlbOptimizer optimizer, Realm.Shared.OptimizationOptions options, DateTime lastWrite)
+	private static bool TryOptimizeGlb(string glbPath, string workspacePath, GlbOptimizer optimizer, OptimizationOptions options, DateTime lastWrite)
 	{
 		byte[] glbBytes = null;
 		try
@@ -859,7 +1082,7 @@ please visit the URL above.
 			string animsDir = Path.Combine(workspacePath, "Assets", "animations");
 			Directory.CreateDirectory(animsDir);
 			var extractedAnims = MixamoAnimationImporter.ExtractAnimationsFromGlb(glbPath);
-			
+
 			foreach (var (animName, animData) in extractedAnims)
 			{
 				string animFileName = $"{animName.ToLowerInvariant()}.ranim";
@@ -881,12 +1104,13 @@ please visit the URL above.
 		{
 			GD.PrintErr($"[MapWorkspaceService] Animation extraction error for {fileName}: {ex.Message}");
 		}
+
 		return null;
 	}
 
-	private static bool PerformGlbOptimization(string glbPath, string workspacePath, string fileName, byte[] glbBytes, Realm.Shared.GlbOptimizer optimizer, Realm.Shared.OptimizationOptions options, DateTime lastWrite)
+	private static bool PerformGlbOptimization(string glbPath, string workspacePath, string fileName, byte[] glbBytes, GlbOptimizer optimizer, OptimizationOptions options, DateTime lastWrite)
 	{
-		Realm.Shared.OptimizationResult optResult = default;
+		OptimizationResult optResult = default;
 		try
 		{
 			optResult = optimizer.Optimize(glbBytes, options);
@@ -902,7 +1126,7 @@ please visit the URL above.
 		{
 			return SaveOptimizedGlb(workspacePath, glbPath, fileName, optResult);
 		}
-		
+
 		_optimizedFlagCache[glbPath] = (lastWrite, true);
 		GD.PrintErr($"[MapWorkspaceService] Optimization failed for {fileName}: {optResult.ErrorMessage}");
 		return false;
@@ -911,11 +1135,11 @@ please visit the URL above.
 
 	private static bool IsIgnoredGlbPath(string normalized)
 	{
-		return normalized.Contains("/bin/") || normalized.Contains("/obj/") || normalized.Contains("/.git/") || 
-		       normalized.Contains("/.godot/") || normalized.Contains("/vscode_embedded/") || normalized.Contains("/wasi_sdk_embedded/");
+		return normalized.Contains("/bin/") || normalized.Contains("/obj/") || normalized.Contains("/.git/") ||
+			   normalized.Contains("/.godot/") || normalized.Contains("/vscode_embedded/") || normalized.Contains("/wasi_sdk_embedded/");
 	}
 
-	private static List<string> GetUnoptimizedGlbFiles(string[] glbFiles, Realm.Shared.GlbOptimizer optimizer)
+	private static List<string> GetUnoptimizedGlbFiles(string[] glbFiles, GlbOptimizer optimizer)
 	{
 		var unoptimizedList = new List<string>();
 		foreach (string glbPath in glbFiles)
@@ -935,6 +1159,7 @@ please visit the URL above.
 
 			unoptimizedList.Add(glbPath);
 		}
+
 		return unoptimizedList;
 	}
 
@@ -953,6 +1178,7 @@ please visit the URL above.
 			return false;
 		}
 	}
+
 	private static async Task NotifyModelProgressAsync(Func<int, int, string, Task>? onModelProgress, int index, int total, string fileName)
 	{
 		if (onModelProgress == null) return;
@@ -994,12 +1220,13 @@ please visit the URL above.
 		{
 			GD.PrintErr($"[MapWorkspaceService] Animation extraction error for {fileName}: {ex.Message}");
 		}
+
 		return glbBytes;
 	}
 
-	private static bool TryOptimizeAndSaveGlb(string workspacePath, string glbPath, string fileName, byte[] glbBytes, DateTime lastWrite, Realm.Shared.GlbOptimizer optimizer, Realm.Shared.OptimizationOptions options)
+	private static bool TryOptimizeAndSaveGlb(string workspacePath, string glbPath, string fileName, byte[] glbBytes, DateTime lastWrite, GlbOptimizer optimizer, OptimizationOptions options)
 	{
-		Realm.Shared.OptimizationResult optResult = default;
+		OptimizationResult optResult = default;
 		try
 		{
 			optResult = optimizer.Optimize(glbBytes, options);
@@ -1023,7 +1250,7 @@ please visit the URL above.
 		}
 	}
 
-		private static bool SaveOptimizedGlb(string workspacePath, string glbPath, string fileName, Realm.Shared.OptimizationResult optResult)
+	private static bool SaveOptimizedGlb(string workspacePath, string glbPath, string fileName, OptimizationResult optResult)
 	{
 		try
 		{
@@ -1032,6 +1259,7 @@ please visit the URL above.
 			{
 				File.SetAttributes(glbPath, attrs & ~FileAttributes.ReadOnly);
 			}
+
 			File.Delete(glbPath);
 			File.WriteAllBytes(glbPath, optResult.OutputGlbBytes);
 
@@ -1051,7 +1279,7 @@ please visit the URL above.
 		}
 	}
 
-	private static async Task<bool> TryOptimizeSingleGlbAsync(string workspacePath, string glbPath, string fileName, int index, int count, Realm.Shared.GlbOptimizer optimizer, Realm.Shared.OptimizationOptions options, Func<int, int, string, Task>? onModelProgress)
+	private static async Task<bool> TryOptimizeSingleGlbAsync(string workspacePath, string glbPath, string fileName, int index, int count, GlbOptimizer optimizer, OptimizationOptions options, Func<int, int, string, Task>? onModelProgress)
 	{
 		await NotifyModelProgressAsync(onModelProgress, index, count, fileName);
 
@@ -1062,7 +1290,7 @@ please visit the URL above.
 		}
 
 		GD.Print($"[MapWorkspaceService] GLB asset '{fileName}' ({index + 1}/{count}) is missing realm_optimize_completed extras. Optimizing into workspace...");
-		
+
 		glbBytes = ExtractAndStripAnimations(workspacePath, glbPath, fileName, glbBytes);
 
 		return TryOptimizeAndSaveGlb(workspacePath, glbPath, fileName, glbBytes, lastWrite, optimizer, options);
@@ -1094,8 +1322,8 @@ please visit the URL above.
 		string[] glbFiles = Directory.GetFiles(assetsDir, "*.glb", SearchOption.AllDirectories);
 		if (glbFiles.Length == 0) return;
 
-		var optimizer = new Realm.Shared.GlbOptimizer();
-		var options = new Realm.Shared.OptimizationOptions
+		var optimizer = new GlbOptimizer();
+		var options = new OptimizationOptions
 		{
 			SimplificationRatio = 0.5f,
 			AllowedPixelError = 1.5f,
@@ -1133,7 +1361,7 @@ please visit the URL above.
 
 		string fileName = Path.GetFileName(pngPath);
 		string cleanName = Path.GetFileNameWithoutExtension(pngPath);
-		
+
 		if (TryDetectFromMapAssets(workspacePath, fileName, cleanName, metadata, out var mapAssetInfo))
 			return mapAssetInfo;
 
@@ -1146,6 +1374,7 @@ please visit the URL above.
 		{
 			return valNode.GetValue<int>();
 		}
+
 		return defaultValue;
 	}
 
@@ -1158,10 +1387,10 @@ please visit the URL above.
 		try
 		{
 			if (JsonNode.Parse(metaJson) is not JsonObject node) return false;
-			
+
 			if (!node.TryGetPropertyValue("type", out var typeNode)) return false;
 			if (typeNode == null) return false;
-			
+
 			string? type = typeNode.GetValue<string>();
 			if (string.IsNullOrEmpty(type)) return false;
 
@@ -1171,24 +1400,27 @@ please visit the URL above.
 			{
 				defaultGrid = 1;
 			}
-			
+
 			int cols = GetJsonIntOrDefault(node, "columns", defaultGrid);
 			int rows = GetJsonIntOrDefault(node, "rows", defaultGrid);
-			
+
 			info = (type, cols, rows);
 			return true;
 		}
-		catch { return false; }
+		catch
+		{
+			return false;
+		}
 	}
 
 	private static bool ContainsAssetKey(Dictionary<string, string>? dict, string fileName, string cleanName)
 	{
 		if (dict == null) return false;
-		
+
 		if (dict.ContainsKey(fileName) || dict.ContainsKey($"{cleanName}.rtex")) return true;
-		
-		return dict.Any(kvp => 
-			kvp.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase) || 
+
+		return dict.Any(kvp =>
+			kvp.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase) ||
 			kvp.Key.EndsWith($"/{cleanName}.rtex", StringComparison.OrdinalIgnoreCase));
 	}
 
@@ -1248,14 +1480,14 @@ please visit the URL above.
 	private static (string AssetType, int Columns, int Rows) DetectFromPathHeuristics(string pngPath)
 	{
 		string normalized = pngPath.Replace("\\", "/").ToLowerInvariant();
-		
+
 		if (normalized.Contains("/assets/decals/")) return ("decal", 1, 1);
 		if (normalized.Contains("/assets/icons/")) return ("icon", 4, 4);
 		if (normalized.Contains("/assets/skyboxes/")) return ("skybox", 4, 4);
 		if (normalized.Contains("/assets/vfx/")) return ("vfx_spritesheet", 4, 4);
 		if (normalized.Contains("/assets/ribbons/")) return ("ribbon_texture", 4, 4);
 		if (normalized.Contains("/assets/noise/")) return ("noise_texture", 4, 4);
-		
+
 		return ("terrain_texture", 4, 4);
 	}
 
@@ -1281,7 +1513,7 @@ please visit the URL above.
 			{
 				string slug = TemplateIDHelper.GenerateSlug(rtexFileName);
 				string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
-				MetadataService.Instance.UpdateMetadata(workspacePath, m =>
+				GameContext.MetadataService.UpdateMetadata(workspacePath, m =>
 				{
 					m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
 					m.VfxSpritesheets[spritesheetTemplateId] = new VfxMetadata
@@ -1296,7 +1528,7 @@ please visit the URL above.
 			{
 				string slug = TemplateIDHelper.GenerateSlug(rtexFileName);
 				string terrainTemplateId = TemplateIDHelper.NormalizeTemplateID("terrain", slug);
-				MetadataService.Instance.UpdateMetadata(workspacePath, m =>
+				GameContext.MetadataService.UpdateMetadata(workspacePath, m =>
 				{
 					m.Textures ??= new(StringComparer.OrdinalIgnoreCase);
 					if (!m.Textures.TryGetValue(terrainTemplateId, out var tex))
@@ -1304,11 +1536,12 @@ please visit the URL above.
 						tex = new TextureMetadata();
 						m.Textures[terrainTemplateId] = tex;
 					}
+
 					tex.TexturePath = rtexFileName;
 					if (tex.ScaleFactor <= 0.0001f)
 					{
 						string fullRtexPath = Path.Combine(workspacePath, "Assets", "textures", rtexFileName);
-						float sf = Realm.Shared.Textures.TextureConverter.CalculateLuminanceScaleFactor(fullRtexPath);
+						float sf = TextureConverter.CalculateLuminanceScaleFactor(fullRtexPath);
 						tex.ScaleFactor = sf <= 0.0001f ? 1.0f : sf;
 					}
 				});
@@ -1332,7 +1565,7 @@ please visit the URL above.
 			string[] pngFiles = Directory.GetFiles(assetsDir, "*.png", SearchOption.AllDirectories);
 			if (pngFiles.Length == 0) return;
 
-			MetadataService.Instance.TryLoadMetadata(workspacePath, out var metadataRoot);
+			GameContext.MetadataService.TryLoadMetadata(workspacePath, out var metadataRoot);
 
 			foreach (string pngPath in pngFiles)
 			{
@@ -1353,12 +1586,12 @@ please visit the URL above.
 		string rtexPath = Path.ChangeExtension(pngPath, ".rtex");
 
 		var (assetType, columns, rows) = DetectPngAssetInfo(workspacePath, pngPath, metadataRoot);
-		
+
 		string progressStr = index.HasValue && totalFiles.HasValue ? $" ({index.Value + 1}/{totalFiles.Value})" : "";
 		GD.Print($"[MapWorkspaceService] Converting PNG asset '{pngFileName}'{progressStr} (type: {assetType}) to .rtex...");
 
-		var convResult = Realm.Shared.Textures.TextureConverter.ConvertTextureFile(pngPath, rtexPath, assetType, columns, rows);
-		
+		var convResult = TextureConverter.ConvertTextureFile(pngPath, rtexPath, assetType, columns, rows);
+
 		if (convResult.Success && File.Exists(rtexPath))
 		{
 			FinalizePngConversion(pngPath, rtexPath, workspacePath, pngFileName, rtexFileName, assetType, columns, rows);
@@ -1381,7 +1614,7 @@ please visit the URL above.
 			var attrs = File.GetAttributes(pngPath);
 			if ((attrs & FileAttributes.ReadOnly) != 0)
 				File.SetAttributes(pngPath, attrs & ~FileAttributes.ReadOnly);
-				
+
 			File.Delete(pngPath);
 			GD.Print($"[MapWorkspaceService] Successfully converted '{pngFileName}' to '{rtexFileName}'.");
 		}
@@ -1408,12 +1641,12 @@ please visit the URL above.
 			var validPngs = pngFiles.Where(f => !IsPathIgnored(f)).ToList();
 			if (validPngs.Count == 0) return;
 
-			MetadataService.Instance.TryLoadMetadata(workspacePath, out var metadataRoot);
+			GameContext.MetadataService.TryLoadMetadata(workspacePath, out var metadataRoot);
 
 			for (int i = 0; i < validPngs.Count; i++)
 			{
 				string pngPath = validPngs[i];
-				
+
 				if (onTextureProgress != null)
 				{
 					try
@@ -1438,38 +1671,41 @@ please visit the URL above.
 	public static float ExtractRtexScaleFactor(string rtexPath)
 	{
 		if (string.IsNullOrEmpty(rtexPath) || !File.Exists(rtexPath)) return 1.0f;
-		
+
 		try
 		{
 			string? rtexMeta = RealmMetadataHelper.ExtractMetadata(rtexPath);
 			if (string.IsNullOrEmpty(rtexMeta)) return 1.0f;
-			
+
 			var rNode = JsonNode.Parse(rtexMeta);
 			if (rNode is not JsonObject rObj) return 1.0f;
 
 			var keys = new[] { "Scale_Factor", "scale_factor", "scaleFactor", "ScaleFactor" };
 			foreach (var key in keys)
 			{
-				if (rObj.TryGetPropertyValue(key, out var sfVal) && 
-				    float.TryParse(sfVal?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedScale))
+				if (rObj.TryGetPropertyValue(key, out var sfVal) &&
+					float.TryParse(sfVal?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedScale))
 				{
 					return Math.Clamp(parsedScale, 0.10f, 4.0f);
 				}
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return 1.0f;
 	}
 
 	public static bool NormalizeTextureEntries(JsonObject root, string? wsPath = null)
 	{
 		if (root == null || !(root["textures"] is JsonObject texturesObj)) return false;
-		
+
 		bool modified = false;
 		modified |= ConvertSimpleHashesToObjects(texturesObj);
 		modified |= EnsureUniqueSwatchIndices(texturesObj);
 		modified |= EnsureScaleFactors(texturesObj, wsPath);
-		
+
 		return modified;
 	}
 
@@ -1477,7 +1713,7 @@ please visit the URL above.
 	{
 		bool modified = false;
 		var entriesToConvert = new List<(string Key, string Hash)>();
-		
+
 		foreach (var kvp in texturesObj)
 		{
 			if (kvp.Value is JsonValue val && val.TryGetValue<string>(out string hashStr))
@@ -1489,6 +1725,7 @@ please visit the URL above.
 			texturesObj[k] = new JsonObject { ["hash"] = h };
 			modified = true;
 		}
+
 		return modified;
 	}
 
@@ -1496,9 +1733,9 @@ please visit the URL above.
 	{
 		foreach (var kvp in texturesObj)
 		{
-			if (kvp.Value is JsonObject texObj && 
-			    texObj.TryGetPropertyValue("swatchIndex", out var sIdxNode) && 
-			    sIdxNode != null && int.TryParse(sIdxNode.ToString(), out int parsedIdx) && parsedIdx >= 0)
+			if (kvp.Value is JsonObject texObj &&
+				texObj.TryGetPropertyValue("swatchIndex", out var sIdxNode) &&
+				sIdxNode != null && int.TryParse(sIdxNode.ToString(), out int parsedIdx) && parsedIdx >= 0)
 			{
 				usedIndices.Add(parsedIdx);
 			}
@@ -1513,18 +1750,19 @@ please visit the URL above.
 		{
 			if (kvp.Value is not JsonObject texObj) continue;
 
-			bool hasValidIdx = texObj.TryGetPropertyValue("swatchIndex", out var sIdxNode) && 
-			                   sIdxNode != null && int.TryParse(sIdxNode.ToString(), out int parsedIdx) && parsedIdx >= 0;
-			
+			bool hasValidIdx = texObj.TryGetPropertyValue("swatchIndex", out var sIdxNode) &&
+							   sIdxNode != null && int.TryParse(sIdxNode.ToString(), out int parsedIdx) && parsedIdx >= 0;
+
 			if (hasValidIdx) continue;
 
 			while (usedIndices.Contains(nextAvailable))
 				nextAvailable++;
-				
+
 			texObj["swatchIndex"] = nextAvailable;
 			usedIndices.Add(nextAvailable);
 			modified = true;
 		}
+
 		return modified;
 	}
 
@@ -1542,9 +1780,9 @@ please visit the URL above.
 		{
 			if (kvp.Value is not JsonObject texObj) continue;
 
-			bool hasValidSf = texObj.TryGetPropertyValue("Scale_Factor", out var sfNode) && 
-			                  sfNode != null && float.TryParse(sfNode.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedSf) && parsedSf > 0.0001f;
-			
+			bool hasValidSf = texObj.TryGetPropertyValue("Scale_Factor", out var sfNode) &&
+							  sfNode != null && float.TryParse(sfNode.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedSf) && parsedSf > 0.0001f;
+
 			if (!hasValidSf)
 			{
 				float sf = CalculateTextureScaleFactor(kvp.Key, wsPath);
@@ -1552,6 +1790,7 @@ please visit the URL above.
 				modified = true;
 			}
 		}
+
 		return modified;
 	}
 
@@ -1565,8 +1804,8 @@ please visit the URL above.
 		float rtexSf = ExtractRtexScaleFactor(rtexPath);
 		if (rtexSf > 0.0001f && MathF.Abs(rtexSf - 1.0f) > 0.001f)
 			return rtexSf;
-			
-		float calcSf = Realm.Shared.Textures.TextureConverter.CalculateLuminanceScaleFactor(rtexPath);
+
+		float calcSf = TextureConverter.CalculateLuminanceScaleFactor(rtexPath);
 		return calcSf > 0.0001f ? calcSf : 1.0f;
 	}
 
@@ -1576,7 +1815,7 @@ please visit the URL above.
 		{
 			string p1 = Path.Combine(wsPath, "Assets", "textures", rtexFileName);
 			if (File.Exists(p1)) return p1;
-			
+
 			string p2 = Path.Combine(wsPath, rtexFileName);
 			if (File.Exists(p2)) return p2;
 		}
@@ -1625,7 +1864,7 @@ please visit the URL above.
 	{
 		try
 		{
-			Realm.Client.Utils.MapAssetHelper.UpdateManifestAsset(workspacePath, "animations", animFileName, newHash);
+			MapAssetHelper.UpdateManifestAsset(workspacePath, "animations", animFileName, newHash);
 		}
 		catch (Exception ex)
 		{

@@ -1,8 +1,8 @@
-using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
+using Godot;
 
 namespace Realm.Client.Utils;
 
@@ -49,6 +49,7 @@ public static partial class TemplateIDHelper
 		{
 			index++;
 		}
+
 		return $"{baseSlug}_{index}";
 	}
 
@@ -66,6 +67,7 @@ public static partial class TemplateIDHelper
 		{
 			index++;
 		}
+
 		return $"{objectType}/{baseSlug}_{index}";
 	}
 
@@ -76,6 +78,7 @@ public static partial class TemplateIDHelper
 		{
 			set.Add(sn.ToString());
 		}
+
 		return GenerateTemplateID(objectType, assetFileNameOrName, set);
 	}
 
@@ -95,6 +98,7 @@ public static partial class TemplateIDHelper
 		{
 			return (objectId.Substring(0, slashIdx), objectId.Substring(slashIdx + 1));
 		}
+
 		return (string.Empty, objectId);
 	}
 }

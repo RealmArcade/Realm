@@ -1,7 +1,7 @@
 namespace Realm.AdminServer.Models;
 
 public record JoinResponseDto(
-	string HostIP, 
+	string HostIP,
 	int HostPort,
 	string? LocalIP = null
 );

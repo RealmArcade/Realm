@@ -1,78 +1,88 @@
-using Realm.Client.Core;
-using Realm.Client.Network;
-using Realm.Client.Services;
-using Realm.Client.UI;
-
-namespace Realm.Client.Tests;
-
-using GdUnit4;
-using Godot;
-using Realm.Ecs.Services;
-using Realm.Shared;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using GdUnit4;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Ecs.Services;
+using Realm.MapAPI;
+using Realm.Shared;
+using Environment = System.Environment;
+using Vector3 = System.Numerics.Vector3;
+
+namespace Realm.Client.Tests;
 
 [TestSuite]
 [RequireGodotRuntime]
 public class SimulationTests
 {
-    [TestCase]
-    public async Task TestMeleePathingAroundTree()
-    {
-        if (LobbyManager.Instance == null)
-        {
-            return;
-        }
+	[TestCase]
+	public async Task TestMeleePathingAroundTree()
+	{
+		if (LobbyManager.Instance == null)
+		{
+			return;
+		}
 
-        SetupSinglePlayerLobby("melee");
+		SetupSinglePlayerLobby("melee");
 
-        ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
-        await runner.AwaitMillis(1000);
+		ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
+		await runner.AwaitMillis(1000);
 
-        GameHost gameHost = Realm.Client.Core.GameHost.Instance;
-        if (gameHost == null)
-        {
-            return;
-        }
+		GameHost gameHost = GameHost.Instance;
+		if (gameHost == null)
+		{
+			return;
+		}
 
-        Unit3D worker = SetupWorkerAndMove(gameHost);
-        if (worker == null)
-        {
-            return;
-        }
+		Unit3D worker = SetupWorkerAndMove(gameHost);
+		if (worker == null)
+		{
+			return;
+		}
 
-        await runner.AwaitMillis(100);
-        VerifyPathFollowComponent(gameHost, worker);
+		await runner.AwaitMillis(100);
+		VerifyPathFollowComponent(gameHost, worker);
 
-        await TakeSimulationScreenshots(runner, "Realm_Simulation_NonWasm_Screenshots");
-    }
+		await TakeSimulationScreenshots(runner, "Realm_Simulation_NonWasm_Screenshots");
+	}
 
-    [TestCase]
-    public async Task TestWasmMeleePathingAroundTree()
-    {
-        if (LobbyManager.Instance == null)
-        {
-            return;
-        }
+	[TestCase]
+	public async Task TestWasmMeleePathingAroundTree()
+	{
+		if (LobbyManager.Instance == null)
+		{
+			return;
+		}
 
-        string tempMapDir = Path.Combine(Path.GetTempPath(), "Realm_Simulation_WasmTestMap");
-        if (Directory.Exists(tempMapDir))
-        {
-            try { Directory.Delete(tempMapDir, true); } catch {}
-        }
-        Directory.CreateDirectory(tempMapDir);
+		string tempMapDir = Path.Combine(Path.GetTempPath(), "Realm_Simulation_WasmTestMap");
+		if (Directory.Exists(tempMapDir))
+		{
+			try
+			{
+				Directory.Delete(tempMapDir, true);
+			}
+			catch
+			{
+			}
+		}
 
-        MapWorkspaceService.SetupWorkspace(tempMapDir, "TestWasmMap");
+		Directory.CreateDirectory(tempMapDir);
 
-        string generatedCsproj = File.ReadAllText(Path.Combine(tempMapDir, "TestWasmMap.csproj"));
-        Assertions.AssertThat(!generatedCsproj.Contains("C:")).IsTrue();
-        Assertions.AssertThat(generatedCsproj.Contains("lib/Realm.MapAPI.dll")).IsTrue();
-        Assertions.AssertThat(File.Exists(Path.Combine(tempMapDir, "lib", "Realm.MapAPI.dll"))).IsTrue();
+		MapWorkspaceService.SetupWorkspace(tempMapDir, "TestWasmMap");
 
-        string mapScript = @"
+		string generatedCsproj = File.ReadAllText(Path.Combine(tempMapDir, "TestWasmMap.csproj"));
+		Assertions.AssertThat(!generatedCsproj.Contains("C:")).IsTrue();
+		Assertions.AssertThat(generatedCsproj.Contains("lib/Realm.MapAPI.dll")).IsTrue();
+		Assertions.AssertThat(File.Exists(Path.Combine(tempMapDir, "lib", "Realm.MapAPI.dll"))).IsTrue();
+
+		string mapScript = @"
 namespace Realm.Maps;
 
 using Realm.MapAPI;
@@ -96,363 +106,386 @@ public class TestWasmMap : IWasmModule
 
     public void Update(IGameAPI api, float delta) { }
 }";
-        File.WriteAllText(Path.Combine(tempMapDir, "MapScript.cs"), mapScript);
+		File.WriteAllText(Path.Combine(tempMapDir, "MapScript.cs"), mapScript);
 
-        string wasmPath = CompileWasmProgram(tempMapDir);
-        
-        SetupSinglePlayerLobby(Path.GetFullPath("Realm.ClientMaps/melee"));
-        Realm.Client.Core.GameHost.PendingMapScriptPath = wasmPath;
+		string wasmPath = CompileWasmProgram(tempMapDir);
 
-        WasmLogTracker tracker = AttachWasmLogListener();
+		SetupSinglePlayerLobby(Path.GetFullPath("Realm.ClientMaps/melee"));
+		GameHost.PendingMapScriptPath = wasmPath;
 
-        ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
-        await runner.AwaitMillis(1000);
+		WasmLogTracker tracker = AttachWasmLogListener();
 
-        GameHost gameHost = Realm.Client.Core.GameHost.Instance;
-        if (gameHost == null)
-        {
-            Core.WasmRuntime.OnWasmLog -= tracker.Listener;
-            return;
-        }
+		ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
+		await runner.AwaitMillis(1000);
 
-        await WaitAndVerifyWasmLogs(runner, tracker);
+		GameHost gameHost = GameHost.Instance;
+		if (gameHost == null)
+		{
+			WasmRuntime.OnWasmLog -= tracker.Listener;
+			return;
+		}
 
-        Unit3D worker = await FindWorkerUnitAsync(gameHost, runner);
-        await runner.AwaitMillis(100);
-        VerifyWasmPathFollowComponent(gameHost, worker);
+		await WaitAndVerifyWasmLogs(runner, tracker);
 
-        await TakeSimulationScreenshots(runner, "Realm_Simulation_Wasm_Screenshots");
-    }
+		Unit3D worker = await FindWorkerUnitAsync(gameHost, runner);
+		await runner.AwaitMillis(100);
+		VerifyWasmPathFollowComponent(gameHost, worker);
 
-    [TestCase]
-    public async Task TestMapEditorTestButtonWasmExecution()
-    {
-        BypassMapEditorAgreement();
+		await TakeSimulationScreenshots(runner, "Realm_Simulation_Wasm_Screenshots");
+	}
 
-        if (LobbyManager.Instance == null)
-        {
-            return;
-        }
-        LobbyManager.Instance.IsSinglePlayer = true;
-        PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
-        isHostProp?.SetValue(LobbyManager.Instance, true);
+	[TestCase]
+	public async Task TestMapEditorTestButtonWasmExecution()
+	{
+		BypassMapEditorAgreement();
 
-        ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
-        await runner.AwaitMillis(1500);
+		if (LobbyManager.Instance == null)
+		{
+			return;
+		}
 
-        UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
-        await runner.AwaitMillis(2500);
+		LobbyManager.Instance.IsSinglePlayer = true;
+		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
+		isHostProp?.SetValue(LobbyManager.Instance, true);
 
-        var hud = MapEditorHUD.Instance;
-        if (hud == null)
-        {
-            throw new Exception("MapEditorHUD instance was null after transition.");
-        }
+		ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
+		await runner.AwaitMillis(1500);
 
-        await LoadChaosArenaFolder(hud, runner);
+		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+		await runner.AwaitMillis(2500);
 
-        string artifactDir = @"C:\Users\devin\.gemini\antigravity-cli\brain\7000f492-ab70-4409-bc47-42fbecc00ce5";
-        Directory.CreateDirectory(artifactDir);
+		var hud = MapEditorHUD.Instance;
+		if (hud == null)
+		{
+			throw new Exception("MapEditorHUD instance was null after transition.");
+		}
 
-        await hud.ProceedToTestMap();
-        await runner.AwaitMillis(2000);
+		await LoadChaosArenaFolder(hud, runner);
 
-        await ExecuteTestMapSteps(runner, artifactDir);
+		string artifactDir = @"C:\Users\devin\.gemini\antigravity-cli\brain\7000f492-ab70-4409-bc47-42fbecc00ce5";
+		Directory.CreateDirectory(artifactDir);
 
-        global::Godot.Image finalImage = runner.Scene().GetViewport().GetTexture().GetImage();
-        File.WriteAllBytes(Path.Combine(artifactDir, "ChaosArena_Wasm_Tested.png"), finalImage.SavePngToBuffer());
+		await hud.ProceedToTestMap();
+		await runner.AwaitMillis(2000);
 
-        VerifyAllUnitsKilled();
-    }
+		await ExecuteTestMapSteps(runner, artifactDir);
 
-    [TestCase]
-    public void TestEnsureCsprojRepairsStaleAbsoluteReference()
-    {
-        string tempMapDir = Path.Combine(Path.GetTempPath(), "Realm_Simulation_StaleCsprojRepair");
-        if (Directory.Exists(tempMapDir))
-        {
-            try { Directory.Delete(tempMapDir, true); } catch { }
-        }
-        Directory.CreateDirectory(tempMapDir);
+		Image finalImage = runner.Scene().GetViewport().GetTexture().GetImage();
+		File.WriteAllBytes(Path.Combine(artifactDir, "ChaosArena_Wasm_Tested.png"), finalImage.SavePngToBuffer());
 
-        string staleCsproj =
-            "<Project Sdk=\"Microsoft.NET.Sdk\">" + System.Environment.NewLine +
-            "  <PropertyGroup>" + System.Environment.NewLine +
-            "    <TargetFramework>net10.0</TargetFramework>" + System.Environment.NewLine +
-            "  </PropertyGroup>" + System.Environment.NewLine +
-            "  <ItemGroup>" + System.Environment.NewLine +
-            "    <ProjectReference Include=\"C:/Users/SomeoneElse/source/repos/Realm/Realm.MapAPI/Realm.MapAPI.csproj\" />" + System.Environment.NewLine +
-            "  </ItemGroup>" + System.Environment.NewLine +
-            "</Project>";
-        File.WriteAllText(Path.Combine(tempMapDir, "MapScript.csproj"), staleCsproj);
+		VerifyAllUnitsKilled();
+	}
 
-        MapWorkspaceService.EnsureCsproj(tempMapDir, "MapScript");
+	[TestCase]
+	public void TestEnsureCsprojRepairsStaleAbsoluteReference()
+	{
+		string tempMapDir = Path.Combine(Path.GetTempPath(), "Realm_Simulation_StaleCsprojRepair");
+		if (Directory.Exists(tempMapDir))
+		{
+			try
+			{
+				Directory.Delete(tempMapDir, true);
+			}
+			catch
+			{
+			}
+		}
 
-        string repaired = File.ReadAllText(Path.Combine(tempMapDir, "MapScript.csproj"));
-        Assertions.AssertThat(!repaired.Contains("C:")).IsTrue();
-        Assertions.AssertThat(!repaired.Contains("ProjectReference")).IsTrue();
-        Assertions.AssertThat(repaired.Contains("lib/Realm.MapAPI.dll")).IsTrue();
+		Directory.CreateDirectory(tempMapDir);
 
-        Assertions.AssertThat(File.Exists(Path.Combine(tempMapDir, "lib", "Realm.MapAPI.dll"))).IsTrue();
-    }
+		string staleCsproj =
+			"<Project Sdk=\"Microsoft.NET.Sdk\">" + Environment.NewLine +
+			"  <PropertyGroup>" + Environment.NewLine +
+			"    <TargetFramework>net10.0</TargetFramework>" + Environment.NewLine +
+			"  </PropertyGroup>" + Environment.NewLine +
+			"  <ItemGroup>" + Environment.NewLine +
+			"    <ProjectReference Include=\"C:/Users/SomeoneElse/source/repos/Realm/Realm.MapAPI/Realm.MapAPI.csproj\" />" + Environment.NewLine +
+			"  </ItemGroup>" + Environment.NewLine +
+			"</Project>";
+		File.WriteAllText(Path.Combine(tempMapDir, "MapScript.csproj"), staleCsproj);
 
-    private void SetupSinglePlayerLobby(string mapName)
-    {
-        LobbyManager.Instance.IsSinglePlayer = true;
-        
-        PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
-        isHostProp?.SetValue(LobbyManager.Instance, true);
+		MapWorkspaceService.EnsureCsproj(tempMapDir, "MapScript");
 
-        LobbyManager.Instance.IsGameStarted = true;
-        LobbyManager.Instance.ActiveMapName = mapName;
-        LobbyManager.Instance.PlayerList.Clear();
+		string repaired = File.ReadAllText(Path.Combine(tempMapDir, "MapScript.csproj"));
+		Assertions.AssertThat(!repaired.Contains("C:")).IsTrue();
+		Assertions.AssertThat(!repaired.Contains("ProjectReference")).IsTrue();
+		Assertions.AssertThat(repaired.Contains("lib/Realm.MapAPI.dll")).IsTrue();
 
-        LobbyManager.PlayerInfo playerInfo = new LobbyManager.PlayerInfo
-        {
-            PeerId = 1,
-            Slot = 0,
-            Name = LobbyManager.Instance.AuthenticatedUsername,
-            Faction = "HUMAN",
-            Team = "Team 1",
-            Color = new global::Godot.Color(0.8f, 0.1f, 0.1f),
-            IsHost = true,
-            Latency = "0 ms",
-            Jitter = "0 ms",
-            PacketLoss = "0%",
-            BinaryVersion = RealmVersion.GameBinaryVersion
-        };
+		Assertions.AssertThat(File.Exists(Path.Combine(tempMapDir, "lib", "Realm.MapAPI.dll"))).IsTrue();
+	}
 
-        PropertyInfo localPlayerProp = typeof(LobbyManager).GetProperty("LocalPlayer", BindingFlags.Public | BindingFlags.Instance);
-        localPlayerProp?.SetValue(LobbyManager.Instance, playerInfo);
+	private void SetupSinglePlayerLobby(string mapName)
+	{
+		LobbyManager.Instance.IsSinglePlayer = true;
 
-        LobbyManager.Instance.PlayerList.Add(playerInfo);
-    }
+		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
+		isHostProp?.SetValue(LobbyManager.Instance, true);
 
-    private Unit3D SetupWorkerAndMove(GameHost gameHost)
-    {
-        Unit3D worker = gameHost.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && !u.IsEnemy);
-        if (worker == null)
-        {
-            return null;
-        }
+		LobbyManager.Instance.IsGameStarted = true;
+		LobbyManager.Instance.ActiveMapName = mapName;
+		LobbyManager.Instance.PlayerList.Clear();
 
-        gameHost.SelectedUnits.Clear();
-		gameHost.SelectedUnits.Add(worker);
-        worker.IsSelected = true;
-        InGameHUD.Instance?.RefreshUI(gameHost.SelectedUnits);
+		PlayerInfo playerInfo = new PlayerInfo
+		{
+			PeerId = 1,
+			Slot = 0,
+			Name = LobbyManager.Instance.AuthenticatedUsername,
+			Faction = "HUMAN",
+			Team = "Team 1",
+			Color = new Color(0.8f, 0.1f, 0.1f),
+			IsHost = true,
+			Latency = "0 ms",
+			Jitter = "0 ms",
+			PacketLoss = "0%",
+			BinaryVersion = RealmVersion.GameBinaryVersion
+		};
 
-        System.Numerics.Vector3 destination = new System.Numerics.Vector3(-20f, 0f, -50f);
-        Realm.MapAPI.IUnit unitWrapper = gameHost.GetUnitWrapper(worker.Entity);
-        unitWrapper.MoveTo(destination);
-        return worker;
-    }
+		PropertyInfo localPlayerProp = typeof(LobbyManager).GetProperty("LocalPlayer", BindingFlags.Public | BindingFlags.Instance);
+		localPlayerProp?.SetValue(LobbyManager.Instance, playerInfo);
 
-    private void VerifyPathFollowComponent(GameHost gameHost, Unit3D worker)
-    {
-        if (gameHost.EcsWorld.Has<PathFollow>(worker.Entity))
-        {
-            var pf = gameHost.EcsWorld.Get<PathFollow>(worker.Entity);
-            global::Godot.GD.Print($"WAYPOINTS COUNT: {pf.WaypointCount}");
-            for (int i = 0; i < pf.WaypointCount; i++)
-            {
-                global::Godot.GD.Print($"Waypoint {i}: {pf.Waypoints[i]}");
-            }
-        }
-        else
-        {
-            global::Godot.GD.Print("NO PATHFOLLOW COMPONENT");
-        }
-    }
+		LobbyManager.Instance.PlayerList.Add(playerInfo);
+	}
 
-    private async Task TakeSimulationScreenshots(ISceneRunner runner, string dirName)
-    {
-        string tempDir = Path.Combine(Path.GetTempPath(), dirName);
-        if (Directory.Exists(tempDir))
-        {
-            try { Directory.Delete(tempDir, true); } catch {}
-        }
-        Directory.CreateDirectory(tempDir);
+	private Unit3D SetupWorkerAndMove(GameHost gameHost)
+	{
+		Unit3D worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && !u.IsEnemy);
+		if (worker == null)
+		{
+			return null;
+		}
 
-        for (int i = 1; i <= 15; i++)
-        {
-            await runner.AwaitMillis(1000);
+		GameHost.Instance.SelectedUnits.Clear();
+		GameHost.Instance.SelectedUnits.Add(worker);
+		worker.IsSelected = true;
+		InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits);
 
-            global::Godot.Image image = runner.Scene().GetViewport().GetTexture().GetImage();
-            string fileName = $"Simulation_Step_{i:00}.png";
-            string filePath = Path.Combine(tempDir, fileName);
-            image.SavePng(filePath);
-        }
-    }
+		Vector3 destination = new Vector3(-20f, 0f, -50f);
+		IUnit unitWrapper = GameContext.SimulationService.GetUnitWrapper(worker.Entity);
+		unitWrapper.MoveTo(destination);
+		return worker;
+	}
 
-    private string CompileWasmProgram(string tempMapDir)
-    {
-        var compileProcess = new System.Diagnostics.Process();
-        string resolvedWasiSdk = WasiSdkResolver.ResolveWasiSdkPath();
-        compileProcess.StartInfo.FileName = "dotnet";
-        compileProcess.StartInfo.Arguments = $"publish \"TestWasmMap.csproj\" -c Release -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
-        compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
-        compileProcess.StartInfo.WorkingDirectory = tempMapDir;
-        compileProcess.StartInfo.CreateNoWindow = true;
-        compileProcess.StartInfo.UseShellExecute = false;
-        compileProcess.StartInfo.RedirectStandardOutput = false;
-        compileProcess.StartInfo.RedirectStandardError = false;
-        compileProcess.Start();
-        compileProcess.WaitForExit();
-        if (compileProcess.ExitCode != 0)
-        {
-            throw new Exception($"Wasm compilation failed (exit code {compileProcess.ExitCode})");
-        }
+	private void VerifyPathFollowComponent(GameHost gameHost, Unit3D worker)
+	{
+		if (GameContext.World.Has<PathFollow>(worker.Entity))
+		{
+			var pf = GameContext.World.Get<PathFollow>(worker.Entity);
+			GD.Print($"WAYPOINTS COUNT: {pf.WaypointCount}");
+			for (int i = 0; i < pf.WaypointCount; i++)
+			{
+				GD.Print($"Waypoint {i}: {pf.Waypoints[i]}");
+			}
+		}
+		else
+		{
+			GD.Print("NO PATHFOLLOW COMPONENT");
+		}
+	}
 
-        string wasmPath = Directory.GetFiles(Path.Combine(tempMapDir, "bin"), "*.wasm", SearchOption.AllDirectories).OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
-        if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
-        {
-            throw new FileNotFoundException("Compiled WASM file not found in build directory.");
-        }
-        return wasmPath;
-    }
+	private async Task TakeSimulationScreenshots(ISceneRunner runner, string dirName)
+	{
+		string tempDir = Path.Combine(Path.GetTempPath(), dirName);
+		if (Directory.Exists(tempDir))
+		{
+			try
+			{
+				Directory.Delete(tempDir, true);
+			}
+			catch
+			{
+			}
+		}
 
-    private class WasmLogTracker
-    {
-        public bool UnitCreatedLogged;
-        public bool MoveCommandLogged;
-        public Action<string> Listener;
-    }
+		Directory.CreateDirectory(tempDir);
 
-    private WasmLogTracker AttachWasmLogListener()
-    {
-        var tracker = new WasmLogTracker();
-        tracker.Listener = msg =>
-        {
-            if (msg.Contains("wasm_unit_created")) tracker.UnitCreatedLogged = true;
-            if (msg.Contains("wasm_move_command_given")) tracker.MoveCommandLogged = true;
-        };
-        Core.WasmRuntime.OnWasmLog += tracker.Listener;
-        return tracker;
-    }
+		for (int i = 1; i <= 15; i++)
+		{
+			await runner.AwaitMillis(1000);
 
-    private async Task WaitAndVerifyWasmLogs(ISceneRunner runner, WasmLogTracker tracker)
-    {
-        for (int i = 0; i < 100; i++)
-        {
-            if (tracker.UnitCreatedLogged && tracker.MoveCommandLogged)
-            {
-                break;
-            }
-            await runner.AwaitMillis(50);
-        }
-        Core.WasmRuntime.OnWasmLog -= tracker.Listener;
+			Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+			string fileName = $"Simulation_Step_{i:00}.png";
+			string filePath = Path.Combine(tempDir, fileName);
+			image.SavePng(filePath);
+		}
+	}
 
-        if (!tracker.UnitCreatedLogged)
-        {
-            throw new Exception("WASM sandbox failed to notify unit creation via debug log.");
-        }
-        if (!tracker.MoveCommandLogged)
-        {
-            throw new Exception("WASM sandbox failed to notify move command issue via debug log.");
-        }
-    }
+	private string CompileWasmProgram(string tempMapDir)
+	{
+		var compileProcess = new Process();
+		string resolvedWasiSdk = WasiSdkResolver.ResolveWasiSdkPath();
+		compileProcess.StartInfo.FileName = "dotnet";
+		compileProcess.StartInfo.Arguments = $"publish \"TestWasmMap.csproj\" -c Release -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
+		compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
+		compileProcess.StartInfo.WorkingDirectory = tempMapDir;
+		compileProcess.StartInfo.CreateNoWindow = true;
+		compileProcess.StartInfo.UseShellExecute = false;
+		compileProcess.StartInfo.RedirectStandardOutput = false;
+		compileProcess.StartInfo.RedirectStandardError = false;
+		compileProcess.Start();
+		compileProcess.WaitForExit();
+		if (compileProcess.ExitCode != 0)
+		{
+			throw new Exception($"Wasm compilation failed (exit code {compileProcess.ExitCode})");
+		}
 
-    private async Task<Unit3D> FindWorkerUnitAsync(GameHost gameHost, ISceneRunner runner)
-    {
-        Unit3D worker = null;
-        for (int i = 0; i < 50; i++)
-        {
-            worker = gameHost.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && !u.IsEnemy);
-            if (worker != null)
-            {
-                break;
-            }
-            await runner.AwaitMillis(50);
-        }
+		string wasmPath = Directory.GetFiles(Path.Combine(tempMapDir, "bin"), "*.wasm", SearchOption.AllDirectories).OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
+		if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
+		{
+			throw new FileNotFoundException("Compiled WASM file not found in build directory.");
+		}
 
-        if (worker == null)
-        {
-            throw new Exception("Worker unit spawned by WASM sandbox was not found on host Realm.Client.Core.GameHost.");
-        }
-        return worker;
-    }
+		return wasmPath;
+	}
 
-    private void VerifyWasmPathFollowComponent(GameHost gameHost, Unit3D worker)
-    {
-        if (gameHost.EcsWorld.Has<PathFollow>(worker.Entity))
-        {
-            var pf = gameHost.EcsWorld.Get<PathFollow>(worker.Entity);
-            global::Godot.GD.Print($"WASM WAYPOINTS COUNT: {pf.WaypointCount}");
-            for (int i = 0; i < pf.WaypointCount; i++)
-            {
-                global::Godot.GD.Print($"Wasm Waypoint {i}: {pf.Waypoints[i]}");
-            }
-            if (pf.WaypointCount <= 0)
-            {
-                throw new Exception("Worker has PathFollow component but waypoint count is 0.");
-            }
-        }
-        else
-        {
-            global::Godot.GD.Print("WASM NO PATHFOLLOW COMPONENT");
-            throw new Exception("PathFollow component missing on unit under WASM sandbox.");
-        }
-    }
+	private class WasmLogTracker
+	{
+		public bool UnitCreatedLogged;
+		public bool MoveCommandLogged;
+		public Action<string> Listener;
+	}
 
-    private void BypassMapEditorAgreement()
-    {
-        var field = typeof(MapEditorHUD).GetField("_agreementShownThisSession", BindingFlags.NonPublic | BindingFlags.Static);
-        if (field != null)
-        {
-            field.SetValue(null, true);
-        }
-    }
+	private WasmLogTracker AttachWasmLogListener()
+	{
+		var tracker = new WasmLogTracker();
+		tracker.Listener = msg =>
+		{
+			if (msg.Contains("wasm_unit_created")) tracker.UnitCreatedLogged = true;
+			if (msg.Contains("wasm_move_command_given")) tracker.MoveCommandLogged = true;
+		};
+		WasmRuntime.OnWasmLog += tracker.Listener;
+		return tracker;
+	}
 
-    private async Task LoadChaosArenaFolder(MapEditorHUD hud, ISceneRunner runner)
-    {
-        string chaosArenaFolder = Path.GetFullPath("../Realm_ChaosArena");
-        if (!Directory.Exists(chaosArenaFolder))
-        {
-            chaosArenaFolder = Path.GetFullPath("D:/git/Realm/Realm_ChaosArena");
-        }
+	private async Task WaitAndVerifyWasmLogs(ISceneRunner runner, WasmLogTracker tracker)
+	{
+		for (int i = 0; i < 100; i++)
+		{
+			if (tracker.UnitCreatedLogged && tracker.MoveCommandLogged)
+			{
+				break;
+			}
 
-        bool loadOk = hud.LoadMapFolder(chaosArenaFolder);
-        if (!loadOk)
-        {
-            throw new Exception($"Failed to load map folder '{chaosArenaFolder}' into editor.");
-        }
-        await runner.AwaitMillis(1000);
+			await runner.AwaitMillis(50);
+		}
 
-        if (Realm.Client.Core.GameHost.Instance == null || Realm.Client.Core.GameHost.Instance.AllUnits.Count == 0)
-        {
-            throw new Exception("Units from terrain.json were not loaded into editor Realm.Client.Core.GameHost.");
-        }
-        int initialUnitCount = Realm.Client.Core.GameHost.Instance.AllUnits.Count;
-        global::Godot.GD.Print($"Editor loaded {initialUnitCount} units from map terrain.json.");
-    }
+		WasmRuntime.OnWasmLog -= tracker.Listener;
 
-    private async Task ExecuteTestMapSteps(ISceneRunner runner, string artifactDir)
-    {
-        for (int step = 0; step < 50; step++)
-        {
-            await runner.AwaitMillis(200);
+		if (!tracker.UnitCreatedLogged)
+		{
+			throw new Exception("WASM sandbox failed to notify unit creation via debug log.");
+		}
 
-            if (step % 5 == 0)
-            {
-                global::Godot.Image img = runner.Scene().GetViewport().GetTexture().GetImage();
-                File.WriteAllBytes(Path.Combine(artifactDir, $"ChaosArena_Wasm_Step_{step:00}.png"), img.SavePngToBuffer());
-            }
+		if (!tracker.MoveCommandLogged)
+		{
+			throw new Exception("WASM sandbox failed to notify move command issue via debug log.");
+		}
+	}
 
-            if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.AllUnits.Count == 0)
-            {
-                break;
-            }
-        }
-    }
+	private async Task<Unit3D> FindWorkerUnitAsync(GameHost gameHost, ISceneRunner runner)
+	{
+		Unit3D worker = null;
+		for (int i = 0; i < 50; i++)
+		{
+			worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && !u.IsEnemy);
+			if (worker != null)
+			{
+				break;
+			}
 
-    private void VerifyAllUnitsKilled()
-    {
-        int aliveUnits = Realm.Client.Core.GameHost.Instance?.AllUnits.Count ?? 0;
-        global::Godot.GD.Print($"After WASM execution, alive units count = {aliveUnits}");
-        if (aliveUnits > 0)
-        {
-            throw new Exception($"WASM map script failed to kill all units! Alive units remaining: {aliveUnits}");
-        }
-    }
+			await runner.AwaitMillis(50);
+		}
+
+		if (worker == null)
+		{
+			throw new Exception("Worker unit spawned by WASM sandbox was not found on host Realm.Client.Core.");
+		}
+
+		return worker;
+	}
+
+	private void VerifyWasmPathFollowComponent(GameHost gameHost, Unit3D worker)
+	{
+		if (GameContext.World.Has<PathFollow>(worker.Entity))
+		{
+			var pf = GameContext.World.Get<PathFollow>(worker.Entity);
+			GD.Print($"WASM WAYPOINTS COUNT: {pf.WaypointCount}");
+			for (int i = 0; i < pf.WaypointCount; i++)
+			{
+				GD.Print($"Wasm Waypoint {i}: {pf.Waypoints[i]}");
+			}
+
+			if (pf.WaypointCount <= 0)
+			{
+				throw new Exception("Worker has PathFollow component but waypoint count is 0.");
+			}
+		}
+		else
+		{
+			GD.Print("WASM NO PATHFOLLOW COMPONENT");
+			throw new Exception("PathFollow component missing on unit under WASM sandbox.");
+		}
+	}
+
+	private void BypassMapEditorAgreement()
+	{
+		var field = typeof(MapEditorHUD).GetField("_agreementShownThisSession", BindingFlags.NonPublic | BindingFlags.Static);
+		if (field != null)
+		{
+			field.SetValue(null, true);
+		}
+	}
+
+	private async Task LoadChaosArenaFolder(MapEditorHUD hud, ISceneRunner runner)
+	{
+		string chaosArenaFolder = Path.GetFullPath("../Realm_ChaosArena");
+		if (!Directory.Exists(chaosArenaFolder))
+		{
+			chaosArenaFolder = Path.GetFullPath("D:/git/Realm/Realm_ChaosArena");
+		}
+
+		bool loadOk = hud.LoadMapFolder(chaosArenaFolder);
+		if (!loadOk)
+		{
+			throw new Exception($"Failed to load map folder '{chaosArenaFolder}' into editor.");
+		}
+
+		await runner.AwaitMillis(1000);
+
+		if (GameHost.Instance == null || GameHost.Instance.AllUnits.Count == 0)
+		{
+			throw new Exception("Units from terrain.json were not loaded into editor Realm.Client.Core.");
+		}
+
+		int initialUnitCount = GameHost.Instance.AllUnits.Count;
+		GD.Print($"Editor loaded {initialUnitCount} units from map terrain.json.");
+	}
+
+	private async Task ExecuteTestMapSteps(ISceneRunner runner, string artifactDir)
+	{
+		for (int step = 0; step < 50; step++)
+		{
+			await runner.AwaitMillis(200);
+
+			if (step % 5 == 0)
+			{
+				Image img = runner.Scene().GetViewport().GetTexture().GetImage();
+				File.WriteAllBytes(Path.Combine(artifactDir, $"ChaosArena_Wasm_Step_{step:00}.png"), img.SavePngToBuffer());
+			}
+
+			if (GameHost.Instance != null && GameHost.Instance.AllUnits.Count == 0)
+			{
+				break;
+			}
+		}
+	}
+
+	private void VerifyAllUnitsKilled()
+	{
+		int aliveUnits = GameHost.Instance?.AllUnits.Count ?? 0;
+		GD.Print($"After WASM execution, alive units count = {aliveUnits}");
+		if (aliveUnits > 0)
+		{
+			throw new Exception($"WASM map script failed to kill all units! Alive units remaining: {aliveUnits}");
+		}
+	}
 }
-

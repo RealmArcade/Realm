@@ -1,8 +1,12 @@
-using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using GAnimation = global::Godot.Animation;
+using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.Services;
+using Realm.Ecs.Services;
+using GAnimation = Godot.Animation;
 
 namespace Realm.Client.Animation;
 
@@ -33,6 +37,7 @@ public static class AnimationRetargetingService
 			{
 				CachedRanimData[filePath] = data;
 			}
+
 			return data;
 		}
 		catch (Exception ex)
@@ -83,48 +88,49 @@ public static class AnimationRetargetingService
 			candidateNames.Add($"{uClean}_{cleanName}");
 			candidateNames.Add($"{unitId}_{animName}");
 		}
-		
+
 		candidateNames.Add(animName);
-		
+
 		if (!animName.EndsWith(".ranim", StringComparison.OrdinalIgnoreCase))
 		{
 			candidateNames.Add($"{animName}.ranim");
 		}
-		
+
 		candidateNames.Add(cleanName);
 		return candidateNames;
 	}
 
 	private static string TryResolveInWorkspace(List<string> candidateNames)
 	{
-		string wsPath = !string.IsNullOrEmpty(Services.MapWorkspaceService.GetActiveWorkspacePath())
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
-			: ProjectSettings.GlobalizePath(UI.MapEditorHUD.TempWorkspaceGodotPath);
-			
+		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
+			? MapWorkspaceService.GetActiveWorkspacePath()
+			: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+
 		if (string.IsNullOrEmpty(wsPath)) return null;
 
 		foreach (var candName in candidateNames)
 		{
 			string p = Path.Combine(wsPath, "Assets", "animations", candName);
 			if (File.Exists(p)) return p;
-			
+
 			string directP = Path.Combine(wsPath, candName);
 			if (File.Exists(directP)) return directP;
 		}
+
 		return null;
 	}
 
 	private static string TryResolveInActiveMap(List<string> candidateNames)
 	{
 		string activeMap = null;
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			activeMap = Realm.Client.Core.GameHost.Instance.ActiveMapName;
+			activeMap = ECSContext.ActiveMapName;
 		}
-		
-		if (string.IsNullOrEmpty(activeMap) && Network.LobbyManager.Instance != null)
+
+		if (string.IsNullOrEmpty(activeMap) && LobbyManager.Instance != null)
 		{
-			activeMap = Network.LobbyManager.Instance.ActiveMapName;
+			activeMap = LobbyManager.Instance.ActiveMapName;
 		}
 
 		if (string.IsNullOrEmpty(activeMap)) return null;
@@ -133,9 +139,9 @@ public static class AnimationRetargetingService
 		if (result != null) return result;
 
 		string currentMapDir = null;
-		if (Realm.Client.Core.GameHost.Instance != null)
+		if (GameHost.Instance != null)
 		{
-			currentMapDir = Realm.Client.Core.GameHost.Instance.CurrentMapDirectory;
+			currentMapDir = GameContext.MapStorageService.CurrentMapDirectory;
 		}
 
 		result = TryResolveInDirectory(currentMapDir, candidateNames);
@@ -232,6 +238,7 @@ public static class AnimationRetargetingService
 		{
 			skelPathStr = targetSkeleton.Name;
 		}
+
 		return skelPathStr;
 	}
 
@@ -241,23 +248,23 @@ public static class AnimationRetargetingService
 
 		Transform3D hipRest = targetSkeleton.GetBoneRest(hipBoneIdx);
 		float targetHipHeight = MathF.Abs(hipRest.Origin.Y);
-		
+
 		if (targetHipHeight > 0.01f)
 		{
 			return targetHipHeight / 1.0f;
 		}
-		
+
 		return 1.0f;
 	}
 
 	private static void ProcessTrack(
-		GAnimation godotAnim, 
-		RealmAnimationBoneTrack track, 
-		Skeleton3D targetSkeleton, 
-		Dictionary<HumanoidBone, int> boneMap, 
-		string skelPathStr, 
-		bool isDeath, 
-		RealmAnimationData animData, 
+		GAnimation godotAnim,
+		RealmAnimationBoneTrack track,
+		Skeleton3D targetSkeleton,
+		Dictionary<HumanoidBone, int> boneMap,
+		string skelPathStr,
+		bool isDeath,
+		RealmAnimationData animData,
 		float hipHeightRatio)
 	{
 		if (track == null || string.IsNullOrEmpty(track.BoneName)) return;
@@ -316,7 +323,7 @@ public static class AnimationRetargetingService
 
 		var firstKey = track.PositionKeys[0];
 		var lastKey = track.PositionKeys[^1];
-		
+
 		float driftX = (!isDeath && track.PositionKeys.Length > 1) ? (lastKey.X - firstKey.X) : 0f;
 		float driftZ = (!isDeath && track.PositionKeys.Length > 1) ? (lastKey.Z - firstKey.Z) : 0f;
 
@@ -330,28 +337,28 @@ public static class AnimationRetargetingService
 	}
 
 	private static void InsertPositionKeys(
-		GAnimation godotAnim, 
-		RealmAnimationBoneTrack track, 
-		int posTrackIdx, 
-		float totalDuration, 
-		Realm.Shared.Animation.RealmKeyframeVector3 firstKey, 
-		float driftX, 
-		float driftZ, 
+		GAnimation godotAnim,
+		RealmAnimationBoneTrack track,
+		int posTrackIdx,
+		float totalDuration,
+		RealmKeyframeVector3 firstKey,
+		float driftX,
+		float driftZ,
 		float hipHeightRatio)
 	{
 		var basePos = track.PositionKeys[0];
-		
+
 		foreach (var key in track.PositionKeys)
 		{
 			float progress = totalDuration > 0.0001f ? Math.Clamp((key.Time - firstKey.Time) / totalDuration, 0f, 1f) : 0f;
-			
+
 			float localX = (key.X - basePos.X) - driftX * progress;
 			float localZ = (key.Z - basePos.Z) - driftZ * progress;
-			
+
 			float dx = localX * hipHeightRatio;
 			float dy = (key.Y - basePos.Y) * hipHeightRatio;
 			float dz = localZ * hipHeightRatio;
-			
+
 			godotAnim.PositionTrackInsertKey(posTrackIdx, key.Time, new Vector3(dx, dy, dz));
 		}
 	}
@@ -375,6 +382,7 @@ public static class AnimationRetargetingService
 			{
 				quat = Quaternion.Identity;
 			}
+
 			godotAnim.RotationTrackInsertKey(rotTrackIdx, key.Time, quat);
 		}
 	}
@@ -461,7 +469,7 @@ public static class AnimationRetargetingService
 		{
 			animMixerRoot = player.GetNodeOrNull(player.RootNode);
 		}
-		
+
 		if (animMixerRoot == null)
 		{
 			animMixerRoot = targetModel;
@@ -474,6 +482,7 @@ public static class AnimationRetargetingService
 				player.RootNode = player.GetPathTo(targetModel);
 			}
 		}
+
 		return animMixerRoot;
 	}
 
@@ -495,11 +504,12 @@ public static class AnimationRetargetingService
 		{
 			player.RemoveAnimationLibrary(libName);
 		}
+
 		player.AddAnimationLibrary(string.Empty, new AnimationLibrary());
 
 		var customAnimations = GetCustomAnimations(unitId);
 		string[] standardAnimations = new[] { "Idle", "Walk", "Attack", "Death", "Labor", "Spell_Cast", "Dance" };
-		
+
 		foreach (var animType in standardAnimations)
 		{
 			ProcessUnitAnimation(animType, customAnimations, unitId, modelRoot);
@@ -510,10 +520,11 @@ public static class AnimationRetargetingService
 
 	private static Dictionary<string, List<UnitAnimationEntry>>? GetCustomAnimations(string unitId)
 	{
-		if (!string.IsNullOrEmpty(unitId) && Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
+		if (!string.IsNullOrEmpty(unitId) && GameHost.Instance != null && GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
 		{
 			return meta.Animations;
 		}
+
 		return null;
 	}
 
@@ -536,9 +547,9 @@ public static class AnimationRetargetingService
 			string animFile = animFiles[i].Animation;
 			string variantName = $"{animType}_{i}";
 			string filePath = ResolveAnimationFilePath(animFile, unitId);
-			
+
 			if (string.IsNullOrEmpty(filePath)) continue;
-			
+
 			var animData = GetOrLoadRanimData(filePath);
 			if (animData != null)
 			{
@@ -564,7 +575,7 @@ public static class AnimationRetargetingService
 				return;
 			}
 		}
-		
+
 		BindFallbackAnimation(animType, modelRoot, unitId);
 	}
 

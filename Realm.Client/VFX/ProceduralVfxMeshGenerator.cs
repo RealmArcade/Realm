@@ -1,6 +1,6 @@
-using Godot;
 using System;
 using System.Collections.Generic;
+using Godot;
 
 namespace Realm.Client.VFX;
 
@@ -66,50 +66,50 @@ public class ProceduralVfxMeshGenerator
 		Vector3[] vertices = new Vector3[]
 		{
 			// Front face (Z = 0.5)
-			new Vector3(-0.5f, -0.5f,  0.5f),
-			new Vector3( 0.5f, -0.5f,  0.5f),
-			new Vector3( 0.5f,  0.5f,  0.5f),
-			new Vector3(-0.5f,  0.5f,  0.5f),
+			new Vector3(-0.5f, -0.5f, 0.5f),
+			new Vector3(0.5f, -0.5f, 0.5f),
+			new Vector3(0.5f, 0.5f, 0.5f),
+			new Vector3(-0.5f, 0.5f, 0.5f),
 
 			// Back face (Z = -0.5)
-			new Vector3( 0.5f, -0.5f, -0.5f),
+			new Vector3(0.5f, -0.5f, -0.5f),
 			new Vector3(-0.5f, -0.5f, -0.5f),
-			new Vector3(-0.5f,  0.5f, -0.5f),
-			new Vector3( 0.5f,  0.5f, -0.5f),
+			new Vector3(-0.5f, 0.5f, -0.5f),
+			new Vector3(0.5f, 0.5f, -0.5f),
 
 			// Left face (X = -0.5)
 			new Vector3(-0.5f, -0.5f, -0.5f),
-			new Vector3(-0.5f, -0.5f,  0.5f),
-			new Vector3(-0.5f,  0.5f,  0.5f),
-			new Vector3(-0.5f,  0.5f, -0.5f),
+			new Vector3(-0.5f, -0.5f, 0.5f),
+			new Vector3(-0.5f, 0.5f, 0.5f),
+			new Vector3(-0.5f, 0.5f, -0.5f),
 
 			// Right face (X = 0.5)
-			new Vector3( 0.5f, -0.5f,  0.5f),
-			new Vector3( 0.5f, -0.5f, -0.5f),
-			new Vector3( 0.5f,  0.5f, -0.5f),
-			new Vector3( 0.5f,  0.5f,  0.5f),
+			new Vector3(0.5f, -0.5f, 0.5f),
+			new Vector3(0.5f, -0.5f, -0.5f),
+			new Vector3(0.5f, 0.5f, -0.5f),
+			new Vector3(0.5f, 0.5f, 0.5f),
 
 			// Top face (Y = 0.5)
-			new Vector3(-0.5f,  0.5f,  0.5f),
-			new Vector3( 0.5f,  0.5f,  0.5f),
-			new Vector3( 0.5f,  0.5f, -0.5f),
-			new Vector3(-0.5f,  0.5f, -0.5f),
+			new Vector3(-0.5f, 0.5f, 0.5f),
+			new Vector3(0.5f, 0.5f, 0.5f),
+			new Vector3(0.5f, 0.5f, -0.5f),
+			new Vector3(-0.5f, 0.5f, -0.5f),
 
 			// Bottom face (Y = -0.5)
 			new Vector3(-0.5f, -0.5f, -0.5f),
-			new Vector3( 0.5f, -0.5f, -0.5f),
-			new Vector3( 0.5f, -0.5f,  0.5f),
-			new Vector3(-0.5f, -0.5f,  0.5f)
+			new Vector3(0.5f, -0.5f, -0.5f),
+			new Vector3(0.5f, -0.5f, 0.5f),
+			new Vector3(-0.5f, -0.5f, 0.5f)
 		};
 
 		Vector3[] normals = new Vector3[]
 		{
-			-Vector3.Back,    -Vector3.Back,    -Vector3.Back,    -Vector3.Back,
+			-Vector3.Back, -Vector3.Back, -Vector3.Back, -Vector3.Back,
 			-Vector3.Forward, -Vector3.Forward, -Vector3.Forward, -Vector3.Forward,
-			-Vector3.Left,    -Vector3.Left,    -Vector3.Left,    -Vector3.Left,
-			-Vector3.Right,   -Vector3.Right,   -Vector3.Right,   -Vector3.Right,
-			-Vector3.Up,      -Vector3.Up,      -Vector3.Up,      -Vector3.Up,
-			-Vector3.Down,    -Vector3.Down,    -Vector3.Down,    -Vector3.Down
+			-Vector3.Left, -Vector3.Left, -Vector3.Left, -Vector3.Left,
+			-Vector3.Right, -Vector3.Right, -Vector3.Right, -Vector3.Right,
+			-Vector3.Up, -Vector3.Up, -Vector3.Up, -Vector3.Up,
+			-Vector3.Down, -Vector3.Down, -Vector3.Down, -Vector3.Down
 		};
 
 		Vector2[] uvs = new Vector2[]
@@ -499,10 +499,14 @@ public class ProceduralVfxMeshGenerator
 
 			surfaceTool.SetNormal(Vector3.Back);
 			surfaceTool.SetTangent(new Plane(1.0f, 0.0f, 0.0f, 1.0f));
-			surfaceTool.SetUV(new Vector2(0.0f, uvY0)); surfaceTool.AddVertex(new Vector3(-halfWidth, y0, 0.0f));
-			surfaceTool.SetUV(new Vector2(1.0f, uvY0)); surfaceTool.AddVertex(new Vector3(halfWidth, y0, 0.0f));
-			surfaceTool.SetUV(new Vector2(0.0f, uvY1)); surfaceTool.AddVertex(new Vector3(-halfWidth, y1, 0.0f));
-			surfaceTool.SetUV(new Vector2(1.0f, uvY1)); surfaceTool.AddVertex(new Vector3(halfWidth, y1, 0.0f));
+			surfaceTool.SetUV(new Vector2(0.0f, uvY0));
+			surfaceTool.AddVertex(new Vector3(-halfWidth, y0, 0.0f));
+			surfaceTool.SetUV(new Vector2(1.0f, uvY0));
+			surfaceTool.AddVertex(new Vector3(halfWidth, y0, 0.0f));
+			surfaceTool.SetUV(new Vector2(0.0f, uvY1));
+			surfaceTool.AddVertex(new Vector3(-halfWidth, y1, 0.0f));
+			surfaceTool.SetUV(new Vector2(1.0f, uvY1));
+			surfaceTool.AddVertex(new Vector3(halfWidth, y1, 0.0f));
 
 			surfaceTool.AddIndex(vertexCounter + 0);
 			surfaceTool.AddIndex(vertexCounter + 2);
@@ -514,10 +518,14 @@ public class ProceduralVfxMeshGenerator
 
 			surfaceTool.SetNormal(Vector3.Right);
 			surfaceTool.SetTangent(new Plane(0.0f, 0.0f, 1.0f, 1.0f));
-			surfaceTool.SetUV(new Vector2(0.0f, uvY0)); surfaceTool.AddVertex(new Vector3(0.0f, y0, -halfWidth));
-			surfaceTool.SetUV(new Vector2(1.0f, uvY0)); surfaceTool.AddVertex(new Vector3(0.0f, y0, halfWidth));
-			surfaceTool.SetUV(new Vector2(0.0f, uvY1)); surfaceTool.AddVertex(new Vector3(0.0f, y1, -halfWidth));
-			surfaceTool.SetUV(new Vector2(1.0f, uvY1)); surfaceTool.AddVertex(new Vector3(0.0f, y1, halfWidth));
+			surfaceTool.SetUV(new Vector2(0.0f, uvY0));
+			surfaceTool.AddVertex(new Vector3(0.0f, y0, -halfWidth));
+			surfaceTool.SetUV(new Vector2(1.0f, uvY0));
+			surfaceTool.AddVertex(new Vector3(0.0f, y0, halfWidth));
+			surfaceTool.SetUV(new Vector2(0.0f, uvY1));
+			surfaceTool.AddVertex(new Vector3(0.0f, y1, -halfWidth));
+			surfaceTool.SetUV(new Vector2(1.0f, uvY1));
+			surfaceTool.AddVertex(new Vector3(0.0f, y1, halfWidth));
 
 			surfaceTool.AddIndex(vertexCounter + 0);
 			surfaceTool.AddIndex(vertexCounter + 2);

@@ -1,15 +1,30 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Shared;
-using System;
-using System.Threading.Tasks;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class UIManager : Control
 {
 	public static UIManager Instance { get; private set; }
+
+	public UIManager()
+	{
+		Instance = this;
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
 
 	[Export] public PackedScene MainMenuScene;
 	[Export] public PackedScene LobbyBrowserScene;
@@ -44,6 +59,11 @@ public partial class UIManager : Control
 
 	private AudioStreamPlayer _musicPlayer;
 	private AudioStreamPlayer _sfxPlayer;
+
+	public override void _ExitTree()
+	{
+		if (Instance == this) Instance = null;
+	}
 
 	public override async void _Ready()
 	{
@@ -84,7 +104,7 @@ public partial class UIManager : Control
 
 		GetTree().AutoAcceptQuit = false;
 
-		if (Network.LobbyManager.Instance != null && Network.LobbyManager.Instance.IsGameStarted)
+		if (LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted)
 		{
 			TransitionTo(GameScreen.InGameHUD);
 		}
@@ -96,20 +116,20 @@ public partial class UIManager : Control
 
 	public override void _Notification(int what)
 	{
-		if (what == unchecked((int)NotificationWMCloseRequest) ||
-		    what == unchecked((int)NotificationApplicationPaused) ||
-		    what == unchecked((int)NotificationApplicationFocusOut))
+		if (what == unchecked((int)Node.NotificationWMCloseRequest) ||
+		    what == unchecked((int)Node.NotificationApplicationPaused) ||
+		    what == unchecked((int)Node.NotificationApplicationFocusOut))
 		{
 			LocalizationManager.FlushPendingWrites();
 		}
 
-		if (what == unchecked((int)NotificationWMCloseRequest))
+		if (what == unchecked((int)Node.NotificationWMCloseRequest))
 		{
 			if (MapEditorHUD.Instance != null && GodotObject.IsInstanceValid(MapEditorHUD.Instance) && MapEditorHUD.Instance.IsInsideTree())
 			{
 				MapEditorHUD.Instance.HandleQuitRequest();
 			}
-			else if (MapEditorHUD.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
+			else if (GameContext.EditorService.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
 			{
 				ShowConfirmationDialog(
 					"You haven't saved yet",
@@ -277,18 +297,18 @@ public partial class UIManager : Control
 
 
 		var library = new AnimationLibrary();
-		
 
-		var animFadeIn = new global::Godot.Animation();
-		int trackId = animFadeIn.AddTrack(global::Godot.Animation.TrackType.Value);
+
+		var animFadeIn = new Godot.Animation();
+		int trackId = animFadeIn.AddTrack(Godot.Animation.TrackType.Value);
 		animFadeIn.TrackSetPath(trackId, $"{_fadeOverlay.GetPath()}:color");
 		animFadeIn.TrackInsertKey(trackId, 0.0f, new Color(0, 0, 0, 0));
 		animFadeIn.TrackInsertKey(trackId, 0.3f, new Color(0, 0, 0, 1));
 		library.AddAnimation("fade_in", animFadeIn);
 
 
-		var animFadeOut = new global::Godot.Animation();
-		trackId = animFadeOut.AddTrack(global::Godot.Animation.TrackType.Value);
+		var animFadeOut = new Godot.Animation();
+		trackId = animFadeOut.AddTrack(Godot.Animation.TrackType.Value);
 		animFadeOut.TrackSetPath(trackId, $"{_fadeOverlay.GetPath()}:color");
 		animFadeOut.TrackInsertKey(trackId, 0.0f, new Color(0, 0, 0, 1));
 		animFadeOut.TrackInsertKey(trackId, 0.3f, new Color(0, 0, 0, 0));
@@ -300,10 +320,11 @@ public partial class UIManager : Control
 
 	public void TransitionTo(GameScreen screen, bool isVictory = true)
 	{
-		if (screen == GameScreen.GameOver && (_targetScreen == GameScreen.GameOver || _currentScreen is Realm.Client.UI.GameOver))
+		if (screen == GameScreen.GameOver && (_targetScreen == GameScreen.GameOver || _currentScreen is GameOver))
 		{
 			return;
 		}
+
 		_targetScreen = screen;
 		_isVictory = isVictory;
 
@@ -321,18 +342,18 @@ public partial class UIManager : Control
 		_fadeAnim.Play("fade_in");
 
 		PlayScreenMusic(screen, isVictory);
-		
+
 		var timer = GetTree().CreateTimer(0.3f);
 		timer.Timeout += OnFadeInComplete;
 	}
 
 	private bool RequiresReplayReset(GameScreen screen)
 	{
-		return screen == GameScreen.GameOver || 
-		       screen == GameScreen.MainMenu || 
-		       screen == GameScreen.MapEditorHUD || 
-		       screen == GameScreen.LobbyBrowser || 
-		       screen == GameScreen.LobbyRoom || 
+		return screen == GameScreen.GameOver ||
+		       screen == GameScreen.MainMenu ||
+		       screen == GameScreen.MapEditorHUD ||
+		       screen == GameScreen.LobbyBrowser ||
+		       screen == GameScreen.LobbyRoom ||
 		       screen == GameScreen.ReplayList;
 	}
 
@@ -343,21 +364,22 @@ public partial class UIManager : Control
 			if (ReplayPlaybackManager.Instance.IsPlayingReplay)
 			{
 				ReplayPlaybackManager.Instance.StopReplay();
-				Realm.Client.Core.GameHost.Instance?.ResetWorldAndState();
+				GameHost.Instance?.ResetWorldAndState();
 			}
-			Realm.Client.Core.GameHost.Instance?.StopRecording();
+
+			GameHost.Instance?.StopRecording();
 		}
 	}
 
 	private bool IsEnchantedRealmMusicScreen(GameScreen screen)
 	{
-		return screen == GameScreen.MainMenu || 
-		       screen == GameScreen.LobbyBrowser || 
-		       screen == GameScreen.LobbyRoom || 
-		       screen == GameScreen.Settings || 
-		       screen == GameScreen.MapDiscovery || 
-		       screen == GameScreen.CreatorDiscovery || 
-		       screen == GameScreen.MapDetails || 
+		return screen == GameScreen.MainMenu ||
+		       screen == GameScreen.LobbyBrowser ||
+		       screen == GameScreen.LobbyRoom ||
+		       screen == GameScreen.Settings ||
+		       screen == GameScreen.MapDiscovery ||
+		       screen == GameScreen.CreatorDiscovery ||
+		       screen == GameScreen.MapDetails ||
 		       screen == GameScreen.Storage;
 	}
 
@@ -389,7 +411,7 @@ public partial class UIManager : Control
 		{
 			if (_musicPlayer.Stream?.ResourcePath == path && _musicPlayer.Playing)
 				return;
-			
+
 			var stream = GD.Load<AudioStream>(path);
 			if (stream != null)
 			{
@@ -445,11 +467,13 @@ public partial class UIManager : Control
 
 	private void OnFadeInComplete()
 	{
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
 		ClearCurrentScreen();
 		InstantiateTargetScreen();
 
 		_fadeAnim.Play("fade_out");
-		
+
 		var timer = GetTree().CreateTimer(0.3f);
 		timer.Timeout += OnFadeOutComplete;
 	}
@@ -457,12 +481,16 @@ public partial class UIManager : Control
 	private void ClearCurrentScreen()
 	{
 		if (_currentScreen == null) return;
-		
-		if (_currentScreen is MapEditorHUD)
+
+		if (GodotObject.IsInstanceValid(_currentScreen))
 		{
-			Realm.Client.Core.GameHost.Instance?.ExitMapEditorMode();
+			if (_currentScreen is MapEditorHUD)
+			{
+				GameHost.Instance?.ExitMapEditorMode();
+			}
+
+			_currentScreen.QueueFree();
 		}
-		_currentScreen.QueueFree();
 		_currentScreen = null;
 	}
 
@@ -485,8 +513,8 @@ public partial class UIManager : Control
 	{
 		if (_targetScreen == GameScreen.InGameHUD && ReplayPlaybackManager.Instance.IsPlayingReplay)
 		{
-			Realm.Client.Core.GameHost.Instance?.StopRecording();
-			var panelScene = GD.Load<PackedScene>("res://UI/ReplayViewerPanel.tscn");
+			GameHost.Instance?.StopRecording();
+			var panelScene = GD.Load<PackedScene>("res://UI/ReplayViewerPanelView.tscn");
 			if (panelScene != null)
 			{
 				var panel = panelScene.Instantiate<Control>();
@@ -508,11 +536,11 @@ public partial class UIManager : Control
 
 	private void ConfigureScreenData()
 	{
-		if (_currentScreen is Realm.Client.UI.GameOver gameOver)
+		if (_currentScreen is GameOver gameOver)
 		{
 			gameOver.SetStatus(_isVictory);
 		}
-		else if (_currentScreen is Realm.Client.UI.MapDetails mapDetails)
+		else if (_currentScreen is MapDetails mapDetails)
 		{
 			mapDetails.SetMapData(_selectedMapData);
 		}
@@ -527,11 +555,11 @@ public partial class UIManager : Control
 	{
 		return screen switch
 		{
-			GameScreen.LobbyBrowser => GetSceneOrLoad(LobbyBrowserScene, "res://UI/LobbyBrowser.tscn"),
-			GameScreen.LobbyCreate => GetSceneOrLoad(LobbyCreateScene, "res://UI/LobbyCreate.tscn"),
-			GameScreen.LobbyRoom => GetSceneOrLoad(LobbyRoomScene, "res://UI/LobbyRoom.tscn"),
-			GameScreen.MapDiscovery => GetSceneOrLoad(MapDiscoveryScene, "res://UI/MapDiscovery.tscn"),
-			GameScreen.MapDetails => GetSceneOrLoad(MapDetailsScene, "res://UI/MapDetails.tscn"),
+			GameScreen.LobbyBrowser => GetSceneOrLoad(LobbyBrowserScene, "res://UI/LobbyBrowserView.tscn"),
+			GameScreen.LobbyCreate => GetSceneOrLoad(LobbyCreateScene, "res://UI/LobbyCreateView.tscn"),
+			GameScreen.LobbyRoom => GetSceneOrLoad(LobbyRoomScene, "res://UI/LobbyRoomView.tscn"),
+			GameScreen.MapDiscovery => GetSceneOrLoad(MapDiscoveryScene, "res://UI/MapDiscoveryView.tscn"),
+			GameScreen.MapDetails => GetSceneOrLoad(MapDetailsScene, "res://UI/MapDetailsView.tscn"),
 			_ => null
 		};
 	}
@@ -540,12 +568,12 @@ public partial class UIManager : Control
 	{
 		return screen switch
 		{
-			GameScreen.Settings => GetSceneOrLoad(SettingsScene, "res://UI/SettingsMenu.tscn"),
-			GameScreen.InGameHUD => GetSceneOrLoad(InGameHUDScene, "res://UI/InGameHUD.tscn"),
-			GameScreen.GameOver => GetSceneOrLoad(GameOverScene, "res://UI/GameOver.tscn"),
-			GameScreen.CreatorDiscovery => GetSceneOrLoad(null, "res://UI/CreatorDiscovery.tscn"),
-			GameScreen.ReplayList => GetSceneOrLoad(ReplayListScene, "res://UI/ReplayListPanel.tscn"),
-			GameScreen.Storage => GetSceneOrLoad(StorageScene, "res://UI/StorageMenu.tscn"),
+			GameScreen.Settings => GetSceneOrLoad(SettingsScene, "res://UI/SettingsMenuView.tscn"),
+			GameScreen.InGameHUD => GetSceneOrLoad(InGameHUDScene, "res://UI/InGameHUDView.tscn"),
+			GameScreen.GameOver => GetSceneOrLoad(GameOverScene, "res://UI/GameOverView.tscn"),
+			GameScreen.CreatorDiscovery => GetSceneOrLoad(null, "res://UI/CreatorDiscoveryView.tscn"),
+			GameScreen.ReplayList => GetSceneOrLoad(ReplayListScene, "res://UI/ReplayListPanelView.tscn"),
+			GameScreen.Storage => GetSceneOrLoad(StorageScene, "res://UI/StorageMenuView.tscn"),
 			_ => null
 		};
 	}
@@ -553,17 +581,17 @@ public partial class UIManager : Control
 	private PackedScene GetTargetScene(GameScreen screen)
 	{
 		Input.MouseMode = Input.MouseModeEnum.Visible;
-		
+
 		if (screen == GameScreen.MainMenu)
 		{
-			if (Network.LobbyManager.Instance != null) Network.LobbyManager.Instance.Disconnect();
-			return MainMenuScene ?? GD.Load<PackedScene>("res://UI/MainMenu.tscn");
+			if (LobbyManager.Instance != null) LobbyManager.Instance.Disconnect();
+			return MainMenuScene ?? GD.Load<PackedScene>("res://UI/MainMenuView.tscn");
 		}
-		
+
 		if (screen == GameScreen.MapEditorHUD)
 		{
-			Realm.Client.Core.GameHost.Instance?.StartMapEditorMode();
-			return MapEditorHUDScene ?? GD.Load<PackedScene>("res://UI/MapEditorHUD.tscn");
+			GameHost.Instance?.StartMapEditorMode();
+			return MapEditorHUDScene ?? GD.Load<PackedScene>("res://UI/MapEditorHUDView.tscn");
 		}
 
 		return GetLobbyOrMapScene(screen) ?? GetOtherScene(screen);
@@ -571,6 +599,8 @@ public partial class UIManager : Control
 
 	private void OnFadeOutComplete()
 	{
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
 		_fadeOverlay.MouseFilter = MouseFilterEnum.Ignore;
 		_transitionInProgress = false;
 		if (_queuedScreen.HasValue)
@@ -587,7 +617,7 @@ public partial class UIManager : Control
 	{
 		if (SettingsMenu.IsOpen) return;
 
-		var settingsPopup = GD.Load<PackedScene>("res://UI/SettingsMenu.tscn").Instantiate<SettingsMenu>();
+		var settingsPopup = GD.Load<PackedScene>("res://UI/SettingsMenuView.tscn").Instantiate<SettingsMenu>();
 		settingsPopup.IsOverlay = true;
 		AddChild(settingsPopup);
 		MoveChild(settingsPopup, GetChildCount() - 1);
@@ -668,10 +698,7 @@ public partial class UIManager : Control
 				onCancel?.Invoke();
 			};
 			overlay.SetMeta("CancelAction", Callable.From(cancelAction));
-			btnCancel.Pressed += () =>
-			{
-				cancelAction();
-			};
+			btnCancel.Pressed += () => { cancelAction(); };
 			hbox.AddChild(btnCancel);
 		}
 	}
@@ -742,7 +769,7 @@ public partial class UIManager : Control
 		vbox.AddChild(titleLabel);
 
 		var fileNameLabel = new Label();
-		fileNameLabel.Text = System.IO.Path.GetFileName(archivePath);
+		fileNameLabel.Text = Path.GetFileName(archivePath);
 		fileNameLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		fileNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		fileNameLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -768,7 +795,7 @@ public partial class UIManager : Control
 	private async Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> RunImportTask(
 		string archivePath, ProgressBar progressBar, Label statusLabel)
 	{
-		var mapStorageService = ServiceLocator.Get<MapStorageService>();
+		var mapStorageService = GameContext.MapStorageService;
 		try
 		{
 			return await Task.Run(() => mapStorageService.ImportMapAsync(
@@ -790,6 +817,7 @@ public partial class UIManager : Control
 			{
 				progressBar.Value = Mathf.Clamp(progress * 100.0, 0, 100);
 			}
+
 			if (GodotObject.IsInstanceValid(statusLabel))
 			{
 				statusLabel.Text = GetImportPhaseText(progress);

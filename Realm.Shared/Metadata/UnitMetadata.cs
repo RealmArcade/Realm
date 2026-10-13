@@ -81,6 +81,7 @@ public class UnitMetadata
 	public string[]? SoundEvents { get; set; }
 	public string? SpawnShader { get; set; }
 	public string? DeathShader { get; set; }
+
 	public string? DespawnShader
 	{
 		get => DeathShader;
@@ -93,6 +94,7 @@ public class UnitMetadata
 		{
 			return ObjectAttachments.TryGetOrientation(hand, attachmentId, out orientation);
 		}
+
 		orientation = default;
 		return false;
 	}
@@ -103,6 +105,7 @@ public class UnitMetadata
 		{
 			return ObjectAttachments.TryGetSocketOrientation(socket, attachmentId, out orientation);
 		}
+
 		orientation = default;
 		return false;
 	}
@@ -125,6 +128,7 @@ public class UnitMetadata
 		{
 			return ObjectAttachments.RemoveSocketAttachment(socket, attachmentId, parentAttachmentId);
 		}
+
 		return false;
 	}
 }

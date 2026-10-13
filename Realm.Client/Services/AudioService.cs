@@ -1,7 +1,9 @@
-using Godot;
-using Realm.Ecs.Services;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Godot;
+using Realm.Client.Core;
+using Realm.Shared.Audio;
 
 namespace Realm.Client.Services;
 
@@ -11,7 +13,6 @@ public class AudioService
 	private const int Max3DPlayers = 32;
 	private const int MaxConcurrentPerSound = 4;
 
-	private readonly WorldAccessor _ecsWorldAccessor;
 	private readonly Dictionary<string, AudioStream> _streamCache = new(StringComparer.OrdinalIgnoreCase);
 	private readonly List<AudioStreamPlayer> _player2DPool = new();
 	private readonly List<AudioStreamPlayer3D> _player3DPool = new();
@@ -20,9 +21,8 @@ public class AudioService
 
 	private Node? _audioRoot;
 
-	public AudioService(WorldAccessor ecsWorldAccessor)
+	public AudioService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
 	public void InitializeAudioNodes(Node parentNode)
@@ -76,7 +76,7 @@ public class AudioService
 			else
 			{
 				string fullPath = ResolveExternalAudioPath(soundPath);
-				if (System.IO.File.Exists(fullPath))
+				if (File.Exists(fullPath))
 				{
 					stream = LoadStreamFromFile(fullPath);
 				}
@@ -105,27 +105,28 @@ public class AudioService
 		{
 			return GD.Load<AudioStream>(soundPath);
 		}
+
 		return null;
 	}
 
 	private string ResolveExternalAudioPath(string soundPath)
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string fullPath = System.IO.Path.Combine(wsPath, "Assets", "audio", soundPath);
-		
-		if (System.IO.File.Exists(fullPath)) return fullPath;
-		
-		string candRaud = System.IO.Path.ChangeExtension(fullPath, ".raud");
-		if (System.IO.File.Exists(candRaud)) return candRaud;
+		string fullPath = Path.Combine(wsPath, "Assets", "audio", soundPath);
 
-		fullPath = System.IO.Path.Combine(wsPath, soundPath);
-		if (System.IO.File.Exists(fullPath)) return fullPath;
+		if (File.Exists(fullPath)) return fullPath;
 
-		candRaud = System.IO.Path.ChangeExtension(fullPath, ".raud");
-		if (System.IO.File.Exists(candRaud)) return candRaud;
+		string candRaud = Path.ChangeExtension(fullPath, ".raud");
+		if (File.Exists(candRaud)) return candRaud;
+
+		fullPath = Path.Combine(wsPath, soundPath);
+		if (File.Exists(fullPath)) return fullPath;
+
+		candRaud = Path.ChangeExtension(fullPath, ".raud");
+		if (File.Exists(candRaud)) return candRaud;
 
 		fullPath = ProjectSettings.GlobalizePath($"res://Assets/Audio/UI/{soundPath}");
-		if (System.IO.File.Exists(fullPath)) return fullPath;
+		if (File.Exists(fullPath)) return fullPath;
 
 		return ProjectSettings.GlobalizePath($"res://Assets/Audio/{soundPath}");
 	}
@@ -136,23 +137,24 @@ public class AudioService
 		{
 			return LoadRaudStream(fullPath);
 		}
-		
+
 		if (fullPath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
 		{
 			return AudioStreamOggVorbis.LoadFromFile(fullPath);
 		}
-		
+
 		return GD.Load<AudioStream>(fullPath);
 	}
 
 	private AudioStream? LoadRaudStream(string fullPath)
 	{
-		byte[] raudBytes = System.IO.File.ReadAllBytes(fullPath);
-		byte[]? oggBytes = Realm.Shared.Audio.RaudFile.GetTrack(raudBytes, 0);
+		byte[] raudBytes = File.ReadAllBytes(fullPath);
+		byte[]? oggBytes = RaudFile.GetTrack(raudBytes, 0);
 		if (oggBytes != null && oggBytes.Length > 0)
 		{
 			return AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
 		}
+
 		return null;
 	}
 
@@ -162,12 +164,12 @@ public class AudioService
 		{
 			return GD.Load<AudioStream>($"res://Assets/Audio/UI/{soundPath}");
 		}
-		
+
 		if (ResourceLoader.Exists($"res://Assets/Audio/{soundPath}"))
 		{
 			return GD.Load<AudioStream>($"res://Assets/Audio/{soundPath}");
 		}
-		
+
 		return null;
 	}
 
@@ -209,7 +211,7 @@ public class AudioService
 
 		EnsureAudioRoot();
 
-		var cameraPos = Realm.Client.Core.GameHost.Instance?.MainCamera?.GlobalPosition ?? position;
+		var cameraPos = GameHost.Instance?.MainCamera?.GlobalPosition ?? position;
 		CleanupAndScore3DPlayers(soundPath, cameraPos, out int activeCount, out var furthestPlayer, out float maxDistSq);
 
 		AudioStreamPlayer3D? player = Get3DPlayer(activeCount, position, cameraPos, furthestPlayer, maxDistSq);
@@ -239,7 +241,7 @@ public class AudioService
 				stopped.Add(p);
 				continue;
 			}
-			
+
 			if (string.Equals(info.SoundKey, soundPath, StringComparison.OrdinalIgnoreCase))
 			{
 				activeCount++;
@@ -267,6 +269,7 @@ public class AudioService
 			{
 				return furthestPlayer;
 			}
+
 			return null;
 		}
 
@@ -282,14 +285,14 @@ public class AudioService
 		{
 			return _player3DPool[0];
 		}
-		
+
 		return null;
 	}
 
 	public void PlayUnitSound(string unitId, UnitSoundEvent eventType, Vector3 position, float volumeDb = 0f)
 	{
 		if (string.IsNullOrEmpty(unitId)) return;
-		if (Realm.Client.Core.GameHost.UnitRegistry != null && Realm.Client.Core.GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
+		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
 		{
 			PlayUnitSound(meta, eventType, position, volumeDb);
 		}
@@ -324,6 +327,39 @@ public class AudioService
 		};
 	}
 
+	public (bool Success, string Message, string FileName, string Blake3, string AudioCategory) ImportAudioAsset(string sourceFilePath, string audioType, string tempWorkspacePath)
+	{
+		try
+		{
+			string baseName = Path.GetFileNameWithoutExtension(sourceFilePath);
+			string fileName = baseName + ".ogg";
+			string targetPath = Path.Combine(tempWorkspacePath, fileName);
+
+			if (sourceFilePath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
+			{
+				File.Copy(sourceFilePath, targetPath, true);
+			}
+			else
+			{
+				AudioConverter.ConvertToOgg(sourceFilePath, targetPath);
+				if (!File.Exists(targetPath) || new FileInfo(targetPath).Length == 0)
+				{
+					File.Copy(sourceFilePath, targetPath, true);
+				}
+			}
+
+			byte[] bytes = File.ReadAllBytes(targetPath);
+			string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, ".ogg");
+			string audioCategory = audioType.ToLowerInvariant() == "music" ? "music" : "sfx";
+
+			return (true, string.Empty, fileName, blake3, audioCategory);
+		}
+		catch (Exception ex)
+		{
+			return (false, ex.Message, string.Empty, string.Empty, string.Empty);
+		}
+	}
+
 	public void PlayWarningSound()
 	{
 		PlaySound2D("res://Assets/Audio/UI/alert_warning_buzz.ogg", 0f, 0f);
@@ -353,9 +389,9 @@ public class AudioService
 	{
 		if (_audioRoot == null || !GodotObject.IsInstanceValid(_audioRoot))
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && GodotObject.IsInstanceValid(Realm.Client.Core.GameHost.Instance))
+			if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance))
 			{
-				InitializeAudioNodes(Realm.Client.Core.GameHost.Instance);
+				InitializeAudioNodes(GameHost.Instance);
 			}
 			else if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
 			{

@@ -1,6 +1,6 @@
-using Godot;
 using System;
 using System.Collections.Generic;
+using Godot;
 
 namespace Realm.Client.VFX;
 
@@ -129,10 +129,10 @@ public partial class ChainBeam3D : Node3D
 			Vector3 mid = p1.Lerp(p2, 0.5f);
 			Vector3 forkDir = (p2 - p1).Cross(Vector3.Up).Normalized();
 			if (f % 2 == 1) forkDir = -forkDir;
-			
+
 			Vector3 jitter = new Vector3(0, (float)(_rng.NextDouble() - 0.5) * JitterAmount, 0);
 			Vector3 forkEnd = mid + (forkDir * (1.5f + JitterAmount * 2.0f)) + jitter;
-			
+
 			DrawSegment(mid, forkEnd, camPos, alpha * 0.6f);
 		}
 	}
@@ -197,13 +197,25 @@ public partial class ChainBeam3D : Node3D
 			Vector3 v2 = currPos1 - widthOffset;
 			Vector3 v3 = currPos1 + widthOffset;
 
-			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t0, 0.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v0));
-			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t0, 1.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v1));
-			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t1, 0.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v2));
+			_immediateMesh.SurfaceSetColor(col);
+			_immediateMesh.SurfaceSetUV(new Vector2(t0, 0.0f));
+			_immediateMesh.SurfaceAddVertex(ToLocal(v0));
+			_immediateMesh.SurfaceSetColor(col);
+			_immediateMesh.SurfaceSetUV(new Vector2(t0, 1.0f));
+			_immediateMesh.SurfaceAddVertex(ToLocal(v1));
+			_immediateMesh.SurfaceSetColor(col);
+			_immediateMesh.SurfaceSetUV(new Vector2(t1, 0.0f));
+			_immediateMesh.SurfaceAddVertex(ToLocal(v2));
 
-			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t0, 1.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v1));
-			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t1, 1.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v3));
-			_immediateMesh.SurfaceSetColor(col); _immediateMesh.SurfaceSetUV(new Vector2(t1, 0.0f)); _immediateMesh.SurfaceAddVertex(ToLocal(v2));
+			_immediateMesh.SurfaceSetColor(col);
+			_immediateMesh.SurfaceSetUV(new Vector2(t0, 1.0f));
+			_immediateMesh.SurfaceAddVertex(ToLocal(v1));
+			_immediateMesh.SurfaceSetColor(col);
+			_immediateMesh.SurfaceSetUV(new Vector2(t1, 1.0f));
+			_immediateMesh.SurfaceAddVertex(ToLocal(v3));
+			_immediateMesh.SurfaceSetColor(col);
+			_immediateMesh.SurfaceSetUV(new Vector2(t1, 0.0f));
+			_immediateMesh.SurfaceAddVertex(ToLocal(v2));
 		}
 	}
 }

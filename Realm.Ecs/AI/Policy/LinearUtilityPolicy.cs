@@ -109,6 +109,7 @@ public class LinearUtilityPolicy
 			{
 				weight *= aggressionMultiplier;
 			}
+
 			dotProduct += featureVector[i] * weight;
 		}
 

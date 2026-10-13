@@ -1,5 +1,6 @@
-using Realm.Shared.Metadata;
 using System.Text.Json.Nodes;
+using Assimp;
+using Realm.Shared.Metadata;
 
 namespace Realm.Shared.ModelOptimization;
 
@@ -34,7 +35,6 @@ public static class ModelConverter
 	}
 
 
-
 	private static JsonObject ParseExistingMetadata(string? existingMetaJson)
 	{
 		if (string.IsNullOrWhiteSpace(existingMetaJson)) return new JsonObject();
@@ -56,6 +56,7 @@ public static class ModelConverter
 			{
 				return canonicalInput;
 			}
+
 			return assetType;
 		}
 
@@ -66,6 +67,7 @@ public static class ModelConverter
 			{
 				return canonicalMeta;
 			}
+
 			return existingType;
 		}
 
@@ -91,7 +93,7 @@ public static class ModelConverter
 		{
 			return (false, null, optResult.ErrorMessage ?? "Optimization failed.");
 		}
-		
+
 		return (true, optResult.OutputGlbBytes, null);
 	}
 
@@ -101,7 +103,7 @@ public static class ModelConverter
 		{
 			return GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
 		}
-		
+
 		if (string.IsNullOrEmpty(chromaKey))
 		{
 			string? existingKey = metaObj["chroma_key"]?.ToString() ?? metaObj["chromaKey"]?.ToString();
@@ -109,9 +111,10 @@ public static class ModelConverter
 			{
 				return GlbPlayerColorProcessor.AutoDetectChromaKey(finalGlbBytes) ?? "#FF00FF";
 			}
+
 			return existingKey ?? string.Empty;
 		}
-		
+
 		return chromaKey;
 	}
 
@@ -123,8 +126,8 @@ public static class ModelConverter
 			return File.ReadAllBytes(fullInput);
 		}
 
-		using var importer = new Assimp.AssimpContext();
-		var scene = importer.ImportFile(fullInput, Assimp.PostProcessSteps.Triangulate | Assimp.PostProcessSteps.GenerateNormals | Assimp.PostProcessSteps.MakeLeftHanded | Assimp.PostProcessSteps.FlipUVs);
+		using var importer = new AssimpContext();
+		var scene = importer.ImportFile(fullInput, PostProcessSteps.Triangulate | PostProcessSteps.GenerateNormals | PostProcessSteps.MakeLeftHanded | PostProcessSteps.FlipUVs);
 		string tempGlb = Path.Combine(Path.GetTempPath(), $"realm_import_{Guid.NewGuid():N}.glb");
 		try
 		{
@@ -133,7 +136,14 @@ public static class ModelConverter
 		}
 		finally
 		{
-			if (File.Exists(tempGlb)) try { File.Delete(tempGlb); } catch { }
+			if (File.Exists(tempGlb))
+				try
+				{
+					File.Delete(tempGlb);
+				}
+				catch
+				{
+				}
 		}
 	}
 
@@ -255,7 +265,7 @@ public static class ModelConverter
 		{
 			return;
 		}
-			
+
 		metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
 	}
 
@@ -326,7 +336,7 @@ public static class ModelConverter
 		try
 		{
 			var (rawGlbBytes, metaJson) = ParseInputBytes(inputBytes, existingMetadataJson);
-			
+
 			JsonObject metaObj = ParseExistingMetadata(metaJson);
 			string? effectiveAssetType = DetermineEffectiveAssetType(assetType, metaObj);
 

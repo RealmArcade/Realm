@@ -1,5 +1,6 @@
-using Godot;
 using System.Collections.Generic;
+using System.IO;
+using Godot;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -7,10 +8,10 @@ public static class RanimSkeletonThumbnailGenerator
 {
 	public static void EnsureDiskRanimThumbnail(string filePath, string? blake3 = null)
 	{
-		if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath)) return;
+		if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
 
 		string cachedPngPath = AssetThumbnailProvider.GetDiskCachePath(filePath, blake3);
-		if (string.IsNullOrEmpty(cachedPngPath) || System.IO.File.Exists(cachedPngPath)) return;
+		if (string.IsNullOrEmpty(cachedPngPath) || File.Exists(cachedPngPath)) return;
 
 		var animData = RealmAnimationSerializer.LoadFromFile(filePath);
 		if (animData == null) return;
@@ -37,7 +38,7 @@ public static class RanimSkeletonThumbnailGenerator
 
 	public static AnimatedThumbnail? GenerateAnimatedThumbnail(string filePath)
 	{
-		if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+		if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
 		{
 			return null;
 		}

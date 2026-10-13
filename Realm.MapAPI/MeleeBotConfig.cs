@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
 
@@ -41,9 +42,9 @@ public class MeleeBotConfig
 	{
 		var dict = new Dictionary<string, string>
 		{
-			{ "RetreatHealthPercent", RetreatHealthPercent.ToString(System.Globalization.CultureInfo.InvariantCulture) },
-			{ "KitingDistanceBias", KitingDistanceBias.ToString(System.Globalization.CultureInfo.InvariantCulture) },
-			{ "AggressionBias", AggressionBias.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+			{ "RetreatHealthPercent", RetreatHealthPercent.ToString(CultureInfo.InvariantCulture) },
+			{ "KitingDistanceBias", KitingDistanceBias.ToString(CultureInfo.InvariantCulture) },
+			{ "AggressionBias", AggressionBias.ToString(CultureInfo.InvariantCulture) },
 			{ "ExpansionLocationsJson", JsonSerializer.Serialize(ExpansionLocations) },
 			{ "RallyPointsJson", JsonSerializer.Serialize(RallyPoints) }
 		};

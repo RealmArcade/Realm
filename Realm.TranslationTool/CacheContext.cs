@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 
 namespace Realm.TranslationTool
 {
@@ -64,6 +64,7 @@ namespace Realm.TranslationTool
 				else
 					sb.Append(c);
 			}
+
 			return sb.ToString();
 		}
 
@@ -126,13 +127,5 @@ namespace Realm.TranslationTool
 
 			return targetPath;
 		}
-
-		private sealed class DisposableAction : IDisposable
-		{
-			private readonly Action _action;
-			public DisposableAction(Action action) => _action = action;
-			public void Dispose() => _action();
-		}
 	}
 }
-

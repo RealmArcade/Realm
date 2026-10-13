@@ -51,6 +51,7 @@ public class Migration_0_0_2_NormalizeModelProperties : IMapMigration
 		{
 			metadataRoot["Models"] = new JsonObject();
 		}
+
 		return metadataRoot["Models"]!.AsObject();
 	}
 
@@ -78,8 +79,10 @@ public class Migration_0_0_2_NormalizeModelProperties : IMapMigration
 				{
 					modelsObj[modelKey] = new JsonObject();
 				}
+
 				modelsObj[modelKey]!.AsObject()[propKey] = kvp.Value.DeepClone();
 			}
+
 			metadataRoot.Remove(topKey);
 		}
 	}
@@ -97,8 +100,10 @@ public class Migration_0_0_2_NormalizeModelProperties : IMapMigration
 			{
 				modelsObj[modelKey] = new JsonObject();
 			}
+
 			modelsObj[modelKey]!.AsObject()["DespillPlayerColor"] = true;
 		}
+
 		metadataRoot.Remove("ModelNormalModes");
 	}
 

@@ -111,9 +111,10 @@ public static class AudioConverter
 				errorMessage = "Input RAUD file contains no audio tracks.";
 				return null;
 			}
+
 			return tracks[0];
 		}
-		
+
 		if (ext == ".ogg")
 		{
 			return File.ReadAllBytes(fullInput);
@@ -128,6 +129,7 @@ public static class AudioConverter
 				errorMessage = oggRes.ErrorMessage;
 				return null;
 			}
+
 			return File.ReadAllBytes(tempOgg);
 		}
 		finally
@@ -139,14 +141,26 @@ public static class AudioConverter
 	private static void SafeDeleteTempFile(string filePath)
 	{
 		if (!File.Exists(filePath)) return;
-		try { File.Delete(filePath); } catch { }
+		try
+		{
+			File.Delete(filePath);
+		}
+		catch
+		{
+		}
 	}
 
 	private static JsonObject ParseMetadataObj(string? existingMeta)
 	{
 		if (string.IsNullOrWhiteSpace(existingMeta)) return new JsonObject();
-		try { return JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject(); }
-		catch { return new JsonObject(); }
+		try
+		{
+			return JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
+		}
+		catch
+		{
+			return new JsonObject();
+		}
 	}
 
 	private static string GetEffectiveAssetType(string? assetType, string fullInput, JsonObject metaObj)
@@ -163,15 +177,15 @@ public static class AudioConverter
 	private static string? ExtractExistingAssetType(JsonObject metaObj)
 	{
 		return metaObj["asset_type"]?.ToString()
-			?? metaObj["default_asset_type"]?.ToString()
-			?? metaObj["type"]?.ToString();
+		       ?? metaObj["default_asset_type"]?.ToString()
+		       ?? metaObj["type"]?.ToString();
 	}
 
 	private static bool IsValidExistingAssetType(string? existingType, out string canonical)
 	{
 		canonical = string.Empty;
 		return !string.IsNullOrEmpty(existingType)
-			&& RealmMetadataHelper.IsValidAssetTypeForExtension(".raud", existingType, out canonical, out _);
+		       && RealmMetadataHelper.IsValidAssetTypeForExtension(".raud", existingType, out canonical, out _);
 	}
 
 	private static string GuessAssetTypeFromPath(string fullInput)
@@ -360,4 +374,3 @@ public static class AudioConverter
 		return failCount > 0 ? 1 : 0;
 	}
 }
-

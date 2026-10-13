@@ -1,8 +1,17 @@
-using Godot;
-using Realm.Client.Animation;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Nodes;
+using Godot;
+using Realm.Client.Animation;
+using Realm.Client.Core;
+using Realm.Client.Services.ModelOptimization;
+using Realm.Shared;
+using Realm.Shared.Distribution;
+using Realm.Shared.ModelOptimization;
+using Environment = System.Environment;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -13,14 +22,6 @@ public partial class GlbThumbnailRenderer : Node
 
 	public static event Action<string, Texture2D>? ThumbnailGenerated;
 
-	private class GlbRequest
-	{
-		public string FilePath { get; set; } = string.Empty;
-		public DateTime LastModifiedUtc { get; set; }
-		public string Blake3 { get; set; } = string.Empty;
-		public Action<string, Texture2D>? Callback { get; set; }
-		public bool IsHighPriority { get; set; }
-	}
 
 	private static readonly LinkedList<GlbRequest> _requestQueue = new();
 	private static readonly HashSet<string> _pendingPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -44,7 +45,7 @@ public partial class GlbThumbnailRenderer : Node
 
 		if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
 		{
-			if (System.Environment.CurrentManagedThreadId == 1)
+			if (Environment.CurrentManagedThreadId == 1)
 			{
 				CreateInstanceInTree(tree);
 			}
@@ -110,10 +111,10 @@ public partial class GlbThumbnailRenderer : Node
 		_subViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Always;
 
 		var world = new World3D();
-		var env = new global::Godot.Environment();
-		env.BackgroundMode = global::Godot.Environment.BGMode.Color;
+		var env = new Godot.Environment();
+		env.BackgroundMode = Godot.Environment.BGMode.Color;
 		env.BackgroundColor = new Color(0.10f, 0.11f, 0.14f, 1.0f);
-		env.AmbientLightSource = global::Godot.Environment.AmbientSource.Color;
+		env.AmbientLightSource = Godot.Environment.AmbientSource.Color;
 		env.AmbientLightColor = new Color(0.40f, 0.42f, 0.48f);
 		env.AmbientLightEnergy = 1.2f;
 		world.Environment = env;
@@ -155,7 +156,7 @@ public partial class GlbThumbnailRenderer : Node
 	{
 		if (!string.IsNullOrEmpty(preferredBlake3))
 		{
-			return Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(preferredBlake3);
+			return ContentAddressableStorage.NormalizeBlake3Hash(preferredBlake3);
 		}
 
 		string fileName = Path.GetFileNameWithoutExtension(filePath);
@@ -176,25 +177,28 @@ public partial class GlbThumbnailRenderer : Node
 			return fallbackHash;
 		}
 
-		return Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(fileName);
+		return ContentAddressableStorage.NormalizeBlake3Hash(fileName);
 	}
 
 	private static string? ExtractBlake3FromMetadata(string filePath)
 	{
 		try
 		{
-			string? metaJson = Realm.Shared.Metadata.RealmMetadataHelper.ExtractMetadata(filePath);
+			string? metaJson = RealmMetadataHelper.ExtractMetadata(filePath);
 			if (string.IsNullOrEmpty(metaJson))
 				return null;
-				
-			var node = System.Text.Json.Nodes.JsonNode.Parse(metaJson);
+
+			var node = JsonNode.Parse(metaJson);
 			string? b3 = node?["blake3"]?.ToString();
 			if (!string.IsNullOrEmpty(b3))
 			{
-				return Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(b3);
+				return ContentAddressableStorage.NormalizeBlake3Hash(b3);
 			}
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return null;
 	}
 
@@ -204,14 +208,17 @@ public partial class GlbThumbnailRenderer : Node
 		{
 			if (!File.Exists(filePath))
 				return null;
-					
+
 			var fi = new FileInfo(filePath);
 			string key = $"{filePath}_{fi.Length}_{fi.LastWriteTimeUtc.Ticks}";
-			using var sha = System.Security.Cryptography.SHA256.Create();
-			byte[] hashBytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(key));
+			using var sha = SHA256.Create();
+			byte[] hashBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(key));
 			return Convert.ToHexString(hashBytes).ToLowerInvariant();
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return null;
 	}
 
@@ -224,6 +231,7 @@ public partial class GlbThumbnailRenderer : Node
 				return false;
 			}
 		}
+
 		return true;
 	}
 
@@ -255,7 +263,9 @@ public partial class GlbThumbnailRenderer : Node
 					return true;
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		}
 
 		return false;
@@ -297,9 +307,11 @@ public partial class GlbThumbnailRenderer : Node
 							_requestQueue.AddFirst(node.Value);
 							break;
 						}
+
 						node = node.Next;
 					}
 				}
+
 				EnsureInTreeDeferred();
 				return;
 			}
@@ -337,6 +349,7 @@ public partial class GlbThumbnailRenderer : Node
 			{
 				CaptureCurrentThumbnail();
 			}
+
 			return;
 		}
 
@@ -372,17 +385,17 @@ public partial class GlbThumbnailRenderer : Node
 
 		try
 		{
-			Realm.Client.Services.ModelOptimization.GltfDocumentExtensionMsftLod.RegisterExtension();
+			GltfDocumentExtensionMsftLod.RegisterExtension();
 
 			var doc = new GltfDocument();
 			var state = new GltfState();
-				
+
 			byte[] glbBytes = GetGlbBytes(request.FilePath, out string? chromaKey);
-				
-			bool despill = Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.GetModelDespillPlayerColor(request.FilePath);
+
+			bool despill = GameHost.Instance != null && GameHost.Instance.GetModelDespillPlayerColor(request.FilePath);
 			if (despill)
 			{
-				glbBytes = Realm.Shared.GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
+				glbBytes = GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
 			}
 
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
@@ -399,7 +412,7 @@ public partial class GlbThumbnailRenderer : Node
 				return;
 			}
 
-			Realm.Client.Services.ModelOptimization.GltfDocumentExtensionMsftLod.ProcessImportedScene(state, scene);
+			GltfDocumentExtensionMsftLod.ProcessImportedScene(state, scene);
 			StopAnimations(scene);
 
 			_modelContainer.AddChild(scene);
@@ -423,20 +436,21 @@ public partial class GlbThumbnailRenderer : Node
 		{
 			_pendingPaths.Remove(filePath);
 		}
+
 		_currentRequest = null;
 	}
 
 	private static byte[] GetGlbBytes(string filePath, out string? chromaKey)
 	{
 		byte[] fileBytes = File.ReadAllBytes(filePath);
-		if (Realm.Shared.ModelOptimization.RmeshFile.IsRmeshBytes(fileBytes))
+		if (RmeshFile.IsRmeshBytes(fileBytes))
 		{
-			var (meta, glbPayload, _) = Realm.Shared.ModelOptimization.RmeshFile.Parse(fileBytes);
-			chromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(meta);
+			var (meta, glbPayload, _) = RmeshFile.Parse(fileBytes);
+			chromaKey = RealmMetadataHelper.ExtractChromaKeyFromMetadataJson(meta);
 			return glbPayload;
 		}
-			
-		chromaKey = Realm.Shared.Metadata.RealmMetadataHelper.ExtractChromaKey(filePath);
+
+		chromaKey = RealmMetadataHelper.ExtractChromaKey(filePath);
 		return fileBytes;
 	}
 
@@ -456,13 +470,14 @@ public partial class GlbThumbnailRenderer : Node
 		float dist = (maxDim * 0.85f) / MathF.Tan(fovRad);
 		Vector3 camDir = new Vector3(1.2f, 0.8f, 1.4f).Normalized();
 		Vector3 eyePos = center + camDir * dist;
-			
+
 		if (eyePos.DistanceSquaredTo(center) > 0.0001f)
 		{
 			Vector3 dir = (center - eyePos).Normalized();
 			Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
 			_camera.LookAtFromPosition(eyePos, center, up);
 		}
+
 		_camera.Current = true;
 	}
 
@@ -519,7 +534,7 @@ public partial class GlbThumbnailRenderer : Node
 			_modelContainer.RemoveChild(child);
 			child.QueueFree();
 		}
-			
+
 		lock (_requestLock)
 		{
 			if (_currentRequest != null)
@@ -527,6 +542,7 @@ public partial class GlbThumbnailRenderer : Node
 				_pendingPaths.Remove(_currentRequest.FilePath);
 			}
 		}
+
 		_currentRequest = null;
 	}
 
@@ -537,6 +553,7 @@ public partial class GlbThumbnailRenderer : Node
 			ap.Stop();
 			ap.ProcessMode = ProcessModeEnum.Disabled;
 		}
+
 		int count = node.GetChildCount();
 		for (int i = 0; i < count; i++)
 		{
@@ -607,6 +624,7 @@ public partial class GlbThumbnailRenderer : Node
 				chars[i] = '_';
 			}
 		}
+
 		return new string(chars);
 	}
 

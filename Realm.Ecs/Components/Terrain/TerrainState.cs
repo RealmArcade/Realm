@@ -25,8 +25,8 @@ namespace Realm.Ecs.Components.Terrain
 		public static float[,]? CalculateHeights(int width, int depth, TerrainCell[,]? cells)
 		{
 			if (cells == null) return null;
-			int w = System.Math.Max(1, width);
-			int d = System.Math.Max(1, depth);
+			int w = Math.Max(1, width);
+			int d = Math.Max(1, depth);
 			float[,] result = new float[w + 1, d + 1];
 			for (int z = 0; z < d; z++)
 			{
@@ -34,12 +34,15 @@ namespace Realm.Ecs.Components.Terrain
 				{
 					result[x, z] = cells[x, z].Y_NW;
 				}
+
 				result[w, z] = cells[w - 1, z].Y_NE;
 			}
+
 			for (int x = 0; x < w; x++)
 			{
 				result[x, d] = cells[x, d - 1].Y_SW;
 			}
+
 			result[w, d] = cells[w - 1, d - 1].Y_SE;
 			return result;
 		}
@@ -50,6 +53,7 @@ namespace Realm.Ecs.Components.Terrain
 			{
 				return null;
 			}
+
 			var cells = new TerrainCell[width, depth];
 			int sW = heights.GetLength(0);
 			int sD = heights.GetLength(1);
@@ -58,12 +62,12 @@ namespace Realm.Ecs.Components.Terrain
 
 			for (int z = 0; z < depth; z++)
 			{
-				int z0 = System.Math.Clamp(z, 0, sD - 1);
-				int z1 = System.Math.Clamp(z + 1, 0, sD - 1);
+				int z0 = Math.Clamp(z, 0, sD - 1);
+				int z1 = Math.Clamp(z + 1, 0, sD - 1);
 				for (int x = 0; x < width; x++)
 				{
-					int x0 = System.Math.Clamp(x, 0, sW - 1);
-					int x1 = System.Math.Clamp(x + 1, 0, sW - 1);
+					int x0 = Math.Clamp(x, 0, sW - 1);
+					int x1 = Math.Clamp(x + 1, 0, sW - 1);
 
 					float nw = heights[x0, z0];
 					float ne = heights[x1, z0];
@@ -83,6 +87,7 @@ namespace Realm.Ecs.Components.Terrain
 					cells[x, z] = new TerrainCell(nw, ne, se, sw, wMode, wProfile, wHeight);
 				}
 			}
+
 			return cells;
 		}
 

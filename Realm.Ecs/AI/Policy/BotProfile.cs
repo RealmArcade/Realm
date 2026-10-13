@@ -1,5 +1,5 @@
-using Realm.Ecs.AI.Genres;
 using System.Text.Json;
+using Realm.Ecs.AI.Genres;
 
 namespace Realm.Ecs.AI.Policy;
 

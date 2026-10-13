@@ -1,8 +1,9 @@
-using Godot;
-using Realm.Ecs.Components.Terrain;
 using System.Collections.Generic;
 using System.Linq;
+using Godot;
 using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client;
 
@@ -11,6 +12,7 @@ public class MapStateSnapshot
 	public int Width;
 	public int Depth;
 	public TerrainCell[,] Cells;
+
 	public float[,] Heights
 	{
 		get
@@ -22,8 +24,9 @@ public class MapStateSnapshot
 			for (int z = 0; z <= d; z++)
 			for (int x = 0; x <= w; x++)
 			{
-				res[x, z] = Realm.Client.RuntimeTerrain.GetGridNodeHeight(x, z, Cells, w, d);
+				res[x, z] = RuntimeTerrain.GetGridNodeHeight(x, z, Cells, w, d);
 			}
+
 			return res;
 		}
 		set
@@ -34,6 +37,7 @@ public class MapStateSnapshot
 			Cells = TerrainState.CalculateCells(w, d, value, Cells);
 		}
 	}
+
 	public int[,] PathingCodes;
 	public TerrainSplatWeights[,] SplatMap;
 	public TerrainSplatWeights[,] CliffSplatMap;
@@ -51,7 +55,7 @@ public class MapStateSnapshot
 
 	public static MapStateSnapshot CreateSnapshot()
 	{
-		var host = Realm.Client.Core.GameHost.Instance;
+		var host = GameHost.Instance;
 		if (host == null || host.GroundTerrain == null) return null;
 
 		var snapshot = new MapStateSnapshot();
@@ -71,8 +75,8 @@ public class MapStateSnapshot
 		SavePropsToSnapshot(host, snapshot);
 		SaveDecalsToSnapshot(host, snapshot);
 		SaveVfxToSnapshot(host, snapshot);
-		
-		snapshot.Coordinates = host.EditorCoordinates.Select(r => new CoordinateSaveData
+
+		snapshot.Coordinates = GameContext.EditorService.EditorCoordinates.Select(r => new CoordinateSaveData
 		{
 			Name = r.Name,
 			MinX = r.MinX,

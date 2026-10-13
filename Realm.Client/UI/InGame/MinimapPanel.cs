@@ -1,4 +1,6 @@
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 
 namespace Realm.Client.UI.InGame;
@@ -37,7 +39,7 @@ public class MinimapPanel
 
 	private void OnMinimapGuiInput(InputEvent @event)
 	{
-		bool isSpectator = Network.LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+		bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
 
 		if (ReplayPlaybackManager.Instance.IsPlayingReplay || isSpectator)
 		{
@@ -96,7 +98,7 @@ public class MinimapPanel
 		{
 			if (!mouseBtn.Pressed) return;
 			var minimapWorldPos = MinimapHelper.MinimapToWorld(mouseBtn.Position, _minimapArea.Size);
-			Realm.Client.Core.GameHost.Instance?.HandleMinimapRightClick(minimapWorldPos);
+			GameHost.Instance?.HandleMinimapRightClick(minimapWorldPos);
 		}
 	}
 
@@ -121,46 +123,46 @@ public class MinimapPanel
 
 	private void HandleAltLeftClick(Vector3 minimapWorldPos)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
+		if (GameHost.Instance == null) return;
 
-		if (Realm.Client.Core.GameHost.Instance.Multiplayer.MultiplayerPeer != null)
+		if (GameHost.Instance.Multiplayer.MultiplayerPeer != null)
 		{
-			Realm.Client.Core.GameHost.Instance.Rpc("NetworkPingMinimap", minimapWorldPos);
+			GameHost.Instance.Rpc("NetworkPingMinimap", minimapWorldPos);
 		}
 		else
 		{
-			Realm.Client.Core.GameHost.Instance.AddMinimapPing(minimapWorldPos);
+			GameHost.Instance.AddMinimapPing(minimapWorldPos);
 		}
 	}
 
 	private void HandleGameHostLeftClick(Vector2 mousePosition, Vector3 minimapWorldPos)
 	{
-		if (Realm.Client.Core.GameHost.Instance == null) return;
+		if (GameHost.Instance == null) return;
 
-		if (Realm.Client.Core.GameHost.Instance.ActivePingMode)
+		if (GameHost.Instance.ActivePingMode)
 		{
-			Realm.Client.Core.GameHost.Instance.AddMinimapPing(minimapWorldPos);
-			Realm.Client.Core.GameHost.Instance.ActivePingMode = false;
+			GameHost.Instance.AddMinimapPing(minimapWorldPos);
+			GameHost.Instance.ActivePingMode = false;
 			return;
 		}
 
-		if (Realm.Client.Core.GameHost.Instance.ActiveCommandTargeting != null)
+		if (GameHost.Instance.ActiveCommandTargeting != null)
 		{
 			HandleCommandTargeting(minimapWorldPos);
 			return;
 		}
 
-		if (Realm.Client.Core.GameHost.Instance.ActiveSpellTargeting != null)
+		if (GameHost.Instance.ActiveSpellTargeting != null)
 		{
-			Realm.Client.Core.GameHost.Instance.CastSpellAt(Realm.Client.Core.GameHost.Instance.ActiveSpellTargeting, minimapWorldPos);
-			Realm.Client.Core.GameHost.Instance.ClearTargetingModes();
+			GameHost.Instance.CastSpellAt(GameHost.Instance.ActiveSpellTargeting, minimapWorldPos);
+			GameHost.Instance.ClearTargetingModes();
 			return;
 		}
 
-		if (Realm.Client.Core.GameHost.Instance.ActiveBuildingPlacementType != null)
+		if (GameHost.Instance.ActiveBuildingPlacementType != null)
 		{
-			Realm.Client.Core.GameHost.Instance.PlaceBuildingAt(Realm.Client.Core.GameHost.Instance.ActiveBuildingPlacementType, minimapWorldPos);
-			Realm.Client.Core.GameHost.Instance.ClearTargetingModes();
+			GameHost.Instance.PlaceBuildingAt(GameHost.Instance.ActiveBuildingPlacementType, minimapWorldPos);
+			GameHost.Instance.ClearTargetingModes();
 			return;
 		}
 
@@ -170,32 +172,33 @@ public class MinimapPanel
 
 	private void HandleCommandTargeting(Vector3 minimapWorldPos)
 	{
-		string cmd = Realm.Client.Core.GameHost.Instance.ActiveCommandTargeting;
+		string cmd = GameHost.Instance.ActiveCommandTargeting;
 		switch (cmd)
 		{
 			case "attack":
-				Realm.Client.Core.GameHost.Instance.IssueAttackMoveCommand(minimapWorldPos);
+				GameHost.Instance.IssueAttackMoveCommand(minimapWorldPos);
 				break;
 			case "move":
-				Realm.Client.Core.GameHost.Instance.IssueMoveCommand(minimapWorldPos, Input.IsKeyPressed(Key.Shift));
+				GameHost.Instance.IssueMoveCommand(minimapWorldPos, Input.IsKeyPressed(Key.Shift));
 				break;
 			case "patrol":
-				Realm.Client.Core.GameHost.Instance.IssuePatrolCommand(minimapWorldPos);
+				GameHost.Instance.IssuePatrolCommand(minimapWorldPos);
 				break;
 			case "rally":
 				HandleRallyCommand(minimapWorldPos);
 				break;
 		}
-		Realm.Client.Core.GameHost.Instance.ClearTargetingModes();
+
+		GameHost.Instance.ClearTargetingModes();
 	}
 
 	private void HandleRallyCommand(Vector3 minimapWorldPos)
 	{
-		if (Realm.Client.Core.GameHost.Instance.SelectedUnits.Count != 1) return;
-		var unit = Realm.Client.Core.GameHost.Instance.SelectedUnits[0];
+		if (GameHost.Instance.SelectedUnits.Count != 1) return;
+		var unit = GameHost.Instance.SelectedUnits[0];
 		if (!unit.IsEnemy && unit.IsBuilding)
 		{
-			Realm.Client.Core.GameHost.Instance.SetRallyPoint(unit, minimapWorldPos);
+			GameHost.Instance.SetRallyPoint(unit, minimapWorldPos);
 		}
 	}
 
@@ -229,6 +232,7 @@ public class MinimapPanel
 		{
 			return;
 		}
+
 		_lastCameraPos = camPos;
 		_lastCameraRot = camRot;
 

@@ -1,4 +1,3 @@
-
 namespace Realm.Ecs.Components.Core
 {
 	/// <summary>

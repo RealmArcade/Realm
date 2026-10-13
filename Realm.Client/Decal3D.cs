@@ -1,8 +1,11 @@
+using System;
 using Arch.Core;
 using Godot;
+using Realm.Client.Core;
+using Realm.Client.Services;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
-using System;
+using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
@@ -45,17 +48,17 @@ public partial class Decal3D : Decal
 	{
 		get
 		{
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Entity)
-			                              && Realm.Client.Core.GameHost.Instance.EcsWorld.Has<DecalIdentity>(Entity))
-				return Realm.Client.Core.GameHost.Instance.EcsWorld.Get<DecalIdentity>(Entity).DecalId;
+			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity)
+			                              && GameContext.World.Has<DecalIdentity>(Entity))
+				return GameContext.World.Get<DecalIdentity>(Entity).DecalId;
 			return _decalId;
 		}
 		set
 		{
 			_decalId = value;
-			if (Realm.Client.Core.GameHost.Instance != null && Realm.Client.Core.GameHost.Instance.EcsWorld.IsAlive(Entity))
+			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity))
 			{
-				var world = Realm.Client.Core.GameHost.Instance.EcsWorld;
+				var world = GameContext.World;
 				world.SetOrAdd(Entity, new DecalIdentity(value));
 			}
 		}
@@ -63,12 +66,12 @@ public partial class Decal3D : Decal
 
 	public override void _Ready()
 	{
-		CullMask = Realm.Client.RuntimeTerrain.TerrainDecalCullMask;
+		CullMask = RuntimeTerrain.TerrainDecalCullMask;
 		_baseSize = Size;
 		_baseModulate = Modulate;
 		_baseEmissionEnergy = EmissionEnergy;
 
-		bool isEditor = Realm.Client.Core.GameHost.Instance?.IsMapEditorMode == true;
+		bool isEditor = GameContext.EditorService.IsMapEditorMode == true;
 		_staticBody = new StaticBody3D();
 		_staticBody.CollisionLayer = isEditor ? 1u : 0u;
 		_staticBody.CollisionMask = 0;
@@ -95,6 +98,7 @@ public partial class Decal3D : Decal
 		{
 			_baseSize = Size;
 		}
+
 		UpdateProcessState();
 	}
 

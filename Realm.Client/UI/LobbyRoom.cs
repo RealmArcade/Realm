@@ -1,15 +1,34 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Godot;
 using NSec.Cryptography;
 using Realm.Client.Network;
 using Realm.Shared;
-using System;
-using System.Collections.Generic;
-using System.Text.Json.Nodes;
+using HttpClient = System.Net.Http.HttpClient;
+using static Godot.Control;
+using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
 public partial class LobbyRoom : Control
 {
+	public LobbyRoom()
+	{
+	}
+
+	public override void _EnterTree()
+	{
+		Realm.Client.Services.GameContext.EnsureServices();
+	}
+
+	public override void _Process(double delta)
+	{
+	}
+
 	private Panel _bgPanel;
 	private Panel _leftPillar;
 	private Panel _rightPillar;
@@ -46,7 +65,7 @@ public partial class LobbyRoom : Control
 	private List<string> _otherAuthorsList = new List<string>();
 
 
-	private static readonly System.Net.Http.HttpClient _sharedHttpClient = new System.Net.Http.HttpClient();
+	private static readonly HttpClient _sharedHttpClient = new HttpClient();
 	public const int NEUTRAL_PLAYER_INDEX = PlayerColorConfig.NEUTRAL_PLAYER_INDEX;
 	public static List<Color> AvailableColors => PlayerColorConfig.AvailableColors;
 	public static Color GetPlayerColor(int playerIndex) => PlayerColorConfig.GetColor(playerIndex);
@@ -56,9 +75,8 @@ public partial class LobbyRoom : Control
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 	private readonly string[] _factions = { "HUMAN", "ORC", "UNDEAD", "ELF" };
 
-	public override void _Ready()
+	public void _Ready()
 	{
-
 		_bgPanel = GetNode<Panel>("Background");
 		_leftPillar = GetNode<Panel>("LeftPillar");
 		_rightPillar = GetNode<Panel>("RightPillar");
@@ -71,7 +89,7 @@ public partial class LobbyRoom : Control
 		_inviteButton = GetNode<Button>("InviteButton");
 		_addBotButton = GetNode<Button>("AddBotButton");
 		_startButton = GetNode<Button>("StartButton");
-		_addBotButton.Visible = Network.LobbyManager.Instance.IsHost;
+		_addBotButton.Visible = LobbyManager.Instance.IsHost;
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -111,7 +129,7 @@ public partial class LobbyRoom : Control
 		_hostStabilityLabel.VerticalAlignment = VerticalAlignment.Center;
 		_hostStabilityLabel.AddThemeFontSizeOverride("font_size", 16);
 		_hostStabilityLabel.Visible = false;
-		_hostStabilityLabel.MouseFilter = Control.MouseFilterEnum.Pass;
+		_hostStabilityLabel.MouseFilter = MouseFilterEnum.Pass;
 		_hostStabilityLabel.TooltipText = Tr("Average over last 10 games");
 		AddChild(_hostStabilityLabel);
 		_hostStabilityLabel.SetAnchorsPreset(LayoutPreset.CenterTop);
@@ -121,42 +139,42 @@ public partial class LobbyRoom : Control
 		_hostStabilityLabel.OffsetTop = 85;
 		_hostStabilityLabel.OffsetBottom = 110;
 
-		if (!Network.LobbyManager.Instance.IsHost)
+		if (!LobbyManager.Instance.IsHost)
 		{
-			UpdateHostStabilityLabel(Network.LobbyManager.Instance.HostStability);
-			Network.LobbyManager.Instance.HostStabilityUpdated += UpdateHostStabilityLabel;
+			UpdateHostStabilityLabel(LobbyManager.Instance.HostStability);
+			LobbyManager.Instance.HostStabilityUpdated += UpdateHostStabilityLabel;
 		}
 
 
 		ApplyThemeStyles();
 
 
-		Network.LobbyManager.Instance.PlayerListUpdated += PopulatePlayersList;
-		Network.LobbyManager.Instance.ChatReceived += OnLobbyChatReceived;
-		Network.LobbyManager.Instance.ConnectionFailed += OnLobbyConnectionFailed;
-		Network.LobbyManager.Instance.KickReceived += OnLobbyKickReceived;
-		Network.LobbyManager.Instance.CountdownStarted += OnCountdownStarted;
-		Network.LobbyManager.Instance.CountdownTick += OnCountdownTick;
-		Network.LobbyManager.Instance.CountdownCancelled += OnCountdownCancelled;
-		Network.LobbyManager.Instance.CountdownFinished += OnCountdownFinished;
-		Network.LobbyManager.Instance.ActiveMapChanged += OnActiveMapChanged;
+		LobbyManager.Instance.PlayerListUpdated += PopulatePlayersList;
+		LobbyManager.Instance.ChatReceived += OnLobbyChatReceived;
+		LobbyManager.Instance.ConnectionFailed += OnLobbyConnectionFailed;
+		LobbyManager.Instance.KickReceived += OnLobbyKickReceived;
+		LobbyManager.Instance.CountdownStarted += OnCountdownStarted;
+		LobbyManager.Instance.CountdownTick += OnCountdownTick;
+		LobbyManager.Instance.CountdownCancelled += OnCountdownCancelled;
+		LobbyManager.Instance.CountdownFinished += OnCountdownFinished;
+		LobbyManager.Instance.ActiveMapChanged += OnActiveMapChanged;
 
 
-		if (!Network.LobbyManager.Instance.IsHost)
+		if (!LobbyManager.Instance.IsHost)
 		{
 			CreateDownloadProgressUI();
-			Network.LobbyManager.Instance.RequestChatHistory();
+			LobbyManager.Instance.RequestChatHistory();
 		}
 
 		PopulatePlayersList();
 
-		if (!Network.LobbyManager.Instance.IsHost)
+		if (!LobbyManager.Instance.IsHost)
 		{
 			ShowConnectingPopup();
 		}
 
 		CreateSpectatorDelayUI();
-		Network.LobbyManager.Instance.SpectatorDelayChanged += OnSpectatorDelayChanged;
+		LobbyManager.Instance.SpectatorDelayChanged += OnSpectatorDelayChanged;
 
 		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby. Pre-Match Setup is active.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
@@ -174,30 +192,34 @@ public partial class LobbyRoom : Control
 		_mapFrame.AddChild(mapDrawer);
 		mapDrawer.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 
-		
+
 		_authorshipWarningLabel = new Label();
 		_authorshipWarningLabel.Text = "⚠️ " + Tr("Unable to verify map authorship");
 		_authorshipWarningLabel.AddThemeColorOverride("font_color", new Color(1, 0.4f, 0.4f));
 		_authorshipWarningLabel.AddThemeFontSizeOverride("font_size", 12);
 		_authorshipWarningLabel.Visible = false;
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_authorshipWarningLabel);
-		
+
 		_primaryAuthorLabel = new Label();
 		_primaryAuthorLabel.Text = Tr("Author: Unknown");
 		_primaryAuthorLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_primaryAuthorLabel.AddThemeFontSizeOverride("font_size", 12);
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_primaryAuthorLabel);
-		
+
 		_otherAuthorsButton = new Button();
 		_otherAuthorsButton.Text = Tr("Other Authors");
 		_otherAuthorsButton.CustomMinimumSize = new Vector2(100, 24);
 		_otherAuthorsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_otherAuthorsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_otherAuthorsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_otherAuthorsButton.Pressed += () => {
-			if (_otherAuthorsList.Count > 0) {
+		_otherAuthorsButton.Pressed += () =>
+		{
+			if (_otherAuthorsList.Count > 0)
+			{
 				ShowConfirmationDialog(Tr("Contributors:") + "\n" + string.Join("\n", _otherAuthorsList), null);
-			} else {
+			}
+			else
+			{
 				ShowConfirmationDialog(Tr("No other contributors listed."), null);
 			}
 		};
@@ -223,11 +245,14 @@ public partial class LobbyRoom : Control
 		_briefingLabel.AddThemeColorOverride("default_color", new Color(0.85f, 0.85f, 0.9f));
 
 
-		string[] headers = { "PlayersPanel/VBoxContainer/TableHeader/ReadyCol",
+		string[] headers =
+		{
+			"PlayersPanel/VBoxContainer/TableHeader/ReadyCol",
 			"PlayersPanel/VBoxContainer/TableHeader/TeamCol",
-			"PlayersPanel/VBoxContainer/TableHeader/ColorCol", 
+			"PlayersPanel/VBoxContainer/TableHeader/ColorCol",
 			"PlayersPanel/VBoxContainer/TableHeader/NameCol",
-			"PlayersPanel/VBoxContainer/TableHeader/FactionCol" };
+			"PlayersPanel/VBoxContainer/TableHeader/FactionCol"
+		};
 		foreach (var path in headers)
 		{
 			var lbl = GetNodeOrNull<Label>(path);
@@ -243,20 +268,20 @@ public partial class LobbyRoom : Control
 		_inviteFeedback.Modulate = new Color(1, 1, 1, 0);
 
 
-		SetupLobbyButton(_backButton, " LEAVE LOBBY", () => 
+		SetupLobbyButton(_backButton, " LEAVE LOBBY", () =>
 		{
-			Network.LobbyManager.Instance.Disconnect();
+			LobbyManager.Instance.Disconnect();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
 		});
 		SetupLobbyButton(_inviteButton, "INVITE FRIEND", TriggerInviteFeedback);
-		SetupLobbyButton(_addBotButton, "ADD AI BOT", () => Network.LobbyManager.Instance.AddAIBot());
+		SetupLobbyButton(_addBotButton, "ADD AI BOT", () => LobbyManager.Instance.AddAIBot());
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_mapNameLabel.AddThemeFontSizeOverride("font_size", 18);
 		_mapNameLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_mapNameLabel.VerticalAlignment = VerticalAlignment.Center;
-		
+
 		var labelStyle = new StyleBoxFlat();
 		labelStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.5f);
 		labelStyle.BorderColor = new Color(0.25f, 0.25f, 0.3f, 0.4f);
@@ -290,7 +315,7 @@ public partial class LobbyRoom : Control
 		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
-		btn.Pressed += () => 
+		btn.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
 			onClick?.Invoke();
@@ -339,7 +364,7 @@ public partial class LobbyRoom : Control
 	{
 		DisconnectStartButtonSignals();
 
-		if (Network.LobbyManager.Instance.IsHost)
+		if (LobbyManager.Instance.IsHost)
 		{
 			ApplyHostStartButtonState();
 		}
@@ -353,6 +378,7 @@ public partial class LobbyRoom : Control
 		{
 			_startButton.Disconnect(Control.SignalName.MouseEntered, mouseEnteredCallable);
 		}
+
 		_startButton.MouseEntered += OnStartButtonMouseEntered;
 	}
 
@@ -380,7 +406,7 @@ public partial class LobbyRoom : Control
 
 	private void ApplyClientStartButtonState()
 	{
-		string activeMap = Network.LobbyManager.Instance.ActiveMapName ?? "";
+		string activeMap = LobbyManager.Instance.ActiveMapName ?? "";
 		bool isMapReady = !string.IsNullOrEmpty(activeMap) && MapAssetManager.IsMapDownloaded(activeMap);
 		if (!isMapReady)
 		{
@@ -389,7 +415,7 @@ public partial class LobbyRoom : Control
 			return;
 		}
 
-		var localPlayer = Network.LobbyManager.Instance.LocalPlayer;
+		var localPlayer = LobbyManager.Instance.LocalPlayer;
 		bool isReady = localPlayer != null && localPlayer.IsReady;
 		UIStyle.ApplyButtonText(_startButton, isReady ? "NOT READY" : "READY", 22);
 		_startButton.Disabled = false;
@@ -399,17 +425,17 @@ public partial class LobbyRoom : Control
 	private void OnClientReadyTogglePressed()
 	{
 		UIManager.Instance.PlayClickSound();
-		var localPlayer = Network.LobbyManager.Instance.LocalPlayer;
+		var localPlayer = LobbyManager.Instance.LocalPlayer;
 		if (localPlayer != null)
 		{
 			bool newReady = !localPlayer.IsReady;
 			localPlayer.IsReady = newReady;
-			Network.LobbyManager.Instance.UpdateReadyState(localPlayer.PeerId, newReady);
+			LobbyManager.Instance.UpdateReadyState(localPlayer.PeerId, newReady);
 			SetupStartButton();
 		}
 	}
 
-	
+
 	private void ShowConfirmationDialog(string message, Action onConfirm)
 	{
 		var overlay = new ColorRect();
@@ -421,7 +447,7 @@ public partial class LobbyRoom : Control
 		panel.CustomMinimumSize = new Vector2(400, 200);
 		panel.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		panel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		
+
 		var center = new CenterContainer();
 		center.SetAnchorsPreset(LayoutPreset.FullRect);
 		overlay.AddChild(center);
@@ -437,7 +463,8 @@ public partial class LobbyRoom : Control
 
 		var btnConfirm = new Button();
 		btnConfirm.Text = "OK";
-		btnConfirm.Pressed += () => {
+		btnConfirm.Pressed += () =>
+		{
 			overlay.QueueFree();
 			onConfirm?.Invoke();
 		};
@@ -450,6 +477,7 @@ public partial class LobbyRoom : Control
 		{
 			return "";
 		}
+
 		string formatted = rawName.Replace('_', ' ');
 		string[] words = formatted.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 		for (int i = 0; i < words.Length; i++)
@@ -463,16 +491,17 @@ public partial class LobbyRoom : Control
 				words[i] = char.ToUpper(words[i][0]) + words[i].Substring(1).ToLower();
 			}
 		}
+
 		return string.Join(" ", words);
 	}
 
 	private void OnStartPressed()
 	{
 		UIManager.Instance.PlayClickSound();
-		string mapName = Network.LobbyManager.Instance.ActiveMapName ?? "melee";
+		string mapName = LobbyManager.Instance.ActiveMapName ?? "melee";
 
 		bool anyDownloading = false;
-		foreach (var player in Network.LobbyManager.Instance.PlayerList)
+		foreach (var player in LobbyManager.Instance.PlayerList)
 		{
 			if (player.PeerId > 1 && !player.IsMapReady)
 			{
@@ -488,7 +517,7 @@ public partial class LobbyRoom : Control
 		}
 
 		bool anyNotReady = false;
-		foreach (var player in Network.LobbyManager.Instance.PlayerList)
+		foreach (var player in LobbyManager.Instance.PlayerList)
 		{
 			if (player.PeerId > 1 && !player.IsReady)
 			{
@@ -503,7 +532,7 @@ public partial class LobbyRoom : Control
 		}
 		else
 		{
-			Network.LobbyManager.Instance.StartGame(mapName);
+			LobbyManager.Instance.StartGame(mapName);
 		}
 	}
 
@@ -559,7 +588,7 @@ public partial class LobbyRoom : Control
 		{
 			UIManager.Instance.PlayClickSound();
 			warningPopup.QueueFree();
-			Network.LobbyManager.Instance.Disconnect();
+			LobbyManager.Instance.Disconnect();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
 		};
 		vbox.AddChild(okBtn);
@@ -620,7 +649,7 @@ public partial class LobbyRoom : Control
 		{
 			UIManager.Instance.PlayClickSound();
 			warningPopup.QueueFree();
-			Network.LobbyManager.Instance.StartGame(mapName);
+			LobbyManager.Instance.StartGame(mapName);
 		};
 		hbox.AddChild(startBtn);
 
@@ -703,7 +732,7 @@ public partial class LobbyRoom : Control
 	private void OnActiveMapChanged(string mapName)
 	{
 		UpdateSelectedMapUI();
-		if (!Network.LobbyManager.Instance.IsHost && _downloadProgress != null && _downloadLabel != null)
+		if (!LobbyManager.Instance.IsHost && _downloadProgress != null && _downloadLabel != null)
 		{
 			if (MapAssetManager.IsMapDownloaded(mapName))
 			{
@@ -718,6 +747,7 @@ public partial class LobbyRoom : Control
 				_downloadLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 			}
 		}
+
 		SetupStartButton();
 	}
 
@@ -727,10 +757,10 @@ public partial class LobbyRoom : Control
 		_authorshipWarningLabel.Visible = false;
 		_primaryAuthorLabel.Text = Tr("Author: Unknown");
 		_otherAuthorsList.Clear();
-		
+
 		string? mapJsonPath = TryGetMapJsonPath(mapName);
 		if (mapJsonPath == null) return;
-		
+
 		try
 		{
 			ExtractAuthorsFromJson(mapJsonPath);
@@ -745,17 +775,17 @@ public partial class LobbyRoom : Control
 	private string? TryGetMapJsonPath(string mapName)
 	{
 		string? manifestPath = MapAssetManager.FindManifestPath(mapName);
-		string mapDir = manifestPath != null ? System.IO.Path.GetDirectoryName(manifestPath)! : ProjectSettings.GlobalizePath("user://maps/" + mapName);
-		string mapJsonPath = System.IO.Path.Combine(mapDir, "metadata.json");
-		if (System.IO.File.Exists(mapJsonPath)) return mapJsonPath;
-		
-		mapJsonPath = System.IO.Path.Combine(mapDir, "manifest.json");
-		return System.IO.File.Exists(mapJsonPath) ? mapJsonPath : null;
+		string mapDir = manifestPath != null ? Path.GetDirectoryName(manifestPath)! : ProjectSettings.GlobalizePath("user://maps/" + mapName);
+		string mapJsonPath = Path.Combine(mapDir, "metadata.json");
+		if (File.Exists(mapJsonPath)) return mapJsonPath;
+
+		mapJsonPath = Path.Combine(mapDir, "manifest.json");
+		return File.Exists(mapJsonPath) ? mapJsonPath : null;
 	}
 
 	private void ExtractAuthorsFromJson(string mapJsonPath)
 	{
-		string jsonContent = System.IO.File.ReadAllText(mapJsonPath);
+		string jsonContent = File.ReadAllText(mapJsonPath);
 		var mapDoc = JsonNode.Parse(jsonContent);
 		if (mapDoc == null) return;
 
@@ -779,13 +809,13 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private async System.Threading.Tasks.Task VerifyAuthorSignatureAsync(string mapJsonPath)
+	private async Task VerifyAuthorSignatureAsync(string mapJsonPath)
 	{
-		byte[] fileBytes = System.IO.File.ReadAllBytes(mapJsonPath);
+		byte[] fileBytes = File.ReadAllBytes(mapJsonPath);
 		string mapBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, ".json");
 		string hash = $"{mapBlake3}.json";
-		
-		string adminServerUrl = Network.LobbyManager.Instance.RegistryServerUrl;
+
+		string adminServerUrl = LobbyManager.Instance.RegistryServerUrl;
 		var assetAuthorRes = await _sharedHttpClient.GetAsync(adminServerUrl + "/api/publish_map/asset_author/" + hash);
 		if (!assetAuthorRes.IsSuccessStatusCode)
 		{
@@ -804,20 +834,20 @@ public partial class LobbyRoom : Control
 		string author = assetMeta["AuthorUsername"]?.GetValue<string>() ?? "Unknown";
 		string? signatureB64 = assetMeta["Signature"]?.GetValue<string>();
 		string? pubKeyB64 = assetMeta["PublicKey"]?.GetValue<string>();
-		
+
 		if (string.IsNullOrEmpty(signatureB64) || string.IsNullOrEmpty(pubKeyB64))
 		{
 			_authorshipWarningLabel.Visible = true;
 			return;
 		}
-		
+
 		byte[] signatureBytes = Convert.FromBase64String(signatureB64);
 		byte[] pubKeyBytes = Convert.FromBase64String(pubKeyB64);
-		byte[] hashBytes = System.Text.Encoding.UTF8.GetBytes(hash);
-		
+		byte[] hashBytes = Encoding.UTF8.GetBytes(hash);
+
 		var publicKey = PublicKey.Import(SignatureAlgorithm.Ed25519, pubKeyBytes, KeyBlobFormat.RawPublicKey);
 		bool isValid = SignatureAlgorithm.Ed25519.Verify(publicKey, hashBytes, signatureBytes);
-		
+
 		if (isValid)
 		{
 			_primaryAuthorLabel.Text = Tr("Author:") + " " + author;
@@ -830,7 +860,7 @@ public partial class LobbyRoom : Control
 
 	private void UpdateSelectedMapUI()
 	{
-		string currentMap = Network.LobbyManager.Instance.ActiveMapName ?? "melee";
+		string currentMap = LobbyManager.Instance.ActiveMapName ?? "melee";
 		int selectedIndex = _lobbyRoomMaps.FindIndex(m => m.PathName == currentMap);
 		if (selectedIndex >= 0)
 		{
@@ -862,7 +892,7 @@ public partial class LobbyRoom : Control
 	{
 		_inviteFeedback.Text = Tr("Friend Invite Sent!");
 		_inviteFeedback.Modulate = new Color(0.3f, 0.8f, 1.0f, 1.0f);
-		
+
 		var tween = CreateTween();
 		tween.TweenProperty(_inviteFeedback, "modulate:a", 0.0f, 2.0f).SetDelay(1.0f);
 	}
@@ -872,27 +902,27 @@ public partial class LobbyRoom : Control
 		container.Visible = false;
 	}
 
-	public override void _ExitTree()
+	public void _ExitTree()
 	{
-		if (Network.LobbyManager.Instance != null)
+		if (LobbyManager.Instance != null)
 		{
-			Network.LobbyManager.Instance.PlayerListUpdated -= PopulatePlayersList;
-			Network.LobbyManager.Instance.ChatReceived -= OnLobbyChatReceived;
-			Network.LobbyManager.Instance.ConnectionFailed -= OnLobbyConnectionFailed;
-			Network.LobbyManager.Instance.KickReceived -= OnLobbyKickReceived;
+			LobbyManager.Instance.PlayerListUpdated -= PopulatePlayersList;
+			LobbyManager.Instance.ChatReceived -= OnLobbyChatReceived;
+			LobbyManager.Instance.ConnectionFailed -= OnLobbyConnectionFailed;
+			LobbyManager.Instance.KickReceived -= OnLobbyKickReceived;
 
-			Network.LobbyManager.Instance.SpectatorDelayChanged -= OnSpectatorDelayChanged;
+			LobbyManager.Instance.SpectatorDelayChanged -= OnSpectatorDelayChanged;
 
-			Network.LobbyManager.Instance.MapDownloadProgressChanged -= OnMapDownloadProgress;
-			Network.LobbyManager.Instance.MapDownloadCompleted -= OnMapDownloadCompleted;
-			Network.LobbyManager.Instance.MapDownloadFailed -= OnMapDownloadFailed;
+			LobbyManager.Instance.MapDownloadProgressChanged -= OnMapDownloadProgress;
+			LobbyManager.Instance.MapDownloadCompleted -= OnMapDownloadCompleted;
+			LobbyManager.Instance.MapDownloadFailed -= OnMapDownloadFailed;
 
-			Network.LobbyManager.Instance.CountdownStarted -= OnCountdownStarted;
-			Network.LobbyManager.Instance.CountdownTick -= OnCountdownTick;
-			Network.LobbyManager.Instance.CountdownCancelled -= OnCountdownCancelled;
-			Network.LobbyManager.Instance.CountdownFinished -= OnCountdownFinished;
-			Network.LobbyManager.Instance.HostStabilityUpdated -= UpdateHostStabilityLabel;
-			Network.LobbyManager.Instance.ActiveMapChanged -= OnActiveMapChanged;
+			LobbyManager.Instance.CountdownStarted -= OnCountdownStarted;
+			LobbyManager.Instance.CountdownTick -= OnCountdownTick;
+			LobbyManager.Instance.CountdownCancelled -= OnCountdownCancelled;
+			LobbyManager.Instance.CountdownFinished -= OnCountdownFinished;
+			LobbyManager.Instance.HostStabilityUpdated -= UpdateHostStabilityLabel;
+			LobbyManager.Instance.ActiveMapChanged -= OnActiveMapChanged;
 		}
 	}
 
@@ -953,7 +983,7 @@ public partial class LobbyRoom : Control
 		cancelBtn.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
-			Network.LobbyManager.Instance.RequestCancelCountdown();
+			LobbyManager.Instance.RequestCancelCountdown();
 		};
 		vbox.AddChild(cancelBtn);
 	}
@@ -985,16 +1015,16 @@ public partial class LobbyRoom : Control
 			_countdownTextLabel = null;
 		}
 
-		if (Network.LobbyManager.Instance != null && Network.LobbyManager.Instance.IsHost)
+		if (LobbyManager.Instance != null && LobbyManager.Instance.IsHost)
 		{
-			Network.LobbyManager.Instance.UnregisterActiveLobbyFromRegistry();
+			LobbyManager.Instance.UnregisterActiveLobbyFromRegistry();
 		}
 	}
 
 	private void PopulatePlayersList()
 	{
 		HideConnectingPopup();
-		
+
 		if (CheckHostVersionMismatch()) return;
 
 		UpdateUnstableWarningLabel();
@@ -1003,15 +1033,15 @@ public partial class LobbyRoom : Control
 		var activePeerIds = SyncPlayerRows(existingRows);
 
 		CleanupStalePlayerRows(existingRows, activePeerIds);
-		
+
 		SetupStartButton();
 	}
 
 	private bool CheckHostVersionMismatch()
 	{
-		if (Network.LobbyManager.Instance.IsHost || _versionMismatchDetected) return false;
+		if (LobbyManager.Instance.IsHost || _versionMismatchDetected) return false;
 
-		var host = Network.LobbyManager.Instance.PlayerList.Find(p => p.IsHost);
+		var host = LobbyManager.Instance.PlayerList.Find(p => p.IsHost);
 		if (host == null) return false;
 
 		string hostVersion = host.BinaryVersion;
@@ -1045,6 +1075,7 @@ public partial class LobbyRoom : Control
 				}
 			}
 		}
+
 		return existingRows;
 	}
 
@@ -1052,9 +1083,9 @@ public partial class LobbyRoom : Control
 	{
 		var activePeerIds = new HashSet<int>();
 
-		for (int i = 0; i < Network.LobbyManager.Instance.PlayerList.Count; i++)
+		for (int i = 0; i < LobbyManager.Instance.PlayerList.Count; i++)
 		{
-			var player = Network.LobbyManager.Instance.PlayerList[i];
+			var player = LobbyManager.Instance.PlayerList[i];
 			activePeerIds.Add(player.PeerId);
 
 			if (existingRows.TryGetValue(player.PeerId, out var row))
@@ -1085,7 +1116,7 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private PanelContainer CreatePlayerRow(Network.LobbyManager.PlayerInfo p)
+	private PanelContainer CreatePlayerRow(PlayerInfo p)
 	{
 		bool isLocalPlayer = CheckIfLocalPlayer(p);
 
@@ -1106,10 +1137,10 @@ public partial class LobbyRoom : Control
 		return panel;
 	}
 
-	private bool CheckIfLocalPlayer(Network.LobbyManager.PlayerInfo p)
+	private bool CheckIfLocalPlayer(PlayerInfo p)
 	{
-		return (Network.LobbyManager.Instance.LocalPlayer != null && p.PeerId == Network.LobbyManager.Instance.LocalPlayer.PeerId) ||
-		       (Network.LobbyManager.Instance.IsHost && p.PeerId == 1) ||
+		return (LobbyManager.Instance.LocalPlayer != null && p.PeerId == LobbyManager.Instance.LocalPlayer.PeerId) ||
+		       (LobbyManager.Instance.IsHost && p.PeerId == 1) ||
 		       (p.PeerId == Multiplayer.GetUniqueId());
 	}
 
@@ -1130,7 +1161,7 @@ public partial class LobbyRoom : Control
 		return panel;
 	}
 
-	private void AddReadyCheckToRow(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void AddReadyCheckToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		if (p.PeerId < 1 && !isLocalPlayer) return;
 
@@ -1152,20 +1183,22 @@ public partial class LobbyRoom : Control
 			readyCheck.Disabled = true;
 			readyCheck.AddThemeColorOverride("font_disabled_color", new Color(0.6f, 0.6f, 0.6f));
 		}
+
 		hBox.AddChild(readyCheck);
 
 		AddSeparatorToRow(hBox, 10);
 	}
 
-	private void OnReadyCheckToggled(bool toggled, Network.LobbyManager.PlayerInfo p)
+	private void OnReadyCheckToggled(bool toggled, PlayerInfo p)
 	{
 		UIManager.Instance.PlayClickSound();
 		p.IsReady = toggled;
-		if (Network.LobbyManager.Instance.LocalPlayer != null && Network.LobbyManager.Instance.LocalPlayer.PeerId == p.PeerId)
+		if (LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.PeerId == p.PeerId)
 		{
-			Network.LobbyManager.Instance.LocalPlayer.IsReady = toggled;
+			LobbyManager.Instance.LocalPlayer.IsReady = toggled;
 		}
-		Network.LobbyManager.Instance.UpdateReadyState(p.PeerId, toggled);
+
+		LobbyManager.Instance.UpdateReadyState(p.PeerId, toggled);
 		SetupStartButton();
 	}
 
@@ -1176,7 +1209,7 @@ public partial class LobbyRoom : Control
 		hBox.AddChild(sep);
 	}
 
-	private void AddTeamOptionToRow(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void AddTeamOptionToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		var optTeam = new OptionButton();
 		optTeam.Name = "OptTeam";
@@ -1203,6 +1236,7 @@ public partial class LobbyRoom : Control
 			optTeam.Disabled = true;
 			optTeam.AddThemeColorOverride("font_disabled_color", new Color(0.5f, 0.5f, 0.5f));
 		}
+
 		hBox.AddChild(optTeam);
 	}
 
@@ -1218,7 +1252,7 @@ public partial class LobbyRoom : Control
 		optTeam.AddThemeFontSizeOverride("font_size", 13);
 	}
 
-	private void OnTeamOptionSelected(long idx, Network.LobbyManager.PlayerInfo p)
+	private void OnTeamOptionSelected(long idx, PlayerInfo p)
 	{
 		UIManager.Instance.PlayClickSound();
 		p.Team = idx == 0 ? "Team 1" : (idx == 1 ? "Team 2" : "Spectator");
@@ -1231,16 +1265,17 @@ public partial class LobbyRoom : Control
 		{
 			p.Faction = "HUMAN";
 		}
-		Network.LobbyManager.Instance.UpdatePlayerSlot(p.PeerId, p.Faction, p.Team, p.Color, p.Name);
+
+		LobbyManager.Instance.UpdatePlayerSlot(p.PeerId, p.Faction, p.Team, p.Color, p.Name);
 	}
 
-	private void AddColorButtonToRow(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void AddColorButtonToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		var colorBtn = new Button();
 		colorBtn.Name = "ColorBtn";
 		colorBtn.CustomMinimumSize = new Vector2(26, 26);
 		colorBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		
+
 		var colorStyle = CreateColorStyle(p.Color);
 		colorBtn.AddThemeStyleboxOverride("normal", colorStyle);
 		colorBtn.AddThemeStyleboxOverride("hover", colorStyle);
@@ -1255,6 +1290,7 @@ public partial class LobbyRoom : Control
 		{
 			colorBtn.Disabled = true;
 		}
+
 		hBox.AddChild(colorBtn);
 	}
 
@@ -1271,18 +1307,18 @@ public partial class LobbyRoom : Control
 		return colorStyle;
 	}
 
-	private void OnColorButtonPressed(Network.LobbyManager.PlayerInfo p, StyleBoxFlat colorStyle, Button colorBtn)
+	private void OnColorButtonPressed(PlayerInfo p, StyleBoxFlat colorStyle, Button colorBtn)
 	{
 		UIManager.Instance.PlayClickSound();
 		int nextIdx = (PlayerColorConfig.GetColorIndex(p.Color) + 1) % AvailableColors.Count;
 		p.Color = AvailableColors[nextIdx];
 		colorStyle.BgColor = p.Color;
 		colorBtn.AddThemeStyleboxOverride("normal", colorStyle);
-		
-		Network.LobbyManager.Instance.UpdatePlayerSlot(p.PeerId, p.Faction, p.Team, p.Color, p.Name);
+
+		LobbyManager.Instance.UpdatePlayerSlot(p.PeerId, p.Faction, p.Team, p.Color, p.Name);
 	}
 
-	private void AddNameElementToRow(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void AddNameElementToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		if (isLocalPlayer)
 		{
@@ -1292,16 +1328,16 @@ public partial class LobbyRoom : Control
 			nameEdit.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			nameEdit.CustomMinimumSize = new Vector2(160, 32);
 			nameEdit.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-			
+
 			nameEdit.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
 			nameEdit.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
 			nameEdit.AddThemeColorOverride("font_color", new Color(1, 1, 1));
 			nameEdit.AddThemeFontSizeOverride("font_size", 15);
-			
+
 			nameEdit.TextSubmitted += (text) =>
 			{
 				p.Name = text;
-				Network.LobbyManager.Instance.UpdatePlayerSlot(p.PeerId, p.Faction, p.Team, p.Color, p.Name);
+				LobbyManager.Instance.UpdatePlayerSlot(p.PeerId, p.Faction, p.Team, p.Color, p.Name);
 			};
 			hBox.AddChild(nameEdit);
 		}
@@ -1319,16 +1355,16 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private void AddFactionOptionToRow(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void AddFactionOptionToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		var optFaction = new OptionButton();
 		optFaction.Name = "OptFaction";
 		optFaction.CustomMinimumSize = new Vector2(120, 32);
 		optFaction.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		optFaction.Flat = false;
-		
+
 		ApplyTeamOptionStyle(optFaction); // Reuse the same style as Team Option
-		
+
 		if (p.Team == "Spectator")
 		{
 			SetupSpectatorFactionOption(optFaction);
@@ -1337,6 +1373,7 @@ public partial class LobbyRoom : Control
 		{
 			SetupPlayerFactionOption(optFaction, p, isLocalPlayer);
 		}
+
 		hBox.AddChild(optFaction);
 	}
 
@@ -1348,23 +1385,23 @@ public partial class LobbyRoom : Control
 		optFaction.AddThemeColorOverride("font_disabled_color", new Color(0.5f, 0.5f, 0.5f));
 	}
 
-	private void SetupPlayerFactionOption(OptionButton optFaction, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void SetupPlayerFactionOption(OptionButton optFaction, PlayerInfo p, bool isLocalPlayer)
 	{
 		foreach (var fact in _factions)
 		{
 			optFaction.AddItem(fact);
 		}
-		
+
 		int selIdx = Array.IndexOf(_factions, p.Faction);
 		if (selIdx >= 0) optFaction.Select(selIdx);
 
 		if (isLocalPlayer)
 		{
-			optFaction.ItemSelected += (idx) => 
+			optFaction.ItemSelected += (idx) =>
 			{
 				UIManager.Instance.PlayClickSound();
 				p.Faction = _factions[idx];
-				Network.LobbyManager.Instance.UpdatePlayerSlot(p.PeerId, p.Faction, p.Team, p.Color, p.Name);
+				LobbyManager.Instance.UpdatePlayerSlot(p.PeerId, p.Faction, p.Team, p.Color, p.Name);
 			};
 			optFaction.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 		}
@@ -1375,7 +1412,7 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private void AddDiagnosticLabelToRow(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void AddDiagnosticLabelToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		var diagLabel = new RichTextLabel();
 		diagLabel.Name = "DiagLabel";
@@ -1384,18 +1421,18 @@ public partial class LobbyRoom : Control
 		diagLabel.CustomMinimumSize = new Vector2(300, 24);
 		diagLabel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		diagLabel.AddThemeFontSizeOverride("normal_font_size", 13);
-		
+
 		if (p.IsHost)
 		{
-			diagLabel.MouseFilter = Control.MouseFilterEnum.Pass;
+			diagLabel.MouseFilter = MouseFilterEnum.Pass;
 			diagLabel.TooltipText = Tr("Host: Average connection with all players in lobby");
 		}
-		
+
 		diagLabel.Text = BuildDiagnosticText(p, isLocalPlayer);
 		hBox.AddChild(diagLabel);
 	}
 
-	private string BuildDiagnosticText(Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private string BuildDiagnosticText(PlayerInfo p, bool isLocalPlayer)
 	{
 		if (!isLocalPlayer && !p.IsHost && !p.IsMapReady)
 		{
@@ -1413,24 +1450,24 @@ public partial class LobbyRoom : Control
 		return $"  {Tr("Ping")}: [color={pingColor}]{latencyText}[/color] | {Tr("Jitter")}: [color={jitterColor}]{jitterText}[/color] | {Tr("Loss")}: [color={lossColor}]{lossText}[/color]";
 	}
 
-	private void AddBootButtonToRow(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p)
+	private void AddBootButtonToRow(HBoxContainer hBox, PlayerInfo p)
 	{
-		if (!Network.LobbyManager.Instance.IsHost || p.PeerId == 1) return;
+		if (!LobbyManager.Instance.IsHost || p.PeerId == 1) return;
 
 		var bootBtn = new Button();
 		bootBtn.Name = "BootBtn";
 		bootBtn.Text = Tr("KICK");
 		bootBtn.CustomMinimumSize = new Vector2(60, 26);
 		bootBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		
+
 		ApplyBootButtonStyle(bootBtn);
-		
+
 		bootBtn.Pressed += () =>
 		{
 			UIManager.Instance.PlayWarningSound();
-			Network.LobbyManager.Instance.BootPlayer(p.PeerId);
+			LobbyManager.Instance.BootPlayer(p.PeerId);
 		};
-		
+
 		hBox.AddChild(bootBtn);
 	}
 
@@ -1442,7 +1479,7 @@ public partial class LobbyRoom : Control
 			flat.BgColor = new Color(0.4f, 0.1f, 0.1f, 0.5f);
 			flat.BorderColor = new Color(0.8f, 0.2f, 0.2f, 0.6f);
 		}
-		
+
 		var btnHover = UIStyle.CreateButtonHover();
 		if (btnHover is StyleBoxFlat flatH)
 		{
@@ -1456,7 +1493,7 @@ public partial class LobbyRoom : Control
 		bootBtn.AddThemeFontSizeOverride("font_size", 12);
 	}
 
-	private void UpdatePlayerRow(PanelContainer row, Network.LobbyManager.PlayerInfo p)
+	private void UpdatePlayerRow(PanelContainer row, PlayerInfo p)
 	{
 		var hBox = row.GetChildCount() > 0 ? row.GetChild(0) as HBoxContainer : null;
 		if (hBox == null) return;
@@ -1471,7 +1508,7 @@ public partial class LobbyRoom : Control
 		UpdateRowDiagnosticLabel(hBox, p, isLocalPlayer);
 	}
 
-	private void UpdateRowReadyCheck(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void UpdateRowReadyCheck(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		var readyCheck = hBox.GetNodeOrNull<CheckBox>("ReadyCheck");
 		if (readyCheck == null) return;
@@ -1480,10 +1517,11 @@ public partial class LobbyRoom : Control
 		{
 			readyCheck.SetPressedNoSignal(p.IsReady);
 		}
+
 		readyCheck.Disabled = !isLocalPlayer;
 	}
 
-	private void UpdateRowTeamOption(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p)
+	private void UpdateRowTeamOption(HBoxContainer hBox, PlayerInfo p)
 	{
 		var optTeam = hBox.GetNodeOrNull<OptionButton>("OptTeam");
 		if (optTeam == null) return;
@@ -1495,11 +1533,11 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private void UpdateRowColorButton(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p)
+	private void UpdateRowColorButton(HBoxContainer hBox, PlayerInfo p)
 	{
 		var colorBtn = hBox.GetNodeOrNull<Button>("ColorBtn");
 		if (colorBtn == null) return;
-		
+
 		if (colorBtn.GetThemeStylebox("normal") is not StyleBoxFlat colorStyle) return;
 
 		if (colorStyle.BgColor != p.Color)
@@ -1509,7 +1547,7 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private void UpdateRowNameElements(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p)
+	private void UpdateRowNameElements(HBoxContainer hBox, PlayerInfo p)
 	{
 		var nameEdit = hBox.GetNodeOrNull<LineEdit>("NameEdit");
 		if (nameEdit != null && nameEdit.Text != p.Name)
@@ -1524,7 +1562,7 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private void UpdateRowFactionOption(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p)
+	private void UpdateRowFactionOption(HBoxContainer hBox, PlayerInfo p)
 	{
 		var optFaction = hBox.GetNodeOrNull<OptionButton>("OptFaction");
 		if (optFaction == null) return;
@@ -1534,7 +1572,7 @@ public partial class LobbyRoom : Control
 			if (optFaction.Selected != 0) optFaction.Selected = 0;
 			return;
 		}
-		
+
 		int selIdx = Array.IndexOf(_factions, p.Faction);
 		if (selIdx >= 0 && optFaction.Selected != selIdx)
 		{
@@ -1542,7 +1580,7 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private void UpdateRowDiagnosticLabel(HBoxContainer hBox, Network.LobbyManager.PlayerInfo p, bool isLocalPlayer)
+	private void UpdateRowDiagnosticLabel(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
 	{
 		var diagLabel = hBox.GetNodeOrNull<RichTextLabel>("DiagLabel");
 		if (diagLabel == null) return;
@@ -1558,12 +1596,12 @@ public partial class LobbyRoom : Control
 	{
 		if (string.IsNullOrEmpty(text.Trim())) return;
 		_chatInput.Clear();
-		Network.LobbyManager.Instance.SendChatMessage(Network.LobbyManager.Instance.LocalPlayer.Name, text);
+		LobbyManager.Instance.SendChatMessage(LobbyManager.Instance.LocalPlayer.Name, text);
 	}
 
 	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly)
 	{
-		string color = senderName == "System" ? "#ffd700" : (senderName == Network.LobbyManager.Instance.LocalPlayer.Name ? "#5cd6ff" : "#d4a0a0");
+		string color = senderName == "System" ? "#ffd700" : (senderName == LobbyManager.Instance.LocalPlayer.Name ? "#5cd6ff" : "#d4a0a0");
 		_chatLog.Text += $"[color={color}]{senderName}[/color]: {message}\n";
 	}
 
@@ -1627,7 +1665,7 @@ public partial class LobbyRoom : Control
 		{
 			UIManager.Instance.PlayClickSound();
 			warningPopup.QueueFree();
-			Network.LobbyManager.Instance.Disconnect();
+			LobbyManager.Instance.Disconnect();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
 		};
 		vbox.AddChild(okBtn);
@@ -1642,9 +1680,9 @@ public partial class LobbyRoom : Control
 
 	private ProgressBar _downloadProgress;
 	private Label _downloadLabel;
+
 	private void CreateDownloadProgressUI()
 	{
-
 		_downloadLabel = new Label();
 		_downloadLabel.Text = Tr("Checking map package...");
 		_downloadLabel.Position = new Vector2(1450, 805);
@@ -1659,7 +1697,7 @@ public partial class LobbyRoom : Control
 		_downloadProgress.Size = new Vector2(340, 24);
 		_downloadProgress.ShowPercentage = true;
 		_downloadProgress.Value = 0;
-		
+
 
 		_downloadProgress.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
 		_downloadProgress.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
@@ -1667,7 +1705,7 @@ public partial class LobbyRoom : Control
 		_downloadProgress.AddThemeFontSizeOverride("font_size", 12);
 		AddChild(_downloadProgress);
 
-		bool isReady = !string.IsNullOrEmpty(Network.LobbyManager.Instance.ActiveMapName) && MapAssetManager.IsMapDownloaded(Network.LobbyManager.Instance.ActiveMapName);
+		bool isReady = !string.IsNullOrEmpty(LobbyManager.Instance.ActiveMapName) && MapAssetManager.IsMapDownloaded(LobbyManager.Instance.ActiveMapName);
 		if (isReady)
 		{
 			_downloadProgress.Value = 100.0f;
@@ -1675,9 +1713,9 @@ public partial class LobbyRoom : Control
 			_downloadLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		}
 
-		Network.LobbyManager.Instance.MapDownloadProgressChanged += OnMapDownloadProgress;
-		Network.LobbyManager.Instance.MapDownloadCompleted += OnMapDownloadCompleted;
-		Network.LobbyManager.Instance.MapDownloadFailed += OnMapDownloadFailed;
+		LobbyManager.Instance.MapDownloadProgressChanged += OnMapDownloadProgress;
+		LobbyManager.Instance.MapDownloadCompleted += OnMapDownloadCompleted;
+		LobbyManager.Instance.MapDownloadFailed += OnMapDownloadFailed;
 
 		SetupStartButton();
 	}
@@ -1688,6 +1726,7 @@ public partial class LobbyRoom : Control
 		{
 			_downloadProgress.Value = progress * 100.0f;
 		}
+
 		if (_downloadLabel != null)
 		{
 			_downloadLabel.Text = $"{Tr("Downloading map package:")} {Math.Round(progress * 100.0f)}%";
@@ -1700,12 +1739,14 @@ public partial class LobbyRoom : Control
 		{
 			_downloadProgress.Value = 100.0f;
 		}
+
 		if (_downloadLabel != null)
 		{
 			_downloadLabel.Text = Tr("Map package ready.");
 			_downloadLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		}
-		Network.LobbyManager.Instance?.ReportLocalMapReadyState(true);
+
+		LobbyManager.Instance?.ReportLocalMapReadyState(true);
 		SetupStartButton();
 	}
 
@@ -1726,22 +1767,22 @@ public partial class LobbyRoom : Control
 		_spectatorDelayCheck.Text = Tr("Spectator Delay (5m)");
 		_spectatorDelayCheck.Position = new Vector2(1450, 770);
 		_spectatorDelayCheck.Size = new Vector2(340, 40);
-		_spectatorDelayCheck.ButtonPressed = Network.LobbyManager.Instance.SpectatorDelay;
-		_spectatorDelayCheck.Disabled = !Network.LobbyManager.Instance.IsHost;
-		
+		_spectatorDelayCheck.ButtonPressed = LobbyManager.Instance.SpectatorDelay;
+		_spectatorDelayCheck.Disabled = !LobbyManager.Instance.IsHost;
+
 		if (_connectingPopup != null && GodotObject.IsInstanceValid(_connectingPopup))
 		{
 			_spectatorDelayCheck.Visible = false;
 		}
 
 		UIStyle.ApplyCheckboxStyle(_spectatorDelayCheck);
-		
+
 		_spectatorDelayCheck.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
-			Network.LobbyManager.Instance.UpdateSpectatorDelay(_spectatorDelayCheck.ButtonPressed);
+			LobbyManager.Instance.UpdateSpectatorDelay(_spectatorDelayCheck.ButtonPressed);
 		};
-		
+
 		_spectatorDelayCheck.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 		AddChild(_spectatorDelayCheck);
 	}
@@ -1760,11 +1801,13 @@ public partial class LobbyRoom : Control
 		{
 			return -1;
 		}
+
 		string clean = latency.Replace("ms", "").Trim();
 		if (int.TryParse(clean, out int val))
 		{
 			return val;
 		}
+
 		return -1;
 	}
 
@@ -1774,11 +1817,13 @@ public partial class LobbyRoom : Control
 		{
 			return -1;
 		}
+
 		string clean = jitter.Replace("ms", "").Trim();
 		if (int.TryParse(clean, out int val))
 		{
 			return val;
 		}
+
 		return -1;
 	}
 
@@ -1788,6 +1833,7 @@ public partial class LobbyRoom : Control
 		{
 			return -1f;
 		}
+
 		int pctIdx = loss.IndexOf('%');
 		if (pctIdx >= 0)
 		{
@@ -1797,6 +1843,7 @@ public partial class LobbyRoom : Control
 				return val;
 			}
 		}
+
 		return -1f;
 	}
 
@@ -1829,39 +1876,44 @@ public partial class LobbyRoom : Control
 
 	private bool IsAnyMetricRed()
 	{
-		foreach (var player in Network.LobbyManager.Instance.PlayerList)
+		foreach (var player in LobbyManager.Instance.PlayerList)
 		{
 			if (player.PeerId < 0)
 			{
 				continue;
 			}
+
 			int ping = ParsePingValue(player.Latency);
 			if (ping >= 200)
 			{
 				return true;
 			}
+
 			int jitter = ParseJitterValue(player.Jitter);
 			if (jitter >= 50)
 			{
 				return true;
 			}
+
 			float loss = ParseLossValue(player.PacketLoss);
 			if (loss >= 5.0f)
 			{
 				return true;
 			}
 		}
+
 		return false;
 	}
 
 	private void UpdateHostStabilityLabel(string stability)
 	{
-		if (Network.LobbyManager.Instance == null || Network.LobbyManager.Instance.IsHost || _hostStabilityLabel == null)
+		if (LobbyManager.Instance == null || LobbyManager.Instance.IsHost || _hostStabilityLabel == null)
 		{
 			if (_hostStabilityLabel != null)
 			{
 				_hostStabilityLabel.Visible = false;
 			}
+
 			return;
 		}
 

@@ -1,7 +1,9 @@
-using Godot;
-using Realm.Shared.Distribution;
 using System;
+using System.Diagnostics;
 using System.IO;
+using Godot;
+using Realm.Client.Network;
+using Realm.Shared.Distribution;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -157,7 +159,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		{
 			try
 			{
-				System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+				Process.Start(new ProcessStartInfo
 				{
 					FileName = "explorer.exe",
 					Arguments = $"\"{fullPath}\"",
@@ -183,7 +185,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 	private void RefreshKeyDetails()
 	{
 		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-		string defaultUsername = Network.LobbyManager.Instance?.AuthenticatedUsername ?? string.Empty;
+		string defaultUsername = LobbyManager.Instance?.AuthenticatedUsername ?? string.Empty;
 		var (key, data, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
 
 		_txtUsername.Text = !string.IsNullOrWhiteSpace(data.UserName) ? data.UserName : (string.IsNullOrWhiteSpace(defaultUsername) ? TranslationServer.Translate("(Not Registered)") : defaultUsername);

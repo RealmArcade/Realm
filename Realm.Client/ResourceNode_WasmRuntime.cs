@@ -1,5 +1,6 @@
 using Godot;
 using Realm.MapAPI;
+using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
 
@@ -29,13 +30,13 @@ public class ResourceNode_WasmRuntime : IResourceNode, IEcsPropWrapper
 		}
 	}
 
-	public System.Numerics.Vector3 Position
+	public Vector3 Position
 	{
 		get
 		{
-			if (!GodotObject.IsInstanceValid(_prop)) return System.Numerics.Vector3.Zero;
+			if (!GodotObject.IsInstanceValid(_prop)) return Vector3.Zero;
 			var pos = _prop.GlobalPosition;
-			return new System.Numerics.Vector3(pos.X, pos.Y, pos.Z);
+			return new Vector3(pos.X, pos.Y, pos.Z);
 		}
 	}
 
@@ -55,10 +56,7 @@ public class ResourceNode_WasmRuntime : IResourceNode, IEcsPropWrapper
 
 	public bool IsDepleted
 	{
-		get
-		{
-			return !GodotObject.IsInstanceValid(_prop) || _prop.ResourceAmount <= 0f;
-		}
+		get { return !GodotObject.IsInstanceValid(_prop) || _prop.ResourceAmount <= 0f; }
 	}
 
 	public void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)

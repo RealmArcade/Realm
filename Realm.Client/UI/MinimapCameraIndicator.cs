@@ -30,6 +30,7 @@ public partial class MinimapCameraIndicator : Control
 		{
 			_points[i] = points[i];
 		}
+
 		_hasPoints = true;
 		QueueRedraw();
 	}

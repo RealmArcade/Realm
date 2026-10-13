@@ -1,6 +1,7 @@
-using Godot;
 using System;
 using System.Collections.Generic;
+using Godot;
+using Godot.Collections;
 
 namespace Realm.Client.Services.ModelOptimization;
 
@@ -31,12 +32,13 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		return Error.Ok;
 	}
 
-	public override Error _ParseNodeExtensions(GltfState state, GltfNode gltfNode, global::Godot.Collections.Dictionary extensions)
+	public override Error _ParseNodeExtensions(GltfState state, GltfNode gltfNode, Dictionary extensions)
 	{
 		if (extensions != null && extensions.ContainsKey("MSFT_lod"))
 		{
 			gltfNode.SetAdditionalData("MSFT_lod", extensions["MSFT_lod"]);
 		}
+
 		return Error.Ok;
 	}
 
@@ -60,8 +62,8 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 			var meshInstances = new List<MeshInstance3D>();
 			CollectMeshInstances(root, meshInstances);
 
-			var masterGltfNodes = new Dictionary<string, (int NodeIndex, GltfNode Node)>();
-			var companionLodNodes = new Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>>();
+			var masterGltfNodes = new System.Collections.Generic.Dictionary<string, (int NodeIndex, GltfNode Node)>();
+			var companionLodNodes = new System.Collections.Generic.Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>>();
 			CategorizeGltfNodes(gltfNodes, masterGltfNodes, companionLodNodes);
 
 			foreach (var kvp in masterGltfNodes)
@@ -77,9 +79,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 	}
 
 	private static void CategorizeGltfNodes(
-		global::Godot.Collections.Array<GltfNode> gltfNodes,
-		Dictionary<string, (int NodeIndex, GltfNode Node)> masterGltfNodes,
-		Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>> companionLodNodes)
+		Array<GltfNode> gltfNodes, System.Collections.Generic.Dictionary<string, (int NodeIndex, GltfNode Node)> masterGltfNodes, System.Collections.Generic.Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>> companionLodNodes)
 	{
 		for (int n = 0; n < gltfNodes.Count; n++)
 		{
@@ -103,6 +103,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 					dict = new SortedDictionary<int, (int NodeIndex, GltfNode Node)>();
 					companionLodNodes[info.Value.Prefix] = dict;
 				}
+
 				dict[info.Value.Level] = (n, gNode);
 			}
 		}
@@ -111,9 +112,8 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 	private static void ProcessMasterNode(
 		string prefix,
 		(int NodeIndex, GltfNode Node) masterData,
-		List<MeshInstance3D> meshInstances,
-		Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>> companionLodNodes,
-		global::Godot.Collections.Array<GltfMesh> gltfMeshes,
+		List<MeshInstance3D> meshInstances, System.Collections.Generic.Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>> companionLodNodes,
+		Array<GltfMesh> gltfMeshes,
 		Node root)
 	{
 		string masterNodeName = !string.IsNullOrEmpty(masterData.Node.OriginalName) ? masterData.Node.OriginalName : masterData.Node.ResourceName;
@@ -144,7 +144,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		(int NodeIndex, GltfNode Node) lodData,
 		MeshInstance3D masterInstance,
 		List<MeshInstance3D> meshInstances,
-		global::Godot.Collections.Array<GltfMesh> gltfMeshes,
+		Array<GltfMesh> gltfMeshes,
 		Node parentNode,
 		Node root)
 	{
@@ -210,6 +210,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		newLodInstance.Owner = root;
 		meshInstances.Add(newLodInstance);
 	}
+
 	private static void CollectMeshInstances(Node current, List<MeshInstance3D> list)
 	{
 		if (current is MeshInstance3D mi && mi.Mesh != null)
@@ -257,6 +258,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 				return mi;
 			}
 		}
+
 		return null;
 	}
 
@@ -270,6 +272,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 				return mi;
 			}
 		}
+
 		return null;
 	}
 
@@ -300,7 +303,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 
 	private static void ConfigureExistingLodNodes(List<MeshInstance3D> meshInstances)
 	{
-		var maxLodPerPrefix = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+		var maxLodPerPrefix = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 		foreach (var mi in meshInstances)
 		{
 			var info = TryParseLodInfo(mi.Name.ToString());
@@ -387,7 +390,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		var meshInstances = new List<MeshInstance3D>();
 		CollectMeshInstances(rootNode, meshInstances);
 
-		var maxLodPerPrefix = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+		var maxLodPerPrefix = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 		foreach (var mi in meshInstances)
 		{
 			var info = TryParseLodInfo(mi.Name.ToString());

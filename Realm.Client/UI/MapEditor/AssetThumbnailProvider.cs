@@ -1,9 +1,10 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Services;
 using Realm.Shared.Textures;
-using System;
-using System.Collections.Generic;
-using System.IO;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -46,6 +47,7 @@ public static class AssetThumbnailProvider
 			_thumbnailCache[normPath] = texture;
 			TouchLru(normPath);
 		}
+
 		ThumbnailGenerated?.Invoke(normPath, texture);
 	}
 
@@ -56,7 +58,7 @@ public static class AssetThumbnailProvider
 
 		string normPath = NormalizePath(asset.FilePath);
 		string ext = asset.Extension.ToLowerInvariant();
-        
+
 		if (ext == ".ranim")
 			return HandleRanimThumbnail(asset);
 
@@ -179,7 +181,10 @@ public static class AssetThumbnailProvider
 			if (cachedImg != null && !cachedImg.IsEmpty())
 				return ImageTexture.CreateFromImage(cachedImg);
 		}
-		catch { }
+		catch
+		{
+		}
+
 		return null;
 	}
 
@@ -227,6 +232,7 @@ public static class AssetThumbnailProvider
 		{
 			return string.Empty;
 		}
+
 		return Path.Combine(cacheDir, hash.Substring(0, 2), $"{hash}.png");
 	}
 
@@ -274,13 +280,6 @@ public static class AssetThumbnailProvider
 		}
 	}
 
-	private class ImageThumbnailRequest
-	{
-		public string FilePath { get; set; } = string.Empty;
-		public DateTime LastModifiedUtc { get; set; }
-		public string? Blake3 { get; set; }
-		public bool IsHighPriority { get; set; }
-	}
 
 	private static readonly LinkedList<ImageThumbnailRequest> _imageRequestQueue = new();
 	private static readonly HashSet<string> _pendingImagePaths = new(StringComparer.OrdinalIgnoreCase);
@@ -298,6 +297,7 @@ public static class AssetThumbnailProvider
 			{
 				return;
 			}
+
 			_pendingImagePaths.Add(normPath);
 
 			var req = new ImageThumbnailRequest
@@ -320,7 +320,7 @@ public static class AssetThumbnailProvider
 			if (!_isImageWorkerRunning)
 			{
 				_isImageWorkerRunning = true;
-				System.Threading.Tasks.Task.Run(ProcessImageQueueAsync);
+				Task.Run(ProcessImageQueueAsync);
 			}
 		}
 	}
@@ -381,7 +381,7 @@ public static class AssetThumbnailProvider
 	{
 		var tex = LoadThumbnailFromDisk(reqPath, reqBlake);
 		if (tex == null) return;
-		
+
 		CacheThumbnail(reqPath, tex);
 		ThumbnailGenerated?.Invoke(reqPath, tex);
 	}
@@ -466,7 +466,7 @@ public static class AssetThumbnailProvider
 	{
 		if (ext == ".rtex")
 			return LoadRtexImage(normPath);
-		
+
 		if (ext == ".svg")
 		{
 			var svgImg = new Image();
@@ -487,13 +487,13 @@ public static class AssetThumbnailProvider
 
 	private static byte[]? GetRtexLayerBytes(string normPath)
 	{
-		byte[]? layer0Bytes = Realm.Shared.Textures.RtexFile.GetLayerFromFile(normPath, 0);
+		byte[]? layer0Bytes = RtexFile.GetLayerFromFile(normPath, 0);
 		if (layer0Bytes != null && layer0Bytes.Length > 0)
 			return layer0Bytes;
 
 		byte[] bytes = File.ReadAllBytes(normPath);
-		if (Realm.Shared.Textures.RtexFile.IsRtexBytes(bytes))
-			return Realm.Shared.Textures.RtexFile.GetLayer(bytes, 0);
+		if (RtexFile.IsRtexBytes(bytes))
+			return RtexFile.GetLayer(bytes, 0);
 
 		return bytes;
 	}
@@ -501,7 +501,7 @@ public static class AssetThumbnailProvider
 	private static Image? DecodeImageFromBuffer(byte[] buffer)
 	{
 		var decodedImg = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
-		
+
 		if (decodedImg.LoadWebpFromBuffer(buffer) == Error.Ok) return decodedImg;
 		if (decodedImg.LoadPngFromBuffer(buffer) == Error.Ok) return decodedImg;
 		if (decodedImg.LoadJpgFromBuffer(buffer) == Error.Ok) return decodedImg;
@@ -637,9 +637,12 @@ public static class AssetThumbnailProvider
 
 	private static void DrawPlayTriangle(Image img, int x0, int y0, int x1, int y1, int x2, int y2, Color color, int offset)
 	{
-		x0 += offset; y0 += offset;
-		x1 += offset; y1 += offset;
-		x2 += offset; y2 += offset;
+		x0 += offset;
+		y0 += offset;
+		x1 += offset;
+		y1 += offset;
+		x2 += offset;
+		y2 += offset;
 
 		int minX = Math.Max(0, Math.Min(x0, Math.Min(x1, x2)));
 		int maxX = Math.Min(img.GetWidth() - 1, Math.Max(x0, Math.Max(x1, x2)));
@@ -708,7 +711,7 @@ public static class AssetThumbnailProvider
 		if (IsAudioFormat(key)) return new Color(0.20f, 0.42f, 0.30f, 1.0f);
 		if (IsImageFormat(key)) return new Color(0.35f, 0.32f, 0.18f, 1.0f);
 		if (IsTextFormat(key)) return new Color(0.28f, 0.28f, 0.30f, 1.0f);
-		
+
 		return new Color(0.20f, 0.22f, 0.26f, 1.0f);
 	}
 

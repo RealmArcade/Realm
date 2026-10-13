@@ -1,8 +1,12 @@
-using Godot;
-using Realm.Client.Services;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using Fastenshtein;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Distribution;
+using Environment = Godot.Environment;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -24,6 +28,7 @@ public partial class FloatingDialogBase : PanelContainer
 				}
 			}
 		}
+
 		return false;
 	}
 
@@ -42,6 +47,7 @@ public partial class FloatingDialogBase : PanelContainer
 				_openDialogs.RemoveAt(i);
 			}
 		}
+
 		return false;
 	}
 
@@ -178,7 +184,7 @@ public partial class FloatingDialogBase : PanelContainer
 			AddChild(BackgroundTextureRect);
 			MoveChild(BackgroundTextureRect, 0);
 		}
-		
+
 		var tex = GD.Load<Texture2D>(texturePath);
 		if (tex != null)
 		{
@@ -305,7 +311,9 @@ public partial class FloatingDialogBase : PanelContainer
 				focusOwner.ReleaseFocus();
 			}
 		}
-		catch { }
+		catch
+		{
+		}
 
 		CommitInputsRecursive(this);
 	}
@@ -320,12 +328,14 @@ public partial class FloatingDialogBase : PanelContainer
 			{
 				spinBox.Apply();
 				var lineEdit = spinBox.GetLineEdit();
-				if (lineEdit != null && double.TryParse(lineEdit.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsedVal))
+				if (lineEdit != null && double.TryParse(lineEdit.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsedVal))
 				{
 					spinBox.Value = Math.Clamp(parsedVal, spinBox.MinValue, spinBox.MaxValue);
 				}
 			}
-			catch { }
+			catch
+			{
+			}
 		}
 		else if (node is LineEdit lineEdit)
 		{
@@ -333,7 +343,9 @@ public partial class FloatingDialogBase : PanelContainer
 			{
 				lineEdit.ReleaseFocus();
 			}
-			catch { }
+			catch
+			{
+			}
 		}
 
 		int count = node.GetChildCount();
@@ -359,11 +371,17 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			GetParent().RemoveChild(this);
 		}
+
 		DialogClosed?.Invoke();
 	}
 
-	protected virtual void OnApply() { }
-	protected virtual void OnCancel() { }
+	protected virtual void OnApply()
+	{
+	}
+
+	protected virtual void OnCancel()
+	{
+	}
 
 	private void OnHeaderGuiInput(InputEvent @event)
 	{
@@ -407,6 +425,7 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			label.AddThemeColorOverride("font_color", color.Value);
 		}
+
 		parent.AddChild(label);
 		return label;
 	}
@@ -449,7 +468,7 @@ public partial class FloatingDialogBase : PanelContainer
 		slider.MaxValue = max;
 		slider.Step = step;
 		slider.Value = initialValue;
-		slider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		slider.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		row.AddChild(slider);
 
 		var valLbl = new Label();
@@ -489,7 +508,7 @@ public partial class FloatingDialogBase : PanelContainer
 		hueSlider.MaxValue = 1.0f;
 		hueSlider.Step = 0.01f;
 		hueSlider.SetValueNoSignal(initialColor.H);
-		hueSlider.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		hueSlider.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		row.AddChild(hueSlider);
 
 		var picker = new ColorPickerButton();
@@ -572,16 +591,18 @@ public partial class FloatingDialogBase : PanelContainer
 		row.AddChild(lbl);
 
 		var opt = new OptionButton();
-		opt.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		opt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		opt.AddThemeFontSizeOverride("font_size", 11);
 		for (int i = 0; i < options.Length; i++)
 		{
 			opt.AddItem(options[i], i);
 		}
+
 		if (initialIndex >= 0 && initialIndex < options.Length)
 		{
 			opt.Selected = initialIndex;
 		}
+
 		opt.ItemSelected += (long idx) => onChanged((int)idx);
 		row.AddChild(opt);
 
@@ -609,7 +630,7 @@ public partial class FloatingDialogBase : PanelContainer
 		var txt = new LineEdit();
 		txt.Text = initialText ?? string.Empty;
 		txt.PlaceholderText = placeholder;
-		txt.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		txt.AddThemeFontSizeOverride("font_size", 11);
 		txt.TextChanged += (val) => onChanged(val);
 		row.AddChild(txt);
@@ -639,11 +660,11 @@ public partial class FloatingDialogBase : PanelContainer
 		var txt = new LineEdit();
 		txt.Text = initialValue.ToString("0.##");
 		txt.PlaceholderText = placeholder;
-		txt.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		txt.AddThemeFontSizeOverride("font_size", 11);
 		txt.TextChanged += (val) =>
 		{
-			if (float.TryParse(val, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float parsed))
+			if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
 			{
 				onChanged(parsed);
 			}
@@ -692,18 +713,18 @@ public partial class FloatingDialogBase : PanelContainer
 
 		Vector3 current = initialValue;
 
-		var txtX = new LineEdit { Text = initialValue.X.ToString("0.##"), PlaceholderText = "X", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		var txtY = new LineEdit { Text = initialValue.Y.ToString("0.##"), PlaceholderText = "Y", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		var txtZ = new LineEdit { Text = initialValue.Z.ToString("0.##"), PlaceholderText = "Z", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var txtX = new LineEdit { Text = initialValue.X.ToString("0.##"), PlaceholderText = "X", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var txtY = new LineEdit { Text = initialValue.Y.ToString("0.##"), PlaceholderText = "Y", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var txtZ = new LineEdit { Text = initialValue.Z.ToString("0.##"), PlaceholderText = "Z", SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		txtX.AddThemeFontSizeOverride("font_size", 11);
 		txtY.AddThemeFontSizeOverride("font_size", 11);
 		txtZ.AddThemeFontSizeOverride("font_size", 11);
 
 		void UpdateVal()
 		{
-			float.TryParse(txtX.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x);
-			float.TryParse(txtY.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float y);
-			float.TryParse(txtZ.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z);
+			float.TryParse(txtX.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float x);
+			float.TryParse(txtY.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float y);
+			float.TryParse(txtZ.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float z);
 			current = new Vector3(x, y, z);
 			onChanged(current);
 		}
@@ -738,15 +759,15 @@ public partial class FloatingDialogBase : PanelContainer
 
 		Vector2 current = initialValue;
 
-		var txtX = new LineEdit { Text = initialValue.X.ToString("0.##"), PlaceholderText = "X", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		var txtY = new LineEdit { Text = initialValue.Y.ToString("0.##"), PlaceholderText = "Y", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var txtX = new LineEdit { Text = initialValue.X.ToString("0.##"), PlaceholderText = "X", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var txtY = new LineEdit { Text = initialValue.Y.ToString("0.##"), PlaceholderText = "Y", SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		txtX.AddThemeFontSizeOverride("font_size", 11);
 		txtY.AddThemeFontSizeOverride("font_size", 11);
 
 		void UpdateVal()
 		{
-			float.TryParse(txtX.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x);
-			float.TryParse(txtY.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float y);
+			float.TryParse(txtX.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float x);
+			float.TryParse(txtY.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float y);
 			current = new Vector2(x, y);
 			onChanged(current);
 		}
@@ -761,159 +782,6 @@ public partial class FloatingDialogBase : PanelContainer
 		return (txtX, txtY);
 	}
 
-
-	private class AssetFilterDropdownState
-	{
-		public LineEdit Txt { get; set; }
-		public PopupMenu Popup { get; set; }
-		public string CommittedValue { get; set; }
-		public bool IsUpdatingTextProgrammatically { get; set; }
-		public bool IsPopupOpening { get; set; }
-		public bool IsPopupSelectionInProgress { get; set; }
-		public bool IsShowingAll { get; set; }
-		public bool IncludeAllFolders { get; set; }
-		public List<string> CurrentFilteredItems { get; set; } = new List<string>();
-		public Func<bool, List<string>> ItemsProvider { get; set; }
-		public Action<string> OnChanged { get; set; }
-
-		public void CommitSelection(string selected)
-		{
-			string safeSelected = selected ?? string.Empty;
-			IsUpdatingTextProgrammatically = true;
-			try
-			{
-				Txt.Text = safeSelected;
-			}
-			finally
-			{
-				IsUpdatingTextProgrammatically = false;
-			}
-
-			if (!string.Equals(CommittedValue, safeSelected, StringComparison.Ordinal))
-			{
-				CommittedValue = safeSelected;
-				OnChanged(safeSelected);
-			}
-		}
-
-		public void PositionAndShowPopup()
-		{
-			if (!Txt.IsInsideTree()) return;
-
-			IsPopupOpening = true;
-			try
-			{
-				Vector2 globalPos = Txt.GlobalPosition;
-				Vector2 txtSize = Txt.Size;
-				Popup.Position = new Vector2I((int)globalPos.X, (int)(globalPos.Y + txtSize.Y + 2));
-				Popup.ResetSize();
-				if (Popup.Size.X < (int)txtSize.X)
-				{
-					Popup.Size = new Vector2I((int)txtSize.X, Popup.Size.Y);
-				}
-				Popup.Popup();
-			}
-			finally
-			{
-				Callable.From(() =>
-				{
-					IsPopupOpening = false;
-					if (GodotObject.IsInstanceValid(Txt) && !Txt.HasFocus())
-					{
-						Txt.GrabFocus();
-					}
-				}).CallDeferred();
-			}
-		}
-
-		public void ShowAssetPopup(bool showAll = false)
-		{
-			IsShowingAll = showAll;
-			Popup.Clear();
-			CurrentFilteredItems.Clear();
-
-			var allItems = ItemsProvider(IncludeAllFolders);
-			if (allItems == null || allItems.Count == 0)
-			{
-				Popup.AddItem(TranslationServer.Translate("No matching assets found"), 0);
-				Popup.SetItemDisabled(0, true);
-				PositionAndShowPopup();
-				return;
-			}
-
-			string currentText = Txt.Text?.Trim() ?? string.Empty;
-			string query = (showAll || (string.IsNullOrEmpty(currentText) && !showAll)) ? string.Empty : currentText;
-
-			List<string> displayItems = GetDisplayItems(allItems, query, showAll);
-
-			PopulatePopup(displayItems);
-			PositionAndShowPopup();
-		}
-
-		private List<string> GetDisplayItems(List<string> allItems, string query, bool showAll)
-		{
-			if (showAll || string.IsNullOrEmpty(query)) return allItems;
-
-			var lev = new Fastenshtein.Levenshtein(query.ToLowerInvariant());
-			var scoredItems = new List<(string Item, int Score)>();
-			for (int i = 0; i < allItems.Count; i++)
-			{
-				scoredItems.Add((allItems[i], FloatingDialogBase.ComputeMatchScore(allItems[i], query, lev)));
-			}
-
-			scoredItems.Sort((a, b) =>
-			{
-				int cmp = a.Score.CompareTo(b.Score);
-				return cmp != 0 ? cmp : string.Compare(a.Item, b.Item, StringComparison.OrdinalIgnoreCase);
-			});
-
-			var genuineMatches = new List<string>();
-			for (int i = 0; i < scoredItems.Count; i++)
-			{
-				if (scoredItems[i].Score < 1000) genuineMatches.Add(scoredItems[i].Item);
-			}
-
-			if (genuineMatches.Count > 0) return genuineMatches;
-
-			var fallbackItems = new List<string>();
-			int takeCount = Math.Min(5, scoredItems.Count);
-			for (int i = 0; i < takeCount; i++)
-			{
-				fallbackItems.Add(scoredItems[i].Item);
-			}
-			return fallbackItems;
-		}
-
-		private void PopulatePopup(List<string> displayItems)
-		{
-			if (displayItems.Count == 0)
-			{
-				Popup.AddItem(TranslationServer.Translate("No matching assets found"), 0);
-				Popup.SetItemDisabled(0, true);
-				return;
-			}
-
-			int maxItems = Math.Min(displayItems.Count, 35);
-			for (int i = 0; i < maxItems; i++)
-			{
-				CurrentFilteredItems.Add(displayItems[i]);
-				Popup.AddItem(displayItems[i], i);
-			}
-			if (displayItems.Count > 35)
-			{
-				Popup.AddItem($"... ({displayItems.Count - 35} more)", 35);
-				Popup.SetItemDisabled(35, true);
-			}
-		}
-
-		public void ResolveClosestMatch()
-		{
-			var allItems = ItemsProvider(IncludeAllFolders);
-			string closest = FloatingDialogBase.FindClosestMatch(Txt.Text, allItems, CommittedValue);
-			CommitSelection(closest);
-			Popup.Hide();
-		}
-	}
 
 	public (LineEdit Input, Action<string> SetValue) AddAssetFilterDropdown(
 		Control parent,
@@ -946,7 +814,7 @@ public partial class FloatingDialogBase : PanelContainer
 
 		state.Txt.Text = state.CommittedValue;
 		state.Txt.PlaceholderText = placeholder;
-		state.Txt.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		state.Txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		state.Txt.AddThemeFontSizeOverride("font_size", 11);
 		row.AddChild(state.Txt);
 
@@ -969,7 +837,7 @@ public partial class FloatingDialogBase : PanelContainer
 		btnDropdown.Pressed += () => HandleAssetDropdownPressed(state);
 		state.Popup.PopupHide += () => state.IsShowingAll = false;
 		state.Popup.IdPressed += (long id) => HandleAssetPopupIdPressed(state, id);
-		
+
 		state.Txt.FocusEntered += () => Callable.From(state.Txt.SelectAll).CallDeferred();
 		state.Txt.TextChanged += (val) =>
 		{
@@ -1084,13 +952,14 @@ public partial class FloatingDialogBase : PanelContainer
 			{
 				return fallbackValue;
 			}
+
 			return allItems[0];
 		}
 
 		string cleanQuery = query.Trim();
 		string bestItem = allItems[0];
 		int bestScore = int.MaxValue;
-		var lev = new Fastenshtein.Levenshtein(cleanQuery.ToLowerInvariant());
+		var lev = new Levenshtein(cleanQuery.ToLowerInvariant());
 
 		for (int i = 0; i < allItems.Count; i++)
 		{
@@ -1107,7 +976,7 @@ public partial class FloatingDialogBase : PanelContainer
 		return bestItem;
 	}
 
-	public static int ComputeMatchScore(string item, string query, Fastenshtein.Levenshtein? lev = null)
+	public static int ComputeMatchScore(string item, string query, Levenshtein? lev = null)
 	{
 		if (string.IsNullOrEmpty(item)) return int.MaxValue;
 		if (string.IsNullOrEmpty(query)) return 0;
@@ -1118,10 +987,10 @@ public partial class FloatingDialogBase : PanelContainer
 
 		if (itemLower == q) return 0;
 
-		string fileName = System.IO.Path.GetFileName(itemFull).ToLowerInvariant();
+		string fileName = Path.GetFileName(itemFull).ToLowerInvariant();
 		if (fileName == q) return 1;
 
-		string nameNoExt = System.IO.Path.GetFileNameWithoutExtension(itemFull).ToLowerInvariant();
+		string nameNoExt = Path.GetFileNameWithoutExtension(itemFull).ToLowerInvariant();
 		if (nameNoExt == q) return 2;
 
 		int score = CheckPrefixMatches(q, itemLower, fileName, nameNoExt);
@@ -1160,7 +1029,7 @@ public partial class FloatingDialogBase : PanelContainer
 				return -1;
 			}
 		}
-		
+
 		return 25 + Math.Abs(nameNoExt.Length - q.Length);
 	}
 
@@ -1172,6 +1041,7 @@ public partial class FloatingDialogBase : PanelContainer
 			if (token == q) return 40 + (nameNoExt.Length - q.Length);
 			if (token.StartsWith(q)) return 50 + (nameNoExt.Length - q.Length);
 		}
+
 		return -1;
 	}
 
@@ -1183,36 +1053,36 @@ public partial class FloatingDialogBase : PanelContainer
 		return -1;
 	}
 
-	private static int ComputeDistanceMatches(string q, string nameNoExt, string[] tokens, Fastenshtein.Levenshtein? lev)
+	private static int ComputeDistanceMatches(string q, string nameNoExt, string[] tokens, Levenshtein? lev)
 	{
 		int bestTokenDist = int.MaxValue;
 		for (int i = 0; i < tokens.Length; i++)
 		{
-			int dist = lev != null ? lev.DistanceFrom(tokens[i]) : Fastenshtein.Levenshtein.Distance(q, tokens[i]);
+			int dist = lev != null ? lev.DistanceFrom(tokens[i]) : Levenshtein.Distance(q, tokens[i]);
 			if (dist < bestTokenDist) bestTokenDist = dist;
 		}
-		
+
 		if (bestTokenDist <= 2)
 		{
 			return 500 + bestTokenDist * 50 + Math.Abs(nameNoExt.Length - q.Length);
 		}
 
-		int distName = lev != null ? lev.DistanceFrom(nameNoExt) : Fastenshtein.Levenshtein.Distance(q, nameNoExt);
+		int distName = lev != null ? lev.DistanceFrom(nameNoExt) : Levenshtein.Distance(q, nameNoExt);
 		return 1000 + distName * 20 + Math.Abs(nameNoExt.Length - q.Length);
 	}
 
 	public static List<string> ScanAvailableAssets(string category, bool includeAllFolders = false, string subFolder = null)
 	{
 		var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = !string.IsNullOrEmpty(Services.MapWorkspaceService.GetActiveWorkspacePath())
-			? Services.MapWorkspaceService.GetActiveWorkspacePath()
-			: ProjectSettings.GlobalizePath(MapEditorHUD.TempWorkspaceGodotPath);
+		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
+			? MapWorkspaceService.GetActiveWorkspacePath()
+			: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 
 		try
 		{
-			var assetsObj = Realm.Client.Utils.MapAssetHelper.LoadAssets(wsPath);
+			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			string manifestPath = Path.Combine(wsPath, "manifest.json");
-			Realm.Shared.Distribution.MapManifest manifest = LoadManifest(manifestPath);
+			MapManifest manifest = LoadManifest(manifestPath);
 
 			if (assetsObj == null && manifest == null) return new List<string>();
 
@@ -1228,93 +1098,109 @@ public partial class FloatingDialogBase : PanelContainer
 		return list;
 	}
 
-	private static Realm.Shared.Distribution.MapManifest LoadManifest(string manifestPath)
+	private static MapManifest LoadManifest(string manifestPath)
 	{
 		if (!File.Exists(manifestPath)) return null;
-		try { return Realm.Shared.Distribution.MapManifest.LoadFromFile(manifestPath); }
-		catch { return null; }
+		try
+		{
+			return MapManifest.LoadFromFile(manifestPath);
+		}
+		catch
+		{
+			return null;
+		}
 	}
 
-	private static void ScanCategoryAssets(string category, HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
+	private static void ScanCategoryAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
 	{
 		if (TryScanMediaAssets(category, result, assetsObj, manifest, wsPath)) return;
 		if (TryScanVisualAssets(category, result, assetsObj, manifest, wsPath, includeAllFolders, subFolder)) return;
 		if (TryScanEnvironmentAssets(category, result, assetsObj, manifest, wsPath)) return;
 	}
 
-	private static bool TryScanMediaAssets(string category, HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static bool TryScanMediaAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		if (category is "audio" or "sound" or "sfx" or "music")
 		{
 			ScanAudioAssets(result, assetsObj, manifest, wsPath);
 			return true;
 		}
+
 		if (category is "spritesheets" or "spritesheet" or "spritesheet_rtex")
 		{
 			ScanSpritesheetAssets(result, assetsObj, manifest, wsPath);
 			return true;
 		}
+
 		if (category is "vfx" or "vfx_spritesheets" or "vfx_radial" or "vfx_vertical")
 		{
 			ScanVfxAssets(category, result, assetsObj, wsPath);
 			return true;
 		}
+
 		if (category is "decals" or "decal")
 		{
 			ScanDecalAssets(result, assetsObj, manifest, wsPath);
 			return true;
 		}
+
 		return false;
 	}
 
-	private static bool TryScanVisualAssets(string category, HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
+	private static bool TryScanVisualAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
 	{
 		if (category is "models" or "glb" or "attachments" or "items" or "weapons" or "projectiles")
 		{
 			ScanModelAssets(category, result, assetsObj, manifest, wsPath, includeAllFolders, subFolder);
 			return true;
 		}
+
 		if (category is "ribbons" or "ribbon_textures")
 		{
 			ScanRibbonAssets(result, assetsObj, manifest, wsPath);
 			return true;
 		}
+
 		if (category is "animations" or "ranim" or "animation")
 		{
 			ScanAnimationAssets(result, assetsObj, wsPath);
 			return true;
 		}
+
 		return false;
 	}
 
-	private static bool TryScanEnvironmentAssets(string category, HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static bool TryScanEnvironmentAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		if (category is "icons" or "icon")
 		{
 			ScanIconAssets(result, assetsObj, manifest, wsPath);
 			return true;
 		}
+
 		if (category is "noise" or "noise_textures")
 		{
 			ScanNoiseAssets(result, assetsObj, manifest, wsPath);
 			return true;
 		}
+
 		if (category is "textures" or "terrain")
 		{
 			ScanTerrainAssets(result, assetsObj, manifest, wsPath);
 			return true;
 		}
+
 		return false;
 	}
 
-	private static void ScanAudioAssets(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static void ScanAudioAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		ScanAudioAssetsFromCategories(result, assetsObj);
 		ScanAudioAssetsFromManifestFiles(result, manifest);
 		ScanAudioAssetsFromDirectory(result, wsPath);
 	}
 
-	private static void ScanAudioAssetsFromCategories(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj)
+	private static void ScanAudioAssetsFromCategories(HashSet<string> result, MapManifestAssets assetsObj)
 	{
 		foreach (var key in new[] { "SoundEffect", "Music" })
 		{
@@ -1331,7 +1217,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanAudioAssetsFromManifestFiles(HashSet<string> result, Realm.Shared.Distribution.MapManifest manifest)
+	private static void ScanAudioAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1366,7 +1252,7 @@ public partial class FloatingDialogBase : PanelContainer
 		       path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static void ScanSpritesheetAssets(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static void ScanSpritesheetAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Spritesheet") ?? assetsObj?.GetCategory("spritesheets"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Spritesheet);
@@ -1376,7 +1262,7 @@ public partial class FloatingDialogBase : PanelContainer
 		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "vfx"));
 	}
 
-	private static void ScanRtexAssetsFromCategory(HashSet<string> result, System.Collections.Generic.IDictionary<string, string> dict)
+	private static void ScanRtexAssetsFromCategory(HashSet<string> result, IDictionary<string, string> dict)
 	{
 		if (dict == null) return;
 		foreach (var kvp in dict)
@@ -1400,7 +1286,7 @@ public partial class FloatingDialogBase : PanelContainer
 		return !string.IsNullOrWhiteSpace(path) && path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static void ScanSpritesheetAssetsFromManifestFiles(HashSet<string> result, Realm.Shared.Distribution.MapManifest manifest)
+	private static void ScanSpritesheetAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1418,7 +1304,7 @@ public partial class FloatingDialogBase : PanelContainer
 
 	private static void ScanSpritesheetAssetsFromMetadata(HashSet<string> result, string wsPath)
 	{
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var ssMetaRoot) && ssMetaRoot?.VfxSpritesheets != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var ssMetaRoot) && ssMetaRoot?.VfxSpritesheets != null)
 		{
 			foreach (var kvp in ssMetaRoot.VfxSpritesheets)
 			{
@@ -1430,7 +1316,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanVfxAssets(string category, HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, string wsPath)
+	private static void ScanVfxAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, string wsPath)
 	{
 		ScanVfxAssetsFromRegistry(category, result);
 		ScanVfxAssetsFromCategories(category, result, assetsObj);
@@ -1440,15 +1326,15 @@ public partial class FloatingDialogBase : PanelContainer
 	private static void ScanVfxAssetsFromRegistry(string category, HashSet<string> result)
 	{
 		if (category is not ("vfx" or "vfx_spritesheets")) return;
-		if (Realm.Client.Core.GameHost.VfxRegistry == null) return;
+		if (GameContext.RegistryService.VfxRegistry == null) return;
 
-		foreach (var kvp in Realm.Client.Core.GameHost.VfxRegistry)
+		foreach (var kvp in GameContext.RegistryService.VfxRegistry)
 		{
 			result.Add(kvp.Key.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? kvp.Key : $"vfx:{kvp.Key}");
 		}
 	}
 
-	private static void ScanVfxAssetsFromCategories(string category, HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj)
+	private static void ScanVfxAssetsFromCategories(string category, HashSet<string> result, MapManifestAssets assetsObj)
 	{
 		string[] searchKeys = category switch
 		{
@@ -1465,19 +1351,19 @@ public partial class FloatingDialogBase : PanelContainer
 
 	private static void ScanVfxAssetsFromMetadata(HashSet<string> result, string wsPath)
 	{
-		if (!MetadataService.Instance.TryLoadMetadata(wsPath, out var vfxMetaRoot)) return;
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var vfxMetaRoot)) return;
 		if (vfxMetaRoot?.Templates?.Vfx == null) return;
 
 		foreach (var cv in vfxMetaRoot.Templates.Vfx)
 		{
 			if (string.IsNullOrWhiteSpace(cv.VfxId)) continue;
-			
+
 			result.Add(cv.VfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? cv.VfxId : $"vfx:{cv.VfxId}");
 			result.Add(cv.VfxId);
 		}
 	}
 
-	private static void ScanDecalAssets(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static void ScanDecalAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Decal"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Decal);
@@ -1486,7 +1372,7 @@ public partial class FloatingDialogBase : PanelContainer
 		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "decals"));
 	}
 
-	private static void ScanDecalAssetsFromManifestFiles(HashSet<string> result, Realm.Shared.Distribution.MapManifest manifest)
+	private static void ScanDecalAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1502,7 +1388,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanModelAssets(string category, HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
+	private static void ScanModelAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
 	{
 		ScanModelAssetsFromRegistry(category, result, includeAllFolders);
 		ScanModelAssetsFromCategories(category, result, assetsObj, includeAllFolders, subFolder);
@@ -1513,18 +1399,18 @@ public partial class FloatingDialogBase : PanelContainer
 	private static void ScanModelAssetsFromRegistry(string category, HashSet<string> result, bool includeAllFolders)
 	{
 		if (!(category is "attachments" or "items" || includeAllFolders)) return;
-		if (Realm.Client.Core.GameHost.VfxRegistry == null) return;
+		if (GameContext.RegistryService.VfxRegistry == null) return;
 
-		foreach (var kvp in Realm.Client.Core.GameHost.VfxRegistry)
+		foreach (var kvp in GameContext.RegistryService.VfxRegistry)
 		{
 			result.Add(kvp.Key.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? kvp.Key : $"vfx:{kvp.Key}");
 		}
 	}
 
-	private static void ScanModelAssetsFromCategories(string category, HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, bool includeAllFolders, string subFolder)
+	private static void ScanModelAssetsFromCategories(string category, HashSet<string> result, MapManifestAssets assetsObj, bool includeAllFolders, string subFolder)
 	{
 		string defaultFolder = !string.IsNullOrEmpty(subFolder) ? subFolder : (category is "attachments" or "items" ? "items" : "projectiles");
-		
+
 		foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
 		{
 			if (IsModelCategoryMatch(catName, defaultFolder, includeAllFolders))
@@ -1543,7 +1429,7 @@ public partial class FloatingDialogBase : PanelContainer
 		       (defaultFolder == "props" && catName == "Prop");
 	}
 
-	private static void ScanRmeshAssetsFromCategory(HashSet<string> result, System.Collections.Generic.IDictionary<string, string> dict)
+	private static void ScanRmeshAssetsFromCategory(HashSet<string> result, IDictionary<string, string> dict)
 	{
 		if (dict == null) return;
 		foreach (var kvp in dict)
@@ -1558,7 +1444,7 @@ public partial class FloatingDialogBase : PanelContainer
 		return !string.IsNullOrWhiteSpace(path) && path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static void ScanModelAssetsFromManifestFiles(HashSet<string> result, Realm.Shared.Distribution.MapManifest manifest)
+	private static void ScanModelAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1581,14 +1467,14 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanRibbonAssets(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static void ScanRibbonAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Ribbon"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Ribbon);
 		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "ribbons"));
 	}
 
-	private static void ScanAnimationAssets(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, string wsPath)
+	private static void ScanAnimationAssets(HashSet<string> result, MapManifestAssets assetsObj, string wsPath)
 	{
 		var aDict = assetsObj?.GetCategory("Animation");
 		if (aDict != null)
@@ -1612,7 +1498,7 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanIconAssets(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static void ScanIconAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Icon") ?? assetsObj?.GetCategory("icons"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Icon);
@@ -1622,7 +1508,7 @@ public partial class FloatingDialogBase : PanelContainer
 		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "icons"));
 	}
 
-	private static void ScanIconAssetsFromManifestFiles(HashSet<string> result, Realm.Shared.Distribution.MapManifest manifest)
+	private static void ScanIconAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1640,7 +1526,7 @@ public partial class FloatingDialogBase : PanelContainer
 
 	private static void ScanIconAssetsFromMetadata(HashSet<string> result, string wsPath)
 	{
-		if (MetadataService.Instance.TryLoadMetadata(wsPath, out var iconMetaRoot) && iconMetaRoot?.Icons != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var iconMetaRoot) && iconMetaRoot?.Icons != null)
 		{
 			foreach (var kvp in iconMetaRoot.Icons)
 			{
@@ -1652,14 +1538,14 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private static void ScanNoiseAssets(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static void ScanNoiseAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Noise"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Noise);
 		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "noise"));
 	}
 
-	private static void ScanTerrainAssets(HashSet<string> result, Realm.Shared.Distribution.MapManifestAssets assetsObj, Realm.Shared.Distribution.MapManifest manifest, string wsPath)
+	private static void ScanTerrainAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
 	{
 		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Terrain") ?? assetsObj?.GetCategory("textures"));
 		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Terrain);
@@ -1668,7 +1554,7 @@ public partial class FloatingDialogBase : PanelContainer
 		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "textures"));
 	}
 
-	private static void ScanTerrainAssetsFromManifestFiles(HashSet<string> result, Realm.Shared.Distribution.MapManifest manifest)
+	private static void ScanTerrainAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
 	{
 		if (manifest?.Files == null) return;
 
@@ -1701,16 +1587,19 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			btn.AddThemeFontOverride("font", font);
 		}
+
 		btn.AddThemeFontSizeOverride("font_size", fontSize);
 		btn.FocusMode = FocusModeEnum.None;
 		if (minSize.HasValue)
 		{
 			btn.CustomMinimumSize = minSize.Value;
 		}
+
 		if (!string.IsNullOrEmpty(tooltip))
 		{
 			btn.TooltipText = TranslationServer.Translate(tooltip);
 		}
+
 		btn.Pressed += onClick;
 		parent.AddChild(btn);
 		return btn;
@@ -1725,7 +1614,7 @@ public partial class FloatingDialogBase : PanelContainer
 	{
 		var container = new SubViewportContainer();
 		container.CustomMinimumSize = minSize;
-		container.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		container.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		container.Stretch = true;
 
 		subViewport = new SubViewport();
@@ -1734,10 +1623,10 @@ public partial class FloatingDialogBase : PanelContainer
 		subViewport.OwnWorld3D = true;
 
 		var world = new World3D();
-		var env = new global::Godot.Environment();
-		env.BackgroundMode = global::Godot.Environment.BGMode.Color;
+		var env = new Environment();
+		env.BackgroundMode = Environment.BGMode.Color;
 		env.BackgroundColor = new Color(0.11f, 0.13f, 0.17f);
-		env.AmbientLightSource = global::Godot.Environment.AmbientSource.Color;
+		env.AmbientLightSource = Environment.AmbientSource.Color;
 		env.AmbientLightColor = new Color(0.60f, 0.60f, 0.65f);
 		env.AmbientLightEnergy = 0.75f;
 		world.Environment = env;
@@ -1761,13 +1650,13 @@ public partial class FloatingDialogBase : PanelContainer
 	{
 		var scroll = new ScrollContainer();
 		scroll.CustomMinimumSize = new Vector2(0, minHeight);
-		scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 
 		var innerVBox = new VBoxContainer();
 		innerVBox.AddThemeConstantOverride("separation", 8);
-		innerVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		innerVBox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		innerVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		innerVBox.SizeFlagsVertical = SizeFlags.ExpandFill;
 
 		scroll.AddChild(innerVBox);
 		BodyContainer.AddChild(scroll);
