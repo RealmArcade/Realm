@@ -3940,19 +3940,8 @@ void fragment() {
 		return (1.0f, 0.0f, 0.0f, 0.0f);
 	}
 
-	private TerrainSplatWeights BlendSplatWeights(TerrainSplatWeights s0, TerrainSplatWeights s1, TerrainSplatWeights s2, TerrainSplatWeights s3)
+	private TerrainSplatWeights NormalizeAndCreateSplatWeights(int tex0, int tex1, int tex2, int tex3, float avg0, float avg1, float avg2, float avg3)
 	{
-		var (tex0, tex1, tex2, tex3) = GetQuadDominantTextures(s0, s1, s2, s3);
-		var (w00, w01, w02, w03) = GetSplatWeightsForQuad(s0, tex0, tex1, tex2, tex3);
-		var (w10, w11, w12, w13) = GetSplatWeightsForQuad(s1, tex0, tex1, tex2, tex3);
-		var (w20, w21, w22, w23) = GetSplatWeightsForQuad(s2, tex0, tex1, tex2, tex3);
-		var (w30, w31, w32, w33) = GetSplatWeightsForQuad(s3, tex0, tex1, tex2, tex3);
-
-		float avg0 = (w00 + w10 + w20 + w30) * 0.25f;
-		float avg1 = (w01 + w11 + w21 + w31) * 0.25f;
-		float avg2 = (w02 + w12 + w22 + w32) * 0.25f;
-		float avg3 = (w03 + w13 + w23 + w33) * 0.25f;
-
 		float sum = avg0 + avg1 + avg2 + avg3;
 		if (sum > 0.0001f)
 		{
@@ -3983,6 +3972,22 @@ void fragment() {
 		};
 	}
 
+	private TerrainSplatWeights BlendSplatWeights(TerrainSplatWeights s0, TerrainSplatWeights s1, TerrainSplatWeights s2, TerrainSplatWeights s3)
+	{
+		var (tex0, tex1, tex2, tex3) = GetQuadDominantTextures(s0, s1, s2, s3);
+		var (w00, w01, w02, w03) = GetSplatWeightsForQuad(s0, tex0, tex1, tex2, tex3);
+		var (w10, w11, w12, w13) = GetSplatWeightsForQuad(s1, tex0, tex1, tex2, tex3);
+		var (w20, w21, w22, w23) = GetSplatWeightsForQuad(s2, tex0, tex1, tex2, tex3);
+		var (w30, w31, w32, w33) = GetSplatWeightsForQuad(s3, tex0, tex1, tex2, tex3);
+
+		float avg0 = (w00 + w10 + w20 + w30) * 0.25f;
+		float avg1 = (w01 + w11 + w21 + w31) * 0.25f;
+		float avg2 = (w02 + w12 + w22 + w32) * 0.25f;
+		float avg3 = (w03 + w13 + w23 + w33) * 0.25f;
+
+		return NormalizeAndCreateSplatWeights(tex0, tex1, tex2, tex3, avg0, avg1, avg2, avg3);
+	}
+
 	private TerrainSplatWeights BlendSplatWeights(TerrainSplatWeights s0, TerrainSplatWeights s1, TerrainSplatWeights s2)
 	{
 		var (tex0, tex1, tex2, tex3) = GetQuadDominantTextures(s0, s1, s2, s0);
@@ -3995,34 +4000,7 @@ void fragment() {
 		float avg2 = (w02 + w12 + w22) / 3.0f;
 		float avg3 = (w03 + w13 + w23) / 3.0f;
 
-		float sum = avg0 + avg1 + avg2 + avg3;
-		if (sum > 0.0001f)
-		{
-			float invSum = 1.0f / sum;
-			avg0 *= invSum;
-			avg1 *= invSum;
-			avg2 *= invSum;
-			avg3 *= invSum;
-		}
-		else
-		{
-			avg0 = 1.0f;
-			avg1 = 0f;
-			avg2 = 0f;
-			avg3 = 0f;
-		}
-
-		return new TerrainSplatWeights
-		{
-			Index0 = tex0,
-			Index1 = tex1,
-			Index2 = tex2,
-			Index3 = tex3,
-			Weight0 = avg0,
-			Weight1 = avg1,
-			Weight2 = avg2,
-			Weight3 = avg3
-		};
+		return NormalizeAndCreateSplatWeights(tex0, tex1, tex2, tex3, avg0, avg1, avg2, avg3);
 	}
 
 	public static float Smoothstep(float edge0, float edge1, float x)

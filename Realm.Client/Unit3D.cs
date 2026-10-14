@@ -489,18 +489,7 @@ public partial class Unit3D : Prop3D
 
 	public override void UpdateSlopeAlignment()
 	{
-		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && _modelNode != null && GodotObject.IsInstanceValid(_modelNode))
-		{
-			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
-			if (normal.LengthSquared() > 0.01f)
-			{
-				normal = normal.Normalized();
-				Vector3 up = normal;
-				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
-				Vector3 right = up.Cross(forward).Normalized();
-				_modelNode.Basis = new Basis(right, up, -forward);
-			}
-		}
+		ApplySlopeAlignment(_modelNode);
 	}
 
 	public override float GetBaseObstacleRadius()

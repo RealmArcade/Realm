@@ -6258,15 +6258,15 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	public (bool Success, string Message, string FileName, string Blake3) ImportSpritesheetAsset(string sourceFilePath, string wsPath)
+	private (bool Success, string Message, string FileName, string Blake3) ImportImageAsAsset(string sourceFilePath, string wsPath, string subFolder)
 	{
 		try
 		{
 			string baseName = Path.GetFileNameWithoutExtension(sourceFilePath);
 			string fileName = baseName + ".png";
-			string vfxDir = Path.Combine(wsPath, "Assets", "vfx");
-			Directory.CreateDirectory(vfxDir);
-			string targetPath = Path.Combine(vfxDir, fileName);
+			string outputDir = Path.Combine(wsPath, "Assets", subFolder);
+			Directory.CreateDirectory(outputDir);
+			string targetPath = Path.Combine(outputDir, fileName);
 
 			var img = Image.LoadFromFile(sourceFilePath);
 			if (img != null)
@@ -6285,39 +6285,18 @@ public partial class EditorService : IEditorAPI
 		}
 		catch (Exception ex)
 		{
-			return (false, ex.Message, null, null);
+			return (false, ex.Message, null!, null!);
 		}
+	}
+
+	public (bool Success, string Message, string FileName, string Blake3) ImportSpritesheetAsset(string sourceFilePath, string wsPath)
+	{
+		return ImportImageAsAsset(sourceFilePath, wsPath, "vfx");
 	}
 
 	public (bool Success, string Message, string FileName, string Blake3) ImportIconAsset(string sourceFilePath, string wsPath)
 	{
-		try
-		{
-			string baseName = Path.GetFileNameWithoutExtension(sourceFilePath);
-			string fileName = baseName + ".png";
-			string iconsDir = Path.Combine(wsPath, "Assets", "icons");
-			Directory.CreateDirectory(iconsDir);
-			string targetPath = Path.Combine(iconsDir, fileName);
-
-			var img = Image.LoadFromFile(sourceFilePath);
-			if (img != null)
-			{
-				img.SavePng(targetPath);
-			}
-			else
-			{
-				File.Copy(sourceFilePath, targetPath, true);
-			}
-
-			byte[] bytes = File.ReadAllBytes(targetPath);
-			string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, ".png");
-
-			return (true, "", fileName, blake3);
-		}
-		catch (Exception ex)
-		{
-			return (false, ex.Message, null, null);
-		}
+		return ImportImageAsAsset(sourceFilePath, wsPath, "icons");
 	}
 
 	public long GetLastWriteTimeSafe(string path)

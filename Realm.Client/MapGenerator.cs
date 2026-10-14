@@ -622,11 +622,16 @@ public static class MapGenerator
 		return pathDist;
 	}
 
+	private static bool TryGetValidGridPos(Vector2 p, int width, int depth, float quadSize, out Vector3 worldPos, out int gx, out int gz)
+	{
+		worldPos = new Vector3(p.X - (width - 1) * quadSize / 2.0f, 0f, p.Y - (depth - 1) * quadSize / 2.0f);
+		WorldToGrid(worldPos, width, depth, quadSize, out gx, out gz);
+		return gx >= 0 && gx < width && gz >= 0 && gz < depth;
+	}
+
 	private static void TrySpawnTree(GameHost host, Vector2 p, sbyte[,] tiers, float[,] pathDist, int width, int depth, float quadSize, Random random)
 	{
-		Vector3 worldPos = new Vector3(p.X - (width - 1) * quadSize / 2.0f, 0f, p.Y - (depth - 1) * quadSize / 2.0f);
-		WorldToGrid(worldPos, width, depth, quadSize, out int gx, out int gz);
-		if (gx < 0 || gx >= width || gz < 0 || gz >= depth) return;
+		if (!TryGetValidGridPos(p, width, depth, quadSize, out Vector3 worldPos, out int gx, out int gz)) return;
 		if (tiers[gx, gz] >= 0 && tiers[gx, gz] <= 2 && pathDist[gx, gz] > 4f)
 		{
 			worldPos.Y = host.GroundTerrain.GetGridNodeHeight(gx, gz);
@@ -638,9 +643,7 @@ public static class MapGenerator
 
 	private static void TrySpawnDeco(GameHost host, Vector2 p, sbyte[,] tiers, float[,] pathDist, string[] decoIds, int width, int depth, float quadSize, Random random)
 	{
-		Vector3 worldPos = new Vector3(p.X - (width - 1) * quadSize / 2.0f, 0f, p.Y - (depth - 1) * quadSize / 2.0f);
-		WorldToGrid(worldPos, width, depth, quadSize, out int gx, out int gz);
-		if (gx < 0 || gx >= width || gz < 0 || gz >= depth) return;
+		if (!TryGetValidGridPos(p, width, depth, quadSize, out Vector3 worldPos, out int gx, out int gz)) return;
 		if (tiers[gx, gz] >= 0 && pathDist[gx, gz] > 2f)
 		{
 			worldPos.Y = host.GroundTerrain.GetGridNodeHeight(gx, gz);
