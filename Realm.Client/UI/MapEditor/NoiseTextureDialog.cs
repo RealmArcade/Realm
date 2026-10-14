@@ -133,25 +133,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		btnRandomizeAll.CustomMinimumSize = new Vector2(0, 28);
 		btnRandomizeAll.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btnRandomizeAll.AddThemeFontSizeOverride("font_size", 11);
-		{
-			var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
-			if (mapEdBtnTex != null)
-			{
-				var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-				var hoverSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-				var pressedSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-				btnRandomizeAll.AddThemeStyleboxOverride("normal", normalSb);
-				btnRandomizeAll.AddThemeStyleboxOverride("hover", hoverSb);
-				btnRandomizeAll.AddThemeStyleboxOverride("pressed", pressedSb);
-				btnRandomizeAll.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			}
-			else
-			{
-				btnRandomizeAll.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-				btnRandomizeAll.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-				btnRandomizeAll.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			}
-		}
+		UIStyle.CreateMapEditorRandomButtonStyle(btnRandomizeAll);
 		btnRandomizeAll.Pressed += () => RandomizeAllNoiseParameters();
 		leftVBox.AddChild(btnRandomizeAll);
 

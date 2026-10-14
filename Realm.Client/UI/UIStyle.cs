@@ -1050,4 +1050,25 @@ public static class UIStyle
 	{
 		return x >= size / 2 - 1 && x <= size / 2 + 1 && y >= 5 && y <= size - 6;
 	}
+	public static void CreateMapEditorRandomButtonStyle(Button btn)
+	{
+		var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+		if (mapEdBtnTex != null)
+		{
+			var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			var hoverSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			var pressedSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			btn.AddThemeStyleboxOverride("normal", normalSb);
+			btn.AddThemeStyleboxOverride("hover", hoverSb);
+			btn.AddThemeStyleboxOverride("pressed", pressedSb);
+			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		}
+		else
+		{
+			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		}
+	}
 }

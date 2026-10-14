@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Godot;
 using Realm.Client.Animation;
+using Realm.Client.Utils;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
@@ -1034,19 +1035,7 @@ public partial class Unit3D : Prop3D
 
 	private Vector3[] GetMeshAabbCorners(Aabb mAabb)
 	{
-		Vector3 min = mAabb.Position;
-		Vector3 max = mAabb.End;
-		return new[]
-		{
-			new Vector3(min.X, min.Y, min.Z),
-			new Vector3(min.X, min.Y, max.Z),
-			new Vector3(min.X, max.Y, min.Z),
-			new Vector3(min.X, max.Y, max.Z),
-			new Vector3(max.X, min.Y, min.Z),
-			new Vector3(max.X, min.Y, max.Z),
-			new Vector3(max.X, max.Y, min.Z),
-			new Vector3(max.X, max.Y, max.Z)
-		};
+		return mAabb.GetCorners();
 	}
 
 

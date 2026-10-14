@@ -1186,20 +1186,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 				currentScale = Mathf.Lerp(_minScaleRatio, _maxScaleRatio, sine);
 			}
 
-			float r = _tint.R * _brightness * (1.0f + currentEmission * 0.5f);
-			float g = _tint.G * _brightness * (1.0f + currentEmission * 0.5f);
-			float b = _tint.B * _brightness * (1.0f + currentEmission * 0.5f);
-
-			float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-			r = lum + (r - lum) * _saturation;
-			g = lum + (g - lum) * _saturation;
-			b = lum + (b - lum) * _saturation;
-
-			r = (r - 0.5f) * _contrast + 0.5f;
-			g = (g - 0.5f) * _contrast + 0.5f;
-			b = (b - 0.5f) * _contrast + 0.5f;
-
-			_previewRect.Modulate = new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(currentOpacity, 0f, 1f));
+				_previewRect.Modulate = CalculateColorModulation(currentEmission, currentOpacity);
 			_previewRect.Scale = new Vector2(currentScale, currentScale);
 			_previewRect.PivotOffset = _previewRect.Size * 0.5f;
 		}
@@ -1269,13 +1256,11 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		if (lbl != null) lbl.Text = value.ToString(format);
 	}
 
-	private void UpdatePreviewRectMaterial()
+		private Color CalculateColorModulation(float emissionMultiplier, float opacity)
 	{
-		if (_previewRect == null) return;
-
-		float r = _tint.R * _brightness;
-		float g = _tint.G * _brightness;
-		float b = _tint.B * _brightness;
+			float r = _tint.R * _brightness * (1.0f + emissionMultiplier * 0.5f);
+			float g = _tint.G * _brightness * (1.0f + emissionMultiplier * 0.5f);
+			float b = _tint.B * _brightness * (1.0f + emissionMultiplier * 0.5f);
 
 		float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
 		r = lum + (r - lum) * _saturation;
@@ -1286,7 +1271,14 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		g = (g - 0.5f) * _contrast + 0.5f;
 		b = (b - 0.5f) * _contrast + 0.5f;
 
-		_previewRect.Modulate = new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(_opacity, 0f, 1f));
+			return new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(opacity, 0f, 1f));
+		}
+
+		private void UpdatePreviewRectMaterial()
+		{
+			if (_previewRect == null) return;
+
+			_previewRect.Modulate = CalculateColorModulation(0f, _opacity);
 		_previewRect.Texture = _baseTexture;
 
 		if (_previewRect.Material is not CanvasItemMaterial mat)

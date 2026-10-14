@@ -1076,23 +1076,7 @@ public partial class InGameHUD : Control
 		btn.ClipContents = true;
 		btn.AddThemeConstantOverride("icon_max_width", 38);
 
-		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
-		{
-			int end = tooltip.IndexOf(']');
-			string hotkeyText = tooltip.Substring(1, end - 1);
-			var hotkeyLabel = new Label();
-			hotkeyLabel.Name = "HotkeyLabel";
-			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 10);
-			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
-			hotkeyLabel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-			hotkeyLabel.OffsetLeft = 4;
-			hotkeyLabel.OffsetTop = 3;
-			hotkeyLabel.MouseFilter = MouseFilterEnum.Ignore;
-			btn.AddChild(hotkeyLabel);
-		}
+		UIHelper.AddHotkeyLabel(btn, tooltip);
 
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
@@ -1321,43 +1305,7 @@ public partial class InGameHUD : Control
 
 	private void SetupHUDButton(Button btn, string iconPath, string tooltip, Action onClick)
 	{
-		btn.Flat = false;
-		btn.Text = "";
-		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>(iconPath);
-		string trans = TranslationServer.Translate(tooltip);
-		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
-		btn.CustomMinimumSize = new Vector2(44, 44);
-		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		btn.SizeFlagsVertical = SizeFlags.ExpandFill;
-		btn.FocusMode = FocusModeEnum.None;
-		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 38);
-
-		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
-		{
-			int end = tooltip.IndexOf(']');
-			string hotkeyText = tooltip.Substring(1, end - 1);
-			var hotkeyLabel = new Label();
-			hotkeyLabel.Name = "HotkeyLabel";
-			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 10);
-			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
-			hotkeyLabel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-			hotkeyLabel.OffsetLeft = 4;
-			hotkeyLabel.OffsetTop = 3;
-			hotkeyLabel.MouseFilter = MouseFilterEnum.Ignore;
-			btn.AddChild(hotkeyLabel);
-		}
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () => onClick?.Invoke();
+		UIHelper.SetupHUDButton(btn, GD.Load<Texture2D>(iconPath), tooltip, onClick);
 	}
 
 	private void SetupDevPanel()

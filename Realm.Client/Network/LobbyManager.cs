@@ -1696,7 +1696,7 @@ public partial class LobbyManager : Node
 
 		try
 		{
-			byte[] compressedChunkBytes = await CreateCompressedChunkAsync(session, chunkIndex);
+			byte[] compressedChunkBytes = await HostTransferSessionHelper.CreateCompressedChunkAsync(session, chunkIndex);
 
 			int totalPacketsInChunk = (int)Math.Ceiling((double)compressedChunkBytes.Length / ZstdAssetBundleHelper.PacketChunkSize);
 			if (totalPacketsInChunk <= 0) totalPacketsInChunk = 1;
@@ -1707,26 +1707,6 @@ public partial class LobbyManager : Node
 		{
 			GD.PrintErr($"[LobbyManager] Error sending chunk {chunkIndex} for transfer {session.TransferId}: {ex.Message}");
 		}
-	}
-
-	private Task<byte[]> CreateCompressedChunkAsync(HostTransferSession session, int chunkIndex)
-	{
-		return Task.Run(() =>
-		{
-			var chunkItems = session.ChunkItems[chunkIndex];
-			var chunkAssets = new List<(string AssetKey, byte[] Data, string? Metadata)>(chunkItems.Count);
-			foreach (var item in chunkItems)
-			{
-				if (session.Cts.IsCancellationRequested) break;
-				if (File.Exists(item.SourceFilePath))
-				{
-					byte[] data = File.ReadAllBytes(item.SourceFilePath);
-					chunkAssets.Add((item.AssetKey, data, item.Metadata));
-				}
-			}
-
-			return ZstdAssetBundleHelper.CreateBundleBytes(chunkAssets, 1);
-		}, session.Cts.Token);
 	}
 
 	private async Task SendChunkPacketsAsync(HostTransferSession session, int chunkIndex, byte[] compressedChunkBytes, int totalPacketsInChunk)

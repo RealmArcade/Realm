@@ -790,9 +790,8 @@ public class SimulationService
 		if (_tickNeedsUiRefresh) OnUiRefreshRequested?.Invoke();
 	}
 
-	private void UpdateBuffsQueryAction(Entity entity, ref Buffs buffs)
+	private void UpdateBuffDictionary(Dictionary<string, float> buffsDict)
 	{
-		var buffsDict = buffs.Value;
 		_tickBuffKeys.Clear();
 		_tickExpiredBuffs.Clear();
 		foreach (var key in buffsDict.Keys)
@@ -820,34 +819,14 @@ public class SimulationService
 		}
 	}
 
+	private void UpdateBuffsQueryAction(Entity entity, ref Buffs buffs)
+	{
+		UpdateBuffDictionary(buffs.Value);
+	}
+
 	private void UpdateBuffStateQueryAction(Entity entity, ref BuffState buffs)
 	{
-		var buffsDict = buffs.Value;
-		_tickBuffKeys.Clear();
-		_tickExpiredBuffs.Clear();
-		foreach (var key in buffsDict.Keys)
-		{
-			_tickBuffKeys.Add(key);
-		}
-
-		for (int i = 0; i < _tickBuffKeys.Count; i++)
-		{
-			string key = _tickBuffKeys[i];
-			float newTime = buffsDict[key] - _fDelta;
-			if (newTime <= 0)
-			{
-				_tickExpiredBuffs.Add(key);
-			}
-			else
-			{
-				buffsDict[key] = newTime;
-			}
-		}
-
-		for (int i = 0; i < _tickExpiredBuffs.Count; i++)
-		{
-			buffsDict.Remove(_tickExpiredBuffs[i]);
-		}
+		UpdateBuffDictionary(buffs.Value);
 	}
 
 	private void UpdateModifiers(Entity entity, ref ModifierState modState)
