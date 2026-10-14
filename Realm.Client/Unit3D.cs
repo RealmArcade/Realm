@@ -1737,39 +1737,40 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
+	private void UpdateLineTransform(MeshInstance3D line, Vector3 start, Vector3 end)
+	{
+		if (GameHost.Instance.GroundTerrain != null)
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
+			start.Y = hStart + 0.1f;
+
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
+			end.Y = hEnd + 0.1f;
+		}
+
+		Vector3 diff = end - start;
+		float length = diff.Length();
+
+		if (length > 0.05f)
+		{
+			Vector3 direction = diff.Normalized();
+			Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
+			var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
+			line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
+		}
+		else
+		{
+			line.Visible = false;
+		}
+	}
+
 	private void UpdateRallyLines(List<Vector3> points, int lineCountNeeded)
 	{
 		for (int i = 0; i < lineCountNeeded; i++)
 		{
 			var line = GetOrCreateRallyLine(i);
 			line.Visible = true;
-
-			Vector3 start = points[i];
-			Vector3 end = points[i + 1];
-
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
-				start.Y = hStart + 0.1f;
-
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
-				end.Y = hEnd + 0.1f;
-			}
-
-			Vector3 diff = end - start;
-			float length = diff.Length();
-
-			if (length > 0.05f)
-			{
-				Vector3 direction = diff.Normalized();
-				Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
-				line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
-			}
-			else
-			{
-				line.Visible = false;
-			}
+			UpdateLineTransform(line, points[i], points[i + 1]);
 		}
 
 		for (int i = lineCountNeeded; i < _rallyLinesPool.Count; i++)
@@ -1955,33 +1956,7 @@ public partial class Unit3D : Prop3D
 		{
 			var line = GetOrCreateLine(i);
 			line.Visible = true;
-
-			Vector3 start = points[i];
-			Vector3 end = points[i + 1];
-
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
-				start.Y = hStart + 0.1f;
-
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
-				end.Y = hEnd + 0.1f;
-			}
-
-			Vector3 diff = end - start;
-			float length = diff.Length();
-
-			if (length > 0.05f)
-			{
-				Vector3 direction = diff.Normalized();
-				Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
-				line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
-			}
-			else
-			{
-				line.Visible = false;
-			}
+			UpdateLineTransform(line, points[i], points[i + 1]);
 		}
 
 		for (int i = lineCountNeeded; i < _pathLinesPool.Count; i++)

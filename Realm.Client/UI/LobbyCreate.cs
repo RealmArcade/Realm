@@ -494,59 +494,7 @@ public partial class LobbyCreate : Control
 
 	private void ShowHostErrorModal(string errorMessage)
 	{
-		var warningPopup = new Panel();
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(480, 240);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(440, 200);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, Tr("LOBBY CREATION ERROR"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		var descLabel = new Label();
-		descLabel.Text = errorMessage;
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var okBtn = new Button();
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, Tr("OK"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		okBtn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		vbox.AddChild(okBtn);
+		UIStyle.ShowErrorModal(this, Tr("LOBBY CREATION ERROR"), errorMessage, new Color(0.95f, 0.35f, 0.35f));
 	}
 
 	private void RefreshAvailableMaps(string? selectMapName = null, string? selectMapVersion = null)

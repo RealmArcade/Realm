@@ -548,40 +548,27 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	private void BuildTabPathingAndBombing_Decals(VBoxContainer vBombing)
 	{
-		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural Decal Texture Bombing"));
-		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered decals placed at liquid elevation during painting:"));
-
-		var decalListRow = new HBoxContainer();
-		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_lstDecals.ItemSelected += OnDecalItemSelected;
-		decalListRow.AddChild(_lstDecals);
-
-		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
-			decalBtnBox, string.Empty, string.Empty,
-			(all) => ScanAvailableAssets("decals", all),
-			(val) => { }, TranslationServer.Translate("decal_texture_id"), 0f
+		BuildBombingUI(
+			vBombing,
+			TranslationServer.Translate("Procedural Decal Texture Bombing"),
+			Colors.White, // default header color based on how AddSectionHeader works without color param
+			TranslationServer.Translate("Randomly scattered decals placed at liquid elevation during painting:"),
+			out _lstDecals,
+			OnDecalItemSelected,
+			out _txtDecalId,
+			out _setDecalIdValue,
+			(bool all) => ScanAvailableAssets("decals", all),
+			TranslationServer.Translate("decal_texture_id"),
+			OnAddDecalRule,
+			OnRemoveDecalRule,
+			TranslationServer.Translate("Add Decal"),
+			out _sldDecalDensity,
+			out _sldDecalMinScale,
+			out _sldDecalMaxScale,
+			(v) => UpdateDecalRuleSetting(rule => rule.Density = v),
+			(v) => UpdateDecalRuleSetting(rule => rule.MinScale = v),
+			(v) => UpdateDecalRuleSetting(rule => rule.MaxScale = v)
 		);
-
-		var btnAddDecal = new Button { Text = "+ " + TranslationServer.Translate("Add Decal") };
-		btnAddDecal.Set("icon_max_width", 0);
-		btnAddDecal.Pressed += OnAddDecalRule;
-		decalBtnBox.AddChild(btnAddDecal);
-
-		var btnRemoveDecal = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemoveDecal.Set("icon_max_width", 0);
-		btnRemoveDecal.Pressed += OnRemoveDecalRule;
-		decalBtnBox.AddChild(btnRemoveDecal);
-
-		decalListRow.AddChild(decalBtnBox);
-		vBombing.AddChild(decalListRow);
-
-		var sldDecalDensRes = AddSlider(vBombing, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) => UpdateDecalRuleSetting(rule => rule.Density = v));
-		_sldDecalDensity = sldDecalDensRes.Slider;
-		var sldDecalMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) => UpdateDecalRuleSetting(rule => rule.MinScale = v));
-		_sldDecalMinScale = sldDecalMinScRes.Slider;
-		var sldDecalMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) => UpdateDecalRuleSetting(rule => rule.MaxScale = v));
-		_sldDecalMaxScale = sldDecalMaxScRes.Slider;
 	}
 
 	private void OnDecalItemSelected(long idx)
@@ -597,40 +584,27 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 	private void BuildTabPathingAndBombing_VFX(VBoxContainer vBombing)
 	{
-		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural VFX / Particle Bombing"));
-		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered particle systems & ribbons (bubbles, steam, foam, smoke) placed at liquid elevation:"));
-
-		var vfxListRow = new HBoxContainer();
-		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_lstVfx.ItemSelected += OnVfxItemSelected;
-		vfxListRow.AddChild(_lstVfx);
-
-		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
-			vfxBtnBox, string.Empty, string.Empty,
-			(all) => ScanAvailableAssets("vfx", all),
-			(val) => { }, TranslationServer.Translate("vfx_template_id"), 0f
+		BuildBombingUI(
+			vBombing,
+			TranslationServer.Translate("Procedural VFX / Particle Bombing"),
+			Colors.White, // default header color based on how AddSectionHeader works without color param
+			TranslationServer.Translate("Randomly scattered particle systems & ribbons (bubbles, steam, foam, smoke) placed at liquid elevation:"),
+			out _lstVfx,
+			OnVfxItemSelected,
+			out _txtVfxId,
+			out _setVfxIdValue,
+			(bool all) => ScanAvailableAssets("vfx", all),
+			TranslationServer.Translate("vfx_template_id"),
+			OnAddVfxRule,
+			OnRemoveVfxRule,
+			TranslationServer.Translate("Add VFX"),
+			out _sldVfxDensity,
+			out _sldVfxMinScale,
+			out _sldVfxMaxScale,
+			(v) => UpdateVfxRuleSetting(rule => rule.Density = v),
+			(v) => UpdateVfxRuleSetting(rule => rule.MinScale = v),
+			(v) => UpdateVfxRuleSetting(rule => rule.MaxScale = v)
 		);
-
-		var btnAddVfx = new Button { Text = "+ " + TranslationServer.Translate("Add VFX") };
-		btnAddVfx.Set("icon_max_width", 0);
-		btnAddVfx.Pressed += OnAddVfxRule;
-		vfxBtnBox.AddChild(btnAddVfx);
-
-		var btnRemoveVfx = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemoveVfx.Set("icon_max_width", 0);
-		btnRemoveVfx.Pressed += OnRemoveVfxRule;
-		vfxBtnBox.AddChild(btnRemoveVfx);
-
-		vfxListRow.AddChild(vfxBtnBox);
-		vBombing.AddChild(vfxListRow);
-
-		var sldVfxDensRes = AddSlider(vBombing, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) => UpdateVfxRuleSetting(rule => rule.Density = v));
-		_sldVfxDensity = sldVfxDensRes.Slider;
-		var sldVfxMinScRes = AddSlider(vBombing, TranslationServer.Translate("Min VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, (v) => UpdateVfxRuleSetting(rule => rule.MinScale = v));
-		_sldVfxMinScale = sldVfxMinScRes.Slider;
-		var sldVfxMaxScRes = AddSlider(vBombing, TranslationServer.Translate("Max VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, (v) => UpdateVfxRuleSetting(rule => rule.MaxScale = v));
-		_sldVfxMaxScale = sldVfxMaxScRes.Slider;
 	}
 
 	private void OnVfxItemSelected(long idx)

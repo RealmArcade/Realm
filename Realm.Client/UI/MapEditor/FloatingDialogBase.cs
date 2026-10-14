@@ -13,6 +13,60 @@ namespace Realm.Client.UI.MapEditor;
 
 public partial class FloatingDialogBase : PanelContainer
 {
+	protected void BuildBombingUI(
+		VBoxContainer contentVBox,
+		string headerText,
+		Color headerColor,
+		string descriptionText,
+		out ItemList itemList,
+		ItemList.ItemSelectedEventHandler onItemSelected,
+		out LineEdit txtId,
+		out Action<string> setIdValue,
+		Func<bool, List<string>> scanAssets,
+		string assetFilterLabel,
+		Action onAddRule,
+		Action onRemoveRule,
+		string addButtonText,
+		out HSlider sldDensity,
+		out HSlider sldMinScale,
+		out HSlider sldMaxScale,
+		Action<float> onDensityChanged,
+		Action<float> onMinScaleChanged,
+		Action<float> onMaxScaleChanged)
+	{
+		AddSectionHeader(contentVBox, headerText, headerColor);
+		AddDescription(contentVBox, descriptionText);
+
+		var listRow = new HBoxContainer();
+		itemList = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		itemList.ItemSelected += onItemSelected;
+		listRow.AddChild(itemList);
+
+		var btnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		
+		Action<string> setValProxy = (s) => {};
+		var (tId, sVal) = AddAssetFilterDropdown(btnBox, string.Empty, string.Empty, scanAssets, setValProxy, assetFilterLabel, 0f);
+		txtId = tId;
+		setIdValue = sVal;
+
+		var btnAdd = new Button { Text = "+ " + addButtonText };
+		btnAdd.Set("icon_max_width", 0);
+		btnAdd.Pressed += onAddRule;
+		btnBox.AddChild(btnAdd);
+
+		var btnRemove = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
+		btnRemove.Set("icon_max_width", 0);
+		btnRemove.Pressed += onRemoveRule;
+		btnBox.AddChild(btnRemove);
+
+		listRow.AddChild(btnBox);
+		contentVBox.AddChild(listRow);
+
+		sldDensity = AddSlider(contentVBox, TranslationServer.Translate("Density:"), 0.0f, 1.0f, 0.01f, 0.5f, onDensityChanged).Slider as HSlider;
+		sldMinScale = AddSlider(contentVBox, TranslationServer.Translate("Min Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, onMinScaleChanged).Slider as HSlider;
+		sldMaxScale = AddSlider(contentVBox, TranslationServer.Translate("Max Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, onMaxScaleChanged).Slider as HSlider;
+	}
+
 	private static readonly List<FloatingDialogBase> _openDialogs = new();
 	public static bool HasAnyDialogOpen => _openDialogs.Count > 0;
 

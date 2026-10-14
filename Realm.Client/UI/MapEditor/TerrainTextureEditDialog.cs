@@ -359,33 +359,27 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 	private void BuildDecalSection(VBoxContainer contentVBox)
 	{
-		AddSectionHeader(contentVBox, "🎯 " + TranslationServer.Translate("PROCEDURAL DECAL BOMBING"), new Color(0.9f, 0.5f, 0.7f));
-		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered decals placed at terrain elevation during texture painting:"));
-		var decalListRow = new HBoxContainer();
-		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_lstDecals.ItemSelected += OnDecalItemSelected;
-		decalListRow.AddChild(_lstDecals);
-
-		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
-			decalBtnBox, string.Empty, string.Empty, (all) => ScanAvailableAssets("decals", all), (val) => { }, TranslationServer.Translate("decal_texture_id"), 0f);
-
-		var btnAddDecal = new Button { Text = "+ " + TranslationServer.Translate("Add Decal") };
-		btnAddDecal.Set("icon_max_width", 0);
-		btnAddDecal.Pressed += OnAddDecalRule;
-		decalBtnBox.AddChild(btnAddDecal);
-
-		var btnRemoveDecal = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemoveDecal.Set("icon_max_width", 0);
-		btnRemoveDecal.Pressed += OnRemoveDecalRule;
-		decalBtnBox.AddChild(btnRemoveDecal);
-
-		decalListRow.AddChild(decalBtnBox);
-		contentVBox.AddChild(decalListRow);
-
-		_sldDecalDensity = AddSlider(contentVBox, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, OnDecalDensityChanged).Slider;
-		_sldDecalMinScale = AddSlider(contentVBox, TranslationServer.Translate("Min Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, OnDecalMinScaleChanged).Slider;
-		_sldDecalMaxScale = AddSlider(contentVBox, TranslationServer.Translate("Max Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, OnDecalMaxScaleChanged).Slider;
+		BuildBombingUI(
+			contentVBox,
+			"🎯 " + TranslationServer.Translate("PROCEDURAL DECAL BOMBING"),
+			new Color(0.9f, 0.5f, 0.7f),
+			TranslationServer.Translate("Randomly scattered decals placed at terrain elevation during texture painting:"),
+			out _lstDecals,
+			OnDecalItemSelected,
+			out _txtDecalId,
+			out _setDecalIdValue,
+			(bool all) => ScanAvailableAssets("decals", all),
+			TranslationServer.Translate("decal_texture_id"),
+			OnAddDecalRule,
+			OnRemoveDecalRule,
+			TranslationServer.Translate("Add Decal"),
+			out _sldDecalDensity,
+			out _sldDecalMinScale,
+			out _sldDecalMaxScale,
+			OnDecalDensityChanged,
+			OnDecalMinScaleChanged,
+			OnDecalMaxScaleChanged
+		);
 	}
 
 	private void OnDecalItemSelected(long idx)
@@ -421,33 +415,27 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 	private void BuildVfxSection(VBoxContainer contentVBox)
 	{
-		AddSectionHeader(contentVBox, "✨ " + TranslationServer.Translate("PROCEDURAL VFX BOMBING"), new Color(0.4f, 0.7f, 1.0f));
-		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered particle systems placed at terrain elevation during painting:"));
-		var vfxListRow = new HBoxContainer();
-		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_lstVfx.ItemSelected += OnVfxItemSelected;
-		vfxListRow.AddChild(_lstVfx);
-
-		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
-			vfxBtnBox, string.Empty, string.Empty, (all) => ScanAvailableAssets("vfx", all), (val) => { }, TranslationServer.Translate("vfx_template_id"), 0f);
-
-		var btnAddVfx = new Button { Text = "+ " + TranslationServer.Translate("Add VFX") };
-		btnAddVfx.Set("icon_max_width", 0);
-		btnAddVfx.Pressed += OnAddVfxRule;
-		vfxBtnBox.AddChild(btnAddVfx);
-
-		var btnRemoveVfx = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemoveVfx.Set("icon_max_width", 0);
-		btnRemoveVfx.Pressed += OnRemoveVfxRule;
-		vfxBtnBox.AddChild(btnRemoveVfx);
-
-		vfxListRow.AddChild(vfxBtnBox);
-		contentVBox.AddChild(vfxListRow);
-
-		_sldVfxDensity = AddSlider(contentVBox, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, OnVfxDensityChanged).Slider;
-		_sldVfxMinScale = AddSlider(contentVBox, TranslationServer.Translate("Min VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, OnVfxMinScaleChanged).Slider;
-		_sldVfxMaxScale = AddSlider(contentVBox, TranslationServer.Translate("Max VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.5f, OnVfxMaxScaleChanged).Slider;
+		BuildBombingUI(
+			contentVBox,
+			"✨ " + TranslationServer.Translate("PROCEDURAL VFX BOMBING"),
+			new Color(0.4f, 0.7f, 1.0f),
+			TranslationServer.Translate("Randomly scattered particle systems placed at terrain elevation during painting:"),
+			out _lstVfx,
+			OnVfxItemSelected,
+			out _txtVfxId,
+			out _setVfxIdValue,
+			(bool all) => ScanAvailableAssets("vfx", all),
+			TranslationServer.Translate("vfx_template_id"),
+			OnAddVfxRule,
+			OnRemoveVfxRule,
+			TranslationServer.Translate("Add VFX"),
+			out _sldVfxDensity,
+			out _sldVfxMinScale,
+			out _sldVfxMaxScale,
+			OnVfxDensityChanged,
+			OnVfxMinScaleChanged,
+			OnVfxMaxScaleChanged
+		);
 	}
 
 	private void OnVfxItemSelected(long idx)

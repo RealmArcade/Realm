@@ -347,6 +347,13 @@ public class ProceduralVfxMeshGenerator
 			}
 		}
 
+		GenerateSphereIndices(surfaceTool, latitudeRings, longitudeSegments);
+
+		return surfaceTool.Commit();
+	}
+
+	private static void GenerateSphereIndices(SurfaceTool surfaceTool, int latitudeRings, int longitudeSegments)
+	{
 		int ringVertexCount = longitudeSegments + 1;
 		for (int lat = 0; lat < latitudeRings; lat++)
 		{
@@ -369,8 +376,6 @@ public class ProceduralVfxMeshGenerator
 				surfaceTool.AddIndex(i3);
 			}
 		}
-
-		return surfaceTool.Commit();
 	}
 
 	private static ArrayMesh BuildGroundPlaneMesh()
@@ -799,28 +804,7 @@ public class ProceduralVfxMeshGenerator
 			}
 		}
 
-		int ringVertexCount = longitudeSegments + 1;
-		for (int lat = 0; lat < latitudeRings; lat++)
-		{
-			int currentRing = lat * ringVertexCount;
-			int nextRing = (lat + 1) * ringVertexCount;
-
-			for (int lon = 0; lon < longitudeSegments; lon++)
-			{
-				int i0 = currentRing + lon;
-				int i1 = currentRing + lon + 1;
-				int i2 = nextRing + lon;
-				int i3 = nextRing + lon + 1;
-
-				surfaceTool.AddIndex(i0);
-				surfaceTool.AddIndex(i2);
-				surfaceTool.AddIndex(i1);
-
-				surfaceTool.AddIndex(i1);
-				surfaceTool.AddIndex(i2);
-				surfaceTool.AddIndex(i3);
-			}
-		}
+		GenerateSphereIndices(surfaceTool, latitudeRings, longitudeSegments);
 
 		return surfaceTool.Commit();
 	}

@@ -1078,6 +1078,11 @@ public partial class RuntimeTerrain : StaticBody3D
 		wGeom.verts.Add(new Vector3(wallX, yMax, z0));
 
 		Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Right : Vector3.Left;
+		AddWaterWallGeometry(wGeom, wBase, wallNorm);
+	}
+
+	private void AddWaterWallGeometry((List<Vector3> verts, List<Vector3> norms, List<Vector2> uvs, List<int> indices) wGeom, int wBase, Vector3 wallNorm)
+	{
 		wGeom.norms.Add(wallNorm);
 		wGeom.norms.Add(wallNorm);
 		wGeom.norms.Add(wallNorm);
@@ -1123,27 +1128,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		wGeom.verts.Add(new Vector3(x0, yMax, wallZ));
 
 		Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Back : Vector3.Forward;
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.uvs.Add(new Vector2(0, 0));
-		wGeom.uvs.Add(new Vector2(1, 0));
-		wGeom.uvs.Add(new Vector2(1, 1));
-		wGeom.uvs.Add(new Vector2(0, 1));
-
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 1);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 3);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 1);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 3);
-		wGeom.indices.Add(wBase + 2);
+		AddWaterWallGeometry(wGeom, wBase, wallNorm);
 	}
 
 	private void UpdateWaterMeshesForChunk(

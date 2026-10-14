@@ -298,7 +298,7 @@ public partial class EnetMapTransferService : Node
 				var manifest = MapAssetManager.FindHostManifest(mapName, mapVersion);
 				var localFileMap = GetLocalFileMap(mapName, mapVersion, manifest);
 				var itemsToPack = GatherItemsToPack(missingHashes, localFileMap);
-				var chunkList = ChunkTransferItems(itemsToPack);
+				var chunkList = HostTransferSessionHelper.ChunkTransferItems(itemsToPack);
 
 				session.ChunkItems = chunkList;
 				session.TotalRawBytes = itemsToPack.Sum(a => a.Size);
@@ -358,35 +358,6 @@ public partial class EnetMapTransferService : Node
 
 		return itemsToPack;
 	}
-
-	private List<List<HostAssetTransferItem>> ChunkTransferItems(List<HostAssetTransferItem> itemsToPack)
-	{
-		var chunkList = new List<List<HostAssetTransferItem>>();
-		var currentChunk = new List<HostAssetTransferItem>();
-		long currentChunkBytes = 0;
-
-		foreach (var item in itemsToPack)
-		{
-			long estimated = item.Size + (item.AssetKey?.Length ?? 0) * 2 + (item.Metadata?.Length ?? 0) * 2 + 16;
-			if (currentChunk.Count > 0 && currentChunkBytes + estimated > ZstdAssetBundleHelper.MaxBundleChunkSize)
-			{
-				chunkList.Add(currentChunk);
-				currentChunk = new List<HostAssetTransferItem>();
-				currentChunkBytes = 0;
-			}
-
-			currentChunk.Add(item);
-			currentChunkBytes += estimated;
-		}
-
-		if (currentChunk.Count > 0)
-		{
-			chunkList.Add(currentChunk);
-		}
-
-		return chunkList;
-	}
-
 
 	private async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
 	{
