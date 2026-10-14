@@ -379,7 +379,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 				world.AddOrGet(aff.SourceEntity, new MoveTo(aff.TargetPosition));
 				break;
 			case CommandIntent.Cast:
-				HandleCastIntent(world, playerIndex, aff, customActionCallback);
+				AiGenreUtility.HandleCastIntent(world, playerIndex, in aff, customActionCallback);
 				break;
 			default:
 				customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
@@ -400,16 +400,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private void HandleCastIntent(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback)
-	{
-		if (!string.IsNullOrEmpty(aff.PayloadId) && world.Has<SpellCooldowns>(aff.SourceEntity))
-		{
-			ref var cooldowns = ref world.Get<SpellCooldowns>(aff.SourceEntity);
-			cooldowns.Value[aff.PayloadId] = 5.0f;
-		}
 
-		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Cast");
-	}
 
 	private static float[] CreateFeatureVector(float killThreat, float survivalRisk, float manaEfficiency, float lastHitPriority, float crowdControlOpportunity, float shopItemUrgency, float powerupProximity, float fountainDistance)
 	{

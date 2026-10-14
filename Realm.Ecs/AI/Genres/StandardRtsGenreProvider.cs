@@ -102,31 +102,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static int GetOwnerIndex(World world, Entity entity)
-	{
-		if (world.Has<UnitOwnerPlayer>(entity))
-		{
-			return world.Get<UnitOwnerPlayer>(entity).PlayerIndex;
-		}
 
-		if (!world.Has<Owner>(entity)) return -1;
-
-		var pEnt = world.Get<Owner>(entity).PlayerEntity.Value;
-		if (world.IsAlive(pEnt) && world.Has<UnitOwnerPlayer>(pEnt))
-		{
-			return world.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
-		}
-
-		return -1;
-	}
-
-	private static int GetPlayerGold(World world, Entity playerEntity)
-	{
-		if (!world.IsAlive(playerEntity) || !world.Has<PlayerResources>(playerEntity)) return 1000;
-
-		var resources = world.Get<PlayerResources>(playerEntity).Value;
-		return resources.Count > 0 ? resources.Values.FirstOrDefault() : 1000;
-	}
 
 	private static float GetUnitHealthRatio(World world, Entity unit)
 	{
@@ -147,7 +123,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 
 		world.Query(in _allPositionQuery, (Entity entity, ref Position pos) =>
 		{
-			int ownerIndex = GetOwnerIndex(world, entity);
+			int ownerIndex = AiGenreUtility.GetOwnerIndex(world, entity);
 
 			if (ownerIndex == playerIndex)
 			{
@@ -178,7 +154,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 			}
 		});
 
-		int playerGold = GetPlayerGold(world, playerEntity);
+		int playerGold = AiGenreUtility.GetPlayerGold(world, playerEntity);
 
 		for (int i = 0; i < _friendlyUnits.Count; i++)
 		{
@@ -328,7 +304,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 				break;
 
 			case CommandIntent.Cast:
-				ExecuteCast(world, playerIndex, in aff, customActionCallback);
+				AiGenreUtility.HandleCastIntent(world, playerIndex, in aff, customActionCallback);
 				break;
 
 			default:
@@ -356,16 +332,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static void ExecuteCast(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback)
-	{
-		if (!string.IsNullOrEmpty(aff.PayloadId) && world.Has<SpellCooldowns>(aff.SourceEntity))
-		{
-			ref var cooldowns = ref world.Get<SpellCooldowns>(aff.SourceEntity);
-			cooldowns.Value[aff.PayloadId] = 5.0f;
-		}
 
-		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Cast");
-	}
 
 	private static float[] CreateFeatureVector(float costToBank, float targetThreat, float rangeFactor, float healthRatio, float tempoEfficiency, float cooldownReady, float retreatUrgency, float synergyTag)
 	{

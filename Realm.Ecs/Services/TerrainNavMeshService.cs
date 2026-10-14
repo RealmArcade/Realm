@@ -95,48 +95,18 @@ public class TerrainNavMeshService
 		return _isCellBlockedByOtherObstacle;
 	}
 
-	public void CarveObstacle(ref TerrainState state, Vector3 pos, float radius)
+		private void CalculateCarveBounds(int width, int depth, float quadSize, Vector3 pos, float halfWidth, float halfDepth, out int minX, out int maxX, out int minZ, out int maxZ)
 	{
-		if (state.NavMesh == null) return;
-		int width = state.Width;
-		int depth = state.Depth;
-		float quadSize = state.QuadSize;
 		float halfW = width / 2.0f * quadSize;
 		float halfD = depth / 2.0f * quadSize;
 
-		int minX = Math.Clamp((int)Math.Floor((pos.X - radius + halfW) / quadSize), 0, width - 1);
-		int maxX = Math.Clamp((int)Math.Ceiling((pos.X + radius + halfW) / quadSize), 0, width - 1);
-		int minZ = Math.Clamp((int)Math.Floor((pos.Z - radius + halfD) / quadSize), 0, depth - 1);
-		int maxZ = Math.Clamp((int)Math.Ceiling((pos.Z + radius + halfD) / quadSize), 0, depth - 1);
-
-		CarvePathingGrid(ref state, pos, radius, minX, maxX, minZ, maxZ, width, depth, quadSize);
-		CarveNavMeshTiles(ref state, pos, radius, quadSize);
-
-		InvalidateIntersectingPaths(pos, radius + quadSize * 1.5f);
+		minX = Math.Clamp((int)Math.Floor((pos.X - halfWidth + halfW) / quadSize), 0, width - 1);
+		maxX = Math.Clamp((int)Math.Ceiling((pos.X + halfWidth + halfW) / quadSize), 0, width - 1);
+		minZ = Math.Clamp((int)Math.Floor((pos.Z - halfDepth + halfD) / quadSize), 0, depth - 1);
+		maxZ = Math.Clamp((int)Math.Ceiling((pos.Z + halfDepth + halfD) / quadSize), 0, depth - 1);
 	}
 
-	public void CarveObstacleBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth)
-	{
-		if (state.NavMesh == null) return;
-		int width = state.Width;
-		int depth = state.Depth;
-		float quadSize = state.QuadSize;
-		float halfW = width / 2.0f * quadSize;
-		float halfD = depth / 2.0f * quadSize;
-
-		int minX = Math.Clamp((int)Math.Floor((pos.X - halfWidth + halfW) / quadSize), 0, width - 1);
-		int maxX = Math.Clamp((int)Math.Ceiling((pos.X + halfWidth + halfW) / quadSize), 0, width - 1);
-		int minZ = Math.Clamp((int)Math.Floor((pos.Z - halfDepth + halfD) / quadSize), 0, depth - 1);
-		int maxZ = Math.Clamp((int)Math.Ceiling((pos.Z + halfDepth + halfD) / quadSize), 0, depth - 1);
-
-		CarvePathingGridBox(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize);
-		CarveNavMeshTilesBox(ref state, pos, halfWidth, halfDepth, quadSize);
-
-		float maxDim = Math.Max(halfWidth, halfDepth);
-		InvalidateIntersectingPaths(pos, maxDim + quadSize * 1.5f);
-	}
-
-	private void CarvePathingGrid(ref TerrainState state, Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
+	private void ApplyPathingGrid(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize, bool isCircle, bool isUncarve)
 	{
 		if (state.PathingCodes == null) return;
 		for (int z = minZ; z <= maxZ; z++)
@@ -147,18 +117,29 @@ public class TerrainNavMeshService
 				float lz = (z + 0.5f - depth / 2.0f) * quadSize;
 				float dx = lx - pos.X;
 				float dz = lz - pos.Z;
-				if (dx * dx + dz * dz <= radius * radius)
+				bool inBounds = isCircle ? (dx * dx + dz * dz <= halfWidth * halfWidth) : (Math.Abs(dx) <= halfWidth && Math.Abs(dz) <= halfDepth);
+				if (inBounds)
 				{
-					state.PathingCodes[x, z] &= ~(int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
+					if (isUncarve)
+					{
+						if (!IsPointCoveredByAnyObstacle(lx, lz))
+						{
+							RestorePathingCell(ref state, x, z);
+						}
+					}
+					else
+					{
+						state.PathingCodes[x, z] &= ~(int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
+					}
 				}
 			}
 		}
 	}
 
-	private void CarveNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize)
+	private void ApplyNavMeshTiles(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int width, int depth, float quadSize, bool isCircle, bool isUncarve)
 	{
 		int maxTiles = state.NavMesh.GetMaxTiles();
-		float effRadiusSq = (radius + quadSize * 0.5f) * (radius + quadSize * 0.5f);
+		float effRadiusSq = isCircle ? (halfWidth + quadSize * 0.5f) * (halfWidth + quadSize * 0.5f) : 0f;
 		for (int t = 0; t < maxTiles; t++)
 		{
 			var tile = state.NavMesh.GetTile(t);
@@ -167,21 +148,22 @@ public class TerrainNavMeshService
 			for (int p = 0; p < tile.data.header.polyCount; p++)
 			{
 				var poly = tile.data.polys[p];
-				float sumX = 0f;
-				float sumZ = 0f;
-				int nv = poly.vertCount;
-				for (int j = 0; j < nv; j++)
-				{
-					int vIdx = poly.verts[j];
-					sumX += tile.data.verts[vIdx * 3];
-					sumZ += tile.data.verts[vIdx * 3 + 2];
-				}
+				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
 
-				float avgX = nv > 0 ? sumX / nv : 0f;
-				float avgZ = nv > 0 ? sumZ / nv : 0f;
 				float dx = avgX - pos.X;
 				float dz = avgZ - pos.Z;
-				if (dx * dx + dz * dz <= effRadiusSq)
+				bool inBounds = isCircle ? (dx * dx + dz * dz <= effRadiusSq) : (Math.Abs(dx) <= halfWidth + quadSize * 0.5f && Math.Abs(dz) <= halfDepth + quadSize * 0.5f);
+				
+				if (!inBounds) continue;
+
+				if (isUncarve)
+				{
+					if (!IsPointCoveredByAnyObstacle(avgX, avgZ))
+					{
+						RestoreNavMeshPoly(ref state, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
+					}
+				}
+				else
 				{
 					long polyRef = polyRefBase | (long)p;
 					state.NavMesh.SetPolyFlags(polyRef, 0);
@@ -190,23 +172,40 @@ public class TerrainNavMeshService
 			}
 		}
 	}
-
-	private void CarvePathingGridBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
+	public void CarveObstacle(ref TerrainState state, Vector3 pos, float radius)
 	{
-		if (state.PathingCodes == null) return;
-		for (int z = minZ; z <= maxZ; z++)
-		{
-			for (int x = minX; x <= maxX; x++)
-			{
-				float lx = (x + 0.5f - width / 2.0f) * quadSize;
-				float lz = (z + 0.5f - depth / 2.0f) * quadSize;
-				if (Math.Abs(lx - pos.X) <= halfWidth && Math.Abs(lz - pos.Z) <= halfDepth)
-				{
-					state.PathingCodes[x, z] &= ~(int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
-				}
-			}
-		}
+		if (state.NavMesh == null) return;
+		int width = state.Width;
+		int depth = state.Depth;
+		float quadSize = state.QuadSize;
+
+		CalculateCarveBounds(width, depth, quadSize, pos, radius, radius, out int minX, out int maxX, out int minZ, out int maxZ);
+
+		ApplyPathingGrid(ref state, pos, radius, radius, minX, maxX, minZ, maxZ, width, depth, quadSize, true, false);
+		ApplyNavMeshTiles(ref state, pos, radius, radius, width, depth, quadSize, true, false);
+
+		InvalidateIntersectingPaths(pos, radius + quadSize * 1.5f);
 	}
+
+	public void CarveObstacleBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth)
+	{
+		if (state.NavMesh == null) return;
+		int width = state.Width;
+		int depth = state.Depth;
+		float quadSize = state.QuadSize;
+
+		CalculateCarveBounds(width, depth, quadSize, pos, halfWidth, halfDepth, out int minX, out int maxX, out int minZ, out int maxZ);
+
+		ApplyPathingGrid(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize, false, false);
+		ApplyNavMeshTiles(ref state, pos, halfWidth, halfDepth, width, depth, quadSize, false, false);
+
+		float maxDim = Math.Max(halfWidth, halfDepth);
+		InvalidateIntersectingPaths(pos, maxDim + quadSize * 1.5f);
+	}
+
+
+
+
 
 	private void GetPolyCenter(DtMeshTile tile, DtPoly poly, out float avgX, out float avgZ)
 	{
@@ -224,28 +223,6 @@ public class TerrainNavMeshService
 		avgZ = nv > 0 ? sumZ / nv : 0f;
 	}
 
-	private void CarveNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, float quadSize)
-	{
-		int maxTiles = state.NavMesh.GetMaxTiles();
-		for (int t = 0; t < maxTiles; t++)
-		{
-			var tile = state.NavMesh.GetTile(t);
-			if (tile?.data?.header == null) continue;
-			long polyRefBase = state.NavMesh.GetPolyRefBase(tile);
-			for (int p = 0; p < tile.data.header.polyCount; p++)
-			{
-				var poly = tile.data.polys[p];
-				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
-
-				if (Math.Abs(avgX - pos.X) > halfWidth + quadSize * 0.5f || Math.Abs(avgZ - pos.Z) > halfDepth + quadSize * 0.5f)
-					continue;
-
-				long polyRef = polyRefBase | (long)p;
-				state.NavMesh.SetPolyFlags(polyRef, 0);
-				state.NavMesh.SetPolyArea(polyRef, (char)0);
-			}
-		}
-	}
 
 	public void UncarveObstacle(ref TerrainState state, Vector3 pos, float radius)
 	{
@@ -253,16 +230,11 @@ public class TerrainNavMeshService
 		int width = state.Width;
 		int depth = state.Depth;
 		float quadSize = state.QuadSize;
-		float halfW = width / 2.0f * quadSize;
-		float halfD = depth / 2.0f * quadSize;
 
-		int minX = Math.Clamp((int)Math.Floor((pos.X - radius + halfW) / quadSize), 0, width - 1);
-		int maxX = Math.Clamp((int)Math.Ceiling((pos.X + radius + halfW) / quadSize), 0, width - 1);
-		int minZ = Math.Clamp((int)Math.Floor((pos.Z - radius + halfD) / quadSize), 0, depth - 1);
-		int maxZ = Math.Clamp((int)Math.Ceiling((pos.Z + radius + halfD) / quadSize), 0, depth - 1);
+		CalculateCarveBounds(width, depth, quadSize, pos, radius, radius, out int minX, out int maxX, out int minZ, out int maxZ);
 
-		UncarvePathingGrid(ref state, pos, radius, minX, maxX, minZ, maxZ, width, depth, quadSize);
-		UncarveNavMeshTiles(ref state, pos, radius, width, depth, quadSize);
+		ApplyPathingGrid(ref state, pos, radius, radius, minX, maxX, minZ, maxZ, width, depth, quadSize, true, true);
+		ApplyNavMeshTiles(ref state, pos, radius, radius, width, depth, quadSize, true, true);
 
 		InvalidateIntersectingPaths(pos, radius + quadSize * 2f);
 	}
@@ -273,110 +245,20 @@ public class TerrainNavMeshService
 		int width = state.Width;
 		int depth = state.Depth;
 		float quadSize = state.QuadSize;
-		float halfW = width / 2.0f * quadSize;
-		float halfD = depth / 2.0f * quadSize;
 
-		int minX = Math.Clamp((int)Math.Floor((pos.X - halfWidth + halfW) / quadSize), 0, width - 1);
-		int maxX = Math.Clamp((int)Math.Ceiling((pos.X + halfWidth + halfW) / quadSize), 0, width - 1);
-		int minZ = Math.Clamp((int)Math.Floor((pos.Z - halfDepth + halfD) / quadSize), 0, depth - 1);
-		int maxZ = Math.Clamp((int)Math.Ceiling((pos.Z + halfDepth + halfD) / quadSize), 0, depth - 1);
+		CalculateCarveBounds(width, depth, quadSize, pos, halfWidth, halfDepth, out int minX, out int maxX, out int minZ, out int maxZ);
 
-		UncarvePathingGridBox(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize);
-		UncarveNavMeshTilesBox(ref state, pos, halfWidth, halfDepth, width, depth, quadSize);
+		ApplyPathingGrid(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize, false, true);
+		ApplyNavMeshTiles(ref state, pos, halfWidth, halfDepth, width, depth, quadSize, false, true);
 
 		float maxDim = Math.Max(halfWidth, halfDepth);
 		InvalidateIntersectingPaths(pos, maxDim + quadSize * 2f);
 	}
 
-	private void UncarvePathingGrid(ref TerrainState state, Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
-	{
-		if (state.PathingCodes == null) return;
-		for (int z = minZ; z <= maxZ; z++)
-		{
-			for (int x = minX; x <= maxX; x++)
-			{
-				float lx = (x + 0.5f - width / 2.0f) * quadSize;
-				float lz = (z + 0.5f - depth / 2.0f) * quadSize;
-				float dx = lx - pos.X;
-				float dz = lz - pos.Z;
-				if (dx * dx + dz * dz <= radius * radius)
-				{
-					if (!IsPointCoveredByAnyObstacle(lx, lz))
-					{
-						RestorePathingCell(ref state, x, z);
-					}
-				}
-			}
-		}
-	}
 
-	private void UncarveNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, int width, int depth, float quadSize)
-	{
-		int maxTiles = state.NavMesh.GetMaxTiles();
-		float effRadiusSq = (radius + quadSize * 0.5f) * (radius + quadSize * 0.5f);
-		for (int t = 0; t < maxTiles; t++)
-		{
-			var tile = state.NavMesh.GetTile(t);
-			if (tile?.data?.header == null) continue;
-			long polyRefBase = state.NavMesh.GetPolyRefBase(tile);
-			for (int p = 0; p < tile.data.header.polyCount; p++)
-			{
-				var poly = tile.data.polys[p];
-				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
-				float dx = avgX - pos.X;
-				float dz = avgZ - pos.Z;
 
-				if (dx * dx + dz * dz > effRadiusSq || IsPointCoveredByAnyObstacle(avgX, avgZ))
-					continue;
 
-				RestoreNavMeshPoly(ref state, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
-			}
-		}
-	}
 
-	private void UncarvePathingGridBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
-	{
-		if (state.PathingCodes == null) return;
-		for (int z = minZ; z <= maxZ; z++)
-		{
-			for (int x = minX; x <= maxX; x++)
-			{
-				float lx = (x + 0.5f - width / 2.0f) * quadSize;
-				float lz = (z + 0.5f - depth / 2.0f) * quadSize;
-				if (Math.Abs(lx - pos.X) <= halfWidth && Math.Abs(lz - pos.Z) <= halfDepth)
-				{
-					if (!IsPointCoveredByAnyObstacle(lx, lz))
-					{
-						RestorePathingCell(ref state, x, z);
-					}
-				}
-			}
-		}
-	}
-
-	private void UncarveNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int width, int depth, float quadSize)
-	{
-		int maxTiles = state.NavMesh.GetMaxTiles();
-		for (int t = 0; t < maxTiles; t++)
-		{
-			var tile = state.NavMesh.GetTile(t);
-			if (tile?.data?.header == null) continue;
-			long polyRefBase = state.NavMesh.GetPolyRefBase(tile);
-			for (int p = 0; p < tile.data.header.polyCount; p++)
-			{
-				var poly = tile.data.polys[p];
-				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
-
-				if (Math.Abs(avgX - pos.X) > halfWidth + quadSize * 0.5f || Math.Abs(avgZ - pos.Z) > halfDepth + quadSize * 0.5f)
-					continue;
-
-				if (!IsPointCoveredByAnyObstacle(avgX, avgZ))
-				{
-					RestoreNavMeshPoly(ref state, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
-				}
-			}
-		}
-	}
 
 	private void RestorePathingCell(ref TerrainState state, int x, int z)
 	{
@@ -772,7 +654,6 @@ public class TerrainNavMeshService
 
 		return ResolveSlope(hasRight, hasLeft, deltaRight, deltaLeft, rightIsCliff, leftIsCliff, heightRight, heightLeft);
 	}
-
 
 	private float GetSlopeDz(in TerrainState state, int x, int z, float h, float cliffThreshold)
 	{
