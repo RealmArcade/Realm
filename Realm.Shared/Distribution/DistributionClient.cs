@@ -1018,7 +1018,8 @@ public class DistributionClient
 	{
 		if (errorWrapper[0] != null || cancellationToken.IsCancellationRequested) return;
 
-		if (!hashToRelativePath.TryGetValue(missingHash, out var relPath))
+		if (!hashToRelativePath.TryGetValue(missingHash, out var relPath) &&
+		    !hashToRelativePath.TryGetValue(ContentAddressableStorage.NormalizeBlake3Hash(missingHash), out relPath))
 		{
 			SetUploadError(errorLock, errorWrapper, missingHash, $"Missing hash '{missingHash}' is not present in manifest file mapping.");
 			return;

@@ -2673,6 +2673,21 @@ namespace Realm.Client.UI
 
 				hashToRelativePath[manifestBlake3] = "manifest.json";
 				hashToRelativePath[manifestHash] = "manifest.json";
+				hashToRelativePath["manifest.json"] = "manifest.json";
+
+				if (File.Exists(activeConfigPath))
+				{
+					byte[] metaBytes = File.ReadAllBytes(activeConfigPath);
+					string metaBlake3 = RealmMetadataHelper.ComputeBlake3(metaBytes, ".json");
+					string metaNorm = ContentAddressableStorage.NormalizeBlake3Hash(metaBlake3);
+					string metaAssetKey = $"{metaBlake3}.json";
+
+					hashToRelativePath[metaBlake3] = "metadata.json";
+					hashToRelativePath[metaNorm] = "metadata.json";
+					hashToRelativePath[metaAssetKey] = "metadata.json";
+					hashToRelativePath["metadata.json"] = "metadata.json";
+					MapAssetManager.Storage.StoreAsset(metaBytes, ".json", null, pubKeyBase64, null, precomputedBlake3: metaNorm);
+				}
 
 				var distClient = new DistributionClient(seedServerUrl);
 

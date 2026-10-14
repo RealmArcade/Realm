@@ -408,11 +408,7 @@ public class MapManifest
 					}
 				}
 
-				if (targetMatchKey != null)
-				{
-					catTarget[targetMatchKey] = itemPair.Value;
-				}
-				else
+				if (targetMatchKey == null)
 				{
 					catTarget[sourceKey] = itemPair.Value;
 				}
@@ -458,6 +454,9 @@ public class MapManifest
 		{
 			MergeCustomPropertiesIntoAssets(manifest.Assets, existingAssets);
 		}
+
+		manifest.Files.Clear();
+		FlattenAssetsInto(manifest.Files, manifest.Assets);
 
 		return manifest;
 	}
@@ -617,6 +616,8 @@ public class MapManifest
 			}
 
 			Assets = unflattened;
+			_files.Clear();
+			FlattenAssetsInto(_files, Assets);
 		}
 
 		return MapFileService.SaveManifestToJson(this);
@@ -633,6 +634,8 @@ public class MapManifest
 			}
 
 			Assets = unflattened;
+			_files.Clear();
+			FlattenAssetsInto(_files, Assets);
 		}
 
 		MapFileService.SaveManifest(filePath, this);
