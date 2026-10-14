@@ -28,6 +28,7 @@ namespace Realm.AdminServer.Helpers
         {
             string? callerPubKey = request.Headers["X-Admin-PublicKey"];
             string? callerSig = request.Headers["X-Admin-Signature"];
+            if (string.IsNullOrEmpty(callerSig)) callerSig = request.Headers["X-Cluster-Signature"];
             string? bypassHeader = request.Headers["X-Admin-Bypass"];
 
             bool isAuth = false;
@@ -74,7 +75,8 @@ namespace Realm.AdminServer.Helpers
         public static async Task<bool> VerifyClusterSyncRequest(
             HttpRequest request,
             string body,
-            List<string> adminPublicKeys)
+            List<string> adminPublicKeys,
+            string syncType = "sync_metrics")
         {
             string? sigHeader = request.Headers["X-Cluster-Signature"];
             string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
@@ -82,8 +84,8 @@ namespace Realm.AdminServer.Helpers
 
             return (!string.IsNullOrEmpty(bypassHeader) && adminPublicKeys.Count > 0 && AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "cluster", "sync", bypassHeader))
                    || (!string.IsNullOrEmpty(sigHeader) && (
-                       (!string.IsNullOrEmpty(pubKeyHeader) && adminPublicKeys.Contains(pubKeyHeader.ToString().Trim()) && (AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), "sync_metrics", sigHeader.ToString()) || AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), body, sigHeader.ToString())))
-                       || (adminPublicKeys.Count > 0 && adminPublicKeys.Any(pk => AuthorSignatureHelper.VerifySignature(pk, "sync_metrics", sigHeader.ToString()) || AuthorSignatureHelper.VerifySignature(pk, body, sigHeader.ToString())))
+                       (!string.IsNullOrEmpty(pubKeyHeader) && adminPublicKeys.Contains(pubKeyHeader.ToString().Trim()) && (AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), syncType, sigHeader.ToString()) || AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), body, sigHeader.ToString())))
+                       || (adminPublicKeys.Count > 0 && adminPublicKeys.Any(pk => AuthorSignatureHelper.VerifySignature(pk, syncType, sigHeader.ToString()) || AuthorSignatureHelper.VerifySignature(pk, body, sigHeader.ToString())))
                    ));
         }
     }

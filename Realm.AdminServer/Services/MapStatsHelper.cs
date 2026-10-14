@@ -102,4 +102,39 @@ public static class MapStatsHelper
 		var stats = GetStats(dataStore, mapTitle, mapVersion, authorPublicKey);
 		return stats != null && stats.IsGreenlit;
 	}
+
+	public static void GetMapDiscoveryStatsAndAwards(MapStats? stats, bool isGreenlit, out float ratingStars, out int totalReviews, out int verifiedReviews, out int playtimeMinutes, out int gamesPlayed, out List<string> awards)
+	{
+		ratingStars = stats != null && stats.AverageRating > 0 ? (float)stats.AverageRating : 4.5f;
+		totalReviews = stats != null ? stats.ReviewsCount : 0;
+		verifiedReviews = stats != null ? stats.VerifiedGoodReviewsCount : 0;
+		playtimeMinutes = stats != null ? (int)stats.TotalPlaytimeMinutes : 0;
+		gamesPlayed = stats != null ? stats.TotalGamesPlayed : 0;
+
+		awards = new List<string>();
+		if (isGreenlit) awards.Add("res://Assets/UI/victory_flag.png");
+		if (ratingStars >= 4.5f) awards.Add("res://Assets/UI/gold_coin.png");
+		if (verifiedReviews >= 5 || totalReviews >= 20) awards.Add("res://Assets/UI/battle_shield.png");
+		if (gamesPlayed >= 10 || playtimeMinutes >= 30) awards.Add("res://Assets/UI/battle_axe.png");
+		if (awards.Count == 0) awards.Add("res://Assets/UI/gold_coin.png");
+	}
+
+	public static void UpsertMapStats(DataStoreService db, MapStats stats, string mapTitle, string compositeKey, string authorCompositeKey, string? authorPublicKey)
+	{
+		db.Upsert("map_stats", authorCompositeKey, stats);
+		db.Upsert("map_stats", authorCompositeKey.ToLowerInvariant(), stats);
+		if (!string.IsNullOrEmpty(authorPublicKey))
+		{
+			db.Upsert("map_stats", $"{mapTitle}_{authorPublicKey}", stats);
+			db.Upsert("map_stats", $"{mapTitle}_{authorPublicKey}".ToLowerInvariant(), stats);
+		}
+
+		if (stats.IsGreenlit)
+		{
+			db.Upsert("map_stats", compositeKey, stats);
+			db.Upsert("map_stats", mapTitle, stats);
+			db.Upsert("map_stats", compositeKey.ToLowerInvariant(), stats);
+			db.Upsert("map_stats", mapTitle.ToLowerInvariant(), stats);
+		}
+	}
 }

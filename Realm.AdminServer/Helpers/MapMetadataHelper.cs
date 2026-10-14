@@ -8,6 +8,60 @@ namespace Realm.AdminServer.Helpers
 {
     public static class MapMetadataHelper
     {
+        public static void ExtractManifestAssetHashes(
+            Realm.Shared.Distribution.ContentAddressableStorage cas,
+            IEnumerable<KeyValuePair<string, string>> manifestAssets,
+            out string? metadataFileHash,
+            out string? thumbnailHash,
+            out List<string> screenshotHashes,
+            out long totalBytes)
+        {
+            metadataFileHash = null;
+            thumbnailHash = null;
+            screenshotHashes = new List<string>();
+            totalBytes = 0;
+
+            if (manifestAssets != null)
+            {
+                foreach (var asset in manifestAssets)
+                {
+                    string path = asset.Key;
+                    string rawHash = asset.Value;
+                    string norm = Realm.Shared.Distribution.ContentAddressableStorage.NormalizeBlake3Hash(rawHash);
+
+                    if (path.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith("/metadata.json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        metadataFileHash = norm;
+                    }
+
+                    string ext = Path.GetExtension(path).ToLowerInvariant();
+                    if (ext is ".png" or ".jpg" or ".jpeg" or ".webp")
+                    {
+                        if (string.IsNullOrEmpty(thumbnailHash) && (path.Contains("thumb", StringComparison.OrdinalIgnoreCase) || path.Contains("icon", StringComparison.OrdinalIgnoreCase) || path.Contains("cover", StringComparison.OrdinalIgnoreCase) || path.Contains("minimap", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            thumbnailHash = norm;
+                        }
+                        else
+                        {
+                            screenshotHashes.Add(norm);
+                        }
+                    }
+
+                    string? assetPath = cas.FindAssetFilePath(norm);
+                    if (assetPath != null && File.Exists(assetPath))
+                    {
+                        totalBytes += new FileInfo(assetPath).Length;
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(thumbnailHash) && screenshotHashes.Count > 0)
+            {
+                thumbnailHash = screenshotHashes[0];
+            }
+        }
+
         public static void ParseMapMetadataDetails(
             Realm.Shared.Distribution.ContentAddressableStorage cas, 
             string metadataFileHash, 

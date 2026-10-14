@@ -1945,21 +1945,6 @@ public class ClusterEventService
 
 	private void UpsertMapStatsToDb(DataStoreService db, MapStats stats, string mapTitle, string compositeKey, string authorPublicKey, string authorCompositeKey)
 	{
-		db.Upsert("map_stats", authorCompositeKey, stats);
-		db.Upsert("map_stats", authorCompositeKey.ToLowerInvariant(), stats);
-
-		if (!string.IsNullOrEmpty(authorPublicKey))
-		{
-			db.Upsert("map_stats", $"{mapTitle}_{authorPublicKey}", stats);
-			db.Upsert("map_stats", $"{mapTitle}_{authorPublicKey}".ToLowerInvariant(), stats);
-		}
-
-		if (stats.IsGreenlit)
-		{
-			db.Upsert("map_stats", compositeKey, stats);
-			db.Upsert("map_stats", mapTitle, stats);
-			db.Upsert("map_stats", compositeKey.ToLowerInvariant(), stats);
-			db.Upsert("map_stats", mapTitle.ToLowerInvariant(), stats);
-		}
+		MapStatsHelper.UpsertMapStats(db, stats, mapTitle, compositeKey, authorCompositeKey, authorPublicKey);
 	}
 }

@@ -1,0 +1,26 @@
+cat << 'PATCH' > fix_reviewer_issue.patch
+--- Realm.AdminServer/Program.cs
++++ Realm.AdminServer/Program.cs
+@@ -1695,7 +1695,10 @@
+ 	if (!string.IsNullOrEmpty(req?.AdminPublicKey))
+ 		request.Headers["X-Admin-PublicKey"] = req.AdminPublicKey;
+ 	if (!string.IsNullOrEmpty(req?.Signature))
++	{
+ 		request.Headers["X-Admin-Signature"] = req.Signature;
++		request.Headers["X-Cluster-Signature"] = req.Signature;
++	}
+ 
+ 	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, mapVersion, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
+ });
+--- Realm.AdminServer/Helpers/AdminEndpointsHelper.cs
++++ Realm.AdminServer/Helpers/AdminEndpointsHelper.cs
+@@ -29,6 +29,7 @@
+         {
+             string? callerPubKey = request.Headers["X-Admin-PublicKey"];
+             string? callerSig = request.Headers["X-Admin-Signature"];
++            if (string.IsNullOrEmpty(callerSig)) callerSig = request.Headers["X-Cluster-Signature"];
+             string? bypassHeader = request.Headers["X-Admin-Bypass"];
+ 
+             bool isAuth = false;
+PATCH
+patch -p0 < fix_reviewer_issue.patch

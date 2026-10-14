@@ -1692,66 +1692,15 @@ app.MapPost("/api/admin/remove_manifest", async (HttpRequest request, ClusterEve
 		return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Server has no AdminPublicKeys configured." }, statusCode: StatusCodes.Status403Forbidden);
 	}
 
-	string? bypassHeader = request.Headers["X-Admin-Bypass"];
-	string? sigHeader = request.Headers["X-Cluster-Signature"];
-	string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
-
-	string callerPubKey = req?.AdminPublicKey ?? pubKeyHeader?.ToString() ?? "";
-	string callerSig = req?.Signature ?? sigHeader?.ToString() ?? "";
-
-	string targetVerStr = mapVersion ?? "all";
-	string sigPayload1 = $"remove_manifest:{mapTitle.Trim().ToLowerInvariant()}:{targetVerStr.ToLowerInvariant()}";
-	string sigPayload2 = $"remove_manifest:{mapTitle.Trim().ToLowerInvariant()}";
-
-	bool isAuth = false;
-
-	if (!string.IsNullOrEmpty(bypassHeader))
+	if (!string.IsNullOrEmpty(req?.AdminPublicKey))
+		request.Headers["X-Admin-PublicKey"] = req.AdminPublicKey;
+	if (!string.IsNullOrEmpty(req?.Signature))
 	{
-		isAuth = AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, targetVerStr, bypassHeader)
-		         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "remove_manifest", bypassHeader)
-		         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, "*", bypassHeader);
+		request.Headers["X-Admin-Signature"] = req.Signature;
+		request.Headers["X-Cluster-Signature"] = req.Signature;
 	}
 
-	if (!isAuth && !string.IsNullOrEmpty(callerSig))
-	{
-		if (!string.IsNullOrEmpty(callerPubKey) && adminPublicKeys.Contains(callerPubKey.Trim()))
-		{
-			isAuth = AuthorSignatureHelper.VerifySignature(callerPubKey.Trim(), sigPayload1, callerSig)
-			         || AuthorSignatureHelper.VerifySignature(callerPubKey.Trim(), sigPayload2, callerSig)
-			         || AdminBypassAuth.VerifyBypassToken(callerPubKey.Trim(), mapTitle, targetVerStr, callerSig);
-		}
-		else
-		{
-			isAuth = AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, sigPayload1, callerSig)
-			         || AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, sigPayload2, callerSig)
-			         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, targetVerStr, callerSig);
-		}
-	}
-
-	if (!isAuth)
-	{
-		return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Unauthorized admin request." }, statusCode: StatusCodes.Status401Unauthorized);
-	}
-
-	var result = clusterEvents.RemoveManifest(cas, db, mapTitle, mapVersion);
-
-	var removeEvent = new ClusterEventDto
-	{
-		EventType = "admin_remove_manifest",
-		PublicKey = !string.IsNullOrEmpty(callerPubKey) ? callerPubKey.Trim() : (adminPublicKeys.FirstOrDefault() ?? ""),
-		Signature = callerSig,
-		PayloadJson = JsonSerializer.Serialize(new AdminRemoveManifestEventPayload
-		{
-			MapTitle = mapTitle,
-			MapVersion = mapVersion,
-			AdminPublicKey = callerPubKey,
-			Signature = callerSig
-		})
-	};
-	clusterEvents.MarkEventProcessed(removeEvent.EventId, db);
-	clusterEvents.BroadcastEvent(removeEvent, registeredPeers, httpClientFactory);
-
-	return Results.Ok(result);
+	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, mapVersion, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
 });
 
 app.MapDelete("/api/admin/manifests/{mapTitle}", (string mapTitle, HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
@@ -1771,62 +1720,7 @@ app.MapDelete("/api/admin/manifests/{mapTitle}/{mapVersion}", (string mapTitle, 
 		return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Server has no AdminPublicKeys configured." }, statusCode: StatusCodes.Status403Forbidden);
 	}
 
-	string? bypassHeader = request.Headers["X-Admin-Bypass"];
-	string? sigHeader = request.Headers["X-Cluster-Signature"];
-	string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
-
-	string callerPubKey = pubKeyHeader?.ToString() ?? "";
-	string callerSig = sigHeader?.ToString() ?? "";
-
-	string sigPayload = $"remove_manifest:{mapTitle.Trim().ToLowerInvariant()}:{mapVersion.Trim().ToLowerInvariant()}";
-
-	bool isAuth = false;
-
-	if (!string.IsNullOrEmpty(bypassHeader))
-	{
-		isAuth = AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, mapVersion.Trim(), bypassHeader)
-		         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "remove_manifest", bypassHeader)
-		         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, "*", bypassHeader);
-	}
-
-	if (!isAuth && !string.IsNullOrEmpty(callerSig))
-	{
-		if (!string.IsNullOrEmpty(callerPubKey) && adminPublicKeys.Contains(callerPubKey.Trim()))
-		{
-			isAuth = AuthorSignatureHelper.VerifySignature(callerPubKey.Trim(), sigPayload, callerSig)
-			         || AdminBypassAuth.VerifyBypassToken(callerPubKey.Trim(), mapTitle, mapVersion.Trim(), callerSig);
-		}
-		else
-		{
-			isAuth = AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, sigPayload, callerSig)
-			         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, mapVersion.Trim(), callerSig);
-		}
-	}
-
-	if (!isAuth)
-	{
-		return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Unauthorized admin request." }, statusCode: StatusCodes.Status401Unauthorized);
-	}
-
-	var result = clusterEvents.RemoveManifest(cas, db, mapTitle, mapVersion);
-
-	var removeEvent = new ClusterEventDto
-	{
-		EventType = "admin_remove_manifest",
-		PublicKey = !string.IsNullOrEmpty(callerPubKey) ? callerPubKey.Trim() : (adminPublicKeys.FirstOrDefault() ?? ""),
-		Signature = callerSig,
-		PayloadJson = JsonSerializer.Serialize(new AdminRemoveManifestEventPayload
-		{
-			MapTitle = mapTitle,
-			MapVersion = mapVersion,
-			AdminPublicKey = callerPubKey,
-			Signature = callerSig
-		})
-	};
-	clusterEvents.MarkEventProcessed(removeEvent.EventId, db);
-	clusterEvents.BroadcastEvent(removeEvent, registeredPeers, httpClientFactory);
-
-	return Results.Ok(result);
+	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, mapVersion, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
 });
 
 app.MapPost("/api/cluster/sync_metrics", async (HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas) =>
@@ -1875,16 +1769,7 @@ app.MapPost("/api/cluster/sync_published_maps", async (HttpRequest request, Clus
 	using var reader = new StreamReader(request.Body, Encoding.UTF8);
 	string body = await reader.ReadToEndAsync();
 
-	string? sigHeader = request.Headers["X-Cluster-Signature"];
-	string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
-	string? bypassHeader = request.Headers["X-Admin-Bypass"];
-
-	bool isAuth = (!string.IsNullOrEmpty(bypassHeader) && adminPublicKeys.Count > 0 && AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "cluster", "sync", bypassHeader))
-	              || (!string.IsNullOrEmpty(sigHeader) && (
-		              (!string.IsNullOrEmpty(pubKeyHeader) && adminPublicKeys.Contains(pubKeyHeader.ToString().Trim()) && (AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), "sync_published_maps", sigHeader.ToString()) || AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), body, sigHeader.ToString())))
-		              || AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, "sync_published_maps", sigHeader.ToString())
-		              || AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, body, sigHeader.ToString())
-	              ));
+	bool isAuth = await AdminEndpointsHelper.VerifyClusterSyncRequest(request, body, adminPublicKeys.ToList(), "sync_published_maps");
 
 	if (!isAuth)
 	{
@@ -1940,16 +1825,7 @@ app.MapPost("/api/cluster/sync_creators", async (HttpRequest request, ClusterEve
 	using var reader = new StreamReader(request.Body, Encoding.UTF8);
 	string body = await reader.ReadToEndAsync();
 
-	string? sigHeader = request.Headers["X-Cluster-Signature"];
-	string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
-	string? bypassHeader = request.Headers["X-Admin-Bypass"];
-
-	bool isAuth = (!string.IsNullOrEmpty(bypassHeader) && adminPublicKeys.Count > 0 && AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "cluster", "sync", bypassHeader))
-	              || (!string.IsNullOrEmpty(sigHeader) && (
-		              (!string.IsNullOrEmpty(pubKeyHeader) && adminPublicKeys.Contains(pubKeyHeader.ToString().Trim()) && (AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), "sync_creators", sigHeader.ToString()) || AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), body, sigHeader.ToString())))
-		              || AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, "sync_creators", sigHeader.ToString())
-		              || AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, body, sigHeader.ToString())
-	              ));
+	bool isAuth = await AdminEndpointsHelper.VerifyClusterSyncRequest(request, body, adminPublicKeys.ToList(), "sync_creators");
 
 	if (!isAuth)
 	{
@@ -2319,67 +2195,23 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 				}
 			}
 
-			long totalBytes = 0;
-			string thumbnailHash = "";
-			var screenshotHashes = new List<string>();
-			string? metadataFileHash = null;
-
+			var manifestAssets = new Dictionary<string, string>();
 			if (root.TryGetProperty("Files", out var filesProp) && filesProp.ValueKind == JsonValueKind.Object)
 			{
 				foreach (var fileProp in filesProp.EnumerateObject())
 				{
-					string path = fileProp.Name;
-					string rawHash = fileProp.Value.GetString() ?? "";
-					string norm = ContentAddressableStorage.NormalizeBlake3Hash(rawHash);
-
-					if (path.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) ||
-					    path.EndsWith("/metadata.json", StringComparison.OrdinalIgnoreCase))
-					{
-						metadataFileHash = norm;
-					}
-
-					string ext = Path.GetExtension(path).ToLowerInvariant();
-					if (ext is ".png" or ".jpg" or ".jpeg" or ".webp")
-					{
-						if (string.IsNullOrEmpty(thumbnailHash) && (path.Contains("thumb", StringComparison.OrdinalIgnoreCase) || path.Contains("icon", StringComparison.OrdinalIgnoreCase) || path.Contains("cover", StringComparison.OrdinalIgnoreCase) || path.Contains("minimap", StringComparison.OrdinalIgnoreCase)))
-						{
-							thumbnailHash = norm;
-						}
-						else
-						{
-							screenshotHashes.Add(norm);
-						}
-					}
-
-					string? assetPath = cas.FindAssetFilePath(norm);
-					if (assetPath != null && File.Exists(assetPath))
-					{
-						totalBytes += new FileInfo(assetPath).Length;
-					}
+					manifestAssets[fileProp.Name] = fileProp.Value.GetString() ?? "";
 				}
 			}
+
+			MapMetadataHelper.ExtractManifestAssetHashes(
+				cas, manifestAssets, out string? metadataFileHash, out string? thumbnailHash, out List<string> screenshotHashes, out long totalBytes);
 
 			MapMetadataHelper.ParseMapMetadataDetails(
 				cas, metadataFileHash, ref description, tags,
 				out string engineVersion, out string maxPlayers, out string genre);
 
-			if (string.IsNullOrEmpty(thumbnailHash) && screenshotHashes.Count > 0)
-			{
-				thumbnailHash = screenshotHashes[0];
-			}
-
-			float ratingStars = stats != null && stats.AverageRating > 0 ? (float)stats.AverageRating : 4.5f;
-			int totalReviews = stats != null ? stats.ReviewsCount : 0;
-			int verifiedReviews = stats != null ? stats.VerifiedGoodReviewsCount : 0;
-			int playtimeMinutes = stats != null ? (int)stats.TotalPlaytimeMinutes : 0;
-			int gamesPlayed = stats != null ? stats.TotalGamesPlayed : 0;
-
-			var awards = new List<string>();
-			if (isGreenlit) awards.Add("res://Assets/UI/victory_flag.png");
-			if (ratingStars >= 4.5f) awards.Add("res://Assets/UI/gold_coin.png");
-			if (verifiedReviews >= 5 || totalReviews >= 20) awards.Add("res://Assets/UI/battle_shield.png");
-			if (gamesPlayed >= 10 || playtimeMinutes >= 30) awards.Add("res://Assets/UI/battle_axe.png");
-			if (awards.Count == 0) awards.Add("res://Assets/UI/gold_coin.png");
+			MapStatsHelper.GetMapDiscoveryStatsAndAwards(stats, isGreenlit, out float ratingStars, out int totalReviews, out int verifiedReviews, out int playtimeMinutes, out int gamesPlayed, out List<string> awards);
 
 			discoveryList.Add(new DiscoveryMapDto
 			{
@@ -2430,175 +2262,17 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 				var stats = MapStatsHelper.GetStats(db, manifest.MapName, manifest.Version, null);
 				bool isGreenlit = stats != null && stats.IsGreenlit;
 
-				long totalBytes = 0;
-				string thumbnailHash = "";
-				var screenshotHashes = new List<string>();
-				string? metadataFileHash = null;
-
-				foreach (var pair in manifest.Files)
-				{
-					string path = pair.Key;
-					string norm = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
-
-					if (path.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) ||
-					    path.EndsWith("/metadata.json", StringComparison.OrdinalIgnoreCase))
-					{
-						metadataFileHash = norm;
-					}
-
-					string ext = Path.GetExtension(path).ToLowerInvariant();
-					if (ext is ".png" or ".jpg" or ".jpeg" or ".webp")
-					{
-						if (string.IsNullOrEmpty(thumbnailHash) && (path.Contains("thumb", StringComparison.OrdinalIgnoreCase) || path.Contains("icon", StringComparison.OrdinalIgnoreCase) || path.Contains("cover", StringComparison.OrdinalIgnoreCase) || path.Contains("minimap", StringComparison.OrdinalIgnoreCase)))
-						{
-							thumbnailHash = norm;
-						}
-						else
-						{
-							screenshotHashes.Add(norm);
-						}
-					}
-
-					string? assetPath = cas.FindAssetFilePath(norm);
-					if (assetPath != null && File.Exists(assetPath))
-					{
-						totalBytes += new FileInfo(assetPath).Length;
-					}
-				}
-
-				if (string.IsNullOrEmpty(thumbnailHash) && screenshotHashes.Count > 0)
-				{
-					thumbnailHash = screenshotHashes[0];
-				}
+				MapMetadataHelper.ExtractManifestAssetHashes(
+					cas, manifest.Files, out string? metadataFileHash, out string? thumbnailHash, out List<string> screenshotHashes, out long totalBytes);
 
 				var tags = manifest.Tags != null ? new List<string>(manifest.Tags) : new List<string>();
 				string description = manifest.Description;
-				string engineVersion = "Godot Realm Engine v1.0";
-				string maxPlayers = "8 Players";
-				string genre = tags.Count > 0 ? tags[0] : "Custom Map";
 
-				if (!string.IsNullOrEmpty(metadataFileHash))
-				{
-					string? metaFilePath = cas.FindAssetFilePath(metadataFileHash);
-					if (metaFilePath != null && File.Exists(metaFilePath))
-					{
-						try
-						{
-							var metaDoc = JsonDocument.Parse(File.ReadAllText(metaFilePath));
-							var metaRoot = metaDoc.RootElement;
-							if (metaRoot.TryGetProperty("MapProperties", out var mp) && mp.ValueKind == JsonValueKind.Object)
-							{
-								if (string.IsNullOrEmpty(description) && mp.TryGetProperty("MapDescription", out var md))
-								{
-									string? mdStr = md.GetString();
-									if (!string.IsNullOrEmpty(mdStr)) description = mdStr;
-								}
+				MapMetadataHelper.ParseMapMetadataDetails(
+					cas, metadataFileHash, ref description, tags,
+					out string engineVersion, out string maxPlayers, out string genre);
 
-								if (string.IsNullOrEmpty(description) && mp.TryGetProperty("HowToPlayObjective", out var htp))
-								{
-									string? htpStr = htp.GetString();
-									if (!string.IsNullOrEmpty(htpStr)) description = htpStr;
-								}
-
-								if (mp.TryGetProperty("Tags", out var metaTags) && metaTags.ValueKind == JsonValueKind.Array)
-								{
-									foreach (var t in metaTags.EnumerateArray())
-									{
-										string? s = t.GetString();
-										if (!string.IsNullOrEmpty(s) && !tags.Contains(s)) tags.Add(s);
-									}
-								}
-
-								if (mp.TryGetProperty("PlayerSlots", out var slotsProp) && slotsProp.ValueKind == JsonValueKind.Array && slotsProp.GetArrayLength() > 0)
-								{
-									maxPlayers = $"{slotsProp.GetArrayLength()} Players";
-								}
-								else if (mp.TryGetProperty("SuggestedPlayers", out var sp) && !string.IsNullOrEmpty(sp.GetString()))
-								{
-									maxPlayers = sp.GetString()!;
-								}
-
-								if (mp.TryGetProperty("MapType", out var mt) && !string.IsNullOrEmpty(mt.GetString()))
-								{
-									genre = mt.GetString()!;
-								}
-							}
-
-							if (metaRoot.TryGetProperty("Templates", out var templatesObj) && templatesObj.ValueKind == JsonValueKind.Object)
-							{
-								if (templatesObj.TryGetProperty("Units", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
-								}
-
-								if (templatesObj.TryGetProperty("Buildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
-								}
-
-								if (templatesObj.TryGetProperty("Abilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
-								}
-
-								if (templatesObj.TryGetProperty("Weapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
-								}
-
-								if (templatesObj.TryGetProperty("Upgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
-								}
-
-								if (templatesObj.TryGetProperty("Props", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
-								}
-
-								if (templatesObj.TryGetProperty("Items", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
-								}
-
-								if (templatesObj.TryGetProperty("Attachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
-								}
-
-								if (templatesObj.TryGetProperty("Vfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
-								{
-									if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
-								}
-							}
-
-							if (metaRoot.TryGetProperty("EngineVersion", out var ev) && !string.IsNullOrEmpty(ev.GetString()))
-							{
-								engineVersion = ev.GetString()!;
-							}
-							else if (metaRoot.TryGetProperty("GameBuildNumber", out var gb) && !string.IsNullOrEmpty(gb.GetString()))
-							{
-								engineVersion = $"Build {gb.GetString()}";
-							}
-						}
-						catch
-						{
-						}
-					}
-				}
-
-				float ratingStars = stats != null && stats.AverageRating > 0 ? (float)stats.AverageRating : 4.5f;
-				int totalReviews = stats != null ? stats.ReviewsCount : 0;
-				int verifiedReviews = stats != null ? stats.VerifiedGoodReviewsCount : 0;
-				int playtimeMinutes = stats != null ? (int)stats.TotalPlaytimeMinutes : 0;
-				int gamesPlayed = stats != null ? stats.TotalGamesPlayed : 0;
-
-				var awards = new List<string>();
-				if (isGreenlit) awards.Add("res://Assets/UI/victory_flag.png");
-				if (ratingStars >= 4.5f) awards.Add("res://Assets/UI/gold_coin.png");
-				if (verifiedReviews >= 5 || totalReviews >= 20) awards.Add("res://Assets/UI/battle_shield.png");
-				if (gamesPlayed >= 10 || playtimeMinutes >= 30) awards.Add("res://Assets/UI/battle_axe.png");
-				if (awards.Count == 0) awards.Add("res://Assets/UI/gold_coin.png");
+				MapStatsHelper.GetMapDiscoveryStatsAndAwards(stats, isGreenlit, out float ratingStars, out int totalReviews, out int verifiedReviews, out int playtimeMinutes, out int gamesPlayed, out List<string> awards);
 
 				discoveryList.Add(new DiscoveryMapDto
 				{
@@ -2805,196 +2479,12 @@ app.MapPost("/api/maps/maintainers/add", (AddMapMaintainerRequest req, DataStore
 
 app.MapPost("/api/maps/{mapTitle}/maintainers/remove", (string mapTitle, RemoveMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-	try
-	{
-		string targetMap = !string.IsNullOrWhiteSpace(req.MapTitle) ? req.MapTitle : mapTitle;
-		if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
-			});
-		}
-
-		bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
-		bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
-
-		if (!isAdmin && !isMaintainer)
-		{
-			return Results.Json(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
-			}, statusCode: StatusCodes.Status403Forbidden);
-		}
-
-		string canonicalPayload = $"remove_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
-		string fallbackPayload1 = $"remove_maintainer:{targetMap}:{req.MaintainerPublicKey}";
-		string fallbackPayload2 = $"remove:{targetMap}:{req.MaintainerPublicKey}";
-
-		bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
-		                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
-		                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
-
-		if (!isSigValid)
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "Invalid signature for removing maintainer."
-			});
-		}
-
-		var currentMaintainers = MapMaintainerHelper.GetMaintainers(db, targetMap);
-		if (!isAdmin && currentMaintainers.Count <= 1 && currentMaintainers.Any(m => string.Equals(m, req.MaintainerPublicKey.Trim(), StringComparison.OrdinalIgnoreCase)))
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "Cannot remove the only remaining maintainer of the map. Transfer ownership or add another maintainer first."
-			});
-		}
-
-		var updatedMaintainers = MapMaintainerHelper.RemoveMaintainer(db, targetMap, req.MaintainerPublicKey);
-		string owner = MapMaintainerHelper.GetOwner(db, targetMap);
-
-		var clusterEvt = new ClusterEventDto
-		{
-			EventType = "map_maintainers_updated",
-			PublicKey = req.RequesterPublicKey,
-			Signature = req.Signature,
-			PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
-			{
-				MapTitle = targetMap,
-				Action = "remove",
-				MaintainerPublicKey = req.MaintainerPublicKey,
-				RequesterPublicKey = req.RequesterPublicKey,
-				Signature = req.Signature
-			})
-		};
-		clusterEvents.RecordEvent(clusterEvt, db);
-		clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
-
-		return Results.Ok(new MapMaintainersResponseDto
-		{
-			Success = true,
-			MapTitle = targetMap,
-			OwnerPublicKey = owner,
-			Maintainers = updatedMaintainers,
-			Message = $"Successfully removed maintainer '{req.MaintainerPublicKey}' from map '{targetMap}'."
-		});
-	}
-	catch (Exception ex)
-	{
-		return Results.BadRequest(new MapMaintainersResponseDto
-		{
-			Success = false,
-			MapTitle = mapTitle,
-			Message = ex.Message
-		});
-	}
+	return MapMaintainerEndpointsHelper.HandleRemoveMapMaintainer(req.MapTitle, mapTitle, req, db, clusterEvents, registeredPeers, httpClientFactory, adminPublicKeys);
 });
 
 app.MapPost("/api/maps/maintainers/remove", (RemoveMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-	try
-	{
-		string targetMap = req.MapTitle;
-		if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
-			});
-		}
-
-		bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
-		bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
-
-		if (!isAdmin && !isMaintainer)
-		{
-			return Results.Json(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
-			}, statusCode: StatusCodes.Status403Forbidden);
-		}
-
-		string canonicalPayload = $"remove_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
-		string fallbackPayload1 = $"remove_maintainer:{targetMap}:{req.MaintainerPublicKey}";
-		string fallbackPayload2 = $"remove:{targetMap}:{req.MaintainerPublicKey}";
-
-		bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
-		                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
-		                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
-
-		if (!isSigValid)
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "Invalid signature for removing maintainer."
-			});
-		}
-
-		var currentMaintainers = MapMaintainerHelper.GetMaintainers(db, targetMap);
-		if (!isAdmin && currentMaintainers.Count <= 1 && currentMaintainers.Any(m => string.Equals(m, req.MaintainerPublicKey.Trim(), StringComparison.OrdinalIgnoreCase)))
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "Cannot remove the only remaining maintainer of the map. Transfer ownership or add another maintainer first."
-			});
-		}
-
-		var updatedMaintainers = MapMaintainerHelper.RemoveMaintainer(db, targetMap, req.MaintainerPublicKey);
-		string owner = MapMaintainerHelper.GetOwner(db, targetMap);
-
-		var clusterEvt = new ClusterEventDto
-		{
-			EventType = "map_maintainers_updated",
-			PublicKey = req.RequesterPublicKey,
-			Signature = req.Signature,
-			PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
-			{
-				MapTitle = targetMap,
-				Action = "remove",
-				MaintainerPublicKey = req.MaintainerPublicKey,
-				RequesterPublicKey = req.RequesterPublicKey,
-				Signature = req.Signature
-			})
-		};
-		clusterEvents.RecordEvent(clusterEvt, db);
-		clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
-
-		return Results.Ok(new MapMaintainersResponseDto
-		{
-			Success = true,
-			MapTitle = targetMap,
-			OwnerPublicKey = owner,
-			Maintainers = updatedMaintainers,
-			Message = $"Successfully removed maintainer '{req.MaintainerPublicKey}' from map '{targetMap}'."
-		});
-	}
-	catch (Exception ex)
-	{
-		return Results.BadRequest(new MapMaintainersResponseDto
-		{
-			Success = false,
-			MapTitle = req.MapTitle,
-			Message = ex.Message
-		});
-	}
+	return MapMaintainerEndpointsHelper.HandleRemoveMapMaintainer(req.MapTitle, req.MapTitle, req, db, clusterEvents, registeredPeers, httpClientFactory, adminPublicKeys);
 });
 
 app.MapGet("/api/data/{collection}/{id}", (string collection, string id, DataStoreService db, HttpContext context) =>
@@ -3271,21 +2761,8 @@ app.MapPost("/api/maps/report_metrics", (MapMetricsReport req, DataStoreService 
 	}
 
 	db.Upsert("player_engagement", engagementKey, engagement);
-	db.Upsert("map_stats", authorCompositeKey, stats);
-	db.Upsert("map_stats", authorCompositeKey.ToLowerInvariant(), stats);
-	if (!string.IsNullOrEmpty(authorPublicKey))
-	{
-		db.Upsert("map_stats", $"{mapTitle}_{authorPublicKey}", stats);
-		db.Upsert("map_stats", $"{mapTitle}_{authorPublicKey}".ToLowerInvariant(), stats);
-	}
-
-	if (stats.IsGreenlit)
-	{
-		db.Upsert("map_stats", compositeKey, stats);
-		db.Upsert("map_stats", mapTitle, stats);
-		db.Upsert("map_stats", compositeKey.ToLowerInvariant(), stats);
-		db.Upsert("map_stats", mapTitle.ToLowerInvariant(), stats);
-	}
+	
+	MapStatsHelper.UpsertMapStats(db, stats, mapTitle, compositeKey, authorCompositeKey, authorPublicKey);
 
 	var metricEvent = new ClusterEventDto
 	{

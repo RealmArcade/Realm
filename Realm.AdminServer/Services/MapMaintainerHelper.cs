@@ -195,6 +195,38 @@ public static class MapMaintainerHelper
 		return false;
 	}
 
+	private static void GetMapTitleVariants(string mapTitle, out string trimmed, out string slug, out string lower, out string norm)
+	{
+		trimmed = mapTitle.Trim();
+		slug = trimmed.ToLowerInvariant().Replace(" ", "-");
+		lower = trimmed.ToLowerInvariant();
+		norm = NameNormalizationHelper.NormalizeMapName(trimmed);
+	}
+
+	private static void UpsertMaintainers(DataStoreService db, string trimmed, string slug, string lower, string norm, List<string> maintainers)
+	{
+		db.Upsert("map_maintainers", trimmed, maintainers);
+		db.Upsert("map_maintainers", slug, maintainers);
+		db.Upsert("map_maintainers", lower, maintainers);
+		if (!string.IsNullOrEmpty(norm)) db.Upsert("map_maintainers", norm, maintainers);
+	}
+
+	private static void UpsertOwnership(DataStoreService db, string trimmed, string slug, string lower, string norm, string owner)
+	{
+		db.Upsert("map_ownership", trimmed, owner);
+		db.Upsert("map_ownership", slug, owner);
+		db.Upsert("map_ownership", lower, owner);
+		if (!string.IsNullOrEmpty(norm)) db.Upsert("map_ownership", norm, owner);
+	}
+
+	private static void DeleteOwnership(DataStoreService db, string trimmed, string slug, string lower, string norm)
+	{
+		db.Delete("map_ownership", trimmed);
+		db.Delete("map_ownership", slug);
+		db.Delete("map_ownership", lower);
+		if (!string.IsNullOrEmpty(norm)) db.Delete("map_ownership", norm);
+	}
+
 	public static List<string> AddMaintainer(DataStoreService db, string mapTitle, string maintainerPublicKey)
 	{
 		if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(maintainerPublicKey))
@@ -202,10 +234,7 @@ public static class MapMaintainerHelper
 			return GetMaintainers(db, mapTitle);
 		}
 
-		string trimmed = mapTitle.Trim();
-		string slug = trimmed.ToLowerInvariant().Replace(" ", "-");
-		string lower = trimmed.ToLowerInvariant();
-		string norm = NameNormalizationHelper.NormalizeMapName(trimmed);
+		GetMapTitleVariants(mapTitle, out string trimmed, out string slug, out string lower, out string norm);
 		string trimmedKey = maintainerPublicKey.Trim();
 
 		var maintainers = GetMaintainers(db, mapTitle);
@@ -214,18 +243,12 @@ public static class MapMaintainerHelper
 			maintainers.Add(trimmedKey);
 		}
 
-		db.Upsert("map_maintainers", trimmed, maintainers);
-		db.Upsert("map_maintainers", slug, maintainers);
-		db.Upsert("map_maintainers", lower, maintainers);
-		if (!string.IsNullOrEmpty(norm)) db.Upsert("map_maintainers", norm, maintainers);
+		UpsertMaintainers(db, trimmed, slug, lower, norm, maintainers);
 
 		string? owner = db.Get<string>("map_ownership", trimmed);
 		if (string.IsNullOrWhiteSpace(owner))
 		{
-			db.Upsert("map_ownership", trimmed, trimmedKey);
-			db.Upsert("map_ownership", slug, trimmedKey);
-			db.Upsert("map_ownership", lower, trimmedKey);
-			if (!string.IsNullOrEmpty(norm)) db.Upsert("map_ownership", norm, trimmedKey);
+			UpsertOwnership(db, trimmed, slug, lower, norm, trimmedKey);
 		}
 
 		return maintainers;
@@ -238,19 +261,13 @@ public static class MapMaintainerHelper
 			return GetMaintainers(db, mapTitle);
 		}
 
-		string trimmed = mapTitle.Trim();
-		string slug = trimmed.ToLowerInvariant().Replace(" ", "-");
-		string lower = trimmed.ToLowerInvariant();
-		string norm = NameNormalizationHelper.NormalizeMapName(trimmed);
+		GetMapTitleVariants(mapTitle, out string trimmed, out string slug, out string lower, out string norm);
 		string trimmedKey = maintainerPublicKey.Trim();
 
 		var maintainers = GetMaintainers(db, mapTitle);
 		maintainers.RemoveAll(m => string.Equals(m, trimmedKey, StringComparison.OrdinalIgnoreCase));
 
-		db.Upsert("map_maintainers", trimmed, maintainers);
-		db.Upsert("map_maintainers", slug, maintainers);
-		db.Upsert("map_maintainers", lower, maintainers);
-		if (!string.IsNullOrEmpty(norm)) db.Upsert("map_maintainers", norm, maintainers);
+		UpsertMaintainers(db, trimmed, slug, lower, norm, maintainers);
 
 		string? owner = db.Get<string>("map_ownership", trimmed);
 		if (string.Equals(owner, trimmedKey, StringComparison.OrdinalIgnoreCase))
@@ -258,17 +275,11 @@ public static class MapMaintainerHelper
 			string newOwner = maintainers.Count > 0 ? maintainers[0] : "";
 			if (!string.IsNullOrEmpty(newOwner))
 			{
-				db.Upsert("map_ownership", trimmed, newOwner);
-				db.Upsert("map_ownership", slug, newOwner);
-				db.Upsert("map_ownership", lower, newOwner);
-				if (!string.IsNullOrEmpty(norm)) db.Upsert("map_ownership", norm, newOwner);
+				UpsertOwnership(db, trimmed, slug, lower, norm, newOwner);
 			}
 			else
 			{
-				db.Delete("map_ownership", trimmed);
-				db.Delete("map_ownership", slug);
-				db.Delete("map_ownership", lower);
-				if (!string.IsNullOrEmpty(norm)) db.Delete("map_ownership", norm);
+				DeleteOwnership(db, trimmed, slug, lower, norm);
 			}
 		}
 
