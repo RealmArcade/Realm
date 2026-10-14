@@ -1530,9 +1530,8 @@ public class DistributionClient
 		}
 	}
 
-	public async Task<MapMaintainersResponseDto> AddMapMaintainerAsync(AddMapMaintainerRequest request, CancellationToken cancellationToken = default)
+	private async Task<MapMaintainersResponseDto> SendMaintainerRequestAsync(string url, object request, CancellationToken cancellationToken)
 	{
-		string url = $"{_registryServerUrl}/api/maps/{Uri.EscapeDataString(request.MapTitle)}/maintainers/add";
 		try
 		{
 			var content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
@@ -1547,20 +1546,15 @@ public class DistributionClient
 		}
 	}
 
+	public async Task<MapMaintainersResponseDto> AddMapMaintainerAsync(AddMapMaintainerRequest request, CancellationToken cancellationToken = default)
+	{
+		string url = $"{_registryServerUrl}/api/maps/{Uri.EscapeDataString(request.MapTitle)}/maintainers/add";
+		return await SendMaintainerRequestAsync(url, request, cancellationToken);
+	}
+
 	public async Task<MapMaintainersResponseDto> RemoveMapMaintainerAsync(RemoveMapMaintainerRequest request, CancellationToken cancellationToken = default)
 	{
 		string url = $"{_registryServerUrl}/api/maps/{Uri.EscapeDataString(request.MapTitle)}/maintainers/remove";
-		try
-		{
-			var content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");
-			var response = await _httpClient.PostAsync(url, content, cancellationToken);
-			string json = await response.Content.ReadAsStringAsync(cancellationToken);
-			var dto = JsonSerializer.Deserialize<MapMaintainersResponseDto>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-			return dto ?? new MapMaintainersResponseDto { Success = false, Message = "Failed to deserialize server response." };
-		}
-		catch (Exception ex)
-		{
-			return new MapMaintainersResponseDto { Success = false, Message = ex.Message };
-		}
+		return await SendMaintainerRequestAsync(url, request, cancellationToken);
 	}
 }

@@ -295,36 +295,12 @@ public static class RealmMetadataHelper
 
 	public static bool SetAssetType(string filePath, string assetType)
 	{
-		if (!File.Exists(filePath)) return false;
 		if (!IsValidAssetTypeForExtension(filePath, assetType, out string canonical, out _))
 		{
 			return false;
 		}
 
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
-
-		metaObj["asset_type"] = canonical;
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+		return UpdateMetadataField(filePath, meta => meta["asset_type"] = canonical);
 	}
 
 	public static string? ExtractAuthor(string filePath)
@@ -343,7 +319,7 @@ public static class RealmMetadataHelper
 		return null;
 	}
 
-	public static bool SetAuthor(string filePath, string author)
+	private static bool UpdateMetadataField(string filePath, Action<JsonObject> updateAction)
 	{
 		if (!File.Exists(filePath)) return false;
 		string? existingMeta = ExtractMetadata(filePath);
@@ -367,9 +343,14 @@ public static class RealmMetadataHelper
 			metaObj["format"] = ext.TrimStart('.');
 		}
 
-		metaObj["author"] = author;
+		updateAction(metaObj);
 		metaObj["blake3"] = ComputeBlake3(filePath);
 		return AddMetadata(filePath, metaObj.ToJsonString());
+	}
+
+	public static bool SetAuthor(string filePath, string author)
+	{
+		return UpdateMetadataField(filePath, meta => meta["author"] = author);
 	}
 
 	public static string? ExtractPreferredFileName(string filePath)
@@ -390,31 +371,7 @@ public static class RealmMetadataHelper
 
 	public static bool SetPreferredFileName(string filePath, string preferredFileName)
 	{
-		if (!File.Exists(filePath)) return false;
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
-
-		metaObj["preferred_file_name"] = preferredFileName;
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+		return UpdateMetadataField(filePath, meta => meta["preferred_file_name"] = preferredFileName);
 	}
 
 	public static bool ExtractSupportsTeamColorFromMetadataJson(string? metaJson)
@@ -549,31 +506,7 @@ public static class RealmMetadataHelper
 
 	public static bool SetSupportsTeamColor(string filePath, bool supportsTeamColor)
 	{
-		if (!File.Exists(filePath)) return false;
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
-
-		metaObj["team_color"] = supportsTeamColor;
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+		return UpdateMetadataField(filePath, meta => meta["team_color"] = supportsTeamColor);
 	}
 
 	public static string? ExtractChromaKey(string filePath)
@@ -608,31 +541,7 @@ public static class RealmMetadataHelper
 
 	public static bool SetChromaKey(string filePath, string chromaKey)
 	{
-		if (!File.Exists(filePath)) return false;
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
-
-		metaObj["chroma_key"] = chromaKey;
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+		return UpdateMetadataField(filePath, meta => meta["chroma_key"] = chromaKey);
 	}
 
 	public static List<string> ExtractTags(string filePath)
@@ -664,40 +573,20 @@ public static class RealmMetadataHelper
 
 	public static bool SetTags(string filePath, IEnumerable<string> tags)
 	{
-		if (!File.Exists(filePath)) return false;
 		string ext = Path.GetExtension(filePath).ToLowerInvariant();
 		if (ext is not (".rtex" or ".ranim" or ".rmesh" or ".raud")) return false;
 
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
+		return UpdateMetadataField(filePath, metaObj =>
 		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
+			var cleanTags = (tags ?? Array.Empty<string>())
+				.Where(t => !string.IsNullOrWhiteSpace(t))
+				.Select(t => t.Trim().ToLowerInvariant())
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.Select(t => (JsonNode)JsonValue.Create(t)!)
+				.ToArray();
 
-		var cleanTags = (tags ?? Array.Empty<string>())
-			.Where(t => !string.IsNullOrWhiteSpace(t))
-			.Select(t => t.Trim().ToLowerInvariant())
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.Select(t => (JsonNode)JsonValue.Create(t)!)
-			.ToArray();
-
-		metaObj["tags"] = new JsonArray(cleanTags);
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+			metaObj["tags"] = new JsonArray(cleanTags);
+		});
 	}
 
 	public static bool AddMetadata(string filePath, string realmMetadataJson)

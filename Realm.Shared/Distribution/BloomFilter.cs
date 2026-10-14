@@ -46,6 +46,20 @@ public class BloomFilter
 		_itemCount = itemCount;
 	}
 
+	private void GetHashes(string item, out ulong hash1, out ulong hash2)
+	{
+		byte[] utf8Bytes = Encoding.UTF8.GetBytes(item);
+		Span<byte> hashSpan = stackalloc byte[32];
+		Hasher.Hash(utf8Bytes, hashSpan);
+
+		hash1 = BinaryPrimitives.ReadUInt64LittleEndian(hashSpan.Slice(0, 8));
+		hash2 = BinaryPrimitives.ReadUInt64LittleEndian(hashSpan.Slice(8, 8));
+		if (hash2 == 0)
+		{
+			hash2 = 1;
+		}
+	}
+
 	public void Add(string item)
 	{
 		if (string.IsNullOrEmpty(item))
@@ -53,16 +67,7 @@ public class BloomFilter
 			return;
 		}
 
-		byte[] utf8Bytes = Encoding.UTF8.GetBytes(item);
-		Span<byte> hashSpan = stackalloc byte[32];
-		Hasher.Hash(utf8Bytes, hashSpan);
-
-		ulong hash1 = BinaryPrimitives.ReadUInt64LittleEndian(hashSpan.Slice(0, 8));
-		ulong hash2 = BinaryPrimitives.ReadUInt64LittleEndian(hashSpan.Slice(8, 8));
-		if (hash2 == 0)
-		{
-			hash2 = 1;
-		}
+		GetHashes(item, out ulong hash1, out ulong hash2);
 
 		for (int i = 0; i < _hashCount; i++)
 		{
@@ -82,16 +87,7 @@ public class BloomFilter
 			return false;
 		}
 
-		byte[] utf8Bytes = Encoding.UTF8.GetBytes(item);
-		Span<byte> hashSpan = stackalloc byte[32];
-		Hasher.Hash(utf8Bytes, hashSpan);
-
-		ulong hash1 = BinaryPrimitives.ReadUInt64LittleEndian(hashSpan.Slice(0, 8));
-		ulong hash2 = BinaryPrimitives.ReadUInt64LittleEndian(hashSpan.Slice(8, 8));
-		if (hash2 == 0)
-		{
-			hash2 = 1;
-		}
+		GetHashes(item, out ulong hash1, out ulong hash2);
 
 		for (int i = 0; i < _hashCount; i++)
 		{

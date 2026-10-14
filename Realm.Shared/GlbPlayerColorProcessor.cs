@@ -585,16 +585,22 @@ public static class GlbPlayerColorProcessor
 		}
 	}
 
+	private static (int minX, int maxX, int minY, int maxY) GetTriangleBounds(Vector2 uv0, Vector2 uv1, Vector2 uv2, int texW, int texH)
+	{
+		int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
+		int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
+		int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
+		int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
+		return (minX, maxX, minY, maxY);
+	}
+
 	private static void RasterizeFace(
 		int faceIdx, Vector2 uv0, Vector2 uv1, Vector2 uv2,
 		int texW, int texH, bool isConfirmed,
 		bool[] floodFillMask, bool[] seedMask,
 		bool[] isConfirmedPolygonTexel, float[] globalMask, bool[] isNonPlayerFaceTexel)
 	{
-		int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
-		int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
-		int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
-		int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
+		var (minX, maxX, minY, maxY) = GetTriangleBounds(uv0, uv1, uv2, texW, texH);
 
 		for (int py = minY; py <= maxY; py++)
 		{
@@ -858,10 +864,7 @@ public static class GlbPlayerColorProcessor
 
 	private static (int SeedHits, int FloodHits, int TotalSampled) SampleTriangleMasks(Vector2 uv0, Vector2 uv1, Vector2 uv2, bool[] seedMask, bool[] floodFillMask, int texW, int texH)
 	{
-		int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
-		int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
-		int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
-		int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
+		var (minX, maxX, minY, maxY) = GetTriangleBounds(uv0, uv1, uv2, texW, texH);
 
 		int seedHits = 0;
 		int floodHits = 0;
