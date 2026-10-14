@@ -24,4 +24,3 @@ admin_private.key
 servers.json
 Realm.Clientservers.json
 Realm.AdminServer/appsettings.json
-.context/
