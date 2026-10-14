@@ -1,0 +1,8 @@
+.vs/
+__pycache__
+obj/
+bin/
+node_modules/
+vscode_embedded/
+wasi_sdk_embedded/
+vscode_extensions_dist

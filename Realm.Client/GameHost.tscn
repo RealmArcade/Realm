@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://c7lawhi6g8k2d" path="res://Core/GameHost.cs" id="1_gamehost"]
 [ext_resource type="Script" uid="uid://ytd523ow1hew" path="res://CameraControl.cs" id="3_cm0pq"]
 [ext_resource type="Script" uid="uid://b14qd12uvgxrf" path="res://FPSCounter.cs" id="3_r0du0"]
-[ext_resource type="PackedScene" path="res://UI/UIManagerView.tscn" id="4_ui"]
+[ext_resource type="PackedScene" path="res://UI/UIManager.tscn" id="4_ui"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_cm0pq"]
 

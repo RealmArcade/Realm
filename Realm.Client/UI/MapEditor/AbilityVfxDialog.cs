@@ -40,6 +40,8 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private string _initialCastSound = "";
 	private string _initialIconPath = "";
 	private float _initialAoeRadius = 0.0f;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 
 	private string _currentVisualEffect = "";
 	private string _currentCastSound = "";
@@ -689,6 +691,10 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		UpdateAoEIndicator(_currentAoeRadius);
 		ReloadVfx();
 
+		string targetId = !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
+
 		SetRandomizeAssetsAction(RandomizeAssets);
 
 		OpenDialog();
@@ -698,12 +704,32 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	public void RandomizeAssets()
 	{
 		string targetId = !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
+		{
+			meta.Templates ??= new();
+			meta.Templates.Abilities ??= new();
+			var existingAbility = meta.GetAbility(targetId);
+			if (existingAbility == null)
+			{
+				meta.AddOrUpdateAbility(new Realm.Shared.Metadata.AbilityMetadata
+				{
+					TemplateID = targetId,
+					Name = !string.IsNullOrEmpty(_abilityName) ? _abilityName : _slug,
+					VisualEffect = _currentVisualEffect,
+					CastSound = _currentCastSound,
+					IconPath = _currentIconPath,
+					AreaOfEffectRadius = _currentAoeRadius
+				});
+			}
+		});
+
 		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Abilities != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var reloadedMeta) && reloadedMeta?.Templates?.Abilities != null)
 		{
-			var reloaded = meta.Templates.Abilities.FirstOrDefault(a => string.Equals(a.TemplateID, targetId, StringComparison.OrdinalIgnoreCase) || string.Equals(a.TemplateID, _abilityId, StringComparison.OrdinalIgnoreCase));
+			var reloaded = reloadedMeta.Templates.Abilities.FirstOrDefault(a => string.Equals(a.TemplateID, targetId, StringComparison.OrdinalIgnoreCase) || string.Equals(a.TemplateID, _abilityId, StringComparison.OrdinalIgnoreCase));
 			if (reloaded != null)
 			{
 				_currentVisualEffect = reloaded.VisualEffect ?? string.Empty;
@@ -856,13 +882,14 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		string targetId = !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
 		if (!string.IsNullOrEmpty(targetId))
 		{
-			Hud?.SaveCustomAbilityVfxToMetadata(
-				targetId,
-				_initialVisualEffect,
-				_initialCastSound,
-				_initialIconPath,
-				_initialAoeRadius
-			);
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
 		}
 
 		_currentVisualEffect = _initialVisualEffect;

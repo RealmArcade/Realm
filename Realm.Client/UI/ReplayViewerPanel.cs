@@ -277,7 +277,7 @@ public partial class ReplayViewerPanel : PanelContainer
 			LobbyManager.Instance.ActiveMapName = "";
 		}
 
-		GetTree().ChangeSceneToFile("res://GameHostView.tscn");
+		GetTree().ChangeSceneToFile("res://GameHost.tscn");
 	}
 
 	public override void _Process(double delta)

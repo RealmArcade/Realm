@@ -21,14 +21,31 @@ public partial class EditorService
 	[GeneratedRegex(@"[^a-zA-Z]+")]
 	private static partial Regex NonAlphaRegex();
 
+	private static HashSet<string>? GetAllowedTypeStrings(HashSet<AssetType>? allowedTypes)
+	{
+		if (allowedTypes == null || allowedTypes.Count == 0)
+		{
+			return null;
+		}
+
+		var typeStrings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var t in allowedTypes)
+		{
+			typeStrings.Add(t.ToString());
+			typeStrings.Add(t.ToCanonicalString());
+			string norm = RealmMetadataHelper.NormalizeAssetType(t.ToString());
+			if (!string.IsNullOrEmpty(norm))
+			{
+				typeStrings.Add(norm);
+			}
+		}
+
+		return typeStrings;
+	}
+
 	public List<Asset> SearchAssets(AssetType[] assetTypes, string query, int limit = 5)
 	{
 		string cacheFilePath = AssetIndexService.GetCacheFilePath();
-		if (!File.Exists(cacheFilePath))
-		{
-			return new List<Asset>();
-		}
-
 		var connectionString = new ConnectionString
 		{
 			Filename = cacheFilePath,
@@ -38,32 +55,64 @@ public partial class EditorService
 		var allowedTypes = assetTypes != null && assetTypes.Length > 0
 			? new HashSet<AssetType>(assetTypes)
 			: null;
+		var allowedTypeStrings = GetAllowedTypeStrings(allowedTypes);
 
 		if (string.IsNullOrWhiteSpace(query))
 		{
 			var allAssets = new List<IndexedAsset>();
 
-			using (var db = new LiteDatabase(connectionString))
+			if (File.Exists(cacheFilePath))
 			{
-				var col = db.GetCollection<IndexedAsset>("assets");
-				foreach (var candidate in col.FindAll())
+				using (var db = new LiteDatabase(connectionString))
 				{
-					if (candidate == null) continue;
+					var col = db.GetCollection<IndexedAsset>("assets");
+					IEnumerable<IndexedAsset> candidates;
 
-					var mappedType = MapStringToAssetType(candidate.AssetType, candidate.Extension);
-					if (allowedTypes != null && !allowedTypes.Contains(mappedType))
+					if (allowedTypeStrings != null && allowedTypeStrings.Count > 0)
 					{
-						continue;
+						var bsonTypes = allowedTypeStrings.Select(t => new BsonValue(t)).ToArray();
+						candidates = col.Find(Query.In("AssetType", bsonTypes));
+					}
+					else
+					{
+						candidates = col.FindAll();
 					}
 
-					allAssets.Add(candidate);
+					foreach (var candidate in candidates)
+					{
+						if (candidate == null) continue;
+
+						var mappedType = MapStringToAssetType(candidate.AssetType, candidate.Extension, candidate.FilePath ?? candidate.DirectoryPath);
+						if (allowedTypes != null && !allowedTypes.Contains(mappedType))
+						{
+							continue;
+						}
+
+						allAssets.Add(candidate);
+					}
 				}
+			}
+
+			if (allAssets.Count == 0)
+			{
+				allAssets = FallbackScanAssets(allowedTypes);
 			}
 
 			var rng = new Random();
 			rng.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(allAssets));
 
 			return allAssets
+				.Take(limit)
+				.Select(ToEditorAsset)
+				.ToList();
+		}
+
+		if (!File.Exists(cacheFilePath))
+		{
+			var fallbackResults = FallbackScanAssets(allowedTypes);
+			var rng = new Random();
+			rng.Shuffle(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(fallbackResults));
+			return fallbackResults
 				.Take(limit)
 				.Select(ToEditorAsset)
 				.ToList();
@@ -85,13 +134,22 @@ public partial class EditorService
 		using (var db = new LiteDatabase(connectionString))
 		{
 			var col = db.GetCollection<IndexedAsset>("assets");
+			BsonValue[]? bsonTypes = allowedTypeStrings != null && allowedTypeStrings.Count > 0
+				? allowedTypeStrings.Select(t => new BsonValue(t)).ToArray()
+				: null;
 
 			foreach (string term in terms)
 			{
-				var subCandidates = col.Find(Query.Or(
+				var termQuery = Query.Or(
 					Query.Contains("Tags", term),
 					Query.Contains("FileName", term)
-				));
+				);
+
+				var finalQuery = bsonTypes != null
+					? Query.And(termQuery, Query.In("AssetType", bsonTypes))
+					: termQuery;
+
+				var subCandidates = col.Find(finalQuery);
 
 				foreach (var candidate in subCandidates)
 				{
@@ -111,7 +169,7 @@ public partial class EditorService
 
 		foreach (var candidate in indexedAssetMap.Values)
 		{
-			var mappedType = MapStringToAssetType(candidate.AssetType, candidate.Extension);
+			var mappedType = MapStringToAssetType(candidate.AssetType, candidate.Extension, candidate.FilePath ?? candidate.DirectoryPath);
 			if (allowedTypes != null && !allowedTypes.Contains(mappedType))
 			{
 				continue;
@@ -285,7 +343,7 @@ public partial class EditorService
 		}
 
 		var candidateProperties = new List<AssetPropertyTarget>();
-		CollectAssetProperties(foundTemplateObj, candidateProperties, overwriteExisting);
+		CollectAssetProperties(foundTemplateObj, candidateProperties, overwriteExisting, templateSlug);
 
 		if (candidateProperties.Count == 0)
 		{
@@ -297,7 +355,7 @@ public partial class EditorService
 
 		foreach (var propTarget in candidateProperties)
 		{
-			var types = GetAssetTypesForProperty(propTarget);
+			var types = GetAssetTypesForProperty(propTarget, templateSlug);
 			var searchResults = SearchAssets(types, searchQuery, 100);
 			if (searchResults.Count == 0)
 			{
@@ -316,6 +374,127 @@ public partial class EditorService
 		{
 			ImportAssets(chosenAssets);
 
+			var options = new JsonSerializerOptions { WriteIndented = true };
+			File.WriteAllText(metaPath, rootObj.ToJsonString(options));
+			this.LastMetadataSyncTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
+		}
+	}
+
+	public string? SnapshotTemplateJson(string templateSlug)
+	{
+		if (string.IsNullOrWhiteSpace(templateSlug))
+		{
+			return null;
+		}
+
+		string wsPath = GetWorkspacePath();
+		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
+		if (!File.Exists(metaPath))
+		{
+			return null;
+		}
+
+		string jsonContent = File.ReadAllText(metaPath);
+		var rootNode = JsonNode.Parse(jsonContent);
+		if (rootNode is not JsonObject rootObj)
+		{
+			return null;
+		}
+
+		JsonObject? found = FindTemplateOrEntryObject(rootObj, templateSlug);
+		return found?.ToJsonString();
+	}
+
+	public void RevertTemplateJson(string templateSlug, string? snapshotJson)
+	{
+		if (string.IsNullOrWhiteSpace(templateSlug))
+		{
+			return;
+		}
+
+		string wsPath = GetWorkspacePath();
+		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
+		if (!File.Exists(metaPath))
+		{
+			return;
+		}
+
+		string jsonContent = File.ReadAllText(metaPath);
+		var rootNode = JsonNode.Parse(jsonContent);
+		if (rootNode is not JsonObject rootObj)
+		{
+			return;
+		}
+
+		bool modified = false;
+
+		if (rootObj.TryGetPropertyValue("Templates", out var templatesNode) && templatesNode is JsonObject templatesObj)
+		{
+			foreach (var kvp in templatesObj)
+			{
+				if (kvp.Value is JsonArray arr)
+				{
+					for (int i = 0; i < arr.Count; i++)
+					{
+						if (arr[i] is JsonObject obj && IsTemplateMatch(obj, templateSlug))
+						{
+							if (snapshotJson != null)
+							{
+								arr[i] = JsonNode.Parse(snapshotJson);
+							}
+							else
+							{
+								arr.RemoveAt(i);
+							}
+							modified = true;
+							break;
+						}
+					}
+				}
+				if (modified) break;
+			}
+		}
+
+		if (!modified)
+		{
+			string[] dictionaryKeys = { "textures", "vfx_spritesheets", "decals", "SpawnShader", "vfx" };
+			var (_, slug) = TemplateIDHelper.ParseTemplateID(templateSlug);
+
+			foreach (string dictKey in dictionaryKeys)
+			{
+				if (rootObj.TryGetPropertyValue(dictKey, out var dictNode) && dictNode is JsonObject dictObj)
+				{
+					string? matchedKey = null;
+					foreach (var kvp in dictObj)
+					{
+						if (string.Equals(kvp.Key, templateSlug, StringComparison.OrdinalIgnoreCase) ||
+						    (!string.IsNullOrEmpty(slug) && string.Equals(kvp.Key, slug, StringComparison.OrdinalIgnoreCase)) ||
+						    (!string.IsNullOrEmpty(slug) && string.Equals(Path.GetFileNameWithoutExtension(kvp.Key), slug, StringComparison.OrdinalIgnoreCase)))
+						{
+							matchedKey = kvp.Key;
+							break;
+						}
+					}
+
+					if (matchedKey != null)
+					{
+						if (snapshotJson != null)
+						{
+							dictObj[matchedKey] = JsonNode.Parse(snapshotJson);
+						}
+						else
+						{
+							dictObj.Remove(matchedKey);
+						}
+						modified = true;
+						break;
+					}
+				}
+			}
+		}
+
+		if (modified)
+		{
 			var options = new JsonSerializerOptions { WriteIndented = true };
 			File.WriteAllText(metaPath, rootObj.ToJsonString(options));
 			this.LastMetadataSyncTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
@@ -418,33 +597,58 @@ public partial class EditorService
 			FileName = item.FileName,
 			Extension = item.Extension,
 			Blake3 = item.Blake3 ?? string.Empty,
-			AssetType = MapStringToAssetType(item.AssetType, item.Extension),
+			AssetType = MapStringToAssetType(item.AssetType, item.Extension, item.FilePath ?? item.DirectoryPath),
 			Tags = item.Tags != null ? new List<string>(item.Tags) : new List<string>()
 		};
 	}
 
-	private AssetType MapStringToAssetType(string? rawType, string extension)
+	private static readonly Dictionary<string, AssetType> PathSegmentToAssetType = new(StringComparer.OrdinalIgnoreCase)
 	{
-		string normalized = RealmMetadataHelper.NormalizeAssetType(rawType);
-		switch (normalized)
+		["decals"] = AssetType.Decal,
+		["textures"] = AssetType.Terrain,
+		["terrain"] = AssetType.Terrain,
+		["icons"] = AssetType.Icon,
+		["noise"] = AssetType.Noise,
+		["ribbons"] = AssetType.Ribbon,
+		["skyboxes"] = AssetType.Skybox,
+		["vfx_spritesheets"] = AssetType.Spritesheet,
+		["vfx_radial"] = AssetType.VfxRadial,
+		["vfx_vertical"] = AssetType.VfxVertical,
+		["units"] = AssetType.Character,
+		["characters"] = AssetType.Character,
+		["buildings"] = AssetType.Building,
+		["props"] = AssetType.Prop,
+		["items"] = AssetType.Item,
+		["attachments"] = AssetType.Item,
+		["projectiles"] = AssetType.Item,
+		["animations"] = AssetType.Animation,
+		["music"] = AssetType.Music,
+		["sfx"] = AssetType.SoundEffect,
+		["shaders"] = AssetType.Shader
+	};
+
+	private AssetType MapStringToAssetType(string? rawType, string extension, string? pathHint = null)
+	{
+		if (AssetTypeExtensions.TryParse(rawType, out var parsed))
 		{
-			case "character": return AssetType.Character;
-			case "building": return AssetType.Building;
-			case "prop": return AssetType.Prop;
-			case "item": return AssetType.Item;
-			case "decal": return AssetType.Decal;
-			case "icon": return AssetType.Icon;
-			case "noise": return AssetType.Noise;
-			case "ribbon": return AssetType.Ribbon;
-			case "skybox": return AssetType.Skybox;
-			case "spritesheet": return AssetType.Spritesheet;
-			case "terrain": return AssetType.Terrain;
-			case "vfxradial": return AssetType.VfxRadial;
-			case "vfxvertical": return AssetType.VfxVertical;
-			case "animation": return AssetType.Animation;
-			case "music": return AssetType.Music;
-			case "soundeffect": return AssetType.SoundEffect;
-			case "shader": return AssetType.Shader;
+			return parsed;
+		}
+
+		if (!string.IsNullOrEmpty(pathHint))
+		{
+			string normalizedHint = pathHint.Replace('\\', '/');
+			string[] segments = normalizedHint.Split('/', StringSplitOptions.RemoveEmptyEntries);
+			foreach (var segment in segments.Reverse())
+			{
+				if (PathSegmentToAssetType.TryGetValue(segment, out var matchedType))
+				{
+					return matchedType;
+				}
+				if (AssetTypeExtensions.TryParse(segment, out var segmentParsed))
+				{
+					return segmentParsed;
+				}
+			}
 		}
 
 		string ext = (extension ?? string.Empty).ToLowerInvariant();
@@ -454,7 +658,7 @@ public partial class EditorService
 			".ranim" => AssetType.Animation,
 			".raud" => AssetType.SoundEffect,
 			".gdshader" => AssetType.Shader,
-			_ => AssetType.Decal
+			_ => AssetType.Terrain
 		};
 	}
 
@@ -757,8 +961,80 @@ public partial class EditorService
 		}
 	}
 
-	private void CollectAssetProperties(JsonObject obj, List<AssetPropertyTarget> properties, bool overwriteExisting)
+	private List<IndexedAsset> FallbackScanAssets(HashSet<AssetType>? allowedTypes)
 	{
+		var results = new List<IndexedAsset>();
+		var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		string wsPath = GetWorkspacePath();
+		var searchDirs = new List<string>();
+
+		if (Directory.Exists(wsPath))
+		{
+			string wsAssets = Path.Combine(wsPath, "Assets");
+			if (Directory.Exists(wsAssets)) searchDirs.Add(wsAssets);
+		}
+
+		string templateDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "MapTemplate", "Assets"));
+		if (Directory.Exists(templateDir))
+		{
+			searchDirs.Add(templateDir);
+		}
+		else
+		{
+			string altTemplateDir = @"D:\git\Realm\Realm\MapTemplate\Assets";
+			if (Directory.Exists(altTemplateDir)) searchDirs.Add(altTemplateDir);
+		}
+
+		foreach (string baseDir in searchDirs)
+		{
+			try
+			{
+				foreach (string file in Directory.EnumerateFiles(baseDir, "*.*", SearchOption.AllDirectories))
+				{
+					string ext = Path.GetExtension(file).ToLowerInvariant();
+					if (ext is not (".rtex" or ".raud" or ".rmesh" or ".ranim" or ".gdshader"))
+					{
+						continue;
+					}
+
+					string fileName = Path.GetFileName(file);
+					if (seenPaths.Contains(fileName))
+					{
+						continue;
+					}
+
+					string relativePath = Path.GetRelativePath(baseDir, file).Replace('\\', '/');
+					var mappedType = MapStringToAssetType(null, ext, relativePath);
+					if (allowedTypes != null && !allowedTypes.Contains(mappedType))
+					{
+						continue;
+					}
+
+					seenPaths.Add(fileName);
+					results.Add(new IndexedAsset
+					{
+						FileName = fileName,
+						FilePath = file,
+						Extension = ext,
+						AssetType = MapAssetTypeToCategoryString(mappedType),
+						DirectoryPath = Path.GetDirectoryName(file) ?? string.Empty,
+						Blake3 = Path.GetFileNameWithoutExtension(fileName)
+					});
+				}
+			}
+			catch
+			{
+			}
+		}
+
+		return results;
+	}
+
+	private void CollectAssetProperties(JsonObject obj, List<AssetPropertyTarget> properties, bool overwriteExisting, string? templateSlug = null)
+	{
+		EnsureKnownTemplateAssetProperties(obj, templateSlug);
+
 		foreach (var kvp in obj)
 		{
 			if (kvp.Value is JsonValue val && val.TryGetValue<string>(out string? strVal))
@@ -779,7 +1055,65 @@ public partial class EditorService
 			}
 			else if (kvp.Value is JsonObject childObj)
 			{
-				CollectAssetProperties(childObj, properties, overwriteExisting);
+				CollectAssetProperties(childObj, properties, overwriteExisting, templateSlug);
+			}
+		}
+	}
+
+	private void EnsureKnownTemplateAssetProperties(JsonObject obj, string? templateSlug = null)
+	{
+		string? slug = (templateSlug ?? GetTemplateSlugFromJsonObject(obj))?.ToLowerInvariant();
+
+		if (obj.ContainsKey("Columns") || obj.ContainsKey("Rows") || obj.ContainsKey("Fps") ||
+		    (slug != null && (slug.StartsWith("spritesheet/") || slug.Contains("spritesheet"))))
+		{
+			if (!obj.ContainsKey("TexturePath") && !obj.ContainsKey("texture_path"))
+			{
+				obj["TexturePath"] = string.Empty;
+			}
+		}
+
+		if (obj.ContainsKey("AttackCooldown") || obj.ContainsKey("ProjectileSpeed") || obj.ContainsKey("TrajectoryType") ||
+		    (slug != null && (slug.StartsWith("weapon/") || slug.Contains("weapon"))))
+		{
+			string[] weaponAssetProps = { "ProjectileModelPath", "RibbonTexture", "NoiseTexture", "AttackSound", "ImpactSound", "ImpactVisualEffect" };
+			foreach (var prop in weaponAssetProps)
+			{
+				if (!obj.ContainsKey(prop))
+				{
+					obj[prop] = string.Empty;
+				}
+			}
+		}
+
+		if (obj.ContainsKey("ManaCost") || obj.ContainsKey("Cooldown") || obj.ContainsKey("AreaOfEffectRadius") ||
+		    (slug != null && (slug.StartsWith("ability/") || slug.Contains("ability"))))
+		{
+			string[] abilityAssetProps = { "VisualEffect", "CastSound", "IconPath" };
+			foreach (var prop in abilityAssetProps)
+			{
+				if (!obj.ContainsKey(prop))
+				{
+					obj[prop] = string.Empty;
+				}
+			}
+		}
+
+		if (obj.ContainsKey("ItemClass") || obj.ContainsKey("ItemLevel") || obj.ContainsKey("ResearchTime") || obj.ContainsKey("MaxLevel") ||
+		    (slug != null && (slug.StartsWith("item/") || slug.StartsWith("upgrade/") || slug.Contains("item") || slug.Contains("upgrade"))))
+		{
+			if (!obj.ContainsKey("IconPath") && !obj.ContainsKey("icon_path"))
+			{
+				obj["IconPath"] = string.Empty;
+			}
+		}
+
+		if (obj.ContainsKey("DecalId") || obj.ContainsKey("decal_id") || obj.ContainsKey("UpperFade") || obj.ContainsKey("upper_fade") ||
+		    (slug != null && (slug.StartsWith("decal/") || slug.Contains("decal"))))
+		{
+			if (!obj.ContainsKey("TexturePath") && !obj.ContainsKey("texture_path"))
+			{
+				obj["TexturePath"] = string.Empty;
 			}
 		}
 	}
@@ -795,30 +1129,10 @@ public partial class EditorService
 		return p is "modelpath" or "portraitmodelpath" or "projectilemodelpath" or "iconpath" or "texturepath" or "basetexture" or "noisetexture" or "ribbontexture" or "visualeffect" or "attacksound" or "castsound" or "impactsound" or "impactvisualeffect" or "texture_path";
 	}
 
-	private AssetType[] GetAssetTypesForProperty(AssetPropertyTarget propTarget)
+	private AssetType[] GetAssetTypesForProperty(AssetPropertyTarget propTarget, string? templateSlug = null)
 	{
 		string p = propTarget.PropertyName.ToLowerInvariant();
 		string curr = (propTarget.CurrentValue ?? string.Empty).ToLowerInvariant();
-
-		if (curr.EndsWith(".rmesh") || p.Contains("model"))
-		{
-			return new[] { AssetType.Character, AssetType.Building, AssetType.Prop, AssetType.Item };
-		}
-
-		if (curr.EndsWith(".ranim") || p.Contains("anim"))
-		{
-			return new[] { AssetType.Animation };
-		}
-
-		if (curr.EndsWith(".raud") || p.Contains("sound") || p.Contains("audio") || p.Contains("music"))
-		{
-			return new[] { AssetType.SoundEffect };
-		}
-
-		if (curr.EndsWith(".gdshader") || p.Contains("shader"))
-		{
-			return new[] { AssetType.Shader };
-		}
 
 		if (p.Contains("ribbon"))
 		{
@@ -835,9 +1149,29 @@ public partial class EditorService
 			return new[] { AssetType.Icon };
 		}
 
+		if (curr.EndsWith(".raud") || p.Contains("sound") || p.Contains("audio") || p.Contains("music"))
+		{
+			return new[] { AssetType.SoundEffect };
+		}
+
 		if (p.Contains("effect") || p.Contains("vfx"))
 		{
 			return new[] { AssetType.Spritesheet, AssetType.VfxRadial, AssetType.VfxVertical };
+		}
+
+		if (curr.EndsWith(".rmesh") || p.Contains("model"))
+		{
+			return new[] { AssetType.Character, AssetType.Building, AssetType.Prop, AssetType.Item };
+		}
+
+		if (curr.EndsWith(".ranim") || p.Contains("anim"))
+		{
+			return new[] { AssetType.Animation };
+		}
+
+		if (curr.EndsWith(".gdshader") || p.Contains("shader"))
+		{
+			return new[] { AssetType.Shader };
 		}
 
 		if (p.Contains("decal"))
@@ -845,60 +1179,47 @@ public partial class EditorService
 			return new[] { AssetType.Decal };
 		}
 
+		if (!string.IsNullOrEmpty(templateSlug))
+		{
+			string slugLower = templateSlug.ToLowerInvariant();
+			int slashIdx = slugLower.IndexOf('/');
+			string prefix = slashIdx > 0 ? slugLower.Substring(0, slashIdx) : slugLower;
+
+			if (AssetTypeExtensions.TryParse(prefix, out var slugType))
+			{
+				return new[] { slugType };
+			}
+		}
+
 		if (propTarget.Parent != null)
 		{
-			string? rawAssetType = propTarget.Parent["asset_type"]?.ToString() ?? propTarget.Parent["AssetType"]?.ToString();
-			if (!string.IsNullOrWhiteSpace(rawAssetType))
+			string? rawAssetType = propTarget.Parent["asset_type"]?.ToString();
+			if (AssetTypeExtensions.TryParse(rawAssetType, out var parentAssetType))
 			{
-				string normalizedType = RealmMetadataHelper.NormalizeAssetType(rawAssetType);
-				switch (normalizedType)
-				{
-					case "decal": return new[] { AssetType.Decal };
-					case "terrain": return new[] { AssetType.Terrain };
-					case "icon": return new[] { AssetType.Icon };
-					case "noise": return new[] { AssetType.Noise };
-					case "ribbon": return new[] { AssetType.Ribbon };
-					case "skybox": return new[] { AssetType.Skybox };
-					case "spritesheet": return new[] { AssetType.Spritesheet };
-					case "vfxradial": return new[] { AssetType.VfxRadial };
-					case "vfxvertical": return new[] { AssetType.VfxVertical };
-				}
+				return new[] { parentAssetType };
 			}
 
 			string? slug = GetTemplateSlugFromJsonObject(propTarget.Parent)?.ToLowerInvariant();
 			if (!string.IsNullOrEmpty(slug))
 			{
-				if (slug.StartsWith("decal/") || slug.Contains("decal"))
-				{
-					return new[] { AssetType.Decal };
-				}
-				if (slug.StartsWith("terrain/") || slug.StartsWith("texture/") || slug.Contains("terrain"))
-				{
-					return new[] { AssetType.Terrain };
-				}
-				if (slug.StartsWith("icon/") || slug.Contains("icon"))
-				{
-					return new[] { AssetType.Icon };
-				}
-				if (slug.StartsWith("noise/") || slug.Contains("noise"))
-				{
-					return new[] { AssetType.Noise };
-				}
-				if (slug.StartsWith("ribbon/") || slug.Contains("ribbon"))
-				{
-					return new[] { AssetType.Ribbon };
-				}
-				if (slug.StartsWith("skybox/") || slug.Contains("skybox"))
-				{
-					return new[] { AssetType.Skybox };
-				}
-				if (slug.StartsWith("vfx/") || slug.Contains("spritesheet"))
+				int slashIdx = slug.IndexOf('/');
+				string prefix = slashIdx > 0 ? slug.Substring(0, slashIdx) : slug;
+
+				if (prefix is "vfx")
 				{
 					return new[] { AssetType.Spritesheet, AssetType.VfxRadial, AssetType.VfxVertical };
 				}
+
+				if (AssetTypeExtensions.TryParse(prefix, out var slugType))
+				{
+					return new[] { slugType };
+				}
 			}
 
-			if (propTarget.Parent.ContainsKey("DecalId") || propTarget.Parent.ContainsKey("decal_id"))
+			if (propTarget.Parent.ContainsKey("DecalId") || propTarget.Parent.ContainsKey("decal_id") ||
+			    propTarget.Parent.ContainsKey("UpperFade") || propTarget.Parent.ContainsKey("upper_fade") ||
+			    propTarget.Parent.ContainsKey("LowerFade") || propTarget.Parent.ContainsKey("lower_fade") ||
+			    propTarget.Parent.ContainsKey("AlbedoMix") || propTarget.Parent.ContainsKey("albedo_mix"))
 			{
 				return new[] { AssetType.Decal };
 			}

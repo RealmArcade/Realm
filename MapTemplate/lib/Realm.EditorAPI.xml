@@ -145,6 +145,35 @@
             Visual shader script asset.
             </summary>
         </member>
+        <member name="T:Realm.EditorAPI.AssetTypeExtensions">
+            <summary>
+            Provides extension and utility methods for parsing and converting <see cref="T:Realm.EditorAPI.AssetType"/> values.
+            </summary>
+        </member>
+        <member name="M:Realm.EditorAPI.AssetTypeExtensions.ToCanonicalString(Realm.EditorAPI.AssetType)">
+            <summary>
+            Converts the asset type to its canonical string representation used in metadata JSON.
+            </summary>
+            <param name="assetType">The asset classification type.</param>
+            <returns>The canonical string matching asset metadata specifications.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.AssetTypeExtensions.TryParse(System.String,Realm.EditorAPI.AssetType@)">
+            <summary>
+            Attempts to parse a raw string representation into an <see cref="T:Realm.EditorAPI.AssetType"/> enum value.
+            Handles standard names, lowercase, underscores, and normalized variants.
+            </summary>
+            <param name="raw">The raw string to parse.</param>
+            <param name="assetType">When this method returns, contains the parsed asset type if successful; otherwise default.</param>
+            <returns><see langword="true"/> if successfully parsed; otherwise <see langword="false"/>.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.AssetTypeExtensions.Parse(System.String,Realm.EditorAPI.AssetType)">
+            <summary>
+            Parses a raw string representation into an <see cref="T:Realm.EditorAPI.AssetType"/> enum value, returning a fallback if parsing fails.
+            </summary>
+            <param name="raw">The raw string to parse.</param>
+            <param name="fallback">The fallback value to return if parsing fails.</param>
+            <returns>The parsed <see cref="T:Realm.EditorAPI.AssetType"/> or the specified fallback value.</returns>
+        </member>
         <member name="T:Realm.EditorAPI.IEditorAPI">
             <summary>
             Provides domain service capabilities for map editing operations.

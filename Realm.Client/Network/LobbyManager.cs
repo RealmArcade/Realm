@@ -2208,7 +2208,7 @@ public partial class LobbyManager : Node
 		}
 		else
 		{
-			GetTree().ChangeSceneToFile("res://GameHostView.tscn");
+			GetTree().ChangeSceneToFile("res://GameHost.tscn");
 		}
 	}
 
@@ -2749,7 +2749,7 @@ public partial class LobbyManager : Node
 		IsGameStarted = true;
 		GameSessionStartTime = DateTime.UtcNow;
 
-		GetTree().ChangeSceneToFile("res://GameHostView.tscn");
+		GetTree().ChangeSceneToFile("res://GameHost.tscn");
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

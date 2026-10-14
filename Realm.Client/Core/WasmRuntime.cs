@@ -76,7 +76,12 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
 			_store = new Store(_engine);
 
 			string userDir = ProjectSettings.GlobalizePath("user://");
-			_wasiLogPath = Path.Combine(userDir, $"wasm_{Guid.NewGuid():N}.log");
+			string wasmLogsDir = Path.Combine(userDir, "wasm_logs");
+			if (!Directory.Exists(wasmLogsDir))
+			{
+				Directory.CreateDirectory(wasmLogsDir);
+			}
+			_wasiLogPath = Path.Combine(wasmLogsDir, $"wasm_{Guid.NewGuid():N}.log");
 
 			var wasiConfig = new WasiConfiguration();
 			wasiConfig.WithStandardOutput(_wasiLogPath);

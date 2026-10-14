@@ -35,6 +35,8 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private List<ProceduralBombingVfxRule> _vfxRules = new();
 
 	private TerrainTextureSnapshot _initialSnapshot;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 	private Action<JsonObject> _onApplied;
 
 	private Label _lblObjectTypePrefix;
@@ -1076,6 +1078,10 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules.Select(r => r.Clone())),
 			VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules.Select(r => r.Clone()))
 		};
+
+		string targetId = !string.IsNullOrEmpty(_textureFileName) ? _textureFileName : $"{_objectType}/{_slug}";
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
 	}
 
 	private void ApplyValuesToUIControls()
@@ -1265,6 +1271,19 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
+		string targetId = !string.IsNullOrEmpty(_textureFileName) ? _textureFileName : $"{_objectType}/{_slug}";
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
+
 		if (_initialSnapshot != null)
 		{
 			_brightness = _initialSnapshot.Brightness;
@@ -1290,9 +1309,6 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			{
 				foreach (var r in _initialSnapshot.VfxBombingRules) _vfxRules.Add(r.Clone());
 			}
-
-			string targetId = !string.IsNullOrEmpty(_textureFileName) ? _textureFileName : $"{_objectType}/{_slug}";
-			SaveTextureToMetadata(targetId);
 
 			if (_optTileMode != null) _optTileMode.Selected = _tileMode == "Stochastic" ? 1 : 0;
 			UpdateTileModeVisibility();

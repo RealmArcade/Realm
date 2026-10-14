@@ -404,10 +404,59 @@ public class AssetIndexService : IDisposable
 
 	private static void PopulateCasSidecar(string blake3, string casSidecarPath, string mapSidecarPath, string mapFlatSidecarPath, string? casFilePath, string mapFilePath, ContentAddressableStorage cas)
 	{
-		if (TryCopyExistingSidecar(casSidecarPath, mapSidecarPath)) return;
-		if (TryCopyExistingSidecar(casSidecarPath, mapFlatSidecarPath)) return;
+		if (TryCopyExistingSidecar(casSidecarPath, mapSidecarPath))
+		{
+			EnsureSidecarHasAssetType(blake3, casSidecarPath, casFilePath, mapFilePath, cas);
+			return;
+		}
+		if (TryCopyExistingSidecar(casSidecarPath, mapFlatSidecarPath))
+		{
+			EnsureSidecarHasAssetType(blake3, casSidecarPath, casFilePath, mapFilePath, cas);
+			return;
+		}
 
 		ExtractAndSaveCasSidecar(blake3, casFilePath, mapFilePath, cas);
+	}
+
+	private static void EnsureSidecarHasAssetType(string blake3, string casSidecarPath, string? casFilePath, string mapFilePath, ContentAddressableStorage cas)
+	{
+		try
+		{
+			if (File.Exists(casSidecarPath))
+			{
+				string existingJson = File.ReadAllText(casSidecarPath);
+				if (JsonNode.Parse(existingJson) is JsonObject obj)
+				{
+					if (obj.ContainsKey("asset_type"))
+					{
+						return;
+					}
+				}
+			}
+
+			string? assetForMetadata = casFilePath ?? (File.Exists(mapFilePath) ? mapFilePath : null);
+			if (assetForMetadata != null && File.Exists(assetForMetadata))
+			{
+				string? extractedMetadata = RealmMetadataHelper.ExtractMetadata(assetForMetadata);
+				if (!string.IsNullOrWhiteSpace(extractedMetadata))
+				{
+					if (File.Exists(casSidecarPath))
+					{
+						string currentSidecar = File.ReadAllText(casSidecarPath);
+						string merged = AuthorSignatureHelper.MergeMetadataHeaders(extractedMetadata, currentSidecar, false);
+						File.WriteAllText(casSidecarPath, merged);
+						cas.UpdateSidecarCache(blake3, merged);
+					}
+					else
+					{
+						cas.UpdateSidecarCache(blake3, extractedMetadata);
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
 	}
 
 	private static bool TryCopyExistingSidecar(string destPath, string srcPath)
@@ -845,8 +894,22 @@ public class AssetIndexService : IDisposable
 	private void UpdateExistingManifestAsset(IndexedAsset existingAsset, string virtualPath, string norm, string normPath, string mapName, string mapVersion, ContentAddressableStorage storage, string storageDirectory, List<IndexedAsset> assetsToUpdate)
 	{
 		bool needsUpdate = false;
-		string? existingMetaJson = storage.GetAssetMetadata(norm) ?? RealmMetadataHelper.ExtractMetadata(normPath);
+		string? existingMetaJson = storage.GetAssetMetadata(norm);
 		var parsed = ParseMetadataHeaders(existingMetaJson, virtualPath);
+
+		if (string.IsNullOrEmpty(parsed.AssetType) || parsed.Tags.Count == 0 || !parsed.SupportsTeamColor.HasValue)
+		{
+			string? diskMeta = RealmMetadataHelper.ExtractMetadata(normPath);
+			if (!string.IsNullOrEmpty(diskMeta))
+			{
+				var diskParsed = ParseMetadataHeaders(diskMeta, virtualPath);
+				if (string.IsNullOrEmpty(parsed.AssetType)) parsed.AssetType = diskParsed.AssetType;
+				if (parsed.Tags.Count == 0) parsed.Tags = diskParsed.Tags;
+				if (!parsed.SupportsTeamColor.HasValue) parsed.SupportsTeamColor = diskParsed.SupportsTeamColor;
+				if (string.IsNullOrEmpty(parsed.ChromaKey)) parsed.ChromaKey = diskParsed.ChromaKey;
+				if (string.IsNullOrEmpty(existingMetaJson)) existingMetaJson = diskMeta;
+			}
+		}
 
 		needsUpdate |= TryUpdateAssetType(existingAsset, virtualPath, parsed.AssetType, existingMetaJson);
 		needsUpdate |= TryUpdateAssetProperties(existingAsset, parsed.SupportsTeamColor, parsed.ChromaKey, existingMetaJson, normPath);
@@ -936,8 +999,23 @@ public class AssetIndexService : IDisposable
 		var fi = new FileInfo(normPath);
 		var asset = CreateBaseManifestAsset(virtualPath, norm, normPath, mapName, mapVersion, storageDirectory, fi);
 
-		string? metaJson = storage.GetAssetMetadata(norm) ?? RealmMetadataHelper.ExtractMetadata(normPath);
+		string? metaJson = storage.GetAssetMetadata(norm);
 		var parsedMeta = ParseMetadataHeaders(metaJson, virtualPath);
+
+		if (string.IsNullOrEmpty(parsedMeta.AssetType) || parsedMeta.Tags.Count == 0 || !parsedMeta.SupportsTeamColor.HasValue)
+		{
+			string? diskMeta = RealmMetadataHelper.ExtractMetadata(normPath);
+			if (!string.IsNullOrEmpty(diskMeta))
+			{
+				var diskParsed = ParseMetadataHeaders(diskMeta, virtualPath);
+				if (string.IsNullOrEmpty(parsedMeta.AssetType)) parsedMeta.AssetType = diskParsed.AssetType;
+				if (parsedMeta.Tags.Count == 0) parsedMeta.Tags = diskParsed.Tags;
+				if (!parsedMeta.SupportsTeamColor.HasValue) parsedMeta.SupportsTeamColor = diskParsed.SupportsTeamColor;
+				if (string.IsNullOrEmpty(parsedMeta.ChromaKey)) parsedMeta.ChromaKey = diskParsed.ChromaKey;
+				if (string.IsNullOrEmpty(metaJson)) metaJson = diskMeta;
+			}
+		}
+
 		var tags = BuildManifestAssetTags(manifest, virtualPath, normPath, storageDirectory, asset.FileName, parsedMeta.Tags);
 
 		string? assetType = ResolveFallbackAssetType(parsedMeta.AssetType, virtualPath, tags);
@@ -1556,10 +1634,7 @@ public class AssetIndexService : IDisposable
 
 	private string? ExtractAssetTypeFromJson(JsonObject obj, string normalizedFilePath)
 	{
-		string? typeVal = null;
-		if (obj.TryGetPropertyValue("asset_type", out var assetTypeNode)) typeVal = assetTypeNode?.ToString();
-		else if (obj.TryGetPropertyValue("AssetType", out var AssetTypeNodeUpper)) typeVal = AssetTypeNodeUpper?.ToString();
-		else if (obj.TryGetPropertyValue("default_asset_type", out var defaultAssetTypeNode)) typeVal = defaultAssetTypeNode?.ToString();
+		string? typeVal = obj["asset_type"]?.ToString();
 
 		if (!string.IsNullOrEmpty(typeVal) && RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, typeVal, out string canonical, out _))
 		{
@@ -1669,7 +1744,7 @@ public class AssetIndexService : IDisposable
 
 	private static string? ExtractAssetTypeFromMetadata(JsonObject obj, string filePath)
 	{
-		string? typeVal = obj["asset_type"]?.ToString() ?? obj["AssetType"]?.ToString() ?? obj["default_asset_type"]?.ToString();
+		string? typeVal = obj["asset_type"]?.ToString();
 		if (!string.IsNullOrEmpty(typeVal) && RealmMetadataHelper.IsValidAssetTypeForExtension(filePath, typeVal, out string canonical, out _))
 		{
 			return canonical;

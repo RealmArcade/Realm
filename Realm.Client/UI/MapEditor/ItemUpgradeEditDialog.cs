@@ -20,6 +20,8 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 	private string _initialName = "";
 	private string _initialIconPath = "";
 	private string _initialTooltip = "";
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 
 	private Action<string, string> _onAppliedCallback;
 
@@ -260,6 +262,10 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_initialIconPath = _iconPath;
 		_initialTooltip = _tooltip;
 
+		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
+
 		SetRandomizeAssetsAction(RandomizeAssets);
 
 		OpenDialog();
@@ -268,6 +274,41 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 	public void RandomizeAssets()
 	{
 		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
+		{
+			if (_category == "upgrades")
+			{
+				var existingUpgrade = meta.GetUpgrade(targetId);
+				if (existingUpgrade == null)
+				{
+					meta.AddOrUpdateUpgrade(new UpgradeMetadata
+					{
+						TemplateID = targetId,
+						Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
+						Description = _tooltip,
+						IconPath = _iconPath
+					});
+				}
+			}
+			else
+			{
+				var existingItem = meta.GetItem(targetId);
+				if (existingItem == null)
+				{
+					meta.AddOrUpdateItem(new ItemMetadata
+					{
+						TemplateID = targetId,
+						Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
+						Description = _tooltip,
+						IconPath = _iconPath,
+						ItemClass = "consumable"
+					});
+				}
+			}
+		});
+
 		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
 		LoadMetadataProperties();
@@ -282,19 +323,17 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_tooltip = _initialTooltip;
 
 		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
+		if (!string.IsNullOrEmpty(targetId))
 		{
-			if (_category == "upgrades")
+			if (_templateExistedInitially)
 			{
-				ApplyUpgradeMetadata(meta, targetId);
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
 			}
 			else
 			{
-				ApplyItemMetadata(meta, targetId);
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
 			}
-		});
+		}
 	}
 
 	private void InitializeState(string category, string templateId, Action<string, string> onApplied)

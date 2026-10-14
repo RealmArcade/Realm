@@ -86,6 +86,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private readonly Dictionary<ulong, DecalNodeState> _originalDecalStates = new();
 
 	private DecalSnapshot _initialSnapshot;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 	private Action<JsonObject> _onApplied;
 
 	private Label _lblDecalName;
@@ -879,9 +881,24 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	public void RandomizeAssets()
 	{
 		string targetId = !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
+		{
+			m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+			var (_, curSlug) = TemplateIDHelper.ParseTemplateID(targetId);
+			string lookupKey = m.Decals.ContainsKey(targetId) ? targetId : (!string.IsNullOrEmpty(curSlug) && m.Decals.ContainsKey(curSlug) ? curSlug : targetId);
+			if (!m.Decals.TryGetValue(lookupKey, out var existingDecal) || existingDecal == null)
+			{
+				m.Decals[lookupKey] = new Realm.Shared.Metadata.DecalMetadata
+				{
+					TexturePath = _texturePath
+				};
+			}
+		});
+
 		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var metadata = MapFileService.LoadMetadata(wsPath);
 		if (metadata?.Decals != null)
 		{
@@ -1028,6 +1045,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			UpperFade = _upperFade,
 			LowerFade = _lowerFade
 		};
+
+		string targetId = !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
 	}
 
 	private void SyncControlsWithValues()
@@ -1414,6 +1435,19 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
+		string targetId = !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
+
 		if (!TryRestoreOriginalStates())
 		{
 			RestoreInitialSnapshot();

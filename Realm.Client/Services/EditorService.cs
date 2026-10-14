@@ -493,9 +493,7 @@ public partial class EditorService : IEditorAPI
 
 	public string GetWorkspacePath()
 	{
-		return string.IsNullOrEmpty(_tempWorkspacePath)
-			? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath)
-			: _tempWorkspacePath;
+		return MapWorkspaceService.GetActiveWorkspacePath();
 	}
 
 	public void SaveCustomUnitAnimations(string unitId, Dictionary<string, List<UnitAnimationEntry>> animations)
@@ -809,9 +807,7 @@ public partial class EditorService : IEditorAPI
 
 	public string GetActiveWorkspacePathFromSettings()
 	{
-		return string.IsNullOrEmpty(_tempWorkspacePath)
-			? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath)
-			: _tempWorkspacePath;
+		return MapWorkspaceService.GetActiveWorkspacePath();
 	}
 
 	public void PopulateSwatchData(SwatchSlotInfo[] slots, string wsPath)

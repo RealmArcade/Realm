@@ -24,6 +24,8 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private int _initialRows = 4;
 	private float _initialFps = 20.0f;
 	private bool _initialSubframeBlend = true;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 
 	private Action<int, int, float, bool> _onApplied;
 	private Action<string, string, int, int, float, bool> _onAppliedWithTemplateIdAndRtex;
@@ -307,15 +309,43 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_initialRows = _rows;
 		_initialFps = _fps;
 		_initialSubframeBlend = _subframeBlend;
+
+		string targetId = !string.IsNullOrEmpty(_sheetFileName) ? _sheetFileName : $"{_objectType}/{_slug}";
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
 	}
 
 	public void RandomizeAssets()
 	{
 		string targetId = !string.IsNullOrEmpty(_sheetFileName) ? _sheetFileName : $"{_objectType}/{_slug}";
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
+		{
+			m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
+			var (_, curSlug) = TemplateIDHelper.ParseTemplateID(targetId);
+			string lookupKey = m.VfxSpritesheets.ContainsKey(targetId) ? targetId : (!string.IsNullOrEmpty(curSlug) && m.VfxSpritesheets.ContainsKey(curSlug) ? curSlug : targetId);
+			if (!m.VfxSpritesheets.TryGetValue(lookupKey, out var existingSs) || existingSs == null)
+			{
+				m.VfxSpritesheets[lookupKey] = new Realm.Shared.Metadata.VfxMetadata
+				{
+					Columns = _columns,
+					Rows = _rows,
+					Fps = _fps,
+					SubframeBlend = _subframeBlend,
+					TexturePath = _rtexAsset
+				};
+			}
+		});
+
 		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string reloadedRtex = GetRtexFromMetadata(wsPath, _sheetFileName, _slug);
+		if (string.IsNullOrEmpty(reloadedRtex))
+		{
+			reloadedRtex = GetRtexFromMetadata(wsPath, targetId, targetId);
+		}
+
 		if (!string.IsNullOrEmpty(reloadedRtex))
 		{
 			_rtexAsset = reloadedRtex;
@@ -334,20 +364,17 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_subframeBlend = _initialSubframeBlend;
 
 		string targetId = !string.IsNullOrEmpty(_sheetFileName) ? _sheetFileName : $"{_objectType}/{_slug}";
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
+		if (!string.IsNullOrEmpty(targetId))
 		{
-			m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-			m.VfxSpritesheets[targetId] = new Realm.Shared.Metadata.VfxMetadata
+			if (_templateExistedInitially)
 			{
-				Columns = _columns,
-				Rows = _rows,
-				Fps = _fps,
-				SubframeBlend = _subframeBlend,
-				TexturePath = _rtexAsset
-			};
-		});
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
 	}
 
 	public void OpenForSheet(string fileName, int initialCols, int initialRows, float initialFps, Action<int, int, float> onApplied)

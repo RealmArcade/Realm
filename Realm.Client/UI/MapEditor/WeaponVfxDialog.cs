@@ -92,6 +92,8 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	private WeaponMetadata _initialWeapon = new();
 	private WeaponMetadata _currentWeapon = new();
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 	private string _weaponId = "";
 	private string _slug = "";
 	private Label _lblObjectTypePrefix;
@@ -935,6 +937,10 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_onAppliedCallback = onApplied;
 		_isPlaybackPaused = false;
 
+		string targetId = !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
+
 		SetRandomizeAssetsAction(RandomizeAssets);
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Weapon VFX & Audio")} - {(!string.IsNullOrEmpty(weapon?.Name) ? weapon.Name : _weaponId)}";
@@ -947,12 +953,25 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	public void RandomizeAssets()
 	{
 		string targetId = !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
+		{
+			meta.Templates ??= new();
+			meta.Templates.Weapons ??= new();
+			var existingWeapon = meta.GetWeapon(targetId);
+			if (existingWeapon == null)
+			{
+				_currentWeapon.TemplateID = targetId;
+				meta.AddOrUpdateWeapon(_currentWeapon);
+			}
+		});
+
 		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Templates?.Weapons != null)
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var reloadedMeta) && reloadedMeta?.Templates?.Weapons != null)
 		{
-			var reloaded = meta.Templates.Weapons.FirstOrDefault(w => string.Equals(w.TemplateID, targetId, StringComparison.OrdinalIgnoreCase) || string.Equals(w.TemplateID, _weaponId, StringComparison.OrdinalIgnoreCase));
+			var reloaded = reloadedMeta.Templates.Weapons.FirstOrDefault(w => string.Equals(w.TemplateID, targetId, StringComparison.OrdinalIgnoreCase) || string.Equals(w.TemplateID, _weaponId, StringComparison.OrdinalIgnoreCase));
 			if (reloaded != null)
 			{
 				_currentWeapon = reloaded;
@@ -1290,17 +1309,28 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnCancel()
 	{
-		if (_initialWeapon != null)
+		string targetId = !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+		if (!string.IsNullOrEmpty(targetId))
 		{
-			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			GameContext.MetadataService.UpdateMetadata(wsPath, m =>
+			if (_templateExistedInitially)
 			{
-				m.AddOrUpdateWeapon(_initialWeapon);
-			});
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
 
-			if (GameHost.Instance != null && !string.IsNullOrEmpty(_initialWeapon.TemplateID))
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(targetId))
+		{
+			if (_initialWeapon != null)
 			{
-				GameHost.WeaponRegistry[_initialWeapon.TemplateID] = _initialWeapon;
+				GameHost.WeaponRegistry[targetId] = _initialWeapon;
+			}
+			else
+			{
+				GameHost.WeaponRegistry.Remove(targetId);
 			}
 		}
 

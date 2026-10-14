@@ -1054,9 +1054,8 @@ public static class TextureConverter
 			var node = JsonNode.Parse(meta);
 			if (node == null) return;
 
-			string? metaType = node["type"]?.GetValue<string>()
-			                   ?? node["asset_type"]?.GetValue<string>()
-			                   ?? node["AssetType"]?.GetValue<string>();
+			string? metaType = node["asset_type"]?.GetValue<string>()
+			                   ?? node["type"]?.GetValue<string>();
 
 			if (!string.IsNullOrEmpty(metaType))
 			{

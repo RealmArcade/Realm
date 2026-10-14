@@ -1,12 +1,12 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" uid="uid://lrp0uicnbcfw" path="res://UI/UIManager.cs" id="1_script"]
-[ext_resource type="PackedScene" path="res://UI/MainMenuView.tscn" id="2_menu"]
-[ext_resource type="PackedScene" path="res://UI/LobbyBrowserView.tscn" id="3_browser"]
-[ext_resource type="PackedScene" path="res://UI/LobbyRoomView.tscn" id="4_room"]
-[ext_resource type="PackedScene" path="res://UI/SettingsMenuView.tscn" id="5_settings"]
-[ext_resource type="PackedScene" path="res://UI/InGameHUDView.tscn" id="6_hud"]
-[ext_resource type="PackedScene" path="res://UI/GameOverView.tscn" id="7_gameover"]
+[ext_resource type="PackedScene" path="res://UI/MainMenu.tscn" id="2_menu"]
+[ext_resource type="PackedScene" path="res://UI/LobbyBrowser.tscn" id="3_browser"]
+[ext_resource type="PackedScene" path="res://UI/LobbyRoom.tscn" id="4_room"]
+[ext_resource type="PackedScene" path="res://UI/SettingsMenu.tscn" id="5_settings"]
+[ext_resource type="PackedScene" path="res://UI/InGameHUD.tscn" id="6_hud"]
+[ext_resource type="PackedScene" path="res://UI/GameOver.tscn" id="7_gameover"]
 
 [node name="UIManager" type="Control"]
 layout_mode = 3
