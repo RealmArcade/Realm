@@ -2646,20 +2646,33 @@ namespace Realm.Client.UI
 				File.WriteAllText(manifestJsonPath, manifestJsonContent);
 				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
-				var hashToRelativePath = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-				foreach (var pair in manifest.Files)
-				{
-					string norm = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
-					hashToRelativePath[norm] = pair.Key;
-					hashToRelativePath[pair.Value] = pair.Key;
-				}
-
 				byte[] manifestBytes = Encoding.UTF8.GetBytes(manifestJsonContent);
 				string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
 				string manifestHash = $"{manifestBlake3}.json";
 				byte[] manifestHashBytes = Encoding.UTF8.GetBytes(manifestHash);
 				byte[] manifestSigBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, manifestHashBytes);
 				string manifestSigBase64 = Convert.ToBase64String(manifestSigBytes);
+
+				MapAssetManager.Storage.StoreAsset(manifestBytes, ".json", null, pubKeyBase64, manifestSigBase64, precomputedBlake3: manifestBlake3);
+
+				var hashToRelativePath = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+				foreach (var pair in manifest.Files)
+				{
+					string norm = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
+					hashToRelativePath[norm] = pair.Key;
+					hashToRelativePath[pair.Value] = pair.Key;
+
+					string localPath = Path.Combine(workspace, pair.Key);
+					if (File.Exists(localPath))
+					{
+						byte[] fileBytes = File.ReadAllBytes(localPath);
+						string ext = Path.GetExtension(localPath).ToLowerInvariant();
+						MapAssetManager.Storage.StoreAsset(fileBytes, ext, null, pubKeyBase64, null, precomputedBlake3: norm);
+					}
+				}
+
+				hashToRelativePath[manifestBlake3] = "manifest.json";
+				hashToRelativePath[manifestHash] = "manifest.json";
 
 				var distClient = new DistributionClient(seedServerUrl);
 

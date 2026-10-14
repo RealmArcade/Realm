@@ -1352,6 +1352,10 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 		string defaultManifestPath = Path.Combine(manifestDir, $"{mapTitle}_manifest.json");
 		File.WriteAllText(defaultManifestPath, manifestJson);
 
+		byte[] manifestBytes = Encoding.UTF8.GetBytes(manifestJson);
+		string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
+		cas.StoreAsset(manifestBytes, ".json", null, publicKey, signature, precomputedBlake3: manifestBlake3);
+
 		db.Upsert("published_maps", compositeKey, mapDoc);
 
 		var pubEvent = new ClusterEventDto
@@ -1535,6 +1539,10 @@ app.MapPost("/api/publish_map", (PublishMapRequest req, DataStoreService db, Con
 		File.WriteAllText(manifestPath, jsonToProcess);
 		string defaultManifestPath = Path.Combine(manifestDir, $"{mapTitle}_manifest.json");
 		File.WriteAllText(defaultManifestPath, jsonToProcess);
+
+		byte[] manifestBytes = Encoding.UTF8.GetBytes(jsonToProcess);
+		string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
+		cas.StoreAsset(manifestBytes, ".json", null, req.PublicKey, req.Signature, precomputedBlake3: manifestBlake3);
 
 		db.Upsert("published_maps", compositeKey, mapDoc);
 
