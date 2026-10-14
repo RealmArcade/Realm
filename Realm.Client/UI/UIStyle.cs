@@ -1,3 +1,4 @@
+using System;
 ﻿using Godot;
 
 namespace Realm.Client.UI;
@@ -1172,6 +1173,36 @@ public static class UIStyle
 		vbox.AddChild(okBtn);
 
 		return warningPopup;
+	}
+
+	public static void SetupAssetGridContainer(Control parentContainer, out ScrollContainer scrollContainer, out Control virtualGridContent, out Label lblEmptyState, Action updateVisibleGridCells, Action updateVirtualGridSize, string emptyStateText, float minHeight = 320f)
+	{
+		var gridPanel = new PanelContainer();
+		gridPanel.CustomMinimumSize = new Vector2(0, minHeight);
+		gridPanel.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		gridPanel.AddThemeStyleboxOverride("panel", CreateLightInnerPanel());
+		parentContainer.AddChild(gridPanel);
+
+		scrollContainer = new ScrollContainer();
+		scrollContainer.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		scrollContainer.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		scrollContainer.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+		gridPanel.AddChild(scrollContainer);
+
+		virtualGridContent = new Control();
+		virtualGridContent.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		virtualGridContent.MouseFilter = Control.MouseFilterEnum.Pass;
+		scrollContainer.AddChild(virtualGridContent);
+
+		lblEmptyState = new Label();
+		SetupEmptyStateAndScrollEvents(
+			lblEmptyState, 
+			gridPanel, 
+			scrollContainer, 
+			emptyStateText, 
+			updateVisibleGridCells, 
+			updateVirtualGridSize);
 	}
 
 	public static void CreateMapEditorRandomButtonStyle(Button btn)

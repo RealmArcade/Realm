@@ -2699,6 +2699,17 @@ namespace Realm.Client.Core
 			RebuildCoordinateMeshInstance(_coordinatePreviewMesh, minX, minZ, maxX, maxZ, new Color(0.1f, 1.0f, 0.3f, 0.4f));
 		}
 
+		public void GetCoordinateBounds(EditorCoordinate coord, out int minX, out int minZ, out int maxX, out int maxZ)
+		{
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			float quadSize = GroundTerrain.QuadSize;
+			minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+			minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+			maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+			maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
+		}
+
 		public void DeleteCoordinateExternal(string coordinateName)
 		{
 			var oldCoordinates = new List<EditorCoordinate>(GameContext.EditorService.EditorCoordinates);
@@ -2739,16 +2750,9 @@ namespace Realm.Client.Core
 
 			if (GroundTerrain == null || GroundTerrain.Cells == null) return;
 
-			int width = GroundTerrain.Width;
-			int depth = GroundTerrain.Depth;
-			float quadSize = GroundTerrain.QuadSize;
-
 			foreach (var coord in GameContext.EditorService.EditorCoordinates)
 			{
-				int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
-				int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
-				int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
-				int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
+				GetCoordinateBounds(coord, out int minX, out int minZ, out int maxX, out int maxZ);
 
 				var meshInst = new MeshInstance3D();
 				meshInst.Name = $"Coordinate_{coord.Name}";

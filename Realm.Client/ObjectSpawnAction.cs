@@ -53,21 +53,27 @@ public class ObjectSpawnAction : IEditorAction
 
 	public void Redo()
 	{
-		if (_objectType == "unit")
+		_spawnedNode = SpawnEditorObject(_objectType, _objectId, _position, _rotationY, _rotationDegrees, _scale, _isEnemy, _player);
+	}
+
+	public static Node SpawnEditorObject(string objectType, string objectId, Vector3 position, float rotationY, Vector3 rotationDegrees, float scale, bool isEnemy, int player)
+	{
+		if (objectType == "unit")
 		{
-			_spawnedNode = GameHost.Instance?.SpawnUnitExternal(_objectId, _position, _isEnemy, _rotationY, _scale, _player);
+			return GameHost.Instance?.SpawnUnitExternal(objectId, position, isEnemy, rotationY, scale, player);
 		}
-		else if (_objectType == "prop")
+		else if (objectType == "prop")
 		{
-			_spawnedNode = GameHost.Instance?.SpawnPropExternalWithParams(_objectId, _position, _rotationY, _scale);
+			return GameHost.Instance?.SpawnPropExternalWithParams(objectId, position, rotationY, scale);
 		}
-		else if (_objectType == "decal")
+		else if (objectType == "decal")
 		{
-			_spawnedNode = GameHost.Instance?.SpawnDecalExternalWithParams(_objectId, _position, _rotationDegrees, _scale);
+			return GameHost.Instance?.SpawnDecalExternalWithParams(objectId, position, rotationDegrees, scale);
 		}
-		else if (_objectType == "vfx")
+		else if (objectType == "vfx")
 		{
-			_spawnedNode = GameHost.Instance?.SpawnVfxExternalWithParams(_objectId, _position, _rotationDegrees, Vector3.One * (_scale <= 0f ? 1.0f : _scale));
+			return GameHost.Instance?.SpawnVfxExternalWithParams(objectId, position, rotationDegrees, Vector3.One * (scale <= 0f ? 1.0f : scale));
 		}
+		return null;
 	}
 }

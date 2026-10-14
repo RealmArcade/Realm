@@ -224,32 +224,15 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		BodyContainer.AddChild(actionsRow);
 
 		// 3. SCROLLABLE ASSET GRID (Extra Large Icons)
-		var gridPanel = new PanelContainer();
-		gridPanel.CustomMinimumSize = new Vector2(0, 360);
-		gridPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
-		gridPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		BodyContainer.AddChild(gridPanel);
-
-		_scrollContainer = new ScrollContainer();
-		_scrollContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_scrollContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		_scrollContainer.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-		gridPanel.AddChild(_scrollContainer);
-
-		_virtualGridContent = new Control();
-		_virtualGridContent.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_virtualGridContent.MouseFilter = MouseFilterEnum.Pass;
-		_scrollContainer.AddChild(_virtualGridContent);
-
-		_lblEmptyState = new Label();
-		UIStyle.SetupEmptyStateAndScrollEvents(
-			_lblEmptyState, 
-			gridPanel, 
-			_scrollContainer, 
-			"No matching assets found in manifest.json.", 
+		UIStyle.SetupAssetGridContainer(
+			BodyContainer, 
+			out _scrollContainer, 
+			out _virtualGridContent, 
+			out _lblEmptyState, 
 			UpdateVisibleGridCells, 
-			UpdateVirtualGridSize);
+			UpdateVirtualGridSize, 
+			"No matching assets found in manifest.json.", 
+			360f);
 
 		// 4. FOOTER DETAILS PANEL
 		_footerPanel = new PanelContainer();

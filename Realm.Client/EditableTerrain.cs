@@ -82,14 +82,20 @@ public partial class EditableTerrain : RuntimeTerrain
 		_material.SetShaderParameter("pathing_texture", tex);
 	}
 
-	public override void ResizeTerrain(int newWidth, int newDepth)
+	protected bool PrepareTerrainResize(ref int newWidth, ref int newDepth)
 	{
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
-		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
+		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return false;
+		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return false;
 
 		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 
+		return true;
+	}
+
+	public override void ResizeTerrain(int newWidth, int newDepth)
+	{
+		if (!PrepareTerrainResize(ref newWidth, ref newDepth)) return;
 		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		int oldWidth = state.Width;
@@ -314,12 +320,7 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	public override void ScaleTerrainData(int newWidth, int newDepth)
 	{
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
-		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
-
-		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
-		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
-
+		if (!PrepareTerrainResize(ref newWidth, ref newDepth)) return;
 		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		int oldWidth = state.Width;
@@ -367,12 +368,7 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
 	{
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
-		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
-
-		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
-		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
-
+		if (!PrepareTerrainResize(ref newWidth, ref newDepth)) return;
 		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		TerrainCell[,] clonedCells = cells != null ? (TerrainCell[,])cells.Clone() : new TerrainCell[newWidth, newDepth];
@@ -398,12 +394,7 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
 	{
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
-		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
-
-		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
-		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
-
+		if (!PrepareTerrainResize(ref newWidth, ref newDepth)) return;
 		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		float[,] clonedSource = (float[,])heights.Clone();

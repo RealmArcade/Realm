@@ -4772,10 +4772,10 @@ public partial class EditorService : IEditorAPI
 		_terrainProceduralObjects.Remove(key);
 	}
 
-	private void ProcessWaterDecalRules(WaterProfileSaveData prof, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
+	private void ProcessDecalBombingRules(List<ProceduralBombingDecalRule> rules, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
 	{
-		if (prof.DecalBombingRules == null || prof.DecalBombingRules.Count == 0) return;
-		foreach (var rule in prof.DecalBombingRules)
+		if (rules == null || rules.Count == 0) return;
+		foreach (var rule in rules)
 		{
 			if (string.IsNullOrWhiteSpace(rule.DecalId)) continue;
 			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
@@ -4789,10 +4789,10 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	private void ProcessWaterVfxRules(WaterProfileSaveData prof, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
+	private void ProcessVfxBombingRules(List<ProceduralBombingVfxRule> rules, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
 	{
-		if (prof.VfxBombingRules == null || prof.VfxBombingRules.Count == 0) return;
-		foreach (var rule in prof.VfxBombingRules)
+		if (rules == null || rules.Count == 0) return;
+		foreach (var rule in rules)
 		{
 			if (string.IsNullOrWhiteSpace(rule.VfxId)) continue;
 			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
@@ -4817,8 +4817,8 @@ public partial class EditorService : IEditorAPI
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
 		var spawnedList = new List<Node>();
 
-		ProcessWaterDecalRules(prof, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList);
-		ProcessWaterVfxRules(prof, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList);
+		ProcessDecalBombingRules(prof.DecalBombingRules, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList);
+		ProcessVfxBombingRules(prof.VfxBombingRules, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList);
 
 		if (spawnedList.Count > 0)
 		{
@@ -4848,41 +4848,8 @@ public partial class EditorService : IEditorAPI
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
 		var spawnedList = new List<Node>();
 
-		if (prof.DecalBombingRules != null && prof.DecalBombingRules.Count > 0)
-		{
-			foreach (var rule in prof.DecalBombingRules)
-			{
-				if (string.IsNullOrWhiteSpace(rule.DecalId)) continue;
-				if (Random.Shared.NextSingle() <= (rule.Density * 0.05f))
-				{
-					float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-					float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-					float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-					float rotY = Random.Shared.NextSingle() * 360f;
-					var pos = new Godot.Vector3(cellCenterX + jx, terrainY, cellCenterZ + jz);
-					var decal = GameHost.Instance?.SpawnDecalExternalWithParams(rule.DecalId, pos, new Godot.Vector3(0, rotY, 0), scale);
-					if (decal != null) spawnedList.Add(decal);
-				}
-			}
-		}
-
-		if (prof.VfxBombingRules != null && prof.VfxBombingRules.Count > 0)
-		{
-			foreach (var rule in prof.VfxBombingRules)
-			{
-				if (string.IsNullOrWhiteSpace(rule.VfxId)) continue;
-				if (Random.Shared.NextSingle() <= (rule.Density * 0.05f))
-				{
-					float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-					float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-					float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-					float rotY = Random.Shared.NextSingle() * 360f;
-					var pos = new Godot.Vector3(cellCenterX + jx, terrainY, cellCenterZ + jz);
-					var vfx = GameHost.Instance?.SpawnVfxExternalWithParams(rule.VfxId, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
-					if (vfx != null) spawnedList.Add(vfx);
-				}
-			}
-		}
+		ProcessDecalBombingRules(prof.DecalBombingRules, quadSize, cellCenterX, terrainY, cellCenterZ, spawnedList);
+		ProcessVfxBombingRules(prof.VfxBombingRules, quadSize, cellCenterX, terrainY, cellCenterZ, spawnedList);
 
 		if (spawnedList.Count > 0)
 		{

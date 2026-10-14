@@ -37,22 +37,7 @@ public class ObjectDeleteAction : IEditorAction
 
 	public void Undo()
 	{
-		if (_objectType == "unit")
-		{
-			_spawnedNode = GameHost.Instance?.SpawnUnitExternal(_objectId, _position, _isEnemy, _rotationY, _scale, _player);
-		}
-		else if (_objectType == "prop")
-		{
-			_spawnedNode = GameHost.Instance?.SpawnPropExternalWithParams(_objectId, _position, _rotationY, _scale);
-		}
-		else if (_objectType == "decal")
-		{
-			_spawnedNode = GameHost.Instance?.SpawnDecalExternalWithParams(_objectId, _position, _rotationDegrees, _scale);
-		}
-		else if (_objectType == "vfx")
-		{
-			_spawnedNode = GameHost.Instance?.SpawnVfxExternalWithParams(_objectId, _position, _rotationDegrees, Vector3.One * (_scale <= 0f ? 1.0f : _scale));
-		}
+		_spawnedNode = ObjectSpawnAction.SpawnEditorObject(_objectType, _objectId, _position, _rotationY, _rotationDegrees, _scale, _isEnemy, _player);
 	}
 
 	public void Redo()

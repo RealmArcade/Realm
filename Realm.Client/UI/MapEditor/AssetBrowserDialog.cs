@@ -216,32 +216,15 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_lblFilterExtensions.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		infoBar.AddChild(_lblFilterExtensions);
 
-		var gridPanel = new PanelContainer();
-		gridPanel.CustomMinimumSize = new Vector2(0, 320);
-		gridPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
-		gridPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		BodyContainer.AddChild(gridPanel);
-
-		_scrollContainer = new ScrollContainer();
-		_scrollContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_scrollContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		_scrollContainer.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-		gridPanel.AddChild(_scrollContainer);
-
-		_virtualGridContent = new Control();
-		_virtualGridContent.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_virtualGridContent.MouseFilter = MouseFilterEnum.Pass;
-		_scrollContainer.AddChild(_virtualGridContent);
-
-		_lblEmptyState = new Label();
-		UIStyle.SetupEmptyStateAndScrollEvents(
-			_lblEmptyState, 
-			gridPanel, 
-			_scrollContainer, 
-			"No assets found matching the search criteria.\nClick '+ Add Folder' above to index directories.", 
+		UIStyle.SetupAssetGridContainer(
+			BodyContainer, 
+			out _scrollContainer, 
+			out _virtualGridContent, 
+			out _lblEmptyState, 
 			UpdateVisibleGridCells, 
-			UpdateVirtualGridSize);
+			UpdateVirtualGridSize, 
+			"No assets found matching the search criteria.\nClick '+ Add Folder' above to index directories.", 
+			320f);
 
 		_bottomDetailsPanel = new PanelContainer();
 		_bottomDetailsPanel.CustomMinimumSize = new Vector2(0, 60);

@@ -75,17 +75,32 @@ public partial class RuntimeTerrain : StaticBody3D
 		return new TerrainState(128, 128, DefaultQuadSize, DefaultCellSize, (TerrainCell[,])null, null, null, null);
 	}
 
+	internal void UpdateEcsTerrainState(TerrainCell[,] cells = null, int[,] pathingCodes = null, float? newCellSize = null, int? newWidth = null, int? newDepth = null)
+	{
+		if (GameHost.Instance != null &&
+		    GameContext.World != null &&
+		    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
+		    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		{
+			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			
+			int targetWidth = newWidth ?? (cells != null ? cells.GetLength(0) : (pathingCodes != null ? pathingCodes.GetLength(0) : state.Width));
+			int targetDepth = newDepth ?? (cells != null ? cells.GetLength(1) : (pathingCodes != null ? pathingCodes.GetLength(1) : state.Depth));
+			float targetCellSize = newCellSize ?? state.CellSize;
+			var targetCells = cells ?? state.Cells;
+			var targetPathingCodes = pathingCodes ?? state.PathingCodes;
+
+			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+				targetWidth, targetDepth, state.QuadSize, targetCellSize,
+				targetCells, targetPathingCodes, state.NavMesh, state.NavMeshQuery
+			));
+		}
+	}
+
 	public float CellSize
 	{
 		get => GetTerrainStateSafe().CellSize;
-		protected set
-		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-				state.Width, state.Depth, state.QuadSize, value,
-				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-			));
-		}
+		protected set => UpdateEcsTerrainState(newCellSize: value);
 	}
 
 	public DtNavMesh NavMesh => GetTerrainStateSafe().NavMesh;
@@ -94,27 +109,13 @@ public partial class RuntimeTerrain : StaticBody3D
 	public int Width
 	{
 		get => GetTerrainStateSafe().Width;
-		protected set
-		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-				value, state.Depth, state.QuadSize, state.CellSize,
-				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-			));
-		}
+		protected set => UpdateEcsTerrainState(newWidth: value);
 	}
 
 	public int Depth
 	{
 		get => GetTerrainStateSafe().Depth;
-		protected set
-		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-				state.Width, value, state.QuadSize, state.CellSize,
-				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-			));
-		}
+		protected set => UpdateEcsTerrainState(newDepth: value);
 	}
 
 	public float QuadSize
@@ -456,19 +457,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		set
 		{
 			_localCells = value;
-			if (GameHost.Instance != null &&
-			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
-			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-				int targetWidth = value != null ? value.GetLength(0) : state.Width;
-				int targetDepth = value != null ? value.GetLength(1) : state.Depth;
-				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-					targetWidth, targetDepth, state.QuadSize, state.CellSize,
-					value, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-				));
-			}
+			UpdateEcsTerrainState(cells: value);
 		}
 	}
 
@@ -554,19 +543,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		set
 		{
 			_localPathingCodes = value;
-			if (GameHost.Instance != null &&
-			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
-			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-				int targetWidth = value != null ? value.GetLength(0) : state.Width;
-				int targetDepth = value != null ? value.GetLength(1) : state.Depth;
-				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-					targetWidth, targetDepth, state.QuadSize, state.CellSize,
-					state.Cells, value, state.NavMesh, state.NavMeshQuery
-				));
-			}
+			UpdateEcsTerrainState(pathingCodes: value);
 		}
 	}
 
@@ -2208,7 +2185,7 @@ void fragment() {
 		UpdateEcsTerrainSwatchConfig(targetIndex, heightScale, heightOffset, crevicePower, normalScale);
 	}
 
-	private void UpdateLiveSwatchOverrides(string cleanName, string tileMode, float uvScale, float stochasticTileSize, float crossFade, float? brightness, string? tintStr, float heightScale, float heightOffset, float crevicePower, float normalScale, float roughnessScale)
+	private (Vector4 Params, Vector4 HeightParams) ParseSwatchParams(string tileMode, float uvScale, float stochasticTileSize, float crossFade, float heightScale, float heightOffset, float crevicePower, float normalScale)
 	{
 		float tm = string.Equals(tileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0.0f : 1.0f;
 		float uv = Math.Clamp(uvScale, 0.1f, 4.0f);
@@ -2219,22 +2196,29 @@ void fragment() {
 		float ho = Math.Clamp(heightOffset, -1.0f, 1.0f);
 		float cp = Math.Clamp(crevicePower, 0.5f, 4.0f);
 		float ns = Math.Clamp(normalScale, 0.0f, 3.0f);
+
+		return (new Vector4(tm, uv, stoch, cf), new Vector4(hs, ho, cp, ns));
+	}
+
+	private void UpdateLiveSwatchOverrides(string cleanName, string tileMode, float uvScale, float stochasticTileSize, float crossFade, float? brightness, string? tintStr, float heightScale, float heightOffset, float crevicePower, float normalScale, float roughnessScale)
+	{
+		var (swatchParams, heightParams) = ParseSwatchParams(tileMode, uvScale, stochasticTileSize, crossFade, heightScale, heightOffset, crevicePower, normalScale);
 		float rs = Math.Clamp(roughnessScale, 0.1f, 3.0f);
 
 		Color? parsedTint = (!string.IsNullOrEmpty(tintStr) && Color.HtmlIsValid(tintStr)) ? Color.FromHtml(tintStr) : null;
 
 		_liveSwatchOverrides[cleanName] = new SwatchLiveConfig
 		{
-			TileMode = tm,
-			UvScale = uv,
-			StochasticTileSize = stoch,
-			CrossFade = cf,
+			TileMode = swatchParams.X,
+			UvScale = swatchParams.Y,
+			StochasticTileSize = swatchParams.Z,
+			CrossFade = swatchParams.W,
 			Brightness = brightness,
 			Tint = parsedTint,
-			HeightScale = hs,
-			HeightOffset = ho,
-			CrevicePower = cp,
-			NormalScale = ns,
+			HeightScale = heightParams.X,
+			HeightOffset = heightParams.Y,
+			CrevicePower = heightParams.Z,
+			NormalScale = heightParams.W,
 			RoughnessScale = rs
 		};
 	}
@@ -2254,18 +2238,10 @@ void fragment() {
 
 	private void ApplySwatchParams(int targetIndex, string cleanName, string tileMode, float uvScale, float stochasticTileSize, float crossFade, float heightScale, float heightOffset, float crevicePower, float normalScale)
 	{
-		float tm = string.Equals(tileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0.0f : 1.0f;
-		float uv = Math.Clamp(uvScale, 0.1f, 4.0f);
-		float stoch = Math.Clamp(stochasticTileSize, 0.5f, 3.0f);
-		float cf = Math.Clamp(crossFade, 0.0f, 10.0f) * 0.01f;
+		var (swatchParams, heightParams) = ParseSwatchParams(tileMode, uvScale, stochasticTileSize, crossFade, heightScale, heightOffset, crevicePower, normalScale);
 
-		float hs = Math.Clamp(heightScale, 0.1f, 3.0f);
-		float ho = Math.Clamp(heightOffset, -1.0f, 1.0f);
-		float cp = Math.Clamp(crevicePower, 0.5f, 4.0f);
-		float ns = Math.Clamp(normalScale, 0.0f, 3.0f);
-
-		_swatchParamsCache[targetIndex] = new Vector4(tm, uv, stoch, cf);
-		_swatchHeightParamsCache[targetIndex] = new Vector4(hs, ho, cp, ns);
+		_swatchParamsCache[targetIndex] = swatchParams;
+		_swatchHeightParamsCache[targetIndex] = heightParams;
 
 		_material.SetShaderParameter("swatch_params", _swatchParamsCache);
 		_material.SetShaderParameter("swatch_height_params", _swatchHeightParamsCache);
