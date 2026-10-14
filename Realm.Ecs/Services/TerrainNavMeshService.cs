@@ -172,22 +172,7 @@ public class TerrainNavMeshService
 			}
 		}
 	}
-	public void CarveObstacle(ref TerrainState state, Vector3 pos, float radius)
-	{
-		if (state.NavMesh == null) return;
-		int width = state.Width;
-		int depth = state.Depth;
-		float quadSize = state.QuadSize;
-
-		CalculateCarveBounds(width, depth, quadSize, pos, radius, radius, out int minX, out int maxX, out int minZ, out int maxZ);
-
-		ApplyPathingGrid(ref state, pos, radius, radius, minX, maxX, minZ, maxZ, width, depth, quadSize, true, false);
-		ApplyNavMeshTiles(ref state, pos, radius, radius, width, depth, quadSize, true, false);
-
-		InvalidateIntersectingPaths(pos, radius + quadSize * 1.5f);
-	}
-
-	public void CarveObstacleBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth)
+	private void ProcessObstacle(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, bool isCircle, bool isUncarve)
 	{
 		if (state.NavMesh == null) return;
 		int width = state.Width;
@@ -196,11 +181,22 @@ public class TerrainNavMeshService
 
 		CalculateCarveBounds(width, depth, quadSize, pos, halfWidth, halfDepth, out int minX, out int maxX, out int minZ, out int maxZ);
 
-		ApplyPathingGrid(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize, false, false);
-		ApplyNavMeshTiles(ref state, pos, halfWidth, halfDepth, width, depth, quadSize, false, false);
+		ApplyPathingGrid(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize, isCircle, isUncarve);
+		ApplyNavMeshTiles(ref state, pos, halfWidth, halfDepth, width, depth, quadSize, isCircle, isUncarve);
 
 		float maxDim = Math.Max(halfWidth, halfDepth);
-		InvalidateIntersectingPaths(pos, maxDim + quadSize * 1.5f);
+		float padding = isUncarve ? 2f : 1.5f;
+		InvalidateIntersectingPaths(pos, maxDim + quadSize * padding);
+	}
+
+	public void CarveObstacle(ref TerrainState state, Vector3 pos, float radius)
+	{
+		ProcessObstacle(ref state, pos, radius, radius, true, false);
+	}
+
+	public void CarveObstacleBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth)
+	{
+		ProcessObstacle(ref state, pos, halfWidth, halfDepth, false, false);
 	}
 
 
@@ -226,33 +222,12 @@ public class TerrainNavMeshService
 
 	public void UncarveObstacle(ref TerrainState state, Vector3 pos, float radius)
 	{
-		if (state.NavMesh == null) return;
-		int width = state.Width;
-		int depth = state.Depth;
-		float quadSize = state.QuadSize;
-
-		CalculateCarveBounds(width, depth, quadSize, pos, radius, radius, out int minX, out int maxX, out int minZ, out int maxZ);
-
-		ApplyPathingGrid(ref state, pos, radius, radius, minX, maxX, minZ, maxZ, width, depth, quadSize, true, true);
-		ApplyNavMeshTiles(ref state, pos, radius, radius, width, depth, quadSize, true, true);
-
-		InvalidateIntersectingPaths(pos, radius + quadSize * 2f);
+		ProcessObstacle(ref state, pos, radius, radius, true, true);
 	}
 
 	public void UncarveObstacleBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth)
 	{
-		if (state.NavMesh == null) return;
-		int width = state.Width;
-		int depth = state.Depth;
-		float quadSize = state.QuadSize;
-
-		CalculateCarveBounds(width, depth, quadSize, pos, halfWidth, halfDepth, out int minX, out int maxX, out int minZ, out int maxZ);
-
-		ApplyPathingGrid(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize, false, true);
-		ApplyNavMeshTiles(ref state, pos, halfWidth, halfDepth, width, depth, quadSize, false, true);
-
-		float maxDim = Math.Max(halfWidth, halfDepth);
-		InvalidateIntersectingPaths(pos, maxDim + quadSize * 2f);
+		ProcessObstacle(ref state, pos, halfWidth, halfDepth, false, true);
 	}
 
 
