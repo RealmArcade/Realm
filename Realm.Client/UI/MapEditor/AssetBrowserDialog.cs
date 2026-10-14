@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -235,22 +235,13 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_scrollContainer.AddChild(_virtualGridContent);
 
 		_lblEmptyState = new Label();
-		_lblEmptyState.Text = TranslationServer.Translate("No assets found matching the search criteria.\nClick '+ Add Folder' above to index directories.");
-		_lblEmptyState.HorizontalAlignment = HorizontalAlignment.Center;
-		_lblEmptyState.VerticalAlignment = VerticalAlignment.Center;
-		_lblEmptyState.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_lblEmptyState.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_lblEmptyState.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_lblEmptyState.AddThemeFontSizeOverride("font_size", 12);
-		_lblEmptyState.Visible = false;
-		gridPanel.AddChild(_lblEmptyState);
-
-		_scrollContainer.GetVScrollBar().ValueChanged += (_) => UpdateVisibleGridCells();
-		_scrollContainer.Resized += () =>
-		{
-			UpdateVirtualGridSize();
-			UpdateVisibleGridCells();
-		};
+		UIStyle.SetupEmptyStateAndScrollEvents(
+			_lblEmptyState, 
+			gridPanel, 
+			_scrollContainer, 
+			"No assets found matching the search criteria.\nClick '+ Add Folder' above to index directories.", 
+			UpdateVisibleGridCells, 
+			UpdateVirtualGridSize);
 
 		_bottomDetailsPanel = new PanelContainer();
 		_bottomDetailsPanel.CustomMinimumSize = new Vector2(0, 60);

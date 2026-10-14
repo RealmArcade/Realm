@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -243,22 +243,13 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_scrollContainer.AddChild(_virtualGridContent);
 
 		_lblEmptyState = new Label();
-		_lblEmptyState.Text = TranslationServer.Translate("No matching assets found in manifest.json.");
-		_lblEmptyState.HorizontalAlignment = HorizontalAlignment.Center;
-		_lblEmptyState.VerticalAlignment = VerticalAlignment.Center;
-		_lblEmptyState.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_lblEmptyState.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_lblEmptyState.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_lblEmptyState.AddThemeFontSizeOverride("font_size", 12);
-		_lblEmptyState.Visible = false;
-		gridPanel.AddChild(_lblEmptyState);
-
-		_scrollContainer.GetVScrollBar().ValueChanged += (_) => UpdateVisibleGridCells();
-		_scrollContainer.Resized += () =>
-		{
-			UpdateVirtualGridSize();
-			UpdateVisibleGridCells();
-		};
+		UIStyle.SetupEmptyStateAndScrollEvents(
+			_lblEmptyState, 
+			gridPanel, 
+			_scrollContainer, 
+			"No matching assets found in manifest.json.", 
+			UpdateVisibleGridCells, 
+			UpdateVirtualGridSize);
 
 		// 4. FOOTER DETAILS PANEL
 		_footerPanel = new PanelContainer();

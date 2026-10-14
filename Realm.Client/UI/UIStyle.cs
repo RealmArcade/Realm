@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 
 namespace Realm.Client.UI;
 
@@ -41,6 +41,33 @@ public static class UIStyle
 		var style = new StyleBoxTexture();
 		style.Texture = texture;
 		return style;
+	}
+
+	
+	public static void SetupEmptyStateAndScrollEvents(
+		Label emptyStateLabel,
+		Control gridPanel,
+		ScrollContainer scrollContainer,
+		string emptyStateText,
+		System.Action updateVisibleGridCells,
+		System.Action updateVirtualGridSize)
+	{
+		emptyStateLabel.Text = TranslationServer.Translate(emptyStateText);
+		emptyStateLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		emptyStateLabel.VerticalAlignment = VerticalAlignment.Center;
+		emptyStateLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		emptyStateLabel.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		emptyStateLabel.AddThemeColorOverride("font_color", ColorGoldDull);
+		emptyStateLabel.AddThemeFontSizeOverride("font_size", 12);
+		emptyStateLabel.Visible = false;
+		gridPanel.AddChild(emptyStateLabel);
+
+		scrollContainer.GetVScrollBar().ValueChanged += (_) => updateVisibleGridCells();
+		scrollContainer.Resized += () =>
+		{
+			updateVirtualGridSize();
+			updateVisibleGridCells();
+		};
 	}
 
 	public static StyleBox CreateBgGradient()
