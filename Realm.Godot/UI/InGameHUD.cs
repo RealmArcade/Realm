@@ -29,6 +29,7 @@ public partial class InGameHUD : Control
 
 	private PanelContainer _resourceContainer;
 	private PanelContainer _bottomConsole;
+	private TextureRect _consoleBackground;
 	private PanelContainer _minimapFrame;
 	private PanelContainer _portraitFrame;
 	private PanelContainer _selectionFrame;
@@ -277,6 +278,7 @@ public partial class InGameHUD : Control
 
 		_resourceContainer = GetNode<PanelContainer>("ResourceContainer");
 		_bottomConsole = GetNode<PanelContainer>("BottomConsole");
+		_consoleBackground = GetNodeOrNull<TextureRect>("BottomConsole/ConsoleBackground");
 		_minimapFrame = GetNode<PanelContainer>("BottomConsole/HBox/MinimapFrame");
 		_portraitFrame = GetNode<PanelContainer>("BottomConsole/HBox/PortraitFrame");
 		_selectionFrame = GetNode<PanelContainer>("BottomConsole/HBox/SelectionFrame");
@@ -350,10 +352,11 @@ public partial class InGameHUD : Control
 		{
 			var btn = new Button();
 			btn.Name = $"Unit{i + 1}";
-			btn.CustomMinimumSize = new Vector2(42, 42);
+			btn.CustomMinimumSize = new Vector2(36, 36);
 			btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			btn.ExpandIcon = true;
 			btn.FocusMode = FocusModeEnum.None;
+			btn.AddThemeConstantOverride("icon_max_width", 30);
 			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 			btn.AddThemeStyleboxOverride("hover",   UIStyle.CreateButtonHover());
 			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
@@ -361,7 +364,7 @@ public partial class InGameHUD : Control
 
 			var hpBar = new ProgressBar();
 			hpBar.Name = "HealthBar";
-			hpBar.CustomMinimumSize = new Vector2(50, 5);
+			hpBar.CustomMinimumSize = new Vector2(36, 4);
 			hpBar.ShowPercentage = false;
 			hpBar.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
 			hpBar.OffsetTop = -6;
@@ -396,17 +399,19 @@ public partial class InGameHUD : Control
 
 		_btnAttack = new Button();
 		_btnAttack.Name = "BtnAttack";
-		_btnAttack.CustomMinimumSize = new Vector2(44, 44);
+		_btnAttack.CustomMinimumSize = new Vector2(48, 48);
 		_btnAttack.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_btnAttack.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_btnAttack.FocusMode = FocusModeEnum.None;
+		_btnAttack.AddThemeConstantOverride("icon_max_width", 42);
 
 		_btnPatrol = new Button();
 		_btnPatrol.Name = "BtnPatrol";
-		_btnPatrol.CustomMinimumSize = new Vector2(44, 44);
+		_btnPatrol.CustomMinimumSize = new Vector2(48, 48);
 		_btnPatrol.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_btnPatrol.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_btnPatrol.FocusMode = FocusModeEnum.None;
+		_btnPatrol.AddThemeConstantOverride("icon_max_width", 42);
 
 		_btnVictory = GetNode<Button>("DevPanel/BtnVictory");
 		_btnDefeat = GetNode<Button>("DevPanel/BtnDefeat");
@@ -442,13 +447,20 @@ public partial class InGameHUD : Control
 		_cameraIndicator = GetNode<MinimapCameraIndicator>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
 
 		_minimapControls = new VBoxContainer();
-		_minimapControls.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-		_minimapControls.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		_minimapControls.AddThemeConstantOverride("separation", 3);
-		_minimapControls.CustomMinimumSize = new Vector2(40, 0);
-		var minimapHBox = GetNode<HBoxContainer>("BottomConsole/HBox");
-		minimapHBox.AddChild(_minimapControls);
-		minimapHBox.MoveChild(_minimapControls, 1);
+		_minimapControls.Alignment = BoxContainer.AlignmentMode.Center;
+		_minimapControls.AddThemeConstantOverride("separation", 2);
+		_minimapControls.AnchorLeft = 0.1773f;
+		_minimapControls.AnchorRight = 0.2660f;
+		_minimapControls.AnchorTop = 0.18f;
+		_minimapControls.AnchorBottom = 0.94f;
+		_minimapControls.OffsetLeft = 0;
+		_minimapControls.OffsetRight = 0;
+		_minimapControls.OffsetTop = 0;
+		_minimapControls.OffsetBottom = 0;
+		_minimapControls.GrowHorizontal = GrowDirection.Both;
+		_minimapControls.GrowVertical = GrowDirection.Both;
+		var slotsContainer = GetNode<Control>("BottomConsole/HBox");
+		slotsContainer.AddChild(_minimapControls);
 
 		_btnZoom = new Button();
 		SetupMinimapButton(_btnZoom, "res://Assets/UI/search_icon_clean.png", "Toggle Camera Zoom (Near / Mid / Far) [Z]", () => GameHost.Instance?.CycleCameraZoom());
@@ -676,6 +688,7 @@ public partial class InGameHUD : Control
 		}
 
 		Resized += OnHUDResized;
+		UpdateBottomConsoleHeight();
 		ApplyHUDScale();
 		UpdateFPSVisibility();
 		BuildHotkeyReferencePanel();
@@ -724,11 +737,110 @@ public partial class InGameHUD : Control
 
 	private void OnHUDResized()
 	{
+		UpdateBottomConsoleHeight();
 		ApplyHUDScale();
 		var specPanel = GetNodeOrNull<PanelContainer>("SpectatorPanel");
 		if (specPanel != null)
 		{
 			specPanel.Position = new Vector2((GetViewportRect().Size.X - 300) / 2.0f, 10);
+		}
+	}
+
+	private const float BaseConsoleHeight = 240f;
+
+	private void UpdateBottomConsoleHeight()
+	{
+		if (_bottomConsole != null)
+		{
+			float viewportWidth = GetViewportRect().Size.X;
+			if (viewportWidth <= 0f) viewportWidth = 1920f;
+			float proportionalHeight = viewportWidth * (BaseConsoleHeight / 1920f);
+
+			_bottomConsole.OffsetBottom = 0;
+			_bottomConsole.OffsetTop = -Mathf.Round(proportionalHeight);
+
+			if (_consoleBackground != null && _consoleBackground.Material is ShaderMaterial mat)
+			{
+				mat.SetShaderParameter("u_console_size", new Vector2(viewportWidth, proportionalHeight));
+			}
+
+			float s = proportionalHeight / 888f;
+			float wMinimap = 1140f * s;
+
+			if (_minimapFrame != null)
+			{
+				_minimapFrame.AnchorLeft = 0;
+				_minimapFrame.AnchorRight = 0;
+				_minimapFrame.AnchorTop = 0;
+				_minimapFrame.AnchorBottom = 0;
+				_minimapFrame.OffsetLeft = Mathf.Round(170f * s);
+				_minimapFrame.OffsetRight = Mathf.Round(785f * s);
+				_minimapFrame.OffsetTop = Mathf.Round(205f * s);
+				_minimapFrame.OffsetBottom = Mathf.Round(795f * s);
+			}
+
+			if (_minimapControls != null)
+			{
+				_minimapControls.AnchorLeft = 0;
+				_minimapControls.AnchorRight = 0;
+				_minimapControls.AnchorTop = 0;
+				_minimapControls.AnchorBottom = 0;
+				_minimapControls.OffsetLeft = Mathf.Round(900f * s);
+				_minimapControls.OffsetRight = Mathf.Round(1120f * s);
+				_minimapControls.OffsetTop = Mathf.Round(45f * s);
+				_minimapControls.OffsetBottom = Mathf.Round(225f * s);
+			}
+
+			float remX = viewportWidth - wMinimap;
+			float remTex = 4512f - 1140f;
+
+			if (_portraitFrame != null)
+			{
+				_portraitFrame.AnchorLeft = 0;
+				_portraitFrame.AnchorRight = 0;
+				_portraitFrame.OffsetLeft = Mathf.Round(wMinimap + (1250f - 1140f) * (remX / remTex));
+				_portraitFrame.OffsetRight = Mathf.Round(wMinimap + (1640f - 1140f) * (remX / remTex));
+				_portraitFrame.AnchorTop = 0.22f;
+				_portraitFrame.AnchorBottom = 0.95f;
+			}
+
+			if (_selectionFrame != null)
+			{
+				_selectionFrame.AnchorLeft = 0;
+				_selectionFrame.AnchorRight = 0;
+				_selectionFrame.OffsetLeft = Mathf.Round(wMinimap + (1680f - 1140f) * (remX / remTex));
+				_selectionFrame.OffsetRight = Mathf.Round(wMinimap + (2780f - 1140f) * (remX / remTex));
+				_selectionFrame.AnchorTop = 0.18f;
+				_selectionFrame.AnchorBottom = 0.92f;
+			}
+
+			var inventoryFrame = GetNodeOrNull<PanelContainer>("BottomConsole/HBox/InventoryFrame");
+			if (inventoryFrame != null)
+			{
+				inventoryFrame.AnchorLeft = 0;
+				inventoryFrame.AnchorRight = 0;
+				inventoryFrame.OffsetLeft = Mathf.Round(wMinimap + (2780f - 1140f) * (remX / remTex));
+				inventoryFrame.OffsetRight = Mathf.Round(wMinimap + (3450f - 1140f) * (remX / remTex));
+				inventoryFrame.AnchorTop = 0.36f;
+				inventoryFrame.AnchorBottom = 0.92f;
+			}
+
+			if (_commandFrame != null)
+			{
+				_commandFrame.AnchorLeft = 0;
+				_commandFrame.AnchorRight = 0;
+				_commandFrame.OffsetLeft = Mathf.Round(wMinimap + (3480f - 1140f) * (remX / remTex));
+				_commandFrame.OffsetRight = Mathf.Round(viewportWidth - 10f);
+				_commandFrame.AnchorTop = 0.16f;
+				_commandFrame.AnchorBottom = 0.92f;
+			}
+
+			if (_chatPanel != null)
+			{
+				float chatHeight = 240f;
+				_chatPanel.OffsetBottom = _bottomConsole.OffsetTop - 15f;
+				_chatPanel.OffsetTop = _chatPanel.OffsetBottom - chatHeight;
+			}
 		}
 	}
 
@@ -744,7 +856,9 @@ public partial class InGameHUD : Control
 
 		if (_bottomConsole != null)
 		{
-			_bottomConsole.PivotOffset = new Vector2(_bottomConsole.Size.X / 2f, _bottomConsole.Size.Y);
+			float width = _bottomConsole.Size.X > 0 ? _bottomConsole.Size.X : GetViewportRect().Size.X;
+			float height = _bottomConsole.Size.Y > 0 ? _bottomConsole.Size.Y : BaseConsoleHeight;
+			_bottomConsole.PivotOffset = new Vector2(width / 2f, height);
 			_bottomConsole.Scale = new Vector2(s, s);
 		}
 
@@ -939,9 +1053,9 @@ public partial class InGameHUD : Control
 		btn.ExpandIcon = true;
 		btn.Icon = GD.Load<Texture2D>(iconPath);
 		btn.TooltipText = tooltip;
-		btn.CustomMinimumSize = new Vector2(44, 44);
+		btn.CustomMinimumSize = new Vector2(48, 48);
 		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 38);
+		btn.AddThemeConstantOverride("icon_max_width", 42);
 
 		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
 		{
@@ -950,7 +1064,7 @@ public partial class InGameHUD : Control
 			var hotkeyLabel = new Label();
 			hotkeyLabel.Name = "HotkeyLabel";
 			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 10);
+			hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
 			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
 			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
@@ -1022,21 +1136,57 @@ public partial class InGameHUD : Control
 		resourceBg.ContentMarginBottom = 4;
 		_resourceContainer.AddThemeStyleboxOverride("panel", resourceBg);
 
-		var bottomConsoleStyle = UIStyle.CreateStonePanel();
-		bottomConsoleStyle.ContentMarginLeft = 40; 
-		bottomConsoleStyle.ContentMarginRight = 40; 
-		_bottomConsole.AddThemeStyleboxOverride("panel", bottomConsoleStyle);
-		_minimapFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		_portraitFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		_selectionFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		if (_consoleBackground != null)
+		{
+			var texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.png");
+			if (texture == null)
+			{
+				texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.jpg");
+			}
+			_consoleBackground.Texture = texture;
+
+			var consoleShader = new Shader();
+			consoleShader.Code = @"
+shader_type canvas_item;
+
+uniform vec2 u_console_size = vec2(1920.0, 240.0);
+
+void fragment() {
+	float x = UV.x * u_console_size.x;
+	float h = u_console_size.y;
+	float s = h / 888.0;
+	float w_minimap = 1140.0 * s;
+
+	float tex_x = 0.0;
+	if (x <= w_minimap) {
+		tex_x = x / s;
+	} else {
+		float t = (x - w_minimap) / max(u_console_size.x - w_minimap, 1.0);
+		tex_x = 1140.0 + t * (4512.0 - 1140.0);
+	}
+
+	vec2 mapped_uv = vec2(tex_x / 4512.0, UV.y);
+	COLOR = texture(TEXTURE, mapped_uv);
+}
+";
+			var consoleMaterial = new ShaderMaterial();
+			consoleMaterial.Shader = consoleShader;
+			_consoleBackground.Material = consoleMaterial;
+		}
+
+		_bottomConsole.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		_minimapFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		_portraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		_selectionFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		_selectionFrame.ClipContents = true;
 		
-		var commandFrameStyle = (StyleBoxTexture)UIStyle.CreateStonePanel(true).Duplicate();
-		commandFrameStyle.ContentMarginLeft = 2;
-		commandFrameStyle.ContentMarginRight = 2;
-		commandFrameStyle.ContentMarginTop = 2;
-		commandFrameStyle.ContentMarginBottom = 2;
-		_commandFrame.AddThemeStyleboxOverride("panel", commandFrameStyle);
+		var inventoryFrame = GetNodeOrNull<PanelContainer>("BottomConsole/HBox/InventoryFrame");
+		if (inventoryFrame != null)
+		{
+			inventoryFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		}
+
+		_commandFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
 		var devStyle = new StyleBoxFlat();
 		devStyle.BgColor = new Color(0.12f, 0.13f, 0.15f, 0.9f);
@@ -1062,7 +1212,24 @@ public partial class InGameHUD : Control
 
 		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
-		MinimapHelper.SetupMinimapBackground(_minimapArea);
+		var minimapBg = MinimapHelper.SetupMinimapBackground(_minimapArea);
+		var circleMaskShader = new Shader();
+		circleMaskShader.Code = @"
+shader_type canvas_item;
+
+void fragment() {
+	vec2 center = UV - vec2(0.5);
+	if (dot(center, center) > 0.25) {
+		discard;
+	}
+}
+";
+		var circleMaskMaterial = new ShaderMaterial();
+		circleMaskMaterial.Shader = circleMaskShader;
+		if (minimapBg != null)
+		{
+			minimapBg.Material = circleMaskMaterial;
+		}
 
 		var overlay = new MinimapOverlay();
 		overlay.Name = "MinimapOverlay";
@@ -1173,9 +1340,9 @@ public partial class InGameHUD : Control
 		btn.Icon = GD.Load<Texture2D>(iconPath);
 		string trans = TranslationServer.Translate(tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
-		btn.CustomMinimumSize = new Vector2(24, 24);
+		btn.CustomMinimumSize = new Vector2(20, 20);
 		btn.FocusMode = FocusModeEnum.None;
-		btn.AddThemeConstantOverride("icon_max_width", 20);
+		btn.AddThemeConstantOverride("icon_max_width", 16);
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
 		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
@@ -1190,12 +1357,12 @@ public partial class InGameHUD : Control
 		btn.Icon = GD.Load<Texture2D>(iconPath);
 		string trans = TranslationServer.Translate(tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
-		btn.CustomMinimumSize = new Vector2(44, 44);
+		btn.CustomMinimumSize = new Vector2(48, 48);
 		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = SizeFlags.ExpandFill;
 		btn.FocusMode = FocusModeEnum.None;
 		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 38);
+		btn.AddThemeConstantOverride("icon_max_width", 42);
 
 		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
 		{
@@ -1204,7 +1371,7 @@ public partial class InGameHUD : Control
 			var hotkeyLabel = new Label();
 			hotkeyLabel.Name = "HotkeyLabel";
 			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 10);
+			hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
 			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
 			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);

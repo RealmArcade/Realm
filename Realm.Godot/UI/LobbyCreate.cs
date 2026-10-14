@@ -119,18 +119,18 @@ public partial class LobbyCreate : Control
 
 		_mapThumbnail = GetNode<TextureRect>("CentralPanel/ContentContainer/BriefingPanel/MapThumbnail");
 
-		var briefingHBox = new HBoxContainer();
-		briefingHBox.Name = "BriefingHBox";
-		briefingHBox.AddThemeConstantOverride("separation", 24);
-		briefingHBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		briefingHBox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		var briefingVBox = new VBoxContainer();
+		briefingVBox.Name = "BriefingVBox";
+		briefingVBox.AddThemeConstantOverride("separation", 14);
+		briefingVBox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		briefingVBox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 
 		_briefingPanel.RemoveChild(_mapThumbnail);
 		_briefingPanel.RemoveChild(textPanelWrapper);
 
 		var thumbFrame = new Control();
 		thumbFrame.Name = "ThumbnailFrame";
-		thumbFrame.CustomMinimumSize = new Vector2(260, 260);
+		thumbFrame.CustomMinimumSize = new Vector2(250, 250);
 		thumbFrame.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		thumbFrame.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
 
@@ -173,21 +173,21 @@ public partial class LobbyCreate : Control
 		frameOverlay.MouseFilter = Control.MouseFilterEnum.Ignore;
 		thumbFrame.AddChild(frameOverlay);
 
-		briefingHBox.AddChild(thumbFrame);
+		briefingVBox.AddChild(thumbFrame);
 
-		textPanelWrapper.CustomMinimumSize = new Vector2(530, 260);
-		textPanelWrapper.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		textPanelWrapper.CustomMinimumSize = new Vector2(620, 110);
+		textPanelWrapper.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		textPanelWrapper.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 
-		_briefingText.CustomMinimumSize = new Vector2(470, 220);
+		_briefingText.CustomMinimumSize = new Vector2(570, 70);
 		_briefingText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_briefingText.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		_briefingText.FitContent = false;
 		_briefingText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 
-		briefingHBox.AddChild(textPanelWrapper);
+		briefingVBox.AddChild(textPanelWrapper);
 
-		_briefingPanel.AddChild(briefingHBox);
+		_briefingPanel.AddChild(briefingVBox);
 
 		_titleLabel = GetNode<Label>("Title");
 		_mapSelectLabel = GetNode<Label>("CentralPanel/ContentContainer/MapSelectLabel");

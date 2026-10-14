@@ -24,9 +24,6 @@ public class InventoryPanel
 
 		if (viewModel.SelectedUnits.Count == 0)
 		{
-            for(int i = 0; i < 6; i++) {
-                _inventoryGrid.AddChild(CreateBlackTile());
-            }
 			return;
 		}
 
@@ -36,10 +33,6 @@ public class InventoryPanel
 
 		if (focusedUnit.IsEnemy || focusedUnit.IsBuilding)
 		{
-            // Empty 2x3 grid
-            for(int i = 0; i < 6; i++) {
-                _inventoryGrid.AddChild(CreateBlackTile());
-            }
 			return;
 		}
 
@@ -91,13 +84,19 @@ public class InventoryPanel
         }
 	}
 
-	private ColorRect CreateBlackTile()
+	private Control CreateBlackTile()
 	{
-		var tile = new ColorRect();
-		tile.Color = Colors.Black;
-		tile.CustomMinimumSize = new Vector2(44, 44);
-		tile.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		tile.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		var tile = new Panel();
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
+		style.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.25f);
+		style.SetBorderWidthAll(1);
+		style.CornerRadiusTopLeft = 3;
+		style.CornerRadiusTopRight = 3;
+		style.CornerRadiusBottomLeft = 3;
+		style.CornerRadiusBottomRight = 3;
+		tile.AddThemeStyleboxOverride("panel", style);
+		tile.CustomMinimumSize = new Vector2(34, 34);
 		return tile;
 	}
 
@@ -112,12 +111,12 @@ public class InventoryPanel
 		string transTooltip = TranslationServer.Translate(tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(transTooltip) ? tooltip : transTooltip;
 		
-		btn.CustomMinimumSize = new Vector2(44, 44);
+		btn.CustomMinimumSize = new Vector2(34, 34);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		btn.FocusMode = Control.FocusModeEnum.None;
 		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 38);
+		btn.AddThemeConstantOverride("icon_max_width", 28);
 
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));

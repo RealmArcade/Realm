@@ -626,6 +626,32 @@ public static class UIStyle
 		return CreateStonePanel(false);
 	}
 
+	public static StyleBox CreateMatchViewBottomPanel()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.png");
+		if (texture == null)
+		{
+			texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.jpg");
+		}
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.ContentMarginLeft = 0;
+			style.ContentMarginRight = 0;
+			style.ContentMarginTop = 0;
+			style.ContentMarginBottom = 0;
+			return style;
+		}
+		return CreateStonePanel(false);
+	}
+
 	public static StyleBox CreateLobbyRoomMainPanel()
 	{
 		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_MainPanel.png");

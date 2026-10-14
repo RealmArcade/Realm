@@ -76,39 +76,62 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 0.0
-offset_top = -210.0
+offset_top = -240.0
 offset_right = 0.0
 offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 0
 
-[node name="HBox" type="HBoxContainer" parent="BottomConsole"]
+[node name="ConsoleBackground" type="TextureRect" parent="BottomConsole"]
 layout_mode = 2
-theme_override_constants/separation = 20
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 0
+
+[node name="HBox" type="Control" parent="BottomConsole"]
+layout_mode = 2
 
 [node name="MinimapFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-custom_minimum_size = Vector2(170, 170)
-layout_mode = 2
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.0381
+anchor_top = 0.18
+anchor_right = 0.1738
+anchor_bottom = 0.94
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="MinimapArea" type="Control" parent="BottomConsole/HBox/MinimapFrame"]
+custom_minimum_size = Vector2(154, 154)
 layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
 
 [node name="Indicator" type="Control" parent="BottomConsole/HBox/MinimapFrame/MinimapArea"]
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("2_camera_indicator")
 
 [node name="PortraitFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-custom_minimum_size = Vector2(130, 170)
-layout_mode = 2
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.2762
+anchor_top = 0.22
+anchor_right = 0.3641
+anchor_bottom = 0.95
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="BottomConsole/HBox/PortraitFrame"]
 layout_mode = 2
 alignment = 1
 
 [node name="PortraitTexture" type="TextureRect" parent="BottomConsole/HBox/PortraitFrame/VBox"]
-custom_minimum_size = Vector2(90, 90)
+custom_minimum_size = Vector2(80, 80)
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -121,83 +144,94 @@ text = "Soldier"
 horizontal_alignment = 1
 
 [node name="SelectionFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.3856
+anchor_top = 0.18
+anchor_right = 0.6228
+anchor_bottom = 0.92
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="UnitsContainer" type="HBoxContainer" parent="BottomConsole/HBox/SelectionFrame"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 alignment = 1
 
 [node name="Unit1" type="Button" parent="BottomConsole/HBox/SelectionFrame/UnitsContainer"]
-custom_minimum_size = Vector2(50, 50)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 
 [node name="Unit2" type="Button" parent="BottomConsole/HBox/SelectionFrame/UnitsContainer"]
-custom_minimum_size = Vector2(50, 50)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 
 [node name="Unit3" type="Button" parent="BottomConsole/HBox/SelectionFrame/UnitsContainer"]
-custom_minimum_size = Vector2(50, 50)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 
 [node name="Unit4" type="Button" parent="BottomConsole/HBox/SelectionFrame/UnitsContainer"]
-custom_minimum_size = Vector2(50, 50)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 
 [node name="InventoryFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-custom_minimum_size = Vector2(100, 170)
-layout_mode = 2
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.6272
+anchor_top = 0.36
+anchor_right = 0.7469
+anchor_bottom = 0.92
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="InventoryGrid" type="GridContainer" parent="BottomConsole/HBox/InventoryFrame"]
 layout_mode = 2
-theme_override_constants/h_separation = 0
-theme_override_constants/v_separation = 0
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
 columns = 2
 
 [node name="CommandFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-custom_minimum_size = Vector2(180, 170)
-layout_mode = 2
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.7691
+anchor_top = 0.16
+anchor_right = 0.9885
+anchor_bottom = 0.92
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="GridContainer" type="GridContainer" parent="BottomConsole/HBox/CommandFrame"]
 layout_mode = 2
-theme_override_constants/h_separation = 0
-theme_override_constants/v_separation = 0
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
 columns = 4
 
 [node name="BtnMove" type="Button" parent="BottomConsole/HBox/CommandFrame/GridContainer"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
 focus_mode = 0
 
 [node name="BtnStop" type="Button" parent="BottomConsole/HBox/CommandFrame/GridContainer"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
 focus_mode = 0
 
 [node name="BtnHold" type="Button" parent="BottomConsole/HBox/CommandFrame/GridContainer"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
 focus_mode = 0
 
 [node name="BtnBuild" type="Button" parent="BottomConsole/HBox/CommandFrame/GridContainer"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
 focus_mode = 0
 
 [node name="FeedbackLabel" type="Label" parent="."]
@@ -250,9 +284,9 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 220.0
-offset_top = -460.0
+offset_top = -495.0
 offset_right = 620.0
-offset_bottom = -225.0
+offset_bottom = -255.0
 grow_vertical = 0
 
 [node name="ChatContainer" type="VBoxContainer" parent="ChatPanel"]
