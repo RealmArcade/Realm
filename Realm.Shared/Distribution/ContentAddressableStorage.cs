@@ -234,13 +234,13 @@ public class ContentAddressableStorage
 		}
 	}
 
-	private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAssetWithPrecomputedHash(
-		Stream assetStream,
-		string extension,
+	private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) WriteAndFinalizeAssetLocked(
 		string normalizedHash,
+		string extension,
 		string? metadataHeadersJson,
 		string? authorPublicKey,
-		string? authorSignature)
+		string? authorSignature,
+		Action<string> writeAction)
 	{
 		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
 		lock (fileLock)
@@ -257,10 +257,7 @@ public class ContentAddressableStorage
 			string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
 			string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
 
-			using (var outStream = new FileStream(finalFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920))
-			{
-				assetStream.CopyTo(outStream, 81920);
-			}
+			writeAction(finalFilePath);
 
 			_assetPathCache[normalizedHash] = finalFilePath;
 
@@ -268,6 +265,21 @@ public class ContentAddressableStorage
 
 			return (true, "Asset stored successfully.", false, false, normalizedHash);
 		}
+	}
+
+	private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAssetWithPrecomputedHash(
+		Stream assetStream,
+		string extension,
+		string normalizedHash,
+		string? metadataHeadersJson,
+		string? authorPublicKey,
+		string? authorSignature)
+	{
+		return WriteAndFinalizeAssetLocked(normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature, finalFilePath =>
+		{
+			using var outStream = new FileStream(finalFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
+			assetStream.CopyTo(outStream, 81920);
+		});
 	}
 
 	private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAssetWithUnknownHash(
@@ -317,26 +329,10 @@ public class ContentAddressableStorage
 		string computedBlake3 = RealmMetadataHelper.ComputeBlake3(tempFilePath);
 		string normalizedHash = NormalizeBlake3Hash(computedBlake3);
 
-		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
-		lock (fileLock)
+		return WriteAndFinalizeAssetLocked(normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature, finalFilePath =>
 		{
-			var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
-			if (existingResult.HasValue)
-			{
-				return existingResult.Value;
-			}
-
-			string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
-			string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
-			string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
-
 			File.Move(tempFilePath, finalFilePath, overwrite: true);
-			_assetPathCache[normalizedHash] = finalFilePath;
-
-			FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
-
-			return (true, "Asset stored successfully.", false, false, normalizedHash);
-		}
+		});
 	}
 
 	public (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAssetFromFile(
@@ -359,28 +355,10 @@ public class ContentAddressableStorage
 			return (false, "Precomputed hash required.", false, false, string.Empty);
 		}
 
-		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
-		lock (fileLock)
+		return WriteAndFinalizeAssetLocked(normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature, finalFilePath =>
 		{
-			var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
-			if (existingResult.HasValue) return existingResult.Value;
-
-			if (!CheckFreeDiskSpaceAcceptingDownloads())
-			{
-				return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
-			}
-
-			string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
-			string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
-			string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
-
 			HardLinkHelper.CreateHardLinkOrCopy(finalFilePath, sourceFilePath, overwrite: true);
-			_assetPathCache[normalizedHash] = finalFilePath;
-
-			FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
-
-			return (true, "Asset stored successfully.", false, false, normalizedHash);
-		}
+		});
 	}
 
 	public (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAsset(
@@ -407,29 +385,10 @@ public class ContentAddressableStorage
 			: RealmMetadataHelper.ComputeBlake3(assetBytes, extension);
 		string normalizedHash = NormalizeBlake3Hash(canonicalBlake3);
 
-		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
-
-		lock (fileLock)
+		return WriteAndFinalizeAssetLocked(normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature, finalFilePath =>
 		{
-			var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
-			if (existingResult.HasValue) return existingResult.Value;
-
-			if (!CheckFreeDiskSpaceAcceptingDownloads())
-			{
-				return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
-			}
-
-			string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
-			string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
-			string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
-
 			File.WriteAllBytes(finalFilePath, assetBytes);
-			_assetPathCache[normalizedHash] = finalFilePath;
-
-			FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
-
-			return (true, "Asset stored successfully.", false, false, normalizedHash);
-		}
+		});
 	}
 
 	private bool UpdateExistingAssetHeaders(

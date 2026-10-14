@@ -1,0 +1,25 @@
+--- Realm.Shared/Distribution/ContentAddressableStorage.cs
++++ Realm.Shared/Distribution/ContentAddressableStorage.cs
+@@ -236,10 +236,10 @@
+ 
+-		private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) StoreAssetWithPrecomputedHash(
+-			Stream assetStream,
++		private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) WriteAndFinalizeAssetLocked(
++			string normalizedHash,
+ 			string extension,
+-			string normalizedHash,
+ 			string? metadataHeadersJson,
+ 			string? authorPublicKey,
+-			string? authorSignature)
++			string? authorSignature,
++			Action<string> writeAction)
+ 		{
+ 			object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
+@@ -259,6 +259,3 @@
+ 
+-				using (var outStream = new FileStream(finalFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920))
+-				{
+-					assetStream.CopyTo(outStream, 81920);
+-				}
++				writeAction(finalFilePath);
+ 
