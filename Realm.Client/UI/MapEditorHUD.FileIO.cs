@@ -473,9 +473,9 @@ namespace Realm.Client.UI
 		{
 			if (GameHost.Instance == null) return;
 
-			if (GameContext.EditorService.TryGetValidCurrentSourceFolder(out string validFolder) && !IsRestrictedSaveDirectory(validFolder))
+			if (!string.IsNullOrEmpty(mapSaveFolder))
 			{
-				_ = SaveMapToFolderAsync(validFolder);
+				_ = SaveMapToFolderAsync(mapSaveFolder);
 				return;
 			}
 
@@ -492,7 +492,7 @@ namespace Realm.Client.UI
 		{
 			if (GameHost.Instance == null) return;
 
-			string initialDir = GetInitialDirectory();
+			string initialDir = !string.IsNullOrEmpty(defaultSaveFolder) ? defaultSaveFolder : GetDocumentsDirectory();
 			try
 			{
 				if (!Directory.Exists(initialDir))
@@ -515,7 +515,11 @@ namespace Realm.Client.UI
 				{
 					if (status && selectedPaths.Length > 0)
 					{
-						HandleSaveToFolder(selectedPaths[0]);
+						string selected = selectedPaths[0];
+						defaultLoadFolder = selected;
+						defaultSaveFolder = selected;
+						mapSaveFolder = selected;
+						HandleSaveToFolder(selected);
 					}
 					else
 					{
@@ -535,6 +539,9 @@ namespace Realm.Client.UI
 				{
 				}
 
+				defaultLoadFolder = defaultFolder;
+				defaultSaveFolder = defaultFolder;
+				mapSaveFolder = defaultFolder;
 				HandleSaveToFolder(defaultFolder);
 			}
 		}
@@ -592,11 +599,9 @@ namespace Realm.Client.UI
 		{
 			GameContext.EditorService.LastUsedFolder = fullSelectedPath;
 			GameContext.EditorService.CurrentSourceFolder = fullSelectedPath;
-			if (!IsRestrictedSaveDirectory(fullSelectedPath))
-			{
-				GameSettings.LastOpenedFolder = fullSelectedPath;
-				GameSettings.Save();
-			}
+			defaultLoadFolder = fullSelectedPath;
+			defaultSaveFolder = fullSelectedPath;
+			mapSaveFolder = fullSelectedPath;
 
 			_ = SaveMapToFolderAsync(fullSelectedPath);
 		}
@@ -605,9 +610,21 @@ namespace Realm.Client.UI
 		{
 			if (GameHost.Instance == null) return;
 
+			string initialDir = !string.IsNullOrEmpty(defaultLoadFolder) ? defaultLoadFolder : GetDocumentsDirectory();
+			try
+			{
+				if (!Directory.Exists(initialDir))
+				{
+					Directory.CreateDirectory(initialDir);
+				}
+			}
+			catch
+			{
+			}
+
 			var err = DisplayServer.FileDialogShow(
 				TranslationServer.Translate("Load Map Folder"),
-				GetInitialDirectory(),
+				initialDir,
 				"",
 				false,
 				DisplayServer.FileDialogMode.OpenDir,
@@ -617,13 +634,6 @@ namespace Realm.Client.UI
 					if (status && selectedPaths.Length > 0)
 					{
 						string selectedFolder = selectedPaths[0];
-						GameContext.EditorService.LastUsedFolder = selectedFolder;
-						if (!IsRestrictedSaveDirectory(selectedFolder))
-						{
-							GameSettings.LastOpenedFolder = selectedFolder;
-							GameSettings.Save();
-						}
-
 						_ = LoadMapFolderAsync(selectedFolder);
 					}
 				})
@@ -739,6 +749,12 @@ namespace Realm.Client.UI
 		private async Task<bool> PerformMapLoadAsync(string selectedFolder)
 		{
 			GameHost.Instance?.ClearMapEntirely();
+
+			GameContext.EditorService.LastUsedFolder = selectedFolder;
+			defaultLoadFolder = selectedFolder;
+			defaultSaveFolder = selectedFolder;
+			mapSaveFolder = selectedFolder;
+
 			GameContext.EditorService.IsSyncing = true;
 			try
 			{
@@ -826,6 +842,8 @@ namespace Realm.Client.UI
 
 		public static void ResetFolderLocations()
 		{
+			mapSaveFolder = null;
+			defaultSaveFolder = GetDocumentsDirectory();
 			GameContext.EditorService.LastUsedFolder = null;
 			GameContext.EditorService.CurrentSourceFolder = null;
 			GameContext.EditorService.PendingCasSourceDirectory = null;

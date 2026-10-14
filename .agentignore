@@ -1,8 +1,12 @@
 .vs/
-__pycache__
+__pycache__/
 obj/
 bin/
 node_modules/
 vscode_embedded/
 wasi_sdk_embedded/
-vscode_extensions_dist
+vscode_extensions_dist/
+.godot/
+/android/
+.codegraph/
+dist/

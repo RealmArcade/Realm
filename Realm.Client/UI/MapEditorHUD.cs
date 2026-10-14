@@ -29,6 +29,20 @@ public partial class MapEditorHUD : Control
 
 	public static MapEditorHUD Instance { get; set; }
 
+	public static string defaultLoadFolder
+	{
+		get => !string.IsNullOrEmpty(GameSettings.LastOpenedFolder) ? GameSettings.LastOpenedFolder : GetDocumentsDirectory();
+		set
+		{
+			GameSettings.LastOpenedFolder = value ?? string.Empty;
+			GameSettings.Save();
+		}
+	}
+
+	public static string defaultSaveFolder { get; set; } = GetDocumentsDirectory();
+
+	public static string? mapSaveFolder { get; set; } = null;
+
 	public static bool IsDraggingSlider { get; set; } = false;
 
 
