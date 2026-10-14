@@ -77,11 +77,11 @@ public class MapEditorGenerationDialog
 
 		var btnRoll = new Button();
 		btnRoll.Set("icon_max_width", 0);
-		SetupButton(btnRoll, TranslationServer.Translate("ROLL"), () =>
+		UIStyle.SetupButton(btnRoll, TranslationServer.Translate("ROLL"), () =>
 		{
 			_genSeed = new Random().Next(100000, 999999).ToString();
 			txtSeed.Text = _genSeed;
-		}, 11, "Generate a new random seed");
+		}, 11, "Generate a new random seed", null);
 		btnRoll.CustomMinimumSize = new Vector2(70, 30);
 		seedHBox.AddChild(btnRoll);
 
@@ -101,7 +101,7 @@ public class MapEditorGenerationDialog
 		var sldDecoDensity = AddSliderRow(grid, "Decorative Prop Density", _genDecoDensity, (val) => _genDecoDensity = val);
 		var btnRandomize = new Button();
 		btnRandomize.Set("icon_max_width", 0);
-		SetupButton(btnRandomize, TranslationServer.Translate("RANDOMIZE SLIDERS"), () =>
+		UIStyle.SetupButton(btnRandomize, TranslationServer.Translate("RANDOMIZE SLIDERS"), () =>
 		{
 			var rnd = new Random();
 			sldHillsDensity.Value = rnd.Next(1, 11);
@@ -112,7 +112,7 @@ public class MapEditorGenerationDialog
 			sldTreeDensity.Value = rnd.Next(1, 11);
 			sldResourceAbundance.Value = rnd.Next(1, 11);
 			sldDecoDensity.Value = rnd.Next(1, 11);
-		}, 11, "Randomize all slider values");
+		}, 11, "Randomize all slider values", null);
 		vbox.AddChild(btnRandomize);
 
 		var btnHBox = new HBoxContainer();
@@ -122,7 +122,7 @@ public class MapEditorGenerationDialog
 
 		var btnGen = new Button();
 		btnGen.Set("icon_max_width", 0);
-		SetupButton(btnGen, TranslationServer.Translate("GENERATE"), () =>
+		UIStyle.SetupButton(btnGen, TranslationServer.Translate("GENERATE"), () =>
 		{
 			overlay.QueueFree();
 			if (GameHost.Instance != null)
@@ -142,13 +142,13 @@ public class MapEditorGenerationDialog
 				);
 				_hud.RegenerateMinimap();
 			}
-		}, 13, "Generate the random map");
+		}, 13, "Generate the random map", null);
 		btnGen.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		btnHBox.AddChild(btnGen);
 
 		var btnCancel = new Button();
 		btnCancel.Set("icon_max_width", 0);
-		SetupButton(btnCancel, TranslationServer.Translate("CLOSE"), () => { overlay.QueueFree(); }, 13, "Close dialog without generating");
+		UIStyle.SetupButton(btnCancel, TranslationServer.Translate("CLOSE"), () => { overlay.QueueFree(); }, 13, "Close dialog without generating", null);
 		btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 		btnHBox.AddChild(btnCancel);
 	}
@@ -188,25 +188,4 @@ public class MapEditorGenerationDialog
 		return sld;
 	}
 
-	private void SetupButton(Button btn, string text, Action onClick, int fontSize = 13, string tooltip = "")
-	{
-		btn.Text = TranslationServer.Translate(text);
-		btn.CustomMinimumSize = new Vector2(0, 32);
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		btn.AddThemeFontSizeOverride("font_size", fontSize);
-		btn.FocusMode = Control.FocusModeEnum.None;
-		if (!string.IsNullOrEmpty(tooltip))
-		{
-			btn.TooltipText = TranslationServer.Translate(tooltip);
-		}
-
-		btn.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			onClick?.Invoke();
-		};
-	}
 }

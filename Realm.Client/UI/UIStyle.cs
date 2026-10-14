@@ -1050,6 +1050,103 @@ public static class UIStyle
 	{
 		return x >= size / 2 - 1 && x <= size / 2 + 1 && y >= 5 && y <= size - 6;
 	}
+	public static void SetupButton(Button btn, string text, System.Action onClick, int fontSize = 13, string tooltip = "", Font fontOverride = null)
+	{
+		if (btn == null) return;
+		btn.Text = text;
+
+		if (fontOverride != null)
+		{
+			btn.AddThemeFontOverride("font", fontOverride);
+		}
+
+		btn.CustomMinimumSize = new Vector2(0, 32);
+		btn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		btn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		btn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		btn.AddThemeFontSizeOverride("font_size", fontSize);
+		btn.FocusMode = Control.FocusModeEnum.None;
+		if (!string.IsNullOrEmpty(tooltip))
+		{
+			btn.TooltipText = TranslationServer.Translate(tooltip);
+		}
+
+		if (onClick != null)
+		{
+			btn.Pressed += () =>
+			{
+				UIManager.Instance?.PlayClickSound();
+				onClick?.Invoke();
+			};
+		}
+	}
+
+	public static void ApplyStandardButtonStyle(Button btn)
+	{
+		btn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		btn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		btn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
+	public static Panel ShowErrorModal(Node parent, string title, string description, Color? titleColor = null, System.Action onOk = null, string okText = "OK")
+	{
+		var warningPopup = new Panel();
+		warningPopup.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		warningPopup.AddThemeStyleboxOverride("panel", CreateBgGradient());
+		parent.AddChild(warningPopup);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(450, 220);
+		cardPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", CreateStonePanel(true));
+		warningPopup.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(400, 180);
+		vbox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
+
+		var titleLabel = new Label();
+		ApplyTitle(titleLabel, TranslationServer.Translate(title), 20);
+		titleLabel.AddThemeColorOverride("font_color", titleColor ?? new Color(0.9f, 0.3f, 0.3f));
+		vbox.AddChild(titleLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
+
+		var descLabel = new Label();
+		descLabel.Text = TranslationServer.Translate(description);
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLabel.AddThemeFontSizeOverride("font_size", 14);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+		vbox.AddChild(descLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+		var okBtn = new Button();
+		okBtn.Flat = false;
+		okBtn.AddThemeConstantOverride("icon_max_width", 0);
+		okBtn.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		okBtn.CustomMinimumSize = new Vector2(160, 40);
+		ApplyStandardButtonStyle(okBtn);
+		ApplyButtonText(okBtn, okText, 14);
+		okBtn.Pressed += () =>
+		{
+			UIManager.Instance?.PlayClickSound();
+			warningPopup.QueueFree();
+			onOk?.Invoke();
+		};
+		vbox.AddChild(okBtn);
+
+		return warningPopup;
+	}
+
 	public static void CreateMapEditorRandomButtonStyle(Button btn)
 	{
 		var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
@@ -1065,10 +1162,7 @@ public static class UIStyle
 		}
 		else
 		{
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			ApplyStandardButtonStyle(btn);
 		}
 	}
 }

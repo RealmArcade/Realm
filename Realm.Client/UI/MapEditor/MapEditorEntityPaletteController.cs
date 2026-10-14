@@ -181,57 +181,35 @@ public class MapEditorEntityPaletteController
 
 		_btnChars = new Button();
 		_btnChars.Set("icon_max_width", 0);
-		SetupButton(_btnChars, "👥 Units", () => SelectCategory("Units"), 12, "Select Units category");
+		UIStyle.SetupButton(_btnChars, "👥 Units", () => SelectCategory("Units"), 12, "Select Units category", null);
 		categoryGrid.AddChild(_btnChars);
 
 		_btnBuilds = new Button();
 		_btnBuilds.Set("icon_max_width", 0);
-		SetupButton(_btnBuilds, "🏢 Buildings", () => SelectCategory("Buildings"), 12, "Select Buildings category");
+		UIStyle.SetupButton(_btnBuilds, "🏢 Buildings", () => SelectCategory("Buildings"), 12, "Select Buildings category", null);
 		categoryGrid.AddChild(_btnBuilds);
 
 		_btnEnv = new Button();
 		_btnEnv.Set("icon_max_width", 0);
-		SetupButton(_btnEnv, "🪵 Resources", () => SelectCategory("Resources"), 12, "Select Resources category");
+		UIStyle.SetupButton(_btnEnv, "🪵 Resources", () => SelectCategory("Resources"), 12, "Select Resources category", null);
 		categoryGrid.AddChild(_btnEnv);
 
 		_btnProps = new Button();
 		_btnProps.Set("icon_max_width", 0);
-		SetupButton(_btnProps, "📦 Props", () => SelectCategory("Props"), 12, "Select Props category");
+		UIStyle.SetupButton(_btnProps, "📦 Props", () => SelectCategory("Props"), 12, "Select Props category", null);
 		categoryGrid.AddChild(_btnProps);
 
 		_btnDecals = new Button();
 		_btnDecals.Set("icon_max_width", 0);
-		SetupButton(_btnDecals, "🎨 Decals", () => SelectCategory("Decals"), 12, "Select Decals category");
+		UIStyle.SetupButton(_btnDecals, "🎨 Decals", () => SelectCategory("Decals"), 12, "Select Decals category", null);
 		categoryGrid.AddChild(_btnDecals);
 
 		_btnVfx = new Button();
 		_btnVfx.Set("icon_max_width", 0);
-		SetupButton(_btnVfx, "✨ VFX", () => SelectCategory("VFX"), 12, "Select VFX category");
+		UIStyle.SetupButton(_btnVfx, "✨ VFX", () => SelectCategory("VFX"), 12, "Select VFX category", null);
 		categoryGrid.AddChild(_btnVfx);
 
 		SelectCategory("Units", triggerAddObject: false);
-	}
-
-	private void SetupButton(Button btn, string text, Action onClick, int fontSize = 13, string tooltip = "")
-	{
-		btn.Text = TranslationServer.Translate(text);
-		btn.CustomMinimumSize = new Vector2(0, 32);
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		btn.AddThemeFontSizeOverride("font_size", fontSize);
-		btn.FocusMode = Control.FocusModeEnum.None;
-		if (!string.IsNullOrEmpty(tooltip))
-		{
-			btn.TooltipText = TranslationServer.Translate(tooltip);
-		}
-
-		btn.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			onClick?.Invoke();
-		};
 	}
 
 	public void SelectCategory(string category, bool triggerAddObject = true)
