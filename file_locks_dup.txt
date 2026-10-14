@@ -1,0 +1,5 @@
+Realm.Shared/Distribution/ContentAddressableStorage.cs:102:		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
+Realm.Shared/Distribution/ContentAddressableStorage.cs:245:		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
+Realm.Shared/Distribution/ContentAddressableStorage.cs:320:		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
+Realm.Shared/Distribution/ContentAddressableStorage.cs:362:		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
+Realm.Shared/Distribution/ContentAddressableStorage.cs:410:		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());

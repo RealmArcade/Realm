@@ -1,0 +1,103 @@
+1. **Refactor ContentAddressableStorage.cs**
+   Extract the duplicated block starting around line 245, 362, 410 into a private method (e.g. `PerformWithLock`).
+   ```csharp
+	private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) PerformWithLock(
+		string normalizedHash,
+		string extension,
+		string? metadataHeadersJson,
+		string? authorPublicKey,
+		string? authorSignature,
+		Action<string> saveAction)
+	{
+		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
+		lock (fileLock)
+		{
+			var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
+			if (existingResult.HasValue) return existingResult.Value;
+
+			if (!CheckFreeDiskSpaceAcceptingDownloads())
+			{
+				return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
+			}
+
+			string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
+			string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
+			string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
+
+			saveAction(finalFilePath);
+
+			_assetPathCache[normalizedHash] = finalFilePath;
+
+			FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
+
+			return (true, "Asset stored successfully.", false, false, normalizedHash);
+		}
+	}
+   ```
+   Apply to `StoreAssetWithPrecomputedHash`, `StoreAssetFromFile` and `StoreAsset`.
+
+2. **Refactor RaudFile.cs and RtexFile.cs / RealmContainerFile.cs**
+   Move the `PackTracks` and `UnpackTracks` (and corresponding layers ones) as well as `ExtractMetadata(ReadOnlySpan<byte>)` etc. into `RealmContainerFile` by adding abstract/virtual generics or just keeping the payload logic.
+   Wait, the duplication is specifically for `PackTracks` and `PackLayers` which are virtually identical.
+   Create `public static byte[] PackItems(IList<byte[]>? items)` in `RealmContainerFile`.
+   Create `public static List<byte[]> UnpackItems(ReadOnlySpan<byte> itemsSpan)` in `RealmContainerFile`.
+   Replace `ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);` and its Stream/File counterparts in `RaudFile` and `RtexFile`. Since `MagicBytes` is specific to each subclass, we might keep the properties or create a generic method?
+   Let's check the exact duplication again from the prompt:
+   ```csharp
+	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
+	public static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
+	public static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
+
+	public static byte[] SetMetadata(ReadOnlySpan<byte> bytes, string? newMetadataJson)
+	{
+		return SetContainerMetadata(bytes, MagicBytes, Name, Format, newMetadataJson);
+	}
+
+	public static byte[] PackTracks(IList<byte[]>? tracks)
+   ```
+   This duplication spans `ExtractMetadata` and `SetMetadata` and `PackTracks`.
+   Wait, they are static methods. We can't use polymorphism for static methods directly. But we can create a generic class or simply replace `PackTracks` with `RealmContainerFile.PackPayloadItems` and update `RaudFile` to use it.
+   Also, `RtexFile`, `RkeyFile`, `RanimFile` might have this duplication, but only `RaudFile` and `RtexFile` have `PackTracks`/`PackLayers` exactly matching.
+   Let's refactor this block in `RaudFile` and `RtexFile` to use `RealmContainerFile.PackPayloadItems` and we can leave the `ExtractMetadata` alone OR put them in a generic base class, but C# doesn't allow `public static byte[] MagicBytes` easily via generic base unless we do `RealmContainerFile<T>`. It's better to just extract the `PackItems` and `UnpackItems` to `RealmContainerFile` and call it.
+
+3. **Refactor GlbPlayerColorProcessor.cs**
+   - For `AppendIndexedVec2Faces` and `AppendIndexedVec3Faces` - we can extract a generic method:
+   ```csharp
+	private static void AppendIndexedFaces<T>(List<(T, T, T)> result, List<T> data, List<int> indices)
+	{
+		for (int i = 0; i + 2 < indices.Count; i += 3)
+		{
+			int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+			if (i0 < data.Count && i1 < data.Count && i2 < data.Count)
+			{
+				result.Add((data[i0], data[i1], data[i2]));
+			}
+		}
+	}
+   ```
+   - For `AppendSequentialVec2Faces` and `AppendSequentialVec3Faces`:
+   ```csharp
+	private static void AppendSequentialFaces<T>(List<(T, T, T)> result, List<T> data)
+	{
+		for (int i = 0; i + 2 < data.Count; i += 3)
+		{
+			result.Add((data[i], data[i + 1], data[i + 2]));
+		}
+	}
+   ```
+   - For the pixel loop:
+   ```csharp
+		for (int y = 0; y < albedoImg.Height; y++)
+		{
+			for (int x = 0; x < albedoImg.Width; x++)
+			{
+				var pixel = albedoImg.GetPixel(x, y);
+				if (pixel.Alpha < 128) continue;
+
+				float r = pixel.Red / 255f;
+				float g = pixel.Green / 255f;
+				float b = pixel.Blue / 255f;
+
+				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+   ```
+   Extract `public static bool TryGetOklabPixel(SKColor pixel, out float pL, out float pA, out float pB)`?

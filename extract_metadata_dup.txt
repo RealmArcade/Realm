@@ -1,0 +1,98 @@
+Realm.Client/Core/GameHost.FileIO.cs:633:		string? meta = RealmMetadataHelper.ExtractMetadata(path);
+Realm.Client/RuntimeTerrain.cs:2497:			string? rtexMeta = RealmMetadataHelper.ExtractMetadata(rtexPath);
+Realm.Client/Services/AssetIndexService.cs:230:		string? diskMetadataJson = RealmMetadataHelper.ExtractMetadata(sampledAsset.FilePath);
+Realm.Client/Services/AssetIndexService.cs:425:		string? extractedMetadata = RealmMetadataHelper.ExtractMetadata(assetForMetadata);
+Realm.Client/Services/AssetIndexService.cs:848:		string? existingMetaJson = storage.GetAssetMetadata(norm) ?? RealmMetadataHelper.ExtractMetadata(normPath);
+Realm.Client/Services/AssetIndexService.cs:939:		string? metaJson = storage.GetAssetMetadata(norm) ?? RealmMetadataHelper.ExtractMetadata(normPath);
+Realm.Client/Services/AssetIndexService.cs:1487:		string? metaJson = RealmMetadataHelper.ExtractMetadata(normalizedFilePath);
+Realm.Client/Services/AssetIndexService.cs:1871:				string? updatedMeta = RealmMetadataHelper.ExtractMetadata(normalizedFilePath);
+Realm.Client/Services/AssetIndexService.cs:1924:				string? updatedMeta = RealmMetadataHelper.ExtractMetadata(normalizedFilePath);
+Realm.Client/Services/EditorService.Assets.cs:736:			string? metaJson = RealmMetadataHelper.ExtractMetadata(fullDiskPath);
+Realm.Client/Services/MapWorkspaceService.cs:1384:		string? metaJson = RealmMetadataHelper.ExtractMetadata(pngPath);
+Realm.Client/Services/MapWorkspaceService.cs:1677:			string? rtexMeta = RealmMetadataHelper.ExtractMetadata(rtexPath);
+Realm.Client/UI/MapEditor/AssetManagerDialog.cs:605:		string? metaJson = RealmMetadataHelper.ExtractMetadata(fullPath);
+Realm.Client/UI/MapEditor/AssetManagerDialog.cs:813:		string? metaJson = RealmMetadataHelper.ExtractMetadata(_selectedAsset.FilePath);
+Realm.Client/UI/MapEditor/GlbThumbnailRenderer.cs:187:			string? metaJson = RealmMetadataHelper.ExtractMetadata(filePath);
+Realm.Client/VFX/VfxShaderManager.cs:433:		string metaJson = RealmMetadataHelper.ExtractMetadata(clean);
+Realm.Client/VSCodeManager.cs:1470:				string? metaJson = RtexFile.ExtractMetadata(rtexBytes);
+Realm.Distribution.Tests/DistributionCoreTests.cs:222:		string? metadata = RealmMetadataHelper.ExtractMetadata(filePath);
+Realm.Distribution.Tests/DistributionScenarioTests.cs:376:				string? meta = RealmMetadataHelper.ExtractMetadata(fullSourcePath);
+Realm.Shared/Animation/RanimFile.cs:52:	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
+Realm.Shared/Animation/RanimFile.cs:53:	public static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
+Realm.Shared/Animation/RanimFile.cs:54:	public static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
+Realm.Shared/Audio/RaudFile.cs:63:	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
+Realm.Shared/Audio/RaudFile.cs:64:	public static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
+Realm.Shared/Audio/RaudFile.cs:65:	public static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
+Realm.Shared/Distribution/ContentAddressableStorage.cs:151:		string? extractedMetadata = RealmMetadataHelper.ExtractMetadata(filePath);
+Realm.Shared/Distribution/ContentAddressableStorage.cs:584:			string? metadata = RealmMetadataHelper.ExtractMetadata(file);
+Realm.Shared/Distribution/ContentAddressableStorage.cs:724:			finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
+Realm.Shared/Distribution/DistributionClient.cs:784:		string? metadataHeader = ExtractMetadataHeader(response);
+Realm.Shared/Distribution/DistributionClient.cs:796:	private string? ExtractMetadataHeader(HttpResponseMessage response)
+Realm.Shared/Metadata/RealmContainerFile.cs:253:	public static string? ExtractMetadataFromBytes(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> expectedMagic)
+Realm.Shared/Metadata/RealmContainerFile.cs:255:		return RealmContainerHeader.ExtractMetadata(bytes, expectedMagic);
+Realm.Shared/Metadata/RealmContainerFile.cs:258:	public static string? ExtractMetadataFromStream(Stream stream, ReadOnlySpan<byte> expectedMagic)
+Realm.Shared/Metadata/RealmContainerFile.cs:260:		return RealmContainerHeader.ExtractMetadata(stream, expectedMagic);
+Realm.Shared/Metadata/RealmContainerFile.cs:263:	public static string? ExtractMetadataFromPath(string filePath, ReadOnlySpan<byte> expectedMagic)
+Realm.Shared/Metadata/RealmContainerFile.cs:265:		return RealmContainerHeader.ExtractMetadataFromFile(filePath, expectedMagic);
+Realm.Shared/Metadata/RealmContainerHeader.cs:88:	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> expectedMagic)
+Realm.Shared/Metadata/RealmContainerHeader.cs:104:	public static string? ExtractMetadata(Stream stream, ReadOnlySpan<byte> expectedMagic)
+Realm.Shared/Metadata/RealmContainerHeader.cs:138:	public static string? ExtractMetadataFromFile(string filePath, ReadOnlySpan<byte> expectedMagic)
+Realm.Shared/Metadata/RealmContainerHeader.cs:144:			return ExtractMetadata(stream, expectedMagic);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:48:	public static string? ExtractMetadata(string filePath)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:54:			".rmesh" => ExtractMetadataFromRmesh(filePath),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:55:			".rtex" => ExtractMetadataFromRtex(filePath),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:56:			".ranim" => ExtractMetadataFromRanim(filePath),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:57:			".raud" => ExtractMetadataFromRaud(filePath),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:58:			".rkey" => ExtractMetadataFromRkey(filePath),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:63:		return ExtractMetadataFromMagicBytes(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:66:	private static string? ExtractMetadataFromMagicBytes(string filePath)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:74:			if (magic.SequenceEqual(RmeshFile.MagicBytes)) return ExtractMetadataFromRmesh(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:75:			if (magic.SequenceEqual(RtexFile.MagicBytes)) return ExtractMetadataFromRtex(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:76:			if (magic.SequenceEqual(RanimFile.MagicBytes)) return ExtractMetadataFromRanim(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:77:			if (magic.SequenceEqual(RaudFile.MagicBytes)) return ExtractMetadataFromRaud(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:78:			if (magic.SequenceEqual(RkeyFile.MagicBytes)) return ExtractMetadataFromRkey(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:92:			string? meta = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:263:		string? metaJson = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:308:		string? metaJson = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:325:		string? existingMeta = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:358:		string? metaJson = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:503:		string? metaJson = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:514:		string? metaJson = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:550:		string? metaJson = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:644:	public static string? ExtractMetadataFromRmesh(string filePath)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:646:		return RmeshFile.ExtractMetadataFromFile(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:663:	public static string? ExtractMetadataFromRaud(string filePath)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:665:		return RaudFile.ExtractMetadataFromFile(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:682:	public static string? ExtractMetadataFromRtex(string filePath)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:684:		return RtexFile.ExtractMetadataFromFile(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:701:	public static string? ExtractMetadataFromRkey(string filePath)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:703:		return RkeyFile.ExtractMetadataFromFile(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:773:	public static string? ExtractMetadataFromRanim(string filePath)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:775:		return RanimFile.ExtractMetadataFromFile(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:778:	public static string? ExtractMetadataFromRanimBytes(ReadOnlySpan<byte> bytes)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:780:		return RanimFile.ExtractMetadata(bytes);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:902:			string? existingMeta = ExtractMetadata(filePath);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:972:			string? existingMeta = ExtractMetadataFromBytes(bytes, ext);
+Realm.Shared/Metadata/RealmMetadataHelper.cs:995:	private static string? ExtractMetadataFromBytes(byte[] bytes, string ext)
+Realm.Shared/Metadata/RealmMetadataHelper.cs:999:			".rmesh" => RmeshFile.ExtractMetadata(bytes),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:1000:			".rtex" => RtexFile.ExtractMetadata(bytes),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:1001:			".ranim" => RanimFile.ExtractMetadata(bytes),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:1002:			".raud" => RaudFile.ExtractMetadata(bytes),
+Realm.Shared/Metadata/RealmMetadataHelper.cs:1003:			".rkey" => RkeyFile.ExtractMetadata(bytes),
+Realm.Shared/Metadata/RkeyFile.cs:53:	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
+Realm.Shared/Metadata/RkeyFile.cs:54:	public static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
+Realm.Shared/Metadata/RkeyFile.cs:55:	public static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
+Realm.Shared/ModelOptimization/RmeshFile.cs:64:	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes)
+Realm.Shared/ModelOptimization/RmeshFile.cs:66:		return ExtractMetadataFromBytes(bytes, MagicBytes);
+Realm.Shared/ModelOptimization/RmeshFile.cs:69:	public static string? ExtractMetadata(Stream stream)
+Realm.Shared/ModelOptimization/RmeshFile.cs:71:		return ExtractMetadataFromStream(stream, MagicBytes);
+Realm.Shared/ModelOptimization/RmeshFile.cs:74:	public static string? ExtractMetadataFromFile(string filePath)
+Realm.Shared/ModelOptimization/RmeshFile.cs:76:		return ExtractMetadataFromPath(filePath, MagicBytes);
+Realm.Shared/Textures/RtexFile.cs:63:	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
+Realm.Shared/Textures/RtexFile.cs:64:	public static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
+Realm.Shared/Textures/RtexFile.cs:65:	public static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
+Realm.Shared/Textures/TextureConverter.cs:1013:	private static void ExtractMetadataInfo(string fullInput, ref string normType, ref int? columns, ref int? rows, ref float? fps)
+Realm.Shared/Textures/TextureConverter.cs:1015:		string? meta = RealmMetadataHelper.ExtractMetadata(fullInput);
+Realm.Shared/Textures/TextureConverter.cs:1104:			ExtractMetadataInfo(fullInput, ref normType, ref columns, ref rows, ref fps);
+Realm.Tools.Cli/Program.cs:389:		string? rawMeta = RealmMetadataHelper.ExtractMetadata(filePath);
+Realm.Tools.Cli/Program.cs:473:			string? existingMeta = RealmMetadataHelper.ExtractMetadata(targetPath);
