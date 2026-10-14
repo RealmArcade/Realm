@@ -11,6 +11,69 @@ namespace Realm.AdminServer.Helpers
 {
     public static class MapMaintainerEndpointsHelper
     {
+        private static IResult? ValidateMaintainerRequest(
+            string reqMapTitle,
+            string routeMapTitle,
+            string maintainerPublicKey,
+            string requesterPublicKey,
+            string signature,
+            string action,
+            DataStoreService db,
+            HashSet<string> adminPublicKeys,
+            out string targetMap,
+            out bool isAdmin)
+        {
+            targetMap = !string.IsNullOrWhiteSpace(reqMapTitle) ? reqMapTitle : routeMapTitle;
+            isAdmin = false;
+
+            if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(maintainerPublicKey) || string.IsNullOrWhiteSpace(requesterPublicKey) || string.IsNullOrWhiteSpace(signature))
+            {
+                return Results.BadRequest(new MapMaintainersResponseDto
+                {
+                    Success = false,
+                    MapTitle = targetMap,
+                    Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
+                });
+            }
+
+            isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(requesterPublicKey.Trim());
+            bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, requesterPublicKey);
+
+            if (!isAdmin && !isMaintainer)
+            {
+                return Results.Json(new MapMaintainersResponseDto
+                {
+                    Success = false,
+                    MapTitle = targetMap,
+                    Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
+                }, statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            string actionPayload = action == "add" ? "add_maintainer" : "remove_maintainer";
+            string fallbackActionPayload = action;
+
+            string canonicalPayload = $"{actionPayload}:{targetMap.ToLowerInvariant()}:{maintainerPublicKey.Trim()}";
+            string fallbackPayload1 = $"{actionPayload}:{targetMap}:{maintainerPublicKey}";
+            string fallbackPayload2 = $"{fallbackActionPayload}:{targetMap}:{maintainerPublicKey}";
+
+            bool isSigValid = AuthorSignatureHelper.VerifySignature(requesterPublicKey.Trim(), canonicalPayload, signature)
+                              || AuthorSignatureHelper.VerifySignature(requesterPublicKey.Trim(), fallbackPayload1, signature)
+                              || AuthorSignatureHelper.VerifySignature(requesterPublicKey.Trim(), fallbackPayload2, signature);
+
+            if (!isSigValid)
+            {
+                string actionStr = action == "add" ? "adding" : "removing";
+                return Results.BadRequest(new MapMaintainersResponseDto
+                {
+                    Success = false,
+                    MapTitle = targetMap,
+                    Message = $"Invalid signature for {actionStr} maintainer."
+                });
+            }
+
+            return null; // Valid
+        }
+
         public static IResult HandleAddMapMaintainer(
             string reqMapTitle,
             string routeMapTitle,
@@ -23,46 +86,13 @@ namespace Realm.AdminServer.Helpers
         {
             try
             {
-                string targetMap = !string.IsNullOrWhiteSpace(reqMapTitle) ? reqMapTitle : routeMapTitle;
-                if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+                var validationResult = ValidateMaintainerRequest(
+                    reqMapTitle, routeMapTitle, req.MaintainerPublicKey, req.RequesterPublicKey, req.Signature, "add",
+                    db, adminPublicKeys, out string targetMap, out bool isAdmin);
+
+                if (validationResult != null)
                 {
-                    return Results.BadRequest(new MapMaintainersResponseDto
-                    {
-                        Success = false,
-                        MapTitle = targetMap,
-                        Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
-                    });
-                }
-
-                bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
-                bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
-
-                if (!isAdmin && !isMaintainer)
-                {
-                    return Results.Json(new MapMaintainersResponseDto
-                    {
-                        Success = false,
-                        MapTitle = targetMap,
-                        Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
-                    }, statusCode: StatusCodes.Status403Forbidden);
-                }
-
-                string canonicalPayload = $"add_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
-                string fallbackPayload1 = $"add_maintainer:{targetMap}:{req.MaintainerPublicKey}";
-                string fallbackPayload2 = $"add:{targetMap}:{req.MaintainerPublicKey}";
-
-                bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
-                                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
-                                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
-
-                if (!isSigValid)
-                {
-                    return Results.BadRequest(new MapMaintainersResponseDto
-                    {
-                        Success = false,
-                        MapTitle = targetMap,
-                        Message = "Invalid signature for adding maintainer."
-                    });
+                    return validationResult;
                 }
 
                 var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
@@ -118,46 +148,13 @@ namespace Realm.AdminServer.Helpers
         {
             try
             {
-                string targetMap = !string.IsNullOrWhiteSpace(reqMapTitle) ? reqMapTitle : routeMapTitle;
-                if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
+                var validationResult = ValidateMaintainerRequest(
+                    reqMapTitle, routeMapTitle, req.MaintainerPublicKey, req.RequesterPublicKey, req.Signature, "remove",
+                    db, adminPublicKeys, out string targetMap, out bool isAdmin);
+
+                if (validationResult != null)
                 {
-                    return Results.BadRequest(new MapMaintainersResponseDto
-                    {
-                        Success = false,
-                        MapTitle = targetMap,
-                        Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
-                    });
-                }
-
-                bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
-                bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
-
-                if (!isAdmin && !isMaintainer)
-                {
-                    return Results.Json(new MapMaintainersResponseDto
-                    {
-                        Success = false,
-                        MapTitle = targetMap,
-                        Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
-                    }, statusCode: StatusCodes.Status403Forbidden);
-                }
-
-                string canonicalPayload = $"remove_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
-                string fallbackPayload1 = $"remove_maintainer:{targetMap}:{req.MaintainerPublicKey}";
-                string fallbackPayload2 = $"remove:{targetMap}:{req.MaintainerPublicKey}";
-
-                bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
-                                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
-                                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
-
-                if (!isSigValid)
-                {
-                    return Results.BadRequest(new MapMaintainersResponseDto
-                    {
-                        Success = false,
-                        MapTitle = targetMap,
-                        Message = "Invalid signature for removing maintainer."
-                    });
+                    return validationResult;
                 }
 
                 var currentMaintainers = MapMaintainerHelper.GetMaintainers(db, targetMap);
