@@ -4,23 +4,8 @@ using Realm.Shared.ModelOptimization;
 namespace Realm.Tools.Cli;
 
 [Verb("mesh_player_color", HelpText = "Extract chroma key color from a 3D model, isolate player-color area via face topology, pack mask into Red channel of ORM texture, and re-optimize into .rmesh.")]
-public class MeshPlayerColorCliOptions
+public class MeshPlayerColorCliOptions : ModelCliOptionsBase
 {
-	[Option('i', "input", Required = true, HelpText = "Path to .rmesh or .glb file or directory containing model files.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
-	public string? Output { get; set; }
-
-	[Option("in-place", Required = false, Default = false, HelpText = "Overwrite the source file directly.")]
-	public bool InPlace { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-
-	[Option('t', "type", Required = false, HelpText = "Asset type for model: Character, Building, Prop, Item.")]
-	public string? AssetType { get; set; }
-
 	[Option("chroma_key", Required = false, Default = "#FF00FF", HelpText = "Chroma key color in hex (e.g. #FF00FF) or 'auto' to automatically detect the dominant vibrant chroma key.")]
 	public string ChromaKey { get; set; } = "#FF00FF";
 
