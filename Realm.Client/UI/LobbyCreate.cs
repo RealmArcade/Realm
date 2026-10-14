@@ -50,7 +50,7 @@ public partial class LobbyCreate : Control
 	private List<MapBriefingDetails> _availableMaps = new List<MapBriefingDetails>();
 	private List<string> _availableVersions = new List<string>();
 
-	public void _Ready()
+	public override void _Ready()
 	{
 		_bgPanel = GetNode<Panel>("Background");
 		_leftPillar = GetNode<Panel>("LeftPillar");
