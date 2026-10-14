@@ -2100,15 +2100,14 @@ public class AssetIndexService : IDisposable
 
 				query = ApplyMetadataFilters(query, requireRealmMetadata, requiredAssetType, requirePlayerColorMask);
 
-				var candidateList = query.ToList();
-
 				if (extensionFilterSet != null)
 				{
-					candidateList = candidateList.Where(x => extensionFilterSet.Contains(x.Extension)).ToList();
+					query = query.Where(x => extensionFilterSet.Contains(x.Extension));
 				}
 
-				var filtered = ApplySearchTermFilter(candidateList, searchTerm);
-				return DeduplicateSearchResults(filtered);
+				query = ApplySearchTermFilter(query, searchTerm);
+				var results = query.ToList();
+				return DeduplicateSearchResults(results).OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase).ToList();
 			}
 		}
 		catch (Exception ex)
@@ -2201,26 +2200,19 @@ public class AssetIndexService : IDisposable
 		return resultQuery;
 	}
 
-	private List<IndexedAsset> ApplySearchTermFilter(List<IndexedAsset> candidateList, string? searchTerm)
+	private ILiteQueryable<IndexedAsset> ApplySearchTermFilter(ILiteQueryable<IndexedAsset> query, string? searchTerm)
 	{
-		if (string.IsNullOrWhiteSpace(searchTerm))
+		string[] terms = !string.IsNullOrWhiteSpace(searchTerm) ? searchTerm.Split((char[])null, StringSplitOptions.RemoveEmptyEntries) : [];
+
+		foreach (var queryTerm in terms)
 		{
-			return candidateList.OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase).ToList();
+			query = query.Where(x => x.FileName.Contains(queryTerm, StringComparison.OrdinalIgnoreCase) ||
+			                          x.FilePath.Contains(queryTerm, StringComparison.OrdinalIgnoreCase) ||
+			                          (x.Tags != null && x.Tags.Any(t => t.Contains(queryTerm, StringComparison.OrdinalIgnoreCase)))
+			                    );
 		}
 
-		string queryTerm = searchTerm.Trim().ToLowerInvariant();
-		return candidateList
-			.Where(asset => MatchesSearchTerm(asset, queryTerm))
-			.OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase)
-			.ToList();
-	}
-
-	private bool MatchesSearchTerm(IndexedAsset asset, string queryTerm)
-	{
-		return (asset.Tags != null && asset.Tags.Any(t => t.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0)) ||
-		       asset.FileName.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0 ||
-		       asset.FilePath.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0 ||
-		       (!string.IsNullOrEmpty(asset.MapName) && asset.MapName.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0);
+		return query;
 	}
 
 	private List<IndexedAsset> DeduplicateSearchResults(List<IndexedAsset> filtered)
