@@ -42,6 +42,24 @@ public static class WindowsNativeInterop
 
 	public delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+	public static WNDCLASSEX CreateWndClassEx(string className, IntPtr wndProc)
+	{
+		var wndClass = new WNDCLASSEX();
+		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
+		wndClass.style = 0;
+		wndClass.lpfnWndProc = wndProc;
+		wndClass.cbClsExtra = 0;
+		wndClass.cbWndExtra = 0;
+		wndClass.hInstance = GetModuleHandle(null);
+		wndClass.hIcon = IntPtr.Zero;
+		wndClass.hCursor = IntPtr.Zero;
+		wndClass.hbrBackground = IntPtr.Zero;
+		wndClass.lpszMenuName = null;
+		wndClass.lpszClassName = className;
+		wndClass.hIconSm = IntPtr.Zero;
+		return wndClass;
+	}
+
 	[DllImport("user32.dll")]
 	public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
 

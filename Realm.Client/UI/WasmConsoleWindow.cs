@@ -114,20 +114,10 @@ public class WasmConsoleWindow
 
 	private void STAThreadLoop()
 	{
-		var wndClass = new WindowsNativeInterop.WNDCLASSEX();
-		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-		wndClass.style = 0;
 		_customWndProcDelegate = CustomWndProc;
-		wndClass.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_customWndProcDelegate);
-		wndClass.cbClsExtra = 0;
-		wndClass.cbWndExtra = 0;
-		wndClass.hInstance = GetModuleHandle(null);
-		wndClass.hIcon = IntPtr.Zero;
-		wndClass.hCursor = IntPtr.Zero;
-		wndClass.hbrBackground = IntPtr.Zero;
-		wndClass.lpszMenuName = null;
-		wndClass.lpszClassName = "WasmConsoleEmbedWindow";
-		wndClass.hIconSm = IntPtr.Zero;
+		var wndClass = WindowsNativeInterop.CreateWndClassEx(
+			"WasmConsoleEmbedWindow",
+			Marshal.GetFunctionPointerForDelegate(_customWndProcDelegate));
 
 		RegisterClassEx(ref wndClass);
 

@@ -1621,20 +1621,10 @@ public partial class VSCodeManager
 		var syncContext = new SingleThreadSynchronizationContext();
 		SynchronizationContext.SetSynchronizationContext(syncContext);
 
-		var wndClass = new WindowsNativeInterop.WNDCLASSEX();
-		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-		wndClass.style = 0;
 		_customWndProcDelegate = CustomWndProc;
-		wndClass.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_customWndProcDelegate);
-		wndClass.cbClsExtra = 0;
-		wndClass.cbWndExtra = 0;
-		wndClass.hInstance = GetModuleHandle(null);
-		wndClass.hIcon = IntPtr.Zero;
-		wndClass.hCursor = IntPtr.Zero;
-		wndClass.hbrBackground = IntPtr.Zero;
-		wndClass.lpszMenuName = null;
-		wndClass.lpszClassName = "VSCodeEmbedWindow";
-		wndClass.hIconSm = IntPtr.Zero;
+		var wndClass = WindowsNativeInterop.CreateWndClassEx(
+			"VSCodeEmbedWindow",
+			Marshal.GetFunctionPointerForDelegate(_customWndProcDelegate));
 
 		RegisterClassEx(ref wndClass);
 
@@ -2480,20 +2470,10 @@ public partial class VSCodeManager
 		var syncContext = new SingleThreadSynchronizationContext();
 		SynchronizationContext.SetSynchronizationContext(syncContext);
 
-		var wndClass = new WindowsNativeInterop.WNDCLASSEX();
-		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-		wndClass.style = 0;
 		WndProcDelegate bypassWndProc = BypassWndProc;
-		wndClass.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(bypassWndProc);
-		wndClass.cbClsExtra = 0;
-		wndClass.cbWndExtra = 0;
-		wndClass.hInstance = GetModuleHandle(null);
-		wndClass.hIcon = IntPtr.Zero;
-		wndClass.hCursor = IntPtr.Zero;
-		wndClass.hbrBackground = IntPtr.Zero;
-		wndClass.lpszMenuName = null;
-		wndClass.lpszClassName = "VSCodeBypassWindow";
-		wndClass.hIconSm = IntPtr.Zero;
+		var wndClass = WindowsNativeInterop.CreateWndClassEx(
+			"VSCodeBypassWindow",
+			Marshal.GetFunctionPointerForDelegate(bypassWndProc));
 
 		RegisterClassEx(ref wndClass);
 
