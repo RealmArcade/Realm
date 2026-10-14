@@ -779,7 +779,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-count\", ({lambdaParamsCount}) =>");
 		sb.AppendLine("        {");
 		EmitEntityMethodParameters(sb, paramInfos, gameApiSymbol);
-		string callExprCount = BuildCallExpressionFull(method, paramInfos, targetInstance);
+		string callExprCount = BuildCallExpression(method, paramInfos, targetInstance);
 		sb.AppendLine($"            return {callExprCount}?.Count() ?? 0;");
 		sb.AppendLine("        });");
 
@@ -790,7 +790,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}-get\", ({lambdaParamsGet}) =>");
 		sb.AppendLine("        {");
 		EmitEntityMethodParameters(sb, paramInfos, gameApiSymbol);
-		string callExprGet = BuildCallExpressionFull(method, paramInfos, targetInstance);
+		string callExprGet = BuildCallExpression(method, paramInfos, targetInstance);
 		sb.AppendLine($"            string s = {callExprGet}?.ElementAtOrDefault(index) ?? \"\";");
 		sb.AppendLine("            WriteGuestString(caller, retArea, s);");
 		sb.AppendLine("        });");
@@ -863,7 +863,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			}
 
 		var entityParams = paramInfos.FindAll(p => p.Kind == PrmKind.EntityParam);
-		string callExpr = BuildCallExpressionFull(method, paramInfos, targetInstance);
+		string callExpr = BuildCallExpression(method, paramInfos, targetInstance);
 
 		if (entityParams.Count == 0)
 		{
@@ -889,7 +889,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return string.Join(", ", parts);
 	}
 
-	private static string BuildCallExpressionSimple(IMethodSymbol method, List<ParamInfo> paramInfos, string targetInstance)
+	private static string BuildCallExpression(IMethodSymbol method, List<ParamInfo> paramInfos, string targetInstance)
 	{
 		var args = new List<string>();
 		foreach (var p in method.Parameters)
@@ -907,23 +907,6 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return $"{targetInstance}?.{method.Name}({string.Join(", ", args)})";
 	}
 
-	private static string BuildCallExpressionFull(IMethodSymbol method, List<ParamInfo> paramInfos, string targetInstance)
-	{
-		var args = new List<string>();
-		foreach (var p in method.Parameters)
-		{
-			if (p.Type.ToDisplayString() == "System.Numerics.Vector3")
-				args.Add(p.Name);
-			else if (IsNullableVector3(p.Type))
-				args.Add(p.Name);
-			else if (p.Type.SpecialType == SpecialType.System_Boolean)
-				args.Add($"{p.Name} != 0");
-			else
-				args.Add(p.Name);
-		}
-
-		return $"{targetInstance}?.{method.Name}({string.Join(", ", args)})";
-	}
 
 	private static void EmitBlockBody(StringBuilder sb, IMethodSymbol method, List<ParamInfo> paramInfos, RetKind retKind, string targetInstance, INamedTypeSymbol gameApiSymbol)
 	{
@@ -932,7 +915,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		ReadEntityParameters(sb, paramInfos, gameApiSymbol);
 
 		var entityParams = paramInfos.FindAll(p => p.Kind == PrmKind.EntityParam);
-		string callExpr = BuildCallExpressionFull(method, paramInfos, targetInstance);
+		string callExpr = BuildCallExpression(method, paramInfos, targetInstance);
 
 		EmitMethodCallAndReturn(sb, method, retKind, gameApiSymbol, entityParams, callExpr);
 	}
@@ -1091,7 +1074,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static string BuildSimpleExpression(IMethodSymbol method, List<ParamInfo> paramInfos, RetKind retKind, string targetInstance, INamedTypeSymbol gameApiSymbol)
 	{
-		string callExpr = BuildCallExpressionSimple(method, paramInfos, targetInstance);
+		string callExpr = BuildCallExpression(method, paramInfos, targetInstance);
 		if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
 		{
 			IsEntityInterface(method.ReturnType, out var unwrapped);
@@ -1660,6 +1643,27 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		}
 	}
 
+	private static string GetEntityArgument(IParameterSymbol p, INamedTypeSymbol gameApiSymbol)
+	{
+		if (IsEntityInterface(p.Type, out var unwrapped))
+		{
+			bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
+			if (hasId)
+			{
+				return $"{p.Name}?.UniqueId ?? 0";
+			}
+			else
+			{
+				string col = FindCollectionMember(gameApiSymbol, unwrapped);
+				return $"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1";
+			}
+		}
+		else
+		{
+			return p.Name;
+		}
+	}
+
 	private static void EmitStringAutoEventHandlerBody(StringBuilder sb, IMethodSymbol delegateMethod, string fieldName, INamedTypeSymbol gameApiSymbol)
 	{
 		sb.AppendLine($"        if ({fieldName} != null)");
@@ -1685,22 +1689,9 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				invokeArgs.Add($"{p.Name}.Y");
 				invokeArgs.Add($"{p.Name}.Z");
 			}
-			else if (IsEntityInterface(p.Type, out var unwrapped))
-			{
-				bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
-				if (hasId)
-				{
-					invokeArgs.Add($"{p.Name}?.UniqueId ?? 0");
-				}
-				else
-				{
-					string col = FindCollectionMember(gameApiSymbol, unwrapped);
-					invokeArgs.Add($"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1");
-				}
-			}
 			else
 			{
-				invokeArgs.Add(p.Name);
+				invokeArgs.Add(GetEntityArgument(p, gameApiSymbol));
 			}
 		}
 
@@ -1714,23 +1705,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var invokeArgs = new List<string>();
 		foreach (var p in delegateMethod.Parameters)
 		{
-			if (IsEntityInterface(p.Type, out var unwrapped))
-			{
-				bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
-				if (hasId)
-				{
-					invokeArgs.Add($"{p.Name}?.UniqueId ?? 0");
-				}
-				else
-				{
-					string col = FindCollectionMember(gameApiSymbol, unwrapped);
-					invokeArgs.Add($"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1");
-				}
-			}
-			else
-			{
-				invokeArgs.Add(p.Name);
-			}
+			invokeArgs.Add(GetEntityArgument(p, gameApiSymbol));
 		}
 
 		sb.AppendLine($"        {fieldName}?.Invoke({string.Join(", ", invokeArgs)});");
