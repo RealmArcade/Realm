@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using Realm.Shared.Metadata;
 
 namespace Realm.Shared.ModelOptimization;
@@ -61,25 +61,6 @@ public class RmeshFile : RealmContainerFile
 		}
 	}
 
-	public new static string? ExtractMetadata(ReadOnlySpan<byte> bytes)
-	{
-		return ExtractMetadataFromBytes(bytes, MagicBytes);
-	}
-
-	public new static string? ExtractMetadata(Stream stream)
-	{
-		return ExtractMetadataFromStream(stream, MagicBytes);
-	}
-
-	public new static string? ExtractMetadataFromFile(string filePath)
-	{
-		return ExtractMetadataFromPath(filePath, MagicBytes);
-	}
-
-	public new static byte[] SetMetadata(ReadOnlySpan<byte> bytes, string? newMetadataJson)
-	{
-		return SetContainerMetadata(bytes, MagicBytes, Name, Format, newMetadataJson);
-	}
 
 	private static byte[] ExtractGlbFromDecompressedPayload(byte[] payload)
 	{

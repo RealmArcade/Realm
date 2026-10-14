@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Realm.Shared.Metadata;
 
@@ -50,12 +50,4 @@ public class RkeyFile : RealmContainerFile
 		return Build(json, version);
 	}
 
-	public new static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
-	public new static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
-	public new static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
-
-	public new static byte[] SetMetadata(ReadOnlySpan<byte> bytes, string? newMetadataJson)
-	{
-		return RealmContainerHeader.SetMetadata(bytes, MagicBytes, newMetadataJson, Name);
-	}
 }

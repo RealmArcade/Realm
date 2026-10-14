@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json.Nodes;
 using Assimp;
 using Realm.Shared.Metadata;
@@ -178,6 +178,28 @@ public static class GlbPlayerColorProcessor
 		return AutoDetectChromaKey(albedoImg);
 	}
 
+	
+	private delegate void PixelOklabAction(SkiaSharp.SKColor pixel, float pL, float pA, float pB);
+
+	private static void IterateOklabPixels(SkiaSharp.SKBitmap albedoImg, PixelOklabAction action)
+	{
+		for (int y = 0; y < albedoImg.Height; y++)
+		{
+			for (int x = 0; x < albedoImg.Width; x++)
+			{
+				var pixel = albedoImg.GetPixel(x, y);
+				if (pixel.Alpha < 128) continue;
+
+				float r = pixel.Red / 255f;
+				float g = pixel.Green / 255f;
+				float b = pixel.Blue / 255f;
+
+				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+				action(pixel, pL, pA, pB);
+			}
+		}
+	}
+
 	public static string AutoDetectChromaKey(SKBitmap albedoImg)
 	{
 		string? result = DetectDominantChromaKeyWithThreshold(albedoImg, 0.15f);
@@ -192,32 +214,21 @@ public static class GlbPlayerColorProcessor
 	private static int ProcessCandidatePixelsForChromaKey(SKBitmap albedoImg, float targetHueUnitX, float targetHueUnitY, Dictionary<int, int> candidateColorCounts)
 	{
 		int totalCandidatePixels = 0;
-		for (int y = 0; y < albedoImg.Height; y++)
+		IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
 		{
-			for (int x = 0; x < albedoImg.Width; x++)
-			{
-				var pixel = albedoImg.GetPixel(x, y);
-				if (pixel.Alpha < 128) continue;
+			float pChromaSquared = pA * pA + pB * pB;
 
-				float r = pixel.Red / 255f;
-				float g = pixel.Green / 255f;
-				float b = pixel.Blue / 255f;
+			if (pChromaSquared < 0.0036f || pL < 0.08f || pL > 0.98f) return;
 
-				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-				float pChromaSquared = pA * pA + pB * pB;
+			float pChroma = MathF.Sqrt(pChromaSquared);
+			float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
 
-				if (pChromaSquared < 0.0036f || pL < 0.08f || pL > 0.98f) continue;
+			if (hueDot < 0.75f) return;
 
-				float pChroma = MathF.Sqrt(pChromaSquared);
-				float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-				if (hueDot < 0.75f) continue;
-
-				int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
-				candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
-				totalCandidatePixels++;
-			}
-		}
+			int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
+			candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
+			totalCandidatePixels++;
+		});
 
 		return totalCandidatePixels;
 	}
@@ -341,36 +352,24 @@ public static class GlbPlayerColorProcessor
 		float minGridCoord, float cellSize, int gridDimension)
 	{
 		float minChromaSquared = minChroma * minChroma;
-		for (int y = 0; y < albedoImg.Height; y++)
+		IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
 		{
-			for (int x = 0; x < albedoImg.Width; x++)
-			{
-				var pixel = albedoImg.GetPixel(x, y);
-				if (pixel.Alpha < 128) continue;
+			float chromaSquared = pA * pA + pB * pB;
+			if (chromaSquared < minChromaSquared) return;
+			if (pL < 0.10f || pL > 0.95f) return;
 
-				float r = pixel.Red / 255f;
-				float g = pixel.Green / 255f;
-				float b = pixel.Blue / 255f;
+			int gridX = Math.Clamp((int)((pA - minGridCoord) / cellSize), 0, gridDimension - 1);
+			int gridY = Math.Clamp((int)((pB - minGridCoord) / cellSize), 0, gridDimension - 1);
+			int binIndex = gridY * gridDimension + gridX;
 
-				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+			float weight = chromaSquared * chromaSquared;
 
-				float chromaSquared = pA * pA + pB * pB;
-				if (chromaSquared < minChromaSquared) continue;
-				if (pL < 0.10f || pL > 0.95f) continue;
-
-				int gridX = Math.Clamp((int)((pA - minGridCoord) / cellSize), 0, gridDimension - 1);
-				int gridY = Math.Clamp((int)((pB - minGridCoord) / cellSize), 0, gridDimension - 1);
-				int binIndex = gridY * gridDimension + gridX;
-
-				float weight = chromaSquared * chromaSquared;
-
-				binTotalWeight[binIndex] += weight;
-				binSumLightness[binIndex] += pL * weight;
-				binSumA[binIndex] += pA * weight;
-				binSumB[binIndex] += pB * weight;
-				binPixelCount[binIndex]++;
-			}
-		}
+			binTotalWeight[binIndex] += weight;
+			binSumLightness[binIndex] += pL * weight;
+			binSumA[binIndex] += pA * weight;
+			binSumB[binIndex] += pB * weight;
+			binPixelCount[binIndex]++;
+		});
 	}
 
 	private static (int bestGridX, int bestGridY) FindBestChromaCluster(float[] binTotalWeight, int gridDimension)
