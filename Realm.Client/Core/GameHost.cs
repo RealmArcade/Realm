@@ -1140,28 +1140,14 @@ public partial class GameHost : Node3D, IGameAPI
 	private static string SafeGlobalizePath(string path)
 	{
 		if (string.IsNullOrEmpty(path)) return path;
-		if (MapAssetManager.IsGodotEngineRunning)
+		try
 		{
-			try
-			{
-				return ProjectSettings.GlobalizePath(path);
-			}
-			catch
-			{
-			}
+			return ProjectSettings.GlobalizePath(path);
 		}
-
-		if (path.StartsWith("user://"))
+		catch
 		{
-			return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "user", path.Substring("user://".Length));
+			return path;
 		}
-
-		if (path.StartsWith("res://"))
-		{
-			return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path.Substring("res://".Length));
-		}
-
-		return path;
 	}
 
 	public static string? ResolveMapDirectory(string mapNameOrPath, string? version = null)

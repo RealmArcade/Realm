@@ -22,30 +22,14 @@ public static class MapAssetManager
 
 	private static readonly object ArchiveLock = new object();
 
-	public static bool IsGodotEngineRunning { get; set; } = true;
-
 	public static void Log(string message)
 	{
-		if (IsGodotEngineRunning)
-		{
-			GD.Print(message);
-		}
-		else
-		{
-			Console.WriteLine(message);
-		}
+		GD.Print(message);
 	}
 
 	public static void LogErr(string message)
 	{
-		if (IsGodotEngineRunning)
-		{
-			GD.PrintErr(message);
-		}
-		else
-		{
-			Console.Error.WriteLine(message);
-		}
+		GD.PrintErr(message);
 	}
 
 	private static readonly AsyncLocal<string?> AsyncLocalArchiveDirectory = new();
@@ -116,26 +100,13 @@ public static class MapAssetManager
 	{
 		get
 		{
-			if (IsGodotEngineRunning)
+			string path = ProjectSettings.GlobalizePath("user://p2p_cache");
+			if (!Directory.Exists(path))
 			{
-				string path = ProjectSettings.GlobalizePath("user://p2p_cache");
-				if (!Directory.Exists(path))
-				{
-					Directory.CreateDirectory(path);
-				}
-
-				return path;
+				Directory.CreateDirectory(path);
 			}
-			else
-			{
-				string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "user_p2p_cache");
-				if (!Directory.Exists(path))
-				{
-					Directory.CreateDirectory(path);
-				}
 
-				return path;
-			}
+			return path;
 		}
 	}
 
@@ -187,20 +158,7 @@ public static class MapAssetManager
 				return configured;
 			}
 
-			if (IsGodotEngineRunning)
-			{
-				return ProjectSettings.GlobalizePath("user://maps");
-			}
-			else
-			{
-				string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "user_maps");
-				if (!Directory.Exists(path))
-				{
-					Directory.CreateDirectory(path);
-				}
-
-				return path;
-			}
+			return ProjectSettings.GlobalizePath("user://maps");
 		}
 	}
 

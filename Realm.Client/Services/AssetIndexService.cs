@@ -39,15 +39,7 @@ public class AssetIndexService : IDisposable
 
 	private static string GetUserDirectory()
 	{
-		if (MapAssetManager.IsGodotEngineRunning)
-		{
-			return ProjectSettings.GlobalizePath("user://");
-		}
-		else
-		{
-			string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-			return Path.Combine(appData, "Godot", "app_userdata", "Realm");
-		}
+		return ProjectSettings.GlobalizePath("user://");
 	}
 
 	public static string GetCacheFilePath()
