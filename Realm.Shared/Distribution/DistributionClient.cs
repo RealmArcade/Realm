@@ -512,7 +512,7 @@ public class DistributionClient
 				onAssetReady?.Invoke(item.VirtualPath, item.AssetKey, item.NormalizedHash);
 			}
 
-			int currentCompleted = Interlocked.Increment(ref completedCountWrapper[0]);
+			int currentCompleted = Interlocked.Add(ref completedCountWrapper[0], readyItems.Count);
 			float progress = (float)currentCompleted / totalMissing;
 			progressCallback?.Invoke(progress);
 		}

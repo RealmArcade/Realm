@@ -87,6 +87,8 @@ public class MapDistributionClient
 			return false;
 		}
 
+		DistributionClient.ResetAllCircuitBreakers();
+
 		var lm = GetLobbyManager();
 		List<string> serverUrls = GetServerUrls(lm, registryServerUrl);
 
