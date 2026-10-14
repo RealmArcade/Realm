@@ -11,6 +11,7 @@ using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using static Realm.Client.Utils.WindowsNativeInterop;
 using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
@@ -309,50 +310,7 @@ public partial class VSCodeManager
 	private WndProcDelegate _customWndProcDelegate;
 
 
-	[DllImport("user32.dll")]
-	public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
 
-	[DllImport("user32.dll")]
-	public static extern bool TranslateMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll")]
-	public static extern IntPtr DispatchMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll")]
-	public static extern short GetKeyState(int nVirtKey);
-
-	[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CreateWindowExW")]
-	public static extern IntPtr CreateWindowEx(
-		uint dwExStyle,
-		string lpClassName,
-		string lpWindowName,
-		uint dwStyle,
-		int x,
-		int y,
-		int nWidth,
-		int nHeight,
-		IntPtr hWndParent,
-		IntPtr hMenu,
-		IntPtr hInstance,
-		IntPtr lpParam);
-
-	[DllImport("user32.dll", SetLastError = true)]
-	public static extern bool DestroyWindow(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-	[DllImport("user32.dll")]
-	public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-	[DllImport("user32.dll")]
-	public static extern bool SetForegroundWindow(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool BringWindowToTop(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern void SwitchToThisWindow(IntPtr hWnd, bool fUnknown);
 
 	public static void RestoreAndFocusGodotWindow()
 	{
@@ -394,17 +352,7 @@ public partial class VSCodeManager
 		}).CallDeferred();
 	}
 
-	[DllImport("user32.dll")]
-	public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "RegisterClassExW")]
-	public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "DefWindowProcW")]
-	public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetModuleHandleW")]
-	public static extern IntPtr GetModuleHandle(string lpModuleName);
 
 	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
 	public static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
@@ -1673,7 +1621,7 @@ public partial class VSCodeManager
 		var syncContext = new SingleThreadSynchronizationContext();
 		SynchronizationContext.SetSynchronizationContext(syncContext);
 
-		var wndClass = new WNDCLASSEX();
+		var wndClass = new WindowsNativeInterop.WNDCLASSEX();
 		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
 		wndClass.style = 0;
 		_customWndProcDelegate = CustomWndProc;
@@ -1714,7 +1662,7 @@ public partial class VSCodeManager
 
 		InitializeWebView();
 
-		MSG msg;
+		WindowsNativeInterop.MSG msg;
 		while (GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
 		{
 			TranslateMessage(ref msg);
@@ -2532,7 +2480,7 @@ public partial class VSCodeManager
 		var syncContext = new SingleThreadSynchronizationContext();
 		SynchronizationContext.SetSynchronizationContext(syncContext);
 
-		var wndClass = new WNDCLASSEX();
+		var wndClass = new WindowsNativeInterop.WNDCLASSEX();
 		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
 		wndClass.style = 0;
 		WndProcDelegate bypassWndProc = BypassWndProc;
@@ -2595,7 +2543,7 @@ public partial class VSCodeManager
 			embedDir
 		);
 
-		MSG msg;
+		WindowsNativeInterop.MSG msg;
 		while (running && GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
 		{
 			if (msg.message == 0x0010)

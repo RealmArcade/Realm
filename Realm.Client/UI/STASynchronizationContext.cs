@@ -22,7 +22,7 @@ public class STASynchronizationContext : SynchronizationContext
 		_queue.Enqueue(() => d(state));
 		if (_hwnd != IntPtr.Zero)
 		{
-			WasmConsoleWindow.PostMessage(_hwnd, WasmConsoleWindow.WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+			Realm.Client.Utils.WindowsNativeInterop.PostMessage(_hwnd, WasmConsoleWindow.WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 		}
 	}
 
@@ -48,7 +48,7 @@ public class STASynchronizationContext : SynchronizationContext
 			});
 			if (_hwnd != IntPtr.Zero)
 			{
-				WasmConsoleWindow.PostMessage(_hwnd, WasmConsoleWindow.WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+				Realm.Client.Utils.WindowsNativeInterop.PostMessage(_hwnd, WasmConsoleWindow.WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 			}
 
 			evt.Wait();

@@ -20,7 +20,7 @@ public class SingleThreadSynchronizationContext : SynchronizationContext
 		_queue.Enqueue(() => d(state));
 		if (_targetHwnd != IntPtr.Zero)
 		{
-			VSCodeManager.PostMessage(_targetHwnd, VSCodeManager.WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+			Realm.Client.Utils.WindowsNativeInterop.PostMessage(_targetHwnd, VSCodeManager.WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
 		}
 	}
 

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using static Realm.Client.Utils.WindowsNativeInterop;
 using System.Text.Json;
 using System.Threading;
 using Godot;
@@ -65,59 +66,7 @@ public class WasmConsoleWindow
 	private WndProcDelegate? _customWndProcDelegate;
 
 
-	[DllImport("user32.dll")]
-	public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
 
-	[DllImport("user32.dll")]
-	public static extern bool TranslateMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll")]
-	public static extern IntPtr DispatchMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CreateWindowExW")]
-	public static extern IntPtr CreateWindowEx(
-		uint dwExStyle,
-		string lpClassName,
-		string lpWindowName,
-		uint dwStyle,
-		int x,
-		int y,
-		int nWidth,
-		int nHeight,
-		IntPtr hWndParent,
-		IntPtr hMenu,
-		IntPtr hInstance,
-		IntPtr lpParam);
-
-	[DllImport("user32.dll", SetLastError = true)]
-	public static extern bool DestroyWindow(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-	[DllImport("user32.dll")]
-	public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-	[DllImport("user32.dll")]
-	public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "RegisterClassExW")]
-	public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "DefWindowProcW")]
-	public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetModuleHandleW")]
-	public static extern IntPtr GetModuleHandle(string lpModuleName);
-
-	[DllImport("user32.dll")]
-	public static extern bool SetForegroundWindow(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool IsWindowVisible(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool IsIconic(IntPtr hWnd);
 
 	public static bool IsSinglePlayerOrTestMode()
 	{
@@ -148,8 +97,6 @@ public class WasmConsoleWindow
 
 	private readonly object _initLock = new object();
 
-	[DllImport("user32.dll")]
-	public static extern void PostQuitMessage(int nExitCode);
 
 	private void EnsureInitialized()
 	{
@@ -167,7 +114,7 @@ public class WasmConsoleWindow
 
 	private void STAThreadLoop()
 	{
-		var wndClass = new WNDCLASSEX();
+		var wndClass = new WindowsNativeInterop.WNDCLASSEX();
 		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
 		wndClass.style = 0;
 		_customWndProcDelegate = CustomWndProc;
@@ -210,7 +157,7 @@ public class WasmConsoleWindow
 		PositionOnScreen();
 		InitializeWebView();
 
-		MSG msg;
+		WindowsNativeInterop.MSG msg;
 		while (GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
 		{
 			TranslateMessage(ref msg);
