@@ -3,6 +3,9 @@
 ## General Project Overview:
 - RTS Game using Godot with C# and the Arch ECS framework.
 
+## AST Map
+- A generated map of the entire solution (via ast-outline) lives at `@[.context/REPO_MAP.md]`. Read it first for an overview of the app before exploring files. It is regenerated on every build by `Directory.Solution.targets` / `Directory.Build.targets`.
+
 ## File Reading & Tool Efficiency Rules (CRITICAL)
 - **`view_file` / `Read` Usage:** Always omit `StartLine`, `EndLine`, and `ContentOffset` on your first read of any file; if the file exceeds 800 lines, paginate in 800-line increments using ONLY `StartLine` and `EndLine` (never set `ContentOffset` or read fewer than 800-line chunks).
 
