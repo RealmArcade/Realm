@@ -5,7 +5,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Represents a request to spawn a decal with specified parameters.
 	/// </summary>
-	internal struct DecalSpawnRequest
+	public struct DecalSpawnRequest
 	{
 		public string DecalId;
 		public Vector3 Position;

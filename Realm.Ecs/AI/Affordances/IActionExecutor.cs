@@ -1,6 +1,5 @@
-using Arch.Core;
-using System;
 using System.Numerics;
+using Arch.Core;
 
 namespace Realm.Ecs.AI.Affordances;
 

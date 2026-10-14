@@ -423,6 +423,9 @@
               "CoreColor": {
                 "type": "string"
               },
+              "ColorMixRatio": {
+                "type": "number"
+              },
               "EmissionBoost": {
                 "type": "number"
               },

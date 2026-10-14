@@ -1,13 +1,16 @@
+using System.Numerics;
+using System.Text.Json;
+using Arch.Core;
 using NUnit.Framework;
+using Realm.Ecs.AI;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Balancer;
 using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Simulation;
 using Realm.Ecs.AI.Training;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Tags;
 
 namespace Realm.Ecs.Tests;
 
@@ -36,8 +39,8 @@ public class AiUtilityTests
 		var policy = new LinearUtilityPolicy();
 		var affordances = new List<GenericAffordance>
 		{
-			new GenericAffordance(Arch.Core.Entity.Null, CommandIntent.MoveTo, Arch.Core.Entity.Null, System.Numerics.Vector3.Zero, "move1", new float[] { 0.1f, 0.2f, 0.1f, 0.5f, 0.2f, 0.0f, 0.1f, 0.1f }),
-			new GenericAffordance(Arch.Core.Entity.Null, CommandIntent.Attack, Arch.Core.Entity.Null, System.Numerics.Vector3.Zero, "attack1", new float[] { 0.0f, 0.9f, 0.8f, 1.0f, 0.9f, 0.0f, 0.1f, 0.8f })
+			new GenericAffordance(Entity.Null, CommandIntent.MoveTo, Entity.Null, Vector3.Zero, "move1", new float[] { 0.1f, 0.2f, 0.1f, 0.5f, 0.2f, 0.0f, 0.1f, 0.1f }),
+			new GenericAffordance(Entity.Null, CommandIntent.Attack, Entity.Null, Vector3.Zero, "attack1", new float[] { 0.0f, 0.9f, 0.8f, 1.0f, 0.9f, 0.0f, 0.1f, 0.8f })
 		};
 
 		var weights = new float[] { -0.5f, 1.0f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, 0.5f };
@@ -95,8 +98,8 @@ public class AiUtilityTests
 		profile1.DecisionIntervalSeconds = 2.0f;
 		profile1.AggressionMultiplier = 0.5f;
 
-		var bot0 = new Realm.Ecs.AI.BotController(0, profile0);
-		var bot1 = new Realm.Ecs.AI.BotController(1, profile1);
+		var bot0 = new BotController(0, profile0);
+		var bot1 = new BotController(1, profile1);
 
 		Assert.That(bot0.PlayerIndex, Is.EqualTo(0));
 		Assert.That(bot1.PlayerIndex, Is.EqualTo(1));
@@ -125,12 +128,12 @@ public class AiUtilityTests
 		{
 			customInitCalled = true;
 			world.Create(
-				new Realm.Ecs.Components.Tags.Player(),
-				new Realm.Ecs.Components.Core.UnitOwnerPlayer(0)
+				new Player(),
+				new UnitOwnerPlayer(0)
 			);
 			world.Create(
-				new Realm.Ecs.Components.Tags.Player(),
-				new Realm.Ecs.Components.Core.UnitOwnerPlayer(1)
+				new Player(),
+				new UnitOwnerPlayer(1)
 			);
 		};
 
@@ -140,6 +143,7 @@ public class AiUtilityTests
 			{
 				return 0;
 			}
+
 			return null;
 		};
 
@@ -220,7 +224,7 @@ public class AiUtilityTests
 		var provider = AiGenreRegistry.Get("tug_of_war");
 		provider.ConfigureFromParameters(new Dictionary<string, string>
 		{
-			{ "BuildSpotsJson", System.Text.Json.JsonSerializer.Serialize(new List<Vector3> { new(0, 0, 0), new(10, 0, 10) }) },
+			{ "BuildSpotsJson", JsonSerializer.Serialize(new List<Vector3> { new(0, 0, 0), new(10, 0, 10) }) },
 			{ "IncomeUpgradeCost", "100" }
 		});
 
@@ -239,10 +243,10 @@ public class AiUtilityTests
 		var provider = AiGenreRegistry.Get("hero_arena");
 		provider.ConfigureFromParameters(new Dictionary<string, string>
 		{
-			{ "FountainPositionJson", System.Text.Json.JsonSerializer.Serialize(new Vector3(-50, 0, -50)) },
+			{ "FountainPositionJson", JsonSerializer.Serialize(new Vector3(-50, 0, -50)) },
 			{ "RetreatHealthPercent", "0.4" },
-			{ "RunePositionsJson", System.Text.Json.JsonSerializer.Serialize(new List<Vector3> { new(0, 0, 0) }) },
-			{ "ShopBuildOrderJson", System.Text.Json.JsonSerializer.Serialize(new List<string> { "boots_of_speed", "iron_blade" }) }
+			{ "RunePositionsJson", JsonSerializer.Serialize(new List<Vector3> { new(0, 0, 0) }) },
+			{ "ShopBuildOrderJson", JsonSerializer.Serialize(new List<string> { "boots_of_speed", "iron_blade" }) }
 		});
 
 		var affordances = new List<GenericAffordance>();

@@ -5,7 +5,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Holds mapping dictionaries between server/client entities and peer ID to player entities.
 	/// </summary>
-	internal struct NetworkMappingState
+	public struct NetworkMappingState
 	{
 		public Dictionary<int, Entity> ServerToClientEntityMap { get; }
 		public Dictionary<int, int> ClientToServerEntityMap { get; }

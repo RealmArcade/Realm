@@ -440,7 +440,7 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
         if (workspaceFolders) {
             for (const folder of workspaceFolders) {
                 searchRoots.push(folder.uri.fsPath);
-                searchRoots.push(path.join(folder.uri.fsPath, 'Realm.Godot'));
+                searchRoots.push(path.join(folder.uri.fsPath, 'Realm.Client'));
             }
         }
 
@@ -543,14 +543,14 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
 
         if (Object.keys(activeDict).length === 0 || Object.keys(enDict).length === 0) {
             const searchDirs: string[] = [
-                path.join(this.context.extensionPath, '..', 'Realm.Godot', 'locale'),
+                path.join(this.context.extensionPath, '..', 'Realm.Client', 'locale'),
                 path.join(this.context.extensionPath, 'locale'),
-                path.join(process.cwd(), 'Realm.Godot', 'locale'),
+                path.join(process.cwd(), 'Realm.Client', 'locale'),
             ];
             if (vscode.workspace.workspaceFolders) {
                 for (const wf of vscode.workspace.workspaceFolders) {
-                    searchDirs.push(path.join(wf.uri.fsPath, 'Realm.Godot', 'locale'));
-                    searchDirs.push(path.join(wf.uri.fsPath, '..', 'Realm.Godot', 'locale'));
+                    searchDirs.push(path.join(wf.uri.fsPath, 'Realm.Client', 'locale'));
+                    searchDirs.push(path.join(wf.uri.fsPath, '..', 'Realm.Client', 'locale'));
                 }
             }
 

@@ -1,7 +1,4 @@
-using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.IO;
 using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Audio;
@@ -89,6 +86,7 @@ public class RaudFile : RealmContainerFile
 				}
 			}
 		}
+
 		rawWriter.Flush();
 		return rawPayloadStream.ToArray();
 	}

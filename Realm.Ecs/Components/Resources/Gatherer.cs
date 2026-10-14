@@ -6,7 +6,7 @@ namespace Realm.Ecs.Components.Resources;
 ///     Stores the gathering state for a worker unit entity, including the resource type,
 ///     carried amount, capacity, and the target resource node entity.
 /// </summary>
-internal struct Gatherer
+public struct Gatherer
 {
 	public string ResourceType;
 	public float CarriedAmount;

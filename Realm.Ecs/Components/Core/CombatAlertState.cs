@@ -4,4 +4,4 @@ namespace Realm.Ecs.Components.Core;
 ///     Tracks the cooldown timer for under-attack UI alert notifications, stored on the world entity
 ///     so both the ECS service and the GameHost orchestrator can read and update it without coupling.
 /// </summary>
-internal record struct CombatAlertState(float UnderAttackAlertTimer);
+public record struct CombatAlertState(float UnderAttackAlertTimer);

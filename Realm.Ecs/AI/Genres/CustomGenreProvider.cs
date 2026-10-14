@@ -1,14 +1,9 @@
+using System.Numerics;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
-using System;
-using System.Collections.Generic;
-using System.Numerics;
 
 namespace Realm.Ecs.AI.Genres;
-
-public delegate void CustomAffordanceScannerDelegate(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext);
-public delegate void CustomActionExecutorDelegate(World world, int playerIndex, in GenericAffordance affordance, Action<int, string, Vector3, string>? customActionCallback);
 
 public class CustomGenreProvider : IAiGenreProvider
 {
@@ -32,6 +27,7 @@ public class CustomGenreProvider : IAiGenreProvider
 		{
 			weights[i] = 0.5f;
 		}
+
 		return weights;
 	}
 

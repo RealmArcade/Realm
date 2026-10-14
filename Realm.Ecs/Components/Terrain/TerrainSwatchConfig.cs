@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Terrain
 	/// <summary>
 	/// Stores procedural height-blending calibration parameters for a terrain texture swatch.
 	/// </summary>
-	internal struct TerrainSwatchConfig
+	public struct TerrainSwatchConfig
 	{
 		public float HeightScale;
 		public float HeightOffset;

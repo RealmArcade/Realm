@@ -4,4 +4,4 @@ namespace Realm.Ecs.Components.Core;
 ///     Represents the faction allegiance of a unit entity, distinguishing player-controlled
 ///     units from enemy-controlled units without coupling to Godot node state.
 /// </summary>
-internal record struct UnitFaction(bool IsEnemy);
+public record struct UnitFaction(bool IsEnemy);

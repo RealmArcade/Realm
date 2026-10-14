@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Core;
 /// <summary>
 ///     Manages the production/training queue for RTS structures.
 /// </summary>
-internal struct ProductionQueue
+public struct ProductionQueue
 {
 	public ProductionQueue()
 	{

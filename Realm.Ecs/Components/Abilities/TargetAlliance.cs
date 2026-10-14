@@ -4,7 +4,7 @@ namespace Realm.Ecs.Components.Abilities;
 ///     Specifies the valid targets for an ability.
 /// </summary>
 [Flags]
-internal enum TargetAlliance
+public enum TargetAlliance
 {
 	None = 0,
 	Self = 1 << 0,

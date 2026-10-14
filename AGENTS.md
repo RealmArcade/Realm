@@ -3,6 +3,9 @@
 ## General Project Overview:
 - RTS Game using Godot with C# and the Arch ECS framework.
 
+## File Reading & Tool Efficiency Rules (CRITICAL)
+- **`view_file` / `Read` Usage:** Always omit `StartLine`, `EndLine`, and `ContentOffset` on your first read of any file; if the file exceeds 800 lines, paginate in 800-line increments using ONLY `StartLine` and `EndLine` (never set `ContentOffset` or read fewer than 800-line chunks).
+
 ## Overall Coding Style:
 
 - Prefer functional programming paradigms where appropriate.
@@ -13,7 +16,8 @@
 - Do not use `#region` blocks.
 - Use verbose, descriptive names that clearly identify their purpose (avoid cryptic abbreviations).
 - Avoid the `sealed` keyword.
-- Use [GeneratedRegex] syntax
+- Use [GeneratedRegex] syntax.
+- Avoid keywords `internal` and `InternalsVisibleTo` use `public` or `private` instead.
 
 ## Core 3D rendering and Engine Tick Calculations:
 - Minimize Garbage Collection (GC) pressure by using struct-based data where possible.
@@ -24,25 +28,25 @@
 
 ## Godot-Specific Coding Rules:
 - 2D button: always specify the `icon_max_width` property.
+- Godot nodes should only include UX logic, domain logic should be delegated to services
 - For any text labels that appear on screen, ensure they are translated via `LocalizationManager.cs`.
 - Labels in Containers: When setting autowrap_mode, always set custom_minimum_size.x (explicit width) and size_flags_horizontal = SIZE_EXPAND_FILL. Otherwise Godot calculates custom_minimum_size.y based on single-word wrapping, causing container to stretch excessively tall.
 - Unicode Icons: Never hardcode `\uXXXX` escape sequences inside string literals in UI or HUD scripts. Always reference named glyph constants defined in `UnicodeIcons` (e.g. `${UnicodeIcons.UPLOAD}`).
 
 ### Realm.ECS Data Layer:
-- The core ECS classes and data must be kept internal.
 - Keep system logic separated from presentation. Physics process query loops in `GameHost.cs` should inspect and manipulate ECS data via components, updating `Unit3D` / `Prop3D` nodes accordingly.
 - Do not store Godot lifecycle elements, scene nodes, or UI references directly inside ECS components. Components must remain pure unmanaged data.
 - All QueryDescription instances should be created 1x as public readonly fields in `QueryCache.cs` and re-used across the application
 
 ### Logic Services:
 - Classes inheriting from Godot should have minimal orchestration logic, deferring complex logic to domain-specific services.
-- Services should have the `WorldAccessor` dependency injected via their constructor and cached for their lifetime.
 - Decoupled Communication: Avoid using DTOs to communicate between orchestrators (`GameHost`) and services. Communication should be minimal and limited to simple ephemeral primitive parameters and return values. All persistent shared data must be stored directly in the ECS, allowing both services and `GameHost` to query and write to the ECS independently to coordinate.
-- Services should never be instantiated directly, they should always be retrieved via the global ServiceLocator during godot scene _Ready() and stored in private readonly fields.
+- Services should never be instantiated directly, they should always be accessed via the global GameContext
 
 ### Realm.MapAPI:
-- Only expose safe APIs to map authors to prevent the direct manipulation of Godot nodes or internal C# ECS structures.
-- All map scripting operations should strictly proxy through interfaces (like `IGameAPI` and `IUnit`). Implementations (e.g. `UnitWrapper`) must hide the underlying `Arch.Core.Entity` and raw Godot `Node` references.
+- Only expose safe APIs to map authors and external tools to prevent direct manipulation of raw Godot nodes or C# ECS structures.
+- All map scripting operations proxy through `IGameAPI`, while map editing operations proxy through `IEditorAPI`.
+- Everything in `Realm.MapAPI` (including `IGameAPI` and `IEditorAPI`) must have full, comprehensive XML-doc comments for public consumption.
 
 ### Map Workspaces & WASM Compilation (Portability):
 - The map temp workspace is compiled to WASM via `dotnet publish`. Workspaces and saved map folders MUST be machine-portable: never write absolute paths into generated/saved `.csproj` files.
@@ -62,5 +66,5 @@
 - Always compile code after making changes to ensure there are no errors.
 
 ## Test CLI example
-dotnet test Realm.Godot/Realm.Godot.csproj -e GODOT_BIN="C:\Program Files\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe" --filter "FullyQualifiedName~Realm.Godot.Tests.MapEditorUxTests.TestCustomWeaponProjectileLayersAndVisualRendering"
+dotnet test Realm.Client.Tests/Realm.Client.Tests.csproj -e GODOT_BIN="C:\Program Files\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe" --filter "FullyQualifiedName~Realm.Client.Tests.MapEditorUxTests.TestCustomWeaponProjectileLayersAndVisualRendering"
 - Don't run tests unless explicitly told to do so

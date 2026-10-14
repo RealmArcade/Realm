@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Stats;
 ///     Represents the Armor stat.
 /// </summary>
 [StatDefinition("Armor", "Armor", "Reduces incoming physical damage.")]
-internal readonly record struct ArmorStat;
+public readonly record struct ArmorStat;

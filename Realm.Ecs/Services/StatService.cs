@@ -7,13 +7,10 @@ namespace Realm.Ecs.Services;
 /// <summary>
 ///     Demonstrates how Stat and StatModifier components are used together.
 /// </summary>
-internal class StatService
+public class StatService
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
-
-	public StatService(WorldAccessor ecsWorldAccessor)
+	public StatService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
 	/// <summary>
@@ -22,16 +19,16 @@ internal class StatService
 	/// </summary>
 	public float GetStatValue(Entity entity, StatId statId)
 	{
-		if (!_ecsWorldAccessor.Current.Has<Stats>(entity)) return 0f;
+		if (!ECSContext.World.Has<Stats>(entity)) return 0f;
 
-		var baseStats = _ecsWorldAccessor.Current.Get<Stats>(entity).Value;
+		var baseStats = ECSContext.World.Get<Stats>(entity).Value;
 		if (!baseStats.TryGetValue(statId, out var currentValue)) return 0f;
 
 		var query = QueryCache.AllStatModifierQuery;
 		var flatBonus = 0f;
 		var percentBonus = 1.0f;
 
-		_ecsWorldAccessor.Current.Query(in query, (ref Entity e, ref StatModifier mod) =>
+		ECSContext.World.Query(in query, (ref Entity e, ref StatModifier mod) =>
 		{
 			if (e != entity || mod.StatTypeId != statId) return;
 
@@ -49,6 +46,6 @@ internal class StatService
 	/// </summary>
 	public void ApplyStatModifier(Entity entity, StatModifier modifier)
 	{
-		_ecsWorldAccessor.Current.Add(entity, modifier);
+		ECSContext.World.Add(entity, modifier);
 	}
 }

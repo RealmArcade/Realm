@@ -1,9 +1,15 @@
 <Solution>
   <Project Path="Realm.Shared/Realm.Shared.csproj" />
   <Project Path="Realm.Ecs.Tests/Realm.Ecs.Tests.csproj" />
+  <Project Path="Realm.Client.Tests/Realm.Client.Tests.csproj">
+    <BuildType Solution="Release|*" Project="ExportDebug" />
+  </Project>
+  <Project Path="Realm.Client/Realm.Client.csproj">
+    <BuildType Solution="Release|*" Project="ExportDebug" />
+  </Project>
   <Project Path="Realm.Distribution.Tests/Realm.Distribution.Tests.csproj" />
   <Project Path="Realm.Ecs/Realm.Ecs.csproj" />
-  <Project Path="Realm.Godot/Realm.Godot.csproj" />
+  <Project Path="Realm.EditorAPI/Realm.EditorAPI.csproj" />
   <Project Path="Realm.AdminServer/Realm.AdminServer.csproj" />
   <Project Path="Realm.MapAPI/Realm.MapAPI.csproj" />
   <Project Path="Realm.MapEditorExtension/Realm.MapEditorExtension.csproj" />

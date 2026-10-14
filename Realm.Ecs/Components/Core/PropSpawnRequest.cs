@@ -5,7 +5,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Represents a request to spawn a prop with specified parameters.
 	/// </summary>
-	internal struct PropSpawnRequest
+	public struct PropSpawnRequest
 	{
 		public string PropId;
 		public Vector3 Position;

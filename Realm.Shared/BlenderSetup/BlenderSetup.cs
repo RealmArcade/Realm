@@ -1,7 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Reflection;
 
 namespace Realm.Shared.BlenderSetup;
@@ -110,6 +107,7 @@ public static class BlenderSetup
 			{
 				return;
 			}
+
 			throw new FileNotFoundException(
 				$"Embedded resource render_ranim.py not found. Available resources: {string.Join(", ", assembly.GetManifestResourceNames())}");
 		}

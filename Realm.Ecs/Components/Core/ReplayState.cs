@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Holds replay recording and playback metadata, tracking tick progress and resource fallbacks.
 	/// </summary>
-	internal struct ReplayState
+	public struct ReplayState
 	{
 		public int ReplayTickCounter;
 		public float GoldBackup;

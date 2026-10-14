@@ -17,12 +17,13 @@ namespace Realm.TranslationTool
 
 		[GeneratedRegex(@"\s+", RegexOptions.IgnoreCase)]
 		private static partial Regex SpacesRegex();
-		
+
 		private Process _ollamaProc;
+
 		public OllamaClient()
 		{
 			_cacheDir = "C:\\temp\\Realm.TranslationTool.cache";
-			_url = "http://127.0.0.1:11434";			
+			_url = "http://127.0.0.1:11434";
 		}
 
 		private async Task<bool> IsOllamaRunning()
@@ -32,7 +33,10 @@ namespace Realm.TranslationTool
 				using var response = await _http.GetAsync(_url + "/api/tags");
 				return response.IsSuccessStatusCode;
 			}
-			catch { return false; }
+			catch
+			{
+				return false;
+			}
 		}
 
 		public async Task EnsureOllama()
@@ -128,4 +132,3 @@ namespace Realm.TranslationTool
 		}
 	}
 }
-

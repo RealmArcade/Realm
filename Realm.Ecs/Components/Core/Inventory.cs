@@ -3,13 +3,13 @@ namespace Realm.Ecs.Components.Core;
 /// <summary>
 ///     A component for holding unit item slot contents (e.g. healing potions).
 /// </summary>
-internal record struct Inventory
+public record struct Inventory
 {
-	public System.Collections.Generic.Dictionary<string, int> Items { get; set; }
+	public Dictionary<string, int> Items { get; set; }
 
 	public Inventory()
 	{
-		Items = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+		Items = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 	}
 
 	public int GetItemCount(string itemId)
@@ -18,12 +18,13 @@ internal record struct Inventory
 		{
 			return count;
 		}
+
 		return 0;
 	}
 
 	public void SetItemCount(string itemId, int count)
 	{
-		Items ??= new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+		Items ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 		if (string.IsNullOrEmpty(itemId)) return;
 		if (count <= 0)
 		{

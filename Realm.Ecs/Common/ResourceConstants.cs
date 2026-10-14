@@ -4,7 +4,7 @@ namespace Realm.Ecs.Common;
 ///     Shared simulation constants for resource economy, accessible by both ECS services
 ///     and Godot orchestrators without cross-layer coupling.
 /// </summary>
-internal static class ResourceConstants
+public static class ResourceConstants
 {
 	public const float ResourceCap = 9999f;
 	public const float DefaultGoldPerSec = 1.5f;

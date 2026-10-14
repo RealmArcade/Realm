@@ -86,7 +86,7 @@ if (Test-Path $extPkgPath) {
     Write-Host "Updated $extPkgPath"
 }
 
-$distPkgPath = Join-Path $rootDir "Realm.Godot\vscode_extensions_dist\speige.realm-map-editor\package.json"
+$distPkgPath = Join-Path $rootDir "Realm.Client\vscode_extensions_dist\speige.realm-map-editor\package.json"
 if (Test-Path $distPkgPath) {
     $distPkg = [System.IO.File]::ReadAllText($distPkgPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
     $distPkg.version = $extVersion
@@ -95,7 +95,7 @@ if (Test-Path $distPkgPath) {
     Write-Host "Updated $distPkgPath"
 }
 
-$exportCfgPath = Join-Path $rootDir "Realm.Godot\export_presets.cfg"
+$exportCfgPath = Join-Path $rootDir "Realm.Client\export_presets.cfg"
 if (Test-Path $exportCfgPath) {
     $cfgContent = [System.IO.File]::ReadAllText($exportCfgPath, [System.Text.Encoding]::UTF8)
     $cfgContent = $cfgContent -replace 'application/file_version=".*?"', "application/file_version=`"$fileVersion`""

@@ -6,7 +6,7 @@ namespace Realm.Ecs.Components.Terrain;
 ///     Keep the bit values in sync with the pathing overlay shader in <c>EditableTerrain</c>.
 /// </summary>
 [Flags]
-internal enum TerrainPathingFlags
+public enum TerrainPathingFlags
 {
 	None = 0,
 	ShallowWater = 1 << 0,
@@ -16,4 +16,3 @@ internal enum TerrainPathingFlags
 	Buildable = 1 << 5,
 	All = 0xFF,
 }
-

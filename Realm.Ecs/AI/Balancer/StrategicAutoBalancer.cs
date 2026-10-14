@@ -1,4 +1,3 @@
-using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Simulation;
 
 namespace Realm.Ecs.AI.Balancer;
@@ -72,6 +71,7 @@ public class StrategicAutoBalancer
 			float mutation = (float)(Random.NextDouble() * 0.2 - 0.1) * vec[i];
 			vec[i] += mutation;
 		}
+
 		child.FromVector(vec);
 		return child;
 	}

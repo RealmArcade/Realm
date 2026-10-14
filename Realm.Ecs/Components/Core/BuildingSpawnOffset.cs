@@ -8,4 +8,4 @@ namespace Realm.Ecs.Components.Core;
 ///     that production logic can derive spawn positions purely from ECS data without
 ///     touching any Godot scene nodes.
 /// </summary>
-internal record struct BuildingSpawnOffset(Vector3 Value);
+public record struct BuildingSpawnOffset(Vector3 Value);

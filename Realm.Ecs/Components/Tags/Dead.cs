@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Tags;
 ///     Tag indicating the entity is dead and awaiting cleanup.
 /// </summary>
 [TagDefinition("Dead", "Dead", "Marks the entity as defeated, awaiting cleanup.")]
-internal readonly record struct Dead;
+public readonly record struct Dead;

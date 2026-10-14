@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -90,6 +87,7 @@ public static class GlbManifestUtils
 		{
 			totalLength += 8 + (uint)paddedBinLength;
 		}
+
 		writer.Write(totalLength);
 
 		// JSON chunk
@@ -114,13 +112,8 @@ public static class GlbManifestUtils
 			return false;
 		try
 		{
-			if (node.GetValueKind() == System.Text.Json.JsonValueKind.True) return true;
-			if (node is JsonValue jv)
-			{
-				if (jv.TryGetValue<bool>(out var b)) return b;
-				if (jv.TryGetValue<int>(out var num)) return num != 0;
-				if (jv.TryGetValue<string>(out var str) && bool.TryParse(str, out var parsedB)) return parsedB;
-			}
+			if (node.GetValueKind() == JsonValueKind.True) return true;
+			if (node is JsonValue jv) return EvaluateJsonValue(jv);
 			return false;
 		}
 		catch
@@ -129,37 +122,57 @@ public static class GlbManifestUtils
 		}
 	}
 
+	private static bool EvaluateJsonValue(JsonValue jv)
+	{
+		if (jv.TryGetValue<bool>(out var b)) return b;
+		if (jv.TryGetValue<int>(out var num)) return num != 0;
+		if (jv.TryGetValue<string>(out var str) && bool.TryParse(str, out var parsedB)) return parsedB;
+		return false;
+	}
+
 	public static bool HasOptimizationFlag(byte[] glbBytes)
 	{
 		var (json, _, _) = ParseGlb(glbBytes);
 		if (json is not JsonObject root) return false;
 
+		if (HasCompletedExtras(root)) return true;
+		if (HasCompletedAssetExtras(root)) return true;
+		if (HasExtension(root, "extensionsUsed", "MSFT_lod")) return true;
+		if (HasExtension(root, "extensionsRequired", "MSFT_lod")) return true;
+
+		return false;
+	}
+
+	private static bool HasCompletedExtras(JsonObject root)
+	{
 		if (root.TryGetPropertyValue("extras", out var extrasNode) && extrasNode is JsonObject extras)
 		{
 			if (TryGetTrue(extras, "realm_optimize_completed")) return true;
 			if (TryGetTrue(extras, "realm_decimate_completed")) return true;
 		}
 
+		return false;
+	}
+
+	private static bool HasCompletedAssetExtras(JsonObject root)
+	{
 		if (root.TryGetPropertyValue("asset", out var assetNode) && assetNode is JsonObject asset &&
-			asset.TryGetPropertyValue("extras", out var assetExtrasNode) && assetExtrasNode is JsonObject assetExtras)
+		    asset.TryGetPropertyValue("extras", out var assetExtrasNode) && assetExtrasNode is JsonObject assetExtras)
 		{
 			if (TryGetTrue(assetExtras, "realm_optimize_completed")) return true;
 			if (TryGetTrue(assetExtras, "realm_decimate_completed")) return true;
 		}
 
-		if (root.TryGetPropertyValue("extensionsUsed", out var extUsedNode) && extUsedNode is JsonArray extUsed)
-		{
-			foreach (var ext in extUsed)
-			{
-				if (ext?.GetValue<string>() == "MSFT_lod") return true;
-			}
-		}
+		return false;
+	}
 
-		if (root.TryGetPropertyValue("extensionsRequired", out var extReqNode) && extReqNode is JsonArray extReq)
+	private static bool HasExtension(JsonObject root, string listName, string extensionName)
+	{
+		if (root.TryGetPropertyValue(listName, out var extNode) && extNode is JsonArray extArray)
 		{
-			foreach (var ext in extReq)
+			foreach (var ext in extArray)
 			{
-				if (ext?.GetValue<string>() == "MSFT_lod") return true;
+				if (ext?.GetValue<string>() == extensionName) return true;
 			}
 		}
 
@@ -188,34 +201,37 @@ public static class GlbManifestUtils
 		extras["realm_version"] = RealmVersion.GameBinaryVersion;
 		extras["optimization_timestamp"] = DateTime.UtcNow.ToString("o");
 
-		if (!root.ContainsKey("asset") || root["asset"] == null)
-		{
-			root["asset"] = new JsonObject();
-		}
-		if (root["asset"] is JsonObject assetObj)
-		{
-			if (!assetObj.ContainsKey("extras") || assetObj["extras"] == null)
-			{
-				assetObj["extras"] = new JsonObject();
-			}
-			if (assetObj["extras"] is JsonObject assetExtras)
-			{
-				assetExtras["realm_optimize_completed"] = true;
-			}
-		}
-
-		if (extraStats != null)
-		{
-			foreach (var kvp in extraStats)
-			{
-				if (kvp.Value is int i) extras[kvp.Key] = i;
-				else if (kvp.Value is float f) extras[kvp.Key] = f;
-				else if (kvp.Value is bool b) extras[kvp.Key] = b;
-				else if (kvp.Value is string s) extras[kvp.Key] = s;
-			}
-		}
+		InjectAssetOptimizationMetadata(root);
+		ApplyExtraStats(extraStats, extras);
 
 		return BuildGlb(root, bin, glbVer);
+	}
+
+	private static void InjectAssetOptimizationMetadata(JsonObject root)
+	{
+		if (!root.ContainsKey("asset") || root["asset"] == null)
+			root["asset"] = new JsonObject();
+
+		if (root["asset"] is not JsonObject assetObj) return;
+
+		if (!assetObj.ContainsKey("extras") || assetObj["extras"] == null)
+			assetObj["extras"] = new JsonObject();
+
+		if (assetObj["extras"] is JsonObject assetExtras)
+			assetExtras["realm_optimize_completed"] = true;
+	}
+
+	private static void ApplyExtraStats(Dictionary<string, object>? extraStats, JsonObject extras)
+	{
+		if (extraStats == null) return;
+
+		foreach (var kvp in extraStats)
+		{
+			if (kvp.Value is int i) extras[kvp.Key] = i;
+			else if (kvp.Value is float f) extras[kvp.Key] = f;
+			else if (kvp.Value is bool b) extras[kvp.Key] = b;
+			else if (kvp.Value is string s) extras[kvp.Key] = s;
+		}
 	}
 
 	public static (byte[] UnoptimizedBytes, bool WasModified) StripOptimizationMetadata(byte[] glbBytes)
@@ -225,6 +241,19 @@ public static class GlbManifestUtils
 
 		bool modified = false;
 
+		modified |= StripExtras(root);
+		modified |= StripAssetExtras(root);
+		modified |= StripMsftLodExtensions(root);
+		modified |= StripLodNodes(root);
+
+		if (!modified) return (glbBytes, false);
+
+		return (BuildGlb(root, bin, glbVer), true);
+	}
+
+	private static bool StripExtras(JsonObject root)
+	{
+		bool modified = false;
 		if (root.TryGetPropertyValue("extras", out var extrasNode) && extrasNode is JsonObject extras)
 		{
 			if (extras.Remove("realm_optimize_completed")) modified = true;
@@ -233,77 +262,96 @@ public static class GlbManifestUtils
 			if (extras.Remove("msft_lod_embedded")) modified = true;
 		}
 
+		return modified;
+	}
+
+	private static bool StripAssetExtras(JsonObject root)
+	{
 		if (root.TryGetPropertyValue("asset", out var assetNode) && assetNode is JsonObject asset &&
-			asset.TryGetPropertyValue("extras", out var assetExtrasNode) && assetExtrasNode is JsonObject assetExtras)
+		    asset.TryGetPropertyValue("extras", out var assetExtrasNode) && assetExtrasNode is JsonObject assetExtras)
 		{
-			if (assetExtras.Remove("realm_optimize_completed")) modified = true;
+			if (assetExtras.Remove("realm_optimize_completed")) return true;
 		}
 
-		// Remove MSFT_lod extension from extensionsUsed and extensionsRequired if present
-		if (root.TryGetPropertyValue("extensionsUsed", out var extUsedNode) && extUsedNode is JsonArray extUsed)
+		return false;
+	}
+
+	private static bool StripMsftLodExtensions(JsonObject root)
+	{
+		bool modified = false;
+		modified |= RemoveExtension(root, "extensionsUsed", "MSFT_lod");
+		modified |= RemoveExtension(root, "extensionsRequired", "MSFT_lod");
+		return modified;
+	}
+
+	private static bool RemoveExtension(JsonObject root, string listName, string extensionName)
+	{
+		bool modified = false;
+		if (root.TryGetPropertyValue(listName, out var extNode) && extNode is JsonArray extArray)
 		{
-			for (int i = extUsed.Count - 1; i >= 0; i--)
+			for (int i = extArray.Count - 1; i >= 0; i--)
 			{
-				if (extUsed[i]?.GetValue<string>() == "MSFT_lod")
+				if (extArray[i]?.GetValue<string>() == extensionName)
 				{
-					extUsed.RemoveAt(i);
+					extArray.RemoveAt(i);
 					modified = true;
 				}
 			}
 		}
 
-		if (root.TryGetPropertyValue("extensionsRequired", out var extReqNode) && extReqNode is JsonArray extReq)
+		return modified;
+	}
+
+	private static bool StripLodNodes(JsonObject root)
+	{
+		if (!root.TryGetPropertyValue("nodes", out var nodesNode) || nodesNode is not JsonArray nodesArray)
+			return false;
+
+		var lodIndices = GetLodIndices(nodesArray);
+		if (lodIndices.Count == 0) return false;
+
+		return RemoveLodChildrenReferences(nodesArray, lodIndices);
+	}
+
+	private static HashSet<int> GetLodIndices(JsonArray nodesArray)
+	{
+		var lodIndices = new HashSet<int>();
+		for (int i = 0; i < nodesArray.Count; i++)
 		{
-			for (int i = extReq.Count - 1; i >= 0; i--)
+			if (nodesArray[i] is JsonObject nodeObj && nodeObj.TryGetPropertyValue("name", out var nameVal))
 			{
-				if (extReq[i]?.GetValue<string>() == "MSFT_lod")
+				string nameStr = nameVal?.GetValue<string>() ?? "";
+				if (nameStr.Contains("_LOD1") || nameStr.Contains("_LOD2") || nameStr.Contains("_LOD3"))
 				{
-					extReq.RemoveAt(i);
+					lodIndices.Add(i);
+				}
+			}
+		}
+
+		return lodIndices;
+	}
+
+	private static bool RemoveLodChildrenReferences(JsonArray nodesArray, HashSet<int> lodIndices)
+	{
+		bool modified = false;
+		foreach (var n in nodesArray)
+		{
+			if (n is not JsonObject parentObj) continue;
+			if (!parentObj.TryGetPropertyValue("children", out var childrenVal) || childrenVal is not JsonArray childrenArr)
+				continue;
+
+			for (int c = childrenArr.Count - 1; c >= 0; c--)
+			{
+				int childIdx = childrenArr[c]?.GetValue<int>() ?? -1;
+				if (lodIndices.Contains(childIdx))
+				{
+					childrenArr.RemoveAt(c);
 					modified = true;
 				}
 			}
 		}
 
-		// Remove LOD nodes (e.g. *_LOD1, *_LOD2, *_LOD3)
-		if (root.TryGetPropertyValue("nodes", out var nodesNode) && nodesNode is JsonArray nodesArray)
-		{
-			var lodIndices = new HashSet<int>();
-			for (int i = 0; i < nodesArray.Count; i++)
-			{
-				if (nodesArray[i] is JsonObject nodeObj && nodeObj.TryGetPropertyValue("name", out var nameVal))
-				{
-					string nameStr = nameVal?.GetValue<string>() ?? "";
-					if (nameStr.Contains("_LOD1") || nameStr.Contains("_LOD2") || nameStr.Contains("_LOD3"))
-					{
-						lodIndices.Add(i);
-					}
-				}
-			}
-
-			if (lodIndices.Count > 0)
-			{
-				// Remove LOD children references from remaining nodes
-				foreach (var n in nodesArray)
-				{
-					if (n is JsonObject parentObj && parentObj.TryGetPropertyValue("children", out var childrenVal) && childrenVal is JsonArray childrenArr)
-					{
-						for (int c = childrenArr.Count - 1; c >= 0; c--)
-						{
-							int childIdx = childrenArr[c]?.GetValue<int>() ?? -1;
-							if (lodIndices.Contains(childIdx))
-							{
-								childrenArr.RemoveAt(c);
-								modified = true;
-							}
-						}
-					}
-				}
-			}
-		}
-
-		if (!modified) return (glbBytes, false);
-
-		return (BuildGlb(root, bin, glbVer), true);
+		return modified;
 	}
 
 	public static byte[] SanitizeMaterials(byte[] glbBytes)
@@ -311,58 +359,78 @@ public static class GlbManifestUtils
 		var (json, bin, glbVer) = ParseGlb(glbBytes);
 		if (json is not JsonObject root) return glbBytes;
 
-		// 1. Ensure every texture in textures array has a valid source property
-		if (root.TryGetPropertyValue("textures", out var texNode) && texNode is JsonArray texArray)
-		{
-			int imageCount = (root.TryGetPropertyValue("images", out var imgNode) && imgNode is JsonArray imgArray) ? imgArray.Count : 0;
-			foreach (var t in texArray)
-			{
-				if (t is JsonObject texObj)
-				{
-					if (!texObj.ContainsKey("source") || texObj["source"] == null)
-					{
-						int src = -1;
-						if (texObj.TryGetPropertyValue("extensions", out var extVal) && extVal is JsonObject extObj)
-						{
-							if (extObj.TryGetPropertyValue("EXT_texture_webp", out var webpVal) && webpVal is JsonObject webpObj)
-							{
-								src = webpObj["source"]?.GetValue<int>() ?? -1;
-							}
-							if (src < 0 && extObj.TryGetPropertyValue("KHR_texture_basisu", out var basVal) && basVal is JsonObject basObj)
-							{
-								src = basObj["source"]?.GetValue<int>() ?? -1;
-							}
-						}
-
-						if (src >= 0 && src < imageCount)
-						{
-							texObj["source"] = src;
-						}
-						else if (imageCount > 0)
-						{
-							texObj["source"] = 0;
-						}
-					}
-				}
-			}
-		}
-
-		// 2. Ensure baseColorFactor exists when baseColorTexture is present
-		if (root.TryGetPropertyValue("materials", out var matNode) && matNode is JsonArray matArray)
-		{
-			foreach (var m in matArray)
-			{
-				if (m is JsonObject matObj && matObj.TryGetPropertyValue("pbrMetallicRoughness", out var pbrVal) && pbrVal is JsonObject pbrObj)
-				{
-					if (pbrObj.ContainsKey("baseColorTexture") && !pbrObj.ContainsKey("baseColorFactor"))
-					{
-						pbrObj["baseColorFactor"] = new JsonArray(1.0, 1.0, 1.0, 1.0);
-					}
-				}
-			}
-		}
+		SanitizeTextureSources(root);
+		SanitizeBaseColorFactors(root);
 
 		return BuildGlb(root, bin, glbVer);
+	}
+
+	private static void SanitizeTextureSources(JsonObject root)
+	{
+		if (!root.TryGetPropertyValue("textures", out var texNode) || texNode is not JsonArray texArray)
+			return;
+
+		int imageCount = (root.TryGetPropertyValue("images", out var imgNode) && imgNode is JsonArray imgArray) ? imgArray.Count : 0;
+		foreach (var t in texArray)
+		{
+			if (t is JsonObject texObj)
+			{
+				SanitizeSingleTextureSource(texObj, imageCount);
+			}
+		}
+	}
+
+	private static void SanitizeSingleTextureSource(JsonObject texObj, int imageCount)
+	{
+		if (texObj.ContainsKey("source") && texObj["source"] != null) return;
+
+		int src = -1;
+		if (texObj.TryGetPropertyValue("extensions", out var extVal) && extVal is JsonObject extObj)
+		{
+			src = GetTextureSourceFromExtensions(extObj);
+		}
+
+		if (src >= 0 && src < imageCount)
+		{
+			texObj["source"] = src;
+		}
+		else if (imageCount > 0)
+		{
+			texObj["source"] = 0;
+		}
+	}
+
+	private static int GetTextureSourceFromExtensions(JsonObject extObj)
+	{
+		int src = -1;
+		if (extObj.TryGetPropertyValue("EXT_texture_webp", out var webpVal) && webpVal is JsonObject webpObj)
+		{
+			src = webpObj["source"]?.GetValue<int>() ?? -1;
+		}
+
+		if (src < 0 && extObj.TryGetPropertyValue("KHR_texture_basisu", out var basVal) && basVal is JsonObject basObj)
+		{
+			src = basObj["source"]?.GetValue<int>() ?? -1;
+		}
+
+		return src;
+	}
+
+	private static void SanitizeBaseColorFactors(JsonObject root)
+	{
+		if (!root.TryGetPropertyValue("materials", out var matNode) || matNode is not JsonArray matArray)
+			return;
+
+		foreach (var m in matArray)
+		{
+			if (m is JsonObject matObj && matObj.TryGetPropertyValue("pbrMetallicRoughness", out var pbrVal) && pbrVal is JsonObject pbrObj)
+			{
+				if (pbrObj.ContainsKey("baseColorTexture") && !pbrObj.ContainsKey("baseColorFactor"))
+				{
+					pbrObj["baseColorFactor"] = new JsonArray(1.0, 1.0, 1.0, 1.0);
+				}
+			}
+		}
 	}
 
 	public static byte[] EncodeGlbTexturesWebp(byte[] glbBytes, int maxResolution = 1024)
@@ -371,74 +439,142 @@ public static class GlbManifestUtils
 		if (json is not JsonObject root || bin == null) return glbBytes;
 
 		if (root["images"] is not JsonArray images || images.Count == 0 ||
-			root["bufferViews"] is not JsonArray bufferViews ||
-			root["textures"] is not JsonArray textures)
+		    root["bufferViews"] is not JsonArray bufferViews ||
+		    root["textures"] is not JsonArray textures)
 		{
 			return glbBytes;
 		}
 
-		// 1. Identify which image index corresponds to PBR/Normal vs Albedo/Color
+		var pbrImageIndices = IdentifyPbrImages(root, textures);
+		var (imageBvMap, imageBufferViews) = IdentifyImageBufferViews(images, bufferViews);
+		var newImageBytes = EncodeImagesToWebp(images, bufferViews, bin, pbrImageIndices, imageBvMap, maxResolution);
+
+		byte[] newBin = RebuildBinaryChunk(bin, images, bufferViews, imageBvMap, imageBufferViews, newImageBytes, root);
+
+		UpdateTextureNodes(textures);
+		UpdateExtensionLists(root, "extensionsUsed");
+		UpdateExtensionLists(root, "extensionsRequired");
+
+		return BuildGlb(root, newBin, glbVer);
+	}
+
+	private static HashSet<int> IdentifyPbrImages(JsonObject root, JsonArray textures)
+	{
 		var pbrImageIndices = new HashSet<int>();
-		if (root["materials"] is JsonArray materials)
+		if (root["materials"] is not JsonArray materials) return pbrImageIndices;
+
+		foreach (var matNode in materials)
 		{
-			foreach (var matNode in materials)
-			{
-				if (matNode is not JsonObject mat) continue;
-
-				void MarkTextureImage(string propName, JsonObject container)
-				{
-					if (container.TryGetPropertyValue(propName, out var texVal) && texVal is JsonObject texObj)
-					{
-						int texIdx = texObj["index"]?.GetValue<int>() ?? -1;
-						if (texIdx >= 0 && texIdx < textures.Count && textures[texIdx] is JsonObject tex)
-						{
-							int src = tex["source"]?.GetValue<int>() ?? -1;
-							if (src >= 0) pbrImageIndices.Add(src);
-
-							if (tex.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject texExt)
-							{
-								if (texExt.TryGetPropertyValue("KHR_texture_basisu", out var basVal) && basVal is JsonObject basObj)
-								{
-									int basSrc = basObj["source"]?.GetValue<int>() ?? -1;
-									if (basSrc >= 0) pbrImageIndices.Add(basSrc);
-								}
-								if (texExt.TryGetPropertyValue("EXT_texture_webp", out var webpVal) && webpVal is JsonObject webpObj)
-								{
-									int webpSrc = webpObj["source"]?.GetValue<int>() ?? -1;
-									if (webpSrc >= 0) pbrImageIndices.Add(webpSrc);
-								}
-							}
-						}
-					}
-				}
-
-				if (mat.TryGetPropertyValue("pbrMetallicRoughness", out var pbrVal) && pbrVal is JsonObject pbr)
-				{
-					MarkTextureImage("metallicRoughnessTexture", pbr);
-				}
-				MarkTextureImage("normalTexture", mat);
-				MarkTextureImage("occlusionTexture", mat);
-
-				if (mat.TryGetPropertyValue("extensions", out var extVal) && extVal is JsonObject matExt)
-				{
-					if (matExt.TryGetPropertyValue("KHR_materials_clearcoat", out var ccVal) && ccVal is JsonObject cc)
-					{
-						MarkTextureImage("clearcoatRoughnessTexture", cc);
-						MarkTextureImage("clearcoatNormalTexture", cc);
-					}
-					if (matExt.TryGetPropertyValue("KHR_materials_sheen", out var sheenVal) && sheenVal is JsonObject sheen)
-					{
-						MarkTextureImage("sheenRoughnessTexture", sheen);
-					}
-					if (matExt.TryGetPropertyValue("KHR_materials_specular", out var specVal) && specVal is JsonObject spec)
-					{
-						MarkTextureImage("specularTexture", spec);
-					}
-				}
-			}
+			if (matNode is not JsonObject mat) continue;
+			ExtractMaterialTextureIndices(mat, textures, pbrImageIndices);
 		}
 
-		// 2. Identify buffer views used by images vs geometry/accessors
+		return pbrImageIndices;
+	}
+
+	private static void ExtractMaterialTextureIndices(JsonObject mat, JsonArray textures, HashSet<int> pbrImageIndices)
+	{
+		if (mat.TryGetPropertyValue("pbrMetallicRoughness", out var pbrVal) && pbrVal is JsonObject pbr)
+		{
+			MarkTextureImage("metallicRoughnessTexture", pbr, textures, pbrImageIndices);
+		}
+
+		MarkTextureImage("normalTexture", mat, textures, pbrImageIndices);
+		MarkTextureImage("occlusionTexture", mat, textures, pbrImageIndices);
+
+		ExtractExtensionMaterialTextures(mat, textures, pbrImageIndices);
+	}
+
+	private static void ExtractExtensionMaterialTextures(JsonObject mat, JsonArray textures, HashSet<int> pbrImageIndices)
+	{
+		if (mat.TryGetPropertyValue("extensions", out var extVal) && extVal is JsonObject matExt)
+		{
+			if (matExt.TryGetPropertyValue("KHR_materials_clearcoat", out var ccVal) && ccVal is JsonObject cc)
+			{
+				MarkTextureImage("clearcoatRoughnessTexture", cc, textures, pbrImageIndices);
+				MarkTextureImage("clearcoatNormalTexture", cc, textures, pbrImageIndices);
+			}
+
+			if (matExt.TryGetPropertyValue("KHR_materials_sheen", out var sheenVal) && sheenVal is JsonObject sheen)
+			{
+				MarkTextureImage("sheenRoughnessTexture", sheen, textures, pbrImageIndices);
+			}
+
+			if (matExt.TryGetPropertyValue("KHR_materials_specular", out var specVal) && specVal is JsonObject spec)
+			{
+				MarkTextureImage("specularTexture", spec, textures, pbrImageIndices);
+			}
+		}
+	}
+
+	private static void MarkTextureImage(string propName, JsonObject container, JsonArray textures, HashSet<int> pbrImageIndices)
+	{
+		if (!TryGetTextureObject(propName, container, out var texObj)) return;
+		if (!TryGetValidTexture(texObj, textures, out var tex)) return;
+
+		ExtractImageSource(tex, pbrImageIndices);
+		MarkExtensionTextureImage(tex, pbrImageIndices);
+	}
+
+	private static bool TryGetTextureObject(string propName, JsonObject container, out JsonObject texObj)
+	{
+		texObj = null;
+		if (!container.TryGetPropertyValue(propName, out var texVal)) return false;
+		if (texVal is not JsonObject obj) return false;
+
+		texObj = obj;
+		return true;
+	}
+
+	private static bool TryGetValidTexture(JsonObject texObj, JsonArray textures, out JsonObject tex)
+	{
+		tex = null;
+		if (!texObj.TryGetPropertyValue("index", out var indexNode)) return false;
+		if (indexNode == null) return false;
+
+		int texIdx = indexNode.GetValue<int>();
+		if (texIdx < 0) return false;
+		if (texIdx >= textures.Count) return false;
+
+		var texNode = textures[texIdx];
+		if (texNode is not JsonObject t) return false;
+
+		tex = t;
+		return true;
+	}
+
+	private static void ExtractImageSource(JsonObject tex, HashSet<int> pbrImageIndices)
+	{
+		if (!tex.TryGetPropertyValue("source", out var sourceNode)) return;
+		if (sourceNode == null) return;
+
+		int src = sourceNode.GetValue<int>();
+		if (src >= 0)
+		{
+			pbrImageIndices.Add(src);
+		}
+	}
+
+	private static void MarkExtensionTextureImage(JsonObject tex, HashSet<int> pbrImageIndices)
+	{
+		if (tex.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject texExt)
+		{
+			MarkSpecificExtensionImage(texExt, "KHR_texture_basisu", pbrImageIndices);
+			MarkSpecificExtensionImage(texExt, "EXT_texture_webp", pbrImageIndices);
+		}
+	}
+
+	private static void MarkSpecificExtensionImage(JsonObject texExt, string extensionName, HashSet<int> pbrImageIndices)
+	{
+		if (texExt.TryGetPropertyValue(extensionName, out var extVal) && extVal is JsonObject extObj)
+		{
+			int extSrc = extObj["source"]?.GetValue<int>() ?? -1;
+			if (extSrc >= 0) pbrImageIndices.Add(extSrc);
+		}
+	}
+
+	private static (Dictionary<int, int>, HashSet<int>) IdentifyImageBufferViews(JsonArray images, JsonArray bufferViews)
+	{
 		var imageBvMap = new Dictionary<int, int>();
 		var imageBufferViews = new HashSet<int>();
 		for (int i = 0; i < images.Count; i++)
@@ -454,7 +590,13 @@ public static class GlbManifestUtils
 			}
 		}
 
-		// 3. Process and re-encode images
+		return (imageBvMap, imageBufferViews);
+	}
+
+	private static Dictionary<int, byte[]> EncodeImagesToWebp(
+		JsonArray images, JsonArray bufferViews, byte[] bin,
+		HashSet<int> pbrImageIndices, Dictionary<int, int> imageBvMap, int maxResolution)
+	{
 		var newImageBytes = new Dictionary<int, byte[]>();
 		for (int i = 0; i < images.Count; i++)
 		{
@@ -468,61 +610,78 @@ public static class GlbManifestUtils
 			byte[] raw = new byte[byteLength];
 			Array.Copy(bin, byteOffset, raw, 0, byteLength);
 
-			try
-			{
-				using var img = SKBitmap.Decode(raw);
-				if (img == null)
-				{
-					newImageBytes[i] = raw;
-					continue;
-				}
-
-				SKBitmap workingImg = img;
-				bool ownsResized = false;
-				if (img.Width > maxResolution || img.Height > maxResolution)
-				{
-					float scale = Math.Min((float)maxResolution / img.Width, (float)maxResolution / img.Height);
-					int targetW = Math.Max(1, (int)(img.Width * scale));
-					int targetH = Math.Max(1, (int)(img.Height * scale));
-					var resized = img.Resize(new SKImageInfo(targetW, targetH), new SKSamplingOptions(SKCubicResampler.Mitchell));
-					if (resized != null)
-					{
-						workingImg = resized;
-						ownsResized = true;
-					}
-				}
-
-				try
-				{
-					bool isPbr = pbrImageIndices.Contains(i);
-					byte[] webpData = TextureConverter.EncodeWebp(
-						workingImg,
-						lossless: isPbr,
-						quality: isPbr ? 100 : 80
-					);
-
-					newImageBytes[i] = webpData;
-				}
-				finally
-				{
-					if (ownsResized)
-					{
-						workingImg.Dispose();
-					}
-				}
-			}
-			catch
-			{
-				newImageBytes[i] = raw;
-			}
+			newImageBytes[i] = ProcessSingleImage(raw, pbrImageIndices.Contains(i), maxResolution);
 		}
 
-		// 4. Rebuild binary chunk and update bufferViews
+		return newImageBytes;
+	}
+
+	private static byte[] ProcessSingleImage(byte[] raw, bool isPbr, int maxResolution)
+	{
+		try
+		{
+			using var img = SKBitmap.Decode(raw);
+			if (img == null) return raw;
+
+			SKBitmap workingImg = img;
+			bool ownsResized = false;
+			if (img.Width > maxResolution || img.Height > maxResolution)
+			{
+				float scale = Math.Min((float)maxResolution / img.Width, (float)maxResolution / img.Height);
+				int targetW = Math.Max(1, (int)(img.Width * scale));
+				int targetH = Math.Max(1, (int)(img.Height * scale));
+				var resized = img.Resize(new SKImageInfo(targetW, targetH), new SKSamplingOptions(SKCubicResampler.Mitchell));
+				if (resized != null)
+				{
+					workingImg = resized;
+					ownsResized = true;
+				}
+			}
+
+			try
+			{
+				return TextureConverter.EncodeWebp(
+					workingImg,
+					lossless: isPbr,
+					quality: isPbr ? 100 : 80
+				);
+			}
+			finally
+			{
+				if (ownsResized)
+				{
+					workingImg.Dispose();
+				}
+			}
+		}
+		catch
+		{
+			return raw;
+		}
+	}
+
+	private static byte[] RebuildBinaryChunk(
+		byte[] bin, JsonArray images, JsonArray bufferViews,
+		Dictionary<int, int> imageBvMap, HashSet<int> imageBufferViews,
+		Dictionary<int, byte[]> newImageBytes, JsonObject root)
+	{
 		using var newBinStream = new MemoryStream();
 		var newBvOffsets = new int[bufferViews.Count];
 		var newBvLengths = new int[bufferViews.Count];
 
-		// First pass: non-image buffer views
+		RebuildNonImageBufferViews(bin, bufferViews, imageBufferViews, newBinStream, newBvOffsets, newBvLengths);
+		RebuildImageBufferViews(images, imageBvMap, newImageBytes, newBinStream, newBvOffsets, newBvLengths);
+
+		UpdateBufferViewsJson(bufferViews, newBvOffsets, newBvLengths);
+		UpdateBuffersByteLength(root, (int)newBinStream.Position);
+
+		return newBinStream.ToArray();
+	}
+
+	private static void RebuildNonImageBufferViews(
+		byte[] bin, JsonArray bufferViews, HashSet<int> imageBufferViews,
+		MemoryStream newBinStream, int[] newBvOffsets, int[] newBvLengths)
+	{
 		for (int bvIdx = 0; bvIdx < bufferViews.Count; bvIdx++)
 		{
 			if (imageBufferViews.Contains(bvIdx)) continue;
@@ -531,8 +690,7 @@ public static class GlbManifestUtils
 			int origOffset = bv["byteOffset"]?.GetValue<int>() ?? 0;
 			int origLength = bv["byteLength"]?.GetValue<int>() ?? 0;
 
-			int newOffset = (int)newBinStream.Position;
-			newBvOffsets[bvIdx] = newOffset;
+			newBvOffsets[bvIdx] = (int)newBinStream.Position;
 			newBvLengths[bvIdx] = origLength;
 
 			if (origOffset + origLength <= bin.Length)
@@ -542,15 +700,18 @@ public static class GlbManifestUtils
 				for (int p = 0; p < pad; p++) newBinStream.WriteByte(0);
 			}
 		}
+	}
 
-		// Second pass: image buffer views
+	private static void RebuildImageBufferViews(
+		JsonArray images, Dictionary<int, int> imageBvMap, Dictionary<int, byte[]> newImageBytes,
+		MemoryStream newBinStream, int[] newBvOffsets, int[] newBvLengths)
+	{
 		for (int i = 0; i < images.Count; i++)
 		{
 			if (!imageBvMap.TryGetValue(i, out int bvIdx)) continue;
 			if (!newImageBytes.TryGetValue(i, out byte[]? imgData)) continue;
 
-			int newOffset = (int)newBinStream.Position;
-			newBvOffsets[bvIdx] = newOffset;
+			newBvOffsets[bvIdx] = (int)newBinStream.Position;
 			newBvLengths[bvIdx] = imgData.Length;
 
 			newBinStream.Write(imgData, 0, imgData.Length);
@@ -562,8 +723,10 @@ public static class GlbManifestUtils
 				imgObj["mimeType"] = "image/webp";
 			}
 		}
+	}
 
-		// Update bufferViews JSON
+	private static void UpdateBufferViewsJson(JsonArray bufferViews, int[] newBvOffsets, int[] newBvLengths)
+	{
 		for (int bvIdx = 0; bvIdx < bufferViews.Count; bvIdx++)
 		{
 			if (bufferViews[bvIdx] is JsonObject bv)
@@ -572,74 +735,85 @@ public static class GlbManifestUtils
 				bv["byteLength"] = newBvLengths[bvIdx];
 			}
 		}
+	}
 
-		// Update buffers[0].byteLength
+	private static void UpdateBuffersByteLength(JsonObject root, int totalLength)
+	{
 		if (root["buffers"] is JsonArray buffers && buffers.Count > 0 && buffers[0] is JsonObject buf0)
 		{
-			buf0["byteLength"] = (int)newBinStream.Position;
+			buf0["byteLength"] = totalLength;
 		}
+	}
 
-		// Update textures: set extensions.EXT_texture_webp.source = tex.source, remove KHR_texture_basisu
+	private static void UpdateTextureNodes(JsonArray textures)
+	{
 		for (int t = 0; t < textures.Count; t++)
 		{
 			if (textures[t] is not JsonObject tex) continue;
-			int src = tex["source"]?.GetValue<int>() ?? -1;
-
-			if (tex.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject texExt)
-			{
-				if (texExt.TryGetPropertyValue("KHR_texture_basisu", out var basVal) && basVal is JsonObject basObj)
-				{
-					if (src < 0) src = basObj["source"]?.GetValue<int>() ?? -1;
-					texExt.Remove("KHR_texture_basisu");
-				}
-
-				if (src >= 0)
-				{
-					tex["source"] = src;
-					texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
-				}
-			}
-			else if (src >= 0)
-			{
-				tex["extensions"] = new JsonObject
-				{
-					["EXT_texture_webp"] = new JsonObject { ["source"] = src }
-				};
-			}
+			UpdateSingleTextureNode(tex);
 		}
+	}
 
-		// Update extensionsUsed and extensionsRequired
-		void UpdateExtensionLists(string listName)
+	private static void UpdateSingleTextureNode(JsonObject tex)
+	{
+		int src = tex["source"]?.GetValue<int>() ?? -1;
+
+		if (tex.TryGetPropertyValue("extensions", out var extNode) && extNode is JsonObject texExt)
 		{
-			if (root.TryGetPropertyValue(listName, out var extList) && extList is JsonArray arr)
+			src = ProcessBasisuExtension(texExt, src);
+
+			if (src >= 0)
 			{
-				bool hasWebp = false;
-				for (int e = arr.Count - 1; e >= 0; e--)
-				{
-					string? name = arr[e]?.GetValue<string>();
-					if (name == "KHR_texture_basisu")
-					{
-						arr.RemoveAt(e);
-					}
-					else if (name == "EXT_texture_webp")
-					{
-						hasWebp = true;
-					}
-				}
-				if (!hasWebp)
-				{
-					arr.Add("EXT_texture_webp");
-				}
-			}
-			else
-			{
-				root[listName] = new JsonArray("EXT_texture_webp");
+				tex["source"] = src;
+				texExt["EXT_texture_webp"] = new JsonObject { ["source"] = src };
 			}
 		}
+		else if (src >= 0)
+		{
+			tex["extensions"] = new JsonObject
+			{
+				["EXT_texture_webp"] = new JsonObject { ["source"] = src }
+			};
+		}
+	}
 
-		UpdateExtensionLists("extensionsUsed");
-		UpdateExtensionLists("extensionsRequired");
+	private static int ProcessBasisuExtension(JsonObject texExt, int src)
+	{
+		if (texExt.TryGetPropertyValue("KHR_texture_basisu", out var basVal) && basVal is JsonObject basObj)
+		{
+			if (src < 0) src = basObj["source"]?.GetValue<int>() ?? -1;
+			texExt.Remove("KHR_texture_basisu");
+		}
 
-		return BuildGlb(root, newBinStream.ToArray(), glbVer);
+		return src;
+	}
+
+	private static void UpdateExtensionLists(JsonObject root, string listName)
+	{
+		if (root.TryGetPropertyValue(listName, out var extList) && extList is JsonArray arr)
+		{
+			bool hasWebp = false;
+			for (int e = arr.Count - 1; e >= 0; e--)
+			{
+				string? name = arr[e]?.GetValue<string>();
+				if (name == "KHR_texture_basisu")
+				{
+					arr.RemoveAt(e);
+				}
+				else if (name == "EXT_texture_webp")
+				{
+					hasWebp = true;
+				}
+			}
+
+			if (!hasWebp)
+			{
+				arr.Add("EXT_texture_webp");
+			}
+		}
+		else
+		{
+			root[listName] = new JsonArray("EXT_texture_webp");
+		}
 	}
 }

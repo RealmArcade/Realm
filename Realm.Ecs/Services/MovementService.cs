@@ -1,20 +1,17 @@
+using System.Numerics;
 using Arch.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
-using System.Numerics;
 
 namespace Realm.Ecs.Services;
 
 /// <summary>
 ///     Demonstrates how Movement components are used, particularly "intent" components.
 /// </summary>
-internal class MovementService
+public class MovementService
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
-
-	public MovementService(WorldAccessor ecsWorldAccessor)
+	public MovementService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
 	/// <summary>
@@ -25,8 +22,8 @@ internal class MovementService
 	/// </summary>
 	public void SetMoveTarget(Entity entity, Vector3 targetPosition)
 	{
-		if (!_ecsWorldAccessor.Current.Has<Movable>(entity)) return;
+		if (!ECSContext.World.Has<Movable>(entity)) return;
 
-		_ecsWorldAccessor.Current.Set(entity, new MoveTo(targetPosition));
+		ECSContext.World.Set(entity, new MoveTo(targetPosition));
 	}
 }

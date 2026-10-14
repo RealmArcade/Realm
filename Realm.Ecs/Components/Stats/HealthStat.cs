@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Stats;
 ///     Represents the Health stat.
 /// </summary>
 [StatDefinition("Health", "Health", "The entity's maximum hit points.")]
-internal readonly record struct HealthStat;
+public readonly record struct HealthStat;

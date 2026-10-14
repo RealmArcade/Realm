@@ -1,10 +1,8 @@
+using System.Numerics;
 using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
-using System;
-using System.Collections.Generic;
-using System.Numerics;
 
 namespace Realm.Ecs.AI;
 
@@ -28,6 +26,7 @@ public class BotController
 	public float AggressionMultiplier => _aggressionMultiplier;
 	public float ActionTemperature => _actionTemperature;
 	public BotProfile Profile => _profile;
+
 	public IAiGenreProvider GenreProvider
 	{
 		get => _genreProvider;
@@ -43,6 +42,7 @@ public class BotController
 		{
 			_genreProvider = genreProvider;
 		}
+
 		LoadProfile(profile ?? BotProfile.CreateDefault("GenericMap", _genreProvider.GenreName));
 	}
 
@@ -87,6 +87,7 @@ public class BotController
 		{
 			return;
 		}
+
 		_timer = 0.0f;
 
 		_genreProvider.ScanAffordances(world, playerIndex, _affordanceBuffer);

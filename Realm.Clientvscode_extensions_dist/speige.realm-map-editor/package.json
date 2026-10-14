@@ -1,0 +1,186 @@
+{
+    "name":  "realm-map-editor",
+    "displayName":  "Realm Map Editor",
+    "description":  "Custom editor for Realm map unit configuration files and asset previews",
+    "version":  "0.0.1",
+    "publisher":  "speige",
+    "engines":  {
+                    "vscode":  "^1.75.0"
+                },
+    "categories":  [
+                       "Other"
+                   ],
+    "activationEvents":  [
+                             "onStartupFinished"
+                         ],
+    "main":  "./dist/extension.js",
+    "contributes":  {
+                        "languages":  [
+                                          {
+                                              "id":  "rtex",
+                                              "aliases":  [
+                                                              "Realm Texture",
+                                                              "rtex"
+                                                          ],
+                                              "extensions":  [
+                                                                 ".rtex"
+                                                             ],
+                                              "icon":  {
+                                                           "light":  "./media/icons/rtex.svg",
+                                                           "dark":  "./media/icons/rtex.svg"
+                                                       }
+                                          },
+                                          {
+                                              "id":  "ranim",
+                                              "aliases":  [
+                                                              "Realm Animation",
+                                                              "ranim"
+                                                          ],
+                                              "extensions":  [
+                                                                 ".ranim"
+                                                             ],
+                                              "icon":  {
+                                                           "light":  "./media/icons/ranim.svg",
+                                                           "dark":  "./media/icons/ranim.svg"
+                                                       }
+                                          },
+                                          {
+                                              "id":  "rmesh",
+                                              "aliases":  [
+                                                              "Realm 3D Mesh",
+                                                              "rmesh"
+                                                          ],
+                                              "extensions":  [
+                                                                 ".rmesh"
+                                                             ],
+                                              "icon":  {
+                                                           "light":  "./media/icons/rmesh.svg",
+                                                           "dark":  "./media/icons/rmesh.svg"
+                                                       }
+                                          },
+                                          {
+                                              "id":  "raud",
+                                              "aliases":  [
+                                                              "Realm Audio",
+                                                              "raud"
+                                                          ],
+                                              "extensions":  [
+                                                                 ".raud"
+                                                             ],
+                                              "icon":  {
+                                                           "light":  "./media/icons/raud.svg",
+                                                           "dark":  "./media/icons/raud.svg"
+                                                       }
+                                          }
+                                      ],
+                        "iconThemes":  [
+                                           {
+                                               "id":  "realm-icons",
+                                               "label":  "Realm Icons",
+                                               "path":  "./media/icons/realm-icon-theme.json"
+                                           }
+                                       ],
+                        "customEditors":  [
+                                              {
+                                                  "viewType":  "realm.mapEditor",
+                                                  "displayName":  "Realm Map Editor",
+                                                  "selector":  [
+                                                                   {
+                                                                       "filenamePattern":  "**/metadata.json"
+                                                                   }
+                                                               ],
+                                                  "priority":  "default"
+                                              },
+                                              {
+                                                  "viewType":  "realm.rtexViewer",
+                                                  "displayName":  "Realm RTEX Texture Viewer",
+                                                  "selector":  [
+                                                                   {
+                                                                       "filenamePattern":  "*.rtex"
+                                                                   }
+                                                               ],
+                                                  "priority":  "default"
+                                              },
+                                              {
+                                                  "viewType":  "realm.ranimViewer",
+                                                  "displayName":  "Realm Animation Viewer",
+                                                  "selector":  [
+                                                                   {
+                                                                       "filenamePattern":  "*.ranim"
+                                                                   }
+                                                               ],
+                                                  "priority":  "default"
+                                              },
+                                              {
+                                                  "viewType":  "realm.rmeshViewer",
+                                                  "displayName":  "Realm 3D Mesh Viewer",
+                                                  "selector":  [
+                                                                   {
+                                                                       "filenamePattern":  "*.rmesh"
+                                                                   }
+                                                               ],
+                                                  "priority":  "default"
+                                              },
+                                              {
+                                                  "viewType":  "realm.raudViewer",
+                                                  "displayName":  "Realm Audio Player",
+                                                  "selector":  [
+                                                                   {
+                                                                       "filenamePattern":  "*.raud"
+                                                                   }
+                                                               ],
+                                                  "priority":  "default"
+                                              }
+                                          ],
+                        "commands":  [
+                                         {
+                                             "command":  "realm.openRmesh3D",
+                                             "title":  "Open in 3D GLB Viewer",
+                                             "category":  "Realm"
+                                         },
+                                         {
+                                             "command":  "realm.exportRanim",
+                                             "title":  "Export Animation (.ranim)",
+                                             "category":  "Realm"
+                                         }
+                                     ],
+                        "menus":  {
+                                      "explorer/context":  [
+                                                               {
+                                                                   "command":  "realm.openRmesh3D",
+                                                                   "when":  "resourceExtname == .rmesh",
+                                                                   "group":  "navigation"
+                                                               },
+                                                               {
+                                                                   "command":  "realm.exportRanim",
+                                                                   "when":  "resourceExtname == .ranim",
+                                                                   "group":  "navigation"
+                                                               }
+                                                           ]
+                                  },
+                        "jsonValidation":  [
+                                               {
+                                                   "fileMatch":  "**/metadata.json",
+                                                   "url":  "./metadata.schema.json"
+                                               },
+                                               {
+                                                   "fileMatch":  "**/manifest.json",
+                                                   "url":  "./manifest.schema.json"
+                                               },
+                                               {
+                                                   "fileMatch":  "**/terrain.json",
+                                                   "url":  "./terrain.schema.json"
+                                               }
+                                           ]
+                    },
+    "scripts":  {
+                    "vscode:prepublish":  "npm run compile",
+                    "compile":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node",
+                    "watch":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --watch"
+                },
+    "devDependencies":  {
+                            "@types/vscode":  "^1.75.0",
+                            "esbuild":  "^0.20.0",
+                            "typescript":  "^5.0.0"
+                        }
+}

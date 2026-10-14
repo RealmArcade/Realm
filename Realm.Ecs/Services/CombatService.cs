@@ -10,13 +10,10 @@ namespace Realm.Ecs.Services;
 ///     Demonstrates how Combat-related components are used.
 ///     A real game would have systems that perform these actions every frame.
 /// </summary>
-internal class CombatService
+public class CombatService
 {
-	private readonly WorldAccessor _ecsWorldAccessor;
-
-	public CombatService(WorldAccessor ecsWorldAccessor)
+	public CombatService()
 	{
-		_ecsWorldAccessor = ecsWorldAccessor;
 	}
 
 	/// <summary>
@@ -24,12 +21,12 @@ internal class CombatService
 	/// </summary>
 	public void PerformAttack(Entity attacker, Entity defender)
 	{
-		if (!_ecsWorldAccessor.Current.Has<Attack>(attacker) || !_ecsWorldAccessor.Current.Has<Health>(defender)) return;
-		if (_ecsWorldAccessor.Current.Has<Invulnerable>(defender)) return;
+		if (!ECSContext.World.Has<Attack>(attacker) || !ECSContext.World.Has<Health>(defender)) return;
+		if (ECSContext.World.Has<Invulnerable>(defender)) return;
 
-		var attack = _ecsWorldAccessor.Current.Get<Attack>(attacker);
-		var health = _ecsWorldAccessor.Current.Get<Health>(defender);
-		var armor = _ecsWorldAccessor.Current.Has<Armor>(defender) ? _ecsWorldAccessor.Current.Get<Armor>(defender) : new Armor(0f);
+		var attack = ECSContext.World.Get<Attack>(attacker);
+		var health = ECSContext.World.Get<Health>(defender);
+		var armor = ECSContext.World.Has<Armor>(defender) ? ECSContext.World.Get<Armor>(defender) : new Armor(0f);
 
 		var result = CombatResolver.ResolveDamage(
 			baseDamage: attack.Damage,
@@ -50,10 +47,10 @@ internal class CombatService
 		if (health.Current <= 0)
 		{
 			health.Current = 0;
-			_ecsWorldAccessor.Current.Add<Dead>(defender);
-			Console.WriteLine($"{_ecsWorldAccessor.Current.Get<Name>(defender).Value} has been slain!");
+			ECSContext.World.Add<Dead>(defender);
+			Console.WriteLine($"{ECSContext.World.Get<Name>(defender).Value} has been slain!");
 		}
 
-		_ecsWorldAccessor.Current.Set(defender, health);
+		ECSContext.World.Set(defender, health);
 	}
 }

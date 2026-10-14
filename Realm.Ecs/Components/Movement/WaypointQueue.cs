@@ -2,13 +2,6 @@ using System.Numerics;
 
 namespace Realm.Ecs.Components.Movement;
 
-[System.Runtime.CompilerServices.InlineArray(16)]
-public struct WaypointBuffer
-{
-	public Vector3 Element0;
-	public const int Length = 16;
-}
-
 /// <summary>
 /// Stores a queue of pending waypoints for sequential pathing.
 /// </summary>
@@ -38,11 +31,13 @@ public struct WaypointQueue
 		{
 			throw new InvalidOperationException("Queue is empty");
 		}
+
 		Vector3 first = Waypoints[0];
 		for (int i = 1; i < Count; i++)
 		{
 			Waypoints[i - 1] = Waypoints[i];
 		}
+
 		Count--;
 		return first;
 	}

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.Text;
 using AnyAscii;
 using Fastenshtein;
@@ -9,218 +6,224 @@ namespace Realm.Shared;
 
 public static class NameNormalizationHelper
 {
-    public static string ToAscii(string? input)
-    {
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            return string.Empty;
-        }
+	public static string ToAscii(string? input)
+	{
+		if (string.IsNullOrWhiteSpace(input))
+		{
+			return string.Empty;
+		}
 
-        return input.Transliterate();
-    }
+		return input.Transliterate();
+	}
 
-    public static string NormalizeUsername(string? username)
-    {
-        if (string.IsNullOrWhiteSpace(username))
-        {
-            return string.Empty;
-        }
+	public static string NormalizeUsername(string? username)
+	{
+		if (string.IsNullOrWhiteSpace(username))
+		{
+			return string.Empty;
+		}
 
-        var asciiRepresentation = ToAscii(username).ToLowerInvariant();
-        var stringBuilder = new StringBuilder(asciiRepresentation.Length);
+		var asciiRepresentation = ToAscii(username).ToLowerInvariant();
+		var stringBuilder = new StringBuilder(asciiRepresentation.Length);
 
-        foreach (var character in asciiRepresentation)
-        {
-            if ((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9'))
-            {
-                stringBuilder.Append(character);
-            }
-        }
+		foreach (var character in asciiRepresentation)
+		{
+			if ((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9'))
+			{
+				stringBuilder.Append(character);
+			}
+		}
 
-        return stringBuilder.ToString();
-    }
+		return stringBuilder.ToString();
+	}
 
-    public static string NormalizeMapName(string? mapName)
-    {
-        if (string.IsNullOrWhiteSpace(mapName))
-        {
-            return string.Empty;
-        }
+	public static string NormalizeMapName(string? mapName)
+	{
+		if (string.IsNullOrWhiteSpace(mapName))
+		{
+			return string.Empty;
+		}
 
-        var asciiRepresentation = ToAscii(mapName).ToLowerInvariant();
-        var stringBuilder = new StringBuilder(asciiRepresentation.Length);
+		var asciiRepresentation = ToAscii(mapName).ToLowerInvariant();
+		var stringBuilder = new StringBuilder(asciiRepresentation.Length);
 
-        foreach (var character in asciiRepresentation)
-        {
-            if ((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9'))
-            {
-                stringBuilder.Append(character);
-            }
-        }
+		foreach (var character in asciiRepresentation)
+		{
+			if ((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9'))
+			{
+				stringBuilder.Append(character);
+			}
+		}
 
-        return stringBuilder.ToString();
-    }
+		return stringBuilder.ToString();
+	}
 
-    public static string NormalizeMapNameAlphaOnly(string? mapName)
-    {
-        if (string.IsNullOrWhiteSpace(mapName))
-        {
-            return string.Empty;
-        }
+	public static string NormalizeMapNameAlphaOnly(string? mapName)
+	{
+		if (string.IsNullOrWhiteSpace(mapName))
+		{
+			return string.Empty;
+		}
 
-        var asciiRepresentation = ToAscii(mapName).ToLowerInvariant();
-        var stringBuilder = new StringBuilder(asciiRepresentation.Length);
+		var asciiRepresentation = ToAscii(mapName).ToLowerInvariant();
+		var stringBuilder = new StringBuilder(asciiRepresentation.Length);
 
-        foreach (var character in asciiRepresentation)
-        {
-            if (character >= 'a' && character <= 'z')
-            {
-                stringBuilder.Append(character);
-            }
-        }
+		foreach (var character in asciiRepresentation)
+		{
+			if (character >= 'a' && character <= 'z')
+			{
+				stringBuilder.Append(character);
+			}
+		}
 
-        return stringBuilder.ToString();
-    }
+		return stringBuilder.ToString();
+	}
 
-    public static int ComputeLevenshteinDistance(string? source, string? target)
-    {
-        if (string.IsNullOrEmpty(source))
-        {
-            return target?.Length ?? 0;
-        }
+	public static int ComputeLevenshteinDistance(string? source, string? target)
+	{
+		if (string.IsNullOrEmpty(source))
+		{
+			return target?.Length ?? 0;
+		}
 
-        if (string.IsNullOrEmpty(target))
-        {
-            return source.Length;
-        }
+		if (string.IsNullOrEmpty(target))
+		{
+			return source.Length;
+		}
 
-        return Levenshtein.Distance(source, target);
-    }
+		return Levenshtein.Distance(source, target);
+	}
 
-    public static bool IsMapNameTooSimilar(string candidateMapName, IEnumerable<string> existingMapNames, int minDistanceThreshold, out string? conflictingMapName)
-    {
-        conflictingMapName = null;
+	private static bool CheckSimilarity(string normalizedCandidate, string normalizedExisting, int minDistanceThreshold)
+	{
+		if (string.Equals(normalizedCandidate, normalizedExisting, StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
 
-        var normalizedCandidate = NormalizeMapName(candidateMapName);
-        if (string.IsNullOrEmpty(normalizedCandidate))
-        {
-            return false;
-        }
+		if (normalizedCandidate.Length < 3 || normalizedExisting.Length < 3)
+		{
+			return false;
+		}
 
-        foreach (var existingName in existingMapNames)
-        {
-            if (string.IsNullOrWhiteSpace(existingName))
-            {
-                continue;
-            }
+		var distance = ComputeLevenshteinDistance(normalizedCandidate, normalizedExisting);
+		var effectiveThreshold = normalizedCandidate.Length <= 4 || normalizedExisting.Length <= 4
+			? 1
+			: Math.Min(minDistanceThreshold, 2);
 
-            var normalizedExisting = NormalizeMapName(existingName);
-            if (string.IsNullOrEmpty(normalizedExisting))
-            {
-                continue;
-            }
+		return distance <= effectiveThreshold;
+	}
 
-            if (string.Equals(normalizedCandidate, normalizedExisting, StringComparison.OrdinalIgnoreCase))
-            {
-                conflictingMapName = existingName;
-                return true;
-            }
+	public static bool IsMapNameTooSimilar(string candidateMapName, IEnumerable<string> existingMapNames, int minDistanceThreshold, out string? conflictingMapName)
+	{
+		conflictingMapName = null;
 
-            if (normalizedCandidate.Length >= 3 && normalizedExisting.Length >= 3)
-            {
-                var distance = ComputeLevenshteinDistance(normalizedCandidate, normalizedExisting);
-                var effectiveThreshold = normalizedCandidate.Length <= 4 || normalizedExisting.Length <= 4
-                    ? 1
-                    : Math.Min(minDistanceThreshold, 2);
+		var normalizedCandidate = NormalizeMapName(candidateMapName);
+		if (string.IsNullOrEmpty(normalizedCandidate))
+		{
+			return false;
+		}
 
-                if (distance <= effectiveThreshold)
-                {
-                    conflictingMapName = existingName;
-                    return true;
-                }
-            }
-        }
+		foreach (var existingName in existingMapNames)
+		{
+			if (string.IsNullOrWhiteSpace(existingName))
+			{
+				continue;
+			}
 
-        return false;
-    }
+			var normalizedExisting = NormalizeMapName(existingName);
+			if (string.IsNullOrEmpty(normalizedExisting))
+			{
+				continue;
+			}
 
-    public static bool AreUsernamesConflicting(string? usernameA, string? usernameB)
-    {
-        var normalizedA = NormalizeUsername(usernameA);
-        var normalizedB = NormalizeUsername(usernameB);
+			if (CheckSimilarity(normalizedCandidate, normalizedExisting, minDistanceThreshold))
+			{
+				conflictingMapName = existingName;
+				return true;
+			}
+		}
 
-        if (string.IsNullOrEmpty(normalizedA) || string.IsNullOrEmpty(normalizedB))
-        {
-            return false;
-        }
+		return false;
+	}
 
-        return string.Equals(normalizedA, normalizedB, StringComparison.OrdinalIgnoreCase);
-    }
+	public static bool AreUsernamesConflicting(string? usernameA, string? usernameB)
+	{
+		var normalizedA = NormalizeUsername(usernameA);
+		var normalizedB = NormalizeUsername(usernameB);
 
-    public static bool AreMapNamesConflicting(string? mapNameA, string? mapNameB)
-    {
-        var normalizedA = NormalizeMapName(mapNameA);
-        var normalizedB = NormalizeMapName(mapNameB);
+		if (string.IsNullOrEmpty(normalizedA) || string.IsNullOrEmpty(normalizedB))
+		{
+			return false;
+		}
 
-        if (string.IsNullOrEmpty(normalizedA) || string.IsNullOrEmpty(normalizedB))
-        {
-            return false;
-        }
+		return string.Equals(normalizedA, normalizedB, StringComparison.OrdinalIgnoreCase);
+	}
 
-        return string.Equals(normalizedA, normalizedB, StringComparison.OrdinalIgnoreCase);
-    }
+	public static bool AreMapNamesConflicting(string? mapNameA, string? mapNameB)
+	{
+		var normalizedA = NormalizeMapName(mapNameA);
+		var normalizedB = NormalizeMapName(mapNameB);
 
-    public static bool ValidateUsername(string? username, out string? errorMessage)
-    {
-        errorMessage = null;
+		if (string.IsNullOrEmpty(normalizedA) || string.IsNullOrEmpty(normalizedB))
+		{
+			return false;
+		}
 
-        if (string.IsNullOrWhiteSpace(username))
-        {
-            errorMessage = "Username cannot be empty.";
-            return false;
-        }
+		return string.Equals(normalizedA, normalizedB, StringComparison.OrdinalIgnoreCase);
+	}
 
-        var trimmed = username.Trim();
-        if (trimmed.Length < 3 || trimmed.Length > 32)
-        {
-            errorMessage = "Username must be between 3 and 32 characters.";
-            return false;
-        }
+	public static bool ValidateUsername(string? username, out string? errorMessage)
+	{
+		errorMessage = null;
 
-        var normalized = NormalizeUsername(trimmed);
-        if (string.IsNullOrEmpty(normalized))
-        {
-            errorMessage = "Username must contain at least one alphanumeric character.";
-            return false;
-        }
+		if (string.IsNullOrWhiteSpace(username))
+		{
+			errorMessage = "Username cannot be empty.";
+			return false;
+		}
 
-        return true;
-    }
+		var trimmed = username.Trim();
+		if (trimmed.Length < 3 || trimmed.Length > 32)
+		{
+			errorMessage = "Username must be between 3 and 32 characters.";
+			return false;
+		}
 
-    public static bool ValidateMapName(string? mapName, out string? errorMessage)
-    {
-        errorMessage = null;
+		var normalized = NormalizeUsername(trimmed);
+		if (string.IsNullOrEmpty(normalized))
+		{
+			errorMessage = "Username must contain at least one alphanumeric character.";
+			return false;
+		}
 
-        if (string.IsNullOrWhiteSpace(mapName))
-        {
-            errorMessage = "Map name cannot be empty.";
-            return false;
-        }
+		return true;
+	}
 
-        var trimmed = mapName.Trim();
-        if (trimmed.Length < 2 || trimmed.Length > 64)
-        {
-            errorMessage = "Map name must be between 2 and 64 characters.";
-            return false;
-        }
+	public static bool ValidateMapName(string? mapName, out string? errorMessage)
+	{
+		errorMessage = null;
 
-        var normalized = NormalizeMapName(trimmed);
-        if (string.IsNullOrEmpty(normalized))
-        {
-            errorMessage = "Map name must contain at least one valid alphanumeric character.";
-            return false;
-        }
+		if (string.IsNullOrWhiteSpace(mapName))
+		{
+			errorMessage = "Map name cannot be empty.";
+			return false;
+		}
 
-        return true;
-    }
+		var trimmed = mapName.Trim();
+		if (trimmed.Length < 2 || trimmed.Length > 64)
+		{
+			errorMessage = "Map name must be between 2 and 64 characters.";
+			return false;
+		}
+
+		var normalized = NormalizeMapName(trimmed);
+		if (string.IsNullOrEmpty(normalized))
+		{
+			errorMessage = "Map name must contain at least one valid alphanumeric character.";
+			return false;
+		}
+
+		return true;
+	}
 }

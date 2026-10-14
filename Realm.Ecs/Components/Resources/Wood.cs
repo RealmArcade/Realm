@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Resources;
 ///     Represents the Wood resource.
 /// </summary>
 [ResourceDefinition("Wood", "Wood", "A building material.", "res://icons/wood.png")]
-internal readonly record struct Wood;
+public readonly record struct Wood;

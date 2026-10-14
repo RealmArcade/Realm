@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Combat;
 /// <summary>
 ///     Defines the flat and rated armor values and armor type of an entity.
 /// </summary>
-internal record struct Armor(
+public record struct Armor(
 	float FlatArmor,
 	float RatedArmor = 0f,
 	string ArmorType = "unarmored")

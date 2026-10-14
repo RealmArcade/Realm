@@ -4,11 +4,41 @@ Realm is an RTS Game Engine with a custom map editor for UGC arcade maps.
 ## Skills
 Separate skill files are located in the `.agent/skills` folder.
 
-## Map Scripting
+## Map Scripting & Editor API
 - Implements `IMapScript`.
 - `Initialize(IGameAPI api)` is called when the map starts.
 - `Update(IGameAPI api, float delta)` is called every simulation tick (30Hz).
 - Full `IGameAPI` reference: `lib/Realm.MapAPI.xml`
+- Full `IEditorAPI` reference: `lib/Realm.EditorAPI.xml`
+
+### Accessing IEditorAPI via HTTP IPC Bridge
+VSCodium agent extensions can programmatically invoke editor operations by issuing HTTP `POST` JSON requests to `http://127.0.0.1:8092/api/` (or port `8093` if 8092 is occupied).
+
+#### IPC JSON Request Schema:
+```json
+{
+  "action": "invokeEditorApi",
+  "method": "raiseTerrain",
+  "requestId": "req-12345",
+  "x": 0.0,
+  "y": 0.0,
+  "z": 0.0,
+  "radius": 5.0,
+  "strength": 1.0,
+  "isSquare": false
+}
+```
+
+#### IPC JSON Response Schema:
+```json
+{
+  "action": "invokeEditorApiResult",
+  "method": "raiseTerrain",
+  "requestId": "req-12345",
+  "success": true,
+  "error": ""
+}
+```
 
 ## JSON Map Files
 

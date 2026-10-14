@@ -1,9 +1,9 @@
-﻿namespace Realm.Ecs.Components.Terrain
+namespace Realm.Ecs.Components.Terrain
 {
 	/// <summary>
 	/// Represents the domain data for the strategy shroud grid (ExplorationShroud and VisionShroud).
 	/// </summary>
-	internal struct ShroudState
+	public struct ShroudState
 	{
 		public const byte ExplorationShroud = 0;
 		public const byte VisionShroud = 1;

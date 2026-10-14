@@ -3,19 +3,9 @@ using System.Numerics;
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-///     Represents a saved camera location and zoom level.
-/// </summary>
-internal struct CameraLocationSlot
-{
-	public Vector3 Position;
-	public float ZoomLevel;
-	public bool IsSet;
-}
-
-/// <summary>
 ///     Holds the state and configuration of the game camera.
 /// </summary>
-internal struct CameraState
+public struct CameraState
 {
 	public float MoveSpeed;
 	public float ZoomSpeed;

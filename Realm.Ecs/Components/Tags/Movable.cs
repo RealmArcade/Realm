@@ -6,4 +6,4 @@ namespace Realm.Ecs.Components.Tags;
 ///     Tag indicating the entity is capable of movement.
 /// </summary>
 [TagDefinition("Movable", "Movable", "Grants the entity the ability to move across the map.")]
-internal readonly record struct Movable;
+public readonly record struct Movable;

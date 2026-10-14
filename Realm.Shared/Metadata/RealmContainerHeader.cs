@@ -1,6 +1,4 @@
-using System;
 using System.Buffers.Binary;
-using System.IO;
 using System.Text;
 
 namespace Realm.Shared.Metadata;
@@ -169,4 +167,3 @@ public static class RealmContainerHeader
 		return memoryStream.ToArray();
 	}
 }
-

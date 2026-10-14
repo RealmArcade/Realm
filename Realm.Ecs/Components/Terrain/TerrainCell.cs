@@ -1,15 +1,7 @@
-using System;
 using System.Runtime.CompilerServices;
 
 namespace Realm.Ecs.Components.Terrain
 {
-	public enum WaterType : byte
-	{
-		None = 0,
-		Shallow = 1,
-		Deep = 2
-	}
-
 	/// <summary>
 	/// Represents cell quad terrain data including tier, absolute corner heights, and per-cell discrete water state.
 	/// </summary>
@@ -22,6 +14,7 @@ namespace Realm.Ecs.Components.Terrain
 		public const float MAX_Y = MAX_MACRO_TIER * TIER_HEIGHT;
 
 		private float _centerHeight;
+
 		public float CenterHeight
 		{
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -29,6 +22,7 @@ namespace Realm.Ecs.Components.Terrain
 		}
 
 		private sbyte _macroTier;
+
 		public sbyte MacroTier
 		{
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -43,6 +37,7 @@ namespace Realm.Ecs.Components.Terrain
 		}
 
 		private float _yNW;
+
 		public float Y_NW
 		{
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -55,6 +50,7 @@ namespace Realm.Ecs.Components.Terrain
 		}
 
 		private float _yNE;
+
 		public float Y_NE
 		{
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -67,6 +63,7 @@ namespace Realm.Ecs.Components.Terrain
 		}
 
 		private float _ySE;
+
 		public float Y_SE
 		{
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -79,6 +76,7 @@ namespace Realm.Ecs.Components.Terrain
 		}
 
 		private float _ySW;
+
 		public float Y_SW
 		{
 			[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -108,7 +106,8 @@ namespace Realm.Ecs.Components.Terrain
 		}
 
 		public TerrainCell(float uniformHeight, WaterType waterMode = WaterType.None, byte waterProfileIndex = 0, float waterHeight = 0f)
-			: this(uniformHeight, uniformHeight, uniformHeight, uniformHeight, waterMode, waterProfileIndex, waterHeight) { }
+			: this(uniformHeight, uniformHeight, uniformHeight, uniformHeight, waterMode, waterProfileIndex, waterHeight)
+		{
+		}
 	}
 }
-

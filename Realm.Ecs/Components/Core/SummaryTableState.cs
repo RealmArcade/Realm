@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Represents the current multiplayer summary statistics table display state.
 	/// </summary>
-	internal struct SummaryTableState
+	public struct SummaryTableState
 	{
 		public bool Visible;
 		public string Title;

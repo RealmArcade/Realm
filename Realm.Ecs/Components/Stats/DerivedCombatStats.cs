@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Stats;
 /// <summary>
 /// Holds the derived combat stats calculated from RPG attributes and baseline stats.
 /// </summary>
-internal record struct DerivedCombatStats(
+public record struct DerivedCombatStats(
 	float MaxHp = 100f,
 	float HpRegen = 0f,
 	float Tenacity = 0f,

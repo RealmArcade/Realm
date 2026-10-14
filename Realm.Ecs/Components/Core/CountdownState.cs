@@ -3,7 +3,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Represents the active countdown timer state.
 	/// </summary>
-	internal struct CountdownState
+	public struct CountdownState
 	{
 		public bool Active;
 		public float Duration;
