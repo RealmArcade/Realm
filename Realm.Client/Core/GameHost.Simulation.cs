@@ -299,7 +299,10 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(targetModel)) return;
 
 		string modelPath = GetFallbackModelPath(targetModel, isBuilding);
-		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, false);
+		int ownerPlayer = GameContext.World.Has<UnitOwnerPlayer>(buildingEntity)
+			? GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
+			: LocalPlayerIndex;
+		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, false, false, ownerPlayer);
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
 		{
@@ -510,8 +513,13 @@ public partial class GameHost
 
 		var playerOwner = _playerEntity.AsPlayerEntity(GameContext.World);
 
+		int workerPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(workerEntity)
+			? GameContext.World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex
+			: LocalPlayerIndex;
+
 		var bldEntity = CreateEcsUnit(buildType, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed,
 			new Godot.Vector3(targetPos.X, targetPos.Y, targetPos.Z), playerOwner);
+		GameContext.World.SetOrAdd(bldEntity, new UnitOwnerPlayer(workerPlayerIndex));
 
 		GameContext.World.Add(bldEntity, new ConstructionState(buildTime));
 		GameContext.World.Add(bldEntity, new UnderConstruction());

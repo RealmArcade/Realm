@@ -974,6 +974,10 @@ public partial class GameHost
 		if (!TryGetUnit3D(wrapper.Entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
 
 		bool isBuilding = unit3D.IsBuilding;
+		if (!unit3D.IsEnemy && UnitRegistry.TryGetValue(unit3D.UnitId, out var destroyMeta) && destroyMeta.PopCost > 0)
+		{
+			CurrentPopulation = Math.Max(0, CurrentPopulation - destroyMeta.PopCost);
+		}
 		float radius = GameContext.World.Has<CollisionRadius>(wrapper.Entity) ? GameContext.World.Get<CollisionRadius>(wrapper.Entity).Value : 2.0f;
 		var unitPos = GameContext.World.Has<Position>(wrapper.Entity) ? GameContext.World.Get<Position>(wrapper.Entity).Value : new Vector3(unit3D.Position.X, unit3D.Position.Y, unit3D.Position.Z);
 

@@ -691,24 +691,55 @@ public class InputService
 
 	public bool IsAreaObstructed(Vector3 position, float clearance)
 	{
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity))
+		{
+			ref var terrain = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity);
+			if (terrain.PathingCodes != null && terrain.Width > 0 && terrain.Depth > 0 && terrain.QuadSize > 0f)
+			{
+				int cx = Math.Clamp((int)MathF.Floor(position.X / terrain.QuadSize + terrain.Width / 2.0f), 0, terrain.Width - 1);
+				int cz = Math.Clamp((int)MathF.Floor(position.Z / terrain.QuadSize + terrain.Depth / 2.0f), 0, terrain.Depth - 1);
+				if ((terrain.PathingCodes[cx, cz] & (int)Realm.Ecs.Components.Terrain.TerrainPathingFlags.Buildable) == 0)
+				{
+					return true;
+				}
+			}
+		}
+
 		bool obstructed = false;
 		var query = QueryCache.AllPositionNoneDeadQuery;
 		GameContext.World.Query(in query, (Entity entity, ref Position pos) =>
 		{
+			if (obstructed) return;
+
+			float entityRadius = GameContext.World.Has<CollisionRadius>(entity)
+				? GameContext.World.Get<CollisionRadius>(entity).Value
+				: 1.0f;
+
 			if (GameContext.World.Has<DefinitionId>(entity))
 			{
 				string defId = GameContext.World.Get<DefinitionId>(entity).Value;
-				if (defId == "worker" || defId == "unit/builder" || defId == "builder") return;
 				if (GameHost.TryGetUnitOrBuildingMetadata(defId, out var meta))
 				{
-					if (meta.PathingType == 16) return;
-					if (meta.BuildOptions != null && meta.BuildOptions.Length > 0 && !GameContext.World.Has<Building>(entity)) return;
+					if (meta.PathingType == 16 || string.Equals(meta.VisualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase))
+					{
+						return;
+					}
+
+					if (meta.CollisionCircle > 0f)
+					{
+						entityRadius = MathF.Max(entityRadius, meta.CollisionCircle * (meta.Scale > 0f ? meta.Scale : 1.0f) * 0.5f);
+					}
 				}
 			}
+			else if (!GameContext.World.Has<PropIdentity>(entity))
+			{
+				return;
+			}
 
+			float minDist = MathF.Max(clearance, entityRadius + 0.5f);
 			float dx = position.X - pos.Value.X;
 			float dz = position.Z - pos.Value.Z;
-			if (dx * dx + dz * dz < clearance * clearance)
+			if (dx * dx + dz * dz < minDist * minDist)
 			{
 				obstructed = true;
 			}

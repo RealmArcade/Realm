@@ -2470,6 +2470,11 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void HandleBuildingSpawn(Entity entity, Unit3D unit3D, string id, Vector3 pos)
 	{
+		if (TryGetUnitOrBuildingMetadata(id, out var meta) && (meta.PathingType == 16 || string.Equals(meta.VisualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase)))
+		{
+			return;
+		}
+
 		GameContext.World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
 		float baseRadius = GetOrCalculateObstacleRadius(id, unit3D, true) * GetModelCollisionCircleRatio(GetModelAssetKey(unit3D));
 		GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
