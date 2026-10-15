@@ -1033,53 +1033,60 @@ public partial class LobbyManager : Node
 				HandleWebSocketMessage(json);
 			}
 		}
+		GD.Print("[LobbyManager] Host WebSocket message processing loop ended.");
 	}
 
 	private void HandleWebSocketMessage(string json)
 	{
-		using var doc = JsonDocument.Parse(json);
-		var root = doc.RootElement;
-
-		if (root.GetProperty("Action").GetString() == "Punch")
+		try
 		{
-			string clientIp = root.GetProperty("ClientIP").GetString() ?? "";
-			int clientPort = root.GetProperty("ClientPort").GetInt32();
+			using var doc = JsonDocument.Parse(json);
+			var root = doc.RootElement;
 
-			GD.Print($"[LobbyManager] WebSocket signal: incoming client. Punching to {clientIp}:{clientPort}...");
+			if (root.GetProperty("Action").GetString() == "Punch")
+			{
+				string clientIp = root.GetProperty("ClientIP").GetString() ?? "";
+				int clientPort = root.GetProperty("ClientPort").GetInt32();
 
+				GD.Print($"[LobbyManager] WebSocket signal: incoming client. Scheduling punch to {clientIp}:{clientPort} on main thread...");
+				Callable.From(() => PunchHostToClient(clientIp, clientPort)).CallDeferred();
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Error handling WebSocket message: {ex.Message}");
+		}
+	}
+
+	private void PunchHostToClient(string clientIp, int clientPort)
+	{
+		try
+		{
 			if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enetPeer)
 			{
-				try
+				var host = enetPeer.GetHost();
+				if (host != null)
 				{
-					var host = enetPeer.GetHost();
-					if (host != null)
+					byte[] punchPacket = Encoding.UTF8.GetBytes("PUNCH");
+					for (int i = 0; i < 5; i++)
 					{
-						byte[] punchPacket = Encoding.UTF8.GetBytes("PUNCH");
-						for (int i = 0; i < 5; i++)
-						{
-							host.SocketSend(clientIp, clientPort, punchPacket);
-						}
-						GD.Print($"[LobbyManager] Sent native ENet socket punch to {clientIp}:{clientPort} from port {ENetPort}");
-						return;
+						host.SocketSend(clientIp, clientPort, punchPacket);
 					}
+					GD.Print($"[LobbyManager] Sent native ENet socket punch to {clientIp}:{clientPort} from port {ENetPort}");
 				}
-				catch (Exception ex)
+				else
 				{
-					GD.PrintErr($"[LobbyManager] Native ENet socket punch failed: {ex.Message}");
+					GD.PrintErr("[LobbyManager] Native ENet punch failed: ENetConnection host instance is null.");
 				}
 			}
-
-			_ = Task.Run(async () =>
+			else
 			{
-				try
-				{
-					await UdpHolePuncher.PunchHoleAsync(clientIp, clientPort, 0);
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"[LobbyManager] Async punch to client failed: {ex.Message}");
-				}
-			});
+				GD.PrintErr("[LobbyManager] Native ENet punch failed: MultiplayerPeer is not an active ENetMultiplayerPeer.");
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Native ENet socket punch exception: {ex.Message}");
 		}
 	}
 
