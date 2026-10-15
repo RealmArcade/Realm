@@ -1657,14 +1657,14 @@ public partial class LobbyRoom : Control
 		AddChild(warningPopup);
 
 		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(450, 220);
+		cardPanel.CustomMinimumSize = new Vector2(540, 280);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		warningPopup.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(400, 180);
+		vbox.CustomMinimumSize = new Vector2(500, 240);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
 		cardPanel.AddChild(vbox);
@@ -1678,10 +1678,19 @@ public partial class LobbyRoom : Control
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
+		string displayReason = reason;
+		if (reason == "Direct connection handshake failed.")
+		{
+			displayReason = $"{Tr("Direct connection handshake failed.")}\n\n{Tr("The host's router may be blocking incoming UDP traffic on port 8999. Ensure UPnP is enabled on the host's router, configure UDP port 8999 forwarding, or connect via a Virtual LAN (Tailscale / Radmin).")}";
+		}
+
 		var descLabel = new Label();
-		descLabel.Text = $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), reason)}";
+		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLabel.CustomMinimumSize = new Vector2(480, 0);
+		descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		descLabel.Text = $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}";
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
+		descLabel.AddThemeFontSizeOverride("font_size", 13);
 		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
 		vbox.AddChild(descLabel);
 
