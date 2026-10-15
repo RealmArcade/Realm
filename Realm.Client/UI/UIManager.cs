@@ -489,6 +489,11 @@ public partial class UIManager : Control
 				GameHost.Instance?.ExitMapEditorMode();
 			}
 
+			if (_currentScreen.GetParent() == this)
+			{
+				RemoveChild(_currentScreen);
+			}
+
 			_currentScreen.QueueFree();
 		}
 		_currentScreen = null;

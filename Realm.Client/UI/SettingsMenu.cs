@@ -536,7 +536,12 @@ public partial class SettingsMenu : Control
 
 	private void OnNatTestCompleted()
 	{
-		bool canHost = LobbyManager.Instance.LocalNatType != NatType.Symmetric;
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree() || _seedMapFilesChk == null || !GodotObject.IsInstanceValid(_seedMapFilesChk))
+		{
+			return;
+		}
+
+		bool canHost = LobbyManager.Instance != null && LobbyManager.Instance.LocalNatType != NatType.Symmetric;
 		if (!canHost)
 		{
 			_seedMapFilesChk.Disabled = true;
@@ -918,6 +923,13 @@ public partial class SettingsMenu : Control
 		{
 			Instance = null;
 		}
+
+		if (LobbyManager.Instance != null)
+		{
+			LobbyManager.Instance.NatTestCompleted -= OnNatTestCompleted;
+		}
+
+		base._ExitTree();
 	}
 
 	public override void _GuiInput(InputEvent @event)

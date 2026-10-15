@@ -928,7 +928,7 @@ public partial class LobbyRoom : Control
 		container.Visible = false;
 	}
 
-	public void _ExitTree()
+	public override void _ExitTree()
 	{
 		if (LobbyManager.Instance != null)
 		{
@@ -950,6 +950,8 @@ public partial class LobbyRoom : Control
 			LobbyManager.Instance.HostStabilityUpdated -= UpdateHostStabilityLabel;
 			LobbyManager.Instance.ActiveMapChanged -= OnActiveMapChanged;
 		}
+
+		base._ExitTree();
 	}
 
 	private void OnCountdownStarted(string mapName, int seconds)
@@ -1058,6 +1060,8 @@ public partial class LobbyRoom : Control
 
 	private void PopulatePlayersList()
 	{
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
 		HideConnectingPopup();
 
 		if (CheckHostVersionMismatch()) return;
@@ -1090,7 +1094,7 @@ public partial class LobbyRoom : Control
 
 	private void UpdateUnstableWarningLabel()
 	{
-		if (_unstableWarningLabel != null)
+		if (_unstableWarningLabel != null && GodotObject.IsInstanceValid(_unstableWarningLabel))
 		{
 			_unstableWarningLabel.Visible = IsAnyMetricRed();
 		}

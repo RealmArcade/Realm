@@ -74,6 +74,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		var contentVBox = new VBoxContainer();
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		contentVBox.AddThemeConstantOverride("separation", 8);
+		scroll.AddChild(contentVBox);
+
 		var topInfoSpacer = new Control();
 		topInfoSpacer.CustomMinimumSize = new Vector2(0, 18);
 		contentVBox.AddChild(topInfoSpacer);
