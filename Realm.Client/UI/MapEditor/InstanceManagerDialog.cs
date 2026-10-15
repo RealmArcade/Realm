@@ -4,6 +4,7 @@ using System.IO;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
@@ -17,7 +18,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	private string _filterText = string.Empty;
 	private readonly Dictionary<TreeItem, Node3D> _treeItemToObjectMap = new();
 	private readonly Dictionary<TreeItem, string> _treeItemToCoordinateMap = new();
-	private Texture2D _trashIconTexture;
+	private Texture2D? _trashIconTexture;
 
 	private double _refreshCheckTimer = 0.0;
 	private int _lastUnitsCount = -1;
@@ -100,11 +101,11 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		BodyContainer.AddChild(_objectTree);
 	}
 
-	private Texture2D GetTrashIconTexture()
+	private Texture2D? GetTrashIconTexture()
 	{
 		if (_trashIconTexture != null) return _trashIconTexture;
 
-		_trashIconTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/gear_icon.png");
+		_trashIconTexture = UIStyle.GetUnicodeIconTexture(UnicodeIcons.TRASH);
 		return _trashIconTexture;
 	}
 

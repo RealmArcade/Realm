@@ -7,6 +7,7 @@ using Realm.Shared;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -114,11 +115,19 @@ public partial class MainMenu : Control
 
 	private void SetupButtons()
 	{
-		SetupPlayButton(_playButton, () => UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser));
+		SetupPlayButton(_playButton, () =>
+		{
+			GameContext.SessionState.IsMapEditorMode = false;
+			GameContext.SessionState.IsTestMode = false;
+			LobbyManager.Instance.IsSinglePlayer = false;
+			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
+		});
 		if (_singlePlayerButton != null)
 		{
 			SetupMenuButton(_singlePlayerButton, "SINGLE PLAYER", () =>
 			{
+				GameContext.SessionState.IsMapEditorMode = false;
+				GameContext.SessionState.IsTestMode = false;
 				if (LobbyManager.Instance != null) LobbyManager.Instance.IsSinglePlayer = true;
 				UIManager.Instance.TransitionTo(GameScreen.LobbyCreate);
 			}, "res://Assets/UI/menu_single_player_button.png");
