@@ -1615,17 +1615,31 @@
                   ]
                 }
               },
-              "MaxHpBonus": {
-                "type": "number"
-              },
-              "DamageBonus": {
-                "type": "number"
-              },
-              "ArmorBonus": {
-                "type": "number"
-              },
-              "SpeedBonus": {
-                "type": "number"
+              "Modifiers": {
+                "type": "array",
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "StatKey": {
+                      "type": "string"
+                    },
+                    "Type": {
+                      "type": "string"
+                    },
+                    "Value": {
+                      "type": "number"
+                    },
+                    "WASMFunctionName": {
+                      "type": "string"
+                    },
+                    "PerLevelScaling": {
+                      "type": "number"
+                    }
+                  }
+                }
               }
             }
           }

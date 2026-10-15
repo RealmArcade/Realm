@@ -159,7 +159,7 @@ public class TechTreeService
 				Type: modType,
 				Value: totalValue,
 				Duration: -1f,
-				Formula: modDef.Formula,
+				WASMFunctionName: modDef.WASMFunctionName,
 				SourceLevel: level,
 				SourceUpgradeId: techId
 			);

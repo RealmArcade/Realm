@@ -266,20 +266,16 @@ public static class AttributeStatCalculator
 					pctMult *= mod.Value;
 					break;
 				case ModifierType.CustomFormula:
-					if (!string.IsNullOrWhiteSpace(mod.Formula))
+					if (!string.IsNullOrWhiteSpace(mod.WASMFunctionName) && ECSContext.EvaluationEngine != null)
 					{
-						var dict = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+						try
 						{
-							["base"] = baseValue,
-							["level"] = mod.SourceLevel,
-							["val"] = mod.Value
-						};
-						var context = new FormulaContext(world, entity, default, null, dict);
-						formulaBonus += FormulaEvaluator.Evaluate(mod.Formula, in context);
-					}
-					else
-					{
-						formulaBonus += mod.Value;
+							var context = new FormulaContext(world, entity, default, mod.WASMFunctionName);
+							formulaBonus += ECSContext.EvaluationEngine.Evaluate(in context, baseValue, mod.Value, mod.SourceLevel);
+						}
+						catch
+						{
+						}
 					}
 					break;
 			}

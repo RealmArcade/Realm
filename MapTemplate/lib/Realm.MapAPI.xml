@@ -2376,6 +2376,16 @@
             Represents a WebAssembly host runtime executing a guest Wasm module.
             </summary>
         </member>
+        <member name="M:Realm.MapAPI.IWasmRuntime.ExecuteCustomFormula(System.String,System.Single,System.Single,System.Int32)">
+            <summary>
+            Executes an exported custom formula function from the WebAssembly guest module.
+            </summary>
+            <param name="functionName">The name of the exported function in the WebAssembly module.</param>
+            <param name="baseValue">The current base value of the stat.</param>
+            <param name="modifierValue">The configured value of the modifier.</param>
+            <param name="level">The source level of the modifier.</param>
+            <returns>The calculated bonus stat value, or zero if execution fails.</returns>
+        </member>
         <member name="T:Realm.MapAPI.MapCosmeticSaveData">
             <summary>
             Represents persistent state for an in-map grindable cosmetic unlock, such as a title, aura, or skin variation.

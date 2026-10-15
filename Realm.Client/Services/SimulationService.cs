@@ -1496,7 +1496,7 @@ public class SimulationService
 			for (int i = 0; i < abilities.Count; i++)
 			{
 				if (string.Equals(abilities[i], abilityId, StringComparison.OrdinalIgnoreCase) ||
-				    string.Equals(Path.GetFileNameWithoutExtension(abilities[i]), Path.GetFileNameWithoutExtension(abilityId), StringComparison.OrdinalIgnoreCase))
+					string.Equals(Path.GetFileNameWithoutExtension(abilities[i]), Path.GetFileNameWithoutExtension(abilityId), StringComparison.OrdinalIgnoreCase))
 				{
 					slotIdx = i;
 					break;

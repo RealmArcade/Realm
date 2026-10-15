@@ -25,13 +25,14 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Godot;
 using Realm.MapAPI;
+using Realm.Ecs.Services;
 using Wasmtime;
 using Engine = Wasmtime.Engine;
 using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.Core;
 
-public partial class WasmRuntime : IWasmRuntime, IDisposable
+public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposable
 {
 	public static event Action<string>? OnWasmLog;
 
@@ -63,6 +64,7 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
 	private readonly string? _wasiLogPath;
 	private long _wasiLogBytesFlushed = 0;
 	private int _updateTickCounter = 0;
+	private readonly Dictionary<string, Func<float, float, int, float>?> _formulaFuncCache = new(StringComparer.OrdinalIgnoreCase);
 
 	public WasmRuntime(string wasmPath, string mapName)
 	{
@@ -113,6 +115,7 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
 			if (updateFn != null) _update = updateFn.WrapAction<float>();
 
 			FlushWasiLogFile();
+			ECSContext.EvaluationEngine = this;
 		}
 		catch (Exception ex)
 		{
@@ -273,8 +276,76 @@ public partial class WasmRuntime : IWasmRuntime, IDisposable
 		}
 	}
 
+	public float Evaluate(in FormulaContext context, float baseValue, float modifierValue, int level)
+	{
+		return ExecuteCustomFormula(context.WASMFunctionName, baseValue, modifierValue, level);
+	}
+
+	public float ExecuteCustomFormula(string functionName, float baseValue, float modifierValue, int level)
+	{
+		if (string.IsNullOrWhiteSpace(functionName))
+		{
+			return 0f;
+		}
+
+		try
+		{
+			if (!_formulaFuncCache.TryGetValue(functionName, out var funcDelegate))
+			{
+				var func = _instance.GetFunction(functionName);
+				if (func == null)
+				{
+					_formulaFuncCache[functionName] = null;
+					return 0f;
+				}
+
+				try
+				{
+					funcDelegate = func.WrapFunc<float, float, int, float>();
+				}
+				catch
+				{
+					funcDelegate = (b, m, l) =>
+					{
+						try
+						{
+							var result = func.Invoke(b, m, l);
+							if (result is float f) return f;
+							if (result is int i) return (float)i;
+							if (result is double d) return (float)d;
+							return Convert.ToSingle(result);
+						}
+						catch
+						{
+							return 0f;
+						}
+					};
+				}
+
+				_formulaFuncCache[functionName] = funcDelegate;
+			}
+
+			if (funcDelegate == null)
+			{
+				return 0f;
+			}
+
+			return funcDelegate(baseValue, modifierValue, level);
+		}
+		catch (Exception ex)
+		{
+			LogToConsole($"[WASM FORMULA ERROR] Failed executing custom formula '{functionName}': {ex.Message}", true);
+			return 0f;
+		}
+	}
+
 	public void Dispose()
 	{
+		if (ECSContext.EvaluationEngine == this)
+		{
+			ECSContext.EvaluationEngine = null;
+		}
+		_formulaFuncCache.Clear();
 		FlushWasiLogFile();
 		UnsubscribeAutoEvents();
 		_store.Dispose();

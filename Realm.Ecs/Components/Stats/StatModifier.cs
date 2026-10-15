@@ -10,7 +10,7 @@ public record struct StatModifier(
 	ModifierType Type,
 	float Value,
 	float Duration = -1f,
-	string Formula = "",
+	string WASMFunctionName = "",
 	int SourceLevel = 1,
 	string SourceUpgradeId = "")
 {
