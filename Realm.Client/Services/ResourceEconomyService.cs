@@ -447,17 +447,55 @@ public class ResourceEconomyService
 	public int GetPlayerCurrentPopulation(int playerIndex, int fallbackPop)
 	{
 		if (playerIndex == 0) return fallbackPop;
+		if (GameHost.Instance != null)
+		{
+			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerPopulation>(playerEntity))
+			{
+				return GameContext.World.Get<PlayerPopulation>(playerEntity).Current;
+			}
+		}
+
 		return 0;
 	}
 
 	public void SetPlayerMaxPopulation(int playerIndex, int max, Action<int> setFallbackMax)
 	{
-		if (playerIndex == 0) setFallbackMax(max);
+		if (playerIndex == 0)
+		{
+			setFallbackMax(max);
+		}
+
+		if (GameHost.Instance != null)
+		{
+			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity))
+			{
+				if (GameContext.World.Has<PlayerPopulation>(playerEntity))
+				{
+					ref var pop = ref GameContext.World.Get<PlayerPopulation>(playerEntity);
+					GameContext.World.Set(playerEntity, new PlayerPopulation(pop.Current, max));
+				}
+				else
+				{
+					GameContext.World.Add(playerEntity, new PlayerPopulation(0, max));
+				}
+			}
+		}
 	}
 
 	public int GetPlayerMaxPopulation(int playerIndex, int fallbackMaxPop)
 	{
 		if (playerIndex == 0) return fallbackMaxPop;
-		return 200;
+		if (GameHost.Instance != null)
+		{
+			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerPopulation>(playerEntity))
+			{
+				return GameContext.World.Get<PlayerPopulation>(playerEntity).Max;
+			}
+		}
+
+		return fallbackMaxPop;
 	}
 }

@@ -102,14 +102,12 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitOwnerPlayer(value));
 
-			bool isEnemy = value != 0;
+			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(GameHost.Instance?.LocalPlayerIndex ?? 0, value);
 			_world.SetOrAdd(_entity, new UnitFaction(isEnemy));
 
 			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
 			{
-				var playerOwner = isEnemy
-					? GameHost.Instance._enemyPlayerEntity.AsPlayerEntity(_world)
-					: GameHost.Instance._playerEntity.AsPlayerEntity(_world);
+				var playerOwner = GameHost.Instance.GetPlayerEntityForPlayerIndex(value).AsPlayerEntity(_world);
 				_world.Set(_entity, new Owner(playerOwner));
 			}
 
