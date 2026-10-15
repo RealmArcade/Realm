@@ -701,6 +701,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public static Dictionary<StringName, WeaponMetadata> WeaponRegistry => GameContext.RegistryService?.WeaponRegistry ?? new();
 	public static Dictionary<StringName, AttachmentMetadata> AttachmentRegistry => GameContext.RegistryService?.AttachmentRegistry ?? new();
 	public static Dictionary<StringName, ItemMetadata> ItemRegistry => GameContext.RegistryService?.ItemRegistry ?? new();
+	public static Dictionary<StringName, UpgradeMetadata> UpgradeRegistry => GameContext.RegistryService?.UpgradeRegistry ?? new();
 
 	public static bool TryGetUnitOrBuildingMetadata(StringName objectId, out UnitMetadata meta)
 	{
@@ -1221,6 +1222,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		LoadWeaponAndAttachmentTemplates(templates);
 		LoadItemTemplates(templates);
+		LoadUpgradeTemplates(templates);
 		LoadUnitTemplates(templates);
 		LoadBuildingTemplates(templates);
 		LoadResourceAndPropTemplates(templates);
@@ -1248,6 +1250,17 @@ public partial class GameHost : Node3D, IGameAPI
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
 			ItemRegistry[(StringName)meta.TemplateID] = meta;
 			if (meta.TemplateID.StartsWith("item/", StringComparison.OrdinalIgnoreCase)) ItemRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
+		}
+	}
+
+	private void LoadUpgradeTemplates(TemplateContainer templates)
+	{
+		if (templates.Upgrades == null) return;
+		foreach (var meta in templates.Upgrades)
+		{
+			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
+			UpgradeRegistry[(StringName)meta.TemplateID] = meta;
+			if (meta.TemplateID.StartsWith("upgrade/", StringComparison.OrdinalIgnoreCase)) UpgradeRegistry[(StringName)meta.TemplateID.Substring(8)] = meta;
 		}
 	}
 

@@ -1200,6 +1200,18 @@
               },
               "SummonDuration": {
                 "type": "number"
+              },
+              "GridX": {
+                "type": "integer"
+              },
+              "GridY": {
+                "type": "integer"
+              },
+              "Hotkey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }

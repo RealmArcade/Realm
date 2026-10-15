@@ -180,6 +180,7 @@ public class RegistryService
 	public readonly Dictionary<StringName, WeaponMetadata> WeaponRegistry = new();
 	public readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
 	public readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
+	public readonly Dictionary<StringName, Realm.Shared.Metadata.UpgradeMetadata> UpgradeRegistry = new();
 	public Dictionary<string, VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, AbilityDefinition> AbilityDefinitions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> UnitAbilityStates { get; set; } = new();
@@ -813,6 +814,7 @@ public class RegistryService
 		WeaponRegistry.Clear();
 		AttachmentRegistry.Clear();
 		ItemRegistry.Clear();
+		UpgradeRegistry.Clear();
 		VfxRegistry.Clear();
 		AbilityDefinitions.Clear();
 		UnitAbilityStates.Clear();

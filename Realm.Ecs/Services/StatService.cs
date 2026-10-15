@@ -26,18 +26,46 @@ public class StatService
 
 		var query = QueryCache.AllStatModifierQuery;
 		var flatBonus = 0f;
-		var percentBonus = 1.0f;
+		var percentAdditive = 0f;
+		var percentMultiplicative = 1.0f;
+		var formulaBonus = 0f;
 
 		ECSContext.World.Query(in query, (ref Entity e, ref StatModifier mod) =>
 		{
 			if (e != entity || mod.StatTypeId != statId) return;
 
-			if (mod.Type == ModifierType.Flat)
-				flatBonus += mod.Value;
-			else if (mod.Type == ModifierType.Percentage) percentBonus *= mod.Value;
+			switch (mod.Type)
+			{
+				case ModifierType.Flat:
+					flatBonus += mod.Value;
+					break;
+				case ModifierType.PercentAdditive:
+					percentAdditive += mod.Value;
+					break;
+				case ModifierType.PercentMultiplicative:
+					percentMultiplicative *= mod.Value;
+					break;
+				case ModifierType.CustomFormula:
+					if (!string.IsNullOrWhiteSpace(mod.Formula))
+					{
+						var dict = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+						{
+							["base"] = currentValue,
+							["level"] = mod.SourceLevel,
+							["val"] = mod.Value
+						};
+						var context = new FormulaContext(ECSContext.World, entity, default, null, dict);
+						formulaBonus += FormulaEvaluator.Evaluate(mod.Formula, in context);
+					}
+					else
+					{
+						formulaBonus += mod.Value;
+					}
+					break;
+			}
 		});
 
-		return (currentValue + flatBonus) * percentBonus;
+		return (currentValue + flatBonus) * (1.0f + percentAdditive) * percentMultiplicative + formulaBonus;
 	}
 
 	/// <summary>

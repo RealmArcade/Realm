@@ -146,10 +146,20 @@ public static class AttributeStatCalculator
 			return default;
 		}
 
-		var attributes = world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity) : new UnitAttributes();
-		var baseStats = GetOrCreateUnitBaseStats(world, entity);
-		var derived = CalculateDerivedStats(in attributes, in baseStats, additionalAttackSpeedModifiers);
+		// Step 1: Base Attribute Resolution
+		var baseAttrs = world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity) : new UnitAttributes();
 
+		// Step 2: Attribute Modifier Phase
+		var modifiedAttrs = ApplyAttributeModifiers(world, entity, baseAttrs);
+
+		// Step 3: Derived Stats Computation
+		var baseStats = GetOrCreateUnitBaseStats(world, entity);
+		var derived = CalculateDerivedStats(in modifiedAttrs, in baseStats, additionalAttackSpeedModifiers);
+
+		// Step 4: Direct Stat Modifier Phase
+		derived = ApplyDirectStatModifiers(world, entity, derived, baseStats);
+
+		// Step 5: Entity Component Synchronization
 		world.SetOrAdd(entity, derived);
 
 		UpdateHealth(world, entity, in derived);
@@ -160,6 +170,110 @@ public static class AttributeStatCalculator
 		UpdateStatsDictionary(world, entity, in derived);
 
 		return derived;
+	}
+
+	private static UnitAttributes ApplyAttributeModifiers(World world, Entity entity, UnitAttributes baseAttrs)
+	{
+		float strFlat = 0f, strPctAdd = 0f, strPctMult = 1f, strFormula = 0f;
+		float agiFlat = 0f, agiPctAdd = 0f, agiPctMult = 1f, agiFormula = 0f;
+		float vitFlat = 0f, vitPctAdd = 0f, vitPctMult = 1f, vitFormula = 0f;
+		float intFlat = 0f, intPctAdd = 0f, intPctMult = 1f, intFormula = 0f;
+		float wisFlat = 0f, wisPctAdd = 0f, wisPctMult = 1f, wisFormula = 0f;
+		float fortFlat = 0f, fortPctAdd = 0f, fortPctMult = 1f, fortFormula = 0f;
+
+		AccumulateModifiersForStat(world, entity, "Strength", ref strFlat, ref strPctAdd, ref strPctMult, ref strFormula, baseAttrs.Strength);
+		AccumulateModifiersForStat(world, entity, "Agility", ref agiFlat, ref agiPctAdd, ref agiPctMult, ref agiFormula, baseAttrs.Agility);
+		AccumulateModifiersForStat(world, entity, "Vitality", ref vitFlat, ref vitPctAdd, ref vitPctMult, ref vitFormula, baseAttrs.Vitality);
+		AccumulateModifiersForStat(world, entity, "Intelligence", ref intFlat, ref intPctAdd, ref intPctMult, ref intFormula, baseAttrs.Intelligence);
+		AccumulateModifiersForStat(world, entity, "Wisdom", ref wisFlat, ref wisPctAdd, ref wisPctMult, ref wisFormula, baseAttrs.Wisdom);
+		AccumulateModifiersForStat(world, entity, "Fortune", ref fortFlat, ref fortPctAdd, ref fortPctMult, ref fortFormula, baseAttrs.Fortune);
+
+		float str = CombineStat(baseAttrs.Strength, strFlat, strPctAdd, strPctMult, strFormula);
+		float agi = CombineStat(baseAttrs.Agility, agiFlat, agiPctAdd, agiPctMult, agiFormula);
+		float vit = CombineStat(baseAttrs.Vitality, vitFlat, vitPctAdd, vitPctMult, vitFormula);
+		float intel = CombineStat(baseAttrs.Intelligence, intFlat, intPctAdd, intPctMult, intFormula);
+		float wis = CombineStat(baseAttrs.Wisdom, wisFlat, wisPctAdd, wisPctMult, wisFormula);
+		float fort = CombineStat(baseAttrs.Fortune, fortFlat, fortPctAdd, fortPctMult, fortFormula);
+
+		return new UnitAttributes(str, agi, vit, intel, wis, fort);
+	}
+
+	private static DerivedCombatStats ApplyDirectStatModifiers(World world, Entity entity, DerivedCombatStats derived, UnitBaseStats baseStats)
+	{
+		float hpFlat = 0f, hpPctAdd = 0f, hpPctMult = 1f, hpFormula = 0f;
+		float hpRegenFlat = 0f, hpRegenPctAdd = 0f, hpRegenPctMult = 1f, hpRegenFormula = 0f;
+		float manaFlat = 0f, manaPctAdd = 0f, manaPctMult = 1f, manaFormula = 0f;
+		float manaRegenFlat = 0f, manaRegenPctAdd = 0f, manaRegenPctMult = 1f, manaRegenFormula = 0f;
+		float armorFlat = 0f, armorPctAdd = 0f, armorPctMult = 1f, armorFormula = 0f;
+		float dmgFlat = 0f, dmgPctAdd = 0f, dmgPctMult = 1f, dmgFormula = 0f;
+		float speedFlat = 0f, speedPctAdd = 0f, speedPctMult = 1f, speedFormula = 0f;
+
+		AccumulateModifiersForStat(world, entity, "MaxHp", ref hpFlat, ref hpPctAdd, ref hpPctMult, ref hpFormula, derived.MaxHp);
+		AccumulateModifiersForStat(world, entity, "HpRegen", ref hpRegenFlat, ref hpRegenPctAdd, ref hpRegenPctMult, ref hpRegenFormula, derived.HpRegen);
+		AccumulateModifiersForStat(world, entity, "MaxMana", ref manaFlat, ref manaPctAdd, ref manaPctMult, ref manaFormula, derived.MaxMana);
+		AccumulateModifiersForStat(world, entity, "ManaRegen", ref manaRegenFlat, ref manaRegenPctAdd, ref manaRegenPctMult, ref manaRegenFormula, derived.ManaRegen);
+		AccumulateModifiersForStat(world, entity, "Armor", ref armorFlat, ref armorPctAdd, ref armorPctMult, ref armorFormula, derived.TotalArmor);
+		AccumulateModifiersForStat(world, entity, "Damage", ref dmgFlat, ref dmgPctAdd, ref dmgPctMult, ref dmgFormula, derived.TotalAttackDamage);
+		AccumulateModifiersForStat(world, entity, "Speed", ref speedFlat, ref speedPctAdd, ref speedPctMult, ref speedFormula, derived.MovementSpeed);
+
+		return derived with
+		{
+			MaxHp = CombineStat(derived.MaxHp, hpFlat, hpPctAdd, hpPctMult, hpFormula),
+			HpRegen = CombineStat(derived.HpRegen, hpRegenFlat, hpRegenPctAdd, hpRegenPctMult, hpRegenFormula),
+			MaxMana = CombineStat(derived.MaxMana, manaFlat, manaPctAdd, manaPctMult, manaFormula),
+			ManaRegen = CombineStat(derived.ManaRegen, manaRegenFlat, manaRegenPctAdd, manaRegenPctMult, manaRegenFormula),
+			TotalArmor = CombineStat(derived.TotalArmor, armorFlat, armorPctAdd, armorPctMult, armorFormula),
+			TotalAttackDamage = CombineStat(derived.TotalAttackDamage, dmgFlat, dmgPctAdd, dmgPctMult, dmgFormula),
+			MovementSpeed = CombineStat(derived.MovementSpeed, speedFlat, speedPctAdd, speedPctMult, speedFormula)
+		};
+	}
+
+	private static void AccumulateModifiersForStat(World world, Entity entity, string statName, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
+	{
+		if (!world.Has<ModifierState>(entity)) return;
+
+		var modState = world.Get<ModifierState>(entity);
+		var list = modState.Value;
+		for (int i = 0; i < list.Count; i++)
+		{
+			var mod = list[i];
+			if (!string.Equals(mod.StatTypeId.Value, statName, StringComparison.OrdinalIgnoreCase)) continue;
+
+			switch (mod.Type)
+			{
+				case ModifierType.Flat:
+					flat += mod.Value;
+					break;
+				case ModifierType.PercentAdditive:
+					pctAdd += mod.Value;
+					break;
+				case ModifierType.PercentMultiplicative:
+					pctMult *= mod.Value;
+					break;
+				case ModifierType.CustomFormula:
+					if (!string.IsNullOrWhiteSpace(mod.Formula))
+					{
+						var dict = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+						{
+							["base"] = baseValue,
+							["level"] = mod.SourceLevel,
+							["val"] = mod.Value
+						};
+						var context = new FormulaContext(world, entity, default, null, dict);
+						formulaBonus += FormulaEvaluator.Evaluate(mod.Formula, in context);
+					}
+					else
+					{
+						formulaBonus += mod.Value;
+					}
+					break;
+			}
+		}
+	}
+
+	private static float CombineStat(float baseVal, float flatSum, float pctAddSum, float pctMultProd, float formulaBonus)
+	{
+		return (baseVal + flatSum) * (1.0f + pctAddSum) * pctMultProd + formulaBonus;
 	}
 
 	private static UnitBaseStats GetOrCreateUnitBaseStats(World world, Entity entity)

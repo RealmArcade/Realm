@@ -291,9 +291,58 @@ public class UnitSpawnService
 			BaseCritMultiplier: critMultiplier,
 			BaseFlatArmorPenetration: flatArmorPen
 		));
+
+		ApplyPlayerUpgradesToNewUnit(entity, owner, playerEntity);
+
 		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
 
 		return entity;
+	}
+
+	private void ApplyPlayerUpgradesToNewUnit(Entity entity, PlayerEntity owner, Entity playerEntity)
+	{
+		if (GameContext.TechTreeService == null) return;
+
+		int playerIndex = -1;
+		if (playerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(playerEntity))
+		{
+			playerIndex = GameContext.World.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
+		}
+		else if (owner.Value != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(owner.Value))
+		{
+			playerIndex = GameContext.World.Get<UnitOwnerPlayer>(owner.Value).PlayerIndex;
+		}
+
+		if (playerIndex < 0) return;
+
+		string unitDefId = GameContext.World.Has<DefinitionId>(entity) ? GameContext.World.Get<DefinitionId>(entity).Value : "";
+
+		foreach (var kvp in GameContext.TechTreeService.PlayerTechLevels)
+		{
+			if (kvp.Key.PlayerIndex != playerIndex || kvp.Value <= 0) continue;
+
+			string techId = kvp.Key.TechId;
+			int level = kvp.Value;
+
+			if (GameContext.RegistryService?.UpgradeRegistry?.TryGetValue(techId, out var upgradeDef) == true && upgradeDef != null)
+			{
+				if (upgradeDef.AffectedUnitIds != null && upgradeDef.AffectedUnitIds.Length > 0)
+				{
+					bool affected = false;
+					for (int i = 0; i < upgradeDef.AffectedUnitIds.Length; i++)
+					{
+						if (string.Equals(upgradeDef.AffectedUnitIds[i], unitDefId, StringComparison.OrdinalIgnoreCase))
+						{
+							affected = true;
+							break;
+						}
+					}
+					if (!affected) continue;
+				}
+
+				TechTreeService.ApplyUpgradeModifiersToEntity(entity, techId, level, upgradeDef);
+			}
+		}
 	}
 	public void ProcessUnitSpawnRequestsDomain(Action<string, System.Numerics.Vector3, bool, float, float, int> spawnAction)
 	{

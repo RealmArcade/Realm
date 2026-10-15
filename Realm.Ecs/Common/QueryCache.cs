@@ -46,6 +46,7 @@ public static class QueryCache
 	public static readonly QueryDescription AllBuildingAndOwnerAndPositionNoneDeadQuery = new QueryDescription().WithAll<Building, Owner, Position>().WithNone<Dead>();
 	public static readonly QueryDescription AllOwnerAndMovableNoneDeadAndBuildingQuery = new QueryDescription().WithAll<Owner, Movable>().WithNone<Dead, Building>();
 	public static readonly QueryDescription AllOwnerAndBuildingNoneDeadQuery = new QueryDescription().WithAll<Owner, Building>().WithNone<Dead>();
+	public static readonly QueryDescription AllOwnerNoneDeadQuery = new QueryDescription().WithAll<Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionNoneDeadQuery = new QueryDescription().WithAll<Position>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionAndOwnerAndInventoryNoneDeadAndBuildingQuery = new QueryDescription().WithAll<Position, Owner, Inventory>().WithNone<Dead, Building>();
 	public static readonly QueryDescription AllPositionAndGathererNoneDeadQuery = new QueryDescription().WithAll<Position, Gatherer>().WithNone<Dead>();
