@@ -33,10 +33,10 @@ public partial class EditorService
 		{
 			typeStrings.Add(t.ToString());
 			typeStrings.Add(t.ToCanonicalString());
-			string norm = RealmMetadataHelper.NormalizeAssetType(t.ToString());
-			if (!string.IsNullOrEmpty(norm))
+			var norm = RealmMetadataHelper.NormalizeAssetType(t);
+			if (norm.HasValue)
 			{
-				typeStrings.Add(norm);
+				typeStrings.Add(norm.Value.ToCanonicalString());
 			}
 		}
 
@@ -68,9 +68,9 @@ public partial class EditorService
 					var col = db.GetCollection<IndexedAsset>("assets");
 					IEnumerable<IndexedAsset> candidates;
 
-					if (allowedTypeStrings != null && allowedTypeStrings.Count > 0)
+					if (allowedTypes != null && allowedTypes.Count > 0)
 					{
-						var bsonTypes = allowedTypeStrings.Select(t => new BsonValue(t)).ToArray();
+						var bsonTypes = allowedTypes.Select(t => new BsonValue((int)t)).Concat(allowedTypeStrings?.Select(t => new BsonValue(t)) ?? Array.Empty<BsonValue>()).ToArray();
 						candidates = col.Find(Query.In("AssetType", bsonTypes));
 					}
 					else
@@ -134,8 +134,8 @@ public partial class EditorService
 		using (var db = new LiteDatabase(connectionString))
 		{
 			var col = db.GetCollection<IndexedAsset>("assets");
-			BsonValue[]? bsonTypes = allowedTypeStrings != null && allowedTypeStrings.Count > 0
-				? allowedTypeStrings.Select(t => new BsonValue(t)).ToArray()
+			BsonValue[]? bsonTypes = allowedTypes != null && allowedTypes.Count > 0
+				? allowedTypes.Select(t => new BsonValue((int)t)).Concat(allowedTypeStrings?.Select(t => new BsonValue(t)) ?? Array.Empty<BsonValue>()).ToArray()
 				: null;
 
 			foreach (string term in terms)
@@ -627,6 +627,16 @@ public partial class EditorService
 		["shaders"] = AssetType.Shader
 	};
 
+	private AssetType MapStringToAssetType(AssetType? rawType, string extension, string? pathHint = null)
+	{
+		if (rawType.HasValue)
+		{
+			return rawType.Value;
+		}
+
+		return MapStringToAssetType((string?)null, extension, pathHint);
+	}
+
 	private AssetType MapStringToAssetType(string? rawType, string extension, string? pathHint = null)
 	{
 		if (AssetTypeExtensions.TryParse(rawType, out var parsed))
@@ -1005,7 +1015,7 @@ public partial class EditorService
 					}
 
 					string relativePath = Path.GetRelativePath(baseDir, file).Replace('\\', '/');
-					var mappedType = MapStringToAssetType(null, ext, relativePath);
+					var mappedType = MapStringToAssetType((string?)null, ext, relativePath);
 					if (allowedTypes != null && !allowedTypes.Contains(mappedType))
 					{
 						continue;
@@ -1017,7 +1027,7 @@ public partial class EditorService
 						FileName = fileName,
 						FilePath = file,
 						Extension = ext,
-						AssetType = MapAssetTypeToCategoryString(mappedType),
+						AssetType = mappedType,
 						DirectoryPath = Path.GetDirectoryName(file) ?? string.Empty,
 						Blake3 = Path.GetFileNameWithoutExtension(fileName)
 					});

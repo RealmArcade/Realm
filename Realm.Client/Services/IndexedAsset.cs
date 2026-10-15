@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Realm.EditorAPI;
 
 namespace Realm.Client.Services;
 
@@ -15,7 +16,7 @@ public class IndexedAsset
 	public List<string> Tags { get; set; } = new();
 	public string MetadataJson { get; set; } = string.Empty;
 	public bool HasRealmMetadata { get; set; }
-	public string? AssetType { get; set; }
+	public AssetType? AssetType { get; set; }
 	public string? MapName { get; set; }
 	public string? MapVersion { get; set; }
 	public string? Blake3 { get; set; }

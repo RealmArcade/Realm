@@ -3,6 +3,9 @@
 ## General Project Overview:
 - RTS Game using Godot with C# and the Arch ECS framework.
 
+## File Reading & Tool Efficiency Rules (CRITICAL)
+- **`view_file` / `Read` Usage:** Always omit `StartLine`, `EndLine`, and `ContentOffset` on your first read of any file; if the file exceeds 800 lines, paginate in 800-line increments using ONLY `StartLine` and `EndLine` (never set `ContentOffset` or read fewer than 800-line chunks).
+
 ## Overall Coding Style:
 
 - Prefer functional programming paradigms where appropriate.

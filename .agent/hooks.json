@@ -1,0 +1,17 @@
+{
+  "block-chunk-reads": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "view_file|read_file|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/block-chunk-reads.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

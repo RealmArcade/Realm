@@ -166,16 +166,23 @@ public static class RealmMetadataHelper
 
 	private static ReadOnlySet<string> ValidAssetTypes = ValidAssetTypesByExtension.Values.SelectMany(x => x).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly();
 
-	public static string NormalizeAssetType(string? assetType)
+	public static AssetType? NormalizeAssetType(string? assetType)
 	{
-		return (assetType ?? "").Trim().ToLowerInvariant().Replace("_", "");
+		if (string.IsNullOrWhiteSpace(assetType)) return null;
+		return AssetTypeExtensions.TryParse(assetType, out var parsed) ? parsed : null;
+	}
+
+	public static AssetType? NormalizeAssetType(AssetType? assetType)
+	{
+		return assetType;
 	}
 
 	public static string GetCanonicalType(string? assetType)
 	{
-		if (Realm.EditorAPI.AssetTypeExtensions.TryParse(assetType, out var parsed))
+		var norm = NormalizeAssetType(assetType);
+		if (norm.HasValue)
 		{
-			return parsed.ToCanonicalString();
+			return norm.Value.ToCanonicalString();
 		}
 
 		return "";
@@ -204,19 +211,35 @@ public static class RealmMetadataHelper
 		return GetValidAssetTypesForExtension(extension).FirstOrDefault() ?? "";
 	}
 
-	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out ReadOnlySet<string> validTypes)
+	public static bool IsValidAssetTypeForExtension(string extensionOrPath, AssetType assetType, out ReadOnlySet<string> validTypes)
 	{
-		canonicalType = GetCanonicalType(assetType);
-
 		string ext = GetExtension(extensionOrPath);
 		validTypes = GetValidAssetTypesForExtension(ext);
 
-		if (!validTypes.Contains(canonicalType))
+		foreach (var valid in validTypes)
+		{
+			if (NormalizeAssetType(valid) == assetType)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out ReadOnlySet<string> validTypes)
+	{
+		var norm = NormalizeAssetType(assetType);
+		string ext = GetExtension(extensionOrPath);
+		validTypes = GetValidAssetTypesForExtension(ext);
+
+		if (!norm.HasValue || !IsValidAssetTypeForExtension(extensionOrPath, norm.Value, out _))
 		{
 			canonicalType = GetDefaultAssetTypeForExtension(ext);
 			return false;
 		}
 
+		canonicalType = norm.Value.ToCanonicalString();
 		return true;
 	}
 
