@@ -1319,35 +1319,58 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	public void RandomizeAssets()
 	{
-		var compatibleModels = ScanCompatibleModels(allFolders: false);
-		if (compatibleModels.Count == 0)
+		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 		{
-			compatibleModels = ScanCompatibleModels(allFolders: true);
+			string tintHex = $"#{_tint.ToHtml(false)}";
+			string spawnKey = GetSelectedSpawnShaderKey();
+			string deathKey = GetSelectedDeathShaderKey();
+
+			switch (_category)
+			{
+				case "units":
+					if (meta.GetUnit(targetId) == null && (string.IsNullOrEmpty(_slug) || meta.GetUnit(_slug) == null))
+					{
+						ApplyUnitMetadata(meta, targetId, tintHex, spawnKey, deathKey);
+					}
+					break;
+				case "buildings":
+					if (meta.GetBuilding(targetId) == null && (string.IsNullOrEmpty(_slug) || meta.GetBuilding(_slug) == null))
+					{
+						ApplyBuildingMetadata(meta, targetId, tintHex, spawnKey, deathKey);
+					}
+					break;
+				case "resources":
+					if (meta.GetResource(targetId) == null && (string.IsNullOrEmpty(_slug) || meta.GetResource(_slug) == null))
+					{
+						ApplyResourceMetadata(meta, targetId, tintHex, spawnKey, deathKey);
+					}
+					break;
+				case "props":
+					if (meta.GetProp(targetId) == null && (string.IsNullOrEmpty(_slug) || meta.GetProp(_slug) == null))
+					{
+						ApplyPropMetadata(meta, targetId, tintHex, spawnKey, deathKey);
+					}
+					break;
+			}
+		});
+
+		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
+
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var loadedMeta) && loadedMeta != null)
+		{
+			LoadMetadataByCategory(loadedMeta, targetId);
+			if (string.IsNullOrEmpty(_modelPath) && !string.IsNullOrEmpty(_slug))
+			{
+				LoadMetadataByCategory(loadedMeta, _slug);
+			}
 		}
 
-		if (compatibleModels.Count > 0)
-		{
-			var rng = new Random();
-			string chosenModel = compatibleModels[rng.Next(compatibleModels.Count)];
-			_modelPath = chosenModel;
-			_setModelPathValue?.Invoke(_modelPath);
-
-			var portraitModels = ScanPortraitModels(allFolders: false);
-			if (portraitModels.Count == 0)
-			{
-				portraitModels = ScanPortraitModels(allFolders: true);
-			}
-
-			if (portraitModels.Count > 0)
-			{
-				string chosenPortrait = portraitModels[rng.Next(portraitModels.Count)];
-				_portraitModelPath = chosenPortrait;
-				_setPortraitModelPathValue?.Invoke(_portraitModelPath);
-			}
-
-			ApplyLiveModelAndVisualMode();
-			UpdateRiggedAnimationButtonVisibility();
-		}
+		SyncControls();
+		ApplyLiveModelAndVisualMode();
+		UpdateRiggedAnimationButtonVisibility();
 	}
 
 	private void InitializeDialogState(string category, string objectId, Node selectedObject, Action<string, string> onApplied)
