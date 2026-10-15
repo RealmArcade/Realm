@@ -156,7 +156,7 @@ interface game-api {
     spawn-resource-node: func(resource-type: string, position-x: f32, position-y: f32, position-z: f32, amount: f32);
     spawn-target-indicator: func(position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32);
     spawn-unit: func(unit-type-id: string, position-x: f32, position-y: f32, position-z: f32, is-enemy: bool, bypass-population: bool, execute-spawn-shader: bool) -> s32;
-    spawn-unit-for-player: func(unit-type-id: string, position-x: f32, position-y: f32, position-z: f32, player-index: s32, execute-spawn-shader: bool) -> s32;
+    spawn-unit-for-player: func(unit-type-id: string, position-x: f32, position-y: f32, player-index: s32, execute-spawn-shader: bool) -> s32;
     spawn-visual-effect: func(effect-type-id: string, position-x: f32, position-y: f32, position-z: f32, scale: f32);
     start-building-placement: func(unit-type-id: string);
     start-countdown-timer: func(duration: f32, label: string);
