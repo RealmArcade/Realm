@@ -33,6 +33,7 @@ public partial class LobbyManager : Node
 	public static LobbyManager Instance { get; private set; }
 	public bool IsSinglePlayer { get; set; } = false;
 	public string? LastHostError { get; private set; }
+	public bool IsRestrictedHost { get; private set; }
 
 	private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
 
@@ -419,7 +420,13 @@ public partial class LobbyManager : Node
 
 		if (!await TryCreateENetServerAsync()) return false;
 
-		_ = UpnpService.Instance.OpenPortAsync(ENetPort);
+		bool upnpSuccess = await UpnpService.Instance.OpenPortAsync(ENetPort);
+		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
+		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
+		if (IsRestrictedHost)
+		{
+			GD.Print("[LobbyManager] Warning: UPnP port mapping not available on restricted NAT. External players may require Direct Connect.");
+		}
 
 		Diagnostics.StartHostListener(ENetPort + 1);
 		StartHostDiagnosticsTimer();
@@ -686,6 +693,12 @@ public partial class LobbyManager : Node
 			}
 		}
 
+		if (string.IsNullOrEmpty(ActiveLobbyId))
+		{
+			ActiveLobbyId = $"local-{Guid.NewGuid():N}";
+			GD.Print($"[LobbyManager] Assigned fallback local lobby ID: {ActiveLobbyId}");
+		}
+
 		return true; // proceed locally if registry is offline
 	}
 
@@ -757,7 +770,7 @@ public partial class LobbyManager : Node
 		await RunNatTypeTestAsync();
 
 		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
-		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
+		int clientPublicPort = ENetPort;
 
 		try
 		{
@@ -782,6 +795,15 @@ public partial class LobbyManager : Node
 			ConnectionFailed?.Invoke(ex.Message);
 			return false;
 		}
+	}
+
+	public async Task<bool> JoinByIpAsync(string targetIp, int targetPort = 8999)
+	{
+		string directLobbyId = $"direct-{Guid.NewGuid():N}";
+		InitializeClientState(directLobbyId);
+		_connectedHostIp = targetIp;
+		_connectedHostPort = targetPort;
+		return await EstablishClientConnectionAsync(targetIp, targetPort);
 	}
 
 	private void InitializeClientState(string lobbyId)
@@ -1011,31 +1033,60 @@ public partial class LobbyManager : Node
 				HandleWebSocketMessage(json);
 			}
 		}
+		GD.Print("[LobbyManager] Host WebSocket message processing loop ended.");
 	}
 
 	private void HandleWebSocketMessage(string json)
 	{
-		using var doc = JsonDocument.Parse(json);
-		var root = doc.RootElement;
-
-		if (root.GetProperty("Action").GetString() == "Punch")
+		try
 		{
-			string clientIp = root.GetProperty("ClientIP").GetString() ?? "";
-			int clientPort = root.GetProperty("ClientPort").GetInt32();
+			using var doc = JsonDocument.Parse(json);
+			var root = doc.RootElement;
 
-			GD.Print($"[LobbyManager] WebSocket signal: incoming client. Punching to {clientIp}:{clientPort}...");
-
-			_ = Task.Run(async () =>
+			if (root.GetProperty("Action").GetString() == "Punch")
 			{
-				try
+				string clientIp = root.GetProperty("ClientIP").GetString() ?? "";
+				int clientPort = root.GetProperty("ClientPort").GetInt32();
+
+				GD.Print($"[LobbyManager] WebSocket signal: incoming client. Scheduling punch to {clientIp}:{clientPort} on main thread...");
+				Callable.From(() => PunchHostToClient(clientIp, clientPort)).CallDeferred();
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Error handling WebSocket message: {ex.Message}");
+		}
+	}
+
+	private void PunchHostToClient(string clientIp, int clientPort)
+	{
+		try
+		{
+			if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enetPeer)
+			{
+				var host = enetPeer.GetHost();
+				if (host != null)
 				{
-					await UdpHolePuncher.PunchHoleAsync(clientIp, clientPort, 0);
+					byte[] punchPacket = Encoding.UTF8.GetBytes("PUNCH");
+					for (int i = 0; i < 5; i++)
+					{
+						host.SocketSend(clientIp, clientPort, punchPacket);
+					}
+					GD.Print($"[LobbyManager] Sent native ENet socket punch to {clientIp}:{clientPort} from port {ENetPort}");
 				}
-				catch (Exception ex)
+				else
 				{
-					GD.PrintErr($"[LobbyManager] Async punch to client failed: {ex.Message}");
+					GD.PrintErr("[LobbyManager] Native ENet punch failed: ENetConnection host instance is null.");
 				}
-			});
+			}
+			else
+			{
+				GD.PrintErr("[LobbyManager] Native ENet punch failed: MultiplayerPeer is not an active ENetMultiplayerPeer.");
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Native ENet socket punch exception: {ex.Message}");
 		}
 	}
 
@@ -3255,6 +3306,8 @@ public partial class LobbyManager : Node
 		if (bytes[0] == 10) return true;
 		if (bytes[0] == 192 && bytes[1] == 168) return true;
 		if (bytes[0] == 172 && IsInRange(bytes[1], 16, 31)) return true;
+		if (bytes[0] == 100 && IsInRange(bytes[1], 64, 127)) return true;
+		if (bytes[0] == 26) return true;
 
 		return false;
 	}
