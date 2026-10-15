@@ -17,6 +17,7 @@ public abstract partial class MapTransferRpcNode : Node
 
 	protected abstract void OnChunkProgressUpdated(float overallProgress);
 	protected abstract void FinalizeReceivedChunk(int chunkIndex, int totalChunks);
+	protected abstract void ClearActiveEphemeralTransferPeerId(int peerId);
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	protected void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex)
@@ -70,5 +71,10 @@ public abstract partial class MapTransferRpcNode : Node
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	protected virtual void AcknowledgeMapTransferCompleteRpc(string transferId)
 	{
+		if (GetHostTransfers().TryRemove(transferId, out var session))
+		{
+			session.Cts.Cancel();
+			ClearActiveEphemeralTransferPeerId(session.PeerId);
+		}
 	}
 }

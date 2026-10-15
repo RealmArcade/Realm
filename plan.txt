@@ -1,103 +1,49 @@
-1. **Refactor ContentAddressableStorage.cs**
-   Extract the duplicated block starting around line 245, 362, 410 into a private method (e.g. `PerformWithLock`).
+1. We need to refactor the duplicated code found in `EnetMapTransferService.cs` and `LobbyManager.cs`.
+2. The specific duplicated methods/code logic are:
+   - `TransmitChunkPacketsAsync` (in `EnetMapTransferService`) / `SendChunkPacketsAsync` (in `LobbyManager`).
+   - `AcknowledgeMapTransferCompleteRpc`.
+3. The duplicated logic handles chunk packet sending via Godot's RPC mechanism. Both classes inherit from `MapTransferRpcNode`.
+4. We can add a helper method in `MapTransferHelper.cs` to handle the packet transmission logic, or we can move it to `MapTransferRpcNode.cs`. Since Godot RPC requires a reference to `RpcId` and `nameof(SendMapTransferChunkRpc)`, passing `RpcId` as a delegate or `Action` to `MapTransferHelper` is possible. However, the logic for `TransmitChunkPacketsAsync` involves `RpcId`, `Delay`, and `CallDeferred`.
+5. Wait, the exact code duplication is in the loop in `TransmitChunkPacketsAsync` and `SendChunkPacketsAsync`.
+   Let's check the parameters:
+   EnetMapTransferService:
    ```csharp
-	private (bool Success, string Message, bool Deduplicated, bool Merged, string Blake3Hash) PerformWithLock(
-		string normalizedHash,
-		string extension,
-		string? metadataHeadersJson,
-		string? authorPublicKey,
-		string? authorSignature,
-		Action<string> saveAction)
-	{
-		object fileLock = _fileLocks.GetOrAdd(normalizedHash, _ => new object());
-		lock (fileLock)
-		{
-			var existingResult = TryHandleExistingAsset(normalizedHash, metadataHeadersJson, authorPublicKey, authorSignature);
-			if (existingResult.HasValue) return existingResult.Value;
-
-			if (!CheckFreeDiskSpaceAcceptingDownloads())
-			{
-				return (false, "Write rejected: available disk space is less than 1%.", false, false, normalizedHash);
-			}
-
-			string finalExtension = !string.IsNullOrEmpty(extension) ? extension : ".bin";
-			string shardDirectory = GetAndEnsureShardDirectory(normalizedHash);
-			string finalFilePath = Path.Combine(shardDirectory, $"{normalizedHash}{finalExtension}");
-
-			saveAction(finalFilePath);
-
-			_assetPathCache[normalizedHash] = finalFilePath;
-
-			FinalizeAssetMetadata(finalFilePath, normalizedHash, extension, metadataHeadersJson, authorPublicKey, authorSignature);
-
-			return (true, "Asset stored successfully.", false, false, normalizedHash);
-		}
-	}
+   	private async Task TransmitChunkPacketsAsync(HostTransferSession session, int chunkIndex, byte[] compressedChunkBytes)
    ```
-   Apply to `StoreAssetWithPrecomputedHash`, `StoreAssetFromFile` and `StoreAsset`.
-
-2. **Refactor RaudFile.cs and RtexFile.cs / RealmContainerFile.cs**
-   Move the `PackTracks` and `UnpackTracks` (and corresponding layers ones) as well as `ExtractMetadata(ReadOnlySpan<byte>)` etc. into `RealmContainerFile` by adding abstract/virtual generics or just keeping the payload logic.
-   Wait, the duplication is specifically for `PackTracks` and `PackLayers` which are virtually identical.
-   Create `public static byte[] PackItems(IList<byte[]>? items)` in `RealmContainerFile`.
-   Create `public static List<byte[]> UnpackItems(ReadOnlySpan<byte> itemsSpan)` in `RealmContainerFile`.
-   Replace `ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);` and its Stream/File counterparts in `RaudFile` and `RtexFile`. Since `MagicBytes` is specific to each subclass, we might keep the properties or create a generic method?
-   Let's check the exact duplication again from the prompt:
+   LobbyManager:
    ```csharp
-	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
-	public static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
-	public static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
-
-	public static byte[] SetMetadata(ReadOnlySpan<byte> bytes, string? newMetadataJson)
-	{
-		return SetContainerMetadata(bytes, MagicBytes, Name, Format, newMetadataJson);
-	}
-
-	public static byte[] PackTracks(IList<byte[]>? tracks)
+	private async Task SendChunkPacketsAsync(HostTransferSession session, int chunkIndex, byte[] compressedChunkBytes, int totalPacketsInChunk)
    ```
-   This duplication spans `ExtractMetadata` and `SetMetadata` and `PackTracks`.
-   Wait, they are static methods. We can't use polymorphism for static methods directly. But we can create a generic class or simply replace `PackTracks` with `RealmContainerFile.PackPayloadItems` and update `RaudFile` to use it.
-   Also, `RtexFile`, `RkeyFile`, `RanimFile` might have this duplication, but only `RaudFile` and `RtexFile` have `PackTracks`/`PackLayers` exactly matching.
-   Let's refactor this block in `RaudFile` and `RtexFile` to use `RealmContainerFile.PackPayloadItems` and we can leave the `ExtractMetadata` alone OR put them in a generic base class, but C# doesn't allow `public static byte[] MagicBytes` easily via generic base unless we do `RealmContainerFile<T>`. It's better to just extract the `PackItems` and `UnpackItems` to `RealmContainerFile` and call it.
-
-3. **Refactor GlbPlayerColorProcessor.cs**
-   - For `AppendIndexedVec2Faces` and `AppendIndexedVec3Faces` - we can extract a generic method:
+   Actually, `MapTransferHelper` already has a lot of logic. We can add a static method `SendChunkPacketsAsync` in `MapTransferHelper` that takes an `Action<int, int, int, int, long, byte[]>` (representing the RPC call) and the session parameters.
+   
+6. For `AcknowledgeMapTransferCompleteRpc`:
+   Since both `EnetMapTransferService` and `LobbyManager` maintain `_hostTransfers` and `_activeEphemeralTransferPeerId` natively in their own classes, but `MapTransferRpcNode` defines an abstract method `GetHostTransfers()`. However, `_activeEphemeralTransferPeerId` is not in `MapTransferRpcNode`.
+   We can add an abstract `ref int GetActiveEphemeralTransferPeerId()`? No, properties can work. Or just a method `void ClearActiveEphemeralTransferPeerId(int peerId)`.
+   Alternatively, we can provide a method in `MapTransferHelper`:
    ```csharp
-	private static void AppendIndexedFaces<T>(List<(T, T, T)> result, List<T> data, List<int> indices)
+   public static void HandleAcknowledgeMapTransferComplete(string transferId, ConcurrentDictionary<string, HostTransferSession> hostTransfers, Action<int> clearActiveEphemeralTransferPeerId)
+   ```
+   Let's check `AcknowledgeMapTransferCompleteRpc` again:
+   ```csharp
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	protected override void AcknowledgeMapTransferCompleteRpc(string transferId)
 	{
-		for (int i = 0; i + 2 < indices.Count; i += 3)
+		if (_hostTransfers.TryRemove(transferId, out var session))
 		{
-			int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
-			if (i0 < data.Count && i1 < data.Count && i2 < data.Count)
+			session.Cts.Cancel();
+			if (_activeEphemeralTransferPeerId == session.PeerId)
 			{
-				result.Add((data[i0], data[i1], data[i2]));
+				_activeEphemeralTransferPeerId = 0;
 			}
 		}
 	}
    ```
-   - For `AppendSequentialVec2Faces` and `AppendSequentialVec3Faces`:
+   We can definitely move this to `MapTransferRpcNode` if we introduce an abstract method or property for `_activeEphemeralTransferPeerId`. Or handle it in `MapTransferHelper` and call it from the overriding methods.
+   Wait, if we move it to `MapTransferHelper`:
    ```csharp
-	private static void AppendSequentialFaces<T>(List<(T, T, T)> result, List<T> data)
-	{
-		for (int i = 0; i + 2 < data.Count; i += 3)
-		{
-			result.Add((data[i], data[i + 1], data[i + 2]));
-		}
-	}
+   public static void HandleAcknowledgeMapTransferComplete(string transferId, ConcurrentDictionary<string, HostTransferSession> hostTransfers, ref int activeEphemeralTransferPeerId)
    ```
-   - For the pixel loop:
+   We can't use `ref int` in lambda easily, but we can just do:
    ```csharp
-		for (int y = 0; y < albedoImg.Height; y++)
-		{
-			for (int x = 0; x < albedoImg.Width; x++)
-			{
-				var pixel = albedoImg.GetPixel(x, y);
-				if (pixel.Alpha < 128) continue;
-
-				float r = pixel.Red / 255f;
-				float g = pixel.Green / 255f;
-				float b = pixel.Blue / 255f;
-
-				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+   public static void HandleAcknowledgeMapTransferComplete(string transferId, ConcurrentDictionary<string, HostTransferSession> hostTransfers, Action<int> onSessionRemoved)
    ```
-   Extract `public static bool TryGetOklabPixel(SKColor pixel, out float pL, out float pA, out float pB)`?

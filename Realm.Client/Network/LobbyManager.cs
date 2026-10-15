@@ -1635,59 +1635,29 @@ public partial class LobbyManager : MapTransferRpcNode
 
 	private async Task SendChunkPacketsAsync(HostTransferSession session, int chunkIndex, byte[] compressedChunkBytes, int totalPacketsInChunk)
 	{
-		int packetIndex = 0;
-		int offset = 0;
-
-		while (offset < compressedChunkBytes.Length)
-		{
-			if (session.Cts.IsCancellationRequested) break;
-
-			int packetSize = Math.Min(ZstdAssetBundleHelper.PacketChunkSize, compressedChunkBytes.Length - offset);
-			byte[] packetData = new byte[packetSize];
-			Buffer.BlockCopy(compressedChunkBytes, offset, packetData, 0, packetSize);
-
-			int currentPacketIndex = packetIndex;
-			int currentChunkIndex = chunkIndex;
-			int totalChunks = session.TotalChunks;
-			long totalBytes = session.TotalRawBytes;
-
-			Callable.From(() => RpcId(
+		await MapTransferHelper.TransmitChunkPacketsAsync(
+			session,
+			chunkIndex,
+			compressedChunkBytes,
+			totalPacketsInChunk,
+			(ci, tc, cpi, tpc, tb, pd) => RpcId(
 				session.PeerId,
 				nameof(SendMapTransferChunkRpc),
 				session.TransferId,
-				currentChunkIndex,
-				totalChunks,
-				currentPacketIndex,
-				totalPacketsInChunk,
-				totalBytes,
-				packetData)).CallDeferred();
-
-			offset += packetSize;
-			packetIndex++;
-
-			if (packetIndex % 2 == 0)
-			{
-				await Task.Delay(1, session.Cts.Token);
-			}
-		}
+				ci,
+				tc,
+				cpi,
+				tpc,
+				tb,
+				pd)
+		);
 	}
 
-
-	
-	
-	
-
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	protected override void AcknowledgeMapTransferCompleteRpc(string transferId)
+	protected override void ClearActiveEphemeralTransferPeerId(int peerId)
 	{
-		if (_hostTransfers.TryRemove(transferId, out var session))
+		if (_activeEphemeralTransferPeerId == peerId)
 		{
-			session.Cts.Cancel();
-			if (_activeEphemeralTransferPeerId == session.PeerId)
-			{
-				_activeEphemeralTransferPeerId = 0;
-			}
+			_activeEphemeralTransferPeerId = 0;
 		}
 	}
 
