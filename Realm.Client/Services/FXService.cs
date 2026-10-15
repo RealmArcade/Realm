@@ -252,6 +252,32 @@ public class FXService
 		SpawnWeaponProjectile(parent, start, target, "arrow");
 	}
 
+		private void SpawnFloatingText(Node3D parent, Vector3 worldPosition, string text, Color color, int outlineSize, int fontSize)
+	{
+		var label = new Label3D();
+		label.Text = text;
+		label.Modulate = color;
+		label.OutlineModulate = Colors.Black;
+		label.OutlineSize = outlineSize;
+		label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
+		label.FontSize = fontSize;
+
+		float offsetX = (float)GD.RandRange(-0.25, 0.25);
+		float offsetZ = (float)GD.RandRange(-0.25, 0.25);
+		label.Position = worldPosition + new Vector3(offsetX, 1.8f, offsetZ);
+
+		parent.AddChild(label);
+
+		var tween = parent.CreateTween();
+		tween.SetParallel(true);
+		tween.TweenProperty(label, "position", label.Position + new Vector3(0, 1.6f, 0), 1.0f)
+			.SetTrans(Tween.TransitionType.Cubic)
+			.SetEase(Tween.EaseType.Out);
+		tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f)
+			.SetTrans(Tween.TransitionType.Linear);
+		tween.Chain().TweenCallback(Callable.From(label.QueueFree));
+	}
+
 	public void SpawnDamageNumber(Node3D parent, Vector3 worldPosition, float amount, bool isCritical = false)
 	{
 		if (!GameSettings.FloatingCombatText) return;
@@ -262,28 +288,12 @@ public class FXService
 
 		bool isHeavyOrCrit = isCritical || amount >= 75f;
 
-		var label = new Label3D();
-		label.Text = isHeavyOrCrit ? $"CRIT! -{amountInt}" : $"-{amountInt}";
-		label.Modulate = isHeavyOrCrit ? new Color(1.0f, 0.85f, 0.2f) : new Color(1.0f, 0.25f, 0.25f);
-		label.OutlineModulate = Colors.Black;
-		label.OutlineSize = isHeavyOrCrit ? 14 : 10;
-		label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
-		label.FontSize = isHeavyOrCrit ? 52 : 38;
+		string text = isHeavyOrCrit ? $"CRIT! -{amountInt}" : $"-{amountInt}";
+		Color color = isHeavyOrCrit ? new Color(1.0f, 0.85f, 0.2f) : new Color(1.0f, 0.25f, 0.25f);
+		int outlineSize = isHeavyOrCrit ? 14 : 10;
+		int fontSize = isHeavyOrCrit ? 52 : 38;
 
-		float offsetX = (float)GD.RandRange(-0.25, 0.25);
-		float offsetZ = (float)GD.RandRange(-0.25, 0.25);
-		label.Position = worldPosition + new Vector3(offsetX, 1.8f, offsetZ);
-
-		parent.AddChild(label);
-
-		var tween = parent.CreateTween();
-		tween.SetParallel(true);
-		tween.TweenProperty(label, "position", label.Position + new Vector3(0, 1.6f, 0), 1.0f)
-			.SetTrans(Tween.TransitionType.Cubic)
-			.SetEase(Tween.EaseType.Out);
-		tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f)
-			.SetTrans(Tween.TransitionType.Linear);
-		tween.Chain().TweenCallback(Callable.From(label.QueueFree));
+		SpawnFloatingText(parent, worldPosition, text, color, outlineSize, fontSize);
 	}
 
 	public void SpawnHealNumber(Node3D parent, Vector3 worldPosition, float amount)
@@ -294,29 +304,15 @@ public class FXService
 		int amountInt = (int)Math.Round(amount);
 		if (amountInt <= 0) return;
 
-		var label = new Label3D();
-		label.Text = $"+{amountInt}";
-		label.Modulate = new Color(0.2f, 0.95f, 0.3f);
-		label.OutlineModulate = Colors.Black;
-		label.OutlineSize = 10;
-		label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
-		label.FontSize = 38;
+		string text = $"+{amountInt}";
+		Color color = new Color(0.2f, 0.95f, 0.3f);
+		int outlineSize = 10;
+		int fontSize = 38;
 
-		float offsetX = (float)GD.RandRange(-0.25, 0.25);
-		float offsetZ = (float)GD.RandRange(-0.25, 0.25);
-		label.Position = worldPosition + new Vector3(offsetX, 1.8f, offsetZ);
-
-		parent.AddChild(label);
-
-		var tween = parent.CreateTween();
-		tween.SetParallel(true);
-		tween.TweenProperty(label, "position", label.Position + new Vector3(0, 1.6f, 0), 1.0f)
-			.SetTrans(Tween.TransitionType.Cubic)
-			.SetEase(Tween.EaseType.Out);
-		tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f)
-			.SetTrans(Tween.TransitionType.Linear);
-		tween.Chain().TweenCallback(Callable.From(label.QueueFree));
+		SpawnFloatingText(parent, worldPosition, text, color, outlineSize, fontSize);
 	}
+
+	
 
 	public void SpawnTargetIndicator(Node3D parent, Vector3 position, Color color)
 	{

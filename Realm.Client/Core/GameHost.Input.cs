@@ -21,6 +21,29 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	private Godot.Vector3? CalculatePlacementPosition(Godot.Vector3 hitPos, float scaleVal, out float radius)
+	{
+		Godot.Vector3 spawnPos = hitPos;
+		spawnPos.Y = GetTerrainHeightAt(spawnPos);
+		radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
+		var finalPos = FindNearestFreePosition(spawnPos, radius);
+		if (finalPos == null)
+		{
+			if (scaleVal > 1.5f)
+			{
+				MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
+			}
+			else
+			{
+				MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
+			}
+
+			UIManager.Instance?.PlayWarningSound();
+			GetViewport().SetInputAsHandled();
+			return null;
+		}
+		return finalPos;
+	}
 	private PhysicsRayQueryParameters3D? _cachedRaycastQuery { get; set; }
 	private bool _leftClickInitiatedOverUI { get; set; } = false;
 	private bool _is3DLeftClickDown { get; set; } = false;
@@ -1030,27 +1053,9 @@ public partial class GameHost
 					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
 					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
 
-					Vector3 spawnPos = hitPos;
-					spawnPos.Y = GetTerrainHeightAt(spawnPos);
-					float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
-					var finalPos = FindNearestFreePosition(spawnPos, radius);
-					if (finalPos == null)
-					{
-						if (scaleVal > 1.5f)
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
-						}
-						else
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
-						}
-
-						UIManager.Instance?.PlayWarningSound();
-						GetViewport().SetInputAsHandled();
-						return;
-					}
-
-					spawnPos = finalPos.Value;
+					var finalPos = CalculatePlacementPosition(hitPos, scaleVal, out float radius);
+						if (finalPos == null) return;
+						Vector3 spawnPos = finalPos.Value;
 
 					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, GameContext.EditorService.PlaceUnitIsEnemy, placementRot, scaleVal);
 					if (unit != null)
@@ -1090,27 +1095,9 @@ public partial class GameHost
 					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
 					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
 
-					Vector3 spawnPos = hitPos;
-					spawnPos.Y = GetTerrainHeightAt(spawnPos);
-					float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
-					var finalPos = FindNearestFreePosition(spawnPos, radius);
-					if (finalPos == null)
-					{
-						if (scaleVal > 1.5f)
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
-						}
-						else
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
-						}
-
-						UIManager.Instance?.PlayWarningSound();
-						GetViewport().SetInputAsHandled();
-						return;
-					}
-
-					spawnPos = finalPos.Value;
+					var finalPos = CalculatePlacementPosition(hitPos, scaleVal, out float radius);
+						if (finalPos == null) return;
+						Vector3 spawnPos = finalPos.Value;
 
 					var prop = SpawnPropExternalWithParams(ActivePlaceId, spawnPos, placementRot, scaleVal);
 					if (prop != null)

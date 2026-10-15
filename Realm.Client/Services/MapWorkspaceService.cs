@@ -1108,6 +1108,12 @@ please visit the URL above.
 		return null;
 	}
 
+		private static byte[] ExtractAndStripAnimations(string workspacePath, string glbPath, string fileName, byte[] glbBytes)
+		{
+			var result = ExtractAndStripAnimations(glbPath, workspacePath, fileName);
+			return result ?? glbBytes;
+		}
+
 	private static bool PerformGlbOptimization(string glbPath, string workspacePath, string fileName, byte[] glbBytes, GlbOptimizer optimizer, OptimizationOptions options, DateTime lastWrite)
 	{
 		OptimizationResult optResult = default;
@@ -1192,37 +1198,7 @@ please visit the URL above.
 		}
 	}
 
-	private static byte[] ExtractAndStripAnimations(string workspacePath, string glbPath, string fileName, byte[] glbBytes)
-	{
-		try
-		{
-			string animsDir = Path.Combine(workspacePath, "Assets", "animations");
-			Directory.CreateDirectory(animsDir);
-			var extractedAnims = MixamoAnimationImporter.ExtractAnimationsFromGlb(glbPath);
-			foreach (var (animName, animData) in extractedAnims)
-			{
-				string animFileName = $"{animName.ToLowerInvariant()}.ranim";
-				string animFilePath = Path.Combine(animsDir, animFileName);
-				if (!File.Exists(animFilePath))
-				{
-					RealmAnimationSerializer.SaveToFile(animFilePath, animData);
-					UpdateMetadataAnimationHash(workspacePath, animFileName, RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(animFilePath), ".ranim"));
-				}
-			}
-
-			if (extractedAnims.Count > 0)
-			{
-				MixamoAnimationImporter.StripAnimationsFromGlb(glbPath, glbPath);
-				return File.ReadAllBytes(glbPath);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapWorkspaceService] Animation extraction error for {fileName}: {ex.Message}");
-		}
-
-		return glbBytes;
-	}
+	
 
 	private static bool TryOptimizeAndSaveGlb(string workspacePath, string glbPath, string fileName, byte[] glbBytes, DateTime lastWrite, GlbOptimizer optimizer, OptimizationOptions options)
 	{

@@ -232,16 +232,7 @@ public partial class EnetMapTransferService : Node
 	private void RequestMapManifestRpc(string targetMap)
 	{
 		int senderId = Multiplayer.GetRemoteSenderId();
-		var manifest = MapAssetManager.FindHostManifest(targetMap);
-		if (manifest != null)
-		{
-			string json = JsonSerializer.Serialize(manifest);
-			Callable.From(() => RpcId(senderId, nameof(ReceiveMapManifestRpc), targetMap, manifest.Version ?? "1.0.0", json)).CallDeferred();
-		}
-		else
-		{
-			Callable.From(() => RpcId(senderId, nameof(ReceiveMapManifestRpc), targetMap, "", "")).CallDeferred();
-		}
+		MapTransferHelper.HandleRequestMapManifestRpc(targetMap, (map, ver, json) => RpcId(senderId, nameof(ReceiveMapManifestRpc), map, ver, json));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -424,11 +415,7 @@ public partial class EnetMapTransferService : Node
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex)
 	{
-		if (_hostTransfers.TryGetValue(transferId, out var session) && !session.Cts.IsCancellationRequested)
-		{
-			session.CurrentChunkIndex = nextChunkIndex;
-			_ = SendHostChunkAsync(session, nextChunkIndex);
-		}
+		MapTransferHelper.HandleRequestNextMapTransferChunkRpc(transferId, nextChunkIndex, _hostTransfers, (s, i) => { _ = SendHostChunkAsync(s, i); });
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -472,7 +459,6 @@ public partial class EnetMapTransferService : Node
 	private void FinalizeReceivedChunk(int chunkIndex, int totalChunks)
 	{
 		byte[] chunkBytes = MapTransferHelper.PopChunkBytes(_currentClientTransfer!);
-
 		_ = MapTransferHelper.ProcessReceivedChunkAsync(
 			_currentClientTransfer!,
 			chunkIndex,

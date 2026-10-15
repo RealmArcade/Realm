@@ -2721,28 +2721,37 @@ public partial class EditorService : IEditorAPI
 		return requests;
 	}
 
-	private void ProcessRampCell(Godot.Vector3 start, Godot.Vector3 end, float brushRadius, float segmentLengthSquared, int width, int depth, float quadSize, int gridX, int gridZ, ref TerrainState terrain, ref bool modified, HashSet<Vector2I> modifiedCells)
+	private float CalculateRampCellNewHeight(Godot.Vector3 start, Godot.Vector3 end, float brushRadius, float segmentLengthSquared, float worldX, float worldZ, float oldHeight, out bool inRange)
 	{
-		float worldX = (gridX - width / 2.0f) * quadSize;
-		float worldZ = (gridZ - depth / 2.0f) * quadSize;
 		float interpolationFactor = ((worldX - start.X) * (end.X - start.X) + (worldZ - start.Z) * (end.Z - start.Z)) / segmentLengthSquared;
 		interpolationFactor = Mathf.Clamp(interpolationFactor, 0.0f, 1.0f);
 		float projectedX = start.X + interpolationFactor * (end.X - start.X);
 		float projectedZ = start.Z + interpolationFactor * (end.Z - start.Z);
 		float distanceToProjected = Mathf.Sqrt((worldX - projectedX) * (worldX - projectedX) + (worldZ - projectedZ) * (worldZ - projectedZ));
-		if (distanceToProjected > brushRadius) return;
+
+		inRange = distanceToProjected <= brushRadius;
+		if (!inRange) return oldHeight;
 
 		float targetHeight = Mathf.Lerp(start.Y, end.Y, interpolationFactor);
 		float innerRadius = brushRadius * 0.7f;
-		float oldHeight = GetGridNodeHeight(in terrain, gridX, gridZ);
-		float newHeight = targetHeight;
-
-		if (distanceToProjected > innerRadius)
+		
+		if (distanceToProjected <= innerRadius)
 		{
-			float edgeFactor = 1.0f - ((distanceToProjected - innerRadius) / Math.Max(0.001f, brushRadius - innerRadius));
-			edgeFactor = Mathf.Sin(edgeFactor * Mathf.Pi / 2.0f);
-			newHeight = Mathf.Lerp(oldHeight, targetHeight, edgeFactor);
+			return targetHeight;
 		}
+
+		float edgeFactor = 1.0f - ((distanceToProjected - innerRadius) / Math.Max(0.001f, brushRadius - innerRadius));
+		edgeFactor = Mathf.Sin(edgeFactor * Mathf.Pi / 2.0f);
+		return Mathf.Lerp(oldHeight, targetHeight, edgeFactor);
+	}
+
+	private void ProcessRampCell(Godot.Vector3 start, Godot.Vector3 end, float brushRadius, float segmentLengthSquared, int width, int depth, float quadSize, int gridX, int gridZ, ref TerrainState terrain, ref bool modified, HashSet<Vector2I> modifiedCells)
+	{
+		float worldX = (gridX - width / 2.0f) * quadSize;
+		float worldZ = (gridZ - depth / 2.0f) * quadSize;
+		float oldHeight = GetGridNodeHeight(in terrain, gridX, gridZ);
+		float newHeight = CalculateRampCellNewHeight(start, end, brushRadius, segmentLengthSquared, worldX, worldZ, oldHeight, out bool inRange);
+		if (!inRange) return;
 
 		if (Mathf.Abs(newHeight - oldHeight) <= 0.001f) return;
 
@@ -2798,29 +2807,10 @@ public partial class EditorService : IEditorAPI
 			{
 				float worldX = (gridX - width / 2.0f) * quadSize;
 				float worldZ = (gridZ - depth / 2.0f) * quadSize;
-				float interpolationFactor = ((worldX - start.X) * (end.X - start.X) + (worldZ - start.Z) * (end.Z - start.Z)) / segmentLengthSquared;
-				interpolationFactor = Mathf.Clamp(interpolationFactor, 0.0f, 1.0f);
-				float projectedX = start.X + interpolationFactor * (end.X - start.X);
-				float projectedZ = start.Z + interpolationFactor * (end.Z - start.Z);
-				float distanceToProjected = Mathf.Sqrt((worldX - projectedX) * (worldX - projectedX) + (worldZ - projectedZ) * (worldZ - projectedZ));
-				if (distanceToProjected <= brushRadius)
+				float oldHeight = GetGridNodeHeight(in terrain, gridX, gridZ);
+				float newHeight = CalculateRampCellNewHeight(start, end, brushRadius, segmentLengthSquared, worldX, worldZ, oldHeight, out bool inRange);
+				if (inRange)
 				{
-					float targetHeight = Mathf.Lerp(start.Y, end.Y, interpolationFactor);
-					float innerRadius = brushRadius * 0.7f;
-					float oldHeight = GetGridNodeHeight(in terrain, gridX, gridZ);
-					float newHeight;
-
-					if (distanceToProjected <= innerRadius)
-					{
-						newHeight = targetHeight;
-					}
-					else
-					{
-						float edgeFactor = 1.0f - ((distanceToProjected - innerRadius) / Math.Max(0.001f, brushRadius - innerRadius));
-						edgeFactor = Mathf.Sin(edgeFactor * Mathf.Pi / 2.0f);
-						newHeight = Mathf.Lerp(oldHeight, targetHeight, edgeFactor);
-					}
-
 					if (Mathf.Abs(newHeight - oldHeight) > 0.001f)
 					{
 						int cellX = Math.Clamp(gridX, 0, width - 1);

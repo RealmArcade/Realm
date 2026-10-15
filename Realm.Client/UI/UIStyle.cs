@@ -36,6 +36,90 @@ public static class UIStyle
 		}
 	}
 
+	public static void ShowWarningPopup(Node parentNode, string title, string message, System.Action onConfirm = null, bool isError = false, string okButtonText = "START GAME")
+	{
+		var warningPopup = new Panel();
+		warningPopup.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		warningPopup.AddThemeStyleboxOverride("panel", CreateBgGradient());
+		parentNode.AddChild(warningPopup);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(450, 220);
+		cardPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", CreateStonePanel(true));
+		warningPopup.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(400, 180);
+		vbox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
+
+		var titleLabel = new Label();
+		ApplyTitle(titleLabel, title, 20);
+		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
+		vbox.AddChild(titleLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
+
+		var descLabel = new Label();
+		descLabel.Text = message;
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AddThemeFontSizeOverride("font_size", 14);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+		vbox.AddChild(descLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+		
+		var hbox = new HBoxContainer();
+		hbox.Alignment = BoxContainer.AlignmentMode.Center;
+		vbox.AddChild(hbox);
+
+		if (!isError && onConfirm != null)
+		{
+			var okBtn = new Button();
+			okBtn.Flat = false;
+			okBtn.AddThemeConstantOverride("icon_max_width", 0);
+			okBtn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+			okBtn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+			okBtn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+			okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			ApplyButtonText(okBtn, TranslationServer.Translate(okButtonText), 14);
+			okBtn.CustomMinimumSize = new Vector2(160, 40);
+			okBtn.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+			okBtn.Pressed += () =>
+			{
+				UIManager.Instance.PlayClickSound();
+				warningPopup.QueueFree();
+				onConfirm?.Invoke();
+			};
+			hbox.AddChild(okBtn);
+			
+			var spacer = new Control { CustomMinimumSize = new Vector2(20, 0) };
+			hbox.AddChild(spacer);
+		}
+		
+		var cancelBtn = new Button();
+		cancelBtn.Flat = false;
+		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
+		cancelBtn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		cancelBtn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		cancelBtn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		ApplyButtonText(cancelBtn, isError ? TranslationServer.Translate("OK") : TranslationServer.Translate("CANCEL"), 14);
+		cancelBtn.CustomMinimumSize = new Vector2(160, 40);
+		cancelBtn.Pressed += () =>
+		{
+			UIManager.Instance.PlayClickSound();
+			warningPopup.QueueFree();
+			if (isError) onConfirm?.Invoke();
+		};
+		hbox.AddChild(cancelBtn);
+	}
+
 	public static StyleBox CreateBgTexture(string path)
 	{
 		var texture = GD.Load<Texture2D>(path);

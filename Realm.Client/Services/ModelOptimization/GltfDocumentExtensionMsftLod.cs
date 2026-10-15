@@ -303,6 +303,11 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 
 	private static void ConfigureExistingLodNodes(List<MeshInstance3D> meshInstances)
 	{
+		ApplyLodSettingsToMeshInstances(meshInstances, 1.0f);
+	}
+
+		private static void ApplyLodSettingsToMeshInstances(List<MeshInstance3D> meshInstances, float scaleMultiplier)
+	{
 		var maxLodPerPrefix = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 		foreach (var mi in meshInstances)
 		{
@@ -326,7 +331,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 				int level = info.Value.Level;
 				int maxLevel = maxLodPerPrefix.TryGetValue(info.Value.Prefix, out int ml) ? ml : 0;
 				bool isLast = (level >= maxLevel);
-				ApplyLodSettings(mi, level, isLast, 1.0f);
+				ApplyLodSettings(mi, level, isLast, scaleMultiplier);
 			}
 		}
 	}
@@ -390,31 +395,6 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		var meshInstances = new List<MeshInstance3D>();
 		CollectMeshInstances(rootNode, meshInstances);
 
-		var maxLodPerPrefix = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-		foreach (var mi in meshInstances)
-		{
-			var info = TryParseLodInfo(mi.Name.ToString());
-			if (info.HasValue)
-			{
-				string p = info.Value.Prefix;
-				int l = info.Value.Level;
-				if (!maxLodPerPrefix.TryGetValue(p, out int currMax) || l > currMax)
-				{
-					maxLodPerPrefix[p] = l;
-				}
-			}
-		}
-
-		foreach (var mi in meshInstances)
-		{
-			var info = TryParseLodInfo(mi.Name.ToString());
-			if (info.HasValue)
-			{
-				int level = info.Value.Level;
-				int maxLevel = maxLodPerPrefix.TryGetValue(info.Value.Prefix, out int ml) ? ml : 0;
-				bool isLast = (level >= maxLevel);
-				ApplyLodSettings(mi, level, isLast, scaleMultiplier);
-			}
-		}
+		ApplyLodSettingsToMeshInstances(meshInstances, scaleMultiplier);
 	}
 }

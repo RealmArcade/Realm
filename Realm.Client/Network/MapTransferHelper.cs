@@ -12,6 +12,34 @@ namespace Realm.Client.Network;
 
 public static class MapTransferHelper
 {
+	public static void HandleReceiveMapManifestRpc(string manifestJson, System.Threading.Tasks.TaskCompletionSource<string>? manifestTcs)
+	{
+		manifestTcs?.TrySetResult(manifestJson);
+	}
+	
+	public static void HandleRequestMapManifestRpc(string targetMap, System.Action<string, string, string> receiveMapManifestRpc)
+	{
+		var manifest = MapAssetManager.FindHostManifest(targetMap);
+		if (manifest != null)
+		{
+			string json = System.Text.Json.JsonSerializer.Serialize(manifest);
+			Godot.Callable.From(() => receiveMapManifestRpc(targetMap, manifest.Version ?? "1.0.0", json)).CallDeferred();
+		}
+		else
+		{
+			Godot.Callable.From(() => receiveMapManifestRpc(targetMap, "", "")).CallDeferred();
+		}
+	}
+
+	public static void HandleRequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex, System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> hostTransfers, System.Action<HostTransferSession, int> sendHostChunkAsync)
+	{
+		if (hostTransfers.TryGetValue(transferId, out var session) && !session.Cts.IsCancellationRequested)
+		{
+			session.CurrentChunkIndex = nextChunkIndex;
+			sendHostChunkAsync?.Invoke(session, nextChunkIndex);
+		}
+	}
+
 	public static void HandleBeginMapTransfer(ClientTransferSession transferSession, string mapName, string mapVersion, long totalBytes, int totalChunks, System.Action onCompleteCallback)
 	{
 		transferSession.LastActivityTimeUtc = System.DateTime.UtcNow;

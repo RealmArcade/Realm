@@ -437,59 +437,7 @@ public partial class LobbyCreate : Control
 
 	private void ShowSTUNErrorModal()
 	{
-		var warningPopup = new Panel();
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(450, 220);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(400, 180);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, Tr("HOSTING ERROR"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		var descLabel = new Label();
-		descLabel.Text = Tr("STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.");
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var okBtn = new Button();
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, Tr("OK"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		okBtn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
-			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
-		};
-		vbox.AddChild(okBtn);
+		UIStyle.ShowWarningPopup(this, Tr("HOSTING ERROR"), Tr("STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP."), () => UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser), true);
 	}
 
 	private void ShowHostErrorModal(string errorMessage)
