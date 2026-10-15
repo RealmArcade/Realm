@@ -888,6 +888,11 @@ public partial class EditorService
 
 	private bool IsAssetExtension(string value)
 	{
+		if (value == null)
+		{
+			return false;
+		}
+
 		string lower = value.ToLowerInvariant();
 		return lower.EndsWith(".rtex") || lower.EndsWith(".raud") || lower.EndsWith(".rmesh") || lower.EndsWith(".ranim");
 	}
@@ -1047,25 +1052,28 @@ public partial class EditorService
 
 		foreach (var kvp in obj)
 		{
-			if (kvp.Value is JsonValue val && val.TryGetValue<string>(out string? strVal))
-			{
-				bool isAsset = IsKnownAssetPropertyOrExtension(kvp.Key, strVal);
-				if (isAsset)
-				{
-					if (string.IsNullOrWhiteSpace(strVal) || overwriteExisting)
-					{
-						properties.Add(new AssetPropertyTarget
-						{
-							Parent = obj,
-							PropertyName = kvp.Key,
-							CurrentValue = strVal ?? string.Empty
-						});
-					}
-				}
-			}
-			else if (kvp.Value is JsonObject childObj)
+			string? strVal = null;
+
+			if (kvp.Value is JsonObject childObj)
 			{
 				CollectAssetProperties(childObj, properties, overwriteExisting, templateSlug);
+				continue;
+			}
+
+			(kvp.Value as JsonValue)?.TryGetValue<string>(out strVal);
+			if (!overwriteExisting && !string.IsNullOrWhiteSpace(strVal))
+			{
+				continue;
+			}
+
+			if (IsAssetExtension(strVal) || IsKnownAssetProperty(kvp.Key))
+			{
+				properties.Add(new AssetPropertyTarget
+				{
+					Parent = obj,
+					PropertyName = kvp.Key,
+					CurrentValue = strVal ?? string.Empty
+				});
 			}
 		}
 	}
@@ -1128,13 +1136,8 @@ public partial class EditorService
 		}
 	}
 
-	private bool IsKnownAssetPropertyOrExtension(string propertyName, string? value)
+	private bool IsKnownAssetProperty(string propertyName)
 	{
-		if (!string.IsNullOrWhiteSpace(value) && IsAssetExtension(value))
-		{
-			return true;
-		}
-
 		string p = propertyName.ToLowerInvariant();
 		return p is "modelpath" or "portraitmodelpath" or "projectilemodelpath" or "iconpath" or "texturepath" or "basetexture" or "noisetexture" or "ribbontexture" or "visualeffect" or "attacksound" or "castsound" or "impactsound" or "impactvisualeffect" or "texture_path";
 	}
