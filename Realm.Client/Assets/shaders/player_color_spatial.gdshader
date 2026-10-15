@@ -212,7 +212,17 @@ void fragment() {
 		metallic *= orm_tex.b;
 	}
 
-	vec3 adjusted_base_albedo = base_albedo * model_brightness * model_color_tint.rgb;
+	float tint_saturation = max(model_color_tint.r, max(model_color_tint.g, model_color_tint.b)) - min(model_color_tint.r, min(model_color_tint.g, model_color_tint.b));
+	vec3 tinted_albedo = base_albedo * model_color_tint.rgb;
+	if (tint_saturation > 0.01) {
+		vec3 base_oklab = convert_rgb_to_oklab(base_albedo);
+		vec3 tint_oklab = convert_rgb_to_oklab(model_color_tint.rgb);
+		vec3 recolored = convert_oklab_to_rgb(vec3(base_oklab.x, tint_oklab.y, tint_oklab.z));
+		tinted_albedo = mix(base_albedo, recolored, model_color_tint.a);
+	}
+
+	vec3 adjusted_base_albedo = tinted_albedo * model_brightness;
+
 	vec3 final_color = adjusted_base_albedo;
 
 	if (player_mask > 0.005) {
