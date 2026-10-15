@@ -334,6 +334,7 @@ public static partial class MapWorkspaceService
 		EnsureGlbAssetsOptimized(directory);
 		EnsurePngAssetsConverted(directory);
 		EnsureNoiseTexturesGenerated(directory);
+		MapTemplateGeneratorService.EnsureMapTemplates(directory);
 	}
 
 	public static void EnsureNoiseTexturesGenerated(string directory)
@@ -629,29 +630,12 @@ public static partial class MapWorkspaceService
 	{
 		string targetsPath = Path.Combine(directory, "Directory.Build.targets");
 		string targetsTemplate = GetTemplatePath("Directory.Build.targets");
-		if (!string.IsNullOrEmpty(targetsTemplate) && File.Exists(targetsTemplate))
+		if (string.IsNullOrEmpty(targetsTemplate) || !File.Exists(targetsTemplate))
 		{
-			try
-			{
-				File.Copy(targetsTemplate, targetsPath, true);
-				return;
-			}
-			catch
-			{
-			}
+			throw new Exception($"File not found: {targetsTemplate}");
 		}
 
-		if (!File.Exists(targetsPath) || !File.ReadAllText(targetsPath).Contains("_InitializeWasiSdk"))
-		{
-			try
-			{
-				string fallbackContent = "<Project>\n  <Target Name=\"PrepareInputsForWasmBuild\" />\n  <Target Name=\"_InitializeWasiSdk\" Condition=\"'$(_targetOS)' == 'wasi'\">\n    <Error Text=\"Wasi SDK not found, not compiling to WebAssembly. To enable WebAssembly compilation, install Wasi SDK and ensure the WASI_SDK_PATH environment variable points to the directory containing share/wasi-sysroot\" Condition=\"'$(WASI_SDK_PATH)' == ''\" />\n    <PropertyGroup>\n      <_NativeWasmSdkBinPath>$([MSBuild]::NormalizeDirectory('$(WASI_SDK_PATH)', 'bin'))</_NativeWasmSdkBinPath>\n      <CppCompiler Condition=\"'$(CppCompiler)' == ''\">&quot;$(_NativeWasmSdkBinPath)clang&quot;</CppCompiler>\n      <CppLinker Condition=\"'$(CppLinker)' == ''\">$(CppCompiler)</CppLinker>\n    </PropertyGroup>\n  </Target>\n</Project>\n";
-				File.WriteAllText(targetsPath, fallbackContent);
-			}
-			catch
-			{
-			}
-		}
+		File.Copy(targetsTemplate, targetsPath, true);
 	}
 
 	private static void EnsureTrimmerRoot(string csprojPath)

@@ -83,6 +83,11 @@ public class MetadataService
 		{
 			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			MapFileService.SaveMetadata(targetPath, metadata);
+			string? targetDir = Path.GetDirectoryName(targetPath);
+			if (!string.IsNullOrEmpty(targetDir))
+			{
+				MapTemplateGeneratorService.EnsureMapTemplates(targetDir, metadata);
+			}
 			MetadataSaved?.Invoke(targetPath);
 		}
 		catch (Exception ex)

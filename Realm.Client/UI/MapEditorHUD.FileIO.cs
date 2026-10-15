@@ -50,6 +50,11 @@ namespace Realm.Client.UI
 		private void OnMetadataSaved(string targetPath)
 		{
 			UpdateLastMetadataSyncTime(targetPath);
+			string wsPath = string.IsNullOrEmpty(targetPath) ? MapWorkspaceService.GetActiveWorkspacePath() : (Directory.Exists(targetPath) ? targetPath : Path.GetDirectoryName(targetPath));
+			if (!string.IsNullOrEmpty(wsPath))
+			{
+				MapTemplateGeneratorService.EnsureMapTemplates(wsPath);
+			}
 		}
 
 		public void PerformAutoBackup()
