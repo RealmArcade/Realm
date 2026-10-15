@@ -113,7 +113,13 @@ public class InputService
 	{
 		if (unitEntity == Entity.Null || unitEntity == firstWorkerEntity) return false;
 		if (isBuilding || isEnemy) return false;
-		if (unitId != "worker") return false;
+		if (unitId != "worker" && unitId != "unit/builder" && unitId != "builder")
+		{
+			if (!GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta) || meta.BuildOptions == null || meta.BuildOptions.Length == 0)
+			{
+				return false;
+			}
+		}
 		return GameContext.World.IsAlive(unitEntity);
 	}
 
@@ -689,7 +695,20 @@ public class InputService
 		var query = QueryCache.AllPositionNoneDeadQuery;
 		GameContext.World.Query(in query, (Entity entity, ref Position pos) =>
 		{
-			if (Vector3.Distance(position, pos.Value) < clearance)
+			if (GameContext.World.Has<DefinitionId>(entity))
+			{
+				string defId = GameContext.World.Get<DefinitionId>(entity).Value;
+				if (defId == "worker" || defId == "unit/builder" || defId == "builder") return;
+				if (GameHost.TryGetUnitOrBuildingMetadata(defId, out var meta))
+				{
+					if (meta.PathingType == 16) return;
+					if (meta.BuildOptions != null && meta.BuildOptions.Length > 0 && !GameContext.World.Has<Building>(entity)) return;
+				}
+			}
+
+			float dx = position.X - pos.Value.X;
+			float dz = position.Z - pos.Value.Z;
+			if (dx * dx + dz * dz < clearance * clearance)
 			{
 				obstructed = true;
 			}

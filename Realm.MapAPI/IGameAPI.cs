@@ -225,9 +225,7 @@ public interface IGameAPI
 	/// <param name="radius">The radius of the barrage volley impact area.</param>
 	/// <param name="count">The total number of projectile/effect impacts to spawn.</param>
 	/// <param name="intervalSeconds">The time interval in seconds between individual barrage impacts.</param>
-	void SpawnBarrageVolley(string effectTypeId, Vector3 targetAreaCenter, float radius, int count, float intervalSeconds)
-	{
-	}
+	void SpawnBarrageVolley(string effectTypeId, Vector3 targetAreaCenter, float radius, int count, float intervalSeconds);
 
 	/// <summary>
 	/// Spawns a multi-segment ribbon beam that chains sequentially between target positions.
@@ -264,9 +262,7 @@ public interface IGameAPI
 	/// <param name="speed">The expansion speed in units per second.</param>
 	/// <param name="duration">Total lifespan in seconds before fading out.</param>
 	/// <param name="color">Optional RGB color tint for the ground ring.</param>
-	void SpawnExpandingGroundRing(Vector3 position, float maxRadius = 8.0f, float speed = 12.0f, float duration = 1.0f, Vector3? color = null)
-	{
-	}
+	void SpawnExpandingGroundRing(Vector3 position, float maxRadius = 8.0f, float speed = 12.0f, float duration = 1.0f, Vector3? color = null);
 
 	/// <summary>
 	/// Draws a visual line on the terrain surface between two ground coordinates.
@@ -287,9 +283,7 @@ public interface IGameAPI
 	/// <param name="speed">The burst expansion speed in units per second.</param>
 	/// <param name="duration">Total lifespan in seconds before fading out.</param>
 	/// <param name="color">Optional RGB color tint for the burst sphere.</param>
-	void SpawnExpandingBurstSphere(Vector3 position, float maxRadius = 6.0f, float speed = 15.0f, float duration = 0.8f, Vector3? color = null)
-	{
-	}
+	void SpawnExpandingBurstSphere(Vector3 position, float maxRadius = 6.0f, float speed = 15.0f, float duration = 0.8f, Vector3? color = null);
 
 	/// <summary>
 	/// Attaches a persistent volume shield or aura visual effect to a unit.
@@ -297,9 +291,7 @@ public interface IGameAPI
 	/// <param name="unit">The target unit wrapper to attach the aura to.</param>
 	/// <param name="auraVfxId">The identifier of the visual effect or attachment configuration.</param>
 	/// <param name="scale">The visual scale multiplier.</param>
-	void AttachPersistentAura(IUnit unit, string auraVfxId, float scale = 1.0f)
-	{
-	}
+	void AttachPersistentAura(IUnit unit, string auraVfxId, float scale = 1.0f);
 
 	/// <summary>
 	/// Adds a buff to a unit.
@@ -700,9 +692,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit whose facing direction is being set.</param>
 	/// <param name="facingRadians">The target facing angle in radians around the vertical axis.</param>
-	void SetUnitFacing(IUnit unit, float facingRadians)
-	{
-	}
+	void SetUnitFacing(IUnit unit, float facingRadians);
 
 	/// <summary>
 	/// Sets the facing direction of the unit to look at the specified target position.
@@ -1160,48 +1150,32 @@ public interface IGameAPI
 	/// <summary>
 	/// Triggered when a unit buys or receives an item from a shop or altar.
 	/// </summary>
-	event Action<IUnit, string>? OnItemSold
-	{
-		add { }
-		remove { }
-	}
+	event Action<IUnit, string>? OnItemSold;
 
 	/// <summary>
 	/// Triggered when a structure finishes construction.
 	/// </summary>
-	event Action<IUnit>? OnConstructionFinished
-	{
-		add { }
-		remove { }
-	}
+	event Action<IUnit>? OnConstructionFinished;
 
 	/// <summary>
 	/// Triggered when a unit is issued an order.
 	/// </summary>
-	event Action<IUnit, string, Vector3>? OnUnitOrdered
-	{
-		add { }
-		remove { }
-	}
+	event Action<IUnit, string, Vector3>? OnUnitOrdered;
 
 	/// <summary>
 	/// Gets the research level of a technology upgrade for the specified player slot.
 	/// </summary>
-	int GetPlayerTechLevel(int playerIndex, string techId) => 0;
+	int GetPlayerTechLevel(int playerIndex, string techId);
 
 	/// <summary>
 	/// Sets the research level of a technology upgrade for the specified player slot.
 	/// </summary>
-	void SetPlayerTechLevel(int playerIndex, string techId, int level)
-	{
-	}
+	void SetPlayerTechLevel(int playerIndex, string techId, int level);
 
 	/// <summary>
 	/// Adds to the research level of a technology upgrade for the specified player slot.
 	/// </summary>
-	void AddPlayerTechLevel(int playerIndex, string techId, int delta = 1)
-	{
-	}
+	void AddPlayerTechLevel(int playerIndex, string techId, int delta = 1);
 
 	/// <summary>
 	/// Registers an ability with display metadata and execution behavior.
@@ -1235,9 +1209,7 @@ public interface IGameAPI
 	/// <summary>
 	/// Sets the display tooltip for an item.
 	/// </summary>
-	void SetItemTooltip(string itemId, string tooltip)
-	{
-	}
+	void SetItemTooltip(string itemId, string tooltip);
 
 	/// <summary>
 	/// Configures the grid position (X, Y) of an ability in the command card interface.
@@ -1249,32 +1221,24 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="abilityId">Unique identifier of the ability.</param>
 	/// <param name="hotkey">The key string to trigger the ability.</param>
-	void SetAbilityHotkey(string abilityId, string hotkey)
-	{
-	}
+	void SetAbilityHotkey(string abilityId, string hotkey);
 
 	/// <summary>
 	/// Sets whether an ability on a unit is disabled or hidden in the UI.
 	/// </summary>
-	void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden)
-	{
-	}
+	void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden);
 
 	/// <summary>
 	/// Sets the mana cost of a unit's ability.
 	/// </summary>
-	void SetAbilityManaCost(IUnit unit, string abilityId, float manaCost)
-	{
-	}
+	void SetAbilityManaCost(IUnit unit, string abilityId, float manaCost);
 
 	/// <summary>
 	/// Plays a named visual animation on the unit's 3D model and equips any configured hand attachments for that animation.
 	/// </summary>
 	/// <param name="unit">The unit to animate.</param>
 	/// <param name="animationName">The animation name (e.g., "Idle", "Labor", "Attack").</param>
-	void SetUnitAnimation(IUnit unit, string animationName)
-	{
-	}
+	void SetUnitAnimation(IUnit unit, string animationName);
 
 	/// <summary>
 	/// Attaches or removes a 3D model object on the specified hand bone of the unit's rigged skeleton.
@@ -1282,9 +1246,7 @@ public interface IGameAPI
 	/// <param name="unit">The target unit.</param>
 	/// <param name="hand">The target hand ("RightHand" or "LeftHand").</param>
 	/// <param name="attachmentId">The attachment identifier or model filename, or null/empty to clear the hand attachment.</param>
-	void SetUnitHandAttachment(IUnit unit, string hand, string? attachmentId)
-	{
-	}
+	void SetUnitHandAttachment(IUnit unit, string hand, string? attachmentId);
 
 	/// <summary>
 	/// Orders the unit to move to a world position without attacking along the way.
@@ -1367,16 +1329,14 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <param name="profileJson">The serialized JSON string representing the bot profile weights and personality.</param>
-	void SetPlayerBotProfile(int playerIndex, string profileJson)
-	{
-	}
+	void SetPlayerBotProfile(int playerIndex, string profileJson);
 
 	/// <summary>
 	/// Retrieves the serialized JSON string of the active AI bot decision profile for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <returns>The serialized JSON string representing the active bot profile, or an empty string if not configured.</returns>
-	string GetPlayerBotProfile(int playerIndex) => string.Empty;
+	string GetPlayerBotProfile(int playerIndex);
 
 	/// <summary>
 	/// Sets the AI sub-genre provider for the specified player slot (e.g., "rts", "tower_defense", "auto_battler", "custom").
@@ -1384,16 +1344,14 @@ public interface IGameAPI
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <param name="genreName">The identifier of the AI genre provider.</param>
 	/// <param name="configJson">Optional JSON configuration parameters for the genre provider.</param>
-	void SetPlayerBotGenre(int playerIndex, string genreName, string? configJson = null)
-	{
-	}
+	void SetPlayerBotGenre(int playerIndex, string genreName, string? configJson = null);
 
 	/// <summary>
 	/// Retrieves the identifier of the active AI sub-genre provider for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <returns>The genre identifier string (e.g., "rts", "tower_defense", "auto_battler").</returns>
-	string GetPlayerBotGenre(int playerIndex) => "rts";
+	string GetPlayerBotGenre(int playerIndex);
 
 	/// <summary>
 	/// Registers a map-defined custom candidate action for evaluation by the bot utility decision loop.
@@ -1412,19 +1370,13 @@ public interface IGameAPI
 	/// Clears all registered custom bot candidate actions for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
-	void ClearCustomBotDecisions(int playerIndex)
-	{
-	}
+	void ClearCustomBotDecisions(int playerIndex);
 
 	/// <summary>
 	/// Triggered when an autonomous AI bot executes a custom map-defined action.
 	/// Parameters are: playerIndex, actionId, intent, targetPosition, payload.
 	/// </summary>
-	event Action<int, string, string, Vector3, string>? OnBotCustomActionExecuted
-	{
-		add { }
-		remove { }
-	}
+	event Action<int, string, string, Vector3, string>? OnBotCustomActionExecuted;
 
 	/// <summary>
 	/// Executes an automated self-play genetic training simulation on CPU and returns the resulting serialized bot profile JSON.
@@ -1435,7 +1387,7 @@ public interface IGameAPI
 	/// <param name="matchesPerEvaluation">The number of evaluation matches each candidate plays per generation.</param>
 	/// <param name="genre">The AI sub-genre provider identifier (e.g. "rts", "tower_defense", "auto_battler").</param>
 	/// <returns>The serialized JSON string of the best evolved bot profile.</returns>
-	string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts") => string.Empty;
+	string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts");
 
 	/// <summary>
 	/// Sets the active environment lighting, fog, and atmospheric preset immediately without transition interpolation.

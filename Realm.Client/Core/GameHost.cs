@@ -256,7 +256,7 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 
-	private MeshInstance3D? _buildingPreviewMesh { get; set; }
+	private Node3D? _buildingPreviewMesh { get; set; }
 
 
 	private RuntimeTerrain _groundTerrain { get; set; }

@@ -2145,11 +2145,11 @@ public partial class GameHost
 					}
 					else if (ActiveBuildingPlacementType != null)
 					{
-						var hit = RaycastFromMouse(mouseBtn.Position);
+						var hit = RaycastTerrainFromMouse(mouseBtn.Position) ?? RaycastFromMouse(mouseBtn.Position);
 						if (hit != null && hit.ContainsKey("position"))
 						{
 							var hitPos = hit["position"].AsVector3();
-							hitPos.Y = 0f;
+							hitPos.Y = GetTerrainHeightAt(hitPos);
 							ExecuteBuildingPlacement(ActiveBuildingPlacementType, hitPos);
 						}
 
@@ -3487,36 +3487,58 @@ public partial class GameHost
 	{
 		ActiveBuildingPlacementType = type;
 
-		if (_buildingPreviewMesh != null)
+		if (_buildingPreviewMesh != null && GodotObject.IsInstanceValid(_buildingPreviewMesh))
 		{
 			_buildingPreviewMesh.QueueFree();
-			_buildingPreviewMesh = null;
+		}
+		_buildingPreviewMesh = null;
+
+		bool isBuilding = false;
+		UnitMetadata meta = default;
+		if (!UnitRegistry.TryGetValue(type, out meta) && BuildingRegistry.TryGetValue(type, out meta))
+		{
+			isBuilding = true;
 		}
 
-		var mesh = new MeshInstance3D();
-		var box = new BoxMesh();
-		if (type == "castle")
+		Node3D? previewNode = null;
+		if (meta.TemplateID != null && !string.IsNullOrEmpty(meta.ModelPath))
 		{
-			box.Size = new Vector3(10f, 2f, 10f);
+			string modelPath = GetFallbackModelPath(meta.ModelPath, isBuilding);
+			var previewUnit = new Unit3D
+			{
+				UnitId = type,
+				IsBuilding = isBuilding,
+				IsEnemy = false,
+				IsPreview = true
+			};
+			AddChild(previewUnit);
+			previewUnit.LoadModel(modelPath);
+			if (meta.Scale > 0f)
+			{
+				previewUnit.Scale = Vector3.One * meta.Scale;
+			}
+			MakeHologramRecursive(previewUnit, new Color(0.15f, 0.65f, 1.0f));
+			previewNode = previewUnit;
 		}
 		else
 		{
-			box.Size = new Vector3(3.2f, 4f, 3.2f);
+			var mesh = new MeshInstance3D();
+			var box = new BoxMesh
+			{
+				Size = type == "castle" ? new Vector3(10f, 2f, 10f) : new Vector3(3.2f, 4f, 3.2f)
+			};
+			mesh.Mesh = box;
+			AddChild(mesh);
+			MakeHologramRecursive(mesh, new Color(0.15f, 0.65f, 1.0f));
+			previewNode = mesh;
 		}
 
-		mesh.Mesh = box;
-
-		var mat = new StandardMaterial3D();
-		mat.AlbedoColor = new Color(0.2f, 0.9f, 0.3f, 0.5f);
-		mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-		mesh.MaterialOverride = mat;
-
-		AddChild(mesh);
-		_buildingPreviewMesh = mesh;
+		_buildingPreviewMesh = previewNode;
 
 		if (InGameHUD.Instance != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Place Building: Click on map to construct {type.ToUpper()}", new Color(0.2f, 0.9f, 0.4f));
+			string displayName = !string.IsNullOrEmpty(meta.Name) ? meta.Name : type.ToUpper();
+			InGameHUD.Instance.ShowFeedbackText($"Place {displayName}: Click on map to construct", new Color(0.15f, 0.65f, 1.0f));
 		}
 	}
 
@@ -3537,10 +3559,28 @@ public partial class GameHost
 		Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 	}
 
+	private bool CanUnitConstructType(Unit3D u, string type)
+	{
+		if (u == null || u.IsBuilding || u.IsEnemy) return false;
+		if (u.UnitId == "worker" || u.UnitId == "unit/builder" || u.UnitId == "builder") return true;
+		if (TryGetUnitOrBuildingMetadata(u.UnitId, out var uMeta) && uMeta.BuildOptions != null)
+		{
+			foreach (var opt in uMeta.BuildOptions)
+			{
+				if (string.Equals(opt, type, StringComparison.OrdinalIgnoreCase)) return true;
+			}
+		}
+		return false;
+	}
+
 	private void ExecuteBuildingPlacement(string type, Vector3 position)
 	{
 		bool shiftHeld = Input.IsKeyPressed(Key.Shift);
-		var meta = UnitRegistry[type];
+		if (!TryGetUnitOrBuildingMetadata(type, out var meta))
+		{
+			ClearBuildingPlacementState();
+			return;
+		}
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
@@ -3559,7 +3599,7 @@ public partial class GameHost
 
 		if (InGameHUD.Instance == null) return;
 
-		float clearance = type == "castle" ? 7f : 4f;
+		float clearance = type == "castle" ? 7f : (BuildingRegistry.ContainsKey(type) ? 4f : 1.5f);
 		if (!GameContext.InputService.TryPlaceBuilding(new System.Numerics.Vector3(position.X, position.Y, position.Z), clearance))
 		{
 			ViewHandleObstructedPlacement();
@@ -3579,11 +3619,13 @@ public partial class GameHost
 		else
 		{
 			DeductResourcesForBuilding(meta);
-			
-			Unit3D firstWorker = SelectedUnits.Find(u => !u.IsBuilding && !u.IsEnemy && u.UnitId == "worker");
-			if (GameContext.InputService.TryAssignFirstWorkerTask(firstWorker?.Entity ?? Arch.Core.Entity.Null, type, new System.Numerics.Vector3(position.X, position.Y, position.Z), shiftHeld))
+			var buildingPos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
+			Unit3D? firstWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
+			if (firstWorker != null && GameContext.World.IsAlive(firstWorker.Entity))
 			{
-				AssignAdditionalWorkerTasks(type, new System.Numerics.Vector3(position.X, position.Y, position.Z), shiftHeld, firstWorker);
+				var workerWrapper = GameContext.SimulationService.GetUnitWrapper(firstWorker.Entity);
+				OnUnitOrdered?.Invoke(workerWrapper, type, buildingPos);
+				AssignWorkerTasks(type, buildingPos, meta, shiftHeld, firstWorker);
 			}
 			else
 			{
@@ -3962,21 +4004,19 @@ public partial class GameHost
 		if (_buildingPreviewMesh == null || !GodotObject.IsInstanceValid(_buildingPreviewMesh)) return;
 
 		var mousePos = GetViewport().GetMousePosition();
-		var hit = RaycastFromMouse(mousePos);
+		var hit = RaycastTerrainFromMouse(mousePos) ?? RaycastFromMouse(mousePos);
 		if (hit != null && hit.ContainsKey("position"))
 		{
 			Vector3 pos = hit["position"].AsVector3();
 			pos.Y = GetTerrainHeightAt(pos) + 0.1f;
 			_buildingPreviewMesh.GlobalPosition = pos;
 
-			float clearance = ActiveBuildingPlacementType == "castle" ? 7f : 4f;
+			string activeType = ActiveBuildingPlacementType ?? "";
+			float clearance = activeType == "castle" ? 7f : (BuildingRegistry.ContainsKey(activeType) ? 4f : 1.5f);
 			bool blocked = GameContext.InputService.IsAreaObstructed(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), clearance);
 
-			var mat = _buildingPreviewMesh.MaterialOverride as StandardMaterial3D;
-			if (mat != null)
-			{
-				mat.AlbedoColor = blocked ? new Color(0.9f, 0.2f, 0.2f, 0.5f) : new Color(0.2f, 0.9f, 0.3f, 0.5f);
-			}
+			Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);
+			MakeHologramRecursive(_buildingPreviewMesh, targetColor);
 		}
 	}
 

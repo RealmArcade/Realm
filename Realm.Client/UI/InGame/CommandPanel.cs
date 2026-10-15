@@ -324,14 +324,28 @@ public partial class CommandPanel
 		}
 
 		_lastIsBuildSubMenuOpen = subMenuOpen;
+		var prevItems = _activeItems;
 		_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
+
+		bool itemsChanged = prevItems.Count != _activeItems.Count;
+		if (!itemsChanged)
+		{
+			for (int i = 0; i < _activeItems.Count; i++)
+			{
+				if (prevItems[i].Id != _activeItems[i].Id)
+				{
+					itemsChanged = true;
+					break;
+				}
+			}
+		}
 
 		UpdateItemHotkeys();
 
 		bool pageChanged = _pageIndex != _lastPageIndex;
 		_lastPageIndex = _pageIndex;
 
-		if (focusedUnitChanged || subMenuChanged || pageChanged || _commandGrid.GetChildCount() == 0)
+		if (focusedUnitChanged || subMenuChanged || pageChanged || itemsChanged || _commandGrid.GetChildCount() == 0)
 		{
 			RebuildCommandGrid();
 		}
@@ -735,7 +749,7 @@ public partial class CommandPanel
 	{
 		if (isBuildSubMenuOpen)
 		{
-			PopulateBuildSubMenuItems(items, meta, hasMetadata);
+			PopulateBuildSubMenuItems(items, focusedUnit, meta, hasMetadata);
 			return;
 		}
 
@@ -762,12 +776,16 @@ public partial class CommandPanel
 		}
 	}
 
-	private void PopulateBuildSubMenuItems(List<CommandCardItem> items, UnitMetadata meta, bool hasMetadata)
+	private void PopulateBuildSubMenuItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, UnitMetadata meta, bool hasMetadata)
 	{
 		string[] options = hasMetadata && meta.BuildOptions != null ? meta.BuildOptions : Array.Empty<string>();
 		foreach (var opt in options)
 		{
-			items.Add(CreateBuildOptionItem(opt));
+			var item = CreateBuildOptionItem(opt, focusedUnit.Entity);
+			if (item != null)
+			{
+				items.Add(item);
+			}
 		}
 
 		items.Add(new CommandCardItem
@@ -984,34 +1002,64 @@ public partial class CommandPanel
 		});
 	}
 
-	private CommandCardItem CreateBuildOptionItem(string unitId)
+	private CommandCardItem? CreateBuildOptionItem(string unitId, Entity builderEntity = default)
 	{
+		var host = GameHost.Instance;
+		var unitWrapper = GetUnitWrapperIfAlive(host, builderEntity);
+		if (IsAbilityHidden(host, unitWrapper, unitId)) return null;
+
 		var hotkey = Key.None;
 
 		string name = unitId.ToUpper();
 		float gold = 0, wood = 0, stone = 0;
+		string desc = "";
 		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var structureMeta))
 		{
-			name = structureMeta.Name;
+			if (!string.IsNullOrEmpty(structureMeta.Name)) name = structureMeta.Name;
 			gold = structureMeta.CostGold;
 			wood = structureMeta.CostWood;
 			stone = structureMeta.CostStone;
+			desc = structureMeta.Description ?? "";
 		}
 
-		string tooltipFormat = hotkey != Key.None
-			? "[{0}] Build {1} (Cost: {2} Gold, {3} Wood, {4} Stone)"
-			: "Build {0} (Cost: {1} Gold, {2} Wood, {3} Stone)";
+		var abilityDef = host?.GetAbilityDefinition(unitId);
+		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Hotkey))
+		{
+			hotkey = ParseHotkey(abilityDef.Hotkey);
+		}
 
-		string finalTooltip = string.Format(TranslationServer.Translate(tooltipFormat),
-			hotkey.ToString(), name, gold, wood, stone);
+		string finalTooltip;
+		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Tooltip))
+		{
+			finalTooltip = abilityDef.Tooltip;
+		}
+		else if (gold == 0 && wood == 0 && stone == 0 && !string.IsNullOrEmpty(desc))
+		{
+			finalTooltip = hotkey != Key.None
+				? $"[{hotkey}] Build {name} — {desc}"
+				: $"Build {name} — {desc}";
+		}
+		else
+		{
+			finalTooltip = hotkey != Key.None
+				? string.Format(TranslationServer.Translate("[{0}] Build {1} (Cost: {2} Gold, {3} Wood, {4} Stone)"), hotkey.ToString(), name, gold, wood, stone)
+				: string.Format(TranslationServer.Translate("Build {0} (Cost: {1} Gold, {2} Wood, {3} Stone)"), name, gold, wood, stone);
+		}
+
+		string iconPath = abilityDef != null && !string.IsNullOrEmpty(abilityDef.IconPath)
+			? abilityDef.IconPath
+			: GetUnitIcon(unitId);
 
 		return new CommandCardItem
 		{
 			Id = "build_" + unitId,
-			IconPath = GetUnitIcon(unitId),
+			IconPath = iconPath,
 			Tooltip = finalTooltip,
 			Hotkey = hotkey,
-			Callback = () => GameHost.Instance?.EnterBuildingPlacement(unitId)
+			GridX = abilityDef?.GridX ?? -1,
+			GridY = abilityDef?.GridY ?? -1,
+			Callback = () => GameHost.Instance?.EnterBuildingPlacement(unitId),
+			IsDisabled = () => host != null && GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, unitId)
 		};
 	}
 
@@ -1038,12 +1086,9 @@ public partial class CommandPanel
 		if (stone > 0) costStr += $", {stone} Stone";
 		if (pop > 0) costStr += $", {pop} Pop";
 
-		string tooltipFormat = hotkey != Key.None
-			? "[{0}] Train {1} ({2}) — {3}"
-			: "Train {0} ({1}) — {2}";
-
-		string finalTooltip = string.Format(TranslationServer.Translate(tooltipFormat),
-			hotkey.ToString(), name, costStr, desc);
+		string finalTooltip = hotkey != Key.None
+			? string.Format(TranslationServer.Translate("[{0}] Train {1} ({2}) — {3}"), hotkey.ToString(), name, costStr, desc)
+			: string.Format(TranslationServer.Translate("Train {0} ({1}) — {2}"), name, costStr, desc);
 
 		return new CommandCardItem
 		{

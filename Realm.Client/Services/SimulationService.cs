@@ -1114,7 +1114,7 @@ public class SimulationService
 	public readonly HashSet<Entity> WarnedNonFinitePositions = new();
 	public const int WarnedNonFinitePositionsLimit = 512;
 	public bool FastBuildEnabled = false;
-	public const float BaseConstructionWorkRatePerSecond = 1f / 20f;
+	public const float BaseConstructionWorkRatePerSecond = 1.0f;
 	public const float LookTargetProximityDistance = 5.0f;
 	public readonly List<(Entity Worker, BuildTask UpdatedTask)> PendingBuildTaskUpdates = new();
 	public readonly List<Entity> CompletedBuildings = new();
@@ -1896,7 +1896,7 @@ public class SimulationService
 			return true;
 		}
 
-		if (!string.IsNullOrEmpty(commandType) && GameContext.RegistryService.UnitRegistry.ContainsKey(commandType))
+		if (!string.IsNullOrEmpty(commandType) && (GameContext.RegistryService.UnitRegistry.ContainsKey(commandType) || GameContext.RegistryService.BuildingRegistry.ContainsKey(commandType)))
 		{
 			assignBuildTaskCallback(entity, commandType, targetPos);
 			return true;

@@ -291,14 +291,15 @@ public partial class GameHost
 		if (!GameContext.World.Has<DefinitionId>(buildingEntity)) return;
 
 		string bType = GameContext.World.Get<DefinitionId>(buildingEntity).Value;
-		if (!UnitRegistry.TryGetValue(bType, out var m) && !BuildingRegistry.TryGetValue(bType, out m)) return;
+		bool isBuilding = false;
+		if (!UnitRegistry.TryGetValue(bType, out var m) && !(isBuilding = BuildingRegistry.TryGetValue(bType, out m))) return;
 		if (TryGetUnit3D(buildingEntity, out _)) return;
 
 		string targetModel = m.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
 
-		string modelPath = GetFallbackModelPath(targetModel, true);
-		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), true, false);
+		string modelPath = GetFallbackModelPath(targetModel, isBuilding);
+		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, false);
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
 		{
@@ -501,27 +502,32 @@ public partial class GameHost
 
 	internal void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
-		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
+		bool isBuilding = false;
+		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(buildType, out meta))) return;
 		string targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
-		float buildTime = meta.ProductionTime > 0f ? meta.ProductionTime : 30f;
+		float buildTime = meta.ProductionTime > 0f ? meta.ProductionTime : 1.5f;
 
 		var playerOwner = _playerEntity.AsPlayerEntity(GameContext.World);
-		string modelPath = GetFallbackModelPath(targetModel, true);
 
-		var bldEntity = CreateEcsUnit(buildType, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, 0f,
+		var bldEntity = CreateEcsUnit(buildType, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed,
 			new Godot.Vector3(targetPos.X, targetPos.Y, targetPos.Z), playerOwner);
 
 		GameContext.World.Add(bldEntity, new ConstructionState(buildTime));
 		GameContext.World.Add(bldEntity, new UnderConstruction());
 
-		float bldRadius = GetOrCalculateObstacleRadius(buildType, null, true);
+		float bldRadius = GetOrCalculateObstacleRadius(buildType, null, isBuilding);
 		if (!GameContext.World.Has<CollisionRadius>(bldEntity))
 		{
 			GameContext.World.Add(bldEntity, new CollisionRadius(bldRadius));
 		}
 
-		CarveObstacle(targetPos, bldRadius);
+		if (isBuilding)
+		{
+			CarveObstacle(targetPos, bldRadius);
+		}
+
+		EnsureBuildingModel(bldEntity, targetPos);
 
 		var buildTask = new BuildTask(bldEntity, buildTime);
 		GameContext.World.SetOrAdd(workerEntity, buildTask);
@@ -538,7 +544,7 @@ public partial class GameHost
 		var query = QueryCache.AllPositionAndDefinitionIdQuery;
 		GameContext.World.Query(in query, (Entity entity, ref Position pos) => { ProcessVisualNode(entity, ref pos, fDelta); });
 
-		var buildingQuery = QueryCache.AllBuildingAndConstructionStateAndOwnerNoneDeadQuery;
+		var buildingQuery = new QueryDescription().WithAll<ConstructionState>().WithNone<Dead>();
 		GameContext.World.Query(in buildingQuery, (Entity entity, ref ConstructionState construction) =>
 		{
 			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
