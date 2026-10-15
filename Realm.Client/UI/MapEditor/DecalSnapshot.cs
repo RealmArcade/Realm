@@ -19,20 +19,7 @@ public class DecalSnapshot
 
 	public Realm.Shared.Metadata.DecalAnimationSettings AnimationSettings { get; set; } = new Realm.Shared.Metadata.DecalAnimationSettings();
 
-	public bool AnimateOpacity { get => AnimationSettings.AnimateOpacity; set => AnimationSettings.AnimateOpacity = value; }
-	public float OpacityPulseSpeed { get => AnimationSettings.OpacityPulseSpeed; set => AnimationSettings.OpacityPulseSpeed = value; }
-	public float MinOpacity { get => AnimationSettings.MinOpacity; set => AnimationSettings.MinOpacity = value; }
-	public float MaxOpacity { get => AnimationSettings.MaxOpacity; set => AnimationSettings.MaxOpacity = value; }
 
-	public bool AnimateEmission { get => AnimationSettings.AnimateEmission; set => AnimationSettings.AnimateEmission = value; }
-	public float EmissionPulseSpeed { get => AnimationSettings.EmissionPulseSpeed; set => AnimationSettings.EmissionPulseSpeed = value; }
-	public float MinEmission { get => AnimationSettings.MinEmission; set => AnimationSettings.MinEmission = value; }
-	public float MaxEmission { get => AnimationSettings.MaxEmission; set => AnimationSettings.MaxEmission = value; }
-
-	public bool AnimateScale { get => AnimationSettings.AnimateScale; set => AnimationSettings.AnimateScale = value; }
-	public float ScalePulseSpeed { get => AnimationSettings.ScalePulseSpeed; set => AnimationSettings.ScalePulseSpeed = value; }
-	public float MinScaleRatio { get => AnimationSettings.MinScaleRatio; set => AnimationSettings.MinScaleRatio = value; }
-	public float MaxScaleRatio { get => AnimationSettings.MaxScaleRatio; set => AnimationSettings.MaxScaleRatio = value; }
 
 	public float UpperFade { get; set; } = 0.3f;
 	public float LowerFade { get; set; } = 0.3f;
@@ -53,18 +40,21 @@ public class DecalSnapshot
 			Roughness = this.Roughness,
 			Metallic = this.Metallic,
 			BlendMode = this.BlendMode,
-			AnimateOpacity = this.AnimateOpacity,
-			OpacityPulseSpeed = this.OpacityPulseSpeed,
-			MinOpacity = this.MinOpacity,
-			MaxOpacity = this.MaxOpacity,
-			AnimateEmission = this.AnimateEmission,
-			EmissionPulseSpeed = this.EmissionPulseSpeed,
-			MinEmission = this.MinEmission,
-			MaxEmission = this.MaxEmission,
-			AnimateScale = this.AnimateScale,
-			ScalePulseSpeed = this.ScalePulseSpeed,
-			MinScaleRatio = this.MinScaleRatio,
-			MaxScaleRatio = this.MaxScaleRatio,
+			AnimationSettings = new Realm.Shared.Metadata.DecalAnimationSettings
+			{
+				AnimateOpacity = this.AnimationSettings.AnimateOpacity,
+				OpacityPulseSpeed = this.AnimationSettings.OpacityPulseSpeed,
+				MinOpacity = this.AnimationSettings.MinOpacity,
+				MaxOpacity = this.AnimationSettings.MaxOpacity,
+				AnimateEmission = this.AnimationSettings.AnimateEmission,
+				EmissionPulseSpeed = this.AnimationSettings.EmissionPulseSpeed,
+				MinEmission = this.AnimationSettings.MinEmission,
+				MaxEmission = this.AnimationSettings.MaxEmission,
+				AnimateScale = this.AnimationSettings.AnimateScale,
+				ScalePulseSpeed = this.AnimationSettings.ScalePulseSpeed,
+				MinScaleRatio = this.AnimationSettings.MinScaleRatio,
+				MaxScaleRatio = this.AnimationSettings.MaxScaleRatio
+			},
 			UpperFade = this.UpperFade,
 			LowerFade = this.LowerFade
 		};
