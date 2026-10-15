@@ -639,7 +639,7 @@ public partial class InGameHUD : Control
 		_chatInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
 		_chatInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
 		_chatInput.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
-		_chatLog.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message/cheat.")}[/color]\n";
+		_chatLog.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message.")}[/color]\n";
 
 		if (LobbyManager.Instance != null)
 		{
