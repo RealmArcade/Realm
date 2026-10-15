@@ -39,6 +39,7 @@ public partial class LobbyBrowser : Control
 	private Button _backButton;
 	private Button _refreshButton;
 	private Button _hostButton;
+	private Button _directConnectButton;
 	private LineEdit _searchBar;
 	private CheckBox _campaignCheck;
 	private CheckBox _meleeCheck;
@@ -71,6 +72,12 @@ public partial class LobbyBrowser : Control
 		_backButton = GetNode<Button>("BackButton");
 		_refreshButton = GetNode<Button>("RefreshButton");
 		_hostButton = GetNode<Button>("HostButton");
+
+		_directConnectButton = new Button();
+		_directConnectButton.Name = "DirectConnectButton";
+		_directConnectButton.FocusMode = FocusModeEnum.None;
+		AddChild(_directConnectButton);
+
 		_searchBar = GetNode<LineEdit>("SearchBar");
 		_campaignCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/CampaignCheck");
 		_meleeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/MeleeCheck");
@@ -131,6 +138,7 @@ public partial class LobbyBrowser : Control
 		SetupBackButton();
 		SetupRefreshButton();
 		SetupHostButton();
+		SetupDirectConnectButton();
 
 		SetupCheckboxes();
 		SetupSearchBar();
@@ -324,6 +332,159 @@ public partial class LobbyBrowser : Control
 			UIManager.Instance.TransitionTo(GameScreen.LobbyCreate);
 		};
 		_hostButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+	}
+
+	private void SetupDirectConnectButton()
+	{
+		_directConnectButton.Flat = false;
+		_directConnectButton.CustomMinimumSize = new Vector2(260, 86);
+		_directConnectButton.Size = new Vector2(260, 86);
+		_directConnectButton.Position = new Vector2(_hostButton.Position.X - 280, _hostButton.Position.Y);
+		_directConnectButton.AddThemeConstantOverride("icon_max_width", 0);
+		UIStyle.ApplyButtonText(_directConnectButton, Tr("DIRECT CONNECT"), 22);
+		_directConnectButton.AddThemeFontOverride("font", UIStyle.FontNorseBold);
+
+		_directConnectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
+		_directConnectButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
+		_directConnectButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
+		_directConnectButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+
+		_directConnectButton.Pressed += () =>
+		{
+			UIManager.Instance.PlayClickSound();
+			ShowDirectConnectDialog();
+		};
+		_directConnectButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+	}
+
+	private void ShowDirectConnectDialog()
+	{
+		var overlay = new Panel();
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		AddChild(overlay);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(500, 320);
+		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		overlay.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(450, 280);
+		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+		var titleLabel = new Label();
+		UIStyle.ApplyTitle(titleLabel, Tr("DIRECT CONNECTION"), 22);
+		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		vbox.AddChild(titleLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+
+		var descLabel = new Label();
+		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLabel.CustomMinimumSize = new Vector2(440, 0);
+		descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		descLabel.Text = Tr("Connect directly to a host via IP address and port (Direct / LAN / Tailscale / Radmin).");
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AddThemeFontSizeOverride("font_size", 13);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
+		vbox.AddChild(descLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
+
+		var ipLabel = new Label();
+		ipLabel.Text = Tr("Host IP Address:");
+		ipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		ipLabel.AddThemeFontSizeOverride("font_size", 13);
+		vbox.AddChild(ipLabel);
+
+		var ipInput = new LineEdit();
+		ipInput.PlaceholderText = "127.0.0.1 or 192.168.1.X or 100.X.X.X";
+		ipInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
+		ipInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		ipInput.AddThemeColorOverride("font_color", new Color(0.95f, 0.9f, 0.8f));
+		ipInput.CustomMinimumSize = new Vector2(440, 36);
+		vbox.AddChild(ipInput);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
+
+		var portLabel = new Label();
+		portLabel.Text = Tr("Port:");
+		portLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		portLabel.AddThemeFontSizeOverride("font_size", 13);
+		vbox.AddChild(portLabel);
+
+		var portInput = new LineEdit();
+		portInput.Text = "8999";
+		portInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
+		portInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		portInput.AddThemeColorOverride("font_color", new Color(0.95f, 0.9f, 0.8f));
+		portInput.CustomMinimumSize = new Vector2(440, 36);
+		vbox.AddChild(portInput);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+		var hbox = new HBoxContainer();
+		hbox.Alignment = BoxContainer.AlignmentMode.Center;
+		hbox.AddThemeConstantOverride("separation", 20);
+		vbox.AddChild(hbox);
+
+		var cancelBtn = new Button();
+		cancelBtn.Flat = false;
+		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
+		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
+		cancelBtn.CustomMinimumSize = new Vector2(140, 38);
+		cancelBtn.Pressed += () =>
+		{
+			UIManager.Instance.PlayClickSound();
+			overlay.QueueFree();
+		};
+		hbox.AddChild(cancelBtn);
+
+		var connectBtn = new Button();
+		connectBtn.Flat = false;
+		connectBtn.AddThemeConstantOverride("icon_max_width", 0);
+		connectBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		connectBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		connectBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		connectBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
+		connectBtn.CustomMinimumSize = new Vector2(140, 38);
+		connectBtn.Pressed += async () =>
+		{
+			string ip = ipInput.Text.Trim();
+			if (string.IsNullOrEmpty(ip)) return;
+			int port = 8999;
+			if (int.TryParse(portInput.Text.Trim(), out int customPort)) port = customPort;
+
+			UIManager.Instance.PlayClickSound();
+			connectBtn.Disabled = true;
+			UIStyle.ApplyButtonText(connectBtn, Tr("CONNECTING..."), 14);
+
+			bool success = await LobbyManager.Instance.JoinByIpAsync(ip, port);
+			if (success)
+			{
+				overlay.QueueFree();
+				UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
+			}
+			else
+			{
+				connectBtn.Disabled = false;
+				UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
+				UIManager.Instance.PlayWarningSound();
+			}
+		};
+		hbox.AddChild(connectBtn);
 	}
 
 	private void SetupBackButton()

@@ -144,6 +144,23 @@ public partial class LobbyRoom : Control
 			UpdateHostStabilityLabel(LobbyManager.Instance.HostStability);
 			LobbyManager.Instance.HostStabilityUpdated += UpdateHostStabilityLabel;
 		}
+		else if (LobbyManager.Instance.IsRestrictedHost)
+		{
+			var restrictedWarning = new Label();
+			restrictedWarning.Name = "RestrictedWarningLabel";
+			restrictedWarning.HorizontalAlignment = HorizontalAlignment.Center;
+			restrictedWarning.VerticalAlignment = VerticalAlignment.Center;
+			restrictedWarning.Text = Tr("⚠️ UPnP inactive. External players may need Direct Connect (IP:Port) or port forwarding.");
+			restrictedWarning.AddThemeColorOverride("font_color", new Color(0.95f, 0.7f, 0.2f));
+			restrictedWarning.AddThemeFontSizeOverride("font_size", 13);
+			AddChild(restrictedWarning);
+			restrictedWarning.SetAnchorsPreset(LayoutPreset.CenterTop);
+			restrictedWarning.GrowHorizontal = GrowDirection.Both;
+			restrictedWarning.OffsetLeft = -500;
+			restrictedWarning.OffsetRight = 500;
+			restrictedWarning.OffsetTop = 85;
+			restrictedWarning.OffsetBottom = 110;
+		}
 
 
 		ApplyThemeStyles();
