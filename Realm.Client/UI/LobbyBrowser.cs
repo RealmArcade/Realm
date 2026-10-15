@@ -25,11 +25,6 @@ public partial class LobbyBrowser : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	public new void Dispose()
-	{
-		Dispose(true);
-		GC.SuppressFinalize(this);
-	}
 
 	private List<LobbyData> _allLobbies = new List<LobbyData>();
 	private List<LobbyData> _filteredLobbies = new List<LobbyData>();
@@ -431,6 +426,11 @@ public partial class LobbyBrowser : Control
 
 	private void UpdateHostButtonState()
 	{
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree() || _hostButton == null || !GodotObject.IsInstanceValid(_hostButton))
+		{
+			return;
+		}
+
 		_hostButton.Disabled = false;
 		_hostButton.TooltipText = "";
 		_hostButton.RemoveThemeColorOverride("font_disabled_color");
@@ -916,6 +916,14 @@ public partial class LobbyBrowser : Control
 		{
 			_refreshTimer.Timeout -= TriggerRefresh;
 		}
+
+		if (LobbyManager.Instance != null)
+		{
+			LobbyManager.Instance.NatTestCompleted -= UpdateHostButtonState;
+		}
+
+		_httpClient?.Dispose();
+		base._ExitTree();
 	}
 
 	private void ShowLobbyJoinErrorPopup(string message)
@@ -974,7 +982,7 @@ public partial class LobbyBrowser : Control
 		vbox.AddChild(okBtn);
 	}
 
-	protected virtual void Dispose(bool disposing)
+	protected override void Dispose(bool disposing)
 	{
 		if (disposing)
 		{
@@ -983,7 +991,9 @@ public partial class LobbyBrowser : Control
 				LobbyManager.Instance.NatTestCompleted -= UpdateHostButtonState;
 			}
 
-			_httpClient.Dispose();
+			_httpClient?.Dispose();
 		}
+
+		base.Dispose(disposing);
 	}
 }

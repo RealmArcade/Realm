@@ -35,8 +35,8 @@ public class MapEditorGenerationDialog
 		_hud.AddChild(overlay);
 
 		var panel = new PanelContainer();
-		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		panel.CustomMinimumSize = new Vector2(420, 480);
+		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		panel.CustomMinimumSize = new Vector2(510, 490);
 		panel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		panel.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
 
@@ -45,14 +45,33 @@ public class MapEditorGenerationDialog
 		overlay.AddChild(center);
 		center.AddChild(panel);
 
+		var bgTex = new TextureRect();
+		bgTex.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/map_editor_random_generator.png");
+		bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
+		bgTex.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		panel.AddChild(bgTex);
+
+		var margin = new MarginContainer();
+		margin.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		margin.AddThemeConstantOverride("margin_top", 55);
+		margin.AddThemeConstantOverride("margin_bottom", 25);
+		margin.AddThemeConstantOverride("margin_left", 70);
+		margin.AddThemeConstantOverride("margin_right", 70);
+		panel.AddChild(margin);
+
 		var vbox = new VBoxContainer();
-		vbox.AddThemeConstantOverride("separation", 15);
-		panel.AddChild(vbox);
+		vbox.AddThemeConstantOverride("separation", 10);
+		margin.AddChild(vbox);
 
 		var lblTitle = new Label();
 		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate("RANDOM MAP GENERATOR"), 18);
 		lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		vbox.AddChild(lblTitle);
+
+		var titleSpacer = new Control();
+		titleSpacer.CustomMinimumSize = new Vector2(0, 18);
+		vbox.AddChild(titleSpacer);
 
 		var seedHBox = new HBoxContainer();
 		seedHBox.AddThemeConstantOverride("separation", 10);
@@ -166,7 +185,7 @@ public class MapEditorGenerationDialog
 		sld.MaxValue = 10;
 		sld.Step = 1;
 		sld.Value = initialValue;
-		sld.CustomMinimumSize = new Vector2(180, 0);
+		sld.CustomMinimumSize = new Vector2(130, 0);
 		sld.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		grid.AddChild(sld);
 

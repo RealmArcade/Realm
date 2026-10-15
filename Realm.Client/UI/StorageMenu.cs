@@ -52,6 +52,7 @@ public partial class StorageMenu : Control
 	public override void _Ready()
 	{
 		MouseFilter = MouseFilterEnum.Pass;
+		TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		BuildLayout();
 		RefreshDownloadedMaps();
@@ -127,10 +128,10 @@ public partial class StorageMenu : Control
 		var mainMargin = new MarginContainer();
 		mainMargin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		mainMargin.SizeFlagsVertical = SizeFlags.ExpandFill;
-		mainMargin.AddThemeConstantOverride("margin_left", 30);
-		mainMargin.AddThemeConstantOverride("margin_right", 30);
-		mainMargin.AddThemeConstantOverride("margin_top", 20);
-		mainMargin.AddThemeConstantOverride("margin_bottom", 30);
+		mainMargin.AddThemeConstantOverride("margin_left", 35);
+		mainMargin.AddThemeConstantOverride("margin_right", 35);
+		mainMargin.AddThemeConstantOverride("margin_top", 25);
+		mainMargin.AddThemeConstantOverride("margin_bottom", 60);
 		mainMargin.MouseFilter = MouseFilterEnum.Pass;
 		rootVBox.AddChild(mainMargin);
 
@@ -150,7 +151,8 @@ public partial class StorageMenu : Control
 		var leftPanelContainer = new PanelContainer();
 		leftPanelContainer.CustomMinimumSize = new Vector2(380, 0);
 		leftPanelContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
-		leftPanelContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		leftPanelContainer.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		leftPanelContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateMapStorageFilterPanelStyle());
 		leftPanelContainer.MouseFilter = MouseFilterEnum.Pass;
 		parent.AddChild(leftPanelContainer);
 
@@ -163,9 +165,9 @@ public partial class StorageMenu : Control
 
 		_searchBar = new LineEdit();
 		_searchBar.PlaceholderText = TranslationServer.Translate("Search Maps...");
-		_searchBar.CustomMinimumSize = new Vector2(0, 38);
-		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
-		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+		_searchBar.CustomMinimumSize = new Vector2(0, 40);
+		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
+		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
 		_searchBar.AddThemeColorOverride("font_color", new Color(0.95f, 0.95f, 0.95f));
 		_searchBar.AddThemeColorOverride("font_placeholder_color", new Color(0.65f, 0.60f, 0.50f));
 		_searchBar.MouseFilter = MouseFilterEnum.Stop;
@@ -176,12 +178,18 @@ public partial class StorageMenu : Control
 		};
 		leftVBox.AddChild(_searchBar);
 
+		var mapCountMargin = new MarginContainer();
+		mapCountMargin.AddThemeConstantOverride("margin_top", 24);
+		mapCountMargin.AddThemeConstantOverride("margin_bottom", 4);
+		mapCountMargin.MouseFilter = MouseFilterEnum.Ignore;
+		leftVBox.AddChild(mapCountMargin);
+
 		_mapCountLabel = new Label();
 		_mapCountLabel.Text = string.Format(TranslationServer.Translate("Downloaded Maps ({0})"), 0);
 		_mapCountLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_mapCountLabel.AddThemeFontSizeOverride("font_size", 13);
 		_mapCountLabel.MouseFilter = MouseFilterEnum.Ignore;
-		leftVBox.AddChild(_mapCountLabel);
+		mapCountMargin.AddChild(_mapCountLabel);
 
 		var scrollContainer = new ScrollContainer();
 		scrollContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -203,7 +211,8 @@ public partial class StorageMenu : Control
 		_rightNavPanel = new PanelContainer();
 		_rightNavPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_rightNavPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_rightNavPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		_rightNavPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+		_rightNavPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateMapStorageMainPanelStyle());
 		_rightNavPanel.MouseFilter = MouseFilterEnum.Pass;
 		parent.AddChild(_rightNavPanel);
 
@@ -235,6 +244,7 @@ public partial class StorageMenu : Control
 		_mapThumbnail.CustomMinimumSize = new Vector2(140, 100);
 		_mapThumbnail.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_mapThumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
+		_mapThumbnail.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
 		_mapThumbnail.Texture = UIStyle.EmptyBlackTexture;
 		_mapThumbnail.MouseFilter = MouseFilterEnum.Ignore;
 		topDetailsHBox.AddChild(_mapThumbnail);

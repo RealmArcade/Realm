@@ -16,19 +16,26 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -340.0
-offset_top = 10.0
-offset_right = 340.0
-offset_bottom = 58.0
+offset_left = -420.0
+offset_top = 4.0
+offset_right = 420.0
+offset_bottom = 80.0
 grow_horizontal = 2
+
+[node name="ResourceBackground" type="TextureRect" parent="ResourceContainer"]
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
 
 [node name="HBox" type="HBoxContainer" parent="ResourceContainer"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 40
 alignment = 1
 
 [node name="GoldBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
 layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
 
 [node name="GoldIcon" type="TextureRect" parent="ResourceContainer/HBox/GoldBox"]
 custom_minimum_size = Vector2(28, 28)
@@ -39,10 +46,14 @@ stretch_mode = 5
 
 [node name="GoldLabel" type="Label" parent="ResourceContainer/HBox/GoldBox"]
 layout_mode = 2
-text = "30"
+size_flags_vertical = 4
+text = "0"
+vertical_alignment = 1
 
 [node name="WoodBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
 layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
 
 [node name="WoodIcon" type="TextureRect" parent="ResourceContainer/HBox/WoodBox"]
 custom_minimum_size = Vector2(28, 28)
@@ -53,10 +64,14 @@ stretch_mode = 5
 
 [node name="WoodLabel" type="Label" parent="ResourceContainer/HBox/WoodBox"]
 layout_mode = 2
-text = "39"
+size_flags_vertical = 4
+text = "0"
+vertical_alignment = 1
 
 [node name="StoneBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
 layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
 
 [node name="StoneIcon" type="TextureRect" parent="ResourceContainer/HBox/StoneBox"]
 custom_minimum_size = Vector2(28, 28)
@@ -67,7 +82,51 @@ stretch_mode = 5
 
 [node name="StoneLabel" type="Label" parent="ResourceContainer/HBox/StoneBox"]
 layout_mode = 2
-text = "39"
+size_flags_vertical = 4
+text = "0"
+vertical_alignment = 1
+
+[node name="SupplyBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
+
+[node name="SupplyIcon" type="TextureRect" parent="ResourceContainer/HBox/SupplyBox"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_vertical = 4
+expand_mode = 2
+stretch_mode = 5
+
+[node name="SupplyLabel" type="Label" parent="ResourceContainer/HBox/SupplyBox"]
+layout_mode = 2
+size_flags_vertical = 4
+text = "0 / 0"
+vertical_alignment = 1
+
+[node name="ClockBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
+
+[node name="ClockIcon" type="TextureRect" parent="ResourceContainer/HBox/ClockBox"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_vertical = 4
+expand_mode = 2
+stretch_mode = 5
+
+[node name="ClockLabel" type="Label" parent="ResourceContainer/HBox/ClockBox"]
+layout_mode = 2
+size_flags_vertical = 4
+text = "0:00 (Day)"
+vertical_alignment = 1
+
+[node name="BtnSettings" type="Button" parent="ResourceContainer/HBox"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 0
 
 [node name="BottomConsole" type="PanelContainer" parent="."]
 layout_mode = 1
@@ -76,39 +135,61 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 0.0
-offset_top = -210.0
+offset_top = -240.0
 offset_right = 0.0
 offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 0
 
-[node name="HBox" type="HBoxContainer" parent="BottomConsole"]
+[node name="ConsoleBackground" type="TextureRect" parent="BottomConsole"]
 layout_mode = 2
-theme_override_constants/separation = 20
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 0
+
+[node name="HBox" type="Control" parent="BottomConsole"]
+layout_mode = 2
 
 [node name="MinimapFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-custom_minimum_size = Vector2(170, 170)
-layout_mode = 2
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.0381
+anchor_top = 0.18
+anchor_right = 0.1738
+anchor_bottom = 0.94
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="MinimapArea" type="Control" parent="BottomConsole/HBox/MinimapFrame"]
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 
 [node name="Indicator" type="Control" parent="BottomConsole/HBox/MinimapFrame/MinimapArea"]
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("2_camera_indicator")
 
 [node name="PortraitFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-custom_minimum_size = Vector2(130, 170)
-layout_mode = 2
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.2762
+anchor_top = 0.22
+anchor_right = 0.3641
+anchor_bottom = 0.95
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="BottomConsole/HBox/PortraitFrame"]
 layout_mode = 2
 alignment = 1
 
 [node name="PortraitTexture" type="TextureRect" parent="BottomConsole/HBox/PortraitFrame/VBox"]
-custom_minimum_size = Vector2(90, 90)
+custom_minimum_size = Vector2(80, 80)
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -121,83 +202,94 @@ text = "Soldier"
 horizontal_alignment = 1
 
 [node name="SelectionFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.3856
+anchor_top = 0.38
+anchor_right = 0.6228
+anchor_bottom = 0.94
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="UnitsContainer" type="HBoxContainer" parent="BottomConsole/HBox/SelectionFrame"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 alignment = 1
 
 [node name="Unit1" type="Button" parent="BottomConsole/HBox/SelectionFrame/UnitsContainer"]
-custom_minimum_size = Vector2(50, 50)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 
 [node name="Unit2" type="Button" parent="BottomConsole/HBox/SelectionFrame/UnitsContainer"]
-custom_minimum_size = Vector2(50, 50)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 
 [node name="Unit3" type="Button" parent="BottomConsole/HBox/SelectionFrame/UnitsContainer"]
-custom_minimum_size = Vector2(50, 50)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 
 [node name="Unit4" type="Button" parent="BottomConsole/HBox/SelectionFrame/UnitsContainer"]
-custom_minimum_size = Vector2(50, 50)
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
 focus_mode = 0
 
 [node name="InventoryFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-custom_minimum_size = Vector2(100, 170)
-layout_mode = 2
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.6272
+anchor_top = 0.36
+anchor_right = 0.7469
+anchor_bottom = 0.92
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="InventoryGrid" type="GridContainer" parent="BottomConsole/HBox/InventoryFrame"]
 layout_mode = 2
-theme_override_constants/h_separation = 0
-theme_override_constants/v_separation = 0
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
 columns = 2
 
 [node name="CommandFrame" type="PanelContainer" parent="BottomConsole/HBox"]
-custom_minimum_size = Vector2(180, 170)
-layout_mode = 2
-size_flags_vertical = 4
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.7691
+anchor_top = 0.16
+anchor_right = 0.9885
+anchor_bottom = 0.92
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="GridContainer" type="GridContainer" parent="BottomConsole/HBox/CommandFrame"]
 layout_mode = 2
-theme_override_constants/h_separation = 0
-theme_override_constants/v_separation = 0
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
 columns = 4
 
 [node name="BtnMove" type="Button" parent="BottomConsole/HBox/CommandFrame/GridContainer"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
 focus_mode = 0
 
 [node name="BtnStop" type="Button" parent="BottomConsole/HBox/CommandFrame/GridContainer"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
 focus_mode = 0
 
 [node name="BtnHold" type="Button" parent="BottomConsole/HBox/CommandFrame/GridContainer"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
 focus_mode = 0
 
 [node name="BtnBuild" type="Button" parent="BottomConsole/HBox/CommandFrame/GridContainer"]
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
 focus_mode = 0
 
 [node name="FeedbackLabel" type="Label" parent="."]
@@ -219,9 +311,9 @@ vertical_alignment = 1
 
 [node name="DevPanel" type="Panel" parent="."]
 layout_mode = 0
-offset_left = 190.0
+offset_left = 60.0
 offset_top = 12.0
-offset_right = 580.0
+offset_right = 450.0
 offset_bottom = 54.0
 
 [node name="BtnVictory" type="Button" parent="DevPanel"]
@@ -250,9 +342,9 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 220.0
-offset_top = -460.0
+offset_top = -495.0
 offset_right = 620.0
-offset_bottom = -225.0
+offset_bottom = -255.0
 grow_vertical = 0
 
 [node name="ChatContainer" type="VBoxContainer" parent="ChatPanel"]

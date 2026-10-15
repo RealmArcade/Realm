@@ -21,9 +21,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	private int _lastDecalsCount = -1;
 
 	public InstanceManagerDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Instance Manager"), new Vector2(500, 620))
+		: base(hud, TranslationServer.Translate("Placed Objects"), new Vector2(720, 680))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_panel.png", 30, 40, 50, 50);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_placed_objects.png", 55, 60, 135, 135);
 		BuildControls();
 		SetFooterCloseOnly();
 	}

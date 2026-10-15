@@ -17,6 +17,7 @@ public static class UIStyle
 
 	public static readonly Font FontNorseBold = GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
 	public static readonly Font FontCinzelBold = GD.Load<Font>("res://Assets/UI/Cinzel-Bold.ttf");
+	public static readonly Font FontAwesome = GD.Load<Font>("res://Assets/UI/fa-solid-900.ttf");
 
 	private static Texture2D? _emptyBlackTexture;
 
@@ -48,6 +49,38 @@ public static class UIStyle
 		return CreateBgTexture("res://Assets/UI/menu_background_with_frame.jpg");
 	}
 
+	public static StyleBox CreateLobbyRoomBg()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_background.jpg");
+		if (tex == null)
+		{
+			tex = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_background.png");
+		}
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			return style;
+		}
+		return CreateBgGradient();
+	}
+
+	public static StyleBox CreateGameStartingPanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.png");
+		if (tex == null)
+		{
+			tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.jpg");
+		}
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
 	public static StyleBox CreateCustomMatchBg()
 	{
 		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_match_bg.jpg");
@@ -72,6 +105,46 @@ public static class UIStyle
 		}
 
 		return CreateBgGradient();
+	}
+
+	public static StyleBox CreateGameOverBg()
+	{
+		var tex = GD.Load<Texture2D>("res://Assets/UI/GameOver_Background.jpg");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			return style;
+		}
+		return CreateBgGradient();
+	}
+
+	public static StyleBox CreateGameOverMainPanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/GameOver_main_panel.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+
+			// Set TextureMargin to 0 so the entire artwork image renders unified without 9-slice slicing distortion
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+
+			// Content margins: increased padding to make the inner information block compact in width and height
+			style.ContentMarginLeft = 175;
+			style.ContentMarginRight = 170;
+			style.ContentMarginTop = 85;
+			style.ContentMarginBottom = 70;
+
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+
+			return style;
+		}
+		return CreateStonePanel();
 	}
 
 	public static StyleBox CreateCreatorDiscoveryPanelStyle()
@@ -257,18 +330,293 @@ public static class UIStyle
 		return CreateStonePanel(true);
 	}
 
+	public static StyleBox CreateMapStorageMainPanelStyle()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_storage_main_panel.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 24;
+			style.TextureMarginRight = 24;
+			style.TextureMarginTop = 24;
+			style.TextureMarginBottom = 24;
+			style.ContentMarginLeft = 32;
+			style.ContentMarginRight = 32;
+			style.ContentMarginTop = 28;
+			style.ContentMarginBottom = 28;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateMapStorageFilterPanelStyle()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_storage_filter_panel.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+			style.ContentMarginLeft = 30;
+			style.ContentMarginRight = 30;
+			style.ContentMarginTop = 20;
+			style.ContentMarginBottom = 30;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreatePublishPanel()
+	{
+		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_publish.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 140;
+			style.TextureMarginRight = 140;
+			style.TextureMarginTop = 140;
+			style.TextureMarginBottom = 140;
+			style.ContentMarginLeft = 45;
+			style.ContentMarginRight = 45;
+			style.ContentMarginTop = 45;
+			style.ContentMarginBottom = 45;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateRandomGeneratorPanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_random_generator.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 80;
+			style.TextureMarginRight = 80;
+			style.TextureMarginTop = 80;
+			style.TextureMarginBottom = 80;
+			style.ContentMarginLeft = 45;
+			style.ContentMarginRight = 45;
+			style.ContentMarginTop = 45;
+			style.ContentMarginBottom = 45;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateUsabilitySettingsPanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_usability_settings.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 80;
+			style.TextureMarginRight = 80;
+			style.TextureMarginTop = 80;
+			style.TextureMarginBottom = 80;
+			style.ContentMarginLeft = 45;
+			style.ContentMarginRight = 45;
+			style.ContentMarginTop = 45;
+			style.ContentMarginBottom = 45;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateRegisterProfilePanel()
+	{
+		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_register_profile.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 80;
+			style.TextureMarginRight = 80;
+			style.TextureMarginTop = 80;
+			style.TextureMarginBottom = 80;
+			style.ContentMarginLeft = 45;
+			style.ContentMarginRight = 45;
+			style.ContentMarginTop = 45;
+			style.ContentMarginBottom = 45;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreatePlacedObjectsPanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_placed_objects.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 80;
+			style.TextureMarginRight = 80;
+			style.TextureMarginTop = 80;
+			style.TextureMarginBottom = 80;
+			style.ContentMarginLeft = 45;
+			style.ContentMarginRight = 45;
+			style.ContentMarginTop = 45;
+			style.ContentMarginBottom = 45;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateAuthorSignaturePanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_author_signature.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 80;
+			style.TextureMarginRight = 80;
+			style.TextureMarginTop = 80;
+			style.TextureMarginBottom = 80;
+			style.ContentMarginLeft = 45;
+			style.ContentMarginRight = 45;
+			style.ContentMarginTop = 45;
+			style.ContentMarginBottom = 45;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreatePublishMapInstructionsPanel()
+	{
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_publish.png");
+		if (tex != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = tex;
+			style.TextureMarginLeft = 140;
+			style.TextureMarginRight = 140;
+			style.TextureMarginTop = 140;
+			style.TextureMarginBottom = 140;
+			style.ContentMarginLeft = 45;
+			style.ContentMarginRight = 45;
+			style.ContentMarginTop = 45;
+			style.ContentMarginBottom = 45;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static Texture2D LoadTextureWithFallback(string path)
+	{
+		if (!string.IsNullOrEmpty(path))
+		{
+			string globalPath = ProjectSettings.GlobalizePath(path);
+			if (System.IO.File.Exists(globalPath))
+			{
+				try
+				{
+					var img = Image.LoadFromFile(globalPath);
+					if (img != null)
+					{
+						img.GenerateMipmaps();
+						return ImageTexture.CreateFromImage(img);
+					}
+				}
+				catch { }
+			}
+		}
+
+		try
+		{
+			return GD.Load<Texture2D>(path);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	public static Texture2D LoadCrispIcon(string path, int targetSize = 256)
+	{
+		if (!string.IsNullOrEmpty(path))
+		{
+			string globalPath = ProjectSettings.GlobalizePath(path);
+			if (System.IO.File.Exists(globalPath))
+			{
+				try
+				{
+					var img = Image.LoadFromFile(globalPath);
+					if (img != null && !img.IsEmpty())
+					{
+						if (img.GetFormat() != Image.Format.Rgba8)
+						{
+							img.Convert(Image.Format.Rgba8);
+						}
+
+						int w = img.GetWidth();
+						int h = img.GetHeight();
+						if (w > targetSize || h > targetSize)
+						{
+							float aspect = (float)w / h;
+							int newW = aspect >= 1.0f ? targetSize : Mathf.RoundToInt(targetSize * aspect);
+							int newH = aspect <= 1.0f ? targetSize : Mathf.RoundToInt(targetSize / aspect);
+							img.Resize(newW, newH, Image.Interpolation.Lanczos);
+						}
+
+						img.GenerateMipmaps();
+						return ImageTexture.CreateFromImage(img);
+					}
+				}
+				catch { }
+			}
+		}
+
+		try
+		{
+			return GD.Load<Texture2D>(path);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
 	public static StyleBox CreateBackdropPanel()
 	{
 		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.05f, 0.05f, 0.05f, 0.6f);
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
+		style.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.82f);
+		style.BorderColor = new Color(0.75f, 0.62f, 0.35f, 0.35f);
+		style.SetBorderWidthAll(1);
+		style.CornerRadiusTopLeft = 6;
+		style.CornerRadiusTopRight = 6;
+		style.CornerRadiusBottomLeft = 6;
+		style.CornerRadiusBottomRight = 6;
 		style.ContentMarginLeft = 16;
 		style.ContentMarginRight = 16;
-		style.ContentMarginTop = 16;
-		style.ContentMarginBottom = 16;
+		style.ContentMarginTop = 12;
+		style.ContentMarginBottom = 12;
 		return style;
 	}
 
@@ -337,6 +685,136 @@ public static class UIStyle
 		}
 
 		return CreateStonePanel(false);
+	}
+
+	public static StyleBox CreateMatchViewBottomPanel()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.png");
+		if (texture == null)
+		{
+			texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.jpg");
+		}
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.ContentMarginLeft = 0;
+			style.ContentMarginRight = 0;
+			style.ContentMarginTop = 0;
+			style.ContentMarginBottom = 0;
+			return style;
+		}
+		return CreateStonePanel(false);
+	}
+
+	public static StyleBox CreateHotkeyReferencePanelStyle()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.png");
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+			style.ContentMarginLeft = 90;
+			style.ContentMarginRight = 90;
+			style.ContentMarginTop = 88;
+			style.ContentMarginBottom = 82;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateLobbyRoomMainPanel()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_MainPanel.png");
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+
+			// Zero 9-patch slice margins: renders the 2338x1744 custom artwork as a single unified 3D frame
+			// Eliminates 100% of pillar distortion, rune slicing, and header squishing
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+
+			// Side content margins (100px)
+			style.ContentMarginLeft = 100;
+			style.ContentMarginRight = 100;
+			style.ContentMarginTop = 18;
+			style.ContentMarginBottom = 45;
+
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateLobbyRoomSecondPanel()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_SecondPanel.png");
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+
+			style.ContentMarginLeft = 95;
+			style.ContentMarginRight = 95;
+			style.ContentMarginTop = 18;
+			style.ContentMarginBottom = 20;
+
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+
+			return style;
+		}
+		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateLobbyRoomChatPanel()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_ChatPanel.png");
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+
+			style.ContentMarginLeft = 35;
+			style.ContentMarginRight = 35;
+			style.ContentMarginTop = 24;
+			style.ContentMarginBottom = 10;
+
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+
+			return style;
+		}
+		return CreateStonePanel(true);
 	}
 
 	public static StyleBox CreateCustomMatchCardPanel()
@@ -594,19 +1072,21 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomLobbySearchInput(bool hasFocus = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_search.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/custom_lobby_search.png");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
 			style.Texture = tex;
-			style.TextureMarginLeft = 0;
-			style.TextureMarginRight = 0;
-			style.TextureMarginTop = 0;
-			style.TextureMarginBottom = 0;
-			style.ContentMarginLeft = 80;
-			style.ContentMarginRight = 100;
-			style.ContentMarginTop = 22;
-			style.ContentMarginBottom = 22;
+			style.TextureMarginLeft = 350;
+			style.TextureMarginRight = 200;
+			style.TextureMarginTop = 140;
+			style.TextureMarginBottom = 140;
+			style.ContentMarginLeft = 45;
+			style.ContentMarginRight = 25;
+			style.ContentMarginTop = 8;
+			style.ContentMarginBottom = 8;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
 			if (hasFocus)
 			{
 				style.ModulateColor = new Color(1.15f, 1.15f, 1.25f);
@@ -693,6 +1173,38 @@ public static class UIStyle
 		style.CornerRadiusTopRight = 4;
 		style.CornerRadiusBottomLeft = 4;
 		style.CornerRadiusBottomRight = 4;
+		return style;
+	}
+
+	public static StyleBox CreateMinimapButtonStyle(bool isHover = false, bool isPressed = false)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = isPressed
+			? new Color(0.08f, 0.12f, 0.18f, 0.95f)
+			: (isHover ? new Color(0.16f, 0.18f, 0.22f, 0.92f) : new Color(0.08f, 0.09f, 0.11f, 0.85f));
+		style.BorderColor = isPressed
+			? ColorCyanGlow
+			: (isHover ? ColorGold : new Color(0.45f, 0.38f, 0.28f, 0.75f));
+		style.SetBorderWidthAll(1);
+		style.CornerRadiusTopLeft = 3;
+		style.CornerRadiusTopRight = 3;
+		style.CornerRadiusBottomLeft = 3;
+		style.CornerRadiusBottomRight = 3;
+		style.ContentMarginLeft = 4;
+		style.ContentMarginRight = 4;
+		style.ContentMarginTop = 2;
+		style.ContentMarginBottom = 2;
+		if (isHover)
+		{
+			style.ShadowColor = new Color(0.95f, 0.82f, 0.55f, 0.25f);
+			style.ShadowSize = 2;
+		}
+		else if (isPressed)
+		{
+			style.ShadowColor = new Color(0.15f, 0.65f, 1.0f, 0.35f);
+			style.ShadowSize = 2;
+		}
+
 		return style;
 	}
 
