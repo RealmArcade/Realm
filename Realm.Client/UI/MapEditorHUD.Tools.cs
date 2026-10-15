@@ -1558,7 +1558,7 @@ namespace Realm.Client.UI
 					}
 				}
 
-				if (GameContext.EditorService.ReturningFromTest)
+				if (GameContext.SessionState.ReturningFromTest)
 				{
 					_sldBrushSize.Value = GameContext.EditorService.SavedBrushRadius;
 					_sldBrushStrength.Value = GameContext.EditorService.SavedBrushStrength;
@@ -1582,7 +1582,7 @@ namespace Realm.Client.UI
 						}
 					}
 
-					GameContext.EditorService.ReturningFromTest = false;
+					GameContext.SessionState.ReturningFromTest = false;
 				}
 				else
 				{

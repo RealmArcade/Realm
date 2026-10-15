@@ -129,7 +129,7 @@ public partial class UIManager : Control
 			{
 				MapEditorHUD.Instance.HandleQuitRequest();
 			}
-			else if (GameContext.EditorService.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
+			else if (GameContext.SessionState.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
 			{
 				ShowConfirmationDialog(
 					"You haven't saved yet",

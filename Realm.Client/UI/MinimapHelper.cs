@@ -238,7 +238,7 @@ public static class MinimapHelper
 		{
 			if (IsNodeValid(u))
 			{
-				u.Visible = vis || (GameContext.EditorService.IsMapEditorMode == true && GameHost.Instance.AllUnits.Contains(u));
+				u.Visible = vis || (GameContext.SessionState.IsMapEditorMode == true && GameHost.Instance.AllUnits.Contains(u));
 			}
 		}
 	}

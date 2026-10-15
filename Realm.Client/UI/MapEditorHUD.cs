@@ -1297,7 +1297,7 @@ public partial class MapEditorHUD : Control
 		}
 
 		GameHost.Instance.ExitMapEditorMode();
-		GameContext.EditorService.IsTestMode = true;
+		GameContext.SessionState.IsTestMode = true;
 
 		if (UIManager.Instance != null)
 		{

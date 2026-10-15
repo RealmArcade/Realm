@@ -630,10 +630,6 @@ public partial class EditorService : IEditorAPI
 		this.LastMetadataSyncTime = File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
 	}
 
-	public bool IsMapEditorMode { get; set; }
-
-	public bool IsTestMode { get; set; } = false;
-	public bool ReturningFromTest { get; set; } = false;
 	public long LastMapNameCacheTicks { get; set; } = 0;
 	public string? CachedMapName { get; set; }
 	public string? CachedMapVersion { get; set; }

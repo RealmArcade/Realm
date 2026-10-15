@@ -1356,7 +1356,7 @@ public partial class VSCodeManager
 	{
 		Action reloadAction = () =>
 		{
-			if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+			if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 			{
 				GameHost.Instance.LoadMapFromFile(filePath);
 				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
@@ -2364,7 +2364,7 @@ public partial class VSCodeManager
 	private bool TryGetTempWorkspacePath(out string path)
 	{
 		path = string.Empty;
-		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 		{
 			string tempWorkspace = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			if (Directory.Exists(tempWorkspace))

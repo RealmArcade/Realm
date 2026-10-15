@@ -39,7 +39,7 @@ public partial class GameHost
 
 		if (InGameHUD.Instance != null && InGameHUD.Instance.IsChatActive) return;
 
-		if (GameContext.EditorService.IsMapEditorMode)
+		if (GameContext.SessionState.IsMapEditorMode)
 		{
 			HandleMapEditorInput(@event);
 		}
@@ -62,7 +62,7 @@ public partial class GameHost
 				else
 				{
 					_leftClickInitiatedOverUI = false;
-					if (GameContext.EditorService.IsMapEditorMode && !FloatingDialogBase.HasAnyDialogOpen)
+					if (GameContext.SessionState.IsMapEditorMode && !FloatingDialogBase.HasAnyDialogOpen)
 					{
 						_is3DLeftClickDown = true;
 						_leftClick3DStartPos = globalMb.Position;
@@ -73,7 +73,7 @@ public partial class GameHost
 			{
 				_leftClickInitiatedOverUI = false;
 				_is3DLeftClickDown = false;
-				if (GameContext.EditorService.IsMapEditorMode && _is3DDragOperationActive)
+				if (GameContext.SessionState.IsMapEditorMode && _is3DDragOperationActive)
 				{
 					_is3DDragOperationActive = false;
 					MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
@@ -2634,7 +2634,7 @@ public partial class GameHost
 
 	public Decal FindDecalInParentChain(Node node)
 	{
-		if (!GameContext.EditorService.IsMapEditorMode) return null;
+		if (!GameContext.SessionState.IsMapEditorMode) return null;
 		while (node != null)
 		{
 			if (node is Decal decal)
@@ -2650,7 +2650,7 @@ public partial class GameHost
 
 	public ProceduralVfxInstance3D FindVfxInParentChain(Node node)
 	{
-		if (!GameContext.EditorService.IsMapEditorMode) return null;
+		if (!GameContext.SessionState.IsMapEditorMode) return null;
 		while (node != null)
 		{
 			if (node is ProceduralVfxInstance3D vfx)

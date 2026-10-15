@@ -71,7 +71,7 @@ public partial class Decal3D : Decal
 		_baseModulate = Modulate;
 		_baseEmissionEnergy = EmissionEnergy;
 
-		bool isEditor = GameContext.EditorService.IsMapEditorMode == true;
+		bool isEditor = GameContext.SessionState.IsMapEditorMode == true;
 		_staticBody = new StaticBody3D();
 		_staticBody.CollisionLayer = isEditor ? 1u : 0u;
 		_staticBody.CollisionMask = 0;

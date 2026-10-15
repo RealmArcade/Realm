@@ -129,7 +129,7 @@ void fragment() {
 
 	public void Tick(float delta, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
-		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 		{
 			TickMapEditorMode(allUnits, allProps, allDecals);
 			return;
@@ -234,7 +234,7 @@ void fragment() {
 
 	public void TriggerImmediateUpdate()
 	{
-		if (GameHost.Instance != null && !GameContext.EditorService.IsMapEditorMode)
+		if (GameHost.Instance != null && !GameContext.SessionState.IsMapEditorMode)
 		{
 			int specPerspective = GameContext.SpectatorService?.GetSpectatorPerspective() ?? -1;
 			UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, specPerspective, ReplayPlaybackManager.Instance.IsPlayingReplay, LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator");
@@ -498,7 +498,7 @@ void fragment() {
 	{
 		float halfW = 125.0f;
 		float halfD = 125.0f;
-		bool shroudEnabled = GameHost.Instance == null || !GameContext.EditorService.IsMapEditorMode;
+		bool shroudEnabled = GameHost.Instance == null || !GameContext.SessionState.IsMapEditorMode;
 
 		if (GameHost.Instance?.GroundTerrain != null)
 		{

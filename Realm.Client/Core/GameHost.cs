@@ -265,7 +265,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		get
 		{
-			if (_groundTerrain == null && (GameContext.EditorService.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap || (LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted)))
+			if (_groundTerrain == null && (GameContext.SessionState.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap || (LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted)))
 			{
 				CreateGround();
 			}
@@ -1814,12 +1814,12 @@ public partial class GameHost : Node3D, IGameAPI
 	private bool ShouldProcessMapLoading()
 	{
 		bool isGameStarted = LobbyManager.Instance?.IsGameStarted ?? false;
-		return isGameStarted || GameContext.EditorService.IsMapEditorMode;
+		return isGameStarted || GameContext.SessionState.IsMapEditorMode;
 	}
 
 	private bool ShouldLoadCustomTerrain()
 	{
-		return !GameContext.EditorService.IsMapEditorMode && !GameContext.SaveLoadService.IsLoadingMap;
+		return !GameContext.SessionState.IsMapEditorMode && !GameContext.SaveLoadService.IsLoadingMap;
 	}
 
 	private bool ShouldLoadAndRunMapScript()
@@ -1827,13 +1827,13 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.SaveLoadService.IsLoadingMap) return false;
 
 		bool isGameStarted = LobbyManager.Instance?.IsGameStarted ?? false;
-		return !isGameStarted || IsServerActive() || GameContext.EditorService.IsMapEditorMode;
+		return !isGameStarted || IsServerActive() || GameContext.SessionState.IsMapEditorMode;
 	}
 
 	private void ExecuteMapScriptLoading(string rawMapName)
 	{
 		LoadMapScript(rawMapName);
-		if (_activeMapScript != null && !GameContext.EditorService.IsMapEditorMode)
+		if (_activeMapScript != null && !GameContext.SessionState.IsMapEditorMode)
 			_activeMapScript.Initialize(this);
 		RebakeNavMesh();
 	}
@@ -1892,7 +1892,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void StartReplayRecordingIfNeeded(string rawMapName)
 	{
 		bool isGameStarted = LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted;
-		if (!isGameStarted || GameContext.EditorService.IsMapEditorMode || ReplayPlaybackManager.Instance.IsPlayingReplay || !GameSettings.RecordReplays) return;
+		if (!isGameStarted || GameContext.SessionState.IsMapEditorMode || ReplayPlaybackManager.Instance.IsPlayingReplay || !GameSettings.RecordReplays) return;
 
 		string replayDir = ProjectSettings.GlobalizePath("user://replays");
 		string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -1965,13 +1965,13 @@ public partial class GameHost : Node3D, IGameAPI
 		EntityToProp3D.Clear();
 		_activeMapScript = null;
 
-		bool wasMapEditorMode = GameContext.EditorService.IsMapEditorMode;
+		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
 
 		GameContext.DisposeAndRecreateServices();
 		ResolveServices();
 
-		GameContext.EditorService.IsMapEditorMode = wasMapEditorMode;
+		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;
 		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
 
 		// Do not trigger lazy GroundTerrain creation here: InitializeGameEcs()
@@ -2040,7 +2040,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		ClearExistingGround();
 
-		if (GameContext.EditorService.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap)
+		if (GameContext.SessionState.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap)
 		{
 			CreateEditableGround();
 			return;
@@ -2400,7 +2400,7 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
 		float baseRadius = GetOrCalculateObstacleRadius(id, unit3D, true) * GetModelCollisionCircleRatio(GetModelAssetKey(unit3D));
 		GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
-		if (!GameContext.EditorService.IsMapEditorMode) CarveObstacle(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), baseRadius);
+		if (!GameContext.SessionState.IsMapEditorMode) CarveObstacle(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), baseRadius);
 	}
 
 	private Unit3D SpawnUnit3D(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, bool isEnemy, bool isFromQueue = false, int player = -1, bool executeSpawnShader = false)
@@ -2442,7 +2442,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		var unit3D = new Unit3D { Entity = entity, UnitId = id, IsBuilding = isBuilding, Name = $"{id}_{entity.Id}", Player = playerIndex, IsEnemy = actualIsEnemy };
 
-		if (!isBuilding && !GameContext.EditorService.IsMapEditorMode)
+		if (!isBuilding && !GameContext.SessionState.IsMapEditorMode)
 		{
 			unit3D.CollisionLayer = 1;
 			unit3D.CollisionMask = 0;
@@ -2458,7 +2458,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void ApplyMapEditorTransforms(Unit3D unit3D)
 	{
-		if (!GameContext.EditorService.IsMapEditorMode) return;
+		if (!GameContext.SessionState.IsMapEditorMode) return;
 
 		unit3D.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.EditorPlacementRotation, 0.0f);
 		unit3D.Scale *= EditorPlacementScale;
@@ -2518,7 +2518,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private bool ShouldProcessPhysicsTick()
 	{
-		return LobbyManager.Instance?.IsGameStarted == true || GameContext.EditorService.IsMapEditorMode;
+		return LobbyManager.Instance?.IsGameStarted == true || GameContext.SessionState.IsMapEditorMode;
 	}
 
 	private void ProcessReplayTick(float fDelta)
@@ -2530,7 +2530,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void DispatchPhysicsTick(float fDelta)
 	{
 		if (_multiplayerActive && !IsServerActive()) UpdateClientTick(fDelta);
-		else if (GameContext.EditorService.IsMapEditorMode) ProcessMapEditorTick(fDelta);
+		else if (GameContext.SessionState.IsMapEditorMode) ProcessMapEditorTick(fDelta);
 		else ProcessGameplayTick(fDelta);
 	}
 
@@ -2833,7 +2833,7 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
 		{
 			var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
-			if (state.DayNightCycleEnabled && !GameContext.EditorService.IsMapEditorMode)
+			if (state.DayNightCycleEnabled && !GameContext.SessionState.IsMapEditorMode)
 			{
 				float progress = state.TimeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
 				UpdateDayNightVisuals(progress);

@@ -113,7 +113,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 	{
 		if (IsPreview) return false;
 		if (GameHost.Instance == null) return false;
-		if (!GameContext.EditorService.IsMapEditorMode) return false;
+		if (!GameContext.SessionState.IsMapEditorMode) return false;
 		if (RuntimeTerrain.IsMinimapRendering) return false;
 		if (GetViewport() is SubViewport) return false;
 		return true;

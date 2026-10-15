@@ -774,14 +774,14 @@ namespace Realm.Client.Core
 
 		public Prop3D SpawnPropExternal(string propId, Vector3 position)
 		{
-			float rotY = GameContext.EditorService.IsMapEditorMode ? GameContext.EditorService.EditorPlacementRotation : 0f;
-			float scale = GameContext.EditorService.IsMapEditorMode ? EditorPlacementScale : 1f;
+			float rotY = GameContext.SessionState.IsMapEditorMode ? GameContext.EditorService.EditorPlacementRotation : 0f;
+			float scale = GameContext.SessionState.IsMapEditorMode ? EditorPlacementScale : 1f;
 			return SpawnPropExternalWithParams(propId, position, rotY, scale);
 		}
 
 		private Decal3D FindDecal3DInParentChain(Node node)
 		{
-			if (!GameContext.EditorService.IsMapEditorMode) return null;
+			if (!GameContext.SessionState.IsMapEditorMode) return null;
 			Node current = node;
 			while (current != null && current != this)
 			{
@@ -2208,7 +2208,7 @@ namespace Realm.Client.Core
 		public void StartMapEditorMode()
 		{
 			ReplayPlaybackManager.Instance.StopReplay();
-			GameContext.EditorService.IsMapEditorMode = true;
+			GameContext.SessionState.IsMapEditorMode = true;
 
 			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			try
@@ -2224,7 +2224,7 @@ namespace Realm.Client.Core
 			ActiveEditorTool = EditorTool.None;
 			EditorHistoryManager.Clear();
 
-			if (GameContext.EditorService.ReturningFromTest)
+			if (GameContext.SessionState.ReturningFromTest)
 			{
 				RestoreMapEditorStateFromTest();
 			}
@@ -2293,7 +2293,7 @@ namespace Realm.Client.Core
 
 		public void ExitMapEditorMode()
 		{
-			GameContext.EditorService.IsMapEditorMode = false;
+			GameContext.SessionState.IsMapEditorMode = false;
 			ActiveEditorTool = EditorTool.None;
 			EditorHistoryManager.Clear();
 			ClearEditorPreview();
@@ -2441,7 +2441,7 @@ namespace Realm.Client.Core
 
 		public void UpdateSymmetryPivotVisuals()
 		{
-			if (!GameContext.EditorService.IsMapEditorMode || GroundTerrain == null)
+			if (!GameContext.SessionState.IsMapEditorMode || GroundTerrain == null)
 			{
 				if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
 				return;
@@ -2732,7 +2732,7 @@ namespace Realm.Client.Core
 				HideCoordinatePreviewMesh();
 			}
 
-			if (!GameContext.EditorService.IsMapEditorMode || ActiveEditorTool != EditorTool.DrawCoordinate)
+			if (!GameContext.SessionState.IsMapEditorMode || ActiveEditorTool != EditorTool.DrawCoordinate)
 			{
 				return;
 			}

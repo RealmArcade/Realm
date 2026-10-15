@@ -9,6 +9,8 @@ namespace Realm.Client.Services
 {
 	public static class GameContext
 	{
+		public static SessionState SessionState { get; } = new();
+		
 		public static World World => ECSContext.World;
 		public static Entity WorldEntity
 		{

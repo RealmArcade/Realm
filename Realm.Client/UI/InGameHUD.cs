@@ -777,7 +777,7 @@ public partial class InGameHUD : Control
 
 	private void ApplyModeSpecificUI()
 	{
-		if (GameContext.EditorService.IsTestMode)
+		if (GameContext.SessionState.IsTestMode)
 		{
 			var btnBackToEditor = new Button();
 			btnBackToEditor.Name = "BtnBackToEditor";
@@ -795,8 +795,8 @@ public partial class InGameHUD : Control
 			btnBackToEditor.Pressed += () =>
 			{
 				UIManager.Instance?.PlayClickSound();
-				GameContext.EditorService.IsTestMode = false;
-				GameContext.EditorService.ReturningFromTest = true;
+				GameContext.SessionState.IsTestMode = false;
+				GameContext.SessionState.ReturningFromTest = true;
 				if (LobbyManager.Instance != null)
 				{
 					LobbyManager.Instance.Disconnect();

@@ -1141,7 +1141,7 @@ public partial class GameHost
 
 		var entity = GameContext.EditorService.SpawnPropDomain(propId, new System.Numerics.Vector3(position.X, position.Y, position.Z), rotationY, scale, cleanId, defaultAmount, position.Y, baseRadius);
 
-		if (!GameContext.EditorService.IsMapEditorMode && IsStaticPropAsset(propId))
+		if (!GameContext.SessionState.IsMapEditorMode && IsStaticPropAsset(propId))
 		{
 			PropMultiMeshManager.Instance?.MarkDirty(propId);
 			return null;

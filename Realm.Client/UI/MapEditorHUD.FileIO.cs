@@ -89,7 +89,7 @@ namespace Realm.Client.UI
 
 		private void InitializeTempWorkspace()
 		{
-			if (!GameContext.EditorService.ReturningFromTest)
+			if (!GameContext.SessionState.ReturningFromTest)
 			{
 				TryCreateTempWorkspaceDirectory();
 			}
@@ -217,7 +217,7 @@ namespace Realm.Client.UI
 
 		private void CheckUnsavedSessionOnLaunch(Action onCompleted = null)
 		{
-			if (GameContext.EditorService.ReturningFromTest || !string.IsNullOrEmpty(GameContext.EditorService.PendingCasSourceDirectory))
+			if (GameContext.SessionState.ReturningFromTest || !string.IsNullOrEmpty(GameContext.EditorService.PendingCasSourceDirectory))
 			{
 				onCompleted?.Invoke();
 				return;

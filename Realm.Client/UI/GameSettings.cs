@@ -472,7 +472,7 @@ public static class GameSettings
 	{
 		GameHost host = GameHost.Instance;
 		if (host == null) return false;
-		if (!GameContext.EditorService.IsMapEditorMode) return false;
+		if (!GameContext.SessionState.IsMapEditorMode) return false;
 		if (!GameContext.EditorService.EditorDisableShadows) return false;
 		return true;
 	}

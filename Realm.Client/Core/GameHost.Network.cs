@@ -67,7 +67,7 @@ public partial class GameHost
 
 	private void UpdateClientWorldState(float fDelta)
 	{
-		bool isEditorMode = GameContext.EditorService.IsMapEditorMode;
+		bool isEditorMode = GameContext.SessionState.IsMapEditorMode;
 		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, isEditorMode);
 		if (res.UpdateVisuals)
 		{
@@ -488,7 +488,7 @@ public partial class GameHost
 			if (dayNightCycleEnabled && GameContext.EnvironmentService.TimeOfDayCycleDuration > 0)
 			{
 				float progress = timeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
-				if (!GameContext.EditorService.IsMapEditorMode)
+				if (!GameContext.SessionState.IsMapEditorMode)
 				{
 					UpdateDayNightVisuals(progress);
 				}

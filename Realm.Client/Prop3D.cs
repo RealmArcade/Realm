@@ -605,7 +605,7 @@ public partial class Prop3D : StaticBody3D
 	{
 		string modelPath = ResolvePropModelPath(PropId);
 
-		if (IsPreview || GameContext.EditorService.IsMapEditorMode == true)
+		if (IsPreview || GameContext.SessionState.IsMapEditorMode == true)
 		{
 			EnsureVisualModelExists(modelPath);
 		}
