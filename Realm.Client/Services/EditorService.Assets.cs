@@ -356,6 +356,12 @@ public partial class EditorService
 		foreach (var propTarget in candidateProperties)
 		{
 			var types = GetAssetTypesForProperty(propTarget, templateSlug);
+			var (prefix, _) = TemplateIDHelper.ParseTemplateID(templateSlug);
+			if (AssetTypeExtensions.TryParse(prefix, out AssetType defaultType) && types.Contains(defaultType))
+			{
+				types = [defaultType];
+			}
+
 			var searchResults = SearchAssets(types, searchQuery, 100);
 			if (searchResults.Count == 0)
 			{
