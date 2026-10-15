@@ -30,4 +30,17 @@ public static class UnitOrderUtility
 	{
 		if (GameContext.World.Has<T>(entity)) GameContext.World.Remove<T>(entity);
 	}
+
+	public static bool IsUnitActive(Entity entity)
+	{
+		return GameContext.World.Has<MoveTo>(entity) ||
+		       GameContext.World.Has<BuildTask>(entity) ||
+		       GameContext.World.Has<AttackTarget>(entity) ||
+		       GameContext.World.Has<AttackMove>(entity) ||
+		       GameContext.World.Has<Follow>(entity) ||
+		       GameContext.World.Has<Patrol>(entity) ||
+		       GameContext.World.Has<Gatherer>(entity) ||
+		       GameContext.World.Has<WaypointQueue>(entity) ||
+		       (GameContext.World.Has<BuildQueue>(entity) && GameContext.World.Get<BuildQueue>(entity).Count > 0);
+	}
 }

@@ -119,7 +119,7 @@ public class InputService
 
 	public bool ShouldEnqueueWorkerBuild(Entity entity)
 	{
-		return IsUnitActive(entity) || GameContext.World.Has<BuildQueue>(entity);
+		return Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity) || GameContext.World.Has<BuildQueue>(entity);
 	}
 
 	public void EnqueueBuildTask(Entity worker, string type, Vector3 pos)
@@ -163,7 +163,7 @@ public class InputService
 	{
 		foreach (var workerEntity in selectedWorkerEntities)
 		{
-			if (shiftHeld && (IsUnitActive(workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
+			if (shiftHeld && (Realm.Client.Utils.UnitOrderUtility.IsUnitActive(workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
 			{
 				if (!GameContext.World.Has<BuildQueue>(workerEntity))
 				{
@@ -196,18 +196,7 @@ public class InputService
 		Realm.Client.Utils.UnitOrderUtility.ClearUnitOrders(entity);
 	}
 
-	public bool IsUnitActive(Entity entity)
-	{
-		return GameContext.World.Has<MoveTo>(entity) ||
-		       GameContext.World.Has<BuildTask>(entity) ||
-		       GameContext.World.Has<AttackTarget>(entity) ||
-		       GameContext.World.Has<AttackMove>(entity) ||
-		       GameContext.World.Has<Follow>(entity) ||
-		       GameContext.World.Has<Patrol>(entity) ||
-		       GameContext.World.Has<Gatherer>(entity) ||
-		       GameContext.World.Has<WaypointQueue>(entity) ||
-		       (GameContext.World.Has<BuildQueue>(entity) && GameContext.World.Get<BuildQueue>(entity).Count > 0);
-	}
+	
 
 	public void EnqueueCommand(Entity entity, string type, Vector3 position, Entity target = default)
 	{
@@ -365,7 +354,7 @@ public class InputService
 			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
 			if (isBuilding || isEnemy) continue;
 
-			if (isQueued && IsUnitActive(entity))
+			if (isQueued && Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "attack", targetPos, targetEntity);
 			}
@@ -384,7 +373,7 @@ public class InputService
 
 	private void AssignFollowCommand(Entity entity, Entity targetEntity, Vector3 targetPos, bool isQueued)
 	{
-		if (isQueued && IsUnitActive(entity))
+		if (isQueued && Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity))
 		{
 			EnqueueCommand(entity, "follow", targetPos, targetEntity);
 			return;
@@ -421,7 +410,7 @@ public class InputService
 
 	private void AssignPatrolCommand(Entity entity, Vector3 scattered, bool isQueued)
 	{
-		if (isQueued && IsUnitActive(entity))
+		if (isQueued && Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity))
 		{
 			EnqueueCommand(entity, "patrol", scattered);
 			return;
@@ -476,7 +465,7 @@ public class InputService
 			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
 			if (isBuilding || isEnemy) continue;
 
-			if (isQueued && IsUnitActive(entity))
+			if (isQueued && Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "attackmove", targetPos);
 			}

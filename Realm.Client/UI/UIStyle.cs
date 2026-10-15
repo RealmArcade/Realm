@@ -1622,4 +1622,55 @@ public static class UIStyle
 		};
 		btn.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}
+
+	public static string FormatUnitTooltip(string unitId, Godot.Key hotkey, string actionName, bool includeDescription)
+	{
+		string name = unitId.ToUpper();
+		float gold = 0, wood = 0, stone = 0;
+		int pop = 0;
+		string desc = "";
+
+		if (Realm.Client.Core.GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
+		{
+			name = meta.Name;
+			gold = meta.CostGold;
+			wood = meta.CostWood;
+			stone = meta.CostStone;
+			pop = meta.PopCost;
+			desc = meta.Description;
+		}
+
+		string costStr = $"Cost: {gold} Gold";
+		if (wood > 0) costStr += $", {wood} Wood";
+		if (stone > 0) costStr += $", {stone} Stone";
+		if (pop > 0) costStr += $", {pop} Pop";
+
+		string hotkeyStr = hotkey != Godot.Key.None ? hotkey.ToString() : "";
+		string tooltipFormat;
+
+		if (includeDescription)
+		{
+			tooltipFormat = !string.IsNullOrEmpty(hotkeyStr)
+				? (string.IsNullOrEmpty(desc) ? "[{0}] {1} {2} ({3})" : "[{0}] {1} {2} ({3}) — {4}")
+				: (string.IsNullOrEmpty(desc) ? "{0} {1} ({2})" : "{0} {1} ({2}) — {3}");
+
+			return string.IsNullOrEmpty(desc)
+				? (!string.IsNullOrEmpty(hotkeyStr)
+					? string.Format(Godot.TranslationServer.Translate(tooltipFormat), hotkeyStr, actionName, name, costStr)
+					: string.Format(Godot.TranslationServer.Translate(tooltipFormat), actionName, name, costStr))
+				: (!string.IsNullOrEmpty(hotkeyStr)
+					? string.Format(Godot.TranslationServer.Translate(tooltipFormat), hotkeyStr, actionName, name, costStr, desc)
+					: string.Format(Godot.TranslationServer.Translate(tooltipFormat), actionName, name, costStr, desc));
+		}
+		else
+		{
+			tooltipFormat = !string.IsNullOrEmpty(hotkeyStr)
+				? "[{0}] {1} {2} ({3})"
+				: "{0} {1} ({2})";
+				
+			return !string.IsNullOrEmpty(hotkeyStr)
+				? string.Format(Godot.TranslationServer.Translate(tooltipFormat), hotkeyStr, actionName, name, costStr)
+				: string.Format(Godot.TranslationServer.Translate(tooltipFormat), actionName, name, costStr);
+		}
+	}
 }

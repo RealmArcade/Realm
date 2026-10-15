@@ -2055,55 +2055,10 @@ public partial class InGameHUD : Control
 	}
 
 	private string GetBuildOptionTooltip(string unitId, string hotkey)
-	{
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
 		{
-			name = meta.Name;
-			gold = meta.CostGold;
-			wood = meta.CostWood;
-			stone = meta.CostStone;
+			Godot.Key key = Godot.Key.None;
+			if (!string.IsNullOrEmpty(hotkey)) System.Enum.TryParse(hotkey, out key);
+			return UIStyle.FormatUnitTooltip(unitId, key, "Build", false);
 		}
 
-		string costStr = $"Cost: {gold} Gold";
-		if (wood > 0) costStr += $", {wood} Wood";
-		if (stone > 0) costStr += $", {stone} Stone";
-
-		string tooltipFormat = !string.IsNullOrEmpty(hotkey)
-			? "[{0}] Build {1} ({2})"
-			: "Build {0} ({1})";
-
-		return string.Format(TranslationServer.Translate(tooltipFormat), hotkey, name, costStr);
-	}
-
-	private string GetTrainOptionTooltip(string unitId, string hotkey)
-	{
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		int pop = 0;
-		string desc = "";
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
-		{
-			name = meta.Name;
-			gold = meta.CostGold;
-			wood = meta.CostWood;
-			stone = meta.CostStone;
-			pop = meta.PopCost;
-			desc = meta.Description;
-		}
-
-		string costStr = $"Cost: {gold} Gold";
-		if (wood > 0) costStr += $", {wood} Wood";
-		if (stone > 0) costStr += $", {stone} Stone";
-		if (pop > 0) costStr += $", {pop} Pop";
-
-		string tooltipFormat = !string.IsNullOrEmpty(hotkey)
-			? (string.IsNullOrEmpty(desc) ? "[{0}] Train {1} ({2})" : "[{0}] Train {1} ({2}) — {3}")
-			: (string.IsNullOrEmpty(desc) ? "Train {0} ({1})" : "Train {0} ({1}) — {2}");
-
-		return string.IsNullOrEmpty(desc)
-			? string.Format(TranslationServer.Translate(tooltipFormat), hotkey, name, costStr)
-			: string.Format(TranslationServer.Translate(tooltipFormat), hotkey, name, costStr, desc);
-	}
 }

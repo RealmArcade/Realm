@@ -938,22 +938,7 @@ public partial class CommandPanel
 	{
 		var hotkey = Key.None;
 
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var structureMeta))
-		{
-			name = structureMeta.Name;
-			gold = structureMeta.CostGold;
-			wood = structureMeta.CostWood;
-			stone = structureMeta.CostStone;
-		}
-
-		string tooltipFormat = hotkey != Key.None
-			? "[{0}] Build {1} (Cost: {2} Gold, {3} Wood, {4} Stone)"
-			: "Build {0} (Cost: {1} Gold, {2} Wood, {3} Stone)";
-
-		string finalTooltip = string.Format(TranslationServer.Translate(tooltipFormat),
-			hotkey.ToString(), name, gold, wood, stone);
+		string finalTooltip = UIStyle.FormatUnitTooltip(unitId, hotkey, "Build", false);
 
 		return new CommandCardItem
 		{
@@ -969,31 +954,7 @@ public partial class CommandPanel
 	{
 		var hotkey = Key.None;
 
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		int pop = 0;
-		string desc = "";
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
-		{
-			name = meta.Name;
-			gold = meta.CostGold;
-			wood = meta.CostWood;
-			stone = meta.CostStone;
-			pop = meta.PopCost;
-			desc = meta.Description;
-		}
-
-		string costStr = $"Cost: {gold} Gold";
-		if (wood > 0) costStr += $", {wood} Wood";
-		if (stone > 0) costStr += $", {stone} Stone";
-		if (pop > 0) costStr += $", {pop} Pop";
-
-		string tooltipFormat = hotkey != Key.None
-			? "[{0}] Train {1} ({2}) — {3}"
-			: "Train {0} ({1}) — {2}";
-
-		string finalTooltip = string.Format(TranslationServer.Translate(tooltipFormat),
-			hotkey.ToString(), name, costStr, desc);
+		string finalTooltip = UIStyle.FormatUnitTooltip(unitId, hotkey, "Train", true);
 
 		return new CommandCardItem
 		{

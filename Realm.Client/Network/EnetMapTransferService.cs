@@ -13,19 +13,20 @@ using Environment = System.Environment;
 
 namespace Realm.Client.Network;
 
-public partial class EnetMapTransferService : Node
+public partial class EnetMapTransferService : MapTransferRpcNode
 {
 	public static EnetMapTransferService Instance { get; private set; } = null!;
 
 	public static event Action<float>? DownloadProgressChanged;
+	internal static void TriggerDownloadProgressChanged(float p) => DownloadProgressChanged?.Invoke(p);
 	public static event Action? DownloadCompleted;
 	public static event Action? DownloadFailed;
 
 
-	private readonly ConcurrentDictionary<string, HostTransferSession> _hostTransfers = new();
-	private TaskCompletionSource<string>? _manifestTcs;
-	private TaskCompletionSource<bool>? _transferCompleteTcs;
-	private ClientTransferSession? _currentClientTransfer;
+	internal readonly ConcurrentDictionary<string, HostTransferSession> _hostTransfers = new();
+	internal TaskCompletionSource<string>? _manifestTcs;
+	internal TaskCompletionSource<bool>? _transferCompleteTcs;
+	internal ClientTransferSession? _currentClientTransfer;
 	private int _activeEphemeralTransferPeerId = 0;
 
 	public override void _Ready()
@@ -235,11 +236,7 @@ public partial class EnetMapTransferService : Node
 		MapTransferHelper.HandleRequestMapManifestRpc(targetMap, (map, ver, json) => RpcId(senderId, nameof(ReceiveMapManifestRpc), map, ver, json));
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveMapManifestRpc(string mapName, string mapVersion, string manifestJson)
-	{
-		MapTransferHelper.HandleReceiveMapManifestRpc(manifestJson, _manifestTcs);
-	}
+	
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void RequestMapAssetTransferRpc(string transferId, string mapName, string mapVersion, string[] missingHashes)
@@ -318,7 +315,7 @@ public partial class EnetMapTransferService : Node
 
 	
 
-	private async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
+	protected override async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
 	{
 		if (chunkIndex < 0 || chunkIndex >= session.ChunkItems.Count || session.Cts.IsCancellationRequested)
 		{
@@ -380,48 +377,38 @@ public partial class EnetMapTransferService : Node
 	}
 
 
+
+	
+
+	
+	
+
+
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex)
+	protected override void AcknowledgeMapTransferCompleteRpc(string transferId)
 	{
-		MapTransferHelper.HandleRequestNextMapTransferChunkRpc(transferId, nextChunkIndex, _hostTransfers, (s, i) => { _ = SendHostChunkAsync(s, i); });
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks)
-	{
-		MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, () =>
+		if (_hostTransfers.TryRemove(transferId, out var session))
 		{
-			Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferId)).CallDeferred();
-			_transferCompleteTcs?.TrySetResult(true);
-		}, ex => _transferCompleteTcs?.TrySetException(ex));
-	}
-
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData)
-	{
-		if (_currentClientTransfer == null || _currentClientTransfer.TransferId != transferId) return;
-
-		try
-		{
-			MapTransferHelper.HandleSendMapTransferChunk(
-				_currentClientTransfer, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData,
-				overallProgress =>
-				{
-					_currentClientTransfer.ProgressCallback?.Invoke(overallProgress);
-					DownloadProgressChanged?.Invoke(overallProgress);
-				},
-				() => FinalizeReceivedChunk(chunkIndex, totalChunks)
-			);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[EnetMapTransferService] Chunk write error: {ex.Message}");
-			_transferCompleteTcs?.TrySetException(ex);
+			session.Cts.Cancel();
+			if (_activeEphemeralTransferPeerId == session.PeerId)
+			{
+				_activeEphemeralTransferPeerId = 0;
+			}
 		}
 	}
 
-	private void FinalizeReceivedChunk(int chunkIndex, int totalChunks)
+	protected override bool CanRequestChunk() => true;
+	protected override System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> GetHostTransfers() => _hostTransfers;
+	
+	protected override ClientTransferSession? GetCurrentClientTransfer() => _currentClientTransfer;
+	protected override System.Threading.Tasks.TaskCompletionSource<bool>? GetTransferCompleteTcs() => _transferCompleteTcs;
+	protected override System.Threading.Tasks.TaskCompletionSource<string>? GetManifestTcs() => _manifestTcs;
+	protected override void OnChunkProgressUpdated(float overallProgress)
+	{
+		_currentClientTransfer?.ProgressCallback?.Invoke(overallProgress);
+		TriggerDownloadProgressChanged(overallProgress);
+	}
+	protected override void FinalizeReceivedChunk(int chunkIndex, int totalChunks)
 	{
 		byte[] chunkBytes = MapTransferHelper.PopChunkBytes(_currentClientTransfer!);
 		_ = MapTransferHelper.ProcessReceivedChunkAsync(
@@ -436,16 +423,4 @@ public partial class EnetMapTransferService : Node
 		);
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void AcknowledgeMapTransferCompleteRpc(string transferId)
-	{
-		if (_hostTransfers.TryRemove(transferId, out var session))
-		{
-			session.Cts.Cancel();
-			if (_activeEphemeralTransferPeerId == session.PeerId)
-			{
-				_activeEphemeralTransferPeerId = 0;
-			}
-		}
-	}
 }

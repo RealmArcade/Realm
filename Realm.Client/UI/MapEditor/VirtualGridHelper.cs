@@ -85,4 +85,26 @@ public static class VirtualGridHelper
 		bindVisibleGridCells(startIndex, visibleCount, columns);
 		HideUnusedGridCells(cellPool, visibleCount);
 	}
+
+	public static void BindVisibleGridCells(int startIndex, int visibleCount, int columns, System.Collections.Generic.List<Realm.Client.Services.IndexedAsset> matchingAssets, System.Collections.Generic.List<AssetGridCell> cellPool, float gridPadding, float cellWidth, float cellHeight, float spacingX, float spacingY, Realm.Client.Services.IndexedAsset selectedAsset, System.Action<Realm.Client.Services.IndexedAsset, bool> onAssetCellClicked)
+	{
+		for (int i = 0; i < visibleCount; i++)
+		{
+			int assetIndex = startIndex + i;
+			var asset = matchingAssets[assetIndex];
+			int row = assetIndex / columns;
+			int col = assetIndex % columns;
+
+			float posX = gridPadding + col * (cellWidth + spacingX);
+			float posY = gridPadding + row * (cellHeight + spacingY);
+
+			var cell = cellPool[i];
+			cell.Position = new Godot.Vector2(posX, posY);
+			cell.Size = new Godot.Vector2(cellWidth, cellHeight);
+			cell.Visible = true;
+
+			bool isSelected = selectedAsset != null && string.Equals(selectedAsset.FilePath, asset.FilePath, System.StringComparison.OrdinalIgnoreCase);
+			cell.Bind(asset, isSelected, onAssetCellClicked);
+		}
+	}
 }

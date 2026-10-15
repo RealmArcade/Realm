@@ -1537,72 +1537,16 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			}
 		},
 		{
-			"shaders", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+			"shaders", (d, m, i, id, slug) => HandleSpawnShaderMigration(d, m, i, id, slug)
 		},
 		{
-			"shader", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+			"shader", (d, m, i, id, slug) => HandleSpawnShaderMigration(d, m, i, id, slug)
 		},
 		{
-			"spawnshader", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+			"spawnshader", (d, m, i, id, slug) => HandleSpawnShaderMigration(d, m, i, id, slug)
 		},
 		{
-			"spawnshaders", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+			"spawnshaders", (d, m, i, id, slug) => HandleSpawnShaderMigration(d, m, i, id, slug)
 		},
 		{
 			"vfx", (dialog, m, item, newId, newSlug) =>
@@ -2437,4 +2381,19 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		_btnAudioPlay.Text = $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("Play");
 	}
+		private static void HandleSpawnShaderMigration(TemplateManagerDialog dialog, MapMetadata m, ObjectItemInfo item, string newId, string newSlug)
+		{
+			m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+			m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
+			if (orig == null)
+			{
+				var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+				if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
+			}
+			SpawnShaderMetadata copy = orig != null
+				? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
+				: new SpawnShaderMetadata();
+			copy.Name = newSlug;
+			m.SpawnShaders[newId] = copy;
+		}
 }

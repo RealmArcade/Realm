@@ -610,29 +610,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		private void UpdateVisibleGridCells()
 		{
-			VirtualGridHelper.UpdateVisibleGridCells(_scrollContainer, _virtualGridContent, _matchingAssets, _cellPool, GridPadding, CellWidth, CellHeight, SpacingX, SpacingY, 360.0f, BindVisibleGridCells);
-		}
-
-		private void BindVisibleGridCells(int startIndex, int visibleCount, int columns)
-		{
-			for (int i = 0; i < visibleCount; i++)
-			{
-				int assetIndex = startIndex + i;
-				var asset = _matchingAssets[assetIndex];
-				int row = assetIndex / columns;
-				int col = assetIndex % columns;
-
-				float posX = GridPadding + col * (CellWidth + SpacingX);
-				float posY = GridPadding + row * (CellHeight + SpacingY);
-
-				var cell = _cellPool[i];
-				cell.Position = new Vector2(posX, posY);
-				cell.Size = new Vector2(CellWidth, CellHeight);
-				cell.Visible = true;
-
-				bool isSelected = _selectedAsset != null && string.Equals(_selectedAsset.FilePath, asset.FilePath, StringComparison.OrdinalIgnoreCase);
-				cell.Bind(asset, isSelected, OnAssetCellClicked);
-			}
+			VirtualGridHelper.UpdateVisibleGridCells(_scrollContainer, _virtualGridContent, _matchingAssets, _cellPool, GridPadding, CellWidth, CellHeight, SpacingX, SpacingY, 360.0f, (s, v, c) => VirtualGridHelper.BindVisibleGridCells(s, v, c, _matchingAssets, _cellPool, GridPadding, CellWidth, CellHeight, SpacingX, SpacingY, _selectedAsset, OnAssetCellClicked));
 		}
 
 	private void OnAssetCellClicked(IndexedAsset asset, bool isDoubleClick)

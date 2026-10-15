@@ -604,29 +604,8 @@ public class NetworkService
 
 		isEnemy = ArePeersEnemies(localPeerId, snap.OwnerPlayerEntityId);
 
-		var entity = GameContext.UnitSpawnService.CreateEntityFromSnapshot(
-			snap.Position.ToNumerics(),
-			snap.Velocity.ToNumerics(),
-			snap.RotationY,
-			snap.UnitId,
-			meta.Name,
-			snap.MaxHp,
-			snap.CurrentHp,
-			meta.Damage,
-			meta.Range,
-			meta.AttackCooldown,
-			meta.Armor,
-			meta.Speed,
-			ownerPlayerEntity.AsPlayerEntity(GameContext.World),
-			isEnemy
-		);
-
-		mapping.ServerToClientEntityMap[snap.EntityId] = entity;
-		mapping.ClientToServerEntityMap[entity.Id] = snap.EntityId;
-
-		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : snap.UnitId;
-		modelPath = getFallbackModelPath(targetModel, snap.IsBuilding);
-		return entity;
+		var entity = UnitSetupHelper.CreateEntityFromSnapshot(GameContext.UnitSpawnService, snap.EntityId, snap.UnitId, snap.Position, snap.Velocity, snap.RotationY, snap.MaxHp, snap.CurrentHp, snap.IsBuilding, meta, ownerPlayerEntity, isEnemy, ref mapping, out modelPath);
+			return entity;
 	}
 
 	public bool TryGetLocalEntity(int serverEntityId, out Entity localEntity)
@@ -848,7 +827,7 @@ public class NetworkService
 			var entity = FindServerEntity(serverId, allUnits);
 			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
 
-			if (isQueued && GameContext.SimulationService.IsUnitActive(entity))
+			if (isQueued && Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "attack", targetPos, targetEntity);
 			}
@@ -875,7 +854,7 @@ public class NetworkService
 
 	private void ApplyFollowOrder(Entity entity, Entity targetEntity, System.Numerics.Vector3 targetPos, bool isQueued)
 	{
-		if (isQueued && GameContext.SimulationService.IsUnitActive(entity))
+		if (isQueued && Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity))
 		{
 			EnqueueCommand(entity, "follow", targetPos, targetEntity);
 			return;
@@ -915,7 +894,7 @@ public class NetworkService
 
 	private void ApplyGatherOrder(Entity entity, Entity propEntity, System.Numerics.Vector3 propPos, string resType, bool isQueued)
 	{
-		if (isQueued && GameContext.SimulationService.IsUnitActive(entity))
+		if (isQueued && Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity))
 		{
 			EnqueueCommand(entity, "gather", propPos, propEntity);
 			return;
@@ -970,7 +949,7 @@ public class NetworkService
 			var unitPos = GetUnitPosition(entity, allUnits);
 			var patrolA = new System.Numerics.Vector3(unitPos.X, unitPos.Y, unitPos.Z);
 
-			if (isQueued && GameContext.SimulationService.IsUnitActive(entity))
+			if (isQueued && Realm.Client.Utils.UnitOrderUtility.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "patrol", scattered);
 			}

@@ -129,30 +129,8 @@ public class ReplayService
 
 		bool isEnemy = ownerPlayerEntity != mapping.PlayerEntity;
 
-		var entity = GameContext.UnitSpawnService.CreateEntityFromSnapshot(
-			snap.Position.ToNumerics(),
-			snap.Velocity.ToNumerics(),
-			snap.RotationY,
-			snap.UnitId,
-			meta.Name,
-			snap.MaxHp,
-			snap.CurrentHp,
-			meta.Damage,
-			meta.Range,
-			meta.AttackCooldown,
-			meta.Armor,
-			meta.Speed,
-			ownerPlayerEntity.AsPlayerEntity(GameContext.World),
-			isEnemy
-		);
-
-		mapping.ServerToClientEntityMap[snap.EntityId] = entity;
-		mapping.ClientToServerEntityMap[entity.Id] = snap.EntityId;
-
-		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : snap.UnitId;
-		string fallbackPath = GameContext.UnitSpawnService.GetFallbackModelPath(targetModel, snap.IsBuilding);
-
-		return (entity, fallbackPath, isEnemy);
+		var entity = UnitSetupHelper.CreateEntityFromSnapshot(GameContext.UnitSpawnService, snap.EntityId, snap.UnitId, snap.Position, snap.Velocity, snap.RotationY, snap.MaxHp, snap.CurrentHp, snap.IsBuilding, meta, ownerPlayerEntity, isEnemy, ref mapping, out string fallbackPath);
+			return (entity, fallbackPath, isEnemy);
 	}
 
 	public void RecordGameplayTickDomain(List<(Entity Entity, System.Numerics.Vector3 Position, System.Numerics.Vector3 Velocity, float RotationY)> transforms)

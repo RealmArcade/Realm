@@ -28,7 +28,7 @@ using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
-public partial class LobbyManager : Node
+public partial class LobbyManager : MapTransferRpcNode
 {
 	public static LobbyManager Instance { get; private set; }
 	public bool IsSinglePlayer { get; set; } = false;
@@ -133,10 +133,10 @@ public partial class LobbyManager : Node
 	private readonly SemaphoreSlim _mapDownloadLock = new(1, 1);
 
 
-	private readonly ConcurrentDictionary<string, HostTransferSession> _hostTransfers = new();
-	private TaskCompletionSource<string>? _manifestTcs;
-	private TaskCompletionSource<bool>? _transferCompleteTcs;
-	private ClientTransferSession? _currentClientTransfer;
+	internal readonly ConcurrentDictionary<string, HostTransferSession> _hostTransfers = new();
+	internal TaskCompletionSource<string>? _manifestTcs;
+	internal TaskCompletionSource<bool>? _transferCompleteTcs;
+	internal ClientTransferSession? _currentClientTransfer;
 	private int _activeEphemeralTransferPeerId = 0;
 
 	public void SwitchToNextServer()
@@ -1537,11 +1537,7 @@ public partial class LobbyManager : Node
 		MapTransferHelper.HandleRequestMapManifestRpc(targetMap, (map, ver, json) => RpcId(senderId, nameof(ReceiveMapManifestRpc), map, ver, json));
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveMapManifestRpc(string mapName, string mapVersion, string manifestJson)
-	{
-		MapTransferHelper.HandleReceiveMapManifestRpc(manifestJson, _manifestTcs);
-	}
+	
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void RequestMapAssetTransferRpc(string transferId, string mapName, string mapVersion, string[] missingHashes)
@@ -1618,7 +1614,7 @@ public partial class LobbyManager : Node
 
 	
 
-	private async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
+	protected override async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
 	{
 		if (chunkIndex < 0 || chunkIndex >= session.ChunkItems.Count || session.Cts.IsCancellationRequested) return;
 
@@ -1676,60 +1672,14 @@ public partial class LobbyManager : Node
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex)
-	{
-		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		MapTransferHelper.HandleRequestNextMapTransferChunkRpc(transferId, nextChunkIndex, _hostTransfers, (s, i) => { _ = SendHostChunkAsync(s, i); });
-	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks)
-	{
-		MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, () =>
-		{
-			Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferId)).CallDeferred();
-			_transferCompleteTcs?.TrySetResult(true);
-		}, ex => _transferCompleteTcs?.TrySetException(ex));
-	}
+	
+	
+	
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData)
-	{
-		if (_currentClientTransfer == null || _currentClientTransfer.TransferId != transferId) return;
-
-		try
-		{
-			MapTransferHelper.HandleSendMapTransferChunk(
-				_currentClientTransfer, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData,
-				overallProgress => CallDeferred(nameof(EmitDownloadProgress), overallProgress),
-				() => ProcessCompletedChunk(chunkIndex, totalChunks)
-			);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error writing transfer packet: {ex.Message}");
-			_transferCompleteTcs?.TrySetException(ex);
-		}
-	}
-
-	private void ProcessCompletedChunk(int chunkIndex, int totalChunks)
-	{
-		byte[] chunkBytes = MapTransferHelper.PopChunkBytes(_currentClientTransfer!);
-		_ = MapTransferHelper.ProcessReceivedChunkAsync(
-			_currentClientTransfer!,
-			chunkIndex,
-			totalChunks,
-			chunkBytes,
-			nextChunkIndex => RpcId(1, nameof(RequestNextMapTransferChunkRpc), _currentClientTransfer!.TransferId, nextChunkIndex),
-			() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), _currentClientTransfer!.TransferId),
-			_transferCompleteTcs,
-			"LobbyManager"
-		);
-	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void AcknowledgeMapTransferCompleteRpc(string transferId)
+	protected override void AcknowledgeMapTransferCompleteRpc(string transferId)
 	{
 		if (_hostTransfers.TryRemove(transferId, out var session))
 		{
@@ -3042,4 +2992,30 @@ public partial class LobbyManager : Node
 	{
 		return value >= min && value <= max;
 	}
+
+	protected override bool CanRequestChunk() => IsHost || (Realm.Client.Network.PeerSeederManager.Instance != null && Realm.Client.Network.PeerSeederManager.Instance.IsSeeding);
+	protected override System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> GetHostTransfers() => _hostTransfers;
+	
+	protected override ClientTransferSession? GetCurrentClientTransfer() => _currentClientTransfer;
+	protected override System.Threading.Tasks.TaskCompletionSource<bool>? GetTransferCompleteTcs() => _transferCompleteTcs;
+	protected override System.Threading.Tasks.TaskCompletionSource<string>? GetManifestTcs() => _manifestTcs;
+	protected override void OnChunkProgressUpdated(float overallProgress)
+	{
+		CallDeferred("EmitDownloadProgress", overallProgress);
+	}
+	protected override void FinalizeReceivedChunk(int chunkIndex, int totalChunks)
+	{
+		byte[] chunkBytes = MapTransferHelper.PopChunkBytes(_currentClientTransfer!);
+		_ = MapTransferHelper.ProcessReceivedChunkAsync(
+			_currentClientTransfer!,
+			chunkIndex,
+			totalChunks,
+			chunkBytes,
+			nextChunkIndex => RpcId(1, nameof(RequestNextMapTransferChunkRpc), _currentClientTransfer!.TransferId, nextChunkIndex),
+			() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), _currentClientTransfer!.TransferId),
+			_transferCompleteTcs,
+			"LobbyManager"
+		);
+	}
+
 }
