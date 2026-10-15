@@ -600,6 +600,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			PrmKind.DirectFloat => $"float {p.Name}",
 			PrmKind.DirectInt or PrmKind.BoolParam => $"int {p.Name}",
 			PrmKind.EntityParam => $"int {p.Name}Id",
+			PrmKind.Vector2Param => $"float {p.Name}X, float {p.Name}Y",
 			PrmKind.Vector3Param => $"float {p.Name}X, float {p.Name}Y, float {p.Name}Z",
 			PrmKind.Vector3NullableParam => $"float {p.Name}R, float {p.Name}G, float {p.Name}B, int {p.Name}HasColor",
 			_ => ""
@@ -837,11 +838,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static bool CanUseExpressionBody(IMethodSymbol method, bool isVector3Ret, bool hasStringParam, bool hasStringListParam, bool needsRetArea, RetKind retKind)
 	{
+		bool hasVector2Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector2");
 		bool hasVector3Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector3");
 		bool hasVector3NullableParam = method.Parameters.Any(p => IsNullableVector3(p.Type));
 		bool hasUnitParam = method.Parameters.Any(p => IsEntityInterface(p.Type, out _));
 
-		return !isVector3Ret && !hasStringParam && !hasStringListParam && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
+		return !isVector3Ret && !hasStringParam && !hasStringListParam && !hasVector2Param && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
 	}
 
 	private static void EmitVector3AxisBinding(StringBuilder sb, string witName, string axis, string lambdaParams, List<ParamInfo> paramInfos, IMethodSymbol method, string targetInstance, INamedTypeSymbol gameApiSymbol)
@@ -851,6 +853,9 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		foreach (var p in paramInfos)
 			if (p.Kind == PrmKind.StringParam)
 				sb.AppendLine($"            string {p.Name} = ReadGuestString(caller, {p.Name}Ptr, {p.Name}Len);");
+		foreach (var p in paramInfos)
+			if (p.Kind == PrmKind.Vector2Param)
+				sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector2({p.Name}X, {p.Name}Y);");
 		foreach (var p in paramInfos)
 			if (p.Kind == PrmKind.Vector3Param)
 				sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector3({p.Name}X, {p.Name}Y, {p.Name}Z);");
@@ -950,13 +955,21 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void ReadVector3Parameters(StringBuilder sb, List<ParamInfo> paramInfos)
 	{
-		var processedVec3 = new HashSet<string>();
+		var processedVec = new HashSet<string>();
 		foreach (var p in paramInfos)
 		{
-			if (p.Kind == PrmKind.Vector3Param && p.Name.EndsWith("X"))
+			if (p.Kind == PrmKind.Vector2Param && p.Name.EndsWith("X"))
 			{
 				string baseName = p.Name.Substring(0, p.Name.Length - 1);
-				if (processedVec3.Add(baseName))
+				if (processedVec.Add(baseName))
+					sb.AppendLine($"            var {baseName} = new System.Numerics.Vector2({baseName}X, {baseName}Y);");
+			}
+			else if (p.Kind == PrmKind.Vector2Param)
+				sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector2({p.Name}X, {p.Name}Y);");
+			else if (p.Kind == PrmKind.Vector3Param && p.Name.EndsWith("X"))
+			{
+				string baseName = p.Name.Substring(0, p.Name.Length - 1);
+				if (processedVec.Add(baseName))
 					sb.AppendLine($"            var {baseName} = new System.Numerics.Vector3({baseName}X, {baseName}Y, {baseName}Z);");
 			}
 			else if (p.Kind == PrmKind.Vector3Param)
@@ -1130,6 +1143,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		string displayName = type.ToDisplayString();
 
+		if (displayName == "System.Numerics.Vector2") return PrmKind.Vector2Param;
 		if (displayName == "System.Numerics.Vector3") return PrmKind.Vector3Param;
 		if (IsNullableVector3(type)) return PrmKind.Vector3NullableParam;
 		if (IsEntityInterface(type, out _)) return PrmKind.EntityParam;
@@ -1479,6 +1493,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			PrmKind.BoolParam => $"{ToKebabCase(name)}: bool",
 			PrmKind.StringParam => $"{ToKebabCase(name)}: string",
 			PrmKind.StringListParam => $"{ToKebabCase(name)}: list<string>",
+			PrmKind.Vector2Param => $"{ToKebabCase(name)}-x: f32, {ToKebabCase(name)}-y: f32",
 			PrmKind.Vector3Param => $"{ToKebabCase(name)}-x: f32, {ToKebabCase(name)}-y: f32, {ToKebabCase(name)}-z: f32",
 			PrmKind.EntityParam => $"{ToKebabCase(name)}-id: s32",
 			PrmKind.Vector3NullableParam => $"{ToKebabCase(name)}-r: f32, {ToKebabCase(name)}-g: f32, {ToKebabCase(name)}-b: f32, {ToKebabCase(name)}-has-color: bool",
@@ -2137,11 +2152,25 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static void AppendGuestMethodCallArg(List<string> callArgs, IParameterSymbol p)
 	{
 		if (TryAppendEntityArg(callArgs, p)) return;
+		if (TryAppendVector2Arg(callArgs, p)) return;
 		if (TryAppendVector3Arg(callArgs, p)) return;
 		if (TryAppendStringArg(callArgs, p)) return;
 		if (TryAppendMiscArg(callArgs, p)) return;
 
 		callArgs.Add(p.Name);
+	}
+
+	private static bool TryAppendVector2Arg(List<string> callArgs, IParameterSymbol p)
+	{
+		string typeStr = p.Type.ToDisplayString();
+		if (typeStr == "System.Numerics.Vector2")
+		{
+			callArgs.Add($"{p.Name}.X");
+			callArgs.Add($"{p.Name}.Y");
+			return true;
+		}
+
+		return false;
 	}
 
 	private static bool TryAppendEntityArg(List<string> callArgs, IParameterSymbol p)

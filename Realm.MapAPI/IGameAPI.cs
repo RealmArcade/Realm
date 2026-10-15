@@ -269,6 +269,17 @@ public interface IGameAPI
 	}
 
 	/// <summary>
+	/// Draws a visual line on the terrain surface between two ground coordinates.
+	/// The line automatically conforms to the terrain height mesh along its path.
+	/// </summary>
+	/// <param name="start">The starting ground position (X, Z coordinates on the map plane).</param>
+	/// <param name="end">The ending ground position (X, Z coordinates on the map plane).</param>
+	/// <param name="color">Optional RGB color tint for the line.</param>
+	/// <param name="duration">Duration in seconds before the line fully fades out.</param>
+	/// <param name="width">The visual width/thickness of the line in world units.</param>
+	void DrawLineOnTerrain(Vector2 start, Vector2 end, Vector3? color = null, float duration = 1.0f, float width = 0.2f);
+
+	/// <summary>
 	/// Spawns an expanding 3D spherical / dome burst shockwave effect.
 	/// </summary>
 	/// <param name="position">The center position in 3D world space.</param>

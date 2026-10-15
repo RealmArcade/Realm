@@ -532,6 +532,15 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
+	void IGameAPI.DrawLineOnTerrain(System.Numerics.Vector2 start, System.Numerics.Vector2 end, Vector3? color, float duration, float width)
+	{
+		Callable.From(() =>
+		{
+			Color lineCol = color.HasValue ? new Color(color.Value.X, color.Value.Y, color.Value.Z) : Colors.White;
+			TerrainLine3D.Create(this, start, end, lineCol, duration, width);
+		}).CallDeferred();
+	}
+
 	void IGameAPI.SpawnExpandingBurstSphere(Vector3 position, float maxRadius, float speed, float duration, Vector3? color)
 	{
 		Callable.From(() =>
