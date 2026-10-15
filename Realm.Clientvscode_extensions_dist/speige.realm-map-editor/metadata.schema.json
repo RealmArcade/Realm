@@ -922,6 +922,18 @@
                   "null"
                 ]
               },
+              "ProceduralAnimation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EnableProceduralAnimation": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "DespawnShader": {
                 "type": [
                   "string",
@@ -2741,95 +2753,6 @@
         "string",
         "null"
       ]
-    },
-    "Models": {
-      "type": "object",
-      "additionalProperties": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "Brightness": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "CollisionCircleRatios": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "ColorTint": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "DespillPlayerColor": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "IgnorePlayerColor": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "NormalizeLuminance": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "ObstacleRadii": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "Offsets": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "Scales": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "SpawnShaders": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "DeathShaders": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "ProceduralAnimation": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "EnableProceduralAnimation": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          }
-        }
-      }
     },
     "textures": {
       "type": "object",

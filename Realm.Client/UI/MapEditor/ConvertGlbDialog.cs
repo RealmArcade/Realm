@@ -716,9 +716,6 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 
 		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 		{
-			meta.SetModelYOffset(fileName, autoYOffset);
-			meta.SetModelScale(fileName, defaultScale);
-
 			UpdateSpecificMetadata(meta, subCategory, unitId, fileName, defaultScale, autoYOffset);
 		});
 

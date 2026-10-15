@@ -6788,7 +6788,6 @@ public class {mapName} : IMapScript
 						{
 							float rounded = (float)Math.Round(radius, 2);
 							GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
-							metadata.SetModelObstacleRadius(normKey, rounded);
 						}
 					}
 				}
@@ -6814,9 +6813,6 @@ public class {mapName} : IMapScript
 				var (minY, autoYOffset) = ModelCache.CalculateModelBounds(modelFullPath, defaultScale);
 				string subLower = subCategory.ToLowerInvariant();
 				bool isPropOrRes = subLower == "props" || subLower == "resources" || subLower == "attachments" || subLower == "weapons" || subLower == "items" || subLower == "projectiles";
-
-				metadata.SetModelYOffset(fileName, autoYOffset);
-				metadata.SetModelScale(fileName, defaultScale);
 
 				GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
 				GameHost.Instance?.SetModelScale(fileName, defaultScale);

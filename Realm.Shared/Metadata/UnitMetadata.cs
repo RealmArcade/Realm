@@ -81,6 +81,8 @@ public class UnitMetadata
 	public string[]? SoundEvents { get; set; }
 	public string? SpawnShader { get; set; }
 	public string? DeathShader { get; set; }
+	public string? ProceduralAnimation { get; set; }
+	public bool? EnableProceduralAnimation { get; set; }
 
 	public string? DespawnShader
 	{

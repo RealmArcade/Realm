@@ -28,8 +28,6 @@ public class MapMetadata
 	[JsonPropertyName("DefaultEnvironmentPreset")]
 	public string? DefaultEnvironmentPreset { get; set; }
 
-	[JsonPropertyName("Models")] public Dictionary<string, ModelMetadata> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
 	[JsonPropertyName("textures")] public Dictionary<string, TextureMetadata> Textures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
 	[JsonPropertyName("decals")] public Dictionary<string, DecalMetadata> Decals { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -475,114 +473,6 @@ public class MapMetadata
 		}
 
 		return false;
-	}
-
-	public ModelMetadata GetOrCreateModel(string modelKey)
-	{
-		Models ??= new Dictionary<string, ModelMetadata>(StringComparer.OrdinalIgnoreCase);
-		if (!Models.TryGetValue(modelKey, out var model) || model == null)
-		{
-			model = new ModelMetadata();
-			Models[modelKey] = model;
-		}
-
-		return model;
-	}
-
-	public void SetModelYOffset(string modelKey, float yOffset)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).Offsets = yOffset;
-	}
-
-	public void SetModelScale(string modelKey, float scale)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).Scales = scale;
-	}
-
-	public void SetModelCollisionCircleRatio(string modelKey, float ratio)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).CollisionCircleRatios = ratio;
-	}
-
-	public void SetModelObstacleRadius(string modelKey, float radius)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).ObstacleRadii = radius;
-	}
-
-	public void SetModelBrightness(string modelKey, float brightness)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).Brightness = brightness;
-	}
-
-	public void SetModelColorTint(string modelKey, string tint)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).ColorTint = tint;
-	}
-
-	public void SetModelDespillPlayerColor(string modelKey, bool despill)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).DespillPlayerColor = despill;
-	}
-
-	public void SetModelNormalizeLuminance(string modelKey, bool normalizeLuminance)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).NormalizeLuminance = normalizeLuminance;
-	}
-
-	public void SetModelIgnorePlayerColor(string modelKey, bool ignorePlayerColor)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).IgnorePlayerColor = ignorePlayerColor;
-	}
-
-	public void SetModelSpawnShader(string modelKey, string spawnShader)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).SpawnShaders = string.IsNullOrWhiteSpace(spawnShader) ? null : spawnShader;
-	}
-
-	public void SetModelDeathShader(string modelKey, string deathShader)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).DeathShaders = string.IsNullOrWhiteSpace(deathShader) ? null : deathShader;
-	}
-
-	public void SetModelProceduralAnimation(string modelKey, string animId)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).ProceduralAnimation = string.IsNullOrWhiteSpace(animId) ? null : animId;
-	}
-
-	public string? GetModelProceduralAnimation(string modelKey)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey) || Models == null) return null;
-		return Models.TryGetValue(modelKey, out var model) ? model.ProceduralAnimation : null;
-	}
-
-	public void SetModelEnableProceduralAnimation(string modelKey, bool enable)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(modelKey).EnableProceduralAnimation = enable ? true : null;
-	}
-
-	public bool GetModelEnableProceduralAnimation(string modelKey)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey) || Models == null) return false;
-		return Models.TryGetValue(modelKey, out var model) && (model.EnableProceduralAnimation ?? false);
-	}
-
-	public void RemoveModelOverrides(string modelKey)
-	{
-		if (string.IsNullOrWhiteSpace(modelKey) || Models == null) return;
-		Models.Remove(modelKey);
 	}
 
 	public static string GenerateJsonSchema()

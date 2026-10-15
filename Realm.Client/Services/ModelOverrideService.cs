@@ -26,70 +26,6 @@ public class ModelOverrideService
 
 	public void UpdateMetadataModelOverrides(MapMetadata meta)
 	{
-		if (meta.Models == null) meta.Models = new Dictionary<string, ModelMetadata>(StringComparer.OrdinalIgnoreCase);
-
-		var allKeys = CollectAllModelKeys();
-		foreach (var key in allKeys)
-		{
-			UpdateSingleModelMetadata(meta.Models, key);
-		}
-	}
-
-	private HashSet<string> CollectAllModelKeys()
-	{
-		var allKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		allKeys.UnionWith(ModelYOffsets.Keys);
-		allKeys.UnionWith(ModelScales.Keys);
-		allKeys.UnionWith(ModelCollisionCircleRatios.Keys);
-		allKeys.UnionWith(ModelObstacleRadii.Keys);
-		allKeys.UnionWith(ModelBrightness.Keys);
-		allKeys.UnionWith(ModelColorTint.Keys);
-		allKeys.UnionWith(ModelDespillPlayerColor.Keys);
-		allKeys.UnionWith(ModelNormalizeLuminance.Keys);
-		allKeys.UnionWith(ModelIgnorePlayerColor.Keys);
-		allKeys.UnionWith(ModelSpawnShaders.Keys);
-		allKeys.UnionWith(ModelDeathShaders.Keys);
-		allKeys.UnionWith(ModelProceduralAnimations.Keys);
-		allKeys.UnionWith(ModelEnableProceduralAnimations.Keys);
-		return allKeys;
-	}
-
-	private void UpdateSingleModelMetadata(Dictionary<string, ModelMetadata> models, string key)
-	{
-		if (!models.TryGetValue(key, out var modelMeta) || modelMeta == null)
-		{
-			modelMeta = new ModelMetadata();
-			models[key] = modelMeta;
-		}
-
-		UpdateModelMetricsMetadata(modelMeta, key);
-		UpdateModelVisualMetadata(modelMeta, key);
-		UpdateModelShaderMetadata(modelMeta, key);
-	}
-
-	private void UpdateModelMetricsMetadata(ModelMetadata meta, string key)
-	{
-		if (ModelYOffsets.TryGetValue(key, out float yVal)) meta.Offsets = yVal;
-		if (ModelScales.TryGetValue(key, out float sVal)) meta.Scales = sVal;
-		if (ModelCollisionCircleRatios.TryGetValue(key, out float cVal)) meta.CollisionCircleRatios = cVal;
-		if (ModelObstacleRadii.TryGetValue(key, out float rVal)) meta.ObstacleRadii = rVal;
-	}
-
-	private void UpdateModelVisualMetadata(ModelMetadata meta, string key)
-	{
-		if (ModelBrightness.TryGetValue(key, out float bVal)) meta.Brightness = bVal;
-		if (ModelColorTint.TryGetValue(key, out Color tVal)) meta.ColorTint = $"#{tVal.ToHtml(false)}";
-		if (ModelDespillPlayerColor.TryGetValue(key, out bool dVal)) meta.DespillPlayerColor = dVal;
-		if (ModelNormalizeLuminance.TryGetValue(key, out bool nVal)) meta.NormalizeLuminance = nVal;
-		if (ModelIgnorePlayerColor.TryGetValue(key, out bool iVal)) meta.IgnorePlayerColor = iVal;
-	}
-
-	private void UpdateModelShaderMetadata(ModelMetadata meta, string key)
-	{
-		if (ModelSpawnShaders.TryGetValue(key, out string ssVal) && !string.IsNullOrWhiteSpace(ssVal)) meta.SpawnShaders = ssVal;
-		if (ModelDeathShaders.TryGetValue(key, out string dsVal) && !string.IsNullOrWhiteSpace(dsVal)) meta.DeathShaders = dsVal;
-		if (ModelProceduralAnimations.TryGetValue(key, out string paVal) && !string.IsNullOrWhiteSpace(paVal)) meta.ProceduralAnimation = paVal;
-		if (ModelEnableProceduralAnimations.TryGetValue(key, out bool epVal)) meta.EnableProceduralAnimation = epVal;
 	}
 
 	public Color GetModelColorTint(string primaryKey, string assetKey, Func<string, string> normalizeAssetKeyFunc)
@@ -336,13 +272,6 @@ public class ModelOverrideService
 			ProcessMetadataEntities(metadata.Templates.Units, 1.5f, u => u.TemplateID, u => u.ModelPath, u => u.YOffset, u => u.Scale, u => u.CollisionCircle, u => u.Brightness, u => u.Tint, u => u.DespillPlayerColor, u => u.NormalizeLuminance, normalizeModelAssetKey);
 		}
 
-		if (metadata.Models != null)
-		{
-			foreach (var kvp in metadata.Models)
-			{
-				ProcessModelMetadata(kvp.Key, kvp.Value, normalizeModelAssetKey);
-			}
-		}
 	}
 
 	public void ProcessMetadataEntities<T>(IEnumerable<T> items, float defaultScale, Func<T, string> getId, Func<T, string> getModelPath, Func<T, float> getYOffset, Func<T, float> getScale, Func<T, float> getCollisionCircle, Func<T, float> getBrightness, Func<T, string> getTint, Func<T, bool> getDespillPlayerColor, Func<T, bool> getNormalizeLuminance, Func<string, string> normalizeModelAssetKey)
@@ -390,67 +319,6 @@ public class ModelOverrideService
 		}
 	}
 
-	public void ProcessModelPhysicalMetadata(string key, string normKey, Realm.Shared.Metadata.ModelMetadata model)
-	{
-		TrySetModelYOffset(key, normKey, model);
-		TrySetModelScale(key, normKey, model);
-		TrySetModelCollisionCircleRatio(key, normKey, model);
-		TrySetModelObstacleRadius(normKey, model);
-		TrySetModelProceduralAnimation(normKey, model);
-	}
-
-	private void TrySetModelYOffset(string key, string normKey, Realm.Shared.Metadata.ModelMetadata model)
-	{
-		if (model.Offsets.HasValue && IsValidModelYOffset(key, model.Offsets.Value))
-			ModelYOffsets[normKey] = model.Offsets.Value;
-	}
-
-	private void TrySetModelScale(string key, string normKey, Realm.Shared.Metadata.ModelMetadata model)
-	{
-		if (model.Scales.HasValue && IsValidModelScale(key, model.Scales.Value))
-			ModelScales[normKey] = model.Scales.Value;
-	}
-
-	private void TrySetModelCollisionCircleRatio(string key, string normKey, Realm.Shared.Metadata.ModelMetadata model)
-	{
-		if (model.CollisionCircleRatios.HasValue && IsValidModelCollisionRatio(key, model.CollisionCircleRatios.Value))
-			ModelCollisionCircleRatios[normKey] = model.CollisionCircleRatios.Value;
-	}
-
-	private void TrySetModelObstacleRadius(string normKey, Realm.Shared.Metadata.ModelMetadata model)
-	{
-		if (model.ObstacleRadii.HasValue && model.ObstacleRadii.Value > 0f)
-			ModelObstacleRadii[normKey] = model.ObstacleRadii.Value;
-	}
-
-	private void TrySetModelProceduralAnimation(string normKey, Realm.Shared.Metadata.ModelMetadata model)
-	{
-		if (!string.IsNullOrWhiteSpace(model.ProceduralAnimation))
-			ModelProceduralAnimations[normKey] = model.ProceduralAnimation.Trim();
-
-		if (model.EnableProceduralAnimation.HasValue)
-			ModelEnableProceduralAnimations[normKey] = model.EnableProceduralAnimation.Value;
-	}
-
-	public void ProcessModelVisualMetadata(string normKey, Realm.Shared.Metadata.ModelMetadata model)
-	{
-		if (!string.IsNullOrWhiteSpace(model.SpawnShaders)) ModelSpawnShaders[normKey] = model.SpawnShaders.Trim();
-		if (!string.IsNullOrWhiteSpace(model.DeathShaders)) ModelDeathShaders[normKey] = model.DeathShaders.Trim();
-		if (model.Brightness.HasValue) ModelBrightness[normKey] = model.Brightness.Value;
-		if (!string.IsNullOrWhiteSpace(model.ColorTint) && Godot.Color.HtmlIsValid(model.ColorTint)) ModelColorTint[normKey] = Godot.Color.FromHtml(model.ColorTint);
-		if (model.DespillPlayerColor.HasValue) ModelDespillPlayerColor[normKey] = model.DespillPlayerColor.Value;
-		if (model.NormalizeLuminance.HasValue) ModelNormalizeLuminance[normKey] = model.NormalizeLuminance.Value;
-		if (model.IgnorePlayerColor.HasValue) ModelIgnorePlayerColor[normKey] = model.IgnorePlayerColor.Value;
-	}
-
-	public void ProcessModelMetadata(string key, Realm.Shared.Metadata.ModelMetadata model, Func<string, string> normalizeModelAssetKey)
-	{
-		if (model == null) return;
-		string normKey = normalizeModelAssetKey(key);
-
-		ProcessModelPhysicalMetadata(key, normKey, model);
-		ProcessModelVisualMetadata(normKey, model);
-	}
 
 	private bool IsValidModelYOffset(string key, float offset)
 	{
