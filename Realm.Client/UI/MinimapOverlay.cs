@@ -35,7 +35,7 @@ public partial class MinimapOverlay : Control
 		DrawCircle(size / 2f, size.X * 0.3f, radarGridColor, false, 1.0f);
 		DrawCircle(size / 2f, size.X * 0.15f, radarGridColor, false, 1.0f);
 
-		DrawRect(new Rect2(Vector2.Zero, size), UIStyle.ColorBronze, false, 1.5f);
+		DrawRect(new Rect2(Vector2.Zero, size), UIStyle.ColorBronze, false, 1.2f);
 	}
 
 	private void DrawShroudGrid(Vector2 size)

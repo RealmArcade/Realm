@@ -31,8 +31,17 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	public int SelectedMapTypeIndex => _optMapType?.Selected ?? 0;
 
 	public MapSettingsDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Map Settings"), new Vector2(460, 560))
+		: base(hud, TranslationServer.Translate("Map Settings"), new Vector2(510, 520))
 	{
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.png", 55, 15, 60, 60);
+		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
+		{
+			titleMargin.AddThemeConstantOverride("margin_top", -42);
+		}
+		if (CloseButton?.GetParent() is MarginContainer closeMargin)
+		{
+			closeMargin.AddThemeConstantOverride("margin_top", -32);
+		}
 		SetFooterCloseOnly("CLOSE");
 		BuildControls();
 	}
@@ -66,6 +75,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		contentVBox.AddThemeConstantOverride("separation", 8);
 		scroll.AddChild(contentVBox);
+
+		var topInfoSpacer = new Control();
+		topInfoSpacer.CustomMinimumSize = new Vector2(0, 18);
+		contentVBox.AddChild(topInfoSpacer);
 
 		return contentVBox;
 	}
@@ -371,10 +384,15 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_btnScaleMap = new Button();
 		_btnScaleMap.Set("icon_max_width", 0);
-		_btnScaleMap.Text = "⚖ " + TranslationServer.Translate("SCALE MAP");
+		_btnScaleMap.Text = "\uf24e " + TranslationServer.Translate("SCALE MAP");
 		_btnScaleMap.TooltipText = TranslationServer.Translate("Scale the entire map: stretches/shrinks terrain data and repositions all entities proportionally");
 		_btnScaleMap.FocusMode = FocusModeEnum.None;
 		_btnScaleMap.CustomMinimumSize = new Vector2(0, 26);
+		var faFontScale = Hud?.GetFontAwesomeFont();
+		if (faFontScale != null)
+		{
+			_btnScaleMap.AddThemeFontOverride("font", faFontScale);
+		}
 		_btnScaleMap.Pressed += () =>
 		{
 			if (GameHost.Instance?.GroundTerrain == null || Hud == null) return;
@@ -400,6 +418,11 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		lbl.Text = titleText;
 		lbl.AddThemeFontSizeOverride("font_size", 12);
 		lbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		var faFont = Hud?.GetFontAwesomeFont();
+		if (faFont != null)
+		{
+			lbl.AddThemeFontOverride("font", faFont);
+		}
 		vbox.AddChild(lbl);
 
 		return vbox;
@@ -423,6 +446,11 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		btn.FocusMode = FocusModeEnum.None;
 		btn.CustomMinimumSize = new Vector2(32, 24);
 		btn.AddThemeFontSizeOverride("font_size", 11);
+		var faFont = Hud?.GetFontAwesomeFont();
+		if (faFont != null)
+		{
+			btn.AddThemeFontOverride("font", faFont);
+		}
 		btn.Pressed += onClick;
 		return btn;
 	}

@@ -280,6 +280,7 @@ public partial class LobbyManager : Node
 		try
 		{
 			PeerSeederManager.Instance.Stop();
+			UpnpService.Instance.ClosePort(ENetPort);
 		}
 		catch
 		{
@@ -417,6 +418,8 @@ public partial class LobbyManager : Node
 		}
 
 		if (!await TryCreateENetServerAsync()) return false;
+
+		_ = UpnpService.Instance.OpenPortAsync(ENetPort);
 
 		Diagnostics.StartHostListener(ENetPort + 1);
 		StartHostDiagnosticsTimer();
@@ -914,6 +917,7 @@ public partial class LobbyManager : Node
 		}
 
 		Diagnostics.StopHostListener();
+		UpnpService.Instance.ClosePort(ENetPort);
 		_wsCts?.Cancel();
 		_hostWebSocket?.Dispose();
 		_hostWebSocket = null;
@@ -1025,7 +1029,7 @@ public partial class LobbyManager : Node
 			{
 				try
 				{
-					await UdpHolePuncher.PunchHoleAsync(clientIp, clientPort, ENetPort);
+					await UdpHolePuncher.PunchHoleAsync(clientIp, clientPort, 0);
 				}
 				catch (Exception ex)
 				{

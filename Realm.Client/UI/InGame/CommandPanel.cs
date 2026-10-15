@@ -491,11 +491,19 @@ public partial class CommandPanel
 		}
 	}
 
-	private ColorRect CreateBlackTile()
+	private Control CreateBlackTile()
 	{
-		var tile = new ColorRect();
-		tile.Color = Colors.Black;
-		tile.CustomMinimumSize = new Vector2(44, 44);
+		var tile = new Panel();
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
+		style.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.2f);
+		style.SetBorderWidthAll(1);
+		style.CornerRadiusTopLeft = 3;
+		style.CornerRadiusTopRight = 3;
+		style.CornerRadiusBottomLeft = 3;
+		style.CornerRadiusBottomRight = 3;
+		tile.AddThemeStyleboxOverride("panel", style);
+		tile.CustomMinimumSize = new Vector2(56, 56);
 		tile.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		tile.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		return tile;
@@ -509,11 +517,11 @@ public partial class CommandPanel
 		btn.ExpandIcon = true;
 		btn.Icon = GD.Load<Texture2D>("res://Assets/UI/search_icon_clean.png");
 		btn.TooltipText = TranslationServer.Translate("Cycle Abilities / Commands");
-		btn.CustomMinimumSize = new Vector2(44, 44);
+		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		btn.FocusMode = Control.FocusModeEnum.None;
-		btn.AddThemeConstantOverride("icon_max_width", 38);
+		btn.AddThemeConstantOverride("icon_max_width", 50);
 
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
@@ -588,12 +596,12 @@ public partial class CommandPanel
 		string transTooltip = TranslationServer.Translate(item.Tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(transTooltip) ? item.Tooltip : transTooltip;
 
-		btn.CustomMinimumSize = new Vector2(44, 44);
+		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		btn.FocusMode = Control.FocusModeEnum.None;
 		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 38);
+		btn.AddThemeConstantOverride("icon_max_width", 50);
 	}
 
 	private void AddHotkeyLabelIfNeeded(Button btn, CommandCardItem item)
@@ -606,7 +614,7 @@ public partial class CommandPanel
 			Text = item.Hotkey.ToString(),
 			MouseFilter = Control.MouseFilterEnum.Ignore
 		};
-		hotkeyLabel.AddThemeFontSizeOverride("font_size", 10);
+		hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
 		hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
 		hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
@@ -1196,12 +1204,12 @@ public partial class CommandPanel
 		btn.ExpandIcon = true;
 		btn.Icon = RtexIconLoader.Load(iconPath);
 		btn.TooltipText = tooltip;
-		btn.CustomMinimumSize = new Vector2(44, 44);
+		btn.CustomMinimumSize = new Vector2(48, 48);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		btn.FocusMode = Control.FocusModeEnum.None;
 		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 38);
+		btn.AddThemeConstantOverride("icon_max_width", 42);
 
 		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
 		{
@@ -1210,7 +1218,7 @@ public partial class CommandPanel
 			var hotkeyLabel = new Label();
 			hotkeyLabel.Name = "HotkeyLabel";
 			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 10);
+			hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
 			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
 			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);

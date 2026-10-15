@@ -262,6 +262,17 @@ public partial class FloatingDialogBase : PanelContainer
 		RandomizeAssetsButton.Pressed += () => actionToWire();
 	}
 
+	public void SetFooterApplyOnly(string applyText = "APPLY")
+	{
+		if (CancelButton != null) CancelButton.Visible = false;
+		if (ApplyButton != null)
+		{
+			ApplyButton.Visible = true;
+			ApplyButton.Text = TranslationServer.Translate(applyText);
+		}
+		FooterHBox.Alignment = BoxContainer.AlignmentMode.Center;
+	}
+
 	protected TextureRect BackgroundTextureRect;
 	protected MarginContainer DialogMarginContainer;
 

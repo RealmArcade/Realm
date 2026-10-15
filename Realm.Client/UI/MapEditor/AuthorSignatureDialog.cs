@@ -15,62 +15,75 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 	private Label _lblCopyStatus;
 
 	public AuthorSignatureDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Author Signature"), new Vector2(500, 260))
+		: base(hud, TranslationServer.Translate("Author Signature"), new Vector2(540, 360))
 	{
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_author_signature.png", 42, 25, 55, 55);
+		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
+		{
+			titleMargin.AddThemeConstantOverride("margin_top", -42);
+		}
+		if (CloseButton?.GetParent() is MarginContainer closeMargin)
+		{
+			closeMargin.AddThemeConstantOverride("margin_top", -36);
+			closeMargin.AddThemeConstantOverride("margin_right", -48);
+		}
 		BuildControls();
 		SetFooterCloseOnly("CLOSE");
 	}
 
 	private void BuildControls()
 	{
-		var descPanel = new PanelContainer();
-		descPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		descPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
 		var descMargin = new MarginContainer();
-		descMargin.AddThemeConstantOverride("margin_top", 8);
-		descMargin.AddThemeConstantOverride("margin_bottom", 8);
-		descMargin.AddThemeConstantOverride("margin_left", 10);
-		descMargin.AddThemeConstantOverride("margin_right", 10);
+		descMargin.AddThemeConstantOverride("margin_top", 6);
+		descMargin.AddThemeConstantOverride("margin_bottom", 6);
+		descMargin.AddThemeConstantOverride("margin_left", 12);
+		descMargin.AddThemeConstantOverride("margin_right", 12);
 		descMargin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		descPanel.AddChild(descMargin);
 
 		var descLabel = new Label();
 		descLabel.Text = TranslationServer.Translate("Your map publishing key is stored in authorship_key_DO-NOT-SHARE.rkey. It is used to sign all your maps and assets to verify your ownership so others can't overwrite your published files. Keep this key safely backed up in a secure location. NEVER share your private key or .rkey file. To collaborate on maps, share only your Public Key with team maintainers so they can authorize you to publish.");
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		descLabel.CustomMinimumSize = new Vector2(460, 0);
+		descLabel.CustomMinimumSize = new Vector2(390, 0);
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		descLabel.AddThemeFontSizeOverride("font_size", 11);
-		descLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.96f, 0.95f, 0.92f));
 		descMargin.AddChild(descLabel);
-		BodyContainer.AddChild(descPanel);
+		BodyContainer.AddChild(descMargin);
 
-		AddSectionHeader(BodyContainer, "🔑 " + TranslationServer.Translate("IDENTITY DETAILS"), UIStyle.ColorGold);
+		var faFont = Hud?.GetFontAwesomeFont();
+
+		var secHeader = AddSectionHeader(BodyContainer, "\uf2c2 " + TranslationServer.Translate("IDENTITY DETAILS"), UIStyle.ColorGold);
+		if (faFont != null)
+		{
+			secHeader.AddThemeFontOverride("font", faFont);
+		}
 
 		var grid = new GridContainer();
 		grid.Columns = 2;
 		grid.AddThemeConstantOverride("h_separation", 10);
-		grid.AddThemeConstantOverride("v_separation", 6);
+		grid.AddThemeConstantOverride("v_separation", 4);
 		grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		BodyContainer.AddChild(grid);
 
 		var lblUser = new Label();
 		lblUser.Text = TranslationServer.Translate("UserName:");
 		lblUser.CustomMinimumSize = new Vector2(85, 0);
-		lblUser.AddThemeFontSizeOverride("font_size", 11);
+		lblUser.AddThemeFontSizeOverride("font_size", 10);
 		lblUser.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		grid.AddChild(lblUser);
 
 		_txtUsername = new LineEdit();
 		_txtUsername.Editable = false;
+		_txtUsername.CustomMinimumSize = new Vector2(0, 22);
 		_txtUsername.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtUsername.AddThemeFontSizeOverride("font_size", 11);
+		_txtUsername.AddThemeFontSizeOverride("font_size", 10);
 		grid.AddChild(_txtUsername);
 
 		var lblPub = new Label();
 		lblPub.Text = TranslationServer.Translate("PublicKey:");
 		lblPub.CustomMinimumSize = new Vector2(85, 0);
-		lblPub.AddThemeFontSizeOverride("font_size", 11);
+		lblPub.AddThemeFontSizeOverride("font_size", 10);
 		lblPub.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		grid.AddChild(lblPub);
 
@@ -80,31 +93,36 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 
 		_txtPublicKey = new LineEdit();
 		_txtPublicKey.Editable = false;
+		_txtPublicKey.CustomMinimumSize = new Vector2(0, 22);
 		_txtPublicKey.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtPublicKey.AddThemeFontSizeOverride("font_size", 11);
+		_txtPublicKey.AddThemeFontSizeOverride("font_size", 10);
 		pubHBox.AddChild(_txtPublicKey);
 
-		var btnCopyPub = AddButton(pubHBox, $"{UnicodeIcons.COPY} " + TranslationServer.Translate("Copy"), () => CopyPublicKeyToClipboard(), "Copy public key to clipboard", 11, new Vector2(70, 26));
+		var btnCopyPub = AddButton(pubHBox, "\uf0c5 " + TranslationServer.Translate("Copy"), () => CopyPublicKeyToClipboard(), "Copy public key to clipboard", 10, new Vector2(65, 22));
 		grid.AddChild(pubHBox);
 
 		var lblPriv = new Label();
 		lblPriv.Text = TranslationServer.Translate("Private Key:");
 		lblPriv.CustomMinimumSize = new Vector2(85, 0);
-		lblPriv.AddThemeFontSizeOverride("font_size", 11);
+		lblPriv.AddThemeFontSizeOverride("font_size", 10);
 		lblPriv.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		grid.AddChild(lblPriv);
 
 		var lblPrivVal = new Label();
-		lblPrivVal.Text = TranslationServer.Translate("SECRET. DO NOT SHARE.");
+		lblPrivVal.Text = "\uf023 " + TranslationServer.Translate("SECRET. DO NOT SHARE.");
 		lblPrivVal.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblPrivVal.AddThemeFontSizeOverride("font_size", 11);
-		lblPrivVal.AddThemeColorOverride("font_color", new Color(1.0f, 0.4f, 0.4f));
+		lblPrivVal.AddThemeFontSizeOverride("font_size", 10);
+		lblPrivVal.AddThemeColorOverride("font_color", new Color(1.0f, 0.45f, 0.45f));
+		if (faFont != null)
+		{
+			lblPrivVal.AddThemeFontOverride("font", faFont);
+		}
 		grid.AddChild(lblPrivVal);
 
 		var lblPathTitle = new Label();
 		lblPathTitle.Text = TranslationServer.Translate("File Location:");
 		lblPathTitle.CustomMinimumSize = new Vector2(85, 0);
-		lblPathTitle.AddThemeFontSizeOverride("font_size", 11);
+		lblPathTitle.AddThemeFontSizeOverride("font_size", 10);
 		lblPathTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		grid.AddChild(lblPathTitle);
 
@@ -121,11 +139,11 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		actionRow.AddThemeConstantOverride("separation", 10);
 		actionRow.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-		var btnOpenFolder = AddButton(actionRow, "📁 " + TranslationServer.Translate("Open Folder"), () => OpenKeysFolderInExplorer(), "Open key folder in Windows Explorer for backup", 11, new Vector2(130, 28));
+		var btnOpenFolder = AddButton(actionRow, "\uf07c " + TranslationServer.Translate("Open Folder"), () => OpenKeysFolderInExplorer(), "Open key folder in Windows Explorer for backup", 10, new Vector2(110, 24));
 
 		_lblCopyStatus = new Label();
 		_lblCopyStatus.Text = string.Empty;
-		_lblCopyStatus.AddThemeFontSizeOverride("font_size", 11);
+		_lblCopyStatus.AddThemeFontSizeOverride("font_size", 10);
 		_lblCopyStatus.AddThemeColorOverride("font_color", new Color(0.4f, 0.9f, 0.4f));
 		_lblCopyStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		actionRow.AddChild(_lblCopyStatus);

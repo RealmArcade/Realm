@@ -79,4 +79,10 @@ public static class UnicodeIcons
 	public static readonly string WATER = char.ConvertFromUtf32(0xF773);
 	public static readonly string BORDER_ALL = char.ConvertFromUtf32(0xF84C);
 	public static readonly string WRENCH = char.ConvertFromUtf32(0xF0AD);
+	public static readonly string HOME = char.ConvertFromUtf32(0xF015);
+	public static readonly string KEYBOARD = char.ConvertFromUtf32(0xF11C);
+	public static readonly string USER_CLOCK = char.ConvertFromUtf32(0xF4FD);
+	public static readonly string CASTLE = char.ConvertFromUtf32(0xF447);
+	public static readonly string SHIELD = char.ConvertFromUtf32(0xF3ED);
+	public static readonly string USERS = char.ConvertFromUtf32(0xF0C0);
 }

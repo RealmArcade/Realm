@@ -25,6 +25,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	private Label _lblFilterExtensions;
 
 	private ScrollContainer _scrollContainer;
+	private ScrollContainer _folderScroll;
 	private Control _virtualGridContent;
 	private Label _lblEmptyState;
 
@@ -38,6 +39,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	private Button _btnEditTags;
 	private LineEdit _txtAssetTypeEdit;
 	private Button _btnEditAssetType;
+	private PanelContainer _gridPanel;
 
 	private readonly AudioStreamPlayer _audioPlayer;
 
@@ -116,50 +118,67 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 	private void BuildControls()
 	{
+		BodyContainer.AddThemeConstantOverride("separation", 6);
+
 		var topFoldersSection = new VBoxContainer();
-		topFoldersSection.AddThemeConstantOverride("separation", 6);
+		topFoldersSection.AddThemeConstantOverride("separation", 4);
 		BodyContainer.AddChild(topFoldersSection);
 
 		var folderHeaderRow = new HBoxContainer();
 		folderHeaderRow.AddThemeConstantOverride("separation", 8);
 
+		var faFont = Hud?.GetFontAwesomeFont();
+
 		var lblFoldersTitle = new Label();
-		lblFoldersTitle.Text = "📁 " + TranslationServer.Translate("Indexed Folders:");
+		lblFoldersTitle.Text = "\uf07b " + TranslationServer.Translate("Indexed Folders:");
 		lblFoldersTitle.AddThemeFontSizeOverride("font_size", 11);
 		lblFoldersTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		if (faFont != null)
+		{
+			lblFoldersTitle.AddThemeFontOverride("font", faFont);
+		}
 		folderHeaderRow.AddChild(lblFoldersTitle);
 
 		_btnAddFolder = new Button();
 		_btnAddFolder.Set("icon_max_width", 0);
-		_btnAddFolder.Text = "+ " + TranslationServer.Translate("Add Folder");
+		_btnAddFolder.Text = "\uf0fe " + TranslationServer.Translate("Add Folder");
 		_btnAddFolder.AddThemeFontSizeOverride("font_size", 11);
 		_btnAddFolder.CustomMinimumSize = new Vector2(100, 24);
 		_btnAddFolder.FocusMode = FocusModeEnum.None;
 		_btnAddFolder.TooltipText = TranslationServer.Translate("Add a new local folder to the asset index");
+		if (faFont != null)
+		{
+			_btnAddFolder.AddThemeFontOverride("font", faFont);
+		}
 		_btnAddFolder.Pressed += OnAddFolderPressed;
 		folderHeaderRow.AddChild(_btnAddFolder);
 
 		_btnRescanAll = new Button();
 		_btnRescanAll.Set("icon_max_width", 0);
-		_btnRescanAll.Text = "🔄 " + TranslationServer.Translate("Rescan");
+		_btnRescanAll.Text = "\uf021 " + TranslationServer.Translate("Rescan");
 		_btnRescanAll.AddThemeFontSizeOverride("font_size", 11);
 		_btnRescanAll.CustomMinimumSize = new Vector2(80, 24);
 		_btnRescanAll.FocusMode = FocusModeEnum.None;
 		_btnRescanAll.TooltipText = TranslationServer.Translate("Rescan all indexed folders for new or modified files");
+		if (faFont != null)
+		{
+			_btnRescanAll.AddThemeFontOverride("font", faFont);
+		}
 		_btnRescanAll.Pressed += OnRescanAllPressed;
 		folderHeaderRow.AddChild(_btnRescanAll);
 
 		topFoldersSection.AddChild(folderHeaderRow);
 
-		var folderScroll = new ScrollContainer();
-		folderScroll.CustomMinimumSize = new Vector2(0, 32);
-		folderScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		folderScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Auto;
+		_folderScroll = new ScrollContainer();
+		_folderScroll.CustomMinimumSize = new Vector2(0, 24);
+		_folderScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		_folderScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Auto;
+		_folderScroll.Visible = false;
 
 		_folderChipsContainer = new HBoxContainer();
 		_folderChipsContainer.AddThemeConstantOverride("separation", 6);
-		folderScroll.AddChild(_folderChipsContainer);
-		topFoldersSection.AddChild(folderScroll);
+		_folderScroll.AddChild(_folderChipsContainer);
+		topFoldersSection.AddChild(_folderScroll);
 
 		var directoryRow = new HBoxContainer();
 		directoryRow.AddThemeConstantOverride("separation", 8);
@@ -178,9 +197,13 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		BodyContainer.AddChild(filterRow);
 
 		_txtSearch = new LineEdit();
-		_txtSearch.PlaceholderText = TranslationServer.Translate("🔍 Search tags (e.g. grass, rock) or filename...");
+		_txtSearch.PlaceholderText = "\uf002 " + TranslationServer.Translate("Search tags (e.g. grass, rock) or filename...");
 		_txtSearch.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSearch.AddThemeFontSizeOverride("font_size", 11);
+		if (faFont != null)
+		{
+			_txtSearch.AddThemeFontOverride("font", faFont);
+		}
 		_txtSearch.TextChanged += (_) => RefreshSearchResults();
 		filterRow.AddChild(_txtSearch);
 
@@ -216,18 +239,18 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_lblFilterExtensions.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		infoBar.AddChild(_lblFilterExtensions);
 
-		var gridPanel = new PanelContainer();
-		gridPanel.CustomMinimumSize = new Vector2(0, 320);
-		gridPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
-		gridPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		BodyContainer.AddChild(gridPanel);
+		_gridPanel = new PanelContainer();
+		_gridPanel.CustomMinimumSize = new Vector2(0, 320);
+		_gridPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
+		_gridPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
+		BodyContainer.AddChild(_gridPanel);
 
 		_scrollContainer = new ScrollContainer();
 		_scrollContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_scrollContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		_scrollContainer.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-		gridPanel.AddChild(_scrollContainer);
+		_gridPanel.AddChild(_scrollContainer);
 
 		_virtualGridContent = new Control();
 		_virtualGridContent.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -243,7 +266,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_lblEmptyState.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_lblEmptyState.AddThemeFontSizeOverride("font_size", 12);
 		_lblEmptyState.Visible = false;
-		gridPanel.AddChild(_lblEmptyState);
+		_gridPanel.AddChild(_lblEmptyState);
 
 		_scrollContainer.GetVScrollBar().ValueChanged += (_) => UpdateVisibleGridCells();
 		_scrollContainer.Resized += () =>
@@ -394,6 +417,49 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 			? TranslationServer.Translate("Asset Browser")
 			: TranslationServer.Translate(titleText);
 
+		if (!string.IsNullOrEmpty(titleText) && titleText.Contains("Minimap", StringComparison.OrdinalIgnoreCase))
+		{
+			CustomMinimumSize = new Vector2(800, 520);
+			SetUncompressedPanelTexture("res://Assets/UI/map_editor_publish.png", 78, 38, 75, 75);
+			_gridPanel.CustomMinimumSize = new Vector2(0, 180);
+			if (TitleLabel?.GetParent() is MarginContainer titleMargin)
+			{
+				titleMargin.AddThemeConstantOverride("margin_top", -64);
+			}
+			if (CloseButton != null)
+			{
+				CloseButton.Visible = false;
+			}
+			if (FooterHBox?.GetParent() is MarginContainer footerMargin)
+			{
+				footerMargin.AddThemeConstantOverride("margin_bottom", 16);
+				footerMargin.AddThemeConstantOverride("margin_right", 8);
+			}
+		}
+		else
+		{
+			CustomMinimumSize = new Vector2(780, 640);
+			SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 30, 45, 70, 70);
+			_gridPanel.CustomMinimumSize = new Vector2(0, 320);
+			if (TitleLabel?.GetParent() is MarginContainer titleMargin)
+			{
+				titleMargin.AddThemeConstantOverride("margin_top", -14);
+			}
+			if (CloseButton != null)
+			{
+				CloseButton.Visible = true;
+				if (CloseButton.GetParent() is MarginContainer closeMargin)
+				{
+					closeMargin.AddThemeConstantOverride("margin_top", -18);
+				}
+			}
+			if (FooterHBox?.GetParent() is MarginContainer footerMargin)
+			{
+				footerMargin.AddThemeConstantOverride("margin_bottom", 10);
+				footerMargin.AddThemeConstantOverride("margin_right", 0);
+			}
+		}
+
 		_allowedExtensions = (allowedExtensions ?? Array.Empty<string>())
 			.Select(e => e.Trim().ToLowerInvariant())
 			.Select(e => e.StartsWith(".") ? e : "." + e)
@@ -521,6 +587,10 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		}
 
 		_optDirectoryFilter.Selected = selectedIndex;
+		if (_folderScroll != null)
+		{
+			_folderScroll.Visible = _folderChipsContainer.GetChildCount() > 0;
+		}
 	}
 
 	private int PopulateMapGroupsFilter(ref int currentItemIndex, int selectedIndex)

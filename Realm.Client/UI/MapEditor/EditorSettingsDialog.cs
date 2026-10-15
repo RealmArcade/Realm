@@ -27,19 +27,33 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	private OptionButton _optAutoBackup;
 
 	public EditorSettingsDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Map Editor Usability Settings"), new Vector2(460, 440))
+		: base(hud, TranslationServer.Translate("Map Editor Usability Settings"), new Vector2(510, 500))
 	{
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.png", 55, 15, 60, 60);
+		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
+		{
+			titleMargin.AddThemeConstantOverride("margin_top", -42);
+		}
+		if (CloseButton?.GetParent() is MarginContainer closeMargin)
+		{
+			closeMargin.AddThemeConstantOverride("margin_top", -32);
+		}
+		SetFooterApplyOnly("APPLY");
 		LoadSettingsFromFile();
 		BuildControls();
 	}
 
 	private void BuildControls()
 	{
-		var scrollBody = CreateScrollBody(460);
+		var scrollBody = CreateScrollBody(400);
 		var contentVBox = new VBoxContainer();
-		contentVBox.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddThemeConstantOverride("separation", 12);
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
+
+		var topInfoSpacer = new Control();
+		topInfoSpacer.CustomMinimumSize = new Vector2(0, 18);
+		contentVBox.AddChild(topInfoSpacer);
 
 		BuildInterfaceSection(contentVBox);
 		BuildWorkflowSection(contentVBox);
@@ -93,6 +107,10 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 	private void BuildWorkflowSection(VBoxContainer contentVBox)
 	{
+		var spacer1 = new Control();
+		spacer1.CustomMinimumSize = new Vector2(0, 10);
+		contentVBox.AddChild(spacer1);
+
 		AddSectionHeader(contentVBox, "💾 " + TranslationServer.Translate("BACKUPS & WORKFLOW"), new Color(0.7f, 0.95f, 0.6f));
 
 		string[] autoBackupOptions = new[]
@@ -161,6 +179,10 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 
 	private void BuildDeveloperToolsSection(VBoxContainer contentVBox)
 	{
+		var spacer2 = new Control();
+		spacer2.CustomMinimumSize = new Vector2(0, 10);
+		contentVBox.AddChild(spacer2);
+
 		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
 
 		var btnAuthorSignatureRow = new HBoxContainer();

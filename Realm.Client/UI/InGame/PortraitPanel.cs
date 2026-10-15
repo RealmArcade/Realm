@@ -250,10 +250,7 @@ public class PortraitPanel
 		statsText += $"\n{info.StateText}";
 		if (!string.IsNullOrEmpty(info.Description))
 		{
-			string description = info.Description.Length > 200
-				? string.Concat(info.Description.AsSpan(0, 197), "...")
-				: info.Description;
-			statsText += $"\n\n{description}";
+			statsText += $"\n\n{info.Description}";
 		}
 
 		_statsLabel.Text = statsText;
