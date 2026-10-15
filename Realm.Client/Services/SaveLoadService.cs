@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -33,7 +34,8 @@ public class SaveLoadService
 	{
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
-		Converters = { new JsonStringEnumConverter() }
+		Converters = { new JsonStringEnumConverter() },
+		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
 	public SaveLoadService()

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Godot;
@@ -21,7 +22,8 @@ public class MetadataService
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
 		WriteIndented = true,
-		Converters = { new JsonStringEnumConverter() }
+		Converters = { new JsonStringEnumConverter() },
+		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
 	public static string ResolveMetadataPath(string pathOrDirectory)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -380,7 +381,7 @@ public partial class EditorService
 		{
 			ImportAssets(chosenAssets);
 
-			var options = new JsonSerializerOptions { WriteIndented = true };
+			var options = new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 			File.WriteAllText(metaPath, rootObj.ToJsonString(options));
 			this.LastMetadataSyncTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
 		}
@@ -514,7 +515,7 @@ public partial class EditorService
 
 		if (modified)
 		{
-			var options = new JsonSerializerOptions { WriteIndented = true };
+			var options = new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 			File.WriteAllText(metaPath, rootObj.ToJsonString(options));
 		}
 	}

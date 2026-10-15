@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -1568,7 +1569,7 @@ public class MapStorageService
 		if (!File.Exists(metadataJsonPath)) return;
 
 		string metadataJsonContent = File.ReadAllText(metadataJsonPath);
-		var options = new JsonSerializerOptions { WriteIndented = true };
+		var options = new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 		if (!(JsonNode.Parse(metadataJsonContent) is JsonObject mapDoc)) return;
 
 		var contributorsList = ExtractExistingContributors(mapDoc);
