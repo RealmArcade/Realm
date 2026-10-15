@@ -67,7 +67,6 @@ public partial class InGameHUD : Control
 	private PanelContainer _portraitFrame;
 	private PanelContainer _selectionFrame;
 	private PanelContainer _commandFrame;
-	private Panel _devPanel;
 
 	private GridContainer _commandGrid;
 	private GridContainer _inventoryGrid;
@@ -271,9 +270,6 @@ public partial class InGameHUD : Control
 	private Button _btnBuild;
 	private Button _btnPatrol;
 
-	private Button _btnVictory;
-	private Button _btnDefeat;
-
 	private Label _feedbackLabel;
 	private Label _connectionWarningLabel;
 	private Control _minimapArea;
@@ -358,7 +354,6 @@ public partial class InGameHUD : Control
 		CreateStatsContainer();
 		ApplyThemeStyles();
 		SetupCommandCard();
-		SetupDevPanel();
 		SetupPortrait();
 		ApplyWeatherEffects(currentWeather);
 
@@ -390,7 +385,6 @@ public partial class InGameHUD : Control
 		_portraitFrame = GetNode<PanelContainer>("BottomConsole/HBox/PortraitFrame");
 		_selectionFrame = GetNode<PanelContainer>("BottomConsole/HBox/SelectionFrame");
 		_commandFrame = GetNode<PanelContainer>("BottomConsole/HBox/CommandFrame");
-		_devPanel = GetNode<Panel>("DevPanel");
 
 		_goldLabel = GetNode<Label>("ResourceContainer/HBox/GoldBox/GoldLabel");
 		_woodLabel = GetNode<Label>("ResourceContainer/HBox/WoodBox/WoodLabel");
@@ -399,8 +393,6 @@ public partial class InGameHUD : Control
 		_clockLabel = GetNode<Label>("ResourceContainer/HBox/ClockBox/ClockLabel");
 		_btnSettings = GetNode<Button>("ResourceContainer/HBox/BtnSettings");
 
-		_btnVictory = GetNode<Button>("DevPanel/BtnVictory");
-		_btnDefeat = GetNode<Button>("DevPanel/BtnDefeat");
 		_feedbackLabel = GetNode<Label>("FeedbackLabel");
 
 		_minimapArea = GetNode<Control>("BottomConsole/HBox/MinimapFrame/MinimapArea");
@@ -832,7 +824,6 @@ public partial class InGameHUD : Control
 		{
 			_bottomConsole.Visible = false;
 			_resourceContainer.Visible = false;
-			if (_devPanel != null) _devPanel.Visible = false;
 			if (_chatPanel != null) _chatPanel.Visible = false;
 		}
 
@@ -840,7 +831,6 @@ public partial class InGameHUD : Control
 		if (isSpectator)
 		{
 			_resourceContainer.Visible = false;
-			if (_devPanel != null) _devPanel.Visible = false;
 			CreateSpectatorPerspectiveUI();
 		}
 	}
@@ -1017,12 +1007,6 @@ public partial class InGameHUD : Control
 		{
 			_chatPanel.PivotOffset = new Vector2(0f, _chatPanel.Size.Y);
 			_chatPanel.Scale = new Vector2(s, s);
-		}
-
-		if (_devPanel != null)
-		{
-			_devPanel.PivotOffset = Vector2.Zero;
-			_devPanel.Scale = new Vector2(s, s);
 		}
 
 		if (_controlGroupsContainer != null)
@@ -1421,8 +1405,6 @@ void fragment() {
 
 		_commandFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
-		_devPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-
 		UIStyle.ApplyTitle(_feedbackLabel, "", 32);
 		_feedbackLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 
@@ -1674,94 +1656,6 @@ void fragment() {
 		btn.Pressed += () => onClick?.Invoke();
 	}
 
-	private void SetupDevPanel()
-	{
-		if (_btnVictory != null)
-		{
-			_btnVictory.OffsetLeft = 0;
-			_btnVictory.OffsetTop = 0;
-			_btnVictory.OffsetRight = 126;
-			_btnVictory.OffsetBottom = 34;
-			ApplyDevButtonTheme(_btnVictory, "Trigger Victory", () =>
-			{
-				UIManager.Instance?.TransitionTo(GameScreen.GameOver, true);
-			});
-		}
-
-		if (_btnDefeat != null)
-		{
-			_btnDefeat.OffsetLeft = 132;
-			_btnDefeat.OffsetTop = 0;
-			_btnDefeat.OffsetRight = 252;
-			_btnDefeat.OffsetBottom = 34;
-			ApplyDevButtonTheme(_btnDefeat, "Trigger Defeat", () =>
-			{
-				UIManager.Instance?.TransitionTo(GameScreen.GameOver, false);
-			});
-		}
-
-		if (_devPanel != null)
-		{
-			var btnWeather = new Button();
-			btnWeather.Name = "BtnCycleWeather";
-			btnWeather.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-			btnWeather.OffsetLeft = 258;
-			btnWeather.OffsetTop = 0;
-			btnWeather.OffsetRight = 378;
-			btnWeather.OffsetBottom = 34;
-			ApplyDevButtonTheme(btnWeather, "Cycle Weather", () => CycleWeather());
-			_devPanel.AddChild(btnWeather);
-		}
-	}
-
-	private void ApplyDevButtonTheme(Button btn, string text, Action onClick)
-	{
-		btn.Text = TranslationServer.Translate(text);
-		btn.FocusMode = FocusModeEnum.None;
-		var font = UIStyle.FontNorseBold ?? UIStyle.FontCinzelBold;
-		if (font != null)
-		{
-			btn.AddThemeFontOverride("font", font);
-		}
-
-		btn.AddThemeFontSizeOverride("font_size", 12);
-		btn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		btn.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		btn.AddThemeConstantOverride("outline_size", 2);
-		btn.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.85f));
-
-		var normalStyle = UIStyle.CreateButtonNormal();
-		normalStyle.ContentMarginTop = 4;
-		normalStyle.ContentMarginBottom = 4;
-		normalStyle.ContentMarginLeft = 8;
-		normalStyle.ContentMarginRight = 8;
-		btn.AddThemeStyleboxOverride("normal", normalStyle);
-
-		var hoverStyle = UIStyle.CreateButtonHover();
-		hoverStyle.ContentMarginTop = 4;
-		hoverStyle.ContentMarginBottom = 4;
-		hoverStyle.ContentMarginLeft = 8;
-		hoverStyle.ContentMarginRight = 8;
-		btn.AddThemeStyleboxOverride("hover", hoverStyle);
-
-		var pressedStyle = UIStyle.CreateButtonPressed();
-		pressedStyle.ContentMarginTop = 4;
-		pressedStyle.ContentMarginBottom = 4;
-		pressedStyle.ContentMarginLeft = 8;
-		pressedStyle.ContentMarginRight = 8;
-		btn.AddThemeStyleboxOverride("pressed", pressedStyle);
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			onClick?.Invoke();
-		};
-		btn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-	}
-
 	private void SetupPortrait()
 	{
 		var pTexture = GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture");
@@ -1817,7 +1711,7 @@ void fragment() {
 			return true;
 		}
 
-		Control[] controls = { _bottomConsole, _resourceContainer, _devPanel, _hotkeyPanel };
+		Control[] controls = { _bottomConsole, _resourceContainer, _hotkeyPanel };
 		return Enumerable.Any(controls, c => c != null && c.Visible && c.GetGlobalRect().HasPoint(mousePos));
 	}
 
@@ -2330,25 +2224,6 @@ void fragment() {
 		_viewModel.SummaryTableRows[rowKey] = cellValues;
 	}
 
-
-	private void CycleWeather()
-	{
-		if (Multiplayer.MultiplayerPeer != null && !Multiplayer.IsServer()) return;
-
-		GameHost tempQualifier = GameHost.Instance;
-		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
-		{
-			string next = GameContext.EnvironmentService.CycleWeather();
-			if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
-			{
-				Rpc(nameof(SyncWeather), next);
-			}
-			else
-			{
-				ApplyWeatherEffects(next);
-			}
-		}
-	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true)]
 	public void SyncWeather(string weather)
