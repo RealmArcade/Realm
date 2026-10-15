@@ -27,4 +27,33 @@ public record struct DerivedCombatStats(
 	float Evasion = 0f,
 	float ProcRateMultiplier = 1f,
 	float BountyMultiplier = 1f,
-	float HealingMultiplier = 1f);
+	float HealingMultiplier = 1f)
+{
+	public readonly float Armor => TotalArmor;
+	public readonly float Attack => TotalAttackDamage;
+	public readonly float Damage => TotalAttackDamage;
+	public readonly float Speed => MovementSpeed;
+
+	public readonly float Get(CombatStatType statType) => statType switch
+	{
+		CombatStatType.MaxHp => MaxHp,
+		CombatStatType.HpRegen => HpRegen,
+		CombatStatType.MaxMana => MaxMana,
+		CombatStatType.ManaRegen => ManaRegen,
+		CombatStatType.Armor => TotalArmor,
+		CombatStatType.Damage => TotalAttackDamage,
+		CombatStatType.Attack => TotalAttackDamage,
+		CombatStatType.Speed => MovementSpeed,
+		CombatStatType.MovementSpeed => MovementSpeed,
+		CombatStatType.SpellPower => SpellPower,
+		CombatStatType.Tenacity => Tenacity,
+		CombatStatType.SpellWard => SpellWard,
+		CombatStatType.CooldownReduction => CooldownReduction,
+		CombatStatType.LifeSteal => LifeSteal,
+		CombatStatType.MagicPenetration => MagicPenetration,
+		CombatStatType.Evasion => Evasion,
+		CombatStatType.ProcRateMultiplier => ProcRateMultiplier,
+		CombatStatType.BountyMultiplier => BountyMultiplier,
+		_ => 0f
+	};
+}

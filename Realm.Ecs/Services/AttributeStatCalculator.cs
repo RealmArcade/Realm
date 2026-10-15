@@ -181,12 +181,12 @@ public static class AttributeStatCalculator
 		float wisFlat = 0f, wisPctAdd = 0f, wisPctMult = 1f, wisFormula = 0f;
 		float fortFlat = 0f, fortPctAdd = 0f, fortPctMult = 1f, fortFormula = 0f;
 
-		AccumulateModifiersForStat(world, entity, "Strength", ref strFlat, ref strPctAdd, ref strPctMult, ref strFormula, baseAttrs.Strength);
-		AccumulateModifiersForStat(world, entity, "Agility", ref agiFlat, ref agiPctAdd, ref agiPctMult, ref agiFormula, baseAttrs.Agility);
-		AccumulateModifiersForStat(world, entity, "Vitality", ref vitFlat, ref vitPctAdd, ref vitPctMult, ref vitFormula, baseAttrs.Vitality);
-		AccumulateModifiersForStat(world, entity, "Intelligence", ref intFlat, ref intPctAdd, ref intPctMult, ref intFormula, baseAttrs.Intelligence);
-		AccumulateModifiersForStat(world, entity, "Wisdom", ref wisFlat, ref wisPctAdd, ref wisPctMult, ref wisFormula, baseAttrs.Wisdom);
-		AccumulateModifiersForStat(world, entity, "Fortune", ref fortFlat, ref fortPctAdd, ref fortPctMult, ref fortFormula, baseAttrs.Fortune);
+		AccumulateModifiersForStat(world, entity, AttributeType.Strength, ref strFlat, ref strPctAdd, ref strPctMult, ref strFormula, baseAttrs.Strength);
+		AccumulateModifiersForStat(world, entity, AttributeType.Agility, ref agiFlat, ref agiPctAdd, ref agiPctMult, ref agiFormula, baseAttrs.Agility);
+		AccumulateModifiersForStat(world, entity, AttributeType.Vitality, ref vitFlat, ref vitPctAdd, ref vitPctMult, ref vitFormula, baseAttrs.Vitality);
+		AccumulateModifiersForStat(world, entity, AttributeType.Intelligence, ref intFlat, ref intPctAdd, ref intPctMult, ref intFormula, baseAttrs.Intelligence);
+		AccumulateModifiersForStat(world, entity, AttributeType.Wisdom, ref wisFlat, ref wisPctAdd, ref wisPctMult, ref wisFormula, baseAttrs.Wisdom);
+		AccumulateModifiersForStat(world, entity, AttributeType.Fortune, ref fortFlat, ref fortPctAdd, ref fortPctMult, ref fortFormula, baseAttrs.Fortune);
 
 		float str = CombineStat(baseAttrs.Strength, strFlat, strPctAdd, strPctMult, strFormula);
 		float agi = CombineStat(baseAttrs.Agility, agiFlat, agiPctAdd, agiPctMult, agiFormula);
@@ -208,13 +208,13 @@ public static class AttributeStatCalculator
 		float dmgFlat = 0f, dmgPctAdd = 0f, dmgPctMult = 1f, dmgFormula = 0f;
 		float speedFlat = 0f, speedPctAdd = 0f, speedPctMult = 1f, speedFormula = 0f;
 
-		AccumulateModifiersForStat(world, entity, "MaxHp", ref hpFlat, ref hpPctAdd, ref hpPctMult, ref hpFormula, derived.MaxHp);
-		AccumulateModifiersForStat(world, entity, "HpRegen", ref hpRegenFlat, ref hpRegenPctAdd, ref hpRegenPctMult, ref hpRegenFormula, derived.HpRegen);
-		AccumulateModifiersForStat(world, entity, "MaxMana", ref manaFlat, ref manaPctAdd, ref manaPctMult, ref manaFormula, derived.MaxMana);
-		AccumulateModifiersForStat(world, entity, "ManaRegen", ref manaRegenFlat, ref manaRegenPctAdd, ref manaRegenPctMult, ref manaRegenFormula, derived.ManaRegen);
-		AccumulateModifiersForStat(world, entity, "Armor", ref armorFlat, ref armorPctAdd, ref armorPctMult, ref armorFormula, derived.TotalArmor);
-		AccumulateModifiersForStat(world, entity, "Damage", ref dmgFlat, ref dmgPctAdd, ref dmgPctMult, ref dmgFormula, derived.TotalAttackDamage);
-		AccumulateModifiersForStat(world, entity, "Speed", ref speedFlat, ref speedPctAdd, ref speedPctMult, ref speedFormula, derived.MovementSpeed);
+		AccumulateModifiersForStat(world, entity, CombatStatType.MaxHp, ref hpFlat, ref hpPctAdd, ref hpPctMult, ref hpFormula, derived.MaxHp);
+		AccumulateModifiersForStat(world, entity, CombatStatType.HpRegen, ref hpRegenFlat, ref hpRegenPctAdd, ref hpRegenPctMult, ref hpRegenFormula, derived.HpRegen);
+		AccumulateModifiersForStat(world, entity, CombatStatType.MaxMana, ref manaFlat, ref manaPctAdd, ref manaPctMult, ref manaFormula, derived.MaxMana);
+		AccumulateModifiersForStat(world, entity, CombatStatType.ManaRegen, ref manaRegenFlat, ref manaRegenPctAdd, ref manaRegenPctMult, ref manaRegenFormula, derived.ManaRegen);
+		AccumulateModifiersForStat(world, entity, CombatStatType.Armor, ref armorFlat, ref armorPctAdd, ref armorPctMult, ref armorFormula, derived.TotalArmor);
+		AccumulateModifiersForStat(world, entity, CombatStatType.Damage, ref dmgFlat, ref dmgPctAdd, ref dmgPctMult, ref dmgFormula, derived.TotalAttackDamage);
+		AccumulateModifiersForStat(world, entity, CombatStatType.Speed, ref speedFlat, ref speedPctAdd, ref speedPctMult, ref speedFormula, derived.MovementSpeed);
 
 		return derived with
 		{
@@ -226,6 +226,21 @@ public static class AttributeStatCalculator
 			TotalAttackDamage = CombineStat(derived.TotalAttackDamage, dmgFlat, dmgPctAdd, dmgPctMult, dmgFormula),
 			MovementSpeed = CombineStat(derived.MovementSpeed, speedFlat, speedPctAdd, speedPctMult, speedFormula)
 		};
+	}
+
+	private static void AccumulateModifiersForStat(World world, Entity entity, AttributeType attribute, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
+	{
+		AccumulateModifiersForStat(world, entity, new StatId(attribute), ref flat, ref pctAdd, ref pctMult, ref formulaBonus, baseValue);
+	}
+
+	private static void AccumulateModifiersForStat(World world, Entity entity, CombatStatType combatStat, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
+	{
+		AccumulateModifiersForStat(world, entity, new StatId(combatStat), ref flat, ref pctAdd, ref pctMult, ref formulaBonus, baseValue);
+	}
+
+	private static void AccumulateModifiersForStat(World world, Entity entity, StatId statId, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
+	{
+		AccumulateModifiersForStat(world, entity, statId.Value, ref flat, ref pctAdd, ref pctMult, ref formulaBonus, baseValue);
 	}
 
 	private static void AccumulateModifiersForStat(World world, Entity entity, string statName, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
@@ -433,21 +448,21 @@ public static class AttributeStatCalculator
 		}
 
 		var statsDict = world.Get<Stats>(entity).Value;
-		statsDict[new StatId("Armor")] = derived.TotalArmor;
-		statsDict[new StatId("Attack")] = derived.TotalAttackDamage;
-		statsDict[new StatId("MovementSpeed")] = derived.MovementSpeed;
-		statsDict[new StatId("MaxHp")] = derived.MaxHp;
-		statsDict[new StatId("HpRegen")] = derived.HpRegen;
-		statsDict[new StatId("MaxMana")] = derived.MaxMana;
-		statsDict[new StatId("ManaRegen")] = derived.ManaRegen;
-		statsDict[new StatId("SpellPower")] = derived.SpellPower;
-		statsDict[new StatId("Tenacity")] = derived.Tenacity;
-		statsDict[new StatId("SpellWard")] = derived.SpellWard;
-		statsDict[new StatId("CooldownReduction")] = derived.CooldownReduction;
-		statsDict[new StatId("LifeSteal")] = derived.LifeSteal;
-		statsDict[new StatId("MagicPenetration")] = derived.MagicPenetration;
-		statsDict[new StatId("Evasion")] = derived.Evasion;
-		statsDict[new StatId("ProcRateMultiplier")] = derived.ProcRateMultiplier;
-		statsDict[new StatId("BountyMultiplier")] = derived.BountyMultiplier;
+		statsDict[new StatId(CombatStatType.Armor)] = derived.TotalArmor;
+		statsDict[new StatId(CombatStatType.Attack)] = derived.TotalAttackDamage;
+		statsDict[new StatId(CombatStatType.MovementSpeed)] = derived.MovementSpeed;
+		statsDict[new StatId(CombatStatType.MaxHp)] = derived.MaxHp;
+		statsDict[new StatId(CombatStatType.HpRegen)] = derived.HpRegen;
+		statsDict[new StatId(CombatStatType.MaxMana)] = derived.MaxMana;
+		statsDict[new StatId(CombatStatType.ManaRegen)] = derived.ManaRegen;
+		statsDict[new StatId(CombatStatType.SpellPower)] = derived.SpellPower;
+		statsDict[new StatId(CombatStatType.Tenacity)] = derived.Tenacity;
+		statsDict[new StatId(CombatStatType.SpellWard)] = derived.SpellWard;
+		statsDict[new StatId(CombatStatType.CooldownReduction)] = derived.CooldownReduction;
+		statsDict[new StatId(CombatStatType.LifeSteal)] = derived.LifeSteal;
+		statsDict[new StatId(CombatStatType.MagicPenetration)] = derived.MagicPenetration;
+		statsDict[new StatId(CombatStatType.Evasion)] = derived.Evasion;
+		statsDict[new StatId(CombatStatType.ProcRateMultiplier)] = derived.ProcRateMultiplier;
+		statsDict[new StatId(CombatStatType.BountyMultiplier)] = derived.BountyMultiplier;
 	}
 }

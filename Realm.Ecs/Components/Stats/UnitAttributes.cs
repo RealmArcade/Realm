@@ -25,4 +25,15 @@ public record struct UnitAttributes(
 	public readonly float INT => Intelligence;
 	public readonly float WIS => Wisdom;
 	public readonly float FORT => Fortune;
+
+	public readonly float Get(AttributeType attribute) => attribute switch
+	{
+		AttributeType.Strength => Strength,
+		AttributeType.Agility => Agility,
+		AttributeType.Vitality => Vitality,
+		AttributeType.Intelligence => Intelligence,
+		AttributeType.Wisdom => Wisdom,
+		AttributeType.Fortune => Fortune,
+		_ => 0f
+	};
 }
