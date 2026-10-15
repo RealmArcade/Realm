@@ -941,8 +941,6 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
 		_templateExistedInitially = _initialTemplateJson != null;
 
-		SetRandomizeAssetsAction(RandomizeAssets);
-
 		TitleLabel.Text = $"{TranslationServer.Translate("Weapon VFX & Audio")} - {(!string.IsNullOrEmpty(weapon?.Name) ? weapon.Name : _weaponId)}";
 
 		OpenDialog();
@@ -950,24 +948,15 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		RestartPreviewProjectile();
 	}
 
-	public void RandomizeAssets()
+	protected override string GetRandomizeTemplateSlug()
 	{
-		string targetId = !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+		return !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			meta.Templates ??= new();
-			meta.Templates.Weapons ??= new();
-			var existingWeapon = meta.GetWeapon(targetId);
-			if (existingWeapon == null)
-			{
-				_currentWeapon.TemplateID = targetId;
-				meta.AddOrUpdateWeapon(_currentWeapon);
-			}
-		});
-
-		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
 		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var reloadedMeta) && reloadedMeta?.Templates?.Weapons != null)
 		{

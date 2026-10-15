@@ -1311,53 +1311,19 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Visual Properties & Overrides")} - {_originalTemplateID}";
 
-		SetRandomizeAssetsAction(RandomizeAssets);
-
 		SyncControls();
 		OpenDialog();
 	}
 
-	public void RandomizeAssets()
+	protected override string GetRandomizeTemplateSlug()
 	{
-		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+		return !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			string tintHex = $"#{_tint.ToHtml(false)}";
-			string spawnKey = GetSelectedSpawnShaderKey();
-			string deathKey = GetSelectedDeathShaderKey();
-
-			switch (_category)
-			{
-				case "units":
-					if (meta.GetUnit(targetId) == null && (string.IsNullOrEmpty(_slug) || meta.GetUnit(_slug) == null))
-					{
-						ApplyUnitMetadata(meta, targetId, tintHex, spawnKey, deathKey);
-					}
-					break;
-				case "buildings":
-					if (meta.GetBuilding(targetId) == null && (string.IsNullOrEmpty(_slug) || meta.GetBuilding(_slug) == null))
-					{
-						ApplyBuildingMetadata(meta, targetId, tintHex, spawnKey, deathKey);
-					}
-					break;
-				case "resources":
-					if (meta.GetResource(targetId) == null && (string.IsNullOrEmpty(_slug) || meta.GetResource(_slug) == null))
-					{
-						ApplyResourceMetadata(meta, targetId, tintHex, spawnKey, deathKey);
-					}
-					break;
-				case "props":
-					if (meta.GetProp(targetId) == null && (string.IsNullOrEmpty(_slug) || meta.GetProp(_slug) == null))
-					{
-						ApplyPropMetadata(meta, targetId, tintHex, spawnKey, deathKey);
-					}
-					break;
-			}
-		});
-
-		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
 		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var loadedMeta) && loadedMeta != null)
 		{

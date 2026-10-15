@@ -282,7 +282,6 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_rtexAsset = ResolveRtexAsset(rtexAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, true);
 
 		TakeInitialSnapshot();
-		SetRandomizeAssetsAction(RandomizeAssets);
 
 		UpdateUIAndOpen();
 	}
@@ -297,7 +296,6 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_rtexAsset = ResolveRtexAsset(providedAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, false);
 
 		TakeInitialSnapshot();
-		SetRandomizeAssetsAction(RandomizeAssets);
 
 		UpdateUIAndOpen();
 	}
@@ -315,30 +313,15 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_templateExistedInitially = _initialTemplateJson != null;
 	}
 
-	public void RandomizeAssets()
+	protected override string GetRandomizeTemplateSlug()
 	{
-		string targetId = !string.IsNullOrEmpty(_sheetFileName) ? _sheetFileName : $"{_objectType}/{_slug}";
+		return !string.IsNullOrEmpty(_sheetFileName) ? _sheetFileName : $"{_objectType}/{_slug}";
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
-		{
-			m.VfxSpritesheets ??= new(StringComparer.OrdinalIgnoreCase);
-			var (_, curSlug) = TemplateIDHelper.ParseTemplateID(targetId);
-			string lookupKey = m.VfxSpritesheets.ContainsKey(targetId) ? targetId : (!string.IsNullOrEmpty(curSlug) && m.VfxSpritesheets.ContainsKey(curSlug) ? curSlug : targetId);
-			if (!m.VfxSpritesheets.TryGetValue(lookupKey, out var existingSs) || existingSs == null)
-			{
-				m.VfxSpritesheets[lookupKey] = new Realm.Shared.Metadata.VfxMetadata
-				{
-					Columns = _columns,
-					Rows = _rows,
-					Fps = _fps,
-					SubframeBlend = _subframeBlend,
-					TexturePath = _rtexAsset
-				};
-			}
-		});
-
-		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
 		string reloadedRtex = GetRtexFromMetadata(wsPath, _sheetFileName, _slug);
 		if (string.IsNullOrEmpty(reloadedRtex))

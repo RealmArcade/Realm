@@ -870,34 +870,21 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		TrackOriginalDecalStates(decalKey);
 		TakeInitialSnapshot();
 
-		SetRandomizeAssetsAction(RandomizeAssets);
-
 		SyncControlsWithValues();
 		ReloadBaseTexture();
 		UpdateLivePreviewAndWorld();
 		OpenDialog();
 	}
 
-	public void RandomizeAssets()
+	protected override string GetRandomizeTemplateSlug()
 	{
-		string targetId = !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+		return !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
-		{
-			m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
-			var (_, curSlug) = TemplateIDHelper.ParseTemplateID(targetId);
-			string lookupKey = m.Decals.ContainsKey(targetId) ? targetId : (!string.IsNullOrEmpty(curSlug) && m.Decals.ContainsKey(curSlug) ? curSlug : targetId);
-			if (!m.Decals.TryGetValue(lookupKey, out var existingDecal) || existingDecal == null)
-			{
-				m.Decals[lookupKey] = new Realm.Shared.Metadata.DecalMetadata
-				{
-					TexturePath = _texturePath
-				};
-			}
-		});
-
-		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
 		var metadata = MapFileService.LoadMetadata(wsPath);
 		if (metadata?.Decals != null)

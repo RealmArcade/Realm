@@ -727,17 +727,19 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		TakeInitialSnapshot();
 		ApplyValuesToUIControls();
 
-		SetRandomizeAssetsAction(RandomizeAssets);
-
 		OpenDialog();
 	}
 
-	public void RandomizeAssets()
+	protected override string GetRandomizeTemplateSlug()
 	{
-		string targetId = !string.IsNullOrEmpty(_textureFileName) ? _textureFileName : $"{_objectType}/{_slug}";
-		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
+		return !string.IsNullOrEmpty(_textureFileName) ? _textureFileName : $"{_objectType}/{_slug}";
+	}
 
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
 		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Textures != null)
 		{
 			var (_, curSlug) = TemplateIDHelper.ParseTemplateID(targetId);

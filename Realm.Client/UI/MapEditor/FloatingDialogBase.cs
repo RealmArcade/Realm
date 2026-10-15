@@ -170,16 +170,31 @@ public partial class FloatingDialogBase : PanelContainer
 		FooterHBox.AddChild(btnClose);
 	}
 
-	public virtual void SetRandomizeAssetsAction(Action onRandomize)
+	protected virtual string GetRandomizeTemplateSlug()
 	{
-		if (onRandomize == null)
+		return string.Empty;
+	}
+
+	protected virtual void OnAssetsRandomized()
+	{
+	}
+
+	public virtual void RandomizeAssets()
+	{
+		string targetSlug = GetRandomizeTemplateSlug();
+		if (string.IsNullOrWhiteSpace(targetSlug))
 		{
-			if (RandomizeAssetsButton != null)
-			{
-				RandomizeAssetsButton.Visible = false;
-			}
 			return;
 		}
+
+		GameContext.EditorService.SnapshotTemplateJson(targetSlug);
+		GameContext.EditorService.AssignRandomAssetsToTemplate(targetSlug, overwriteExisting: true);
+		OnAssetsRandomized();
+	}
+
+	public virtual void SetRandomizeAssetsAction(Action? onRandomize = null)
+	{
+		var actionToWire = onRandomize ?? RandomizeAssets;
 
 		if (RandomizeAssetsButton == null)
 		{
@@ -217,7 +232,7 @@ public partial class FloatingDialogBase : PanelContainer
 			}
 		}
 
-		RandomizeAssetsButton.Pressed += () => onRandomize();
+		RandomizeAssetsButton.Pressed += () => actionToWire();
 	}
 
 	protected TextureRect BackgroundTextureRect;
@@ -330,6 +345,11 @@ public partial class FloatingDialogBase : PanelContainer
 		if (GetParent() == null && Hud != null)
 		{
 			Hud.AddChild(this);
+		}
+
+		if (RandomizeAssetsButton == null && !string.IsNullOrWhiteSpace(GetRandomizeTemplateSlug()))
+		{
+			SetRandomizeAssetsAction();
 		}
 
 		Visible = true;

@@ -266,51 +266,16 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
 		_templateExistedInitially = _initialTemplateJson != null;
 
-		SetRandomizeAssetsAction(RandomizeAssets);
-
 		OpenDialog();
 	}
 
-	public void RandomizeAssets()
+	protected override string GetRandomizeTemplateSlug()
 	{
-		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		return !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+	}
 
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			if (_category == "upgrades")
-			{
-				var existingUpgrade = meta.GetUpgrade(targetId);
-				if (existingUpgrade == null)
-				{
-					meta.AddOrUpdateUpgrade(new UpgradeMetadata
-					{
-						TemplateID = targetId,
-						Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
-						Description = _tooltip,
-						IconPath = _iconPath
-					});
-				}
-			}
-			else
-			{
-				var existingItem = meta.GetItem(targetId);
-				if (existingItem == null)
-				{
-					meta.AddOrUpdateItem(new ItemMetadata
-					{
-						TemplateID = targetId,
-						Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
-						Description = _tooltip,
-						IconPath = _iconPath,
-						ItemClass = "consumable"
-					});
-				}
-			}
-		});
-
-		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
-
+	protected override void OnAssetsRandomized()
+	{
 		LoadMetadataProperties();
 		UpdateUI();
 		UpdateTooltipPreview();

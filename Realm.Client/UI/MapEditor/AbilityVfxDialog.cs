@@ -695,37 +695,19 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
 		_templateExistedInitially = _initialTemplateJson != null;
 
-		SetRandomizeAssetsAction(RandomizeAssets);
-
 		OpenDialog();
 		ResetCameraDefault();
 	}
 
-	public void RandomizeAssets()
+	protected override string GetRandomizeTemplateSlug()
 	{
-		string targetId = !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+		return !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-
-		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
-		{
-			meta.Templates ??= new();
-			meta.Templates.Abilities ??= new();
-			var existingAbility = meta.GetAbility(targetId);
-			if (existingAbility == null)
-			{
-				meta.AddOrUpdateAbility(new Realm.Shared.Metadata.AbilityMetadata
-				{
-					TemplateID = targetId,
-					Name = !string.IsNullOrEmpty(_abilityName) ? _abilityName : _slug,
-					VisualEffect = _currentVisualEffect,
-					CastSound = _currentCastSound,
-					IconPath = _currentIconPath,
-					AreaOfEffectRadius = _currentAoeRadius
-				});
-			}
-		});
-
-		GameContext.EditorService.AssignRandomAssetsToTemplate(targetId, overwriteExisting: true);
 
 		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var reloadedMeta) && reloadedMeta?.Templates?.Abilities != null)
 		{
