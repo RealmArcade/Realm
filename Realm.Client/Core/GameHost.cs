@@ -1229,18 +1229,39 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (templates.Abilities != null && templates.Abilities.Count > 0) RegisterCustomAbilities(templates.Abilities);
 		foreach (var cfg in templates.Vfx)
+		{
 			if (!string.IsNullOrEmpty(cfg.VfxId))
+			{
 				GameContext.RegistryService.VfxRegistry[cfg.VfxId] = cfg;
+				if (cfg.VfxId.StartsWith("vfx/", StringComparison.OrdinalIgnoreCase))
+				{
+					GameContext.RegistryService.VfxRegistry[cfg.VfxId.Substring(4)] = cfg;
+				}
+			}
+		}
 	}
 
 	private void LoadWeaponAndAttachmentTemplates(TemplateContainer templates)
 	{
 		foreach (var meta in templates.Weapons)
+		{
 			if (!string.IsNullOrEmpty(meta.TemplateID))
+			{
 				WeaponRegistry[(StringName)meta.TemplateID] = meta;
+				if (meta.TemplateID.StartsWith("weapon/", StringComparison.OrdinalIgnoreCase))
+				{
+					WeaponRegistry[(StringName)meta.TemplateID.Substring(7)] = meta;
+				}
+			}
+		}
+
 		foreach (var meta in templates.Attachments)
+		{
 			if (!string.IsNullOrEmpty(meta.AttachmentId))
+			{
 				AttachmentRegistry[(StringName)meta.AttachmentId] = meta;
+			}
+		}
 	}
 
 	private void LoadItemTemplates(TemplateContainer templates)
@@ -1248,8 +1269,12 @@ public partial class GameHost : Node3D, IGameAPI
 		foreach (var meta in templates.Items)
 		{
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
+
 			ItemRegistry[(StringName)meta.TemplateID] = meta;
-			if (meta.TemplateID.StartsWith("item/", StringComparison.OrdinalIgnoreCase)) ItemRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
+			if (meta.TemplateID.StartsWith("item/", StringComparison.OrdinalIgnoreCase))
+			{
+				ItemRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
+			}
 		}
 	}
 
@@ -1259,8 +1284,12 @@ public partial class GameHost : Node3D, IGameAPI
 		foreach (var meta in templates.Upgrades)
 		{
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
+
 			UpgradeRegistry[(StringName)meta.TemplateID] = meta;
-			if (meta.TemplateID.StartsWith("upgrade/", StringComparison.OrdinalIgnoreCase)) UpgradeRegistry[(StringName)meta.TemplateID.Substring(8)] = meta;
+			if (meta.TemplateID.StartsWith("upgrade/", StringComparison.OrdinalIgnoreCase))
+			{
+				UpgradeRegistry[(StringName)meta.TemplateID.Substring(8)] = meta;
+			}
 		}
 	}
 
@@ -1270,8 +1299,12 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
 			if (meta.Scale <= 0f) meta.Scale = 1.0f;
+
 			UnitRegistry[(StringName)meta.TemplateID] = meta;
-			if (meta.TemplateID.StartsWith("unit/", StringComparison.OrdinalIgnoreCase)) UnitRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
+			if (meta.TemplateID.StartsWith("unit/", StringComparison.OrdinalIgnoreCase))
+			{
+				UnitRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
+			}
 		}
 	}
 
@@ -1281,8 +1314,12 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
 			if (meta.Scale <= 0f) meta.Scale = 1.5f;
+
 			BuildingRegistry[(StringName)meta.TemplateID] = meta;
-			if (meta.TemplateID.StartsWith("building/", StringComparison.OrdinalIgnoreCase)) BuildingRegistry[(StringName)meta.TemplateID.Substring(9)] = meta;
+			if (meta.TemplateID.StartsWith("building/", StringComparison.OrdinalIgnoreCase))
+			{
+				BuildingRegistry[(StringName)meta.TemplateID.Substring(9)] = meta;
+			}
 		}
 	}
 
@@ -1293,7 +1330,12 @@ public partial class GameHost : Node3D, IGameAPI
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
 			if (meta.Scale <= 0f) meta.Scale = 2.75f;
 			if (meta.PathingType == 0) meta.PathingType = 255;
+
 			ResourceRegistry[(StringName)meta.TemplateID] = meta;
+			if (meta.TemplateID.StartsWith("resource/", StringComparison.OrdinalIgnoreCase))
+			{
+				ResourceRegistry[(StringName)meta.TemplateID.Substring(9)] = meta;
+			}
 		}
 
 		foreach (var meta in templates.Props)
@@ -1301,7 +1343,12 @@ public partial class GameHost : Node3D, IGameAPI
 			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
 			if (meta.Scale <= 0f) meta.Scale = 1.25f;
 			if (meta.PathingType == 0) meta.PathingType = 255;
+
 			PropRegistry[(StringName)meta.TemplateID] = meta;
+			if (meta.TemplateID.StartsWith("prop/", StringComparison.OrdinalIgnoreCase))
+			{
+				PropRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
+			}
 		}
 	}
 
