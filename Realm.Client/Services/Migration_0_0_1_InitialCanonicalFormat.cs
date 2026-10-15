@@ -495,29 +495,5 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		assetType = "texture";
 	}
 
-	public static void MergeCategoryInto(MapManifestAssets targetAssets, string category, JsonObject sourceObject)
-	{
-		var categoryTarget = targetAssets.GetCategory(category);
-		if (categoryTarget == null)
-		{
-			categoryTarget = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			targetAssets.SetCategory(category, categoryTarget);
-		}
 
-		foreach (var pair in sourceObject)
-		{
-			if (pair.Value is JsonObject sourceObj)
-			{
-				string hash = sourceObj["hash"]?.ToString() ?? sourceObj["blake3"]?.ToString() ?? string.Empty;
-				if (!string.IsNullOrEmpty(hash))
-				{
-					categoryTarget[pair.Key] = hash;
-				}
-			}
-			else if (pair.Value != null)
-			{
-				categoryTarget[pair.Key] = pair.Value.ToString();
-			}
-		}
-	}
 }

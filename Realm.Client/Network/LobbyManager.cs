@@ -1686,14 +1686,11 @@ public partial class LobbyManager : Node
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks)
 	{
-		if (_currentClientTransfer != null && _currentClientTransfer.TransferId == transferId)
+		MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, () =>
 		{
-			MapTransferHelper.HandleBeginMapTransfer(_currentClientTransfer, mapName, mapVersion, totalBytes, totalChunks, () =>
-			{
-				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferId)).CallDeferred();
-				_transferCompleteTcs?.TrySetResult(true);
-			});
-		}
+			Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferId)).CallDeferred();
+			_transferCompleteTcs?.TrySetResult(true);
+		}, ex => _transferCompleteTcs?.TrySetException(ex));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

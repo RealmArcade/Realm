@@ -6,6 +6,31 @@ namespace Realm.Client.VFX;
 
 public class ProceduralVfxMeshGenerator
 {
+	private static void AddRingIndices(Godot.SurfaceTool surfaceTool, int radialRings, int angularSegments)
+	{
+		int ringVertexCount = angularSegments + 1;
+		for (int r = 0; r < radialRings; r++)
+		{
+			int currentRingOffset = r * ringVertexCount;
+			int nextRingOffset = (r + 1) * ringVertexCount;
+
+			for (int a = 0; a < angularSegments; a++)
+			{
+				int currentInner = currentRingOffset + a;
+				int nextInner = currentRingOffset + a + 1;
+				int currentOuter = nextRingOffset + a;
+				int nextOuter = nextRingOffset + a + 1;
+
+				surfaceTool.AddIndex(currentInner);
+				surfaceTool.AddIndex(currentOuter);
+				surfaceTool.AddIndex(nextInner);
+
+				surfaceTool.AddIndex(nextInner);
+				surfaceTool.AddIndex(currentOuter);
+				surfaceTool.AddIndex(nextOuter);
+			}
+		}
+	}
 	private static readonly Dictionary<VfxPrimitiveType, ArrayMesh> PrimitiveMeshCache = new();
 	private static readonly object SyncLock = new();
 
@@ -173,28 +198,7 @@ public class ProceduralVfxMeshGenerator
 			}
 		}
 
-		int ringVertexCount = angularSegments + 1;
-		for (int r = 0; r < radialRings; r++)
-		{
-			int currentRingOffset = r * ringVertexCount;
-			int nextRingOffset = (r + 1) * ringVertexCount;
-
-			for (int a = 0; a < angularSegments; a++)
-			{
-				int currentInner = currentRingOffset + a;
-				int nextInner = currentRingOffset + a + 1;
-				int currentOuter = nextRingOffset + a;
-				int nextOuter = nextRingOffset + a + 1;
-
-				surfaceTool.AddIndex(currentInner);
-				surfaceTool.AddIndex(currentOuter);
-				surfaceTool.AddIndex(nextInner);
-
-				surfaceTool.AddIndex(nextInner);
-				surfaceTool.AddIndex(currentOuter);
-				surfaceTool.AddIndex(nextOuter);
-			}
-		}
+		AddRingIndices(surfaceTool, radialRings, angularSegments);
 
 		return surfaceTool.Commit();
 	}
@@ -231,28 +235,7 @@ public class ProceduralVfxMeshGenerator
 			}
 		}
 
-		int ringVertexCount = angularSegments + 1;
-		for (int r = 0; r < radialRings; r++)
-		{
-			int currentRingOffset = r * ringVertexCount;
-			int nextRingOffset = (r + 1) * ringVertexCount;
-
-			for (int a = 0; a < angularSegments; a++)
-			{
-				int currentInner = currentRingOffset + a;
-				int nextInner = currentRingOffset + a + 1;
-				int currentOuter = nextRingOffset + a;
-				int nextOuter = nextRingOffset + a + 1;
-
-				surfaceTool.AddIndex(currentInner);
-				surfaceTool.AddIndex(currentOuter);
-				surfaceTool.AddIndex(nextInner);
-
-				surfaceTool.AddIndex(nextInner);
-				surfaceTool.AddIndex(currentOuter);
-				surfaceTool.AddIndex(nextOuter);
-			}
-		}
+		AddRingIndices(surfaceTool, radialRings, angularSegments);
 
 		return surfaceTool.Commit();
 	}

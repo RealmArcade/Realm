@@ -23,20 +23,22 @@ public partial class Decal3D : Decal
 	private float _baseEmissionEnergy = 0.0f;
 	private double _animTime = 0.0;
 
-	public bool AnimateOpacity { get; set; } = false;
-	public float OpacityPulseSpeed { get; set; } = 1.0f;
-	public float MinOpacity { get; set; } = 0.2f;
-	public float MaxOpacity { get; set; } = 1.0f;
+	public Realm.Shared.Metadata.DecalAnimationSettings AnimationSettings { get; set; } = new Realm.Shared.Metadata.DecalAnimationSettings();
 
-	public bool AnimateEmission { get; set; } = false;
-	public float EmissionPulseSpeed { get; set; } = 1.0f;
-	public float MinEmission { get; set; } = 0.0f;
-	public float MaxEmission { get; set; } = 2.0f;
+	public bool AnimateOpacity { get => AnimationSettings.AnimateOpacity; set => AnimationSettings.AnimateOpacity = value; }
+	public float OpacityPulseSpeed { get => AnimationSettings.OpacityPulseSpeed; set => AnimationSettings.OpacityPulseSpeed = value; }
+	public float MinOpacity { get => AnimationSettings.MinOpacity; set => AnimationSettings.MinOpacity = value; }
+	public float MaxOpacity { get => AnimationSettings.MaxOpacity; set => AnimationSettings.MaxOpacity = value; }
 
-	public bool AnimateScale { get; set; } = false;
-	public float ScalePulseSpeed { get; set; } = 1.0f;
-	public float MinScaleRatio { get; set; } = 0.8f;
-	public float MaxScaleRatio { get; set; } = 1.2f;
+	public bool AnimateEmission { get => AnimationSettings.AnimateEmission; set => AnimationSettings.AnimateEmission = value; }
+	public float EmissionPulseSpeed { get => AnimationSettings.EmissionPulseSpeed; set => AnimationSettings.EmissionPulseSpeed = value; }
+	public float MinEmission { get => AnimationSettings.MinEmission; set => AnimationSettings.MinEmission = value; }
+	public float MaxEmission { get => AnimationSettings.MaxEmission; set => AnimationSettings.MaxEmission = value; }
+
+	public bool AnimateScale { get => AnimationSettings.AnimateScale; set => AnimationSettings.AnimateScale = value; }
+	public float ScalePulseSpeed { get => AnimationSettings.ScalePulseSpeed; set => AnimationSettings.ScalePulseSpeed = value; }
+	public float MinScaleRatio { get => AnimationSettings.MinScaleRatio; set => AnimationSettings.MinScaleRatio = value; }
+	public float MaxScaleRatio { get => AnimationSettings.MaxScaleRatio; set => AnimationSettings.MaxScaleRatio = value; }
 
 	public bool NormalEnabled
 	{

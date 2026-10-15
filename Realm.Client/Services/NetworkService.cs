@@ -1234,20 +1234,7 @@ public class NetworkService
 	{
 		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
 		isDetailed = distToCamera <= 35.0f;
-		return new UnitSnapshot
-		{
-			EntityId = unit.Entity.Id,
-			UnitId = unit.UnitId,
-			OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
-			Position = new NetworkVector3(unit.GlobalPosition),
-			RotationY = unit.GlobalRotation.Y,
-			CurrentHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Current : 0f,
-			MaxHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Max : 0f,
-			IsDead = GameContext.World.Has<Dead>(unit.Entity),
-			IsBuilding = unit.IsBuilding,
-			IsDetailed = isDetailed,
-			Velocity = new NetworkVector3(unit.Velocity)
-		};
+		return BuildUnitSnapshot(unit, isDetailed);
 	}
 
 	private bool HasUnitChanged(Unit3D unit, ref UnitSnapshot currentSnap, bool isDetailed, Dictionary<int, UnitSnapshot> lastBaselineMap)
@@ -1311,20 +1298,7 @@ public class NetworkService
 
 		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
 		bool isDetailed = distToCamera <= 35.0f;
-		var currentSnap = new UnitSnapshot
-		{
-			EntityId = unit.Entity.Id,
-			UnitId = unit.UnitId,
-			OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
-			Position = new NetworkVector3(unit.GlobalPosition),
-			RotationY = unit.GlobalRotation.Y,
-			CurrentHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Current : 0f,
-			MaxHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Max : 0f,
-			IsDead = GameContext.World.Has<Dead>(unit.Entity),
-			IsBuilding = unit.IsBuilding,
-			IsDetailed = isDetailed,
-			Velocity = new NetworkVector3(unit.Velocity)
-		};
+		var currentSnap = BuildUnitSnapshot(unit, isDetailed);
 		snapshotUnits.Add(currentSnap);
 		nextBaselineMap[unit.Entity.Id] = currentSnap;
 	}
@@ -1928,5 +1902,22 @@ public class NetworkService
 		{
 			GD.Print($"[NetworkService] Offline or registry server unreachable, skipping creator registration prompt: {ex.Message}");
 		}
+	}
+	private UnitSnapshot BuildUnitSnapshot(Unit3D unit, bool isDetailed)
+	{
+		return new UnitSnapshot
+		{
+			EntityId = unit.Entity.Id,
+			UnitId = unit.UnitId,
+			OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
+			Position = new NetworkVector3(unit.GlobalPosition),
+			RotationY = unit.GlobalRotation.Y,
+			CurrentHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Current : 0f,
+			MaxHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Max : 0f,
+			IsDead = GameContext.World.Has<Dead>(unit.Entity),
+			IsBuilding = unit.IsBuilding,
+			IsDetailed = isDetailed,
+			Velocity = new NetworkVector3(unit.Velocity)
+		};
 	}
 }

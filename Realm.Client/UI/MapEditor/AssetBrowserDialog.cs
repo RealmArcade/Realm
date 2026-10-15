@@ -802,36 +802,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 		private void UpdateVisibleGridCells()
 		{
-			float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
-			int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
-			int totalRows = (_matchingAssets.Count + columns - 1) / columns;
-
-			VirtualGridHelper.UpdateVirtualGridHeight(_virtualGridContent, _matchingAssets.Count, totalRows, GridPadding, CellHeight, SpacingY);
-
-			if (_matchingAssets.Count == 0)
-			{
-				VirtualGridHelper.HideAllGridCells(_cellPool);
-				return;
-			}
-
-			UpdateVisibleCellsForScroll(columns, totalRows);
-		}
-
-		private void UpdateVisibleCellsForScroll(int columns, int totalRows)
-		{
-			float scrollY = (float)_scrollContainer.GetVScrollBar().Value;
-			float viewHeight = _scrollContainer.Size.Y > 0 ? _scrollContainer.Size.Y : 320.0f;
-
-			int startRow = Math.Max(0, (int)((scrollY - GridPadding) / (CellHeight + SpacingY)) - 1);
-			int endRow = Math.Min(totalRows - 1, (int)((scrollY + viewHeight - GridPadding) / (CellHeight + SpacingY)) + 1);
-
-			int startIndex = Math.Max(0, startRow * columns);
-			int endIndex = Math.Min(_matchingAssets.Count - 1, (endRow + 1) * columns - 1);
-			int visibleCount = endIndex >= startIndex ? (endIndex - startIndex + 1) : 0;
-
-			VirtualGridHelper.EnsureCellPoolCapacity(_cellPool, _virtualGridContent, visibleCount);
-			BindVisibleGridCells(startIndex, visibleCount, columns);
-			VirtualGridHelper.HideUnusedGridCells(_cellPool, visibleCount);
+			VirtualGridHelper.UpdateVisibleGridCells(_scrollContainer, _virtualGridContent, _matchingAssets, _cellPool, GridPadding, CellWidth, CellHeight, SpacingX, SpacingY, 320.0f, BindVisibleGridCells);
 		}
 
 		private void BindVisibleGridCells(int startIndex, int visibleCount, int columns)

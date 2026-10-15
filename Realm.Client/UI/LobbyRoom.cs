@@ -471,29 +471,7 @@ public partial class LobbyRoom : Control
 		vbox.AddChild(btnConfirm);
 	}
 
-	private string FormatMapDisplayName(string rawName)
-	{
-		if (string.IsNullOrEmpty(rawName))
-		{
-			return "";
-		}
 
-		string formatted = rawName.Replace('_', ' ');
-		string[] words = formatted.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-		for (int i = 0; i < words.Length; i++)
-		{
-			if (words[i].Equals("td", StringComparison.OrdinalIgnoreCase))
-			{
-				words[i] = "TD";
-			}
-			else if (words[i].Length > 0)
-			{
-				words[i] = char.ToUpper(words[i][0]) + words[i].Substring(1).ToLower();
-			}
-		}
-
-		return string.Join(" ", words);
-	}
 
 	private void OnStartPressed()
 	{

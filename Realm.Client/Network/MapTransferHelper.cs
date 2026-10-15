@@ -40,6 +40,21 @@ public static class MapTransferHelper
 		}
 	}
 
+		public static void HandleBeginMapTransferRpc(ClientTransferSession? currentClientTransfer, string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks, System.Action acknowledgeCallback, System.Action<System.Exception>? errorCallback = null)
+	{
+		if (currentClientTransfer != null && currentClientTransfer.TransferId == transferId)
+		{
+			try
+			{
+				HandleBeginMapTransfer(currentClientTransfer, mapName, mapVersion, totalBytes, totalChunks, acknowledgeCallback);
+			}
+			catch (System.Exception ex)
+			{
+				errorCallback?.Invoke(ex);
+			}
+		}
+	}
+
 	public static void HandleBeginMapTransfer(ClientTransferSession transferSession, string mapName, string mapVersion, long totalBytes, int totalChunks, System.Action onCompleteCallback)
 	{
 		transferSession.LastActivityTimeUtc = System.DateTime.UtcNow;

@@ -119,21 +119,7 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	public override void ResizeTerrain(int newWidth, int newDepth)
 	{
-		if (!PrepareTerrainResize(ref newWidth, ref newDepth)) return;
-		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-
-		int oldWidth = state.Width;
-		int oldDepth = state.Depth;
-		var oldCells = Cells;
-		int[,] oldPathing = state.PathingCodes;
-		TerrainSplatWeights[,] oldSplatMap = SplatMap;
-
-		TerrainSplatWeights[,] oldCliffSplatMap = CliffSplatMap;
-
-		var newCells = new TerrainCell[newWidth, newDepth];
-		int[,] newPathing = new int[newWidth, newDepth];
-		TerrainSplatWeights[,] newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
-		TerrainSplatWeights[,] newCliffSplatMap = oldCliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
+		if (!TryPrepareResizeAndAllocate(ref newWidth, ref newDepth, out int oldWidth, out int oldDepth, out var oldCells, out var oldPathing, out var oldSplatMap, out var oldCliffSplatMap, out var newCells, out var newPathing, out var newSplatMap, out var newCliffSplatMap)) return;
 
 		int offsetX = (newWidth - oldWidth) / 2;
 		int offsetZ = (newDepth - oldDepth) / 2;
@@ -327,20 +313,7 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	public override void ScaleTerrainData(int newWidth, int newDepth)
 	{
-		if (!PrepareTerrainResize(ref newWidth, ref newDepth)) return;
-		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-
-		int oldWidth = state.Width;
-		int oldDepth = state.Depth;
-		var oldCells = Cells;
-		int[,] oldPathing = state.PathingCodes;
-		TerrainSplatWeights[,] oldSplatMap = SplatMap;
-		TerrainSplatWeights[,] oldCliffSplatMap = CliffSplatMap;
-
-		var newCells = new TerrainCell[newWidth, newDepth];
-		int[,] newPathing = new int[newWidth, newDepth];
-		TerrainSplatWeights[,] newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
-		TerrainSplatWeights[,] newCliffSplatMap = oldCliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
+		if (!TryPrepareResizeAndAllocate(ref newWidth, ref newDepth, out int oldWidth, out int oldDepth, out var oldCells, out var oldPathing, out var oldSplatMap, out var oldCliffSplatMap, out var newCells, out var newPathing, out var newSplatMap, out var newCliffSplatMap)) return;
 
 		float[,] newGridHeights = CalculateScaledGridHeights(newWidth, newDepth, oldWidth, oldDepth, oldCells);
 		PopulateScaledCellsAndPathing(newWidth, newDepth, oldWidth, oldDepth, newGridHeights, oldPathing, newCells, newPathing);
@@ -409,5 +382,33 @@ public partial class EditableTerrain : RuntimeTerrain
 		UpdateWaterTransform();
 		UpdateWaterSize();
 		UpdateMeshAndPhysics();
+	}
+	private bool TryPrepareResizeAndAllocate(ref int newWidth, ref int newDepth, out int oldWidth, out int oldDepth, out TerrainCell[,] oldCells, out int[,] oldPathing, out TerrainSplatWeights[,] oldSplatMap, out TerrainSplatWeights[,] oldCliffSplatMap, out TerrainCell[,] newCells, out int[,] newPathing, out TerrainSplatWeights[,] newSplatMap, out TerrainSplatWeights[,] newCliffSplatMap)
+	{
+		if (!PrepareTerrainResize(ref newWidth, ref newDepth))
+		{
+			oldWidth = oldDepth = 0;
+			oldCells = newCells = null!;
+			oldPathing = newPathing = null!;
+			oldSplatMap = newSplatMap = null!;
+			oldCliffSplatMap = newCliffSplatMap = null!;
+			return false;
+		}
+
+		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+
+		oldWidth = state.Width;
+		oldDepth = state.Depth;
+		oldCells = Cells;
+		oldPathing = state.PathingCodes;
+		oldSplatMap = SplatMap;
+		oldCliffSplatMap = CliffSplatMap;
+
+		newCells = new TerrainCell[newWidth, newDepth];
+		newPathing = new int[newWidth, newDepth];
+		newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
+		newCliffSplatMap = oldCliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null!;
+
+		return true;
 	}
 }
