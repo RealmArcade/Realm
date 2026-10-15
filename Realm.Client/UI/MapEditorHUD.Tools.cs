@@ -727,7 +727,7 @@ namespace Realm.Client.UI
 						{
 							GameHost.Instance.ClearMeasureVisuals();
 							ClearMeasureTelemetry();
-							TriggerToolSelection(GameContext.EditorService.SavedActiveTool != EditorTool.Measure ? GameContext.EditorService.SavedActiveTool : EditorTool.Raise, null);
+							TriggerToolSelection(GameContext.SessionState.SavedActiveTool != EditorTool.Measure ? GameContext.SessionState.SavedActiveTool : EditorTool.Raise, null);
 						}
 						else
 						{
@@ -1560,21 +1560,21 @@ namespace Realm.Client.UI
 
 				if (GameContext.SessionState.ReturningFromTest)
 				{
-					_sldBrushSize.Value = GameContext.EditorService.SavedBrushRadius;
-					_sldBrushStrength.Value = GameContext.EditorService.SavedBrushStrength;
+					_sldBrushSize.Value = GameContext.SessionState.SavedBrushRadius;
+					_sldBrushStrength.Value = GameContext.SessionState.SavedBrushStrength;
 
-					if (GameContext.EditorService.SavedActiveTool == EditorTool.PlaceUnit ||
-					    GameContext.EditorService.SavedActiveTool == EditorTool.PlaceProp ||
-					    GameContext.EditorService.SavedActiveTool == EditorTool.PlaceDecal)
+					if (GameContext.SessionState.SavedActiveTool == EditorTool.PlaceUnit ||
+					    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceProp ||
+					    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal)
 					{
-						_entityPaletteController?.SelectCategoryItemExternal(GameContext.EditorService.SavedEntityCategory, GameContext.EditorService.SavedActivePlaceId);
+						_entityPaletteController?.SelectCategoryItemExternal(GameContext.SessionState.SavedEntityCategory, GameContext.SessionState.SavedActivePlaceId);
 					}
 					else
 					{
-						Button toolBtn = GetButtonForTool(GameContext.EditorService.SavedActiveTool, GameContext.EditorService.SavedActivePlaceId);
+						Button toolBtn = GetButtonForTool(GameContext.SessionState.SavedActiveTool, GameContext.SessionState.SavedActivePlaceId);
 						if (toolBtn != null)
 						{
-							TriggerToolSelection(GameContext.EditorService.SavedActiveTool, toolBtn, GameContext.EditorService.SavedActivePlaceId);
+							TriggerToolSelection(GameContext.SessionState.SavedActiveTool, toolBtn, GameContext.SessionState.SavedActivePlaceId);
 						}
 						else
 						{

@@ -765,16 +765,16 @@ public partial class MapEditorHUD : Control
 			_sldBrushStrength.MinValue = 0.0;
 			_sldBrushStrength.MaxValue = 10.0;
 			_sldBrushStrength.Step = 1.0;
-			_sldBrushStrength.Value = GameContext.EditorService.SavedTextureIntensity;
-			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = GameContext.EditorService.SavedTextureIntensity.ToString("F0");
-			GameHost.Instance.EditorBrushStrength = GameContext.EditorService.SavedTextureIntensity;
+			_sldBrushStrength.Value = GameContext.SessionState.SavedTextureIntensity;
+			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = GameContext.SessionState.SavedTextureIntensity.ToString("F0");
+			GameHost.Instance.EditorBrushStrength = GameContext.SessionState.SavedTextureIntensity;
 		}
 		else
 		{
 			_sldBrushStrength.MinValue = 0.5;
 			_sldBrushStrength.MaxValue = 10.0;
 			_sldBrushStrength.Step = 0.5;
-			float restoredStrength = Math.Max(0.5f, GameContext.EditorService.SavedBrushStrength);
+			float restoredStrength = Math.Max(0.5f, GameContext.SessionState.SavedBrushStrength);
 			_sldBrushStrength.Value = restoredStrength;
 			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = restoredStrength.ToString("F1");
 			GameHost.Instance.EditorBrushStrength = restoredStrength;
@@ -1201,36 +1201,36 @@ public partial class MapEditorHUD : Control
 		var camera = GameHost.Instance.MainCamera;
 		if (camera == null) return;
 
-		GameContext.EditorService.SavedCameraPosition = camera.Position;
+		GameContext.SessionState.SavedCameraPosition = camera.Position;
 
 		var host = GameHost.Instance;
 		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
 		{
 			var state = GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
-			GameContext.EditorService.SavedTargetHeight = state.TargetHeight;
-			GameContext.EditorService.SavedCurrentHeight = state.CurrentHeight;
-			GameContext.EditorService.SavedTargetYaw = state.TargetYaw;
-			GameContext.EditorService.SavedCurrentYaw = state.CurrentYaw;
-			GameContext.EditorService.SavedTargetPitch = state.TargetPitch;
-			GameContext.EditorService.SavedCurrentPitch = state.CurrentPitch;
-			GameContext.EditorService.SavedIsTopDown = state.IsTopDown;
-			GameContext.EditorService.SavedYawSwing = state.YawSwing;
-			GameContext.EditorService.SavedPitchSwing = state.PitchSwing;
+			GameContext.SessionState.SavedTargetHeight = state.TargetHeight;
+			GameContext.SessionState.SavedCurrentHeight = state.CurrentHeight;
+			GameContext.SessionState.SavedTargetYaw = state.TargetYaw;
+			GameContext.SessionState.SavedCurrentYaw = state.CurrentYaw;
+			GameContext.SessionState.SavedTargetPitch = state.TargetPitch;
+			GameContext.SessionState.SavedCurrentPitch = state.CurrentPitch;
+			GameContext.SessionState.SavedIsTopDown = state.IsTopDown;
+			GameContext.SessionState.SavedYawSwing = state.YawSwing;
+			GameContext.SessionState.SavedPitchSwing = state.PitchSwing;
 		}
 	}
 
 	private void SaveGameHostStates()
 	{
 		var host = GameHost.Instance;
-		GameContext.EditorService.SavedGridMode = GameContext.EditorService.EditorGridMode;
-		GameContext.EditorService.SavedActiveTool = host.ActiveEditorTool;
-		GameContext.EditorService.SavedActivePlaceId = host.ActivePlaceId;
-		GameContext.EditorService.SavedCameraBoundsVisible = GameContext.EditorService.EditorCameraBoundsVisible;
-		GameContext.EditorService.SavedDisableShadows = GameContext.EditorService.EditorDisableShadows;
-		GameContext.EditorService.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
-		GameContext.EditorService.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
+		GameContext.SessionState.SavedGridMode = GameContext.EditorService.EditorGridMode;
+		GameContext.SessionState.SavedActiveTool = host.ActiveEditorTool;
+		GameContext.SessionState.SavedActivePlaceId = host.ActivePlaceId;
+		GameContext.SessionState.SavedCameraBoundsVisible = GameContext.EditorService.EditorCameraBoundsVisible;
+		GameContext.SessionState.SavedDisableShadows = GameContext.EditorService.EditorDisableShadows;
+		GameContext.SessionState.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
+		GameContext.SessionState.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
 		float val = (float)(_sldBrushStrength?.Value ?? 1f);
-		GameContext.EditorService.SavedBrushStrength = val;
+		GameContext.SessionState.SavedBrushStrength = val;
 	}
 
 	private async Task PrepareMapAndWorkspaceForTest()

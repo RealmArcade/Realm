@@ -636,12 +636,6 @@ public partial class EditorService : IEditorAPI
 	public string CurrentDirectoryBlake3 { get; set; } = string.Empty;
 	public long LastTerrainSyncTime { get; set; } = 0;
 	public long LastMetadataSyncTime { get; set; } = 0;
-	public Godot.Vector3 SavedCameraPosition { get; set; }
-	public float SavedTargetHeight { get; set; }
-	public float SavedCurrentHeight { get; set; }
-	public float SavedTargetYaw { get; set; }
-	public float SavedCurrentYaw { get; set; }
-	public float SavedTargetPitch { get; set; }
 	public int ScaleDialogTargetWidth { get; set; }
 
 	public bool DecreaseScaleDialogWidth()
@@ -695,13 +689,6 @@ public partial class EditorService : IEditorAPI
 	{
 		return mirrorMode == MirrorMode.Rotational || mode == GridOverlayMode.Polar || mode == GridOverlayMode.Both;
 	}
-
-
-	public float SavedCurrentPitch { get; set; }
-	public bool SavedIsTopDown { get; set; }
-	public float SavedYawSwing { get; set; }
-	public float SavedPitchSwing { get; set; }
-	public GridOverlayMode SavedGridMode { get; set; } = GridOverlayMode.Off;
 
 	public double AutoBackupElapsedSeconds { get; set; } = 0;
 
@@ -941,12 +928,8 @@ public partial class EditorService : IEditorAPI
 	public float EditorPolarRingSpacing { get; set; } = 8.0f;
 	public float EditorPolarRadialStep { get; set; } = 90.0f;
 	public Godot.Vector3? EditorTapeMeasureStart { get; set; }
-
-	public bool SavedDisableShadows { get; set; } = false;
-	public string SavedEntityCategory { get; set; } = "";
 	public bool IsWaterRemoveAction { get; set; } = false;
-	public float SavedBrushRadius { get; set; } = 2f;
-	public float SavedBrushStrength { get; set; } = 0.5f;
+
 	public bool PlaceUnitIsEnemy { get; set; } = false;
 	public float EditorBrushRadius { get; set; } = 2.0f;
 	public float EditorBrushStrength { get; set; } = 3.0f;
@@ -964,11 +947,7 @@ public partial class EditorService : IEditorAPI
 		return (terrainName, cliffName);
 	}
 
-	public EditorTool SavedActiveTool { get; set; } = EditorTool.Raise;
 	public EditorTool ActiveEditorTool { get; set; } = EditorTool.None;
-	public string SavedActivePlaceId { get; set; } = "";
-	public bool SavedCameraBoundsVisible { get; set; } = false;
-	public float SavedTextureIntensity { get; set; } = 10f;
 	public string? LastUsedFolder { get; set; } = null;
 	public string? CurrentSourceFolder { get; set; } = null;
 	public string? PendingCasSourceDirectory { get; set; } = null;

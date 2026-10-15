@@ -2259,27 +2259,26 @@ namespace Realm.Client.Core
 			{
 				LoadMapFromFile(GameContext.EditorService.TempWorkspaceGodotPath + "/terrain.json");
 
-				GameContext.EditorService.EditorGridMode = GameContext.EditorService.SavedGridMode;
-				GameContext.EditorService.EditorCameraBoundsVisible = GameContext.EditorService.SavedCameraBoundsVisible;
-				bool val = GameContext.EditorService.SavedDisableShadows;
-				GameContext.EditorService.EditorDisableShadows = val;
+				GameContext.EditorService.EditorGridMode = GameContext.SessionState.SavedGridMode;
+				GameContext.EditorService.EditorCameraBoundsVisible = GameContext.SessionState.SavedCameraBoundsVisible;
+				GameContext.EditorService.EditorDisableShadows = GameContext.SessionState.SavedDisableShadows;
 
 				var camera = MainCamera;
 				if (camera != null)
 				{
-					camera.Position = GameContext.EditorService.SavedCameraPosition;
+					camera.Position = GameContext.SessionState.SavedCameraPosition;
 					if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
 					{
 						ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
-						state.TargetHeight = GameContext.EditorService.SavedTargetHeight;
-						state.CurrentHeight = GameContext.EditorService.SavedTargetHeight;
-						state.TargetYaw = GameContext.EditorService.SavedTargetYaw;
-						state.CurrentYaw = GameContext.EditorService.SavedTargetYaw;
-						state.TargetPitch = GameContext.EditorService.SavedTargetPitch;
-						state.CurrentPitch = GameContext.EditorService.SavedTargetPitch;
-						state.IsTopDown = GameContext.EditorService.SavedIsTopDown;
-						state.YawSwing = GameContext.EditorService.SavedYawSwing;
-						state.PitchSwing = GameContext.EditorService.SavedPitchSwing;
+						state.TargetHeight = GameContext.SessionState.SavedTargetHeight;
+						state.CurrentHeight = GameContext.SessionState.SavedTargetHeight;
+						state.TargetYaw = GameContext.SessionState.SavedTargetYaw;
+						state.CurrentYaw = GameContext.SessionState.SavedTargetYaw;
+						state.TargetPitch = GameContext.SessionState.SavedTargetPitch;
+						state.CurrentPitch = GameContext.SessionState.SavedTargetPitch;
+						state.IsTopDown = GameContext.SessionState.SavedIsTopDown;
+						state.YawSwing = GameContext.SessionState.SavedYawSwing;
+						state.PitchSwing = GameContext.SessionState.SavedPitchSwing;
 					}
 				}
 			}
