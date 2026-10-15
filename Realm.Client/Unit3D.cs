@@ -763,6 +763,12 @@ public partial class Unit3D : Prop3D
 
 		ApplyUnitAttachmentOverrides(bone, attachmentId, ref effectivePos, ref effectiveRot, ref effectiveScaleVec, ref effectiveNormalOffset, scaleOverride.HasValue, scaleVectorOverride.HasValue, posOffsetOverride.HasValue, rotOffsetOverride.HasValue, normalOffsetOverride.HasValue);
 
+		Node3D targetParent = ResolveSocketTargetParent(attachTarget, parentNode, parentAttachmentId);
+		FinalizeAttachmentInstance(model, attachmentId, targetParent, effectivePos, effectiveRot, effectiveScaleVec, effectiveNormalOffset);
+	}
+
+	private void FinalizeAttachmentInstance(Node3D model, string attachmentId, Node3D targetParent, Vector3 effectivePos, Vector3 effectiveRot, Vector3 effectiveScaleVec, float effectiveNormalOffset)
+	{
 		if (effectiveNormalOffset != 0.0f) effectivePos += Vector3.Up * effectiveNormalOffset;
 
 		model.Position = effectivePos;
@@ -774,9 +780,7 @@ public partial class Unit3D : Prop3D
 		model.SetMeta("AttachmentId", attachmentId);
 		model.SetMeta("CleanAttachmentId", cleanAttId);
 
-		Node3D targetParent = ResolveSocketTargetParent(attachTarget, parentNode, parentAttachmentId);
 		targetParent.AddChild(model);
-
 		ApplyModelShaders(model);
 	}
 
@@ -1173,21 +1177,8 @@ public partial class Unit3D : Prop3D
 
 		ApplyPseudoSocketUnitOverrides(normSocket, attachmentId, ref effectivePos, ref effectiveRot, ref effectiveScaleVec, ref effectiveNormalOffset, scaleOverride.HasValue, scaleVectorOverride.HasValue, posOffsetOverride.HasValue, rotOffsetOverride.HasValue, normalOffsetOverride.HasValue);
 
-		if (effectiveNormalOffset != 0.0f) effectivePos += Vector3.Up * effectiveNormalOffset;
-
-		model.Position = effectivePos;
-		model.RotationDegrees = effectiveRot;
-		model.Scale = effectiveScaleVec;
-
-		string cleanAttId = GetCleanAttachmentId(attachmentId);
-		model.Name = $"Att_{cleanAttId}";
-		model.SetMeta("AttachmentId", attachmentId);
-		model.SetMeta("CleanAttachmentId", cleanAttId);
-
 		Node3D targetParent = ResolvePseudoSocketTargetParent(socketNode, visual, parentAttachmentId);
-		targetParent.AddChild(model);
-
-		ApplyModelShaders(model);
+		FinalizeAttachmentInstance(model, attachmentId, targetParent, effectivePos, effectiveRot, effectiveScaleVec, effectiveNormalOffset);
 	}
 
 	private void ApplyPseudoSocketUnitOverrides(string normSocket, string attachmentId, ref Vector3 effectivePos, ref Vector3 effectiveRot, ref Vector3 effectiveScaleVec, ref float effectiveNormalOffset, bool hasScaleOverride, bool hasScaleVecOverride, bool hasPosOverride, bool hasRotOverride, bool hasNormalOverride)

@@ -27,8 +27,6 @@ public partial class ProceduralVfxInstance3D : Node3D
 	private bool _isHovered = false;
 	private MeshInstance3D _editorBaseRing;
 
-	private static StandardMaterial3D _sharedSelectionMaterial;
-	private static StandardMaterial3D _sharedHoverMaterial;
 	private static StandardMaterial3D _sharedEditorBaseMaterial;
 
 	public bool IsPreview { get; set; } = false;
@@ -478,39 +476,6 @@ public partial class ProceduralVfxInstance3D : Node3D
 		return _sharedEditorBaseMaterial;
 	}
 
-	private static StandardMaterial3D GetOrCreateSelectionMaterial()
-	{
-		if (_sharedSelectionMaterial == null || !GodotObject.IsInstanceValid(_sharedSelectionMaterial))
-		{
-			_sharedSelectionMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.22f, 0.54f, 0.26f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedSelectionMaterial;
-	}
-
-	private static StandardMaterial3D GetOrCreateHoverMaterial()
-	{
-		if (_sharedHoverMaterial == null || !GodotObject.IsInstanceValid(_sharedHoverMaterial))
-		{
-			_sharedHoverMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.88f, 0.88f, 0.88f, 0.22f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedHoverMaterial;
-	}
 
 	private static TorusMesh CreateTorusMesh(float radius)
 	{
@@ -534,7 +499,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
 			Mesh = CreateTorusMesh(radius),
 			Position = new Vector3(0, 0.05f, 0),
-			MaterialOverride = GetOrCreateSelectionMaterial(),
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateSelectionMaterial(),
 			Visible = _isSelected
 		};
 		AddChild(_selectionRing);
@@ -551,7 +516,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
 			Mesh = CreateTorusMesh(radius),
 			Position = new Vector3(0, 0.05f, 0),
-			MaterialOverride = GetOrCreateHoverMaterial(),
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateHoverMaterial(),
 			Visible = _isHovered && !_isSelected
 		};
 		AddChild(_hoverRing);

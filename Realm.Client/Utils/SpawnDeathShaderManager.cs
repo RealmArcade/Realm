@@ -145,16 +145,7 @@ public static class SpawnDeathShaderManager
 
 		if (config != null)
 		{
-			mat.SetShaderParameter("transition_mode", config.TransitionMode);
-			mat.SetShaderParameter("direction", config.Direction);
-			mat.SetShaderParameter("edge_color", config.EdgeColor);
-			mat.SetShaderParameter("edge_width", config.EdgeWidth);
-			mat.SetShaderParameter("edge_emission", config.EdgeEmission);
-			mat.SetShaderParameter("noise_scale", config.NoiseScale);
-			mat.SetShaderParameter("noise_roughness", config.NoiseRoughness);
-			mat.SetShaderParameter("fresnel_power", config.FresnelPower);
-			mat.SetShaderParameter("vertex_displacement", config.VertexDisplacement);
-			mat.SetShaderParameter("alpha_fade", config.AlphaFade);
+			ApplyShaderConfig(mat, config);
 		}
 
 		if (albedoTex != null)
@@ -237,6 +228,20 @@ public static class SpawnDeathShaderManager
 		return null;
 	}
 
+	private static void ApplyShaderConfig(ShaderMaterial mat, CustomShaderConfig config)
+	{
+		mat.SetShaderParameter("transition_mode", config.TransitionMode);
+		mat.SetShaderParameter("direction", config.Direction);
+		mat.SetShaderParameter("edge_color", config.EdgeColor);
+		mat.SetShaderParameter("edge_width", config.EdgeWidth);
+		mat.SetShaderParameter("edge_emission", config.EdgeEmission);
+		mat.SetShaderParameter("noise_scale", config.NoiseScale);
+		mat.SetShaderParameter("noise_roughness", config.NoiseRoughness);
+		mat.SetShaderParameter("fresnel_power", config.FresnelPower);
+		mat.SetShaderParameter("vertex_displacement", config.VertexDisplacement);
+		mat.SetShaderParameter("alpha_fade", config.AlphaFade);
+	}
+
 	private static void ApplyShaderToMeshNode(Node node, CustomShaderConfig config, Aabb aabb, float progress, Shader shader)
 	{
 		if (IsExcludedMesh(node)) return;
@@ -252,16 +257,7 @@ public static class SpawnDeathShaderManager
 			}
 
 			mat.SetShaderParameter("progress", Mathf.Clamp(progress, 0.0f, 1.0f));
-			mat.SetShaderParameter("transition_mode", config.TransitionMode);
-			mat.SetShaderParameter("direction", config.Direction);
-			mat.SetShaderParameter("edge_color", config.EdgeColor);
-			mat.SetShaderParameter("edge_width", config.EdgeWidth);
-			mat.SetShaderParameter("edge_emission", config.EdgeEmission);
-			mat.SetShaderParameter("noise_scale", config.NoiseScale);
-			mat.SetShaderParameter("noise_roughness", config.NoiseRoughness);
-			mat.SetShaderParameter("fresnel_power", config.FresnelPower);
-			mat.SetShaderParameter("vertex_displacement", config.VertexDisplacement);
-			mat.SetShaderParameter("alpha_fade", config.AlphaFade);
+			ApplyShaderConfig(mat, config);
 			mat.SetShaderParameter("model_bounds_min", aabb.Position);
 			mat.SetShaderParameter("model_bounds_max", aabb.Position + aabb.Size);
 		}

@@ -229,25 +229,14 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			140f
 		);
 
-		var rowTint = new HBoxContainer();
-		rowTint.AddThemeConstantOverride("separation", 8);
-		var lblTint = new Label();
-		lblTint.Text = TranslationServer.Translate("Tint Color:");
-		lblTint.CustomMinimumSize = new Vector2(140, 0);
-		lblTint.AddThemeFontSizeOverride("font_size", 11);
-		rowTint.AddChild(lblTint);
-
-		_btnTint = new ColorPickerButton();
-		_btnTint.CustomMinimumSize = new Vector2(90, 24);
-		_btnTint.Color = _tint;
-		_btnTint.ColorChanged += (newCol) =>
+		var tintRowResult = UIStyle.CreateTintRow(_tint, (newCol) =>
 		{
 			if (_isSyncingControls) return;
 			_tint = newCol;
 			UpdateLivePreviewAndWorld();
-		};
-		rowTint.AddChild(_btnTint);
-		contentVBox.AddChild(rowTint);
+		});
+		_btnTint = tintRowResult.Item2;
+		contentVBox.AddChild(tintRowResult.Item1);
 
 		(_sldContrast, _lblContrast) = AddSlider(
 			contentVBox,

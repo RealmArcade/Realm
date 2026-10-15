@@ -157,13 +157,6 @@ public class InputService
 		return GameContext.TechTreeService.BuyHarvestingUpgrade(playerEntity);
 	}
 
-	private void RemoveIfHas<T>(Entity entity)
-	{
-		if (GameContext.World.Has<T>(entity))
-		{
-			GameContext.World.Remove<T>(entity);
-		}
-	}
 
 
 	public void AssignResumeTasksToWorkers(IEnumerable<Entity> selectedWorkerEntities, Entity targetBuildingEntity, string targetBuildingUnitId, Vector3 bPos, bool shiftHeld)
@@ -200,18 +193,7 @@ public class InputService
 
 	public void ClearUnitOrders(Entity entity)
 	{
-		RemoveIfHas<MoveTo>(entity);
-		RemoveIfHas<PathFollow>(entity);
-		RemoveIfHas<AttackTarget>(entity);
-		RemoveIfHas<AttackMove>(entity);
-		RemoveIfHas<HoldPosition>(entity);
-		RemoveIfHas<Follow>(entity);
-		RemoveIfHas<Patrol>(entity);
-		RemoveIfHas<HealingTarget>(entity);
-		RemoveIfHas<WaypointQueue>(entity);
-		RemoveIfHas<Gatherer>(entity);
-		RemoveIfHas<BuildTask>(entity);
-		RemoveIfHas<BuildQueue>(entity);
+		Realm.Client.Utils.UnitOrderUtility.ClearUnitOrders(entity);
 	}
 
 	public bool IsUnitActive(Entity entity)

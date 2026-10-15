@@ -110,15 +110,20 @@ public static class MapJsonFormatter
 		return array != null && array.All(item => item is JsonObject);
 	}
 
-	private static JsonArray SortUnits(JsonArray unitsArr, float topLeftX, float topLeftZ)
+	private static IOrderedEnumerable<JsonObject> GetBaseEntitySort(IEnumerable<JsonObject> objects, float topLeftX, float topLeftZ)
 	{
-		var sortedList = unitsArr.OfType<JsonObject>()
+		return objects
 			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
 			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
 			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
 			.ThenBy(item => GetFloatProperty(item, "PosX"))
 			.ThenBy(item => GetFloatProperty(item, "PosZ"))
-			.ThenBy(item => GetFloatProperty(item, "PosY"))
+			.ThenBy(item => GetFloatProperty(item, "PosY"));
+	}
+
+	private static JsonArray SortUnits(JsonArray unitsArr, float topLeftX, float topLeftZ)
+	{
+		var sortedList = GetBaseEntitySort(unitsArr.OfType<JsonObject>(), topLeftX, topLeftZ)
 			.ThenBy(item => GetFloatProperty(item, "RotationX"))
 			.ThenBy(item => GetFloatProperty(item, "RotationY"))
 			.ThenBy(item => GetFloatProperty(item, "RotationZ"))
@@ -132,13 +137,7 @@ public static class MapJsonFormatter
 
 	private static JsonArray SortProps(JsonArray propsArr, float topLeftX, float topLeftZ)
 	{
-		var sortedList = propsArr.OfType<JsonObject>()
-			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
-			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
-			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
-			.ThenBy(item => GetFloatProperty(item, "PosX"))
-			.ThenBy(item => GetFloatProperty(item, "PosZ"))
-			.ThenBy(item => GetFloatProperty(item, "PosY"))
+		var sortedList = GetBaseEntitySort(propsArr.OfType<JsonObject>(), topLeftX, topLeftZ)
 			.ThenBy(item => GetFloatProperty(item, "RotationX"))
 			.ThenBy(item => GetFloatProperty(item, "RotationY"))
 			.ThenBy(item => GetFloatProperty(item, "RotationZ"))
@@ -150,13 +149,7 @@ public static class MapJsonFormatter
 
 	private static JsonArray SortDecals(JsonArray decalsArr, float topLeftX, float topLeftZ)
 	{
-		var sortedList = decalsArr.OfType<JsonObject>()
-			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
-			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
-			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
-			.ThenBy(item => GetFloatProperty(item, "PosX"))
-			.ThenBy(item => GetFloatProperty(item, "PosZ"))
-			.ThenBy(item => GetFloatProperty(item, "PosY"))
+		var sortedList = GetBaseEntitySort(decalsArr.OfType<JsonObject>(), topLeftX, topLeftZ)
 			.ThenBy(item => GetFloatProperty(item, "RotationY"))
 			.ThenBy(item => GetFloatProperty(item, "Scale"))
 			.ToList();
@@ -299,30 +292,18 @@ public static class MapJsonFormatter
 	{
 		string formatted = FormatJson(jsonText);
 		string lineEnding = DetectLineEnding(filePath, jsonText);
-		if (lineEnding == "\r\n")
-		{
-			formatted = formatted.Replace("\r\n", "\n").Replace("\n", "\r\n");
-		}
-
-		string directory = Path.GetDirectoryName(filePath);
-		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-		{
-			Directory.CreateDirectory(directory);
-		}
-
-		if (File.Exists(filePath) && File.ReadAllText(filePath) == formatted)
-		{
-			return;
-		}
-
-		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-		File.WriteAllText(filePath, formatted);
+		WriteToFileIfChanged(filePath, formatted, lineEnding);
 	}
 
 	public static void SaveFormattedJson(string filePath, JsonNode node)
 	{
 		string formatted = FormatNode(node);
 		string lineEnding = DetectLineEnding(filePath);
+		WriteToFileIfChanged(filePath, formatted, lineEnding);
+	}
+
+	private static void WriteToFileIfChanged(string filePath, string formatted, string lineEnding)
+	{
 		if (lineEnding == "\r\n")
 		{
 			formatted = formatted.Replace("\r\n", "\n").Replace("\n", "\r\n");

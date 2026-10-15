@@ -2221,25 +2221,9 @@ public partial class GameHost : Node3D, IGameAPI
 		return null;
 	}
 
-	private void RemoveIfHas<T>(Entity entity) where T : struct
-	{
-		if (GameContext.World.Has<T>(entity)) GameContext.World.Remove<T>(entity);
-	}
-
 	public void ClearUnitOrders(Entity entity)
 	{
-		RemoveIfHas<MoveTo>(entity);
-		RemoveIfHas<PathFollow>(entity);
-		RemoveIfHas<AttackTarget>(entity);
-		RemoveIfHas<AttackMove>(entity);
-		RemoveIfHas<HoldPosition>(entity);
-		RemoveIfHas<Follow>(entity);
-		RemoveIfHas<Patrol>(entity);
-		RemoveIfHas<HealingTarget>(entity);
-		RemoveIfHas<WaypointQueue>(entity);
-		RemoveIfHas<Gatherer>(entity);
-		RemoveIfHas<BuildTask>(entity);
-		RemoveIfHas<BuildQueue>(entity);
+		Realm.Client.Utils.UnitOrderUtility.ClearUnitOrders(entity);
 	}
 
 	private void StopGatheringMovement(Entity entity)

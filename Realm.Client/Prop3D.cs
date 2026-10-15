@@ -154,8 +154,6 @@ public partial class Prop3D : StaticBody3D
 	private bool _isHovered = false;
 
 	private static readonly Dictionary<string, TorusMesh> _sharedTorusMeshes = new(StringComparer.OrdinalIgnoreCase);
-	private static StandardMaterial3D _sharedSelectionMaterial;
-	private static StandardMaterial3D _sharedHoverMaterial;
 
 	public virtual float GetBaseObstacleRadius()
 	{
@@ -184,39 +182,6 @@ public partial class Prop3D : StaticBody3D
 		return mesh;
 	}
 
-	private static StandardMaterial3D GetOrCreateSelectionMaterial(Color color)
-	{
-		if (_sharedSelectionMaterial == null || !GodotObject.IsInstanceValid(_sharedSelectionMaterial))
-		{
-			_sharedSelectionMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = color,
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedSelectionMaterial;
-	}
-
-	private static StandardMaterial3D GetOrCreateHoverMaterial()
-	{
-		if (_sharedHoverMaterial == null || !GodotObject.IsInstanceValid(_sharedHoverMaterial))
-		{
-			_sharedHoverMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.88f, 0.88f, 0.88f, 0.22f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedHoverMaterial;
-	}
 
 	private void UpdateSelectionRingTransform()
 	{
@@ -282,7 +247,7 @@ public partial class Prop3D : StaticBody3D
 			Name = "_hover_ring",
 			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
-			MaterialOverride = GetOrCreateHoverMaterial(),
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateHoverMaterial(),
 			Visible = _isHovered && !IsSelected
 		};
 		AddChild(_hoverRing);
@@ -362,7 +327,7 @@ public partial class Prop3D : StaticBody3D
 			Name = "_selection_ring",
 			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
-			MaterialOverride = GetOrCreateSelectionMaterial(GetSelectionRingColor()),
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateSelectionMaterial(GetSelectionRingColor()),
 			Visible = _isSelected
 		};
 		AddChild(_selectionRing);

@@ -250,28 +250,33 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
+		ApplyHoverScaleTween(button, 1.03f);
+
+		button.Pressed += () =>
+		{
+			PlayClickSound();
+			onClick?.Invoke();
+		};
+	}
+
+	private void ApplyHoverScaleTween(Button button, float hoverScale = 1.03f, float duration = 0.15f, bool playSound = true)
+	{
 		Tween scaleTween = null;
 		button.MouseEntered += () =>
 		{
-			PlayHoverSound();
+			if (playSound) PlayHoverSound();
 			scaleTween?.Kill();
 			scaleTween = button.CreateTween();
 			button.PivotOffset = button.Size / 2;
-			scaleTween.TweenProperty(button, "scale", new Vector2(1.03f, 1.03f), 0.15f)
+			scaleTween.TweenProperty(button, "scale", new Vector2(hoverScale, hoverScale), duration)
 				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 		};
 		button.MouseExited += () =>
 		{
 			scaleTween?.Kill();
 			scaleTween = button.CreateTween();
-			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
+			scaleTween.TweenProperty(button, "scale", Vector2.One, duration)
 				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
-
-		button.Pressed += () =>
-		{
-			PlayClickSound();
-			onClick?.Invoke();
 		};
 	}
 
@@ -285,13 +290,13 @@ public partial class MainMenu : Control
 		ApplyMenuButtonTextStyles(button);
 		ApplyMenuButtonStyleBoxes(button, texturePath);
 
+		ApplyHoverScaleTween(button, 1.03f, 0.15f, true);
+
 		button.Pressed += () =>
 		{
 			PlayClickSound();
 			onClick?.Invoke();
 		};
-
-		button.MouseEntered += () => PlayHoverSound();
 	}
 
 	private void ApplyMenuButtonIcon(Button button, string iconPath)
@@ -557,23 +562,7 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		// Scale-up on hover for premium feel
-		Tween scaleTween = null;
-		button.MouseEntered += () =>
-		{
-			PlayHoverSound();
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			button.PivotOffset = button.Size / 2;
-			scaleTween.TweenProperty(button, "scale", new Vector2(1.04f, 1.04f), 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
-		button.MouseExited += () =>
-		{
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
+		ApplyHoverScaleTween(button, 1.04f);
 
 		button.Pressed += () =>
 		{
@@ -763,7 +752,6 @@ public partial class MainMenu : Control
 
 	private void BindIconButtonEvents(Button button, Label label, TextureRect iconRect, bool rotateOnHover, Action onClick)
 	{
-		Tween scaleTween = null;
 		Tween rotationTween = null;
 
 		button.MouseEntered += () =>
@@ -780,12 +768,6 @@ public partial class MainMenu : Control
 					.SetTrans(Tween.TransitionType.Quad)
 					.SetEase(Tween.EaseType.Out);
 			}
-
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			button.PivotOffset = button.Size / 2;
-			scaleTween.TweenProperty(button, "scale", new Vector2(1.03f, 1.03f), 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 		};
 
 		button.MouseExited += () =>
@@ -801,12 +783,9 @@ public partial class MainMenu : Control
 					.SetTrans(Tween.TransitionType.Quad)
 					.SetEase(Tween.EaseType.Out);
 			}
-
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 		};
+
+		ApplyHoverScaleTween(button, 1.03f, 0.15f, false);
 
 		button.ButtonDown += () =>
 		{

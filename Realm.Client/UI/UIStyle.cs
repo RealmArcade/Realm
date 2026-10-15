@@ -1110,6 +1110,52 @@ public static class UIStyle
 		}
 	}
 
+	public static (HBoxContainer, ColorPickerButton) CreateTintRow(Color initialColor, System.Action<Color> onColorChanged)
+	{
+		var rowTint = new HBoxContainer();
+		rowTint.AddThemeConstantOverride("separation", 8);
+		var lblTint = new Label();
+		lblTint.Text = TranslationServer.Translate("Tint Color:");
+		lblTint.CustomMinimumSize = new Vector2(140, 0);
+		lblTint.AddThemeFontSizeOverride("font_size", 11);
+		rowTint.AddChild(lblTint);
+
+		var btnTint = new ColorPickerButton();
+		btnTint.CustomMinimumSize = new Vector2(90, 24);
+		btnTint.Color = initialColor;
+		if (onColorChanged != null)
+		{
+			btnTint.ColorChanged += (newCol) => onColorChanged(newCol);
+		}
+		rowTint.AddChild(btnTint);
+
+		return (rowTint, btnTint);
+	}
+
+	public static Button CreateCloseButton(System.Action onClick = null)
+	{
+		var closeBtn = new Button();
+		closeBtn.Flat = false;
+		closeBtn.AddThemeConstantOverride("icon_max_width", 0);
+		closeBtn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		closeBtn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		closeBtn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		ApplyButtonText(closeBtn, TranslationServer.Translate("CLOSE"), 14);
+		closeBtn.CustomMinimumSize = new Vector2(130, 36);
+
+		if (onClick != null)
+		{
+			closeBtn.Pressed += () =>
+			{
+				UIManager.Instance?.PlayClickSound();
+				onClick?.Invoke();
+			};
+		}
+
+		return closeBtn;
+	}
+
 	public static void ApplyStandardButtonStyle(Button btn)
 	{
 		btn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
