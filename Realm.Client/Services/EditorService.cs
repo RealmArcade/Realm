@@ -766,6 +766,49 @@ public partial class EditorService : IEditorAPI
 			   && File.Exists(Path.Combine(folder, "manifest.json"));
 	}
 
+	public bool IsMapFolderCorrupt(string folder, out string corruptFileName, out string parseErrorMessage)
+	{
+		corruptFileName = string.Empty;
+		parseErrorMessage = string.Empty;
+
+		if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+		{
+			return false;
+		}
+
+		string[] targetFiles = { "metadata.json", "manifest.json", "terrain.json", "license.json" };
+
+		foreach (string fileName in targetFiles)
+		{
+			string filePath = Path.Combine(folder, fileName);
+			if (!File.Exists(filePath))
+			{
+				continue;
+			}
+
+			try
+			{
+				string json = File.ReadAllText(filePath);
+				if (string.IsNullOrWhiteSpace(json))
+				{
+					corruptFileName = fileName;
+					parseErrorMessage = "File is empty.";
+					return true;
+				}
+
+				using var doc = JsonDocument.Parse(json);
+			}
+			catch (Exception ex)
+			{
+				corruptFileName = fileName;
+				parseErrorMessage = ex.Message;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	public string TempWorkspaceGodotPath { get; set; } = MapWorkspaceService.DefaultWorkspaceGodotPath;
 	public string _tempWorkspacePath { get; set; } = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
 

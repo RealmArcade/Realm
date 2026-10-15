@@ -661,6 +661,13 @@ namespace Realm.Client.UI
 				return false;
 			}
 
+			if (GameContext.EditorService.IsMapFolderCorrupt(selectedFolder, out string corruptFile, out string corruptError))
+			{
+				ShowCorruptMapFileErrorDialog(selectedFolder, corruptFile, corruptError);
+				ShowFeedback(string.Format(TranslationServer.Translate("Map file '{0}' is corrupt: {1}"), corruptFile, corruptError));
+				return false;
+			}
+
 			var upgradeService = GameContext.MapUpgradeService ?? GameContext.MapUpgradeService;
 			if (upgradeService != null && upgradeService.NeedsUpgrade(selectedFolder, out _, out _))
 			{
@@ -738,6 +745,13 @@ namespace Realm.Client.UI
 			if (!GameContext.EditorService.IsValidMapFolder(selectedFolder))
 			{
 				ShowInvalidMapFolderErrorDialog(selectedFolder);
+				return false;
+			}
+
+			if (GameContext.EditorService.IsMapFolderCorrupt(selectedFolder, out string corruptFile, out string corruptError))
+			{
+				ShowCorruptMapFileErrorDialog(selectedFolder, corruptFile, corruptError);
+				ShowFeedback(string.Format(TranslationServer.Translate("Map file '{0}' is corrupt: {1}"), corruptFile, corruptError));
 				return false;
 			}
 
