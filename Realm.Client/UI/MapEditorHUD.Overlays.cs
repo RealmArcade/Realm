@@ -464,41 +464,7 @@ namespace Realm.Client.UI
 
 		public void RefreshCoordinateListExternal()
 		{
-			if (_coordinateListVBox == null) return;
-			foreach (var child in _coordinateListVBox.GetChildren())
-			{
-				child.QueueFree();
-			}
-
-			var coordinates = GameContext.EditorService.EditorCoordinates;
-			if (coordinates == null) return;
-			foreach (var coord in coordinates)
-			{
-				var row = new HBoxContainer();
-				row.AddThemeConstantOverride("separation", 6);
-				_coordinateListVBox.AddChild(row);
-
-				var btnSelect = new Button();
-				btnSelect.Text = $"{coord.Name}  ({coord.MinX:F0},{coord.MinZ:F0}) → ({coord.MaxX:F0},{coord.MaxZ:F0})";
-				btnSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				btnSelect.Flat = true;
-				btnSelect.Alignment = HorizontalAlignment.Left;
-				btnSelect.AddThemeFontSizeOverride("font_size", 11);
-				btnSelect.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-				string coordinateName = coord.Name;
-				btnSelect.Pressed += () => { GameContext.IEditorAPI?.SelectCoordinate(coordinateName); };
-				row.AddChild(btnSelect);
-
-				var btnDel = new Button();
-				btnDel.Set("icon_max_width", 0);
-				SetupButton(btnDel, "✕", () =>
-					{
-						GameContext.IEditorAPI?.DeleteCoordinate(coordinateName);
-						RefreshCoordinateListExternal();
-					}, 10, $"Delete coordinate '{coordinateName}'");
-				btnDel.CustomMinimumSize = new Vector2(28, 24);
-				row.AddChild(btnDel);
-			}
+			_instanceManagerDialog?.RefreshIfOpen();
 		}
 
 
@@ -3124,14 +3090,14 @@ namespace Realm.Client.UI
 			return focusOwner != null && (focusOwner is LineEdit || focusOwner is TextEdit);
 		}
 
-		public void OpenInstanceManagerDialog()
+		public void OpenInstanceManagerDialog(string? initialTypeFilter = null)
 		{
 			if (_instanceManagerDialog == null)
 			{
 				_instanceManagerDialog = new InstanceManagerDialog(this);
 			}
 
-			_instanceManagerDialog.OpenDialog();
+			_instanceManagerDialog.OpenDialog(initialTypeFilter);
 		}
 
 		public void OpenAuthorSignatureDialog()

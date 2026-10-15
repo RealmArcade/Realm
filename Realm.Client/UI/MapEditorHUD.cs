@@ -337,7 +337,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnDrawCoordinate { get; set; }
 	private LineEdit _txtCoordinateName { get; set; }
 	private Button _btnCommitCoordinate { get; set; }
-	private VBoxContainer _coordinateListVBox { get; set; }
+	private Button _btnViewCoordinates { get; set; }
 
 
 	private Button _activeToolButton { get; set; } = null;

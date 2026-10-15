@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Services;
 using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
@@ -11,14 +12,17 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 {
 	private Tree _objectTree;
 	private LineEdit _filterInput;
+	private OptionButton _typeFilterOpt;
 	private Label _summaryLabel;
 	private string _filterText = string.Empty;
 	private readonly Dictionary<TreeItem, Node3D> _treeItemToObjectMap = new();
+	private readonly Dictionary<TreeItem, string> _treeItemToCoordinateMap = new();
 
 	private double _refreshCheckTimer = 0.0;
 	private int _lastUnitsCount = -1;
 	private int _lastPropsCount = -1;
 	private int _lastDecalsCount = -1;
+	private int _lastCoordinatesCount = -1;
 
 	public InstanceManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Placed Objects"), new Vector2(720, 680))
@@ -38,6 +42,21 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		searchLabel.AddThemeFontSizeOverride("font_size", 11);
 		searchLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		topHBox.AddChild(searchLabel);
+
+		_typeFilterOpt = new OptionButton();
+		_typeFilterOpt.CustomMinimumSize = new Vector2(110, 26);
+		_typeFilterOpt.AddThemeFontSizeOverride("font_size", 11);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("All Types"), 0);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("Units"), 1);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("Buildings"), 2);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("Resources"), 3);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("Props"), 4);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("Decals"), 5);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("VFX / Effects"), 6);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("Coordinates"), 7);
+		_typeFilterOpt.Selected = 0;
+		_typeFilterOpt.ItemSelected += (_) => RefreshObjectTree();
+		topHBox.AddChild(_typeFilterOpt);
 
 		_filterInput = new LineEdit();
 		_filterInput.PlaceholderText = TranslationServer.Translate("Search by name, ID, or category...");
@@ -69,7 +88,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		_objectTree.SetColumnTitle(1, TranslationServer.Translate("Position"));
 		_objectTree.SetColumnExpand(0, true);
 		_objectTree.SetColumnExpand(1, false);
-		_objectTree.SetColumnCustomMinimumWidth(1, 150);
+		_objectTree.SetColumnCustomMinimumWidth(1, 180);
 		_objectTree.ColumnTitlesVisible = true;
 		_objectTree.AddThemeFontSizeOverride("font_size", 11);
 
@@ -84,8 +103,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		int curUnits = GameHost.Instance.AllUnits?.Count ?? 0;
 		int curProps = GameHost.Instance.AllProps?.Count ?? 0;
 		int curDecals = GameHost.Instance.AllDecals?.Count ?? 0;
+		int curCoords = GameContext.EditorService?.EditorCoordinates?.Count ?? 0;
 
-		return curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount;
+		return curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount || curCoords != _lastCoordinatesCount;
 	}
 
 	public override void _Process(double delta)
@@ -124,16 +144,36 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		}
 	}
 
-	public override void OpenDialog()
+	public void OpenDialog(string? initialTypeFilter)
 	{
+		if (_typeFilterOpt != null && !string.IsNullOrEmpty(initialTypeFilter))
+		{
+			for (int i = 0; i < _typeFilterOpt.ItemCount; i++)
+			{
+				string itemText = _typeFilterOpt.GetItemText(i);
+				if (itemText.IndexOf(initialTypeFilter, StringComparison.OrdinalIgnoreCase) >= 0 ||
+				    initialTypeFilter.IndexOf(itemText, StringComparison.OrdinalIgnoreCase) >= 0)
+				{
+					_typeFilterOpt.Selected = i;
+					break;
+				}
+			}
+		}
+
 		base.OpenDialog();
 		RefreshObjectTree();
+	}
+
+	public override void OpenDialog()
+	{
+		OpenDialog(null);
 	}
 
 	public void RefreshObjectTree()
 	{
 		_objectTree.Clear();
 		_treeItemToObjectMap.Clear();
+		_treeItemToCoordinateMap.Clear();
 
 		if (GameHost.Instance == null)
 		{
@@ -151,9 +191,19 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 		var groupedObjects = GroupPlacedObjectsByAssetType(placedObjects);
 
+		string selectedType = _typeFilterOpt != null && _typeFilterOpt.Selected > 0
+			? _typeFilterOpt.GetItemText(_typeFilterOpt.Selected)
+			: string.Empty;
+
 		int matchedObjectCount = 0;
 		foreach (var categoryGroup in groupedObjects)
 		{
+			if (!string.IsNullOrEmpty(selectedType) &&
+			    !categoryGroup.Key.Equals(selectedType, StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
 			matchedObjectCount += ProcessCategoryGroup(rootNode, categoryGroup.Key, categoryGroup.Value);
 		}
 
@@ -165,11 +215,16 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		_lastUnitsCount = GameHost.Instance.AllUnits?.Count ?? 0;
 		_lastPropsCount = GameHost.Instance.AllProps?.Count ?? 0;
 		_lastDecalsCount = GameHost.Instance.AllDecals?.Count ?? 0;
+		_lastCoordinatesCount = GameContext.EditorService?.EditorCoordinates?.Count ?? 0;
 	}
 
 	private void UpdateSummaryLabel(int totalCount, int matchedCount)
 	{
-		if (string.IsNullOrEmpty(_filterText))
+		string selectedType = _typeFilterOpt != null && _typeFilterOpt.Selected > 0
+			? _typeFilterOpt.GetItemText(_typeFilterOpt.Selected)
+			: string.Empty;
+
+		if (string.IsNullOrEmpty(_filterText) && string.IsNullOrEmpty(selectedType))
 		{
 			_summaryLabel.Text = string.Format(TranslationServer.Translate("Total placed objects: {0}"), totalCount);
 		}
@@ -179,12 +234,12 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private int ProcessCategoryGroup(TreeItem rootNode, string categoryName, List<(string DisplayTitle, Node3D Node)> objectsInCategory)
+	private int ProcessCategoryGroup(TreeItem rootNode, string categoryName, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)> objectsInCategory)
 	{
 		int matchedCount = 0;
 		TreeItem categoryNode = null;
 
-		foreach (var (displayTitle, node) in objectsInCategory)
+		foreach (var (displayTitle, node, posText, coordName) in objectsInCategory)
 		{
 			if (!string.IsNullOrEmpty(_filterText) &&
 			    displayTitle.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0 &&
@@ -204,36 +259,47 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 			TreeItem itemNode = _objectTree.CreateItem(categoryNode);
 			itemNode.SetText(0, displayTitle);
-			Vector3 pos = node.Position;
-			itemNode.SetText(1, $"({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
 
-			if (GameHost.Instance.SelectedEditorObject == node)
+			if (node != null)
 			{
-				itemNode.Select(0);
-				categoryNode.Collapsed = false;
+				Vector3 pos = node.Position;
+				itemNode.SetText(1, $"({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
+
+				if (GameHost.Instance.SelectedEditorObject == node)
+				{
+					itemNode.Select(0);
+					categoryNode.Collapsed = false;
+				}
+
+				_treeItemToObjectMap[itemNode] = node;
+			}
+			else if (!string.IsNullOrEmpty(coordName))
+			{
+				itemNode.SetText(1, posText ?? string.Empty);
+				_treeItemToCoordinateMap[itemNode] = coordName;
 			}
 
-			_treeItemToObjectMap[itemNode] = node;
 			matchedCount++;
 		}
 
 		return matchedCount;
 	}
 
-	private List<(string DisplayTitle, string AssetType, Node3D Node)> CollectAllPlacedObjects()
+	private List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> CollectAllPlacedObjects()
 	{
-		var result = new List<(string DisplayTitle, string AssetType, Node3D Node)>();
+		var result = new List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)>();
 		if (GameHost.Instance == null) return result;
 
 		CollectUnits(result);
 		CollectProps(result);
 		CollectDecals(result);
 		CollectVfxObjectsRecursive(GameHost.Instance, result);
+		CollectCoordinates(result);
 
 		return result;
 	}
 
-	private void CollectUnits(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
+	private void CollectUnits(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
 		if (GameHost.Instance.AllUnits == null) return;
 
@@ -256,7 +322,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 			}
 
 			string displayTitle = $"{resolvedName} [Player {unit.Player}]";
-			result.Add((displayTitle, assetType, unit));
+			result.Add((displayTitle, assetType, unit, null, null));
 		}
 	}
 
@@ -281,7 +347,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		return Path.GetFileNameWithoutExtension(id);
 	}
 
-	private void CollectProps(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
+	private void CollectProps(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
 		if (GameHost.Instance.AllProps == null) return;
 
@@ -290,7 +356,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 			if (!GodotObject.IsInstanceValid(prop)) continue;
 
 			string resolvedName = GetPropRegistryName(prop.PropId);
-			result.Add((resolvedName, "Props", prop));
+			result.Add((resolvedName, "Props", prop, null, null));
 		}
 	}
 
@@ -301,7 +367,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		return Path.GetFileNameWithoutExtension(id);
 	}
 
-	private void CollectDecals(List<(string DisplayTitle, string AssetType, Node3D Node)> result)
+	private void CollectDecals(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
 		if (GameHost.Instance.AllDecals == null) return;
 
@@ -310,11 +376,11 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 			if (!GodotObject.IsInstanceValid(decal)) continue;
 
 			string resolvedName = decal is Decal3D d3d ? d3d.DecalId : Path.GetFileNameWithoutExtension(decal.Name);
-			result.Add((resolvedName, "Decals", decal));
+			result.Add((resolvedName, "Decals", decal, null, null));
 		}
 	}
 
-	private void CollectVfxObjectsRecursive(Node parentNode, List<(string DisplayTitle, string AssetType, Node3D Node)> resultList)
+	private void CollectVfxObjectsRecursive(Node parentNode, List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> resultList)
 	{
 		if (parentNode == null) return;
 
@@ -325,7 +391,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 				string resolvedName = !string.IsNullOrEmpty(vfx.Config?.Name)
 					? vfx.Config.Name
 					: vfx.Config?.PrimitiveType.ToString() ?? "VFX";
-				resultList.Add((resolvedName, "VFX / Effects", vfx));
+				resultList.Add((resolvedName, "VFX / Effects", vfx, null, null));
 			}
 			else
 			{
@@ -334,19 +400,32 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private Dictionary<string, List<(string DisplayTitle, Node3D Node)>> GroupPlacedObjectsByAssetType(List<(string DisplayTitle, string AssetType, Node3D Node)> rawList)
+	private void CollectCoordinates(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		var grouped = new Dictionary<string, List<(string DisplayTitle, Node3D Node)>>(StringComparer.OrdinalIgnoreCase);
+		var coordinates = GameContext.EditorService?.EditorCoordinates;
+		if (coordinates == null) return;
+
+		foreach (var coord in coordinates)
+		{
+			string displayTitle = coord.Name;
+			string posText = $"({coord.MinX:F0},{coord.MinZ:F0}) → ({coord.MaxX:F0},{coord.MaxZ:F0})";
+			result.Add((displayTitle, "Coordinates", null, posText, coord.Name));
+		}
+	}
+
+	private Dictionary<string, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)>> GroupPlacedObjectsByAssetType(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> rawList)
+	{
+		var grouped = new Dictionary<string, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)>>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var item in rawList)
 		{
 			if (!grouped.TryGetValue(item.AssetType, out var list))
 			{
-				list = new List<(string DisplayTitle, Node3D Node)>();
+				list = new List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)>();
 				grouped[item.AssetType] = list;
 			}
 
-			list.Add((item.DisplayTitle, item.Node));
+			list.Add((item.DisplayTitle, item.Node, item.PosText, item.CoordName));
 		}
 
 		return grouped;
@@ -361,6 +440,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		{
 			FocusOnObject(targetObject);
 		}
+		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out string coordName))
+		{
+			FocusOnCoordinate(coordName);
+		}
 	}
 
 	private void OnTreeItemActivated()
@@ -372,6 +455,18 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		{
 			FocusOnObject(targetObject);
 		}
+		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out string coordName))
+		{
+			FocusOnCoordinate(coordName);
+		}
+	}
+
+	private void FocusOnCoordinate(string coordName)
+	{
+		if (string.IsNullOrEmpty(coordName)) return;
+
+		GameContext.IEditorAPI?.SelectCoordinate(coordName);
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Selected and focused on coordinate '{0}'"), coordName));
 	}
 
 	private void FocusOnObject(Node3D targetObject)

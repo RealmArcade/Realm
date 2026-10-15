@@ -444,14 +444,10 @@ layout_mode = 2
 focus_mode = 0
 text = "✅ Create"
 
-[node name="LblDefinedCoordinatesTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+[node name="BtnViewCoordinates" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Defined Coordinates"
-
-[node name="CoordinateListVBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
-layout_mode = 2
-theme_override_constants/separation = 4
+focus_mode = 0
+text = "View Existing Coordinates"
 
 [node name="PanelObjectsVBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool"]
 visible = false
