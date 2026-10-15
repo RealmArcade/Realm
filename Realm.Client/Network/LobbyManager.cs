@@ -351,7 +351,7 @@ public partial class LobbyManager : Node
 					if (result.Success && result.MappedEndPoint != null)
 					{
 						_hostPublicIp = result.MappedEndPoint.Address.ToString();
-						_hostPublicPort = result.MappedEndPoint.Port > 0 ? result.MappedEndPoint.Port : ENetPort;
+						_hostPublicPort = ENetPort;
 						GD.Print($"[LobbyManager] Public Endpoint Mapped: {_hostPublicIp}:{_hostPublicPort}");
 					}
 				}
@@ -421,10 +421,11 @@ public partial class LobbyManager : Node
 		if (!await TryCreateENetServerAsync()) return false;
 
 		bool upnpSuccess = await UpnpService.Instance.OpenPortAsync(ENetPort);
-		IsRestrictedHost = !upnpSuccess && LocalNatType != NatType.Open;
+		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
+		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
 		if (IsRestrictedHost)
 		{
-			GD.Print("[LobbyManager] Warning: UPnP port mapping not available or restricted NAT. External players may require Direct Connect.");
+			GD.Print("[LobbyManager] Warning: UPnP port mapping not available on restricted NAT. External players may require Direct Connect.");
 		}
 
 		Diagnostics.StartHostListener(ENetPort + 1);
@@ -769,7 +770,7 @@ public partial class LobbyManager : Node
 		await RunNatTypeTestAsync();
 
 		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
-		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
+		int clientPublicPort = ENetPort;
 
 		try
 		{
