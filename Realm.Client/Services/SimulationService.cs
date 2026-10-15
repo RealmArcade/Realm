@@ -27,6 +27,19 @@ namespace Realm.Client.Services;
 
 public class SimulationService
 {
+	public bool IsUnitActive(Entity entity)
+	{
+		return GameContext.World.Has<MoveTo>(entity) ||
+		       GameContext.World.Has<BuildTask>(entity) ||
+		       GameContext.World.Has<AttackTarget>(entity) ||
+		       GameContext.World.Has<AttackMove>(entity) ||
+		       GameContext.World.Has<Follow>(entity) ||
+		       GameContext.World.Has<Patrol>(entity) ||
+		       GameContext.World.Has<Gatherer>(entity) ||
+		       GameContext.World.Has<WaypointQueue>(entity) ||
+		       (GameContext.World.Has<BuildQueue>(entity) && GameContext.World.Get<BuildQueue>(entity).Count > 0);
+	}
+
 	public void ApplySpellEffectDomain(string spellId, Vector3 position, Entity casterEnt)
 	{
 		GameContext.RegistryService.AbilityDefinitions.TryGetValue(spellId, out var def);

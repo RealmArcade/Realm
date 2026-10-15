@@ -1,25 +1,22 @@
-1. **Network Transfer RPC duplication** (`LobbyManager.cs` vs `EnetMapTransferService.cs`):
-   - I will use `replace_with_git_merge_diff` to extract the common RPC methods into a new abstract base class `MapTransferBaseNode` in `Realm.Client/Network/MapTransferBaseNode.cs`.
-   - I will verify the creation of `Realm.Client/Network/MapTransferBaseNode.cs` using `cat`.
-   - Both `LobbyManager` and `EnetMapTransferService` will inherit from this base class instead of `Node`, effectively removing the duplicated `[Rpc]` methods from both files. (The `if (!IsHost...)` checks in `LobbyManager` will be retained via a protected virtual method `CanProcessRpc` overridden in `LobbyManager`).
+1. **Remove duplicated code for `IsUnitActive`.**
+    - The memory states: "In Realm.Client, checking if a unit is currently performing an active action in the simulation (e.g., `IsUnitActive`) is Domain Logic managed by `SimulationService`."
+    - Extract `IsUnitActive` to `Realm.Client.Services.SimulationService`.
+    - Update `Realm.Client.Services.InputService` and `Realm.Client.Services.NetworkService` to call `GameContext.SimulationService.IsUnitActive(entity)`.
 
-2. **MapEditor AssetBrowserDialog/AssetManagerDialog**:
-   - Use `replace_with_git_merge_diff` on `Realm.Client/UI/MapEditor/AssetBrowserDialog.cs` and `Realm.Client/UI/MapEditor/AssetManagerDialog.cs` to remove `BindVisibleGridCells` and modify `UpdateVisibleGridCells` to call a new shared method `VirtualGridHelper.BindAssetGridCells`. I will add `BindAssetGridCells` to `Realm.Client/UI/MapEditor/VirtualGridHelper.cs` (verified location).
+2. **Remove duplicated code for UI virtual grid (`AssetBrowserDialog.cs` and `AssetManagerDialog.cs`).**
+    - Both classes have `BindVisibleGridCells` and `OnAssetCellClicked`. I will examine them, extract the common logic into `Realm.Client.UI.VirtualGridHelper` (or just remove the duplicate by having `AssetManagerDialog` use the implementation inside a helper or just deduplicate it). Wait, `VirtualGridHelper.UpdateVisibleGridCells` takes the bind action as a parameter. We can create `VirtualGridHelper.BindAssetGridCells(...)` and `VirtualGridHelper.HandleAssetCellClicked(...)` but that requires passing all parameters. I'll look at the specific diff required.
 
-3. **InGameHUD and CommandPanel**:
-   - Use `replace_with_git_merge_diff` to extract the tooltip formatting logic. I'll add `FormatUnitCostTooltip` to `Realm.Client.UI.UIStyle` (in `Realm.Client/UI/UIStyle.cs`) and update both `Realm.Client/UI/InGameHUD.cs` and `Realm.Client/UI/InGame/CommandPanel.cs` to call it.
+3. **Remove duplicated code for UI Tooltip Construction (`InGameHUD.cs` and `CommandPanel.cs`).**
+    - Create a static helper `FormatUnitCostTooltip` in `Realm.Client.UI.UIStyle`. Both classes will call this method instead of duplicating the string formatting and metadata lookups.
 
-4. **InputService and NetworkService (`IsUnitActive`)**:
-   - Use `replace_with_git_merge_diff` to move `IsUnitActive` and `EnqueueCommand` to `Realm.Client/Services/SimulationService.cs` (decorated with `[Realm.Client.Core.DomainLogic]`). Update `Realm.Client/Services/InputService.cs` and `Realm.Client/Services/NetworkService.cs` to call `GameContext.SimulationService.IsUnitActive` and `GameContext.SimulationService.EnqueueCommand`.
+4. **Remove duplicated Map Transfer RPC block (`EnetMapTransferService.cs` and `LobbyManager.cs`).**
+    - The `BeginMapTransferRpc` and `SendMapTransferChunkRpc` methods duplicate identical bodies that handle RPCs using `MapTransferHelper`. I will check if any try/catch blocks or specific logging can be unified inside `MapTransferHelper.HandleBeginMapTransferRpc` or `HandleSendMapTransferChunk`, but actually they are already calling the helpers, the duplicate is just the Godot node wiring which might be unavoidable or minimal. The prompt mentions 24 line duplication, which points exactly to `BeginMapTransferRpc` and `SendMapTransferChunkRpc` bodies. I can extract the try-catch and finalizer callbacks to `MapTransferHelper`. Wait, `MapTransferHelper` already takes delegates for callbacks. 
 
-5. **TemplateManagerDialog**:
-   - Use `replace_with_git_merge_diff` on `Realm.Client/UI/MapEditor/TemplateManagerDialog.cs` (lines 1540-1600) to combine the duplication in the duplication block by defining a local variable `Action<TemplateManagerDialog, MapMetadata, ObjectItemInfo, string, string> HandleShaderMetadata` and mapping the keys `"shaders"`, `"shader"`, `"spawnshader"`, `"spawnshaders"` to it in the dictionary initializer.
+5. **Remove duplicated code for Entity Creation (`NetworkService.cs` and `ReplayService.cs`).**
+    - Use `UnitSpawnService.InstantiateEntityAndMapSnapshot` to replace the duplicated block. 
 
-6. **NetworkService and ReplayService (snapshot mapping)**:
-   - Use `replace_with_git_merge_diff` to extract the duplicated mapping logic into `Realm.Client/Services/UnitSpawnService.cs` as a new method `InstantiateEntityAndMapSnapshot`. Update `Realm.Client/Services/NetworkService.cs` and `Realm.Client/Services/ReplayService.cs` to call this new method.
+6. **Remove duplicated code for Spawn Shader Metadata serialization (`TemplateManagerDialog.cs`).**
+    - Deduplicate the inline lambdas by extracting them into a local or private helper method in `TemplateManagerDialog.cs`.
 
-7. **Complete pre commit steps**:
-   - Complete pre commit steps to ensure proper testing, verification, review, and reflection are done.
-
-8. **Submit**:
-   - Run the test suite using `dotnet test --filter "FullyQualifiedName!~Realm.Client.Tests&FullyQualifiedName!~Realm.Distribution.Tests&FullyQualifiedName!~Realm.Ecs.Tests&FullyQualifiedName!~Realm.TranslationTool" Realm.slnx` to verify changes and ensure no regressions were introduced. Wait, after testing, submit the change using `submit`.
+7. **Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.**
+8. **Submit the changes.**

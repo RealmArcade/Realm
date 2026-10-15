@@ -277,18 +277,6 @@ public class NetworkService
 		return closest;
 	}
 
-	private bool IsUnitActive(Entity entity)
-	{
-		return GameContext.World.Has<MoveTo>(entity) ||
-		       GameContext.World.Has<BuildTask>(entity) ||
-		       GameContext.World.Has<AttackTarget>(entity) ||
-		       GameContext.World.Has<AttackMove>(entity) ||
-		       GameContext.World.Has<Follow>(entity) ||
-		       GameContext.World.Has<Patrol>(entity) ||
-		       GameContext.World.Has<Gatherer>(entity) ||
-		       GameContext.World.Has<WaypointQueue>(entity) ||
-		       (GameContext.World.Has<BuildQueue>(entity) && GameContext.World.Get<BuildQueue>(entity).Count > 0);
-	}
 
 	private void EnqueueCommand(Entity entity, string type, System.Numerics.Vector3 position, Entity target = default)
 	{
@@ -860,7 +848,7 @@ public class NetworkService
 			var entity = FindServerEntity(serverId, allUnits);
 			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
 
-			if (isQueued && IsUnitActive(entity))
+			if (isQueued && GameContext.SimulationService.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "attack", targetPos, targetEntity);
 			}
@@ -887,7 +875,7 @@ public class NetworkService
 
 	private void ApplyFollowOrder(Entity entity, Entity targetEntity, System.Numerics.Vector3 targetPos, bool isQueued)
 	{
-		if (isQueued && IsUnitActive(entity))
+		if (isQueued && GameContext.SimulationService.IsUnitActive(entity))
 		{
 			EnqueueCommand(entity, "follow", targetPos, targetEntity);
 			return;
@@ -927,7 +915,7 @@ public class NetworkService
 
 	private void ApplyGatherOrder(Entity entity, Entity propEntity, System.Numerics.Vector3 propPos, string resType, bool isQueued)
 	{
-		if (isQueued && IsUnitActive(entity))
+		if (isQueued && GameContext.SimulationService.IsUnitActive(entity))
 		{
 			EnqueueCommand(entity, "gather", propPos, propEntity);
 			return;
@@ -982,7 +970,7 @@ public class NetworkService
 			var unitPos = GetUnitPosition(entity, allUnits);
 			var patrolA = new System.Numerics.Vector3(unitPos.X, unitPos.Y, unitPos.Z);
 
-			if (isQueued && IsUnitActive(entity))
+			if (isQueued && GameContext.SimulationService.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "patrol", scattered);
 			}
