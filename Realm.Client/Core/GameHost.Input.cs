@@ -21,6 +21,23 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	private bool TryGetPlacementParams(Vector3 hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos, out float radius)
+	{
+		placementRot = 0f;
+		scaleVal = 1f;
+		spawnPos = Vector3.Zero;
+		radius = 0f;
+		if (EditorClumpMode) return false;
+		if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
+		placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
+		scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
+		
+		var finalPos = CalculatePlacementPosition(hitPos, scaleVal, out radius);
+		if (finalPos == null) return false;
+		spawnPos = finalPos.Value;
+		return true;
+	}
+
 	private Godot.Vector3? CalculatePlacementPosition(Godot.Vector3 hitPos, float scaleVal, out float radius)
 	{
 		Godot.Vector3 spawnPos = hitPos;
@@ -1048,14 +1065,7 @@ public partial class GameHost
 
 				if (ActiveEditorTool == EditorTool.PlaceUnit)
 				{
-					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
-
-					var finalPos = CalculatePlacementPosition(hitPos, scaleVal, out float radius);
-						if (finalPos == null) return;
-						Vector3 spawnPos = finalPos.Value;
+					if (!TryGetPlacementParams(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos, out float radius)) return;
 
 					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, GameContext.EditorService.PlaceUnitIsEnemy, placementRot, scaleVal);
 					if (unit != null)
@@ -1090,14 +1100,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.PlaceProp)
 				{
-					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
-
-					var finalPos = CalculatePlacementPosition(hitPos, scaleVal, out float radius);
-						if (finalPos == null) return;
-						Vector3 spawnPos = finalPos.Value;
+					if (!TryGetPlacementParams(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos, out float radius)) return;
 
 					var prop = SpawnPropExternalWithParams(ActivePlaceId, spawnPos, placementRot, scaleVal);
 					if (prop != null)

@@ -428,22 +428,34 @@ public partial class MapEditorHUD : Control
 		AddPublishMapActionButtons(vbox, overlay, chkFullExport);
 	}
 
+	private void ShowMissingAssetsFeedback(List<string> missingAssets, bool aborted = false)
+	{
+		string actionWord = aborted ? "aborted" : "failed";
+		ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Map is missing required asset files:\n{0}"), string.Join(", ", missingAssets.Take(4)) + (missingAssets.Count > 4 ? "..." : "")));
+		AppendWasmConsoleLog($"[ERROR] Publish {actionWord}. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
+	}
+
+	private void ShowOversizedAssetsFeedback(IEnumerable<(string RelativePath, long SizeBytes, double SizeMB)> oversizedAssets, bool aborted = false)
+	{
+		string actionWord = aborted ? "aborted" : "failed";
+		string oversizedSummary = string.Join("\n", oversizedAssets.Take(4).Select(o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (oversizedAssets.Count() > 4 ? "\n..." : "");
+		ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Assets exceed maximum 15 MB size limit:\n{0}"), oversizedSummary));
+		AppendWasmConsoleLog($"[ERROR] Publish {actionWord}. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", oversizedAssets.Select(o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
+	}
+
 	private bool TryValidateMapPublishRequirements(string wsPath)
 	{
 		var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(wsPath);
 		if (!assetsValid)
 		{
-			ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Map is missing required asset files:\n{0}"), string.Join(", ", missingAssets.Take(4)) + (missingAssets.Count > 4 ? "..." : "")));
-			AppendWasmConsoleLog($"[ERROR] Publish failed. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
+			ShowMissingAssetsFeedback(missingAssets);
 			return false;
 		}
 
 		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(wsPath);
 		if (!sizesValid)
 		{
-			string oversizedSummary = string.Join("\n", oversizedAssets.Take(4).Select(o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (oversizedAssets.Count > 4 ? "\n..." : "");
-			ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Assets exceed maximum 15 MB size limit:\n{0}"), oversizedSummary));
-			AppendWasmConsoleLog($"[ERROR] Publish failed. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", oversizedAssets.Select(o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
+			ShowOversizedAssetsFeedback(oversizedAssets);
 			return false;
 		}
 
