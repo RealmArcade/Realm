@@ -120,6 +120,7 @@ namespace Realm.Client.Services
 			ModelOverrideService?.ClearAll();
 			RegistryService?.ClearAll();
 			MapScriptService?.ClearAll();
+			Core.GameHost.Instance?.ClearStaticText();
 
 			AudioService = null;
 			FXService = null;

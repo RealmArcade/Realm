@@ -1016,6 +1016,21 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private Dictionary<int, Label3D> _staticTextLabels { get; set; } = new();
 	private int _nextStaticTextHandle { get; set; } = 1;
+	private int _staticTextGeneration { get; set; } = 0;
+
+	public void ClearStaticText()
+	{
+		_staticTextGeneration++;
+		foreach (var label in _staticTextLabels.Values)
+		{
+			if (GodotObject.IsInstanceValid(label))
+			{
+				label.QueueFree();
+			}
+		}
+		_staticTextLabels.Clear();
+		_nextStaticTextHandle = 1;
+	}
 
 	public void PanCameraInternal(Vector3 position, float duration)
 	{
@@ -1985,6 +2000,7 @@ public partial class GameHost : Node3D, IGameAPI
 		SelectedUnits.Clear();
 		ClearNodeCollection(AllProps);
 		ClearNodeCollection(AllDecals);
+		ClearStaticText();
 
 		_castlesList.Clear();
 		GameContext.FXService.ActivePings.Clear();
@@ -2020,6 +2036,7 @@ public partial class GameHost : Node3D, IGameAPI
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
 		_activeMapScript = null;
+		ClearStaticText();
 
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;

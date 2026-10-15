@@ -624,8 +624,10 @@ public partial class GameHost
 	int IGameAPI.CreateStaticText(string text, Vector3 position, Vector3 color, int fontSize)
 	{
 		int handle = _nextStaticTextHandle++;
+		int gen = _staticTextGeneration;
 		Callable.From(() =>
 		{
+			if (gen != _staticTextGeneration) return;
 			var label = new Label3D();
 			label.Text = text;
 			label.Modulate = new Color(color.X, color.Y, color.Z);
