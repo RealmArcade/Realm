@@ -19,7 +19,15 @@ public class UdpHolePuncher
 
 		try
 		{
-			udp.Client.Bind(new IPEndPoint(IPAddress.Any, localPort));
+			try
+			{
+				udp.Client.Bind(new IPEndPoint(IPAddress.Any, localPort));
+			}
+			catch (SocketException) when (localPort != 0)
+			{
+				GD.Print($"[HolePuncher] Local port {localPort} unavailable, falling back to ephemeral port 0.");
+				udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+			}
 
 			byte[] payload = Encoding.UTF8.GetBytes("PUNCH");
 			var remoteEp = new IPEndPoint(IPAddress.Parse(remoteIp), remotePort);
