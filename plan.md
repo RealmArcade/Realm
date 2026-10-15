@@ -1,12 +1,25 @@
-1. **Refactor EnetMapTransferService and LobbyManager:** Use `MapTransferHelper.HandleReceiveMapManifestRpc(manifestJson, _manifestTcs);` in `ReceiveMapManifestRpc` to eliminate duplication.
-2. **Refactor EditorService:** Abstract the procedural bombing entity spawning into a shared method or break the duplication string by modifying logic flow or variables in `ProcessDecalBombingRules` and `ProcessVfxBombingRules`.
-3. **Refactor TemplateManagerDialog:** Create a boolean helper method `IsKeyToRemove` to replace the duplicated `Where` predicate in `RemoveTerrainTexture` and `RemoveSpritesheet`.
-4. **Refactor MapStorageService and MapEditorHUD.Tools:** Create a shared method `GetCompiledWasmBinaryPath(string workspacePath)` in `MapAssetHelper` or similar, or just call `MapStorageService.CheckCompiledWasmBinaryExists` from `MapEditorHUD.Tools`. I'll create `GetCompiledWasmBinaryPath` inside `MapStorageService` or `MapAssetHelper` and use it. Wait, `MapStorageService` is a domain service, `MapEditorHUD.Tools` can call it. Wait, `MapEditorHUD.Tools` needs the `wasmPath` itself! Actually, `CheckCompiledWasmBinaryExists` doesn't return the path. So I will add a shared `MapAssetHelper.GetCompiledWasmBinaryPath(string workspace)` and use it in both places.
-5. **Refactor MapDetails and MapDiscovery:** Move `LoadTextureSafe` to `UIStyle` or `UIStyle.LoadTextureSafe` to eliminate duplication.
-6. **Refactor RuntimeTerrain:** Rename the `cells` parameter to `terrainCells` in `AddWaterWallX` to break the string duplication check.
-7. **Refactor EditableTerrain:** Extract the common completion logic inside `RestoreTerrainFromSnapshot`, `ResizeTerrain`, and `ScaleTerrain` into a helper method `FinalizeTerrainResize`.
-8. **Refactor NetworkService:** Extract the target entity resolution logic into a helper method `bool TryResolveTargetEntityAndPosition(NetworkCommand cmd, List<Unit3D> units, out Entity targetEntity, out Vector3 targetPos)` to break the duplicate block in `HandleAttackCommand` and `HandleFollowCommand`.
-9. **Refactor LobbyCreate and MapEditorHUD.Tools:** Create `UIStyle.AddMapBuildMismatchHeader(VBoxContainer vbox, string titleText = "MAP BUILD MISMATCH")` and use it in both classes to eliminate the UI boilerplate duplication.
-10. **Refactor ReplayListPanel:** Delete `ShowConfirmationDialog` and replace its calls with `UIManager.Instance.ShowConfirmationDialog`.
-11. **Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.**
-12. Submit change.
+1. **Network Transfer RPC duplication** (`LobbyManager.cs` vs `EnetMapTransferService.cs`):
+   - I will use `replace_with_git_merge_diff` to extract the common RPC methods into a new abstract base class `MapTransferBaseNode` in `Realm.Client/Network/MapTransferBaseNode.cs`.
+   - I will verify the creation of `Realm.Client/Network/MapTransferBaseNode.cs` using `cat`.
+   - Both `LobbyManager` and `EnetMapTransferService` will inherit from this base class instead of `Node`, effectively removing the duplicated `[Rpc]` methods from both files. (The `if (!IsHost...)` checks in `LobbyManager` will be retained via a protected virtual method `CanProcessRpc` overridden in `LobbyManager`).
+
+2. **MapEditor AssetBrowserDialog/AssetManagerDialog**:
+   - Use `replace_with_git_merge_diff` on `Realm.Client/UI/MapEditor/AssetBrowserDialog.cs` and `Realm.Client/UI/MapEditor/AssetManagerDialog.cs` to remove `BindVisibleGridCells` and modify `UpdateVisibleGridCells` to call a new shared method `VirtualGridHelper.BindAssetGridCells`. I will add `BindAssetGridCells` to `Realm.Client/UI/MapEditor/VirtualGridHelper.cs` (verified location).
+
+3. **InGameHUD and CommandPanel**:
+   - Use `replace_with_git_merge_diff` to extract the tooltip formatting logic. I'll add `FormatUnitCostTooltip` to `Realm.Client.UI.UIStyle` (in `Realm.Client/UI/UIStyle.cs`) and update both `Realm.Client/UI/InGameHUD.cs` and `Realm.Client/UI/InGame/CommandPanel.cs` to call it.
+
+4. **InputService and NetworkService (`IsUnitActive`)**:
+   - Use `replace_with_git_merge_diff` to move `IsUnitActive` and `EnqueueCommand` to `Realm.Client/Services/SimulationService.cs` (decorated with `[Realm.Client.Core.DomainLogic]`). Update `Realm.Client/Services/InputService.cs` and `Realm.Client/Services/NetworkService.cs` to call `GameContext.SimulationService.IsUnitActive` and `GameContext.SimulationService.EnqueueCommand`.
+
+5. **TemplateManagerDialog**:
+   - Use `replace_with_git_merge_diff` on `Realm.Client/UI/MapEditor/TemplateManagerDialog.cs` (lines 1540-1600) to combine the duplication in the duplication block by defining a local variable `Action<TemplateManagerDialog, MapMetadata, ObjectItemInfo, string, string> HandleShaderMetadata` and mapping the keys `"shaders"`, `"shader"`, `"spawnshader"`, `"spawnshaders"` to it in the dictionary initializer.
+
+6. **NetworkService and ReplayService (snapshot mapping)**:
+   - Use `replace_with_git_merge_diff` to extract the duplicated mapping logic into `Realm.Client/Services/UnitSpawnService.cs` as a new method `InstantiateEntityAndMapSnapshot`. Update `Realm.Client/Services/NetworkService.cs` and `Realm.Client/Services/ReplayService.cs` to call this new method.
+
+7. **Complete pre commit steps**:
+   - Complete pre commit steps to ensure proper testing, verification, review, and reflection are done.
+
+8. **Submit**:
+   - Run the test suite using `dotnet test --filter "FullyQualifiedName!~Realm.Client.Tests&FullyQualifiedName!~Realm.Distribution.Tests&FullyQualifiedName!~Realm.Ecs.Tests&FullyQualifiedName!~Realm.TranslationTool" Realm.slnx` to verify changes and ensure no regressions were introduced. Wait, after testing, submit the change using `submit`.
