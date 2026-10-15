@@ -461,7 +461,7 @@ public partial class CommandPanel
 		style.CornerRadiusBottomLeft = 3;
 		style.CornerRadiusBottomRight = 3;
 		tile.AddThemeStyleboxOverride("panel", style);
-		tile.CustomMinimumSize = new Vector2(48, 48);
+		tile.CustomMinimumSize = new Vector2(56, 56);
 		tile.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		tile.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		return tile;
@@ -475,11 +475,11 @@ public partial class CommandPanel
 		btn.ExpandIcon = true;
 		btn.Icon = GD.Load<Texture2D>("res://Assets/UI/search_icon_clean.png");
 		btn.TooltipText = TranslationServer.Translate("Cycle Abilities / Commands");
-		btn.CustomMinimumSize = new Vector2(48, 48);
+		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		btn.FocusMode = Control.FocusModeEnum.None;
-		btn.AddThemeConstantOverride("icon_max_width", 42);
+		btn.AddThemeConstantOverride("icon_max_width", 50);
 
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
@@ -554,12 +554,12 @@ public partial class CommandPanel
 		string transTooltip = TranslationServer.Translate(item.Tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(transTooltip) ? item.Tooltip : transTooltip;
 
-		btn.CustomMinimumSize = new Vector2(48, 48);
+		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		btn.FocusMode = Control.FocusModeEnum.None;
 		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 42);
+		btn.AddThemeConstantOverride("icon_max_width", 50);
 	}
 
 	private void AddHotkeyLabelIfNeeded(Button btn, CommandCardItem item)

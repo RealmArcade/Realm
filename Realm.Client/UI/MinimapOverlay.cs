@@ -25,7 +25,7 @@ public partial class MinimapOverlay : Control
 	{
 		if (InGameHUD.Instance == null || InGameHUD.Instance.ShowMinimapTerrain) return;
 
-		DrawCircle(size / 2f, size.X * 0.5f, new Color(0.04f, 0.08f, 0.04f), true);
+		DrawRect(new Rect2(Vector2.Zero, size), new Color(0.04f, 0.08f, 0.04f), true);
 		Color radarGridColor = new Color(0.1f, 0.4f, 0.15f, 0.3f);
 
 		DrawLine(new Vector2(size.X / 2f, 0), new Vector2(size.X / 2f, size.Y), radarGridColor, 1.0f);
@@ -35,7 +35,7 @@ public partial class MinimapOverlay : Control
 		DrawCircle(size / 2f, size.X * 0.3f, radarGridColor, false, 1.0f);
 		DrawCircle(size / 2f, size.X * 0.15f, radarGridColor, false, 1.0f);
 
-		DrawCircle(size / 2f, size.X * 0.49f, UIStyle.ColorBronze, false, 1.2f);
+		DrawRect(new Rect2(Vector2.Zero, size), UIStyle.ColorBronze, false, 1.2f);
 	}
 
 	private void DrawShroudGrid(Vector2 size)

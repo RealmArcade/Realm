@@ -17,6 +17,7 @@ public static class UIStyle
 
 	public static readonly Font FontNorseBold = GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
 	public static readonly Font FontCinzelBold = GD.Load<Font>("res://Assets/UI/Cinzel-Bold.ttf");
+	public static readonly Font FontAwesome = GD.Load<Font>("res://Assets/UI/fa-solid-900.ttf");
 
 	private static Texture2D? _emptyBlackTexture;
 
@@ -557,6 +558,51 @@ public static class UIStyle
 		}
 	}
 
+	public static Texture2D LoadCrispIcon(string path, int targetSize = 256)
+	{
+		if (!string.IsNullOrEmpty(path))
+		{
+			string globalPath = ProjectSettings.GlobalizePath(path);
+			if (System.IO.File.Exists(globalPath))
+			{
+				try
+				{
+					var img = Image.LoadFromFile(globalPath);
+					if (img != null && !img.IsEmpty())
+					{
+						if (img.GetFormat() != Image.Format.Rgba8)
+						{
+							img.Convert(Image.Format.Rgba8);
+						}
+
+						int w = img.GetWidth();
+						int h = img.GetHeight();
+						if (w > targetSize || h > targetSize)
+						{
+							float aspect = (float)w / h;
+							int newW = aspect >= 1.0f ? targetSize : Mathf.RoundToInt(targetSize * aspect);
+							int newH = aspect <= 1.0f ? targetSize : Mathf.RoundToInt(targetSize / aspect);
+							img.Resize(newW, newH, Image.Interpolation.Lanczos);
+						}
+
+						img.GenerateMipmaps();
+						return ImageTexture.CreateFromImage(img);
+					}
+				}
+				catch { }
+			}
+		}
+
+		try
+		{
+			return GD.Load<Texture2D>(path);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
 	public static StyleBox CreateBackdropPanel()
 	{
 		var style = new StyleBoxFlat();
@@ -665,6 +711,29 @@ public static class UIStyle
 			return style;
 		}
 		return CreateStonePanel(false);
+	}
+
+	public static StyleBox CreateHotkeyReferencePanelStyle()
+	{
+		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.png");
+		if (texture != null)
+		{
+			var style = new StyleBoxTexture();
+			style.Texture = texture;
+			style.TextureMarginLeft = 0;
+			style.TextureMarginRight = 0;
+			style.TextureMarginTop = 0;
+			style.TextureMarginBottom = 0;
+			style.ContentMarginLeft = 90;
+			style.ContentMarginRight = 90;
+			style.ContentMarginTop = 88;
+			style.ContentMarginBottom = 82;
+			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
+			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
+			return style;
+		}
+
+		return CreateStonePanel(true);
 	}
 
 	public static StyleBox CreateLobbyRoomMainPanel()
@@ -1104,6 +1173,38 @@ public static class UIStyle
 		style.CornerRadiusTopRight = 4;
 		style.CornerRadiusBottomLeft = 4;
 		style.CornerRadiusBottomRight = 4;
+		return style;
+	}
+
+	public static StyleBox CreateMinimapButtonStyle(bool isHover = false, bool isPressed = false)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = isPressed
+			? new Color(0.08f, 0.12f, 0.18f, 0.95f)
+			: (isHover ? new Color(0.16f, 0.18f, 0.22f, 0.92f) : new Color(0.08f, 0.09f, 0.11f, 0.85f));
+		style.BorderColor = isPressed
+			? ColorCyanGlow
+			: (isHover ? ColorGold : new Color(0.45f, 0.38f, 0.28f, 0.75f));
+		style.SetBorderWidthAll(1);
+		style.CornerRadiusTopLeft = 3;
+		style.CornerRadiusTopRight = 3;
+		style.CornerRadiusBottomLeft = 3;
+		style.CornerRadiusBottomRight = 3;
+		style.ContentMarginLeft = 4;
+		style.ContentMarginRight = 4;
+		style.ContentMarginTop = 2;
+		style.ContentMarginBottom = 2;
+		if (isHover)
+		{
+			style.ShadowColor = new Color(0.95f, 0.82f, 0.55f, 0.25f);
+			style.ShadowSize = 2;
+		}
+		else if (isPressed)
+		{
+			style.ShadowColor = new Color(0.15f, 0.65f, 1.0f, 0.35f);
+			style.ShadowSize = 2;
+		}
+
 		return style;
 	}
 

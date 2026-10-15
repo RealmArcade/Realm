@@ -16,19 +16,26 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -340.0
-offset_top = 10.0
-offset_right = 340.0
-offset_bottom = 58.0
+offset_left = -420.0
+offset_top = 4.0
+offset_right = 420.0
+offset_bottom = 80.0
 grow_horizontal = 2
+
+[node name="ResourceBackground" type="TextureRect" parent="ResourceContainer"]
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
 
 [node name="HBox" type="HBoxContainer" parent="ResourceContainer"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 40
 alignment = 1
 
 [node name="GoldBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
 layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
 
 [node name="GoldIcon" type="TextureRect" parent="ResourceContainer/HBox/GoldBox"]
 custom_minimum_size = Vector2(28, 28)
@@ -39,10 +46,14 @@ stretch_mode = 5
 
 [node name="GoldLabel" type="Label" parent="ResourceContainer/HBox/GoldBox"]
 layout_mode = 2
-text = "30"
+size_flags_vertical = 4
+text = "0"
+vertical_alignment = 1
 
 [node name="WoodBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
 layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
 
 [node name="WoodIcon" type="TextureRect" parent="ResourceContainer/HBox/WoodBox"]
 custom_minimum_size = Vector2(28, 28)
@@ -53,10 +64,14 @@ stretch_mode = 5
 
 [node name="WoodLabel" type="Label" parent="ResourceContainer/HBox/WoodBox"]
 layout_mode = 2
-text = "39"
+size_flags_vertical = 4
+text = "0"
+vertical_alignment = 1
 
 [node name="StoneBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
 layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
 
 [node name="StoneIcon" type="TextureRect" parent="ResourceContainer/HBox/StoneBox"]
 custom_minimum_size = Vector2(28, 28)
@@ -67,7 +82,51 @@ stretch_mode = 5
 
 [node name="StoneLabel" type="Label" parent="ResourceContainer/HBox/StoneBox"]
 layout_mode = 2
-text = "39"
+size_flags_vertical = 4
+text = "0"
+vertical_alignment = 1
+
+[node name="SupplyBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
+
+[node name="SupplyIcon" type="TextureRect" parent="ResourceContainer/HBox/SupplyBox"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_vertical = 4
+expand_mode = 2
+stretch_mode = 5
+
+[node name="SupplyLabel" type="Label" parent="ResourceContainer/HBox/SupplyBox"]
+layout_mode = 2
+size_flags_vertical = 4
+text = "0 / 0"
+vertical_alignment = 1
+
+[node name="ClockBox" type="HBoxContainer" parent="ResourceContainer/HBox"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
+
+[node name="ClockIcon" type="TextureRect" parent="ResourceContainer/HBox/ClockBox"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_vertical = 4
+expand_mode = 2
+stretch_mode = 5
+
+[node name="ClockLabel" type="Label" parent="ResourceContainer/HBox/ClockBox"]
+layout_mode = 2
+size_flags_vertical = 4
+text = "0:00 (Day)"
+vertical_alignment = 1
+
+[node name="BtnSettings" type="Button" parent="ResourceContainer/HBox"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 0
 
 [node name="BottomConsole" type="PanelContainer" parent="."]
 layout_mode = 1
@@ -102,10 +161,9 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="MinimapArea" type="Control" parent="BottomConsole/HBox/MinimapFrame"]
-custom_minimum_size = Vector2(154, 154)
 layout_mode = 2
-size_flags_horizontal = 4
-size_flags_vertical = 4
+size_flags_horizontal = 3
+size_flags_vertical = 3
 
 [node name="Indicator" type="Control" parent="BottomConsole/HBox/MinimapFrame/MinimapArea"]
 layout_mode = 1
@@ -147,9 +205,9 @@ horizontal_alignment = 1
 layout_mode = 1
 anchors_preset = 15
 anchor_left = 0.3856
-anchor_top = 0.18
+anchor_top = 0.38
 anchor_right = 0.6228
-anchor_bottom = 0.92
+anchor_bottom = 0.94
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -253,9 +311,9 @@ vertical_alignment = 1
 
 [node name="DevPanel" type="Panel" parent="."]
 layout_mode = 0
-offset_left = 190.0
+offset_left = 60.0
 offset_top = 12.0
-offset_right = 580.0
+offset_right = 450.0
 offset_bottom = 54.0
 
 [node name="BtnVictory" type="Button" parent="DevPanel"]
