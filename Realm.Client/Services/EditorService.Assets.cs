@@ -382,12 +382,16 @@ public partial class EditorService
 
 	public string? SnapshotTemplateJson(string templateSlug)
 	{
-		if (string.IsNullOrWhiteSpace(templateSlug))
+		return SnapshotTemplateJson(GetWorkspacePath(), templateSlug);
+	}
+
+	public static string? SnapshotTemplateJson(string wsPath, string templateSlug)
+	{
+		if (string.IsNullOrWhiteSpace(templateSlug) || string.IsNullOrEmpty(wsPath))
 		{
 			return null;
 		}
 
-		string wsPath = GetWorkspacePath();
 		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (!File.Exists(metaPath))
 		{
@@ -407,12 +411,21 @@ public partial class EditorService
 
 	public void RevertTemplateJson(string templateSlug, string? snapshotJson)
 	{
-		if (string.IsNullOrWhiteSpace(templateSlug))
+		RevertTemplateJson(GetWorkspacePath(), templateSlug, snapshotJson);
+		string metaPath = MetadataService.ResolveMetadataPath(GetWorkspacePath());
+		if (File.Exists(metaPath))
+		{
+			this.LastMetadataSyncTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
+		}
+	}
+
+	public static void RevertTemplateJson(string wsPath, string templateSlug, string? snapshotJson)
+	{
+		if (string.IsNullOrWhiteSpace(templateSlug) || string.IsNullOrEmpty(wsPath))
 		{
 			return;
 		}
 
-		string wsPath = GetWorkspacePath();
 		string metaPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (!File.Exists(metaPath))
 		{
@@ -497,7 +510,6 @@ public partial class EditorService
 		{
 			var options = new JsonSerializerOptions { WriteIndented = true };
 			File.WriteAllText(metaPath, rootObj.ToJsonString(options));
-			this.LastMetadataSyncTime = File.GetLastWriteTimeUtc(metaPath).Ticks;
 		}
 	}
 
@@ -722,7 +734,7 @@ public partial class EditorService
 		};
 	}
 
-	private JsonObject? FindTemplateOrEntryObject(JsonObject rootObj, string templateSlug)
+	private static JsonObject? FindTemplateOrEntryObject(JsonObject rootObj, string templateSlug)
 	{
 		if (rootObj.TryGetPropertyValue("Templates", out var templatesNode) && templatesNode is JsonObject templatesObj)
 		{
@@ -766,7 +778,7 @@ public partial class EditorService
 		return null;
 	}
 
-	private bool IsTemplateMatch(JsonObject obj, string templateSlug)
+	private static bool IsTemplateMatch(JsonObject obj, string templateSlug)
 	{
 		string? slug = GetTemplateSlugFromJsonObject(obj);
 		if (string.IsNullOrEmpty(slug)) return false;
@@ -806,7 +818,7 @@ public partial class EditorService
 		return false;
 	}
 
-	private string? GetTemplateSlugFromJsonObject(JsonObject obj)
+	public static string? GetTemplateSlugFromJsonObject(JsonObject obj)
 	{
 		if (obj.TryGetPropertyValue("TemplateID", out var tidNode) && tidNode != null)
 		{

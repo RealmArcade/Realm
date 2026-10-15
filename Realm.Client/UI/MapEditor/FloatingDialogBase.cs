@@ -7,6 +7,7 @@ using Godot;
 using Realm.Client.Services;
 using Realm.Client.Utils;
 using Realm.Shared.Distribution;
+using Realm.Shared.Services;
 using Environment = Godot.Environment;
 
 namespace Realm.Client.UI.MapEditor;
@@ -179,6 +180,13 @@ public partial class FloatingDialogBase : PanelContainer
 	{
 	}
 
+	protected readonly SessionAssetTracker SessionAssetTracker = new();
+
+	public void CaptureBaselineManifestSnapshot()
+	{
+		SessionAssetTracker.CaptureBaselineManifestSnapshot();
+	}
+
 	public virtual void RandomizeAssets()
 	{
 		string targetSlug = GetRandomizeTemplateSlug();
@@ -187,9 +195,28 @@ public partial class FloatingDialogBase : PanelContainer
 			return;
 		}
 
+		if (SessionAssetTracker.BaselineManifestAssets.Count == 0)
+		{
+			SessionAssetTracker.CaptureBaselineManifestSnapshot();
+		}
+
+		if (SessionAssetTracker.InitialRandomizeTemplateJson == null)
+		{
+			SessionAssetTracker.RandomizeTemplateSlug = targetSlug;
+			SessionAssetTracker.InitialRandomizeTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetSlug);
+		}
+
 		GameContext.EditorService.SnapshotTemplateJson(targetSlug);
 		GameContext.EditorService.AssignRandomAssetsToTemplate(targetSlug, overwriteExisting: true);
+
+		SessionAssetTracker.RecordImportedAssets();
+
 		OnAssetsRandomized();
+	}
+
+	public void PruneUnreferencedSessionAssets(bool revertSnapshot = false)
+	{
+		SessionAssetTracker.PruneUnreferencedSessionAssets(revertSnapshot);
 	}
 
 	public virtual void SetRandomizeAssetsAction(Action? onRandomize = null)
@@ -342,6 +369,8 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public virtual void OpenDialog()
 	{
+		CaptureBaselineManifestSnapshot();
+
 		if (GetParent() == null && Hud != null)
 		{
 			Hud.AddChild(this);
@@ -370,6 +399,7 @@ public partial class FloatingDialogBase : PanelContainer
 	{
 		CommitPendingInputFocus();
 		OnApply();
+		PruneUnreferencedSessionAssets(revertSnapshot: false);
 		CloseDialog();
 	}
 
@@ -430,6 +460,7 @@ public partial class FloatingDialogBase : PanelContainer
 	public virtual void CancelAndClose()
 	{
 		OnCancel();
+		PruneUnreferencedSessionAssets(revertSnapshot: true);
 		CloseDialog();
 	}
 
@@ -437,6 +468,8 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public virtual void CloseDialog()
 	{
+		SessionAssetTracker.Reset();
+
 		_openDialogs.Remove(this);
 		Visible = false;
 		if (GetParent() != null)

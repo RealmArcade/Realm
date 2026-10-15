@@ -228,11 +228,27 @@ public static partial class MapWorkspaceService
 	public const string DefaultWorkspaceFolder = "temp_map_workspace";
 	public const string DefaultWorkspaceGodotPath = "user://temp_map_workspace";
 
-	public static string GetDefaultWorkspaceGlobalPath() =>
-		ProjectSettings.GlobalizePath(DefaultWorkspaceGodotPath);
+	public static string GetDefaultWorkspaceGlobalPath()
+	{
+		if (AppDomain.CurrentDomain.FriendlyName.Contains("testhost", StringComparison.OrdinalIgnoreCase))
+		{
+			return Path.Combine(Path.GetTempPath(), DefaultWorkspaceFolder);
+		}
+
+		return ProjectSettings.GlobalizePath(DefaultWorkspaceGodotPath);
+	}
+
+	private static string? _testActiveWorkspacePath;
+
+	public static void SetActiveWorkspacePathForTesting(string? path)
+	{
+		_testActiveWorkspacePath = path;
+	}
 
 	public static string GetActiveWorkspacePath()
 	{
+		if (!string.IsNullOrEmpty(_testActiveWorkspacePath))
+			return _testActiveWorkspacePath;
 		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
 			return GameContext.EditorService._tempWorkspacePath;
 		if (GameHost.Instance != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))

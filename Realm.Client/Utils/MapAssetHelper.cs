@@ -423,7 +423,7 @@ public static class MapAssetHelper
 		}
 	}
 
-	private static bool IsAssetReferencedInMetadataJson(string metadataJson, string assetName)
+	public static bool IsAssetReferencedInMetadataJson(string metadataJson, string assetName)
 	{
 		if (string.IsNullOrWhiteSpace(assetName)) return false;
 
