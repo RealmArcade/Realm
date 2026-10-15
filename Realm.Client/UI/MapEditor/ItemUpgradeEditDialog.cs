@@ -16,10 +16,16 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 	private string _name = "";
 	private string _iconPath = "";
 	private string _tooltip = "";
+	private List<string> _grantedWeapons = new();
+	private List<string> _grantedAbilities = new();
+	private List<string> _grantedUpgrades = new();
 
 	private string _initialName = "";
 	private string _initialIconPath = "";
 	private string _initialTooltip = "";
+	private List<string> _initialGrantedWeapons = new();
+	private List<string> _initialGrantedAbilities = new();
+	private List<string> _initialGrantedUpgrades = new();
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 
@@ -33,6 +39,10 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 	private Action<string> _setIconPathValue;
 	private LineEdit _txtTooltip;
 	private VBoxContainer _previewContainer;
+	private VBoxContainer _grantedCapabilitiesSection;
+	private VBoxContainer _vboxGrantedWeapons;
+	private VBoxContainer _vboxGrantedAbilities;
+	private VBoxContainer _vboxGrantedUpgrades;
 
 	public ItemUpgradeEditDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Edit Item / Upgrade"), new Vector2(480, 480))
@@ -142,6 +152,171 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		previewPanel.AddChild(previewMargin);
 
 		contentVBox.AddChild(previewPanel);
+
+		_grantedCapabilitiesSection = new VBoxContainer();
+		_grantedCapabilitiesSection.AddThemeConstantOverride("separation", 10);
+		contentVBox.AddChild(_grantedCapabilitiesSection);
+
+		AddSectionHeader(_grantedCapabilitiesSection, "⚔️ " + TranslationServer.Translate("GRANTED CAPABILITIES"), new Color(0.9f, 0.5f, 0.4f));
+
+		AddLabel(_grantedCapabilitiesSection, TranslationServer.Translate("Granted Weapons:"), 11, UIStyle.ColorGold);
+		_vboxGrantedWeapons = new VBoxContainer();
+		_vboxGrantedWeapons.AddThemeConstantOverride("separation", 4);
+		_grantedCapabilitiesSection.AddChild(_vboxGrantedWeapons);
+
+		var btnAddWeapon = new Button();
+		btnAddWeapon.Text = "+ " + TranslationServer.Translate("Add Granted Weapon");
+		btnAddWeapon.AddThemeFontSizeOverride("font_size", 10);
+		btnAddWeapon.FocusMode = FocusModeEnum.None;
+		btnAddWeapon.Pressed += () =>
+		{
+			_grantedWeapons.Add("");
+			RebuildGrantedWeaponsUI();
+		};
+		_grantedCapabilitiesSection.AddChild(btnAddWeapon);
+
+		AddLabel(_grantedCapabilitiesSection, TranslationServer.Translate("Granted Abilities:"), 11, UIStyle.ColorGold);
+		_vboxGrantedAbilities = new VBoxContainer();
+		_vboxGrantedAbilities.AddThemeConstantOverride("separation", 4);
+		_grantedCapabilitiesSection.AddChild(_vboxGrantedAbilities);
+
+		var btnAddAbility = new Button();
+		btnAddAbility.Text = "+ " + TranslationServer.Translate("Add Granted Ability");
+		btnAddAbility.AddThemeFontSizeOverride("font_size", 10);
+		btnAddAbility.FocusMode = FocusModeEnum.None;
+		btnAddAbility.Pressed += () =>
+		{
+			_grantedAbilities.Add("");
+			RebuildGrantedAbilitiesUI();
+		};
+		_grantedCapabilitiesSection.AddChild(btnAddAbility);
+
+		AddLabel(_grantedCapabilitiesSection, TranslationServer.Translate("Granted Upgrades:"), 11, UIStyle.ColorGold);
+		_vboxGrantedUpgrades = new VBoxContainer();
+		_vboxGrantedUpgrades.AddThemeConstantOverride("separation", 4);
+		_grantedCapabilitiesSection.AddChild(_vboxGrantedUpgrades);
+
+		var btnAddUpgrade = new Button();
+		btnAddUpgrade.Text = "+ " + TranslationServer.Translate("Add Granted Upgrade");
+		btnAddUpgrade.AddThemeFontSizeOverride("font_size", 10);
+		btnAddUpgrade.FocusMode = FocusModeEnum.None;
+		btnAddUpgrade.Pressed += () =>
+		{
+			_grantedUpgrades.Add("");
+			RebuildGrantedUpgradesUI();
+		};
+		_grantedCapabilitiesSection.AddChild(btnAddUpgrade);
+	}
+
+	private void RebuildGrantedWeaponsUI()
+	{
+		if (_vboxGrantedWeapons == null) return;
+		foreach (Node child in _vboxGrantedWeapons.GetChildren())
+		{
+			child.QueueFree();
+		}
+
+		for (int i = 0; i < _grantedWeapons.Count; i++)
+		{
+			int index = i;
+			var row = new HBoxContainer();
+			row.AddThemeConstantOverride("separation", 6);
+
+			var txt = new LineEdit();
+			txt.Text = _grantedWeapons[index];
+			txt.PlaceholderText = TranslationServer.Translate("Weapon ID (e.g. weapon/sword)");
+			txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			txt.AddThemeFontSizeOverride("font_size", 11);
+			txt.TextChanged += (val) => _grantedWeapons[index] = val ?? string.Empty;
+			row.AddChild(txt);
+
+			var btnDel = new Button();
+			btnDel.Text = "✕";
+			btnDel.CustomMinimumSize = new Vector2(24, 24);
+			btnDel.FocusMode = FocusModeEnum.None;
+			btnDel.Pressed += () =>
+			{
+				_grantedWeapons.RemoveAt(index);
+				RebuildGrantedWeaponsUI();
+			};
+			row.AddChild(btnDel);
+
+			_vboxGrantedWeapons.AddChild(row);
+		}
+	}
+
+	private void RebuildGrantedAbilitiesUI()
+	{
+		if (_vboxGrantedAbilities == null) return;
+		foreach (Node child in _vboxGrantedAbilities.GetChildren())
+		{
+			child.QueueFree();
+		}
+
+		for (int i = 0; i < _grantedAbilities.Count; i++)
+		{
+			int index = i;
+			var row = new HBoxContainer();
+			row.AddThemeConstantOverride("separation", 6);
+
+			var txt = new LineEdit();
+			txt.Text = _grantedAbilities[index];
+			txt.PlaceholderText = TranslationServer.Translate("Ability ID (e.g. ability/fireball)");
+			txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			txt.AddThemeFontSizeOverride("font_size", 11);
+			txt.TextChanged += (val) => _grantedAbilities[index] = val ?? string.Empty;
+			row.AddChild(txt);
+
+			var btnDel = new Button();
+			btnDel.Text = "✕";
+			btnDel.CustomMinimumSize = new Vector2(24, 24);
+			btnDel.FocusMode = FocusModeEnum.None;
+			btnDel.Pressed += () =>
+			{
+				_grantedAbilities.RemoveAt(index);
+				RebuildGrantedAbilitiesUI();
+			};
+			row.AddChild(btnDel);
+
+			_vboxGrantedAbilities.AddChild(row);
+		}
+	}
+
+	private void RebuildGrantedUpgradesUI()
+	{
+		if (_vboxGrantedUpgrades == null) return;
+		foreach (Node child in _vboxGrantedUpgrades.GetChildren())
+		{
+			child.QueueFree();
+		}
+
+		for (int i = 0; i < _grantedUpgrades.Count; i++)
+		{
+			int index = i;
+			var row = new HBoxContainer();
+			row.AddThemeConstantOverride("separation", 6);
+
+			var txt = new LineEdit();
+			txt.Text = _grantedUpgrades[index];
+			txt.PlaceholderText = TranslationServer.Translate("Upgrade ID (e.g. upgrade/iron_forging)");
+			txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			txt.AddThemeFontSizeOverride("font_size", 11);
+			txt.TextChanged += (val) => _grantedUpgrades[index] = val ?? string.Empty;
+			row.AddChild(txt);
+
+			var btnDel = new Button();
+			btnDel.Text = "✕";
+			btnDel.CustomMinimumSize = new Vector2(24, 24);
+			btnDel.FocusMode = FocusModeEnum.None;
+			btnDel.Pressed += () =>
+			{
+				_grantedUpgrades.RemoveAt(index);
+				RebuildGrantedUpgradesUI();
+			};
+			row.AddChild(btnDel);
+
+			_vboxGrantedUpgrades.AddChild(row);
+		}
 	}
 
 	private List<string> ScanIconRtexAssets(bool includeAllFolders)
@@ -261,6 +436,9 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_initialName = _name;
 		_initialIconPath = _iconPath;
 		_initialTooltip = _tooltip;
+		_initialGrantedWeapons = new List<string>(_grantedWeapons);
+		_initialGrantedAbilities = new List<string>(_grantedAbilities);
+		_initialGrantedUpgrades = new List<string>(_grantedUpgrades);
 
 		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
 		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
@@ -286,6 +464,9 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_name = _initialName;
 		_iconPath = _initialIconPath;
 		_tooltip = _initialTooltip;
+		_grantedWeapons = new List<string>(_initialGrantedWeapons);
+		_grantedAbilities = new List<string>(_initialGrantedAbilities);
+		_grantedUpgrades = new List<string>(_initialGrantedUpgrades);
 
 		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
 		if (!string.IsNullOrEmpty(targetId))
@@ -313,6 +494,9 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_name = _slug;
 		_iconPath = "";
 		_tooltip = "";
+		_grantedWeapons = new List<string>();
+		_grantedAbilities = new List<string>();
+		_grantedUpgrades = new List<string>();
 	}
 
 	private void LoadMetadataProperties()
@@ -368,6 +552,10 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_tooltip = i.Description;
 		if (_tooltip == null)
 			_tooltip = "";
+
+		_grantedWeapons = i.GrantedWeapons != null ? new List<string>(i.GrantedWeapons) : new List<string>();
+		_grantedAbilities = i.GrantedAbilities != null ? new List<string>(i.GrantedAbilities) : new List<string>();
+		_grantedUpgrades = i.GrantedUpgrades != null ? new List<string>(i.GrantedUpgrades) : new List<string>();
 	}
 
 	private string FormatIconPath(string path)
@@ -400,6 +588,17 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		if (_txtName != null) _txtName.Text = _name;
 		_setIconPathValue?.Invoke(_iconPath);
 		if (_txtTooltip != null) _txtTooltip.Text = _tooltip;
+
+		if (_grantedCapabilitiesSection != null)
+		{
+			_grantedCapabilitiesSection.Visible = (_category == "items");
+			if (_category == "items")
+			{
+				RebuildGrantedWeaponsUI();
+				RebuildGrantedAbilitiesUI();
+				RebuildGrantedUpgradesUI();
+			}
+		}
 	}
 
 	protected override void OnApply()
@@ -465,6 +664,9 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			i.Name = _name;
 			i.Description = _tooltip;
 			i.IconPath = _iconPath;
+			i.GrantedWeapons = _grantedWeapons.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+			i.GrantedAbilities = _grantedAbilities.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+			i.GrantedUpgrades = _grantedUpgrades.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
 			return i;
 		});
 
@@ -476,7 +678,10 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 				Name = !string.IsNullOrEmpty(_name) ? _name : _slug,
 				Description = _tooltip,
 				IconPath = _iconPath,
-				ItemClass = "consumable"
+				ItemClass = "consumable",
+				GrantedWeapons = _grantedWeapons.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray(),
+				GrantedAbilities = _grantedAbilities.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray(),
+				GrantedUpgrades = _grantedUpgrades.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray()
 			});
 		}
 

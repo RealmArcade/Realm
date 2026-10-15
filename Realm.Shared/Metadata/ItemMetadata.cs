@@ -15,6 +15,8 @@ public class ItemMetadata
 	public string? IconPath { get; set; }
 	public string[]? PassiveStatusEffects { get; set; }
 	public string[]? GrantedWeapons { get; set; }
+	public string[]? GrantedAbilities { get; set; }
+	public string[]? GrantedUpgrades { get; set; }
 	public bool IsContainer { get; set; }
 	public int ContainerSize { get; set; }
 	public string Requirements { get; set; } = string.Empty;

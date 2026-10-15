@@ -175,11 +175,32 @@ public class UnitSpawnService
 				regMeta.PushPriority, !string.IsNullOrEmpty(regMeta.MovementType) ? regMeta.MovementType : "Ground"
 			);
 			
+			if (regMeta.Abilities != null && regMeta.Abilities.Length > 0)
+			{
+				GameContext.World.SetOrAdd(entity, new AbilityState(new List<string>(regMeta.Abilities)));
+			}
+
+			if (regMeta.StartingItems != null && regMeta.StartingItems.Length > 0)
+			{
+				var unitItems = new List<string>();
+				foreach (var stItem in regMeta.StartingItems)
+				{
+					if (string.IsNullOrWhiteSpace(stItem)) continue;
+					unitItems.Add(stItem);
+					Realm.Client.Utils.ItemGrantingUtility.EquipItem(GameContext.World, entity, stItem);
+				}
+				if (unitItems.Count > 0)
+				{
+					GameContext.World.SetOrAdd(entity, new UnitItems(unitItems));
+				}
+			}
+
 			if (regMeta.Strength != 0f || regMeta.Agility != 0f || regMeta.Vitality != 0f || regMeta.Intelligence != 0f || regMeta.Wisdom != 0f || regMeta.Fortune != 0f)
 			{
 				GameContext.World.Set(entity, new UnitAttributes(regMeta.Strength, regMeta.Agility, regMeta.Vitality, regMeta.Intelligence, regMeta.Wisdom, regMeta.Fortune));
-				AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
 			}
+
+			AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
 		}
 		else
 		{

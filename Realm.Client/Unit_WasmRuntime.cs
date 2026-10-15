@@ -4,6 +4,7 @@ using Arch.Core;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+	using Realm.Client.Utils;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -730,6 +731,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 		if (items.Count >= 6) return false;
 		items.Add(itemId);
+		ItemGrantingUtility.EquipItem(_world, _entity, itemId);
 		return true;
 	}
 
@@ -769,10 +771,37 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		{
 			var items = _world.Get<UnitItems>(_entity).Value;
 			_itemCharges.Remove(itemId);
+			ItemGrantingUtility.UnequipItem(_world, _entity, itemId);
 			return items.Remove(itemId);
 		}
 
 		return false;
+	}
+
+	public bool EquipItem(string itemId)
+	{
+		if (!_world.IsAlive(_entity)) return false;
+		if (!HasItem(itemId))
+		{
+			AddItem(itemId);
+		}
+		return ItemGrantingUtility.EquipItem(_world, _entity, itemId);
+	}
+
+	public bool UnequipItem(string itemId)
+	{
+		if (!_world.IsAlive(_entity)) return false;
+		return ItemGrantingUtility.UnequipItem(_world, _entity, itemId);
+	}
+
+	public bool IsItemEquipped(string itemId)
+	{
+		return ItemGrantingUtility.IsItemEquipped(_world, _entity, itemId);
+	}
+
+	public IEnumerable<string> GetEquippedItems()
+	{
+		return ItemGrantingUtility.GetEquippedItems(_world, _entity);
 	}
 
 	public bool HasItem(string itemId)

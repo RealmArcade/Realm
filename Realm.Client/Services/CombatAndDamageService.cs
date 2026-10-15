@@ -681,7 +681,23 @@ namespace Realm.Client.Services
 			if (range <= 3f) return;
 
 			string? weaponId = null;
-			if (GameContext.World.Has<DefinitionId>(entity))
+			if (GameContext.World.Has<EquippedItems>(entity))
+			{
+				var eq = GameContext.World.Get<EquippedItems>(entity);
+				if (eq.Value != null)
+				{
+					foreach (var item in eq.Value)
+					{
+						if (GameContext.RegistryService?.ItemRegistry != null && GameContext.RegistryService.ItemRegistry.TryGetValue(item, out var itemMeta) && itemMeta?.GrantedWeapons != null && itemMeta.GrantedWeapons.Length > 0)
+						{
+							weaponId = itemMeta.GrantedWeapons[0];
+							break;
+						}
+					}
+				}
+			}
+
+			if (weaponId == null && GameContext.World.Has<DefinitionId>(entity))
 			{
 				var defId = GameContext.World.Get<DefinitionId>(entity).Value;
 				var weapons = UnitWeaponsProvider?.Invoke(defId);

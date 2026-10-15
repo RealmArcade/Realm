@@ -1718,6 +1718,30 @@
                   ]
                 }
               },
+              "GrantedAbilities": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "GrantedUpgrades": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
               "IsContainer": {
                 "type": "boolean"
               },

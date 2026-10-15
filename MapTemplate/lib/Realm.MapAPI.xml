@@ -2279,6 +2279,33 @@
             </summary>
             <returns>A collection of item identifiers.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IUnit.EquipItem(System.String)">
+            <summary>
+            Equips an item on the unit, attaching its granted weapons, abilities, and upgrades.
+            </summary>
+            <param name="itemId">The identifier of the item to equip.</param>
+            <returns>True if the item was equipped successfully, false otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.UnequipItem(System.String)">
+            <summary>
+            Unequips an item from the unit, detaching its granted weapons, abilities, and upgrade modifiers.
+            </summary>
+            <param name="itemId">The identifier of the item to unequip.</param>
+            <returns>True if the item was found and unequipped, false otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.IsItemEquipped(System.String)">
+            <summary>
+            Checks if the specified item is currently equipped on the unit.
+            </summary>
+            <param name="itemId">The item identifier to check.</param>
+            <returns>True if the item is equipped, false otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.GetEquippedItems">
+            <summary>
+            Retrieves all items currently equipped on the unit.
+            </summary>
+            <returns>A collection of equipped item identifiers.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IUnit.AddBuff(System.String,System.Single)">
             <summary>
             Adds a buff/status effect to the unit.
