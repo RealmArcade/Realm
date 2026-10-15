@@ -66,13 +66,18 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 	private int _updateTickCounter = 0;
 	private readonly Dictionary<string, Func<float, float, int, float>?> _formulaFuncCache = new(StringComparer.OrdinalIgnoreCase);
 
+	private readonly System.Threading.Timer _watchdogTimer;
+
+	public bool IsFaulted { get; private set; }
+
 	public WasmRuntime(string wasmPath, string mapName)
 	{
 		_mapName = mapName;
 
 		try
 		{
-			_engine = new Engine();
+			var config = new Config().WithEpochInterruption(true);
+			_engine = new Engine(config);
 			_module = Module.FromFile(_engine, wasmPath);
 			_linker = new Linker(_engine);
 			_store = new Store(_engine);
@@ -102,9 +107,16 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 
 			LogToConsole($"[WASM RUNTIME] Successfully instantiated WASM module '{mapName}'.");
 
+			_watchdogTimer = new System.Threading.Timer(_ =>
+			{
+				_engine.IncrementEpoch();
+			}, null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+
 			var wasiInitialize = _instance.GetFunction("_initialize");
 			if (wasiInitialize != null)
-				wasiInitialize.Invoke();
+			{
+				ExecuteGuardedAction(() => wasiInitialize.Invoke(), "wasi_initialize");
+			}
 
 			_cabiRealloc = _instance.GetFunction("cabi_realloc");
 
@@ -122,6 +134,64 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			FlushWasiLogFile();
 			LogToConsole($"[WASM RUNTIME ERROR] Failed to instantiate WASM module: {ex.Message}", true);
 			throw;
+		}
+	}
+
+	public void ExecuteGuardedAction(Action action, string contextName = "script execution", int timeoutMs = 2000)
+	{
+		if (IsFaulted) return;
+
+		try
+		{
+			_store.SetEpochDeadline(1);
+			_watchdogTimer.Change(timeoutMs, System.Threading.Timeout.Infinite);
+			action();
+		}
+		catch (TrapException trapEx)
+		{
+			IsFaulted = true;
+			FlushWasiLogFile();
+			LogToConsole($"[WASM RUNTIME TRAP] Script fault or timeout in {contextName}: {trapEx.Message} (Type: {trapEx.Type})", true);
+		}
+		catch (Exception ex)
+		{
+			IsFaulted = true;
+			FlushWasiLogFile();
+			LogToConsole($"[WASM RUNTIME ERROR] Unhandled exception in {contextName}: {ex.Message}", true);
+		}
+		finally
+		{
+			_watchdogTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+		}
+	}
+
+	public T ExecuteGuardedFunc<T>(Func<T> func, T defaultValue, string contextName = "script evaluation", int timeoutMs = 2000)
+	{
+		if (IsFaulted) return defaultValue;
+
+		try
+		{
+			_store.SetEpochDeadline(1);
+			_watchdogTimer.Change(timeoutMs, System.Threading.Timeout.Infinite);
+			return func();
+		}
+		catch (TrapException trapEx)
+		{
+			IsFaulted = true;
+			FlushWasiLogFile();
+			LogToConsole($"[WASM RUNTIME TRAP] Script fault or timeout in {contextName}: {trapEx.Message} (Type: {trapEx.Type})", true);
+			return defaultValue;
+		}
+		catch (Exception ex)
+		{
+			IsFaulted = true;
+			FlushWasiLogFile();
+			LogToConsole($"[WASM RUNTIME ERROR] Unhandled exception in {contextName}: {ex.Message}", true);
+			return defaultValue;
+		}
+		finally
+		{
+			_watchdogTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
 		}
 	}
 
@@ -242,38 +312,30 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 	{
 		_cachedApi = api;
 		SubscribeAutoEvents(api);
-		try
+		if (IsFaulted || _initialize == null) return;
+
+		LogToConsole("[WASM RUNTIME] Executing script initialize()...");
+		ExecuteGuardedAction(() =>
 		{
-			LogToConsole("[WASM RUNTIME] Executing script initialize()...");
-			_initialize?.Invoke();
+			_initialize.Invoke();
 			FlushWasiLogFile();
 			LogToConsole("[WASM RUNTIME] Script initialize() completed.");
-		}
-		catch (Exception ex)
-		{
-			FlushWasiLogFile();
-			LogToConsole($"[WASM RUNTIME ERROR] Exception in initialize(): {ex}");
-			throw;
-		}
+		}, "initialize()");
 	}
 
 	public void Update(IGameAPI api, float delta)
 	{
-		try
+		if (IsFaulted || _update == null) return;
+
+		ExecuteGuardedAction(() =>
 		{
-			_update?.Invoke(delta);
+			_update.Invoke(delta);
 			if (++_updateTickCounter >= 30)
 			{
 				_updateTickCounter = 0;
 				FlushWasiLogFile();
 			}
-		}
-		catch (Exception ex)
-		{
-			FlushWasiLogFile();
-			LogToConsole($"[WASM RUNTIME ERROR] Exception in update(): {ex}", true);
-			throw;
-		}
+		}, "update()");
 	}
 
 	public float Evaluate(in FormulaContext context, float baseValue, float modifierValue, int level)
@@ -283,60 +345,45 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 
 	public float ExecuteCustomFormula(string functionName, float baseValue, float modifierValue, int level)
 	{
-		if (string.IsNullOrWhiteSpace(functionName))
+		if (IsFaulted || string.IsNullOrWhiteSpace(functionName))
 		{
 			return 0f;
 		}
 
-		try
+		if (!_formulaFuncCache.TryGetValue(functionName, out var funcDelegate))
 		{
-			if (!_formulaFuncCache.TryGetValue(functionName, out var funcDelegate))
+			var func = _instance.GetFunction(functionName);
+			if (func == null)
 			{
-				var func = _instance.GetFunction(functionName);
-				if (func == null)
-				{
-					_formulaFuncCache[functionName] = null;
-					return 0f;
-				}
-
-				try
-				{
-					funcDelegate = func.WrapFunc<float, float, int, float>();
-				}
-				catch
-				{
-					funcDelegate = (b, m, l) =>
-					{
-						try
-						{
-							var result = func.Invoke(b, m, l);
-							if (result is float f) return f;
-							if (result is int i) return (float)i;
-							if (result is double d) return (float)d;
-							return Convert.ToSingle(result);
-						}
-						catch
-						{
-							return 0f;
-						}
-					};
-				}
-
-				_formulaFuncCache[functionName] = funcDelegate;
-			}
-
-			if (funcDelegate == null)
-			{
+				_formulaFuncCache[functionName] = null;
 				return 0f;
 			}
 
-			return funcDelegate(baseValue, modifierValue, level);
+			try
+			{
+				funcDelegate = func.WrapFunc<float, float, int, float>();
+			}
+			catch
+			{
+				funcDelegate = (b, m, l) =>
+				{
+					var result = func.Invoke(b, m, l);
+					if (result is float f) return f;
+					if (result is int i) return (float)i;
+					if (result is double d) return (float)d;
+					return Convert.ToSingle(result);
+				};
+			}
+
+			_formulaFuncCache[functionName] = funcDelegate;
 		}
-		catch (Exception ex)
+
+		if (funcDelegate == null)
 		{
-			LogToConsole($"[WASM FORMULA ERROR] Failed executing custom formula '{functionName}': {ex.Message}", true);
 			return 0f;
 		}
+
+		return ExecuteGuardedFunc(() => funcDelegate(baseValue, modifierValue, level), 0f, $"custom formula '{functionName}'");
 	}
 
 	public void Dispose()
@@ -348,6 +395,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		_formulaFuncCache.Clear();
 		FlushWasiLogFile();
 		UnsubscribeAutoEvents();
+		_watchdogTimer?.Dispose();
 		_store.Dispose();
 		_module.Dispose();
 		_engine.Dispose();

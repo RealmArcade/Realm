@@ -1881,7 +1881,16 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		LoadMapScript(rawMapName);
 		if (_activeMapScript != null && !GameContext.SessionState.IsMapEditorMode)
-			_activeMapScript.Initialize(this);
+		{
+			try
+			{
+				_activeMapScript.Initialize(this);
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[GameHost] Exception during active map script Initialize: {ex.Message}");
+			}
+		}
 		RebakeNavMesh();
 	}
 
@@ -2898,7 +2907,17 @@ public partial class GameHost : Node3D, IGameAPI
 		TickScheduledTimers(fDelta);
 		TickZoneTriggers();
 
-		if (_activeMapScript != null) _activeMapScript.Update(this, fDelta);
+		if (_activeMapScript != null)
+		{
+			try
+			{
+				_activeMapScript.Update(this, fDelta);
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[GameHost] Exception during active map script Update: {ex.Message}");
+			}
+		}
 
 		UpdateBuildingPreview();
 

@@ -1662,7 +1662,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void EmitStringAutoEventHandlerBody(StringBuilder sb, IMethodSymbol delegateMethod, string fieldName, INamedTypeSymbol gameApiSymbol)
 	{
-		sb.AppendLine($"        if ({fieldName} != null)");
+		sb.AppendLine($"        if (IsFaulted || {fieldName} == null) return;");
+		sb.AppendLine("        ExecuteGuardedAction(() =>");
 		sb.AppendLine("        {");
 		sb.AppendLine("            var memory = _instance.GetMemory(\"memory\");");
 		sb.AppendLine("            if (memory != null)");
@@ -1706,11 +1707,15 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		sb.AppendLine($"                {fieldName}.Invoke({string.Join(", ", invokeArgs)});");
 		sb.AppendLine("            }");
-		sb.AppendLine("        }");
+		sb.AppendLine("        }, \"event handler\");");
 	}
 
 	private static void EmitStandardAutoEventHandlerBody(StringBuilder sb, IMethodSymbol delegateMethod, string fieldName, INamedTypeSymbol gameApiSymbol)
 	{
+		sb.AppendLine($"        if (IsFaulted || {fieldName} == null) return;");
+		sb.AppendLine("        ExecuteGuardedAction(() =>");
+		sb.AppendLine("        {");
+
 		var invokeArgs = new List<string>();
 		foreach (var p in delegateMethod.Parameters)
 		{
@@ -1733,7 +1738,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			}
 		}
 
-		sb.AppendLine($"        {fieldName}?.Invoke({string.Join(", ", invokeArgs)});");
+		sb.AppendLine($"            {fieldName}.Invoke({string.Join(", ", invokeArgs)});");
+		sb.AppendLine("        }, \"event handler\");");
 	}
 
 	private static string GetWasmField(string eventName)
