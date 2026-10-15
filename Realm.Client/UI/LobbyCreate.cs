@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -188,7 +188,7 @@ public partial class LobbyCreate : Control
 		UIStyle.ApplyTitle(_titleLabel, LobbyManager.Instance.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
 		UIStyle.ApplyTitle(_mapSelectLabel, "SELECT MAP", 20);
 
-		SetupPillarButton(_backButton, "◀", () => UIManager.Instance.TransitionTo(LobbyManager.Instance.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		UIStyle.SetupPillarButton(_backButton, "◀", () => UIManager.Instance.TransitionTo(LobbyManager.Instance.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_mapSelectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
@@ -220,28 +220,7 @@ public partial class LobbyCreate : Control
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
 	}
 
-	private void SetupPillarButton(Button btn, string text, Action onClick)
-	{
-		btn.Flat = false;
-		btn.Text = text;
-		btn.AddThemeConstantOverride("icon_max_width", 0);
-		btn.AddThemeFontSizeOverride("font_size", 24);
-		btn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			onClick?.Invoke();
-		};
-		btn.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-	}
+	
 
 	private void SetupCreateButton()
 	{

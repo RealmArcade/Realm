@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Arch.Core;
 using Godot;
@@ -66,6 +66,21 @@ public partial class GameHost
 	private bool _is3DLeftClickDown { get; set; } = false;
 	private Vector2 _leftClick3DStartPos { get; set; } = Vector2.Zero;
 	private bool _is3DDragOperationActive { get; set; } = false;
+
+
+	private void ApplyEditorSnapToGrid(ref Vector3 spawnPos)
+	{
+		if (EditorSnapToGrid && GroundTerrain != null)
+		{
+			float quadSize = GroundTerrain.QuadSize;
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
+			spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
+			float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
+			spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
+		}
+	}
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
@@ -450,16 +465,7 @@ public partial class GameHost
 					if (hit != null && hit.ContainsKey("position"))
 					{
 						Vector3 spawnPos = hit["position"].AsVector3();
-						if (EditorSnapToGrid && GroundTerrain != null)
-						{
-							float quadSize = GroundTerrain.QuadSize;
-							int width = GroundTerrain.Width;
-							int depth = GroundTerrain.Depth;
-							float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
-							spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
-							float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
-							spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
-						}
+						ApplyEditorSnapToGrid(ref spawnPos);
 
 						spawnPos.Y = GetTerrainHeightAt(spawnPos);
 						var cop = copiedObj.Value;
@@ -557,16 +563,7 @@ public partial class GameHost
 					if (hit != null && hit.ContainsKey("position"))
 					{
 						spawnPos = hit["position"].AsVector3();
-						if (EditorSnapToGrid && GroundTerrain != null)
-						{
-							float quadSize = GroundTerrain.QuadSize;
-							int width = GroundTerrain.Width;
-							int depth = GroundTerrain.Depth;
-							float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
-							spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
-							float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
-							spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
-						}
+							ApplyEditorSnapToGrid(ref spawnPos);
 					}
 					else
 					{

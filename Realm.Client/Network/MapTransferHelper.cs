@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -193,5 +193,42 @@ public static class MapTransferHelper
 			GD.PrintErr($"[{logPrefix}] Error extracting chunk {chunkIndex}: {ex.Message}");
 			transferCompleteTcs?.TrySetException(ex);
 		}
+	}
+
+	public static List<HostAssetTransferItem> CollectTransferItems(string[] missingHashes, Dictionary<string, string> localFileMap)
+	{
+		var itemsToPack = new List<HostAssetTransferItem>(missingHashes.Length);
+		foreach (var hash in missingHashes)
+		{
+			string norm = ContentAddressableStorage.NormalizeBlake3Hash(hash);
+			string? filePath = MapAssetManager.Storage.FindAssetFilePath(norm) ?? MapAssetManager.P2PStorage.FindAssetFilePath(norm);
+			string? meta = null;
+
+			if (filePath != null && File.Exists(filePath))
+			{
+				meta = MapAssetManager.Storage.GetAssetMetadata(norm);
+			}
+			else if (localFileMap.TryGetValue(norm, out var localPath) && File.Exists(localPath))
+			{
+				filePath = localPath;
+			}
+
+			if (filePath != null && File.Exists(filePath))
+			{
+				itemsToPack.Add(new HostAssetTransferItem
+				{
+					AssetKey = hash,
+					SourceFilePath = filePath,
+					Metadata = meta,
+					Size = new FileInfo(filePath).Length
+				});
+			}
+			else
+			{
+				GD.PrintErr($"[MapTransferHelper] Host could not find asset payload for hash: {hash}");
+			}
+		}
+
+		return itemsToPack;
 	}
 }

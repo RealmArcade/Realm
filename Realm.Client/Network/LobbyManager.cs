@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -1604,7 +1604,7 @@ public partial class LobbyManager : Node
 	private void PrepareHostTransferSession(HostTransferSession session, string mapName, string mapVersion, string[] missingHashes)
 	{
 		var localFileMap = BuildLocalFileMap(mapName, mapVersion);
-		var itemsToPack = CollectTransferItems(missingHashes, localFileMap);
+		var itemsToPack = MapTransferHelper.CollectTransferItems(missingHashes, localFileMap);
 
 		session.ChunkItems = HostTransferSessionHelper.ChunkTransferItems(itemsToPack);
 		session.TotalRawBytes = itemsToPack.Sum(a => a.Size);
@@ -1616,42 +1616,7 @@ public partial class LobbyManager : Node
 		return MapTransferHelper.BuildLocalFileMap(mapName, mapVersion, manifest);
 	}
 
-	private List<HostAssetTransferItem> CollectTransferItems(string[] missingHashes, Dictionary<string, string> localFileMap)
-	{
-		var itemsToPack = new List<HostAssetTransferItem>(missingHashes.Length);
-		foreach (var hash in missingHashes)
-		{
-			string norm = ContentAddressableStorage.NormalizeBlake3Hash(hash);
-			string? filePath = MapAssetManager.Storage.FindAssetFilePath(norm) ?? MapAssetManager.P2PStorage.FindAssetFilePath(norm);
-			string? meta = null;
-
-			if (filePath != null && File.Exists(filePath))
-			{
-				meta = MapAssetManager.Storage.GetAssetMetadata(norm);
-			}
-			else if (localFileMap.TryGetValue(norm, out var localPath) && File.Exists(localPath))
-			{
-				filePath = localPath;
-			}
-
-			if (filePath != null && File.Exists(filePath))
-			{
-				itemsToPack.Add(new HostAssetTransferItem
-				{
-					AssetKey = hash,
-					SourceFilePath = filePath,
-					Metadata = meta,
-					Size = new FileInfo(filePath).Length
-				});
-			}
-			else
-			{
-				GD.PrintErr($"[LobbyManager] Host could not find asset payload for hash: {hash}");
-			}
-		}
-
-		return itemsToPack;
-	}
+	
 
 	private async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
 	{

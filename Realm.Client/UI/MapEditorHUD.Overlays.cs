@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -992,53 +992,7 @@ namespace Realm.Client.UI
 
 		private void ShowMapNewerThanGameErrorDialog(string selectedFolder, string mapVersion, string gameVersion)
 		{
-			var popup = new Panel();
-			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-			AddChild(popup);
-
-			var cardPanel = new Panel();
-			cardPanel.CustomMinimumSize = new Vector2(540, 260);
-			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-			popup.AddChild(cardPanel);
-
-			var vbox = new VBoxContainer();
-			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			vbox.CustomMinimumSize = new Vector2(500, 230);
-			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-			cardPanel.AddChild(vbox);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-			var titleLabel = new Label();
-			UIStyle.ApplyTitle(titleLabel, Tr("MAP REQUIRES NEWER GAME VERSION"), 18);
-			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
-			vbox.AddChild(titleLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
-
-			var descLabel = new Label();
-			descLabel.Text = $"{string.Format(Tr("Map: {0}"), Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), mapVersion, gameVersion)}\n\n{Tr("This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.")}";
-			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			descLabel.AddThemeFontSizeOverride("font_size", 13);
-			descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			vbox.AddChild(descLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
-
-			var buttonRow = new HBoxContainer();
-			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
-			vbox.AddChild(buttonRow);
-
-			var closeBtn = UIStyle.CreateCloseButton(() =>
-			{
-				popup.QueueFree();
-			});
-			closeBtn.CustomMinimumSize = new Vector2(120, 38);
-			buttonRow.AddChild(closeBtn);
+			UIStyle.ShowMapVersionMismatchDialog(this, mapVersion, gameVersion, selectedFolder);
 		}
 
 		private void ShowGreenlightStatusDialog(string mapTitle, string mapVersion, int verifiedGoodReviews, int totalReviews, double averageRating, bool isGreenlit)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -2755,20 +2755,7 @@ public partial class EditorService : IEditorAPI
 
 		if (Mathf.Abs(newHeight - oldHeight) <= 0.001f) return;
 
-		int cellX = Math.Clamp(gridX, 0, width - 1);
-		int cellZ = Math.Clamp(gridZ, 0, depth - 1);
-		if (terrain.PathingCodes != null)
-		{
-			int defaultPathBefore = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
-			if (terrain.PathingCodes[cellX, cellZ] == defaultPathBefore)
-			{
-				terrain.PathingCodes[cellX, cellZ] = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
-			}
-		}
-
-		SetGridNodeHeight(ref terrain, gridX, gridZ, newHeight);
-		int rampPaintIdx = GameHost.Instance != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
-		int rampCliffIdx = GameHost.Instance != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 1;
+		ApplyRampCellHeight(ref terrain, gridX, gridZ, width, depth, newHeight, out int rampPaintIdx, out int rampCliffIdx);
 		SetGridNodeSplat(gridX, gridZ, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f });
 		SetGridNodeCliffSplat(gridX, gridZ, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f });
 		modified = true;
@@ -2813,20 +2800,7 @@ public partial class EditorService : IEditorAPI
 				{
 					if (Mathf.Abs(newHeight - oldHeight) > 0.001f)
 					{
-						int cellX = Math.Clamp(gridX, 0, width - 1);
-						int cellZ = Math.Clamp(gridZ, 0, depth - 1);
-						if (terrain.PathingCodes != null)
-						{
-							int defaultPathBefore = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
-							if (terrain.PathingCodes[cellX, cellZ] == defaultPathBefore)
-							{
-								terrain.PathingCodes[cellX, cellZ] = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
-							}
-						}
-
-						SetGridNodeHeight(ref terrain, gridX, gridZ, newHeight);
-						int rampPaintIdx = GameHost.Instance != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
-						int rampCliffIdx = GameHost.Instance != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 1;
+						ApplyRampCellHeight(ref terrain, gridX, gridZ, width, depth, newHeight, out int rampPaintIdx, out int rampCliffIdx);
 
 						if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
 						{
@@ -6899,5 +6873,23 @@ public class {mapName} : IMapScript
 		{
 			GD.PrintErr($"Failed to update metadata.json asset: {ex.Message}");
 		}
+	}
+
+	private void ApplyRampCellHeight(ref TerrainState terrain, int gridX, int gridZ, int width, int depth, float newHeight, out int rampPaintIdx, out int rampCliffIdx)
+	{
+		int cellX = Math.Clamp(gridX, 0, width - 1);
+		int cellZ = Math.Clamp(gridZ, 0, depth - 1);
+		if (terrain.PathingCodes != null)
+		{
+			int defaultPathBefore = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
+			if (terrain.PathingCodes[cellX, cellZ] == defaultPathBefore)
+			{
+				terrain.PathingCodes[cellX, cellZ] = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
+			}
+		}
+
+		SetGridNodeHeight(ref terrain, gridX, gridZ, newHeight);
+		rampPaintIdx = GameHost.Instance != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
+		rampCliffIdx = GameHost.Instance != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 1;
 	}
 }

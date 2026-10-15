@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -2237,53 +2237,7 @@ namespace Realm.Client.UI
 
 		private void ShowInvalidMapFolderErrorDialog(string selectedFolder)
 		{
-			var popup = new Panel();
-			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-			AddChild(popup);
-
-			var cardPanel = new Panel();
-			cardPanel.CustomMinimumSize = new Vector2(520, 240);
-			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-			popup.AddChild(cardPanel);
-
-			var vbox = new VBoxContainer();
-			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			vbox.CustomMinimumSize = new Vector2(480, 210);
-			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-			cardPanel.AddChild(vbox);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-			var titleLabel = new Label();
-			UIStyle.ApplyTitle(titleLabel, Tr("INVALID MAP FOLDER"), 20);
-			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
-			vbox.AddChild(titleLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
-
-			var descLabel = new Label();
-			descLabel.Text = $"{string.Format(Tr("Folder: {0}"), Path.GetFileName(selectedFolder))}\n\n{Tr("The selected folder is not a valid map. Required files metadata.json and manifest.json were not found.")}";
-			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			descLabel.AddThemeFontSizeOverride("font_size", 13);
-			descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			vbox.AddChild(descLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
-
-			var buttonRow = new HBoxContainer();
-			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
-			vbox.AddChild(buttonRow);
-
-			var closeBtn = UIStyle.CreateCloseButton(() =>
-			{
-				popup.QueueFree();
-			});
-			closeBtn.CustomMinimumSize = new Vector2(120, 38);
-			buttonRow.AddChild(closeBtn);
+			UIStyle.ShowInvalidMapFolderDialog(this, selectedFolder);
 		}
 
 		private void InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn)

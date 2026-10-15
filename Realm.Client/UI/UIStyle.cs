@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 ﻿using Godot;
 
 namespace Realm.Client.UI;
@@ -1560,5 +1560,66 @@ public static class UIStyle
 		{
 			ApplyStandardButtonStyle(btn);
 		}
+	}
+
+	public static Button CreateWebAiButton()
+	{
+		var btnWebAi = new Button();
+		btnWebAi.Set("icon_max_width", 16);
+		btnWebAi.AddThemeConstantOverride("icon_max_width", 16);
+		btnWebAi.ExpandIcon = false;
+		btnWebAi.IconAlignment = HorizontalAlignment.Center;
+		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
+		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.png"))
+		{
+			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.png");
+		}
+		else
+		{
+			btnWebAi.Text = "🌐";
+		}
+
+		btnWebAi.TooltipText = TranslationServer.Translate("Generate 3D Model with AI Online");
+		btnWebAi.CustomMinimumSize = new Vector2(24, 24);
+		btnWebAi.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		btnWebAi.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		btnWebAi.FocusMode = Control.FocusModeEnum.None;
+		btnWebAi.Pressed += () => OS.ShellOpen("https://3d.hunyuanglobal.com");
+		return btnWebAi;
+	}
+
+	public static void ShowMapVersionMismatchDialog(Node parentNode, string mapVersion, string gameVersion, string selectedFolder)
+	{
+		string msg = $"{string.Format(TranslationServer.Translate("Map: {0}"), System.IO.Path.GetFileName(selectedFolder))}\n{string.Format(TranslationServer.Translate("Map Build: {0} | Editor Build: {1}"), mapVersion, gameVersion)}\n\n{TranslationServer.Translate("This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.")}";
+		ShowWarningPopup(parentNode, TranslationServer.Translate("MAP REQUIRES NEWER GAME VERSION"), msg, null, true, TranslationServer.Translate("CLOSE"));
+	}
+
+	public static void ShowInvalidMapFolderDialog(Node parentNode, string selectedFolder)
+	{
+		string msg = $"{string.Format(TranslationServer.Translate("Folder: {0}"), System.IO.Path.GetFileName(selectedFolder))}\n\n{TranslationServer.Translate("The selected folder is not a valid map. Required files metadata.json and manifest.json were not found.")}";
+		ShowWarningPopup(parentNode, TranslationServer.Translate("INVALID MAP FOLDER"), msg, null, true, TranslationServer.Translate("CLOSE"));
+	}
+
+	public static void SetupPillarButton(Button btn, string text, Action onClick)
+	{
+		btn.Flat = false;
+		btn.Text = text;
+		btn.AddThemeConstantOverride("icon_max_width", 0);
+		btn.AddThemeFontSizeOverride("font_size", 24);
+		btn.AddThemeColorOverride("font_color", ColorGoldDull);
+		btn.AddThemeColorOverride("font_hover_color", ColorGold);
+		btn.AddThemeColorOverride("font_pressed_color", ColorCyanGlow);
+
+		btn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		btn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		btn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+
+		btn.Pressed += () =>
+		{
+			UIManager.Instance.PlayClickSound();
+			onClick?.Invoke();
+		};
+		btn.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}
 }
