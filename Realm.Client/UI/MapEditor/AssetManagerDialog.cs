@@ -1895,6 +1895,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			{
 				string wsPath = GetWorkspacePath();
 				MapAssetHelper.PruneNonExistentAssetsFromManifest(wsPath);
+				MapAssetHelper.PruneUnusedAssetsFromManifest(wsPath);
 				RefreshAssetList();
 				Hud?.ShowFeedback(TranslationServer.Translate("Pruned non-existent and unreferenced assets."));
 			},
