@@ -12,6 +12,75 @@ namespace Realm.Client.Network;
 
 public static class MapTransferHelper
 {
+	public static void HandleBeginMapTransfer(ClientTransferSession transferSession, string mapName, string mapVersion, long totalBytes, int totalChunks, System.Action onCompleteCallback)
+	{
+		transferSession.LastActivityTimeUtc = System.DateTime.UtcNow;
+		transferSession.ExpectedTotalBytes = totalBytes;
+		transferSession.ExpectedTotalChunks = totalChunks;
+		transferSession.CurrentChunkIndex = 0;
+		transferSession.ReceivedPacketsInCurrentChunk = 0;
+		transferSession.CurrentChunkStream.SetLength(0);
+		transferSession.CurrentChunkStream.Position = 0;
+
+		if (totalChunks == 0)
+		{
+			string targetMapDir = MapAssetManager.GetMapDirectory(mapName, mapVersion);
+			MapAssetManager.ExtractManifestFiles(transferSession.Manifest, targetMapDir);
+			string localManifestPath = System.IO.Path.Combine(targetMapDir, "manifest.json");
+			Realm.Client.Services.GameContext.AssetIndexService.RegisterManifest(transferSession.Manifest, localManifestPath);
+
+			onCompleteCallback?.Invoke();
+		}
+	}
+
+	public static void HandleSendMapTransferChunk(
+		ClientTransferSession transferSession,
+		int chunkIndex,
+		int totalChunks,
+		int packetIndex,
+		int totalPacketsInChunk,
+		long totalBytes,
+		byte[] packetData,
+		System.Action<float> onProgressUpdated,
+		System.Action onChunkEnded)
+	{
+		transferSession.LastActivityTimeUtc = System.DateTime.UtcNow;
+		transferSession.ExpectedTotalChunks = totalChunks;
+		transferSession.ExpectedTotalBytes = totalBytes;
+		transferSession.CurrentChunkIndex = chunkIndex;
+
+		transferSession.CurrentChunkStream.Write(packetData, 0, packetData.Length);
+		transferSession.ReceivedPacketsInCurrentChunk++;
+		transferSession.TotalReceivedBytes += packetData.Length;
+
+		float chunkFraction = totalPacketsInChunk > 0 ? (float)(packetIndex + 1) / totalPacketsInChunk : 1.0f;
+		float sessionFraction = totalChunks > 0
+			? System.Math.Clamp(((float)chunkIndex + chunkFraction) / totalChunks, 0.0f, 1.0f)
+			: 1.0f;
+
+		float overallProgress = sessionFraction;
+		if (transferSession.TotalAssetsInManifest > 0)
+		{
+			float downloadedAssetsInSession = sessionFraction * transferSession.SessionMissingAssets;
+			overallProgress = System.Math.Clamp((transferSession.AlreadyPresentAssets + downloadedAssetsInSession) / transferSession.TotalAssetsInManifest, 0.0f, 1.0f);
+		}
+
+		bool isChunkEnd = packetIndex + 1 >= totalPacketsInChunk;
+		long nowTicks = System.Environment.TickCount64;
+
+		if (isChunkEnd || overallProgress >= 1.0f || System.Math.Abs(overallProgress - transferSession.LastEmittedProgress) >= 0.005f || (nowTicks - transferSession.LastProgressEmitTicks) >= 100)
+		{
+			transferSession.LastEmittedProgress = overallProgress;
+			transferSession.LastProgressEmitTicks = nowTicks;
+			onProgressUpdated?.Invoke(overallProgress);
+		}
+
+		if (isChunkEnd)
+		{
+			onChunkEnded?.Invoke();
+		}
+	}
+
 	public static Dictionary<string, string> BuildLocalFileMap(string mapName, string mapVersion, MapManifest? manifest)
 	{
 		var localFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

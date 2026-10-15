@@ -788,6 +788,167 @@ public static class UIStyle
 		label.VerticalAlignment = VerticalAlignment.Center;
 	}
 
+	public static Panel ShowVersionMismatchPopup(
+		Node parent,
+		string promptText,
+		string detailText,
+		System.Action onCancel,
+		System.Action onConfirm,
+		string confirmButtonText)
+	{
+		var warningPopup = new Panel();
+		warningPopup.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		warningPopup.AddThemeStyleboxOverride("panel", CreateBgGradient());
+		parent.AddChild(warningPopup);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(500, 260);
+		cardPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", CreateStonePanel(true));
+		warningPopup.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(450, 220);
+		vbox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
+
+		var titleLabel = new Label();
+		ApplyTitle(titleLabel, TranslationServer.Translate("VERSION MISMATCH"), 20);
+		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
+		vbox.AddChild(titleLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
+
+		var descLabel = new Label();
+		descLabel.Text = $"{detailText}\n\n{promptText}";
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AddThemeFontSizeOverride("font_size", 14);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+		vbox.AddChild(descLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+		var hBox = new HBoxContainer();
+		hBox.Alignment = BoxContainer.AlignmentMode.Center;
+		hBox.AddThemeConstantOverride("separation", 20);
+		vbox.AddChild(hBox);
+
+		var cancelBtn = new Button();
+		cancelBtn.Flat = false;
+		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
+		cancelBtn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		cancelBtn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		cancelBtn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		ApplyButtonText(cancelBtn, TranslationServer.Translate("CANCEL"), 14);
+		cancelBtn.CustomMinimumSize = new Vector2(160, 40);
+		cancelBtn.Pressed += () =>
+		{
+			if (GodotObject.IsInstanceValid(warningPopup))
+			{
+				warningPopup.QueueFree();
+			}
+			onCancel?.Invoke();
+		};
+		hBox.AddChild(cancelBtn);
+
+		var okBtn = new Button();
+		okBtn.Flat = false;
+		okBtn.AddThemeConstantOverride("icon_max_width", 0);
+		okBtn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		okBtn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		okBtn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		ApplyButtonText(okBtn, TranslationServer.Translate(confirmButtonText), 14);
+		okBtn.CustomMinimumSize = new Vector2(160, 40);
+		okBtn.Pressed += () =>
+		{
+			if (GodotObject.IsInstanceValid(warningPopup))
+			{
+				warningPopup.QueueFree();
+			}
+			onConfirm?.Invoke();
+		};
+		hBox.AddChild(okBtn);
+
+		return warningPopup;
+	}
+
+	public static (Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) CreateExportUI(Node parent, string destinationPath)
+	{
+		var popup = new Panel();
+		popup.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		popup.AddThemeStyleboxOverride("panel", CreateBgGradient());
+		popup.ZIndex = 1100;
+		parent.AddChild(popup);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(560, 260);
+		cardPanel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", CreateStonePanel(true));
+		popup.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		vbox.CustomMinimumSize = new Vector2(520, 220);
+		vbox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vbox.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		vbox.AddThemeConstantOverride("separation", 10);
+		cardPanel.AddChild(vbox);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
+
+		var titleLabel = new Label();
+		ApplyTitle(titleLabel, "📦 " + TranslationServer.Translate("EXPORTING MAP PACKAGE (.RMAP)"), 20);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(titleLabel);
+
+		var descLabel = new Label();
+		descLabel.Text = string.Format(TranslationServer.Translate("Destination: {0}"), System.IO.Path.GetFileName(destinationPath));
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AddThemeFontSizeOverride("font_size", 13);
+		descLabel.AddThemeColorOverride("font_color", ColorGold);
+		vbox.AddChild(descLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
+
+		var progressBar = new ProgressBar();
+		progressBar.CustomMinimumSize = new Vector2(480, 24);
+		progressBar.MinValue = 0;
+		progressBar.MaxValue = 100;
+		progressBar.Value = 0;
+		vbox.AddChild(progressBar);
+
+		var statusLabel = new Label();
+		statusLabel.Text = TranslationServer.Translate("Preparing export...");
+		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		statusLabel.AddThemeFontSizeOverride("font_size", 13);
+		statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+		vbox.AddChild(statusLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
+
+		var buttonRow = new HBoxContainer();
+		buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
+		vbox.AddChild(buttonRow);
+
+		var closeBtn = CreateCloseButton(() =>
+		{
+			if (GodotObject.IsInstanceValid(popup))
+			{
+				popup.QueueFree();
+			}
+		});
+		closeBtn.Visible = false;
+		buttonRow.AddChild(closeBtn);
+
+		return (popup, progressBar, statusLabel, closeBtn);
+	}
+
 	public static void ApplyButtonText(Button button, string text, int fontSize = 18)
 	{
 		button.Text = TranslationServer.Translate(text);

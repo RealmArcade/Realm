@@ -129,36 +129,22 @@ public class ReplayService
 
 		bool isEnemy = ownerPlayerEntity != mapping.PlayerEntity;
 
-		var entity = GameContext.World.Create();
-		GameContext.World.Add(entity, new DefinitionId(snap.UnitId));
-		GameContext.World.Add(entity, new Name(meta.Name));
-		GameContext.World.Add(entity, new Position(snap.Position.ToNumerics()));
-		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
-		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
-		if (meta.Damage > 0 || snap.UnitId == "priest")
-		{
-			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
-		}
-
-		GameContext.World.Add(entity, new Armor(meta.Armor));
-		if (meta.Speed > 0)
-		{
-			GameContext.World.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
-			GameContext.World.Add(entity, new Movable());
-			GameContext.World.Add(entity, new Inventory());
-		}
-		else
-		{
-			GameContext.World.Add(entity, new Building());
-		}
-
-		var target = new InterpolationTarget
-		{
-			Position = snap.Position.ToNumerics(),
-			Velocity = snap.Velocity.ToNumerics(),
-			RotationY = snap.RotationY
-		};
-		GameContext.World.Add(entity, target);
+		var entity = GameContext.UnitSpawnService.CreateEntityFromSnapshot(
+			snap.Position.ToNumerics(),
+			snap.Velocity.ToNumerics(),
+			snap.RotationY,
+			snap.UnitId,
+			meta.Name,
+			snap.MaxHp,
+			snap.CurrentHp,
+			meta.Damage,
+			meta.Range,
+			meta.AttackCooldown,
+			meta.Armor,
+			meta.Speed,
+			ownerPlayerEntity.AsPlayerEntity(GameContext.World),
+			isEnemy
+		);
 
 		mapping.ServerToClientEntityMap[snap.EntityId] = entity;
 		mapping.ClientToServerEntityMap[entity.Id] = snap.EntityId;

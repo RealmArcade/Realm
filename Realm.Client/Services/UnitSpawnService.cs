@@ -192,6 +192,60 @@ public class UnitSpawnService
 
 
 
+	public Entity CreateEntityFromSnapshot(
+		System.Numerics.Vector3 pos,
+		System.Numerics.Vector3 vel,
+		float rotationY,
+		string unitId,
+		string name,
+		float maxHp,
+		float currentHp,
+		float damage,
+		float range,
+		float attackCooldown,
+		float armor,
+		float speed,
+		PlayerEntity owner,
+		bool isEnemy)
+	{
+		var entity = GameContext.World.Create();
+		GameContext.World.Add(entity, new DefinitionId(unitId));
+		GameContext.World.Add(entity, new Name(name));
+		GameContext.World.Add(entity, new Position(pos));
+		GameContext.World.Add(entity, new Owner(owner));
+		GameContext.World.Add(entity, new Health(currentHp, maxHp));
+
+		if (damage > 0 || unitId == "priest")
+		{
+			GameContext.World.Add(entity, new Attack(damage, range, attackCooldown));
+		}
+
+		GameContext.World.Add(entity, new Armor(armor));
+
+		if (speed > 0)
+		{
+			GameContext.World.Add(entity, new MovementStats(speed, 20f, 10f));
+			GameContext.World.Add(entity, new Movable());
+			GameContext.World.Add(entity, new Inventory());
+		}
+		else
+		{
+			GameContext.World.Add(entity, new Building());
+		}
+
+		var target = new InterpolationTarget
+		{
+			Position = pos,
+			Velocity = vel,
+			RotationY = rotationY
+		};
+		GameContext.World.Add(entity, target);
+
+		GameContext.World.Add(entity, new UnitFaction(isEnemy));
+
+		return entity;
+	}
+
 	public Entity CreateEcsUnitEntity(
 		string id, string name, float hp, float damage, float range, float armor, float speed, float scanRadius, bool isHero, float attackCooldown, int pathingFlags, Vector3 pos, PlayerEntity owner, Entity playerEntity, bool hasShieldsUpgrade, bool hasWeaponsUpgrade, string[]? targets = null,
 		float hpRegen = 0f, float hpRegenCombatDelay = 0f, float maxMana = 0f, float manaRegen = 0f,

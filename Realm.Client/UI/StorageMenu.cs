@@ -775,7 +775,7 @@ public partial class StorageMenu : Control
 
 		SetExportButtonState(exportBtn, true, "Exporting...");
 
-		(Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) = ShowExportProgressUI(destinationPath);
+		(Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) = UIStyle.CreateExportUI(this, destinationPath);
 
 		MapWorkspaceService.EnsureLicenseFile(version.DirectoryPath);
 
@@ -812,77 +812,6 @@ public partial class StorageMenu : Control
 
 		exportBtn.Disabled = disabled;
 		UIStyle.ApplyButtonText(exportBtn, TranslationServer.Translate(text), 12);
-	}
-
-	private (Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) ShowExportProgressUI(string destinationPath)
-	{
-		var popup = new Panel();
-		popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		popup.ZIndex = 1100;
-		AddChild(popup);
-
-		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(560, 260);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		popup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(520, 220);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		vbox.AddThemeConstantOverride("separation", 10);
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, "📦 " + TranslationServer.Translate("EXPORTING MAP PACKAGE (.RMAP)"), 20);
-		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		vbox.AddChild(titleLabel);
-
-		var descLabel = new Label();
-		descLabel.Text = string.Format(TranslationServer.Translate("Destination: {0}"), Path.GetFileName(destinationPath));
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 13);
-		descLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
-
-		var progressBar = new ProgressBar();
-		progressBar.CustomMinimumSize = new Vector2(480, 24);
-		progressBar.MinValue = 0;
-		progressBar.MaxValue = 100;
-		progressBar.Value = 0;
-		vbox.AddChild(progressBar);
-
-		var statusLabel = new Label();
-		statusLabel.Text = TranslationServer.Translate("Preparing export...");
-		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		statusLabel.AddThemeFontSizeOverride("font_size", 13);
-		statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(statusLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
-
-		var buttonRow = new HBoxContainer();
-		buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
-		vbox.AddChild(buttonRow);
-
-		var closeBtn = UIStyle.CreateCloseButton(() =>
-		{
-			if (GodotObject.IsInstanceValid(popup))
-			{
-				popup.QueueFree();
-			}
-		});
-		closeBtn.Visible = false;
-		buttonRow.AddChild(closeBtn);
-
-		return (popup, progressBar, statusLabel, closeBtn);
 	}
 
 	private void UpdateExportProgress(float pct, string file, ref long lastProgressUpdateTicks, Panel popup, ProgressBar progressBar, Label statusLabel)
