@@ -19,8 +19,10 @@ interface game-api {
     destroy-static-text: func(handle: s32);
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
     disable-shroud: func();
+    enable-unit-auto-combat: func(unit-id: s32, enabled: bool);
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
+    get-ability-name: func(ability-id: string) -> string;
     get-all-units: func() -> list<s32>;
     get-castle: func(is-enemy: bool) -> s32;
     get-coordinate-max-x: func(coordinate-name: string) -> f32;
@@ -53,7 +55,10 @@ interface game-api {
     get-selected-units: func() -> list<s32>;
     get-stone: func() -> f32;
     get-unit-by-id: func(unique-id: s32) -> s32;
+    get-unit-name: func(unit-type-id: string) -> string;
     get-unit-route-state: func(unit-id: s32) -> s32;
+    get-unit-type-abilities-count: func(unit-type-id: string) -> s32;
+    get-unit-type-abilities-get: func(unit-type-id: string, index: s32) -> string;
     get-units-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
     get-units-owned-by-player: func(player-index: s32) -> list<s32>;
     get-weather: func() -> string;
