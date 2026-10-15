@@ -838,12 +838,23 @@ public class NetworkService
 		}
 	}
 
+	private bool TryResolveTargetEntityAndPosition(NetworkCommand cmd, List<Unit3D> units, out Entity targetEntity, out System.Numerics.Vector3 targetPos)
+	{
+		targetEntity = FindServerEntity(cmd.TargetEntityId, units);
+		if (targetEntity == Entity.Null)
+		{
+			targetPos = System.Numerics.Vector3.Zero;
+			return false;
+		}
+
+		targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
+		return true;
+	}
+
 	private void HandleAttackCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
 	{
-		var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
-		if (targetEntity == Entity.Null) return;
+		if (!TryResolveTargetEntityAndPosition(cmd, allUnits, out var targetEntity, out var targetPos)) return;
 
-		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);
@@ -863,10 +874,8 @@ public class NetworkService
 
 	private void HandleFollowCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
 	{
-		var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
-		if (targetEntity == Entity.Null) return;
+		if (!TryResolveTargetEntityAndPosition(cmd, allUnits, out var targetEntity, out var targetPos)) return;
 
-		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);

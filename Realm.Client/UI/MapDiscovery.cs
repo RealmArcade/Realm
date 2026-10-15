@@ -521,7 +521,7 @@ public partial class MapDiscovery : Control
 		thumbnail.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		thumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		thumbnail.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		var loadedTex = LoadTextureSafe(map.ThumbnailPath);
+		var loadedTex = UIStyle.LoadTextureSafe(map.ThumbnailPath);
 		thumbnail.Texture = loadedTex ?? UIStyle.EmptyBlackTexture;
 		imgContainer.AddChild(thumbnail);
 
@@ -610,41 +610,6 @@ public partial class MapDiscovery : Control
 		footer.AddChild(btnDetails);
 
 		return card;
-	}
-
-	private static Texture2D LoadTextureSafe(string resPath)
-	{
-		if (string.IsNullOrEmpty(resPath)) return null;
-
-		try
-		{
-			if (ResourceLoader.Exists(resPath))
-			{
-				var tex = GD.Load<Texture2D>(resPath);
-				if (tex != null) return tex;
-			}
-		}
-		catch
-		{
-		}
-
-		try
-		{
-			string globalPath = ProjectSettings.GlobalizePath(resPath);
-			if (File.Exists(globalPath))
-			{
-				var image = Image.LoadFromFile(globalPath);
-				if (image != null)
-				{
-					return ImageTexture.CreateFromImage(image);
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return null;
 	}
 
 	private static Version ParseVersion(string versionStr)

@@ -495,7 +495,7 @@ public partial class MapDetails : Control
 
 	private void ApplyMapFrame()
 	{
-		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+		Texture2D mapFrameTex = UIStyle.LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? UIStyle.LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
 
 		if (mapFrameTex == null)
 		{
@@ -547,14 +547,14 @@ public partial class MapDetails : Control
 
 	private void ApplyCarouselButtons()
 	{
-		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.png") ?? LoadTextureSafe("res://Assets/UI/map_details_prev_next.jpg");
+		Texture2D arrowTex = UIStyle.LoadTextureSafe("res://Assets/UI/map_details_prev_next.png") ?? UIStyle.LoadTextureSafe("res://Assets/UI/map_details_prev_next.jpg");
 
 		if (arrowTex != null)
 		{
 			ApplyImageCarouselButton(_btnLeftArrow, arrowTex, true);
 			ApplyImageCarouselButton(_btnRightArrow, arrowTex, false);
 
-			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+			Texture2D mapFrameTex = UIStyle.LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? UIStyle.LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
 			if (mapFrameTex != null)
 			{
 				_btnLeftArrow.Position = new Vector2(132, 155);
@@ -762,7 +762,7 @@ public partial class MapDetails : Control
 
 	private void UpdateCenterTexture()
 	{
-		Texture2D centerTex = LoadTextureSafe(_mapData.Screenshots[_carouselIndex]);
+		Texture2D centerTex = UIStyle.LoadTextureSafe(_mapData.Screenshots[_carouselIndex]);
 		if (centerTex != null)
 		{
 			_texCenter.Texture = centerTex;
@@ -771,7 +771,7 @@ public partial class MapDetails : Control
 
 	private bool CheckForMapFrame()
 	{
-		return LoadTextureSafe("res://Assets/UI/map_details_map.png") != null || LoadTextureSafe("res://Assets/UI/map_details_map.jpg") != null;
+		return UIStyle.LoadTextureSafe("res://Assets/UI/map_details_map.png") != null || UIStyle.LoadTextureSafe("res://Assets/UI/map_details_map.jpg") != null;
 	}
 
 	private void UpdatePeekVisibilities(bool isVisible)
@@ -786,43 +786,8 @@ public partial class MapDetails : Control
 		int leftIndex = (_carouselIndex - 1 + len) % len;
 		int rightIndex = (_carouselIndex + 1) % len;
 
-		if (_texLeftPeek != null) _texLeftPeek.Texture = LoadTextureSafe(_mapData.Screenshots[leftIndex]);
-		if (_texRightPeek != null) _texRightPeek.Texture = LoadTextureSafe(_mapData.Screenshots[rightIndex]);
-	}
-
-	private Texture2D LoadTextureSafe(string resPath)
-	{
-		if (string.IsNullOrEmpty(resPath)) return null;
-
-		try
-		{
-			if (ResourceLoader.Exists(resPath))
-			{
-				var tex = GD.Load<Texture2D>(resPath);
-				if (tex != null) return tex;
-			}
-		}
-		catch
-		{
-		}
-
-		try
-		{
-			string globalPath = ProjectSettings.GlobalizePath(resPath);
-			if (File.Exists(globalPath))
-			{
-				var image = Image.LoadFromFile(globalPath);
-				if (image != null)
-				{
-					return ImageTexture.CreateFromImage(image);
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return null;
+		if (_texLeftPeek != null) _texLeftPeek.Texture = UIStyle.LoadTextureSafe(_mapData.Screenshots[leftIndex]);
+		if (_texRightPeek != null) _texRightPeek.Texture = UIStyle.LoadTextureSafe(_mapData.Screenshots[rightIndex]);
 	}
 
 	private void PopulateFeatures()
@@ -874,7 +839,7 @@ public partial class MapDetails : Control
 		iconRect.CustomMinimumSize = new Vector2(22, 22);
 		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		iconRect.Texture = LoadTextureSafe(isActive ? "res://Assets/UI/checked_box.jpg" : "res://Assets/UI/unchecked_box.jpg");
+		iconRect.Texture = UIStyle.LoadTextureSafe(isActive ? "res://Assets/UI/checked_box.jpg" : "res://Assets/UI/unchecked_box.jpg");
 		hBox.AddChild(iconRect);
 
 		var label = new Label();
@@ -954,7 +919,7 @@ public partial class MapDetails : Control
 			rect.CustomMinimumSize = new Vector2(36, 36);
 			rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			rect.Texture = LoadTextureSafe(awardPath) ?? LoadTextureSafe("res://Assets/UI/gold_coin.png");
+			rect.Texture = UIStyle.LoadTextureSafe(awardPath) ?? UIStyle.LoadTextureSafe("res://Assets/UI/gold_coin.png");
 
 			badgePanel.AddChild(rect);
 			AttachHoverAnimation(badgePanel, 1.10f, UIStyle.ColorGold, UIStyle.ColorGoldDull);

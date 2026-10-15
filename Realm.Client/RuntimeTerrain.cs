@@ -1034,9 +1034,9 @@ public partial class RuntimeTerrain : StaticBody3D
 	}
 
 	private void AddWaterWallX(
-		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
+		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] terrainCells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
-		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x + 1, z, cells, w, d);
+		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x + 1, z, terrainCells, w, d);
 		if (activeWaterMode2 == WaterType.None || MathF.Abs(waterY1 - waterY2) <= 0.01f) return;
 
 		float yMin = MathF.Min(waterY1, waterY2);

@@ -352,14 +352,7 @@ public partial class LobbyCreate : Control
 		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
 		cardPanel.AddChild(vbox);
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, Tr("MAP BUILD MISMATCH"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+		UIStyle.AddMapBuildMismatchHeader(vbox);
 
 		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(mapBuildNumber));
 

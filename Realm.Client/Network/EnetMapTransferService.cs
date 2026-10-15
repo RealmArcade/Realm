@@ -238,7 +238,7 @@ public partial class EnetMapTransferService : Node
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void ReceiveMapManifestRpc(string mapName, string mapVersion, string manifestJson)
 	{
-		_manifestTcs?.TrySetResult(manifestJson);
+		MapTransferHelper.HandleReceiveMapManifestRpc(manifestJson, _manifestTcs);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

@@ -11,6 +11,24 @@ namespace Realm.Client.Utils;
 
 public static class MapAssetHelper
 {
+	public static string GetCompiledWasmBinaryPath(string workspacePath)
+	{
+		string binDir = Path.Combine(workspacePath, "bin");
+		string wasmPath = null;
+		if (Directory.Exists(binDir))
+		{
+			var wasmFiles = Directory.GetFiles(
+				binDir,
+				"*.wasm",
+				SearchOption.AllDirectories
+			).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
+
+			wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
+					   ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
+		}
+		return wasmPath;
+	}
+
 	private static readonly Dictionary<string, string> CategoryNormalizationMap = new(StringComparer.OrdinalIgnoreCase)
 	{
 		{ "character", "Character" }, { "characters", "Character" }, { "unit", "Character" }, { "units", "Character" },

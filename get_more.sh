@@ -1,0 +1,5 @@
+cat Realm.Client/UI/MapEditor/TemplateManagerDialog.cs | grep -n -A 30 -B 5 "private void RemoveTerrainTexture"
+cat Realm.Client/Services/EditorService.cs | grep -n -A 25 "private void ProcessDecalBombingRules"
+cat Realm.Client/Services/NetworkService.cs | grep -n -A 30 "private void HandleAttackCommand"
+cat Realm.Client/UI/LobbyCreate.cs | grep -n -A 30 "MAP BUILD MISMATCH"
+cat Realm.Client/UI/MapEditorHUD.Tools.cs | grep -n -A 30 "MAP BUILD MISMATCH"

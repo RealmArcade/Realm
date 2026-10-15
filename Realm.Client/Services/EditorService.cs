@@ -4762,6 +4762,16 @@ public partial class EditorService : IEditorAPI
 		_terrainProceduralObjects.Remove(key);
 	}
 
+	private void GenerateBombingTransform(float quadSize, float cellCenterX, float waterY, float cellCenterZ, float minScale, float maxScale, out Godot.Vector3 pos, out Godot.Vector3 rot, out float scale)
+	{
+		float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
+		float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
+		scale = Mathf.Lerp(minScale, maxScale, Random.Shared.NextSingle());
+		float rotY = Random.Shared.NextSingle() * 360f;
+		pos = new Godot.Vector3(cellCenterX + jx, waterY, cellCenterZ + jz);
+		rot = new Godot.Vector3(0, rotY, 0);
+	}
+
 	private void ProcessDecalBombingRules(List<ProceduralBombingDecalRule> rules, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
 	{
 		if (rules == null || rules.Count == 0) return;
@@ -4769,12 +4779,8 @@ public partial class EditorService : IEditorAPI
 		{
 			if (string.IsNullOrWhiteSpace(rule.DecalId)) continue;
 			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
-			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-			float rotY = Random.Shared.NextSingle() * 360f;
-			var pos = new Godot.Vector3(cellCenterX + jx, waterY, cellCenterZ + jz);
-			var decal = GameHost.Instance?.SpawnDecalExternalWithParams(rule.DecalId, pos, new Godot.Vector3(0, rotY, 0), scale);
+			GenerateBombingTransform(quadSize, cellCenterX, waterY, cellCenterZ, rule.MinScale, rule.MaxScale, out var pos, out var rot, out float scale);
+			var decal = GameHost.Instance?.SpawnDecalExternalWithParams(rule.DecalId, pos, rot, scale);
 			if (decal != null) spawnedList.Add(decal);
 		}
 	}
@@ -4786,12 +4792,8 @@ public partial class EditorService : IEditorAPI
 		{
 			if (string.IsNullOrWhiteSpace(rule.VfxId)) continue;
 			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
-			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-			float rotY = Random.Shared.NextSingle() * 360f;
-			var pos = new Godot.Vector3(cellCenterX + jx, waterY, cellCenterZ + jz);
-			var vfx = GameHost.Instance?.SpawnVfxExternalWithParams(rule.VfxId, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
+			GenerateBombingTransform(quadSize, cellCenterX, waterY, cellCenterZ, rule.MinScale, rule.MaxScale, out var pos, out var rot, out float scale);
+			var vfx = GameHost.Instance?.SpawnVfxExternalWithParams(rule.VfxId, pos, rot, new Godot.Vector3(scale, scale, scale));
 			if (vfx != null) spawnedList.Add(vfx);
 		}
 	}

@@ -389,7 +389,7 @@ public partial class ReplayListPanel : Control
 
 	private void OnDeleteReplayPressed(string path)
 	{
-		ShowConfirmationDialog("Are you sure you want to delete this replay?", () =>
+		UIManager.Instance?.ShowConfirmationDialog("Are you sure you want to delete this replay?", () =>
 		{
 			try
 			{
@@ -409,7 +409,7 @@ public partial class ReplayListPanel : Control
 
 	private void OnDeleteAllPressed()
 	{
-		ShowConfirmationDialog("Are you sure you want to delete all replays?", () =>
+		UIManager.Instance?.ShowConfirmationDialog("Are you sure you want to delete all replays?", () =>
 		{
 			string replayDir = ProjectSettings.GlobalizePath("user://replays");
 			if (Directory.Exists(replayDir))
@@ -433,79 +433,5 @@ public partial class ReplayListPanel : Control
 
 			PopulateReplaysList();
 		});
-	}
-
-	private void ShowConfirmationDialog(string message, Action onConfirm)
-	{
-		var overlay = new ColorRect();
-		overlay.Name = "ConfirmationOverlay";
-		overlay.Color = new Color(0, 0, 0, 0.6f);
-		overlay.SetAnchorsPreset(LayoutPreset.FullRect);
-		AddChild(overlay);
-
-		var panel = new PanelContainer();
-		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		panel.CustomMinimumSize = new Vector2(400, 200);
-		panel.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		panel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-
-		var center = new CenterContainer();
-		center.SetAnchorsPreset(LayoutPreset.FullRect);
-		overlay.AddChild(center);
-		center.AddChild(panel);
-
-		var vbox = new VBoxContainer();
-		vbox.AddThemeConstantOverride("separation", 20);
-		panel.AddChild(vbox);
-
-		var lblTitle = new Label();
-		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate("CONFIRMATION REQUIRED"), 18);
-		lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		lblTitle.HorizontalAlignment = HorizontalAlignment.Center;
-		vbox.AddChild(lblTitle);
-
-		var lblMsg = new Label();
-		lblMsg.Text = TranslationServer.Translate(message);
-		lblMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		lblMsg.HorizontalAlignment = HorizontalAlignment.Center;
-		lblMsg.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		lblMsg.AddThemeFontSizeOverride("font_size", 14);
-		vbox.AddChild(lblMsg);
-
-		var hbox = new HBoxContainer();
-		hbox.AddThemeConstantOverride("separation", 30);
-		hbox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		vbox.AddChild(hbox);
-
-		var btnConfirm = new Button();
-		btnConfirm.CustomMinimumSize = new Vector2(100, 40);
-		btnConfirm.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(btnConfirm, "YES", 13);
-		btnConfirm.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnConfirm.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnConfirm.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnConfirm.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			overlay.QueueFree();
-			onConfirm?.Invoke();
-		};
-		btnConfirm.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		hbox.AddChild(btnConfirm);
-
-		var btnCancel = new Button();
-		btnCancel.CustomMinimumSize = new Vector2(100, 40);
-		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(btnCancel, "NO", 13);
-		btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnCancel.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnCancel.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			overlay.QueueFree();
-		};
-		btnCancel.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		hbox.AddChild(btnCancel);
 	}
 }

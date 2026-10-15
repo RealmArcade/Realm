@@ -5,6 +5,41 @@ namespace Realm.Client.UI;
 
 public static class UIStyle
 {
+	public static Texture2D LoadTextureSafe(string resPath)
+	{
+		if (string.IsNullOrEmpty(resPath)) return null;
+
+		try
+		{
+			if (ResourceLoader.Exists(resPath))
+			{
+				var tex = GD.Load<Texture2D>(resPath);
+				if (tex != null) return tex;
+			}
+		}
+		catch
+		{
+		}
+
+		try
+		{
+			string globalPath = ProjectSettings.GlobalizePath(resPath);
+			if (System.IO.File.Exists(globalPath))
+			{
+				var image = Image.LoadFromFile(globalPath);
+				if (image != null)
+				{
+					return ImageTexture.CreateFromImage(image);
+				}
+			}
+		}
+		catch
+		{
+		}
+
+		return null;
+	}
+
 	public static readonly Color ColorBgDark = new Color(0.08f, 0.08f, 0.1f, 1.0f); // Deep charcoal/midnight
 	public static readonly Color ColorPanelBg = new Color(0.13f, 0.14f, 0.17f, 0.95f); // Granite slate
 	public static readonly Color ColorPanelLight = new Color(0.18f, 0.19f, 0.23f, 0.95f); // Lighter granite
@@ -15,6 +50,18 @@ public static class UIStyle
 
 	public static readonly Color ColorCyanGlow = new Color(0.15f, 0.65f, 1.0f, 1.0f); // Runic cyan glow
 	public static readonly Color ColorCyanGlowDim = new Color(0.15f, 0.65f, 1.0f, 0.4f);
+
+	public static void AddMapBuildMismatchHeader(Container vbox)
+	{
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+		var titleLabel = new Label();
+		ApplyTitle(titleLabel, TranslationServer.Translate("MAP BUILD MISMATCH"), 20);
+		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
+		vbox.AddChild(titleLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+	}
 
 	public static readonly Font FontNorseBold = GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
 	public static readonly Font FontCinzelBold = GD.Load<Font>("res://Assets/UI/Cinzel-Bold.ttf");

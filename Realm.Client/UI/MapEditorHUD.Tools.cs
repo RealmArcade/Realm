@@ -2139,14 +2139,7 @@ namespace Realm.Client.UI
 			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
 			cardPanel.AddChild(vbox);
 
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-			var titleLabel = new Label();
-			UIStyle.ApplyTitle(titleLabel, Tr("MAP BUILD MISMATCH"), 20);
-			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
-			vbox.AddChild(titleLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+			UIStyle.AddMapBuildMismatchHeader(vbox);
 
 			var descLabel = new Label();
 			descLabel.Text = $"{string.Format(Tr("Map: {0}"), Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), currentVersion, targetVersion)}\n\n{Tr("This map format needs to be upgraded before it can be opened. Would you like to upgrade now?")}";
@@ -2541,19 +2534,7 @@ namespace Realm.Client.UI
 				var csprojFiles = Directory.GetFiles(workspace, "*.csproj", SearchOption.TopDirectoryOnly);
 				if (csprojFiles.Length > 0 || File.Exists(Path.Combine(workspace, "MapScript.cs")))
 				{
-					string binDir = Path.Combine(workspace, "bin");
-					string wasmPath = null;
-					if (Directory.Exists(binDir))
-					{
-						var wasmFiles = Directory.GetFiles(
-							binDir,
-							"*.wasm",
-							SearchOption.AllDirectories
-						).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
-
-						wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
-						           ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
-					}
+					string wasmPath = Realm.Client.Utils.MapAssetHelper.GetCompiledWasmBinaryPath(workspace);
 
 					if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 					{

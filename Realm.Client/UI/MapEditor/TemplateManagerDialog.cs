@@ -1933,16 +1933,19 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		return references;
 	}
 
-	private void RemoveTerrainTexture(MapMetadata meta, ObjectItemInfo item, string delSlug)
+	private bool IsKeyToRemove(string k, ObjectItemInfo item, string delSlug, string prefix)
 	{
-		if (meta.Textures == null) return;
-		var keysToRemove = meta.Textures.Keys.Where(k =>
-			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
+		return string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
 			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
 			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
 			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("terrain", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-		).ToList();
+			string.Equals(TemplateIDHelper.NormalizeTemplateID(prefix, k), item.TemplateID, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private void RemoveTerrainTexture(MapMetadata meta, ObjectItemInfo item, string delSlug)
+	{
+		if (meta.Textures == null) return;
+		var keysToRemove = meta.Textures.Keys.Where(k => IsKeyToRemove(k, item, delSlug, "terrain")).ToList();
 
 		foreach (var k in keysToRemove)
 		{
@@ -1953,13 +1956,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private void RemoveSpritesheet(MapMetadata meta, ObjectItemInfo item, string delSlug)
 	{
 		if (meta.VfxSpritesheets == null) return;
-		var keysToRemove = meta.VfxSpritesheets.Keys.Where(k =>
-			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
-			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
-			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("spritesheet", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-		).ToList();
+		var keysToRemove = meta.VfxSpritesheets.Keys.Where(k => IsKeyToRemove(k, item, delSlug, "spritesheet")).ToList();
 
 		foreach (var k in keysToRemove)
 		{
@@ -1970,13 +1967,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private void RemoveDecal(MapMetadata meta, ObjectItemInfo item, string delSlug)
 	{
 		if (meta.Decals == null) return;
-		var keysToRemove = meta.Decals.Keys.Where(k =>
-			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
-			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
-			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("decal", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-		).ToList();
+		var keysToRemove = meta.Decals.Keys.Where(k => IsKeyToRemove(k, item, delSlug, "decal")).ToList();
 
 		foreach (var k in keysToRemove)
 		{
